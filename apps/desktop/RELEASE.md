@@ -7,10 +7,9 @@ scripts/release.sh 1.19.0   # explicit version
 
 That is the whole flow. It bumps `apps/desktop/package.json` and
 `packages/host-service/package.json` (they share a version) through a PR onto
-`main`, republishes the public mirror with `scripts/publish-public-snapshot.sh`,
-dispatches the `Release` workflow on `danlinenberg/odin`, waits for the build,
-then upgrades the Homebrew cask and clears the quarantine flag. About ten
-minutes, most of it CI.
+`main`, dispatches the `Release` workflow, waits for the build, then upgrades
+the Homebrew cask and clears the quarantine flag. About ten minutes, most of it
+CI.
 
 It runs off `origin/main` in a throwaway worktree, so it does not matter what is
 checked out or dirty where you run it.
