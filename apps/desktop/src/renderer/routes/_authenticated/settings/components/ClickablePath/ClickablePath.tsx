@@ -1,0 +1,99 @@
+import type { ExternalApp } from "@odin/local-db";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuTrigger,
+} from "@odin/ui/dropdown-menu";
+import { toast } from "@odin/ui/sonner";
+import { cn } from "@odin/ui/utils";
+import { useState } from "react";
+import { LuExternalLink } from "react-icons/lu";
+import { OpenInExternalDropdownItems } from "renderer/components/OpenInExternalDropdown";
+import { electronTrpc } from "renderer/lib/electron-trpc";
+import { useThemeStore } from "renderer/stores/theme";
+
+interface ClickablePathProps {
+	path: string;
+	className?: string;
+	truncate?: boolean;
+}
+
+export function ClickablePath({
+	path,
+	className,
+	truncate,
+}: ClickablePathProps) {
+	const activeTheme = useThemeStore((state) => state.activeTheme);
+	const [isOpen, setIsOpen] = useState(false);
+	const utils = electronTrpc.useUtils();
+	// Uses global default editor (no project context on the settings page).
+	// No projectId is passed to openInApp, so per-project defaults are not affected.
+	const { data: defaultApp } =
+		electronTrpc.settings.getDefaultEditor.useQuery();
+
+	const openInApp = electronTrpc.external.openInApp.useMutation({
+		onSuccess: () => {
+			utils.settings.getDefaultEditor.invalidate();
+		},
+		onError: (error) => toast.error(`Failed to open: ${error.message}`),
+	});
+
+	const copyPath = electronTrpc.external.copyPath.useMutation({
+		onSuccess: () => toast.success("Path copied to clipboard"),
+		onError: (error) => toast.error(`Failed to copy path: ${error.message}`),
+	});
+
+	const isDark = activeTheme?.type === "dark";
+
+	const handleOpenIn = (app: ExternalApp) => {
+		openInApp.mutate({ path, app });
+		setIsOpen(false);
+	};
+
+	const handleCopyPath = () => {
+		copyPath.mutate(path);
+		setIsOpen(false);
+	};
+
+	return (
+		<DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
+			<DropdownMenuTrigger asChild>
+				<button
+					type="button"
+					title={truncate ? path : undefined}
+					className={cn(
+						"group inline-flex items-center gap-1.5 text-sm font-mono text-left max-w-full min-w-0",
+						truncate ? "" : "break-all",
+						"hover:underline decoration-current/40 underline-offset-2",
+						"transition-colors cursor-pointer",
+						className,
+					)}
+				>
+					<span className={truncate ? "min-w-0 truncate" : undefined}>
+						{path}
+					</span>
+					<LuExternalLink className="size-3.5 shrink-0 opacity-0 group-hover:opacity-60 transition-opacity" />
+				</button>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent align="start" className="w-48">
+				<OpenInExternalDropdownItems
+					isDark={isDark}
+					activeApp={defaultApp ?? undefined}
+					onOpenIn={handleOpenIn}
+					onCopyPath={handleCopyPath}
+					renderAppTrailing={(appId) =>
+						appId === defaultApp ? (
+							<span className="ml-auto text-xs text-muted-foreground">
+								Default
+							</span>
+						) : null
+					}
+					appItemClassName="flex items-center gap-2"
+					subTriggerClassName="flex items-center gap-2"
+					subContentClassName="w-48"
+					copyPathItemClassName="flex items-center gap-2"
+				/>
+			</DropdownMenuContent>
+		</DropdownMenu>
+	);
+}

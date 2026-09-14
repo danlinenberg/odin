@@ -1,0 +1,1693 @@
+import type { SelectWorkspace } from "@odin/local-db";
+import { BRIEF_DIR } from "@odin/shared/constants";
+import {
+	HoverCard,
+	HoverCardContent,
+	HoverCardTrigger,
+} from "@odin/ui/hover-card";
+import { toast } from "@odin/ui/sonner";
+import { cn } from "@odin/ui/utils";
+import { createFileRoute } from "@tanstack/react-router";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import type { IconType } from "react-icons";
+import { LuGitPullRequest, LuTerminal } from "react-icons/lu";
+import { SiJira, SiNotion, SiSlack } from "react-icons/si";
+import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
+import { electronTrpc } from "renderer/lib/electron-trpc";
+import { emojify } from "renderer/lib/emoji";
+import { coldRestoreState } from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/state";
+import { Terminal } from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/Terminal";
+import * as terminalCache from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/v1-terminal-cache";
+import { useTabsStore } from "renderer/stores/tabs/store";
+import type { Pane, PaneStatus } from "renderer/stores/tabs/types";
+import { boardColumn } from "shared/board-column";
+import {
+	type BoardSection,
+	bySection,
+	SECTION_LABEL,
+} from "shared/board-section";
+import { profileOf } from "shared/odin-profile";
+import { odinScreenStatus, odinScreenWrite } from "shared/odin-screen-status";
+import {
+	OdinPromptDialog,
+	type PromptImage,
+	sessionTitle,
+} from "../components/OdinPromptDialog";
+import { PersonChip } from "../components/PersonChip";
+import { useOdinProfile } from "../hooks/useOdinProfile";
+import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
+import { usePaneMeta } from "../hooks/usePaneMeta";
+import { usePendingFocus } from "../hooks/usePendingFocus";
+import { elapsedLabel, lastMessageAt, pullRequests, sourceLink } from "./brief";
+import { SessionBrief } from "./SessionBrief";
+
+/**
+ * The same marks the feed tabs use, so a section header reads as its source at
+ * a glance. Kept here rather than in shared/board-section — that module is
+ * imported by the main process, which has no business loading React icons.
+ */
+const SECTION_ICON: Record<BoardSection, IconType> = {
+	slack: SiSlack,
+	reactions: SiSlack,
+	jira: SiJira,
+	pr: LuGitPullRequest,
+	notion: SiNotion,
+	// Not from a feed — a session you opened yourself.
+	normal: LuTerminal,
+};
+
+export const Route = createFileRoute("/_authenticated/_odin/board/")({
+	component: DevBoardPage,
+});
+
+/**
+ * Dev Board — kanban over live agent state, styled per the agreed mock.
+ * Columns are the pane statuses the app already tracks; cards jump to the
+ * pane; the input launches a new agent session into the selected workspace.
+ */
+
+// ponytail: "permission" (blocked on a prompt) and "failed" are the same call
+// to action — one column. "review" is not: it finished and wants nothing.
+const COLUMNS: { status: PaneStatus; label: string; dot: string }[] = [
+	{ status: "working", label: "Working", dot: "#3ecf8e" },
+	{ status: "permission", label: "Needs you", dot: "#f5b83d" },
+	// Turn ended clean, no prompt on screen — nothing to do but ✓ done it.
+	{ status: "review", label: "Done", dot: "#5aa9ff" },
+	// Statuses reset to idle on app reload (upstream can't trust them), but the
+	// PTYs live on in the daemon — alive-but-idle sessions land here instead of
+	// vanishing from the board.
+	{ status: "idle", label: "Idle", dot: "#f0647a" },
+];
+
+interface BoardCard {
+	pane: Pane;
+	tabId: string;
+	tabName: string;
+	workspaceId: string;
+	workspaceName: string;
+	status: PaneStatus;
+}
+
+/**
+ * Which checkout this session runs in. `cwd` is only filled in once the pane's
+ * terminal mounts (seeded there, then confirmed by OSC-7) — until someone opens
+ * the session, the repo picked at launch lives only in `initialCwd`.
+ */
+function sessionCwd(pane: Pane): string | undefined {
+	return pane.cwd ?? pane.initialCwd ?? undefined;
+}
+
+/** Same slug rule as useLaunchTaskSession — to locate a task's prompt file. */
+function slugify(title: string): string {
+	return (
+		title
+			.toLowerCase()
+			.replace(/[^a-z0-9]+/g, "-")
+			.replace(/^-+|-+$/g, "")
+			.slice(0, 40) || "task"
+	);
+}
+
+/**
+ * How long a pane's status has to hold still before screen-reading is allowed
+ * to overrule it. Long enough that an active turn (whose hooks fire every few
+ * seconds) is left alone entirely, short enough that a card stranded by a lost
+ * hook is corrected while you're still looking at it.
+ */
+const SETTLED_MS = 20_000;
+
+/** Width of the Odin icon rail in layout.tsx — the drawer stops here. */
+const RAIL_W = 52;
+
+/** Widest the drawer goes: everything except the icon rail. */
+function maxDrawerWidth(): number {
+	const w = typeof window !== "undefined" ? window.innerWidth : 1600;
+	return Math.max(w - RAIL_W, 480);
+}
+
+/** Default session-drawer width: full width up to the sidebar. */
+const defaultDrawerWidth = maxDrawerWidth;
+
+// Built via string escapes — ANSI sequences are control chars by definition
+const ANSI_RE =
+	/\x1b\[[0-9;?<>]*[a-zA-Z]|\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b[()][A-Z0-9]|\x1b[=>]|[\x00-\x08\x0b-\x1f]/g;
+/**
+ * Read-only transcript for a dead pane (killed or previous-run). Reads the
+ * persisted scrollback from disk — which survives daemon death and restarts —
+ * so closed sessions still show their history without respawning anything.
+ */
+function HistoryView({ card, live }: { card: BoardCard; live: boolean }) {
+	// Read the persisted scrollback from disk — always reliable, unlike the
+	// embedded xterm which intermittently renders blank in this drawer. Poll
+	// while the session is live so the transcript stays current.
+	const { data, isLoading } = electronTrpc.terminal.readHistory.useQuery(
+		{ paneId: card.pane.id, workspaceId: card.workspaceId },
+		live ? { refetchInterval: 1500 } : undefined,
+	);
+	const ref = useRef<HTMLDivElement>(null);
+	const text = (data?.scrollback ?? "").replace(ANSI_RE, "");
+	useEffect(() => {
+		if (ref.current) ref.current.scrollTop = ref.current.scrollHeight;
+	}, [text]);
+
+	return (
+		<div className="flex min-h-0 flex-1 flex-col">
+			<div className="border-b border-[#25252e] px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[.4px] text-[#8a8a97]">
+				{live
+					? "Session transcript · live"
+					: "Conversation history · session ended"}
+			</div>
+			<div
+				ref={ref}
+				className="min-h-0 flex-1 select-text cursor-text overflow-y-auto whitespace-pre-wrap break-words bg-[#0a0a0c] px-4 py-3 font-mono text-[11.5px] leading-relaxed text-[#d6d6dc]"
+			>
+				{isLoading
+					? "loading history…"
+					: text.trim()
+						? text
+						: "No saved history for this session."}
+			</div>
+		</div>
+	);
+}
+
+/**
+ * "This one shipped a PR" — the fact you scan the board for, on the card
+ * instead of behind a click. Read from the same transcript the drawer reads, so
+ * react-query shares one fetch per session. Newest PR only; the drawer lists
+ * the rest.
+ */
+function useCardTranscript(card: BoardCard, live: boolean) {
+	const mirrored = usePaneMeta((s) => s.sessionIdByPane[card.pane.id]);
+	// ponytail: no findClaudeSession fallback — that's an extra query per card to
+	// serve only pre-claudeSessionId panes. They get no pill; open the card.
+	const sessionId = card.pane.claudeSessionId ?? mirrored ?? null;
+	return electronTrpc.terminal.readClaudeTranscript.useQuery(
+		{ sessionId: sessionId ?? "" },
+		{
+			enabled: !!sessionId,
+			retry: false,
+			staleTime: 60_000,
+			// The transcript only grows while the agent is working; a parked
+			// session's is frozen.
+			refetchInterval: live ? 60_000 : false,
+		},
+	);
+}
+
+function PrPill({ card, live }: { card: BoardCard; live: boolean }) {
+	const { data } = useCardTranscript(card, live);
+	const openUrl = electronTrpc.external.openUrl.useMutation();
+	const prs = data ? pullRequests(data.messages) : [];
+	const pr = prs[0];
+	if (!pr) return null;
+	return (
+		<button
+			type="button"
+			title={prs.length > 1 ? `${prs.length} PRs — newest: ${pr.url}` : pr.url}
+			onClick={(event) => {
+				// The card itself opens the drawer; the pill opens GitHub.
+				event.stopPropagation();
+				openUrl.mutate(pr.url);
+			}}
+			className="rounded-[5px] bg-[#14301f] px-[7px] text-[11px] font-medium text-[#3ecf8e] hover:bg-[#1a3d28]"
+		>
+			PR #{pr.number}
+			{prs.length > 1 ? ` +${prs.length - 1}` : ""}
+		</button>
+	);
+}
+
+/**
+ * How long this card has been sitting — measured from the last message in the
+ * conversation, which is the thing you actually want to know ("nobody has
+ * touched this in two days"). The board's own "in this status since" clock is
+ * only a fallback: it starts when the board process first saw the pane, so it
+ * reads a few minutes for every card after a reload.
+ */
+function AgePill({
+	card,
+	live,
+	fallback,
+}: {
+	card: BoardCard;
+	live: boolean;
+	fallback: number | undefined;
+}) {
+	const { data } = useCardTranscript(card, live);
+	const label = elapsedLabel(
+		(data ? lastMessageAt(data.messages) : null) ?? fallback,
+	);
+	if (!label) return null;
+	return (
+		<span className="rounded-[5px] bg-[#1f1f27] px-[7px] text-[11px] text-[#a5a5b3]">
+			{label}
+		</span>
+	);
+}
+
+/**
+ * Hover info for a board card: full title, status, and the session's latest
+ * output (one-shot snapshot of live panes).
+ */
+function CardHoverContent({ card }: { card: BoardCard }) {
+	// Hover shows ONE thing: what this task is about. The live terminal output
+	// belongs in the drawer, not a tooltip.
+	//
+	// Prefer what was persisted on the pane at launch (shared by every build);
+	// then the legacy localStorage mirror; then the task's prompt file on disk,
+	// which is all an older session left behind.
+	const legacyBrief = usePaneMeta((s) => s.briefByPane[card.pane.id]);
+	const legacyTitle = usePaneMeta((s) => s.titleByPane[card.pane.id]);
+	const legacyContact = usePaneMeta((s) => s.contactByPane[card.pane.id]);
+	const title = emojify(
+		card.pane.odinTaskTitle ??
+			legacyTitle ??
+			card.pane.userTitle ??
+			card.pane.name ??
+			card.tabName,
+	);
+	const contact = card.pane.odinContact ?? legacyContact ?? null;
+	const known = card.pane.odinBrief ?? legacyBrief ?? null;
+
+	const promptPath = card.pane.cwd
+		? `${card.pane.cwd}/${BRIEF_DIR}/task-${slugify(title)}.md`
+		: null;
+	const { data: promptFile } = electronTrpc.filesystem.readFile.useQuery(
+		{
+			workspaceId: card.workspaceId,
+			absolutePath: promptPath ?? "",
+			encoding: "utf-8",
+		},
+		{ enabled: !known && !!promptPath, retry: false },
+	);
+	const fileBrief =
+		promptFile && "content" in promptFile
+			? String(promptFile.content)
+					.replace(/^Task:\s*/i, "")
+					.replace(/\n+Work in the current workspace\.[\s\S]*$/i, "")
+					.trim()
+			: null;
+	// The launch-time brief is usually just the title — don't repeat it.
+	const summary = known && known.trim() !== title.trim() ? known : fileBrief;
+
+	return (
+		<div className="flex flex-col gap-2">
+			<div className="whitespace-pre-wrap break-words text-[13px] font-semibold text-[#f5f5f7]">
+				{title}
+			</div>
+			{contact && <PersonChip name={contact} />}
+			{summary && (
+				<div className="whitespace-pre-wrap break-words text-[11.5px] leading-relaxed text-[#a5a5b3]">
+					{summary.length > 600 ? `${summary.slice(0, 600)}…` : summary}
+				</div>
+			)}
+		</div>
+	);
+}
+
+/**
+ * Right-click tag menu for a session card: type a new tag, or click existing
+ * ones to toggle. Positioned at the cursor; closes on Escape, click-outside,
+ * or after adding a tag.
+ */
+function TagMenu({
+	x,
+	y,
+	tags,
+	allTags,
+	onToggle,
+	onClose,
+}: {
+	x: number;
+	y: number;
+	tags: string[];
+	allTags: string[];
+	onToggle: (tag: string) => void;
+	onClose: () => void;
+}) {
+	const [draft, setDraft] = useState("");
+	const ref = useRef<HTMLDivElement>(null);
+	const inputRef = useRef<HTMLInputElement>(null);
+	// A context menu should take the caret; done via ref so we don't need the
+	// autoFocus attribute (which the a11y lint rightly flags in general UI).
+	useEffect(() => {
+		inputRef.current?.focus();
+	}, []);
+
+	useEffect(() => {
+		const onKey = (event: KeyboardEvent) => {
+			if (event.key === "Escape") onClose();
+		};
+		const onDown = (event: MouseEvent) => {
+			if (!ref.current?.contains(event.target as Node)) onClose();
+		};
+		window.addEventListener("keydown", onKey);
+		// Defer: the same right-click that opened us would close us immediately.
+		const timer = setTimeout(
+			() => window.addEventListener("mousedown", onDown),
+			0,
+		);
+		return () => {
+			window.removeEventListener("keydown", onKey);
+			window.removeEventListener("mousedown", onDown);
+			clearTimeout(timer);
+		};
+	}, [onClose]);
+
+	// Keep the menu on screen near the edges.
+	const left = Math.min(x, window.innerWidth - 240);
+	const top = Math.min(y, window.innerHeight - 260);
+
+	return (
+		<div
+			ref={ref}
+			style={{ left, top }}
+			className="fixed z-[60] w-[220px] rounded-[10px] border border-[#25252e] bg-[#16161b] p-2 shadow-[0_10px_30px_rgba(0,0,0,.5)]"
+		>
+			<div className="mb-1.5 px-1 text-[10px] font-semibold uppercase tracking-[.4px] text-[#8a8a97]">
+				Tags
+			</div>
+			<form
+				onSubmit={(event) => {
+					event.preventDefault();
+					const tag = draft.trim().replace(/^#/, "");
+					if (!tag) return;
+					if (!tags.includes(tag)) onToggle(tag);
+					setDraft("");
+					onClose();
+				}}
+			>
+				<input
+					ref={inputRef}
+					value={draft}
+					onChange={(event) => setDraft(event.target.value)}
+					placeholder="new tag + Enter"
+					className="mb-1.5 h-7 w-full rounded-md border border-[#25252e] bg-[#0a0a0c] px-2 text-[12px] text-[#f5f5f7] outline-none placeholder:text-[#8a8a97] focus:border-[#a394ff]"
+				/>
+			</form>
+			<div className="flex max-h-[180px] flex-col overflow-y-auto">
+				{allTags.length === 0 && (
+					<div className="px-1 py-1 text-[11px] text-[#8a8a97]">
+						No tags yet — type one above.
+					</div>
+				)}
+				{allTags.map((tag) => {
+					const on = tags.includes(tag);
+					return (
+						<button
+							key={tag}
+							type="button"
+							onClick={() => onToggle(tag)}
+							className={cn(
+								"flex items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] transition-colors",
+								on ? "text-[#a394ff]" : "text-[#a5a5b3] hover:text-[#f5f5f7]",
+							)}
+						>
+							<span className="w-3">{on ? "✓" : ""}</span>#{tag}
+						</button>
+					);
+				})}
+			</div>
+		</div>
+	);
+}
+
+/**
+ * Stamp each card with the tags its brief came back with. The model picks
+ * them while writing the brief that every card already gets, so this costs
+ * no extra model call — it only carries the answer over to the pane.
+ *
+ * Once per card: your tags win afterwards, including the ones you removed.
+ */
+const applyAutoTags = (tagsBySession: Record<string, string[]>) => {
+	const { sessionIdByPane } = usePaneMeta.getState();
+	useTabsStore.setState((state) => {
+		let changed = false;
+		const panes = { ...state.panes };
+		for (const [paneId, pane] of Object.entries(panes)) {
+			if (pane.odinAutoTagged) continue;
+			const sessionId = pane.claudeSessionId ?? sessionIdByPane[paneId];
+			const auto = sessionId ? tagsBySession[sessionId] : undefined;
+			if (!auto?.length) continue;
+			panes[paneId] = {
+				...pane,
+				odinTags: [...new Set([...(pane.odinTags ?? []), ...auto])],
+				odinAutoTagged: true,
+			};
+			changed = true;
+		}
+		return changed ? { panes } : {};
+	});
+};
+
+function DevBoardPage() {
+	const tabs = useTabsStore((state) => state.tabs);
+	const panes = useTabsStore((state) => state.panes);
+	// No workspace picker — one workspace in practice, and it listed confusing
+	// duplicate "default" entries. ensureWorkspace still provisions/resolves the
+	// workspace sessions launch into, and `workspaces` labels cards with their
+	// workspace name.
+	const { workspaces, ensureWorkspace } = useOdinWorkspace();
+	// Sessions belong to the profile they were started under; the others stay
+	// alive in their panes, they just aren't this board's business.
+	const { activeId: activeProfileId, isLoading: isProfileLoading } =
+		useOdinProfile();
+	const { launch, isLaunching, waitingReason } = useLaunchTaskSession();
+	const utils = electronTrpc.useUtils();
+	// An <a> would navigate the app window; the ticket opens in a browser.
+	const openUrl = electronTrpc.external.openUrl.useMutation();
+	const contactByPane = usePaneMeta((s) => s.contactByPane);
+	const titleByPane = usePaneMeta((s) => s.titleByPane);
+	// Prefer the task title captured at launch — Claude Code's OSC title rewrites
+	// the pane name to "Claude Code" once it starts.
+	// `panes` first: the drawer holds a snapshot card, so a rename has to be read
+	// from the live pane or the drawer keeps showing the old name.
+	const cardTitle = (card: BoardCard) =>
+		emojify(
+			panes[card.pane.id]?.odinTaskTitle ??
+				card.pane.odinTaskTitle ??
+				titleByPane[card.pane.id] ??
+				card.pane.userTitle ??
+				card.pane.name ??
+				card.tabName,
+		);
+	// Point of contact: the pane's own record (shared app-state) first, then the
+	// legacy localStorage mirror for panes launched before that existed.
+	const cardContact = (card: BoardCard) =>
+		card.pane.odinContact ?? contactByPane[card.pane.id] ?? null;
+
+	const [isComposerOpen, setIsComposerOpen] = useState(false);
+	const [drawerCard, setDrawerCard] = useState<BoardCard | null>(null);
+	// Rename a session. Same home as tags (the pane, in app-state.json) and the
+	// first thing cardTitle reads, so the new name shows everywhere and sticks.
+	// Non-null = the drawer's title is being edited.
+	const [renameDraft, setRenameDraft] = useState<string | null>(null);
+	// The ticket (or PR) this session was launched from — the drawer's title says
+	// "CRR-862: …" and until now there was no way to open CRR-862.
+	const drawerLink = drawerCard ? sourceLink(drawerCard.pane.odinBrief) : null;
+	// Open wide by default — a session needs room to read the terminal.
+	const [drawerWidth, setDrawerWidth] = useState(defaultDrawerWidth);
+	// The brief panel: open by default, because "what did I walk into?" is the
+	// question you have every single time you open a session.
+	const [isBriefOpen, setIsBriefOpen] = useState(true);
+	// Panes whose Resume is in flight. Resuming takes a second (session lookup,
+	// kill, respawn) and the card can't flip out of Idle until the 5s daemon
+	// poll sees the new PTY — without this the click looks like it did nothing.
+	const [resumingPaneIds, setResumingPaneIds] = useState<string[]>([]);
+
+	const startDrawerResize = (event: React.PointerEvent<HTMLDivElement>) => {
+		event.preventDefault();
+		const onMove = (move: PointerEvent) => {
+			const width = window.innerWidth - move.clientX;
+			setDrawerWidth(Math.min(Math.max(width, 480), maxDrawerWidth()));
+		};
+		const onUp = () => {
+			window.removeEventListener("pointermove", onMove);
+			window.removeEventListener("pointerup", onUp);
+		};
+		window.addEventListener("pointermove", onMove);
+		window.addEventListener("pointerup", onUp);
+	};
+
+	// The cached xterm can mount into the drawer with stale dimensions (its
+	// gated refit can miss), clipping the bottom of the screen — where Claude
+	// renders its pickers. Nudge it: refit, sync the PTY size (SIGWINCH makes
+	// Claude repaint at the new size), and pin the view to the bottom.
+	useEffect(() => {
+		if (!drawerCard || drawerCard.pane.type !== "terminal") return;
+		const paneId = drawerCard.pane.id;
+		const nudge = () => {
+			const entry = terminalCache.get(paneId);
+			if (!entry) return;
+			try {
+				entry.fitAddon.fit();
+				utils.client.terminal.resize.mutate({
+					paneId,
+					cols: entry.xterm.cols,
+					rows: entry.xterm.rows,
+				});
+				entry.xterm.scrollToBottom();
+			} catch {
+				// cosmetic nudge only
+			}
+		};
+		// The short one is for the brief toggling: it takes 340px off the terminal
+		// (or gives them back), and without a refit Claude keeps painting its TUI
+		// at the old width.
+		const timers = [
+			setTimeout(nudge, 120),
+			setTimeout(nudge, 1200),
+			setTimeout(nudge, 3500),
+		];
+		return () => {
+			for (const timer of timers) clearTimeout(timer);
+		};
+	}, [drawerCard, utils, isBriefOpen]);
+
+	// Esc = close the drawer, and ONLY that. Captured at the window so it
+	// never reaches the terminal — an Esc in the PTY cancels Claude's pending
+	// menu and trips upstream's "user interrupted → idle" status heuristic.
+	useEffect(() => {
+		if (!drawerCard) return;
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (event.key !== "Escape") return;
+			event.preventDefault();
+			event.stopImmediatePropagation();
+			// Mid-rename, Esc abandons the rename — not the drawer.
+			if (renameDraft !== null) setRenameDraft(null);
+			else setDrawerCard(null);
+		};
+		window.addEventListener("keydown", onKeyDown, { capture: true });
+		return () =>
+			window.removeEventListener("keydown", onKeyDown, { capture: true });
+	}, [drawerCard, renameDraft]);
+
+	// ponytail: in-memory "in this status since" per pane; resets on reload
+	const statusSinceRef = useRef(
+		new Map<string, { status: PaneStatus; at: number }>(),
+	);
+	// Statuses already on the panes when the board mounted came off disk: the
+	// hooks that wrote them belong to a previous run of the renderer, so they've
+	// been held for an unknown time, not for zero seconds. Stamp those "settled"
+	// (at: 0) so the screen scan may correct a restored status on its first pass
+	// rather than waiting out SETTLED_MS for a hook race that can't happen yet.
+	// Panes that appear later are freshly launched and do get the full grace.
+	const restoredRef = useRef(true);
+	useEffect(() => {
+		const map = statusSinceRef.current;
+		const restored = restoredRef.current;
+		restoredRef.current = false;
+		for (const pane of Object.values(panes)) {
+			const status = pane.status ?? "idle";
+			const entry = map.get(pane.id);
+			if (!entry || entry.status !== status) {
+				map.set(pane.id, { status, at: restored ? 0 : Date.now() });
+			}
+		}
+	}, [panes]);
+
+	// A parked session that started moving again isn't parked any more — drop the
+	// flag so its next finished turn lands in Needs you, not back in Idle.
+	useEffect(() => {
+		const revived = Object.values(panes).filter(
+			(pane) => pane.odinParked && (pane.status ?? "idle") !== "idle",
+		);
+		if (revived.length === 0) return;
+		useTabsStore.setState((state) => {
+			const next = { ...state.panes };
+			for (const pane of revived)
+				next[pane.id] = { ...next[pane.id], odinParked: false };
+			return { panes: next };
+		});
+	}, [panes]);
+
+	const workspaceById = useMemo(() => {
+		const map = new Map<string, SelectWorkspace>();
+		for (const workspace of workspaces) map.set(workspace.id, workspace);
+		return map;
+	}, [workspaces]);
+
+	// Escape closes the drawer — unless focus is inside the terminal, where Esc
+	// belongs to Claude (interrupt). Click outside the xterm first, then Esc.
+	useEffect(() => {
+		if (!drawerCard) return;
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (event.key !== "Escape") return;
+			const target = event.target as HTMLElement | null;
+			if (target?.closest(".xterm")) return;
+			setDrawerCard(null);
+		};
+		window.addEventListener("keydown", onKeyDown);
+		return () => window.removeEventListener("keydown", onKeyDown);
+	}, [drawerCard]);
+
+	// Live PTYs in the daemon — lets the board show sessions that survived an
+	// app reload even though their pane status was reset to idle.
+	const { data: daemonSessions } =
+		electronTrpc.terminal.listDaemonSessions.useQuery(undefined, {
+			refetchInterval: 5_000,
+		});
+	const alivePaneIds = useMemo(
+		() =>
+			new Set(
+				(daemonSessions?.sessions ?? [])
+					.filter((session) => session.isAlive)
+					.map((session) => session.sessionId),
+			),
+		[daemonSessions],
+	);
+	/** Alive PTY currently mid-turn — the one state Resume must not touch. */
+	const isWorkingNow = (paneId: string) =>
+		alivePaneIds.has(paneId) && panes[paneId]?.status === "working";
+	// Drop the "resuming…" flag once the poll actually sees the new PTY — that's
+	// the moment the card moves to Working on its own.
+	useEffect(() => {
+		setResumingPaneIds((ids) => {
+			const next = ids.filter((id) => !alivePaneIds.has(id));
+			return next.length === ids.length ? ids : next;
+		});
+	}, [alivePaneIds]);
+
+	// Screen-reading keeps the columns honest. Agent hooks are the fast path,
+	// but they go missing — Stop doesn't fire on Ctrl+C, a notification can miss
+	// a pane that wasn't in the store yet, and statuses reset to idle on reload
+	// while the PTYs live on. Any of those strands a card mid-flight ("Working"
+	// forever on a session that's been sitting at its prompt for an hour), so
+	// re-read every live board session on a timer instead of once.
+	const setPaneStatusFromStore = useTabsStore((state) => state.setPaneStatus);
+	const readingRef = useRef(new Set<string>());
+	const lastScanRef = useRef(0);
+	useEffect(() => {
+		const scan = () => {
+			// `panes` changes on every status write, which re-runs this effect and
+			// would otherwise re-read every screen again straight away.
+			if (Date.now() - lastScanRef.current < 3_000) return;
+			lastScanRef.current = Date.now();
+			for (const pane of Object.values(panes)) {
+				// You parked it — don't let screen-reading drag it back out of Idle.
+				if (pane.odinParked) continue;
+				// The hooks and this scan are two writers to one status, and while a
+				// turn is running the hooks rewrite it every few seconds. Reading the
+				// screen in between only has to be wrong once for the card to flip
+				// Working → Needs you → Working. So don't arbitrate: the hooks win
+				// while they're live, and this steps in once a status has gone quiet
+				// — which is the only case it exists for, because a hook that never
+				// arrives leaves the card stuck for hours, not for seconds.
+				const since = statusSinceRef.current.get(pane.id)?.at ?? 0;
+				if (Date.now() - since < SETTLED_MS) continue;
+				// Board sessions only — never attach to a terminal the board doesn't own.
+				if (!pane.odinTaskTitle && !titleByPane[pane.id]) continue;
+				if (!alivePaneIds.has(pane.id)) continue;
+				// A read is already in flight for this pane — don't stack them.
+				if (readingRef.current.has(pane.id)) continue;
+				const tab = tabs.find((item) => item.id === pane.tabId);
+				if (!tab) continue;
+				readingRef.current.add(pane.id);
+				// Reading a screen must not resize the session. createOrAttach hands
+				// the host a viewport, and a host old enough to fill in a missing one
+				// resizes the live PTY to 80x24 — Claude repaints its TUI at 80
+				// columns inside whatever the drawer is actually showing. Send the
+				// size the mounted xterm already has, so the resize is a no-op.
+				const mounted = terminalCache.get(pane.id)?.xterm;
+				(async () => {
+					try {
+						const result = (await utils.client.terminal.createOrAttach.mutate({
+							paneId: pane.id,
+							tabId: pane.tabId,
+							workspaceId: tab.workspaceId,
+							skipColdRestore: true,
+							...(mounted && { cols: mounted.cols, rows: mounted.rows }),
+						})) as {
+							snapshot?: { snapshotAnsi?: string };
+							scrollback?: string;
+						};
+						const screen = (
+							result?.snapshot?.snapshotAnsi ??
+							result?.scrollback ??
+							""
+						)
+							.replace(ANSI_RE, "")
+							.slice(-2500);
+						// `pane` was captured before the await — read the status the
+						// hooks hold now, not the one they held when the scan started.
+						const status = odinScreenWrite(
+							odinScreenStatus(screen),
+							useTabsStore.getState().panes[pane.id]?.status,
+						);
+						// An unreadable screen, or one that can't improve on what the
+						// hooks already said, leaves the status alone.
+						if (status) setPaneStatusFromStore(pane.id, status);
+					} catch {
+						// leave it be — the next scan or agent event will correct it
+					} finally {
+						readingRef.current.delete(pane.id);
+					}
+					// NOTE: do NOT detach here. The whole app shares one socket to the
+					// daemon, so detach({paneId}) tears down the stream for the drawer's
+					// live terminal too — which was making it render blank.
+				})();
+			}
+		};
+		scan();
+		const id = setInterval(scan, 5_000);
+		return () => clearInterval(id);
+	}, [panes, tabs, alivePaneIds, utils, setPaneStatusFromStore, titleByPane]);
+
+	// ── Session tags ───────────────────────────────────────────────────────────
+	// Right-click a card to tag it; the pill bar filters the board by tag. Tags
+	// live on the pane (app-state.json), so they survive restarts and builds.
+	const [tagMenu, setTagMenu] = useState<{
+		paneId: string;
+		x: number;
+		y: number;
+	} | null>(null);
+	const [tagFilter, setTagFilter] = useState<string[]>([]);
+	// Highlight the Idle column while a card is dragged over it.
+	const [dragOverIdle, setDragOverIdle] = useState(false);
+
+	const setPaneTags = (paneId: string, tags: string[]) => {
+		useTabsStore.setState((state) => ({
+			panes: {
+				...state.panes,
+				[paneId]: { ...state.panes[paneId], odinTags: tags },
+			},
+		}));
+	};
+	const renamePane = (paneId: string, title: string) => {
+		const next = title.trim();
+		setRenameDraft(null);
+		if (!next) return; // blank = keep the old name
+		useTabsStore.setState((state) => ({
+			panes: {
+				...state.panes,
+				[paneId]: { ...state.panes[paneId], odinTaskTitle: next },
+			},
+		}));
+	};
+	const toggleTag = (paneId: string, tag: string) => {
+		const current = panes[paneId]?.odinTags ?? [];
+		setPaneTags(
+			paneId,
+			current.includes(tag)
+				? current.filter((t) => t !== tag)
+				: [...current, tag],
+		);
+	};
+
+	const { cardsByStatus, completedCards, allTags } = useMemo(() => {
+		const map = new Map<PaneStatus, BoardCard[]>();
+		const completed: BoardCard[] = [];
+		// Counted over the sessions the board actually shows — counting every
+		// pane made the pill promise cards that were killed or aren't tasks.
+		const tagCounts = new Map<string, number>();
+		for (const column of COLUMNS) map.set(column.status, []);
+		for (const tab of tabs) {
+			const workspace = workspaceById.get(tab.workspaceId);
+			for (const pane of Object.values(panes)) {
+				if (pane.tabId !== tab.id) continue;
+				const status = pane.status ?? "idle";
+				const card: BoardCard = {
+					pane,
+					status,
+					tabId: tab.id,
+					tabName: tab.userTitle ?? tab.name,
+					workspaceId: tab.workspaceId,
+					workspaceName: workspace?.name ?? "(unknown)",
+				};
+				if (pane.type !== "terminal") continue; // chat panes aren't board cards
+				// Another profile's work — not this board's. Until the profile is
+				// known, no card is: on a reload inside another profile, guessing
+				// "default" would flash the work board for a frame.
+				if (
+					isProfileLoading ||
+					profileOf(pane.odinProfile) !== activeProfileId
+				) {
+					continue;
+				}
+				// Board = agent sessions this app launched. useLaunchTaskSession
+				// stamps odinTaskTitle on the pane (older ones only made the
+				// localStorage mirror); a terminal you opened yourself has neither
+				// and isn't a task.
+				if (!pane.odinTaskTitle && !titleByPane[pane.id]) continue;
+				// Wait for the first daemon poll so live sessions don't flash dead.
+				const alive = alivePaneIds.has(pane.id);
+				const dead = daemonSessions !== undefined && !alive;
+				// Legacy: panes the removed Kill button marked completed. They stay
+				// off the board (Session History is where you resume them) until the
+				// persisted state ages out. Nothing sets `completed` any more.
+				if (dead && pane.completed) {
+					completed.push(card);
+					continue;
+				}
+				const column = boardColumn(
+					status,
+					// `undefined` = the poll hasn't answered yet, which is not "dead".
+					daemonSessions === undefined ? undefined : alive,
+					pane.odinParked ?? false,
+				);
+				for (const tag of pane.odinTags ?? [])
+					tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
+				// Tag filter: show only sessions carrying every selected tag.
+				if (
+					tagFilter.length > 0 &&
+					!tagFilter.every((tag) => (pane.odinTags ?? []).includes(tag))
+				) {
+					continue;
+				}
+				// Every session stays on the board in its column until it's Done'd —
+				// nothing is silently dropped.
+				map.get(column)?.push({ ...card, status: column });
+			}
+		}
+		return {
+			cardsByStatus: map,
+			completedCards: completed,
+			allTags: [...tagCounts.entries()].sort((a, b) =>
+				a[0].localeCompare(b[0]),
+			),
+		};
+	}, [
+		tabs,
+		panes,
+		workspaceById,
+		alivePaneIds,
+		daemonSessions,
+		tagFilter,
+		titleByPane,
+		activeProfileId,
+		isProfileLoading,
+	]);
+
+	// Write the session briefs in the background, so opening a card shows one
+	// straight away rather than starting a 15s model call while you wait. The
+	// main process queues them one at a time and skips anything still cached, so
+	// re-firing this is cheap.
+	const warmBriefs =
+		electronTrpc.terminal.warmClaudeSessionBriefs.useMutation();
+	const briefSessionIds = useMemo(
+		() =>
+			[...cardsByStatus.values()]
+				.flat()
+				.map(
+					(card) =>
+						card.pane.claudeSessionId ??
+						usePaneMeta.getState().sessionIdByPane[card.pane.id],
+				)
+				.filter((id): id is string => !!id)
+				.sort()
+				.join(","),
+		[cardsByStatus],
+	);
+	useEffect(() => {
+		if (!briefSessionIds) return;
+		const sessionIds = briefSessionIds.split(",");
+		const warm = () =>
+			warmBriefs.mutate(
+				{ sessionIds },
+				{ onSuccess: (r) => applyAutoTags(r.tags) },
+			);
+		warm();
+		// Live sessions keep working; re-warm so a brief you open later is recent.
+		const timer = setInterval(warm, 5 * 60_000);
+		return () => clearInterval(timer);
+		// warmBriefs is a new object each render — the id list is the real trigger.
+	}, [briefSessionIds]);
+
+	// A session just launched from the Tasks view → open its drawer here.
+	const pendingPaneId = usePendingFocus((s) => s.paneId);
+	const clearPendingFocus = usePendingFocus((s) => s.clear);
+	useEffect(() => {
+		if (!pendingPaneId) return;
+		const card = [...cardsByStatus.values()]
+			.flat()
+			.concat(completedCards)
+			.find((c) => c.pane.id === pendingPaneId);
+		if (card) {
+			openDrawer(card);
+			clearPendingFocus();
+		}
+	}, [pendingPaneId, cardsByStatus, completedCards, clearPendingFocus]);
+
+	/**
+	 * Open a session's drawer. For a LIVE pane, purge the pane's cached xterm
+	 * and cold-restore marker FIRST (before the Terminal mounts): a session
+	 * that was killed+resumed or cold-restored leaves stale module state
+	 * (read-only "restored" mode / exited-session gate) that makes the fresh
+	 * mount silently drop every keystroke. A clean mount does a clean live
+	 * attach — typeable.
+	 */
+	const openDrawer = (card: BoardCard) => {
+		if (card.pane.type === "terminal" && alivePaneIds.has(card.pane.id)) {
+			coldRestoreState.delete(card.pane.id);
+			terminalCache.dispose(card.pane.id);
+		}
+		setDrawerWidth(maxDrawerWidth());
+		setRenameDraft(null); // don't reopen into a half-typed rename
+		setDrawerCard(card);
+	};
+
+	// Focus the terminal when a live session's drawer opens, so typing /
+	// paste (ctrl+v) / menu keys go straight to Claude Code.
+	useEffect(() => {
+		if (!drawerCard || drawerCard.pane.type !== "terminal") return;
+		if (!alivePaneIds.has(drawerCard.pane.id)) return;
+		// alivePaneIds churns on a 5s poll, so this re-runs while the drawer is
+		// open — it must not yank focus out of a half-typed rename (blur commits).
+		if (renameDraft !== null) return;
+		const focus = () =>
+			document
+				.querySelector<HTMLTextAreaElement>(".xterm-helper-textarea")
+				?.focus();
+		const t = setTimeout(focus, 300);
+		return () => clearTimeout(t);
+	}, [drawerCard, alivePaneIds, renameDraft]);
+
+	/**
+	 * Pick a session back up. On a live PTY that's literally writing "Continue"
+	 * into the open prompt — nothing to reopen.
+	 *
+	 * On a dead one: reopen the conversation (`claude --resume <id>`) in its worktree,
+	 * with no opening prompt — the agent comes back idle, not working. Always
+	 * respawns the pane running the command as its process — typing into a
+	 * cold-restored shell races its startup (p10k/omz) and gets SIGINT'd, so
+	 * we kill any existing session first, then createOrAttach with the command
+	 * (no shell-typing race, works whether the prior claude is alive or dead).
+	 */
+	const resumeCard = async (card: BoardCard) => {
+		if (resumingPaneIds.includes(card.pane.id)) return;
+		// Resume kills the PTY first, so on a session that's mid-turn it's an
+		// interrupt wearing a Resume label — it throws away the running turn.
+		// Live pane + live status (not the drawer's stale snapshot card).
+		if (isWorkingNow(card.pane.id)) {
+			toast.error("Session is still working — nothing to resume");
+			return;
+		}
+		// Live PTY: the button says Continue, so it just says Continue — the
+		// conversation is already open, killing it to reopen it would only cost
+		// the scrollback. Text and Enter go in separate writes: claude's TUI
+		// reads a chunk ending in a newline as a paste and inserts it instead
+		// of submitting.
+		if (alivePaneIds.has(card.pane.id)) {
+			try {
+				await terminalWrite.mutateAsync({
+					paneId: card.pane.id,
+					data: "Continue",
+				});
+				await new Promise((resolve) => setTimeout(resolve, 50));
+				await terminalWrite.mutateAsync({ paneId: card.pane.id, data: "\r" });
+			} catch (error) {
+				toast.error(error instanceof Error ? error.message : String(error));
+			}
+			return;
+		}
+		setResumingPaneIds((ids) => [...ids, card.pane.id]);
+		// initialCwd included: a session whose terminal was never opened has no
+		// confirmed cwd, and resuming without one lands in the wrong repo.
+		const cwd = sessionCwd(card.pane);
+		// Resume THIS conversation, not "whatever ran last here" (what --continue
+		// does — wrong as soon as two sessions share a workspace). Session id
+		// comes from launch (--session-id); for older sessions, look it up in
+		// Claude's transcripts by the task title.
+		let sessionId =
+			card.pane.claudeSessionId ??
+			usePaneMeta.getState().sessionIdByPane[card.pane.id];
+		if (!sessionId && cwd) {
+			try {
+				const found = await utils.client.terminal.findClaudeSession.query({
+					cwd,
+					marker: cardTitle(card),
+				});
+				if (found.sessionId) {
+					sessionId = found.sessionId;
+					usePaneMeta.getState().setSessionId(card.pane.id, sessionId);
+					// Pin it to the pane too, so this lookup happens only once.
+					useTabsStore.setState((state) => ({
+						panes: {
+							...state.panes,
+							[card.pane.id]: {
+								...state.panes[card.pane.id],
+								claudeSessionId: sessionId,
+							},
+						},
+					}));
+				}
+			} catch {
+				// fall back to --continue below
+			}
+		}
+		// No opening prompt: Resume reopens the conversation at an idle prompt,
+		// it doesn't put the agent back to work. Deciding what happens next is
+		// the whole reason you came back to the session.
+		const resumeCmd = sessionId
+			? `claude --dangerously-skip-permissions --resume ${sessionId}`
+			: "claude --dangerously-skip-permissions --continue";
+		try {
+			// Free the pane (dead or a live cold-restored shell) so the respawn
+			// re-runs the command. Ignore errors — pane may already be dead.
+			await terminalKill.mutateAsync({ paneId: card.pane.id }).catch(() => {});
+			await new Promise((resolve) => setTimeout(resolve, 300));
+			await utils.client.terminal.createOrAttach.mutate({
+				paneId: card.pane.id,
+				tabId: card.tabId,
+				workspaceId: card.workspaceId,
+				cwd,
+				command: cwd ? `cd '${cwd}' && ${resumeCmd}` : resumeCmd,
+				allowKilled: true,
+			});
+			useTabsStore.setState((state) => ({
+				panes: {
+					...state.panes,
+					[card.pane.id]: {
+						...state.panes[card.pane.id],
+						// Alive but not working — nothing was asked of it.
+						status: "idle",
+						odinParked: false,
+						interrupted: false,
+						completed: false,
+					},
+				},
+			}));
+			setDrawerCard(null);
+			// ponytail: no toast on the happy path — the card renders its own
+			// "resuming…" spinner, and a toast over the board hides other cards.
+			// Only the ambiguous --continue fallback is worth interrupting for.
+			if (!sessionId) {
+				toast.info(
+					"Resuming latest session in this repo (no session id found)",
+				);
+			}
+			// Don't sit on the stale poll for up to 5s — ask now so the card leaves
+			// Idle as soon as the PTY exists.
+			void utils.terminal.listDaemonSessions.invalidate();
+			// ponytail: fixed timeout, not a retry loop — if the respawned claude
+			// dies on startup the pane never goes alive, and a stuck spinner would
+			// cost the card its Resume button for good.
+			setTimeout(
+				() =>
+					setResumingPaneIds((ids) => ids.filter((id) => id !== card.pane.id)),
+				10_000,
+			);
+		} catch (error) {
+			setResumingPaneIds((ids) => ids.filter((id) => id !== card.pane.id));
+			toast.error(error instanceof Error ? error.message : String(error));
+		}
+	};
+
+	const handleNewSession = async (
+		rawPrompt: string,
+		images: PromptImage[],
+		repoPath: string,
+	) => {
+		const prompt = rawPrompt.trim();
+		if (!prompt && images.length === 0) return;
+		const ensured = await ensureWorkspace();
+		if (!ensured.ok) {
+			toast.error(ensured.error);
+			return;
+		}
+		// First line names the session; the full prompt (multi-line) rides in the
+		// task file as the description.
+		const title = sessionTitle(prompt, "New session");
+		const result = await launch({
+			workspaceId: ensured.workspace.id,
+			title,
+			description: prompt && prompt !== title ? prompt : null,
+			images,
+			repoPath,
+		});
+		setIsComposerOpen(false);
+		if (result.ok) {
+			usePaneMeta.getState().setBrief(result.paneId, prompt || title);
+			usePaneMeta.getState().setTitle(result.paneId, title);
+			usePaneMeta.getState().setSessionId(result.paneId, result.sessionId);
+			toast.success(
+				`Session started in ${repoPath ? repoPath.split("/").pop() : ensured.workspace.name}`,
+			);
+		} else {
+			toast.error(result.error);
+		}
+	};
+
+	const terminalWrite = electronTrpc.terminal.write.useMutation();
+	const terminalKill = electronTrpc.terminal.kill.useMutation();
+	/**
+	 * Park a card by dragging it to Idle. Idle is the only drop target: the other
+	 * columns describe what the agent is actually doing, and dragging a card
+	 * can't make that true. A running turn is interrupted first (Esc) — a card
+	 * sitting in Idle while its agent works would be a lie.
+	 */
+	const parkCard = async (card: BoardCard) => {
+		if (card.pane.status === "working") {
+			await terminalWrite
+				.mutateAsync({ paneId: card.pane.id, data: "\x1b" })
+				.catch(() => {});
+		}
+		useTabsStore.setState((state) => ({
+			panes: {
+				...state.panes,
+				[card.pane.id]: {
+					...state.panes[card.pane.id],
+					status: "idle",
+					odinParked: true,
+				},
+			},
+		}));
+		toast.success("Parked in Idle — session still open");
+	};
+
+	/**
+	 * Done = end it and off the board. removePane kills the PTY and drops the
+	 * pane (and its tab, when it's the only one). There used to be a separate
+	 * Kill button; it did the same thing minus the cleanup — the card left the
+	 * board either way and the orphaned pane/tab stayed behind forever. Session
+	 * History resumes finished sessions from Claude's transcripts on disk, so
+	 * keeping the dead pane bought nothing. To stop an agent without ending the
+	 * session, drag the card to Idle (Park) instead.
+	 */
+	const markDone = (card: BoardCard) => {
+		useTabsStore.getState().removePane(card.pane.id);
+		usePaneMeta.getState().forgetPane(card.pane.id);
+		setDrawerCard(null);
+		toast.success("Done — removed from board");
+	};
+
+	return (
+		<div className="flex h-full flex-col">
+			<div className="flex items-center gap-3 px-[18px] pb-2.5 pt-3.5">
+				<h1 className="text-[15px] font-semibold">Dev Board</h1>
+				<span className="text-xs text-[#a5a5b3]">
+					live agent state · click a card to peek at the session
+				</span>
+			</div>
+
+			<div className="flex items-center gap-2 px-[18px] pb-3">
+				<button
+					type="button"
+					title="Describe a task and start an agent session"
+					onClick={() => setIsComposerOpen(true)}
+					className="rounded-lg bg-[#14301f] px-3 py-1.5 text-[12px] font-semibold text-[#3ecf8e] transition-colors hover:bg-[#1a4029]"
+				>
+					+ New Session
+				</button>
+				{isLaunching && (
+					<span className="text-xs text-[#a5a5b3]">
+						{waitingReason ? `waiting — ${waitingReason}` : "starting…"}
+					</span>
+				)}
+			</div>
+
+			{/* tag filter — right-click a card to tag it */}
+			{allTags.length > 0 && (
+				<div className="flex flex-wrap items-center gap-1.5 px-[18px] pb-2">
+					<span className="text-[11px] uppercase tracking-[.3px] text-[#8a8a97]">
+						tags
+					</span>
+					{allTags.map(([tag, count]) => {
+						const on = tagFilter.includes(tag);
+						return (
+							<button
+								key={tag}
+								type="button"
+								onClick={() =>
+									setTagFilter((current) =>
+										on ? current.filter((t) => t !== tag) : [...current, tag],
+									)
+								}
+								className={cn(
+									"rounded-full px-2.5 py-[3px] text-[11px] font-medium transition-colors",
+									on
+										? "bg-[#a394ff] text-[#060608]"
+										: "bg-[#16161b] text-[#a5a5b3] hover:text-[#f5f5f7]",
+								)}
+							>
+								#{tag}
+								<span className="ml-1 opacity-70">{count}</span>
+							</button>
+						);
+					})}
+					{tagFilter.length > 0 && (
+						<button
+							type="button"
+							onClick={() => setTagFilter([])}
+							className="text-[11px] text-[#8a8a97] hover:text-[#a5a5b3]"
+						>
+							clear
+						</button>
+					)}
+				</div>
+			)}
+
+			{tagMenu && (
+				<TagMenu
+					x={tagMenu.x}
+					y={tagMenu.y}
+					tags={panes[tagMenu.paneId]?.odinTags ?? []}
+					allTags={allTags.map(([tag]) => tag)}
+					onToggle={(tag) => toggleTag(tagMenu.paneId, tag)}
+					onClose={() => setTagMenu(null)}
+				/>
+			)}
+
+			<div className="flex min-h-0 flex-1 gap-3 overflow-x-auto px-[18px] pb-[18px] pt-1">
+				{COLUMNS.map((column) => {
+					const cards = cardsByStatus.get(column.status) ?? [];
+					const sections = bySection(cards);
+					// One section is just the column — don't label it.
+					const labelled = sections.length > 1;
+					const isDropTarget = column.status === "idle";
+					return (
+						// biome-ignore lint/a11y/noStaticElementInteractions: drop zone — drag is the mouse-only shortcut for parking a card in Idle
+						<div
+							key={column.status}
+							onDragOver={
+								isDropTarget
+									? (event) => {
+											event.preventDefault();
+											setDragOverIdle(true);
+										}
+									: undefined
+							}
+							onDragLeave={
+								isDropTarget ? () => setDragOverIdle(false) : undefined
+							}
+							onDrop={
+								isDropTarget
+									? (event) => {
+											event.preventDefault();
+											setDragOverIdle(false);
+											const paneId = event.dataTransfer.getData("text/plain");
+											const card = [...cardsByStatus.values()]
+												.flat()
+												.find((item) => item.pane.id === paneId);
+											if (card) void parkCard(card);
+										}
+									: undefined
+							}
+							className={cn(
+								"flex min-w-[240px] flex-1 flex-col rounded-xl border bg-[#111114]",
+								isDropTarget && dragOverIdle
+									? "border-[#a394ff] bg-[#15131f]"
+									: "border-[#25252e]",
+							)}
+						>
+							<div className="flex items-center gap-2 px-3 py-2.5 text-xs font-semibold uppercase tracking-[.4px] text-[#a5a5b3]">
+								<span
+									className="size-2 rounded-full"
+									style={{ background: column.dot }}
+								/>
+								{column.label}
+								<span className="ml-auto rounded-[10px] bg-[#1f1f27] px-2 font-medium">
+									{cards.length}
+								</span>
+							</div>
+							<div className="flex flex-col gap-2 overflow-y-auto px-2 pb-2.5">
+								{cards.length === 0 ? (
+									<div className="px-2 py-6 text-center text-xs text-[#8a8a97]">
+										Nothing here
+									</div>
+								) : (
+									sections.map(([section, group]) => {
+										const Icon = SECTION_ICON[section];
+										return (
+											<Fragment key={section}>
+												{labelled && (
+													<div className="flex items-center gap-1.5 px-1 pt-1 text-[10px] font-semibold uppercase tracking-[.5px] text-[#8a8a97]">
+														<Icon className="size-3" aria-hidden />
+														{SECTION_LABEL[section]}
+														<span className="opacity-70">{group.length}</span>
+														<span className="ml-1 h-px flex-1 bg-[#25252e]" />
+													</div>
+												)}
+												{group.map((card) => (
+													<HoverCard key={card.pane.id} openDelay={350}>
+														<HoverCardTrigger asChild>
+															{/* biome-ignore lint/a11y/useSemanticElements: a real <button> can't nest the reply <input>, so the card is a div with button semantics */}
+															<div
+																role="button"
+																tabIndex={0}
+																draggable
+																onDragStart={(event) => {
+																	event.dataTransfer.setData(
+																		"text/plain",
+																		card.pane.id,
+																	);
+																	event.dataTransfer.effectAllowed = "move";
+																}}
+																onDragEnd={() => setDragOverIdle(false)}
+																onKeyDown={(event) => {
+																	if (
+																		event.key === "Enter" ||
+																		event.key === " "
+																	) {
+																		openDrawer(card);
+																	}
+																}}
+																onClick={() => openDrawer(card)}
+																onContextMenu={(event) => {
+																	// Right-click → tag this session.
+																	event.preventDefault();
+																	setTagMenu({
+																		paneId: card.pane.id,
+																		x: event.clientX,
+																		y: event.clientY,
+																	});
+																}}
+																className={cn(
+																	"group cursor-pointer rounded-[10px] border bg-[#16161b] px-3 py-2.5 text-left transition-colors hover:border-[#34343f]",
+																	// A failure lives in Needs you now, but keeps its red edge.
+																	card.pane.status === "failed"
+																		? "border-[#5a2733] bg-[#1d1417]"
+																		: card.status === "permission"
+																			? "border-[#6b5620] bg-[#221d12]"
+																			: card.status === "review"
+																				? "border-[#26415c] bg-[#111a24]"
+																				: "border-[#25252e]",
+																)}
+															>
+																<div className="flex items-start gap-2">
+																	<div className="min-w-0 flex-1 truncate text-[12.5px] font-semibold">
+																		{cardTitle(card)}
+																	</div>
+																	<button
+																		type="button"
+																		title="Done — remove from the board"
+																		onClick={(event) => {
+																			event.stopPropagation();
+																			markDone(card);
+																		}}
+																		className="shrink-0 rounded-[5px] px-1.5 text-[11px] text-[#8a8a97] opacity-0 transition-opacity hover:bg-[#14301f] hover:text-[#3ecf8e] group-hover:opacity-100"
+																	>
+																		✓ done
+																	</button>
+																</div>
+																<div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+																	{cardContact(card) && (
+																		<PersonChip
+																			name={cardContact(card) as string}
+																		/>
+																	)}
+																	{(card.pane.odinTags ?? []).map((tag) => (
+																		<span
+																			key={tag}
+																			className="rounded-[5px] bg-[#211d3a] px-[7px] text-[11px] font-medium text-[#a394ff]"
+																		>
+																			#{tag}
+																		</span>
+																	))}
+																	<PrPill
+																		card={card}
+																		live={card.status === "working"}
+																	/>
+																	{sessionCwd(card.pane) && (
+																		<span
+																			title={sessionCwd(card.pane)}
+																			className="rounded-[5px] bg-[#1f1f27] px-[7px] text-[11px] text-[#a5a5b3]"
+																		>
+																			{
+																				sessionCwd(card.pane)
+																					?.split("/")
+																					.slice(-1)[0]
+																			}
+																		</span>
+																	)}
+																	<AgePill
+																		card={card}
+																		live={card.status === "working"}
+																		fallback={
+																			statusSinceRef.current.get(card.pane.id)
+																				?.at
+																		}
+																	/>
+																</div>
+																{card.status === "working" && (
+																	<div className="mt-1.5 flex items-center gap-1.5 text-[11.5px] text-[#a5a5b3]">
+																		<span className="size-[9px] animate-spin rounded-full border border-[#3ecf8e] border-t-transparent" />
+																		agent running
+																	</div>
+																)}
+																{/* ponytail: the "Needs you"/"Done" headers already say
+															    the rest — only a failure adds anything. pane.status is
+															    the raw one; the column merges prompts and failures. */}
+																{card.status === "permission" &&
+																	card.pane.status === "failed" && (
+																		<div className="mt-1.5 text-xs text-[#f0647a]">
+																			✗ failed — click to see what broke
+																		</div>
+																	)}
+																{card.status === "idle" &&
+																	card.pane.odinParked &&
+																	alivePaneIds.has(card.pane.id) && (
+																		<div className="mt-1.5 text-[11.5px] text-[#a5a5b3]">
+																			parked
+																		</div>
+																	)}
+																{card.status === "idle" &&
+																	!alivePaneIds.has(card.pane.id) &&
+																	resumingPaneIds.includes(card.pane.id) && (
+																		<div className="mt-1.5 flex items-center gap-1.5 text-[11.5px] text-[#3ecf8e]">
+																			<span className="size-[9px] animate-spin rounded-full border border-[#3ecf8e] border-t-transparent" />
+																			resuming…
+																		</div>
+																	)}
+																{card.status === "idle" &&
+																	!alivePaneIds.has(card.pane.id) &&
+																	!resumingPaneIds.includes(card.pane.id) && (
+																		<div className="mt-1.5 flex items-center gap-2">
+																			{/* ponytail: the button says "resume" — only a
+																		    failure is worth spelling out. */}
+																			{card.pane.status === "failed" && (
+																				<span className="text-[11.5px] text-[#f0647a]">
+																					✗ failed
+																				</span>
+																			)}
+																			<button
+																				type="button"
+																				onClick={(event) => {
+																					event.stopPropagation();
+																					void resumeCard(card);
+																				}}
+																				className="rounded-[7px] bg-[#14301f] px-2.5 py-1 text-xs font-semibold text-[#3ecf8e] hover:bg-[#1a3d28]"
+																			>
+																				Resume
+																			</button>
+																		</div>
+																	)}
+															</div>
+														</HoverCardTrigger>
+														<HoverCardContent
+															side="right"
+															align="start"
+															className="w-[400px] border-[#25252e] bg-[#111114] p-3"
+														>
+															<CardHoverContent card={card} />
+														</HoverCardContent>
+													</HoverCard>
+												))}
+											</Fragment>
+										);
+									})
+								)}
+							</div>
+						</div>
+					);
+				})}
+			</div>
+
+			{/* No Completed strip and no link to one: the Session History pane in the
+			    sidebar already searches and resumes finished sessions. */}
+
+			{/* session drawer */}
+			{drawerCard && (
+				<>
+					<button
+						type="button"
+						aria-label="Close drawer"
+						className="fixed inset-0 z-40 cursor-default bg-black/35"
+						onClick={() => setDrawerCard(null)}
+					/>
+					{/* absolute, not fixed: it fills the content area, which starts below
+					    the top bar. A top-0 fixed drawer put its title under the macOS
+					    traffic lights, and the native buttons eat the click. */}
+					<div
+						className="absolute right-0 top-0 z-50 flex h-full max-w-full flex-col border-l border-[#25252e] bg-[#111114]"
+						style={{ width: drawerWidth }}
+					>
+						{/* drag handle — resize the drawer from its left edge */}
+						<div
+							onPointerDown={startDrawerResize}
+							className="absolute left-0 top-0 z-10 h-full w-1.5 cursor-col-resize hover:bg-[#a394ff]/40"
+						/>
+						{/* Minimize, on the edge the pointer is already on — the Close
+						    button is a whole drawer away. The session keeps running. */}
+						<button
+							type="button"
+							aria-label="Minimize"
+							title="Minimize — back to the board (the session keeps running)"
+							onClick={() => setDrawerCard(null)}
+							className="absolute left-0 top-1/2 z-20 -translate-y-1/2 rounded-r-[7px] border border-l-0 border-[#25252e] bg-[#1f1f27] py-2.5 pl-[3px] pr-1 text-[11px] leading-none text-[#a5a5b3] hover:bg-[#25252e] hover:text-[#f5f5f7]"
+						>
+							›
+						</button>
+						<div className="border-b border-[#25252e] px-4 py-3.5">
+							<div className="flex items-center gap-2">
+								{renameDraft === null ? (
+									<button
+										type="button"
+										title="Click to rename this session"
+										onClick={() => setRenameDraft(cardTitle(drawerCard))}
+										className="min-w-0 flex-1 truncate text-left text-sm font-semibold hover:text-[#a394ff]"
+									>
+										{cardTitle(drawerCard)}
+									</button>
+								) : (
+									<input
+										// Focus on mount without the autoFocus attribute the a11y
+										// lint flags — same trick as TagMenu's input.
+										ref={(element) => element?.focus()}
+										value={renameDraft}
+										onChange={(event) => setRenameDraft(event.target.value)}
+										onBlur={() => renamePane(drawerCard.pane.id, renameDraft)}
+										onKeyDown={(event) => {
+											if (event.key === "Enter")
+												renamePane(drawerCard.pane.id, renameDraft);
+										}}
+										className="min-w-0 flex-1 rounded-md border border-[#a394ff] bg-[#0a0a0c] px-2 py-1 text-sm font-semibold text-[#f5f5f7] outline-none"
+									/>
+								)}
+								<button
+									type="button"
+									title="Toggle the session brief"
+									onClick={() => setIsBriefOpen((open) => !open)}
+									className={cn(
+										"shrink-0 rounded-md px-2 py-1 text-xs font-semibold",
+										isBriefOpen
+											? "bg-[#211d3a] text-[#a394ff]"
+											: "bg-[#1f1f27] text-[#a5a5b3] hover:text-[#f5f5f7]",
+									)}
+								>
+									ⓘ Brief
+								</button>
+								<button
+									type="button"
+									title="Toggle full width"
+									onClick={() =>
+										setDrawerWidth((width) =>
+											width < maxDrawerWidth()
+												? maxDrawerWidth()
+												: Math.round(window.innerWidth * 0.6),
+										)
+									}
+									className="shrink-0 rounded-md bg-[#1f1f27] px-2 py-1 text-xs font-semibold text-[#a5a5b3] hover:text-[#f5f5f7]"
+								>
+									⛶
+								</button>
+							</div>
+							<div className="mt-1.5 flex flex-wrap gap-1.5">
+								{cardContact(drawerCard) && (
+									<PersonChip name={cardContact(drawerCard) as string} />
+								)}
+								{drawerLink && (
+									<button
+										type="button"
+										title={drawerLink.url}
+										onClick={() => openUrl.mutate(drawerLink.url)}
+										className="rounded-[5px] bg-[#211d3a] px-[7px] text-[11px] font-medium text-[#a394ff] hover:underline"
+									>
+										{drawerLink.label} ↗
+									</button>
+								)}
+								{sessionCwd(drawerCard.pane) && (
+									<span
+										title={sessionCwd(drawerCard.pane)}
+										className="rounded-[5px] bg-[#1f1f27] px-[7px] text-[11px] text-[#a394ff]"
+									>
+										{sessionCwd(drawerCard.pane)?.split("/").slice(-1)[0]}
+									</span>
+								)}
+								<span className="rounded-[5px] bg-[#1f1f27] px-[7px] text-[11px] text-[#a5a5b3]">
+									{drawerCard.status}
+								</span>
+							</div>
+						</div>
+						{/* terminal on the left, "what's going on" brief on the right */}
+						<div className="flex min-h-0 flex-1">
+							<div className="flex min-h-0 min-w-0 flex-1 flex-col">
+								{drawerCard.pane.type !== "terminal" ? (
+									<div className="flex-1 select-text cursor-text overflow-y-auto px-4 py-3 text-[12.5px] text-[#a5a5b3]">
+										{drawerCard.pane.cwd && (
+											<div>cwd: {drawerCard.pane.cwd}</div>
+										)}
+										<div className="mt-2">
+											Chat session — no terminal to embed.
+										</div>
+									</div>
+								) : alivePaneIds.has(drawerCard.pane.id) ? (
+									// Live pane — the real PTY, attached read/write. xterm is the
+									// only thing that renders Claude Code's full-screen TUI legibly
+									// (scrollback replay is a stream of overlapping frames = mush).
+									<div className="min-h-0 flex-1 bg-[#0a0a0c] p-2">
+										<Terminal
+											paneId={drawerCard.pane.id}
+											tabId={drawerCard.tabId}
+											workspaceId={drawerCard.workspaceId}
+										/>
+									</div>
+								) : (
+									// Dead pane — no live PTY to attach; show the persisted
+									// transcript read-only (best-effort for a TUI).
+									<HistoryView card={drawerCard} live={false} />
+								)}
+							</div>
+							{isBriefOpen && (
+								<SessionBrief
+									key={drawerCard.pane.id}
+									paneId={drawerCard.pane.id}
+									cwd={drawerCard.pane.cwd ?? null}
+									claudeSessionId={drawerCard.pane.claudeSessionId ?? null}
+									marker={cardTitle(drawerCard)}
+									live={alivePaneIds.has(drawerCard.pane.id)}
+								/>
+							)}
+						</div>
+						<div className="flex gap-2 border-t border-[#25252e] px-4 py-3">
+							{drawerCard.pane.type === "terminal" && (
+								<button
+									type="button"
+									disabled={
+										resumingPaneIds.includes(drawerCard.pane.id) ||
+										isWorkingNow(drawerCard.pane.id)
+									}
+									onClick={() => void resumeCard(drawerCard)}
+									title={
+										isWorkingNow(drawerCard.pane.id)
+											? "Already working — resuming would kill the running turn"
+											: alivePaneIds.has(drawerCard.pane.id)
+												? 'Session is open — send it "Continue"'
+												: "Reopen this conversation at an idle prompt (claude --resume)"
+									}
+									className="rounded-[7px] bg-[#14301f] px-3 py-1.5 text-xs font-semibold text-[#3ecf8e] hover:bg-[#1a3d28] disabled:opacity-60 disabled:hover:bg-[#14301f]"
+								>
+									{resumingPaneIds.includes(drawerCard.pane.id)
+										? "↻ Resuming…"
+										: isWorkingNow(drawerCard.pane.id)
+											? "↻ Working…"
+											: // Resume already landed (live PTY) — the button writes
+												// "Continue" into the open prompt.
+												alivePaneIds.has(drawerCard.pane.id)
+												? "↻ Continue"
+												: "↻ Resume"}
+								</button>
+							)}
+							<button
+								type="button"
+								onClick={() => markDone(drawerCard)}
+								title="Done — end the session and remove it from the board"
+								className="rounded-[7px] bg-[#1f1f27] px-3 py-1.5 text-xs font-semibold text-[#a5a5b3] hover:text-[#3ecf8e]"
+							>
+								✓ Done
+							</button>
+							<button
+								type="button"
+								onClick={() => setDrawerCard(null)}
+								className="ml-auto rounded-[7px] bg-[#1f1f27] px-3 py-1.5 text-xs font-semibold text-[#a5a5b3]"
+							>
+								Close
+							</button>
+						</div>
+					</div>
+				</>
+			)}
+
+			{isComposerOpen && (
+				<OdinPromptDialog
+					heading="New Session"
+					placeholder="What should the agent do? (it picks the repo)"
+					repoPicker
+					onCancel={() => setIsComposerOpen(false)}
+					onSubmit={handleNewSession}
+				/>
+			)}
+		</div>
+	);
+}

@@ -1,0 +1,57 @@
+# Builds the macOS app and publishes it to a GitHub Release, which is where the
+# Homebrew cask (Casks/odin.rb) downloads from.
+#
+# ponytail: arm64 only, no matrix. The machine that builds it and the machines
+# that run it are the same shape; add an x64 leg when someone on an Intel Mac
+# asks for one.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  macos:
+    # The private mirror shares this file; macOS minutes there are billed, and a
+    # release from it would be the wrong repo anyway.
+    if: github.repository == 'danlinenberg/odin'
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      SKIP_ENV_VALIDATION: "true"
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+
+      - run: bun install --frozen-lockfile
+
+      # postinstall skips this when CI is set (nested installs were flaky), so
+      # the native modules have to be rebuilt for Electron explicitly.
+      - run: bun run --filter=@odin/desktop install:deps
+
+      - run: bun run build
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: |
+          set -euo pipefail
+          # A tag push names itself; a manual run takes the version it just
+          # built, so the release is never called something the app is not.
+          TAG="${REF_TAG:-v$(jq -r .version apps/desktop/package.json)}"
+          dmg=$(ls apps/desktop/release/*.dmg)
+          # The cask resolves /releases/latest/download/Odin-arm64.dmg, so the
+          # asset name has to stay the same across releases.
+          mv "$dmg" Odin-arm64.dmg
+          gh release create "$TAG" Odin-arm64.dmg \
+            --title "$TAG" \
+            --generate-notes \
+            || gh release upload "$TAG" Odin-arm64.dmg --clobber

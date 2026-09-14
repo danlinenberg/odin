@@ -1,0 +1,27 @@
+export { type CreateAppOptions, type CreateAppResult, createApp } from "./app";
+export type { HostDb } from "./db";
+export type {
+	ClientMessage as EventBusClientMessage,
+	ServerMessage as EventBusServerMessage,
+} from "./events";
+export {
+	CloudGitCredentialProvider,
+	LocalGitCredentialProvider,
+} from "./providers/git";
+export type { HostAuthProvider } from "./providers/host-auth";
+export { PskHostAuthProvider } from "./providers/host-auth";
+export type { ModelProviderRuntimeResolver } from "./providers/model-providers";
+export {
+	CloudModelProvider,
+	LocalModelProvider,
+} from "./providers/model-providers";
+export type { GitCredentialProvider, GitFactory } from "./runtime/git";
+export { installProcessSafetyNet } from "./safety";
+export { captureFatalStartupError, initSentry } from "./sentry";
+export { startTerminalReaper } from "./terminal/reaper";
+export type {
+	DeleteInProgressCause,
+	TeardownFailureCause,
+} from "./trpc/error-types";
+export type { AppRouter } from "./trpc/router";
+export type { HostServiceContext } from "./types";

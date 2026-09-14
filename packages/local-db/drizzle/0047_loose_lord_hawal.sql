@@ -1,0 +1,1 @@
+ALTER TABLE `slack_reactions` ADD `profile_id` text DEFAULT 'default' NOT NULL;

@@ -1,0 +1,172 @@
+/**
+ * "What is this session about, and where is it at?" — derived from Claude's own
+ * transcript, which is the only honest record. The card title is whatever was
+ * typed at launch and the terminal is a wall of live chatter; neither tells you
+ * what you walked in on.
+ */
+
+export interface BriefMessage {
+	role: "user" | "assistant";
+	text: string;
+	at: string | null;
+}
+
+export interface SessionBrief {
+	/** Your latest instruction, when the session has moved past the opening ask. */
+	lastAsk: string | null;
+	/** What the agent last said with something in it — the de-facto status. */
+	latest: string | null;
+	/** Prose turns (yours + Claude's); tool calls never counted. */
+	turns: number;
+	/** Timestamp of the last turn, ISO, when the transcript recorded one. */
+	at: string | null;
+}
+
+/** Below this an assistant turn is an acknowledgement, not a status report. */
+const SUBSTANTIVE = 80;
+
+/**
+ * Resume used to launch the agent with the literal prompt "continue", so in
+ * older transcripts the newest turn is that — which says nothing about what
+ * you asked for. Your real last instruction is the one before it.
+ */
+const RESUME_STUB = /^\s*continue\.?\s*$/i;
+
+export function sessionBrief(messages: BriefMessage[]): SessionBrief {
+	const users = messages.filter(
+		(message) => message.role === "user" && !RESUME_STUB.test(message.text),
+	);
+	const assistants = messages.filter((message) => message.role === "assistant");
+	// "Ok." / "Done." is the reply, but the report is the turn before it — walk
+	// back to the last one that actually says something.
+	const latest =
+		[...assistants].reverse().find((m) => m.text.length >= SUBSTANTIVE) ??
+		assistants[assistants.length - 1];
+	return {
+		lastAsk: users.length > 1 ? (users[users.length - 1]?.text ?? null) : null,
+		latest: latest?.text ?? null,
+		turns: messages.length,
+		at: messages[messages.length - 1]?.at ?? null,
+	};
+}
+
+/** Claude's transcript directory for a cwd: every "/" and "." becomes "-". */
+export function projectSlug(cwd: string): string {
+	return cwd.replace(/[/.]/g, "-");
+}
+
+export interface PullRequestLink {
+	url: string;
+	repo: string;
+	number: number;
+}
+
+// Trailing ")" and "." are markdown and prose, never part of the URL.
+const PR_URL =
+	/https:\/\/github\.com\/([\w.-]+\/[\w.-]+?)\/pull\/(\d+)(?![\w-])/g;
+
+/**
+ * Pull requests this session produced, most recent first. Read straight out of
+ * the conversation — a session that opened a PR always ends up printing its URL,
+ * and that link is the first thing you want when you come back to it.
+ *
+ * Most recent first because a long-running session can open a dozen (one deploy
+ * session had 15), and the one you want is the one it just made.
+ *
+ * Claude's turns only. A PR you paste in yourself is the session's *input* —
+ * "run it on this pr" — not its output, and listing it as one of the session's
+ * PRs is a lie. Anything the session opened it also announces, so nothing real
+ * is lost; a PR you quoted that it worked on gets echoed back and still shows.
+ */
+export function pullRequests(messages: BriefMessage[]): PullRequestLink[] {
+	const found = new Map<string, PullRequestLink>();
+	for (const message of messages.filter((m) => m.role === "assistant")) {
+		for (const [, repo, number] of message.text.matchAll(PR_URL)) {
+			const url = `https://github.com/${repo}/pull/${number}`;
+			// Keyed by url: the same PR is quoted many times in a session. First
+			// mention wins, so a PR keeps the position where it was opened.
+			if (!found.has(url))
+				found.set(url, { url, repo, number: Number(number) });
+		}
+	}
+	return [...found.values()].reverse();
+}
+
+// Trailing ")" / "." is markdown and prose. The query string carries thread_ts,
+// which is what makes the link open the thread rather than the channel.
+const SLACK_URL =
+	/https:\/\/[\w-]+\.slack\.com\/archives\/[\w-]+\/p\d+(?:\?[\w=&.%-]+)?/;
+
+/**
+ * The Slack thread this session came from. Slack-sourced sessions open with
+ * "This task comes from a Slack thread: <url>" (see buildThreadPrompt), so the
+ * first Slack link in the transcript is the thread you were reacting to —
+ * later ones are whatever the agent quoted while working.
+ */
+export function slackThread(messages: BriefMessage[]): string | null {
+	for (const message of messages) {
+		const found = SLACK_URL.exec(message.text)?.[0];
+		if (found) return found.replace(/[).,]+$/, "");
+	}
+	return null;
+}
+
+/**
+ * When the conversation last moved, as epoch ms — the newest turn carrying a
+ * timestamp. This is what a card's age badge should read: "in this status
+ * since" is measured from the moment the board first saw the pane, so it
+ * resets to "now" on every reload and reports minutes for a session that has
+ * been sitting untouched for days.
+ *
+ * Walks back rather than taking the tail: older transcripts have turns with no
+ * timestamp, and one of those at the end shouldn't blank the badge.
+ */
+export function lastMessageAt(messages: BriefMessage[]): number | null {
+	for (let index = messages.length - 1; index >= 0; index--) {
+		const at = messages[index]?.at;
+		const ms = at ? Date.parse(at) : Number.NaN;
+		if (!Number.isNaN(ms)) return ms;
+	}
+	return null;
+}
+
+/**
+ * A card's age badge. Reads a real conversation timestamp, so unlike the old
+ * "since the board noticed this pane" clock it routinely lands days out — a
+ * session parked on Friday is the exact one you want to spot on Monday, and
+ * "70h 30m" is not something anyone reads at a glance.
+ */
+export function elapsedLabel(
+	since: number | undefined,
+	now = Date.now(),
+): string | null {
+	if (!since) return null;
+	const minutes = Math.round((now - since) / 60_000);
+	if (minutes < 1) return "now";
+	if (minutes < 60) return `${minutes}m`;
+	const hours = Math.floor(minutes / 60);
+	if (hours < 24) return `${hours}h ${minutes % 60}m`;
+	return `${Math.floor(hours / 24)}d ${hours % 24}h`;
+}
+
+/**
+ * The row a session was launched from. Jira and PR rows persist `title\nurl`
+ * as the pane's launch brief, so the first link in it is the ticket (or pull
+ * request) the session exists to work on — and it was being stored and never
+ * shown, which left a card titled "CRR-862: …" with no way to open CRR-862.
+ *
+ * Host parsed by hand rather than `new URL`: a throw here is a blank drawer.
+ */
+export function sourceLink(
+	brief: string | null | undefined,
+): { url: string; label: string } | null {
+	// Trailing ")" / "." is prose, same as the PR and Slack patterns above.
+	const url = brief?.match(/https?:\/\/\S+/)?.[0].replace(/[).,]+$/, "");
+	if (!url) return null;
+	// An issue key is what people call the thing; anything else gets its host.
+	const key = url.match(/\/browse\/([A-Z][A-Z0-9]*-\d+)/)?.[1];
+	return {
+		url,
+		label: key ?? url.replace(/^https?:\/\/(www\.)?/, "").split("/")[0],
+	};
+}

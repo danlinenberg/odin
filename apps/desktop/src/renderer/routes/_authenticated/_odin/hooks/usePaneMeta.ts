@@ -1,0 +1,98 @@
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
+
+/**
+ * Extra board metadata that isn't part of the tabs store, keyed by paneId and
+ * persisted so it survives app restart:
+ *  - contact: point-of-contact → the card's colored person chip.
+ *  - brief:   what the task is about → shown on card hover (the terminal only
+ *             shows the agent's live chatter, not the original ask).
+ *  - notes:   whatever you typed into the session brief panel yourself — the
+ *             written brief is regenerated from the transcript, so your own
+ *             "don't forget X" needs somewhere of its own to live.
+ */
+export const usePaneMeta = create<{
+	contactByPane: Record<string, string>;
+	briefByPane: Record<string, string>;
+	notesByPane: Record<string, string>;
+	/** Task title captured at launch — Claude Code's OSC title overwrites the
+	 *  pane name/userTitle to "Claude Code", so the board reads this instead. */
+	titleByPane: Record<string, string>;
+	/** Claude Code session id we assigned at launch (--session-id), so Resume
+	 *  can reattach to THIS conversation via --resume instead of guessing with
+	 *  --continue (which resumes whatever ran last in the same directory). */
+	sessionIdByPane: Record<string, string>;
+	/** Notion pageId → paneId, so a task row knows it already has a session
+	 *  (and can jump to it) instead of offering to start a second one. */
+	paneByPage: Record<string, string>;
+	setContact: (paneId: string, contact: string) => void;
+	setBrief: (paneId: string, brief: string) => void;
+	setNotes: (paneId: string, notes: string) => void;
+	setTitle: (paneId: string, title: string) => void;
+	setSessionId: (paneId: string, sessionId: string) => void;
+	setPaneForPage: (pageId: string, paneId: string) => void;
+	/** Drop every entry for a pane that no longer exists (board "done" removes
+	 *  the pane outright) — otherwise these localStorage maps only ever grow,
+	 *  and a stale paneByPage makes a Notion task look like it still has a
+	 *  session. */
+	forgetPane: (paneId: string) => void;
+}>()(
+	persist(
+		(set) => ({
+			contactByPane: {},
+			briefByPane: {},
+			notesByPane: {},
+			titleByPane: {},
+			sessionIdByPane: {},
+			paneByPage: {},
+			setContact: (paneId, contact) =>
+				set((s) => ({
+					contactByPane: { ...s.contactByPane, [paneId]: contact },
+				})),
+			setBrief: (paneId, brief) =>
+				set((s) => ({
+					briefByPane: { ...s.briefByPane, [paneId]: brief },
+				})),
+			setNotes: (paneId, notes) =>
+				set((s) => {
+					// Empty note = no note: keep the map free of "" entries so a
+					// cleared box doesn't outlive itself in localStorage.
+					if (!notes.trim()) {
+						const { [paneId]: _, ...rest } = s.notesByPane;
+						return { notesByPane: rest };
+					}
+					return { notesByPane: { ...s.notesByPane, [paneId]: notes } };
+				}),
+			setTitle: (paneId, title) =>
+				set((s) => ({
+					titleByPane: { ...s.titleByPane, [paneId]: title },
+				})),
+			setSessionId: (paneId, sessionId) =>
+				set((s) => ({
+					sessionIdByPane: { ...s.sessionIdByPane, [paneId]: sessionId },
+				})),
+			setPaneForPage: (pageId, paneId) =>
+				set((s) => ({
+					paneByPage: { ...s.paneByPage, [pageId]: paneId },
+				})),
+			forgetPane: (paneId) =>
+				set((s) => {
+					const drop = <T>(map: Record<string, T>) => {
+						const { [paneId]: _, ...rest } = map;
+						return rest;
+					};
+					return {
+						contactByPane: drop(s.contactByPane),
+						briefByPane: drop(s.briefByPane),
+						notesByPane: drop(s.notesByPane),
+						titleByPane: drop(s.titleByPane),
+						sessionIdByPane: drop(s.sessionIdByPane),
+						paneByPage: Object.fromEntries(
+							Object.entries(s.paneByPage).filter(([, id]) => id !== paneId),
+						),
+					};
+				}),
+		}),
+		{ name: "odin-pane-meta" },
+	),
+);
