@@ -218,7 +218,7 @@ function SessionsPage() {
 		[daemonSessions, panes, sessionIdByPane],
 	);
 
-	const { data, isFetching } =
+	const { data, isFetching, error } =
 		electronTrpc.terminal.searchClaudeSessions.useQuery(
 			{ query, limit: 40 },
 			{ placeholderData: (previous) => previous },
@@ -339,9 +339,19 @@ function SessionsPage() {
 			<div className="min-h-0 flex-1 overflow-y-auto px-[18px] pb-[18px]">
 				{rows.length === 0 && !isFetching && (
 					<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
-						{query
-							? `No Odin session mentions ${terms.map((term) => `"${term}"`).join(" or ")}, or came from anyone by that name.`
-							: "Odin hasn't launched any sessions on this machine yet."}
+						{/* A search that failed is not a machine with no history —
+						    saying so sent this page's one real outage ("cannot find
+						    module ./chunks/…", a rebuild under a running Odin) looking
+						    like an empty store for hours. */}
+						{error ? (
+							<span className="text-[#f0647a]">
+								Couldn't read the session store — {error.message}
+							</span>
+						) : query ? (
+							`No Odin session mentions ${terms.map((term) => `"${term}"`).join(" or ")}, or came from anyone by that name.`
+						) : (
+							"Odin hasn't launched any sessions on this machine yet."
+						)}
 					</div>
 				)}
 				<div className="flex flex-col gap-1.5">
