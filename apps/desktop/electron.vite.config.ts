@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import { sentryVitePlugin } from "@sentry/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
@@ -155,6 +156,20 @@ export default defineConfig({
 				},
 				output: {
 					dir: resolve(devPath, "main"),
+					// Odin fork: name lazy chunks after what's *in* them, not after
+					// their contents. A content hash renames a chunk on every edit,
+					// and the rebuild deletes the old name — so the Odin still running
+					// can no longer resolve any `await import()` it hasn't already
+					// loaded, and whole pages (Session History) fail with "Cannot find
+					// module ./chunks/…". Nothing here is served over HTTP, so the
+					// cache-busting a content hash buys is worth nothing. The id hash
+					// only disambiguates chunks that share a basename (nine of them are
+					// `index`), and only moves when a chunk's module set moves.
+					chunkFileNames: (chunk) =>
+						`chunks/${chunk.name}-${createHash("sha1")
+							.update(chunk.moduleIds.join("\0"))
+							.digest("hex")
+							.slice(0, 8)}.js`,
 				},
 				external: ["electron", ...mainExternalizedDependencies],
 				plugins: [sentryPlugin].filter(Boolean),
