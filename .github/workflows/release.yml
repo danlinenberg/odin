@@ -16,8 +16,8 @@ permissions:
 
 jobs:
   macos:
-    # The private mirror shares this file; macOS minutes there are billed, and a
-    # release from it would be the wrong repo anyway.
+    # Only this repo cuts Odin releases — a fork running this would publish to
+    # its own releases under our version numbers, and burn macOS minutes doing it.
     if: github.repository == 'danlinenberg/odin'
     runs-on: macos-15
     timeout-minutes: 60
