@@ -1,4 +1,5 @@
 export {
+	currentCwdOf,
 	listTranscripts,
 	parseTranscript,
 	projectsRoot,

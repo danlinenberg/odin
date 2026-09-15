@@ -638,3 +638,33 @@ export async function readTranscript({
 	const { cwd, aiTitle, prompt } = summarizeTranscript(jsonl);
 	return { messages: parseTranscript(jsonl), cwd, title: aiTitle, prompt };
 }
+
+/**
+ * Where a session is working *now*.
+ *
+ * Claude Code stamps its own cwd on every transcript entry and follows `cd`s
+ * the shell never emits OSC-7 for, so a pane launched in a catch-all directory
+ * (`~/dev`) keeps reporting that forever while the agent has long since moved
+ * into the repo — or worktree — it's actually changing. The last cwd in the
+ * transcript is the checkout worth diffing.
+ *
+ * ponytail: scan the raw text for the last `"cwd"`, no JSON.parse per line.
+ */
+export async function currentCwdOf(
+	sessionId: string,
+	root: string = projectsRoot(),
+): Promise<string | null> {
+	const found = await transcriptOf(sessionId, root);
+	if (!found) return null;
+	let cwd: string | null = null;
+	for (const match of (await readFile(found.path, "utf-8")).matchAll(
+		/"cwd"\s*:\s*("(?:[^"\\]|\\.)*")/g,
+	)) {
+		try {
+			cwd = JSON.parse(match[1]) as string;
+		} catch {
+			// truncated write mid-line; keep the last good one
+		}
+	}
+	return cwd;
+}

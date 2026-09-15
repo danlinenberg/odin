@@ -18,11 +18,15 @@ import {
  */
 export function DiffView({
 	cwd,
+	claudeSessionId,
 	workspaceId,
 }: {
 	/** Null until the session's terminal has mounted — the main process then
 	 * falls back to the workspace's own checkout. */
 	cwd: string | null;
+	/** The conversation in this pane. Claude Code cds between repos without the
+	 * shell noticing, so its transcript — not `cwd` — knows where the work is. */
+	claudeSessionId: string | null;
 	workspaceId: string;
 }) {
 	const host = useRef<HTMLDivElement>(null);
@@ -32,7 +36,7 @@ export function DiffView({
 	const [width, setWidth] = useState(120);
 
 	const { data, error, isFetching, refetch } = electronTrpc.repos.diff.useQuery(
-		{ cwd, workspaceId, width },
+		{ cwd, claudeSessionId, workspaceId, width },
 		{ refetchOnWindowFocus: false, retry: false },
 	);
 
@@ -88,7 +92,9 @@ export function DiffView({
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
 			<div className="flex items-center gap-2 border-b border-[#25252e] px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[.4px] text-[#8a8a97]">
-				<span>Diff · {data?.source ?? "…"}</span>
+				<span title={data?.cwd}>
+					Diff · {data ? `${data.cwd.split("/").pop()} · ${data.source}` : "…"}
+				</span>
 				{data && !data.delta && (
 					<span
 						title="brew install git-delta"
