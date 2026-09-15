@@ -33,14 +33,11 @@ request. One queue, one board, one thing to look at.
 macOS on Apple Silicon:
 
 ```sh
-brew trust --cask danlinenberg/odin/odin
-brew tap danlinenberg/odin https://github.com/danlinenberg/odin
-brew install --cask odin
-xattr -dr com.apple.quarantine /Applications/Odin.app
+brew trust --cask danlinenberg/odin/odin && brew tap danlinenberg/odin https://github.com/danlinenberg/odin && brew install --cask odin && xattr -dr com.apple.quarantine /Applications/Odin.app
 ```
 
-The first line exists because Homebrew will not load a cask from a third-party
-tap until you trust it. The last one exists because releases are signed with a
+`brew trust` is there because Homebrew will not load a cask from a third-party
+tap until you trust it. `xattr` is there because releases are signed with a
 self-signed certificate rather than an Apple Developer ID: macOS quarantines
 what it downloads, and for an app it cannot verify it offers no way through —
 that dialog reads *Done* or *Move to Trash*, with no *Open Anyway*. Clear the
@@ -56,8 +53,7 @@ with yourself.
 ### Upgrade
 
 ```sh
-brew upgrade --cask --greedy odin
-xattr -dr com.apple.quarantine /Applications/Odin.app
+brew upgrade --cask --greedy odin && xattr -dr com.apple.quarantine /Applications/Odin.app
 ```
 
 `--greedy` is not optional. The cask is `version :latest`, and Homebrew skips
