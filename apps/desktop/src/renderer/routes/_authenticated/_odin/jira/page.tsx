@@ -32,6 +32,7 @@ import {
 	useHiddenFilter,
 } from "../components/HiddenItems";
 import { PersonChip } from "../components/PersonChip";
+import { buildIssuePrompt } from "../feed-prompts";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePendingFocus } from "../hooks/usePendingFocus";
@@ -46,23 +47,6 @@ export const Route = createFileRoute("/_authenticated/_odin/jira/")({
  * by role, grouped by status category, with one click to start an agent session
  * on one (or jump to a running one).
  */
-
-/** Investigate-first prompt, so the agent reads the ticket before touching code. */
-function buildIssuePrompt(key: string, url: string, title: string): string {
-	return [
-		`This task is Jira issue ${key}: ${title}`,
-		`Ticket: ${url}`,
-		"",
-		"PHASE 1 — UNDERSTAND (do this first):",
-		`- Read ${key} in full: description, acceptance criteria, comments, linked issues and attachments.`,
-		"- If the repo isn't obvious from the ticket, work it out from the code before changing anything.",
-		"",
-		"PHASE 2 — EXECUTE:",
-		"- Investigate the root cause, make the change, and verify it when practical.",
-		"",
-		"Rules: do NOT comment on the ticket or move it — everything stays in this session for review.",
-	].join("\n");
-}
 
 const CATEGORY_ORDER = ["In Progress", "To Do", "Done"];
 const categoryRank = (c: string) => {

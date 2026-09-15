@@ -1,6 +1,34 @@
+import type { OdinSource } from "renderer/hooks/useLaunchTaskSession";
 import type { FeedPath } from "../components/feed-counts";
 import { isBot } from "../components/feed-counts";
-import { PRIORITY_LABELS, priorityOf } from "../hooks/useOdinTasks";
+import { buildIssuePrompt, buildReviewPrompt } from "../feed-prompts";
+import {
+	type OdinTask,
+	PRIORITY_LABELS,
+	priorityOf,
+	taskPrompt,
+} from "../hooks/useOdinTasks";
+import { buildRowPrompt, type NotionRow } from "../notion/rows";
+import { buildThreadPrompt } from "../thread-prompt";
+
+/**
+ * Everything useLaunchTaskSession needs for a row except the workspace — so
+ * All can start a session itself instead of sending you to the feed that
+ * knows how. Built where the row is flattened, because that's the last place
+ * the source's own fields (the Slack message text, the PR's kind, the Notion
+ * page's properties) still exist.
+ */
+export interface AllLaunch {
+	key: string;
+	title: string;
+	description: string | null;
+	contact: string | null;
+	brief: string;
+	/** Slack/Notion only — the upstream page a pane is matched back to. */
+	pageId?: string;
+	/** Absent for my own tasks: they're not work anyone delegated. */
+	source?: OdinSource;
+}
 
 /**
  * One row of the All feed — a task from any source, flattened to the few
@@ -10,7 +38,7 @@ export interface AllItem {
 	/** Unique across sources — two systems can hand out the same id. */
 	key: string;
 	source: "Tasks" | "Slack" | "Jira" | "GitHub" | "Notion";
-	/** The feed this row lives in — where its Start session button is. */
+	/** The feed this row lives in — clicking the title goes there. */
 	to: FeedPath;
 	title: string;
 	/** Upstream link. My own tasks have none: they only exist in Odin. */
@@ -25,6 +53,8 @@ export interface AllItem {
 	priority: string | null;
 	/** Sort key in ms. 0 when the source didn't date it. */
 	at: number;
+	/** What to hand `launch` when Start session is clicked on this row. */
+	launch: AllLaunch;
 }
 
 /** ISO → ms, and 0 for "no date" so an undated row sinks instead of throwing. */
@@ -41,15 +71,11 @@ function ms(iso: string | null | undefined): number {
  * rather than being a second, larger truth.
  */
 export function allItems(input: {
-	tasks: {
-		id: string;
-		title: string;
-		createdAt: number;
-		priority?: number;
-	}[];
+	tasks: OdinTask[];
 	slack: {
 		id: string;
 		title: string;
+		text: string;
 		status: string;
 		permalink: string | null;
 		channelName: string | null;
@@ -72,9 +98,10 @@ export function allItems(input: {
 		repo: string;
 		number: number;
 		author: string;
+		kind: "review" | "mine";
 		updated: string | null;
 	}[];
-	notion: {
+	notion: (NotionRow & {
 		pageId: string;
 		title: string;
 		pageUrl: string;
@@ -84,7 +111,7 @@ export function allItems(input: {
 		channel?: string | null;
 		updatedAt: string | null;
 		date: string | null;
-	}[];
+	})[];
 }): AllItem[] {
 	return [
 		...input.tasks.map(
@@ -99,6 +126,13 @@ export function allItems(input: {
 				context: null,
 				priority: PRIORITY_LABELS[priorityOf(task)],
 				at: task.createdAt,
+				launch: {
+					key: task.id,
+					title: task.title,
+					description: task.notes || null,
+					contact: null,
+					brief: taskPrompt(task),
+				},
 			}),
 		),
 		...input.slack
@@ -115,6 +149,22 @@ export function allItems(input: {
 					priority: null,
 					context: row.channelName && `#${row.channelName}`,
 					at: ms(row.postedAt),
+					launch: {
+						key: row.id,
+						title: row.title,
+						// A queued message always has a permalink; the empty string
+						// only keeps the type honest, and the row can't start
+						// without one (the page checks `url` first).
+						description: buildThreadPrompt(
+							row.permalink ?? "",
+							row.title,
+							row.text,
+						),
+						contact: row.authorName,
+						brief: row.title,
+						pageId: row.id,
+						source: "reactions",
+					},
 				}),
 			),
 		...input.jira.map(
@@ -129,6 +179,14 @@ export function allItems(input: {
 				priority: issue.priority ?? null,
 				context: issue.project,
 				at: ms(issue.updated),
+				launch: {
+					key: issue.key,
+					title: `${issue.key}: ${issue.title}`,
+					description: buildIssuePrompt(issue.key, issue.url, issue.title),
+					contact: issue.reporter ?? null,
+					brief: `${issue.key}: ${issue.title}\n${issue.url}`,
+					source: "jira",
+				},
 			}),
 		),
 		...input.pulls
@@ -146,6 +204,19 @@ export function allItems(input: {
 					// Every repo is the same org — the column is for the repo name.
 					context: pull.repo.split("/").at(-1) ?? pull.repo,
 					at: ms(pull.updated),
+					launch: {
+						key: pull.url,
+						title: `${pull.repo}#${pull.number}: ${pull.title}`,
+						description: buildReviewPrompt(
+							pull.url,
+							pull.title,
+							pull.repo,
+							pull.kind,
+						),
+						contact: pull.author,
+						brief: `${pull.repo}#${pull.number}: ${pull.title}\n${pull.url}`,
+						source: "pr",
+					},
 				}),
 			),
 		...input.notion.map(
@@ -160,6 +231,15 @@ export function allItems(input: {
 				priority: row.priority ?? null,
 				context: row.channel ?? null,
 				at: ms(row.updatedAt ?? row.date),
+				launch: {
+					key: row.pageId,
+					title: row.title,
+					description: buildRowPrompt(row),
+					contact: row.assignee,
+					brief: `${row.title}\n${row.pageUrl}`,
+					pageId: row.pageId,
+					source: "notion",
+				},
 			}),
 		),
 	].sort((a, b) => b.at - a.at);

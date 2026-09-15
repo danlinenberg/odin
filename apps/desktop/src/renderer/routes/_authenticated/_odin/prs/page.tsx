@@ -33,6 +33,7 @@ import {
 	useHiddenFilter,
 } from "../components/HiddenItems";
 import { PersonChip } from "../components/PersonChip";
+import { buildReviewPrompt } from "../feed-prompts";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePendingFocus } from "../hooks/usePendingFocus";
@@ -51,43 +52,6 @@ const KIND_TABS = [
 	{ id: "mine" as const, label: "Mine" },
 ];
 type Kind = (typeof KIND_TABS)[number]["id"];
-
-function buildReviewPrompt(
-	url: string,
-	title: string,
-	repo: string,
-	kind: Kind,
-): string {
-	const shared = [
-		`Pull request: ${url}`,
-		`Repo: ${repo}`,
-		`Title: ${title}`,
-		"",
-		"PHASE 1 — READ (do this first):",
-		"- Read the PR: description, the full diff, CI status, and existing review comments.",
-		"- Check out the branch locally if you need to run or trace anything.",
-		"",
-	];
-	return kind === "review"
-		? [
-				`Review this pull request: ${title}`,
-				...shared,
-				"PHASE 2 — REVIEW:",
-				"- Look for correctness bugs first, then missing tests, then simplifications.",
-				"- Report findings with file:line and a concrete fix for each.",
-				"",
-				"Rules: do NOT post the review to GitHub — leave it here for me to send.",
-			].join("\n")
-		: [
-				`Work on my pull request: ${title}`,
-				...shared,
-				"PHASE 2 — EXECUTE:",
-				"- Address outstanding review comments and failing CI.",
-				"- Verify your changes, then summarise what's left.",
-				"",
-				"Rules: do NOT merge, and do NOT comment on GitHub — everything stays here for review.",
-			].join("\n");
-}
 
 function shortDate(iso: string | null): string | null {
 	if (!iso) return null;
