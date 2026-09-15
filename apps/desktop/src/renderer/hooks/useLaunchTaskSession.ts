@@ -45,6 +45,12 @@ export function buildPrompt(
 			: []),
 		"",
 		"Work in the current workspace. Investigate, make the changes, and verify them when practical.",
+		// Every session lands on the board, and most of them land under "Needs
+		// you" — where the only question being asked is "what do I have to do
+		// about this one?". A turn that stops at "here's what I found" makes
+		// you read the whole transcript to answer it.
+		"",
+		'Finish every reply with a section headed "ACTION ITEMS": a short numbered list of what I — the human reviewing this — have to do next (decide something, run or check something, unblock you). If there is nothing for me to do, write "ACTION ITEMS: none" and say why.',
 	].join("\n");
 }
 
