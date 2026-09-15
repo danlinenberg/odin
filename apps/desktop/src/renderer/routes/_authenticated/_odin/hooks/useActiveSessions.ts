@@ -5,6 +5,7 @@ import type { Pane } from "renderer/stores/tabs/types";
 import { boardColumn } from "shared/board-column";
 import { type BoardSection, boardSection } from "shared/board-section";
 import { profileOf } from "shared/odin-profile";
+import { boardTags } from "shared/odin-tags";
 import type { PaneStatus } from "shared/tabs-types";
 import { useOdinProfile } from "./useOdinProfile";
 
@@ -59,10 +60,11 @@ export function activeSessions(
 				pane.odinParked ?? false,
 			),
 			contact: pane.odinContact ?? null,
-			tags: pane.odinTags ?? [],
+			tags: boardTags(pane.odinTags),
 			// initialCwd too: a session whose terminal was never opened has no
 			// confirmed cwd, same fallback the board's cards use.
-			repo: (pane.cwd ?? pane.initialCwd)?.split("/").filter(Boolean).pop() ?? null,
+			repo:
+				(pane.cwd ?? pane.initialCwd)?.split("/").filter(Boolean).pop() ?? null,
 		}))
 		.sort(
 			(a, b) =>

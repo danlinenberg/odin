@@ -3,6 +3,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { execWithShellEnv } from "lib/trpc/routers/workspaces/utils/shell-env";
+import { TAG_VOCABULARY } from "shared/odin-tags";
 import {
 	parseTranscript,
 	summarizeTranscript,
@@ -35,28 +36,15 @@ export interface WrittenBrief {
 }
 
 /**
- * The only tags the model may hand out. A closed list because the tags feed the
- * board's filter pills: let it invent its own and you get refactor/refactoring/
- * refactors as three separate pills that each match a third of the cards.
- * Hand-typed tags stay free-form — this governs the generated ones only.
+ * The tags the model may hand out — shared with the board, which shows and
+ * filters by exactly this list. Closed on purpose: let it invent its own and
+ * you get refactor/refactoring/refactors as three pills matching a third of
+ * the cards each.
  */
-export const TAG_VOCABULARY = [
-	"bug",
-	"feature",
-	"refactor",
-	"test",
-	"docs",
-	"chore",
-	"perf",
-	"security",
-	"ui",
-	"api",
-	"infra",
-	"deps",
-] as const;
+export { TAG_VOCABULARY };
 
 /** Enough to place a card, few enough to read at a glance on one. */
-const MAX_TAGS = 3;
+const MAX_TAGS = 2;
 
 /** Longest single turn we feed the model. Enough for a report, not a diff. */
 const TURN_CAP = 1200;

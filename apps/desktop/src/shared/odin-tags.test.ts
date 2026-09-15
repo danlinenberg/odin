@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { withOdinTag } from "./odin-tags";
+import { boardTags, withOdinTag } from "./odin-tags";
 
 const ODIN = "/Users/dan/dev/private/odin";
 
@@ -23,5 +23,15 @@ describe("withOdinTag", () => {
 
 	it("does not duplicate an explicit tag", () => {
 		expect(withOdinTag(["odin"], ODIN, ODIN)).toEqual(["odin"]);
+	});
+});
+
+describe("boardTags", () => {
+	it("keeps the list and drops what the old vocabulary left behind", () => {
+		expect(boardTags(["odin", "perf", "chore", "api"])).toEqual([
+			"odin",
+			"chore",
+		]);
+		expect(boardTags(undefined)).toEqual([]);
 	});
 });
