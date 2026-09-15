@@ -1,4 +1,4 @@
-import type { SelectWorkspace } from "@odin/local-db";
+import type { SelectProject, SelectWorkspace } from "@odin/local-db";
 import { BRIEF_DIR } from "@odin/shared/constants";
 import {
 	HoverCard,
@@ -40,6 +40,7 @@ import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePaneMeta } from "../hooks/usePaneMeta";
 import { usePendingFocus } from "../hooks/usePendingFocus";
 import { elapsedLabel, lastMessageAt, pullRequests, sourceLink } from "./brief";
+import { DiffView } from "./DiffView";
 import { SessionBrief } from "./SessionBrief";
 
 /**
@@ -85,7 +86,8 @@ interface BoardCard {
 	tabId: string;
 	tabName: string;
 	workspaceId: string;
-	workspaceName: string;
+	/** The workspace's own checkout — where a card with no pane cwd runs. */
+	repoPath: string;
 	status: PaneStatus;
 }
 
@@ -100,10 +102,10 @@ function sessionCwd(pane: Pane): string | undefined {
 
 /**
  * The checkout a card runs in, in one word. Feed-launched sessions have no
- * repo of their own — they run in the workspace worktree, so that's its name.
+ * repo of their own — they run in the workspace's checkout, so name that.
  */
 function repoLabel(card: BoardCard): string {
-	return sessionCwd(card.pane)?.split("/").pop() || card.workspaceName;
+	return (sessionCwd(card.pane) ?? card.repoPath).split("/").pop() || "repo";
 }
 
 /** Same slug rule as useLaunchTaskSession — to locate a task's prompt file. */
@@ -472,6 +474,9 @@ function DevBoardPage() {
 	// The brief panel: open by default, because "what did I walk into?" is the
 	// question you have every single time you open a session.
 	const [isBriefOpen, setIsBriefOpen] = useState(true);
+	// The diff takes the terminal's place rather than a side panel — a diff needs
+	// the width, and you read one instead of watching the session, not alongside.
+	const [isDiffOpen, setIsDiffOpen] = useState(false);
 	// Panes whose Resume is in flight. Resuming takes a second (session lookup,
 	// kill, respawn) and the card can't flip out of Idle until the 5s daemon
 	// poll sees the new PTY — without this the click looks like it did nothing.
@@ -588,6 +593,15 @@ function DevBoardPage() {
 		for (const workspace of workspaces) map.set(workspace.id, workspace);
 		return map;
 	}, [workspaces]);
+
+	// Workspaces only carry their own name ("default" for the one Odin
+	// provisions), so the repo chip needs the project behind them for its path.
+	const { data: projects = [] } = electronTrpc.projects.getRecents.useQuery();
+	const projectById = useMemo(() => {
+		const map = new Map<string, SelectProject>();
+		for (const project of projects) map.set(project.id, project);
+		return map;
+	}, [projects]);
 
 	// Escape closes the drawer — unless focus is inside the terminal, where Esc
 	// belongs to Claude (interrupt). Click outside the xterm first, then Esc.
@@ -776,7 +790,7 @@ function DevBoardPage() {
 					tabId: tab.id,
 					tabName: tab.userTitle ?? tab.name,
 					workspaceId: tab.workspaceId,
-					workspaceName: workspace?.name ?? "(unknown)",
+					repoPath: projectById.get(workspace?.projectId ?? "")?.mainRepoPath ?? "",
 				};
 				if (pane.type !== "terminal") continue; // chat panes aren't board cards
 				// Another profile's work — not this board's. Until the profile is
@@ -834,6 +848,7 @@ function DevBoardPage() {
 		tabs,
 		panes,
 		workspaceById,
+		projectById,
 		alivePaneIds,
 		daemonSessions,
 		tagFilter,
@@ -1085,7 +1100,7 @@ function DevBoardPage() {
 			usePaneMeta.getState().setTitle(result.paneId, title);
 			usePaneMeta.getState().setSessionId(result.paneId, result.sessionId);
 			toast.success(
-				`Session started in ${repoPath ? repoPath.split("/").pop() : ensured.workspace.name}`,
+				`Session started in ${(repoPath || projectById.get(ensured.workspace.projectId)?.mainRepoPath || "").split("/").pop() || "your repo"}`,
 			);
 		} else {
 			toast.error(result.error);
@@ -1364,8 +1379,8 @@ function DevBoardPage() {
 																	    catch by scanning the board. */}
 																	<span
 																		title={
-																			sessionCwd(card.pane) ??
-																			card.workspaceName
+																			sessionCwd(card.pane) ||
+																			card.repoPath
 																		}
 																		className="inline-flex items-center gap-1 rounded-[5px] bg-[#1b2430] px-[7px] text-[11px] font-medium text-[#7ec4ff]"
 																	>
@@ -1519,6 +1534,21 @@ function DevBoardPage() {
 										className="min-w-0 flex-1 rounded-md border border-[#a394ff] bg-[#0a0a0c] px-2 py-1 text-sm font-semibold text-[#f5f5f7] outline-none"
 									/>
 								)}
+								{drawerCard.pane.type === "terminal" && (
+									<button
+										type="button"
+										title="Show what this session changed (git diff, rendered by delta)"
+										onClick={() => setIsDiffOpen((open) => !open)}
+										className={cn(
+											"shrink-0 rounded-md px-2 py-1 text-xs font-semibold",
+											isDiffOpen
+												? "bg-[#211d3a] text-[#a394ff]"
+												: "bg-[#1f1f27] text-[#a5a5b3] hover:text-[#f5f5f7]",
+										)}
+									>
+										⑂ Diff
+									</button>
+								)}
 								<button
 									type="button"
 									title="Toggle the session brief"
@@ -1577,7 +1607,14 @@ function DevBoardPage() {
 						{/* terminal on the left, "what's going on" brief on the right */}
 						<div className="flex min-h-0 flex-1">
 							<div className="flex min-h-0 min-w-0 flex-1 flex-col">
-								{drawerCard.pane.type !== "terminal" ? (
+								{isDiffOpen && drawerCard.pane.type === "terminal" ? (
+									<DiffView
+										key={drawerCard.pane.id}
+										cwd={sessionCwd(drawerCard.pane) ?? null}
+										claudeSessionId={drawerCard.pane.claudeSessionId ?? null}
+										workspaceId={drawerCard.workspaceId}
+									/>
+								) : drawerCard.pane.type !== "terminal" ? (
 									<div className="flex-1 select-text cursor-text overflow-y-auto px-4 py-3 text-[12.5px] text-[#a5a5b3]">
 										{drawerCard.pane.cwd && (
 											<div>cwd: {drawerCard.pane.cwd}</div>

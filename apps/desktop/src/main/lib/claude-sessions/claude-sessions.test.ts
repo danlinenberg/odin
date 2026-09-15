@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+	currentCwdOf,
 	parseTranscript,
 	queryTerms,
 	readTranscript,
@@ -503,5 +504,34 @@ describe("parseTranscript / readTranscript", () => {
 				root: fixtureRoot(),
 			}),
 		).rejects.toThrow("Invalid transcript reference");
+	});
+});
+
+describe("currentCwdOf", () => {
+	/**
+	 * The board's diff panel reads this: a pane launched in a catch-all directory
+	 * reports that forever, while the agent cds into the repo it's changing.
+	 */
+	test("is the last cwd in the transcript, not the first", async () => {
+		const root = mkdtempSync(join(tmpdir(), "claude-cwd-"));
+		const project = join(root, "-Users-dan-dev");
+		mkdirSync(project, { recursive: true });
+		writeFileSync(
+			join(project, "bbbb1111-2222-3333-4444-555566667777.jsonl"),
+			[
+				JSON.stringify({ type: "user", cwd: "/Users/dan/dev" }),
+				JSON.stringify({ type: "assistant", cwd: "/Users/dan/dev/imagen" }),
+				JSON.stringify({ type: "mode", mode: "normal" }),
+				JSON.stringify({
+					type: "assistant",
+					cwd: "/Users/dan/dev/imagen/.worktrees/analytics",
+				}),
+				"{ truncated mid-write",
+			].join("\n"),
+		);
+		expect(
+			await currentCwdOf("bbbb1111-2222-3333-4444-555566667777", root),
+		).toBe("/Users/dan/dev/imagen/.worktrees/analytics");
+		expect(await currentCwdOf("no-such-session", root)).toBeNull();
 	});
 });
