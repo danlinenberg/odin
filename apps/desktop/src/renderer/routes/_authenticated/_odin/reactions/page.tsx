@@ -71,6 +71,8 @@ function relativeTime(iso: string): string {
 function ReactionsPage() {
 	// One status at a time.
 	const [statusFilter, setStatusFilter] = useState<ReactionStatus | null>(null);
+	// ponytail: one row open at a time — click another and this one closes.
+	const [expandedId, setExpandedId] = useState<string | null>(null);
 	const { reactions, syncAll, isSyncing } = useOdinFeeds();
 	const { ensureWorkspace } = useOdinWorkspace();
 	const { launch, isLaunching, launchingKey } = useLaunchTaskSession();
@@ -237,20 +239,32 @@ function ReactionsPage() {
 					{visible.map((row) => {
 						const activePaneId = activePaneFor(row.id);
 						const link = row.permalink;
+						const expanded = expandedId === row.id;
 						return (
 							<div
 								key={row.id}
 								className={cn(FEED_ROW, row.done && "opacity-50")}
 							>
-								{/* One line per message, like every other feed — a pasted-in
-								    Slack essay gets its first line here, the thread has the rest. */}
-								<div className="flex items-center gap-3">
-									<div
-										title={row.text}
-										className="min-w-0 flex-1 truncate text-[13px] text-[#f5f5f7]"
+								{/* One line per message, like every other feed — click it to
+								    read the whole thing without leaving for Slack. */}
+								<div
+									className={cn(
+										"flex gap-3",
+										expanded ? "items-start" : "items-center",
+									)}
+								>
+									<button
+										type="button"
+										title={expanded ? "Collapse" : "Show the full message"}
+										onClick={() => setExpandedId(expanded ? null : row.id)}
+										className={cn(
+											"min-w-0 flex-1 text-left text-[13px] text-[#f5f5f7]",
+											expanded ? "whitespace-pre-wrap" : "truncate",
+										)}
 									>
-										{preview(row.text) || "(no text)"}
-									</div>
+										{(expanded ? emojify(row.text) : preview(row.text)) ||
+											"(no text)"}
+									</button>
 									<div className="flex shrink-0 items-center gap-2 text-[11px]">
 										<span className={META_PERSON}>
 											{row.authorName && (
