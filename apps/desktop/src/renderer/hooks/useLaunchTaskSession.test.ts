@@ -112,6 +112,7 @@ describe("waitForCapacity", () => {
 		agentMemoryGb: 12.4,
 		memoryPercent: 60,
 		agentCount: 6,
+		roomForMore: 0,
 		busy: true,
 		reason: "6 agents using 90% of CPU",
 	};

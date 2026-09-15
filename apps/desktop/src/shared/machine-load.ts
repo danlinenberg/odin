@@ -12,6 +12,7 @@ export interface MachineLoadInput {
 		cpuCoreCount: number;
 		loadAverage1m: number;
 		memoryUsagePercent: number;
+		totalMemory: number;
 	};
 	/** App + every agent session, summed, where 100 = one core saturated. */
 	totalCpu: number;
@@ -29,6 +30,26 @@ export interface MachineLoadInput {
  * different machine argues with it.
  */
 export const BUSY_AGENT_CPU_PERCENT = 70;
+
+/**
+ * Share of this Mac's RAM Odin's agents may hold before it stops promising
+ * room for another one.
+ *
+ * ponytail: same kind of knob as BUSY_AGENT_CPU_PERCENT, and unlike
+ * `memoryPercent` it's measured per-process, so it means what it says.
+ */
+export const AGENT_MEMORY_BUDGET_PERCENT = 70;
+
+/**
+ * What one session is assumed to cost, in GB.
+ *
+ * ponytail: a fixed figure, not the running average of what the live sessions
+ * hold. A parked session sits near 0.2 GB and a working one near 2, so the
+ * average swings 10x and took `roomForMore` with it — 8 one moment, 40 the
+ * next. Budget for a session that's actually working; move the knob if a
+ * different machine argues with it.
+ */
+export const SESSION_MEMORY_GB = 2;
 
 export interface MachineLoad {
 	/**
@@ -56,6 +77,11 @@ export interface MachineLoad {
 	 */
 	memoryPercent: number;
 	agentCount: number;
+	/**
+	 * Sessions that still fit under AGENT_MEMORY_BUDGET_PERCENT, at
+	 * SESSION_MEMORY_GB each.
+	 */
+	roomForMore: number;
 	busy: boolean;
 	/** Why it's busy, phrased for a toast. Null when it isn't. */
 	reason: string | null;
@@ -74,12 +100,20 @@ export function machineLoad(snapshot: MachineLoadInput): MachineLoad {
 	);
 	const busy = agentCpuPercent >= BUSY_AGENT_CPU_PERCENT;
 	const memoryGb = snapshot.totalMemory / 1024 ** 3;
+	const agentMemoryGb = Number.isFinite(memoryGb)
+		? Math.max(0, Math.round(memoryGb * 10) / 10)
+		: 0;
+
+	const budgetGb =
+		(snapshot.host.totalMemory / 1024 ** 3) *
+		(AGENT_MEMORY_BUDGET_PERCENT / 100);
+	const spareGb = Number.isFinite(budgetGb) ? budgetGb - agentMemoryGb : 0;
+	const roomForMore = Math.max(0, Math.floor(spareGb / SESSION_MEMORY_GB));
 
 	return {
 		agentCpuPercent,
-		agentMemoryGb: Number.isFinite(memoryGb)
-			? Math.max(0, Math.round(memoryGb * 10) / 10)
-			: 0,
+		agentMemoryGb,
+		roomForMore,
 		cpuPercent: percent((snapshot.host.loadAverage1m / cores) * 100),
 		memoryPercent: percent(snapshot.host.memoryUsagePercent),
 		agentCount,
