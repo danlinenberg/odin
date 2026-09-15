@@ -7,6 +7,7 @@ import {
 	getSubtreePids,
 	getSubtreeResources,
 	type ProcessSnapshot,
+	readAvailableMemory,
 } from "./process-tree";
 import { normalizeOptionalTitle } from "./session-normalization";
 import {
@@ -48,6 +49,8 @@ interface AppMetrics extends ProcessMetrics {
 interface HostMetrics {
 	totalMemory: number;
 	freeMemory: number;
+	/** Free plus reclaimable — see `readAvailableMemory`. */
+	availableMemory: number;
 	usedMemory: number;
 	memoryUsagePercent: number;
 	cpuCoreCount: number;
@@ -84,9 +87,13 @@ function normalizeFiniteNumber(value: unknown): number {
 	return Math.max(0, value);
 }
 
-function createHostMetrics(): HostMetrics {
+function createHostMetrics(availableMemory?: number): HostMetrics {
 	const totalHostMemory = normalizeFiniteNumber(os.totalmem());
 	const freeHostMemory = normalizeFiniteNumber(os.freemem());
+	const availableHostMemory = Math.max(
+		freeHostMemory,
+		normalizeFiniteNumber(availableMemory),
+	);
 	const usedHostMemory = Math.max(0, totalHostMemory - freeHostMemory);
 	const cpuCoreCount = Math.max(1, os.cpus().length);
 	const loadAverage1m = normalizeFiniteNumber(os.loadavg()[0]);
@@ -94,6 +101,7 @@ function createHostMetrics(): HostMetrics {
 	return {
 		totalMemory: totalHostMemory,
 		freeMemory: freeHostMemory,
+		availableMemory: availableHostMemory,
 		usedMemory: usedHostMemory,
 		memoryUsagePercent:
 			totalHostMemory > 0 ? (usedHostMemory / totalHostMemory) * 100 : 0,
@@ -162,7 +170,7 @@ function normalizeSnapshot(
 		(sum, workspace) => sum + workspace.memory,
 		0,
 	);
-	const host = createHostMetrics();
+	const host = createHostMetrics(snapshot.host.availableMemory);
 	const app = {
 		main: appMain,
 		renderer: appRenderer,
@@ -270,6 +278,7 @@ async function collectResourceMetricsNow({
 	// Single atomic snapshot: tree structure + resource data from one `ps`
 	// call, eliminating the race between pidtree and pidusage.
 	const processSnapshot = await captureProcessSnapshot();
+	const availableMemory = await readAvailableMemory();
 
 	// Collect all subtree PIDs so we can enrich them in bulk.
 	const allSubtreePids: number[] = [];
@@ -392,7 +401,7 @@ async function collectResourceMetricsNow({
 	return normalizeSnapshot({
 		app: appMetrics,
 		workspaces: workspaceMetricsList,
-		host: createHostMetrics(),
+		host: createHostMetrics(availableMemory),
 		totalCpu: appMetrics.cpu + sessionCpuTotal,
 		totalMemory: appMetrics.memory + sessionMemoryTotal,
 		collectedAt: Date.now(),
