@@ -15,8 +15,6 @@ import pkg from "./package.json";
 
 const productName = "Odin Canary";
 const canaryMacIconPath = join(pkg.resources, "build/icons/icon-canary.icns");
-const canaryLinuxIconPath = join(pkg.resources, "build/icons/icon-canary.png");
-const canaryWinIconPath = join(pkg.resources, "build/icons/icon-canary.ico");
 
 const config: Configuration = {
 	...baseConfig,
@@ -39,19 +37,6 @@ const config: Configuration = {
 			CFBundleName: productName,
 			CFBundleDisplayName: productName,
 		},
-	},
-
-	linux: {
-		...baseConfig.linux,
-		...(existsSync(canaryLinuxIconPath) ? { icon: canaryLinuxIconPath } : {}),
-		synopsis: `${pkg.description} (Canary)`,
-		artifactName: `odin-canary-\${version}-\${arch}.\${ext}`,
-	},
-
-	win: {
-		...baseConfig.win,
-		...(existsSync(canaryWinIconPath) ? { icon: canaryWinIconPath } : {}),
-		artifactName: `Odin-Canary-\${version}-\${arch}.\${ext}`,
 	},
 };
 

@@ -17,8 +17,6 @@ const currentYear = new Date().getFullYear();
 const author = pkg.author?.name ?? pkg.author;
 const productName = pkg.productName;
 const macIconPath = join(pkg.resources, "build/icons/icon.icns");
-const linuxIconPath = join(pkg.resources, "build/icons");
-const winIconPath = join(pkg.resources, "build/icons/icon.ico");
 const dmgBackgroundPath = join(
 	pkg.resources,
 	"build/installer/background.tiff",
@@ -163,7 +161,11 @@ const config: Configuration = {
 	mac: {
 		...(existsSync(macIconPath) ? { icon: macIconPath } : {}),
 		category: "public.app-category.utilities",
-		target: "default",
+		// arm64 only, to match the release workflow and the cask's
+		// `depends_on arch: :arm64`. The `files` excludes above strip the
+		// darwin-x64 native prebuilds, so an x64 build would package cleanly and
+		// then fail to load node-pty at runtime — better to refuse the arch here.
+		target: [{ target: "default", arch: ["arm64"] }],
 		hardenedRuntime: true,
 		gatekeeperAssess: false,
 		// Signed with the stable self-signed cert from
@@ -205,33 +207,6 @@ const config: Configuration = {
 	protocols: {
 		name: productName,
 		schemes: ["odin"],
-	},
-
-	// Linux
-	linux: {
-		...(existsSync(linuxIconPath) ? { icon: linuxIconPath } : {}),
-		category: "Utility",
-		synopsis: pkg.description,
-		target: ["AppImage"],
-		artifactName: `${productName}-\${version}-\${arch}.\${ext}`,
-	},
-
-	// Windows
-	win: {
-		...(existsSync(winIconPath) ? { icon: winIconPath } : {}),
-		target: [
-			{
-				target: "nsis",
-				arch: ["x64"],
-			},
-		],
-		artifactName: `${productName}-${pkg.version}-\${arch}.\${ext}`,
-	},
-
-	// NSIS installer (Windows)
-	nsis: {
-		oneClick: false,
-		allowToChangeInstallationDirectory: true,
 	},
 };
 
