@@ -44,14 +44,26 @@ tap until you trust it. The last one exists because releases are signed with a
 self-signed certificate rather than an Apple Developer ID: macOS quarantines
 what it downloads, and for an app it cannot verify it offers no way through —
 that dialog reads *Done* or *Move to Trash*, with no *Open Anyway*. Clear the
-flag before the first launch and it never comes up. Run it again after
-`brew upgrade --cask --greedy odin`, which re-quarantines. The `.dmg` from
+flag before the first launch and it never comes up. Run it again after every
+upgrade, which re-quarantines. The `.dmg` from
 [Releases](https://github.com/danlinenberg/odin/releases) needs the same.
 
 There is nothing to configure up front: Odin drives the agent CLI you already
 have (`claude`, `codex`, ...) under your own subscription. Sources are connected
 one at a time from Settings, and each one only ever holds a token you signed in
 with yourself.
+
+### Upgrade
+
+```sh
+brew upgrade --cask --greedy odin
+xattr -dr com.apple.quarantine /Applications/Odin.app
+```
+
+`--greedy` is not optional. The cask is `version :latest`, and Homebrew skips
+latest-versioned casks on a plain `brew upgrade` because there is no version
+number to compare — without it brew reports nothing to do, forever. Quit Odin
+first; brew replaces `/Applications/Odin.app` underneath a running copy.
 
 ### From source
 
