@@ -1,7 +1,6 @@
 <p align="center">
   <img src="apps/desktop/src/resources/build/icons/icon.png" alt="" width="140">
 </p>
-
 <h1 align="center">Odin</h1>
 
 <p align="center">
