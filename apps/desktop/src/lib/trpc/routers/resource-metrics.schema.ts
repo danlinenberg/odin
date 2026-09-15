@@ -33,6 +33,7 @@ const appMetricsSchema = usageValuesSchema.extend({
 const hostMetricsSchema = zod.object({
 	totalMemory: nonNegativeFiniteNumberSchema,
 	freeMemory: nonNegativeFiniteNumberSchema,
+	availableMemory: nonNegativeFiniteNumberSchema,
 	usedMemory: nonNegativeFiniteNumberSchema,
 	memoryUsagePercent: nonNegativeFiniteNumberSchema,
 	cpuCoreCount: zod.number().int().min(1),
@@ -89,6 +90,7 @@ export function createFallbackResourceMetricsSnapshot(): ResourceMetricsSnapshot
 		host: {
 			totalMemory,
 			freeMemory,
+			availableMemory: freeMemory,
 			usedMemory,
 			memoryUsagePercent:
 				totalMemory > 0 ? (usedMemory / totalMemory) * 100 : 0,

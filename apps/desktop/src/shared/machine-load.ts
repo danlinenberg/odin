@@ -16,6 +16,11 @@ export interface MachineLoadInput {
 		memoryUsagePercent: number;
 		/** This Mac's installed RAM, in bytes. */
 		totalMemory: number;
+		/**
+		 * What the OS could hand a new process right now — free plus reclaimable
+		 * pages, in bytes. Zero on a snapshot collected before this existed.
+		 */
+		availableMemory: number;
 	};
 	/** App + every agent session, summed, where 100 = one core saturated. */
 	totalCpu: number;
@@ -128,9 +133,15 @@ export function machineLoad(snapshot: MachineLoadInput): MachineLoad {
 			: ASSUMED_SESSION_GB;
 	const budgetGb =
 		(gb(snapshot.host.totalMemory) * AGENT_MEMORY_BUDGET_PERCENT) / 100;
-	const roomForMore = busy
-		? 0
-		: Math.max(0, Math.floor((budgetGb - sessionsGb) / perSessionGb));
+	// The budget is a ceiling, not a promise: the rest of the Mac got to the
+	// RAM first. Whatever the OS says it can still hand out is the real limit —
+	// 60% of 24 GB means nothing when a browser and a 10 GB compressor already
+	// hold all but 4 of them. Zero means the snapshot predates the reading (an
+	// app that hasn't restarted), so fall back to the ceiling alone.
+	const freeGb = gb(snapshot.host.availableMemory);
+	const spareGb =
+		freeGb > 0 ? Math.min(budgetGb - sessionsGb, freeGb) : budgetGb - sessionsGb;
+	const roomForMore = busy ? 0 : Math.max(0, Math.floor(spareGb / perSessionGb));
 
 	return {
 		agentCpuPercent,

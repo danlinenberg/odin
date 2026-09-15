@@ -220,3 +220,41 @@ async function listProcessesWindows(): Promise<ProcessInfo[]> {
 		return [];
 	}
 }
+
+/**
+ * Memory the OS can hand a new process right now, in bytes.
+ *
+ * `os.freemem()` is useless for this on macOS — it counts only the pages that
+ * are already free (0.1 GB on a healthy 24 GB Mac), so anything built on it
+ * reads "full" forever. `vm_stat`'s inactive + speculative + purgeable pages
+ * are the ones the kernel reclaims on demand, which is what "available"
+ * means everywhere else.
+ *
+ * ponytail: one more exec next to the `ps` this module already runs. Falls
+ * back to `os.freemem()` off macOS and whenever the parse comes up empty.
+ */
+export async function readAvailableMemory(): Promise<number> {
+	if (os.platform() !== "darwin") return os.freemem();
+	try {
+		const { stdout } = await execAsync("vm_stat", {
+			maxBuffer: MAX_BUFFER,
+			timeout: EXEC_TIMEOUT_MS,
+		});
+		const pageSize = Number(stdout.match(/page size of (\d+) bytes/)?.[1] ?? 0);
+		const pages = (label: string): number =>
+			Number(
+				stdout.match(new RegExp(`Pages ${label}:\\s+(\\d+)\\.`))?.[1] ?? 0,
+			);
+		const free =
+			pages("free") +
+			pages("inactive") +
+			pages("speculative") +
+			pages("purgeable");
+		const available = free * pageSize;
+		return Number.isFinite(available) && available > 0
+			? available
+			: os.freemem();
+	} catch {
+		return os.freemem();
+	}
+}

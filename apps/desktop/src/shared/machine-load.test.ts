@@ -15,6 +15,7 @@ function snapshot({
 	totalMemory = 0,
 	appMemory = 0,
 	hostMemory = 32 * GB,
+	available = 0,
 	agents = 0,
 }: {
 	load?: number;
@@ -23,6 +24,7 @@ function snapshot({
 	totalMemory?: number;
 	appMemory?: number;
 	hostMemory?: number;
+	available?: number;
 	agents?: number;
 }): MachineLoadInput {
 	return {
@@ -32,6 +34,7 @@ function snapshot({
 			loadAverage1m: load,
 			memoryUsagePercent: memory,
 			totalMemory: hostMemory,
+			availableMemory: available,
 		},
 		totalCpu,
 		totalMemory,
@@ -81,6 +84,7 @@ describe("machineLoad", () => {
 					loadAverage1m: 0,
 					memoryUsagePercent: 0,
 					totalMemory: 0,
+					availableMemory: 0,
 				},
 				totalCpu: 0,
 				totalMemory: Number.NaN,
@@ -126,6 +130,29 @@ describe("machineLoad", () => {
 	it("estimates a session cost before any sessions exist", () => {
 		// Nothing to measure yet: 19.2 GB budget at the assumed 1.5 GB a session.
 		expect(machineLoad(snapshot({})).roomForMore).toBe(12);
+	});
+
+	it("promises no more than the Mac can actually hand out", () => {
+		// The screenshot bug, second half: a 24 GB Mac with 11 sessions has
+		// 11.6 GB left *of the budget*, but Arc, Lightroom and a 10 GB
+		// compressor left only 4.5 GB free. Three more fit, not seven.
+		const load = machineLoad(
+			snapshot({
+				totalMemory: 4.3 * GB,
+				appMemory: 1.5 * GB,
+				hostMemory: 24 * GB,
+				available: 4.5 * GB,
+				agents: 11,
+			}),
+		);
+		expect(load.roomForMore).toBe(3);
+	});
+
+	it("falls back to the budget when the snapshot can't say what's free", () => {
+		// An app that hasn't restarted since this shipped sends no
+		// `availableMemory`; reading that as "nothing free" would park the
+		// badge on zero.
+		expect(machineLoad(snapshot({ hostMemory: 24 * GB })).roomForMore).toBe(9);
 	});
 
 	it("reports no room once the budget is spent", () => {
