@@ -155,7 +155,11 @@ export function SessionBrief({
 								{written.status && (
 									<Section label="Status">{written.status}</Section>
 								)}
-								{written.next && <Section label="Next">{written.next}</Section>}
+								{/* "Your move", not "Next": the card is in Needs you because
+								    something is waiting on you, and the label should say so. */}
+								{written.next && (
+									<Section label="Your move">{written.next}</Section>
+								)}
 								{/* The model ignored the shape we asked for — show what it said
 								    rather than an empty panel. */}
 								{written.raw && (
