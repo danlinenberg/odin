@@ -5,12 +5,18 @@ const iso = (day: number) => new Date(Date.UTC(2026, 0, day)).toISOString();
 
 const feeds = {
 	tasks: [
-		{ id: "t1", title: "Write the thing", createdAt: Date.UTC(2026, 0, 3) },
+		{
+			id: "t1",
+			title: "Write the thing",
+			notes: "the notes",
+			createdAt: Date.UTC(2026, 0, 3),
+		},
 	],
 	slack: [
 		{
 			id: "s1",
 			title: "can you look at this",
+			text: "can you look at this\nwhen you get a sec",
 			status: "Not started",
 			permalink: "https://slack/1",
 			channelName: "eng",
@@ -20,6 +26,7 @@ const feeds = {
 		{
 			id: "s2",
 			title: "already on it",
+			text: "already on it",
 			status: "In progress",
 			permalink: "https://slack/2",
 			channelName: "eng",
@@ -46,6 +53,7 @@ const feeds = {
 			repo: "odin",
 			number: 7,
 			author: "dan",
+			kind: "mine" as const,
 			updated: iso(2),
 		},
 		{
@@ -54,6 +62,7 @@ const feeds = {
 			repo: "odin",
 			number: 8,
 			author: "renovate[bot]",
+			kind: "mine" as const,
 			updated: iso(9),
 		},
 	],
@@ -65,6 +74,7 @@ const feeds = {
 			status: "In progress",
 			assignee: "Dan",
 			priority: "P1",
+			fields: { Priority: "P1" },
 			updatedAt: iso(1),
 			date: null,
 		},
@@ -128,4 +138,29 @@ test("an undated row sinks instead of sorting as 1970", () => {
 	const undated = { ...feeds.jira[0], key: "BUGT-2", updated: null };
 	const items = allItems({ ...feeds, jira: [undated] });
 	expect(items.at(-1)?.source).toBe("Jira");
+});
+
+test("a row carries what it takes to start a session, without its feed", () => {
+	const by = (source: string) =>
+		allItems(feeds).find((item) => item.source === source)?.launch;
+	// The upstream id, so the work ledger and the feed agree on what was started.
+	expect([by("Slack")?.key, by("Jira")?.key, by("GitHub")?.key]).toEqual([
+		"s1",
+		"BUGT-1",
+		"https://gh/1",
+	]);
+	// The board groups by source; my own tasks aren't anyone's delegated work.
+	expect([by("Jira")?.source, by("Tasks")?.source]).toEqual([
+		"jira",
+		undefined,
+	]);
+	// Slack and Notion rows carry the page a running pane is matched back to.
+	expect([by("Slack")?.pageId, by("Notion")?.pageId]).toEqual(["s1", "n1"]);
+	// The same prompt the feed itself would have launched with.
+	expect(by("Jira")?.description).toContain("Jira issue BUGT-1");
+	expect(by("Slack")?.description).toContain("https://slack/1");
+	expect(by("Slack")?.description).toContain("when you get a sec");
+	expect(by("GitHub")?.description).toContain("Work on my pull request");
+	expect(by("Notion")?.description).toContain("- Priority: P1");
+	expect(by("Tasks")?.description).toBe("the notes");
 });

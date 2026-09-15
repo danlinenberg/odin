@@ -1,9 +1,12 @@
+import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo } from "react";
 import type { IconType } from "react-icons";
+import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
+import { useTabsStore } from "renderer/stores/tabs/store";
 import type { BoardSection } from "shared/board-section";
 import type { PaneStatus } from "shared/tabs-types";
 import {
@@ -16,6 +19,7 @@ import {
 	META_STATUS,
 	META_TAG,
 	META_TEXT,
+	ROW_LINK_BUTTON,
 	ROW_LINK_SLOT,
 	ROW_LIVE_BUTTON,
 	ROW_META,
@@ -29,6 +33,8 @@ import { PriorityLabelChip } from "../components/TaskBox";
 import { useActiveSessions } from "../hooks/useActiveSessions";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useMyTasks } from "../hooks/useOdinTasks";
+import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
+import { usePaneMeta } from "../hooks/usePaneMeta";
 import { usePendingFocus } from "../hooks/usePendingFocus";
 import { type AllItem, allItems } from "./all-items";
 
@@ -47,9 +53,11 @@ export const Route = createFileRoute("/_authenticated/_odin/all/")({
  * leaves its queue as soon as its session starts, so this is the one place
  * that can answer "what's already going".
  *
- * ponytail: read-only. Starting a session from here would mean lifting four
- * prompt builders out of four views; the row is one click from the one that
- * already has it.
+ * Rows start a session here too. Each feed's prompt builder is shared rather
+ * than duplicated (feed-prompts.ts, thread-prompt.ts, notion/rows.ts), so a
+ * row started from All is the same session the feed itself would have given
+ * you — the launch payload is built in all-items.ts, where the source's own
+ * fields still exist.
  */
 
 /**
@@ -98,9 +106,17 @@ const SOURCE_CHIP: Record<AllItem["source"], string> = {
 
 function AllFeedPage() {
 	const { reactions, jira, pulls, notion, syncAll, isSyncing } = useOdinFeeds();
-	const { tasks } = useMyTasks();
 	const navigate = useNavigate();
 	const openUrl = electronTrpc.external.openUrl.useMutation();
+	const { ensureWorkspace } = useOdinWorkspace();
+	const { launch, isLaunching, launchingKey } = useLaunchTaskSession();
+	const { tasks, setPane } = useMyTasks();
+	const panes = useTabsStore((s) => s.panes);
+	// Starting a Slack row is what takes it out of the queue — the same call
+	// the Slack feed makes, so a message started here doesn't come back.
+	const markStarted = electronTrpc.slack.markStarted.useMutation({
+		onSuccess: () => void reactions.refetch(),
+	});
 	// What's already running, whichever tab started it. Each feed only marks its
 	// own rows live, and a Slack row leaves its queue the moment a session
 	// starts — so this is the only place "what have I got going" is answerable.
@@ -118,12 +134,47 @@ function AllFeedPage() {
 		[tasks, reactions.data, jira.data, pulls.data, notion.data],
 	);
 
+	/**
+	 * The pane already working this row, if there is one. Panes carry the page
+	 * id for Slack/Notion and the launch title for everything else — matching
+	 * both is what keeps Start session from opening a second agent on a ticket
+	 * that already has one.
+	 */
+	const livePaneFor = (item: AllItem): string | null =>
+		Object.values(panes).find(
+			(pane) =>
+				!pane.completed &&
+				((item.launch.pageId != null &&
+					pane.odinPageId === item.launch.pageId) ||
+					pane.odinTaskTitle === item.launch.title),
+		)?.id ?? null;
+
+	const handleStart = async (item: AllItem) => {
+		const ensured = await ensureWorkspace();
+		if (!ensured.ok) return toast.error(ensured.error);
+		const result = await launch({
+			...item.launch,
+			workspaceId: ensured.workspace.id,
+		});
+		if (!result.ok) return toast.error(result.error);
+		if (item.source === "Slack") {
+			markStarted.mutate({ id: item.launch.key });
+			usePaneMeta.getState().setTitle(result.paneId, item.launch.title);
+			usePaneMeta.getState().setSessionId(result.paneId, result.sessionId);
+			usePaneMeta.getState().setPaneForPage(item.launch.key, result.paneId);
+		}
+		// My own tasks keep their row and gain a way into the session.
+		if (item.source === "Tasks") setPane(item.launch.key, result.paneId);
+		usePendingFocus.getState().focus(result.paneId);
+		navigate({ to: "/board" });
+	};
+
 	return (
 		<div className="flex h-full flex-col">
 			<FeedHeader>
 				<FeedDivider />
 				<span className="shrink-0 text-[12px] text-[#8a8a97]">
-					everything waiting on you · newest first · a row opens its feed
+					everything waiting on you · newest first · start one without leaving
 				</span>
 				{sessions.length > 0 && (
 					<span className="shrink-0 rounded-[10px] bg-[#14301f] px-1.5 py-[1px] text-[11px] font-semibold text-[#3ecf8e]">
@@ -245,6 +296,7 @@ function AllFeedPage() {
 				{items.map((item) => {
 					const url = item.url;
 					const SourceIcon = SOURCE_ICON[item.to];
+					const activePaneId = livePaneFor(item);
 					return (
 						<div key={item.key} className={FEED_ROW}>
 							{/* The same columns the per-source feeds use, so a row here
@@ -304,9 +356,34 @@ function AllFeedPage() {
 											type="button"
 											title={url}
 											onClick={() => openUrl.mutate(url)}
-											className={ROW_PRIMARY_BUTTON}
+											className={ROW_LINK_BUTTON}
 										>
 											Open ↗
+										</button>
+									)}
+								</span>
+								<span className={ROW_PRIMARY_SLOT}>
+									{activePaneId ? (
+										<button
+											type="button"
+											onClick={() => {
+												usePendingFocus.getState().focus(activePaneId);
+												navigate({ to: "/board" });
+											}}
+											className={ROW_LIVE_BUTTON}
+										>
+											Go to session →
+										</button>
+									) : (
+										<button
+											type="button"
+											disabled={isLaunching}
+											onClick={() => void handleStart(item)}
+											className={ROW_PRIMARY_BUTTON}
+										>
+											{launchingKey === item.launch.key
+												? "Starting…"
+												: "Start session"}
 										</button>
 									)}
 								</span>
