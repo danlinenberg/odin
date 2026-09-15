@@ -16,6 +16,19 @@ describe("TaskBox", () => {
 		expect(html).toContain("!! Ship the fix");
 	});
 
+	it("puts the title on its own line and the rest in the brief", () => {
+		const html = renderToStaticMarkup(
+			<TaskBox
+				value={"Ship the fix\n\nit crashes on empty input"}
+				onChange={() => {}}
+				onSubmit={() => {}}
+			/>,
+		);
+		// Title is an <input value>, brief is the <textarea>'s child text.
+		expect(html).toContain('value="Ship the fix"');
+		expect(html).toContain(">it crashes on empty input</textarea>");
+	});
+
 	it("opens on Medium for an empty box — the default needs no picking", () => {
 		const html = renderToStaticMarkup(
 			<TaskBox value="" onChange={() => {}} onSubmit={() => {}} />,
