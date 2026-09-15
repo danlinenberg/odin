@@ -1,8 +1,12 @@
 import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import { promisify } from "node:util";
+import { TRPCError } from "@trpc/server";
+import { z } from "zod";
 import { publicProcedure, router } from "..";
+import { readOdinConfig, updateOdinConfig } from "./odin-config";
 
 /**
  * Odin fork: the git checkouts on this machine, so the session composer can
@@ -51,5 +55,32 @@ export const createReposRouter = () => {
 	const repos = scanRepos();
 	return router({
 		list: publicProcedure.query(() => repos),
+
+		/**
+		 * The checkout a session starts in when nothing else names one. Set in
+		 * Settings → Connections; `DAN_DEFAULT_REPO` is only a fallback, so a
+		 * path picked in the UI is never shadowed by a stale shell export.
+		 */
+		getDefault: publicProcedure.query(
+			() =>
+				readOdinConfig().defaultRepo ?? process.env.DAN_DEFAULT_REPO ?? null,
+		),
+
+		setDefault: publicProcedure
+			.input(z.object({ path: z.string().nullable() }))
+			.mutation(({ input }) => {
+				// Checked here rather than at launch: a path that isn't a checkout
+				// only fails much later, when a session tries to start in it.
+				// `.git` is a file in a worktree and a directory in a clone.
+				if (input.path && !existsSync(join(input.path, ".git"))) {
+					throw new TRPCError({
+						code: "BAD_REQUEST",
+						message: `Not a git repo: ${input.path}`,
+					});
+				}
+				// `undefined` deletes the key — that's what clearing it means.
+				updateOdinConfig({ defaultRepo: input.path ?? undefined });
+				return { ok: true };
+			}),
 	});
 };

@@ -262,9 +262,6 @@ export const createNotionRouter = () => {
 					fileConfig.notionTaskDbId ??
 					fileConfig.slackQueueDbId ??
 					null,
-				/** Repo to auto-provision a workspace from when none exists. */
-				defaultRepoPath:
-					process.env.DAN_DEFAULT_REPO ?? fileConfig.defaultRepo ?? null,
 			};
 		}),
 

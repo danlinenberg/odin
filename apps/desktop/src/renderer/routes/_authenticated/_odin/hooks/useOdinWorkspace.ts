@@ -5,12 +5,12 @@ import { electronTrpc } from "renderer/lib/electron-trpc";
 /**
  * Workspace selection for the Odin views, with zero-friction provisioning:
  * when no workspace exists, `ensureWorkspace` creates a project + main
- * workspace from DAN_DEFAULT_REPO (no dialogs), so "Start session" and the
+ * workspace from the default repo (no dialogs), so "Start session" and the
  * board's new-task input always have a target.
  */
 export function useOdinWorkspace() {
 	const utils = electronTrpc.useUtils();
-	const { data: config } = electronTrpc.notion.getConfig.useQuery();
+	const { data: defaultRepo } = electronTrpc.repos.getDefault.useQuery();
 	const { data: workspaces = [] } = electronTrpc.workspaces.getAll.useQuery();
 	const openFromPath = electronTrpc.projects.openFromPath.useMutation();
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
@@ -48,10 +48,10 @@ export function useOdinWorkspace() {
 				? ({ ok: true, workspace: launchWorkspace } as const)
 				: ({ ok: false, error } as const);
 
-		const repoPath = repoOverride ?? config?.defaultRepoPath;
+		const repoPath = repoOverride ?? defaultRepo;
 		if (!repoPath) {
 			return fallback(
-				"No workspace and no DAN_DEFAULT_REPO configured — use the workspace picker's Add repo…",
+				"No workspace and no default repo — set one in Settings → Connections.",
 			);
 		}
 		// ponytail: unconditional — openFromPath upserts the project and its main
