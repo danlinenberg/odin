@@ -10,7 +10,7 @@ import { cn } from "@odin/ui/utils";
 import { createFileRoute } from "@tanstack/react-router";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { IconType } from "react-icons";
-import { LuGitPullRequest, LuTerminal } from "react-icons/lu";
+import { LuFolderGit2, LuGitPullRequest, LuTerminal } from "react-icons/lu";
 import { SiJira, SiNotion, SiSlack } from "react-icons/si";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { electronTrpc } from "renderer/lib/electron-trpc";
@@ -28,6 +28,7 @@ import {
 } from "shared/board-section";
 import { profileOf } from "shared/odin-profile";
 import { odinScreenStatus, odinScreenWrite } from "shared/odin-screen-status";
+import { BOARD_TAGS, boardTags } from "shared/odin-tags";
 import {
 	OdinPromptDialog,
 	type PromptImage,
@@ -95,6 +96,14 @@ interface BoardCard {
  */
 function sessionCwd(pane: Pane): string | undefined {
 	return pane.cwd ?? pane.initialCwd ?? undefined;
+}
+
+/**
+ * The checkout a card runs in, in one word. Feed-launched sessions have no
+ * repo of their own — they run in the workspace worktree, so that's its name.
+ */
+function repoLabel(card: BoardCard): string {
+	return sessionCwd(card.pane)?.split("/").pop() || card.workspaceName;
 }
 
 /** Same slug rule as useLaunchTaskSession — to locate a task's prompt file. */
@@ -307,9 +316,11 @@ function CardHoverContent({ card }: { card: BoardCard }) {
 }
 
 /**
- * Right-click tag menu for a session card: type a new tag, or click existing
- * ones to toggle. Positioned at the cursor; closes on Escape, click-outside,
- * or after adding a tag.
+ * Right-click tag menu for a session card: the board's tags, click to toggle.
+ * Positioned at the cursor; closes on Escape or click-outside.
+ *
+ * ponytail: no "new tag" field — the list is closed (shared/odin-tags), and a
+ * typed one-off tag was how the vocabulary sprawled in the first place.
  */
 function TagMenu({
 	x,
@@ -326,14 +337,7 @@ function TagMenu({
 	onToggle: (tag: string) => void;
 	onClose: () => void;
 }) {
-	const [draft, setDraft] = useState("");
 	const ref = useRef<HTMLDivElement>(null);
-	const inputRef = useRef<HTMLInputElement>(null);
-	// A context menu should take the caret; done via ref so we don't need the
-	// autoFocus attribute (which the a11y lint rightly flags in general UI).
-	useEffect(() => {
-		inputRef.current?.focus();
-	}, []);
 
 	useEffect(() => {
 		const onKey = (event: KeyboardEvent) => {
@@ -368,30 +372,7 @@ function TagMenu({
 			<div className="mb-1.5 px-1 text-[10px] font-semibold uppercase tracking-[.4px] text-[#8a8a97]">
 				Tags
 			</div>
-			<form
-				onSubmit={(event) => {
-					event.preventDefault();
-					const tag = draft.trim().replace(/^#/, "");
-					if (!tag) return;
-					if (!tags.includes(tag)) onToggle(tag);
-					setDraft("");
-					onClose();
-				}}
-			>
-				<input
-					ref={inputRef}
-					value={draft}
-					onChange={(event) => setDraft(event.target.value)}
-					placeholder="new tag + Enter"
-					className="mb-1.5 h-7 w-full rounded-md border border-[#25252e] bg-[#0a0a0c] px-2 text-[12px] text-[#f5f5f7] outline-none placeholder:text-[#8a8a97] focus:border-[#a394ff]"
-				/>
-			</form>
 			<div className="flex max-h-[180px] flex-col overflow-y-auto">
-				{allTags.length === 0 && (
-					<div className="px-1 py-1 text-[11px] text-[#8a8a97]">
-						No tags yet — type one above.
-					</div>
-				)}
 				{allTags.map((tag) => {
 					const on = tags.includes(tag);
 					return (
@@ -766,7 +747,9 @@ function DevBoardPage() {
 		}));
 	};
 	const toggleTag = (paneId: string, tag: string) => {
-		const current = panes[paneId]?.odinTags ?? [];
+		// Off-list tags from the older, longer vocabulary are dropped here:
+		// touch a card's tags and it comes back clean.
+		const current = boardTags(panes[paneId]?.odinTags);
 		setPaneTags(
 			paneId,
 			current.includes(tag)
@@ -826,12 +809,12 @@ function DevBoardPage() {
 					daemonSessions === undefined ? undefined : alive,
 					pane.odinParked ?? false,
 				);
-				for (const tag of pane.odinTags ?? [])
+				for (const tag of boardTags(pane.odinTags))
 					tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
 				// Tag filter: show only sessions carrying every selected tag.
 				if (
 					tagFilter.length > 0 &&
-					!tagFilter.every((tag) => (pane.odinTags ?? []).includes(tag))
+					!tagFilter.every((tag) => boardTags(pane.odinTags).includes(tag))
 				) {
 					continue;
 				}
@@ -1156,9 +1139,6 @@ function DevBoardPage() {
 		<div className="flex h-full flex-col">
 			<div className="flex items-center gap-3 px-[18px] pb-2.5 pt-3.5">
 				<h1 className="text-[15px] font-semibold">Dev Board</h1>
-				<span className="text-xs text-[#a5a5b3]">
-					live agent state · click a card to peek at the session
-				</span>
 			</div>
 
 			<div className="flex items-center gap-2 px-[18px] pb-3">
@@ -1222,8 +1202,8 @@ function DevBoardPage() {
 				<TagMenu
 					x={tagMenu.x}
 					y={tagMenu.y}
-					tags={panes[tagMenu.paneId]?.odinTags ?? []}
-					allTags={allTags.map(([tag]) => tag)}
+					tags={boardTags(panes[tagMenu.paneId]?.odinTags)}
+					allTags={BOARD_TAGS}
 					onToggle={(tag) => toggleTag(tagMenu.paneId, tag)}
 					onClose={() => setTagMenu(null)}
 				/>
@@ -1367,7 +1347,7 @@ function DevBoardPage() {
 																			name={cardContact(card) as string}
 																		/>
 																	)}
-																	{(card.pane.odinTags ?? []).map((tag) => (
+																	{boardTags(card.pane.odinTags).map((tag) => (
 																		<span
 																			key={tag}
 																			className="rounded-[5px] bg-[#211d3a] px-[7px] text-[11px] font-medium text-[#a394ff]"
@@ -1379,18 +1359,22 @@ function DevBoardPage() {
 																		card={card}
 																		live={card.status === "working"}
 																	/>
-																	{sessionCwd(card.pane) && (
-																		<span
-																			title={sessionCwd(card.pane)}
-																			className="rounded-[5px] bg-[#1f1f27] px-[7px] text-[11px] text-[#a5a5b3]"
-																		>
-																			{
-																				sessionCwd(card.pane)
-																					?.split("/")
-																					.slice(-1)[0]
-																			}
-																		</span>
-																	)}
+																	{/* Which checkout this ran in — every card has one,
+																	    and "same task, wrong repo" is the thing you
+																	    catch by scanning the board. */}
+																	<span
+																		title={
+																			sessionCwd(card.pane) ??
+																			card.workspaceName
+																		}
+																		className="inline-flex items-center gap-1 rounded-[5px] bg-[#1b2430] px-[7px] text-[11px] font-medium text-[#7ec4ff]"
+																	>
+																		<LuFolderGit2
+																			className="size-3 shrink-0"
+																			aria-hidden
+																		/>
+																		{repoLabel(card)}
+																	</span>
 																	<AgePill
 																		card={card}
 																		live={card.status === "working"}
