@@ -341,18 +341,19 @@ describe("parseBrief", () => {
 				"GOAL: Stop the feed nagging about sources you never signed in to.",
 				"STATUS: Tab now says so instead.",
 				"NEXT: Nothing — it's done.",
-				"TAGS: bug, #UI, frontend, bug",
+				"TAGS: bug, #DOCS, frontend, bug",
 			].join("\n"),
 		);
-		// Cased, hashed and duplicated all resolve; "frontend" isn't a tag we have.
-		expect(brief.tags).toEqual(["bug", "ui"]);
+		// Cased, hashed and duplicated all resolve; "frontend" isn't a tag we have
+		// — nor is "ui" any more, the vocabulary is five words now.
+		expect(brief.tags).toEqual(["bug", "docs"]);
 	});
 
 	test("caps the tags so a card stays readable", () => {
 		const brief = parseBrief(
-			"GOAL: x\nSTATUS: y\nNEXT: z\nTAGS: bug, ui, api, perf, docs",
+			"GOAL: x\nSTATUS: y\nNEXT: z\nTAGS: bug, chore, docs, infra",
 		);
-		expect(brief.tags).toEqual(["bug", "ui", "api"]);
+		expect(brief.tags).toEqual(["bug", "chore"]);
 	});
 
 	test("a session the model can't place gets no tags, not a wrong one", () => {
