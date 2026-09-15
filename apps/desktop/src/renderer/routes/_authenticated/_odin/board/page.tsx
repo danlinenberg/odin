@@ -1,4 +1,4 @@
-import type { SelectWorkspace } from "@odin/local-db";
+import type { SelectProject, SelectWorkspace } from "@odin/local-db";
 import { BRIEF_DIR } from "@odin/shared/constants";
 import {
 	HoverCard,
@@ -85,7 +85,8 @@ interface BoardCard {
 	tabId: string;
 	tabName: string;
 	workspaceId: string;
-	workspaceName: string;
+	/** The workspace's own checkout — where a card with no pane cwd runs. */
+	repoPath: string;
 	status: PaneStatus;
 }
 
@@ -100,10 +101,10 @@ function sessionCwd(pane: Pane): string | undefined {
 
 /**
  * The checkout a card runs in, in one word. Feed-launched sessions have no
- * repo of their own — they run in the workspace worktree, so that's its name.
+ * repo of their own — they run in the workspace's checkout, so name that.
  */
 function repoLabel(card: BoardCard): string {
-	return sessionCwd(card.pane)?.split("/").pop() || card.workspaceName;
+	return (sessionCwd(card.pane) ?? card.repoPath).split("/").pop() || "repo";
 }
 
 /** Same slug rule as useLaunchTaskSession — to locate a task's prompt file. */
@@ -589,6 +590,15 @@ function DevBoardPage() {
 		return map;
 	}, [workspaces]);
 
+	// Workspaces only carry their own name ("default" for the one Odin
+	// provisions), so the repo chip needs the project behind them for its path.
+	const { data: projects = [] } = electronTrpc.projects.getRecents.useQuery();
+	const projectById = useMemo(() => {
+		const map = new Map<string, SelectProject>();
+		for (const project of projects) map.set(project.id, project);
+		return map;
+	}, [projects]);
+
 	// Escape closes the drawer — unless focus is inside the terminal, where Esc
 	// belongs to Claude (interrupt). Click outside the xterm first, then Esc.
 	useEffect(() => {
@@ -776,7 +786,7 @@ function DevBoardPage() {
 					tabId: tab.id,
 					tabName: tab.userTitle ?? tab.name,
 					workspaceId: tab.workspaceId,
-					workspaceName: workspace?.name ?? "(unknown)",
+					repoPath: projectById.get(workspace?.projectId ?? "")?.mainRepoPath ?? "",
 				};
 				if (pane.type !== "terminal") continue; // chat panes aren't board cards
 				// Another profile's work — not this board's. Until the profile is
@@ -834,6 +844,7 @@ function DevBoardPage() {
 		tabs,
 		panes,
 		workspaceById,
+		projectById,
 		alivePaneIds,
 		daemonSessions,
 		tagFilter,
@@ -1085,7 +1096,7 @@ function DevBoardPage() {
 			usePaneMeta.getState().setTitle(result.paneId, title);
 			usePaneMeta.getState().setSessionId(result.paneId, result.sessionId);
 			toast.success(
-				`Session started in ${repoPath ? repoPath.split("/").pop() : ensured.workspace.name}`,
+				`Session started in ${(repoPath || projectById.get(ensured.workspace.projectId)?.mainRepoPath || "").split("/").pop() || "your repo"}`,
 			);
 		} else {
 			toast.error(result.error);
@@ -1364,8 +1375,8 @@ function DevBoardPage() {
 																	    catch by scanning the board. */}
 																	<span
 																		title={
-																			sessionCwd(card.pane) ??
-																			card.workspaceName
+																			sessionCwd(card.pane) ||
+																			card.repoPath
 																		}
 																		className="inline-flex items-center gap-1 rounded-[5px] bg-[#1b2430] px-[7px] text-[11px] font-medium text-[#7ec4ff]"
 																	>
