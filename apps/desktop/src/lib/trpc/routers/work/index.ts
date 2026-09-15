@@ -132,8 +132,9 @@ export interface PullRequestRow {
 	title: string;
 	repo: string;
 	author: string;
-	/** "mine" = I opened it; "review" = my review was requested. */
-	kind: "mine" | "review";
+	/** "mine" = I opened it; "review" = my review was requested; "mentioned" =
+	 * someone @-named me on it (issues as well as PRs). */
+	kind: "mine" | "review" | "mentioned";
 	draft: boolean;
 	updated: string | null;
 	comments: number;
@@ -398,7 +399,11 @@ export const createWorkRouter = () => {
 				return { issues };
 			}),
 
-		/** Open PRs I authored + PRs waiting on my review. */
+		/**
+		 * Open PRs I authored + PRs waiting on my review + issues and PRs where
+		 * someone @-mentioned me — being asked a question on someone else's
+		 * thread is work too, same as the Jira mention rows.
+		 */
 		myPullRequests: publicProcedure.query(
 			async (): Promise<{ pulls: PullRequestRow[] }> => {
 				const token = await githubAccessToken();
@@ -415,7 +420,7 @@ export const createWorkRouter = () => {
 				};
 				const search = async (
 					q: string,
-					kind: "mine" | "review",
+					kind: PullRequestRow["kind"],
 				): Promise<PullRequestRow[]> => {
 					const response = await githubApiFetch(
 						`https://api.github.com/search/issues?q=${encodeURIComponent(q)}&per_page=50&sort=updated`,
@@ -440,15 +445,23 @@ export const createWorkRouter = () => {
 						comments: item.comments ?? 0,
 					}));
 				};
-				const [mine, review] = await Promise.all([
+				const [mine, review, mentioned] = await Promise.all([
 					search("is:open is:pr author:@me archived:false", "mine"),
 					search("is:open is:pr review-requested:@me archived:false", "review"),
+					// No `is:pr`: a mention on an issue is the same ask as one on a
+					// PR, and dropping it would leave the tab half-empty.
+					search("is:open mentions:@me archived:false", "mentioned"),
 				]);
-				// A PR can match both feeds; author wins.
-				const seen = new Set(mine.map((pull) => pull.id));
-				return {
-					pulls: [...mine, ...review.filter((pull) => !seen.has(pull.id))],
-				};
+				// A thread can match several searches; the first claim wins,
+				// strongest first — mine, then my review, then merely named.
+				const seen = new Set<number>();
+				const pulls: PullRequestRow[] = [];
+				for (const pull of [...mine, ...review, ...mentioned]) {
+					if (seen.has(pull.id)) continue;
+					seen.add(pull.id);
+					pulls.push(pull);
+				}
+				return { pulls };
 			},
 		),
 	});

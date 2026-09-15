@@ -50,6 +50,7 @@ export const Route = createFileRoute("/_authenticated/_odin/prs/")({
 const KIND_TABS = [
 	{ id: "review" as const, label: "To review" },
 	{ id: "mine" as const, label: "Mine" },
+	{ id: "mentioned" as const, label: "Mentions" },
 ];
 type Kind = (typeof KIND_TABS)[number]["id"];
 
@@ -98,6 +99,7 @@ function MyPullRequestsPage() {
 		() => ({
 			review: pulls.filter((pull) => pull.kind === "review").length,
 			mine: pulls.filter((pull) => pull.kind === "mine").length,
+			mentioned: pulls.filter((pull) => pull.kind === "mentioned").length,
 		}),
 		[pulls],
 	);
@@ -221,7 +223,9 @@ function MyPullRequestsPage() {
 					<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
 						{kind === "review"
 							? "No PRs waiting on your review 🎉"
-							: "You have no open PRs"}
+							: kind === "mentioned"
+								? "Nobody has mentioned you"
+								: "You have no open PRs"}
 					</div>
 				)}
 
@@ -275,7 +279,7 @@ function MyPullRequestsPage() {
 											onClick={() => openUrl.mutate(pull.url)}
 											className={ROW_LINK_BUTTON}
 										>
-											PR ↗
+											{kind === "mentioned" ? "Open ↗" : "PR ↗"}
 										</button>
 									</span>
 									<span className={ROW_PRIMARY_SLOT}>
@@ -301,7 +305,9 @@ function MyPullRequestsPage() {
 													? "Starting…"
 													: kind === "review"
 														? "Review it"
-														: "Start session"}
+														: kind === "mentioned"
+															? "Draft a reply"
+															: "Start session"}
 											</button>
 										)}
 									</span>
