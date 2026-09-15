@@ -15,6 +15,10 @@ test("scanRepos finds checkouts, skips pruned dirs and nested worktrees", async 
 	make("dev/odin/node_modules/some-dep/.git");
 	// Not a repo.
 	make("Documents/notes");
+	// Pruned: TCC-protected folders are never descended into, or macOS prompts.
+	make("Desktop/scratch/.git");
+	make("Documents/notes/.git");
+	make("Downloads/cloned-repo/.git");
 
 	expect(await scanRepos(home)).toEqual([
 		join(home, "dev/odin"),
