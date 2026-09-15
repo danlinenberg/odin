@@ -98,7 +98,7 @@ export function allItems(input: {
 		repo: string;
 		number: number;
 		author: string;
-		kind: "review" | "mine";
+		kind: "review" | "mine" | "mentioned";
 		updated: string | null;
 	}[];
 	notion: (NotionRow & {

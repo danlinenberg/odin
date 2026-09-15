@@ -27,13 +27,28 @@ export function buildIssuePrompt(
 	].join("\n");
 }
 
-/** Review someone else's PR, or push mine along — same reading, different job. */
+/** Review someone else's PR, push mine along, or answer a thread I was named
+ * on — same reading, different job. */
 export function buildReviewPrompt(
 	url: string,
 	title: string,
 	repo: string,
-	kind: "review" | "mine",
+	kind: "review" | "mine" | "mentioned",
 ): string {
+	// A mention lands on issues as well as PRs, so this one stays about the
+	// thread rather than the diff.
+	if (kind === "mentioned") {
+		return [
+			`Someone mentioned you here: ${title}`,
+			`Link: ${url}`,
+			`Repo: ${repo}`,
+			"",
+			"- Read the thread and work out what is being asked of you.",
+			"- Answer it here: what you would reply, and what it would take to do.",
+			"",
+			"Rules: do NOT comment on GitHub — leave the reply here for me to send.",
+		].join("\n");
+	}
 	const shared = [
 		`Pull request: ${url}`,
 		`Repo: ${repo}`,
