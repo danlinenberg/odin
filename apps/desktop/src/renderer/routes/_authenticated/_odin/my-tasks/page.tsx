@@ -85,7 +85,7 @@ function MyTasksPage() {
 			<div className="border-b border-[#25252e] px-[18px] py-3">
 				<TaskBox
 					value={draft}
-					placeholder="What needs doing? (first line names it, the rest is the brief — Enter to add)"
+					placeholder="What needs doing?"
 					onChange={setDraft}
 					onSubmit={() => {
 						add(draft);
