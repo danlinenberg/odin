@@ -23,7 +23,7 @@ import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { useZoomFactor } from "renderer/hooks/useZoomFactor";
 import { useHotkey } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
-import { machineLoad } from "shared/machine-load";
+import { AGENT_MEMORY_BUDGET_PERCENT, machineLoad } from "shared/machine-load";
 import { FEED_TABS } from "./components/feed-counts";
 import {
 	OdinPromptDialog,
@@ -397,24 +397,28 @@ function OdinShell() {
 					</ZoomStable>
 				)}
 				<div className="h-full min-w-0 flex-1 [-webkit-app-region:drag]" />
-				{/* Change Odin from inside Odin: rebuild this checkout, reinstall,
-				    relaunch. Runs detached, so it survives the app quitting.
-				    Internal builds only (canary + `bun dev`) — a stable release
-				    updates itself through the auto-updater, and the load readout
-				    is a developer instrument, not a shipped feature. */}
 				<ZoomStable enabled={isMac}>
 					<div className="flex items-center gap-1.5">
-						{workConfig?.isInternalBuild && load && (
+						{/* How many more sessions this Mac has room for — every build,
+						    not just internal ones: "can I start another?" is a question
+						    on a stable release too. */}
+						{load && (
 							<span
-								title={`${load.agentCount} session(s) holding ${load.agentMemoryGb} GB and ${load.agentCpuPercent}% of this Mac · machine load ${load.cpuPercent}% · memory ${load.memoryPercent}%.${load.busy ? " New sessions wait until this clears." : ""}`}
+								title={
+									load.busy
+										? `${load.agentCount} session(s) using ${load.agentCpuPercent}% of this Mac — new sessions wait until that clears.`
+										: `Room for about ${load.roomForMore} more session(s): ${load.agentCount} running, holding ${load.agentMemoryGb} GB at ~${load.sessionMemoryGb} GB each, against ${AGENT_MEMORY_BUDGET_PERCENT}% of this Mac's RAM. Agents are using ${load.agentCpuPercent}% of the CPU · machine load ${load.cpuPercent}%.`
+								}
 								className={cn(
 									"rounded-[6px] px-2 py-[3px] text-[11px] font-semibold tabular-nums",
-									load.busy
+									load.busy || load.roomForMore === 0
 										? "bg-[#3a1f24] text-[#f5b83d]"
 										: "bg-[#1f1f27] text-[#8a8a97]",
 								)}
 							>
-								{load.busy ? "busy · " : ""}agents {load.agentMemoryGb} GB
+								{load.busy
+									? "busy · no room"
+									: `${load.agentMemoryGb} GB · room for ${load.roomForMore}`}
 							</span>
 						)}
 						{/* Self-development controls: only on a machine that has Odin's
