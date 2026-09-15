@@ -97,6 +97,8 @@ function ConnectionsSettings() {
 
 			<Profiles onSwitched={() => void status.refetch()} />
 
+			<DefaultRepo />
+
 			<div className="space-y-1">
 				{ORDER.map((provider) => {
 					const row = status.data?.find((s) => s.provider === provider);
@@ -161,6 +163,72 @@ function ConnectionsSettings() {
 						</div>
 					);
 				})}
+			</div>
+		</div>
+	);
+}
+
+/**
+ * The checkout a session starts in when nothing else names one — the board's
+ * new-task input, "Start session", anything without a repo picked.
+ *
+ * It sits on this screen because Connections is Odin's settings home (the
+ * other sections configure a workspace UI Odin doesn't use). Unlike the rows
+ * below it isn't an account, so it's machine-wide rather than per-profile.
+ */
+function DefaultRepo() {
+	const utils = electronTrpc.useUtils();
+	const { data: path, isLoading } = electronTrpc.repos.getDefault.useQuery();
+	const selectDirectory = electronTrpc.window.selectDirectory.useMutation();
+	const setDefault = electronTrpc.repos.setDefault.useMutation({
+		onSuccess: () => void utils.repos.getDefault.invalidate(),
+		onError: (error) => toast.error(error.message),
+	});
+	const busy = isLoading || selectDirectory.isPending || setDefault.isPending;
+
+	const browse = async () => {
+		const result = await selectDirectory.mutateAsync({
+			title: "Select default repo",
+			defaultPath: path ?? undefined,
+		});
+		if (!result.canceled && result.path) {
+			setDefault.mutate({ path: result.path });
+		}
+	};
+
+	return (
+		<div className="mb-8 overflow-hidden rounded-lg border">
+			<div className="border-b px-4 py-3">
+				<div className="text-sm font-medium">Default repo</div>
+				<p className="mt-1 text-xs text-muted-foreground">
+					Where a session starts when no repo is picked. Unset falls back to the
+					workspace you opened last.
+				</p>
+			</div>
+			<div className="flex items-center gap-2 px-4 py-2">
+				<code className="min-w-0 flex-1 select-text truncate rounded bg-muted px-2 py-1 text-xs">
+					{path ?? "Not set"}
+				</code>
+				<Button
+					variant="outline"
+					size="sm"
+					className="h-8"
+					disabled={busy}
+					onClick={browse}
+				>
+					Browse…
+				</Button>
+				{path && (
+					<Button
+						variant="ghost"
+						size="sm"
+						className="h-8"
+						disabled={busy}
+						onClick={() => setDefault.mutate({ path: null })}
+					>
+						Clear
+					</Button>
+				)}
 			</div>
 		</div>
 	);
