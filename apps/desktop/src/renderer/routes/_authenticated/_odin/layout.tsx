@@ -23,7 +23,7 @@ import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { useZoomFactor } from "renderer/hooks/useZoomFactor";
 import { useHotkey } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
-import { AGENT_MEMORY_BUDGET_PERCENT, machineLoad } from "shared/machine-load";
+import { machineLoad } from "shared/machine-load";
 import { FEED_TABS } from "./components/feed-counts";
 import {
 	OdinPromptDialog,
@@ -399,26 +399,27 @@ function OdinShell() {
 				<div className="h-full min-w-0 flex-1 [-webkit-app-region:drag]" />
 				<ZoomStable enabled={isMac}>
 					<div className="flex items-center gap-1.5">
-						{/* How many more sessions this Mac has room for — every build,
-						    not just internal ones: "can I start another?" is a question
-						    on a stable release too. */}
+						{/* What the agents hold and what the Mac has left — every
+						    build, not just internal ones: "can I start another?" is a
+						    question on a stable release too. Two measurements, no
+						    forecast: see MachineLoad.availableMemoryGb. */}
 						{load && (
 							<span
 								title={
 									load.busy
 										? `${load.agentCount} session(s) using ${load.agentCpuPercent}% of this Mac — new sessions wait until that clears.`
-										: `Room for about ${load.roomForMore} more session(s): ${load.agentCount} running, holding ${load.agentMemoryGb} GB at ~${load.sessionMemoryGb} GB each, against ${AGENT_MEMORY_BUDGET_PERCENT}% of this Mac's RAM. Agents are using ${load.agentCpuPercent}% of the CPU · machine load ${load.cpuPercent}%.`
+										: `${load.agentCount} session(s) holding ${load.agentMemoryGb} GB, and ${load.availableMemoryGb} GB of this Mac still free. Agents are using ${load.agentCpuPercent}% of the CPU · machine load ${load.cpuPercent}%.`
 								}
 								className={cn(
 									"rounded-[6px] px-2 py-[3px] text-[11px] font-semibold tabular-nums",
-									load.busy || load.roomForMore === 0
+									load.busy
 										? "bg-[#3a1f24] text-[#f5b83d]"
 										: "bg-[#1f1f27] text-[#8a8a97]",
 								)}
 							>
 								{load.busy
-									? "busy · no room"
-									: `${load.agentMemoryGb} GB · room for ${load.roomForMore}`}
+									? "busy · launches waiting"
+									: `${load.agentMemoryGb} GB · ${load.availableMemoryGb} GB free`}
 							</span>
 						)}
 						{/* Self-development controls: only on a machine that has Odin's

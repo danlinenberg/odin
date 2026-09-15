@@ -8,8 +8,6 @@
 
 /** The fields of a ResourceMetricsSnapshot this needs. */
 export interface MachineLoadInput {
-	/** Odin itself (main + renderer + helpers), so sessions can be costed alone. */
-	app: { memory: number };
 	host: {
 		cpuCoreCount: number;
 		loadAverage1m: number;
@@ -39,31 +37,6 @@ export interface MachineLoadInput {
  */
 export const BUSY_AGENT_CPU_PERCENT = 70;
 
-/**
- * Share of this Mac's installed RAM the sessions may hold before the next one
- * is a bad idea. A share of *total*, not of free: `os.freemem()` counts cached
- * and compressed pages as used, so free memory is 1–5% on a healthy Mac and
- * would say "no room" forever.
- *
- * ponytail: one fixed fraction, leaving the rest for the app, the OS and
- * whatever else you're running. Same knob as above — move both to
- * ~/.config/odin.json if a machine argues with them.
- */
-export const AGENT_MEMORY_BUDGET_PERCENT = 60;
-
-/**
- * The least a session is ever costed at, however little it holds right now.
- *
- * A pane measured seconds after launch is a few hundred MB — dividing the
- * budget by *that* promises room for dozens of agents no Mac can actually run,
- * because every one of them grows to a GB or two once it starts working.
- *
- * ponytail: a Claude Code pane (node + agent + pty) doing real work. It's the
- * floor and the zero-session estimate both — move it to ~/.config/odin.json if
- * a machine argues with it.
- */
-const ASSUMED_SESSION_GB = 1.5;
-
 export interface MachineLoad {
 	/**
 	 * Share of the machine Odin's own agents are burning, 0–100+. The only
@@ -91,13 +64,16 @@ export interface MachineLoad {
 	memoryPercent: number;
 	agentCount: number;
 	/**
-	 * How many more sessions fit: the memory budget left, divided by what a
-	 * session actually costs on this machine right now. Zero while `busy`,
-	 * because a launch would wait anyway.
+	 * What this Mac could still hand out, in GB: free plus reclaimable pages.
+	 *
+	 * Measured, not predicted. "How many more sessions fit" used to live here
+	 * and was deleted twice over: a count needs a per-session cost, and the
+	 * honest one swings from 0.2 GB parked to 2 GB mid-build, so every constant
+	 * we picked made the badge confidently wrong — "room for 31" on a Mac with
+	 * 4 GB free, then "room for 2" on the Mac already running nine. Free memory
+	 * and what the agents hold are both facts; you can read them.
 	 */
-	roomForMore: number;
-	/** GB one session is costed at: the live average, floored at the assumed. */
-	sessionMemoryGb: number;
+	availableMemoryGb: number;
 	busy: boolean;
 	/** Why it's busy, phrased for a toast. Null when it isn't. */
 	reason: string | null;
@@ -122,32 +98,10 @@ export function machineLoad(snapshot: MachineLoadInput): MachineLoad {
 	const busy = agentCpuPercent >= BUSY_AGENT_CPU_PERCENT;
 	const memoryGb = gb(snapshot.totalMemory);
 
-	// The sessions' own RSS: `totalMemory` includes Odin itself, which doesn't
-	// get any bigger when you open another pane.
-	const sessionsGb = Math.max(0, memoryGb - gb(snapshot.app.memory));
-	// Never below the floor: young sessions under-report, and the badge is a
-	// promise about sessions that will be working, not idling.
-	const perSessionGb =
-		agentCount > 0
-			? Math.max(sessionsGb / agentCount, ASSUMED_SESSION_GB)
-			: ASSUMED_SESSION_GB;
-	const budgetGb =
-		(gb(snapshot.host.totalMemory) * AGENT_MEMORY_BUDGET_PERCENT) / 100;
-	// The budget is a ceiling, not a promise: the rest of the Mac got to the
-	// RAM first. Whatever the OS says it can still hand out is the real limit —
-	// 60% of 24 GB means nothing when a browser and a 10 GB compressor already
-	// hold all but 4 of them. Zero means the snapshot predates the reading (an
-	// app that hasn't restarted), so fall back to the ceiling alone.
-	const freeGb = gb(snapshot.host.availableMemory);
-	const spareGb =
-		freeGb > 0 ? Math.min(budgetGb - sessionsGb, freeGb) : budgetGb - sessionsGb;
-	const roomForMore = busy ? 0 : Math.max(0, Math.floor(spareGb / perSessionGb));
-
 	return {
 		agentCpuPercent,
 		agentMemoryGb: Math.round(memoryGb * 10) / 10,
-		roomForMore,
-		sessionMemoryGb: Math.round(perSessionGb * 10) / 10,
+		availableMemoryGb: Math.round(gb(snapshot.host.availableMemory) * 10) / 10,
 		cpuPercent: percent((snapshot.host.loadAverage1m / cores) * 100),
 		memoryPercent: percent(snapshot.host.memoryUsagePercent),
 		agentCount,
