@@ -347,9 +347,11 @@ function OdinShell() {
 				<ZoomStable enabled={isMac}>
 					<span className="text-xs font-semibold text-[#f5f5f7]">
 						{workConfig?.isDev ? "Odin Dev" : "Odin"}
-						<span className="ml-1.5 font-normal text-[#8a8a97]">
-							{workConfig?.isDev ? "· hot reload" : "· mission control"}
-						</span>
+						{workConfig?.isDev && (
+							<span className="ml-1.5 font-normal text-[#8a8a97]">
+								· hot reload
+							</span>
+						)}
 					</span>
 				</ZoomStable>
 				{/* Which set of accounts is live. Next to the app name because it
@@ -370,9 +372,14 @@ function OdinShell() {
 						>
 							{profiles.map((profile) => {
 								// A native <option> is text and nothing else — no dot, no
-								// badge — so the count goes in the label, where it shows in
-								// the popup and on the closed button both.
-								const needsYou = needsYouByProfile.get(profile.id) ?? 0;
+								// badge — so the count goes in the label. Only on the
+								// profiles you're NOT on: the active one's needs-you is
+								// already on the board below, and the selected option is
+								// what the closed button shows.
+								const needsYou =
+									profile.id === activeProfileId
+										? 0
+										: (needsYouByProfile.get(profile.id) ?? 0);
 								return (
 									<option key={profile.id} value={profile.id}>
 										{needsYou > 0
@@ -386,10 +393,13 @@ function OdinShell() {
 				)}
 				<div className="h-full min-w-0 flex-1 [-webkit-app-region:drag]" />
 				{/* Change Odin from inside Odin: rebuild this checkout, reinstall,
-				    relaunch. Runs detached, so it survives the app quitting. */}
+				    relaunch. Runs detached, so it survives the app quitting.
+				    Internal builds only (canary + `bun dev`) — a stable release
+				    updates itself through the auto-updater, and the load readout
+				    is a developer instrument, not a shipped feature. */}
 				<ZoomStable enabled={isMac}>
 					<div className="flex items-center gap-1.5">
-						{load && (
+						{workConfig?.isInternalBuild && load && (
 							<span
 								title={`${load.agentCount} session(s) holding ${load.agentMemoryGb} GB and ${load.agentCpuPercent}% of this Mac · machine load ${load.cpuPercent}% · memory ${load.memoryPercent}%.${load.busy ? " New sessions wait until this clears." : ""}`}
 								className={cn(
@@ -406,7 +416,7 @@ function OdinShell() {
 						    checkout (ODIN_REPO_DIR / odinRepo in ~/.config/odin.json).
 						    An installed build without one can't hot-reload or rebuild
 						    itself anyway, so the buttons would only ever error. */}
-						{workConfig?.odinRepoPath && (
+						{workConfig?.isInternalBuild && workConfig?.odinRepoPath && (
 							<>
 								<button
 									type="button"
