@@ -18,8 +18,23 @@ const run = promisify(execFile);
  * Skipped wholesale: vendored copies, macOS's junk drawer, and every dot-dir —
  * tool caches (~/.claude, ~/.cache), editor plugins and Odin's worktrees
  * all hide there, and none of them is a repo you'd start a session in.
+ *
+ * Desktop/Documents/Downloads are TCC-protected: descending into them makes
+ * macOS throw a "would like to access files in your Desktop folder" prompt at
+ * launch, three times over. Pruning by name means `find` never opens them, so
+ * no prompt. A checkout parked on the Desktop won't be listed — add it through
+ * the folder picker, which grants access without a prompt.
  */
-const PRUNED = ["node_modules", "venv", "Library", "Applications", ".*"];
+const PRUNED = [
+	"node_modules",
+	"venv",
+	"Library",
+	"Applications",
+	"Desktop",
+	"Documents",
+	"Downloads",
+	".*",
+];
 
 export async function scanRepos(home: string = homedir()): Promise<string[]> {
 	const args = [
