@@ -314,6 +314,20 @@ export function registerWithLaunchServices(appPath: string): void {
 	}
 }
 
+/**
+ * The deep-link scheme for this dev bundle — mirrors PROTOCOL_SCHEME in
+ * shared/constants.ts, which the app itself uses.
+ *
+ * Running dev straight from the main checkout (not a ~/.odin/worktrees one, no
+ * ODIN_WORKSPACE_NAME) resolves no workspace, and this used to bail out of
+ * main() entirely — so the bundle kept CFBundleName "Electron" and Electron's
+ * atom icon in the dock. Only the scheme ever needed the workspace; the name,
+ * icon, bundle ID and signature do not.
+ */
+export function devProtocolScheme(workspaceName?: string): string {
+	return workspaceName ? `odin-${workspaceName}` : "odin";
+}
+
 export function main() {
 	if (process.platform !== "darwin") {
 		console.log("[patch-dev-protocol] Skipping - not macOS");
@@ -331,12 +345,7 @@ export function main() {
 		envWorkspaceName: getWorkspaceName(),
 		lookupDisplayName: getWorkspaceDisplayNameFromProdDb,
 	});
-	if (!workspaceName) {
-		console.log("[patch-dev-protocol] Skipping - workspace name not resolved");
-		process.exit(0);
-	}
-
-	const PROTOCOL_SCHEME = `odin-${workspaceName}`;
+	const PROTOCOL_SCHEME = devProtocolScheme(workspaceName);
 	const ELECTRON_DIST_DIR = resolve(
 		import.meta.dirname,
 		"../node_modules/electron/dist",

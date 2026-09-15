@@ -13,6 +13,7 @@ import {
 	DEV_APP_BUNDLE_NAME,
 	deriveWorktreePathFromSegments,
 	devBundleId,
+	devProtocolScheme,
 	getWorktreeSegmentsFromCwd,
 	hasValidSignature,
 	resolveWorkspaceIdentity,
@@ -172,5 +173,15 @@ describe("dev bundle Launch Services entry", () => {
 
 		expect(script).toContain(`electron/dist/${DEV_APP_BUNDLE_NAME}`);
 		expect(script).toContain("lsregister");
+	});
+});
+
+describe("devProtocolScheme", () => {
+	it("scopes the scheme to the workspace when there is one", () => {
+		expect(devProtocolScheme("my-branch")).toBe("odin-my-branch");
+	});
+
+	it("falls back to the bare odin scheme outside a worktree", () => {
+		expect(devProtocolScheme(undefined)).toBe("odin");
 	});
 });
