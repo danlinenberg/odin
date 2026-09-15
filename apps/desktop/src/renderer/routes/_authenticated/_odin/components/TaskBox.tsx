@@ -9,11 +9,24 @@ import {
 	withPriority,
 } from "../hooks/useOdinTasks";
 
+/** Title is the first line, the brief is the rest — the two fields the box
+    shows are the two halves of the one string the store reads. */
+const splitTask = (text: string): [string, string] => {
+	const [title = "", ...rest] = text.split("\n");
+	return [title, rest.join("\n").replace(/^\n+/, "")];
+};
+const joinTask = (title: string, notes: string) =>
+	notes ? `${title}\n\n${notes}` : title;
+
 /**
  * The box you write a task in — compose row, edit row and the hotkey's quick
  * capture all use this one, so priority works the same in all three.
  *
- * Enter adds/saves, Shift+Enter is a newline, Escape cancels.
+ * Two fields rather than one: which half names the card and which half is the
+ * brief was a sentence of placeholder text you had to read and believe. A
+ * labelled line and a labelled box say it without the sentence.
+ *
+ * Enter adds/saves, Shift+Enter in the brief is a newline, Escape cancels.
  */
 export function TaskBox({
 	value,
@@ -30,24 +43,40 @@ export function TaskBox({
 	onSubmit: () => void;
 	onCancel?: () => void;
 }) {
+	const [title, notes] = splitTask(value);
+	// Enter submits from either field; only the brief keeps Shift+Enter.
+	const keys = (event: React.KeyboardEvent) => {
+		if (event.key === "Enter" && !event.shiftKey) {
+			event.preventDefault();
+			onSubmit();
+		}
+		if (event.key === "Escape") onCancel?.();
+	};
+
 	return (
 		<div className="flex flex-col gap-1.5">
-			<textarea
-				value={value}
-				placeholder={placeholder}
-				// biome-ignore lint/a11y/noAutofocus: the edit box replaces the row you clicked
-				autoFocus={autoFocus}
-				rows={2}
-				onChange={(event) => onChange(event.target.value)}
-				onKeyDown={(event) => {
-					if (event.key === "Enter" && !event.shiftKey) {
-						event.preventDefault();
-						onSubmit();
-					}
-					if (event.key === "Escape") onCancel?.();
-				}}
-				className="w-full resize-none rounded-[10px] border border-[#25252e] bg-[#111114] px-3 py-2 text-[13px] text-[#f5f5f7] outline-none placeholder:text-[#8a8a97] focus:border-[#a394ff]"
-			/>
+			<div className="overflow-hidden rounded-[10px] border border-[#25252e] bg-[#111114] focus-within:border-[#a394ff]">
+				<input
+					value={title}
+					placeholder={placeholder ?? "Name it"}
+					// biome-ignore lint/a11y/noAutofocus: the edit box replaces the row you clicked
+					autoFocus={autoFocus}
+					aria-label="Title"
+					onChange={(event) => onChange(joinTask(event.target.value, notes))}
+					onKeyDown={keys}
+					className="w-full bg-transparent px-3 pt-2 pb-1.5 text-[13px] font-semibold text-[#f5f5f7] outline-none placeholder:font-normal placeholder:text-[#8a8a97]"
+				/>
+				<div className="mx-3 border-t border-[#25252e]" />
+				<textarea
+					value={notes}
+					placeholder="The brief — what it needs, links, anything the session should know (optional)"
+					rows={2}
+					aria-label="Brief"
+					onChange={(event) => onChange(joinTask(title, event.target.value))}
+					onKeyDown={keys}
+					className="w-full resize-none bg-transparent px-3 pt-1.5 pb-2 text-[13px] text-[#a5a5b3] outline-none placeholder:text-[#8a8a97]"
+				/>
+			</div>
 			{/* The picker doesn't hold a value of its own: it rewrites the "!"s in
 			    the text, which is what the store reads either way. Typing "!" and
 			    picking Low are the same edit, so neither can go stale. Medium is
@@ -59,7 +88,7 @@ export function TaskBox({
 				<span className="text-[11px] text-[#8a8a97]">Priority</span>
 				<select
 					aria-label="Priority"
-					title="Or lead the first line with ! (Low) or !!! (High) — no ! is Medium"
+					title="Or lead the title with ! (Low) or !!! (High) — no ! is Medium"
 					value={parseTask(value).priority}
 					onChange={(event) =>
 						onChange(withPriority(value, Number(event.target.value)))
@@ -159,13 +188,13 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 				<div className="mb-2 text-xs font-semibold text-[#f5f5f7]">
 					New task
 					<span className="ml-1.5 font-normal text-[#8a8a97]">
-						⏎ add · esc cancel · first line names it
+						⏎ add · esc cancel
 					</span>
 				</div>
 				<TaskBox
 					value={draft}
 					autoFocus
-					placeholder="What needs doing? (Medium unless you lead with ! or !!!)"
+					placeholder="What needs doing?"
 					onChange={setDraft}
 					onSubmit={save}
 					onCancel={onClose}
