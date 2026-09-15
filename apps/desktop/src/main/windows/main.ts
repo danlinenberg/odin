@@ -110,7 +110,9 @@ export async function MainWindow() {
 		autoHideMenuBar: true,
 		frame: false,
 		titleBarStyle: "hidden",
-		trafficLightPosition: { x: 16, y: 16 },
+		// y centres the 12px lights in the 36px top bar (see _odin/layout.tsx),
+		// so they line up with the app name beside them.
+		trafficLightPosition: { x: 16, y: 12 },
 		webPreferences: {
 			preload: join(__dirname, "../preload/index.js"),
 			webviewTag: true,
