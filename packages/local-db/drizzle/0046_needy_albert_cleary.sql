@@ -1,0 +1,1 @@
+ALTER TABLE `slack_reactions` ADD `started_at` integer;

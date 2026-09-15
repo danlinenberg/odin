@@ -1,0 +1,130 @@
+import type { AgentType } from "@odin/shared/agent-command";
+
+export type OdinManagedBinary = AgentType;
+
+export const DESKTOP_AGENT_SETUP_ACTIONS = [
+	"notify-script",
+	"managed-skills",
+	"cleanup-global-opencode-plugin",
+	"amp-plugin",
+	"amp-wrapper",
+	"claude-settings-json",
+	"claude-wrapper",
+	"codex-hooks-json",
+	"codex-wrapper",
+	"droid-wrapper",
+	"droid-settings-json",
+	"opencode-plugin",
+	"opencode-wrapper",
+	"pi-extension",
+	"cursor-hook-script",
+	"cursor-agent-wrapper",
+	"cursor-hooks-json",
+	"gemini-hook-script",
+	"gemini-wrapper",
+	"gemini-settings-json",
+	"kimi-config-toml",
+	"kimi-wrapper",
+	"grok-hooks-json",
+	"grok-config-toml",
+	"grok-wrapper",
+	"mastra-wrapper",
+	"mastra-hooks-json",
+	"copilot-hook-script",
+	"copilot-wrapper",
+	"vibe-hooks-toml",
+	"vibe-wrapper",
+] as const;
+
+export type DesktopAgentSetupAction =
+	(typeof DESKTOP_AGENT_SETUP_ACTIONS)[number];
+
+interface DesktopAgentSetupTarget {
+	id: AgentType;
+	setupActions: readonly DesktopAgentSetupAction[];
+	managedBinary?: boolean;
+}
+
+export const DESKTOP_AGENT_SETUP_BOOTSTRAP_ACTIONS = [
+	"cleanup-global-opencode-plugin",
+	"notify-script",
+	"managed-skills",
+] as const satisfies readonly DesktopAgentSetupAction[];
+
+export const DESKTOP_AGENT_SETUP_TARGETS = [
+	{
+		id: "amp",
+		setupActions: ["amp-plugin", "amp-wrapper"],
+		managedBinary: true,
+	},
+	{
+		id: "claude",
+		setupActions: ["claude-settings-json", "claude-wrapper"],
+		managedBinary: true,
+	},
+	{
+		id: "codex",
+		setupActions: ["codex-hooks-json", "codex-wrapper"],
+		managedBinary: true,
+	},
+	{
+		id: "droid",
+		setupActions: ["droid-wrapper", "droid-settings-json"],
+		managedBinary: true,
+	},
+	{
+		id: "opencode",
+		setupActions: ["opencode-plugin", "opencode-wrapper"],
+		managedBinary: true,
+	},
+	{
+		id: "pi",
+		setupActions: ["pi-extension"],
+	},
+	{
+		id: "cursor-agent",
+		setupActions: [
+			"cursor-hook-script",
+			"cursor-agent-wrapper",
+			"cursor-hooks-json",
+		],
+	},
+	{
+		id: "gemini",
+		setupActions: [
+			"gemini-hook-script",
+			"gemini-wrapper",
+			"gemini-settings-json",
+		],
+		managedBinary: true,
+	},
+	{
+		id: "mastracode",
+		setupActions: ["mastra-wrapper", "mastra-hooks-json"],
+		managedBinary: true,
+	},
+	{
+		id: "kimi",
+		setupActions: ["kimi-config-toml", "kimi-wrapper"],
+		managedBinary: true,
+	},
+	{
+		id: "grok",
+		setupActions: ["grok-hooks-json", "grok-config-toml", "grok-wrapper"],
+		managedBinary: true,
+	},
+	{
+		id: "copilot",
+		setupActions: ["copilot-hook-script", "copilot-wrapper"],
+		managedBinary: true,
+	},
+	{
+		id: "vibe",
+		setupActions: ["vibe-hooks-toml", "vibe-wrapper"],
+		managedBinary: true,
+	},
+] as const satisfies readonly DesktopAgentSetupTarget[];
+
+export const ODIN_MANAGED_BINARIES = DESKTOP_AGENT_SETUP_TARGETS.filter(
+	(target) => "managedBinary" in target && target.managedBinary,
+).map((target) => target.id) satisfies OdinManagedBinary[];

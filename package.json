@@ -1,0 +1,63 @@
+{
+	"name": "odin",
+	"version": "0.0.0",
+	"repository": {
+		"type": "git"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.4.2",
+		"@types/bun": "1.3.14",
+		"@types/semver": "7.7.1",
+		"dotenv-cli": "11.0.0",
+		"semver": "7.7.4",
+		"sherif": "1.11.0",
+		"turbo": "2.9.14",
+		"typescript": "6.0.3"
+	},
+	"description": "Odin Monorepo",
+	"homepage": "https://github.com/danlinenberg/odin",
+	"license": "UNLICENSED",
+	"packageManager": "bun@1.3.14",
+	"private": true,
+	"scripts": {
+		"dev": "turbo run dev --filter=@odin/desktop",
+		"build": "turbo build --filter=@odin/desktop",
+		"test": "turbo test --concurrency=2",
+		"lint": "./scripts/lint.sh",
+		"release": "./scripts/release.sh",
+		"lint:fix": "bunx @biomejs/biome@2.4.2 migrate --write && bunx @biomejs/biome@2.4.2 check --write --unsafe .",
+		"format": "bunx @biomejs/biome@2.4.2 format --write .",
+		"format:check": "bunx @biomejs/biome@2.4.2 format .",
+		"typecheck": "turbo typecheck",
+		"ui-add": "turbo run ui-add",
+		"postinstall": "./scripts/postinstall.sh",
+		"clean": "git clean -xdf node_modules",
+		"clean:workspaces": "turbo clean",
+		"db:generate:desktop": "bun run --cwd packages/local-db generate"
+	},
+	"type": "module",
+	"workspaces": [
+		"packages/*",
+		"apps/*",
+		"tooling/*"
+	],
+	"overrides": {
+		"@types/hast": "3.0.5",
+		"axios": "1.14.0",
+		"hono": "4.12.34",
+		"kysely": "0.28.17",
+		"rollup": "4.62.3",
+		"shell-quote": "1.9.0"
+	},
+	"trustedDependencies": [
+		"better-sqlite3",
+		"bufferutil",
+		"electron",
+		"esbuild",
+		"koffi",
+		"node-pty",
+		"sharp",
+		"utf-8-validate",
+		"workerd"
+	]
+}
