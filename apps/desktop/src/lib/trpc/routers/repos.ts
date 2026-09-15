@@ -110,6 +110,8 @@ export interface RepoDiff {
 	source: string;
 	/** False when delta isn't installed — the header says so. */
 	delta: boolean;
+	/** The checkout this is a diff of — the header names it. */
+	cwd: string;
 }
 
 /**
@@ -154,6 +156,7 @@ export async function renderDiff(
 		ansi: note + (rendered ?? patch),
 		source,
 		delta: rendered !== null,
+		cwd,
 	};
 }
 
@@ -198,13 +201,25 @@ export const createReposRouter = () => {
 					 * session runs unless it picked a repo of its own.
 					 */
 					cwd: z.string().nullish(),
+					/**
+					 * The conversation running in this pane. Its transcript is the
+					 * only record of where the agent actually ended up.
+					 */
+					claudeSessionId: z.string().nullish(),
 					workspaceId: z.string(),
 					/** Terminal columns to render at — delta assumes 80 when piped. */
 					width: z.number().int().min(40).max(400).default(120),
 				}),
 			)
-			.query(({ input }) => {
+			.query(async ({ input }) => {
+				// The agent's own cwd wins: Claude Code cds between repos and
+				// worktrees without the shell ever noticing, so `input.cwd` is
+				// often just the catch-all directory the pane was launched in.
+				const { currentCwdOf } = await import("main/lib/claude-sessions");
 				const dir =
+					(input.claudeSessionId
+						? await currentCwdOf(input.claudeSessionId)
+						: null) ??
 					input.cwd ??
 					getWorkspaceTerminalContext(input.workspaceId).workspacePath;
 				if (!dir) {
