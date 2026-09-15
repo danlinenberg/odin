@@ -47,10 +47,15 @@ export const BUSY_AGENT_CPU_PERCENT = 70;
 export const AGENT_MEMORY_BUDGET_PERCENT = 60;
 
 /**
- * What to assume one session costs before any exist to measure.
+ * The least a session is ever costed at, however little it holds right now.
  *
- * ponytail: a Claude Code pane (node + agent + pty) at rest. Only ever used at
- * zero sessions — the first live one replaces it with the real average.
+ * A pane measured seconds after launch is a few hundred MB — dividing the
+ * budget by *that* promises room for dozens of agents no Mac can actually run,
+ * because every one of them grows to a GB or two once it starts working.
+ *
+ * ponytail: a Claude Code pane (node + agent + pty) doing real work. It's the
+ * floor and the zero-session estimate both — move it to ~/.config/odin.json if
+ * a machine argues with it.
  */
 const ASSUMED_SESSION_GB = 1.5;
 
@@ -86,7 +91,7 @@ export interface MachineLoad {
 	 * because a launch would wait anyway.
 	 */
 	roomForMore: number;
-	/** GB one session costs, measured across the live ones. */
+	/** GB one session is costed at: the live average, floored at the assumed. */
 	sessionMemoryGb: number;
 	busy: boolean;
 	/** Why it's busy, phrased for a toast. Null when it isn't. */
@@ -115,9 +120,11 @@ export function machineLoad(snapshot: MachineLoadInput): MachineLoad {
 	// The sessions' own RSS: `totalMemory` includes Odin itself, which doesn't
 	// get any bigger when you open another pane.
 	const sessionsGb = Math.max(0, memoryGb - gb(snapshot.app.memory));
+	// Never below the floor: young sessions under-report, and the badge is a
+	// promise about sessions that will be working, not idling.
 	const perSessionGb =
-		agentCount > 0 && sessionsGb / agentCount > 0.1
-			? sessionsGb / agentCount
+		agentCount > 0
+			? Math.max(sessionsGb / agentCount, ASSUMED_SESSION_GB)
 			: ASSUMED_SESSION_GB;
 	const budgetGb =
 		(gb(snapshot.host.totalMemory) * AGENT_MEMORY_BUDGET_PERCENT) / 100;

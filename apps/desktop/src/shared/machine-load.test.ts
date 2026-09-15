@@ -107,6 +107,22 @@ describe("machineLoad", () => {
 		expect(AGENT_MEMORY_BUDGET_PERCENT).toBe(60);
 	});
 
+	it("never costs a session below the floor", () => {
+		// The screenshot bug: one pane measured seconds after launch holds
+		// 0.36 GB, which divided a 14.4 GB budget into "room for 39" on a 24 GB
+		// Mac. It gets costed at the 1.5 GB it will grow into instead.
+		const load = machineLoad(
+			snapshot({
+				totalMemory: 3 * GB,
+				appMemory: 2.64 * GB,
+				hostMemory: 24 * GB,
+				agents: 1,
+			}),
+		);
+		expect(load.sessionMemoryGb).toBe(1.5);
+		expect(load.roomForMore).toBe(9);
+	});
+
 	it("estimates a session cost before any sessions exist", () => {
 		// Nothing to measure yet: 19.2 GB budget at the assumed 1.5 GB a session.
 		expect(machineLoad(snapshot({})).roomForMore).toBe(12);
