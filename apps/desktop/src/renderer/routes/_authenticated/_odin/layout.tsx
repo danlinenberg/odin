@@ -63,7 +63,7 @@ const RAIL_ITEMS = [
 	},
 	{
 		to: "/all" as const,
-		hotkey: "ODIN_TASKS" as const,
+		hotkey: "ODIN_ALL" as const,
 		label: "Tasks",
 		Icon: HiOutlineClipboardDocumentCheck,
 	},
@@ -241,6 +241,11 @@ function OdinShell() {
 		ODIN_BOARD: useHotkey(
 			"ODIN_BOARD",
 			() => navigate({ to: "/board" }),
+			NAV_HOTKEY_OPTIONS,
+		),
+		ODIN_ALL: useHotkey(
+			"ODIN_ALL",
+			() => navigate({ to: "/all" }),
 			NAV_HOTKEY_OPTIONS,
 		),
 		ODIN_SLACK: useHotkey(

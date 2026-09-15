@@ -23,19 +23,22 @@ import {
 } from "renderer/hotkeys";
 
 /**
- * Odin lists one shortcut per tab in its rail and nothing else — the upstream
+ * Every screen this shell can open, and nothing else — the upstream
  * workspace/terminal/layout hotkeys stay registered (other code binds them) but
  * this shell has no UI for them, so showing them here was noise.
  */
 const LISTED_HOTKEYS: HotkeyId[] = [
 	"ODIN_BOARD",
+	"ODIN_ALL",
 	"ODIN_TASKS",
 	"ODIN_SLACK",
-	"ODIN_SESSIONS",
 	"ODIN_JIRA",
 	"ODIN_PRS",
 	"ODIN_NOTION",
+	"ODIN_SESSIONS",
+	"ODIN_INSIGHTS",
 	"ODIN_NEW_TASK",
+	"OPEN_SETTINGS",
 ];
 
 function HotkeyRow({
