@@ -35,7 +35,7 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # under them, which is routine here (see odin-procs.sh).
 dev_ui_pid() {
   ps ax -o pid=,command= |
-    grep -F 'dist/Odin Dev.app/Contents/MacOS/Electron .' |
+    grep -E "^ *[0-9]+ $REPO/.*/dist/[^/]+\.app/Contents/MacOS/Electron \.$" |
     grep -vw grep |
     awk 'NR==1 {print $1}'
 }

@@ -91,7 +91,24 @@ DEV_BUNDLE="$REPO/apps/desktop/node_modules/electron/dist/Odin Dev.app"
 LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 trap '"$LSREGISTER" -u "$DEV_BUNDLE" >/dev/null 2>&1' EXIT
 
+if [[ -z "${DESKTOP_VITE_PORT:-}" ]]; then
+  for port in 5173 5273 5373 5473; do
+    if ! lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
+      DESKTOP_VITE_PORT="$port"
+      break
+    fi
+  done
+fi
+if [[ -z "${DESKTOP_VITE_PORT:-}" ]]; then
+  echo "odin-dev: no free vite port among 5173 5273 5373 5473" >&2
+  exit 1
+fi
+export DESKTOP_VITE_PORT
+
+echo "    vite port: $DESKTOP_VITE_PORT" >>"$LOG"
+
 echo "starting Odin with hot reload — logs: $LOG"
+echo "  vite port: $DESKTOP_VITE_PORT"
 echo "  edits under apps/desktop/src/renderer/  apply immediately"
 echo "  edits under apps/desktop/src/main/      need the Restart Odin button"
 echo "     (ODIN_DEV_WATCH=--watch restores restart-on-save, storm included)"

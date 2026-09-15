@@ -29,7 +29,7 @@ if (!process.env.ODIN_PACKAGE) {
 	});
 }
 
-const DEV_SERVER_PORT = Number(process.env.DESKTOP_VITE_PORT);
+const DEV_SERVER_PORT = Number(process.env.DESKTOP_VITE_PORT ?? 5173);
 
 // Validate required env vars at build time using the Zod schema (single source of truth)
 await import("./src/main/env.main");
@@ -246,7 +246,7 @@ export default defineConfig({
 
 		server: {
 			port: DEV_SERVER_PORT,
-			strictPort: false,
+			strictPort: true,
 		},
 
 		plugins: [

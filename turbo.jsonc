@@ -29,6 +29,7 @@
 		"VERCEL_URL",
 		"npm_lifecycle_event",
 		"RENDERER_REMOTE_DEBUG_PORT",
+		"DESKTOP_VITE_PORT",
 		"ODIN_PTY_DAEMON_ADOPT_IN_DEV",
 		"ODIN_HOST_WORKER_SCRIPT_PATH",
 		// Dan views: Notion access for the Slack Queue (read in desktop main)
