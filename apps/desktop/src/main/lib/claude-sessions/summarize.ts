@@ -87,7 +87,7 @@ const INSTRUCTIONS = `You are briefing an engineer who is about to open an in-pr
 Reply with EXACTLY four lines and nothing else. No markdown, no code fences, no preamble:
 GOAL: <one sentence — what this session is trying to achieve>
 STATUS: <one or two sentences — what has actually been done, and where it stands right now>
-NEXT: <one sentence — what it needs from the human, or what happens next. If the work is finished, say so.>
+NEXT: <one sentence addressed to the engineer, starting with a verb — the one thing HE has to do now (answer the prompt on screen, review a diff, decide X, merge the PR). If nothing is needed from him, say "Nothing —" and why.>
 TAGS: <1-3 comma-separated tags describing the work, chosen ONLY from this list: ${TAG_VOCABULARY.join(", ")}>
 
 Rules:

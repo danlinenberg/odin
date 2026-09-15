@@ -81,6 +81,11 @@ describe("buildPrompt", () => {
 	it("says nothing about attachments when there are none", () => {
 		expect(buildPrompt("Fix the board", null)).not.toContain("Attached");
 	});
+
+	// A card in Needs you is only useful if the last turn says what I do about it.
+	it("asks every session to end with action items for the reviewer", () => {
+		expect(buildPrompt("Fix the board", null)).toContain("ACTION ITEMS");
+	});
 });
 
 describe("parseDataUrl", () => {
