@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { TRPCError } from "@trpc/server";
+import { isInternalBuild } from "main/lib/build-channel";
 import { githubAccessToken, githubApiFetch } from "main/lib/github-token";
 import { hasJiraOAuth, jiraRequestContext } from "main/lib/jira-token";
 import { z } from "zod";
@@ -182,6 +183,8 @@ export const createWorkRouter = () => {
 			odinRepoPath: odinRepo(),
 			/** Already running from source with hot reload? */
 			isDev: process.env.NODE_ENV === "development",
+			/** Canary or unpackaged run — gates the self-development toolbar. */
+			isInternalBuild: isInternalBuild(),
 		})),
 
 		/**
