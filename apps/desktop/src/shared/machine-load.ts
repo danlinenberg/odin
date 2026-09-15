@@ -8,10 +8,14 @@
 
 /** The fields of a ResourceMetricsSnapshot this needs. */
 export interface MachineLoadInput {
+	/** Odin itself (main + renderer + helpers), so sessions can be costed alone. */
+	app: { memory: number };
 	host: {
 		cpuCoreCount: number;
 		loadAverage1m: number;
 		memoryUsagePercent: number;
+		/** This Mac's installed RAM, in bytes. */
+		totalMemory: number;
 	};
 	/** App + every agent session, summed, where 100 = one core saturated. */
 	totalCpu: number;
@@ -29,6 +33,26 @@ export interface MachineLoadInput {
  * different machine argues with it.
  */
 export const BUSY_AGENT_CPU_PERCENT = 70;
+
+/**
+ * Share of this Mac's installed RAM the sessions may hold before the next one
+ * is a bad idea. A share of *total*, not of free: `os.freemem()` counts cached
+ * and compressed pages as used, so free memory is 1–5% on a healthy Mac and
+ * would say "no room" forever.
+ *
+ * ponytail: one fixed fraction, leaving the rest for the app, the OS and
+ * whatever else you're running. Same knob as above — move both to
+ * ~/.config/odin.json if a machine argues with them.
+ */
+export const AGENT_MEMORY_BUDGET_PERCENT = 60;
+
+/**
+ * What to assume one session costs before any exist to measure.
+ *
+ * ponytail: a Claude Code pane (node + agent + pty) at rest. Only ever used at
+ * zero sessions — the first live one replaces it with the real average.
+ */
+const ASSUMED_SESSION_GB = 1.5;
 
 export interface MachineLoad {
 	/**
@@ -56,6 +80,14 @@ export interface MachineLoad {
 	 */
 	memoryPercent: number;
 	agentCount: number;
+	/**
+	 * How many more sessions fit: the memory budget left, divided by what a
+	 * session actually costs on this machine right now. Zero while `busy`,
+	 * because a launch would wait anyway.
+	 */
+	roomForMore: number;
+	/** GB one session costs, measured across the live ones. */
+	sessionMemoryGb: number;
 	busy: boolean;
 	/** Why it's busy, phrased for a toast. Null when it isn't. */
 	reason: string | null;
@@ -63,6 +95,11 @@ export interface MachineLoad {
 
 function percent(value: number): number {
 	return Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
+}
+
+function gb(bytes: number): number {
+	const value = bytes / 1024 ** 3;
+	return Number.isFinite(value) ? Math.max(0, value) : 0;
 }
 
 export function machineLoad(snapshot: MachineLoadInput): MachineLoad {
@@ -73,13 +110,26 @@ export function machineLoad(snapshot: MachineLoadInput): MachineLoad {
 		0,
 	);
 	const busy = agentCpuPercent >= BUSY_AGENT_CPU_PERCENT;
-	const memoryGb = snapshot.totalMemory / 1024 ** 3;
+	const memoryGb = gb(snapshot.totalMemory);
+
+	// The sessions' own RSS: `totalMemory` includes Odin itself, which doesn't
+	// get any bigger when you open another pane.
+	const sessionsGb = Math.max(0, memoryGb - gb(snapshot.app.memory));
+	const perSessionGb =
+		agentCount > 0 && sessionsGb / agentCount > 0.1
+			? sessionsGb / agentCount
+			: ASSUMED_SESSION_GB;
+	const budgetGb =
+		(gb(snapshot.host.totalMemory) * AGENT_MEMORY_BUDGET_PERCENT) / 100;
+	const roomForMore = busy
+		? 0
+		: Math.max(0, Math.floor((budgetGb - sessionsGb) / perSessionGb));
 
 	return {
 		agentCpuPercent,
-		agentMemoryGb: Number.isFinite(memoryGb)
-			? Math.max(0, Math.round(memoryGb * 10) / 10)
-			: 0,
+		agentMemoryGb: Math.round(memoryGb * 10) / 10,
+		roomForMore,
+		sessionMemoryGb: Math.round(perSessionGb * 10) / 10,
 		cpuPercent: percent((snapshot.host.loadAverage1m / cores) * 100),
 		memoryPercent: percent(snapshot.host.memoryUsagePercent),
 		agentCount,
