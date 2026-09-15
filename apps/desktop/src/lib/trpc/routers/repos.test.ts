@@ -20,6 +20,10 @@ test("scanRepos finds checkouts, skips pruned dirs and nested worktrees", async 
 	make("Desktop/scratch/.git");
 	make("Documents/notes/.git");
 	make("Downloads/cloned-repo/.git");
+	// Pruned: walking these asks for the Apple Music / Photos libraries.
+	make("Music/Music/.git");
+	make("Pictures/Photos Library.photoslibrary/.git");
+	make("Movies/TV/.git");
 
 	expect(await scanRepos(home)).toEqual([
 		join(home, "dev/odin"),

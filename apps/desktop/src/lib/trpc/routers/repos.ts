@@ -33,6 +33,11 @@ const run = promisify(execFile);
  * launch, three times over. Pruning by name means `find` never opens them, so
  * no prompt. A checkout parked on the Desktop won't be listed — add it through
  * the folder picker, which grants access without a prompt.
+ *
+ * Music/Pictures/Movies are the same story with louder prompts: they hold the
+ * Apple Music, Photos and TV libraries, so walking them asks for access to
+ * "your music and video activity" or your photos. Odin has no business with
+ * any of that, and nobody keeps a checkout in their Photos library.
  */
 const PRUNED = [
 	"node_modules",
@@ -42,6 +47,9 @@ const PRUNED = [
 	"Desktop",
 	"Documents",
 	"Downloads",
+	"Music",
+	"Pictures",
+	"Movies",
 	".*",
 ];
 
