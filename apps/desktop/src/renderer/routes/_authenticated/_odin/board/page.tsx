@@ -20,6 +20,7 @@ import { Terminal } from "renderer/screens/main/components/WorkspaceView/Content
 import * as terminalCache from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/v1-terminal-cache";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import type { Pane, PaneStatus } from "renderer/stores/tabs/types";
+import { lastAgentHookAt } from "renderer/stores/tabs/useAgentHookListener";
 import { boardColumn } from "shared/board-column";
 import {
 	type BoardSection,
@@ -120,12 +121,17 @@ function slugify(title: string): string {
 }
 
 /**
- * How long a pane's status has to hold still before screen-reading is allowed
- * to overrule it. Long enough that an active turn (whose hooks fire every few
- * seconds) is left alone entirely, short enough that a card stranded by a lost
- * hook is corrected while you're still looking at it.
+ * How long a pane's agent hooks have to stay silent before screen-reading is
+ * allowed to overrule them. Long enough that an active turn is left alone
+ * entirely, short enough that a card stranded by a lost hook is corrected while
+ * you're still looking at it.
+ *
+ * Two minutes rather than the twenty seconds this used to be: a healthy turn
+ * goes quiet for as long as its longest single tool call, and measured against
+ * real sessions that is over a minute — a test run, a subagent, a big search.
+ * Every one of those gaps handed a mid-turn card to the scan below.
  */
-const SETTLED_MS = 20_000;
+const SETTLED_MS = 120_000;
 
 /** Width of the Odin icon rail in layout.tsx — the drawer stops here. */
 const RAIL_W = 52;
@@ -707,6 +713,8 @@ function DevBoardPage() {
 	// re-read every live board session on a timer instead of once.
 	const setPaneStatusFromStore = useTabsStore((state) => state.setPaneStatus);
 	const readingRef = useRef(new Set<string>());
+	/** Panes whose last scan read the idle prompt — see the write below. */
+	const sawIdlePromptRef = useRef(new Set<string>());
 	const lastScanRef = useRef(0);
 	useEffect(() => {
 		const scan = () => {
@@ -724,7 +732,16 @@ function DevBoardPage() {
 				// while they're live, and this steps in once a status has gone quiet
 				// — which is the only case it exists for, because a hook that never
 				// arrives leaves the card stuck for hours, not for seconds.
-				const since = statusSinceRef.current.get(pane.id)?.at ?? 0;
+				// Quiet means the *hooks* have stopped talking, not that the status
+				// stopped changing. They aren't the same thing: setPaneStatus no-ops
+				// on an unchanged value, so a turn's worth of "working" hooks never
+				// moves `statusSince` — which left this scan re-reading the screen of
+				// every live session every 5 seconds, all turn, and a single bad read
+				// bounced the card to Needs you until the next hook bounced it back.
+				const since = Math.max(
+					statusSinceRef.current.get(pane.id)?.at ?? 0,
+					lastAgentHookAt.get(pane.id) ?? 0,
+				);
 				if (Date.now() - since < SETTLED_MS) continue;
 				// Board sessions only — never attach to a terminal the board doesn't own.
 				if (!pane.odinTaskTitle && !titleByPane[pane.id]) continue;
@@ -761,10 +778,24 @@ function DevBoardPage() {
 							.slice(-2500);
 						// `pane` was captured before the await — read the status the
 						// hooks hold now, not the one they held when the scan started.
-						const status = odinScreenWrite(
-							odinScreenStatus(screen),
-							useTabsStore.getState().panes[pane.id]?.status,
-						);
+						const read = odinScreenStatus(screen);
+						const current = useTabsStore.getState().panes[pane.id]?.status;
+						// The one read worth doubting. A dialog and a spinner are
+						// things Claude drew; "sitting at the prompt" is the absence
+						// of both, which is also what a snapshot caught mid-repaint
+						// looks like — and taking it at face value is what yanked a
+						// working card into Needs you until the next hook yanked it
+						// back. A tool call outlasting SETTLED_MS still gets here, so
+						// make this one wait for a second scan to agree.
+						if (read === "review" && current === "working") {
+							if (!sawIdlePromptRef.current.has(pane.id)) {
+								sawIdlePromptRef.current.add(pane.id);
+								return;
+							}
+						} else {
+							sawIdlePromptRef.current.delete(pane.id);
+						}
+						const status = odinScreenWrite(read, current);
 						// An unreadable screen, or one that can't improve on what the
 						// hooks already said, leaves the status alone.
 						if (status) setPaneStatusFromStore(pane.id, status);

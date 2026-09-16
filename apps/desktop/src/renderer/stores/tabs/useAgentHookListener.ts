@@ -49,6 +49,18 @@ function getCurrentWorkspaceId(): string | null {
 }
 
 /**
+ * When each pane last heard from its agent hooks, whatever they said.
+ *
+ * `setPaneStatus` no-ops on an unchanged value, so a pane mid-turn — where
+ * every few seconds another hook repeats "working" — looks frozen to anything
+ * measuring how long a status has held. The board's screen-reading repair scan
+ * was measuring exactly that, so it read live screens all turn long and one
+ * bad read was enough to flip the card to Needs you. What it actually wants is
+ * "have the hooks gone quiet", which is this.
+ */
+export const lastAgentHookAt = new Map<string, number>();
+
+/**
  * Where a card lands when the agent's turn ends: Done ("review") unless you
  * watched it end, or you were already engaged with it (a permission prompt you
  * answered — that turn's end is not news).
@@ -79,6 +91,7 @@ export function useAgentHookListener() {
 
 			if (event.type === NOTIFICATION_EVENTS.AGENT_LIFECYCLE) {
 				if (!paneId) return;
+				lastAgentHookAt.set(paneId, Date.now());
 
 				const lifecycleEvent = event.data;
 				if (!lifecycleEvent) return;
