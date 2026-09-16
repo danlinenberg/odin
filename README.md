@@ -49,9 +49,17 @@ Needs [Bun](https://bun.sh) at the version pinned in `.bun-version`:
 git clone https://github.com/danlinenberg/odin.git
 cd odin
 bun install
-bun dev          # run it
-bun run build    # or package one: apps/desktop/release/
+./scripts/odin-dev.sh   # run it, with hot reload
+bun run build           # or package one: apps/desktop/release/
 ```
+
+Re-running `odin-dev.sh` is also the restart: it replaces the dev stack that is
+already up, and live sessions survive it, because the terminal-host daemon is
+adopted rather than torn down. Hot reload covers the renderer only. Edits under
+`apps/desktop/src/renderer/` apply immediately; edits under `src/main/` need the
+in-app **Restart Odin** button, or `ODIN_DEV_WATCH=--watch` to restart on every
+save. Logs stream to `~/.odin/dev.log`, and the run that died is kept as
+`dev.log.prev`.
 
 <img src="apps/desktop/src/resources/build/icons/icon-dev.png" alt="" width="32" align="top"> &nbsp;A dev build wears the green icon, so the one you are hacking on and the
 one you are working *in* are never the same thing in the dock.
