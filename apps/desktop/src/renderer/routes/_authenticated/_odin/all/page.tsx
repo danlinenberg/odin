@@ -15,7 +15,6 @@ import {
 	FeedDivider,
 	FeedHeader,
 	FeedSelect,
-	FilterPill,
 	META_DATE,
 	META_PERSON,
 	META_STATUS,
@@ -117,16 +116,9 @@ const SOURCE_CHIP: Record<AllItem["source"], string> = {
 	Notion: "bg-[#1f1f27] text-[#c8c8d2]",
 };
 
-/** A source's own feed — what its pill wears, and where its rows go. */
-const SOURCE_TO: Record<AllItem["source"], FeedPath> = {
-	Tasks: "/my-tasks",
-	Slack: "/reactions",
-	Jira: "/jira",
-	GitHub: "/prs",
-	Notion: "/notion",
-};
-
-/** The source filter, in the order the tab strip lists them. */
+/** The source filter, in the order the tab strip lists them. ponytail: a
+ * picker, not pills — the tab strip above already draws one row of sources,
+ * and a second row of the same names read as two of the same control. */
 const SOURCES = ["Tasks", "Slack", "Jira", "GitHub", "Notion"] as const;
 
 /** The urgency filter's options — "none" is the rows their source never rated. */
@@ -275,37 +267,11 @@ function AllFeedPage() {
 		<div className="flex h-full flex-col">
 			<FeedHeader>
 				<FeedDivider />
-				<FilterPill
-					active={source === ""}
-					count={hide.rows.length}
-					onClick={() => {
-						setSource("");
-						setContext("");
-					}}
-				>
-					All
-				</FilterPill>
-				{SOURCES.map((name) => {
-					const count = sourceCounts.get(name) ?? 0;
-					// A source with nothing in it (Notion not connected, no PRs) is
-					// a pill that only takes room — unless it's the one you picked.
-					if (count === 0 && source !== name) return null;
-					const Icon = SOURCE_ICON[SOURCE_TO[name]];
-					return (
-						<FilterPill
-							key={name}
-							active={source === name}
-							count={count}
-							onClick={() => {
-								setSource(source === name ? "" : name);
-								setContext("");
-							}}
-						>
-							<Icon className="size-3 shrink-0" aria-hidden />
-							{name}
-						</FilterPill>
-					);
-				})}
+				<span className="shrink-0 text-[12px] text-[#8a8a97]">
+					{items.length === hide.rows.length
+						? `${hide.rows.length} waiting on you`
+						: `${items.length} of ${hide.rows.length}`}
+				</span>
 				{sessions.length > 0 && (
 					<span className="shrink-0 rounded-[10px] bg-[#14301f] px-1.5 py-[1px] text-[11px] font-semibold text-[#3ecf8e]">
 						{sessions.length} live
@@ -326,6 +292,25 @@ function AllFeedPage() {
 						showing={hide.showHidden}
 						onToggle={() => hide.setShowHidden(!hide.showHidden)}
 					/>
+					<FeedSelect
+						value={source}
+						onChange={(value) => {
+							setSource(value as AllItem["source"] | "");
+							setContext("");
+						}}
+						title="Filter by source"
+					>
+						<option value="">Any source</option>
+						{SOURCES.filter(
+							// A source with nothing in it (Notion not connected, no PRs)
+							// is an option that can only empty the list.
+							(name) => (sourceCounts.get(name) ?? 0) > 0 || source === name,
+						).map((name) => (
+							<option key={name} value={name}>
+								{name} ({sourceCounts.get(name) ?? 0})
+							</option>
+						))}
+					</FeedSelect>
 					<FeedSelect
 						value={urgency}
 						onChange={setUrgency}
