@@ -4,6 +4,7 @@ export {
 	projectsRoot,
 	queryTerms,
 	readTranscript,
+	repoNameOf,
 	type SessionPerson,
 	type SessionSnippet,
 	type SessionSummary,

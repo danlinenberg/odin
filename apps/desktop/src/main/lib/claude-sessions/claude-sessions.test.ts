@@ -6,6 +6,7 @@ import {
 	parseTranscript,
 	queryTerms,
 	readTranscript,
+	repoNameOf,
 	searchSessions,
 	summarizeTranscript,
 	workingRepoOf,
@@ -507,6 +508,46 @@ describe("parseTranscript / readTranscript", () => {
 	});
 });
 
+describe("repoNameOf", () => {
+	function tree() {
+		return mkdtempSync(join(tmpdir(), "odin-repo-name-"));
+	}
+
+	test("names a clone after its own directory", () => {
+		const root = tree();
+		mkdirSync(join(root, "app-web-server", ".git"), { recursive: true });
+		expect(repoNameOf(join(root, "app-web-server"))).toBe("app-web-server");
+	});
+
+	test("names a worktree after the repo that owns it, not its branch", () => {
+		const root = tree();
+		const worktree = join(root, ".worktrees", "review-6460");
+		mkdirSync(worktree, { recursive: true });
+		writeFileSync(
+			join(worktree, ".git"),
+			`gitdir: ${root}/app-web-server/.git/worktrees/review-6460\n`,
+		);
+		expect(repoNameOf(worktree)).toBe("app-web-server");
+	});
+
+	test("falls back to the directory name for a submodule", () => {
+		const root = tree();
+		const submodule = join(root, "vendored");
+		mkdirSync(submodule, { recursive: true });
+		writeFileSync(
+			join(submodule, ".git"),
+			`gitdir: ${root}/.git/modules/vendored\n`,
+		);
+		expect(repoNameOf(submodule)).toBe("vendored");
+	});
+
+	test("falls back to the directory name when there is no .git at all", () => {
+		const root = tree();
+		mkdirSync(join(root, "loose"), { recursive: true });
+		expect(repoNameOf(join(root, "loose"))).toBe("loose");
+	});
+});
+
 describe("workingRepoOf", () => {
 	const SESSION = "bbbb1111-2222-3333-4444-555566667777";
 
@@ -603,5 +644,42 @@ describe("workingRepoOf", () => {
 
 		expect(await workingRepoOf("no-such-session", root)).toBeNull();
 		expect(await workingRepoOf(SESSION, root)).toBeNull();
+	});
+
+	test("prefers a nested repo over the container that holds it", () => {
+		const tree = mkdtempSync(join(tmpdir(), "odin-container-"));
+		const root = mkdtempSync(join(tmpdir(), "odin-projects-"));
+		// `~/dev` is a repo of its own AND the directory every clone sits in, so
+		// tool calls that never cd anywhere pile votes onto it. The work is in
+		// the checkout it contains.
+		repos(tree, { dev: "clone", "dev/imagen/app": "clone" });
+		transcript(root, [
+			...Array(9).fill(join(tree, "dev/imagen")),
+			...Array(4).fill(join(tree, "dev/imagen/app")),
+		]);
+		return expect(workingRepoOf(SESSION, root)).resolves.toBe(
+			join(tree, "dev/imagen/app"),
+		);
+	});
+
+	test("counts a worktree as its repo, not as a rival to it", () => {
+		const tree = mkdtempSync(join(tmpdir(), "odin-worktree-vote-"));
+		const root = mkdtempSync(join(tmpdir(), "odin-projects-"));
+		// A catch-all directory the agent keeps returning to, and a repo whose
+		// work is split between its clone and a worktree of it. Neither half of
+		// the split outvotes the catch-all; together they do.
+		repos(tree, { dev: "clone", "dev/app": "clone" });
+		const worktree = join(tree, "dev/trees/fix");
+		mkdirSync(worktree, { recursive: true });
+		writeFileSync(
+			join(worktree, ".git"),
+			`gitdir: ${join(tree, "dev/app")}/.git/worktrees/fix\n`,
+		);
+		transcript(root, [
+			...Array(5).fill(join(tree, "dev")),
+			...Array(3).fill(join(tree, "dev/app")),
+			...Array(4).fill(worktree),
+		]);
+		return expect(workingRepoOf(SESSION, root)).resolves.toBe(worktree);
 	});
 });
