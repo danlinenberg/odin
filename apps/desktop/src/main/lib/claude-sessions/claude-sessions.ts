@@ -799,3 +799,31 @@ export async function workingRepoOf(
 	}
 	return best;
 }
+
+/**
+ * The opening ask of a session, for labelling it in a list.
+ *
+ * Only the head of the file is looked at: the first thing you typed is within
+ * the first few entries, and the alternative — parsing whole transcripts for a
+ * string that lives in line three — is what makes a whole-store scan expensive.
+ * Sessions that open with nothing typed (a resume, an empty pane) have no
+ * answer, which is honest; the caller names them by id.
+ */
+export function firstPrompt(jsonl: string, headBytes = 300_000): string | null {
+	for (const line of jsonl.slice(0, headBytes).split("\n")) {
+		// A clipped final line can't be parsed; skip it rather than throw.
+		if (!line.endsWith("}")) continue;
+		let entry: Record<string, unknown>;
+		try {
+			entry = JSON.parse(line) as Record<string, unknown>;
+		} catch {
+			continue;
+		}
+		if (entry.type !== "user" || entry.isSidechain) continue;
+		const message = entry.message as { content?: unknown } | undefined;
+		const text = messageText(message?.content).trim();
+		if (!text || !isTypedByUser(entry, text)) continue;
+		return oneLine(cleanPrompt(text)).slice(0, 160) || null;
+	}
+	return null;
+}

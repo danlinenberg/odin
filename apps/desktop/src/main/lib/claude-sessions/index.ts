@@ -1,4 +1,5 @@
 export {
+	firstPrompt,
 	listTranscripts,
 	parseTranscript,
 	projectsRoot,
@@ -16,3 +17,17 @@ export {
 	workingRepoOf,
 } from "./claude-sessions";
 export { type WrittenBrief, warmBriefs, writeBrief } from "./summarize";
+export {
+	activeIntervals,
+	computeWorkload,
+	type Interval,
+	mergeIntervals,
+	type SessionWork,
+	scanSessions,
+	scanTranscript,
+	type TaskRow,
+	totalMs,
+	type WeekRow,
+	type Workload,
+	weekStart,
+} from "./workload";
