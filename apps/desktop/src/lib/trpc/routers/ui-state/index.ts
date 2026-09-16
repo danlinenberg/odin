@@ -87,6 +87,8 @@ export const paneSchema = z.object({
 	odinAutoTagged: z.boolean().optional(),
 	odinAutoTitled: z.boolean().optional(),
 	odinParked: z.boolean().optional(),
+	// The session's shell pane, so the drawer's Terminal reattaches after a restart.
+	odinShellPaneId: z.string().optional(),
 	// The profile that launched the session. Stripped here, every session fell
 	// back to "default" on the next persist and left the profile it belonged to.
 	odinProfile: z.string().optional(),
