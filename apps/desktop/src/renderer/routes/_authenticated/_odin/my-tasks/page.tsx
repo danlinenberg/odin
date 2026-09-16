@@ -162,16 +162,6 @@ function MyTasksPage() {
 									</span>
 								</button>
 								<div className="flex shrink-0 items-center gap-1.5">
-									<RowActions>
-										<button
-											type="button"
-											title="Delete this task"
-											onClick={() => remove(task.id)}
-											className="rounded-[7px] px-2 py-1 text-xs font-semibold text-[#8a8a97] hover:bg-[#1f1f27] hover:text-[#f5f5f7]"
-										>
-											✕
-										</button>
-									</RowActions>
 									{activePaneId ? (
 										<button
 											type="button"
@@ -193,6 +183,16 @@ function MyTasksPage() {
 											{launchingKey === task.id ? "Starting…" : "Start session"}
 										</button>
 									)}
+									<RowActions>
+										<button
+											type="button"
+											title="Delete this task"
+											onClick={() => remove(task.id)}
+											className="rounded-[7px] px-2 py-1 text-xs font-semibold text-[#8a8a97] hover:bg-[#1f1f27] hover:text-[#f5f5f7]"
+										>
+											✕
+										</button>
+									</RowActions>
 								</div>
 							</div>
 						</div>
