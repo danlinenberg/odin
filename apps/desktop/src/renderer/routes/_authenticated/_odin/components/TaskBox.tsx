@@ -54,8 +54,10 @@ export function TaskBox({
 	};
 
 	return (
-		<div className="flex flex-col gap-1.5">
-			<div className="overflow-hidden rounded-[10px] border border-[#25252e] bg-[#111114] focus-within:border-[#a394ff]">
+		<div className="flex h-full min-h-0 flex-col gap-1.5">
+			{/* grow, not flex-1: the basis stays the rows=2 height, so inline use is
+			    unchanged and only a resized dialog hands it extra room. */}
+			<div className="flex min-h-0 grow flex-col overflow-hidden rounded-[10px] border border-[#25252e] bg-[#111114] focus-within:border-[#a394ff]">
 				<input
 					value={title}
 					placeholder={placeholder ?? "Name it"}
@@ -74,7 +76,7 @@ export function TaskBox({
 					aria-label="Brief"
 					onChange={(event) => onChange(joinTask(title, event.target.value))}
 					onKeyDown={keys}
-					className="w-full resize-none bg-transparent px-3 pt-1.5 pb-2 text-[13px] text-[#a5a5b3] outline-none placeholder:text-[#8a8a97]"
+					className="w-full min-h-0 grow resize-none bg-transparent px-3 pt-1.5 pb-2 text-[13px] text-[#a5a5b3] outline-none placeholder:text-[#8a8a97]"
 				/>
 			</div>
 			{/* The picker doesn't hold a value of its own: it rewrites the "!"s in
@@ -183,9 +185,11 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 				role="dialog"
 				aria-modal="true"
 				aria-label="New task"
-				className="fixed left-1/2 top-[12vh] z-50 w-[520px] max-w-[92vw] -translate-x-1/2 rounded-[10px] border border-[#2e2e38] bg-[#111114] p-3.5 shadow-[0_18px_60px_rgba(0,0,0,0.6)]"
+				// ponytail: CSS `resize` — Chromium draws the corner grip for free.
+				// The size isn't remembered between opens; persist it if that itches.
+				className="fixed left-1/2 top-[12vh] z-50 flex h-[190px] max-h-[80vh] w-[520px] min-w-[320px] max-w-[92vw] -translate-x-1/2 resize flex-col overflow-hidden rounded-[10px] border border-[#2e2e38] bg-[#111114] p-3.5 shadow-[0_18px_60px_rgba(0,0,0,0.6)]"
 			>
-				<div className="mb-2 text-xs font-semibold text-[#f5f5f7]">
+				<div className="mb-2 shrink-0 text-xs font-semibold text-[#f5f5f7]">
 					New task
 					<span className="ml-1.5 font-normal text-[#8a8a97]">
 						⏎ add · esc cancel
