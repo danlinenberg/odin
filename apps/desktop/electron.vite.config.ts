@@ -57,6 +57,7 @@ export default defineConfig({
 		plugins: [tsconfigPaths, copyResourcesPlugin()],
 
 		define: {
+			__APP_VERSION__: defineEnv(version),
 			"process.env.NODE_ENV": defineEnv(process.env.NODE_ENV, "production"),
 			"process.env.SKIP_ENV_VALIDATION": defineEnv(
 				process.env.SKIP_ENV_VALIDATION,
