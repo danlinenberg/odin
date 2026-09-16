@@ -17,7 +17,7 @@
     },
     "apps/desktop": {
       "name": "@odin/desktop",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "dependencies": {
         "@ast-grep/napi": "0.41.1",
         "@codemirror/language": "6.12.3",
@@ -230,7 +230,7 @@
     },
     "packages/host-service": {
       "name": "@odin/host-service",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "dependencies": {
         "@agentclientprotocol/claude-agent-acp": "0.56.0",
         "@agentclientprotocol/sdk": "1.2.0",
