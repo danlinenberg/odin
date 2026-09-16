@@ -27,12 +27,12 @@ import { useTabsStore } from "renderer/stores/tabs/store";
 import type { Pane, PaneStatus } from "renderer/stores/tabs/types";
 import { lastAgentHookAt } from "renderer/stores/tabs/useAgentHookListener";
 import { boardColumn } from "shared/board-column";
-import { heavySessionLabel } from "shared/machine-load";
 import {
 	type BoardSection,
 	bySection,
 	SECTION_LABEL,
 } from "shared/board-section";
+import { heavySessionLabel } from "shared/machine-load";
 import { profileOf } from "shared/odin-profile";
 import { odinScreenStatus, odinScreenWrite } from "shared/odin-screen-status";
 import { BOARD_TAGS, boardTags } from "shared/odin-tags";
@@ -46,6 +46,7 @@ import { useOdinProfile } from "../hooks/useOdinProfile";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePaneMeta } from "../hooks/usePaneMeta";
 import { usePendingFocus } from "../hooks/usePendingFocus";
+import { PANE_STATUS_DOT } from "../pane-status";
 import { elapsedLabel, lastMessageAt, pullRequests, sourceLink } from "./brief";
 import { DiffView } from "./DiffView";
 import { SessionBrief } from "./SessionBrief";
@@ -77,15 +78,15 @@ export const Route = createFileRoute("/_authenticated/_odin/board/")({
 
 // ponytail: "permission" (blocked on a prompt) and "failed" are the same call
 // to action — one column. "review" is not: it finished and wants nothing.
-const COLUMNS: { status: PaneStatus; label: string; dot: string }[] = [
-	{ status: "working", label: "Working", dot: "#3ecf8e" },
-	{ status: "permission", label: "Needs you", dot: "#f5b83d" },
+const COLUMNS: { status: PaneStatus; label: string }[] = [
+	{ status: "working", label: "Working" },
+	{ status: "permission", label: "Needs you" },
 	// Turn ended clean, no prompt on screen — nothing to do but ✓ done it.
-	{ status: "review", label: "Done", dot: "#5aa9ff" },
+	{ status: "review", label: "Done" },
 	// Statuses reset to idle on app reload (upstream can't trust them), but the
 	// PTYs live on in the daemon — alive-but-idle sessions land here instead of
 	// vanishing from the board.
-	{ status: "idle", label: "Idle", dot: "#f0647a" },
+	{ status: "idle", label: "Idle" },
 ];
 
 interface BoardCard {
@@ -1399,7 +1400,7 @@ function DevBoardPage() {
 							<div className="flex items-center gap-2 px-3 py-2.5 text-xs font-semibold uppercase tracking-[.4px] text-[#a5a5b3]">
 								<span
 									className="size-2 rounded-full"
-									style={{ background: column.dot }}
+									style={{ background: PANE_STATUS_DOT[column.status] }}
 								/>
 								{column.label}
 								<span className="ml-auto rounded-[10px] bg-[#1f1f27] px-2 font-medium">
@@ -1516,11 +1517,17 @@ function DevBoardPage() {
 																				?.at
 																		}
 																	/>
-															<LoadPill card={card} />
+																	<LoadPill card={card} />
 																</div>
 																{card.status === "working" && (
 																	<div className="mt-1.5 flex items-center gap-1.5 text-[11.5px] text-[#a5a5b3]">
-																		<span className="size-[9px] animate-spin rounded-full border border-[#3ecf8e] border-t-transparent" />
+																		<span
+																			className="size-[9px] animate-spin rounded-full border"
+																			style={{
+																				borderColor: PANE_STATUS_DOT.working,
+																				borderTopColor: "transparent",
+																			}}
+																		/>
 																		agent running
 																	</div>
 																)}
