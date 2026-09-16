@@ -62,6 +62,7 @@ function fixture(session: string = nextSession()) {
 			`  [ "$1" = "--session-id" ] && echo '{}' > ${project}/"$2".jsonl`,
 			"  shift",
 			"done",
+			'echo "TITLE: t"',
 			'echo "GOAL: g"',
 			'echo "STATUS: s"',
 			'echo "NEXT: n"',
@@ -109,6 +110,7 @@ describe("writeBrief", () => {
 		await writeBrief({ sessionId: session, claudeBin: bin, root, cachePath });
 		expect(JSON.parse(readFileSync(cachePath, "utf-8"))[session].brief).toEqual(
 			{
+				title: "t",
 				goal: "g",
 				status: "s",
 				next: "n",
@@ -273,6 +275,18 @@ describe("warmBriefs", () => {
 		expect(runCount()).toBe(1);
 	});
 
+	test("hands back the written titles for the board to rename cards with", async () => {
+		const { session, root, bin, cachePath } = fixture();
+		await warmBriefs([session], { claudeBin: bin, root, cachePath });
+		await settle(cachePath);
+		const { titles } = await warmBriefs([session], {
+			claudeBin: bin,
+			root,
+			cachePath,
+		});
+		expect(titles[session]).toBe("t");
+	});
+
 	test("queues a session once, however often the board re-fires", async () => {
 		const { session, root, bin, cachePath, runCount } = fixture();
 		await warmBriefs([session], { claudeBin: bin, root, cachePath });
@@ -329,6 +343,14 @@ describe("parseBrief", () => {
 		expect(brief.next).toBe("Nothing — it's done.");
 	});
 
+	test("reads a title a card can show, unquoted and cut to fit", () => {
+		expect(parseBrief('TITLE: "Rename the board cards."\nGOAL: x').title).toBe(
+			"Rename the board cards",
+		);
+		expect(parseBrief(`TITLE: ${"x".repeat(80)}`).title).toHaveLength(60);
+		expect(parseBrief("GOAL: x").title).toBeNull();
+	});
+
 	test("keeps an off-shape answer rather than showing an empty panel", () => {
 		const brief = parseBrief("I could not determine what this session is for.");
 		expect(brief.goal).toBeNull();
@@ -363,6 +385,7 @@ describe("parseBrief", () => {
 
 	test("an empty answer is empty, not a blank summary", () => {
 		expect(parseBrief("   ")).toEqual({
+			title: null,
 			goal: null,
 			status: null,
 			next: null,

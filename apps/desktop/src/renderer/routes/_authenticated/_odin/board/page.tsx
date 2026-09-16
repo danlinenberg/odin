@@ -424,6 +424,29 @@ const applyAutoTags = (tagsBySession: Record<string, string[]>) => {
 	});
 };
 
+/**
+ * Rename cards from the brief the model wrote for them — on, that is, when the
+ * setting is. One rename per session: the brief is rewritten as the session
+ * works, and a card whose name shifts every five minutes is worse than one
+ * named after the line you typed.
+ */
+const applyAutoTitles = (titlesBySession: Record<string, string>) => {
+	const { sessionIdByPane } = usePaneMeta.getState();
+	useTabsStore.setState((state) => {
+		let changed = false;
+		const panes = { ...state.panes };
+		for (const [paneId, pane] of Object.entries(panes)) {
+			if (pane.odinAutoTitled) continue;
+			const sessionId = pane.claudeSessionId ?? sessionIdByPane[paneId];
+			const title = sessionId ? titlesBySession[sessionId] : undefined;
+			if (!title || title === pane.odinTaskTitle) continue;
+			panes[paneId] = { ...pane, odinTaskTitle: title, odinAutoTitled: true };
+			changed = true;
+		}
+		return changed ? { panes } : {};
+	});
+};
+
 function DevBoardPage() {
 	const tabs = useTabsStore((state) => state.tabs);
 	const panes = useTabsStore((state) => state.panes);
@@ -756,7 +779,12 @@ function DevBoardPage() {
 		useTabsStore.setState((state) => ({
 			panes: {
 				...state.panes,
-				[paneId]: { ...state.panes[paneId], odinTaskTitle: next },
+				[paneId]: {
+					...state.panes[paneId],
+					odinTaskTitle: next,
+					// You named it: auto-rename doesn't get to overrule that.
+					odinAutoTitled: true,
+				},
 			},
 		}));
 	};
@@ -863,6 +891,8 @@ function DevBoardPage() {
 	// re-firing this is cheap.
 	const warmBriefs =
 		electronTrpc.terminal.warmClaudeSessionBriefs.useMutation();
+	const { data: autoRename } =
+		electronTrpc.settings.getOdinAutoRenameSessions.useQuery();
 	const briefSessionIds = useMemo(
 		() =>
 			[...cardsByStatus.values()]
@@ -883,14 +913,19 @@ function DevBoardPage() {
 		const warm = () =>
 			warmBriefs.mutate(
 				{ sessionIds },
-				{ onSuccess: (r) => applyAutoTags(r.tags) },
+				{
+					onSuccess: (r) => {
+						applyAutoTags(r.tags);
+						if (autoRename) applyAutoTitles(r.titles);
+					},
+				},
 			);
 		warm();
 		// Live sessions keep working; re-warm so a brief you open later is recent.
 		const timer = setInterval(warm, 5 * 60_000);
 		return () => clearInterval(timer);
 		// warmBriefs is a new object each render — the id list is the real trigger.
-	}, [briefSessionIds]);
+	}, [briefSessionIds, autoRename]);
 
 	// A session just launched from the Tasks view → open its drawer here.
 	const pendingPaneId = usePendingFocus((s) => s.paneId);

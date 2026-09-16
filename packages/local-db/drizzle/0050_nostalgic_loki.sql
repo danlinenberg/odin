@@ -1,0 +1,1 @@
+ALTER TABLE `settings` ADD `odin_auto_rename_sessions` integer;

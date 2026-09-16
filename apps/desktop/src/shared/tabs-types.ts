@@ -177,6 +177,12 @@ export interface Pane {
 	 */
 	odinAutoTagged?: boolean;
 	/**
+	 * This card's name is no longer up for grabs — either auto-rename has had
+	 * its one go at it, or you renamed it yourself. Renaming a card on every
+	 * brief would move the name under you while you're reading the board.
+	 */
+	odinAutoTitled?: boolean;
+	/**
 	 * Odin fork: the profile that was active when this session was launched.
 	 * The board shows only its own profile's sessions, so a work card can't
 	 * turn up in the middle of a personal board. Absent on sessions started

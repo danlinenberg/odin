@@ -85,6 +85,7 @@ export const paneSchema = z.object({
 	odinSource: z.enum(["slack", "reactions", "jira", "pr", "notion"]).optional(),
 	odinTags: z.array(z.string()).optional(),
 	odinAutoTagged: z.boolean().optional(),
+	odinAutoTitled: z.boolean().optional(),
 	odinParked: z.boolean().optional(),
 	// The profile that launched the session. Stripped here, every session fell
 	// back to "default" on the next persist and left the profile it belonged to.
