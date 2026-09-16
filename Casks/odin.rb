@@ -1,3 +1,7 @@
+# Not the documented way in. The README hands out the DMG link directly and the
+# app updates itself from GitHub releases, so nobody needs a tap to install or to
+# upgrade. This stays because scripts/release.sh installs through it — one line
+# that puts a freshly built release on this machine and checks the version it got.
 cask "odin" do
   # ponytail: no pinned version/sha — the release workflow always publishes the
   # same asset name, so this tracks whatever is newest with nothing to bump.
