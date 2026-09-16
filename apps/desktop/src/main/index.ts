@@ -65,6 +65,15 @@ if (IS_DEV) {
 	app.setName("Odin Dev");
 }
 
+// `bun dev` runs unpackaged, so there is no Info.plist and app.getVersion()
+// falls back to Electron's own version — the About panel claimed Odin was
+// version 40.x. Baked in from package.json, the same value packaged builds ship.
+declare const __APP_VERSION__: string;
+app.setAboutPanelOptions({
+	applicationVersion: __APP_VERSION__,
+	version: __APP_VERSION__,
+});
+
 // Dev mode: register with execPath + app script so macOS launches Electron with our entry point
 if (process.defaultApp) {
 	if (process.argv.length >= 2) {
