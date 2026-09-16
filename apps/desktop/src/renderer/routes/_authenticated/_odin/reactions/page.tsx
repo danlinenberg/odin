@@ -274,12 +274,10 @@ function ReactionsPage() {
 												/>
 											)}
 										</span>
-										{/* ponytail: DMs have no channel name (conversations.info
+										{/* ponytail: 1:1 DMs have no channel name (conversations.info
 										    omits it for IMs) — leave the slot empty rather than
 										    show a raw id. */}
-										<span className={META_TEXT}>
-											{row.channelName && `#${row.channelName}`}
-										</span>
+										<span className={META_TEXT}>{row.channelName}</span>
 										<span
 											title={new Date(row.postedAt).toLocaleString()}
 											className={META_DATE}

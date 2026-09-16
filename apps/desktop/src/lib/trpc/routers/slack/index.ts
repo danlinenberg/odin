@@ -12,6 +12,7 @@ import {
 } from "../odin-config";
 import {
 	buildPermalink,
+	channelLabel,
 	mentionedUserIds,
 	normalizeReaction,
 	oldestExaminedTs,
@@ -286,6 +287,7 @@ export interface ReactionRow {
 	title: string;
 	text: string;
 	channelId: string;
+	/** Display-ready: `#eng` for a channel, a member list for a group DM. */
 	channelName: string | null;
 	authorName: string | null;
 	permalink: string | null;
@@ -311,7 +313,7 @@ function readRows(): ReactionRow[] {
 			title: toTitle(row.text),
 			text: row.text,
 			channelId: row.channelId,
-			channelName: row.channelName,
+			channelName: channelLabel(row.channelName),
 			authorName: row.authorName,
 			permalink: row.permalink,
 			postedAt: new Date(Number(row.messageTs) * 1000).toISOString(),

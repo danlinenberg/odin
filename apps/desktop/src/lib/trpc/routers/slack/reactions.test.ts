@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
 	buildPermalink,
+	channelLabel,
 	isGreeting,
 	mentionedUserIds,
 	normalizeReaction,
@@ -198,5 +199,16 @@ describe("normalizeReaction", () => {
 		expect(normalizeReaction("  eyes ")).toBe("eyes");
 		expect(normalizeReaction("::")).toBe("eyes");
 		expect(normalizeReaction("")).toBe("eyes");
+	});
+});
+
+describe("channelLabel", () => {
+	test("channels get a #, group DMs get their members", () => {
+		expect(channelLabel("eng")).toBe("#eng");
+		expect(channelLabel("mpdm-dan.l--netanel--shahar-1")).toBe(
+			"dan.l, netanel, shahar",
+		);
+		// A 1:1 DM has no name at all.
+		expect(channelLabel(null)).toBe(null);
 	});
 });
