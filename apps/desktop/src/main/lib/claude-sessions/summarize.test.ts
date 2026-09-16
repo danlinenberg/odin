@@ -6,6 +6,7 @@ import {
 	mkdtempSync,
 	readdirSync,
 	readFileSync,
+	statSync,
 	utimesSync,
 	writeFileSync,
 } from "node:fs";
@@ -273,6 +274,31 @@ describe("warmBriefs", () => {
 		});
 		expect(opened.cached).toBe(true);
 		expect(runCount()).toBe(1);
+	});
+
+	test("rewrites a brief cached before the title was asked for", async () => {
+		const { session, root, bin, cachePath, runCount } = fixture();
+		// A cache file from the last version: same shape, no version stamp.
+		writeFileSync(
+			cachePath,
+			JSON.stringify({
+				[session]: {
+					mtimeMs: statSync(
+						join(root, "-Users-dan-dev-private-odin", `${session}.jsonl`),
+					).mtimeMs,
+					writtenAt: Date.now(),
+					brief: { goal: "g", status: "s", next: "n", tags: [], raw: null },
+				},
+			}),
+		);
+		const brief = await writeBrief({
+			sessionId: session,
+			claudeBin: bin,
+			root,
+			cachePath,
+		});
+		expect(runCount()).toBe(1);
+		expect(brief.title).toBe("t");
 	});
 
 	test("hands back the written titles for the board to rename cards with", async () => {

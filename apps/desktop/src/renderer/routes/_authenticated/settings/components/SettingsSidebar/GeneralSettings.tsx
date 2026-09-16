@@ -12,6 +12,7 @@ import {
 	HiOutlinePuzzlePiece,
 	HiOutlineShieldCheck,
 	HiOutlineSparkles,
+	HiOutlineSquares2X2,
 } from "react-icons/hi2";
 import { LuBrain, LuGitBranch, LuKeyboard } from "react-icons/lu";
 import { useIsV2CloudEnabled } from "renderer/hooks/useIsV2CloudEnabled";
@@ -25,6 +26,7 @@ type SettingsRoute =
 	| "/settings/keyboard"
 	| "/settings/connections"
 	| "/settings/behavior"
+	| "/settings/board"
 	| "/settings/git"
 	| "/settings/agents"
 	| "/settings/terminal"
@@ -79,6 +81,12 @@ const SECTION_GROUPS: SectionGroup[] = [
 				section: "behavior",
 				label: "General",
 				icon: <HiOutlineSparkles className="h-4 w-4" />,
+			},
+			{
+				id: "/settings/board",
+				section: "board",
+				label: "Board",
+				icon: <HiOutlineSquares2X2 className="h-4 w-4" />,
 			},
 			{
 				id: "/settings/keyboard",

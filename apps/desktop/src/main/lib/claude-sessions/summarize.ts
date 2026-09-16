@@ -147,7 +147,16 @@ interface CacheEntry {
 	mtimeMs: number;
 	writtenAt: number;
 	brief: WrittenBrief;
+	/** Which set of questions the model was asked. */
+	version?: number;
 }
+
+/**
+ * Bump when the brief gains a field, so entries written before it are rewritten
+ * instead of served forever — a title-less brief on an idle session would
+ * otherwise never be asked for its title.
+ */
+const BRIEF_VERSION = 2;
 
 /** Survives restarts, so reopening the app doesn't re-summarise everything. */
 export function defaultCachePath(): string {
@@ -224,7 +233,7 @@ export async function writeBrief({
 	const cache = await load(cachePath);
 	const hit = cache.get(sessionId);
 	if (
-		hit &&
+		hit?.version === BRIEF_VERSION &&
 		(hit.mtimeMs === file.mtimeMs || now - hit.writtenAt < REFRESH_AFTER_MS)
 	) {
 		return { ...hit.brief, cached: true, writtenAt: hit.writtenAt };
@@ -279,7 +288,12 @@ export async function writeBrief({
 		}
 		const brief = parseBrief(stdout);
 		if (cache.size >= CACHE_MAX) cache.clear(); // ponytail: cheaper than an LRU
-		cache.set(sessionId, { mtimeMs: file.mtimeMs, writtenAt: now, brief });
+		cache.set(sessionId, {
+			mtimeMs: file.mtimeMs,
+			writtenAt: now,
+			brief,
+			version: BRIEF_VERSION,
+		});
 		await save(cachePath);
 		return brief;
 	})();

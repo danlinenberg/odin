@@ -13,6 +13,7 @@ export type SettingsSection =
 	| "models"
 	| "experimental"
 	| "connections"
+	| "board"
 	| "permissions"
 	| "project";
 
