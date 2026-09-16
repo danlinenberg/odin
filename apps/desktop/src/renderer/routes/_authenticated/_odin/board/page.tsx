@@ -1403,7 +1403,7 @@ function DevBoardPage() {
 																		: card.status === "permission"
 																			? "border-[#6b5620] bg-[#221d12]"
 																			: card.status === "review"
-																				? "border-[#26415c] bg-[#111a24]"
+																				? "border-[#265c41] bg-[#112419]"
 																				: "border-[#25252e]",
 																)}
 															>
