@@ -23,7 +23,11 @@ import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { useZoomFactor } from "renderer/hooks/useZoomFactor";
 import { useHotkey } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
-import { machineLoad } from "shared/machine-load";
+import {
+	BUSY_AGENT_CPU_PERCENT,
+	type MachineLoad,
+	machineLoad,
+} from "shared/machine-load";
 import { FEED_TABS } from "./components/feed-counts";
 import {
 	OdinPromptDialog,
@@ -106,6 +110,28 @@ const NAV_HOTKEY_OPTIONS = {
 	enableOnFormTags: false,
 	enableOnContentEditable: false,
 } as const;
+
+/**
+ * The load badge's colour: the app's own status palette, walked up as the Mac
+ * gets tighter — grey while there's slack, amber when it's filling up, red
+ * when agents are queueing or the memory is gone.
+ *
+ * ponytail: the CPU steps off BUSY_AGENT_CPU_PERCENT, which is the number that
+ * actually gates a launch; the GB are eyeballed thresholds that only pick a
+ * colour, so nothing rides on them being exactly right.
+ */
+function badgeTone(load: MachineLoad): string {
+	if (load.busy || load.availableMemoryGb < 1) {
+		return "bg-[#3a1a20] text-[#f0647a]";
+	}
+	if (
+		load.agentCpuPercent >= BUSY_AGENT_CPU_PERCENT / 2 ||
+		load.availableMemoryGb < 2
+	) {
+		return "bg-[#3a2f16] text-[#f5b83d]";
+	}
+	return "bg-[#1f1f27] text-[#8a8a97]";
+}
 
 function OdinShell() {
 	const navigate = useNavigate();
@@ -412,9 +438,7 @@ function OdinShell() {
 								}
 								className={cn(
 									"rounded-[6px] px-2 py-[3px] text-[11px] font-semibold tabular-nums",
-									load.busy
-										? "bg-[#3a1f24] text-[#f5b83d]"
-										: "bg-[#1f1f27] text-[#8a8a97]",
+									badgeTone(load),
 								)}
 							>
 								{load.busy
