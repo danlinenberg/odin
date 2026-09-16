@@ -646,6 +646,22 @@ describe("workingRepoOf", () => {
 		expect(await workingRepoOf(SESSION, root)).toBeNull();
 	});
 
+	test("prefers a nested repo over the container that holds it", () => {
+		const tree = mkdtempSync(join(tmpdir(), "odin-container-"));
+		const root = mkdtempSync(join(tmpdir(), "odin-projects-"));
+		// `~/dev` is a repo of its own AND the directory every clone sits in, so
+		// tool calls that never cd anywhere pile votes onto it. The work is in
+		// the checkout it contains.
+		repos(tree, { dev: "clone", "dev/imagen/app": "clone" });
+		transcript(root, [
+			...Array(9).fill(join(tree, "dev/imagen")),
+			...Array(4).fill(join(tree, "dev/imagen/app")),
+		]);
+		return expect(workingRepoOf(SESSION, root)).resolves.toBe(
+			join(tree, "dev/imagen/app"),
+		);
+	});
+
 	test("counts a worktree as its repo, not as a rival to it", () => {
 		const tree = mkdtempSync(join(tmpdir(), "odin-worktree-vote-"));
 		const root = mkdtempSync(join(tmpdir(), "odin-projects-"));

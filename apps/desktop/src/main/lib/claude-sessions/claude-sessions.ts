@@ -758,13 +758,32 @@ export async function workingRepoOf(
 		}
 	}
 
-	let winner: string | null = null;
-	let winnerTally: Tally = { count: 0, lastSeen: 0 };
-	for (const [repo, tally] of perRepo) {
-		if (busiest(tally, winnerTally)) {
-			winner = repo;
-			winnerTally = tally;
+	const leader = (repos: Iterable<string>): string | null => {
+		let best: string | null = null;
+		let bestTally: Tally = { count: 0, lastSeen: 0 };
+		for (const repo of repos) {
+			const tally = perRepo.get(repo);
+			if (tally && busiest(tally, bestTally)) {
+				best = repo;
+				bestTally = tally;
+			}
 		}
+		return best;
+	};
+
+	// A repo whose tree holds other checkouts is a container, not the subject.
+	// `~/dev` is a repo of loose scripts that also happens to contain every
+	// clone, so every tool call that never cd'd anywhere votes for it — enough
+	// to outscore the repo the session actually edited. When the leader holds
+	// other candidates, the work is in one of those.
+	let winner = leader(perRepo.keys());
+	while (winner) {
+		const nested = [...perRepo.keys()].filter((repo) =>
+			repo.startsWith(`${winner}/`),
+		);
+		if (!nested.length) break;
+		// Strictly deeper each pass, so this terminates.
+		winner = leader(nested);
 	}
 	if (!winner) return null;
 
