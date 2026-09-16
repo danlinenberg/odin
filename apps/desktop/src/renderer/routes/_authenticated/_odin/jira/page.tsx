@@ -304,12 +304,13 @@ function MyJiraPage() {
 										)}
 									>
 										{/* One line per ticket: title takes the slack, meta rides in
-										    the space that used to be empty to its right. */}
-										<div className="flex items-center gap-2.5">
+										    the space that used to be empty to its right. A grid, not a
+										    flex row, so the mention below can sit in the title's column. */}
+										<div className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-x-2.5">
 											<span className="shrink-0 font-mono text-[11px] font-semibold text-[#a394ff]">
 												{issue.key}
 											</span>
-											<span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-[#f5f5f7]">
+											<span className="min-w-0 truncate text-[13px] font-semibold text-[#f5f5f7]">
 												{issue.title}
 											</span>
 											<div className="flex shrink-0 items-center gap-2 text-[11px]">
@@ -409,18 +410,19 @@ function MyJiraPage() {
 													/>
 												</RowActions>
 											</div>
+											{/* A mention row exists because of one comment — so it
+											    shows that comment, not just the ticket it sits on.
+											    Column 2 keeps it under the title, not under the key. */}
+											{issue.mention && (
+												<div className="col-start-2 mt-1.5 line-clamp-2 select-text cursor-text text-[11.5px] leading-relaxed text-[#a5a5b3]">
+													<span className="font-semibold text-[#f5b83d]">
+														{issue.mention.author ?? "Someone"}
+														{": "}
+													</span>
+													{issue.mention.text}
+												</div>
+											)}
 										</div>
-										{/* A mention row exists because of one comment — so it
-										    shows that comment, not just the ticket it sits on. */}
-										{issue.mention && (
-											<div className="mt-1.5 line-clamp-2 select-text cursor-text text-[11.5px] leading-relaxed text-[#a5a5b3]">
-												<span className="font-semibold text-[#f5b83d]">
-													{issue.mention.author ?? "Someone"}
-													{": "}
-												</span>
-												{issue.mention.text}
-											</div>
-										)}
 									</div>
 								);
 							})}
