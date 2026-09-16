@@ -29,16 +29,29 @@ request. One queue, one board, one thing to look at.
 
 ## Install
 
-macOS on Apple Silicon. [**Download Odin-arm64.dmg**](https://github.com/danlinenberg/odin/releases/latest/download/Odin-arm64.dmg),
-drag `Odin.app` into `/Applications`, then run this once:
+macOS on Apple Silicon:
+
+```sh
+curl -fL# -o /tmp/Odin.dmg https://github.com/danlinenberg/odin/releases/latest/download/Odin-arm64.dmg &&
+  hdiutil attach -quiet -nobrowse -mountpoint /tmp/Odin.mount /tmp/Odin.dmg &&
+  rm -rf /Applications/Odin.app &&
+  ditto /tmp/Odin.mount/Odin.app /Applications/Odin.app &&
+  hdiutil detach -quiet /tmp/Odin.mount && rm /tmp/Odin.dmg && open /Applications/Odin.app
+```
+
+`curl`, not the browser, on purpose. Releases are signed with a self-signed
+certificate rather than an Apple Developer ID, so macOS blocks them on sight —
+but only when they arrive carrying `com.apple.quarantine`, and that flag is set
+by whatever downloaded the file, not by the signature. Browsers set it; Homebrew
+sets it; `curl` does not. Downloading this way is what makes the app open at all.
+
+If you would rather use the browser, the same build is at
+[Odin-arm64.dmg](https://github.com/danlinenberg/odin/releases/latest/download/Odin-arm64.dmg)
+— drag it into `/Applications` and then clear the flag by hand, once:
 
 ```sh
 xattr -dr com.apple.quarantine /Applications/Odin.app
 ```
-
-That command is not optional. Releases are signed with a self-signed
-certificate rather than an Apple Developer ID, so macOS quarantines the download
-and refuses to open it; clearing the flag is what gets you past that.
 
 ### Upgrade
 
