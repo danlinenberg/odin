@@ -68,6 +68,39 @@ export function FilterPill({
 	);
 }
 
+/**
+ * A feed's "narrow it down" picker — repo, project, channel, priority. A
+ * select rather than more pills because the options are the data's, not the
+ * app's: there can be two of them or forty.
+ */
+export function FeedSelect({
+	value,
+	onChange,
+	title,
+	children,
+}: {
+	value: string;
+	onChange: (value: string) => void;
+	title: string;
+	children: ReactNode;
+}) {
+	return (
+		<select
+			value={value}
+			onChange={(e) => onChange(e.target.value)}
+			title={title}
+			className={cn(
+				"max-w-[180px] cursor-pointer rounded-full border px-2.5 py-1 text-[12px] font-medium outline-none",
+				value
+					? "border-[#a394ff] bg-[#211d3a] text-[#f5f5f7]"
+					: "border-[#25252e] bg-[#16161b] text-[#a5a5b3] hover:text-[#f5f5f7]",
+			)}
+		>
+			{children}
+		</select>
+	);
+}
+
 /** Refresh every feed, not just this one — same button in each view. */
 export function SyncButton({
 	isSyncing,

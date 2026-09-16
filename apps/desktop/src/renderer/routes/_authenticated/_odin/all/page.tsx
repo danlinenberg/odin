@@ -14,6 +14,8 @@ import {
 	FEED_ROW,
 	FeedDivider,
 	FeedHeader,
+	FeedSelect,
+	FilterPill,
 	META_DATE,
 	META_PERSON,
 	META_STATUS,
@@ -25,9 +27,15 @@ import {
 	ROW_META,
 	ROW_PRIMARY_BUTTON,
 	ROW_PRIMARY_SLOT,
+	RowActions,
 	SyncButton,
 } from "../components/FeedChrome";
 import { FEED_TABS, type FeedPath } from "../components/feed-counts";
+import {
+	HiddenToggle,
+	HideButton,
+	useHiddenFilter,
+} from "../components/HiddenItems";
 import { PersonChip } from "../components/PersonChip";
 import { PriorityLabelChip } from "../components/TaskBox";
 import { useActiveSessions } from "../hooks/useActiveSessions";
@@ -36,7 +44,7 @@ import { useMyTasks } from "../hooks/useOdinTasks";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePaneMeta } from "../hooks/usePaneMeta";
 import { usePendingFocus } from "../hooks/usePendingFocus";
-import { type AllItem, allItems } from "./all-items";
+import { type AllItem, allItems, type Urgency } from "./all-items";
 
 export const Route = createFileRoute("/_authenticated/_odin/all/")({
 	component: AllFeedPage,
@@ -52,6 +60,11 @@ export const Route = createFileRoute("/_authenticated/_odin/all/")({
  * the per-source feeds each mark only their own rows live, and a Slack row
  * leaves its queue as soon as its session starts, so this is the one place
  * that can answer "what's already going".
+ *
+ * Rows are filtered, not just listed: by source, by how urgent they are in
+ * whatever terms their system uses, and by where they live — the channel, the
+ * repo, the project. And anything that isn't yours to do can be hidden, under
+ * the same key its own feed hides it with.
  *
  * Rows start a session here too. Each feed's prompt builder is shared rather
  * than duplicated (feed-prompts.ts, thread-prompt.ts, notion/rows.ts), so a
@@ -104,11 +117,36 @@ const SOURCE_CHIP: Record<AllItem["source"], string> = {
 	Notion: "bg-[#1f1f27] text-[#c8c8d2]",
 };
 
+/** A source's own feed — what its pill wears, and where its rows go. */
+const SOURCE_TO: Record<AllItem["source"], FeedPath> = {
+	Tasks: "/my-tasks",
+	Slack: "/reactions",
+	Jira: "/jira",
+	GitHub: "/prs",
+	Notion: "/notion",
+};
+
+/** The source filter, in the order the tab strip lists them. */
+const SOURCES = ["Tasks", "Slack", "Jira", "GitHub", "Notion"] as const;
+
+/** The urgency filter's options — "none" is the rows their source never rated. */
+const URGENCIES: { id: Exclude<Urgency, null> | "none"; label: string }[] = [
+	{ id: "high", label: "High" },
+	{ id: "medium", label: "Medium" },
+	{ id: "low", label: "Low" },
+	{ id: "none", label: "Unrated" },
+];
+
 function AllFeedPage() {
 	const { reactions, jira, pulls, notion, syncAll, isSyncing } = useOdinFeeds();
 	const navigate = useNavigate();
 	// ponytail: local state, so it starts collapsed every visit — that's the ask.
 	const [showSessions, setShowSessions] = useState(false);
+	// The three ways to cut the list. Local state too: All is the "what have I
+	// got on" view, and it should open saying everything, every time.
+	const [source, setSource] = useState<AllItem["source"] | "">("");
+	const [urgency, setUrgency] = useState("");
+	const [context, setContext] = useState("");
 	const openUrl = electronTrpc.external.openUrl.useMutation();
 	const { ensureWorkspace } = useOdinWorkspace();
 	const { launch, isLaunching, launchingKey } = useLaunchTaskSession();
@@ -124,7 +162,7 @@ function AllFeedPage() {
 	// starts — so this is the only place "what have I got going" is answerable.
 	const sessions = useActiveSessions();
 
-	const items = useMemo(
+	const allRows = useMemo(
 		() =>
 			allItems({
 				tasks,
@@ -135,6 +173,68 @@ function AllFeedPage() {
 			}),
 		[tasks, reactions.data, jira.data, pulls.data, notion.data],
 	);
+
+	// Hidden rows drop out first, so every count below says what's on screen.
+	// No prefix: an All key already names its source, and it's the same key the
+	// source's own feed hides under.
+	const hide = useHiddenFilter("", allRows, (item) => item.key);
+
+	const sourceCounts = useMemo(() => {
+		const counts = new Map<AllItem["source"], number>();
+		for (const item of hide.rows)
+			counts.set(item.source, (counts.get(item.source) ?? 0) + 1);
+		return counts;
+	}, [hide.rows]);
+
+	const bySource = useMemo(
+		() =>
+			source ? hide.rows.filter((item) => item.source === source) : hide.rows,
+		[hide.rows, source],
+	);
+
+	// Both pickers count what picking them would leave, against the filters
+	// above them — urgency within the chosen source, place within both.
+	const urgencyCounts = useMemo(() => {
+		const counts = new Map<string, number>();
+		for (const item of bySource) {
+			const id = item.urgency ?? "none";
+			counts.set(id, (counts.get(id) ?? 0) + 1);
+		}
+		return counts;
+	}, [bySource]);
+
+	const byUrgency = useMemo(
+		() =>
+			urgency
+				? bySource.filter((item) => (item.urgency ?? "none") === urgency)
+				: bySource,
+		[bySource, urgency],
+	);
+
+	/** Channels, repos, projects — whatever the remaining rows call home. */
+	const places = useMemo(() => {
+		const counts = new Map<string, number>();
+		for (const item of byUrgency)
+			if (item.context)
+				counts.set(item.context, (counts.get(item.context) ?? 0) + 1);
+		return [...counts.entries()].sort(
+			(a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
+		);
+	}, [byUrgency]);
+
+	const items = useMemo(
+		() =>
+			context
+				? byUrgency.filter((item) => item.context === context)
+				: byUrgency,
+		[byUrgency, context],
+	);
+	const isFiltered = source !== "" || urgency !== "" || context !== "";
+	const clearFilters = () => {
+		setSource("");
+		setUrgency("");
+		setContext("");
+	};
 
 	/**
 	 * The pane already working this row, if there is one. Panes carry the page
@@ -175,15 +275,83 @@ function AllFeedPage() {
 		<div className="flex h-full flex-col">
 			<FeedHeader>
 				<FeedDivider />
-				<span className="shrink-0 text-[12px] text-[#8a8a97]">
-					everything waiting on you · newest first · start one without leaving
-				</span>
+				<FilterPill
+					active={source === ""}
+					count={hide.rows.length}
+					onClick={() => {
+						setSource("");
+						setContext("");
+					}}
+				>
+					All
+				</FilterPill>
+				{SOURCES.map((name) => {
+					const count = sourceCounts.get(name) ?? 0;
+					// A source with nothing in it (Notion not connected, no PRs) is
+					// a pill that only takes room — unless it's the one you picked.
+					if (count === 0 && source !== name) return null;
+					const Icon = SOURCE_ICON[SOURCE_TO[name]];
+					return (
+						<FilterPill
+							key={name}
+							active={source === name}
+							count={count}
+							onClick={() => {
+								setSource(source === name ? "" : name);
+								setContext("");
+							}}
+						>
+							<Icon className="size-3 shrink-0" aria-hidden />
+							{name}
+						</FilterPill>
+					);
+				})}
 				{sessions.length > 0 && (
 					<span className="shrink-0 rounded-[10px] bg-[#14301f] px-1.5 py-[1px] text-[11px] font-semibold text-[#3ecf8e]">
 						{sessions.length} live
 					</span>
 				)}
 				<div className="ml-auto flex items-center gap-2.5">
+					{isFiltered && (
+						<button
+							type="button"
+							onClick={clearFilters}
+							className="shrink-0 text-[12px] text-[#8a8a97] transition-colors hover:text-[#a5a5b3]"
+						>
+							clear filters
+						</button>
+					)}
+					<HiddenToggle
+						count={hide.hiddenCount}
+						showing={hide.showHidden}
+						onToggle={() => hide.setShowHidden(!hide.showHidden)}
+					/>
+					<FeedSelect
+						value={urgency}
+						onChange={setUrgency}
+						title="Filter by priority — every source's own words, in three levels"
+					>
+						<option value="">Any priority</option>
+						{URGENCIES.map(({ id, label }) => (
+							<option key={id} value={id}>
+								{label} ({urgencyCounts.get(id) ?? 0})
+							</option>
+						))}
+					</FeedSelect>
+					{places.length > 0 && (
+						<FeedSelect
+							value={context}
+							onChange={setContext}
+							title="Filter by channel, repo or project"
+						>
+							<option value="">Everywhere</option>
+							{places.map(([place, count]) => (
+								<option key={place} value={place}>
+									{place} ({count})
+								</option>
+							))}
+						</FeedSelect>
+					)}
 					<SyncButton isSyncing={isSyncing} onClick={() => void syncAll()} />
 				</div>
 			</FeedHeader>
@@ -300,7 +468,17 @@ function AllFeedPage() {
 				)}
 				{items.length === 0 && (
 					<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
-						Nothing waiting on you 🎉
+						{isFiltered ? (
+							<button
+								type="button"
+								onClick={clearFilters}
+								className="underline-offset-2 hover:underline"
+							>
+								Nothing matches these filters — clear them
+							</button>
+						) : (
+							"Nothing waiting on you 🎉"
+						)}
 					</div>
 				)}
 				{items.map((item) => {
@@ -308,7 +486,10 @@ function AllFeedPage() {
 					const SourceIcon = SOURCE_ICON[item.to];
 					const activePaneId = livePaneFor(item);
 					return (
-						<div key={item.key} className={FEED_ROW}>
+						<div
+							key={item.key}
+							className={cn(FEED_ROW, hide.isHidden(item) && "opacity-40")}
+						>
 							{/* The same columns the per-source feeds use, so a row here
 							    carries what its own feed would tell you: who it's from,
 							    where it stands, where it lives. */}
@@ -360,6 +541,12 @@ function AllFeedPage() {
 											})}
 									</span>
 								</div>
+								<RowActions>
+									<HideButton
+										hidden={hide.isHidden(item)}
+										onClick={() => hide.toggle(item)}
+									/>
+								</RowActions>
 								<span className={ROW_LINK_SLOT}>
 									{url && (
 										<button
