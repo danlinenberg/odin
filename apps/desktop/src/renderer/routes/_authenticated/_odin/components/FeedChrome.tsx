@@ -125,7 +125,8 @@ export function SyncButton({
 /**
  * Row actions that only matter once you're pointing at the row: hidden until
  * hover (or keyboard focus), so a long list is titles rather than buttons.
- * Put the primary action outside this — it stays visible.
+ * Put the primary action outside this — it stays visible. Always last on the
+ * row, after the primary button: the ✕ lands in the same place in every feed.
  */
 export function RowActions({ children }: { children: ReactNode }) {
 	return (
