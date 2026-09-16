@@ -408,7 +408,7 @@ function OdinShell() {
 								title={
 									load.busy
 										? `${load.agentCount} session(s) using ${load.agentCpuPercent}% of this Mac — new sessions wait until that clears.`
-										: `${load.agentCount} session(s) holding ${load.agentMemoryGb} GB, and ${load.availableMemoryGb} GB of this Mac still free. Agents are using ${load.agentCpuPercent}% of the CPU · machine load ${load.cpuPercent}%.`
+										: `${load.agentCount} session(s) using ${load.agentMemoryGb} GB of memory. This Mac has ${load.availableMemoryGb} GB free. Agents are on ${load.agentCpuPercent}% of the CPU · machine load ${load.cpuPercent}%.`
 								}
 								className={cn(
 									"rounded-[6px] px-2 py-[3px] text-[11px] font-semibold tabular-nums",
@@ -418,8 +418,8 @@ function OdinShell() {
 								)}
 							>
 								{load.busy
-									? "busy · launches waiting"
-									: `${load.agentMemoryGb} GB · ${load.availableMemoryGb} GB free`}
+									? `${load.agentCount} ${load.agentCount === 1 ? "session" : "sessions"} using ${load.agentCpuPercent}% CPU · launches waiting`
+									: `${load.agentCount} ${load.agentCount === 1 ? "session" : "sessions"} using ${load.agentMemoryGb} GB · ${load.availableMemoryGb} GB free`}
 							</span>
 						)}
 						{/* Self-development controls: only on a machine that has Odin's
