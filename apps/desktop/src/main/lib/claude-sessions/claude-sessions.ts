@@ -1,6 +1,7 @@
+import { existsSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 /**
  * Search over Claude Code's own conversation transcripts.
@@ -639,32 +640,79 @@ export async function readTranscript({
 	return { messages: parseTranscript(jsonl), cwd, title: aiTitle, prompt };
 }
 
+/** The checkout containing `dir`, or null outside a repo. */
+function repoRootOf(dir: string): string | null {
+	let current = dir;
+	while (true) {
+		// A worktree's `.git` is a file, a clone's is a directory — either is a root.
+		if (existsSync(join(current, ".git"))) return current;
+		const parent = dirname(current);
+		if (parent === current) return null;
+		current = parent;
+	}
+}
+
 /**
- * Where a session is working *now*.
+ * The checkout a session did its work in.
  *
- * Claude Code stamps its own cwd on every transcript entry and follows `cd`s
- * the shell never emits OSC-7 for, so a pane launched in a catch-all directory
- * (`~/dev`) keeps reporting that forever while the agent has long since moved
- * into the repo — or worktree — it's actually changing. The last cwd in the
- * transcript is the checkout worth diffing.
+ * Claude Code stamps a cwd on every transcript entry, and that cwd is the
+ * working directory of each individual tool call — so it hops between repos,
+ * worktrees and deep subdirectories as the agent moves. Reading the *last* one
+ * makes the answer depend on whichever directory the agent happened to run its
+ * most recent command in: a session whose work lives in one repo will report a
+ * different repo entirely after a single unrelated lookup elsewhere.
  *
- * ponytail: scan the raw text for the last `"cwd"`, no JSON.parse per line.
+ * So resolve every cwd to its repo root and take the one the session spent the
+ * most entries in. Ties go to the most recent, which keeps the answer stable
+ * rather than dependent on Map ordering.
+ *
+ * ponytail: entry counts, not edited-file counts — the transcript records where
+ * commands ran, and reading it is one file read. Weigh actual writes if a
+ * chatty read-only detour in another repo ever outvotes the real work.
  */
-export async function currentCwdOf(
+export async function workingRepoOf(
 	sessionId: string,
 	root: string = projectsRoot(),
 ): Promise<string | null> {
 	const found = await transcriptOf(sessionId, root);
 	if (!found) return null;
-	let cwd: string | null = null;
-	for (const match of (await readFile(found.path, "utf-8")).matchAll(
-		/"cwd"\s*:\s*("(?:[^"\\]|\\.)*")/g,
-	)) {
+
+	const entriesPerRepo = new Map<string, { count: number; lastSeen: number }>();
+	const rootsByDir = new Map<string, string | null>();
+	let index = 0;
+	for (const line of (await readFile(found.path, "utf-8")).split("\n")) {
+		index += 1;
+		let cwd: unknown;
 		try {
-			cwd = JSON.parse(match[1]) as string;
+			cwd = (JSON.parse(line) as { cwd?: unknown }).cwd;
 		} catch {
-			// truncated write mid-line; keep the last good one
+			continue; // blank line, or a truncated write mid-line
+		}
+		if (typeof cwd !== "string" || !cwd) continue;
+
+		if (!rootsByDir.has(cwd)) rootsByDir.set(cwd, repoRootOf(cwd));
+		const repo = rootsByDir.get(cwd);
+		if (!repo) continue;
+
+		const tally = entriesPerRepo.get(repo);
+		if (tally) {
+			tally.count += 1;
+			tally.lastSeen = index;
+		} else {
+			entriesPerRepo.set(repo, { count: 1, lastSeen: index });
 		}
 	}
-	return cwd;
+
+	let best: string | null = null;
+	let bestTally = { count: 0, lastSeen: 0 };
+	for (const [repo, tally] of entriesPerRepo) {
+		const wins =
+			tally.count > bestTally.count ||
+			(tally.count === bestTally.count && tally.lastSeen > bestTally.lastSeen);
+		if (wins) {
+			best = repo;
+			bestTally = tally;
+		}
+	}
+	return best;
 }

@@ -3,12 +3,12 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-	currentCwdOf,
 	parseTranscript,
 	queryTerms,
 	readTranscript,
 	searchSessions,
 	summarizeTranscript,
+	workingRepoOf,
 } from "./claude-sessions";
 
 const CWD = "/Users/dan/dev/private/odin";
@@ -507,31 +507,101 @@ describe("parseTranscript / readTranscript", () => {
 	});
 });
 
-describe("currentCwdOf", () => {
-	/**
-	 * The board's diff panel reads this: a pane launched in a catch-all directory
-	 * reports that forever, while the agent cds into the repo it's changing.
-	 */
-	test("is the last cwd in the transcript, not the first", async () => {
-		const root = mkdtempSync(join(tmpdir(), "claude-cwd-"));
+describe("workingRepoOf", () => {
+	const SESSION = "bbbb1111-2222-3333-4444-555566667777";
+
+	/** Lay out real checkouts — the resolver walks the filesystem for `.git`. */
+	function repos(root: string, layout: Record<string, "clone" | "worktree">) {
+		for (const [rel, kind] of Object.entries(layout)) {
+			const dir = join(root, rel);
+			mkdirSync(dir, { recursive: true });
+			// A worktree's `.git` is a file pointing at the real gitdir.
+			if (kind === "clone") mkdirSync(join(dir, ".git"), { recursive: true });
+			else writeFileSync(join(dir, ".git"), "gitdir: /elsewhere\n");
+		}
+	}
+
+	function transcript(root: string, cwds: string[]) {
 		const project = join(root, "-Users-dan-dev");
 		mkdirSync(project, { recursive: true });
 		writeFileSync(
-			join(project, "bbbb1111-2222-3333-4444-555566667777.jsonl"),
+			join(project, `${SESSION}.jsonl`),
 			[
-				JSON.stringify({ type: "user", cwd: "/Users/dan/dev" }),
-				JSON.stringify({ type: "assistant", cwd: "/Users/dan/dev/imagen" }),
-				JSON.stringify({ type: "mode", mode: "normal" }),
-				JSON.stringify({
-					type: "assistant",
-					cwd: "/Users/dan/dev/imagen/.worktrees/analytics",
-				}),
+				...cwds.map((cwd) => JSON.stringify({ type: "assistant", cwd })),
 				"{ truncated mid-write",
 			].join("\n"),
 		);
-		expect(
-			await currentCwdOf("bbbb1111-2222-3333-4444-555566667777", root),
-		).toBe("/Users/dan/dev/imagen/.worktrees/analytics");
-		expect(await currentCwdOf("no-such-session", root)).toBeNull();
+	}
+
+	function dirs() {
+		return {
+			root: mkdtempSync(join(tmpdir(), "claude-repo-")),
+			tree: mkdtempSync(join(tmpdir(), "checkouts-")),
+		};
+	}
+
+	/**
+	 * The bug this replaced: every transcript entry carries the cwd of that one
+	 * tool call, so "the last cwd" is wherever the agent last ran a command. A
+	 * session whose work was in one repo reported another entirely after a single
+	 * unrelated lookup, and the diff panel silently rendered that other repo.
+	 */
+	test("is the repo the session worked in, not the one it last looked at", async () => {
+		const { root, tree } = dirs();
+		repos(tree, { work: "clone", detour: "clone" });
+		transcript(root, [
+			join(tree, "work"),
+			join(tree, "work/src"),
+			join(tree, "work/src/deep"),
+			join(tree, "detour"),
+		]);
+
+		expect(await workingRepoOf(SESSION, root)).toBe(join(tree, "work"));
+	});
+
+	/** A worktree is its own checkout: the main clone holds unrelated work. */
+	test("treats a worktree as its own repo", async () => {
+		const { root, tree } = dirs();
+		repos(tree, { main: "clone", "main/.worktrees/feature": "worktree" });
+		transcript(root, [
+			join(tree, "main"),
+			join(tree, "main/.worktrees/feature"),
+			join(tree, "main/.worktrees/feature/src"),
+		]);
+
+		expect(await workingRepoOf(SESSION, root)).toBe(
+			join(tree, "main/.worktrees/feature"),
+		);
+	});
+
+	test("breaks a tie on the most recent, so the answer is stable", async () => {
+		const { root, tree } = dirs();
+		repos(tree, { first: "clone", second: "clone" });
+		transcript(root, [join(tree, "first"), join(tree, "second")]);
+
+		expect(await workingRepoOf(SESSION, root)).toBe(join(tree, "second"));
+	});
+
+	test("ignores directories outside any repo, however often they appear", async () => {
+		const { root, tree } = dirs();
+		repos(tree, { work: "clone" });
+		mkdirSync(join(tree, "loose"), { recursive: true });
+		transcript(root, [
+			join(tree, "loose"),
+			join(tree, "loose"),
+			join(tree, "loose"),
+			join(tree, "work"),
+		]);
+
+		expect(await workingRepoOf(SESSION, root)).toBe(join(tree, "work"));
+	});
+
+	test("is null for an unknown session, and for a repo-less transcript", async () => {
+		const { root, tree } = dirs();
+		mkdirSync(join(tree, "loose"), { recursive: true });
+		transcript(root, [join(tree, "loose")]);
+
+		expect(await workingRepoOf("no-such-session", root)).toBeNull();
+		expect(await workingRepoOf(SESSION, root)).toBeNull();
 	});
 });

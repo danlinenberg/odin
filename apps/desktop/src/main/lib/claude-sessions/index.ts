@@ -1,5 +1,4 @@
 export {
-	currentCwdOf,
 	listTranscripts,
 	parseTranscript,
 	projectsRoot,
@@ -13,5 +12,6 @@ export {
 	type TranscriptFile,
 	type TranscriptMessage,
 	transcriptOf,
+	workingRepoOf,
 } from "./claude-sessions";
 export { type WrittenBrief, warmBriefs, writeBrief } from "./summarize";

@@ -211,7 +211,7 @@ export const createReposRouter = () => {
 					cwd: z.string().nullish(),
 					/**
 					 * The conversation running in this pane. Its transcript is the
-					 * only record of where the agent actually ended up.
+					 * only record of which repo the agent actually worked in.
 					 */
 					claudeSessionId: z.string().nullish(),
 					workspaceId: z.string(),
@@ -220,13 +220,13 @@ export const createReposRouter = () => {
 				}),
 			)
 			.query(async ({ input }) => {
-				// The agent's own cwd wins: Claude Code cds between repos and
-				// worktrees without the shell ever noticing, so `input.cwd` is
+				// The repo the agent worked in wins: Claude Code cds between repos
+				// and worktrees without the shell ever noticing, so `input.cwd` is
 				// often just the catch-all directory the pane was launched in.
-				const { currentCwdOf } = await import("main/lib/claude-sessions");
+				const { workingRepoOf } = await import("main/lib/claude-sessions");
 				const dir =
 					(input.claudeSessionId
-						? await currentCwdOf(input.claudeSessionId)
+						? await workingRepoOf(input.claudeSessionId)
 						: null) ??
 					input.cwd ??
 					getWorkspaceTerminalContext(input.workspaceId).workspacePath;
