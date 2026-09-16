@@ -1,7 +1,7 @@
 import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { IconType } from "react-icons";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { electronTrpc } from "renderer/lib/electron-trpc";
@@ -107,6 +107,8 @@ const SOURCE_CHIP: Record<AllItem["source"], string> = {
 function AllFeedPage() {
 	const { reactions, jira, pulls, notion, syncAll, isSyncing } = useOdinFeeds();
 	const navigate = useNavigate();
+	// ponytail: local state, so it starts collapsed every visit — that's the ask.
+	const [showSessions, setShowSessions] = useState(false);
 	const openUrl = electronTrpc.external.openUrl.useMutation();
 	const { ensureWorkspace } = useOdinWorkspace();
 	const { launch, isLaunching, launchingKey } = useLaunchTaskSession();
@@ -192,97 +194,105 @@ function AllFeedPage() {
 				    just shows the rows the other sources returned. */}
 				{sessions.length > 0 && (
 					<>
-						<div className="flex items-center gap-1.5 px-1 pt-1 pb-0.5 text-[11px] font-semibold text-[#3ecf8e]">
+						<button
+							type="button"
+							onClick={() => setShowSessions((open) => !open)}
+							className="flex items-center gap-1.5 px-1 pt-1 pb-0.5 text-[11px] font-semibold text-[#3ecf8e]"
+						>
 							<span className="size-1.5 animate-pulse rounded-full bg-current" />
 							Live sessions
 							<span className="rounded-[10px] bg-[#14301f] px-1.5 font-medium">
 								{sessions.length}
 							</span>
-						</div>
-						{sessions.map((session) => {
-							const { to, source } = SESSION_SOURCE[session.source];
-							const SourceIcon = SOURCE_ICON[to];
-							const state = SESSION_STATE[session.column];
-							return (
-								<div key={session.paneId} className={FEED_ROW}>
-									<div className="flex items-center gap-3">
-										<span
-											className={cn(
-												"flex w-[68px] shrink-0 items-center justify-center gap-1 rounded-[5px] px-[7px] py-[1px] text-[11px] font-semibold",
-												SOURCE_CHIP[source],
-											)}
-										>
-											<SourceIcon className="size-3 shrink-0" aria-hidden />
-											{source}
-										</span>
-										<button
-											type="button"
-											title="Open the session on the board"
-											onClick={() => {
-												usePendingFocus.getState().focus(session.paneId);
-												navigate({ to: "/board" });
-											}}
-											className="min-w-0 flex-1 truncate text-left text-[13px] font-semibold text-[#f5f5f7]"
-										>
-											{emojify(session.title)}
-										</button>
-										{/* The same columns the rows below use, so a live
-										    session says what its board card says: who it's
-										    for, its tags, which repo it's in, what it's
-										    doing. ponytail: no age column — the board's is a
-										    transcript read per card, too much for a list. */}
-										<div className="flex shrink-0 items-center gap-2 text-[11px]">
-											<span className={META_TAG}>
-												{session.tags[0] && (
-													<span className="truncate rounded-[5px] bg-[#211d3a] px-[7px] font-medium text-[#a394ff]">
-														#{session.tags[0]}
-													</span>
+							<span className="text-[#8a8a97]">
+								{showSessions ? "hide" : "show"}
+							</span>
+						</button>
+						{showSessions &&
+							sessions.map((session) => {
+								const { to, source } = SESSION_SOURCE[session.source];
+								const SourceIcon = SOURCE_ICON[to];
+								const state = SESSION_STATE[session.column];
+								return (
+									<div key={session.paneId} className={FEED_ROW}>
+										<div className="flex items-center gap-3">
+											<span
+												className={cn(
+													"flex w-[68px] shrink-0 items-center justify-center gap-1 rounded-[5px] px-[7px] py-[1px] text-[11px] font-semibold",
+													SOURCE_CHIP[source],
 												)}
+											>
+												<SourceIcon className="size-3 shrink-0" aria-hidden />
+												{source}
 											</span>
-											<span className={META_PERSON}>
-												{session.contact && (
-													<PersonChip
-														name={session.contact}
-														className="max-w-full truncate"
-													/>
-												)}
-											</span>
-											<span className={META_STATUS}>
-												{state && (
-													<span
-														className={cn(
-															ROW_META,
-															"flex items-center gap-1.5",
-														)}
-													>
-														<span
-															className="size-1.5 rounded-full"
-															style={{ backgroundColor: state.dot }}
-														/>
-														{state.label}
-													</span>
-												)}
-											</span>
-											<span className={META_TEXT} title={session.repo ?? ""}>
-												{session.repo}
-											</span>
-										</div>
-										<span className={ROW_PRIMARY_SLOT}>
 											<button
 												type="button"
+												title="Open the session on the board"
 												onClick={() => {
 													usePendingFocus.getState().focus(session.paneId);
 													navigate({ to: "/board" });
 												}}
-												className={ROW_LIVE_BUTTON}
+												className="min-w-0 flex-1 truncate text-left text-[13px] font-semibold text-[#f5f5f7]"
 											>
-												Go to session →
+												{emojify(session.title)}
 											</button>
-										</span>
+											{/* The same columns the rows below use, so a live
+										    session says what its board card says: who it's
+										    for, its tags, which repo it's in, what it's
+										    doing. ponytail: no age column — the board's is a
+										    transcript read per card, too much for a list. */}
+											<div className="flex shrink-0 items-center gap-2 text-[11px]">
+												<span className={META_TAG}>
+													{session.tags[0] && (
+														<span className="truncate rounded-[5px] bg-[#211d3a] px-[7px] font-medium text-[#a394ff]">
+															#{session.tags[0]}
+														</span>
+													)}
+												</span>
+												<span className={META_PERSON}>
+													{session.contact && (
+														<PersonChip
+															name={session.contact}
+															className="max-w-full truncate"
+														/>
+													)}
+												</span>
+												<span className={META_STATUS}>
+													{state && (
+														<span
+															className={cn(
+																ROW_META,
+																"flex items-center gap-1.5",
+															)}
+														>
+															<span
+																className="size-1.5 rounded-full"
+																style={{ backgroundColor: state.dot }}
+															/>
+															{state.label}
+														</span>
+													)}
+												</span>
+												<span className={META_TEXT} title={session.repo ?? ""}>
+													{session.repo}
+												</span>
+											</div>
+											<span className={ROW_PRIMARY_SLOT}>
+												<button
+													type="button"
+													onClick={() => {
+														usePendingFocus.getState().focus(session.paneId);
+														navigate({ to: "/board" });
+													}}
+													className={ROW_LIVE_BUTTON}
+												>
+													Go to session →
+												</button>
+											</span>
+										</div>
 									</div>
-								</div>
-							);
-						})}
+								);
+							})}
 						<div className="px-1 pt-2 pb-0.5 text-[11px] font-semibold text-[#8a8a97]">
 							Waiting on you
 						</div>
