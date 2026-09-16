@@ -195,6 +195,12 @@ export interface Pane {
 	 * Cleared as soon as the session moves again.
 	 */
 	odinParked?: boolean;
+	/**
+	 * Odin fork: the pane holding this session's shell — a plain terminal in the
+	 * same checkout, opened from the drawer. Kept on the session so reopening
+	 * the drawer reattaches to that shell instead of spawning another one.
+	 */
+	odinShellPaneId?: string;
 	initialCwd?: string;
 	url?: string; // For webview panes
 	cwd?: string | null; // Current working directory

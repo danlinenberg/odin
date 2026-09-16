@@ -578,6 +578,9 @@ function DevBoardPage() {
 	// The diff takes the terminal's place rather than a side panel — a diff needs
 	// the width, and you read one instead of watching the session, not alongside.
 	const [isDiffOpen, setIsDiffOpen] = useState(false);
+	// A plain shell in the session's checkout. Takes the terminal's place for the
+	// same reason the diff does — you go to the shell instead of the session.
+	const [isShellOpen, setIsShellOpen] = useState(false);
 	// Panes whose Resume is in flight. Resuming takes a second (session lookup,
 	// kill, respawn) and the card can't flip out of Idle until the 5s daemon
 	// poll sees the new PTY — without this the click looks like it did nothing.
@@ -906,6 +909,48 @@ function DevBoardPage() {
 			},
 		}));
 	};
+	/**
+	 * The session's shell pane, if it still exists. Read off the live pane map
+	 * rather than the drawer's snapshot — the drawer holds the card it was
+	 * opened with, which predates the shell.
+	 */
+	const shellPaneOf = (card: BoardCard): Pane | undefined => {
+		const id = panes[card.pane.id]?.odinShellPaneId;
+		return id ? panes[id] : undefined;
+	};
+	/**
+	 * Open a shell where this session is working. The pane is remembered on the
+	 * session, so closing the drawer and coming back reattaches to that shell
+	 * (with its history) instead of leaving a new one behind every time.
+	 */
+	const openShell = (card: BoardCard) => {
+		if (!shellPaneOf(card)) {
+			const { paneId } = useTabsStore
+				.getState()
+				.addTab(card.workspaceId, { initialCwd: sessionCwd(card.pane) });
+			// No odinTaskTitle: a shell you opened isn't a task, so it gets no card
+			// of its own on the board — same rule the session list uses.
+			useTabsStore.setState((state) => ({
+				panes: {
+					...state.panes,
+					[card.pane.id]: {
+						...state.panes[card.pane.id],
+						odinShellPaneId: paneId,
+					},
+				},
+			}));
+		}
+		setIsDiffOpen(false);
+		setIsShellOpen(true);
+	};
+	/** The shell the drawer is currently showing, if any. */
+	const drawerShell = drawerCard ? shellPaneOf(drawerCard) : undefined;
+	/**
+	 * This session's shell is already running. A shell that exists but whose PTY
+	 * died reads as no shell here — you'd be restarting it, not walking into one
+	 * you left mid-command.
+	 */
+	const shellRunning = !!drawerShell && alivePaneIds.has(drawerShell.id);
 	const renamePane = (paneId: string, title: string) => {
 		const next = title.trim();
 		setRenameDraft(null);
@@ -1095,6 +1140,7 @@ function DevBoardPage() {
 		}
 		setDrawerWidth(maxDrawerWidth());
 		setRenameDraft(null); // don't reopen into a half-typed rename
+		setIsShellOpen(false); // the shell belongs to the session you came from
 		setDrawerCard(card);
 	};
 
@@ -1707,7 +1753,10 @@ function DevBoardPage() {
 									<button
 										type="button"
 										title="Show what this session changed (git diff, rendered by delta)"
-										onClick={() => setIsDiffOpen((open) => !open)}
+										onClick={() => {
+											setIsShellOpen(false);
+											setIsDiffOpen((open) => !open);
+										}}
 										className={cn(
 											"shrink-0 rounded-md px-2 py-1 text-xs font-semibold",
 											isDiffOpen
@@ -1716,6 +1765,32 @@ function DevBoardPage() {
 										)}
 									>
 										⑂ Diff
+									</button>
+								)}
+								{drawerCard.pane.type === "terminal" && (
+									<button
+										type="button"
+										title={
+											shellRunning
+												? "This session already has a shell running — reattach to it"
+												: "Open a shell in this session's checkout"
+										}
+										onClick={() =>
+											isShellOpen
+												? setIsShellOpen(false)
+												: openShell(drawerCard)
+										}
+										className={cn(
+											"shrink-0 rounded-md px-2 py-1 text-xs font-semibold",
+											isShellOpen
+												? "bg-[#211d3a] text-[#a394ff]"
+												: "bg-[#1f1f27] text-[#a5a5b3] hover:text-[#f5f5f7]",
+										)}
+									>
+										❯ Shell
+										{shellRunning && (
+											<span className="ml-1 inline-block size-[6px] rounded-full bg-[#3ecf8e] align-middle" />
+										)}
 									</button>
 								)}
 								<button
@@ -1776,7 +1851,18 @@ function DevBoardPage() {
 						{/* terminal on the left, "what's going on" brief on the right */}
 						<div className="flex min-h-0 flex-1">
 							<div className="flex min-h-0 min-w-0 flex-1 flex-col">
-								{isDiffOpen && drawerCard.pane.type === "terminal" ? (
+								{isShellOpen && drawerShell ? (
+									// A shell in the same checkout, mounted like any other pane —
+									// it spawns on first mount with the session's cwd.
+									<div className="min-h-0 flex-1 bg-[#0a0a0c] p-2">
+										<Terminal
+											key={drawerShell.id}
+											paneId={drawerShell.id}
+											tabId={drawerShell.tabId}
+											workspaceId={drawerCard.workspaceId}
+										/>
+									</div>
+								) : isDiffOpen && drawerCard.pane.type === "terminal" ? (
 									<DiffView
 										key={drawerCard.pane.id}
 										cwd={sessionCwd(drawerCard.pane) ?? null}
