@@ -34,7 +34,11 @@ import {
 } from "shared/board-section";
 import { heavySessionLabel } from "shared/machine-load";
 import { profileOf } from "shared/odin-profile";
-import { odinScreenStatus, odinScreenWrite } from "shared/odin-screen-status";
+import {
+	agentOnScreen,
+	odinScreenStatus,
+	odinScreenWrite,
+} from "shared/odin-screen-status";
 import { BOARD_TAGS, boardTags } from "shared/odin-tags";
 import {
 	OdinPromptDialog,
@@ -46,7 +50,7 @@ import { useOdinProfile } from "../hooks/useOdinProfile";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePaneMeta } from "../hooks/usePaneMeta";
 import { usePendingFocus } from "../hooks/usePendingFocus";
-import { PANE_STATUS_DOT } from "../pane-status";
+import { PANE_STATUS } from "../pane-status";
 import { elapsedLabel, lastMessageAt, pullRequests, sourceLink } from "./brief";
 import { DiffView } from "./DiffView";
 import { SessionBrief } from "./SessionBrief";
@@ -729,9 +733,23 @@ function DevBoardPage() {
 			),
 		[daemonSessions],
 	);
+	// Panes whose PTY is alive but has no agent in it — Ctrl+C out of Claude and
+	// the shell outlives the conversation. Filled in by the screen scan below.
+	const [agentGonePaneIds, setAgentGonePaneIds] = useState<string[]>([]);
+	/**
+	 * PTY alive AND Claude still running in it. This — not the raw daemon poll —
+	 * is what "the session is open" means to a card: everything a live pane is
+	 * offered (Continue, its column, no Resume button) assumes there's a
+	 * conversation on the other end, and a bare shell prompt is not one.
+	 */
+	const agentPaneIds = useMemo(
+		() =>
+			new Set([...alivePaneIds].filter((id) => !agentGonePaneIds.includes(id))),
+		[alivePaneIds, agentGonePaneIds],
+	);
 	/** Alive PTY currently mid-turn — the one state Resume must not touch. */
 	const isWorkingNow = (paneId: string) =>
-		alivePaneIds.has(paneId) && panes[paneId]?.status === "working";
+		agentPaneIds.has(paneId) && panes[paneId]?.status === "working";
 	// Drop the "resuming…" flag once the poll actually sees the new PTY — that's
 	// the moment the card moves to Working on its own.
 	useEffect(() => {
@@ -751,6 +769,8 @@ function DevBoardPage() {
 	const readingRef = useRef(new Set<string>());
 	/** Panes whose last scan read the idle prompt — see the write below. */
 	const sawIdlePromptRef = useRef(new Set<string>());
+	/** Panes whose last scan found no Claude on screen — same doubt, same fix. */
+	const sawNoAgentRef = useRef(new Set<string>());
 	const lastScanRef = useRef(0);
 	useEffect(() => {
 		const scan = () => {
@@ -812,6 +832,21 @@ function DevBoardPage() {
 						)
 							.replace(ANSI_RE, "")
 							.slice(-2500);
+						// The PTY outliving the agent is its own state: Ctrl+C out of
+						// Claude and the shell is still there, alive to the daemon
+						// with no conversation in it. Two reads have to agree —
+						// a snapshot caught mid-repaint can come back with none of
+						// Claude's chrome on it.
+						const gone = !agentOnScreen(screen);
+						const goneTwice = gone && sawNoAgentRef.current.has(pane.id);
+						if (gone) sawNoAgentRef.current.add(pane.id);
+						else sawNoAgentRef.current.delete(pane.id);
+						setAgentGonePaneIds((ids) => {
+							const next = goneTwice
+								? [...new Set([...ids, pane.id])]
+								: ids.filter((id) => id !== pane.id);
+							return next.length === ids.length ? ids : next;
+						});
 						// `pane` was captured before the await — read the status the
 						// hooks hold now, not the one they held when the scan started.
 						const read = odinScreenStatus(screen);
@@ -936,7 +971,10 @@ function DevBoardPage() {
 				// and isn't a task.
 				if (!pane.odinTaskTitle && !titleByPane[pane.id]) continue;
 				// Wait for the first daemon poll so live sessions don't flash dead.
-				const alive = alivePaneIds.has(pane.id);
+				// "Alive" means the agent, not the PTY: a session you Ctrl+C'd out of
+				// leaves a live shell behind, and a shell can't be working on it or
+				// waiting on you any more than a dead pane can.
+				const alive = agentPaneIds.has(pane.id);
 				const dead = daemonSessions !== undefined && !alive;
 				// Legacy: panes the removed Kill button marked completed. They stay
 				// off the board (Session History is where you resume them) until the
@@ -977,7 +1015,7 @@ function DevBoardPage() {
 		panes,
 		workspaceById,
 		projectById,
-		alivePaneIds,
+		agentPaneIds,
 		daemonSessions,
 		tagFilter,
 		titleByPane,
@@ -1101,7 +1139,7 @@ function DevBoardPage() {
 		// the scrollback. Text and Enter go in separate writes: claude's TUI
 		// reads a chunk ending in a newline as a paste and inserts it instead
 		// of submitting.
-		if (alivePaneIds.has(card.pane.id)) {
+		if (agentPaneIds.has(card.pane.id)) {
 			try {
 				await terminalWrite.mutateAsync({
 					paneId: card.pane.id,
@@ -1115,6 +1153,11 @@ function DevBoardPage() {
 			return;
 		}
 		setResumingPaneIds((ids) => [...ids, card.pane.id]);
+		// The respawn puts Claude back in this PTY — don't make the next scan
+		// (up to 10s away, twice over) re-prove it before the card stops
+		// offering Resume.
+		sawNoAgentRef.current.delete(card.pane.id);
+		setAgentGonePaneIds((ids) => ids.filter((id) => id !== card.pane.id));
 		// initialCwd included: a session whose terminal was never opened has no
 		// confirmed cwd, and resuming without one lands in the wrong repo.
 		const cwd = sessionCwd(card.pane);
@@ -1400,7 +1443,7 @@ function DevBoardPage() {
 							<div className="flex items-center gap-2 px-3 py-2.5 text-xs font-semibold uppercase tracking-[.4px] text-[#a5a5b3]">
 								<span
 									className="size-2 rounded-full"
-									style={{ background: PANE_STATUS_DOT[column.status] }}
+									style={{ background: PANE_STATUS[column.status].dot }}
 								/>
 								{column.label}
 								<span className="ml-auto rounded-[10px] bg-[#1f1f27] px-2 font-medium">
@@ -1460,15 +1503,15 @@ function DevBoardPage() {
 																	});
 																}}
 																className={cn(
-																	"group cursor-pointer rounded-[10px] border bg-[#16161b] px-3 py-2.5 text-left transition-colors hover:border-[#34343f]",
-																	// A failure lives in Needs you now, but keeps its red edge.
-																	card.pane.status === "failed"
-																		? "border-[#5a2733] bg-[#1d1417]"
-																		: card.status === "permission"
-																			? "border-[#6b5620] bg-[#221d12]"
-																			: card.status === "review"
-																				? "border-[#265c41] bg-[#112419]"
-																				: "border-[#25252e]",
+																	"group cursor-pointer rounded-[10px] border px-3 py-2.5 text-left transition-colors hover:border-[#34343f]",
+																	// Every card wears its column's colour. A failure lives
+																	// in Needs you now, so it keeps its own red edge rather
+																	// than the column's amber.
+																	PANE_STATUS[
+																		card.pane.status === "failed"
+																			? "failed"
+																			: card.status
+																	].tint,
 																)}
 															>
 																<div className="flex items-start gap-2">
@@ -1524,7 +1567,7 @@ function DevBoardPage() {
 																		<span
 																			className="size-[9px] animate-spin rounded-full border"
 																			style={{
-																				borderColor: PANE_STATUS_DOT.working,
+																				borderColor: PANE_STATUS.working.dot,
 																				borderTopColor: "transparent",
 																			}}
 																		/>
@@ -1542,13 +1585,13 @@ function DevBoardPage() {
 																	)}
 																{card.status === "idle" &&
 																	card.pane.odinParked &&
-																	alivePaneIds.has(card.pane.id) && (
+																	agentPaneIds.has(card.pane.id) && (
 																		<div className="mt-1.5 text-[11.5px] text-[#a5a5b3]">
 																			parked
 																		</div>
 																	)}
 																{card.status === "idle" &&
-																	!alivePaneIds.has(card.pane.id) &&
+																	!agentPaneIds.has(card.pane.id) &&
 																	resumingPaneIds.includes(card.pane.id) && (
 																		<div className="mt-1.5 flex items-center gap-1.5 text-[11.5px] text-[#3ecf8e]">
 																			<span className="size-[9px] animate-spin rounded-full border border-[#3ecf8e] border-t-transparent" />
@@ -1556,7 +1599,7 @@ function DevBoardPage() {
 																		</div>
 																	)}
 																{card.status === "idle" &&
-																	!alivePaneIds.has(card.pane.id) &&
+																	!agentPaneIds.has(card.pane.id) &&
 																	!resumingPaneIds.includes(card.pane.id) && (
 																		<div className="mt-1.5 flex items-center gap-2">
 																			{/* ponytail: the button says "resume" — only a
@@ -1789,7 +1832,7 @@ function DevBoardPage() {
 									title={
 										isWorkingNow(drawerCard.pane.id)
 											? "Already working — resuming would kill the running turn"
-											: alivePaneIds.has(drawerCard.pane.id)
+											: agentPaneIds.has(drawerCard.pane.id)
 												? 'Session is open — send it "Continue"'
 												: "Reopen this conversation at an idle prompt (claude --resume)"
 									}
@@ -1799,9 +1842,10 @@ function DevBoardPage() {
 										? "↻ Resuming…"
 										: isWorkingNow(drawerCard.pane.id)
 											? "↻ Working…"
-											: // Resume already landed (live PTY) — the button writes
-												// "Continue" into the open prompt.
-												alivePaneIds.has(drawerCard.pane.id)
+											: // Resume already landed and Claude is up — the button
+												// writes "Continue" into the open prompt. A live PTY with
+												// no Claude in it (Ctrl+C'd out) still says Resume.
+												agentPaneIds.has(drawerCard.pane.id)
 												? "↻ Continue"
 												: "↻ Resume"}
 								</button>

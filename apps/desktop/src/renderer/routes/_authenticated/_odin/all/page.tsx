@@ -43,7 +43,7 @@ import { useMyTasks } from "../hooks/useOdinTasks";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePaneMeta } from "../hooks/usePaneMeta";
 import { usePendingFocus } from "../hooks/usePendingFocus";
-import { PANE_STATUS_DOT } from "../pane-status";
+import { PANE_STATUS } from "../pane-status";
 import { type AllItem, allItems, type Urgency } from "./all-items";
 
 export const Route = createFileRoute("/_authenticated/_odin/all/")({
@@ -102,10 +102,10 @@ const SESSION_SOURCE: Record<
 const SESSION_STATE: Partial<
 	Record<PaneStatus, { label: string; dot: string }>
 > = {
-	permission: { label: "needs you", dot: PANE_STATUS_DOT.permission },
-	working: { label: "working", dot: PANE_STATUS_DOT.working },
-	review: { label: "done", dot: PANE_STATUS_DOT.review },
-	idle: { label: "idle", dot: PANE_STATUS_DOT.idle },
+	permission: { label: "needs you", dot: PANE_STATUS.permission.dot },
+	working: { label: "working", dot: PANE_STATUS.working.dot },
+	review: { label: "done", dot: PANE_STATUS.review.dot },
+	idle: { label: "idle", dot: PANE_STATUS.idle.dot },
 };
 
 /**
@@ -531,12 +531,6 @@ function AllFeedPage() {
 											})}
 									</span>
 								</div>
-								<RowActions>
-									<HideButton
-										hidden={hide.isHidden(item)}
-										onClick={() => hide.toggle(item)}
-									/>
-								</RowActions>
 								<span className={ROW_LINK_SLOT}>
 									{url && (
 										<button
@@ -574,6 +568,12 @@ function AllFeedPage() {
 										</button>
 									)}
 								</span>
+								<RowActions>
+									<HideButton
+										hidden={hide.isHidden(item)}
+										onClick={() => hide.toggle(item)}
+									/>
+								</RowActions>
 							</div>
 						</div>
 					);
