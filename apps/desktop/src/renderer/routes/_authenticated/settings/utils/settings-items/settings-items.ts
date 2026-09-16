@@ -20,7 +20,8 @@ export const SETTING_ITEM_ID = {
 	BEHAVIOR_FILE_OPEN_MODE: "behavior-file-open-mode",
 	BEHAVIOR_RESOURCE_MONITOR: "behavior-resource-monitor",
 	BEHAVIOR_OPEN_LINKS_IN_APP: "behavior-open-links-in-app",
-	BEHAVIOR_AUTO_RENAME_SESSIONS: "behavior-auto-rename-sessions",
+
+	BOARD_AUTO_RENAME_SESSIONS: "board-auto-rename-sessions",
 
 	GIT_BRANCH_PREFIX: "git-branch-prefix",
 	GIT_DELETE_LOCAL_BRANCH: "git-delete-local-branch",
@@ -103,7 +104,8 @@ export const SETTING_ITEM_VARIANT: Record<SettingItemId, SettingVariant> = {
 	[SETTING_ITEM_ID.BEHAVIOR_FILE_OPEN_MODE]: "v1",
 	[SETTING_ITEM_ID.BEHAVIOR_RESOURCE_MONITOR]: "shared",
 	[SETTING_ITEM_ID.BEHAVIOR_OPEN_LINKS_IN_APP]: "v1",
-	[SETTING_ITEM_ID.BEHAVIOR_AUTO_RENAME_SESSIONS]: "shared",
+
+	[SETTING_ITEM_ID.BOARD_AUTO_RENAME_SESSIONS]: "shared",
 
 	// Branch prefix exists in both UIs — v1 `GitSettings`, v2 `V2GitSettings`.
 	[SETTING_ITEM_ID.GIT_BRANCH_PREFIX]: "shared",
@@ -186,7 +188,8 @@ export const SETTINGS_ITEMS: SettingsItem[] = [
 	{ id: SETTING_ITEM_ID.GIT_WORKTREE_LOCATION, section: "git" },
 
 	{ id: SETTING_ITEM_ID.BEHAVIOR_OPEN_LINKS_IN_APP, section: "behavior" },
-	{ id: SETTING_ITEM_ID.BEHAVIOR_AUTO_RENAME_SESSIONS, section: "behavior" },
+
+	{ id: SETTING_ITEM_ID.BOARD_AUTO_RENAME_SESSIONS, section: "board" },
 
 	{ id: SETTING_ITEM_ID.AGENTS_ENABLED, section: "agents" },
 	{ id: SETTING_ITEM_ID.AGENTS_COMMANDS, section: "agents" },
@@ -252,6 +255,9 @@ export const SETTINGS_ITEMS: SettingsItem[] = [
 const VISIBLE_SECTIONS = new Set<SettingsSection>([
 	"keyboard",
 	"connections",
+	// The board is Odin's, so how it names and runs its cards belongs here —
+	// the inherited "General" page it would otherwise land on is hidden.
+	"board",
 	// Agent-complete banners are Odin's own, so their sound and their macOS
 	// banner settings belong here (the section route is named `ringtones`).
 	"ringtones",

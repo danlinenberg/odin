@@ -36,10 +36,6 @@ export function BehaviorSettings({ visibleItems }: BehaviorSettingsProps) {
 		SETTING_ITEM_ID.BEHAVIOR_OPEN_LINKS_IN_APP,
 		visibleItems,
 	);
-	const showAutoRenameSessions = isItemVisible(
-		SETTING_ITEM_ID.BEHAVIOR_AUTO_RENAME_SESSIONS,
-		visibleItems,
-	);
 
 	const utils = electronTrpc.useUtils();
 
@@ -128,29 +124,6 @@ export function BehaviorSettings({ visibleItems }: BehaviorSettingsProps) {
 			},
 		},
 	);
-
-	const { data: autoRenameSessions, isLoading: isAutoRenameLoading } =
-		electronTrpc.settings.getOdinAutoRenameSessions.useQuery();
-	const setAutoRenameSessions =
-		electronTrpc.settings.setOdinAutoRenameSessions.useMutation({
-			onMutate: async ({ enabled }) => {
-				await utils.settings.getOdinAutoRenameSessions.cancel();
-				const previous = utils.settings.getOdinAutoRenameSessions.getData();
-				utils.settings.getOdinAutoRenameSessions.setData(undefined, enabled);
-				return { previous };
-			},
-			onError: (_err, _vars, context) => {
-				if (context?.previous !== undefined) {
-					utils.settings.getOdinAutoRenameSessions.setData(
-						undefined,
-						context.previous,
-					);
-				}
-			},
-			onSettled: () => {
-				utils.settings.getOdinAutoRenameSessions.invalidate();
-			},
-		});
 
 	return (
 		<div className="p-6 max-w-4xl w-full">
@@ -255,31 +228,6 @@ export function BehaviorSettings({ visibleItems }: BehaviorSettingsProps) {
 					</div>
 				)}
 
-				{showAutoRenameSessions && (
-					<div className="flex items-center justify-between">
-						<div className="space-y-0.5">
-							<Label
-								htmlFor="auto-rename-sessions"
-								className="text-sm font-medium"
-							>
-								Rename sessions automatically
-							</Label>
-							<p className="text-xs text-muted-foreground">
-								Name each board card after what its session turned out to be
-								about, instead of the first line you typed. A name you set
-								yourself is left alone.
-							</p>
-						</div>
-						<Switch
-							id="auto-rename-sessions"
-							checked={autoRenameSessions ?? false}
-							onCheckedChange={(enabled) =>
-								setAutoRenameSessions.mutate({ enabled })
-							}
-							disabled={isAutoRenameLoading || setAutoRenameSessions.isPending}
-						/>
-					</div>
-				)}
 			</div>
 		</div>
 	);
