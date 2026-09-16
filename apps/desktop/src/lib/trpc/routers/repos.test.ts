@@ -16,6 +16,9 @@ test("scanRepos finds checkouts, skips pruned dirs and nested worktrees", async 
 	make("dev/odin/node_modules/some-dep/.git");
 	// Not a repo.
 	make("Documents/notes");
+	// A worktree: .git is a file pointing back at the clone, not a directory.
+	make("dev/odin/worktrees/feature");
+	writeFileSync(join(home, "dev/odin/worktrees/feature/.git"), "gitdir: ...\n");
 	// Pruned: TCC-protected folders are never descended into, or macOS prompts.
 	make("Desktop/scratch/.git");
 	make("Documents/notes/.git");

@@ -59,8 +59,12 @@ export async function scanRepos(home: string = homedir()): Promise<string[]> {
 		"-maxdepth",
 		"6",
 		// The .git test comes first, so pruning dot-dirs doesn't eat it.
+		// `-type d` drops worktrees and submodules, where .git is a file: they
+		// share a clone's history, so listing them just triples the picker.
 		"-name",
 		".git",
+		"-type",
+		"d",
 		"-print",
 		"-prune",
 		"-o",
