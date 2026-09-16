@@ -902,11 +902,11 @@ export const createSettingsRouter = () => {
 
 		/**
 		 * Odin fork: rename board cards from the brief the model already writes
-		 * for every session. Off by default — a card you named yourself should
-		 * stay named that unless you ask for this.
+		 * for every session. On by default; a card you named yourself is still
+		 * left alone, so the rename only ever replaces the first line you typed.
 		 */
 		getOdinAutoRenameSessions: publicProcedure.query(() => {
-			return getSettings().odinAutoRenameSessions ?? false;
+			return getSettings().odinAutoRenameSessions ?? true;
 		}),
 
 		setOdinAutoRenameSessions: publicProcedure
