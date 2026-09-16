@@ -881,7 +881,8 @@ function DevBoardPage() {
 					tabId: tab.id,
 					tabName: tab.userTitle ?? tab.name,
 					workspaceId: tab.workspaceId,
-					repoPath: projectById.get(workspace?.projectId ?? "")?.mainRepoPath ?? "",
+					repoPath:
+						projectById.get(workspace?.projectId ?? "")?.mainRepoPath ?? "",
 				};
 				if (pane.type !== "terminal") continue; // chat panes aren't board cards
 				// Another profile's work — not this board's. Until the profile is
@@ -1250,16 +1251,15 @@ function DevBoardPage() {
 
 	return (
 		<div className="flex h-full flex-col">
-			<div className="flex items-center gap-3 px-[18px] pb-2.5 pt-3.5">
+			{/* One header row: title, launcher, tag filter. Stacking these cost
+			    three rows of board height for a handful of controls. */}
+			<div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-[18px] pb-2 pt-2.5">
 				<h1 className="text-[15px] font-semibold">Dev Board</h1>
-			</div>
-
-			<div className="flex items-center gap-2 px-[18px] pb-3">
 				<button
 					type="button"
 					title="Describe a task and start an agent session"
 					onClick={() => setIsComposerOpen(true)}
-					className="rounded-lg bg-[#14301f] px-3 py-1.5 text-[12px] font-semibold text-[#3ecf8e] transition-colors hover:bg-[#1a4029]"
+					className="rounded-lg bg-[#14301f] px-2.5 py-1 text-[12px] font-semibold text-[#3ecf8e] transition-colors hover:bg-[#1a4029]"
 				>
 					+ New Session
 				</button>
@@ -1268,48 +1268,45 @@ function DevBoardPage() {
 						{waitingReason ? `waiting — ${waitingReason}` : "starting…"}
 					</span>
 				)}
-			</div>
 
-			{/* tag filter — right-click a card to tag it */}
-			{allTags.length > 0 && (
-				<div className="flex flex-wrap items-center gap-1.5 px-[18px] pb-2">
-					<span className="text-[11px] uppercase tracking-[.3px] text-[#8a8a97]">
-						tags
-					</span>
-					{allTags.map(([tag, count]) => {
-						const on = tagFilter.includes(tag);
-						return (
+				{/* tag filter — right-click a card to tag it */}
+				{allTags.length > 0 && (
+					<div className="flex flex-wrap items-center gap-1.5">
+						{allTags.map(([tag, count]) => {
+							const on = tagFilter.includes(tag);
+							return (
+								<button
+									key={tag}
+									type="button"
+									onClick={() =>
+										setTagFilter((current) =>
+											on ? current.filter((t) => t !== tag) : [...current, tag],
+										)
+									}
+									className={cn(
+										"rounded-full px-2.5 py-[3px] text-[11px] font-medium transition-colors",
+										on
+											? "bg-[#a394ff] text-[#060608]"
+											: "bg-[#16161b] text-[#a5a5b3] hover:text-[#f5f5f7]",
+									)}
+								>
+									#{tag}
+									<span className="ml-1 opacity-70">{count}</span>
+								</button>
+							);
+						})}
+						{tagFilter.length > 0 && (
 							<button
-								key={tag}
 								type="button"
-								onClick={() =>
-									setTagFilter((current) =>
-										on ? current.filter((t) => t !== tag) : [...current, tag],
-									)
-								}
-								className={cn(
-									"rounded-full px-2.5 py-[3px] text-[11px] font-medium transition-colors",
-									on
-										? "bg-[#a394ff] text-[#060608]"
-										: "bg-[#16161b] text-[#a5a5b3] hover:text-[#f5f5f7]",
-								)}
+								onClick={() => setTagFilter([])}
+								className="text-[11px] text-[#8a8a97] hover:text-[#a5a5b3]"
 							>
-								#{tag}
-								<span className="ml-1 opacity-70">{count}</span>
+								clear
 							</button>
-						);
-					})}
-					{tagFilter.length > 0 && (
-						<button
-							type="button"
-							onClick={() => setTagFilter([])}
-							className="text-[11px] text-[#8a8a97] hover:text-[#a5a5b3]"
-						>
-							clear
-						</button>
-					)}
-				</div>
-			)}
+						)}
+					</div>
+				)}
+			</div>
 
 			{tagMenu && (
 				<TagMenu
