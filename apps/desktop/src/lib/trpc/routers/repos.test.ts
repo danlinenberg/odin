@@ -74,6 +74,12 @@ test("renderDiff shows uncommitted work, and the last commit when there is none"
 	expect(clean.source).toBe("last commit");
 	expect(clean.ansi).toContain("add a");
 
+	// A session that started after that commit owns none of it — the panel says
+	// so instead of passing a stranger's work off as this session's.
+	const stale = await renderDiff(repo, 80, Date.now() + 1000);
+	expect(stale.source).toBe("nothing from this session");
+	expect(stale.ansi).toBe("");
+
 	writeFileSync(join(repo, "a.txt"), "two\n");
 	writeFileSync(join(repo, "b.txt"), "untracked\n");
 	const dirty = await renderDiff(repo, 80);
