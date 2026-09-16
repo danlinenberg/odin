@@ -105,3 +105,25 @@ export function odinScreenWrite(
 	if (read !== "review") return read;
 	return current === "working" ? "permission" : undefined;
 }
+
+/**
+ * Is Claude still the thing running in this PTY?
+ *
+ * A pane can be alive to the daemon and have no conversation in it: Ctrl+C out
+ * of Claude (or /exit) and the shell it was launched from outlives it, sitting
+ * at a prompt. The board used to read that as "session is open" and offer
+ * Continue, which types the word "Continue" at zsh. What that session actually
+ * needs is Resume — reopen the conversation with `claude --resume`.
+ *
+ * Claude's chrome is the tell: the spinner, a dialog, the status line, or the
+ * rules around its input box. One of them is on screen in every state of the
+ * TUI, and a bare shell draws none.
+ */
+export function agentOnScreen(screen: string): boolean {
+	if (odinScreenStatus(screen) !== undefined) return true;
+	// The box on its own — Claude drawn, but caught between repaints of the
+	// status line under it.
+	return (
+		screen.split(/\r\n|\n|\r/).filter((line) => RULE.test(line)).length >= 2
+	);
+}

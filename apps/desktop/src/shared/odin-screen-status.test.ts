@@ -1,5 +1,9 @@
 import { describe, expect, it } from "bun:test";
-import { odinScreenStatus, odinScreenWrite } from "./odin-screen-status";
+import {
+	agentOnScreen,
+	odinScreenStatus,
+	odinScreenWrite,
+} from "./odin-screen-status";
 
 // The screens below are trimmed from real Claude Code sessions.
 const IDLE_PROMPT = `
@@ -174,5 +178,46 @@ describe("odinScreenWrite", () => {
 
 	it("says nothing about a screen the classifier didn't recognise", () => {
 		expect(odinScreenWrite(undefined, "working")).toBeUndefined();
+	});
+});
+
+// The bug this guards: Ctrl+C out of Claude and the PTY lives on as a shell
+// prompt. The board read "PTY alive" as "session is open" and offered
+// Continue, which typed the word Continue at zsh. That session's move is
+// Resume, and Resume is what the card has to show.
+describe("agentOnScreen", () => {
+	// Trimmed from the real screen of a session that was Ctrl+C'd out of.
+	const SHELL = `
+Now using node v23.8.0 (npm v10.9.2)
+^C
+Powerlevel10k configuration file (~/.p10k.zsh) was not sourced.
+  p10k configure
+dan@MacBook-Pro-5 ~/dev/imagen  main +
+`;
+
+	it("sees Claude at its prompt", () => {
+		expect(agentOnScreen(`${TURN_DONE}${BOX()}${AGENTS}`)).toBe(true);
+	});
+
+	it("sees Claude mid-turn", () => {
+		expect(agentOnScreen(MID_TURN)).toBe(true);
+	});
+
+	it("sees Claude on a dialog", () => {
+		expect(agentOnScreen(PERMISSION)).toBe(true);
+	});
+
+	// The status line is the part of the chrome a repaint can blink away; the
+	// box around the input is still there.
+	it("sees Claude from its input box alone", () => {
+		expect(agentOnScreen(`${RULE}\n❯\n${RULE}\n`)).toBe(true);
+	});
+
+	it("does not see Claude in the shell it left behind", () => {
+		expect(agentOnScreen(SHELL)).toBe(false);
+	});
+
+	it("does not see Claude in some other program", () => {
+		expect(agentOnScreen("$ vim notes.md\n~\n~\n")).toBe(false);
 	});
 });
