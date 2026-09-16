@@ -1,5 +1,7 @@
 # Builds the macOS app and publishes it to a GitHub Release, which is where the
-# Homebrew cask (Casks/odin.rb) downloads from.
+# README's download link, the app's own updater and Casks/odin.rb all fetch from.
+# All three resolve /releases/latest/download/Odin-arm64.dmg, so the asset name
+# below has to stay exactly that.
 #
 # ponytail: arm64 only, no matrix. The machine that builds it and the machines
 # that run it are the same shape; add an x64 leg when someone on an Intel Mac

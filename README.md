@@ -29,17 +29,23 @@ request. One queue, one board, one thing to look at.
 
 ## Install
 
-macOS on Apple Silicon:
+macOS on Apple Silicon. [**Download Odin-arm64.dmg**](https://github.com/danlinenberg/odin/releases/latest/download/Odin-arm64.dmg),
+drag `Odin.app` into `/Applications`, then run this once:
 
 ```sh
-brew trust --cask danlinenberg/odin/odin && brew tap danlinenberg/odin https://github.com/danlinenberg/odin && brew install --cask odin && xattr -dr com.apple.quarantine /Applications/Odin.app
+xattr -dr com.apple.quarantine /Applications/Odin.app
 ```
+
+That command is not optional. Releases are signed with a self-signed
+certificate rather than an Apple Developer ID, so macOS quarantines the download
+and refuses to open it; clearing the flag is what gets you past that.
 
 ### Upgrade
 
-```sh
-brew upgrade --cask --greedy odin && xattr -dr com.apple.quarantine /Applications/Odin.app
-```
+Odin updates itself: **Odin → Check for Updates…**, and it offers on launch when
+a release is newer than what you are running. It downloads the DMG and swaps the
+bundle in place. Open terminal sessions survive the swap, because the
+terminal-host daemon keeps running from the bundle the update parks aside.
 
 ### From source
 
