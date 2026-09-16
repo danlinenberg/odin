@@ -10,7 +10,12 @@ import { cn } from "@odin/ui/utils";
 import { createFileRoute } from "@tanstack/react-router";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { IconType } from "react-icons";
-import { LuFolderGit2, LuGitPullRequest, LuTerminal } from "react-icons/lu";
+import {
+	LuFlame,
+	LuFolderGit2,
+	LuGitPullRequest,
+	LuTerminal,
+} from "react-icons/lu";
 import { SiJira, SiNotion, SiSlack } from "react-icons/si";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { electronTrpc } from "renderer/lib/electron-trpc";
@@ -22,6 +27,7 @@ import { useTabsStore } from "renderer/stores/tabs/store";
 import type { Pane, PaneStatus } from "renderer/stores/tabs/types";
 import { lastAgentHookAt } from "renderer/stores/tabs/useAgentHookListener";
 import { boardColumn } from "shared/board-column";
+import { heavySessionLabel } from "shared/machine-load";
 import {
 	type BoardSection,
 	bySection,
@@ -290,6 +296,35 @@ function AgePill({
 	if (!label) return null;
 	return (
 		<span className="rounded-[5px] bg-[#1f1f27] px-[7px] text-[11px] text-[#a5a5b3]">
+			{label}
+		</span>
+	);
+}
+
+/**
+ * The badge that answers "which of these is eating the Mac". The header chip
+ * already says nine sessions hold 11 GB; this says which three of them do.
+ *
+ * Same snapshot the chip reads — one query, shared by every card through the
+ * React Query cache — and it only appears above the threshold, so a board of
+ * parked sessions stays quiet.
+ */
+function LoadPill({ card }: { card: BoardCard }) {
+	const { data } = electronTrpc.resourceMetrics.getSnapshot.useQuery(
+		undefined,
+		{ refetchInterval: 5_000 },
+	);
+	const usage = data?.workspaces
+		.flatMap((workspace) => workspace.sessions)
+		.find((session) => session.paneId === card.pane.id);
+	const label = usage ? heavySessionLabel(usage) : null;
+	if (!label) return null;
+	return (
+		<span
+			title="What this session's processes are holding right now"
+			className="inline-flex items-center gap-1 rounded-[5px] bg-[#2a1f12] px-[7px] text-[11px] font-medium tabular-nums text-[#f5b83d]"
+		>
+			<LuFlame className="size-3 shrink-0" aria-hidden />
 			{label}
 		</span>
 	);
@@ -1484,6 +1519,7 @@ function DevBoardPage() {
 																				?.at
 																		}
 																	/>
+															<LoadPill card={card} />
 																</div>
 																{card.status === "working" && (
 																	<div className="mt-1.5 flex items-center gap-1.5 text-[11.5px] text-[#a5a5b3]">
