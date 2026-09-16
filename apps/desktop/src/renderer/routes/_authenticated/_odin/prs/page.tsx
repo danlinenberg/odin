@@ -11,6 +11,7 @@ import {
 	FEED_ROW,
 	FeedDivider,
 	FeedHeader,
+	FeedSelect,
 	FilterPill,
 	META_DATE,
 	META_PERSON,
@@ -188,16 +189,10 @@ function MyPullRequestsPage() {
 						onToggle={() => hide.setShowHidden(!hide.showHidden)}
 					/>
 					{repos.length > 0 && (
-						<select
+						<FeedSelect
 							value={repoFilter}
-							onChange={(e) => setRepoFilter(e.target.value)}
+							onChange={setRepoFilter}
 							title="Filter by repo"
-							className={cn(
-								"cursor-pointer rounded-full border px-2.5 py-1 text-[12px] font-medium outline-none",
-								repoFilter
-									? "border-[#a394ff] bg-[#211d3a] text-[#f5f5f7]"
-									: "border-[#25252e] bg-[#16161b] text-[#a5a5b3] hover:text-[#f5f5f7]",
-							)}
 						>
 							<option value="">All repos</option>
 							{repos.map(([repo, count]) => (
@@ -205,7 +200,7 @@ function MyPullRequestsPage() {
 									{repo} ({count})
 								</option>
 							))}
-						</select>
+						</FeedSelect>
 					)}
 					<SyncButton isSyncing={isSyncing} onClick={() => void syncAll()} />
 				</div>

@@ -42,14 +42,17 @@ export function useHiddenFilter<T>(
 	const hidden = useHiddenItems((s) => s.hidden);
 	const toggleKey = useHiddenItems((s) => s.toggle);
 	const [showHidden, setShowHidden] = useState(false);
-	const isHidden = (row: T) => hidden[`${prefix}:${id(row)}`] === true;
+	// An empty prefix means the id already carries its source (the All feed's
+	// keys are `jira:KEY`, `pr:<id>`), so hiding there hides it in that feed too.
+	const keyOf = (row: T) => (prefix ? `${prefix}:${id(row)}` : id(row));
+	const isHidden = (row: T) => hidden[keyOf(row)] === true;
 	return {
 		rows: showHidden ? rows : rows.filter((row) => !isHidden(row)),
 		hiddenCount: rows.filter(isHidden).length,
 		showHidden,
 		setShowHidden,
 		isHidden,
-		toggle: (row: T) => toggleKey(`${prefix}:${id(row)}`),
+		toggle: (row: T) => toggleKey(keyOf(row)),
 	};
 }
 

@@ -51,10 +51,29 @@ export interface AllItem {
 	context: string | null;
 	/** However the source names it — High, Highest, P1. Ours are PRIORITY_LABELS. */
 	priority: string | null;
+	/** The same priority in terms every source shares, so one filter fits all. */
+	urgency: Urgency;
 	/** Sort key in ms. 0 when the source didn't date it. */
 	at: number;
 	/** What to hand `launch` when Start session is clicked on this row. */
 	launch: AllLaunch;
+}
+
+/** Priority, in the three levels every source can be read as. */
+export type Urgency = "high" | "medium" | "low" | null;
+
+/**
+ * Each source names priority its own way — Jira says Highest, Notion says P1,
+ * my own tasks say High. One filter can only span them if they answer to the
+ * same three words.
+ */
+export function urgencyOf(priority: string | null | undefined): Urgency {
+	const p = (priority ?? "").toLowerCase();
+	if (/highest|urgent|critical|blocker|\bhigh\b|\bp[01]\b/.test(p))
+		return "high";
+	if (/lowest|\blow\b|minor|trivial|\bp[3-9]\b/.test(p)) return "low";
+	if (/medium|normal|major|\bp2\b/.test(p)) return "medium";
+	return null;
 }
 
 /** ISO → ms, and 0 for "no date" so an undated row sinks instead of throwing. */
@@ -93,6 +112,7 @@ export function allItems(input: {
 		updated: string | null;
 	}[];
 	pulls: {
+		id: number;
 		url: string;
 		title: string;
 		repo: string;
@@ -125,6 +145,7 @@ export function allItems(input: {
 				status: null,
 				context: null,
 				priority: PRIORITY_LABELS[priorityOf(task)],
+				urgency: urgencyOf(PRIORITY_LABELS[priorityOf(task)]),
 				at: task.createdAt,
 				launch: {
 					key: task.id,
@@ -147,6 +168,7 @@ export function allItems(input: {
 					person: row.authorName,
 					status: null,
 					priority: null,
+					urgency: null,
 					context: row.channelName,
 					at: ms(row.postedAt),
 					launch: {
@@ -177,6 +199,7 @@ export function allItems(input: {
 				person: issue.reporter ?? null,
 				status: issue.status,
 				priority: issue.priority ?? null,
+				urgency: urgencyOf(issue.priority),
 				context: issue.project,
 				at: ms(issue.updated),
 				launch: {
@@ -193,7 +216,9 @@ export function allItems(input: {
 			.filter((pull) => !isBot(pull.author))
 			.map(
 				(pull): AllItem => ({
-					key: `pr:${pull.url}`,
+					// The PRs feed hides under `pr:<id>` — same key here, so a row
+					// dismissed in either place is dismissed in both.
+					key: `pr:${pull.id}`,
 					source: "GitHub",
 					to: "/prs",
 					title: `${pull.repo}#${pull.number}: ${pull.title}`,
@@ -201,6 +226,7 @@ export function allItems(input: {
 					person: pull.author,
 					status: null,
 					priority: null,
+					urgency: null,
 					// Every repo is the same org — the column is for the repo name.
 					context: pull.repo.split("/").at(-1) ?? pull.repo,
 					at: ms(pull.updated),
@@ -229,6 +255,7 @@ export function allItems(input: {
 				person: row.assignee,
 				status: row.status,
 				priority: row.priority ?? null,
+				urgency: urgencyOf(row.priority),
 				context: row.channel ?? null,
 				at: ms(row.updatedAt ?? row.date),
 				launch: {

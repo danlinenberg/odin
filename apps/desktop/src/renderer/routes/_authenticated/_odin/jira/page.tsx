@@ -11,6 +11,7 @@ import {
 	FEED_ROW,
 	FeedDivider,
 	FeedHeader,
+	FeedSelect,
 	FilterPill,
 	META_DATE,
 	META_PERSON,
@@ -224,16 +225,10 @@ function MyJiraPage() {
 						onToggle={() => hide.setShowHidden(!hide.showHidden)}
 					/>
 					{projects.length > 0 && (
-						<select
+						<FeedSelect
 							value={projectFilter}
-							onChange={(e) => setProjectFilter(e.target.value)}
+							onChange={setProjectFilter}
 							title="Filter by project"
-							className={cn(
-								"cursor-pointer rounded-full border px-2.5 py-1 text-[12px] font-medium outline-none",
-								projectFilter
-									? "border-[#a394ff] bg-[#211d3a] text-[#f5f5f7]"
-									: "border-[#25252e] bg-[#16161b] text-[#a5a5b3] hover:text-[#f5f5f7]",
-							)}
 						>
 							<option value="">All projects ({issues.length})</option>
 							{projects.map(([project, count]) => (
@@ -241,7 +236,7 @@ function MyJiraPage() {
 									{project} ({count})
 								</option>
 							))}
-						</select>
+						</FeedSelect>
 					)}
 					<SyncButton isSyncing={isSyncing} onClick={() => void syncAll()} />
 				</div>

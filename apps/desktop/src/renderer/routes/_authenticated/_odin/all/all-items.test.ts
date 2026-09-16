@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { allItems } from "./all-items";
+import { allItems, urgencyOf } from "./all-items";
 
 const iso = (day: number) => new Date(Date.UTC(2026, 0, day)).toISOString();
 
@@ -48,6 +48,7 @@ const feeds = {
 	],
 	pulls: [
 		{
+			id: 101,
 			url: "https://gh/1",
 			title: "Fix it",
 			repo: "odin",
@@ -57,6 +58,7 @@ const feeds = {
 			updated: iso(2),
 		},
 		{
+			id: 102,
 			url: "https://gh/2",
 			title: "Bump lockfile",
 			repo: "odin",
@@ -163,4 +165,32 @@ test("a row carries what it takes to start a session, without its feed", () => {
 	expect(by("GitHub")?.description).toContain("Work on my pull request");
 	expect(by("Notion")?.description).toContain("- Priority: P1");
 	expect(by("Tasks")?.description).toBe("the notes");
+});
+
+test("priority reads the same across sources, whatever they call it", () => {
+	const by = (source: string) =>
+		allItems(feeds).find((item) => item.source === source);
+	// Jira's Highest, Notion's P1 and my own High are one filter's "high".
+	expect([by("Jira")?.urgency, by("Notion")?.urgency]).toEqual([
+		"high",
+		"high",
+	]);
+	expect(by("Tasks")?.urgency).toBe("medium");
+	// Sources with no scale stay unrated rather than guessing a middle.
+	expect([by("Slack")?.urgency, by("GitHub")?.urgency]).toEqual([null, null]);
+	expect(["Lowest", "P3", "Trivial"].map(urgencyOf)).toEqual([
+		"low",
+		"low",
+		"low",
+	]);
+	// "Highest" must not read as low just because it contains no word boundary
+	// help, and a free-text level nobody rated stays null.
+	expect([urgencyOf("Highest"), urgencyOf("someday"), urgencyOf(null)]).toEqual(
+		["high", null, null],
+	);
+});
+
+test("a PR hides under the same key its own feed hides it with", () => {
+	const pr = allItems(feeds).find((item) => item.source === "GitHub");
+	expect(pr?.key).toBe("pr:101");
 });
