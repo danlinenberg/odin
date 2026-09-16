@@ -107,10 +107,14 @@ const SESSION_STATE: Partial<
 	idle: { label: "idle", dot: "#f0647a" },
 };
 
-/** Which system a row came from, at a glance. Live sessions own green. */
+/**
+ * Which system a row came from, at a glance. Live sessions own green, and
+ * Tasks keeps the app's own accent. Slack takes the crimson out of its logo
+ * rather than another violet — two purples a shade apart aren't a distinction.
+ */
 const SOURCE_CHIP: Record<AllItem["source"], string> = {
 	Tasks: "bg-[#211d3a] text-[#a394ff]",
-	Slack: "bg-[#2a1d38] text-[#d59bff]",
+	Slack: "bg-[#361d28] text-[#ff8fae]",
 	Jira: "bg-[#16283a] text-[#7ec4ff]",
 	GitHub: "bg-[#3a2c14] text-[#f5b83d]",
 	Notion: "bg-[#1f1f27] text-[#c8c8d2]",
