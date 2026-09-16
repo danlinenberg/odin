@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { localDb } from "main/lib/local-db";
 import { publicProcedure, router } from "../..";
 import { activeProfileId } from "../odin-config";
+import { sessionPeople } from "../terminal/session-people";
 import { computeInsights } from "./insights";
 
 export const createInsightsRouter = () => {
@@ -45,6 +46,23 @@ export const createInsightsRouter = () => {
 					startedAt: row.startedAt,
 				})),
 			);
+		}),
+
+		/**
+		 * The long history, read off the transcript store rather than the DB.
+		 * The ledger only knows about launches since it landed; `~/.claude`
+		 * has every session ever run here, so that's where "how was last month"
+		 * is actually answerable.
+		 *
+		 * Separate from `summary` because it reads files: the counters render
+		 * instantly and this fills in behind them. Scans are memoised on
+		 * mtime, so only a transcript that changed is re-read.
+		 */
+		workload: publicProcedure.query(async () => {
+			const { computeWorkload, scanSessions } = await import(
+				"main/lib/claude-sessions"
+			);
+			return computeWorkload(await scanSessions({ people: sessionPeople() }));
 		}),
 	});
 };
