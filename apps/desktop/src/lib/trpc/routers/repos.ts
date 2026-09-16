@@ -1,5 +1,5 @@
 import { execFile, spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
@@ -132,10 +132,16 @@ export interface RepoDiff {
  * ponytail: `git diff HEAD` (staged + unstaged), falling back to the last
  * commit — an agent that already committed its turn would otherwise show an
  * empty panel. Untracked files are named, not diffed.
+ *
+ * @param since When the session started (ms). A clean tree is not proof the
+ * agent committed its turn: checkouts are shared, so HEAD is usually a
+ * stranger's commit from before this session existed. Only claim it when it
+ * landed inside the session's window.
  */
 export async function renderDiff(
 	cwd: string,
 	width: number,
+	since?: number,
 ): Promise<RepoDiff> {
 	const git = async (args: string[]) =>
 		(
@@ -149,6 +155,18 @@ export async function renderDiff(
 	let source = "uncommitted changes";
 	let patch = await git(["diff", "HEAD"]);
 	if (!patch.trim()) {
+		// Empty on a repo with no commits at all — same answer as a commit that
+		// predates the session: there is nothing of this session's to show.
+		const committedAt =
+			Number(await git(["log", "-1", "--format=%ct"]).catch(() => "")) * 1000;
+		if (since && !(committedAt >= since)) {
+			return {
+				ansi: "",
+				source: "nothing from this session",
+				delta: true,
+				cwd,
+			};
+		}
 		source = "last commit";
 		patch = await git(["show", "HEAD"]);
 	}
@@ -243,7 +261,9 @@ export const createReposRouter = () => {
 				// The repo the agent worked in wins: Claude Code cds between repos
 				// and worktrees without the shell ever noticing, so `input.cwd` is
 				// often just the catch-all directory the pane was launched in.
-				const { workingRepoOf } = await import("main/lib/claude-sessions");
+				const { transcriptOf, workingRepoOf } = await import(
+					"main/lib/claude-sessions"
+				);
 				const dir =
 					(input.claudeSessionId
 						? await workingRepoOf(input.claudeSessionId)
@@ -256,7 +276,16 @@ export const createReposRouter = () => {
 						message: "No checkout known for this session yet.",
 					});
 				}
-				return renderDiff(dir, input.width);
+				// When the conversation started, so a commit older than the session
+				// isn't passed off as its work. birthtime is 0 on filesystems that
+				// don't keep one — then the panel behaves as it did before.
+				const transcript = input.claudeSessionId
+					? await transcriptOf(input.claudeSessionId)
+					: null;
+				const since = transcript
+					? statSync(transcript.path).birthtimeMs || undefined
+					: undefined;
+				return renderDiff(dir, input.width, since);
 			}),
 	});
 };

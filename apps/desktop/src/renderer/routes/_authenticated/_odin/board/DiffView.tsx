@@ -84,7 +84,9 @@ export function DiffView({
 		// Writing leaves the viewport at the end of the diff; you read one from
 		// the first file down.
 		xterm.write(
-			data.ansi.trim() ? data.ansi : "No changes in this checkout.",
+			data.ansi.trim()
+				? data.ansi
+				: "Nothing from this session — no uncommitted changes, and the last commit here predates it.",
 			() => xterm.scrollToTop(),
 		);
 	}, [data]);
@@ -95,7 +97,7 @@ export function DiffView({
 				<span title={data?.cwd}>
 					Diff · {data ? `${data.cwd.split("/").pop()} · ${data.source}` : "…"}
 				</span>
-				{data && !data.delta && (
+				{data?.ansi.trim() && !data.delta && (
 					<span
 						title="brew install git-delta"
 						className="normal-case tracking-normal text-[#f5b83d]"
