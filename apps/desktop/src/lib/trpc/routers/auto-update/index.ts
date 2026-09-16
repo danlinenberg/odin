@@ -7,9 +7,6 @@ import {
 	dismissUpdate,
 	getUpdateStatus,
 	installUpdate,
-	simulateDownloading,
-	simulateError,
-	simulateUpdateReady,
 } from "main/lib/auto-updater";
 import { publicProcedure, router } from "../..";
 
@@ -49,18 +46,6 @@ export const createAutoUpdateRouter = () => {
 
 		dismiss: publicProcedure.mutation(() => {
 			dismissUpdate();
-		}),
-
-		simulateReady: publicProcedure.mutation(() => {
-			simulateUpdateReady();
-		}),
-
-		simulateDownloading: publicProcedure.mutation(() => {
-			simulateDownloading();
-		}),
-
-		simulateError: publicProcedure.mutation(() => {
-			simulateError();
 		}),
 	});
 };

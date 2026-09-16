@@ -1,11 +1,15 @@
+import { spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
+import { createWriteStream, existsSync } from "node:fs";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { app, dialog } from "electron";
 import log from "electron-log/main";
-import { autoUpdater } from "electron-updater";
-import { env } from "main/env.main";
 import { setSkipQuitConfirmation } from "main/index";
-import { appState } from "main/lib/app-state";
-import { gte, prerelease } from "semver";
+import { gt, valid } from "semver";
 import {
 	AUTO_UPDATE_STATUS,
 	type AutoUpdateProgress,
@@ -13,73 +17,70 @@ import {
 	type AutoUpdateStatusEvent,
 } from "shared/auto-update";
 import { PLATFORM } from "shared/constants";
+import { swapScript } from "./update-swap-script";
 
-// electron-updater's internal cache only self-invalidates when the remote
-// sha512 differs from cached metadata, so a corrupt cached download (e.g.
-// failed Squirrel install) gets retried indefinitely until the user
-// manually reinstalls. Reach into the protected helper to clear it.
-interface AppUpdaterInternals {
-	downloadedUpdateHelper: { clear(): Promise<void> } | null;
-}
+/**
+ * In-app updates, so a release can be installed without going back to a
+ * terminal for `brew upgrade --cask odin`.
+ *
+ * NOT electron-updater/Squirrel.Mac, which is what used to sit here (disabled
+ * behind an early `return`), for two reasons that both have to be fixed before
+ * it could work at all:
+ *
+ *  - Squirrel validates the downloaded bundle against the *running* app's
+ *    designated requirement, which for a self-signed leaf pins the exact
+ *    certificate. apps/desktop/scripts/create-signing-identity.sh finds an
+ *    empty keychain on every hosted runner, so each Release run mints a fresh
+ *    "Odin Local Signing" cert — every update would be rejected as signed by a
+ *    stranger. Stable signing means putting a p12 in a GitHub secret.
+ *  - A Squirrel feed needs latest-mac.yml plus the mac .zip; release.yml
+ *    publishes only Odin-arm64.dmg.
+ *
+ * So this does what the Homebrew cask does, from inside the app: read the
+ * latest release tag, download the DMG, mount it, and swap the bundle once the
+ * UI has quit. No signature pinning, nothing to add to the release.
+ */
 
-async function clearCachedUpdate(reason: string): Promise<void> {
-	const helper = (autoUpdater as unknown as AppUpdaterInternals)
-		.downloadedUpdateHelper;
-	if (!helper) return;
-	try {
-		await helper.clear();
-		log.info(`[auto-updater] Cleared cached update (${reason})`);
-	} catch (error) {
-		log.error("[auto-updater] Failed to clear cached update:", error);
-	}
-}
+const REPO_SLUG = "danlinenberg/odin";
+const LATEST_RELEASE_API = `https://api.github.com/repos/${REPO_SLUG}/releases/latest`;
+// Same URL the cask resolves; release.yml keeps the asset name stable so that
+// /releases/latest/download always points at the newest build.
+const DMG_URL = `https://github.com/${REPO_SLUG}/releases/latest/download/Odin-arm64.dmg`;
 
 const UPDATE_CHECK_INTERVAL_MS = 1000 * 60 * 60 * 4; // 4 hours
 
-/**
- * Detect if this is a prerelease build from app version using semver.
- * Versions like "0.0.53-canary" have prerelease component ["canary"].
- * Stable versions like "0.0.53" have no prerelease component.
- */
-function isPrereleaseBuild(): boolean {
-	const version = app.getVersion();
-	const prereleaseComponents = prerelease(version);
-	return prereleaseComponents !== null && prereleaseComponents.length > 0;
+/** The installed bundle — usually /Applications/Odin.app, wherever it lives. */
+function appBundlePath(): string {
+	// .../Odin.app/Contents/MacOS/Odin -> .../Odin.app
+	return dirname(dirname(dirname(app.getPath("exe"))));
 }
 
-const IS_PRERELEASE = isPrereleaseBuild();
-const IS_AUTO_UPDATE_PLATFORM = PLATFORM.IS_MAC || PLATFORM.IS_LINUX;
-
-// Use explicit feed URLs to ensure we always fetch platform-specific manifests
-// (for example latest-mac.yml and latest-linux.yml) from the correct release.
-// - Stable: fetches from /releases/latest/download/ (latest non-prerelease)
-// - Canary: fetches from /releases/download/desktop-canary/ (rolling canary tag)
-const UPDATE_FEED_URL = IS_PRERELEASE
-	? "https://github.com/danlinenberg/odin/releases/download/desktop-canary"
-	: "https://github.com/danlinenberg/odin/releases/latest/download";
+/** Updates only make sense for a packaged macOS build; `bun dev` has git. */
+function canUpdate(): boolean {
+	return app.isPackaged && PLATFORM.IS_MAC;
+}
 
 export type { AutoUpdateStatusEvent } from "shared/auto-update";
 
 export const autoUpdateEmitter = new EventEmitter();
 
-// Network errors that don't need to be shown to the user
-// These are transient/expected and will resolve on retry
+// Transient/expected failures — no error state, no dialog, just retry later.
 const SILENT_ERROR_PATTERNS = [
-	"net::ERR_INTERNET_DISCONNECTED",
-	"net::ERR_NETWORK_CHANGED",
-	"net::ERR_CONNECTION_REFUSED",
-	"net::ERR_NAME_NOT_RESOLVED",
-	"net::ERR_CONNECTION_TIMED_OUT",
-	"net::ERR_CONNECTION_RESET",
 	"ENOTFOUND",
 	"ETIMEDOUT",
 	"ECONNREFUSED",
 	"ECONNRESET",
+	"EAI_AGAIN",
+	"fetch failed",
 ];
 
-function isNetworkError(error: Error | string): boolean {
-	const message = typeof error === "string" ? error : error.message;
+function isNetworkError(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : String(error);
 	return SILENT_ERROR_PATTERNS.some((pattern) => message.includes(pattern));
+}
+
+function errorMessage(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
 }
 
 let currentStatus: AutoUpdateStatus = AUTO_UPDATE_STATUS.IDLE;
@@ -88,6 +89,11 @@ let currentError: string | undefined;
 let currentProgress: AutoUpdateProgress | undefined;
 let isDismissed = false;
 let isInstalling = false;
+let isChecking = false;
+/** A downloaded, mounted DMG waiting for the restart that installs it. */
+let staged:
+	| { version: string; mountPoint: string; workDir: string }
+	| undefined;
 
 function emitStatus(
 	status: AutoUpdateStatus,
@@ -124,306 +130,244 @@ export function isUpdateReadyToInstall(): boolean {
 	return isInstalling || currentStatus === AUTO_UPDATE_STATUS.READY;
 }
 
-export function installUpdate(): void {
-	if (env.NODE_ENV === "development") {
-		// Simulate the real lifecycle so the renderer can be previewed with the
-		// simulate* mutations: installing lingers, then the post-update
-		// confirmation shows, then everything goes idle.
-		log.info("[auto-updater] Install skipped in dev mode");
-		const installedVersion = currentVersion;
-		setTimeout(() => {
-			emitStatus(AUTO_UPDATE_STATUS.UPDATED, installedVersion);
-			setTimeout(() => emitStatus(AUTO_UPDATE_STATUS.IDLE), 6000);
-		}, 3500);
-		return;
-	}
-	// MacUpdater.quitAndInstall() registers a fresh native-updater
-	// `update-downloaded` listener each time it runs before Squirrel.Mac has
-	// finished staging. Without this guard, repeat clicks fan out into
-	// parallel quitAndInstall calls once Squirrel fires — racing to swap
-	// the binary and leaving the app on the old version.
-	if (isInstalling) {
-		log.info(
-			"[auto-updater] Install already in progress, ignoring duplicate request",
-		);
-		return;
-	}
-	if (currentStatus !== AUTO_UPDATE_STATUS.READY) {
-		log.warn(
-			`[auto-updater] Install ignored: update not ready (status=${currentStatus})`,
-		);
-		return;
-	}
-	isInstalling = true;
-	setSkipQuitConfirmation();
-	autoUpdater.quitAndInstall(false, true);
-}
-
 export function dismissUpdate(): void {
 	isDismissed = true;
 	autoUpdateEmitter.emit("status-changed", { status: AUTO_UPDATE_STATUS.IDLE });
 }
 
-export function checkForUpdates(): void {
-	if (env.NODE_ENV === "development" || !IS_AUTO_UPDATE_PLATFORM) {
-		return;
-	}
-	isDismissed = false;
-	emitStatus(AUTO_UPDATE_STATUS.CHECKING);
-	autoUpdater.checkForUpdates().catch((error) => {
-		if (isNetworkError(error)) {
-			log.info("[auto-updater] Network unavailable, will retry later");
-			emitStatus(AUTO_UPDATE_STATUS.IDLE);
-			return;
-		}
-		log.error("[auto-updater] Failed to check for updates:", error);
-		emitStatus(AUTO_UPDATE_STATUS.ERROR, undefined, error.message);
+/** The newest published release, or null when the tag isn't a version. */
+async function fetchLatestVersion(): Promise<string | null> {
+	const response = await fetch(LATEST_RELEASE_API, {
+		headers: {
+			Accept: "application/vnd.github+json",
+			"User-Agent": `Odin/${app.getVersion()}`,
+		},
 	});
+	if (!response.ok) {
+		throw new Error(
+			`GitHub returned ${response.status} for the latest release`,
+		);
+	}
+	const release = (await response.json()) as { tag_name?: string };
+	const version = release.tag_name?.replace(/^v/, "");
+	return version && valid(version) ? version : null;
 }
 
-export function checkForUpdatesInteractive(): void {
-	if (env.NODE_ENV === "development") {
-		dialog.showMessageBox({
-			type: "info",
-			title: "Updates",
-			message: "Auto-updates are disabled in development mode.",
+const PROGRESS_EMIT_INTERVAL_MS = 500;
+
+/** Download the release DMG and mount it. Returns the mounted Odin.app's dir. */
+async function downloadAndMount(
+	version: string,
+): Promise<{ mountPoint: string; workDir: string }> {
+	const workDir = await mkdtemp(join(tmpdir(), "odin-update-"));
+	const dmgPath = join(workDir, "Odin.dmg");
+	const mountPoint = join(workDir, "mnt");
+
+	const response = await fetch(DMG_URL, {
+		headers: { "User-Agent": `Odin/${app.getVersion()}` },
+	});
+	if (!response.ok || !response.body) {
+		throw new Error(`Download failed with ${response.status}`);
+	}
+
+	const totalBytes = Number(response.headers.get("content-length") ?? 0);
+	let transferredBytes = 0;
+	let lastProgressEmitAt = 0;
+	// Node's fetch hands back a web ReadableStream; fromWeb wants its own
+	// structural copy of that type, which the DOM lib's version doesn't satisfy.
+	const body = Readable.fromWeb(
+		response.body as unknown as Parameters<typeof Readable.fromWeb>[0],
+	);
+	body.on("data", (chunk: Buffer) => {
+		transferredBytes += chunk.length;
+		const now = Date.now();
+		if (now - lastProgressEmitAt < PROGRESS_EMIT_INTERVAL_MS) return;
+		lastProgressEmitAt = now;
+		emitStatus(AUTO_UPDATE_STATUS.DOWNLOADING, version, undefined, {
+			percent: totalBytes ? (transferredBytes / totalBytes) * 100 : 0,
+			transferredBytes,
+			totalBytes,
 		});
+	});
+	await pipeline(body, createWriteStream(dmgPath));
+	log.info(`[auto-updater] Downloaded ${transferredBytes} bytes to ${dmgPath}`);
+
+	await new Promise<void>((resolve, reject) => {
+		const child = spawn(
+			"/usr/bin/hdiutil",
+			["attach", dmgPath, "-nobrowse", "-readonly", "-mountpoint", mountPoint],
+			{ stdio: "ignore" },
+		);
+		child.on("error", reject);
+		child.on("exit", (code) =>
+			code === 0
+				? resolve()
+				: reject(new Error(`hdiutil attach exited ${code}`)),
+		);
+	});
+
+	if (!existsSync(join(mountPoint, "Odin.app"))) {
+		throw new Error("The downloaded disk image has no Odin.app in it");
+	}
+	return { mountPoint, workDir };
+}
+
+export function installUpdate(): void {
+	if (isInstalling) {
+		log.info("[auto-updater] Install already in progress");
 		return;
 	}
-	if (!IS_AUTO_UPDATE_PLATFORM) {
-		dialog.showMessageBox({
-			type: "info",
-			title: "Updates",
-			message: "Auto-updates are only available on macOS and Linux.",
-		});
+	if (!staged) {
+		log.warn(
+			`[auto-updater] Install ignored: nothing staged (${currentStatus})`,
+		);
+		return;
+	}
+	isInstalling = true;
+	log.info(`[auto-updater] Installing ${staged.version} and relaunching`);
+	const child = spawn(
+		"/bin/bash",
+		["-c", swapScript({ appBundle: appBundlePath(), ...staged })],
+		{ detached: true, stdio: "ignore" },
+	);
+	child.unref();
+	setSkipQuitConfirmation();
+	app.quit();
+}
+
+async function runCheck({ userAsked }: { userAsked: boolean }): Promise<void> {
+	if (!canUpdate()) {
+		if (userAsked) {
+			await dialog.showMessageBox({
+				type: "info",
+				title: "Updates",
+				message: app.isPackaged
+					? "In-app updates are only available on macOS."
+					: "This is a development build — update it with scripts/odin-update.sh.",
+			});
+		}
+		return;
+	}
+	if (isChecking || isInstalling) return;
+
+	// Already downloaded and mounted: offer the restart again instead of
+	// pulling another 280 MB.
+	if (staged) {
+		isDismissed = false;
+		emitStatus(AUTO_UPDATE_STATUS.READY, staged.version);
+		await offerRestart(staged.version);
 		return;
 	}
 
+	isChecking = true;
 	isDismissed = false;
 	emitStatus(AUTO_UPDATE_STATUS.CHECKING);
-
-	autoUpdater
-		.checkForUpdates()
-		.then((result) => {
-			if (
-				!result?.updateInfo ||
-				gte(app.getVersion(), result.updateInfo.version)
-			) {
-				emitStatus(AUTO_UPDATE_STATUS.IDLE);
-				dialog.showMessageBox({
+	try {
+		const latest = await fetchLatestVersion();
+		if (!latest || !gt(latest, app.getVersion())) {
+			emitStatus(AUTO_UPDATE_STATUS.IDLE);
+			log.info(
+				`[auto-updater] Up to date (current=${app.getVersion()}, latest=${latest ?? "unknown"})`,
+			);
+			if (userAsked) {
+				await dialog.showMessageBox({
 					type: "info",
 					title: "No Updates",
 					message: "You're up to date!",
 					detail: `Version ${app.getVersion()} is the latest version.`,
 				});
 			}
-		})
-		.catch((error) => {
-			if (isNetworkError(error)) {
-				log.info("[auto-updater] Network unavailable");
-				emitStatus(AUTO_UPDATE_STATUS.IDLE);
-				dialog.showMessageBox({
-					type: "info",
-					title: "No Internet Connection",
-					message:
-						"Unable to check for updates. Please check your internet connection.",
-				});
-				return;
-			}
-			log.error("[auto-updater] Failed to check for updates:", error);
-			emitStatus(AUTO_UPDATE_STATUS.ERROR, undefined, error.message);
-			dialog.showMessageBox({
-				type: "error",
-				title: "Update Error",
-				message: "Failed to check for updates. Please try again later.",
-			});
-		});
-}
-
-const SIMULATED_VERSION = "99.0.0-test";
-let simulateDownloadInterval: NodeJS.Timeout | undefined;
-
-function clearSimulatedDownload(): void {
-	if (simulateDownloadInterval) {
-		clearInterval(simulateDownloadInterval);
-		simulateDownloadInterval = undefined;
-	}
-}
-
-export function simulateUpdateReady(): void {
-	if (env.NODE_ENV !== "development") return;
-	isDismissed = false;
-	clearSimulatedDownload();
-	emitStatus(AUTO_UPDATE_STATUS.READY, SIMULATED_VERSION);
-}
-
-export function simulateDownloading(): void {
-	if (env.NODE_ENV !== "development") return;
-	isDismissed = false;
-	clearSimulatedDownload();
-	emitStatus(AUTO_UPDATE_STATUS.DOWNLOADING, SIMULATED_VERSION);
-
-	// Stream fake progress so the renderer's ring/percent can be exercised,
-	// then land on READY like a real download.
-	const totalBytes = 48 * 1024 * 1024;
-	let percent = 0;
-	simulateDownloadInterval = setInterval(() => {
-		percent = Math.min(percent + 3 + Math.random() * 5, 100);
-		emitStatus(AUTO_UPDATE_STATUS.DOWNLOADING, SIMULATED_VERSION, undefined, {
-			percent,
-			transferredBytes: Math.round((percent / 100) * totalBytes),
-			totalBytes,
-		});
-		if (percent >= 100) {
-			clearSimulatedDownload();
-			emitStatus(AUTO_UPDATE_STATUS.READY, SIMULATED_VERSION);
+			return;
 		}
-	}, 300);
-}
 
-export function simulateError(): void {
-	if (env.NODE_ENV !== "development") return;
-	isDismissed = false;
-	clearSimulatedDownload();
-	emitStatus(
-		AUTO_UPDATE_STATUS.ERROR,
-		undefined,
-		"Simulated error for testing",
-	);
-}
-
-export function setupAutoUpdater(): void {
-	// Odin fork: no auto-updates, ever — the upstream feed would replace this
-	// app with stock Odin.
-	return;
-
-	// biome-ignore lint/correctness/noUnreachable: upstream code kept for rebases
-	if (env.NODE_ENV === "development" || !IS_AUTO_UPDATE_PLATFORM) {
-		return;
-	}
-
-	// Squirrel.Mac install failures happen in ShipIt out-of-process and never
-	// reach the lib's `error` event, so route both the lib's internal logger
-	// and our own handler narration through electron-log. Both halves of the
-	// state machine end up interleaved in ~/Library/Logs/Odin/main.log —
-	// always use `log.{info,warn,error}` here, not `console.*`.
-	log.transports.file.level = "info";
-	autoUpdater.logger = log;
-
-	autoUpdater.autoDownload = true;
-	autoUpdater.autoInstallOnAppQuit = true;
-	autoUpdater.disableDifferentialDownload = true;
-
-	// Allow downgrade for prerelease builds so users can switch back to stable
-	autoUpdater.allowDowngrade = IS_PRERELEASE;
-
-	// Use generic provider with explicit feed URL so electron-updater can request
-	// the correct manifest for the current platform from GitHub release assets.
-	autoUpdater.setFeedURL({
-		provider: "generic",
-		url: UPDATE_FEED_URL,
-	});
-
-	log.info(
-		`[auto-updater] Initialized: version=${app.getVersion()}, channel=${IS_PRERELEASE ? "canary" : "stable"}, feedURL=${UPDATE_FEED_URL}`,
-	);
-
-	autoUpdater.on("error", (error) => {
-		// Allow retry if Squirrel surfaces an error instead of actually quitting.
-		isInstalling = false;
-		if (isNetworkError(error)) {
-			log.info("[auto-updater] Network unavailable, will retry later");
+		log.info(
+			`[auto-updater] Update available: ${app.getVersion()} → ${latest}`,
+		);
+		const { response } = await dialog.showMessageBox({
+			type: "info",
+			title: "Update Available",
+			message: `Odin ${latest} is available.`,
+			detail: `You're on ${app.getVersion()}. Downloading is about 280 MB.`,
+			buttons: ["Download", "Later"],
+			defaultId: 0,
+			cancelId: 1,
+		});
+		if (response !== 0) {
 			emitStatus(AUTO_UPDATE_STATUS.IDLE);
 			return;
 		}
-		log.error(
-			`[auto-updater] Error during update (currentVersion=${app.getVersion()}):`,
-			error?.message || error,
-		);
-		void clearCachedUpdate(`error: ${error?.message ?? "unknown"}`);
-		emitStatus(AUTO_UPDATE_STATUS.ERROR, undefined, error.message);
-	});
 
-	autoUpdater.on("checking-for-update", () => {
-		log.info(
-			`[auto-updater] Checking for updates... (currentVersion=${app.getVersion()}, feedURL=${UPDATE_FEED_URL})`,
-		);
-		emitStatus(AUTO_UPDATE_STATUS.CHECKING);
-	});
-
-	autoUpdater.on("update-available", (info) => {
-		log.info(
-			`[auto-updater] Update available: ${app.getVersion()} → ${info.version} (files: ${info.files?.map((f: { url: string }) => f.url).join(", ")})`,
-		);
-		emitStatus(AUTO_UPDATE_STATUS.DOWNLOADING, info.version);
-	});
-
-	autoUpdater.on("update-not-available", (info) => {
-		log.info(
-			`[auto-updater] No updates available (currentVersion=${app.getVersion()}, latestVersion=${info.version})`,
-		);
-		emitStatus(AUTO_UPDATE_STATUS.IDLE);
-	});
-
-	// Throttle renderer notifications; electron-updater emits per chunk.
-	const PROGRESS_EMIT_INTERVAL_MS = 500;
-	let lastProgressEmitAt = 0;
-	autoUpdater.on("download-progress", (progress) => {
-		log.info(
-			`[auto-updater] Download progress: ${progress.percent.toFixed(1)}% (${(progress.transferred / 1024 / 1024).toFixed(1)}MB / ${(progress.total / 1024 / 1024).toFixed(1)}MB)`,
-		);
-		const now = Date.now();
-		if (now - lastProgressEmitAt < PROGRESS_EMIT_INTERVAL_MS) return;
-		lastProgressEmitAt = now;
-		emitStatus(AUTO_UPDATE_STATUS.DOWNLOADING, currentVersion, undefined, {
-			percent: progress.percent,
-			transferredBytes: progress.transferred,
-			totalBytes: progress.total,
-		});
-	});
-
-	autoUpdater.on("update-downloaded", (info) => {
-		log.info(
-			`[auto-updater] Update downloaded: ${app.getVersion()} → ${info.version}. Ready to install.`,
-		);
-		emitStatus(AUTO_UPDATE_STATUS.READY, info.version);
-	});
-
-	// If the version changed since the last launch, an update was just
-	// installed — surface a transient confirmation before the first check.
-	const lastRunVersion = appState.data.lastRunVersion;
-	const currentAppVersion = app.getVersion();
-	const justUpdated = !!lastRunVersion && lastRunVersion !== currentAppVersion;
-	if (justUpdated) {
-		log.info(
-			`[auto-updater] Updated: ${lastRunVersion} → ${currentAppVersion}`,
-		);
-		emitStatus(AUTO_UPDATE_STATUS.UPDATED, currentAppVersion);
+		emitStatus(AUTO_UPDATE_STATUS.DOWNLOADING, latest);
+		staged = { version: latest, ...(await downloadAndMount(latest)) };
+		emitStatus(AUTO_UPDATE_STATUS.READY, latest);
+		await offerRestart(latest);
+	} catch (error) {
+		if (isNetworkError(error)) {
+			log.info("[auto-updater] Network unavailable, will retry later");
+			emitStatus(AUTO_UPDATE_STATUS.IDLE);
+			if (userAsked) {
+				await dialog.showMessageBox({
+					type: "info",
+					title: "No Internet Connection",
+					message: "Unable to check for updates.",
+				});
+			}
+			return;
+		}
+		log.error("[auto-updater] Update failed:", error);
+		emitStatus(AUTO_UPDATE_STATUS.ERROR, undefined, errorMessage(error));
+		if (userAsked) {
+			await dialog.showMessageBox({
+				type: "error",
+				title: "Update Error",
+				message: "The update failed.",
+				detail: errorMessage(error),
+			});
+		}
+	} finally {
+		isChecking = false;
 	}
-	if (lastRunVersion !== currentAppVersion) {
-		appState.data.lastRunVersion = currentAppVersion;
-		appState.write().catch((error) => {
-			log.error("[auto-updater] Failed to persist lastRunVersion:", error);
-		});
-	}
+}
 
+async function offerRestart(version: string): Promise<void> {
+	const { response } = await dialog.showMessageBox({
+		type: "info",
+		title: "Update Ready",
+		message: `Odin ${version} is ready to install.`,
+		detail:
+			"Odin will quit, swap itself out and reopen. Open terminal sessions survive.",
+		buttons: ["Restart Now", "Later"],
+		defaultId: 0,
+		cancelId: 1,
+	});
+	if (response === 0) installUpdate();
+}
+
+export function checkForUpdates(): void {
+	void runCheck({ userAsked: false });
+}
+
+export function checkForUpdatesInteractive(): void {
+	void runCheck({ userAsked: true });
+}
+
+export function setupAutoUpdater(): void {
+	if (!canUpdate()) return;
+
+	log.transports.file.level = "info";
+	log.info(
+		`[auto-updater] Initialized: version=${app.getVersion()}, bundle=${appBundlePath()}`,
+	);
+
+	// ponytail: the background check prompts with a dialog because there is no
+	// update UI in the renderer — the trpc autoUpdate router streams the status
+	// events for one, if a pill ever wants them.
 	const interval = setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL_MS);
 	interval.unref();
-
-	// Delay the first check when just updated so the confirmation isn't
-	// immediately overwritten by CHECKING before the renderer sees it.
-	const firstCheckDelayMs = justUpdated ? 10_000 : 0;
-	const startChecks = () => {
-		setTimeout(checkForUpdates, firstCheckDelayMs);
-	};
-	if (app.isReady()) {
-		startChecks();
-	} else {
-		app
-			.whenReady()
-			.then(startChecks)
-			.catch((error) => {
-				log.error("[auto-updater] Failed to start update checks:", error);
-			});
-	}
+	app
+		.whenReady()
+		.then(() => checkForUpdates())
+		.catch((error) => {
+			log.error("[auto-updater] Failed to start update checks:", error);
+		});
 }

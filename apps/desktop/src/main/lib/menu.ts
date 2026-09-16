@@ -2,12 +2,7 @@ import { COMPANY } from "@odin/shared/constants";
 import { app, BrowserWindow, Menu, shell } from "electron";
 import { env } from "main/env.main";
 import { resetTerminalStateDev } from "main/lib/terminal/dev-reset";
-import {
-	checkForUpdatesInteractive,
-	simulateDownloading,
-	simulateError,
-	simulateUpdateReady,
-} from "./auto-updater";
+import { checkForUpdatesInteractive } from "./auto-updater";
 import { menuEmitter } from "./menu-events";
 import { confirmAndQuitCompletely } from "./quit-completely";
 
@@ -136,19 +131,6 @@ export function createApplicationMenu() {
 								console.error("[menu] Failed to reset terminal state:", error);
 							});
 					},
-				},
-				{ type: "separator" },
-				{
-					label: "Simulate Update Downloading",
-					click: () => simulateDownloading(),
-				},
-				{
-					label: "Simulate Update Ready",
-					click: () => simulateUpdateReady(),
-				},
-				{
-					label: "Simulate Update Error",
-					click: () => simulateError(),
 				},
 			],
 		});
