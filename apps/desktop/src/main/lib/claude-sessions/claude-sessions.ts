@@ -801,6 +801,23 @@ export async function workingRepoOf(
 }
 
 /**
+ * What a session was about, in one line.
+ *
+ * `cleanPrompt` keeps the whole Slack preamble on purpose — Session History
+ * searches it — but a one-line label has room for the ask and nothing else. So
+ * when Odin quoted the thread, the quote IS the title, and the framing above it
+ * ("This task comes from a Slack thread: <url>") is dropped.
+ */
+function titleFromPrompt(prompt: string): string {
+	const posted = prompt.split(/\n\s*What was posted there:\s*\n/)[1];
+	return oneLine(
+		(posted ?? prompt)
+			.replace(/^\s*This task comes from a Slack thread:.*$/gim, "")
+			.trim(),
+	).slice(0, 200);
+}
+
+/**
  * The opening ask of a session, for labelling it in a list.
  *
  * Only the head of the file is looked at: the first thing you typed is within
@@ -823,7 +840,7 @@ export function firstPrompt(jsonl: string, headBytes = 300_000): string | null {
 		const message = entry.message as { content?: unknown } | undefined;
 		const text = messageText(message?.content).trim();
 		if (!text || !isTypedByUser(entry, text)) continue;
-		return oneLine(cleanPrompt(text)).slice(0, 160) || null;
+		return titleFromPrompt(cleanPrompt(text)) || null;
 	}
 	return null;
 }

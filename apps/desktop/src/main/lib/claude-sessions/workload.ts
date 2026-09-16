@@ -306,7 +306,7 @@ export function computeWorkload(
 	sessions: SessionWork[],
 	{
 		now = Date.now(),
-		weeks = 10,
+		weeks = 12,
 		top = 8,
 	}: { now?: number; weeks?: number; top?: number } = {},
 ): Workload {
@@ -356,6 +356,14 @@ export function computeWorkload(
 	const yourMs = totalMs(merged);
 	const agentMs = all.reduce((sum, session) => sum + session.activeMs, 0);
 
+	const since = all.length
+		? Math.min(...all.map((session) => session.startedAt))
+		: null;
+	// Weeks before the transcript store begins aren't quiet weeks, they're weeks
+	// with no record — and a row of empty columns claiming otherwise was the
+	// chart's least honest part. Drop them; the note says where the record starts.
+	const firstRecorded = since === null ? null : weekStart(since);
+
 	return {
 		sessions: all.length,
 		agentHours: hours(agentMs),
@@ -363,6 +371,7 @@ export function computeWorkload(
 		leverage: yourMs > 0 ? Math.round((agentMs / yourMs) * 10) / 10 : null,
 		weeks: [...buckets]
 			.sort((a, b) => a[0] - b[0])
+			.filter(([start]) => firstRecorded === null || start >= firstRecorded)
 			.map(([start, bucket]) => ({
 				start,
 				agentHours: hours(bucket.agentMs),
@@ -401,8 +410,6 @@ export function computeWorkload(
 		byHour,
 		busiestDay: busiest ? { at: busiest[0], hours: hours(busiest[1]) } : null,
 		attributed: all.filter((session) => session.person).length,
-		since: all.length
-			? Math.min(...all.map((session) => session.startedAt))
-			: null,
+		since,
 	};
 }
