@@ -351,6 +351,13 @@
       "when": 1789375383922,
       "tag": "0049_groovy_cerise",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "6",
+      "when": 1789545376777,
+      "tag": "0050_nostalgic_loki",
+      "breakpoints": true
     }
   ]
 }

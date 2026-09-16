@@ -900,6 +900,30 @@ export const createSettingsRouter = () => {
 				return { success: true };
 			}),
 
+		/**
+		 * Odin fork: rename board cards from the brief the model already writes
+		 * for every session. Off by default — a card you named yourself should
+		 * stay named that unless you ask for this.
+		 */
+		getOdinAutoRenameSessions: publicProcedure.query(() => {
+			return getSettings().odinAutoRenameSessions ?? false;
+		}),
+
+		setOdinAutoRenameSessions: publicProcedure
+			.input(z.object({ enabled: z.boolean() }))
+			.mutation(({ input }) => {
+				localDb
+					.insert(settings)
+					.values({ id: 1, odinAutoRenameSessions: input.enabled })
+					.onConflictDoUpdate({
+						target: settings.id,
+						set: { odinAutoRenameSessions: input.enabled },
+					})
+					.run();
+
+				return { success: true };
+			}),
+
 		getWorktreeBaseDir: publicProcedure.query(() => {
 			const row = getSettings();
 			return row.worktreeBaseDir ?? null;

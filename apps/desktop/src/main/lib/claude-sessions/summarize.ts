@@ -26,6 +26,8 @@ import {
  */
 
 export interface WrittenBrief {
+	/** A card-sized name for the session — what it's about, not its first line. */
+	title: string | null;
 	goal: string | null;
 	status: string | null;
 	next: string | null;
@@ -45,6 +47,9 @@ export { TAG_VOCABULARY };
 
 /** Enough to place a card, few enough to read at a glance on one. */
 const MAX_TAGS = 2;
+
+/** A card is one line wide — a longer title is just truncated on screen. */
+const TITLE_CAP = 60;
 
 /** Longest single turn we feed the model. Enough for a report, not a diff. */
 const TURN_CAP = 1200;
@@ -84,7 +89,8 @@ export function digest({
 
 const INSTRUCTIONS = `You are briefing an engineer who is about to open an in-progress agent session and needs to understand it in ten seconds.
 
-Reply with EXACTLY four lines and nothing else. No markdown, no code fences, no preamble:
+Reply with EXACTLY five lines and nothing else. No markdown, no code fences, no preamble:
+TITLE: <under 60 characters — a name for this session, as a human would title the task. No trailing period.>
 GOAL: <one sentence — what this session is trying to achieve>
 STATUS: <one or two sentences — what has actually been done, and where it stands right now>
 NEXT: <one sentence addressed to the engineer, starting with a verb — the one thing HE has to do now (answer the prompt on screen, review a diff, decide X, merge the PR). If nothing is needed from him, say "Nothing —" and why.>
@@ -102,6 +108,14 @@ export function parseBrief(text: string): WrittenBrief {
 		text
 			.match(new RegExp(`^\\s*\\**${label}\\**\\s*:\\s*(.+)$`, "im"))?.[1]
 			?.trim() ?? null;
+	// Models like to wrap a title in quotes and end it with a full stop; a card
+	// is one line wide, so what's left is cut to fit rather than by CSS.
+	const title =
+		(field("TITLE") ?? "")
+			.replace(/^["']|["'.]+$/g, "")
+			.trim()
+			.slice(0, TITLE_CAP)
+			.trim() || null;
 	const goal = field("GOAL");
 	const status = field("STATUS");
 	const next = field("NEXT");
@@ -117,11 +131,15 @@ export function parseBrief(text: string): WrittenBrief {
 		),
 	].slice(0, MAX_TAGS);
 	return {
+		title,
 		goal,
 		status,
 		next,
 		tags,
-		raw: goal || status || next ? null : text.trim().slice(0, 600) || null,
+		raw:
+			title || goal || status || next
+				? null
+				: text.trim().slice(0, 600) || null,
 	};
 }
 
@@ -282,7 +300,12 @@ export async function writeBrief({
  * ponytail: serial, not parallel. Ten cards would otherwise fork ten `claude`
  * processes at once, and there's nobody waiting on any of them.
  */
-const queue: string[] = [];
+type WarmOptions = Omit<Parameters<typeof writeBrief>[0], "sessionId">;
+
+// Each entry carries the options it was queued with: the queue is global, so a
+// session pushed while another caller's drain is in flight would otherwise be
+// written with that caller's paths and binary.
+const queue: { sessionId: string; options: WarmOptions }[] = [];
 // Queued OR currently running. `queue` alone can't answer that: pump() shifts an
 // id off before writeBrief has registered it as in-flight, and the board re-fires
 // into exactly that gap.
@@ -291,37 +314,42 @@ let pumping = false;
 
 export async function warmBriefs(
 	sessionIds: string[],
-	options: Omit<Parameters<typeof writeBrief>[0], "sessionId"> = {},
-): Promise<{ queued: number; tags: Record<string, string[]> }> {
+	options: WarmOptions = {},
+): Promise<{
+	queued: number;
+	tags: Record<string, string[]>;
+	titles: Record<string, string>;
+}> {
 	let queued = 0;
 	for (const id of sessionIds) {
 		if (!id || warming.has(id)) continue;
 		warming.add(id);
-		queue.push(id);
+		queue.push({ sessionId: id, options });
 		queued++;
 	}
-	void pump(options);
-	// The tags of whatever is already written. The board asks on a timer, so a
-	// session queued by this call reports its tags on a later one — which beats
-	// a second channel just to push three words back to a card.
+	void pump();
+	// The tags and titles of whatever is already written. The board asks on a
+	// timer, so a session queued by this call reports its own on a later one —
+	// which beats a second channel just to push three words back to a card.
 	const cache = await load(options.cachePath ?? defaultCachePath());
 	const tags: Record<string, string[]> = {};
+	const titles: Record<string, string> = {};
 	for (const id of sessionIds) {
 		const brief = cache.get(id)?.brief;
 		if (brief?.tags?.length) tags[id] = brief.tags;
+		if (brief?.title) titles[id] = brief.title;
 	}
-	return { queued, tags };
+	return { queued, tags, titles };
 }
 
-async function pump(
-	options: Omit<Parameters<typeof writeBrief>[0], "sessionId">,
-): Promise<void> {
+async function pump(): Promise<void> {
 	if (pumping) return;
 	pumping = true;
 	try {
 		while (queue.length > 0) {
-			const sessionId = queue.shift();
-			if (!sessionId) continue;
+			const next = queue.shift();
+			if (!next) continue;
+			const { sessionId, options } = next;
 			try {
 				// A cache hit costs one stat, so re-warming a quiet session is free.
 				await writeBrief({ ...options, sessionId });
