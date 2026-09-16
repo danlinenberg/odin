@@ -19,6 +19,13 @@ export interface PtyDaemonManifest {
 	protocolVersions: number[];
 	startedAt: number;
 	organizationId: string;
+	/**
+	 * Content hash of the pty-daemon bundle this process was spawned from.
+	 * Dev-only use: lets the supervisor tell "the daemon is running stale
+	 * code" from "the daemon is running exactly this code", so a host-service
+	 * restart doesn't kill live PTYs for nothing. Absent = unknown = stale.
+	 */
+	scriptHash?: string;
 	// ----- Phase 2 (daemon-binary upgrade fd-handoff) -----
 	// All present only during the brief handoff window. Older host-service
 	// builds that don't know these fields ignore them harmlessly.
@@ -83,6 +90,9 @@ export function readPtyDaemonManifest(
 			startedAt: data.startedAt,
 			organizationId: data.organizationId,
 		};
+		if (typeof data.scriptHash === "string") {
+			out.scriptHash = data.scriptHash;
+		}
 		if (typeof data.handoffInProgress === "boolean") {
 			out.handoffInProgress = data.handoffInProgress;
 		}

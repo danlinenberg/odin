@@ -123,6 +123,38 @@ export function shouldKillStaleDaemonForDev(
 }
 
 /**
+ * Content hash of the pty-daemon bundle, or null if it can't be read.
+ * Content, not mtime: the dev watcher rewrites `dist/main/pty-daemon.js` on
+ * every host-service rebuild, so mtime changes constantly while the daemon's
+ * code doesn't. The bundle is ~40 KB — hashing it is cheaper than killing a
+ * PTY someone is working in.
+ */
+export function daemonScriptHash(scriptPath: string): string | null {
+	try {
+		return createHash("sha256")
+			.update(fs.readFileSync(scriptPath))
+			.digest("hex")
+			.slice(0, 16);
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Dev-only: is the running daemon already on the bundle we'd spawn?
+ * Unknown hash on either side (older manifest, unreadable bundle) counts as
+ * stale, so the conservative kill-and-respawn stays the default.
+ */
+export function isDaemonRunningCurrentScript(
+	manifest: Pick<PtyDaemonManifest, "scriptHash">,
+	scriptPath: string,
+): boolean {
+	if (!manifest.scriptHash) return false;
+	const current = daemonScriptHash(scriptPath);
+	return current !== null && current === manifest.scriptHash;
+}
+
+/**
  * Per-instance socket path. **Must stay short** — Darwin's `sun_path`
  * is 104 bytes, and `$ODIN_HOME_DIR/host/{orgId}/pty-daemon.sock` blows
  * past that in dev (worktree-relative ODIN_HOME_DIR + 36-char UUID), so
@@ -771,6 +803,16 @@ export class DaemonSupervisor {
 			removePtyDaemonManifest(organizationId);
 			return;
 		}
+		// A host-service rebuild is not a pty-daemon rebuild. Killing the
+		// daemon on every `bun dev` rebuild took every live PTY with it —
+		// agent sessions in other panes died mid-work and their panes closed.
+		// Only kill when the daemon is actually running older bundle code.
+		if (isDaemonRunningCurrentScript(manifest, this.opts.scriptPath)) {
+			console.log(
+				`[pty-daemon:${organizationId}] DEV: keeping daemon pid=${manifest.pid} — already running the current bundle`,
+			);
+			return;
+		}
 		console.log(
 			`[pty-daemon:${organizationId}] DEV: killing leftover daemon pid=${manifest.pid} (started ${Math.round((Date.now() - manifest.startedAt) / 1000)}s ago) so the next bootstrap picks up fresh bundle code`,
 		);
@@ -1137,12 +1179,14 @@ export class DaemonSupervisor {
 		});
 
 		const startedAt = Date.now();
+		const scriptHash = daemonScriptHash(this.opts.scriptPath);
 		const manifest: PtyDaemonManifest = {
 			pid: childPid,
 			socketPath,
 			protocolVersions: [CURRENT_PROTOCOL_VERSION],
 			startedAt,
 			organizationId,
+			...(scriptHash ? { scriptHash } : {}),
 		};
 		writePtyDaemonManifest(manifest);
 

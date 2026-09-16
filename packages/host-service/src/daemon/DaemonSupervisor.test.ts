@@ -23,6 +23,8 @@ import {
 } from "@odin/pty-daemon/protocol";
 import {
 	DaemonSupervisor,
+	daemonScriptHash,
+	isDaemonRunningCurrentScript,
 	probeDaemonVersion,
 	ptyDaemonSocketPath,
 	shouldKillStaleDaemonForDev,
@@ -224,6 +226,49 @@ describe("shouldKillStaleDaemonForDev", () => {
 				NODE_ENV: "development",
 				ODIN_PTY_DAEMON_ADOPT_IN_DEV: "1",
 			}),
+		).toBe(false);
+	});
+});
+
+describe("isDaemonRunningCurrentScript", () => {
+	let dir: string;
+	let scriptPath: string;
+
+	beforeEach(() => {
+		dir = fs.mkdtempSync(path.join(os.tmpdir(), "daemon-script-hash-"));
+		scriptPath = path.join(dir, "pty-daemon.js");
+		fs.writeFileSync(scriptPath, "console.log('v1')");
+	});
+
+	afterEach(() => {
+		fs.rmSync(dir, { recursive: true, force: true });
+	});
+
+	test("keeps the daemon when the bundle is byte-identical", () => {
+		const scriptHash = daemonScriptHash(scriptPath) ?? undefined;
+		expect(scriptHash).toBeDefined();
+		// A rebuild that rewrites the file without changing it (the common
+		// case: someone edited host-service, not the daemon) must not count
+		// as stale — killing here takes live PTYs with it.
+		fs.writeFileSync(scriptPath, "console.log('v1')");
+		expect(isDaemonRunningCurrentScript({ scriptHash }, scriptPath)).toBe(true);
+	});
+
+	test("kills the daemon when the bundle actually changed", () => {
+		const scriptHash = daemonScriptHash(scriptPath) ?? undefined;
+		fs.writeFileSync(scriptPath, "console.log('v2')");
+		expect(isDaemonRunningCurrentScript({ scriptHash }, scriptPath)).toBe(
+			false,
+		);
+	});
+
+	test("treats an unknown hash as stale", () => {
+		expect(isDaemonRunningCurrentScript({}, scriptPath)).toBe(false);
+		expect(
+			isDaemonRunningCurrentScript(
+				{ scriptHash: "abc" },
+				path.join(dir, "missing.js"),
+			),
 		).toBe(false);
 	});
 });
