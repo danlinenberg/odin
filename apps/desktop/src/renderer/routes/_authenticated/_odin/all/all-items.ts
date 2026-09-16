@@ -147,7 +147,7 @@ export function allItems(input: {
 					person: row.authorName,
 					status: null,
 					priority: null,
-					context: row.channelName && `#${row.channelName}`,
+					context: row.channelName,
 					at: ms(row.postedAt),
 					launch: {
 						key: row.id,

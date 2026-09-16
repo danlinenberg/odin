@@ -222,3 +222,18 @@ export function reactionStatus(row: {
 	if (row.startedAt !== null) return "In progress";
 	return "Not started";
 }
+
+/**
+ * The stored channel name as something worth reading. Group DMs come back from
+ * Slack under their internal name — `mpdm-dan.l--netanel--shahar-1` — which is
+ * not a channel and should not wear a `#`.
+ *
+ * ponytail: the member list keeps you in it, because the label is built where
+ * the identity isn't known. Drop self here if it ever reads as noise.
+ */
+export function channelLabel(name: string | null): string | null {
+	if (!name) return null;
+	const mpdm = /^mpdm-(.+?)-\d+$/.exec(name);
+	if (mpdm) return mpdm[1].split("--").join(", ");
+	return `#${name}`;
+}
