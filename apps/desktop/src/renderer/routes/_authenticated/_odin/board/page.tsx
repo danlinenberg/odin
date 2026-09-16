@@ -182,6 +182,14 @@ function HistoryView({ card, live }: { card: BoardCard; live: boolean }) {
 	);
 }
 
+/** The conversation behind a card, for the pills that read it. */
+function useCardSessionId(card: BoardCard): string | null {
+	const mirrored = usePaneMeta((s) => s.sessionIdByPane[card.pane.id]);
+	// ponytail: no findClaudeSession fallback — that's an extra query per card to
+	// serve only pre-claudeSessionId panes. They get no pill; open the card.
+	return card.pane.claudeSessionId ?? mirrored ?? null;
+}
+
 /**
  * "This one shipped a PR" — the fact you scan the board for, on the card
  * instead of behind a click. Read from the same transcript the drawer reads, so
@@ -189,10 +197,7 @@ function HistoryView({ card, live }: { card: BoardCard; live: boolean }) {
  * the rest.
  */
 function useCardTranscript(card: BoardCard, live: boolean) {
-	const mirrored = usePaneMeta((s) => s.sessionIdByPane[card.pane.id]);
-	// ponytail: no findClaudeSession fallback — that's an extra query per card to
-	// serve only pre-claudeSessionId panes. They get no pill; open the card.
-	const sessionId = card.pane.claudeSessionId ?? mirrored ?? null;
+	const sessionId = useCardSessionId(card);
 	return electronTrpc.terminal.readClaudeTranscript.useQuery(
 		{ sessionId: sessionId ?? "" },
 		{
@@ -226,6 +231,33 @@ function PrPill({ card, live }: { card: BoardCard; live: boolean }) {
 			PR #{pr.number}
 			{prs.length > 1 ? ` +${prs.length - 1}` : ""}
 		</button>
+	);
+}
+
+/**
+ * Which repo this card's work landed in.
+ *
+ * The pane only records where it was launched, and every feed-started session
+ * launches in the same catch-all directory — so the old label read `dev` on
+ * card after card. The transcript records where the agent actually went, and
+ * a worktree resolves to the repo that owns it rather than its branch name.
+ * Falls back to the launch directory while the transcript is still loading, or
+ * for a pane too old to carry a conversation id.
+ */
+function RepoPill({ card }: { card: BoardCard }) {
+	const sessionId = useCardSessionId(card);
+	const { data } = electronTrpc.repos.workingRepoName.useQuery(
+		{ claudeSessionId: sessionId ?? "" },
+		{ enabled: !!sessionId, retry: false, staleTime: 60_000 },
+	);
+	return (
+		<span
+			title={data?.checkout ?? sessionCwd(card.pane) ?? card.repoPath}
+			className="inline-flex items-center gap-1 rounded-[5px] bg-[#1b2430] px-[7px] text-[11px] font-medium text-[#7ec4ff]"
+		>
+			<LuFolderGit2 className="size-3 shrink-0" aria-hidden />
+			{data?.name ?? repoLabel(card)}
+		</span>
 	);
 }
 
@@ -1409,22 +1441,10 @@ function DevBoardPage() {
 																		card={card}
 																		live={card.status === "working"}
 																	/>
-																	{/* Which checkout this ran in — every card has one,
+																	{/* Which repo this ran in — every card has one,
 																	    and "same task, wrong repo" is the thing you
 																	    catch by scanning the board. */}
-																	<span
-																		title={
-																			sessionCwd(card.pane) ||
-																			card.repoPath
-																		}
-																		className="inline-flex items-center gap-1 rounded-[5px] bg-[#1b2430] px-[7px] text-[11px] font-medium text-[#7ec4ff]"
-																	>
-																		<LuFolderGit2
-																			className="size-3 shrink-0"
-																			aria-hidden
-																		/>
-																		{repoLabel(card)}
-																	</span>
+																	<RepoPill card={card} />
 																	<AgePill
 																		card={card}
 																		live={card.status === "working"}

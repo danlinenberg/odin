@@ -1,7 +1,7 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 
 /**
  * Search over Claude Code's own conversation transcripts.
@@ -653,6 +653,40 @@ function repoRootOf(dir: string): string | null {
 }
 
 /**
+ * The repo a checkout belongs to — itself for a clone, the owning clone for a
+ * worktree. A worktree's `.git` is a file pointing at
+ * `<repo>/.git/worktrees/<name>`, so its owner is one read away.
+ *
+ * Both callers need this. The label needs it because a worktree is named after
+ * the branch it holds, and a card reading `review-6460` says nothing about
+ * where the work landed. The tally needs it because a session that splits its
+ * time between a repo and a worktree of that same repo is working in ONE repo,
+ * and counting them separately splits the vote — that is how a session with
+ * 259 entries in app-web-server came out labelled `dev`.
+ */
+function ownerRepoOf(checkout: string): string {
+	const dotGit = join(checkout, ".git");
+	try {
+		if (statSync(dotGit).isFile()) {
+			const gitdir = /^gitdir:\s*(.+?)\s*$/m.exec(
+				readFileSync(dotGit, "utf-8"),
+			)?.[1];
+			// Submodules point into `.git/modules/` instead and own themselves.
+			const owner = gitdir?.match(/^(.*)\/\.git\/worktrees\//)?.[1];
+			if (owner) return owner;
+		}
+	} catch {
+		// Unreadable .git — the checkout is its own best answer.
+	}
+	return checkout;
+}
+
+/** What to call a checkout on a card: the repo's name, never the worktree's. */
+export function repoNameOf(checkout: string): string {
+	return basename(ownerRepoOf(checkout));
+}
+
+/**
  * The checkout a session did its work in.
  *
  * Claude Code stamps a cwd on every transcript entry, and that cwd is the
@@ -662,9 +696,11 @@ function repoRootOf(dir: string): string | null {
  * most recent command in: a session whose work lives in one repo will report a
  * different repo entirely after a single unrelated lookup elsewhere.
  *
- * So resolve every cwd to its repo root and take the one the session spent the
- * most entries in. Ties go to the most recent, which keeps the answer stable
- * rather than dependent on Map ordering.
+ * So resolve every cwd to its checkout, tally those by the REPO that owns them,
+ * and return the busiest checkout inside the busiest repo. Tallying by repo is
+ * what makes a worktree count as its repo rather than as a rival to it; the
+ * winner is still a checkout, because the caller diffs it. Ties go to the most
+ * recent, which keeps the answer stable rather than dependent on Map ordering.
  *
  * ponytail: entry counts, not edited-file counts — the transcript records where
  * commands ran, and reading it is one file read. Weigh actual writes if a
@@ -677,8 +713,15 @@ export async function workingRepoOf(
 	const found = await transcriptOf(sessionId, root);
 	if (!found) return null;
 
-	const entriesPerRepo = new Map<string, { count: number; lastSeen: number }>();
-	const rootsByDir = new Map<string, string | null>();
+	interface Tally {
+		count: number;
+		lastSeen: number;
+	}
+	const busiest = (a: Tally, b: Tally) =>
+		a.count > b.count || (a.count === b.count && a.lastSeen > b.lastSeen);
+
+	const perCheckout = new Map<string, Tally>();
+	const checkoutOfDir = new Map<string, string | null>();
 	let index = 0;
 	for (const line of (await readFile(found.path, "utf-8")).split("\n")) {
 		index += 1;
@@ -690,27 +733,48 @@ export async function workingRepoOf(
 		}
 		if (typeof cwd !== "string" || !cwd) continue;
 
-		if (!rootsByDir.has(cwd)) rootsByDir.set(cwd, repoRootOf(cwd));
-		const repo = rootsByDir.get(cwd);
-		if (!repo) continue;
+		if (!checkoutOfDir.has(cwd)) checkoutOfDir.set(cwd, repoRootOf(cwd));
+		const checkout = checkoutOfDir.get(cwd);
+		if (!checkout) continue;
 
-		const tally = entriesPerRepo.get(repo);
+		const tally = perCheckout.get(checkout);
 		if (tally) {
 			tally.count += 1;
 			tally.lastSeen = index;
 		} else {
-			entriesPerRepo.set(repo, { count: 1, lastSeen: index });
+			perCheckout.set(checkout, { count: 1, lastSeen: index });
 		}
 	}
 
+	const perRepo = new Map<string, Tally>();
+	for (const [checkout, tally] of perCheckout) {
+		const repo = ownerRepoOf(checkout);
+		const running = perRepo.get(repo);
+		if (running) {
+			running.count += tally.count;
+			running.lastSeen = Math.max(running.lastSeen, tally.lastSeen);
+		} else {
+			perRepo.set(repo, { ...tally });
+		}
+	}
+
+	let winner: string | null = null;
+	let winnerTally: Tally = { count: 0, lastSeen: 0 };
+	for (const [repo, tally] of perRepo) {
+		if (busiest(tally, winnerTally)) {
+			winner = repo;
+			winnerTally = tally;
+		}
+	}
+	if (!winner) return null;
+
+	// The repo is decided; hand back the checkout inside it the session used
+	// most, since that is the tree with the changes in it.
 	let best: string | null = null;
-	let bestTally = { count: 0, lastSeen: 0 };
-	for (const [repo, tally] of entriesPerRepo) {
-		const wins =
-			tally.count > bestTally.count ||
-			(tally.count === bestTally.count && tally.lastSeen > bestTally.lastSeen);
-		if (wins) {
-			best = repo;
+	let bestTally: Tally = { count: 0, lastSeen: 0 };
+	for (const [checkout, tally] of perCheckout) {
+		if (ownerRepoOf(checkout) === winner && busiest(tally, bestTally)) {
+			best = checkout;
 			bestTally = tally;
 		}
 	}

@@ -200,6 +200,22 @@ export const createReposRouter = () => {
 				return { ok: true };
 			}),
 
+		/**
+		 * What a board card should call its repo. The pane only knows where it was
+		 * launched, which for every feed-started session is the catch-all directory
+		 * — so every card reads `dev` and the pill says nothing. The transcript
+		 * knows where the agent actually went.
+		 */
+		workingRepoName: publicProcedure
+			.input(z.object({ claudeSessionId: z.string() }))
+			.query(async ({ input }) => {
+				const { repoNameOf, workingRepoOf } = await import(
+					"main/lib/claude-sessions"
+				);
+				const checkout = await workingRepoOf(input.claudeSessionId);
+				return checkout ? { checkout, name: repoNameOf(checkout) } : null;
+			}),
+
 		diff: publicProcedure
 			.input(
 				z.object({
