@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import { PriorityChip, TaskBox } from "./TaskBox";
+import { PriorityChip, parseSize, TaskBox } from "./TaskBox";
 
 describe("TaskBox", () => {
 	it("shows the level the typed !s mean, so the picker can't lie", () => {
@@ -48,5 +48,18 @@ describe("PriorityChip", () => {
 			"Low",
 		);
 		expect(renderToStaticMarkup(<PriorityChip />)).toContain("Medium");
+	});
+});
+
+describe("parseSize", () => {
+	it("restores a size it wrote and ignores anything else", () => {
+		// What the close handler writes: the element's two inline styles.
+		expect(parseSize("760px,420px")).toEqual(["760px", "420px"]);
+		// Never resized (empty inline styles), never stored, or edited by hand —
+		// all of which must leave the dialog on its class defaults.
+		expect(parseSize(",")).toBeNull();
+		expect(parseSize(null)).toBeNull();
+		expect(parseSize("760px")).toBeNull();
+		expect(parseSize("100%,50vh")).toBeNull();
 	});
 });

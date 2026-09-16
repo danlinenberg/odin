@@ -1,6 +1,6 @@
 import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
 	PRIORITY_LABELS,
 	parseTask,
@@ -156,6 +156,16 @@ export function PriorityLabelChip({ label }: { label: string }) {
 	);
 }
 
+/** Where the dragged-out size lives between opens. */
+const SIZE_KEY = "odin.quick-add-size";
+
+/** A stored "620px,300px" back into the two inline styles, or null for the
+    class defaults — an unset, half-written or hand-edited entry is not a size. */
+export function parseSize(stored: string | null): [string, string] | null {
+	const [width = "", height = ""] = (stored ?? "").split(",");
+	return width.endsWith("px") && height.endsWith("px") ? [width, height] : null;
+}
+
 /**
  * Quick capture — the hotkey's box, over whatever you were looking at. The
  * task lands on My Tasks and you go back to what you were doing; walking to
@@ -164,6 +174,20 @@ export function PriorityLabelChip({ label }: { label: string }) {
 export function QuickAddTask({ onClose }: { onClose: () => void }) {
 	const { add } = useMyTasks();
 	const [draft, setDraft] = useState("");
+	const dialog = useRef<HTMLDivElement>(null);
+
+	// The size you last dragged it to. Chromium writes the drag straight into the
+	// element's inline style, so the element is the only source worth reading:
+	// restore it on open, write it back on close. ponytail: localStorage — a
+	// remembered box size isn't state worth a migration.
+	useEffect(() => {
+		const box = dialog.current;
+		if (!box) return;
+		const size = parseSize(localStorage.getItem(SIZE_KEY));
+		if (size) [box.style.width, box.style.height] = size;
+		return () =>
+			localStorage.setItem(SIZE_KEY, `${box.style.width},${box.style.height}`);
+	}, []);
 
 	const save = () => {
 		// Same rule the store uses — no title, no task, so don't claim one.
@@ -182,11 +206,11 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 				onClick={onClose}
 			/>
 			<div
+				ref={dialog}
 				role="dialog"
 				aria-modal="true"
 				aria-label="New task"
 				// ponytail: CSS `resize` — Chromium draws the corner grip for free.
-				// The size isn't remembered between opens; persist it if that itches.
 				className="fixed left-1/2 top-[12vh] z-50 flex h-[190px] max-h-[80vh] w-[520px] min-w-[320px] max-w-[92vw] -translate-x-1/2 resize flex-col overflow-hidden rounded-[10px] border border-[#2e2e38] bg-[#111114] p-3.5 shadow-[0_18px_60px_rgba(0,0,0,0.6)]"
 			>
 				<div className="mb-2 shrink-0 text-xs font-semibold text-[#f5f5f7]">
