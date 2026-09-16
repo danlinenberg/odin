@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { firstPrompt } from "./claude-sessions";
 import {
 	activeIntervals,
 	computeWorkload,
@@ -116,11 +117,28 @@ describe("computeWorkload", () => {
 		expect(out.leverage).toBe(2);
 	});
 
-	test("quiet weeks are kept, so a gap reads as a gap", () => {
-		const out = computeWorkload([session()], { now: MON, weeks: 3 });
-		expect(out.weeks).toHaveLength(3);
-		expect(out.weeks.map((week) => week.agentHours)).toEqual([0, 0, 1]);
+	test("a quiet week inside the record is kept, so a gap reads as a gap", () => {
+		const twoWeeksBack = MON - 14 * 86_400_000;
+		const out = computeWorkload(
+			[
+				session({
+					sessionId: "old",
+					intervals: [[twoWeeksBack, twoWeeksBack + HOUR]],
+				}),
+				session({ sessionId: "new" }),
+			],
+			{ now: MON, weeks: 6 },
+		);
+		expect(out.weeks.map((week) => week.agentHours)).toEqual([1, 0, 1]);
 		expect(out.weeks.at(-1)?.start).toBe(weekStart(MON));
+	});
+
+	test("weeks before the record starts are dropped, not drawn as zero", () => {
+		// Six weeks were asked for; only one has any transcript behind it, and
+		// five empty columns would read as five quiet weeks that never happened.
+		const out = computeWorkload([session()], { now: MON, weeks: 6 });
+		expect(out.weeks).toHaveLength(1);
+		expect(out.weeks[0]?.start).toBe(weekStart(MON));
 	});
 
 	test("the longest tasks come out first, with their own titles", () => {
@@ -191,5 +209,47 @@ describe("computeWorkload", () => {
 		expect(out.leverage).toBeNull();
 		expect(out.busiestDay).toBeNull();
 		expect(out.since).toBeNull();
+	});
+});
+
+describe("firstPrompt", () => {
+	const typed = (text: string) =>
+		JSON.stringify({
+			type: "user",
+			promptSource: "typed",
+			message: { content: text },
+		});
+
+	test("a Slack task is titled by the ask, not by Odin's framing", () => {
+		expect(
+			firstPrompt(
+				typed(
+					[
+						"Task: @Dan can you help? :pray:",
+						"",
+						"This task comes from a Slack thread: https://x.slack.com/archives/C1/p17",
+						"",
+						"What was posted there:",
+						"@Dan can you help? :pray:",
+						"Exports are being charged twice.",
+						"",
+						"PHASE 1 — INGEST (do this first, before anything else):",
+						"- Read the ENTIRE thread.",
+						"",
+						"Work in the current workspace. Investigate.",
+					].join("\n"),
+				),
+			),
+		).toBe("@Dan can you help? :pray: Exports are being charged twice.");
+	});
+
+	test("a plain prompt is its own title", () => {
+		expect(firstPrompt(typed("fix the board scanner"))).toBe(
+			"fix the board scanner",
+		);
+	});
+
+	test("a session with nothing typed has no title to give", () => {
+		expect(firstPrompt('{"type":"summary"}')).toBeNull();
 	});
 });
