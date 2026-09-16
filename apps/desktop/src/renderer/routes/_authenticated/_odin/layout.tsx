@@ -378,11 +378,6 @@ function OdinShell() {
 				<ZoomStable enabled={isMac}>
 					<span className="text-xs font-semibold text-[#f5f5f7]">
 						{workConfig?.isDev ? "Odin Dev" : "Odin"}
-						{workConfig?.isDev && (
-							<span className="ml-1.5 font-normal text-[#8a8a97]">
-								· hot reload
-							</span>
-						)}
 					</span>
 				</ZoomStable>
 				{/* Which set of accounts is live. Next to the app name because it
