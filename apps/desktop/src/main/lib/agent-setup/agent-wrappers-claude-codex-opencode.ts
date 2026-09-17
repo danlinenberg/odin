@@ -174,6 +174,7 @@ export function getClaudeGlobalSettingsJsonContent(
 			| "UserPromptSubmit"
 			| "Stop"
 			| "StopFailure"
+			| "PreToolUse"
 			| "PostToolUse"
 			| "PostToolUseFailure"
 			| "PermissionRequest";
@@ -218,6 +219,21 @@ export function getClaudeGlobalSettingsJsonContent(
 			eventName: "PermissionRequest",
 			definition: {
 				matcher: "*",
+				hooks: [{ type: "command", command: managedHookCommand }],
+			},
+		},
+		{
+			// The only two tools that block on you, and the only reason Needs you
+			// has anything in it: Odin launches Claude with
+			// --dangerously-skip-permissions, so PermissionRequest above never
+			// fires, and a turn that ends by asking a question in prose is a Stop
+			// like any other. Every card landed in Done and Needs you sat at zero.
+			//
+			// ponytail: a tool-name matcher, not a PreToolUse firehose. Anything
+			// else here would report "needs you" on every Bash call.
+			eventName: "PreToolUse",
+			definition: {
+				matcher: "AskUserQuestion|ExitPlanMode",
 				hooks: [{ type: "command", command: managedHookCommand }],
 			},
 		},

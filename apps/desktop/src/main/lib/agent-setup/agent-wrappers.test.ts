@@ -986,9 +986,11 @@ describe("agent-wrappers claude settings.json", () => {
 		const managedEvents = [
 			"UserPromptSubmit",
 			"Stop",
+			"StopFailure",
 			"PostToolUse",
 			"PostToolUseFailure",
 			"PermissionRequest",
+			"PreToolUse",
 		] as const;
 
 		for (const eventName of managedEvents) {
@@ -1004,6 +1006,16 @@ describe("agent-wrappers claude settings.json", () => {
 		expect(parsed.hooks.PostToolUse.some((def) => def.matcher === "*")).toBe(
 			true,
 		);
+		// Needs you lives or dies on this one. Odin launches Claude with
+		// --dangerously-skip-permissions, so PermissionRequest above never fires;
+		// a PreToolUse scoped to the two tools that block on you is what actually
+		// reports "this session is waiting". The matcher is the whole point — a
+		// "*" here would call every Bash call a question.
+		expect(
+			parsed.hooks.PreToolUse.some(
+				(def) => def.matcher === "AskUserQuestion|ExitPlanMode",
+			),
+		).toBe(true);
 	});
 
 	it("preserves user hooks and non-hook settings when merging", () => {
