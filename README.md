@@ -49,13 +49,14 @@ Downloading this way is what makes the app open with nothing to undo afterwards.
 Or through Homebrew, if you want brew to own the uninstall:
 
 ```sh
-brew trust --tap danlinenberg/odin && brew tap danlinenberg/odin https://github.com/danlinenberg/odin && brew install --cask odin
+brew trust --tap danlinenberg/odin && brew tap danlinenberg/odin && brew install --cask odin
 ```
 
-Three commands rather than one: Homebrew 7 makes `brew trust` mandatory for a
-tap that isn't official, and the tap needs naming explicitly because the cask
-lives in this repo rather than a `homebrew-odin` one. No `xattr` either way —
-the cask clears the flag itself.
+Three commands rather than one, and it stays three: Homebrew 7 makes `brew
+trust` mandatory for a tap that isn't official, and it will not tap one
+implicitly either — naming an untapped cask errors out and tells you to tap it
+first. No `xattr` on this route though; the cask clears the flag itself. The tap
+is [danlinenberg/homebrew-odin](https://github.com/danlinenberg/homebrew-odin).
 
 Downloading the DMG in a browser is the one route that still needs it done by
 hand, because a browser sets the flag and nothing downstream clears it:

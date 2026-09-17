@@ -1,5 +1,6 @@
 # Builds the macOS app and publishes it to a GitHub Release, which is where the
-# README's download link, the app's own updater and Casks/odin.rb all fetch from.
+# README's download link, the app's own updater and the Homebrew cask in
+# danlinenberg/homebrew-odin all fetch from.
 # All three resolve /releases/latest/download/Odin-arm64.dmg, so the asset name
 # below has to stay exactly that.
 #
