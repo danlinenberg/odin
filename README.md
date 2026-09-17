@@ -58,9 +58,19 @@ implicitly either — naming an untapped cask errors out and tells you to tap it
 first. No `xattr` on this route though; the cask clears the flag itself. The tap
 is [danlinenberg/homebrew-odin](https://github.com/danlinenberg/homebrew-odin).
 
-Downloading the DMG in a browser is the one route that still needs it done by
-hand, because a browser sets the flag and nothing downstream clears it:
-`xattr -dr com.apple.quarantine /Applications/Odin.app`.
+Downloading the DMG in a browser is the one route where the flag is set and
+nothing downstream clears it. That does not mean the terminal — macOS will open
+it anyway if you ask twice. Double-click and let it be refused, then go to
+**System Settings → Privacy & Security**, scroll to **Security**, and the line
+*"Odin" was blocked to protect your Mac* has an **Open Anyway** button. Approve
+it, open the app again, confirm. The entry is transient, so do it while the
+refusal is fresh rather than the next day.
+
+Odin is signed, just not by an Apple Developer ID — the signature is valid and
+satisfies its designated requirement, which is why macOS offers the override at
+all rather than calling the app damaged. If you have a terminal open anyway,
+`xattr -dr com.apple.quarantine /Applications/Odin.app` is the same thing in one
+line.
 
 ### Upgrade
 
