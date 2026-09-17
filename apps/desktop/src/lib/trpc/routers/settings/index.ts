@@ -32,6 +32,7 @@ import {
 	resolveAgentConfigs,
 	upsertCustomAgentDefinition,
 } from "@odin/shared/agent-settings";
+import { ODIN_AUTO_RENAME_SESSIONS_DEFAULT } from "@odin/shared/constants";
 import { TRPCError } from "@trpc/server";
 import { app } from "electron";
 import { exitImmediately } from "main/index";
@@ -906,7 +907,10 @@ export const createSettingsRouter = () => {
 		 * left alone, so the rename only ever replaces the first line you typed.
 		 */
 		getOdinAutoRenameSessions: publicProcedure.query(() => {
-			return getSettings().odinAutoRenameSessions ?? true;
+			return (
+				getSettings().odinAutoRenameSessions ??
+				ODIN_AUTO_RENAME_SESSIONS_DEFAULT
+			);
 		}),
 
 		setOdinAutoRenameSessions: publicProcedure
