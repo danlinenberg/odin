@@ -22,14 +22,12 @@ cd "$root"
 git fetch --quiet origin main
 git worktree add --quiet -b "$branch" "$wt" origin/main
 
-# Symlink the installed deps in. A fresh worktree has no node_modules, so
-# `bun test` fails to resolve the workspace aliases (@odin/shared/*) and tsc
-# reports a wall of bogus errors. Discovered rather than listed, so a new
-# package doesn't silently go missing.
-while read -r d; do
-	[ -e "$wt/$d/node_modules" ] || ln -s "$root/$d/node_modules" "$wt/$d/node_modules"
-done < <(git -C "$root" rev-parse --show-toplevel >/dev/null && \
-	find "$root" -maxdepth 3 -name node_modules -type d -not -path "$root/.worktrees/*" \
-	-exec dirname {} \; | sed "s|^$root/\{0,1\}||;s|^$|.|")
+# Install for real rather than symlinking the main checkout's node_modules in.
+# The workspace links under apps/desktop/node_modules/@odin are relative
+# (../../../../packages/shared), so a symlinked node_modules resolves them from
+# its physical home — the main checkout. Edits to packages/* in the worktree
+# then build against the wrong copy, silently when the exports happen to line
+# up. ~20s with a warm cache buys correctness.
+(cd "$wt" && bun install --frozen-lockfile >/dev/null)
 
 echo "$wt"

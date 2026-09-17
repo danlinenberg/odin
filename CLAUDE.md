@@ -9,9 +9,9 @@ editing the same checkout right now.
 scripts/session-worktree.sh <name>          # -> .worktrees/<name>
 ```
 
-It cuts a fresh branch from `origin/main` and symlinks the installed
-`node_modules` in, so `bun test`, `tsc` and `biome` run there without an
-install. Work only inside it. Once the PR is merged:
+It cuts a fresh branch from `origin/main` and runs `bun install` there (~20s
+warm), so `bun test`, `tsc` and `biome` work immediately. Work only inside it.
+Once the PR is merged:
 
 ```sh
 git worktree remove .worktrees/<name>
