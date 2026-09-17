@@ -12,6 +12,11 @@ import type { PaneStatus } from "shared/tabs-types";
  * the hover and kill it. globals.css points @source at every ts/tsx under
  * renderer/, so the classes are generated from this file.
  *
+ * Fills are a hint of hue over the column's own #111114, not a coloured block:
+ * the border and dot carry the status, so a full-strength fill only made Done
+ * and Needs you shout across the board. Every fill sits within a few points of
+ * Idle's, which was already the quiet one.
+ *
  * ponytail: a hex and two classes per status, not a theme. Statuses are the
  * only thing on these pages with a shared palette; promote it when a third
  * page needs one.
@@ -19,9 +24,9 @@ import type { PaneStatus } from "shared/tabs-types";
 export const PANE_STATUS: Record<PaneStatus, { dot: string; tint: string }> = {
 	// Blue is "in flight" — green is reserved for the finished state, because
 	// green-as-running made a board of working cards read as a board of done.
-	working: { dot: "#5aa9ff", tint: "border-[#26476b] bg-[#111a24]" },
-	permission: { dot: "#f5b83d", tint: "border-[#6b5620] bg-[#221d12]" },
-	review: { dot: "#3ecf8e", tint: "border-[#265c41] bg-[#112419]" },
+	working: { dot: "#5aa9ff", tint: "border-[#26476b] bg-[#11151b]" },
+	permission: { dot: "#f5b83d", tint: "border-[#6b5620] bg-[#191613]" },
+	review: { dot: "#3ecf8e", tint: "border-[#265c41] bg-[#111916]" },
 	// Idle takes a dimmer red than failed: same "nothing is running" family,
 	// but a failure sitting in the Needs you column should still read hotter
 	// than a session that's merely parked.
