@@ -53,7 +53,13 @@ import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePaneMeta } from "../hooks/usePaneMeta";
 import { usePendingFocus } from "../hooks/usePendingFocus";
 import { PANE_STATUS } from "../pane-status";
-import { elapsedLabel, lastMessageAt, pullRequests, sourceLink } from "./brief";
+import {
+	elapsedLabel,
+	lastMessageAt,
+	notionPages,
+	pullRequests,
+	sourceLink,
+} from "./brief";
 import { DiffView } from "./DiffView";
 import { SessionBrief } from "./SessionBrief";
 
@@ -251,6 +257,33 @@ function PrPill({ card, live }: { card: BoardCard; live: boolean }) {
 		>
 			PR #{pr.number}
 			{prs.length > 1 ? ` +${prs.length - 1}` : ""}
+		</button>
+	);
+}
+
+function NotionPill({ card, live }: { card: BoardCard; live: boolean }) {
+	const { data } = useCardTranscript(card, live);
+	const openUrl = electronTrpc.external.openUrl.useMutation();
+	const pages = data ? notionPages(data.messages) : [];
+	const page = pages[0];
+	if (!page) return null;
+	return (
+		<button
+			type="button"
+			title={
+				pages.length > 1
+					? `${pages.length} Notion pages — newest: ${page.url}`
+					: (page.title ?? page.url)
+			}
+			onClick={(event) => {
+				// The card itself opens the drawer; the pill opens Notion.
+				event.stopPropagation();
+				openUrl.mutate(page.url);
+			}}
+			className="rounded-[5px] bg-[#232329] px-[7px] text-[11px] font-medium text-[#d6d6dc] hover:bg-[#2c2c34]"
+		>
+			Notion
+			{pages.length > 1 ? ` +${pages.length - 1}` : ""}
 		</button>
 	);
 }
@@ -1589,6 +1622,10 @@ function DevBoardPage() {
 																		</span>
 																	))}
 																	<PrPill
+																		card={card}
+																		live={card.status === "working"}
+																	/>
+																	<NotionPill
 																		card={card}
 																		live={card.status === "working"}
 																	/>
