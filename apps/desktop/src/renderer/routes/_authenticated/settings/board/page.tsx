@@ -1,3 +1,4 @@
+import { ODIN_AUTO_RENAME_SESSIONS_DEFAULT } from "@odin/shared/constants";
 import { Label } from "@odin/ui/label";
 import { Switch } from "@odin/ui/switch";
 import { createFileRoute } from "@tanstack/react-router";
@@ -61,7 +62,7 @@ function BoardSettingsPage() {
 					</div>
 					<Switch
 						id="auto-rename-sessions"
-						checked={autoRename ?? false}
+						checked={autoRename ?? ODIN_AUTO_RENAME_SESSIONS_DEFAULT}
 						onCheckedChange={(enabled) => setAutoRename.mutate({ enabled })}
 						disabled={isLoading || setAutoRename.isPending}
 					/>

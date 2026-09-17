@@ -2,7 +2,6 @@
 export const AUTH_PROVIDERS = ["github", "google"] as const;
 export type AuthProvider = (typeof AUTH_PROVIDERS)[number];
 
-
 // Deep link protocol schemes (used for desktop OAuth callbacks)
 export const PROTOCOL_SCHEMES = {
 	DEV: "odin-dev",
@@ -15,6 +14,12 @@ export const COMPANY = {
 	GITHUB_URL: "https://github.com/danlinenberg/odin",
 	REPORT_ISSUE_URL: "https://github.com/danlinenberg/odin/issues/new",
 } as const;
+
+// Board
+// Read by the settings router (the stored value's fallback) and by the
+// settings switch (what to show before that query resolves). Two copies of
+// this disagreed: the switch rendered off while the feature was on.
+export const ODIN_AUTO_RENAME_SESSIONS_DEFAULT = true;
 
 // Theme
 export const THEME_STORAGE_KEY = "odin-theme";
