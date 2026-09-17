@@ -1561,7 +1561,7 @@ function DevBoardPage() {
 																)}
 															>
 																<div className="flex items-start gap-2">
-																	<div className="min-w-0 flex-1 truncate text-[12.5px] font-semibold">
+																	<div className="min-w-0 flex-1 break-words text-[12.5px] font-semibold">
 																		{cardTitle(card)}
 																	</div>
 																	<button
