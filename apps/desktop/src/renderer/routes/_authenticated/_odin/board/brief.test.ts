@@ -3,6 +3,7 @@ import {
 	type BriefMessage,
 	elapsedLabel,
 	lastMessageAt,
+	notionPages,
 	projectSlug,
 	pullRequests,
 	sessionBrief,
@@ -168,6 +169,63 @@ describe("projectSlug", () => {
 			"-Users-dan-dev-private-odin",
 		);
 		expect(projectSlug("/Users/dan/.odin/x")).toBe("-Users-dan--odin-x");
+	});
+});
+
+const BACKLOG = "https://app.notion.com/p/3dd9a1b573ff81eeab56d1a8065f87c7";
+const ADR =
+	"https://www.notion.so/imagen-ai/Spot-Instances-with-On-Demand-Fallback-3d19a1b573ff819b8237f88195e3780f";
+
+describe("notionPages", () => {
+	it("collects each page once, newest first, titled from the slug", () => {
+		expect(
+			notionPages([
+				user("write it up"),
+				claude(`Published ${BACKLOG}`),
+				claude(`And the ADR: ${ADR}`),
+			]),
+		).toEqual([
+			{
+				url: ADR,
+				id: "3d19a1b573ff819b8237f88195e3780f",
+				title: "Spot Instances with On Demand Fallback",
+			},
+			{
+				url: BACKLOG,
+				id: "3dd9a1b573ff81eeab56d1a8065f87c7",
+				title: null,
+			},
+		]);
+	});
+
+	it("treats a /p/ link and a slug link to one page as one page", () => {
+		const pages = notionPages([
+			claude(`${ADR}`),
+			claude(
+				"https://app.notion.com/p/3d19a1b573ff819b8237f88195e3780f?pvs=204",
+			),
+		]);
+		expect(pages).toHaveLength(1);
+		expect(pages[0]?.url).toBe(ADR);
+	});
+
+	it("strips the markdown and prose around a link", () => {
+		const pages = notionPages([
+			claude(`see [the board](${BACKLOG}) and note it.`),
+		]);
+		expect(pages[0]?.url).toBe(BACKLOG);
+	});
+
+	it("ignores a Notion url carrying no page id", () => {
+		expect(
+			notionPages([claude("https://www.notion.so/imagen-ai"), claude("done")]),
+		).toEqual([]);
+	});
+
+	it("skips a page you pasted as the input", () => {
+		expect(notionPages([user(`update ${BACKLOG}`), claude("done")])).toEqual(
+			[],
+		);
 	});
 });
 
