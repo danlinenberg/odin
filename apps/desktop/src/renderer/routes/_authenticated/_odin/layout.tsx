@@ -1,4 +1,3 @@
-import { toast } from "@odin/ui/sonner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@odin/ui/tooltip";
 import { cn } from "@odin/ui/utils";
 import {
@@ -9,9 +8,6 @@ import {
 } from "@tanstack/react-router";
 import { useState } from "react";
 import {
-	HiOutlineArrowPath,
-	HiOutlineBolt,
-	HiOutlineBoltSlash,
 	HiOutlineChartBar,
 	HiOutlineClipboardDocumentCheck,
 	HiOutlineClock,
@@ -19,7 +15,6 @@ import {
 	HiOutlineViewColumns,
 } from "react-icons/hi2";
 import { ZoomStable } from "renderer/components/ZoomStable/ZoomStable";
-import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { useZoomFactor } from "renderer/hooks/useZoomFactor";
 import { useHotkey } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
@@ -29,17 +24,10 @@ import {
 	machineLoad,
 } from "shared/machine-load";
 import { FEED_TABS } from "./components/feed-counts";
-import {
-	OdinPromptDialog,
-	type PromptImage,
-	sessionTitle,
-} from "./components/OdinPromptDialog";
 import { QuickAddTask } from "./components/TaskBox";
 import { useNeedsYouByProfile } from "./hooks/useNeedsYouByProfile";
 import { useOdinFeeds } from "./hooks/useOdinFeeds";
 import { useOdinProfile } from "./hooks/useOdinProfile";
-import { useOdinWorkspace } from "./hooks/useOdinWorkspace";
-import { usePendingFocus } from "./hooks/usePendingFocus";
 
 /**
  * Odin's shell — minimal chrome for the Dev Board, My Tasks, Slack, Session
@@ -172,93 +160,7 @@ function OdinShell() {
 	// instead of an empty "syncing…".
 	useOdinFeeds();
 
-	// Self-update: rebuild + reinstall + relaunch from Odin's own checkout.
-	const updateOdin = electronTrpc.work.updateOdin.useMutation();
-	// Hot reload: run from source (instant renderer edits) and back again.
-	const startDevMode = electronTrpc.work.startDevMode.useMutation();
-	const exitDevMode = electronTrpc.work.exitDevMode.useMutation();
-	const handleDevToggle = async () => {
-		try {
-			if (workConfig?.isDev) {
-				await exitDevMode.mutateAsync();
-				toast.success("Leaving hot reload — reopening the installed Odin");
-			} else {
-				const { logPath } = await startDevMode.mutateAsync();
-				toast.success(
-					"Starting hot reload — Odin will quit and reopen from source",
-					{
-						description: `Progress: ${logPath}`,
-						duration: 10_000,
-					},
-				);
-			}
-		} catch (error) {
-			toast.error(error instanceof Error ? error.message : String(error));
-		}
-	};
-	// Restart (dev only): main-process edits need a full restart, and re-running
-	// the dev script is one — it quits the running stack first, daemon and open
-	// sessions untouched. `settings.restartApp` would come back to a dead vite.
-	const handleRestart = async () => {
-		try {
-			const { logPath } = await startDevMode.mutateAsync();
-			toast.success("Restarting Odin — it will quit and reopen from source", {
-				description: `Progress: ${logPath}`,
-				duration: 10_000,
-			});
-		} catch (error) {
-			toast.error(error instanceof Error ? error.message : String(error));
-		}
-	};
-	const handleUpdate = async () => {
-		try {
-			const { logPath } = await updateOdin.mutateAsync({ pull: false });
-			toast.success("Rebuilding Odin — it will quit and relaunch itself", {
-				description: `Progress: ${logPath}`,
-				duration: 10_000,
-			});
-		} catch (error) {
-			toast.error(error instanceof Error ? error.message : String(error));
-		}
-	};
-
-	// Change Odin with an agent: a session in Odin's own repo.
-	const { ensureWorkspace } = useOdinWorkspace();
-	const { launch } = useLaunchTaskSession();
 	const { data: workConfig } = electronTrpc.work.getConfig.useQuery();
-	const [isComposerOpen, setIsComposerOpen] = useState(false);
-	const workOnOdin = async (rawPrompt: string, images: PromptImage[]) => {
-		const prompt = rawPrompt.trim();
-		// Pin Odin's own checkout, not the default repo: the session opens IN the
-		// source it's about, so the agent skips the "where do I live?" hunt.
-		const ensured = await ensureWorkspace(workConfig?.odinRepoPath);
-		if (!ensured.ok) {
-			toast.error(ensured.error);
-			return;
-		}
-		// The prompt names the session, so the board says what each one is doing.
-		// Empty prompt still works: a bare conversational session, as before.
-		const title = sessionTitle(prompt, "Work on Odin");
-		const result = await launch({
-			workspaceId: ensured.workspace.id,
-			title,
-			description: prompt && prompt !== title ? prompt : null,
-			// Images alone are worth a prompt file — the paths have to reach the agent.
-			noPrompt: !prompt && images.length === 0,
-			images,
-			brief: prompt || "Work on Odin itself (this app)",
-			// Work on Odin is always #odin — no right-clicking the card to tag it.
-			tags: ["odin"],
-		});
-		setIsComposerOpen(false);
-		if (result.ok) {
-			usePendingFocus.getState().focus(result.paneId);
-			navigate({ to: "/board" });
-		} else {
-			toast.error(result.error);
-		}
-	};
-
 	// Single-key nav — D board, T tasks, S slack, H history, J jira, P PRs
 	// by default, and whatever
 	// Settings → Keyboard shortcuts says after that. The returned display drives
@@ -441,71 +343,6 @@ function OdinShell() {
 									: `${load.agentCount} ${load.agentCount === 1 ? "session" : "sessions"} using ${load.agentMemoryGb} GB · ${load.availableMemoryGb} GB free`}
 							</span>
 						)}
-						{/* Self-development controls: only on a machine that has Odin's
-						    checkout (ODIN_REPO_DIR / odinRepo in ~/.config/odin.json).
-						    An installed build without one can't hot-reload or rebuild
-						    itself anyway, so the buttons would only ever error. */}
-						{workConfig?.isInternalBuild && workConfig?.odinRepoPath && (
-							<>
-								<button
-									type="button"
-									title={
-										workConfig?.isDev
-											? "Stop hot reload and reopen the installed Odin"
-											: "Run Odin from source with hot reload (instant renderer edits)"
-									}
-									disabled={startDevMode.isPending || exitDevMode.isPending}
-									onClick={() => void handleDevToggle()}
-									className={cn(
-										"flex items-center gap-1 rounded-[6px] px-2 py-[3px] text-[11px] font-semibold transition-colors disabled:opacity-50",
-										workConfig?.isDev
-											? "bg-[#6b5620]/40 text-[#f5b83d] hover:bg-[#6b5620]/60"
-											: "bg-[#1f1f27] text-[#a5a5b3] hover:text-[#f5f5f7]",
-									)}
-								>
-									{workConfig?.isDev ? (
-										<>
-											<HiOutlineBoltSlash className="size-3.5" />
-											Exit hot reload
-										</>
-									) : (
-										<>
-											<HiOutlineBolt className="size-3.5" />
-											Hot reload
-										</>
-									)}
-								</button>
-								{workConfig?.isDev && (
-									<button
-										type="button"
-										title="Restart the dev app (picks up main-process changes; open sessions stay live)"
-										disabled={startDevMode.isPending || exitDevMode.isPending}
-										onClick={() => void handleRestart()}
-										className="flex items-center gap-1 rounded-[6px] bg-[#1f1f27] px-2 py-[3px] text-[11px] font-semibold text-[#a5a5b3] transition-colors hover:text-[#f5f5f7] disabled:opacity-50"
-									>
-										<HiOutlineArrowPath className="size-3.5" />
-										Restart Odin
-									</button>
-								)}
-								<button
-									type="button"
-									title="Start an agent session in the Odin repo"
-									onClick={() => setIsComposerOpen(true)}
-									className="rounded-[6px] bg-[#1f1f27] px-2 py-[3px] text-[11px] font-semibold text-[#a5a5b3] transition-colors hover:text-[#f5f5f7]"
-								>
-									✎ Work on Odin
-								</button>
-								<button
-									type="button"
-									title="Rebuild Odin from its checkout, reinstall and relaunch"
-									disabled={updateOdin.isPending}
-									onClick={() => void handleUpdate()}
-									className="rounded-[6px] bg-[#211d3a] px-2 py-[3px] text-[11px] font-semibold text-[#a394ff] transition-colors hover:bg-[#28224a] disabled:opacity-50"
-								>
-									{updateOdin.isPending ? "updating…" : "⟳ Update Odin"}
-								</button>
-							</>
-						)}
 					</div>
 				</ZoomStable>
 			</div>
@@ -528,13 +365,6 @@ function OdinShell() {
 					</div>
 				</div>
 			</div>
-
-			{isComposerOpen && (
-				<OdinPromptDialog
-					onCancel={() => setIsComposerOpen(false)}
-					onSubmit={workOnOdin}
-				/>
-			)}
 
 			{isQuickAddOpen && (
 				<QuickAddTask onClose={() => setIsQuickAddOpen(false)} />
