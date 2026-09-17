@@ -46,17 +46,16 @@ by whatever downloaded the file, not by the signature. Browsers set it, Homebrew
 sets it and then clears it again from the cask, and `curl` never sets it at all.
 Downloading this way is what makes the app open with nothing to undo afterwards.
 
-Or through Homebrew, if you want brew to own the uninstall:
+Or through Homebrew, also one line, if you want brew to own the uninstall:
 
 ```sh
 brew trust --tap danlinenberg/odin && brew tap danlinenberg/odin && brew install --cask odin
 ```
 
-Three commands rather than one, and it stays three: Homebrew 7 makes `brew
-trust` mandatory for a tap that isn't official, and it will not tap one
-implicitly either — naming an untapped cask errors out and tells you to tap it
-first. No `xattr` on this route though; the cask clears the flag itself. The tap
-is [danlinenberg/homebrew-odin](https://github.com/danlinenberg/homebrew-odin).
+No `xattr` here either — the cask clears the flag itself. Both leading steps are
+required rather than ceremony: Homebrew 7 refuses to load a tap that isn't
+official until it is trusted, and refuses to tap one implicitly. The tap is
+[danlinenberg/homebrew-odin](https://github.com/danlinenberg/homebrew-odin).
 
 Downloading the DMG in a browser is the one route where the flag is set and
 nothing downstream clears it. That does not mean the terminal — macOS will open
