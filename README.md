@@ -29,47 +29,9 @@ request. One queue, one board, one thing to look at.
 
 ## Install
 
-macOS on Apple Silicon:
-
-```sh
-curl -fL# -o /tmp/Odin.dmg https://github.com/danlinenberg/odin/releases/latest/download/Odin-arm64.dmg &&
-  hdiutil attach -quiet -nobrowse -mountpoint /tmp/Odin.mount /tmp/Odin.dmg &&
-  rm -rf /Applications/Odin.app &&
-  ditto /tmp/Odin.mount/Odin.app /Applications/Odin.app &&
-  hdiutil detach -quiet /tmp/Odin.mount && rm /tmp/Odin.dmg && open /Applications/Odin.app
-```
-
-`curl`, not the browser, on purpose. Releases are signed with a self-signed
-certificate rather than an Apple Developer ID, so macOS blocks them on sight —
-but only when they arrive carrying `com.apple.quarantine`, and that flag is set
-by whatever downloaded the file, not by the signature. Browsers set it, Homebrew
-sets it and then clears it again from the cask, and `curl` never sets it at all.
-Downloading this way is what makes the app open with nothing to undo afterwards.
-
-Or through Homebrew, also one line, if you want brew to own the uninstall:
-
 ```sh
 brew trust --tap danlinenberg/odin && brew tap danlinenberg/odin && brew install --cask odin
 ```
-
-No `xattr` here either — the cask clears the flag itself. Both leading steps are
-required rather than ceremony: Homebrew 7 refuses to load a tap that isn't
-official until it is trusted, and refuses to tap one implicitly. The tap is
-[danlinenberg/homebrew-odin](https://github.com/danlinenberg/homebrew-odin).
-
-Downloading the DMG in a browser is the one route where the flag is set and
-nothing downstream clears it. That does not mean the terminal — macOS will open
-it anyway if you ask twice. Double-click and let it be refused, then go to
-**System Settings → Privacy & Security**, scroll to **Security**, and the line
-*"Odin" was blocked to protect your Mac* has an **Open Anyway** button. Approve
-it, open the app again, confirm. The entry is transient, so do it while the
-refusal is fresh rather than the next day.
-
-Odin is signed, just not by an Apple Developer ID — the signature is valid and
-satisfies its designated requirement, which is why macOS offers the override at
-all rather than calling the app damaged. If you have a terminal open anyway,
-`xattr -dr com.apple.quarantine /Applications/Odin.app` is the same thing in one
-line.
 
 ### Upgrade
 
@@ -97,9 +59,6 @@ adopted rather than torn down. Hot reload covers the renderer only. Edits under
 in-app **Restart Odin** button, or `ODIN_DEV_WATCH=--watch` to restart on every
 save. Logs stream to `~/.odin/dev.log`, and the run that died is kept as
 `dev.log.prev`.
-
-<img src="apps/desktop/src/resources/build/icons/icon-dev.png" alt="" width="32" align="top"> &nbsp;A dev build wears the green icon, so the one you are hacking on and the
-one you are working *in* are never the same thing in the dock.
 
 ## The idea
 
