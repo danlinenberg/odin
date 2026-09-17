@@ -42,16 +42,24 @@ curl -fL# -o /tmp/Odin.dmg https://github.com/danlinenberg/odin/releases/latest/
 `curl`, not the browser, on purpose. Releases are signed with a self-signed
 certificate rather than an Apple Developer ID, so macOS blocks them on sight —
 but only when they arrive carrying `com.apple.quarantine`, and that flag is set
-by whatever downloaded the file, not by the signature. Browsers set it; Homebrew
-sets it; `curl` does not. Downloading this way is what makes the app open at all.
+by whatever downloaded the file, not by the signature. Browsers set it, Homebrew
+sets it and then clears it again from the cask, and `curl` never sets it at all.
+Downloading this way is what makes the app open with nothing to undo afterwards.
 
-If you would rather use the browser, the same build is at
-[Odin-arm64.dmg](https://github.com/danlinenberg/odin/releases/latest/download/Odin-arm64.dmg)
-— drag it into `/Applications` and then clear the flag by hand, once:
+Or through Homebrew, if you want brew to own the uninstall:
 
 ```sh
-xattr -dr com.apple.quarantine /Applications/Odin.app
+brew trust --tap danlinenberg/odin && brew tap danlinenberg/odin https://github.com/danlinenberg/odin && brew install --cask odin
 ```
+
+Three commands rather than one: Homebrew 7 makes `brew trust` mandatory for a
+tap that isn't official, and the tap needs naming explicitly because the cask
+lives in this repo rather than a `homebrew-odin` one. No `xattr` either way —
+the cask clears the flag itself.
+
+Downloading the DMG in a browser is the one route that still needs it done by
+hand, because a browser sets the flag and nothing downstream clears it:
+`xattr -dr com.apple.quarantine /Applications/Odin.app`.
 
 ### Upgrade
 
