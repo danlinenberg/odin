@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { Fragment, useMemo, useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 
 export const Route = createFileRoute("/_authenticated/_odin/insights/")({
@@ -241,40 +242,170 @@ function Column({
 	);
 }
 
-/** The 24 buckets of `byHour`, labelled — a fixed axis, not a list of data. */
+/** A fixed 24-hour axis, not a list of data. */
 const HOURS = Array.from({ length: 24 }, (_, hour) =>
 	String(hour).padStart(2, "0"),
 );
 
-function DayClock({ byHour }: { byHour: number[] }) {
-	const max = Math.max(1, ...byHour);
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+const DAY_MS = 86_400_000;
+
+/**
+ * Monday 00:00 local. The same rule the main process buckets cells by — four
+ * lines duplicated rather than imported, because that module reaches for
+ * `node:fs` and can't come into the renderer.
+ */
+function weekStart(at: number): number {
+	const date = new Date(at);
+	date.setHours(0, 0, 0, 0);
+	date.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+	return date.getTime();
+}
+
+/** `count` weeks from `start`, stepped as a date so DST can't drift it. */
+function shiftWeeks(start: number, count: number): number {
+	const date = new Date(start);
+	date.setDate(date.getDate() + count * 7);
+	return date.getTime();
+}
+
+/**
+ * One cell holds at most an hour, so the scale is absolute: sixty minutes is
+ * full, and a shade means the same thing in every week. Rescaling per week
+ * would light up a dead Tuesday for being that week's busiest hour.
+ */
+function cellStyle(minutes: number): React.CSSProperties {
+	if (minutes <= 0) return { background: "#1b1b22" };
+	// Four steps rather than a continuous ramp — quantised, a cell can actually
+	// be matched back to the legend.
+	const step = Math.min(4, Math.ceil((minutes / 60) * 4));
+	return { background: YOU_COLOR, opacity: 0.2 + 0.2 * step };
+}
+
+/**
+ * Every hour of every day of one week, one cell each.
+ *
+ * Clock time, not agent time: the question is when *you* were at it, and three
+ * agents running at 2am is still one 2am. Weeks step by the calendar rather
+ * than by the rows that came back, so a week off renders as an empty grid
+ * instead of being skipped past.
+ */
+function WeekHeatmap({
+	weeks,
+}: {
+	weeks: { start: number; minutes: number[] }[];
+}) {
+	const thisWeek = weekStart(Date.now());
+	const [start, setStart] = useState(thisWeek);
+	const byWeek = useMemo(
+		() => new Map(weeks.map((week) => [week.start, week.minutes])),
+		[weeks],
+	);
+	const earliest = weeks[0]?.start ?? thisWeek;
+	const cells = byWeek.get(start);
+	const total = cells ? cells.reduce((sum, value) => sum + value, 0) : 0;
+
 	return (
 		<Card>
-			<div className="flex h-[52px] items-end gap-[3px]">
-				{HOURS.map((label, hour) => {
-					const minutes = byHour[hour] ?? 0;
-					return (
-						<div
-							key={label}
-							className="flex-1 rounded-t-[2px]"
-							style={{
-								height: `${Math.max(2, (minutes / max) * 52)}px`,
-								background: minutes > 0 ? AGENT_COLOR : "#25252e",
-								opacity: minutes > 0 ? 0.4 + 0.6 * (minutes / max) : 1,
-							}}
-							title={`${label}:00 — ${duration(minutes / 60)} of agent time`}
-						/>
-					);
-				})}
+			<div className="mb-3 flex items-center gap-2">
+				<Step
+					label="Previous week"
+					glyph="‹"
+					disabled={start <= earliest}
+					onClick={() => setStart(shiftWeeks(start, -1))}
+				/>
+				<Step
+					label="Next week"
+					glyph="›"
+					disabled={start >= thisWeek}
+					onClick={() => setStart(shiftWeeks(start, 1))}
+				/>
+				<div className="text-[12px] text-[#d6d6dc]">
+					{DATE.format(start)} – {DATE.format(shiftWeeks(start, 1) - DAY_MS)}
+					{start === thisWeek && (
+						<span className="ml-2 text-[10.5px] text-[#6f6f7d]">this week</span>
+					)}
+				</div>
+				<div className="ml-auto text-[11.5px] tabular-nums text-[#a5a5b3]">
+					{total > 0
+						? `${duration(total / 60)} on the clock`
+						: "nothing logged"}
+				</div>
 			</div>
-			<div className="mt-1.5 flex justify-between text-[10px] text-[#6f6f7d]">
-				<span>midnight</span>
-				<span>6am</span>
-				<span>noon</span>
-				<span>6pm</span>
-				<span>11pm</span>
+
+			<div
+				className="grid gap-[2px]"
+				style={{ gridTemplateColumns: "28px repeat(24, minmax(0, 1fr))" }}
+			>
+				{WEEKDAYS.map((day, weekday) => (
+					<Fragment key={day}>
+						<div className="pr-1 text-right text-[10px] leading-[16px] text-[#6f6f7d]">
+							{day}
+						</div>
+						{HOURS.map((label, hour) => {
+							const minutes = cells?.[weekday * 24 + hour] ?? 0;
+							return (
+								<div
+									key={label}
+									className="h-[16px] rounded-[2px]"
+									style={cellStyle(minutes)}
+									title={`${day} ${label}:00 — ${
+										minutes > 0 ? `${minutes}m on the clock` : "nothing"
+									}`}
+								/>
+							);
+						})}
+					</Fragment>
+				))}
+				{/* The hour axis, sharing the grid so labels sit under their column. */}
+				<div />
+				{HOURS.map((label, hour) => (
+					<div
+						key={label}
+						className="pt-1 text-center text-[9.5px] text-[#6f6f7d]"
+					>
+						{hour % 3 === 0 ? label : ""}
+					</div>
+				))}
+			</div>
+
+			<div className="mt-2.5 flex items-center gap-1.5 text-[10px] text-[#6f6f7d]">
+				<span>none</span>
+				{[0, 15, 30, 45, 60].map((minutes) => (
+					<span
+						key={minutes}
+						className="h-[10px] w-[10px] rounded-[2px]"
+						style={cellStyle(minutes)}
+					/>
+				))}
+				<span>the whole hour</span>
 			</div>
 		</Card>
+	);
+}
+
+function Step({
+	label,
+	glyph,
+	disabled,
+	onClick,
+}: {
+	label: string;
+	glyph: string;
+	disabled: boolean;
+	onClick: () => void;
+}) {
+	return (
+		<button
+			type="button"
+			aria-label={label}
+			disabled={disabled}
+			onClick={onClick}
+			className="h-[22px] w-[22px] rounded-[6px] border border-[#25252e] bg-[#16161b] text-[13px] leading-none text-[#a5a5b3] hover:bg-[#1d1d24] disabled:opacity-35 disabled:hover:bg-[#16161b]"
+		>
+			{glyph}
+		</button>
 	);
 }
 
@@ -485,8 +616,11 @@ function Workload() {
 				</Section>
 			</div>
 
-			<Section title="When you work" note="agent time by hour of day">
-				<DayClock byHour={data.byHour} />
+			<Section
+				title="When you work"
+				note="every hour of one week, on the clock with an agent running"
+			>
+				<WeekHeatmap weeks={data.heatmap} />
 			</Section>
 		</div>
 	);

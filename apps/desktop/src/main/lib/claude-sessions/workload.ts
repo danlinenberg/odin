@@ -236,6 +236,12 @@ export interface Workload {
 	byPerson: { person: string; hours: number; sessions: number }[];
 	/** Active minutes per hour of the day, local, index 0–23. */
 	byHour: number[];
+	/**
+	 * The same minutes, kept per week instead of folded together: one row per
+	 * week that has any, oldest first, each holding 168 cells indexed
+	 * `weekday * 24 + hour` with Monday as weekday 0.
+	 */
+	heatmap: { start: number; minutes: number[] }[];
 	busiestDay: { at: number; hours: number } | null;
 	/** Sessions with a name attached — the rest are your own. */
 	attributed: number;
@@ -342,13 +348,25 @@ export function computeWorkload(
 	const busiest = [...days].sort((a, b) => b[1] - a[1])[0];
 
 	const byHour: number[] = Array.from({ length: 24 }, () => 0);
+	// Same walk, banked twice: once folded across all weeks for the day clock,
+	// once kept per week for the heatmap. Only weeks with a minute in them get
+	// a row — an empty grid is cheaper to draw than to ship.
+	const weekCells = new Map<number, number[]>();
 	for (const [start, end] of merged) {
 		let at = start;
 		while (at < end) {
 			const date = new Date(at);
 			date.setMinutes(0, 0, 0);
 			const next = Math.min(end, date.getTime() + HOUR_MS);
-			byHour[date.getHours()] += Math.round((next - at) / 60_000);
+			const minutes = Math.round((next - at) / 60_000);
+			byHour[date.getHours()] += minutes;
+			const week = weekStart(at);
+			let cells = weekCells.get(week);
+			if (!cells) {
+				cells = Array.from({ length: 7 * 24 }, () => 0);
+				weekCells.set(week, cells);
+			}
+			cells[((date.getDay() + 6) % 7) * 24 + date.getHours()] += minutes;
 			at = next;
 		}
 	}
@@ -408,6 +426,9 @@ export function computeWorkload(
 			}),
 		),
 		byHour,
+		heatmap: [...weekCells]
+			.sort((a, b) => a[0] - b[0])
+			.map(([start, minutes]) => ({ start, minutes })),
 		busiestDay: busiest ? { at: busiest[0], hours: hours(busiest[1]) } : null,
 		attributed: all.filter((session) => session.person).length,
 		since,

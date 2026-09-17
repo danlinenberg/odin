@@ -204,6 +204,26 @@ describe("computeWorkload", () => {
 		expect(out.byHour[10]).toBe(0);
 	});
 
+	test("the heatmap puts an hour on its own weekday, in its own week", () => {
+		// Monday 09:00, and the Wednesday of the week before at 23:30.
+		const wed = new Date(2026, 8, 9, 23, 30, 0).getTime();
+		const out = computeWorkload(
+			[session(), session({ sessionId: "b", intervals: [[wed, wed + HOUR]] })],
+			{ now: MON },
+		);
+		expect(out.heatmap.map((week) => week.start)).toEqual([
+			weekStart(wed),
+			weekStart(MON),
+		]);
+		// Monday is weekday 0, so 09:00 is cell 9 of this week's row.
+		expect(out.heatmap[1]?.minutes[9]).toBe(60);
+		expect(out.heatmap[1]?.minutes.reduce((a, b) => a + b, 0)).toBe(60);
+		// The overnight run splits: Wednesday 23:00 and Thursday 00:00.
+		const before = out.heatmap[0]?.minutes ?? [];
+		expect(before[2 * 24 + 23]).toBe(30);
+		expect(before[3 * 24 + 0]).toBe(30);
+	});
+
 	test("nothing recorded divides by nothing", () => {
 		const out = computeWorkload([], { now: MON });
 		expect(out.leverage).toBeNull();
