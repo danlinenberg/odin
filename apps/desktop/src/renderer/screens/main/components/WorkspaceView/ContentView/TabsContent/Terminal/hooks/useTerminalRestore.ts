@@ -9,6 +9,35 @@ import type {
 } from "../types";
 import { scrollToBottom } from "../utils";
 
+const ESC = "\x1b";
+
+/**
+ * The bytes that repaint a reattached alt-screen (TUI) pane.
+ *
+ * `snapshotAnsi` already carries the alt buffer — the serialize addon appends
+ * `ESC[?1049h ESC[H` plus the alt screen after the normal-buffer scrollback —
+ * so writing it is what puts the TUI back on screen. The rehydrate sequences
+ * only restore modes, and their own alt-screen entry is dropped: replaying it
+ * after the snapshot would swap to a second, empty alt buffer.
+ */
+export function buildAltScreenRestore({
+	initialAnsi,
+	rehydrateSequences,
+}: {
+	initialAnsi: string | undefined;
+	rehydrateSequences: string | undefined;
+}): string {
+	const snapshot = initialAnsi ?? "";
+	const entersAlt =
+		snapshot.includes(`${ESC}[?1049h`) || snapshot.includes(`${ESC}[?47h`);
+	const modes = (rehydrateSequences ?? "")
+		.split(`${ESC}[?1049h`)
+		.join("")
+		.split(`${ESC}[?47h`)
+		.join("");
+	return `${entersAlt ? "" : `${ESC}[?1049h`}${snapshot}${modes}`;
+}
+
 export interface UseTerminalRestoreOptions {
 	paneId: string;
 	xtermRef: React.MutableRefObject<XTerm | null>;
@@ -161,31 +190,30 @@ export function useTerminalRestore({
 			const isAltScreenReattach =
 				!result.isNew && result.snapshot?.modes.alternateScreen;
 
-			// For alt-screen (TUI) sessions, enter alt-screen and trigger SIGWINCH
+			// For alt-screen (TUI) sessions, paint the snapshot's alt-screen
+			// content — don't enter an empty alt screen and wait for the TUI to
+			// repaint itself. That repaint only arrives on SIGWINCH, and the
+			// kernel raises SIGWINCH only when the winsize actually changes, so
+			// opening a pane at the size the PTY already has repaints nothing and
+			// leaves the pane blank until you close and reopen it.
 			if (isAltScreenReattach) {
-				xterm.write("\x1b[?1049h", () => {
-					if (result.snapshot?.rehydrateSequences) {
-						const ESC = "\x1b";
-						const filteredRehydrate = result.snapshot.rehydrateSequences
-							.split(`${ESC}[?1049h`)
-							.join("")
-							.split(`${ESC}[?47h`)
-							.join("");
-						if (filteredRehydrate) {
-							xterm.write(filteredRehydrate);
+				xterm.write(
+					buildAltScreenRestore({
+						initialAnsi,
+						rehydrateSequences: result.snapshot?.rehydrateSequences,
+					}),
+					() => {
+						isStreamReadyRef.current = true;
+						if (DEBUG_TERMINAL) {
+							console.log(
+								`[Terminal] isStreamReady=true (altScreen): ${paneId}, pendingEvents=${pendingEventsRef.current.length}`,
+							);
 						}
-					}
+						flushPendingEvents();
 
-					isStreamReadyRef.current = true;
-					if (DEBUG_TERMINAL) {
-						console.log(
-							`[Terminal] isStreamReady=true (altScreen): ${paneId}, pendingEvents=${pendingEventsRef.current.length}`,
-						);
-					}
-					flushPendingEvents();
-
-					scheduleScrollToBottom();
-				});
+						scheduleScrollToBottom();
+					},
+				);
 
 				if (result.snapshot?.cwd) {
 					updateCwdRef.current(result.snapshot.cwd);
