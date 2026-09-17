@@ -16,6 +16,7 @@ export const env = createEnv({
 			.transform((s) => s.split(",").map((o) => o.trim()))
 			.optional(),
 		PORT: z.coerce.number().int().positive().default(4879),
+		HOST: z.string().min(1).default("127.0.0.1"),
 	},
 	runtimeEnv: process.env,
 	emptyStringAsUndefined: true,
