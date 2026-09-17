@@ -92,6 +92,55 @@ export function pullRequests(messages: BriefMessage[]): PullRequestLink[] {
 	return [...found.values()].reverse();
 }
 
+export interface NotionPageLink {
+	url: string;
+	/** The 32-hex page id: the same page linked by slug and by /p/ is one page. */
+	id: string;
+	/** Recovered from the URL slug; a bare /p/<id> link carries none. */
+	title: string | null;
+}
+
+// Every Notion host. ")" is excluded so a markdown [label](url) ends at the url.
+const NOTION_URL =
+	/https:\/\/(?:(?:www\.)?notion\.so|app\.notion\.com|[\w-]+\.notion\.site)\/[^\s)]+/g;
+const NOTION_ID = /[0-9a-f]{32}/;
+
+/** "…/Spot-Instances-…-<id>" — Notion puts the page title in the path. */
+function notionTitle(url: string, id: string): string | null {
+	const slug = url
+		.split("?")[0]
+		?.split("/")
+		.pop()
+		?.replace(new RegExp(`-?${id}$`), "");
+	return slug
+		? decodeURIComponent(slug).replace(/-+/g, " ").trim() || null
+		: null;
+}
+
+/**
+ * Notion pages this session produced, most recent first — pullRequests for the
+ * sessions whose deliverable is a document rather than a diff. Those sessions
+ * were leaving the brief with no link at all: a card that shipped code got a PR
+ * pill, a card that shipped a page got nothing, and the one artefact you wanted
+ * to reopen was the one you had to go digging through the transcript for.
+ *
+ * Keyed by page id, because the same page comes out as /p/<id> in one turn and
+ * as a slug url in the next, and two rows for one page is noise.
+ */
+export function notionPages(messages: BriefMessage[]): NotionPageLink[] {
+	const found = new Map<string, NotionPageLink>();
+	for (const message of messages.filter((m) => m.role === "assistant")) {
+		for (const match of message.text.match(NOTION_URL) ?? []) {
+			const url = match.replace(/[).,]+$/, "");
+			const id = NOTION_ID.exec(url)?.[0];
+			// A workspace root or search url carries no page id — nothing to reopen.
+			if (!id || found.has(id)) continue;
+			found.set(id, { url, id, title: notionTitle(url, id) });
+		}
+	}
+	return [...found.values()].reverse();
+}
+
 // Trailing ")" / "." is markdown and prose. The query string carries thread_ts,
 // which is what makes the link open the thread rather than the channel.
 const SLACK_URL =
