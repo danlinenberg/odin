@@ -14,6 +14,7 @@ import { resolveNotificationTarget } from "./utils/resolve-notification-target";
  * STATUS MAPPING:
  * - Start → "working" (amber pulsing indicator)
  * - Stop → "review" (green static) if pane's tab not active, "idle" if tab is active
+ * - Failed (StopFailure) → "failed" (red) — the turn died on an API error
  * - PermissionRequest → "permission" (red pulsing indicator)
  * - Terminal Exit → "idle" (handled in Terminal.tsx when mounted; also forwarded via notifications for unmounted panes)
  *
@@ -105,6 +106,8 @@ export function useAgentHookListener() {
 					eventType === "PendingQuestion"
 				) {
 					state.setPaneStatus(paneId, "permission");
+				} else if (eventType === "Failed") {
+					state.setPaneStatus(paneId, "failed");
 				} else if (eventType === "Stop") {
 					const activeTabId = state.activeTabIds[workspaceId];
 					const pane = state.panes[paneId];
