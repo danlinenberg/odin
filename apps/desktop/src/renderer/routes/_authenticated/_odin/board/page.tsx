@@ -53,6 +53,7 @@ import { usePendingFocus } from "../hooks/usePendingFocus";
 import { PANE_STATUS } from "../pane-status";
 import { elapsedLabel, lastMessageAt, pullRequests, sourceLink } from "./brief";
 import { DiffView } from "./DiffView";
+import { isTypingElsewhere } from "./keyboard";
 import { SessionBrief } from "./SessionBrief";
 
 /**
@@ -1149,16 +1150,18 @@ function DevBoardPage() {
 	useEffect(() => {
 		if (!drawerCard || drawerCard.pane.type !== "terminal") return;
 		if (!alivePaneIds.has(drawerCard.pane.id)) return;
-		// alivePaneIds churns on a 5s poll, so this re-runs while the drawer is
-		// open — it must not yank focus out of a half-typed rename (blur commits).
-		if (renameDraft !== null) return;
-		const focus = () =>
+		const focus = () => {
+			// alivePaneIds churns on a 5s poll, so this re-runs the whole time the
+			// drawer is open, not just when it opens — it can only take the
+			// keyboard when nothing else has it.
+			if (isTypingElsewhere(document.activeElement)) return;
 			document
 				.querySelector<HTMLTextAreaElement>(".xterm-helper-textarea")
 				?.focus();
+		};
 		const t = setTimeout(focus, 300);
 		return () => clearTimeout(t);
-	}, [drawerCard, alivePaneIds, renameDraft]);
+	}, [drawerCard, alivePaneIds]);
 
 	/**
 	 * Pick a session back up. On a live PTY that's literally writing "Continue"
