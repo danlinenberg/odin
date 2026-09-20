@@ -119,3 +119,150 @@ export function nextRun(expr: string, from: Date = new Date()): Date | null {
 	}
 	return null;
 }
+
+// ---------------------------------------------------------------------------
+// The schedule behind the picker
+//
+// Cron is what gets stored and matched; nobody should have to write one. These
+// are the shapes the picker offers, and the round trip between them and a cron
+// string. Anything a picker can't express stays a cron and is shown as one.
+// ---------------------------------------------------------------------------
+
+export type Repeat =
+	| "15m"
+	| "30m"
+	| "hourly"
+	| "daily"
+	| "weekdays"
+	| "weekly"
+	| "monthly";
+
+export interface Schedule {
+	repeat: Repeat;
+	/** "HH:MM". Unused by the sub-hourly repeats, kept so switching keeps it. */
+	time: string;
+	/** 0–6, Sunday first — weekly only. */
+	weekday: number;
+	/** 1–28 — monthly only. The 29th-31st don't exist in every month. */
+	day: number;
+}
+
+/** What a new automation starts as: weekdays at 09:00. */
+export const DEFAULT_SCHEDULE: Schedule = {
+	repeat: "weekdays",
+	time: "09:00",
+	weekday: 1,
+	day: 1,
+};
+
+const pad = (n: number) => String(n).padStart(2, "0");
+
+export function cronOf(schedule: Schedule): string {
+	const [hh = "0", mm = "0"] = schedule.time.split(":");
+	const h = Number(hh) || 0;
+	const m = Number(mm) || 0;
+	switch (schedule.repeat) {
+		case "15m":
+			return "*/15 * * * *";
+		case "30m":
+			return "*/30 * * * *";
+		case "hourly":
+			return "0 * * * *";
+		case "daily":
+			return `${m} ${h} * * *`;
+		case "weekdays":
+			return `${m} ${h} * * 1-5`;
+		case "weekly":
+			return `${m} ${h} * * ${schedule.weekday}`;
+		case "monthly":
+			return `${m} ${h} ${schedule.day} * *`;
+	}
+}
+
+/**
+ * The picker's reading of a cron, or null when it has none — a cron the picker
+ * can't express must stay exactly as written, so this is deliberately strict.
+ * "Every hour" is `0 * * * *` and nothing else: accepting `15 * * * *` would
+ * mean re-rendering it as "every hour" and quietly saving away the :15.
+ */
+export function scheduleOf(expr: string): Schedule | null {
+	const text = ALIASES[expr.trim().toLowerCase()] ?? expr.trim();
+	const [mi = "", ho = "", dom = "", mon = "", dow = "", extra] =
+		text.split(/\s+/);
+	if (extra !== undefined || dow === "" || mon !== "*") return null;
+	const num = (s: string) => (/^\d{1,2}$/.test(s) ? Number(s) : null);
+	const at = (h: number, m: number) => ({
+		...DEFAULT_SCHEDULE,
+		time: `${pad(h)}:${pad(m)}`,
+	});
+
+	if (dom === "*" && dow === "*" && ho === "*") {
+		if (mi === "*/15") return { ...DEFAULT_SCHEDULE, repeat: "15m" };
+		if (mi === "*/30") return { ...DEFAULT_SCHEDULE, repeat: "30m" };
+		if (mi === "0") return { ...DEFAULT_SCHEDULE, repeat: "hourly" };
+		return null;
+	}
+	const m = num(mi);
+	const h = num(ho);
+	if (m === null || h === null || m > 59 || h > 23) return null;
+	if (dom === "*" && dow === "*") return { ...at(h, m), repeat: "daily" };
+	if (dom === "*" && dow === "1-5") return { ...at(h, m), repeat: "weekdays" };
+	if (dom === "*") {
+		const d = num(dow);
+		return d === null || d > 6
+			? null
+			: { ...at(h, m), repeat: "weekly", weekday: d };
+	}
+	if (dow === "*") {
+		const d = num(dom);
+		return d === null || d < 1 || d > 28
+			? null
+			: { ...at(h, m), repeat: "monthly", day: d };
+	}
+	return null;
+}
+
+const DAYS = [
+	"Sunday",
+	"Monday",
+	"Tuesday",
+	"Wednesday",
+	"Thursday",
+	"Friday",
+	"Saturday",
+];
+
+/** 1st, 2nd, 3rd, 11th, 21st — for "on the Nth". */
+export function ordinal(n: number): string {
+	const tens = n % 100;
+	if (tens >= 11 && tens <= 13) return `${n}th`;
+	return `${n}${["th", "st", "nd", "rd"][n % 10] ?? "th"}`;
+}
+
+/**
+ * The schedule in words. A cron the picker can't express is returned as
+ * written — saying something vague about it would be worse than the cron.
+ */
+export function describeCron(expr: string): string {
+	const s = scheduleOf(expr);
+	if (!s) return expr.trim();
+	switch (s.repeat) {
+		case "15m":
+			return "every 15 minutes";
+		case "30m":
+			return "every 30 minutes";
+		case "hourly":
+			return "every hour, on the hour";
+		case "daily":
+			return `every day at ${s.time}`;
+		case "weekdays":
+			return `weekdays at ${s.time}`;
+		case "weekly":
+			return `every ${DAYS[s.weekday]} at ${s.time}`;
+		case "monthly":
+			return `on the ${ordinal(s.day)} at ${s.time}`;
+	}
+}
+
+/** Sunday-first, matching cron's own numbering — for the weekday picker. */
+export const WEEKDAY_NAMES = DAYS;

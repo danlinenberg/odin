@@ -2,7 +2,7 @@ import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import { useEffect, useRef, useState } from "react";
 import { HiOutlineClock } from "react-icons/hi2";
-import { nextRun } from "shared/cron";
+import { describeCron, nextRun } from "shared/cron";
 import {
 	PRIORITY_LABELS,
 	parseTask,
@@ -182,7 +182,10 @@ export function AutomationChip({
 			)}
 		>
 			<HiOutlineClock className="size-3" />
-			<span className="font-mono">{cron}</span>
+			{/* In words, not in cron: this row is being scanned, not edited, and
+			    "0 9 * * 1-5" is something you decode. The panel is where the
+			    expression itself is worth seeing, and the tooltip has it here. */}
+			<span>{describeCron(cron)}</span>
 			<span className="font-normal opacity-70">
 				{paused
 					? "paused"
