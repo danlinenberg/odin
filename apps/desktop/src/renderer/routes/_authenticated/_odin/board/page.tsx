@@ -718,6 +718,12 @@ function DevBoardPage() {
 		const onKeyDown = (event: KeyboardEvent) => {
 			if (event.key !== "Escape") return;
 			const target = event.target as HTMLElement | null;
+			// Escape typed into a box over the board cancels that box, and only
+			// that box — the dialog closes itself on the same keypress, so closing
+			// the pane underneath it too takes away more than was asked for.
+			// Asked of the event's target, not the document, so it holds whether
+			// or not React has already unmounted the dialog by the time we run.
+			if (target?.closest("[role=dialog]")) return;
 			if (target?.closest(".xterm")) return;
 			setDrawerCard(null);
 		};
