@@ -23,6 +23,9 @@ export function withOdinTag(
  * picked by the brief writer or by hand.
  */
 export const TAG_VOCABULARY = [
+	// Stamped by the automation runner, so a card that appeared while you were
+	// away says why it's there. Also pickable by hand.
+	"automation",
 	"bug",
 	"feature",
 	"chore",
