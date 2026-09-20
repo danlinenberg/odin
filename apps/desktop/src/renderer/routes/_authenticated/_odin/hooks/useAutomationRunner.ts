@@ -1,6 +1,5 @@
 import { useEffect, useRef } from "react";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
-import { useTabsStore } from "renderer/stores/tabs/store";
 import { cronMatches, parseCron } from "shared/cron";
 import { type OdinTask, taskPrompt, useMyTasks } from "./useOdinTasks";
 import { useOdinWorkspace } from "./useOdinWorkspace";
@@ -15,23 +14,20 @@ const TICK_MS = 30_000;
  * this is what stops the second one starting the job again. Split out from
  * the hook so the rule is testable without a renderer.
  *
+ * The schedule is the only say in it — a due run starts even if the last
+ * one's session is still open on the board. Pause is how you stop it; the
+ * machine-capacity gate in `launch` is what keeps a fast cron from flattening
+ * the Mac.
+ *
  * ponytail: no catch-up. An automation that came due while the app was shut
  * is skipped, not run at launch — opening Odin on Monday morning should not
  * fire the weekend's three missed runs at once.
  */
-export function dueAutomations(
-	tasks: OdinTask[],
-	now: Date,
-	isLive: (paneId: string) => boolean,
-): OdinTask[] {
+export function dueAutomations(tasks: OdinTask[], now: Date): OdinTask[] {
 	const minute = new Date(now).setSeconds(0, 0);
 	return tasks.filter((task) => {
 		if (!task.cron || task.paused) return false;
 		if ((task.lastRunAt ?? 0) >= minute) return false;
-		// Its last run is still open on the board. A schedule that outpaces the
-		// work it starts would otherwise stack identical sessions until the Mac
-		// gives up; skipping is recoverable, a pile of clones isn't.
-		if (task.paneId && isLive(task.paneId)) return false;
 		const cron = parseCron(task.cron);
 		return !!cron && cronMatches(cron, now);
 	});
@@ -69,12 +65,7 @@ export function useAutomationRunner() {
 			// overlapping ticks would both be holding for the same free memory.
 			if (running) return;
 			const now = new Date();
-			const { panes } = useTabsStore.getState();
-			const due = dueAutomations(
-				latest.current.automations,
-				now,
-				(paneId) => !!panes[paneId] && !panes[paneId]?.completed,
-			);
+			const due = dueAutomations(latest.current.automations, now);
 			if (due.length === 0) return;
 			const minute = new Date(now).setSeconds(0, 0);
 			running = true;
