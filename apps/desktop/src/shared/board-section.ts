@@ -6,6 +6,7 @@ import type { Pane } from "./tabs-types";
  * of one undifferentiated list.
  */
 export type BoardSection =
+	| "parked"
 	| "slack"
 	| "reactions"
 	| "jira"
@@ -14,6 +15,7 @@ export type BoardSection =
 	| "normal";
 
 export const SECTION_LABEL: Record<BoardSection, string> = {
+	parked: "Parked",
 	slack: "Slack",
 	reactions: "Slack",
 	jira: "Jira",
@@ -34,15 +36,32 @@ export function boardSection(pane: Pane): BoardSection {
 	return pane.odinPageId ? "reactions" : "normal";
 }
 
-/** Cards grouped into sections, empty sections dropped, order fixed. */
+/**
+ * A session you put down on purpose. Only in Idle: the board clears the flag
+ * the moment a parked session starts moving again, so this is never a live one.
+ */
+function isParked(pane: Pane): boolean {
+	return !!pane.odinParked && (pane.status ?? "idle") === "idle";
+}
+
+/**
+ * Cards grouped into sections, empty sections dropped, order fixed.
+ *
+ * Parked comes first and cuts across the source sections — you chose to put
+ * these down, so they're not the Idle cards asking to be resumed, whichever
+ * feed started them.
+ */
 export function bySection<T extends { pane: Pane }>(
 	cards: T[],
 ): [BoardSection, T[]][] {
-	return ORDER.map(
-		(section) =>
-			[
+	const rest = cards.filter((card) => !isParked(card.pane));
+	return (
+		[
+			["parked", cards.filter((card) => isParked(card.pane))],
+			...ORDER.map((section) => [
 				section,
-				cards.filter((card) => boardSection(card.pane) === section),
-			] as [BoardSection, T[]],
+				rest.filter((card) => boardSection(card.pane) === section),
+			]),
+		] as [BoardSection, T[]][]
 	).filter(([, group]) => group.length > 0);
 }

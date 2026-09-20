@@ -25,4 +25,24 @@ describe("bySection", () => {
 			"reactions",
 		);
 	});
+
+	it("lifts parked cards out of their source section, first", () => {
+		const grouped = bySection([
+			card({ id: "a", odinSource: "jira" }),
+			card({ id: "b", odinSource: "jira", odinParked: true }),
+			card({ id: "c", odinParked: true }),
+		]);
+		expect(grouped.map(([section, group]) => [section, group.length])).toEqual([
+			["parked", 2],
+			["jira", 1],
+		]);
+	});
+
+	// The board clears odinParked asynchronously; a card that already moved on
+	// isn't parked, whatever the stale flag says.
+	it("ignores the flag on a session that started moving again", () => {
+		expect(
+			bySection([card({ id: "a", odinParked: true, status: "working" })])[0][0],
+		).toBe("normal");
+	});
 });
