@@ -14,6 +14,7 @@ import {
 	LuFlame,
 	LuFolderGit2,
 	LuGitPullRequest,
+	LuPause,
 	LuTerminal,
 } from "react-icons/lu";
 import { SiJira, SiNotion, SiSlack } from "react-icons/si";
@@ -62,6 +63,8 @@ import { SessionBrief } from "./SessionBrief";
  * imported by the main process, which has no business loading React icons.
  */
 const SECTION_ICON: Record<BoardSection, IconType> = {
+	// Not a source — a session you put down on purpose.
+	parked: LuPause,
 	slack: SiSlack,
 	reactions: SiSlack,
 	jira: SiJira,
@@ -1451,8 +1454,9 @@ function DevBoardPage() {
 				{COLUMNS.map((column) => {
 					const cards = cardsByStatus.get(column.status) ?? [];
 					const sections = bySection(cards);
-					// One section is just the column — don't label it.
-					const labelled = sections.length > 1;
+					// One section is just the column — don't label it, unless it's
+					// Parked: "you put these down" is worth saying on its own.
+					const labelled = sections.length > 1 || sections[0]?.[0] === "parked";
 					const isDropTarget = column.status === "idle";
 					return (
 						// biome-ignore lint/a11y/noStaticElementInteractions: drop zone — drag is the mouse-only shortcut for parking a card in Idle
@@ -1630,13 +1634,6 @@ function DevBoardPage() {
 																	card.pane.status === "failed" && (
 																		<div className="mt-1.5 text-xs text-[#f0647a]">
 																			✗ failed — click to see what broke
-																		</div>
-																	)}
-																{card.status === "idle" &&
-																	card.pane.odinParked &&
-																	agentPaneIds.has(card.pane.id) && (
-																		<div className="mt-1.5 text-[11.5px] text-[#a5a5b3]">
-																			parked
 																		</div>
 																	)}
 																{card.status === "idle" &&
