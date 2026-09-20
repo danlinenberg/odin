@@ -212,3 +212,19 @@ describe("waitForCapacity", () => {
 		expect(s.proceeded()).toBe(1);
 	});
 });
+
+describe("buildPrompt with a skill", () => {
+	it("leads with the invocation, the title as its argument", () => {
+		const prompt = buildPrompt("Sweep the PR queue", "Only mine", [], "gdpr");
+		expect(prompt.split("\n")[0]).toBe("/gdpr Sweep the PR queue");
+		expect(prompt).toContain("Only mine");
+		// The board still wants its closing section.
+		expect(prompt).toContain("ACTION ITEMS");
+	});
+
+	it("without one it is the plain task prompt", () => {
+		expect(buildPrompt("Sweep the PR queue", null).split("\n")[0]).toBe(
+			"Task: Sweep the PR queue",
+		);
+	});
+});

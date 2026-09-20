@@ -1,7 +1,9 @@
 import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
-import { useEffect, useRef, useState } from "react";
+import type { AgentSkill } from "lib/trpc/routers/skills";
+import { useEffect, useId, useRef, useState } from "react";
 import { HiOutlineClock } from "react-icons/hi2";
+import { electronTrpc } from "renderer/lib/electron-trpc";
 import { describeCron, nextRun } from "shared/cron";
 import {
 	PRIORITY_LABELS,
@@ -9,6 +11,7 @@ import {
 	priorityOf,
 	useMyTasks,
 	withPriority,
+	withSkill,
 } from "../hooks/useOdinTasks";
 
 /** Title is the first line, the brief is the rest — the two fields the box
@@ -35,6 +38,7 @@ export function TaskBox({
 	placeholder,
 	autoFocus,
 	hidePriority,
+	skills,
 	onChange,
 	onSubmit,
 	onCancel,
@@ -44,6 +48,12 @@ export function TaskBox({
 	autoFocus?: boolean;
 	/** Automations are scheduled, not ranked — the picker means nothing there. */
 	hidePriority?: boolean;
+	/**
+	 * The skills this box can offer. Passed in rather than fetched so the box
+	 * stays a plain component — nothing here needs a tRPC context. Without it
+	 * there's no Skill menu, and a skill typed into the title still works.
+	 */
+	skills?: AgentSkill[];
 	onChange: (text: string) => void;
 	onSubmit: () => void;
 	onCancel?: () => void;
@@ -91,28 +101,139 @@ export function TaskBox({
 
 			    ponytail: a native <select> — it opens as a real menu, it's keyboard
 			    navigable for free, and there's no popup to style. */}
-			{!hidePriority && (
-				<div className="flex items-center gap-1.5">
-					<span className="text-[11px] text-[#8a8a97]">Priority</span>
-					<select
-						aria-label="Priority"
-						title="Or lead the title with ! (Low) or !!! (High) — no ! is Medium"
-						value={parseTask(value).priority}
-						onChange={(event) =>
-							onChange(withPriority(value, Number(event.target.value)))
-						}
-						className="cursor-pointer rounded-[6px] bg-[#1f1f27] px-1.5 py-[3px] text-[11px] font-semibold text-[#a5a5b3] outline-none transition-colors hover:text-[#f5f5f7]"
-					>
-						{/* Levels only — slot 0 ("None") is legacy storage, not a choice. */}
-						{PRIORITY_LABELS.slice(1).map((label, index) => (
-							<option key={label} value={index + 1}>
-								{label}
-							</option>
-						))}
-					</select>
-				</div>
+			<div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+				{skills && skills.length > 0 && (
+					<SkillSelect skills={skills} value={value} onChange={onChange} />
+				)}
+				{!hidePriority && (
+					<div className="flex items-center gap-1.5">
+						<span className="text-[11px] text-[#8a8a97]">Priority</span>
+						<select
+							aria-label="Priority"
+							title="Or lead the title with ! (Low) or !!! (High) — no ! is Medium"
+							value={parseTask(value).priority}
+							onChange={(event) =>
+								onChange(withPriority(value, Number(event.target.value)))
+							}
+							className="cursor-pointer rounded-[6px] bg-[#1f1f27] px-1.5 py-[3px] text-[11px] font-semibold text-[#a5a5b3] outline-none transition-colors hover:text-[#f5f5f7]"
+						>
+							{/* Levels only — slot 0 ("None") is legacy storage, not a choice. */}
+							{PRIORITY_LABELS.slice(1).map((label, index) => (
+								<option key={label} value={index + 1}>
+									{label}
+								</option>
+							))}
+						</select>
+					</div>
+				)}
+			</div>
+		</div>
+	);
+}
+
+/**
+ * Which skill the session opens with — the agent's own list, read off disk in
+ * the main process.
+ *
+ * It writes a leading `/name` into the text rather than holding a value of its
+ * own, exactly like the priority picker writes "!"s: typing `/gdpr` and
+ * picking it from here are the same edit, so the menu and the box can't
+ * disagree, and the edit box round-trips through one string.
+ *
+ * ponytail: a native `<select>`. Long list, but it's the platform's own menu —
+ * scrolling, type-to-search and keyboard nav for free. A search field if it
+ * ever outgrows a menu.
+ */
+/**
+ * Chromium matches a datalist against both the option's value and its label,
+ * so a description here makes the field search descriptions too: typing
+ * "billing" finds the skill that never says billing in its name. Same rule the
+ * composer's `/` menu uses, for none of the code.
+ */
+const skillHint = (skill: AgentSkill): string =>
+	// No label at all rather than a description-shaped echo of the name: a
+	// skill with no frontmatter would otherwise read "assign-bugs — assign-bugs".
+	skill.description ? skill.description.slice(0, 90) : "";
+
+/**
+ * Which skill the session opens with — the agent's own list, read off disk in
+ * the main process.
+ *
+ * It writes a leading `/name` into the text rather than holding a value of its
+ * own, exactly like the priority picker writes "!"s: typing `/gdpr` and
+ * picking it from here are the same edit, so the menu and the box can't
+ * disagree, and the edit box round-trips through one string.
+ *
+ * ponytail: a native `<input list>` + `<datalist>`. Eighty-odd skills is a
+ * menu you scroll and a list you search — the platform's own combobox does the
+ * filtering, the keyboard nav and the popup, and typing a name it doesn't know
+ * still works, because a skill can be installed after the task was written.
+ */
+function SkillSelect({
+	skills,
+	value,
+	onChange,
+}: {
+	skills: AgentSkill[];
+	value: string;
+	onChange: (text: string) => void;
+}) {
+	const current = parseTask(value).skill;
+	// One <datalist> per box, and its id has to be unique on the page — My
+	// Tasks has a compose box and an edit box open at once.
+	const listId = useId();
+	const known = skills.some((skill) => skill.name === current);
+	return (
+		<div className="flex items-center gap-1.5">
+			<span className="text-[11px] text-[#8a8a97]">Skill</span>
+			<input
+				list={listId}
+				aria-label="Skill"
+				placeholder="search…"
+				spellCheck={false}
+				title="Open the session by running this skill, with the title as its argument. Type to search — by name or by what it does."
+				value={current}
+				// Committed on every keystroke, like the priority "!"s: the text IS
+				// the state, so there's no draft to get out of step. A leading
+				// slash is tolerated (pasting "/gdpr" is the obvious move) and
+				// spaces are dropped, since they'd split the token in two.
+				onChange={(event) =>
+					onChange(
+						withSkill(value, event.target.value.trim().replace(/^\/+/, "")),
+					)
+				}
+				className={cn(
+					"w-[150px] rounded-[6px] bg-[#1f1f27] px-1.5 py-[3px] text-[11px] font-semibold outline-none transition-colors placeholder:font-normal placeholder:text-[#8a8a97]",
+					// Amber, not red: a name the list doesn't know is usually a skill
+					// installed on another machine, not a typo.
+					current && !known ? "text-[#f5b83d]" : "text-[#3ecf8e]",
+				)}
+			/>
+			<datalist id={listId}>
+				{skills.map((skill) => (
+					<option
+						key={skill.name}
+						value={skill.name}
+						label={skillHint(skill)}
+					/>
+				))}
+			</datalist>
+			{current && !known && (
+				<span className="text-[11px] text-[#8a8a97]">not installed</span>
 			)}
 		</div>
+	);
+}
+
+/** The skill a task runs, on its row. Green, matching the composer's menu. */
+export function SkillChip({ skill }: { skill: string }) {
+	return (
+		<span
+			title={`Runs /${skill}`}
+			className="rounded-[5px] bg-[#0f2a1c] px-[7px] py-[1px] font-semibold text-[#3ecf8e]"
+		>
+			/{skill}
+		</span>
 	);
 }
 
@@ -235,6 +356,7 @@ export function parseSize(stored: string | null): [string, string] | null {
  */
 export function QuickAddTask({ onClose }: { onClose: () => void }) {
 	const { add } = useMyTasks();
+	const { data: skills } = electronTrpc.skills.list.useQuery();
 	const [draft, setDraft] = useState("");
 	const dialog = useRef<HTMLDivElement>(null);
 
@@ -284,6 +406,7 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 				<TaskBox
 					value={draft}
 					autoFocus
+					skills={skills}
 					placeholder="What needs doing?"
 					onChange={setDraft}
 					onSubmit={save}

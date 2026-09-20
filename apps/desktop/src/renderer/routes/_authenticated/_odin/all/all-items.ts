@@ -28,6 +28,8 @@ export interface AllLaunch {
 	pageId?: string;
 	/** Absent for my own tasks: they're not work anyone delegated. */
 	source?: OdinSource;
+	/** My own tasks only — the skill the session opens with. */
+	skill?: string;
 }
 
 /**
@@ -153,6 +155,7 @@ export function allItems(input: {
 					description: task.notes || null,
 					contact: null,
 					brief: taskPrompt(task),
+					...(task.skill ? { skill: task.skill } : {}),
 				},
 			}),
 		),

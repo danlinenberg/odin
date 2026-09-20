@@ -3,6 +3,7 @@ import { cn } from "@odin/ui/utils";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
+import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import {
 	cronOf,
@@ -22,7 +23,7 @@ import {
 	ROW_PRIMARY_BUTTON,
 	RowActions,
 } from "../components/FeedChrome";
-import { NEXT_RUN_FORMAT, TaskBox } from "../components/TaskBox";
+import { NEXT_RUN_FORMAT, SkillChip, TaskBox } from "../components/TaskBox";
 import {
 	type OdinTask,
 	taskPrompt,
@@ -165,7 +166,9 @@ function ScheduleFields({
 											"rounded-[5px] px-[5px] py-[3px] text-[11px] font-semibold transition-colors",
 											on
 												? "bg-[#2e2413] text-[#f5b83d]"
-												: "bg-[#1f1f27] text-[#6f6f7d] hover:text-[#a5a5b3]",
+												: // #8a8a97, not the dimmer #6f6f7d: an unpicked day
+													// still has to be readable (odin-palette-contrast).
+													"bg-[#1f1f27] text-[#8a8a97] hover:text-[#f5f5f7]",
 										)}
 									>
 										{name}
@@ -235,6 +238,8 @@ function AutomationsPage() {
 	const { launch, isLaunching, launchingKey } = useLaunchTaskSession();
 	const navigate = useNavigate();
 	const panes = useTabsStore((s) => s.panes);
+	// The agent's own skills, for the compose box and every edit box below.
+	const { data: skills } = electronTrpc.skills.list.useQuery();
 
 	/** The session this automation's last run started, while it's still open. */
 	const livePaneId = (task: OdinTask) => {
@@ -254,6 +259,7 @@ function AutomationsPage() {
 			description: task.notes || null,
 			brief: taskPrompt(task),
 			tags: ["automation"],
+			skill: task.skill,
 		});
 		if (!result.ok) return toast.error(result.error);
 		setPane(task.id, result.paneId);
@@ -288,6 +294,7 @@ function AutomationsPage() {
 				<div>
 					<TaskBox
 						value={draft}
+						skills={skills}
 						// Priority says which task you'd do first. An automation has a
 						// time instead — the schedule below is its whole answer.
 						hidePriority
@@ -332,6 +339,7 @@ function AutomationsPage() {
 								key={task.id}
 								value={editDraft}
 								autoFocus
+								skills={skills}
 								onChange={setEditDraft}
 								onSubmit={() => {
 									edit(task.id, editDraft);
@@ -382,6 +390,7 @@ function AutomationsPage() {
 											cron={task.cron ?? ""}
 											onChange={(next) => setCron(task.id, next)}
 										/>
+										{task.skill && <SkillChip skill={task.skill} />}
 										<span className={ROW_META}>
 											{task.paused
 												? "paused"

@@ -2,11 +2,13 @@ import { beforeEach, describe, expect, it } from "bun:test";
 import {
 	DEFAULT_PRIORITY,
 	PRIORITY_LABELS,
+	parseTask,
 	priorityOf,
 	taskPrompt,
 	taskText,
 	useOdinTasks,
 	withPriority,
+	withSkill,
 } from "./useOdinTasks";
 
 beforeEach(() => useOdinTasks.setState({ tasks: [] }));
@@ -122,5 +124,59 @@ describe("withPriority", () => {
 		expect(task.priority).toBe(2);
 		expect(PRIORITY_LABELS[priorityOf(task)]).toBe("Medium");
 		expect(taskText(task)).toBe("Ship it");
+	});
+});
+
+describe("the skill on a task", () => {
+	it("reads a leading /skill off the title and keeps the name clean", () => {
+		useOdinTasks.getState().add("/ship-status Sweep the PR queue\n\nmine only");
+		const task = useOdinTasks.getState().tasks[0];
+		if (!task) throw new Error("task was not added");
+		expect(task.skill).toBe("ship-status");
+		expect(task.title).toBe("Sweep the PR queue");
+		// The prompt is the human text; the skill rides separately to `launch`.
+		expect(taskPrompt(task)).toBe("Sweep the PR queue\n\nmine only");
+		// ...and the edit box gets the whole thing back.
+		expect(taskText(task)).toBe("/ship-status Sweep the PR queue\n\nmine only");
+	});
+
+	it("survives a priority next to it, in either order of edit", () => {
+		expect(parseTask("!!! /gdpr Purge the account")).toMatchObject({
+			priority: 3,
+			skill: "gdpr",
+			title: "Purge the account",
+		});
+		expect(withSkill("!!! Purge the account", "gdpr")).toBe(
+			"!!! /gdpr Purge the account",
+		);
+		expect(withPriority("/gdpr Purge the account", 3)).toBe(
+			"!!! /gdpr Purge the account",
+		);
+		// Picking "No skill" takes it off and leaves everything else alone.
+		expect(withSkill("!!! /gdpr Purge the account", "")).toBe(
+			"!!! Purge the account",
+		);
+	});
+
+	it("names the task after the skill when that's all you typed", () => {
+		expect(parseTask("/ship-status")).toMatchObject({
+			skill: "ship-status",
+			title: "ship-status",
+		});
+	});
+
+	it("is not fooled by a title that starts with a path", () => {
+		expect(parseTask("/Users/dan/notes.md needs a rewrite")).toMatchObject({
+			skill: "",
+			title: "/Users/dan/notes.md needs a rewrite",
+		});
+	});
+
+	it("clears on edit when the slash is taken out of the box", () => {
+		const s = useOdinTasks.getState();
+		s.add("/gdpr Purge the account");
+		const id = useOdinTasks.getState().tasks[0]?.id ?? "";
+		useOdinTasks.getState().edit(id, "Purge the account");
+		expect(useOdinTasks.getState().tasks[0]?.skill).toBeUndefined();
 	});
 });
