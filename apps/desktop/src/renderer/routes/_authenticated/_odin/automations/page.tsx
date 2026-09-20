@@ -166,7 +166,9 @@ function ScheduleFields({
 											"rounded-[5px] px-[5px] py-[3px] text-[11px] font-semibold transition-colors",
 											on
 												? "bg-[#2e2413] text-[#f5b83d]"
-												: "bg-[#1f1f27] text-[#6f6f7d] hover:text-[#a5a5b3]",
+												: // #8a8a97, not the dimmer #6f6f7d: an unpicked day
+													// still has to be readable (odin-palette-contrast).
+													"bg-[#1f1f27] text-[#8a8a97] hover:text-[#f5f5f7]",
 										)}
 									>
 										{name}
