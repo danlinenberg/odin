@@ -96,6 +96,11 @@ const SESSION_SOURCE: Record<
 	pr: { to: "/prs", source: "GitHub" },
 	notion: { to: "/notion", source: "Notion" },
 	normal: { to: "/my-tasks", source: "Tasks" },
+	// Parked is a state, not a source — a session from any feed can be in it,
+	// and the board's own section is where that's visible. Reading it as a task
+	// keeps the row honest about the one thing it can say for sure: it isn't a
+	// feed item.
+	parked: { to: "/my-tasks", source: "Tasks" },
 };
 
 /** What a live session is doing — the board's columns, as a chip. */

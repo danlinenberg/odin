@@ -1,7 +1,7 @@
 import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import type { AgentSkill } from "lib/trpc/routers/skills";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { HiOutlineClock } from "react-icons/hi2";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { describeCron, nextRun } from "shared/cron";
@@ -13,6 +13,7 @@ import {
 	withPriority,
 	withSkill,
 } from "../hooks/useOdinTasks";
+import { matchSkills } from "./skill-picker";
 
 /** Title is the first line, the brief is the rest — the two fields the box
     shows are the two halves of the one string the store reads. */
@@ -145,29 +146,22 @@ export function TaskBox({
  * ever outgrows a menu.
  */
 /**
- * Chromium matches a datalist against both the option's value and its label,
- * so a description here makes the field search descriptions too: typing
- * "billing" finds the skill that never says billing in its name. Same rule the
- * composer's `/` menu uses, for none of the code.
- */
-const skillHint = (skill: AgentSkill): string =>
-	// No label at all rather than a description-shaped echo of the name: a
-	// skill with no frontmatter would otherwise read "assign-bugs — assign-bugs".
-	skill.description ? skill.description.slice(0, 90) : "";
-
-/**
  * Which skill the session opens with — the agent's own list, read off disk in
  * the main process.
  *
- * It writes a leading `/name` into the text rather than holding a value of its
- * own, exactly like the priority picker writes "!"s: typing `/gdpr` and
- * picking it from here are the same edit, so the menu and the box can't
- * disagree, and the edit box round-trips through one string.
+ * Picking writes a leading `/name` into the text rather than holding a value
+ * of its own, exactly like the priority picker writes "!"s: typing `/gdpr`
+ * into the title and choosing it here are the same edit, so the two can't
+ * disagree and the edit box round-trips through one string.
  *
- * ponytail: a native `<input list>` + `<datalist>`. Eighty-odd skills is a
- * menu you scroll and a list you search — the platform's own combobox does the
- * filtering, the keyboard nav and the popup, and typing a name it doesn't know
- * still works, because a skill can be installed after the task was written.
+ * ponytail: the menu is drawn here rather than by a native `<datalist>`. Eighty
+ * skills need search either way, and `matchSkills` — the composer's own
+ * ranking, name matches before description matches — already exists and is
+ * tested. A native popup also can't show a description, can't be styled to
+ * match, and is the one widget that can't be verified from the outside.
+ *
+ * It's `fixed` and measured on open because the rows it appears in live in a
+ * scroll container, which would clip an absolutely-positioned menu.
  */
 function SkillSelect({
 	skills,
@@ -179,29 +173,88 @@ function SkillSelect({
 	onChange: (text: string) => void;
 }) {
 	const current = parseTask(value).skill;
-	// One <datalist> per box, and its id has to be unique on the page — My
-	// Tasks has a compose box and an edit box open at once.
-	const listId = useId();
 	const known = skills.some((skill) => skill.name === current);
+	// null = not searching, so the box shows the skill that's set.
+	const [query, setQuery] = useState<string | null>(null);
+	const [selected, setSelected] = useState(0);
+	const [at, setAt] = useState<{ left: number; top: number } | null>(null);
+	const box = useRef<HTMLInputElement>(null);
+	// Escape has to abandon the search, but blurring the box is what dismisses
+	// it — and the blur handler would then commit the half-typed query. A ref,
+	// not state: it is read inside the blur that Escape itself triggers, before
+	// React has re-rendered.
+	const abandoned = useRef(false);
+
+	const matches = query === null ? [] : matchSkills(skills, query, 7);
+	const active = Math.min(selected, Math.max(matches.length - 1, 0));
+
+	const open = () => {
+		const rect = box.current?.getBoundingClientRect();
+		if (rect) setAt({ left: rect.left, top: rect.bottom + 4 });
+		setQuery(current);
+		setSelected(0);
+	};
+	const close = () => {
+		setQuery(null);
+		setAt(null);
+	};
+	const commit = (name: string) => {
+		// A pasted "/gdpr" is the obvious move, and a space would split the token
+		// in two, so both are cleaned off before it's written.
+		onChange(
+			withSkill(value, name.trim().replace(/^\/+/, "").split(/\s/)[0] ?? ""),
+		);
+		close();
+	};
+
 	return (
 		<div className="flex items-center gap-1.5">
 			<span className="text-[11px] text-[#8a8a97]">Skill</span>
 			<input
-				list={listId}
+				ref={box}
 				aria-label="Skill"
 				placeholder="search…"
 				spellCheck={false}
+				autoComplete="off"
 				title="Open the session by running this skill, with the title as its argument. Type to search — by name or by what it does."
-				value={current}
-				// Committed on every keystroke, like the priority "!"s: the text IS
-				// the state, so there's no draft to get out of step. A leading
-				// slash is tolerated (pasting "/gdpr" is the obvious move) and
-				// spaces are dropped, since they'd split the token in two.
-				onChange={(event) =>
-					onChange(
-						withSkill(value, event.target.value.trim().replace(/^\/+/, "")),
-					)
-				}
+				value={query ?? current}
+				onFocus={open}
+				onChange={(event) => {
+					setQuery(event.target.value);
+					setSelected(0);
+				}}
+				onBlur={() => {
+					if (abandoned.current) {
+						abandoned.current = false;
+						return close();
+					}
+					commit(query ?? current);
+				}}
+				onKeyDown={(event) => {
+					if (event.key === "Escape") {
+						// Only this box: Escape in the compose row would otherwise
+						// throw away the task you were writing too.
+						event.preventDefault();
+						event.stopPropagation();
+						abandoned.current = true;
+						box.current?.blur();
+						return;
+					}
+					if (matches.length === 0) return;
+					if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+						event.preventDefault();
+						const step = event.key === "ArrowDown" ? 1 : matches.length - 1;
+						setSelected((index) => (index + step) % matches.length);
+						return;
+					}
+					if (event.key === "Enter" || event.key === "Tab") {
+						event.preventDefault();
+						// Enter here picks a skill; it must not also submit the task.
+						event.stopPropagation();
+						const match = matches[active];
+						if (match) commit(match.name);
+					}
+				}}
 				className={cn(
 					"w-[150px] rounded-[6px] bg-[#1f1f27] px-1.5 py-[3px] text-[11px] font-semibold outline-none transition-colors placeholder:font-normal placeholder:text-[#8a8a97]",
 					// Amber, not red: a name the list doesn't know is usually a skill
@@ -209,17 +262,39 @@ function SkillSelect({
 					current && !known ? "text-[#f5b83d]" : "text-[#3ecf8e]",
 				)}
 			/>
-			<datalist id={listId}>
-				{skills.map((skill) => (
-					<option
-						key={skill.name}
-						value={skill.name}
-						label={skillHint(skill)}
-					/>
-				))}
-			</datalist>
-			{current && !known && (
+			{current && !known && query === null && (
 				<span className="text-[11px] text-[#8a8a97]">not installed</span>
+			)}
+			{at && matches.length > 0 && (
+				<div
+					style={{ left: at.left, top: at.top }}
+					className="fixed z-50 w-[340px] overflow-hidden rounded-[7px] border border-[#2e2e38] bg-[#16161b] shadow-[0_12px_40px_rgba(0,0,0,0.6)]"
+				>
+					{matches.map((skill, index) => (
+						<button
+							key={skill.name}
+							type="button"
+							onMouseEnter={() => setSelected(index)}
+							// The input keeps focus: mousedown fires before blur, so the
+							// pick lands instead of the blur committing the query.
+							onMouseDown={(event) => {
+								event.preventDefault();
+								commit(skill.name);
+							}}
+							className={cn(
+								"flex w-full items-baseline gap-2 px-2.5 py-1 text-left",
+								index === active && "bg-[#1f1f27]",
+							)}
+						>
+							<span className="shrink-0 text-[11px] font-semibold text-[#3ecf8e]">
+								/{skill.name}
+							</span>
+							<span className="min-w-0 flex-1 truncate text-[10.5px] text-[#a5a5b3]">
+								{skill.description}
+							</span>
+						</button>
+					))}
+				</div>
 			)}
 		</div>
 	);
