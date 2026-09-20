@@ -304,7 +304,10 @@ function AutomationsPage() {
 									</div>
 								</div>
 								<div className="flex shrink-0 items-center gap-1.5">
-									{activePaneId ? (
+									{/* Both, not either/or: the schedule starts a run whether
+									    or not the last one is still open, so the button has no
+									    business refusing to. */}
+									{activePaneId && (
 										<button
 											type="button"
 											onClick={() => {
@@ -315,16 +318,15 @@ function AutomationsPage() {
 										>
 											Go to session →
 										</button>
-									) : (
-										<button
-											type="button"
-											disabled={isLaunching}
-											onClick={() => void runNow(task)}
-											className={ROW_PRIMARY_BUTTON}
-										>
-											{launchingKey === task.id ? "Starting…" : "Run now"}
-										</button>
 									)}
+									<button
+										type="button"
+										disabled={isLaunching}
+										onClick={() => void runNow(task)}
+										className={ROW_PRIMARY_BUTTON}
+									>
+										{launchingKey === task.id ? "Starting…" : "Run now"}
+									</button>
 									{/* Pause stays visible: an automation you can only stop by
 									    deleting it is one you retype next week. */}
 									<button

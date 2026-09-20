@@ -11,13 +11,8 @@ const task = (over: Partial<OdinTask>): OdinTask => ({
 });
 
 const at = (iso: string) => new Date(iso);
-const nothingLive = (_paneId: string) => false;
-const due = (
-	tasks: OdinTask[],
-	iso: string,
-	isLive: (paneId: string) => boolean = nothingLive,
-) =>
-	dueAutomations(tasks, at(iso), isLive).map((t) => t.id);
+const due = (tasks: OdinTask[], iso: string) =>
+	dueAutomations(tasks, at(iso)).map((t) => t.id);
 
 describe("dueAutomations", () => {
 	test("fires on the minute the cron names", () => {
@@ -44,12 +39,12 @@ describe("dueAutomations", () => {
 		expect(due(rows, "2026-09-21T09:00:00")).toEqual(["a"]);
 	});
 
-	test("holds while its last session is still open", () => {
-		const rows = [task({ cron: "0 9 * * *", paneId: "p1" })];
-		expect(due(rows, "2026-09-20T09:00", (id: string) => id === "p1")).toEqual(
-			[],
-		);
-		expect(due(rows, "2026-09-20T09:00", () => false)).toEqual(["a"]);
+	test("runs even with the last run's session still on the board", () => {
+		// The schedule is the only say in it: pause is the off switch, and the
+		// capacity gate in `launch` is what stops a fast cron flattening the Mac.
+		expect(
+			due([task({ cron: "0 9 * * *", paneId: "p1" })], "2026-09-20T09:00"),
+		).toEqual(["a"]);
 	});
 
 	test("a broken expression is inert, not a crash", () => {
