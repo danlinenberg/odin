@@ -86,6 +86,7 @@ export function useAutomationRunner() {
 						// #automation on the card, so a session you didn't start
 						// reads as one at a glance on the board.
 						tags: ["automation"],
+						skill: task.skill,
 					});
 					if (result.ok) latest.current.setPane(task.id, result.paneId);
 				}

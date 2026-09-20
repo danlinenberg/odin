@@ -25,9 +25,13 @@ export function buildPrompt(
 	title: string,
 	description: string | null,
 	attachmentPaths: string[] = [],
+	skill?: string,
 ): string {
 	return [
-		`Task: ${title}`,
+		// A skill leads the prompt, on its own line, with the title as its
+		// argument — the shape a person types. Anywhere else in the text it's
+		// prose about a skill rather than an invocation of one.
+		skill ? `/${skill} ${title}` : `Task: ${title}`,
 		...(description ? ["", description] : []),
 		...(attachmentPaths.length > 0
 			? [
@@ -219,6 +223,7 @@ export function useLaunchTaskSession() {
 		noPrompt,
 		images,
 		tags,
+		skill,
 		resumeSessionId,
 		repoPath,
 		key,
@@ -258,6 +263,8 @@ export function useLaunchTaskSession() {
 		source?: OdinSource;
 		/** Board tags to stamp at launch (e.g. ["odin"] for work on Odin itself). */
 		tags?: string[];
+		/** Open the session by invoking this skill — `gdpr`, `plugin:name`. */
+		skill?: string;
 		/** Start now regardless of how loaded the machine is. */
 		now?: boolean;
 	}): Promise<
@@ -355,7 +362,7 @@ export function useLaunchTaskSession() {
 				await utils.client.filesystem.writeFile.mutate({
 					workspaceId,
 					absolutePath: promptPath,
-					content: buildPrompt(title, description, attachmentPaths),
+					content: buildPrompt(title, description, attachmentPaths, skill),
 					encoding: "utf-8",
 				});
 				promptArg = ` "$(cat '${promptPath}')"`;

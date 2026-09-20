@@ -3,6 +3,7 @@ import { cn } from "@odin/ui/utils";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
+import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import {
 	FEED_LIST,
@@ -14,7 +15,12 @@ import {
 	ROW_PRIMARY_BUTTON,
 	RowActions,
 } from "../components/FeedChrome";
-import { AutomationChip, PriorityChip, TaskBox } from "../components/TaskBox";
+import {
+	AutomationChip,
+	PriorityChip,
+	SkillChip,
+	TaskBox,
+} from "../components/TaskBox";
 import {
 	type OdinTask,
 	taskPrompt,
@@ -47,6 +53,8 @@ function MyTasksPage() {
 	const { launch, isLaunching, launchingKey } = useLaunchTaskSession();
 	const navigate = useNavigate();
 	const panes = useTabsStore((s) => s.panes);
+	// The agent's own skills, for the compose box and every edit box below.
+	const { data: skills } = electronTrpc.skills.list.useQuery();
 
 	/** The session this task started, while it's still on the board. */
 	const livePaneId = (task: OdinTask) => {
@@ -64,6 +72,7 @@ function MyTasksPage() {
 			title: task.title,
 			description: task.notes || null,
 			brief: taskPrompt(task),
+			skill: task.skill,
 		});
 		if (!result.ok) return toast.error(result.error);
 		// The task keeps its row and gains a way into the session — starting one
@@ -85,6 +94,7 @@ function MyTasksPage() {
 			<div className="border-b border-[#25252e] px-[18px] py-3">
 				<TaskBox
 					value={draft}
+					skills={skills}
 					placeholder="What needs doing?"
 					onChange={setDraft}
 					onSubmit={() => {
@@ -109,6 +119,7 @@ function MyTasksPage() {
 								key={task.id}
 								value={editDraft}
 								autoFocus
+								skills={skills}
 								onChange={setEditDraft}
 								onSubmit={() => {
 									edit(task.id, editDraft);
@@ -155,6 +166,7 @@ function MyTasksPage() {
 										) : (
 											<PriorityChip priority={task.priority} />
 										)}
+										{task.skill && <SkillChip skill={task.skill} />}
 										{activePaneId && (
 											<span className="inline-flex items-center gap-1 rounded-[5px] bg-[#14301f] px-[7px] py-[1px] font-semibold text-[#3ecf8e]">
 												<span className="size-1.5 animate-pulse rounded-full bg-current" />

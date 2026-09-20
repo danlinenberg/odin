@@ -35,6 +35,12 @@ export interface OdinTask {
 	paused?: boolean;
 	/** The minute the schedule last fired, so one tick can't fire it twice. */
 	lastRunAt?: number;
+	/**
+	 * The skill this runs — `gdpr`, `imagen-core:triage`. The session opens by
+	 * invoking it, with the title as its argument, so a task that is really
+	 * "run /ship-status" says so on the card instead of hiding it in prose.
+	 */
+	skill?: string;
 }
 
 /** Scheduled, so it runs itself — the one thing automations don't share. */
@@ -64,18 +70,54 @@ export const priorityOf = (task: { priority?: number }): number =>
  * is Medium. The select next to the box writes the same "!"s, so there is one
  * source of truth and picking and typing can't disagree.
  */
+/**
+ * The first line's grammar, in one place: optional "!"s, an optional `/skill`,
+ * then the name. The parser and both writers (priority, skill) go through
+ * here, so picking from a menu and typing it by hand can't disagree.
+ *
+ * The skill token must be followed by a space or the end of the line —
+ * otherwise a title that starts with a path ("/Users/dan/notes.md") would read
+ * as a skill called `Users`.
+ */
+function splitFirstLine(first: string): {
+	bangs: string;
+	skill: string;
+	title: string;
+} {
+	const [, bangs = "", rest = ""] =
+		/^(!*)\s*([\s\S]*)$/.exec(first.trim()) ?? [];
+	const slash = /^\/([\w:-]+)(?=\s|$)\s*([\s\S]*)$/.exec(rest);
+	return {
+		bangs,
+		skill: slash?.[1] ?? "",
+		title: (slash?.[2] ?? rest).trim(),
+	};
+}
+
+const joinFirstLine = (parts: {
+	bangs: string;
+	skill: string;
+	title: string;
+}): string =>
+	[parts.bangs, parts.skill && `/${parts.skill}`, parts.title]
+		.filter(Boolean)
+		.join(" ");
+
 export function parseTask(text: string): {
 	title: string;
 	notes: string;
 	priority: number;
+	skill: string;
 } {
 	const [first = "", ...rest] = text.trim().split("\n");
-	const [, bangs = "", title = ""] =
-		/^(!*)\s*([\s\S]*)$/.exec(first.trim()) ?? [];
+	const { bangs, skill, title } = splitFirstLine(first);
 	return {
-		title: title.trim(),
+		// "/ship-status" on its own is a task — the skill names it, so the card
+		// isn't blank and `add` doesn't reject it as titleless.
+		title: title || skill,
 		notes: rest.join("\n").trim(),
 		priority: bangs ? Math.min(bangs.length, 3) : DEFAULT_PRIORITY,
+		skill,
 	};
 }
 
@@ -86,6 +128,8 @@ export const useOdinTasks = create<{
 	 * and it lands as an automation instead of a one-shot task.
 	 */
 	add: (text: string, profileId?: string, cron?: string) => void;
+	/** Run this task through a skill, or through none (empty). */
+	setSkill: (id: string, skill: string) => void;
 	edit: (id: string, text: string) => void;
 	remove: (id: string) => void;
 	/** Remember which session this task launched, so the row can jump to it. */
@@ -101,7 +145,7 @@ export const useOdinTasks = create<{
 			tasks: [],
 			add: (text, profileId, cron) =>
 				set((s) => {
-					const { title, notes, priority } = parseTask(text);
+					const { title, notes, priority, skill } = parseTask(text);
 					if (!title) return s;
 					return {
 						tasks: [
@@ -113,6 +157,7 @@ export const useOdinTasks = create<{
 								createdAt: Date.now(),
 								profileId: profileOf(profileId),
 								...(cron ? { cron } : {}),
+								...(skill ? { skill } : {}),
 							},
 							...s.tasks,
 						],
@@ -120,12 +165,16 @@ export const useOdinTasks = create<{
 				}),
 			edit: (id, text) =>
 				set((s) => {
-					const { title, notes, priority } = parseTask(text);
+					const { title, notes, priority, skill } = parseTask(text);
 					// Editing a task to nothing means deleting it — one fewer button.
 					if (!title) return { tasks: s.tasks.filter((t) => t.id !== id) };
 					return {
 						tasks: s.tasks.map((t) =>
-							t.id === id ? { ...t, title, notes, priority } : t,
+							// skill is written on every edit, so clearing it in the box
+							// clears it on the task rather than leaving the old one.
+							t.id === id
+								? { ...t, title, notes, priority, skill: skill || undefined }
+								: t,
 						),
 					};
 				}),
@@ -139,6 +188,12 @@ export const useOdinTasks = create<{
 				set((s) => ({
 					tasks: s.tasks.map((t) =>
 						t.id === id ? { ...t, cron: cron ?? undefined } : t,
+					),
+				})),
+			setSkill: (id, skill) =>
+				set((s) => ({
+					tasks: s.tasks.map((t) =>
+						t.id === id ? { ...t, skill: skill || undefined } : t,
 					),
 				})),
 			setPaused: (id, paused) =>
@@ -197,17 +252,32 @@ export function useMyTasks() {
  */
 export function withPriority(text: string, priority: number): string {
 	const [first = "", ...rest] = text.split("\n");
-	const bare = first.trim().replace(/^!+\s*/, "");
 	const level = Math.min(Math.max(priority, 1), 3);
 	// Medium is what no "!"s already means, so the default writes none — the
 	// box stays the text you typed until you actually pick Low or High.
 	const bangs = level === DEFAULT_PRIORITY ? "" : "!".repeat(level);
-	return [bangs ? `${bangs} ${bare}` : bare, ...rest].join("\n");
+	return [joinFirstLine({ ...splitFirstLine(first), bangs }), ...rest].join(
+		"\n",
+	);
+}
+
+/**
+ * The same text running a different skill — what the Skill menu writes back
+ * into the box. An empty name takes the skill off.
+ */
+export function withSkill(text: string, skill: string): string {
+	const [first = "", ...rest] = text.split("\n");
+	return [joinFirstLine({ ...splitFirstLine(first), skill }), ...rest].join(
+		"\n",
+	);
 }
 
 /** What you'd have to type to get this task back — the edit box's text. */
 export function taskText(task: OdinTask): string {
-	return withPriority(taskPrompt(task), priorityOf(task));
+	return withSkill(
+		withPriority(taskPrompt(task), priorityOf(task)),
+		task.skill ?? "",
+	);
 }
 
 /** The prompt a task launches with — what you typed, minus the "!"s. */
