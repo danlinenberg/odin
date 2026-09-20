@@ -10,6 +10,7 @@ import {
 	isValidCron,
 	nextRun,
 	type Repeat,
+	SHORT_DAYS,
 	scheduleOf,
 	WEEKDAY_NAMES,
 } from "shared/cron";
@@ -44,8 +45,11 @@ const REPEATS: [Repeat, string][] = [
 	["30m", "Every 30 minutes"],
 	["hourly", "Every hour"],
 	["daily", "Every day"],
-	["weekdays", "Every weekday"],
-	["weekly", "Every week"],
+	// One entry, not "Every weekday" and "Every week": both were the same
+	// schedule with a different number of days ticked, and two menu entries for
+	// one thing is two places for it to disagree. It opens on Mon-Fri, so the
+	// common case is still no clicks.
+	["days", "On certain days"],
 	["monthly", "Every month"],
 ];
 
@@ -133,19 +137,42 @@ function ScheduleFields({
 				/>
 			) : (
 				<>
-					{schedule.repeat === "weekly" && (
-						<select
-							aria-label="Day of the week"
-							value={schedule.weekday}
-							onChange={(event) => set({ weekday: Number(event.target.value) })}
-							className={FIELD}
-						>
-							{WEEKDAY_NAMES.map((name, index) => (
-								<option key={name} value={index}>
-									{name}
-								</option>
-							))}
-						</select>
+					{schedule.repeat === "days" && (
+						/* Seven toggles rather than a multi-select: which days are on is
+						   the answer, and a row of them shows it without opening
+						   anything. */
+						<span className="flex items-center gap-[3px]">
+							{SHORT_DAYS.map((name, index) => {
+								const on = schedule.weekdays.includes(index);
+								return (
+									<button
+										key={name}
+										type="button"
+										aria-label={WEEKDAY_NAMES[index]}
+										aria-pressed={on}
+										// Turning the last one off would leave a schedule that
+										// never fires and no way back except Custom, so the last
+										// lit day stays lit.
+										onClick={() =>
+											set({
+												weekdays: on
+													? schedule.weekdays.filter((d) => d !== index)
+													: [...schedule.weekdays, index],
+											})
+										}
+										disabled={on && schedule.weekdays.length === 1}
+										className={cn(
+											"rounded-[5px] px-[5px] py-[3px] text-[11px] font-semibold transition-colors",
+											on
+												? "bg-[#2e2413] text-[#f5b83d]"
+												: "bg-[#1f1f27] text-[#6f6f7d] hover:text-[#a5a5b3]",
+										)}
+									>
+										{name}
+									</button>
+								);
+							})}
+						</span>
 					)}
 					{schedule.repeat === "monthly" && (
 						<select

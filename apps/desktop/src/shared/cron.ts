@@ -128,34 +128,55 @@ export function nextRun(expr: string, from: Date = new Date()): Date | null {
 // string. Anything a picker can't express stays a cron and is shown as one.
 // ---------------------------------------------------------------------------
 
-export type Repeat =
-	| "15m"
-	| "30m"
-	| "hourly"
-	| "daily"
-	| "weekdays"
-	| "weekly"
-	| "monthly";
+export type Repeat = "15m" | "30m" | "hourly" | "daily" | "days" | "monthly";
 
 export interface Schedule {
 	repeat: Repeat;
 	/** "HH:MM". Unused by the sub-hourly repeats, kept so switching keeps it. */
 	time: string;
-	/** 0–6, Sunday first — weekly only. */
-	weekday: number;
+	/**
+	 * Which days, 0–6 Sunday first — the "days" repeat. A set rather than one
+	 * day: Mon/Wed/Fri is a schedule people actually keep, and "every weekday"
+	 * is just this list rather than a menu entry of its own.
+	 */
+	weekdays: number[];
 	/** 1–28 — monthly only. The 29th-31st don't exist in every month. */
 	day: number;
 }
 
 /** What a new automation starts as: weekdays at 09:00. */
 export const DEFAULT_SCHEDULE: Schedule = {
-	repeat: "weekdays",
+	repeat: "days",
 	time: "09:00",
-	weekday: 1,
+	weekdays: [1, 2, 3, 4, 5],
 	day: 1,
 };
 
 const pad = (n: number) => String(n).padStart(2, "0");
+
+/** Ascending, no repeats — the one order a day set is ever written in. */
+const sortedDays = (days: number[]): number[] =>
+	[...new Set(days)].sort((a, b) => a - b);
+
+/**
+ * A day-of-week field as the days it means, or null if it isn't one the
+ * picker can show. Ranges are expanded (`1-5` is five toggles lit), so a cron
+ * written by hand still opens in the picker rather than as Custom.
+ */
+function weekdaysOf(field: string): number[] | null {
+	const days: number[] = [];
+	for (const chunk of field.split(",")) {
+		const [a = "", b = a, extra] = chunk.split("-");
+		if (extra !== undefined || !/^\d$/.test(a) || !/^\d$/.test(b)) return null;
+		const from = Number(a);
+		const to = Number(b);
+		// Sunday is 0 or 7 in cron. Folding 7 down only while walking the range
+		// keeps "5-7" meaning Fri-Sun rather than an inverted 5..0.
+		if (from > 7 || to > 7 || from > to) return null;
+		for (let d = from; d <= to; d++) days.push(d === 7 ? 0 : d);
+	}
+	return days.length > 0 ? sortedDays(days) : null;
+}
 
 export function cronOf(schedule: Schedule): string {
 	const [hh = "0", mm = "0"] = schedule.time.split(":");
@@ -170,10 +191,10 @@ export function cronOf(schedule: Schedule): string {
 			return "0 * * * *";
 		case "daily":
 			return `${m} ${h} * * *`;
-		case "weekdays":
-			return `${m} ${h} * * 1-5`;
-		case "weekly":
-			return `${m} ${h} * * ${schedule.weekday}`;
+		case "days":
+			// Always a comma list, never a range: one spelling per meaning, so a
+			// schedule can't round-trip into a different string than it came from.
+			return `${m} ${h} * * ${sortedDays(schedule.weekdays).join(",")}`;
 		case "monthly":
 			return `${m} ${h} ${schedule.day} * *`;
 	}
@@ -206,12 +227,9 @@ export function scheduleOf(expr: string): Schedule | null {
 	const h = num(ho);
 	if (m === null || h === null || m > 59 || h > 23) return null;
 	if (dom === "*" && dow === "*") return { ...at(h, m), repeat: "daily" };
-	if (dom === "*" && dow === "1-5") return { ...at(h, m), repeat: "weekdays" };
 	if (dom === "*") {
-		const d = num(dow);
-		return d === null || d > 6
-			? null
-			: { ...at(h, m), repeat: "weekly", weekday: d };
+		const days = weekdaysOf(dow);
+		return days ? { ...at(h, m), repeat: "days", weekdays: days } : null;
 	}
 	if (dow === "*") {
 		const d = num(dom);
@@ -231,6 +249,23 @@ const DAYS = [
 	"Friday",
 	"Saturday",
 ];
+
+/** The toggles' labels, short enough for seven of them in a row. */
+export const SHORT_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/**
+ * A day set in words. The two sets with a name of their own get it; the rest
+ * are listed, because "Mon, Wed & Fri" is shorter than any phrase for it.
+ */
+function namedDays(days: number[]): string {
+	const key = sortedDays(days).join(",");
+	if (key === "0,1,2,3,4,5,6") return "every day";
+	if (key === "1,2,3,4,5") return "weekdays";
+	if (key === "0,6") return "weekends";
+	const names = sortedDays(days).map((d) => SHORT_DAYS[d] ?? "?");
+	if (names.length === 1) return `every ${DAYS[sortedDays(days)[0] ?? 0]}`;
+	return `${names.slice(0, -1).join(", ")} & ${names.at(-1)}`;
+}
 
 /** 1st, 2nd, 3rd, 11th, 21st — for "on the Nth". */
 export function ordinal(n: number): string {
@@ -255,10 +290,8 @@ export function describeCron(expr: string): string {
 			return "every hour, on the hour";
 		case "daily":
 			return `every day at ${s.time}`;
-		case "weekdays":
-			return `weekdays at ${s.time}`;
-		case "weekly":
-			return `every ${DAYS[s.weekday]} at ${s.time}`;
+		case "days":
+			return `${namedDays(s.weekdays)} at ${s.time}`;
 		case "monthly":
 			return `on the ${ordinal(s.day)} at ${s.time}`;
 	}

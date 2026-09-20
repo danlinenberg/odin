@@ -109,7 +109,8 @@ describe("the picker's schedules", () => {
 			"*/30 * * * *",
 			"0 * * * *",
 			"30 9 * * *",
-			"0 9 * * 1-5",
+			"0 9 * * 1,2,3,4,5",
+			"0 9 * * 1,3,5",
 			"15 17 * * 5",
 			"0 8 12 * *",
 		]) {
@@ -117,11 +118,26 @@ describe("the picker's schedules", () => {
 		}
 	});
 
+	test("a day range opens as the days it means", () => {
+		// Written by hand, or by an older build — it lights Mon-Fri rather than
+		// dropping the whole thing into the Custom box.
+		expect(scheduleOf("0 9 * * 1-5")).toMatchObject({
+			repeat: "days",
+			weekdays: [1, 2, 3, 4, 5],
+		});
+		// Sunday is 0 or 7, and both spellings light the same toggle.
+		expect(scheduleOf("0 9 * * 7")?.weekdays).toEqual([0]);
+		// Fri-Sun, not an inverted 5..0.
+		expect(scheduleOf("0 9 * * 5-7")?.weekdays).toEqual([0, 5, 6]);
+		expect(scheduleOf("0 9 * * 6,0")?.weekdays).toEqual([0, 6]);
+	});
+
 	test("a cron the picker can't express reads as custom, not as a near miss", () => {
 		// :15 past the hour is NOT "every hour" — rendering it as one would
 		// save the minute away.
 		expect(scheduleOf("15 * * * *")).toBeNull();
-		expect(scheduleOf("0 9 * * 1,3,5")).toBeNull();
+		expect(scheduleOf("0 9 * * 8")).toBeNull();
+		expect(scheduleOf("0 9 * * 1-5/2")).toBeNull();
 		expect(scheduleOf("0 9 31 * *")).toBeNull();
 		expect(scheduleOf("0 9 * 3 *")).toBeNull();
 		expect(scheduleOf("0 9 1 * 1")).toBeNull();
@@ -135,8 +151,8 @@ describe("the picker's schedules", () => {
 			time: "00:00",
 		});
 		expect(scheduleOf("@weekly")).toMatchObject({
-			repeat: "weekly",
-			weekday: 0,
+			repeat: "days",
+			weekdays: [0],
 		});
 		expect(scheduleOf("@monthly")).toMatchObject({ repeat: "monthly", day: 1 });
 	});
@@ -146,9 +162,11 @@ describe("the picker's schedules", () => {
 		expect(describeCron("0 * * * *")).toBe("every hour, on the hour");
 		expect(describeCron("30 9 * * *")).toBe("every day at 09:30");
 		expect(describeCron("0 9 * * 1-5")).toBe("weekdays at 09:00");
+		expect(describeCron("0 9 * * 1,3,5")).toBe("Mon, Wed & Fri at 09:00");
+		expect(describeCron("0 9 * * 0,6")).toBe("weekends at 09:00");
 		expect(describeCron("15 17 * * 5")).toBe("every Friday at 17:15");
 		expect(describeCron("0 8 22 * *")).toBe("on the 22nd at 08:00");
-		expect(describeCron(" 0 9 * * 1,3,5 ")).toBe("0 9 * * 1,3,5");
+		expect(describeCron("0 9 1 * 1")).toBe("0 9 1 * 1");
 	});
 
 	test("what the picker writes is always a cron the matcher accepts", () => {
@@ -157,15 +175,14 @@ describe("the picker's schedules", () => {
 			"30m",
 			"hourly",
 			"daily",
-			"weekdays",
-			"weekly",
+			"days",
 			"monthly",
 		] as const) {
 			const expr = cronOf({
 				...DEFAULT_SCHEDULE,
 				repeat,
 				time: "07:05",
-				weekday: 3,
+				weekdays: [5, 1, 1, 3],
 				day: 28,
 			});
 			expect(isValidCron(expr)).toBe(true);
