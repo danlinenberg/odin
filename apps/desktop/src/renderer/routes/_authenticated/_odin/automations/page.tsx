@@ -4,7 +4,15 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { useTabsStore } from "renderer/stores/tabs/store";
-import { isValidCron, nextRun } from "shared/cron";
+import {
+	cronOf,
+	DEFAULT_SCHEDULE,
+	isValidCron,
+	nextRun,
+	type Repeat,
+	scheduleOf,
+	WEEKDAY_NAMES,
+} from "shared/cron";
 import {
 	FEED_LIST,
 	FEED_ROW,
@@ -27,56 +35,154 @@ export const Route = createFileRoute("/_authenticated/_odin/automations/")({
 	component: AutomationsPage,
 });
 
-/**
- * The schedules people actually want, as a native `<datalist>` — suggestions
- * on an input that still takes any cron you type. A preset dropdown that
- * writes into a field is two widgets that can disagree; this is one.
- */
-const PRESETS: [string, string][] = [
-	["@hourly", "every hour, on the hour"],
-	["0 9 * * 1-5", "weekdays at 09:00"],
-	["0 9 * * *", "every day at 09:00"],
-	["30 17 * * 5", "Fridays at 17:30"],
-	["0 * * * *", "every hour"],
-	["*/30 * * * *", "every 30 minutes"],
-	["0 9 1 * *", "the 1st of the month at 09:00"],
+const CRON_HELP =
+	"minute hour day-of-month month day-of-week — e.g. 0 9 * * 1-5 for weekdays at 09:00.";
+
+/** What the Repeat menu offers, in order. */
+const REPEATS: [Repeat, string][] = [
+	["15m", "Every 15 minutes"],
+	["30m", "Every 30 minutes"],
+	["hourly", "Every hour"],
+	["daily", "Every day"],
+	["weekdays", "Every weekday"],
+	["weekly", "Every week"],
+	["monthly", "Every month"],
 ];
 
-const CRON_HELP =
-	"minute hour day-of-month month day-of-week — e.g. 0 9 * * 1-5 for weekdays at 09:00. @hourly, @daily, @weekly and @monthly work too.";
+const FIELD =
+	"cursor-pointer rounded-[6px] bg-[#1f1f27] px-1.5 py-[3px] text-[11px] font-semibold text-[#a5a5b3] outline-none transition-colors hover:text-[#f5f5f7] focus:text-[#f5f5f7]";
 
-/** The schedule field. Red while what's typed isn't a schedule. */
-function CronInput({
-	value,
+/**
+ * When a job runs, said in the terms people think in — a repeat, a day, a
+ * time. Cron is still what's stored and matched; nobody has to write one.
+ *
+ * ponytail: native `<select>`s and `<input type="time">`. The time picker,
+ * its keyboard handling and its locale (12h or 24h) all come free, and there
+ * is no popup to style. The fields hold no state of their own either — they
+ * read the cron and write a new one, so what's shown and what runs can't
+ * drift apart.
+ *
+ * Anything the menu can't express (`0 9 * * 1,3,5`) stays a cron: the Custom
+ * entry shows it verbatim in a text field rather than rounding it to the
+ * nearest preset.
+ */
+function ScheduleFields({
+	cron,
 	onChange,
-	onCommit,
-	className,
 }: {
-	value: string;
-	onChange: (value: string) => void;
-	onCommit?: () => void;
-	className?: string;
+	cron: string;
+	onChange: (cron: string) => void;
 }) {
-	const bad = value.trim() !== "" && !isValidCron(value);
+	// Custom is sticky once chosen, so picking it doesn't immediately snap back
+	// on a cron the menu happens to be able to express.
+	const [wantsCustom, setWantsCustom] = useState(false);
+	const [draft, setDraft] = useState<string | null>(null);
+	const parsed = scheduleOf(cron);
+	const schedule = parsed ?? DEFAULT_SCHEDULE;
+	const custom = wantsCustom || !parsed;
+	const set = (patch: Partial<typeof schedule>) =>
+		onChange(cronOf({ ...schedule, ...patch }));
+
+	const text = draft ?? cron;
+	const commit = () => {
+		setDraft(null);
+		const next = text.trim();
+		if (next === cron) return;
+		if (!isValidCron(next)) return toast.error(`Not a schedule. ${CRON_HELP}`);
+		onChange(next);
+	};
+
 	return (
-		<input
-			value={value}
-			list="odin-cron-presets"
-			spellCheck={false}
-			aria-label="Schedule"
-			placeholder="0 9 * * 1-5"
-			title={CRON_HELP}
-			onChange={(event) => onChange(event.target.value)}
-			onBlur={() => onCommit?.()}
-			onKeyDown={(event) => {
-				if (event.key === "Enter") onCommit?.();
-			}}
-			className={cn(
-				"rounded-[7px] border bg-[#0a0a0c] px-2 py-1 font-mono text-[12px] text-[#f5f5f7] outline-none",
-				bad ? "border-[#f0647a]" : "border-[#25252e] focus:border-[#f5b83d]",
-				className,
+		<div className="flex flex-wrap items-center gap-1.5">
+			<select
+				aria-label="Repeat"
+				value={custom ? "custom" : schedule.repeat}
+				onChange={(event) => {
+					const value = event.target.value;
+					setWantsCustom(value === "custom");
+					if (value !== "custom") set({ repeat: value as Repeat });
+				}}
+				className={FIELD}
+			>
+				{REPEATS.map(([value, label]) => (
+					<option key={value} value={value}>
+						{label}
+					</option>
+				))}
+				<option value="custom">Custom cron…</option>
+			</select>
+
+			{custom ? (
+				<input
+					value={text}
+					spellCheck={false}
+					aria-label="Cron expression"
+					placeholder="0 9 * * 1-5"
+					title={CRON_HELP}
+					onChange={(event) => setDraft(event.target.value)}
+					onBlur={commit}
+					onKeyDown={(event) => {
+						if (event.key === "Enter") commit();
+					}}
+					className={cn(
+						"w-[124px] rounded-[6px] border bg-[#0a0a0c] px-2 py-[2px] font-mono text-[11px] text-[#f5f5f7] outline-none",
+						text.trim() && !isValidCron(text)
+							? "border-[#f0647a]"
+							: "border-[#25252e] focus:border-[#f5b83d]",
+					)}
+				/>
+			) : (
+				<>
+					{schedule.repeat === "weekly" && (
+						<select
+							aria-label="Day of the week"
+							value={schedule.weekday}
+							onChange={(event) => set({ weekday: Number(event.target.value) })}
+							className={FIELD}
+						>
+							{WEEKDAY_NAMES.map((name, index) => (
+								<option key={name} value={index}>
+									{name}
+								</option>
+							))}
+						</select>
+					)}
+					{schedule.repeat === "monthly" && (
+						<select
+							aria-label="Day of the month"
+							// 1–28 only: the 29th-31st don't happen every month, and a
+							// job that skips February isn't a monthly job.
+							value={schedule.day}
+							onChange={(event) => set({ day: Number(event.target.value) })}
+							className={FIELD}
+						>
+							{Array.from({ length: 28 }, (_, i) => i + 1).map((day) => (
+								<option key={day} value={day}>
+									Day {day}
+								</option>
+							))}
+						</select>
+					)}
+					{schedule.repeat !== "15m" &&
+						schedule.repeat !== "30m" &&
+						schedule.repeat !== "hourly" && (
+							<>
+								<span className="text-[11px] text-[#8a8a97]">at</span>
+								<input
+									type="time"
+									aria-label="Time"
+									value={schedule.time}
+									onChange={(event) => set({ time: event.target.value })}
+									// color-scheme: the native clock icon and its popup are
+									// drawn by Chromium, and default to a white-on-white
+									// widget on this dark bar without it.
+									className={cn(FIELD, "[color-scheme:dark]")}
+								/>
+							</>
+						)}
+				</>
 			)}
-		/>
+		</div>
 	);
 }
 
@@ -98,10 +204,6 @@ function AutomationsPage() {
 	const [draftCron, setDraftCron] = useState("0 9 * * 1-5");
 	const [editingId, setEditingId] = useState<string | null>(null);
 	const [editDraft, setEditDraft] = useState("");
-	const [cronDraft, setCronDraft] = useState<{
-		id: string;
-		text: string;
-	} | null>(null);
 	const { ensureWorkspace } = useOdinWorkspace();
 	const { launch, isLaunching, launchingKey } = useLaunchTaskSession();
 	const navigate = useNavigate();
@@ -141,13 +243,6 @@ function AutomationsPage() {
 
 	return (
 		<div className="flex h-full flex-col">
-			{/* The presets every schedule field on this page offers. */}
-			<datalist id="odin-cron-presets">
-				{PRESETS.map(([expr, label]) => (
-					<option key={expr} value={expr} label={label} />
-				))}
-			</datalist>
-
 			<div className="flex items-center gap-2.5 border-b border-[#25252e] px-[18px] py-2.5">
 				<span className="text-[13px] font-semibold text-[#f5f5f7]">
 					Automations
@@ -176,8 +271,8 @@ function AutomationsPage() {
 					/>
 				</div>
 				<div className="mt-2 flex items-center gap-2">
-					<span className="text-[11px] text-[#8a8a97]">Schedule</span>
-					<CronInput value={draftCron} onChange={setDraftCron} />
+					<span className="text-[11px] text-[#8a8a97]">Repeat</span>
+					<ScheduleFields cron={draftCron} onChange={setDraftCron} />
 					<span className={ROW_META}>
 						{isValidCron(draftCron)
 							? `next ${nextRun(draftCron)?.toLocaleString(undefined, NEXT_RUN_FORMAT) ?? "— never fires"}`
@@ -252,28 +347,13 @@ function AutomationsPage() {
 										)}
 									</button>
 									<div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px]">
-										{/* The schedule is editable in place: changing when a job
-										    runs is the whole point of this panel, and burying it
-										    behind the task editor makes it the one thing you have
-										    to reopen the task to do. */}
-										<CronInput
-											value={
-												cronDraft?.id === task.id
-													? cronDraft.text
-													: (task.cron ?? "")
-											}
-											onChange={(text) => setCronDraft({ id: task.id, text })}
-											onCommit={() => {
-												if (!cronDraft || cronDraft.id !== task.id) return;
-												const text = cronDraft.text.trim();
-												setCronDraft(null);
-												if (text === (task.cron ?? "")) return;
-												if (!isValidCron(text)) {
-													return toast.error(`Not a schedule. ${CRON_HELP}`);
-												}
-												setCron(task.id, text);
-											}}
-											className="w-[130px] py-[1px]"
+										{/* Editable in place: changing when a job runs is the whole
+										    point of this panel, and burying it behind the task
+										    editor makes it the one thing you have to reopen the
+										    task to do. */}
+										<ScheduleFields
+											cron={task.cron ?? ""}
+											onChange={(next) => setCron(task.id, next)}
 										/>
 										<span className={ROW_META}>
 											{task.paused

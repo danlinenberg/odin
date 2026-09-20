@@ -1,5 +1,14 @@
 import { describe, expect, test } from "bun:test";
-import { cronMatches, isValidCron, nextRun, parseCron } from "./cron";
+import {
+	cronMatches,
+	cronOf,
+	DEFAULT_SCHEDULE,
+	describeCron,
+	isValidCron,
+	nextRun,
+	parseCron,
+	scheduleOf,
+} from "./cron";
 
 /** Local time, because that's what the scheduler compares against. */
 const at = (iso: string) => new Date(iso);
@@ -85,5 +94,81 @@ describe("nextRun", () => {
 	test("null for a bad expression and for one that can never fire", () => {
 		expect(nextRun("nope", at("2026-09-20T09:00"))).toBeNull();
 		expect(nextRun("0 9 30 2 *", at("2026-09-20T09:00"))).toBeNull();
+	});
+});
+
+describe("the picker's schedules", () => {
+	const roundTrip = (expr: string) => {
+		const s = scheduleOf(expr);
+		return s ? cronOf(s) : null;
+	};
+
+	test("every shape the picker offers survives the round trip", () => {
+		for (const expr of [
+			"*/15 * * * *",
+			"*/30 * * * *",
+			"0 * * * *",
+			"30 9 * * *",
+			"0 9 * * 1-5",
+			"15 17 * * 5",
+			"0 8 12 * *",
+		]) {
+			expect(roundTrip(expr)).toBe(expr);
+		}
+	});
+
+	test("a cron the picker can't express reads as custom, not as a near miss", () => {
+		// :15 past the hour is NOT "every hour" — rendering it as one would
+		// save the minute away.
+		expect(scheduleOf("15 * * * *")).toBeNull();
+		expect(scheduleOf("0 9 * * 1,3,5")).toBeNull();
+		expect(scheduleOf("0 9 31 * *")).toBeNull();
+		expect(scheduleOf("0 9 * 3 *")).toBeNull();
+		expect(scheduleOf("0 9 1 * 1")).toBeNull();
+		expect(scheduleOf("not a cron")).toBeNull();
+	});
+
+	test("the @shorthands come back as pickable schedules", () => {
+		expect(scheduleOf("@hourly")?.repeat).toBe("hourly");
+		expect(scheduleOf("@daily")).toMatchObject({
+			repeat: "daily",
+			time: "00:00",
+		});
+		expect(scheduleOf("@weekly")).toMatchObject({
+			repeat: "weekly",
+			weekday: 0,
+		});
+		expect(scheduleOf("@monthly")).toMatchObject({ repeat: "monthly", day: 1 });
+	});
+
+	test("describeCron says it in words, or gives the cron back", () => {
+		expect(describeCron("*/30 * * * *")).toBe("every 30 minutes");
+		expect(describeCron("0 * * * *")).toBe("every hour, on the hour");
+		expect(describeCron("30 9 * * *")).toBe("every day at 09:30");
+		expect(describeCron("0 9 * * 1-5")).toBe("weekdays at 09:00");
+		expect(describeCron("15 17 * * 5")).toBe("every Friday at 17:15");
+		expect(describeCron("0 8 22 * *")).toBe("on the 22nd at 08:00");
+		expect(describeCron(" 0 9 * * 1,3,5 ")).toBe("0 9 * * 1,3,5");
+	});
+
+	test("what the picker writes is always a cron the matcher accepts", () => {
+		for (const repeat of [
+			"15m",
+			"30m",
+			"hourly",
+			"daily",
+			"weekdays",
+			"weekly",
+			"monthly",
+		] as const) {
+			const expr = cronOf({
+				...DEFAULT_SCHEDULE,
+				repeat,
+				time: "07:05",
+				weekday: 3,
+				day: 28,
+			});
+			expect(isValidCron(expr)).toBe(true);
+		}
 	});
 });
