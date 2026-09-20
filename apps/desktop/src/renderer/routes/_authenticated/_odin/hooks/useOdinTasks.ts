@@ -25,7 +25,20 @@ export interface OdinTask {
 	 * lists. Absent on tasks written before profiles — those read as default.
 	 */
 	profileId?: string;
+	/**
+	 * A five-field cron (or an `@daily` shorthand). Set = this is an
+	 * automation: the runner starts it on the schedule instead of you, and it
+	 * stays on the list afterwards. Absent = an ordinary one-shot task.
+	 */
+	cron?: string;
+	/** Scheduled but held. The row stays; the clock stops. */
+	paused?: boolean;
+	/** The minute the schedule last fired, so one tick can't fire it twice. */
+	lastRunAt?: number;
 }
+
+/** Scheduled, so it runs itself — the one thing automations don't share. */
+export const isAutomation = (task: OdinTask): boolean => !!task.cron;
 
 /**
  * Priority by level — what the chip says and the select offers. Slot 0 is only
@@ -68,17 +81,25 @@ export function parseTask(text: string): {
 
 export const useOdinTasks = create<{
 	tasks: OdinTask[];
-	/** Newest first. Blank text is a no-op — Enter on an empty box. */
-	add: (text: string, profileId?: string) => void;
+	/**
+	 * Newest first. Blank text is a no-op — Enter on an empty box. Pass a cron
+	 * and it lands as an automation instead of a one-shot task.
+	 */
+	add: (text: string, profileId?: string, cron?: string) => void;
 	edit: (id: string, text: string) => void;
 	remove: (id: string) => void;
 	/** Remember which session this task launched, so the row can jump to it. */
 	setPane: (id: string, paneId: string) => void;
+	/** Put a task on a schedule, or take it off one (null). */
+	setCron: (id: string, cron: string | null) => void;
+	setPaused: (id: string, paused: boolean) => void;
+	/** Stamp the minute an automation fired. */
+	markRun: (id: string, at: number) => void;
 }>()(
 	persist(
 		(set) => ({
 			tasks: [],
-			add: (text, profileId) =>
+			add: (text, profileId, cron) =>
 				set((s) => {
 					const { title, notes, priority } = parseTask(text);
 					if (!title) return s;
@@ -91,6 +112,7 @@ export const useOdinTasks = create<{
 								priority,
 								createdAt: Date.now(),
 								profileId: profileOf(profileId),
+								...(cron ? { cron } : {}),
 							},
 							...s.tasks,
 						],
@@ -112,6 +134,22 @@ export const useOdinTasks = create<{
 			setPane: (id, paneId) =>
 				set((s) => ({
 					tasks: s.tasks.map((t) => (t.id === id ? { ...t, paneId } : t)),
+				})),
+			setCron: (id, cron) =>
+				set((s) => ({
+					tasks: s.tasks.map((t) =>
+						t.id === id ? { ...t, cron: cron ?? undefined } : t,
+					),
+				})),
+			setPaused: (id, paused) =>
+				set((s) => ({
+					tasks: s.tasks.map((t) => (t.id === id ? { ...t, paused } : t)),
+				})),
+			markRun: (id, at) =>
+				set((s) => ({
+					tasks: s.tasks.map((t) =>
+						t.id === id ? { ...t, lastRunAt: at } : t,
+					),
 				})),
 		}),
 		{ name: "odin-tasks" },
@@ -142,7 +180,14 @@ export function useMyTasks() {
 	return {
 		...store,
 		tasks,
-		add: (text: string) => store.add(text, activeId),
+		/**
+		 * The list minus the automations. Everything that counts "what's waiting
+		 * on you" — the tab badge, the All feed — asks for this one: a schedule
+		 * that fires itself is not a thing sitting on you.
+		 */
+		todos: useMemo(() => tasks.filter((task) => !isAutomation(task)), [tasks]),
+		automations: useMemo(() => tasks.filter(isAutomation), [tasks]),
+		add: (text: string, cron?: string) => store.add(text, activeId, cron),
 	};
 }
 

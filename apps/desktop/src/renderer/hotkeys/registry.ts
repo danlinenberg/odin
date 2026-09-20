@@ -58,6 +58,12 @@ export const HOTKEYS_REGISTRY = {
 		category: "Navigation",
 		description: "Open every feed at once",
 	},
+	ODIN_AUTOMATIONS: {
+		key: { mac: L("c"), windows: L("c"), linux: L("c") },
+		label: "Automations",
+		category: "Navigation",
+		description: "Open the tasks that run on a cron schedule",
+	},
 	ODIN_SLACK: {
 		key: { mac: L("s"), windows: L("s"), linux: L("s") },
 		label: "Slack",

@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-router";
 import { useState } from "react";
 import {
+	HiOutlineBolt,
 	HiOutlineChartBar,
 	HiOutlineClipboardDocumentCheck,
 	HiOutlineClock,
@@ -25,6 +26,7 @@ import {
 } from "shared/machine-load";
 import { FEED_TABS } from "./components/feed-counts";
 import { QuickAddTask } from "./components/TaskBox";
+import { useAutomationRunner } from "./hooks/useAutomationRunner";
 import { useNeedsYouByProfile } from "./hooks/useNeedsYouByProfile";
 import { useOdinFeeds } from "./hooks/useOdinFeeds";
 import { useOdinProfile } from "./hooks/useOdinProfile";
@@ -58,6 +60,15 @@ const RAIL_ITEMS = [
 		hotkey: "ODIN_ALL" as const,
 		label: "Tasks",
 		Icon: HiOutlineClipboardDocumentCheck,
+	},
+	// Its own rail entry, not a seventh feed tab: every tab in that strip
+	// answers "what's waiting on me", and an automation is the one thing that
+	// isn't — it runs itself.
+	{
+		to: "/automations" as const,
+		hotkey: "ODIN_AUTOMATIONS" as const,
+		label: "Automations",
+		Icon: HiOutlineBolt,
 	},
 ];
 
@@ -160,6 +171,10 @@ function OdinShell() {
 	// instead of an empty "syncing…".
 	useOdinFeeds();
 
+	// The clock behind the Automations panel. Here rather than on that page:
+	// a schedule that only runs while you're looking at it isn't one.
+	useAutomationRunner();
+
 	const { data: workConfig } = electronTrpc.work.getConfig.useQuery();
 	// Single-key nav — D board, T tasks, S slack, H history, J jira, P PRs
 	// by default, and whatever
@@ -174,6 +189,11 @@ function OdinShell() {
 		ODIN_ALL: useHotkey(
 			"ODIN_ALL",
 			() => navigate({ to: "/all" }),
+			NAV_HOTKEY_OPTIONS,
+		),
+		ODIN_AUTOMATIONS: useHotkey(
+			"ODIN_AUTOMATIONS",
+			() => navigate({ to: "/automations" }),
 			NAV_HOTKEY_OPTIONS,
 		),
 		ODIN_SLACK: useHotkey(

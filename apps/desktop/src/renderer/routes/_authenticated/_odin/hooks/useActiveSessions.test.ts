@@ -18,7 +18,7 @@ describe("activeSessions", () => {
 					status: "working",
 					odinSource: "jira",
 					odinContact: "Ladis",
-					odinTags: ["billing"],
+					odinTags: ["infra"],
 					initialCwd: "/Users/dan/dev/odin/",
 				}),
 				pane({ id: "asking", status: "permission", odinSource: "reactions" }),
@@ -52,7 +52,7 @@ describe("activeSessions", () => {
 				source: "jira",
 				column: "working",
 				contact: "Ladis",
-				tags: ["billing"],
+				tags: ["infra"],
 				repo: "odin",
 			},
 		]);

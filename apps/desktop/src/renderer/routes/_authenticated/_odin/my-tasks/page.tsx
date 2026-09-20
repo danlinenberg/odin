@@ -14,7 +14,7 @@ import {
 	ROW_PRIMARY_BUTTON,
 	RowActions,
 } from "../components/FeedChrome";
-import { PriorityChip, TaskBox } from "../components/TaskBox";
+import { AutomationChip, PriorityChip, TaskBox } from "../components/TaskBox";
 import {
 	type OdinTask,
 	taskPrompt,
@@ -125,6 +125,10 @@ function MyTasksPage() {
 								FEED_ROW,
 								activePaneId &&
 									"border-[#1a4029] border-l-2 border-l-[#3ecf8e] bg-[#0f1613]",
+								// An automation runs itself, so it can't read like the rows
+								// around it that are waiting on you. Amber edge, and the
+								// schedule where the priority would be.
+								task.cron && !activePaneId && "border-l-2 border-l-[#f5b83d]",
 							)}
 						>
 							<div className="flex items-start gap-3">
@@ -146,7 +150,11 @@ function MyTasksPage() {
 										</span>
 									)}
 									<span className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
-										<PriorityChip priority={task.priority} />
+										{task.cron ? (
+											<AutomationChip cron={task.cron} paused={task.paused} />
+										) : (
+											<PriorityChip priority={task.priority} />
+										)}
 										{activePaneId && (
 											<span className="inline-flex items-center gap-1 rounded-[5px] bg-[#14301f] px-[7px] py-[1px] font-semibold text-[#3ecf8e]">
 												<span className="size-1.5 animate-pulse rounded-full bg-current" />

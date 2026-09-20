@@ -147,7 +147,9 @@ function AllFeedPage() {
 	const openUrl = electronTrpc.external.openUrl.useMutation();
 	const { ensureWorkspace } = useOdinWorkspace();
 	const { launch, isLaunching, launchingKey } = useLaunchTaskSession();
-	const { tasks, setPane } = useMyTasks();
+	// todos, not tasks: automations have their own panel and run themselves —
+	// they'd sit in "what have I got on" forever without ever being yours to do.
+	const { todos, setPane } = useMyTasks();
 	const panes = useTabsStore((s) => s.panes);
 	// Starting a Slack row is what takes it out of the queue — the same call
 	// the Slack feed makes, so a message started here doesn't come back.
@@ -162,13 +164,13 @@ function AllFeedPage() {
 	const allRows = useMemo(
 		() =>
 			allItems({
-				tasks,
+				tasks: todos,
 				slack: reactions.data?.rows ?? [],
 				jira: jira.data?.issues ?? [],
 				pulls: pulls.data?.pulls ?? [],
 				notion: notion.data?.rows ?? [],
 			}),
-		[tasks, reactions.data, jira.data, pulls.data, notion.data],
+		[todos, reactions.data, jira.data, pulls.data, notion.data],
 	);
 
 	// Hidden rows drop out first, so every count below says what's on screen.

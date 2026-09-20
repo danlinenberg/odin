@@ -1,6 +1,8 @@
 import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import { useEffect, useRef, useState } from "react";
+import { HiOutlineClock } from "react-icons/hi2";
+import { nextRun } from "shared/cron";
 import {
 	PRIORITY_LABELS,
 	parseTask,
@@ -32,6 +34,7 @@ export function TaskBox({
 	value,
 	placeholder,
 	autoFocus,
+	hidePriority,
 	onChange,
 	onSubmit,
 	onCancel,
@@ -39,6 +42,8 @@ export function TaskBox({
 	value: string;
 	placeholder?: string;
 	autoFocus?: boolean;
+	/** Automations are scheduled, not ranked — the picker means nothing there. */
+	hidePriority?: boolean;
 	onChange: (text: string) => void;
 	onSubmit: () => void;
 	onCancel?: () => void;
@@ -86,25 +91,27 @@ export function TaskBox({
 
 			    ponytail: a native <select> — it opens as a real menu, it's keyboard
 			    navigable for free, and there's no popup to style. */}
-			<div className="flex items-center gap-1.5">
-				<span className="text-[11px] text-[#8a8a97]">Priority</span>
-				<select
-					aria-label="Priority"
-					title="Or lead the title with ! (Low) or !!! (High) — no ! is Medium"
-					value={parseTask(value).priority}
-					onChange={(event) =>
-						onChange(withPriority(value, Number(event.target.value)))
-					}
-					className="cursor-pointer rounded-[6px] bg-[#1f1f27] px-1.5 py-[3px] text-[11px] font-semibold text-[#a5a5b3] outline-none transition-colors hover:text-[#f5f5f7]"
-				>
-					{/* Levels only — slot 0 ("None") is legacy storage, not a choice. */}
-					{PRIORITY_LABELS.slice(1).map((label, index) => (
-						<option key={label} value={index + 1}>
-							{label}
-						</option>
-					))}
-				</select>
-			</div>
+			{!hidePriority && (
+				<div className="flex items-center gap-1.5">
+					<span className="text-[11px] text-[#8a8a97]">Priority</span>
+					<select
+						aria-label="Priority"
+						title="Or lead the title with ! (Low) or !!! (High) — no ! is Medium"
+						value={parseTask(value).priority}
+						onChange={(event) =>
+							onChange(withPriority(value, Number(event.target.value)))
+						}
+						className="cursor-pointer rounded-[6px] bg-[#1f1f27] px-1.5 py-[3px] text-[11px] font-semibold text-[#a5a5b3] outline-none transition-colors hover:text-[#f5f5f7]"
+					>
+						{/* Levels only — slot 0 ("None") is legacy storage, not a choice. */}
+						{PRIORITY_LABELS.slice(1).map((label, index) => (
+							<option key={label} value={index + 1}>
+								{label}
+							</option>
+						))}
+					</select>
+				</div>
+			)}
 		</div>
 	);
 }
@@ -131,6 +138,58 @@ export function PriorityChip({ priority }: { priority?: number }) {
 			)}
 		>
 			{PRIORITY_LABELS[level]}
+		</span>
+	);
+}
+
+/**
+ * How a next run is written, everywhere it's written. Weekday AND date: "next
+ * Fri 04:00" reads as this week, and a schedule three months out would be
+ * saying something false.
+ */
+export const NEXT_RUN_FORMAT: Intl.DateTimeFormatOptions = {
+	weekday: "short",
+	day: "numeric",
+	month: "short",
+	hour: "2-digit",
+	minute: "2-digit",
+};
+
+/**
+ * What marks an automation out from the tasks around it: amber, a clock, and
+ * the schedule itself rather than a priority — an automation isn't urgent or
+ * not, it's due or it isn't. Paused says so in place of the next run, because
+ * "every day at 9" on a row that will never fire is a lie.
+ */
+export function AutomationChip({
+	cron,
+	paused,
+}: {
+	cron: string;
+	paused?: boolean;
+}) {
+	const next = paused ? null : nextRun(cron);
+	return (
+		<span
+			title={
+				paused
+					? `Paused — schedule "${cron}" is not running`
+					: `Runs on "${cron}"`
+			}
+			className={cn(
+				"inline-flex items-center gap-1 rounded-[5px] px-[7px] py-[1px] font-semibold",
+				paused ? "bg-[#17171c] text-[#6f6f7d]" : "bg-[#2e2413] text-[#f5b83d]",
+			)}
+		>
+			<HiOutlineClock className="size-3" />
+			<span className="font-mono">{cron}</span>
+			<span className="font-normal opacity-70">
+				{paused
+					? "paused"
+					: next
+						? `· next ${next.toLocaleString(undefined, NEXT_RUN_FORMAT)}`
+						: "· never fires"}
+			</span>
 		</span>
 	);
 }

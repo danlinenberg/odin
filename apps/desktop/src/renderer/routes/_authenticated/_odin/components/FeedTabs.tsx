@@ -19,9 +19,10 @@ export function FeedTabs() {
 	// so the badges cost nothing beyond a render.
 	const { reactions, jira, pulls, notion, workConfig, notionConfig } =
 		useOdinFeeds();
-	const { tasks } = useMyTasks();
+	// todos, not tasks: an automation runs itself, so it isn't waiting on you.
+	const { todos } = useMyTasks();
 	const counts = feedCounts({
-		tasks: tasks.length,
+		tasks: todos.length,
 		slack: reactions.data?.rows ?? [],
 		jira: jira.data?.issues ?? [],
 		pulls: pulls.data?.pulls ?? [],
