@@ -86,6 +86,16 @@ describe("buildPrompt", () => {
 	it("asks every session to end with action items for the reviewer", () => {
 		expect(buildPrompt("Fix the board", null)).toContain("ACTION ITEMS");
 	});
+
+	// A 4am cron run that stops to ask a question waits until morning for an
+	// answer it could have defaulted.
+	it("tells a scheduled run that nobody is watching it", () => {
+		const prompt = buildPrompt("Sweep the backlog", null, [], undefined, true);
+		expect(prompt).toContain("started by a schedule");
+		expect(buildPrompt("Sweep the backlog", null)).not.toContain(
+			"started by a schedule",
+		);
+	});
 });
 
 describe("parseDataUrl", () => {

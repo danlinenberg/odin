@@ -26,6 +26,7 @@ export function buildPrompt(
 	description: string | null,
 	attachmentPaths: string[] = [],
 	skill?: string,
+	unattended = false,
 ): string {
 	return [
 		// A skill leads the prompt, on its own line, with the title as its
@@ -49,6 +50,14 @@ export function buildPrompt(
 			: []),
 		"",
 		"Work in the current workspace. Investigate, make the changes, and verify them when practical.",
+		// A scheduled run reads exactly like one I typed, so the agent stops on
+		// the first ambiguity and waits — at 4am, for hours, for nobody.
+		...(unattended
+			? [
+					"",
+					"This run was started by a schedule, not by a person — nobody is watching it. Don't stop to ask something you can settle with a sensible default: make the call, say which one you made, and leave the question in ACTION ITEMS.",
+				]
+			: []),
 		// Every session lands on the board, and most of them land under "Needs
 		// you" — where the only question being asked is "what do I have to do
 		// about this one?". A turn that stops at "here's what I found" makes
@@ -362,7 +371,13 @@ export function useLaunchTaskSession() {
 				await utils.client.filesystem.writeFile.mutate({
 					workspaceId,
 					absolutePath: promptPath,
-					content: buildPrompt(title, description, attachmentPaths, skill),
+					content: buildPrompt(
+						title,
+						description,
+						attachmentPaths,
+						skill,
+						tags?.includes("automation"),
+					),
 					encoding: "utf-8",
 				});
 				promptArg = ` "$(cat '${promptPath}')"`;
