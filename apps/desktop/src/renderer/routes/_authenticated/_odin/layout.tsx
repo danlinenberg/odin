@@ -21,6 +21,7 @@ import { useHotkey } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import {
 	BUSY_AGENT_CPU_PERCENT,
+	BUSY_HOST_CPU_PERCENT,
 	type MachineLoad,
 	machineLoad,
 } from "shared/machine-load";
@@ -115,9 +116,9 @@ const NAV_HOTKEY_OPTIONS = {
  * gets tighter — grey while there's slack, amber when it's filling up, red
  * when agents are queueing or the memory is gone.
  *
- * ponytail: the CPU steps off BUSY_AGENT_CPU_PERCENT, which is the number that
- * actually gates a launch; the GB are eyeballed thresholds that only pick a
- * colour, so nothing rides on them being exactly right.
+ * ponytail: the CPU steps off the two numbers that actually gate a launch —
+ * agents' share and the whole machine's; the GB are eyeballed thresholds that
+ * only pick a colour, so nothing rides on them being exactly right.
  */
 function badgeTone(load: MachineLoad): string {
 	if (load.busy || load.availableMemoryGb < 1) {
@@ -125,6 +126,7 @@ function badgeTone(load: MachineLoad): string {
 	}
 	if (
 		load.agentCpuPercent >= BUSY_AGENT_CPU_PERCENT / 2 ||
+		load.cpuPercent >= BUSY_HOST_CPU_PERCENT - 15 ||
 		load.availableMemoryGb < 2
 	) {
 		return "bg-[#3a2f16] text-[#f5b83d]";
@@ -350,8 +352,8 @@ function OdinShell() {
 							<span
 								title={
 									load.busy
-										? `${load.agentCount} session(s) using ${load.agentCpuPercent}% of this Mac — new sessions wait until that clears.`
-										: `${load.agentCount} session(s) using ${load.agentMemoryGb} GB of memory. This Mac has ${load.availableMemoryGb} GB free. Agents are on ${load.agentCpuPercent}% of the CPU · machine load ${load.cpuPercent}%.`
+										? `${load.reason} — new sessions wait until that clears. ${load.agentCount} session(s) using ${load.agentMemoryGb} GB; this Mac is ${load.cpuPercent}% busy with ${load.availableMemoryGb} GB free.`
+										: `${load.agentCount} session(s) using ${load.agentMemoryGb} GB of memory. This Mac has ${load.availableMemoryGb} GB free. Agents are on ${load.agentCpuPercent}% of the CPU · this Mac is ${load.cpuPercent}% busy.`
 								}
 								className={cn(
 									"rounded-[6px] px-2 py-[3px] text-[11px] font-semibold tabular-nums",
@@ -359,7 +361,7 @@ function OdinShell() {
 								)}
 							>
 								{load.busy
-									? `${load.agentCount} ${load.agentCount === 1 ? "session" : "sessions"} using ${load.agentCpuPercent}% CPU · launches waiting`
+									? `${load.reason} · launches waiting`
 									: `${load.agentCount} ${load.agentCount === 1 ? "session" : "sessions"} using ${load.agentMemoryGb} GB · ${load.availableMemoryGb} GB free`}
 							</span>
 						)}

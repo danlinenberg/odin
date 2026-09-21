@@ -152,9 +152,9 @@ const CAPACITY_MAX_WAIT_MS = 10 * 60_000;
 /**
  * Hold a launch until the Mac can take another agent.
  *
- * The 1-minute load average is deliberately laggy — an agent that just exited
- * still counts for a while — which is what keeps this from starting six
- * sessions in six seconds the moment a window opens.
+ * It re-reads and re-checks rather than deciding once: the reading is a live
+ * one (CPU busy over the last few seconds, agents' and everyone else's), so a
+ * launch waits exactly as long as the machine is actually flat out.
  *
  * Any failure to read the load lets the launch through: a broken gauge must
  * never be the reason a session doesn't start.

@@ -8,6 +8,7 @@ import {
 	getSubtreeResources,
 	type ProcessSnapshot,
 	readAvailableMemory,
+	readCpuUsagePercent,
 } from "./process-tree";
 import { normalizeOptionalTitle } from "./session-normalization";
 import {
@@ -55,6 +56,11 @@ interface HostMetrics {
 	memoryUsagePercent: number;
 	cpuCoreCount: number;
 	loadAverage1m: number;
+	/**
+	 * The whole machine's CPU, 0-100: what Activity Monitor calls
+	 * system+user, i.e. 100 minus idle.
+	 */
+	cpuUsagePercent: number;
 }
 
 export interface ResourceMetricsSnapshot {
@@ -95,8 +101,10 @@ function createHostMetrics(availableMemory?: number): HostMetrics {
 		normalizeFiniteNumber(availableMemory),
 	);
 	const usedHostMemory = Math.max(0, totalHostMemory - freeHostMemory);
-	const cpuCoreCount = Math.max(1, os.cpus().length);
+	const cpus = os.cpus();
+	const cpuCoreCount = Math.max(1, cpus.length);
 	const loadAverage1m = normalizeFiniteNumber(os.loadavg()[0]);
+	const cpuUsagePercent = readCpuUsagePercent(cpus);
 
 	return {
 		totalMemory: totalHostMemory,
@@ -107,6 +115,7 @@ function createHostMetrics(availableMemory?: number): HostMetrics {
 			totalHostMemory > 0 ? (usedHostMemory / totalHostMemory) * 100 : 0,
 		cpuCoreCount,
 		loadAverage1m,
+		cpuUsagePercent,
 	};
 }
 

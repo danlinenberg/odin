@@ -38,6 +38,8 @@ const hostMetricsSchema = zod.object({
 	memoryUsagePercent: nonNegativeFiniteNumberSchema,
 	cpuCoreCount: zod.number().int().min(1),
 	loadAverage1m: nonNegativeFiniteNumberSchema,
+	/** Whole machine, 0-100. Zero on a snapshot collected before this existed. */
+	cpuUsagePercent: nonNegativeFiniteNumberSchema.default(0),
 });
 
 export const resourceMetricsSnapshotSchema = zod.object({
@@ -96,6 +98,7 @@ export function createFallbackResourceMetricsSnapshot(): ResourceMetricsSnapshot
 				totalMemory > 0 ? (usedMemory / totalMemory) * 100 : 0,
 			cpuCoreCount: safeCpuCoreCount(),
 			loadAverage1m: safeSystemNumber(() => os.loadavg()[0] ?? 0),
+			cpuUsagePercent: 0,
 		},
 		totalCpu: 0,
 		totalMemory: 0,
