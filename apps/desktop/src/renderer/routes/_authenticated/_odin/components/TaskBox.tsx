@@ -2,7 +2,7 @@ import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import type { AgentSkill } from "lib/trpc/routers/skills";
 import { useEffect, useRef, useState } from "react";
-import { HiOutlineClock } from "react-icons/hi2";
+import { HiOutlineClock, HiOutlineSparkles } from "react-icons/hi2";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { describeCron, nextRun } from "shared/cron";
 import {
@@ -308,6 +308,27 @@ export function SkillChip({ skill }: { skill: string }) {
 			className="rounded-[5px] bg-[#0f2a1c] px-[7px] py-[1px] font-semibold text-[#3ecf8e]"
 		>
 			/{skill}
+		</span>
+	);
+}
+
+/**
+ * One Odin wrote, not you.
+ *
+ * Its own colour rather than a quiet grey note: on a list you scan, the
+ * question a built-in raises is "where did THAT come from?", and an answer
+ * pitched at the same weight as "last ran never" doesn't get read. Violet is
+ * free — amber already means scheduled, green means skill, red means urgent —
+ * and the row keeps the amber edge, because a built-in is still an automation.
+ */
+export function BuiltinChip() {
+	return (
+		<span
+			title="Odin ships with this one. Edit it, retime it, pause it or delete it like any other — deleting is final, it won't come back."
+			className="inline-flex items-center gap-1 rounded-[5px] bg-[#221a38] px-[7px] py-[1px] font-semibold text-[#a78bfa]"
+		>
+			<HiOutlineSparkles className="size-3" />
+			built-in
 		</span>
 	);
 }
