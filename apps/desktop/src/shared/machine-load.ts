@@ -10,8 +10,13 @@
 export interface MachineLoadInput {
 	host: {
 		cpuCoreCount: number;
-		loadAverage1m: number;
 		memoryUsagePercent: number;
+		/**
+		 * The whole machine's CPU, 0-100 — system+user, i.e. 100 minus idle.
+		 * Zero on a snapshot collected before this existed, and on the first
+		 * one after launch (it's a delta between two readings).
+		 */
+		cpuUsagePercent?: number;
 		/** This Mac's installed RAM, in bytes. */
 		totalMemory: number;
 		/**
@@ -37,6 +42,16 @@ export interface MachineLoadInput {
  */
 export const BUSY_AGENT_CPU_PERCENT = 70;
 
+/**
+ * How much of the whole machine can be busy — anyone's work, not just
+ * Odin's — before the next launch waits.
+ *
+ * ponytail: same knob as BUSY_AGENT_CPU_PERCENT. Above this a Mac has one or
+ * two percent of idle left and everything on it is stuttering; whose CPU it is
+ * stops mattering.
+ */
+export const BUSY_HOST_CPU_PERCENT = 85;
+
 export interface MachineLoad {
 	/**
 	 * Share of the machine Odin's own agents are burning, 0–100+. The only
@@ -51,9 +66,12 @@ export interface MachineLoad {
 	 */
 	agentMemoryGb: number;
 	/**
-	 * Whole machine, 0–100+: 1-minute load average over the core count. Shown,
-	 * never acted on — macOS counts threads blocked in I/O, so a healthy Mac
-	 * running a few agents sits near 100% all day.
+	 * Whole machine, 0–100: system+user, i.e. 100 minus idle. Acted on — a Mac
+	 * pinned here is choking whoever owns the work, so launching into it is
+	 * how you make it worse.
+	 *
+	 * Not the load average: macOS counts threads blocked in I/O there, so it
+	 * sits near the core count on a Mac doing nothing.
 	 */
 	cpuPercent: number;
 	/**
@@ -95,20 +113,30 @@ export function machineLoad(snapshot: MachineLoadInput): MachineLoad {
 		(total, workspace) => total + workspace.sessions.length,
 		0,
 	);
-	const busy = agentCpuPercent >= BUSY_AGENT_CPU_PERCENT;
+	const hostCpuPercent = percent(snapshot.host.cpuUsagePercent ?? 0);
+	const agentsBusy = agentCpuPercent >= BUSY_AGENT_CPU_PERCENT;
+	// The whole Mac counts, not only our slice of it: a build, a Docker daemon
+	// or someone else's agent runner leaves the same missing headroom, and a
+	// new session lands in it just as hard.
+	const hostBusy = hostCpuPercent >= BUSY_HOST_CPU_PERCENT;
+	const busy = agentsBusy || hostBusy;
 	const memoryGb = gb(snapshot.totalMemory);
+
+	const reason = agentsBusy
+		? `${agentCount} agent${agentCount === 1 ? "" : "s"} using ${agentCpuPercent}% of this Mac`
+		: hostBusy
+			? `this Mac is at ${hostCpuPercent}% CPU`
+			: null;
 
 	return {
 		agentCpuPercent,
 		agentMemoryGb: Math.round(memoryGb * 10) / 10,
 		availableMemoryGb: Math.round(gb(snapshot.host.availableMemory) * 10) / 10,
-		cpuPercent: percent((snapshot.host.loadAverage1m / cores) * 100),
+		cpuPercent: hostCpuPercent,
 		memoryPercent: percent(snapshot.host.memoryUsagePercent),
 		agentCount,
 		busy,
-		reason: busy
-			? `${agentCount} agent${agentCount === 1 ? "" : "s"} using ${agentCpuPercent}% of this Mac`
-			: null,
+		reason,
 	};
 }
 

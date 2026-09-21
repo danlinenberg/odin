@@ -1,9 +1,11 @@
 import { describe, expect, it } from "bun:test";
+import type os from "node:os";
 import {
 	getSubtreePids,
 	getSubtreeResources,
 	type ProcessInfo,
 	type ProcessSnapshot,
+	readCpuUsagePercent,
 } from "./process-tree";
 
 function buildSnapshot(processes: ProcessInfo[]): ProcessSnapshot {
@@ -112,5 +114,31 @@ describe("getSubtreeResources", () => {
 		expect(resources.cpu).toBe(15.5);
 		expect(resources.memory).toBe(2048);
 		expect(resources.pids).toEqual([42]);
+	});
+});
+
+describe("readCpuUsagePercent", () => {
+	/** `count` cores that have spent `idle`/`busy` ms in each state. */
+	function cpus(idle: number, busy: number, count = 4): os.CpuInfo[] {
+		return Array.from({ length: count }, () => ({
+			model: "test",
+			speed: 0,
+			times: { user: busy, nice: 0, sys: 0, idle, irq: 0 },
+		}));
+	}
+
+	it("reads the busy share of the interval between two samples", () => {
+		// First sample only primes the baseline — cumulative counters have
+		// nothing to subtract yet.
+		expect(readCpuUsagePercent(cpus(1000, 1000))).toBe(0);
+		// Next interval: 20 ms idle, 980 ms busy per core. That's the Mac in
+		// the bug report, not the 1-minute load average's opinion of it.
+		expect(Math.round(readCpuUsagePercent(cpus(1020, 1980)))).toBe(98);
+	});
+
+	it("keeps the last reading when two samples land microseconds apart", () => {
+		// A snapshot builds host metrics twice; the second sample has no
+		// meaningful interval, and 0/0 would flash the gate open.
+		expect(Math.round(readCpuUsagePercent(cpus(1021, 1981)))).toBe(98);
 	});
 });

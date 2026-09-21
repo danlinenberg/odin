@@ -258,3 +258,50 @@ export async function readAvailableMemory(): Promise<number> {
 		return os.freemem();
 	}
 }
+
+let previousCpuTicks: { idle: number; total: number } | null = null;
+let lastCpuUsagePercent = 0;
+
+/**
+ * Whole-machine CPU from `os.cpus()` tick deltas — cumulative counters, so a
+ * reading is the busy share of the interval between two snapshots.
+ *
+ * `loadAverage1m` can't do this job: macOS counts threads blocked in I/O, so
+ * it reads high on a Mac doing nothing and low-ish on one that's choking.
+ * Idle ticks don't lie.
+ *
+ * ponytail: the first call has nothing to subtract and reports 0 — the gate
+ * fails open for one poll, then has real numbers. Sampling on a timer to fill
+ * that in is a background job for a 5-second problem.
+ */
+export function readCpuUsagePercent(cpus: os.CpuInfo[]): number {
+	let idle = 0;
+	let total = 0;
+	for (const cpu of cpus) {
+		idle += cpu.times.idle;
+		total +=
+			cpu.times.user +
+			cpu.times.nice +
+			cpu.times.sys +
+			cpu.times.idle +
+			cpu.times.irq;
+	}
+
+	const previous = previousCpuTicks;
+	const totalDelta = previous ? total - previous.total : 0;
+	// Snapshots get built twice per collection (here and in normalizeSnapshot),
+	// microseconds apart. Too short an interval is noise, not a reading: keep
+	// the old baseline and answer with what the last real one said.
+	if (!previous || totalDelta < 200) {
+		previousCpuTicks ??= { idle, total };
+		return lastCpuUsagePercent;
+	}
+
+	const idleDelta = idle - previous.idle;
+	previousCpuTicks = { idle, total };
+	lastCpuUsagePercent = Math.min(
+		100,
+		Math.max(0, ((totalDelta - idleDelta) / totalDelta) * 100),
+	);
+	return lastCpuUsagePercent;
+}
