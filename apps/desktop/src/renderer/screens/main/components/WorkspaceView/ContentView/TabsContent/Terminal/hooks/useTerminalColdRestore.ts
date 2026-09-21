@@ -1,5 +1,6 @@
 import type { Terminal as XTerm } from "@xterm/xterm";
 import { useCallback, useRef, useState } from "react";
+import { canClaimKeyboard } from "renderer/lib/keyboard";
 import { electronTrpcClient as trpcClient } from "renderer/lib/trpc-client";
 import { isTerminalAttachCanceledMessage } from "../attach-cancel";
 import { coldRestoreState } from "../state";
@@ -125,7 +126,7 @@ export function useTerminalColdRestore({
 					pendingInitialStateRef.current = result;
 					maybeApplyInitialState();
 
-					if (isFocusedRef.current) {
+					if (isFocusedRef.current && canClaimKeyboard()) {
 						currentXterm.focus();
 					}
 				},
@@ -213,7 +214,7 @@ export function useTerminalColdRestore({
 
 					setTimeout(() => {
 						const currentXterm = xtermRef.current;
-						if (currentXterm) {
+						if (currentXterm && canClaimKeyboard()) {
 							currentXterm.focus();
 						}
 					}, 0);

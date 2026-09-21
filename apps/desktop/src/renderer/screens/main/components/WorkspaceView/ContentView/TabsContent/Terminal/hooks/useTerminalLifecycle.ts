@@ -3,6 +3,7 @@ import type { SearchAddon } from "@xterm/addon-search";
 import type { IDisposable, ITheme, Terminal as XTerm } from "@xterm/xterm";
 import type { MutableRefObject, RefObject } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { canClaimKeyboard } from "renderer/lib/keyboard";
 import { writeCommandInPane } from "renderer/lib/terminal/launch-command";
 import type { DetectedLink } from "renderer/lib/terminal/links";
 import { runWhenParserIdle } from "renderer/lib/terminal/parser-idle-gate";
@@ -294,7 +295,7 @@ export function useTerminalLifecycle({
 		isStreamReadyRef.current = false;
 		pendingInitialStateRef.current = null;
 
-		if (isFocusedRef.current) {
+		if (isFocusedRef.current && canClaimKeyboard()) {
 			xterm.focus();
 		}
 
