@@ -23,7 +23,12 @@ import {
 	ROW_PRIMARY_BUTTON,
 	RowActions,
 } from "../components/FeedChrome";
-import { NEXT_RUN_FORMAT, SkillChip, TaskBox } from "../components/TaskBox";
+import {
+	BuiltinChip,
+	NEXT_RUN_FORMAT,
+	SkillChip,
+	TaskBox,
+} from "../components/TaskBox";
 import {
 	automationDescription,
 	useBacklog,
@@ -453,16 +458,7 @@ function AutomationsPage() {
 											onChange={(next) => setCron(task.id, next)}
 										/>
 										{task.skill && <SkillChip skill={task.skill} />}
-										{/* An automation you don't remember writing should say
-										    who wrote it. It's an ordinary row otherwise. */}
-										{task.builtin && (
-											<span
-												className={ROW_META}
-												title="Odin ships with this one. Edit, pause or delete it like any other."
-											>
-												built-in
-											</span>
-										)}
+										{task.builtin && <BuiltinChip />}
 										<span className={ROW_META}>
 											{task.paused
 												? "paused"
