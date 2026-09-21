@@ -21,6 +21,7 @@ import { SiJira, SiNotion, SiSlack } from "react-icons/si";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
+import { canClaimKeyboard } from "renderer/lib/keyboard";
 import { coldRestoreState } from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/state";
 import { Terminal } from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/Terminal";
 import * as terminalCache from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/v1-terminal-cache";
@@ -54,7 +55,6 @@ import { usePendingFocus } from "../hooks/usePendingFocus";
 import { PANE_STATUS } from "../pane-status";
 import { elapsedLabel, lastMessageAt, pullRequests, sourceLink } from "./brief";
 import { DiffView } from "./DiffView";
-import { isTypingElsewhere } from "./keyboard";
 import { SessionBrief } from "./SessionBrief";
 
 /**
@@ -646,6 +646,11 @@ function DevBoardPage() {
 		if (!drawerCard) return;
 		const onKeyDown = (event: KeyboardEvent) => {
 			if (event.key !== "Escape") return;
+			// A box opened over the pane cancels itself on Esc. Captured this
+			// early we'd swallow that keypress and close the drawer out from
+			// under it instead, so hand the key back and leave the drawer alone.
+			if ((event.target as HTMLElement | null)?.closest("[role=dialog]"))
+				return;
 			event.preventDefault();
 			event.stopImmediatePropagation();
 			// Mid-rename, Esc abandons the rename — not the drawer.
@@ -710,26 +715,6 @@ function DevBoardPage() {
 		for (const project of projects) map.set(project.id, project);
 		return map;
 	}, [projects]);
-
-	// Escape closes the drawer — unless focus is inside the terminal, where Esc
-	// belongs to Claude (interrupt). Click outside the xterm first, then Esc.
-	useEffect(() => {
-		if (!drawerCard) return;
-		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.key !== "Escape") return;
-			const target = event.target as HTMLElement | null;
-			// Escape typed into a box over the board cancels that box, and only
-			// that box — the dialog closes itself on the same keypress, so closing
-			// the pane underneath it too takes away more than was asked for.
-			// Asked of the event's target, not the document, so it holds whether
-			// or not React has already unmounted the dialog by the time we run.
-			if (target?.closest("[role=dialog]")) return;
-			if (target?.closest(".xterm")) return;
-			setDrawerCard(null);
-		};
-		window.addEventListener("keydown", onKeyDown);
-		return () => window.removeEventListener("keydown", onKeyDown);
-	}, [drawerCard]);
 
 	// Live PTYs in the daemon — lets the board show sessions that survived an
 	// app reload even though their pane status was reset to idle.
@@ -1163,7 +1148,7 @@ function DevBoardPage() {
 			// alivePaneIds churns on a 5s poll, so this re-runs the whole time the
 			// drawer is open, not just when it opens — it can only take the
 			// keyboard when nothing else has it.
-			if (isTypingElsewhere(document.activeElement)) return;
+			if (!canClaimKeyboard()) return;
 			document
 				.querySelector<HTMLTextAreaElement>(".xterm-helper-textarea")
 				?.focus();

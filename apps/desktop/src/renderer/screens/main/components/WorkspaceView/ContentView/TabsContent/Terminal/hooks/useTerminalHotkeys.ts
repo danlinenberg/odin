@@ -2,6 +2,7 @@ import type { Terminal as XTerm } from "@xterm/xterm";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import { useEffect, useState } from "react";
 import { useHotkey } from "renderer/hotkeys";
+import { canClaimKeyboard } from "renderer/lib/keyboard";
 import { scrollToBottom } from "../utils";
 
 export interface UseTerminalHotkeysOptions {
@@ -31,7 +32,7 @@ export function useTerminalHotkeys({
 	useEffect(() => {
 		const xterm = xtermRef.current;
 		if (!xterm) return;
-		if (isFocused) {
+		if (isFocused && canClaimKeyboard()) {
 			xterm.focus();
 		}
 	}, [isFocused, xtermRef]);
