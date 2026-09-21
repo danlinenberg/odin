@@ -57,15 +57,77 @@ const REPEATS: [Repeat, string][] = [
 const FIELD =
 	"cursor-pointer rounded-[6px] bg-[#1f1f27] px-1.5 py-[3px] text-[11px] font-semibold text-[#a5a5b3] outline-none transition-colors hover:text-[#f5f5f7] focus:text-[#f5f5f7]";
 
+const HOURS = Array.from({ length: 24 }, (_, hour) =>
+	String(hour).padStart(2, "0"),
+);
+
+/**
+ * ponytail: five-minute steps — twelve entries you can see at once instead of
+ * sixty you scroll. A schedule already on an odd minute keeps it (below), and
+ * Custom cron is the way to set a new one.
+ */
+const MINUTES = Array.from({ length: 12 }, (_, i) =>
+	String(i * 5).padStart(2, "0"),
+);
+
+/**
+ * The hour and the minute, as two menus.
+ *
+ * Not `<input type="time">`: Chromium draws that popup itself — a tall
+ * blue-highlighted spinner that ignores the palette and can't be styled, which
+ * is a jarring thing to hit in the middle of a dark toolbar. Two selects are
+ * the same two numbers, in the app's own clothes, and they open as the
+ * platform's ordinary menu like every other field on this row.
+ */
+function TimeFields({
+	time,
+	onChange,
+}: {
+	time: string;
+	onChange: (time: string) => void;
+}) {
+	const [hh = "09", mm = "00"] = time.split(":");
+	return (
+		<span className="flex items-center gap-[3px]">
+			<select
+				aria-label="Hour"
+				value={hh}
+				onChange={(event) => onChange(`${event.target.value}:${mm}`)}
+				className={FIELD}
+			>
+				{HOURS.map((hour) => (
+					<option key={hour} value={hour}>
+						{hour}
+					</option>
+				))}
+			</select>
+			<span className="text-[11px] text-[#8a8a97]">:</span>
+			<select
+				aria-label="Minute"
+				value={mm}
+				onChange={(event) => onChange(`${hh}:${event.target.value}`)}
+				className={FIELD}
+			>
+				{/* A cron already set to :07 by hand keeps it rather than snapping
+				    to the nearest five minutes the moment the menu is drawn. */}
+				{!MINUTES.includes(mm) && <option value={mm}>{mm}</option>}
+				{MINUTES.map((minute) => (
+					<option key={minute} value={minute}>
+						{minute}
+					</option>
+				))}
+			</select>
+		</span>
+	);
+}
+
 /**
  * When a job runs, said in the terms people think in — a repeat, a day, a
  * time. Cron is still what's stored and matched; nobody has to write one.
  *
- * ponytail: native `<select>`s and `<input type="time">`. The time picker,
- * its keyboard handling and its locale (12h or 24h) all come free, and there
- * is no popup to style. The fields hold no state of their own either — they
- * read the cron and write a new one, so what's shown and what runs can't
- * drift apart.
+ * ponytail: plain `<select>`s throughout. The fields hold no state of their
+ * own — they read the cron and write a new one, so what's shown and what runs
+ * can't drift apart.
  *
  * Anything the menu can't express (`0 9 * * 1,3,5`) stays a cron: the Custom
  * entry shows it verbatim in a text field rather than rounding it to the
@@ -198,15 +260,9 @@ function ScheduleFields({
 						schedule.repeat !== "hourly" && (
 							<>
 								<span className="text-[11px] text-[#8a8a97]">at</span>
-								<input
-									type="time"
-									aria-label="Time"
-									value={schedule.time}
-									onChange={(event) => set({ time: event.target.value })}
-									// color-scheme: the native clock icon and its popup are
-									// drawn by Chromium, and default to a white-on-white
-									// widget on this dark bar without it.
-									className={cn(FIELD, "[color-scheme:dark]")}
+								<TimeFields
+									time={schedule.time}
+									onChange={(time) => set({ time })}
 								/>
 							</>
 						)}
