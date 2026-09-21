@@ -25,6 +25,10 @@ import {
 } from "../components/FeedChrome";
 import { NEXT_RUN_FORMAT, SkillChip, TaskBox } from "../components/TaskBox";
 import {
+	automationDescription,
+	useBacklog,
+} from "../hooks/builtin-automations";
+import {
 	type OdinTask,
 	taskPrompt,
 	taskText,
@@ -296,6 +300,8 @@ function AutomationsPage() {
 	const panes = useTabsStore((s) => s.panes);
 	// The agent's own skills, for the compose box and every edit box below.
 	const { data: skills } = electronTrpc.skills.list.useQuery();
+	// Run now has to send the same prompt the clock would, built-ins included.
+	const backlog = useBacklog();
 
 	/** The session this automation's last run started, while it's still open. */
 	const livePaneId = (task: OdinTask) => {
@@ -312,7 +318,7 @@ function AutomationsPage() {
 			key: task.id,
 			workspaceId: ensured.workspace.id,
 			title: task.title,
-			description: task.notes || null,
+			description: automationDescription(task, backlog),
 			brief: taskPrompt(task),
 			tags: ["automation"],
 			skill: task.skill,
@@ -447,6 +453,16 @@ function AutomationsPage() {
 											onChange={(next) => setCron(task.id, next)}
 										/>
 										{task.skill && <SkillChip skill={task.skill} />}
+										{/* An automation you don't remember writing should say
+										    who wrote it. It's an ordinary row otherwise. */}
+										{task.builtin && (
+											<span
+												className={ROW_META}
+												title="Odin ships with this one. Edit, pause or delete it like any other."
+											>
+												built-in
+											</span>
+										)}
 										<span className={ROW_META}>
 											{task.paused
 												? "paused"

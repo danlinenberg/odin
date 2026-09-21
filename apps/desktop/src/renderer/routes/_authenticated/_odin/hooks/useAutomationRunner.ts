@@ -1,7 +1,18 @@
 import { useEffect, useRef } from "react";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { cronMatches, parseCron } from "shared/cron";
-import { type OdinTask, taskPrompt, useMyTasks } from "./useOdinTasks";
+import {
+	automationDescription,
+	BUILTIN_AUTOMATIONS,
+	useBacklog,
+} from "./builtin-automations";
+import { useOdinProfile } from "./useOdinProfile";
+import {
+	type OdinTask,
+	taskPrompt,
+	useMyTasks,
+	useOdinTasks,
+} from "./useOdinTasks";
 import { useOdinWorkspace } from "./useOdinWorkspace";
 
 /** How often the clock is read. Twice a minute, so no minute is missed. */
@@ -46,6 +57,17 @@ export function useAutomationRunner() {
 	const { automations, markRun, setPane } = useMyTasks();
 	const { ensureWorkspace } = useOdinWorkspace();
 	const { launch } = useLaunchTaskSession();
+	const { activeId, isLoading } = useOdinProfile();
+	const backlog = useBacklog();
+
+	// Odin's own automations, put on the list the first time this profile is
+	// seen — including profiles that existed before there were any. Waiting for
+	// the profile matters: seeding under "default" and then learning the real id
+	// installs them twice, once in each list.
+	useEffect(() => {
+		if (!isLoading)
+			useOdinTasks.getState().installBuiltins(activeId, BUILTIN_AUTOMATIONS);
+	}, [activeId, isLoading]);
 
 	// The interval is built once; everything it needs is read off this ref at
 	// fire time. Rebuilding it on every store change would reset the clock.
@@ -55,8 +77,16 @@ export function useAutomationRunner() {
 		setPane,
 		ensureWorkspace,
 		launch,
+		backlog,
 	});
-	latest.current = { automations, markRun, setPane, ensureWorkspace, launch };
+	latest.current = {
+		automations,
+		markRun,
+		setPane,
+		ensureWorkspace,
+		launch,
+		backlog,
+	};
 
 	useEffect(() => {
 		let running = false;
@@ -81,7 +111,9 @@ export function useAutomationRunner() {
 						key: task.id,
 						workspaceId: ensured.workspace.id,
 						title: task.title,
-						description: task.notes || null,
+						// Read at fire time, not when the task was written: a sweep
+						// has to judge the backlog as it stands this morning.
+						description: automationDescription(task, latest.current.backlog),
 						brief: taskPrompt(task),
 						// #automation on the card, so a session you didn't start
 						// reads as one at a glance on the board.
