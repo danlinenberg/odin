@@ -41,6 +41,13 @@ export interface OdinTask {
 	 * "run /ship-status" says so on the card instead of hiding it in prose.
 	 */
 	skill?: string;
+	/**
+	 * The built-in this row was installed from (`backlog-sweep`). Set = Odin
+	 * wrote it, and the runner fills its prompt with context only the app can
+	 * see. Everything else about it is an ordinary task: edit it, retime it,
+	 * pause it, throw it away.
+	 */
+	builtin?: string;
 }
 
 /** Scheduled, so it runs itself — the one thing automations don't share. */
@@ -124,6 +131,13 @@ export function parseTask(text: string): {
 export const useOdinTasks = create<{
 	tasks: OdinTask[];
 	/**
+	 * One entry per built-in already installed, keyed by profile. Kept apart
+	 * from the tasks so deleting one is final — without it the row would be
+	 * back on the next launch, which is the behaviour that teaches you to pause
+	 * things you actually meant to throw away.
+	 */
+	seeded: string[];
+	/**
 	 * Newest first. Blank text is a no-op — Enter on an empty box. Pass a cron
 	 * and it lands as an automation instead of a one-shot task.
 	 */
@@ -139,10 +153,20 @@ export const useOdinTasks = create<{
 	setPaused: (id: string, paused: boolean) => void;
 	/** Stamp the minute an automation fired. */
 	markRun: (id: string, at: number) => void;
+	/**
+	 * Install the built-ins this profile hasn't seen yet. The list is passed in
+	 * rather than imported, so the store stays the plain thing the built-ins are
+	 * defined against and not the other way round.
+	 */
+	installBuiltins: (
+		profileId: string,
+		builtins: { id: string; title: string; notes: string; cron: string }[],
+	) => void;
 }>()(
 	persist(
 		(set) => ({
 			tasks: [],
+			seeded: [],
 			add: (text, profileId, cron) =>
 				set((s) => {
 					const { title, notes, priority, skill } = parseTask(text);
@@ -206,6 +230,33 @@ export const useOdinTasks = create<{
 						t.id === id ? { ...t, lastRunAt: at } : t,
 					),
 				})),
+			installBuiltins: (profileId, builtins) =>
+				set((s) => {
+					// `?? []` for installs that predate this field: persisted state
+					// is merged over the defaults, not migrated.
+					const seeded = s.seeded ?? [];
+					const key = (id: string) => `${profileId}:${id}`;
+					const fresh = builtins.filter(
+						(builtin) => !seeded.includes(key(builtin.id)),
+					);
+					if (fresh.length === 0) return s;
+					return {
+						seeded: [...seeded, ...fresh.map((builtin) => key(builtin.id))],
+						tasks: [
+							...fresh.map((builtin) => ({
+								id: crypto.randomUUID(),
+								title: builtin.title,
+								notes: builtin.notes,
+								priority: DEFAULT_PRIORITY,
+								createdAt: Date.now(),
+								profileId,
+								cron: builtin.cron,
+								builtin: builtin.id,
+							})),
+							...s.tasks,
+						],
+					};
+				}),
 		}),
 		{ name: "odin-tasks" },
 	),
