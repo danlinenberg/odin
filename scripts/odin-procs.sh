@@ -52,32 +52,3 @@ quit_packaged_ui() {
   for pid in $(ui_pids); do kill -9 "$pid" 2>/dev/null || true; done
   sleep 2
 }
-
-# Live dev stacks, one "<pid> <repo>" line each. odin-dev.sh runs `bun dev` in a
-# pipeline and so stays alive for the whole session — its presence IS the
-# session, booting or already up, which is why it's the thing counted rather
-# than the UI (absent for the 17s–2min a start takes).
-dev_stack_lines() {
-  odin_procs "scripts/odin-dev.sh" |
-    awk '{ for (i = 2; i <= NF; i++)
-             if ($i ~ /scripts\/odin-dev\.sh$/) {
-               sub(/\/scripts\/odin-dev\.sh$/, "", $i)
-               print $1, $i
-               break
-             } }'
-}
-
-# Stop one checkout's dev runners. Only the runners are matched by pattern:
-# every OTHER Electron under a checkout is the terminal-host daemon or a live
-# session running the same binary from the same node_modules, so killing by
-# path closes real sessions.
-stop_dev_runners() {
-  pkill -f "$1.*electron-vite dev" 2>/dev/null && sleep 2
-  pkill -f "$1.*turbo run dev" 2>/dev/null
-  return 0
-}
-
-# A linked worktree's .git is a FILE ("gitdir: …"); the main checkout's is a
-# directory. Cheap enough to beat `git rev-parse --git-common-dir`, and it works
-# in a checkout whose git objects are mid-rewrite by another session.
-is_linked_worktree() { [[ -f "$1/.git" ]]; }

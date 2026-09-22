@@ -54,11 +54,7 @@ bun run build           # or package one: apps/desktop/release/
 
 Re-running `odin-dev.sh` is also the restart: it replaces the dev stack that is
 already up, and live sessions survive it, because the terminal-host daemon is
-adopted rather than torn down. Only one dev session runs at a time, since two
-would share one `~/.odin` and Electron's single-instance lock: a start from a
-**worktree** takes the session from whoever holds it, and a start from the main
-checkout is refused instead, naming the checkout that has it. Either default is
-reversible per run — `ODIN_DEV_TAKEOVER=1` takes the session, `=0` refuses. Hot reload covers the renderer only. Edits under
+adopted rather than torn down. Hot reload covers the renderer only. Edits under
 `apps/desktop/src/renderer/` apply immediately; edits under `src/main/` need the
 in-app **Restart Odin** button, or `ODIN_DEV_WATCH=--watch` to restart on every
 save. Logs stream to `~/.odin/dev.log`, and the run that died is kept as
