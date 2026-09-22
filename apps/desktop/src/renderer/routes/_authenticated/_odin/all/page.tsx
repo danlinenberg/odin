@@ -479,6 +479,15 @@ function AllFeedPage() {
 												<span className={META_TEXT} title={session.repo ?? ""}>
 													{session.repo}
 												</span>
+												{/* A live session has no date of its own, but the
+												    empty slot keeps its due chip under the rows'. */}
+												<span className={META_DATE} />
+												<span className={META_DUE}>
+													<DueChip
+														itemKey={`session:${session.paneId}`}
+														title={session.title}
+													/>
+												</span>
 											</div>
 											<span className={ROW_PRIMARY_SLOT}>
 												<button

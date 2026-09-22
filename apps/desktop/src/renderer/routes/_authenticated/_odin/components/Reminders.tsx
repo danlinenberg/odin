@@ -163,7 +163,12 @@ export function DueChip({
 			<button
 				type="button"
 				title={reminder ? `Due ${reminder.due}` : "Set a due date"}
-				onClick={() => input.current?.showPicker()}
+				// A board card is itself a button — without this, dating a session
+				// opens its drawer.
+				onClick={(e) => {
+					e.stopPropagation();
+					input.current?.showPicker();
+				}}
 				className={cn(
 					"truncate rounded-[5px] px-[7px] py-[1px] text-[11px] font-semibold transition-colors",
 					reminder
@@ -177,7 +182,10 @@ export function DueChip({
 				<button
 					type="button"
 					title="Drop the due date"
-					onClick={() => clear(itemKey)}
+					onClick={(e) => {
+						e.stopPropagation();
+						clear(itemKey);
+					}}
 					className="text-[11px] text-[#8a8a97] opacity-0 transition-opacity hover:text-[#f5f5f7] group-hover:opacity-100"
 				>
 					✕

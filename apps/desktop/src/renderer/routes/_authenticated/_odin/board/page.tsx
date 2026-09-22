@@ -52,6 +52,7 @@ import {
 	sessionTitle,
 } from "../components/OdinPromptDialog";
 import { PersonChip } from "../components/PersonChip";
+import { DueChip, useReminders } from "../components/Reminders";
 import { useOdinProfile } from "../hooks/useOdinProfile";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePaneMeta } from "../hooks/usePaneMeta";
@@ -1636,6 +1637,7 @@ function DevBoardPage() {
 	const markDone = (card: BoardCard) => {
 		useTabsStore.getState().removePane(card.pane.id);
 		usePaneMeta.getState().forgetPane(card.pane.id);
+		useReminders.getState().clear(`session:${card.pane.id}`);
 		setDrawerCard(null);
 		toast.success("Done — removed from board");
 	};
@@ -1897,6 +1899,13 @@ function DevBoardPage() {
 																		}
 																	/>
 																	<LoadPill card={card} />
+																	{/* Last, and blank until you set one: a
+																	    deadline is yours, not something the
+																	    session reports about itself. */}
+																	<DueChip
+																		itemKey={`session:${card.pane.id}`}
+																		title={cardTitle(card)}
+																	/>
 																</div>
 																{card.status === "working" && (
 																	<div className="mt-1.5 flex items-center gap-1.5 text-[11.5px] text-[#a5a5b3]">
