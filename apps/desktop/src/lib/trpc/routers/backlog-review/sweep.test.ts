@@ -118,7 +118,8 @@ describe("verdicts", () => {
 			deps({
 				slackThread: async () => ({
 					replies: 2,
-					answeredByMe: true,
+					lastReplyByMe: true,
+					iReplied: true,
 					repliersComplete: true,
 					lastReplyTs: null,
 				}),
@@ -126,7 +127,29 @@ describe("verdicts", () => {
 		);
 		expect(answer).toEqual({
 			verdict: "DROP",
-			evidence: "you replied in the thread",
+			evidence: "you had the last word in the thread",
+		});
+	});
+
+	// Reported from the board: a thread Dan answered in week one, where they
+	// came back in week three asking him to decide. In reply_users, not the last
+	// word — the row is still his.
+	test("answering earlier is not answering: they replied after you", async () => {
+		const answer = await sweepItem(
+			item({ key: "slack:C1:123" }),
+			deps({
+				slackThread: async () => ({
+					replies: 2,
+					lastReplyByMe: false,
+					iReplied: true,
+					repliersComplete: true,
+					lastReplyTs: recentTs(),
+				}),
+			}),
+		);
+		expect(answer).toEqual({
+			verdict: "KEEP",
+			evidence: "2 replies, and they answered after you",
 		});
 	});
 
@@ -136,7 +159,8 @@ describe("verdicts", () => {
 			deps({
 				slackThread: async () => ({
 					replies: 3,
-					answeredByMe: false,
+					lastReplyByMe: false,
+					iReplied: false,
 					repliersComplete: true,
 					lastReplyTs: recentTs(),
 				}),
@@ -156,7 +180,8 @@ describe("verdicts", () => {
 			deps({
 				slackThread: async () => ({
 					replies: 9,
-					answeredByMe: false,
+					lastReplyByMe: false,
+					iReplied: false,
 					repliersComplete: false,
 					lastReplyTs: recentTs(),
 				}),
@@ -228,7 +253,8 @@ describe("verdicts", () => {
 			deps({
 				slackThread: async () => ({
 					replies: 2,
-					answeredByMe: false,
+					lastReplyByMe: false,
+					iReplied: false,
 					repliersComplete: true,
 					lastReplyTs: ((Date.now() - 2 * DAY) / 1000).toFixed(6),
 				}),
@@ -244,7 +270,8 @@ describe("verdicts", () => {
 			deps({
 				slackThread: async () => ({
 					replies: 0,
-					answeredByMe: false,
+					lastReplyByMe: false,
+					iReplied: false,
 					repliersComplete: true,
 					lastReplyTs: null,
 				}),

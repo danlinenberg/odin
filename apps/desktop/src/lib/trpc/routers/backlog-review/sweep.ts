@@ -130,7 +130,10 @@ export interface SweepDeps {
 	): Promise<{ state: string; merged: boolean } | null>;
 	slackThread(id: string): Promise<{
 		replies: number;
-		answeredByMe: boolean;
+		/** The newest reply is mine — nobody is waiting on me here. */
+		lastReplyByMe: boolean;
+		/** I said something in the thread, at some point. */
+		iReplied: boolean;
 		/** False when Slack truncated the replier list — see `slackThreadReplies`. */
 		repliersComplete: boolean;
 		/** Slack ts of the newest reply, when the thread has one. */
@@ -198,8 +201,14 @@ export async function sweepItem(
 					? `couldn't check ${jira}, and couldn't read the thread`
 					: "couldn't read the thread",
 			};
-		if (thread.answeredByMe)
-			return { verdict: "DROP", evidence: "you replied in the thread" };
+		// Having the last word is what "I dealt with it" looks like from Slack.
+		// Merely appearing in the thread is not: answering in week one and being
+		// asked something in week three is a row that still needs doing.
+		if (thread.lastReplyByMe)
+			return {
+				verdict: "DROP",
+				evidence: "you had the last word in the thread",
+			};
 		// A reply is the freshest thing that happened here, and the row's own
 		// timestamp is the message — so a long-dead thread under an old message
 		// still reads as quiet, and one answered yesterday doesn't.
@@ -210,10 +219,12 @@ export async function sweepItem(
 			const count = `${thread.replies} ${thread.replies === 1 ? "reply" : "replies"}`;
 			// Only claim none of them are mine when Slack listed every replier.
 			// A truncated list says nothing about who isn't on it.
-			return keepOrStale(
-				thread.repliersComplete ? `${count}, none from you` : count,
-				moved,
-			);
+			const whose = thread.iReplied
+				? ", and they answered after you"
+				: thread.repliersComplete
+					? ", none from you"
+					: "";
+			return keepOrStale(`${count}${whose}`, moved);
 		}
 		return keepOrStale("nobody has replied", moved);
 	}
