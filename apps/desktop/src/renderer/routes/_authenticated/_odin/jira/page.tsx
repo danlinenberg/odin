@@ -369,6 +369,7 @@ function MyJiraPage() {
 													<DueChip
 														itemKey={`jira:${issue.key}`}
 														title={`${issue.key}: ${issue.title}`}
+														upstream={issue.dueDate}
 													/>
 												</span>
 											</div>

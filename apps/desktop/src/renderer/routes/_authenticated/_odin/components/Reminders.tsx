@@ -108,14 +108,44 @@ export function dueToFire(
 	);
 }
 
-/** Whether a row is due today or overdue — what the pill counts and filters on. */
-export function isDue(
+/** Whether a date is today or past — what the pill counts and filters on. */
+export function isDue(due: string | null | undefined, now: number): boolean {
+	return !!due && due <= dayOf(now);
+}
+
+/**
+ * The date a row actually carries. Jira keeps a Due Date of its own, so a
+ * dated ticket arrives already dated; Odin's is an overwrite of that, held
+ * here and never written back. Drop the local one and the ticket's own date
+ * comes back — Odin can move a deadline, not delete someone else's.
+ */
+export function effectiveDue(
 	key: string,
 	reminders: Record<string, Reminder>,
-	now: number,
-): boolean {
-	const due = reminders[key]?.due;
-	return due !== undefined && due <= dayOf(now);
+	upstream?: string | null,
+): string | null {
+	return reminders[key]?.due ?? upstream ?? null;
+}
+
+/** A date a source brought with it, ready to be merged under the overrides. */
+export interface UpstreamDue {
+	key: string;
+	due: string;
+	title: string;
+}
+
+/**
+ * Upstream dates with the local overrides laid over them — what the ping
+ * actually runs on, so a Jira deadline nobody retyped into Odin still speaks.
+ */
+export function mergeUpstream(
+	reminders: Record<string, Reminder>,
+	upstream: UpstreamDue[],
+): Record<string, Reminder> {
+	const merged: Record<string, Reminder> = {};
+	for (const row of upstream)
+		merged[row.key] = { due: row.due, title: row.title };
+	return { ...merged, ...reminders };
 }
 
 const TONE_CLASS: Record<DueTone, string> = {
@@ -126,31 +156,39 @@ const TONE_CLASS: Record<DueTone, string> = {
 };
 
 /** The due column, the same width in every feed that shows one. */
-export const META_DUE = "flex w-[92px] shrink-0 items-center justify-end gap-1";
+export const META_DUE = "flex w-[92px] shrink-0 items-center justify-end";
 
 /**
  * Set, move or drop a row's due date. The chip opens the OS date picker — the
  * native input is there, just not its box: a feed row is a line of text, and a
  * `mm/dd/yyyy` control on every one of them is a form.
+ *
+ * `upstream` is the date the row arrived with (Jira's own Due Date). It shows
+ * through until you set one here, and comes back when you drop yours.
  */
 export function DueChip({
 	itemKey,
 	title,
+	upstream,
 }: {
 	itemKey: string;
 	title: string;
+	upstream?: string | null;
 }) {
 	const reminder = useReminders((s) => s.reminders[itemKey]);
 	const setDue = useReminders((s) => s.setDue);
 	const clear = useReminders((s) => s.clear);
 	const input = useRef<HTMLInputElement>(null);
 	const now = Date.now();
+	const due = reminder?.due ?? upstream ?? null;
 	return (
-		<>
+		// Positioned, so the picker opens under the chip rather than at the
+		// corner of whatever card or row happens to be the nearest ancestor.
+		<span className="relative inline-flex items-center gap-1">
 			<input
 				ref={input}
 				type="date"
-				value={reminder?.due ?? ""}
+				value={due ?? ""}
 				onChange={(e) =>
 					e.target.value
 						? setDue(itemKey, e.target.value, title)
@@ -158,11 +196,20 @@ export function DueChip({
 				}
 				tabIndex={-1}
 				aria-hidden
-				className="pointer-events-none absolute size-0 opacity-0"
+				// Chromium draws the calendar popup in the element's own colour
+				// scheme, and the app is dark whatever the OS is set to.
+				style={{ colorScheme: "dark" }}
+				className="pointer-events-none absolute inset-0 size-full opacity-0"
 			/>
 			<button
 				type="button"
-				title={reminder ? `Due ${reminder.due}` : "Set a due date"}
+				title={
+					reminder
+						? `Due ${reminder.due} — set in Odin`
+						: upstream
+							? `Due ${upstream} — from Jira. Setting one here overrides it in Odin only.`
+							: "Set a due date"
+				}
 				// A board card is itself a button — without this, dating a session
 				// opens its drawer.
 				onClick={(e) => {
@@ -170,18 +217,25 @@ export function DueChip({
 					input.current?.showPicker();
 				}}
 				className={cn(
-					"truncate rounded-[5px] px-[7px] py-[1px] text-[11px] font-semibold transition-colors",
-					reminder
-						? TONE_CLASS[dueTone(reminder.due, now)]
+					"truncate rounded-[5px] px-[7px] py-[1px] text-[11px] transition-colors",
+					due
+						? TONE_CLASS[dueTone(due, now)]
 						: "text-[#8a8a97] opacity-0 hover:text-[#f5f5f7] group-hover:opacity-100",
+					// An inherited date is lighter than one you chose: the ticket
+					// says so, you didn't.
+					reminder ? "font-semibold" : "font-medium",
 				)}
 			>
-				{reminder ? dueLabel(reminder.due, now) : "+ due"}
+				{due ? dueLabel(due, now) : "+ due"}
 			</button>
 			{reminder && (
 				<button
 					type="button"
-					title="Drop the due date"
+					title={
+						upstream
+							? `Drop yours — back to Jira's ${upstream}`
+							: "Drop the due date"
+					}
 					onClick={(e) => {
 						e.stopPropagation();
 						clear(itemKey);
@@ -191,7 +245,7 @@ export function DueChip({
 					✕
 				</button>
 			)}
-		</>
+		</span>
 	);
 }
 
@@ -205,14 +259,20 @@ export function DueChip({
  * pinging until it's cleared — join against the live feeds here if that turns
  * into a nuisance.
  */
-export function useDueReminders(): void {
+export function useDueReminders(upstream: UpstreamDue[]): void {
+	// Read through a ref: the ping runs on a timer, not on a render, and
+	// re-arming the interval every time a feed refetches would keep resetting
+	// the minute it's counting.
+	const latest = useRef(upstream);
+	latest.current = upstream;
 	useEffect(() => {
 		const tick = () => {
 			const { reminders, notified, markNotified } = useReminders.getState();
 			const now = Date.now();
 			const today = dayOf(now);
-			for (const key of dueToFire(reminders, notified, now)) {
-				const reminder = reminders[key];
+			const all = mergeUpstream(reminders, latest.current);
+			for (const key of dueToFire(all, notified, now)) {
+				const reminder = all[key];
 				if (!reminder) continue;
 				new Notification(
 					reminder.due < today ? "Overdue in Odin" : "Due today in Odin",

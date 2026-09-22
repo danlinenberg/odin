@@ -6,7 +6,7 @@ import {
 	useMatchRoute,
 	useNavigate,
 } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
 	HiOutlineBolt,
 	HiOutlineChartBar,
@@ -28,7 +28,7 @@ import {
 	machineLoad,
 } from "shared/machine-load";
 import { FEED_TABS } from "./components/feed-counts";
-import { useDueReminders } from "./components/Reminders";
+import { type UpstreamDue, useDueReminders } from "./components/Reminders";
 import { QuickAddTask } from "./components/TaskBox";
 import { useAutomationRunner } from "./hooks/useAutomationRunner";
 import { useNeedsYouByProfile } from "./hooks/useNeedsYouByProfile";
@@ -147,9 +147,6 @@ function badgeTone(load: MachineLoad): string {
 }
 
 function OdinShell() {
-	// Due dates ping from the shell, not from the feed that set them: the feed
-	// you set it on is the one you're least likely to have open on the day.
-	useDueReminders();
 	const navigate = useNavigate();
 	const matchRoute = useMatchRoute();
 	const zoomFactor = useZoomFactor();
@@ -186,7 +183,24 @@ function OdinShell() {
 	// opens — the
 	// shell mounts on boot and on reload — so switching views shows rows
 	// instead of an empty "syncing…".
-	useOdinFeeds();
+	const { jira } = useOdinFeeds();
+
+	// Due dates ping from the shell, not from the feed that set them: the feed
+	// you set it on is the one you're least likely to have open on the day.
+	// Jira's own Due Date rides along, so a deadline nobody retyped into Odin
+	// still speaks.
+	const jiraDue = useMemo(
+		(): UpstreamDue[] =>
+			(jira.data?.issues ?? [])
+				.filter((issue) => !!issue.dueDate)
+				.map((issue) => ({
+					key: `jira:${issue.key}`,
+					due: issue.dueDate as string,
+					title: `${issue.key}: ${issue.title}`,
+				})),
+		[jira.data],
+	);
+	useDueReminders(jiraDue);
 
 	// The clock behind the Automations panel. Here rather than on that page:
 	// a schedule that only runs while you're looking at it isn't one.

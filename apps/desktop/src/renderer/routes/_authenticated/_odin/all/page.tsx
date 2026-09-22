@@ -39,6 +39,7 @@ import {
 import { PersonChip } from "../components/PersonChip";
 import {
 	DueChip,
+	effectiveDue,
 	isDue,
 	META_DUE,
 	useReminders,
@@ -249,13 +250,18 @@ function AllFeedPage() {
 	// that went overdue under a filter you aren't looking through still has to
 	// be findable from here.
 	const dueRows = useMemo(
-		() => hide.rows.filter((item) => isDue(item.key, reminders, Date.now())),
+		() =>
+			hide.rows.filter((item) =>
+				isDue(effectiveDue(item.key, reminders, item.dueDate), Date.now()),
+			),
 		[hide.rows, reminders],
 	);
 	const items = useMemo(
 		() =>
 			dueOnly
-				? byContext.filter((item) => isDue(item.key, reminders, Date.now()))
+				? byContext.filter((item) =>
+						isDue(effectiveDue(item.key, reminders, item.dueDate), Date.now()),
+					)
 				: byContext,
 		[byContext, dueOnly, reminders],
 	);
@@ -585,7 +591,11 @@ function AllFeedPage() {
 											})}
 									</span>
 									<span className={META_DUE}>
-										<DueChip itemKey={item.key} title={item.title} />
+										<DueChip
+											itemKey={item.key}
+											title={item.title}
+											upstream={item.dueDate}
+										/>
 									</span>
 								</div>
 								<span className={ROW_LINK_SLOT}>
