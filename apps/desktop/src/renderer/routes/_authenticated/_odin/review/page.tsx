@@ -1,8 +1,7 @@
 import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import {
 	FEED_LIST,
@@ -12,29 +11,26 @@ import {
 	ROW_META,
 	ROW_PRIMARY_BUTTON,
 } from "../components/FeedChrome";
-import { backlogSweepBrief, useBacklog } from "../hooks/builtin-automations";
+import { useBacklog } from "../hooks/builtin-automations";
 import { useBacklogReview } from "../hooks/useBacklogReview";
 import { useMyTasks } from "../hooks/useOdinTasks";
-import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
-import { usePendingFocus } from "../hooks/usePendingFocus";
 import { countByVerdict, type ReviewRow, reviewRows } from "./verdicts";
 
 /**
  * Review — what the backlog sweep wants gone, and one click per decision.
  *
- * The sweep itself is an ordinary agent session; this is where its answers
- * land. It reads two things and joins them: the list the app sent (held in
- * `useBacklogReview`) and the verdicts the agent wrote to disk. Nothing here
- * decides anything on its own — dropping a row is a click, and a DROP the
- * agent could not evidence is one it was told to call UNKNOWN.
+ * The sweep runs here, in Odin: pressing the button asks Jira, GitHub and
+ * Slack about every backlog row and fills this list in seconds. No session is
+ * started for it — it is three lookups against credentials Odin already holds,
+ * and a session would only add a transcript to read.
+ *
+ * Nothing is decided automatically. Dropping a row is a click, and a verdict
+ * the lookup couldn't evidence comes back UNKNOWN rather than DROP.
  */
 
 export const Route = createFileRoute("/_authenticated/_odin/review/")({
 	component: ReviewPage,
 });
-
-/** How often the verdicts file is re-read while a sweep might be running. */
-const POLL_MS = 5_000;
 
 const VERDICT_STYLE = {
 	DROP: "bg-[#331a1f] text-[#ff7a8a]",
@@ -61,23 +57,13 @@ function ReviewPage() {
 	const { remove } = useMyTasks();
 	const setSlackDone = electronTrpc.slack.setDone.useMutation();
 	const utils = electronTrpc.useUtils();
-	const { ensureWorkspace } = useOdinWorkspace();
-	const { launch, isLaunching } = useLaunchTaskSession();
-	const navigate = useNavigate();
+	const sweep = electronTrpc.backlogReview.sweep.useMutation();
 	// Decided here, this session's worth. A dropped row also leaves the backlog,
 	// but a kept one doesn't — without this the screen never empties.
 	const [decided, setDecided] = useState<Record<string, true>>({});
 	const [showAll, setShowAll] = useState(false);
 
-	const review = electronTrpc.backlogReview.read.useQuery(undefined, {
-		refetchInterval: POLL_MS,
-		refetchOnMount: true,
-	});
-
-	const rows = useMemo(
-		() => reviewRows(swept, review.data?.verdicts ?? [], backlog),
-		[swept, review.data?.verdicts, backlog],
-	);
+	const rows = useMemo(() => reviewRows(swept, backlog), [swept, backlog]);
 	const counts = countByVerdict(rows);
 	const pending = rows.filter((row) => !decided[row.key]);
 	const shown = showAll
@@ -112,37 +98,37 @@ function ReviewPage() {
 		toast.success(`Cleared ${drops.length}`);
 	};
 
-	/** The sweep, off a button. The snapshot is taken here, not by the agent. */
+	/**
+	 * The sweep, off a button: every backlog row checked against the system it
+	 * came from, and the answers straight back onto this screen.
+	 */
 	const sweepNow = async () => {
-		const path = review.data?.path;
-		if (!path) return toast.error("Odin can't tell where to put the answers");
 		if (backlog.length === 0) return toast.error("The backlog is empty");
-		const ensured = await ensureWorkspace();
-		if (!ensured.ok) return toast.error(ensured.error);
-		// Cleared first: a stale file next to a fresh snapshot renders last
-		// week's verdicts against this week's numbering, which is worse than an
-		// empty screen for the minutes the sweep takes.
-		await utils.client.backlogReview.clear.mutate();
-		record(
-			backlog.map((item) => ({
-				key: item.key,
-				source: item.source,
-				title: item.title,
-				...(item.url ? { url: item.url } : {}),
-			})),
-		);
-		setDecided({});
-		const result = await launch({
-			key: "backlog-sweep",
-			workspaceId: ensured.workspace.id,
-			title: "Is the backlog still worth doing?",
-			description: backlogSweepBrief(backlog, path),
-			tags: ["review"],
-		});
-		if (!result.ok) return toast.error(result.error);
-		await review.refetch();
-		usePendingFocus.getState().focus(result.paneId);
-		navigate({ to: "/board" });
+		try {
+			const { rows: answers } = await sweep.mutateAsync({ items: backlog });
+			// The answer carries the key, so what's rendered is the row as it was
+			// swept — an item added while the sweep ran simply isn't in the list.
+			const byKey = new Map(answers.map((row) => [row.key, row]));
+			record(
+				backlog.flatMap((item) => {
+					const answer = byKey.get(item.key);
+					if (!answer) return [];
+					return [
+						{
+							key: item.key,
+							source: item.source,
+							title: item.title,
+							...(item.url ? { url: item.url } : {}),
+							verdict: answer.verdict,
+							evidence: answer.evidence,
+						},
+					];
+				}),
+			);
+			setDecided({});
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : String(error));
+		}
 	};
 
 	const swept_ago = sweptAt
@@ -182,33 +168,31 @@ function ReviewPage() {
 				<button
 					type="button"
 					onClick={() => void sweepNow()}
-					disabled={isLaunching}
+					disabled={sweep.isPending}
 					className={ROW_PRIMARY_BUTTON}
 				>
-					{isLaunching ? "Starting…" : "Sweep now"}
+					{sweep.isPending
+						? `Checking ${backlog.length}…`
+						: swept.length > 0
+							? "Sweep again"
+							: "Sweep now"}
 				</button>
 			</div>
 
 			<div className={FEED_LIST}>
-				{swept.length === 0 && (
+				{rows.length === 0 && (
 					<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
-						Nothing swept yet. "Sweep now" starts a session that checks every
-						open task and queued Slack message against the system it came from,
-						then writes its verdicts back here.
-					</div>
-				)}
-				{swept.length > 0 && rows.length === 0 && (
-					<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
-						Swept {swept_ago}, {swept.length} item
-						{swept.length === 1 ? "" : "s"}. No answers on disk yet — the
-						session is still working, or it finished without writing the file.
+						Nothing swept yet. "Sweep now" takes every open task and queued
+						Slack message and asks the system it came from where it stands — the
+						ticket's status, whether the PR is merged, whether the thread moved
+						on — then lists what it can show is done.
 					</div>
 				)}
 				{rows.length > 0 && shown.length === 0 && (
 					<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
 						{showAll
 							? "Nothing left to look at."
-							: `Nothing to drop. ${counts.keep} to keep, ${counts.unknown} it couldn't check.`}
+							: `Nothing to drop from the ${swept.length} swept${swept_ago ? ` ${swept_ago}` : ""}. ${counts.keep} to keep, ${counts.unknown} it couldn't check.`}
 					</div>
 				)}
 

@@ -4,13 +4,11 @@ import {
 	BUILTIN_AUTOMATIONS,
 	type BuiltinAutomation,
 	backlogOf,
-	backlogSweepBrief,
 } from "./builtin-automations";
 import type { OdinTask } from "./useOdinTasks";
 import { useOdinTasks } from "./useOdinTasks";
 
 const NOW = Date.parse("2026-09-21T09:00:00Z");
-const REVIEW_PATH = "/Users/dan/.odin/backlog-review.json";
 
 const task = (over: Partial<OdinTask>): OdinTask => ({
 	id: "t1",
@@ -46,63 +44,20 @@ describe("backlogOf", () => {
 		expect(backlogOf([], rows)).toEqual([]);
 	});
 
+	// The sweep's cheapest verdict rides on this flag: no reaction on the
+	// message means somebody dealt with it.
+	test("carries through that the :eyes: is gone", () => {
+		const items = backlogOf([], [slackRow({ unreacted: true })]);
+		expect(items[0]?.unreacted).toBe(true);
+		expect(backlogOf([], [slackRow()])[0]?.unreacted).toBeUndefined();
+	});
+
 	// The key is what a DROP acts on, so it has to name the row *and* which
 	// store it lives in — the two id spaces are unrelated and could collide.
 	test("keys each item back to the row it came from", () => {
 		expect(
 			backlogOf([task({ id: "abc" })], [slackRow()]).map((i) => i.key),
 		).toEqual(["task:abc", "slack:C1:123"]);
-	});
-});
-
-describe("backlogSweepBrief", () => {
-	test("lists every item, with its age and link, for the agent to check", () => {
-		const brief = backlogSweepBrief(
-			backlogOf([task({ notes: "waiting on the fix" })], [slackRow()]),
-			REVIEW_PATH,
-			NOW,
-		);
-		expect(brief).toContain("1. [Tasks] Chase BUGT-1234 — 30d old");
-		expect(brief).toContain("said: waiting on the fix");
-		expect(brief).toContain("link: https://slack.com/archives/C1/p123");
-		// The verdicts the report is scored on, and the rule that keeps a
-		// guess out of the DROP column.
-		expect(brief).toContain("DROP");
-		expect(brief).toContain("UNKNOWN");
-		// The launcher appends "make the changes" after this text — the sweep has
-		// to say which one wins, or it's one inference from editing the repo.
-		expect(brief).toContain("outranks the standing instruction below");
-	});
-
-	// Without the file there is no Review screen, only a session transcript —
-	// so the path and the shape are the two things the prompt can't lose.
-	test("asks for the verdicts as JSON, at the path the app gave it", () => {
-		const brief = backlogSweepBrief(
-			backlogOf([task({})], []),
-			REVIEW_PATH,
-			NOW,
-		);
-		expect(brief).toContain(REVIEW_PATH);
-		expect(brief).toContain('"n": 1');
-		expect(brief).toContain("Every item gets a row");
-	});
-
-	// The item's identity never crosses the wire: the app maps number back to
-	// row from its own snapshot, so a made-up key can't delete anything.
-	test("never shows the agent an item's key", () => {
-		const brief = backlogSweepBrief(
-			backlogOf([task({ id: "abc" })], [slackRow()]),
-			REVIEW_PATH,
-			NOW,
-		);
-		expect(brief).not.toContain("task:abc");
-		expect(brief).not.toContain("slack:C1:123");
-	});
-
-	test("an empty backlog asks for nothing", () => {
-		expect(backlogSweepBrief([], REVIEW_PATH, NOW)).toContain(
-			"nothing to check",
-		);
 	});
 });
 

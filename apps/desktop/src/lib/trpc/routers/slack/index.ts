@@ -282,6 +282,41 @@ async function syncReactions(token: string, reaction: string): Promise<void> {
 	}
 }
 
+/**
+ * The thread under one queued message, for the backlog sweep: how many replies
+ * it has, and whether one of them is mine.
+ *
+ * Read-only and best-effort. A user token without a history scope answers
+ * `missing_scope`, which comes back as null here and reads as "couldn't check"
+ * on the Review screen — never as a reason to clear the row.
+ */
+export async function slackThreadReplies(id: string): Promise<{
+	replies: number;
+	answeredByMe: boolean;
+	lastAuthor: string | null;
+} | null> {
+	const token = slackToken();
+	if (!token) return null;
+	const [channel, ts] = id.split(":");
+	if (!channel || !ts) return null;
+	try {
+		const me = await getIdentity(token);
+		const res = await slackApi<
+			SlackResponse & { messages?: { user?: string }[] }
+		>("conversations.replies", { channel, ts, limit: "50" }, token);
+		// The first message back is the one I reacted to; the thread is the rest.
+		const replies = (res.messages ?? []).slice(1);
+		const last = replies.at(-1);
+		return {
+			replies: replies.length,
+			answeredByMe: replies.some((message) => message.user === me.userId),
+			lastAuthor: last?.user ? await lookupUserName(last.user, token) : null,
+		};
+	} catch {
+		return null;
+	}
+}
+
 export interface ReactionRow {
 	id: string;
 	title: string;
