@@ -82,22 +82,26 @@ export function pickEyedMessages(
 }
 
 /**
- * The oldest message timestamp in a `reactions.list` page — the far edge of
- * what this sync actually looked at. Rows older than this weren't examined, so
- * their reaction can't be assumed gone. Null when the page held no messages.
+ * Which stored rows to ask Slack about this sync.
+ *
+ * A row missing from a `reactions.list` page is not evidence of anything:
+ * that list is ordered by when I reacted, not by when the message was posted,
+ * so something I eyed weeks ago sits past the end of the page while its
+ * message is newer than half of what is on it. The only honest answer for a
+ * missing row is a `reactions.get` about that one message.
+ *
+ * ponytail: a few per sync, least-recently-confirmed first, and the caller
+ * bumps `lastSeenAt` on every answer — so the queue rotates through in a
+ * handful of polls instead of costing one call per row every two minutes.
+ * Raise the budget if a queue ever grows faster than it rotates.
  */
-export function oldestExaminedTs(
-	items: SlackReactionsListItem[],
-): string | null {
-	let oldest: string | null = null;
-	for (const item of items) {
-		const ts = item.message?.ts;
-		if (!ts) continue;
-		// Slack ts is "seconds.micros" — lexical compare is wrong across digit
-		// counts (a 9-digit ts sorts above a 10-digit one), so compare numerically.
-		if (oldest === null || Number(ts) < Number(oldest)) oldest = ts;
-	}
-	return oldest;
+export function rowsToVerify<
+	T extends { id: string; lastSeenAt: number; doneAt: number | null },
+>(rows: T[], stillEyed: Set<string>, budget: number): T[] {
+	return rows
+		.filter((row) => row.doneAt === null && !stillEyed.has(row.id))
+		.sort((a, b) => a.lastSeenAt - b.lastSeenAt)
+		.slice(0, budget);
 }
 
 const ENTITIES: Record<string, string> = {
