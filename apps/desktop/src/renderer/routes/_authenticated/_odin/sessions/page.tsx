@@ -164,7 +164,6 @@ function SessionsPage() {
 	const [openRow, setOpenRow] = useState<SessionRow | null>(null);
 	const { ensureWorkspace } = useOdinWorkspace();
 	const { launch, isLaunching } = useLaunchTaskSession();
-	const utils = electronTrpc.useUtils();
 	const inputRef = useRef<HTMLInputElement>(null);
 
 	// Typing shouldn't fire a ~400ms full-store scan per keystroke.
@@ -251,14 +250,15 @@ function SessionsPage() {
 			toast.error(ensured.error);
 			return;
 		}
-		const workspace = await utils.client.workspaces.get.query({
-			id: ensured.workspace.id,
-		});
 		const result = await launch({
 			workspaceId: ensured.workspace.id,
 			title: row.title,
 			description: null,
 			resumeSessionId: row.sessionId,
+			// `claude --resume <id>` only finds the conversation from the directory
+			// it ran in, and the workspace is the repo root — a session that ran in
+			// a worktree or a subdirectory resumed into "No conversation found".
+			repoPath: row.cwd,
 			brief: row.prompt,
 		});
 		if (!result.ok) {
@@ -266,15 +266,7 @@ function SessionsPage() {
 			return;
 		}
 		usePendingFocus.getState().focus(result.paneId);
-		// `claude --resume <id>` only finds the conversation from its own project
-		// directory, so say so plainly when we had to launch somewhere else.
-		if (workspace?.worktreePath !== row.cwd) {
-			toast.warning(
-				`Resumed in ${workspace?.worktreePath} — the session ran in ${row.cwd}`,
-			);
-		} else {
-			toast.success(`Resuming "${row.title}"`);
-		}
+		toast.success(`Resuming "${row.title}"`);
 		navigate({ to: "/board" });
 	};
 
