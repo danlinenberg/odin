@@ -138,10 +138,11 @@ export function RowActions({ children }: { children: ReactNode }) {
 
 /**
  * The primary "do the thing" button on a row: calm down the page by default,
- * bright on the row you're actually pointing at.
+ * bright on the button you're actually pointing at. Not on row hover — that
+ * lit this one up while the cursor sat on the ✓ Done beside it.
  */
 export const ROW_PRIMARY_BUTTON =
-	"shrink-0 rounded-[7px] bg-[#1f1f27] px-3 py-1 text-xs font-semibold text-[#a394ff] transition-colors group-hover:bg-[#a394ff] group-hover:text-[#131126] disabled:opacity-40";
+	"shrink-0 rounded-[7px] bg-[#1f1f27] px-3 py-1 text-xs font-semibold text-[#a394ff] transition-colors hover:bg-[#a394ff] hover:text-[#131126] disabled:opacity-40";
 
 /** Same, for a row whose session is live — green rather than purple. */
 export const ROW_LIVE_BUTTON =
