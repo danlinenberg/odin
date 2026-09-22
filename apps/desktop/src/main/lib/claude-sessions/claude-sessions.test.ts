@@ -690,8 +690,31 @@ describe("workingRepoOf", () => {
  * (`--session-id`), but that is not proof Claude ever wrote the transcript —
  * one board session ran a full turn and left none, so Resume ran
  * `claude --resume <id>`, got "No conversation found with session ID" and
- * exited into a dead pane.
+ * exited into a dead pane. Resume reads the transcript by id first and starts
+ * a fresh session when there is none, so the message it rejects with is load
+ * bearing, not cosmetic.
  */
+describe("reading a session by id alone", () => {
+	test("rejects an id Claude never wrote, by the message Resume matches", () => {
+		const root = fixtureRoot();
+		return expect(
+			readTranscript({
+				sessionId: "29c5f5da-1c1e-40b8-8914-4a9b89830be2",
+				root,
+			}),
+		).rejects.toThrow("No transcript on this machine");
+	});
+
+	test("reads a session Claude did write", async () => {
+		const root = fixtureRoot();
+		const read = await readTranscript({
+			sessionId: "bbbb1111-2222-3333-4444-555566667777",
+			root,
+		});
+		expect(read.title).toBe("Investigate and reduce repeating Datadog logs");
+	});
+});
+
 describe("transcriptOf", () => {
 	test("finds a session by id alone, across projects", async () => {
 		const root = fixtureRoot();

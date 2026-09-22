@@ -388,24 +388,6 @@ export const createTerminalRouter = () => {
 			}),
 
 		/**
-		 * Does Claude still have a transcript for this conversation?
-		 *
-		 * Pinning `--session-id` at launch is not proof one was ever written: a
-		 * board session ran a full turn (its hooks fired), left no transcript,
-		 * and Resume then spent a respawn on `claude --resume <id>` only for it
-		 * to print "No conversation found with session ID" and exit 1 — a dead
-		 * pane and no explanation. Ask first. By id across every project, not by
-		 * cwd: a pane whose terminal was never opened has no confirmed cwd, and
-		 * that is exactly the pane this happened to.
-		 */
-		claudeSessionExists: publicProcedure
-			.input(z.object({ sessionId: z.string().min(1) }))
-			.query(async ({ input }) => {
-				const { transcriptOf } = await import("main/lib/claude-sessions");
-				return { exists: (await transcriptOf(input.sessionId)) !== null };
-			}),
-
-		/**
 		 * Odin fork: keyword search over Claude Code's own transcripts, so an old
 		 * session can be found by what was said in it — the board's card titles
 		 * ("Work on Odin", twenty times over) can't do that. Empty query = browse

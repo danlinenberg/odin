@@ -1328,18 +1328,23 @@ function DevBoardPage() {
 		// under this card's name is worse than admitting the history is lost.
 		// A fresh conversation gets its own pinned id, so the card owns something
 		// resumable again instead of pointing at the dead one forever.
+		//
+		// Asked by reading the transcript rather than stat-ing for it: this is the
+		// call that already answers "is this conversation on disk" by id alone —
+		// the drawer reads every open card with it — and reusing it keeps the whole
+		// fix in the renderer. A new main-process procedure sat dormant until the
+		// app restarted, so Resume kept failing exactly as before with the fix
+		// merged and the renderer already hot-reloaded onto it.
 		let lost: string | null = null;
 		if (sessionId) {
 			try {
-				if (
-					!(
-						await utils.client.terminal.claudeSessionExists.query({ sessionId })
-					).exists
-				) {
+				await utils.client.terminal.readClaudeTranscript.query({ sessionId });
+			} catch (error) {
+				// Only "Claude has no such conversation" starts a fresh session. An
+				// unreadable or half-written transcript still belongs to this card.
+				if (String(error).includes("No transcript on this machine")) {
 					lost = crypto.randomUUID();
 				}
-			} catch {
-				// couldn't check — resume it anyway, same as before
 			}
 		}
 		if (!sessionId && cwd) {
