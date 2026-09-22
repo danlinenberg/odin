@@ -8,8 +8,8 @@ import {
 import { useMemo, useState } from "react";
 import { ConnectNotice } from "renderer/components/ConnectProvider/ConnectProvider";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
-import { emojify } from "renderer/lib/emoji";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { emojify } from "renderer/lib/emoji";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import {
 	FEED_LIST,

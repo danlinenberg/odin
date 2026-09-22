@@ -2,6 +2,7 @@ import type { BrowserWindow } from "electron";
 import { router } from "..";
 import { createAnalyticsRouter } from "./analytics";
 import { createAutoUpdateRouter } from "./auto-update";
+import { createBacklogReviewRouter } from "./backlog-review";
 import { createBrowserRouter } from "./browser/browser";
 import { createBrowserHistoryRouter } from "./browser-history";
 import { createChangesRouter } from "./changes";
@@ -49,6 +50,7 @@ export const createAppRouter = (getWindow: () => BrowserWindow | null) => {
 		notifications: createNotificationsRouter(getWindow),
 		notion: createNotionRouter(),
 		slack: createSlackRouter(),
+		backlogReview: createBacklogReviewRouter(),
 		connections: createConnectionsRouter(),
 		work: createWorkRouter(),
 		insights: createInsightsRouter(),

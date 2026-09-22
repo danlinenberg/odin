@@ -30,10 +30,6 @@ import {
 	TaskBox,
 } from "../components/TaskBox";
 import {
-	automationDescription,
-	useBacklog,
-} from "../hooks/builtin-automations";
-import {
 	type OdinTask,
 	taskPrompt,
 	taskText,
@@ -305,8 +301,6 @@ function AutomationsPage() {
 	const panes = useTabsStore((s) => s.panes);
 	// The agent's own skills, for the compose box and every edit box below.
 	const { data: skills } = electronTrpc.skills.list.useQuery();
-	// Run now has to send the same prompt the clock would, built-ins included.
-	const backlog = useBacklog();
 
 	/** The session this automation's last run started, while it's still open. */
 	const livePaneId = (task: OdinTask) => {
@@ -323,7 +317,7 @@ function AutomationsPage() {
 			key: task.id,
 			workspaceId: ensured.workspace.id,
 			title: task.title,
-			description: automationDescription(task, backlog),
+			description: task.notes || null,
 			brief: taskPrompt(task),
 			tags: ["automation"],
 			skill: task.skill,
