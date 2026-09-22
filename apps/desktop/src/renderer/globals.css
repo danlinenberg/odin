@@ -159,6 +159,16 @@
 		cursor: pointer;
 	}
 
+	/* The button under the cursor lights up. Feed rows fill their primary
+	   button on *row* hover, so pointing at any button on a row lit a
+	   different one — nothing marked the one you were about to click.
+	   A flat gradient, not box-shadow: it layers over whatever bg-* the
+	   button already has instead of wiping its ring utility. */
+	button:not(:disabled):hover,
+	[role="button"]:not([aria-disabled="true"]):hover {
+		background-image: linear-gradient(var(--fill-hover), var(--fill-hover));
+	}
+
 	body {
 		@apply bg-background text-foreground;
 	}
