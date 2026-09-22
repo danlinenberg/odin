@@ -11,6 +11,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { IconType } from "react-icons";
 import {
+	LuClock,
 	LuFlame,
 	LuFolderGit2,
 	LuGitPullRequest,
@@ -1632,8 +1633,26 @@ function DevBoardPage() {
 																	{boardTags(card.pane.odinTags).map((tag) => (
 																		<span
 																			key={tag}
-																			className="rounded-[5px] bg-[#211d3a] px-[7px] text-[11px] font-medium text-[#a394ff]"
+																			title={
+																				tag === "automation"
+																					? "Started by a schedule, not by you"
+																					: undefined
+																			}
+																			className={cn(
+																				"inline-flex items-center gap-1 rounded-[5px] px-[7px] text-[11px] font-medium",
+																				// Amber and a clock, the pair the Tasks list already
+																				// gives a scheduled row. It is the one tag that answers
+																				// "who started this?", on a board where every other card
+																				// was started by you — in the shared violet it read as
+																				// one more subject label, next to #bug and #infra.
+																				tag === "automation"
+																					? "bg-[#2e2413] text-[#f5b83d]"
+																					: "bg-[#211d3a] text-[#a394ff]",
+																			)}
 																		>
+																			{tag === "automation" && (
+																				<LuClock className="size-3" />
+																			)}
 																			#{tag}
 																		</span>
 																	))}
