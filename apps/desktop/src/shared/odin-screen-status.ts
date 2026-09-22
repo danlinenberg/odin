@@ -56,7 +56,7 @@ const SPINNER = /…[ \t]*\(|esc to interrupt/i;
  * unrecognised screen must leave the hook-driven status alone rather than
  * guess.
  */
-export function odinScreenStatus(screen: string): PaneStatus | undefined {
+function footerOf(screen: string): string {
 	// Bare \r shows up in raw PTY history, where a split on \n alone would fold
 	// the whole screen onto one line and hand the transcript its vote back.
 	const lines = screen.split(/\r\n|\n|\r/).filter((line) => line.trim());
@@ -66,7 +66,11 @@ export function odinScreenStatus(screen: string): PaneStatus | undefined {
 	// snapshot caught mid-repaint) falls back to the bottom of the screen.
 	const rules = lines.flatMap((line, i) => (RULE.test(line) ? [i] : []));
 	const boxTop = rules.length >= 2 ? rules[rules.length - 2] : lines.length;
-	const footer = lines.slice(Math.max(0, boxTop - FOOTER_LINES)).join("\n");
+	return lines.slice(Math.max(0, boxTop - FOOTER_LINES)).join("\n");
+}
+
+export function odinScreenStatus(screen: string): PaneStatus | undefined {
+	const footer = footerOf(screen);
 	// Order matters: a permission dialog is drawn *over* the spinner, so it has
 	// to win over the spinner, and the idle prompt's status line ("bypass
 	// permissions on", "? for shortcuts") is painted under both of the others.
@@ -125,5 +129,29 @@ export function agentOnScreen(screen: string): boolean {
 	// status line under it.
 	return (
 		screen.split(/\r\n|\n|\r/).filter((line) => RULE.test(line)).length >= 2
+	);
+}
+
+/**
+ * Does Esc mean something *inside* Claude right now?
+ *
+ * Claude prints the affordance whenever it is — "Esc to go back" under a menu
+ * or a picker, "(esc)" on the reject option of a permission dialog. The
+ * board's drawer swallows Esc to close itself, which in those states steals
+ * the key from the menu the user is standing in and the pane disappears
+ * instead of the menu.
+ *
+ * "esc to interrupt" is deliberately not matched: mid-turn the drawer closing
+ * is the wanted behaviour, and an Esc into the PTY there cancels the turn.
+ *
+ * ponytail: shares the status classifier's footer window, and its ceiling — a
+ * transcript line within FOOTER_LINES of the input box that happens to say
+ * "esc to go back" costs the drawer its Esc until the screen scrolls. Minimize
+ * and click-outside still close it. Parse the box rules as a delimiter pair if
+ * that ever bites.
+ */
+export function escIsHandledOnScreen(screen: string): boolean {
+	return /esc(?:ape)? to (?:go back|cancel|exit|close|dismiss)|\(esc\)/i.test(
+		footerOf(screen),
 	);
 }
