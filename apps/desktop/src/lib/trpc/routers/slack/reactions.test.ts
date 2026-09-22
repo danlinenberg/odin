@@ -11,6 +11,7 @@ import {
 	rowsToVerify,
 	type SlackReactionsListItem,
 	slackTextToPlain,
+	threadParentTs,
 	toTitle,
 } from "./reactions";
 
@@ -73,6 +74,22 @@ describe("pickEyedMessages", () => {
 			{ type: "message", channel: "C1" }, // no message
 		];
 		expect(pickEyedMessages(items, ME)).toEqual([]);
+	});
+});
+
+describe("threadParentTs", () => {
+	// The case that made a 37-reply thread read as empty: the row points at a
+	// reply, and every thread fact lives on the parent.
+	test("a reply asks about its parent", () => {
+		expect(threadParentTs({ ts: "200.1", thread_ts: "100.1" })).toBe("100.1");
+	});
+
+	test("a thread parent asks about itself", () => {
+		expect(threadParentTs({ ts: "100.1", thread_ts: "100.1" })).toBeNull();
+	});
+
+	test("a message in no thread asks about itself", () => {
+		expect(threadParentTs({ ts: "100.1" })).toBeNull();
 	});
 });
 

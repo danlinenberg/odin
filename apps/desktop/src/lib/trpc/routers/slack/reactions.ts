@@ -82,6 +82,27 @@ export function pickEyedMessages(
 }
 
 /**
+ * The message that carries a thread's facts, given the message a row points at.
+ *
+ * `reply_count`, `reply_users` and `latest_reply` live on the thread PARENT.
+ * Read them off a reply — which is what a queue row often is, since you react
+ * to the message that needs answering, not to whatever started the thread —
+ * and a thread with 37 messages in it reads as "nobody has replied", aged off
+ * the reply's own timestamp instead of the thread's last activity.
+ *
+ * Null when the message is already the parent (or stands alone): ask about
+ * itself.
+ */
+export function threadParentTs(message: {
+	ts?: string;
+	thread_ts?: string;
+}): string | null {
+	const parent = message.thread_ts;
+	if (!parent || parent === message.ts) return null;
+	return parent;
+}
+
+/**
  * Which stored rows to ask Slack about this sync.
  *
  * A row missing from a `reactions.list` page is not evidence of anything:

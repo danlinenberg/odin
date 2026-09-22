@@ -22,6 +22,7 @@ import {
 	replaceMentions,
 	rowsToVerify,
 	type SlackReactionsListItem,
+	threadParentTs,
 	toTitle,
 } from "./reactions";
 
@@ -354,19 +355,30 @@ export async function slackThreadReplies(id: string): Promise<{
 	if (!token) return null;
 	const [channel, ts] = id.split(":");
 	if (!channel || !ts) return null;
+	type ThreadMessage = {
+		ts?: string;
+		thread_ts?: string;
+		reply_count?: number;
+		reply_users?: string[];
+		reply_users_count?: number;
+		latest_reply?: string;
+	};
+	const get = (timestamp: string) =>
+		slackApi<SlackResponse & { message?: ThreadMessage }>(
+			"reactions.get",
+			{ channel, timestamp, full: "true" },
+			token,
+		);
 	try {
 		const me = await getIdentity(token);
-		const res = await slackApi<
-			SlackResponse & {
-				message?: {
-					reply_count?: number;
-					reply_users?: string[];
-					reply_users_count?: number;
-					latest_reply?: string;
-				};
-			}
-		>("reactions.get", { channel, timestamp: ts, full: "true" }, token);
-		const message = res.message ?? {};
+		const res = await get(ts);
+		// The row usually points at a reply — you react to the message that needs
+		// answering, not to whatever opened the thread — and the thread's facts
+		// are on the parent. A failed parent lookup throws to the catch and reads
+		// as "couldn't check", which is the honest answer: without it we would be
+		// calling a 37-message thread empty.
+		const parent = threadParentTs(res.message ?? {});
+		const message = (parent ? (await get(parent)).message : res.message) ?? {};
 		const repliers = message.reply_users ?? [];
 		return {
 			replies: message.reply_count ?? 0,
