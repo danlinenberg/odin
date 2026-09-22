@@ -3,8 +3,8 @@ import { useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import { isVideoFile } from "shared/file-types";
-import { type MachineLoad, machineLoad } from "shared/machine-load";
-import { withOdinTag } from "shared/odin-tags";
+import { machineLoad } from "shared/machine-load";
+import { isOdinCwd, odinSessionInFlight, withOdinTag } from "shared/odin-tags";
 
 function slugify(title: string): string {
 	return (
@@ -149,15 +149,22 @@ const CAPACITY_POLL_MS = 5_000;
  */
 const CAPACITY_MAX_WAIT_MS = 10 * 60_000;
 
+/** Whatever a launch is waiting on, reduced to "busy, and here's why". */
+export interface LaunchBlocker {
+	busy: boolean;
+	reason: string | null;
+}
+
 /**
- * Hold a launch until the Mac can take another agent.
+ * Hold a launch until what it needs is free — the Mac in one case, Odin's
+ * checkout in the other.
  *
- * It re-reads and re-checks rather than deciding once: the reading is a live
- * one (CPU busy over the last few seconds, agents' and everyone else's), so a
- * launch waits exactly as long as the machine is actually flat out.
+ * It re-reads and re-checks rather than deciding once: both readings are live
+ * (CPU busy over the last few seconds; which sessions are running right now),
+ * so a launch waits exactly as long as it has to.
  *
- * Any failure to read the load lets the launch through: a broken gauge must
- * never be the reason a session doesn't start.
+ * Any failure to read lets the launch through: a broken gauge must never be
+ * the reason a session doesn't start.
  */
 export async function waitForCapacity({
 	readLoad,
@@ -167,8 +174,8 @@ export async function waitForCapacity({
 	pollMs = CAPACITY_POLL_MS,
 	maxWaitMs = CAPACITY_MAX_WAIT_MS,
 }: {
-	readLoad: () => Promise<MachineLoad>;
-	onWait: (load: MachineLoad) => void;
+	readLoad: () => Promise<LaunchBlocker>;
+	onWait: (load: LaunchBlocker) => void;
 	onProceed: () => void;
 	skipped: () => boolean;
 	/** Overridden by tests only. */
@@ -178,7 +185,7 @@ export async function waitForCapacity({
 	const deadline = Date.now() + maxWaitMs;
 	let waited = false;
 	while (!skipped()) {
-		let load: MachineLoad;
+		let load: LaunchBlocker;
 		try {
 			load = await readLoad();
 		} catch {
@@ -194,6 +201,14 @@ export async function waitForCapacity({
 	}
 	if (waited) onProceed();
 }
+
+/**
+ * An Odin launch past the gate but not yet spawned. Without it, three launches
+ * held behind one session all see a free checkout on the tick it finishes and
+ * start together: the pane they're waiting on only turns "working" once its
+ * own launch finishes.
+ */
+let odinLaunchPending = false;
 
 /**
  * Launch an agent session for an ad-hoc task into an existing workspace.
@@ -289,11 +304,30 @@ export function useLaunchTaskSession() {
 	> => {
 		setIsLaunching(true);
 		setLaunchingKey(key ?? null);
+		// Only the launch that raised the Odin flag may lower it: a launch into
+		// some other repo finishing in the meantime must not open the gate on an
+		// Odin one that is still spawning.
+		let raisedOdinFlag = false;
 		try {
-			// 0. Don't pile onto a machine that's already flat out. Every Odin
-			// view launches through here, so this is the one place that decides
-			// when a new agent actually starts.
+			const workspace = await utils.client.workspaces.get.query({
+				id: workspaceId,
+			});
+			const worktreePath = workspace?.worktreePath;
+			if (!worktreePath) {
+				return {
+					ok: false,
+					error: "Workspace has no path — cannot launch a session",
+				};
+			}
+			const sessionCwd = repoPath || worktreePath;
+
+			// 0. Two gates, both of which hold the launch rather than refuse it:
+			// every Odin view launches through here, so this is the one place
+			// that decides when a new agent actually starts. "Start now" on
+			// either toast clears both.
 			let startNow = now === true;
+
+			// 0a. Don't pile onto a machine that's already flat out.
 			const toastId = `capacity-${key ?? title}`;
 			await waitForCapacity({
 				skipped: () => startNow,
@@ -319,15 +353,51 @@ export function useLaunchTaskSession() {
 				},
 			});
 
-			const workspace = await utils.client.workspaces.get.query({
-				id: workspaceId,
-			});
-			const worktreePath = workspace?.worktreePath;
-			if (!worktreePath) {
-				return {
-					ok: false,
-					error: "Workspace has no path — cannot launch a session",
-				};
+			// 0b. One agent in Odin's own checkout at a time. Work on Odin happens
+			// in the checkout itself, so a second agent in there edits files under
+			// the first and hands both of them a dirty tree. Queued, not refused:
+			// a session you asked for should still run, just after the one ahead
+			// of it — and no deadline, because starting anyway is the exact thing
+			// this gate exists to prevent.
+			const inOdin = isOdinCwd(sessionCwd, workConfig?.odinRepoPath);
+			if (inOdin) {
+				const odinToastId = `odin-queue-${key ?? title}`;
+				await waitForCapacity({
+					skipped: () => startNow,
+					maxWaitMs: Number.POSITIVE_INFINITY,
+					readLoad: async () => {
+						if (odinLaunchPending)
+							return { busy: true, reason: "another session is starting" };
+						const held = odinSessionInFlight(
+							Object.values(useTabsStore.getState().panes),
+							workConfig?.odinRepoPath,
+						);
+						return {
+							busy: !!held,
+							reason: held ? `"${held.title}" is running` : null,
+						};
+					},
+					onWait: (blocker) => {
+						setWaitingReason(`Odin busy — ${blocker.reason}`);
+						toast.warning(`Odin is busy — ${blocker.reason}`, {
+							id: odinToastId,
+							description: `Holding "${title}": one agent at a time in Odin's checkout.`,
+							duration: Number.POSITIVE_INFINITY,
+							action: {
+								label: "Start now",
+								onClick: () => {
+									startNow = true;
+								},
+							},
+						});
+					},
+					onProceed: () => {
+						setWaitingReason(null);
+						toast.dismiss(odinToastId);
+					},
+				});
+				odinLaunchPending = true;
+				raisedOdinFlag = true;
 			}
 
 			// 1. Prompt file in the workspace (survives quoting, keeps history)
@@ -384,7 +454,6 @@ export function useLaunchTaskSession() {
 			}
 
 			// 2. Tab + pane for the session
-			const sessionCwd = repoPath || worktreePath;
 			const odinTags = withOdinTag(tags, sessionCwd, workConfig?.odinRepoPath);
 			// Read the profile now rather than from a cached query: a switch a
 			// moment ago must not stamp this session onto the profile you left.
@@ -498,6 +567,10 @@ export function useLaunchTaskSession() {
 				error: error instanceof Error ? error.message : String(error),
 			};
 		} finally {
+			// The pane is "working" by now, so the next queued launch sees it and
+			// keeps waiting. Cleared on failure too — a launch that never started
+			// must not hold the checkout shut.
+			if (raisedOdinFlag) odinLaunchPending = false;
 			setIsLaunching(false);
 			setLaunchingKey(null);
 			setWaitingReason(null);
