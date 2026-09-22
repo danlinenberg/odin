@@ -17,6 +17,7 @@ import {
 	HiOutlineViewColumns,
 } from "react-icons/hi2";
 import { ZoomStable } from "renderer/components/ZoomStable/ZoomStable";
+import { useTaskQueue } from "renderer/hooks/useTaskQueue";
 import { useZoomFactor } from "renderer/hooks/useZoomFactor";
 import { useHotkey } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
@@ -186,6 +187,9 @@ function OdinShell() {
 	// The clock behind the Automations panel. Here rather than on that page:
 	// a schedule that only runs while you're looking at it isn't one.
 	useAutomationRunner();
+	// Same reason: tasks held back by the capacity gate wait in Idle → Queued,
+	// and this is what starts them once the Mac (or Odin's checkout) frees up.
+	useTaskQueue();
 
 	const { data: workConfig } = electronTrpc.work.getConfig.useQuery();
 	// Single-key nav — D board, T tasks, S slack, H history, J jira, P PRs

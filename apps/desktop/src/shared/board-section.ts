@@ -6,6 +6,7 @@ import type { Pane } from "./tabs-types";
  * of one undifferentiated list.
  */
 export type BoardSection =
+	| "queued"
 	| "parked"
 	| "slack"
 	| "reactions"
@@ -15,6 +16,7 @@ export type BoardSection =
 	| "normal";
 
 export const SECTION_LABEL: Record<BoardSection, string> = {
+	queued: "Queued",
 	parked: "Parked",
 	slack: "Slack",
 	reactions: "Slack",
@@ -36,6 +38,11 @@ export function boardSection(pane: Pane): BoardSection {
 	return pane.odinPageId ? "reactions" : "normal";
 }
 
+/** Created but not started yet — waiting on the Mac, or on Odin's checkout. */
+function isQueued(pane: Pane): boolean {
+	return !!pane.odinQueued;
+}
+
 /**
  * A session you put down on purpose. Only in Idle: the board clears the flag
  * the moment a parked session starts moving again, so this is never a live one.
@@ -47,17 +54,23 @@ function isParked(pane: Pane): boolean {
 /**
  * Cards grouped into sections, empty sections dropped, order fixed.
  *
- * Parked comes first and cuts across the source sections — you chose to put
- * these down, so they're not the Idle cards asking to be resumed, whichever
- * feed started them.
+ * Queued and Parked come first and cut across the source sections: one hasn't
+ * started yet and the other you put down on purpose, so neither is an Idle
+ * card asking to be resumed, whichever feed started it.
  */
 export function bySection<T extends { pane: Pane }>(
 	cards: T[],
 ): [BoardSection, T[]][] {
-	const rest = cards.filter((card) => !isParked(card.pane));
+	const rest = cards.filter(
+		(card) => !isParked(card.pane) && !isQueued(card.pane),
+	);
 	return (
 		[
-			["parked", cards.filter((card) => isParked(card.pane))],
+			["queued", cards.filter((card) => isQueued(card.pane))],
+			[
+				"parked",
+				cards.filter((card) => isParked(card.pane) && !isQueued(card.pane)),
+			],
 			...ORDER.map((section) => [
 				section,
 				rest.filter((card) => boardSection(card.pane) === section),

@@ -196,6 +196,12 @@ export interface Pane {
 	 */
 	odinParked?: boolean;
 	/**
+	 * Odin fork: created but not started — the Mac was flat out, or Odin's own
+	 * checkout was taken. The card sits in Idle under "Queued" with the reason
+	 * on it, and the queue runner spawns `command` the moment the gate clears.
+	 */
+	odinQueued?: { command: string; reason: string };
+	/**
 	 * Odin fork: the pane holding this session's shell — a plain terminal in the
 	 * same checkout, opened from the drawer. Kept on the session so reopening
 	 * the drawer reattaches to that shell instead of spawning another one.

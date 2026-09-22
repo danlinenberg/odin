@@ -87,6 +87,9 @@ export const paneSchema = z.object({
 	odinAutoTagged: z.boolean().optional(),
 	odinAutoTitled: z.boolean().optional(),
 	odinParked: z.boolean().optional(),
+	// A launch held back by the capacity gate — the command to run when it
+	// clears. Persisted so a queued task survives a restart.
+	odinQueued: z.object({ command: z.string(), reason: z.string() }).optional(),
 	// The session's shell pane, so the drawer's Terminal reattaches after a restart.
 	odinShellPaneId: z.string().optional(),
 	// The profile that launched the session. Stripped here, every session fell
