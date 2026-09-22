@@ -331,14 +331,22 @@ async function reactionStillOn(
  * The thread under one queued message, for the backlog sweep: how many replies
  * it has, and whether one of them is mine.
  *
- * Read-only and best-effort. A user token without a history scope answers
- * `missing_scope`, which comes back as null here and reads as "couldn't check"
- * on the Review screen — never as a reason to clear the row.
+ * Read from `reactions.get`, not `conversations.replies`. Reading the thread
+ * itself needs `channels:history` and its three siblings — read access to
+ * every message in every channel I'm in — for two facts Slack already puts on
+ * the parent message: `reply_count` and `reply_users`. The queue's own
+ * `reactions:read` is enough. Asking for history scopes to learn a reply count
+ * would be the broadest permission in the app bought for the least.
+ *
+ * Read-only and best-effort: anything Slack won't answer comes back null and
+ * reads as "couldn't check" on the Review screen, never as a reason to clear
+ * the row.
  */
 export async function slackThreadReplies(id: string): Promise<{
 	replies: number;
 	answeredByMe: boolean;
-	lastAuthor: string | null;
+	/** True when `reply_users` is the whole list, so "not mine" means it. */
+	repliersComplete: boolean;
 } | null> {
 	const token = slackToken();
 	if (!token) return null;
@@ -347,15 +355,23 @@ export async function slackThreadReplies(id: string): Promise<{
 	try {
 		const me = await getIdentity(token);
 		const res = await slackApi<
-			SlackResponse & { messages?: { user?: string }[] }
-		>("conversations.replies", { channel, ts, limit: "50" }, token);
-		// The first message back is the one I reacted to; the thread is the rest.
-		const replies = (res.messages ?? []).slice(1);
-		const last = replies.at(-1);
+			SlackResponse & {
+				message?: {
+					reply_count?: number;
+					reply_users?: string[];
+					reply_users_count?: number;
+				};
+			}
+		>("reactions.get", { channel, timestamp: ts, full: "true" }, token);
+		const message = res.message ?? {};
+		const repliers = message.reply_users ?? [];
 		return {
-			replies: replies.length,
-			answeredByMe: replies.some((message) => message.user === me.userId),
-			lastAuthor: last?.user ? await lookupUserName(last.user, token) : null,
+			replies: message.reply_count ?? 0,
+			answeredByMe: repliers.includes(me.userId),
+			// Slack caps `reply_users` at five. Past that my absence from the list
+			// isn't evidence I stayed out of the thread, and the sweep must not
+			// read it as one.
+			repliersComplete: repliers.length >= (message.reply_users_count ?? 0),
 		};
 	} catch {
 		return null;

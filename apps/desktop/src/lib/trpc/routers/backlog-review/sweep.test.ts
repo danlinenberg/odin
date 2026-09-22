@@ -114,7 +114,7 @@ describe("verdicts", () => {
 				slackThread: async () => ({
 					replies: 2,
 					answeredByMe: true,
-					lastAuthor: "me",
+					repliersComplete: true,
 				}),
 			}),
 		);
@@ -131,14 +131,30 @@ describe("verdicts", () => {
 				slackThread: async () => ({
 					replies: 3,
 					answeredByMe: false,
-					lastAuthor: "Tamir",
+					repliersComplete: true,
 				}),
 			}),
 		);
 		expect(answer).toEqual({
 			verdict: "KEEP",
-			evidence: "3 replies, last from Tamir",
+			evidence: "3 replies, none from you",
 		});
+	});
+
+	// Slack caps reply_users at five. Past that, "I'm not in the list" is not
+	// evidence I stayed out of the thread, so the evidence must not say so.
+	test("a truncated replier list doesn't claim none of them are yours", async () => {
+		const answer = await sweepItem(
+			item({ key: "slack:C1:123" }),
+			deps({
+				slackThread: async () => ({
+					replies: 9,
+					answeredByMe: false,
+					repliersComplete: false,
+				}),
+			}),
+		);
+		expect(answer).toEqual({ verdict: "KEEP", evidence: "9 replies" });
 	});
 
 	// Everything the sweep could not read has to land here. A DROP deletes.
