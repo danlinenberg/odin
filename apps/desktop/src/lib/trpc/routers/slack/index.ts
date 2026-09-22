@@ -330,7 +330,12 @@ async function reactionStillOn(
 
 /**
  * The thread under one queued message, for the backlog sweep: how many replies
- * it has, and whether one of them is mine.
+ * it has, and — the question that decides it — whether the last word is mine.
+ *
+ * Being somewhere in `reply_users` is not the same as having answered. A
+ * thread where I said something in week one and they asked me a question in
+ * week three is a thread waiting on me, and reading "I replied" off the list
+ * clears exactly the rows that still need doing.
  *
  * Read from `reactions.get`, not `conversations.replies`. Reading the thread
  * itself needs `channels:history` and its three siblings — read access to
@@ -345,7 +350,10 @@ async function reactionStillOn(
  */
 export async function slackThreadReplies(id: string): Promise<{
 	replies: number;
-	answeredByMe: boolean;
+	/** The newest reply is mine — nobody is waiting on me here. */
+	lastReplyByMe: boolean;
+	/** I said something in this thread, at some point. */
+	iReplied: boolean;
 	/** True when `reply_users` is the whole list, so "not mine" means it. */
 	repliersComplete: boolean;
 	/** Slack ts of the newest reply — the freshest thing that happened here. */
@@ -362,6 +370,7 @@ export async function slackThreadReplies(id: string): Promise<{
 		reply_users?: string[];
 		reply_users_count?: number;
 		latest_reply?: string;
+		user?: string;
 	};
 	const get = (timestamp: string) =>
 		slackApi<SlackResponse & { message?: ThreadMessage }>(
@@ -380,14 +389,22 @@ export async function slackThreadReplies(id: string): Promise<{
 		const parent = threadParentTs(res.message ?? {});
 		const message = (parent ? (await get(parent)).message : res.message) ?? {};
 		const repliers = message.reply_users ?? [];
+		const iReplied = repliers.includes(me.userId);
+		const latest = message.latest_reply ?? null;
 		return {
 			replies: message.reply_count ?? 0,
-			answeredByMe: repliers.includes(me.userId),
+			iReplied,
+			// Who spoke last. Only worth a call when I'm in the thread at all —
+			// if I never replied, the last word certainly isn't mine.
+			lastReplyByMe:
+				iReplied && latest
+					? ((await get(latest)).message?.user ?? null) === me.userId
+					: false,
 			// Slack caps `reply_users` at five. Past that my absence from the list
 			// isn't evidence I stayed out of the thread, and the sweep must not
 			// read it as one.
 			repliersComplete: repliers.length >= (message.reply_users_count ?? 0),
-			lastReplyTs: message.latest_reply ?? null,
+			lastReplyTs: latest,
 		};
 	} catch {
 		return null;
