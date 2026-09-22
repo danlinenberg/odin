@@ -579,6 +579,7 @@ function DevBoardPage() {
 	const openUrl = electronTrpc.external.openUrl.useMutation();
 	const contactByPane = usePaneMeta((s) => s.contactByPane);
 	const titleByPane = usePaneMeta((s) => s.titleByPane);
+	const briefByPane = usePaneMeta((s) => s.briefByPane);
 	// Prefer the task title captured at launch — Claude Code's OSC title rewrites
 	// the pane name to "Claude Code" once it starts.
 	// `panes` first: the drawer holds a snapshot card, so a rename has to be read
@@ -598,6 +599,9 @@ function DevBoardPage() {
 		card.pane.odinContact ?? contactByPane[card.pane.id] ?? null;
 
 	const [isComposerOpen, setIsComposerOpen] = useState(false);
+	// A card whose conversation Claude no longer has. Resume stops and puts this
+	// here; the dialog it opens asks whether to start over from the card's brief.
+	const [lostCard, setLostCard] = useState<BoardCard | null>(null);
 	const [drawerCard, setDrawerCard] = useState<BoardCard | null>(null);
 	// Rename a session. Same home as tags (the pane, in app-state.json) and the
 	// first thing cardTitle reads, so the new name shows everywhere and sticks.
@@ -1296,12 +1300,6 @@ function DevBoardPage() {
 		// that had already stopped doesn't.
 		const diedWorking =
 			useTabsStore.getState().panes[card.pane.id]?.status === "working";
-		setResumingPaneIds((ids) => [...ids, card.pane.id]);
-		// The respawn puts Claude back in this PTY — don't make the next scan
-		// (up to 10s away, twice over) re-prove it before the card stops
-		// offering Resume.
-		sawNoAgentRef.current.delete(card.pane.id);
-		setAgentGonePaneIds((ids) => ids.filter((id) => id !== card.pane.id));
 		// initialCwd included: a session whose terminal was never opened has no
 		// confirmed cwd, and resuming without one lands in the wrong repo. The
 		// workspace checkout is the last resort — `claude --resume` only finds a
@@ -1315,38 +1313,39 @@ function DevBoardPage() {
 		let sessionId =
 			card.pane.claudeSessionId ??
 			usePaneMeta.getState().sessionIdByPane[card.pane.id];
-		// The id we pinned at launch is not proof Claude ever wrote that
-		// conversation: this pane was launched with --session-id, ran a turn (its
-		// hooks fired), and left no transcript — so Resume ran `claude --resume
-		// <id>`, got "No conversation found with session ID", and exited 1 into a
-		// dead pane. Check before spending a respawn on it.
+		// A pinned --session-id is not proof Claude ever wrote that conversation:
+		// this pane ran a full turn (its hooks fired) and left no transcript, so
+		// Resume ran `claude --resume <id>`, got "No conversation found with
+		// session ID" and exited 1 — a dead pane whose whole history was that
+		// line. Ask before touching the PTY, and when it's gone stop here: the
+		// answer is a new session, which is the drawer's question to ask, not
+		// something to do behind your back. Nothing is substituted either — the
+		// title search below matches the newest transcript merely *mentioning*
+		// the card title (on this board, an unrelated session), and --continue
+		// takes whatever ran last in the repo.
 		//
-		// Nothing is substituted when it's gone. The title search below finds the
-		// newest transcript merely *mentioning* the card title, which on a real
-		// board matched a completely unrelated session — and --continue would
-		// grab whatever ran last in the repo. Reopening a stranger's conversation
-		// under this card's name is worse than admitting the history is lost.
-		// A fresh conversation gets its own pinned id, so the card owns something
-		// resumable again instead of pointing at the dead one forever.
-		//
-		// Asked by reading the transcript rather than stat-ing for it: this is the
-		// call that already answers "is this conversation on disk" by id alone —
-		// the drawer reads every open card with it — and reusing it keeps the whole
-		// fix in the renderer. A new main-process procedure sat dormant until the
-		// app restarted, so Resume kept failing exactly as before with the fix
-		// merged and the renderer already hot-reloaded onto it.
-		let lost: string | null = null;
+		// Read rather than stat: this call already answers "is this conversation
+		// on disk" by id alone, and reusing it keeps the whole check in the
+		// renderer. A new main-process procedure sits dormant until the app
+		// restarts, which is a fix that silently isn't running.
 		if (sessionId) {
 			try {
 				await utils.client.terminal.readClaudeTranscript.query({ sessionId });
 			} catch (error) {
-				// Only "Claude has no such conversation" starts a fresh session. An
-				// unreadable or half-written transcript still belongs to this card.
+				// Only "Claude has no such conversation" is lost. An unreadable or
+				// half-written transcript still belongs to this card — resume it.
 				if (String(error).includes("No transcript on this machine")) {
-					lost = crypto.randomUUID();
+					setLostCard(card);
+					return;
 				}
 			}
 		}
+		setResumingPaneIds((ids) => [...ids, card.pane.id]);
+		// The respawn puts Claude back in this PTY — don't make the next scan
+		// (up to 10s away, twice over) re-prove it before the card stops
+		// offering Resume.
+		sawNoAgentRef.current.delete(card.pane.id);
+		setAgentGonePaneIds((ids) => ids.filter((id) => id !== card.pane.id));
 		if (!sessionId && cwd) {
 			try {
 				const found = await utils.client.terminal.findClaudeSession.query({
@@ -1374,11 +1373,9 @@ function DevBoardPage() {
 		// No opening prompt: Resume reopens the conversation at an idle prompt,
 		// it doesn't put the agent back to work. Deciding what happens next is
 		// the whole reason you came back to the session.
-		const resumeCmd = lost
-			? `claude --dangerously-skip-permissions --session-id ${lost}`
-			: sessionId
-				? `claude --dangerously-skip-permissions --resume ${sessionId}`
-				: "claude --dangerously-skip-permissions --continue";
+		const resumeCmd = sessionId
+			? `claude --dangerously-skip-permissions --resume ${sessionId}`
+			: "claude --dangerously-skip-permissions --continue";
 		try {
 			// Free the pane (dead or a live cold-restored shell) so the respawn
 			// re-runs the command. Ignore errors — pane may already be dead.
@@ -1404,7 +1401,6 @@ function DevBoardPage() {
 						odinParked: false,
 						interrupted: false,
 						completed: false,
-						...(lost ? { claudeSessionId: lost } : {}),
 					},
 				},
 			}));
@@ -1427,11 +1423,7 @@ function DevBoardPage() {
 			// ponytail: no toast on the happy path — the card renders its own
 			// "resuming…" spinner, and a toast over the board hides other cards.
 			// Only the ambiguous --continue fallback is worth interrupting for.
-			if (lost) {
-				toast.warning(
-					"Claude kept no transcript for this session — started a fresh one here",
-				);
-			} else if (!sessionId) {
+			if (!sessionId) {
 				toast.info(
 					"Resuming latest session in this repo (no session id found)",
 				);
@@ -1486,6 +1478,60 @@ function DevBoardPage() {
 		} else {
 			toast.error(result.error);
 		}
+	};
+
+	/**
+	 * What the replacement session should start from: the ask the dead card was
+	 * still holding. The brief is the only part of that conversation Odin keeps
+	 * for itself — Claude's transcript is what went missing — so it is exactly
+	 * what makes starting over feel like carrying on.
+	 */
+	const lostCardPrompt = (card: BoardCard): string => {
+		const title = cardTitle(card);
+		const brief = card.pane.odinBrief ?? briefByPane[card.pane.id] ?? null;
+		return brief?.trim() && brief.trim() !== title
+			? `${title}\n\n${brief.trim()}`
+			: title;
+	};
+
+	/**
+	 * Start over on a card whose conversation is gone: a new session, in the same
+	 * checkout, carrying the card's identity (person, feed item, tags) so the
+	 * board shows the same piece of work rather than an anonymous new one.
+	 *
+	 * The dead card is left alone — its scrollback is the only record of what
+	 * happened, and Done'ing it for you would throw that away.
+	 */
+	const startOverFromLost = async (
+		card: BoardCard,
+		rawPrompt: string,
+		images: PromptImage[],
+	) => {
+		const prompt = rawPrompt.trim();
+		if (!prompt && images.length === 0) return;
+		const title = sessionTitle(prompt, cardTitle(card));
+		const result = await launch({
+			workspaceId: card.workspaceId,
+			title,
+			description: prompt && prompt !== title ? prompt : null,
+			images,
+			repoPath: sessionCwd(card.pane) ?? card.repoPath,
+			contact: cardContact(card),
+			pageId: card.pane.odinPageId ?? null,
+			source: card.pane.odinSource,
+			tags: card.pane.odinTags,
+			brief: prompt,
+		});
+		setLostCard(null);
+		if (!result.ok) {
+			toast.error(result.error);
+			return;
+		}
+		usePaneMeta.getState().setBrief(result.paneId, prompt || title);
+		usePaneMeta.getState().setTitle(result.paneId, title);
+		usePaneMeta.getState().setSessionId(result.paneId, result.sessionId);
+		setDrawerCard(null);
+		toast.success(`Started over on "${title}"`);
 	};
 
 	const terminalWrite = electronTrpc.terminal.write.useMutation();
@@ -2166,6 +2212,19 @@ function DevBoardPage() {
 						</div>
 					</div>
 				</>
+			)}
+
+			{lostCard && (
+				<OdinPromptDialog
+					heading="That conversation is gone"
+					note={`Claude kept no transcript for "${cardTitle(lostCard)}", so there is nothing to resume. Start a new session from its brief instead?`}
+					defaultPrompt={lostCardPrompt(lostCard)}
+					placeholder="What should the new session pick up?"
+					onCancel={() => setLostCard(null)}
+					onSubmit={(prompt, images) =>
+						startOverFromLost(lostCard, prompt, images)
+					}
+				/>
 			)}
 
 			{isComposerOpen && (
