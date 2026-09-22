@@ -824,6 +824,34 @@ function DevBoardPage() {
 		});
 	}, [alivePaneIds]);
 
+	// The open drawer can't wait for the scan below: it only reads a screen once
+	// the hooks have been quiet for SETTLED_MS, so for two minutes after you
+	// Ctrl+C out of Claude the button kept saying Continue. The drawer's xterm
+	// already holds the screen — read it directly, with the same two-reads rule.
+	const drawerPaneId = drawerCard?.pane.id;
+	useEffect(() => {
+		if (!drawerPaneId || !alivePaneIds.has(drawerPaneId)) return;
+		const check = () => {
+			const screen = visibleScreen(drawerPaneId);
+			if (!screen.trim()) return; // not mounted yet — nothing to judge
+			const gone = !agentOnScreen(screen);
+			const goneTwice = gone && sawNoAgentRef.current.has(drawerPaneId);
+			if (gone) sawNoAgentRef.current.add(drawerPaneId);
+			else sawNoAgentRef.current.delete(drawerPaneId);
+			setAgentGonePaneIds((ids) => {
+				const next = goneTwice
+					? [...new Set([...ids, drawerPaneId])]
+					: gone
+						? ids
+						: ids.filter((id) => id !== drawerPaneId);
+				return next.length === ids.length ? ids : next;
+			});
+		};
+		check();
+		const id = setInterval(check, 1_500);
+		return () => clearInterval(id);
+	}, [drawerPaneId, alivePaneIds]);
+
 	// Screen-reading keeps the columns honest. Agent hooks are the fast path,
 	// but they go missing — Stop doesn't fire on Ctrl+C, a notification can miss
 	// a pane that wasn't in the store yet, and statuses reset to idle on reload
@@ -1315,8 +1343,12 @@ function DevBoardPage() {
 		}
 		// Live PTY: the button says Continue, so it just says Continue — the
 		// conversation is already open, killing it to reopen it would only cost
-		// the scrollback.
-		if (agentPaneIds.has(card.pane.id)) {
+		// the scrollback. Unless the terminal on screen right now is a bare shell:
+		// you just Ctrl+C'd out of Claude, the scan hasn't caught up, and
+		// "Continue" typed at zsh is a command-not-found, not a resume.
+		const screen = visibleScreen(card.pane.id);
+		const shellOnScreen = screen.trim() !== "" && !agentOnScreen(screen);
+		if (agentPaneIds.has(card.pane.id) && !shellOnScreen) {
 			try {
 				await sendContinue(card.pane.id);
 			} catch (error) {
