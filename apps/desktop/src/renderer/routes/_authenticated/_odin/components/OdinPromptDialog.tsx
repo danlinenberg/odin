@@ -41,13 +41,22 @@ export function sessionTitle(prompt: string, fallback: string): string {
  */
 export function OdinPromptDialog({
 	heading = "Work on Odin",
+	note,
 	placeholder = "What should the agent do in Odin?",
+	defaultPrompt = "",
 	repoPicker = false,
 	onCancel,
 	onSubmit,
 }: {
 	heading?: string;
+	/** A line under the heading, when the dialog needs to say why it opened. */
+	note?: string;
 	placeholder?: string;
+	/**
+	 * Start the prompt from this text instead of empty — a dead card's brief,
+	 * so starting over doesn't mean retyping the ask. Editable like any prompt.
+	 */
+	defaultPrompt?: string;
 	/** Offer the machine's git checkouts as the session's directory. */
 	repoPicker?: boolean;
 	onCancel: () => void;
@@ -58,7 +67,7 @@ export function OdinPromptDialog({
 		repo: string,
 	) => void | Promise<void>;
 }) {
-	const [prompt, setPrompt] = useState("");
+	const [prompt, setPrompt] = useState(defaultPrompt);
 	const [files, setFiles] = useState<PromptImage[]>([]);
 	const [repoQuery, setRepoQuery] = useState("");
 	const [isDropping, setIsDropping] = useState(false);
@@ -153,6 +162,11 @@ export function OdinPromptDialog({
 						⌘⏎ start · esc cancel · / for skills · paste or drop images/video
 					</span>
 				</div>
+				{note && (
+					<div className="mb-2 text-[11px] leading-relaxed text-[#a5a5b3]">
+						{note}
+					</div>
+				)}
 				<textarea
 					// biome-ignore lint/a11y/noAutofocus: the dialog only exists after an explicit click, and typing is the next step
 					autoFocus
