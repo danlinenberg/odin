@@ -37,17 +37,62 @@ const STATE_CHIP: Record<string, { label: string; className: string }> = {
 	CLOSED: { label: "closed", className: "bg-[#331a20] text-[#f0647a]" },
 };
 
+function Chip({ label, className }: { label: string; className: string }) {
+	return (
+		<span
+			className={`inline-block max-w-[130px] shrink-0 truncate rounded-[4px] px-[5px] align-bottom text-[10px] font-medium ${className}`}
+		>
+			{label}
+		</span>
+	);
+}
+
 function StateChip({ state }: { state: string | null }) {
 	// No chip while the lookup is in flight, or when gh couldn't answer.
 	const chip = state ? STATE_CHIP[state] : undefined;
 	if (!chip) return null;
-	return (
-		<span
-			className={`shrink-0 rounded-[4px] px-[5px] text-[10px] font-medium ${chip.className}`}
-		>
-			{chip.label}
-		</span>
-	);
+	return <Chip label={chip.label} className={chip.className} />;
+}
+
+/**
+ * CI in one word, so "did Bugbot finish?" stops being a trip to the browser.
+ * While something is running it names the check rather than counting them —
+ * one pending check is the whole answer, and it's usually the bot.
+ */
+function ChecksChip({
+	status,
+}: {
+	status: { pending: string[]; failed: string[]; passed: number } | null;
+}) {
+	if (!status) return null;
+	const { pending, failed, passed } = status;
+	if (pending.length > 0) {
+		return (
+			<span title={pending.join("\n")}>
+				<Chip
+					label={
+						pending.length === 1
+							? `${pending[0]}…`
+							: `${pending.length} running…`
+					}
+					className="bg-[#3a2c12] text-[#d2a336]"
+				/>
+			</span>
+		);
+	}
+	if (failed.length > 0) {
+		return (
+			<span title={failed.join("\n")}>
+				<Chip
+					label={failed.length === 1 ? `✗ ${failed[0]}` : `✗ ${failed.length}`}
+					className="bg-[#331a20] text-[#f0647a]"
+				/>
+			</span>
+		);
+	}
+	// Nothing ran (no CI on this repo) is not the same as everything passed.
+	if (passed === 0) return null;
+	return <Chip label={`✓ ${passed}`} className="bg-[#14301f] text-[#3ecf8e]" />;
 }
 
 export function SessionBrief({
@@ -118,10 +163,20 @@ export function SessionBrief({
 	// An <a> in the renderer would navigate the app window; PRs open in a browser.
 	const openUrl = electronTrpc.external.openUrl.useMutation();
 
-	// Which of them shipped — one `gh pr view` per link, so keep it stale-tolerant.
+	// Which of them shipped, and what CI is still chewing on. One `gh pr view`
+	// per link, so poll only while a PR is still open — a merged one never
+	// changes again, and the panel is otherwise spawning subprocesses forever.
 	const { data: prStates } = electronTrpc.terminal.pullRequestStates.useQuery(
 		{ urls: prs.map((pr) => pr.url) },
-		{ enabled: prs.length > 0, retry: false, staleTime: 60_000 },
+		{
+			enabled: prs.length > 0,
+			retry: false,
+			staleTime: 10_000,
+			refetchInterval: (query) =>
+				Object.values(query.state.data ?? {}).some(
+					(status) => status?.state === "OPEN",
+				) && 15_000,
+		},
 	);
 
 	return (
@@ -200,7 +255,8 @@ export function SessionBrief({
 											<span className="truncate">
 												{pr.repo.split("/").pop()} #{pr.number}
 											</span>
-											<StateChip state={prStates?.[pr.url] ?? null} />
+											<StateChip state={prStates?.[pr.url]?.state ?? null} />
+											<ChecksChip status={prStates?.[pr.url] ?? null} />
 										</button>
 									))}
 								</div>
