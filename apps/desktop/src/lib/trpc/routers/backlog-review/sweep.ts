@@ -23,6 +23,40 @@ export interface SweepItem {
 	url?: string;
 	/** Slack only: the :eyes: is gone from the message upstream. */
 	unreacted?: boolean;
+	/**
+	 * When the thing this row points at last moved, ms. A Jira issue's
+	 * `updated`, a PR's `updated_at`, a Notion page's `last_edited_time`, the
+	 * Slack message's own timestamp — whatever the source calls it.
+	 */
+	lastActivityAt?: number;
+}
+
+/**
+ * How long a row can sit with nothing happening to it before the sweep calls
+ * it rot.
+ *
+ * Three weeks, off the shape of a real backlog: rows cluster under two weeks
+ * (live) and past three (dead), with a gap between. This is the one rule here
+ * that isn't a fact read back from somewhere — it is a judgement about how
+ * long "still worth doing" survives silence, which is why it only ever turns a
+ * KEEP into a DROP and never speaks over an answer the source gave.
+ */
+export const STALE_DAYS = 21;
+
+/**
+ * KEEP, unless nothing has happened to it for {@link STALE_DAYS}.
+ *
+ * The evidence keeps whatever the rung found and says the age on top, so a
+ * DROP off silence still shows what was actually read.
+ */
+function keepOrStale(evidence: string, activityAt: number | null): Answer {
+	if (activityAt === null) return { verdict: "KEEP", evidence };
+	const idle = (Date.now() - activityAt) / 86_400_000;
+	if (idle < STALE_DAYS) return { verdict: "KEEP", evidence };
+	return {
+		verdict: "DROP",
+		evidence: `${evidence}, and nothing has moved in ${Math.round(idle)} days`,
+	};
 }
 
 export type VerdictName = "DROP" | "KEEP" | "UNKNOWN";
@@ -99,16 +133,20 @@ export interface SweepDeps {
 		answeredByMe: boolean;
 		/** False when Slack truncated the replier list — see `slackThreadReplies`. */
 		repliersComplete: boolean;
+		/** Slack ts of the newest reply, when the thread has one. */
+		lastReplyTs: string | null;
 	} | null>;
 }
 
 /**
  * One item's verdict.
  *
- * DROP is only ever returned off state actually read back from the system that
- * owns the item — a closed ticket, a merged PR, a reaction taken off, a thread
- * I answered myself. Everything unreachable is UNKNOWN, because the button
- * next to a DROP deletes something.
+ * DROP comes off state actually read back from the system that owns the item —
+ * a closed ticket, a merged PR, a reaction taken off, a thread I answered
+ * myself — or, where the source still says "open", off that source having gone
+ * quiet for {@link STALE_DAYS}. Everything *unreachable* stays UNKNOWN, because
+ * the button next to a DROP deletes something: age can retire a row the source
+ * confirmed, never one it refused to talk about.
  */
 export async function sweepItem(
 	item: SweepItem,
@@ -122,6 +160,8 @@ export async function sweepItem(
 			evidence: "the :eyes: is off the message in Slack",
 		};
 
+	const activity = item.lastActivityAt ?? null;
+
 	const github = githubRef(item);
 	if (github) {
 		const state = await deps.githubState(github);
@@ -134,17 +174,16 @@ export async function sweepItem(
 		if (state.merged) return { verdict: "DROP", evidence: `${name} is merged` };
 		if (state.state === "closed")
 			return { verdict: "DROP", evidence: `${name} is closed` };
-		return { verdict: "KEEP", evidence: `${name} is still open` };
+		return keepOrStale(`${name} is still open`, activity);
 	}
 
 	const jira = jiraRef(item);
 	if (jira) {
 		const status = await deps.jiraStatus(jira);
 		if (status)
-			return {
-				verdict: status.done ? "DROP" : "KEEP",
-				evidence: `${jira} is ${status.name}`,
-			};
+			return status.done
+				? { verdict: "DROP", evidence: `${jira} is ${status.name}` }
+				: keepOrStale(`${jira} is ${status.name}`, activity);
 		// Not a real key, or Jira is out of reach. Either way there may still be
 		// a thread under a Slack row worth reading, so fall through.
 	}
@@ -161,22 +200,34 @@ export async function sweepItem(
 			};
 		if (thread.answeredByMe)
 			return { verdict: "DROP", evidence: "you replied in the thread" };
+		// A reply is the freshest thing that happened here, and the row's own
+		// timestamp is the message — so a long-dead thread under an old message
+		// still reads as quiet, and one answered yesterday doesn't.
+		const moved = thread.lastReplyTs
+			? Number(thread.lastReplyTs) * 1000
+			: (activity ?? slackTs(slack));
 		if (thread.replies > 0) {
 			const count = `${thread.replies} ${thread.replies === 1 ? "reply" : "replies"}`;
-			return {
-				verdict: "KEEP",
-				// Only claim none of them are mine when Slack listed every replier.
-				// A truncated list says nothing about who isn't on it.
-				evidence: thread.repliersComplete ? `${count}, none from you` : count,
-			};
+			// Only claim none of them are mine when Slack listed every replier.
+			// A truncated list says nothing about who isn't on it.
+			return keepOrStale(
+				thread.repliersComplete ? `${count}, none from you` : count,
+				moved,
+			);
 		}
-		return { verdict: "KEEP", evidence: "nobody has replied" };
+		return keepOrStale("nobody has replied", moved);
 	}
 
-	return {
-		verdict: "UNKNOWN",
-		evidence: jira
-			? `Jira had nothing for ${jira}`
-			: "nothing upstream to check it against",
-	};
+	if (jira)
+		return { verdict: "UNKNOWN", evidence: `Jira had nothing for ${jira}` };
+	// Nothing to ask is not the same as asking and getting no answer. A task I
+	// typed has no upstream and never will, so its age is the only thing there
+	// is to go on — which is a checked row, not an unreadable one.
+	return keepOrStale("nothing upstream to check it against", activity);
+}
+
+/** The post time, ms, out of a `<channel>:<ts>` Slack reference. */
+function slackTs(ref: string): number | null {
+	const ts = Number(ref.split(":")[1]);
+	return Number.isFinite(ts) ? ts * 1000 : null;
 }

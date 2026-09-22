@@ -29,6 +29,7 @@ const ItemSchema = z.object({
 	detail: z.string().optional(),
 	url: z.string().optional(),
 	unreacted: z.boolean().optional(),
+	lastActivityAt: z.number().optional(),
 });
 
 /** The lookups, wired to the credentials — resolved once for a whole sweep. */

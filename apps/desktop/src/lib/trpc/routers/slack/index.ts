@@ -347,6 +347,8 @@ export async function slackThreadReplies(id: string): Promise<{
 	answeredByMe: boolean;
 	/** True when `reply_users` is the whole list, so "not mine" means it. */
 	repliersComplete: boolean;
+	/** Slack ts of the newest reply — the freshest thing that happened here. */
+	lastReplyTs: string | null;
 } | null> {
 	const token = slackToken();
 	if (!token) return null;
@@ -360,6 +362,7 @@ export async function slackThreadReplies(id: string): Promise<{
 					reply_count?: number;
 					reply_users?: string[];
 					reply_users_count?: number;
+					latest_reply?: string;
 				};
 			}
 		>("reactions.get", { channel, timestamp: ts, full: "true" }, token);
@@ -372,6 +375,7 @@ export async function slackThreadReplies(id: string): Promise<{
 			// isn't evidence I stayed out of the thread, and the sweep must not
 			// read it as one.
 			repliersComplete: repliers.length >= (message.reply_users_count ?? 0),
+			lastReplyTs: message.latest_reply ?? null,
 		};
 	} catch {
 		return null;

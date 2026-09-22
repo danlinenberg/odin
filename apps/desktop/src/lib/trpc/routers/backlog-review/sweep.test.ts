@@ -7,6 +7,11 @@ import {
 	sweepItem,
 } from "./sweep";
 
+const DAY = 86_400_000;
+
+/** A Slack ts from yesterday — "this thread is alive". */
+const recentTs = () => ((Date.now() - DAY) / 1000).toFixed(6);
+
 const item = (over: Partial<SweepItem> = {}): SweepItem => ({
 	key: "task:t1",
 	source: "Tasks",
@@ -115,6 +120,7 @@ describe("verdicts", () => {
 					replies: 2,
 					answeredByMe: true,
 					repliersComplete: true,
+					lastReplyTs: null,
 				}),
 			}),
 		);
@@ -132,6 +138,7 @@ describe("verdicts", () => {
 					replies: 3,
 					answeredByMe: false,
 					repliersComplete: true,
+					lastReplyTs: recentTs(),
 				}),
 			}),
 		);
@@ -151,21 +158,99 @@ describe("verdicts", () => {
 					replies: 9,
 					answeredByMe: false,
 					repliersComplete: false,
+					lastReplyTs: recentTs(),
 				}),
 			}),
 		);
 		expect(answer).toEqual({ verdict: "KEEP", evidence: "9 replies" });
 	});
 
-	// Everything the sweep could not read has to land here. A DROP deletes.
-	test("nothing reachable is never a DROP", async () => {
+	// Everything the sweep asked about and got no answer for has to land here.
+	// A DROP deletes, and age must never speak over a system that stayed silent.
+	test("a source that wouldn't answer is never a DROP, however old", async () => {
+		const ancient = { lastActivityAt: Date.now() - 400 * DAY };
 		const unreachable = [
-			item({ url: "https://github.com/odin/odin/pull/42" }),
-			item({ title: "Chase BUGT-1234" }),
-			item({ key: "slack:C1:123" }),
-			item({ title: "write the thing" }),
+			item({ ...ancient, url: "https://github.com/odin/odin/pull/42" }),
+			item({ ...ancient, title: "Chase BUGT-1234" }),
+			item({ ...ancient, key: "slack:C1:123" }),
 		];
 		for (const row of unreachable)
 			expect((await sweepItem(row, deps())).verdict).toBe("UNKNOWN");
+	});
+
+	// A task I typed has no upstream and never will. Silence is the only signal
+	// there is, so it counts — this is a checked row, not an unreadable one.
+	test("a row with nothing upstream goes stale instead of staying unknown", async () => {
+		const fresh = await sweepItem(
+			item({ title: "write the thing", lastActivityAt: Date.now() - 3 * DAY }),
+			deps(),
+		);
+		expect(fresh.verdict).toBe("KEEP");
+
+		const old = await sweepItem(
+			item({ title: "write the thing", lastActivityAt: Date.now() - 40 * DAY }),
+			deps(),
+		);
+		expect(old.verdict).toBe("DROP");
+		expect(old.evidence).toContain("nothing has moved in 40 days");
+	});
+
+	test("an open PR nobody has touched in months is rot", async () => {
+		const answer = await sweepItem(
+			item({
+				url: "https://github.com/odin/odin/pull/42",
+				lastActivityAt: Date.now() - 60 * DAY,
+			}),
+			deps({ githubState: async () => ({ state: "open", merged: false }) }),
+		);
+		expect(answer).toEqual({
+			verdict: "DROP",
+			evidence: "odin/odin#42 is still open, and nothing has moved in 60 days",
+		});
+	});
+
+	test("an open ticket that moved this week is kept", async () => {
+		const answer = await sweepItem(
+			item({ title: "BUGT-1234", lastActivityAt: Date.now() - 2 * DAY }),
+			deps({ jiraStatus: async () => ({ name: "In Progress", done: false }) }),
+		);
+		expect(answer).toEqual({
+			verdict: "KEEP",
+			evidence: "BUGT-1234 is In Progress",
+		});
+	});
+
+	// The message is old but the thread answered yesterday: the reply is the
+	// freshest thing that happened, so the row is live.
+	test("a recent reply keeps an old message alive", async () => {
+		const answer = await sweepItem(
+			item({ key: `slack:C1:${(Date.now() / 1000 - 90 * 86400).toFixed(6)}` }),
+			deps({
+				slackThread: async () => ({
+					replies: 2,
+					answeredByMe: false,
+					repliersComplete: true,
+					lastReplyTs: ((Date.now() - 2 * DAY) / 1000).toFixed(6),
+				}),
+			}),
+		);
+		expect(answer.verdict).toBe("KEEP");
+	});
+
+	// And the reverse: nobody ever replied, and the message itself is ancient.
+	test("an old message nobody ever answered is rot", async () => {
+		const answer = await sweepItem(
+			item({ key: `slack:C1:${(Date.now() / 1000 - 90 * 86400).toFixed(6)}` }),
+			deps({
+				slackThread: async () => ({
+					replies: 0,
+					answeredByMe: false,
+					repliersComplete: true,
+					lastReplyTs: null,
+				}),
+			}),
+		);
+		expect(answer.verdict).toBe("DROP");
+		expect(answer.evidence).toContain("nobody has replied");
 	});
 });
