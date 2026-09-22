@@ -37,6 +37,36 @@ source "$REPO/scripts/odin-procs.sh"
 LOG="${ODIN_HOME_DIR:-$HOME/.odin}/dev.log"
 mkdir -p "$(dirname "$LOG")"
 
+# One dev session at a time. Re-running this in the SAME checkout is the restart
+# — the README and the in-app Restart button both rely on it — so only a stack
+# from a DIFFERENT checkout is refused. That's the one this script cannot take
+# over blind: its pkills are $REPO-scoped, so it would leave the other stack
+# running and the two would then share one ~/.odin — one terminal-host socket,
+# one app-state.json, one Electron single-instance lock.
+#
+# Refused BEFORE the log rotation and the quit below: a start that isn't going
+# to happen must not move the live session's dev.log out from under its tee, or
+# close the packaged UI on its way out.
+#
+# ODIN_QUIT_PID counts as takeover, not as a second session: it's the running
+# dev app restarting itself, and its checkout is whatever odinRepo() points at,
+# which needn't be the one it's running from.
+# ponytail: a ps check, not a lock file — two starts in the same second race.
+while read -r other_pid other_repo; do
+  [[ -n "$other_pid" && "$other_repo" != "$REPO" ]] || continue
+  if [[ -n "${ODIN_DEV_TAKEOVER:-}${ODIN_QUIT_PID:-}" ]]; then
+    echo "replacing the dev session in $other_repo (pid $other_pid)…" | tee -a "$LOG"
+    kill "$other_pid" 2>/dev/null
+    stop_dev_runners "$other_repo"
+    continue
+  fi
+  echo "odin-dev: a dev session is already running in $other_repo (pid $other_pid)." >&2
+  echo "          Only one can run — both use ~/.odin and Electron's single-instance lock." >&2
+  echo "          Stop that one, or re-run with ODIN_DEV_TAKEOVER=1 to replace it." >&2
+  echo "    refused $(date '+%F %T'): dev session already up in $other_repo (pid $other_pid)" >>"$LOG"
+  exit 1
+done < <(dev_stack_lines)
+
 # Keep the run that just died. `tee` truncates, so the restart that follows a
 # crash wiped the only copy of its stack trace — every crash here was diagnosed
 # from a log the restart had already deleted. The dying run lands in dev.log.prev.
@@ -67,18 +97,14 @@ fi
 # Also quit a dev stack that's already up, so re-running this script is a
 # restart — what the "Restart Odin" button does.
 #
-# Only the runners are matched by pattern. Every OTHER Electron process under
-# this checkout is unsafe to pattern-match: the terminal-host daemon and every
-# live session (pty-subprocess.js) run the same `Odin Dev.app` binary from the
-# same node_modules, so killing by path closes real sessions. The dev UI is
-# killed by pid instead — the app passes its own in ODIN_QUIT_PID when it
-# triggers the restart.
+# The dev UI is killed by pid, not by pattern — every other Electron under this
+# checkout is the daemon or a live session (see stop_dev_runners) — and the app
+# passes its own pid in ODIN_QUIT_PID when it triggers the restart.
 if [[ -n "${ODIN_QUIT_PID:-}" ]]; then
   echo "quitting the running dev Odin, pid $ODIN_QUIT_PID (its sessions stay live)…"
   kill "$ODIN_QUIT_PID" 2>/dev/null
 fi
-pkill -f "$REPO.*electron-vite dev" 2>/dev/null && sleep 2
-pkill -f "$REPO.*turbo run dev" 2>/dev/null
+stop_dev_runners "$REPO"
 
 # patch-dev-protocol.ts registers the dev bundle with Launch Services so
 # odin-*:// deep links reach it. Registered but NOT running it's a trap:
