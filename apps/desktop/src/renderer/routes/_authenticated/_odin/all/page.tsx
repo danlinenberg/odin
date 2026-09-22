@@ -15,6 +15,7 @@ import {
 	FeedDivider,
 	FeedHeader,
 	FeedSelect,
+	FilterPill,
 	META_DATE,
 	META_PERSON,
 	META_STATUS,
@@ -36,6 +37,12 @@ import {
 	useHiddenFilter,
 } from "../components/HiddenItems";
 import { PersonChip } from "../components/PersonChip";
+import {
+	DueChip,
+	isDue,
+	META_DUE,
+	useReminders,
+} from "../components/Reminders";
 import { PriorityLabelChip } from "../components/TaskBox";
 import { useActiveSessions } from "../hooks/useActiveSessions";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
@@ -149,6 +156,10 @@ function AllFeedPage() {
 	const [source, setSource] = useState<AllItem["source"] | "">("");
 	const [urgency, setUrgency] = useState("");
 	const [context, setContext] = useState("");
+	// A fourth cut, but a toggle rather than a select: "what's due" has one
+	// answer, and it's the one you want on the morning something is late.
+	const [dueOnly, setDueOnly] = useState(false);
+	const reminders = useReminders((s) => s.reminders);
 	const openUrl = electronTrpc.external.openUrl.useMutation();
 	const { ensureWorkspace } = useOdinWorkspace();
 	const { launch, isLaunching, launchingKey } = useLaunchTaskSession();
@@ -226,18 +237,36 @@ function AllFeedPage() {
 		);
 	}, [byUrgency]);
 
-	const items = useMemo(
+	const byContext = useMemo(
 		() =>
 			context
 				? byUrgency.filter((item) => item.context === context)
 				: byUrgency,
 		[byUrgency, context],
 	);
-	const isFiltered = source !== "" || urgency !== "" || context !== "";
+
+	// Counted over everything on screen rather than the current cut: a ticket
+	// that went overdue under a filter you aren't looking through still has to
+	// be findable from here.
+	const dueRows = useMemo(
+		() => hide.rows.filter((item) => isDue(item.key, reminders, Date.now())),
+		[hide.rows, reminders],
+	);
+	const items = useMemo(
+		() =>
+			dueOnly
+				? byContext.filter((item) => isDue(item.key, reminders, Date.now()))
+				: byContext,
+		[byContext, dueOnly, reminders],
+	);
+
+	const isFiltered =
+		source !== "" || urgency !== "" || context !== "" || dueOnly;
 	const clearFilters = () => {
 		setSource("");
 		setUrgency("");
 		setContext("");
+		setDueOnly(false);
 	};
 
 	/**
@@ -298,6 +327,15 @@ function AllFeedPage() {
 						>
 							clear filters
 						</button>
+					)}
+					{dueRows.length > 0 && (
+						<FilterPill
+							active={dueOnly}
+							count={dueRows.length}
+							onClick={() => setDueOnly(!dueOnly)}
+						>
+							Due
+						</FilterPill>
 					)}
 					<HiddenToggle
 						count={hide.hiddenCount}
@@ -536,6 +574,9 @@ function AllFeedPage() {
 												month: "short",
 												day: "numeric",
 											})}
+									</span>
+									<span className={META_DUE}>
+										<DueChip itemKey={item.key} title={item.title} />
 									</span>
 								</div>
 								<span className={ROW_LINK_SLOT}>

@@ -33,6 +33,7 @@ import {
 	useHiddenFilter,
 } from "../components/HiddenItems";
 import { PersonChip } from "../components/PersonChip";
+import { DueChip, META_DUE } from "../components/Reminders";
 import { buildIssuePrompt } from "../feed-prompts";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
@@ -361,6 +362,14 @@ function MyJiraPage() {
 													className={META_DATE}
 												>
 													{date}
+												</span>
+												{/* Same key the All view sets a date under, so a
+												    ticket has one due date wherever you set it. */}
+												<span className={META_DUE}>
+													<DueChip
+														itemKey={`jira:${issue.key}`}
+														title={`${issue.key}: ${issue.title}`}
+													/>
 												</span>
 											</div>
 											<div className="flex shrink-0 items-center gap-1.5">
