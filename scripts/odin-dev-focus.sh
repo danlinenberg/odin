@@ -40,29 +40,27 @@ dev_ui_pid() {
     awk 'NR==1 {print $1}'
 }
 
-# odin-dev.sh runs `bun dev` in a pipeline, so it stays alive as long as the
-# stack does — its presence means a stack exists, booting or already up.
+# dev_stack_lines (odin-procs.sh) lists every live odin-dev.sh, from ANY
+# checkout — the session guard in odin-dev.sh allows only one, so a stack in
+# another worktree means the hotkey has nothing to start here either.
 #
-# That distinction matters because a start takes 17s to ~2min (predev, vite,
-# then Electron), and for all of it dev_ui_pid is empty: the UI genuinely isn't
-# up yet. Without this check the hotkey reads that as "not running" and starts a
-# SECOND stack, whose pkill kills the boot already in progress — so the hotkey
-# pressed to get Odin back is what kept taking it away, and it read as a crash.
-#
-# ps, not pgrep, for the same reason as above.
-dev_stack_pid() {
-  ps ax -o pid=,command= |
-    grep -F "$REPO/scripts/odin-dev.sh" |
-    grep -vw grep |
-    awk 'NR==1 {print $1}'
-}
+# Checking for the stack at all matters because a start takes 17s to ~2min
+# (predev, vite, then Electron), and for all of it dev_ui_pid is empty: the UI
+# genuinely isn't up yet. Without it the hotkey reads that as "not running" and
+# starts a SECOND stack, whose pkill kills the boot already in progress — so the
+# hotkey pressed to get Odin back is what kept taking it away, and it read as a
+# crash.
+# shellcheck source=scripts/odin-procs.sh
+source "$REPO/scripts/odin-procs.sh"
 
 pid="$(dev_ui_pid)"
-stack="$(dev_stack_pid)"
+stack="$(dev_stack_lines | head -1)"
+stack_pid="${stack%% *}"
+stack_repo="${stack#* }"
 
 if [[ "${1:-}" == "--check" ]]; then
   if [[ -n "$pid" ]]; then echo "dev UI running, pid $pid"; else echo "dev UI not running"; fi
-  if [[ -n "$stack" ]]; then echo "dev stack alive, odin-dev.sh pid $stack"; fi
+  if [[ -n "$stack" ]]; then echo "dev session alive in $stack_repo, odin-dev.sh pid $stack_pid"; fi
   exit 0
 fi
 
@@ -76,7 +74,11 @@ if [[ -n "$pid" ]]; then
 fi
 
 if [[ -n "$stack" ]]; then
-  echo "Odin dev is already starting (odin-dev.sh pid $stack) — leaving it to finish"
+  if [[ "$stack_repo" == "$REPO" ]]; then
+    echo "Odin dev is already starting (odin-dev.sh pid $stack_pid) — leaving it to finish"
+  else
+    echo "a dev session is already running in $stack_repo (pid $stack_pid) — only one runs at a time"
+  fi
   exit 0
 fi
 

@@ -51,4 +51,23 @@ daemon_pid_file() { :; }
 got="$(ui_pids | tr '\n' ' ')"
 [[ -z "${got// /}" ]] || fail "ui_pids returned '$got' with no processes, want empty"
 
+# dev_stack_lines feeds odin-dev.sh's one-session guard, which compares the repo
+# it parses here against its own $REPO — a mis-parse either refuses a legitimate
+# restart or lets a second session through. Both argv shapes occur: the in-app
+# Restart spawns `/bin/bash <repo>/scripts/odin-dev.sh`, a shell or the Raycast
+# hotkey runs the script directly.
+odin_procs() {
+  printf '%s\n%s\n' \
+    " 404 /bin/bash /Users/x/odin/scripts/odin-dev.sh" \
+    " 505 /Users/x/odin/.worktrees/foo/scripts/odin-dev.sh"
+}
+got="$(dev_stack_lines | tr '\n' '|')"
+want="404 /Users/x/odin|505 /Users/x/odin/.worktrees/foo|"
+[[ "$got" == "$want" ]] || fail "dev_stack_lines returned '$got', want '$want'"
+
+odin_procs() { :; }
+got="$(dev_stack_lines)"
+[[ -z "$got" ]] || fail "dev_stack_lines returned '$got' with no dev stack, want empty"
+
 echo "PASS: UI/daemon split holds via ps and the pid file"
+echo "PASS: dev_stack_lines reports one <pid> <repo> per live dev session"
