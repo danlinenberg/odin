@@ -46,3 +46,26 @@ describe("bySection", () => {
 		).toBe("normal");
 	});
 });
+
+describe("bySection with queued cards", () => {
+	const queued = { command: "claude", reason: "this Mac is at 91% CPU" };
+
+	it("gives a task that hasn't started its own section, above the rest", () => {
+		const grouped = bySection([
+			card({ id: "a", odinSource: "jira" }),
+			card({ id: "b", odinQueued: queued, odinSource: "jira" }),
+		]);
+		expect(grouped.map(([section, group]) => [section, group.length])).toEqual([
+			["queued", 1],
+			["jira", 1],
+		]);
+	});
+
+	// Parking a card that never started would otherwise list it twice.
+	it("counts a queued card once, even if it's also parked", () => {
+		const grouped = bySection([
+			card({ id: "a", odinQueued: queued, odinParked: true, status: "idle" }),
+		]);
+		expect(grouped).toEqual([["queued", [{ pane: grouped[0][1][0].pane }]]]);
+	});
+});

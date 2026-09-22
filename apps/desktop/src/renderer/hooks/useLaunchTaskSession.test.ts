@@ -3,7 +3,6 @@ import {
 	boardIdentity,
 	buildPrompt,
 	parseDataUrl,
-	waitForCapacity,
 } from "./useLaunchTaskSession";
 
 describe("boardIdentity", () => {
@@ -117,109 +116,6 @@ describe("parseDataUrl", () => {
 			base64: "FFF",
 			extension: "png",
 		});
-	});
-});
-
-describe("waitForCapacity", () => {
-	const BUSY = {
-		cpuPercent: 95,
-		agentCpuPercent: 90,
-		agentMemoryGb: 12.4,
-		memoryPercent: 60,
-		agentCount: 6,
-		availableMemoryGb: 1.2,
-		busy: true,
-		reason: "6 agents using 90% of CPU",
-	};
-	const FREE = { ...BUSY, busy: true, reason: null, cpuPercent: 10 };
-	const IDLE = { ...FREE, busy: false };
-
-	/** Collects the callbacks so a test can assert what the user was told. */
-	function spy() {
-		const waited: (string | null)[] = [];
-		let proceeded = 0;
-		return {
-			waited,
-			proceeded: () => proceeded,
-			onWait: (load: { reason: string | null }) => waited.push(load.reason),
-			onProceed: () => {
-				proceeded += 1;
-			},
-		};
-	}
-
-	it("starts immediately on a quiet machine, saying nothing", async () => {
-		const s = spy();
-		await waitForCapacity({
-			readLoad: async () => IDLE,
-			onWait: s.onWait,
-			onProceed: s.onProceed,
-			skipped: () => false,
-			pollMs: 1,
-		});
-		expect(s.waited).toEqual([]);
-		expect(s.proceeded()).toBe(0);
-	});
-
-	it("holds while busy, warns once, and reports going ahead", async () => {
-		const s = spy();
-		let calls = 0;
-		await waitForCapacity({
-			readLoad: async () => (++calls < 3 ? BUSY : IDLE),
-			onWait: s.onWait,
-			onProceed: s.onProceed,
-			skipped: () => false,
-			pollMs: 1,
-		});
-		expect(calls).toBe(3);
-		expect(s.waited).toEqual(["6 agents using 90% of CPU"]);
-		expect(s.proceeded()).toBe(1);
-	});
-
-	it("gives up waiting once the deadline passes", async () => {
-		const s = spy();
-		await waitForCapacity({
-			readLoad: async () => BUSY,
-			onWait: s.onWait,
-			onProceed: s.onProceed,
-			skipped: () => false,
-			pollMs: 1,
-			maxWaitMs: 0,
-		});
-		expect(s.proceeded()).toBe(1);
-	});
-
-	it("lets a broken gauge through instead of blocking the launch", async () => {
-		const s = spy();
-		await waitForCapacity({
-			readLoad: async () => {
-				throw new Error("no metrics");
-			},
-			onWait: s.onWait,
-			onProceed: s.onProceed,
-			skipped: () => false,
-			pollMs: 1,
-		});
-		expect(s.waited).toEqual([]);
-	});
-
-	it("stops waiting the moment the user says start now", async () => {
-		const s = spy();
-		let calls = 0;
-		let startNow = false;
-		await waitForCapacity({
-			readLoad: async () => {
-				calls += 1;
-				startNow = true;
-				return BUSY;
-			},
-			onWait: s.onWait,
-			onProceed: s.onProceed,
-			skipped: () => startNow,
-			pollMs: 1,
-		});
-		expect(calls).toBe(1);
-		expect(s.proceeded()).toBe(1);
 	});
 });
 

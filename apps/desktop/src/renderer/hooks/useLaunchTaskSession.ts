@@ -1,10 +1,9 @@
-import { toast } from "@odin/ui/sonner";
 import { useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import { isVideoFile } from "shared/file-types";
-import { machineLoad } from "shared/machine-load";
-import { isOdinCwd, odinSessionInFlight, withOdinTag } from "shared/odin-tags";
+import { launchBlocker } from "shared/launch-gate";
+import { withOdinTag } from "shared/odin-tags";
 
 function slugify(title: string): string {
 	return (
@@ -140,76 +139,6 @@ export function boardIdentity(
 	};
 }
 
-/** How often to re-check while a launch is held back. */
-const CAPACITY_POLL_MS = 5_000;
-/**
- * Longest a launch waits for the machine to calm down. Past this it starts
- * anyway: a task that never runs is worse than a slow one, and the load may
- * be something that isn't going away (a long build, a VM).
- */
-const CAPACITY_MAX_WAIT_MS = 10 * 60_000;
-
-/** Whatever a launch is waiting on, reduced to "busy, and here's why". */
-export interface LaunchBlocker {
-	busy: boolean;
-	reason: string | null;
-}
-
-/**
- * Hold a launch until what it needs is free — the Mac in one case, Odin's
- * checkout in the other.
- *
- * It re-reads and re-checks rather than deciding once: both readings are live
- * (CPU busy over the last few seconds; which sessions are running right now),
- * so a launch waits exactly as long as it has to.
- *
- * Any failure to read lets the launch through: a broken gauge must never be
- * the reason a session doesn't start.
- */
-export async function waitForCapacity({
-	readLoad,
-	onWait,
-	onProceed,
-	skipped,
-	pollMs = CAPACITY_POLL_MS,
-	maxWaitMs = CAPACITY_MAX_WAIT_MS,
-}: {
-	readLoad: () => Promise<LaunchBlocker>;
-	onWait: (load: LaunchBlocker) => void;
-	onProceed: () => void;
-	skipped: () => boolean;
-	/** Overridden by tests only. */
-	pollMs?: number;
-	maxWaitMs?: number;
-}): Promise<void> {
-	const deadline = Date.now() + maxWaitMs;
-	let waited = false;
-	while (!skipped()) {
-		let load: LaunchBlocker;
-		try {
-			load = await readLoad();
-		} catch {
-			break;
-		}
-		if (!load.busy) break;
-		if (!waited) {
-			waited = true;
-			onWait(load);
-		}
-		if (Date.now() >= deadline) break;
-		await new Promise((resolve) => setTimeout(resolve, pollMs));
-	}
-	if (waited) onProceed();
-}
-
-/**
- * An Odin launch past the gate but not yet spawned. Without it, three launches
- * held behind one session all see a free checkout on the tick it finishes and
- * start together: the pane they're waiting on only turns "working" once its
- * own launch finishes.
- */
-let odinLaunchPending = false;
-
 /**
  * Launch an agent session for an ad-hoc task into an existing workspace.
  * Shared by the Dev Board and Slack views.
@@ -232,10 +161,6 @@ export function useLaunchTaskSession() {
 	// says "Starting…" — a launch takes a second or two (git + PTY + agent
 	// boot) and a click with no feedback reads as a dead button.
 	const [launchingKey, setLaunchingKey] = useState<string | null>(null);
-	// Set while a launch is parked waiting for the machine, so the caller's
-	// "starting…" can say what it's actually waiting for.
-	const [waitingReason, setWaitingReason] = useState<string | null>(null);
-
 	const launch = async ({
 		workspaceId,
 		title,
@@ -299,15 +224,13 @@ export function useLaunchTaskSession() {
 				sessionId: string;
 				/** Where the agent runs — the work ledger records it. */
 				cwd: string;
+				/** Created, but held in Idle until the gate clears. */
+				queued: boolean;
 		  }
 		| { ok: false; error: string }
 	> => {
 		setIsLaunching(true);
 		setLaunchingKey(key ?? null);
-		// Only the launch that raised the Odin flag may lower it: a launch into
-		// some other repo finishing in the meantime must not open the gate on an
-		// Odin one that is still spawning.
-		let raisedOdinFlag = false;
 		try {
 			const workspace = await utils.client.workspaces.get.query({
 				id: workspaceId,
@@ -321,83 +244,26 @@ export function useLaunchTaskSession() {
 			}
 			const sessionCwd = repoPath || worktreePath;
 
-			// 0. Two gates, both of which hold the launch rather than refuse it:
-			// every Odin view launches through here, so this is the one place
-			// that decides when a new agent actually starts. "Start now" on
-			// either toast clears both.
-			let startNow = now === true;
-
-			// 0a. Don't pile onto a machine that's already flat out.
-			const toastId = `capacity-${key ?? title}`;
-			await waitForCapacity({
-				skipped: () => startNow,
-				readLoad: async () =>
-					machineLoad(await utils.client.resourceMetrics.getSnapshot.query()),
-				onWait: (load) => {
-					setWaitingReason(load.reason);
-					toast.warning(`Machine busy — ${load.reason}`, {
-						id: toastId,
-						description: `Holding "${title}" until it frees up.`,
-						duration: Number.POSITIVE_INFINITY,
-						action: {
-							label: "Start now",
-							onClick: () => {
-								startNow = true;
-							},
-						},
-					});
-				},
-				onProceed: () => {
-					setWaitingReason(null);
-					toast.dismiss(toastId);
-				},
-			});
-
-			// 0b. One agent in Odin's own checkout at a time. Work on Odin happens
-			// in the checkout itself, so a second agent in there edits files under
-			// the first and hands both of them a dirty tree. Queued, not refused:
-			// a session you asked for should still run, just after the one ahead
-			// of it — and no deadline, because starting anyway is the exact thing
-			// this gate exists to prevent.
-			const inOdin = isOdinCwd(sessionCwd, workConfig?.odinRepoPath);
-			if (inOdin) {
-				const odinToastId = `odin-queue-${key ?? title}`;
-				await waitForCapacity({
-					skipped: () => startNow,
-					maxWaitMs: Number.POSITIVE_INFINITY,
-					readLoad: async () => {
-						if (odinLaunchPending)
-							return { busy: true, reason: "another session is starting" };
-						const held = odinSessionInFlight(
-							Object.values(useTabsStore.getState().panes),
-							workConfig?.odinRepoPath,
-						);
-						return {
-							busy: !!held,
-							reason: held ? `"${held.title}" is running` : null,
-						};
-					},
-					onWait: (blocker) => {
-						setWaitingReason(`Odin busy — ${blocker.reason}`);
-						toast.warning(`Odin is busy — ${blocker.reason}`, {
-							id: odinToastId,
-							description: `Holding "${title}": one agent at a time in Odin's checkout.`,
-							duration: Number.POSITIVE_INFINITY,
-							action: {
-								label: "Start now",
-								onClick: () => {
-									startNow = true;
-								},
-							},
-						});
-					},
-					onProceed: () => {
-						setWaitingReason(null);
-						toast.dismiss(odinToastId);
-					},
-				});
-				odinLaunchPending = true;
-				raisedOdinFlag = true;
+			// 0. Two gates — the Mac's headroom, and one agent at a time in Odin's
+			// own checkout. Read once, and never blocking: a launch that has to
+			// wait still gets its card, and the queue runner starts the agent when
+			// the gate clears. A failed read lets the launch through — a broken
+			// gauge must not be the reason a session doesn't start.
+			// Only a launch that puts an agent to work is worth queueing: an empty
+			// prompt and a Resume both hand the session straight back to you, and
+			// holding those would just be a button that doesn't work.
+			let queuedReason: string | null = null;
+			if (now !== true && !noPrompt && !resumeSessionId) {
+				try {
+					queuedReason = launchBlocker(
+						await utils.client.resourceMetrics.getSnapshot.query(),
+						Object.values(useTabsStore.getState().panes),
+						sessionCwd,
+						workConfig?.odinRepoPath,
+					);
+				} catch {
+					queuedReason = null;
+				}
 			}
 
 			// 1. Prompt file in the workspace (survives quoting, keeps history)
@@ -481,13 +347,18 @@ export function useLaunchTaskSession() {
 			const claudeArgs = resumeSessionId
 				? `--resume ${resumeSessionId}`
 				: `--session-id ${sessionId}${promptArg}`;
-			await utils.client.terminal.createOrAttach.mutate({
-				paneId,
-				tabId,
-				workspaceId,
-				cwd: sessionCwd,
-				command: `cd ${quote(sessionCwd)} && claude --dangerously-skip-permissions ${claudeArgs}`,
-			});
+			const command = `cd ${quote(sessionCwd)} && claude --dangerously-skip-permissions ${claudeArgs}`;
+			// Held back: the pane stays process-less and the command rides on it
+			// until the queue runner (useTaskQueue) finds the gate open.
+			if (!queuedReason) {
+				await utils.client.terminal.createOrAttach.mutate({
+					paneId,
+					tabId,
+					workspaceId,
+					cwd: sessionCwd,
+					command,
+				});
+			}
 
 			// Resume rebuilds a pane for a conversation whose original one is gone
 			// — and the board keeps a card's title, person and source on the pane,
@@ -518,7 +389,10 @@ export function useLaunchTaskSession() {
 
 			setTabAutoTitle(tabId, card.title);
 			setPaneAutoTitle(paneId, card.title);
-			setPaneStatus(paneId, noPrompt || resumeSessionId ? "idle" : "working");
+			setPaneStatus(
+				paneId,
+				queuedReason || noPrompt || resumeSessionId ? "idle" : "working",
+			);
 			// Persist the conversation id on the pane itself (app-state.json), so
 			// Resume finds it from any build — renderer localStorage is per-app and
 			// isn't shared between the dev and packaged apps.
@@ -535,6 +409,9 @@ export function useLaunchTaskSession() {
 						...(card.pageId ? { odinPageId: card.pageId } : {}),
 						...(card.source ? { odinSource: card.source } : {}),
 						...(odinTags?.length ? { odinTags } : {}),
+						...(queuedReason
+							? { odinQueued: { command, reason: queuedReason } }
+							: {}),
 					},
 				},
 			}));
@@ -560,22 +437,24 @@ export function useLaunchTaskSession() {
 				});
 			// cwd goes back to the caller so the work ledger can record where the
 			// agent ran — branch and PR are derived from it later.
-			return { ok: true, tabId, paneId, sessionId, cwd: sessionCwd };
+			return {
+				ok: true,
+				tabId,
+				paneId,
+				sessionId,
+				cwd: sessionCwd,
+				queued: !!queuedReason,
+			};
 		} catch (error) {
 			return {
 				ok: false,
 				error: error instanceof Error ? error.message : String(error),
 			};
 		} finally {
-			// The pane is "working" by now, so the next queued launch sees it and
-			// keeps waiting. Cleared on failure too — a launch that never started
-			// must not hold the checkout shut.
-			if (raisedOdinFlag) odinLaunchPending = false;
 			setIsLaunching(false);
 			setLaunchingKey(null);
-			setWaitingReason(null);
 		}
 	};
 
-	return { launch, isLaunching, launchingKey, waitingReason };
+	return { launch, isLaunching, launchingKey };
 }

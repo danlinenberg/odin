@@ -14,11 +14,13 @@ import {
 	LuFlame,
 	LuFolderGit2,
 	LuGitPullRequest,
+	LuHourglass,
 	LuPause,
 	LuTerminal,
 } from "react-icons/lu";
 import { SiJira, SiNotion, SiSlack } from "react-icons/si";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
+import { startQueuedPane } from "renderer/hooks/useTaskQueue";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { canClaimKeyboard } from "renderer/lib/keyboard";
@@ -69,6 +71,8 @@ import { SessionBrief } from "./SessionBrief";
  * imported by the main process, which has no business loading React icons.
  */
 const SECTION_ICON: Record<BoardSection, IconType> = {
+	// Not a source — a task that exists but hasn't started.
+	queued: LuHourglass,
 	// Not a source — a session you put down on purpose.
 	parked: LuPause,
 	slack: SiSlack,
@@ -574,7 +578,7 @@ function DevBoardPage() {
 	// alive in their panes, they just aren't this board's business.
 	const { activeId: activeProfileId, isLoading: isProfileLoading } =
 		useOdinProfile();
-	const { launch, isLaunching, waitingReason } = useLaunchTaskSession();
+	const { launch, isLaunching } = useLaunchTaskSession();
 	const utils = electronTrpc.useUtils();
 	// An <a> would navigate the app window; the ticket opens in a browser.
 	const openUrl = electronTrpc.external.openUrl.useMutation();
@@ -812,6 +816,8 @@ function DevBoardPage() {
 			for (const pane of Object.values(panes)) {
 				// You parked it — don't let screen-reading drag it back out of Idle.
 				if (pane.odinParked) continue;
+				// Nothing to read: a queued task has no process yet.
+				if (pane.odinQueued) continue;
 				// The hooks and this scan are two writers to one status, and while a
 				// turn is running the hooks rewrite it every few seconds. Reading the
 				// screen in between only has to be wrong once for the card to flip
@@ -1203,6 +1209,21 @@ function DevBoardPage() {
 	 */
 	const resumeCard = async (card: BoardCard) => {
 		if (resumingPaneIds.includes(card.pane.id)) return;
+		// Never started: there's no conversation to resume, only the launch that
+		// was held back. Run it now — that's what "Start now" meant on the toast
+		// this queue replaced.
+		if (card.pane.odinQueued) {
+			setResumingPaneIds((ids) => [...ids, card.pane.id]);
+			try {
+				await startQueuedPane(utils.client, card.pane);
+				void utils.terminal.listDaemonSessions.invalidate();
+			} catch (error) {
+				toast.error(error instanceof Error ? error.message : String(error));
+			} finally {
+				setResumingPaneIds((ids) => ids.filter((id) => id !== card.pane.id));
+			}
+			return;
+		}
 		// Resume kills the PTY first, so on a session that's mid-turn it's an
 		// interrupt wearing a Resume label — it throws away the running turn.
 		// Live pane + live status (not the drawer's stale snapshot card).
@@ -1419,9 +1440,7 @@ function DevBoardPage() {
 					+ New Session
 				</button>
 				{isLaunching && (
-					<span className="text-xs text-[#a5a5b3]">
-						{waitingReason ? `waiting — ${waitingReason}` : "starting…"}
-					</span>
+					<span className="text-xs text-[#a5a5b3]">starting…</span>
 				)}
 
 				{/* tag filter — right-click a card to tag it */}
@@ -1480,7 +1499,10 @@ function DevBoardPage() {
 					const sections = bySection(cards);
 					// One section is just the column — don't label it, unless it's
 					// Parked: "you put these down" is worth saying on its own.
-					const labelled = sections.length > 1 || sections[0]?.[0] === "parked";
+					const labelled =
+						sections.length > 1 ||
+						sections[0]?.[0] === "parked" ||
+						sections[0]?.[0] === "queued";
 					const isDropTarget = column.status === "idle";
 					return (
 						// biome-ignore lint/a11y/noStaticElementInteractions: drop zone — drag is the mouse-only shortcut for parking a card in Idle
@@ -1669,10 +1691,34 @@ function DevBoardPage() {
 																	resumingPaneIds.includes(card.pane.id) && (
 																		<div className="mt-1.5 flex items-center gap-1.5 text-[11.5px] text-[#3ecf8e]">
 																			<span className="size-[9px] animate-spin rounded-full border border-[#3ecf8e] border-t-transparent" />
-																			resuming…
+																			{card.pane.odinQueued
+																				? "starting…"
+																				: "resuming…"}
+																		</div>
+																	)}
+																{/* Never started — it's waiting on the machine, not
+																    on you. Says what for, and lets you overrule it. */}
+																{card.pane.odinQueued &&
+																	!resumingPaneIds.includes(card.pane.id) && (
+																		<div className="mt-1.5 flex items-center gap-2">
+																			<span className="text-[11.5px] text-[#f5b83d]">
+																				⏳ {card.pane.odinQueued.reason}
+																			</span>
+																			<button
+																				type="button"
+																				title="Start this session now, gate or no gate"
+																				onClick={(event) => {
+																					event.stopPropagation();
+																					void resumeCard(card);
+																				}}
+																				className="ml-auto rounded-[7px] bg-[#1f1f27] px-2.5 py-1 text-xs font-semibold text-[#a5a5b3] hover:text-[#3ecf8e]"
+																			>
+																				Start now
+																			</button>
 																		</div>
 																	)}
 																{card.status === "idle" &&
+																	!card.pane.odinQueued &&
 																	!agentPaneIds.has(card.pane.id) &&
 																	!resumingPaneIds.includes(card.pane.id) && (
 																		<div className="mt-1.5 flex items-center gap-2">
@@ -1952,16 +1998,20 @@ function DevBoardPage() {
 									}
 									className="rounded-[7px] bg-[#14301f] px-3 py-1.5 text-xs font-semibold text-[#3ecf8e] hover:bg-[#1a3d28] disabled:opacity-60 disabled:hover:bg-[#14301f]"
 								>
-									{resumingPaneIds.includes(drawerCard.pane.id)
-										? "↻ Resuming…"
-										: isWorkingNow(drawerCard.pane.id)
-											? "↻ Working…"
-											: // Resume already landed and Claude is up — the button
-												// writes "Continue" into the open prompt. A live PTY with
-												// no Claude in it (Ctrl+C'd out) still says Resume.
-												agentPaneIds.has(drawerCard.pane.id)
-												? "↻ Continue"
-												: "↻ Resume"}
+									{drawerCard.pane.odinQueued
+										? resumingPaneIds.includes(drawerCard.pane.id)
+											? "▶ Starting…"
+											: "▶ Start now"
+										: resumingPaneIds.includes(drawerCard.pane.id)
+											? "↻ Resuming…"
+											: isWorkingNow(drawerCard.pane.id)
+												? "↻ Working…"
+												: // Resume already landed and Claude is up — the button
+													// writes "Continue" into the open prompt. A live PTY with
+													// no Claude in it (Ctrl+C'd out) still says Resume.
+													agentPaneIds.has(drawerCard.pane.id)
+													? "↻ Continue"
+													: "↻ Resume"}
 								</button>
 							)}
 							<button
