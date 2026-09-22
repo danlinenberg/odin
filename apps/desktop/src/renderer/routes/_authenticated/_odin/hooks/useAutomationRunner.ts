@@ -1,11 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { cronMatches, parseCron } from "shared/cron";
-import {
-	automationDescription,
-	BUILTIN_AUTOMATIONS,
-	useBacklog,
-} from "./builtin-automations";
+import { BUILTIN_AUTOMATIONS } from "./builtin-automations";
 import { useOdinProfile } from "./useOdinProfile";
 import {
 	type OdinTask,
@@ -58,7 +54,6 @@ export function useAutomationRunner() {
 	const { ensureWorkspace } = useOdinWorkspace();
 	const { launch } = useLaunchTaskSession();
 	const { activeId, isLoading } = useOdinProfile();
-	const backlog = useBacklog();
 
 	// Odin's own automations, put on the list the first time this profile is
 	// seen — including profiles that existed before there were any. Waiting for
@@ -77,7 +72,6 @@ export function useAutomationRunner() {
 		setPane,
 		ensureWorkspace,
 		launch,
-		backlog,
 	});
 	latest.current = {
 		automations,
@@ -85,7 +79,6 @@ export function useAutomationRunner() {
 		setPane,
 		ensureWorkspace,
 		launch,
-		backlog,
 	};
 
 	useEffect(() => {
@@ -111,9 +104,7 @@ export function useAutomationRunner() {
 						key: task.id,
 						workspaceId: ensured.workspace.id,
 						title: task.title,
-						// Read at fire time, not when the task was written: a sweep
-						// has to judge the backlog as it stands this morning.
-						description: automationDescription(task, latest.current.backlog),
+						description: task.notes || null,
 						brief: taskPrompt(task),
 						// #automation on the card, so a session you didn't start
 						// reads as one at a glance on the board.

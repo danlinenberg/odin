@@ -11,6 +11,7 @@ import {
 	HiOutlineBolt,
 	HiOutlineChartBar,
 	HiOutlineClipboardDocumentCheck,
+	HiOutlineClipboardDocumentList,
 	HiOutlineClock,
 	HiOutlineCog6Tooth,
 	HiOutlineViewColumns,
@@ -61,6 +62,15 @@ const RAIL_ITEMS = [
 		hotkey: "ODIN_ALL" as const,
 		label: "Tasks",
 		Icon: HiOutlineClipboardDocumentCheck,
+	},
+	// Also its own entry rather than a feed tab. The strip answers "what's
+	// waiting on me" from a source; this answers "what can go", and its rows
+	// are verdicts about the other tabs rather than a seventh queue.
+	{
+		to: "/review" as const,
+		hotkey: "ODIN_REVIEW" as const,
+		label: "Review",
+		Icon: HiOutlineClipboardDocumentList,
 	},
 	// Its own rail entry, not a seventh feed tab: every tab in that strip
 	// answers "what's waiting on me", and an automation is the one thing that
@@ -196,6 +206,11 @@ function OdinShell() {
 		ODIN_AUTOMATIONS: useHotkey(
 			"ODIN_AUTOMATIONS",
 			() => navigate({ to: "/automations" }),
+			NAV_HOTKEY_OPTIONS,
+		),
+		ODIN_REVIEW: useHotkey(
+			"ODIN_REVIEW",
+			() => navigate({ to: "/review" }),
 			NAV_HOTKEY_OPTIONS,
 		),
 		ODIN_SLACK: useHotkey(

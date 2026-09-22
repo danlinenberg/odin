@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { isValidCron } from "shared/cron";
 import {
-	automationDescription,
 	BUILTIN_AUTOMATIONS,
+	type BuiltinAutomation,
 	backlogOf,
 	backlogSweepBrief,
 } from "./builtin-automations";
@@ -10,6 +10,7 @@ import type { OdinTask } from "./useOdinTasks";
 import { useOdinTasks } from "./useOdinTasks";
 
 const NOW = Date.parse("2026-09-21T09:00:00Z");
+const REVIEW_PATH = "/Users/dan/.odin/backlog-review.json";
 
 const task = (over: Partial<OdinTask>): OdinTask => ({
 	id: "t1",
@@ -20,6 +21,7 @@ const task = (over: Partial<OdinTask>): OdinTask => ({
 });
 
 const slackRow = (over: Record<string, unknown> = {}) => ({
+	id: "C1:123",
 	title: "can someone look at the export timeout",
 	text: "can someone look at the export timeout",
 	status: "Not started",
@@ -43,12 +45,21 @@ describe("backlogOf", () => {
 		];
 		expect(backlogOf([], rows)).toEqual([]);
 	});
+
+	// The key is what a DROP acts on, so it has to name the row *and* which
+	// store it lives in — the two id spaces are unrelated and could collide.
+	test("keys each item back to the row it came from", () => {
+		expect(
+			backlogOf([task({ id: "abc" })], [slackRow()]).map((i) => i.key),
+		).toEqual(["task:abc", "slack:C1:123"]);
+	});
 });
 
 describe("backlogSweepBrief", () => {
 	test("lists every item, with its age and link, for the agent to check", () => {
 		const brief = backlogSweepBrief(
 			backlogOf([task({ notes: "waiting on the fix" })], [slackRow()]),
+			REVIEW_PATH,
 			NOW,
 		);
 		expect(brief).toContain("1. [Tasks] Chase BUGT-1234 — 30d old");
@@ -63,33 +74,49 @@ describe("backlogSweepBrief", () => {
 		expect(brief).toContain("outranks the standing instruction below");
 	});
 
-	test("an empty backlog asks for nothing", () => {
-		expect(backlogSweepBrief([], NOW)).toContain("nothing to check");
-	});
-});
-
-describe("automationDescription", () => {
-	test("a built-in gets its notes plus the live backlog", () => {
-		const sweep = task({ builtin: "backlog-sweep", notes: "Check them all." });
-		const text = automationDescription(sweep, backlogOf([task({})], []));
-		expect(text).toContain("Check them all.");
-		expect(text).toContain("Chase BUGT-1234");
-	});
-
-	test("an ordinary automation is still just what I wrote", () => {
-		expect(automationDescription(task({ notes: "run the thing" }), [])).toBe(
-			"run the thing",
+	// Without the file there is no Review screen, only a session transcript —
+	// so the path and the shape are the two things the prompt can't lose.
+	test("asks for the verdicts as JSON, at the path the app gave it", () => {
+		const brief = backlogSweepBrief(
+			backlogOf([task({})], []),
+			REVIEW_PATH,
+			NOW,
 		);
-		expect(automationDescription(task({ notes: "" }), [])).toBeNull();
+		expect(brief).toContain(REVIEW_PATH);
+		expect(brief).toContain('"n": 1');
+		expect(brief).toContain("Every item gets a row");
+	});
+
+	// The item's identity never crosses the wire: the app maps number back to
+	// row from its own snapshot, so a made-up key can't delete anything.
+	test("never shows the agent an item's key", () => {
+		const brief = backlogSweepBrief(
+			backlogOf([task({ id: "abc" })], [slackRow()]),
+			REVIEW_PATH,
+			NOW,
+		);
+		expect(brief).not.toContain("task:abc");
+		expect(brief).not.toContain("slack:C1:123");
+	});
+
+	test("an empty backlog asks for nothing", () => {
+		expect(backlogSweepBrief([], REVIEW_PATH, NOW)).toContain(
+			"nothing to check",
+		);
 	});
 });
 
 describe("installBuiltins", () => {
+	const fixture: BuiltinAutomation[] = [
+		{ id: "sample", title: "Sample", notes: "do it", cron: "0 9 * * 1" },
+	];
 	const reset = () => useOdinTasks.setState({ tasks: [], seeded: [] });
-	const install = (profileId = "default") =>
-		useOdinTasks.getState().installBuiltins(profileId, BUILTIN_AUTOMATIONS);
+	const install = (
+		profileId = "default",
+		builtins: BuiltinAutomation[] = fixture,
+	) => useOdinTasks.getState().installBuiltins(profileId, builtins);
 
-	test("every built-in is a valid schedule, so it actually fires", () => {
+	test("every built-in that ships is a valid schedule, so it actually fires", () => {
 		for (const builtin of BUILTIN_AUTOMATIONS)
 			expect(isValidCron(builtin.cron)).toBe(true);
 	});
@@ -98,13 +125,11 @@ describe("installBuiltins", () => {
 		reset();
 		install();
 		const { tasks } = useOdinTasks.getState();
-		expect(tasks).toHaveLength(BUILTIN_AUTOMATIONS.length);
-		expect(tasks[0]?.cron).toBeTruthy();
+		expect(tasks).toHaveLength(1);
+		expect(tasks[0]?.cron).toBe("0 9 * * 1");
 		expect(tasks[0]?.paused).toBeUndefined();
 		install();
-		expect(useOdinTasks.getState().tasks).toHaveLength(
-			BUILTIN_AUTOMATIONS.length,
-		);
+		expect(useOdinTasks.getState().tasks).toHaveLength(1);
 	});
 
 	test("a built-in I deleted stays deleted", () => {
@@ -123,6 +148,27 @@ describe("installBuiltins", () => {
 		expect(useOdinTasks.getState().tasks.map((row) => row.profileId)).toEqual([
 			"personal",
 			"work",
+		]);
+	});
+
+	// The backlog sweep shipped as a built-in and then stopped being one. Its
+	// row keeps its cron, so without this it goes on firing forever as an
+	// automation nobody wrote and nobody can find the source of.
+	test("a built-in Odin stopped shipping is taken off the list", () => {
+		reset();
+		install();
+		expect(useOdinTasks.getState().tasks).toHaveLength(1);
+		install("default", []);
+		expect(useOdinTasks.getState().tasks).toEqual([]);
+	});
+
+	test("retiring one leaves my own automations alone", () => {
+		reset();
+		install();
+		useOdinTasks.getState().add("my own job", "default", "0 9 * * 1");
+		install("default", []);
+		expect(useOdinTasks.getState().tasks.map((t) => t.title)).toEqual([
+			"my own job",
 		]);
 	});
 });

@@ -14,6 +14,15 @@ import { type OdinTask, useMyTasks } from "./useOdinTasks";
 
 /** One thing sitting in the backlog, flattened out of whichever feed holds it. */
 export interface BacklogItem {
+	/**
+	 * What to clear when the verdict is DROP: `task:<id>` or `slack:<id>`.
+	 *
+	 * Never sent to the agent. It answers with the item's number, and the app
+	 * maps that back through the snapshot it took when it built the prompt —
+	 * identity stays on our side of the wire, where a hallucinated id can't
+	 * delete the wrong row.
+	 */
+	key: string;
 	/** Where it lives — "Tasks", "#eng" — so the report can name it back. */
 	source: string;
 	title: string;
@@ -39,6 +48,7 @@ export interface BacklogItem {
 export function backlogOf(
 	todos: OdinTask[],
 	slack: {
+		id: string;
 		title: string;
 		text: string;
 		status: string;
@@ -49,6 +59,7 @@ export function backlogOf(
 ): BacklogItem[] {
 	return [
 		...todos.map((task) => ({
+			key: `task:${task.id}`,
 			source: "Tasks",
 			title: task.title,
 			detail: task.notes,
@@ -59,6 +70,7 @@ export function backlogOf(
 			// have already been dealt with.
 			.filter((row) => row.status === "Not started")
 			.map((row) => ({
+				key: `slack:${row.id}`,
 				source: row.channelName ?? "Slack",
 				title: row.title,
 				detail: row.text,
@@ -99,13 +111,16 @@ function renderItem(item: BacklogItem, index: number, now: number): string {
  * The list is pasted in rather than fetched, because there is nothing to fetch
  * it from: the tasks live in renderer localStorage and the Slack queue behind
  * an Electron IPC call, neither of which an agent in a terminal can reach.
+ * The answers come back the same way round — a file, because an agent in a
+ * terminal has no route into the renderer either.
  *
- * Read-only on purpose. The verdict is a judgement call and the delete is one
- * click — an agent that closed tickets and cleared queues on a Monday morning
- * schedule would be one bad inference away from losing real work.
+ * Read-only on purpose. The verdict is a judgement call and the clearing is a
+ * click on the Review screen — an agent that closed tickets and cleared queues
+ * itself would be one bad inference away from losing real work.
  */
 export function backlogSweepBrief(
 	items: BacklogItem[],
+	reviewPath: string,
 	now: number = Date.now(),
 ): string {
 	if (items.length === 0)
@@ -132,7 +147,17 @@ export function backlogSweepBrief(
 		'- DROP needs the state you actually read, quoted — "BUGT-1234 is Done, resolved 12 Mar". No evidence is UNKNOWN, never DROP.',
 		"- Old is not dead. An item with no upstream reference is UNKNOWN however long it has sat there.",
 		"",
-		"Report one table — number, item, verdict, the evidence in a few words — and put every DROP in ACTION ITEMS as a list I can clear in one pass.",
+		// The operative output. The table is for reading over your shoulder; this
+		// is the bit Odin acts on, so it says so, names every field, and insists
+		// on all of them — a row the parser drops is an item that silently never
+		// gets reviewed.
+		`When you are done, write your verdicts to \`${reviewPath}\` (create the directory if it is missing). That file is what Odin reads to build the review screen, so write it even if every verdict is KEEP.`,
+		"A JSON array, one object per numbered item, nothing else in the file:",
+		'  [{"n": 1, "verdict": "DROP", "evidence": "BUGT-1234 is Done, resolved 12 Mar"}]',
+		'- `n` is the item\'s number above. `verdict` is exactly "DROP", "KEEP" or "UNKNOWN". `evidence` is the one line you would have put in the table.',
+		"- Every item gets a row, including the ones you could not reach.",
+		"",
+		"Then report the same thing as one table — number, item, verdict, the evidence in a few words — so it can be read without opening the file.",
 	].join("\n");
 }
 
@@ -142,34 +167,17 @@ export interface BuiltinAutomation {
 	title: string;
 	notes: string;
 	cron: string;
-	/** Context only this app can see, rendered into the prompt at launch. */
-	context?: (backlog: BacklogItem[]) => string;
 }
-
-export const BUILTIN_AUTOMATIONS: BuiltinAutomation[] = [
-	{
-		id: "backlog-sweep",
-		title: "Is the backlog still worth doing?",
-		notes:
-			"Check every open task and queued Slack message against the system it came from, and report what can be dropped.",
-		// Monday 09:00. A backlog rots over weeks, not hours, and this reads the
-		// whole list every time it runs — daily would be the same answer five
-		// times and five agent sessions to close.
-		cron: "0 9 * * 1",
-		context: backlogSweepBrief,
-	},
-];
 
 /**
- * The prompt body a run starts from: what's written on the task, plus whatever
- * live context its built-in needs. An ordinary task is just its notes.
+ * Empty, on purpose.
+ *
+ * The backlog sweep shipped here first, on a Monday cron. It was the wrong
+ * shape: a sweep whose whole output is a set of decisions should put those
+ * decisions on a screen, not into a terminal on a morning you might not open
+ * Odin. It now lives on the Review screen and runs when you ask it to.
+ *
+ * The machinery stays — seeding, the built-in chip, and the retirement below
+ * that takes a row away again once it stops shipping.
  */
-export function automationDescription(
-	task: OdinTask,
-	backlog: BacklogItem[],
-): string | null {
-	const render = BUILTIN_AUTOMATIONS.find(
-		(builtin) => builtin.id === task.builtin,
-	)?.context;
-	return [task.notes, render?.(backlog)].filter(Boolean).join("\n\n") || null;
-}
+export const BUILTIN_AUTOMATIONS: BuiltinAutomation[] = [];

@@ -239,7 +239,19 @@ export const useOdinTasks = create<{
 					const fresh = builtins.filter(
 						(builtin) => !seeded.includes(key(builtin.id)),
 					);
-					if (fresh.length === 0) return s;
+					// A built-in Odin has stopped shipping is taken back off the list.
+					// Seeding is one-way otherwise: drop one from the array and its row
+					// keeps its cron and keeps firing, an automation nobody wrote and
+					// nobody can find the source of.
+					const retired = s.tasks.filter(
+						(t) => t.builtin && !builtins.some((b) => b.id === t.builtin),
+					);
+					const kept =
+						retired.length === 0
+							? s.tasks
+							: s.tasks.filter((t) => !retired.includes(t));
+					if (fresh.length === 0)
+						return retired.length === 0 ? s : { ...s, tasks: kept };
 					return {
 						seeded: [...seeded, ...fresh.map((builtin) => key(builtin.id))],
 						tasks: [
@@ -253,7 +265,7 @@ export const useOdinTasks = create<{
 								cron: builtin.cron,
 								builtin: builtin.id,
 							})),
-							...s.tasks,
+							...kept,
 						],
 					};
 				}),
