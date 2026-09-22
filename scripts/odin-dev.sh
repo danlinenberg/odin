@@ -48,13 +48,29 @@ mkdir -p "$(dirname "$LOG")"
 # to happen must not move the live session's dev.log out from under its tee, or
 # close the packaged UI on its way out.
 #
-# ODIN_QUIT_PID counts as takeover, not as a second session: it's the running
-# dev app restarting itself, and its checkout is whatever odinRepo() points at,
-# which needn't be the one it's running from.
+# Who takes the session, who is told no:
+#   - a worktree takes it. That lane is usually an agent's, running detached
+#     with nobody at the keyboard to read a refusal, so refusing there just
+#     wedges it. The cost is real: a worktree can pull the app out from under
+#     you mid-run. ODIN_DEV_TAKEOVER=0 in that worktree restores the refusal.
+#   - the main checkout is refused, and takes over with ODIN_DEV_TAKEOVER=1.
+#     It's the one with a person in front of it to read the message.
+#   - ODIN_QUIT_PID always takes it: that's the running dev app restarting
+#     itself, not a second session, and odinRepo() needn't be the checkout it
+#     is running from.
 # ponytail: a ps check, not a lock file — two starts in the same second race.
+if [[ -n "${ODIN_DEV_TAKEOVER:-}" ]]; then
+  TAKEOVER="$ODIN_DEV_TAKEOVER"
+elif is_linked_worktree "$REPO"; then
+  TAKEOVER=1
+else
+  TAKEOVER=0
+fi
+[[ -n "${ODIN_QUIT_PID:-}" ]] && TAKEOVER=1
+
 while read -r other_pid other_repo; do
   [[ -n "$other_pid" && "$other_repo" != "$REPO" ]] || continue
-  if [[ -n "${ODIN_DEV_TAKEOVER:-}${ODIN_QUIT_PID:-}" ]]; then
+  if [[ "$TAKEOVER" != 0 ]]; then
     echo "replacing the dev session in $other_repo (pid $other_pid)…" | tee -a "$LOG"
     kill "$other_pid" 2>/dev/null
     stop_dev_runners "$other_repo"

@@ -69,5 +69,17 @@ odin_procs() { :; }
 got="$(dev_stack_lines)"
 [[ -z "$got" ]] || fail "dev_stack_lines returned '$got' with no dev stack, want empty"
 
+# is_linked_worktree decides who takes the dev session and who is refused it, so
+# the file-vs-directory distinction gets pinned down: inverting it would hand
+# every refusal to the worktrees and every takeover to the main checkout.
+tmp="$(mktemp -d)"
+mkdir -p "$tmp/main/.git" "$tmp/wt"
+printf 'gitdir: %s/main/.git/worktrees/wt\n' "$tmp" > "$tmp/wt/.git"
+is_linked_worktree "$tmp/wt" || fail "is_linked_worktree missed a worktree (.git file)"
+! is_linked_worktree "$tmp/main" || fail "is_linked_worktree claimed the main checkout (.git dir)"
+! is_linked_worktree "$tmp/nope" || fail "is_linked_worktree claimed a path with no .git"
+rm -rf "$tmp"
+
 echo "PASS: UI/daemon split holds via ps and the pid file"
+echo "PASS: is_linked_worktree separates a worktree from the main checkout"
 echo "PASS: dev_stack_lines reports one <pid> <repo> per live dev session"
