@@ -1,21 +1,20 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { SweptItem } from "../review/verdicts";
+import type { SweptRow } from "../review/verdicts";
 
 /**
- * What the last sweep was asked about.
+ * The last sweep's answers.
  *
- * The agent answers with item numbers, so something has to remember what
- * number 7 was. That is this: the list exactly as it went into the prompt,
- * kept on our side. Persisted because a sweep outlives a reload — it takes
- * minutes, and the app is not obliged to sit still for them.
+ * Kept here rather than in the screen's state so leaving Review and coming
+ * back doesn't mean sweeping again, and persisted so a reload doesn't either.
+ * Small and fixed-size: one row per backlog item, replaced whole by the next
+ * sweep.
  */
 export const useBacklogReview = create<{
-	/** Prompt order. Index 0 is item 1. */
-	swept: SweptItem[];
-	/** When the sweep was launched, ms. Not when it finished. */
+	swept: SweptRow[];
+	/** When the sweep ran, ms. */
 	sweptAt: number | null;
-	record: (swept: SweptItem[]) => void;
+	record: (swept: SweptRow[]) => void;
 	forget: () => void;
 }>()(
 	persist(
