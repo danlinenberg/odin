@@ -41,6 +41,7 @@ import { heavySessionLabel } from "shared/machine-load";
 import { profileOf } from "shared/odin-profile";
 import {
 	agentOnScreen,
+	escIsHandledOnScreen,
 	odinScreenStatus,
 	odinScreenWrite,
 } from "shared/odin-screen-status";
@@ -116,6 +117,24 @@ interface BoardCard {
 	/** The workspace's own checkout — where a card with no pane cwd runs. */
 	repoPath: string;
 	status: PaneStatus;
+}
+
+/**
+ * What the mounted terminal is showing right now, as plain text. The board's
+ * other screen reads go through the daemon and come back on a timer; a
+ * keypress can't wait for that, and the xterm in the drawer already holds the
+ * same rows.
+ */
+function visibleScreen(paneId: string): string {
+	const xterm = terminalCache.get(paneId)?.xterm;
+	if (!xterm) return "";
+	const buffer = xterm.buffer.active;
+	const lines: string[] = [];
+	for (let row = 0; row < xterm.rows; row++)
+		lines.push(
+			buffer.getLine(buffer.viewportY + row)?.translateToString(true) ?? "",
+		);
+	return lines.join("\n");
 }
 
 /**
@@ -675,9 +694,11 @@ function DevBoardPage() {
 		};
 	}, [drawerCard, utils, isBriefOpen]);
 
-	// Esc = close the drawer, and ONLY that. Captured at the window so it
-	// never reaches the terminal — an Esc in the PTY cancels Claude's pending
-	// menu and trips upstream's "user interrupted → idle" status heuristic.
+	// Esc closes the drawer. Captured at the window so it doesn't reach the
+	// terminal by default — an Esc in the PTY cancels Claude's pending menu and
+	// trips upstream's "user interrupted → idle" status heuristic. The
+	// exceptions below are the states where Esc already means something to
+	// whatever is on screen, and there it's handed back.
 	useEffect(() => {
 		if (!drawerCard) return;
 		const onKeyDown = (event: KeyboardEvent) => {
@@ -686,6 +707,16 @@ function DevBoardPage() {
 			// early we'd swallow that keypress and close the drawer out from
 			// under it instead, so hand the key back and leave the drawer alone.
 			if ((event.target as HTMLElement | null)?.closest("[role=dialog]"))
+				return;
+			// Same rule for Claude's own menus: standing in a picker that says
+			// "Esc to go back", Esc belongs to the picker, not to the drawer.
+			// Read the mounted xterm rather than the scan's cached status — the
+			// scan runs on a 3s timer and a menu opens and closes inside that.
+			if (
+				event.target instanceof HTMLElement &&
+				event.target.closest(".xterm") &&
+				escIsHandledOnScreen(visibleScreen(drawerCard.pane.id))
+			)
 				return;
 			event.preventDefault();
 			event.stopImmediatePropagation();

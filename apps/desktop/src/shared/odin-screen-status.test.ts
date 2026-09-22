@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import {
 	agentOnScreen,
+	escIsHandledOnScreen,
 	odinScreenStatus,
 	odinScreenWrite,
 } from "./odin-screen-status";
@@ -219,5 +220,53 @@ dan@MacBook-Pro-5 ~/dev/imagen  main +
 
 	it("does not see Claude in some other program", () => {
 		expect(agentOnScreen("$ vim notes.md\n~\n~\n")).toBe(false);
+	});
+});
+
+describe("escIsHandledOnScreen", () => {
+	// /plugin, /agents, /config and friends: a full-screen picker with its own
+	// key legend, and no input box on screen at all.
+	const PICKER = `
+  ponytail Plugin · ponytail · ✔ enabled
+  superpowers Plugin · claude-plugins-official · ✔ enabled
+↓ more below
+
+Type to search · Space to toggle · f to favorite · Enter to view · Esc to go back
+`;
+
+	it("sees the menu's own Esc", () => {
+		expect(escIsHandledOnScreen(PICKER)).toBe(true);
+	});
+
+	it("sees a permission dialog's reject option", () => {
+		expect(
+			escIsHandledOnScreen(
+				"❯ 1. Yes\n  2. No, and tell Claude what to do differently (esc)\n",
+			),
+		).toBe(true);
+	});
+
+	// Mid-turn the drawer closing is what's wanted — an Esc into the PTY there
+	// cancels the turn.
+	it("leaves the drawer to close mid-turn", () => {
+		expect(escIsHandledOnScreen(MID_TURN)).toBe(false);
+	});
+
+	it("leaves the drawer to close at the prompt", () => {
+		expect(escIsHandledOnScreen(IDLE_PROMPT)).toBe(false);
+	});
+
+	// Transcript is not chrome: the window is anchored at the input box, so a
+	// session that merely *talked* about a menu keeps its Esc.
+	it("ignores a menu Claude only printed about", () => {
+		const scrolledAway = Array.from(
+			{ length: 12 },
+			(_, i) => `later output ${i}`,
+		).join("\n");
+		expect(
+			escIsHandledOnScreen(
+				`I added "Esc to go back" to the footer.\n${scrolledAway}\n${RULE}\n❯\n${RULE}\n⏵⏵ bypass permissions on\n`,
+			),
+		).toBe(false);
 	});
 });
