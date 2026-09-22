@@ -76,3 +76,8 @@ stop_dev_runners() {
   pkill -f "$1.*turbo run dev" 2>/dev/null
   return 0
 }
+
+# A linked worktree's .git is a FILE ("gitdir: …"); the main checkout's is a
+# directory. Cheap enough to beat `git rev-parse --git-common-dir`, and it works
+# in a checkout whose git objects are mid-rewrite by another session.
+is_linked_worktree() { [[ -f "$1/.git" ]]; }

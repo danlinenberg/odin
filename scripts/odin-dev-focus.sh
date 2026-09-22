@@ -76,10 +76,16 @@ fi
 if [[ -n "$stack" ]]; then
   if [[ "$stack_repo" == "$REPO" ]]; then
     echo "Odin dev is already starting (odin-dev.sh pid $stack_pid) — leaving it to finish"
-  else
-    echo "a dev session is already running in $stack_repo (pid $stack_pid) — only one runs at a time"
+    exit 0
   fi
-  exit 0
+  # Another checkout holds the session. From the main checkout that's a refusal,
+  # so say so here rather than spawning a start that odin-dev.sh will reject.
+  # From a worktree it isn't: fall through and let the start take the session.
+  if ! is_linked_worktree "$REPO"; then
+    echo "a dev session is already running in $stack_repo (pid $stack_pid) — only one runs at a time"
+    exit 0
+  fi
+  echo "taking the dev session from $stack_repo (pid $stack_pid)…"
 fi
 
 # Detached, NOT exec'd: odin-dev.sh runs bun dev in the foreground and never
