@@ -1303,8 +1303,11 @@ function DevBoardPage() {
 		sawNoAgentRef.current.delete(card.pane.id);
 		setAgentGonePaneIds((ids) => ids.filter((id) => id !== card.pane.id));
 		// initialCwd included: a session whose terminal was never opened has no
-		// confirmed cwd, and resuming without one lands in the wrong repo.
-		const cwd = sessionCwd(card.pane);
+		// confirmed cwd, and resuming without one lands in the wrong repo. The
+		// workspace checkout is the last resort — `claude --resume` only finds a
+		// conversation from the directory it ran in, so resuming from the
+		// daemon's default cwd fails exactly like resuming a missing id.
+		const cwd = sessionCwd(card.pane) ?? card.repoPath;
 		// Resume THIS conversation, not "whatever ran last here" (what --continue
 		// does — wrong as soon as two sessions share a workspace). Session id
 		// comes from launch (--session-id); for older sessions, look it up in
@@ -1312,6 +1315,33 @@ function DevBoardPage() {
 		let sessionId =
 			card.pane.claudeSessionId ??
 			usePaneMeta.getState().sessionIdByPane[card.pane.id];
+		// The id we pinned at launch is not proof Claude ever wrote that
+		// conversation: this pane was launched with --session-id, ran a turn (its
+		// hooks fired), and left no transcript — so Resume ran `claude --resume
+		// <id>`, got "No conversation found with session ID", and exited 1 into a
+		// dead pane. Check before spending a respawn on it.
+		//
+		// Nothing is substituted when it's gone. The title search below finds the
+		// newest transcript merely *mentioning* the card title, which on a real
+		// board matched a completely unrelated session — and --continue would
+		// grab whatever ran last in the repo. Reopening a stranger's conversation
+		// under this card's name is worse than admitting the history is lost.
+		// A fresh conversation gets its own pinned id, so the card owns something
+		// resumable again instead of pointing at the dead one forever.
+		let lost: string | null = null;
+		if (sessionId) {
+			try {
+				if (
+					!(
+						await utils.client.terminal.claudeSessionExists.query({ sessionId })
+					).exists
+				) {
+					lost = crypto.randomUUID();
+				}
+			} catch {
+				// couldn't check — resume it anyway, same as before
+			}
+		}
 		if (!sessionId && cwd) {
 			try {
 				const found = await utils.client.terminal.findClaudeSession.query({
@@ -1339,9 +1369,11 @@ function DevBoardPage() {
 		// No opening prompt: Resume reopens the conversation at an idle prompt,
 		// it doesn't put the agent back to work. Deciding what happens next is
 		// the whole reason you came back to the session.
-		const resumeCmd = sessionId
-			? `claude --dangerously-skip-permissions --resume ${sessionId}`
-			: "claude --dangerously-skip-permissions --continue";
+		const resumeCmd = lost
+			? `claude --dangerously-skip-permissions --session-id ${lost}`
+			: sessionId
+				? `claude --dangerously-skip-permissions --resume ${sessionId}`
+				: "claude --dangerously-skip-permissions --continue";
 		try {
 			// Free the pane (dead or a live cold-restored shell) so the respawn
 			// re-runs the command. Ignore errors — pane may already be dead.
@@ -1367,6 +1399,7 @@ function DevBoardPage() {
 						odinParked: false,
 						interrupted: false,
 						completed: false,
+						...(lost ? { claudeSessionId: lost } : {}),
 					},
 				},
 			}));
@@ -1389,7 +1422,11 @@ function DevBoardPage() {
 			// ponytail: no toast on the happy path — the card renders its own
 			// "resuming…" spinner, and a toast over the board hides other cards.
 			// Only the ambiguous --continue fallback is worth interrupting for.
-			if (!sessionId) {
+			if (lost) {
+				toast.warning(
+					"Claude kept no transcript for this session — started a fresh one here",
+				);
+			} else if (!sessionId) {
 				toast.info(
 					"Resuming latest session in this repo (no session id found)",
 				);

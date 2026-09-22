@@ -9,6 +9,7 @@ import {
 	repoNameOf,
 	searchSessions,
 	summarizeTranscript,
+	transcriptOf,
 	workingRepoOf,
 } from "./claude-sessions";
 
@@ -681,5 +682,40 @@ describe("workingRepoOf", () => {
 			...Array(4).fill(worktree),
 		]);
 		return expect(workingRepoOf(SESSION, root)).resolves.toBe(worktree);
+	});
+});
+
+/**
+ * The check behind Resume. A pane pins its conversation id at launch
+ * (`--session-id`), but that is not proof Claude ever wrote the transcript —
+ * one board session ran a full turn and left none, so Resume ran
+ * `claude --resume <id>`, got "No conversation found with session ID" and
+ * exited into a dead pane.
+ */
+describe("transcriptOf", () => {
+	test("finds a session by id alone, across projects", async () => {
+		const root = fixtureRoot();
+		const found = await transcriptOf(
+			"bbbb1111-2222-3333-4444-555566667777",
+			root,
+		);
+		expect(found?.path).toContain("bbbb1111-2222-3333-4444-555566667777.jsonl");
+	});
+
+	test("an id Claude never wrote is null, not a guess", async () => {
+		const root = fixtureRoot();
+		expect(
+			await transcriptOf("29c5f5da-1c1e-40b8-8914-4a9b89830be2", root),
+		).toBeNull();
+	});
+
+	test("a subagent side-conversation is not a resumable session", async () => {
+		const root = fixtureRoot();
+		expect(await transcriptOf("agent-x", root)).toBeNull();
+	});
+
+	test("a path pretending to be an id gets no filesystem walk", async () => {
+		const root = fixtureRoot();
+		expect(await transcriptOf("../../../etc/passwd", root)).toBeNull();
 	});
 });
