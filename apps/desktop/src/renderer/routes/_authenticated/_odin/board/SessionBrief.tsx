@@ -1,6 +1,6 @@
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { usePaneMeta } from "../hooks/usePaneMeta";
-import { notionPages, pullRequests, sessionBrief, slackThread } from "./brief";
+import { notionPage, pullRequests, sessionBrief, slackThread } from "./brief";
 
 /**
  * Session brief — the drawer's side panel. Answers "what did I walk into?".
@@ -114,7 +114,7 @@ export function SessionBrief({
 	const facts = transcript ? sessionBrief(transcript.messages) : null;
 	const prs = transcript ? pullRequests(transcript.messages) : [];
 	const thread = transcript ? slackThread(transcript.messages) : null;
-	const pages = transcript ? notionPages(transcript.messages) : [];
+	const page = transcript ? notionPage(transcript.messages) : null;
 	// An <a> in the renderer would navigate the app window; PRs open in a browser.
 	const openUrl = electronTrpc.external.openUrl.useMutation();
 
@@ -206,23 +206,16 @@ export function SessionBrief({
 								</div>
 							</Section>
 						)}
-						{pages.length > 0 && (
-							<Section
-								label={pages.length === 1 ? "Notion page" : "Notion pages"}
-							>
-								<div className="flex flex-col gap-1">
-									{pages.map((page) => (
-										<button
-											key={page.id}
-											type="button"
-											title={page.url}
-											onClick={() => openUrl.mutate(page.url)}
-											className="truncate text-left text-[12px] text-[#a394ff] hover:underline"
-										>
-											{page.title ?? "Notion page"} ↗
-										</button>
-									))}
-								</div>
+						{page && (
+							<Section label="Notion page">
+								<button
+									type="button"
+									title={page.url}
+									onClick={() => openUrl.mutate(page.url)}
+									className="block w-full truncate text-left text-[12px] text-[#a394ff] hover:underline"
+								>
+									{page.title ?? "Notion page"} ↗
+								</button>
 							</Section>
 						)}
 						{facts && (

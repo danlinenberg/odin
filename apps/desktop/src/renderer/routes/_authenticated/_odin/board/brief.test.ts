@@ -3,7 +3,7 @@ import {
 	type BriefMessage,
 	elapsedLabel,
 	lastMessageAt,
-	notionPages,
+	notionPage,
 	projectSlug,
 	pullRequests,
 	sessionBrief,
@@ -176,56 +176,51 @@ const BACKLOG = "https://app.notion.com/p/3dd9a1b573ff81eeab56d1a8065f87c7";
 const ADR =
 	"https://www.notion.so/imagen-ai/Spot-Instances-with-On-Demand-Fallback-3d19a1b573ff819b8237f88195e3780f";
 
-describe("notionPages", () => {
-	it("collects each page once, newest first, titled from the slug", () => {
+describe("notionPage", () => {
+	it("keeps one page, the one whose slug names it", () => {
 		expect(
-			notionPages([
+			notionPage([
 				user("write it up"),
 				claude(`Published ${BACKLOG}`),
 				claude(`And the ADR: ${ADR}`),
 			]),
-		).toEqual([
-			{
-				url: ADR,
-				id: "3d19a1b573ff819b8237f88195e3780f",
-				title: "Spot Instances with On Demand Fallback",
-			},
-			{
-				url: BACKLOG,
-				id: "3dd9a1b573ff81eeab56d1a8065f87c7",
-				title: null,
-			},
-		]);
+		).toEqual({
+			url: ADR,
+			id: "3d19a1b573ff819b8237f88195e3780f",
+			title: "Spot Instances with On Demand Fallback",
+		});
+	});
+
+	it("falls back to the newest page when none is titled", () => {
+		const other = "https://app.notion.com/p/3dd9a1b573ff81eeab56d1a8065f87c8";
+		expect(notionPage([claude(BACKLOG), claude(other)])?.url).toBe(other);
 	});
 
 	it("treats a /p/ link and a slug link to one page as one page", () => {
-		const pages = notionPages([
-			claude(`${ADR}`),
-			claude(
-				"https://app.notion.com/p/3d19a1b573ff819b8237f88195e3780f?pvs=204",
-			),
-		]);
-		expect(pages).toHaveLength(1);
-		expect(pages[0]?.url).toBe(ADR);
+		expect(
+			notionPage([
+				claude(`${ADR}`),
+				claude(
+					"https://app.notion.com/p/3d19a1b573ff819b8237f88195e3780f?pvs=204",
+				),
+			])?.url,
+		).toBe(ADR);
 	});
 
 	it("strips the markdown and prose around a link", () => {
-		const pages = notionPages([
-			claude(`see [the board](${BACKLOG}) and note it.`),
-		]);
-		expect(pages[0]?.url).toBe(BACKLOG);
+		expect(
+			notionPage([claude(`see [the board](${BACKLOG}) and note it.`)])?.url,
+		).toBe(BACKLOG);
 	});
 
 	it("ignores a Notion url carrying no page id", () => {
 		expect(
-			notionPages([claude("https://www.notion.so/imagen-ai"), claude("done")]),
-		).toEqual([]);
+			notionPage([claude("https://www.notion.so/imagen-ai"), claude("done")]),
+		).toBeNull();
 	});
 
 	it("skips a page you pasted as the input", () => {
-		expect(notionPages([user(`update ${BACKLOG}`), claude("done")])).toEqual(
-			[],
-		);
+		expect(notionPage([user(`update ${BACKLOG}`), claude("done")])).toBeNull();
 	});
 });
 

@@ -58,7 +58,7 @@ import { PANE_STATUS } from "../pane-status";
 import {
 	elapsedLabel,
 	lastMessageAt,
-	notionPages,
+	notionPage,
 	pullRequests,
 	sourceLink,
 } from "./brief";
@@ -268,17 +268,12 @@ function PrPill({ card, live }: { card: BoardCard; live: boolean }) {
 function NotionPill({ card, live }: { card: BoardCard; live: boolean }) {
 	const { data } = useCardTranscript(card, live);
 	const openUrl = electronTrpc.external.openUrl.useMutation();
-	const pages = data ? notionPages(data.messages) : [];
-	const page = pages[0];
+	const page = data ? notionPage(data.messages) : null;
 	if (!page) return null;
 	return (
 		<button
 			type="button"
-			title={
-				pages.length > 1
-					? `${pages.length} Notion pages — newest: ${page.url}`
-					: (page.title ?? page.url)
-			}
+			title={page.title ?? page.url}
 			onClick={(event) => {
 				// The card itself opens the drawer; the pill opens Notion.
 				event.stopPropagation();
@@ -287,7 +282,6 @@ function NotionPill({ card, live }: { card: BoardCard; live: boolean }) {
 			className="rounded-[5px] bg-[#232329] px-[7px] text-[11px] font-medium text-[#d6d6dc] hover:bg-[#2c2c34]"
 		>
 			Notion
-			{pages.length > 1 ? ` +${pages.length - 1}` : ""}
 		</button>
 	);
 }
