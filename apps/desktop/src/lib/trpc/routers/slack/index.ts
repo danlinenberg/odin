@@ -15,12 +15,12 @@ import {
 	channelLabel,
 	mentionedUserIds,
 	normalizeReaction,
-	oldestExaminedTs,
 	pickEyedMessages,
 	QUEUE_REACTION,
 	type ReactionStatus,
 	reactionStatus,
 	replaceMentions,
+	rowsToVerify,
 	type SlackReactionsListItem,
 	toTitle,
 } from "./reactions";
@@ -190,13 +190,13 @@ async function resolveMentions(text: string, token: string): Promise<string> {
 /**
  * Pull the current queue reactions into the local table.
  *
- * ponytail: one page of `reactions.list` (100 items, newest first). Because
- * rows persist, a poll that misses older reactions still accumulates them over
- * time; paginate here if a burst of other reactions ever pushes them off the
- * first page.
+ * ponytail: one page of `reactions.list` (100 items). Because rows persist, a
+ * poll that misses older reactions still accumulates them over time; paginate
+ * here if a burst of other reactions ever pushes them off the first page.
  *
- * Changing the reaction retires the old rows the normal way: they stop coming
- * back from Slack, so the sweep below marks them unreacted.
+ * That page finds new rows. It cannot retire old ones — Slack orders it by
+ * when I reacted, so falling off the end says nothing about the message — so
+ * retirement is a separate, per-row question at the bottom.
  */
 async function syncReactions(token: string, reaction: string): Promise<void> {
 	// Every read and write below is fenced to the profile whose token this is.
@@ -266,19 +266,64 @@ async function syncReactions(token: string, reaction: string): Promise<void> {
 			.run();
 	}
 
-	// Un-reacted rows, but only inside the window this page actually covered —
-	// anything older wasn't examined, so its reaction can't be assumed gone.
-	const oldest = oldestExaminedTs(items);
-	if (oldest === null) return;
+	// Retiring a row takes asking about that row. Absence from the page above
+	// means nothing — see `rowsToVerify` — and this stamp is what the Review
+	// screen turns into a DROP, so it is only ever set off an answer.
 	const stillEyed = new Set(eyed.map((message) => message.id));
-	for (const row of existing.values()) {
-		if (row.unreactedAt !== null || stillEyed.has(row.id)) continue;
-		if (Number(row.messageTs) < Number(oldest)) continue;
+	for (const row of rowsToVerify(
+		[...existing.values()],
+		stillEyed,
+		VERIFY_PER_SYNC,
+	)) {
+		const on = await reactionStillOn(row, me.userId, reaction, token);
+		// Couldn't ask — a deleted message, a channel I left, a rate limit.
+		// Leave the row exactly as it was rather than guessing at it.
+		if (on === null) continue;
 		localDb
 			.update(slackReactions)
-			.set({ unreactedAt: now })
+			.set({
+				lastSeenAt: now,
+				// Already-retired rows keep the time they went, so re-checking one
+				// doesn't keep moving when it happened.
+				unreactedAt: on ? null : (row.unreactedAt ?? now),
+			})
 			.where(eq(slackReactions.id, row.id))
 			.run();
+	}
+}
+
+/** How many missing rows one sync asks Slack about. `reactions.get` is tier 3
+ * (~50/min) and the queue polls every 2 minutes, so this is nowhere near it. */
+const VERIFY_PER_SYNC = 8;
+
+/**
+ * Is the queue reaction still on this one message?
+ *
+ * null is "Slack wouldn't say", which must never read as "the reaction is
+ * gone": the row a stamp retires is the row a DROP on the Review screen
+ * deletes.
+ */
+async function reactionStillOn(
+	row: { channelId: string; messageTs: string },
+	myUserId: string,
+	reaction: string,
+	token: string,
+): Promise<boolean | null> {
+	try {
+		const res = await slackApi<
+			SlackResponse & {
+				message?: { reactions?: { name?: string; users?: string[] }[] };
+			}
+		>(
+			"reactions.get",
+			{ channel: row.channelId, timestamp: row.messageTs, full: "true" },
+			token,
+		);
+		return (res.message?.reactions ?? []).some(
+			(r) => r.name === reaction && (r.users ?? []).includes(myUserId),
+		);
+	} catch {
+		return null;
 	}
 }
 

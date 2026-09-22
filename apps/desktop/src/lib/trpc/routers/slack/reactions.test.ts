@@ -5,10 +5,10 @@ import {
 	isGreeting,
 	mentionedUserIds,
 	normalizeReaction,
-	oldestExaminedTs,
 	pickEyedMessages,
 	reactionStatus,
 	replaceMentions,
+	rowsToVerify,
 	type SlackReactionsListItem,
 	slackTextToPlain,
 	toTitle,
@@ -76,18 +76,40 @@ describe("pickEyedMessages", () => {
 	});
 });
 
-describe("oldestExaminedTs", () => {
-	test("compares numerically, not lexically", () => {
-		// "999999999.1" sorts above "1000000000.1" as a string.
-		const items = [
-			item({ ts: "1000000000.1" }, []),
-			item({ ts: "999999999.1" }, []),
-		];
-		expect(oldestExaminedTs(items)).toBe("999999999.1");
+describe("rowsToVerify", () => {
+	const row = (
+		id: string,
+		lastSeenAt: number,
+		doneAt: number | null = null,
+	) => ({
+		id,
+		lastSeenAt,
+		doneAt,
 	});
 
-	test("null when nothing was examined", () => {
-		expect(oldestExaminedTs([])).toBeNull();
+	test("asks about the rows the page didn't show, oldest sighting first", () => {
+		const rows = [row("a", 30), row("b", 10), row("c", 20)];
+		expect(rowsToVerify(rows, new Set(["a"]), 8).map((r) => r.id)).toEqual([
+			"b",
+			"c",
+		]);
+	});
+
+	test("a row still on the page is already answered", () => {
+		expect(rowsToVerify([row("a", 1)], new Set(["a"]), 8)).toEqual([]);
+	});
+
+	test("done rows don't spend the budget", () => {
+		const rows = [row("done", 1, 5), row("open", 2)];
+		expect(rowsToVerify(rows, new Set(), 8).map((r) => r.id)).toEqual(["open"]);
+	});
+
+	test("the budget caps one sync, and the rest rotate in on the next", () => {
+		const rows = [row("a", 1), row("b", 2), row("c", 3)];
+		expect(rowsToVerify(rows, new Set(), 2).map((r) => r.id)).toEqual([
+			"a",
+			"b",
+		]);
 	});
 });
 
