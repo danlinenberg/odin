@@ -28,6 +28,7 @@ import {
 	machineLoad,
 } from "shared/machine-load";
 import { FEED_TABS } from "./components/feed-counts";
+import { useDueReminders } from "./components/Reminders";
 import { QuickAddTask } from "./components/TaskBox";
 import { useAutomationRunner } from "./hooks/useAutomationRunner";
 import { useNeedsYouByProfile } from "./hooks/useNeedsYouByProfile";
@@ -146,6 +147,9 @@ function badgeTone(load: MachineLoad): string {
 }
 
 function OdinShell() {
+	// Due dates ping from the shell, not from the feed that set them: the feed
+	// you set it on is the one you're least likely to have open on the day.
+	useDueReminders();
 	const navigate = useNavigate();
 	const matchRoute = useMatchRoute();
 	const zoomFactor = useZoomFactor();
