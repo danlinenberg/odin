@@ -57,6 +57,8 @@ export interface AllItem {
 	urgency: Urgency;
 	/** Sort key in ms. 0 when the source didn't date it. */
 	at: number;
+	/** The date the source itself wants it by — Jira's Due Date. Ours overrides it. */
+	dueDate: string | null;
 	/** What to hand `launch` when Start session is clicked on this row. */
 	launch: AllLaunch;
 }
@@ -112,6 +114,7 @@ export function allItems(input: {
 		priority?: string | null;
 		reporter?: string | null;
 		updated: string | null;
+		dueDate?: string | null;
 	}[];
 	pulls: {
 		id: number;
@@ -149,6 +152,7 @@ export function allItems(input: {
 				priority: PRIORITY_LABELS[priorityOf(task)],
 				urgency: urgencyOf(PRIORITY_LABELS[priorityOf(task)]),
 				at: task.createdAt,
+				dueDate: null,
 				launch: {
 					key: task.id,
 					title: task.title,
@@ -174,6 +178,7 @@ export function allItems(input: {
 					urgency: null,
 					context: row.channelName,
 					at: ms(row.postedAt),
+					dueDate: null,
 					launch: {
 						key: row.id,
 						title: row.title,
@@ -205,6 +210,7 @@ export function allItems(input: {
 				urgency: urgencyOf(issue.priority),
 				context: issue.project,
 				at: ms(issue.updated),
+				dueDate: issue.dueDate ?? null,
 				launch: {
 					key: issue.key,
 					title: `${issue.key}: ${issue.title}`,
@@ -233,6 +239,7 @@ export function allItems(input: {
 					// Every repo is the same org — the column is for the repo name.
 					context: pull.repo.split("/").at(-1) ?? pull.repo,
 					at: ms(pull.updated),
+					dueDate: null,
 					launch: {
 						key: pull.url,
 						title: `${pull.repo}#${pull.number}: ${pull.title}`,
@@ -261,6 +268,7 @@ export function allItems(input: {
 				urgency: urgencyOf(row.priority),
 				context: row.channel ?? null,
 				at: ms(row.updatedAt ?? row.date),
+				dueDate: null,
 				launch: {
 					key: row.pageId,
 					title: row.title,

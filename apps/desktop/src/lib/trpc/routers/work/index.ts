@@ -68,6 +68,8 @@ export interface JiraIssueRow {
 	issueType: string | null;
 	reporter: string | null;
 	updated: string | null;
+	/** Jira's own Due Date, `YYYY-MM-DD`. Null on the tickets nobody dated. */
+	dueDate: string | null;
 	/** Why it's in my list: assigned to me, filed by me, or a comment @s me. */
 	role: "assigned" | "reported" | "mentioned";
 	/** What was said to me, on the rows that are here because of a mention. */
@@ -151,6 +153,7 @@ interface JiraSearchResponse {
 			issuetype?: { name?: string };
 			reporter?: { displayName?: string };
 			updated?: string;
+			duedate?: string;
 			comment?: { comments?: JiraComment[] };
 		};
 	}[];
@@ -341,7 +344,7 @@ export const createWorkRouter = () => {
 					const jql = `${match}${openOnly} ORDER BY updated DESC`;
 					// Comment bodies are only worth their weight on the mention rows,
 					// where they are the point.
-					const fields = `summary,status,priority,project,issuetype,reporter,assignee,updated${role === "mentioned" ? ",comment" : ""}`;
+					const fields = `summary,status,priority,project,issuetype,reporter,assignee,updated,duedate${role === "mentioned" ? ",comment" : ""}`;
 					const response = await fetch(
 						`${request.base}/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&maxResults=100&fields=${fields}`,
 						{ headers },
@@ -366,6 +369,7 @@ export const createWorkRouter = () => {
 						issueType: issue.fields?.issuetype?.name ?? null,
 						reporter: issue.fields?.reporter?.displayName ?? null,
 						updated: issue.fields?.updated ?? null,
+						dueDate: issue.fields?.duedate ?? null,
 						role,
 						mention: accountId
 							? latestMention(issue.fields?.comment?.comments ?? [], accountId)

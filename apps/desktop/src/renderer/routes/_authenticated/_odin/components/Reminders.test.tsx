@@ -1,14 +1,15 @@
 import { expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
+	DueChip,
 	dayOf,
 	daysUntil,
-	DueChip,
 	dueLabel,
 	dueToFire,
 	dueTone,
+	effectiveDue,
 	isDue,
-	useReminders,
+	mergeUpstream,
 } from "./Reminders";
 
 /** Late enough in the day that UTC has already rolled over east of Greenwich. */
@@ -40,14 +41,39 @@ test("how a due date reads and looks", () => {
 });
 
 test("due means today or past — tomorrow isn't due yet", () => {
-	const reminders = {
-		"jira:BUGT-1": { due: "2026-09-20", title: "late" },
-		"jira:BUGT-2": { due: "2026-09-22", title: "today" },
-		"jira:BUGT-3": { due: "2026-09-23", title: "tomorrow" },
-	};
-	expect(isDue("jira:BUGT-1", reminders, LATE_TODAY)).toBe(true);
-	expect(isDue("jira:BUGT-3", reminders, LATE_TODAY)).toBe(false);
-	expect(isDue("jira:BUGT-9", reminders, LATE_TODAY)).toBe(false);
+	expect(isDue("2026-09-20", LATE_TODAY)).toBe(true);
+	expect(isDue("2026-09-22", LATE_TODAY)).toBe(true);
+	expect(isDue("2026-09-23", LATE_TODAY)).toBe(false);
+	expect(isDue(null, LATE_TODAY)).toBe(false);
+});
+
+test("Jira's date shows through until Odin has one of its own", () => {
+	const mine = { "jira:BUGT-1": { due: "2026-10-01", title: "mine" } };
+	// Nothing local: the ticket's own date is what the row carries.
+	expect(effectiveDue("jira:BUGT-1", {}, "2026-09-25")).toBe("2026-09-25");
+	// Mine wins while it's there — and dropping it gives Jira's back, because
+	// Odin overwrites a deadline rather than deleting someone else's.
+	expect(effectiveDue("jira:BUGT-1", mine, "2026-09-25")).toBe("2026-10-01");
+	expect(effectiveDue("jira:BUGT-1", {}, null)).toBe(null);
+	expect(effectiveDue("jira:BUGT-9", mine, undefined)).toBe(null);
+});
+
+test("the ping runs on Jira's dates too, with mine laid over them", () => {
+	const upstream = [
+		{ key: "jira:BUGT-1", due: "2026-09-20", title: "BUGT-1: late" },
+		{ key: "jira:BUGT-2", due: "2026-09-22", title: "BUGT-2: today" },
+	];
+	// Pushed BUGT-1 out myself, so only Jira's other date is still due.
+	const mine = { "jira:BUGT-1": { due: "2026-12-01", title: "BUGT-1: moved" } };
+	const merged = mergeUpstream(mine, upstream);
+	expect(merged["jira:BUGT-1"]?.due).toBe("2026-12-01");
+	expect(merged["jira:BUGT-2"]?.due).toBe("2026-09-22");
+	expect(dueToFire(merged, {}, LATE_TODAY)).toEqual(["jira:BUGT-2"]);
+	// And with nothing of mine, Jira's overdue ticket speaks for itself.
+	expect(dueToFire(mergeUpstream({}, upstream), {}, LATE_TODAY)).toEqual([
+		"jira:BUGT-1",
+		"jira:BUGT-2",
+	]);
 });
 
 test("a row pings once a day, and again the next day it's still late", () => {
