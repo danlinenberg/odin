@@ -1192,6 +1192,58 @@ function DevBoardPage() {
 	}, [drawerCard, alivePaneIds]);
 
 	/**
+	 * Type "Continue" at a live agent's prompt. Text and Enter go in separate
+	 * writes: claude's TUI reads a chunk ending in a newline as a paste and
+	 * inserts it instead of submitting.
+	 */
+	const sendContinue = async (paneId: string) => {
+		await terminalWrite.mutateAsync({ paneId, data: "Continue" });
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		await terminalWrite.mutateAsync({ paneId, data: "\r" });
+	};
+
+	/**
+	 * Wait until Claude's TUI is actually on screen in a freshly respawned pane.
+	 * `claude --resume` takes a second or two to boot, and a write that lands
+	 * before it is reading is swallowed — the empty-session bug, again.
+	 *
+	 * ponytail: polls the same screen read the scan below uses, no new plumbing.
+	 * Ceiling: gives up after ~15s and says so, rather than typing into the void.
+	 */
+	const waitForAgent = async (
+		paneId: string,
+		tabId: string,
+		workspaceId: string,
+	): Promise<boolean> => {
+		// Same rule as the scan: send the mounted xterm's size, or a host that
+		// fills in a missing viewport resizes the live PTY to 80x24.
+		const mounted = terminalCache.get(paneId)?.xterm;
+		for (let attempt = 0; attempt < 15; attempt++) {
+			await new Promise((resolve) => setTimeout(resolve, 1_000));
+			try {
+				const result = (await utils.client.terminal.createOrAttach.mutate({
+					paneId,
+					tabId,
+					workspaceId,
+					skipColdRestore: true,
+					...(mounted && { cols: mounted.cols, rows: mounted.rows }),
+				})) as { snapshot?: { snapshotAnsi?: string }; scrollback?: string };
+				const screen = (
+					result?.snapshot?.snapshotAnsi ??
+					result?.scrollback ??
+					""
+				)
+					.replace(ANSI_RE, "")
+					.slice(-2500);
+				if (agentOnScreen(screen)) return true;
+			} catch {
+				// pane not up yet — try again
+			}
+		}
+		return false;
+	};
+
+	/**
 	 * Pick a session back up. On a live PTY that's literally writing "Continue"
 	 * into the open prompt — nothing to reopen.
 	 *
@@ -1228,22 +1280,22 @@ function DevBoardPage() {
 		}
 		// Live PTY: the button says Continue, so it just says Continue — the
 		// conversation is already open, killing it to reopen it would only cost
-		// the scrollback. Text and Enter go in separate writes: claude's TUI
-		// reads a chunk ending in a newline as a paste and inserts it instead
-		// of submitting.
+		// the scrollback.
 		if (agentPaneIds.has(card.pane.id)) {
 			try {
-				await terminalWrite.mutateAsync({
-					paneId: card.pane.id,
-					data: "Continue",
-				});
-				await new Promise((resolve) => setTimeout(resolve, 50));
-				await terminalWrite.mutateAsync({ paneId: card.pane.id, data: "\r" });
+				await sendContinue(card.pane.id);
 			} catch (error) {
 				toast.error(error instanceof Error ? error.message : String(error));
 			}
 			return;
 		}
+		// What it was doing when it died. A session killed mid-turn (app quit,
+		// daemon restart, machine asleep) keeps "working" on its pane — nothing
+		// clears it, which is what makes it readable now. Reopening that one at
+		// an idle prompt asks you to retype the obvious; reopening a session
+		// that had already stopped doesn't.
+		const diedWorking =
+			useTabsStore.getState().panes[card.pane.id]?.status === "working";
 		setResumingPaneIds((ids) => [...ids, card.pane.id]);
 		// The respawn puts Claude back in this PTY — don't make the next scan
 		// (up to 10s away, twice over) re-prove it before the card stops
@@ -1308,7 +1360,9 @@ function DevBoardPage() {
 					...state.panes,
 					[card.pane.id]: {
 						...state.panes[card.pane.id],
-						// Alive but not working — nothing was asked of it.
+						// Alive but not working — nothing was asked of it. A session
+						// that died mid-turn is put back to work below and takes
+						// "working" back then, once the agent is actually up.
 						status: "idle",
 						odinParked: false,
 						interrupted: false,
@@ -1317,6 +1371,21 @@ function DevBoardPage() {
 				},
 			}));
 			setDrawerCard(null);
+			// It was mid-turn when it died, so reopening the conversation isn't
+			// picking it back up — the agent sits there with the job half done
+			// waiting to be told the obvious. Tell it.
+			if (diedWorking) {
+				void (async () => {
+					if (!(await waitForAgent(card.pane.id, card.tabId, card.workspaceId)))
+						return;
+					try {
+						await sendContinue(card.pane.id);
+						setPaneStatusFromStore(card.pane.id, "working");
+					} catch {
+						// the conversation is open either way — type it yourself
+					}
+				})();
+			}
 			// ponytail: no toast on the happy path — the card renders its own
 			// "resuming…" spinner, and a toast over the board hides other cards.
 			// Only the ambiguous --continue fallback is worth interrupting for.
@@ -1742,6 +1811,14 @@ function DevBoardPage() {
 																					✗ failed
 																				</span>
 																			)}
+																			{/* Resume does more here than on the other
+																		    cards — it puts the agent back to work
+																		    instead of handing you a prompt. */}
+																			{card.pane.status === "working" && (
+																				<span className="text-[11.5px] text-[#f5b83d]">
+																					⏸ died mid-turn
+																				</span>
+																			)}
 																			<button
 																				type="button"
 																				onClick={(event) => {
@@ -2007,7 +2084,9 @@ function DevBoardPage() {
 											? "Already working — resuming would kill the running turn"
 											: agentPaneIds.has(drawerCard.pane.id)
 												? 'Session is open — send it "Continue"'
-												: "Reopen this conversation at an idle prompt (claude --resume)"
+												: drawerCard.pane.status === "working"
+													? 'Died mid-turn — reopen it and send "Continue"'
+													: "Reopen this conversation at an idle prompt (claude --resume)"
 									}
 									className="rounded-[7px] bg-[#14301f] px-3 py-1.5 text-xs font-semibold text-[#3ecf8e] hover:bg-[#1a3d28] disabled:opacity-60 disabled:hover:bg-[#14301f]"
 								>
