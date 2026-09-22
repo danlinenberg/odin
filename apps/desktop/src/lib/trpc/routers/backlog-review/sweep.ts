@@ -97,7 +97,8 @@ export interface SweepDeps {
 	slackThread(id: string): Promise<{
 		replies: number;
 		answeredByMe: boolean;
-		lastAuthor: string | null;
+		/** False when Slack truncated the replier list — see `slackThreadReplies`. */
+		repliersComplete: boolean;
 	} | null>;
 }
 
@@ -160,11 +161,15 @@ export async function sweepItem(
 			};
 		if (thread.answeredByMe)
 			return { verdict: "DROP", evidence: "you replied in the thread" };
-		if (thread.replies > 0)
+		if (thread.replies > 0) {
+			const count = `${thread.replies} ${thread.replies === 1 ? "reply" : "replies"}`;
 			return {
 				verdict: "KEEP",
-				evidence: `${thread.replies} ${thread.replies === 1 ? "reply" : "replies"}, last from ${thread.lastAuthor ?? "someone else"}`,
+				// Only claim none of them are mine when Slack listed every replier.
+				// A truncated list says nothing about who isn't on it.
+				evidence: thread.repliersComplete ? `${count}, none from you` : count,
 			};
+		}
 		return { verdict: "KEEP", evidence: "nobody has replied" };
 	}
 
