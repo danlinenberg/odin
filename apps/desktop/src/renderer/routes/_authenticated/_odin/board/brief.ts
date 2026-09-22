@@ -118,16 +118,20 @@ function notionTitle(url: string, id: string): string | null {
 }
 
 /**
- * Notion pages this session produced, most recent first — pullRequests for the
- * sessions whose deliverable is a document rather than a diff. Those sessions
- * were leaving the brief with no link at all: a card that shipped code got a PR
- * pill, a card that shipped a page got nothing, and the one artefact you wanted
- * to reopen was the one you had to go digging through the transcript for.
+ * The one Notion page this session produced — pullRequests for the sessions
+ * whose deliverable is a document rather than a diff. Those sessions were
+ * leaving the brief with no link at all: a card that shipped code got a PR
+ * pill, a card that shipped a page got nothing.
+ *
+ * One page, not a list. A session that reads a Notion database quotes a url
+ * per row, and rows come back as bare /p/<id> with no slug — so the brief was
+ * rendering a dozen identical "Notion page" lines, which is worse than none.
+ * A titled page therefore beats an untitled newer one; otherwise newest wins.
  *
  * Keyed by page id, because the same page comes out as /p/<id> in one turn and
- * as a slug url in the next, and two rows for one page is noise.
+ * as a slug url in the next.
  */
-export function notionPages(messages: BriefMessage[]): NotionPageLink[] {
+export function notionPage(messages: BriefMessage[]): NotionPageLink | null {
 	const found = new Map<string, NotionPageLink>();
 	for (const message of messages.filter((m) => m.role === "assistant")) {
 		for (const match of message.text.match(NOTION_URL) ?? []) {
@@ -138,7 +142,8 @@ export function notionPages(messages: BriefMessage[]): NotionPageLink[] {
 			found.set(id, { url, id, title: notionTitle(url, id) });
 		}
 	}
-	return [...found.values()].reverse();
+	const pages = [...found.values()].reverse();
+	return pages.find((page) => page.title) ?? pages[0] ?? null;
 }
 
 // Trailing ")" / "." is markdown and prose. The query string carries thread_ts,
