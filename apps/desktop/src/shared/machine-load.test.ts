@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import {
-	heavySessionLabel,
 	type MachineLoadInput,
 	machineLoad,
+	sessionUsageLabel,
 } from "./machine-load";
 
 const GB = 1024 ** 3;
@@ -131,20 +131,27 @@ describe("machineLoad", () => {
 	});
 });
 
-describe("heavySessionLabel", () => {
-	it("says nothing about a session that isn't costing anything", () => {
-		expect(heavySessionLabel({ cpu: 4, memory: 0.4 * GB })).toBeNull();
+describe("sessionUsageLabel", () => {
+	it("names a quiet session's memory without calling it heavy", () => {
+		expect(sessionUsageLabel({ cpu: 4, memory: 0.4 * GB })).toEqual({
+			label: "0.4 GB",
+			heavy: false,
+		});
 	});
 
-	it("names the memory a heavy session is holding", () => {
-		expect(heavySessionLabel({ cpu: 3, memory: 3.42 * GB })).toBe("3.4 GB");
+	it("marks a session holding a lot of memory as heavy", () => {
+		expect(sessionUsageLabel({ cpu: 3, memory: 3.42 * GB })).toEqual({
+			label: "3.4 GB",
+			heavy: true,
+		});
 	});
 
 	// A small session pinning a core is heavy too, and its memory alone would
 	// never say so.
 	it("adds the CPU when that's the part that's high", () => {
-		expect(heavySessionLabel({ cpu: 140, memory: 0.5 * GB })).toBe(
-			"0.5 GB · 140% CPU",
-		);
+		expect(sessionUsageLabel({ cpu: 140, memory: 0.5 * GB })).toEqual({
+			label: "0.5 GB · 140% CPU",
+			heavy: true,
+		});
 	});
 });

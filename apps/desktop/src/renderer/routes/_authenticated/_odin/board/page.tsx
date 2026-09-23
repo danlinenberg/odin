@@ -37,7 +37,7 @@ import {
 	bySection,
 	SECTION_LABEL,
 } from "shared/board-section";
-import { heavySessionLabel } from "shared/machine-load";
+import { sessionUsageLabel } from "shared/machine-load";
 import { profileOf } from "shared/odin-profile";
 import {
 	agentOnScreen,
@@ -372,8 +372,8 @@ function AgePill({
  * already says nine sessions hold 11 GB; this says which three of them do.
  *
  * Same snapshot the chip reads — one query, shared by every card through the
- * React Query cache — and it only appears above the threshold, so a board of
- * parked sessions stays quiet.
+ * React Query cache. Every card shows it; only a heavy one turns amber and
+ * gets the flame, so a board of parked sessions stays quiet but still adds up.
  */
 function LoadPill({ card }: { card: BoardCard }) {
 	const { data } = electronTrpc.resourceMetrics.getSnapshot.useQuery(
@@ -383,14 +383,17 @@ function LoadPill({ card }: { card: BoardCard }) {
 	const usage = data?.workspaces
 		.flatMap((workspace) => workspace.sessions)
 		.find((session) => session.paneId === card.pane.id);
-	const label = usage ? heavySessionLabel(usage) : null;
-	if (!label) return null;
+	if (!usage) return null;
+	const { label, heavy } = sessionUsageLabel(usage);
 	return (
 		<span
 			title="What this session's processes are holding right now"
-			className="inline-flex items-center gap-1 rounded-[5px] bg-[#2a1f12] px-[7px] text-[11px] font-medium tabular-nums text-[#f5b83d]"
+			className={cn(
+				"inline-flex items-center gap-1 rounded-[5px] px-[7px] text-[11px] font-medium tabular-nums",
+				heavy ? "bg-[#2a1f12] text-[#f5b83d]" : "bg-[#1f1f27] text-[#8a8a97]",
+			)}
 		>
-			<LuFlame className="size-3 shrink-0" aria-hidden />
+			{heavy && <LuFlame className="size-3 shrink-0" aria-hidden />}
 			{label}
 		</span>
 	);

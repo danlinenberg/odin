@@ -141,7 +141,7 @@ export function machineLoad(snapshot: MachineLoadInput): MachineLoad {
 }
 
 /**
- * Enough of this Mac for one session to be worth naming on its card.
+ * Enough of this Mac for one session's badge to turn loud.
  *
  * ponytail: two fixed numbers, same knob as BUSY_AGENT_CPU_PERCENT. 2 GB is
  * roughly double what a parked session holds; 80% is most of one core held
@@ -159,19 +159,23 @@ export interface SessionUsage {
 }
 
 /**
- * What a heavy session's badge says, or null when it isn't heavy.
+ * What a session's badge says, and whether it's heavy enough to be loud.
  *
- * A number rather than a rank: the board splits cards across four status
- * columns, so "the heaviest" has to survive being read one card at a time.
- * "3.4 GB" does that; a "#1" badge only means something next to the others.
- * Memory is always named — it's what the header chip counts, so the badges add
- * up to it — and CPU only when it's the thing that's high.
+ * Every card gets one: a board that "already feels slow" with nothing marked
+ * can't tell you where the memory went. Memory is always named — it's what the
+ * header chip counts, so the badges add up to it — and CPU only when it's the
+ * thing that's high. `heavy` only picks the colour.
  */
-export function heavySessionLabel(usage: SessionUsage): string | null {
+export function sessionUsageLabel(usage: SessionUsage): {
+	label: string;
+	heavy: boolean;
+} {
 	const memoryGb = gb(usage.memory);
 	const cpuPercent = percent(usage.cpu);
 	const heavyCpu = cpuPercent >= HEAVY_CPU_PERCENT;
-	if (memoryGb < HEAVY_MEMORY_GB && !heavyCpu) return null;
 	const label = `${Math.round(memoryGb * 10) / 10} GB`;
-	return heavyCpu ? `${label} · ${cpuPercent}% CPU` : label;
+	return {
+		label: heavyCpu ? `${label} · ${cpuPercent}% CPU` : label,
+		heavy: heavyCpu || memoryGb >= HEAVY_MEMORY_GB,
+	};
 }
