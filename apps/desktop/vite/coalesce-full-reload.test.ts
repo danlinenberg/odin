@@ -4,8 +4,19 @@ import { coalesceFullReloadPlugin } from "./helpers";
 
 function fakeServer() {
 	const sent: unknown[] = [];
+	const listeners: Record<string, (data: unknown) => void> = {};
 	const server = {
-		environments: { client: { hot: { send: (p: unknown) => sent.push(p) } } },
+		environments: {
+			client: {
+				hot: {
+					send: (p: unknown) => sent.push(p),
+					on: (e: string, fn: (data: unknown) => void) => {
+						listeners[e] = fn;
+					},
+				},
+			},
+		},
+		emit: (e: string, data?: unknown) => listeners[e]?.(data),
 		config: { logger: { info: () => {} } },
 	};
 	return { sent, server };
@@ -48,4 +59,33 @@ test("a save storm that never goes quiet still reloads once maxHold passes", asy
 	await new Promise((r) => setTimeout(r, 50));
 	hot.send(reload);
 	expect(sent).toEqual([reload]);
+});
+
+test("an open session pane holds everything; closing it lands one reload", async () => {
+	const { sent, server } = fakeServer();
+	install(coalesceFullReloadPlugin({ quietMs: 10, maxHoldMs: 20 }), server);
+	const hot = server.environments.client.hot;
+
+	server.emit("odin:session-pane", true);
+	hot.send(update);
+	hot.send(reload);
+	await new Promise((r) => setTimeout(r, 50));
+	hot.send(reload);
+	expect(sent).toEqual([]);
+
+	server.emit("odin:session-pane", false);
+	expect(sent).toEqual([reload]);
+});
+
+test("closing a pane with only hot updates held replays them in order", () => {
+	const { sent, server } = fakeServer();
+	install(coalesceFullReloadPlugin(), server);
+	const hot = server.environments.client.hot;
+	const second = { type: "update", updates: [1] };
+
+	server.emit("odin:session-pane", true);
+	hot.send(update);
+	hot.send(second);
+	server.emit("odin:session-pane", false);
+	expect(sent).toEqual([update, second]);
 });
