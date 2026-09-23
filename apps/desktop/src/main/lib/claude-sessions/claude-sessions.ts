@@ -629,6 +629,8 @@ export async function readTranscript({
 	title: string | null;
 	/** The real opening prompt — `messages` is only the tail of a long session. */
 	prompt: string | null;
+	/** A `/loop` (or any schedule) still armed in this conversation. */
+	loop: ActiveLoop | null;
 }> {
 	if (!isSafeSegment(sessionId) || (project && !isSafeSegment(project))) {
 		throw new Error("Invalid transcript reference");
@@ -637,7 +639,81 @@ export async function readTranscript({
 	if (!dir) throw new Error("No transcript on this machine for that session");
 	const jsonl = await readFile(join(root, dir, `${sessionId}.jsonl`), "utf-8");
 	const { cwd, aiTitle, prompt } = summarizeTranscript(jsonl);
-	return { messages: parseTranscript(jsonl), cwd, title: aiTitle, prompt };
+	return {
+		messages: parseTranscript(jsonl),
+		cwd,
+		title: aiTitle,
+		prompt,
+		loop: activeLoop(jsonl),
+	};
+}
+
+export interface ActiveLoop {
+	/** "cron" = a fixed interval (`/loop 5m …`); "wakeup" = self-paced. */
+	kind: "cron" | "wakeup";
+	/** The cron expression, or when the next self-paced wakeup fires (ISO). */
+	schedule: string;
+	prompt: string | null;
+}
+
+/** Recurring cron jobs expire on their own after this long. */
+const CRON_LIFETIME_MS = 7 * 86_400_000;
+/** A woken turn can run a while before it books the next wakeup. */
+const WAKEUP_GRACE_MS = 15 * 60_000;
+
+/**
+ * Whether this conversation is running under `/loop`, read from the schedule
+ * tool calls it made: a recurring CronCreate not yet CronDeleted, or a
+ * ScheduleWakeup whose fire time (plus a turn's grace) hasn't passed and that
+ * wasn't a `stop`. Both only live inside the running claude process — the
+ * caller has to check the session is still up.
+ *
+ * ponytail: crons are counted, not matched by id — the id is only in the
+ * tool_result text. Match ids if sessions ever juggle several jobs.
+ */
+export function activeLoop(
+	jsonl: string,
+	now: number = Date.now(),
+): ActiveLoop | null {
+	const crons: ActiveLoop[] = [];
+	let wakeup: { at: number; loop: ActiveLoop } | null = null;
+	for (const line of jsonl.split("\n")) {
+		if (!line.includes('"tool_use"')) continue;
+		let entry: { timestamp?: unknown; message?: { content?: unknown } };
+		try {
+			entry = JSON.parse(line);
+		} catch {
+			continue;
+		}
+		const at = Date.parse(String(entry.timestamp));
+		const content = entry.message?.content;
+		if (!Array.isArray(content) || Number.isNaN(at)) continue;
+		for (const block of content) {
+			if (block?.type !== "tool_use") continue;
+			const input = (block.input ?? {}) as Record<string, unknown>;
+			const prompt = typeof input.prompt === "string" ? input.prompt : null;
+			if (block.name === "CronCreate") {
+				if (input.recurring === false || now - at > CRON_LIFETIME_MS) continue;
+				crons.push({ kind: "cron", schedule: String(input.cron), prompt });
+			} else if (block.name === "CronDelete") {
+				crons.shift();
+			} else if (block.name === "ScheduleWakeup") {
+				const fireAt = at + Number(input.delaySeconds ?? 0) * 1000;
+				wakeup = input.stop
+					? null
+					: {
+							at: fireAt,
+							loop: {
+								kind: "wakeup",
+								schedule: new Date(fireAt).toISOString(),
+								prompt,
+							},
+						};
+			}
+		}
+	}
+	if (crons.length) return crons[crons.length - 1] as ActiveLoop;
+	return wakeup && now < wakeup.at + WAKEUP_GRACE_MS ? wakeup.loop : null;
 }
 
 /** The checkout containing `dir`, or null outside a repo. */

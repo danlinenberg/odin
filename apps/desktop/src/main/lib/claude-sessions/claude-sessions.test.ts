@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+	activeLoop,
 	parseTranscript,
 	queryTerms,
 	readTranscript,
@@ -740,5 +741,53 @@ describe("transcriptOf", () => {
 	test("a path pretending to be an id gets no filesystem walk", async () => {
 		const root = fixtureRoot();
 		expect(await transcriptOf("../../../etc/passwd", root)).toBeNull();
+	});
+});
+
+describe("activeLoop", () => {
+	const call = (name: string, input: object, at = "2026-09-23T10:00:00.000Z") =>
+		JSON.stringify({
+			type: "assistant",
+			timestamp: at,
+			message: { content: [{ type: "tool_use", id: "t", name, input }] },
+		});
+	const now = Date.parse("2026-09-23T10:05:00.000Z");
+
+	test("a recurring cron is a loop until it's deleted", () => {
+		const created = call("CronCreate", {
+			cron: "*/5 * * * *",
+			prompt: "check CI",
+		});
+		expect(activeLoop(created, now)).toEqual({
+			kind: "cron",
+			schedule: "*/5 * * * *",
+			prompt: "check CI",
+		});
+		expect(
+			activeLoop(`${created}\n${call("CronDelete", { id: "x" })}`, now),
+		).toBeNull();
+		expect(
+			activeLoop(
+				call("CronCreate", {
+					cron: "1 9 * * *",
+					prompt: "p",
+					recurring: false,
+				}),
+				now,
+			),
+		).toBeNull();
+	});
+
+	test("a self-paced wakeup holds until it's overdue or stopped", () => {
+		const wake = call("ScheduleWakeup", { delaySeconds: 600, prompt: "go" });
+		expect(activeLoop(wake, now)?.kind).toBe("wakeup");
+		expect(activeLoop(wake, now + 60 * 60_000)).toBeNull();
+		expect(
+			activeLoop(`${wake}\n${call("ScheduleWakeup", { stop: true })}`, now),
+		).toBeNull();
+	});
+
+	test("no schedule, no loop", () => {
+		expect(activeLoop(user("/loop 5m check CI"), now)).toBeNull();
 	});
 });
