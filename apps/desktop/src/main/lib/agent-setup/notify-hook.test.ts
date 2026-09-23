@@ -46,7 +46,7 @@ async function runNotifyHook(
 
 describe("getNotifyScriptContent", () => {
 	it("bumps the notify hook marker when hook semantics change", () => {
-		expect(NOTIFY_SCRIPT_MARKER).toBe("# Odin agent notification hook v5");
+		expect(NOTIFY_SCRIPT_MARKER).toBe("# Odin agent notification hook v6");
 	});
 
 	it("emits the v2 host-service payload with full agent identity", () => {
@@ -186,6 +186,29 @@ describe("getNotifyScriptContent", () => {
 		expect(result.stderr.toString()).toContain(
 			"[notify-hook] event=PermissionRequest",
 		);
+	});
+
+	it.each([
+		["Done.\n\nACTION ITEMS:\n1. Restart Odin dev.", "PermissionRequest"],
+		["Done.\n\n**ACTION ITEMS**\n- Merge #12", "PermissionRequest"],
+		["Done.\n\nACTION ITEMS: none — nothing left.", "Stop"],
+		["Done.\n\nAction items: None, all merged.", "Stop"],
+		["Quoting ACTION ITEMS:\n1. x\n\nACTION ITEMS: none", "Stop"],
+		["No closing section at all.", "Stop"],
+	])("a Stop ending %j reports %s", async (message, expected) => {
+		const result = await runNotifyHook({
+			hook_event_name: "Stop",
+			last_assistant_message: message,
+		});
+
+		expect(result.stderr.toString()).toContain(
+			`[notify-hook] event=${expected} `,
+		);
+	});
+
+	it("a Stop without last_assistant_message stays Stop", async () => {
+		const result = await runNotifyHook({ hook_event_name: "Stop" });
+		expect(result.stderr.toString()).toContain("[notify-hook] event=Stop ");
 	});
 
 	it("ignores unrelated Grok notification subtypes", async () => {

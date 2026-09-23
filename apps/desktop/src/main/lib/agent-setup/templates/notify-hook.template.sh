@@ -53,6 +53,30 @@ if [ "$EVENT_TYPE" = "notification" ]; then
   esac
 fi
 
+has_open_action_items() {
+  printf '%s' "$1" | awk '
+    { s = s $0 "\n" }
+    END {
+      gsub(/\\n/, "\n", s)
+      u = toupper(s); p = 0; at = 0
+      while ((j = index(substr(u, p + 1), "ACTION ITEMS")) > 0) { p += j; at = p }
+      if (!at) exit 1
+      t = substr(s, at + 12)
+      if (tolower(t) ~ /^[^a-z0-9]*none/) exit 1
+      n = split(t, lines, "\n")
+      for (k = 1; k <= n; k++)
+        if (lines[k] ~ /^[ \t]*([0-9]+[.)]|[-*])[ \t]+[^ \t]/) exit 0
+      exit 1
+    }'
+}
+if [ "$EVENT_TYPE" = "Stop" ]; then
+  case "$INPUT" in
+    *'"last_assistant_message"'*)
+      has_open_action_items "${INPUT#*\"last_assistant_message\"}" && EVENT_TYPE="PermissionRequest"
+      ;;
+  esac
+fi
+
 # UserPromptSubmit normalizes here; other aliases are mapped server-side
 # by mapEventType so the wire stays a single source of truth.
 [ "$EVENT_TYPE" = "UserPromptSubmit" ] && EVENT_TYPE="Start"
