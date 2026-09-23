@@ -782,5 +782,20 @@ describe("env", () => {
 				expect(result.TERM_THEME).toBe("light");
 			});
 		});
+
+		describe("GH_TOKEN pins gh to Odin's connected account", () => {
+			it("should set GH_TOKEN when a token is passed", () => {
+				const result = buildTerminalEnv({
+					...baseParams,
+					githubToken: "gho_x",
+				});
+				expect(result.GH_TOKEN).toBe("gho_x");
+			});
+
+			it("should leave GH_TOKEN unset without one", () => {
+				delete process.env.GH_TOKEN;
+				expect(buildTerminalEnv(baseParams).GH_TOKEN).toBeUndefined();
+			});
+		});
 	});
 });

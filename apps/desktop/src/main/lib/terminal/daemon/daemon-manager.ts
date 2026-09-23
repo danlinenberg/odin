@@ -3,6 +3,7 @@ import { workspaces } from "@odin/local-db";
 import { track } from "main/lib/analytics";
 import { appState } from "main/lib/app-state";
 import { localDb } from "main/lib/local-db";
+import { githubCliToken } from "../../github-token";
 import { HistoryReader, truncateUtf8ToLastBytes } from "../../terminal-history";
 import {
 	disposeTerminalHostClient,
@@ -441,6 +442,7 @@ export class DaemonTerminalManager extends EventEmitter {
 				workspacePath,
 				rootPath,
 				themeType,
+				githubToken: (await githubCliToken()) ?? undefined,
 			});
 
 			if (DEBUG_TERMINAL) {

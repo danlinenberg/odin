@@ -442,6 +442,7 @@ export function buildTerminalEnv(params: {
 	workspacePath?: string;
 	rootPath?: string;
 	themeType?: "dark" | "light";
+	githubToken?: string;
 }): Record<string, string> {
 	const {
 		shell,
@@ -452,6 +453,7 @@ export function buildTerminalEnv(params: {
 		workspacePath,
 		rootPath,
 		themeType,
+		githubToken,
 	} = params;
 
 	// Get Electron's process.env and filter to only allowlisted safe vars
@@ -494,6 +496,7 @@ export function buildTerminalEnv(params: {
 		ODIN_ENV: env.NODE_ENV === "development" ? "development" : "production",
 		// Hook protocol version for forward compatibility
 		ODIN_HOOK_VERSION: HOOK_PROTOCOL_VERSION,
+		...(githubToken ? { GH_TOKEN: githubToken } : {}),
 	};
 
 	delete terminalEnv.GOOGLE_API_KEY;
