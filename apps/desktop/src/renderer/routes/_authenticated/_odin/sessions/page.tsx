@@ -23,7 +23,7 @@ export const Route = createFileRoute("/_authenticated/_odin/sessions/")({
  * The board can't do this: its cards are named by whatever was typed at launch
  * ("Work on Odin", twenty times over), they only cover panes that still exist,
  * and their history is de-ANSI'd terminal mush. Claude's own transcripts have
- * the real prompt, its own generated title, and the prose of every turn — so
+ * the real prompt, the card's title as launched, and the prose of every turn — so
  * that's what this searches. Conversations started outside Odin live in the
  * same store and are filtered out server-side; they were never this app's work.
  *
@@ -441,9 +441,9 @@ function SessionsPage() {
 							<div className="truncate text-sm font-semibold">
 								{openRow.title}
 							</div>
-							{/* The title is Claude's own paraphrase; the task you actually
-							    asked for is the opening prompt, and the transcript opens
-							    scrolled past it. */}
+							{/* The title is the card's, often elided; the whole ask is
+							    the opening prompt, and the transcript opens scrolled
+							    past it. */}
 							{openRow.prompt && (
 								<div className="mt-1 line-clamp-3 select-text cursor-text text-[12px] leading-relaxed text-[#a5a5b3]">
 									{openRow.prompt}
