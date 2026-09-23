@@ -386,21 +386,25 @@ function OdinShell() {
 						    question on a stable release too. Two measurements, no
 						    forecast: see MachineLoad.availableMemoryGb. */}
 						{load && (
-							<span
-								title={
-									load.busy
+							<Tooltip delayDuration={300}>
+								<TooltipTrigger asChild>
+									<span
+										className={cn(
+											"rounded-[6px] px-2 py-[3px] text-[11px] font-semibold tabular-nums",
+											badgeTone(load),
+										)}
+									>
+										{load.busy
+											? `${load.reason} · launches waiting`
+											: `${load.agentCount} ${load.agentCount === 1 ? "session" : "sessions"} using ${load.agentMemoryGb} GB · ${load.availableMemoryGb} GB free`}
+									</span>
+								</TooltipTrigger>
+								<TooltipContent side="bottom" className="max-w-[280px]">
+									{load.busy
 										? `${load.reason} — new sessions wait until that clears. ${load.agentCount} session(s) using ${load.agentMemoryGb} GB; this Mac is ${load.cpuPercent}% busy with ${load.availableMemoryGb} GB free.`
-										: `${load.agentCount} session(s) using ${load.agentMemoryGb} GB of memory. This Mac has ${load.availableMemoryGb} GB free. Agents are on ${load.agentCpuPercent}% of the CPU · this Mac is ${load.cpuPercent}% busy.`
-								}
-								className={cn(
-									"rounded-[6px] px-2 py-[3px] text-[11px] font-semibold tabular-nums",
-									badgeTone(load),
-								)}
-							>
-								{load.busy
-									? `${load.reason} · launches waiting`
-									: `${load.agentCount} ${load.agentCount === 1 ? "session" : "sessions"} using ${load.agentMemoryGb} GB · ${load.availableMemoryGb} GB free`}
-							</span>
+										: `${load.agentCount} session(s) using ${load.agentMemoryGb} GB of memory. This Mac has ${load.availableMemoryGb} GB free. Agents are on ${load.agentCpuPercent}% of the CPU · this Mac is ${load.cpuPercent}% busy.`}
+								</TooltipContent>
+							</Tooltip>
 						)}
 					</div>
 				</ZoomStable>
