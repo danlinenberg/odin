@@ -49,6 +49,7 @@ import { BOARD_TAGS, boardTags } from "shared/odin-tags";
 import {
 	OdinPromptDialog,
 	type PromptImage,
+	cardBody,
 	sessionTitle,
 	untruncatedTitle,
 } from "../components/OdinPromptDialog";
@@ -614,6 +615,11 @@ function DevBoardPage() {
 	// the pane name to "Claude Code" once it starts.
 	// `panes` first: the drawer holds a snapshot card, so a rename has to be read
 	// from the live pane or the drawer keeps showing the old name.
+	// A Slack card launched with only the cut title as its brief still has its
+	// whole message in the feed.
+	const cardSource = (card: BoardCard) =>
+		(card.pane.odinPageId && slackTextById.get(card.pane.odinPageId)) ||
+		(card.pane.odinBrief ?? briefByPane[card.pane.id] ?? null);
 	const cardTitle = (card: BoardCard) =>
 		emojify(
 			untruncatedTitle(
@@ -623,12 +629,14 @@ function DevBoardPage() {
 					card.pane.userTitle ??
 					card.pane.name ??
 					card.tabName,
-				// A Slack card launched with only the cut title as its brief still
-				// has its whole message in the feed.
-				(card.pane.odinPageId && slackTextById.get(card.pane.odinPageId)) ||
-					(card.pane.odinBrief ?? briefByPane[card.pane.id] ?? null),
+				cardSource(card),
 			),
 		);
+	// The full message under an auto-renamed (or first-line) title.
+	const cardText = (card: BoardCard) => {
+		const body = cardBody(cardTitle(card), cardSource(card));
+		return body && emojify(body);
+	};
 	// Point of contact: the pane's own record (shared app-state) first, then the
 	// legacy localStorage mirror for panes launched before that existed.
 	const cardContact = (card: BoardCard) =>
@@ -1899,6 +1907,11 @@ function DevBoardPage() {
 																<div className="flex items-start gap-2">
 																	<div className="min-w-0 flex-1 break-words text-[12.5px] font-semibold">
 																		{cardTitle(card)}
+																		{cardText(card) && (
+																			<div className="mt-1 whitespace-pre-wrap text-[11.5px] font-normal leading-relaxed text-[#a5a5b3]">
+																				{cardText(card)}
+																			</div>
+																		)}
 																	</div>
 																	<button
 																		type="button"
