@@ -271,7 +271,8 @@ export function SessionBrief({
 									type="button"
 									title={thread}
 									onClick={() => openUrl.mutate(thread)}
-									className="truncate text-left text-[12px] text-[#a394ff] hover:underline"
+									dir="auto"
+									className="line-clamp-2 w-full text-start text-[12px] text-[#a394ff] hover:underline"
 								>
 									{threadPreview?.text ?? "Open thread"} ↗
 								</button>
@@ -358,9 +359,14 @@ export function SessionBrief({
 									type="button"
 									title={url}
 									onClick={() => openUrl.mutate(url)}
-									className="min-w-0 text-left hover:underline"
+									className="min-w-0 flex-1 text-left hover:underline"
 								>
-									<div className="truncate text-[12px] text-[#a394ff]">
+									{/* dir="auto": a Hebrew message reads right-to-left and
+									    clamps at its own end, not mid-sentence from the left. */}
+									<div
+										dir="auto"
+										className="line-clamp-2 text-start text-[12px] text-[#a394ff]"
+									>
 										{title} ↗
 									</div>
 									{where && (
