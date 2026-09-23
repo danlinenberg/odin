@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import type { Pane } from "renderer/stores/tabs/types";
-import { activeSessions } from "./useActiveSessions";
+import { activeSessions } from "./active-sessions";
+import type { Pane } from "./tabs-types";
 
 const pane = (p: Partial<Pane> & { id: string }): Pane =>
 	({
