@@ -2220,7 +2220,7 @@ function DevBoardPage() {
 					<button
 						type="button"
 						aria-label="Close drawer"
-						className="fixed inset-0 z-40 cursor-default bg-black/35"
+						className="fixed inset-0 z-40 cursor-default bg-black/35 bg-none"
 						onClick={() => setDrawerCard(null)}
 					/>
 					{/* absolute, not fixed: it fills the content area, which starts below

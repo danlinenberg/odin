@@ -482,7 +482,7 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 			<button
 				type="button"
 				aria-label="Cancel"
-				className="fixed inset-0 z-40 cursor-default bg-black/50"
+				className="fixed inset-0 z-40 cursor-default bg-black/50 bg-none"
 				onClick={onClose}
 			/>
 			<div
