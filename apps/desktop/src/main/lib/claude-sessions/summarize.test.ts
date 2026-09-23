@@ -313,6 +313,24 @@ describe("warmBriefs", () => {
 		expect(titles[session]).toBe("t");
 	});
 
+	test("a brief cached with #automation doesn't pass it on to a card", async () => {
+		const { session, root, cachePath } = fixture();
+		writeFileSync(
+			cachePath,
+			JSON.stringify({
+				[session]: {
+					brief: { tags: ["automation", "chore"] },
+				},
+			}),
+		);
+		const { tags } = await warmBriefs([session], {
+			claudeBin: "/nonexistent",
+			root,
+			cachePath,
+		});
+		expect(tags[session]).toEqual(["chore"]);
+	});
+
 	test("queues a session once, however often the board re-fires", async () => {
 		const { session, root, bin, cachePath, runCount } = fixture();
 		await warmBriefs([session], { claudeBin: bin, root, cachePath });

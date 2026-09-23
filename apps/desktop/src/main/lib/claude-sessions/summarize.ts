@@ -354,7 +354,8 @@ export async function warmBriefs(
 	const titles: Record<string, string> = {};
 	for (const id of sessionIds) {
 		const brief = cache.get(id)?.brief;
-		if (brief?.tags?.length) tags[id] = brief.tags;
+		const cached = brief?.tags?.filter((tag) => BRIEF_TAGS.includes(tag));
+		if (cached?.length) tags[id] = cached;
 		if (brief?.title) titles[id] = brief.title;
 	}
 	return { queued, tags, titles };
