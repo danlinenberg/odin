@@ -21,9 +21,9 @@ import { useTaskQueue } from "renderer/hooks/useTaskQueue";
 import { useZoomFactor } from "renderer/hooks/useZoomFactor";
 import { useHotkey } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { useLaunchLimits } from "renderer/stores/launch-limits";
 import {
-	BUSY_AGENT_CPU_PERCENT,
-	BUSY_HOST_CPU_PERCENT,
+	type LaunchLimits,
 	type MachineLoad,
 	machineLoad,
 } from "shared/machine-load";
@@ -132,13 +132,13 @@ const NAV_HOTKEY_OPTIONS = {
  * agents' share and the whole machine's; the GB are eyeballed thresholds that
  * only pick a colour, so nothing rides on them being exactly right.
  */
-function badgeTone(load: MachineLoad): string {
+function badgeTone(load: MachineLoad, limits: LaunchLimits): string {
 	if (load.busy || load.availableMemoryGb < 1) {
 		return "bg-[#3a1a20] text-[#f0647a]";
 	}
 	if (
-		load.agentCpuPercent >= BUSY_AGENT_CPU_PERCENT / 2 ||
-		load.cpuPercent >= BUSY_HOST_CPU_PERCENT - 15 ||
+		load.agentCpuPercent >= limits.agentCpuPercent / 2 ||
+		load.cpuPercent >= limits.hostCpuPercent - 15 ||
 		load.availableMemoryGb < 2
 	) {
 		return "bg-[#3a2f16] text-[#f5b83d]";
@@ -164,7 +164,10 @@ function OdinShell() {
 		undefined,
 		{ refetchInterval: 5_000 },
 	);
-	const load = metrics ? machineLoad(metrics) : null;
+	const agentCpuPercent = useLaunchLimits((s) => s.agentCpuPercent);
+	const hostCpuPercent = useLaunchLimits((s) => s.hostCpuPercent);
+	const limits = { agentCpuPercent, hostCpuPercent };
+	const load = metrics ? machineLoad(metrics, limits) : null;
 
 	// The accounts in play. Switching resets every query, so the feeds below
 	// refetch against the new profile's Slack/Jira/GitHub rather than showing
@@ -391,7 +394,7 @@ function OdinShell() {
 									<span
 										className={cn(
 											"rounded-[6px] px-2 py-[3px] text-[11px] font-semibold tabular-nums",
-											badgeTone(load),
+											badgeTone(load, limits),
 										)}
 									>
 										{load.busy

@@ -1,16 +1,19 @@
 import { ODIN_AUTO_RENAME_SESSIONS_DEFAULT } from "@odin/shared/constants";
+import { Input } from "@odin/ui/input";
 import { Label } from "@odin/ui/label";
 import { Switch } from "@odin/ui/switch";
 import { createFileRoute } from "@tanstack/react-router";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { useLaunchLimits } from "renderer/stores/launch-limits";
+import type { LaunchLimits } from "shared/machine-load";
 
 export const Route = createFileRoute("/_authenticated/settings/board/")({
 	component: BoardSettingsPage,
 });
 
 /**
- * The board's own settings. One toggle so far — no item-visibility plumbing,
- * because every setting on this page is Odin's own and shows in every variant.
+ * The board's own settings — no item-visibility plumbing, because every
+ * setting on this page is Odin's own and shows in every variant.
  */
 function BoardSettingsPage() {
 	const utils = electronTrpc.useUtils();
@@ -40,7 +43,7 @@ function BoardSettingsPage() {
 			<div className="mb-8">
 				<h2 className="text-xl font-semibold">Board</h2>
 				<p className="text-sm text-muted-foreground mt-1">
-					How the board names and shows your sessions
+					How the board names, shows and starts your sessions
 				</p>
 			</div>
 
@@ -67,6 +70,67 @@ function BoardSettingsPage() {
 						disabled={isLoading || setAutoRename.isPending}
 					/>
 				</div>
+
+				<LaunchLimitRow
+					id="launch-limit-agents"
+					field="agentCpuPercent"
+					label="Hold new sessions when agents use"
+					description="Odin's own sessions' share of this Mac's CPU. At or above it, a new session waits in Idle → Queued and starts once they calm down."
+				/>
+				<LaunchLimitRow
+					id="launch-limit-host"
+					field="hostCpuPercent"
+					label="Hold new sessions when this Mac is"
+					description="How busy the whole Mac is — builds, Docker, anything, not just Odin. Lower it if the Mac already feels slow before sessions start queueing."
+				/>
+			</div>
+		</div>
+	);
+}
+
+/**
+ * One CPU limit for the launch gate, 1–100%. Takes effect on the next queue
+ * tick (5s) and the next launch; no restart.
+ */
+function LaunchLimitRow({
+	id,
+	field,
+	label,
+	description,
+}: {
+	id: string;
+	field: keyof LaunchLimits;
+	label: string;
+	description: string;
+}) {
+	const value = useLaunchLimits((s) => s[field]);
+	const setLimits = useLaunchLimits((s) => s.setLimits);
+	return (
+		<div className="flex items-center justify-between gap-6">
+			<div className="space-y-0.5">
+				<Label htmlFor={id} className="text-sm font-medium">
+					{label}
+				</Label>
+				<p className="text-xs text-muted-foreground">{description}</p>
+			</div>
+			<div className="flex shrink-0 items-center gap-1.5">
+				<Input
+					id={id}
+					type="number"
+					min={1}
+					max={100}
+					defaultValue={value}
+					className="w-20 tabular-nums"
+					onChange={(event) => {
+						const next = event.target.valueAsNumber;
+						// ponytail: an empty or out-of-range box keeps the last good
+						// value rather than arguing — the field is the only place to fix it.
+						if (Number.isInteger(next) && next >= 1 && next <= 100) {
+							setLimits({ [field]: next });
+						}
+					}}
+				/>
+				<span className="text-sm text-muted-foreground">%</span>
 			</div>
 		</div>
 	);

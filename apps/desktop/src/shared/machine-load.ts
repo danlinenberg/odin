@@ -37,8 +37,7 @@ export interface MachineLoadInput {
  * waits.
  *
  * ponytail: one fixed number, tuned on a 12-core Mac that idles at ~10% with a
- * dozen sessions parked. It's the knob — move it to ~/.config/odin.json if a
- * different machine argues with it. 70 tripped long after the Mac was already
+ * dozen sessions parked. The default — Settings → Board overrides it. 70 tripped long after the Mac was already
  * sluggish; 25 queued launches on a Mac that was coping. 45 sits between.
  */
 export const BUSY_AGENT_CPU_PERCENT = 45;
@@ -52,6 +51,17 @@ export const BUSY_AGENT_CPU_PERCENT = 45;
  * 70 whose CPU it is stops mattering.
  */
 export const BUSY_HOST_CPU_PERCENT = 70;
+
+/** The two CPU limits a launch waits on, as Settings → Board has them. */
+export interface LaunchLimits {
+	agentCpuPercent: number;
+	hostCpuPercent: number;
+}
+
+export const DEFAULT_LAUNCH_LIMITS: LaunchLimits = {
+	agentCpuPercent: BUSY_AGENT_CPU_PERCENT,
+	hostCpuPercent: BUSY_HOST_CPU_PERCENT,
+};
 
 export interface MachineLoad {
 	/**
@@ -107,7 +117,10 @@ function gb(bytes: number): number {
 	return Number.isFinite(value) ? Math.max(0, value) : 0;
 }
 
-export function machineLoad(snapshot: MachineLoadInput): MachineLoad {
+export function machineLoad(
+	snapshot: MachineLoadInput,
+	limits: LaunchLimits = DEFAULT_LAUNCH_LIMITS,
+): MachineLoad {
 	const cores = Math.max(1, snapshot.host.cpuCoreCount);
 	const agentCpuPercent = percent(snapshot.totalCpu / cores);
 	const agentCount = snapshot.workspaces.reduce(
@@ -115,11 +128,11 @@ export function machineLoad(snapshot: MachineLoadInput): MachineLoad {
 		0,
 	);
 	const hostCpuPercent = percent(snapshot.host.cpuUsagePercent ?? 0);
-	const agentsBusy = agentCpuPercent >= BUSY_AGENT_CPU_PERCENT;
+	const agentsBusy = agentCpuPercent >= limits.agentCpuPercent;
 	// The whole Mac counts, not only our slice of it: a build, a Docker daemon
 	// or someone else's agent runner leaves the same missing headroom, and a
 	// new session lands in it just as hard.
-	const hostBusy = hostCpuPercent >= BUSY_HOST_CPU_PERCENT;
+	const hostBusy = hostCpuPercent >= limits.hostCpuPercent;
 	const busy = agentsBusy || hostBusy;
 	const memoryGb = gb(snapshot.totalMemory);
 
