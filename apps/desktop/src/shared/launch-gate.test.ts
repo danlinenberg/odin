@@ -37,7 +37,7 @@ describe("launchBlocker", () => {
 			pane({ id: "a", status: "working", initialCwd: ODIN, name: "x" }),
 		];
 		expect(launchBlocker(snapshot(10), held, ODIN, ODIN)).toBe(
-			'"x" is running in Odin\'s checkout',
+			'waiting for "x" to finish in Odin\'s checkout',
 		);
 		// Another repo is unaffected — the gate is about the one checkout.
 		expect(launchBlocker(snapshot(10), held, "/tmp/repo", ODIN)).toBeNull();

@@ -117,21 +117,21 @@ export function useTaskQueue(): void {
 		const queue = queuedPanes(panes);
 		const next = queue[0];
 		if (!next) return;
-		const blockerFor = (pane: Pane) =>
-			launchBlocker(
-				metrics,
-				Object.values(panes),
-				queuedCwd(pane),
-				workConfig?.odinRepoPath,
-			);
-		const blocker = blockerFor(next);
+		const blocker = launchBlocker(
+			metrics,
+			Object.values(panes),
+			queuedCwd(next),
+			workConfig?.odinRepoPath,
+		);
 		if (blocker) {
-			refreshQueuedReasons(queue, (pane) =>
-				pane === next
+			// Only the head waits on the blocker; the rest wait on the card ahead,
+			// so repeating the blocker on every card says nothing new.
+			refreshQueuedReasons(queue, (pane) => {
+				const place = queue.indexOf(pane);
+				return place === 0
 					? blocker
-					: (blockerFor(pane) ??
-						`waiting behind "${next.odinTaskTitle ?? next.name}"`),
-			);
+					: `#${place + 1} in line, after "${queue[place - 1].odinTaskTitle ?? queue[place - 1].name}"`;
+			});
 			return;
 		}
 		starting.current = true;
