@@ -17,28 +17,48 @@ const OWNS_ITS_CHECKOUT = new Set(["working", "permission"]);
 /**
  * One path inside the other — the same checkout. Odin's `.worktrees/` lives
  * inside it, and a launch into `repo/apps/x` still edits `repo`.
- * ponytail: nesting by path, not by git root — a session launched in a plain
- * parent folder (`~/dev`) holds every repo under it. Resolve roots if that bites.
+ * ponytail: nesting by path, not by git root — a repo launch aimed at a parent
+ * folder holds every repo under it. Feed launches claim nothing (see
+ * claimedCheckout), so only an explicit pick of that folder hits this.
  */
 function sameCheckout(a: string, b: string): boolean {
 	return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);
 }
 
 /**
- * Where a session was launched. `odinCwd` first: opening a terminal clears
- * `initialCwd`, and a pane running claude directly never reports a `cwd`, so an
- * opened session has neither. The launch cwd, not `pane.cwd`, is the checkout
- * — an agent that cds into /tmp mid-run still holds the tree it started in.
- * #odin covers Odin sessions from before `odinCwd` existed.
+ * The checkout a launch claims while its agent works, or "" for none.
+ *
+ * A launch aimed at a repo claims it. A feed launch (Slack, Jira, PRs,
+ * automations) runs in the workspace folder — a parent like `~/dev` that the
+ * agent starts in, not the tree it edits — so it claims nothing: gating it
+ * would queue every feed session behind every other one, and nesting would
+ * lock every repo under that folder. Odin's own checkout is the exception, as
+ * it always was.
  */
-function launchCwd(pane: Pane, odinRepoPath: string | null | undefined) {
-	return (
-		pane.odinCwd ??
-		pane.initialCwd ??
-		(pane.odinTags?.includes("odin") ? odinRepoPath : null) ??
-		pane.cwd ??
-		""
-	);
+export function claimedCheckout(
+	repoPath: string | undefined,
+	worktreePath: string,
+	odinRepoPath: string | null | undefined,
+): string {
+	// A resume passes the old cwd back as repoPath: the workspace folder is
+	// still the workspace folder when it arrives that way.
+	if (repoPath && repoPath !== worktreePath) return repoPath;
+	return isOdinCwd(worktreePath, odinRepoPath) ? worktreePath : "";
+}
+
+/**
+ * The checkout a session holds. `odinCwd` is stamped at launch and survives
+ * opening a terminal, which clears `initialCwd`. Sessions from before it are
+ * only known for Odin: the #odin tag, or a launch cwd inside Odin's checkout.
+ * The launch cwd, not `pane.cwd`, is the checkout — an agent that cds into
+ * /tmp mid-run still holds the tree it started in.
+ */
+function heldCheckout(pane: Pane, odinRepoPath: string | null | undefined) {
+	if (pane.odinCwd) return pane.odinCwd;
+	if (!odinRepoPath) return "";
+	if (pane.odinTags?.includes("odin")) return odinRepoPath;
+	const launched = pane.initialCwd ?? pane.cwd ?? "";
+	return isOdinCwd(launched, odinRepoPath) ? launched : "";
 }
 
 /**
@@ -56,7 +76,7 @@ export function sessionInFlight(
 	const held = panes.find((pane) => {
 		if (pane.completed || !OWNS_ITS_CHECKOUT.has(pane.status ?? ""))
 			return false;
-		const theirs = launchCwd(pane, odinRepoPath);
+		const theirs = heldCheckout(pane, odinRepoPath);
 		return !!theirs && sameCheckout(theirs, cwd);
 	});
 	return held

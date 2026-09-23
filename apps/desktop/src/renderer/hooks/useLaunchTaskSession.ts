@@ -8,7 +8,7 @@ import {
 } from "renderer/stores/odin-rules";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import { isVideoFile } from "shared/file-types";
-import { launchBlocker } from "shared/launch-gate";
+import { claimedCheckout, launchBlocker } from "shared/launch-gate";
 import { withOdinTag } from "shared/odin-tags";
 
 function slugify(title: string): string {
@@ -253,6 +253,13 @@ export function useLaunchTaskSession() {
 				};
 			}
 			const sessionCwd = repoPath || worktreePath;
+			// The checkout this session claims — "" for a feed launch into the
+			// workspace folder, which is where agents start, not what they edit.
+			const checkout = claimedCheckout(
+				repoPath,
+				worktreePath,
+				workConfig?.odinRepoPath,
+			);
 
 			// 0. Two gates — the Mac's headroom, and one agent at a time per
 			// checkout. Read once, and never blocking: a launch that has to
@@ -268,7 +275,7 @@ export function useLaunchTaskSession() {
 					queuedReason = launchBlocker(
 						await utils.client.resourceMetrics.getSnapshot.query(),
 						Object.values(useTabsStore.getState().panes),
-						sessionCwd,
+						checkout,
 						workConfig?.odinRepoPath,
 						launchLimits(useLaunchLimits.getState()),
 					);
@@ -416,7 +423,7 @@ export function useLaunchTaskSession() {
 						claudeSessionId: sessionId,
 						odinTaskTitle: card.title,
 						odinProfile,
-						odinCwd: sessionCwd,
+						...(checkout ? { odinCwd: checkout } : {}),
 						...(card.contact ? { odinContact: card.contact } : {}),
 						...(brief ? { odinBrief: brief } : {}),
 						...(card.pageId ? { odinPageId: card.pageId } : {}),
