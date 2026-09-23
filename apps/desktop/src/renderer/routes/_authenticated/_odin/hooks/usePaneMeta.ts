@@ -10,11 +10,14 @@ import { persist } from "zustand/middleware";
  *  - notes:   whatever you typed into the session brief panel yourself — the
  *             written brief is regenerated from the transcript, so your own
  *             "don't forget X" needs somewhere of its own to live.
+ *  - links:   resources you attached to the brief yourself (another Slack
+ *             thread, a doc) — the brief only finds what the transcript quotes.
  */
 export const usePaneMeta = create<{
 	contactByPane: Record<string, string>;
 	briefByPane: Record<string, string>;
 	notesByPane: Record<string, string>;
+	linksByPane: Record<string, string[]>;
 	/** Task title captured at launch — Claude Code's OSC title overwrites the
 	 *  pane name/userTitle to "Claude Code", so the board reads this instead. */
 	titleByPane: Record<string, string>;
@@ -28,6 +31,8 @@ export const usePaneMeta = create<{
 	setContact: (paneId: string, contact: string) => void;
 	setBrief: (paneId: string, brief: string) => void;
 	setNotes: (paneId: string, notes: string) => void;
+	addLink: (paneId: string, url: string) => void;
+	removeLink: (paneId: string, url: string) => void;
 	setTitle: (paneId: string, title: string) => void;
 	setSessionId: (paneId: string, sessionId: string) => void;
 	setPaneForPage: (pageId: string, paneId: string) => void;
@@ -42,6 +47,7 @@ export const usePaneMeta = create<{
 			contactByPane: {},
 			briefByPane: {},
 			notesByPane: {},
+			linksByPane: {},
 			titleByPane: {},
 			sessionIdByPane: {},
 			paneByPage: {},
@@ -62,6 +68,22 @@ export const usePaneMeta = create<{
 						return { notesByPane: rest };
 					}
 					return { notesByPane: { ...s.notesByPane, [paneId]: notes } };
+				}),
+			addLink: (paneId, url) =>
+				set((s) => {
+					const links = s.linksByPane[paneId] ?? [];
+					if (links.includes(url)) return {};
+					return {
+						linksByPane: { ...s.linksByPane, [paneId]: [...links, url] },
+					};
+				}),
+			removeLink: (paneId, url) =>
+				set((s) => {
+					const links = (s.linksByPane[paneId] ?? []).filter((l) => l !== url);
+					const { [paneId]: _, ...rest } = s.linksByPane;
+					return {
+						linksByPane: links.length ? { ...rest, [paneId]: links } : rest,
+					};
 				}),
 			setTitle: (paneId, title) =>
 				set((s) => ({
@@ -85,6 +107,7 @@ export const usePaneMeta = create<{
 						contactByPane: drop(s.contactByPane),
 						briefByPane: drop(s.briefByPane),
 						notesByPane: drop(s.notesByPane),
+						linksByPane: drop(s.linksByPane),
 						titleByPane: drop(s.titleByPane),
 						sessionIdByPane: drop(s.sessionIdByPane),
 						paneByPage: Object.fromEntries(

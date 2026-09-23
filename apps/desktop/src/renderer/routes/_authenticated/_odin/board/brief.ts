@@ -249,3 +249,20 @@ export function sourceLink(
 		label: key ?? url.replace(/^https?:\/\/(www\.)?/, "").split("/")[0],
 	};
 }
+
+/**
+ * What a link you attached to the brief yourself is called: an issue key, a
+ * PR number, a Notion title, "Slack thread" — else its host, so a raw url
+ * never has to be read to know where it goes.
+ */
+export function linkLabel(url: string): string {
+	const pr = url.match(/github\.com\/[\w.-]+\/([\w.-]+)\/pull\/(\d+)/);
+	if (pr) return `${pr[1]} #${pr[2]}`;
+	if (/\.slack\.com\/archives\/[\w-]+\/p\d+/.test(url)) return "Slack thread";
+	if (/\.slack\.com\/archives\//.test(url)) return "Slack channel";
+	const notionId = /notion\.(?:so|com|site)\//.test(url)
+		? NOTION_ID.exec(url)?.[0]
+		: undefined;
+	if (notionId) return notionTitle(url, notionId) ?? "Notion page";
+	return sourceLink(url)?.label ?? url;
+}
