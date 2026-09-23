@@ -459,7 +459,7 @@ function CardHoverContent({
 			</div>
 			{contact && <PersonChip name={contact} />}
 			{summary && (
-				<div className="whitespace-pre-wrap break-words text-[11.5px] leading-relaxed text-[#a5a5b3]">
+				<div className="whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-[#d4d4dc]">
 					{summary}
 				</div>
 			)}
@@ -2048,7 +2048,7 @@ function DevBoardPage() {
 														<HoverCardContent
 															side="right"
 															align="start"
-															className="max-h-[70vh] w-[400px] overflow-y-auto border-[#25252e] bg-[#111114] p-3"
+															className="max-h-[70vh] w-[400px] overflow-y-auto border-[#4a4a5c] bg-[#1d1d24] p-3 shadow-[0_12px_40px_rgba(0,0,0,0.75)]"
 														>
 															<CardHoverContent
 																card={card}
