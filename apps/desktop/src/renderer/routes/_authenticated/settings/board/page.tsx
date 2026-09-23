@@ -72,16 +72,10 @@ function BoardSettingsPage() {
 				</div>
 
 				<LaunchLimitRow
-					id="launch-limit-agents"
-					field="agentCpuPercent"
-					label="Hold new sessions when agents use"
-					description="Odin's own sessions' share of this Mac's CPU. At or above it, a new session waits in Idle → Queued and starts once they calm down."
-				/>
-				<LaunchLimitRow
 					id="launch-limit-host"
 					field="hostCpuPercent"
 					label="Hold new sessions when this Mac is"
-					description="How busy the whole Mac is — builds, Docker, anything, not just Odin. Lower it if the Mac already feels slow before sessions start queueing."
+					description="How busy this Mac's CPU is — Odin's sessions, builds, Docker, anything. At or above it, a new session waits in Idle → Queued and starts once the Mac calms down. Lower it if the Mac feels slow before sessions start queueing."
 				/>
 			</div>
 		</div>

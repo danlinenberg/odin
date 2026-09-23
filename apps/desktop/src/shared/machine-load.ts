@@ -33,41 +33,31 @@ export interface MachineLoadInput {
 }
 
 /**
- * Share of the whole machine Odin's agents may burn before the next launch
- * waits.
+ * How much of the whole machine can be busy — anyone's work, Odin's agents
+ * included — before the next launch waits.
  *
- * ponytail: one fixed number, tuned on a 12-core Mac that idles at ~10% with a
- * dozen sessions parked. The default — Settings → Board overrides it. 70 tripped long after the Mac was already
- * sluggish; 25 queued launches on a Mac that was coping. 45 sits between.
- */
-export const BUSY_AGENT_CPU_PERCENT = 45;
-
-/**
- * How much of the whole machine can be busy — anyone's work, not just
- * Odin's — before the next launch waits.
+ * One number, not two: the agents' CPU is part of the Mac's, so a separate
+ * agent limit could only ever trip while the Mac still had room.
  *
- * ponytail: same knob as BUSY_AGENT_CPU_PERCENT. 85 let launches land on a
- * Mac that was already suffocating; 50 held them on one that was fine. Past
- * 70 whose CPU it is stops mattering.
+ * ponytail: the default — Settings → Board overrides it. 85 let launches land
+ * on a Mac that was already suffocating; 50 held them on one that was fine.
  */
 export const BUSY_HOST_CPU_PERCENT = 70;
 
-/** The two CPU limits a launch waits on, as Settings → Board has them. */
+/** The CPU limit a launch waits on, as Settings → Board has it. */
 export interface LaunchLimits {
-	agentCpuPercent: number;
 	hostCpuPercent: number;
 }
 
 export const DEFAULT_LAUNCH_LIMITS: LaunchLimits = {
-	agentCpuPercent: BUSY_AGENT_CPU_PERCENT,
 	hostCpuPercent: BUSY_HOST_CPU_PERCENT,
 };
 
 export interface MachineLoad {
 	/**
-	 * Share of the machine Odin's own agents are burning, 0–100+. The only
-	 * number that decides anything: it's measured per-process, so it can't
-	 * blame Claude for someone else's build.
+	 * Share of the machine Odin's own agents are burning, 0–100+. Shown, not
+	 * acted on — it's already inside `cpuPercent`. Measured per-process, so it
+	 * can't blame Claude for someone else's build.
 	 */
 	agentCpuPercent: number;
 	/**
@@ -128,19 +118,13 @@ export function machineLoad(
 		0,
 	);
 	const hostCpuPercent = percent(snapshot.host.cpuUsagePercent ?? 0);
-	const agentsBusy = agentCpuPercent >= limits.agentCpuPercent;
 	// The whole Mac counts, not only our slice of it: a build, a Docker daemon
 	// or someone else's agent runner leaves the same missing headroom, and a
 	// new session lands in it just as hard.
-	const hostBusy = hostCpuPercent >= limits.hostCpuPercent;
-	const busy = agentsBusy || hostBusy;
+	const busy = hostCpuPercent >= limits.hostCpuPercent;
 	const memoryGb = gb(snapshot.totalMemory);
 
-	const reason = agentsBusy
-		? `${agentCount} agent${agentCount === 1 ? "" : "s"} using ${agentCpuPercent}% of this Mac`
-		: hostBusy
-			? `this Mac is at ${hostCpuPercent}% CPU`
-			: null;
+	const reason = busy ? `this Mac is at ${hostCpuPercent}% CPU` : null;
 
 	return {
 		agentCpuPercent,
@@ -157,7 +141,7 @@ export function machineLoad(
 /**
  * Enough of this Mac for one session's badge to turn loud.
  *
- * ponytail: two fixed numbers, same knob as BUSY_AGENT_CPU_PERCENT. 2 GB is
+ * ponytail: two fixed numbers, same knob as BUSY_HOST_CPU_PERCENT. 2 GB is
  * roughly double what a parked session holds; 80% is most of one core held
  * down. Move them if a bigger Mac argues.
  */
