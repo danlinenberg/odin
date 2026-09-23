@@ -57,7 +57,10 @@ async function claudeUsage(): Promise<{
 				? { percent: Math.round(v.utilization), resetsAt: v.resets_at ?? null }
 				: null;
 		};
-		return { fiveHour: toWindow(body.five_hour), week: toWindow(body.seven_day) };
+		return {
+			fiveHour: toWindow(body.five_hour),
+			week: toWindow(body.seven_day),
+		};
 	} catch {
 		return null;
 	}
