@@ -17,6 +17,7 @@ import {
 	LuGitPullRequest,
 	LuHourglass,
 	LuPause,
+	LuRepeat,
 	LuTerminal,
 } from "react-icons/lu";
 import { SiJira, SiNotion, SiSlack } from "react-icons/si";
@@ -375,6 +376,37 @@ function AgePill({
  * React Query cache. Every card shows it; only a heavy one turns amber and
  * gets the flame, so a board of parked sessions stays quiet but still adds up.
  */
+/**
+ * This session is running under `/loop` — it will wake itself up again, so an
+ * idle card isn't done. Read from the schedule calls in its transcript; only
+ * asked of a session whose claude is still running, since the schedule dies
+ * with it.
+ */
+function LoopPill({ card }: { card: BoardCard }) {
+	const { data, refetch } = useCardTranscript(card, true);
+	// The schedule is booked at the very end of a turn — re-read as the card
+	// settles, or the last poll mid-turn misses it.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: re-read on status change only
+	useEffect(() => {
+		void refetch();
+	}, [card.status]);
+	const loop = data?.loop;
+	if (!loop) return null;
+	const next =
+		loop.kind === "wakeup"
+			? `next wake ${new Date(loop.schedule).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+			: `cron ${loop.schedule}`;
+	return (
+		<span
+			title={`Under /loop — ${next}${loop.prompt ? `\n${loop.prompt}` : ""}`}
+			className="inline-flex items-center gap-1 rounded-[5px] bg-[#2e2413] px-[7px] text-[11px] font-medium text-[#f5b83d]"
+		>
+			<LuRepeat className="size-3" aria-hidden />
+			loop
+		</span>
+	);
+}
+
 function LoadPill({ card }: { card: BoardCard }) {
 	const { data } = electronTrpc.resourceMetrics.getSnapshot.useQuery(
 		undefined,
@@ -1985,6 +2017,9 @@ function DevBoardPage() {
 																				?.at
 																		}
 																	/>
+																	{agentPaneIds.has(card.pane.id) && (
+																		<LoopPill card={card} />
+																	)}
 																	<LoadPill card={card} />
 																	{/* Last, and blank until you set one: a
 																	    deadline is yours, not something the
