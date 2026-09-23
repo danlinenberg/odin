@@ -313,6 +313,24 @@ describe("warmBriefs", () => {
 		expect(titles[session]).toBe("t");
 	});
 
+	test("a brief cached with #automation doesn't pass it on to a card", async () => {
+		const { session, root, cachePath } = fixture();
+		writeFileSync(
+			cachePath,
+			JSON.stringify({
+				[session]: {
+					brief: { tags: ["automation", "chore"] },
+				},
+			}),
+		);
+		const { tags } = await warmBriefs([session], {
+			claudeBin: "/nonexistent",
+			root,
+			cachePath,
+		});
+		expect(tags[session]).toEqual(["chore"]);
+	});
+
 	test("queues a session once, however often the board re-fires", async () => {
 		const { session, root, bin, cachePath, runCount } = fixture();
 		await warmBriefs([session], { claudeBin: bin, root, cachePath });
@@ -402,6 +420,13 @@ describe("parseBrief", () => {
 			"GOAL: x\nSTATUS: y\nNEXT: z\nTAGS: bug, chore, docs, infra",
 		);
 		expect(brief.tags).toEqual(["bug", "chore"]);
+	});
+
+	test("never hands out #automation, which only the scheduler may stamp", () => {
+		const brief = parseBrief(
+			"GOAL: x\nSTATUS: y\nNEXT: z\nTAGS: automation, chore",
+		);
+		expect(brief.tags).toEqual(["chore"]);
 	});
 
 	test("a session the model can't place gets no tags, not a wrong one", () => {
