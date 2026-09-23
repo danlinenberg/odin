@@ -144,6 +144,19 @@ function badgeTone(load: MachineLoad, limits: LaunchLimits): string {
 	return "bg-[#1f1f27] text-[#8a8a97]";
 }
 
+function usageTone(percent: number): string {
+	if (percent >= 90) return "bg-[#3a1a20] text-[#f0647a]";
+	if (percent >= 75) return "bg-[#3a2f16] text-[#f5b83d]";
+	return "bg-[#1f1f27] text-[#8a8a97]";
+}
+
+function resetsIn(resetsAt: string | null): string {
+	if (!resetsAt) return "";
+	const when = new Date(resetsAt);
+	const soon = when.getTime() - Date.now() < 24 * 3_600_000;
+	return `, resets ${when.toLocaleString(undefined, soon ? { hour: "numeric", minute: "2-digit" } : { weekday: "short", hour: "numeric" })}`;
+}
+
 function OdinShell() {
 	const navigate = useNavigate();
 	const matchRoute = useMatchRoute();
@@ -166,6 +179,11 @@ function OdinShell() {
 	const minFreeMemoryGb = useLaunchLimits((s) => s.minFreeMemoryGb);
 	const limits = { hostCpuPercent, minFreeMemoryGb };
 	const load = metrics ? machineLoad(metrics, limits) : null;
+	// Claude plan usage — the 5-hour window and the week, as /usage shows them.
+	const { data: usage } = electronTrpc.resourceMetrics.getClaudeUsage.useQuery(
+		undefined,
+		{ refetchInterval: 60_000 },
+	);
 
 	// The accounts in play. Switching resets every query, so the feeds below
 	// refetch against the new profile's Slack/Jira/GitHub rather than showing
@@ -382,6 +400,40 @@ function OdinShell() {
 				<div className="h-full min-w-0 flex-1 [-webkit-app-region:drag]" />
 				<ZoomStable enabled={isMac}>
 					<div className="flex items-center gap-1.5">
+						{usage && (usage.fiveHour || usage.week) && (
+							<Tooltip delayDuration={300}>
+								<TooltipTrigger asChild>
+									<span
+										className={cn(
+											"rounded-[6px] px-2 py-[3px] text-[11px] font-semibold tabular-nums",
+											usageTone(
+												Math.max(
+													usage.fiveHour?.percent ?? 0,
+													usage.week?.percent ?? 0,
+												),
+											),
+										)}
+									>
+										{[
+											usage.fiveHour && `5h ${usage.fiveHour.percent}%`,
+											usage.week && `week ${usage.week.percent}%`,
+										]
+											.filter(Boolean)
+											.join(" · ")}
+									</span>
+								</TooltipTrigger>
+								<TooltipContent side="bottom" className="max-w-[280px]">
+									{[
+										usage.fiveHour &&
+											`5-hour window: ${usage.fiveHour.percent}% used${resetsIn(usage.fiveHour.resetsAt)}.`,
+										usage.week &&
+											`This week: ${usage.week.percent}% used${resetsIn(usage.week.resetsAt)}.`,
+									]
+										.filter(Boolean)
+										.join(" ")}
+								</TooltipContent>
+							</Tooltip>
+						)}
 						{/* What the agents hold and what the Mac has left — every
 						    build, not just internal ones: "can I start another?" is a
 						    question on a stable release too. Two measurements, no
