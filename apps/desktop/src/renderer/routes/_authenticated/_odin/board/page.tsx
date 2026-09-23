@@ -64,6 +64,7 @@ import { PANE_STATUS } from "../pane-status";
 import {
 	elapsedLabel,
 	lastMessageAt,
+	nextCronFire,
 	notionPage,
 	pullRequests,
 	sourceLink,
@@ -382,19 +383,41 @@ function LoopPill({ card }: { card: BoardCard }) {
 	useEffect(() => {
 		void refetch();
 	}, [card.status]);
+	// Tick so the countdown moves on an idle card nobody re-renders.
+	const [now, setNow] = useState(Date.now);
+	useEffect(() => {
+		const id = setInterval(() => setNow(Date.now()), 30_000);
+		return () => clearInterval(id);
+	}, []);
 	const loop = data?.loop;
 	if (!loop) return null;
-	const next =
+	const nextAt =
 		loop.kind === "wakeup"
-			? `next wake ${new Date(loop.schedule).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-			: `cron ${loop.schedule}`;
+			? Date.parse(loop.schedule)
+			: nextCronFire(loop.schedule, now);
+	// A wakeup past its fire time is mid-turn, not "in -3m".
+	const countdown = nextAt && nextAt > now ? elapsedLabel(now, nextAt) : null;
+	const at = nextAt
+		? new Date(nextAt).toLocaleTimeString([], {
+				hour: "2-digit",
+				minute: "2-digit",
+			})
+		: null;
+	const next = [
+		loop.kind === "cron" && `cron ${loop.schedule}`,
+		at && `next run ${at}`,
+	]
+		.filter(Boolean)
+		.join(" — ");
 	return (
 		<span
 			title={`Under /loop — ${next}${loop.prompt ? `\n${loop.prompt}` : ""}`}
 			className="inline-flex items-center gap-1 rounded-[5px] bg-[#2e2413] px-[7px] text-[11px] font-medium text-[#f5b83d]"
 		>
 			<LuRepeat className="size-3" aria-hidden />
-			loop
+			{countdown
+				? `loop · ${countdown === "now" ? "<1m" : `in ${countdown}`}`
+				: "loop"}
 		</span>
 	);
 }

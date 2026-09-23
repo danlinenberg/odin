@@ -6,6 +6,7 @@ import {
 	lastMessageAt,
 	linkKind,
 	linkLabel,
+	nextCronFire,
 	notionPage,
 	parseLinks,
 	projectSlug,
@@ -429,5 +430,38 @@ describe("linkKind", () => {
 			linkKind("https://www.notion.so/Page-0123456789abcdef0123456789abcdef"),
 		).toBe("notion");
 		expect(linkKind("https://docs.google.com/x")).toBe("other");
+	});
+});
+
+describe("nextCronFire", () => {
+	// Local time, like CronCreate: Wed 2026-09-23 10:05.
+	const from = new Date(2026, 8, 23, 10, 5, 30).getTime();
+	const at = (ms: number | null) => (ms === null ? null : new Date(ms));
+
+	it("steps an hour field", () => {
+		// The screenshot's schedule: minute 17 of every 12th hour.
+		expect(at(nextCronFire("17 */12 * * *", from))).toEqual(
+			new Date(2026, 8, 23, 12, 17),
+		);
+	});
+
+	it("steps minutes and handles lists and ranges", () => {
+		expect(at(nextCronFire("*/5 * * * *", from))).toEqual(
+			new Date(2026, 8, 23, 10, 10),
+		);
+		expect(at(nextCronFire("0 9-10,14 * * *", from))).toEqual(
+			new Date(2026, 8, 23, 14, 0),
+		);
+	});
+
+	it("matches day-of-week, with 7 as Sunday", () => {
+		expect(at(nextCronFire("0 9 * * 7", from))).toEqual(
+			new Date(2026, 8, 27, 9, 0),
+		);
+	});
+
+	it("gives up on garbage and schedules beyond a week", () => {
+		expect(nextCronFire("nope", from)).toBeNull();
+		expect(nextCronFire("0 0 1 1 *", from)).toBeNull();
 	});
 });
