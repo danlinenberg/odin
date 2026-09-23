@@ -404,6 +404,13 @@ describe("parseBrief", () => {
 		expect(brief.tags).toEqual(["bug", "chore"]);
 	});
 
+	test("never hands out #automation, which only the scheduler may stamp", () => {
+		const brief = parseBrief(
+			"GOAL: x\nSTATUS: y\nNEXT: z\nTAGS: automation, chore",
+		);
+		expect(brief.tags).toEqual(["chore"]);
+	});
+
 	test("a session the model can't place gets no tags, not a wrong one", () => {
 		expect(parseBrief("GOAL: x\nSTATUS: y\nNEXT: z\nTAGS:").tags).toEqual([]);
 		expect(parseBrief("GOAL: x\nSTATUS: y\nNEXT: z").tags).toEqual([]);

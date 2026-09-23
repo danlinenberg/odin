@@ -45,6 +45,10 @@ export interface WrittenBrief {
  */
 export { TAG_VOCABULARY };
 
+const BRIEF_TAGS: string[] = TAG_VOCABULARY.filter(
+	(tag) => tag !== "automation",
+);
+
 /** Enough to place a card, few enough to read at a glance on one. */
 const MAX_TAGS = 2;
 
@@ -94,7 +98,7 @@ TITLE: <under 60 characters — a name for this session, as a human would title 
 GOAL: <one sentence — what this session is trying to achieve>
 STATUS: <one or two sentences — what has actually been done, and where it stands right now>
 NEXT: <one sentence addressed to the engineer, starting with a verb — the one thing HE has to do now (answer the prompt on screen, review a diff, decide X, merge the PR). If nothing is needed from him, say "Nothing —" and why.>
-TAGS: <1-3 comma-separated tags describing the work, chosen ONLY from this list: ${TAG_VOCABULARY.join(", ")}>
+TAGS: <1-3 comma-separated tags describing the work, chosen ONLY from this list: ${BRIEF_TAGS.join(", ")}>
 
 Rules:
 - Always answer in English, even when the conversation is in another language.
@@ -121,7 +125,7 @@ export function parseBrief(text: string): WrittenBrief {
 	const next = field("NEXT");
 	// Anything off the list is dropped rather than corrected: a model that
 	// answered "frontend" meant something, but not something the pills know.
-	const allowed = new Set<string>(TAG_VOCABULARY);
+	const allowed = new Set(BRIEF_TAGS);
 	const tags = [
 		...new Set(
 			(field("TAGS") ?? "")
