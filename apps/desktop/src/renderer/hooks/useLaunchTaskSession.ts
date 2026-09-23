@@ -371,18 +371,24 @@ export function useLaunchTaskSession() {
 			if (settings) {
 				const settingsDir = `${worktreePath}/.odin`;
 				const settingsPath = `${settingsDir}/rules-${sessionId}.json`;
-				await utils.client.filesystem.createDirectory.mutate({
-					workspaceId,
-					absolutePath: settingsDir,
-					recursive: true,
-				});
-				await utils.client.filesystem.writeFile.mutate({
-					workspaceId,
-					absolutePath: settingsPath,
-					content: settings,
-					encoding: "utf-8",
-				});
-				settingsArg = ` --settings ${quote(settingsPath)}`;
+				// Best-effort: a session without its rule hook still beats a
+				// launch or Resume that won't start.
+				try {
+					await utils.client.filesystem.createDirectory.mutate({
+						workspaceId,
+						absolutePath: settingsDir,
+						recursive: true,
+					});
+					await utils.client.filesystem.writeFile.mutate({
+						workspaceId,
+						absolutePath: settingsPath,
+						content: settings,
+						encoding: "utf-8",
+					});
+					settingsArg = ` --settings ${quote(settingsPath)}`;
+				} catch (error) {
+					console.warn("[rules] could not write the rule hook:", error);
+				}
 			}
 			const claudeArgs = resumeSessionId
 				? `--resume ${resumeSessionId}${settingsArg}`
