@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import {
 	type BriefMessage,
 	elapsedLabel,
+	jiraIssue,
 	lastMessageAt,
 	notionPage,
 	projectSlug,
@@ -326,5 +327,43 @@ describe("sourceLink", () => {
 		// Slack-sourced cards: the brief is the message text, not a URL.
 		expect(sourceLink("Morning Dan, can you check?")).toBeNull();
 		expect(sourceLink(null)).toBeNull();
+	});
+});
+
+describe("jiraIssue", () => {
+	const turn = (role: BriefMessage["role"], text: string): BriefMessage => ({
+		role,
+		text,
+		at: null,
+	});
+
+	it("finds the ticket you pasted, without its tracking query", () => {
+		const issue = jiraIssue([
+			turn(
+				"user",
+				"https://imagen-ai.atlassian.net/browse/SHIP-1063?atlOrigin=eyJpIjoi&issueKey=SHIP-1063 add this to brief",
+			),
+		]);
+
+		expect(issue).toEqual({
+			key: "SHIP-1063",
+			url: "https://imagen-ai.atlassian.net/browse/SHIP-1063",
+		});
+	});
+
+	it("keeps the first ticket, not one quoted later", () => {
+		const issue = jiraIssue([
+			turn("user", "see https://imagen-ai.atlassian.net/browse/SHIP-1063"),
+			turn(
+				"assistant",
+				"related: https://imagen-ai.atlassian.net/browse/RND-14753.",
+			),
+		]);
+
+		expect(issue?.key).toBe("SHIP-1063");
+	});
+
+	it("finds nothing in a session with no ticket", () => {
+		expect(jiraIssue([turn("user", "no links here")])).toBeNull();
 	});
 });
