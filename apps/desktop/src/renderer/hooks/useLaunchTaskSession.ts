@@ -254,8 +254,8 @@ export function useLaunchTaskSession() {
 			}
 			const sessionCwd = repoPath || worktreePath;
 
-			// 0. Two gates — the Mac's headroom, and one agent at a time in Odin's
-			// own checkout. Read once, and never blocking: a launch that has to
+			// 0. Two gates — the Mac's headroom, and one agent at a time per
+			// checkout. Read once, and never blocking: a launch that has to
 			// wait still gets its card, and the queue runner starts the agent when
 			// the gate clears. A failed read lets the launch through — a broken
 			// gauge must not be the reason a session doesn't start.
@@ -416,6 +416,7 @@ export function useLaunchTaskSession() {
 						claudeSessionId: sessionId,
 						odinTaskTitle: card.title,
 						odinProfile,
+						odinCwd: sessionCwd,
 						...(card.contact ? { odinContact: card.contact } : {}),
 						...(brief ? { odinBrief: brief } : {}),
 						...(card.pageId ? { odinPageId: card.pageId } : {}),

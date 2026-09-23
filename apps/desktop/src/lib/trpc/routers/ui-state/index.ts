@@ -96,6 +96,8 @@ export const paneSchema = z.object({
 	// The profile that launched the session. Stripped here, every session fell
 	// back to "default" on the next persist and left the profile it belonged to.
 	odinProfile: z.string().optional(),
+	// The launch checkout — the one-agent-per-checkout gate keys on it.
+	odinCwd: z.string().optional(),
 	initialCwd: z.string().optional(),
 	url: z.string().optional(),
 	cwd: z.string().nullable().optional(),

@@ -38,7 +38,7 @@ export function boardSection(pane: Pane): BoardSection {
 	return pane.odinPageId ? "reactions" : "normal";
 }
 
-/** Created but not started yet — waiting on the Mac, or on Odin's checkout. */
+/** Created but not started yet — waiting on the Mac, or on a busy checkout. */
 function isQueued(pane: Pane): boolean {
 	return !!pane.odinQueued;
 }

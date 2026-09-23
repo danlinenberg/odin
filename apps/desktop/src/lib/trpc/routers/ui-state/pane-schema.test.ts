@@ -35,6 +35,7 @@ describe("paneSchema", () => {
 			odinProfile: "1d14929a-66cb-4664-b2b1-a655fd00677f",
 			odinParked: false,
 			odinShellPaneId: "p3",
+			odinCwd: "/tmp/repo",
 			initialCwd: "/tmp",
 			url: "https://example.com",
 			cwd: "/tmp",

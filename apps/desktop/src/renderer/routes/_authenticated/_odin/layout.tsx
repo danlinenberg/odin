@@ -207,7 +207,7 @@ function OdinShell() {
 	// a schedule that only runs while you're looking at it isn't one.
 	useAutomationRunner();
 	// Same reason: tasks held back by the capacity gate wait in Idle → Queued,
-	// and this is what starts them once the Mac (or Odin's checkout) frees up.
+	// and this is what starts them once the Mac (or the checkout) frees up.
 	useTaskQueue();
 
 	const { data: workConfig } = electronTrpc.work.getConfig.useQuery();
