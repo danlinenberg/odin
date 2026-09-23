@@ -102,6 +102,31 @@ describe("buildPrompt", () => {
 	});
 });
 
+describe("buildPrompt with rules", () => {
+	const rule = (action: string, paused?: boolean) => ({
+		id: action,
+		when: "you open a pull request",
+		action,
+		paused,
+	});
+
+	it("hands the agent every rule that's switched on", () => {
+		const prompt = buildPrompt("Fix it", null, [], undefined, false, [
+			rule("run /pr-iterate"),
+			rule("run /code-review", true),
+		]);
+		expect(prompt).toContain("- When you open a pull request: run /pr-iterate");
+		expect(prompt).not.toContain("/code-review");
+	});
+
+	it("says nothing about rules when there are none", () => {
+		expect(buildPrompt("Fix it", null)).not.toContain("Standing rules");
+		expect(
+			buildPrompt("Fix it", null, [], undefined, false, [rule("x", true)]),
+		).not.toContain("Standing rules");
+	});
+});
+
 describe("parseDataUrl", () => {
 	it("takes the extension from the mime type, not the filename", () => {
 		expect(parseDataUrl("data:image/png;base64,AAA")).toEqual({
