@@ -1726,9 +1726,9 @@ function DevBoardPage() {
 					</div>
 				)}
 
-				{/* person filter — the card's contact; hidden when nobody's on the board */}
+				{/* person filter — own line (basis-full breaks the wrap); the card's contact */}
 				{allPeople.length > 0 && (
-					<div className="flex flex-wrap items-center gap-1.5">
+					<div className="flex basis-full flex-wrap items-center gap-1.5">
 						{allPeople.map(([person, count]) => (
 							<button
 								key={person}
