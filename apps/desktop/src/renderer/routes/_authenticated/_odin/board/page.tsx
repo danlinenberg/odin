@@ -1688,8 +1688,7 @@ function DevBoardPage() {
 
 	return (
 		<div className="flex h-full flex-col">
-			{/* One header row: title, launcher, tag filter. Stacking these cost
-			    three rows of board height for a handful of controls. */}
+			{/* Title + launcher, then one filter row (tags, then people) under it. */}
 			<div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-[18px] pb-2 pt-2.5">
 				<h1 className="text-[15px] font-semibold">Dev Board</h1>
 				<button
@@ -1704,81 +1703,87 @@ function DevBoardPage() {
 					<span className="text-xs text-[#a5a5b3]">starting…</span>
 				)}
 
-				{/* tag filter — right-click a card to tag it */}
-				{allTags.length > 0 && (
-					<div className="flex flex-wrap items-center gap-1.5">
-						{allTags.map(([tag, count]) => {
-							const on = tagFilter.includes(tag);
-							return (
+				<div className="flex basis-full flex-wrap items-center gap-x-3 gap-y-1.5">
+					{/* tag filter — right-click a card to tag it */}
+					{allTags.length > 0 && (
+						<div className="flex flex-wrap items-center gap-1.5">
+							{allTags.map(([tag, count]) => {
+								const on = tagFilter.includes(tag);
+								return (
+									<button
+										key={tag}
+										type="button"
+										onClick={() =>
+											setTagFilter((current) =>
+												on
+													? current.filter((t) => t !== tag)
+													: [...current, tag],
+											)
+										}
+										className={cn(
+											"rounded-full px-2.5 py-[3px] text-[11px] font-medium transition-colors",
+											on
+												? "bg-[#a394ff] text-[#060608]"
+												: "bg-[#16161b] text-[#a5a5b3] hover:text-[#f5f5f7]",
+										)}
+									>
+										#{tag}
+										<span className="ml-1 opacity-70">{count}</span>
+									</button>
+								);
+							})}
+							{tagFilter.length > 0 && (
 								<button
-									key={tag}
 									type="button"
+									onClick={() => setTagFilter([])}
+									className="text-[11px] text-[#8a8a97] hover:text-[#a5a5b3]"
+								>
+									clear
+								</button>
+							)}
+						</div>
+					)}
+
+					{/* person filter — the card's contact */}
+					{allPeople.length > 0 && (
+						<div className="flex flex-wrap items-center gap-1.5">
+							{allPeople.map(([person, count]) => (
+								<button
+									key={person}
+									type="button"
+									title={`Show only ${person}'s sessions`}
 									onClick={() =>
-										setTagFilter((current) =>
-											on ? current.filter((t) => t !== tag) : [...current, tag],
+										setPersonFilter((current) =>
+											current === person ? null : person,
 										)
 									}
 									className={cn(
-										"rounded-full px-2.5 py-[3px] text-[11px] font-medium transition-colors",
-										on
-											? "bg-[#a394ff] text-[#060608]"
-											: "bg-[#16161b] text-[#a5a5b3] hover:text-[#f5f5f7]",
+										"flex items-center rounded-[6px] transition-opacity",
+										personFilter && personFilter !== person
+											? "opacity-40 hover:opacity-80"
+											: personFilter === person
+												? "ring-1 ring-current"
+												: "",
 									)}
 								>
-									#{tag}
-									<span className="ml-1 opacity-70">{count}</span>
+									<PersonChip name={person} />
+									<span className="ml-1 text-[11px] text-[#8a8a97]">
+										{count}
+									</span>
 								</button>
-							);
-						})}
-						{tagFilter.length > 0 && (
-							<button
-								type="button"
-								onClick={() => setTagFilter([])}
-								className="text-[11px] text-[#8a8a97] hover:text-[#a5a5b3]"
-							>
-								clear
-							</button>
-						)}
-					</div>
-				)}
-
-				{/* person filter — own line (basis-full breaks the wrap); the card's contact */}
-				{allPeople.length > 0 && (
-					<div className="flex basis-full flex-wrap items-center gap-1.5">
-						{allPeople.map(([person, count]) => (
-							<button
-								key={person}
-								type="button"
-								title={`Show only ${person}'s sessions`}
-								onClick={() =>
-									setPersonFilter((current) =>
-										current === person ? null : person,
-									)
-								}
-								className={cn(
-									"flex items-center rounded-[6px] transition-opacity",
-									personFilter && personFilter !== person
-										? "opacity-40 hover:opacity-80"
-										: personFilter === person
-											? "ring-1 ring-current"
-											: "",
-								)}
-							>
-								<PersonChip name={person} />
-								<span className="ml-1 text-[11px] text-[#8a8a97]">{count}</span>
-							</button>
-						))}
-						{personFilter && (
-							<button
-								type="button"
-								onClick={() => setPersonFilter(null)}
-								className="text-[11px] text-[#8a8a97] hover:text-[#a5a5b3]"
-							>
-								clear
-							</button>
-						)}
-					</div>
-				)}
+							))}
+							{personFilter && (
+								<button
+									type="button"
+									onClick={() => setPersonFilter(null)}
+									className="text-[11px] text-[#8a8a97] hover:text-[#a5a5b3]"
+								>
+									clear
+								</button>
+							)}
+						</div>
+					)}
+				</div>
 			</div>
 
 			{tagMenu && (
