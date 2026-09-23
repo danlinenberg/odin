@@ -87,6 +87,11 @@ export function copyResourcesPlugin(): Plugin {
  * so a fleet that never goes quiet still picks changes up. Hot updates pass
  * straight through, untouched.
  *
+ * While a session pane is open (the board sends `odin:session-pane`), every
+ * payload — hot updates too — is held until it closes, so nothing remounts the
+ * terminal you're typing into. Closing it replays them; a held full reload
+ * supersedes the updates and lands right away.
+ *
  * ponytail: coalescing, not a boundary fix — whatever module dead-ends the
  * board's HMR chain still dead-ends it, and Vite still logs `page reload
  * <file>` naming it. Chase that if a held reload ever costs more than a calm
@@ -108,8 +113,33 @@ export function coalesceFullReloadPlugin({
 			let timer: ReturnType<typeof setTimeout> | undefined;
 			let heldSince = 0;
 
+			let paneOpen = false;
+			let held: unknown[][] = [];
+			hot.on("odin:session-pane", (open: boolean) => {
+				paneOpen = open;
+				if (open) return;
+				const queued = held;
+				held = [];
+				const reload = queued.find(
+					(a) => (a[0] as { type?: string })?.type === "full-reload",
+				);
+				if (reload) {
+					server.config.logger.info("odin: reloading — session pane closed");
+					send(...reload);
+				} else for (const a of queued) send(...a);
+			});
+			// A client that reconnects loads fresh modules — whatever it held is moot.
+			hot.on("vite:client:disconnect", () => {
+				paneOpen = false;
+				held = [];
+			});
+
 			hot.send = ((...args: unknown[]) => {
 				const payload = args[0] as { type?: string } | undefined;
+				if (paneOpen) {
+					held.push(args);
+					return;
+				}
 				if (args.length !== 1 || payload?.type !== "full-reload") {
 					send(...args);
 					return;
@@ -131,6 +161,10 @@ export function coalesceFullReloadPlugin({
 				clearTimeout(timer);
 				timer = setTimeout(() => {
 					timer = undefined;
+					if (paneOpen) {
+						held.push(args);
+						return;
+					}
 					server.config.logger.info(
 						"odin: reloading — renderer saves went quiet",
 					);

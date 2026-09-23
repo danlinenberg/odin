@@ -39,7 +39,8 @@ board is one) have no usable Fast Refresh boundary, so Vite gives up on HMR and
 full-reloads the renderer — the whole app reboots, every pane remounts and re-attaches,
 and it reads as "Odin restarted" mid-work. `coalesceFullReloadPlugin` in
 `vite/helpers.ts` holds those full reloads until saves go quiet (10s, or 60s max), so a
-busy fleet costs one reload instead of ten a minute. Hot updates are untouched, and Vite
+busy fleet costs one reload instead of ten a minute. While a board session drawer is open,
+it holds hot updates and reloads entirely and lands them when the drawer closes. Vite
 still logs `page reload <file>` naming the module that dead-ended — chase that if you
 want the boundary actually fixed.
 

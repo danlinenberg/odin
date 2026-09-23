@@ -1147,6 +1147,12 @@ function DevBoardPage() {
 		setIsDiffOpen(false);
 		setIsShellOpen(true);
 	};
+	// Dev only: hold Vite's reloads while a session is open (see coalesceFullReloadPlugin).
+	const drawerOpen = !!drawerCard;
+	useEffect(() => {
+		import.meta.hot?.send("odin:session-pane", drawerOpen);
+		return () => import.meta.hot?.send("odin:session-pane", false);
+	}, [drawerOpen]);
 	/** The shell the drawer is currently showing, if any. */
 	const drawerShell = drawerCard ? shellPaneOf(drawerCard) : undefined;
 	/**
