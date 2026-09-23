@@ -40,8 +40,7 @@ describe("dueAutomations", () => {
 	});
 
 	test("runs even with the last run's session still on the board", () => {
-		// The schedule is the only say in it: pause is the off switch, and the
-		// capacity gate in `launch` is what stops a fast cron flattening the Mac.
+		// The schedule is the only say in it: pause is the off switch.
 		expect(
 			due([task({ cron: "0 9 * * *", paneId: "p1" })], "2026-09-20T09:00"),
 		).toEqual(["a"]);

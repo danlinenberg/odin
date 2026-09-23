@@ -244,26 +244,19 @@ export function useLaunchTaskSession() {
 			}
 			const sessionCwd = repoPath || worktreePath;
 
-			// 0. Two gates — the Mac's headroom, and one agent at a time in Odin's
-			// own checkout. Read once, and never blocking: a launch that has to
-			// wait still gets its card, and the queue runner starts the agent when
-			// the gate clears. A failed read lets the launch through — a broken
-			// gauge must not be the reason a session doesn't start.
+			// 0. One agent at a time in Odin's own checkout. Never blocking: a
+			// launch that has to wait still gets its card, and the queue runner
+			// starts the agent when the gate clears.
 			// Only a launch that puts an agent to work is worth queueing: an empty
 			// prompt and a Resume both hand the session straight back to you, and
 			// holding those would just be a button that doesn't work.
 			let queuedReason: string | null = null;
 			if (now !== true && !noPrompt && !resumeSessionId) {
-				try {
-					queuedReason = launchBlocker(
-						await utils.client.resourceMetrics.getSnapshot.query(),
-						Object.values(useTabsStore.getState().panes),
-						sessionCwd,
-						workConfig?.odinRepoPath,
-					);
-				} catch {
-					queuedReason = null;
-				}
+				queuedReason = launchBlocker(
+					Object.values(useTabsStore.getState().panes),
+					sessionCwd,
+					workConfig?.odinRepoPath,
+				);
 			}
 
 			// 1. Prompt file in the workspace (survives quoting, keeps history)

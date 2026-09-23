@@ -22,9 +22,9 @@ const TICK_MS = 30_000;
  * the hook so the rule is testable without a renderer.
  *
  * The schedule is the only say in it — a due run starts even if the last
- * one's session is still open on the board. Pause is how you stop it; the
- * machine-capacity gate in `launch` is what keeps a fast cron from flattening
- * the Mac.
+ * one's session is still open on the board. Pause is how you stop it — and,
+ * with no CPU gate on launches, the only thing that keeps a fast cron from
+ * flattening the Mac.
  *
  * ponytail: no catch-up. An automation that came due while the app was shut
  * is skipped, not run at launch — opening Odin on Monday morning should not
