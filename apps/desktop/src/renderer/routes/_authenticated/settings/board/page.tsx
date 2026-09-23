@@ -76,6 +76,20 @@ function BoardSettingsPage() {
 					field="hostCpuPercent"
 					label="Hold new sessions when this Mac is"
 					description="How busy this Mac's CPU is — Odin's sessions, builds, Docker, anything. At or above it, a new session waits in Idle → Queued and starts once the Mac calms down. Lower it if the Mac feels slow before sessions start queueing."
+					min={1}
+					max={100}
+					step={1}
+					unit="%"
+				/>
+				<LaunchLimitRow
+					id="launch-limit-memory"
+					field="minFreeMemoryGb"
+					label="Hold new sessions when free memory is under"
+					description="Memory this Mac could still hand out, cache included. Below it, a new session waits — an out-of-memory Mac swaps and crawls even while the CPU looks idle."
+					min={0}
+					max={64}
+					step={0.5}
+					unit="GB"
 				/>
 			</div>
 		</div>
@@ -83,19 +97,27 @@ function BoardSettingsPage() {
 }
 
 /**
- * One CPU limit for the launch gate, 1–100%. Takes effect on the next queue
- * tick (5s) and the next launch; no restart.
+ * One launch-gate limit. Takes effect on the next queue tick (5s) and the
+ * next launch; no restart.
  */
 function LaunchLimitRow({
 	id,
 	field,
 	label,
 	description,
+	min,
+	max,
+	step,
+	unit,
 }: {
 	id: string;
 	field: keyof LaunchLimits;
 	label: string;
 	description: string;
+	min: number;
+	max: number;
+	step: number;
+	unit: string;
 }) {
 	const value = useLaunchLimits((s) => s[field]);
 	const setLimits = useLaunchLimits((s) => s.setLimits);
@@ -111,20 +133,21 @@ function LaunchLimitRow({
 				<Input
 					id={id}
 					type="number"
-					min={1}
-					max={100}
+					min={min}
+					max={max}
+					step={step}
 					defaultValue={value}
 					className="w-20 tabular-nums"
 					onChange={(event) => {
 						const next = event.target.valueAsNumber;
 						// ponytail: an empty or out-of-range box keeps the last good
 						// value rather than arguing — the field is the only place to fix it.
-						if (Number.isInteger(next) && next >= 1 && next <= 100) {
+						if (Number.isFinite(next) && next >= min && next <= max) {
 							setLimits({ [field]: next });
 						}
 					}}
 				/>
-				<span className="text-sm text-muted-foreground">%</span>
+				<span className="text-sm text-muted-foreground">{unit}</span>
 			</div>
 		</div>
 	);

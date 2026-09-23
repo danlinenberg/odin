@@ -128,17 +128,16 @@ const NAV_HOTKEY_OPTIONS = {
  * gets tighter — grey while there's slack, amber when it's filling up, red
  * when agents are queueing or the memory is gone.
  *
- * ponytail: the CPU step comes off the limit that actually gates a launch;
- * the GB are eyeballed thresholds that
- * only pick a colour, so nothing rides on them being exactly right.
+ * ponytail: amber is 15% CPU / 1 GB short of the limits that gate a launch,
+ * eyeballed — it only picks a colour.
  */
 function badgeTone(load: MachineLoad, limits: LaunchLimits): string {
-	if (load.busy || load.availableMemoryGb < 1) {
+	if (load.busy) {
 		return "bg-[#3a1a20] text-[#f0647a]";
 	}
 	if (
 		load.cpuPercent >= limits.hostCpuPercent - 15 ||
-		load.availableMemoryGb < 2
+		load.availableMemoryGb < limits.minFreeMemoryGb + 1
 	) {
 		return "bg-[#3a2f16] text-[#f5b83d]";
 	}
@@ -164,7 +163,8 @@ function OdinShell() {
 		{ refetchInterval: 5_000 },
 	);
 	const hostCpuPercent = useLaunchLimits((s) => s.hostCpuPercent);
-	const limits = { hostCpuPercent };
+	const minFreeMemoryGb = useLaunchLimits((s) => s.minFreeMemoryGb);
+	const limits = { hostCpuPercent, minFreeMemoryGb };
 	const load = metrics ? machineLoad(metrics, limits) : null;
 
 	// The accounts in play. Switching resets every query, so the feeds below

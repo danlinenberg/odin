@@ -44,13 +44,24 @@ export interface MachineLoadInput {
  */
 export const BUSY_HOST_CPU_PERCENT = 70;
 
-/** The CPU limit a launch waits on, as Settings → Board has it. */
+/**
+ * Free memory (free + reclaimable) below which the next launch waits.
+ *
+ * CPU alone misses a Mac that's out of memory: it swaps, and crawls while the
+ * CPU looks idle. ponytail: the default — Settings → Board overrides it. 2 GB
+ * is one session mid-build.
+ */
+export const MIN_FREE_MEMORY_GB = 2;
+
+/** What a launch waits on, as Settings → Board has it. */
 export interface LaunchLimits {
 	hostCpuPercent: number;
+	minFreeMemoryGb: number;
 }
 
 export const DEFAULT_LAUNCH_LIMITS: LaunchLimits = {
 	hostCpuPercent: BUSY_HOST_CPU_PERCENT,
+	minFreeMemoryGb: MIN_FREE_MEMORY_GB,
 };
 
 export interface MachineLoad {
@@ -62,7 +73,7 @@ export interface MachineLoad {
 	agentCpuPercent: number;
 	/**
 	 * Resident memory Odin's own processes hold, in GB. Per-process like
-	 * `agentCpuPercent`, so unlike `memoryPercent` it's a number you can act
+	 * `agentCpuPercent`, so it's a number you can act
 	 * on — it can't blame Claude for the rest of the Mac.
 	 */
 	agentMemoryGb: number;
@@ -75,17 +86,11 @@ export interface MachineLoad {
 	 * sits near the core count on a Mac doing nothing.
 	 */
 	cpuPercent: number;
-	/**
-	 * Shown, never acted on. macOS hands `os.freemem()` only the truly-free
-	 * pages — cached and compressed ones count as used — so a healthy Mac sits
-	 * at 95–99% all day. Gating on it would park every launch forever.
-	 */
-	memoryPercent: number;
 	agentCount: number;
 	/**
 	 * What this Mac could still hand out, in GB: free plus reclaimable pages.
 	 *
-	 * Measured, not predicted. "How many more sessions fit" used to live here
+	 * Acted on below `LaunchLimits.minFreeMemoryGb`. Measured, not predicted. "How many more sessions fit" used to live here
 	 * and was deleted twice over: a count needs a per-session cost, and the
 	 * honest one swings from 0.2 GB parked to 2 GB mid-build, so every constant
 	 * we picked made the badge confidently wrong — "room for 31" on a Mac with
@@ -121,17 +126,28 @@ export function machineLoad(
 	// The whole Mac counts, not only our slice of it: a build, a Docker daemon
 	// or someone else's agent runner leaves the same missing headroom, and a
 	// new session lands in it just as hard.
-	const busy = hostCpuPercent >= limits.hostCpuPercent;
+	const cpuBusy = hostCpuPercent >= limits.hostCpuPercent;
+	const availableMemoryGb =
+		Math.round(gb(snapshot.host.availableMemory) * 10) / 10;
+	// Zero means "not measured" (a snapshot from before the field existed), not
+	// "out of memory" — gating on it would park every launch.
+	const memoryBusy =
+		snapshot.host.availableMemory > 0 &&
+		availableMemoryGb < limits.minFreeMemoryGb;
+	const busy = cpuBusy || memoryBusy;
 	const memoryGb = gb(snapshot.totalMemory);
 
-	const reason = busy ? `this Mac is at ${hostCpuPercent}% CPU` : null;
+	const reason = cpuBusy
+		? `this Mac is at ${hostCpuPercent}% CPU`
+		: memoryBusy
+			? `this Mac has only ${availableMemoryGb} GB free`
+			: null;
 
 	return {
 		agentCpuPercent,
 		agentMemoryGb: Math.round(memoryGb * 10) / 10,
-		availableMemoryGb: Math.round(gb(snapshot.host.availableMemory) * 10) / 10,
+		availableMemoryGb,
 		cpuPercent: hostCpuPercent,
-		memoryPercent: percent(snapshot.host.memoryUsagePercent),
 		agentCount,
 		busy,
 		reason,

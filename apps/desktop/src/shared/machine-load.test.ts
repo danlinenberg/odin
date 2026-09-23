@@ -64,11 +64,29 @@ describe("machineLoad", () => {
 	});
 
 	it("holds at the limit Settings → Board sets, not the default", () => {
-		const limits = { hostCpuPercent: 40 };
+		const limits = { hostCpuPercent: 40, minFreeMemoryGb: 2 };
 		expect(machineLoad(snapshot({ hostCpu: 54 }), limits).reason).toBe(
 			"this Mac is at 54% CPU",
 		);
 		expect(machineLoad(snapshot({ hostCpu: 35 }), limits).busy).toBe(false);
+	});
+
+	it("holds a launch when the Mac is out of memory, whatever the CPU says", () => {
+		const load = machineLoad(snapshot({ hostCpu: 20, available: 1.4 * GB }));
+		expect(load.busy).toBe(true);
+		expect(load.reason).toBe("this Mac has only 1.4 GB free");
+		expect(
+			machineLoad(snapshot({ hostCpu: 20, available: 1.4 * GB }), {
+				hostCpuPercent: 70,
+				minFreeMemoryGb: 1,
+			}).busy,
+		).toBe(false);
+	});
+
+	it("doesn't read an unmeasured zero as out of memory", () => {
+		expect(machineLoad(snapshot({ hostCpu: 20, available: 0 })).busy).toBe(
+			false,
+		);
 	});
 
 	it("doesn't hold on the agents' share while the Mac has room", () => {
