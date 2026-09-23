@@ -58,6 +58,16 @@ describe("machineLoad", () => {
 		expect(load.reason).toBe("6 agents using 85% of this Mac");
 	});
 
+	it("holds a launch on a Mac that already feels slow", () => {
+		// The screenshot that lowered the gate: 13 sessions on 27% of the CPU,
+		// the Mac 54% busy, and every new session made it worse.
+		const load = machineLoad(
+			snapshot({ hostCpu: 54, totalCpu: 270, agents: 13 }),
+		);
+		expect(load.busy).toBe(true);
+		expect(load.reason).toBe("13 agents using 27% of this Mac");
+	});
+
 	it("says agent, singular, for one", () => {
 		expect(machineLoad(snapshot({ totalCpu: 900, agents: 1 })).reason).toBe(
 			"1 agent using 90% of this Mac",
