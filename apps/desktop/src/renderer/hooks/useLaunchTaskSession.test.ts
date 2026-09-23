@@ -86,6 +86,11 @@ describe("buildPrompt", () => {
 		expect(buildPrompt("Fix the board", null)).toContain("ACTION ITEMS");
 	});
 
+	// Long items with their own options and reasons read like the transcript.
+	it("keeps each action item to one short line", () => {
+		expect(buildPrompt("Fix the board", null)).toContain("One line per item");
+	});
+
 	// A 4am cron run that stops to ask a question waits until morning for an
 	// answer it could have defaulted.
 	it("tells a scheduled run that nobody is watching it", () => {

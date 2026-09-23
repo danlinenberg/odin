@@ -62,7 +62,9 @@ export function buildPrompt(
 		// about this one?". A turn that stops at "here's what I found" makes
 		// you read the whole transcript to answer it.
 		"",
-		'Finish every reply with a section headed "ACTION ITEMS": a short numbered list of what I — the human reviewing this — have to do next (decide something, run or check something, unblock you). If there is nothing for me to do, write "ACTION ITEMS: none" and say why.',
+		// Items that carry their own background and options turn the list
+		// back into a transcript; the reasoning already lives above it.
+		'Finish every reply with a section headed "ACTION ITEMS": a short numbered list of what I — the human reviewing this — have to do next (decide something, run or check something, unblock you). One line per item, an imperative of about 12 words or fewer — no background, reasons or option lists (those belong above the section). If there is nothing for me to do, write "ACTION ITEMS: none" and say why in a few words.',
 	].join("\n");
 }
 
