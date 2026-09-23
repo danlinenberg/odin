@@ -104,6 +104,19 @@ function ChecksChip({
 	return <Chip label={`✓ ${passed}`} className="bg-[#14301f] text-[#3ecf8e]" />;
 }
 
+/**
+ * A Slack link's tooltip: the whole message (the link shows two lines of it),
+ * then the url. `full` is missing until main restarts onto the procedure that
+ * returns it, so fall back to the line we have.
+ */
+function hoverText(
+	url: string,
+	preview: { text: string; full?: string } | null | undefined,
+): string {
+	const message = preview?.full ?? preview?.text;
+	return message ? `${message}\n\n${url}` : url;
+}
+
 export function SessionBrief({
 	paneId,
 	cwd,
@@ -269,10 +282,10 @@ export function SessionBrief({
 							<Section label="Slack thread">
 								<button
 									type="button"
-									title={thread}
+									title={hoverText(thread, threadPreview)}
 									onClick={() => openUrl.mutate(thread)}
 									dir="auto"
-									className="line-clamp-2 w-full text-start text-[12px] text-[#a394ff] hover:underline"
+									className="line-clamp-2 w-full text-left text-[12px] text-[#a394ff] hover:underline"
 								>
 									{threadPreview?.text ?? "Open thread"} ↗
 								</button>
@@ -357,15 +370,16 @@ export function SessionBrief({
 							<div key={url} className="group flex items-start gap-1.5">
 								<button
 									type="button"
-									title={url}
+									title={hoverText(url, preview)}
 									onClick={() => openUrl.mutate(url)}
 									className="min-w-0 flex-1 text-left hover:underline"
 								>
 									{/* dir="auto": a Hebrew message reads right-to-left and
-									    clamps at its own end, not mid-sentence from the left. */}
+									    clamps at its own end, not mid-sentence. Still left-aligned,
+									    so the panel keeps one edge. */}
 									<div
 										dir="auto"
-										className="line-clamp-2 text-start text-[12px] text-[#a394ff]"
+										className="line-clamp-2 text-left text-[12px] text-[#a394ff]"
 									>
 										{title} ↗
 									</div>

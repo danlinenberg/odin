@@ -490,7 +490,10 @@ const previews = new Map<string, SlackPreview>();
 export interface SlackPreview {
 	channel: string | null;
 	author: string | null;
+	/** The first real line, for the link itself. */
 	text: string;
+	/** The whole message, for hovering over it. */
+	full: string;
 }
 async function slackPreview(url: string): Promise<SlackPreview | null> {
 	const cached = previews.get(url);
@@ -516,6 +519,7 @@ async function slackPreview(url: string): Promise<SlackPreview | null> {
 			channel: channelLabel(channelName),
 			author,
 			text: toTitle(text),
+			full: text,
 		};
 		previews.set(url, preview);
 		return preview;
