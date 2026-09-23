@@ -146,6 +146,31 @@ export function notionPage(messages: BriefMessage[]): NotionPageLink | null {
 	return pages.find((page) => page.title) ?? pages[0] ?? null;
 }
 
+export interface JiraIssueLink {
+	url: string;
+	key: string;
+}
+
+const JIRA_URL =
+	/https:\/\/([\w-]+\.atlassian\.net)\/browse\/([A-Z][A-Z0-9]+-\d+)/;
+
+/**
+ * The Jira issue this session is about: the first one linked anywhere in the
+ * conversation, by you or the agent. A session launched from Slack has no
+ * launch brief for sourceLink to read, so this is the only way its ticket
+ * reaches the drawer. Rebuilt from the key so a pasted link's tracking query
+ * (atlOrigin and the like) is dropped.
+ */
+export function jiraIssue(messages: BriefMessage[]): JiraIssueLink | null {
+	for (const message of messages) {
+		const match = JIRA_URL.exec(message.text);
+		if (!match) continue;
+		const [, host, key] = match;
+		return { key, url: `https://${host}/browse/${key}` };
+	}
+	return null;
+}
+
 // Trailing ")" / "." is markdown and prose. The query string carries thread_ts,
 // which is what makes the link open the thread rather than the channel.
 const SLACK_URL =

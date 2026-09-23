@@ -1,6 +1,12 @@
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { usePaneMeta } from "../hooks/usePaneMeta";
-import { notionPage, pullRequests, sessionBrief, slackThread } from "./brief";
+import {
+	jiraIssue,
+	notionPage,
+	pullRequests,
+	sessionBrief,
+	slackThread,
+} from "./brief";
 
 /**
  * Session brief — the drawer's side panel. Answers "what did I walk into?".
@@ -160,6 +166,7 @@ export function SessionBrief({
 	const prs = transcript ? pullRequests(transcript.messages) : [];
 	const thread = transcript ? slackThread(transcript.messages) : null;
 	const page = transcript ? notionPage(transcript.messages) : null;
+	const issue = transcript ? jiraIssue(transcript.messages) : null;
 	// An <a> in the renderer would navigate the app window; PRs open in a browser.
 	const openUrl = electronTrpc.external.openUrl.useMutation();
 
@@ -226,6 +233,18 @@ export function SessionBrief({
 							<div className="text-[12px] text-[#8a8a97]">
 								reading the conversation…
 							</div>
+						)}
+						{issue && (
+							<Section label="Jira ticket">
+								<button
+									type="button"
+									title={issue.url}
+									onClick={() => openUrl.mutate(issue.url)}
+									className="truncate text-left text-[12px] text-[#a394ff] hover:underline"
+								>
+									{issue.key} ↗
+								</button>
+							</Section>
 						)}
 						{thread && (
 							<Section label="Slack thread">
