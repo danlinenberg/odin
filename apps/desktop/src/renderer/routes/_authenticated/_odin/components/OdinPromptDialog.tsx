@@ -48,6 +48,24 @@ export function untruncatedTitle(title: string, source: string | null): string {
 }
 
 /**
+ * The text a card shows under its title: the session's whole brief, minus
+ * what the title already says and bare links (a Jira/Notion brief is just
+ * "title\nurl"). Null when nothing is left.
+ */
+export function cardBody(title: string, source: string | null): string | null {
+	if (!source) return null;
+	const body = source
+		.split("\n")
+		.filter((line) => {
+			const text = line.trim();
+			return text !== title.trim() && !/^<?https?:\/\/\S+>?$/.test(text);
+		})
+		.join("\n")
+		.trim();
+	return body || null;
+}
+
+/**
  * Session composer: a multi-line prompt plus images and videos (paste, drop,
  * or pick). Attachments ride along as files in the workspace; the prompt
  * points the agent at their paths. Used by "Work on Odin" (Odin's own repo)
