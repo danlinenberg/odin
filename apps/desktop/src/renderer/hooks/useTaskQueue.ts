@@ -62,6 +62,33 @@ export async function startQueuedPane(
 }
 
 /**
+ * Rewrite each waiting card's "why" to what's holding it now. The reason is
+ * stamped at queue time, so without this a card kept naming a session that had
+ * long since stopped.
+ */
+function refreshQueuedReasons(
+	queue: Pane[],
+	reasonFor: (pane: Pane) => string,
+): void {
+	const stale = queue.filter(
+		(pane) => pane.odinQueued && pane.odinQueued.reason !== reasonFor(pane),
+	);
+	if (!stale.length) return;
+	useTabsStore.setState((state) => {
+		const panes = { ...state.panes };
+		for (const pane of stale) {
+			const current = panes[pane.id];
+			if (!current?.odinQueued) continue;
+			panes[pane.id] = {
+				...current,
+				odinQueued: { ...current.odinQueued, reason: reasonFor(pane) },
+			};
+		}
+		return { panes };
+	});
+}
+
+/**
  * The clock behind the Queued section: every poll, if the gate is open, start
  * the task that has waited longest.
  *
@@ -87,16 +114,24 @@ export function useTaskQueue(): void {
 	useEffect(() => {
 		if (!metrics || starting.current) return;
 		const panes = useTabsStore.getState().panes;
-		const next = queuedPanes(panes)[0];
+		const queue = queuedPanes(panes);
+		const next = queue[0];
 		if (!next) return;
-		if (
+		const blockerFor = (pane: Pane) =>
 			launchBlocker(
 				metrics,
 				Object.values(panes),
-				queuedCwd(next),
+				queuedCwd(pane),
 				workConfig?.odinRepoPath,
-			)
-		) {
+			);
+		const blocker = blockerFor(next);
+		if (blocker) {
+			refreshQueuedReasons(queue, (pane) =>
+				pane === next
+					? blocker
+					: (blockerFor(pane) ??
+						`waiting behind "${next.odinTaskTitle ?? next.name}"`),
+			);
 			return;
 		}
 		starting.current = true;
