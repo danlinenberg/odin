@@ -444,27 +444,35 @@ function AutomationsPage() {
 				<span className="text-[13px] font-semibold text-[#f5f5f7]">
 					Automations
 				</span>
-				{(
-					[
-						["schedules", "Schedules"],
-						["rules", "Rules"],
-					] as const
-				).map(([value, label]) => (
-					<button
-						key={value}
-						type="button"
-						aria-pressed={view === value}
-						onClick={() => setView(value)}
-						className={cn(
-							"rounded-[6px] px-2 py-[2px] text-[12px] font-semibold transition-colors",
-							view === value
-								? "bg-[#2e2413] text-[#f5b83d]"
-								: "text-[#8a8a97] hover:text-[#f5f5f7]",
-						)}
-					>
-						{label}
-					</button>
-				))}
+				{/* A segmented control, not two bare labels: the unselected one has
+				    to look clickable too, or it reads as a caption. */}
+				<div
+					role="tablist"
+					className="flex items-center gap-[2px] rounded-[8px] border border-[#25252e] bg-[#0a0a0c] p-[2px]"
+				>
+					{(
+						[
+							["schedules", "Schedules"],
+							["rules", "Rules"],
+						] as const
+					).map(([value, label]) => (
+						<button
+							key={value}
+							type="button"
+							role="tab"
+							aria-selected={view === value}
+							onClick={() => setView(value)}
+							className={cn(
+								"cursor-pointer rounded-[6px] px-2.5 py-[3px] text-[12px] font-semibold transition-colors",
+								view === value
+									? "bg-[#2e2413] text-[#f5b83d]"
+									: "bg-[#1f1f27] text-[#a5a5b3] hover:bg-[#2a2a34] hover:text-[#f5f5f7]",
+							)}
+						>
+							{label}
+						</button>
+					))}
+				</div>
 				<span className="text-[12px] text-[#8a8a97]">
 					{view === "schedules"
 						? "tasks that start themselves, on a cron — while Odin is open"
