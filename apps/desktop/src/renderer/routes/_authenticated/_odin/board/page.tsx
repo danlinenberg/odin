@@ -397,7 +397,14 @@ function LoadPill({ card }: { card: BoardCard }) {
  * Hover info for a board card: full title, status, and the session's latest
  * output (one-shot snapshot of live panes).
  */
-function CardHoverContent({ card }: { card: BoardCard }) {
+function CardHoverContent({
+	card,
+	text,
+}: {
+	card: BoardCard;
+	/** The full message, when the board has it (Slack feed, launch brief). */
+	text: string | null;
+}) {
 	// Hover shows ONE thing: what this task is about. The live terminal output
 	// belongs in the drawer, not a tooltip.
 	//
@@ -436,7 +443,8 @@ function CardHoverContent({ card }: { card: BoardCard }) {
 					.trim()
 			: null;
 	// The launch-time brief is usually just the title — don't repeat it.
-	const summary = known && known.trim() !== title.trim() ? known : fileBrief;
+	const summary =
+		text ?? (known && known.trim() !== title.trim() ? known : fileBrief);
 
 	return (
 		<div className="flex flex-col gap-2">
@@ -446,7 +454,7 @@ function CardHoverContent({ card }: { card: BoardCard }) {
 			{contact && <PersonChip name={contact} />}
 			{summary && (
 				<div className="whitespace-pre-wrap break-words text-[11.5px] leading-relaxed text-[#a5a5b3]">
-					{summary.length > 600 ? `${summary.slice(0, 600)}…` : summary}
+					{summary}
 				</div>
 			)}
 		</div>
@@ -632,7 +640,7 @@ function DevBoardPage() {
 				cardSource(card),
 			),
 		);
-	// The full message under an auto-renamed (or first-line) title.
+	// The full message behind an auto-renamed (or first-line) title — hover only.
 	const cardText = (card: BoardCard) => {
 		const body = cardBody(cardTitle(card), cardSource(card));
 		return body && emojify(body);
@@ -1907,11 +1915,6 @@ function DevBoardPage() {
 																<div className="flex items-start gap-2">
 																	<div className="min-w-0 flex-1 break-words text-[12.5px] font-semibold">
 																		{cardTitle(card)}
-																		{cardText(card) && (
-																			<div className="mt-1 whitespace-pre-wrap text-[11.5px] font-normal leading-relaxed text-[#a5a5b3]">
-																				{cardText(card)}
-																			</div>
-																		)}
 																	</div>
 																	<button
 																		type="button"
@@ -2075,9 +2078,12 @@ function DevBoardPage() {
 														<HoverCardContent
 															side="right"
 															align="start"
-															className="w-[400px] border-[#25252e] bg-[#111114] p-3"
+															className="max-h-[70vh] w-[400px] overflow-y-auto border-[#25252e] bg-[#111114] p-3"
 														>
-															<CardHoverContent card={card} />
+															<CardHoverContent
+																card={card}
+																text={cardText(card)}
+															/>
 														</HoverCardContent>
 													</HoverCard>
 												))}
