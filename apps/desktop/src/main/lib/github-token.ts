@@ -133,6 +133,8 @@ export async function githubCliToken(): Promise<string | null> {
 	}
 }
 
+let revokedToken: string | null = null;
+
 /**
  * Call GitHub with `token`, retrying once with the `gh` CLI's token when
  * GitHub rejects it. 401 only: a 403 is a rate limit or a scope problem, and
@@ -148,10 +150,14 @@ export async function githubApiFetch(
 			...init,
 			headers: { ...init.headers, Authorization: `Bearer ${bearer}` },
 		});
-	const res = await send(token);
-	if (res.status !== 401) return res;
+	const res = token === revokedToken ? null : await send(token);
+	if (res && res.status !== 401) return res;
 	const cli = await githubCliToken();
-	return cli && cli !== token ? await send(cli) : res;
+	if (cli && cli !== token) {
+		revokedToken = token;
+		return await send(cli);
+	}
+	return res ?? (await send(token));
 }
 
 /**

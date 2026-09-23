@@ -127,6 +127,29 @@ describe("githubApiFetch", () => {
 		expect(seen).toEqual(["Bearer dead", "Bearer gho_from_cli"]);
 	});
 
+	test("a token the CLI rescued is not sent again", async () => {
+		updateOdinConfig({ githubLogin: "octocat" });
+		stubGhCli("echo gho_from_cli");
+		const seen: string[] = [];
+		globalThis.fetch = mock(async (_url: string, init?: RequestInit) => {
+			const auth = String(
+				(init?.headers as Record<string, string>)?.Authorization,
+			);
+			seen.push(auth);
+			return new Response("{}", {
+				status: auth.endsWith("revoked") ? 401 : 200,
+			});
+		}) as unknown as typeof fetch;
+
+		await githubApiFetch("https://x.test", {}, "revoked");
+		await githubApiFetch("https://x.test", {}, "revoked");
+		expect(seen).toEqual([
+			"Bearer revoked",
+			"Bearer gho_from_cli",
+			"Bearer gho_from_cli",
+		]);
+	});
+
 	test("a 403 is returned as-is — the CLI token would hit the same wall", async () => {
 		updateOdinConfig({ githubLogin: "octocat" });
 		stubGhCli("echo gho_from_cli");
