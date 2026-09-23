@@ -4,6 +4,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { type OdinRule, useOdinRules } from "renderer/stores/odin-rules";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import {
 	cronOf,
@@ -277,6 +278,153 @@ function ScheduleFields({
 	);
 }
 
+const RULE_INPUT =
+	"min-w-0 flex-1 rounded-[6px] border border-[#25252e] bg-[#0a0a0c] px-2 py-1 text-[12px] text-[#f5f5f7] outline-none placeholder:text-[#6f6f7d] focus:border-[#f5b83d]";
+
+/** Every skill as "/name", for the Do field's suggestions. */
+function SkillOptions({ id }: { id: string }) {
+	const { data: skills } = electronTrpc.skills.list.useQuery();
+	return (
+		<datalist id={id}>
+			{skills?.map((skill) => (
+				<option key={skill.name} value={`run /${skill.name}`}>
+					{skill.description}
+				</option>
+			))}
+		</datalist>
+	);
+}
+
+/**
+ * One rule, edited in place. The fields hold a draft and write it back on
+ * blur, so typing doesn't rewrite localStorage on every keystroke.
+ */
+function RuleRow({ rule }: { rule: OdinRule }) {
+	const { update, remove } = useOdinRules();
+	const [when, setWhen] = useState(rule.when);
+	const [action, setAction] = useState(rule.action);
+	// Emptying a field would leave a rule that says nothing; put it back.
+	const commit = () => {
+		if (!when.trim() || !action.trim()) {
+			setWhen(rule.when);
+			setAction(rule.action);
+			return;
+		}
+		if (when.trim() !== rule.when || action.trim() !== rule.action)
+			update(rule.id, { when: when.trim(), action: action.trim() });
+	};
+	return (
+		<div
+			className={cn(
+				FEED_ROW,
+				"flex items-center gap-2 border-l-2 border-l-[#f5b83d]",
+				rule.paused && "border-l-[#3a3a46] opacity-60",
+			)}
+		>
+			<span className="text-[11px] text-[#8a8a97]">When</span>
+			<input
+				aria-label="When"
+				value={when}
+				onChange={(event) => setWhen(event.target.value)}
+				onBlur={commit}
+				className={RULE_INPUT}
+			/>
+			<span className="text-[11px] text-[#8a8a97]">do</span>
+			<input
+				aria-label="Do"
+				list="odin-rule-skills"
+				value={action}
+				onChange={(event) => setAction(event.target.value)}
+				onBlur={commit}
+				className={RULE_INPUT}
+			/>
+			<button
+				type="button"
+				title={
+					rule.paused
+						? "Resume — hand it to new sessions again"
+						: "Pause — keep it, stop handing it out"
+				}
+				onClick={() => update(rule.id, { paused: !rule.paused })}
+				className="shrink-0 rounded-[7px] px-2 py-1 text-xs font-semibold text-[#8a8a97] hover:bg-[#1f1f27] hover:text-[#f5f5f7]"
+			>
+				{rule.paused ? "Resume" : "Pause"}
+			</button>
+			<RowActions>
+				<button
+					type="button"
+					title="Delete this rule"
+					onClick={() => remove(rule.id)}
+					className="rounded-[7px] px-2 py-1 text-xs font-semibold text-[#8a8a97] hover:bg-[#1f1f27] hover:text-[#f5f5f7]"
+				>
+					✕
+				</button>
+			</RowActions>
+		</div>
+	);
+}
+
+/**
+ * Rules — what an agent does when something comes up, rather than at a time.
+ * Each one rides in the launch prompt of every session Odin starts from here
+ * on; a session already running, or one you resume, has the prompt it had.
+ */
+function RulesPanel() {
+	const { rules, add } = useOdinRules();
+	const [when, setWhen] = useState("");
+	const [action, setAction] = useState("");
+	const submit = () => {
+		if (!when.trim() || !action.trim())
+			return toast.error("A rule needs both a when and a do.");
+		add(when, action);
+		setWhen("");
+		setAction("");
+	};
+	const onEnter = (event: React.KeyboardEvent) => {
+		if (event.key === "Enter") submit();
+	};
+	return (
+		<>
+			<SkillOptions id="odin-rule-skills" />
+			<div className="flex shrink-0 items-center gap-2 border-b border-[#25252e] px-[18px] py-3">
+				<span className="text-[11px] text-[#8a8a97]">When</span>
+				<input
+					aria-label="When"
+					value={when}
+					placeholder="you open a pull request"
+					onChange={(event) => setWhen(event.target.value)}
+					onKeyDown={onEnter}
+					className={RULE_INPUT}
+				/>
+				<span className="text-[11px] text-[#8a8a97]">do</span>
+				<input
+					aria-label="Do"
+					list="odin-rule-skills"
+					value={action}
+					placeholder="run /pr-iterate on it"
+					onChange={(event) => setAction(event.target.value)}
+					onKeyDown={onEnter}
+					className={RULE_INPUT}
+				/>
+				<button type="button" onClick={submit} className={ROW_PRIMARY_BUTTON}>
+					Add rule
+				</button>
+			</div>
+			<div className={FEED_LIST}>
+				{rules.length === 0 && (
+					<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
+						No rules. Say what should happen when — every session Odin starts
+						gets told.
+					</div>
+				)}
+				{rules.map((rule) => (
+					<RuleRow key={rule.id} rule={rule} />
+				))}
+			</div>
+		</>
+	);
+}
+
 /**
  * Automations — the tasks that start themselves.
  *
@@ -289,6 +437,46 @@ function ScheduleFields({
  * a cron), so nothing here needed a table, a migration or a sync path.
  */
 function AutomationsPage() {
+	const [view, setView] = useState<"schedules" | "rules">("schedules");
+	return (
+		<div className="flex h-full flex-col">
+			<div className="flex items-center gap-2.5 border-b border-[#25252e] px-[18px] py-2.5">
+				<span className="text-[13px] font-semibold text-[#f5f5f7]">
+					Automations
+				</span>
+				{(
+					[
+						["schedules", "Schedules"],
+						["rules", "Rules"],
+					] as const
+				).map(([value, label]) => (
+					<button
+						key={value}
+						type="button"
+						aria-pressed={view === value}
+						onClick={() => setView(value)}
+						className={cn(
+							"rounded-[6px] px-2 py-[2px] text-[12px] font-semibold transition-colors",
+							view === value
+								? "bg-[#2e2413] text-[#f5b83d]"
+								: "text-[#8a8a97] hover:text-[#f5f5f7]",
+						)}
+					>
+						{label}
+					</button>
+				))}
+				<span className="text-[12px] text-[#8a8a97]">
+					{view === "schedules"
+						? "tasks that start themselves, on a cron — while Odin is open"
+						: "what every session Odin starts should do when something comes up"}
+				</span>
+			</div>
+			{view === "schedules" ? <SchedulesPanel /> : <RulesPanel />}
+		</div>
+	);
+}
+
+function SchedulesPanel() {
 	const { automations, add, edit, remove, setCron, setPaused, setPane } =
 		useMyTasks();
 	const [draft, setDraft] = useState("");
@@ -336,16 +524,7 @@ function AutomationsPage() {
 	};
 
 	return (
-		<div className="flex h-full flex-col">
-			<div className="flex items-center gap-2.5 border-b border-[#25252e] px-[18px] py-2.5">
-				<span className="text-[13px] font-semibold text-[#f5f5f7]">
-					Automations
-				</span>
-				<span className="text-[12px] text-[#8a8a97]">
-					tasks that start themselves, on a cron — while Odin is open
-				</span>
-			</div>
-
+		<>
 			<div className="shrink-0 border-b border-[#25252e] px-[18px] py-3">
 				{/* TaskBox is `h-full` so a dialog can stretch it. Left as a direct
 				    child here it claims this whole block — schedule row included —
@@ -535,6 +714,6 @@ function AutomationsPage() {
 					);
 				})}
 			</div>
-		</div>
+		</>
 	);
 }

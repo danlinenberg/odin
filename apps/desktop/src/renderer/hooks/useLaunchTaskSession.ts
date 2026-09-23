@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { launchLimits, useLaunchLimits } from "renderer/stores/launch-limits";
+import {
+	type OdinRule,
+	rulesPrompt,
+	useOdinRules,
+} from "renderer/stores/odin-rules";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import { isVideoFile } from "shared/file-types";
 import { launchBlocker } from "shared/launch-gate";
@@ -27,6 +32,7 @@ export function buildPrompt(
 	attachmentPaths: string[] = [],
 	skill?: string,
 	unattended = false,
+	rules: OdinRule[] = [],
 ): string {
 	return [
 		// A skill leads the prompt, on its own line, with the title as its
@@ -58,6 +64,7 @@ export function buildPrompt(
 					"This run was started by a schedule, not by a person — nobody is watching it. Don't stop to ask something you can settle with a sensible default: make the call, say which one you made, and leave the question in ACTION ITEMS.",
 				]
 			: []),
+		...rulesPrompt(rules),
 		// Every session lands on the board, and most of them land under "Needs
 		// you" — where the only question being asked is "what do I have to do
 		// about this one?". A turn that stops at "here's what I found" makes
@@ -317,6 +324,7 @@ export function useLaunchTaskSession() {
 						attachmentPaths,
 						skill,
 						tags?.includes("automation"),
+						useOdinRules.getState().rules,
 					),
 					encoding: "utf-8",
 				});
