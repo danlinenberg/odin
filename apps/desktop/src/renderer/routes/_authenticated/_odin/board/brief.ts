@@ -283,3 +283,14 @@ export function parseLinks(input: string): { url: string; name?: string }[] {
 	if (urls.length === 1 && name) return [{ url: urls[0], name }];
 	return urls.map((url) => ({ url }));
 }
+
+export type LinkKind = "jira" | "slack" | "pr" | "notion" | "other";
+
+/** Which brief section a link you added belongs in. */
+export function linkKind(url: string): LinkKind {
+	if (/\.atlassian\.net\/browse\//.test(url)) return "jira";
+	if (/\.slack\.com\/archives\//.test(url)) return "slack";
+	if (/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/.test(url)) return "pr";
+	if (/notion\.(?:so|com|site)\//.test(url)) return "notion";
+	return "other";
+}
