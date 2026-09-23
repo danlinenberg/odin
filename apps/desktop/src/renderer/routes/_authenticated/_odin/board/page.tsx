@@ -995,6 +995,8 @@ function DevBoardPage() {
 		y: number;
 	} | null>(null);
 	const [tagFilter, setTagFilter] = useState<string[]>([]);
+	// A card has one person, so this picks one: click again to clear.
+	const [personFilter, setPersonFilter] = useState<string | null>(null);
 	// Highlight the Idle column while a card is dragged over it.
 	const [dragOverIdle, setDragOverIdle] = useState(false);
 
@@ -1076,12 +1078,13 @@ function DevBoardPage() {
 		);
 	};
 
-	const { cardsByStatus, completedCards, allTags } = useMemo(() => {
+	const { cardsByStatus, completedCards, allTags, allPeople } = useMemo(() => {
 		const map = new Map<PaneStatus, BoardCard[]>();
 		const completed: BoardCard[] = [];
 		// Counted over the sessions the board actually shows — counting every
 		// pane made the pill promise cards that were killed or aren't tasks.
 		const tagCounts = new Map<string, number>();
+		const personCounts = new Map<string, number>();
 		for (const column of COLUMNS) map.set(column.status, []);
 		for (const tab of tabs) {
 			const workspace = workspaceById.get(tab.workspaceId);
@@ -1133,6 +1136,10 @@ function DevBoardPage() {
 				);
 				for (const tag of boardTags(pane.odinTags))
 					tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
+				const person = pane.odinContact ?? contactByPane[pane.id] ?? null;
+				if (person)
+					personCounts.set(person, (personCounts.get(person) ?? 0) + 1);
+				if (personFilter && person !== personFilter) continue;
 				// Tag filter: show only sessions carrying every selected tag.
 				if (
 					tagFilter.length > 0 &&
@@ -1151,6 +1158,9 @@ function DevBoardPage() {
 			allTags: [...tagCounts.entries()].sort((a, b) =>
 				a[0].localeCompare(b[0]),
 			),
+			allPeople: [...personCounts.entries()].sort((a, b) =>
+				a[0].localeCompare(b[0]),
+			),
 		};
 	}, [
 		tabs,
@@ -1160,6 +1170,8 @@ function DevBoardPage() {
 		agentPaneIds,
 		daemonSessions,
 		tagFilter,
+		personFilter,
+		contactByPane,
 		titleByPane,
 		activeProfileId,
 		isProfileLoading,
@@ -1694,6 +1706,44 @@ function DevBoardPage() {
 							<button
 								type="button"
 								onClick={() => setTagFilter([])}
+								className="text-[11px] text-[#8a8a97] hover:text-[#a5a5b3]"
+							>
+								clear
+							</button>
+						)}
+					</div>
+				)}
+
+				{/* person filter — the card's contact; hidden when nobody's on the board */}
+				{allPeople.length > 0 && (
+					<div className="flex flex-wrap items-center gap-1.5">
+						{allPeople.map(([person, count]) => (
+							<button
+								key={person}
+								type="button"
+								title={`Show only ${person}'s sessions`}
+								onClick={() =>
+									setPersonFilter((current) =>
+										current === person ? null : person,
+									)
+								}
+								className={cn(
+									"flex items-center rounded-[6px] transition-opacity",
+									personFilter && personFilter !== person
+										? "opacity-40 hover:opacity-80"
+										: personFilter === person
+											? "ring-1 ring-current"
+											: "",
+								)}
+							>
+								<PersonChip name={person} />
+								<span className="ml-1 text-[11px] text-[#8a8a97]">{count}</span>
+							</button>
+						))}
+						{personFilter && (
+							<button
+								type="button"
+								onClick={() => setPersonFilter(null)}
 								className="text-[11px] text-[#8a8a97] hover:text-[#a5a5b3]"
 							>
 								clear
