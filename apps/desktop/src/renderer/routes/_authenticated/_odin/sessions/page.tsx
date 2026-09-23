@@ -6,6 +6,7 @@ import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import { PersonChip } from "../components/PersonChip";
+import { Highlight, TranscriptView } from "../components/TranscriptView";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePaneMeta } from "../hooks/usePaneMeta";
 import { usePendingFocus } from "../hooks/usePendingFocus";
@@ -58,103 +59,6 @@ function agoLabel(at: number): string {
 
 function repoLabel(cwd: string | null): string | null {
 	return cwd ? (cwd.split("/").filter(Boolean).pop() ?? null) : null;
-}
-
-function escapeRegExp(value: string): string {
-	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-/** Highlight every occurrence of any search term (the server tokenises them). */
-function Highlight({ text, terms }: { text: string; terms: string[] }) {
-	if (terms.length === 0) return <>{text}</>;
-	const pattern = new RegExp(`(${terms.map(escapeRegExp).join("|")})`, "gi");
-	return (
-		<>
-			{text.split(pattern).map((part, index) =>
-				// split() with one capture group puts matches at the odd indices.
-				index % 2 === 1 ? (
-					<mark
-						// biome-ignore lint/suspicious/noArrayIndexKey: split() output is positional
-						key={index}
-						className="rounded-[3px] bg-[#a394ff]/30 px-[1px] text-[#dcd6ff]"
-					>
-						{part}
-					</mark>
-				) : (
-					part
-				),
-			)}
-		</>
-	);
-}
-
-/** The conversation itself, user/assistant turns only — no tool-call noise. */
-function TranscriptView({ row, terms }: { row: SessionRow; terms: string[] }) {
-	const { data, isLoading, error } =
-		electronTrpc.terminal.readClaudeTranscript.useQuery({
-			project: row.project,
-			sessionId: row.sessionId,
-		});
-	const ref = useRef<HTMLDivElement>(null);
-	// Jump to the first hit when arriving from a search, else the latest turn.
-	useEffect(() => {
-		if (!data) return;
-		const target = ref.current?.querySelector("mark");
-		if (target) target.scrollIntoView({ block: "center" });
-		else if (ref.current) ref.current.scrollTop = ref.current.scrollHeight;
-	}, [data]);
-
-	if (error) {
-		return (
-			<div className="flex-1 select-text cursor-text px-4 py-3 text-[12px] text-[#f0647a]">
-				{error.message}
-			</div>
-		);
-	}
-	return (
-		<div
-			ref={ref}
-			className="min-h-0 flex-1 select-text cursor-text overflow-y-auto px-4 py-3"
-		>
-			{isLoading && <div className="text-[12px] text-[#8a8a97]">loading…</div>}
-			{data?.messages.length === 0 && (
-				<div className="text-[12px] text-[#8a8a97]">
-					No prose turns in this transcript.
-				</div>
-			)}
-			<div className="flex flex-col gap-3">
-				{data?.messages.map((message, index) => (
-					<div
-						key={`${index}-${message.at ?? ""}`}
-						className={cn(
-							"rounded-[9px] border px-3 py-2",
-							message.role === "user"
-								? "border-[#2b2646] bg-[#171524]"
-								: "border-[#25252e] bg-[#141418]",
-						)}
-					>
-						<div className="mb-1 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.4px]">
-							<span
-								className={
-									message.role === "user" ? "text-[#a394ff]" : "text-[#3ecf8e]"
-								}
-							>
-								{message.role === "user" ? "you" : "claude"}
-							</span>
-							{message.at && (
-								<span className="font-normal text-[#8a8a97]">
-									{new Date(message.at).toLocaleString()}
-								</span>
-							)}
-						</div>
-						<div className="whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-[#d6d6dc]">
-							<Highlight text={message.text} terms={terms} />
-						</div>
-					</div>
-				))}
-			</div>
-		</div>
-	);
 }
 
 function SessionsPage() {
@@ -462,7 +366,11 @@ function SessionsPage() {
 								</span>
 							</div>
 						</div>
-						<TranscriptView row={openRow} terms={terms} />
+						<TranscriptView
+							project={openRow.project}
+							sessionId={openRow.sessionId}
+							terms={terms}
+						/>
 						<div className="flex gap-2 border-t border-[#25252e] px-4 py-3">
 							<button
 								type="button"

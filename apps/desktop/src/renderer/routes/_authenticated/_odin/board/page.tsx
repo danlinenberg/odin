@@ -56,6 +56,7 @@ import {
 } from "../components/OdinPromptDialog";
 import { PersonChip } from "../components/PersonChip";
 import { DueChip, useReminders } from "../components/Reminders";
+import { TranscriptView } from "../components/TranscriptView";
 import { useOdinProfile } from "../hooks/useOdinProfile";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePaneMeta } from "../hooks/usePaneMeta";
@@ -199,11 +200,28 @@ const defaultDrawerWidth = maxDrawerWidth;
 const ANSI_RE =
 	/\x1b\[[0-9;?<>]*[a-zA-Z]|\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b[()][A-Z0-9]|\x1b[=>]|[\x00-\x08\x0b-\x1f]/g;
 /**
- * Read-only transcript for a dead pane (killed or previous-run). Reads the
- * persisted scrollback from disk — which survives daemon death and restarts —
- * so closed sessions still show their history without respawning anything.
+ * Read-only history for a dead pane (killed or previous-run), without
+ * respawning anything. A Claude session shows its conversation: Claude Code
+ * draws in the alternate screen, so its scrollback is hundreds of cursor-placed
+ * repaints that read as run-together words once the escapes are stripped.
  */
 function HistoryView({ card, live }: { card: BoardCard; live: boolean }) {
+	const sessionId = useCardSessionId(card);
+	if (sessionId && !live) {
+		return (
+			<div className="flex min-h-0 flex-1 flex-col">
+				<div className="border-b border-[#25252e] px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[.4px] text-[#8a8a97]">
+					Conversation history · session ended
+				</div>
+				<TranscriptView sessionId={sessionId} />
+			</div>
+		);
+	}
+	return <ScrollbackView card={card} live={live} />;
+}
+
+/** The persisted PTY output, for panes with no Claude conversation behind them. */
+function ScrollbackView({ card, live }: { card: BoardCard; live: boolean }) {
 	// Read the persisted scrollback from disk — always reliable, unlike the
 	// embedded xterm which intermittently renders blank in this drawer. Poll
 	// while the session is live so the transcript stays current.
