@@ -102,8 +102,16 @@ export const usePaneMeta = create<{
 						(l) => linkUrl(l) !== url,
 					);
 					const { [paneId]: _, ...rest } = s.linksByPane;
+					// A removed link shouldn't come back hidden if you re-add it.
+					const hidden = (s.hiddenByPane[paneId] ?? []).filter(
+						(u) => u !== url,
+					);
+					const { [paneId]: __, ...hiddenRest } = s.hiddenByPane;
 					return {
 						linksByPane: links.length ? { ...rest, [paneId]: links } : rest,
+						hiddenByPane: hidden.length
+							? { ...hiddenRest, [paneId]: hidden }
+							: hiddenRest,
 					};
 				}),
 			setHidden: (paneId, url, hidden) =>
