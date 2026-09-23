@@ -1,6 +1,7 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@odin/ui/tooltip";
 import { useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { emojify } from "renderer/lib/emoji";
 import { type BriefLink, usePaneMeta } from "../hooks/usePaneMeta";
 import {
 	jiraIssue,
@@ -250,7 +251,23 @@ export function SessionBrief({
 	);
 	const { data: previews } = electronTrpc.slack.previews.useQuery(
 		{ urls: slackUrls },
-		{ enabled: slackUrls.length > 0, retry: false, staleTime: Infinity },
+		{
+			enabled: slackUrls.length > 0,
+			retry: false,
+			staleTime: Infinity,
+			// Slack sends `:slightly_smiling_face:`; the link and its hover show 🙂.
+			select: (data) =>
+				Object.fromEntries(
+					Object.entries(data).map(([url, preview]) => [
+						url,
+						preview && {
+							...preview,
+							text: emojify(preview.text),
+							full: preview.full && emojify(preview.full),
+						},
+					]),
+				),
+		},
 	);
 	const threadPreview = thread ? previews?.[thread] : null;
 
