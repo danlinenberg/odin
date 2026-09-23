@@ -81,11 +81,16 @@ export function odinSessionInFlight(
 	panes: Pane[],
 	odinRepoPath: string | null | undefined,
 ): { paneId: string; title: string } | null {
+	if (!odinRepoPath) return null;
 	const held = panes.find(
 		(pane) =>
 			!pane.completed &&
 			OWNS_ITS_CHECKOUT.has(pane.status ?? "") &&
-			isOdinCwd(pane.initialCwd ?? pane.cwd ?? "", odinRepoPath),
+			// The #odin tag first: opening a terminal clears `initialCwd`, and a
+			// pane running claude directly never reports a `cwd`, so an opened
+			// session has neither. The tag is stamped from the cwd at launch.
+			(pane.odinTags?.includes("odin") ||
+				isOdinCwd(pane.initialCwd ?? pane.cwd ?? "", odinRepoPath)),
 	);
 	return held
 		? { paneId: held.id, title: held.odinTaskTitle ?? held.name }

@@ -94,8 +94,25 @@ describe("odinSessionInFlight", () => {
 		).not.toBeNull();
 	});
 
+	// Opening a session's terminal clears initialCwd, and claude never reports
+	// a cwd — the #odin tag stamped at launch is what's left.
+	it("counts an #odin session whose cwd has been forgotten", () => {
+		expect(
+			odinSessionInFlight(
+				[pane({ initialCwd: undefined, odinTags: ["odin"] })],
+				ODIN,
+			),
+		).not.toBeNull();
+		expect(
+			odinSessionInFlight([pane({ initialCwd: undefined })], ODIN),
+		).toBeNull();
+	});
+
 	it("blocks nothing when Odin's checkout isn't configured", () => {
 		expect(odinSessionInFlight([pane({})], null)).toBeNull();
+		expect(
+			odinSessionInFlight([pane({ odinTags: ["odin"] })], null),
+		).toBeNull();
 		expect(odinSessionInFlight([], ODIN)).toBeNull();
 	});
 });
