@@ -2128,7 +2128,7 @@ function DevBoardPage() {
 																					event.stopPropagation();
 																					void resumeCard(card);
 																				}}
-																				className="ml-auto rounded-[7px] bg-[#1f1f27] px-2.5 py-1 text-xs font-semibold text-[#a5a5b3] hover:text-[#3ecf8e]"
+																				className="ml-auto shrink-0 whitespace-nowrap rounded-[7px] bg-[#1f1f27] px-2.5 py-1 text-xs font-semibold text-[#a5a5b3] hover:text-[#3ecf8e]"
 																			>
 																				Start now
 																			</button>
