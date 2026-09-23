@@ -51,13 +51,13 @@ async function claudeUsage(): Promise<{
 		});
 		if (!res.ok) return null;
 		const body = await res.json();
-		const window = (w: unknown): ClaudeUsageWindow | null => {
+		const toWindow = (w: unknown): ClaudeUsageWindow | null => {
 			const v = w as { utilization?: number; resets_at?: string | null } | null;
 			return typeof v?.utilization === "number"
 				? { percent: Math.round(v.utilization), resetsAt: v.resets_at ?? null }
 				: null;
 		};
-		return { fiveHour: window(body.five_hour), week: window(body.seven_day) };
+		return { fiveHour: toWindow(body.five_hour), week: toWindow(body.seven_day) };
 	} catch {
 		return null;
 	}
