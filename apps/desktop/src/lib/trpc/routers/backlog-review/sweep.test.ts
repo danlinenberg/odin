@@ -122,6 +122,9 @@ describe("verdicts", () => {
 					iReplied: true,
 					repliersComplete: true,
 					lastReplyTs: null,
+					channelLastTs: null,
+					channelLastByMe: false,
+					isDirect: false,
 				}),
 			}),
 		);
@@ -144,6 +147,9 @@ describe("verdicts", () => {
 					iReplied: true,
 					repliersComplete: true,
 					lastReplyTs: recentTs(),
+					channelLastTs: null,
+					channelLastByMe: false,
+					isDirect: false,
 				}),
 			}),
 		);
@@ -151,6 +157,74 @@ describe("verdicts", () => {
 			verdict: "KEEP",
 			evidence: "2 replies, and they answered after you",
 		});
+	});
+
+	// Reported from the board: a group DM where the answer was typed into the
+	// DM, not into a thread. The thread rungs see nothing and the row reads as
+	// 22 days dead.
+	test("an answer typed into the DM counts", async () => {
+		const answer = await sweepItem(
+			item({ key: "slack:D1:123" }),
+			deps({
+				slackThread: async () => ({
+					replies: 0,
+					lastReplyByMe: false,
+					iReplied: false,
+					repliersComplete: true,
+					lastReplyTs: null,
+					channelLastTs: recentTs(),
+					channelLastByMe: true,
+					isDirect: true,
+				}),
+			}),
+		);
+		expect(answer).toEqual({
+			verdict: "DROP",
+			evidence: "you answered in the DM afterwards",
+		});
+	});
+
+	// The same signal in a channel is me saying something unrelated later.
+	test("speaking later in a CHANNEL is not answering", async () => {
+		const answer = await sweepItem(
+			item({ key: `slack:C1:${((Date.now() - 3 * DAY) / 1000).toFixed(6)}` }),
+			deps({
+				slackThread: async () => ({
+					replies: 0,
+					lastReplyByMe: false,
+					iReplied: false,
+					repliersComplete: true,
+					lastReplyTs: null,
+					channelLastTs: recentTs(),
+					channelLastByMe: true,
+					isDirect: false,
+				}),
+			}),
+		);
+		// Kept, and kept alive: the channel moved, so it isn't stale either.
+		expect(answer).toEqual({ verdict: "KEEP", evidence: "nobody has replied" });
+	});
+
+	// A channel you read every morning has "activity" every morning. If that
+	// counted, no row in any live channel could ever go stale.
+	test("a busy channel doesn't keep an old row alive", async () => {
+		const answer = await sweepItem(
+			item({ key: `slack:C1:${((Date.now() - 60 * DAY) / 1000).toFixed(6)}` }),
+			deps({
+				slackThread: async () => ({
+					replies: 0,
+					lastReplyByMe: false,
+					iReplied: false,
+					repliersComplete: true,
+					lastReplyTs: null,
+					channelLastTs: recentTs(),
+					channelLastByMe: false,
+					isDirect: false,
+				}),
+			}),
+		);
+		expect(answer.verdict).toBe("DROP");
+		expect(answer.evidence).toContain("nothing has moved in 60 days");
 	});
 
 	test("replies from other people are context, not a reason to clear", async () => {
@@ -163,6 +237,9 @@ describe("verdicts", () => {
 					iReplied: false,
 					repliersComplete: true,
 					lastReplyTs: recentTs(),
+					channelLastTs: null,
+					channelLastByMe: false,
+					isDirect: false,
 				}),
 			}),
 		);
@@ -184,6 +261,9 @@ describe("verdicts", () => {
 					iReplied: false,
 					repliersComplete: false,
 					lastReplyTs: recentTs(),
+					channelLastTs: null,
+					channelLastByMe: false,
+					isDirect: false,
 				}),
 			}),
 		);
@@ -257,6 +337,9 @@ describe("verdicts", () => {
 					iReplied: false,
 					repliersComplete: true,
 					lastReplyTs: ((Date.now() - 2 * DAY) / 1000).toFixed(6),
+					channelLastTs: null,
+					channelLastByMe: false,
+					isDirect: false,
 				}),
 			}),
 		);
@@ -274,6 +357,9 @@ describe("verdicts", () => {
 					iReplied: false,
 					repliersComplete: true,
 					lastReplyTs: null,
+					channelLastTs: null,
+					channelLastByMe: false,
+					isDirect: false,
 				}),
 			}),
 		);

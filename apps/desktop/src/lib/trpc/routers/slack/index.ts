@@ -298,6 +298,63 @@ async function syncReactions(token: string, reaction: string): Promise<void> {
 const VERIFY_PER_SYNC = 8;
 
 /**
+ * What happened in the conversation itself after a queued message.
+ *
+ * Not every answer is a threaded reply. A DM gets answered in the DM, and the
+ * thread rungs above see none of it — which is how a message answered nine
+ * days later reads as "nobody has replied, and nothing has moved in 22 days".
+ *
+ * Read from `conversations.info`, under the `*:read` scopes the queue already
+ * has. `last_read` is my read cursor, so it is a *lower bound* on the newest
+ * message here — it can lag the conversation, never lead it. That direction is
+ * the safe one: it can only make a row look more alive than the thread alone
+ * did, never less.
+ *
+ * `isDirect` decides what the caller may do with it. In a DM my speaking last
+ * is the conversation being over; in #rnd it is me saying something unrelated
+ * an hour later, and clearing a queued question on that would be exactly the
+ * mistake the thread rung just stopped making.
+ */
+async function conversationAfter(
+	channel: string,
+	messageTs: string,
+	myUserId: string,
+	token: string,
+): Promise<{
+	channelLastTs: string | null;
+	channelLastByMe: boolean;
+	isDirect: boolean;
+}> {
+	const quiet = {
+		channelLastTs: null,
+		channelLastByMe: false,
+		isDirect: false,
+	};
+	try {
+		const info = await slackApi<
+			SlackResponse & {
+				channel?: { last_read?: string; is_im?: boolean; is_mpim?: boolean };
+			}
+		>("conversations.info", { channel }, token);
+		const isDirect = Boolean(info.channel?.is_im || info.channel?.is_mpim);
+		const last = info.channel?.last_read ?? null;
+		// Nothing after the message itself: no later author to go and read.
+		if (!last || Number(last) <= Number(messageTs))
+			return { ...quiet, isDirect };
+		const author = await slackApi<
+			SlackResponse & { message?: { user?: string } }
+		>("reactions.get", { channel, timestamp: last, full: "true" }, token);
+		return {
+			channelLastTs: last,
+			channelLastByMe: author.message?.user === myUserId,
+			isDirect,
+		};
+	} catch {
+		return quiet;
+	}
+}
+
+/**
  * Is the queue reaction still on this one message?
  *
  * null is "Slack wouldn't say", which must never read as "the reaction is
@@ -358,6 +415,12 @@ export async function slackThreadReplies(id: string): Promise<{
 	repliersComplete: boolean;
 	/** Slack ts of the newest reply — the freshest thing that happened here. */
 	lastReplyTs: string | null;
+	/** Newest thing seen in the conversation itself, reply or not. */
+	channelLastTs: string | null;
+	/** That newest thing is mine — I said something here after this message. */
+	channelLastByMe: boolean;
+	/** A DM or group DM, where "I spoke last" is about this and nothing else. */
+	isDirect: boolean;
 } | null> {
 	const token = slackToken();
 	if (!token) return null;
@@ -391,9 +454,11 @@ export async function slackThreadReplies(id: string): Promise<{
 		const repliers = message.reply_users ?? [];
 		const iReplied = repliers.includes(me.userId);
 		const latest = message.latest_reply ?? null;
+		const after = await conversationAfter(channel, ts, me.userId, token);
 		return {
 			replies: message.reply_count ?? 0,
 			iReplied,
+			...after,
 			// Who spoke last. Only worth a call when I'm in the thread at all —
 			// if I never replied, the last word certainly isn't mine.
 			lastReplyByMe:
