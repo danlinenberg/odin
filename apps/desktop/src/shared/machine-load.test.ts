@@ -58,14 +58,15 @@ describe("machineLoad", () => {
 		expect(load.reason).toBe("6 agents using 85% of this Mac");
 	});
 
-	it("holds a launch on a Mac that already feels slow", () => {
-		// The screenshot that lowered the gate: 13 sessions on 27% of the CPU,
-		// the Mac 54% busy, and every new session made it worse.
-		const load = machineLoad(
-			snapshot({ hostCpu: 54, totalCpu: 270, agents: 13 }),
+	it("holds a launch well before the Mac is suffocating", () => {
+		// 72% busy used to launch (the gate sat at 85) into a Mac that was
+		// already stuttering; half busy is still fine.
+		expect(machineLoad(snapshot({ hostCpu: 72, agents: 13 })).reason).toBe(
+			"this Mac is at 72% CPU",
 		);
-		expect(load.busy).toBe(true);
-		expect(load.reason).toBe("13 agents using 27% of this Mac");
+		expect(
+			machineLoad(snapshot({ hostCpu: 54, totalCpu: 270, agents: 13 })).busy,
+		).toBe(false);
 	});
 
 	it("says agent, singular, for one", () => {
