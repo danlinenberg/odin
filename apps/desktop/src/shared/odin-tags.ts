@@ -1,5 +1,3 @@
-import type { Pane } from "./tabs-types";
-
 /**
  * Does this session run inside Odin's own checkout? Worktrees under it count:
  * they are the same repo, and `.worktrees/` lives inside the checkout.
@@ -57,42 +55,4 @@ export const BOARD_TAGS: string[] = ["odin", ...TAG_VOCABULARY];
  */
 export function boardTags(tags: string[] | undefined): string[] {
 	return (tags ?? []).filter((tag) => BOARD_TAGS.includes(tag));
-}
-
-/**
- * Statuses that mean an agent is live in its checkout: running, or stopped
- * mid-run waiting for you to approve something. Both still own the tree.
- * `review` and `idle` don't — the agent has stopped, and holding a launch
- * until the board is tidy would mean holding it until you tidy the board.
- */
-const OWNS_ITS_CHECKOUT = new Set(["working", "permission"]);
-
-/**
- * The session already working in Odin's own checkout, if there is one.
- *
- * Odin is worked on in place — sessions run in the checkout itself, not in a
- * worktree each — so two agents in there at once edit each other's files, and
- * each one's `git status` is the other one's mess. One at a time, then.
- *
- * ponytail: the launch cwd identifies the checkout, not `pane.cwd` — an agent
- * that cds into /tmp mid-run is still holding the tree it started in.
- */
-export function odinSessionInFlight(
-	panes: Pane[],
-	odinRepoPath: string | null | undefined,
-): { paneId: string; title: string } | null {
-	if (!odinRepoPath) return null;
-	const held = panes.find(
-		(pane) =>
-			!pane.completed &&
-			OWNS_ITS_CHECKOUT.has(pane.status ?? "") &&
-			// The #odin tag first: opening a terminal clears `initialCwd`, and a
-			// pane running claude directly never reports a `cwd`, so an opened
-			// session has neither. The tag is stamped from the cwd at launch.
-			(pane.odinTags?.includes("odin") ||
-				isOdinCwd(pane.initialCwd ?? pane.cwd ?? "", odinRepoPath)),
-	);
-	return held
-		? { paneId: held.id, title: held.odinTaskTitle ?? held.name }
-		: null;
 }

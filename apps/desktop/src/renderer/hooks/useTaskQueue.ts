@@ -3,7 +3,7 @@ import { electronTrpc } from "renderer/lib/electron-trpc";
 import { launchLimits, useLaunchLimits } from "renderer/stores/launch-limits";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import type { Pane } from "renderer/stores/tabs/types";
-import { launchBlocker } from "shared/launch-gate";
+import { claimedCheckout, launchBlocker } from "shared/launch-gate";
 
 /**
  * Tasks created while the gate was shut, oldest first.
@@ -19,6 +19,16 @@ export function queuedPanes(panes: Record<string, Pane>): Pane[] {
 /** Where a queued pane's agent runs — set at launch, never confirmed since. */
 function queuedCwd(pane: Pane): string {
 	return pane.initialCwd ?? pane.cwd ?? "";
+}
+
+/**
+ * The checkout a queued pane will claim when it starts — what the gate
+ * compares. `odinCwd` survives opening the card; `initialCwd` doesn't.
+ */
+function queuedCheckout(pane: Pane, odinRepoPath: string | null | undefined) {
+	return (
+		pane.odinCwd ?? claimedCheckout(undefined, queuedCwd(pane), odinRepoPath)
+	);
 }
 
 type TrpcClient = ReturnType<typeof electronTrpc.useUtils>["client"];
@@ -121,7 +131,7 @@ export function useTaskQueue(): void {
 		const blocker = launchBlocker(
 			metrics,
 			Object.values(panes),
-			queuedCwd(next),
+			queuedCheckout(next, workConfig?.odinRepoPath),
 			workConfig?.odinRepoPath,
 			launchLimits(useLaunchLimits.getState()),
 		);
