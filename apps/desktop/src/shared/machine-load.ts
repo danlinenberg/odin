@@ -38,20 +38,20 @@ export interface MachineLoadInput {
  *
  * ponytail: one fixed number, tuned on a 12-core Mac that idles at ~10% with a
  * dozen sessions parked. It's the knob — move it to ~/.config/odin.json if a
- * different machine argues with it. Was 70: the Mac was already sluggish at
- * 27% agents / 54% whole machine, and 70 only tripped long after that.
+ * different machine argues with it. 70 tripped long after the Mac was already
+ * sluggish; 25 queued launches on a Mac that was coping. 45 sits between.
  */
-export const BUSY_AGENT_CPU_PERCENT = 25;
+export const BUSY_AGENT_CPU_PERCENT = 45;
 
 /**
  * How much of the whole machine can be busy — anyone's work, not just
  * Odin's — before the next launch waits.
  *
- * ponytail: same knob as BUSY_AGENT_CPU_PERCENT. Was 85, which let launches
- * land on a Mac that was already suffocating; half busy is where it starts to
- * stutter, and whose CPU it is stops mattering.
+ * ponytail: same knob as BUSY_AGENT_CPU_PERCENT. 85 let launches land on a
+ * Mac that was already suffocating; 50 held them on one that was fine. Past
+ * 70 whose CPU it is stops mattering.
  */
-export const BUSY_HOST_CPU_PERCENT = 50;
+export const BUSY_HOST_CPU_PERCENT = 70;
 
 export interface MachineLoad {
 	/**
