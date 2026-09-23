@@ -1267,9 +1267,17 @@ function DevBoardPage() {
 	 * (read-only "restored" mode / exited-session gate) that makes the fresh
 	 * mount silently drop every keystroke. A clean mount does a clean live
 	 * attach — typeable.
+	 *
+	 * Never purge the pane the drawer is already showing: its Terminal stays
+	 * mounted (same paneId, nothing re-runs), so disposing its xterm pulls the
+	 * canvas out from under it and the drawer goes blank until reopened.
 	 */
 	const openDrawer = (card: BoardCard) => {
-		if (card.pane.type === "terminal" && alivePaneIds.has(card.pane.id)) {
+		if (
+			card.pane.type === "terminal" &&
+			alivePaneIds.has(card.pane.id) &&
+			drawerCard?.pane.id !== card.pane.id
+		) {
 			coldRestoreState.delete(card.pane.id);
 			terminalCache.dispose(card.pane.id);
 		}
@@ -2249,6 +2257,7 @@ function DevBoardPage() {
 									// (scrollback replay is a stream of overlapping frames = mush).
 									<div className="min-h-0 flex-1 bg-[#0a0a0c] p-2">
 										<Terminal
+											key={drawerCard.pane.id}
 											paneId={drawerCard.pane.id}
 											tabId={drawerCard.tabId}
 											workspaceId={drawerCard.workspaceId}
