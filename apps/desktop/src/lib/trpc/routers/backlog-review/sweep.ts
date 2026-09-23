@@ -138,6 +138,12 @@ export interface SweepDeps {
 		repliersComplete: boolean;
 		/** Slack ts of the newest reply, when the thread has one. */
 		lastReplyTs: string | null;
+		/** Newest thing seen in the conversation itself, reply or not. */
+		channelLastTs: string | null;
+		/** That newest thing is mine — I said something here afterwards. */
+		channelLastByMe: boolean;
+		/** A DM or group DM, where "I spoke last" is about this and nothing else. */
+		isDirect: boolean;
 	} | null>;
 }
 
@@ -209,12 +215,28 @@ export async function sweepItem(
 				verdict: "DROP",
 				evidence: "you had the last word in the thread",
 			};
+		// Not every answer is a threaded reply — a DM gets answered in the DM.
+		// Only in a direct conversation: in a channel, me saying something later
+		// is me saying something later, not me dealing with this.
+		if (thread.isDirect && thread.channelLastByMe)
+			return { verdict: "DROP", evidence: "you answered in the DM afterwards" };
 		// A reply is the freshest thing that happened here, and the row's own
 		// timestamp is the message — so a long-dead thread under an old message
 		// still reads as quiet, and one answered yesterday doesn't.
-		const moved = thread.lastReplyTs
-			? Number(thread.lastReplyTs) * 1000
-			: (activity ?? slackTs(slack));
+		// The freshest of everything actually seen: a reply, something said in the
+		// conversation since, or failing both the message's own timestamp.
+		const seen = [
+			thread.lastReplyTs ? Number(thread.lastReplyTs) * 1000 : null,
+			// Only in a DM. In a channel this is "the channel is busy", which is
+			// true of every channel worth being in and would keep every row alive
+			// forever — a row in #rnd is judged on its own thread, not on whether
+			// #rnd said something this morning.
+			thread.isDirect && thread.channelLastTs
+				? Number(thread.channelLastTs) * 1000
+				: null,
+			activity ?? slackTs(slack),
+		].filter((at): at is number => at !== null);
+		const moved = seen.length > 0 ? Math.max(...seen) : null;
 		if (thread.replies > 0) {
 			const count = `${thread.replies} ${thread.replies === 1 ? "reply" : "replies"}`;
 			// Only claim none of them are mine when Slack listed every replier.
