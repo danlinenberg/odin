@@ -28,6 +28,8 @@ describe("paneSchema", () => {
 			odinPageId: "page-1",
 			odinSource: "jira",
 			odinTags: ["work"],
+			odinStarred: true,
+			odinQueued: { command: "claude", reason: "busy" },
 			odinAutoTagged: true,
 			odinAutoTitled: true,
 			odinProfile: "1d14929a-66cb-4664-b2b1-a655fd00677f",
