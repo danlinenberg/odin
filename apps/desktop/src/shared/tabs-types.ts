@@ -196,7 +196,8 @@ export interface Pane {
 	 */
 	odinParked?: boolean;
 	/**
-	 * Odin fork: created but not started — Odin's own checkout was taken. The card sits in Idle under "Queued" with the reason
+	 * Odin fork: created but not started — the Mac was flat out, or Odin's own
+	 * checkout was taken. The card sits in Idle under "Queued" with the reason
 	 * on it, and the queue runner spawns `command` the moment the gate clears.
 	 */
 	odinQueued?: { command: string; reason: string };

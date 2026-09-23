@@ -92,8 +92,9 @@ function refreshQueuedReasons(
  * The clock behind the Queued section: every poll, if the gate is open, start
  * the task that has waited longest.
  *
- * One per tick, deliberately — the session it just started holds Odin's checkout,
- * so the tick after it re-decides with the new agent already in place.
+ * One per tick, deliberately — the session it just started turns the Odin gate
+ * red and shows up in the next CPU reading, so the tick after it re-decides
+ * against a machine that actually has the new agent on it.
  *
  * Mounted in the Odin shell rather than on the board: a queue that only drains
  * while you're looking at it isn't one.
@@ -101,8 +102,7 @@ function refreshQueuedReasons(
 export function useTaskQueue(): void {
 	const utils = electronTrpc.useUtils();
 	const { data: workConfig } = electronTrpc.work.getConfig.useQuery();
-	// The same 5s snapshot the header chip reads — one shared query. Nothing
-	// here reads it any more; it's just the clock that re-checks the gate.
+	// The same 5s snapshot the header chip reads — one shared query.
 	const { data: metrics } = electronTrpc.resourceMetrics.getSnapshot.useQuery(
 		undefined,
 		{ refetchInterval: 5_000 },
@@ -118,6 +118,7 @@ export function useTaskQueue(): void {
 		const next = queue[0];
 		if (!next) return;
 		const blocker = launchBlocker(
+			metrics,
 			Object.values(panes),
 			queuedCwd(next),
 			workConfig?.odinRepoPath,

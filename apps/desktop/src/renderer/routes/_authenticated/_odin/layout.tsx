@@ -21,7 +21,12 @@ import { useTaskQueue } from "renderer/hooks/useTaskQueue";
 import { useZoomFactor } from "renderer/hooks/useZoomFactor";
 import { useHotkey } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
-import { type MachineLoad, machineLoad } from "shared/machine-load";
+import {
+	BUSY_AGENT_CPU_PERCENT,
+	BUSY_HOST_CPU_PERCENT,
+	type MachineLoad,
+	machineLoad,
+} from "shared/machine-load";
 import { FEED_TABS } from "./components/feed-counts";
 import { type UpstreamDue, useDueReminders } from "./components/Reminders";
 import { QuickAddTask } from "./components/TaskBox";
@@ -121,22 +126,19 @@ const NAV_HOTKEY_OPTIONS = {
 /**
  * The load badge's colour: the app's own status palette, walked up as the Mac
  * gets tighter — grey while there's slack, amber when it's filling up, red
- * when the CPU is pinned or the memory is gone.
+ * when agents are queueing or the memory is gone.
  *
- * ponytail: eyeballed thresholds that only pick a colour — nothing waits on
- * them, so nothing rides on them being exactly right.
+ * ponytail: the CPU steps off the two numbers that actually gate a launch —
+ * agents' share and the whole machine's; the GB are eyeballed thresholds that
+ * only pick a colour, so nothing rides on them being exactly right.
  */
 function badgeTone(load: MachineLoad): string {
-	if (
-		load.agentCpuPercent >= 70 ||
-		load.cpuPercent >= 85 ||
-		load.availableMemoryGb < 1
-	) {
+	if (load.busy || load.availableMemoryGb < 1) {
 		return "bg-[#3a1a20] text-[#f0647a]";
 	}
 	if (
-		load.agentCpuPercent >= 35 ||
-		load.cpuPercent >= 70 ||
+		load.agentCpuPercent >= BUSY_AGENT_CPU_PERCENT / 2 ||
+		load.cpuPercent >= BUSY_HOST_CPU_PERCENT - 15 ||
 		load.availableMemoryGb < 2
 	) {
 		return "bg-[#3a2f16] text-[#f5b83d]";
@@ -203,8 +205,8 @@ function OdinShell() {
 	// The clock behind the Automations panel. Here rather than on that page:
 	// a schedule that only runs while you're looking at it isn't one.
 	useAutomationRunner();
-	// Same reason: tasks held back by the Odin-checkout gate wait in Idle →
-	// Queued, and this is what starts them once the checkout frees up.
+	// Same reason: tasks held back by the capacity gate wait in Idle → Queued,
+	// and this is what starts them once the Mac (or Odin's checkout) frees up.
 	useTaskQueue();
 
 	const { data: workConfig } = electronTrpc.work.getConfig.useQuery();
@@ -392,11 +394,15 @@ function OdinShell() {
 											badgeTone(load),
 										)}
 									>
-										{`${load.agentCount} ${load.agentCount === 1 ? "session" : "sessions"} using ${load.agentMemoryGb} GB · ${load.availableMemoryGb} GB free`}
+										{load.busy
+											? `${load.reason} · launches waiting`
+											: `${load.agentCount} ${load.agentCount === 1 ? "session" : "sessions"} using ${load.agentMemoryGb} GB · ${load.availableMemoryGb} GB free`}
 									</span>
 								</TooltipTrigger>
 								<TooltipContent side="bottom" className="max-w-[280px]">
-									{`${load.agentCount} session(s) using ${load.agentMemoryGb} GB of memory. This Mac has ${load.availableMemoryGb} GB free. Agents are on ${load.agentCpuPercent}% of the CPU · this Mac is ${load.cpuPercent}% busy.`}
+									{load.busy
+										? `${load.reason} — new sessions wait until that clears. ${load.agentCount} session(s) using ${load.agentMemoryGb} GB; this Mac is ${load.cpuPercent}% busy with ${load.availableMemoryGb} GB free.`
+										: `${load.agentCount} session(s) using ${load.agentMemoryGb} GB of memory. This Mac has ${load.availableMemoryGb} GB free. Agents are on ${load.agentCpuPercent}% of the CPU · this Mac is ${load.cpuPercent}% busy.`}
 								</TooltipContent>
 							</Tooltip>
 						)}

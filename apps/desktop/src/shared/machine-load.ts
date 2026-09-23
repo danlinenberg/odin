@@ -1,5 +1,6 @@
 /**
- * How much of this Mac the agents are holding, and how much is left.
+ * Are the agents already eating enough of this Mac that starting another one
+ * would hurt?
  *
  * Reads the snapshot `resourceMetrics.getSnapshot` already collects — pidusage
  * over every live session's process tree — so nothing new is probed.
@@ -31,10 +32,32 @@ export interface MachineLoadInput {
 	workspaces: { sessions: unknown[] }[];
 }
 
+/**
+ * Share of the whole machine Odin's agents may burn before the next launch
+ * waits.
+ *
+ * ponytail: one fixed number, tuned on a 12-core Mac that idles at ~10% with a
+ * dozen sessions parked. It's the knob — move it to ~/.config/odin.json if a
+ * different machine argues with it. Was 70: the Mac was already sluggish at
+ * 27% agents / 54% whole machine, and 70 only tripped long after that.
+ */
+export const BUSY_AGENT_CPU_PERCENT = 25;
+
+/**
+ * How much of the whole machine can be busy — anyone's work, not just
+ * Odin's — before the next launch waits.
+ *
+ * ponytail: same knob as BUSY_AGENT_CPU_PERCENT. Was 85, which let launches
+ * land on a Mac that was already suffocating; half busy is where it starts to
+ * stutter, and whose CPU it is stops mattering.
+ */
+export const BUSY_HOST_CPU_PERCENT = 50;
+
 export interface MachineLoad {
 	/**
-	 * Share of the machine Odin's own agents are burning, 0–100+. Measured
-	 * per-process, so it can't blame Claude for someone else's build.
+	 * Share of the machine Odin's own agents are burning, 0–100+. The only
+	 * number that decides anything: it's measured per-process, so it can't
+	 * blame Claude for someone else's build.
 	 */
 	agentCpuPercent: number;
 	/**
@@ -44,16 +67,18 @@ export interface MachineLoad {
 	 */
 	agentMemoryGb: number;
 	/**
-	 * Whole machine, 0–100: system+user, i.e. 100 minus idle.
+	 * Whole machine, 0–100: system+user, i.e. 100 minus idle. Acted on — a Mac
+	 * pinned here is choking whoever owns the work, so launching into it is
+	 * how you make it worse.
 	 *
 	 * Not the load average: macOS counts threads blocked in I/O there, so it
 	 * sits near the core count on a Mac doing nothing.
 	 */
 	cpuPercent: number;
 	/**
-	 * macOS hands `os.freemem()` only the truly-free
+	 * Shown, never acted on. macOS hands `os.freemem()` only the truly-free
 	 * pages — cached and compressed ones count as used — so a healthy Mac sits
-	 * at 95–99% all day, so it says little.
+	 * at 95–99% all day. Gating on it would park every launch forever.
 	 */
 	memoryPercent: number;
 	agentCount: number;
@@ -68,6 +93,9 @@ export interface MachineLoad {
 	 * and what the agents hold are both facts; you can read them.
 	 */
 	availableMemoryGb: number;
+	busy: boolean;
+	/** Why it's busy, phrased for a toast. Null when it isn't. */
+	reason: string | null;
 }
 
 function percent(value: number): number {
@@ -87,7 +115,19 @@ export function machineLoad(snapshot: MachineLoadInput): MachineLoad {
 		0,
 	);
 	const hostCpuPercent = percent(snapshot.host.cpuUsagePercent ?? 0);
+	const agentsBusy = agentCpuPercent >= BUSY_AGENT_CPU_PERCENT;
+	// The whole Mac counts, not only our slice of it: a build, a Docker daemon
+	// or someone else's agent runner leaves the same missing headroom, and a
+	// new session lands in it just as hard.
+	const hostBusy = hostCpuPercent >= BUSY_HOST_CPU_PERCENT;
+	const busy = agentsBusy || hostBusy;
 	const memoryGb = gb(snapshot.totalMemory);
+
+	const reason = agentsBusy
+		? `${agentCount} agent${agentCount === 1 ? "" : "s"} using ${agentCpuPercent}% of this Mac`
+		: hostBusy
+			? `this Mac is at ${hostCpuPercent}% CPU`
+			: null;
 
 	return {
 		agentCpuPercent,
@@ -96,13 +136,15 @@ export function machineLoad(snapshot: MachineLoadInput): MachineLoad {
 		cpuPercent: hostCpuPercent,
 		memoryPercent: percent(snapshot.host.memoryUsagePercent),
 		agentCount,
+		busy,
+		reason,
 	};
 }
 
 /**
  * Enough of this Mac for one session's badge to turn loud.
  *
- * ponytail: two fixed numbers, tuned on a 12-core Mac. 2 GB is
+ * ponytail: two fixed numbers, same knob as BUSY_AGENT_CPU_PERCENT. 2 GB is
  * roughly double what a parked session holds; 80% is most of one core held
  * down. Move them if a bigger Mac argues.
  */
