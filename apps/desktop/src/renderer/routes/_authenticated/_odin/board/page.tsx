@@ -898,6 +898,30 @@ function DevBoardPage() {
 			new Set([...alivePaneIds].filter((id) => !agentGonePaneIds.includes(id))),
 		[alivePaneIds, agentGonePaneIds],
 	);
+	// Sessions under `/loop`, read from the same transcript query the loop pill
+	// uses, so it's one fetch per session. Between ticks they belong in Idle —
+	// every turn ends clean, but they aren't done.
+	const sessionIdByPane = usePaneMeta((s) => s.sessionIdByPane);
+	const loopCandidates = [...agentPaneIds].flatMap((paneId) => {
+		const sessionId = panes[paneId]?.claudeSessionId ?? sessionIdByPane[paneId];
+		return sessionId ? [{ paneId, sessionId }] : [];
+	});
+	const loopQueries = electronTrpc.useQueries((t) =>
+		loopCandidates.map(({ sessionId }) =>
+			t.terminal.readClaudeTranscript(
+				{ sessionId },
+				{ retry: false, staleTime: 60_000, refetchInterval: 60_000 },
+			),
+		),
+	);
+	const loopingKey = loopCandidates
+		.filter((_, i) => loopQueries[i]?.data?.loop)
+		.map(({ paneId }) => paneId)
+		.join(",");
+	const loopingPaneIds = useMemo(
+		() => new Set(loopingKey ? loopingKey.split(",") : []),
+		[loopingKey],
+	);
 	/** Alive PTY currently mid-turn — the one state Resume must not touch. */
 	const isWorkingNow = (paneId: string) =>
 		agentPaneIds.has(paneId) && panes[paneId]?.status === "working";
@@ -1214,6 +1238,7 @@ function DevBoardPage() {
 					// `undefined` = the poll hasn't answered yet, which is not "dead".
 					daemonSessions === undefined ? undefined : alive,
 					pane.odinParked ?? false,
+					loopingPaneIds.has(pane.id),
 				);
 				for (const tag of boardTags(pane.odinTags))
 					tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
@@ -1248,6 +1273,7 @@ function DevBoardPage() {
 		workspaceById,
 		projectById,
 		agentPaneIds,
+		loopingPaneIds,
 		daemonSessions,
 		boardFilter,
 		contactByPane,
