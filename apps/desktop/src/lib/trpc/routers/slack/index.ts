@@ -476,6 +476,54 @@ export async function slackThreadReplies(id: string): Promise<{
 	}
 }
 
+/**
+ * What a Slack link points at, for the brief's "My links": the channel, who
+ * posted, and the message's first real line — so three "Slack thread" links
+ * read as three different conversations.
+ *
+ * `reactions.get` rather than `conversations.history`: it returns the message
+ * on the `reactions:read` scope the queue already has. Cached per link — a
+ * message's opening line doesn't change — and null on anything Slack won't
+ * answer, which leaves the link on its plain label.
+ */
+const previews = new Map<string, SlackPreview>();
+export interface SlackPreview {
+	channel: string | null;
+	author: string | null;
+	text: string;
+}
+async function slackPreview(url: string): Promise<SlackPreview | null> {
+	const cached = previews.get(url);
+	if (cached) return cached;
+	const token = slackToken();
+	const match = /\/archives\/([\w-]+)\/p(\d{10})(\d{6})/.exec(url);
+	if (!token || !match) return null;
+	const [, channel, secs, micros] = match;
+	try {
+		const res = await slackApi<
+			SlackResponse & { message?: { text?: string; user?: string } }
+		>(
+			"reactions.get",
+			{ channel, timestamp: `${secs}.${micros}`, full: "true" },
+			token,
+		);
+		const [channelName, author, text] = await Promise.all([
+			lookupChannelName(channel, token),
+			lookupUserName(res.message?.user ?? null, token),
+			resolveMentions(res.message?.text ?? "", token),
+		]);
+		const preview = {
+			channel: channelLabel(channelName),
+			author,
+			text: toTitle(text),
+		};
+		previews.set(url, preview);
+		return preview;
+	} catch {
+		return null;
+	}
+}
+
 export interface ReactionRow {
 	id: string;
 	title: string;
@@ -543,6 +591,19 @@ export const createSlackRouter = () => {
 				reaction,
 			};
 		}),
+
+		/** Channel, author and opening line for each Slack link, keyed by url. */
+		previews: publicProcedure
+			.input(z.object({ urls: z.array(z.string()) }))
+			.query(async ({ input }) =>
+				Object.fromEntries(
+					await Promise.all(
+						input.urls.map(
+							async (url) => [url, await slackPreview(url)] as const,
+						),
+					),
+				),
+			),
 
 		/** Watch for a different emoji. Rows already queued are left alone. */
 		setReaction: publicProcedure

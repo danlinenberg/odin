@@ -6,6 +6,7 @@ import {
 	lastMessageAt,
 	linkLabel,
 	notionPage,
+	parseLinks,
 	projectSlug,
 	pullRequests,
 	sessionBrief,
@@ -389,5 +390,29 @@ describe("linkLabel", () => {
 		expect(linkLabel("https://docs.google.com/document/d/x")).toBe(
 			"docs.google.com",
 		);
+	});
+});
+
+describe("parseLinks", () => {
+	it("takes the words around a single link as its name", () => {
+		expect(
+			parseLinks(
+				"https://acme.slack.com/archives/C1/p1700000000000100 deploy rollback",
+			),
+		).toEqual([
+			{
+				url: "https://acme.slack.com/archives/C1/p1700000000000100",
+				name: "deploy rollback",
+			},
+		]);
+		expect(parseLinks("QA sheet: https://docs.google.com/x.")).toEqual([
+			{ url: "https://docs.google.com/x", name: "QA sheet" },
+		]);
+	});
+	it("leaves several pasted links unnamed", () => {
+		expect(parseLinks("see https://a.com/1 and https://b.com/2")).toEqual([
+			{ url: "https://a.com/1" },
+			{ url: "https://b.com/2" },
+		]);
 	});
 });

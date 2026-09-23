@@ -266,3 +266,20 @@ export function linkLabel(url: string): string {
 	if (notionId) return notionTitle(url, notionId) ?? "Notion page";
 	return sourceLink(url)?.label ?? url;
 }
+
+/**
+ * What you typed into "My links": every url in it, and — when there's one —
+ * whatever else you wrote as its name. "https://…/p123 deploy rollback" is a
+ * link called "deploy rollback".
+ */
+export function parseLinks(input: string): { url: string; name?: string }[] {
+	const urls = (input.match(/https?:\/\/\S+/g) ?? []).map((url) =>
+		url.replace(/[).,]+$/, ""),
+	);
+	const name = input
+		.replace(/https?:\/\/\S+/g, "")
+		.replace(/\s+/g, " ")
+		.replace(/^[\s:–—-]+|[\s:–—-]+$/g, "");
+	if (urls.length === 1 && name) return [{ url: urls[0], name }];
+	return urls.map((url) => ({ url }));
+}

@@ -1,6 +1,15 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
+export interface BriefLink {
+	url: string;
+	/** What you called it when you added it — "deploy thread", "QA sheet". */
+	name?: string;
+}
+
+export const linkUrl = (link: BriefLink | string) =>
+	typeof link === "string" ? link : link.url;
+
 /**
  * Extra board metadata that isn't part of the tabs store, keyed by paneId and
  * persisted so it survives app restart:
@@ -17,7 +26,8 @@ export const usePaneMeta = create<{
 	contactByPane: Record<string, string>;
 	briefByPane: Record<string, string>;
 	notesByPane: Record<string, string>;
-	linksByPane: Record<string, string[]>;
+	/** Plain strings are links saved before they could carry a name. */
+	linksByPane: Record<string, (BriefLink | string)[]>;
 	/** Task title captured at launch — Claude Code's OSC title overwrites the
 	 *  pane name/userTitle to "Claude Code", so the board reads this instead. */
 	titleByPane: Record<string, string>;
@@ -31,7 +41,7 @@ export const usePaneMeta = create<{
 	setContact: (paneId: string, contact: string) => void;
 	setBrief: (paneId: string, brief: string) => void;
 	setNotes: (paneId: string, notes: string) => void;
-	addLink: (paneId: string, url: string) => void;
+	addLink: (paneId: string, url: string, name?: string) => void;
 	removeLink: (paneId: string, url: string) => void;
 	setTitle: (paneId: string, title: string) => void;
 	setSessionId: (paneId: string, sessionId: string) => void;
@@ -69,17 +79,22 @@ export const usePaneMeta = create<{
 					}
 					return { notesByPane: { ...s.notesByPane, [paneId]: notes } };
 				}),
-			addLink: (paneId, url) =>
+			addLink: (paneId, url, name) =>
 				set((s) => {
-					const links = s.linksByPane[paneId] ?? [];
-					if (links.includes(url)) return {};
+					// Re-adding a link replaces it, so that's how you rename one.
+					const links = (s.linksByPane[paneId] ?? []).filter(
+						(l) => linkUrl(l) !== url,
+					);
+					const link: BriefLink = name ? { url, name } : { url };
 					return {
-						linksByPane: { ...s.linksByPane, [paneId]: [...links, url] },
+						linksByPane: { ...s.linksByPane, [paneId]: [...links, link] },
 					};
 				}),
 			removeLink: (paneId, url) =>
 				set((s) => {
-					const links = (s.linksByPane[paneId] ?? []).filter((l) => l !== url);
+					const links = (s.linksByPane[paneId] ?? []).filter(
+						(l) => linkUrl(l) !== url,
+					);
 					const { [paneId]: _, ...rest } = s.linksByPane;
 					return {
 						linksByPane: links.length ? { ...rest, [paneId]: links } : rest,
