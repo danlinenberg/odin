@@ -229,6 +229,64 @@ export function elapsedLabel(
 }
 
 /**
+ * When a 5-field cron expression (local time, the way CronCreate books it)
+ * next fires after `from`, or null if it doesn't within the 7 days a
+ * recurring job lives. Handles `*`, `a`, `a-b`, `a,b` and `/n` steps.
+ *
+ * ponytail: minute-by-minute scan, ~10k steps worst case. Fine for a pill.
+ */
+export function nextCronFire(expr: string, from = Date.now()): number | null {
+	const fields = expr.trim().split(/\s+/);
+	if (fields.length !== 5) return null;
+	const bounds: [number, number][] = [
+		[0, 59],
+		[0, 23],
+		[1, 31],
+		[1, 12],
+		[0, 7],
+	];
+	const sets = fields.map((field, i) => {
+		const [lo, hi] = bounds[i] as [number, number];
+		const hits = new Set<number>();
+		for (const part of field.split(",")) {
+			const [range = "", step = "1"] = part.split("/");
+			const [a, b] =
+				range === "*"
+					? [lo, hi]
+					: range.includes("-")
+						? range.split("-").map(Number)
+						: [Number(range), step === "1" ? Number(range) : hi];
+			for (let v = a as number; v <= (b as number); v += Number(step) || 1)
+				hits.add(v);
+		}
+		// Sunday is both 0 and 7.
+		if (i === 4 && hits.has(7)) hits.add(0);
+		return hits;
+	});
+	const [min, hour, dom, month, dow] = sets as Set<number>[];
+	// Cron's quirk: a restricted day-of-month and day-of-week match either.
+	const domAny = fields[2] === "*";
+	const dowAny = fields[4] === "*";
+	const t = new Date(from);
+	t.setSeconds(0, 0);
+	for (let i = 0; i < 7 * 24 * 60; i++) {
+		t.setMinutes(t.getMinutes() + 1);
+		const dayHit =
+			domAny || dowAny
+				? (domAny || dom?.has(t.getDate())) && (dowAny || dow?.has(t.getDay()))
+				: dom?.has(t.getDate()) || dow?.has(t.getDay());
+		if (
+			dayHit &&
+			month?.has(t.getMonth() + 1) &&
+			hour?.has(t.getHours()) &&
+			min?.has(t.getMinutes())
+		)
+			return t.getTime();
+	}
+	return null;
+}
+
+/**
  * The row a session was launched from. Jira and PR rows persist `title\nurl`
  * as the pane's launch brief, so the first link in it is the ticket (or pull
  * request) the session exists to work on — and it was being stored and never
