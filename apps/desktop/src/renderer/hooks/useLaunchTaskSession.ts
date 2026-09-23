@@ -337,17 +337,6 @@ export function useLaunchTaskSession() {
 					encoding: "utf-8",
 				});
 				promptArg = ` "$(cat '${promptPath}')"`;
-				const settings = rulesSettings(useOdinRules.getState().rules);
-				if (settings) {
-					const settingsPath = `${promptDir}/rules-${slug}-${stamp}.json`;
-					await utils.client.filesystem.writeFile.mutate({
-						workspaceId,
-						absolutePath: settingsPath,
-						content: settings,
-						encoding: "utf-8",
-					});
-					promptArg = ` --settings ${quote(settingsPath)}${promptArg}`;
-				}
 			}
 
 			// 2. Tab + pane for the session
@@ -375,9 +364,29 @@ export function useLaunchTaskSession() {
 			// reopens the conversation at an idle prompt, it doesn't set the agent
 			// working again. What to do next is yours to type.
 			const sessionId = resumeSessionId ?? crypto.randomUUID();
+			// Hooks live in the launch flags, not the conversation, so a resume
+			// has to be handed them again — with today's rules, not the old ones.
+			let settingsArg = "";
+			const settings = rulesSettings(useOdinRules.getState().rules);
+			if (settings) {
+				const settingsDir = `${worktreePath}/.odin`;
+				const settingsPath = `${settingsDir}/rules-${sessionId}.json`;
+				await utils.client.filesystem.createDirectory.mutate({
+					workspaceId,
+					absolutePath: settingsDir,
+					recursive: true,
+				});
+				await utils.client.filesystem.writeFile.mutate({
+					workspaceId,
+					absolutePath: settingsPath,
+					content: settings,
+					encoding: "utf-8",
+				});
+				settingsArg = ` --settings ${quote(settingsPath)}`;
+			}
 			const claudeArgs = resumeSessionId
-				? `--resume ${resumeSessionId}`
-				: `--session-id ${sessionId}${promptArg}`;
+				? `--resume ${resumeSessionId}${settingsArg}`
+				: `--session-id ${sessionId}${settingsArg}${promptArg}`;
 			const command = `cd ${quote(sessionCwd)} && claude --dangerously-skip-permissions ${claudeArgs}`;
 			// Held back: the pane stays process-less and the command rides on it
 			// until the queue runner (useTaskQueue) finds the gate open.
