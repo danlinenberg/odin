@@ -171,6 +171,8 @@ export interface Pane {
 	odinSource?: "slack" | "reactions" | "jira" | "pr" | "notion";
 	/** Free-form labels for filtering the board (right-click a card). */
 	odinTags?: string[];
+	/** Starred from the card's right-click menu: a ★ marks the important ones. */
+	odinStarred?: boolean;
 	/**
 	 * The generated tags have been applied to this card once. Set so a tag you
 	 * deleted stays deleted — without it, the next brief puts it straight back.

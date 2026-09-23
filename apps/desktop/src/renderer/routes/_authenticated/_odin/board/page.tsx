@@ -468,7 +468,7 @@ function CardHoverContent({
 }
 
 /**
- * Right-click tag menu for a session card: the board's tags, click to toggle.
+ * Right-click menu for a session card: star it, and the board's tags to toggle.
  * Positioned at the cursor; closes on Escape or click-outside.
  *
  * ponytail: no "new tag" field — the list is closed (shared/odin-tags), and a
@@ -479,6 +479,8 @@ function TagMenu({
 	y,
 	tags,
 	allTags,
+	starred,
+	onStar,
 	onToggle,
 	onClose,
 }: {
@@ -486,6 +488,8 @@ function TagMenu({
 	y: number;
 	tags: string[];
 	allTags: string[];
+	starred: boolean;
+	onStar: () => void;
 	onToggle: (tag: string) => void;
 	onClose: () => void;
 }) {
@@ -513,7 +517,7 @@ function TagMenu({
 
 	// Keep the menu on screen near the edges.
 	const left = Math.min(x, window.innerWidth - 240);
-	const top = Math.min(y, window.innerHeight - 260);
+	const top = Math.min(y, window.innerHeight - 290);
 
 	return (
 		<div
@@ -521,6 +525,17 @@ function TagMenu({
 			style={{ left, top }}
 			className="fixed z-[60] w-[220px] rounded-[10px] border border-[#25252e] bg-[#16161b] p-2 shadow-[0_10px_30px_rgba(0,0,0,.5)]"
 		>
+			<button
+				type="button"
+				onClick={() => {
+					onStar();
+					onClose();
+				}}
+				className="mb-1.5 flex w-full items-center gap-2 rounded-md border-b border-[#25252e] px-1.5 pb-2 pt-1 text-left text-[12px] text-[#a5a5b3] transition-colors hover:text-[#f5c542]"
+			>
+				<span className="w-3 text-[#f5c542]">★</span>
+				{starred ? "Unstar" : "Star"}
+			</button>
 			<div className="mb-1.5 px-1 text-[10px] font-semibold uppercase tracking-[.4px] text-[#8a8a97]">
 				Tags
 			</div>
@@ -1757,6 +1772,18 @@ function DevBoardPage() {
 					y={tagMenu.y}
 					tags={boardTags(panes[tagMenu.paneId]?.odinTags)}
 					allTags={BOARD_TAGS}
+					starred={!!panes[tagMenu.paneId]?.odinStarred}
+					onStar={() =>
+						useTabsStore.setState((state) => ({
+							panes: {
+								...state.panes,
+								[tagMenu.paneId]: {
+									...state.panes[tagMenu.paneId],
+									odinStarred: !state.panes[tagMenu.paneId]?.odinStarred,
+								},
+							},
+						}))
+					}
 					onToggle={(tag) => toggleTag(tagMenu.paneId, tag)}
 					onClose={() => setTagMenu(null)}
 				/>
@@ -1862,7 +1889,7 @@ function DevBoardPage() {
 																}}
 																onClick={() => openDrawer(card)}
 																onContextMenu={(event) => {
-																	// Right-click → tag this session.
+																	// Right-click → star or tag this session.
 																	event.preventDefault();
 																	setTagMenu({
 																		paneId: card.pane.id,
@@ -1884,6 +1911,14 @@ function DevBoardPage() {
 															>
 																<div className="flex items-start gap-2">
 																	<div className="min-w-0 flex-1 break-words text-[12.5px] font-semibold">
+																		{card.pane.odinStarred && (
+																			<span
+																				title="Starred"
+																				className="mr-1 text-[#f5c542]"
+																			>
+																				★
+																			</span>
+																		)}
 																		{cardTitle(card)}
 																	</div>
 																	<button
