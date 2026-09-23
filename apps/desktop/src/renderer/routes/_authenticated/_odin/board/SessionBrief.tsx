@@ -1,8 +1,11 @@
+import { Tooltip, TooltipContent, TooltipTrigger } from "@odin/ui/tooltip";
 import { useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
-import { linkUrl, usePaneMeta } from "../hooks/usePaneMeta";
+import { type BriefLink, usePaneMeta } from "../hooks/usePaneMeta";
 import {
 	jiraIssue,
+	type LinkKind,
+	linkKind,
 	linkLabel,
 	notionPage,
 	parseLinks,
@@ -117,6 +120,36 @@ function hoverText(
 	return message ? `${message}\n\n${url}` : url;
 }
 
+/**
+ * A link's hover: the full message or url, up after 150ms. The native `title`
+ * tooltip waits the OS's ~1s and can't be told otherwise.
+ */
+function Hover({
+	text,
+	children,
+}: {
+	text: string;
+	children: React.ReactNode;
+}) {
+	return (
+		<Tooltip delayDuration={150}>
+			<TooltipTrigger asChild>{children}</TooltipTrigger>
+			<TooltipContent
+				side="left"
+				dir="auto"
+				className="max-w-[320px] whitespace-pre-wrap break-words text-left"
+			>
+				{text}
+			</TooltipContent>
+		</Tooltip>
+	);
+}
+
+/** "Slack thread" or "Slack threads", counting the found one and yours. */
+function plural(label: string, found: unknown, mine: unknown[]): string {
+	return (found ? 1 : 0) + mine.length > 1 ? `${label}s` : label;
+}
+
 export function SessionBrief({
 	paneId,
 	cwd,
@@ -191,9 +224,22 @@ export function SessionBrief({
 	// An <a> in the renderer would navigate the app window; PRs open in a browser.
 	const openUrl = electronTrpc.external.openUrl.useMutation();
 
+	// Links you added, filed under the section they belong to. One the
+	// transcript already surfaced isn't listed twice.
+	const surfaced = new Set(
+		[issue?.url, thread, page?.url, ...prs.map((pr) => pr.url)].filter(Boolean),
+	);
+	const added = links
+		.map((link) =>
+			typeof link === "string" ? { url: link } : (link as BriefLink),
+		)
+		.filter((link) => !surfaced.has(link.url));
+	const mine = (kind: LinkKind) =>
+		added.filter((link) => linkKind(link.url) === kind);
+
 	// Channel, author and opening line for every Slack link on the panel, so
 	// two "Slack thread"s say which conversation each one is. Cached in main.
-	const slackUrls = [thread, ...links.map(linkUrl)].filter(
+	const slackUrls = [thread, ...added.map((link) => link.url)].filter(
 		(url): url is string => !!url && /\.slack\.com\/archives\//.test(url),
 	);
 	const { data: previews } = electronTrpc.slack.previews.useQuery(
@@ -206,9 +252,9 @@ export function SessionBrief({
 	// per link, so poll only while a PR is still open — a merged one never
 	// changes again, and the panel is otherwise spawning subprocesses forever.
 	const { data: prStates } = electronTrpc.terminal.pullRequestStates.useQuery(
-		{ urls: prs.map((pr) => pr.url) },
+		{ urls: [...prs.map((pr) => pr.url), ...mine("pr").map((pr) => pr.url)] },
 		{
-			enabled: prs.length > 0,
+			enabled: prs.length > 0 || mine("pr").length > 0,
 			retry: false,
 			staleTime: 10_000,
 			refetchInterval: (query) =>
@@ -217,6 +263,60 @@ export function SessionBrief({
 				) && 15_000,
 		},
 	);
+
+	// A link you added: your name for it, else what Slack says the message is,
+	// else its kind; the line under it says where it lives. Removable, since
+	// it's yours.
+	const myLink = ({ url, name }: BriefLink) => {
+		const preview = previews?.[url];
+		const kind = linkLabel(url);
+		const title = name ?? preview?.text ?? kind;
+		const where = [
+			title === kind ? null : kind,
+			preview?.channel,
+			preview?.author,
+		]
+			.filter(Boolean)
+			.join(" · ");
+		return (
+			<div key={url} className="group flex items-start gap-1.5">
+				<Hover text={hoverText(url, preview)}>
+					<button
+						type="button"
+						onClick={() => openUrl.mutate(url)}
+						className="min-w-0 flex-1 text-left hover:underline"
+					>
+						{/* dir="auto": a Hebrew message reads right-to-left and clamps at
+						    its own end, not mid-sentence. Still left-aligned, so the
+						    panel keeps one edge. */}
+						<div
+							dir="auto"
+							className="line-clamp-2 text-left text-[12px] text-[#a394ff]"
+						>
+							{title} ↗
+						</div>
+						{where && (
+							<div className="truncate text-[11px] text-[#8a8a97]">{where}</div>
+						)}
+					</button>
+				</Hover>
+				{linkKind(url) === "pr" && (
+					<>
+						<StateChip state={prStates?.[url]?.state ?? null} />
+						<ChecksChip status={prStates?.[url] ?? null} />
+					</>
+				)}
+				<button
+					type="button"
+					title="Remove link"
+					onClick={() => removeLink(paneId, url)}
+					className="ml-auto text-[12px] text-[#7c7c88] opacity-0 hover:text-[#f0647a] group-hover:opacity-100"
+				>
+					×
+				</button>
+			</div>
+		);
+	};
 
 	return (
 		<div className="flex w-[340px] shrink-0 flex-col border-l border-[#25252e] bg-[#111114]">
@@ -266,140 +366,119 @@ export function SessionBrief({
 								reading the conversation…
 							</div>
 						)}
-						{issue && (
-							<Section label="Jira ticket">
-								<button
-									type="button"
-									title={issue.url}
-									onClick={() => openUrl.mutate(issue.url)}
-									className="truncate text-left text-[12px] text-[#a394ff] hover:underline"
-								>
-									{issue.key} ↗
-								</button>
-							</Section>
-						)}
-						{thread && (
-							<Section label="Slack thread">
-								<button
-									type="button"
-									title={hoverText(thread, threadPreview)}
-									onClick={() => openUrl.mutate(thread)}
-									dir="auto"
-									className="line-clamp-2 w-full text-left text-[12px] text-[#a394ff] hover:underline"
-								>
-									{threadPreview?.text ?? "Open thread"} ↗
-								</button>
-								{threadPreview && (
-									<div className="truncate text-[11px] text-[#8a8a97]">
-										{[threadPreview.channel, threadPreview.author]
-											.filter(Boolean)
-											.join(" · ")}
-									</div>
-								)}
-							</Section>
-						)}
-						{prs.length > 0 && (
-							<Section
-								label={prs.length === 1 ? "Pull request" : "Pull requests"}
-							>
-								<div className="flex flex-col gap-1">
-									{prs.map((pr) => (
-										<button
-											key={pr.url}
-											type="button"
-											title={pr.url}
-											onClick={() => openUrl.mutate(pr.url)}
-											className="flex items-center gap-1.5 text-left text-[12px] text-[#a394ff] hover:underline"
-										>
-											<span className="truncate">
-												{pr.repo.split("/").pop()} #{pr.number}
-											</span>
-											<StateChip state={prStates?.[pr.url]?.state ?? null} />
-											<ChecksChip status={prStates?.[pr.url] ?? null} />
-										</button>
-									))}
-								</div>
-							</Section>
-						)}
-						{page && (
-							<Section label="Notion page">
-								<button
-									type="button"
-									title={page.url}
-									onClick={() => openUrl.mutate(page.url)}
-									className="block w-full truncate text-left text-[12px] text-[#a394ff] hover:underline"
-								>
-									{page.title ?? "Notion page"} ↗
-								</button>
-							</Section>
-						)}
-						{facts && (
-							<div className="pt-2 text-[11px] text-[#8a8a97]">
-								{facts.turns} turns
-								{facts.at &&
-									` · last activity ${new Date(facts.at).toLocaleString()}`}
-								{written?.writtenAt &&
-									` · brief written ${new Date(written.writtenAt).toLocaleTimeString()}`}
-							</div>
-						)}
 					</>
 				)}
-				{/* Yours, not the model's — kept at the bottom and outside the
-				    transcript branch above, so a session with no readable
-				    conversation can still be annotated. */}
-				<div className="mt-auto flex flex-col gap-1 pt-2">
-					<div className="text-[10px] font-semibold uppercase tracking-[.4px] text-[#8a8a97]">
-						My links
-					</div>
-					{links.map((link) => {
-						const url = linkUrl(link);
-						const name = typeof link === "string" ? undefined : link.name;
-						const preview = previews?.[url];
-						const kind = linkLabel(url);
-						// The line you read is your name, else what Slack says the
-						// message is; the line under it is where it lives.
-						const title = name ?? preview?.text ?? kind;
-						const where = [
-							title === kind ? null : kind,
-							preview?.channel,
-							preview?.author,
-						]
-							.filter(Boolean)
-							.join(" · ");
-						return (
-							<div key={url} className="group flex items-start gap-1.5">
-								<button
-									type="button"
-									title={hoverText(url, preview)}
-									onClick={() => openUrl.mutate(url)}
-									className="min-w-0 flex-1 text-left hover:underline"
-								>
-									{/* dir="auto": a Hebrew message reads right-to-left and
-									    clamps at its own end, not mid-sentence. Still left-aligned,
-									    so the panel keeps one edge. */}
-									<div
-										dir="auto"
-										className="line-clamp-2 text-left text-[12px] text-[#a394ff]"
+				{/* Links sit outside the transcript branch: the ones you added are
+				    yours, and a session with no readable conversation still has them. */}
+				{(issue || mine("jira").length > 0) && (
+					<Section label={plural("Jira ticket", issue, mine("jira"))}>
+						<div className="flex flex-col gap-1">
+							{issue && (
+								<Hover text={issue.url}>
+									<button
+										type="button"
+										onClick={() => openUrl.mutate(issue.url)}
+										className="truncate text-left text-[12px] text-[#a394ff] hover:underline"
 									>
-										{title} ↗
-									</div>
-									{where && (
+										{issue.key} ↗
+									</button>
+								</Hover>
+							)}
+							{mine("jira").map(myLink)}
+						</div>
+					</Section>
+				)}
+				{(thread || mine("slack").length > 0) && (
+					<Section label={plural("Slack thread", thread, mine("slack"))}>
+						<div className="flex flex-col gap-1.5">
+							{thread && (
+								<div>
+									<Hover text={hoverText(thread, threadPreview)}>
+										<button
+											type="button"
+											onClick={() => openUrl.mutate(thread)}
+											dir="auto"
+											className="line-clamp-2 w-full text-left text-[12px] text-[#a394ff] hover:underline"
+										>
+											{threadPreview?.text ?? "Open thread"} ↗
+										</button>
+									</Hover>
+									{threadPreview && (
 										<div className="truncate text-[11px] text-[#8a8a97]">
-											{where}
+											{[threadPreview.channel, threadPreview.author]
+												.filter(Boolean)
+												.join(" · ")}
 										</div>
 									)}
-								</button>
-								<button
-									type="button"
-									title="Remove link"
-									onClick={() => removeLink(paneId, url)}
-									className="ml-auto text-[12px] text-[#7c7c88] opacity-0 hover:text-[#f0647a] group-hover:opacity-100"
-								>
-									×
-								</button>
-							</div>
-						);
-					})}
+								</div>
+							)}
+							{mine("slack").map(myLink)}
+						</div>
+					</Section>
+				)}
+				{(prs.length > 0 || mine("pr").length > 0) && (
+					<Section
+						label={
+							prs.length + mine("pr").length === 1
+								? "Pull request"
+								: "Pull requests"
+						}
+					>
+						<div className="flex flex-col gap-1">
+							{prs.map((pr) => (
+								<Hover key={pr.url} text={pr.url}>
+									<button
+										type="button"
+										onClick={() => openUrl.mutate(pr.url)}
+										className="flex items-center gap-1.5 text-left text-[12px] text-[#a394ff] hover:underline"
+									>
+										<span className="truncate">
+											{pr.repo.split("/").pop()} #{pr.number}
+										</span>
+										<StateChip state={prStates?.[pr.url]?.state ?? null} />
+										<ChecksChip status={prStates?.[pr.url] ?? null} />
+									</button>
+								</Hover>
+							))}
+							{mine("pr").map(myLink)}
+						</div>
+					</Section>
+				)}
+				{(page || mine("notion").length > 0) && (
+					<Section label={plural("Notion page", page, mine("notion"))}>
+						<div className="flex flex-col gap-1">
+							{page && (
+								<Hover text={page.url}>
+									<button
+										type="button"
+										onClick={() => openUrl.mutate(page.url)}
+										className="block w-full truncate text-left text-[12px] text-[#a394ff] hover:underline"
+									>
+										{page.title ?? "Notion page"} ↗
+									</button>
+								</Hover>
+							)}
+							{mine("notion").map(myLink)}
+						</div>
+					</Section>
+				)}
+				{mine("other").length > 0 && (
+					<Section label="Links">
+						<div className="flex flex-col gap-1">
+							{mine("other").map(myLink)}
+						</div>
+					</Section>
+				)}
+				{facts && (
+					<div className="pt-2 text-[11px] text-[#8a8a97]">
+						{facts.turns} turns
+						{facts.at &&
+							` · last activity ${new Date(facts.at).toLocaleString()}`}
+						{written?.writtenAt &&
+							` · brief written ${new Date(written.writtenAt).toLocaleTimeString()}`}
+					</div>
+				)}
+				<div className="mt-auto flex flex-col gap-1 pt-2">
 					<input
 						value={draftLink}
 						onChange={(event) => setDraftLink(event.target.value)}
@@ -411,7 +490,7 @@ export function SessionBrief({
 							for (const link of parsed) addLink(paneId, link.url, link.name);
 							if (parsed.length) setDraftLink("");
 						}}
-						placeholder="Paste a link + a name (optional), Enter"
+						placeholder="Add a link (+ a name), Enter"
 						className="rounded-[7px] border border-[#25252e] bg-[#0a0a0c] px-2 py-1 text-[12px] text-[#d6d6dc] placeholder:text-[#7c7c88] focus:border-[#a394ff] focus:outline-none"
 					/>
 				</div>

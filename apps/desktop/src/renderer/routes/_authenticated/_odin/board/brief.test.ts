@@ -4,6 +4,7 @@ import {
 	elapsedLabel,
 	jiraIssue,
 	lastMessageAt,
+	linkKind,
 	linkLabel,
 	notionPage,
 	parseLinks,
@@ -414,5 +415,19 @@ describe("parseLinks", () => {
 			{ url: "https://a.com/1" },
 			{ url: "https://b.com/2" },
 		]);
+	});
+});
+
+describe("linkKind", () => {
+	it("sorts a link into its brief section", () => {
+		expect(linkKind("https://acme.atlassian.net/browse/SHIP-1")).toBe("jira");
+		expect(
+			linkKind("https://acme.slack.com/archives/C1/p1700000000000100"),
+		).toBe("slack");
+		expect(linkKind("https://github.com/acme/odin/pull/42")).toBe("pr");
+		expect(
+			linkKind("https://www.notion.so/Page-0123456789abcdef0123456789abcdef"),
+		).toBe("notion");
+		expect(linkKind("https://docs.google.com/x")).toBe("other");
 	});
 });
