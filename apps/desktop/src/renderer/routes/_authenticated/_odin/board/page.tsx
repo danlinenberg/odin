@@ -207,7 +207,10 @@ const ANSI_RE =
  */
 function HistoryView({ card, live }: { card: BoardCard; live: boolean }) {
 	const sessionId = useCardSessionId(card);
-	if (sessionId && !live) {
+	// Same query the card's pills run, so this is a cache hit. Claude prunes old
+	// transcripts; when the file is gone, the saved screen is all that's left.
+	const { error } = useCardTranscript(card, false);
+	if (sessionId && !live && !error) {
 		return (
 			<div className="flex min-h-0 flex-1 flex-col">
 				<div className="border-b border-[#25252e] px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[.4px] text-[#8a8a97]">
