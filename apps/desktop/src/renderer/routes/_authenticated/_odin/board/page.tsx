@@ -50,6 +50,7 @@ import {
 	OdinPromptDialog,
 	type PromptImage,
 	sessionTitle,
+	untruncatedTitle,
 } from "../components/OdinPromptDialog";
 import { PersonChip } from "../components/PersonChip";
 import { DueChip, useReminders } from "../components/Reminders";
@@ -606,12 +607,15 @@ function DevBoardPage() {
 	// from the live pane or the drawer keeps showing the old name.
 	const cardTitle = (card: BoardCard) =>
 		emojify(
-			panes[card.pane.id]?.odinTaskTitle ??
-				card.pane.odinTaskTitle ??
-				titleByPane[card.pane.id] ??
-				card.pane.userTitle ??
-				card.pane.name ??
-				card.tabName,
+			untruncatedTitle(
+				panes[card.pane.id]?.odinTaskTitle ??
+					card.pane.odinTaskTitle ??
+					titleByPane[card.pane.id] ??
+					card.pane.userTitle ??
+					card.pane.name ??
+					card.tabName,
+				card.pane.odinBrief ?? briefByPane[card.pane.id] ?? null,
+			),
 		);
 	// Point of contact: the pane's own record (shared app-state) first, then the
 	// legacy localStorage mirror for panes launched before that existed.

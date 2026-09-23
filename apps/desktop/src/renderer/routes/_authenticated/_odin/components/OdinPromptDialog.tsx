@@ -27,10 +27,22 @@ function readFile(file: File): Promise<PromptImage> {
 	});
 }
 
-/** Board/tab name for a session: the prompt's first line, kept short. */
+/**
+ * Board/tab name for a session: the prompt's first line, whole. The board card
+ * wraps it; tabs and the drawer header truncate it in CSS.
+ */
 export function sessionTitle(prompt: string, fallback: string): string {
-	const line = prompt.trim().split("\n")[0]?.trim() || fallback;
-	return line.length > 60 ? `${line.slice(0, 59)}…` : line;
+	return prompt.trim().split("\n")[0]?.trim() || fallback;
+}
+
+/**
+ * Sessions launched before the title stopped being cut at 60 chars carry
+ * "…first 59 chars…" — put the rest back from the brief they were cut from.
+ */
+export function untruncatedTitle(title: string, brief: string | null): string {
+	if (!title.endsWith("…") || !brief) return title;
+	const line = sessionTitle(brief, title);
+	return line.startsWith(title.slice(0, -1)) ? line : title;
 }
 
 /**
