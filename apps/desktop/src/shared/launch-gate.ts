@@ -23,5 +23,7 @@ export function launchBlocker(
 	if (load.busy) return load.reason;
 	if (!isOdinCwd(cwd, odinRepoPath)) return null;
 	const held = odinSessionInFlight(panes, odinRepoPath);
-	return held ? `"${held.title}" is running in Odin's checkout` : null;
+	return held
+		? `waiting for "${held.title}" to finish in Odin's checkout`
+		: null;
 }
