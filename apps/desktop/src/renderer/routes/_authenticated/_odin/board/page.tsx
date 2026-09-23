@@ -358,8 +358,11 @@ function AgePill({
 	);
 	if (!label) return null;
 	return (
-		<span className="rounded-[5px] bg-[#1f1f27] px-[7px] text-[11px] text-[#a5a5b3]">
-			{label}
+		<span
+			title="Since the last message in this session"
+			className="rounded-[5px] bg-[#1f1f27] px-[7px] text-[11px] text-[#a5a5b3]"
+		>
+			{label === "now" ? label : `${label} ago`}
 		</span>
 	);
 }
