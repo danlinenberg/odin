@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
-import { usePaneMeta } from "../hooks/usePaneMeta";
+import { linkUrl, usePaneMeta } from "../hooks/usePaneMeta";
 import {
 	jiraIssue,
 	linkLabel,
 	notionPage,
+	parseLinks,
 	pullRequests,
 	sessionBrief,
 	slackThread,
@@ -177,6 +178,17 @@ export function SessionBrief({
 	// An <a> in the renderer would navigate the app window; PRs open in a browser.
 	const openUrl = electronTrpc.external.openUrl.useMutation();
 
+	// Channel, author and opening line for every Slack link on the panel, so
+	// two "Slack thread"s say which conversation each one is. Cached in main.
+	const slackUrls = [thread, ...links.map(linkUrl)].filter(
+		(url): url is string => !!url && /\.slack\.com\/archives\//.test(url),
+	);
+	const { data: previews } = electronTrpc.slack.previews.useQuery(
+		{ urls: slackUrls },
+		{ enabled: slackUrls.length > 0, retry: false, staleTime: Infinity },
+	);
+	const threadPreview = thread ? previews?.[thread] : null;
+
 	// Which of them shipped, and what CI is still chewing on. One `gh pr view`
 	// per link, so poll only while a PR is still open — a merged one never
 	// changes again, and the panel is otherwise spawning subprocesses forever.
@@ -261,8 +273,15 @@ export function SessionBrief({
 									onClick={() => openUrl.mutate(thread)}
 									className="truncate text-left text-[12px] text-[#a394ff] hover:underline"
 								>
-									Open thread ↗
+									{threadPreview?.text ?? "Open thread"} ↗
 								</button>
+								{threadPreview && (
+									<div className="truncate text-[11px] text-[#8a8a97]">
+										{[threadPreview.channel, threadPreview.author]
+											.filter(Boolean)
+											.join(" · ")}
+									</div>
+								)}
 							</Section>
 						)}
 						{prs.length > 0 && (
@@ -318,38 +337,61 @@ export function SessionBrief({
 					<div className="text-[10px] font-semibold uppercase tracking-[.4px] text-[#8a8a97]">
 						My links
 					</div>
-					{links.map((url) => (
-						<div key={url} className="group flex items-center gap-1.5">
-							<button
-								type="button"
-								title={url}
-								onClick={() => openUrl.mutate(url)}
-								className="truncate text-left text-[12px] text-[#a394ff] hover:underline"
-							>
-								{linkLabel(url)} ↗
-							</button>
-							<button
-								type="button"
-								title="Remove link"
-								onClick={() => removeLink(paneId, url)}
-								className="ml-auto text-[12px] text-[#7c7c88] opacity-0 hover:text-[#f0647a] group-hover:opacity-100"
-							>
-								×
-							</button>
-						</div>
-					))}
+					{links.map((link) => {
+						const url = linkUrl(link);
+						const name = typeof link === "string" ? undefined : link.name;
+						const preview = previews?.[url];
+						const kind = linkLabel(url);
+						// The line you read is your name, else what Slack says the
+						// message is; the line under it is where it lives.
+						const title = name ?? preview?.text ?? kind;
+						const where = [
+							title === kind ? null : kind,
+							preview?.channel,
+							preview?.author,
+						]
+							.filter(Boolean)
+							.join(" · ");
+						return (
+							<div key={url} className="group flex items-start gap-1.5">
+								<button
+									type="button"
+									title={url}
+									onClick={() => openUrl.mutate(url)}
+									className="min-w-0 text-left hover:underline"
+								>
+									<div className="truncate text-[12px] text-[#a394ff]">
+										{title} ↗
+									</div>
+									{where && (
+										<div className="truncate text-[11px] text-[#8a8a97]">
+											{where}
+										</div>
+									)}
+								</button>
+								<button
+									type="button"
+									title="Remove link"
+									onClick={() => removeLink(paneId, url)}
+									className="ml-auto text-[12px] text-[#7c7c88] opacity-0 hover:text-[#f0647a] group-hover:opacity-100"
+								>
+									×
+								</button>
+							</div>
+						);
+					})}
 					<input
 						value={draftLink}
 						onChange={(event) => setDraftLink(event.target.value)}
 						onKeyDown={(event) => {
 							if (event.key !== "Enter") return;
-							// Paste several at once and each becomes its own link.
-							const urls = draftLink.match(/https?:\/\/\S+/g) ?? [];
-							for (const url of urls)
-								addLink(paneId, url.replace(/[).,]+$/, ""));
-							if (urls.length) setDraftLink("");
+							// Several pasted at once become several links; one link
+							// takes the rest of the line as its name.
+							const parsed = parseLinks(draftLink);
+							for (const link of parsed) addLink(paneId, link.url, link.name);
+							if (parsed.length) setDraftLink("");
 						}}
-						placeholder="Paste a link, press Enter"
+						placeholder="Paste a link + a name (optional), Enter"
 						className="rounded-[7px] border border-[#25252e] bg-[#0a0a0c] px-2 py-1 text-[12px] text-[#d6d6dc] placeholder:text-[#7c7c88] focus:border-[#a394ff] focus:outline-none"
 					/>
 				</div>
