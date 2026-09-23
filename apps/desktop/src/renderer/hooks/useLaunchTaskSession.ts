@@ -4,6 +4,7 @@ import { launchLimits, useLaunchLimits } from "renderer/stores/launch-limits";
 import {
 	type OdinRule,
 	rulesPrompt,
+	rulesSettings,
 	useOdinRules,
 } from "renderer/stores/odin-rules";
 import { useTabsStore } from "renderer/stores/tabs/store";
@@ -336,6 +337,17 @@ export function useLaunchTaskSession() {
 					encoding: "utf-8",
 				});
 				promptArg = ` "$(cat '${promptPath}')"`;
+				const settings = rulesSettings(useOdinRules.getState().rules);
+				if (settings) {
+					const settingsPath = `${promptDir}/rules-${slug}-${stamp}.json`;
+					await utils.client.filesystem.writeFile.mutate({
+						workspaceId,
+						absolutePath: settingsPath,
+						content: settings,
+						encoding: "utf-8",
+					});
+					promptArg = ` --settings ${quote(settingsPath)}${promptArg}`;
+				}
 			}
 
 			// 2. Tab + pane for the session
