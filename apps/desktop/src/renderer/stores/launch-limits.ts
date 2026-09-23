@@ -7,7 +7,7 @@ interface LaunchLimitsState extends LaunchLimits {
 }
 
 /**
- * Settings → Board's CPU limits for the launch gate.
+ * Settings → Board's CPU limit for the launch gate.
  *
  * ponytail: renderer localStorage, not a settings procedure — every reader
  * (launch, queue, header chip) lives in the renderer, and a new main-process
@@ -26,7 +26,6 @@ export const useLaunchLimits = create<LaunchLimitsState>()(
 /** The limits alone, for the pure gate functions. */
 export function launchLimits(state: LaunchLimits): LaunchLimits {
 	return {
-		agentCpuPercent: state.agentCpuPercent,
 		hostCpuPercent: state.hostCpuPercent,
 	};
 }

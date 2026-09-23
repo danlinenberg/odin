@@ -52,12 +52,6 @@ describe("machineLoad", () => {
 		expect(load.cpuPercent).toBe(20);
 	});
 
-	it("is busy once the agents actually own the machine", () => {
-		const load = machineLoad(snapshot({ totalCpu: 850, agents: 6 }));
-		expect(load.busy).toBe(true);
-		expect(load.reason).toBe("6 agents using 85% of this Mac");
-	});
-
 	it("holds a launch well before the Mac is suffocating", () => {
 		// 72% busy used to launch (the gate sat at 85) into a Mac that was
 		// already stuttering; half busy is still fine.
@@ -69,40 +63,30 @@ describe("machineLoad", () => {
 		).toBe(false);
 	});
 
-	it("holds at the limits Settings → Board sets, not the defaults", () => {
-		const limits = { agentCpuPercent: 90, hostCpuPercent: 40 };
-		// 85% agents clears a raised agent limit...
-		expect(machineLoad(snapshot({ totalCpu: 850 }), limits).busy).toBe(false);
-		// ...and 54% of the Mac trips a lowered host one.
+	it("holds at the limit Settings → Board sets, not the default", () => {
+		const limits = { hostCpuPercent: 40 };
 		expect(machineLoad(snapshot({ hostCpu: 54 }), limits).reason).toBe(
 			"this Mac is at 54% CPU",
 		);
+		expect(machineLoad(snapshot({ hostCpu: 35 }), limits).busy).toBe(false);
 	});
 
-	it("says agent, singular, for one", () => {
-		expect(machineLoad(snapshot({ totalCpu: 900, agents: 1 })).reason).toBe(
-			"1 agent using 90% of this Mac",
-		);
+	it("doesn't hold on the agents' share while the Mac has room", () => {
+		// Agents at 60% on a Mac at 62%: the Mac is the whole story.
+		expect(
+			machineLoad(snapshot({ hostCpu: 62, totalCpu: 600, agents: 6 })).busy,
+		).toBe(false);
 	});
 
 	it("is busy when the Mac is pinned by work that isn't ours", () => {
-		// The bug: 98% CPU, 2% idle, everything stuttering — and the agents
-		// themselves barely on it, so the agent-only gate said "we're good".
+		// 98% CPU, 2% idle, everything stuttering — and the agents themselves
+		// barely on it. Whose CPU it is doesn't matter.
 		const load = machineLoad(
 			snapshot({ hostCpu: 98, totalCpu: 60, agents: 3 }),
 		);
 		expect(load.busy).toBe(true);
 		expect(load.reason).toBe("this Mac is at 98% CPU");
 		expect(load.agentCpuPercent).toBe(6);
-	});
-
-	it("blames the agents when they are the ones pinning it", () => {
-		// Both gates trip; the actionable half — the sessions you can close —
-		// is what the toast should name.
-		const load = machineLoad(
-			snapshot({ hostCpu: 95, totalCpu: 900, agents: 4 }),
-		);
-		expect(load.reason).toBe("4 agents using 90% of this Mac");
 	});
 
 	it("reports the agents' own memory in GB", () => {
