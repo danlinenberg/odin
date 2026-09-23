@@ -24,16 +24,36 @@ import {
  * supposed to be doing for you.
  */
 
+/** Each link type's own colour, so Jira, Slack, GitHub and Notion read apart. */
+const LINK_ACCENT = {
+	jira: "#4c9aff",
+	slack: "#e01e5a",
+	pr: "#3ecf8e",
+	notion: "#d6d6dc",
+	other: "#8a8a97",
+} as const;
+
 function Section({
 	label,
+	accent,
 	children,
 }: {
 	label: string;
+	/** Link sections get a rule above and a coloured dot, so types don't run together. */
+	accent?: string;
 	children: React.ReactNode;
 }) {
 	return (
-		<div className="flex flex-col gap-1">
-			<div className="text-[10px] font-semibold uppercase tracking-[.4px] text-[#8a8a97]">
+		<div
+			className={`flex flex-col gap-1 ${accent ? "border-t border-[#25252e] pt-3" : ""}`}
+		>
+			<div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[.4px] text-[#8a8a97]">
+				{accent && (
+					<span
+						className="size-1.5 shrink-0 rounded-full"
+						style={{ background: accent }}
+					/>
+				)}
 				{label}
 			</div>
 			<div className="whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-[#d6d6dc]">
@@ -449,7 +469,10 @@ export function SessionBrief({
 				{/* Links sit outside the transcript branch: the ones you added are
 				    yours, and a session with no readable conversation still has them. */}
 				{(issue || mine("jira").length > 0) && (
-					<Section label={plural("Jira ticket", issue, mine("jira"))}>
+					<Section
+						label={plural("Jira ticket", issue, mine("jira"))}
+						accent={LINK_ACCENT.jira}
+					>
 						<div className="flex flex-col gap-1">
 							{issue && (
 								<div className="group flex items-center gap-1.5">
@@ -470,7 +493,10 @@ export function SessionBrief({
 					</Section>
 				)}
 				{(thread || mine("slack").length > 0) && (
-					<Section label={plural("Slack thread", thread, mine("slack"))}>
+					<Section
+						label={plural("Slack thread", thread, mine("slack"))}
+						accent={LINK_ACCENT.slack}
+					>
 						<div className="flex flex-col gap-1.5">
 							{thread && (
 								<div className="group flex items-start gap-1.5">
@@ -502,6 +528,7 @@ export function SessionBrief({
 				)}
 				{(prs.length > 0 || mine("pr").length > 0) && (
 					<Section
+						accent={LINK_ACCENT.pr}
 						label={
 							prs.length + mine("pr").length === 1
 								? "Pull request"
@@ -532,7 +559,10 @@ export function SessionBrief({
 					</Section>
 				)}
 				{(page || mine("notion").length > 0) && (
-					<Section label={plural("Notion page", page, mine("notion"))}>
+					<Section
+						label={plural("Notion page", page, mine("notion"))}
+						accent={LINK_ACCENT.notion}
+					>
 						<div className="flex flex-col gap-1">
 							{page && (
 								<div className="group flex items-center gap-1.5">
@@ -553,7 +583,7 @@ export function SessionBrief({
 					</Section>
 				)}
 				{mine("other").length > 0 && (
-					<Section label="Links">
+					<Section label="Links" accent={LINK_ACCENT.other}>
 						<div className="flex flex-col gap-1">
 							{mine("other").map(myLink)}
 						</div>
