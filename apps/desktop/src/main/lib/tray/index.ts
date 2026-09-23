@@ -8,13 +8,18 @@ import {
 	Tray,
 } from "electron";
 import { focusMainWindow, quitApp } from "main/index";
+import { appState } from "main/lib/app-state";
 import {
 	getHostServiceCoordinator,
 	type HostServiceStatusEvent,
 } from "main/lib/host-service-coordinator";
 import { menuEmitter } from "main/lib/menu-events";
+import { notificationsEmitter } from "main/lib/notifications/server";
 import { confirmAndQuitCompletely } from "main/lib/quit-completely";
-import { LOCAL_ORG_ID } from "shared/constants";
+import { getWorkspaceRuntimeRegistry } from "main/lib/workspace-runtime";
+import { type ActiveSession, activeSessions } from "shared/active-sessions";
+import { LOCAL_ORG_ID, NOTIFICATION_EVENTS } from "shared/constants";
+import type { PaneStatus } from "shared/tabs-types";
 
 /** Must have "Template" suffix for macOS dark/light mode support */
 const TRAY_ICON_FILENAME = "iconTemplate.png";
@@ -49,6 +54,8 @@ function getTrayIconPath(): string | null {
 }
 
 let tray: Tray | null = null;
+let refreshTimer: ReturnType<typeof setInterval> | null = null;
+let menuOpen = false;
 
 function createTrayIcon(): Electron.NativeImage | null {
 	const iconPath = getTrayIconPath();
@@ -117,12 +124,70 @@ function buildHostServiceSubmenu(): MenuItemConstructorOptions[] {
 	];
 }
 
+/** The board's columns, in the order you'd want to look at them. */
+const SECTIONS: { column: PaneStatus; label: string }[] = [
+	{ column: "permission", label: "Needs you" },
+	{ column: "working", label: "Working" },
+	{ column: "review", label: "Done" },
+	{ column: "idle", label: "Idle" },
+];
+
+/** Same rule as the All page: the daemon says who's alive, the pane says where it sits. */
+async function loadSessions(): Promise<ActiveSession[]> {
+	try {
+		const { sessions } = await getWorkspaceRuntimeRegistry()
+			.getDefault()
+			.terminal.management.listSessions();
+		const alive = new Set(
+			sessions.filter((s) => s.isAlive).map((s) => s.sessionId),
+		);
+		return activeSessions(appState.data.tabsState.panes ?? {}, alive, null);
+	} catch (error) {
+		console.warn("[Tray] Failed to list sessions:", error);
+		return [];
+	}
+}
+
+/** Opens the session's drawer on the board — what clicking its banner does. */
+function openSession(paneId: string): void {
+	focusMainWindow();
+	notificationsEmitter.emit(NOTIFICATION_EVENTS.FOCUS_TAB, { paneId });
+}
+
+function buildSessionItems(
+	sessions: ActiveSession[],
+): MenuItemConstructorOptions[] {
+	if (sessions.length === 0) {
+		return [{ label: "No sessions running", enabled: false }];
+	}
+	return SECTIONS.flatMap(({ column, label }) => {
+		const rows = sessions.filter((s) => s.column === column);
+		if (rows.length === 0) return [];
+		return [
+			{ label: `${label} (${rows.length})`, enabled: false },
+			...rows.map(
+				(s): MenuItemConstructorOptions => ({
+					label: s.repo ? `${s.title} — ${s.repo}` : s.title,
+					click: () => openSession(s.paneId),
+				}),
+			),
+		];
+	});
+}
+
 async function updateTrayMenu(): Promise<void> {
 	if (!tray) return;
 
 	const hostServiceSubmenu = buildHostServiceSubmenu();
+	const sessions = await loadSessions();
+	if (!tray) return;
+	// The count beside the icon is the one thing worth seeing without a click.
+	const needsYou = sessions.filter((s) => s.column === "permission").length;
+	tray.setTitle(needsYou > 0 ? String(needsYou) : "");
 
 	const menu = Menu.buildFromTemplate([
+		...buildSessionItems(sessions),
+		{ type: "separator" },
 		{
 			label: "Host Service",
 			submenu: hostServiceSubmenu,
@@ -158,6 +223,14 @@ async function updateTrayMenu(): Promise<void> {
 		},
 	]);
 
+	// Swapping the menu while it's open would snap it shut under your cursor.
+	if (menuOpen) return;
+	menu.on("menu-will-show", () => {
+		menuOpen = true;
+	});
+	menu.on("menu-will-close", () => {
+		menuOpen = false;
+	});
 	tray.setContextMenu(menu);
 }
 
@@ -193,6 +266,9 @@ export function initTray(): void {
 			void updateTrayMenu();
 		});
 
+		// ponytail: same 5s poll the board runs; push from the status writers if it lags.
+		refreshTimer = setInterval(() => void updateTrayMenu(), 5_000);
+
 		console.log("[Tray] Initialized successfully");
 	} catch (error) {
 		console.error("[Tray] Failed to initialize:", error);
@@ -201,6 +277,10 @@ export function initTray(): void {
 
 /** Call on app quit */
 export function disposeTray(): void {
+	if (refreshTimer) {
+		clearInterval(refreshTimer);
+		refreshTimer = null;
+	}
 	if (tray) {
 		tray.destroy();
 		tray = null;
