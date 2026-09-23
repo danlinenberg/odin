@@ -8,7 +8,9 @@ import type { PaneStatus } from "./tabs-types";
  *    same claim, so it wants a look (Needs you) rather than Done;
  *  - a session you dragged to Idle stays parked there until it moves again;
  *  - a DEAD session can't be working or waiting on you, whatever its status says;
- *  - a live "failed" session is just another thing that needs you.
+ *  - a live "failed" session is just another thing that needs you;
+ *  - a live session under `/loop` that's between turns is Idle, not Done or
+ *    Needs you — it will wake itself up, so there's nothing to finish or answer.
  *
  * `alive === undefined` means the daemon poll hasn't answered yet — never call a
  * session dead on a guess, because the Idle card's Resume kills and respawns it.
@@ -17,6 +19,7 @@ export function boardColumn(
 	status: PaneStatus,
 	alive: boolean | undefined,
 	parked: boolean,
+	looping = false,
 ): PaneStatus {
 	if (status === "idle" && parked) return "idle";
 	// Only a mounted <Terminal> notices its PTY exit and resets the status
@@ -29,6 +32,9 @@ export function boardColumn(
 	// turn left to reply to. Its only move is Resume, which lives on the Idle
 	// card ("session ended — resume to pick it up").
 	if (alive === false) return "idle";
+	// A prompt on screen or a failure still needs you, loop or not — the next
+	// tick can't fire past it.
+	if (looping && (status === "review" || status === "idle")) return "idle";
 	// Done. Only the Stop hook puts a card here: "the turn ended and the agent
 	// asked for nothing" is a claim about the turn, and the only writer that
 	// knows it is the hook that saw the turn end.

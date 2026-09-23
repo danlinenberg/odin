@@ -55,4 +55,17 @@ describe("boardColumn", () => {
 		expect(boardColumn("working", undefined, false)).toBe("working");
 		expect(boardColumn("permission", undefined, false)).toBe("permission");
 	});
+
+	// A looping session ends every turn clean, but it isn't done: it'll wake
+	// itself up again. Between ticks it sits in Idle.
+	it("puts a looping session between turns in Idle", () => {
+		expect(boardColumn("review", true, false, true)).toBe("idle");
+		expect(boardColumn("idle", true, false, true)).toBe("idle");
+	});
+
+	it("still shows a looping session working or waiting on you", () => {
+		expect(boardColumn("working", true, false, true)).toBe("working");
+		expect(boardColumn("permission", true, false, true)).toBe("permission");
+		expect(boardColumn("failed", true, false, true)).toBe("permission");
+	});
 });
