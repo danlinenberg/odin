@@ -74,9 +74,15 @@ function StateChip({ state }: { state: string | null }) {
 function ChecksChip({
 	status,
 }: {
-	status: { pending: string[]; failed: string[]; passed: number } | null;
+	status: {
+		state: string | null;
+		pending: string[];
+		failed: string[];
+		passed: number;
+	} | null;
 }) {
-	if (!status) return null;
+	// CI only matters while the PR can still change — merged/closed is final.
+	if (!status || status.state !== "OPEN") return null;
 	const { pending, failed, passed } = status;
 	if (pending.length > 0) {
 		return (
