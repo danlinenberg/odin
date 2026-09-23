@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { launchLimits, useLaunchLimits } from "renderer/stores/launch-limits";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import type { Pane } from "renderer/stores/tabs/types";
 import { launchBlocker } from "shared/launch-gate";
@@ -122,6 +123,7 @@ export function useTaskQueue(): void {
 			Object.values(panes),
 			queuedCwd(next),
 			workConfig?.odinRepoPath,
+			launchLimits(useLaunchLimits.getState()),
 		);
 		if (blocker) {
 			// Only the head waits on the blocker; the rest wait on the card ahead,

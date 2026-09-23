@@ -1,4 +1,8 @@
-import { type MachineLoadInput, machineLoad } from "./machine-load";
+import {
+	type LaunchLimits,
+	type MachineLoadInput,
+	machineLoad,
+} from "./machine-load";
 import { isOdinCwd, odinSessionInFlight } from "./odin-tags";
 import type { Pane } from "./tabs-types";
 
@@ -18,8 +22,9 @@ export function launchBlocker(
 	panes: Pane[],
 	cwd: string,
 	odinRepoPath: string | null | undefined,
+	limits?: LaunchLimits,
 ): string | null {
-	const load = machineLoad(snapshot);
+	const load = machineLoad(snapshot, limits);
 	if (load.busy) return load.reason;
 	if (!isOdinCwd(cwd, odinRepoPath)) return null;
 	const held = odinSessionInFlight(panes, odinRepoPath);

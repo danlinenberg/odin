@@ -69,6 +69,16 @@ describe("machineLoad", () => {
 		).toBe(false);
 	});
 
+	it("holds at the limits Settings → Board sets, not the defaults", () => {
+		const limits = { agentCpuPercent: 90, hostCpuPercent: 40 };
+		// 85% agents clears a raised agent limit...
+		expect(machineLoad(snapshot({ totalCpu: 850 }), limits).busy).toBe(false);
+		// ...and 54% of the Mac trips a lowered host one.
+		expect(machineLoad(snapshot({ hostCpu: 54 }), limits).reason).toBe(
+			"this Mac is at 54% CPU",
+		);
+	});
+
 	it("says agent, singular, for one", () => {
 		expect(machineLoad(snapshot({ totalCpu: 900, agents: 1 })).reason).toBe(
 			"1 agent using 90% of this Mac",
