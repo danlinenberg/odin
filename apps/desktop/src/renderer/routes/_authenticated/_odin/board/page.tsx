@@ -47,9 +47,9 @@ import {
 } from "shared/odin-screen-status";
 import { BOARD_TAGS, boardTags } from "shared/odin-tags";
 import {
+	cardBody,
 	OdinPromptDialog,
 	type PromptImage,
-	cardBody,
 	sessionTitle,
 	untruncatedTitle,
 } from "../components/OdinPromptDialog";
@@ -1022,9 +1022,9 @@ function DevBoardPage() {
 		x: number;
 		y: number;
 	} | null>(null);
-	const [tagFilter, setTagFilter] = useState<string[]>([]);
-	// A card has one person, so this picks one: click again to clear.
-	const [personFilter, setPersonFilter] = useState<string | null>(null);
+	// One filter at a time, from the header dropdown: "tag:<tag>",
+	// "person:<name>", or "" for everything.
+	const [boardFilter, setBoardFilter] = useState("");
 	// Highlight the Idle column while a card is dragged over it.
 	const [dragOverIdle, setDragOverIdle] = useState(false);
 
@@ -1167,14 +1167,13 @@ function DevBoardPage() {
 				const person = pane.odinContact ?? contactByPane[pane.id] ?? null;
 				if (person)
 					personCounts.set(person, (personCounts.get(person) ?? 0) + 1);
-				if (personFilter && person !== personFilter) continue;
-				// Tag filter: show only sessions carrying every selected tag.
 				if (
-					tagFilter.length > 0 &&
-					!tagFilter.every((tag) => boardTags(pane.odinTags).includes(tag))
-				) {
+					(boardFilter.startsWith("person:") &&
+						person !== boardFilter.slice(7)) ||
+					(boardFilter.startsWith("tag:") &&
+						!boardTags(pane.odinTags).includes(boardFilter.slice(4)))
+				)
 					continue;
-				}
 				// Every session stays on the board in its column until it's Done'd —
 				// nothing is silently dropped.
 				map.get(column)?.push({ ...card, status: column });
@@ -1197,8 +1196,7 @@ function DevBoardPage() {
 		projectById,
 		agentPaneIds,
 		daemonSessions,
-		tagFilter,
-		personFilter,
+		boardFilter,
 		contactByPane,
 		titleByPane,
 		activeProfileId,
@@ -1688,7 +1686,7 @@ function DevBoardPage() {
 
 	return (
 		<div className="flex h-full flex-col">
-			{/* Title + launcher, then one filter row (tags, then people) under it. */}
+			{/* One header row: title, launcher, filter dropdown. */}
 			<div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-[18px] pb-2 pt-2.5">
 				<h1 className="text-[15px] font-semibold">Dev Board</h1>
 				<button
@@ -1703,87 +1701,40 @@ function DevBoardPage() {
 					<span className="text-xs text-[#a5a5b3]">starting…</span>
 				)}
 
-				<div className="flex basis-full flex-wrap items-center gap-x-3 gap-y-1.5">
-					{/* tag filter — right-click a card to tag it */}
-					{allTags.length > 0 && (
-						<div className="flex flex-wrap items-center gap-1.5">
-							{allTags.map(([tag, count]) => {
-								const on = tagFilter.includes(tag);
-								return (
-									<button
-										key={tag}
-										type="button"
-										onClick={() =>
-											setTagFilter((current) =>
-												on
-													? current.filter((t) => t !== tag)
-													: [...current, tag],
-											)
-										}
-										className={cn(
-											"rounded-full px-2.5 py-[3px] text-[11px] font-medium transition-colors",
-											on
-												? "bg-[#a394ff] text-[#060608]"
-												: "bg-[#16161b] text-[#a5a5b3] hover:text-[#f5f5f7]",
-										)}
-									>
-										#{tag}
-										<span className="ml-1 opacity-70">{count}</span>
-									</button>
-								);
-							})}
-							{tagFilter.length > 0 && (
-								<button
-									type="button"
-									onClick={() => setTagFilter([])}
-									className="text-[11px] text-[#8a8a97] hover:text-[#a5a5b3]"
-								>
-									clear
-								</button>
-							)}
-						</div>
-					)}
-
-					{/* person filter — the card's contact */}
-					{allPeople.length > 0 && (
-						<div className="flex flex-wrap items-center gap-1.5">
-							{allPeople.map(([person, count]) => (
-								<button
-									key={person}
-									type="button"
-									title={`Show only ${person}'s sessions`}
-									onClick={() =>
-										setPersonFilter((current) =>
-											current === person ? null : person,
-										)
-									}
-									className={cn(
-										"flex items-center rounded-[6px] transition-opacity",
-										personFilter && personFilter !== person
-											? "opacity-40 hover:opacity-80"
-											: personFilter === person
-												? "ring-1 ring-current"
-												: "",
-									)}
-								>
-									<PersonChip name={person} />
-									<span className="ml-1 text-[11px] text-[#8a8a97]">
-										{count}
-									</span>
-								</button>
-							))}
-							{personFilter && (
-								<button
-									type="button"
-									onClick={() => setPersonFilter(null)}
-									className="text-[11px] text-[#8a8a97] hover:text-[#a5a5b3]"
-								>
-									clear
-								</button>
-							)}
-						</div>
-					)}
-				</div>
+				{/* filter — right-click a card to tag it; people are the card's contact */}
+				{(allTags.length > 0 || allPeople.length > 0) && (
+					<select
+						value={boardFilter}
+						onChange={(e) => setBoardFilter(e.target.value)}
+						title="Show only sessions with this tag or person"
+						className={cn(
+							"max-w-[220px] cursor-pointer rounded-full border px-2.5 py-1 text-[12px] font-medium outline-none",
+							boardFilter
+								? "border-[#a394ff] bg-[#211d3a] text-[#f5f5f7]"
+								: "border-[#25252e] bg-[#16161b] text-[#a5a5b3] hover:text-[#f5f5f7]",
+						)}
+					>
+						<option value="">All sessions</option>
+						{allTags.length > 0 && (
+							<optgroup label="Tags">
+								{allTags.map(([tag, count]) => (
+									<option key={tag} value={`tag:${tag}`}>
+										#{tag} ({count})
+									</option>
+								))}
+							</optgroup>
+						)}
+						{allPeople.length > 0 && (
+							<optgroup label="People">
+								{allPeople.map(([person, count]) => (
+									<option key={person} value={`person:${person}`}>
+										{person} ({count})
+									</option>
+								))}
+							</optgroup>
+						)}
+					</select>
+				)}
 			</div>
 
 			{tagMenu && (
