@@ -131,6 +131,8 @@ describe("summarizeTranscript", () => {
 		);
 		expect(summary.aiTitle).toBe("Rebind the board hotkey");
 		expect(summary.prompt).toBe("rebind the board hotkey");
+		// The card's own title, as launched, is what History shows.
+		expect(summary.cardTitle).toBe("rebind the board hotkey");
 		expect(summary.cwd).toBe(CWD);
 		expect(summary.messages).toBe(2);
 	});
@@ -283,8 +285,8 @@ describe("searchSessions", () => {
 		expect(total).toBe(2);
 		expect(terms).toEqual([]);
 		expect(sessions.map((s) => s.title).sort()).toEqual([
-			"Investigate and reduce repeating Datadog logs",
-			"Rebind the board hotkey",
+			"investigate datadog and see which logs repeat the most",
+			"rebind the board hotkey",
 		]);
 	});
 
@@ -294,7 +296,7 @@ describe("searchSessions", () => {
 		// Both files contain the skill body; only one is really about Datadog.
 		expect(sessions).toHaveLength(1);
 		expect(sessions[0]?.title).toBe(
-			"Investigate and reduce repeating Datadog logs",
+			"investigate datadog and see which logs repeat the most",
 		);
 	});
 
@@ -306,7 +308,7 @@ describe("searchSessions", () => {
 			query: "optimizing datadog costs",
 		});
 		expect(sessions[0]?.title).toBe(
-			"Investigate and reduce repeating Datadog logs",
+			"investigate datadog and see which logs repeat the most",
 		);
 	});
 
@@ -324,7 +326,7 @@ describe("searchSessions", () => {
 		);
 		const { sessions } = await searchSessions({ root, query: "datadog logs" });
 		expect(sessions[0]?.title).toBe(
-			"Investigate and reduce repeating Datadog logs",
+			"investigate datadog and see which logs repeat the most",
 		);
 	});
 
@@ -348,8 +350,8 @@ describe("searchSessions", () => {
 		);
 		const { sessions } = await searchSessions({ root });
 		expect(sessions.map((s) => s.title).sort()).toEqual([
-			"Investigate and reduce repeating Datadog logs",
-			"Rebind the board hotkey",
+			"investigate datadog and see which logs repeat the most",
+			"rebind the board hotkey",
 		]);
 	});
 
@@ -391,7 +393,7 @@ describe("searchSessions", () => {
 			people,
 		});
 		expect(sessions).toHaveLength(1);
-		expect(sessions[0]?.title).toBe("Rebind the board hotkey");
+		expect(sessions[0]?.title).toBe("rebind the board hotkey");
 		expect(sessions[0]?.person).toBe("Ofek Azulay");
 		expect(askers).toEqual(["Ofek Azulay"]);
 	});
@@ -410,7 +412,7 @@ describe("searchSessions", () => {
 			]),
 		});
 		expect(sessions.map((session) => session.title)).toEqual([
-			"Rebind the board hotkey",
+			"rebind the board hotkey",
 		]);
 	});
 
@@ -435,7 +437,7 @@ describe("searchSessions", () => {
 				],
 			]),
 		});
-		expect(sessions[0]?.title).toBe("Rebind the board hotkey");
+		expect(sessions[0]?.title).toBe("rebind the board hotkey");
 	});
 
 	test("askers drops anyone whose session is no longer on disk", async () => {

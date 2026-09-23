@@ -38,7 +38,7 @@ export interface SessionSummary {
 	sessionId: string;
 	/** Real working directory, read from the transcript itself. */
 	cwd: string | null;
-	/** Claude's own generated title when it has one, else the opening prompt. */
+	/** The card's title as launched, else Claude's generated one, else the prompt. */
 	title: string;
 	/** The opening prompt, as a subtitle. Null when the session has no prose. */
 	prompt: string | null;
@@ -258,8 +258,14 @@ export function summarizeTranscript(
 ): Omit<
 	SessionSummary,
 	"project" | "sessionId" | "updatedAt" | "bytes" | "title" | "person"
-> & { aiTitle: string | null; bodyTerms: Set<string>; fromOdin: boolean } {
+> & {
+	aiTitle: string | null;
+	cardTitle: string | null;
+	bodyTerms: Set<string>;
+	fromOdin: boolean;
+} {
 	let aiTitle: string | null = null;
+	let cardTitle: string | null = null;
 	let prompt: string | null = null;
 	let fromOdin = false;
 	let cwd: string | null = null;
@@ -302,6 +308,11 @@ export function summarizeTranscript(
 		if (role === "user" && !prompt) {
 			// Before cleanPrompt, which strips the marker off the stored prompt.
 			fromOdin = ODIN_LAUNCH_MARKER.test(text);
+			// buildPrompt's first line is the card's title — `Task: <title>` or
+			// `/<skill> <title>` — which is what the board showed, and what a
+			// person remembers the session by.
+			cardTitle =
+				/^(?:Task:|\/[\w:-]+)[ \t]+(.+)/.exec(text)?.[1]?.trim() || null;
 			prompt = cleanPrompt(text).slice(0, 600) || null;
 		}
 		if (terms.length === 0) continue;
@@ -338,6 +349,7 @@ export function summarizeTranscript(
 		.map(({ role, text }) => ({ role, text }));
 	return {
 		aiTitle,
+		cardTitle,
 		prompt,
 		cwd,
 		messages,
@@ -349,10 +361,12 @@ export function summarizeTranscript(
 }
 
 function titleFor(
+	cardTitle: string | null,
 	aiTitle: string | null,
 	prompt: string | null,
 	sessionId: string,
 ): string {
+	if (cardTitle) return cardTitle;
 	if (aiTitle) return aiTitle;
 	if (prompt) return oneLine(prompt).slice(0, 120);
 	return `session ${sessionId.slice(0, 8)}`;
@@ -468,7 +482,12 @@ export async function searchSessions({
 				whoTerms.size === 0
 			)
 				continue;
-			const title = titleFor(summary.aiTitle, summary.prompt, file.sessionId);
+			const title = titleFor(
+				summary.cardTitle,
+				summary.aiTitle,
+				summary.prompt,
+				file.sessionId,
+			);
 			scored.push({
 				// Who asked outweighs a title word: a full name matching both its
 				// terms beats a session that merely says "Ofek" a lot, which is
