@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { usePaneMeta } from "../hooks/usePaneMeta";
 import {
 	jiraIssue,
+	linkLabel,
 	notionPage,
 	pullRequests,
 	sessionBrief,
@@ -124,6 +126,11 @@ export function SessionBrief({
 	// (debounce, save button) can lose the last words you typed.
 	const notes = usePaneMeta((s) => s.notesByPane[paneId] ?? "");
 	const setNotes = usePaneMeta((s) => s.setNotes);
+	// Links you attach yourself — the brief only finds what the transcript quotes.
+	const links = usePaneMeta((s) => s.linksByPane[paneId]) ?? [];
+	const addLink = usePaneMeta((s) => s.addLink);
+	const removeLink = usePaneMeta((s) => s.removeLink);
+	const [draftLink, setDraftLink] = useState("");
 
 	const mirrored = usePaneMeta((s) => s.sessionIdByPane[paneId]);
 	const known = claudeSessionId ?? mirrored ?? null;
@@ -308,6 +315,45 @@ export function SessionBrief({
 				    transcript branch above, so a session with no readable
 				    conversation can still be annotated. */}
 				<div className="mt-auto flex flex-col gap-1 pt-2">
+					<div className="text-[10px] font-semibold uppercase tracking-[.4px] text-[#8a8a97]">
+						My links
+					</div>
+					{links.map((url) => (
+						<div key={url} className="group flex items-center gap-1.5">
+							<button
+								type="button"
+								title={url}
+								onClick={() => openUrl.mutate(url)}
+								className="truncate text-left text-[12px] text-[#a394ff] hover:underline"
+							>
+								{linkLabel(url)} ↗
+							</button>
+							<button
+								type="button"
+								title="Remove link"
+								onClick={() => removeLink(paneId, url)}
+								className="ml-auto text-[12px] text-[#7c7c88] opacity-0 hover:text-[#f0647a] group-hover:opacity-100"
+							>
+								×
+							</button>
+						</div>
+					))}
+					<input
+						value={draftLink}
+						onChange={(event) => setDraftLink(event.target.value)}
+						onKeyDown={(event) => {
+							if (event.key !== "Enter") return;
+							// Paste several at once and each becomes its own link.
+							const urls = draftLink.match(/https?:\/\/\S+/g) ?? [];
+							for (const url of urls)
+								addLink(paneId, url.replace(/[).,]+$/, ""));
+							if (urls.length) setDraftLink("");
+						}}
+						placeholder="Paste a link, press Enter"
+						className="rounded-[7px] border border-[#25252e] bg-[#0a0a0c] px-2 py-1 text-[12px] text-[#d6d6dc] placeholder:text-[#7c7c88] focus:border-[#a394ff] focus:outline-none"
+					/>
+				</div>
+				<div className="flex flex-col gap-1 pt-2">
 					<div className="text-[10px] font-semibold uppercase tracking-[.4px] text-[#8a8a97]">
 						My notes
 					</div>

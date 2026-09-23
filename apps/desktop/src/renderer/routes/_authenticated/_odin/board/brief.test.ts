@@ -4,6 +4,7 @@ import {
 	elapsedLabel,
 	jiraIssue,
 	lastMessageAt,
+	linkLabel,
 	notionPage,
 	projectSlug,
 	pullRequests,
@@ -365,5 +366,28 @@ describe("jiraIssue", () => {
 
 	it("finds nothing in a session with no ticket", () => {
 		expect(jiraIssue([turn("user", "no links here")])).toBeNull();
+	});
+});
+
+describe("linkLabel", () => {
+	it("names the kind of thing each link is", () => {
+		expect(
+			linkLabel("https://acme.slack.com/archives/C123/p1700000000000100"),
+		).toBe("Slack thread");
+		expect(linkLabel("https://acme.slack.com/archives/C123")).toBe(
+			"Slack channel",
+		);
+		expect(linkLabel("https://github.com/acme/odin/pull/42")).toBe("odin #42");
+		expect(linkLabel("https://acme.atlassian.net/browse/SHIP-1063")).toBe(
+			"SHIP-1063",
+		);
+		expect(
+			linkLabel(
+				"https://www.notion.so/Spot-Instances-0123456789abcdef0123456789abcdef",
+			),
+		).toBe("Spot Instances");
+		expect(linkLabel("https://docs.google.com/document/d/x")).toBe(
+			"docs.google.com",
+		);
 	});
 });
