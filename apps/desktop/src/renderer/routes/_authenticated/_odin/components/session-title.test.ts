@@ -13,3 +13,10 @@ test("an old 60-char title gets the rest back from its brief", () => {
 	expect(untruncatedTitle("Wait…", "something else")).toBe("Wait…");
 	expect(untruncatedTitle("Plain", line)).toBe("Plain");
 });
+
+test("a Slack title that skipped the greeting line still finds its line", () => {
+	const text = `Hey Dan,\n${line} please\nthanks`;
+	expect(untruncatedTitle(`${line.slice(0, 40)}…`, text)).toBe(
+		`${line} please`,
+	);
+});

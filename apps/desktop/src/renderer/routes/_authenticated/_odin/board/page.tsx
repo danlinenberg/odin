@@ -601,6 +601,15 @@ function DevBoardPage() {
 	const contactByPane = usePaneMeta((s) => s.contactByPane);
 	const titleByPane = usePaneMeta((s) => s.titleByPane);
 	const briefByPane = usePaneMeta((s) => s.briefByPane);
+	// Same query (and cache) as the Slack view, so this reads, not re-polls.
+	const { data: slackFeed } = electronTrpc.slack.reactions.useQuery(undefined, {
+		staleTime: 120_000,
+		refetchOnMount: false,
+	});
+	const slackTextById = useMemo(
+		() => new Map((slackFeed?.rows ?? []).map((row) => [row.id, row.text])),
+		[slackFeed],
+	);
 	// Prefer the task title captured at launch — Claude Code's OSC title rewrites
 	// the pane name to "Claude Code" once it starts.
 	// `panes` first: the drawer holds a snapshot card, so a rename has to be read
@@ -614,7 +623,10 @@ function DevBoardPage() {
 					card.pane.userTitle ??
 					card.pane.name ??
 					card.tabName,
-				card.pane.odinBrief ?? briefByPane[card.pane.id] ?? null,
+				// A Slack card launched with only the cut title as its brief still
+				// has its whole message in the feed.
+				(card.pane.odinPageId && slackTextById.get(card.pane.odinPageId)) ||
+					(card.pane.odinBrief ?? briefByPane[card.pane.id] ?? null),
 			),
 		);
 	// Point of contact: the pane's own record (shared app-state) first, then the

@@ -36,13 +36,15 @@ export function sessionTitle(prompt: string, fallback: string): string {
 }
 
 /**
- * Sessions launched before the title stopped being cut at 60 chars carry
- * "…first 59 chars…" — put the rest back from the brief they were cut from.
+ * A title cut to "…" (the old 60-char session cap, Slack's 120-char row title)
+ * gets the rest of its line back from the text it was cut from — wherever in
+ * that text the line sits, since a Slack title skips the greeting line.
  */
-export function untruncatedTitle(title: string, brief: string | null): string {
-	if (!title.endsWith("…") || !brief) return title;
-	const line = sessionTitle(brief, title);
-	return line.startsWith(title.slice(0, -1)) ? line : title;
+export function untruncatedTitle(title: string, source: string | null): string {
+	if (!title.endsWith("…") || !source) return title;
+	const start = source.indexOf(title.slice(0, -1));
+	if (start < 0) return title;
+	return source.slice(start).split("\n")[0]?.trim() || title;
 }
 
 /**

@@ -154,7 +154,8 @@ function ReactionsPage() {
 			title: row.title,
 			description: buildThreadPrompt(row.permalink, row.title, row.text),
 			contact: row.authorName,
-			brief: row.title,
+			// The whole message: the title is cut at 120 chars.
+			brief: row.text || row.title,
 			pageId: row.id,
 			source: "reactions",
 		});
