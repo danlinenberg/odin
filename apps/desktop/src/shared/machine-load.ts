@@ -175,10 +175,8 @@ export interface SessionUsage {
 /**
  * What a session's badge says, and whether it's heavy enough to be loud.
  *
- * Every card gets one: a board that "already feels slow" with nothing marked
- * can't tell you where the memory went. Memory is always named — it's what the
- * header chip counts, so the badges add up to it — and CPU only when it's the
- * thing that's high. `heavy` only picks the colour.
+ * Memory is always named — it's what the header chip counts — and CPU only
+ * when it's the thing that's high. Only a `heavy` session shows the badge.
  */
 export function sessionUsageLabel(usage: SessionUsage): {
 	label: string;

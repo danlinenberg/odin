@@ -369,14 +369,6 @@ function AgePill({
 }
 
 /**
- * The badge that answers "which of these is eating the Mac". The header chip
- * already says nine sessions hold 11 GB; this says which three of them do.
- *
- * Same snapshot the chip reads — one query, shared by every card through the
- * React Query cache. Every card shows it; only a heavy one turns amber and
- * gets the flame, so a board of parked sessions stays quiet but still adds up.
- */
-/**
  * This session is running under `/loop` — it will wake itself up again, so an
  * idle card isn't done. Read from the schedule calls in its transcript; only
  * asked of a session whose claude is still running, since the schedule dies
@@ -407,6 +399,14 @@ function LoopPill({ card }: { card: BoardCard }) {
 	);
 }
 
+/**
+ * The badge that answers "which of these is eating the Mac". The header chip
+ * already says nine sessions hold 11 GB; this says which three of them do.
+ *
+ * Same snapshot the chip reads — one query, shared by every card through the
+ * React Query cache. Only a heavy session gets one; a parked session's few
+ * hundred MB is noise on the card.
+ */
 function LoadPill({ card }: { card: BoardCard }) {
 	const { data } = electronTrpc.resourceMetrics.getSnapshot.useQuery(
 		undefined,
@@ -417,15 +417,13 @@ function LoadPill({ card }: { card: BoardCard }) {
 		.find((session) => session.paneId === card.pane.id);
 	if (!usage) return null;
 	const { label, heavy } = sessionUsageLabel(usage);
+	if (!heavy) return null;
 	return (
 		<span
 			title="What this session's processes are holding right now"
-			className={cn(
-				"inline-flex items-center gap-1 rounded-[5px] px-[7px] text-[11px] font-medium tabular-nums",
-				heavy ? "bg-[#2a1f12] text-[#f5b83d]" : "bg-[#1f1f27] text-[#8a8a97]",
-			)}
+			className="inline-flex items-center gap-1 rounded-[5px] bg-[#2a1f12] px-[7px] text-[11px] font-medium tabular-nums text-[#f5b83d]"
 		>
-			{heavy && <LuFlame className="size-3 shrink-0" aria-hidden />}
+			<LuFlame className="size-3 shrink-0" aria-hidden />
 			{label}
 		</span>
 	);
