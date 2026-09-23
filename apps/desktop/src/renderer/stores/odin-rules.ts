@@ -78,7 +78,7 @@ const PR_RULE = /pull request|\bPRs?\b|\bpush/i;
  * Bash calls that open or change a PR. Matched against the whole hook input,
  * so the command itself — Claude's PostToolUse payload carries it verbatim.
  */
-const PR_COMMAND = "gh pr (create|edit|ready|merge)|git push";
+const PR_COMMAND = "gh pr (create|edit|ready)|git push";
 
 /** Single-quote for sh. */
 const sh = (s: string) => `'${s.replaceAll("'", `'\\''`)}'`;
