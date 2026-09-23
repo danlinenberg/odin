@@ -152,6 +152,20 @@ function Hover({
 	);
 }
 
+/** Hover-revealed control that moves a found resource under "Hidden". */
+function HideButton({ onClick }: { onClick: () => void }) {
+	return (
+		<button
+			type="button"
+			title="Hide from the brief"
+			onClick={onClick}
+			className="ml-auto shrink-0 text-[11px] text-[#7c7c88] opacity-0 hover:text-[#d6d6dc] group-hover:opacity-100"
+		>
+			hide
+		</button>
+	);
+}
+
 /** "Slack thread" or "Slack threads", counting the found one and yours. */
 function plural(label: string, found: unknown, mine: unknown[]): string {
 	return (found ? 1 : 0) + mine.length > 1 ? `${label}s` : label;
@@ -185,6 +199,9 @@ export function SessionBrief({
 	const addLink = usePaneMeta((s) => s.addLink);
 	const removeLink = usePaneMeta((s) => s.removeLink);
 	const [draftLink, setDraftLink] = useState("");
+	const hiddenUrls = usePaneMeta((s) => s.hiddenByPane[paneId]) ?? [];
+	const setHidden = usePaneMeta((s) => s.setHidden);
+	const hide = (url: string) => setHidden(paneId, url, true);
 
 	const mirrored = usePaneMeta((s) => s.sessionIdByPane[paneId]);
 	const known = claudeSessionId ?? mirrored ?? null;
@@ -224,29 +241,41 @@ export function SessionBrief({
 			},
 		);
 	const facts = transcript ? sessionBrief(transcript.messages) : null;
-	const prs = transcript ? pullRequests(transcript.messages) : [];
-	const thread = transcript ? slackThread(transcript.messages) : null;
-	const page = transcript ? notionPage(transcript.messages) : null;
-	const issue = transcript ? jiraIssue(transcript.messages) : null;
+	const allPrs = transcript ? pullRequests(transcript.messages) : [];
+	const foundThread = transcript ? slackThread(transcript.messages) : null;
+	const foundPage = transcript ? notionPage(transcript.messages) : null;
+	const foundIssue = transcript ? jiraIssue(transcript.messages) : null;
+	// What you hid drops out of its section; the "Hidden" fold below lists it.
+	const isHidden = (url: string) => hiddenUrls.includes(url);
+	const prs = allPrs.filter((pr) => !isHidden(pr.url));
+	const thread = foundThread && !isHidden(foundThread) ? foundThread : null;
+	const page = foundPage && !isHidden(foundPage.url) ? foundPage : null;
+	const issue = foundIssue && !isHidden(foundIssue.url) ? foundIssue : null;
 	// An <a> in the renderer would navigate the app window; PRs open in a browser.
 	const openUrl = electronTrpc.external.openUrl.useMutation();
 
 	// Links you added, filed under the section they belong to. One the
 	// transcript already surfaced isn't listed twice.
 	const surfaced = new Set(
-		[issue?.url, thread, page?.url, ...prs.map((pr) => pr.url)].filter(Boolean),
+		[
+			foundIssue?.url,
+			foundThread,
+			foundPage?.url,
+			...allPrs.map((pr) => pr.url),
+		].filter(Boolean),
 	);
-	const added = links
+	const allAdded = links
 		.map((link) =>
 			typeof link === "string" ? { url: link } : (link as BriefLink),
 		)
 		.filter((link) => !surfaced.has(link.url));
+	const added = allAdded.filter((link) => !isHidden(link.url));
 	const mine = (kind: LinkKind) =>
 		added.filter((link) => linkKind(link.url) === kind);
 
 	// Channel, author and opening line for every Slack link on the panel, so
 	// two "Slack thread"s say which conversation each one is. Cached in main.
-	const slackUrls = [thread, ...added.map((link) => link.url)].filter(
+	const slackUrls = [foundThread, ...allAdded.map((link) => link.url)].filter(
 		(url): url is string => !!url && /\.slack\.com\/archives\//.test(url),
 	);
 	const { data: previews } = electronTrpc.slack.previews.useQuery(
@@ -270,6 +299,31 @@ export function SessionBrief({
 		},
 	);
 	const threadPreview = thread ? previews?.[thread] : null;
+
+	// Only what's still on the panel — a URL the transcript stopped quoting, or
+	// a link you removed, doesn't linger in the fold.
+	const hiddenList = [
+		foundIssue && { url: foundIssue.url, label: foundIssue.key },
+		foundThread && {
+			url: foundThread,
+			label: previews?.[foundThread]?.text ?? "Slack thread",
+		},
+		...allPrs.map((pr) => ({
+			url: pr.url,
+			label: `${pr.repo.split("/").pop()} #${pr.number}`,
+		})),
+		foundPage && {
+			url: foundPage.url,
+			label: foundPage.title ?? "Notion page",
+		},
+		...allAdded.map((link) => ({
+			url: link.url,
+			label: link.name ?? previews?.[link.url]?.text ?? linkLabel(link.url),
+		})),
+	].filter(
+		(item): item is { url: string; label: string } =>
+			!!item && isHidden(item.url),
+	);
 
 	// Which of them shipped, and what CI is still chewing on. One `gh pr view`
 	// per link, so poll only while a PR is still open — a merged one never
@@ -329,11 +383,12 @@ export function SessionBrief({
 						<ChecksChip status={prStates?.[url] ?? null} />
 					</>
 				)}
+				<HideButton onClick={() => hide(url)} />
 				<button
 					type="button"
 					title="Remove link"
 					onClick={() => removeLink(paneId, url)}
-					className="ml-auto text-[12px] text-[#7c7c88] opacity-0 hover:text-[#f0647a] group-hover:opacity-100"
+					className="text-[12px] text-[#7c7c88] opacity-0 hover:text-[#f0647a] group-hover:opacity-100"
 				>
 					×
 				</button>
@@ -397,15 +452,18 @@ export function SessionBrief({
 					<Section label={plural("Jira ticket", issue, mine("jira"))}>
 						<div className="flex flex-col gap-1">
 							{issue && (
-								<Hover text={issue.url}>
-									<button
-										type="button"
-										onClick={() => openUrl.mutate(issue.url)}
-										className="truncate text-left text-[12px] text-[#a394ff] hover:underline"
-									>
-										{issue.key} ↗
-									</button>
-								</Hover>
+								<div className="group flex items-center gap-1.5">
+									<Hover text={issue.url}>
+										<button
+											type="button"
+											onClick={() => openUrl.mutate(issue.url)}
+											className="truncate text-left text-[12px] text-[#a394ff] hover:underline"
+										>
+											{issue.key} ↗
+										</button>
+									</Hover>
+									<HideButton onClick={() => hide(issue.url)} />
+								</div>
 							)}
 							{mine("jira").map(myLink)}
 						</div>
@@ -415,24 +473,27 @@ export function SessionBrief({
 					<Section label={plural("Slack thread", thread, mine("slack"))}>
 						<div className="flex flex-col gap-1.5">
 							{thread && (
-								<div>
-									<Hover text={hoverText(thread, threadPreview)}>
-										<button
-											type="button"
-											onClick={() => openUrl.mutate(thread)}
-											dir="auto"
-											className="line-clamp-2 w-full text-left text-[12px] text-[#a394ff] hover:underline"
-										>
-											{threadPreview?.text ?? "Open thread"} ↗
-										</button>
-									</Hover>
-									{threadPreview && (
-										<div className="truncate text-[11px] text-[#8a8a97]">
-											{[threadPreview.channel, threadPreview.author]
-												.filter(Boolean)
-												.join(" · ")}
-										</div>
-									)}
+								<div className="group flex items-start gap-1.5">
+									<div className="min-w-0 flex-1">
+										<Hover text={hoverText(thread, threadPreview)}>
+											<button
+												type="button"
+												onClick={() => openUrl.mutate(thread)}
+												dir="auto"
+												className="line-clamp-2 w-full text-left text-[12px] text-[#a394ff] hover:underline"
+											>
+												{threadPreview?.text ?? "Open thread"} ↗
+											</button>
+										</Hover>
+										{threadPreview && (
+											<div className="truncate text-[11px] text-[#8a8a97]">
+												{[threadPreview.channel, threadPreview.author]
+													.filter(Boolean)
+													.join(" · ")}
+											</div>
+										)}
+									</div>
+									<HideButton onClick={() => hide(thread)} />
 								</div>
 							)}
 							{mine("slack").map(myLink)}
@@ -449,19 +510,22 @@ export function SessionBrief({
 					>
 						<div className="flex flex-col gap-1">
 							{prs.map((pr) => (
-								<Hover key={pr.url} text={pr.url}>
-									<button
-										type="button"
-										onClick={() => openUrl.mutate(pr.url)}
-										className="flex items-center gap-1.5 text-left text-[12px] text-[#a394ff] hover:underline"
-									>
-										<span className="truncate">
-											{pr.repo.split("/").pop()} #{pr.number}
-										</span>
-										<StateChip state={prStates?.[pr.url]?.state ?? null} />
-										<ChecksChip status={prStates?.[pr.url] ?? null} />
-									</button>
-								</Hover>
+								<div key={pr.url} className="group flex items-center gap-1.5">
+									<Hover text={pr.url}>
+										<button
+											type="button"
+											onClick={() => openUrl.mutate(pr.url)}
+											className="flex min-w-0 items-center gap-1.5 text-left text-[12px] text-[#a394ff] hover:underline"
+										>
+											<span className="truncate">
+												{pr.repo.split("/").pop()} #{pr.number}
+											</span>
+											<StateChip state={prStates?.[pr.url]?.state ?? null} />
+											<ChecksChip status={prStates?.[pr.url] ?? null} />
+										</button>
+									</Hover>
+									<HideButton onClick={() => hide(pr.url)} />
+								</div>
 							))}
 							{mine("pr").map(myLink)}
 						</div>
@@ -471,15 +535,18 @@ export function SessionBrief({
 					<Section label={plural("Notion page", page, mine("notion"))}>
 						<div className="flex flex-col gap-1">
 							{page && (
-								<Hover text={page.url}>
-									<button
-										type="button"
-										onClick={() => openUrl.mutate(page.url)}
-										className="block w-full truncate text-left text-[12px] text-[#a394ff] hover:underline"
-									>
-										{page.title ?? "Notion page"} ↗
-									</button>
-								</Hover>
+								<div className="group flex items-center gap-1.5">
+									<Hover text={page.url}>
+										<button
+											type="button"
+											onClick={() => openUrl.mutate(page.url)}
+											className="block min-w-0 flex-1 truncate text-left text-[12px] text-[#a394ff] hover:underline"
+										>
+											{page.title ?? "Notion page"} ↗
+										</button>
+									</Hover>
+									<HideButton onClick={() => hide(page.url)} />
+								</div>
 							)}
 							{mine("notion").map(myLink)}
 						</div>
@@ -491,6 +558,40 @@ export function SessionBrief({
 							{mine("other").map(myLink)}
 						</div>
 					</Section>
+				)}
+				{hiddenList.length > 0 && (
+					<details className="group/hidden">
+						<summary className="cursor-pointer list-none text-[10px] font-semibold uppercase tracking-[.4px] text-[#8a8a97] hover:text-[#d6d6dc]">
+							<span className="inline-block transition-transform group-open/hidden:rotate-90">
+								›
+							</span>{" "}
+							Hidden ({hiddenList.length})
+						</summary>
+						<div className="mt-1 flex flex-col gap-1">
+							{hiddenList.map(({ url, label }) => (
+								<div key={url} className="group flex items-center gap-1.5">
+									<Hover text={url}>
+										<button
+											type="button"
+											onClick={() => openUrl.mutate(url)}
+											dir="auto"
+											className="min-w-0 flex-1 truncate text-left text-[12px] text-[#8a8a97] hover:underline"
+										>
+											{label} ↗
+										</button>
+									</Hover>
+									<button
+										type="button"
+										title="Show on the brief again"
+										onClick={() => setHidden(paneId, url, false)}
+										className="ml-auto shrink-0 text-[11px] text-[#7c7c88] opacity-0 hover:text-[#d6d6dc] group-hover:opacity-100"
+									>
+										show
+									</button>
+								</div>
+							))}
+						</div>
+					</details>
 				)}
 				{facts && (
 					<div className="pt-2 text-[11px] text-[#8a8a97]">

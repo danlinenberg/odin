@@ -21,6 +21,8 @@ export const linkUrl = (link: BriefLink | string) =>
  *             "don't forget X" needs somewhere of its own to live.
  *  - links:   resources you attached to the brief yourself (another Slack
  *             thread, a doc) — the brief only finds what the transcript quotes.
+ *  - hidden:  resources the transcript surfaced that you don't want on the
+ *             brief — kept under its collapsed "Hidden" section, not dropped.
  */
 export const usePaneMeta = create<{
 	contactByPane: Record<string, string>;
@@ -28,6 +30,8 @@ export const usePaneMeta = create<{
 	notesByPane: Record<string, string>;
 	/** Plain strings are links saved before they could carry a name. */
 	linksByPane: Record<string, (BriefLink | string)[]>;
+	/** URLs hidden from the brief, per pane. */
+	hiddenByPane: Record<string, string[]>;
 	/** Task title captured at launch — Claude Code's OSC title overwrites the
 	 *  pane name/userTitle to "Claude Code", so the board reads this instead. */
 	titleByPane: Record<string, string>;
@@ -43,6 +47,7 @@ export const usePaneMeta = create<{
 	setNotes: (paneId: string, notes: string) => void;
 	addLink: (paneId: string, url: string, name?: string) => void;
 	removeLink: (paneId: string, url: string) => void;
+	setHidden: (paneId: string, url: string, hidden: boolean) => void;
 	setTitle: (paneId: string, title: string) => void;
 	setSessionId: (paneId: string, sessionId: string) => void;
 	setPaneForPage: (pageId: string, paneId: string) => void;
@@ -58,6 +63,7 @@ export const usePaneMeta = create<{
 			briefByPane: {},
 			notesByPane: {},
 			linksByPane: {},
+			hiddenByPane: {},
 			titleByPane: {},
 			sessionIdByPane: {},
 			paneByPage: {},
@@ -100,6 +106,15 @@ export const usePaneMeta = create<{
 						linksByPane: links.length ? { ...rest, [paneId]: links } : rest,
 					};
 				}),
+			setHidden: (paneId, url, hidden) =>
+				set((s) => {
+					const urls = (s.hiddenByPane[paneId] ?? []).filter((u) => u !== url);
+					if (hidden) urls.push(url);
+					const { [paneId]: _, ...rest } = s.hiddenByPane;
+					return {
+						hiddenByPane: urls.length ? { ...rest, [paneId]: urls } : rest,
+					};
+				}),
 			setTitle: (paneId, title) =>
 				set((s) => ({
 					titleByPane: { ...s.titleByPane, [paneId]: title },
@@ -123,6 +138,7 @@ export const usePaneMeta = create<{
 						briefByPane: drop(s.briefByPane),
 						notesByPane: drop(s.notesByPane),
 						linksByPane: drop(s.linksByPane),
+						hiddenByPane: drop(s.hiddenByPane),
 						titleByPane: drop(s.titleByPane),
 						sessionIdByPane: drop(s.sessionIdByPane),
 						paneByPage: Object.fromEntries(
