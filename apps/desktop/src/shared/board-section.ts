@@ -56,7 +56,8 @@ function isParked(pane: Pane): boolean {
  *
  * Queued and Parked come first and cut across the source sections: one hasn't
  * started yet and the other you put down on purpose, so neither is an Idle
- * card asking to be resumed, whichever feed started it.
+ * card asking to be resumed, whichever feed started it. Starred cards sit at
+ * the top of whichever section they land in; the rest keep their order.
  */
 export function bySection<T extends { pane: Pane }>(
 	cards: T[],
@@ -76,5 +77,13 @@ export function bySection<T extends { pane: Pane }>(
 				rest.filter((card) => boardSection(card.pane) === section),
 			]),
 		] as [BoardSection, T[]][]
-	).filter(([, group]) => group.length > 0);
+	)
+		.filter(([, group]) => group.length > 0)
+		.map(([section, group]) => [
+			section,
+			// Stable sort: starred first, everything else in arrival order.
+			group.toSorted(
+				(a, b) => Number(!!b.pane.odinStarred) - Number(!!a.pane.odinStarred),
+			),
+		]);
 }

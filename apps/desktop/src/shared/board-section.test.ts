@@ -47,6 +47,27 @@ describe("bySection", () => {
 	});
 });
 
+describe("bySection with starred cards", () => {
+	it("pins starred cards to the top of each section, keeping order", () => {
+		const grouped = bySection([
+			card({ id: "a", odinSource: "jira" }),
+			card({ id: "b", odinSource: "jira", odinStarred: true }),
+			card({ id: "c" }),
+			card({ id: "d" }),
+			card({ id: "e", odinStarred: true }),
+			card({ id: "f", odinParked: true }),
+			card({ id: "g", odinParked: true, odinStarred: true }),
+		]);
+		expect(
+			grouped.map(([section, group]) => [section, group.map((c) => c.pane.id)]),
+		).toEqual([
+			["parked", ["g", "f"]],
+			["jira", ["b", "a"]],
+			["normal", ["e", "c", "d"]],
+		]);
+	});
+});
+
 describe("bySection with queued cards", () => {
 	const queued = { command: "claude", reason: "this Mac is at 91% CPU" };
 
