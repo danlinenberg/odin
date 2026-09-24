@@ -279,8 +279,11 @@ function ScheduleFields({
 	);
 }
 
+// Picking a <datalist> option marks the field as autofilled, and Chromium then
+// paints it pale blue with an !important background — an inset shadow is the
+// only thing that covers it.
 const RULE_INPUT =
-	"min-w-0 flex-1 rounded-[6px] border border-[#25252e] bg-[#0a0a0c] px-2 py-1 text-[12px] text-[#f5f5f7] outline-none placeholder:text-[#6f6f7d] focus:border-[#f5b83d]";
+	"min-w-0 flex-1 rounded-[6px] border border-[#25252e] bg-[#0a0a0c] px-2 py-1 text-[12px] text-[#f5f5f7] outline-none placeholder:text-[#6f6f7d] focus:border-[#f5b83d] autofill:shadow-[inset_0_0_0_1000px_#0a0a0c] autofill:[-webkit-text-fill-color:#f5f5f7]";
 
 /** Every skill as "/name", for the Do field's suggestions. */
 function SkillOptions({ id }: { id: string }) {
