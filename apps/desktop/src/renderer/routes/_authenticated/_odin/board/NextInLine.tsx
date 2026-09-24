@@ -1,5 +1,4 @@
 import { cn } from "@odin/ui/utils";
-import { keepPreviousData } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { LuLoaderCircle, LuSettings2, LuSparkles } from "react-icons/lu";
@@ -28,6 +27,22 @@ const ICON = Object.fromEntries(FEED_TABS.map(({ to, Icon }) => [to, Icon]));
  * but not a status: nothing lands here or leaves by drag.
  */
 /**
+ * The last finished ranking, so a renderer reload (a drawer closing replays
+ * held updates) shows it straight away instead of feed order for a minute.
+ * One key, overwritten each time: at most a few hundred task keys.
+ */
+const LAST_RANKING_KEY = "odin-next-in-line-last-ranking";
+
+function savedRanking(): { keys: string[] } | undefined {
+	try {
+		const saved = JSON.parse(localStorage.getItem(LAST_RANKING_KEY) ?? "null");
+		return Array.isArray(saved?.keys) ? saved : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+/**
  * The feed rows and their AI ranking. Called from the Odin layout as well as
  * the column, so the ranking runs in the background whether or not the column
  * is open — React Query shares the one query, and opening the column just
@@ -50,37 +65,47 @@ export function useNextInLineRanking() {
 			}),
 		[todos, reactions.data, jira.data, pulls.data, notion.data],
 	);
-	// Every row goes to the model, hidden and started ones too: that input only
-	// changes when a feed does, so hiding a card doesn't cost a re-rank. Age is
-	// counted from midnight, so every caller builds the same input all day.
-	const rankInput = useMemo(() => {
-		const today = new Date().setHours(0, 0, 0, 0);
-		return {
-			items: rows.map((item) => ({
-				key: item.key,
-				title: item.title,
-				source: item.source,
-				priority: item.priority,
-				person: item.person,
-				context: item.context,
-				due: effectiveDue(item.key, reminders, item.dueDate),
-				ageDays: item.at
-					? Math.max(0, Math.floor((today - item.at) / 86_400_000) + 1)
-					: null,
-			})),
+	// The model's input must only change when the tasks do — the main process
+	// caches a ranking on its exact text, and a changed input is a fresh ~75s
+	// run. So: every row, hidden and started ones too (hiding a card isn't a
+	// change); sorted by key, not by `at`, which is last activity and reshuffles
+	// on every feed refetch; and no age, because `at` would make every comment
+	// on any ticket a new input.
+	const rankInput = useMemo(
+		() => ({
+			items: rows
+				.map((item) => ({
+					key: item.key,
+					title: item.title,
+					source: item.source,
+					priority: item.priority,
+					person: item.person,
+					context: item.context,
+					due: effectiveDue(item.key, reminders, item.dueDate),
+					ageDays: null,
+				}))
+				.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0)),
 			instructions: prompt || undefined,
-		};
-	}, [rows, reminders, prompt]);
+		}),
+		[rows, reminders, prompt],
+	);
 	const ranking = electronTrpc.backlogReview.rankNextInLine.useQuery(
 		rankInput,
 		{
 			enabled: rows.length > 1,
 			staleTime: Number.POSITIVE_INFINITY,
 			retry: false,
-			// A feed refetch re-ranks; keep the last order on screen meanwhile.
-			placeholderData: keepPreviousData,
+			// A changed input re-ranks; keep the last order on screen meanwhile —
+			// including the one saved before a reload, which empties this cache.
+			placeholderData: (previous) => previous ?? savedRanking(),
 		},
 	);
+	useEffect(() => {
+		if (!ranking.data || ranking.isPlaceholderData) return;
+		try {
+			localStorage.setItem(LAST_RANKING_KEY, JSON.stringify(ranking.data));
+		} catch {}
+	}, [ranking.data, ranking.isPlaceholderData]);
 	return {
 		rows,
 		ranking,
