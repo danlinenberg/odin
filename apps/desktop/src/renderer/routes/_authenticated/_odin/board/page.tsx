@@ -1891,20 +1891,6 @@ function DevBoardPage() {
 					)}
 				/>
 
-				<button
-					type="button"
-					onClick={toggleNext}
-					title="Show the tasks worth starting next"
-					className={cn(
-						"rounded-full border px-2.5 py-1 text-[12px] font-medium",
-						isNextOpen
-							? "border-[#a394ff] bg-[#211d3a] text-[#f5f5f7]"
-							: "border-[#25252e] bg-[#16161b] text-[#a5a5b3] hover:text-[#f5f5f7]",
-					)}
-				>
-					Next in line
-				</button>
-
 				{/* filter — right-click a card to tag it; people are the card's contact */}
 				{(allTags.length > 0 || allPeople.length > 0) && (
 					<select
@@ -1939,6 +1925,21 @@ function DevBoardPage() {
 						)}
 					</select>
 				)}
+
+				{/* A view toggle, not a filter — kept apart from search and the dropdown. */}
+				<button
+					type="button"
+					onClick={toggleNext}
+					title="Show the tasks worth starting next"
+					className={cn(
+						"ml-auto rounded-full border px-2.5 py-1 text-[12px] font-medium",
+						isNextOpen
+							? "border-[#a394ff] bg-[#211d3a] text-[#f5f5f7]"
+							: "border-[#25252e] bg-[#16161b] text-[#a5a5b3] hover:text-[#f5f5f7]",
+					)}
+				>
+					Next in line
+				</button>
 			</div>
 
 			{tagMenu && (
