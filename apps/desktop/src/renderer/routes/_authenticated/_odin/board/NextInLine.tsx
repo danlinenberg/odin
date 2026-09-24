@@ -1,5 +1,7 @@
 import { cn } from "@odin/ui/utils";
+import { keepPreviousData } from "@tanstack/react-query";
 import { useMemo } from "react";
+import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { allItems, rankNext } from "../all/all-items";
 import { useStartAllItem } from "../all/use-start-item";
@@ -17,7 +19,8 @@ const ICON = Object.fromEntries(FEED_TABS.map(({ to, Icon }) => [to, Icon]));
 
 /**
  * The recommended queue: tasks from every feed that nobody has started yet —
- * no session on the board, idle or otherwise — ranked by `rankNext`. Click one
+ * no session on the board, idle or otherwise — ordered by importance by a
+ * model (`rankNextInLine`), with `rankNext`'s rule order until it answers. Click one
  * Start to launch its session, same as All's Start button. A board column,
  * but not a status: nothing lands here or leaves by drag.
  */
@@ -44,17 +47,71 @@ export function NextInLine() {
 	const hide = useHiddenFilter("", rows, (item) => item.key);
 	// ponytail: every row rendered — a few hundred plain cards scroll fine.
 	// Window it (render on scroll) if the feeds ever reach thousands.
-	const next = rankNext(
+	// Every row goes to the model, hidden and started ones too: that input only
+	// changes when a feed does, so hiding a card doesn't cost a re-rank.
+	const rankInput = useMemo(
+		() => ({
+			items: rows.map((item) => ({
+				key: item.key,
+				title: item.title,
+				source: item.source,
+				priority: item.priority,
+				person: item.person,
+				context: item.context,
+				due: effectiveDue(item.key, reminders, item.dueDate),
+				ageDays: item.at
+					? Math.floor((Date.now() - item.at) / 86_400_000)
+					: null,
+			})),
+		}),
+		[rows, reminders],
+	);
+	const ranking = electronTrpc.backlogReview.rankNextInLine.useQuery(
+		rankInput,
+		{
+			enabled: rows.length > 1,
+			staleTime: Number.POSITIVE_INFINITY,
+			retry: false,
+			// A feed refetch re-ranks; keep the last order on screen meanwhile.
+			placeholderData: keepPreviousData,
+		},
+	);
+	// The rule order is the fallback while the model thinks, or if it can't.
+	const byRule = rankNext(
 		hide.rows.filter((item) => !livePaneFor(item)),
 		(item) =>
 			isDue(effectiveDue(item.key, reminders, item.dueDate), Date.now()),
 	);
+	const order = new Map(ranking.data?.keys.map((key, i) => [key, i]));
+	// Stable sort: rows the model hasn't seen yet keep their rule order, last.
+	const next = order.size
+		? byRule.toSorted(
+				(a, b) =>
+					(order.get(a.key) ?? order.size) - (order.get(b.key) ?? order.size),
+			)
+		: byRule;
 
 	return (
 		<div className="flex min-w-[240px] flex-1 flex-col rounded-xl border border-[#25252e] bg-[#111114]">
 			<div className="flex items-center gap-2 px-3 py-2.5 text-xs font-semibold uppercase tracking-[.4px] text-[#a5a5b3]">
 				<span className="size-2 rounded-full bg-[#a394ff]" />
 				Next in line
+				<span
+					className="text-[10px] font-normal normal-case tracking-normal text-[#8a8a97]"
+					title={
+						ranking.error
+							? `AI ranking failed — ${ranking.error.message}`
+							: "Ordered by importance by claude (haiku)"
+					}
+				>
+					{ranking.isFetching
+						? "ranking…"
+						: ranking.error
+							? "by rule"
+							: ranking.data
+								? "AI"
+								: ""}
+				</span>
 				<span className="ml-auto flex items-center gap-2">
 					<HiddenToggle
 						count={hide.hiddenCount}
