@@ -593,8 +593,15 @@ export function SessionBrief({
 					</Section>
 				)}
 				{rules.length > 0 && (
-					<Section label="Rules applied" accent="#a394ff">
-						<div className="flex flex-col gap-1.5 text-[12px]">
+					<details className="group/rules flex flex-col gap-1 border-t border-[#25252e] pt-3">
+						<summary className="flex cursor-pointer list-none items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[.4px] text-[#8a8a97] hover:text-[#d6d6dc]">
+							<span className="size-1.5 shrink-0 rounded-full bg-[#a394ff]" />
+							Rules applied ({rules.length})
+							<span className="inline-block transition-transform group-open/rules:rotate-90">
+								›
+							</span>
+						</summary>
+						<div className="mt-1 flex flex-col gap-1.5 text-[12px] leading-relaxed text-[#d6d6dc]">
 							{rules.map(({ rule, on }) => (
 								<div key={rule}>
 									<div>{rule}</div>
@@ -615,7 +622,7 @@ export function SessionBrief({
 								</div>
 							))}
 						</div>
-					</Section>
+					</details>
 				)}
 				{hiddenList.length > 0 && (
 					<details className="group/hidden">
