@@ -1,3 +1,4 @@
+import { PR_COMMAND, PR_RULES_HEADER } from "shared/odin-rules";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -130,12 +131,6 @@ export function rulesPrompt(rules: OdinRule[], checkout = ""): string[] {
 /** A rule about pull requests — the only situation a hook can see happen. */
 const PR_RULE = /pull request|\bPRs?\b|\bpush/i;
 
-/**
- * Bash calls that open or change a PR. Matched against the whole hook input,
- * so the command itself — Claude's PostToolUse payload carries it verbatim.
- */
-const PR_COMMAND = "gh pr (create|edit|ready)|git push";
-
 /** Single-quote for sh. */
 const sh = (s: string) => `'${s.replaceAll("'", `'\\''`)}'`;
 
@@ -151,10 +146,7 @@ const sh = (s: string) => `'${s.replaceAll("'", `'\\''`)}'`;
 export function rulesSettings(rules: OdinRule[], checkout = ""): string | null {
 	const live = liveRules(rules, checkout).filter((r) => PR_RULE.test(r.when));
 	if (live.length === 0) return null;
-	const context = [
-		"You just opened or pushed to a pull request. Do these now, before anything else — again on every later push to it:",
-		...live.map(ruleLine),
-	].join("\n");
+	const context = [PR_RULES_HEADER, ...live.map(ruleLine)].join("\n");
 	const output = JSON.stringify({
 		hookSpecificOutput: {
 			hookEventName: "PostToolUse",

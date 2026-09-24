@@ -2,12 +2,14 @@ import { describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { PR_RULES_HEADER } from "shared/odin-rules";
 import {
 	activeLoop,
 	parseTranscript,
 	queryTerms,
 	readTranscript,
 	repoNameOf,
+	ruleFirings,
 	searchSessions,
 	summarizeTranscript,
 	transcriptOf,
@@ -791,5 +793,73 @@ describe("activeLoop", () => {
 
 	test("no schedule, no loop", () => {
 		expect(activeLoop(user("/loop 5m check CI"), now)).toBeNull();
+	});
+});
+
+describe("ruleFirings", () => {
+	const RULES = `${PR_RULES_HEADER}\n- When you open a PR: run /custom-review`;
+	const bash = (id: string, command: string, output: string) => [
+		{
+			type: "assistant",
+			message: {
+				content: [{ type: "tool_use", id, name: "Bash", input: { command } }],
+			},
+		},
+		{
+			type: "user",
+			message: {
+				content: [{ type: "tool_result", tool_use_id: id, content: output }],
+			},
+		},
+		{
+			type: "attachment",
+			attachment: {
+				type: "hook_additional_context",
+				content: [RULES],
+				toolUseID: id,
+			},
+		},
+	];
+	const jsonl = (...entries: unknown[][]) =>
+		entries
+			.flat()
+			.map((e) => JSON.stringify(e))
+			.join("\n");
+
+	test("pins each firing to the PR it opened, then to that PR on later pushes", () => {
+		const firings = ruleFirings(
+			jsonl(
+				bash(
+					"a",
+					"git push -u origin x && gh pr create --fill",
+					"https://github.com/o/r/pull/7\n",
+				),
+				bash(
+					"b",
+					`cd x && T=1 git -c "credential.helper=!f(){ echo a; };f" push -q; GH_TOKEN=$T gh pr edit 7`,
+					"",
+				),
+			),
+		);
+		expect(firings).toEqual([
+			{
+				rule: "When you open a PR: run /custom-review",
+				on: ["https://github.com/o/r/pull/7"],
+			},
+		]);
+	});
+
+	test("skips the hook firing on a command that only mentions git push", () => {
+		expect(
+			ruleFirings(
+				jsonl(
+					bash(
+						"a",
+						"cat odin-rules.ts",
+						'const X = "git push"; https://github.com/o/r/pull/7',
+					),
+				),
+			),
+		).toEqual([]);
 	});
 });
