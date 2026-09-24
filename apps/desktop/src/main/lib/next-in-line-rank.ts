@@ -7,9 +7,8 @@ import { briefError } from "./claude-sessions/summarize";
 
 /**
  * The board's Next in line column, ordered by a model: which unstarted task
- * matters most. Priority fields alone can't say that — Jira's "High" and a
- * Slack ask from your manager aren't on one scale, and a GDPR request has a
- * legal clock no field records. Same `claude -p` path as the session briefs.
+ * matters most. The app has no opinion of its own — no priority rules, no
+ * fallback order. Same `claude -p` path as the session briefs.
  */
 
 export interface RankItem {
@@ -24,16 +23,11 @@ export interface RankItem {
 	ageDays: number | null;
 }
 
-/**
- * How many the model orders. Output is what costs time — all ~260 keys took
- * 85s, and nobody reads task #200 by importance. The rest keep the rule order.
- */
-const TOP = 50;
-
-const INSTRUCTIONS = `You rank an engineering manager's unstarted tasks by importance: what should be started first.
-Weigh, roughly in this order: hard deadlines (due/overdue dates, legal or compliance clocks like GDPR deletion requests), customer-facing breakage and production bugs, people blocked waiting on them (review requests, direct asks), stated priority, then age.
+// Deliberately no criteria: what counts as important is the model's call, not
+// a weighting written into the app.
+const INSTRUCTIONS = `Rank these unstarted tasks by importance: which should be started first.
 Each line is: key | source | priority | due | age in days | person | where | title.
-Answer with ONLY a JSON array of the ${TOP} most important keys (or all of them, if fewer), most important first. No prose.`;
+Answer with ONLY a JSON array of every key, most important first. No prose.`;
 
 /** Known keys in the model's order, once each; invented ones dropped. */
 export function parseRanking(text: string, keys: string[]): string[] {
@@ -73,11 +67,20 @@ const inFlight = new Map<string, Promise<string[]>>();
 
 export async function rankTasks(
 	items: RankItem[],
-	{ claudeBin = "claude", timeoutMs = 180_000 } = {},
+	{
+		instructions = "",
+		claudeBin = "claude",
+		timeoutMs = 180_000,
+	}: { instructions?: string; claudeBin?: string; timeoutMs?: number } = {},
 ): Promise<string[]> {
 	const keys = items.map((item) => item.key);
 	if (items.length < 2) return [];
-	const body = items.map(line).join("\n");
+	// Your own words from Settings → Board, when you've written any. Part of
+	// the cache key, so editing them re-ranks.
+	const how = instructions.trim()
+		? `\n\nHow I want them sorted, in my words:\n${instructions.trim()}`
+		: "";
+	const body = `${how}\n\n--- TASKS ---\n${items.map(line).join("\n")}`;
 	const hit = cache.get(body);
 	if (hit) return hit;
 	const running = inFlight.get(body);
@@ -91,7 +94,7 @@ export async function rankTasks(
 				claudeBin,
 				[
 					"-p",
-					`${INSTRUCTIONS}\n\n--- TASKS ---\n${body}`,
+					`${INSTRUCTIONS}${body}`,
 					"--model",
 					"haiku",
 					"--session-id",

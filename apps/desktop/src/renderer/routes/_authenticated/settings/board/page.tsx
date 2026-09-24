@@ -2,9 +2,12 @@ import { ODIN_AUTO_RENAME_SESSIONS_DEFAULT } from "@odin/shared/constants";
 import { Input } from "@odin/ui/input";
 import { Label } from "@odin/ui/label";
 import { Switch } from "@odin/ui/switch";
+import { Textarea } from "@odin/ui/textarea";
 import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useLaunchLimits } from "renderer/stores/launch-limits";
+import { useNextInLinePrompt } from "renderer/stores/next-in-line-prompt";
 import type { LaunchLimits } from "shared/machine-load";
 
 export const Route = createFileRoute("/_authenticated/settings/board/")({
@@ -91,7 +94,45 @@ function BoardSettingsPage() {
 					step={0.5}
 					unit="GB"
 				/>
+
+				<NextInLinePromptRow />
 			</div>
+		</div>
+	);
+}
+
+/**
+ * Your own words for how the board's Next in line column is sorted. Saved on
+ * blur, not per keystroke: every change re-ranks, and a ranking is a ~75s
+ * model call.
+ */
+function NextInLinePromptRow() {
+	const prompt = useNextInLinePrompt((s) => s.prompt);
+	const setPrompt = useNextInLinePrompt((s) => s.setPrompt);
+	const [draft, setDraft] = useState(prompt);
+	return (
+		<div className="space-y-2">
+			<div className="space-y-0.5">
+				<Label htmlFor="next-in-line-prompt" className="text-sm font-medium">
+					How to sort Next in line
+				</Label>
+				<p className="text-xs text-muted-foreground">
+					Tell the AI what matters to you when it orders the Next in line column
+					— e.g. "customer bugs before internal work; anything from my manager
+					first; ignore dependency bumps". Leave it empty and the AI judges
+					importance on its own. Saved when you click away; the column re-ranks
+					then.
+				</p>
+			</div>
+			<Textarea
+				id="next-in-line-prompt"
+				value={draft}
+				onChange={(e) => setDraft(e.target.value)}
+				onBlur={() => setPrompt(draft.trim())}
+				maxLength={4000}
+				rows={5}
+				placeholder="Customer-facing bugs first, then anything someone is waiting on me for…"
+			/>
 		</div>
 	);
 }

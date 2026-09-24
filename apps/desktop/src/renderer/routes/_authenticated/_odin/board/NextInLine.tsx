@@ -1,9 +1,12 @@
 import { cn } from "@odin/ui/utils";
 import { keepPreviousData } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { useMemo } from "react";
+import { LuSettings2 } from "react-icons/lu";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
-import { allItems, rankNext } from "../all/all-items";
+import { useNextInLinePrompt } from "renderer/stores/next-in-line-prompt";
+import { allItems } from "../all/all-items";
 import { useStartAllItem } from "../all/use-start-item";
 import { FEED_TABS } from "../components/feed-counts";
 import {
@@ -11,7 +14,7 @@ import {
 	HideButton,
 	useHiddenFilter,
 } from "../components/HiddenItems";
-import { effectiveDue, isDue, useReminders } from "../components/Reminders";
+import { effectiveDue, useReminders } from "../components/Reminders";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useMyTasks } from "../hooks/useOdinTasks";
 
@@ -20,7 +23,7 @@ const ICON = Object.fromEntries(FEED_TABS.map(({ to, Icon }) => [to, Icon]));
 /**
  * The recommended queue: tasks from every feed that nobody has started yet —
  * no session on the board, idle or otherwise — ordered by importance by a
- * model (`rankNextInLine`), with `rankNext`'s rule order until it answers. Click one
+ * model (`rankNextInLine`) — feed order, marked unranked, until it answers. Click
  * Start to launch its session, same as All's Start button. A board column,
  * but not a status: nothing lands here or leaves by drag.
  */
@@ -29,6 +32,8 @@ export function NextInLine() {
 	// todos, not tasks: automations run themselves, they're never next.
 	const { todos } = useMyTasks();
 	const reminders = useReminders((s) => s.reminders);
+	const prompt = useNextInLinePrompt((s) => s.prompt);
+	const navigate = useNavigate();
 	const { start, livePaneFor, isLaunching, launchingKey } = useStartAllItem(
 		() => void reactions.refetch(),
 	);
@@ -63,8 +68,9 @@ export function NextInLine() {
 					? Math.floor((Date.now() - item.at) / 86_400_000)
 					: null,
 			})),
+			instructions: prompt || undefined,
 		}),
-		[rows, reminders],
+		[rows, reminders, prompt],
 	);
 	const ranking = electronTrpc.backlogReview.rankNextInLine.useQuery(
 		rankInput,
@@ -76,20 +82,17 @@ export function NextInLine() {
 			placeholderData: keepPreviousData,
 		},
 	);
-	// The rule order is the fallback while the model thinks, or if it can't.
-	const byRule = rankNext(
-		hide.rows.filter((item) => !livePaneFor(item)),
-		(item) =>
-			isDue(effectiveDue(item.key, reminders, item.dueDate), Date.now()),
-	);
+	// The model's order, nothing else. Until it answers (or if it fails) the
+	// column stays in feed order and says so — no rule of ours stands in.
+	const candidates = hide.rows.filter((item) => !livePaneFor(item));
 	const order = new Map(ranking.data?.keys.map((key, i) => [key, i]));
-	// Stable sort: rows the model hasn't seen yet keep their rule order, last.
+	// Stable sort: a row the model hasn't seen yet (arrived since) goes last.
 	const next = order.size
-		? byRule.toSorted(
+		? candidates.toSorted(
 				(a, b) =>
 					(order.get(a.key) ?? order.size) - (order.get(b.key) ?? order.size),
 			)
-		: byRule;
+		: candidates;
 
 	return (
 		<div className="flex min-w-[240px] flex-1 flex-col rounded-xl border border-[#25252e] bg-[#111114]">
@@ -100,19 +103,35 @@ export function NextInLine() {
 					className="text-[10px] font-normal normal-case tracking-normal text-[#8a8a97]"
 					title={
 						ranking.error
-							? `AI ranking failed — ${ranking.error.message}`
+							? `AI ranking failed, so this is feed order — ${ranking.error.message}`
 							: "Ordered by importance by claude (haiku)"
 					}
 				>
 					{ranking.isFetching
 						? "ranking…"
 						: ranking.error
-							? "by rule"
+							? "unranked"
 							: ranking.data
 								? "AI"
-								: ""}
+								: "unranked"}
 				</span>
 				<span className="ml-auto flex items-center gap-2">
+					<button
+						type="button"
+						onClick={() => navigate({ to: "/settings/board" })}
+						title={
+							prompt
+								? "Sorted your way — edit how in Settings"
+								: "Tell the AI how to sort these, in Settings"
+						}
+						className={
+							prompt
+								? "text-[#a394ff] hover:text-[#f5f5f7]"
+								: "text-[#8a8a97] hover:text-[#f5f5f7]"
+						}
+					>
+						<LuSettings2 className="size-3.5" aria-hidden />
+					</button>
 					<HiddenToggle
 						count={hide.hiddenCount}
 						showing={hide.showHidden}
