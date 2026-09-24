@@ -112,6 +112,12 @@ export const HOTKEYS_REGISTRY = {
 		category: "Navigation",
 		description: "Open the picked Notion database as tasks",
 	},
+	ODIN_BOARD_SEARCH: {
+		key: { mac: L("slash"), windows: L("slash"), linux: L("slash") },
+		label: "Search Board",
+		category: "Navigation",
+		description: "Filter the Dev Board's sessions by text",
+	},
 	// Not a rail key: a modifier chord, so writing a task down still works from
 	// inside a terminal or a text box — which is where you think of one.
 	ODIN_NEW_TASK: {

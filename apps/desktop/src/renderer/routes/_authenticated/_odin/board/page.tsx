@@ -23,6 +23,7 @@ import {
 import { SiJira, SiNotion, SiSlack } from "react-icons/si";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { startQueuedPane } from "renderer/hooks/useTaskQueue";
+import { useHotkey } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { canClaimKeyboard } from "renderer/lib/keyboard";
@@ -1142,6 +1143,15 @@ function DevBoardPage() {
 	// One filter at a time, from the header dropdown: "tag:<tag>",
 	// "person:<name>", or "" for everything.
 	const [boardFilter, setBoardFilter] = useState("");
+	// Free-text search over title, brief, tags, person and repo. Stacks with
+	// the dropdown filter above.
+	const [search, setSearch] = useState("");
+	const searchRef = useRef<HTMLInputElement>(null);
+	const searchHotkey = useHotkey(
+		"ODIN_BOARD_SEARCH",
+		() => searchRef.current?.focus(),
+		{ enableOnFormTags: false, enableOnContentEditable: false },
+	);
 	// Highlight the Idle column while a card is dragged over it.
 	const [dragOverIdle, setDragOverIdle] = useState(false);
 
@@ -1237,6 +1247,7 @@ function DevBoardPage() {
 		const tagCounts = new Map<string, number>();
 		const personCounts = new Map<string, number>();
 		for (const column of COLUMNS) map.set(column.status, []);
+		const needle = search.trim().toLowerCase();
 		for (const tab of tabs) {
 			const workspace = workspaceById.get(tab.workspaceId);
 			for (const pane of Object.values(panes)) {
@@ -1295,7 +1306,18 @@ function DevBoardPage() {
 					(boardFilter.startsWith("person:") &&
 						person !== boardFilter.slice(7)) ||
 					(boardFilter.startsWith("tag:") &&
-						!boardTags(pane.odinTags).includes(boardFilter.slice(4)))
+						!boardTags(pane.odinTags).includes(boardFilter.slice(4))) ||
+					(needle &&
+						![
+							pane.odinTaskTitle ?? titleByPane[pane.id],
+							pane.userTitle,
+							pane.name,
+							card.tabName,
+							pane.odinBrief ?? briefByPane[pane.id],
+							person,
+							card.repoPath,
+							...boardTags(pane.odinTags),
+						].some((text) => text?.toLowerCase().includes(needle)))
 				)
 					continue;
 				// Every session stays on the board in its column until it's Done'd —
@@ -1322,8 +1344,10 @@ function DevBoardPage() {
 		loopingPaneIds,
 		daemonSessions,
 		boardFilter,
+		search,
 		contactByPane,
 		titleByPane,
+		briefByPane,
 		activeProfileId,
 		isProfileLoading,
 	]);
@@ -1833,6 +1857,23 @@ function DevBoardPage() {
 				{isLaunching && (
 					<span className="text-xs text-[#a5a5b3]">starting…</span>
 				)}
+
+				<input
+					ref={searchRef}
+					type="search"
+					value={search}
+					onChange={(e) => setSearch(e.target.value)}
+					onKeyDown={(e) => {
+						if (e.key !== "Escape") return;
+						setSearch("");
+						e.currentTarget.blur();
+					}}
+					placeholder={`Search sessions (${searchHotkey.text})`}
+					className={cn(
+						"w-[220px] rounded-full border bg-[#16161b] px-2.5 py-1 text-[12px] text-[#f5f5f7] outline-none placeholder:text-[#6b6b78] focus:border-[#a394ff]",
+						search ? "border-[#a394ff]" : "border-[#25252e]",
+					)}
+				/>
 
 				{/* filter — right-click a card to tag it; people are the card's contact */}
 				{(allTags.length > 0 || allPeople.length > 0) && (

@@ -29,6 +29,7 @@ import {
  */
 const LISTED_HOTKEYS: HotkeyId[] = [
 	"ODIN_BOARD",
+	"ODIN_BOARD_SEARCH",
 	"ODIN_ALL",
 	"ODIN_TASKS",
 	"ODIN_AUTOMATIONS",
