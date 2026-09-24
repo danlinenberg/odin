@@ -12,6 +12,8 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { IconType } from "react-icons";
 import {
 	LuClock,
+	LuEye,
+	LuEyeOff,
 	LuFlame,
 	LuFolderGit2,
 	LuGitPullRequest,
@@ -1930,14 +1932,24 @@ function DevBoardPage() {
 				<button
 					type="button"
 					onClick={toggleNext}
-					title="Show the tasks worth starting next"
+					aria-pressed={isNextOpen}
+					title={
+						isNextOpen
+							? "Hide the Next in line column"
+							: "Show the tasks worth starting next"
+					}
 					className={cn(
-						"ml-auto rounded-full border px-2.5 py-1 text-[12px] font-medium",
+						"ml-auto flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium",
 						isNextOpen
 							? "border-[#a394ff] bg-[#211d3a] text-[#f5f5f7]"
 							: "border-[#25252e] bg-[#16161b] text-[#a5a5b3] hover:text-[#f5f5f7]",
 					)}
 				>
+					{isNextOpen ? (
+						<LuEye className="size-3.5" aria-hidden />
+					) : (
+						<LuEyeOff className="size-3.5" aria-hidden />
+					)}
 					Next in line
 				</button>
 			</div>
