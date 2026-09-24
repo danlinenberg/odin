@@ -1,12 +1,9 @@
-import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import type { IconType } from "react-icons";
-import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
-import { useTabsStore } from "renderer/stores/tabs/store";
 import type { BoardSection } from "shared/board-section";
 import type { PaneStatus } from "shared/tabs-types";
 import {
@@ -48,11 +45,10 @@ import { PriorityLabelChip } from "../components/TaskBox";
 import { useActiveSessions } from "../hooks/useActiveSessions";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useMyTasks } from "../hooks/useOdinTasks";
-import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
-import { usePaneMeta } from "../hooks/usePaneMeta";
 import { usePendingFocus } from "../hooks/usePendingFocus";
 import { PANE_STATUS } from "../pane-status";
 import { type AllItem, allItems, type Urgency } from "./all-items";
+import { useStartAllItem } from "./use-start-item";
 
 export const Route = createFileRoute("/_authenticated/_odin/all/")({
 	component: AllFeedPage,
@@ -162,17 +158,15 @@ function AllFeedPage() {
 	const [dueOnly, setDueOnly] = useState(false);
 	const reminders = useReminders((s) => s.reminders);
 	const openUrl = electronTrpc.external.openUrl.useMutation();
-	const { ensureWorkspace } = useOdinWorkspace();
-	const { launch, isLaunching, launchingKey } = useLaunchTaskSession();
 	// todos, not tasks: automations have their own panel and run themselves —
 	// they'd sit in "what have I got on" forever without ever being yours to do.
-	const { todos, setPane } = useMyTasks();
-	const panes = useTabsStore((s) => s.panes);
-	// Starting a Slack row is what takes it out of the queue — the same call
-	// the Slack feed makes, so a message started here doesn't come back.
-	const markStarted = electronTrpc.slack.markStarted.useMutation({
-		onSuccess: () => void reactions.refetch(),
-	});
+	const { todos } = useMyTasks();
+	const {
+		start: handleStart,
+		livePaneFor,
+		isLaunching,
+		launchingKey,
+	} = useStartAllItem(() => void reactions.refetch());
 	// What's already running, whichever tab started it. Each feed only marks its
 	// own rows live, and a Slack row leaves its queue the moment a session
 	// starts — so this is the only place "what have I got going" is answerable.
@@ -273,41 +267,6 @@ function AllFeedPage() {
 		setUrgency("");
 		setContext("");
 		setDueOnly(false);
-	};
-
-	/**
-	 * The pane already working this row, if there is one. Panes carry the page
-	 * id for Slack/Notion and the launch title for everything else — matching
-	 * both is what keeps Start session from opening a second agent on a ticket
-	 * that already has one.
-	 */
-	const livePaneFor = (item: AllItem): string | null =>
-		Object.values(panes).find(
-			(pane) =>
-				!pane.completed &&
-				((item.launch.pageId != null &&
-					pane.odinPageId === item.launch.pageId) ||
-					pane.odinTaskTitle === item.launch.title),
-		)?.id ?? null;
-
-	const handleStart = async (item: AllItem) => {
-		const ensured = await ensureWorkspace();
-		if (!ensured.ok) return toast.error(ensured.error);
-		const result = await launch({
-			...item.launch,
-			workspaceId: ensured.workspace.id,
-		});
-		if (!result.ok) return toast.error(result.error);
-		if (item.source === "Slack") {
-			markStarted.mutate({ id: item.launch.key });
-			usePaneMeta.getState().setTitle(result.paneId, item.launch.title);
-			usePaneMeta.getState().setSessionId(result.paneId, result.sessionId);
-			usePaneMeta.getState().setPaneForPage(item.launch.key, result.paneId);
-		}
-		// My own tasks keep their row and gain a way into the session.
-		if (item.source === "Tasks") setPane(item.launch.key, result.paneId);
-		usePendingFocus.getState().focus(result.paneId);
-		navigate({ to: "/board" });
 	};
 
 	return (

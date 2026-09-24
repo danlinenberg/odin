@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { allItems, urgencyOf } from "./all-items";
+import { type AllItem, allItems, rankNext, urgencyOf } from "./all-items";
 
 const iso = (day: number) => new Date(Date.UTC(2026, 0, day)).toISOString();
 
@@ -193,4 +193,26 @@ test("priority reads the same across sources, whatever they call it", () => {
 test("a PR hides under the same key its own feed hides it with", () => {
 	const pr = allItems(feeds).find((item) => item.source === "GitHub");
 	expect(pr?.key).toBe("pr:101");
+});
+
+test("rankNext: due, then urgency, then oldest; undated last", () => {
+	const row = (key: string, urgency: AllItem["urgency"], at: number) =>
+		({ key, urgency, at }) as AllItem;
+	const ranked = rankNext(
+		[
+			row("low-old", "low", 1),
+			row("undated", null, 0),
+			row("high-new", "high", 9),
+			row("high-old", "high", 2),
+			row("due", null, 5),
+		],
+		(item) => item.key === "due",
+	);
+	expect(ranked.map((item) => item.key)).toEqual([
+		"due",
+		"high-old",
+		"high-new",
+		"low-old",
+		"undated",
+	]);
 });
