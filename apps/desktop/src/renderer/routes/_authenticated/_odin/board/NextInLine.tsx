@@ -1,9 +1,14 @@
+import { cn } from "@odin/ui/utils";
 import { useMemo } from "react";
 import { emojify } from "renderer/lib/emoji";
 import { allItems, rankNext } from "../all/all-items";
 import { useStartAllItem } from "../all/use-start-item";
 import { FEED_TABS } from "../components/feed-counts";
-import { useHiddenFilter } from "../components/HiddenItems";
+import {
+	HiddenToggle,
+	HideButton,
+	useHiddenFilter,
+} from "../components/HiddenItems";
 import { effectiveDue, isDue, useReminders } from "../components/Reminders";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useMyTasks } from "../hooks/useOdinTasks";
@@ -35,21 +40,31 @@ export function NextInLine() {
 			}),
 		[todos, reactions.data, jira.data, pulls.data, notion.data],
 	);
-	// Same key the feeds hide under, so a row you hid there stays hidden here.
-	const visible = useHiddenFilter("", rows, (item) => item.key).rows;
+	// Same key the feeds hide under, so hiding here hides it there and back.
+	const hide = useHiddenFilter("", rows, (item) => item.key);
+	// ponytail: every row rendered — a few hundred plain cards scroll fine.
+	// Window it (render on scroll) if the feeds ever reach thousands.
 	const next = rankNext(
-		visible.filter((item) => !livePaneFor(item)),
+		hide.rows.filter((item) => !livePaneFor(item)),
 		(item) =>
 			isDue(effectiveDue(item.key, reminders, item.dueDate), Date.now()),
-	).slice(0, 10);
+	);
 
 	return (
 		<div className="flex min-w-[240px] flex-1 flex-col rounded-xl border border-[#25252e] bg-[#111114]">
 			<div className="flex items-center gap-2 px-3 py-2.5 text-xs font-semibold uppercase tracking-[.4px] text-[#a5a5b3]">
 				<span className="size-2 rounded-full bg-[#a394ff]" />
 				Next in line
-				<span className="ml-auto rounded-[10px] bg-[#1f1f27] px-2 font-medium">
-					{next.length}
+				<span className="ml-auto flex items-center gap-2">
+					<HiddenToggle
+						count={hide.hiddenCount}
+						showing={hide.showHidden}
+						onToggle={() => hide.setShowHidden(!hide.showHidden)}
+						className="font-normal normal-case tracking-normal"
+					/>
+					<span className="rounded-[10px] bg-[#1f1f27] px-2 font-medium">
+						{next.length}
+					</span>
 				</span>
 			</div>
 			<div className="flex flex-col gap-2 overflow-y-auto px-2 pb-2.5">
@@ -63,12 +78,21 @@ export function NextInLine() {
 						return (
 							<div
 								key={item.key}
-								className="rounded-[10px] border border-[#3a3360] bg-[#14131b] px-3 py-2.5"
+								className={cn(
+									"rounded-[10px] border border-[#3a3360] bg-[#14131b] px-3 py-2.5",
+									hide.isHidden(item) && "opacity-50",
+								)}
 							>
 								<div className="flex items-start gap-2 text-[12.5px] font-semibold">
 									<span className="text-[#8a8a97]">{index + 1}</span>
 									<span className="min-w-0 flex-1 break-words">
 										{emojify(item.title)}
+									</span>
+									<span className="-mr-2 -mt-1">
+										<HideButton
+											hidden={hide.isHidden(item)}
+											onClick={() => hide.toggle(item)}
+										/>
 									</span>
 								</div>
 								<div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-[#a5a5b3]">
