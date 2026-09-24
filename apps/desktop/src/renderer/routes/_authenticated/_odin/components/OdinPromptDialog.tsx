@@ -357,7 +357,11 @@ export function OdinPromptDialog({
 								onChange={(event) => setRepoQuery(event.target.value)}
 								placeholder="No repo (agent picks)"
 								title={repo || "Search your git checkouts"}
-								className={`w-[230px] rounded-[6px] bg-[#1f1f27] px-2 py-[3px] text-[11px] font-semibold outline-none placeholder:font-semibold placeholder:text-[#8a8a97] ${
+								// Picking a <datalist> option marks the field :autofill, and
+								// Chromium paints that white-on-black over any bg-* — only an
+								// inset shadow and text-fill-color beat it. color-scheme darkens
+								// the dropdown itself.
+								className={`w-[230px] rounded-[6px] bg-[#1f1f27] px-2 py-[3px] text-[11px] font-semibold outline-none [color-scheme:dark] placeholder:font-semibold placeholder:text-[#8a8a97] autofill:shadow-[inset_0_0_0_1000px_#1f1f27] autofill:[-webkit-text-fill-color:#3ecf8e] ${
 									repo ? "text-[#3ecf8e]" : "text-[#a5a5b3]"
 								}`}
 							/>
