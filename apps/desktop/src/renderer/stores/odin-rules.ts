@@ -7,15 +7,20 @@ export interface OdinRule {
 	when: string;
 	action: string;
 	paused?: boolean;
-	/** Only sessions in this checkout get it — unset means every session. */
-	repo?: string;
-	/** Flip `repo`: every session EXCEPT the ones in that checkout. */
+	/** Only sessions in these checkouts get it — none means every session. */
+	repos?: string[];
+	/** Flip `repos`: every session EXCEPT the ones in those checkouts. */
 	exclude?: boolean;
 }
 
 interface OdinRulesState {
 	rules: OdinRule[];
-	add: (when: string, action: string, repo?: string, exclude?: boolean) => void;
+	add: (
+		when: string,
+		action: string,
+		repos?: string[],
+		exclude?: boolean,
+	) => void;
 	update: (id: string, patch: Partial<Omit<OdinRule, "id">>) => void;
 	remove: (id: string) => void;
 }
@@ -33,10 +38,10 @@ interface OdinRulesState {
  * and then have to start a second session to act on something the first one
  * could have finished itself.
  *
- * A rule can be pinned to one repo, or to every repo but one. A session whose
- * checkout rules it out never hears it; one whose checkout isn't known yet (a
- * feed launch, where the agent picks the repo) gets it with the repo named,
- * and applies it — or skips it — there.
+ * A rule can be pinned to some repos, or to every repo but those. A session
+ * whose checkout rules it out never hears it; one whose checkout isn't known
+ * yet (a feed launch, where the agent picks the repo) gets it with the repos
+ * named, and applies it — or skips it — there.
  *
  * ponytail: one global list, not per profile — add `profileId` the day a rule
  * should only apply to work or personal sessions.
@@ -45,7 +50,7 @@ export const useOdinRules = create<OdinRulesState>()(
 	persist(
 		(set) => ({
 			rules: [],
-			add: (when, action, repo, exclude) => {
+			add: (when, action, repos, exclude) => {
 				if (!when.trim() || !action.trim()) return;
 				set((s) => ({
 					rules: [
@@ -54,7 +59,9 @@ export const useOdinRules = create<OdinRulesState>()(
 							id: crypto.randomUUID(),
 							when: when.trim(),
 							action: action.trim(),
-							...(repo ? { repo, ...(exclude ? { exclude } : {}) } : {}),
+							...(repos?.length
+								? { repos, ...(exclude ? { exclude } : {}) }
+								: {}),
 						},
 					],
 				}));
@@ -66,9 +73,25 @@ export const useOdinRules = create<OdinRulesState>()(
 			remove: (id) =>
 				set((s) => ({ rules: s.rules.filter((r) => r.id !== id) })),
 		}),
-		{ name: "odin-rules" },
+		{
+			name: "odin-rules",
+			// v0 held one `repo` per rule.
+			version: 1,
+			migrate: (persisted, version) =>
+				migrateRules(persisted, version) as OdinRulesState,
+		},
 	),
 );
+
+/** Persisted state from an older version, brought up to today's shape. */
+export function migrateRules(persisted: unknown, version: number): unknown {
+	const state = persisted as { rules?: (OdinRule & { repo?: string })[] };
+	if (version < 1 && state?.rules)
+		state.rules = state.rules.map(({ repo, ...r }) =>
+			repo ? { ...r, repos: [repo] } : r,
+		);
+	return state;
+}
 
 /**
  * The switched-on rules that reach a session in `checkout` — "" when the
@@ -80,16 +103,18 @@ function liveRules(rules: OdinRule[], checkout: string): OdinRule[] {
 			!r.paused &&
 			r.when &&
 			r.action &&
-			(!r.repo || !checkout || inRepo(checkout, r.repo) !== !!r.exclude),
+			(!r.repos?.length ||
+				!checkout ||
+				r.repos.some((repo) => inRepo(checkout, repo)) !== !!r.exclude),
 	);
 }
 
 const inRepo = (checkout: string, repo: string) =>
 	checkout === repo || checkout.startsWith(`${repo}/`);
 
-/** One rule as the agent reads it — the repo named when it's pinned to one. */
+/** One rule as the agent reads it — the repos named when it's pinned to some. */
 const ruleLine = (r: OdinRule) =>
-	`- When ${r.when}${r.repo ? ` (${r.exclude ? "except" : "only"} in the repo at ${r.repo})` : ""}: ${r.action}`;
+	`- When ${r.when}${r.repos?.length ? ` (${r.exclude ? "except" : "only"} in ${r.repos.length > 1 ? "the repos at" : "the repo at"} ${r.repos.join(", ")})` : ""}: ${r.action}`;
 
 /** The rules as prompt lines — nothing when there are none switched on. */
 export function rulesPrompt(rules: OdinRule[], checkout = ""): string[] {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { rulesPrompt, rulesSettings } from "./odin-rules";
+import { migrateRules, rulesPrompt, rulesSettings } from "./odin-rules";
 
 const rule = {
 	id: "1",
@@ -40,7 +40,7 @@ describe("rulesSettings", () => {
 });
 
 describe("repo-pinned rules", () => {
-	const pinned = { ...rule, repo: "/src/odin" };
+	const pinned = { ...rule, repos: ["/src/odin"] };
 
 	it("reach sessions in that repo or its worktrees", () => {
 		for (const cwd of ["/src/odin", "/src/odin/.worktrees/x"]) {
@@ -64,7 +64,7 @@ describe("repo-pinned rules", () => {
 });
 
 describe("repo-excluded rules", () => {
-	const excluded = { ...rule, repo: "/src/odin", exclude: true };
+	const excluded = { ...rule, repos: ["/src/odin"], exclude: true };
 
 	it("skip sessions in that repo or its worktrees", () => {
 		for (const cwd of ["/src/odin", "/src/odin/.worktrees/x"]) {
@@ -79,5 +79,29 @@ describe("repo-excluded rules", () => {
 				"except in the repo at /src/odin",
 			);
 		}
+	});
+});
+
+describe("rules pinned to several repos", () => {
+	const both = { ...rule, repos: ["/src/odin", "/src/app"] };
+
+	it("reach sessions in any of them, and name them all", () => {
+		const lines = rulesPrompt([both], "/src/app").join("\n");
+		expect(lines).toContain("only in the repos at /src/odin, /src/app");
+		expect(rulesPrompt([both], "/src/other")).toEqual([]);
+	});
+
+	it("excluding them skips every one", () => {
+		const except = { ...both, exclude: true };
+		expect(rulesPrompt([except], "/src/odin")).toEqual([]);
+		expect(rulesPrompt([except], "/src/app")).toEqual([]);
+		expect(rulesPrompt([except], "/src/other")).not.toEqual([]);
+	});
+});
+
+it("migrates a v0 rule's single repo into repos", () => {
+	const v0 = { rules: [{ ...rule, repo: "/src/odin", exclude: true }, rule] };
+	expect(migrateRules(v0, 0)).toEqual({
+		rules: [{ ...rule, repos: ["/src/odin"], exclude: true }, rule],
 	});
 });

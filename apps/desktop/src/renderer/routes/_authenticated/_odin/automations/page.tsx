@@ -1,7 +1,7 @@
 import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useId, useState } from "react";
+import { useId, useState } from "react";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { type OdinRule, useOdinRules } from "renderer/stores/odin-rules";
@@ -296,7 +296,7 @@ function SkillOptions({ id }: { id: string }) {
 	);
 }
 
-/** "in" / "not in" — whether the repo beside it is the only one or the one left out. */
+/** "in" / "not in" — whether the repos beside it are the only ones or the ones left out. */
 function RepoModeToggle({
 	exclude,
 	onChange,
@@ -309,8 +309,8 @@ function RepoModeToggle({
 			type="button"
 			title={
 				exclude
-					? "Every repo except this one — click for only this repo"
-					: "Only this repo — click for every repo except it"
+					? "Every repo except these — click for only these"
+					: "Only these repos — click for every repo except them"
 			}
 			onClick={() => onChange(!exclude)}
 			className={cn(
@@ -324,64 +324,83 @@ function RepoModeToggle({
 }
 
 /**
- * Which repo a rule is pinned to — blank leaves it on every session.
- * Type any part of the path to search the checkouts; it resolves on blur, the
- * same way the new-session dialog's repo field does (`matchRepos`).
+ * The repos a rule is pinned to, as removable chips — none leaves it on every
+ * session. Type any part of a path to search the checkouts; picking from the
+ * list adds it at once, typed text resolves on Enter or blur, the same way the
+ * new-session dialog's repo field does (`matchRepos`).
  * ponytail: native <datalist> — Chromium does the search-as-you-type popup.
  */
-function RepoSelect({
+function RepoPicker({
 	value,
 	onChange,
 }: {
-	value: string;
-	onChange: (repo: string) => void;
+	value: string[];
+	onChange: (repos: string[]) => void;
 }) {
 	const { data: repos = [] } = electronTrpc.repos.list.useQuery();
 	const listId = useId();
-	const [draft, setDraft] = useState(value && repoLabel(value));
-	// The add row clears its repo after adding; the field has to follow.
-	useEffect(() => setDraft(value && repoLabel(value)), [value]);
-	const hits = matchRepos(repos, draft);
+	const [draft, setDraft] = useState("");
+	const addRepo = (repo: string) => {
+		setDraft("");
+		if (!value.includes(repo)) onChange([...value, repo]);
+	};
 	const commit = () => {
-		if (!draft.trim()) return value && onChange("");
-		// Untouched — keep it, even if that checkout has since left the list.
-		if (value && draft === repoLabel(value)) return;
-		const repo = hits.length === 1 ? (hits[0] as string) : null;
-		if (!repo) {
-			toast.error(
-				hits.length > 1
-					? `"${draft}" matches ${hits.length} repos — type more of the path.`
-					: `No repo matches "${draft}".`,
-			);
-			setDraft(value && repoLabel(value));
-			return;
-		}
-		setDraft(repoLabel(repo));
-		if (repo !== value) onChange(repo);
+		if (!draft.trim()) return;
+		const hits = matchRepos(repos, draft);
+		if (hits.length === 1) return addRepo(hits[0] as string);
+		toast.error(
+			hits.length > 1
+				? `"${draft}" matches ${hits.length} repos — type more of the path.`
+				: `No repo matches "${draft}".`,
+		);
 	};
 	return (
-		<>
+		<div className="flex min-w-0 max-w-[45%] flex-wrap items-center gap-1">
+			{value.map((repo) => (
+				<span
+					key={repo}
+					title={repo}
+					className="flex items-center gap-1 rounded-[6px] bg-[#1f1f27] px-1.5 py-[2px] text-[11px] font-semibold text-[#f5f5f7]"
+				>
+					{repoLabel(repo)}
+					<button
+						type="button"
+						aria-label={`Remove ${repo}`}
+						onClick={() => onChange(value.filter((r) => r !== repo))}
+						className="text-[#8a8a97] hover:text-[#f5f5f7]"
+					>
+						✕
+					</button>
+				</span>
+			))}
 			<input
-				aria-label="Repo"
+				aria-label="Add repo"
 				list={listId}
 				value={draft}
-				placeholder="any repo"
-				title={value || "Every session, whatever repo it's in"}
-				onChange={(event) => setDraft(event.target.value)}
+				placeholder={value.length ? "+ repo" : "any repo"}
+				title="Search your git checkouts"
+				onChange={(event) => {
+					const text = event.target.value;
+					// A pick from the datalist is a whole path — take it right away.
+					if (repos.includes(text)) addRepo(text);
+					else setDraft(text);
+				}}
 				onBlur={commit}
 				onKeyDown={(event) => {
-					if (event.key === "Enter") event.currentTarget.blur();
+					if (event.key === "Enter") commit();
 				}}
-				className={cn(RULE_INPUT, "max-w-[200px]")}
+				className={cn(RULE_INPUT, "w-[110px] flex-none")}
 			/>
 			<datalist id={listId}>
-				{repos.map((path) => (
-					<option key={path} value={path}>
-						{repoLabel(path)}
-					</option>
-				))}
+				{repos
+					.filter((path) => !value.includes(path))
+					.map((path) => (
+						<option key={path} value={path}>
+							{repoLabel(path)}
+						</option>
+					))}
 			</datalist>
-		</>
+		</div>
 	);
 }
 
@@ -434,9 +453,11 @@ function RuleRow({ rule }: { rule: OdinRule }) {
 					update(rule.id, { exclude: exclude || undefined })
 				}
 			/>
-			<RepoSelect
-				value={rule.repo ?? ""}
-				onChange={(repo) => update(rule.id, { repo: repo || undefined })}
+			<RepoPicker
+				value={rule.repos ?? []}
+				onChange={(repos) =>
+					update(rule.id, { repos: repos.length ? repos : undefined })
+				}
 			/>
 			<button
 				type="button"
@@ -473,15 +494,15 @@ function RulesPanel() {
 	const { rules, add } = useOdinRules();
 	const [when, setWhen] = useState("");
 	const [action, setAction] = useState("");
-	const [repo, setRepo] = useState("");
+	const [repos, setRepos] = useState<string[]>([]);
 	const [exclude, setExclude] = useState(false);
 	const submit = () => {
 		if (!when.trim() || !action.trim())
 			return toast.error("A rule needs both a when and a do.");
-		add(when, action, repo, exclude);
+		add(when, action, repos, exclude);
 		setWhen("");
 		setAction("");
-		setRepo("");
+		setRepos([]);
 		setExclude(false);
 	};
 	const onEnter = (event: React.KeyboardEvent) => {
@@ -511,7 +532,7 @@ function RulesPanel() {
 					className={RULE_INPUT}
 				/>
 				<RepoModeToggle exclude={exclude} onChange={setExclude} />
-				<RepoSelect value={repo} onChange={setRepo} />
+				<RepoPicker value={repos} onChange={setRepos} />
 				<button type="button" onClick={submit} className={ROW_PRIMARY_BUTTON}>
 					Add rule
 				</button>
