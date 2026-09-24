@@ -316,7 +316,7 @@ function RepoSelect({
 	useEffect(() => setDraft(value && repoLabel(value)), [value]);
 	const hits = matchRepos(repos, draft);
 	const commit = () => {
-		if (!draft.trim()) return onChange("");
+		if (!draft.trim()) return value && onChange("");
 		// Untouched — keep it, even if that checkout has since left the list.
 		if (value && draft === repoLabel(value)) return;
 		const repo = hits.length === 1 ? (hits[0] as string) : null;
