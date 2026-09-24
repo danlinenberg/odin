@@ -4,7 +4,6 @@ import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { type BriefLink, usePaneMeta } from "../hooks/usePaneMeta";
 import {
-	appliedRules,
 	jiraIssue,
 	type LinkKind,
 	linkKind,
@@ -266,7 +265,9 @@ export function SessionBrief({
 	const foundThread = transcript ? slackThread(transcript.messages) : null;
 	const foundPage = transcript ? notionPage(transcript.messages) : null;
 	const foundIssue = transcript ? jiraIssue(transcript.messages) : null;
-	const rules = transcript ? appliedRules(transcript.messages) : [];
+	// Only rules that actually fired, and on which PR — not every rule the
+	// launch prompt listed. `rules` is missing until main restarts onto it.
+	const rules = transcript?.rules ?? [];
 	// What you hid drops out of its section; the "Hidden" fold below lists it.
 	const isHidden = (url: string) => hiddenUrls.includes(url);
 	const prs = allPrs.filter((pr) => !isHidden(pr.url));
@@ -593,9 +594,25 @@ export function SessionBrief({
 				)}
 				{rules.length > 0 && (
 					<Section label="Rules applied" accent="#a394ff">
-						<div className="flex flex-col gap-1 text-[12px]">
-							{rules.map((rule) => (
-								<div key={rule}>{rule}</div>
+						<div className="flex flex-col gap-1.5 text-[12px]">
+							{rules.map(({ rule, on }) => (
+								<div key={rule}>
+									<div>{rule}</div>
+									<div className="flex flex-wrap gap-x-2 text-[11px] text-[#8a8a97]">
+										on
+										{on.map((url) => (
+											<button
+												key={url}
+												type="button"
+												onClick={() => openUrl.mutate(url)}
+												className="text-[#a394ff] hover:underline"
+											>
+												{url.split("/").slice(-3, -2)[0]} #
+												{url.split("/").pop()} ↗
+											</button>
+										))}
+									</div>
+								</div>
 							))}
 						</div>
 					</Section>

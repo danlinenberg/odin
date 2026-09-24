@@ -2,6 +2,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
+import { PR_RULES_HEADER } from "shared/odin-rules";
 
 /**
  * Search over Claude Code's own conversation transcripts.
@@ -650,6 +651,8 @@ export async function readTranscript({
 	prompt: string | null;
 	/** A `/loop` (or any schedule) still armed in this conversation. */
 	loop: ActiveLoop | null;
+	/** Odin rules that fired in this session, and on which PRs. */
+	rules: RuleFiring[];
 }> {
 	if (!isSafeSegment(sessionId) || (project && !isSafeSegment(project))) {
 		throw new Error("Invalid transcript reference");
@@ -664,7 +667,93 @@ export async function readTranscript({
 		title: aiTitle,
 		prompt,
 		loop: activeLoop(jsonl),
+		rules: ruleFirings(jsonl),
 	};
+}
+
+export interface RuleFiring {
+	/** The rule as the agent read it — "When …: …". */
+	rule: string;
+	/** PR urls it fired on, oldest first. */
+	on: string[];
+}
+
+/**
+ * A command that really opens or pushes to a PR — at the start of a line or
+ * after `&&`/`;`/`|`, past any `VAR=value` prefix; git may carry options
+ * before `push`. The hook itself greps the whole payload, so it also fires on
+ * a `cat` of a file that merely mentions `git push`; those aren't the rule
+ * being applied.
+ */
+const PR_ACTION =
+	/(?:^|[;&|])\s*(?:\w+=\S*\s+)*(?:gh pr (?:create|edit|ready)|git\b[^;&|\n]*?\spush)\b/m;
+const PR_URL = /https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/g;
+
+/**
+ * The PR-rule hook's firings, each pinned to the PR it fired on: the PR url
+ * in that Bash call's output (`gh pr create` prints it), else the session's
+ * latest PR so far — a later `git push` prints only the branch.
+ *
+ * ponytail: prompt-only rules (not about PRs) have no firing to find, so
+ * they never show — the transcript can't say whether the agent followed them.
+ */
+export function ruleFirings(jsonl: string): RuleFiring[] {
+	const commands = new Map<string, string>();
+	const outputs = new Map<string, string>();
+	const fired: { rules: string[]; toolUseId: string }[] = [];
+	for (const line of jsonl.split("\n")) {
+		if (
+			!line.includes('"tool_use') &&
+			!line.includes(PR_RULES_HEADER.slice(0, 40))
+		)
+			continue;
+		let entry: {
+			isSidechain?: boolean;
+			message?: { content?: unknown };
+			attachment?: { type?: string; content?: unknown; toolUseID?: string };
+		};
+		try {
+			entry = JSON.parse(line);
+		} catch {
+			continue;
+		}
+		if (entry.isSidechain) continue;
+		const hook = entry.attachment;
+		if (hook?.type === "hook_additional_context" && hook.toolUseID) {
+			const text = ([] as unknown[]).concat(hook.content).join("\n");
+			if (!text.includes(PR_RULES_HEADER)) continue;
+			const rules = text
+				.split(PR_RULES_HEADER)[1]
+				.split("\n")
+				.filter((l) => l.startsWith("- "))
+				.map((l) => l.slice(2).trim());
+			fired.push({ rules, toolUseId: hook.toolUseID });
+			continue;
+		}
+		const content = entry.message?.content;
+		if (!Array.isArray(content)) continue;
+		for (const block of content) {
+			if (block?.type === "tool_use" && block.name === "Bash")
+				commands.set(block.id, String(block.input?.command ?? ""));
+			else if (block?.type === "tool_result")
+				outputs.set(block.tool_use_id, messageText(block.content));
+		}
+	}
+	const byRule = new Map<string, string[]>();
+	let lastPr: string | null = null;
+	for (const { rules, toolUseId } of fired) {
+		if (!PR_ACTION.test(commands.get(toolUseId) ?? "")) continue;
+		const prs = (outputs.get(toolUseId) ?? "").match(PR_URL) ?? [];
+		if (prs.length) lastPr = prs[prs.length - 1] ?? null;
+		const on = prs.length ? prs : lastPr ? [lastPr] : [];
+		if (!on.length) continue;
+		for (const rule of rules) {
+			const list = byRule.get(rule) ?? [];
+			for (const pr of on) if (!list.includes(pr)) list.push(pr);
+			byRule.set(rule, list);
+		}
+	}
+	return [...byRule].map(([rule, on]) => ({ rule, on }));
 }
 
 export interface ActiveLoop {
