@@ -243,6 +243,25 @@ describe("writeBrief", () => {
 			}),
 		).rejects.toThrow("No transcript on this machine");
 	});
+
+	test("a failed run reports claude's reason, not the prompt it was given", async () => {
+		const { session, root, cachePath } = fixture();
+		const bin = join(root, "broken-claude.sh");
+		writeFileSync(
+			bin,
+			"#!/bin/sh\necho 'API Error: 529 overloaded' >&2\nexit 1\n",
+		);
+		chmodSync(bin, 0o755);
+		const error = await writeBrief({
+			sessionId: session,
+			claudeBin: bin,
+			root,
+			cachePath,
+		}).catch((e: Error) => e);
+		expect((error as Error).message).toBe(
+			"claude -p failed (exit 1): API Error: 529 overloaded",
+		);
+	});
 });
 
 describe("warmBriefs", () => {
