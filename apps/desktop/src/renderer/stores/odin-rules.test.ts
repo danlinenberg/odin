@@ -62,3 +62,22 @@ describe("repo-pinned rules", () => {
 		);
 	});
 });
+
+describe("repo-excluded rules", () => {
+	const excluded = { ...rule, repo: "/src/odin", exclude: true };
+
+	it("skip sessions in that repo or its worktrees", () => {
+		for (const cwd of ["/src/odin", "/src/odin/.worktrees/x"]) {
+			expect(rulesPrompt([excluded], cwd)).toEqual([]);
+			expect(rulesSettings([excluded], cwd)).toBeNull();
+		}
+	});
+
+	it("reach every other session, the exception named", () => {
+		for (const cwd of ["/src/other", ""]) {
+			expect(rulesPrompt([excluded], cwd).join("\n")).toContain(
+				"except in the repo at /src/odin",
+			);
+		}
+	});
+});

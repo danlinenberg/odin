@@ -9,11 +9,13 @@ export interface OdinRule {
 	paused?: boolean;
 	/** Only sessions in this checkout get it — unset means every session. */
 	repo?: string;
+	/** Flip `repo`: every session EXCEPT the ones in that checkout. */
+	exclude?: boolean;
 }
 
 interface OdinRulesState {
 	rules: OdinRule[];
-	add: (when: string, action: string, repo?: string) => void;
+	add: (when: string, action: string, repo?: string, exclude?: boolean) => void;
 	update: (id: string, patch: Partial<Omit<OdinRule, "id">>) => void;
 	remove: (id: string) => void;
 }
@@ -31,9 +33,10 @@ interface OdinRulesState {
  * and then have to start a second session to act on something the first one
  * could have finished itself.
  *
- * A rule can be pinned to one repo. A session launched into another checkout
- * never hears it; one whose checkout isn't known yet (a feed launch, where the
- * agent picks the repo) gets it with the repo named, and applies it there.
+ * A rule can be pinned to one repo, or to every repo but one. A session whose
+ * checkout rules it out never hears it; one whose checkout isn't known yet (a
+ * feed launch, where the agent picks the repo) gets it with the repo named,
+ * and applies it — or skips it — there.
  *
  * ponytail: one global list, not per profile — add `profileId` the day a rule
  * should only apply to work or personal sessions.
@@ -42,7 +45,7 @@ export const useOdinRules = create<OdinRulesState>()(
 	persist(
 		(set) => ({
 			rules: [],
-			add: (when, action, repo) => {
+			add: (when, action, repo, exclude) => {
 				if (!when.trim() || !action.trim()) return;
 				set((s) => ({
 					rules: [
@@ -51,7 +54,7 @@ export const useOdinRules = create<OdinRulesState>()(
 							id: crypto.randomUUID(),
 							when: when.trim(),
 							action: action.trim(),
-							...(repo ? { repo } : {}),
+							...(repo ? { repo, ...(exclude ? { exclude } : {}) } : {}),
 						},
 					],
 				}));
@@ -77,16 +80,16 @@ function liveRules(rules: OdinRule[], checkout: string): OdinRule[] {
 			!r.paused &&
 			r.when &&
 			r.action &&
-			(!r.repo ||
-				!checkout ||
-				checkout === r.repo ||
-				checkout.startsWith(`${r.repo}/`)),
+			(!r.repo || !checkout || inRepo(checkout, r.repo) !== !!r.exclude),
 	);
 }
 
+const inRepo = (checkout: string, repo: string) =>
+	checkout === repo || checkout.startsWith(`${repo}/`);
+
 /** One rule as the agent reads it — the repo named when it's pinned to one. */
 const ruleLine = (r: OdinRule) =>
-	`- When ${r.when}${r.repo ? ` (only in the repo at ${r.repo})` : ""}: ${r.action}`;
+	`- When ${r.when}${r.repo ? ` (${r.exclude ? "except" : "only"} in the repo at ${r.repo})` : ""}: ${r.action}`;
 
 /** The rules as prompt lines — nothing when there are none switched on. */
 export function rulesPrompt(rules: OdinRule[], checkout = ""): string[] {

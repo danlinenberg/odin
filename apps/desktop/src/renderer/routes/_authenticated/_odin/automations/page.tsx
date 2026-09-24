@@ -296,6 +296,33 @@ function SkillOptions({ id }: { id: string }) {
 	);
 }
 
+/** "in" / "not in" — whether the repo beside it is the only one or the one left out. */
+function RepoModeToggle({
+	exclude,
+	onChange,
+}: {
+	exclude: boolean;
+	onChange: (exclude: boolean) => void;
+}) {
+	return (
+		<button
+			type="button"
+			title={
+				exclude
+					? "Every repo except this one — click for only this repo"
+					: "Only this repo — click for every repo except it"
+			}
+			onClick={() => onChange(!exclude)}
+			className={cn(
+				"shrink-0 rounded-[6px] px-1.5 py-[2px] text-[11px] font-semibold hover:bg-[#1f1f27]",
+				exclude ? "text-[#f0647a]" : "text-[#8a8a97]",
+			)}
+		>
+			{exclude ? "not in" : "in"}
+		</button>
+	);
+}
+
 /**
  * Which repo a rule is pinned to — blank leaves it on every session.
  * Type any part of the path to search the checkouts; it resolves on blur, the
@@ -401,7 +428,12 @@ function RuleRow({ rule }: { rule: OdinRule }) {
 				onBlur={commit}
 				className={RULE_INPUT}
 			/>
-			<span className="text-[11px] text-[#8a8a97]">in</span>
+			<RepoModeToggle
+				exclude={!!rule.exclude}
+				onChange={(exclude) =>
+					update(rule.id, { exclude: exclude || undefined })
+				}
+			/>
 			<RepoSelect
 				value={rule.repo ?? ""}
 				onChange={(repo) => update(rule.id, { repo: repo || undefined })}
@@ -442,13 +474,15 @@ function RulesPanel() {
 	const [when, setWhen] = useState("");
 	const [action, setAction] = useState("");
 	const [repo, setRepo] = useState("");
+	const [exclude, setExclude] = useState(false);
 	const submit = () => {
 		if (!when.trim() || !action.trim())
 			return toast.error("A rule needs both a when and a do.");
-		add(when, action, repo);
+		add(when, action, repo, exclude);
 		setWhen("");
 		setAction("");
 		setRepo("");
+		setExclude(false);
 	};
 	const onEnter = (event: React.KeyboardEvent) => {
 		if (event.key === "Enter") submit();
@@ -476,7 +510,7 @@ function RulesPanel() {
 					onKeyDown={onEnter}
 					className={RULE_INPUT}
 				/>
-				<span className="text-[11px] text-[#8a8a97]">in</span>
+				<RepoModeToggle exclude={exclude} onChange={setExclude} />
 				<RepoSelect value={repo} onChange={setRepo} />
 				<button type="button" onClick={submit} className={ROW_PRIMARY_BUTTON}>
 					Add rule
