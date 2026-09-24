@@ -1,8 +1,8 @@
 import { cn } from "@odin/ui/utils";
 import { keepPreviousData } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useMemo } from "react";
-import { LuSettings2 } from "react-icons/lu";
+import { useEffect, useMemo, useState } from "react";
+import { LuLoaderCircle, LuSettings2, LuSparkles } from "react-icons/lu";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { useNextInLinePrompt } from "renderer/stores/next-in-line-prompt";
@@ -99,22 +99,6 @@ export function NextInLine() {
 			<div className="flex items-center gap-2 px-3 py-2.5 text-xs font-semibold uppercase tracking-[.4px] text-[#a5a5b3]">
 				<span className="size-2 rounded-full bg-[#a394ff]" />
 				Next in line
-				<span
-					className="text-[10px] font-normal normal-case tracking-normal text-[#8a8a97]"
-					title={
-						ranking.error
-							? `AI ranking failed, so this is feed order — ${ranking.error.message}`
-							: "Ordered by importance by claude (haiku)"
-					}
-				>
-					{ranking.isFetching
-						? "ranking…"
-						: ranking.error
-							? "unranked"
-							: ranking.data
-								? "AI"
-								: "unranked"}
-				</span>
 				<span className="ml-auto flex items-center gap-2">
 					<button
 						type="button"
@@ -143,6 +127,12 @@ export function NextInLine() {
 					</span>
 				</span>
 			</div>
+			<RankStatus
+				fetching={ranking.isFetching}
+				ranked={order.size > 0}
+				error={ranking.error?.message ?? null}
+				count={next.length}
+			/>
 			<div className="flex flex-col gap-2 overflow-y-auto px-2 pb-2.5">
 				{next.length === 0 ? (
 					<div className="px-2 py-6 text-center text-xs text-[#8a8a97]">
@@ -193,4 +183,70 @@ export function NextInLine() {
 			</div>
 		</div>
 	);
+}
+
+/**
+ * Where the order came from, said out loud: a ranking takes about a minute and
+ * the column is usable meanwhile, so "is this the AI's order yet?" needs an
+ * answer you can't miss — a spinner and a clock while it runs.
+ */
+function RankStatus({
+	fetching,
+	ranked,
+	error,
+	count,
+}: {
+	fetching: boolean;
+	ranked: boolean;
+	error: string | null;
+	count: number;
+}) {
+	const [startedAt, setStartedAt] = useState<number | null>(null);
+	const [now, setNow] = useState(Date.now);
+	useEffect(() => {
+		if (!fetching) return setStartedAt(null);
+		setStartedAt(Date.now());
+		const tick = setInterval(() => setNow(Date.now()), 1000);
+		return () => clearInterval(tick);
+	}, [fetching]);
+	const secs = startedAt
+		? Math.max(0, Math.round((now - startedAt) / 1000))
+		: 0;
+
+	if (fetching)
+		return (
+			<div className="mx-2 mb-2 flex items-start gap-2 rounded-lg border border-[#3a3360] bg-[#1a1730] px-2.5 py-2 text-[11.5px] text-[#d8d2ff]">
+				<LuLoaderCircle
+					className="mt-px size-3.5 shrink-0 animate-spin text-[#a394ff]"
+					aria-hidden
+				/>
+				<span>
+					AI is ranking {count} tasks… {secs}s
+					<span className="block text-[#8a8a97]">
+						Usually about a minute.{" "}
+						{ranked
+							? "Showing the previous ranking until then."
+							: "Showing feed order until then."}
+					</span>
+				</span>
+			</div>
+		);
+	if (error)
+		return (
+			<div
+				className="mx-2 mb-2 cursor-text select-text rounded-lg border border-[#5a2733] bg-[#1d1417] px-2.5 py-2 text-[11.5px] text-[#f0a0ad]"
+				title={error}
+			>
+				Unranked — AI ranking failed, so this is feed order.
+				<span className="block truncate text-[#8a8a97]">{error}</span>
+			</div>
+		);
+	if (ranked)
+		return (
+			<div className="mx-2 mb-2 flex items-center gap-1.5 px-1 text-[11px] text-[#8a8a97]">
+				<LuSparkles className="size-3 text-[#a394ff]" aria-hidden />
+				Ranked by AI
+			</div>
+		);
+	return null;
 }
