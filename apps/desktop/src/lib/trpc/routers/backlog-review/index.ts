@@ -145,11 +145,17 @@ export const createBacklogReviewRouter = () => {
 							ageDays: z.number().nullable(),
 						}),
 					),
+					/** Settings → Board: how you want them sorted, in your words. */
+					instructions: z.string().max(4000).optional(),
 				}),
 			)
 			.query(async ({ input }) => {
 				const { rankTasks } = await import("main/lib/next-in-line-rank");
-				return { keys: await rankTasks(input.items) };
+				return {
+					keys: await rankTasks(input.items, {
+						instructions: input.instructions,
+					}),
+				};
 			}),
 	});
 };

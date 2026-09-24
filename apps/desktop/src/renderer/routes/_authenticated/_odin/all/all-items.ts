@@ -282,30 +282,3 @@ export function allItems(input: {
 		),
 	].sort((a, b) => b.at - a.at);
 }
-
-const URGENCY_RANK: Record<Exclude<Urgency, null>, number> = {
-	high: 0,
-	medium: 1,
-	low: 2,
-};
-
-/**
- * What to start next, most deserving first: due today or overdue, then by
- * urgency, then whatever has waited longest. Undated rows go last.
- *
- * ponytail: a fixed ordering, not a score. Weight it when the top of this list
- * stops matching what you'd actually start.
- */
-export function rankNext(
-	items: AllItem[],
-	isDue: (item: AllItem) => boolean,
-): AllItem[] {
-	const urgency = (item: AllItem) =>
-		item.urgency ? URGENCY_RANK[item.urgency] : 3;
-	return items.toSorted(
-		(a, b) =>
-			Number(isDue(b)) - Number(isDue(a)) ||
-			urgency(a) - urgency(b) ||
-			(a.at || Number.POSITIVE_INFINITY) - (b.at || Number.POSITIVE_INFINITY),
-	);
-}
