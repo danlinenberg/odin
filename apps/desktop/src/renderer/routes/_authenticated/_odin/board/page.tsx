@@ -1966,7 +1966,6 @@ function DevBoardPage() {
 			)}
 
 			<div className="flex min-h-0 flex-1 gap-3 overflow-x-auto px-[18px] pb-[18px] pt-1">
-				{isNextOpen && <NextInLine />}
 				{COLUMNS.map((column) => {
 					const cards = cardsByStatus.get(column.status) ?? [];
 					const sections = bySection(cards);
@@ -2280,6 +2279,8 @@ function DevBoardPage() {
 						</div>
 					);
 				})}
+				{/* Last, so it opens under its toggle at the header's right end. */}
+				{isNextOpen && <NextInLine />}
 			</div>
 
 			{/* No Completed strip and no link to one: the Session History pane in the
