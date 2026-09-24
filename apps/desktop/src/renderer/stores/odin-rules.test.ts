@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { rulesSettings } from "./odin-rules";
+import { rulesPrompt, rulesSettings } from "./odin-rules";
 
 const rule = {
 	id: "1",
@@ -36,5 +36,29 @@ describe("rulesSettings", () => {
 	it("is null without a live PR rule", () => {
 		expect(rulesSettings([{ ...rule, paused: true }])).toBeNull();
 		expect(rulesSettings([{ ...rule, when: "a test fails" }])).toBeNull();
+	});
+});
+
+describe("repo-pinned rules", () => {
+	const pinned = { ...rule, repo: "/src/odin" };
+
+	it("reach sessions in that repo or its worktrees", () => {
+		for (const cwd of ["/src/odin", "/src/odin/.worktrees/x"]) {
+			expect(rulesPrompt([pinned], cwd).join("\n")).toContain(
+				"only in the repo at /src/odin",
+			);
+			expect(rulesSettings([pinned], cwd)).not.toBeNull();
+		}
+	});
+
+	it("skip sessions in another repo", () => {
+		expect(rulesPrompt([pinned], "/src/odin-other")).toEqual([]);
+		expect(rulesSettings([pinned], "/src/other")).toBeNull();
+	});
+
+	it("go out named when the checkout isn't known", () => {
+		expect(rulesPrompt([pinned]).join("\n")).toContain(
+			"only in the repo at /src/odin",
+		);
 	});
 });

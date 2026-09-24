@@ -7,11 +7,13 @@ export interface OdinRule {
 	when: string;
 	action: string;
 	paused?: boolean;
+	/** Only sessions in this checkout get it — unset means every session. */
+	repo?: string;
 }
 
 interface OdinRulesState {
 	rules: OdinRule[];
-	add: (when: string, action: string) => void;
+	add: (when: string, action: string, repo?: string) => void;
 	update: (id: string, patch: Partial<Omit<OdinRule, "id">>) => void;
 	remove: (id: string) => void;
 }
@@ -29,6 +31,10 @@ interface OdinRulesState {
  * and then have to start a second session to act on something the first one
  * could have finished itself.
  *
+ * A rule can be pinned to one repo. A session launched into another checkout
+ * never hears it; one whose checkout isn't known yet (a feed launch, where the
+ * agent picks the repo) gets it with the repo named, and applies it there.
+ *
  * ponytail: one global list, not per profile — add `profileId` the day a rule
  * should only apply to work or personal sessions.
  */
@@ -36,7 +42,7 @@ export const useOdinRules = create<OdinRulesState>()(
 	persist(
 		(set) => ({
 			rules: [],
-			add: (when, action) => {
+			add: (when, action, repo) => {
 				if (!when.trim() || !action.trim()) return;
 				set((s) => ({
 					rules: [
@@ -45,6 +51,7 @@ export const useOdinRules = create<OdinRulesState>()(
 							id: crypto.randomUUID(),
 							when: when.trim(),
 							action: action.trim(),
+							...(repo ? { repo } : {}),
 						},
 					],
 				}));
@@ -60,14 +67,35 @@ export const useOdinRules = create<OdinRulesState>()(
 	),
 );
 
+/**
+ * The switched-on rules that reach a session in `checkout` — "" when the
+ * checkout isn't known, which keeps the repo-pinned ones (see `ruleLine`).
+ */
+function liveRules(rules: OdinRule[], checkout: string): OdinRule[] {
+	return rules.filter(
+		(r) =>
+			!r.paused &&
+			r.when &&
+			r.action &&
+			(!r.repo ||
+				!checkout ||
+				checkout === r.repo ||
+				checkout.startsWith(`${r.repo}/`)),
+	);
+}
+
+/** One rule as the agent reads it — the repo named when it's pinned to one. */
+const ruleLine = (r: OdinRule) =>
+	`- When ${r.when}${r.repo ? ` (only in the repo at ${r.repo})` : ""}: ${r.action}`;
+
 /** The rules as prompt lines — nothing when there are none switched on. */
-export function rulesPrompt(rules: OdinRule[]): string[] {
-	const live = rules.filter((r) => !r.paused && r.when && r.action);
+export function rulesPrompt(rules: OdinRule[], checkout = ""): string[] {
+	const live = liveRules(rules, checkout);
 	if (live.length === 0) return [];
 	return [
 		"",
 		"Standing rules — follow each one whenever its situation comes up during this session, without being asked:",
-		...live.map((r) => `- When ${r.when}: ${r.action}`),
+		...live.map(ruleLine),
 	];
 }
 
@@ -92,14 +120,12 @@ const sh = (s: string) => `'${s.replaceAll("'", `'\\''`)}'`;
  * command that merely prints "git push" fires it too, which costs one
  * redundant reminder.
  */
-export function rulesSettings(rules: OdinRule[]): string | null {
-	const live = rules.filter(
-		(r) => !r.paused && r.action && PR_RULE.test(r.when),
-	);
+export function rulesSettings(rules: OdinRule[], checkout = ""): string | null {
+	const live = liveRules(rules, checkout).filter((r) => PR_RULE.test(r.when));
 	if (live.length === 0) return null;
 	const context = [
 		"You just opened or pushed to a pull request. Do these now, before anything else — again on every later push to it:",
-		...live.map((r) => `- When ${r.when}: ${r.action}`),
+		...live.map(ruleLine),
 	].join("\n");
 	const output = JSON.stringify({
 		hookSpecificOutput: {

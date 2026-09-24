@@ -34,6 +34,7 @@ export function buildPrompt(
 	skill?: string,
 	unattended = false,
 	rules: OdinRule[] = [],
+	checkout = "",
 ): string {
 	return [
 		// A skill leads the prompt, on its own line, with the title as its
@@ -65,7 +66,7 @@ export function buildPrompt(
 					"This run was started by a schedule, not by a person — nobody is watching it. Don't stop to ask something you can settle with a sensible default: make the call, say which one you made, and leave the question in ACTION ITEMS.",
 				]
 			: []),
-		...rulesPrompt(rules),
+		...rulesPrompt(rules, checkout),
 		// Every session lands on the board, and most of them land under "Needs
 		// you" — where the only question being asked is "what do I have to do
 		// about this one?". A turn that stops at "here's what I found" makes
@@ -333,6 +334,7 @@ export function useLaunchTaskSession() {
 						skill,
 						tags?.includes("automation"),
 						useOdinRules.getState().rules,
+						checkout,
 					),
 					encoding: "utf-8",
 				});
@@ -367,7 +369,7 @@ export function useLaunchTaskSession() {
 			// Hooks live in the launch flags, not the conversation, so a resume
 			// has to be handed them again — with today's rules, not the old ones.
 			let settingsArg = "";
-			const settings = rulesSettings(useOdinRules.getState().rules);
+			const settings = rulesSettings(useOdinRules.getState().rules, checkout);
 			if (settings) {
 				const settingsDir = `${worktreePath}/.odin`;
 				const settingsPath = `${settingsDir}/rules-${sessionId}.json`;
