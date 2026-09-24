@@ -229,6 +229,49 @@ describe("notionPage", () => {
 	});
 });
 
+describe("notionPage naming", () => {
+	const BARE = "https://app.notion.com/p/3dd9a1b573ff81eeab56d1a8065f87c7";
+
+	it("takes the label of a markdown link", () => {
+		expect(
+			notionPage([claude(`see [Backlog page](${BARE}) for the rest`)])?.title,
+		).toBe("Backlog page");
+	});
+
+	it("takes the name before a dash on the same line", () => {
+		expect(
+			notionPage([claude(`- Cost Reduction Items — ${BARE}`)])?.title,
+		).toBe("Cost Reduction Items");
+	});
+
+	it("strips markup out of the name", () => {
+		expect(notionPage([claude(`**\`Spot ADR\`**: ${BARE}`)])?.title).toBe(
+			"Spot ADR",
+		);
+	});
+
+	it("keeps Notion's own slug ahead of any prose label", () => {
+		const slug =
+			"https://www.notion.so/imagen-ai/Spot-Instances-with-Fallback-3d19a1b573ff819b8237f88195e3780f";
+		expect(notionPage([claude(`And the ADR: ${slug}`)])?.title).toBe(
+			"Spot Instances with Fallback",
+		);
+	});
+
+	it("leaves an unnamed bare link untitled", () => {
+		expect(notionPage([claude(`Published ${BARE}`)])?.title).toBeNull();
+	});
+
+	it("still prefers a named page over a newer unnamed one", () => {
+		const other = "https://app.notion.com/p/3c79a1b573ff80229075d02b6ad33c9f";
+		const page = notionPage([
+			claude(`[Activity Tracker](${other})`),
+			claude(`${BARE}`),
+		]);
+		expect(page?.title).toBe("Activity Tracker");
+	});
+});
+
 describe("slackThread", () => {
 	it("takes the thread the session was launched from, not later mentions", () => {
 		expect(
