@@ -4,6 +4,7 @@ import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { type BriefLink, usePaneMeta } from "../hooks/usePaneMeta";
 import {
+	appliedRules,
 	jiraIssue,
 	type LinkKind,
 	linkKind,
@@ -265,6 +266,7 @@ export function SessionBrief({
 	const foundThread = transcript ? slackThread(transcript.messages) : null;
 	const foundPage = transcript ? notionPage(transcript.messages) : null;
 	const foundIssue = transcript ? jiraIssue(transcript.messages) : null;
+	const rules = transcript ? appliedRules(transcript.messages) : [];
 	// What you hid drops out of its section; the "Hidden" fold below lists it.
 	const isHidden = (url: string) => hiddenUrls.includes(url);
 	const prs = allPrs.filter((pr) => !isHidden(pr.url));
@@ -586,6 +588,15 @@ export function SessionBrief({
 					<Section label="Links" accent={LINK_ACCENT.other}>
 						<div className="flex flex-col gap-1">
 							{mine("other").map(myLink)}
+						</div>
+					</Section>
+				)}
+				{rules.length > 0 && (
+					<Section label="Rules applied" accent="#a394ff">
+						<div className="flex flex-col gap-1 text-[12px]">
+							{rules.map((rule) => (
+								<div key={rule}>{rule}</div>
+							))}
 						</div>
 					</Section>
 				)}

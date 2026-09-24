@@ -5,6 +5,8 @@
  * what you walked in on.
  */
 
+import { RULES_HEADER } from "renderer/stores/odin-rules";
+
 export interface BriefMessage {
 	role: "user" | "assistant";
 	text: string;
@@ -351,4 +353,21 @@ export function linkKind(url: string): LinkKind {
 	if (/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/.test(url)) return "pr";
 	if (/notion\.(?:so|com|site)\//.test(url)) return "notion";
 	return "other";
+}
+
+/**
+ * The rules this session was launched with — the "- When …: …" lines under
+ * the launch prompt's rules header. Read from the transcript, not the rules
+ * store, so it's what the agent was actually told even after a rule changes.
+ */
+export function appliedRules(messages: BriefMessage[]): string[] {
+	const text = messages.find(
+		(m) => m.role === "user" && m.text.includes(RULES_HEADER),
+	)?.text;
+	if (!text) return [];
+	const lines = text.split(RULES_HEADER)[1].split("\n").slice(1);
+	const end = lines.findIndex((line) => !line.startsWith("- "));
+	return (end === -1 ? lines : lines.slice(0, end)).map((line) =>
+		line.slice(2).trim(),
+	);
 }
