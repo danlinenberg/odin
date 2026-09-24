@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { bySection } from "./board-section";
+import { bySection, nextInLine } from "./board-section";
 import type { Pane } from "./tabs-types";
 
 const card = (pane: Partial<Pane>) => ({ pane: pane as Pane });
@@ -88,5 +88,24 @@ describe("bySection with queued cards", () => {
 			card({ id: "a", odinQueued: queued, odinParked: true, status: "idle" }),
 		]);
 		expect(grouped).toEqual([["queued", [{ pane: grouped[0][1][0].pane }]]]);
+	});
+});
+
+describe("nextInLine", () => {
+	it("ranks starred, queued, waiting sources, mine, then parked", () => {
+		const ranked = nextInLine([
+			card({ id: "parked", odinParked: true }),
+			card({ id: "mine" }),
+			card({ id: "jira", odinSource: "jira" }),
+			card({ id: "queued", odinQueued: { command: "x", reason: "busy" } }),
+			card({ id: "star", odinStarred: true, odinParked: true }),
+		]);
+		expect(ranked.map((c) => c.pane.id)).toEqual([
+			"star",
+			"queued",
+			"jira",
+			"mine",
+			"parked",
+		]);
 	});
 });

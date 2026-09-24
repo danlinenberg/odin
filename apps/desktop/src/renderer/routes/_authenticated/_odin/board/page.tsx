@@ -36,7 +36,9 @@ import { lastAgentHookAt } from "renderer/stores/tabs/useAgentHookListener";
 import { boardColumn } from "shared/board-column";
 import {
 	type BoardSection,
+	boardSection,
 	bySection,
+	nextInLine,
 	SECTION_LABEL,
 } from "shared/board-section";
 import { sessionUsageLabel } from "shared/machine-load";
@@ -681,6 +683,56 @@ const applyAutoTitles = (titlesBySession: Record<string, string>) => {
 	});
 };
 
+/**
+ * The recommended queue: the top of the Idle column, ranked by `nextInLine`.
+ * One click opens the session, where Start / Resume already live.
+ */
+function NextInLine({
+	cards,
+	title,
+	onOpen,
+}: {
+	cards: BoardCard[];
+	title: (card: BoardCard) => string;
+	onOpen: (card: BoardCard) => void;
+}) {
+	return (
+		<div className="mx-[18px] mb-2 flex flex-wrap items-center gap-1.5 rounded-xl border border-[#25252e] bg-[#111114] px-3 py-2">
+			<span className="mr-1 text-xs font-semibold uppercase tracking-[.4px] text-[#a5a5b3]">
+				Next in line
+			</span>
+			{cards.length === 0 ? (
+				<span className="text-xs text-[#8a8a97]">Nothing waiting to start</span>
+			) : (
+				cards.map((card, index) => {
+					const section: BoardSection = card.pane.odinQueued
+						? "queued"
+						: card.pane.odinParked
+							? "parked"
+							: boardSection(card.pane);
+					const Icon = SECTION_ICON[section];
+					return (
+						<button
+							key={card.pane.id}
+							type="button"
+							onClick={() => onOpen(card)}
+							title={card.pane.odinQueued?.reason ?? SECTION_LABEL[section]}
+							className="flex max-w-[260px] items-center gap-1.5 rounded-lg border border-[#25252e] bg-[#16161b] px-2 py-1 text-[12px] text-[#f5f5f7] hover:border-[#34343f]"
+						>
+							<span className="text-[#8a8a97]">{index + 1}</span>
+							{card.pane.odinStarred && (
+								<span className="text-[#f5c518]">★</span>
+							)}
+							<Icon className="size-3 shrink-0 text-[#a5a5b3]" aria-hidden />
+							<span className="truncate">{title(card)}</span>
+						</button>
+					);
+				})
+			)}
+		</div>
+	);
+}
+
 function DevBoardPage() {
 	const tabs = useTabsStore((state) => state.tabs);
 	const panes = useTabsStore((state) => state.panes);
@@ -1154,6 +1206,21 @@ function DevBoardPage() {
 	);
 	// Highlight the Idle column while a card is dragged over it.
 	const [dragOverIdle, setDragOverIdle] = useState(false);
+	// "Next in line" strip — hidden until you ask for it; remembered per machine.
+	const [isNextOpen, setIsNextOpen] = useState(() => {
+		try {
+			return localStorage.getItem("odin:board-next-open") === "1";
+		} catch {
+			return false;
+		}
+	});
+	const toggleNext = () => {
+		const next = !isNextOpen;
+		setIsNextOpen(next);
+		try {
+			localStorage.setItem("odin:board-next-open", next ? "1" : "0");
+		} catch {}
+	};
 
 	const setPaneTags = (paneId: string, tags: string[]) => {
 		useTabsStore.setState((state) => ({
@@ -1875,6 +1942,20 @@ function DevBoardPage() {
 					)}
 				/>
 
+				<button
+					type="button"
+					onClick={toggleNext}
+					title="Show the sessions worth starting next"
+					className={cn(
+						"rounded-full border px-2.5 py-1 text-[12px] font-medium",
+						isNextOpen
+							? "border-[#a394ff] bg-[#211d3a] text-[#f5f5f7]"
+							: "border-[#25252e] bg-[#16161b] text-[#a5a5b3] hover:text-[#f5f5f7]",
+					)}
+				>
+					Next in line
+				</button>
+
 				{/* filter — right-click a card to tag it; people are the card's contact */}
 				{(allTags.length > 0 || allPeople.length > 0) && (
 					<select
@@ -1931,6 +2012,20 @@ function DevBoardPage() {
 					}
 					onToggle={(tag) => toggleTag(tagMenu.paneId, tag)}
 					onClose={() => setTagMenu(null)}
+				/>
+			)}
+
+			{isNextOpen && (
+				<NextInLine
+					// Idle holds everything not running; a /loop session wakes
+					// itself, so it isn't waiting on you to start it.
+					cards={nextInLine(
+						(cardsByStatus.get("idle") ?? []).filter(
+							(card) => !loopingPaneIds.has(card.pane.id),
+						),
+					).slice(0, 5)}
+					title={cardTitle}
+					onOpen={openDrawer}
 				/>
 			)}
 
