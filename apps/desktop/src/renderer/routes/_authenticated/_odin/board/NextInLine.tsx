@@ -5,7 +5,7 @@ import { LuLoaderCircle, LuSettings2, LuSparkles } from "react-icons/lu";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { useNextInLinePrompt } from "renderer/stores/next-in-line-prompt";
-import { type AllItem, allItems } from "../all/all-items";
+import { allItems } from "../all/all-items";
 import { useStartAllItem } from "../all/use-start-item";
 import { FEED_TABS } from "../components/feed-counts";
 import {
@@ -16,7 +16,6 @@ import {
 import { effectiveDue, useReminders } from "../components/Reminders";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useMyTasks } from "../hooks/useOdinTasks";
-import { SourceDrawer } from "./SourceDrawer";
 
 const ICON = Object.fromEntries(FEED_TABS.map(({ to, Icon }) => [to, Icon]));
 
@@ -126,8 +125,9 @@ export function NextInLine() {
 		useStartAllItem(refetchSlack);
 	// Same key the feeds hide under, so hiding here hides it there and back.
 	const hide = useHiddenFilter("", rows, (item) => item.key);
-	// The task whose own page (thread, ticket, PR) is open in the drawer.
-	const [viewing, setViewing] = useState<AllItem | null>(null);
+	// Open hands the link to the OS: a Slack permalink goes through Slack's
+	// own hand-off into the desktop app, everything else to the browser.
+	const openUrl = electronTrpc.external.openUrl.useMutation();
 	// ponytail: every row rendered — a few hundred plain cards scroll fine.
 	// Window it (render on scroll) if the feeds ever reach thousands.
 	// The model's order, nothing else. Until it answers (or if it fails) the
@@ -210,19 +210,27 @@ export function NextInLine() {
 										/>
 									</span>
 								</div>
-								<div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-[#a5a5b3]">
+								{/* One row, always: the meta truncates so Open and Start sit at the
+								    same place on every card instead of wrapping on long names. */}
+								<div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-[#a5a5b3]">
 									{Icon && <Icon className="size-3 shrink-0" aria-hidden />}
-									<span>{item.source}</span>
-									{item.priority && <span>· {item.priority}</span>}
-									{item.person && <span>· {item.person}</span>}
+									<span className="min-w-0 flex-1 truncate">
+										{[item.source, item.priority, item.person]
+											.filter(Boolean)
+											.join(" · ")}
+									</span>
 									{item.url && /^https?:\/\//.test(item.url) && (
 										<button
 											type="button"
-											onClick={() => setViewing(item)}
-											title={`Open this ${item.source} item here`}
-											className="ml-auto rounded-md bg-[#1f1f27] px-2 py-0.5 font-semibold text-[#d8d2ff] hover:bg-[#2a2a35]"
+											onClick={() => item.url && openUrl.mutate(item.url)}
+											title={
+												item.source === "Slack"
+													? "Open the thread in Slack"
+													: "Open in your browser"
+											}
+											className="shrink-0 rounded-md bg-[#1f1f27] px-2 py-0.5 font-semibold text-[#d8d2ff] hover:bg-[#2a2a35]"
 										>
-											Open
+											Open ↗
 										</button>
 									)}
 									<button
@@ -230,10 +238,7 @@ export function NextInLine() {
 										disabled={isLaunching}
 										onClick={() => void start(item)}
 										title="Start an agent session on this task"
-										className={cn(
-											"rounded-md bg-[#14301f] px-2 py-0.5 font-semibold text-[#3ecf8e] hover:bg-[#1a4029] disabled:opacity-60",
-											!item.url && "ml-auto",
-										)}
+										className="shrink-0 rounded-md bg-[#14301f] px-2 py-0.5 font-semibold text-[#3ecf8e] hover:bg-[#1a4029] disabled:opacity-60"
 									>
 										{launchingKey === item.launch.key ? "starting…" : "▶ Start"}
 									</button>
@@ -243,13 +248,6 @@ export function NextInLine() {
 					})
 				)}
 			</div>
-			{viewing?.url && (
-				<SourceDrawer
-					url={viewing.url}
-					title={emojify(viewing.title)}
-					onClose={() => setViewing(null)}
-				/>
-			)}
 		</div>
 	);
 }
