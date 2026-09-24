@@ -106,16 +106,20 @@ export function useNextInLineRanking() {
 			localStorage.setItem(LAST_RANKING_KEY, JSON.stringify(ranking.data));
 		} catch {}
 	}, [ranking.data, ranking.isPlaceholderData]);
+	// Names this ranking for RankStatus's clock; the same tasks give the same name.
+	const signature = useMemo(() => JSON.stringify(rankInput), [rankInput]);
 	return {
 		rows,
 		ranking,
 		prompt,
+		signature,
 		refetchSlack: () => void reactions.refetch(),
 	};
 }
 
 export function NextInLine() {
-	const { rows, ranking, prompt, refetchSlack } = useNextInLineRanking();
+	const { rows, ranking, prompt, signature, refetchSlack } =
+		useNextInLineRanking();
 	const navigate = useNavigate();
 	const { start, livePaneFor, isLaunching, launchingKey } =
 		useStartAllItem(refetchSlack);
@@ -170,6 +174,7 @@ export function NextInLine() {
 			</div>
 			<RankStatus
 				fetching={ranking.isFetching}
+				signature={signature}
 				ranked={order.size > 0}
 				error={ranking.error?.message ?? null}
 				count={next.length}
@@ -227,32 +232,41 @@ export function NextInLine() {
 }
 
 /**
+ * When each ranking started, by its input. Outside the component: opening a
+ * session drawer unmounts the column, and a clock in component state restarted
+ * at 0 on every close while the same ranking carried on in main.
+ */
+const RANK_STARTED = new Map<string, number>();
+
+/**
  * Where the order came from, said out loud: a ranking takes about a minute and
  * the column is usable meanwhile, so "is this the AI's order yet?" needs an
  * answer you can't miss — a spinner and a clock while it runs.
  */
 function RankStatus({
 	fetching,
+	signature,
 	ranked,
 	error,
 	count,
 }: {
 	fetching: boolean;
+	signature: string;
 	ranked: boolean;
 	error: string | null;
 	count: number;
 }) {
-	const [startedAt, setStartedAt] = useState<number | null>(null);
 	const [now, setNow] = useState(Date.now);
 	useEffect(() => {
-		if (!fetching) return setStartedAt(null);
-		setStartedAt(Date.now());
+		if (!fetching) return;
 		const tick = setInterval(() => setNow(Date.now()), 1000);
 		return () => clearInterval(tick);
 	}, [fetching]);
-	const secs = startedAt
-		? Math.max(0, Math.round((now - startedAt) / 1000))
-		: 0;
+	if (fetching && !RANK_STARTED.has(signature))
+		RANK_STARTED.set(signature, Date.now());
+	if (!fetching) RANK_STARTED.delete(signature);
+	const startedAt = RANK_STARTED.get(signature) ?? now;
+	const secs = Math.max(0, Math.round((now - startedAt) / 1000));
 
 	if (fetching)
 		return (
