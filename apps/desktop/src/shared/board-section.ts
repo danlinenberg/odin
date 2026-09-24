@@ -87,3 +87,23 @@ export function bySection<T extends { pane: Pane }>(
 			),
 		]);
 }
+
+/**
+ * What to pick up next: the board's not-running cards, most deserving first.
+ * Starred beats everything (you said so); then work that already asked to
+ * start (Queued); then someone-is-waiting sources in section order; your own
+ * prompts; and Parked last — you put those down on purpose.
+ *
+ * ponytail: a fixed ordering, not a score. Add age/priority weighting when the
+ * top of this list stops matching what you'd actually start.
+ */
+export function nextInLine<T extends { pane: Pane }>(cards: T[]): T[] {
+	const sections = bySection(cards);
+	const parked = sections.filter(([section]) => section === "parked");
+	const rest = sections.filter(([section]) => section !== "parked");
+	return [...rest, ...parked]
+		.flatMap(([, group]) => group)
+		.toSorted(
+			(a, b) => Number(!!b.pane.odinStarred) - Number(!!a.pane.odinStarred),
+		);
+}
