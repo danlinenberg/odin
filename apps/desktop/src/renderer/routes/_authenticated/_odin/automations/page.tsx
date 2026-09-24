@@ -1,7 +1,7 @@
 import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { type OdinRule, useOdinRules } from "renderer/stores/odin-rules";
@@ -24,7 +24,7 @@ import {
 	ROW_PRIMARY_BUTTON,
 	RowActions,
 } from "../components/FeedChrome";
-import { repoLabel } from "../components/repo-picker";
+import { matchRepos, repoLabel } from "../components/repo-picker";
 import {
 	BuiltinChip,
 	NEXT_RUN_FORMAT,
@@ -297,9 +297,10 @@ function SkillOptions({ id }: { id: string }) {
 }
 
 /**
- * Which repo a rule is pinned to — "Any repo" leaves it on every session.
- * ponytail: native <select> over the known checkouts; a pinned repo that
- * dropped off the list stays as an option so the row still shows it.
+ * Which repo a rule is pinned to — blank leaves it on every session.
+ * Type any part of the path to search the checkouts; it resolves on blur, the
+ * same way the new-session dialog's repo field does (`matchRepos`).
+ * ponytail: native <datalist> — Chromium does the search-as-you-type popup.
  */
 function RepoSelect({
 	value,
@@ -309,22 +310,51 @@ function RepoSelect({
 	onChange: (repo: string) => void;
 }) {
 	const { data: repos = [] } = electronTrpc.repos.list.useQuery();
-	const options = value && !repos.includes(value) ? [value, ...repos] : repos;
+	const listId = useId();
+	const [draft, setDraft] = useState(value && repoLabel(value));
+	// The add row clears its repo after adding; the field has to follow.
+	useEffect(() => setDraft(value && repoLabel(value)), [value]);
+	const hits = matchRepos(repos, draft);
+	const commit = () => {
+		if (!draft.trim()) return value && onChange("");
+		// Untouched — keep it, even if that checkout has since left the list.
+		if (value && draft === repoLabel(value)) return;
+		const repo = hits.length === 1 ? (hits[0] as string) : null;
+		if (!repo) {
+			toast.error(
+				hits.length > 1
+					? `"${draft}" matches ${hits.length} repos — type more of the path.`
+					: `No repo matches "${draft}".`,
+			);
+			setDraft(value && repoLabel(value));
+			return;
+		}
+		setDraft(repoLabel(repo));
+		if (repo !== value) onChange(repo);
+	};
 	return (
-		<select
-			aria-label="Repo"
-			title={value || "Every session, whatever repo it's in"}
-			value={value}
-			onChange={(event) => onChange(event.target.value)}
-			className={cn(RULE_INPUT, "max-w-[180px] flex-none")}
-		>
-			<option value="">Any repo</option>
-			{options.map((path) => (
-				<option key={path} value={path}>
-					{repoLabel(path)}
-				</option>
-			))}
-		</select>
+		<>
+			<input
+				aria-label="Repo"
+				list={listId}
+				value={draft}
+				placeholder="any repo"
+				title={value || "Every session, whatever repo it's in"}
+				onChange={(event) => setDraft(event.target.value)}
+				onBlur={commit}
+				onKeyDown={(event) => {
+					if (event.key === "Enter") event.currentTarget.blur();
+				}}
+				className={cn(RULE_INPUT, "max-w-[200px]")}
+			/>
+			<datalist id={listId}>
+				{repos.map((path) => (
+					<option key={path} value={path}>
+						{repoLabel(path)}
+					</option>
+				))}
+			</datalist>
+		</>
 	);
 }
 
