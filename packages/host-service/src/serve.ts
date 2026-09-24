@@ -72,14 +72,19 @@ async function main(): Promise<void> {
 		process.on("SIGTERM", () => void devShutdown("SIGTERM"));
 	}
 
-	const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
-		// Install only after the server is listening so startup throws still
-		// reach `main().catch(...)` and exit with a non-zero code.
-		installProcessSafetyNet();
-		console.log(`[host-service] listening on http://localhost:${info.port}`);
+	const server = serve(
+		{ fetch: app.fetch, port: env.PORT, hostname: env.HOST },
+		(info) => {
+			// Install only after the server is listening so startup throws still
+			// reach `main().catch(...)` and exit with a non-zero code.
+			installProcessSafetyNet();
+			console.log(
+				`[host-service] listening on http://${env.HOST}:${info.port}`,
+			);
 
-		startTerminalReaper(db);
-	});
+			startTerminalReaper(db);
+		},
+	);
 	injectWebSocket(server);
 }
 
