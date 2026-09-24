@@ -187,14 +187,8 @@ const SETTLED_MS = 120_000;
 /** Width of the Odin icon rail in layout.tsx — the drawer stops here. */
 const RAIL_W = 52;
 
-/** Widest the drawer goes: everything except the icon rail. */
-function maxDrawerWidth(): number {
-	const w = typeof window !== "undefined" ? window.innerWidth : 1600;
-	return Math.max(w - RAIL_W, 480);
-}
-
-/** Default session-drawer width: full width up to the sidebar. */
-const defaultDrawerWidth = maxDrawerWidth;
+/** Narrowest the drawer goes, in px. */
+const MIN_DRAWER_W = 480;
 
 // Built via string escapes — ANSI sequences are control chars by definition
 const ANSI_RE =
@@ -757,8 +751,11 @@ function DevBoardPage() {
 	// The ticket (or PR) this session was launched from — the drawer's title says
 	// "CRR-862: …" and until now there was no way to open CRR-862.
 	const drawerLink = drawerCard ? sourceLink(drawerCard.pane.odinBrief) : null;
-	// Open wide by default — a session needs room to read the terminal.
-	const [drawerWidth, setDrawerWidth] = useState(defaultDrawerWidth);
+	// Open wide by default — a session needs room to read the terminal. Held as
+	// a fraction of the width beside the icon rail, not px: a px width measured
+	// once went stale when the window was minimized/resized, and the drawer
+	// stopped short of the rail or overran it.
+	const [drawerFraction, setDrawerFraction] = useState(1);
 	// The brief panel: open by default, because "what did I walk into?" is the
 	// question you have every single time you open a session.
 	const [isBriefOpen, setIsBriefOpen] = useState(true);
@@ -776,8 +773,9 @@ function DevBoardPage() {
 	const startDrawerResize = (event: React.PointerEvent<HTMLDivElement>) => {
 		event.preventDefault();
 		const onMove = (move: PointerEvent) => {
+			const available = window.innerWidth - RAIL_W;
 			const width = window.innerWidth - move.clientX;
-			setDrawerWidth(Math.min(Math.max(width, 480), maxDrawerWidth()));
+			setDrawerFraction(Math.min(Math.max(width / available, 0), 1));
 		};
 		const onUp = () => {
 			window.removeEventListener("pointermove", onMove);
@@ -1408,7 +1406,7 @@ function DevBoardPage() {
 			coldRestoreState.delete(card.pane.id);
 			terminalCache.dispose(card.pane.id);
 		}
-		setDrawerWidth(maxDrawerWidth());
+		// Keep drawerFraction: reopening after Minimize lands where you left it.
 		setRenameDraft(null); // don't reopen into a half-typed rename
 		setIsShellOpen(false); // the shell belongs to the session you came from
 		setDrawerCard(card);
@@ -2228,7 +2226,9 @@ function DevBoardPage() {
 					    traffic lights, and the native buttons eat the click. */}
 					<div
 						className="absolute right-0 top-0 z-50 flex h-full max-w-full flex-col border-l border-[#25252e] bg-[#111114]"
-						style={{ width: drawerWidth }}
+						style={{
+							width: `max(${MIN_DRAWER_W}px, calc((100vw - ${RAIL_W}px) * ${drawerFraction}))`,
+						}}
 					>
 						{/* drag handle — resize the drawer from its left edge */}
 						<div
@@ -2333,11 +2333,7 @@ function DevBoardPage() {
 									type="button"
 									title="Toggle full width"
 									onClick={() =>
-										setDrawerWidth((width) =>
-											width < maxDrawerWidth()
-												? maxDrawerWidth()
-												: Math.round(window.innerWidth * 0.6),
-										)
+										setDrawerFraction((fraction) => (fraction < 1 ? 1 : 0.6))
 									}
 									className="shrink-0 rounded-md bg-[#1f1f27] px-2 py-1 text-xs font-semibold text-[#a5a5b3] hover:text-[#f5f5f7]"
 								>
