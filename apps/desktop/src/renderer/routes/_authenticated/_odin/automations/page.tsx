@@ -24,6 +24,7 @@ import {
 	ROW_PRIMARY_BUTTON,
 	RowActions,
 } from "../components/FeedChrome";
+import { repoLabel } from "../components/repo-picker";
 import {
 	BuiltinChip,
 	NEXT_RUN_FORMAT,
@@ -296,6 +297,38 @@ function SkillOptions({ id }: { id: string }) {
 }
 
 /**
+ * Which repo a rule is pinned to — "Any repo" leaves it on every session.
+ * ponytail: native <select> over the known checkouts; a pinned repo that
+ * dropped off the list stays as an option so the row still shows it.
+ */
+function RepoSelect({
+	value,
+	onChange,
+}: {
+	value: string;
+	onChange: (repo: string) => void;
+}) {
+	const { data: repos = [] } = electronTrpc.repos.list.useQuery();
+	const options = value && !repos.includes(value) ? [value, ...repos] : repos;
+	return (
+		<select
+			aria-label="Repo"
+			title={value || "Every session, whatever repo it's in"}
+			value={value}
+			onChange={(event) => onChange(event.target.value)}
+			className={cn(RULE_INPUT, "max-w-[180px] flex-none")}
+		>
+			<option value="">Any repo</option>
+			{options.map((path) => (
+				<option key={path} value={path}>
+					{repoLabel(path)}
+				</option>
+			))}
+		</select>
+	);
+}
+
+/**
  * One rule, edited in place. The fields hold a draft and write it back on
  * blur, so typing doesn't rewrite localStorage on every keystroke.
  */
@@ -338,6 +371,11 @@ function RuleRow({ rule }: { rule: OdinRule }) {
 				onBlur={commit}
 				className={RULE_INPUT}
 			/>
+			<span className="text-[11px] text-[#8a8a97]">in</span>
+			<RepoSelect
+				value={rule.repo ?? ""}
+				onChange={(repo) => update(rule.id, { repo: repo || undefined })}
+			/>
 			<button
 				type="button"
 				title={
@@ -373,12 +411,14 @@ function RulesPanel() {
 	const { rules, add } = useOdinRules();
 	const [when, setWhen] = useState("");
 	const [action, setAction] = useState("");
+	const [repo, setRepo] = useState("");
 	const submit = () => {
 		if (!when.trim() || !action.trim())
 			return toast.error("A rule needs both a when and a do.");
-		add(when, action);
+		add(when, action, repo);
 		setWhen("");
 		setAction("");
+		setRepo("");
 	};
 	const onEnter = (event: React.KeyboardEvent) => {
 		if (event.key === "Enter") submit();
@@ -406,6 +446,8 @@ function RulesPanel() {
 					onKeyDown={onEnter}
 					className={RULE_INPUT}
 				/>
+				<span className="text-[11px] text-[#8a8a97]">in</span>
+				<RepoSelect value={repo} onChange={setRepo} />
 				<button type="button" onClick={submit} className={ROW_PRIMARY_BUTTON}>
 					Add rule
 				</button>
