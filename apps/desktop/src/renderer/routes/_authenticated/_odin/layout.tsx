@@ -27,6 +27,7 @@ import {
 	type MachineLoad,
 	machineLoad,
 } from "shared/machine-load";
+import { useNextInLineRanking } from "./board/NextInLine";
 import { FEED_TABS } from "./components/feed-counts";
 import { type UpstreamDue, useDueReminders } from "./components/Reminders";
 import { QuickAddTask } from "./components/TaskBox";
@@ -203,6 +204,8 @@ function OdinShell() {
 	// shell mounts on boot and on reload — so switching views shows rows
 	// instead of an empty "syncing…".
 	const { jira } = useOdinFeeds();
+	// Next in line ranks in the background, column open or not.
+	useNextInLineRanking();
 
 	// Due dates ping from the shell, not from the feed that set them: the feed
 	// you set it on is the one you're least likely to have open on the day.

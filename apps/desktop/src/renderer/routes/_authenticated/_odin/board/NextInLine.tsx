@@ -27,16 +27,18 @@ const ICON = Object.fromEntries(FEED_TABS.map(({ to, Icon }) => [to, Icon]));
  * Start to launch its session, same as All's Start button. A board column,
  * but not a status: nothing lands here or leaves by drag.
  */
-export function NextInLine() {
+/**
+ * The feed rows and their AI ranking. Called from the Odin layout as well as
+ * the column, so the ranking runs in the background whether or not the column
+ * is open — React Query shares the one query, and opening the column just
+ * reads what's already there.
+ */
+export function useNextInLineRanking() {
 	const { reactions, jira, pulls, notion } = useOdinFeeds();
 	// todos, not tasks: automations run themselves, they're never next.
 	const { todos } = useMyTasks();
 	const reminders = useReminders((s) => s.reminders);
 	const prompt = useNextInLinePrompt((s) => s.prompt);
-	const navigate = useNavigate();
-	const { start, livePaneFor, isLaunching, launchingKey } = useStartAllItem(
-		() => void reactions.refetch(),
-	);
 	const rows = useMemo(
 		() =>
 			allItems({
@@ -48,14 +50,12 @@ export function NextInLine() {
 			}),
 		[todos, reactions.data, jira.data, pulls.data, notion.data],
 	);
-	// Same key the feeds hide under, so hiding here hides it there and back.
-	const hide = useHiddenFilter("", rows, (item) => item.key);
-	// ponytail: every row rendered — a few hundred plain cards scroll fine.
-	// Window it (render on scroll) if the feeds ever reach thousands.
 	// Every row goes to the model, hidden and started ones too: that input only
-	// changes when a feed does, so hiding a card doesn't cost a re-rank.
-	const rankInput = useMemo(
-		() => ({
+	// changes when a feed does, so hiding a card doesn't cost a re-rank. Age is
+	// counted from midnight, so every caller builds the same input all day.
+	const rankInput = useMemo(() => {
+		const today = new Date().setHours(0, 0, 0, 0);
+		return {
 			items: rows.map((item) => ({
 				key: item.key,
 				title: item.title,
@@ -65,13 +65,12 @@ export function NextInLine() {
 				context: item.context,
 				due: effectiveDue(item.key, reminders, item.dueDate),
 				ageDays: item.at
-					? Math.floor((Date.now() - item.at) / 86_400_000)
+					? Math.max(0, Math.floor((today - item.at) / 86_400_000) + 1)
 					: null,
 			})),
 			instructions: prompt || undefined,
-		}),
-		[rows, reminders, prompt],
-	);
+		};
+	}, [rows, reminders, prompt]);
 	const ranking = electronTrpc.backlogReview.rankNextInLine.useQuery(
 		rankInput,
 		{
@@ -82,6 +81,23 @@ export function NextInLine() {
 			placeholderData: keepPreviousData,
 		},
 	);
+	return {
+		rows,
+		ranking,
+		prompt,
+		refetchSlack: () => void reactions.refetch(),
+	};
+}
+
+export function NextInLine() {
+	const { rows, ranking, prompt, refetchSlack } = useNextInLineRanking();
+	const navigate = useNavigate();
+	const { start, livePaneFor, isLaunching, launchingKey } =
+		useStartAllItem(refetchSlack);
+	// Same key the feeds hide under, so hiding here hides it there and back.
+	const hide = useHiddenFilter("", rows, (item) => item.key);
+	// ponytail: every row rendered — a few hundred plain cards scroll fine.
+	// Window it (render on scroll) if the feeds ever reach thousands.
 	// The model's order, nothing else. Until it answers (or if it fails) the
 	// column stays in feed order and says so — no rule of ours stands in.
 	const candidates = hide.rows.filter((item) => !livePaneFor(item));
