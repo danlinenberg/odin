@@ -147,6 +147,29 @@ export function parseBrief(text: string): WrittenBrief {
 	};
 }
 
+/**
+ * execFile's error message is "Command failed: <cmd> <args>" — and the args are
+ * this whole prompt, transcript included, so the panel showed a page of our own
+ * instructions with the actual reason cut off at the bottom. Say why instead.
+ */
+export function briefError(error: unknown): Error {
+	const e = error as {
+		code?: unknown;
+		killed?: boolean;
+		signal?: string | null;
+		stderr?: string;
+		stdout?: string;
+	};
+	if (e?.code === "ENOENT") return new Error("claude CLI not found on PATH");
+	if (e?.killed || e?.signal === "SIGTERM")
+		return new Error("claude -p timed out writing the brief");
+	const said = (e?.stderr || e?.stdout || "").trim().split("\n").pop()?.trim();
+	const exit = typeof e?.code === "number" ? ` (exit ${e.code})` : "";
+	return new Error(
+		`claude -p failed${exit}${said ? `: ${said.slice(0, 200)}` : ""}`,
+	);
+}
+
 interface CacheEntry {
 	mtimeMs: number;
 	writtenAt: number;
@@ -285,6 +308,8 @@ export async function writeBrief({
 				],
 				{ cwd: tmpdir(), timeout: timeoutMs, maxBuffer: 1_000_000 },
 			));
+		} catch (error) {
+			throw briefError(error);
 		} finally {
 			// Also on failure: a timed-out run leaves the same litter behind.
 			const litter = await transcriptOf(briefSessionId, root);
