@@ -13,7 +13,8 @@ const ICON = Object.fromEntries(FEED_TABS.map(({ to, Icon }) => [to, Icon]));
 /**
  * The recommended queue: tasks from every feed that nobody has started yet —
  * no session on the board, idle or otherwise — ranked by `rankNext`. Click one
- * to start its session, same as All's Start button.
+ * Start to launch its session, same as All's Start button. A board column,
+ * but not a status: nothing lands here or leaves by drag.
  */
 export function NextInLine() {
 	const { reactions, jira, pulls, notion } = useOdinFeeds();
@@ -40,40 +41,56 @@ export function NextInLine() {
 		visible.filter((item) => !livePaneFor(item)),
 		(item) =>
 			isDue(effectiveDue(item.key, reminders, item.dueDate), Date.now()),
-	).slice(0, 5);
+	).slice(0, 10);
 
 	return (
-		<div className="mx-[18px] mb-2 flex flex-wrap items-center gap-1.5 rounded-xl border border-[#25252e] bg-[#111114] px-3 py-2">
-			<span className="mr-1 text-xs font-semibold uppercase tracking-[.4px] text-[#a5a5b3]">
+		<div className="flex min-w-[240px] flex-1 flex-col rounded-xl border border-[#25252e] bg-[#111114]">
+			<div className="flex items-center gap-2 px-3 py-2.5 text-xs font-semibold uppercase tracking-[.4px] text-[#a5a5b3]">
+				<span className="size-2 rounded-full bg-[#a394ff]" />
 				Next in line
-			</span>
-			{next.length === 0 ? (
-				<span className="text-xs text-[#8a8a97]">Nothing waiting to start</span>
-			) : (
-				next.map((item, index) => {
-					const Icon = ICON[item.to];
-					return (
-						<button
-							key={item.key}
-							type="button"
-							disabled={isLaunching}
-							onClick={() => void start(item)}
-							title={`Start a session — ${item.source}${item.priority ? ` · ${item.priority}` : ""}`}
-							className="flex max-w-[260px] items-center gap-1.5 rounded-lg border border-[#25252e] bg-[#16161b] px-2 py-1 text-[12px] text-[#f5f5f7] hover:border-[#34343f] disabled:opacity-60"
-						>
-							<span className="text-[#8a8a97]">{index + 1}</span>
-							{Icon && (
-								<Icon className="size-3 shrink-0 text-[#a5a5b3]" aria-hidden />
-							)}
-							<span className="truncate">
-								{launchingKey === item.launch.key
-									? "starting…"
-									: emojify(item.title)}
-							</span>
-						</button>
-					);
-				})
-			)}
+				<span className="ml-auto rounded-[10px] bg-[#1f1f27] px-2 font-medium">
+					{next.length}
+				</span>
+			</div>
+			<div className="flex flex-col gap-2 overflow-y-auto px-2 pb-2.5">
+				{next.length === 0 ? (
+					<div className="px-2 py-6 text-center text-xs text-[#8a8a97]">
+						Nothing waiting to start
+					</div>
+				) : (
+					next.map((item, index) => {
+						const Icon = ICON[item.to];
+						return (
+							<div
+								key={item.key}
+								className="rounded-[10px] border border-[#3a3360] bg-[#14131b] px-3 py-2.5"
+							>
+								<div className="flex items-start gap-2 text-[12.5px] font-semibold">
+									<span className="text-[#8a8a97]">{index + 1}</span>
+									<span className="min-w-0 flex-1 break-words">
+										{emojify(item.title)}
+									</span>
+								</div>
+								<div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-[#a5a5b3]">
+									{Icon && <Icon className="size-3 shrink-0" aria-hidden />}
+									<span>{item.source}</span>
+									{item.priority && <span>· {item.priority}</span>}
+									{item.person && <span>· {item.person}</span>}
+									<button
+										type="button"
+										disabled={isLaunching}
+										onClick={() => void start(item)}
+										title="Start an agent session on this task"
+										className="ml-auto rounded-md bg-[#14301f] px-2 py-0.5 font-semibold text-[#3ecf8e] hover:bg-[#1a4029] disabled:opacity-60"
+									>
+										{launchingKey === item.launch.key ? "starting…" : "▶ Start"}
+									</button>
+								</div>
+							</div>
+						);
+					})
+				)}
+			</div>
 		</div>
 	);
 }

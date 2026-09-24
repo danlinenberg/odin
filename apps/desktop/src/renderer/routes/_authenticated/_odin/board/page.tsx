@@ -1155,7 +1155,7 @@ function DevBoardPage() {
 	);
 	// Highlight the Idle column while a card is dragged over it.
 	const [dragOverIdle, setDragOverIdle] = useState(false);
-	// "Next in line" strip — hidden until you ask for it; remembered per machine.
+	// "Next in line" column — hidden until you ask for it; remembered per machine.
 	const [isNextOpen, setIsNextOpen] = useState(() => {
 		try {
 			return localStorage.getItem("odin:board-next-open") === "1";
@@ -1964,9 +1964,8 @@ function DevBoardPage() {
 				/>
 			)}
 
-			{isNextOpen && <NextInLine />}
-
 			<div className="flex min-h-0 flex-1 gap-3 overflow-x-auto px-[18px] pb-[18px] pt-1">
+				{isNextOpen && <NextInLine />}
 				{COLUMNS.map((column) => {
 					const cards = cardsByStatus.get(column.status) ?? [];
 					const sections = bySection(cards);
