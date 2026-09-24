@@ -1,5 +1,7 @@
 import { describe, expect, it } from "bun:test";
+import { rulesPrompt } from "renderer/stores/odin-rules";
 import {
+	appliedRules,
 	type BriefMessage,
 	elapsedLabel,
 	jiraIssue,
@@ -463,5 +465,33 @@ describe("nextCronFire", () => {
 	it("gives up on garbage and schedules beyond a week", () => {
 		expect(nextCronFire("nope", from)).toBeNull();
 		expect(nextCronFire("0 0 1 1 *", from)).toBeNull();
+	});
+});
+
+describe("appliedRules", () => {
+	const user = (text: string): BriefMessage => ({
+		role: "user",
+		text,
+		at: null,
+	});
+
+	it("reads the rule lines out of the launch prompt", () => {
+		const prompt = [
+			"Task: fix it",
+			...rulesPrompt([
+				{ id: "1", when: "you open a PR", action: "run /custom-review" },
+				{ id: "2", when: "you push", action: "ping me", repos: ["/r"] },
+			]),
+			"",
+			"Finish every reply with ACTION ITEMS.",
+		].join("\n");
+		expect(appliedRules([user(prompt)])).toEqual([
+			"When you open a PR: run /custom-review",
+			"When you push (only in the repo at /r): ping me",
+		]);
+	});
+
+	it("is empty when the session had no rules", () => {
+		expect(appliedRules([user("Task: fix it")])).toEqual([]);
 	});
 });

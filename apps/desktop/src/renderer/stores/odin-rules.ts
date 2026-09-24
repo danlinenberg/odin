@@ -116,15 +116,15 @@ const inRepo = (checkout: string, repo: string) =>
 const ruleLine = (r: OdinRule) =>
 	`- When ${r.when}${r.repos?.length ? ` (${r.exclude ? "except" : "only"} in ${r.repos.length > 1 ? "the repos at" : "the repo at"} ${r.repos.join(", ")})` : ""}: ${r.action}`;
 
+/** Heads the rules in a launch prompt — the brief finds them by it. */
+export const RULES_HEADER =
+	"Standing rules — follow each one whenever its situation comes up during this session, without being asked:";
+
 /** The rules as prompt lines — nothing when there are none switched on. */
 export function rulesPrompt(rules: OdinRule[], checkout = ""): string[] {
 	const live = liveRules(rules, checkout);
 	if (live.length === 0) return [];
-	return [
-		"",
-		"Standing rules — follow each one whenever its situation comes up during this session, without being asked:",
-		...live.map(ruleLine),
-	];
+	return ["", RULES_HEADER, ...live.map(ruleLine)];
 }
 
 /** A rule about pull requests — the only situation a hook can see happen. */
