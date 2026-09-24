@@ -124,5 +124,32 @@ export const createBacklogReviewRouter = () => {
 				);
 				return { rows };
 			}),
+
+		/**
+		 * The board's Next in line order: every unstarted feed task, most
+		 * important first, as ranked by `claude -p`. Keys only — the board
+		 * already holds the rows. Cached on the exact input in main.
+		 */
+		rankNextInLine: publicProcedure
+			.input(
+				z.object({
+					items: z.array(
+						z.object({
+							key: z.string(),
+							title: z.string(),
+							source: z.string(),
+							priority: z.string().nullable(),
+							person: z.string().nullable(),
+							context: z.string().nullable(),
+							due: z.string().nullable(),
+							ageDays: z.number().nullable(),
+						}),
+					),
+				}),
+			)
+			.query(async ({ input }) => {
+				const { rankTasks } = await import("main/lib/next-in-line-rank");
+				return { keys: await rankTasks(input.items) };
+			}),
 	});
 };
