@@ -689,6 +689,27 @@ const PR_ACTION =
 	/(?:^|[;&|])\s*(?:\w+=\S*\s+)*(?:gh pr (?:create|edit|ready)|git\b[^;&|\n]*?\spush)\b/m;
 const PR_URL = /https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/g;
 
+/** A rule line's repo pin, as `ruleLine` writes it. */
+const RULE_SCOPE = / \((only|except) in the repos? at ([^)]+)\):/;
+
+/**
+ * Whether a repo-pinned rule covers this PR. A feed session's checkout isn't
+ * known at launch, so the hook hands it every pinned rule and the agent skips
+ * the ones for other repos — those didn't fire.
+ *
+ * ponytail: matches the PR's GitHub repo name against the pinned folder's
+ * name; a checkout folder renamed away from its repo would need a remote lookup.
+ */
+function coversPr(rule: string, pr: string): boolean {
+	const scope = rule.match(RULE_SCOPE);
+	if (!scope) return true;
+	const repo = pr.split("/")[4];
+	const pinned = (scope[2] ?? "")
+		.split(", ")
+		.some((path) => path.replace(/\/+$/, "").split("/").pop() === repo);
+	return pinned === (scope[1] === "only");
+}
+
 /**
  * The PR-rule hook's firings, each pinned to the PR it fired on: the PR url
  * in that Bash call's output (`gh pr create` prints it), else the session's
@@ -749,8 +770,9 @@ export function ruleFirings(jsonl: string): RuleFiring[] {
 		if (!on.length) continue;
 		for (const rule of rules) {
 			const list = byRule.get(rule) ?? [];
-			for (const pr of on) if (!list.includes(pr)) list.push(pr);
-			byRule.set(rule, list);
+			for (const pr of on)
+				if (coversPr(rule, pr) && !list.includes(pr)) list.push(pr);
+			if (list.length) byRule.set(rule, list);
 		}
 	}
 	return [...byRule].map(([rule, on]) => ({ rule, on }));

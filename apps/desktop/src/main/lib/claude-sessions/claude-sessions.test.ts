@@ -798,7 +798,7 @@ describe("activeLoop", () => {
 
 describe("ruleFirings", () => {
 	const RULES = `${PR_RULES_HEADER}\n- When you open a PR: run /custom-review`;
-	const bash = (id: string, command: string, output: string) => [
+	const bash = (id: string, command: string, output: string, rules = RULES) => [
 		{
 			type: "assistant",
 			message: {
@@ -815,7 +815,7 @@ describe("ruleFirings", () => {
 			type: "attachment",
 			attachment: {
 				type: "hook_additional_context",
-				content: [RULES],
+				content: [rules],
 				toolUseID: id,
 			},
 		},
@@ -861,5 +861,32 @@ describe("ruleFirings", () => {
 				),
 			),
 		).toEqual([]);
+	});
+
+	test("drops a repo-pinned rule on a PR in another repo", () => {
+		const pinned = [
+			PR_RULES_HEADER,
+			"- When you open a PR (except in the repo at /src/odin): review",
+			"- When you open a PR (only in the repo at /src/odin): auto merge",
+		].join("\n");
+		const open = (id: string, pr: string) =>
+			bash(id, "gh pr create --fill", pr, pinned);
+		expect(
+			ruleFirings(
+				jsonl(
+					open("a", "https://github.com/o/other/pull/1"),
+					open("b", "https://github.com/o/odin/pull/2"),
+				),
+			),
+		).toEqual([
+			{
+				rule: "When you open a PR (except in the repo at /src/odin): review",
+				on: ["https://github.com/o/other/pull/1"],
+			},
+			{
+				rule: "When you open a PR (only in the repo at /src/odin): auto merge",
+				on: ["https://github.com/o/odin/pull/2"],
+			},
+		]);
 	});
 });
