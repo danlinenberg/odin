@@ -37,6 +37,22 @@ describe("TaskBox", () => {
 		// "None" stopped being a level, so it isn't offered.
 		expect(html).not.toContain("None");
 	});
+
+	it("offers a Repo field showing the checkout already picked", () => {
+		const html = renderToStaticMarkup(
+			<TaskBox
+				value="Ship the fix"
+				repos={["/dev/odin", "/dev/imagen"]}
+				repo="/dev/odin"
+				onRepoChange={() => {}}
+				onChange={() => {}}
+				onSubmit={() => {}}
+			/>,
+		);
+		expect(html).toContain('aria-label="Repo"');
+		expect(html).toContain('value="/dev/odin"');
+		expect(html).toContain("→ dev/odin");
+	});
 });
 
 describe("PriorityChip", () => {

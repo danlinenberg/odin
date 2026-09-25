@@ -19,6 +19,7 @@ import {
 	AutomationChip,
 	BuiltinChip,
 	PriorityChip,
+	RepoChip,
 	SkillChip,
 	TaskBox,
 } from "../components/TaskBox";
@@ -50,12 +51,15 @@ function MyTasksPage() {
 	const [draft, setDraft] = useState("");
 	const [editingId, setEditingId] = useState<string | null>(null);
 	const [editDraft, setEditDraft] = useState("");
+	const [draftRepo, setDraftRepo] = useState("");
+	const [editRepo, setEditRepo] = useState("");
 	const { ensureWorkspace } = useOdinWorkspace();
 	const { launch, isLaunching, launchingKey } = useLaunchTaskSession();
 	const navigate = useNavigate();
 	const panes = useTabsStore((s) => s.panes);
 	// The agent's own skills, for the compose box and every edit box below.
 	const { data: skills } = electronTrpc.skills.list.useQuery();
+	const { data: repos } = electronTrpc.repos.list.useQuery();
 
 	/** The session this task started, while it's still on the board. */
 	const livePaneId = (task: OdinTask) => {
@@ -74,6 +78,7 @@ function MyTasksPage() {
 			description: task.notes || null,
 			brief: taskPrompt(task),
 			skill: task.skill,
+			repoPath: task.repo,
 		});
 		if (!result.ok) return toast.error(result.error);
 		// The task keeps its row and gains a way into the session — starting one
@@ -96,11 +101,15 @@ function MyTasksPage() {
 				<TaskBox
 					value={draft}
 					skills={skills}
+					repos={repos}
+					repo={draftRepo}
+					onRepoChange={setDraftRepo}
 					placeholder="What needs doing?"
 					onChange={setDraft}
 					onSubmit={() => {
-						add(draft);
+						add(draft, undefined, draftRepo);
 						setDraft("");
+						setDraftRepo("");
 					}}
 					onCancel={() => setDraft("")}
 				/>
@@ -121,9 +130,12 @@ function MyTasksPage() {
 								value={editDraft}
 								autoFocus
 								skills={skills}
+								repos={repos}
+								repo={editRepo}
+								onRepoChange={setEditRepo}
 								onChange={setEditDraft}
 								onSubmit={() => {
-									edit(task.id, editDraft);
+									edit(task.id, editDraft, editRepo);
 									setEditingId(null);
 								}}
 								onCancel={() => setEditingId(null)}
@@ -149,6 +161,7 @@ function MyTasksPage() {
 									title="Click to edit"
 									onClick={() => {
 										setEditDraft(taskText(task));
+										setEditRepo(task.repo ?? "");
 										setEditingId(task.id);
 									}}
 									className="min-w-0 flex-1 cursor-text text-left"
@@ -168,6 +181,7 @@ function MyTasksPage() {
 											<PriorityChip priority={task.priority} />
 										)}
 										{task.skill && <SkillChip skill={task.skill} />}
+										{task.repo && <RepoChip repo={task.repo} />}
 										{task.builtin && <BuiltinChip />}
 										{activePaneId && (
 											<span className="inline-flex items-center gap-1 rounded-[5px] bg-[#14301f] px-[7px] py-[1px] font-semibold text-[#3ecf8e]">

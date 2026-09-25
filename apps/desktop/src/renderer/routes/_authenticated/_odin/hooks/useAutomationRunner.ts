@@ -110,6 +110,7 @@ export function useAutomationRunner() {
 						// reads as one at a glance on the board.
 						tags: ["automation"],
 						skill: task.skill,
+						repoPath: task.repo,
 					});
 					if (result.ok) latest.current.setPane(task.id, result.paneId);
 				}
