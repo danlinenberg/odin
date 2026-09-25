@@ -1257,118 +1257,123 @@ function DevBoardPage() {
 		);
 	};
 
-	const { cardsByStatus, completedCards, allTags, allPeople } = useMemo(() => {
-		const map = new Map<PaneStatus, BoardCard[]>();
-		const completed: BoardCard[] = [];
-		// Counted over the sessions the board actually shows — counting every
-		// pane made the pill promise cards that were killed or aren't tasks.
-		const tagCounts = new Map<string, number>();
-		const personCounts = new Map<string, number>();
-		for (const column of COLUMNS) map.set(column.status, []);
-		const needle = search.trim().toLowerCase();
-		for (const tab of tabs) {
-			const workspace = workspaceById.get(tab.workspaceId);
-			for (const pane of Object.values(panes)) {
-				if (pane.tabId !== tab.id) continue;
-				const status = pane.status ?? "idle";
-				const card: BoardCard = {
-					pane,
-					status,
-					tabId: tab.id,
-					tabName: tab.userTitle ?? tab.name,
-					workspaceId: tab.workspaceId,
-					repoPath:
-						projectById.get(workspace?.projectId ?? "")?.mainRepoPath ?? "",
-				};
-				if (pane.type !== "terminal") continue; // chat panes aren't board cards
-				// Another profile's work — not this board's. Until the profile is
-				// known, no card is: on a reload inside another profile, guessing
-				// "default" would flash the work board for a frame.
-				if (
-					isProfileLoading ||
-					profileOf(pane.odinProfile) !== activeProfileId
-				) {
-					continue;
+	const { cardsByStatus, completedCards, allTags, allPeople, starredCount } =
+		useMemo(() => {
+			const map = new Map<PaneStatus, BoardCard[]>();
+			let starred = 0;
+			const completed: BoardCard[] = [];
+			// Counted over the sessions the board actually shows — counting every
+			// pane made the pill promise cards that were killed or aren't tasks.
+			const tagCounts = new Map<string, number>();
+			const personCounts = new Map<string, number>();
+			for (const column of COLUMNS) map.set(column.status, []);
+			const needle = search.trim().toLowerCase();
+			for (const tab of tabs) {
+				const workspace = workspaceById.get(tab.workspaceId);
+				for (const pane of Object.values(panes)) {
+					if (pane.tabId !== tab.id) continue;
+					const status = pane.status ?? "idle";
+					const card: BoardCard = {
+						pane,
+						status,
+						tabId: tab.id,
+						tabName: tab.userTitle ?? tab.name,
+						workspaceId: tab.workspaceId,
+						repoPath:
+							projectById.get(workspace?.projectId ?? "")?.mainRepoPath ?? "",
+					};
+					if (pane.type !== "terminal") continue; // chat panes aren't board cards
+					// Another profile's work — not this board's. Until the profile is
+					// known, no card is: on a reload inside another profile, guessing
+					// "default" would flash the work board for a frame.
+					if (
+						isProfileLoading ||
+						profileOf(pane.odinProfile) !== activeProfileId
+					) {
+						continue;
+					}
+					// Board = agent sessions this app launched. useLaunchTaskSession
+					// stamps odinTaskTitle on the pane (older ones only made the
+					// localStorage mirror); a terminal you opened yourself has neither
+					// and isn't a task.
+					if (!pane.odinTaskTitle && !titleByPane[pane.id]) continue;
+					// Wait for the first daemon poll so live sessions don't flash dead.
+					// "Alive" means the agent, not the PTY: a session you Ctrl+C'd out of
+					// leaves a live shell behind, and a shell can't be working on it or
+					// waiting on you any more than a dead pane can.
+					const alive = agentPaneIds.has(pane.id);
+					const dead = daemonSessions !== undefined && !alive;
+					// Legacy: panes the removed Kill button marked completed. They stay
+					// off the board (Session History is where you resume them) until the
+					// persisted state ages out. Nothing sets `completed` any more.
+					if (dead && pane.completed) {
+						completed.push(card);
+						continue;
+					}
+					const column = boardColumn(
+						status,
+						// `undefined` = the poll hasn't answered yet, which is not "dead".
+						daemonSessions === undefined ? undefined : alive,
+						pane.odinParked ?? false,
+						loopingPaneIds.has(pane.id),
+					);
+					for (const tag of boardTags(pane.odinTags))
+						tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
+					if (pane.odinStarred) starred++;
+					const person = pane.odinContact ?? contactByPane[pane.id] ?? null;
+					if (person)
+						personCounts.set(person, (personCounts.get(person) ?? 0) + 1);
+					if (
+						(boardFilter === "starred" && !pane.odinStarred) ||
+						(boardFilter.startsWith("person:") &&
+							person !== boardFilter.slice(7)) ||
+						(boardFilter.startsWith("tag:") &&
+							!boardTags(pane.odinTags).includes(boardFilter.slice(4))) ||
+						(needle &&
+							![
+								pane.odinTaskTitle ?? titleByPane[pane.id],
+								pane.userTitle,
+								pane.name,
+								card.tabName,
+								pane.odinBrief ?? briefByPane[pane.id],
+								person,
+								card.repoPath,
+								...boardTags(pane.odinTags),
+							].some((text) => text?.toLowerCase().includes(needle)))
+					)
+						continue;
+					// Every session stays on the board in its column until it's Done'd —
+					// nothing is silently dropped.
+					map.get(column)?.push({ ...card, status: column });
 				}
-				// Board = agent sessions this app launched. useLaunchTaskSession
-				// stamps odinTaskTitle on the pane (older ones only made the
-				// localStorage mirror); a terminal you opened yourself has neither
-				// and isn't a task.
-				if (!pane.odinTaskTitle && !titleByPane[pane.id]) continue;
-				// Wait for the first daemon poll so live sessions don't flash dead.
-				// "Alive" means the agent, not the PTY: a session you Ctrl+C'd out of
-				// leaves a live shell behind, and a shell can't be working on it or
-				// waiting on you any more than a dead pane can.
-				const alive = agentPaneIds.has(pane.id);
-				const dead = daemonSessions !== undefined && !alive;
-				// Legacy: panes the removed Kill button marked completed. They stay
-				// off the board (Session History is where you resume them) until the
-				// persisted state ages out. Nothing sets `completed` any more.
-				if (dead && pane.completed) {
-					completed.push(card);
-					continue;
-				}
-				const column = boardColumn(
-					status,
-					// `undefined` = the poll hasn't answered yet, which is not "dead".
-					daemonSessions === undefined ? undefined : alive,
-					pane.odinParked ?? false,
-					loopingPaneIds.has(pane.id),
-				);
-				for (const tag of boardTags(pane.odinTags))
-					tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
-				const person = pane.odinContact ?? contactByPane[pane.id] ?? null;
-				if (person)
-					personCounts.set(person, (personCounts.get(person) ?? 0) + 1);
-				if (
-					(boardFilter.startsWith("person:") &&
-						person !== boardFilter.slice(7)) ||
-					(boardFilter.startsWith("tag:") &&
-						!boardTags(pane.odinTags).includes(boardFilter.slice(4))) ||
-					(needle &&
-						![
-							pane.odinTaskTitle ?? titleByPane[pane.id],
-							pane.userTitle,
-							pane.name,
-							card.tabName,
-							pane.odinBrief ?? briefByPane[pane.id],
-							person,
-							card.repoPath,
-							...boardTags(pane.odinTags),
-						].some((text) => text?.toLowerCase().includes(needle)))
-				)
-					continue;
-				// Every session stays on the board in its column until it's Done'd —
-				// nothing is silently dropped.
-				map.get(column)?.push({ ...card, status: column });
 			}
-		}
-		return {
-			cardsByStatus: map,
-			completedCards: completed,
-			allTags: [...tagCounts.entries()].sort((a, b) =>
-				a[0].localeCompare(b[0]),
-			),
-			allPeople: [...personCounts.entries()].sort((a, b) =>
-				a[0].localeCompare(b[0]),
-			),
-		};
-	}, [
-		tabs,
-		panes,
-		workspaceById,
-		projectById,
-		agentPaneIds,
-		loopingPaneIds,
-		daemonSessions,
-		boardFilter,
-		search,
-		contactByPane,
-		titleByPane,
-		briefByPane,
-		activeProfileId,
-		isProfileLoading,
-	]);
+			return {
+				cardsByStatus: map,
+				completedCards: completed,
+				starredCount: starred,
+				allTags: [...tagCounts.entries()].sort((a, b) =>
+					a[0].localeCompare(b[0]),
+				),
+				allPeople: [...personCounts.entries()].sort((a, b) =>
+					a[0].localeCompare(b[0]),
+				),
+			};
+		}, [
+			tabs,
+			panes,
+			workspaceById,
+			projectById,
+			agentPaneIds,
+			loopingPaneIds,
+			daemonSessions,
+			boardFilter,
+			search,
+			contactByPane,
+			titleByPane,
+			briefByPane,
+			activeProfileId,
+			isProfileLoading,
+		]);
 
 	// Write the session briefs in the background, so opening a card shows one
 	// straight away rather than starting a 15s model call while you wait. The
@@ -1894,11 +1899,11 @@ function DevBoardPage() {
 				/>
 
 				{/* filter — right-click a card to tag it; people are the card's contact */}
-				{(allTags.length > 0 || allPeople.length > 0) && (
+				{(allTags.length > 0 || allPeople.length > 0 || starredCount > 0) && (
 					<select
 						value={boardFilter}
 						onChange={(e) => setBoardFilter(e.target.value)}
-						title="Show only sessions with this tag or person"
+						title="Show only starred sessions, or those with this tag or person"
 						className={cn(
 							"max-w-[220px] cursor-pointer rounded-full border px-2.5 py-1 text-[12px] font-medium outline-none",
 							boardFilter
@@ -1907,6 +1912,9 @@ function DevBoardPage() {
 						)}
 					>
 						<option value="">All sessions</option>
+						{starredCount > 0 && (
+							<option value="starred">★ Starred ({starredCount})</option>
+						)}
 						{allTags.length > 0 && (
 							<optgroup label="Tags">
 								{allTags.map(([tag, count]) => (
