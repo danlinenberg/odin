@@ -613,11 +613,21 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 				// ponytail: CSS `resize` — Chromium draws the corner grip for free.
 				className="fixed left-1/2 top-[12vh] z-50 flex h-[190px] max-h-[80vh] w-[520px] min-w-[320px] max-w-[92vw] -translate-x-1/2 resize flex-col overflow-hidden rounded-[10px] border border-[#2e2e38] bg-[#111114] p-3.5 shadow-[0_18px_60px_rgba(0,0,0,0.6)]"
 			>
-				<div className="mb-2 shrink-0 text-xs font-semibold text-[#f5f5f7]">
+				{/* The button sits in the header, not under the fields: the dialog's
+				    height is fixed and the fields row is already full at 520px. */}
+				<div className="mb-2 flex shrink-0 items-center text-xs font-semibold text-[#f5f5f7]">
 					New task
 					<span className="ml-1.5 font-normal text-[#8a8a97]">
 						⏎ add · esc cancel
 					</span>
+					<button
+						type="button"
+						onClick={save}
+						disabled={!parseTask(draft).title}
+						className="ml-auto rounded-[6px] bg-[#a394ff] px-2.5 py-[3px] text-[11px] font-semibold text-[#111114] transition-opacity hover:opacity-90 disabled:cursor-default disabled:opacity-40"
+					>
+						Add task
+					</button>
 				</div>
 				<TaskBox
 					value={draft}
