@@ -9,6 +9,7 @@ import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useLaunchLimits } from "renderer/stores/launch-limits";
 import { useNextInLinePrompt } from "renderer/stores/next-in-line-prompt";
 import type { LaunchLimits } from "shared/machine-load";
+import { useBacklogReview } from "../../_odin/hooks/useBacklogReview";
 
 export const Route = createFileRoute("/_authenticated/settings/board/")({
 	component: BoardSettingsPage,
@@ -96,6 +97,7 @@ function BoardSettingsPage() {
 				/>
 
 				<NextInLinePromptRow />
+				<SweepIntervalRow />
 			</div>
 		</div>
 	);
@@ -189,6 +191,44 @@ function LaunchLimitRow({
 					}}
 				/>
 				<span className="text-sm text-muted-foreground">{unit}</span>
+			</div>
+		</div>
+	);
+}
+
+/** How often the shell runs the Review sweep on its own. Next tick, no restart. */
+function SweepIntervalRow() {
+	const hours = useBacklogReview((s) => s.sweepEveryHours);
+	const setHours = useBacklogReview((s) => s.setSweepEveryHours);
+	return (
+		<div className="flex items-center justify-between gap-6">
+			<div className="space-y-0.5">
+				<Label htmlFor="sweep-every-hours" className="text-sm font-medium">
+					Sweep the backlog every
+				</Label>
+				<p className="text-xs text-muted-foreground">
+					How often Odin checks every task and queued message against Jira,
+					GitHub and Slack and fills in Review — without you pressing the
+					button. 0 turns it off; the button still works.
+				</p>
+			</div>
+			<div className="flex shrink-0 items-center gap-1.5">
+				<Input
+					id="sweep-every-hours"
+					type="number"
+					min={0}
+					max={168}
+					step={0.5}
+					defaultValue={hours}
+					className="w-20 tabular-nums"
+					onChange={(event) => {
+						const next = event.target.valueAsNumber;
+						// ponytail: same as LaunchLimitRow — a bad value keeps the last good one.
+						if (Number.isFinite(next) && next >= 0 && next <= 168)
+							setHours(next);
+					}}
+				/>
+				<span className="text-sm text-muted-foreground">hours</span>
 			</div>
 		</div>
 	);

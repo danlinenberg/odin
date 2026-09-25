@@ -19,7 +19,10 @@ export const useBacklogReview = create<{
 	sweptAt: number | null;
 	/** A sweep is in flight — the button's or the clock's. Not persisted. */
 	sweeping: boolean;
+	/** How often the shell sweeps on its own, hours. 0 turns the clock off. */
+	sweepEveryHours: number;
 	record: (swept: SweptRow[]) => void;
+	setSweepEveryHours: (hours: number) => void;
 	forget: () => void;
 }>()(
 	persist(
@@ -27,12 +30,18 @@ export const useBacklogReview = create<{
 			swept: [],
 			sweptAt: null,
 			sweeping: false,
+			sweepEveryHours: 1,
 			record: (swept) => set({ swept, sweptAt: Date.now() }),
+			setSweepEveryHours: (sweepEveryHours) => set({ sweepEveryHours }),
 			forget: () => set({ swept: [], sweptAt: null }),
 		}),
 		{
 			name: "odin-backlog-review",
-			partialize: ({ swept, sweptAt }) => ({ swept, sweptAt }),
+			partialize: ({ swept, sweptAt, sweepEveryHours }) => ({
+				swept,
+				sweptAt,
+				sweepEveryHours,
+			}),
 		},
 	),
 );
@@ -76,14 +85,12 @@ export function useSweepBacklog(): () => Promise<boolean> {
 	}, [backlog, sweep.mutateAsync]);
 }
 
-// ponytail: fixed hourly; make it a setting if an hour turns out wrong.
-export const SWEEP_EVERY_MS = 60 * 60 * 1000;
-
 /**
  * The sweep on a clock. Mounted in the shell, like the automation runner: a
  * schedule that only runs while Review is open isn't one. Checks once a
- * minute and sweeps when the last answers are an hour old, so a relaunch
- * after lunch sweeps straight away and a reload doesn't sweep twice.
+ * minute and sweeps when the last answers are older than the interval set in
+ * Settings → Board, so a relaunch after lunch sweeps straight away and a
+ * reload doesn't sweep twice. A new interval applies on the next tick.
  */
 export function usePeriodicSweep(): void {
 	const sweepBacklog = useSweepBacklog();
@@ -91,12 +98,13 @@ export function usePeriodicSweep(): void {
 	const latest = useRef(sweepBacklog);
 	latest.current = sweepBacklog;
 	useEffect(() => {
-		// A failing sweep waits the full hour too, not a retry a minute.
+		// A failing sweep waits the full interval too, not a retry a minute.
 		let triedAt = 0;
 		const tick = () => {
-			const { sweptAt } = useBacklogReview.getState();
+			const { sweptAt, sweepEveryHours } = useBacklogReview.getState();
+			if (sweepEveryHours <= 0) return;
 			const last = Math.max(sweptAt ?? 0, triedAt);
-			if (Date.now() - last < SWEEP_EVERY_MS) return;
+			if (Date.now() - last < sweepEveryHours * 3_600_000) return;
 			triedAt = Date.now();
 			latest
 				.current()
