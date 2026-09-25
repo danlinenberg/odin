@@ -1,7 +1,9 @@
+import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
+	LuCheck,
 	LuExternalLink,
 	LuLoaderCircle,
 	LuSettings2,
@@ -9,7 +11,9 @@ import {
 } from "react-icons/lu";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
+import { useNextInLineDone } from "renderer/stores/next-in-line-done";
 import { useNextInLinePrompt } from "renderer/stores/next-in-line-prompt";
+import type { AllItem } from "../all/all-items";
 import { allItems } from "../all/all-items";
 import { useStartAllItem } from "../all/use-start-item";
 import { FEED_TABS } from "../components/feed-counts";
@@ -150,6 +154,26 @@ export function NextInLine() {
 		{ limit: 1000 },
 		{ refetchInterval: 60_000 },
 	);
+	const doneKeys = useNextInLineDone((s) => s.done);
+	const setLocalDone = useNextInLineDone((s) => s.setDone);
+	// Slack has a Done of its own (Odin-only, shared with the Slack feed); the
+	// rest go in the local done list. The row leaves the column either way —
+	// a done Slack row drops out of the feed, so the ranking input changes and
+	// that one re-ranks; the local list is display-only.
+	const slackDone = electronTrpc.slack.setDone.useMutation({
+		onSettled: refetchSlack,
+	});
+	const markDone = (item: AllItem, done: boolean) => {
+		if (item.source === "Slack")
+			slackDone.mutate({ id: item.launch.key, done });
+		else setLocalDone(item.key, done);
+	};
+	const doneWithUndo = (item: AllItem) => {
+		markDone(item, true);
+		toast.success(`Done — ${cleanTitle(item.title).slice(0, 60)}`, {
+			action: { label: "Undo", onClick: () => markDone(item, false) },
+		});
+	};
 	const startedKeys = useMemo(
 		() => new Set((ledger ?? []).map((row) => row.externalId)),
 		[ledger],
@@ -159,7 +183,10 @@ export function NextInLine() {
 	// The model's order, nothing else. Until it answers (or if it fails) the
 	// column stays in feed order and says so — no rule of ours stands in.
 	const candidates = hide.rows.filter(
-		(item) => !livePaneFor(item) && !startedKeys.has(item.launch.key),
+		(item) =>
+			!livePaneFor(item) &&
+			!startedKeys.has(item.launch.key) &&
+			!doneKeys[item.key],
 	);
 	const order = new Map(ranking.data?.keys.map((key, i) => [key, i]));
 	// Stable sort: a row the model hasn't seen yet (arrived since) goes last.
@@ -268,6 +295,15 @@ export function NextInLine() {
 									<span className="min-w-0 flex-1 truncate" title={meta}>
 										{meta}
 									</span>
+									<button
+										type="button"
+										onClick={() => doneWithUndo(item)}
+										title="Mark done — take it off Next in line"
+										aria-label="Mark done"
+										className="shrink-0 rounded-md p-1 text-[#a5a5b3] hover:bg-[#1f1f27] hover:text-[#3ecf8e]"
+									>
+										<LuCheck className="size-3.5" aria-hidden />
+									</button>
 									{item.url && /^https?:\/\//.test(item.url) && (
 										<button
 											type="button"
