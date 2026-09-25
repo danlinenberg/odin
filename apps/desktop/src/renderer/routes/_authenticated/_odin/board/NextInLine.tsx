@@ -325,9 +325,11 @@ export function NextInLine() {
 								<HoverCard openDelay={400} closeDelay={80}>
 									<HoverCardTrigger asChild>
 										<div className="min-w-0 flex-1">
+											{/* dir=auto keeps a Hebrew line's characters in order; text-left
+											    keeps every card's text on the same edge. */}
 											<span
 												dir="auto"
-												className="line-clamp-2 break-words text-[12.5px] font-medium leading-[1.4] text-[#ececf1]"
+												className="line-clamp-2 break-words text-left text-[12.5px] font-medium leading-[1.4] text-[#ececf1]"
 											>
 												{emojify(cleanTitle(item.title))}
 											</span>
@@ -435,7 +437,7 @@ function TaskHover({ item, text }: { item: AllItem; text: string | null }) {
 			</div>
 			<p
 				dir="auto"
-				className="max-h-[260px] overflow-y-auto whitespace-pre-wrap break-words font-medium text-[#ececf1]"
+				className="max-h-[260px] overflow-y-auto whitespace-pre-wrap break-words text-left font-medium text-[#ececf1]"
 			>
 				{emojify(cleanTitle(text?.trim() ? text : item.title).slice(0, 1500))}
 			</p>
