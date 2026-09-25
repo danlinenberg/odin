@@ -1,3 +1,8 @@
+import {
+	HoverCard,
+	HoverCardContent,
+	HoverCardTrigger,
+} from "@odin/ui/hover-card";
 import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import { useNavigate } from "@tanstack/react-router";
@@ -126,17 +131,25 @@ export function useNextInLineRanking() {
 	}, [ranking.data, ranking.isPlaceholderData]);
 	// Names this ranking for RankStatus's clock; the same tasks give the same name.
 	const signature = useMemo(() => JSON.stringify(rankInput), [rankInput]);
+	// A Slack row's title is the message cut to a line; the hover card wants
+	// the whole thing, which only the feed's own row still has.
+	const slackText = useMemo(
+		() =>
+			new Map((reactions.data?.rows ?? []).map((row) => [row.id, row.text])),
+		[reactions.data],
+	);
 	return {
 		rows,
 		ranking,
 		prompt,
 		signature,
+		slackText,
 		refetchSlack: () => void reactions.refetch(),
 	};
 }
 
 export function NextInLine() {
-	const { rows, ranking, prompt, signature, refetchSlack } =
+	const { rows, ranking, prompt, signature, slackText, refetchSlack } =
 		useNextInLineRanking();
 	const navigate = useNavigate();
 	const { start, livePaneFor, isLaunching, launchingKey } =
@@ -268,35 +281,54 @@ export function NextInLine() {
 								</button>
 								{/* Title and meta get the card's whole width; the actions only
 								    exist on hover, so they never cost a line of text. */}
-								<div className="min-w-0 flex-1">
-									<span
-										dir="auto"
-										title={item.title}
-										className="line-clamp-2 break-words text-[12.5px] font-medium leading-[1.4] text-[#ececf1]"
-									>
-										{emojify(cleanTitle(item.title))}
-									</span>
-									<div className="mt-1 flex items-center gap-1.5 text-[11px] text-[#8a8a97]">
-										{Icon && <Icon className="size-3 shrink-0" aria-hidden />}
-										{item.priority && (
+								<HoverCard openDelay={400} closeDelay={80}>
+									<HoverCardTrigger asChild>
+										<div className="min-w-0 flex-1">
 											<span
-												className={cn(
-													"shrink-0 font-medium",
-													item.urgency === "high"
-														? "text-[#f0a0ad]"
-														: item.urgency === "medium"
-															? "text-[#e6c07b]"
-															: "text-[#8a8a97]",
-												)}
+												dir="auto"
+												className="line-clamp-2 break-words text-[12.5px] font-medium leading-[1.4] text-[#ececf1]"
 											>
-												{item.priority}
+												{emojify(cleanTitle(item.title))}
 											</span>
-										)}
-										<span className="min-w-0 truncate" title={meta}>
-											{meta}
-										</span>
-									</div>
-								</div>
+											<div className="mt-1 flex items-center gap-1.5 text-[11px] text-[#8a8a97]">
+												{Icon && (
+													<Icon className="size-3 shrink-0" aria-hidden />
+												)}
+												{item.priority && (
+													<span
+														className={cn(
+															"shrink-0 font-medium",
+															item.urgency === "high"
+																? "text-[#f0a0ad]"
+																: item.urgency === "medium"
+																	? "text-[#e6c07b]"
+																	: "text-[#8a8a97]",
+														)}
+													>
+														{item.priority}
+													</span>
+												)}
+												<span className="min-w-0 truncate">{meta}</span>
+											</div>
+										</div>
+									</HoverCardTrigger>
+									<HoverCardContent
+										side="left"
+										align="start"
+										className="w-[360px] border-[#2c2940] bg-[#16151f] p-3"
+									>
+										<TaskHover
+											item={item}
+											text={
+												item.source === "Slack"
+													? (slackText.get(item.launch.key) ?? null)
+													: item.source === "Tasks"
+														? item.launch.description
+														: null
+											}
+										/>
+									</HoverCardContent>
+								</HoverCard>
 								<div
 									className={cn(
 										"absolute right-1.5 top-1.5 hidden items-center gap-0.5 rounded-lg border border-[#2c2940] bg-[#1a1824] p-0.5 shadow-lg group-focus-within:flex group-hover:flex",
@@ -337,6 +369,36 @@ export function NextInLine() {
 					})
 				)}
 			</div>
+		</div>
+	);
+}
+
+/**
+ * What a card's hover says: the task in full — the whole Slack message, not
+ * the line it was cut to — and everything the card had to leave out.
+ */
+function TaskHover({ item, text }: { item: AllItem; text: string | null }) {
+	const Icon = ICON[item.to];
+	const facts = [
+		item.priority,
+		item.status,
+		item.dueDate && `due ${item.dueDate}`,
+	].filter(Boolean);
+	const where = [item.person, item.context].filter(Boolean).join(" · ");
+	return (
+		<div className="space-y-2 text-[12px] leading-[1.5]">
+			<div className="flex items-center gap-1.5 text-[11px] text-[#8a8a97]">
+				{Icon && <Icon className="size-3 shrink-0" aria-hidden />}
+				<span className="font-medium text-[#a5a5b3]">{item.source}</span>
+				{facts.length > 0 && <span>· {facts.join(" · ")}</span>}
+			</div>
+			<p
+				dir="auto"
+				className="max-h-[260px] overflow-y-auto whitespace-pre-wrap break-words font-medium text-[#ececf1]"
+			>
+				{emojify(cleanTitle(text?.trim() ? text : item.title).slice(0, 1500))}
+			</p>
+			{where && <div className="text-[11px] text-[#8a8a97]">{where}</div>}
 		</div>
 	);
 }
