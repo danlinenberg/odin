@@ -50,19 +50,38 @@ const ICON = Object.fromEntries(FEED_TABS.map(({ to, Icon }) => [to, Icon]));
  * but not a status: nothing lands here or leaves by drag.
  */
 /**
- * The last finished ranking, so a renderer reload (a drawer closing replays
- * held updates) shows it straight away instead of feed order for a minute.
- * One key, overwritten each time: at most a few hundred task keys.
+ * The last finished ranking, with a fingerprint of every task it ranked and
+ * the prompt it ranked them by. Two jobs: a renderer reload shows it straight
+ * away, and — the one that matters — a task list it already covers doesn't go
+ * back to the model. Marking a task done, hiding it, a PR merging: those only
+ * REMOVE rows, and removing a row can't change how the rest rank against each
+ * other. Only a new or changed task, or a new prompt, is worth a ~75s run.
+ * One key, overwritten each time: a few hundred short entries.
  */
 const LAST_RANKING_KEY = "odin-next-in-line-last-ranking";
 
-function savedRanking(): { keys: string[] } | undefined {
+interface SavedRanking {
+	keys: string[];
+	/** task key → fingerprint of what the model was shown for it */
+	seen: Record<string, string>;
+	prompt: string;
+}
+
+function loadSavedRanking(): SavedRanking | undefined {
 	try {
 		const saved = JSON.parse(localStorage.getItem(LAST_RANKING_KEY) ?? "null");
-		return Array.isArray(saved?.keys) ? saved : undefined;
+		return Array.isArray(saved?.keys) && saved.seen ? saved : undefined;
 	} catch {
 		return undefined;
 	}
+}
+
+/** djb2 over what the model sees for a task — short enough to keep hundreds. */
+function fingerprint(item: object): string {
+	const text = JSON.stringify(item);
+	let h = 5381;
+	for (let i = 0; i < text.length; i++) h = (h * 33) ^ text.charCodeAt(i);
+	return (h >>> 0).toString(36);
 }
 
 /**
@@ -112,23 +131,45 @@ export function useNextInLineRanking() {
 		}),
 		[rows, reminders, prompt],
 	);
-	const ranking = electronTrpc.backlogReview.rankNextInLine.useQuery(
-		rankInput,
-		{
-			enabled: rows.length > 1,
-			staleTime: Number.POSITIVE_INFINITY,
-			retry: false,
-			// A changed input re-ranks; keep the last order on screen meanwhile —
-			// including the one saved before a reload, which empties this cache.
-			placeholderData: (previous) => previous ?? savedRanking(),
-		},
+	const [saved, setSaved] = useState(loadSavedRanking);
+	const prints = useMemo(
+		() => rankInput.items.map((item) => [item.key, fingerprint(item)] as const),
+		[rankInput],
 	);
+	// Every task on the list is one the last ranking saw, unchanged, under the
+	// same prompt → its order still stands; the model has nothing to add.
+	const covered =
+		!!saved &&
+		saved.prompt === (prompt || "") &&
+		prints.every(([key, print]) => saved.seen[key] === print);
+	const query = electronTrpc.backlogReview.rankNextInLine.useQuery(rankInput, {
+		enabled: rows.length > 1 && !covered,
+		staleTime: Number.POSITIVE_INFINITY,
+		retry: false,
+		// A new task re-ranks; keep the last order on screen meanwhile —
+		// including the one saved before a reload, which empties this cache.
+		placeholderData: (previous) =>
+			previous ?? (saved ? { keys: saved.keys } : undefined),
+	});
 	useEffect(() => {
-		if (!ranking.data || ranking.isPlaceholderData) return;
+		if (!query.data || query.isPlaceholderData || covered) return;
+		const next: SavedRanking = {
+			keys: query.data.keys,
+			seen: Object.fromEntries(prints),
+			prompt: prompt || "",
+		};
+		setSaved(next);
 		try {
-			localStorage.setItem(LAST_RANKING_KEY, JSON.stringify(ranking.data));
+			localStorage.setItem(LAST_RANKING_KEY, JSON.stringify(next));
 		} catch {}
-	}, [ranking.data, ranking.isPlaceholderData]);
+	}, [query.data, query.isPlaceholderData, covered, prints, prompt]);
+	const ranking = covered
+		? { data: { keys: saved.keys }, isFetching: false, error: null }
+		: {
+				data: query.data,
+				isFetching: query.isFetching,
+				error: query.error ? { message: query.error.message } : null,
+			};
 	// Names this ranking for RankStatus's clock; the same tasks give the same name.
 	const signature = useMemo(() => JSON.stringify(rankInput), [rankInput]);
 	// A Slack row's title is the message cut to a line; the hover card wants
