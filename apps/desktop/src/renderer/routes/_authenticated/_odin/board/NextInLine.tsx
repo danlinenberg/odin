@@ -243,7 +243,7 @@ export function NextInLine() {
 						Nothing waiting to start
 					</div>
 				) : (
-					next.map((item, index) => {
+					next.map((item) => {
 						const Icon = ICON[item.to];
 						const meta = [item.person, item.context]
 							.filter(Boolean)
@@ -252,58 +252,61 @@ export function NextInLine() {
 							<div
 								key={item.key}
 								className={cn(
-									"group rounded-[10px] border border-[#2c2940] bg-[#14131b] px-3 py-2 transition-colors hover:border-[#3f3a63]",
+									"group relative flex items-start gap-2 rounded-[10px] border border-[#2c2940] bg-[#14131b] px-2.5 py-2 transition-colors hover:border-[#3f3a63]",
 									hide.isHidden(item) && "opacity-50",
 								)}
 							>
-								<div className="flex items-start gap-2">
-									<span className="w-4 shrink-0 pt-px text-right text-[11px] tabular-nums text-[#6b6b78]">
-										{index + 1}
-									</span>
+								{/* A to-do's checkbox, where a to-do's checkbox goes. */}
+								<button
+									type="button"
+									onClick={() => doneWithUndo(item)}
+									title="Mark done — take it off Next in line"
+									aria-label="Mark done"
+									className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border border-[#4a4a58] text-transparent transition-colors hover:border-[#3ecf8e] hover:bg-[#14301f] hover:text-[#3ecf8e]"
+								>
+									<LuCheck className="size-2.5" strokeWidth={3} aria-hidden />
+								</button>
+								{/* Title and meta get the card's whole width; the actions only
+								    exist on hover, so they never cost a line of text. */}
+								<div className="min-w-0 flex-1">
 									<span
 										dir="auto"
 										title={item.title}
-										className="line-clamp-2 min-w-0 flex-1 break-words text-[12.5px] font-medium leading-[1.4] text-[#ececf1]"
+										className="line-clamp-2 break-words text-[12.5px] font-medium leading-[1.4] text-[#ececf1]"
 									>
 										{emojify(cleanTitle(item.title))}
 									</span>
-									<span className="-mr-1.5 -mt-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
-										<HideButton
-											hidden={hide.isHidden(item)}
-											onClick={() => hide.toggle(item)}
-										/>
-									</span>
-								</div>
-								{/* One row, always: the meta truncates so the buttons sit at the
-								    same place on every card instead of wrapping on long names. */}
-								<div className="mt-1.5 flex items-center gap-1.5 pl-6 text-[11px] text-[#8a8a97]">
-									{Icon && <Icon className="size-3 shrink-0" aria-hidden />}
-									{item.priority && (
-										<span
-											className={cn(
-												"shrink-0 font-medium",
-												item.urgency === "high"
-													? "text-[#f0a0ad]"
-													: item.urgency === "medium"
-														? "text-[#e6c07b]"
-														: "text-[#8a8a97]",
-											)}
-										>
-											{item.priority}
+									<div className="mt-1 flex items-center gap-1.5 text-[11px] text-[#8a8a97]">
+										{Icon && <Icon className="size-3 shrink-0" aria-hidden />}
+										{item.priority && (
+											<span
+												className={cn(
+													"shrink-0 font-medium",
+													item.urgency === "high"
+														? "text-[#f0a0ad]"
+														: item.urgency === "medium"
+															? "text-[#e6c07b]"
+															: "text-[#8a8a97]",
+												)}
+											>
+												{item.priority}
+											</span>
+										)}
+										<span className="min-w-0 truncate" title={meta}>
+											{meta}
 										</span>
+									</div>
+								</div>
+								<div
+									className={cn(
+										"absolute right-1.5 top-1.5 hidden items-center gap-0.5 rounded-lg border border-[#2c2940] bg-[#1a1824] p-0.5 shadow-lg group-focus-within:flex group-hover:flex",
+										launchingKey === item.launch.key && "flex",
 									)}
-									<span className="min-w-0 flex-1 truncate" title={meta}>
-										{meta}
-									</span>
-									<button
-										type="button"
-										onClick={() => doneWithUndo(item)}
-										title="Mark done — take it off Next in line"
-										aria-label="Mark done"
-										className="shrink-0 rounded-md p-1 text-[#a5a5b3] hover:bg-[#1f1f27] hover:text-[#3ecf8e]"
-									>
-										<LuCheck className="size-3.5" aria-hidden />
-									</button>
+								>
+									<HideButton
+										hidden={hide.isHidden(item)}
+										onClick={() => hide.toggle(item)}
+									/>
 									{item.url && /^https?:\/\//.test(item.url) && (
 										<button
 											type="button"
@@ -311,10 +314,10 @@ export function NextInLine() {
 											title={
 												item.source === "Slack"
 													? "Open the thread in Slack"
-													: `Open in ${item.source === "Tasks" ? "Odin" : "your browser"}`
+													: "Open in your browser"
 											}
 											aria-label="Open"
-											className="shrink-0 rounded-md p-1 text-[#a5a5b3] hover:bg-[#1f1f27] hover:text-[#f5f5f7]"
+											className="rounded-md p-1 text-[#a5a5b3] hover:bg-[#262433] hover:text-[#f5f5f7]"
 										>
 											<LuExternalLink className="size-3.5" aria-hidden />
 										</button>
@@ -324,7 +327,7 @@ export function NextInLine() {
 										disabled={isLaunching}
 										onClick={() => void start(item)}
 										title="Start an agent session on this task"
-										className="shrink-0 rounded-md bg-[#14301f] px-2 py-0.5 font-semibold text-[#3ecf8e] hover:bg-[#1a4029] disabled:opacity-60"
+										className="rounded-md bg-[#14301f] px-2 py-0.5 text-[11px] font-semibold text-[#3ecf8e] hover:bg-[#1a4029] disabled:opacity-60"
 									>
 										{launchingKey === item.launch.key ? "starting…" : "▶ Start"}
 									</button>
