@@ -19,6 +19,11 @@ KEYCHAIN="$HOME/Library/Keychains/$KEYCHAIN_NAME"
 # nothing. It exists so signing needs no prompt and no login-keychain password.
 KEYCHAIN_PASSWORD="odin-signing"
 
+# Keychains re-lock on every logout/reboot, and a locked one makes codesign pop
+# a "wants to use the odin-signing keychain" password dialog mid-build. The
+# password is public (above), so unlock before the early exit too.
+[[ -f "$KEYCHAIN" ]] && security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+
 if security find-identity -v -p codesigning | grep -qF "$IDENTITY"; then
 	echo "Signing identity already present: $IDENTITY"
 	exit 0
