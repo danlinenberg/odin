@@ -98,7 +98,7 @@ function ReviewPage() {
 		toast.success(`Cleared ${drops.length}`);
 	};
 
-	/** The sweep, off a button. The shell also runs it hourly. */
+	/** The sweep, off a button. The shell also runs it on a clock. */
 	const sweepNow = async () => {
 		if (backlog.length === 0) return toast.error("The backlog is empty");
 		try {
