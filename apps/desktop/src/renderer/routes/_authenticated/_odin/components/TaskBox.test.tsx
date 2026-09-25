@@ -50,8 +50,9 @@ describe("TaskBox", () => {
 			/>,
 		);
 		expect(html).toContain('aria-label="Repo"');
-		expect(html).toContain('value="/dev/odin"');
-		expect(html).toContain("→ dev/odin");
+		// Shown by its short name, the full path on hover.
+		expect(html).toContain('value="dev/odin"');
+		expect(html).toContain('title="/dev/odin"');
 	});
 });
 

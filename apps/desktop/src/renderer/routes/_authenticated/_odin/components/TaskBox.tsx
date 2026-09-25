@@ -115,7 +115,9 @@ export function TaskBox({
 
 			    ponytail: a native <select> — it opens as a real menu, it's keyboard
 			    navigable for free, and there's no popup to style. */}
-			<div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+			{/* One row at the quick-add's 520px: Skill and Repo on the left,
+			    Priority pushed right. Nothing in it grows as you type. */}
+			<div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
 				{skills && skills.length > 0 && (
 					<SkillSelect skills={skills} value={value} onChange={onChange} />
 				)}
@@ -127,7 +129,7 @@ export function TaskBox({
 					/>
 				)}
 				{!hidePriority && (
-					<div className="flex items-center gap-1.5">
+					<div className="ml-auto flex items-center gap-1.5">
 						<span className="text-[11px] text-[#8a8a97]">Priority</span>
 						<select
 							aria-label="Priority"
@@ -276,7 +278,7 @@ function SkillSelect({
 					}
 				}}
 				className={cn(
-					"w-[150px] rounded-[6px] bg-[#1f1f27] px-1.5 py-[3px] text-[11px] font-semibold outline-none transition-colors placeholder:font-normal placeholder:text-[#8a8a97]",
+					"w-[130px] rounded-[6px] bg-[#1f1f27] px-1.5 py-[3px] text-[11px] font-semibold outline-none transition-colors placeholder:font-normal placeholder:text-[#8a8a97]",
 					// Amber, not red: a name the list doesn't know is usually a skill
 					// installed on another machine, not a typo.
 					current && !known ? "text-[#f5b83d]" : "text-[#3ecf8e]",
@@ -321,11 +323,13 @@ function SkillSelect({
 }
 
 /**
- * Which checkout the session starts in — the New Session dialog's field.
+ * Which checkout the session starts in — the New Session dialog's search.
  *
- * The text is held here and resolved on every keystroke: exactly one hit is
- * the pick, anything else is none, and the note beside it says which, so a
- * half-typed name is a valid pick you can see landed.
+ * Resolved on every keystroke: exactly one hit is the pick, anything else is
+ * none. Leaving the field rewrites a pick as its short `parent/name`, so the
+ * box shows which repo it landed on instead of the head of a long path. The
+ * state is the text colour — green picked, red not — with the why in the
+ * tooltip, so the row never grows a note and wraps.
  *
  * ponytail: native `<datalist>` — Chromium does search-as-you-type over the
  * paths for free.
@@ -339,11 +343,23 @@ function RepoSelect({
 	value: string;
 	onChange: (repo: string) => void;
 }) {
-	const [query, setQuery] = useState(value);
-	const hits = matchRepos(repos, query);
+	// A label first: "private/odin" must not go ambiguous over the worktrees
+	// that live under that checkout.
+	const resolve = (text: string): { repo: string; hits: number } => {
+		const labelled = repos.find((path) => repoLabel(path) === text.trim());
+		if (labelled) return { repo: labelled, hits: 1 };
+		const hits = matchRepos(repos, text);
+		return {
+			repo: hits.length === 1 ? (hits[0] as string) : "",
+			hits: hits.length,
+		};
+	};
+	const [query, setQuery] = useState(value ? repoLabel(value) : "");
+	const { hits } = resolve(query);
 	// Set from outside (the compose row clearing after Enter): follow it. Typing
 	// can't trip this — every keystroke writes back what the text resolves to.
-	if ((hits.length === 1 ? hits[0] : "") !== value) setQuery(value);
+	if (resolve(query).repo !== value) setQuery(value ? repoLabel(value) : "");
+	const unresolved = query.trim() !== "" && !value;
 	return (
 		<div className="flex items-center gap-1.5">
 			<span className="text-[11px] text-[#8a8a97]">Repo</span>
@@ -352,18 +368,31 @@ function RepoSelect({
 				aria-label="Repo"
 				value={query}
 				spellCheck={false}
-				placeholder="none (agent picks)"
-				title={value || "The checkout the session starts in. Type to search."}
+				autoComplete="off"
+				placeholder="agent picks"
+				title={
+					value
+						? value
+						: unresolved
+							? hits > 1
+								? `${hits} repos match — type more of the name`
+								: "No repo matches — the session will start without one"
+							: "The checkout the session starts in. Type to search."
+				}
 				onChange={(event) => {
-					const found = matchRepos(repos, event.target.value);
 					setQuery(event.target.value);
-					onChange(found.length === 1 ? (found[0] as string) : "");
+					onChange(resolve(event.target.value).repo);
 				}}
+				onBlur={() => value && setQuery(repoLabel(value))}
 				// Same :autofill override as the New Session dialog — a picked option
 				// otherwise paints white-on-black over any bg-*.
 				className={cn(
-					"w-[170px] rounded-[6px] bg-[#1f1f27] px-1.5 py-[3px] text-[11px] font-semibold outline-none [color-scheme:dark] placeholder:font-normal placeholder:text-[#8a8a97] autofill:shadow-[inset_0_0_0_1000px_#1f1f27] autofill:[-webkit-text-fill-color:#3ecf8e]",
-					value ? "text-[#3ecf8e]" : "text-[#a5a5b3]",
+					"w-[140px] rounded-[6px] bg-[#1f1f27] px-1.5 py-[3px] text-[11px] font-semibold outline-none [color-scheme:dark] placeholder:font-normal placeholder:text-[#8a8a97] autofill:shadow-[inset_0_0_0_1000px_#1f1f27] autofill:[-webkit-text-fill-color:#3ecf8e]",
+					value
+						? "text-[#3ecf8e]"
+						: unresolved
+							? "text-[#f0647a]"
+							: "text-[#a5a5b3]",
 				)}
 			/>
 			<datalist id="odin-task-repos">
@@ -373,21 +402,6 @@ function RepoSelect({
 					</option>
 				))}
 			</datalist>
-			{query.trim() && (
-				<span
-					title={value}
-					className={cn(
-						"max-w-[160px] truncate text-[11px] font-semibold",
-						value ? "text-[#3ecf8e]" : "text-[#f0647a]",
-					)}
-				>
-					{value
-						? `→ ${repoLabel(value)}`
-						: hits.length > 1
-							? `${hits.length} matches`
-							: "no match"}
-				</span>
-			)}
 		</div>
 	);
 }
