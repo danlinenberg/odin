@@ -5,6 +5,7 @@
 
 <p align="center">
   <b>A personal work console for delegating to coding agents.</b>
+  <br><sub><b>O</b>rchestrator for <b>D</b>elegating <b>I</b>nbound <b>N</b>oise</sub>
 </p>
 
 <p align="center">
