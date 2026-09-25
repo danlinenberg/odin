@@ -12,7 +12,7 @@ import {
 	ROW_PRIMARY_BUTTON,
 } from "../components/FeedChrome";
 import { useBacklog } from "../hooks/builtin-automations";
-import { useBacklogReview } from "../hooks/useBacklogReview";
+import { useBacklogReview, useSweepBacklog } from "../hooks/useBacklogReview";
 import { useMyTasks } from "../hooks/useOdinTasks";
 import { countByVerdict, type ReviewRow, reviewRows } from "./verdicts";
 
@@ -53,11 +53,11 @@ function VerdictChip({ verdict }: { verdict: ReviewRow["verdict"] }) {
 
 function ReviewPage() {
 	const backlog = useBacklog();
-	const { swept, sweptAt, record } = useBacklogReview();
+	const { swept, sweptAt, sweeping } = useBacklogReview();
+	const sweepBacklog = useSweepBacklog();
 	const { remove } = useMyTasks();
 	const setSlackDone = electronTrpc.slack.setDone.useMutation();
 	const utils = electronTrpc.useUtils();
-	const sweep = electronTrpc.backlogReview.sweep.useMutation();
 	// Decided here, this session's worth. A dropped row also leaves the backlog,
 	// but a kept one doesn't — without this the screen never empties.
 	const [decided, setDecided] = useState<Record<string, true>>({});
@@ -98,34 +98,11 @@ function ReviewPage() {
 		toast.success(`Cleared ${drops.length}`);
 	};
 
-	/**
-	 * The sweep, off a button: every backlog row checked against the system it
-	 * came from, and the answers straight back onto this screen.
-	 */
+	/** The sweep, off a button. The shell also runs it hourly. */
 	const sweepNow = async () => {
 		if (backlog.length === 0) return toast.error("The backlog is empty");
 		try {
-			const { rows: answers } = await sweep.mutateAsync({ items: backlog });
-			// The answer carries the key, so what's rendered is the row as it was
-			// swept — an item added while the sweep ran simply isn't in the list.
-			const byKey = new Map(answers.map((row) => [row.key, row]));
-			record(
-				backlog.flatMap((item) => {
-					const answer = byKey.get(item.key);
-					if (!answer) return [];
-					return [
-						{
-							key: item.key,
-							source: item.source,
-							title: item.title,
-							...(item.url ? { url: item.url } : {}),
-							verdict: answer.verdict,
-							evidence: answer.evidence,
-						},
-					];
-				}),
-			);
-			setDecided({});
+			if (await sweepBacklog()) setDecided({});
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : String(error));
 		}
@@ -168,10 +145,10 @@ function ReviewPage() {
 				<button
 					type="button"
 					onClick={() => void sweepNow()}
-					disabled={sweep.isPending}
+					disabled={sweeping}
 					className={ROW_PRIMARY_BUTTON}
 				>
-					{sweep.isPending
+					{sweeping
 						? `Checking ${backlog.length}…`
 						: swept.length > 0
 							? "Sweep again"

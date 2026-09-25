@@ -32,6 +32,7 @@ import { FEED_TABS } from "./components/feed-counts";
 import { type UpstreamDue, useDueReminders } from "./components/Reminders";
 import { QuickAddTask } from "./components/TaskBox";
 import { useAutomationRunner } from "./hooks/useAutomationRunner";
+import { usePeriodicSweep } from "./hooks/useBacklogReview";
 import { useNeedsYouByProfile } from "./hooks/useNeedsYouByProfile";
 import { useOdinFeeds } from "./hooks/useOdinFeeds";
 import { useOdinProfile } from "./hooks/useOdinProfile";
@@ -227,6 +228,8 @@ function OdinShell() {
 	// The clock behind the Automations panel. Here rather than on that page:
 	// a schedule that only runs while you're looking at it isn't one.
 	useAutomationRunner();
+	// And the backlog sweep, hourly, so Review is already filled in.
+	usePeriodicSweep();
 	// Same reason: tasks held back by the capacity gate wait in Idle → Queued,
 	// and this is what starts them once the Mac (or the checkout) frees up.
 	useTaskQueue();
