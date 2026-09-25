@@ -1,7 +1,12 @@
 import { cn } from "@odin/ui/utils";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { LuLoaderCircle, LuSettings2, LuSparkles } from "react-icons/lu";
+import {
+	LuExternalLink,
+	LuLoaderCircle,
+	LuSettings2,
+	LuSparkles,
+} from "react-icons/lu";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { useNextInLinePrompt } from "renderer/stores/next-in-line-prompt";
@@ -16,6 +21,15 @@ import {
 import { effectiveDue, useReminders } from "../components/Reminders";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useMyTasks } from "../hooks/useOdinTasks";
+
+/**
+ * A feed title as something to read: Slack's *bold* and ~strike~ markers
+ * dropped (they arrive raw), whitespace collapsed. The full original is the
+ * card's tooltip.
+ */
+function cleanTitle(title: string): string {
+	return title.replace(/[*~]/g, "").replace(/\s+/g, " ").trim();
+}
 
 const ICON = Object.fromEntries(FEED_TABS.map(({ to, Icon }) => [to, Icon]));
 
@@ -128,11 +142,25 @@ export function NextInLine() {
 	// Open hands the link to the OS: a Slack permalink goes through Slack's
 	// own hand-off into the desktop app, everything else to the browser.
 	const openUrl = electronTrpc.external.openUrl.useMutation();
+	// Every external item a session was ever started on — the work ledger
+	// keeps the row after the session ends or is Done'd, which is exactly
+	// what "already picked up, not next" needs. Display-only: the ranking's
+	// input doesn't change, so this never costs a re-rank.
+	const { data: ledger } = electronTrpc.workLog.list.useQuery(
+		{ limit: 1000 },
+		{ refetchInterval: 60_000 },
+	);
+	const startedKeys = useMemo(
+		() => new Set((ledger ?? []).map((row) => row.externalId)),
+		[ledger],
+	);
 	// ponytail: every row rendered — a few hundred plain cards scroll fine.
 	// Window it (render on scroll) if the feeds ever reach thousands.
 	// The model's order, nothing else. Until it answers (or if it fails) the
 	// column stays in feed order and says so — no rule of ours stands in.
-	const candidates = hide.rows.filter((item) => !livePaneFor(item));
+	const candidates = hide.rows.filter(
+		(item) => !livePaneFor(item) && !startedKeys.has(item.launch.key),
+	);
 	const order = new Map(ranking.data?.keys.map((key, i) => [key, i]));
 	// Stable sort: a row the model hasn't seen yet (arrived since) goes last.
 	const next = order.size
@@ -190,34 +218,55 @@ export function NextInLine() {
 				) : (
 					next.map((item, index) => {
 						const Icon = ICON[item.to];
+						const meta = [item.person, item.context]
+							.filter(Boolean)
+							.join(" · ");
 						return (
 							<div
 								key={item.key}
 								className={cn(
-									"rounded-[10px] border border-[#3a3360] bg-[#14131b] px-3 py-2.5",
+									"group rounded-[10px] border border-[#2c2940] bg-[#14131b] px-3 py-2 transition-colors hover:border-[#3f3a63]",
 									hide.isHidden(item) && "opacity-50",
 								)}
 							>
-								<div className="flex items-start gap-2 text-[12.5px] font-semibold">
-									<span className="text-[#8a8a97]">{index + 1}</span>
-									<span className="min-w-0 flex-1 break-words">
-										{emojify(item.title)}
+								<div className="flex items-start gap-2">
+									<span className="w-4 shrink-0 pt-px text-right text-[11px] tabular-nums text-[#6b6b78]">
+										{index + 1}
 									</span>
-									<span className="-mr-2 -mt-1">
+									<span
+										dir="auto"
+										title={item.title}
+										className="line-clamp-2 min-w-0 flex-1 break-words text-[12.5px] font-medium leading-[1.4] text-[#ececf1]"
+									>
+										{emojify(cleanTitle(item.title))}
+									</span>
+									<span className="-mr-1.5 -mt-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
 										<HideButton
 											hidden={hide.isHidden(item)}
 											onClick={() => hide.toggle(item)}
 										/>
 									</span>
 								</div>
-								{/* One row, always: the meta truncates so Open and Start sit at the
+								{/* One row, always: the meta truncates so the buttons sit at the
 								    same place on every card instead of wrapping on long names. */}
-								<div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-[#a5a5b3]">
+								<div className="mt-1.5 flex items-center gap-1.5 pl-6 text-[11px] text-[#8a8a97]">
 									{Icon && <Icon className="size-3 shrink-0" aria-hidden />}
-									<span className="min-w-0 flex-1 truncate">
-										{[item.source, item.priority, item.person]
-											.filter(Boolean)
-											.join(" · ")}
+									{item.priority && (
+										<span
+											className={cn(
+												"shrink-0 font-medium",
+												item.urgency === "high"
+													? "text-[#f0a0ad]"
+													: item.urgency === "medium"
+														? "text-[#e6c07b]"
+														: "text-[#8a8a97]",
+											)}
+										>
+											{item.priority}
+										</span>
+									)}
+									<span className="min-w-0 flex-1 truncate" title={meta}>
+										{meta}
 									</span>
 									{item.url && /^https?:\/\//.test(item.url) && (
 										<button
@@ -226,11 +275,12 @@ export function NextInLine() {
 											title={
 												item.source === "Slack"
 													? "Open the thread in Slack"
-													: "Open in your browser"
+													: `Open in ${item.source === "Tasks" ? "Odin" : "your browser"}`
 											}
-											className="shrink-0 rounded-md bg-[#1f1f27] px-2 py-0.5 font-semibold text-[#d8d2ff] hover:bg-[#2a2a35]"
+											aria-label="Open"
+											className="shrink-0 rounded-md p-1 text-[#a5a5b3] hover:bg-[#1f1f27] hover:text-[#f5f5f7]"
 										>
-											Open ↗
+											<LuExternalLink className="size-3.5" aria-hidden />
 										</button>
 									)}
 									<button
