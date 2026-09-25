@@ -42,6 +42,11 @@ export interface OdinTask {
 	 */
 	skill?: string;
 	/**
+	 * The checkout the session runs in. Absent = the workspace folder, where
+	 * the agent works out the repo from the brief.
+	 */
+	repo?: string;
+	/**
 	 * The built-in this row was installed from (`backlog-sweep`). Set = Odin
 	 * wrote it, and the runner fills its prompt with context only the app can
 	 * see. Everything else about it is an ordinary task: edit it, retime it,
@@ -141,10 +146,11 @@ export const useOdinTasks = create<{
 	 * Newest first. Blank text is a no-op — Enter on an empty box. Pass a cron
 	 * and it lands as an automation instead of a one-shot task.
 	 */
-	add: (text: string, profileId?: string, cron?: string) => void;
+	add: (text: string, profileId?: string, cron?: string, repo?: string) => void;
 	/** Run this task through a skill, or through none (empty). */
 	setSkill: (id: string, skill: string) => void;
-	edit: (id: string, text: string) => void;
+	/** `repo` undefined keeps the task's repo; "" clears it. */
+	edit: (id: string, text: string, repo?: string) => void;
 	remove: (id: string) => void;
 	/** Remember which session this task launched, so the row can jump to it. */
 	setPane: (id: string, paneId: string) => void;
@@ -167,7 +173,7 @@ export const useOdinTasks = create<{
 		(set) => ({
 			tasks: [],
 			seeded: [],
-			add: (text, profileId, cron) =>
+			add: (text, profileId, cron, repo) =>
 				set((s) => {
 					const { title, notes, priority, skill } = parseTask(text);
 					if (!title) return s;
@@ -182,12 +188,13 @@ export const useOdinTasks = create<{
 								profileId: profileOf(profileId),
 								...(cron ? { cron } : {}),
 								...(skill ? { skill } : {}),
+								...(repo ? { repo } : {}),
 							},
 							...s.tasks,
 						],
 					};
 				}),
-			edit: (id, text) =>
+			edit: (id, text, repo) =>
 				set((s) => {
 					const { title, notes, priority, skill } = parseTask(text);
 					// Editing a task to nothing means deleting it — one fewer button.
@@ -197,7 +204,14 @@ export const useOdinTasks = create<{
 							// skill is written on every edit, so clearing it in the box
 							// clears it on the task rather than leaving the old one.
 							t.id === id
-								? { ...t, title, notes, priority, skill: skill || undefined }
+								? {
+										...t,
+										title,
+										notes,
+										priority,
+										skill: skill || undefined,
+										repo: repo === undefined ? t.repo : repo || undefined,
+									}
 								: t,
 						),
 					};
@@ -305,7 +319,8 @@ export function useMyTasks() {
 		 */
 		todos: useMemo(() => tasks.filter((task) => !isAutomation(task)), [tasks]),
 		automations: useMemo(() => tasks.filter(isAutomation), [tasks]),
-		add: (text: string, cron?: string) => store.add(text, activeId, cron),
+		add: (text: string, cron?: string, repo?: string) =>
+			store.add(text, activeId, cron, repo),
 	};
 }
 

@@ -13,6 +13,7 @@ import {
 	withPriority,
 	withSkill,
 } from "../hooks/useOdinTasks";
+import { matchRepos, repoLabel } from "./repo-picker";
 import { matchSkills } from "./skill-picker";
 
 /** Title is the first line, the brief is the rest — the two fields the box
@@ -40,6 +41,9 @@ export function TaskBox({
 	autoFocus,
 	hidePriority,
 	skills,
+	repos,
+	repo,
+	onRepoChange,
 	onChange,
 	onSubmit,
 	onCancel,
@@ -55,6 +59,15 @@ export function TaskBox({
 	 * there's no Skill menu, and a skill typed into the title still works.
 	 */
 	skills?: AgentSkill[];
+	/**
+	 * The checkouts a session could run in. Passed with `onRepoChange`, the box
+	 * shows a Repo field; `repo` is the current pick ("" / absent = none). Held
+	 * apart from the text, unlike skill and priority — a path has no typed form
+	 * worth teaching.
+	 */
+	repos?: string[];
+	repo?: string;
+	onRepoChange?: (repo: string) => void;
 	onChange: (text: string) => void;
 	onSubmit: () => void;
 	onCancel?: () => void;
@@ -105,6 +118,13 @@ export function TaskBox({
 			<div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
 				{skills && skills.length > 0 && (
 					<SkillSelect skills={skills} value={value} onChange={onChange} />
+				)}
+				{repos && repos.length > 0 && onRepoChange && (
+					<RepoSelect
+						repos={repos}
+						value={repo ?? ""}
+						onChange={onRepoChange}
+					/>
 				)}
 				{!hidePriority && (
 					<div className="flex items-center gap-1.5">
@@ -300,6 +320,90 @@ function SkillSelect({
 	);
 }
 
+/**
+ * Which checkout the session starts in — the New Session dialog's field.
+ *
+ * The text is held here and resolved on every keystroke: exactly one hit is
+ * the pick, anything else is none, and the note beside it says which, so a
+ * half-typed name is a valid pick you can see landed.
+ *
+ * ponytail: native `<datalist>` — Chromium does search-as-you-type over the
+ * paths for free.
+ */
+function RepoSelect({
+	repos,
+	value,
+	onChange,
+}: {
+	repos: string[];
+	value: string;
+	onChange: (repo: string) => void;
+}) {
+	const [query, setQuery] = useState(value);
+	const hits = matchRepos(repos, query);
+	// Set from outside (the compose row clearing after Enter): follow it. Typing
+	// can't trip this — every keystroke writes back what the text resolves to.
+	if ((hits.length === 1 ? hits[0] : "") !== value) setQuery(value);
+	return (
+		<div className="flex items-center gap-1.5">
+			<span className="text-[11px] text-[#8a8a97]">Repo</span>
+			<input
+				list="odin-task-repos"
+				aria-label="Repo"
+				value={query}
+				spellCheck={false}
+				placeholder="none (agent picks)"
+				title={value || "The checkout the session starts in. Type to search."}
+				onChange={(event) => {
+					const found = matchRepos(repos, event.target.value);
+					setQuery(event.target.value);
+					onChange(found.length === 1 ? (found[0] as string) : "");
+				}}
+				// Same :autofill override as the New Session dialog — a picked option
+				// otherwise paints white-on-black over any bg-*.
+				className={cn(
+					"w-[170px] rounded-[6px] bg-[#1f1f27] px-1.5 py-[3px] text-[11px] font-semibold outline-none [color-scheme:dark] placeholder:font-normal placeholder:text-[#8a8a97] autofill:shadow-[inset_0_0_0_1000px_#1f1f27] autofill:[-webkit-text-fill-color:#3ecf8e]",
+					value ? "text-[#3ecf8e]" : "text-[#a5a5b3]",
+				)}
+			/>
+			<datalist id="odin-task-repos">
+				{repos.map((path) => (
+					<option key={path} value={path}>
+						{repoLabel(path)}
+					</option>
+				))}
+			</datalist>
+			{query.trim() && (
+				<span
+					title={value}
+					className={cn(
+						"max-w-[160px] truncate text-[11px] font-semibold",
+						value ? "text-[#3ecf8e]" : "text-[#f0647a]",
+					)}
+				>
+					{value
+						? `→ ${repoLabel(value)}`
+						: hits.length > 1
+							? `${hits.length} matches`
+							: "no match"}
+				</span>
+			)}
+		</div>
+	);
+}
+
+/** The checkout a task's session runs in, on its row. */
+export function RepoChip({ repo }: { repo: string }) {
+	return (
+		<span
+			title={`Runs in ${repo}`}
+			className="rounded-[5px] bg-[#1f1f27] px-[7px] py-[1px] font-semibold text-[#a5a5b3]"
+		>
+			{repoLabel(repo)}
+		</span>
+	);
+}
+
 /** The skill a task runs, on its row. Green, matching the composer's menu. */
 export function SkillChip({ skill }: { skill: string }) {
 	return (
@@ -453,7 +557,9 @@ export function parseSize(stored: string | null): [string, string] | null {
 export function QuickAddTask({ onClose }: { onClose: () => void }) {
 	const { add } = useMyTasks();
 	const { data: skills } = electronTrpc.skills.list.useQuery();
+	const { data: repos } = electronTrpc.repos.list.useQuery();
 	const [draft, setDraft] = useState("");
+	const [repo, setRepo] = useState("");
 	const dialog = useRef<HTMLDivElement>(null);
 
 	// The size you last dragged it to. Chromium writes the drag straight into the
@@ -472,7 +578,7 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 	const save = () => {
 		// Same rule the store uses — no title, no task, so don't claim one.
 		if (!parseTask(draft).title) return onClose();
-		add(draft);
+		add(draft, undefined, repo);
 		toast.success("Added to My Tasks");
 		onClose();
 	};
@@ -503,6 +609,9 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 					value={draft}
 					autoFocus
 					skills={skills}
+					repos={repos}
+					repo={repo}
+					onRepoChange={setRepo}
 					placeholder="What needs doing?"
 					onChange={setDraft}
 					onSubmit={save}
