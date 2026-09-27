@@ -399,8 +399,11 @@ function WeekView({
 				.filter((task) => matches(task, query))
 				.sort((a, b) => b.startedAt - a.startedAt)
 		: (week?.tasks ?? []);
+	// A row reading "0" is a slice too thin to say anything — a session that
+	// only brushed this week.
+	const listed = matching.filter((task) => task.hours > 0 || task.yourHours);
 	const [expanded, setExpanded] = useState(false);
-	const tasks = expanded ? matching : matching.slice(0, WEEK_ROWS);
+	const tasks = expanded ? listed : listed.slice(0, WEEK_ROWS);
 	const earliest = Math.min(
 		recap[0]?.start ?? thisWeek,
 		heatmap[0]?.start ?? thisWeek,
@@ -411,8 +414,8 @@ function WeekView({
 		<Card>
 			{searching ? (
 				<div className="mb-3 text-[12px] text-[#d6d6dc]">
-					{matching.length
-						? `${plural(matching.length, "match")} across every week, newest first`
+					{listed.length
+						? `${plural(listed.length, "match")} across every week, newest first`
 						: "No task matches that."}
 				</div>
 			) : (
@@ -450,18 +453,18 @@ function WeekView({
 							className="flex items-baseline gap-3 py-1.5"
 						>
 							<div
-								title={taskTime(task)}
-								className="w-10 shrink-0 text-right text-[12.5px] font-semibold tabular-nums"
-								style={{ color: AGENT_COLOR }}
-							>
-								{duration(task.hours)}
-							</div>
-							<div
 								title="Your time: for each prompt you typed, the gap since the agent last wrote (reading its answer, writing yours), capped at 5 min. A floor — reading while it works isn't seen."
-								className="w-9 shrink-0 text-right text-[11px] tabular-nums"
+								className="w-10 shrink-0 text-right text-[12.5px] font-semibold tabular-nums"
 								style={{ color: YOU_COLOR }}
 							>
 								{task.yourHours ? duration(task.yourHours) : "—"}
+							</div>
+							<div
+								title={taskTime(task)}
+								className="w-9 shrink-0 text-right text-[11px] tabular-nums"
+								style={{ color: AGENT_COLOR }}
+							>
+								{duration(task.hours)}
 							</div>
 							{searching && (
 								<div className="w-12 shrink-0 text-[10.5px] tabular-nums text-[#6f6f7d]">
@@ -502,13 +505,13 @@ function WeekView({
 					))}
 				</div>
 			)}
-			{matching.length > WEEK_ROWS && (
+			{listed.length > WEEK_ROWS && (
 				<button
 					type="button"
 					onClick={() => setExpanded(!expanded)}
 					className="-mt-2 mb-4 text-[11px] text-[#8a8a97] hover:text-[#e4e4ea]"
 				>
-					{expanded ? "Show less" : `Show ${matching.length - WEEK_ROWS} more`}
+					{expanded ? "Show less" : `Show ${listed.length - WEEK_ROWS} more`}
 				</button>
 			)}
 
