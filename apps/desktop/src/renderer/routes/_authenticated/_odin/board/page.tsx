@@ -1819,7 +1819,11 @@ function DevBoardPage() {
 		usePaneMeta.getState().setTitle(result.paneId, title);
 		usePaneMeta.getState().setSessionId(result.paneId, result.sessionId);
 		setDrawerCard(null);
-		toast.success(`Started over on "${title}"`);
+		// The title is the prompt's whole first line — often a paragraph — and a
+		// toast that long covers the cards under it.
+		toast.success(
+			`Started over on "${title.length > 60 ? `${title.slice(0, 59)}…` : title}"`,
+		);
 	};
 
 	const terminalWrite = electronTrpc.terminal.write.useMutation();
