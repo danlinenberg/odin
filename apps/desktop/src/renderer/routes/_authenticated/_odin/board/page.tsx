@@ -1412,7 +1412,9 @@ function DevBoardPage() {
 			);
 		warm();
 		// Live sessions keep working; re-warm so a brief you open later is recent.
-		const timer = setInterval(warm, 5 * 60_000);
+		// Every minute, not five: a new card's title only comes back on the call
+		// after its brief is written, and a cache hit costs main one stat.
+		const timer = setInterval(warm, 60_000);
 		return () => clearInterval(timer);
 		// warmBriefs is a new object each render — the id list is the real trigger.
 	}, [briefSessionIds, autoRename]);

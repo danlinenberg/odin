@@ -320,6 +320,37 @@ describe("warmBriefs", () => {
 		expect(brief.title).toBe("t");
 	});
 
+	test("rewrites an untitled brief once the transcript moves, without waiting", async () => {
+		const { session, root, bin, cachePath, runCount } = fixture();
+		// Written 36s into a launch that was only an image: nothing to title yet.
+		writeFileSync(
+			cachePath,
+			JSON.stringify({
+				[session]: {
+					mtimeMs: 0,
+					writtenAt: Date.now(),
+					brief: {
+						title: null,
+						goal: null,
+						status: null,
+						next: null,
+						tags: [],
+						raw: "?",
+					},
+					version: 2,
+				},
+			}),
+		);
+		const brief = await writeBrief({
+			sessionId: session,
+			claudeBin: bin,
+			root,
+			cachePath,
+		});
+		expect(runCount()).toBe(1);
+		expect(brief.title).toBe("t");
+	});
+
 	test("hands back the written titles for the board to rename cards with", async () => {
 		const { session, root, bin, cachePath } = fixture();
 		await warmBriefs([session], { claudeBin: bin, root, cachePath });
