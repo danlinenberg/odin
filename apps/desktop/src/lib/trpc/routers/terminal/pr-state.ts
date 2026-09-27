@@ -90,15 +90,15 @@ function status(stdout: string): PullRequestStatus | null {
  * active, or the reverse. The owner in the url doesn't name the account that
  * can read it (`imagenai/...` is read by `dan-linenberg-imagenai`), so on a
  * miss just try each logged-in account's token in turn. Null when none of them
- * can see it (no gh, no access, deleted repo); the panel shows no label.
+ * can (no gh, no access, deleted repo).
  */
-export async function pullRequestState(
-	url: string,
+export async function ghAsAnyAccount<T>(
+	args: string[],
+	parse: (stdout: string) => T,
 	exec: GhExec = gh,
-): Promise<PullRequestStatus | null> {
-	const view = ["pr", "view", url, "--json", "state,statusCheckRollup"];
+): Promise<T | null> {
 	try {
-		return status((await exec(view)).stdout);
+		return parse((await exec(args)).stdout);
 	} catch {
 		// Fall through to the other accounts.
 	}
@@ -116,10 +116,22 @@ export async function pullRequestState(
 				"--user",
 				account,
 			]);
-			return status((await exec(view, { GH_TOKEN: token.trim() })).stdout);
+			return parse((await exec(args, { GH_TOKEN: token.trim() })).stdout);
 		} catch {
 			// Not this account's repo either.
 		}
 	}
 	return null;
+}
+
+/** Null when no logged-in account can see the PR; the panel shows no label. */
+export function pullRequestState(
+	url: string,
+	exec: GhExec = gh,
+): Promise<PullRequestStatus | null> {
+	return ghAsAnyAccount(
+		["pr", "view", url, "--json", "state,statusCheckRollup"],
+		status,
+		exec,
+	);
 }
