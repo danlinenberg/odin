@@ -352,7 +352,8 @@ function WeekView({
 				!(task.repo && excluded.has(task.repo)),
 		) ?? [];
 	const filtered = repo !== null || excluded.size > 0;
-	const tasks = matching.slice(0, 8);
+	const [expanded, setExpanded] = useState(false);
+	const tasks = expanded ? matching : matching.slice(0, 8);
 	const earliest = Math.min(
 		recap[0]?.start ?? thisWeek,
 		heatmap[0]?.start ?? thisWeek,
@@ -383,9 +384,7 @@ function WeekView({
 					{!week
 						? "nothing logged"
 						: filtered
-							? // ponytail: a repo's totals are summed from its listed sessions,
-								// so sub-10-minute lookups without a PR aren't in them.
-								`${plural(matching.length, "session")} · ${duration(
+							? `${plural(matching.length, "session")} · ${duration(
 									matching.reduce((sum, task) => sum + task.hours, 0),
 								)} of agent work · ${plural(
 									matching.reduce((sum, task) => sum + task.prs.length, 0),
@@ -485,6 +484,15 @@ function WeekView({
 						</div>
 					))}
 				</div>
+			)}
+			{matching.length > 8 && (
+				<button
+					type="button"
+					onClick={() => setExpanded(!expanded)}
+					className="-mt-2 mb-4 text-[11px] text-[#8a8a97] hover:text-[#e4e4ea]"
+				>
+					{expanded ? "Show less" : `Show ${matching.length - 8} more`}
+				</button>
 			)}
 
 			<div

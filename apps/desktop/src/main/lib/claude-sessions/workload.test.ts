@@ -191,7 +191,7 @@ describe("computeWorkload", () => {
 		expect(out.weeks[0]?.start).toBe(weekStart(MON));
 	});
 
-	test("each week recaps its biggest work first, lookups dropped unless they shipped", () => {
+	test("each week recaps every session, biggest first", () => {
 		const out = computeWorkload(
 			[
 				session({ sessionId: "short", intervals: [[MON, MON + HOUR]] }),
@@ -223,6 +223,7 @@ describe("computeWorkload", () => {
 		expect(week?.tasks.map((task) => task.sessionId)).toEqual([
 			"long",
 			"short",
+			"peek",
 			"pr",
 		]);
 		expect(week?.tasks[0]?.title).toBe("fix the board scanner");
