@@ -570,14 +570,19 @@ export function main() {
 	// usernoted snapshots an app's icon the first time it sees the bundle ID and
 	// never re-reads it, so a bundle whose icon was still Electron's at first
 	// launch keeps drawing the atom on every banner no matter what Launch
-	// Services resolves afterwards. launchd brings it straight back.
-	try {
-		execSync("/usr/bin/killall usernoted");
-		console.log(
-			"[patch-dev-protocol] Bounced usernoted to drop its icon cache",
-		);
-	} catch {
-		// Not running, or already restarting — either way the cache is gone.
+	// Services resolves afterwards. NotificationCenter, which draws the banners,
+	// holds its own in-memory copy for as long as it runs (often since login), so
+	// bouncing usernoted alone left the old green dev icon on banners. launchd
+	// brings both straight back.
+	for (const proc of ["usernoted", "NotificationCenter"]) {
+		try {
+			execSync(`/usr/bin/killall ${proc}`, { stdio: "ignore" });
+			console.log(
+				`[patch-dev-protocol] Bounced ${proc} to drop its icon cache`,
+			);
+		} catch {
+			// Not running, or already restarting — either way the cache is gone.
+		}
 	}
 
 	// Update the electron package's path.txt so electron-vite launches from the
