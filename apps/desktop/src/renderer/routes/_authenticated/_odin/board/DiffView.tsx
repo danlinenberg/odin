@@ -1,6 +1,7 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal as XTerm } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
+import { keepPreviousData } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import {
@@ -60,7 +61,14 @@ export function DiffView({
 
 	const { data, error, isFetching, refetch } = electronTrpc.repos.diff.useQuery(
 		{ cwd, claudeSessionId, workspaceId, width, pr },
-		{ refetchOnWindowFocus: false, retry: false },
+		{
+			refetchOnWindowFocus: false,
+			retry: false,
+			// Keep the last diff while a new width re-renders. Dropping it hid the
+			// file list, which widened the terminal, which changed the width again —
+			// the panel flickered between renders and never settled.
+			placeholderData: keepPreviousData,
+		},
 	);
 
 	useEffect(() => {
