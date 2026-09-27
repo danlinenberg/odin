@@ -277,10 +277,10 @@ function cellStyle(minutes: number): React.CSSProperties {
 	return { background: YOU_COLOR, opacity: 0.2 + 0.2 * step };
 }
 
-/** Repos hidden from "What you did" — a per-viewer preference, so localStorage. */
 /** Rows a week shows before "Show more". */
 const WEEK_ROWS = 20;
 
+/** Repos hidden across the page — a per-viewer preference, so localStorage. */
 const EXCLUDED_KEY = "odin.insights.excludedRepos";
 
 function readExcluded(): Set<string> {
@@ -329,32 +329,8 @@ function WeekView({
 		() => new Map(heatmap.map((week) => [week.start, week.minutes])),
 		[heatmap],
 	);
-	// Kept across week steps, so you can page back through one repo's weeks.
-	const [repo, setRepo] = useState<string | null>(null);
-	const [excluded, setExcluded] = useState(readExcluded);
-	const toggleExcluded = (name: string) => {
-		const next = new Set(excluded);
-		if (!next.delete(name)) next.add(name);
-		if (name === repo) setRepo(null);
-		setExcluded(next);
-		try {
-			localStorage.setItem(EXCLUDED_KEY, JSON.stringify([...next]));
-		} catch {}
-	};
 	const week = recap.find((row) => row.start === start);
-	const repos = [
-		...new Set([
-			...(week?.tasks.flatMap((task) => (task.repo ? [task.repo] : [])) ?? []),
-			...(repo ? [repo] : []),
-		]),
-	].filter((name) => !excluded.has(name));
-	const matching =
-		week?.tasks.filter(
-			(task) =>
-				(!repo || task.repo === repo) &&
-				!(task.repo && excluded.has(task.repo)),
-		) ?? [];
-	const filtered = repo !== null || excluded.size > 0;
+	const matching = week?.tasks ?? [];
 	const [expanded, setExpanded] = useState(false);
 	const tasks = expanded ? matching : matching.slice(0, WEEK_ROWS);
 	const earliest = Math.min(
@@ -384,63 +360,11 @@ function WeekView({
 						: `${DATE.format(start)} – ${DATE.format(shiftWeeks(start, 1) - DAY_MS)}`}
 				</div>
 				<div className="ml-auto text-[11.5px] tabular-nums text-[#a5a5b3]">
-					{!week
-						? "nothing logged"
-						: filtered
-							? `${plural(matching.length, "session")} · ${duration(
-									matching.reduce((sum, task) => sum + task.hours, 0),
-								)} of agent work · ${plural(
-									matching.reduce((sum, task) => sum + task.prs.length, 0),
-									"PR",
-								)}`
-							: `${plural(week.sessions, "session")} · ${duration(week.yourHours)} on the clock · ${plural(week.prs, "PR")}`}
+					{week
+						? `${plural(week.sessions, "session")} · ${duration(week.yourHours)} on the clock · ${plural(week.prs, "PR")}`
+						: "nothing logged"}
 				</div>
 			</div>
-
-			{repos.length > 1 || filtered ? (
-				<div className="mb-3 flex flex-wrap gap-1.5">
-					{[null, ...repos].map((name) => (
-						<div
-							key={name ?? "all"}
-							className={`flex items-center rounded-[6px] border text-[10.5px] ${
-								repo === name
-									? "border-[#a394ff] bg-[#a394ff22] text-[#e4e4ea]"
-									: "border-[#25252e] bg-[#16161b] text-[#a5a5b3]"
-							}`}
-						>
-							<button
-								type="button"
-								onClick={() => setRepo(name)}
-								className="px-2 py-[2px] hover:text-[#e4e4ea]"
-							>
-								{name ?? "All repos"}
-							</button>
-							{name && (
-								<button
-									type="button"
-									aria-label={`Hide ${name}`}
-									title="Hide this repo"
-									onClick={() => toggleExcluded(name)}
-									className="pr-1.5 text-[#6f6f7d] hover:text-[#e4e4ea]"
-								>
-									×
-								</button>
-							)}
-						</div>
-					))}
-					{[...excluded].map((name) => (
-						<button
-							key={name}
-							type="button"
-							title="Hidden — click to show again"
-							onClick={() => toggleExcluded(name)}
-							className="rounded-[6px] border border-dashed border-[#25252e] px-2 py-[2px] text-[10.5px] text-[#6f6f7d] line-through hover:text-[#a5a5b3]"
-						>
-							{name}
-						</button>
-					))}
-				</div>
-			) : null}
 
 			{tasks.length > 0 && (
 				<div className="mb-4 flex flex-col divide-y divide-[#1f1f27]">
@@ -615,21 +539,122 @@ function Big({
 	);
 }
 
+/**
+ * The repo filter for the whole page. Clicking a name keeps only that repo;
+ * × hides one, and a hidden repo stays listed, struck through, to bring back.
+ */
+function RepoFilter({
+	repos: all,
+	repo,
+	setRepo,
+	excluded,
+	toggleExcluded,
+}: {
+	repos: string[];
+	repo: string | null;
+	setRepo: (repo: string | null) => void;
+	excluded: Set<string>;
+	toggleExcluded: (repo: string) => void;
+}) {
+	const repos = all.filter((name) => !excluded.has(name));
+	const filtered = repo !== null || excluded.size > 0;
+	if (repos.length <= 1 && !filtered) return null;
+	return (
+		<div className="flex flex-wrap gap-1.5">
+			{[null, ...repos].map((name) => (
+				<div
+					key={name ?? "all"}
+					className={`flex items-center rounded-[6px] border text-[10.5px] ${
+						repo === name
+							? "border-[#a394ff] bg-[#a394ff22] text-[#e4e4ea]"
+							: "border-[#25252e] bg-[#16161b] text-[#a5a5b3]"
+					}`}
+				>
+					<button
+						type="button"
+						onClick={() => setRepo(name)}
+						className="px-2 py-[2px] hover:text-[#e4e4ea]"
+					>
+						{name ?? "All repos"}
+					</button>
+					{name && (
+						<button
+							type="button"
+							aria-label={`Hide ${name}`}
+							title="Hide this repo"
+							onClick={() => toggleExcluded(name)}
+							className="pr-1.5 text-[#6f6f7d] hover:text-[#e4e4ea]"
+						>
+							×
+						</button>
+					)}
+				</div>
+			))}
+			{[...excluded].map((name) => (
+				<button
+					key={name}
+					type="button"
+					title="Hidden — click to show again"
+					onClick={() => toggleExcluded(name)}
+					className="rounded-[6px] border border-dashed border-[#25252e] px-2 py-[2px] text-[10.5px] text-[#6f6f7d] line-through hover:text-[#a5a5b3]"
+				>
+					{name}
+				</button>
+			))}
+		</div>
+	);
+}
+
 function Workload() {
+	const [repo, setRepo] = useState<string | null>(null);
+	const [excluded, setExcluded] = useState(readExcluded);
+	const toggleExcluded = (name: string) => {
+		const next = new Set(excluded);
+		if (!next.delete(name)) next.add(name);
+		if (name === repo) setRepo(null);
+		setExcluded(next);
+		try {
+			localStorage.setItem(EXCLUDED_KEY, JSON.stringify([...next]));
+		} catch {}
+	};
 	const { data, isLoading } = electronTrpc.insights.workload.useQuery(
-		undefined,
-		{ refetchInterval: 120_000, staleTime: 60_000 },
+		{ only: repo, hide: [...excluded] },
+		{
+			refetchInterval: 120_000,
+			staleTime: 60_000,
+			// Switching repos keeps the old numbers up until the new ones land.
+			placeholderData: (previous) => previous,
+		},
 	);
 
 	if (isLoading || !data)
 		return (
 			<div className="text-[12px] text-[#6f6f7d]">Reading transcripts…</div>
 		);
+	const filter = (
+		<RepoFilter
+			repos={data.repos ?? data.byRepo.map((row) => row.repo)}
+			repo={repo}
+			setRepo={setRepo}
+			excluded={excluded}
+			toggleExcluded={toggleExcluded}
+		/>
+	);
 	if (data.sessions === 0)
-		return <Empty>No agent transcripts on this machine yet.</Empty>;
+		return (
+			<div className="flex flex-col gap-3">
+				{filter}
+				<Empty>
+					{repo || excluded.size
+						? "No sessions in these repos."
+						: "No agent transcripts on this machine yet."}
+				</Empty>
+			</div>
+		);
 
 	return (
 		<div className="flex flex-col gap-5">
+			{filter}
 			<Section
 				title="Time with agents"
 				note={data.since ? `since ${DATE.format(data.since)}` : undefined}

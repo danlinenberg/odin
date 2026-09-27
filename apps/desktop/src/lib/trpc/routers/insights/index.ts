@@ -1,6 +1,7 @@
 import { slackReactions, workLog } from "@odin/local-db";
 import { eq } from "drizzle-orm";
 import { localDb } from "main/lib/local-db";
+import { z } from "zod";
 import { publicProcedure, router } from "../..";
 import { activeProfileId } from "../odin-config";
 import { sessionPeople } from "../terminal/session-people";
@@ -58,11 +59,20 @@ export const createInsightsRouter = () => {
 		 * instantly and this fills in behind them. Scans are memoised on
 		 * mtime, so only a transcript that changed is re-read.
 		 */
-		workload: publicProcedure.query(async () => {
-			const { computeWorkload, scanSessions } = await import(
-				"main/lib/claude-sessions"
-			);
-			return computeWorkload(await scanSessions({ people: sessionPeople() }));
-		}),
+		workload: publicProcedure
+			.input(
+				z
+					.object({ only: z.string().nullable(), hide: z.array(z.string()) })
+					.optional(),
+			)
+			.query(async ({ input }) => {
+				const { computeWorkload, scanSessions } = await import(
+					"main/lib/claude-sessions"
+				);
+				return computeWorkload(
+					await scanSessions({ people: sessionPeople() }),
+					input,
+				);
+			}),
 	});
 };

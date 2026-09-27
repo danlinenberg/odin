@@ -231,6 +231,28 @@ describe("computeWorkload", () => {
 		expect(week?.tasks[1]?.title).toBe("session short");
 	});
 
+	test("a repo filter narrows every number but still lists every repo", () => {
+		const sessions = [
+			session({
+				sessionId: "a",
+				cwd: "/x/odin",
+				intervals: [[MON, MON + HOUR]],
+			}),
+			session({
+				sessionId: "b",
+				cwd: "/x/dev",
+				intervals: [[MON, MON + 2 * HOUR]],
+			}),
+		];
+		const only = computeWorkload(sessions, { now: MON, only: "odin" });
+		expect(only.sessions).toBe(1);
+		expect(only.agentHours).toBe(1);
+		expect(only.repos).toEqual(["dev", "odin"]);
+		const hidden = computeWorkload(sessions, { now: MON, hide: ["odin"] });
+		expect(hidden.byRepo.map((row) => row.repo)).toEqual(["dev"]);
+		expect(hidden.recap[0]?.tasks.map((task) => task.sessionId)).toEqual(["b"]);
+	});
+
 	test("hours are credited to whoever asked", () => {
 		const out = computeWorkload(
 			[
