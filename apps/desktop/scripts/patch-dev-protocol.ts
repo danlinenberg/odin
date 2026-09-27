@@ -170,7 +170,7 @@ export function resolveWorkspaceIdentity(
 
 const DEV_ICON_PNG = resolve(
 	import.meta.dirname,
-	"../src/resources/build/icons/icon-dev.png",
+	"../src/resources/build/icons/icon.png",
 );
 
 // Kept in sync with IDENTITY in scripts/create-signing-identity.sh.
@@ -183,7 +183,7 @@ const LOCAL_SIGNING_IDENTITY = "Odin Local Signing";
  * disk from the bundle — `app.setName()` and the dock-icon code never reach
  * them, so an agent-complete banner showed Electron's atom logo. Generated from
  * the PNG rather than committed as a second .icns so it can't go stale the way
- * the checked-in `icon-dev.icns` did.
+ * a checked-in dev .icns once did.
  */
 export function writeBundleIcon(appPath: string): void {
 	const iconsetDir =
@@ -390,7 +390,7 @@ export function main() {
 		} catch {}
 
 		// Regenerate the icon whenever the source PNG is newer, so editing
-		// icon-dev.png is enough to reskin the dev app.
+		// icon.png is enough to reskin the dev app.
 		let iconCurrent = false;
 		try {
 			iconCurrent =
