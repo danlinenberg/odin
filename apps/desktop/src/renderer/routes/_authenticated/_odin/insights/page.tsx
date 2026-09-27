@@ -454,14 +454,14 @@ function WeekView({
 						>
 							<div
 								title="Your time: for each prompt you typed, the gap since the agent last wrote (reading its answer, writing yours), capped at 5 min. A floor — reading while it works isn't seen."
-								className="w-10 shrink-0 text-right text-[12.5px] font-semibold tabular-nums"
+								className="w-10 shrink-0 text-left text-[12.5px] font-semibold tabular-nums"
 								style={{ color: YOU_COLOR }}
 							>
 								{duration(task.yourHours ?? 0)}
 							</div>
 							<div
 								title={taskTime(task)}
-								className="w-9 shrink-0 text-right text-[11px] tabular-nums"
+								className="w-9 shrink-0 text-left text-[11px] tabular-nums"
 								style={{ color: AGENT_COLOR }}
 							>
 								{duration(task.hours)}
