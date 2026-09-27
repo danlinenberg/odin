@@ -187,6 +187,8 @@ function slugify(title: string): string {
  * Every one of those gaps handed a mid-turn card to the scan below.
  */
 const SETTLED_MS = 120_000;
+/** How long after a (re)start Continue stays clickable on a live session. */
+const RECENT_RESTART_MS = 5 * 60_000;
 
 /** Width of the Odin icon rail in layout.tsx — the drawer stops here. */
 const RAIL_W = 52;
@@ -966,6 +968,21 @@ function DevBoardPage() {
 		() => new Set(loopingKey ? loopingKey.split(",") : []),
 		[loopingKey],
 	);
+	/**
+	 * Live Claude that's been up a while. Continue is for nudging a session
+	 * that just came back (Resume, app/daemon restart) and is sitting idle;
+	 * on one that's been open all along it's a stray prompt. The PTY's
+	 * createdAt is the restart — Resume respawns it. Re-evaluated on the 5s poll.
+	 */
+	const isSettledAgent = (paneId: string) => {
+		if (!agentPaneIds.has(paneId)) return false;
+		const createdAt = daemonSessions?.sessions.find(
+			(session) => session.sessionId === paneId,
+		)?.createdAt;
+		return (
+			!!createdAt && Date.now() - Date.parse(createdAt) > RECENT_RESTART_MS
+		);
+	};
 	/** Alive PTY currently mid-turn — the one state Resume must not touch. */
 	const isWorkingNow = (paneId: string) =>
 		agentPaneIds.has(paneId) && panes[paneId]?.status === "working";
@@ -2532,19 +2549,22 @@ function DevBoardPage() {
 									type="button"
 									disabled={
 										resumingPaneIds.includes(drawerCard.pane.id) ||
-										isWorkingNow(drawerCard.pane.id)
+										isWorkingNow(drawerCard.pane.id) ||
+										isSettledAgent(drawerCard.pane.id)
 									}
 									onClick={() => void resumeCard(drawerCard)}
 									title={
 										isWorkingNow(drawerCard.pane.id)
 											? "Already working — resuming would kill the running turn"
-											: agentPaneIds.has(drawerCard.pane.id)
-												? 'Session is open — send it "Continue"'
-												: drawerCard.pane.status === "working"
-													? 'Died mid-turn — reopen it and send "Continue"'
-													: "Reopen this conversation at an idle prompt (claude --resume)"
+											: isSettledAgent(drawerCard.pane.id)
+												? "Session is already open — type in the terminal"
+												: agentPaneIds.has(drawerCard.pane.id)
+													? 'Session is open — send it "Continue"'
+													: drawerCard.pane.status === "working"
+														? 'Died mid-turn — reopen it and send "Continue"'
+														: "Reopen this conversation at an idle prompt (claude --resume)"
 									}
-									className="rounded-[7px] bg-[#14301f] px-3 py-1.5 text-xs font-semibold text-[#3ecf8e] hover:bg-[#1a3d28] disabled:opacity-60 disabled:hover:bg-[#14301f]"
+									className="rounded-[7px] bg-[#14301f] px-3 py-1.5 text-xs font-semibold text-[#3ecf8e] hover:bg-[#1a3d28] disabled:cursor-not-allowed disabled:bg-[#1f1f27] disabled:text-[#6b6b78]"
 								>
 									{drawerCard.pane.odinQueued
 										? resumingPaneIds.includes(drawerCard.pane.id)
