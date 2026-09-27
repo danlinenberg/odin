@@ -557,6 +557,7 @@ export interface TranscriptMessage {
 export function parseTranscript(
 	jsonl: string,
 	maxMessages = 500,
+	maxChars = 6000,
 ): TranscriptMessage[] {
 	const messages: TranscriptMessage[] = [];
 	const prCreates = new Set<string>();
@@ -601,12 +602,35 @@ export function parseTranscript(
 		if (entry.type === "user" && !isTypedByUser(entry, text)) continue;
 		messages.push({
 			role: entry.type as "user" | "assistant",
-			text: text.length > 6000 ? `${text.slice(0, 6000)}\n…[truncated]` : text,
+			text:
+				text.length > maxChars
+					? `${text.slice(0, maxChars)}\n…[truncated]`
+					: text,
 			at: typeof entry.timestamp === "string" ? entry.timestamp : null,
 		});
 	}
 	// Keep the tail: the end of a conversation is what you resume into.
 	return messages.slice(-maxMessages);
+}
+
+const ANY_URL = /https:\/\/[^\s)>\]"'`|]+/g;
+
+/**
+ * Every turn that quotes a URL, across the whole conversation, cut down to
+ * its URLs. The brief finds its Slack thread, ticket, PRs and Notion page in
+ * these: `parseTranscript` keeps only the tail, and in a long session the
+ * thread you started from and the ticket you pasted are the first messages
+ * to fall out of it.
+ */
+export function transcriptLinks(jsonl: string): TranscriptMessage[] {
+	return parseTranscript(
+		jsonl,
+		Number.POSITIVE_INFINITY,
+		Number.POSITIVE_INFINITY,
+	).flatMap((message) => {
+		const urls = message.text.match(ANY_URL);
+		return urls ? [{ ...message, text: urls.join("\n") }] : [];
+	});
 }
 
 /** Reject anything that isn't a bare directory / file name from the renderer. */
@@ -670,6 +694,8 @@ export async function readTranscript({
 	root?: string;
 }): Promise<{
 	messages: TranscriptMessage[];
+	/** Every URL-quoting turn of the whole session — see `transcriptLinks`. */
+	links: TranscriptMessage[];
 	cwd: string | null;
 	/** Claude's own generated title for the conversation, when it has one. */
 	title: string | null;
@@ -689,6 +715,7 @@ export async function readTranscript({
 	const { cwd, aiTitle, prompt } = summarizeTranscript(jsonl);
 	return {
 		messages: parseTranscript(jsonl),
+		links: transcriptLinks(jsonl),
 		cwd,
 		title: aiTitle,
 		prompt,
