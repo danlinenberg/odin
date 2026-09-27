@@ -7,6 +7,8 @@ import {
 	activeIntervals,
 	computeWorkload,
 	mergeIntervals,
+	openingLine,
+	repoForDirs,
 	type SessionWork,
 	scanTranscript,
 	totalMs,
@@ -27,6 +29,8 @@ function session(over: Partial<SessionWork> = {}): SessionWork {
 		person: null,
 		source: null,
 		cwd: null,
+		dirs: [],
+		opening: null,
 		repo: null,
 		title: null,
 		prs: [],
@@ -382,5 +386,53 @@ describe("repoOfDir", () => {
 			"odin",
 		);
 		expect(repoOfDir(join(home, "Dan Wedding"))).toBeNull();
+	});
+
+	test("a repo holding other clones is general, not a repo", () => {
+		const dev = mkdtempSync(join(tmpdir(), "repo-of-dir-"));
+		mkdirSync(join(dev, ".git"));
+		mkdirSync(join(dev, "imagen", "app-web-server", ".git"), {
+			recursive: true,
+		});
+		expect(repoOfDir(dev)).toBeNull();
+		expect(repoOfDir(join(dev, "imagen", "app-web-server"))).toBe(
+			"app-web-server",
+		);
+	});
+});
+
+describe("repoForDirs", () => {
+	const known: Record<string, string | null> = {
+		"/dev": null,
+		"/dev/a": "a",
+		"/dev/b": "b",
+	};
+	test("votes by repo, so a general start doesn't outvote the clone worked in", () => {
+		expect(
+			repoForDirs(
+				[
+					["/dev", 90],
+					["/dev/a", 10],
+					["/dev/b", 4],
+				],
+				(dir) => known[dir] ?? null,
+			),
+		).toBe("a");
+		expect(repoForDirs([["/dev", 90]], (dir) => known[dir] ?? null)).toBeNull();
+	});
+});
+
+describe("openingLine", () => {
+	test("names an automation's run by the first sentence of its brief", () => {
+		const jsonl = JSON.stringify({
+			type: "user",
+			message: {
+				content:
+					"Triage one bug report from Imagen Studio. A photographer hit Report.",
+			},
+		});
+		expect(openingLine(jsonl)).toBe(
+			"Triage one bug report from Imagen Studio.",
+		);
 	});
 });

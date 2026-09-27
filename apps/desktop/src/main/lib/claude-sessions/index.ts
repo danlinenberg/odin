@@ -17,7 +17,12 @@ export {
 	transcriptOf,
 	workingRepoOf,
 } from "./claude-sessions";
-export { type WrittenBrief, warmBriefs, writeBrief } from "./summarize";
+export {
+	cachedBriefs,
+	type WrittenBrief,
+	warmBriefs,
+	writeBrief,
+} from "./summarize";
 export {
 	activeIntervals,
 	computeWorkload,

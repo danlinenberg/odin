@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
@@ -948,7 +948,41 @@ function ownerRepoOf(checkout: string): string {
  */
 export function repoOfDir(dir: string): string | null {
 	const root = repoRootOf(dir);
-	return root ? repoNameOf(root) : null;
+	return root && !holdsClones(root) ? repoNameOf(root) : null;
+}
+
+const containers = new Map<string, boolean>();
+
+/**
+ * Whether a repo is a folder of other clones — `~/dev`, a repo of loose
+ * scripts that also contains every checkout. Work run from there is general,
+ * not work on it. Looks two levels down (`~/dev/imagen/<clone>`), skipping
+ * dot-folders so a repo's own `.worktrees` don't count against it.
+ */
+function holdsClones(root: string): boolean {
+	const hit = containers.get(root);
+	if (hit !== undefined) return hit;
+	const children = (dir: string) => {
+		try {
+			return readdirSync(dir, { withFileTypes: true })
+				.filter(
+					(entry) =>
+						entry.isDirectory() &&
+						!entry.name.startsWith(".") &&
+						entry.name !== "node_modules",
+				)
+				.map((entry) => join(dir, entry.name));
+		} catch {
+			return [];
+		}
+	};
+	const found = children(root).some(
+		(child) =>
+			existsSync(join(child, ".git")) ||
+			children(child).some((grand) => existsSync(join(grand, ".git"))),
+	);
+	containers.set(root, found);
+	return found;
 }
 
 /** What to call a checkout on a card: the repo's name, never the worktree's. */

@@ -41,9 +41,13 @@ export interface TranscriptScan {
 	endedAt: number;
 	/** The checkout most of the session's commands ran in. */
 	cwd: string | null;
+	/** Every directory the session ran in, with how many entries each. */
+	dirs: [string, number][];
 	title: string | null;
 	/** PRs the session opened with `gh pr create`, as urls. */
 	prs: string[];
+	/** The opening message, clipped. */
+	opening: string | null;
 	/** Timestamped entries — a rough size, used only to break ties. */
 	entries: number;
 }
@@ -124,6 +128,52 @@ export function openedPrs(jsonl: string): string[] {
 }
 
 /**
+ * The first sentence of the session's opening message, whoever wrote it. An
+ * automation's `claude -p` run has no typed prompt for `firstPrompt` to find,
+ * but its brief ("Triage one bug report from…") still says what it was for.
+ */
+export function openingLine(jsonl: string): string | null {
+	const first = openingText(jsonl)
+		?.split(/(?<=[.!?])\s|\n/)[0]
+		?.trim();
+	if (!first) return null;
+	return first.length > 80 ? `${first.slice(0, 79)}…` : first;
+}
+
+/** The session's opening message, clipped — a row's hover description. */
+export function openingText(
+	jsonl: string,
+	max = 600,
+	headBytes = 200_000,
+): string | null {
+	for (const line of jsonl.slice(0, headBytes).split("\n")) {
+		if (!line.includes('"type":"user"')) continue;
+		let entry: {
+			type?: string;
+			isSidechain?: boolean;
+			message?: { content?: unknown };
+		};
+		try {
+			entry = JSON.parse(line);
+		} catch {
+			continue;
+		}
+		if (entry.type !== "user" || entry.isSidechain) continue;
+		const content = entry.message?.content;
+		const text =
+			typeof content === "string"
+				? content
+				: Array.isArray(content)
+					? content.find((block) => block?.type === "text")?.text
+					: null;
+		const clean = String(text ?? "").trim();
+		if (clean)
+			return clean.length > max ? `${clean.slice(0, max - 1)}…` : clean;
+	}
+	return null;
+}
+
+/**
  * Timestamps and working directory out of a raw transcript, by regex rather
  * than by parsing every line. The store runs to hundreds of megabytes and only
  * two fields are wanted from the body of it — `JSON.parse` per line costs
@@ -161,9 +211,17 @@ export function scanTranscript(jsonl: string): TranscriptScan | null {
 		startedAt: Math.min(...timestamps),
 		endedAt: Math.max(...timestamps),
 		cwd,
+		dirs: [...cwds],
 		// Claude Code's own name for the session reads like a task; the first
 		// prompt is the fallback for sessions too old or short to have one.
-		title: aiTitle || firstPrompt(jsonl),
+		// A session opened by a slash command (a scheduled `/gdpr`) has no
+		// typed prompt; its command is still a better name than an id.
+		title:
+			aiTitle ||
+			firstPrompt(jsonl) ||
+			/<command-name>(\/[^<]+)<\/command-name>/.exec(jsonl)?.[1] ||
+			openingLine(jsonl),
+		opening: openingText(jsonl),
 		prs: openedPrs(jsonl),
 		entries: timestamps.length,
 	};
@@ -192,10 +250,31 @@ const cache = new Map<
 /** dir → repo name; a walk up the tree per directory, done once. */
 const repos = new Map<string, string | null>();
 
-function repoFor(cwd: string | null): string | null {
-	if (!cwd) return null;
-	if (!repos.has(cwd)) repos.set(cwd, repoOfDir(cwd));
-	return repos.get(cwd) ?? null;
+function repoOf(dir: string): string | null {
+	if (!repos.has(dir)) repos.set(dir, repoOfDir(dir));
+	return repos.get(dir) ?? null;
+}
+
+/**
+ * The repo a session worked in: every directory it ran in, tallied by the
+ * repo it belongs to. Tallying rather than taking the busiest folder is what
+ * lets a session started in `~/dev` that did its work in a clone land on that
+ * clone. Nothing in a repo — a general task — is null.
+ */
+export function repoForDirs(
+	dirs: [string, number][],
+	resolve: (dir: string) => string | null = repoOf,
+): string | null {
+	const votes = new Map<string, number>();
+	for (const [dir, count] of dirs) {
+		const repo = resolve(dir);
+		if (repo) votes.set(repo, (votes.get(repo) ?? 0) + count);
+	}
+	return (
+		[...votes].sort(
+			(a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
+		)[0]?.[0] ?? null
+	);
 }
 
 export async function scanSessions({
@@ -249,7 +328,7 @@ export async function scanSessions({
 				...scan,
 				sessionId,
 				project,
-				repo: repoFor(scan.cwd),
+				repo: repoForDirs(scan.dirs),
 				person: who?.person ?? null,
 				source: who?.source ?? null,
 			});
@@ -274,6 +353,11 @@ export interface TaskRow {
 	source: string | null;
 	hours: number;
 	startedAt: number;
+	endedAt: number;
+	/** Separate bursts of activity the hours are summed from. */
+	stretches: number;
+	/** What the session was for, for a hover. */
+	description: string | null;
 	prs: string[];
 }
 
@@ -330,6 +414,9 @@ function taskRow(session: SessionWork): TaskRow {
 		source: session.source,
 		hours: hours(session.activeMs),
 		startedAt: session.startedAt,
+		endedAt: session.endedAt,
+		stretches: session.intervals.length,
+		description: session.opening,
 		prs: session.prs,
 	};
 }
