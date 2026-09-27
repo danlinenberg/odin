@@ -38,6 +38,7 @@ function session(over: Partial<SessionWork> = {}): SessionWork {
 		prAt: [],
 		yours: [],
 		subagents: [],
+		attended: [],
 		entries: 2,
 		intervals,
 		activeMs: over.activeMs ?? totalMs(intervals),
@@ -279,6 +280,24 @@ describe("computeWorkload", () => {
 		expect(out.recap.map((week) => week.prs)).toEqual([1, 1]);
 		expect(out.weeks.map((week) => week.agentHours)).toEqual([3, 1]);
 		expect(out.sessions).toBe(1);
+	});
+
+	test("pane time counts as yours but isn't netted out of agent work", () => {
+		const out = computeWorkload(
+			[
+				session({
+					intervals: [[MON, MON + 2 * HOUR]],
+					yours: [[MON + HOUR - 5 * MINUTE, MON + HOUR]],
+					attended: [[MON, MON + HOUR]],
+				}),
+			],
+			{ now: MON },
+		);
+		// Watching a working agent is still the agent's work; only the wait
+		// before your prompt comes off.
+		expect(out.agentHours).toBe(1.9);
+		// The prompt gap sits inside the open-pane hour, so it isn't doubled.
+		expect(out.yourHours).toBe(1);
 	});
 
 	test("sub-minute sessions that shipped nothing are left out", () => {

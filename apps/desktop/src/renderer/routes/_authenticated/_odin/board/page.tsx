@@ -999,6 +999,23 @@ function DevBoardPage() {
 	// the hooks have been quiet for SETTLED_MS, so for two minutes after you
 	// Ctrl+C out of Claude the button kept saying Continue. The drawer's xterm
 	// already holds the screen — read it directly, with the same two-reads rule.
+	// While a session's pane is open, tell Insights you're looking at it. The
+	// main process decides whether it counts (focused window, not idle).
+	// ponytail: a pane without a claudeSessionId isn't tracked.
+	const attend = electronTrpc.insights.attend.useMutation();
+	const attendRef = useRef(attend.mutate);
+	attendRef.current = attend.mutate;
+	const drawerSessionId = drawerCard?.pane.claudeSessionId;
+	useEffect(() => {
+		if (!drawerSessionId) return;
+		const beat = () => {
+			if (document.visibilityState === "visible")
+				attendRef.current({ sessionId: drawerSessionId });
+		};
+		const timer = setInterval(beat, 30_000);
+		return () => clearInterval(timer);
+	}, [drawerSessionId]);
+
 	const drawerPaneId = drawerCard?.pane.id;
 	useEffect(() => {
 		if (!drawerPaneId || !alivePaneIds.has(drawerPaneId)) return;

@@ -296,6 +296,8 @@ export interface SessionWork extends TranscriptScan {
 	repo: string | null;
 	/** Active spans of the session's subagents, each counted on its own. */
 	subagents: Interval[];
+	/** When its pane was open and you were there — see `attention.ts`. */
+	attended: Interval[];
 	person: string | null;
 	source: string | null;
 }
@@ -371,6 +373,13 @@ export function overlapMs(a: Interval[], b: Interval[]): number {
  * sat waiting on you (a reply under five minutes doesn't break a span, so
  * your reading time was being billed as agent time), plus every subagent's.
  */
+export function yourSpans(session: SessionWork): Interval[] {
+	// Both, merged: the open-pane record only reaches back to when it landed,
+	// and before that the prompt gaps are all there is. Where both exist the
+	// pane covers the gaps (you type into an open pane), so nothing doubles.
+	return mergeIntervals([...session.yours, ...session.attended]);
+}
+
 export function agentMs(session: SessionWork): number {
 	return (
 		session.activeMs -
@@ -386,9 +395,11 @@ export function agentMs(session: SessionWork): number {
 export async function scanSessions({
 	root = projectsRoot(),
 	people = new Map<string, SessionPerson>(),
+	attention = new Map<string, Interval[]>(),
 }: {
 	root?: string;
 	people?: Map<string, SessionPerson>;
+	attention?: Map<string, Interval[]>;
 } = {}): Promise<SessionWork[]> {
 	let projects: string[];
 	try {
@@ -431,6 +442,7 @@ export async function scanSessions({
 			sessions.push({
 				...scan,
 				subagents,
+				attended: attention.get(sessionId) ?? [],
 				sessionId,
 				project,
 				repo: repoForDirs(scan.dirs),
@@ -520,7 +532,7 @@ function taskRow(session: SessionWork): TaskRow {
 		person: session.person,
 		source: session.source,
 		hours: hours(agentMs(session)),
-		yourHours: hours(totalMs(session.yours)),
+		yourHours: hours(totalMs(yourSpans(session))),
 		startedAt: session.startedAt,
 		endedAt: session.endedAt,
 		stretches: session.intervals.length,
@@ -601,6 +613,7 @@ export function byWeek(session: SessionWork): SessionWork[] {
 		{
 			intervals: Interval[];
 			yours: Interval[];
+			attended: Interval[];
 			subagents: Interval[];
 			prs: string[];
 			prAt: (number | null)[];
@@ -609,7 +622,14 @@ export function byWeek(session: SessionWork): SessionWork[] {
 	const slot = (start: number) => {
 		let piece = weeks.get(start);
 		if (!piece) {
-			piece = { intervals: [], yours: [], subagents: [], prs: [], prAt: [] };
+			piece = {
+				intervals: [],
+				yours: [],
+				attended: [],
+				subagents: [],
+				prs: [],
+				prAt: [],
+			};
 			weeks.set(start, piece);
 		}
 		return piece;
@@ -618,6 +638,8 @@ export function byWeek(session: SessionWork): SessionWork[] {
 		slot(weekStart(interval[0])).intervals.push(interval);
 	for (const interval of session.yours)
 		slot(weekStart(interval[0])).yours.push(interval);
+	for (const interval of session.attended)
+		slot(weekStart(interval[0])).attended.push(interval);
 	for (const interval of session.subagents)
 		slot(weekStart(interval[0])).subagents.push(interval);
 	session.prs.forEach((url, index) => {
@@ -649,7 +671,7 @@ function recap(sessions: SessionWork[]): RecapWeek[] {
 			start,
 			sessions: list.length,
 			agentHours: hours(list.reduce((sum, s) => sum + agentMs(s), 0)),
-			yourHours: hours(totalMs(mergeIntervals(list.flatMap((s) => s.yours)))),
+			yourHours: hours(totalMs(mergeIntervals(list.flatMap(yourSpans)))),
 			prs: list.reduce((sum, s) => sum + s.prs.length, 0),
 			// Every session, uncapped: the page filters by repo and shows a top few
 			// until you ask for the rest.
@@ -710,7 +732,7 @@ export function computeWorkload(
 		if (!bucket) continue;
 		bucket.agentMs += agentMs(session);
 		bucket.sessions += 1;
-		bucket.yours.push(...session.yours);
+		bucket.yours.push(...yourSpans(session));
 	}
 
 	const days = byDay(merged);
@@ -742,9 +764,7 @@ export function computeWorkload(
 
 	// Your time, not "any agent running": that was parallelism, and dividing
 	// by it made leverage read as how many agents ran at once.
-	const yourMs = totalMs(
-		mergeIntervals(all.flatMap((session) => session.yours)),
-	);
+	const yourMs = totalMs(mergeIntervals(all.flatMap(yourSpans)));
 	const agentTotal = all.reduce((sum, session) => sum + agentMs(session), 0);
 
 	const since = all.length
