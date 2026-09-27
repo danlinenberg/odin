@@ -277,6 +277,18 @@ function cellStyle(minutes: number): React.CSSProperties {
 	return { background: YOU_COLOR, opacity: 0.2 + 0.2 * step };
 }
 
+/** Repos hidden from "What you did" — a per-viewer preference, so localStorage. */
+const EXCLUDED_KEY = "odin.insights.excludedRepos";
+
+function readExcluded(): Set<string> {
+	try {
+		const saved = JSON.parse(localStorage.getItem(EXCLUDED_KEY) ?? "[]");
+		return new Set(Array.isArray(saved) ? saved.map(String) : []);
+	} catch {
+		return new Set();
+	}
+}
+
 type RecapWeek = {
 	start: number;
 	sessions: number;
@@ -316,15 +328,30 @@ function WeekView({
 	);
 	// Kept across week steps, so you can page back through one repo's weeks.
 	const [repo, setRepo] = useState<string | null>(null);
+	const [excluded, setExcluded] = useState(readExcluded);
+	const toggleExcluded = (name: string) => {
+		const next = new Set(excluded);
+		if (!next.delete(name)) next.add(name);
+		if (name === repo) setRepo(null);
+		setExcluded(next);
+		try {
+			localStorage.setItem(EXCLUDED_KEY, JSON.stringify([...next]));
+		} catch {}
+	};
 	const week = recap.find((row) => row.start === start);
 	const repos = [
 		...new Set([
 			...(week?.tasks.flatMap((task) => (task.repo ? [task.repo] : [])) ?? []),
 			...(repo ? [repo] : []),
 		]),
-	];
+	].filter((name) => !excluded.has(name));
 	const matching =
-		week?.tasks.filter((task) => !repo || task.repo === repo) ?? [];
+		week?.tasks.filter(
+			(task) =>
+				(!repo || task.repo === repo) &&
+				!(task.repo && excluded.has(task.repo)),
+		) ?? [];
+	const filtered = repo !== null || excluded.size > 0;
 	const tasks = matching.slice(0, 8);
 	const earliest = Math.min(
 		recap[0]?.start ?? thisWeek,
@@ -355,7 +382,7 @@ function WeekView({
 				<div className="ml-auto text-[11.5px] tabular-nums text-[#a5a5b3]">
 					{!week
 						? "nothing logged"
-						: repo
+						: filtered
 							? // ponytail: a repo's totals are summed from its listed sessions,
 								// so sub-10-minute lookups without a PR aren't in them.
 								`${plural(matching.length, "session")} · ${duration(
@@ -368,20 +395,46 @@ function WeekView({
 				</div>
 			</div>
 
-			{repos.length > 1 || repo ? (
+			{repos.length > 1 || filtered ? (
 				<div className="mb-3 flex flex-wrap gap-1.5">
 					{[null, ...repos].map((name) => (
-						<button
+						<div
 							key={name ?? "all"}
-							type="button"
-							onClick={() => setRepo(name)}
-							className={`rounded-[6px] border px-2 py-[2px] text-[10.5px] ${
+							className={`flex items-center rounded-[6px] border text-[10.5px] ${
 								repo === name
 									? "border-[#a394ff] bg-[#a394ff22] text-[#e4e4ea]"
-									: "border-[#25252e] bg-[#16161b] text-[#a5a5b3] hover:bg-[#1d1d24]"
+									: "border-[#25252e] bg-[#16161b] text-[#a5a5b3]"
 							}`}
 						>
-							{name ?? "All repos"}
+							<button
+								type="button"
+								onClick={() => setRepo(name)}
+								className="px-2 py-[2px] hover:text-[#e4e4ea]"
+							>
+								{name ?? "All repos"}
+							</button>
+							{name && (
+								<button
+									type="button"
+									aria-label={`Hide ${name}`}
+									title="Hide this repo"
+									onClick={() => toggleExcluded(name)}
+									className="pr-1.5 text-[#6f6f7d] hover:text-[#e4e4ea]"
+								>
+									×
+								</button>
+							)}
+						</div>
+					))}
+					{[...excluded].map((name) => (
+						<button
+							key={name}
+							type="button"
+							title="Hidden — click to show again"
+							onClick={() => toggleExcluded(name)}
+							className="rounded-[6px] border border-dashed border-[#25252e] px-2 py-[2px] text-[10.5px] text-[#6f6f7d] line-through hover:text-[#a5a5b3]"
+						>
+							{name}
 						</button>
 					))}
 				</div>
