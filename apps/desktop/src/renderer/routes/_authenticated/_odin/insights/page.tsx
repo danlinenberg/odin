@@ -317,6 +317,22 @@ function readExcluded(): Set<string> {
 	}
 }
 
+/**
+ * What a row's hours are: the session's own active time, summed from bursts
+ * that can be days apart — never read as "one sitting".
+ */
+function taskTime(task: {
+	startedAt: number;
+	endedAt?: number;
+	stretches?: number;
+}): string {
+	const span =
+		task.endedAt && DATE.format(task.endedAt) !== DATE.format(task.startedAt)
+			? `${DATE.format(task.startedAt)} – ${DATE.format(task.endedAt)}`
+			: DATE.format(task.startedAt);
+	return `Agent time: ${task.stretches ? plural(task.stretches, "burst") : "active time"}, ${span}. Gaps over 5 min not counted.`;
+}
+
 type RecapWeek = {
 	start: number;
 	sessions: number;
@@ -329,6 +345,10 @@ type RecapWeek = {
 		person: string | null;
 		source: string | null;
 		hours: number;
+		startedAt: number;
+		endedAt?: number;
+		stretches?: number;
+		description?: string | null;
 		prs: string[];
 	}[];
 };
@@ -399,6 +419,7 @@ function WeekView({
 							className="flex items-baseline gap-3 py-1.5"
 						>
 							<div
+								title={taskTime(task)}
 								className="w-10 shrink-0 text-right text-[12.5px] font-semibold tabular-nums"
 								style={{ color: AGENT_COLOR }}
 							>
@@ -407,7 +428,8 @@ function WeekView({
 							{/* Titles arrive in whatever language the ask was written in. */}
 							<div
 								dir="auto"
-								className="min-w-0 flex-1 truncate text-[12.5px] text-[#e4e4ea]"
+								title={task.description ?? task.title}
+								className="min-w-0 flex-1 cursor-default truncate text-[12.5px] text-[#e4e4ea]"
 							>
 								{task.title}
 							</div>

@@ -66,13 +66,25 @@ export const createInsightsRouter = () => {
 					.optional(),
 			)
 			.query(async ({ input }) => {
-				const { computeWorkload, scanSessions } = await import(
+				const { cachedBriefs, computeWorkload, scanSessions } = await import(
 					"main/lib/claude-sessions"
 				);
-				return computeWorkload(
-					await scanSessions({ people: sessionPeople() }),
-					input,
-				);
+				const [sessions, briefs] = await Promise.all([
+					scanSessions({ people: sessionPeople() }),
+					cachedBriefs(),
+				]);
+				const workload = computeWorkload(sessions, input);
+				// A written brief says what a session did, not just what it was
+				// asked; use it where the board already paid for one.
+				for (const week of workload.recap)
+					for (const task of week.tasks) {
+						const brief = briefs.get(task.sessionId);
+						const said = [brief?.goal, brief?.status]
+							.filter(Boolean)
+							.join("\n\n");
+						if (said) task.description = said;
+					}
+				return workload;
 			}),
 	});
 };

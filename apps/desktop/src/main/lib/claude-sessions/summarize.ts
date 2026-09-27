@@ -236,6 +236,14 @@ async function save(path: string): Promise<void> {
 	}
 }
 
+/** Briefs already written, by session id — read only, never writes one. */
+export async function cachedBriefs(
+	cachePath = defaultCachePath(),
+): Promise<Map<string, WrittenBrief>> {
+	const entries = await load(cachePath);
+	return new Map([...entries].map(([id, entry]) => [id, entry.brief]));
+}
+
 /** One run per session at a time — the panel polls, and a spawn takes ~15s. */
 const inFlight = new Map<string, Promise<WrittenBrief>>();
 
