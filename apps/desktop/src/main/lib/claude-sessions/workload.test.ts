@@ -316,13 +316,13 @@ describe("computeWorkload", () => {
 			weekStart(wed),
 			weekStart(MON),
 		]);
-		// Monday is weekday 0, so 09:00 is cell 9 of this week's row.
-		expect(out.heatmap[1]?.minutes[9]).toBe(60);
+		// Sunday is weekday 0, so Monday 09:00 is cell 24 + 9 of this week's row.
+		expect(out.heatmap[1]?.minutes[24 + 9]).toBe(60);
 		expect(out.heatmap[1]?.minutes.reduce((a, b) => a + b, 0)).toBe(60);
 		// The overnight run splits: Wednesday 23:00 and Thursday 00:00.
 		const before = out.heatmap[0]?.minutes ?? [];
-		expect(before[2 * 24 + 23]).toBe(30);
-		expect(before[3 * 24 + 0]).toBe(30);
+		expect(before[3 * 24 + 23]).toBe(30);
+		expect(before[4 * 24 + 0]).toBe(30);
 	});
 
 	test("nothing recorded divides by nothing", () => {

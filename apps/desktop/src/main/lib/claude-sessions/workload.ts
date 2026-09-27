@@ -338,7 +338,7 @@ export async function scanSessions({
 }
 
 export interface WeekRow {
-	/** Monday 00:00 local, as an epoch ms. */
+	/** Sunday 00:00 local, as an epoch ms. */
 	start: number;
 	agentHours: number;
 	yourHours: number;
@@ -362,7 +362,7 @@ export interface TaskRow {
 }
 
 export interface RecapWeek {
-	/** Monday 00:00 local. */
+	/** Sunday 00:00 local. */
 	start: number;
 	sessions: number;
 	agentHours: number;
@@ -389,7 +389,7 @@ export interface Workload {
 	/**
 	 * The same minutes, kept per week instead of folded together: one row per
 	 * week that has any, oldest first, each holding 168 cells indexed
-	 * `weekday * 24 + hour` with Monday as weekday 0.
+	 * `weekday * 24 + hour` with Sunday as weekday 0.
 	 */
 	heatmap: { start: number; minutes: number[] }[];
 	busiestDay: { at: number; hours: number } | null;
@@ -421,12 +421,14 @@ function taskRow(session: SessionWork): TaskRow {
 	};
 }
 
-/** Monday 00:00 local time for the week containing `at`. */
+/**
+ * Sunday 00:00 local time for the week containing `at` — the work week here
+ * runs Sunday to Thursday, so a Monday start split every week in two.
+ */
 export function weekStart(at: number): number {
 	const date = new Date(at);
 	date.setHours(0, 0, 0, 0);
-	// getDay() is Sunday-based; shift so Monday is 0 and Sunday is 6.
-	date.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+	date.setDate(date.getDate() - date.getDay());
 	return date.getTime();
 }
 
@@ -541,7 +543,7 @@ export function computeWorkload(
 	}
 	for (const session of all) {
 		// ponytail: a session counts in the week it started. A run that crosses
-		// Monday midnight is rare enough to leave alone; split the intervals if
+		// Sunday midnight is rare enough to leave alone; split the intervals if
 		// one ever shows up.
 		const bucket = buckets.get(weekStart(session.startedAt));
 		if (!bucket) continue;
@@ -572,7 +574,7 @@ export function computeWorkload(
 				cells = Array.from({ length: 7 * 24 }, () => 0);
 				weekCells.set(week, cells);
 			}
-			cells[((date.getDay() + 6) % 7) * 24 + date.getHours()] += minutes;
+			cells[date.getDay() * 24 + date.getHours()] += minutes;
 			at = next;
 		}
 	}
