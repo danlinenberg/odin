@@ -6,10 +6,11 @@
  * on this machine, each entry stamped with a wall-clock time. So the history
  * is already on disk — it just has to be counted.
  *
- * Two different hours come out of that, and the gap between them is the point:
- * `agentHours` sums each session's own active time, so three agents running at
- * once bill three hours per hour; `yourHours` merges those spans, so the same
- * hour is counted once. One is what got done, the other is what it cost you.
+ * Two different hours come out of that, and the ratio between them is the point:
+ * `agentHours` is the agents' own work (each session's active time less the
+ * time it waited on you, plus its subagents — three at once bill three hours);
+ * `yourHours` is your reading-and-typing time before each prompt you sent. One
+ * is what got done, the other is what it cost you.
  */
 
 import { readdir, readFile, stat } from "node:fs/promises";
@@ -293,6 +294,8 @@ export interface SessionWork extends TranscriptScan {
 	project: string;
 	/** The repo `cwd` belongs to; null when the session ran outside one. */
 	repo: string | null;
+	/** Active spans of the session's subagents, each counted on its own. */
+	subagents: Interval[];
 	person: string | null;
 	source: string | null;
 }
@@ -303,11 +306,6 @@ const cache = new Map<
 	{ mtimeMs: number; bytes: number; scan: TranscriptScan | null }
 >();
 
-/**
- * Every transcript on this machine, scanned. Subagent side-conversations
- * (`<session>/subagents/*.jsonl`) are skipped — their time runs inside their
- * parent's and would be counted twice.
- */
 /** dir → repo name; a walk up the tree per directory, done once. */
 const repos = new Map<string, string | null>();
 
@@ -338,6 +336,53 @@ export function repoForDirs(
 	);
 }
 
+/** A transcript's scan, re-read only when the file changed. */
+async function scanCached(path: string): Promise<TranscriptScan | null> {
+	try {
+		const info = await stat(path);
+		if (!info.isFile()) return null;
+		const hit = cache.get(path);
+		if (hit && hit.mtimeMs === info.mtimeMs && hit.bytes === info.size)
+			return hit.scan;
+		const scan = scanTranscript(await readFile(path, "utf-8"));
+		cache.set(path, { mtimeMs: info.mtimeMs, bytes: info.size, scan });
+		return scan;
+	} catch {
+		return null; // deleted mid-scan, or unreadable
+	}
+}
+
+/** Time two sorted, non-overlapping interval lists share. */
+export function overlapMs(a: Interval[], b: Interval[]): number {
+	let shared = 0;
+	let j = 0;
+	for (const [start, end] of a) {
+		while (j < b.length && (b[j] as Interval)[1] <= start) j++;
+		for (let k = j; k < b.length && (b[k] as Interval)[0] < end; k++) {
+			const [bStart, bEnd] = b[k] as Interval;
+			shared += Math.max(0, Math.min(end, bEnd) - Math.max(start, bStart));
+		}
+	}
+	return shared;
+}
+
+/**
+ * The agent's own work in a session: its active time less the stretches it
+ * sat waiting on you (a reply under five minutes doesn't break a span, so
+ * your reading time was being billed as agent time), plus every subagent's.
+ */
+export function agentMs(session: SessionWork): number {
+	return (
+		session.activeMs -
+		overlapMs(session.intervals, mergeIntervals(session.yours)) +
+		totalMs(session.subagents)
+	);
+}
+
+/**
+ * Every session on this machine, scanned, each carrying its subagents' spans
+ * (`<session>/subagents/*.jsonl`) rather than listing them as sessions.
+ */
 export async function scanSessions({
 	root = projectsRoot(),
 	people = new Map<string, SessionPerson>(),
@@ -364,29 +409,28 @@ export async function scanSessions({
 		for (const name of names) {
 			if (!name.endsWith(".jsonl")) continue;
 			const path = join(root, project, name);
-			let scan: TranscriptScan | null;
-			try {
-				const info = await stat(path);
-				if (!info.isFile()) continue;
-				const hit = cache.get(path);
-				if (hit && hit.mtimeMs === info.mtimeMs && hit.bytes === info.size) {
-					scan = hit.scan;
-				} else {
-					scan = scanTranscript(await readFile(path, "utf-8"));
-					cache.set(path, {
-						mtimeMs: info.mtimeMs,
-						bytes: info.size,
-						scan,
-					});
-				}
-			} catch {
-				continue; // deleted mid-scan, or unreadable
-			}
+			const scan = await scanCached(path);
 			if (!scan) continue;
 			const sessionId = name.slice(0, -".jsonl".length);
 			const who = people.get(sessionId);
+			// Subagents work alongside their parent, in transcripts of their own;
+			// their time is agent work the parent's transcript never shows.
+			const subagents: Interval[] = [];
+			const subDir = join(root, project, sessionId, "subagents");
+			let subNames: string[] = [];
+			try {
+				subNames = await readdir(subDir);
+			} catch {
+				// no subagents
+			}
+			for (const sub of subNames)
+				if (sub.endsWith(".jsonl"))
+					subagents.push(
+						...((await scanCached(join(subDir, sub)))?.intervals ?? []),
+					);
 			sessions.push({
 				...scan,
+				subagents,
 				sessionId,
 				project,
 				repo: repoForDirs(scan.dirs),
@@ -475,7 +519,7 @@ function taskRow(session: SessionWork): TaskRow {
 		repo: session.repo,
 		person: session.person,
 		source: session.source,
-		hours: hours(session.activeMs),
+		hours: hours(agentMs(session)),
 		yourHours: hours(totalMs(session.yours)),
 		startedAt: session.startedAt,
 		endedAt: session.endedAt,
@@ -528,7 +572,7 @@ function tallyHours(
 		const name = key(session);
 		if (!name) continue;
 		const row = totals.get(name) ?? { ms: 0, sessions: 0 };
-		row.ms += session.activeMs;
+		row.ms += agentMs(session);
 		row.sessions += 1;
 		totals.set(name, row);
 	}
@@ -557,6 +601,7 @@ export function byWeek(session: SessionWork): SessionWork[] {
 		{
 			intervals: Interval[];
 			yours: Interval[];
+			subagents: Interval[];
 			prs: string[];
 			prAt: (number | null)[];
 		}
@@ -564,7 +609,7 @@ export function byWeek(session: SessionWork): SessionWork[] {
 	const slot = (start: number) => {
 		let piece = weeks.get(start);
 		if (!piece) {
-			piece = { intervals: [], yours: [], prs: [], prAt: [] };
+			piece = { intervals: [], yours: [], subagents: [], prs: [], prAt: [] };
 			weeks.set(start, piece);
 		}
 		return piece;
@@ -573,6 +618,8 @@ export function byWeek(session: SessionWork): SessionWork[] {
 		slot(weekStart(interval[0])).intervals.push(interval);
 	for (const interval of session.yours)
 		slot(weekStart(interval[0])).yours.push(interval);
+	for (const interval of session.subagents)
+		slot(weekStart(interval[0])).subagents.push(interval);
 	session.prs.forEach((url, index) => {
 		const at = session.prAt[index] ?? null;
 		const piece = slot(weekStart(at ?? session.startedAt));
@@ -601,14 +648,12 @@ function recap(sessions: SessionWork[]): RecapWeek[] {
 		.map(([start, list]) => ({
 			start,
 			sessions: list.length,
-			agentHours: hours(list.reduce((sum, s) => sum + s.activeMs, 0)),
-			yourHours: hours(
-				totalMs(mergeIntervals(list.flatMap((s) => s.intervals))),
-			),
+			agentHours: hours(list.reduce((sum, s) => sum + agentMs(s), 0)),
+			yourHours: hours(totalMs(mergeIntervals(list.flatMap((s) => s.yours)))),
 			prs: list.reduce((sum, s) => sum + s.prs.length, 0),
 			// Every session, uncapped: the page filters by repo and shows a top few
 			// until you ask for the rest.
-			tasks: [...list].sort((a, b) => b.activeMs - a.activeMs).map(taskRow),
+			tasks: [...list].sort((a, b) => agentMs(b) - agentMs(a)).map(taskRow),
 		}));
 }
 
@@ -652,20 +697,20 @@ export function computeWorkload(
 	const firstWeek = weekStart(now) - (weeks - 1) * 7 * DAY_MS;
 	const buckets = new Map<
 		number,
-		{ agentMs: number; intervals: Interval[]; sessions: number }
+		{ agentMs: number; yours: Interval[]; sessions: number }
 	>();
 	for (let index = 0; index < weeks; index++) {
 		// Rebuilt from a date each step so DST can't drift the boundary.
 		const start = weekStart(firstWeek + index * 7 * DAY_MS + DAY_MS / 2);
-		buckets.set(start, { agentMs: 0, intervals: [], sessions: 0 });
+		buckets.set(start, { agentMs: 0, yours: [], sessions: 0 });
 	}
 	const pieces = all.flatMap(byWeek);
 	for (const session of pieces) {
 		const bucket = buckets.get(weekStart(session.startedAt));
 		if (!bucket) continue;
-		bucket.agentMs += session.activeMs;
+		bucket.agentMs += agentMs(session);
 		bucket.sessions += 1;
-		bucket.intervals.push(...session.intervals);
+		bucket.yours.push(...session.yours);
 	}
 
 	const days = byDay(merged);
@@ -695,8 +740,12 @@ export function computeWorkload(
 		}
 	}
 
-	const yourMs = totalMs(merged);
-	const agentMs = all.reduce((sum, session) => sum + session.activeMs, 0);
+	// Your time, not "any agent running": that was parallelism, and dividing
+	// by it made leverage read as how many agents ran at once.
+	const yourMs = totalMs(
+		mergeIntervals(all.flatMap((session) => session.yours)),
+	);
+	const agentTotal = all.reduce((sum, session) => sum + agentMs(session), 0);
 
 	const since = all.length
 		? Math.min(...all.map((session) => session.startedAt))
@@ -712,16 +761,16 @@ export function computeWorkload(
 			(row) => row.name,
 		),
 		sessions: all.length,
-		agentHours: hours(agentMs),
+		agentHours: hours(agentTotal),
 		yourHours: hours(yourMs),
-		leverage: yourMs > 0 ? Math.round((agentMs / yourMs) * 10) / 10 : null,
+		leverage: yourMs > 0 ? Math.round((agentTotal / yourMs) * 10) / 10 : null,
 		weeks: [...buckets]
 			.sort((a, b) => a[0] - b[0])
 			.filter(([start]) => firstRecorded === null || start >= firstRecorded)
 			.map(([start, bucket]) => ({
 				start,
 				agentHours: hours(bucket.agentMs),
-				yourHours: hours(totalMs(mergeIntervals(bucket.intervals))),
+				yourHours: hours(totalMs(mergeIntervals(bucket.yours))),
 				sessions: bucket.sessions,
 			})),
 		recap: recap(pieces),

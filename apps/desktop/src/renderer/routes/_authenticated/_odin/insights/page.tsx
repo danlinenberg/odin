@@ -216,7 +216,7 @@ function WeekChart({
 					<div
 						key={week.start}
 						className="flex min-w-0 flex-1 flex-col items-center gap-2"
-						title={`${week.sessions} sessions · ${duration(week.agentHours)} of agent work over ${duration(week.yourHours)} on the clock`}
+						title={`${week.sessions} sessions · ${duration(week.agentHours)} of agent work for ${duration(week.yourHours)} of yours`}
 					>
 						{/* justify-end so the number rides on top of its own bar
 						    instead of floating at the top of an empty column. */}
@@ -439,7 +439,7 @@ function WeekView({
 					</div>
 					<div className="ml-auto text-[11.5px] tabular-nums text-[#a5a5b3]">
 						{week
-							? `${plural(week.sessions, "session")} · ${duration(week.yourHours)} on the clock · ${plural(week.prs, "PR")}`
+							? `${plural(week.sessions, "session")} · ${duration(week.yourHours)} of yours · ${plural(week.prs, "PR")}`
 							: "nothing logged"}
 					</div>
 				</div>
@@ -593,23 +593,27 @@ function Headline({
 	return (
 		<Card>
 			<div className="flex flex-wrap items-end gap-x-8 gap-y-3">
-				<Big
-					value={duration(yourHours)}
-					color={YOU_COLOR}
-					label="on the clock"
-				/>
+				<Big value={duration(yourHours)} color={YOU_COLOR} label="your time" />
 				<Big
 					value={duration(agentHours)}
 					color={AGENT_COLOR}
 					label="of agent work"
 				/>
 				{leverage !== null && (
-					<Big value={`${leverage}×`} color="#f5f5f7" label="leverage" />
+					// Agent work over your time, as the gain on top of it: 4.9× is +390%.
+					<Big
+						value={`+${Math.round((leverage - 1) * 100)}%`}
+						color="#f5f5f7"
+						label="agent work on top of yours"
+					/>
 				)}
 			</div>
 			<div className="mt-3 text-[11px] text-[#6f6f7d]">
-				{plural(sessions, "session")} · clock time counts parallel agents once,
-				agent work counts each · gaps over 5 min don't count
+				{plural(sessions, "session")} · your time: the gap before each prompt
+				you typed, up to 5 min · agent work: each session's active time less
+				yours, plus subagents, parallel agents counted each · your time is a
+				floor (reading while an agent works is invisible), so the gain is a
+				ceiling
 			</div>
 		</Card>
 	);
@@ -792,7 +796,7 @@ function Workload() {
 					<WeekChart weeks={data.weeks} />
 					<div className="flex gap-4 pl-1 pt-0.5">
 						<Legend color={AGENT_COLOR} label="agent work" />
-						<Legend color={YOU_COLOR} label="hours on the clock" />
+						<Legend color={YOU_COLOR} label="your time" />
 					</div>
 				</Section>
 
