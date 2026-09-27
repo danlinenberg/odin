@@ -179,7 +179,8 @@ function OdinShell() {
 	);
 	const hostCpuPercent = useLaunchLimits((s) => s.hostCpuPercent);
 	const minFreeMemoryGb = useLaunchLimits((s) => s.minFreeMemoryGb);
-	const limits = { hostCpuPercent, minFreeMemoryGb };
+	const maxWorkingAgents = useLaunchLimits((s) => s.maxWorkingAgents);
+	const limits = { hostCpuPercent, minFreeMemoryGb, maxWorkingAgents };
 	const load = metrics ? machineLoad(metrics, limits) : null;
 	// Claude plan usage — the 5-hour window and the week, as /usage shows them.
 	const { data: usage } = electronTrpc.resourceMetrics.getClaudeUsage.useQuery(

@@ -28,5 +28,6 @@ export function launchLimits(state: LaunchLimits): LaunchLimits {
 	return {
 		hostCpuPercent: state.hostCpuPercent,
 		minFreeMemoryGb: state.minFreeMemoryGb,
+		maxWorkingAgents: state.maxWorkingAgents,
 	};
 }

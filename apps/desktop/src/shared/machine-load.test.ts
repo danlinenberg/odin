@@ -64,7 +64,11 @@ describe("machineLoad", () => {
 	});
 
 	it("holds at the limit Settings → Board sets, not the default", () => {
-		const limits = { hostCpuPercent: 40, minFreeMemoryGb: 2 };
+		const limits = {
+			hostCpuPercent: 40,
+			minFreeMemoryGb: 2,
+			maxWorkingAgents: 0,
+		};
 		expect(machineLoad(snapshot({ hostCpu: 54 }), limits).reason).toBe(
 			"this Mac is at 54% CPU",
 		);
@@ -79,6 +83,7 @@ describe("machineLoad", () => {
 			machineLoad(snapshot({ hostCpu: 20, available: 1.4 * GB }), {
 				hostCpuPercent: 70,
 				minFreeMemoryGb: 1,
+				maxWorkingAgents: 0,
 			}).busy,
 		).toBe(false);
 	});
