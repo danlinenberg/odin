@@ -261,10 +261,14 @@ export function SessionBrief({
 			},
 		);
 	const facts = transcript ? sessionBrief(transcript.messages) : null;
-	const allPrs = transcript ? pullRequests(transcript.links) : [];
-	const foundThread = transcript ? slackThread(transcript.links) : null;
-	const foundPage = transcript ? notionPage(transcript.links) : null;
-	const foundIssue = transcript ? jiraIssue(transcript.links) : null;
+	// `links` is missing until main restarts onto it; the tail still has most.
+	const linkSource = transcript
+		? (transcript.links ?? transcript.messages)
+		: null;
+	const allPrs = linkSource ? pullRequests(linkSource) : [];
+	const foundThread = linkSource ? slackThread(linkSource) : null;
+	const foundPage = linkSource ? notionPage(linkSource) : null;
+	const foundIssue = linkSource ? jiraIssue(linkSource) : null;
 	// Only rules that actually fired, and on which PR — not every rule the
 	// launch prompt listed. `rules` is missing until main restarts onto it.
 	const rules = transcript?.rules ?? [];
