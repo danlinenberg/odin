@@ -35,13 +35,16 @@ export interface Ranking {
 // Deliberately no criteria: what counts as important is the model's call, not
 // a weighting written into the app.
 const INSTRUCTIONS = `Rank these unstarted tasks by importance: which should be started first.
-Each line is: key | source | priority | due | age in days | person | where | review | title.
+Each line is: number | source | priority | due | age in days | person | where | review | title.
 "review" is the Review panel's last sweep verdict: DROP means the sweep found it already done or gone.
-Answer with ONLY a JSON object, no prose: {"order": [every key to show, most important first], "hide": [keys my instructions say not to show]}.`;
+Answer with ONLY a JSON object, no prose: {"order": [every line number to show, most important first], "hide": [line numbers my instructions say not to show]}.`;
 
-/** Known keys in the model's order, once each; invented ones dropped. */
+/**
+ * The model answers in line numbers, not keys — a 200-task answer is then
+ * ~1KB instead of ~4KB, and output is where the minute goes (measured: 22-45s
+ * vs 70-104s for 205 tasks). Known lines in its order, once each.
+ */
 export function parseRanking(text: string, keys: string[]): Ranking {
-	const known = new Set(keys);
 	let answer: unknown = null;
 	const start = text.indexOf("{");
 	const end = text.lastIndexOf("}");
@@ -52,9 +55,10 @@ export function parseRanking(text: string, keys: string[]): Ranking {
 	}
 	const pick = (list: unknown, skip: Set<string>) => {
 		const seen = new Set<string>();
-		for (const key of Array.isArray(list) ? list : [])
-			if (typeof key === "string" && known.has(key) && !skip.has(key))
-				seen.add(key);
+		for (const n of Array.isArray(list) ? list : []) {
+			const key = Number.isInteger(n) ? keys[n - 1] : undefined;
+			if (key !== undefined && !skip.has(key)) seen.add(key);
+		}
 		return seen;
 	};
 	const { order, hide } = (answer ?? {}) as { order?: unknown; hide?: unknown };
@@ -62,9 +66,9 @@ export function parseRanking(text: string, keys: string[]): Ranking {
 	return { keys: [...pick(order, hidden)], hidden: [...hidden] };
 }
 
-function line(item: RankItem): string {
+function line(item: RankItem, index: number): string {
 	return [
-		item.key,
+		index + 1,
 		item.source,
 		item.priority ?? "-",
 		item.due ?? "-",

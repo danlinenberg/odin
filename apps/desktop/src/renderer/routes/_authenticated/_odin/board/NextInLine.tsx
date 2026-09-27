@@ -56,7 +56,7 @@ const ICON = Object.fromEntries(FEED_TABS.map(({ to, Icon }) => [to, Icon]));
  * away, and — the one that matters — a task list it already covers doesn't go
  * back to the model. Marking a task done, hiding it, a PR merging: those only
  * REMOVE rows, and removing a row can't change how the rest rank against each
- * other. Only a new or changed task, or a new prompt, is worth a ~75s run.
+ * other. Only a new or changed task, or a new prompt, is worth a ~20s run.
  * One key, overwritten each time: a few hundred short entries.
  */
 const LAST_RANKING_KEY = "odin-next-in-line-last-ranking";
@@ -122,7 +122,7 @@ export function useNextInLineRanking() {
 		[todos, reactions.data, jira.data, pulls.data, notion.data],
 	);
 	// The model's input must only change when the tasks do — the main process
-	// caches a ranking on its exact text, and a changed input is a fresh ~75s
+	// caches a ranking on its exact text, and a changed input is a fresh ~20s
 	// run. So: every row, hidden and started ones too (hiding a card isn't a
 	// change); sorted by key, not by `at`, which is last activity and reshuffles
 	// on every feed refetch; and no age, because `at` would make every comment
@@ -489,7 +489,7 @@ function TaskHover({ item, text }: { item: AllItem; text: string | null }) {
 const RANK_STARTED = new Map<string, number>();
 
 /**
- * Where the order came from, said out loud: a ranking takes about a minute and
+ * Where the order came from, said out loud: a ranking takes ~20s and
  * the column is usable meanwhile, so "is this the AI's order yet?" needs an
  * answer you can't miss — a spinner and a clock while it runs.
  */
@@ -528,7 +528,7 @@ function RankStatus({
 				<span>
 					AI is ranking {count} tasks… {secs}s
 					<span className="block text-[#8a8a97]">
-						Usually about a minute.{" "}
+						Usually about 20 seconds.{" "}
 						{ranked
 							? "Showing the previous ranking until then."
 							: "Showing feed order until then."}
