@@ -314,7 +314,18 @@ function WeekView({
 		() => new Map(heatmap.map((week) => [week.start, week.minutes])),
 		[heatmap],
 	);
+	// Kept across week steps, so you can page back through one repo's weeks.
+	const [repo, setRepo] = useState<string | null>(null);
 	const week = recap.find((row) => row.start === start);
+	const repos = [
+		...new Set([
+			...(week?.tasks.flatMap((task) => (task.repo ? [task.repo] : [])) ?? []),
+			...(repo ? [repo] : []),
+		]),
+	];
+	const matching =
+		week?.tasks.filter((task) => !repo || task.repo === repo) ?? [];
+	const tasks = matching.slice(0, 8);
 	const earliest = Math.min(
 		recap[0]?.start ?? thisWeek,
 		heatmap[0]?.start ?? thisWeek,
@@ -342,15 +353,43 @@ function WeekView({
 						: `${DATE.format(start)} – ${DATE.format(shiftWeeks(start, 1) - DAY_MS)}`}
 				</div>
 				<div className="ml-auto text-[11.5px] tabular-nums text-[#a5a5b3]">
-					{week
-						? `${plural(week.sessions, "session")} · ${duration(week.yourHours)} on the clock · ${plural(week.prs, "PR")}`
-						: "nothing logged"}
+					{!week
+						? "nothing logged"
+						: repo
+							? // ponytail: a repo's totals are summed from its listed sessions,
+								// so sub-10-minute lookups without a PR aren't in them.
+								`${plural(matching.length, "session")} · ${duration(
+									matching.reduce((sum, task) => sum + task.hours, 0),
+								)} of agent work · ${plural(
+									matching.reduce((sum, task) => sum + task.prs.length, 0),
+									"PR",
+								)}`
+							: `${plural(week.sessions, "session")} · ${duration(week.yourHours)} on the clock · ${plural(week.prs, "PR")}`}
 				</div>
 			</div>
 
-			{week && week.tasks.length > 0 && (
+			{repos.length > 1 || repo ? (
+				<div className="mb-3 flex flex-wrap gap-1.5">
+					{[null, ...repos].map((name) => (
+						<button
+							key={name ?? "all"}
+							type="button"
+							onClick={() => setRepo(name)}
+							className={`rounded-[6px] border px-2 py-[2px] text-[10.5px] ${
+								repo === name
+									? "border-[#a394ff] bg-[#a394ff22] text-[#e4e4ea]"
+									: "border-[#25252e] bg-[#16161b] text-[#a5a5b3] hover:bg-[#1d1d24]"
+							}`}
+						>
+							{name ?? "All repos"}
+						</button>
+					))}
+				</div>
+			) : null}
+
+			{tasks.length > 0 && (
 				<div className="mb-4 flex flex-col divide-y divide-[#1f1f27]">
-					{week.tasks.map((task) => (
+					{tasks.map((task) => (
 						<div
 							key={task.sessionId}
 							className="flex items-baseline gap-3 py-1.5"
