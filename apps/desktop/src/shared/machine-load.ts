@@ -57,11 +57,16 @@ export const MIN_FREE_MEMORY_GB = 2;
 export interface LaunchLimits {
 	hostCpuPercent: number;
 	minFreeMemoryGb: number;
+	/** Sessions working at once before the next one waits; 0 = no cap. */
+	maxWorkingAgents: number;
 }
 
 export const DEFAULT_LAUNCH_LIMITS: LaunchLimits = {
 	hostCpuPercent: BUSY_HOST_CPU_PERCENT,
 	minFreeMemoryGb: MIN_FREE_MEMORY_GB,
+	// ponytail: the default — Settings → Board overrides it. CPU and memory
+	// miss a board of agents that are mostly waiting on the network.
+	maxWorkingAgents: 5,
 };
 
 export interface MachineLoad {

@@ -32,6 +32,32 @@ describe("launchBlocker", () => {
 		);
 	});
 
+	it("holds a launch once the working-session cap is reached", () => {
+		const limits = {
+			hostCpuPercent: 70,
+			minFreeMemoryGb: 2,
+			maxWorkingAgents: 2,
+		};
+		const busy = [
+			pane({ id: "a", status: "working", name: "a" }),
+			pane({ id: "b", status: "working", name: "b" }),
+			pane({ id: "c", status: "permission", name: "c" }),
+		];
+		expect(launchBlocker(snapshot(10), busy, "", ODIN, limits)).toBe(
+			"2 sessions are already working (limit 2)",
+		);
+		// Waiting on you doesn't count, and 0 turns the cap off.
+		expect(
+			launchBlocker(snapshot(10), busy.slice(1), "", ODIN, limits),
+		).toBeNull();
+		expect(
+			launchBlocker(snapshot(10), busy, "", ODIN, {
+				...limits,
+				maxWorkingAgents: 0,
+			}),
+		).toBeNull();
+	});
+
 	it("holds a second agent out of Odin's own checkout", () => {
 		const held = [
 			pane({ id: "a", status: "working", initialCwd: ODIN, name: "x" }),

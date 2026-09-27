@@ -96,6 +96,17 @@ function BoardSettingsPage() {
 					unit="GB"
 				/>
 
+				<LaunchLimitRow
+					id="launch-limit-agents"
+					field="maxWorkingAgents"
+					label="Hold new sessions when this many are working"
+					description="Sessions actively working at once — ones waiting on you don't count. At the limit, a new session waits in Idle → Queued and starts when one finishes. 0 means no limit."
+					min={0}
+					max={50}
+					step={1}
+					unit="sessions"
+				/>
+
 				<NextInLinePromptRow />
 				<SweepIntervalRow />
 			</div>

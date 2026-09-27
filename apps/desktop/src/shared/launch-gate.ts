@@ -110,6 +110,14 @@ export function launchBlocker(
 ): string | null {
 	const load = machineLoad(snapshot, limits);
 	if (load.busy) return load.reason;
+	// Only "working" counts: a session stopped on a permission prompt costs
+	// the Mac nothing until you answer it.
+	const cap = limits?.maxWorkingAgents ?? 0;
+	const working = panes.filter(
+		(pane) => !pane.completed && pane.status === "working",
+	).length;
+	if (cap > 0 && working >= cap)
+		return `${working} sessions are already working (limit ${cap})`;
 	const held = sessionInFlight(panes, cwd, odinRepoPath);
 	return held
 		? `waiting for "${held.title}" to finish in ${checkoutName(cwd, odinRepoPath)}`
