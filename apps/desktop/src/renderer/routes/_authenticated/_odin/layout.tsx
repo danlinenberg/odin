@@ -6,7 +6,7 @@ import {
 	useMatchRoute,
 	useNavigate,
 } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
 	HiOutlineBolt,
 	HiOutlineChartBar,
@@ -183,10 +183,16 @@ function OdinShell() {
 	const limits = { hostCpuPercent, minFreeMemoryGb, maxWorkingAgents };
 	const load = metrics ? machineLoad(metrics, limits) : null;
 	// Claude plan usage — the 5-hour window and the week, as /usage shows them.
-	const { data: usage } = electronTrpc.resourceMetrics.getClaudeUsage.useQuery(
-		undefined,
-		{ refetchInterval: 60_000 },
-	);
+	// The endpoint 429s when polled hard (every Claude Code CLI hits it too)
+	// and a failed read comes back null — so poll gently and keep showing the
+	// last good reading rather than dropping the pill.
+	const { data: usageNow } =
+		electronTrpc.resourceMetrics.getClaudeUsage.useQuery(undefined, {
+			refetchInterval: 5 * 60_000,
+		});
+	const lastUsage = useRef(usageNow);
+	if (usageNow) lastUsage.current = usageNow;
+	const usage = lastUsage.current;
 
 	// The accounts in play. Switching resets every query, so the feeds below
 	// refetch against the new profile's Slack/Jira/GitHub rather than showing
