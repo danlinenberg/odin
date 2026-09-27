@@ -65,7 +65,8 @@ export async function startQueuedPane(
 			...state.panes,
 			[pane.id]: {
 				...state.panes[pane.id],
-				status: "working",
+				// A Resume reopens at an idle prompt — nothing was asked of it.
+				status: queued.command.includes(" --resume ") ? "idle" : "working",
 				odinQueued: undefined,
 			},
 		},
