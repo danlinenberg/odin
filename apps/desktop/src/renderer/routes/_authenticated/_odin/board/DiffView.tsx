@@ -208,11 +208,18 @@ export function DiffView({
 						<div className="min-h-0 flex-1 overflow-y-auto py-1">
 							{files.map((file) => {
 								const slash = file.path.lastIndexOf("/");
+								// `binary` is missing until main restarts onto it; nothing
+								// added or removed is the same tell for these files.
+								const binary = file.binary ?? file.added + file.removed === 0;
 								return (
 									<button
 										key={`${file.path}:${file.line}`}
 										type="button"
-										title={file.path}
+										title={
+											binary
+												? `${file.path}\nBinary file — no text diff to show`
+												: file.path
+										}
 										onClick={() => term.current?.xterm.scrollToLine(file.line)}
 										className={`flex w-full items-baseline gap-2 px-3 py-[3px] text-left text-[12px] ${
 											file === current
@@ -221,7 +228,9 @@ export function DiffView({
 										}`}
 									>
 										<span className="min-w-0 flex-1">
-											<span className="block truncate">
+											<span
+												className={`block truncate ${binary ? "text-[#6a6a77]" : ""}`}
+											>
 												{file.path.slice(slash + 1)}
 											</span>
 											{slash > 0 && (
@@ -231,6 +240,11 @@ export function DiffView({
 											)}
 										</span>
 										<span className="shrink-0 text-[10.5px] tabular-nums">
+											{binary && (
+												<span className="rounded-[4px] border border-[#2e2e38] px-1 text-[#8a8a97]">
+													binary
+												</span>
+											)}
 											{file.added > 0 && (
 												<span className="text-[#4ade80]">+{file.added}</span>
 											)}{" "}
