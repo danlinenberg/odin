@@ -272,7 +272,7 @@ export interface RecapWeek {
 	agentHours: number;
 	yourHours: number;
 	prs: number;
-	/** The biggest pieces of work that week, biggest first. */
+	/** Every session that week worth listing, biggest first. */
 	tasks: TaskRow[];
 }
 
@@ -382,7 +382,7 @@ function tallyHours(
 }
 
 /** Sessions grouped by the week they started, each week's biggest first. */
-function recap(sessions: SessionWork[], top: number): RecapWeek[] {
+function recap(sessions: SessionWork[]): RecapWeek[] {
 	const weeks = new Map<number, SessionWork[]>();
 	for (const session of sessions) {
 		const start = weekStart(session.startedAt);
@@ -401,7 +401,7 @@ function recap(sessions: SessionWork[], top: number): RecapWeek[] {
 			tasks: list
 				.filter((s) => s.activeMs >= MAJOR_MS || s.prs.length > 0)
 				.sort((a, b) => b.activeMs - a.activeMs)
-				.slice(0, top)
+				// Uncapped: the page filters by repo before it cuts to a top few.
 				.map(taskRow),
 		}));
 }
@@ -494,7 +494,7 @@ export function computeWorkload(
 				yourHours: hours(totalMs(mergeIntervals(bucket.intervals))),
 				sessions: bucket.sessions,
 			})),
-		recap: recap(all, top),
+		recap: recap(all),
 		byRepo: tallyHours(
 			all,
 			(session) => (session.cwd ? repoNameOf(session.cwd) : null),
