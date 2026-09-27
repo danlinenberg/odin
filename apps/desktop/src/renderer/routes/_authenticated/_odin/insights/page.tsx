@@ -225,8 +225,8 @@ function WeekChart({
 								{week.agentHours > 0 ? duration(week.agentHours) : "—"}
 							</div>
 							<div className="flex w-full items-end justify-center gap-[4px]">
-								<Column hours={week.agentHours} max={max} color={AGENT_COLOR} />
 								<Column hours={week.yourHours} max={max} color={YOU_COLOR} />
+								<Column hours={week.agentHours} max={max} color={AGENT_COLOR} />
 							</div>
 						</div>
 						<div className="truncate text-[10.5px] text-[#6f6f7d]">
@@ -803,8 +803,8 @@ function Workload() {
 				<Section title="Week by week">
 					<WeekChart weeks={data.weeks} />
 					<div className="flex gap-4 pl-1 pt-0.5">
-						<Legend color={AGENT_COLOR} label="agent work" />
 						<Legend color={YOU_COLOR} label="your time" />
+						<Legend color={AGENT_COLOR} label="agent work" />
 					</div>
 				</Section>
 
