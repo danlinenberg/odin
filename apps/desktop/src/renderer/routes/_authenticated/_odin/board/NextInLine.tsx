@@ -28,6 +28,7 @@ import {
 	useHiddenFilter,
 } from "../components/HiddenItems";
 import { effectiveDue, useReminders } from "../components/Reminders";
+import { useBacklogReview } from "../hooks/useBacklogReview";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useMyTasks } from "../hooks/useOdinTasks";
 
@@ -62,6 +63,7 @@ const LAST_RANKING_KEY = "odin-next-in-line-last-ranking";
 
 interface SavedRanking {
 	keys: string[];
+	hidden: string[];
 	/** task key → fingerprint of what the model was shown for it */
 	seen: Record<string, string>;
 	prompt: string;
@@ -70,7 +72,12 @@ interface SavedRanking {
 function loadSavedRanking(): SavedRanking | undefined {
 	try {
 		const saved = JSON.parse(localStorage.getItem(LAST_RANKING_KEY) ?? "null");
-		return Array.isArray(saved?.keys) && saved.seen ? saved : undefined;
+		// No `hidden`: saved before the model could leave rows out — re-rank.
+		return Array.isArray(saved?.keys) &&
+			Array.isArray(saved.hidden) &&
+			saved.seen
+			? saved
+			: undefined;
 	} catch {
 		return undefined;
 	}
@@ -96,6 +103,13 @@ export function useNextInLineRanking() {
 	const { todos } = useMyTasks();
 	const reminders = useReminders((s) => s.reminders);
 	const prompt = useNextInLinePrompt((s) => s.prompt);
+	// The Review sweep's verdicts go to the model too, so instructions like
+	// "DROPs last" have something to go on. A sweep that changes one re-ranks.
+	const swept = useBacklogReview((s) => s.swept);
+	const verdicts = useMemo(
+		() => new Map(swept.map((row) => [row.key, row.verdict])),
+		[swept],
+	);
 	const rows = useMemo(
 		() =>
 			allItems({
@@ -125,11 +139,12 @@ export function useNextInLineRanking() {
 					context: item.context,
 					due: effectiveDue(item.key, reminders, item.dueDate),
 					ageDays: null,
+					review: verdicts.get(item.key) ?? null,
 				}))
 				.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0)),
 			instructions: prompt || undefined,
 		}),
-		[rows, reminders, prompt],
+		[rows, reminders, prompt, verdicts],
 	);
 	const [saved, setSaved] = useState(loadSavedRanking);
 	const prints = useMemo(
@@ -149,12 +164,14 @@ export function useNextInLineRanking() {
 		// A new task re-ranks; keep the last order on screen meanwhile —
 		// including the one saved before a reload, which empties this cache.
 		placeholderData: (previous) =>
-			previous ?? (saved ? { keys: saved.keys } : undefined),
+			previous ??
+			(saved ? { keys: saved.keys, hidden: saved.hidden } : undefined),
 	});
 	useEffect(() => {
 		if (!query.data || query.isPlaceholderData || covered) return;
 		const next: SavedRanking = {
 			keys: query.data.keys,
+			hidden: query.data.hidden,
 			seen: Object.fromEntries(prints),
 			prompt: prompt || "",
 		};
@@ -164,7 +181,11 @@ export function useNextInLineRanking() {
 		} catch {}
 	}, [query.data, query.isPlaceholderData, covered, prints, prompt]);
 	const ranking = covered
-		? { data: { keys: saved.keys }, isFetching: false, error: null }
+		? {
+				data: { keys: saved.keys, hidden: saved.hidden },
+				isFetching: false,
+				error: null,
+			}
 		: {
 				data: query.data,
 				isFetching: query.isFetching,
@@ -236,8 +257,11 @@ export function NextInLine() {
 	// Window it (render on scroll) if the feeds ever reach thousands.
 	// The model's order, nothing else. Until it answers (or if it fails) the
 	// column stays in feed order and says so — no rule of ours stands in.
+	// Rows your instructions say not to show, per the model.
+	const aiHidden = new Set(ranking.data?.hidden);
 	const candidates = hide.rows.filter(
 		(item) =>
+			!aiHidden.has(item.key) &&
 			!livePaneFor(item) &&
 			!startedKeys.has(item.launch.key) &&
 			!doneKeys[item.key],

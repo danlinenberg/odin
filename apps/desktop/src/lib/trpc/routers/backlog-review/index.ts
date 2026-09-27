@@ -127,7 +127,8 @@ export const createBacklogReviewRouter = () => {
 
 		/**
 		 * The board's Next in line order: every unstarted feed task, most
-		 * important first, as ranked by `claude -p`. Keys only — the board
+		 * important first, as ranked by `claude -p`, plus the keys your
+		 * instructions say to leave out. Keys only — the board
 		 * already holds the rows. Cached on the exact input in main.
 		 */
 		rankNextInLine: publicProcedure
@@ -143,6 +144,7 @@ export const createBacklogReviewRouter = () => {
 							context: z.string().nullable(),
 							due: z.string().nullable(),
 							ageDays: z.number().nullable(),
+							review: z.string().nullable(),
 						}),
 					),
 					/** Settings → Board: how you want them sorted, in your words. */
@@ -151,11 +153,7 @@ export const createBacklogReviewRouter = () => {
 			)
 			.query(async ({ input }) => {
 				const { rankTasks } = await import("main/lib/next-in-line-rank");
-				return {
-					keys: await rankTasks(input.items, {
-						instructions: input.instructions,
-					}),
-				};
+				return rankTasks(input.items, { instructions: input.instructions });
 			}),
 	});
 };
