@@ -268,11 +268,11 @@ export function useLaunchTaskSession() {
 			// wait still gets its card, and the queue runner starts the agent when
 			// the gate clears. A failed read lets the launch through — a broken
 			// gauge must not be the reason a session doesn't start.
-			// Only a launch that puts an agent to work is worth queueing: an empty
-			// prompt and a Resume both hand the session straight back to you, and
-			// holding those would just be a button that doesn't work.
+			// An empty prompt hands the session straight back to you, so it isn't
+			// held. A Resume is: the reopened conversation takes a slot on the Mac
+			// and sits in its checkout like any other agent.
 			let queuedReason: string | null = null;
-			if (now !== true && !noPrompt && !resumeSessionId) {
+			if (now !== true && !noPrompt) {
 				try {
 					queuedReason = launchBlocker(
 						await utils.client.resourceMetrics.getSnapshot.query(),
