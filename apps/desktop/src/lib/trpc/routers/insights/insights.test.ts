@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { type AskRow, computeInsights, median } from "./insights";
+import { type AskRow, computeInsights, findGaps, median } from "./insights";
 
 const HOUR = 3_600_000;
 
@@ -94,5 +94,24 @@ describe("computeInsights", () => {
 			{ source: "reactions", count: 1 },
 		]);
 		expect(result.delegationsLogged).toBe(3);
+	});
+
+	test("gaps: untouched areas first, DMs folded, singletons ignored", () => {
+		const gaps = findGaps([
+			ask({ channelName: "bugs", authorName: "Richu" }),
+			ask({ channelName: "bugs", authorName: "Richu" }),
+			ask({ channelName: "rnd", authorName: "Ofek", startedAt: 1 }),
+			ask({ channelName: "rnd", authorName: "Ofek" }),
+			ask({ channelName: "rnd", authorName: "Ofek" }),
+			ask({ channelId: "D1", authorName: "Maya", doneAt: 1 }),
+			ask({ channelId: "D2", authorName: "Noa", doneAt: 1 }),
+			ask({ channelName: "solo", authorName: "Solo" }),
+		]);
+		expect(gaps).toEqual([
+			{ kind: "channel", name: "bugs", seen: 2, handled: 0, waiting: 2 },
+			{ kind: "person", name: "Richu", seen: 2, handled: 0, waiting: 2 },
+			{ kind: "person", name: "Ofek", seen: 3, handled: 1, waiting: 2 },
+			{ kind: "channel", name: "rnd", seen: 3, handled: 1, waiting: 2 },
+		]);
 	});
 });

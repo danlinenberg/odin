@@ -14,6 +14,19 @@ export interface AskRow {
 	doneAt: number | null;
 	unreactedAt: number | null;
 	authorName: string | null;
+	channelId?: string;
+	channelName?: string | null;
+}
+
+/** An area — a channel or a person — whose asks you mostly leave lying. */
+export interface Gap {
+	kind: "channel" | "person";
+	name: string;
+	seen: number;
+	/** Started on or marked done. */
+	handled: number;
+	/** Still live and untouched. */
+	waiting: number;
 }
 
 export interface DelegationRow {
@@ -44,6 +57,8 @@ export interface Insights {
 	bySource: { source: string; count: number }[];
 	/** Ledger rows total — how much history the numbers above stand on. */
 	delegationsLogged: number;
+	/** Channels and people you pick up least, never-touched first. */
+	gaps: Gap[];
 }
 
 /** Middle value, averaging the two middles on an even count. */
@@ -76,6 +91,51 @@ function tally<T>(
 		.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 }
 
+const isWaiting = (ask: AskRow): boolean =>
+	ask.startedAt === null && ask.doneAt === null && ask.unreactedAt === null;
+
+/**
+ * Areas where under half the asks got handled. A single ask says nothing about
+ * a habit, so an area needs `minAsks` before it's held against you. DMs have
+ * no channel name and one each, so they fold into one "DMs" area.
+ */
+export function findGaps(asks: AskRow[], minAsks = 2, limit = 8): Gap[] {
+	const groups = new Map<string, Gap>();
+	const add = (kind: Gap["kind"], name: string | null, ask: AskRow) => {
+		if (!name) return;
+		const key = `${kind}:${name}`;
+		const gap = groups.get(key) ?? {
+			kind,
+			name,
+			seen: 0,
+			handled: 0,
+			waiting: 0,
+		};
+		gap.seen++;
+		if (ask.startedAt !== null || ask.doneAt !== null) gap.handled++;
+		if (isWaiting(ask)) gap.waiting++;
+		groups.set(key, gap);
+	};
+	for (const ask of asks) {
+		const dm = ask.channelId?.startsWith("D");
+		add(
+			"channel",
+			dm ? "DMs" : (ask.channelName ?? ask.channelId ?? null),
+			ask,
+		);
+		add("person", ask.authorName, ask);
+	}
+	return [...groups.values()]
+		.filter((gap) => gap.seen >= minAsks && gap.handled * 2 < gap.seen)
+		.sort(
+			(a, b) =>
+				a.handled / a.seen - b.handled / b.seen ||
+				b.seen - a.seen ||
+				a.name.localeCompare(b.name),
+		)
+		.slice(0, limit);
+}
+
 export function computeInsights(
 	asks: AskRow[],
 	delegations: DelegationRow[],
@@ -93,12 +153,7 @@ export function computeInsights(
 		done: asks.filter((ask) => ask.doneAt !== null).length,
 		// Untouched and still live. An ask whose reaction came off was withdrawn,
 		// not ignored, so it isn't held against you here.
-		waiting: asks.filter(
-			(ask) =>
-				ask.startedAt === null &&
-				ask.doneAt === null &&
-				ask.unreactedAt === null,
-		).length,
+		waiting: asks.filter(isWaiting).length,
 		medianPickupHours: pickups.length ? hours(median(pickups) as number) : null,
 		slowestPickupHours: pickups.length ? hours(Math.max(...pickups)) : null,
 		askers: tally(asks, (ask) => ask.authorName)
@@ -108,5 +163,6 @@ export function computeInsights(
 			({ name, count }) => ({ source: name, count }),
 		),
 		delegationsLogged: delegations.length,
+		gaps: findGaps(asks),
 	};
 }
