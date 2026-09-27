@@ -86,10 +86,7 @@ function getIconsDir(): string {
 function getIconPath(): string {
 	const dir = getIconsDir();
 
-	if (env.NODE_ENV === "development") {
-		const devIcon = join(dir, "icon-dev.png");
-		if (existsSync(devIcon)) return devIcon;
-	} else if (isCanaryBuild()) {
+	if (isCanaryBuild()) {
 		const canaryIcon = join(dir, "icon-canary.png");
 		if (existsSync(canaryIcon)) return canaryIcon;
 	}

@@ -58,7 +58,7 @@ void applyShellEnvToProcess().catch((error) => {
 	console.error("[main] Failed to apply shell environment:", error);
 });
 
-// Dev mode: name it "Odin Dev" (and it gets the green icon-dev.png in the dock)
+// Dev mode: name it "Odin Dev" (it shares the prod icon, so the name is the tell)
 // so a hot-reload window is never mistaken for the installed app — both share
 // ~/.odin, so knowing which one you're driving matters.
 if (IS_DEV) {

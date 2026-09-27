@@ -34,10 +34,8 @@ else
   osacompile -o "$APP" -e "do shell script \"$FOCUS\"" || exit 1
 fi
 
-# The dev icon from the repo, not /Applications/Odin.app's: this launcher starts
-# the DEV app (green), and sourcing it from the release meant no icon at all
-# until one was installed.
-cp "$REPO/apps/desktop/src/resources/build/icons/icon-dev.icns" \
+# Prod icon from the repo, so no release install is needed.
+cp "$REPO/apps/desktop/src/resources/build/icons/icon.icns" \
   "$APP/Contents/Resources/applet.icns"
 /usr/libexec/PlistBuddy -c "Set :CFBundleName Odin Dev" \
   "$APP/Contents/Info.plist" >/dev/null 2>&1
