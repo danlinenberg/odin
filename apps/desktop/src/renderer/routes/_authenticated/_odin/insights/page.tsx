@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 
 export const Route = createFileRoute("/_authenticated/_odin/insights/")({
@@ -21,6 +21,8 @@ const SOURCE_LABEL: Record<string, string> = {
 
 const AGENT_COLOR = "#a394ff";
 const YOU_COLOR = "#3ecf8e";
+/** Plain rankings (repo, person, source) — not you vs agent, so neither hue. */
+const RANK_COLOR = "#6b8fb8";
 
 const DATE = new Intl.DateTimeFormat(undefined, {
 	month: "short",
@@ -99,7 +101,7 @@ function Bar({
 	name,
 	fraction,
 	value,
-	color = AGENT_COLOR,
+	color = RANK_COLOR,
 }: {
 	name: string;
 	/** 0–1 of the biggest row in the group. */
@@ -879,7 +881,6 @@ function Workload() {
 							<Empty>Nothing launched from a feed yet.</Empty>
 						) : (
 							<BarGroup
-								color={YOU_COLOR}
 								rows={data.byPerson.map((row) => ({
 									name: row.person,
 									weight: row.hours,
@@ -971,9 +972,72 @@ function Queue() {
 	);
 }
 
+/**
+ * Native `title` tooltips wait ~1s and the delay can't be tuned. This swaps
+ * every `title` under `root` for an instant one, so call sites keep plain
+ * `title=` and a new one is fast for free.
+ */
+function useFastTitles(root: React.RefObject<HTMLElement | null>) {
+	const [tip, setTip] = useState<{ text: string; x: number; y: number } | null>(
+		null,
+	);
+	useEffect(() => {
+		const el = root.current;
+		if (!el) return;
+		let held: Element | null = null;
+		const release = () => {
+			if (held)
+				held.setAttribute("title", held.getAttribute("data-title") ?? "");
+			held = null;
+			setTip(null);
+		};
+		const over = (event: MouseEvent) => {
+			const target = (event.target as Element).closest("[title]");
+			if (!target || !el.contains(target)) return;
+			release();
+			const text = target.getAttribute("title") ?? "";
+			if (!text) return;
+			held = target;
+			target.setAttribute("data-title", text);
+			target.removeAttribute("title");
+			setTip({ text, x: event.clientX, y: event.clientY });
+		};
+		const move = (event: MouseEvent) => {
+			if (held)
+				setTip((t) => t && { ...t, x: event.clientX, y: event.clientY });
+		};
+		const out = (event: MouseEvent) => {
+			if (held && !held.contains(event.relatedTarget as Node)) release();
+		};
+		el.addEventListener("mouseover", over);
+		el.addEventListener("mousemove", move);
+		el.addEventListener("mouseout", out);
+		return () => {
+			release();
+			el.removeEventListener("mouseover", over);
+			el.removeEventListener("mousemove", move);
+			el.removeEventListener("mouseout", out);
+		};
+	}, [root]);
+	return tip;
+}
+
 function InsightsPage() {
+	const ref = useRef<HTMLDivElement>(null);
+	const tip = useFastTitles(ref);
 	return (
-		<div className="h-full overflow-y-auto px-[18px] pb-10 pt-4">
+		<div ref={ref} className="h-full overflow-y-auto px-[18px] pb-10 pt-4">
+			{tip && (
+				<div
+					className="pointer-events-none fixed z-50 max-w-xs whitespace-pre-line rounded-md border border-[#2a2a34] bg-[#15151b] px-2 py-1 text-[11.5px] text-[#d6d6dc] shadow-lg"
+					style={{
+						left: Math.min(tip.x + 12, window.innerWidth - 330),
+						top: tip.y + 16,
+					}}
+				>
+					{tip.text}
+				</div>
+			)}
 			{/* Capped, not full-bleed: on a wide window every row stretched to
 			    2000px and nothing lined up close enough to compare. */}
 			<div className="mx-auto flex w-full max-w-[1120px] flex-col gap-7">
