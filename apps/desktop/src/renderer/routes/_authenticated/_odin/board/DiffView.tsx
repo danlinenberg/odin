@@ -41,6 +41,8 @@ export function DiffView({
 	const [width, setWidth] = useState(120);
 	/** The PR on screen; null is the checkout's own diff. */
 	const [pr, setPr] = useState<string | null>(null);
+	/** The first line on screen — which file the list marks as current. */
+	const [top, setTop] = useState(0);
 
 	// Same query (and cache entry) the brief beside it reads its PRs from.
 	const { data: transcript } =
@@ -80,6 +82,7 @@ export function DiffView({
 		fit.fit();
 		setWidth(Math.max(xterm.cols, 40));
 		term.current = { xterm, fit };
+		const scrolled = xterm.onScroll(setTop);
 
 		const observer = new ResizeObserver(() => {
 			try {
@@ -93,6 +96,7 @@ export function DiffView({
 
 		return () => {
 			observer.disconnect();
+			scrolled.dispose();
 			term.current = null;
 			xterm.dispose();
 		};
@@ -113,6 +117,17 @@ export function DiffView({
 			() => xterm.scrollToTop(),
 		);
 	}, [data, pr]);
+
+	// Missing until main restarts onto it — then the list just isn't there.
+	const files = data?.files ?? [];
+	const current = files.findLast((file) => file.line <= top);
+	const total = files.reduce(
+		(sum, file) => ({
+			added: sum.added + file.added,
+			removed: sum.removed + file.removed,
+		}),
+		{ added: 0, removed: 0 },
+	);
 
 	// Grouped by repo: a session's PRs pile up in one or two repos, and the
 	// repo name repeated on every row is what made the old tab strip overflow.
@@ -173,7 +188,56 @@ export function DiffView({
 					{error.message}
 				</div>
 			)}
-			<div ref={host} className="min-h-0 flex-1 bg-[#0a0a0c] p-2" />
+			<div className="flex min-h-0 flex-1">
+				{files.length > 0 && (
+					// GitHub's "Files changed" rail: what's in the diff, and a jump to it.
+					<div className="flex w-[240px] shrink-0 flex-col border-r border-[#25252e] bg-[#0d0d10]">
+						<div className="border-b border-[#25252e] px-3 py-1.5 text-[11px] text-[#8a8a97]">
+							{files.length} {files.length === 1 ? "file" : "files"}{" "}
+							<span className="text-[#4ade80]">+{total.added}</span>{" "}
+							<span className="text-[#f0647a]">−{total.removed}</span>
+						</div>
+						<div className="min-h-0 flex-1 overflow-y-auto py-1">
+							{files.map((file) => {
+								const slash = file.path.lastIndexOf("/");
+								return (
+									<button
+										key={`${file.path}:${file.line}`}
+										type="button"
+										title={file.path}
+										onClick={() => term.current?.xterm.scrollToLine(file.line)}
+										className={`flex w-full items-baseline gap-2 px-3 py-[3px] text-left text-[12px] ${
+											file === current
+												? "bg-[#1f1f27] text-[#e6e6ee]"
+												: "text-[#b5b5c0] hover:bg-[#17171d]"
+										}`}
+									>
+										<span className="min-w-0 flex-1">
+											<span className="block truncate">
+												{file.path.slice(slash + 1)}
+											</span>
+											{slash > 0 && (
+												<span className="block truncate text-[10.5px] text-[#6a6a77]">
+													{file.path.slice(0, slash)}
+												</span>
+											)}
+										</span>
+										<span className="shrink-0 text-[10.5px] tabular-nums">
+											{file.added > 0 && (
+												<span className="text-[#4ade80]">+{file.added}</span>
+											)}{" "}
+											{file.removed > 0 && (
+												<span className="text-[#f0647a]">−{file.removed}</span>
+											)}
+										</span>
+									</button>
+								);
+							})}
+						</div>
+					</div>
+				)}
+				<div ref={host} className="min-h-0 min-w-0 flex-1 bg-[#0a0a0c] p-2" />
+			</div>
 		</div>
 	);
 }

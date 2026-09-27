@@ -1,6 +1,6 @@
 import { execFile, spawn } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
-import { homedir, tmpdir } from "node:os";
+import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { TRPCError } from "@trpc/server";
@@ -96,12 +96,7 @@ async function pipe(
 ): Promise<string | null> {
 	const env = await getProcessEnvWithShellPath();
 	return new Promise((resolve) => {
-		// Outside any checkout: inside one, `git apply` drops every path that
-		// isn't under the current directory.
-		const child = spawn(command, args, {
-			cwd: tmpdir(),
-			env: { ...env, ...extraEnv },
-		});
+		const child = spawn(command, args, { env: { ...env, ...extraEnv } });
 		let out = "";
 		child.stdout.setEncoding("utf8");
 		child.stdout.on("data", (chunk: string) => {
@@ -170,46 +165,87 @@ function colourPatch(patch: string): string {
 		.join("\n");
 }
 
-/**
- * "Which files, how much" above the diff — the thing you read first and the
- * reason to scroll. `git apply --stat` reads any patch, so a PR's (which has
- * no local checkout) gets the same header as the working tree's.
- */
-async function fileSummary(patch: string): Promise<string> {
-	const stat = await pipe("git", ["apply", "--stat"], patch);
-	if (!stat?.trim()) return "";
-	const lines = stat.trimEnd().split("\n");
-	const total = lines.pop() ?? "";
-	return `${lines
-		.map((line) =>
-			line.replace(
-				/(\|\s+\d+ )(\+*)(-*)$/,
-				`${DIM}$1${RESET}${GREEN}$2${RED}$3${RESET}`,
-			),
-		)
-		.join("\n")}\n${DIM}${total.trim()}${RESET}\n\n`;
+/** One file of a diff, for the panel's file list. */
+export interface DiffFile {
+	path: string;
+	added: number;
+	removed: number;
+	/** Where its header starts in `ansi`, in lines — what the list scrolls to. */
+	line: number;
 }
 
-/** The patch as the panel shows it: summary, then delta (or git colours). */
+/**
+ * A patch cut at each `diff --git`. Whatever precedes the first one (a
+ * commit's header, from `git show`) comes back with a null path.
+ */
+export function splitPatch(
+	patch: string,
+): { path: string | null; text: string; added: number; removed: number }[] {
+	return patch
+		.split(/^(?=diff --git )/m)
+		.filter(Boolean)
+		.map((text) => {
+			const lines = text.split("\n");
+			const header = lines[0].match(/^diff --git a\/.* b\/(.*)$/);
+			return {
+				path: header ? header[1] : null,
+				text,
+				added: lines.filter((l) => l.startsWith("+") && !l.startsWith("+++"))
+					.length,
+				removed: lines.filter((l) => l.startsWith("-") && !l.startsWith("---"))
+					.length,
+			};
+		});
+}
+
+/**
+ * The patch as the panel shows it, plus where each file starts in it.
+ *
+ * Delta runs once per file so every offset is exact — counting lines of one
+ * big render would mean guessing which of them is a file header.
+ * ponytail: 8 deltas at a time; a 500-file diff is slow, and that's rare.
+ */
 async function render(
 	patch: string,
 	width: number,
 	note = "",
-): Promise<Pick<RepoDiff, "ansi" | "delta">> {
-	if (!patch.trim()) return { ansi: "", delta: true };
-	const summary = await fileSummary(patch);
+): Promise<Pick<RepoDiff, "ansi" | "delta" | "files">> {
+	if (!patch.trim()) return { ansi: "", delta: true, files: [] };
 	if (patch.length > MAX_PATCH_BYTES) {
 		patch = `${patch.slice(0, MAX_PATCH_BYTES)}\n\n… diff truncated at ${MAX_PATCH_BYTES / 1000}kB\n`;
 	}
-	// Without COLORTERM delta drops to 256 colours, and its +/- fills land on
-	// ANSI 22/52 — a whole added file comes out flooded bright green.
-	const rendered = await pipe("delta", deltaArgs(width), patch, {
-		COLORTERM: "truecolor",
+	const chunks = splitPatch(patch);
+	const rendered: (string | null)[] = [];
+	for (let i = 0; i < chunks.length; i += 8) {
+		rendered.push(
+			...(await Promise.all(
+				chunks.slice(i, i + 8).map((chunk) =>
+					// Without COLORTERM delta drops to 256 colours, and its +/- fills
+					// land on ANSI 22/52 — an added file comes out flooded bright green.
+					pipe("delta", deltaArgs(width), chunk.text, {
+						COLORTERM: "truecolor",
+					}),
+				),
+			)),
+		);
+	}
+	const delta = rendered.every((out) => out !== null);
+
+	let ansi = note;
+	const files: DiffFile[] = [];
+	chunks.forEach((chunk, index) => {
+		const text = delta ? (rendered[index] as string) : colourPatch(chunk.text);
+		if (chunk.path) {
+			files.push({
+				path: chunk.path,
+				added: chunk.added,
+				removed: chunk.removed,
+				line: ansi.split("\n").length - 1,
+			});
+		}
+		ansi += text.endsWith("\n") ? text : `${text}\n`;
 	});
-	return {
-		ansi: note + summary + (rendered ?? colourPatch(patch)),
-		delta: rendered !== null,
-	};
+	return { ansi, delta, files };
 }
 
 export interface RepoDiff {
@@ -221,6 +257,8 @@ export interface RepoDiff {
 	delta: boolean;
 	/** The checkout (or PR url) this is a diff of — the header names it. */
 	cwd: string;
+	/** Every file in it, in order. */
+	files: DiffFile[];
 }
 
 /**
@@ -262,6 +300,7 @@ export async function renderDiff(
 				source: "nothing from this session",
 				delta: true,
 				cwd,
+				files: [],
 			};
 		}
 		source = "last commit";

@@ -8,6 +8,7 @@ import {
 	renderDiff,
 	renderPullRequestDiff,
 	scanRepos,
+	splitPatch,
 } from "./repos";
 
 test("scanRepos finds checkouts, skips pruned dirs and nested worktrees", async () => {
@@ -91,8 +92,11 @@ test("renderDiff shows uncommitted work, and the last commit when there is none"
 	expect(dirty.source).toBe("uncommitted changes");
 	expect(dirty.ansi).toContain("two");
 	expect(dirty.ansi).toContain("1 untracked file(s), not shown: b.txt");
-	// The file summary heads the diff.
-	expect(dirty.ansi).toContain("1 file changed");
+	// The file list points at the line each file starts on.
+	expect(dirty.files).toEqual([
+		{ path: "a.txt", added: 1, removed: 1, line: 2 },
+	]);
+	expect(dirty.ansi.split("\n").slice(2, 5).join("\n")).toContain("a.txt");
 });
 
 test("renderPullRequestDiff reads the PR through gh, and says when nobody can", async () => {
@@ -112,4 +116,30 @@ test("renderPullRequestDiff reads the PR through gh, and says when nobody can", 
 			throw new Error("404");
 		}),
 	).rejects.toThrow(/No logged-in gh account/);
+});
+
+test("splitPatch cuts per file, keeps a commit header, and counts +/-", () => {
+	const chunks = splitPatch(
+		[
+			"commit abc",
+			"    message",
+			"diff --git a/one.ts b/one.ts",
+			"--- a/one.ts",
+			"+++ b/one.ts",
+			"@@ -1 +1,2 @@",
+			"-a",
+			"+b",
+			"+c",
+			"diff --git a/old.ts b/new name.ts",
+			"rename from old.ts",
+			"",
+		].join("\n"),
+	);
+	expect(
+		chunks.map(({ path, added, removed }) => [path, added, removed]),
+	).toEqual([
+		[null, 0, 0],
+		["one.ts", 2, 1],
+		["new name.ts", 0, 0],
+	]);
 });
