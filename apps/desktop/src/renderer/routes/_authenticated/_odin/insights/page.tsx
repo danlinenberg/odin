@@ -266,19 +266,19 @@ const HOURS = Array.from({ length: 24 }, (_, hour) =>
 	String(hour).padStart(2, "0"),
 );
 
-const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const DAY_MS = 86_400_000;
 
 /**
- * Monday 00:00 local. The same rule the main process buckets cells by — four
+ * Sunday 00:00 local. The same rule the main process buckets cells by — four
  * lines duplicated rather than imported, because that module reaches for
  * `node:fs` and can't come into the renderer.
  */
 function weekStart(at: number): number {
 	const date = new Date(at);
 	date.setHours(0, 0, 0, 0);
-	date.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+	date.setDate(date.getDate() - date.getDay());
 	return date.getTime();
 }
 
@@ -360,12 +360,28 @@ type RecapWeek = {
  * Weeks step by the calendar rather than by the rows that came back, so a week
  * off renders as empty instead of being skipped past.
  */
+/** Every word must appear somewhere in the row — title, brief, repo or person. */
+function matches(task: RecapWeek["tasks"][number], query: string): boolean {
+	const haystack = [task.title, task.description, task.repo, task.person]
+		.filter(Boolean)
+		.join(" ")
+		.toLowerCase();
+	return query
+		.toLowerCase()
+		.split(/\s+/)
+		.filter(Boolean)
+		.every((word) => haystack.includes(word));
+}
+
 function WeekView({
 	recap = [],
 	heatmap,
+	query = "",
 }: {
 	recap?: RecapWeek[];
 	heatmap: { start: number; minutes: number[] }[];
+	/** When set, the list searches every week instead of showing one. */
+	query?: string;
 }) {
 	const thisWeek = weekStart(Date.now());
 	const [start, setStart] = useState(thisWeek);
@@ -375,7 +391,13 @@ function WeekView({
 		[heatmap],
 	);
 	const week = recap.find((row) => row.start === start);
-	const matching = week?.tasks ?? [];
+	const searching = query.trim() !== "";
+	const matching = searching
+		? recap
+				.flatMap((row) => row.tasks)
+				.filter((task) => matches(task, query))
+				.sort((a, b) => b.startedAt - a.startedAt)
+		: (week?.tasks ?? []);
 	const [expanded, setExpanded] = useState(false);
 	const tasks = expanded ? matching : matching.slice(0, WEEK_ROWS);
 	const earliest = Math.min(
@@ -386,30 +408,38 @@ function WeekView({
 
 	return (
 		<Card>
-			<div className="mb-3 flex items-center gap-2">
-				<Step
-					label="Previous week"
-					glyph="‹"
-					disabled={start <= earliest}
-					onClick={() => setStart(shiftWeeks(start, -1))}
-				/>
-				<Step
-					label="Next week"
-					glyph="›"
-					disabled={start >= thisWeek}
-					onClick={() => setStart(shiftWeeks(start, 1))}
-				/>
-				<div className="text-[12px] text-[#d6d6dc]">
-					{start === thisWeek
-						? "This week"
-						: `${DATE.format(start)} – ${DATE.format(shiftWeeks(start, 1) - DAY_MS)}`}
+			{searching ? (
+				<div className="mb-3 text-[12px] text-[#d6d6dc]">
+					{matching.length
+						? `${plural(matching.length, "match")} across every week, newest first`
+						: "No task matches that."}
 				</div>
-				<div className="ml-auto text-[11.5px] tabular-nums text-[#a5a5b3]">
-					{week
-						? `${plural(week.sessions, "session")} · ${duration(week.yourHours)} on the clock · ${plural(week.prs, "PR")}`
-						: "nothing logged"}
+			) : (
+				<div className="mb-3 flex items-center gap-2">
+					<Step
+						label="Previous week"
+						glyph="‹"
+						disabled={start <= earliest}
+						onClick={() => setStart(shiftWeeks(start, -1))}
+					/>
+					<Step
+						label="Next week"
+						glyph="›"
+						disabled={start >= thisWeek}
+						onClick={() => setStart(shiftWeeks(start, 1))}
+					/>
+					<div className="text-[12px] text-[#d6d6dc]">
+						{start === thisWeek
+							? "This week"
+							: `${DATE.format(start)} – ${DATE.format(shiftWeeks(start, 1) - DAY_MS)}`}
+					</div>
+					<div className="ml-auto text-[11.5px] tabular-nums text-[#a5a5b3]">
+						{week
+							? `${plural(week.sessions, "session")} · ${duration(week.yourHours)} on the clock · ${plural(week.prs, "PR")}`
+							: "nothing logged"}
+					</div>
 				</div>
-			</div>
+			)}
 
 			{tasks.length > 0 && (
 				<div className="mb-4 flex flex-col divide-y divide-[#1f1f27]">
@@ -425,6 +455,11 @@ function WeekView({
 							>
 								{duration(task.hours)}
 							</div>
+							{searching && (
+								<div className="w-12 shrink-0 text-[10.5px] tabular-nums text-[#6f6f7d]">
+									{DATE.format(task.startedAt)}
+								</div>
+							)}
 							{/* Titles arrive in whatever language the ask was written in. */}
 							<div
 								dir="auto"
@@ -469,39 +504,41 @@ function WeekView({
 				</button>
 			)}
 
-			<div
-				className="grid gap-[2px]"
-				style={{ gridTemplateColumns: "28px repeat(24, minmax(0, 1fr))" }}
-			>
-				{WEEKDAYS.map((day, weekday) => (
-					<Fragment key={day}>
-						<div className="pr-1 text-right text-[10px] leading-[14px] text-[#6f6f7d]">
-							{day}
+			{!searching && (
+				<div
+					className="grid gap-[2px]"
+					style={{ gridTemplateColumns: "28px repeat(24, minmax(0, 1fr))" }}
+				>
+					{WEEKDAYS.map((day, weekday) => (
+						<Fragment key={day}>
+							<div className="pr-1 text-right text-[10px] leading-[14px] text-[#6f6f7d]">
+								{day}
+							</div>
+							{HOURS.map((label, hour) => {
+								const minutes = cells?.[weekday * 24 + hour] ?? 0;
+								return (
+									<div
+										key={label}
+										className="h-[14px] rounded-[2px]"
+										style={cellStyle(minutes)}
+										title={`${day} ${label}:00 — ${minutes}m`}
+									/>
+								);
+							})}
+						</Fragment>
+					))}
+					{/* The hour axis, sharing the grid so labels sit under their column. */}
+					<div />
+					{HOURS.map((label, hour) => (
+						<div
+							key={label}
+							className="pt-1 text-center text-[9.5px] text-[#6f6f7d]"
+						>
+							{hour % 3 === 0 ? label : ""}
 						</div>
-						{HOURS.map((label, hour) => {
-							const minutes = cells?.[weekday * 24 + hour] ?? 0;
-							return (
-								<div
-									key={label}
-									className="h-[14px] rounded-[2px]"
-									style={cellStyle(minutes)}
-									title={`${day} ${label}:00 — ${minutes}m`}
-								/>
-							);
-						})}
-					</Fragment>
-				))}
-				{/* The hour axis, sharing the grid so labels sit under their column. */}
-				<div />
-				{HOURS.map((label, hour) => (
-					<div
-						key={label}
-						className="pt-1 text-center text-[9.5px] text-[#6f6f7d]"
-					>
-						{hour % 3 === 0 ? label : ""}
-					</div>
-				))}
-			</div>
+					))}
+				</div>
+			)}
 		</Card>
 	);
 }
@@ -655,6 +692,7 @@ function RepoFilter({
 function Workload() {
 	const [repo, setRepo] = useState<string | null>(null);
 	const [excluded, setExcluded] = useState(readExcluded);
+	const [query, setQuery] = useState("");
 	const toggleExcluded = (name: string) => {
 		const next = new Set(excluded);
 		if (!next.delete(name)) next.add(name);
@@ -679,6 +717,17 @@ function Workload() {
 		return <Loading label="Reading transcripts…" blocks={[96, 260, 170]} />;
 	const filter = (
 		<div className="flex items-start gap-2">
+			<input
+				type="search"
+				value={query}
+				onChange={(event) => setQuery(event.target.value)}
+				onKeyDown={(event) => {
+					if (event.key === "Escape") setQuery("");
+				}}
+				placeholder="Search tasks…"
+				aria-label="Search tasks"
+				className="h-[22px] w-[180px] shrink-0 rounded-[6px] border border-[#25252e] bg-[#16161b] px-2 text-[11px] text-[#e4e4ea] placeholder:text-[#6f6f7d] focus:border-[#a394ff] focus:outline-none"
+			/>
 			<RepoFilter
 				repos={data.repos ?? data.byRepo.map((row) => row.repo)}
 				repo={repo}
@@ -725,7 +774,7 @@ function Workload() {
 				</Section>
 
 				<Section title="What you did">
-					<WeekView recap={data.recap} heatmap={data.heatmap} />
+					<WeekView recap={data.recap} heatmap={data.heatmap} query={query} />
 				</Section>
 
 				<Section title="Week by week">
