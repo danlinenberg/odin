@@ -9,7 +9,11 @@ import {
 	MANAGED_NOTIFY_RELATIVE_PATH,
 	writeFileIfChanged,
 } from "./agent-wrappers-common";
-import { getNotifyScriptPath, NOTIFY_SCRIPT_NAME } from "./notify-hook";
+import {
+	getNotifyScriptPath,
+	NOTIFY_SCRIPT_NAME,
+	SUBAGENT_CAP_SCRIPT_NAME,
+} from "./notify-hook";
 import { OPENCODE_CONFIG_DIR, OPENCODE_PLUGIN_DIR } from "./paths";
 
 export const OPENCODE_PLUGIN_FILE = "odin-notify.js";
@@ -85,9 +89,12 @@ function isManagedClaudeHookCommand(
 	return (
 		command?.includes(notifyScriptPath) ||
 		command?.includes(CLAUDE_DYNAMIC_NOTIFY_PATH_MARKER) ||
-		isOdinManagedHookCommand(command, NOTIFY_SCRIPT_NAME)
+		isOdinManagedHookCommand(command, NOTIFY_SCRIPT_NAME) ||
+		!!command?.includes(`/hooks/${SUBAGENT_CAP_SCRIPT_NAME}`)
 	);
 }
+
+const SUBAGENT_CAP_HOOK_COMMAND = `[ -n "$ODIN_HOME_DIR" ] && [ -x "$ODIN_HOME_DIR/hooks/${SUBAGENT_CAP_SCRIPT_NAME}" ] && "$ODIN_HOME_DIR/hooks/${SUBAGENT_CAP_SCRIPT_NAME}" || true`;
 
 function readExistingClaudeSettings(
 	globalPath: string,
@@ -177,7 +184,8 @@ export function getClaudeGlobalSettingsJsonContent(
 			| "PreToolUse"
 			| "PostToolUse"
 			| "PostToolUseFailure"
-			| "PermissionRequest";
+			| "PermissionRequest"
+			| "SubagentStop";
 		definition: ClaudeHookDefinition;
 	}> = [
 		{
@@ -237,22 +245,43 @@ export function getClaudeGlobalSettingsJsonContent(
 				hooks: [{ type: "command", command: managedHookCommand }],
 			},
 		},
+		// Machine-wide cap on concurrent subagents (templates/subagent-cap.template.sh).
+		{
+			eventName: "PreToolUse",
+			definition: {
+				matcher: "Agent|Task",
+				hooks: [{ type: "command", command: SUBAGENT_CAP_HOOK_COMMAND }],
+			},
+		},
+		{
+			eventName: "SubagentStop",
+			definition: {
+				hooks: [{ type: "command", command: SUBAGENT_CAP_HOOK_COMMAND }],
+			},
+		},
+		{
+			eventName: "SessionEnd",
+			definition: {
+				hooks: [{ type: "command", command: SUBAGENT_CAP_HOOK_COMMAND }],
+			},
+		},
 	];
 
-	for (const { eventName, definition } of managedEvents) {
+	// Strip every managed hook first, then append: an event can carry more
+	// than one managed definition (PreToolUse, SessionEnd).
+	for (const eventName of new Set(managedEvents.map((e) => e.eventName))) {
 		const current = existing.hooks[eventName];
-		if (Array.isArray(current)) {
-			const filtered = current.flatMap((def: ClaudeHookDefinition) => {
-				const cleaned = removeManagedHooksFromDefinition(def, (command) =>
-					isManagedClaudeHookCommand(command, notifyScriptPath),
-				);
-				return cleaned ? [cleaned] : [];
-			});
-			filtered.push(definition);
-			existing.hooks[eventName] = filtered;
-		} else {
-			existing.hooks[eventName] = [definition];
-		}
+		existing.hooks[eventName] = Array.isArray(current)
+			? current.flatMap((def: ClaudeHookDefinition) => {
+					const cleaned = removeManagedHooksFromDefinition(def, (command) =>
+						isManagedClaudeHookCommand(command, notifyScriptPath),
+					);
+					return cleaned ? [cleaned] : [];
+				})
+			: [];
+	}
+	for (const { eventName, definition } of managedEvents) {
+		existing.hooks[eventName].push(definition);
 	}
 
 	return JSON.stringify(existing, null, 2);

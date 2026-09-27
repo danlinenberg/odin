@@ -12,6 +12,12 @@ const NOTIFY_SCRIPT_TEMPLATE_PATH = path.join(
 	"notify-hook.template.sh",
 );
 
+export const SUBAGENT_CAP_SCRIPT_NAME = "subagent-cap.sh";
+const SUBAGENT_CAP_SCRIPT_MARKER = "# Odin subagent cap hook v1";
+// ponytail: 4 subagents machine-wide, not per session. Raise it with
+// ODIN_MAX_SUBAGENTS if the machine can take more.
+const DEFAULT_SUBAGENT_CAP = 4;
+
 function writeFileIfChanged(
 	filePath: string,
 	content: string,
@@ -49,4 +55,17 @@ export function createNotifyScript(): void {
 	const script = getNotifyScriptContent();
 	const changed = writeFileIfChanged(notifyPath, script, 0o755);
 	console.log(`[agent-setup] ${changed ? "Updated" : "Verified"} notify hook`);
+
+	const capScript = fs
+		.readFileSync(
+			path.join(__dirname, "templates", "subagent-cap.template.sh"),
+			"utf-8",
+		)
+		.replaceAll("{{MARKER}}", SUBAGENT_CAP_SCRIPT_MARKER)
+		.replaceAll("{{DEFAULT_CAP}}", String(DEFAULT_SUBAGENT_CAP));
+	writeFileIfChanged(
+		path.join(HOOKS_DIR, SUBAGENT_CAP_SCRIPT_NAME),
+		capScript,
+		0o755,
+	);
 }

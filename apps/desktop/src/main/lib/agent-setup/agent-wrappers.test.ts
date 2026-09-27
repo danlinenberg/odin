@@ -1018,6 +1018,32 @@ describe("agent-wrappers claude settings.json", () => {
 		).toBe(true);
 	});
 
+	it("registers the subagent cap next to Needs you, once, across re-merges", () => {
+		const claudeSettingsPath = path.join(
+			mockedHomeDir,
+			".claude",
+			"settings.json",
+		);
+		mkdirSync(path.dirname(claudeSettingsPath), { recursive: true });
+		const notifyPath = "/tmp/.odin/hooks/notify.sh";
+		for (let i = 0; i < 2; i++) {
+			const content = getClaudeGlobalSettingsJsonContent(notifyPath);
+			if (content === null) throw new Error("Expected content");
+			writeFileSync(claudeSettingsPath, content);
+		}
+		const parsed = JSON.parse(readFileSync(claudeSettingsPath, "utf-8"));
+		expect(
+			parsed.hooks.PreToolUse.map((def: { matcher: string }) => def.matcher),
+		).toEqual(["AskUserQuestion|ExitPlanMode", "Agent|Task"]);
+		for (const eventName of ["SubagentStop", "SessionEnd"]) {
+			const capHooks = parsed.hooks[eventName].filter(
+				(def: { hooks: Array<{ command: string }> }) =>
+					def.hooks[0].command.includes("/hooks/subagent-cap.sh"),
+			);
+			expect(capHooks).toHaveLength(1);
+		}
+	});
+
 	it("preserves user hooks and non-hook settings when merging", () => {
 		const claudeSettingsPath = path.join(
 			mockedHomeDir,
