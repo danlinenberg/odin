@@ -12,6 +12,7 @@ import {
 	ruleFirings,
 	searchSessions,
 	summarizeTranscript,
+	transcriptLinks,
 	transcriptOf,
 	workingRepoOf,
 } from "./claude-sessions";
@@ -520,6 +521,34 @@ describe("parseTranscript / readTranscript", () => {
 				at: "2026-09-27T07:32:00.000Z",
 			},
 			{ role: "assistant", text: "Merged as #232.", at: null },
+		]);
+	});
+
+	test("the thread and ticket a long session opened with stay findable after the tail drops them", () => {
+		const opening =
+			"Task: fix it\nThis task comes from a Slack thread: https://acme.slack.com/archives/D1/p123?thread_ts=1.2&cid=D1\nTicket: [SHIP-1](https://acme.atlassian.net/browse/SHIP-1)";
+		const filler = Array.from({ length: 600 }, (_, i) =>
+			i % 2 ? assistant(`working ${i}`) : user(`next ${i}`),
+		);
+		const late = assistant(
+			`${"x".repeat(7000)} https://github.com/acme/app/pull/9`,
+		);
+		const jsonl = [user(opening), ...filler, late].join("\n");
+
+		expect(parseTranscript(jsonl).some((m) => m.text.includes("SHIP-1"))).toBe(
+			false,
+		);
+		expect(transcriptLinks(jsonl)).toEqual([
+			{
+				role: "user",
+				text: "https://acme.slack.com/archives/D1/p123?thread_ts=1.2&cid=D1\nhttps://acme.atlassian.net/browse/SHIP-1",
+				at: "2026-08-10T11:51:56.283Z",
+			},
+			{
+				role: "assistant",
+				text: "https://github.com/acme/app/pull/9",
+				at: null,
+			},
 		]);
 	});
 

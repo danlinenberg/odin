@@ -261,10 +261,10 @@ export function SessionBrief({
 			},
 		);
 	const facts = transcript ? sessionBrief(transcript.messages) : null;
-	const allPrs = transcript ? pullRequests(transcript.messages) : [];
-	const foundThread = transcript ? slackThread(transcript.messages) : null;
-	const foundPage = transcript ? notionPage(transcript.messages) : null;
-	const foundIssue = transcript ? jiraIssue(transcript.messages) : null;
+	const allPrs = transcript ? pullRequests(transcript.links) : [];
+	const foundThread = transcript ? slackThread(transcript.links) : null;
+	const foundPage = transcript ? notionPage(transcript.links) : null;
+	const foundIssue = transcript ? jiraIssue(transcript.links) : null;
 	// Only rules that actually fired, and on which PR — not every rule the
 	// launch prompt listed. `rules` is missing until main restarts onto it.
 	const rules = transcript?.rules ?? [];
