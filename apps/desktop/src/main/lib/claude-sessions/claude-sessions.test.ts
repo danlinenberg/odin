@@ -487,6 +487,42 @@ describe("parseTranscript / readTranscript", () => {
 		]);
 	});
 
+	test("a PR `gh pr create` printed counts as Claude's, even when the reply says only #232", () => {
+		const bash = (id: string, command: string) =>
+			JSON.stringify({
+				type: "assistant",
+				message: {
+					content: [{ type: "tool_use", id, name: "Bash", input: { command } }],
+				},
+			});
+		const result = (id: string, text: string) =>
+			JSON.stringify({
+				type: "user",
+				timestamp: "2026-09-27T07:32:00.000Z",
+				message: {
+					content: [{ type: "tool_result", tool_use_id: id, content: text }],
+				},
+			});
+		const messages = parseTranscript(
+			[
+				bash("t1", 'gh pr create --title "x" --body "y"'),
+				result("t1", "https://github.com/danlinenberg/odin/pull/232"),
+				// Reading someone else's PR isn't opening one.
+				bash("t2", "gh pr view 5760"),
+				result("t2", "https://github.com/imagenai/app/pull/5760"),
+				assistant("Merged as #232."),
+			].join("\n"),
+		);
+		expect(messages).toEqual([
+			{
+				role: "assistant",
+				text: "https://github.com/danlinenberg/odin/pull/232",
+				at: "2026-09-27T07:32:00.000Z",
+			},
+			{ role: "assistant", text: "Merged as #232.", at: null },
+		]);
+	});
+
 	test("finds a session by id alone — a pane knows the id, not the directory", async () => {
 		const transcript = await readTranscript({
 			sessionId: "aaaa1111-2222-3333-4444-555566667777",

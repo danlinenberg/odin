@@ -559,6 +559,7 @@ export function parseTranscript(
 	maxMessages = 500,
 ): TranscriptMessage[] {
 	const messages: TranscriptMessage[] = [];
+	const prCreates = new Set<string>();
 	for (const line of jsonl.split("\n")) {
 		if (!line) continue;
 		let entry: Record<string, unknown>;
@@ -570,6 +571,31 @@ export function parseTranscript(
 		if (entry.type !== "user" && entry.type !== "assistant") continue;
 		if (entry.isSidechain) continue;
 		const message = entry.message as { content?: unknown } | undefined;
+		// A PR the session opened is its output even when the reply only says
+		// "#232": lift the url `gh pr create` printed into Claude's side of the
+		// conversation, where the brief looks for PRs.
+		if (Array.isArray(message?.content)) {
+			for (const block of message.content) {
+				if (
+					block?.type === "tool_use" &&
+					block.name === "Bash" &&
+					/\bgh pr create\b/.test(String(block.input?.command ?? ""))
+				)
+					prCreates.add(block.id);
+				else if (
+					block?.type === "tool_result" &&
+					prCreates.has(block.tool_use_id)
+				) {
+					const urls = messageText(block.content).match(PR_URL);
+					if (urls)
+						messages.push({
+							role: "assistant",
+							text: urls.join("\n"),
+							at: typeof entry.timestamp === "string" ? entry.timestamp : null,
+						});
+				}
+			}
+		}
 		const text = messageText(message?.content).trim();
 		if (!text) continue;
 		if (entry.type === "user" && !isTypedByUser(entry, text)) continue;
