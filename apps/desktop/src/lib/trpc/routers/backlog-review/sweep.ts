@@ -207,19 +207,6 @@ export async function sweepItem(
 					? `couldn't check ${jira}, and couldn't read the thread`
 					: "couldn't read the thread",
 			};
-		// Having the last word is what "I dealt with it" looks like from Slack.
-		// Merely appearing in the thread is not: answering in week one and being
-		// asked something in week three is a row that still needs doing.
-		if (thread.lastReplyByMe)
-			return {
-				verdict: "DROP",
-				evidence: "you had the last word in the thread",
-			};
-		// Not every answer is a threaded reply — a DM gets answered in the DM.
-		// Only in a direct conversation: in a channel, me saying something later
-		// is me saying something later, not me dealing with this.
-		if (thread.isDirect && thread.channelLastByMe)
-			return { verdict: "DROP", evidence: "you answered in the DM afterwards" };
 		// A reply is the freshest thing that happened here, and the row's own
 		// timestamp is the message — so a long-dead thread under an old message
 		// still reads as quiet, and one answered yesterday doesn't.
@@ -237,6 +224,15 @@ export async function sweepItem(
 			activity ?? slackTs(slack),
 		].filter((at): at is number => at !== null);
 		const moved = seen.length > 0 ? Math.max(...seen) : null;
+		// Replying is not finishing. "On it", "will check tomorrow" are the last
+		// word too, and the :eyes: still on the message says it isn't done — so
+		// my reply is only ever context and freshness, never a DROP.
+		if (thread.lastReplyByMe)
+			return keepOrStale("you replied last in the thread", moved);
+		// Only in a direct conversation: in a channel, me saying something later
+		// is me saying something later, not me replying to this.
+		if (thread.isDirect && thread.channelLastByMe)
+			return keepOrStale("you replied last in the DM", moved);
 		if (thread.replies > 0) {
 			const count = `${thread.replies} ${thread.replies === 1 ? "reply" : "replies"}`;
 			// Only claim none of them are mine when Slack listed every replier.

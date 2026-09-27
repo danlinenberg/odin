@@ -121,17 +121,15 @@ describe("verdicts", () => {
 					lastReplyByMe: true,
 					iReplied: true,
 					repliersComplete: true,
-					lastReplyTs: null,
+					lastReplyTs: recentTs(),
 					channelLastTs: null,
 					channelLastByMe: false,
 					isDirect: false,
 				}),
 			}),
 		);
-		expect(answer).toEqual({
-			verdict: "DROP",
-			evidence: "you had the last word in the thread",
-		});
+		// Replying is not finishing: kept, and only age can retire it.
+		expect(answer.verdict).toBe("KEEP");
 	});
 
 	// Reported from the board: a thread Dan answered in week one, where they
@@ -162,7 +160,9 @@ describe("verdicts", () => {
 	// Reported from the board: a group DM where the answer was typed into the
 	// DM, not into a thread. The thread rungs see nothing and the row reads as
 	// 22 days dead.
-	test("an answer typed into the DM counts", async () => {
+	// Replying isn't finishing — "on it" is an answer too. The DM reply keeps
+	// the row alive rather than clearing it.
+	test("replying in the DM is not finishing it", async () => {
 		const answer = await sweepItem(
 			item({ key: "slack:D1:123" }),
 			deps({
@@ -179,8 +179,8 @@ describe("verdicts", () => {
 			}),
 		);
 		expect(answer).toEqual({
-			verdict: "DROP",
-			evidence: "you answered in the DM afterwards",
+			verdict: "KEEP",
+			evidence: "you replied last in the DM",
 		});
 	});
 
