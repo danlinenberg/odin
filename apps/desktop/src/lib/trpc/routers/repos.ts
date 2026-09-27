@@ -122,6 +122,8 @@ function deltaArgs(width: number): string[] {
 		"--paging=never",
 		`--width=${width}`,
 		"--line-numbers",
+		// Delta's default is 8 columns a tab; deep JSX then starts mid-panel.
+		"--tabs=2",
 		...(width >= 200 ? ["--side-by-side"] : []),
 		"--file-style=bold #e6e6ee",
 		// The rule above each file is drawn in render(): delta sizes its own to
@@ -148,6 +150,45 @@ const CYAN = "\x1b[36m";
 const BOLD = "\x1b[1m";
 const DIM = "\x1b[2m";
 const RESET = "\x1b[0m";
+
+const ESCAPE = /(\x1b\[[0-9;]*[A-Za-z])/;
+
+/**
+ * Soft-wrap one rendered line at `width` columns. Delta only wraps side by
+ * side; unified, a long line ran off the edge and xterm broke it at column 0
+ * — under the line numbers, and one line more than the offsets counted.
+ * Continuations start under the code (past delta's `│`) and carry the colours
+ * that were on, so a wrapped + line stays green.
+ *
+ * ponytail: one column per code point; wide CJK/emoji would overshoot.
+ */
+export function wrapLine(line: string, width: number): string {
+	const parts = line.split(ESCAPE);
+	const plain = parts.filter((_, i) => i % 2 === 0).join("");
+	if (Array.from(plain).length <= width) return line;
+	const bar = Array.from(plain).indexOf("│");
+	const indent = bar >= 0 && bar < width / 2 ? bar + 1 : 0;
+	let out = "";
+	let column = 0;
+	let active: string[] = [];
+	parts.forEach((part, i) => {
+		if (i % 2 === 1) {
+			out += part;
+			if (part.endsWith("m"))
+				active = part === RESET || part === "\x1b[m" ? [] : [...active, part];
+			return;
+		}
+		for (const char of Array.from(part)) {
+			if (column === width) {
+				out += `${RESET}\n${" ".repeat(indent)}${active.join("")}`;
+				column = indent;
+			}
+			out += char;
+			column += 1;
+		}
+	});
+	return out;
+}
 
 /** Without delta: git's own palette, by hand, since the patch is fetched plain. */
 function colourPatch(patch: string): string {
@@ -246,9 +287,13 @@ async function render(
 	chunks.forEach((chunk, index) => {
 		const body = delta ? (rendered[index] as string) : colourPatch(chunk.text);
 		// A full-width rule, then the file name straight under it.
+		const wrapped = body
+			.split("\n")
+			.map((line) => wrapLine(line, width))
+			.join("\n");
 		const text = chunk.path
-			? `${DIM}${"─".repeat(width)}${RESET}\n${body.replace(/^\n+/, "")}`
-			: body;
+			? `${DIM}${"─".repeat(width)}${RESET}\n${wrapped.replace(/^\n+/, "")}`
+			: wrapped;
 		if (chunk.path) {
 			files.push({
 				path: chunk.path,

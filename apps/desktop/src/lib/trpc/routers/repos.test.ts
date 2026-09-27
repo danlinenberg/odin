@@ -9,6 +9,7 @@ import {
 	renderPullRequestDiff,
 	scanRepos,
 	splitPatch,
+	wrapLine,
 } from "./repos";
 
 test("scanRepos finds checkouts, skips pruned dirs and nested worktrees", async () => {
@@ -150,4 +151,16 @@ test("splitPatch cuts per file, keeps a commit header, and counts +/-", () => {
 		["new name.ts", 0, 0, false],
 		["icon.png", 0, 0, true],
 	]);
+});
+
+test("wrapLine breaks under the code column and keeps the colour on", () => {
+	const green = "\x1b[48;2;17;48;27m";
+	const line = ` 12 │${green}${"x".repeat(20)}\x1b[0m`;
+	const lines = wrapLine(line, 15).split("\n");
+	const plain = lines.map((l) => l.replace(/\x1b\[[0-9;]*m/g, ""));
+	expect(plain).toEqual([` 12 │${"x".repeat(10)}`, `     ${"x".repeat(10)}`]);
+	// The continuation re-opens the background it was cut inside.
+	expect(lines[1]).toContain(green);
+	// A line that fits is left alone.
+	expect(wrapLine("short", 15)).toBe("short");
 });
