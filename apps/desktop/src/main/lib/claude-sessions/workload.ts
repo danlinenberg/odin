@@ -301,6 +301,8 @@ export interface Workload {
 	attributed: number;
 	/** When the record starts, so a thin first week reads as thin, not idle. */
 	since: number | null;
+	/** Every repo with any session, busiest first — before any filter. */
+	repos: string[];
 }
 
 function hours(ms: number): number {
@@ -404,9 +406,25 @@ export function computeWorkload(
 		now = Date.now(),
 		weeks = 12,
 		top = 8,
-	}: { now?: number; weeks?: number; top?: number } = {},
+		only = null,
+		hide = [],
+	}: {
+		now?: number;
+		weeks?: number;
+		top?: number;
+		/** Count only this repo's sessions. */
+		only?: string | null;
+		/** Leave these repos' sessions out of every number. */
+		hide?: string[];
+	} = {},
 ): Workload {
-	const all = sessions.filter((session) => session.activeMs > 0);
+	const repoOf = (session: SessionWork) =>
+		session.cwd ? repoNameOf(session.cwd) : null;
+	const worked = sessions.filter((session) => session.activeMs > 0);
+	const all = worked.filter((session) => {
+		const repo = repoOf(session);
+		return (!only || repo === only) && !(repo && hide.includes(repo));
+	});
 	const everything = all.flatMap((session) => session.intervals);
 	const merged = mergeIntervals(everything);
 
@@ -473,6 +491,10 @@ export function computeWorkload(
 	const firstRecorded = since === null ? null : weekStart(since);
 
 	return {
+		// Off the unfiltered set, so a filter never hides its own way back.
+		repos: tallyHours(worked, repoOf, Number.POSITIVE_INFINITY).map(
+			(row) => row.name,
+		),
 		sessions: all.length,
 		agentHours: hours(agentMs),
 		yourHours: hours(yourMs),
