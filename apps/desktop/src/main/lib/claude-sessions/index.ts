@@ -1,3 +1,4 @@
+export { BEAT_MS, readAttention, recordBeat } from "./attention";
 export {
 	firstPrompt,
 	listTranscripts,

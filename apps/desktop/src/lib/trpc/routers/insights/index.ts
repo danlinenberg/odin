@@ -1,5 +1,6 @@
 import { slackReactions, workLog } from "@odin/local-db";
 import { eq } from "drizzle-orm";
+import { BrowserWindow, powerMonitor } from "electron";
 import { localDb } from "main/lib/local-db";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
@@ -59,6 +60,21 @@ export const createInsightsRouter = () => {
 		 * instantly and this fills in behind them. Scans are memoised on
 		 * mtime, so only a transcript that changed is re-read.
 		 */
+		/**
+		 * A heartbeat from an open session pane. Only counted when Odin has
+		 * focus and you touched the machine in the last two minutes — an open
+		 * pane you walked away from isn't your time.
+		 */
+		attend: publicProcedure
+			.input(z.object({ sessionId: z.string().min(1) }))
+			.mutation(async ({ input }) => {
+				if (!BrowserWindow.getFocusedWindow()) return { counted: false };
+				if (powerMonitor.getSystemIdleTime() > 120) return { counted: false };
+				const { recordBeat } = await import("main/lib/claude-sessions");
+				await recordBeat(input.sessionId);
+				return { counted: true };
+			}),
+
 		workload: publicProcedure
 			.input(
 				z
@@ -69,8 +85,11 @@ export const createInsightsRouter = () => {
 				const { cachedBriefs, computeWorkload, scanSessions } = await import(
 					"main/lib/claude-sessions"
 				);
+				const { readAttention } = await import("main/lib/claude-sessions");
 				const [sessions, briefs] = await Promise.all([
-					scanSessions({ people: sessionPeople() }),
+					readAttention().then((attention) =>
+						scanSessions({ people: sessionPeople(), attention }),
+					),
 					cachedBriefs(),
 				]);
 				const workload = computeWorkload(sessions, input);

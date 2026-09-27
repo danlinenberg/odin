@@ -261,10 +261,95 @@ function Column({
 	);
 }
 
-/** A fixed 24-hour axis, not a list of data. */
-const HOURS = Array.from({ length: 24 }, (_, hour) =>
-	String(hour).padStart(2, "0"),
-);
+/**
+ * A fixed 24-hour axis, not a list of data — starting at 06:00, so the day
+ * reads left to right and the small hours sit at the end of it.
+ */
+const HOURS = Array.from({ length: 24 }, (_, index) => (index + 6) % 24);
+
+/**
+ * One week's hours as a grid, weekday rows by hour columns. `cells` is indexed
+ * `weekday * 24 + hour`; `scale` maps a cell to minutes-of-an-hour for its
+ * shade, so an aggregate can shade against its own busiest hour.
+ */
+function HourGrid({
+	cells,
+	scale = (minutes) => minutes,
+	describe = (minutes) => `${minutes}m`,
+}: {
+	cells: number[] | undefined;
+	scale?: (value: number) => number;
+	describe?: (value: number) => string;
+}) {
+	return (
+		<div
+			className="grid gap-[3px]"
+			style={{ gridTemplateColumns: "34px repeat(24, minmax(0, 1fr))" }}
+		>
+			{WEEKDAYS.map((day, weekday) => (
+				<Fragment key={day}>
+					<div className="pr-1.5 text-right text-[11px] leading-[24px] text-[#6f6f7d]">
+						{day}
+					</div>
+					{HOURS.map((hour) => {
+						const value = cells?.[weekday * 24 + hour] ?? 0;
+						const label = String(hour).padStart(2, "0");
+						return (
+							<div
+								key={hour}
+								className="h-[24px] rounded-[3px]"
+								style={cellStyle(scale(value))}
+								title={`${day} ${label}:00 — ${describe(value)}`}
+							/>
+						);
+					})}
+				</Fragment>
+			))}
+			{/* The hour axis, sharing the grid so labels sit under their column. */}
+			<div />
+			{HOURS.map((hour, index) => (
+				<div
+					key={hour}
+					className="pt-1 text-center text-[10.5px] text-[#6f6f7d]"
+				>
+					{index % 3 === 0 ? String(hour).padStart(2, "0") : ""}
+				</div>
+			))}
+		</div>
+	);
+}
+
+/**
+ * Every recorded week folded into one grid: the shape of a typical week.
+ * Shaded against its own busiest cell, since a summed hour runs far past 60.
+ */
+function AllWeeksGrid({
+	heatmap,
+}: {
+	heatmap: { start: number; minutes: number[] }[];
+}) {
+	const totals = useMemo(() => {
+		const sum = Array.from({ length: 7 * 24 }, () => 0);
+		for (const week of heatmap)
+			week.minutes.forEach((minutes, cell) => {
+				sum[cell] = (sum[cell] ?? 0) + minutes;
+			});
+		return sum;
+	}, [heatmap]);
+	const max = Math.max(1, ...totals);
+	const weeks = Math.max(1, heatmap.length);
+	return (
+		<Card>
+			<HourGrid
+				cells={totals}
+				scale={(total) => (total / max) * 60}
+				describe={(total) =>
+					`${duration(total / 60)} across ${plural(weeks, "week")}, ${Math.round(total / weeks)}m a week`
+				}
+			/>
+		</Card>
+	);
+}
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -453,7 +538,7 @@ function WeekView({
 							className="flex items-baseline gap-3 py-1.5"
 						>
 							<div
-								title="Your time: for each prompt you typed, the gap since the agent last wrote (reading its answer, writing yours), capped at 5 min. A floor — reading while it works isn't seen."
+								title="Your time: while its pane was open and you were active, plus the gap before each prompt you typed (up to 5 min)."
 								className="w-10 shrink-0 text-left text-[12.5px] font-semibold tabular-nums"
 								style={{ color: YOU_COLOR }}
 							>
@@ -515,41 +600,7 @@ function WeekView({
 				</button>
 			)}
 
-			{!searching && (
-				<div
-					className="grid gap-[2px]"
-					style={{ gridTemplateColumns: "28px repeat(24, minmax(0, 1fr))" }}
-				>
-					{WEEKDAYS.map((day, weekday) => (
-						<Fragment key={day}>
-							<div className="pr-1 text-right text-[10px] leading-[14px] text-[#6f6f7d]">
-								{day}
-							</div>
-							{HOURS.map((label, hour) => {
-								const minutes = cells?.[weekday * 24 + hour] ?? 0;
-								return (
-									<div
-										key={label}
-										className="h-[14px] rounded-[2px]"
-										style={cellStyle(minutes)}
-										title={`${day} ${label}:00 — ${minutes}m`}
-									/>
-								);
-							})}
-						</Fragment>
-					))}
-					{/* The hour axis, sharing the grid so labels sit under their column. */}
-					<div />
-					{HOURS.map((label, hour) => (
-						<div
-							key={label}
-							className="pt-1 text-center text-[9.5px] text-[#6f6f7d]"
-						>
-							{hour % 3 === 0 ? label : ""}
-						</div>
-					))}
-				</div>
-			)}
+			{!searching && <HourGrid cells={cells} />}
 		</Card>
 	);
 }
@@ -579,9 +630,9 @@ function Step({
 }
 
 const METHOD = [
-	"Your time: the gap before each prompt you typed, up to 5 min.",
+	"Your time: while a session's pane was open in a focused Odin with you active in the last 2 min, plus the gap before each prompt you typed (up to 5 min) — the only record before pane time was logged.",
 	"Agent work: each session's active time less yours, plus subagents; parallel agents counted each.",
-	"Your time is a floor (reading while an agent works is invisible), so the gain is a ceiling.",
+	"Before pane time was logged, your time is a floor, so the gain is a ceiling.",
 ].join("\n");
 
 /** Two numbers that only mean something next to each other. */
@@ -798,6 +849,10 @@ function Workload() {
 
 				<Section title="What you did">
 					<WeekView recap={data.recap} heatmap={data.heatmap} query={query} />
+				</Section>
+
+				<Section title="Every week" note="all recorded weeks, folded into one">
+					<AllWeeksGrid heatmap={data.heatmap} />
 				</Section>
 
 				<Section title="Week by week">
