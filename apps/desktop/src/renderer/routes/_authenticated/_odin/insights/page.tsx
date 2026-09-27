@@ -345,6 +345,7 @@ type RecapWeek = {
 		person: string | null;
 		source: string | null;
 		hours: number;
+		yourHours?: number;
 		startedAt: number;
 		endedAt?: number;
 		stretches?: number;
@@ -454,6 +455,13 @@ function WeekView({
 								style={{ color: AGENT_COLOR }}
 							>
 								{duration(task.hours)}
+							</div>
+							<div
+								title="Your time: for each prompt you typed, the gap since the agent last wrote (reading its answer, writing yours), capped at 5 min. A floor — reading while it works isn't seen."
+								className="w-9 shrink-0 text-right text-[11px] tabular-nums"
+								style={{ color: YOU_COLOR }}
+							>
+								{task.yourHours ? duration(task.yourHours) : "—"}
 							</div>
 							{searching && (
 								<div className="w-12 shrink-0 text-[10.5px] tabular-nums text-[#6f6f7d]">

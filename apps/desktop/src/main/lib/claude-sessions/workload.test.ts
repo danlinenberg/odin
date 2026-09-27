@@ -6,6 +6,7 @@ import { firstPrompt, repoOfDir } from "./claude-sessions";
 import {
 	activeIntervals,
 	computeWorkload,
+	humanIntervals,
 	mergeIntervals,
 	openingLine,
 	repoForDirs,
@@ -35,6 +36,7 @@ function session(over: Partial<SessionWork> = {}): SessionWork {
 		title: null,
 		prs: [],
 		prAt: [],
+		yours: [],
 		entries: 2,
 		intervals,
 		activeMs: over.activeMs ?? totalMs(intervals),
@@ -482,5 +484,23 @@ describe("openingLine", () => {
 		expect(openingLine(jsonl)).toBe(
 			"Triage one bug report from Imagen Studio.",
 		);
+	});
+});
+
+describe("humanIntervals", () => {
+	const at = (m: number) => new Date(Date.UTC(2026, 8, 14, 9, m)).toISOString();
+	const entry = (m: number, extra: object = {}) =>
+		JSON.stringify({ type: "user", timestamp: at(m), ...extra });
+	test("counts the gap before each typed prompt, capped at five minutes", () => {
+		const jsonl = [
+			entry(0, { promptSource: "typed" }), // opening: nothing to read yet
+			entry(1), // agent reply
+			entry(3, { promptSource: "typed" }), // 2m reading + typing
+			entry(4), // agent reply
+			entry(64, { promptSource: "typed" }), // back after an hour: 5m, not 60
+			entry(65, { promptSource: "system" }), // not you
+		].join("\n");
+		const sorted = [0, 1, 3, 4, 64, 65].map((m) => Date.parse(at(m)));
+		expect(totalMs(humanIntervals(jsonl, sorted))).toBe(7 * MINUTE);
 	});
 });

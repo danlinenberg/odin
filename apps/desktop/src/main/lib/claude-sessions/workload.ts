@@ -21,6 +21,48 @@ import {
 	type SessionPerson,
 } from "./claude-sessions";
 
+/**
+ * Your time in a session: for each prompt you typed, the gap since the agent
+ * last wrote — reading its answer and writing yours — capped at the idle gap,
+ * so a prompt sent after lunch counts five minutes, not the lunch. An
+ * estimate, and a floor: it can't see you reading while the agent works.
+ */
+export function humanIntervals(jsonl: string, sorted: number[]): Interval[] {
+	const out: Interval[] = [];
+	for (const line of jsonl.split("\n")) {
+		if (!line.includes('"promptSource":"')) continue;
+		let entry: {
+			promptSource?: string;
+			isSidechain?: boolean;
+			timestamp?: string;
+		};
+		try {
+			entry = JSON.parse(line);
+		} catch {
+			continue;
+		}
+		if (entry.isSidechain || !TYPED_SOURCES.has(entry.promptSource ?? ""))
+			continue;
+		const at = Date.parse(entry.timestamp ?? "");
+		if (Number.isNaN(at)) continue;
+		// The last entry before this prompt — the agent's reply you were reading.
+		let lo = 0;
+		let hi = sorted.length;
+		while (lo < hi) {
+			const mid = (lo + hi) >> 1;
+			if ((sorted[mid] as number) < at) lo = mid + 1;
+			else hi = mid;
+		}
+		const before = sorted[lo - 1];
+		if (before === undefined) continue; // the opening prompt: no reply to read
+		out.push([at - Math.min(at - before, IDLE_MS), at]);
+	}
+	return out;
+}
+
+/** `promptSource` values that mean a person typed it (see claude-sessions). */
+const TYPED_SOURCES = new Set(["typed", "queued", "suggestion_accepted"]);
+
 /** A stretch of wall-clock the session was moving, as `[start, end)`. */
 export type Interval = [number, number];
 
@@ -37,6 +79,8 @@ const DAY_MS = 86_400_000;
 export interface TranscriptScan {
 	intervals: Interval[];
 	activeMs: number;
+	/** Your reading-and-typing time, see `humanIntervals`. */
+	yours: Interval[];
 	startedAt: number;
 	endedAt: number;
 	/** The checkout most of the session's commands ran in. */
@@ -215,6 +259,10 @@ export function scanTranscript(jsonl: string): TranscriptScan | null {
 	return {
 		intervals,
 		activeMs: totalMs(intervals),
+		yours: humanIntervals(
+			jsonl,
+			[...timestamps].sort((a, b) => a - b),
+		),
 		startedAt: Math.min(...timestamps),
 		endedAt: Math.max(...timestamps),
 		cwd,
@@ -365,6 +413,8 @@ export interface TaskRow {
 	person: string | null;
 	source: string | null;
 	hours: number;
+	/** Your time in it, estimated — see `humanIntervals`. */
+	yourHours: number;
 	startedAt: number;
 	endedAt: number;
 	/** Separate bursts of activity the hours are summed from. */
@@ -426,6 +476,7 @@ function taskRow(session: SessionWork): TaskRow {
 		person: session.person,
 		source: session.source,
 		hours: hours(session.activeMs),
+		yourHours: hours(totalMs(session.yours)),
 		startedAt: session.startedAt,
 		endedAt: session.endedAt,
 		stretches: session.intervals.length,
@@ -503,18 +554,25 @@ function tallyHours(
 export function byWeek(session: SessionWork): SessionWork[] {
 	const weeks = new Map<
 		number,
-		{ intervals: Interval[]; prs: string[]; prAt: (number | null)[] }
+		{
+			intervals: Interval[];
+			yours: Interval[];
+			prs: string[];
+			prAt: (number | null)[];
+		}
 	>();
 	const slot = (start: number) => {
 		let piece = weeks.get(start);
 		if (!piece) {
-			piece = { intervals: [], prs: [], prAt: [] };
+			piece = { intervals: [], yours: [], prs: [], prAt: [] };
 			weeks.set(start, piece);
 		}
 		return piece;
 	};
 	for (const interval of session.intervals)
 		slot(weekStart(interval[0])).intervals.push(interval);
+	for (const interval of session.yours)
+		slot(weekStart(interval[0])).yours.push(interval);
 	session.prs.forEach((url, index) => {
 		const at = session.prAt[index] ?? null;
 		const piece = slot(weekStart(at ?? session.startedAt));
