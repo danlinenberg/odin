@@ -172,6 +172,8 @@ export interface DiffFile {
 	path: string;
 	added: number;
 	removed: number;
+	/** No text diff to show — an image, an .icns. The list says so. */
+	binary: boolean;
 	/** Where its header starts in `ansi`, in lines — what the list scrolls to. */
 	line: number;
 }
@@ -180,9 +182,13 @@ export interface DiffFile {
  * A patch cut at each `diff --git`. Whatever precedes the first one (a
  * commit's header, from `git show`) comes back with a null path.
  */
-export function splitPatch(
-	patch: string,
-): { path: string | null; text: string; added: number; removed: number }[] {
+export function splitPatch(patch: string): {
+	path: string | null;
+	text: string;
+	added: number;
+	removed: number;
+	binary: boolean;
+}[] {
 	return patch
 		.split(/^(?=diff --git )/m)
 		.filter(Boolean)
@@ -196,6 +202,8 @@ export function splitPatch(
 					.length,
 				removed: lines.filter((l) => l.startsWith("-") && !l.startsWith("---"))
 					.length,
+				// `git diff` says "Binary files … differ"; with --binary, a GIT binary patch.
+				binary: /^(Binary files |GIT binary patch)/m.test(text),
 			};
 		});
 }
@@ -246,6 +254,7 @@ async function render(
 				path: chunk.path,
 				added: chunk.added,
 				removed: chunk.removed,
+				binary: chunk.binary,
 				line: ansi.split("\n").length - 1,
 			});
 		}

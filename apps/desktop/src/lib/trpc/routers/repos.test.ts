@@ -94,7 +94,7 @@ test("renderDiff shows uncommitted work, and the last commit when there is none"
 	expect(dirty.ansi).toContain("1 untracked file(s), not shown: b.txt");
 	// The file list points at the line each file starts on.
 	expect(dirty.files).toEqual([
-		{ path: "a.txt", added: 1, removed: 1, line: 2 },
+		{ path: "a.txt", added: 1, removed: 1, binary: false, line: 2 },
 	]);
 	expect(dirty.ansi.split("\n").slice(2, 5).join("\n")).toContain("a.txt");
 });
@@ -132,14 +132,22 @@ test("splitPatch cuts per file, keeps a commit header, and counts +/-", () => {
 			"+c",
 			"diff --git a/old.ts b/new name.ts",
 			"rename from old.ts",
+			"diff --git a/icon.png b/icon.png",
+			"Binary files a/icon.png and b/icon.png differ",
 			"",
 		].join("\n"),
 	);
 	expect(
-		chunks.map(({ path, added, removed }) => [path, added, removed]),
+		chunks.map(({ path, added, removed, binary }) => [
+			path,
+			added,
+			removed,
+			binary,
+		]),
 	).toEqual([
-		[null, 0, 0],
-		["one.ts", 2, 1],
-		["new name.ts", 0, 0],
+		[null, 0, 0, false],
+		["one.ts", 2, 1, false],
+		["new name.ts", 0, 0, false],
+		["icon.png", 0, 0, true],
 	]);
 });
