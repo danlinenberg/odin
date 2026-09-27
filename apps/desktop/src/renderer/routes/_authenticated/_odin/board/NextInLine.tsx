@@ -257,15 +257,21 @@ export function NextInLine() {
 	// Window it (render on scroll) if the feeds ever reach thousands.
 	// The model's order, nothing else. Until it answers (or if it fails) the
 	// column stays in feed order and says so — no rule of ours stands in.
-	// Rows your instructions say not to show, per the model.
-	const aiHidden = new Set(ranking.data?.hidden);
-	const candidates = hide.rows.filter(
+	const waiting = hide.rows.filter(
 		(item) =>
-			!aiHidden.has(item.key) &&
 			!livePaneFor(item) &&
 			!startedKeys.has(item.launch.key) &&
 			!doneKeys[item.key],
 	);
+	// Rows your instructions say not to show, per the model. They count as
+	// hidden and come back, dimmed, under the same "show hidden" as yours.
+	const aiHidden = new Set(ranking.data?.hidden);
+	const isAiHidden = (item: AllItem) =>
+		aiHidden.has(item.key) && !hide.isHidden(item);
+	const aiHiddenCount = waiting.filter(isAiHidden).length;
+	const candidates = hide.showHidden
+		? waiting
+		: waiting.filter((item) => !isAiHidden(item));
 	const order = new Map(ranking.data?.keys.map((key, i) => [key, i]));
 	// Stable sort: a row the model hasn't seen yet (arrived since) goes last.
 	const next = order.size
@@ -298,7 +304,7 @@ export function NextInLine() {
 						<LuSettings2 className="size-3.5" aria-hidden />
 					</button>
 					<HiddenToggle
-						count={hide.hiddenCount}
+						count={hide.hiddenCount + aiHiddenCount}
 						showing={hide.showHidden}
 						onToggle={() => hide.setShowHidden(!hide.showHidden)}
 						className="font-normal normal-case tracking-normal"
@@ -331,8 +337,13 @@ export function NextInLine() {
 								key={item.key}
 								className={cn(
 									"group relative flex items-start gap-2 rounded-[10px] border border-[#2c2940] bg-[#14131b] px-2.5 py-2 transition-colors hover:border-[#3f3a63]",
-									hide.isHidden(item) && "opacity-50",
+									(hide.isHidden(item) || isAiHidden(item)) && "opacity-50",
 								)}
+								title={
+									isAiHidden(item)
+										? "Hidden by your Next in line instructions"
+										: undefined
+								}
 							>
 								{/* A to-do's checkbox, where a to-do's checkbox goes. */}
 								<button
