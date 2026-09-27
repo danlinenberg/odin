@@ -243,11 +243,15 @@ export async function execWithShellEnv(
 		: process.env;
 
 	try {
-		return await execFileAsync(cmd, args, {
+		const run = execFileAsync(cmd, args, {
 			...options,
 			encoding: "utf8",
 			env: await getProcessEnvWithShellEnv(baseEnv),
 		});
+		// Nothing can write to it from here, and an open pipe makes `claude -p`
+		// wait 3s for input that never comes.
+		run.child.stdin?.end();
+		return await run;
 	} catch (error) {
 		// Only retry on ENOENT (command not found), only on macOS
 		// Skip if we've already successfully fixed PATH, or if a fix attempt is in progress
