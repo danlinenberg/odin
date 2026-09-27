@@ -37,6 +37,7 @@ function session(over: Partial<SessionWork> = {}): SessionWork {
 		prs: [],
 		prAt: [],
 		yours: [],
+		subagents: [],
 		entries: 2,
 		intervals,
 		activeMs: over.activeMs ?? totalMs(intervals),
@@ -165,17 +166,29 @@ describe("scanTranscript", () => {
 });
 
 describe("computeWorkload", () => {
-	test("parallel agents bill more hours than they cost you", () => {
+	test("agent work nets out your time, adds subagents; leverage divides by you", () => {
+		const you: [number, number] = [MON + HOUR, MON + 1.5 * HOUR];
 		const out = computeWorkload(
 			[
-				session({ sessionId: "a", intervals: [[MON, MON + 2 * HOUR]] }),
-				session({ sessionId: "b", intervals: [[MON, MON + 2 * HOUR]] }),
+				session({
+					sessionId: "a",
+					intervals: [[MON, MON + 2 * HOUR]],
+					yours: [you],
+				}),
+				session({
+					sessionId: "b",
+					intervals: [[MON, MON + 2 * HOUR]],
+					yours: [you],
+					subagents: [[MON, MON + HOUR]],
+				}),
 			],
 			{ now: MON },
 		);
+		// (2 - 0.5) + (2 - 0.5) + 1 subagent hour.
 		expect(out.agentHours).toBe(4);
-		expect(out.yourHours).toBe(2);
-		expect(out.leverage).toBe(2);
+		// The same half hour of yours, counted once.
+		expect(out.yourHours).toBe(0.5);
+		expect(out.leverage).toBe(8);
 	});
 
 	test("a quiet week inside the record is kept, so a gap reads as a gap", () => {
