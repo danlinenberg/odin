@@ -46,6 +46,8 @@ export interface TranscriptScan {
 	title: string | null;
 	/** PRs the session opened with `gh pr create`, as urls. */
 	prs: string[];
+	/** When each of `prs` was opened, same order; null if unstamped. */
+	prAt: (number | null)[];
 	/** The opening message, clipped. */
 	opening: string | null;
 	/** Timestamped entries — a rough size, used only to break ties. */
@@ -100,12 +102,16 @@ const PR_URL = /https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/g;
  * PRs a transcript opened: the url `gh pr create` printed. Only lines that can
  * hold one are parsed, so this stays cheap next to the regex scan.
  */
-export function openedPrs(jsonl: string): string[] {
+export function openedPrs(jsonl: string): { url: string; at: number | null }[] {
 	const creates = new Set<string>();
-	const prs = new Set<string>();
+	const prs = new Map<string, number | null>();
 	for (const line of jsonl.split("\n")) {
 		if (!line.includes("gh pr create") && !line.includes("/pull/")) continue;
-		let entry: { isSidechain?: boolean; message?: { content?: unknown } };
+		let entry: {
+			isSidechain?: boolean;
+			timestamp?: string;
+			message?: { content?: unknown };
+		};
 		try {
 			entry = JSON.parse(line);
 		} catch {
@@ -121,10 +127,11 @@ export function openedPrs(jsonl: string): string[] {
 				creates.add(block.id);
 			else if (block?.type === "tool_result" && creates.has(block.tool_use_id))
 				for (const url of JSON.stringify(block.content).match(PR_URL) ?? [])
-					prs.add(url);
+					if (!prs.has(url))
+						prs.set(url, entry.timestamp ? Date.parse(entry.timestamp) : null);
 		}
 	}
-	return [...prs];
+	return [...prs].map(([url, at]) => ({ url, at }));
 }
 
 /**
@@ -222,7 +229,13 @@ export function scanTranscript(jsonl: string): TranscriptScan | null {
 			/<command-name>(\/[^<]+)<\/command-name>/.exec(jsonl)?.[1] ||
 			openingLine(jsonl),
 		opening: openingText(jsonl),
-		prs: openedPrs(jsonl),
+		...(() => {
+			const opened = openedPrs(jsonl);
+			return {
+				prs: opened.map((pr) => pr.url),
+				prAt: opened.map((pr) => pr.at),
+			};
+		})(),
 		entries: timestamps.length,
 	};
 }
@@ -478,6 +491,46 @@ function tallyHours(
 		.slice(0, limit);
 }
 
+/**
+ * A session cut into one piece per week it was active in, each carrying only
+ * that week's bursts and the PRs it opened then. A session left running across
+ * the weekend is work in both weeks — filing all of it under the week it
+ * started put a live task's hours in a week you'd stopped looking at.
+ *
+ * ponytail: a single burst straddling Saturday midnight counts in the week it
+ * began; split the interval if that ever matters.
+ */
+export function byWeek(session: SessionWork): SessionWork[] {
+	const weeks = new Map<
+		number,
+		{ intervals: Interval[]; prs: string[]; prAt: (number | null)[] }
+	>();
+	const slot = (start: number) => {
+		let piece = weeks.get(start);
+		if (!piece) {
+			piece = { intervals: [], prs: [], prAt: [] };
+			weeks.set(start, piece);
+		}
+		return piece;
+	};
+	for (const interval of session.intervals)
+		slot(weekStart(interval[0])).intervals.push(interval);
+	session.prs.forEach((url, index) => {
+		const at = session.prAt[index] ?? null;
+		const piece = slot(weekStart(at ?? session.startedAt));
+		piece.prs.push(url);
+		piece.prAt.push(at);
+	});
+	if (weeks.size <= 1) return [session];
+	return [...weeks].map(([start, piece]) => ({
+		...session,
+		...piece,
+		activeMs: totalMs(piece.intervals),
+		startedAt: piece.intervals[0]?.[0] ?? start,
+		endedAt: piece.intervals.at(-1)?.[1] ?? start,
+	}));
+}
+
 /** Sessions grouped by the week they started, each week's biggest first. */
 function recap(sessions: SessionWork[]): RecapWeek[] {
 	const weeks = new Map<number, SessionWork[]>();
@@ -548,10 +601,8 @@ export function computeWorkload(
 		const start = weekStart(firstWeek + index * 7 * DAY_MS + DAY_MS / 2);
 		buckets.set(start, { agentMs: 0, intervals: [], sessions: 0 });
 	}
-	for (const session of all) {
-		// ponytail: a session counts in the week it started. A run that crosses
-		// Sunday midnight is rare enough to leave alone; split the intervals if
-		// one ever shows up.
+	const pieces = all.flatMap(byWeek);
+	for (const session of pieces) {
 		const bucket = buckets.get(weekStart(session.startedAt));
 		if (!bucket) continue;
 		bucket.agentMs += session.activeMs;
@@ -615,7 +666,7 @@ export function computeWorkload(
 				yourHours: hours(totalMs(mergeIntervals(bucket.intervals))),
 				sessions: bucket.sessions,
 			})),
-		recap: recap(all),
+		recap: recap(pieces),
 		byRepo: tallyHours(all, (session) => session.repo, top).map(
 			({ name, hours: h, sessions: count }) => ({
 				repo: name,

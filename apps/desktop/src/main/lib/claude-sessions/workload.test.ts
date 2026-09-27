@@ -34,6 +34,7 @@ function session(over: Partial<SessionWork> = {}): SessionWork {
 		repo: null,
 		title: null,
 		prs: [],
+		prAt: [],
 		entries: 2,
 		intervals,
 		activeMs: over.activeMs ?? totalMs(intervals),
@@ -213,6 +214,7 @@ describe("computeWorkload", () => {
 					sessionId: "pr",
 					intervals: [[MON, MON + MINUTE]],
 					prs: ["https://github.com/o/r/pull/1"],
+					prAt: [null],
 				}),
 				session({
 					sessionId: "last",
@@ -239,6 +241,31 @@ describe("computeWorkload", () => {
 		expect(week?.tasks[1]?.title).toBe("session short");
 	});
 
+	test("a session running across weeks shows in each, with that week's share", () => {
+		const lastWeek = MON - 7 * 24 * HOUR;
+		const out = computeWorkload(
+			[
+				session({
+					sessionId: "long",
+					intervals: [
+						[lastWeek, lastWeek + 3 * HOUR],
+						[MON, MON + HOUR],
+					],
+					prs: [
+						"https://github.com/o/r/pull/1",
+						"https://github.com/o/r/pull/2",
+					],
+					prAt: [lastWeek + HOUR, MON + HOUR / 2],
+				}),
+			],
+			{ now: MON },
+		);
+		expect(out.recap.map((week) => week.tasks[0]?.hours)).toEqual([3, 1]);
+		expect(out.recap.map((week) => week.prs)).toEqual([1, 1]);
+		expect(out.weeks.map((week) => week.agentHours)).toEqual([3, 1]);
+		expect(out.sessions).toBe(1);
+	});
+
 	test("sub-minute sessions that shipped nothing are left out", () => {
 		const out = computeWorkload(
 			[
@@ -247,6 +274,7 @@ describe("computeWorkload", () => {
 					sessionId: "quick-pr",
 					intervals: [[MON, MON + 20_000]],
 					prs: ["https://github.com/o/r/pull/2"],
+					prAt: [null],
 				}),
 				session({ sessionId: "work" }),
 			],
