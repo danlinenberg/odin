@@ -7,15 +7,9 @@ export const Route = createFileRoute("/_authenticated/_odin/insights/")({
 });
 
 /**
- * Insights — what lands on you, and what it costs you.
- *
- * Deliberately arithmetic, not a model call: these are questions with exact
- * answers, and a summary you have to wait fifteen seconds for is one you stop
- * opening.
- *
- * The page is written as two claims rather than a wall of counters, because a
- * number nobody can restate in a sentence isn't an insight. "Your time" leads,
- * in prose, with the arithmetic spelled out underneath; the queue follows.
+ * Insights — what you got done, and what it cost you. Arithmetic over the
+ * transcript store, not a model call: a summary you wait fifteen seconds for
+ * is one you stop opening.
  */
 
 const SOURCE_LABEL: Record<string, string> = {
@@ -283,28 +277,49 @@ function cellStyle(minutes: number): React.CSSProperties {
 	return { background: YOU_COLOR, opacity: 0.2 + 0.2 * step };
 }
 
+type RecapWeek = {
+	start: number;
+	sessions: number;
+	yourHours: number;
+	prs: number;
+	tasks: {
+		sessionId: string;
+		title: string;
+		repo: string | null;
+		person: string | null;
+		source: string | null;
+		hours: number;
+		prs: string[];
+	}[];
+};
+
 /**
- * Every hour of every day of one week, one cell each.
+ * One week: what got done in it, then every hour of it, one cell each.
  *
- * Clock time, not agent time: the question is when *you* were at it, and three
- * agents running at 2am is still one 2am. Weeks step by the calendar rather
- * than by the rows that came back, so a week off renders as an empty grid
- * instead of being skipped past.
+ * Clock time in the grid, not agent time: three agents at 2am is one 2am.
+ * Weeks step by the calendar rather than by the rows that came back, so a week
+ * off renders as empty instead of being skipped past.
  */
-function WeekHeatmap({
-	weeks,
+function WeekView({
+	recap = [],
+	heatmap,
 }: {
-	weeks: { start: number; minutes: number[] }[];
+	recap?: RecapWeek[];
+	heatmap: { start: number; minutes: number[] }[];
 }) {
 	const thisWeek = weekStart(Date.now());
 	const [start, setStart] = useState(thisWeek);
+	const openUrl = electronTrpc.external.openUrl.useMutation();
 	const byWeek = useMemo(
-		() => new Map(weeks.map((week) => [week.start, week.minutes])),
-		[weeks],
+		() => new Map(heatmap.map((week) => [week.start, week.minutes])),
+		[heatmap],
 	);
-	const earliest = weeks[0]?.start ?? thisWeek;
+	const week = recap.find((row) => row.start === start);
+	const earliest = Math.min(
+		recap[0]?.start ?? thisWeek,
+		heatmap[0]?.start ?? thisWeek,
+	);
 	const cells = byWeek.get(start);
-	const total = cells ? cells.reduce((sum, value) => sum + value, 0) : 0;
 
 	return (
 		<Card>
@@ -322,17 +337,63 @@ function WeekHeatmap({
 					onClick={() => setStart(shiftWeeks(start, 1))}
 				/>
 				<div className="text-[12px] text-[#d6d6dc]">
-					{DATE.format(start)} – {DATE.format(shiftWeeks(start, 1) - DAY_MS)}
-					{start === thisWeek && (
-						<span className="ml-2 text-[10.5px] text-[#6f6f7d]">this week</span>
-					)}
+					{start === thisWeek
+						? "This week"
+						: `${DATE.format(start)} – ${DATE.format(shiftWeeks(start, 1) - DAY_MS)}`}
 				</div>
 				<div className="ml-auto text-[11.5px] tabular-nums text-[#a5a5b3]">
-					{total > 0
-						? `${duration(total / 60)} on the clock`
+					{week
+						? `${plural(week.sessions, "session")} · ${duration(week.yourHours)} on the clock · ${plural(week.prs, "PR")}`
 						: "nothing logged"}
 				</div>
 			</div>
+
+			{week && week.tasks.length > 0 && (
+				<div className="mb-4 flex flex-col divide-y divide-[#1f1f27]">
+					{week.tasks.map((task) => (
+						<div
+							key={task.sessionId}
+							className="flex items-baseline gap-3 py-1.5"
+						>
+							<div
+								className="w-10 shrink-0 text-right text-[12.5px] font-semibold tabular-nums"
+								style={{ color: AGENT_COLOR }}
+							>
+								{duration(task.hours)}
+							</div>
+							{/* Titles arrive in whatever language the ask was written in. */}
+							<div
+								dir="auto"
+								className="min-w-0 flex-1 truncate text-[12.5px] text-[#e4e4ea]"
+							>
+								{task.title}
+							</div>
+							{task.person && (
+								<span className="shrink-0 text-[10.5px] text-[#8a8a97]">
+									{task.person}
+								</span>
+							)}
+							{task.repo && (
+								<span className="shrink-0 rounded-[4px] bg-[#1b1b22] px-1.5 py-[1px] text-[10.5px] text-[#a5a5b3]">
+									{task.repo}
+								</span>
+							)}
+							{task.prs.length > 0 && (
+								<button
+									type="button"
+									title={task.prs.join("\n")}
+									onClick={() => openUrl.mutate(task.prs.at(-1) as string)}
+									className="shrink-0 text-[10.5px] tabular-nums text-[#3ecf8e] hover:underline"
+								>
+									{task.prs.length === 1
+										? `#${task.prs[0]?.split("/").pop()}`
+										: plural(task.prs.length, "PR")}
+								</button>
+							)}
+						</div>
+					))}
+				</div>
+			)}
 
 			<div
 				className="grid gap-[2px]"
@@ -340,7 +401,7 @@ function WeekHeatmap({
 			>
 				{WEEKDAYS.map((day, weekday) => (
 					<Fragment key={day}>
-						<div className="pr-1 text-right text-[10px] leading-[16px] text-[#6f6f7d]">
+						<div className="pr-1 text-right text-[10px] leading-[14px] text-[#6f6f7d]">
 							{day}
 						</div>
 						{HOURS.map((label, hour) => {
@@ -348,11 +409,9 @@ function WeekHeatmap({
 							return (
 								<div
 									key={label}
-									className="h-[16px] rounded-[2px]"
+									className="h-[14px] rounded-[2px]"
 									style={cellStyle(minutes)}
-									title={`${day} ${label}:00 — ${
-										minutes > 0 ? `${minutes}m on the clock` : "nothing"
-									}`}
+									title={`${day} ${label}:00 — ${minutes}m`}
 								/>
 							);
 						})}
@@ -368,18 +427,6 @@ function WeekHeatmap({
 						{hour % 3 === 0 ? label : ""}
 					</div>
 				))}
-			</div>
-
-			<div className="mt-2.5 flex items-center gap-1.5 text-[10px] text-[#6f6f7d]">
-				<span>none</span>
-				{[0, 15, 30, 45, 60].map((minutes) => (
-					<span
-						key={minutes}
-						className="h-[10px] w-[10px] rounded-[2px]"
-						style={cellStyle(minutes)}
-					/>
-				))}
-				<span>the whole hour</span>
 			</div>
 		</Card>
 	);
@@ -409,86 +456,59 @@ function Step({
 	);
 }
 
-/**
- * The headline, as a sentence rather than a row of tiles. Two numbers that
- * only mean something next to each other were being shown as two unrelated
- * counters, each needing a footnote to be read at all.
- */
+/** Two numbers that only mean something next to each other. */
 function Headline({
 	agentHours,
 	yourHours,
 	leverage,
 	sessions,
-	busiestDay,
-	peakHour,
 }: {
 	agentHours: number;
 	yourHours: number;
 	leverage: number | null;
 	sessions: number;
-	busiestDay: { at: number; hours: number } | null;
-	peakHour: number;
 }) {
 	return (
 		<Card>
-			<div className="flex flex-col gap-3">
-				<div className="flex flex-wrap items-end gap-x-8 gap-y-4">
-					<div className="flex flex-col gap-1">
-						<div
-							className="text-[30px] font-semibold leading-none"
-							style={{ color: YOU_COLOR }}
-						>
-							{duration(yourHours)}
-						</div>
-						<div className="text-[12.5px] text-[#d6d6dc]">
-							on the clock with an agent running
-						</div>
-						<div className="text-[11px] text-[#6f6f7d]">
-							elapsed time while at least one session was moving; three at once
-							is still one hour
-						</div>
-					</div>
-					<div className="flex flex-col gap-1">
-						<div
-							className="text-[30px] font-semibold leading-none"
-							style={{ color: AGENT_COLOR }}
-						>
-							{duration(agentHours)}
-						</div>
-						<div className="text-[12.5px] text-[#d6d6dc]">
-							of agent work came out of it
-						</div>
-						<div className="text-[11px] text-[#6f6f7d]">
-							each session counted on its own, so three at once counts three
-						</div>
-					</div>
-				</div>
-				<div className="h-px bg-[#1f1f27]" />
-				<div className="text-[12.5px] text-[#a5a5b3]">
-					{leverage === null ? (
-						"Not enough recorded yet to compare the two."
-					) : (
-						<>
-							That's{" "}
-							<span className="font-semibold text-[#f5f5f7]">{leverage}×</span>{" "}
-							— every hour on the clock returned {leverage} hours of agent work.
-						</>
-					)}
-				</div>
-				<div className="text-[11px] leading-relaxed text-[#6f6f7d]">
-					Counted off the timestamp on every entry in each session's transcript:
-					consecutive entries are welded into a stretch, and a silence longer
-					than five minutes ends it. Nothing is estimated and nothing is billed
-					to you twice.
-					<br />
-					{sessions} sessions
-					{busiestDay
-						? ` · busiest day ${DATE.format(busiestDay.at)} (${duration(busiestDay.hours)})`
-						: ""}{" "}
-					· you run agents most at {String(peakHour).padStart(2, "0")}:00
-				</div>
+			<div className="flex flex-wrap items-end gap-x-8 gap-y-3">
+				<Big
+					value={duration(yourHours)}
+					color={YOU_COLOR}
+					label="on the clock"
+				/>
+				<Big
+					value={duration(agentHours)}
+					color={AGENT_COLOR}
+					label="of agent work"
+				/>
+				{leverage !== null && (
+					<Big value={`${leverage}×`} color="#f5f5f7" label="leverage" />
+				)}
+			</div>
+			<div className="mt-3 text-[11px] text-[#6f6f7d]">
+				{plural(sessions, "session")} · clock time counts parallel agents once,
+				agent work counts each · gaps over 5 min don't count
 			</div>
 		</Card>
+	);
+}
+
+function Big({
+	value,
+	color,
+	label,
+}: {
+	value: string;
+	color: string;
+	label: string;
+}) {
+	return (
+		<div className="flex flex-col gap-1">
+			<div className="text-[26px] font-semibold leading-none" style={{ color }}>
+				{value}
+			</div>
+			<div className="text-[12px] text-[#a5a5b3]">{label}</div>
+		</div>
 	);
 }
 
@@ -505,82 +525,29 @@ function Workload() {
 	if (data.sessions === 0)
 		return <Empty>No agent transcripts on this machine yet.</Empty>;
 
-	const peakHour = data.byHour.indexOf(Math.max(...data.byHour));
-
 	return (
 		<div className="flex flex-col gap-5">
 			<Section
 				title="Time with agents"
-				note={
-					data.since
-						? `every agent session on this machine since ${DATE.format(data.since)}`
-						: undefined
-				}
+				note={data.since ? `since ${DATE.format(data.since)}` : undefined}
 			>
 				<Headline
 					agentHours={data.agentHours}
 					yourHours={data.yourHours}
 					leverage={data.leverage}
 					sessions={data.sessions}
-					busiestDay={data.busiestDay}
-					peakHour={peakHour}
 				/>
 			</Section>
 
-			<Section
-				title="Week by week"
-				note="agent work against hours on the clock, one scale"
-			>
+			<Section title="What you did">
+				<WeekView recap={data.recap} heatmap={data.heatmap} />
+			</Section>
+
+			<Section title="Week by week">
 				<WeekChart weeks={data.weeks} />
 				<div className="flex gap-4 pl-1 pt-0.5">
 					<Legend color={AGENT_COLOR} label="agent work" />
 					<Legend color={YOU_COLOR} label="hours on the clock" />
-				</div>
-			</Section>
-
-			<Section
-				title="What took the longest"
-				note="active time in one session, idle gaps removed"
-			>
-				<div className="flex flex-col divide-y divide-[#1f1f27] overflow-hidden rounded-[10px] border border-[#25252e] bg-[#111114]">
-					{data.longest.map((task) => (
-						<div
-							key={task.sessionId}
-							className="flex items-baseline gap-3.5 px-4 py-2.5"
-						>
-							<div
-								className="w-12 shrink-0 text-right text-[14px] font-semibold tabular-nums"
-								style={{ color: AGENT_COLOR }}
-							>
-								{duration(task.hours)}
-							</div>
-							<div className="flex min-w-0 flex-1 flex-col gap-1">
-								{/* Slack asks arrive in whatever language they were written in. */}
-								<div
-									dir="auto"
-									className="truncate text-[12.5px] text-[#e4e4ea]"
-								>
-									{task.title}
-								</div>
-								<div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10.5px] text-[#6f6f7d]">
-									{task.repo && (
-										<span className="rounded-[4px] bg-[#1b1b22] px-1.5 py-[1px] text-[#a5a5b3]">
-											{task.repo}
-										</span>
-									)}
-									<span>{DATE.format(task.startedAt)}</span>
-									{task.person && (
-										<span className="text-[#8a8a97]">
-											asked by {task.person}
-											{task.source
-												? ` on ${SOURCE_LABEL[task.source] ?? task.source}`
-												: ""}
-										</span>
-									)}
-								</div>
-							</div>
-						</div>
-					))}
 				</div>
 			</Section>
 
@@ -595,14 +562,9 @@ function Workload() {
 					/>
 				</Section>
 
-				<Section
-					title="Whose work you ran"
-					note={`${data.attributed} of ${data.sessions} sessions came in from a feed`}
-				>
+				<Section title="Whose work you ran" note="by person">
 					{data.byPerson.length === 0 ? (
-						<Empty>
-							Nothing attributed yet — this fills as you launch from a feed.
-						</Empty>
+						<Empty>Nothing launched from a feed yet.</Empty>
 					) : (
 						<BarGroup
 							color={YOU_COLOR}
@@ -615,13 +577,6 @@ function Workload() {
 					)}
 				</Section>
 			</div>
-
-			<Section
-				title="When you work"
-				note="every hour of one week, on the clock with an agent running"
-			>
-				<WeekHeatmap weeks={data.heatmap} />
-			</Section>
 		</div>
 	);
 }
@@ -652,15 +607,15 @@ function Queue() {
 
 	return (
 		<div className="flex flex-col gap-5">
-			<Section title="Your queue" note="asks Odin has watched land on you">
+			<Section title="Your queue">
 				<div className="flex flex-wrap gap-2">
-					<Stat value={String(data.seen)} label="asks seen" />
-					<Stat value={String(data.waiting)} label="still waiting on you" />
-					<Stat value={String(data.delegated)} label="handed to an agent" />
-					<Stat value={String(data.done)} label="marked done" />
+					<Stat value={String(data.seen)} label="asks" />
+					<Stat value={String(data.waiting)} label="waiting" />
+					<Stat value={String(data.delegated)} label="delegated" />
+					<Stat value={String(data.done)} label="done" />
 					<Stat
 						value={pickup}
-						label="typical time to pick one up"
+						label="median pickup"
 						hint={
 							data.slowestPickupHours === null
 								? undefined
@@ -671,7 +626,7 @@ function Queue() {
 			</Section>
 
 			<div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-				<Section title="Who asks" note="from your Slack queue">
+				<Section title="Who asks">
 					{data.askers.length === 0 ? (
 						<Empty>No asks recorded yet.</Empty>
 					) : (
@@ -685,14 +640,9 @@ function Queue() {
 					)}
 				</Section>
 
-				<Section
-					title="Where work comes from"
-					note={`${data.delegationsLogged} logged since the ledger landed`}
-				>
+				<Section title="Where work comes from">
 					{data.bySource.length === 0 ? (
-						<Empty>
-							Nothing logged yet — this fills as you start sessions from a feed.
-						</Empty>
+						<Empty>Nothing launched from a feed yet.</Empty>
 					) : (
 						<BarGroup
 							rows={data.bySource.map((row) => ({

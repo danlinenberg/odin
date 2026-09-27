@@ -25,6 +25,7 @@ function session(over: Partial<SessionWork> = {}): SessionWork {
 		source: null,
 		cwd: null,
 		title: null,
+		prs: [],
 		entries: 2,
 		intervals,
 		activeMs: over.activeMs ?? totalMs(intervals),
@@ -98,6 +99,55 @@ describe("scanTranscript", () => {
 		expect(scan?.entries).toBe(3);
 	});
 
+	test("names the session by its latest ai-title and finds the PRs it opened", () => {
+		const jsonl = [
+			line("2026-09-14T09:00:00.000Z", "/repo/a"),
+			JSON.stringify({ type: "ai-title", aiTitle: 'First "guess"' }),
+			JSON.stringify({
+				type: "assistant",
+				timestamp: "2026-09-14T09:01:00.000Z",
+				message: {
+					content: [
+						{
+							type: "tool_use",
+							id: "t1",
+							name: "Bash",
+							input: { command: "gh pr create --fill" },
+						},
+						{
+							type: "tool_use",
+							id: "t2",
+							name: "Bash",
+							input: { command: "gh pr view 9" },
+						},
+					],
+				},
+			}),
+			JSON.stringify({
+				type: "user",
+				timestamp: "2026-09-14T09:02:00.000Z",
+				message: {
+					content: [
+						{
+							type: "tool_result",
+							tool_use_id: "t1",
+							content: "https://github.com/o/r/pull/7\n",
+						},
+						{
+							type: "tool_result",
+							tool_use_id: "t2",
+							content: "https://github.com/o/r/pull/9",
+						},
+					],
+				},
+			}),
+			JSON.stringify({ type: "ai-title", aiTitle: "Fix the scanner" }),
+		].join("\n");
+		const scan = scanTranscript(jsonl);
+		expect(scan?.title).toBe("Fix the scanner");
+		expect(scan?.prs).toEqual(["https://github.com/o/r/pull/7"]);
+	});
+
 	test("a transcript with no timestamps is skipped, not counted as zero", () => {
 		expect(scanTranscript('{"type":"summary"}')).toBeNull();
 	});
@@ -141,7 +191,7 @@ describe("computeWorkload", () => {
 		expect(out.weeks[0]?.start).toBe(weekStart(MON));
 	});
 
-	test("the longest tasks come out first, with their own titles", () => {
+	test("each week recaps its biggest work first, lookups dropped unless they shipped", () => {
 		const out = computeWorkload(
 			[
 				session({ sessionId: "short", intervals: [[MON, MON + HOUR]] }),
@@ -150,14 +200,34 @@ describe("computeWorkload", () => {
 					title: "fix the board scanner",
 					intervals: [[MON, MON + 3 * HOUR]],
 				}),
+				session({ sessionId: "peek", intervals: [[MON, MON + MINUTE]] }),
+				session({
+					sessionId: "pr",
+					intervals: [[MON, MON + MINUTE]],
+					prs: ["https://github.com/o/r/pull/1"],
+				}),
+				session({
+					sessionId: "last",
+					intervals: [[MON - 7 * 24 * HOUR, MON - 6 * 24 * HOUR]],
+				}),
 			],
 			{ now: MON },
 		);
-		expect(out.longest[0]?.sessionId).toBe("long");
-		expect(out.longest[0]?.title).toBe("fix the board scanner");
-		expect(out.longest[0]?.hours).toBe(3);
+		expect(out.recap.map((week) => week.start)).toEqual([
+			weekStart(MON - 7 * 24 * HOUR),
+			weekStart(MON),
+		]);
+		const week = out.recap[1];
+		expect(week?.sessions).toBe(4);
+		expect(week?.prs).toBe(1);
+		expect(week?.tasks.map((task) => task.sessionId)).toEqual([
+			"long",
+			"short",
+			"pr",
+		]);
+		expect(week?.tasks[0]?.title).toBe("fix the board scanner");
 		// No title in the transcript falls back to the id, never to blank.
-		expect(out.longest[1]?.title).toBe("session short");
+		expect(week?.tasks[1]?.title).toBe("session short");
 	});
 
 	test("hours are credited to whoever asked", () => {

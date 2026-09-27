@@ -42,6 +42,8 @@ export interface TranscriptScan {
 	/** The checkout most of the session's commands ran in. */
 	cwd: string | null;
 	title: string | null;
+	/** PRs the session opened with `gh pr create`, as urls. */
+	prs: string[];
 	/** Timestamped entries — a rough size, used only to break ties. */
 	entries: number;
 }
@@ -88,6 +90,39 @@ export function totalMs(intervals: Interval[]): number {
 	return intervals.reduce((sum, [start, end]) => sum + (end - start), 0);
 }
 
+const PR_URL = /https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/g;
+
+/**
+ * PRs a transcript opened: the url `gh pr create` printed. Only lines that can
+ * hold one are parsed, so this stays cheap next to the regex scan.
+ */
+export function openedPrs(jsonl: string): string[] {
+	const creates = new Set<string>();
+	const prs = new Set<string>();
+	for (const line of jsonl.split("\n")) {
+		if (!line.includes("gh pr create") && !line.includes("/pull/")) continue;
+		let entry: { isSidechain?: boolean; message?: { content?: unknown } };
+		try {
+			entry = JSON.parse(line);
+		} catch {
+			continue;
+		}
+		const content = entry.message?.content;
+		if (entry.isSidechain || !Array.isArray(content)) continue;
+		for (const block of content) {
+			if (
+				block?.type === "tool_use" &&
+				/\bgh pr create\b/.test(String(block.input?.command ?? ""))
+			)
+				creates.add(block.id);
+			else if (block?.type === "tool_result" && creates.has(block.tool_use_id))
+				for (const url of JSON.stringify(block.content).match(PR_URL) ?? [])
+					prs.add(url);
+		}
+	}
+	return [...prs];
+}
+
 /**
  * Timestamps and working directory out of a raw transcript, by regex rather
  * than by parsing every line. The store runs to hundreds of megabytes and only
@@ -98,9 +133,14 @@ export function totalMs(intervals: Interval[]): number {
 export function scanTranscript(jsonl: string): TranscriptScan | null {
 	const timestamps: number[] = [];
 	const cwds = new Map<string, number>();
-	const pattern = /"timestamp":"([^"]+)"|"cwd":"((?:[^"\\]|\\.)*)"/g;
+	let aiTitle: string | null = null;
+	const pattern =
+		/"timestamp":"([^"]+)"|"cwd":"((?:[^"\\]|\\.)*)"|"aiTitle":("(?:[^"\\]|\\.)*")/g;
 	for (const match of jsonl.matchAll(pattern)) {
-		if (match[1] !== undefined) {
+		if (match[3] !== undefined) {
+			// Claude Code retitles as a session moves on; the latest name wins.
+			aiTitle = JSON.parse(match[3]) as string;
+		} else if (match[1] !== undefined) {
 			const at = Date.parse(match[1]);
 			if (!Number.isNaN(at)) timestamps.push(at);
 		} else if (match[2]) {
@@ -121,7 +161,10 @@ export function scanTranscript(jsonl: string): TranscriptScan | null {
 		startedAt: Math.min(...timestamps),
 		endedAt: Math.max(...timestamps),
 		cwd,
-		title: firstPrompt(jsonl),
+		// Claude Code's own name for the session reads like a task; the first
+		// prompt is the fallback for sessions too old or short to have one.
+		title: aiTitle || firstPrompt(jsonl),
+		prs: openedPrs(jsonl),
 		entries: timestamps.length,
 	};
 }
@@ -219,8 +262,18 @@ export interface TaskRow {
 	source: string | null;
 	hours: number;
 	startedAt: number;
-	/** Wall-clock from first entry to last, idle time included. */
-	spanHours: number;
+	prs: string[];
+}
+
+export interface RecapWeek {
+	/** Monday 00:00 local. */
+	start: number;
+	sessions: number;
+	agentHours: number;
+	yourHours: number;
+	prs: number;
+	/** The biggest pieces of work that week, biggest first. */
+	tasks: TaskRow[];
 }
 
 export interface Workload {
@@ -231,7 +284,8 @@ export interface Workload {
 	leverage: number | null;
 	/** Oldest first, one row per week including the quiet ones. */
 	weeks: WeekRow[];
-	longest: TaskRow[];
+	/** Every week with any session, oldest first — what got done in it. */
+	recap: RecapWeek[];
 	byRepo: { repo: string; hours: number; sessions: number }[];
 	byPerson: { person: string; hours: number; sessions: number }[];
 	/** Active minutes per hour of the day, local, index 0–23. */
@@ -252,6 +306,25 @@ export interface Workload {
 function hours(ms: number): number {
 	return Math.round((ms / HOUR_MS) * 10) / 10;
 }
+
+function taskRow(session: SessionWork): TaskRow {
+	return {
+		sessionId: session.sessionId,
+		title: session.title ?? `session ${session.sessionId.slice(0, 8)}`,
+		repo: session.cwd ? repoNameOf(session.cwd) : null,
+		person: session.person,
+		source: session.source,
+		hours: hours(session.activeMs),
+		startedAt: session.startedAt,
+		prs: session.prs,
+	};
+}
+
+/**
+ * Below this a session was a lookup, not a piece of work — unless it opened a
+ * PR, which is output however quick it was.
+ */
+const MAJOR_MS = 10 * 60_000;
 
 /** Monday 00:00 local time for the week containing `at`. */
 export function weekStart(at: number): number {
@@ -306,6 +379,31 @@ function tallyHours(
 		}))
 		.sort((a, b) => b.hours - a.hours || a.name.localeCompare(b.name))
 		.slice(0, limit);
+}
+
+/** Sessions grouped by the week they started, each week's biggest first. */
+function recap(sessions: SessionWork[], top: number): RecapWeek[] {
+	const weeks = new Map<number, SessionWork[]>();
+	for (const session of sessions) {
+		const start = weekStart(session.startedAt);
+		weeks.set(start, [...(weeks.get(start) ?? []), session]);
+	}
+	return [...weeks]
+		.sort((a, b) => a[0] - b[0])
+		.map(([start, list]) => ({
+			start,
+			sessions: list.length,
+			agentHours: hours(list.reduce((sum, s) => sum + s.activeMs, 0)),
+			yourHours: hours(
+				totalMs(mergeIntervals(list.flatMap((s) => s.intervals))),
+			),
+			prs: list.reduce((sum, s) => sum + s.prs.length, 0),
+			tasks: list
+				.filter((s) => s.activeMs >= MAJOR_MS || s.prs.length > 0)
+				.sort((a, b) => b.activeMs - a.activeMs)
+				.slice(0, top)
+				.map(taskRow),
+		}));
 }
 
 export function computeWorkload(
@@ -396,19 +494,7 @@ export function computeWorkload(
 				yourHours: hours(totalMs(mergeIntervals(bucket.intervals))),
 				sessions: bucket.sessions,
 			})),
-		longest: [...all]
-			.sort((a, b) => b.activeMs - a.activeMs)
-			.slice(0, top)
-			.map((session) => ({
-				sessionId: session.sessionId,
-				title: session.title ?? `session ${session.sessionId.slice(0, 8)}`,
-				repo: session.cwd ? repoNameOf(session.cwd) : null,
-				person: session.person,
-				source: session.source,
-				hours: hours(session.activeMs),
-				startedAt: session.startedAt,
-				spanHours: hours(session.endedAt - session.startedAt),
-			})),
+		recap: recap(all, top),
 		byRepo: tallyHours(
 			all,
 			(session) => (session.cwd ? repoNameOf(session.cwd) : null),
