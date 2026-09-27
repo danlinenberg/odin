@@ -6,6 +6,7 @@ export {
 	queryTerms,
 	readTranscript,
 	repoNameOf,
+	repoOfDir,
 	type SessionPerson,
 	type SessionSnippet,
 	type SessionSummary,

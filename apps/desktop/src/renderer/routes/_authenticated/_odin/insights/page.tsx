@@ -158,6 +158,31 @@ function plural(count: number, noun: string): string {
 	return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
+function Spinner() {
+	return (
+		<span className="inline-block size-3 shrink-0 animate-spin rounded-full border-2 border-[#2a2a34] border-t-[#a394ff]" />
+	);
+}
+
+/** A spinner over placeholder cards shaped like what's coming. */
+function Loading({ label, blocks }: { label: string; blocks: number[] }) {
+	return (
+		<div className="flex flex-col gap-3" aria-busy="true">
+			<div className="flex items-center gap-2 text-[12px] text-[#6f6f7d]">
+				<Spinner />
+				{label}
+			</div>
+			{blocks.map((height) => (
+				<div
+					key={height}
+					className="animate-pulse rounded-[10px] border border-[#1f1f27] bg-[#131318]"
+					style={{ height }}
+				/>
+			))}
+		</div>
+	);
+}
+
 function Empty({ children }: { children: React.ReactNode }) {
 	return (
 		<Card>
@@ -617,28 +642,34 @@ function Workload() {
 			localStorage.setItem(EXCLUDED_KEY, JSON.stringify([...next]));
 		} catch {}
 	};
-	const { data, isLoading } = electronTrpc.insights.workload.useQuery(
-		{ only: repo, hide: [...excluded] },
-		{
-			refetchInterval: 120_000,
-			staleTime: 60_000,
-			// Switching repos keeps the old numbers up until the new ones land.
-			placeholderData: (previous) => previous,
-		},
-	);
+	const { data, isLoading, isPlaceholderData } =
+		electronTrpc.insights.workload.useQuery(
+			{ only: repo, hide: [...excluded] },
+			{
+				refetchInterval: 120_000,
+				staleTime: 60_000,
+				// Switching repos keeps the old numbers up until the new ones land.
+				placeholderData: (previous) => previous,
+			},
+		);
 
 	if (isLoading || !data)
-		return (
-			<div className="text-[12px] text-[#6f6f7d]">Reading transcripts…</div>
-		);
+		return <Loading label="Reading transcripts…" blocks={[96, 260, 170]} />;
 	const filter = (
-		<RepoFilter
-			repos={data.repos ?? data.byRepo.map((row) => row.repo)}
-			repo={repo}
-			setRepo={setRepo}
-			excluded={excluded}
-			toggleExcluded={toggleExcluded}
-		/>
+		<div className="flex items-start gap-2">
+			<RepoFilter
+				repos={data.repos ?? data.byRepo.map((row) => row.repo)}
+				repo={repo}
+				setRepo={setRepo}
+				excluded={excluded}
+				toggleExcluded={toggleExcluded}
+			/>
+			{isPlaceholderData && (
+				<span className="pt-[5px]">
+					<Spinner />
+				</span>
+			)}
+		</div>
 	);
 	if (data.sessions === 0)
 		return (
@@ -655,55 +686,60 @@ function Workload() {
 	return (
 		<div className="flex flex-col gap-5">
 			{filter}
-			<Section
-				title="Time with agents"
-				note={data.since ? `since ${DATE.format(data.since)}` : undefined}
+			{/* The previous filter's numbers stay up, dimmed, until the new ones land. */}
+			<div
+				className={`flex flex-col gap-5 transition-opacity ${isPlaceholderData ? "opacity-40" : ""}`}
 			>
-				<Headline
-					agentHours={data.agentHours}
-					yourHours={data.yourHours}
-					leverage={data.leverage}
-					sessions={data.sessions}
-				/>
-			</Section>
-
-			<Section title="What you did">
-				<WeekView recap={data.recap} heatmap={data.heatmap} />
-			</Section>
-
-			<Section title="Week by week">
-				<WeekChart weeks={data.weeks} />
-				<div className="flex gap-4 pl-1 pt-0.5">
-					<Legend color={AGENT_COLOR} label="agent work" />
-					<Legend color={YOU_COLOR} label="hours on the clock" />
-				</div>
-			</Section>
-
-			<div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-				<Section title="Where the hours went" note="by repo">
-					<BarGroup
-						rows={data.byRepo.map((row) => ({
-							name: row.repo,
-							weight: row.hours,
-							value: `${duration(row.hours)} · ${plural(row.sessions, "session")}`,
-						}))}
+				<Section
+					title="Time with agents"
+					note={data.since ? `since ${DATE.format(data.since)}` : undefined}
+				>
+					<Headline
+						agentHours={data.agentHours}
+						yourHours={data.yourHours}
+						leverage={data.leverage}
+						sessions={data.sessions}
 					/>
 				</Section>
 
-				<Section title="Whose work you ran" note="by person">
-					{data.byPerson.length === 0 ? (
-						<Empty>Nothing launched from a feed yet.</Empty>
-					) : (
+				<Section title="What you did">
+					<WeekView recap={data.recap} heatmap={data.heatmap} />
+				</Section>
+
+				<Section title="Week by week">
+					<WeekChart weeks={data.weeks} />
+					<div className="flex gap-4 pl-1 pt-0.5">
+						<Legend color={AGENT_COLOR} label="agent work" />
+						<Legend color={YOU_COLOR} label="hours on the clock" />
+					</div>
+				</Section>
+
+				<div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+					<Section title="Where the hours went" note="by repo">
 						<BarGroup
-							color={YOU_COLOR}
-							rows={data.byPerson.map((row) => ({
-								name: row.person,
+							rows={data.byRepo.map((row) => ({
+								name: row.repo,
 								weight: row.hours,
 								value: `${duration(row.hours)} · ${plural(row.sessions, "session")}`,
 							}))}
 						/>
-					)}
-				</Section>
+					</Section>
+
+					<Section title="Whose work you ran" note="by person">
+						{data.byPerson.length === 0 ? (
+							<Empty>Nothing launched from a feed yet.</Empty>
+						) : (
+							<BarGroup
+								color={YOU_COLOR}
+								rows={data.byPerson.map((row) => ({
+									name: row.person,
+									weight: row.hours,
+									value: `${duration(row.hours)} · ${plural(row.sessions, "session")}`,
+								}))}
+							/>
+						)}
+					</Section>
+				</div>
 			</div>
 		</div>
 	);
@@ -728,7 +764,7 @@ function Queue() {
 	);
 
 	if (isLoading || !data)
-		return <div className="text-[12px] text-[#6f6f7d]">Counting…</div>;
+		return <Loading label="Counting asks…" blocks={[64, 150]} />;
 
 	const pickup =
 		data.medianPickupHours === null ? "—" : duration(data.medianPickupHours);
