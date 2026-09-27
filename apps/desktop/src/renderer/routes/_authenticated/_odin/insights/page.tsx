@@ -578,6 +578,12 @@ function Step({
 	);
 }
 
+const METHOD = [
+	"Your time: the gap before each prompt you typed, up to 5 min.",
+	"Agent work: each session's active time less yours, plus subagents; parallel agents counted each.",
+	"Your time is a floor (reading while an agent works is invisible), so the gain is a ceiling.",
+].join("\n");
+
 /** Two numbers that only mean something next to each other. */
 function Headline({
 	agentHours,
@@ -609,11 +615,13 @@ function Headline({
 				)}
 			</div>
 			<div className="mt-3 text-[11px] text-[#6f6f7d]">
-				{plural(sessions, "session")} · your time: the gap before each prompt
-				you typed, up to 5 min · agent work: each session's active time less
-				yours, plus subagents, parallel agents counted each · your time is a
-				floor (reading while an agent works is invisible), so the gain is a
-				ceiling
+				{plural(sessions, "session")} ·{" "}
+				<span
+					className="cursor-help underline decoration-dotted underline-offset-2"
+					title={METHOD}
+				>
+					how it's counted
+				</span>
 			</div>
 		</Card>
 	);
