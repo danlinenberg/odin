@@ -916,6 +916,8 @@ function Queue() {
 	if (isLoading || !data)
 		return <Loading label="Counting asks…" blocks={[64, 150]} />;
 
+	// A main process started before `gaps` existed won't send it.
+	const gaps = data.gaps ?? [];
 	const pickup =
 		data.medianPickupHours === null ? "—" : duration(data.medianPickupHours);
 
@@ -937,6 +939,42 @@ function Queue() {
 						}
 					/>
 				</div>
+			</Section>
+
+			<Section
+				title="Improvements"
+				note="channels and people whose asks you mostly leave — under half picked up or marked done"
+			>
+				{gaps.length === 0 ? (
+					<Empty>No channel or person you're leaving behind.</Empty>
+				) : (
+					<Card>
+						<div className="flex flex-col gap-1.5">
+							{gaps.map((gap) => (
+								<div
+									key={`${gap.kind}:${gap.name}`}
+									className="flex items-baseline gap-2.5 text-[12px]"
+								>
+									<div className="w-[180px] shrink-0 truncate text-[#d6d6dc]">
+										{gap.kind === "channel" && gap.name !== "DMs"
+											? `#${gap.name}`
+											: gap.name}
+									</div>
+									<div className="text-[#a5a5b3]">
+										{gap.handled === 0
+											? `never picked up — 0 of ${gap.seen}`
+											: `${gap.handled} of ${gap.seen} picked up`}
+										{gap.waiting > 0 && (
+											<span className="text-[#6f6f7d]">
+												{` · ${gap.waiting} still waiting`}
+											</span>
+										)}
+									</div>
+								</div>
+							))}
+						</div>
+					</Card>
+				)}
 			</Section>
 
 			<div className="grid grid-cols-1 gap-5 xl:grid-cols-2">

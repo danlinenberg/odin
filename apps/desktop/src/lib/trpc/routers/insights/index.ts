@@ -41,6 +41,8 @@ export const createInsightsRouter = () => {
 					doneAt: ask.doneAt,
 					unreactedAt: ask.unreactedAt,
 					authorName: ask.authorName,
+					channelId: ask.channelId,
+					channelName: ask.channelName,
 				})),
 				delegations.map((row) => ({
 					source: row.source,
