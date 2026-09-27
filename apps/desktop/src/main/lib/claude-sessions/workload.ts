@@ -272,7 +272,7 @@ export interface RecapWeek {
 	agentHours: number;
 	yourHours: number;
 	prs: number;
-	/** Every session that week worth listing, biggest first. */
+	/** Every session that week, biggest first. */
 	tasks: TaskRow[];
 }
 
@@ -319,12 +319,6 @@ function taskRow(session: SessionWork): TaskRow {
 		prs: session.prs,
 	};
 }
-
-/**
- * Below this a session was a lookup, not a piece of work — unless it opened a
- * PR, which is output however quick it was.
- */
-const MAJOR_MS = 10 * 60_000;
 
 /** Monday 00:00 local time for the week containing `at`. */
 export function weekStart(at: number): number {
@@ -398,11 +392,9 @@ function recap(sessions: SessionWork[]): RecapWeek[] {
 				totalMs(mergeIntervals(list.flatMap((s) => s.intervals))),
 			),
 			prs: list.reduce((sum, s) => sum + s.prs.length, 0),
-			tasks: list
-				.filter((s) => s.activeMs >= MAJOR_MS || s.prs.length > 0)
-				.sort((a, b) => b.activeMs - a.activeMs)
-				// Uncapped: the page filters by repo before it cuts to a top few.
-				.map(taskRow),
+			// Every session, uncapped: the page filters by repo and shows a top few
+			// until you ask for the rest.
+			tasks: [...list].sort((a, b) => b.activeMs - a.activeMs).map(taskRow),
 		}));
 }
 
