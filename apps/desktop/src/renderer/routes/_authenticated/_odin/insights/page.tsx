@@ -399,9 +399,9 @@ function WeekView({
 				.filter((task) => matches(task, query))
 				.sort((a, b) => b.startedAt - a.startedAt)
 		: (week?.tasks ?? []);
-	// A row reading "0" is a slice too thin to say anything — a session that
-	// only brushed this week.
-	const listed = matching.filter((task) => task.hours > 0 || task.yourHours);
+	// Only work you put time into: an automation's run, or a session that only
+	// brushed this week, has no human time and isn't something you did.
+	const listed = matching.filter((task) => task.yourHours);
 	const [expanded, setExpanded] = useState(false);
 	const tasks = expanded ? listed : listed.slice(0, WEEK_ROWS);
 	const earliest = Math.min(
@@ -457,7 +457,7 @@ function WeekView({
 								className="w-10 shrink-0 text-right text-[12.5px] font-semibold tabular-nums"
 								style={{ color: YOU_COLOR }}
 							>
-								{task.yourHours ? duration(task.yourHours) : "—"}
+								{duration(task.yourHours ?? 0)}
 							</div>
 							<div
 								title={taskTime(task)}
