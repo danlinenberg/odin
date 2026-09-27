@@ -124,7 +124,9 @@ function deltaArgs(width: number): string[] {
 		"--line-numbers",
 		...(width >= 200 ? ["--side-by-side"] : []),
 		"--file-style=bold #e6e6ee",
-		"--file-decoration-style=#3a3a48 ol ul",
+		// The rule above each file is drawn in render(): delta sizes its own to
+		// the file name, which left short stubs dangling around a wide header.
+		"--file-decoration-style=none",
 		"--hunk-header-style=syntax",
 		"--hunk-header-decoration-style=none",
 		"--minus-style=syntax #3a1419",
@@ -234,7 +236,11 @@ async function render(
 	let ansi = note;
 	const files: DiffFile[] = [];
 	chunks.forEach((chunk, index) => {
-		const text = delta ? (rendered[index] as string) : colourPatch(chunk.text);
+		const body = delta ? (rendered[index] as string) : colourPatch(chunk.text);
+		// A full-width rule, then the file name straight under it.
+		const text = chunk.path
+			? `${DIM}${"─".repeat(width)}${RESET}\n${body.replace(/^\n+/, "")}`
+			: body;
 		if (chunk.path) {
 			files.push({
 				path: chunk.path,
