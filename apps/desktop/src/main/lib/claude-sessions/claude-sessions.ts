@@ -940,6 +940,17 @@ function ownerRepoOf(checkout: string): string {
 	return checkout;
 }
 
+/**
+ * The repo a directory sits in, by name — or null when it isn't in one. A
+ * folder's own basename is not a repo name: a plain `~/Documents/Dan Wedding`
+ * or a scratchpad would otherwise pass for one. A deleted worktree still
+ * resolves, since its path walks up into the clone that held it.
+ */
+export function repoOfDir(dir: string): string | null {
+	const root = repoRootOf(dir);
+	return root ? repoNameOf(root) : null;
+}
+
 /** What to call a checkout on a card: the repo's name, never the worktree's. */
 export function repoNameOf(checkout: string): string {
 	return basename(ownerRepoOf(checkout));

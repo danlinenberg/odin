@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { firstPrompt } from "./claude-sessions";
+import { mkdirSync, mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { firstPrompt, repoOfDir } from "./claude-sessions";
 import {
 	activeIntervals,
 	computeWorkload,
@@ -24,6 +27,7 @@ function session(over: Partial<SessionWork> = {}): SessionWork {
 		person: null,
 		source: null,
 		cwd: null,
+		repo: null,
 		title: null,
 		prs: [],
 		entries: 2,
@@ -235,12 +239,12 @@ describe("computeWorkload", () => {
 		const sessions = [
 			session({
 				sessionId: "a",
-				cwd: "/x/odin",
+				repo: "odin",
 				intervals: [[MON, MON + HOUR]],
 			}),
 			session({
 				sessionId: "b",
-				cwd: "/x/dev",
+				repo: "dev",
 				intervals: [[MON, MON + 2 * HOUR]],
 			}),
 		];
@@ -364,5 +368,19 @@ describe("firstPrompt", () => {
 
 	test("a session with nothing typed has no title to give", () => {
 		expect(firstPrompt('{"type":"summary"}')).toBeNull();
+	});
+});
+
+describe("repoOfDir", () => {
+	test("names the enclosing repo, and nothing for a folder outside one", () => {
+		const home = mkdtempSync(join(tmpdir(), "repo-of-dir-"));
+		mkdirSync(join(home, "odin", ".git"), { recursive: true });
+		mkdirSync(join(home, "Dan Wedding"));
+		expect(repoOfDir(join(home, "odin", "apps", "desktop"))).toBe("odin");
+		// A worktree removed since: its path still walks up into the clone.
+		expect(repoOfDir(join(home, "odin", ".worktrees", "diff-tab"))).toBe(
+			"odin",
+		);
+		expect(repoOfDir(join(home, "Dan Wedding"))).toBeNull();
 	});
 });

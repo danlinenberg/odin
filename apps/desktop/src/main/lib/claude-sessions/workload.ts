@@ -17,7 +17,7 @@ import { join } from "node:path";
 import {
 	firstPrompt,
 	projectsRoot,
-	repoNameOf,
+	repoOfDir,
 	type SessionPerson,
 } from "./claude-sessions";
 
@@ -172,6 +172,8 @@ export function scanTranscript(jsonl: string): TranscriptScan | null {
 export interface SessionWork extends TranscriptScan {
 	sessionId: string;
 	project: string;
+	/** The repo `cwd` belongs to; null when the session ran outside one. */
+	repo: string | null;
 	person: string | null;
 	source: string | null;
 }
@@ -187,6 +189,15 @@ const cache = new Map<
  * (`<session>/subagents/*.jsonl`) are skipped — their time runs inside their
  * parent's and would be counted twice.
  */
+/** dir → repo name; a walk up the tree per directory, done once. */
+const repos = new Map<string, string | null>();
+
+function repoFor(cwd: string | null): string | null {
+	if (!cwd) return null;
+	if (!repos.has(cwd)) repos.set(cwd, repoOfDir(cwd));
+	return repos.get(cwd) ?? null;
+}
+
 export async function scanSessions({
 	root = projectsRoot(),
 	people = new Map<string, SessionPerson>(),
@@ -238,6 +249,7 @@ export async function scanSessions({
 				...scan,
 				sessionId,
 				project,
+				repo: repoFor(scan.cwd),
 				person: who?.person ?? null,
 				source: who?.source ?? null,
 			});
@@ -313,7 +325,7 @@ function taskRow(session: SessionWork): TaskRow {
 	return {
 		sessionId: session.sessionId,
 		title: session.title ?? `session ${session.sessionId.slice(0, 8)}`,
-		repo: session.cwd ? repoNameOf(session.cwd) : null,
+		repo: session.repo,
 		person: session.person,
 		source: session.source,
 		hours: hours(session.activeMs),
@@ -418,8 +430,7 @@ export function computeWorkload(
 		hide?: string[];
 	} = {},
 ): Workload {
-	const repoOf = (session: SessionWork) =>
-		session.cwd ? repoNameOf(session.cwd) : null;
+	const repoOf = (session: SessionWork) => session.repo;
 	const worked = sessions.filter((session) => session.activeMs > 0);
 	const all = worked.filter((session) => {
 		const repo = repoOf(session);
@@ -509,15 +520,13 @@ export function computeWorkload(
 				sessions: bucket.sessions,
 			})),
 		recap: recap(all),
-		byRepo: tallyHours(
-			all,
-			(session) => (session.cwd ? repoNameOf(session.cwd) : null),
-			top,
-		).map(({ name, hours: h, sessions: count }) => ({
-			repo: name,
-			hours: h,
-			sessions: count,
-		})),
+		byRepo: tallyHours(all, (session) => session.repo, top).map(
+			({ name, hours: h, sessions: count }) => ({
+				repo: name,
+				hours: h,
+				sessions: count,
+			}),
+		),
 		byPerson: tallyHours(all, (session) => session.person, top).map(
 			({ name, hours: h, sessions: count }) => ({
 				person: name,
