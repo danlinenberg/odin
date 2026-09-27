@@ -239,6 +239,26 @@ describe("computeWorkload", () => {
 		expect(week?.tasks[1]?.title).toBe("session short");
 	});
 
+	test("sub-minute sessions that shipped nothing are left out", () => {
+		const out = computeWorkload(
+			[
+				session({ sessionId: "blip", intervals: [[MON, MON + 20_000]] }),
+				session({
+					sessionId: "quick-pr",
+					intervals: [[MON, MON + 20_000]],
+					prs: ["https://github.com/o/r/pull/2"],
+				}),
+				session({ sessionId: "work" }),
+			],
+			{ now: MON },
+		);
+		expect(out.recap[0]?.tasks.map((task) => task.sessionId)).toEqual([
+			"work",
+			"quick-pr",
+		]);
+		expect(out.sessions).toBe(2);
+	});
+
 	test("a repo filter narrows every number but still lists every repo", () => {
 		const sessions = [
 			session({

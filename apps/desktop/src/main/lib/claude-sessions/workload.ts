@@ -501,6 +501,8 @@ function recap(sessions: SessionWork[]): RecapWeek[] {
 		}));
 }
 
+const BLIP_MS = 60_000;
+
 export function computeWorkload(
 	sessions: SessionWork[],
 	{
@@ -520,7 +522,12 @@ export function computeWorkload(
 	} = {},
 ): Workload {
 	const repoOf = (session: SessionWork) => session.repo;
-	const worked = sessions.filter((session) => session.activeMs > 0);
+	// Under a minute with nothing shipped is a machine blip, not work: Odin's
+	// own `claude -p` calls (card briefs, the Next in line ranking) and one-line
+	// probes. Counted, they buried a week's real work under rows of "0".
+	const worked = sessions.filter(
+		(session) => session.activeMs >= BLIP_MS || session.prs.length > 0,
+	);
 	const all = worked.filter((session) => {
 		const repo = repoOf(session);
 		return (!only || repo === only) && !(repo && hide.includes(repo));
