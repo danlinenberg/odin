@@ -261,7 +261,11 @@ export async function writeBrief({
 	const hit = cache.get(sessionId);
 	if (
 		hit?.version === BRIEF_VERSION &&
-		(hit.mtimeMs === file.mtimeMs || now - hit.writtenAt < REFRESH_AFTER_MS)
+		(hit.mtimeMs === file.mtimeMs ||
+			// A brief with no title was written too early to say anything (a launch
+			// with only an image); don't make the card wait five minutes for another.
+			// ponytail: a live session haiku keeps leaving untitled re-runs per warm.
+			(!!hit.brief.title && now - hit.writtenAt < REFRESH_AFTER_MS))
 	) {
 		return { ...hit.brief, cached: true, writtenAt: hit.writtenAt };
 	}
