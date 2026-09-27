@@ -252,9 +252,9 @@ export function NextInLine() {
 		: candidates;
 
 	return (
-		<div className="flex min-w-[240px] flex-1 flex-col rounded-xl border border-[#25252e] bg-[#111114]">
-			<div className="flex items-center gap-2 px-3 py-2.5 text-xs font-semibold uppercase tracking-[.4px] text-[#a5a5b3]">
-				<span className="size-2 rounded-full bg-[#a394ff]" />
+		<div className="flex min-w-[240px] flex-1 flex-col rounded-xl border border-[#4b4380] bg-[#15131f] shadow-[0_0_0_1px_rgba(163,148,255,.12),0_8px_24px_-8px_rgba(163,148,255,.35)]">
+			<div className="flex items-center gap-2 px-3 py-2.5 text-xs font-semibold uppercase tracking-[.4px] text-[#d6d0ff]">
+				<span className="size-2 rounded-full bg-[#a394ff] shadow-[0_0_6px_#a394ff]" />
 				Next in line
 				<span className="ml-auto flex items-center gap-2">
 					<button
@@ -279,7 +279,7 @@ export function NextInLine() {
 						onToggle={() => hide.setShowHidden(!hide.showHidden)}
 						className="font-normal normal-case tracking-normal"
 					/>
-					<span className="rounded-[10px] bg-[#1f1f27] px-2 font-medium">
+					<span className="rounded-[10px] bg-[#2c2750] px-2 font-medium text-[#d6d0ff]">
 						{next.length}
 					</span>
 				</span>
