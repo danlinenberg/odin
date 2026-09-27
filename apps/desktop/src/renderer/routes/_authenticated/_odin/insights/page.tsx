@@ -278,6 +278,9 @@ function cellStyle(minutes: number): React.CSSProperties {
 }
 
 /** Repos hidden from "What you did" — a per-viewer preference, so localStorage. */
+/** Rows a week shows before "Show more". */
+const WEEK_ROWS = 20;
+
 const EXCLUDED_KEY = "odin.insights.excludedRepos";
 
 function readExcluded(): Set<string> {
@@ -353,7 +356,7 @@ function WeekView({
 		) ?? [];
 	const filtered = repo !== null || excluded.size > 0;
 	const [expanded, setExpanded] = useState(false);
-	const tasks = expanded ? matching : matching.slice(0, 8);
+	const tasks = expanded ? matching : matching.slice(0, WEEK_ROWS);
 	const earliest = Math.min(
 		recap[0]?.start ?? thisWeek,
 		heatmap[0]?.start ?? thisWeek,
@@ -485,13 +488,13 @@ function WeekView({
 					))}
 				</div>
 			)}
-			{matching.length > 8 && (
+			{matching.length > WEEK_ROWS && (
 				<button
 					type="button"
 					onClick={() => setExpanded(!expanded)}
 					className="-mt-2 mb-4 text-[11px] text-[#8a8a97] hover:text-[#e4e4ea]"
 				>
-					{expanded ? "Show less" : `Show ${matching.length - 8} more`}
+					{expanded ? "Show less" : `Show ${matching.length - WEEK_ROWS} more`}
 				</button>
 			)}
 
