@@ -21,29 +21,45 @@ export interface RankItem {
 	due: string | null;
 	/** Days since the source dated it; null when it didn't. */
 	ageDays: number | null;
+	/** The Review sweep's last verdict on it (DROP / KEEP / UNKNOWN), if swept. */
+	review: string | null;
+}
+
+export interface Ranking {
+	/** Most important first. */
+	keys: string[];
+	/** What your instructions say not to show at all. */
+	hidden: string[];
 }
 
 // Deliberately no criteria: what counts as important is the model's call, not
 // a weighting written into the app.
 const INSTRUCTIONS = `Rank these unstarted tasks by importance: which should be started first.
-Each line is: key | source | priority | due | age in days | person | where | title.
-Answer with ONLY a JSON array of every key, most important first. No prose.`;
+Each line is: key | source | priority | due | age in days | person | where | review | title.
+"review" is the Review panel's last sweep verdict: DROP means the sweep found it already done or gone.
+Answer with ONLY a JSON object, no prose: {"order": [every key to show, most important first], "hide": [keys my instructions say not to show]}.`;
 
 /** Known keys in the model's order, once each; invented ones dropped. */
-export function parseRanking(text: string, keys: string[]): string[] {
+export function parseRanking(text: string, keys: string[]): Ranking {
 	const known = new Set(keys);
-	let ranked: unknown = [];
-	const start = text.indexOf("[");
-	const end = text.lastIndexOf("]");
+	let answer: unknown = null;
+	const start = text.indexOf("{");
+	const end = text.lastIndexOf("}");
 	if (start !== -1 && end > start) {
 		try {
-			ranked = JSON.parse(text.slice(start, end + 1));
+			answer = JSON.parse(text.slice(start, end + 1));
 		} catch {}
 	}
-	const seen = new Set<string>();
-	for (const key of Array.isArray(ranked) ? ranked : [])
-		if (typeof key === "string" && known.has(key)) seen.add(key);
-	return [...seen];
+	const pick = (list: unknown, skip: Set<string>) => {
+		const seen = new Set<string>();
+		for (const key of Array.isArray(list) ? list : [])
+			if (typeof key === "string" && known.has(key) && !skip.has(key))
+				seen.add(key);
+		return seen;
+	};
+	const { order, hide } = (answer ?? {}) as { order?: unknown; hide?: unknown };
+	const hidden = pick(hide, new Set());
+	return { keys: [...pick(order, hidden)], hidden: [...hidden] };
 }
 
 function line(item: RankItem): string {
@@ -55,6 +71,7 @@ function line(item: RankItem): string {
 		item.ageDays ?? "-",
 		item.person ?? "-",
 		item.context ?? "-",
+		item.review ?? "-",
 		item.title.replace(/\s+/g, " ").slice(0, 160),
 	].join(" | ");
 }
@@ -62,8 +79,8 @@ function line(item: RankItem): string {
 // ponytail: in-memory, one entry per exact input. Feeds refetch with the same
 // rows most of the time, so that's the hit that matters; persist it if a
 // restart's re-rank ever costs enough to notice.
-const cache = new Map<string, string[]>();
-const inFlight = new Map<string, Promise<string[]>>();
+const cache = new Map<string, Ranking>();
+const inFlight = new Map<string, Promise<Ranking>>();
 
 export async function rankTasks(
 	items: RankItem[],
@@ -72,9 +89,9 @@ export async function rankTasks(
 		claudeBin = "claude",
 		timeoutMs = 180_000,
 	}: { instructions?: string; claudeBin?: string; timeoutMs?: number } = {},
-): Promise<string[]> {
+): Promise<Ranking> {
 	const keys = items.map((item) => item.key);
-	if (items.length < 2) return [];
+	if (items.length < 2) return { keys: [], hidden: [] };
 	// Your own words from Settings → Board, when you've written any. Part of
 	// the cache key, so editing them re-ranks.
 	const how = instructions.trim()
