@@ -1,12 +1,13 @@
 import { execFile, spawn } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { publicProcedure, router } from "..";
 import { readOdinConfig, updateOdinConfig } from "./odin-config";
+import { type GhExec, ghAsAnyAccount } from "./terminal/pr-state";
 import { getWorkspaceTerminalContext } from "./terminal/utils/workspace-terminal-context";
 import {
 	execWithShellEnv,
@@ -86,21 +87,20 @@ export async function scanRepos(home: string = homedir()): Promise<string[]> {
 /** Enough diff to read; past this the renderer is the thing that suffers. */
 const MAX_PATCH_BYTES = 1_000_000;
 
-/**
- * Pipe a patch through delta. Returns null when delta isn't installed (or
- * chokes) — the caller already holds git's own coloured output, so the panel
- * degrades to a plain coloured diff instead of an error.
- */
-async function throughDelta(
-	patch: string,
-	width: number,
+/** Feed `input` to a command's stdin; its stdout, or null if it failed. */
+async function pipe(
+	command: string,
+	args: string[],
+	input: string,
+	extraEnv: Record<string, string> = {},
 ): Promise<string | null> {
 	const env = await getProcessEnvWithShellPath();
 	return new Promise((resolve) => {
-		const child = spawn("delta", ["--paging=never", `--width=${width}`], {
-			// Without COLORTERM delta drops to 256 colours, and its +/- fills land
-			// on ANSI 22/52 — a whole added file comes out flooded bright green.
-			env: { ...env, COLORTERM: "truecolor" },
+		// Outside any checkout: inside one, `git apply` drops every path that
+		// isn't under the current directory.
+		const child = spawn(command, args, {
+			cwd: tmpdir(),
+			env: { ...env, ...extraEnv },
 		});
 		let out = "";
 		child.stdout.setEncoding("utf8");
@@ -109,10 +109,107 @@ async function throughDelta(
 		});
 		child.on("error", () => resolve(null));
 		child.on("close", (code) => resolve(code === 0 ? out : null));
-		// EPIPE if delta died before reading the patch — `error` already handled it.
+		// EPIPE if it died before reading the input — `error` already handled it.
 		child.stdin.on("error", () => {});
-		child.stdin.end(patch);
+		child.stdin.end(input);
 	});
+}
+
+/**
+ * Delta, restyled for a panel rather than a pager: line numbers instead of the
+ * boxed "1:" hunk headers, file names as quiet rules, and muted +/- fills so a
+ * whole new file isn't a slab of green. Side by side once there's room for two
+ * readable columns. Flags beat whatever ~/.gitconfig sets, so it looks the same
+ * on every machine.
+ */
+function deltaArgs(width: number): string[] {
+	return [
+		"--paging=never",
+		`--width=${width}`,
+		"--line-numbers",
+		...(width >= 200 ? ["--side-by-side"] : []),
+		"--file-style=bold #e6e6ee",
+		"--file-decoration-style=#3a3a48 ol ul",
+		"--hunk-header-style=syntax",
+		"--hunk-header-decoration-style=none",
+		"--minus-style=syntax #3a1419",
+		"--minus-emph-style=syntax #6e1f2a",
+		"--plus-style=syntax #11301b",
+		"--plus-emph-style=syntax #1d5c31",
+		"--line-numbers-minus-style=#f0647a",
+		"--line-numbers-plus-style=#4ade80",
+		"--line-numbers-zero-style=#4a4a57",
+		"--line-numbers-left-style=#2e2e38",
+		"--line-numbers-right-style=#2e2e38",
+		"--syntax-theme=OneHalfDark",
+	];
+}
+
+const RED = "\x1b[31m";
+const GREEN = "\x1b[32m";
+const CYAN = "\x1b[36m";
+const BOLD = "\x1b[1m";
+const DIM = "\x1b[2m";
+const RESET = "\x1b[0m";
+
+/** Without delta: git's own palette, by hand, since the patch is fetched plain. */
+function colourPatch(patch: string): string {
+	return patch
+		.split("\n")
+		.map((line) =>
+			line.startsWith("diff --git")
+				? `${BOLD}${line}${RESET}`
+				: line.startsWith("@@")
+					? `${CYAN}${line}${RESET}`
+					: line.startsWith("+") && !line.startsWith("+++")
+						? `${GREEN}${line}${RESET}`
+						: line.startsWith("-") && !line.startsWith("---")
+							? `${RED}${line}${RESET}`
+							: line,
+		)
+		.join("\n");
+}
+
+/**
+ * "Which files, how much" above the diff — the thing you read first and the
+ * reason to scroll. `git apply --stat` reads any patch, so a PR's (which has
+ * no local checkout) gets the same header as the working tree's.
+ */
+async function fileSummary(patch: string): Promise<string> {
+	const stat = await pipe("git", ["apply", "--stat"], patch);
+	if (!stat?.trim()) return "";
+	const lines = stat.trimEnd().split("\n");
+	const total = lines.pop() ?? "";
+	return `${lines
+		.map((line) =>
+			line.replace(
+				/(\|\s+\d+ )(\+*)(-*)$/,
+				`${DIM}$1${RESET}${GREEN}$2${RED}$3${RESET}`,
+			),
+		)
+		.join("\n")}\n${DIM}${total.trim()}${RESET}\n\n`;
+}
+
+/** The patch as the panel shows it: summary, then delta (or git colours). */
+async function render(
+	patch: string,
+	width: number,
+	note = "",
+): Promise<Pick<RepoDiff, "ansi" | "delta">> {
+	if (!patch.trim()) return { ansi: "", delta: true };
+	const summary = await fileSummary(patch);
+	if (patch.length > MAX_PATCH_BYTES) {
+		patch = `${patch.slice(0, MAX_PATCH_BYTES)}\n\n… diff truncated at ${MAX_PATCH_BYTES / 1000}kB\n`;
+	}
+	// Without COLORTERM delta drops to 256 colours, and its +/- fills land on
+	// ANSI 22/52 — a whole added file comes out flooded bright green.
+	const rendered = await pipe("delta", deltaArgs(width), patch, {
+		COLORTERM: "truecolor",
+	});
+	return {
+		ansi: note + summary + (rendered ?? colourPatch(patch)),
+		delta: rendered !== null,
+	};
 }
 
 export interface RepoDiff {
@@ -122,7 +219,7 @@ export interface RepoDiff {
 	source: string;
 	/** False when delta isn't installed — the header says so. */
 	delta: boolean;
-	/** The checkout this is a diff of — the header names it. */
+	/** The checkout (or PR url) this is a diff of — the header names it. */
 	cwd: string;
 }
 
@@ -145,7 +242,7 @@ export async function renderDiff(
 ): Promise<RepoDiff> {
 	const git = async (args: string[]) =>
 		(
-			await execWithShellEnv("git", ["-c", "color.ui=always", ...args], {
+			await execWithShellEnv("git", ["--no-pager", ...args], {
 				cwd,
 				maxBuffer: 64 * 1024 * 1024,
 				timeout: 30_000,
@@ -153,7 +250,7 @@ export async function renderDiff(
 		).stdout;
 
 	let source = "uncommitted changes";
-	let patch = await git(["diff", "HEAD"]);
+	let patch = await git(["diff", "--no-color", "HEAD"]);
 	if (!patch.trim()) {
 		// Empty on a repo with no commits at all — same answer as a commit that
 		// predates the session: there is nothing of this session's to show.
@@ -168,25 +265,45 @@ export async function renderDiff(
 			};
 		}
 		source = "last commit";
-		patch = await git(["show", "HEAD"]);
-	}
-	if (patch.length > MAX_PATCH_BYTES) {
-		patch = `${patch.slice(0, MAX_PATCH_BYTES)}\n\n… diff truncated at ${MAX_PATCH_BYTES / 1000}kB\n`;
+		patch = await git(["show", "--no-color", "HEAD"]);
 	}
 
 	const untracked = (await git(["ls-files", "--others", "--exclude-standard"]))
 		.split("\n")
 		.filter(Boolean);
 	const note = untracked.length
-		? `${untracked.length} untracked file(s), not shown: ${untracked.slice(0, 3).join(", ")}${untracked.length > 3 ? ", …" : ""}\n\n`
+		? `${DIM}${untracked.length} untracked file(s), not shown: ${untracked.slice(0, 3).join(", ")}${untracked.length > 3 ? ", …" : ""}${RESET}\n\n`
 		: "";
 
-	const rendered = await throughDelta(patch, width);
+	return { ...(await render(patch, width, note)), source, cwd };
+}
+
+/**
+ * A pull request's diff, straight from GitHub — the PR may live in a repo (or
+ * a worktree since deleted) that no checkout here still holds.
+ */
+export async function renderPullRequestDiff(
+	url: string,
+	width: number,
+	exec?: GhExec,
+): Promise<RepoDiff> {
+	const patch = await ghAsAnyAccount(
+		["pr", "diff", url, "--color=never"],
+		(stdout) => stdout,
+		exec,
+	);
+	if (patch === null) {
+		throw new TRPCError({
+			code: "NOT_FOUND",
+			message: `No logged-in gh account can read ${url}`,
+		});
+	}
+	// https://github.com/<owner>/<repo>/pull/<n>
+	const [, , , , repo, , number] = url.split("/");
 	return {
-		ansi: note + (rendered ?? patch),
-		source,
-		delta: rendered !== null,
-		cwd,
+		...(await render(patch, width)),
+		source: `${repo} PR #${number}`,
+		cwd: url,
 	};
 }
 
@@ -255,9 +372,12 @@ export const createReposRouter = () => {
 					workspaceId: z.string(),
 					/** Terminal columns to render at — delta assumes 80 when piped. */
 					width: z.number().int().min(40).max(400).default(120),
+					/** Show this pull request's diff instead of the checkout's. */
+					pr: z.string().url().nullish(),
 				}),
 			)
 			.query(async ({ input }) => {
+				if (input.pr) return renderPullRequestDiff(input.pr, input.width);
 				// The repo the agent worked in wins: Claude Code cds between repos
 				// and worktrees without the shell ever noticing, so `input.cwd` is
 				// often just the catch-all directory the pane was launched in.

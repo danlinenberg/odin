@@ -80,7 +80,7 @@ function Chip({ label, className }: { label: string; className: string }) {
 	);
 }
 
-function StateChip({ state }: { state: string | null }) {
+export function StateChip({ state }: { state: string | null }) {
 	// No chip while the lookup is in flight, or when gh couldn't answer.
 	const chip = state ? STATE_CHIP[state] : undefined;
 	if (!chip) return null;

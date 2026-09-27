@@ -7,6 +7,8 @@ import {
 	DEFAULT_TERMINAL_FONT_FAMILY,
 	DEFAULT_TERMINAL_FONT_SIZE,
 } from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/config";
+import { pullRequests } from "./brief";
+import { StateChip } from "./SessionBrief";
 
 /**
  * "What did this session actually change?" — delta's diff for the checkout a
@@ -15,6 +17,9 @@ import {
  * ponytail: delta already emits a rendered diff as ANSI, and the app already
  * ships xterm — so this is a read-only terminal with the bytes written into it,
  * not a diff viewer. No parsing, no highlighting, no virtualised list.
+ *
+ * Above it, one tab per PR the session opened — a session that shipped five
+ * PRs is five diffs, and the working tree is usually none of them.
  */
 export function DiffView({
 	cwd,
@@ -34,9 +39,25 @@ export function DiffView({
 	// Delta needs a column count up front (piped, it assumes 80). Start at the
 	// default and re-query once xterm has measured the real width.
 	const [width, setWidth] = useState(120);
+	/** The PR on screen; null is the checkout's own diff. */
+	const [pr, setPr] = useState<string | null>(null);
+
+	// Same query (and cache entry) the brief beside it reads its PRs from.
+	const { data: transcript } =
+		electronTrpc.terminal.readClaudeTranscript.useQuery(
+			{ sessionId: claudeSessionId ?? "" },
+			{ enabled: !!claudeSessionId, retry: false },
+		);
+	const prs = transcript
+		? pullRequests(transcript.links ?? transcript.messages)
+		: [];
+	const { data: prStates } = electronTrpc.terminal.pullRequestStates.useQuery(
+		{ urls: prs.map((link) => link.url) },
+		{ enabled: prs.length > 0, retry: false, staleTime: 60_000 },
+	);
 
 	const { data, error, isFetching, refetch } = electronTrpc.repos.diff.useQuery(
-		{ cwd, claudeSessionId, workspaceId, width },
+		{ cwd, claudeSessionId, workspaceId, width, pr },
 		{ refetchOnWindowFocus: false, retry: false },
 	);
 
@@ -86,16 +107,30 @@ export function DiffView({
 		xterm.write(
 			data.ansi.trim()
 				? data.ansi
-				: "Nothing from this session — no uncommitted changes, and the last commit here predates it.",
+				: pr
+					? "This PR has no changes."
+					: "Nothing from this session — no uncommitted changes, and the last commit here predates it.",
 			() => xterm.scrollToTop(),
 		);
-	}, [data]);
+	}, [data, pr]);
+
+	const tab = (active: boolean) =>
+		`flex shrink-0 items-center gap-1.5 rounded-[5px] px-2 py-0.5 text-[11px] ${
+			active
+				? "bg-[#25252e] text-[#e6e6ee]"
+				: "text-[#8a8a97] hover:bg-[#17171d] hover:text-[#d6d6dc]"
+		}`;
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
 			<div className="flex items-center gap-2 border-b border-[#25252e] px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[.4px] text-[#8a8a97]">
 				<span title={data?.cwd}>
-					Diff · {data ? `${data.cwd.split("/").pop()} · ${data.source}` : "…"}
+					Diff ·{" "}
+					{data
+						? pr
+							? data.source
+							: `${data.cwd.split("/").pop()} · ${data.source}`
+						: "…"}
 				</span>
 				{data?.ansi.trim() && !data.delta && (
 					<span
@@ -113,6 +148,29 @@ export function DiffView({
 					{isFetching ? "reading…" : "↻ refresh"}
 				</button>
 			</div>
+			{prs.length > 0 && (
+				<div className="flex gap-1 overflow-x-auto border-b border-[#25252e] px-3 py-1.5">
+					<button
+						type="button"
+						onClick={() => setPr(null)}
+						className={tab(pr === null)}
+					>
+						Working tree
+					</button>
+					{prs.map((link) => (
+						<button
+							key={link.url}
+							type="button"
+							title={link.url}
+							onClick={() => setPr(link.url)}
+							className={tab(pr === link.url)}
+						>
+							{link.repo.split("/").pop()} #{link.number}
+							<StateChip state={prStates?.[link.url]?.state ?? null} />
+						</button>
+					))}
+				</div>
+			)}
 			{error && (
 				<div className="select-text cursor-text border-b border-[#25252e] px-4 py-2 text-[12px] text-[#f0647a]">
 					{error.message}

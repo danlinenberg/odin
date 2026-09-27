@@ -3,7 +3,12 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createReposRouter, renderDiff, scanRepos } from "./repos";
+import {
+	createReposRouter,
+	renderDiff,
+	renderPullRequestDiff,
+	scanRepos,
+} from "./repos";
 
 test("scanRepos finds checkouts, skips pruned dirs and nested worktrees", async () => {
 	const home = mkdtempSync(join(tmpdir(), "odin-repos-"));
@@ -86,4 +91,25 @@ test("renderDiff shows uncommitted work, and the last commit when there is none"
 	expect(dirty.source).toBe("uncommitted changes");
 	expect(dirty.ansi).toContain("two");
 	expect(dirty.ansi).toContain("1 untracked file(s), not shown: b.txt");
+	// The file summary heads the diff.
+	expect(dirty.ansi).toContain("1 file changed");
+});
+
+test("renderPullRequestDiff reads the PR through gh, and says when nobody can", async () => {
+	const patch =
+		"diff --git a/x.ts b/x.ts\n--- a/x.ts\n+++ b/x.ts\n@@ -1 +1 @@\n-old\n+new\n";
+	const url = "https://github.com/danlinenberg/odin/pull/7";
+	const pr = await renderPullRequestDiff(url, 80, async (args) => {
+		expect(args).toEqual(["pr", "diff", url, "--color=never"]);
+		return { stdout: patch };
+	});
+	expect(pr.source).toBe("odin PR #7");
+	expect(pr.ansi).toContain("new");
+	expect(pr.ansi).toContain("x.ts");
+
+	expect(
+		renderPullRequestDiff(url, 80, async () => {
+			throw new Error("404");
+		}),
+	).rejects.toThrow(/No logged-in gh account/);
 });
