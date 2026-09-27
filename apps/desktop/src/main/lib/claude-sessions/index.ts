@@ -22,6 +22,7 @@ export {
 	computeWorkload,
 	type Interval,
 	mergeIntervals,
+	type RecapWeek,
 	type SessionWork,
 	scanSessions,
 	scanTranscript,
