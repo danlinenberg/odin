@@ -1025,6 +1025,17 @@ describe("agent-wrappers claude settings.json", () => {
 			"settings.json",
 		);
 		mkdirSync(path.dirname(claudeSettingsPath), { recursive: true });
+		// The cap's first version also hooked SubagentStop and SessionEnd.
+		const capCommand = '"$ODIN_HOME_DIR/hooks/subagent-cap.sh" || true';
+		writeFileSync(
+			claudeSettingsPath,
+			JSON.stringify({
+				hooks: {
+					SubagentStop: [{ hooks: [{ type: "command", command: capCommand }] }],
+					SessionEnd: [{ hooks: [{ type: "command", command: capCommand }] }],
+				},
+			}),
+		);
 		const notifyPath = "/tmp/.odin/hooks/notify.sh";
 		for (let i = 0; i < 2; i++) {
 			const content = getClaudeGlobalSettingsJsonContent(notifyPath);
@@ -1035,13 +1046,10 @@ describe("agent-wrappers claude settings.json", () => {
 		expect(
 			parsed.hooks.PreToolUse.map((def: { matcher: string }) => def.matcher),
 		).toEqual(["AskUserQuestion|ExitPlanMode", "Agent|Task"]);
-		for (const eventName of ["SubagentStop", "SessionEnd"]) {
-			const capHooks = parsed.hooks[eventName].filter(
-				(def: { hooks: Array<{ command: string }> }) =>
-					def.hooks[0].command.includes("/hooks/subagent-cap.sh"),
-			);
-			expect(capHooks).toHaveLength(1);
-		}
+		expect(parsed.hooks.SubagentStop).toBeUndefined();
+		expect(JSON.stringify(parsed.hooks.SessionEnd)).not.toContain(
+			"subagent-cap",
+		);
 	});
 
 	it("preserves user hooks and non-hook settings when merging", () => {

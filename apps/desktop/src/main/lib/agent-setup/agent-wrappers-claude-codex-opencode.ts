@@ -184,8 +184,7 @@ export function getClaudeGlobalSettingsJsonContent(
 			| "PreToolUse"
 			| "PostToolUse"
 			| "PostToolUseFailure"
-			| "PermissionRequest"
-			| "SubagentStop";
+			| "PermissionRequest";
 		definition: ClaudeHookDefinition;
 	}> = [
 		{
@@ -253,23 +252,15 @@ export function getClaudeGlobalSettingsJsonContent(
 				hooks: [{ type: "command", command: SUBAGENT_CAP_HOOK_COMMAND }],
 			},
 		},
-		{
-			eventName: "SubagentStop",
-			definition: {
-				hooks: [{ type: "command", command: SUBAGENT_CAP_HOOK_COMMAND }],
-			},
-		},
-		{
-			eventName: "SessionEnd",
-			definition: {
-				hooks: [{ type: "command", command: SUBAGENT_CAP_HOOK_COMMAND }],
-			},
-		},
 	];
 
 	// Strip every managed hook first, then append: an event can carry more
-	// than one managed definition (PreToolUse, SessionEnd).
-	for (const eventName of new Set(managedEvents.map((e) => e.eventName))) {
+	// than one managed definition (PreToolUse). SubagentStop is in the sweep
+	// only to reap the cap hook's earlier registration there.
+	for (const eventName of new Set([
+		...managedEvents.map((e) => e.eventName),
+		"SubagentStop",
+	])) {
 		const current = existing.hooks[eventName];
 		existing.hooks[eventName] = Array.isArray(current)
 			? current.flatMap((def: ClaudeHookDefinition) => {
@@ -282,6 +273,9 @@ export function getClaudeGlobalSettingsJsonContent(
 	}
 	for (const { eventName, definition } of managedEvents) {
 		existing.hooks[eventName].push(definition);
+	}
+	if (existing.hooks.SubagentStop.length === 0) {
+		delete existing.hooks.SubagentStop;
 	}
 
 	return JSON.stringify(existing, null, 2);
