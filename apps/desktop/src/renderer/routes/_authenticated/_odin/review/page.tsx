@@ -73,24 +73,31 @@ function ReviewPage() {
 		() => new Map(backlog.map((item) => [item.key, item.person])),
 		[backlog],
 	);
-	const needle = search.trim().toLowerCase();
-	// Search stacks on the Drop / Keep pill rather than replacing it.
-	const shown = (
-		showAll ? pending : pending.filter((row) => row.verdict === "DROP")
-	).filter(
-		(row) =>
-			!needle ||
-			[
-				row.title,
-				row.source,
-				row.evidence,
-				personByKey.get(row.key),
-				String(row.n),
-			]
-				.join(" ")
-				.toLowerCase()
-				.includes(needle),
-	);
+	// Punctuation reads as a space on both sides, so "alon derfner" finds the
+	// GitHub handle alon-derfner-imagenai.
+	const words = (text: string) =>
+		text
+			.toLowerCase()
+			.replace(/[^\p{L}\p{N}]+/gu, " ")
+			.trim();
+	const needle = words(search);
+	// A search looks across every verdict — who you're after is usually on a
+	// KEEP row, and the Drop pill is the default.
+	const shown = needle
+		? pending.filter((row) =>
+				words(
+					[
+						row.title,
+						row.source,
+						row.evidence,
+						personByKey.get(row.key) ?? "",
+						String(row.n),
+					].join(" "),
+				).includes(needle),
+			)
+		: showAll
+			? pending
+			: pending.filter((row) => row.verdict === "DROP");
 
 	/**
 	 * Clear one item at its source: a task is deleted, a Slack row gets the
@@ -165,16 +172,22 @@ function ReviewPage() {
 							)}
 						/>
 						<FilterPill
-							active={!showAll}
+							active={!needle && !showAll}
 							count={counts.drop}
-							onClick={() => setShowAll(false)}
+							onClick={() => {
+								setShowAll(false);
+								setSearch("");
+							}}
 						>
 							Drop
 						</FilterPill>
 						<FilterPill
-							active={showAll}
+							active={!needle && showAll}
 							count={counts.keep + counts.unknown}
-							onClick={() => setShowAll(true)}
+							onClick={() => {
+								setShowAll(true);
+								setSearch("");
+							}}
 						>
 							Keep & unknown
 						</FilterPill>
@@ -267,16 +280,17 @@ function ReviewPage() {
 					</div>
 				))}
 
-				{!showAll && shown.some((row) => row.verdict === "DROP") && (
-					<button
-						type="button"
-						onClick={() => void dropAll()}
-						className={cn(ROW_PRIMARY_BUTTON, "mt-1 self-center")}
-					>
-						Drop all{" "}
-						{shown.filter((r) => r.verdict === "DROP" && !r.stale).length}
-					</button>
-				)}
+				{(needle || !showAll) &&
+					shown.some((row) => row.verdict === "DROP") && (
+						<button
+							type="button"
+							onClick={() => void dropAll()}
+							className={cn(ROW_PRIMARY_BUTTON, "mt-1 self-center")}
+						>
+							Drop all{" "}
+							{shown.filter((r) => r.verdict === "DROP" && !r.stale).length}
+						</button>
+					)}
 			</div>
 		</div>
 	);
