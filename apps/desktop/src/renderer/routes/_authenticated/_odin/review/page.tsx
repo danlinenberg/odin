@@ -62,13 +62,23 @@ function ReviewPage() {
 	// but a kept one doesn't — without this the screen never empties.
 	const [decided, setDecided] = useState<Record<string, true>>({});
 	const [showAll, setShowAll] = useState(false);
+	const [search, setSearch] = useState("");
 
 	const rows = useMemo(() => reviewRows(swept, backlog), [swept, backlog]);
 	const counts = countByVerdict(rows);
 	const pending = rows.filter((row) => !decided[row.key]);
-	const shown = showAll
-		? pending
-		: pending.filter((row) => row.verdict === "DROP");
+	const needle = search.trim().toLowerCase();
+	// Search stacks on the Drop / Keep pill rather than replacing it.
+	const shown = (
+		showAll ? pending : pending.filter((row) => row.verdict === "DROP")
+	).filter(
+		(row) =>
+			!needle ||
+			[row.title, row.source, row.evidence, String(row.n)]
+				.join(" ")
+				.toLowerCase()
+				.includes(needle),
+	);
 
 	/**
 	 * Clear one item at its source: a task is deleted, a Slack row gets the
@@ -93,7 +103,8 @@ function ReviewPage() {
 	};
 
 	const dropAll = async () => {
-		const drops = pending.filter((row) => row.verdict === "DROP" && !row.stale);
+		// What's on screen — a search narrows what "Drop all" clears.
+		const drops = shown.filter((row) => row.verdict === "DROP" && !row.stale);
 		for (const row of drops) await drop(row);
 		toast.success(`Cleared ${drops.length}`);
 	};
@@ -126,6 +137,21 @@ function ReviewPage() {
 				<div className="flex-1" />
 				{rows.length > 0 && (
 					<>
+						<input
+							type="search"
+							value={search}
+							onChange={(e) => setSearch(e.target.value)}
+							onKeyDown={(e) => {
+								if (e.key !== "Escape") return;
+								setSearch("");
+								e.currentTarget.blur();
+							}}
+							placeholder="Search"
+							className={cn(
+								"w-[200px] rounded-full border bg-[#16161b] px-2.5 py-1 text-[12px] text-[#f5f5f7] outline-none placeholder:text-[#6b6b78] focus:border-[#a394ff]",
+								search ? "border-[#a394ff]" : "border-[#25252e]",
+							)}
+						/>
 						<FilterPill
 							active={!showAll}
 							count={counts.drop}
@@ -167,9 +193,11 @@ function ReviewPage() {
 				)}
 				{rows.length > 0 && shown.length === 0 && (
 					<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
-						{showAll
-							? "Nothing left to look at."
-							: `Nothing to drop from the ${swept.length} swept${swept_ago ? ` ${swept_ago}` : ""}. ${counts.keep} to keep, ${counts.unknown} it couldn't check.`}
+						{needle
+							? `Nothing matches "${search.trim()}".`
+							: showAll
+								? "Nothing left to look at."
+								: `Nothing to drop from the ${swept.length} swept${swept_ago ? ` ${swept_ago}` : ""}. ${counts.keep} to keep, ${counts.unknown} it couldn't check.`}
 					</div>
 				)}
 
