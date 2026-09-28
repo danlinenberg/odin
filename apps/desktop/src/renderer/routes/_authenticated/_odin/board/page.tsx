@@ -1190,7 +1190,7 @@ function DevBoardPage() {
 	// One filter at a time, from the header dropdown: "tag:<tag>",
 	// "person:<name>", or "" for everything.
 	const [boardFilter, setBoardFilter] = useState("");
-	// Free-text search over title, brief, tags, person and repo. Stacks with
+	// Free-text search over title, brief, tags, person, repo and PRs. Stacks with
 	// the dropdown filter above.
 	const [search, setSearch] = useState("");
 	const searchRef = useRef<HTMLInputElement>(null);
@@ -1301,6 +1301,51 @@ function DevBoardPage() {
 		);
 	};
 
+	// Search also reaches the repos a session worked in and the PRs it opened
+	// ("odin" finds every card with a PR in danlinenberg/odin). Same queries,
+	// same options as the card's PR and repo pills, so these are cache hits;
+	// only fetched while you're searching.
+	const searchCandidates = search.trim()
+		? Object.values(panes).flatMap((pane) => {
+				const sessionId = pane.claudeSessionId ?? sessionIdByPane[pane.id];
+				return pane.type === "terminal" && sessionId
+					? [{ paneId: pane.id, sessionId }]
+					: [];
+			})
+		: [];
+	const transcriptQueries = electronTrpc.useQueries((t) =>
+		searchCandidates.map(({ sessionId }) =>
+			t.terminal.readClaudeTranscript(
+				{ sessionId },
+				{ retry: false, staleTime: 60_000 },
+			),
+		),
+	);
+	const repoQueries = electronTrpc.useQueries((t) =>
+		searchCandidates.map(({ sessionId }) =>
+			t.repos.workingRepoName(
+				{ claudeSessionId: sessionId },
+				{ retry: false, staleTime: 60_000 },
+			),
+		),
+	);
+	const workTextByPane: Record<string, string> = {};
+	searchCandidates.forEach(({ paneId }, i) => {
+		const messages = transcriptQueries[i]?.data?.messages;
+		const repo = repoQueries[i]?.data;
+		workTextByPane[paneId] = [
+			repo?.name,
+			repo?.checkout,
+			...(messages ? pullRequests(messages) : []).map(
+				(pr) => `${pr.url} #${pr.number}`,
+			),
+		]
+			.filter(Boolean)
+			.join(" ");
+	});
+	// A string, so the memo below re-runs when the text changes, not every render.
+	const workTextKey = JSON.stringify(workTextByPane);
+
 	const { cardsByStatus, completedCards, allTags, allPeople, starredCount } =
 		useMemo(() => {
 			const map = new Map<PaneStatus, BoardCard[]>();
@@ -1312,6 +1357,7 @@ function DevBoardPage() {
 			const personCounts = new Map<string, number>();
 			for (const column of COLUMNS) map.set(column.status, []);
 			const needle = search.trim().toLowerCase();
+			const workText: Record<string, string> = JSON.parse(workTextKey);
 			for (const tab of tabs) {
 				const workspace = workspaceById.get(tab.workspaceId);
 				for (const pane of Object.values(panes)) {
@@ -1382,6 +1428,7 @@ function DevBoardPage() {
 								pane.odinBrief ?? briefByPane[pane.id],
 								person,
 								card.repoPath,
+								workText[pane.id],
 								...boardTags(pane.odinTags),
 							].some((text) => text?.toLowerCase().includes(needle)))
 					)
@@ -1412,6 +1459,7 @@ function DevBoardPage() {
 			daemonSessions,
 			boardFilter,
 			search,
+			workTextKey,
 			contactByPane,
 			titleByPane,
 			briefByPane,
