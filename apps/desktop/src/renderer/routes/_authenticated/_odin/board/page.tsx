@@ -2389,7 +2389,7 @@ function DevBoardPage() {
 																{/* Facts are one grey text line; chips are left only for flags that ask
     something of you. A pill that renders nothing drops out, so the dots
     between the rest stay right. */}
-																<div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 text-[11.5px] text-[#8a8a97] [&>*+*]:before:mr-1.5 [&>*+*]:before:text-[#4a4a55] [&>*+*]:before:content-['·']">
+																<div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 text-[11.5px] text-[#8a8a97] [&>*+*]:before:inline-block [&>*+*]:before:mr-1.5 [&>*+*]:before:text-[#4a4a55] [&>*+*]:before:content-['·']">
 																	{cardContact(card) && (
 																		<span className="inline-flex min-w-0 items-center gap-1 font-medium text-[#d6d6dc]">
 																			<span
