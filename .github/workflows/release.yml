@@ -39,24 +39,46 @@ jobs:
       # the native modules have to be rebuilt for Electron explicitly.
       - run: bun run --filter=@odin/desktop install:deps
 
-      - run: bun run build
-
-      - name: Publish
+      # A manual run on a main whose version is already released builds the
+      # next patch instead: the checked-out package.json files are bumped in
+      # place (not committed), so the app reports the version it ships under.
+      # ponytail: main's package.json then lags the latest release; the next
+      # run bumps past the latest tag, so nothing collides.
+      - name: Pick version
         env:
           GH_TOKEN: ${{ github.token }}
           REF_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
         run: |
           set -euo pipefail
-          # A tag push names itself; a manual run takes the version it just
-          # built, so the release is never called something the app is not.
-          TAG="${REF_TAG:-v$(jq -r .version apps/desktop/package.json)}"
+          V=$(jq -r .version apps/desktop/package.json)
+          if [[ -n "$REF_TAG" ]]; then
+            TAG="$REF_TAG"
+          elif gh release view "v$V" >/dev/null 2>&1; then
+            LATEST=$(gh release view --json tagName -q .tagName)
+            NEW=$(awk -F. '{print $1"."$2"."$3+1}' <<<"${LATEST#v}")
+            for f in apps/desktop/package.json packages/host-service/package.json; do
+              jq --arg v "$NEW" '.version = $v' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+            done
+            TAG="v$NEW"
+          else
+            TAG="v$V"
+          fi
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          echo "releasing $TAG"
+
+      - run: bun run build
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
           dmg=$(ls apps/desktop/release/*.dmg)
           # The cask resolves /releases/latest/download/Odin-arm64.dmg, so the
           # asset name has to stay the same across releases.
           mv "$dmg" Odin-arm64.dmg
-          # No upload --clobber fallback: a manual run on an unbumped main
-          # would swap a newer build into the old release, which keeps its old
-          # date and version. Fail instead; scripts/release.sh bumps first.
+          # No upload --clobber fallback: re-uploading into an existing release
+          # swaps a newer build in under the old date and version.
           gh release create "$TAG" Odin-arm64.dmg \
             --title "$TAG" \
             --generate-notes

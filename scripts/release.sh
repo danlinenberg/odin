@@ -46,7 +46,10 @@ if [[ "${1:-}" == "--no-install" ]]; then
 	shift
 fi
 
-OLD=$(git show origin/main:apps/desktop/package.json | jq -r .version)
+# Bump from the latest release, not main's package.json: a manual Release run
+# publishes the next patch without committing it, so main can lag behind.
+OLD=$(gh release view --repo "$SLUG" --json tagName -q .tagName)
+OLD=${OLD#v}
 NEW="${1:-$(awk -F. '{print $1"."$2"."$3+1}' <<<"$OLD")}"
 TAG="v$NEW"
 
@@ -68,9 +71,9 @@ git worktree add --quiet -b "$BRANCH" "$WORK/wt" origin/main
 # desktop and host-service have shared a version since the fork, and bun.lock
 # records both — CI installs with --frozen-lockfile, so a stale lock fails the
 # build before it starts. The anchor is the one tab-indented "version" line, so
-# a dependency that happens to be pinned at $OLD is left alone.
+# no dependency's pinned version is touched.
 cd "$WORK/wt"
-sed -i '' "s/^\(	\"version\": \)\"$OLD\"/\1\"$NEW\"/" \
+sed -i '' "s/^\(	\"version\": \)\"[^\"]*\"/\1\"$NEW\"/" \
 	apps/desktop/package.json packages/host-service/package.json
 bun install --lockfile-only
 git add apps/desktop/package.json packages/host-service/package.json bun.lock
