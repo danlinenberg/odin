@@ -2,7 +2,9 @@ import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import { LuOctagonX } from "react-icons/lu";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { useTabsStore } from "renderer/stores/tabs/store";
 import {
 	FEED_LIST,
 	FEED_ROW,
@@ -12,9 +14,15 @@ import {
 	ROW_PRIMARY_BUTTON,
 } from "../components/FeedChrome";
 import { useBacklog } from "../hooks/builtin-automations";
+import { useActiveSessions } from "../hooks/useActiveSessions";
 import { useBacklogReview, useSweepBacklog } from "../hooks/useBacklogReview";
 import { useMyTasks } from "../hooks/useOdinTasks";
-import { countByVerdict, type ReviewRow, reviewRows } from "./verdicts";
+import {
+	countByVerdict,
+	type ReviewRow,
+	reviewRows,
+	sessionFor,
+} from "./verdicts";
 
 /**
  * Review — what the backlog sweep wants gone, and one click per decision.
@@ -55,7 +63,21 @@ function ReviewPage() {
 	const backlog = useBacklog();
 	const { swept, sweptAt, sweeping } = useBacklogReview();
 	const sweepBacklog = useSweepBacklog();
-	const { remove } = useMyTasks();
+	const { remove, todos } = useMyTasks();
+	const panes = useTabsStore((state) => state.panes);
+	const active = useActiveSessions();
+	// The sessions still running, so a DROP row can say "stop working on this".
+	const livePanes = useMemo(
+		() => active.flatMap((s) => (panes[s.paneId] ? [panes[s.paneId]] : [])),
+		[active, panes],
+	);
+	const taskPanes = useMemo(
+		() =>
+			new Map(
+				todos.flatMap((t) => (t.paneId ? [[t.id, t.paneId] as const] : [])),
+			),
+		[todos],
+	);
 	const setSlackDone = electronTrpc.slack.setDone.useMutation();
 	const utils = electronTrpc.useUtils();
 	// Decided here, this session's worth. A dropped row also leaves the backlog,
@@ -239,6 +261,14 @@ function ReviewPage() {
 						<div className="min-w-0 flex-1">
 							<div className="flex items-center gap-2">
 								<VerdictChip verdict={row.verdict} />
+								{row.verdict === "DROP" &&
+									sessionFor(row, livePanes, taskPanes) && (
+										<LuOctagonX
+											className="size-3.5 shrink-0 text-[#ff7a8a]"
+											title="A session is still working on this — stop it"
+											aria-label="A session is still working on this — stop it"
+										/>
+									)}
 								<span className="truncate text-[13px] text-[#f5f5f7]">
 									{row.title}
 								</span>

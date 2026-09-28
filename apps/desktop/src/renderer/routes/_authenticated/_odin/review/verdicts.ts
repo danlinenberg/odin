@@ -70,3 +70,36 @@ export function countByVerdict(rows: ReviewRow[]): {
 		unknown: rows.filter((r) => r.verdict === "UNKNOWN").length,
 	};
 }
+
+/** What `sessionFor` needs off a live pane. */
+export interface LivePane {
+	id: string;
+	odinTaskTitle?: string;
+	odinPageId?: string;
+}
+
+/**
+ * The running session working this row, if any — a DROP with one still going
+ * means you're spending time on something that's done.
+ *
+ * Same links "Start session" uses: a task remembers its pane, Slack and Notion
+ * sessions carry the page id, and Jira/PR launches are titled `<key>: …`. The
+ * bare title is the fallback for anything launched before those existed.
+ */
+export function sessionFor(
+	row: SweptRow,
+	live: LivePane[],
+	taskPanes: Map<string, string>,
+): string | null {
+	const id = row.key.slice(row.key.indexOf(":") + 1);
+	const taskPane = row.key.startsWith("task:") ? taskPanes.get(id) : undefined;
+	return (
+		live.find(
+			(pane) =>
+				pane.id === taskPane ||
+				pane.odinPageId === id ||
+				pane.odinTaskTitle?.startsWith(`${id}: `) ||
+				pane.odinTaskTitle === row.title,
+		)?.id ?? null
+	);
+}
