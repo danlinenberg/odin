@@ -2353,9 +2353,9 @@ function DevBoardPage() {
 																		? "border-[#5a2733]"
 																		: "border-[#26262c]",
 																)}
-																// The column dot's own colour, faint: 4% alpha over the column.
+																// The column dot's own colour, faint: 2% alpha over the column.
 																style={{
-																	background: `${PANE_STATUS[card.status].dot}0a`,
+																	background: `${PANE_STATUS[card.status].dot}05`,
 																}}
 															>
 																<div className="flex items-start gap-2">
