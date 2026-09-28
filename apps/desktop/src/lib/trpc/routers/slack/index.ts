@@ -421,6 +421,12 @@ export async function slackThreadReplies(id: string): Promise<{
 	channelLastByMe: boolean;
 	/** A DM or group DM, where "I spoke last" is about this and nothing else. */
 	isDirect: boolean;
+	/**
+	 * Someone else the message tagged alongside me, when theirs is the newest
+	 * reply and it came after the ask — "@Idan @Dan can you help" that Idan
+	 * answered. Their name, or null.
+	 */
+	answeredBy: string | null;
 } | null> {
 	const token = slackToken();
 	if (!token) return null;
@@ -434,6 +440,7 @@ export async function slackThreadReplies(id: string): Promise<{
 		reply_users_count?: number;
 		latest_reply?: string;
 		user?: string;
+		text?: string;
 	};
 	const get = (timestamp: string) =>
 		slackApi<SlackResponse & { message?: ThreadMessage }>(
@@ -455,16 +462,27 @@ export async function slackThreadReplies(id: string): Promise<{
 		const iReplied = repliers.includes(me.userId);
 		const latest = message.latest_reply ?? null;
 		const after = await conversationAfter(channel, ts, me.userId, token);
+		// The others the ask was put to. Only a reply newer than the ask can be
+		// an answer to it.
+		const coAsked = mentionedUserIds(res.message?.text ?? "").filter(
+			(user) => user !== me.userId,
+		);
+		const answerable = latest !== null && Number(latest) > Number(ts);
+		// Who spoke last. Only worth a call when it could decide something: I'm
+		// in the thread, or someone tagged with me might have answered.
+		const lastBy =
+			latest && (iReplied || (answerable && coAsked.length > 0))
+				? ((await get(latest)).message?.user ?? null)
+				: null;
 		return {
 			replies: message.reply_count ?? 0,
 			iReplied,
 			...after,
-			// Who spoke last. Only worth a call when I'm in the thread at all —
-			// if I never replied, the last word certainly isn't mine.
-			lastReplyByMe:
-				iReplied && latest
-					? ((await get(latest)).message?.user ?? null) === me.userId
-					: false,
+			lastReplyByMe: iReplied && lastBy === me.userId,
+			answeredBy:
+				answerable && lastBy && coAsked.includes(lastBy)
+					? ((await lookupUserName(lastBy, token)) ?? "someone tagged with you")
+					: null,
 			// Slack caps `reply_users` at five. Past that my absence from the list
 			// isn't evidence I stayed out of the thread, and the sweep must not
 			// read it as one.

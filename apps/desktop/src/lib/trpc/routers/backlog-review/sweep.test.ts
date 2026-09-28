@@ -132,6 +132,31 @@ describe("verdicts", () => {
 		expect(answer.verdict).toBe("KEEP");
 	});
 
+	// Reported from the board: "@Idan @Dan will need your help here", and Idan
+	// answered all seven points. The ask was never waiting on me after that.
+	test("someone tagged with me answering the ask is a DROP", async () => {
+		const answer = await sweepItem(
+			item({ key: "slack:C1:123", title: "@Idan @Dan will need your help" }),
+			deps({
+				slackThread: async () => ({
+					replies: 5,
+					lastReplyByMe: false,
+					iReplied: false,
+					repliersComplete: true,
+					lastReplyTs: recentTs(),
+					channelLastTs: null,
+					channelLastByMe: false,
+					isDirect: false,
+					answeredBy: "Idan Dagan",
+				}),
+			}),
+		);
+		expect(answer).toEqual({
+			verdict: "DROP",
+			evidence: "Idan Dagan, tagged with you, answered in the thread",
+		});
+	});
+
 	// Reported from the board: a thread Dan answered in week one, where they
 	// came back in week three asking him to decide. In reply_users, not the last
 	// word — the row is still his.
