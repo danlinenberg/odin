@@ -54,7 +54,9 @@ jobs:
           # The cask resolves /releases/latest/download/Odin-arm64.dmg, so the
           # asset name has to stay the same across releases.
           mv "$dmg" Odin-arm64.dmg
+          # No upload --clobber fallback: a manual run on an unbumped main
+          # would swap a newer build into the old release, which keeps its old
+          # date and version. Fail instead; scripts/release.sh bumps first.
           gh release create "$TAG" Odin-arm64.dmg \
             --title "$TAG" \
-            --generate-notes \
-            || gh release upload "$TAG" Odin-arm64.dmg --clobber
+            --generate-notes
