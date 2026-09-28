@@ -110,6 +110,13 @@ spawned_by_another_claude() {
 }
 spawned_by_another_claude && exit 0
 
+# Claude puts its session_id on every hook it fires. An event without one was
+# piped in by hand — an agent testing this script from its own pane, which
+# inherits the card's ODIN_* env. Its Stop turned a working card to Done, and
+# the queue took that as Odin's checkout coming free: a second session started
+# alongside the first one still editing it.
+[ "$ODIN_AGENT_ID" = "claude" ] && [ -z "$HOOK_SESSION_ID" ] && exit 0
+
 # UserPromptSubmit normalizes here; other aliases are mapped server-side
 # by mapEventType so the wire stays a single source of truth.
 [ "$EVENT_TYPE" = "UserPromptSubmit" ] && EVENT_TYPE="Start"
