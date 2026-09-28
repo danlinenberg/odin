@@ -61,11 +61,13 @@ import {
 import { PersonChip, personColor } from "../components/PersonChip";
 import { DueChip, OverdueMark, useReminders } from "../components/Reminders";
 import { TranscriptView } from "../components/TranscriptView";
+import { useBacklogReview } from "../hooks/useBacklogReview";
 import { useOdinProfile } from "../hooks/useOdinProfile";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePaneMeta } from "../hooks/usePaneMeta";
 import { usePendingFocus } from "../hooks/usePendingFocus";
 import { PANE_STATUS } from "../pane-status";
+import { sessionFor } from "../review/verdicts";
 import {
 	elapsedLabel,
 	lastMessageAt,
@@ -286,6 +288,33 @@ function useCardTranscript(card: BoardCard, live: boolean) {
 			// session's is frozen.
 			refetchInterval: live ? 60_000 : false,
 		},
+	);
+}
+
+/**
+ * The Review sweep said the thing this session is working is done or gone —
+ * a merged PR, a closed ticket, a thread someone else answered. Same link
+ * Review uses to name the session, read the other way round. A suggestion:
+ * the card is still yours to close.
+ *
+ * ponytail: tasks match by title here, not by the task's pane id; pass the
+ * task map if a renamed task card ever misses its verdict.
+ */
+function DropPill({ pane }: { pane: Pane }) {
+	const row = useBacklogReview((state) =>
+		state.swept.find(
+			(r) =>
+				r.verdict === "DROP" && sessionFor(r, [pane], new Map()) === pane.id,
+		),
+	);
+	if (!row) return null;
+	return (
+		<span
+			title={`The Review sweep says drop this: ${row.evidence}`}
+			className="inline-flex items-center rounded-[5px] bg-[#331a1f] px-[7px] text-[11px] font-medium text-[#ff7a8a]"
+		>
+			drop? {row.evidence}
+		</span>
 	);
 }
 
@@ -2395,6 +2424,7 @@ function DevBoardPage() {
 																	/>
 																</div>
 																<div className="mt-1 flex flex-wrap items-center gap-1.5">
+																	<DropPill pane={card.pane} />
 																	{boardTags(
 																		card.pane.odinTags,
 																		customTags,
