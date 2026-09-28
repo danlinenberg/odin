@@ -50,7 +50,7 @@ import {
 	odinScreenStatus,
 	odinScreenWrite,
 } from "shared/odin-screen-status";
-import { BOARD_TAGS, boardTags } from "shared/odin-tags";
+import { BOARD_TAGS, boardTags, normalizeTag } from "shared/odin-tags";
 import {
 	cardBody,
 	OdinPromptDialog,
@@ -554,29 +554,36 @@ function CardHoverContent({
  * Right-click menu for a session card: star it, and the board's tags to toggle.
  * Positioned at the cursor; closes on Escape or click-outside.
  *
- * ponytail: no "new tag" field — the list is closed (shared/odin-tags), and a
- * typed one-off tag was how the vocabulary sprawled in the first place.
+ * The built-in list is closed (shared/odin-tags); the field at the bottom adds
+ * your own, and × forgets one — its cards keep it in app-state, just unshown.
  */
 function TagMenu({
 	x,
 	y,
 	tags,
 	allTags,
+	customTags,
 	starred,
 	onStar,
 	onToggle,
+	onAdd,
+	onForget,
 	onClose,
 }: {
 	x: number;
 	y: number;
 	tags: string[];
 	allTags: string[];
+	customTags: string[];
 	starred: boolean;
 	onStar: () => void;
 	onToggle: (tag: string) => void;
+	onAdd: (tag: string) => void;
+	onForget: (tag: string) => void;
 	onClose: () => void;
 }) {
 	const ref = useRef<HTMLDivElement>(null);
+	const [draft, setDraft] = useState("");
 
 	useEffect(() => {
 		const onKey = (event: KeyboardEvent) => {
@@ -600,7 +607,7 @@ function TagMenu({
 
 	// Keep the menu on screen near the edges.
 	const left = Math.min(x, window.innerWidth - 240);
-	const top = Math.min(y, window.innerHeight - 290);
+	const top = Math.min(y, window.innerHeight - 320);
 
 	return (
 		<div
@@ -623,23 +630,45 @@ function TagMenu({
 				Tags
 			</div>
 			<div className="flex max-h-[180px] flex-col overflow-y-auto">
-				{allTags.map((tag) => {
+				{[...allTags, ...customTags].map((tag) => {
 					const on = tags.includes(tag);
 					return (
-						<button
-							key={tag}
-							type="button"
-							onClick={() => onToggle(tag)}
-							className={cn(
-								"flex items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] transition-colors",
-								on ? "text-[#a394ff]" : "text-[#a5a5b3] hover:text-[#f5f5f7]",
+						<div key={tag} className="group flex items-center">
+							<button
+								type="button"
+								onClick={() => onToggle(tag)}
+								className={cn(
+									"flex flex-1 items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] transition-colors",
+									on ? "text-[#a394ff]" : "text-[#a5a5b3] hover:text-[#f5f5f7]",
+								)}
+							>
+								<span className="w-3">{on ? "✓" : ""}</span>#{tag}
+							</button>
+							{customTags.includes(tag) && (
+								<button
+									type="button"
+									title="Remove this tag from the list"
+									onClick={() => onForget(tag)}
+									className="px-1.5 text-[12px] text-[#5e5e6a] opacity-0 transition-opacity hover:text-[#f5f5f7] group-hover:opacity-100"
+								>
+									×
+								</button>
 							)}
-						>
-							<span className="w-3">{on ? "✓" : ""}</span>#{tag}
-						</button>
+						</div>
 					);
 				})}
 			</div>
+			<input
+				value={draft}
+				onChange={(event) => setDraft(event.target.value)}
+				onKeyDown={(event) => {
+					if (event.key !== "Enter") return;
+					onAdd(draft);
+					setDraft("");
+				}}
+				placeholder="New tag…"
+				className="mt-1.5 w-full rounded-md border border-[#25252e] bg-transparent px-1.5 py-1 text-[12px] text-[#f5f5f7] outline-none placeholder:text-[#5e5e6a] focus:border-[#a394ff]"
+			/>
 		</div>
 	);
 }
@@ -1217,6 +1246,22 @@ function DevBoardPage() {
 		} catch {}
 	};
 
+	// Tags you typed into the tag menu. Per machine, like the column above —
+	// Odin is local-only, so there's no other machine to sync them to.
+	const [customTags, setCustomTags] = useState<string[]>(() => {
+		try {
+			return JSON.parse(localStorage.getItem("odin:custom-tags") ?? "[]");
+		} catch {
+			return [];
+		}
+	});
+	const saveCustomTags = (next: string[]) => {
+		setCustomTags(next);
+		try {
+			localStorage.setItem("odin:custom-tags", JSON.stringify(next));
+		} catch {}
+	};
+
 	const setPaneTags = (paneId: string, tags: string[]) => {
 		useTabsStore.setState((state) => ({
 			panes: {
@@ -1289,10 +1334,20 @@ function DevBoardPage() {
 			},
 		}));
 	};
+	// Type a tag in the menu: it joins the list and lands on this card.
+	const addCustomTag = (paneId: string, raw: string) => {
+		const tag = normalizeTag(raw);
+		if (!tag) return;
+		if (!BOARD_TAGS.includes(tag) && !customTags.includes(tag))
+			saveCustomTags([...customTags, tag]);
+		const current = boardTags(panes[paneId]?.odinTags, [...customTags, tag]);
+		if (!current.includes(tag)) setPaneTags(paneId, [...current, tag]);
+	};
+
 	const toggleTag = (paneId: string, tag: string) => {
 		// Off-list tags from the older, longer vocabulary are dropped here:
 		// touch a card's tags and it comes back clean.
-		const current = boardTags(panes[paneId]?.odinTags);
+		const current = boardTags(panes[paneId]?.odinTags, customTags);
 		setPaneTags(
 			paneId,
 			current.includes(tag)
@@ -1407,7 +1462,7 @@ function DevBoardPage() {
 						pane.odinParked ?? false,
 						loopingPaneIds.has(pane.id),
 					);
-					for (const tag of boardTags(pane.odinTags))
+					for (const tag of boardTags(pane.odinTags, customTags))
 						tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
 					if (pane.odinStarred) starred++;
 					const person = pane.odinContact ?? contactByPane[pane.id] ?? null;
@@ -1418,7 +1473,9 @@ function DevBoardPage() {
 						(boardFilter.startsWith("person:") &&
 							person !== boardFilter.slice(7)) ||
 						(boardFilter.startsWith("tag:") &&
-							!boardTags(pane.odinTags).includes(boardFilter.slice(4))) ||
+							!boardTags(pane.odinTags, customTags).includes(
+								boardFilter.slice(4),
+							)) ||
 						(needle &&
 							![
 								pane.odinTaskTitle ?? titleByPane[pane.id],
@@ -1429,7 +1486,7 @@ function DevBoardPage() {
 								person,
 								card.repoPath,
 								workText[pane.id],
-								...boardTags(pane.odinTags),
+								...boardTags(pane.odinTags, customTags),
 							].some((text) => text?.toLowerCase().includes(needle)))
 					)
 						continue;
@@ -1465,6 +1522,7 @@ function DevBoardPage() {
 			briefByPane,
 			activeProfileId,
 			isProfileLoading,
+			customTags,
 		]);
 
 	// Write the session briefs in the background, so opening a card shows one
@@ -2135,8 +2193,13 @@ function DevBoardPage() {
 				<TagMenu
 					x={tagMenu.x}
 					y={tagMenu.y}
-					tags={boardTags(panes[tagMenu.paneId]?.odinTags)}
+					tags={boardTags(panes[tagMenu.paneId]?.odinTags, customTags)}
 					allTags={BOARD_TAGS}
+					customTags={customTags}
+					onAdd={(tag) => addCustomTag(tagMenu.paneId, tag)}
+					onForget={(tag) =>
+						saveCustomTags(customTags.filter((t) => t !== tag))
+					}
 					starred={!!panes[tagMenu.paneId]?.odinStarred}
 					onStar={() =>
 						useTabsStore.setState((state) => ({
@@ -2337,19 +2400,21 @@ function DevBoardPage() {
 																	/>
 																</div>
 																<div className="mt-1 flex flex-wrap items-center gap-1.5">
-																	{boardTags(card.pane.odinTags).some(
-																		(tag) => tag !== "automation",
-																	) && (
+																	{boardTags(
+																		card.pane.odinTags,
+																		customTags,
+																	).some((tag) => tag !== "automation") && (
 																		<span className="font-mono text-[10.5px] text-[#5e5e6a]">
-																			{boardTags(card.pane.odinTags)
+																			{boardTags(card.pane.odinTags, customTags)
 																				.filter((tag) => tag !== "automation")
 																				.map((tag) => `#${tag}`)
 																				.join(" ")}
 																		</span>
 																	)}
-																	{boardTags(card.pane.odinTags).includes(
-																		"automation",
-																	) && (
+																	{boardTags(
+																		card.pane.odinTags,
+																		customTags,
+																	).includes("automation") && (
 																		// Amber and a clock, the pair the Tasks list gives a scheduled row:
 																		// the one tag that answers "who started this?" on a board you
 																		// otherwise started yourself.
