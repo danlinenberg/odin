@@ -42,8 +42,9 @@ export function DiffView({
 	const [width, setWidth] = useState(120);
 	/** The PR on screen; null is the checkout's own diff. */
 	const [pr, setPr] = useState<string | null>(null);
-	/** The first line on screen — which file the list marks as current. */
-	const [top, setTop] = useState(0);
+	/** The file on screen. One at a time, so scrolling stops at its end
+	 * instead of running on into the next file. */
+	const [selected, setSelected] = useState(0);
 
 	// Same query (and cache entry) the brief beside it reads its PRs from.
 	const { data: transcript } =
@@ -90,7 +91,6 @@ export function DiffView({
 		fit.fit();
 		setWidth(Math.max(xterm.cols, 40));
 		term.current = { xterm, fit };
-		const scrolled = xterm.onScroll(setTop);
 
 		const observer = new ResizeObserver(() => {
 			try {
@@ -104,31 +104,39 @@ export function DiffView({
 
 		return () => {
 			observer.disconnect();
-			scrolled.dispose();
 			term.current = null;
 			xterm.dispose();
 		};
 	}, []);
 
+	// Missing until main restarts onto it — then the list just isn't there.
+	const files = data?.files ?? [];
+	const current = files[Math.min(selected, files.length - 1)];
+
 	useEffect(() => {
 		const xterm = term.current?.xterm;
 		if (!xterm || !data) return;
 		xterm.reset();
-		// Writing leaves the viewport at the end of the diff; you read one from
-		// the first file down.
+		// Only the selected file's lines; the first file also carries whatever
+		// precedes it (a commit header, a note).
+		const index = current ? files.indexOf(current) : -1;
+		const text =
+			index < 0
+				? data.ansi
+				: data.ansi
+						.split("\n")
+						.slice(index === 0 ? 0 : current.line, files[index + 1]?.line)
+						.join("\n");
+		// Writing leaves the viewport at the end; you read a file from the top.
 		xterm.write(
 			data.ansi.trim()
-				? data.ansi
+				? text
 				: pr
 					? "This PR has no changes."
 					: "Nothing from this session — no uncommitted changes, and the last commit here predates it.",
 			() => xterm.scrollToTop(),
 		);
-	}, [data, pr]);
-
-	// Missing until main restarts onto it — then the list just isn't there.
-	const files = data?.files ?? [];
-	const current = files.findLast((file) => file.line <= top);
+	}, [data, pr, current, files]);
 	const total = files.reduce(
 		(sum, file) => ({
 			added: sum.added + file.added,
@@ -147,7 +155,10 @@ export function DiffView({
 				{prs.length > 0 && (
 					<select
 						value={pr ?? ""}
-						onChange={(event) => setPr(event.target.value || null)}
+						onChange={(event) => {
+							setPr(event.target.value || null);
+							setSelected(0);
+						}}
 						title="Which diff to show"
 						className="rounded-[5px] border border-[#25252e] bg-[#17171d] px-1.5 py-0.5 text-[11px] normal-case tracking-normal text-[#e6e6ee] outline-none hover:border-[#3a3a48]"
 					>
@@ -206,7 +217,7 @@ export function DiffView({
 							<span className="text-[#f0647a]">−{total.removed}</span>
 						</div>
 						<div className="min-h-0 flex-1 overflow-y-auto py-1">
-							{files.map((file) => {
+							{files.map((file, index) => {
 								const slash = file.path.lastIndexOf("/");
 								// `binary` is missing until main restarts onto it; nothing
 								// added or removed is the same tell for these files.
@@ -220,7 +231,7 @@ export function DiffView({
 												? `${file.path}\nBinary file — no text diff to show`
 												: file.path
 										}
-										onClick={() => term.current?.xterm.scrollToLine(file.line)}
+										onClick={() => setSelected(index)}
 										className={`flex w-full items-baseline gap-2 px-3 py-[3px] text-left text-[12px] ${
 											file === current
 												? "bg-[#1f1f27] text-[#e6e6ee]"
