@@ -32,6 +32,7 @@ import { canClaimKeyboard } from "renderer/lib/keyboard";
 import { coldRestoreState } from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/state";
 import { Terminal } from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/Terminal";
 import * as terminalCache from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/v1-terminal-cache";
+import { launchLimits, useLaunchLimits } from "renderer/stores/launch-limits";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import type { Pane, PaneStatus } from "renderer/stores/tabs/types";
 import { lastAgentHookAt } from "renderer/stores/tabs/useAgentHookListener";
@@ -41,6 +42,7 @@ import {
 	bySection,
 	SECTION_LABEL,
 } from "shared/board-section";
+import { claimedCheckout, launchBlocker } from "shared/launch-gate";
 import { sessionUsageLabel } from "shared/machine-load";
 import { profileOf } from "shared/odin-profile";
 import {
@@ -700,6 +702,7 @@ function DevBoardPage() {
 		useOdinProfile();
 	const { launch, isLaunching } = useLaunchTaskSession();
 	const utils = electronTrpc.useUtils();
+	const { data: workConfig } = electronTrpc.work.getConfig.useQuery();
 	// An <a> would navigate the app window; the ticket opens in a browser.
 	const openUrl = electronTrpc.external.openUrl.useMutation();
 	const contactByPane = usePaneMeta((s) => s.contactByPane);
@@ -1576,6 +1579,47 @@ function DevBoardPage() {
 	 * we kill any existing session first, then createOrAttach with the command
 	 * (no shell-typing race, works whether the prior claude is alive or dead).
 	 */
+	/**
+	 * What a Resume has to wait for — the same gate a launch waits on, since a
+	 * resumed agent takes a slot on the Mac like a new one. The card itself is
+	 * left out: a session that died mid-turn still reads "working" and would
+	 * otherwise hold its own checkout. A failed read lets it through.
+	 */
+	const resumeBlocker = async (pane: Pane, cwd: string | undefined) => {
+		try {
+			return launchBlocker(
+				await utils.client.resourceMetrics.getSnapshot.query(),
+				Object.values(useTabsStore.getState().panes).filter(
+					(other) => other.id !== pane.id,
+				),
+				pane.odinCwd ??
+					claimedCheckout(undefined, cwd ?? "", workConfig?.odinRepoPath),
+				workConfig?.odinRepoPath,
+				launchLimits(useLaunchLimits.getState()),
+			);
+		} catch {
+			return null;
+		}
+	};
+
+	/** Park a Resume in Queued; useTaskQueue runs `command` when the gate clears. */
+	const queueResume = (pane: Pane, command: string, reason: string) => {
+		useTabsStore.setState((state) => ({
+			panes: {
+				...state.panes,
+				[pane.id]: {
+					...state.panes[pane.id],
+					status: "idle",
+					odinParked: false,
+					interrupted: false,
+					completed: false,
+					odinQueued: { command, reason },
+				},
+			},
+		}));
+		setDrawerCard(null);
+	};
+
 	const resumeCard = async (card: BoardCard) => {
 		if (resumingPaneIds.includes(card.pane.id)) return;
 		// Never started: there's no conversation to resume, only the launch that
@@ -1608,6 +1652,23 @@ function DevBoardPage() {
 		const screen = visibleScreen(card.pane.id);
 		const shellOnScreen = screen.trim() !== "" && !agentOnScreen(screen);
 		if (agentPaneIds.has(card.pane.id) && !shellOnScreen) {
+			const blocker = await resumeBlocker(card.pane, sessionCwd(card.pane));
+			if (blocker) {
+				const id =
+					card.pane.claudeSessionId ??
+					usePaneMeta.getState().sessionIdByPane[card.pane.id];
+				const cwd = sessionCwd(card.pane) ?? card.repoPath;
+				if (!id || !cwd) {
+					toast.error(`Not now: ${blocker}`);
+					return;
+				}
+				queueResume(
+					card.pane,
+					`cd '${cwd}' && claude --dangerously-skip-permissions --resume ${id} Continue`,
+					blocker,
+				);
+				return;
+			}
 			try {
 				await sendContinue(card.pane.id);
 			} catch (error) {
@@ -1698,6 +1759,19 @@ function DevBoardPage() {
 		const resumeCmd = sessionId
 			? `claude --dangerously-skip-permissions --resume ${sessionId}`
 			: "claude --dangerously-skip-permissions --continue";
+		const blocker = await resumeBlocker(card.pane, cwd);
+		if (blocker) {
+			// Held, the waitForAgent nudge below never runs — the prompt rides
+			// on the command instead.
+			const queuedCmd = diedWorking ? `${resumeCmd} Continue` : resumeCmd;
+			queueResume(
+				card.pane,
+				cwd ? `cd '${cwd}' && ${queuedCmd}` : queuedCmd,
+				blocker,
+			);
+			setResumingPaneIds((ids) => ids.filter((id) => id !== card.pane.id));
+			return;
+		}
 		try {
 			// Free the pane (dead or a live cold-restored shell) so the respawn
 			// re-runs the command. Ignore errors — pane may already be dead.
