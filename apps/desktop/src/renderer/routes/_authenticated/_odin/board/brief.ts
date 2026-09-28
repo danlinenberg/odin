@@ -146,6 +146,23 @@ export function notionPage(messages: BriefMessage[]): NotionPageLink | null {
 	return pages.find((page) => page.title) ?? pages[0] ?? null;
 }
 
+// claude.ai/artifact/<id> and claude.ai/code/artifact/<uuid>.
+const ARTIFACT_URL = /https:\/\/claude\.ai\/(?:code\/)?artifact\/[\w-]+/g;
+
+/**
+ * The artifact this session published — its deliverable when that's a page
+ * rather than a diff or a doc. Newest wins: a session republishes the same url
+ * as it iterates, and a second artifact supersedes the first far more often
+ * than it sits beside it. Claude's turns only, like pullRequests: one you
+ * pasted in is input.
+ */
+export function artifactLink(messages: BriefMessage[]): string | null {
+	let found: string | null = null;
+	for (const message of messages.filter((m) => m.role === "assistant"))
+		for (const url of message.text.match(ARTIFACT_URL) ?? []) found = url;
+	return found;
+}
+
 export interface JiraIssueLink {
 	url: string;
 	key: string;
@@ -322,6 +339,7 @@ export function linkLabel(url: string): string {
 		? NOTION_ID.exec(url)?.[0]
 		: undefined;
 	if (notionId) return notionTitle(url, notionId) ?? "Notion page";
+	if (/claude\.ai\/(?:code\/)?artifact\//.test(url)) return "Artifact";
 	return sourceLink(url)?.label ?? url;
 }
 
@@ -342,7 +360,13 @@ export function parseLinks(input: string): { url: string; name?: string }[] {
 	return urls.map((url) => ({ url }));
 }
 
-export type LinkKind = "jira" | "slack" | "pr" | "notion" | "other";
+export type LinkKind =
+	| "jira"
+	| "slack"
+	| "pr"
+	| "notion"
+	| "artifact"
+	| "other";
 
 /** Which brief section a link you added belongs in. */
 export function linkKind(url: string): LinkKind {
@@ -350,5 +374,6 @@ export function linkKind(url: string): LinkKind {
 	if (/\.slack\.com\/archives\//.test(url)) return "slack";
 	if (/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/.test(url)) return "pr";
 	if (/notion\.(?:so|com|site)\//.test(url)) return "notion";
+	if (/claude\.ai\/(?:code\/)?artifact\//.test(url)) return "artifact";
 	return "other";
 }

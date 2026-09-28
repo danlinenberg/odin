@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import {
+	artifactLink,
 	type BriefMessage,
 	elapsedLabel,
 	jiraIssue,
@@ -463,5 +464,27 @@ describe("nextCronFire", () => {
 	it("gives up on garbage and schedules beyond a week", () => {
 		expect(nextCronFire("nope", from)).toBeNull();
 		expect(nextCronFire("0 0 1 1 *", from)).toBeNull();
+	});
+});
+
+describe("artifactLink", () => {
+	const say = (role: "user" | "assistant", text: string): BriefMessage => ({
+		role,
+		text,
+		at: null,
+	});
+	it("returns the newest artifact the agent published, not one you pasted", () => {
+		expect(
+			artifactLink([
+				say("user", "update https://claude.ai/artifact/pasted"),
+				say("assistant", "Published: https://claude.ai/code/artifact/abc-1."),
+				say("assistant", "[Report](https://claude.ai/artifact/def2)"),
+			]),
+		).toBe("https://claude.ai/artifact/def2");
+		expect(artifactLink([say("user", "https://claude.ai/artifact/x")])).toBe(
+			null,
+		);
+		expect(linkKind("https://claude.ai/artifact/x")).toBe("artifact");
+		expect(linkLabel("https://claude.ai/code/artifact/x")).toBe("Artifact");
 	});
 });
