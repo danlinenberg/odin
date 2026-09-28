@@ -60,7 +60,14 @@ has_open_action_items() {
       gsub(/\\n/, "\n", s)
       u = toupper(s); p = 0; at = 0
       while ((j = index(substr(u, p + 1), "ACTION ITEMS")) > 0) { p += j; at = p }
-      if (!at) exit 1
+      # No section at all, but the turn ends on a question: it is still open.
+      # The message runs from its opening quote to the first unescaped one.
+      if (!at) {
+        sub(/^[^"]*"/, "", s)
+        if (match(s, /[^\\]"/)) s = substr(s, 1, RSTART)
+        sub(/[ \t\n]+$/, "", s)
+        exit (s ~ /[?][*_`)]*$/) ? 0 : 1
+      }
       t = substr(s, at + 12)
       if (tolower(t) ~ /^[^a-z0-9]*none/) exit 1
       n = split(t, lines, "\n")
@@ -76,6 +83,32 @@ if [ "$EVENT_TYPE" = "Stop" ]; then
       ;;
   esac
 fi
+
+# Only the outermost claude owns the card. A headless `claude -p` that a Stop
+# hook, script or Bash call spawns inherits the card's ODIN_* env, so its own
+# Start/Stop land on that card too — and its Stop, with no ACTION ITEMS of its
+# own, turns the card's Needs you into Done a few seconds after the real turn
+# ended. Walk up to the terminal host: a second claude above the first means
+# this one is somebody's helper.
+spawned_by_another_claude() {
+  local pid=$PPID seen=0 line ppid args first i
+  for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+    line=$(ps -o ppid=,args= -p "$pid" 2>/dev/null) || return 1
+    read -r ppid args <<< "$line"
+    first=${args%% *}
+    case "$args" in *.app/Contents/MacOS/*) return 1 ;; esac
+    case "${first##*/}:$args" in
+      claude:*|node:*claude-code/cli*)
+        [ "$seen" = 1 ] && return 0
+        seen=1
+        ;;
+    esac
+    [ -n "$ppid" ] && [ "$ppid" -gt 1 ] 2>/dev/null || return 1
+    pid=$ppid
+  done
+  return 1
+}
+spawned_by_another_claude && exit 0
 
 # UserPromptSubmit normalizes here; other aliases are mapped server-side
 # by mapEventType so the wire stays a single source of truth.
