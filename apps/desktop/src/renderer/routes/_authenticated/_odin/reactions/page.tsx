@@ -137,10 +137,20 @@ function ReactionsPage() {
 			(pane) => pane.odinPageId === id && !pane.completed,
 		)?.id ?? null;
 
+	// Free text matched against the author only — a name also appears in half
+	// the messages' @-mentions, so matching the text would find everything.
+	const [search, setSearch] = useState("");
+	const needle = search.trim().toLowerCase();
+
 	const data = reactions.data;
 	const rows = useMemo(
-		() => (data?.rows ?? []).filter((row) => inArea(row, area)),
-		[data, area],
+		() =>
+			(data?.rows ?? []).filter(
+				(row) =>
+					inArea(row, area) &&
+					(!needle || (row.authorName ?? "").toLowerCase().includes(needle)),
+			),
+		[data, area, needle],
 	);
 	// Typed as always-present, but the main process only reloads on restart: an
 	// app still running the old code answers without it, and its setReaction
@@ -226,6 +236,22 @@ function ReactionsPage() {
 					</FilterPill>
 				))}
 				<div className="ml-auto flex items-center gap-2.5">
+					<input
+						type="search"
+						value={search}
+						onChange={(e) => setSearch(e.target.value)}
+						onKeyDown={(e) => {
+							if (e.key !== "Escape") return;
+							setSearch("");
+							e.currentTarget.blur();
+						}}
+						placeholder="Search person"
+						aria-label="Search by person"
+						className={cn(
+							"w-[180px] rounded-full border bg-[#16161b] px-2.5 py-1 text-[12px] text-[#f5f5f7] outline-none placeholder:text-[#6b6b78] focus:border-[#a394ff]",
+							search ? "border-[#a394ff]" : "border-[#25252e]",
+						)}
+					/>
 					{/* Which emoji queues a message — the whole explanation is the tooltip. */}
 					{editingReaction ? (
 						<input
