@@ -311,7 +311,7 @@ function DropPill({ pane }: { pane: Pane }) {
 	return (
 		<span
 			title={`The Review sweep says drop this: ${row.evidence}`}
-			className="inline-flex items-center rounded-[5px] bg-[#ff7a8a]/10 px-[7px] text-[11px] font-medium text-[#ff7a8a]"
+			className="inline-flex items-center rounded-[5px] bg-[#ff7a8a]/5 px-[7px] text-[11px] font-medium text-[#ff7a8a]"
 		>
 			Drop? {row.evidence}
 		</span>
