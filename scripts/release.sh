@@ -50,9 +50,8 @@ OLD=$(git show origin/main:apps/desktop/package.json | jq -r .version)
 NEW="${1:-$(awk -F. '{print $1"."$2"."$3+1}' <<<"$OLD")}"
 TAG="v$NEW"
 
-# release.yml publishes with `gh release create "$TAG" || gh release upload
-# "$TAG" --clobber`, so releasing a version that already exists does not fail —
-# it silently swaps the asset on the old release for a different build.
+# release.yml would fail on a taken version too, but only after a 10-minute
+# build and a merged version bump — catch it here first.
 if gh release view "$TAG" --repo "$SLUG" >/dev/null 2>&1; then
 	echo "$TAG is already released — pass a version that is not taken" >&2
 	exit 1
