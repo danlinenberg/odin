@@ -90,9 +90,14 @@ export function dueLabel(due: string, now: number): string {
 	if (days === -1) return "Yesterday";
 	if (days === 0) return "Today";
 	if (days === 1) return "Tomorrow";
-	return localDay(due).toLocaleDateString(undefined, {
+	// The year only when it isn't this one: a stale ticket's "Oct 5" from last
+	// year otherwise reads as next week.
+	const day = localDay(due);
+	return day.toLocaleDateString(undefined, {
 		month: "short",
 		day: "numeric",
+		year:
+			day.getFullYear() === new Date(now).getFullYear() ? undefined : "numeric",
 	});
 }
 

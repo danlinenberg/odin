@@ -34,6 +34,7 @@ test("how a due date reads and looks", () => {
 		["2026-09-22", "today", "Today"],
 		["2026-09-23", "soon", "Tomorrow"],
 		["2026-09-30", "later", "Sep 30"],
+		["2025-10-05", "overdue", "Oct 5, 2025"],
 	] as const) {
 		expect(dueTone(due, LATE_TODAY)).toBe(tone);
 		expect(dueLabel(due, LATE_TODAY)).toBe(label);
@@ -107,6 +108,6 @@ test("the chip offers a date, with the native picker behind it", () => {
 	const html = renderToStaticMarkup(
 		<DueChip itemKey="jira:BUGT-1" title="BUGT-1: crash" />,
 	);
-	expect(html).toContain("+ due");
+	expect(html).toContain("+ Due");
 	expect(html).toContain('type="date"');
 });
