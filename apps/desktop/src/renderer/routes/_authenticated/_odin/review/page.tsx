@@ -41,7 +41,7 @@ export const Route = createFileRoute("/_authenticated/_odin/review/")({
 });
 
 const VERDICT_STYLE = {
-	DROP: "bg-[#ff7a8a]/5 text-[#ff7a8a]",
+	DROP: "bg-[#ff7a8a]/1 text-[#ff7a8a]",
 	KEEP: "bg-[#14301f] text-[#3ecf8e]",
 	UNKNOWN: "bg-[#1f1f27] text-[#8a8a97]",
 } as const;
