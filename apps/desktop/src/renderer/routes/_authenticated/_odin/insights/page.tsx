@@ -166,23 +166,9 @@ function Spinner() {
 	);
 }
 
-/** A spinner over placeholder cards shaped like what's coming. */
-function Loading({ label, blocks }: { label: string; blocks: number[] }) {
-	return (
-		<div className="flex flex-col gap-3" aria-busy="true">
-			<div className="flex items-center gap-2 text-[12px] text-[#6f6f7d]">
-				<Spinner />
-				{label}
-			</div>
-			{blocks.map((height) => (
-				<div
-					key={height}
-					className="animate-pulse rounded-[10px] border border-[#1f1f27] bg-[#131318]"
-					style={{ height }}
-				/>
-			))}
-		</div>
-	);
+/** Marks a section as still loading; the page hides until none are left. */
+function Loading() {
+	return <div aria-busy="true" />;
 }
 
 function Empty({ children }: { children: React.ReactNode }) {
@@ -789,8 +775,7 @@ function Workload() {
 			},
 		);
 
-	if (isLoading || !data)
-		return <Loading label="Reading transcripts…" blocks={[96, 260, 170]} />;
+	if (isLoading || !data) return <Loading />;
 	const filter = (
 		<div className="flex items-start gap-2">
 			<input
@@ -913,8 +898,7 @@ function Queue() {
 		{ refetchInterval: 60_000 },
 	);
 
-	if (isLoading || !data)
-		return <Loading label="Counting asks…" blocks={[64, 150]} />;
+	if (isLoading || !data) return <Loading />;
 
 	// A main process started before `gaps` existed won't send it.
 	const gaps = data.gaps ?? [];
@@ -1078,10 +1062,18 @@ function InsightsPage() {
 			)}
 			{/* Capped, not full-bleed: on a wide window every row stretched to
 			    2000px and nothing lined up close enough to compare. */}
-			<div className="mx-auto flex w-full max-w-[1120px] flex-col gap-7">
-				<Workload />
-				<div className="h-px bg-[#1f1f27]" />
-				<Queue />
+			{/* One spinner until every section has data — half a page popping in
+			    under a skeleton read as broken. */}
+			<div className="group mx-auto w-full max-w-[1120px]">
+				<div className="hidden h-[60vh] items-center justify-center gap-2 text-[12px] text-[#6f6f7d] group-has-[[aria-busy=true]]:flex">
+					<Spinner />
+					Loading insights…
+				</div>
+				<div className="flex flex-col gap-7 group-has-[[aria-busy=true]]:hidden">
+					<Workload />
+					<div className="h-px bg-[#1f1f27]" />
+					<Queue />
+				</div>
 			</div>
 		</div>
 	);
