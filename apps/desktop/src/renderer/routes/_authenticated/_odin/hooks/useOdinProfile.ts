@@ -11,7 +11,13 @@ import { DEFAULT_PROFILE_ID } from "shared/odin-profile";
  */
 
 /** tRPC keys every query as `[[router, procedure], …]`. */
-const PROFILE_SCOPED_ROUTERS = ["slack", "work", "notion", "connections"];
+const PROFILE_SCOPED_ROUTERS = [
+	"slack",
+	"work",
+	"notion",
+	"connections",
+	"insights",
+];
 
 /**
  * Drop every feed that was fetched as the old profile — its rows came from a
