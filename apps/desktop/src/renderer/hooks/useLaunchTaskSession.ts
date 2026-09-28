@@ -11,7 +11,6 @@ import {
 import { useTabsStore } from "renderer/stores/tabs/store";
 import { isVideoFile } from "shared/file-types";
 import { claimedCheckout, launchBlocker } from "shared/launch-gate";
-import { withOdinTag } from "shared/odin-tags";
 
 function slugify(title: string): string {
 	return (
@@ -162,8 +161,7 @@ export function boardIdentity(
  */
 export function useLaunchTaskSession() {
 	const utils = electronTrpc.useUtils();
-	// Odin's own checkout, so a session that runs there gets #odin whether or
-	// not the launching view thought to pass it.
+	// Odin's own checkout, for the launch gate.
 	const { data: workConfig } = electronTrpc.work.getConfig.useQuery();
 	// The work ledger. Logged here rather than in each feed page: every feed
 	// already hands `launch` the two things a row needs (`source` and `key`),
@@ -223,7 +221,7 @@ export function useLaunchTaskSession() {
 		pageId?: string | null;
 		/** Which Odin view launched this — the board groups cards by it. */
 		source?: OdinSource;
-		/** Board tags to stamp at launch (e.g. ["odin"] for work on Odin itself). */
+		/** Board tags to stamp at launch (e.g. ["automation"]). */
 		tags?: string[];
 		/** Open the session by invoking this skill — `gdpr`, `plugin:name`. */
 		skill?: string;
@@ -343,7 +341,7 @@ export function useLaunchTaskSession() {
 			}
 
 			// 2. Tab + pane for the session
-			const odinTags = withOdinTag(tags, sessionCwd, workConfig?.odinRepoPath);
+			const odinTags = tags;
 			// Read the profile now rather than from a cached query: a switch a
 			// moment ago must not stamp this session onto the profile you left.
 			const odinProfile = (await utils.client.connections.profiles.query())
