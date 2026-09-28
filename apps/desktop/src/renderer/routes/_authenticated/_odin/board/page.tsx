@@ -2353,11 +2353,9 @@ function DevBoardPage() {
 																		? "border-[#5a2733]"
 																		: "border-[#26262c]",
 																)}
-																// Same hue at the card's darkness, with a quarter of its chroma. A
-																// plain 5% alpha over near-black drains the chroma, and amber
-																// with none left reads as brown.
+																// The column dot's own colour, faint: 8% alpha over the column.
 																style={{
-																	background: `oklch(from ${PANE_STATUS[card.status].dot} 0.23 calc(c * 0.25) h / 0.3)`,
+																	background: `${PANE_STATUS[card.status].dot}14`,
 																}}
 															>
 																<div className="flex items-start gap-2">
