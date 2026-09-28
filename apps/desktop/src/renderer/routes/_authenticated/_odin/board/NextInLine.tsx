@@ -29,7 +29,7 @@ import {
 	HideButton,
 	useHiddenFilter,
 } from "../components/HiddenItems";
-import { effectiveDue, useReminders } from "../components/Reminders";
+import { DueChip, effectiveDue, useReminders } from "../components/Reminders";
 import { useBacklogReview } from "../hooks/useBacklogReview";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useMyTasks } from "../hooks/useOdinTasks";
@@ -188,6 +188,7 @@ function useNextInLineRows() {
 	);
 	return {
 		rows,
+		reminders,
 		prompt,
 		rankInput,
 		slackText,
@@ -196,7 +197,7 @@ function useNextInLineRows() {
 }
 
 export function NextInLine() {
-	const { rows, prompt, rankInput, slackText, refetchSlack } =
+	const { rows, reminders, prompt, rankInput, slackText, refetchSlack } =
 		useNextInLineRows();
 	const { ranking, applied, startedAt, error } = useAiRanking();
 	const navigate = useNavigate();
@@ -278,6 +279,16 @@ export function NextInLine() {
 					(order.get(a.key) ?? order.size) - (order.get(b.key) ?? order.size),
 			)
 		: candidates;
+	// Anything with a due date is pinned above the order, soonest first —
+	// a deadline outranks whatever the model thinks.
+	// ponytail: every dated row pins, however far out; add a horizon if a
+	// month-away date starts crowding the top.
+	const dueOf = (item: AllItem) =>
+		effectiveDue(item.key, reminders, item.dueDate);
+	const pinned = next
+		.filter((item) => dueOf(item))
+		.toSorted((a, b) => (dueOf(a) ?? "").localeCompare(dueOf(b) ?? ""));
+	const unpinned = pinned.length ? next.filter((item) => !dueOf(item)) : next;
 
 	return (
 		<div className="flex min-w-[240px] flex-1 flex-col rounded-xl border border-[#4b4380] bg-[#15131f] shadow-[0_0_0_1px_rgba(163,148,255,.12),0_8px_24px_-8px_rgba(163,148,255,.35)]">
@@ -329,136 +340,156 @@ export function NextInLine() {
 						Nothing waiting to start
 					</div>
 				) : (
-					next.map((item) => {
-						const Icon = ICON[item.to];
-						const meta = [item.person, item.context]
-							.filter(Boolean)
-							.join(" · ");
-						return (
-							<div
-								key={item.key}
-								className={cn(
-									"group relative flex items-start gap-2 rounded-[10px] border border-[#2c2940] bg-[#14131b] px-2.5 py-2 transition-colors hover:border-[#3f3a63]",
-									(hide.isHidden(item) || isAiHidden(item)) && "opacity-50",
-								)}
-								title={
-									isAiHidden(item)
-										? "Hidden by your Next in line instructions"
-										: undefined
-								}
-							>
-								{/* A to-do's checkbox, where a to-do's checkbox goes. */}
-								<button
-									type="button"
-									onClick={() => doneWithUndo(item)}
-									title="Mark done — take it off Next in line"
-									aria-label="Mark done"
-									className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border border-[#4a4a58] text-transparent transition-colors hover:border-[#3ecf8e] hover:bg-[#14301f] hover:text-[#3ecf8e]"
-								>
-									<LuCheck className="size-2.5" strokeWidth={3} aria-hidden />
-								</button>
-								{/* Title and meta get the card's whole width; the actions only
-								    exist on hover, so they never cost a line of text. */}
-								<HoverCard openDelay={400} closeDelay={80}>
-									<HoverCardTrigger asChild>
-										<div className="min-w-0 flex-1">
-											{/* dir=auto keeps a Hebrew line's characters in order; text-left
-											    keeps every card's text on the same edge. */}
-											<span
-												dir="auto"
-												className="line-clamp-2 break-words text-left text-[12.5px] font-medium leading-[1.4] text-[#ececf1]"
-											>
-												{emojify(cleanTitle(item.title))}
-											</span>
-											<div className="mt-1 flex items-center gap-1.5 text-[11px] text-[#8a8a97]">
-												{Icon && (
-													<Icon className="size-3 shrink-0" aria-hidden />
-												)}
-												{item.priority && (
-													<span
-														className={cn(
-															"shrink-0 font-medium",
-															item.urgency === "high"
-																? "text-[#f0a0ad]"
-																: item.urgency === "medium"
-																	? "text-[#e6c07b]"
-																	: "text-[#8a8a97]",
-														)}
-													>
-														{item.priority}
-													</span>
-												)}
-												<span className="min-w-0 truncate">{meta}</span>
-											</div>
-											{dropFor(item) && (
-												<div
-													title={`The Review sweep says drop this: ${dropFor(item)?.evidence}`}
-													className="mt-1 line-clamp-2 rounded-[5px] bg-[#ff7a8a]/10 px-[7px] py-px text-[11px] font-medium text-[#ff7a8a]"
-												>
-													Drop? {dropFor(item)?.evidence}
-												</div>
-											)}
-										</div>
-									</HoverCardTrigger>
-									<HoverCardContent
-										side="left"
-										align="start"
-										className="w-[360px] border-[#2c2940] bg-[#16151f] p-3"
-									>
-										<TaskHover
-											item={item}
-											text={
-												item.source === "Slack"
-													? (slackText.get(item.launch.key) ?? null)
-													: item.source === "Tasks"
-														? item.launch.description
-														: null
-											}
-										/>
-									</HoverCardContent>
-								</HoverCard>
-								<div
-									className={cn(
-										"absolute right-1.5 top-1.5 hidden items-center gap-0.5 rounded-lg border border-[#2c2940] bg-[#1a1824] p-0.5 shadow-lg group-focus-within:flex group-hover:flex",
-										launchingKey === item.launch.key && "flex",
-									)}
-								>
-									<HideButton
-										hidden={hide.isHidden(item)}
-										onClick={() => hide.toggle(item)}
-									/>
-									{item.url && /^https?:\/\//.test(item.url) && (
-										<button
-											type="button"
-											onClick={() => item.url && openUrl.mutate(item.url)}
-											title={
-												item.source === "Slack"
-													? "Open the thread in Slack"
-													: "Open in your browser"
-											}
-											aria-label="Open"
-											className="rounded-md p-1 text-[#a5a5b3] hover:bg-[#262433] hover:text-[#f5f5f7]"
-										>
-											<LuExternalLink className="size-3.5" aria-hidden />
-										</button>
-									)}
-									<button
-										type="button"
-										disabled={isLaunching}
-										onClick={() => void start(item)}
-										title="Start an agent session on this task"
-										className="rounded-md bg-[#14301f] px-2 py-0.5 text-[11px] font-semibold text-[#3ecf8e] hover:bg-[#1a4029] disabled:opacity-60"
-									>
-										{launchingKey === item.launch.key ? "starting…" : "▶ Start"}
-									</button>
-								</div>
+					<>
+						{pinned.length > 0 && (
+							<div className="px-1 pt-0.5 text-[10.5px] font-semibold uppercase tracking-[.4px] text-[#e6c07b]">
+								Due · {pinned.length}
 							</div>
-						);
-					})
+						)}
+						{pinned.map((item) => card(item, true))}
+						{pinned.length > 0 && unpinned.length > 0 && (
+							<div className="mt-1 border-t border-[#2c2940] px-1 pt-2 text-[10.5px] font-semibold uppercase tracking-[.4px] text-[#8a8a97]">
+								Everything else
+							</div>
+						)}
+						{unpinned.map((item) => card(item, false))}
+					</>
 				)}
 			</div>
 		</div>
 	);
+
+	function card(item: AllItem, due: boolean) {
+		const Icon = ICON[item.to];
+		const meta = [item.person, item.context].filter(Boolean).join(" · ");
+		return (
+			<div
+				key={item.key}
+				className={cn(
+					"group relative flex items-start gap-2 rounded-[10px] border border-[#2c2940] bg-[#14131b] px-2.5 py-2 transition-colors hover:border-[#3f3a63]",
+					(hide.isHidden(item) || isAiHidden(item)) && "opacity-50",
+				)}
+				title={
+					isAiHidden(item)
+						? "Hidden by your Next in line instructions"
+						: undefined
+				}
+			>
+				{/* A to-do's checkbox, where a to-do's checkbox goes. */}
+				<button
+					type="button"
+					onClick={() => doneWithUndo(item)}
+					title="Mark done — take it off Next in line"
+					aria-label="Mark done"
+					className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border border-[#4a4a58] text-transparent transition-colors hover:border-[#3ecf8e] hover:bg-[#14301f] hover:text-[#3ecf8e]"
+				>
+					<LuCheck className="size-2.5" strokeWidth={3} aria-hidden />
+				</button>
+				{/* Title and meta get the card's whole width; the actions only
+								    exist on hover, so they never cost a line of text. */}
+				<HoverCard openDelay={400} closeDelay={80}>
+					<HoverCardTrigger asChild>
+						<div className="min-w-0 flex-1">
+							{/* dir=auto keeps a Hebrew line's characters in order; text-left
+											    keeps every card's text on the same edge. */}
+							<span
+								dir="auto"
+								className="line-clamp-2 break-words text-left text-[12.5px] font-medium leading-[1.4] text-[#ececf1]"
+							>
+								{emojify(cleanTitle(item.title))}
+							</span>
+							<div className="mt-1 flex items-center gap-1.5 text-[11px] text-[#8a8a97]">
+								{Icon && <Icon className="size-3 shrink-0" aria-hidden />}
+								{item.priority && (
+									<span
+										className={cn(
+											"shrink-0 font-medium",
+											item.urgency === "high"
+												? "text-[#f0a0ad]"
+												: item.urgency === "medium"
+													? "text-[#e6c07b]"
+													: "text-[#8a8a97]",
+										)}
+									>
+										{item.priority}
+									</span>
+								)}
+								<span className="min-w-0 truncate">{meta}</span>
+								{due && (
+									<span className="ml-auto shrink-0">
+										<DueChip
+											itemKey={item.key}
+											title={item.title}
+											upstream={item.dueDate}
+										/>
+									</span>
+								)}
+							</div>
+							{dropFor(item) && (
+								<div
+									title={`The Review sweep says drop this: ${dropFor(item)?.evidence}`}
+									className="mt-1 line-clamp-2 rounded-[5px] bg-[#ff7a8a]/10 px-[7px] py-px text-[11px] font-medium text-[#ff7a8a]"
+								>
+									Drop? {dropFor(item)?.evidence}
+								</div>
+							)}
+						</div>
+					</HoverCardTrigger>
+					<HoverCardContent
+						side="left"
+						align="start"
+						className="w-[360px] border-[#2c2940] bg-[#16151f] p-3"
+					>
+						<TaskHover
+							item={item}
+							text={
+								item.source === "Slack"
+									? (slackText.get(item.launch.key) ?? null)
+									: item.source === "Tasks"
+										? item.launch.description
+										: null
+							}
+						/>
+					</HoverCardContent>
+				</HoverCard>
+				<div
+					className={cn(
+						"absolute right-1.5 top-1.5 hidden items-center gap-0.5 rounded-lg border border-[#2c2940] bg-[#1a1824] p-0.5 shadow-lg group-focus-within:flex group-hover:flex",
+						launchingKey === item.launch.key && "flex",
+					)}
+				>
+					<HideButton
+						hidden={hide.isHidden(item)}
+						onClick={() => hide.toggle(item)}
+					/>
+					{item.url && /^https?:\/\//.test(item.url) && (
+						<button
+							type="button"
+							onClick={() => item.url && openUrl.mutate(item.url)}
+							title={
+								item.source === "Slack"
+									? "Open the thread in Slack"
+									: "Open in your browser"
+							}
+							aria-label="Open"
+							className="rounded-md p-1 text-[#a5a5b3] hover:bg-[#262433] hover:text-[#f5f5f7]"
+						>
+							<LuExternalLink className="size-3.5" aria-hidden />
+						</button>
+					)}
+					<button
+						type="button"
+						disabled={isLaunching}
+						onClick={() => void start(item)}
+						title="Start an agent session on this task"
+						className="rounded-md bg-[#14301f] px-2 py-0.5 text-[11px] font-semibold text-[#3ecf8e] hover:bg-[#1a4029] disabled:opacity-60"
+					>
+						{launchingKey === item.launch.key ? "starting…" : "▶ Start"}
+					</button>
+				</div>
+			</div>
+		);
+	}
 }
 
 /**
