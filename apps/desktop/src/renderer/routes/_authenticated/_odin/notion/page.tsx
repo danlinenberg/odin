@@ -1,7 +1,7 @@
 import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { ConnectNotice } from "renderer/components/ConnectProvider/ConnectProvider";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { electronTrpc } from "renderer/lib/electron-trpc";
@@ -12,6 +12,7 @@ import {
 	FEED_ROW,
 	FeedDivider,
 	FeedHeader,
+	FeedSearch,
 	META_DATE,
 	META_PERSON,
 	META_TAG,
@@ -86,6 +87,21 @@ function NotionPage() {
 		(row) => row.pageId,
 	);
 	const rows = hide.rows;
+	// Free text over the title and every field value on the row.
+	const [search, setSearch] = useState("");
+	const needle = search.trim().toLowerCase();
+	const shown = useMemo(
+		() =>
+			needle
+				? rows.filter((row) =>
+						[row.title, row.status ?? "", ...Object.values(row.fields)]
+							.join(" ")
+							.toLowerCase()
+							.includes(needle),
+					)
+				: rows,
+		[rows, needle],
+	);
 
 	// pageId → the pane of the session running on that row.
 	const livePaneByPage = useMemo(() => {
@@ -97,8 +113,8 @@ function NotionPage() {
 
 	// Grouped by status, Notion's own order kept, finished statuses last.
 	const groups = useMemo(
-		() => groupByStatus(rows, (pageId) => livePaneByPage.has(pageId)),
-		[rows, livePaneByPage],
+		() => groupByStatus(shown, (pageId) => livePaneByPage.has(pageId)),
+		[shown, livePaneByPage],
 	);
 
 	const handleStart = async (row: (typeof rows)[number]) => {
@@ -131,6 +147,13 @@ function NotionPage() {
 					{rows.length > 0 && ` · ${rows.length} rows`}
 				</span>
 				<div className="ml-auto flex items-center gap-2.5">
+					{rows.length > 0 && (
+						<FeedSearch
+							value={search}
+							onChange={setSearch}
+							label="Search Notion rows"
+						/>
+					)}
 					<HiddenToggle
 						count={hide.hiddenCount}
 						showing={hide.showHidden}
@@ -184,6 +207,11 @@ function NotionPage() {
 				{databaseId && rowsQuery.data && rows.length === 0 && (
 					<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
 						This database has no rows.
+					</div>
+				)}
+				{needle && rows.length > 0 && shown.length === 0 && (
+					<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
+						No rows match your search
 					</div>
 				)}
 

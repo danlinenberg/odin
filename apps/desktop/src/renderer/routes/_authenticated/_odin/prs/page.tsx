@@ -11,6 +11,7 @@ import {
 	FEED_ROW,
 	FeedDivider,
 	FeedHeader,
+	FeedSearch,
 	FeedSelect,
 	FilterPill,
 	META_DATE,
@@ -184,21 +185,10 @@ function MyPullRequestsPage() {
 					</FilterPill>
 				))}
 				<div className="ml-auto flex items-center gap-2.5">
-					<input
-						type="search"
+					<FeedSearch
 						value={search}
-						onChange={(e) => setSearch(e.target.value)}
-						onKeyDown={(e) => {
-							if (e.key !== "Escape") return;
-							setSearch("");
-							e.currentTarget.blur();
-						}}
-						placeholder="Search"
-						aria-label="Search pull requests"
-						className={cn(
-							"w-[180px] rounded-full border bg-[#16161b] px-2.5 py-1 text-[12px] text-[#f5f5f7] outline-none placeholder:text-[#6b6b78] focus:border-[#a394ff]",
-							search ? "border-[#a394ff]" : "border-[#25252e]",
-						)}
+						onChange={setSearch}
+						label="Search pull requests"
 					/>
 					{botCount > 0 && (
 						<button

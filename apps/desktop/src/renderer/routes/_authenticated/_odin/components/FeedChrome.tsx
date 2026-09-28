@@ -101,6 +101,38 @@ export function FeedSelect({
 	);
 }
 
+/** Free-text row filter, same pill in every feed. Esc clears it. */
+export function FeedSearch({
+	value,
+	onChange,
+	placeholder = "Search",
+	label = placeholder,
+}: {
+	value: string;
+	onChange: (value: string) => void;
+	placeholder?: string;
+	label?: string;
+}) {
+	return (
+		<input
+			type="search"
+			value={value}
+			onChange={(e) => onChange(e.target.value)}
+			onKeyDown={(e) => {
+				if (e.key !== "Escape") return;
+				onChange("");
+				e.currentTarget.blur();
+			}}
+			placeholder={placeholder}
+			aria-label={label}
+			className={cn(
+				"w-[180px] rounded-full border bg-[#16161b] px-2.5 py-1 text-[12px] text-[#f5f5f7] outline-none placeholder:text-[#6b6b78] focus:border-[#a394ff]",
+				value ? "border-[#a394ff]" : "border-[#25252e]",
+			)}
+		/>
+	);
+}
+
 /** Refresh every feed, not just this one — same button in each view. */
 export function SyncButton({
 	isSyncing,

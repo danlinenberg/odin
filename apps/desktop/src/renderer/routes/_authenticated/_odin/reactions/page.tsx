@@ -17,6 +17,7 @@ import {
 	FEED_ROW,
 	FeedDivider,
 	FeedHeader,
+	FeedSearch,
 	FilterPill,
 	META_DATE,
 	META_PERSON,
@@ -236,21 +237,11 @@ function ReactionsPage() {
 					</FilterPill>
 				))}
 				<div className="ml-auto flex items-center gap-2.5">
-					<input
-						type="search"
+					<FeedSearch
 						value={search}
-						onChange={(e) => setSearch(e.target.value)}
-						onKeyDown={(e) => {
-							if (e.key !== "Escape") return;
-							setSearch("");
-							e.currentTarget.blur();
-						}}
+						onChange={setSearch}
 						placeholder="Search person"
-						aria-label="Search by person"
-						className={cn(
-							"w-[180px] rounded-full border bg-[#16161b] px-2.5 py-1 text-[12px] text-[#f5f5f7] outline-none placeholder:text-[#6b6b78] focus:border-[#a394ff]",
-							search ? "border-[#a394ff]" : "border-[#25252e]",
-						)}
+						label="Search by person"
 					/>
 					{/* Which emoji queues a message — the whole explanation is the tooltip. */}
 					{editingReaction ? (
