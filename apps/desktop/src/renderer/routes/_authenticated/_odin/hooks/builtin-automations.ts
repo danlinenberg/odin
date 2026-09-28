@@ -25,6 +25,8 @@ export interface BacklogItem {
 	title: string;
 	/** The rest of what was written or said; where a ticket key usually hides. */
 	detail?: string;
+	/** Who it's from: the Slack author, the Jira reporter, the PR author. */
+	person?: string;
 	/** A permalink, when the row has one. */
 	url?: string;
 	/** Slack only: the :eyes: that queued this is gone from the message. */
@@ -68,12 +70,14 @@ export function backlogOf(
 		channelName: string | null;
 		postedAt?: string;
 		unreacted?: boolean;
+		authorName?: string | null;
 	}[],
 	jira: {
 		key: string;
 		url: string;
 		title: string;
 		updated: string | null;
+		reporter?: string | null;
 	}[] = [],
 	pulls: {
 		repo: string;
@@ -81,6 +85,7 @@ export function backlogOf(
 		url: string;
 		title: string;
 		updated: string | null;
+		author?: string;
 	}[] = [],
 	notion: {
 		pageId: string;
@@ -107,6 +112,7 @@ export function backlogOf(
 				title: row.title,
 				detail: row.text,
 				...(row.permalink ? { url: row.permalink } : {}),
+				...(row.authorName ? { person: row.authorName } : {}),
 				...(row.unreacted ? { unreacted: true } : {}),
 				...(movedAt(row.postedAt)
 					? { lastActivityAt: movedAt(row.postedAt) }
@@ -120,6 +126,7 @@ export function backlogOf(
 			title: issue.title,
 			detail: issue.key,
 			url: issue.url,
+			...(issue.reporter ? { person: issue.reporter } : {}),
 			...(movedAt(issue.updated)
 				? { lastActivityAt: movedAt(issue.updated) }
 				: {}),
@@ -129,6 +136,7 @@ export function backlogOf(
 			source: pull.repo,
 			title: pull.title,
 			url: pull.url,
+			...(pull.author ? { person: pull.author } : {}),
 			...(movedAt(pull.updated)
 				? { lastActivityAt: movedAt(pull.updated) }
 				: {}),
