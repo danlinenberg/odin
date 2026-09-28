@@ -2455,6 +2455,16 @@ function DevBoardPage() {
 																		<LoopPill card={card} />
 																	)}
 																	<LoadPill card={card} />
+																	{/* Same test as the drawer's Shell dot: a live PTY, not just a remembered pane. */}
+																	{alivePaneIds.has(shellPaneOf(card)?.id ?? "") && (
+																		<span
+																			title="This session has a shell running"
+																			className="inline-flex items-center gap-1 rounded-[5px] bg-[#132a1f] px-[7px] text-[11px] font-medium text-[#3ecf8e]"
+																		>
+																			<LuTerminal className="size-3" aria-hidden />
+																			Shell
+																		</span>
+																	)}
 																	{/* Last, and blank until you set one: a deadline is yours, not
 	    something the session reports about itself. */}
 																	<DueChip
