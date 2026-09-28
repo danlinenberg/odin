@@ -16,8 +16,10 @@ import {
 } from "react-icons/lu";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
+import { electronTrpcClient } from "renderer/lib/trpc-client";
 import { useNextInLineDone } from "renderer/stores/next-in-line-done";
 import { useNextInLinePrompt } from "renderer/stores/next-in-line-prompt";
+import { create } from "zustand";
 import type { AllItem } from "../all/all-items";
 import { allItems } from "../all/all-items";
 import { useStartAllItem } from "../all/use-start-item";
@@ -45,73 +47,106 @@ const ICON = Object.fromEntries(FEED_TABS.map(({ to, Icon }) => [to, Icon]));
 
 /**
  * The recommended queue: tasks from every feed that nobody has started yet —
- * no session on the board, idle or otherwise — ordered by importance by a
- * model (`rankNextInLine`) — feed order, marked unranked, until it answers. Click
+ * no session on the board, idle or otherwise — in All tasks order, until you
+ * apply the model's (`rankNextInLine`) order and hides. Click
  * Start to launch its session, same as All's Start button. A board column,
  * but not a status: nothing lands here or leaves by drag.
  */
 /**
- * The last finished ranking, with a fingerprint of every task it ranked and
- * the prompt it ranked them by. Two jobs: a renderer reload shows it straight
- * away, and — the one that matters — a task list it already covers doesn't go
- * back to the model. Marking a task done, hiding it, a PR merging: those only
- * REMOVE rows, and removing a row can't change how the rest rank against each
- * other. Only a new or changed task, or a new prompt, is worth a ~20s run.
- * One key, overwritten each time: a few hundred short entries.
+ * The last ranking you asked for, kept so a reload still shows it. One key,
+ * overwritten each time: a few hundred short entries.
  */
 const LAST_RANKING_KEY = "odin-next-in-line-last-ranking";
 /** Whether the AI's order and hides are on, or the column is All tasks order. */
 const APPLIED_KEY = "odin-next-in-line-applied";
 
-interface SavedRanking {
+interface Ranking {
 	keys: string[];
 	hidden: string[];
-	/** task key → fingerprint of what the model was shown for it */
-	seen: Record<string, string>;
-	prompt: string;
 }
 
-function loadSavedRanking(): SavedRanking | undefined {
+function loadSaved(): Ranking | undefined {
 	try {
 		const saved = JSON.parse(localStorage.getItem(LAST_RANKING_KEY) ?? "null");
-		// No `hidden`: saved before the model could leave rows out — re-rank.
-		return Array.isArray(saved?.keys) &&
-			Array.isArray(saved.hidden) &&
-			saved.seen
-			? saved
+		return Array.isArray(saved?.keys) && Array.isArray(saved.hidden)
+			? { keys: saved.keys, hidden: saved.hidden }
 			: undefined;
 	} catch {
 		return undefined;
 	}
 }
 
-/** djb2 over what the model sees for a task — short enough to keep hundreds. */
-function fingerprint(item: object): string {
-	const text = JSON.stringify(item);
-	let h = 5381;
-	for (let i = 0; i < text.length; i++) h = (h * 33) ^ text.charCodeAt(i);
-	return (h >>> 0).toString(36);
+function loadApplied(): boolean {
+	try {
+		return localStorage.getItem(APPLIED_KEY) === "1";
+	} catch {
+		return false;
+	}
 }
 
 /**
- * The feed rows and their AI ranking. Called from the Odin layout as well as
- * the column, so the ranking runs in the background whether or not the column
- * is open — React Query shares the one query, and opening the column just
- * reads what's already there.
+ * The AI's recommendation, and whether it's applied. A store, not component
+ * state: a run outlives the column (a session drawer unmounts it), and the
+ * answer still has to land.
  */
-export function useNextInLineRanking() {
+const useAiRanking = create<{
+	ranking: Ranking | undefined;
+	applied: boolean;
+	startedAt: number | null;
+	error: string | null;
+}>(() => ({
+	ranking: loadSaved(),
+	applied: loadApplied(),
+	startedAt: null,
+	error: null,
+}));
+
+function setApplied(on: boolean) {
+	useAiRanking.setState({ applied: on });
+	try {
+		localStorage.setItem(APPLIED_KEY, on ? "1" : "0");
+	} catch {}
+}
+
+type RankInput = Parameters<
+	typeof electronTrpcClient.backlogReview.rankNextInLine.query
+>[0];
+
+/**
+ * One fresh run on the tasks as they are now — no cache on either side — then
+ * its order and hides go on. Only ever from the Apply button: nothing ranks in
+ * the background.
+ */
+async function applyAiRanking(input: RankInput) {
+	if (useAiRanking.getState().startedAt) return;
+	useAiRanking.setState({ startedAt: Date.now(), error: null });
+	try {
+		const ranking = await electronTrpcClient.backlogReview.rankNextInLine.query(
+			{ ...input, fresh: true },
+		);
+		useAiRanking.setState({ ranking, startedAt: null });
+		setApplied(true);
+		try {
+			localStorage.setItem(LAST_RANKING_KEY, JSON.stringify(ranking));
+		} catch {}
+	} catch (error) {
+		useAiRanking.setState({
+			startedAt: null,
+			error: error instanceof Error ? error.message : String(error),
+		});
+	}
+}
+
+/** The feed rows, in All tasks order, and what the model is shown of them. */
+function useNextInLineRows() {
 	const { reactions, jira, pulls, notion } = useOdinFeeds();
 	// todos, not tasks: automations run themselves, they're never next.
 	const { todos } = useMyTasks();
 	const reminders = useReminders((s) => s.reminders);
 	const prompt = useNextInLinePrompt((s) => s.prompt);
 	// The Review sweep's verdicts go to the model too, so instructions like
-	// "DROPs last" have something to go on. A sweep that changes one re-ranks.
+	// "DROPs last" have something to go on.
 	const swept = useBacklogReview((s) => s.swept);
-	const verdicts = useMemo(
-		() => new Map(swept.map((row) => [row.key, row.verdict])),
-		[swept],
-	);
 	const rows = useMemo(
 		() =>
 			allItems({
@@ -123,78 +158,27 @@ export function useNextInLineRanking() {
 			}),
 		[todos, reactions.data, jira.data, pulls.data, notion.data],
 	);
-	// The model's input must only change when the tasks do — the main process
-	// caches a ranking on its exact text, and a changed input is a fresh ~20s
-	// run. So: every row, hidden and started ones too (hiding a card isn't a
-	// change); sorted by key, not by `at`, which is last activity and reshuffles
-	// on every feed refetch; and no age, because `at` would make every comment
-	// on any ticket a new input.
-	const rankInput = useMemo(
-		() => ({
-			items: rows
-				.map((item) => ({
-					key: item.key,
-					title: item.title,
-					source: item.source,
-					priority: item.priority,
-					person: item.person,
-					context: item.context,
-					due: effectiveDue(item.key, reminders, item.dueDate),
-					ageDays: null,
-					review: verdicts.get(item.key) ?? null,
-				}))
-				.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0)),
+	// Built on click, not per render: in All tasks order (newest activity
+	// first) with real ages, so "same order as All tasks" is something the
+	// model can actually see.
+	const rankInput = (items: AllItem[]): RankInput => {
+		const verdicts = new Map(swept.map((row) => [row.key, row.verdict]));
+		const now = Date.now();
+		return {
+			items: items.map((item) => ({
+				key: item.key,
+				title: item.title,
+				source: item.source,
+				priority: item.priority,
+				person: item.person,
+				context: item.context,
+				due: effectiveDue(item.key, reminders, item.dueDate),
+				ageDays: item.at ? Math.floor((now - item.at) / 86_400_000) : null,
+				review: verdicts.get(item.key) ?? null,
+			})),
 			instructions: prompt || undefined,
-		}),
-		[rows, reminders, prompt, verdicts],
-	);
-	const [saved, setSaved] = useState(loadSavedRanking);
-	const prints = useMemo(
-		() => rankInput.items.map((item) => [item.key, fingerprint(item)] as const),
-		[rankInput],
-	);
-	// Every task on the list is one the last ranking saw, unchanged, under the
-	// same prompt → its order still stands; the model has nothing to add.
-	const covered =
-		!!saved &&
-		saved.prompt === (prompt || "") &&
-		prints.every(([key, print]) => saved.seen[key] === print);
-	const query = electronTrpc.backlogReview.rankNextInLine.useQuery(rankInput, {
-		enabled: rows.length > 1 && !covered,
-		staleTime: Number.POSITIVE_INFINITY,
-		retry: false,
-		// A new task re-ranks; keep the last order on screen meanwhile —
-		// including the one saved before a reload, which empties this cache.
-		placeholderData: (previous) =>
-			previous ??
-			(saved ? { keys: saved.keys, hidden: saved.hidden } : undefined),
-	});
-	useEffect(() => {
-		if (!query.data || query.isPlaceholderData || covered) return;
-		const next: SavedRanking = {
-			keys: query.data.keys,
-			hidden: query.data.hidden,
-			seen: Object.fromEntries(prints),
-			prompt: prompt || "",
 		};
-		setSaved(next);
-		try {
-			localStorage.setItem(LAST_RANKING_KEY, JSON.stringify(next));
-		} catch {}
-	}, [query.data, query.isPlaceholderData, covered, prints, prompt]);
-	const ranking = covered
-		? {
-				data: { keys: saved.keys, hidden: saved.hidden },
-				isFetching: false,
-				error: null,
-			}
-		: {
-				data: query.data,
-				isFetching: query.isFetching,
-				error: query.error ? { message: query.error.message } : null,
-			};
-	// Names this ranking for RankStatus's clock; the same tasks give the same name.
-	const signature = useMemo(() => JSON.stringify(rankInput), [rankInput]);
+	};
 	// A Slack row's title is the message cut to a line; the hover card wants
 	// the whole thing, which only the feed's own row still has.
 	const slackText = useMemo(
@@ -204,37 +188,22 @@ export function useNextInLineRanking() {
 	);
 	return {
 		rows,
-		ranking,
 		prompt,
-		signature,
+		rankInput,
 		slackText,
 		refetchSlack: () => void reactions.refetch(),
 	};
 }
 
 export function NextInLine() {
-	const { rows, ranking, prompt, signature, slackText, refetchSlack } =
-		useNextInLineRanking();
+	const { rows, prompt, rankInput, slackText, refetchSlack } =
+		useNextInLineRows();
+	const { ranking, applied, startedAt, error } = useAiRanking();
 	const navigate = useNavigate();
 	const { start, livePaneFor, isLaunching, launchingKey } =
 		useStartAllItem(refetchSlack);
 	// Same key the feeds hide under, so hiding here hides it there and back.
 	const hide = useHiddenFilter("", rows, (item) => item.key);
-	// The AI's order is a recommendation: the column is All tasks order until
-	// you apply it, and stays applied (to each new ranking) until you undo it.
-	const [applied, setApplied] = useState(() => {
-		try {
-			return localStorage.getItem(APPLIED_KEY) === "1";
-		} catch {
-			return false;
-		}
-	});
-	const apply = (on: boolean) => {
-		setApplied(on);
-		try {
-			localStorage.setItem(APPLIED_KEY, on ? "1" : "0");
-		} catch {}
-	};
 	// Open hands the link to the OS: a Slack permalink goes through Slack's
 	// own hand-off into the desktop app, everything else to the browser.
 	const openUrl = electronTrpc.external.openUrl.useMutation();
@@ -282,16 +251,14 @@ export function NextInLine() {
 	);
 	// Rows your instructions say not to show, per the model. They count as
 	// hidden and come back, dimmed, under the same "show hidden" as yours.
-	const aiHidden = new Set(applied ? ranking.data?.hidden : []);
+	const aiHidden = new Set(applied ? ranking?.hidden : []);
 	const isAiHidden = (item: AllItem) =>
 		aiHidden.has(item.key) && !hide.isHidden(item);
 	const aiHiddenCount = waiting.filter(isAiHidden).length;
 	const candidates = hide.showHidden
 		? waiting
 		: waiting.filter((item) => !isAiHidden(item));
-	const order = new Map(
-		applied ? ranking.data?.keys.map((key, i) => [key, i]) : [],
-	);
+	const order = new Map(applied ? ranking?.keys.map((key, i) => [key, i]) : []);
 	// Stable sort: a row the model hasn't seen yet (arrived since) goes last.
 	const next = order.size
 		? candidates.toSorted(
@@ -334,13 +301,15 @@ export function NextInLine() {
 				</span>
 			</div>
 			<RankStatus
-				fetching={ranking.isFetching}
-				signature={signature}
-				ranked={!!ranking.data?.keys.length}
+				startedAt={startedAt}
+				ranked={!!ranking?.keys.length}
 				applied={applied}
-				onApply={apply}
-				error={ranking.error?.message ?? null}
-				count={next.length}
+				// Everything waiting, hidden rows too: what's hidden is the model's
+				// call as much as the order is.
+				onApply={() => void applyAiRanking(rankInput(waiting))}
+				onUndo={() => setApplied(false)}
+				error={error}
+				count={waiting.length}
 			/>
 			<div className="flex flex-col gap-2 overflow-y-auto px-2 pb-2.5">
 				{next.length === 0 ? (
@@ -503,47 +472,34 @@ function TaskHover({ item, text }: { item: AllItem; text: string | null }) {
 }
 
 /**
- * When each ranking started, by its input. Outside the component: opening a
- * session drawer unmounts the column, and a clock in component state restarted
- * at 0 on every close while the same ranking carried on in main.
- */
-const RANK_STARTED = new Map<string, number>();
-
-/**
- * Where the order came from, said out loud: a ranking takes ~20s and
- * the column is usable meanwhile, so "is this the AI's order yet?" needs an
- * answer you can't miss — a spinner and a clock while it runs.
+ * Where the order came from, said out loud, and the one control over it:
+ * All tasks order until you apply the AI's, which runs fresh on the spot.
  */
 function RankStatus({
-	fetching,
-	signature,
+	startedAt,
 	ranked,
 	applied,
 	onApply,
+	onUndo,
 	error,
 	count,
 }: {
-	fetching: boolean;
-	signature: string;
+	startedAt: number | null;
 	ranked: boolean;
 	applied: boolean;
-	onApply: (on: boolean) => void;
+	onApply: () => void;
+	onUndo: () => void;
 	error: string | null;
 	count: number;
 }) {
 	const [now, setNow] = useState(Date.now);
 	useEffect(() => {
-		if (!fetching) return;
+		if (!startedAt) return;
 		const tick = setInterval(() => setNow(Date.now()), 1000);
 		return () => clearInterval(tick);
-	}, [fetching]);
-	if (fetching && !RANK_STARTED.has(signature))
-		RANK_STARTED.set(signature, Date.now());
-	if (!fetching) RANK_STARTED.delete(signature);
-	const startedAt = RANK_STARTED.get(signature) ?? now;
-	const secs = Math.max(0, Math.round((now - startedAt) / 1000));
+	}, [startedAt]);
 
-	if (fetching)
+	if (startedAt)
 		return (
 			<div className="mx-2 mb-2 flex items-start gap-2 rounded-lg border border-[#3a3360] bg-[#1a1730] px-2.5 py-2 text-[11.5px] text-[#d8d2ff]">
 				<LuLoaderCircle
@@ -551,54 +507,53 @@ function RankStatus({
 					aria-hidden
 				/>
 				<span>
-					AI is ranking {count} tasks… {secs}s
+					AI is ranking {count} tasks…{" "}
+					{Math.max(0, Math.round((now - startedAt) / 1000))}s
 					<span className="block text-[#8a8a97]">
-						Usually about 20 seconds.{" "}
-						{ranked && applied
-							? "Showing the previous ranking until then."
-							: "Showing All tasks order until then."}
+						Usually about 20 seconds. Applies when it's done.
 					</span>
 				</span>
 			</div>
 		);
-	if (error)
-		return (
-			<div
-				className="mx-2 mb-2 cursor-text select-text rounded-lg border border-[#5a2733] bg-[#1d1417] px-2.5 py-2 text-[11.5px] text-[#f0a0ad]"
-				title={error}
-			>
-				Unranked — AI ranking failed, so this is All tasks order.
-				<span className="block truncate text-[#8a8a97]">{error}</span>
+	const button = (
+		<button
+			type="button"
+			onClick={onApply}
+			title="Rank these now, from scratch, and use the AI's order and hides"
+			className="ml-auto flex shrink-0 items-center gap-1 rounded-md bg-[#2c2750] px-2 py-0.5 font-medium text-[#d6d0ff] hover:bg-[#3a3366]"
+		>
+			<LuSparkles className="size-3 text-[#a394ff]" aria-hidden />
+			{applied && ranked ? "Re-rank" : "Apply AI recommendations"}
+		</button>
+	);
+	return (
+		<div className="mx-2 mb-2 px-1 text-[11px] text-[#8a8a97]">
+			<div className="flex items-center gap-1.5">
+				{applied && ranked ? (
+					<>
+						<LuSparkles className="size-3 text-[#a394ff]" aria-hidden />
+						Ranked by AI
+						<button
+							type="button"
+							onClick={onUndo}
+							className="hover:text-[#f5f5f7]"
+						>
+							· back to All tasks order
+						</button>
+					</>
+				) : (
+					"All tasks order"
+				)}
+				{button}
 			</div>
-		);
-	if (ranked && applied)
-		return (
-			<div className="mx-2 mb-2 flex items-center gap-1.5 px-1 text-[11px] text-[#8a8a97]">
-				<LuSparkles className="size-3 text-[#a394ff]" aria-hidden />
-				Ranked by AI
-				<button
-					type="button"
-					onClick={() => onApply(false)}
-					className="ml-auto text-[#8a8a97] hover:text-[#f5f5f7]"
+			{error && (
+				<div
+					className="mt-1 cursor-text select-text truncate text-[#f0a0ad]"
+					title={error}
 				>
-					Back to All tasks order
-				</button>
-			</div>
-		);
-	if (ranked)
-		return (
-			<div className="mx-2 mb-2 flex items-center gap-1.5 px-1 text-[11px] text-[#8a8a97]">
-				All tasks order
-				<button
-					type="button"
-					onClick={() => onApply(true)}
-					title="Use the AI's order and hide what your instructions say to hide"
-					className="ml-auto flex items-center gap-1 rounded-md bg-[#2c2750] px-2 py-0.5 font-medium text-[#d6d0ff] hover:bg-[#3a3366]"
-				>
-					<LuSparkles className="size-3 text-[#a394ff]" aria-hidden />
-					Apply AI recommendations
-				</button>
-			</div>
-		);
-	return null;
+					AI ranking failed: {error}
+				</div>
+			)}
+		</div>
+	);
 }

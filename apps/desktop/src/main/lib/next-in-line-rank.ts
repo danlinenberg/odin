@@ -35,6 +35,7 @@ export interface Ranking {
 // Deliberately no criteria: what counts as important is the model's call, not
 // a weighting written into the app.
 const INSTRUCTIONS = `Rank these unstarted tasks by importance: which should be started first.
+The lines are in the "All tasks" view's order: newest activity first.
 Each line is: number | source | priority | due | age in days | person | where | review | title.
 "review" is the Review panel's last sweep verdict: DROP means the sweep found it already done or gone.
 Answer with ONLY a JSON object, no prose: {"order": [every line number to show, most important first], "hide": [line numbers my instructions say not to show]}.`;
@@ -92,7 +93,13 @@ export async function rankTasks(
 		instructions = "",
 		claudeBin = "claude",
 		timeoutMs = 180_000,
-	}: { instructions?: string; claudeBin?: string; timeoutMs?: number } = {},
+		fresh = false,
+	}: {
+		instructions?: string;
+		claudeBin?: string;
+		timeoutMs?: number;
+		fresh?: boolean;
+	} = {},
 ): Promise<Ranking> {
 	const keys = items.map((item) => item.key);
 	if (items.length < 2) return { keys: [], hidden: [] };
@@ -102,7 +109,7 @@ export async function rankTasks(
 		? `\n\nHow I want them sorted, in my words:\n${instructions.trim()}`
 		: "";
 	const body = `${how}\n\n--- TASKS ---\n${items.map(line).join("\n")}`;
-	const hit = cache.get(body);
+	const hit = fresh ? undefined : cache.get(body);
 	if (hit) return hit;
 	const running = inFlight.get(body);
 	if (running) return running;

@@ -149,11 +149,16 @@ export const createBacklogReviewRouter = () => {
 					),
 					/** Settings → Board: how you want them sorted, in your words. */
 					instructions: z.string().max(4000).optional(),
+					/** Skip the cache: the Apply button always means a new run. */
+					fresh: z.boolean().optional(),
 				}),
 			)
 			.query(async ({ input }) => {
 				const { rankTasks } = await import("main/lib/next-in-line-rank");
-				return rankTasks(input.items, { instructions: input.instructions });
+				return rankTasks(input.items, {
+					instructions: input.instructions,
+					fresh: input.fresh,
+				});
 			}),
 	});
 };
