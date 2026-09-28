@@ -1,5 +1,6 @@
 import { cn } from "@odin/ui/utils";
 import { useEffect, useRef } from "react";
+import { LuCalendarX } from "react-icons/lu";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -149,11 +150,32 @@ export function mergeUpstream(
 }
 
 const TONE_CLASS: Record<DueTone, string> = {
-	overdue: "bg-[#3a1c1c] text-[#ff8a8a]",
+	overdue: "bg-[#3a1418] text-[#ff4d5e]",
 	today: "bg-[#221d12] text-[#f5b83d]",
 	soon: "bg-[#1f1f27] text-[#a5a5b3]",
 	later: "bg-[#1f1f27] text-[#8a8a97]",
 };
+
+/**
+ * The mark an overdue row wears beside its title — its own icon, the way a
+ * starred card wears ★, so a missed deadline reads without finding the chip.
+ */
+export function OverdueMark({
+	itemKey,
+	upstream,
+}: {
+	itemKey: string;
+	upstream?: string | null;
+}) {
+	const due = useReminders((s) => s.reminders[itemKey]?.due) ?? upstream;
+	if (!due || dueTone(due, Date.now()) !== "overdue") return null;
+	return (
+		<LuCalendarX
+			title={`Overdue — was due ${due}`}
+			className="mr-1 inline size-3.5 align-[-2px] text-[#ff4d5e]"
+		/>
+	);
+}
 
 /** The due column, the same width in every feed that shows one. */
 export const META_DUE = "flex w-[92px] shrink-0 items-center justify-end";

@@ -39,6 +39,7 @@ import {
 	effectiveDue,
 	isDue,
 	META_DUE,
+	OverdueMark,
 	useReminders,
 } from "../components/Reminders";
 import { PriorityLabelChip } from "../components/TaskBox";
@@ -518,6 +519,7 @@ function AllFeedPage() {
 									onClick={() => navigate({ to: item.to })}
 									className="min-w-0 flex-1 truncate text-left text-[13px] font-semibold text-[#f5f5f7]"
 								>
+									<OverdueMark itemKey={item.key} upstream={item.dueDate} />
 									{emojify(item.title)}
 								</button>
 								<div className="flex shrink-0 items-center gap-2 text-[11px]">

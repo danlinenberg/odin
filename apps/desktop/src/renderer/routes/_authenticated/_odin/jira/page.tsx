@@ -33,7 +33,7 @@ import {
 	useHiddenFilter,
 } from "../components/HiddenItems";
 import { PersonChip } from "../components/PersonChip";
-import { DueChip, META_DUE } from "../components/Reminders";
+import { DueChip, META_DUE, OverdueMark } from "../components/Reminders";
 import { buildIssuePrompt } from "../feed-prompts";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
@@ -307,6 +307,10 @@ function MyJiraPage() {
 												{issue.key}
 											</span>
 											<span className="min-w-0 truncate text-[13px] font-semibold text-[#f5f5f7]">
+												<OverdueMark
+													itemKey={`jira:${issue.key}`}
+													upstream={issue.dueDate}
+												/>
 												{issue.title}
 											</span>
 											<div className="flex shrink-0 items-center gap-2 text-[11px]">
