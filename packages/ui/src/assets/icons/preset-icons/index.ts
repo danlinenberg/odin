@@ -14,7 +14,8 @@ import kimiIcon from "./kimi.svg";
 import kimiWhiteIcon from "./kimi-white.svg";
 import mastracodeIcon from "./mastracode.svg";
 import mastracodeWhiteIcon from "./mastracode-white.svg";
-import odinIcon from "./odin.svg";
+// Rendered from the app icon by apps/desktop/scripts/render-icons.py.
+import odinIcon from "./odin.png";
 import opencodeIcon from "./opencode.svg";
 import opencodeWhiteIcon from "./opencode-white.svg";
 import piIcon from "./pi.svg";

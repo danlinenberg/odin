@@ -1,8 +1,6 @@
-import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { app, nativeImage } from "electron";
 import { env } from "main/env.main";
-import { prerelease } from "semver";
 import { getWorkspaceName } from "shared/env.shared";
 
 type RGB = [number, number, number];
@@ -59,14 +57,6 @@ const pickWorkspaceColor = (() => {
 })();
 
 /**
- * Returns true for prerelease versions like "0.0.53-canary".
- */
-function isCanaryBuild(): boolean {
-	const components = prerelease(app.getVersion());
-	return components !== null && components.length > 0;
-}
-
-/**
  * Root directory of packaged/bundled icon assets.
  */
 function getIconsDir(): string {
@@ -79,19 +69,9 @@ function getIconsDir(): string {
 	return join(__dirname, "../resources/build/icons");
 }
 
-/**
- * Picks the dock icon PNG for the current build type, falling back to the
- * stable icon if a build-specific variant is missing.
- */
+/** Every build, canary included, uses the one Odin icon. */
 function getIconPath(): string {
-	const dir = getIconsDir();
-
-	if (isCanaryBuild()) {
-		const canaryIcon = join(dir, "icon-canary.png");
-		if (existsSync(canaryIcon)) return canaryIcon;
-	}
-
-	return join(dir, "icon.png");
+	return join(getIconsDir(), "icon.png");
 }
 
 /**

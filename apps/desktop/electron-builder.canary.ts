@@ -7,14 +7,10 @@
  * @see https://www.electron.build/configuration/configuration
  */
 
-import { existsSync } from "node:fs";
-import { join } from "node:path";
 import type { Configuration } from "electron-builder";
 import baseConfig from "./electron-builder";
-import pkg from "./package.json";
 
 const productName = "Odin Canary";
-const canaryMacIconPath = join(pkg.resources, "build/icons/icon-canary.icns");
 
 const config: Configuration = {
 	...baseConfig,
@@ -30,7 +26,6 @@ const config: Configuration = {
 
 	mac: {
 		...baseConfig.mac,
-		...(existsSync(canaryMacIconPath) ? { icon: canaryMacIconPath } : {}),
 		artifactName: `Odin-Canary-\${version}-\${arch}.\${ext}`,
 		extendInfo: {
 			...baseConfig.mac?.extendInfo,
