@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { usePaneMeta } from "renderer/routes/_authenticated/_odin/hooks/usePaneMeta";
 import { launchLimits, useLaunchLimits } from "renderer/stores/launch-limits";
 import {
 	type OdinRule,
@@ -464,6 +465,10 @@ export function useLaunchTaskSession() {
 					},
 				},
 			}));
+			// Done dropped the old pane; what you wrote on its brief waited under
+			// the conversation id for exactly this.
+			if (resumeSessionId)
+				usePaneMeta.getState().adoptSession(paneId, resumeSessionId);
 			// A row per external item I actually started an agent on, kept even
 			// after the feed drops it. Sourceless launches (New Session, my own
 			// tasks) aren't external work and get no row. Failing to log must

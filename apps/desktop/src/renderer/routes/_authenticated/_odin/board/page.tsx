@@ -1979,7 +1979,7 @@ function DevBoardPage() {
 	 */
 	const markDone = (card: BoardCard) => {
 		useTabsStore.getState().removePane(card.pane.id);
-		usePaneMeta.getState().forgetPane(card.pane.id);
+		usePaneMeta.getState().forgetPane(card.pane.id, card.pane.claudeSessionId);
 		useReminders.getState().clear(`session:${card.pane.id}`);
 		setDrawerCard(null);
 		toast.success("Done — removed from board");
