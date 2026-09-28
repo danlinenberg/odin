@@ -2325,9 +2325,9 @@ function DevBoardPage() {
 																		? "border-[#5a2733]"
 																		: "border-[#26262c]",
 																)}
-																// ponytail: 8-digit hex, "1a" = 10% alpha on PANE_STATUS's #rrggbb.
+																// ponytail: 8-digit hex, "0d" = 5% alpha on PANE_STATUS's #rrggbb.
 																style={{
-																	background: `${PANE_STATUS[card.status].dot}1a`,
+																	background: `${PANE_STATUS[card.status].dot}0d`,
 																}}
 															>
 																<div className="flex items-start gap-2">
