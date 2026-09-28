@@ -48,6 +48,13 @@ Never kill a dev Electron process by path pattern: the terminal-host daemon and 
 live terminal session (`pty-subprocess.js`) run the same `Odin Dev.app` binary out of the
 same `node_modules`, so a path match closes real sessions. Kill the UI by pid.
 
+## One app icon
+
+`src/resources/build/icons/icon.png` is the only icon source. Every other copy — `icon.icns`,
+`resources/odin/icon.png`, the tray `iconTemplate` PNGs and the `odin` preset icon in
+`packages/ui` — is rendered from it by `python3 scripts/render-icons.py`. Edit the master and
+rerun the script; never hand-edit an output or add a per-channel (canary) variant.
+
 ## Server-driven announcements (desktop notices)
 
 To show an announcement/warning popup in the app without shipping a release, insert a row in the `desktop_notices` table (served by `GET /api/desktop/version`). Authoring guide — markdown-only body, severities, triggers, targeting, QA previews: `docs/DESKTOP_NOTICES.md`.
