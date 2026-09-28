@@ -28,11 +28,38 @@ export interface SlackReactionsListItem {
 		username?: string;
 		bot_id?: string;
 		text?: string;
+		attachments?: SlackAttachment[];
 		ts?: string;
 		thread_ts?: string;
 		permalink?: string;
 		reactions?: { name?: string; users?: string[] }[];
 	};
+}
+
+export interface SlackAttachment {
+	pretext?: string;
+	title?: string;
+	text?: string;
+	fallback?: string;
+}
+
+/**
+ * A message's readable body. Bots (Datadog, Sentry) post an empty `text` and
+ * put the alert in `attachments`, so fall back to those.
+ */
+export function messageBody(message: {
+	text?: string;
+	attachments?: SlackAttachment[];
+}): string {
+	if (message.text?.trim()) return message.text;
+	return (message.attachments ?? [])
+		.map(
+			(a) =>
+				[a.pretext, a.title, a.text].filter(Boolean).join("\n") ||
+				(a.fallback ?? ""),
+		)
+		.filter(Boolean)
+		.join("\n\n");
 }
 
 export interface EyedMessage {
@@ -74,7 +101,7 @@ export function pickEyedMessages(
 			messageTs: message.ts,
 			threadTs: message.thread_ts ?? null,
 			authorId: message.user ?? null,
-			text: slackTextToPlain(message.text ?? ""),
+			text: slackTextToPlain(messageBody(message)),
 			permalink: message.permalink ?? null,
 		});
 	}

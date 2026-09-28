@@ -4,6 +4,7 @@ import {
 	channelLabel,
 	isGreeting,
 	mentionedUserIds,
+	messageBody,
 	normalizeReaction,
 	pickEyedMessages,
 	reactionStatus,
@@ -249,5 +250,26 @@ describe("channelLabel", () => {
 		);
 		// A 1:1 DM has no name at all.
 		expect(channelLabel(null)).toBe(null);
+	});
+});
+
+describe("messageBody", () => {
+	test("falls back to attachments when a bot leaves text empty", () => {
+		expect(
+			messageBody({
+				text: "",
+				attachments: [
+					{
+						title: "[Triggered] DB CPU high",
+						text: "cpu > 90%",
+						fallback: "x",
+					},
+					{ fallback: "only fallback" },
+				],
+			}),
+		).toBe("[Triggered] DB CPU high\ncpu > 90%\n\nonly fallback");
+		expect(messageBody({ text: "hi", attachments: [{ title: "t" }] })).toBe(
+			"hi",
+		);
 	});
 });
