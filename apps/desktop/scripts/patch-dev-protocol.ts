@@ -173,8 +173,14 @@ const DEV_ICON_PNG = resolve(
 	"../src/resources/build/icons/icon.png",
 );
 
-// Kept in sync with IDENTITY in scripts/create-signing-identity.sh.
+// Kept in sync with IDENTITY, KEYCHAIN and KEYCHAIN_PASSWORD in
+// scripts/create-signing-identity.sh. The password is public by design.
 const LOCAL_SIGNING_IDENTITY = "Odin Local Signing";
+const LOCAL_SIGNING_KEYCHAIN = join(
+	homedir(),
+	"Library/Keychains/odin-signing.keychain-db",
+);
+const LOCAL_SIGNING_KEYCHAIN_PASSWORD = "odin-signing";
 
 /**
  * Rebuilds the bundle's CFBundleIconFile from Odin's dev icon.
@@ -257,6 +263,14 @@ export function signingIdentity(): string {
 			},
 		);
 		if (identities.includes(LOCAL_SIGNING_IDENTITY)) {
+			// The keychain relocks on every reboot/sleep, and a locked one makes
+			// codesign pop a password dialog on every dev launch.
+			try {
+				execSync(
+					`/usr/bin/security unlock-keychain -p ${LOCAL_SIGNING_KEYCHAIN_PASSWORD} "${LOCAL_SIGNING_KEYCHAIN}"`,
+					{ stdio: "ignore" },
+				);
+			} catch {}
 			return `"${LOCAL_SIGNING_IDENTITY}"`;
 		}
 	} catch {}
