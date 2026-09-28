@@ -279,12 +279,16 @@ export function NextInLine() {
 					(order.get(a.key) ?? order.size) - (order.get(b.key) ?? order.size),
 			)
 		: candidates;
-	// Anything with a due date is pinned above the order, soonest first —
-	// a deadline outranks whatever the model thinks.
+	// Anything due this year or later is pinned above the order, soonest
+	// first — a deadline outranks whatever the model thinks. A date from a
+	// past year is a stale ticket's leftover, not a deadline: it stays put.
 	// ponytail: every dated row pins, however far out; add a horizon if a
 	// month-away date starts crowding the top.
-	const dueOf = (item: AllItem) =>
-		effectiveDue(item.key, reminders, item.dueDate);
+	const thisYear = `${new Date().getFullYear()}-01-01`;
+	const dueOf = (item: AllItem) => {
+		const due = effectiveDue(item.key, reminders, item.dueDate);
+		return due && due >= thisYear ? due : null;
+	};
 	const pinned = next
 		.filter((item) => dueOf(item))
 		.toSorted((a, b) => (dueOf(a) ?? "").localeCompare(dueOf(b) ?? ""));

@@ -19,6 +19,12 @@ import { readOdinConfig, resolveGithubToken } from "../odin-config";
  */
 
 /** The Odin checkout to rebuild from. */
+/**
+ * Whether a Jira project + issue type's screen has a Due date field, by
+ * `base|project|issueType`. Screens change rarely; a restart re-asks.
+ */
+const dueOnScreen = new Map<string, Promise<boolean>>();
+
 function odinRepo(): string | null {
 	const repo = process.env.ODIN_REPO_DIR ?? readOdinConfig().odinRepo;
 	return repo && existsSync(repo) ? repo : null;
@@ -400,6 +406,35 @@ export const createWorkRouter = () => {
 					seen.add(issue.key);
 					issues.push(issue);
 				}
+				// A due date Jira keeps but doesn't show: an issue type whose
+				// screen has no Due date field still returns the stored value (an
+				// epic created with one, say). Only a date you can see in Jira
+				// counts. The screen is per project and issue type, so one editmeta
+				// call per pair; a failed check keeps the date.
+				await Promise.all(
+					issues
+						.filter((issue) => issue.dueDate)
+						.map(async (issue) => {
+							const screen = `${request.base}|${issue.project}|${issue.issueType}`;
+							let shown = dueOnScreen.get(screen);
+							if (!shown) {
+								shown = fetch(
+									`${request.base}/rest/api/3/issue/${issue.key}/editmeta`,
+									{ headers },
+								)
+									.then(async (response) =>
+										response.ok
+											? "duedate" in
+												(((await response.json()) as { fields?: object })
+													.fields ?? {})
+											: true,
+									)
+									.catch(() => true);
+								dueOnScreen.set(screen, shown);
+							}
+							if (!(await shown)) issue.dueDate = null;
+						}),
+				);
 				return { issues };
 			}),
 
