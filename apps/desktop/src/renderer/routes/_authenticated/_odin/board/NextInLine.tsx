@@ -29,7 +29,12 @@ import {
 	HideButton,
 	useHiddenFilter,
 } from "../components/HiddenItems";
-import { DueChip, effectiveDue, useReminders } from "../components/Reminders";
+import {
+	DueChip,
+	dayOf,
+	effectiveDue,
+	useReminders,
+} from "../components/Reminders";
 import { useBacklogReview } from "../hooks/useBacklogReview";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useMyTasks } from "../hooks/useOdinTasks";
@@ -42,6 +47,9 @@ import { useMyTasks } from "../hooks/useOdinTasks";
 function cleanTitle(title: string): string {
 	return title.replace(/[*~]/g, "").replace(/\s+/g, " ").trim();
 }
+
+/** How long past its date a task still pins under Due. */
+const PIN_OVERDUE_DAYS = 30;
 
 const ICON = Object.fromEntries(FEED_TABS.map(({ to, Icon }) => [to, Icon]));
 
@@ -279,15 +287,16 @@ export function NextInLine() {
 					(order.get(a.key) ?? order.size) - (order.get(b.key) ?? order.size),
 			)
 		: candidates;
-	// Anything due this year or later is pinned above the order, soonest
-	// first — a deadline outranks whatever the model thinks. A date from a
-	// past year is a stale ticket's leftover, not a deadline: it stays put.
-	// ponytail: every dated row pins, however far out; add a horizon if a
+	// Anything due, or overdue by up to a month, is pinned above the order,
+	// soonest first — a deadline outranks whatever the model thinks. Older
+	// than that it's a stale ticket's leftover, not a deadline: it stays put.
+	// A rolling window, not the calendar year, so January keeps December's.
+	// ponytail: every future date pins, however far out; add a horizon if a
 	// month-away date starts crowding the top.
-	const thisYear = `${new Date().getFullYear()}-01-01`;
+	const cutoff = dayOf(Date.now() - PIN_OVERDUE_DAYS * 86_400_000);
 	const dueOf = (item: AllItem) => {
 		const due = effectiveDue(item.key, reminders, item.dueDate);
-		return due && due >= thisYear ? due : null;
+		return due && due >= cutoff ? due : null;
 	};
 	const pinned = next
 		.filter((item) => dueOf(item))
