@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 
@@ -930,9 +930,16 @@ function Queue() {
 					<Card>
 						<div className="flex flex-col gap-1.5">
 							{gaps.map((gap) => (
-								<div
+								<Link
 									key={`${gap.kind}:${gap.name}`}
-									className="flex items-baseline gap-2.5 text-[12px]"
+									to="/reactions"
+									search={
+										gap.kind === "channel"
+											? { channel: gap.name }
+											: { person: gap.name }
+									}
+									title="Open these asks in the Slack feed"
+									className="-mx-1.5 flex items-baseline gap-2.5 rounded px-1.5 text-[12px] hover:bg-[#1f1f27]"
 								>
 									<div className="w-[180px] shrink-0 truncate text-[#d6d6dc]">
 										{gap.kind === "channel" && gap.name !== "DMs"
@@ -949,7 +956,7 @@ function Queue() {
 											</span>
 										)}
 									</div>
-								</div>
+								</Link>
 							))}
 						</div>
 					</Card>

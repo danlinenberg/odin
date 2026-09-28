@@ -2,6 +2,7 @@ import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
+	channelLabel,
 	REACTION_STATUSES,
 	type ReactionStatus,
 } from "lib/trpc/routers/slack/reactions";
@@ -35,9 +36,37 @@ import { usePaneMeta } from "../hooks/usePaneMeta";
 import { usePendingFocus } from "../hooks/usePendingFocus";
 import { buildThreadPrompt } from "../thread-prompt";
 
+/** Narrow to one channel or person — how Insights' Improvements links here. */
+type ReactionsSearch = { channel?: string; person?: string };
+
 export const Route = createFileRoute("/_authenticated/_odin/reactions/")({
 	component: ReactionsPage,
+	validateSearch: (search: Record<string, unknown>): ReactionsSearch => ({
+		channel: typeof search.channel === "string" ? search.channel : undefined,
+		person: typeof search.person === "string" ? search.person : undefined,
+	}),
 });
+
+/**
+ * Same grouping as Insights' findGaps: DMs fold into one "DMs" area, a channel
+ * matches by its stored name (compared as a label) or its id.
+ */
+function inArea(
+	row: {
+		channelId: string;
+		channelName: string | null;
+		authorName: string | null;
+	},
+	area: ReactionsSearch,
+): boolean {
+	if (area.person !== undefined && row.authorName !== area.person) return false;
+	if (area.channel === undefined) return true;
+	if (area.channel === "DMs") return row.channelId.startsWith("D");
+	return (
+		row.channelId === area.channel ||
+		row.channelName === channelLabel(area.channel)
+	);
+}
 
 /**
  * Slack — every message I put the queue reaction (:eyes: by default, click it
@@ -77,6 +106,12 @@ function ReactionsPage() {
 	const { ensureWorkspace } = useOdinWorkspace();
 	const { launch, isLaunching, launchingKey } = useLaunchTaskSession();
 	const navigate = useNavigate();
+	const area = Route.useSearch();
+	const areaName =
+		area.person ??
+		(area.channel === undefined || area.channel === "DMs"
+			? area.channel
+			: channelLabel(area.channel));
 	const openUrl = electronTrpc.external.openUrl.useMutation();
 	const markStarted = electronTrpc.slack.markStarted.useMutation({
 		onSuccess: () => void reactions.refetch(),
@@ -103,7 +138,10 @@ function ReactionsPage() {
 		)?.id ?? null;
 
 	const data = reactions.data;
-	const rows = useMemo(() => data?.rows ?? [], [data]);
+	const rows = useMemo(
+		() => (data?.rows ?? []).filter((row) => inArea(row, area)),
+		[data, area],
+	);
 	// Typed as always-present, but the main process only reloads on restart: an
 	// app still running the old code answers without it, and its setReaction
 	// procedure doesn't exist either. Missing value = editing isn't live yet.
@@ -172,6 +210,11 @@ function ReactionsPage() {
 		<div className="flex h-full flex-col">
 			<FeedHeader>
 				<FeedDivider />
+				{areaName && (
+					<FilterPill active onClick={() => navigate({ to: "/reactions" })}>
+						{areaName} ×
+					</FilterPill>
+				)}
 				{REACTION_STATUSES.map((status) => (
 					<FilterPill
 						key={status}
