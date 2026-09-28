@@ -11,6 +11,7 @@ import {
 	FEED_ROW,
 	FeedDivider,
 	FeedHeader,
+	FeedSearch,
 	FeedSelect,
 	FilterPill,
 	META_DATE,
@@ -103,6 +104,9 @@ function MyJiraPage() {
 	// Default to All: BUGT tickets are reported-not-assigned, and hiding them
 	// behind a tab made "my Jira" look like it was missing whole projects.
 	const [role, setRole] = useState<Role>("all");
+	// Free text over key, title, reporter, status and project.
+	const [search, setSearch] = useState("");
+	const needle = search.trim().toLowerCase();
 	// Same feeds the shell warms on boot — rows are usually already cached.
 	const {
 		jira: issuesQuery,
@@ -158,9 +162,15 @@ function MyJiraPage() {
 
 	// Group by status category (In Progress first), then keep Jira's updated order.
 	const groups = useMemo(() => {
-		const filtered = projectFilter
-			? issues.filter((issue) => issue.project === projectFilter)
-			: issues;
+		const filtered = issues
+			.filter((issue) => !projectFilter || issue.project === projectFilter)
+			.filter(
+				(issue) =>
+					!needle ||
+					`${issue.key} ${issue.title} ${issue.reporter ?? ""} ${issue.status} ${issue.project}`
+						.toLowerCase()
+						.includes(needle),
+			);
 		const byCategory = new Map<string, typeof issues>();
 		for (const issue of filtered) {
 			const key = issue.statusCategory;
@@ -179,7 +189,7 @@ function MyJiraPage() {
 		return [...byCategory.entries()].sort(
 			(a, b) => categoryRank(a[0]) - categoryRank(b[0]),
 		);
-	}, [issues, projectFilter, livePaneByKey]);
+	}, [issues, projectFilter, needle, livePaneByKey]);
 
 	const handleStart = async (issue: (typeof issues)[number]) => {
 		const ensured = await ensureWorkspace();
@@ -220,6 +230,11 @@ function MyJiraPage() {
 					</FilterPill>
 				))}
 				<div className="ml-auto flex items-center gap-2.5">
+					<FeedSearch
+						value={search}
+						onChange={setSearch}
+						label="Search Jira issues"
+					/>
 					<HiddenToggle
 						count={hide.hiddenCount}
 						showing={hide.showHidden}
@@ -254,6 +269,11 @@ function MyJiraPage() {
 				{issuesQuery.data && issues.length === 0 && (
 					<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
 						Nothing assigned to you 🎉
+					</div>
+				)}
+				{needle && issues.length > 0 && groups.length === 0 && (
+					<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
+						No issues match your search
 					</div>
 				)}
 
