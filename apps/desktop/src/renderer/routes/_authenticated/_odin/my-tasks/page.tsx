@@ -16,7 +16,6 @@ import {
 	RowActions,
 } from "../components/FeedChrome";
 import {
-	AutomationChip,
 	BuiltinChip,
 	PriorityChip,
 	RepoChip,
@@ -47,7 +46,8 @@ export const Route = createFileRoute("/_authenticated/_odin/my-tasks/")({
  */
 
 function MyTasksPage() {
-	const { tasks, add, edit, remove, setPane } = useMyTasks();
+	// Automations live on their own page; this list is only what waits on you.
+	const { todos: tasks, add, edit, remove, setPane } = useMyTasks();
 	const [draft, setDraft] = useState("");
 	const [editingId, setEditingId] = useState<string | null>(null);
 	const [editDraft, setEditDraft] = useState("");
@@ -149,10 +149,6 @@ function MyTasksPage() {
 								FEED_ROW,
 								activePaneId &&
 									"border-[#1a4029] border-l-2 border-l-[#3ecf8e] bg-[#0f1613]",
-								// An automation runs itself, so it can't read like the rows
-								// around it that are waiting on you. Amber edge, and the
-								// schedule where the priority would be.
-								task.cron && !activePaneId && "border-l-2 border-l-[#f5b83d]",
 							)}
 						>
 							<div className="flex items-start gap-3">
@@ -175,11 +171,7 @@ function MyTasksPage() {
 										</span>
 									)}
 									<span className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
-										{task.cron ? (
-											<AutomationChip cron={task.cron} paused={task.paused} />
-										) : (
-											<PriorityChip priority={task.priority} />
-										)}
+										<PriorityChip priority={task.priority} />
 										{task.skill && <SkillChip skill={task.skill} />}
 										{task.repo && <RepoChip repo={task.repo} />}
 										{task.builtin && <BuiltinChip />}
