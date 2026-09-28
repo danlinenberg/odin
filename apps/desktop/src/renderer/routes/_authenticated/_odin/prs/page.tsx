@@ -65,6 +65,9 @@ function shortDate(iso: string | null): string | null {
 function MyPullRequestsPage() {
 	const [kind, setKind] = useState<Kind>("review");
 	const [repoFilter, setRepoFilter] = useState("");
+	// Free text over title, author, repo and number.
+	const [search, setSearch] = useState("");
+	const needle = search.trim().toLowerCase();
 	// Same feeds the shell warms on boot — rows are usually already cached.
 	const {
 		pulls: pullsQuery,
@@ -126,8 +129,15 @@ function MyPullRequestsPage() {
 		() =>
 			pulls
 				.filter((pull) => pull.kind === kind)
-				.filter((pull) => !repoFilter || pull.repo === repoFilter),
-		[pulls, kind, repoFilter],
+				.filter((pull) => !repoFilter || pull.repo === repoFilter)
+				.filter(
+					(pull) =>
+						!needle ||
+						`${pull.title} ${pull.author ?? ""} ${pull.repo} #${pull.number}`
+							.toLowerCase()
+							.includes(needle),
+				),
+		[pulls, kind, repoFilter, needle],
 	);
 
 	const handleStart = async (pull: (typeof pulls)[number]) => {
@@ -174,6 +184,22 @@ function MyPullRequestsPage() {
 					</FilterPill>
 				))}
 				<div className="ml-auto flex items-center gap-2.5">
+					<input
+						type="search"
+						value={search}
+						onChange={(e) => setSearch(e.target.value)}
+						onKeyDown={(e) => {
+							if (e.key !== "Escape") return;
+							setSearch("");
+							e.currentTarget.blur();
+						}}
+						placeholder="Search"
+						aria-label="Search pull requests"
+						className={cn(
+							"w-[180px] rounded-full border bg-[#16161b] px-2.5 py-1 text-[12px] text-[#f5f5f7] outline-none placeholder:text-[#6b6b78] focus:border-[#a394ff]",
+							search ? "border-[#a394ff]" : "border-[#25252e]",
+						)}
+					/>
 					{botCount > 0 && (
 						<button
 							type="button"
@@ -216,11 +242,13 @@ function MyPullRequestsPage() {
 				<FeedError error={pullsQuery.error} />
 				{pullsQuery.data && rows.length === 0 && (
 					<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
-						{kind === "review"
-							? "No PRs waiting on your review 🎉"
-							: kind === "mentioned"
-								? "Nobody has mentioned you"
-								: "You have no open PRs"}
+						{needle
+							? "No PRs match your search"
+							: kind === "review"
+								? "No PRs waiting on your review 🎉"
+								: kind === "mentioned"
+									? "Nobody has mentioned you"
+									: "You have no open PRs"}
 					</div>
 				)}
 
