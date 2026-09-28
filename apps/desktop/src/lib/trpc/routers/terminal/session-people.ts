@@ -3,6 +3,7 @@ import { desc } from "drizzle-orm";
 import { appState } from "main/lib/app-state";
 import type { SessionPerson } from "main/lib/claude-sessions";
 import { localDb } from "main/lib/local-db";
+import { profileOf } from "shared/odin-profile";
 
 /**
  * Who asked for each session, so Session History can be searched by person.
@@ -54,4 +55,24 @@ export function sessionPeople(): Map<string, SessionPerson> {
 		}
 	}
 	return new Map([...people].reverse());
+}
+
+/**
+ * The profile each session was launched under, from the same two records as
+ * `sessionPeople` (the ledger wins). A transcript neither knows about — one
+ * run outside Odin, or before profiles — reads as the default profile, the
+ * same rule `profileOf` applies to an unstamped pane.
+ */
+export function sessionProfileOf(): (sessionId: string) => string {
+	const profiles = new Map<string, string>();
+	for (const row of Object.values(appState.data.tabsState.panes ?? {}))
+		if (row.claudeSessionId)
+			profiles.set(row.claudeSessionId, profileOf(row.odinProfile));
+	try {
+		for (const row of localDb.select().from(workLog).all())
+			if (row.sessionId) profiles.set(row.sessionId, profileOf(row.profileId));
+	} catch (error) {
+		console.warn("[session-people] work log unreadable:", error);
+	}
+	return (sessionId) => profiles.get(sessionId) ?? profileOf(null);
 }

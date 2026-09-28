@@ -5,7 +5,7 @@ import { localDb } from "main/lib/local-db";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
 import { activeProfileId } from "../odin-config";
-import { sessionPeople } from "../terminal/session-people";
+import { sessionPeople, sessionProfileOf } from "../terminal/session-people";
 import { computeInsights } from "./insights";
 
 export const createInsightsRouter = () => {
@@ -94,7 +94,13 @@ export const createInsightsRouter = () => {
 					),
 					cachedBriefs(),
 				]);
-				const workload = computeWorkload(sessions, input);
+				// Same scope as `summary`: only the active profile's sessions.
+				const profileId = activeProfileId();
+				const profileOfSession = sessionProfileOf();
+				const workload = computeWorkload(
+					sessions.filter((s) => profileOfSession(s.sessionId) === profileId),
+					input,
+				);
 				// A written brief says what a session did, not just what it was
 				// asked; use it where the board already paid for one.
 				for (const week of workload.recap)
