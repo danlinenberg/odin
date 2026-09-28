@@ -48,9 +48,6 @@ function cleanTitle(title: string): string {
 	return title.replace(/[*~]/g, "").replace(/\s+/g, " ").trim();
 }
 
-/** How long past its date a task still pins under Due. */
-const PIN_OVERDUE_DAYS = 30;
-
 const ICON = Object.fromEntries(FEED_TABS.map(({ to, Icon }) => [to, Icon]));
 
 /**
@@ -208,6 +205,7 @@ export function NextInLine() {
 	const { rows, reminders, prompt, rankInput, slackText, refetchSlack } =
 		useNextInLineRows();
 	const { ranking, applied, startedAt, error } = useAiRanking();
+	const pinOverdueDays = useNextInLinePrompt((s) => s.pinOverdueDays);
 	const navigate = useNavigate();
 	const { start, livePaneFor, isLaunching, launchingKey } =
 		useStartAllItem(refetchSlack);
@@ -293,7 +291,7 @@ export function NextInLine() {
 	// A rolling window, not the calendar year, so January keeps December's.
 	// ponytail: every future date pins, however far out; add a horizon if a
 	// month-away date starts crowding the top.
-	const cutoff = dayOf(Date.now() - PIN_OVERDUE_DAYS * 86_400_000);
+	const cutoff = dayOf(Date.now() - pinOverdueDays * 86_400_000);
 	const dueOf = (item: AllItem) => {
 		const due = effectiveDue(item.key, reminders, item.dueDate);
 		return due && due >= cutoff ? due : null;

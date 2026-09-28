@@ -108,6 +108,7 @@ function BoardSettingsPage() {
 				/>
 
 				<NextInLinePromptRow />
+				<PinOverdueDaysRow />
 				<SweepIntervalRow />
 			</div>
 		</div>
@@ -202,6 +203,45 @@ function LaunchLimitRow({
 					}}
 				/>
 				<span className="text-sm text-muted-foreground">{unit}</span>
+			</div>
+		</div>
+	);
+}
+
+/** How far overdue a task can be and still pin under Next in line's Due. */
+function PinOverdueDaysRow() {
+	const days = useNextInLinePrompt((s) => s.pinOverdueDays);
+	const setDays = useNextInLinePrompt((s) => s.setPinOverdueDays);
+	return (
+		<div className="flex items-center justify-between gap-6">
+			<div className="space-y-0.5">
+				<Label htmlFor="pin-overdue-days" className="text-sm font-medium">
+					Pin overdue tasks for
+				</Label>
+				<p className="text-xs text-muted-foreground">
+					Tasks with a due date sit at the top of Next in line, under Due. Once
+					a date has passed by more than this, the task drops back into the
+					normal order — a ticket that's a year overdue isn't a deadline
+					anymore. Upcoming dates always pin.
+				</p>
+			</div>
+			<div className="flex shrink-0 items-center gap-1.5">
+				<Input
+					id="pin-overdue-days"
+					type="number"
+					min={0}
+					max={3650}
+					step={1}
+					defaultValue={days}
+					className="w-20 tabular-nums"
+					onChange={(event) => {
+						const next = event.target.valueAsNumber;
+						// ponytail: same as LaunchLimitRow — a bad value keeps the last good one.
+						if (Number.isFinite(next) && next >= 0 && next <= 3650)
+							setDays(next);
+					}}
+				/>
+				<span className="text-sm text-muted-foreground">days</span>
 			</div>
 		</div>
 	);
