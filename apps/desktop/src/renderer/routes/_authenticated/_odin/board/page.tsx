@@ -15,7 +15,6 @@ import {
 	LuEye,
 	LuEyeOff,
 	LuFlame,
-	LuFolderGit2,
 	LuGitPullRequest,
 	LuHourglass,
 	LuPause,
@@ -59,7 +58,7 @@ import {
 	sessionTitle,
 	untruncatedTitle,
 } from "../components/OdinPromptDialog";
-import { PersonChip } from "../components/PersonChip";
+import { PersonChip, personColor } from "../components/PersonChip";
 import { DueChip, OverdueMark, useReminders } from "../components/Reminders";
 import { TranscriptView } from "../components/TranscriptView";
 import { useOdinProfile } from "../hooks/useOdinProfile";
@@ -305,7 +304,7 @@ function PrPill({ card, live }: { card: BoardCard; live: boolean }) {
 				event.stopPropagation();
 				openUrl.mutate(pr.url);
 			}}
-			className="rounded-[5px] bg-[#14301f] px-[7px] text-[11px] font-medium text-[#3ecf8e] hover:bg-[#1a3d28]"
+			className="hover:text-[#f5f5f7] hover:underline"
 		>
 			PR #{pr.number}
 			{prs.length > 1 ? ` +${prs.length - 1}` : ""}
@@ -327,7 +326,7 @@ function NotionPill({ card, live }: { card: BoardCard; live: boolean }) {
 				event.stopPropagation();
 				openUrl.mutate(page.url);
 			}}
-			className="rounded-[5px] bg-[#232329] px-[7px] text-[11px] font-medium text-[#d6d6dc] hover:bg-[#2c2c34]"
+			className="hover:text-[#f5f5f7] hover:underline"
 		>
 			Notion
 		</button>
@@ -353,9 +352,8 @@ function RepoPill({ card }: { card: BoardCard }) {
 	return (
 		<span
 			title={data?.checkout ?? sessionCwd(card.pane) ?? card.repoPath}
-			className="inline-flex items-center gap-1 rounded-[5px] bg-[#1b2430] px-[7px] text-[11px] font-medium text-[#7ec4ff]"
+			className="truncate"
 		>
-			<LuFolderGit2 className="size-3 shrink-0" aria-hidden />
 			{data?.name ?? repoLabel(card)}
 		</span>
 	);
@@ -385,7 +383,7 @@ function AgePill({
 	return (
 		<span
 			title="Since the last message in this session"
-			className="rounded-[5px] bg-[#1f1f27] px-[7px] text-[11px] text-[#a5a5b3]"
+			className="whitespace-nowrap"
 		>
 			{label === "now" ? label : `${label} ago`}
 		</span>
@@ -2209,14 +2207,11 @@ function DevBoardPage() {
 																}}
 																className={cn(
 																	"group cursor-pointer rounded-[10px] border px-3 py-2.5 text-left transition-colors hover:border-[#34343f]",
-																	// Every card wears its column's colour. A failure lives
-																	// in Needs you now, so it keeps its own red edge rather
-																	// than the column's amber.
-																	PANE_STATUS[
-																		card.pane.status === "failed"
-																			? "failed"
-																			: card.status
-																	].tint,
+																	// Cards are neutral: the column's dot already says the status, and a tint
+																	// on every card drowned the flags. A failure still earns its red edge.
+																	card.pane.status === "failed"
+																		? "border-[#5a2733] bg-[#1d1417]"
+																		: "border-[#26262c] bg-[#141418]",
 																)}
 															>
 																<div className="flex items-start gap-2">
@@ -2246,38 +2241,26 @@ function DevBoardPage() {
 																		✓ done
 																	</button>
 																</div>
-																<div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+																{/* Facts are one grey text line; chips are left only for flags that ask
+    something of you. A pill that renders nothing drops out, so the dots
+    between the rest stay right. */}
+																<div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 text-[11.5px] text-[#8a8a97] [&>*+*]:before:mr-1.5 [&>*+*]:before:text-[#4a4a55] [&>*+*]:before:content-['·']">
 																	{cardContact(card) && (
-																		<PersonChip
-																			name={cardContact(card) as string}
-																		/>
-																	)}
-																	{boardTags(card.pane.odinTags).map((tag) => (
-																		<span
-																			key={tag}
-																			title={
-																				tag === "automation"
-																					? "Started by a schedule, not by you"
-																					: undefined
-																			}
-																			className={cn(
-																				"inline-flex items-center gap-1 rounded-[5px] px-[7px] text-[11px] font-medium",
-																				// Amber and a clock, the pair the Tasks list already
-																				// gives a scheduled row. It is the one tag that answers
-																				// "who started this?", on a board where every other card
-																				// was started by you — in the shared violet it read as
-																				// one more subject label, next to #bug and #infra.
-																				tag === "automation"
-																					? "bg-[#2e2413] text-[#f5b83d]"
-																					: "bg-[#211d3a] text-[#a394ff]",
-																			)}
-																		>
-																			{tag === "automation" && (
-																				<LuClock className="size-3" />
-																			)}
-																			#{tag}
+																		<span className="inline-flex min-w-0 items-center gap-1 font-medium text-[#d6d6dc]">
+																			<span
+																				className="size-1.5 shrink-0 rounded-full"
+																				style={{
+																					backgroundColor: personColor(
+																						cardContact(card) as string,
+																					).fg,
+																				}}
+																			/>
+																			<span className="truncate">
+																				{cardContact(card)}
+																			</span>
 																		</span>
-																	))}
+																	)}
+																	<RepoPill card={card} />
 																	<PrPill
 																		card={card}
 																		live={card.status === "working"}
@@ -2286,10 +2269,6 @@ function DevBoardPage() {
 																		card={card}
 																		live={card.status === "working"}
 																	/>
-																	{/* Which repo this ran in — every card has one,
-																	    and "same task, wrong repo" is the thing you
-																	    catch by scanning the board. */}
-																	<RepoPill card={card} />
 																	<AgePill
 																		card={card}
 																		live={card.status === "working"}
@@ -2298,13 +2277,38 @@ function DevBoardPage() {
 																				?.at
 																		}
 																	/>
+																</div>
+																<div className="mt-1 flex flex-wrap items-center gap-1.5">
+																	{boardTags(card.pane.odinTags).some(
+																		(tag) => tag !== "automation",
+																	) && (
+																		<span className="font-mono text-[10.5px] text-[#5e5e6a]">
+																			{boardTags(card.pane.odinTags)
+																				.filter((tag) => tag !== "automation")
+																				.map((tag) => `#${tag}`)
+																				.join(" ")}
+																		</span>
+																	)}
+																	{boardTags(card.pane.odinTags).includes(
+																		"automation",
+																	) && (
+																		// Amber and a clock, the pair the Tasks list gives a scheduled row:
+																		// the one tag that answers "who started this?" on a board you
+																		// otherwise started yourself.
+																		<span
+																			title="Started by a schedule, not by you"
+																			className="inline-flex items-center gap-1 rounded-[5px] bg-[#2e2413] px-[7px] text-[11px] font-medium text-[#f5b83d]"
+																		>
+																			<LuClock className="size-3" />
+																			automation
+																		</span>
+																	)}
 																	{agentPaneIds.has(card.pane.id) && (
 																		<LoopPill card={card} />
 																	)}
 																	<LoadPill card={card} />
-																	{/* Last, and blank until you set one: a
-																	    deadline is yours, not something the
-																	    session reports about itself. */}
+																	{/* Last, and blank until you set one: a deadline is yours, not
+	    something the session reports about itself. */}
 																	<DueChip
 																		itemKey={`session:${card.pane.id}`}
 																		title={cardTitle(card)}
