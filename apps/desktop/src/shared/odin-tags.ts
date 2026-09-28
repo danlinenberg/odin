@@ -51,8 +51,24 @@ export const BOARD_TAGS: string[] = ["odin", ...TAG_VOCABULARY];
 /**
  * Drop anything off the list. Sessions tagged under the old, longer vocabulary
  * keep #perf/#ui/#api/… in app-state; this is where they stop being shown,
- * rather than a migration over persisted state.
+ * rather than a migration over persisted state. `custom` is the tags you added
+ * by hand from the tag menu — on the list because you put them there.
  */
-export function boardTags(tags: string[] | undefined): string[] {
-	return (tags ?? []).filter((tag) => BOARD_TAGS.includes(tag));
+export function boardTags(
+	tags: string[] | undefined,
+	custom: readonly string[] = [],
+): string[] {
+	return (tags ?? []).filter(
+		(tag) => BOARD_TAGS.includes(tag) || custom.includes(tag),
+	);
+}
+
+/** A typed tag, cleaned: "#My Tag " → "my-tag". Empty when nothing's left. */
+export function normalizeTag(raw: string): string {
+	return raw
+		.trim()
+		.toLowerCase()
+		.replace(/^#+/, "")
+		.replace(/\s+/g, "-")
+		.replace(/[^a-z0-9_-]/g, "");
 }

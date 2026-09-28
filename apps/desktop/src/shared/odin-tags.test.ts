@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { boardTags, withOdinTag } from "./odin-tags";
+import { boardTags, normalizeTag, withOdinTag } from "./odin-tags";
 
 const ODIN = "/Users/dan/dev/private/odin";
 
@@ -33,5 +33,16 @@ describe("boardTags", () => {
 			"chore",
 		]);
 		expect(boardTags(undefined)).toEqual([]);
+	});
+
+	it("keeps the custom tags you added", () => {
+		expect(boardTags(["perf", "client-x"], ["client-x"])).toEqual(["client-x"]);
+	});
+});
+
+describe("normalizeTag", () => {
+	it("strips the hash, spaces and punctuation", () => {
+		expect(normalizeTag("  #Client X! ")).toEqual("client-x");
+		expect(normalizeTag("##")).toEqual("");
 	});
 });
