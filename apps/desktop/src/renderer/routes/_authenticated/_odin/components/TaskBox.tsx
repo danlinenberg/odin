@@ -446,7 +446,7 @@ export function BuiltinChip() {
 			className="inline-flex items-center gap-1 rounded-[5px] bg-[#221a38] px-[7px] py-[1px] font-semibold text-[#a78bfa]"
 		>
 			<HiOutlineSparkles className="size-3" />
-			built-in
+			Built-in
 		</span>
 	);
 }

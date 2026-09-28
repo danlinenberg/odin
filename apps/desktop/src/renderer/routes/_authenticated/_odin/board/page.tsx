@@ -313,7 +313,7 @@ function DropPill({ pane }: { pane: Pane }) {
 			title={`The Review sweep says drop this: ${row.evidence}`}
 			className="inline-flex items-center rounded-[5px] bg-[#331a1f] px-[7px] text-[11px] font-medium text-[#ff7a8a]"
 		>
-			drop? {row.evidence}
+			Drop? {row.evidence}
 		</span>
 	);
 }
@@ -466,8 +466,8 @@ function LoopPill({ card }: { card: BoardCard }) {
 		>
 			<LuRepeat className="size-3" aria-hidden />
 			{countdown
-				? `loop · ${countdown === "now" ? "<1m" : `in ${countdown}`}`
-				: "loop"}
+				? `Loop · ${countdown === "now" ? "<1m" : `in ${countdown}`}`
+				: "Loop"}
 		</span>
 	);
 }
@@ -2448,7 +2448,7 @@ function DevBoardPage() {
 																			className="inline-flex items-center gap-1 rounded-[5px] bg-[#2e2413] px-[7px] text-[11px] font-medium text-[#f5b83d]"
 																		>
 																			<LuClock className="size-3" />
-																			automation
+																			Automation
 																		</span>
 																	)}
 																	{agentPaneIds.has(card.pane.id) && (
@@ -2725,7 +2725,7 @@ function DevBoardPage() {
 										{sessionCwd(drawerCard.pane)?.split("/").slice(-1)[0]}
 									</span>
 								)}
-								<span className="rounded-[5px] bg-[#1f1f27] px-[7px] text-[11px] text-[#a5a5b3]">
+								<span className="rounded-[5px] bg-[#1f1f27] px-[7px] text-[11px] text-[#a5a5b3] capitalize">
 									{drawerCard.status}
 								</span>
 							</div>

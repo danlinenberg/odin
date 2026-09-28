@@ -359,7 +359,7 @@ function MyJiraPage() {
 													{activePaneId && (
 														<span className="inline-flex items-center gap-1 rounded-[5px] bg-[#14301f] px-[7px] py-[1px] font-semibold text-[#3ecf8e]">
 															<span className="size-1.5 animate-pulse rounded-full bg-current" />
-															live
+															Live
 														</span>
 													)}
 												</span>

@@ -250,7 +250,7 @@ export function DueChip({
 			>
 				{/* Spelled out: beside a card's age chip, a bare "Sep 25" could be
 				    either one. */}
-				{due ? `due ${dueLabel(due, now)}` : "+ due"}
+				{due ? `Due ${dueLabel(due, now)}` : "+ Due"}
 			</button>
 			{reminder && (
 				<button
