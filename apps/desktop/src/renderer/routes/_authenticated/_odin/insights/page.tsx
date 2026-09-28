@@ -257,18 +257,16 @@ const HOURS = Array.from({ length: 24 }, (_, index) => (index + 6) % 24);
 
 /**
  * One week's hours as a grid, weekday rows by hour columns. `cells` is indexed
- * `weekday * 24 + hour`; `scale` maps a cell to minutes-of-an-hour for its
- * shade, so an aggregate can shade against its own busiest hour.
+ * `weekday * 24 + hour`; each cell shades against the grid's busiest one.
  */
 function HourGrid({
 	cells,
-	scale = (minutes) => minutes,
 	describe = (minutes) => `${minutes}m`,
 }: {
 	cells: number[] | undefined;
-	scale?: (value: number) => number;
 	describe?: (value: number) => string;
 }) {
+	const max = Math.max(1, ...(cells ?? []));
 	return (
 		<div
 			className="grid gap-[3px]"
@@ -286,7 +284,7 @@ function HourGrid({
 							<div
 								key={hour}
 								className="h-[24px] rounded-[3px]"
-								style={cellStyle(scale(value))}
+								style={cellStyle(value, max)}
 								title={`${day} ${label}:00 — ${describe(value)}`}
 							/>
 						);
@@ -309,7 +307,6 @@ function HourGrid({
 
 /**
  * Every recorded week folded into one grid: the shape of a typical week.
- * Shaded against its own busiest cell, since a summed hour runs far past 60.
  */
 function AllWeeksGrid({
 	heatmap,
@@ -324,13 +321,11 @@ function AllWeeksGrid({
 			});
 		return sum;
 	}, [heatmap]);
-	const max = Math.max(1, ...totals);
 	const weeks = Math.max(1, heatmap.length);
 	return (
 		<Card>
 			<HourGrid
 				cells={totals}
-				scale={(total) => (total / max) * 60}
 				describe={(total) =>
 					`${duration(total / 60)} across ${plural(weeks, "week")}, ${Math.round(total / weeks)}m a week`
 				}
@@ -363,16 +358,16 @@ function shiftWeeks(start: number, count: number): number {
 }
 
 /**
- * One cell holds at most an hour, so the scale is absolute: sixty minutes is
- * full, and a shade means the same thing in every week. Rescaling per week
- * would light up a dead Tuesday for being that week's busiest hour.
+ * Shaded against the grid's own busiest cell, so the shape of a week reads
+ * even when every hour is half-full — an absolute 60-minute scale squeezed a
+ * typical week into two near-identical greens.
  */
-function cellStyle(minutes: number): React.CSSProperties {
-	if (minutes <= 0) return { background: "#1b1b22" };
+function cellStyle(value: number, max: number): React.CSSProperties {
+	if (value <= 0) return { background: "#1b1b22" };
 	// Four steps rather than a continuous ramp — quantised, a cell can actually
-	// be matched back to the legend.
-	const step = Math.min(4, Math.ceil((minutes / 60) * 4));
-	return { background: YOU_COLOR, opacity: 0.2 + 0.2 * step };
+	// be matched against its neighbours. Wide spacing so the steps are visible.
+	const step = Math.min(4, Math.ceil((value / max) * 4));
+	return { background: YOU_COLOR, opacity: [0.15, 0.4, 0.7, 1][step - 1] };
 }
 
 /** Rows a week shows before "Show more". */
