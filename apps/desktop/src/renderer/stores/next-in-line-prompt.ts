@@ -11,8 +11,17 @@ import { persist } from "zustand/middleware";
 export const useNextInLinePrompt = create<{
 	prompt: string;
 	setPrompt: (prompt: string) => void;
+	/** How long past its date a task still pins under Due. */
+	pinOverdueDays: number;
+	setPinOverdueDays: (days: number) => void;
 }>()(
-	persist((set) => ({ prompt: "", setPrompt: (prompt) => set({ prompt }) }), {
-		name: "odin-next-in-line-prompt",
-	}),
+	persist(
+		(set) => ({
+			prompt: "",
+			setPrompt: (prompt) => set({ prompt }),
+			pinOverdueDays: 30,
+			setPinOverdueDays: (pinOverdueDays) => set({ pinOverdueDays }),
+		}),
+		{ name: "odin-next-in-line-prompt" },
+	),
 );
