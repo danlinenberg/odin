@@ -60,6 +60,8 @@ const ICON = Object.fromEntries(FEED_TABS.map(({ to, Icon }) => [to, Icon]));
  * One key, overwritten each time: a few hundred short entries.
  */
 const LAST_RANKING_KEY = "odin-next-in-line-last-ranking";
+/** Whether the AI's order and hides are on, or the column is All tasks order. */
+const APPLIED_KEY = "odin-next-in-line-applied";
 
 interface SavedRanking {
 	keys: string[];
@@ -218,6 +220,21 @@ export function NextInLine() {
 		useStartAllItem(refetchSlack);
 	// Same key the feeds hide under, so hiding here hides it there and back.
 	const hide = useHiddenFilter("", rows, (item) => item.key);
+	// The AI's order is a recommendation: the column is All tasks order until
+	// you apply it, and stays applied (to each new ranking) until you undo it.
+	const [applied, setApplied] = useState(() => {
+		try {
+			return localStorage.getItem(APPLIED_KEY) === "1";
+		} catch {
+			return false;
+		}
+	});
+	const apply = (on: boolean) => {
+		setApplied(on);
+		try {
+			localStorage.setItem(APPLIED_KEY, on ? "1" : "0");
+		} catch {}
+	};
 	// Open hands the link to the OS: a Slack permalink goes through Slack's
 	// own hand-off into the desktop app, everything else to the browser.
 	const openUrl = electronTrpc.external.openUrl.useMutation();
@@ -265,14 +282,16 @@ export function NextInLine() {
 	);
 	// Rows your instructions say not to show, per the model. They count as
 	// hidden and come back, dimmed, under the same "show hidden" as yours.
-	const aiHidden = new Set(ranking.data?.hidden);
+	const aiHidden = new Set(applied ? ranking.data?.hidden : []);
 	const isAiHidden = (item: AllItem) =>
 		aiHidden.has(item.key) && !hide.isHidden(item);
 	const aiHiddenCount = waiting.filter(isAiHidden).length;
 	const candidates = hide.showHidden
 		? waiting
 		: waiting.filter((item) => !isAiHidden(item));
-	const order = new Map(ranking.data?.keys.map((key, i) => [key, i]));
+	const order = new Map(
+		applied ? ranking.data?.keys.map((key, i) => [key, i]) : [],
+	);
 	// Stable sort: a row the model hasn't seen yet (arrived since) goes last.
 	const next = order.size
 		? candidates.toSorted(
@@ -317,7 +336,9 @@ export function NextInLine() {
 			<RankStatus
 				fetching={ranking.isFetching}
 				signature={signature}
-				ranked={order.size > 0}
+				ranked={!!ranking.data?.keys.length}
+				applied={applied}
+				onApply={apply}
 				error={ranking.error?.message ?? null}
 				count={next.length}
 			/>
@@ -497,12 +518,16 @@ function RankStatus({
 	fetching,
 	signature,
 	ranked,
+	applied,
+	onApply,
 	error,
 	count,
 }: {
 	fetching: boolean;
 	signature: string;
 	ranked: boolean;
+	applied: boolean;
+	onApply: (on: boolean) => void;
 	error: string | null;
 	count: number;
 }) {
@@ -529,9 +554,9 @@ function RankStatus({
 					AI is ranking {count} tasks… {secs}s
 					<span className="block text-[#8a8a97]">
 						Usually about 20 seconds.{" "}
-						{ranked
+						{ranked && applied
 							? "Showing the previous ranking until then."
-							: "Showing feed order until then."}
+							: "Showing All tasks order until then."}
 					</span>
 				</span>
 			</div>
@@ -542,15 +567,37 @@ function RankStatus({
 				className="mx-2 mb-2 cursor-text select-text rounded-lg border border-[#5a2733] bg-[#1d1417] px-2.5 py-2 text-[11.5px] text-[#f0a0ad]"
 				title={error}
 			>
-				Unranked — AI ranking failed, so this is feed order.
+				Unranked — AI ranking failed, so this is All tasks order.
 				<span className="block truncate text-[#8a8a97]">{error}</span>
+			</div>
+		);
+	if (ranked && applied)
+		return (
+			<div className="mx-2 mb-2 flex items-center gap-1.5 px-1 text-[11px] text-[#8a8a97]">
+				<LuSparkles className="size-3 text-[#a394ff]" aria-hidden />
+				Ranked by AI
+				<button
+					type="button"
+					onClick={() => onApply(false)}
+					className="ml-auto text-[#8a8a97] hover:text-[#f5f5f7]"
+				>
+					Back to All tasks order
+				</button>
 			</div>
 		);
 	if (ranked)
 		return (
 			<div className="mx-2 mb-2 flex items-center gap-1.5 px-1 text-[11px] text-[#8a8a97]">
-				<LuSparkles className="size-3 text-[#a394ff]" aria-hidden />
-				Ranked by AI
+				All tasks order
+				<button
+					type="button"
+					onClick={() => onApply(true)}
+					title="Use the AI's order and hide what your instructions say to hide"
+					className="ml-auto flex items-center gap-1 rounded-md bg-[#2c2750] px-2 py-0.5 font-medium text-[#d6d0ff] hover:bg-[#3a3366]"
+				>
+					<LuSparkles className="size-3 text-[#a394ff]" aria-hidden />
+					Apply AI recommendations
+				</button>
 			</div>
 		);
 	return null;
