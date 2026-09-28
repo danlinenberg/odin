@@ -289,6 +289,15 @@ function useCardTranscript(card: BoardCard, live: boolean) {
 	);
 }
 
+/** Card fills per column — a few points of hue over the neutral #141418. */
+const CARD_FILL: Record<PaneStatus, string> = {
+	working: "bg-[#13161b]",
+	permission: "bg-[#181613]",
+	review: "bg-[#131815]",
+	idle: "bg-[#181315]",
+	failed: "bg-[#1d1417]",
+};
+
 function PrPill({ card, live }: { card: BoardCard; live: boolean }) {
 	const { data } = useCardTranscript(card, live);
 	const openUrl = electronTrpc.external.openUrl.useMutation();
@@ -2207,11 +2216,12 @@ function DevBoardPage() {
 																}}
 																className={cn(
 																	"group cursor-pointer rounded-[10px] border px-3 py-2.5 text-left transition-colors hover:border-[#34343f]",
-																	// Cards are neutral: the column's dot already says the status, and a tint
-																	// on every card drowned the flags. A failure still earns its red edge.
+																	// A faint wash of the column's hue on a neutral edge: enough to tell
+																	// the columns apart, too quiet to compete with the flags. A failure
+																	// still earns its red edge.
 																	card.pane.status === "failed"
 																		? "border-[#5a2733] bg-[#1d1417]"
-																		: "border-[#26262c] bg-[#141418]",
+																		: `border-[#26262c] ${CARD_FILL[card.status]}`,
 																)}
 															>
 																<div className="flex items-start gap-2">
