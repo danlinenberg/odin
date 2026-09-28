@@ -60,7 +60,7 @@ import {
 	untruncatedTitle,
 } from "../components/OdinPromptDialog";
 import { PersonChip } from "../components/PersonChip";
-import { DueChip, useReminders } from "../components/Reminders";
+import { DueChip, OverdueMark, useReminders } from "../components/Reminders";
 import { TranscriptView } from "../components/TranscriptView";
 import { useOdinProfile } from "../hooks/useOdinProfile";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
@@ -2229,6 +2229,9 @@ function DevBoardPage() {
 																				★
 																			</span>
 																		)}
+																		<OverdueMark
+																			itemKey={`session:${card.pane.id}`}
+																		/>
 																		{cardTitle(card)}
 																	</div>
 																	<button
