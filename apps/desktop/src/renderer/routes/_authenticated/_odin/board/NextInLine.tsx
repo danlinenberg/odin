@@ -235,6 +235,18 @@ export function NextInLine() {
 			action: { label: "Undo", onClick: () => markDone(item, false) },
 		});
 	};
+	// The Review sweep's DROPs, so a row it wants gone says so here too. By key,
+	// or by link for PRs, which Next in line keys by id and the sweep by repo#n.
+	const swept = useBacklogReview((s) => s.swept);
+	const dropFor = useMemo(() => {
+		const drops = swept.filter((row) => row.verdict === "DROP");
+		const byKey = new Map(drops.map((row) => [row.key, row]));
+		const byUrl = new Map(
+			drops.flatMap((row) => (row.url ? [[row.url, row] as const] : [])),
+		);
+		return (item: AllItem) =>
+			byKey.get(item.key) ?? (item.url ? byUrl.get(item.url) : undefined);
+	}, [swept]);
 	const startedKeys = useMemo(
 		() => new Set((ledger ?? []).map((row) => row.externalId)),
 		[ledger],
@@ -378,6 +390,14 @@ export function NextInLine() {
 												)}
 												<span className="min-w-0 truncate">{meta}</span>
 											</div>
+											{dropFor(item) && (
+												<div
+													title={`The Review sweep says drop this: ${dropFor(item)?.evidence}`}
+													className="mt-1 line-clamp-2 rounded-[5px] bg-[#331a1f] px-[7px] py-px text-[11px] font-medium text-[#ff7a8a]"
+												>
+													drop? {dropFor(item)?.evidence}
+												</div>
+											)}
 										</div>
 									</HoverCardTrigger>
 									<HoverCardContent
