@@ -289,14 +289,6 @@ function useCardTranscript(card: BoardCard, live: boolean) {
 	);
 }
 
-/**
- * Card fill = the column's own status hue, mixed faintly over the column's
- * #111114. Derived from PANE_STATUS so the wash is the dot's colour rather
- * than a hand-picked near-grey that read as a darker, unrelated shade.
- */
-const cardFill = (status: PaneStatus) =>
-	`color-mix(in srgb, ${PANE_STATUS[status].dot} 14%, #111114)`;
-
 function PrPill({ card, live }: { card: BoardCard; live: boolean }) {
 	const { data } = useCardTranscript(card, live);
 	const openUrl = electronTrpc.external.openUrl.useMutation();
@@ -2326,14 +2318,12 @@ function DevBoardPage() {
 																}}
 																className={cn(
 																	"group cursor-pointer rounded-[10px] border px-3 py-2.5 text-left transition-colors hover:border-[#34343f]",
-																	// A faint wash of the column's hue on a neutral edge: enough to tell
-																	// the columns apart, too quiet to compete with the flags. A failure
-																	// still earns its red edge.
+																	// No fill: the column shows through, so a card reads as part of its
+																	// column. A failure still earns its red edge.
 																	card.pane.status === "failed"
 																		? "border-[#5a2733]"
 																		: "border-[#26262c]",
 																)}
-																style={{ background: cardFill(card.status) }}
 															>
 																<div className="flex items-start gap-2">
 																	<div className="min-w-0 flex-1 break-words text-[12.5px] font-semibold">
