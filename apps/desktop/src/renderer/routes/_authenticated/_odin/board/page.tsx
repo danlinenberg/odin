@@ -2357,7 +2357,7 @@ function DevBoardPage() {
 																// plain 5% alpha over near-black drains the chroma, and amber
 																// with none left reads as brown.
 																style={{
-																	background: `oklch(from ${PANE_STATUS[card.status].dot} 0.23 calc(c * 0.25) h / 0.5)`,
+																	background: `oklch(from ${PANE_STATUS[card.status].dot} 0.23 calc(c * 0.25) h / 0.3)`,
 																}}
 															>
 																<div className="flex items-start gap-2">
