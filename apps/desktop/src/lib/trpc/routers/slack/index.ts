@@ -14,6 +14,7 @@ import {
 	buildPermalink,
 	channelLabel,
 	mentionedUserIds,
+	messageBody,
 	normalizeReaction,
 	pickEyedMessages,
 	QUEUE_REACTION,
@@ -21,6 +22,7 @@ import {
 	reactionStatus,
 	replaceMentions,
 	rowsToVerify,
+	type SlackAttachment,
 	type SlackReactionsListItem,
 	threadParentTs,
 	toTitle,
@@ -522,7 +524,13 @@ async function slackPreview(url: string): Promise<SlackPreview | null> {
 	const [, channel, secs, micros] = match;
 	try {
 		const res = await slackApi<
-			SlackResponse & { message?: { text?: string; user?: string } }
+			SlackResponse & {
+				message?: {
+					text?: string;
+					attachments?: SlackAttachment[];
+					user?: string;
+				};
+			}
 		>(
 			"reactions.get",
 			{ channel, timestamp: `${secs}.${micros}`, full: "true" },
@@ -531,7 +539,7 @@ async function slackPreview(url: string): Promise<SlackPreview | null> {
 		const [channelName, author, text] = await Promise.all([
 			lookupChannelName(channel, token),
 			lookupUserName(res.message?.user ?? null, token),
-			resolveMentions(res.message?.text ?? "", token),
+			resolveMentions(messageBody(res.message ?? {}), token),
 		]);
 		const preview = {
 			channel: channelLabel(channelName),
