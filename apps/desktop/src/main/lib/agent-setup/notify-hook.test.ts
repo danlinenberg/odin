@@ -46,7 +46,7 @@ async function runNotifyHook(
 
 describe("getNotifyScriptContent", () => {
 	it("bumps the notify hook marker when hook semantics change", () => {
-		expect(NOTIFY_SCRIPT_MARKER).toBe("# Odin agent notification hook v7");
+		expect(NOTIFY_SCRIPT_MARKER).toBe("# Odin agent notification hook v8");
 	});
 
 	it("emits the v2 host-service payload with full agent identity", () => {
@@ -235,6 +235,15 @@ describe("getNotifyScriptContent", () => {
 		const stderr = await new Response(child.stderr).text();
 		expect(await child.exited).toBe(0);
 		expect(stderr).not.toContain("[notify-hook] event=");
+	});
+
+	it("drops a claude event that carries no session_id", async () => {
+		const input = { hook_event_name: "Stop" };
+		const env = { ODIN_AGENT_ID: "claude" };
+		const bare = await runNotifyHook(input, { env });
+		expect(bare.stderr).not.toContain("[notify-hook] event=");
+		const real = await runNotifyHook({ ...input, session_id: "s-1" }, { env });
+		expect(real.stderr).toContain("[notify-hook] event=Stop ");
 	});
 
 	it("a Stop without last_assistant_message stays Stop", async () => {
