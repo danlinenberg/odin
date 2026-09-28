@@ -46,7 +46,7 @@ async function runNotifyHook(
 
 describe("getNotifyScriptContent", () => {
 	it("bumps the notify hook marker when hook semantics change", () => {
-		expect(NOTIFY_SCRIPT_MARKER).toBe("# Odin agent notification hook v6");
+		expect(NOTIFY_SCRIPT_MARKER).toBe("# Odin agent notification hook v7");
 	});
 
 	it("emits the v2 host-service payload with full agent identity", () => {
@@ -195,6 +195,8 @@ describe("getNotifyScriptContent", () => {
 		["Done.\n\nAction items: None, all merged.", "Stop"],
 		["Quoting ACTION ITEMS:\n1. x\n\nACTION ITEMS: none", "Stop"],
 		["No closing section at all.", "Stop"],
+		["Found it.\n\nWant me to push the fix?", "PermissionRequest"],
+		["Want me to?\n\nNo, done: merged it.", "Stop"],
 	])("a Stop ending %j reports %s", async (message, expected) => {
 		const result = await runNotifyHook({
 			hook_event_name: "Stop",
@@ -204,6 +206,35 @@ describe("getNotifyScriptContent", () => {
 		expect(result.stderr.toString()).toContain(
 			`[notify-hook] event=${expected} `,
 		);
+	});
+
+	it("drops every event from a claude running under another claude", async () => {
+		// A Stop hook's own `claude -p` inherits the card's env. Name two bash
+		// layers `claude` so the hook sees that ancestry.
+		const hook = readNotifyHookTemplate()
+			.replaceAll("{{MARKER}}", NOTIFY_SCRIPT_MARKER)
+			.replaceAll("{{DEFAULT_PORT}}", "48763");
+		const child = Bun.spawn({
+			cmd: ["bash", "-c", 'exec -a claude bash -c "$L1"'],
+			env: {
+				...process.env,
+				ODIN_AGENT_ID: "claude",
+				ODIN_DEBUG_HOOKS: "1",
+				HOOK: hook,
+				L1: '(exec -a claude bash -c "$L2"); true',
+				L2: 'bash -c "$HOOK"; true',
+			},
+			stdin: Buffer.from(
+				JSON.stringify({
+					hook_event_name: "Stop",
+					last_assistant_message: "Summary.",
+				}),
+			),
+			stderr: "pipe",
+		});
+		const stderr = await new Response(child.stderr).text();
+		expect(await child.exited).toBe(0);
+		expect(stderr).not.toContain("[notify-hook] event=");
 	});
 
 	it("a Stop without last_assistant_message stays Stop", async () => {
