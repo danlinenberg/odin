@@ -13,26 +13,10 @@ export function isOdinCwd(
 }
 
 /**
- * #odin for any session running inside Odin's own checkout, whichever view
- * launched it. The rail's "Work on Odin" passes the tag explicitly, but the
- * board's New Session repo picker doesn't — deriving it from the session cwd
- * covers every entry point, worktrees included.
- */
-export function withOdinTag(
-	tags: string[] | undefined,
-	cwd: string,
-	odinRepoPath: string | null | undefined,
-): string[] | undefined {
-	const inOdin = isOdinCwd(cwd, odinRepoPath);
-	if (!inOdin) return tags;
-	return tags?.includes("odin") ? tags : [...(tags ?? []), "odin"];
-}
-
-/**
  * Every tag a card can carry, and the only ones it may. Deliberately short:
  * with a dozen of them each pill matched two cards and the filter bar was
- * longer than the columns. #odin is derived from the cwd (above), the rest are
- * picked by the brief writer or by hand.
+ * longer than the columns. Picked by the
+ * brief writer or by hand.
  */
 export const TAG_VOCABULARY = [
 	// Stamped by the automation runner, so a card that appeared while you were
@@ -46,7 +30,7 @@ export const TAG_VOCABULARY = [
 ] as const;
 
 /** The full board set — what the tag menu offers. */
-export const BOARD_TAGS: string[] = ["odin", ...TAG_VOCABULARY];
+export const BOARD_TAGS: string[] = [...TAG_VOCABULARY];
 
 /**
  * Drop anything off the list. Sessions tagged under the old, longer vocabulary
