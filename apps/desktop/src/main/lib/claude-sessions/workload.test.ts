@@ -381,7 +381,9 @@ describe("computeWorkload", () => {
 	});
 
 	test("time is placed at the hour of day it happened", () => {
-		const out = computeWorkload([session()], { now: MON });
+		const out = computeWorkload([session({ yours: [[MON, MON + HOUR]] })], {
+			now: MON,
+		});
 		// MON is 09:00 local, one hour long.
 		expect(out.byHour[9]).toBe(60);
 		expect(out.byHour[10]).toBe(0);
@@ -391,7 +393,19 @@ describe("computeWorkload", () => {
 		// Monday 09:00, and the Wednesday of the week before at 23:30.
 		const wed = new Date(2026, 8, 9, 23, 30, 0).getTime();
 		const out = computeWorkload(
-			[session(), session({ sessionId: "b", intervals: [[wed, wed + HOUR]] })],
+			[
+				session({ yours: [[MON, MON + HOUR]] }),
+				session({
+					sessionId: "b",
+					intervals: [[wed, wed + HOUR]],
+					attended: [[wed, wed + HOUR]],
+				}),
+				// A scheduled run nobody attended leaves no mark.
+				session({
+					sessionId: "c",
+					intervals: [[MON + 24 * HOUR, MON + 25 * HOUR]],
+				}),
+			],
 			{ now: MON },
 		);
 		expect(out.heatmap.map((week) => week.start)).toEqual([
