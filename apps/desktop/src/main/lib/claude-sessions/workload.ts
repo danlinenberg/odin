@@ -741,9 +741,11 @@ export function computeWorkload(
 	const byHour: number[] = Array.from({ length: 24 }, () => 0);
 	// Same walk, banked twice: once folded across all weeks for the day clock,
 	// once kept per week for the heatmap. Only weeks with a minute in them get
-	// a row — an empty grid is cheaper to draw than to ship.
+	// a row — an empty grid is cheaper to draw than to ship. Your time, not the
+	// agent's: a scheduled run at 09:00 painted an hour nobody worked.
+	const yours = mergeIntervals(all.flatMap(yourSpans));
 	const weekCells = new Map<number, number[]>();
-	for (const [start, end] of merged) {
+	for (const [start, end] of yours) {
 		let at = start;
 		while (at < end) {
 			const date = new Date(at);
@@ -764,7 +766,7 @@ export function computeWorkload(
 
 	// Your time, not "any agent running": that was parallelism, and dividing
 	// by it made leverage read as how many agents ran at once.
-	const yourMs = totalMs(mergeIntervals(all.flatMap(yourSpans)));
+	const yourMs = totalMs(yours);
 	const agentTotal = all.reduce((sum, session) => sum + agentMs(session), 0);
 
 	const since = all.length
