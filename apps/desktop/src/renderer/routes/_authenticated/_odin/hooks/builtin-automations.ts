@@ -103,9 +103,10 @@ export function backlogOf(
 			lastActivityAt: task.createdAt,
 		})),
 		...slack
-			// Same cut the tab badge and the All feed make: started and done rows
-			// have already been dealt with.
-			.filter((row) => row.status === "Not started")
+			// Done rows have been dealt with. Started ones stay: a session still
+			// working a thread someone else already answered is exactly what the
+			// sweep should catch, and Review names the session to stop.
+			.filter((row) => row.status !== "Done")
 			.map((row) => ({
 				key: `slack:${row.id}`,
 				source: row.channelName ?? "Slack",

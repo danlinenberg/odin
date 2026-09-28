@@ -36,12 +36,12 @@ describe("backlogOf", () => {
 		expect(items[1]?.url).toBe("https://slack.com/archives/C1/p123");
 	});
 
-	test("drops Slack rows already started or done", () => {
+	test("drops Slack rows already done, keeps ones a session is on", () => {
 		const rows = [
 			slackRow({ status: "In progress" }),
 			slackRow({ status: "Done" }),
 		];
-		expect(backlogOf([], rows)).toEqual([]);
+		expect(backlogOf([], rows)).toHaveLength(1);
 	});
 
 	// The sweep's cheapest verdict rides on this flag: no reaction on the

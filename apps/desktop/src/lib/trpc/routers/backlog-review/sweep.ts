@@ -144,6 +144,8 @@ export interface SweepDeps {
 		channelLastByMe: boolean;
 		/** A DM or group DM, where "I spoke last" is about this and nothing else. */
 		isDirect: boolean;
+		/** Someone tagged alongside me gave the newest reply, after the ask. */
+		answeredBy?: string | null;
 	} | null>;
 }
 
@@ -151,8 +153,8 @@ export interface SweepDeps {
  * One item's verdict.
  *
  * DROP comes off state actually read back from the system that owns the item —
- * a closed ticket, a merged PR, a reaction taken off, a thread I answered
- * myself — or, where the source still says "open", off that source having gone
+ * a closed ticket, a merged PR, a reaction taken off, a thread someone
+ * tagged with me answered — or, where the source still says "open", off that source having gone
  * quiet for {@link STALE_DAYS}. Everything *unreachable* stays UNKNOWN, because
  * the button next to a DROP deletes something: age can retire a row the source
  * confirmed, never one it refused to talk about.
@@ -224,6 +226,13 @@ export async function sweepItem(
 			activity ?? slackTs(slack),
 		].filter((at): at is number => at !== null);
 		const moved = seen.length > 0 ? Math.max(...seen) : null;
+		// The ask went to me and someone else, and they took it: the thread's
+		// last word is theirs, posted after the ask. Nobody is waiting on me.
+		if (thread.answeredBy)
+			return {
+				verdict: "DROP",
+				evidence: `${thread.answeredBy}, tagged with you, answered in the thread`,
+			};
 		// Replying is not finishing. "On it", "will check tomorrow" are the last
 		// word too, and the :eyes: still on the message says it isn't done — so
 		// my reply is only ever context and freshness, never a DROP.
