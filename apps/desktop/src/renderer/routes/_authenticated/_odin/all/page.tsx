@@ -157,6 +157,10 @@ function AllFeedPage() {
 	// A fourth cut, but a toggle rather than a select: "what's due" has one
 	// answer, and it's the one you want on the morning something is late.
 	const [dueOnly, setDueOnly] = useState(false);
+	// And free text, matched against everything a row shows — title, who, where,
+	// status — so "terraform" or a colleague's name finds it without a picker.
+	const [search, setSearch] = useState("");
+	const needle = search.trim().toLowerCase();
 	const reminders = useReminders((s) => s.reminders);
 	const openUrl = electronTrpc.external.openUrl.useMutation();
 	// todos, not tasks: automations have their own panel and run themselves —
@@ -251,23 +255,29 @@ function AllFeedPage() {
 			),
 		[hide.rows, reminders],
 	);
-	const items = useMemo(
-		() =>
-			dueOnly
-				? byContext.filter((item) =>
-						isDue(effectiveDue(item.key, reminders, item.dueDate), Date.now()),
-					)
-				: byContext,
-		[byContext, dueOnly, reminders],
-	);
+	const items = useMemo(() => {
+		const due = dueOnly
+			? byContext.filter((item) =>
+					isDue(effectiveDue(item.key, reminders, item.dueDate), Date.now()),
+				)
+			: byContext;
+		if (!needle) return due;
+		return due.filter((item) =>
+			[item.title, item.person, item.context, item.status, item.source]
+				.join(" ")
+				.toLowerCase()
+				.includes(needle),
+		);
+	}, [byContext, dueOnly, reminders, needle]);
 
 	const isFiltered =
-		source !== "" || urgency !== "" || context !== "" || dueOnly;
+		source !== "" || urgency !== "" || context !== "" || dueOnly || !!needle;
 	const clearFilters = () => {
 		setSource("");
 		setUrgency("");
 		setContext("");
 		setDueOnly(false);
+		setSearch("");
 	};
 
 	return (
@@ -294,6 +304,21 @@ function AllFeedPage() {
 							clear filters
 						</button>
 					)}
+					<input
+						type="search"
+						value={search}
+						onChange={(e) => setSearch(e.target.value)}
+						onKeyDown={(e) => {
+							if (e.key !== "Escape") return;
+							setSearch("");
+							e.currentTarget.blur();
+						}}
+						placeholder="Search"
+						className={cn(
+							"w-[180px] rounded-full border bg-[#16161b] px-2.5 py-1 text-[12px] text-[#f5f5f7] outline-none placeholder:text-[#6b6b78] focus:border-[#a394ff]",
+							search ? "border-[#a394ff]" : "border-[#25252e]",
+						)}
+					/>
 					{dueRows.length > 0 && (
 						<FilterPill
 							active={dueOnly}
