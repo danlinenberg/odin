@@ -295,7 +295,7 @@ function useCardTranscript(card: BoardCard, live: boolean) {
  * than a hand-picked near-grey that read as a darker, unrelated shade.
  */
 const cardFill = (status: PaneStatus) =>
-	`color-mix(in srgb, ${PANE_STATUS[status].dot} 7%, #111114)`;
+	`color-mix(in srgb, ${PANE_STATUS[status].dot} 14%, #111114)`;
 
 function PrPill({ card, live }: { card: BoardCard; live: boolean }) {
 	const { data } = useCardTranscript(card, live);
