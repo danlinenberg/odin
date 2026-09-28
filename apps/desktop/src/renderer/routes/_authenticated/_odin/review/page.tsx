@@ -67,6 +67,12 @@ function ReviewPage() {
 	const rows = useMemo(() => reviewRows(swept, backlog), [swept, backlog]);
 	const counts = countByVerdict(rows);
 	const pending = rows.filter((row) => !decided[row.key]);
+	// Who a row is from lives on the live backlog, not the swept snapshot — a
+	// row that has since left the backlog searches without a person.
+	const personByKey = useMemo(
+		() => new Map(backlog.map((item) => [item.key, item.person])),
+		[backlog],
+	);
 	const needle = search.trim().toLowerCase();
 	// Search stacks on the Drop / Keep pill rather than replacing it.
 	const shown = (
@@ -74,7 +80,13 @@ function ReviewPage() {
 	).filter(
 		(row) =>
 			!needle ||
-			[row.title, row.source, row.evidence, String(row.n)]
+			[
+				row.title,
+				row.source,
+				row.evidence,
+				personByKey.get(row.key),
+				String(row.n),
+			]
 				.join(" ")
 				.toLowerCase()
 				.includes(needle),
@@ -146,7 +158,7 @@ function ReviewPage() {
 								setSearch("");
 								e.currentTarget.blur();
 							}}
-							placeholder="Search"
+							placeholder="Search title or person"
 							className={cn(
 								"w-[200px] rounded-full border bg-[#16161b] px-2.5 py-1 text-[12px] text-[#f5f5f7] outline-none placeholder:text-[#6b6b78] focus:border-[#a394ff]",
 								search ? "border-[#a394ff]" : "border-[#25252e]",
@@ -220,6 +232,7 @@ function ReviewPage() {
 							</div>
 							<div className={cn(ROW_META, "mt-1")}>
 								<span className="text-[#a394ff]">{row.source}</span>
+								{personByKey.get(row.key) && <> · {personByKey.get(row.key)}</>}
 								{row.evidence && <> · {row.evidence}</>}
 								{row.stale && <> · already gone from the backlog</>}
 							</div>

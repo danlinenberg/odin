@@ -52,6 +52,31 @@ describe("backlogOf", () => {
 		expect(backlogOf([], [slackRow()])[0]?.unreacted).toBeUndefined();
 	});
 
+	// Review searches by person, and the person only lives on the feed row.
+	test("carries who each row is from", () => {
+		const items = backlogOf(
+			[task({})],
+			[slackRow({ authorName: "Maya" })],
+			[{ key: "B-1", url: "", title: "t", updated: null, reporter: "Oren" }],
+			[
+				{
+					repo: "r",
+					number: 1,
+					url: "",
+					title: "t",
+					updated: null,
+					author: "gal",
+				},
+			],
+		);
+		expect(items.map((i) => i.person)).toEqual([
+			undefined,
+			"Maya",
+			"Oren",
+			"gal",
+		]);
+	});
+
 	// The key is what a DROP acts on, so it has to name the row *and* which
 	// store it lives in — the two id spaces are unrelated and could collide.
 	test("keys each item back to the row it came from", () => {
