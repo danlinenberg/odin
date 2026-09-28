@@ -4,6 +4,7 @@ import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { type BriefLink, usePaneMeta } from "../hooks/usePaneMeta";
 import {
+	artifactLink,
 	jiraIssue,
 	type LinkKind,
 	linkKind,
@@ -30,6 +31,7 @@ const LINK_ACCENT = {
 	slack: "#e01e5a",
 	pr: "#3ecf8e",
 	notion: "#d6d6dc",
+	artifact: "#d97757",
 	other: "#8a8a97",
 } as const;
 
@@ -269,6 +271,7 @@ export function SessionBrief({
 	const foundThread = linkSource ? slackThread(linkSource) : null;
 	const foundPage = linkSource ? notionPage(linkSource) : null;
 	const foundIssue = linkSource ? jiraIssue(linkSource) : null;
+	const foundArtifact = linkSource ? artifactLink(linkSource) : null;
 	// Only rules that actually fired, and on which PR — not every rule the
 	// launch prompt listed. `rules` is missing until main restarts onto it.
 	const rules = transcript?.rules ?? [];
@@ -278,6 +281,8 @@ export function SessionBrief({
 	const thread = foundThread && !isHidden(foundThread) ? foundThread : null;
 	const page = foundPage && !isHidden(foundPage.url) ? foundPage : null;
 	const issue = foundIssue && !isHidden(foundIssue.url) ? foundIssue : null;
+	const artifact =
+		foundArtifact && !isHidden(foundArtifact) ? foundArtifact : null;
 	// An <a> in the renderer would navigate the app window; PRs open in a browser.
 	const openUrl = electronTrpc.external.openUrl.useMutation();
 
@@ -288,6 +293,7 @@ export function SessionBrief({
 			foundIssue?.url,
 			foundThread,
 			foundPage?.url,
+			foundArtifact,
 			...allPrs.map((pr) => pr.url),
 		].filter(Boolean),
 	);
@@ -343,6 +349,7 @@ export function SessionBrief({
 			url: foundPage.url,
 			label: foundPage.title ?? "Notion page",
 		},
+		foundArtifact && { url: foundArtifact, label: "Artifact" },
 		...allAdded.map((link) => ({
 			url: link.url,
 			label: link.name ?? previews?.[link.url]?.text ?? linkLabel(link.url),
@@ -586,6 +593,30 @@ export function SessionBrief({
 								</div>
 							)}
 							{mine("notion").map(myLink)}
+						</div>
+					</Section>
+				)}
+				{(artifact || mine("artifact").length > 0) && (
+					<Section
+						label={plural("Artifact", artifact, mine("artifact"))}
+						accent={LINK_ACCENT.artifact}
+					>
+						<div className="flex flex-col gap-1">
+							{artifact && (
+								<div className="group flex items-center gap-1.5">
+									<Hover text={artifact}>
+										<button
+											type="button"
+											onClick={() => openUrl.mutate(artifact)}
+											className="block min-w-0 flex-1 truncate text-left text-[12px] text-[#a394ff] hover:underline"
+										>
+											Open artifact ↗
+										</button>
+									</Hover>
+									<HideButton onClick={() => hide(artifact)} />
+								</div>
+							)}
+							{mine("artifact").map(myLink)}
 						</div>
 					</Section>
 				)}
