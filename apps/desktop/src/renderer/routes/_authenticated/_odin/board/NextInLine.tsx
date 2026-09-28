@@ -432,7 +432,7 @@ export function NextInLine() {
 							{dropFor(item) && (
 								<div
 									title={`The Review sweep says drop this: ${dropFor(item)?.evidence}`}
-									className="mt-1 line-clamp-2 rounded-[5px] bg-[#ff7a8a]/1 px-[7px] py-px text-[11px] font-medium text-[#ff7a8a]"
+									className="mt-1 line-clamp-2 rounded-[5px] bg-[#331a1f] px-[7px] py-px text-[11px] font-medium text-[#ff7a8a]"
 								>
 									Drop? {dropFor(item)?.evidence}
 								</div>

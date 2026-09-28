@@ -311,7 +311,7 @@ function DropPill({ pane }: { pane: Pane }) {
 	return (
 		<span
 			title={`The Review sweep says drop this: ${row.evidence}`}
-			className="inline-flex items-center rounded-[5px] bg-[#ff7a8a]/1 px-[7px] text-[11px] font-medium text-[#ff7a8a]"
+			className="inline-flex items-center rounded-[5px] bg-[#331a1f] px-[7px] text-[11px] font-medium text-[#ff7a8a]"
 		>
 			Drop? {row.evidence}
 		</span>
@@ -2347,16 +2347,17 @@ function DevBoardPage() {
 																}}
 																className={cn(
 																	"group cursor-pointer rounded-[10px] border px-3 py-2.5 text-left transition-colors hover:border-[#34343f]",
-																	// The column's status hue at low opacity, so the column shows through
-																	// and the card reads as a faint shade of it. A failure still earns
-																	// its red edge.
+																	// The card reads as a faint shade of its column's status hue (see the
+																	// style below). A failure still earns its red edge.
 																	card.pane.status === "failed"
 																		? "border-[#5a2733]"
 																		: "border-[#26262c]",
 																)}
-																// ponytail: 8-digit hex, "0d" = 5% alpha on PANE_STATUS's #rrggbb.
+																// Same hue at the card's darkness, with a quarter of its chroma. A
+																// plain 5% alpha over near-black drains the chroma, and amber
+																// with none left reads as brown.
 																style={{
-																	background: `${PANE_STATUS[card.status].dot}0d`,
+																	background: `oklch(from ${PANE_STATUS[card.status].dot} 0.23 calc(c * 0.25) h)`,
 																}}
 															>
 																<div className="flex items-start gap-2">
