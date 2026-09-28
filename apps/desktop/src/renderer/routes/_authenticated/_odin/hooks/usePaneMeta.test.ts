@@ -36,3 +36,24 @@ describe("setNotes", () => {
 		expect("p3" in usePaneMeta.getState().notesByPane).toBe(false);
 	});
 });
+
+describe("Done then resume", () => {
+	it("hands your notes and links to the resumed conversation's new pane", () => {
+		const s = usePaneMeta.getState();
+		s.setNotes("old", "ping QA after deploy");
+		s.addLink("old", "https://x.test/doc", "doc");
+		s.setHidden("old", "https://x.test/noise", true);
+
+		s.forgetPane("old", "sess-9");
+		expect(usePaneMeta.getState().notesByPane.old).toBeUndefined();
+
+		s.adoptSession("new", "sess-9");
+		const after = usePaneMeta.getState();
+		expect(after.notesByPane.new).toBe("ping QA after deploy");
+		expect(after.linksByPane.new).toEqual([
+			{ url: "https://x.test/doc", name: "doc" },
+		]);
+		expect(after.hiddenByPane.new).toEqual(["https://x.test/noise"]);
+		expect(after.keptBySession["sess-9"]).toBeUndefined();
+	});
+});

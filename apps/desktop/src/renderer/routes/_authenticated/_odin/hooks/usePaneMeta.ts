@@ -24,6 +24,12 @@ export const linkUrl = (link: BriefLink | string) =>
  *  - hidden:  resources the transcript surfaced that you don't want on the
  *             brief — kept under its collapsed "Hidden" section, not dropped.
  */
+interface KeptBrief {
+	notes?: string;
+	links?: (BriefLink | string)[];
+	hidden?: string[];
+}
+
 export const usePaneMeta = create<{
 	contactByPane: Record<string, string>;
 	briefByPane: Record<string, string>;
@@ -42,6 +48,10 @@ export const usePaneMeta = create<{
 	/** Notion pageId → paneId, so a task row knows it already has a session
 	 *  (and can jump to it) instead of offering to start a second one. */
 	paneByPage: Record<string, string>;
+	/** What you wrote on a brief whose pane is gone, keyed by its Claude
+	 *  session id — Done drops the pane, Session History resumes the
+	 *  conversation into a new one, and adoptSession hands this back. */
+	keptBySession: Record<string, KeptBrief>;
 	setContact: (paneId: string, contact: string) => void;
 	setBrief: (paneId: string, brief: string) => void;
 	setNotes: (paneId: string, notes: string) => void;
@@ -55,7 +65,9 @@ export const usePaneMeta = create<{
 	 *  the pane outright) — otherwise these localStorage maps only ever grow,
 	 *  and a stale paneByPage makes a Notion task look like it still has a
 	 *  session. */
-	forgetPane: (paneId: string) => void;
+	forgetPane: (paneId: string, sessionId?: string | null) => void;
+	/** A resumed conversation's new pane takes back what you wrote on it. */
+	adoptSession: (paneId: string, sessionId: string) => void;
 }>()(
 	persist(
 		(set) => ({
@@ -67,6 +79,7 @@ export const usePaneMeta = create<{
 			titleByPane: {},
 			sessionIdByPane: {},
 			paneByPage: {},
+			keptBySession: {},
 			setContact: (paneId, contact) =>
 				set((s) => ({
 					contactByPane: { ...s.contactByPane, [paneId]: contact },
@@ -135,13 +148,26 @@ export const usePaneMeta = create<{
 				set((s) => ({
 					paneByPage: { ...s.paneByPage, [pageId]: paneId },
 				})),
-			forgetPane: (paneId) =>
+			forgetPane: (paneId, sessionId) =>
 				set((s) => {
 					const drop = <T>(map: Record<string, T>) => {
 						const { [paneId]: _, ...rest } = map;
 						return rest;
 					};
+					// ponytail: kept entries are never pruned — a few strings per
+					// finished session; prune by age if localStorage ever complains.
+					const sid = sessionId ?? s.sessionIdByPane[paneId];
+					const kept: KeptBrief = {
+						notes: s.notesByPane[paneId],
+						links: s.linksByPane[paneId],
+						hidden: s.hiddenByPane[paneId],
+					};
+					const hasKept = kept.notes || kept.links || kept.hidden;
 					return {
+						keptBySession:
+							sid && hasKept
+								? { ...s.keptBySession, [sid]: kept }
+								: s.keptBySession,
 						contactByPane: drop(s.contactByPane),
 						briefByPane: drop(s.briefByPane),
 						notesByPane: drop(s.notesByPane),
@@ -152,6 +178,24 @@ export const usePaneMeta = create<{
 						paneByPage: Object.fromEntries(
 							Object.entries(s.paneByPage).filter(([, id]) => id !== paneId),
 						),
+					};
+				}),
+			adoptSession: (paneId, sessionId) =>
+				set((s) => {
+					const kept = s.keptBySession[sessionId];
+					if (!kept) return {};
+					const { [sessionId]: _, ...rest } = s.keptBySession;
+					return {
+						keptBySession: rest,
+						...(kept.notes
+							? { notesByPane: { ...s.notesByPane, [paneId]: kept.notes } }
+							: {}),
+						...(kept.links
+							? { linksByPane: { ...s.linksByPane, [paneId]: kept.links } }
+							: {}),
+						...(kept.hidden
+							? { hiddenByPane: { ...s.hiddenByPane, [paneId]: kept.hidden } }
+							: {}),
 					};
 				}),
 		}),
