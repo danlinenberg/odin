@@ -395,7 +395,7 @@ export function NextInLine() {
 													title={`The Review sweep says drop this: ${dropFor(item)?.evidence}`}
 													className="mt-1 line-clamp-2 rounded-[5px] bg-[#331a1f] px-[7px] py-px text-[11px] font-medium text-[#ff7a8a]"
 												>
-													drop? {dropFor(item)?.evidence}
+													Drop? {dropFor(item)?.evidence}
 												</div>
 											)}
 										</div>
