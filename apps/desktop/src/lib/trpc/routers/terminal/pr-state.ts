@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import { execWithShellEnv } from "../workspaces/utils/shell-env";
 
 /**
@@ -158,60 +160,105 @@ export function worktreeHolding(
 export interface PullRequestCheckout {
 	url: string;
 	number: number;
+	/** The GitHub repo name, from the url. */
+	repo: string;
 	worktree: string;
+	/** The clone itself rather than one of its `git worktree add`s. */
+	isMain: boolean;
 }
 
+const PR_URL = /https:\/\/github\.com\/[\w.-]+\/([\w.-]+)\/pull\/(\d+)/g;
+
+/** `git worktree list --porcelain` for the repo holding `dir`; "" outside one. */
+async function worktreeList(dir: string): Promise<string> {
+	try {
+		return (
+			await execWithShellEnv("git", [
+				"-C",
+				dir,
+				"worktree",
+				"list",
+				"--porcelain",
+			])
+		).stdout;
+	} catch {
+		return "";
+	}
+}
+
+/** git lists the main checkout first, always. */
+const mainCheckout = (porcelain: string) =>
+	/^worktree (.+)$/m.exec(porcelain)?.[1] ?? null;
+
 /**
- * Where a session's PRs live on disk: for each PR it linked in `checkout`'s
- * repo, the worktree that has the PR's branch checked out. The transcript's
- * cwds can't say — Claude Code resets its shell to the launch dir after every
- * command and agents reach worktrees with `git -C` — but a PR names its branch
- * exactly. Newest first; a PR with no checkout (worktree removed) drops out.
+ * Where a session's PRs live on disk: for each PR it linked, the checkout that
+ * has the PR's branch. The transcript's cwds can't say — Claude Code resets
+ * its shell to the launch dir after every command and agents reach worktrees
+ * with `git -C` — but a PR names its branch exactly. A PR in another repo is
+ * found through that repo's clone: a sibling of `checkout`'s clone (~/dev/imagen/*
+ * sit together), else a path the transcript mentions. Newest first; a PR with
+ * no checkout (worktree removed, repo not cloned) drops out.
  *
- * ponytail: 5 newest PRs, one gh call each. Batch through GraphQL if sessions
+ * ponytail: 8 newest PRs, one gh call each. Batch through GraphQL if sessions
  * start opening more than that.
  */
 export async function pullRequestWorktrees(
 	transcript: string,
 	checkout: string,
-	repoName: string,
 	exec: GhExec = gh,
 ): Promise<PullRequestCheckout[]> {
-	const urls = [
-		...new Set(
-			[
-				...transcript.matchAll(
-					/https:\/\/github\.com\/[\w.-]+\/([\w.-]+)\/pull\/\d+/g,
-				),
-			]
-				.filter((match) => match[1] === repoName)
-				.map((match) => match[0])
-				.reverse(),
-		),
-	].slice(0, 5);
-	if (!urls.length) return [];
-	let porcelain: string;
-	try {
-		({ stdout: porcelain } = await execWithShellEnv("git", [
-			"-C",
-			checkout,
-			"worktree",
-			"list",
-			"--porcelain",
-		]));
-	} catch {
-		return [];
+	const seen = new Map<string, { repo: string; number: number }>();
+	for (const match of [...transcript.matchAll(PR_URL)].reverse()) {
+		if (!seen.has(match[0])) {
+			seen.set(match[0], { repo: match[1], number: Number(match[2]) });
+		}
 	}
+	const urls = [...seen].slice(0, 8);
+	if (!urls.length) return [];
+
+	const lists = new Map<string, Promise<string>>();
+	const listOf = (dir: string) => {
+		if (!lists.has(dir)) lists.set(dir, worktreeList(dir));
+		return lists.get(dir) as Promise<string>;
+	};
+	const home = mainCheckout(await listOf(checkout)) ?? checkout;
+	const cloneOf = (repo: string): string | null => {
+		if (basename(home) === repo) return home;
+		const mentioned = [
+			...transcript.matchAll(
+				new RegExp(
+					`(/[\\w./-]*?/${repo.replace(/[.]/g, "\\.")})(?=[/"'\\s\\\\]|$)`,
+					"g",
+				),
+			),
+		].map((match) => match[1]);
+		return (
+			[join(dirname(home), repo), ...mentioned].find((dir) =>
+				existsSync(join(dir, ".git")),
+			) ?? null
+		);
+	};
+
 	const found = await Promise.all(
-		urls.map(async (url) => {
+		urls.map(async ([url, { repo, number }]) => {
+			const clone = cloneOf(repo);
+			if (!clone) return null;
 			const branch = await ghAsAnyAccount(
 				["pr", "view", url, "--json", "headRefName", "-q", ".headRefName"],
 				(stdout) => stdout.trim(),
 				exec,
 			);
-			const worktree = branch && worktreeHolding(porcelain, branch);
+			if (!branch) return null;
+			const list = await listOf(clone);
+			const worktree = worktreeHolding(list, branch);
 			return worktree
-				? { url, number: Number(url.split("/").pop()), worktree }
+				? {
+						url,
+						number,
+						repo,
+						worktree,
+						isMain: worktree === mainCheckout(list),
+					}
 				: null;
 		}),
 	);
