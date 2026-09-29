@@ -22,6 +22,10 @@ export const SETTING_ITEM_ID = {
 	BEHAVIOR_OPEN_LINKS_IN_APP: "behavior-open-links-in-app",
 
 	BOARD_AUTO_RENAME_SESSIONS: "board-auto-rename-sessions",
+	LAUNCH_LIMITS: "launch-limits",
+	NEXT_IN_LINE_ORDER: "next-in-line-order",
+	REMINDERS_NOTIFY_AT: "reminders-notify-at",
+	REVIEW_SWEEP_INTERVAL: "review-sweep-interval",
 
 	GIT_BRANCH_PREFIX: "git-branch-prefix",
 	GIT_DELETE_LOCAL_BRANCH: "git-delete-local-branch",
@@ -106,6 +110,10 @@ export const SETTING_ITEM_VARIANT: Record<SettingItemId, SettingVariant> = {
 	[SETTING_ITEM_ID.BEHAVIOR_OPEN_LINKS_IN_APP]: "v1",
 
 	[SETTING_ITEM_ID.BOARD_AUTO_RENAME_SESSIONS]: "shared",
+	[SETTING_ITEM_ID.LAUNCH_LIMITS]: "shared",
+	[SETTING_ITEM_ID.NEXT_IN_LINE_ORDER]: "shared",
+	[SETTING_ITEM_ID.REMINDERS_NOTIFY_AT]: "shared",
+	[SETTING_ITEM_ID.REVIEW_SWEEP_INTERVAL]: "shared",
 
 	// Branch prefix exists in both UIs — v1 `GitSettings`, v2 `V2GitSettings`.
 	[SETTING_ITEM_ID.GIT_BRANCH_PREFIX]: "shared",
@@ -190,6 +198,10 @@ export const SETTINGS_ITEMS: SettingsItem[] = [
 	{ id: SETTING_ITEM_ID.BEHAVIOR_OPEN_LINKS_IN_APP, section: "behavior" },
 
 	{ id: SETTING_ITEM_ID.BOARD_AUTO_RENAME_SESSIONS, section: "board" },
+	{ id: SETTING_ITEM_ID.LAUNCH_LIMITS, section: "launch-limits" },
+	{ id: SETTING_ITEM_ID.NEXT_IN_LINE_ORDER, section: "next-in-line" },
+	{ id: SETTING_ITEM_ID.REMINDERS_NOTIFY_AT, section: "reminders" },
+	{ id: SETTING_ITEM_ID.REVIEW_SWEEP_INTERVAL, section: "review" },
 
 	{ id: SETTING_ITEM_ID.AGENTS_ENABLED, section: "agents" },
 	{ id: SETTING_ITEM_ID.AGENTS_COMMANDS, section: "agents" },
@@ -258,6 +270,10 @@ const VISIBLE_SECTIONS = new Set<SettingsSection>([
 	// The board is Odin's, so how it names and runs its cards belongs here —
 	// the inherited "General" page it would otherwise land on is hidden.
 	"board",
+	"launch-limits",
+	"next-in-line",
+	"reminders",
+	"review",
 	// Agent-complete banners are Odin's own, so their sound and their macOS
 	// banner settings belong here (the section route is named `ringtones`).
 	"ringtones",

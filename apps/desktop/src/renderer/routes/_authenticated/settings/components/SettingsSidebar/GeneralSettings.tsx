@@ -14,7 +14,15 @@ import {
 	HiOutlineSparkles,
 	HiOutlineSquares2X2,
 } from "react-icons/hi2";
-import { LuBrain, LuGitBranch, LuKeyboard } from "react-icons/lu";
+import {
+	LuAlarmClock,
+	LuBrain,
+	LuClipboardCheck,
+	LuGauge,
+	LuGitBranch,
+	LuKeyboard,
+	LuListOrdered,
+} from "react-icons/lu";
 import { useIsV2CloudEnabled } from "renderer/hooks/useIsV2CloudEnabled";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import type { SettingsSection } from "renderer/stores/settings-state";
@@ -27,6 +35,10 @@ type SettingsRoute =
 	| "/settings/connections"
 	| "/settings/behavior"
 	| "/settings/board"
+	| "/settings/launch-limits"
+	| "/settings/next-in-line"
+	| "/settings/reminders"
+	| "/settings/review"
 	| "/settings/git"
 	| "/settings/agents"
 	| "/settings/terminal"
@@ -74,6 +86,41 @@ const SECTION_GROUPS: SectionGroup[] = [
 		],
 	},
 	{
+		label: "Board",
+		items: [
+			{
+				id: "/settings/board",
+				section: "board",
+				label: "Cards",
+				icon: <HiOutlineSquares2X2 className="h-4 w-4" />,
+			},
+			{
+				id: "/settings/launch-limits",
+				section: "launch-limits",
+				label: "Launch limits",
+				icon: <LuGauge className="h-4 w-4" />,
+			},
+			{
+				id: "/settings/next-in-line",
+				section: "next-in-line",
+				label: "Next in line",
+				icon: <LuListOrdered className="h-4 w-4" />,
+			},
+			{
+				id: "/settings/reminders",
+				section: "reminders",
+				label: "Reminders",
+				icon: <LuAlarmClock className="h-4 w-4" />,
+			},
+			{
+				id: "/settings/review",
+				section: "review",
+				label: "Review",
+				icon: <LuClipboardCheck className="h-4 w-4" />,
+			},
+		],
+	},
+	{
 		label: "Editor & Workflow",
 		items: [
 			{
@@ -81,12 +128,6 @@ const SECTION_GROUPS: SectionGroup[] = [
 				section: "behavior",
 				label: "General",
 				icon: <HiOutlineSparkles className="h-4 w-4" />,
-			},
-			{
-				id: "/settings/board",
-				section: "board",
-				label: "Board",
-				icon: <HiOutlineSquares2X2 className="h-4 w-4" />,
 			},
 			{
 				id: "/settings/keyboard",
