@@ -106,7 +106,7 @@ const NOTION_URL =
 const NOTION_ID = /[0-9a-f]{32}/;
 
 /** "…/Spot-Instances-…-<id>" — Notion puts the page title in the path. */
-function notionTitle(url: string, id: string): string | null {
+function slugTitle(url: string, id: string): string | null {
 	const slug = url
 		.split("?")[0]
 		?.split("/")
@@ -115,6 +115,32 @@ function notionTitle(url: string, id: string): string | null {
 	return slug
 		? decodeURIComponent(slug).replace(/-+/g, " ").trim() || null
 		: null;
+}
+
+// "[Backlog page](https://…" — the label of a markdown link, taken verbatim.
+const MARKDOWN_LABEL = /\[([^\]\n]{1,80})\]\($/;
+// "Backlog page — https://…" — a name and a separator at the end of the line.
+const PROSE_LABEL =
+	/(?:^|\n)\s*(?:[-*]\s+)?(?:\*\*)?([^\n]{1,80}?)(?:\*\*)?\s*[—:|·]\s*$/;
+
+/**
+ * What to call a page, given the text that introduced its url.
+ *
+ * The slug is the obvious source and is almost never there: every url the
+ * Notion MCP hands back is a bare /p/<id>, so a session that published five
+ * pages produced five links none of which could be named. The name is in the
+ * prose instead — "[Backlog page](url)", or "Backlog page — url" — because
+ * a url is pasted next to what it is.
+ */
+function notionTitle(before: string, url: string, id: string): string | null {
+	// Notion's own slug wins whenever it is there: prose is a guess, and a
+	// lead-in like "And the ADR:" reads as a label but names nothing.
+	const slug = slugTitle(url, id);
+	if (slug) return slug;
+	const label =
+		MARKDOWN_LABEL.exec(before)?.[1] ?? PROSE_LABEL.exec(before)?.[1];
+	// Backticks and stray emphasis are markup, not part of the name.
+	return label?.replace(/[`*_]/g, "").trim() || null;
 }
 
 /**
@@ -134,12 +160,13 @@ function notionTitle(url: string, id: string): string | null {
 export function notionPage(messages: BriefMessage[]): NotionPageLink | null {
 	const found = new Map<string, NotionPageLink>();
 	for (const message of messages.filter((m) => m.role === "assistant")) {
-		for (const match of message.text.match(NOTION_URL) ?? []) {
-			const url = match.replace(/[).,]+$/, "");
+		for (const match of message.text.matchAll(NOTION_URL)) {
+			const url = match[0].replace(/[).,]+$/, "");
 			const id = NOTION_ID.exec(url)?.[0];
 			// A workspace root or search url carries no page id — nothing to reopen.
 			if (!id || found.has(id)) continue;
-			found.set(id, { url, id, title: notionTitle(url, id) });
+			const title = notionTitle(message.text.slice(0, match.index), url, id);
+			found.set(id, { url, id, title });
 		}
 	}
 	const pages = [...found.values()].reverse();
