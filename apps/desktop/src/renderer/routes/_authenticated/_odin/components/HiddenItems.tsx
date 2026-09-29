@@ -27,6 +27,9 @@ const useHiddenItems = create<{
 	),
 );
 
+/** Every hidden `feed:id` key, for code that reads a feed outside its view. */
+export const useHiddenKeys = () => useHiddenItems((s) => s.hidden);
+
 /**
  * Hide/show plumbing for one feed. `prefix` namespaces the keys, so the same id
  * in two feeds isn't the same row.

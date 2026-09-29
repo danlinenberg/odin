@@ -45,6 +45,7 @@ import {
 } from "../components/Reminders";
 import { PriorityLabelChip } from "../components/TaskBox";
 import { useActiveSessions } from "../hooks/useActiveSessions";
+import { useIsDone } from "../hooks/useBacklogReview";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useMyTasks } from "../hooks/useOdinTasks";
 import { usePendingFocus } from "../hooks/usePendingFocus";
@@ -178,6 +179,8 @@ function AllFeedPage() {
 	// starts — so this is the only place "what have I got going" is answerable.
 	const sessions = useActiveSessions();
 
+	// Done rows — ✓'d in Next in line, dropped in Review — aren't waiting on you.
+	const isDone = useIsDone();
 	const allRows = useMemo(
 		() =>
 			allItems({
@@ -186,8 +189,8 @@ function AllFeedPage() {
 				jira: jira.data?.issues ?? [],
 				pulls: pulls.data?.pulls ?? [],
 				notion: notion.data?.rows ?? [],
-			}),
-		[todos, reactions.data, jira.data, pulls.data, notion.data],
+			}).filter((item) => !isDone(item)),
+		[todos, reactions.data, jira.data, pulls.data, notion.data, isDone],
 	);
 
 	// Hidden rows drop out first, so every count below says what's on screen.

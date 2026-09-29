@@ -1,4 +1,6 @@
 import { useMemo } from "react";
+import { useNextInLineDone } from "renderer/stores/next-in-line-done";
+import { useHiddenKeys } from "../components/HiddenItems";
 import { useOdinFeeds } from "./useOdinFeeds";
 import { type OdinTask, useMyTasks } from "./useOdinTasks";
 
@@ -172,10 +174,20 @@ export function useBacklog(): BacklogItem[] {
 	const issues = jira.data?.issues;
 	const prs = pulls.data?.pulls;
 	const pages = notion.data?.rows;
-	return useMemo(
-		() => backlogOf(todos, rows ?? [], issues ?? [], prs ?? [], pages ?? []),
-		[todos, rows, issues, prs, pages],
-	);
+	// A row you hid or marked Done is done: the sweep has nothing to ask of it.
+	// Keyed the way All tasks keys them, which is what both stores hold.
+	const hidden = useHiddenKeys();
+	const done = useNextInLineDone((s) => s.done);
+	return useMemo(() => {
+		const live = (key: string) => !(key in hidden) && !(key in done);
+		return backlogOf(
+			todos.filter((task) => live(`task:${task.id}`)),
+			(rows ?? []).filter((row) => live(`slack:${row.id}`)),
+			(issues ?? []).filter((issue) => live(`jira:${issue.key}`)),
+			(prs ?? []).filter((pull) => live(`pr:${pull.id}`)),
+			(pages ?? []).filter((page) => live(`notion:${page.pageId}`)),
+		);
+	}, [todos, rows, issues, prs, pages, hidden, done]);
 }
 
 export interface BuiltinAutomation {
