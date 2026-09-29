@@ -66,11 +66,6 @@ export interface OdinFileConfig {
 	 */
 	gmailAddress?: string;
 	gmailAppPassword?: string;
-	/**
-	 * Only unread mail under this Gmail label (set by a Gmail filter) — the
-	 * inbox feed is every unread thread. `^t` is starred, `^iim` important.
-	 */
-	gmailLabel?: string;
 
 	/** Slack **user** token (`xoxp-…`) — bot tokens can't read my reactions. */
 	slackToken?: string;

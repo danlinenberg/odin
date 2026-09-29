@@ -317,10 +317,13 @@ function GithubConnect({ onDone }: { onDone: () => void }) {
  * app password is Basic auth on Gmail's Atom feed. The main process checks it
  * against the feed before saving, so a wrong one fails right here.
  */
+/** Odin's own purple, filled — both steps of the form are the thing to click. */
+const GMAIL_CTA =
+	"rounded-[7px] bg-[#a394ff] px-3 py-1.5 text-xs font-semibold text-[#131126] transition-colors hover:bg-[#b8adff] disabled:opacity-40";
+
 function GmailConnect({ onDone }: { onDone: () => void }) {
 	const [address, setAddress] = useState("");
 	const [appPassword, setAppPassword] = useState("");
-	const [label, setLabel] = useState("");
 	const openUrl = electronTrpc.external.openUrl.useMutation();
 	const save = electronTrpc.connections.saveGmail.useMutation({
 		onSuccess: () => {
@@ -334,20 +337,20 @@ function GmailConnect({ onDone }: { onDone: () => void }) {
 			className="space-y-2"
 			onSubmit={(event) => {
 				event.preventDefault();
-				save.mutate({ address, appPassword, label });
+				save.mutate({ address, appPassword });
 			}}
 		>
+			<button
+				type="button"
+				className={GMAIL_CTA}
+				onClick={() =>
+					openUrl.mutate("https://myaccount.google.com/apppasswords")
+				}
+			>
+				1. Create an app password ↗
+			</button>
 			<p className="text-xs text-muted-foreground">
-				<button
-					type="button"
-					className="underline hover:text-foreground"
-					onClick={() =>
-						openUrl.mutate("https://myaccount.google.com/apppasswords")
-					}
-				>
-					Create an app password ↗
-				</button>{" "}
-				(needs 2-Step Verification), then paste it here.
+				Needs 2-Step Verification. Then paste it below.
 			</p>
 			<Input
 				type="email"
@@ -361,18 +364,13 @@ function GmailConnect({ onDone }: { onDone: () => void }) {
 				value={appPassword}
 				onChange={(event) => setAppPassword(event.target.value)}
 			/>
-			<Input
-				placeholder="Label (optional) — only unread mail under it; blank = inbox"
-				value={label}
-				onChange={(event) => setLabel(event.target.value)}
-			/>
-			<Button
+			<button
 				type="submit"
-				size="sm"
+				className={GMAIL_CTA}
 				disabled={!address || !appPassword || save.isPending}
 			>
-				{save.isPending ? "Checking…" : "Connect"}
-			</Button>
+				{save.isPending ? "Checking…" : "2. Connect Gmail"}
+			</button>
 		</form>
 	);
 }

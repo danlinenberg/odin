@@ -178,7 +178,7 @@ async function probeGmail(): Promise<ConnectionStatus> {
 		return {
 			provider: "gmail",
 			configured: true,
-			identity: `${credentials.address} · ${unread} unread${credentials.label ? ` in ${credentials.label}` : ""}`,
+			identity: `${credentials.address} · ${unread} unread`,
 			error: null,
 		};
 	} catch (error) {
@@ -417,7 +417,6 @@ export const createConnectionsRouter = () => {
 						updateOdinConfig({
 							gmailAddress: undefined,
 							gmailAppPassword: undefined,
-							gmailLabel: undefined,
 						});
 						break;
 					case "jira":
@@ -442,14 +441,12 @@ export const createConnectionsRouter = () => {
 				z.object({
 					address: z.string().trim().email(),
 					appPassword: z.string().trim().min(1),
-					label: z.string().trim().optional(),
 				}),
 			)
 			.mutation(async ({ input }) => {
 				const credentials = {
 					address: input.address,
 					password: input.appPassword.replace(/\s/g, ""),
-					label: input.label || undefined,
 				};
 				const res = await fetchGmailFeed(credentials);
 				if (!res.ok) {
@@ -458,13 +455,12 @@ export const createConnectionsRouter = () => {
 						message:
 							res.status === 401
 								? "Gmail rejected that address + app password."
-								: `Gmail answered HTTP ${res.status}${credentials.label ? " — is the label spelled right?" : ""}`,
+								: `Gmail answered HTTP ${res.status}`,
 					});
 				}
 				updateOdinConfig({
 					gmailAddress: credentials.address,
 					gmailAppPassword: credentials.password,
-					gmailLabel: credentials.label,
 				});
 				return { ok: true };
 			}),
