@@ -1,4 +1,4 @@
-import type { TRPCLink } from "@trpc/client";
+import { TRPCClientError, type TRPCLink } from "@trpc/client";
 import type { AnyRouter } from "@trpc/server";
 import { observable } from "@trpc/server/observable";
 
@@ -7,6 +7,18 @@ import { observable } from "@trpc/server/observable";
  * Starts from Date.now() to ensure uniqueness across page refreshes.
  */
 let globalOperationId = Date.now();
+
+/**
+ * trpc-electron throws its own copy of TRPCClientError. @trpc/client v11 only
+ * trusts `instanceof`, so it re-wraps that one and buries `data` (the tRPC
+ * code — UNAUTHORIZED and friends) under `cause`, where nothing looks. Rebuilt
+ * from the server's error shape here, `error.data.code` is there again.
+ */
+export function asClientError<E>(err: E): E {
+	const shape = (err as { shape?: unknown }).shape;
+	if (err instanceof TRPCClientError || !shape) return err;
+	return TRPCClientError.from({ error: shape }) as E;
+}
 
 /**
  * Assigns globally unique operation IDs to prevent collisions between
@@ -24,7 +36,7 @@ export function sessionIdLink<TRouter extends AnyRouter>(): TRPCLink<TRouter> {
 					id: uniqueId,
 				}).subscribe({
 					next: (result) => observer.next(result),
-					error: (err) => observer.error(err),
+					error: (err) => observer.error(asClientError(err)),
 					complete: () => observer.complete(),
 				});
 			});
