@@ -418,12 +418,18 @@ function RepoPill({ card }: { card: BoardCard }) {
 	);
 }
 
-/** Whether a worktree has a shell in it: live, left there and gone, or none. */
-function ShellsDot({ live, dead }: { live: number; dead: number }) {
-	const [title, label, dot] = live
+/** Whether a worktree has a shell in it: live (named), left there and gone, or none. */
+function ShellsDot({ live, dead }: { live: string[]; dead: number }) {
+	const others = live.filter((what) => what !== "this shell").length;
+	const mine = live.length > others;
+	const [title, label, dot] = live.length
 		? [
-				`${live} live shell${live === 1 ? "" : "s"} in this worktree`,
-				live === 1 ? "live shell" : `${live} live shells`,
+				live.join("\n"),
+				mine
+					? others
+						? `this shell + ${others}`
+						: "this shell"
+					: `${others} live`,
 				"bg-[#3ecf8e]",
 			]
 		: dead
@@ -432,7 +438,11 @@ function ShellsDot({ live, dead }: { live: number; dead: number }) {
 					"disconnected",
 					"bg-[#f0647a]",
 				]
-			: ["No shell is in this worktree", "no shell", "ring-1 ring-[#5a5a66]"];
+			: [
+					"No terminal is in this worktree",
+					"no shell",
+					"ring-1 ring-[#5a5a66]",
+				];
 	return (
 		<span
 			title={title}
@@ -474,26 +484,49 @@ function useShellPlace(card: BoardCard, shell: Pane) {
 	const inside = (dir: string | null | undefined, root: string) =>
 		!!dir && (dir === root || dir.startsWith(`${root}/`));
 	/** Live shells sitting in `root`, and Odin panes left there whose PTY is gone. */
-	const shellsIn = (root: string) => {
-		const liveHere = live.filter((session) =>
-			inside(cwds?.[session.pid], root),
+	/**
+	 * In `root` itself — a worktree checked out under it (`.worktrees/x`) is its
+	 * own checkout, not the clone's.
+	 * ponytail: the two worktree folders Odin and Claude Code use; anything else
+	 * nested counts as the clone until this reads each cwd's `.git`.
+	 */
+	const inCheckout = (dir: string | null | undefined, root: string) =>
+		inside(dir, root) &&
+		!/^\/(?:\.claude\/)?\.?worktrees\//.test(
+			(dir as string).slice(root.length),
 		);
+	/** Live terminals sitting in `root`, each named, and Odin panes left there whose PTY is gone. */
+	const shellsIn = (root: string) => {
+		const liveHere = live
+			.filter((session) => inCheckout(cwds?.[session.pid], root))
+			.map((session) => {
+				if (session.paneId === shell.id) return "this shell";
+				const pane = panes[session.paneId];
+				if (pane?.odinTaskTitle) return `agent session: ${pane.odinTaskTitle}`;
+				const owner = Object.values(panes).find(
+					(p) => p.odinShellPaneId === session.paneId,
+				);
+				if (owner?.odinTaskTitle) return `shell of: ${owner.odinTaskTitle}`;
+				return session.busy
+					? "terminal, running something"
+					: "terminal, idle at its prompt";
+			});
 		const livePanes = new Set(live.map((session) => session.paneId));
 		const dead = Object.values(panes).filter(
 			(pane) =>
 				pane.type === "terminal" &&
 				!livePanes.has(pane.id) &&
-				inside(pane.cwd ?? pane.initialCwd, root),
+				inCheckout(pane.cwd ?? pane.initialCwd, root),
 		);
-		return { live: liveHere.length, dead: dead.length };
+		return { live: liveHere, dead: dead.length };
 	};
 	const workplaces = [
 		...(data?.pullRequests ?? []).map((pr) => pr.worktree),
 		data?.worktree,
 		data?.checkout,
 	].filter((dir): dir is string => !!dir);
-	const atWork = workplaces.some((root) => inside(here, root));
-	return { data, here, inside, shellsIn, atWork };
+	const atWork = workplaces.some((root) => inCheckout(here, root));
+	return { data, here, inside: inCheckout, shellsIn, atWork };
 }
 
 /**
