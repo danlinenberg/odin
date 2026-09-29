@@ -15,7 +15,9 @@ interface TrpcStorageConfig {
 const PENDING_SNAPSHOT_TTL_MS = 5 * 60 * 1000;
 const LOCAL_SNAPSHOT_WRITE_DEBOUNCE_MS = 250;
 
-function createTrpcStorageAdapter(config: TrpcStorageConfig): StateStorage {
+export function createTrpcStorageAdapter(
+	config: TrpcStorageConfig,
+): StateStorage {
 	const debounceMs = config.writeDebounceMs ?? 0;
 	let pendingValue: string | null = null;
 	let lastFlushedValue: string | null = null;
@@ -31,6 +33,24 @@ function createTrpcStorageAdapter(config: TrpcStorageConfig): StateStorage {
 		debounceMs > 0
 			? Math.min(debounceMs, LOCAL_SNAPSHOT_WRITE_DEBOUNCE_MS)
 			: LOCAL_SNAPSHOT_WRITE_DEBOUNCE_MS;
+
+	// A reload inside the write debounce (Done closing the drawer releases the
+	// dev server's held full-reload that same instant) used to drop the change:
+	// the page came back from the old appState, and a Done card came back with
+	// it. localStorage is synchronous, so park the unsaved value there on the
+	// way out — getItem already prefers a fresh pending snapshot.
+	let storeName: string | null = null;
+	globalThis.addEventListener?.("pagehide", () => {
+		const unsaved = pendingValue ?? pendingSnapshotValue;
+		if (!storeName || unsaved === null) return;
+		try {
+			localStorage.setItem(getPendingSnapshotKey(storeName), unsaved);
+			localStorage.setItem(
+				getPendingSnapshotUpdatedAtKey(storeName),
+				String(Date.now()),
+			);
+		} catch {}
+	});
 
 	const clearPendingSnapshot = (name: string, expectedValue?: string): void => {
 		try {
@@ -199,6 +219,7 @@ function createTrpcStorageAdapter(config: TrpcStorageConfig): StateStorage {
 				return;
 			}
 
+			storeName = name;
 			pendingValue = value;
 			schedulePendingSnapshotPersist(name, value);
 			if (flushTimer) {
