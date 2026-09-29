@@ -9,6 +9,7 @@ import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useLaunchLimits } from "renderer/stores/launch-limits";
 import { useNextInLinePrompt } from "renderer/stores/next-in-line-prompt";
 import type { LaunchLimits } from "shared/machine-load";
+import { useReminders } from "../../_odin/components/Reminders";
 import { useBacklogReview } from "../../_odin/hooks/useBacklogReview";
 
 export const Route = createFileRoute("/_authenticated/settings/board/")({
@@ -115,6 +116,10 @@ function BoardSettingsPage() {
 				<BoardSection title="Next in line">
 					<NextInLinePromptRow />
 					<PinOverdueDaysRow />
+				</BoardSection>
+
+				<BoardSection title="Reminders">
+					<NotifyAtRow />
 				</BoardSection>
 
 				<BoardSection title="Review">
@@ -275,6 +280,36 @@ function PinOverdueDaysRow() {
 				/>
 				<span className="w-16 text-sm text-muted-foreground">days</span>
 			</div>
+		</div>
+	);
+}
+
+/** When the day's reminder and due-date banner goes out. Next minute tick. */
+function NotifyAtRow() {
+	const notifyAt = useReminders((s) => s.notifyAt);
+	const setNotifyAt = useReminders((s) => s.setNotifyAt);
+	return (
+		<div className="flex items-center justify-between gap-6">
+			<div className="space-y-0.5">
+				<Label htmlFor="reminder-notify-at" className="text-sm font-medium">
+					Notify at
+				</Label>
+				<p className="text-[13px] leading-relaxed text-muted-foreground max-w-xl">
+					When "Remind me" sessions and due dates notify, on their day. All of a
+					day's reminders arrive as one notification. The board shows them from
+					midnight.
+				</p>
+			</div>
+			<Input
+				id="reminder-notify-at"
+				type="time"
+				defaultValue={notifyAt}
+				className="w-28 shrink-0 tabular-nums"
+				style={{ colorScheme: "dark" }}
+				onChange={(event) => {
+					if (event.target.value) setNotifyAt(event.target.value);
+				}}
+			/>
 		</div>
 	);
 }

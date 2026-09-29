@@ -30,6 +30,9 @@ export const useReminders = create<{
 	reminders: Record<string, Reminder>;
 	/** The day each key last pinged — a due date nags once a day, not every minute. */
 	notified: Record<string, string>;
+	/** Local `HH:MM` the day's pings wait for — Settings → Board → Reminders. */
+	notifyAt: string;
+	setNotifyAt: (notifyAt: string) => void;
 	setDue: (key: string, due: string, title: string) => void;
 	clear: (key: string) => void;
 	markNotified: (key: string, day: string) => void;
@@ -38,6 +41,8 @@ export const useReminders = create<{
 		(set) => ({
 			reminders: {},
 			notified: {},
+			notifyAt: "09:00",
+			setNotifyAt: (notifyAt) => set({ notifyAt }),
 			setDue: (key, due, title) =>
 				set((s) => ({
 					reminders: { ...s.reminders, [key]: { due, title } },
@@ -110,12 +115,23 @@ export function dueLabel(due: string, now: number): string {
 	});
 }
 
-/** Due today or already past, and not pinged yet today. */
+/** `HH:MM` for a moment, local — the form `<input type="time">` speaks. */
+function timeOf(now: number): string {
+	const d = new Date(now);
+	return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+/**
+ * Due today or already past, not pinged yet today, and the clock is past
+ * `notifyAt` — so a reminder for Thursday waits for Thursday 09:00, not 00:01.
+ */
 export function dueToFire(
 	reminders: Record<string, Reminder>,
 	notified: Record<string, string>,
 	now: number,
+	notifyAt = "00:00",
 ): string[] {
+	if (timeOf(now) < notifyAt) return [];
 	const today = dayOf(now);
 	// Both sides are zero-padded `YYYY-MM-DD`, so string order is date order.
 	return Object.keys(reminders).filter(
@@ -305,25 +321,30 @@ export function useDueReminders(upstream: UpstreamDue[]): void {
 	latest.current = upstream;
 	useEffect(() => {
 		const tick = () => {
-			const { reminders, notified, markNotified } = useReminders.getState();
+			const { reminders, notified, notifyAt, markNotified } =
+				useReminders.getState();
 			const now = Date.now();
 			const today = dayOf(now);
 			const all = mergeUpstream(reminders, latest.current);
-			for (const key of dueToFire(all, notified, now)) {
-				const reminder = all[key];
-				if (!reminder) continue;
-				const note = new Notification(
-					reminder.resume
+			const keys = dueToFire(all, notified, now, notifyAt);
+			const firing = keys.flatMap((key) => all[key] ?? []);
+			if (!firing.length) return;
+			const [only] = firing;
+			// One banner per tick, however many are due: a single one keeps its
+			// own heading, several become a list.
+			const note = new Notification(
+				firing.length > 1
+					? `${firing.length} reminders in Odin`
+					: only?.resume
 						? "Reminder from Odin"
-						: reminder.due < today
+						: (only?.due ?? "") < today
 							? "Overdue in Odin"
 							: "Due today in Odin",
-					{ body: reminder.title },
-				);
-				// The session reminder waits on the board; bring Odin forward.
-				note.onclick = () => window.focus();
-				markNotified(key, today);
-			}
+				{ body: firing.map((r) => r.title).join("\n") },
+			);
+			// Session reminders wait on the board; bring Odin forward.
+			note.onclick = () => window.focus();
+			for (const key of keys) markNotified(key, today);
 		};
 		tick();
 		const id = setInterval(tick, 60_000);
