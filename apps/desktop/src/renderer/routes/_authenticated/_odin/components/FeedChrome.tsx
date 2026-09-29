@@ -1,5 +1,6 @@
 import { cn } from "@odin/ui/utils";
-import type { ReactNode } from "react";
+import { type ReactNode, useRef } from "react";
+import { useHotkey } from "renderer/hotkeys";
 import { FeedTabs } from "./FeedTabs";
 
 /**
@@ -101,6 +102,20 @@ export function FeedSelect({
 	);
 }
 
+/**
+ * The search shortcut (`/` by default) for whichever screen is mounted: focuses
+ * the box behind `ref`, and `hint` is the key to show in its placeholder. Only
+ * one screen's search box is mounted at a time, so one hotkey id serves all.
+ */
+export function useSearchHotkey() {
+	const ref = useRef<HTMLInputElement>(null);
+	const { text } = useHotkey("ODIN_BOARD_SEARCH", () => ref.current?.focus(), {
+		enableOnFormTags: false,
+		enableOnContentEditable: false,
+	});
+	return { ref, hint: text ? ` (${text})` : "" };
+}
+
 /** Free-text row filter, same pill in every feed. Esc clears it. */
 export function FeedSearch({
 	value,
@@ -113,8 +128,10 @@ export function FeedSearch({
 	placeholder?: string;
 	label?: string;
 }) {
+	const { ref, hint } = useSearchHotkey();
 	return (
 		<input
+			ref={ref}
 			type="search"
 			value={value}
 			onChange={(e) => onChange(e.target.value)}
@@ -123,7 +140,7 @@ export function FeedSearch({
 				onChange("");
 				e.currentTarget.blur();
 			}}
-			placeholder={placeholder}
+			placeholder={placeholder + hint}
 			aria-label={label}
 			className={cn(
 				"w-[180px] rounded-full border bg-[#16161b] px-2.5 py-1 text-[12px] text-[#f5f5f7] outline-none placeholder:text-[#6b6b78] focus:border-[#a394ff]",

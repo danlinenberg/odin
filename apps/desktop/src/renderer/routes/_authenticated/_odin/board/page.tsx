@@ -31,7 +31,6 @@ import {
 import { SiJira, SiNotion, SiSlack } from "react-icons/si";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { startQueuedPane } from "renderer/hooks/useTaskQueue";
-import { useHotkey } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { canClaimKeyboard } from "renderer/lib/keyboard";
@@ -58,6 +57,7 @@ import {
 	odinScreenWrite,
 } from "shared/odin-screen-status";
 import { BOARD_TAGS, boardTags, normalizeTag } from "shared/odin-tags";
+import { useSearchHotkey } from "../components/FeedChrome";
 import {
 	cardBody,
 	OdinPromptDialog,
@@ -1264,12 +1264,7 @@ function DevBoardPage() {
 	// Free-text search over title, brief, tags, person, repo and PRs. Stacks with
 	// the dropdown filter above.
 	const [search, setSearch] = useState("");
-	const searchRef = useRef<HTMLInputElement>(null);
-	const searchHotkey = useHotkey(
-		"ODIN_BOARD_SEARCH",
-		() => searchRef.current?.focus(),
-		{ enableOnFormTags: false, enableOnContentEditable: false },
-	);
+	const { ref: searchRef, hint: searchHint } = useSearchHotkey();
 	// Highlight the Idle column while a card is dragged over it.
 	const [dragOverIdle, setDragOverIdle] = useState(false);
 	// "Next in line" column — hidden until you ask for it; remembered per machine.
@@ -2265,7 +2260,7 @@ function DevBoardPage() {
 						setSearch("");
 						e.currentTarget.blur();
 					}}
-					placeholder={`Search sessions (${searchHotkey.text})`}
+					placeholder={`Search sessions${searchHint}`}
 					className={cn(
 						"w-[220px] rounded-full border bg-[#16161b] px-2.5 py-1 text-[12px] text-[#f5f5f7] outline-none placeholder:text-[#6b6b78] focus:border-[#a394ff]",
 						search ? "border-[#a394ff]" : "border-[#25252e]",

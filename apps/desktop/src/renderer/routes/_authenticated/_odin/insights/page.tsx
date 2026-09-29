@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { useSearchHotkey } from "../components/FeedChrome";
 
 export const Route = createFileRoute("/_authenticated/_odin/insights/")({
 	component: InsightsPage,
@@ -750,6 +751,7 @@ function Workload() {
 	const [repo, setRepo] = useState<string | null>(null);
 	const [excluded, setExcluded] = useState(readExcluded);
 	const [query, setQuery] = useState("");
+	const search = useSearchHotkey();
 	const toggleExcluded = (name: string) => {
 		const next = new Set(excluded);
 		if (!next.delete(name)) next.add(name);
@@ -774,13 +776,14 @@ function Workload() {
 	const filter = (
 		<div className="flex items-start gap-2">
 			<input
+				ref={search.ref}
 				type="search"
 				value={query}
 				onChange={(event) => setQuery(event.target.value)}
 				onKeyDown={(event) => {
 					if (event.key === "Escape") setQuery("");
 				}}
-				placeholder="Search tasks…"
+				placeholder={`Search tasks…${search.hint}`}
 				aria-label="Search tasks"
 				className="h-[22px] w-[180px] shrink-0 rounded-[6px] border border-[#25252e] bg-[#16161b] px-2 text-[11px] text-[#e4e4ea] placeholder:text-[#6f6f7d] focus:border-[#a394ff] focus:outline-none"
 			/>

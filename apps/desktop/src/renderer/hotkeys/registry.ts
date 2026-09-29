@@ -114,9 +114,9 @@ export const HOTKEYS_REGISTRY = {
 	},
 	ODIN_BOARD_SEARCH: {
 		key: { mac: L("slash"), windows: L("slash"), linux: L("slash") },
-		label: "Search Board",
+		label: "Search",
 		category: "Navigation",
-		description: "Filter the Dev Board's sessions by text",
+		description: "Focus the current screen's search box",
 	},
 	// Not a rail key: a modifier chord, so writing a task down still works from
 	// inside a terminal or a text box — which is where you think of one.
