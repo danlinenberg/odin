@@ -23,6 +23,7 @@ import type {
 	AddFileViewerPaneOptions,
 	AddTabWithMultiplePanesOptions,
 	CommentPaneData,
+	Pane,
 	TabsState,
 	TabsStore,
 } from "./types";
@@ -54,6 +55,17 @@ import {
 	resolveFileViewerMode,
 } from "./utils";
 import { killTerminalForPane } from "./utils/terminal-cleanup";
+
+/**
+ * Odin fork: the ❯ Shell panes that the panes being closed opened. A session's
+ * shell lives in a tab of its own with no card, so once the session goes,
+ * nothing on screen can reach it and its PTY idles in the daemon forever.
+ */
+function ownedShells(panes: Record<string, Pane>, closing: string[]): string[] {
+	return closing
+		.map((id) => panes[id]?.odinShellPaneId)
+		.filter((id): id is string => !!id && !closing.includes(id) && !!panes[id]);
+}
 
 /**
  * Finds the next best tab to activate when closing a tab.
@@ -360,6 +372,7 @@ export const useTabsStore = create<TabsStore>()(
 					if (!tabToRemove) return;
 
 					const paneIds = getPaneIdsForTab(state.panes, tabId);
+					const shells = ownedShells(state.panes, paneIds);
 
 					// Snapshot the tab + panes for "reopen closed tab"
 					const closedPanes = paneIds
@@ -416,6 +429,7 @@ export const useTabsStore = create<TabsStore>()(
 							[workspaceId]: newHistoryStack,
 						},
 					});
+					for (const id of shells) get().removePane(id);
 				},
 
 				renameTab: (tabId, newName) => {
@@ -1108,6 +1122,9 @@ export const useTabsStore = create<TabsStore>()(
 						panes: newPanes,
 						focusedPaneIds: newFocusedPaneIds,
 					});
+					for (const id of ownedShells(state.panes, paneIdsToRemove)) {
+						get().removePane(id);
+					}
 				},
 
 				setFocusedPane: (tabId, paneId) => {
