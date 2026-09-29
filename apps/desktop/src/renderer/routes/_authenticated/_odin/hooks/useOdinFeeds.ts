@@ -40,6 +40,15 @@ export function useOdinFeeds() {
 		placeholderData: (prev) => prev,
 	});
 
+	// Unread inbox mail — one Atom fetch, so the 2-minute poll is nothing to Gmail.
+	const emails = electronTrpc.work.myEmails.useQuery(undefined, {
+		enabled: workConfig?.hasGmail === true,
+		refetchInterval: 120_000,
+		staleTime: 120_000,
+		refetchOnMount: false,
+		placeholderData: (prev) => prev,
+	});
+
 	// Rows of whichever Notion database is picked in the Tasks view. No pick
 	// (or no token) means no query — the view says so instead.
 	const { data: notionConfig } = electronTrpc.notion.getConfig.useQuery();
@@ -61,6 +70,7 @@ export function useOdinFeeds() {
 		jira,
 		pulls,
 		notion,
+		emails,
 		notionConfig,
 		notionDatabaseId,
 		isSyncing:
@@ -68,7 +78,7 @@ export function useOdinFeeds() {
 			jira.isFetching ||
 			pulls.isFetching ||
 			notion.isFetching ||
-			notion.isFetching,
+			emails.isFetching,
 		// refetch() ignores `enabled` (TanStack v5 fetches on an explicit call
 		// either way), so syncing a source that was never signed in runs it
 		// anyway and answers "Jira isn't connected" — an error raised by a feed
@@ -79,6 +89,7 @@ export function useOdinFeeds() {
 				workConfig?.hasJira === true ? jira.refetch() : null,
 				workConfig?.hasGithub === true ? pulls.refetch() : null,
 				notionDatabaseId.length > 0 ? notion.refetch() : null,
+				workConfig?.hasGmail === true ? emails.refetch() : null,
 			]),
 	};
 }

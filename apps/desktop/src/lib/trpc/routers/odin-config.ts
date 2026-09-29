@@ -60,6 +60,13 @@ export interface OdinFileConfig {
 	/** OAuth app client id used for GitHub's device flow (not a secret). */
 	githubClientId?: string;
 
+	/**
+	 * Gmail, without OAuth: an app password (myaccount.google.com/apppasswords)
+	 * is Basic auth on Gmail's Atom feed of unread inbox mail.
+	 */
+	gmailAddress?: string;
+	gmailAppPassword?: string;
+
 	/** Slack **user** token (`xoxp-…`) — bot tokens can't read my reactions. */
 	slackToken?: string;
 	/** Reaction that queues a message — a Slack name, no colons. Default `eyes`. */
