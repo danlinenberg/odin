@@ -14,6 +14,10 @@ export type SettingsSection =
 	| "experimental"
 	| "connections"
 	| "board"
+	| "launch-limits"
+	| "next-in-line"
+	| "reminders"
+	| "review"
 	| "permissions"
 	| "project";
 

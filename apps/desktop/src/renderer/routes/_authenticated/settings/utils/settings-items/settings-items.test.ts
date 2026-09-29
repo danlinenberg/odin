@@ -26,8 +26,13 @@ describe("variant gating", () => {
 
 	it("only allows sections on the visible allowlist", () => {
 		expect([...getAllowedSectionsForVariant(false)].sort()).toEqual([
+			"board",
 			"connections",
 			"keyboard",
+			"launch-limits",
+			"next-in-line",
+			"reminders",
+			"review",
 			"ringtones",
 		]);
 	});

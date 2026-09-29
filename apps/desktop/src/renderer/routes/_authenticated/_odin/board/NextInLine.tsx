@@ -309,7 +309,7 @@ export function NextInLine() {
 				<span className="ml-auto flex items-center gap-2">
 					<button
 						type="button"
-						onClick={() => navigate({ to: "/settings/board" })}
+						onClick={() => navigate({ to: "/settings/next-in-line" })}
 						title={
 							prompt
 								? "Sorted your way — edit how in Settings"
