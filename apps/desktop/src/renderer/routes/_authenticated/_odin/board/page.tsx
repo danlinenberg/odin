@@ -525,6 +525,57 @@ function LoadPill({ card }: { card: BoardCard }) {
 }
 
 /**
+ * The session's shell, and whether anything is still running in it. A dev
+ * server that crashed leaves the shell alive at its prompt — green would lie.
+ * `busy` comes from the same process snapshot LoadPill reads; until it has
+ * answered (or on a build whose main process predates it) the chip stays green.
+ */
+function ShellChip({
+	shellPaneId,
+	alive,
+}: {
+	shellPaneId: string;
+	alive: boolean;
+}) {
+	const { data } = electronTrpc.resourceMetrics.getSnapshot.useQuery(
+		undefined,
+		{ refetchInterval: 5_000 },
+	);
+	const busy = data?.workspaces
+		.flatMap((workspace) => workspace.sessions)
+		.find((session) => session.paneId === shellPaneId)?.busy;
+	const [title, label, className] = !alive
+		? [
+				"This session's shell has exited — open it to start a new one",
+				"Shell exited",
+				"bg-[#2a1218] text-[#f0647a]",
+			]
+		: busy === false
+			? [
+					"The shell is at its prompt — whatever you ran in it has stopped",
+					"Shell idle",
+					"bg-[#1f1f27] text-[#a5a5b3]",
+				]
+			: [
+					"This session has a shell running",
+					"Shell",
+					"bg-[#132a1f] text-[#3ecf8e]",
+				];
+	return (
+		<span
+			title={title}
+			className={cn(
+				"inline-flex items-center gap-1 rounded-[5px] px-[7px] text-[11px] font-medium",
+				className,
+			)}
+		>
+			<LuTerminal className="size-3" aria-hidden />
+			{label}
+		</span>
+	);
+}
+
+/**
  * Hover info for a board card: full title, status, and the session's latest
  * output (one-shot snapshot of live panes).
  */
@@ -2596,20 +2647,13 @@ function DevBoardPage() {
 																		<LoopPill card={card} />
 																	)}
 																	<LoadPill card={card} />
-																	{/* Same test as the drawer's Shell dot: a live PTY, not just a remembered pane. */}
-																	{alivePaneIds.has(
-																		shellPaneOf(card)?.id ?? "",
-																	) && (
-																		<span
-																			title="This session has a shell running"
-																			className="inline-flex items-center gap-1 rounded-[5px] bg-[#132a1f] px-[7px] text-[11px] font-medium text-[#3ecf8e]"
-																		>
-																			<LuTerminal
-																				className="size-3"
-																				aria-hidden
-																			/>
-																			Shell
-																		</span>
+																	{shellPaneOf(card) && daemonSessions && (
+																		<ShellChip
+																			shellPaneId={shellPaneOf(card)?.id ?? ""}
+																			alive={alivePaneIds.has(
+																				shellPaneOf(card)?.id ?? "",
+																			)}
+																		/>
 																	)}
 																	{/* Last, and blank until you set one: a deadline is yours, not
 	    something the session reports about itself. */}

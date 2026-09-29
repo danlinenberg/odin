@@ -29,6 +29,8 @@ interface SessionMetrics {
 	title: string | null;
 	cpu: number;
 	memory: number;
+	/** The shell has a child process — something is running in it, not just a prompt. */
+	busy: boolean;
 }
 
 interface WorkspaceMetrics {
@@ -159,6 +161,7 @@ function normalizeSnapshot(
 			title: normalizeOptionalTitle(session.title),
 			cpu: normalizeFiniteNumber(session.cpu),
 			memory: normalizeFiniteNumber(session.memory),
+			busy: session.busy,
 		}));
 
 		return {
@@ -379,6 +382,7 @@ async function collectResourceMetricsNow({
 				title: entry.title,
 				cpu: agg.cpu,
 				memory: agg.memory,
+				busy: (processSnapshot.childrenOf.get(entry.pid)?.length ?? 0) > 0,
 			});
 
 			wsCpu += agg.cpu;
