@@ -1748,7 +1748,12 @@ function DevBoardPage() {
 	};
 
 	/** Park a Resume in Queued; useTaskQueue runs `command` when the gate clears. */
-	const queueResume = (pane: Pane, command: string, reason: string) => {
+	const queueResume = (
+		pane: Pane,
+		command: string,
+		reason: string,
+		closeDrawer = true,
+	) => {
 		useTabsStore.setState((state) => ({
 			panes: {
 				...state.panes,
@@ -1762,7 +1767,7 @@ function DevBoardPage() {
 				},
 			},
 		}));
-		setDrawerCard(null);
+		if (closeDrawer) setDrawerCard(null);
 	};
 
 	const resumeCard = async (card: BoardCard, auto = false) => {
@@ -1915,6 +1920,7 @@ function DevBoardPage() {
 				card.pane,
 				cwd ? `cd '${cwd}' && ${queuedCmd}` : queuedCmd,
 				blocker,
+				!auto,
 			);
 			setResumingPaneIds((ids) => ids.filter((id) => id !== card.pane.id));
 			return;
@@ -1947,7 +1953,8 @@ function DevBoardPage() {
 					},
 				},
 			}));
-			setDrawerCard(null);
+			// An auto-resume didn't come from the drawer — leave whatever's open.
+			if (!auto) setDrawerCard(null);
 			// It was mid-turn when it died, so reopening the conversation isn't
 			// picking it back up — the agent sits there with the job half done
 			// waiting to be told the obvious. Tell it.
