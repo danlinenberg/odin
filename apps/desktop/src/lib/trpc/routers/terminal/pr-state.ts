@@ -10,6 +10,8 @@ export type PullRequestState = "OPEN" | "MERGED" | "CLOSED";
 
 export interface PullRequestStatus {
 	state: PullRequestState;
+	/** Open but not ready for review — the brief says "draft", not "open". */
+	isDraft: boolean;
 	/** Checks still running, by name — "Cursor Bugbot" is the one you're waiting on. */
 	pending: string[];
 	/** Checks that failed, by name. */
@@ -54,6 +56,7 @@ const FAILED = new Set([
 function status(stdout: string): PullRequestStatus | null {
 	const pr = JSON.parse(stdout) as {
 		state?: string;
+		isDraft?: boolean;
 		statusCheckRollup?: RollupEntry[] | null;
 	};
 	if (pr.state !== "OPEN" && pr.state !== "MERGED" && pr.state !== "CLOSED") {
@@ -61,6 +64,7 @@ function status(stdout: string): PullRequestStatus | null {
 	}
 	const out: PullRequestStatus = {
 		state: pr.state,
+		isDraft: pr.isDraft === true,
 		pending: [],
 		failed: [],
 		passed: 0,
@@ -130,7 +134,7 @@ export function pullRequestState(
 	exec: GhExec = gh,
 ): Promise<PullRequestStatus | null> {
 	return ghAsAnyAccount(
-		["pr", "view", url, "--json", "state,statusCheckRollup"],
+		["pr", "view", url, "--json", "state,isDraft,statusCheckRollup"],
 		status,
 		exec,
 	);

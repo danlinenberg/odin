@@ -69,6 +69,7 @@ function Section({
 const STATE_CHIP: Record<string, { label: string; className: string }> = {
 	MERGED: { label: "merged", className: "bg-[#241a3f] text-[#a371f7]" },
 	OPEN: { label: "open", className: "bg-[#14301f] text-[#3ecf8e]" },
+	DRAFT: { label: "draft", className: "bg-[#262a30] text-[#9198a1]" },
 	CLOSED: { label: "closed", className: "bg-[#331a20] text-[#f0647a]" },
 };
 
@@ -82,8 +83,14 @@ function Chip({ label, className }: { label: string; className: string }) {
 	);
 }
 
-function StateChip({ state }: { state: string | null }) {
+function StateChip({
+	status,
+}: {
+	status: { state: string | null; isDraft?: boolean } | null | undefined;
+}) {
 	// No chip while the lookup is in flight, or when gh couldn't answer.
+	// isDraft is optional: a main process older than the renderer won't send it.
+	const state = status?.isDraft ? "DRAFT" : status?.state;
 	const chip = state ? STATE_CHIP[state] : undefined;
 	if (!chip) return null;
 	return <Chip label={chip.label} className={chip.className} />;
@@ -413,7 +420,7 @@ export function SessionBrief({
 				</Hover>
 				{linkKind(url) === "pr" && (
 					<>
-						<StateChip state={prStates?.[url]?.state ?? null} />
+						<StateChip status={prStates?.[url]} />
 						<ChecksChip status={prStates?.[url] ?? null} />
 					</>
 				)}
@@ -561,7 +568,7 @@ export function SessionBrief({
 											<span className="truncate">
 												{pr.repo.split("/").pop()} #{pr.number}
 											</span>
-											<StateChip state={prStates?.[pr.url]?.state ?? null} />
+											<StateChip status={prStates?.[pr.url]} />
 											<ChecksChip status={prStates?.[pr.url] ?? null} />
 										</button>
 									</Hover>
