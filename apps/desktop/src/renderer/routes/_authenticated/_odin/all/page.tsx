@@ -6,6 +6,7 @@ import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import type { BoardSection } from "shared/board-section";
 import type { PaneStatus } from "shared/tabs-types";
+import { DoneButton } from "../components/DoneButton";
 import {
 	FEED_LIST,
 	FEED_ROW,
@@ -29,11 +30,6 @@ import {
 	SyncButton,
 } from "../components/FeedChrome";
 import { FEED_TABS, type FeedPath } from "../components/feed-counts";
-import {
-	HiddenToggle,
-	HideButton,
-	useHiddenFilter,
-} from "../components/HiddenItems";
 import { PersonChip } from "../components/PersonChip";
 import {
 	DueChip,
@@ -45,7 +41,7 @@ import {
 } from "../components/Reminders";
 import { PriorityLabelChip } from "../components/TaskBox";
 import { useActiveSessions } from "../hooks/useActiveSessions";
-import { useIsDone } from "../hooks/useBacklogReview";
+import { useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useMyTasks } from "../hooks/useOdinTasks";
 import { usePendingFocus } from "../hooks/usePendingFocus";
@@ -179,8 +175,10 @@ function AllFeedPage() {
 	// starts — so this is the only place "what have I got going" is answerable.
 	const sessions = useActiveSessions();
 
-	// Done rows — ✓'d in Next in line, dropped in Review — aren't waiting on you.
-	const isDone = useIsDone();
+	// Done rows — from any feed, Next in line, or a Review drop — aren't
+	// waiting on you. They're one click away under "Done", with Undo.
+	const { isDone, markDone, undo, recent } = useDone();
+	const [showDone, setShowDone] = useState(false);
 	const allRows = useMemo(
 		() =>
 			allItems({
@@ -193,22 +191,16 @@ function AllFeedPage() {
 		[todos, reactions.data, jira.data, pulls.data, notion.data, isDone],
 	);
 
-	// Hidden rows drop out first, so every count below says what's on screen.
-	// No prefix: an All key already names its source, and it's the same key the
-	// source's own feed hides under.
-	const hide = useHiddenFilter("", allRows, (item) => item.key);
-
 	const sourceCounts = useMemo(() => {
 		const counts = new Map<AllItem["source"], number>();
-		for (const item of hide.rows)
+		for (const item of allRows)
 			counts.set(item.source, (counts.get(item.source) ?? 0) + 1);
 		return counts;
-	}, [hide.rows]);
+	}, [allRows]);
 
 	const bySource = useMemo(
-		() =>
-			source ? hide.rows.filter((item) => item.source === source) : hide.rows,
-		[hide.rows, source],
+		() => (source ? allRows.filter((item) => item.source === source) : allRows),
+		[allRows, source],
 	);
 
 	// Both pickers count what picking them would leave, against the filters
@@ -254,10 +246,10 @@ function AllFeedPage() {
 	// be findable from here.
 	const dueRows = useMemo(
 		() =>
-			hide.rows.filter((item) =>
+			allRows.filter((item) =>
 				isDue(effectiveDue(item.key, reminders, item.dueDate), Date.now()),
 			),
-		[hide.rows, reminders],
+		[allRows, reminders],
 	);
 	const items = useMemo(() => {
 		const due = dueOnly
@@ -296,9 +288,9 @@ function AllFeedPage() {
 			<FeedHeader>
 				<FeedDivider />
 				<span className="shrink-0 text-[12px] text-[#8a8a97]">
-					{items.length === hide.rows.length
-						? `${hide.rows.length} waiting on you`
-						: `${items.length} of ${hide.rows.length}`}
+					{items.length === allRows.length
+						? `${allRows.length} waiting on you`
+						: `${items.length} of ${allRows.length}`}
 				</span>
 				{sessions.length > 0 && (
 					<span className="shrink-0 rounded-[10px] bg-[#14301f] px-1.5 py-[1px] text-[11px] font-semibold text-[#3ecf8e]">
@@ -325,11 +317,15 @@ function AllFeedPage() {
 							Due
 						</FilterPill>
 					)}
-					<HiddenToggle
-						count={hide.hiddenCount}
-						showing={hide.showHidden}
-						onToggle={() => hide.setShowHidden(!hide.showHidden)}
-					/>
+					{recent.length > 0 && (
+						<FilterPill
+							active={showDone}
+							count={recent.length}
+							onClick={() => setShowDone(!showDone)}
+						>
+							Done
+						</FilterPill>
+					)}
 					<FeedSelect
 						value={source}
 						onChange={(value) => {
@@ -498,7 +494,14 @@ function AllFeedPage() {
 						</div>
 					</>
 				)}
-				{items.length === 0 && (
+				{showDone && (
+					<DoneList
+						rows={recent}
+						onOpen={(url) => openUrl.mutate(url)}
+						onUndo={undo}
+					/>
+				)}
+				{!showDone && items.length === 0 && (
 					<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
 						{isFiltered ? (
 							<button
@@ -513,134 +516,184 @@ function AllFeedPage() {
 						)}
 					</div>
 				)}
-				{items.map((item) => {
-					const url = item.url;
-					const SourceIcon = SOURCE_ICON[item.to];
-					const activePaneId = livePaneFor(item);
-					return (
-						<div
-							key={item.key}
-							className={cn(FEED_ROW, hide.isHidden(item) && "opacity-40")}
-						>
-							{/* The same columns the per-source feeds use, so a row here
+				{!showDone &&
+					items.map((item) => {
+						const url = item.url;
+						const SourceIcon = SOURCE_ICON[item.to];
+						const activePaneId = livePaneFor(item);
+						return (
+							<div key={item.key} className={FEED_ROW}>
+								{/* The same columns the per-source feeds use, so a row here
 							    carries what its own feed would tell you: who it's from,
 							    where it stands, where it lives. */}
-							<div className="flex items-center gap-3">
-								<span
-									className={cn(
-										"flex w-[68px] shrink-0 items-center justify-center gap-1 rounded-[5px] px-[7px] py-[1px] text-[11px] font-semibold",
-										SOURCE_CHIP[item.source],
-									)}
-								>
-									<SourceIcon className="size-3 shrink-0" aria-hidden />
-									{item.source}
-								</span>
-								<button
-									type="button"
-									title={`Open the ${item.source} feed`}
-									onClick={() => navigate({ to: item.to })}
-									className="min-w-0 flex-1 truncate text-left text-[13px] font-semibold text-[#f5f5f7]"
-								>
-									<OverdueMark itemKey={item.key} upstream={item.dueDate} />
-									{emojify(item.title)}
-								</button>
-								<div className="flex shrink-0 items-center gap-2 text-[11px]">
-									<span className={META_TAG}>
-										{item.priority && (
-											<PriorityLabelChip label={item.priority} />
+								<div className="flex items-center gap-3">
+									<span
+										className={cn(
+											"flex w-[68px] shrink-0 items-center justify-center gap-1 rounded-[5px] px-[7px] py-[1px] text-[11px] font-semibold",
+											SOURCE_CHIP[item.source],
 										)}
+									>
+										<SourceIcon className="size-3 shrink-0" aria-hidden />
+										{item.source}
 									</span>
-									<span className={META_PERSON}>
-										{item.person && (
-											<PersonChip
-												name={item.person}
-												className="max-w-full truncate"
+									<button
+										type="button"
+										title={`Open the ${item.source} feed`}
+										onClick={() => navigate({ to: item.to })}
+										className="min-w-0 flex-1 truncate text-left text-[13px] font-semibold text-[#f5f5f7]"
+									>
+										<OverdueMark itemKey={item.key} upstream={item.dueDate} />
+										{emojify(item.title)}
+									</button>
+									<div className="flex shrink-0 items-center gap-2 text-[11px]">
+										<span className={META_TAG}>
+											{item.priority && (
+												<PriorityLabelChip label={item.priority} />
+											)}
+										</span>
+										<span className={META_PERSON}>
+											{item.person && (
+												<PersonChip
+													name={item.person}
+													className="max-w-full truncate"
+												/>
+											)}
+										</span>
+										<span className={META_STATUS}>
+											{item.status && (
+												<span className={cn(ROW_META, "truncate")}>
+													{item.status}
+												</span>
+											)}
+										</span>
+										<span className={META_TEXT}>{item.context}</span>
+										<span className={META_DATE}>
+											{item.at > 0 &&
+												new Date(item.at).toLocaleDateString(undefined, {
+													month: "short",
+													day: "numeric",
+												})}
+										</span>
+										<span className={META_DUE}>
+											<DueChip
+												itemKey={item.key}
+												title={item.title}
+												upstream={item.dueDate}
 											/>
+										</span>
+									</div>
+									<span className={ROW_LINK_SLOT}>
+										{url && (
+											<button
+												type="button"
+												title={url}
+												onClick={() => openUrl.mutate(url)}
+												className={ROW_LINK_BUTTON}
+											>
+												Open ↗
+											</button>
 										)}
 									</span>
-									<span className={META_STATUS}>
-										{item.status && (
-											<span className={cn(ROW_META, "truncate")}>
-												{item.status}
-											</span>
+									<span className={ROW_PRIMARY_SLOT}>
+										{activePaneId ? (
+											<button
+												type="button"
+												onClick={() => {
+													usePendingFocus.getState().focus(activePaneId);
+													navigate({ to: "/board" });
+												}}
+												className={ROW_LIVE_BUTTON}
+											>
+												Go to session →
+											</button>
+										) : (
+											<button
+												type="button"
+												disabled={isLaunching}
+												onClick={() => void handleStart(item)}
+												className={ROW_PRIMARY_BUTTON}
+											>
+												{launchingKey === item.launch.key
+													? "Starting…"
+													: "Start session"}
+											</button>
 										)}
 									</span>
-									<span className={META_TEXT}>{item.context}</span>
-									<span className={META_DATE}>
-										{item.at > 0 &&
-											new Date(item.at).toLocaleDateString(undefined, {
-												month: "short",
-												day: "numeric",
-											})}
-									</span>
-									<span className={META_DUE}>
-										<DueChip
-											itemKey={item.key}
-											title={item.title}
-											upstream={item.dueDate}
-										/>
-									</span>
+									<RowActions>
+										<DoneButton onClick={() => markDone(item)} />
+									</RowActions>
 								</div>
-								<span className={ROW_LINK_SLOT}>
-									{url && (
-										<button
-											type="button"
-											title={url}
-											onClick={() => openUrl.mutate(url)}
-											className={ROW_LINK_BUTTON}
-										>
-											Open ↗
-										</button>
-									)}
-								</span>
-								<span className={ROW_PRIMARY_SLOT}>
-									{activePaneId ? (
-										<button
-											type="button"
-											onClick={() => {
-												usePendingFocus.getState().focus(activePaneId);
-												navigate({ to: "/board" });
-											}}
-											className={ROW_LIVE_BUTTON}
-										>
-											Go to session →
-										</button>
-									) : (
-										<button
-											type="button"
-											disabled={isLaunching}
-											onClick={() => void handleStart(item)}
-											className={ROW_PRIMARY_BUTTON}
-										>
-											{launchingKey === item.launch.key
-												? "Starting…"
-												: "Start session"}
-										</button>
-									)}
-								</span>
-								<RowActions>
-									<HideButton
-										hidden={hide.isHidden(item)}
-										onClick={() => hide.toggle(item)}
-									/>
-								</RowActions>
-							</div>
-							{/* Same preview the Jira feed shows: a mention row is there
+								{/* Same preview the Jira feed shows: a mention row is there
 							    because of one comment. Indented past the source chip
 							    (68px + gap-3) so it sits under the title. */}
-							{item.mention && (
-								<div className="mt-1.5 line-clamp-2 cursor-text select-text pl-[80px] text-[11.5px] leading-relaxed text-[#a5a5b3]">
-									<span className="font-semibold text-[#f5b83d]">
-										{item.mention.author ?? "Someone"}
-										{": "}
-									</span>
-									{item.mention.text}
-								</div>
-							)}
-						</div>
-					);
-				})}
+								{item.mention && (
+									<div className="mt-1.5 line-clamp-2 cursor-text select-text pl-[80px] text-[11.5px] leading-relaxed text-[#a5a5b3]">
+										<span className="font-semibold text-[#f5b83d]">
+											{item.mention.author ?? "Someone"}
+											{": "}
+										</span>
+										{item.mention.text}
+									</div>
+								)}
+							</div>
+						);
+					})}
 			</div>
 		</div>
+	);
+}
+
+/** What was done lately, newest first, as it looked then — with the way back. */
+function DoneList({
+	rows,
+	onOpen,
+	onUndo,
+}: {
+	rows: ReturnType<typeof useDone>["recent"];
+	onOpen: (url: string) => void;
+	onUndo: (row: ReturnType<typeof useDone>["recent"][number]) => void;
+}) {
+	return (
+		<>
+			{rows.map((row) => (
+				<div key={row.key} className={FEED_ROW}>
+					<div className="flex items-center gap-3">
+						<span className="w-[68px] shrink-0 truncate text-[11px] font-semibold text-[#8a8a97]">
+							{row.source}
+						</span>
+						<span
+							dir="auto"
+							className="min-w-0 flex-1 truncate text-[13px] text-[#a5a5b3]"
+						>
+							{emojify(row.title)}
+						</span>
+						<span className="shrink-0 text-[11px] text-[#8a8a97]">
+							done{" "}
+							{new Date(row.at).toLocaleDateString(undefined, {
+								month: "short",
+								day: "numeric",
+							})}
+						</span>
+						{row.url && /^https?:\/\//.test(row.url) && (
+							<button
+								type="button"
+								onClick={() => row.url && onOpen(row.url)}
+								className="shrink-0 text-[12px] font-semibold text-[#a5a5b3] hover:text-[#f5f5f7]"
+							>
+								Open ↗
+							</button>
+						)}
+						<button
+							type="button"
+							onClick={() => onUndo(row)}
+							title="Not done — put it back"
+							className="shrink-0 rounded-[7px] px-2 py-1 text-[12px] font-semibold text-[#8a8a97] hover:bg-[#1f1f27] hover:text-[#f5f5f7]"
+						>
+							Undo
+						</button>
+					</div>
+				</div>
+			))}
+		</>
 	);
 }

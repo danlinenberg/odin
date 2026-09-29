@@ -4,6 +4,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { LuOctagonX } from "react-icons/lu";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { useDoneStore } from "renderer/stores/done";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import {
 	FEED_LIST,
@@ -144,6 +145,7 @@ function ReviewPage() {
 		[todos],
 	);
 	const setSlackDone = electronTrpc.slack.setDone.useMutation();
+	const setDone = useDoneStore((s) => s.setDone);
 	const utils = electronTrpc.useUtils();
 	// Decided here, this session's worth. A dropped row also leaves the backlog,
 	// but a kept one doesn't — without this the screen never empties.
@@ -229,6 +231,13 @@ function ReviewPage() {
 		// seconds, and the row sat there the whole time. Put back on failure.
 		setDecided((prev) => ({ ...prev, [row.key]: true }));
 		noteDropped(row);
+		// Dropped is done, everywhere: a Jira, PR or Notion row can't be cleared
+		// at its source, and would otherwise live on in All tasks.
+		setDone(row.key, {
+			title: row.title,
+			source: row.source,
+			url: row.url ?? null,
+		});
 		if (kind === "task") remove(id);
 		else if (kind === "slack") {
 			try {
@@ -237,6 +246,7 @@ function ReviewPage() {
 			} catch (error) {
 				setDecided(({ [row.key]: _, ...prev }) => prev);
 				unnoteDropped(row.key);
+				setDone(row.key, null);
 				toast.error(error instanceof Error ? error.message : String(error));
 			}
 		}

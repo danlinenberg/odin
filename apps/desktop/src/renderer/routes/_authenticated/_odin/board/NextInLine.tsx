@@ -3,7 +3,6 @@ import {
 	HoverCardContent,
 	HoverCardTrigger,
 } from "@odin/ui/hover-card";
-import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
@@ -17,7 +16,6 @@ import {
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
-import { useNextInLineDone } from "renderer/stores/next-in-line-done";
 import { useNextInLinePrompt } from "renderer/stores/next-in-line-prompt";
 import { create } from "zustand";
 import type { AllItem } from "../all/all-items";
@@ -25,17 +23,13 @@ import { allItems } from "../all/all-items";
 import { useStartAllItem } from "../all/use-start-item";
 import { FEED_TABS } from "../components/feed-counts";
 import {
-	HiddenToggle,
-	HideButton,
-	useHiddenFilter,
-} from "../components/HiddenItems";
-import {
 	DueChip,
 	dayOf,
 	effectiveDue,
 	useReminders,
 } from "../components/Reminders";
-import { useBacklogReview, useIsDone } from "../hooks/useBacklogReview";
+import { useBacklogReview } from "../hooks/useBacklogReview";
+import { useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useMyTasks } from "../hooks/useOdinTasks";
 
@@ -209,8 +203,8 @@ export function NextInLine() {
 	const navigate = useNavigate();
 	const { start, livePaneFor, isLaunching, launchingKey } =
 		useStartAllItem(refetchSlack);
-	// Same key the feeds hide under, so hiding here hides it there and back.
-	const hide = useHiddenFilter("", rows, (item) => item.key);
+	// The rows your instructions hide, per the model — revealed, dimmed, on ask.
+	const [showHidden, setShowHidden] = useState(false);
 	// Open hands the link to the OS: a Slack permalink goes through Slack's
 	// own hand-off into the desktop app, everything else to the browser.
 	const openUrl = electronTrpc.external.openUrl.useMutation();
@@ -222,26 +216,10 @@ export function NextInLine() {
 		{ limit: 1000 },
 		{ refetchInterval: 60_000 },
 	);
-	const isDone = useIsDone();
-	const setLocalDone = useNextInLineDone((s) => s.setDone);
-	// Slack has a Done of its own (Odin-only, shared with the Slack feed); the
-	// rest go in the local done list. The row leaves the column either way —
-	// a done Slack row drops out of the feed, so the ranking input changes and
-	// that one re-ranks; the local list is display-only.
-	const slackDone = electronTrpc.slack.setDone.useMutation({
-		onSettled: refetchSlack,
-	});
-	const markDone = (item: AllItem, done: boolean) => {
-		if (item.source === "Slack")
-			slackDone.mutate({ id: item.launch.key, done });
-		else setLocalDone(item.key, done);
-	};
-	const doneWithUndo = (item: AllItem) => {
-		markDone(item, true);
-		toast.success(`Done — ${cleanTitle(item.title).slice(0, 60)}`, {
-			action: { label: "Undo", onClick: () => markDone(item, false) },
-		});
-	};
+	// Same Done as every feed, so a row done here is done there and back.
+	const { isDone, markDone } = useDone();
+	const doneWithUndo = (item: AllItem) =>
+		markDone({ ...item, title: cleanTitle(item.title) });
 	// The Review sweep's DROPs, so a row it wants gone says so here too. By key,
 	// or by link for PRs, which Next in line keys by id and the sweep by repo#n.
 	const swept = useBacklogReview((s) => s.swept);
@@ -262,17 +240,16 @@ export function NextInLine() {
 	// Window it (render on scroll) if the feeds ever reach thousands.
 	// The model's order, nothing else. Until it answers (or if it fails) the
 	// column stays in feed order and says so — no rule of ours stands in.
-	const waiting = hide.rows.filter(
+	const waiting = rows.filter(
 		(item) =>
 			!livePaneFor(item) && !startedKeys.has(item.launch.key) && !isDone(item),
 	);
 	// Rows your instructions say not to show, per the model. They count as
 	// hidden and come back, dimmed, under the same "show hidden" as yours.
 	const aiHidden = new Set(applied ? ranking?.hidden : []);
-	const isAiHidden = (item: AllItem) =>
-		aiHidden.has(item.key) && !hide.isHidden(item);
+	const isAiHidden = (item: AllItem) => aiHidden.has(item.key);
 	const aiHiddenCount = waiting.filter(isAiHidden).length;
-	const candidates = hide.showHidden
+	const candidates = showHidden
 		? waiting
 		: waiting.filter((item) => !isAiHidden(item));
 	const order = new Map(applied ? ranking?.keys.map((key, i) => [key, i]) : []);
@@ -322,9 +299,9 @@ export function NextInLine() {
 						<LuSettings2 className="size-3.5" aria-hidden />
 					</button>
 					<HiddenToggle
-						count={hide.hiddenCount + aiHiddenCount}
-						showing={hide.showHidden}
-						onToggle={() => hide.setShowHidden(!hide.showHidden)}
+						count={aiHiddenCount}
+						showing={showHidden}
+						onToggle={() => setShowHidden(!showHidden)}
 						className="font-normal normal-case tracking-normal"
 					/>
 					<span className="rounded-[10px] bg-[#2c2750] px-2 font-medium text-[#d6d0ff]">
@@ -376,7 +353,7 @@ export function NextInLine() {
 				key={item.key}
 				className={cn(
 					"group relative flex items-start gap-2 rounded-[10px] border border-[#2c2940] bg-[#14131b] px-2.5 py-2 transition-colors hover:border-[#3f3a63]",
-					(hide.isHidden(item) || isAiHidden(item)) && "opacity-50",
+					isAiHidden(item) && "opacity-50",
 				)}
 				title={
 					isAiHidden(item)
@@ -467,10 +444,6 @@ export function NextInLine() {
 						launchingKey === item.launch.key && "flex",
 					)}
 				>
-					<HideButton
-						hidden={hide.isHidden(item)}
-						onClick={() => hide.toggle(item)}
-					/>
 					{item.url && /^https?:\/\//.test(item.url) && (
 						<button
 							type="button"
@@ -615,5 +588,32 @@ function RankStatus({
 				</div>
 			)}
 		</div>
+	);
+}
+
+/** "show hidden (N)" — the rows your instructions hide, never without a way back. */
+function HiddenToggle({
+	count,
+	showing,
+	onToggle,
+	className,
+}: {
+	count: number;
+	showing: boolean;
+	onToggle: () => void;
+	className?: string;
+}) {
+	if (count === 0 && !showing) return null;
+	return (
+		<button
+			type="button"
+			onClick={onToggle}
+			className={cn(
+				"text-[12px] text-[#8a8a97] transition-colors hover:text-[#a5a5b3]",
+				className,
+			)}
+		>
+			{showing ? "hide" : "show"} hidden ({count})
+		</button>
 	);
 }

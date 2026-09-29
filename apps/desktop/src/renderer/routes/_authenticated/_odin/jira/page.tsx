@@ -6,6 +6,7 @@ import { ConnectNotice } from "renderer/components/ConnectProvider/ConnectProvid
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useTabsStore } from "renderer/stores/tabs/store";
+import { DoneButton } from "../components/DoneButton";
 import {
 	FEED_LIST,
 	FEED_ROW,
@@ -28,17 +29,21 @@ import {
 	SyncButton,
 } from "../components/FeedChrome";
 import { FeedError } from "../components/FeedError";
-import {
-	HiddenToggle,
-	HideButton,
-	useHiddenFilter,
-} from "../components/HiddenItems";
 import { PersonChip } from "../components/PersonChip";
 import { DueChip, META_DUE, OverdueMark } from "../components/Reminders";
 import { buildIssuePrompt } from "../feed-prompts";
+import { useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePendingFocus } from "../hooks/usePendingFocus";
+
+/** A row as Done wants it: its All-feed key, and enough to list it later. */
+const doable = (issue: { key: string; title: string; url: string }) => ({
+	key: `jira:${issue.key}`,
+	title: `${issue.key}: ${issue.title}`,
+	source: "Jira",
+	url: issue.url,
+});
 
 export const Route = createFileRoute("/_authenticated/_odin/jira/")({
 	component: MyJiraPage,
@@ -120,13 +125,15 @@ function MyJiraPage() {
 	const openUrl = electronTrpc.external.openUrl.useMutation();
 	const panes = useTabsStore((s) => s.panes);
 
-	// Hidden tickets drop out before the role tabs are counted.
-	const hide = useHiddenFilter(
-		"jira",
-		issuesQuery.data?.issues ?? [],
-		(issue) => issue.key,
+	// Done tickets drop out before the role tabs are counted.
+	const { isDone, markDone } = useDone();
+	const allIssues = useMemo(
+		() =>
+			(issuesQuery.data?.issues ?? []).filter(
+				(issue) => !isDone(doable(issue)),
+			),
+		[issuesQuery.data, isDone],
 	);
-	const allIssues = hide.rows;
 	const roleCounts = useMemo(
 		() => ({
 			assigned: allIssues.filter((i) => i.role === "assigned").length,
@@ -235,11 +242,6 @@ function MyJiraPage() {
 						onChange={setSearch}
 						label="Search Jira issues"
 					/>
-					<HiddenToggle
-						count={hide.hiddenCount}
-						showing={hide.showHidden}
-						onToggle={() => hide.setShowHidden(!hide.showHidden)}
-					/>
 					{projects.length > 0 && (
 						<FeedSelect
 							value={projectFilter}
@@ -316,7 +318,6 @@ function MyJiraPage() {
 											activePaneId &&
 												"border-[#1a4029] border-l-2 border-l-[#3ecf8e] bg-[#0f1613]",
 											!activePaneId && tone === "parked" && "opacity-60",
-											hide.isHidden(issue) && "opacity-40",
 										)}
 									>
 										{/* One line per ticket: title takes the slack, meta rides in
@@ -436,10 +437,7 @@ function MyJiraPage() {
 													)}
 												</span>
 												<RowActions>
-													<HideButton
-														hidden={hide.isHidden(issue)}
-														onClick={() => hide.toggle(issue)}
-													/>
+													<DoneButton onClick={() => markDone(doable(issue))} />
 												</RowActions>
 											</div>
 											{/* A mention row exists because of one comment — so it
