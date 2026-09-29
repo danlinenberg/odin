@@ -1,3 +1,8 @@
+import {
+	HoverCard,
+	HoverCardContent,
+	HoverCardTrigger,
+} from "@odin/ui/hover-card";
 import { toast } from "@odin/ui/sonner";
 import { useNavigate } from "@tanstack/react-router";
 import { useRef } from "react";
@@ -16,7 +21,7 @@ import { usePendingFocus } from "../hooks/usePendingFocus";
 const PREFIX = "remind:";
 
 export function remindSession(
-	session: { sessionId: string; cwd: string; title: string },
+	session: { sessionId: string; cwd: string; title: string; brief?: string },
 	day: string,
 ): void {
 	useReminders.setState((s) => ({
@@ -25,7 +30,12 @@ export function remindSession(
 			[PREFIX + session.sessionId]: {
 				due: day,
 				title: session.title,
-				resume: { sessionId: session.sessionId, cwd: session.cwd },
+				resume: {
+					sessionId: session.sessionId,
+					cwd: session.cwd,
+					brief: session.brief,
+					setAt: Date.now(),
+				},
 			},
 		},
 		notified: { ...s.notified, [PREFIX + session.sessionId]: "" },
@@ -120,12 +130,45 @@ export function SessionReminders() {
 					key={key}
 					className="flex min-w-0 items-center gap-1.5 rounded-lg border border-[#3a3220] bg-[#14131b] py-0.5 pl-2.5 pr-1"
 				>
-					<span
-						dir="auto"
-						className="max-w-[320px] truncate font-medium text-[#ececf1]"
-					>
-						{r.title}
-					</span>
+					<HoverCard openDelay={300} closeDelay={80}>
+						<HoverCardTrigger asChild>
+							<span
+								dir="auto"
+								className="max-w-[320px] cursor-default truncate font-medium text-[#ececf1]"
+							>
+								{r.title}
+							</span>
+						</HoverCardTrigger>
+						<HoverCardContent
+							align="start"
+							className="w-[380px] space-y-2 border-[#2c2940] bg-[#16151f] p-3 text-[12px] leading-[1.5]"
+						>
+							<p
+								dir="auto"
+								className="whitespace-pre-wrap break-words font-medium text-[#ececf1]"
+							>
+								{r.title}
+							</p>
+							{r.resume?.brief && (
+								<p
+									dir="auto"
+									className="max-h-[220px] overflow-y-auto whitespace-pre-wrap break-words text-[#a5a5b3]"
+								>
+									{r.resume.brief.slice(0, 1500)}
+								</p>
+							)}
+							<div className="space-y-0.5 text-[11px] text-[#8a8a97]">
+								<div>
+									In {r.resume?.cwd.split("/").pop()} · {r.resume?.cwd}
+								</div>
+								<div>
+									Due {r.due}
+									{r.resume?.setAt &&
+										` · snoozed ${new Date(r.resume.setAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}`}
+								</div>
+							</div>
+						</HoverCardContent>
+					</HoverCard>
 					<span className="text-[11px] text-[#8a8a97]">
 						{dueLabel(r.due, now)}
 					</span>
