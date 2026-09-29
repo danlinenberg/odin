@@ -35,7 +35,7 @@ export function feedCounts(input: {
 	tasks: number;
 	slack: { status: string }[];
 	jira: unknown[];
-	pulls: { author: string }[];
+	pulls: { author: string; kind?: string }[];
 	notion: unknown[];
 	emails?: unknown[];
 }): Record<FeedPath, number> {
@@ -49,10 +49,13 @@ export function feedCounts(input: {
 		"/email": input.emails?.length ?? 0,
 	};
 	// All is the sum of the others, not a count of its own — otherwise the strip
-	// would be disagreeing with itself.
+	// would be disagreeing with itself. Less your own PRs, which All leaves out.
+	const mine = input.pulls.filter(
+		(pull) => pull.kind === "mine" && !isBot(pull.author),
+	).length;
 	return {
 		...sources,
-		"/all": Object.values(sources).reduce((total, n) => total + n, 0),
+		"/all": Object.values(sources).reduce((total, n) => total + n, 0) - mine,
 	};
 }
 

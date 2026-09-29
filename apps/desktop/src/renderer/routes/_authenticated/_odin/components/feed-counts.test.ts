@@ -16,17 +16,22 @@ test("counts say what's waiting, not how many rows", () => {
 			{ status: "Done" },
 		],
 		jira: [{}, {}, {}],
-		pulls: [{ author: "dan" }, { author: "renovate[bot]" }],
+		pulls: [
+			{ author: "ada" },
+			{ author: "dan", kind: "mine" },
+			{ author: "renovate[bot]" },
+		],
 		notion: [],
 		emails: [{}],
 	});
 	expect(counts).toEqual({
 		// All is what the others add up to, so the strip agrees with itself.
+		// …less your own PRs, which All doesn't list.
 		"/all": 8,
 		"/my-tasks": 2,
 		"/reactions": 1,
 		"/jira": 3,
-		"/prs": 1,
+		"/prs": 2,
 		"/notion": 0,
 		"/email": 1,
 	});
