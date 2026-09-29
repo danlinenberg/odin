@@ -430,7 +430,7 @@ function CdWorktreeButton({ card, shell }: { card: BoardCard; shell: Pane }) {
 	return (
 		<button
 			type="button"
-			title={`cd ${checkout}`}
+			title={`Move this shell to ${checkout}`}
 			onClick={() => {
 				write.mutate({
 					paneId: shell.id,
@@ -438,9 +438,10 @@ function CdWorktreeButton({ card, shell }: { card: BoardCard; shell: Pane }) {
 				});
 				updatePaneCwd(shell.id, checkout, false);
 			}}
-			className="shrink-0 rounded-md bg-[#1f1f27] px-2 py-1 text-xs font-semibold text-[#a5a5b3] hover:text-[#f5f5f7]"
+			className="flex min-w-0 max-w-[180px] items-center gap-1 rounded-md bg-[#1f1f27] px-2 py-1 text-xs font-semibold text-[#a5a5b3] hover:text-[#f5f5f7]"
 		>
-			cd {checkout.split("/").pop()}
+			<span className="text-[#a394ff]">⤷</span>
+			<span className="truncate">{checkout.split("/").pop()}</span>
 		</button>
 	);
 }
