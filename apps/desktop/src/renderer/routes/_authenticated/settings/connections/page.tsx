@@ -16,7 +16,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { FaGithub, FaSlack } from "react-icons/fa";
 import { LuTrash2 } from "react-icons/lu";
-import { SiJira, SiNotion } from "react-icons/si";
+import { SiGmail, SiJira, SiNotion } from "react-icons/si";
 import {
 	ConnectProvider,
 	type Provider,
@@ -63,9 +63,14 @@ const META: Record<
 		icon: <SiNotion className="size-5" />,
 		description: "Rows from a Notion database, in the Notion tab.",
 	},
+	gmail: {
+		name: "Gmail",
+		icon: <SiGmail className="size-5" />,
+		description: "Unread mail, in the Email tab.",
+	},
 };
 
-const ORDER: Provider[] = ["slack", "github", "jira", "notion"];
+const ORDER: Provider[] = ["slack", "github", "jira", "notion", "gmail"];
 
 function ConnectionsSettings() {
 	const queryClient = useQueryClient();

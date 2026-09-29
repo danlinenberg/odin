@@ -23,13 +23,14 @@ import { resetOdinFeeds } from "renderer/routes/_authenticated/_odin/hooks/useOd
  * code instead.
  */
 
-export type Provider = "slack" | "jira" | "github" | "notion";
+export type Provider = "slack" | "jira" | "github" | "notion" | "gmail";
 
 export const PROVIDER_NAME: Record<Provider, string> = {
 	slack: "Slack",
 	jira: "Jira",
 	github: "GitHub",
 	notion: "Notion",
+	gmail: "Gmail",
 };
 
 /** What the consent screen is about to ask for, in one line. */
@@ -39,6 +40,7 @@ const SCOPE_BLURB: Record<Provider, string> = {
 	jira: "Opens Atlassian in your browser. Read-only access to issues and users.",
 	github: "Opens github.com and asks for a code — scopes: repo, read:org.",
 	notion: "Opens Notion in your browser, where you choose what it can see.",
+	gmail: "An app password — read-only access to your unread mail.",
 };
 
 export function ConnectProvider({
@@ -60,6 +62,8 @@ export function ConnectProvider({
 	// Remounted per provider, so the branch below never reorders hooks.
 	return provider === "github" ? (
 		<GithubConnect onDone={done} />
+	) : provider === "gmail" ? (
+		<GmailConnect onDone={done} />
 	) : (
 		<OAuthConnect provider={provider} onDone={done} />
 	);
@@ -93,7 +97,7 @@ function OAuthConnect({
 	provider,
 	onDone,
 }: {
-	provider: Exclude<Provider, "github">;
+	provider: Exclude<Provider, "github" | "gmail">;
 	onDone: () => void;
 }) {
 	const name = PROVIDER_NAME[provider];
@@ -305,5 +309,70 @@ function GithubConnect({ onDone }: { onDone: () => void }) {
 			</Button>
 			<p className="text-xs text-muted-foreground">{SCOPE_BLURB.github}</p>
 		</div>
+	);
+}
+
+/**
+ * Gmail skips OAuth (it'd need a Google Cloud app and Google's review): an
+ * app password is Basic auth on Gmail's Atom feed. The main process checks it
+ * against the feed before saving, so a wrong one fails right here.
+ */
+function GmailConnect({ onDone }: { onDone: () => void }) {
+	const [address, setAddress] = useState("");
+	const [appPassword, setAppPassword] = useState("");
+	const [label, setLabel] = useState("");
+	const openUrl = electronTrpc.external.openUrl.useMutation();
+	const save = electronTrpc.connections.saveGmail.useMutation({
+		onSuccess: () => {
+			toast.success("Gmail connected");
+			onDone();
+		},
+		onError: (error) => toast.error(error.message),
+	});
+	return (
+		<form
+			className="space-y-2"
+			onSubmit={(event) => {
+				event.preventDefault();
+				save.mutate({ address, appPassword, label });
+			}}
+		>
+			<p className="text-xs text-muted-foreground">
+				<button
+					type="button"
+					className="underline hover:text-foreground"
+					onClick={() =>
+						openUrl.mutate("https://myaccount.google.com/apppasswords")
+					}
+				>
+					Create an app password ↗
+				</button>{" "}
+				(needs 2-Step Verification), then paste it here.
+			</p>
+			<Input
+				type="email"
+				placeholder="you@example.com"
+				value={address}
+				onChange={(event) => setAddress(event.target.value)}
+			/>
+			<Input
+				type="password"
+				placeholder="App password — abcd efgh ijkl mnop"
+				value={appPassword}
+				onChange={(event) => setAppPassword(event.target.value)}
+			/>
+			<Input
+				placeholder="Label (optional) — only unread mail under it; blank = inbox"
+				value={label}
+				onChange={(event) => setLabel(event.target.value)}
+			/>
+			<Button
+				type="submit"
+				size="sm"
+				disabled={!address || !appPassword || save.isPending}
+			>
+				{save.isPending ? "Checking…" : "Connect"}
+			</Button>
+		</form>
 	);
 }
