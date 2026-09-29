@@ -522,20 +522,17 @@ function ShellDot({
 	return (
 		<span
 			title={title}
-			className={cn(
-				"ml-1 inline-block size-[6px] rounded-full align-middle",
-				color,
-			)}
+			className={cn("inline-block size-[6px] rounded-full", color)}
 		/>
 	);
 }
 
 /**
- * Jump the session's shell into the worktree the agent actually works in. The
+ * Where the shell is, and a menu to move it into the session's work. The
  * shell opens where the session launched — for feed sessions the catch-all
  * directory — while the agent cd'd into a worktree the shell never saw.
  */
-function CdWorktreeButton({ card, shell }: { card: BoardCard; shell: Pane }) {
+function ShellPlaceMenu({ card, shell }: { card: BoardCard; shell: Pane }) {
 	const { data, here, inside, shellsIn } = useShellPlace(card, shell);
 	const write = electronTrpc.terminal.write.useMutation();
 	const updatePaneCwd = useTabsStore((s) => s.updatePaneCwd);
@@ -546,76 +543,78 @@ function CdWorktreeButton({ card, shell }: { card: BoardCard; shell: Pane }) {
 		});
 		updatePaneCwd(shell.id, dir, false);
 	};
-	const buttonClass =
-		"flex min-w-0 max-w-[180px] items-center gap-1 rounded-md bg-[#1f1f27] px-2 py-1 text-xs font-semibold text-[#a5a5b3] hover:text-[#f5f5f7]";
-	const prs = data?.pullRequests ?? [];
-
-	// Several PRs, several worktrees: pick which one to be in.
-	if (new Set(prs.map((pr) => pr.worktree)).size > 1) {
-		const current = prs.find((pr) => inside(here, pr.worktree));
-		return (
-			<DropdownMenu>
-				<DropdownMenuTrigger asChild>
-					<button
-						type="button"
-						title="Move this shell to one of this session's PRs"
-						className={buttonClass}
-					>
-						<span className="text-[#a394ff]">⤷</span>
-						<span className="truncate">
-							{current ? `#${current.number}` : `${prs.length} PRs`}
-						</span>
-						<span className="text-[10px]">▾</span>
-					</button>
-				</DropdownMenuTrigger>
-				<DropdownMenuContent align="end" className="w-80">
-					<DropdownMenuLabel className="truncate text-[10px] font-normal text-muted-foreground">
-						{here
-							? `This shell is in ${here.replace(/^\/Users\/[^/]+/, "~")}${current ? "" : " — not in any PR's worktree"}`
-							: "This shell's location is unknown"}
-					</DropdownMenuLabel>
-					<DropdownMenuSeparator />
-					{prs.map((pr) => (
-						<DropdownMenuItem
-							key={pr.url}
-							title={pr.worktree}
-							onSelect={() => cd(pr.worktree)}
-							className="flex items-center gap-2 text-xs"
-						>
-							<span className="w-3 text-[#a394ff]">
-								{inside(here, pr.worktree) ? "✓" : ""}
-							</span>
-							<span className="w-12 shrink-0 font-semibold tabular-nums">
-								#{pr.number}
-							</span>
-							<span className="flex min-w-0 flex-col">
-								<span className="truncate">
-									{pr.isMain ? "main checkout" : pr.worktree.split("/").pop()}
-								</span>
-								<span className="truncate text-[10px] text-muted-foreground">
-									{pr.repo}
-								</span>
-							</span>
-							<ShellsDot {...shellsIn(pr.worktree)} />
-						</DropdownMenuItem>
-					))}
-				</DropdownMenuContent>
-			</DropdownMenu>
-		);
-	}
-
+	const basename = (dir: string) => dir.split("/").pop() || dir;
+	// Every place this session's work lives: its PRs' worktrees, then the
+	// checkout it worked in when no PR already covers it.
+	const targets = (data?.pullRequests ?? []).map((pr) => ({
+		key: pr.url,
+		dir: pr.worktree,
+		badge: `#${pr.number}`,
+		name: pr.isMain ? "main checkout" : basename(pr.worktree),
+		repo: pr.repo,
+	}));
 	const checkout = data?.worktree ?? data?.checkout;
-	if (!checkout || inside(here, checkout)) return null;
+	if (checkout && !targets.some((target) => target.dir === checkout)) {
+		targets.push({
+			key: checkout,
+			dir: checkout,
+			badge: "",
+			name: basename(checkout),
+			repo: data?.name ?? "",
+		});
+	}
+	const current = targets.find((target) => inside(here, target.dir));
+	const where = here?.replace(/^\/Users\/[^/]+/, "~");
 	return (
-		<button
-			type="button"
-			title={`Move this shell to ${checkout}`}
-			onClick={() => cd(checkout)}
-			className={buttonClass}
-		>
-			<span className="text-[#a394ff]">⤷</span>
-			<span className="truncate">{checkout.split("/").pop()}</span>
-		</button>
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
+				<button
+					type="button"
+					title={where ? `Shell is in ${where} — move it` : "Move this shell"}
+					className="flex min-w-0 max-w-[200px] items-center gap-1 rounded-r-md border-l border-[#0f0f13] bg-[#211d3a] px-2 py-1 text-xs font-medium text-[#a394ff]/80 hover:text-[#a394ff]"
+				>
+					<span className="truncate">
+						{current ? current.name : here ? basename(here) : "…"}
+					</span>
+					<span className="text-[9px] opacity-70">▾</span>
+				</button>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent align="end" className="w-80">
+				<DropdownMenuLabel className="truncate text-[10px] font-normal text-muted-foreground">
+					{where
+						? `Shell is in ${where}${current ? "" : " — outside this session's work"}`
+						: "This shell's location is unknown"}
+				</DropdownMenuLabel>
+				<DropdownMenuSeparator />
+				{targets.length === 0 && (
+					<div className="px-2 py-1.5 text-xs text-muted-foreground">
+						No worktree known for this session yet
+					</div>
+				)}
+				{targets.map((target) => (
+					<DropdownMenuItem
+						key={target.key}
+						title={target.dir}
+						onSelect={() => cd(target.dir)}
+						className="flex items-center gap-2 text-xs"
+					>
+						<span className="w-3 text-[#a394ff]">
+							{target === current ? "✓" : ""}
+						</span>
+						<span className="w-12 shrink-0 font-semibold tabular-nums">
+							{target.badge}
+						</span>
+						<span className="flex min-w-0 flex-col">
+							<span className="truncate">{target.name}</span>
+							<span className="truncate text-[10px] text-muted-foreground">
+								{target.repo}
+							</span>
+						</span>
+						<ShellsDot {...shellsIn(target.dir)} />
+					</DropdownMenuItem>
+				))}
+			</DropdownMenuContent>
+		</DropdownMenu>
 	);
 }
 
@@ -3107,39 +3106,45 @@ function DevBoardPage() {
 									</button>
 								)}
 								{drawerCard.pane.type === "terminal" && (
-									<button
-										type="button"
-										title={
-											shellRunning
-												? "This session already has a shell running — reattach to it"
-												: drawerShell
-													? "This session's shell is disconnected — open it to start a new one"
-													: "Open a shell in this session's checkout"
-										}
-										onClick={() =>
-											isShellOpen
-												? setIsShellOpen(false)
-												: openShell(drawerCard)
-										}
-										className={cn(
-											"shrink-0 rounded-md px-2 py-1 text-xs font-semibold",
-											isShellOpen
-												? "bg-[#211d3a] text-[#a394ff]"
-												: "bg-[#1f1f27] text-[#a5a5b3] hover:text-[#f5f5f7]",
+									// One control: the shell, and — once it's open — where it is.
+									<div className="flex shrink-0 items-stretch">
+										<button
+											type="button"
+											title={
+												shellRunning
+													? "This session already has a shell running — reattach to it"
+													: drawerShell
+														? "This session's shell is disconnected — open it to start a new one"
+														: "Open a shell in this session's checkout"
+											}
+											onClick={() =>
+												isShellOpen
+													? setIsShellOpen(false)
+													: openShell(drawerCard)
+											}
+											className={cn(
+												"flex items-center gap-1.5 px-2 py-1 text-xs font-semibold",
+												isShellOpen && drawerShell
+													? "rounded-l-md"
+													: "rounded-md",
+												isShellOpen
+													? "bg-[#211d3a] text-[#a394ff]"
+													: "bg-[#1f1f27] text-[#a5a5b3] hover:text-[#f5f5f7]",
+											)}
+										>
+											❯ Shell
+											{drawerShell && (
+												<ShellDot
+													card={drawerCard}
+													shell={drawerShell}
+													alive={shellRunning}
+												/>
+											)}
+										</button>
+										{isShellOpen && drawerShell && (
+											<ShellPlaceMenu card={drawerCard} shell={drawerShell} />
 										)}
-									>
-										❯ Shell
-										{drawerShell && (
-											<ShellDot
-												card={drawerCard}
-												shell={drawerShell}
-												alive={shellRunning}
-											/>
-										)}
-									</button>
-								)}
-								{isShellOpen && drawerShell && (
-									<CdWorktreeButton card={drawerCard} shell={drawerShell} />
+									</div>
 								)}
 								<button
 									type="button"
