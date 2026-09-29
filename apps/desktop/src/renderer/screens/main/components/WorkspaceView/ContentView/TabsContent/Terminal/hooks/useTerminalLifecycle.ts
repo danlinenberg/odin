@@ -363,6 +363,10 @@ export function useTerminalLifecycle({
 				isStreamReadyRef.current = false;
 				wasKilledByUserRef.current = false;
 				setExitStatus(null);
+				// A fresh process — drop the red "died" mark from the last one.
+				if (useTabsStore.getState().panes[paneId]?.status === "failed") {
+					useTabsStore.getState().setPaneStatus(paneId, "idle");
+				}
 				resetModes();
 				xterm.clear();
 				const attach = () => {

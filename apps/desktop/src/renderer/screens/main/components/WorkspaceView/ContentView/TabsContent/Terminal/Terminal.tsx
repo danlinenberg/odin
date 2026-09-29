@@ -463,6 +463,33 @@ export const Terminal = memo(function Terminal({
 				!isWorkspaceRunPane && (
 					<SessionKilledOverlay onRestart={restartTerminal} />
 				)}
+			{/* The "[Process exited]" line scrolls away and a dropped daemon link
+			    gives up silently after MAX_RETRIES — keep either in view. */}
+			{((exitStatus === "exited" && !isRestoredMode) ||
+				(connectionError && !exitStatus)) && (
+				<div className="absolute inset-x-0 bottom-0 z-10 flex items-center gap-2 border-t border-[#5a2733] bg-[#2a1218]/95 px-3 py-1.5 text-xs text-[#f0647a]">
+					<span className="size-2 shrink-0 rounded-full bg-[#f0647a]" />
+					<span className="min-w-0 flex-1 truncate">
+						{exitStatus === "exited"
+							? "Shell exited — this terminal is no longer running"
+							: `Terminal disconnected: ${connectionError}`}
+					</span>
+					<button
+						type="button"
+						onClick={() => {
+							if (exitStatus === "exited") {
+								void restartTerminal();
+							} else {
+								retryCountRef.current = 0;
+								handleRetryConnection();
+							}
+						}}
+						className="shrink-0 rounded-[6px] bg-[#3a1820] px-2 py-0.5 font-semibold hover:bg-[#4a1f29]"
+					>
+						{exitStatus === "exited" ? "Restart" : "Reconnect"}
+					</button>
+				</div>
+			)}
 			<div className="h-full w-full p-2">
 				<div ref={terminalRef} className="h-full w-full" />
 			</div>
