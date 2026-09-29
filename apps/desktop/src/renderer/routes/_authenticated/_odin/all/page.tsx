@@ -264,7 +264,14 @@ function AllFeedPage() {
 			: byContext;
 		if (!needle) return due;
 		return due.filter((item) =>
-			[item.title, item.person, item.context, item.status, item.source]
+			[
+				item.title,
+				item.person,
+				item.context,
+				item.status,
+				item.source,
+				item.mention?.text,
+			]
 				.join(" ")
 				.toLowerCase()
 				.includes(needle),
@@ -615,6 +622,18 @@ function AllFeedPage() {
 									/>
 								</RowActions>
 							</div>
+							{/* Same preview the Jira feed shows: a mention row is there
+							    because of one comment. Indented past the source chip
+							    (68px + gap-3) so it sits under the title. */}
+							{item.mention && (
+								<div className="mt-1.5 line-clamp-2 cursor-text select-text pl-[80px] text-[11.5px] leading-relaxed text-[#a5a5b3]">
+									<span className="font-semibold text-[#f5b83d]">
+										{item.mention.author ?? "Someone"}
+										{": "}
+									</span>
+									{item.mention.text}
+								</div>
+							)}
 						</div>
 					);
 				})}
