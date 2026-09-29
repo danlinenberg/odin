@@ -38,6 +38,12 @@ describe("reviewRows", () => {
 		expect(rows[0]?.stale).toBe(true);
 	});
 
+	test("doesn't mark a row whose feed hasn't answered yet", () => {
+		const rows = reviewRows(swept("DROP", "DROP"), live(), new Set(["slack"]));
+		expect(rows.find((r) => r.key === "task:a")?.stale).toBe(true);
+		expect(rows.find((r) => r.key === "slack:C1:b")?.stale).toBe(false);
+	});
+
 	test("puts drops first, then unknowns, then keeps", () => {
 		const rows = reviewRows(
 			swept("KEEP", "UNKNOWN", "DROP"),
