@@ -38,6 +38,7 @@ import {
 	updateOdinConfig,
 } from "../odin-config";
 import { clearSlackCaches, clearSlackQueue } from "../slack";
+import { fetchGmailFeed, gmailCredentials } from "../work";
 
 /**
  * Settings → Connections: the credentials Odin's feeds run on.
@@ -51,12 +52,13 @@ import { clearSlackCaches, clearSlackQueue } from "../slack";
  * Signing in is the only way in. Nothing here reads a credential out of the
  * environment and nothing takes a pasted token: a shell variable is ambient
  * and would sign every profile into the same account, and a pasted token is a
- * chore that OAuth exists to remove. Slack, Jira and Notion run the
+ * chore that OAuth exists to remove — Gmail is the exception: its OAuth needs a
+ * Google Cloud app and review, so it takes an app password. Slack, Jira and Notion run the
  * browser consent flow; GitHub runs the device flow (no client secret, no
  * redirect URL, the flow GitHub built for desktop apps).
  */
 
-const PROVIDERS = ["slack", "jira", "github", "notion"] as const;
+const PROVIDERS = ["slack", "jira", "github", "notion", "gmail"] as const;
 type Provider = (typeof PROVIDERS)[number];
 
 export interface ConnectionStatus {
@@ -158,6 +160,29 @@ async function probeNotion(): Promise<ConnectionStatus> {
 		};
 	} catch (error) {
 		return failed("notion", message(error));
+	}
+}
+
+/** Gmail has no "who am I" — the feed itself is the probe, and its count the identity. */
+async function probeGmail(): Promise<ConnectionStatus> {
+	const credentials = gmailCredentials();
+	if (!credentials) return unconfigured("gmail");
+	try {
+		const res = await fetchGmailFeed(credentials);
+		if (!res.ok)
+			return failed(
+				"gmail",
+				res.status === 401 ? "app password rejected" : `HTTP ${res.status}`,
+			);
+		const unread = (await res.text()).match(/<fullcount>(\d+)/)?.[1] ?? "?";
+		return {
+			provider: "gmail",
+			configured: true,
+			identity: `${credentials.address} · ${unread} unread${credentials.label ? ` in ${credentials.label}` : ""}`,
+			error: null,
+		};
+	} catch (error) {
+		return failed("gmail", message(error));
 	}
 }
 
@@ -264,6 +289,7 @@ export const createConnectionsRouter = () => {
 				probeJira(),
 				probeGithub(),
 				probeNotion(),
+				probeGmail(),
 			]);
 		}),
 
@@ -387,6 +413,13 @@ export const createConnectionsRouter = () => {
 							notionRefreshToken: undefined,
 						});
 						break;
+					case "gmail":
+						updateOdinConfig({
+							gmailAddress: undefined,
+							gmailAppPassword: undefined,
+							gmailLabel: undefined,
+						});
+						break;
 					case "jira":
 						updateOdinConfig({
 							jiraAccessToken: undefined,
@@ -397,6 +430,42 @@ export const createConnectionsRouter = () => {
 						});
 						break;
 				}
+				return { ok: true };
+			}),
+
+		/**
+		 * Gmail's way in: an app password, not OAuth. Checked against the feed
+		 * before it's stored, so a typo fails here rather than as a dead feed.
+		 */
+		saveGmail: publicProcedure
+			.input(
+				z.object({
+					address: z.string().trim().email(),
+					appPassword: z.string().trim().min(1),
+					label: z.string().trim().optional(),
+				}),
+			)
+			.mutation(async ({ input }) => {
+				const credentials = {
+					address: input.address,
+					password: input.appPassword.replace(/\s/g, ""),
+					label: input.label || undefined,
+				};
+				const res = await fetchGmailFeed(credentials);
+				if (!res.ok) {
+					throw new TRPCError({
+						code: "BAD_REQUEST",
+						message:
+							res.status === 401
+								? "Gmail rejected that address + app password."
+								: `Gmail answered HTTP ${res.status}${credentials.label ? " — is the label spelled right?" : ""}`,
+					});
+				}
+				updateOdinConfig({
+					gmailAddress: credentials.address,
+					gmailAppPassword: credentials.password,
+					gmailLabel: credentials.label,
+				});
 				return { ok: true };
 			}),
 

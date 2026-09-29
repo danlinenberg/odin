@@ -3,7 +3,7 @@ import {
 	HiOutlineInbox,
 } from "react-icons/hi2";
 import { LuGitPullRequest } from "react-icons/lu";
-import { SiJira, SiNotion, SiSlack } from "react-icons/si";
+import { SiGmail, SiJira, SiNotion, SiSlack } from "react-icons/si";
 
 /**
  * The task feeds, in tab order. One rail entry opens them; the strip in each
@@ -17,6 +17,7 @@ export const FEED_TABS = [
 	{ to: "/jira", label: "Jira", Icon: SiJira },
 	{ to: "/prs", label: "GitHub", Icon: LuGitPullRequest },
 	{ to: "/notion", label: "Notion", Icon: SiNotion },
+	{ to: "/email", label: "Email", Icon: SiGmail },
 ] as const;
 
 export type FeedPath = (typeof FEED_TABS)[number]["to"];
@@ -36,6 +37,7 @@ export function feedCounts(input: {
 	jira: unknown[];
 	pulls: { author: string }[];
 	notion: unknown[];
+	emails?: unknown[];
 }): Record<FeedPath, number> {
 	const sources = {
 		"/my-tasks": input.tasks,
@@ -44,6 +46,7 @@ export function feedCounts(input: {
 		"/jira": input.jira.length,
 		"/prs": input.pulls.filter((pull) => !isBot(pull.author)).length,
 		"/notion": input.notion.length,
+		"/email": input.emails?.length ?? 0,
 	};
 	// All is the sum of the others, not a count of its own — otherwise the strip
 	// would be disagreeing with itself.

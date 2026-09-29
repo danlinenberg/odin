@@ -18,15 +18,17 @@ test("counts say what's waiting, not how many rows", () => {
 		jira: [{}, {}, {}],
 		pulls: [{ author: "dan" }, { author: "renovate[bot]" }],
 		notion: [],
+		emails: [{}],
 	});
 	expect(counts).toEqual({
-		// All is what the other five add up to, so the strip agrees with itself.
-		"/all": 7,
+		// All is what the others add up to, so the strip agrees with itself.
+		"/all": 8,
 		"/my-tasks": 2,
 		"/reactions": 1,
 		"/jira": 3,
 		"/prs": 1,
 		"/notion": 0,
+		"/email": 1,
 	});
 });
 

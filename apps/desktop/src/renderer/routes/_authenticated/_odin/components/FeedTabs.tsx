@@ -17,7 +17,7 @@ export function FeedTabs() {
 	const matchRoute = useMatchRoute();
 	// Same queries the shell warms on boot — React Query serves them from cache,
 	// so the badges cost nothing beyond a render.
-	const { reactions, jira, pulls, notion, workConfig, notionConfig } =
+	const { reactions, jira, pulls, notion, emails, workConfig, notionConfig } =
 		useOdinFeeds();
 	// todos, not tasks: an automation runs itself, so it isn't waiting on you.
 	const { todos } = useMyTasks();
@@ -27,6 +27,7 @@ export function FeedTabs() {
 		jira: jira.data?.issues ?? [],
 		pulls: pulls.data?.pulls ?? [],
 		notion: notion.data?.rows ?? [],
+		emails: emails.data?.emails ?? [],
 	});
 
 	// A tab that's empty because its account is signed out — or because its
@@ -40,6 +41,7 @@ export function FeedTabs() {
 		"/jira": { connected: workConfig?.hasJira, failed: jira.isError },
 		"/prs": { connected: workConfig?.hasGithub, failed: pulls.isError },
 		"/notion": { connected: notionConfig?.hasToken, failed: notion.isError },
+		"/email": { connected: workConfig?.hasGmail, failed: emails.isError },
 	});
 
 	const active = FEED_TABS.find((tab) => !!matchRoute({ to: tab.to }))?.to;

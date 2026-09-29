@@ -303,8 +303,7 @@ export function allItems(input: {
 			(email): AllItem => ({
 				key: `email:${email.id}`,
 				source: "Email",
-				// ponytail: no Email tab — the row lives in All, and its link opens Gmail.
-				to: "/all",
+				to: "/email",
 				title: email.subject,
 				url: email.url,
 				person: email.from,

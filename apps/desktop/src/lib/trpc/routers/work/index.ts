@@ -162,11 +162,34 @@ export interface EmailRow {
 	at: string | null;
 }
 
-function gmailCredentials(): { address: string; password: string } | null {
-	const { gmailAddress, gmailAppPassword } = readOdinConfig();
+export interface GmailCredentials {
+	address: string;
+	password: string;
+	/** Only unread mail under this label; the inbox when unset. */
+	label?: string;
+}
+
+export function gmailCredentials(): GmailCredentials | null {
+	const { gmailAddress, gmailAppPassword, gmailLabel } = readOdinConfig();
 	return gmailAddress && gmailAppPassword
-		? { address: gmailAddress, password: gmailAppPassword.replace(/\s/g, "") }
+		? { address: gmailAddress, password: gmailAppPassword, label: gmailLabel }
 		: null;
+}
+
+/** One GET of the Atom feed — the feed, the Connections probe and the save's check. */
+export function fetchGmailFeed(
+	credentials: GmailCredentials,
+): Promise<Response> {
+	const { address, password, label } = credentials;
+	return fetch(
+		`https://mail.google.com/mail/feed/atom${label ? `/${encodeURIComponent(label)}` : ""}`,
+		{
+			headers: {
+				// Google shows the app password in groups of four; the spaces aren't part of it.
+				Authorization: `Basic ${Buffer.from(`${address}:${password.replace(/\s/g, "")}`).toString("base64")}`,
+			},
+		},
+	);
 }
 
 const unescapeXml = (text: string) =>
@@ -509,16 +532,10 @@ export const createWorkRouter = () => {
 					throw new TRPCError({
 						code: "PRECONDITION_FAILED",
 						message:
-							'Gmail isn\'t set up — add "gmailAddress" and "gmailAppPassword" to ~/.config/odin.json.',
+							"Gmail isn't connected — add it in Settings → Connections.",
 					});
 				}
-				const label = readOdinConfig().gmailLabel;
-				const feed = `https://mail.google.com/mail/feed/atom${label ? `/${encodeURIComponent(label)}` : ""}`;
-				const response = await fetch(feed, {
-					headers: {
-						Authorization: `Basic ${Buffer.from(`${credentials.address}:${credentials.password}`).toString("base64")}`,
-					},
-				});
+				const response = await fetchGmailFeed(credentials);
 				if (!response.ok) {
 					throw feedError("Gmail", response.status, await response.text());
 				}
