@@ -17,6 +17,7 @@ describe("pullRequestState", () => {
 		});
 		expect(await pullRequestState(URL, exec)).toEqual({
 			state: "MERGED",
+			isDraft: false,
 			pending: [],
 			failed: [],
 			passed: 0,
@@ -27,6 +28,7 @@ describe("pullRequestState", () => {
 		const exec: GhExec = async () => ({
 			stdout: JSON.stringify({
 				state: "OPEN",
+				isDraft: true,
 				statusCheckRollup: [
 					{ name: "pre-commit", status: "COMPLETED", conclusion: "SUCCESS" },
 					{ name: "Cursor Bugbot", status: "IN_PROGRESS" },
@@ -39,6 +41,7 @@ describe("pullRequestState", () => {
 		});
 		expect(await pullRequestState(URL, exec)).toEqual({
 			state: "OPEN",
+			isDraft: true,
 			pending: ["Cursor Bugbot", "ci/circleci"],
 			failed: ["pytest"],
 			passed: 1,
