@@ -440,6 +440,14 @@ export const createTerminalRouter = () => {
 		 * Odin fork: OPEN / MERGED / CLOSED for the PR links the brief found in a
 		 * transcript. Keyed by url so the panel can look each one up.
 		 */
+		/** Odin fork: each live shell's real cwd, by pid (see shell-cwd.ts). */
+		shellCwds: publicProcedure
+			.input(z.object({ pids: z.array(z.number().int().positive()).max(500) }))
+			.query(async ({ input }) => {
+				const { shellCwds } = await import("./shell-cwd");
+				return shellCwds(input.pids);
+			}),
+
 		pullRequestStates: publicProcedure
 			.input(z.object({ urls: z.array(z.string().url()).max(20) }))
 			.query(async ({ input }) => {
