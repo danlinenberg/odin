@@ -11,7 +11,7 @@ import { readOdinConfig, updateOdinConfig } from "./odin-config";
 import {
 	type GhExec,
 	ghAsAnyAccount,
-	pullRequestWorktree,
+	pullRequestWorktrees,
 } from "./terminal/pr-state";
 import { getWorkspaceTerminalContext } from "./terminal/utils/workspace-terminal-context";
 import {
@@ -458,17 +458,19 @@ export const createReposRouter = () => {
 				if (!checkout) return null;
 				const name = repoNameOf(checkout);
 				const transcript = await transcriptOf(input.claudeSessionId);
-				// The PR's branch is the sure signal; the transcript's cwds rarely
+				// The PRs' branches are the sure signal; the transcript's cwds rarely
 				// show a worktree at all.
-				const worktree =
-					(transcript &&
-						(await pullRequestWorktree(
+				const pullRequests = transcript
+					? await pullRequestWorktrees(
 							await readFile(transcript.path, "utf-8"),
 							checkout,
 							name,
-						))) ||
+						)
+					: [];
+				const worktree =
+					pullRequests[0]?.worktree ??
 					(await workingWorktreeOf(input.claudeSessionId));
-				return { checkout, name, worktree };
+				return { checkout, name, worktree, pullRequests };
 			}),
 
 		diff: publicProcedure
