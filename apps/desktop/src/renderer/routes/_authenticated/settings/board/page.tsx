@@ -51,67 +51,100 @@ function BoardSettingsPage() {
 				</p>
 			</div>
 
-			<div className="space-y-6">
-				<div className="flex items-center justify-between">
-					<div className="space-y-0.5">
-						<Label
-							htmlFor="auto-rename-sessions"
-							className="text-sm font-medium"
-						>
-							Rename sessions automatically
-						</Label>
-						<p className="text-xs text-muted-foreground">
-							Name each card after what its session turned out to be about,
-							instead of the first line you typed. Renamed once, from the brief
-							already written for the card; a name you set yourself is left
-							alone.
-						</p>
+			<div className="space-y-10">
+				<BoardSection title="Cards">
+					<div className="flex items-center justify-between">
+						<div className="space-y-0.5">
+							<Label
+								htmlFor="auto-rename-sessions"
+								className="text-sm font-medium"
+							>
+								Rename sessions automatically
+							</Label>
+							<p className="text-xs text-muted-foreground">
+								Name each card after what its session turned out to be about,
+								instead of the first line you typed. Renamed once, from the
+								brief already written for the card; a name you set yourself is
+								left alone.
+							</p>
+						</div>
+						<Switch
+							id="auto-rename-sessions"
+							checked={autoRename ?? ODIN_AUTO_RENAME_SESSIONS_DEFAULT}
+							onCheckedChange={(enabled) => setAutoRename.mutate({ enabled })}
+							disabled={isLoading || setAutoRename.isPending}
+						/>
 					</div>
-					<Switch
-						id="auto-rename-sessions"
-						checked={autoRename ?? ODIN_AUTO_RENAME_SESSIONS_DEFAULT}
-						onCheckedChange={(enabled) => setAutoRename.mutate({ enabled })}
-						disabled={isLoading || setAutoRename.isPending}
+				</BoardSection>
+
+				<BoardSection
+					title="Launch limits"
+					description="When a new session waits in Idle → Queued instead of starting"
+				>
+					<LaunchLimitRow
+						id="launch-limit-host"
+						field="hostCpuPercent"
+						label="Hold new sessions when this Mac is"
+						description="How busy this Mac's CPU is — Odin's sessions, builds, Docker, anything. At or above it, a new session waits in Idle → Queued and starts once the Mac calms down. Lower it if the Mac feels slow before sessions start queueing."
+						min={1}
+						max={100}
+						step={1}
+						unit="%"
 					/>
-				</div>
+					<LaunchLimitRow
+						id="launch-limit-memory"
+						field="minFreeMemoryGb"
+						label="Hold new sessions when free memory is under"
+						description="Memory this Mac could still hand out, cache included. Below it, a new session waits — an out-of-memory Mac swaps and crawls even while the CPU looks idle."
+						min={0}
+						max={64}
+						step={0.5}
+						unit="GB"
+					/>
+					<LaunchLimitRow
+						id="launch-limit-agents"
+						field="maxWorkingAgents"
+						label="Hold new sessions when this many are working"
+						description="Sessions actively working at once — ones waiting on you don't count. At the limit, a new session waits in Idle → Queued and starts when one finishes. 0 means no limit."
+						min={0}
+						max={50}
+						step={1}
+						unit="sessions"
+					/>
+				</BoardSection>
 
-				<LaunchLimitRow
-					id="launch-limit-host"
-					field="hostCpuPercent"
-					label="Hold new sessions when this Mac is"
-					description="How busy this Mac's CPU is — Odin's sessions, builds, Docker, anything. At or above it, a new session waits in Idle → Queued and starts once the Mac calms down. Lower it if the Mac feels slow before sessions start queueing."
-					min={1}
-					max={100}
-					step={1}
-					unit="%"
-				/>
-				<LaunchLimitRow
-					id="launch-limit-memory"
-					field="minFreeMemoryGb"
-					label="Hold new sessions when free memory is under"
-					description="Memory this Mac could still hand out, cache included. Below it, a new session waits — an out-of-memory Mac swaps and crawls even while the CPU looks idle."
-					min={0}
-					max={64}
-					step={0.5}
-					unit="GB"
-				/>
+				<BoardSection title="Next in line">
+					<NextInLinePromptRow />
+					<PinOverdueDaysRow />
+				</BoardSection>
 
-				<LaunchLimitRow
-					id="launch-limit-agents"
-					field="maxWorkingAgents"
-					label="Hold new sessions when this many are working"
-					description="Sessions actively working at once — ones waiting on you don't count. At the limit, a new session waits in Idle → Queued and starts when one finishes. 0 means no limit."
-					min={0}
-					max={50}
-					step={1}
-					unit="sessions"
-				/>
-
-				<NextInLinePromptRow />
-				<PinOverdueDaysRow />
-				<SweepIntervalRow />
+				<BoardSection title="Review">
+					<SweepIntervalRow />
+				</BoardSection>
 			</div>
 		</div>
+	);
+}
+
+function BoardSection({
+	title,
+	description,
+	children,
+}: {
+	title: string;
+	description?: string;
+	children: React.ReactNode;
+}) {
+	return (
+		<section className="space-y-6">
+			<div className="border-b pb-2">
+				<h3 className="text-sm font-semibold">{title}</h3>
+				{description && (
+					<p className="text-xs text-muted-foreground mt-0.5">{description}</p>
+				)}
+			</div>
+			{children}
+		</section>
 	);
 }
 
