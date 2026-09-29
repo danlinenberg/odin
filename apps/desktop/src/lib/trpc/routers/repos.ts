@@ -1,5 +1,6 @@
 import { execFile, spawn } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
@@ -7,7 +8,11 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { publicProcedure, router } from "..";
 import { readOdinConfig, updateOdinConfig } from "./odin-config";
-import { type GhExec, ghAsAnyAccount } from "./terminal/pr-state";
+import {
+	type GhExec,
+	ghAsAnyAccount,
+	pullRequestWorktree,
+} from "./terminal/pr-state";
 import { getWorkspaceTerminalContext } from "./terminal/utils/workspace-terminal-context";
 import {
 	execWithShellEnv,
@@ -447,16 +452,23 @@ export const createReposRouter = () => {
 		workingRepoName: publicProcedure
 			.input(z.object({ claudeSessionId: z.string() }))
 			.query(async ({ input }) => {
-				const { repoNameOf, workingRepoOf, workingWorktreeOf } = await import(
-					"main/lib/claude-sessions"
-				);
+				const { repoNameOf, transcriptOf, workingRepoOf, workingWorktreeOf } =
+					await import("main/lib/claude-sessions");
 				const checkout = await workingRepoOf(input.claudeSessionId);
 				if (!checkout) return null;
-				return {
-					checkout,
-					name: repoNameOf(checkout),
-					worktree: await workingWorktreeOf(input.claudeSessionId),
-				};
+				const name = repoNameOf(checkout);
+				const transcript = await transcriptOf(input.claudeSessionId);
+				// The PR's branch is the sure signal; the transcript's cwds rarely
+				// show a worktree at all.
+				const worktree =
+					(transcript &&
+						(await pullRequestWorktree(
+							await readFile(transcript.path, "utf-8"),
+							checkout,
+							name,
+						))) ||
+					(await workingWorktreeOf(input.claudeSessionId));
+				return { checkout, name, worktree };
 			}),
 
 		diff: publicProcedure

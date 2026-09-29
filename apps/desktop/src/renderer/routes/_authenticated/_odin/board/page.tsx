@@ -422,18 +422,22 @@ function CdWorktreeButton({ card, shell }: { card: BoardCard; shell: Pane }) {
 		{ enabled: !!sessionId, retry: false, staleTime: 60_000 },
 	);
 	const write = electronTrpc.terminal.write.useMutation();
+	const updatePaneCwd = useTabsStore((s) => s.updatePaneCwd);
 	const checkout = data?.worktree ?? data?.checkout;
-	if (!checkout || checkout === shell.cwd) return null;
+	// zsh here sends no OSC-7, so `cwd` is only what Odin itself put there:
+	// where the shell opened, or where this button last sent it.
+	if (!checkout || checkout === (shell.cwd ?? shell.initialCwd)) return null;
 	return (
 		<button
 			type="button"
 			title={`cd ${checkout}`}
-			onClick={() =>
+			onClick={() => {
 				write.mutate({
 					paneId: shell.id,
 					data: `cd '${checkout.replaceAll("'", "'\\''")}'\r`,
-				})
-			}
+				});
+				updatePaneCwd(shell.id, checkout, false);
+			}}
 			className="shrink-0 rounded-md bg-[#1f1f27] px-2 py-1 text-xs font-semibold text-[#a5a5b3] hover:text-[#f5f5f7]"
 		>
 			cd {checkout.split("/").pop()}
@@ -1430,11 +1434,20 @@ function DevBoardPage() {
 	 * session, so closing the drawer and coming back reattaches to that shell
 	 * (with its history) instead of leaving a new one behind every time.
 	 */
-	const openShell = (card: BoardCard) => {
+	const openShell = async (card: BoardCard) => {
 		if (!shellPaneOf(card)) {
-			const { paneId } = useTabsStore
-				.getState()
-				.addTab(card.workspaceId, { initialCwd: sessionCwd(card.pane) });
+			// Open where the work is — the PR's worktree — not where it launched.
+			const sessionId =
+				card.pane.claudeSessionId ??
+				usePaneMeta.getState().sessionIdByPane[card.pane.id];
+			const repo = sessionId
+				? await utils.repos.workingRepoName
+						.fetch({ claudeSessionId: sessionId }, { staleTime: 60_000 })
+						.catch(() => null)
+				: null;
+			const { paneId } = useTabsStore.getState().addTab(card.workspaceId, {
+				initialCwd: repo?.worktree ?? repo?.checkout ?? sessionCwd(card.pane),
+			});
 			// No odinTaskTitle: a shell you opened isn't a task, so it gets no card
 			// of its own on the board — same rule the session list uses.
 			useTabsStore.setState((state) => ({

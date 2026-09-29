@@ -139,3 +139,58 @@ export function pullRequestState(
 		exec,
 	);
 }
+
+/** The checkout in `git worktree list --porcelain` that has `branch` checked out. */
+export function worktreeHolding(
+	porcelain: string,
+	branch: string,
+): string | null {
+	for (const block of porcelain.split("\n\n")) {
+		const lines = block.split("\n");
+		if (lines.includes(`branch refs/heads/${branch}`)) {
+			return lines[0]?.replace(/^worktree /, "") || null;
+		}
+	}
+	return null;
+}
+
+/**
+ * Where a session's PR lives on disk: the worktree of `checkout`'s repo that
+ * has the PR's branch checked out. The transcript's cwds can't say — Claude
+ * Code resets its shell to the launch dir after every command and agents reach
+ * worktrees with `git -C` — but the PR it opened names its branch exactly.
+ * Newest PR in this repo wins. Null with no PR, no gh, or no checkout of it.
+ */
+export async function pullRequestWorktree(
+	transcript: string,
+	checkout: string,
+	repoName: string,
+	exec: GhExec = gh,
+): Promise<string | null> {
+	const url = [
+		...transcript.matchAll(
+			/https:\/\/github\.com\/[\w.-]+\/([\w.-]+)\/pull\/\d+/g,
+		),
+	]
+		.filter((match) => match[1] === repoName)
+		.at(-1)?.[0];
+	if (!url) return null;
+	const branch = await ghAsAnyAccount(
+		["pr", "view", url, "--json", "headRefName", "-q", ".headRefName"],
+		(stdout) => stdout.trim(),
+		exec,
+	);
+	if (!branch) return null;
+	try {
+		const { stdout } = await execWithShellEnv("git", [
+			"-C",
+			checkout,
+			"worktree",
+			"list",
+			"--porcelain",
+		]);
+		return worktreeHolding(stdout, branch);
+	} catch {
+		return null;
+	}
+}
