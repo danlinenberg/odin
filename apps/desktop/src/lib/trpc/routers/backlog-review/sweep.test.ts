@@ -3,6 +3,7 @@ import {
 	approverOf,
 	githubRef,
 	jiraRef,
+	mapLimit,
 	type SweepDeps,
 	type SweepItem,
 	sweepItem,
@@ -425,5 +426,20 @@ describe("verdicts", () => {
 		);
 		expect(answer.verdict).toBe("DROP");
 		expect(answer.evidence).toContain("nobody has replied");
+	});
+});
+
+describe("mapLimit", () => {
+	test("keeps order and never exceeds the limit", async () => {
+		let inFlight = 0;
+		let peak = 0;
+		const out = await mapLimit([5, 1, 4, 2, 3, 0], 2, async (n) => {
+			peak = Math.max(peak, ++inFlight);
+			await new Promise((resolve) => setTimeout(resolve, n));
+			inFlight--;
+			return n * 10;
+		});
+		expect(out).toEqual([50, 10, 40, 20, 30, 0]);
+		expect(peak).toBe(2);
 	});
 });

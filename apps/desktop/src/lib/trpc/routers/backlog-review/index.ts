@@ -6,6 +6,7 @@ import { readOdinConfig, resolveGithubToken } from "../odin-config";
 import { slackThreadReplies } from "../slack";
 import {
 	approverOf,
+	mapLimit,
 	type Reference,
 	type Review,
 	type SweepDeps,
@@ -145,19 +146,22 @@ export const createBacklogReviewRouter = () => {
 		 * the answers go straight back. Nothing is written anywhere: a DROP is a
 		 * suggestion until someone clicks it on the Review screen.
 		 *
-		 * ponytail: every item in flight at once. A backlog is tens of rows and
-		 * most of them cost no call at all; add a concurrency limit if Slack
-		 * ever starts answering `ratelimited`.
+		 * A few rows at a time, not all at once: a hundred rows fired together
+		 * blew through Slack's per-minute limit, and every refused lookup came
+		 * back UNKNOWN — so each Sweep again "found" the rows the last one
+		 * couldn't read.
 		 */
 		sweep: publicProcedure
 			.input(z.object({ items: z.array(ItemSchema) }))
 			.mutation(async ({ input }) => {
 				const deps = await lookups();
-				const rows = await Promise.all(
-					input.items.map(async (item: SweepItem) => ({
+				const rows = await mapLimit(
+					input.items,
+					4,
+					async (item: SweepItem) => ({
 						key: item.key,
 						...(await sweepItem(item, deps)),
-					})),
+					}),
 				);
 				return { rows };
 			}),
