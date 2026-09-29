@@ -33,6 +33,8 @@ export interface BacklogItem {
 	unreacted?: boolean;
 	/** When the source last moved, ms — what the sweep ages a quiet row against. */
 	lastActivityAt?: number;
+	/** When it was first written, ms — the task made, the message posted, the ticket filed. */
+	createdAt?: number;
 }
 
 /** An ISO date from a feed as ms, or undefined when the feed left it out. */
@@ -77,6 +79,7 @@ export function backlogOf(
 		url: string;
 		title: string;
 		updated: string | null;
+		created?: string | null;
 		reporter?: string | null;
 	}[] = [],
 	pulls: {
@@ -85,6 +88,7 @@ export function backlogOf(
 		url: string;
 		title: string;
 		updated: string | null;
+		created?: string | null;
 		author?: string;
 	}[] = [],
 	notion: {
@@ -101,6 +105,7 @@ export function backlogOf(
 			title: task.title,
 			detail: task.notes,
 			lastActivityAt: task.createdAt,
+			createdAt: task.createdAt,
 		})),
 		...slack
 			// Done rows have been dealt with. Started ones stay: a session still
@@ -116,7 +121,10 @@ export function backlogOf(
 				...(row.authorName ? { person: row.authorName } : {}),
 				...(row.unreacted ? { unreacted: true } : {}),
 				...(movedAt(row.postedAt)
-					? { lastActivityAt: movedAt(row.postedAt) }
+					? {
+							lastActivityAt: movedAt(row.postedAt),
+							createdAt: movedAt(row.postedAt),
+						}
 					: {}),
 			})),
 		...jira.map((issue) => ({
@@ -131,6 +139,7 @@ export function backlogOf(
 			...(movedAt(issue.updated)
 				? { lastActivityAt: movedAt(issue.updated) }
 				: {}),
+			...(movedAt(issue.created) ? { createdAt: movedAt(issue.created) } : {}),
 		})),
 		...pulls.map((pull) => ({
 			key: `pr:${pull.repo}#${pull.number}`,
@@ -141,6 +150,7 @@ export function backlogOf(
 			...(movedAt(pull.updated)
 				? { lastActivityAt: movedAt(pull.updated) }
 				: {}),
+			...(movedAt(pull.created) ? { createdAt: movedAt(pull.created) } : {}),
 		})),
 		...notion.map((page) => ({
 			key: `notion:${page.pageId}`,
