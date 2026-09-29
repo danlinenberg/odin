@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { type GhExec, pullRequestState } from "./pr-state";
+import { type GhExec, pullRequestState, worktreeHolding } from "./pr-state";
 
 const URL = "https://github.com/imagenai/app-web-server/pull/6409";
 
@@ -76,5 +76,23 @@ describe("pullRequestState", () => {
 			throw new Error("gh: command not found");
 		};
 		expect(await pullRequestState(URL, exec)).toBeNull();
+	});
+});
+
+describe("worktreeHolding", () => {
+	const porcelain = [
+		"worktree /r\nHEAD aaa\nbranch refs/heads/main",
+		"worktree /r/.worktrees/fix\nHEAD bbb\nbranch refs/heads/fix/thing",
+		"worktree /r/.worktrees/det\nHEAD ccc\ndetached",
+		"",
+	].join("\n\n");
+
+	test("finds the checkout with the branch, clone or worktree", () => {
+		expect(worktreeHolding(porcelain, "fix/thing")).toBe("/r/.worktrees/fix");
+		expect(worktreeHolding(porcelain, "main")).toBe("/r");
+	});
+
+	test("does not match a branch that merely shares a prefix", () => {
+		expect(worktreeHolding(porcelain, "fix")).toBeNull();
 	});
 });
