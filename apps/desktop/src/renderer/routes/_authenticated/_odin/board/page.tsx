@@ -416,6 +416,28 @@ function RepoPill({ card }: { card: BoardCard }) {
 	);
 }
 
+/** Whether a worktree has a shell in it: live (green), or left there and gone (red). */
+function ShellsDot({ live, dead }: { live: number; dead: number }) {
+	if (!live && !dead) return null;
+	const title = live
+		? `${live} live shell${live === 1 ? "" : "s"} in this worktree`
+		: `${dead} disconnected shell${dead === 1 ? "" : "s"} left in this worktree`;
+	return (
+		<span
+			title={title}
+			className="ml-auto flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground"
+		>
+			<span
+				className={cn(
+					"inline-block size-[6px] rounded-full",
+					live ? "bg-[#3ecf8e]" : "bg-[#f0647a]",
+				)}
+			/>
+			{live ? `${live} live` : "disconnected"}
+		</span>
+	);
+}
+
 /**
  * Jump the session's shell into the worktree the agent actually works in. The
  * shell opens where the session launched — for feed sessions the catch-all
@@ -429,9 +451,39 @@ function CdWorktreeButton({ card, shell }: { card: BoardCard; shell: Pane }) {
 	);
 	const write = electronTrpc.terminal.write.useMutation();
 	const updatePaneCwd = useTabsStore((s) => s.updatePaneCwd);
-	// zsh here sends no OSC-7, so `cwd` is only what Odin itself put there:
-	// where the shell opened, or where this button last sent it.
-	const here = shell.cwd ?? shell.initialCwd;
+	const panes = useTabsStore((s) => s.panes);
+	// Live PTYs and where each one really is. zsh here sends no OSC-7, so a
+	// pane's `cwd` only knows where Odin opened it; the process table knows more.
+	const { data: metrics } = electronTrpc.resourceMetrics.getSnapshot.useQuery(
+		undefined,
+		{ refetchInterval: 5_000 },
+	);
+	const live = metrics?.workspaces.flatMap((w) => w.sessions) ?? [];
+	const { data: cwds } = electronTrpc.terminal.shellCwds.useQuery(
+		{ pids: live.map((session) => session.pid) },
+		{ enabled: live.length > 0, refetchInterval: 5_000 },
+	);
+	const cwdOfPane = (paneId: string) => {
+		const pid = live.find((session) => session.paneId === paneId)?.pid;
+		return pid ? cwds?.[pid] : undefined;
+	};
+	const here = cwdOfPane(shell.id) ?? shell.cwd ?? shell.initialCwd;
+	const inside = (dir: string | null | undefined, root: string) =>
+		!!dir && (dir === root || dir.startsWith(`${root}/`));
+	/** Live shells sitting in `root`, and Odin panes left there whose PTY is gone. */
+	const shellsIn = (root: string) => {
+		const liveHere = live.filter((session) =>
+			inside(cwds?.[session.pid], root),
+		);
+		const livePanes = new Set(live.map((session) => session.paneId));
+		const dead = Object.values(panes).filter(
+			(pane) =>
+				pane.type === "terminal" &&
+				!livePanes.has(pane.id) &&
+				inside(pane.cwd ?? pane.initialCwd, root),
+		);
+		return { live: liveHere.length, dead: dead.length };
+	};
 	const cd = (dir: string) => {
 		write.mutate({
 			paneId: shell.id,
@@ -445,7 +497,7 @@ function CdWorktreeButton({ card, shell }: { card: BoardCard; shell: Pane }) {
 
 	// Several PRs, several worktrees: pick which one to be in.
 	if (new Set(prs.map((pr) => pr.worktree)).size > 1) {
-		const current = prs.find((pr) => pr.worktree === here);
+		const current = prs.find((pr) => inside(here, pr.worktree));
 		return (
 			<DropdownMenu>
 				<DropdownMenuTrigger asChild>
@@ -470,7 +522,7 @@ function CdWorktreeButton({ card, shell }: { card: BoardCard; shell: Pane }) {
 							className="flex items-center gap-2 text-xs"
 						>
 							<span className="w-3 text-[#a394ff]">
-								{pr.worktree === here ? "✓" : ""}
+								{inside(here, pr.worktree) ? "✓" : ""}
 							</span>
 							<span className="shrink-0 font-semibold">#{pr.number}</span>
 							<span className="flex min-w-0 flex-col">
@@ -481,6 +533,7 @@ function CdWorktreeButton({ card, shell }: { card: BoardCard; shell: Pane }) {
 									{pr.repo}
 								</span>
 							</span>
+							<ShellsDot {...shellsIn(pr.worktree)} />
 						</DropdownMenuItem>
 					))}
 				</DropdownMenuContent>
@@ -489,7 +542,7 @@ function CdWorktreeButton({ card, shell }: { card: BoardCard; shell: Pane }) {
 	}
 
 	const checkout = data?.worktree ?? data?.checkout;
-	if (!checkout || checkout === here) return null;
+	if (!checkout || inside(here, checkout)) return null;
 	return (
 		<button
 			type="button"
@@ -2996,7 +3049,9 @@ function DevBoardPage() {
 										title={
 											shellRunning
 												? "This session already has a shell running — reattach to it"
-												: "Open a shell in this session's checkout"
+												: drawerShell
+													? "This session's shell is disconnected — open it to start a new one"
+													: "Open a shell in this session's checkout"
 										}
 										onClick={() =>
 											isShellOpen
@@ -3011,8 +3066,13 @@ function DevBoardPage() {
 										)}
 									>
 										❯ Shell
-										{shellRunning && (
-											<span className="ml-1 inline-block size-[6px] rounded-full bg-[#3ecf8e] align-middle" />
+										{drawerShell && (
+											<span
+												className={cn(
+													"ml-1 inline-block size-[6px] rounded-full align-middle",
+													shellRunning ? "bg-[#3ecf8e]" : "bg-[#f0647a]",
+												)}
+											/>
 										)}
 									</button>
 								)}
