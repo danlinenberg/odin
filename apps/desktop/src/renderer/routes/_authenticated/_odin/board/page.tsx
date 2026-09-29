@@ -900,6 +900,14 @@ function CardHoverContent({
 	// card's pills read, so hovering costs no fetch.
 	const { data: transcript } = useCardTranscript(card, false);
 	const todo = transcript ? actionItems(transcript.messages) : [];
+	// The drawer's written brief — the board warms it for every card, so this
+	// is a cache hit, not a model call.
+	const sessionId = useCardSessionId(card);
+	const { data: written } =
+		electronTrpc.terminal.summarizeClaudeSession.useQuery(
+			{ sessionId: sessionId ?? "" },
+			{ enabled: !!sessionId, retry: false, staleTime: 30_000 },
+		);
 
 	return (
 		<div className="flex flex-col gap-2">
@@ -910,6 +918,16 @@ function CardHoverContent({
 			{summary && (
 				<div className="whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-[#d4d4dc]">
 					{summary}
+				</div>
+			)}
+			{written?.goal && (
+				<div className="border-t border-[#2e2e3a] pt-2">
+					<div className="mb-1 text-[10.5px] font-semibold uppercase tracking-wide text-[#8a8a97]">
+						Goal
+					</div>
+					<div className="break-words text-[12.5px] leading-relaxed text-[#d4d4dc]">
+						{written.goal}
+					</div>
 				</div>
 			)}
 			{todo.length > 0 && (
