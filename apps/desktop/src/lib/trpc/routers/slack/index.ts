@@ -57,7 +57,49 @@ interface SlackResponse {
 	error?: string;
 }
 
+// ponytail: one global gate, 4 Slack calls in flight. A burst past that just
+// buys 429s and their Retry-After sleeps.
+let slackInFlight = 0;
+const slackWaiting: (() => void)[] = [];
+
 async function slackApi<T extends SlackResponse>(
+	method: string,
+	params: Record<string, string>,
+	token: string,
+): Promise<T> {
+	if (slackInFlight >= 4)
+		await new Promise<void>((resolve) => slackWaiting.push(resolve));
+	else slackInFlight++;
+	try {
+		return await slackCall<T>(method, params, token);
+	} finally {
+		const next = slackWaiting.shift();
+		if (next) next();
+		else slackInFlight--;
+	}
+}
+
+/**
+ * A read the sweep repeats across rows — the same channel's info, the same
+ * thread parent, the same last-read message — asked once per few minutes.
+ * Failures aren't kept, so a refused call is asked again next time.
+ */
+const slackReads = new Map<string, { at: number; value: Promise<unknown> }>();
+function slackRead<T extends SlackResponse>(
+	method: string,
+	params: Record<string, string>,
+	token: string,
+): Promise<T> {
+	const key = `${method}?${new URLSearchParams(params)}`;
+	const hit = slackReads.get(key);
+	if (hit && Date.now() - hit.at < 5 * 60_000) return hit.value as Promise<T>;
+	const value = slackApi<T>(method, params, token);
+	slackReads.set(key, { at: Date.now(), value });
+	value.catch(() => slackReads.delete(key));
+	return value;
+}
+
+async function slackCall<T extends SlackResponse>(
 	method: string,
 	params: Record<string, string>,
 	token: string,
@@ -339,7 +381,7 @@ async function conversationAfter(
 		isDirect: false,
 	};
 	try {
-		const info = await slackApi<
+		const info = await slackRead<
 			SlackResponse & {
 				channel?: { last_read?: string; is_im?: boolean; is_mpim?: boolean };
 			}
@@ -349,7 +391,7 @@ async function conversationAfter(
 		// Nothing after the message itself: no later author to go and read.
 		if (!last || Number(last) <= Number(messageTs))
 			return { ...quiet, isDirect };
-		const author = await slackApi<
+		const author = await slackRead<
 			SlackResponse & { message?: { user?: string } }
 		>("reactions.get", { channel, timestamp: last, full: "true" }, token);
 		return {
@@ -451,7 +493,7 @@ export async function slackThreadReplies(id: string): Promise<{
 		text?: string;
 	};
 	const get = (timestamp: string) =>
-		slackApi<SlackResponse & { message?: ThreadMessage }>(
+		slackRead<SlackResponse & { message?: ThreadMessage }>(
 			"reactions.get",
 			{ channel, timestamp, full: "true" },
 			token,
