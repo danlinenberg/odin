@@ -110,3 +110,19 @@ export function sessionFor(
 		)?.id ?? null
 	);
 }
+
+/**
+ * The Dropped list, trimmed. A row the sweep still lists is never let go —
+ * forgetting it puts it back among the ones to decide — so "Drop all" on 125
+ * rows keeps all 125. Past that, the newest `cap` others stay for the view.
+ * Bounded by the backlog plus `cap`.
+ */
+export function keepDropped<T extends { key: string }>(
+	dropped: T[],
+	swept: { key: string }[],
+	cap: number,
+): T[] {
+	const listed = new Set(swept.map((row) => row.key));
+	let others = 0;
+	return dropped.filter((row) => listed.has(row.key) || others++ < cap);
+}
