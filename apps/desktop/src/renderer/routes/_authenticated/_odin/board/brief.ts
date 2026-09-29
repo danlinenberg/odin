@@ -377,3 +377,19 @@ export function linkKind(url: string): LinkKind {
 	if (/claude\.ai\/(?:code\/)?artifact\//.test(url)) return "artifact";
 	return "other";
 }
+
+/**
+ * The open ACTION ITEMS of the agent's newest turn — what you owe the session.
+ * Only the last turn counts: an older turn's list was already answered or
+ * superseded. "ACTION ITEMS: none" and a turn without the section give [].
+ */
+export function actionItems(messages: BriefMessage[]): string[] {
+	const last = messages.findLast((m) => m.role === "assistant")?.text ?? "";
+	const at = last.toUpperCase().lastIndexOf("ACTION ITEMS");
+	if (at < 0) return [];
+	return last
+		.slice(at + "ACTION ITEMS".length)
+		.split("\n")
+		.map((line) => line.match(/^\s*(?:\d+[.)]|[-*])\s+(.+)/)?.[1]?.trim())
+		.filter((item): item is string => !!item);
+}

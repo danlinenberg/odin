@@ -84,6 +84,7 @@ import { usePendingFocus } from "../hooks/usePendingFocus";
 import { PANE_STATUS } from "../pane-status";
 import { sessionFor } from "../review/verdicts";
 import {
+	actionItems,
 	elapsedLabel,
 	lastMessageAt,
 	nextCronFire,
@@ -895,6 +896,10 @@ function CardHoverContent({
 	// The launch-time brief is usually just the title — don't repeat it.
 	const summary =
 		text ?? (known && known.trim() !== title.trim() ? known : fileBrief);
+	// What the session is waiting on you for — the same cached transcript the
+	// card's pills read, so hovering costs no fetch.
+	const { data: transcript } = useCardTranscript(card, false);
+	const todo = transcript ? actionItems(transcript.messages) : [];
 
 	return (
 		<div className="flex flex-col gap-2">
@@ -905,6 +910,20 @@ function CardHoverContent({
 			{summary && (
 				<div className="whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-[#d4d4dc]">
 					{summary}
+				</div>
+			)}
+			{todo.length > 0 && (
+				<div className="border-t border-[#2e2e3a] pt-2">
+					<div className="mb-1 text-[10.5px] font-semibold uppercase tracking-wide text-[#f5b83d]">
+						Action items
+					</div>
+					<ol className="list-decimal space-y-0.5 pl-4 text-[12.5px] leading-relaxed text-[#d4d4dc]">
+						{todo.map((item) => (
+							<li key={item} className="break-words">
+								{item}
+							</li>
+						))}
+					</ol>
 				</div>
 			)}
 		</div>
