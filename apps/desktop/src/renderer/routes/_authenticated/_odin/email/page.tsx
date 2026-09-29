@@ -22,7 +22,7 @@ export const Route = createFileRoute("/_authenticated/_odin/email/")({
 });
 
 /**
- * Unread Gmail — the inbox, or one label if Connections names one. Read-only:
+ * Unread Gmail inbox mail. Read-only:
  * Open takes you to the thread, Done takes the row out of Odin (not Gmail).
  */
 function EmailPage() {

@@ -165,14 +165,12 @@ export interface EmailRow {
 export interface GmailCredentials {
 	address: string;
 	password: string;
-	/** Only unread mail under this label; the inbox when unset. */
-	label?: string;
 }
 
 export function gmailCredentials(): GmailCredentials | null {
-	const { gmailAddress, gmailAppPassword, gmailLabel } = readOdinConfig();
+	const { gmailAddress, gmailAppPassword } = readOdinConfig();
 	return gmailAddress && gmailAppPassword
-		? { address: gmailAddress, password: gmailAppPassword, label: gmailLabel }
+		? { address: gmailAddress, password: gmailAppPassword }
 		: null;
 }
 
@@ -180,16 +178,13 @@ export function gmailCredentials(): GmailCredentials | null {
 export function fetchGmailFeed(
 	credentials: GmailCredentials,
 ): Promise<Response> {
-	const { address, password, label } = credentials;
-	return fetch(
-		`https://mail.google.com/mail/feed/atom${label ? `/${encodeURIComponent(label)}` : ""}`,
-		{
-			headers: {
-				// Google shows the app password in groups of four; the spaces aren't part of it.
-				Authorization: `Basic ${Buffer.from(`${address}:${password.replace(/\s/g, "")}`).toString("base64")}`,
-			},
+	const { address, password } = credentials;
+	return fetch("https://mail.google.com/mail/feed/atom", {
+		headers: {
+			// Google shows the app password in groups of four; the spaces aren't part of it.
+			Authorization: `Basic ${Buffer.from(`${address}:${password.replace(/\s/g, "")}`).toString("base64")}`,
 		},
-	);
+	});
 }
 
 const unescapeXml = (text: string) =>
