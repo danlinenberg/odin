@@ -512,7 +512,9 @@ export const createWorkRouter = () => {
 							'Gmail isn\'t set up — add "gmailAddress" and "gmailAppPassword" to ~/.config/odin.json.',
 					});
 				}
-				const response = await fetch("https://mail.google.com/mail/feed/atom", {
+				const label = readOdinConfig().gmailLabel;
+				const feed = `https://mail.google.com/mail/feed/atom${label ? `/${encodeURIComponent(label)}` : ""}`;
+				const response = await fetch(feed, {
 					headers: {
 						Authorization: `Basic ${Buffer.from(`${credentials.address}:${credentials.password}`).toString("base64")}`,
 					},
