@@ -464,7 +464,6 @@ export const createReposRouter = () => {
 					? await pullRequestWorktrees(
 							await readFile(transcript.path, "utf-8"),
 							checkout,
-							name,
 						)
 					: [];
 				const worktree =

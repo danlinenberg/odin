@@ -107,41 +107,83 @@ describe("worktreeHolding", () => {
 });
 
 describe("pullRequestWorktrees", () => {
-	test("lists each PR with the checkout holding its branch, newest first", async () => {
-		const repo = realpathSync(mkdtempSync(join(tmpdir(), "odin-prwt-")));
-		const git = (...args: string[]) =>
-			execFileSync("git", ["-C", repo, ...args], { stdio: "pipe" });
-		git("init", "-q", "-b", "main");
-		git(
-			"-c",
-			"user.email=a@b",
-			"-c",
-			"user.name=a",
-			"commit",
+	test("finds every PR's checkout, across sibling repos, newest first", async () => {
+		const root = realpathSync(mkdtempSync(join(tmpdir(), "odin-prwt-")));
+		const repo = (name: string) => {
+			const dir = join(root, name);
+			const git = (...args: string[]) =>
+				execFileSync("git", ["-C", dir, ...args], { stdio: "pipe" });
+			execFileSync("git", ["init", "-q", "-b", "main", dir]);
+			git(
+				"-c",
+				"user.email=a@b",
+				"-c",
+				"user.name=a",
+				"commit",
+				"-q",
+				"--allow-empty",
+				"-m",
+				"x",
+			);
+			return git;
+		};
+		repo("app")(
+			"worktree",
+			"add",
 			"-q",
-			"--allow-empty",
-			"-m",
-			"x",
+			"-b",
+			"fix/one",
+			join(root, "app/.worktrees/one"),
 		);
-		git("worktree", "add", "-q", "-b", "fix/one", join(repo, ".worktrees/one"));
-		const pr = (n: number) => `https://github.com/o/app/pull/${n}`;
+		repo("other")("checkout", "-q", "-b", "feat/two");
+		const pr = (name: string, n: number) =>
+			`https://github.com/o/${name}/pull/${n}`;
 		const branches: Record<string, string> = {
-			[pr(1)]: "fix/one",
-			[pr(2)]: "main",
-			[pr(3)]: "gone", // its worktree was removed
+			[pr("app", 1)]: "fix/one",
+			[pr("app", 2)]: "main",
+			[pr("app", 3)]: "gone", // its worktree was removed
+			[pr("other", 9)]: "feat/two", // a sibling repo, checked out in its clone
+			[pr("nowhere", 4)]: "x", // a repo not cloned here
 		};
 		const exec: GhExec = async (args) => ({ stdout: `${branches[args[2]]}\n` });
 		const transcript = [
-			pr(1),
-			pr(3),
-			pr(2),
-			pr(1),
-			"https://github.com/o/other/pull/9",
+			pr("app", 1),
+			pr("app", 3),
+			pr("nowhere", 4),
+			pr("other", 9),
+			pr("app", 2),
+			pr("app", 1),
 		].join(" ");
 
-		expect(await pullRequestWorktrees(transcript, repo, "app", exec)).toEqual([
-			{ url: pr(1), number: 1, worktree: join(repo, ".worktrees/one") },
-			{ url: pr(2), number: 2, worktree: repo },
+		// Called from inside a worktree: the clone and its siblings still resolve.
+		expect(
+			await pullRequestWorktrees(
+				transcript,
+				join(root, "app/.worktrees/one"),
+				exec,
+			),
+		).toEqual([
+			{
+				url: pr("app", 1),
+				number: 1,
+				repo: "app",
+				worktree: join(root, "app/.worktrees/one"),
+				isMain: false,
+			},
+			{
+				url: pr("app", 2),
+				number: 2,
+				repo: "app",
+				worktree: join(root, "app"),
+				isMain: true,
+			},
+			{
+				url: pr("other", 9),
+				number: 9,
+				repo: "other",
+				worktree: join(root, "other"),
+				isMain: true,
+			},
 		]);
 	});
 });

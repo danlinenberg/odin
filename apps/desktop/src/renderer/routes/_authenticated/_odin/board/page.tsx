@@ -475,13 +475,10 @@ function CdWorktreeButton({ card, shell }: { card: BoardCard; shell: Pane }) {
 							<span className="shrink-0 font-semibold">#{pr.number}</span>
 							<span className="flex min-w-0 flex-col">
 								<span className="truncate">
-									{pr.worktree === data?.checkout ||
-									pr.worktree.split("/").pop() === data?.name
-										? "main checkout"
-										: pr.worktree.split("/").pop()}
+									{pr.isMain ? "main checkout" : pr.worktree.split("/").pop()}
 								</span>
 								<span className="truncate text-[10px] text-muted-foreground">
-									{data?.name}
+									{pr.repo}
 								</span>
 							</span>
 						</DropdownMenuItem>
