@@ -4,6 +4,8 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
+	DropdownMenuLabel,
+	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@odin/ui/dropdown-menu";
 import {
@@ -416,24 +418,28 @@ function RepoPill({ card }: { card: BoardCard }) {
 	);
 }
 
-/** Whether a worktree has a shell in it: live (green), or left there and gone (red). */
+/** Whether a worktree has a shell in it: live, left there and gone, or none. */
 function ShellsDot({ live, dead }: { live: number; dead: number }) {
-	if (!live && !dead) return null;
-	const title = live
-		? `${live} live shell${live === 1 ? "" : "s"} in this worktree`
-		: `${dead} disconnected shell${dead === 1 ? "" : "s"} left in this worktree`;
+	const [title, label, dot] = live
+		? [
+				`${live} live shell${live === 1 ? "" : "s"} in this worktree`,
+				live === 1 ? "live shell" : `${live} live shells`,
+				"bg-[#3ecf8e]",
+			]
+		: dead
+			? [
+					`${dead} Odin shell${dead === 1 ? "" : "s"} left here whose process has died`,
+					"disconnected",
+					"bg-[#f0647a]",
+				]
+			: ["No shell is in this worktree", "no shell", "ring-1 ring-[#5a5a66]"];
 	return (
 		<span
 			title={title}
 			className="ml-auto flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground"
 		>
-			<span
-				className={cn(
-					"inline-block size-[6px] rounded-full",
-					live ? "bg-[#3ecf8e]" : "bg-[#f0647a]",
-				)}
-			/>
-			{live ? `${live} live` : "disconnected"}
+			<span className={cn("inline-block size-[6px] rounded-full", dot)} />
+			{label}
 		</span>
 	);
 }
@@ -513,7 +519,13 @@ function CdWorktreeButton({ card, shell }: { card: BoardCard; shell: Pane }) {
 						<span className="text-[10px]">▾</span>
 					</button>
 				</DropdownMenuTrigger>
-				<DropdownMenuContent align="end" className="w-72">
+				<DropdownMenuContent align="end" className="w-80">
+					<DropdownMenuLabel className="truncate text-[10px] font-normal text-muted-foreground">
+						{here
+							? `This shell is in ${here.replace(/^\/Users\/[^/]+/, "~")}`
+							: "This shell's location is unknown"}
+					</DropdownMenuLabel>
+					<DropdownMenuSeparator />
 					{prs.map((pr) => (
 						<DropdownMenuItem
 							key={pr.url}
