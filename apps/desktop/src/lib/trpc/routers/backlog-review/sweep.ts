@@ -125,9 +125,12 @@ export function slackRef(item: SweepItem): string | null {
  */
 export interface SweepDeps {
 	jiraStatus(key: string): Promise<{ name: string; done: boolean } | null>;
-	githubState(
-		ref: Extract<Reference, { kind: "github" }>,
-	): Promise<{ state: string; merged: boolean } | null>;
+	githubState(ref: Extract<Reference, { kind: "github" }>): Promise<{
+		state: string;
+		merged: boolean;
+		/** Someone else's PR that someone other than me approved: their login. */
+		approvedBy?: string | null;
+	} | null>;
 	slackThread(id: string): Promise<{
 		replies: number;
 		/** The newest reply is mine — nobody is waiting on me here. */
@@ -185,6 +188,13 @@ export async function sweepItem(
 		if (state.merged) return { verdict: "DROP", evidence: `${name} is merged` };
 		if (state.state === "closed")
 			return { verdict: "DROP", evidence: `${name} is closed` };
+		// A review request someone else already approved: the PR has the review
+		// it needed, so nobody is waiting on mine.
+		if (state.approvedBy)
+			return {
+				verdict: "DROP",
+				evidence: `${name} is already approved by ${state.approvedBy}`,
+			};
 		return keepOrStale(`${name} is still open`, activity);
 	}
 
@@ -262,6 +272,29 @@ export async function sweepItem(
 	// typed has no upstream and never will, so its age is the only thing there
 	// is to go on — which is a checked row, not an unreadable one.
 	return keepOrStale("nothing upstream to check it against", activity);
+}
+
+export interface Review {
+	state?: string;
+	user?: { login?: string };
+}
+
+/**
+ * Someone other than `me` whose standing review is an approval. A reviewer's
+ * latest approve/request-changes stands; comments don't change it and a
+ * dismissal takes it back.
+ */
+export function approverOf(reviews: Review[], me: string): string | null {
+	const latest = new Map<string, string>();
+	for (const review of reviews) {
+		const login = review.user?.login;
+		if (!login || login.toLowerCase() === me) continue;
+		if (review.state === "APPROVED" || review.state === "CHANGES_REQUESTED")
+			latest.set(login, review.state);
+		else if (review.state === "DISMISSED") latest.delete(login);
+	}
+	for (const [login, state] of latest) if (state === "APPROVED") return login;
+	return null;
 }
 
 /** The post time, ms, out of a `<channel>:<ts>` Slack reference. */
