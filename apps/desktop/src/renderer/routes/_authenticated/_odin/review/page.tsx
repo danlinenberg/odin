@@ -109,6 +109,18 @@ function DroppedList({ rows }: { rows: DroppedRow[] }) {
 	));
 }
 
+/** "Aug 24", with the year only when it isn't this one. */
+function fromDate(at: number): string {
+	const date = new Date(at);
+	return date.toLocaleDateString(undefined, {
+		month: "short",
+		day: "numeric",
+		...(date.getFullYear() === new Date().getFullYear()
+			? {}
+			: { year: "numeric" }),
+	});
+}
+
 function ReviewPage() {
 	const backlog = useBacklog();
 	const { swept, sweptAt, sweeping, dropped, noteDropped, unnoteDropped } =
@@ -153,6 +165,10 @@ function ReviewPage() {
 	// row that has since left the backlog searches without a person.
 	const personByKey = useMemo(
 		() => new Map(backlog.map((item) => [item.key, item.person])),
+		[backlog],
+	);
+	const createdByKey = useMemo(
+		() => new Map(backlog.map((item) => [item.key, item.createdAt])),
 		[backlog],
 	);
 	// Punctuation reads as a space on both sides, so "alon derfner" finds the
@@ -349,6 +365,9 @@ function ReviewPage() {
 									<span className="text-[#a394ff]">{row.source}</span>
 									{personByKey.get(row.key) && (
 										<> · {personByKey.get(row.key)}</>
+									)}
+									{createdByKey.get(row.key) && (
+										<> · from {fromDate(createdByKey.get(row.key) ?? 0)}</>
 									)}
 									{row.evidence && <> · {row.evidence}</>}
 									{row.stale && <> · already gone from the backlog</>}

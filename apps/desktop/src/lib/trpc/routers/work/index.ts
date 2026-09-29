@@ -74,6 +74,8 @@ export interface JiraIssueRow {
 	issueType: string | null;
 	reporter: string | null;
 	updated: string | null;
+	/** When the ticket was filed. */
+	created?: string | null;
 	/** Jira's own Due Date, `YYYY-MM-DD`. Null on the tickets nobody dated. */
 	dueDate: string | null;
 	/** Why it's in my list: assigned to me, filed by me, or a comment @s me. */
@@ -145,6 +147,8 @@ export interface PullRequestRow {
 	kind: "mine" | "review" | "mentioned";
 	draft: boolean;
 	updated: string | null;
+	/** When the PR was opened. */
+	created?: string | null;
 	comments: number;
 }
 
@@ -159,6 +163,7 @@ interface JiraSearchResponse {
 			issuetype?: { name?: string };
 			reporter?: { displayName?: string };
 			updated?: string;
+			created?: string;
 			duedate?: string;
 			comment?: { comments?: JiraComment[] };
 		};
@@ -173,6 +178,7 @@ interface GithubSearchResponse {
 		html_url: string;
 		draft?: boolean;
 		updated_at?: string;
+		created_at?: string;
 		comments?: number;
 		user?: { login?: string };
 		repository_url?: string;
@@ -350,7 +356,7 @@ export const createWorkRouter = () => {
 					const jql = `${match}${openOnly} ORDER BY updated DESC`;
 					// Comment bodies are only worth their weight on the mention rows,
 					// where they are the point.
-					const fields = `summary,status,priority,project,issuetype,reporter,assignee,updated,duedate${role === "mentioned" ? ",comment" : ""}`;
+					const fields = `summary,status,priority,project,issuetype,reporter,assignee,updated,created,duedate${role === "mentioned" ? ",comment" : ""}`;
 					const response = await fetch(
 						`${request.base}/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&maxResults=100&fields=${fields}`,
 						{ headers },
@@ -375,6 +381,7 @@ export const createWorkRouter = () => {
 						issueType: issue.fields?.issuetype?.name ?? null,
 						reporter: issue.fields?.reporter?.displayName ?? null,
 						updated: issue.fields?.updated ?? null,
+						created: issue.fields?.created ?? null,
 						dueDate: issue.fields?.duedate ?? null,
 						role,
 						mention: accountId
@@ -481,6 +488,7 @@ export const createWorkRouter = () => {
 						kind,
 						draft: item.draft ?? false,
 						updated: item.updated_at ?? null,
+						created: item.created_at ?? null,
 						comments: item.comments ?? 0,
 					}));
 				};
