@@ -43,17 +43,24 @@ const ORDER: Record<SweptRow["verdict"], number> = {
  * dealt with between the sweep and you looking at this, so its row is marked
  * rather than dropped — seeing "already gone" is the difference between a
  * screen that agrees with reality and one you stop trusting.
+ *
+ * `loading` names the sources (`slack`, `jira`, … — the key's prefix) whose
+ * feed hasn't answered yet. Their rows are missing from `live` only because
+ * nothing has arrived, so they aren't marked — a reload used to grey out
+ * every Slack row for the second before Slack replied.
  */
 export function reviewRows(
 	swept: SweptRow[],
 	live: BacklogItem[],
+	loading: ReadonlySet<string> = new Set(),
 ): ReviewRow[] {
 	const liveKeys = new Set(live.map((item) => item.key));
 	return swept
 		.map((row, index) => ({
 			...row,
 			n: index + 1,
-			stale: !liveKeys.has(row.key),
+			stale:
+				!liveKeys.has(row.key) && !loading.has(row.key.split(":")[0] ?? ""),
 		}))
 		.sort((a, b) => ORDER[a.verdict] - ORDER[b.verdict] || a.n - b.n);
 }

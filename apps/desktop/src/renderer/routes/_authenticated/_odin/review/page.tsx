@@ -21,6 +21,8 @@ import {
 	useBacklogReview,
 	useSweepBacklog,
 } from "../hooks/useBacklogReview";
+import { useOdinFeeds } from "../hooks/useOdinFeeds";
+import { useOdinProfile } from "../hooks/useOdinProfile";
 import { useMyTasks } from "../hooks/useOdinTasks";
 import {
 	countByVerdict,
@@ -150,7 +152,22 @@ function ReviewPage() {
 	const [search, setSearch] = useState("");
 	const searchHotkey = useSearchHotkey();
 
-	const rows = useMemo(() => reviewRows(swept, backlog), [swept, backlog]);
+	// A feed that hasn't answered since the reload isn't a backlog that emptied.
+	const { reactions, jira, pulls, notion } = useOdinFeeds();
+	const { isLoading: profileLoading } = useOdinProfile();
+	const loadingKey = [
+		profileLoading && "task",
+		!reactions.data && "slack",
+		!jira.data && "jira",
+		!pulls.data && "pr",
+		!notion.data && "notion",
+	]
+		.filter(Boolean)
+		.join(",");
+	const rows = useMemo(
+		() => reviewRows(swept, backlog, new Set(loadingKey.split(","))),
+		[swept, backlog, loadingKey],
+	);
 	const counts = countByVerdict(rows);
 	// A row dropped here and since gone from the backlog lives under Dropped,
 	// not greyed out among the ones still to decide.
