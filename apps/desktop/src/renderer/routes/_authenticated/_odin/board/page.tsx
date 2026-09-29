@@ -516,13 +516,20 @@ function CdWorktreeButton({ card, shell }: { card: BoardCard; shell: Pane }) {
 						<span className="truncate">
 							{current ? `#${current.number}` : `${prs.length} PRs`}
 						</span>
+						{!current && (
+							// The shell is live (❯ Shell's dot) but in none of these worktrees.
+							<span
+								title="The shell isn't in any of these PRs' worktrees"
+								className="inline-block size-[6px] rounded-full bg-[#f5b83d]"
+							/>
+						)}
 						<span className="text-[10px]">▾</span>
 					</button>
 				</DropdownMenuTrigger>
 				<DropdownMenuContent align="end" className="w-80">
 					<DropdownMenuLabel className="truncate text-[10px] font-normal text-muted-foreground">
 						{here
-							? `This shell is in ${here.replace(/^\/Users\/[^/]+/, "~")}`
+							? `This shell is in ${here.replace(/^\/Users\/[^/]+/, "~")}${current ? "" : " — not in any PR's worktree"}`
 							: "This shell's location is unknown"}
 					</DropdownMenuLabel>
 					<DropdownMenuSeparator />
