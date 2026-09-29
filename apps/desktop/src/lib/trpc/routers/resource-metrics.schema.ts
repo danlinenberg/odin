@@ -14,6 +14,7 @@ const sessionMetricsSchema = usageValuesSchema.extend({
 	paneId: zod.string().min(1),
 	pid: zod.number().int().min(0),
 	title: zod.string().nullable().optional(),
+	busy: zod.boolean().optional(),
 });
 
 const workspaceMetricsSchema = usageValuesSchema.extend({
