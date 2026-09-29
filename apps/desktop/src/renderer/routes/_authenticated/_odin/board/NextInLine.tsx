@@ -6,9 +6,8 @@ import {
 import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-	LuBellRing,
 	LuCheck,
 	LuExternalLink,
 	LuLoaderCircle,
@@ -18,10 +17,7 @@ import {
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
-import {
-	stillDone,
-	useNextInLineDone,
-} from "renderer/stores/next-in-line-done";
+import { useNextInLineDone } from "renderer/stores/next-in-line-done";
 import { useNextInLinePrompt } from "renderer/stores/next-in-line-prompt";
 import { create } from "zustand";
 import type { AllItem } from "../all/all-items";
@@ -240,48 +236,12 @@ export function NextInLine() {
 			slackDone.mutate({ id: item.launch.key, done });
 		else setLocalDone(item.key, done);
 	};
-	const setDue = useReminders((s) => s.setDue);
-	const clearDue = useReminders((s) => s.clear);
-	// Done also drops a date you set here — otherwise a finished task keeps
-	// pinging "Overdue" every day. Undo puts both back.
 	const doneWithUndo = (item: AllItem) => {
-		const reminder = reminders[item.key];
 		markDone(item, true);
-		clearDue(item.key);
 		toast.success(`Done — ${cleanTitle(item.title).slice(0, 60)}`, {
-			action: {
-				label: "Undo",
-				onClick: () => {
-					markDone(item, false);
-					if (reminder) setDue(item.key, reminder.due, reminder.title);
-				},
-			},
+			action: { label: "Undo", onClick: () => markDone(item, false) },
 		});
 	};
-	// Remind me = Done now, back on `day`. Always the local done list, Slack
-	// too: Slack's own Done drops the row from the feed, so it could never
-	// come back. The existing due ping (layout's useDueReminders) sends the
-	// notification; the row returns here, pinned under Due.
-	const remindOn = (item: AllItem, day: string) => {
-		const before = reminders[item.key];
-		setLocalDone(item.key, true);
-		setDue(item.key, day, cleanTitle(item.title));
-		toast.success(
-			`Reminding you ${day} — ${cleanTitle(item.title).slice(0, 50)}`,
-			{
-				action: {
-					label: "Undo",
-					onClick: () => {
-						setLocalDone(item.key, false);
-						if (before) setDue(item.key, before.due, before.title);
-						else clearDue(item.key);
-					},
-				},
-			},
-		);
-	};
-	const isDone = (item: AllItem) =>
-		stillDone(doneKeys[item.key], reminders[item.key]?.due, Date.now());
 	// The Review sweep's DROPs, so a row it wants gone says so here too. By key,
 	// or by link for PRs, which Next in line keys by id and the sweep by repo#n.
 	const swept = useBacklogReview((s) => s.swept);
@@ -304,7 +264,9 @@ export function NextInLine() {
 	// column stays in feed order and says so — no rule of ours stands in.
 	const waiting = hide.rows.filter(
 		(item) =>
-			!livePaneFor(item) && !startedKeys.has(item.launch.key) && !isDone(item),
+			!livePaneFor(item) &&
+			!startedKeys.has(item.launch.key) &&
+			!doneKeys[item.key],
 	);
 	// Rows your instructions say not to show, per the model. They count as
 	// hidden and come back, dimmed, under the same "show hidden" as yours.
@@ -511,10 +473,6 @@ export function NextInLine() {
 						hidden={hide.isHidden(item)}
 						onClick={() => hide.toggle(item)}
 					/>
-					<RemindButton
-						min={dayOf(Date.now() + 86_400_000)}
-						onPick={(day) => remindOn(item, day)}
-					/>
 					{item.url && /^https?:\/\//.test(item.url) && (
 						<button
 							type="button"
@@ -543,44 +501,6 @@ export function NextInLine() {
 			</div>
 		);
 	}
-}
-
-/**
- * "Remind me": the OS date picker, as DueChip opens it — the input is there,
- * just not its box. Tomorrow at the earliest; today is just "not Done".
- */
-function RemindButton({
-	min,
-	onPick,
-}: {
-	min: string;
-	onPick: (day: string) => void;
-}) {
-	const input = useRef<HTMLInputElement>(null);
-	return (
-		<span className="relative inline-flex">
-			<input
-				ref={input}
-				type="date"
-				min={min}
-				value=""
-				onChange={(e) => e.target.value && onPick(e.target.value)}
-				tabIndex={-1}
-				aria-hidden
-				style={{ colorScheme: "dark" }}
-				className="pointer-events-none absolute inset-0 size-full opacity-0"
-			/>
-			<button
-				type="button"
-				onClick={() => input.current?.showPicker()}
-				title="Remind me — mark done now, bring it back on a day you pick"
-				aria-label="Remind me"
-				className="rounded-md p-1 text-[#a5a5b3] hover:bg-[#262433] hover:text-[#f5f5f7]"
-			>
-				<LuBellRing className="size-3.5" aria-hidden />
-			</button>
-		</span>
-	);
 }
 
 /**
