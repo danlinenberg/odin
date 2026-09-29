@@ -548,13 +548,13 @@ function ShellChip({
 		? [
 				"This session's shell has exited — open it to start a new one",
 				"Shell exited",
-				"bg-[#2a1218] text-[#f0647a]",
+				"bg-[#3a1820] font-semibold text-[#f0647a] ring-1 ring-[#f0647a]/60",
 			]
 		: busy === false
 			? [
 					"The shell is at its prompt — whatever you ran in it has stopped",
-					"Shell idle",
-					"bg-[#1f1f27] text-[#a5a5b3]",
+					"Shell stopped",
+					"bg-[#3a2a10] font-semibold text-[#f5b83d] ring-1 ring-[#f5b83d]/60",
 				]
 			: [
 					"This session has a shell running",
