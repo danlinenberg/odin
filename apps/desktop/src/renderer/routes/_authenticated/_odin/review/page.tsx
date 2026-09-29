@@ -164,20 +164,23 @@ function ReviewPage() {
 	]
 		.filter(Boolean)
 		.join(",");
-	const rows = useMemo(
-		() => reviewRows(swept, backlog, new Set(loadingKey.split(","))),
-		[swept, backlog, loadingKey],
-	);
-	const counts = countByVerdict(rows);
-	// A row dropped here and since gone from the backlog lives under Dropped,
-	// not greyed out among the ones still to decide.
+	// A row dropped here lives under Dropped, not among the ones still to
+	// decide — including after a re-sweep, which re-checks everything still in
+	// the backlog: a Jira or PR row isn't cleared at its source, and a Slack or
+	// task row can still be in the feed the sweep read.
 	const droppedKeys = useMemo(
 		() => new Set(dropped.map((row) => row.key)),
 		[dropped],
 	);
-	const pending = rows.filter(
-		(row) => !decided[row.key] && !(row.stale && droppedKeys.has(row.key)),
+	const rows = useMemo(
+		() =>
+			reviewRows(swept, backlog, new Set(loadingKey.split(","))).filter(
+				(row) => !droppedKeys.has(row.key),
+			),
+		[swept, backlog, loadingKey, droppedKeys],
 	);
+	const counts = countByVerdict(rows);
+	const pending = rows.filter((row) => !decided[row.key]);
 	// Who a row is from lives on the live backlog, not the swept snapshot — a
 	// row that has since left the backlog searches without a person.
 	const personByKey = useMemo(
@@ -266,7 +269,7 @@ function ReviewPage() {
 					what the sweep wants gone, checked against the system it came from
 				</span>
 				<div className="flex-1" />
-				{rows.length > 0 && (
+				{swept.length > 0 && (
 					<>
 						<input
 							ref={searchHotkey.ref}
@@ -331,7 +334,7 @@ function ReviewPage() {
 			</div>
 
 			<div className={FEED_LIST}>
-				{rows.length === 0 && (
+				{swept.length === 0 && (
 					<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
 						Nothing swept yet. "Sweep now" takes every open task and queued
 						Slack message and asks the system it came from where it stands — the
@@ -340,7 +343,7 @@ function ReviewPage() {
 					</div>
 				)}
 				{!needle && view === "dropped" && <DroppedList rows={dropped} />}
-				{rows.length > 0 &&
+				{swept.length > 0 &&
 					shown.length === 0 &&
 					(needle || view !== "dropped") && (
 						<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
