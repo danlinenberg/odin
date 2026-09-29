@@ -35,7 +35,7 @@ import {
 	effectiveDue,
 	useReminders,
 } from "../components/Reminders";
-import { useBacklogReview } from "../hooks/useBacklogReview";
+import { useBacklogReview, useIsDone } from "../hooks/useBacklogReview";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useMyTasks } from "../hooks/useOdinTasks";
 
@@ -222,7 +222,7 @@ export function NextInLine() {
 		{ limit: 1000 },
 		{ refetchInterval: 60_000 },
 	);
-	const doneKeys = useNextInLineDone((s) => s.done);
+	const isDone = useIsDone();
 	const setLocalDone = useNextInLineDone((s) => s.setDone);
 	// Slack has a Done of its own (Odin-only, shared with the Slack feed); the
 	// rest go in the local done list. The row leaves the column either way —
@@ -264,9 +264,7 @@ export function NextInLine() {
 	// column stays in feed order and says so — no rule of ours stands in.
 	const waiting = hide.rows.filter(
 		(item) =>
-			!livePaneFor(item) &&
-			!startedKeys.has(item.launch.key) &&
-			!doneKeys[item.key],
+			!livePaneFor(item) && !startedKeys.has(item.launch.key) && !isDone(item),
 	);
 	// Rows your instructions say not to show, per the model. They count as
 	// hidden and come back, dimmed, under the same "show hidden" as yours.
