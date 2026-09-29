@@ -74,7 +74,10 @@ export function odinScreenStatus(screen: string): PaneStatus | undefined {
 	// Order matters: a permission dialog is drawn *over* the spinner, so it has
 	// to win over the spinner, and the idle prompt's status line ("bypass
 	// permissions on", "? for shortcuts") is painted under both of the others.
-	if (/Enter to select|Do you want|❯[ \t]*\d+\.[ \t]/i.test(footer))
+	// "Enter to confirm" is the folder-trust dialog, whose options carry no
+	// numbers — missing it read a session waiting on "Yes, I trust this
+	// folder" as Claude gone from the PTY, and the card as died mid-turn.
+	if (/Enter to (?:select|confirm)|Do you want|❯[ \t]*\d+\.[ \t]/i.test(footer))
 		return "permission";
 	if (SPINNER.test(footer)) return "working";
 	// Claude is sitting at its prompt (not mid-turn, no dialog) — the turn ended
