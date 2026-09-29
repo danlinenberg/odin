@@ -16,7 +16,14 @@ export interface Reminder {
 	/** Kept with the date so a reminder can name its row without its feed. */
 	title: string;
 	/** Set by "Remind me" on a board session: what to resume when it's due. */
-	resume?: { sessionId: string; cwd: string };
+	resume?: {
+		sessionId: string;
+		cwd: string;
+		/** The card's brief when you snoozed it — what the hover shows. */
+		brief?: string;
+		/** When you hit Remind me, epoch ms. */
+		setAt?: number;
+	};
 }
 
 export const useReminders = create<{

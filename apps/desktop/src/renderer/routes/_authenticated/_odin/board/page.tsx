@@ -2136,7 +2136,15 @@ function DevBoardPage() {
 			return;
 		}
 		const title = cardTitle(card);
-		remindSession({ sessionId, cwd, title }, day);
+		remindSession(
+			{
+				sessionId,
+				cwd,
+				title,
+				brief: usePaneMeta.getState().briefByPane[card.pane.id],
+			},
+			day,
+		);
 		markDone(card);
 		toast.success(`Reminding you ${day} — ${title.slice(0, 50)}`);
 	};
