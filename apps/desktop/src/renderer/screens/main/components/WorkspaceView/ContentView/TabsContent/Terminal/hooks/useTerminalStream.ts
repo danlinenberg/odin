@@ -98,7 +98,12 @@ export function useTerminalStream({
 				xterm.writeln("[Press any key to restart]");
 			}
 
-			// Clear transient pane status on terminal exit
+			// Clear transient pane status on terminal exit — unless the process
+			// died on its own, which should show up red on the tab and board card.
+			if (exitCode !== 0) {
+				setPaneStatus(paneId, "failed");
+				return;
+			}
 			const currentPane = useTabsStore.getState().panes[paneId];
 			if (
 				currentPane?.status === "working" ||
