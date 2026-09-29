@@ -411,7 +411,7 @@ function RepoPill({ card }: { card: BoardCard }) {
 }
 
 /**
- * Jump the session's shell into the checkout the agent actually works in. The
+ * Jump the session's shell into the worktree the agent actually works in. The
  * shell opens where the session launched — for feed sessions the catch-all
  * directory — while the agent cd'd into a worktree the shell never saw.
  */
@@ -422,7 +422,7 @@ function CdWorktreeButton({ card, shell }: { card: BoardCard; shell: Pane }) {
 		{ enabled: !!sessionId, retry: false, staleTime: 60_000 },
 	);
 	const write = electronTrpc.terminal.write.useMutation();
-	const checkout = data?.checkout;
+	const checkout = data?.worktree ?? data?.checkout;
 	if (!checkout || checkout === shell.cwd) return null;
 	return (
 		<button

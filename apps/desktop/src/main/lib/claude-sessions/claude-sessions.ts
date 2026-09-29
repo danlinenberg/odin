@@ -1014,15 +1014,62 @@ export async function workingRepoOf(
 	sessionId: string,
 	root: string = projectsRoot(),
 ): Promise<string | null> {
+	const tallied = await tallyCheckouts(sessionId, root);
+	if (!tallied) return null;
+	// The repo is decided; hand back the checkout inside it the session used
+	// most, since that is the tree with the changes in it.
+	let best: string | null = null;
+	let bestTally: Tally = { count: 0, lastSeen: 0 };
+	for (const [checkout, tally] of tallied.perCheckout) {
+		if (ownerRepoOf(checkout) === tallied.winner && busiest(tally, bestTally)) {
+			best = checkout;
+			bestTally = tally;
+		}
+	}
+	return best;
+}
+
+/**
+ * The worktree a session last worked in, inside the repo `workingRepoOf`
+ * picked — or null when it never left the clone. An agent typically runs a
+ * dozen commands in the clone before cutting its worktree, so "busiest" lands
+ * on the clone; the place to go to pick the work up is the worktree.
+ */
+export async function workingWorktreeOf(
+	sessionId: string,
+	root: string = projectsRoot(),
+): Promise<string | null> {
+	const tallied = await tallyCheckouts(sessionId, root);
+	if (!tallied) return null;
+	let best: string | null = null;
+	let lastSeen = 0;
+	for (const [checkout, tally] of tallied.perCheckout) {
+		if (
+			checkout !== tallied.winner &&
+			ownerRepoOf(checkout) === tallied.winner &&
+			tally.lastSeen > lastSeen
+		) {
+			best = checkout;
+			lastSeen = tally.lastSeen;
+		}
+	}
+	return best;
+}
+
+interface Tally {
+	count: number;
+	lastSeen: number;
+}
+const busiest = (a: Tally, b: Tally) =>
+	a.count > b.count || (a.count === b.count && a.lastSeen > b.lastSeen);
+
+/** Every checkout the transcript ran commands in, and the repo that won. */
+async function tallyCheckouts(
+	sessionId: string,
+	root: string,
+): Promise<{ winner: string; perCheckout: Map<string, Tally> } | null> {
 	const found = await transcriptOf(sessionId, root);
 	if (!found) return null;
-
-	interface Tally {
-		count: number;
-		lastSeen: number;
-	}
-	const busiest = (a: Tally, b: Tally) =>
-		a.count > b.count || (a.count === b.count && a.lastSeen > b.lastSeen);
 
 	const perCheckout = new Map<string, Tally>();
 	const checkoutOfDir = new Map<string, string | null>();
@@ -1089,19 +1136,7 @@ export async function workingRepoOf(
 		// Strictly deeper each pass, so this terminates.
 		winner = leader(nested);
 	}
-	if (!winner) return null;
-
-	// The repo is decided; hand back the checkout inside it the session used
-	// most, since that is the tree with the changes in it.
-	let best: string | null = null;
-	let bestTally: Tally = { count: 0, lastSeen: 0 };
-	for (const [checkout, tally] of perCheckout) {
-		if (ownerRepoOf(checkout) === winner && busiest(tally, bestTally)) {
-			best = checkout;
-			bestTally = tally;
-		}
-	}
-	return best;
+	return winner ? { winner, perCheckout } : null;
 }
 
 /**

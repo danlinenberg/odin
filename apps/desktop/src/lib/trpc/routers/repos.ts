@@ -447,11 +447,16 @@ export const createReposRouter = () => {
 		workingRepoName: publicProcedure
 			.input(z.object({ claudeSessionId: z.string() }))
 			.query(async ({ input }) => {
-				const { repoNameOf, workingRepoOf } = await import(
+				const { repoNameOf, workingRepoOf, workingWorktreeOf } = await import(
 					"main/lib/claude-sessions"
 				);
 				const checkout = await workingRepoOf(input.claudeSessionId);
-				return checkout ? { checkout, name: repoNameOf(checkout) } : null;
+				if (!checkout) return null;
+				return {
+					checkout,
+					name: repoNameOf(checkout),
+					worktree: await workingWorktreeOf(input.claudeSessionId),
+				};
 			}),
 
 		diff: publicProcedure

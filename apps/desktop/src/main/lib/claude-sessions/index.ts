@@ -17,6 +17,7 @@ export {
 	type TranscriptMessage,
 	transcriptOf,
 	workingRepoOf,
+	workingWorktreeOf,
 } from "./claude-sessions";
 export {
 	cachedBriefs,

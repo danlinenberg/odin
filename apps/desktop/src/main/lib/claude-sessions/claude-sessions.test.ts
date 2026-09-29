@@ -15,6 +15,7 @@ import {
 	transcriptLinks,
 	transcriptOf,
 	workingRepoOf,
+	workingWorktreeOf,
 } from "./claude-sessions";
 
 const CWD = "/Users/dan/dev/private/odin";
@@ -752,6 +753,31 @@ describe("workingRepoOf", () => {
 			...Array(4).fill(worktree),
 		]);
 		return expect(workingRepoOf(SESSION, root)).resolves.toBe(worktree);
+	});
+
+	/** The shell's "cd worktree" button: the clone is busiest, the worktree is where the work is. */
+	test("workingWorktreeOf finds the worktree even when the clone is busier", async () => {
+		const { root, tree } = dirs();
+		repos(tree, { app: "clone" });
+		const worktree = join(tree, "app/.worktrees/fix");
+		mkdirSync(worktree, { recursive: true });
+		writeFileSync(
+			join(worktree, ".git"),
+			`gitdir: ${join(tree, "app")}/.git/worktrees/fix\n`,
+		);
+		transcript(root, [
+			...Array(9).fill(join(tree, "app")),
+			...Array(3).fill(worktree),
+		]);
+		expect(await workingRepoOf(SESSION, root)).toBe(join(tree, "app"));
+		expect(await workingWorktreeOf(SESSION, root)).toBe(worktree);
+	});
+
+	test("workingWorktreeOf is null when the session never left the clone", async () => {
+		const { root, tree } = dirs();
+		repos(tree, { app: "clone" });
+		transcript(root, [join(tree, "app")]);
+		expect(await workingWorktreeOf(SESSION, root)).toBeNull();
 	});
 });
 
