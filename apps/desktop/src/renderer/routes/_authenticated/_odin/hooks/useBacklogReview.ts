@@ -5,6 +5,12 @@ import { persist } from "zustand/middleware";
 import type { SweptRow } from "../review/verdicts";
 import { useBacklog } from "./builtin-automations";
 
+/** A row dropped from Review, as it was swept, and when. */
+export type DroppedRow = SweptRow & { droppedAt: number };
+
+// ponytail: fixed cap, "recently" means the last 100 drops, not a time window.
+const DROPPED_KEPT = 100;
+
 /**
  * The last sweep's answers.
  *
@@ -21,6 +27,10 @@ export const useBacklogReview = create<{
 	sweeping: boolean;
 	/** How often the shell sweeps on its own, hours. 0 turns the clock off. */
 	sweepEveryHours: number;
+	/** What was dropped from Review, newest first. Capped, not cleared by a sweep. */
+	dropped: DroppedRow[];
+	noteDropped: (row: SweptRow) => void;
+	unnoteDropped: (key: string) => void;
 	record: (swept: SweptRow[]) => void;
 	setSweepEveryHours: (hours: number) => void;
 	forget: () => void;
@@ -31,16 +41,29 @@ export const useBacklogReview = create<{
 			sweptAt: null,
 			sweeping: false,
 			sweepEveryHours: 1,
+			dropped: [],
+			noteDropped: (row) =>
+				set(({ dropped }) => ({
+					dropped: [
+						{ ...row, droppedAt: Date.now() },
+						...dropped.filter((d) => d.key !== row.key),
+					].slice(0, DROPPED_KEPT),
+				})),
+			unnoteDropped: (key) =>
+				set(({ dropped }) => ({
+					dropped: dropped.filter((d) => d.key !== key),
+				})),
 			record: (swept) => set({ swept, sweptAt: Date.now() }),
 			setSweepEveryHours: (sweepEveryHours) => set({ sweepEveryHours }),
 			forget: () => set({ swept: [], sweptAt: null }),
 		}),
 		{
 			name: "odin-backlog-review",
-			partialize: ({ swept, sweptAt, sweepEveryHours }) => ({
+			partialize: ({ swept, sweptAt, sweepEveryHours, dropped }) => ({
 				swept,
 				sweptAt,
 				sweepEveryHours,
+				dropped,
 			}),
 		},
 	),

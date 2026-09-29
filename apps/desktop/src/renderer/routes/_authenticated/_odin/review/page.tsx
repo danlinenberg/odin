@@ -16,7 +16,11 @@ import {
 } from "../components/FeedChrome";
 import { useBacklog } from "../hooks/builtin-automations";
 import { useActiveSessions } from "../hooks/useActiveSessions";
-import { useBacklogReview, useSweepBacklog } from "../hooks/useBacklogReview";
+import {
+	type DroppedRow,
+	useBacklogReview,
+	useSweepBacklog,
+} from "../hooks/useBacklogReview";
 import { useMyTasks } from "../hooks/useOdinTasks";
 import {
 	countByVerdict,
@@ -60,9 +64,55 @@ function VerdictChip({ verdict }: { verdict: ReviewRow["verdict"] }) {
 	);
 }
 
+function shortWhen(at: number): string {
+	return new Date(at).toLocaleString(undefined, {
+		weekday: "short",
+		hour: "2-digit",
+		minute: "2-digit",
+	});
+}
+
+/** What was dropped from here, newest first, as it looked when it went. */
+function DroppedList({ rows }: { rows: DroppedRow[] }) {
+	if (rows.length === 0)
+		return (
+			<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
+				Nothing dropped yet.
+			</div>
+		);
+	return rows.map((row) => (
+		<div key={row.key} className={cn(FEED_ROW, "flex items-start gap-3")}>
+			<div className="min-w-0 flex-1">
+				<div className="flex items-center gap-2">
+					<VerdictChip verdict={row.verdict} />
+					<span className="truncate text-[13px] text-[#f5f5f7]">
+						{row.title}
+					</span>
+				</div>
+				<div className={cn(ROW_META, "mt-1")}>
+					<span className="text-[#a394ff]">{row.source}</span>
+					{row.evidence && <> · {row.evidence}</>} · dropped{" "}
+					{shortWhen(row.droppedAt)}
+				</div>
+			</div>
+			{row.url && (
+				<a
+					href={row.url}
+					target="_blank"
+					rel="noreferrer"
+					className={ROW_LINK_BUTTON}
+				>
+					Open
+				</a>
+			)}
+		</div>
+	));
+}
+
 function ReviewPage() {
 	const backlog = useBacklog();
-	const { swept, sweptAt, sweeping } = useBacklogReview();
+	const { swept, sweptAt, sweeping, dropped, noteDropped, unnoteDropped } =
+		useBacklogReview();
 	const sweepBacklog = useSweepBacklog();
 	const { remove, todos } = useMyTasks();
 	const panes = useTabsStore((state) => state.panes);
@@ -84,13 +134,21 @@ function ReviewPage() {
 	// Decided here, this session's worth. A dropped row also leaves the backlog,
 	// but a kept one doesn't — without this the screen never empties.
 	const [decided, setDecided] = useState<Record<string, true>>({});
-	const [showAll, setShowAll] = useState(false);
+	const [view, setView] = useState<"drop" | "rest" | "dropped">("drop");
 	const [search, setSearch] = useState("");
 	const searchHotkey = useSearchHotkey();
 
 	const rows = useMemo(() => reviewRows(swept, backlog), [swept, backlog]);
 	const counts = countByVerdict(rows);
-	const pending = rows.filter((row) => !decided[row.key]);
+	// A row dropped here and since gone from the backlog lives under Dropped,
+	// not greyed out among the ones still to decide.
+	const droppedKeys = useMemo(
+		() => new Set(dropped.map((row) => row.key)),
+		[dropped],
+	);
+	const pending = rows.filter(
+		(row) => !decided[row.key] && !(row.stale && droppedKeys.has(row.key)),
+	);
 	// Who a row is from lives on the live backlog, not the swept snapshot — a
 	// row that has since left the backlog searches without a person.
 	const personByKey = useMemo(
@@ -119,7 +177,7 @@ function ReviewPage() {
 					].join(" "),
 				).includes(needle),
 			)
-		: showAll
+		: view === "rest"
 			? pending
 			: pending.filter((row) => row.verdict === "DROP");
 
@@ -134,6 +192,7 @@ function ReviewPage() {
 		// Off the screen first: the Slack write plus the reactions refetch take
 		// seconds, and the row sat there the whole time. Put back on failure.
 		setDecided((prev) => ({ ...prev, [row.key]: true }));
+		noteDropped(row);
 		if (kind === "task") remove(id);
 		else if (kind === "slack") {
 			try {
@@ -141,6 +200,7 @@ function ReviewPage() {
 				void utils.slack.reactions.invalidate();
 			} catch (error) {
 				setDecided(({ [row.key]: _, ...prev }) => prev);
+				unnoteDropped(row.key);
 				toast.error(error instanceof Error ? error.message : String(error));
 			}
 		}
@@ -163,13 +223,7 @@ function ReviewPage() {
 		}
 	};
 
-	const swept_ago = sweptAt
-		? new Date(sweptAt).toLocaleString(undefined, {
-				weekday: "short",
-				hour: "2-digit",
-				minute: "2-digit",
-			})
-		: null;
+	const swept_ago = sweptAt ? shortWhen(sweptAt) : null;
 
 	return (
 		<div className="flex h-full flex-col">
@@ -198,24 +252,34 @@ function ReviewPage() {
 							)}
 						/>
 						<FilterPill
-							active={!needle && !showAll}
+							active={!needle && view === "drop"}
 							count={counts.drop}
 							onClick={() => {
-								setShowAll(false);
+								setView("drop");
 								setSearch("");
 							}}
 						>
 							Drop
 						</FilterPill>
 						<FilterPill
-							active={!needle && showAll}
+							active={!needle && view === "rest"}
 							count={counts.keep + counts.unknown}
 							onClick={() => {
-								setShowAll(true);
+								setView("rest");
 								setSearch("");
 							}}
 						>
 							Keep & unknown
+						</FilterPill>
+						<FilterPill
+							active={!needle && view === "dropped"}
+							count={dropped.length}
+							onClick={() => {
+								setView("dropped");
+								setSearch("");
+							}}
+						>
+							Dropped
 						</FilterPill>
 					</>
 				)}
@@ -242,79 +306,85 @@ function ReviewPage() {
 						on — then lists what it can show is done.
 					</div>
 				)}
-				{rows.length > 0 && shown.length === 0 && (
-					<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
-						{needle
-							? `Nothing matches "${search.trim()}".`
-							: showAll
-								? "Nothing left to look at."
-								: `Nothing to drop from the ${swept.length} swept${swept_ago ? ` ${swept_ago}` : ""}. ${counts.keep} to keep, ${counts.unknown} it couldn't check.`}
-					</div>
-				)}
-
-				{shown.map((row) => (
-					<div
-						key={row.key}
-						className={cn(FEED_ROW, "flex items-start gap-3", {
-							"opacity-50": row.stale,
-						})}
-					>
-						<span className={cn(ROW_META, "w-[28px] shrink-0 pt-0.5")}>
-							{row.n}
-						</span>
-						<div className="min-w-0 flex-1">
-							<div className="flex items-center gap-2">
-								<VerdictChip verdict={row.verdict} />
-								{row.verdict === "DROP" &&
-									sessionFor(row, livePanes, taskPanes) && (
-										<LuOctagonX
-											className="size-3.5 shrink-0 text-[#ff7a8a]"
-											title="A session is still working on this — stop it"
-											aria-label="A session is still working on this — stop it"
-										/>
-									)}
-								<span className="truncate text-[13px] text-[#f5f5f7]">
-									{row.title}
-								</span>
-							</div>
-							<div className={cn(ROW_META, "mt-1")}>
-								<span className="text-[#a394ff]">{row.source}</span>
-								{personByKey.get(row.key) && <> · {personByKey.get(row.key)}</>}
-								{row.evidence && <> · {row.evidence}</>}
-								{row.stale && <> · already gone from the backlog</>}
-							</div>
+				{!needle && view === "dropped" && <DroppedList rows={dropped} />}
+				{rows.length > 0 &&
+					shown.length === 0 &&
+					(needle || view !== "dropped") && (
+						<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
+							{needle
+								? `Nothing matches "${search.trim()}".`
+								: view === "rest"
+									? "Nothing left to look at."
+									: `Nothing to drop from the ${swept.length} swept${swept_ago ? ` ${swept_ago}` : ""}. ${counts.keep} to keep, ${counts.unknown} it couldn't check.`}
 						</div>
-						{row.url && (
-							<a
-								href={row.url}
-								target="_blank"
-								rel="noreferrer"
+					)}
+
+				{(needle || view !== "dropped") &&
+					shown.map((row) => (
+						<div
+							key={row.key}
+							className={cn(FEED_ROW, "flex items-start gap-3", {
+								"opacity-50": row.stale,
+							})}
+						>
+							<span className={cn(ROW_META, "w-[28px] shrink-0 pt-0.5")}>
+								{row.n}
+							</span>
+							<div className="min-w-0 flex-1">
+								<div className="flex items-center gap-2">
+									<VerdictChip verdict={row.verdict} />
+									{row.verdict === "DROP" &&
+										sessionFor(row, livePanes, taskPanes) && (
+											<LuOctagonX
+												className="size-3.5 shrink-0 text-[#ff7a8a]"
+												title="A session is still working on this — stop it"
+												aria-label="A session is still working on this — stop it"
+											/>
+										)}
+									<span className="truncate text-[13px] text-[#f5f5f7]">
+										{row.title}
+									</span>
+								</div>
+								<div className={cn(ROW_META, "mt-1")}>
+									<span className="text-[#a394ff]">{row.source}</span>
+									{personByKey.get(row.key) && (
+										<> · {personByKey.get(row.key)}</>
+									)}
+									{row.evidence && <> · {row.evidence}</>}
+									{row.stale && <> · already gone from the backlog</>}
+								</div>
+							</div>
+							{row.url && (
+								<a
+									href={row.url}
+									target="_blank"
+									rel="noreferrer"
+									className={ROW_LINK_BUTTON}
+								>
+									Open
+								</a>
+							)}
+							<button
+								type="button"
+								onClick={() =>
+									setDecided((prev) => ({ ...prev, [row.key]: true }))
+								}
 								className={ROW_LINK_BUTTON}
 							>
-								Open
-							</a>
-						)}
-						<button
-							type="button"
-							onClick={() =>
-								setDecided((prev) => ({ ...prev, [row.key]: true }))
-							}
-							className={ROW_LINK_BUTTON}
-						>
-							Keep
-						</button>
-						<button
-							type="button"
-							onClick={() => void drop(row)}
-							disabled={row.stale}
-							className={ROW_PRIMARY_BUTTON}
-						>
-							Drop
-						</button>
-					</div>
-				))}
+								Keep
+							</button>
+							<button
+								type="button"
+								onClick={() => void drop(row)}
+								disabled={row.stale}
+								className={ROW_PRIMARY_BUTTON}
+							>
+								Drop
+							</button>
+						</div>
+					))}
 
-				{(needle || !showAll) &&
+				{(needle || view === "drop") &&
 					shown.some((row) => row.verdict === "DROP") && (
 						<button
 							type="button"
