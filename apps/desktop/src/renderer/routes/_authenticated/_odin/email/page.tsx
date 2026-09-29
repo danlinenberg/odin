@@ -48,7 +48,16 @@ function EmailPage() {
 						text="Gmail isn't connected — add an app password to see your unread mail."
 					/>
 				)}
-				<FeedError error={emails.error} />
+				{/* A dead app password is fixed right here, not in Settings: paste a
+				    new one and the feed refetches. */}
+				{emails.error?.data?.code === "UNAUTHORIZED" ? (
+					<ConnectNotice
+						provider="gmail"
+						text="Gmail rejected the app password — it was revoked or changed. Paste a new one."
+					/>
+				) : (
+					<FeedError error={emails.error} />
+				)}
 				{emails.data && rows.length === 0 && (
 					<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
 						No unread mail 🎉
