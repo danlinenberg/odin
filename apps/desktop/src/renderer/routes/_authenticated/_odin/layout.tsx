@@ -6,7 +6,8 @@ import {
 	useMatchRoute,
 	useNavigate,
 } from "@tanstack/react-router";
-import { useMemo, useRef, useState } from "react";
+import type { ClaudeUsageWindow } from "lib/trpc/routers/resource-metrics";
+import { useMemo, useState } from "react";
 import {
 	HiOutlineBolt,
 	HiOutlineChartBar,
@@ -158,6 +159,37 @@ function resetsIn(resetsAt: string | null): string {
 	return `, resets ${when.toLocaleString(undefined, soon ? { hour: "numeric", minute: "2-digit" } : { weekday: "short", hour: "numeric" })}`;
 }
 
+type ClaudeUsage = {
+	fiveHour: ClaudeUsageWindow | null;
+	week: ClaudeUsageWindow | null;
+};
+
+const CLAUDE_USAGE_KEY = "odin:last-claude-usage";
+
+/** The last good usage reading, kept across remounts and reloads. A window
+ *  whose reset has passed is dropped — its percent no longer holds. */
+function useLastClaudeUsage(
+	now: ClaudeUsage | null | undefined,
+): ClaudeUsage | null {
+	if (now) {
+		try {
+			localStorage.setItem(CLAUDE_USAGE_KEY, JSON.stringify(now));
+		} catch {}
+	}
+	let last: ClaudeUsage | null = now ?? null;
+	if (!last) {
+		try {
+			last = JSON.parse(localStorage.getItem(CLAUDE_USAGE_KEY) ?? "null");
+		} catch {}
+	}
+	if (!last) return null;
+	const live = (w: ClaudeUsageWindow | null) =>
+		w && (!w.resetsAt || new Date(w.resetsAt).getTime() > Date.now())
+			? w
+			: null;
+	return { fiveHour: live(last.fiveHour), week: live(last.week) };
+}
+
 function OdinShell() {
 	const navigate = useNavigate();
 	const matchRoute = useMatchRoute();
@@ -184,14 +216,15 @@ function OdinShell() {
 	// Claude plan usage — the 5-hour window and the week, as /usage shows them.
 	// The endpoint 429s when polled hard (every Claude Code CLI hits it too)
 	// and a failed read comes back null — so poll gently and keep showing the
-	// last good reading rather than dropping the pill.
+	// last good reading rather than dropping the pill. The reading lives in
+	// localStorage, not a ref: a remount, a renderer reload or a profile switch
+	// (which resets every query) would otherwise blank it until a poll landed
+	// between 429s — with twenty sessions polling too, that's minutes.
 	const { data: usageNow } =
 		electronTrpc.resourceMetrics.getClaudeUsage.useQuery(undefined, {
 			refetchInterval: 5 * 60_000,
 		});
-	const lastUsage = useRef(usageNow);
-	if (usageNow) lastUsage.current = usageNow;
-	const usage = lastUsage.current;
+	const usage = useLastClaudeUsage(usageNow);
 
 	// The accounts in play. Switching resets every query, so the feeds below
 	// refetch against the new profile's Slack/Jira/GitHub rather than showing
