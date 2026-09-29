@@ -39,7 +39,7 @@ export interface AllLaunch {
 export interface AllItem {
 	/** Unique across sources — two systems can hand out the same id. */
 	key: string;
-	source: "Tasks" | "Slack" | "Jira" | "GitHub" | "Notion";
+	source: "Tasks" | "Slack" | "Jira" | "GitHub" | "Notion" | "Email";
 	/** The feed this row lives in — clicking the title goes there. */
 	to: FeedPath;
 	title: string;
@@ -140,6 +140,15 @@ export function allItems(input: {
 		updatedAt: string | null;
 		date: string | null;
 	})[];
+	/** Unread inbox mail — optional, most callers predate it. */
+	emails?: {
+		id: string;
+		url: string;
+		subject: string;
+		snippet: string;
+		from: string | null;
+		at: string | null;
+	}[];
 }): AllItem[] {
 	return [
 		...input.tasks.map(
@@ -287,6 +296,33 @@ export function allItems(input: {
 					brief: `${row.title}\n${row.pageUrl}`,
 					pageId: row.pageId,
 					source: "notion",
+				},
+			}),
+		),
+		...(input.emails ?? []).map(
+			(email): AllItem => ({
+				key: `email:${email.id}`,
+				source: "Email",
+				// ponytail: no Email tab — the row lives in All, and its link opens Gmail.
+				to: "/all",
+				title: email.subject,
+				url: email.url,
+				person: email.from,
+				status: null,
+				priority: null,
+				urgency: null,
+				context: null,
+				at: ms(email.at),
+				dueDate: null,
+				mention: email.snippet
+					? { author: email.from, text: email.snippet }
+					: null,
+				launch: {
+					key: email.id,
+					title: email.subject,
+					description: `Email from ${email.from ?? "unknown"}: ${email.subject}\n${email.snippet}\n${email.url}`,
+					contact: email.from,
+					brief: `${email.subject}\n${email.url}`,
 				},
 			}),
 		),

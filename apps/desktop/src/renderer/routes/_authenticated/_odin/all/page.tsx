@@ -127,12 +127,20 @@ const SOURCE_CHIP: Record<AllItem["source"], string> = {
 	Jira: "bg-[#16283a] text-[#7ec4ff]",
 	GitHub: "bg-[#3a2c14] text-[#f5b83d]",
 	Notion: "bg-[#1f1f27] text-[#c8c8d2]",
+	Email: "bg-[#1a2e22] text-[#7ee0a1]",
 };
 
 /** The source filter, in the order the tab strip lists them. ponytail: a
  * picker, not pills — the tab strip above already draws one row of sources,
  * and a second row of the same names read as two of the same control. */
-const SOURCES = ["Tasks", "Slack", "Jira", "GitHub", "Notion"] as const;
+const SOURCES = [
+	"Tasks",
+	"Slack",
+	"Jira",
+	"GitHub",
+	"Notion",
+	"Email",
+] as const;
 
 /** The urgency filter's options — "none" is the rows their source never rated. */
 const URGENCIES: { id: Exclude<Urgency, null> | "none"; label: string }[] = [
@@ -143,7 +151,8 @@ const URGENCIES: { id: Exclude<Urgency, null> | "none"; label: string }[] = [
 ];
 
 function AllFeedPage() {
-	const { reactions, jira, pulls, notion, syncAll, isSyncing } = useOdinFeeds();
+	const { reactions, jira, pulls, notion, emails, syncAll, isSyncing } =
+		useOdinFeeds();
 	const navigate = useNavigate();
 	// ponytail: local state, so it starts collapsed every visit — that's the ask.
 	const [showSessions, setShowSessions] = useState(false);
@@ -187,8 +196,17 @@ function AllFeedPage() {
 				jira: jira.data?.issues ?? [],
 				pulls: pulls.data?.pulls ?? [],
 				notion: notion.data?.rows ?? [],
+				emails: emails.data?.emails ?? [],
 			}).filter((item) => !isDone(item)),
-		[todos, reactions.data, jira.data, pulls.data, notion.data, isDone],
+		[
+			todos,
+			reactions.data,
+			jira.data,
+			pulls.data,
+			notion.data,
+			emails.data,
+			isDone,
+		],
 	);
 
 	const sourceCounts = useMemo(() => {

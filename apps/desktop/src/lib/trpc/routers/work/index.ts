@@ -152,6 +152,58 @@ export interface PullRequestRow {
 	comments: number;
 }
 
+/** One unread inbox email, from Gmail's Atom feed. */
+export interface EmailRow {
+	id: string;
+	url: string;
+	subject: string;
+	snippet: string;
+	from: string | null;
+	at: string | null;
+}
+
+function gmailCredentials(): { address: string; password: string } | null {
+	const { gmailAddress, gmailAppPassword } = readOdinConfig();
+	return gmailAddress && gmailAppPassword
+		? { address: gmailAddress, password: gmailAppPassword.replace(/\s/g, "") }
+		: null;
+}
+
+const unescapeXml = (text: string) =>
+	text
+		.replace(/&lt;/g, "<")
+		.replace(/&gt;/g, ">")
+		.replace(/&quot;/g, '"')
+		.replace(/&#39;|&apos;/g, "'")
+		.replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+		.replace(/&amp;/g, "&");
+
+/**
+ * Gmail's Atom feed → rows. ponytail: regex, not an XML parser — the feed is
+ * a fixed, flat shape Gmail has served unchanged for 15 years. It holds the
+ * 20 newest unread inbox threads; that's the ceiling, IMAP is the upgrade.
+ */
+export function parseGmailAtom(xml: string): EmailRow[] {
+	return [...xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)].map(([, entry]) => {
+		const tag = (name: string) =>
+			unescapeXml(
+				entry.match(new RegExp(`<${name}>([\\s\\S]*?)</${name}>`))?.[1] ?? "",
+			).trim();
+		const author = entry.match(/<author>([\s\S]*?)<\/author>/)?.[1] ?? "";
+		return {
+			id: tag("id"),
+			url: unescapeXml(entry.match(/<link[^>]*href="([^"]*)"/)?.[1] ?? ""),
+			subject: tag("title") || "(no subject)",
+			snippet: tag("summary"),
+			from:
+				unescapeXml(author.match(/<name>([\s\S]*?)<\/name>/)?.[1] ?? "") ||
+				unescapeXml(author.match(/<email>([\s\S]*?)<\/email>/)?.[1] ?? "") ||
+				null,
+			at: tag("issued") || tag("modified") || null,
+		};
+	});
+}
+
 interface JiraSearchResponse {
 	issues?: {
 		key: string;
@@ -191,6 +243,7 @@ export const createWorkRouter = () => {
 		getConfig: publicProcedure.query(() => ({
 			hasJira: hasJiraOAuth(),
 			hasGithub: githubToken() !== null,
+			hasGmail: gmailCredentials() !== null,
 			/**
 			 * Odin's own checkout: gates self-update, and is where "Work on Odin"
 			 * sessions launch so the agent starts in the right repo instead of
@@ -444,6 +497,32 @@ export const createWorkRouter = () => {
 				);
 				return { issues };
 			}),
+
+		/**
+		 * Unread inbox mail. No OAuth: Gmail still takes Basic auth with an app
+		 * password on its Atom feed, so this is one fetch.
+		 */
+		myEmails: publicProcedure.query(
+			async (): Promise<{ emails: EmailRow[] }> => {
+				const credentials = gmailCredentials();
+				if (!credentials) {
+					throw new TRPCError({
+						code: "PRECONDITION_FAILED",
+						message:
+							'Gmail isn\'t set up — add "gmailAddress" and "gmailAppPassword" to ~/.config/odin.json.',
+					});
+				}
+				const response = await fetch("https://mail.google.com/mail/feed/atom", {
+					headers: {
+						Authorization: `Basic ${Buffer.from(`${credentials.address}:${credentials.password}`).toString("base64")}`,
+					},
+				});
+				if (!response.ok) {
+					throw feedError("Gmail", response.status, await response.text());
+				}
+				return { emails: parseGmailAtom(await response.text()) };
+			},
+		),
 
 		/**
 		 * Open PRs I authored + PRs waiting on my review + issues and PRs where
