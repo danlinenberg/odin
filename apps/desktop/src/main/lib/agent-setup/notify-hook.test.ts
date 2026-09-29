@@ -46,7 +46,7 @@ async function runNotifyHook(
 
 describe("getNotifyScriptContent", () => {
 	it("bumps the notify hook marker when hook semantics change", () => {
-		expect(NOTIFY_SCRIPT_MARKER).toBe("# Odin agent notification hook v8");
+		expect(NOTIFY_SCRIPT_MARKER).toBe("# Odin agent notification hook v9");
 	});
 
 	it("emits the v2 host-service payload with full agent identity", () => {
@@ -235,6 +235,39 @@ describe("getNotifyScriptContent", () => {
 		const stderr = await new Response(child.stderr).text();
 		expect(await child.exited).toBe(0);
 		expect(stderr).not.toContain("[notify-hook] event=");
+	});
+
+	it.each([
+		// A hook's detached `claude -p` (Popen start_new_session) has no claude
+		// above it to find, and no terminal either; a card's claude has its PTY.
+		["drops a lone claude with no terminal", [], false],
+		["keeps a lone claude on a terminal", ["script", "-q", "/dev/null"], true],
+	])("%s", async (_name, wrap, reported) => {
+		const hook = readNotifyHookTemplate()
+			.replaceAll("{{MARKER}}", NOTIFY_SCRIPT_MARKER)
+			.replaceAll("{{DEFAULT_PORT}}", "48763");
+		// Detached, so a claude running this suite isn't an ancestor to find.
+		const detach = ["perl", "-e", "fork and exit; exec @ARGV"];
+		const child = Bun.spawn({
+			cmd: [...detach, ...wrap, "bash", "-c", 'exec -a claude bash -c "$L1"'],
+			env: {
+				...process.env,
+				LC_ALL: "C",
+				ODIN_HOME_DIR: tmpdir(),
+				ODIN_PORT: "48763",
+				ODIN_HOST_AGENT_HOOK_URL: "",
+				ODIN_AGENT_ID: "claude",
+				ODIN_DEBUG_HOOKS: "1",
+				ODIN_HOOK_DEBUG_LOG: "/dev/null",
+				HOOK: hook,
+				L1: 'printf %s "$IN" | bash -c "$HOOK" 2>&1; true',
+				IN: JSON.stringify({ hook_event_name: "Stop", session_id: "s-1" }),
+			},
+			stdin: "ignore",
+			stdout: "pipe",
+		});
+		const output = await new Response(child.stdout).text();
+		expect(output.includes("[notify-hook] event=Stop ")).toBe(reported);
 	});
 
 	it("drops a claude event that carries no session_id", async () => {
