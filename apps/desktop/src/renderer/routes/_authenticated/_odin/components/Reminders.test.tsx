@@ -98,6 +98,16 @@ test("a row pings once a day, and again the next day it's still late", () => {
 	]);
 });
 
+test("pings wait for the configured time of day", () => {
+	const reminders = { "remind:a": { due: "2026-09-22", title: "a" } };
+	const early = new Date(2026, 8, 22, 8, 59).getTime();
+	const nine = new Date(2026, 8, 22, 9, 0).getTime();
+	expect(dueToFire(reminders, {}, early, "09:00")).toEqual([]);
+	expect(dueToFire(reminders, {}, nine, "09:00")).toEqual(["remind:a"]);
+	// Default is midnight: any time of the day.
+	expect(dueToFire(reminders, {}, early)).toEqual(["remind:a"]);
+});
+
 /**
  * An undated row offers a date, and the OS picker is the control. Only the
  * empty chip is rendered here: renderToStaticMarkup reads a zustand store
