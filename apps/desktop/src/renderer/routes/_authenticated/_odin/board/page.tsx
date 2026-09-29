@@ -536,7 +536,9 @@ function CdWorktreeButton({ card, shell }: { card: BoardCard; shell: Pane }) {
 							<span className="w-3 text-[#a394ff]">
 								{inside(here, pr.worktree) ? "✓" : ""}
 							</span>
-							<span className="shrink-0 font-semibold">#{pr.number}</span>
+							<span className="w-12 shrink-0 font-semibold tabular-nums">
+								#{pr.number}
+							</span>
 							<span className="flex min-w-0 flex-col">
 								<span className="truncate">
 									{pr.isMain ? "main checkout" : pr.worktree.split("/").pop()}
