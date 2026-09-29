@@ -1765,7 +1765,7 @@ function DevBoardPage() {
 		setDrawerCard(null);
 	};
 
-	const resumeCard = async (card: BoardCard) => {
+	const resumeCard = async (card: BoardCard, auto = false) => {
 		if (resumingPaneIds.includes(card.pane.id)) return;
 		// Never started: there's no conversation to resume, only the launch that
 		// was held back. Run it now — that's what "Start now" meant on the toast
@@ -1863,7 +1863,9 @@ function DevBoardPage() {
 				// Only "Claude has no such conversation" is lost. An unreadable or
 				// half-written transcript still belongs to this card — resume it.
 				if (String(error).includes("No transcript on this machine")) {
-					setLostCard(card);
+					// Nobody asked — don't pop a dialog at them; the card keeps
+					// its Resume button for when they do.
+					if (!auto) setLostCard(card);
 					return;
 				}
 			}
@@ -1985,6 +1987,53 @@ function DevBoardPage() {
 			toast.error(error instanceof Error ? error.message : String(error));
 		}
 	};
+
+	/**
+	 * A session whose PTY died mid-turn (app quit, daemon restart, sleep) comes
+	 * back on its own — the same Resume the "⏸ died mid-turn" button runs, which
+	 * reopens the conversation and types Continue. Only a dead PTY: a live one
+	 * with a bare shell is you Ctrl+C'ing out, and that's yours to decide.
+	 * One card at a time so each launch-gate check sees the last one's slot.
+	 */
+	// ponytail: once per pane per app run — a session that dies again on
+	// startup keeps its Resume button instead of looping.
+	const autoResumedRef = useRef(new Set<string>());
+	const resumeCardRef = useRef(resumeCard);
+	resumeCardRef.current = resumeCard;
+	// Covers the transcript check before resumeCard marks the card resuming.
+	const autoResumingRef = useRef(false);
+	// Re-runs the pick when a resume ends without touching any other dep
+	// (lost transcript, queued behind the gate).
+	const [autoResumeTick, setAutoResumeTick] = useState(0);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: autoResumeTick is the re-run trigger
+	useEffect(() => {
+		if (
+			!daemonSessions ||
+			resumingPaneIds.length > 0 ||
+			autoResumingRef.current
+		)
+			return;
+		const card = (cardsByStatus.get("idle") ?? []).find(
+			(c) =>
+				c.pane.status === "working" &&
+				!c.pane.odinQueued &&
+				!alivePaneIds.has(c.pane.id) &&
+				!autoResumedRef.current.has(c.pane.id),
+		);
+		if (!card) return;
+		autoResumedRef.current.add(card.pane.id);
+		autoResumingRef.current = true;
+		void resumeCardRef.current(card, true).finally(() => {
+			autoResumingRef.current = false;
+			setAutoResumeTick((tick) => tick + 1);
+		});
+	}, [
+		daemonSessions,
+		alivePaneIds,
+		cardsByStatus,
+		resumingPaneIds,
+		autoResumeTick,
+	]);
 
 	const handleNewSession = async (
 		rawPrompt: string,
