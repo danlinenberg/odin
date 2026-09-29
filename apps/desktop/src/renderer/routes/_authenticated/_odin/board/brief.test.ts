@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import {
+	actionItems,
 	artifactLink,
 	type BriefMessage,
 	elapsedLabel,
@@ -486,5 +487,31 @@ describe("artifactLink", () => {
 		);
 		expect(linkKind("https://claude.ai/artifact/x")).toBe("artifact");
 		expect(linkLabel("https://claude.ai/code/artifact/x")).toBe("Artifact");
+	});
+});
+
+describe("actionItems", () => {
+	const turn = (text: string) => ({
+		role: "assistant" as const,
+		text,
+		at: null,
+	});
+	it("lists the newest turn's items", () => {
+		expect(
+			actionItems([
+				turn("ACTION ITEMS\n1. old"),
+				turn(
+					"Done.\n\n## ACTION ITEMS\n1. Merge #12\n2) Restart Odin dev\n- Check it",
+				),
+			]),
+		).toEqual(["Merge #12", "Restart Odin dev", "Check it"]);
+	});
+	it("gives nothing for none or a missing section", () => {
+		expect(
+			actionItems([turn("Done.\n\nACTION ITEMS: none — shipped.")]),
+		).toEqual([]);
+		expect(
+			actionItems([turn("ACTION ITEMS\n1. x"), turn("Just chatting.")]),
+		).toEqual([]);
 	});
 });
