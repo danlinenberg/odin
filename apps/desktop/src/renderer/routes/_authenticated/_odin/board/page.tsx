@@ -1401,15 +1401,15 @@ function DevBoardPage() {
 	// Search also reaches the repos a session worked in and the PRs it opened
 	// ("odin" finds every card with a PR in danlinenberg/odin). Same queries,
 	// same options as the card's PR and repo pills, so these are cache hits;
-	// only fetched while you're searching.
-	const searchCandidates = search.trim()
-		? Object.values(panes).flatMap((pane) => {
-				const sessionId = pane.claudeSessionId ?? sessionIdByPane[pane.id];
-				return pane.type === "terminal" && sessionId
-					? [{ paneId: pane.id, sessionId }]
-					: [];
-			})
-		: [];
+	// transcripts are only fetched while you're searching. Repos always are —
+	// the Repos filter needs them.
+	const sessionCandidates = Object.values(panes).flatMap((pane) => {
+		const sessionId = pane.claudeSessionId ?? sessionIdByPane[pane.id];
+		return pane.type === "terminal" && sessionId
+			? [{ paneId: pane.id, sessionId }]
+			: [];
+	});
+	const searchCandidates = search.trim() ? sessionCandidates : [];
 	const transcriptQueries = electronTrpc.useQueries((t) =>
 		searchCandidates.map(({ sessionId }) =>
 			t.terminal.readClaudeTranscript(
@@ -1419,13 +1419,21 @@ function DevBoardPage() {
 		),
 	);
 	const repoQueries = electronTrpc.useQueries((t) =>
-		searchCandidates.map(({ sessionId }) =>
+		sessionCandidates.map(({ sessionId }) =>
 			t.repos.workingRepoName(
 				{ claudeSessionId: sessionId },
 				{ retry: false, staleTime: 60_000 },
 			),
 		),
 	);
+	// The repo the agent actually worked in — the launch dir is `~/dev` for
+	// every feed session. Same source as the card's RepoPill.
+	const workingRepoByPane: Record<string, string> = {};
+	sessionCandidates.forEach(({ paneId }, i) => {
+		const name = repoQueries[i]?.data?.name;
+		if (name) workingRepoByPane[paneId] = name;
+	});
+	const workingRepoKey = JSON.stringify(workingRepoByPane);
 	const workTextByPane: Record<string, string> = {};
 	searchCandidates.forEach(({ paneId }, i) => {
 		const messages = transcriptQueries[i]?.data?.messages;
@@ -1459,6 +1467,7 @@ function DevBoardPage() {
 		const tagCounts = new Map<string, number>();
 		const personCounts = new Map<string, number>();
 		const repoCounts = new Map<string, number>();
+		const workingRepo: Record<string, string> = JSON.parse(workingRepoKey);
 		for (const column of COLUMNS) map.set(column.status, []);
 		const needle = search.trim().toLowerCase();
 		const workText: Record<string, string> = JSON.parse(workTextKey);
@@ -1517,7 +1526,7 @@ function DevBoardPage() {
 				const person = pane.odinContact ?? contactByPane[pane.id] ?? null;
 				if (person)
 					personCounts.set(person, (personCounts.get(person) ?? 0) + 1);
-				const repo = repoName(card);
+				const repo = workingRepo[pane.id] ?? repoName(card);
 				repoCounts.set(repo, (repoCounts.get(repo) ?? 0) + 1);
 				if (
 					(boardFilter === "starred" && !pane.odinStarred) ||
@@ -1572,6 +1581,7 @@ function DevBoardPage() {
 		boardFilter,
 		search,
 		workTextKey,
+		workingRepoKey,
 		contactByPane,
 		titleByPane,
 		briefByPane,
