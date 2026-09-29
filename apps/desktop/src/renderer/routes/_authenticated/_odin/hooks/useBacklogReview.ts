@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
-import { useNextInLineDone } from "renderer/stores/next-in-line-done";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { keepDropped, type SweptRow } from "../review/verdicts";
@@ -149,26 +148,4 @@ export function usePeriodicSweep(): void {
 		const id = setInterval(tick, 60_000);
 		return () => clearInterval(id);
 	}, []);
-}
-
-/**
- * Done, whichever way it went: ✓ in Next in line, or Drop in Review. A Jira,
- * PR or Notion drop can't be cleared at its source, so without this it lived
- * on in All tasks and Next in line. By key, or by link for PRs, which the
- * feeds key by id and the sweep by repo#n.
- */
-export function useIsDone(): (item: {
-	key: string;
-	url?: string | null;
-}) => boolean {
-	const done = useNextInLineDone((s) => s.done);
-	const dropped = useBacklogReview((s) => s.dropped);
-	return useMemo(() => {
-		const keys = new Set(dropped.map((row) => row.key));
-		const urls = new Set(dropped.flatMap((row) => (row.url ? [row.url] : [])));
-		return (item) =>
-			item.key in done ||
-			keys.has(item.key) ||
-			(!!item.url && urls.has(item.url));
-	}, [done, dropped]);
 }

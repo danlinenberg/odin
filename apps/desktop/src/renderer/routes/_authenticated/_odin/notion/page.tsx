@@ -6,6 +6,7 @@ import { ConnectNotice } from "renderer/components/ConnectProvider/ConnectProvid
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useTabsStore } from "renderer/stores/tabs/store";
+import { DoneButton } from "../components/DoneButton";
 import {
 	FEED_LIST,
 	FEED_NOTICE_BOX,
@@ -26,16 +27,20 @@ import {
 	SyncButton,
 } from "../components/FeedChrome";
 import { FeedError } from "../components/FeedError";
-import {
-	HiddenToggle,
-	HideButton,
-	useHiddenFilter,
-} from "../components/HiddenItems";
 import { PersonChip } from "../components/PersonChip";
+import { useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePendingFocus } from "../hooks/usePendingFocus";
 import { buildRowPrompt, groupByStatus, isDoneish } from "./rows";
+
+/** A row as Done wants it: its All-feed key, and enough to list it later. */
+const doable = (row: { pageId: string; title: string; pageUrl: string }) => ({
+	key: `notion:${row.pageId}`,
+	title: row.title,
+	source: "Notion",
+	url: row.pageUrl,
+});
 
 export const Route = createFileRoute("/_authenticated/_odin/notion/")({
 	component: NotionPage,
@@ -81,12 +86,11 @@ function NotionPage() {
 	const openUrl = electronTrpc.external.openUrl.useMutation();
 	const panes = useTabsStore((s) => s.panes);
 
-	const hide = useHiddenFilter(
-		"notion",
-		rowsQuery.data?.rows ?? [],
-		(row) => row.pageId,
+	const { isDone, markDone } = useDone();
+	const rows = useMemo(
+		() => (rowsQuery.data?.rows ?? []).filter((row) => !isDone(doable(row))),
+		[rowsQuery.data, isDone],
 	);
-	const rows = hide.rows;
 	// Free text over the title and every field value on the row.
 	const [search, setSearch] = useState("");
 	const needle = search.trim().toLowerCase();
@@ -154,11 +158,6 @@ function NotionPage() {
 							label="Search Notion rows"
 						/>
 					)}
-					<HiddenToggle
-						count={hide.hiddenCount}
-						showing={hide.showHidden}
-						onToggle={() => hide.setShowHidden(!hide.showHidden)}
-					/>
 					<select
 						value={databaseId}
 						disabled={!config?.hasToken || setDatabase.isPending}
@@ -241,7 +240,6 @@ function NotionPage() {
 											activePaneId &&
 												"border-[#1a4029] border-l-2 border-l-[#3ecf8e] bg-[#0f1613]",
 											!activePaneId && isDoneish(status) && "opacity-60",
-											hide.isHidden(row) && "opacity-40",
 										)}
 									>
 										<div className="flex items-center gap-3">
@@ -307,10 +305,7 @@ function NotionPage() {
 													)}
 												</span>
 												<RowActions>
-													<HideButton
-														hidden={hide.isHidden(row)}
-														onClick={() => hide.toggle(row)}
-													/>
+													<DoneButton onClick={() => markDone(doable(row))} />
 												</RowActions>
 											</div>
 										</div>

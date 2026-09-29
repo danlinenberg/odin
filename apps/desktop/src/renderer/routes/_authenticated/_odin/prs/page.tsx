@@ -1,11 +1,11 @@
 import { toast } from "@odin/ui/sonner";
-import { cn } from "@odin/ui/utils";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { ConnectNotice } from "renderer/components/ConnectProvider/ConnectProvider";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useTabsStore } from "renderer/stores/tabs/store";
+import { DoneButton } from "../components/DoneButton";
 import {
 	FEED_LIST,
 	FEED_ROW,
@@ -29,16 +29,26 @@ import {
 } from "../components/FeedChrome";
 import { FeedError } from "../components/FeedError";
 import { isBot } from "../components/feed-counts";
-import {
-	HiddenToggle,
-	HideButton,
-	useHiddenFilter,
-} from "../components/HiddenItems";
 import { PersonChip } from "../components/PersonChip";
 import { buildReviewPrompt } from "../feed-prompts";
+import { useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePendingFocus } from "../hooks/usePendingFocus";
+
+/** A row as Done wants it: its All-feed key, and enough to list it later. */
+const doable = (pull: {
+	id: number | string;
+	repo: string;
+	number: number;
+	title: string;
+	url: string;
+}) => ({
+	key: `pr:${pull.id}`,
+	title: `${pull.repo}#${pull.number}: ${pull.title}`,
+	source: "GitHub",
+	url: pull.url,
+});
 
 export const Route = createFileRoute("/_authenticated/_odin/prs/")({
 	component: MyPullRequestsPage,
@@ -88,10 +98,12 @@ function MyPullRequestsPage() {
 
 	// Hidden PRs drop out first, so the bot count and tab counts agree with
 	// what's on screen.
-	const hide = useHiddenFilter("pr", pullsQuery.data?.pulls ?? [], (pull) =>
-		String(pull.id),
+	const { isDone, markDone } = useDone();
+	const allPulls = useMemo(
+		() =>
+			(pullsQuery.data?.pulls ?? []).filter((pull) => !isDone(doable(pull))),
+		[pullsQuery.data, isDone],
 	);
-	const allPulls = hide.rows;
 	const pulls = useMemo(
 		() => (showBots ? allPulls : allPulls.filter((p) => !isBot(p.author))),
 		[allPulls, showBots],
@@ -199,11 +211,6 @@ function MyPullRequestsPage() {
 							{showBots ? "hide" : "show"} bot PRs ({botCount})
 						</button>
 					)}
-					<HiddenToggle
-						count={hide.hiddenCount}
-						showing={hide.showHidden}
-						onToggle={() => hide.setShowHidden(!hide.showHidden)}
-					/>
 					{repos.length > 0 && (
 						<FeedSelect
 							value={repoFilter}
@@ -246,10 +253,7 @@ function MyPullRequestsPage() {
 					const activePaneId = activePaneForPull(pull.repo, pull.number);
 					const date = shortDate(pull.updated);
 					return (
-						<div
-							key={pull.id}
-							className={cn(FEED_ROW, hide.isHidden(pull) && "opacity-40")}
-						>
+						<div key={pull.id} className={FEED_ROW}>
 							<div className="flex items-center gap-3">
 								<div className="min-w-0 flex-1">
 									<div className="flex items-center gap-2">
@@ -325,10 +329,7 @@ function MyPullRequestsPage() {
 										)}
 									</span>
 									<RowActions>
-										<HideButton
-											hidden={hide.isHidden(pull)}
-											onClick={() => hide.toggle(pull)}
-										/>
+										<DoneButton onClick={() => markDone(doable(pull))} />
 									</RowActions>
 								</div>
 							</div>

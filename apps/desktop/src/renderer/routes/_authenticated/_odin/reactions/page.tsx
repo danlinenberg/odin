@@ -11,6 +11,7 @@ import { ConnectNotice } from "renderer/components/ConnectProvider/ConnectProvid
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
+import { useDoneStore } from "renderer/stores/done";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import {
 	FEED_LIST,
@@ -117,6 +118,7 @@ function ReactionsPage() {
 	const markStarted = electronTrpc.slack.markStarted.useMutation({
 		onSuccess: () => void reactions.refetch(),
 	});
+	const recordDone = useDoneStore((s) => s.setDone);
 	const setDone = electronTrpc.slack.setDone.useMutation({
 		onSuccess: () => void reactions.refetch(),
 		onError: (error) => toast.error(error.message),
@@ -386,9 +388,20 @@ function ReactionsPage() {
 										<button
 											type="button"
 											disabled={setDone.isPending}
-											onClick={() =>
-												setDone.mutate({ id: row.id, done: !row.done })
-											}
+											onClick={() => {
+												setDone.mutate({ id: row.id, done: !row.done });
+												// Into the one Done list too, so All tasks lists it.
+												recordDone(
+													`slack:${row.id}`,
+													row.done
+														? null
+														: {
+																title: row.title,
+																source: "Slack",
+																url: row.permalink ?? null,
+															},
+												);
+											}}
 											title={
 												row.done ? "Move back to the queue" : "Mark handled"
 											}
