@@ -445,18 +445,15 @@ function ShellsDot({ live, dead }: { live: number; dead: number }) {
 }
 
 /**
- * Jump the session's shell into the worktree the agent actually works in. The
- * shell opens where the session launched — for feed sessions the catch-all
- * directory — while the agent cd'd into a worktree the shell never saw.
+ * Where a session's shell really is, next to where the session's work is: its
+ * PRs' worktrees and the checkout it worked in.
  */
-function CdWorktreeButton({ card, shell }: { card: BoardCard; shell: Pane }) {
+function useShellPlace(card: BoardCard, shell: Pane) {
 	const sessionId = useCardSessionId(card);
 	const { data } = electronTrpc.repos.workingRepoName.useQuery(
 		{ claudeSessionId: sessionId ?? "" },
 		{ enabled: !!sessionId, retry: false, staleTime: 60_000 },
 	);
-	const write = electronTrpc.terminal.write.useMutation();
-	const updatePaneCwd = useTabsStore((s) => s.updatePaneCwd);
 	const panes = useTabsStore((s) => s.panes);
 	// Live PTYs and where each one really is. zsh here sends no OSC-7, so a
 	// pane's `cwd` only knows where Odin opened it; the process table knows more.
@@ -490,6 +487,58 @@ function CdWorktreeButton({ card, shell }: { card: BoardCard; shell: Pane }) {
 		);
 		return { live: liveHere.length, dead: dead.length };
 	};
+	const workplaces = [
+		...(data?.pullRequests ?? []).map((pr) => pr.worktree),
+		data?.worktree,
+		data?.checkout,
+	].filter((dir): dir is string => !!dir);
+	const atWork = workplaces.some((root) => inside(here, root));
+	return { data, here, inside, shellsIn, atWork };
+}
+
+/**
+ * ❯ Shell's dot: green when the shell is live and in this session's work,
+ * amber when it's live but somewhere else, red when its PTY is gone.
+ */
+function ShellDot({
+	card,
+	shell,
+	alive,
+}: {
+	card: BoardCard;
+	shell: Pane;
+	alive: boolean;
+}) {
+	const { here, atWork } = useShellPlace(card, shell);
+	const where = here?.replace(/^\/Users\/[^/]+/, "~");
+	const [title, color] = !alive
+		? ["Disconnected — open it to start a new one", "bg-[#f0647a]"]
+		: atWork
+			? [`Live, in ${where}`, "bg-[#3ecf8e]"]
+			: [
+					`Live, but in ${where ?? "an unknown directory"} — not in this session's worktree`,
+					"bg-[#f5b83d]",
+				];
+	return (
+		<span
+			title={title}
+			className={cn(
+				"ml-1 inline-block size-[6px] rounded-full align-middle",
+				color,
+			)}
+		/>
+	);
+}
+
+/**
+ * Jump the session's shell into the worktree the agent actually works in. The
+ * shell opens where the session launched — for feed sessions the catch-all
+ * directory — while the agent cd'd into a worktree the shell never saw.
+ */
+function CdWorktreeButton({ card, shell }: { card: BoardCard; shell: Pane }) {
+	const { data, here, inside, shellsIn } = useShellPlace(card, shell);
+	const write = electronTrpc.terminal.write.useMutation();
+	const updatePaneCwd = useTabsStore((s) => s.updatePaneCwd);
 	const cd = (dir: string) => {
 		write.mutate({
 			paneId: shell.id,
@@ -516,13 +565,6 @@ function CdWorktreeButton({ card, shell }: { card: BoardCard; shell: Pane }) {
 						<span className="truncate">
 							{current ? `#${current.number}` : `${prs.length} PRs`}
 						</span>
-						{!current && (
-							// The shell is live (❯ Shell's dot) but in none of these worktrees.
-							<span
-								title="The shell isn't in any of these PRs' worktrees"
-								className="inline-block size-[6px] rounded-full bg-[#f5b83d]"
-							/>
-						)}
 						<span className="text-[10px]">▾</span>
 					</button>
 				</DropdownMenuTrigger>
@@ -3088,11 +3130,10 @@ function DevBoardPage() {
 									>
 										❯ Shell
 										{drawerShell && (
-											<span
-												className={cn(
-													"ml-1 inline-block size-[6px] rounded-full align-middle",
-													shellRunning ? "bg-[#3ecf8e]" : "bg-[#f0647a]",
-												)}
+											<ShellDot
+												card={drawerCard}
+												shell={drawerShell}
+												alive={shellRunning}
 											/>
 										)}
 									</button>
