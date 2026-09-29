@@ -411,6 +411,37 @@ function RepoPill({ card }: { card: BoardCard }) {
 }
 
 /**
+ * Jump the session's shell into the checkout the agent actually works in. The
+ * shell opens where the session launched — for feed sessions the catch-all
+ * directory — while the agent cd'd into a worktree the shell never saw.
+ */
+function CdWorktreeButton({ card, shell }: { card: BoardCard; shell: Pane }) {
+	const sessionId = useCardSessionId(card);
+	const { data } = electronTrpc.repos.workingRepoName.useQuery(
+		{ claudeSessionId: sessionId ?? "" },
+		{ enabled: !!sessionId, retry: false, staleTime: 60_000 },
+	);
+	const write = electronTrpc.terminal.write.useMutation();
+	const checkout = data?.checkout;
+	if (!checkout || checkout === shell.cwd) return null;
+	return (
+		<button
+			type="button"
+			title={`cd ${checkout}`}
+			onClick={() =>
+				write.mutate({
+					paneId: shell.id,
+					data: `cd '${checkout.replaceAll("'", "'\\''")}'\r`,
+				})
+			}
+			className="shrink-0 rounded-md bg-[#1f1f27] px-2 py-1 text-xs font-semibold text-[#a5a5b3] hover:text-[#f5f5f7]"
+		>
+			cd {checkout.split("/").pop()}
+		</button>
+	);
+}
+
+/**
  * How long this card has been sitting — measured from the last message in the
  * conversation, which is the thing you actually want to know ("nobody has
  * touched this in two days"). The board's own "in this status since" clock is
@@ -2913,6 +2944,9 @@ function DevBoardPage() {
 											<span className="ml-1 inline-block size-[6px] rounded-full bg-[#3ecf8e] align-middle" />
 										)}
 									</button>
+								)}
+								{isShellOpen && drawerShell && (
+									<CdWorktreeButton card={drawerCard} shell={drawerShell} />
 								)}
 								<button
 									type="button"
