@@ -1,6 +1,7 @@
 import type { OdinSource } from "renderer/hooks/useLaunchTaskSession";
 import type { FeedPath } from "../components/feed-counts";
 import { isBot } from "../components/feed-counts";
+import { isJunkEmail } from "../email/junk";
 import { buildIssuePrompt, buildReviewPrompt } from "../feed-prompts";
 import {
 	type OdinTask,
@@ -147,6 +148,7 @@ export function allItems(input: {
 		subject: string;
 		snippet: string;
 		from: string | null;
+		fromEmail?: string | null;
 		at: string | null;
 	}[];
 }): AllItem[] {
@@ -300,31 +302,34 @@ export function allItems(input: {
 				},
 			}),
 		),
-		...(input.emails ?? []).map(
-			(email): AllItem => ({
-				key: `email:${email.id}`,
-				source: "Email",
-				to: "/email",
-				title: email.subject,
-				url: email.url,
-				person: email.from,
-				status: null,
-				priority: null,
-				urgency: null,
-				context: null,
-				at: ms(email.at),
-				dueDate: null,
-				mention: email.snippet
-					? { author: email.from, text: email.snippet }
-					: null,
-				launch: {
-					key: email.id,
+		// Junk (alerts, receipts, newsletters) stays in the Email tab behind "Show junk".
+		...(input.emails ?? [])
+			.filter((email) => !isJunkEmail(email))
+			.map(
+				(email): AllItem => ({
+					key: `email:${email.id}`,
+					source: "Email",
+					to: "/email",
 					title: email.subject,
-					description: `Email from ${email.from ?? "unknown"}: ${email.subject}\n${email.snippet}\n${email.url}`,
-					contact: email.from,
-					brief: `${email.subject}\n${email.url}`,
-				},
-			}),
-		),
+					url: email.url,
+					person: email.from,
+					status: null,
+					priority: null,
+					urgency: null,
+					context: null,
+					at: ms(email.at),
+					dueDate: null,
+					mention: email.snippet
+						? { author: email.from, text: email.snippet }
+						: null,
+					launch: {
+						key: email.id,
+						title: email.subject,
+						description: `Email from ${email.from ?? "unknown"}: ${email.subject}\n${email.snippet}\n${email.url}`,
+						contact: email.from,
+						brief: `${email.subject}\n${email.url}`,
+					},
+				}),
+			),
 	].sort((a, b) => b.at - a.at);
 }

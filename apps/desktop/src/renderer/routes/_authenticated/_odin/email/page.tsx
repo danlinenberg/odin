@@ -1,11 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
 import { ConnectNotice } from "renderer/components/ConnectProvider/ConnectProvider";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { DoneButton } from "../components/DoneButton";
 import {
 	FEED_LIST,
 	FEED_ROW,
+	FeedDivider,
 	FeedHeader,
+	FilterPill,
 	META_DATE,
 	META_PERSON,
 	ROW_LINK_BUTTON,
@@ -16,26 +19,46 @@ import {
 import { FeedError } from "../components/FeedError";
 import { useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
+import { isJunkEmail } from "./junk";
 
 export const Route = createFileRoute("/_authenticated/_odin/email/")({
 	component: EmailPage,
 });
 
 /**
- * Unread Gmail inbox mail. Read-only:
+ * Unread Gmail inbox mail, junk (mail a machine sent) hidden until "All". Read-only:
  * Open takes you to the thread, Done takes the row out of Odin (not Gmail).
  */
 function EmailPage() {
 	const { emails, workConfig, syncAll, isSyncing } = useOdinFeeds();
 	const { isDone, markDone } = useDone();
 	const openUrl = electronTrpc.external.openUrl.useMutation();
-	const rows = (emails.data?.emails ?? []).filter(
+	// ponytail: local state — opens on the interesting mail every visit.
+	const [showJunk, setShowJunk] = useState(false);
+	const open = (emails.data?.emails ?? []).filter(
 		(email) => !isDone({ key: `email:${email.id}`, url: email.url }),
 	);
+	const junkCount = open.filter(isJunkEmail).length;
+	const rows = showJunk ? open : open.filter((email) => !isJunkEmail(email));
 
 	return (
 		<div className="flex h-full flex-col">
 			<FeedHeader>
+				<FeedDivider />
+				<FilterPill
+					active={!showJunk}
+					count={open.length - junkCount}
+					onClick={() => setShowJunk(false)}
+				>
+					Interesting
+				</FilterPill>
+				<FilterPill
+					active={showJunk}
+					count={open.length}
+					onClick={() => setShowJunk(true)}
+				>
+					All
+				</FilterPill>
 				<div className="ml-auto flex items-center gap-2.5">
 					<SyncButton isSyncing={isSyncing} onClick={() => void syncAll()} />
 				</div>
@@ -60,7 +83,9 @@ function EmailPage() {
 				)}
 				{emails.data && rows.length === 0 && (
 					<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
-						No unread mail 🎉
+						{junkCount > 0 && !showJunk
+							? `Nothing interesting — ${junkCount} junk hidden`
+							: "No unread mail 🎉"}
 					</div>
 				)}
 				{rows.map((email) => (

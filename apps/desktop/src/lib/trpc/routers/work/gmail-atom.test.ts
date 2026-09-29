@@ -33,6 +33,7 @@ describe("parseGmailAtom", () => {
 				subject: 'Q3 & Q4 "plan"',
 				snippet: "Can you look at this by Friday?",
 				from: "Ann Lee",
+				fromEmail: "ann@example.com",
 				at: "2026-09-29T09:59:00Z",
 			},
 			{
@@ -41,6 +42,7 @@ describe("parseGmailAtom", () => {
 				subject: "(no subject)",
 				snippet: "",
 				from: "bot@example.com",
+				fromEmail: "bot@example.com",
 				at: "2026-09-28T10:00:00Z",
 			},
 		]);

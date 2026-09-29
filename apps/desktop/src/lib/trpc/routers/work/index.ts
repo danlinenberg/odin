@@ -159,6 +159,8 @@ export interface EmailRow {
 	subject: string;
 	snippet: string;
 	from: string | null;
+	/** The sender's address — what tells a person from a mailer. */
+	fromEmail: string | null;
 	at: string | null;
 }
 
@@ -208,6 +210,9 @@ export function parseGmailAtom(xml: string): EmailRow[] {
 				entry.match(new RegExp(`<${name}>([\\s\\S]*?)</${name}>`))?.[1] ?? "",
 			).trim();
 		const author = entry.match(/<author>([\s\S]*?)<\/author>/)?.[1] ?? "";
+		const fromEmail =
+			unescapeXml(author.match(/<email>([\s\S]*?)<\/email>/)?.[1] ?? "") ||
+			null;
 		return {
 			id: tag("id"),
 			url: unescapeXml(entry.match(/<link[^>]*href="([^"]*)"/)?.[1] ?? ""),
@@ -215,8 +220,8 @@ export function parseGmailAtom(xml: string): EmailRow[] {
 			snippet: tag("summary"),
 			from:
 				unescapeXml(author.match(/<name>([\s\S]*?)<\/name>/)?.[1] ?? "") ||
-				unescapeXml(author.match(/<email>([\s\S]*?)<\/email>/)?.[1] ?? "") ||
-				null,
+				fromEmail,
+			fromEmail,
 			at: tag("issued") || tag("modified") || null,
 		};
 	});
