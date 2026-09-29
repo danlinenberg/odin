@@ -18,7 +18,33 @@ import { usePendingFocus } from "../hooks/usePendingFocus";
  * the minute ticker (layout's useDueReminders) sends the notification; this
  * file adds the resume info and the strip that brings it back.
  */
-const PREFIX = "remind:";
+export const PREFIX = "remind:";
+
+/** Resume a reminded session into a fresh pane and drop the reminder. */
+export function useResumeReminder() {
+	const clear = useReminders((s) => s.clear);
+	const { ensureWorkspace } = useOdinWorkspace();
+	const { launch, isLaunching } = useLaunchTaskSession();
+	const navigate = useNavigate();
+	const resume = async (key: string) => {
+		const r = useReminders.getState().reminders[key];
+		if (!r?.resume) return;
+		const ensured = await ensureWorkspace(r.resume.cwd);
+		if (!ensured.ok) return void toast.error(ensured.error);
+		const result = await launch({
+			workspaceId: ensured.workspace.id,
+			title: r.title,
+			description: null,
+			resumeSessionId: r.resume.sessionId,
+			repoPath: r.resume.cwd,
+		});
+		if (!result.ok) return void toast.error(result.error);
+		clear(key);
+		usePendingFocus.getState().focus(result.paneId);
+		navigate({ to: "/board" });
+	};
+	return { resume, isLaunching };
+}
 
 export function remindSession(
 	session: { sessionId: string; cwd: string; title: string; brief?: string },
@@ -92,32 +118,12 @@ export function RemindButton({
 export function SessionReminders() {
 	const reminders = useReminders((s) => s.reminders);
 	const clear = useReminders((s) => s.clear);
-	const { ensureWorkspace } = useOdinWorkspace();
-	const { launch, isLaunching } = useLaunchTaskSession();
-	const navigate = useNavigate();
+	const { resume, isLaunching } = useResumeReminder();
 	const now = Date.now();
 	const due = Object.entries(reminders).filter(
 		([key, r]) => key.startsWith(PREFIX) && r.resume && isDue(r.due, now),
 	);
 	if (!due.length) return null;
-
-	const resume = async (key: string) => {
-		const r = useReminders.getState().reminders[key];
-		if (!r?.resume) return;
-		const ensured = await ensureWorkspace(r.resume.cwd);
-		if (!ensured.ok) return void toast.error(ensured.error);
-		const result = await launch({
-			workspaceId: ensured.workspace.id,
-			title: r.title,
-			description: null,
-			resumeSessionId: r.resume.sessionId,
-			repoPath: r.resume.cwd,
-		});
-		if (!result.ok) return void toast.error(result.error);
-		clear(key);
-		usePendingFocus.getState().focus(result.paneId);
-		navigate({ to: "/board" });
-	};
 
 	return (
 		<div className="mx-[18px] mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-[#4a3d1a] bg-[#1d190f] px-3 py-2 text-[12px]">

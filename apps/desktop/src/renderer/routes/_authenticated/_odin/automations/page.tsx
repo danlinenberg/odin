@@ -17,6 +17,12 @@ import {
 	WEEKDAY_NAMES,
 } from "shared/cron";
 import {
+	PREFIX as REMIND_PREFIX,
+	RemindButton,
+	remindSession,
+	useResumeReminder,
+} from "../board/SessionReminders";
+import {
 	FEED_LIST,
 	FEED_ROW,
 	ROW_LIVE_BUTTON,
@@ -24,6 +30,7 @@ import {
 	ROW_PRIMARY_BUTTON,
 	RowActions,
 } from "../components/FeedChrome";
+import { dueLabel, isDue, useReminders } from "../components/Reminders";
 import { matchRepos, repoLabel } from "../components/repo-picker";
 import {
 	BuiltinChip,
@@ -567,7 +574,9 @@ function RulesPanel() {
  * a cron), so nothing here needed a table, a migration or a sync path.
  */
 function AutomationsPage() {
-	const [view, setView] = useState<"schedules" | "rules">("schedules");
+	const [view, setView] = useState<"schedules" | "rules" | "reminders">(
+		"schedules",
+	);
 	return (
 		<div className="flex h-full flex-col">
 			<div className="flex items-center gap-2.5 border-b border-[#25252e] px-[18px] py-2.5">
@@ -584,6 +593,7 @@ function AutomationsPage() {
 						[
 							["schedules", "Schedules"],
 							["rules", "Rules"],
+							["reminders", "Reminders"],
 						] as const
 					).map(([value, label]) => (
 						<button
@@ -606,10 +616,134 @@ function AutomationsPage() {
 				<span className="text-[12px] text-[#8a8a97]">
 					{view === "schedules"
 						? "tasks that start themselves, on a cron — while Odin is open"
-						: "what every session Odin starts should do when something comes up"}
+						: view === "rules"
+							? "what every session Odin starts should do when something comes up"
+							: "sessions you snoozed with Remind me — they come back on their day"}
 				</span>
 			</div>
-			{view === "schedules" ? <SchedulesPanel /> : <RulesPanel />}
+			{view === "schedules" ? (
+				<SchedulesPanel />
+			) : view === "rules" ? (
+				<RulesPanel />
+			) : (
+				<RemindersPanel />
+			)}
+		</div>
+	);
+}
+
+/**
+ * Every "Remind me" session, soonest first — the board only shows them once
+ * they're due. Resume early, move the day, or drop it.
+ */
+function RemindersPanel() {
+	const reminders = useReminders((s) => s.reminders);
+	const notifyAt = useReminders((s) => s.notifyAt);
+	const clear = useReminders((s) => s.clear);
+	const { resume, isLaunching } = useResumeReminder();
+	const now = Date.now();
+	const rows = Object.entries(reminders)
+		.filter(([key, r]) => key.startsWith(REMIND_PREFIX) && r.resume)
+		.toSorted(([, a], [, b]) => a.due.localeCompare(b.due));
+	return (
+		<div className={FEED_LIST}>
+			{rows.length === 0 && (
+				<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
+					No reminders. Hover a session on the board and click the bell to
+					snooze it to a day.
+				</div>
+			)}
+			{rows.map(([key, r]) => (
+				<div
+					key={key}
+					className={cn(
+						FEED_ROW,
+						"border-l-2",
+						isDue(r.due, now) ? "border-l-[#f5b83d]" : "border-l-[#3a3a46]",
+					)}
+				>
+					<div className="flex items-start gap-3">
+						<div className="min-w-0 flex-1">
+							<span
+								dir="auto"
+								className="block truncate text-[13px] font-semibold text-[#f5f5f7]"
+							>
+								{r.title}
+							</span>
+							{r.resume?.brief && (
+								<span
+									dir="auto"
+									className="mt-1 block truncate text-[11.5px] text-[#a5a5b3]"
+								>
+									{r.resume.brief.replace(/\s+/g, " ")}
+								</span>
+							)}
+							<div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px]">
+								<span
+									className={cn(
+										"rounded-[5px] px-[7px] py-[1px] font-semibold",
+										isDue(r.due, now)
+											? "bg-[#221d12] text-[#f5b83d]"
+											: "bg-[#1f1f27] text-[#a5a5b3]",
+									)}
+								>
+									{isDue(r.due, now)
+										? "Due now — on the board"
+										: `${dueLabel(r.due, now)} at ${notifyAt}`}
+								</span>
+								<span className={ROW_META}>
+									{r.resume?.cwd.split("/").pop()}
+								</span>
+								{r.resume?.setAt && (
+									<span className={ROW_META}>
+										snoozed{" "}
+										{new Date(r.resume.setAt).toLocaleString(undefined, {
+											month: "short",
+											day: "numeric",
+											hour: "2-digit",
+											minute: "2-digit",
+										})}
+									</span>
+								)}
+							</div>
+						</div>
+						<div className="flex shrink-0 items-center gap-1.5">
+							<button
+								type="button"
+								disabled={isLaunching}
+								onClick={() => void resume(key)}
+								className={ROW_PRIMARY_BUTTON}
+							>
+								↻ Resume now
+							</button>
+							<RemindButton
+								label="Move"
+								onPick={(day) =>
+									r.resume &&
+									remindSession(
+										{
+											sessionId: r.resume.sessionId,
+											cwd: r.resume.cwd,
+											title: r.title,
+											brief: r.resume.brief,
+										},
+										day,
+									)
+								}
+								className="rounded-[7px] px-2 py-1 text-xs font-semibold text-[#8a8a97] hover:bg-[#1f1f27] hover:text-[#f5f5f7]"
+							/>
+							<button
+								type="button"
+								title="Drop this reminder"
+								onClick={() => clear(key)}
+								className="rounded-[7px] px-2 py-1 text-xs font-semibold text-[#8a8a97] hover:bg-[#1f1f27] hover:text-[#f5f5f7]"
+							>
+								✕
+							</button>
+						</div>
+					</div>
+				</div>
+			))}
 		</div>
 	);
 }
