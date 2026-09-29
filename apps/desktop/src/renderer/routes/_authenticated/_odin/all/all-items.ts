@@ -59,6 +59,8 @@ export interface AllItem {
 	at: number;
 	/** The date the source itself wants it by — Jira's Due Date. Ours overrides it. */
 	dueDate: string | null;
+	/** The comment that put it here — Jira's @-mention rows. Null elsewhere. */
+	mention: { author: string | null; text: string } | null;
 	/** What to hand `launch` when Start session is clicked on this row. */
 	launch: AllLaunch;
 }
@@ -115,6 +117,7 @@ export function allItems(input: {
 		reporter?: string | null;
 		updated: string | null;
 		dueDate?: string | null;
+		mention?: { author: string | null; text: string } | null;
 	}[];
 	pulls: {
 		id: number;
@@ -153,6 +156,7 @@ export function allItems(input: {
 				urgency: urgencyOf(PRIORITY_LABELS[priorityOf(task)]),
 				at: task.createdAt,
 				dueDate: null,
+				mention: null,
 				launch: {
 					key: task.id,
 					title: task.title,
@@ -179,6 +183,7 @@ export function allItems(input: {
 					context: row.channelName,
 					at: ms(row.postedAt),
 					dueDate: null,
+					mention: null,
 					launch: {
 						key: row.id,
 						title: row.title,
@@ -211,6 +216,7 @@ export function allItems(input: {
 				context: issue.project,
 				at: ms(issue.updated),
 				dueDate: issue.dueDate ?? null,
+				mention: issue.mention ?? null,
 				launch: {
 					key: issue.key,
 					title: `${issue.key}: ${issue.title}`,
@@ -240,6 +246,7 @@ export function allItems(input: {
 					context: pull.repo.split("/").at(-1) ?? pull.repo,
 					at: ms(pull.updated),
 					dueDate: null,
+					mention: null,
 					launch: {
 						key: pull.url,
 						title: `${pull.repo}#${pull.number}: ${pull.title}`,
@@ -269,6 +276,7 @@ export function allItems(input: {
 				context: row.channel ?? null,
 				at: ms(row.updatedAt ?? row.date),
 				dueDate: null,
+				mention: null,
 				launch: {
 					key: row.pageId,
 					title: row.title,

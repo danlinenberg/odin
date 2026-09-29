@@ -194,3 +194,12 @@ test("a PR hides under the same key its own feed hides it with", () => {
 	const pr = allItems(feeds).find((item) => item.source === "GitHub");
 	expect(pr?.key).toBe("pr:101");
 });
+
+test("a Jira mention row keeps the comment that put it there", () => {
+	const mention = { author: "Tamir", text: "@Dan any ETA?" };
+	const items = allItems({ ...feeds, jira: [{ ...feeds.jira[0], mention }] });
+	expect(items.find((item) => item.source === "Jira")?.mention).toEqual(
+		mention,
+	);
+	expect(allItems(feeds).every((item) => item.mention === null)).toBe(true);
+});
