@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useTabsStore } from "renderer/stores/tabs/store";
+import { useSearchHotkey } from "../components/FeedChrome";
 import { PersonChip } from "../components/PersonChip";
 import { Highlight, TranscriptView } from "../components/TranscriptView";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
@@ -68,7 +69,7 @@ function SessionsPage() {
 	const [openRow, setOpenRow] = useState<SessionRow | null>(null);
 	const { ensureWorkspace } = useOdinWorkspace();
 	const { launch, isLaunching } = useLaunchTaskSession();
-	const inputRef = useRef<HTMLInputElement>(null);
+	const { ref: inputRef, hint } = useSearchHotkey();
 
 	// Typing shouldn't fire a ~400ms full-store scan per keystroke.
 	useEffect(() => {
@@ -188,7 +189,7 @@ function SessionsPage() {
 					ref={inputRef}
 					value={draft}
 					onChange={(event) => setDraft(event.target.value)}
-					placeholder="Keywords or a person — any words you remember, best matches first (e.g. datadog cost)"
+					placeholder={`Keywords or a person — any words you remember, best matches first (e.g. datadog cost)${hint}`}
 					className="h-8 min-w-0 flex-1 rounded-lg border border-[#25252e] bg-[#111114] px-3 text-[12.5px] text-[#f5f5f7] outline-none placeholder:text-[#8a8a97] focus:border-[#a394ff]"
 				/>
 				{draft && (

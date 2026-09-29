@@ -12,6 +12,7 @@ import {
 	ROW_LINK_BUTTON,
 	ROW_META,
 	ROW_PRIMARY_BUTTON,
+	useSearchHotkey,
 } from "../components/FeedChrome";
 import { useBacklog } from "../hooks/builtin-automations";
 import { useActiveSessions } from "../hooks/useActiveSessions";
@@ -85,6 +86,7 @@ function ReviewPage() {
 	const [decided, setDecided] = useState<Record<string, true>>({});
 	const [showAll, setShowAll] = useState(false);
 	const [search, setSearch] = useState("");
+	const searchHotkey = useSearchHotkey();
 
 	const rows = useMemo(() => reviewRows(swept, backlog), [swept, backlog]);
 	const counts = countByVerdict(rows);
@@ -179,6 +181,7 @@ function ReviewPage() {
 				{rows.length > 0 && (
 					<>
 						<input
+							ref={searchHotkey.ref}
 							type="search"
 							value={search}
 							onChange={(e) => setSearch(e.target.value)}
@@ -187,7 +190,7 @@ function ReviewPage() {
 								setSearch("");
 								e.currentTarget.blur();
 							}}
-							placeholder="Search title or person"
+							placeholder={`Search title or person${searchHotkey.hint}`}
 							className={cn(
 								"w-[200px] rounded-full border bg-[#16161b] px-2.5 py-1 text-[12px] text-[#f5f5f7] outline-none placeholder:text-[#6b6b78] focus:border-[#a394ff]",
 								search ? "border-[#a394ff]" : "border-[#25252e]",
