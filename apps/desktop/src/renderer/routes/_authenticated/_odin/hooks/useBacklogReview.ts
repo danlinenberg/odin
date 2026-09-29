@@ -2,13 +2,14 @@ import { useCallback, useEffect, useRef } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { SweptRow } from "../review/verdicts";
+import { keepDropped, type SweptRow } from "../review/verdicts";
 import { useBacklog } from "./builtin-automations";
 
 /** A row dropped from Review, as it was swept, and when. */
 export type DroppedRow = SweptRow & { droppedAt: number };
 
-// ponytail: fixed cap, "recently" means the last 100 drops, not a time window.
+// ponytail: fixed cap on drops the sweep no longer lists. Ones it still lists
+// are always kept (see keepDropped), or a reload would put them back.
 const DROPPED_KEPT = 100;
 
 /**
@@ -27,7 +28,7 @@ export const useBacklogReview = create<{
 	sweeping: boolean;
 	/** How often the shell sweeps on its own, hours. 0 turns the clock off. */
 	sweepEveryHours: number;
-	/** What was dropped from Review, newest first. Capped, not cleared by a sweep. */
+	/** What was dropped from Review, newest first. Not cleared by a sweep; see keepDropped. */
 	dropped: DroppedRow[];
 	noteDropped: (row: SweptRow) => void;
 	unnoteDropped: (key: string) => void;
@@ -43,17 +44,26 @@ export const useBacklogReview = create<{
 			sweepEveryHours: 1,
 			dropped: [],
 			noteDropped: (row) =>
-				set(({ dropped }) => ({
-					dropped: [
-						{ ...row, droppedAt: Date.now() },
-						...dropped.filter((d) => d.key !== row.key),
-					].slice(0, DROPPED_KEPT),
+				set(({ dropped, swept }) => ({
+					dropped: keepDropped(
+						[
+							{ ...row, droppedAt: Date.now() },
+							...dropped.filter((d) => d.key !== row.key),
+						],
+						swept,
+						DROPPED_KEPT,
+					),
 				})),
 			unnoteDropped: (key) =>
 				set(({ dropped }) => ({
 					dropped: dropped.filter((d) => d.key !== key),
 				})),
-			record: (swept) => set({ swept, sweptAt: Date.now() }),
+			record: (swept) =>
+				set(({ dropped }) => ({
+					swept,
+					sweptAt: Date.now(),
+					dropped: keepDropped(dropped, swept, DROPPED_KEPT),
+				})),
 			setSweepEveryHours: (sweepEveryHours) => set({ sweepEveryHours }),
 			forget: () => set({ swept: [], sweptAt: null }),
 		}),

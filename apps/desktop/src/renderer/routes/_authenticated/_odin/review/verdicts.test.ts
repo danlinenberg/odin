@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { BacklogItem } from "../hooks/builtin-automations";
 import {
 	countByVerdict,
+	keepDropped,
 	reviewRows,
 	type SweptRow,
 	sessionFor,
@@ -90,5 +91,13 @@ describe("sessionFor", () => {
 		const live = [{ id: "p", odinTaskTitle: "BUG-10: other" }];
 		expect(sessionFor(row("jira:BUG-1"), live, none)).toBeNull();
 		expect(sessionFor(row("task:a"), [], new Map([["a", "p"]]))).toBeNull();
+	});
+});
+
+describe("keepDropped", () => {
+	test("a dropped row the sweep still lists outlives the cap", () => {
+		const dropped = ["a", "b", "c", "d"].map((key) => ({ key }));
+		const kept = keepDropped(dropped, [{ key: "c" }, { key: "d" }], 1);
+		expect(kept.map((row) => row.key)).toEqual(["a", "c", "d"]);
 	});
 });
