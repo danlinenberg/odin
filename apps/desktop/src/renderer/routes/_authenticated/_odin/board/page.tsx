@@ -2533,14 +2533,14 @@ function DevBoardPage() {
 																	});
 																}}
 																className={cn(
-																	"group cursor-pointer rounded-[10px] border bg-(--tint)/2 px-3 py-2.5 text-left transition-colors hover:border-[#34343f] hover:bg-(--tint)/10",
+																	"group cursor-pointer rounded-[10px] border bg-(--tint)/5 px-3 py-2.5 text-left transition-colors hover:border-[#34343f] hover:bg-(--tint)/10",
 																	// The card reads as a faint shade of its column's status hue (see the
 																	// style below). A failure still earns its red edge.
 																	card.pane.status === "failed"
 																		? "border-[#5a2733]"
 																		: "border-[#26262c]",
 																)}
-																// The column dot's own colour: 2% alpha at rest, 10% on hover.
+																// The column dot's own colour: 5% alpha at rest, 10% on hover.
 																style={
 																	{
 																		"--tint": PANE_STATUS[card.status].dot,
