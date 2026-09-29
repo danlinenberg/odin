@@ -131,18 +131,19 @@ function ReviewPage() {
 	const drop = async (row: ReviewRow) => {
 		const [kind, ...rest] = row.key.split(":");
 		const id = rest.join(":");
+		// Off the screen first: the Slack write plus the reactions refetch take
+		// seconds, and the row sat there the whole time. Put back on failure.
+		setDecided((prev) => ({ ...prev, [row.key]: true }));
 		if (kind === "task") remove(id);
 		else if (kind === "slack") {
 			try {
 				await setSlackDone.mutateAsync({ id, done: true });
-				await utils.slack.reactions.invalidate();
+				void utils.slack.reactions.invalidate();
 			} catch (error) {
-				return toast.error(
-					error instanceof Error ? error.message : String(error),
-				);
+				setDecided(({ [row.key]: _, ...prev }) => prev);
+				toast.error(error instanceof Error ? error.message : String(error));
 			}
 		}
-		setDecided((prev) => ({ ...prev, [row.key]: true }));
 	};
 
 	const dropAll = async () => {
