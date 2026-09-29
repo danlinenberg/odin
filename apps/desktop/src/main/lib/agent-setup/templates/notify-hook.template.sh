@@ -89,17 +89,20 @@ fi
 # Start/Stop land on that card too — and its Stop, with no ACTION ITEMS of its
 # own, turns the card's Needs you into Done a few seconds after the real turn
 # ended. Walk up to the terminal host: a second claude above the first means
-# this one is somebody's helper.
+# this one is somebody's helper. So does a claude with no terminal of its own:
+# a card's claude always runs in its PTY, and a helper a hook detached with
+# setsid has no claude above it left to find.
 spawned_by_another_claude() {
-  local pid=$PPID seen=0 line ppid args first i
+  local pid=$PPID seen=0 line ppid tty args first i
   for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
-    line=$(ps -o ppid=,args= -p "$pid" 2>/dev/null) || return 1
-    read -r ppid args <<< "$line"
+    line=$(ps -o ppid=,tty=,args= -p "$pid" 2>/dev/null) || return 1
+    read -r ppid tty args <<< "$line"
     first=${args%% *}
     case "$args" in *.app/Contents/MacOS/*) return 1 ;; esac
     case "${first##*/}:$args" in
       claude:*|node:*claude-code/cli*)
         [ "$seen" = 1 ] && return 0
+        case "$tty" in ""|"?"|"??") return 0 ;; esac
         seen=1
         ;;
     esac
