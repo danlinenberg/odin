@@ -53,8 +53,8 @@ const feeds = {
 			title: "Fix it",
 			repo: "odin",
 			number: 7,
-			author: "dan",
-			kind: "mine" as const,
+			author: "ada",
+			kind: "review" as const,
 			updated: iso(2),
 		},
 		{
@@ -66,6 +66,16 @@ const feeds = {
 			author: "renovate[bot]",
 			kind: "mine" as const,
 			updated: iso(9),
+		},
+		{
+			id: 103,
+			url: "https://gh/3",
+			title: "My own change",
+			repo: "odin",
+			number: 9,
+			author: "dan",
+			kind: "mine" as const,
+			updated: iso(1),
 		},
 	],
 	notion: [
@@ -97,6 +107,11 @@ test("holds what the tab badges claim — no started Slack, no bots", () => {
 	const titles = allItems(feeds).map((item) => item.title);
 	expect(titles).not.toContain("already on it");
 	expect(titles).not.toContain("odin#8: Bump lockfile");
+});
+
+test("PRs you opened aren't tasks — they stay on the PRs tab", () => {
+	const titles = allItems(feeds).map((item) => item.title);
+	expect(titles).not.toContain("odin#9: My own change");
 });
 
 test("my own tasks carry a priority and no upstream link", () => {
@@ -165,7 +180,7 @@ test("a row carries what it takes to start a session, without its feed", () => {
 	expect(by("Jira")?.description).toContain("Jira issue BUGT-1");
 	expect(by("Slack")?.description).toContain("https://slack/1");
 	expect(by("Slack")?.description).toContain("when you get a sec");
-	expect(by("GitHub")?.description).toContain("Work on my pull request");
+	expect(by("GitHub")?.description).toContain("Review this pull request");
 	expect(by("Notion")?.description).toContain("- Priority: P1");
 	expect(by("Tasks")?.description).toBe("the notes");
 });

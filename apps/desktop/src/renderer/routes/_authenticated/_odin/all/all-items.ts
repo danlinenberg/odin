@@ -239,7 +239,8 @@ export function allItems(input: {
 			}),
 		),
 		...input.pulls
-			.filter((pull) => !isBot(pull.author))
+			// Your own PRs aren't tasks to pick up — they live on the PRs tab.
+			.filter((pull) => pull.kind !== "mine" && !isBot(pull.author))
 			.map(
 				(pull): AllItem => ({
 					// The PRs feed hides under `pr:<id>` — same key here, so a row
