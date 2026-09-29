@@ -1,7 +1,6 @@
 import type { OdinSource } from "renderer/hooks/useLaunchTaskSession";
 import type { FeedPath } from "../components/feed-counts";
 import { isBot } from "../components/feed-counts";
-import { isJunkEmail } from "../email/junk";
 import { buildIssuePrompt, buildReviewPrompt } from "../feed-prompts";
 import {
 	type OdinTask,
@@ -150,6 +149,7 @@ export function allItems(input: {
 		from: string | null;
 		fromEmail?: string | null;
 		at: string | null;
+		junk?: boolean | null;
 	}[];
 }): AllItem[] {
 	return [
@@ -302,9 +302,9 @@ export function allItems(input: {
 				},
 			}),
 		),
-		// Junk (alerts, receipts, newsletters) stays in the Email tab behind "Show junk".
+		// Junk (the model's call, plus calendar mail) stays in the Email tab behind "All".
 		...(input.emails ?? [])
-			.filter((email) => !isJunkEmail(email))
+			.filter((email) => email.junk !== true)
 			.map(
 				(email): AllItem => ({
 					key: `email:${email.id}`,
