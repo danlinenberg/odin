@@ -1,5 +1,14 @@
 import { describe, expect, test } from "bun:test";
-import { type GhExec, pullRequestState, worktreeHolding } from "./pr-state";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, realpathSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+	type GhExec,
+	pullRequestState,
+	pullRequestWorktrees,
+	worktreeHolding,
+} from "./pr-state";
 
 const URL = "https://github.com/imagenai/app-web-server/pull/6409";
 
@@ -94,5 +103,45 @@ describe("worktreeHolding", () => {
 
 	test("does not match a branch that merely shares a prefix", () => {
 		expect(worktreeHolding(porcelain, "fix")).toBeNull();
+	});
+});
+
+describe("pullRequestWorktrees", () => {
+	test("lists each PR with the checkout holding its branch, newest first", async () => {
+		const repo = realpathSync(mkdtempSync(join(tmpdir(), "odin-prwt-")));
+		const git = (...args: string[]) =>
+			execFileSync("git", ["-C", repo, ...args], { stdio: "pipe" });
+		git("init", "-q", "-b", "main");
+		git(
+			"-c",
+			"user.email=a@b",
+			"-c",
+			"user.name=a",
+			"commit",
+			"-q",
+			"--allow-empty",
+			"-m",
+			"x",
+		);
+		git("worktree", "add", "-q", "-b", "fix/one", join(repo, ".worktrees/one"));
+		const pr = (n: number) => `https://github.com/o/app/pull/${n}`;
+		const branches: Record<string, string> = {
+			[pr(1)]: "fix/one",
+			[pr(2)]: "main",
+			[pr(3)]: "gone", // its worktree was removed
+		};
+		const exec: GhExec = async (args) => ({ stdout: `${branches[args[2]]}\n` });
+		const transcript = [
+			pr(1),
+			pr(3),
+			pr(2),
+			pr(1),
+			"https://github.com/o/other/pull/9",
+		].join(" ");
+
+		expect(await pullRequestWorktrees(transcript, repo, "app", exec)).toEqual([
+			{ url: pr(1), number: 1, worktree: join(repo, ".worktrees/one") },
+			{ url: pr(2), number: 2, worktree: repo },
+		]);
 	});
 });

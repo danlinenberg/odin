@@ -1,6 +1,12 @@
 import type { SelectProject, SelectWorkspace } from "@odin/local-db";
 import { BRIEF_DIR } from "@odin/shared/constants";
 import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@odin/ui/dropdown-menu";
+import {
 	HoverCard,
 	HoverCardContent,
 	HoverCardTrigger,
@@ -423,22 +429,68 @@ function CdWorktreeButton({ card, shell }: { card: BoardCard; shell: Pane }) {
 	);
 	const write = electronTrpc.terminal.write.useMutation();
 	const updatePaneCwd = useTabsStore((s) => s.updatePaneCwd);
-	const checkout = data?.worktree ?? data?.checkout;
 	// zsh here sends no OSC-7, so `cwd` is only what Odin itself put there:
 	// where the shell opened, or where this button last sent it.
-	if (!checkout || checkout === (shell.cwd ?? shell.initialCwd)) return null;
+	const here = shell.cwd ?? shell.initialCwd;
+	const cd = (dir: string) => {
+		write.mutate({
+			paneId: shell.id,
+			data: `cd '${dir.replaceAll("'", "'\\''")}'\r`,
+		});
+		updatePaneCwd(shell.id, dir, false);
+	};
+	const buttonClass =
+		"flex min-w-0 max-w-[180px] items-center gap-1 rounded-md bg-[#1f1f27] px-2 py-1 text-xs font-semibold text-[#a5a5b3] hover:text-[#f5f5f7]";
+	const prs = data?.pullRequests ?? [];
+
+	// Several PRs, several worktrees: pick which one to be in.
+	if (new Set(prs.map((pr) => pr.worktree)).size > 1) {
+		const current = prs.find((pr) => pr.worktree === here);
+		return (
+			<DropdownMenu>
+				<DropdownMenuTrigger asChild>
+					<button
+						type="button"
+						title="Move this shell to one of this session's PRs"
+						className={buttonClass}
+					>
+						<span className="text-[#a394ff]">⤷</span>
+						<span className="truncate">
+							{current ? `#${current.number}` : `${prs.length} PRs`}
+						</span>
+						<span className="text-[10px]">▾</span>
+					</button>
+				</DropdownMenuTrigger>
+				<DropdownMenuContent align="end" className="w-72">
+					{prs.map((pr) => (
+						<DropdownMenuItem
+							key={pr.url}
+							title={pr.worktree}
+							onSelect={() => cd(pr.worktree)}
+							className="flex items-center gap-2 text-xs"
+						>
+							<span className="w-3 text-[#a394ff]">
+								{pr.worktree === here ? "✓" : ""}
+							</span>
+							<span className="shrink-0 font-semibold">#{pr.number}</span>
+							<span className="truncate text-muted-foreground">
+								{pr.worktree.split("/").pop()}
+							</span>
+						</DropdownMenuItem>
+					))}
+				</DropdownMenuContent>
+			</DropdownMenu>
+		);
+	}
+
+	const checkout = data?.worktree ?? data?.checkout;
+	if (!checkout || checkout === here) return null;
 	return (
 		<button
 			type="button"
 			title={`Move this shell to ${checkout}`}
-			onClick={() => {
-				write.mutate({
-					paneId: shell.id,
-					data: `cd '${checkout.replaceAll("'", "'\\''")}'\r`,
-				});
-				updatePaneCwd(shell.id, checkout, false);
-			}}
-			className="flex min-w-0 max-w-[180px] items-center gap-1 rounded-md bg-[#1f1f27] px-2 py-1 text-xs font-semibold text-[#a5a5b3] hover:text-[#f5f5f7]"
+			onClick={() => cd(checkout)}
+			className={buttonClass}
 		>
 			<span className="text-[#a394ff]">⤷</span>
 			<span className="truncate">{checkout.split("/").pop()}</span>

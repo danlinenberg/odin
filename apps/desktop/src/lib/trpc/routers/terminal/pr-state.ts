@@ -154,43 +154,66 @@ export function worktreeHolding(
 	return null;
 }
 
+/** One of a session's PRs, and the checkout that has its branch. */
+export interface PullRequestCheckout {
+	url: string;
+	number: number;
+	worktree: string;
+}
+
 /**
- * Where a session's PR lives on disk: the worktree of `checkout`'s repo that
- * has the PR's branch checked out. The transcript's cwds can't say — Claude
- * Code resets its shell to the launch dir after every command and agents reach
- * worktrees with `git -C` — but the PR it opened names its branch exactly.
- * Newest PR in this repo wins. Null with no PR, no gh, or no checkout of it.
+ * Where a session's PRs live on disk: for each PR it linked in `checkout`'s
+ * repo, the worktree that has the PR's branch checked out. The transcript's
+ * cwds can't say — Claude Code resets its shell to the launch dir after every
+ * command and agents reach worktrees with `git -C` — but a PR names its branch
+ * exactly. Newest first; a PR with no checkout (worktree removed) drops out.
+ *
+ * ponytail: 5 newest PRs, one gh call each. Batch through GraphQL if sessions
+ * start opening more than that.
  */
-export async function pullRequestWorktree(
+export async function pullRequestWorktrees(
 	transcript: string,
 	checkout: string,
 	repoName: string,
 	exec: GhExec = gh,
-): Promise<string | null> {
-	const url = [
-		...transcript.matchAll(
-			/https:\/\/github\.com\/[\w.-]+\/([\w.-]+)\/pull\/\d+/g,
+): Promise<PullRequestCheckout[]> {
+	const urls = [
+		...new Set(
+			[
+				...transcript.matchAll(
+					/https:\/\/github\.com\/[\w.-]+\/([\w.-]+)\/pull\/\d+/g,
+				),
+			]
+				.filter((match) => match[1] === repoName)
+				.map((match) => match[0])
+				.reverse(),
 		),
-	]
-		.filter((match) => match[1] === repoName)
-		.at(-1)?.[0];
-	if (!url) return null;
-	const branch = await ghAsAnyAccount(
-		["pr", "view", url, "--json", "headRefName", "-q", ".headRefName"],
-		(stdout) => stdout.trim(),
-		exec,
-	);
-	if (!branch) return null;
+	].slice(0, 5);
+	if (!urls.length) return [];
+	let porcelain: string;
 	try {
-		const { stdout } = await execWithShellEnv("git", [
+		({ stdout: porcelain } = await execWithShellEnv("git", [
 			"-C",
 			checkout,
 			"worktree",
 			"list",
 			"--porcelain",
-		]);
-		return worktreeHolding(stdout, branch);
+		]));
 	} catch {
-		return null;
+		return [];
 	}
+	const found = await Promise.all(
+		urls.map(async (url) => {
+			const branch = await ghAsAnyAccount(
+				["pr", "view", url, "--json", "headRefName", "-q", ".headRefName"],
+				(stdout) => stdout.trim(),
+				exec,
+			);
+			const worktree = branch && worktreeHolding(porcelain, branch);
+			return worktree
+				? { url, number: Number(url.split("/").pop()), worktree }
+				: null;
+		}),
+	);
+	return found.filter((pr): pr is PullRequestCheckout => pr !== null);
 }
