@@ -19,14 +19,13 @@ import {
 import { FeedError } from "../components/FeedError";
 import { useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
-import { isJunkEmail } from "./junk";
 
 export const Route = createFileRoute("/_authenticated/_odin/email/")({
 	component: EmailPage,
 });
 
 /**
- * Unread Gmail inbox mail, junk (mail a machine sent) hidden until "All". Read-only:
+ * Unread Gmail inbox mail, junk (the model's call, and every calendar invite) hidden until "All". Read-only:
  * Open takes you to the thread, Done takes the row out of Odin (not Gmail).
  */
 function EmailPage() {
@@ -38,8 +37,8 @@ function EmailPage() {
 	const open = (emails.data?.emails ?? []).filter(
 		(email) => !isDone({ key: `email:${email.id}`, url: email.url }),
 	);
-	const junkCount = open.filter(isJunkEmail).length;
-	const rows = showJunk ? open : open.filter((email) => !isJunkEmail(email));
+	const junkCount = open.filter((email) => email.junk === true).length;
+	const rows = showJunk ? open : open.filter((email) => email.junk !== true);
 
 	return (
 		<div className="flex h-full flex-col">

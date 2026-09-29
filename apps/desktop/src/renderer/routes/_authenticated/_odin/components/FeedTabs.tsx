@@ -1,7 +1,6 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@odin/ui/tooltip";
 import { cn } from "@odin/ui/utils";
 import { useMatchRoute, useNavigate } from "@tanstack/react-router";
-import { isJunkEmail } from "../email/junk";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useMyTasks } from "../hooks/useOdinTasks";
 import { FEED_TABS, feedCounts, feedIssues } from "./feed-counts";
@@ -28,7 +27,7 @@ export function FeedTabs() {
 		jira: jira.data?.issues ?? [],
 		pulls: pulls.data?.pulls ?? [],
 		notion: notion.data?.rows ?? [],
-		emails: (emails.data?.emails ?? []).filter((email) => !isJunkEmail(email)),
+		emails: (emails.data?.emails ?? []).filter((email) => email.junk !== true),
 	});
 
 	// A tab that's empty because its account is signed out — or because its

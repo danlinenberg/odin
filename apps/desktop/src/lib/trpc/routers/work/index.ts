@@ -162,6 +162,8 @@ export interface EmailRow {
 	/** The sender's address — what tells a person from a mailer. */
 	fromEmail: string | null;
 	at: string | null;
+	/** The model's verdict (calendar mail always junk); null = it couldn't say. */
+	junk?: boolean | null;
 }
 
 export interface GmailCredentials {
@@ -539,7 +541,15 @@ export const createWorkRouter = () => {
 				if (!response.ok) {
 					throw feedError("Gmail", response.status, await response.text());
 				}
-				return { emails: parseGmailAtom(await response.text()) };
+				const emails = parseGmailAtom(await response.text());
+				const { triageEmails } = await import("main/lib/email-triage");
+				const verdicts = await triageEmails(emails);
+				return {
+					emails: emails.map((email) => ({
+						...email,
+						junk: verdicts.get(email.id) ?? null,
+					})),
+				};
 			},
 		),
 
