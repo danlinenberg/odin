@@ -124,8 +124,11 @@ test("a row carries its source's who / where / how it stands", () => {
 		"Highest",
 		"P1",
 	]);
-	// Slack and PRs have no scale of their own to report.
-	expect([by("Slack")?.priority, by("GitHub")?.priority]).toEqual([null, null]);
+	// PRs have no scale of their own to report; a Slack ask is always High.
+	expect([by("Slack")?.priority, by("GitHub")?.priority]).toEqual([
+		"High",
+		null,
+	]);
 	// The column is for the repo, not the org every repo shares.
 	const orged = allItems({
 		...feeds,
@@ -177,7 +180,7 @@ test("priority reads the same across sources, whatever they call it", () => {
 	]);
 	expect(by("Tasks")?.urgency).toBe("medium");
 	// Sources with no scale stay unrated rather than guessing a middle.
-	expect([by("Slack")?.urgency, by("GitHub")?.urgency]).toEqual([null, null]);
+	expect(by("GitHub")?.urgency).toBeNull();
 	expect(["Lowest", "P3", "Trivial"].map(urgencyOf)).toEqual([
 		"low",
 		"low",
@@ -202,4 +205,17 @@ test("a Jira mention row keeps the comment that put it there", () => {
 		mention,
 	);
 	expect(allItems(feeds).every((item) => item.mention === null)).toBe(true);
+});
+
+test("Slack reactions and Jira mentions are High, whatever the ticket says", () => {
+	const mention = { author: "Tamir", text: "@Dan any ETA?" };
+	const items = allItems({
+		...feeds,
+		jira: [{ ...feeds.jira[0], priority: "Low", mention }],
+	});
+	for (const source of ["Slack", "Jira"])
+		expect(items.find((item) => item.source === source)).toMatchObject({
+			priority: "High",
+			urgency: "high",
+		});
 });

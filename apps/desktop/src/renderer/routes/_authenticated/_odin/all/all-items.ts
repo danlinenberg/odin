@@ -178,8 +178,9 @@ export function allItems(input: {
 					url: row.permalink,
 					person: row.authorName,
 					status: null,
-					priority: null,
-					urgency: null,
+					// A reaction is someone asking me directly — always High.
+					priority: "High",
+					urgency: "high",
 					context: row.channelName,
 					at: ms(row.postedAt),
 					dueDate: null,
@@ -211,8 +212,9 @@ export function allItems(input: {
 				url: issue.url,
 				person: issue.reporter ?? null,
 				status: issue.status,
-				priority: issue.priority ?? null,
-				urgency: urgencyOf(issue.priority),
+				// An @-mention is someone asking me directly — High, like a reaction.
+				priority: issue.mention ? "High" : (issue.priority ?? null),
+				urgency: issue.mention ? "high" : urgencyOf(issue.priority),
 				context: issue.project,
 				at: ms(issue.updated),
 				dueDate: issue.dueDate ?? null,
