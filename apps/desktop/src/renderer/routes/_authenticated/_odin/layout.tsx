@@ -12,9 +12,9 @@ import {
 	HiOutlineBolt,
 	HiOutlineChartBar,
 	HiOutlineClipboardDocumentCheck,
-	HiOutlineClipboardDocumentList,
 	HiOutlineClock,
 	HiOutlineCog6Tooth,
+	HiOutlineScale,
 	HiOutlineViewColumns,
 } from "react-icons/hi2";
 import { ZoomStable } from "renderer/components/ZoomStable/ZoomStable";
@@ -74,7 +74,7 @@ const RAIL_ITEMS = [
 		to: "/review" as const,
 		hotkey: "ODIN_REVIEW" as const,
 		label: "Review",
-		Icon: HiOutlineClipboardDocumentList,
+		Icon: HiOutlineScale,
 	},
 	// Its own rail entry, not a seventh feed tab: every tab in that strip
 	// answers "what's waiting on me", and an automation is the one thing that
