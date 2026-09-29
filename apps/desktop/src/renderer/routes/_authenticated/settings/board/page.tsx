@@ -61,11 +61,10 @@ function BoardSettingsPage() {
 							>
 								Rename sessions automatically
 							</Label>
-							<p className="text-xs text-muted-foreground">
+							<p className="text-[13px] leading-relaxed text-muted-foreground max-w-xl">
 								Name each card after what its session turned out to be about,
-								instead of the first line you typed. Renamed once, from the
-								brief already written for the card; a name you set yourself is
-								left alone.
+								not the first line you typed. Happens once; names you set
+								yourself are kept.
 							</p>
 						</div>
 						<Switch
@@ -85,7 +84,7 @@ function BoardSettingsPage() {
 						id="launch-limit-host"
 						field="hostCpuPercent"
 						label="Hold new sessions when this Mac is"
-						description="How busy this Mac's CPU is — Odin's sessions, builds, Docker, anything. At or above it, a new session waits in Idle → Queued and starts once the Mac calms down. Lower it if the Mac feels slow before sessions start queueing."
+						description="Total CPU load — Odin's sessions, builds, Docker, anything. Lower it if the Mac feels slow before sessions start queueing."
 						min={1}
 						max={100}
 						step={1}
@@ -95,7 +94,7 @@ function BoardSettingsPage() {
 						id="launch-limit-memory"
 						field="minFreeMemoryGb"
 						label="Hold new sessions when free memory is under"
-						description="Memory this Mac could still hand out, cache included. Below it, a new session waits — an out-of-memory Mac swaps and crawls even while the CPU looks idle."
+						description="Memory still available, cache included. A Mac out of memory swaps and crawls even when the CPU looks idle."
 						min={0}
 						max={64}
 						step={0.5}
@@ -105,7 +104,7 @@ function BoardSettingsPage() {
 						id="launch-limit-agents"
 						field="maxWorkingAgents"
 						label="Hold new sessions when this many are working"
-						description="Sessions actively working at once — ones waiting on you don't count. At the limit, a new session waits in Idle → Queued and starts when one finishes. 0 means no limit."
+						description="Sessions waiting on you don't count. 0 means no limit."
 						min={0}
 						max={50}
 						step={1}
@@ -138,9 +137,11 @@ function BoardSection({
 	return (
 		<section className="space-y-6">
 			<div className="border-b pb-2">
-				<h3 className="text-sm font-semibold">{title}</h3>
+				<h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+					{title}
+				</h3>
 				{description && (
-					<p className="text-xs text-muted-foreground mt-0.5">{description}</p>
+					<p className="text-sm text-muted-foreground/80 mt-1">{description}</p>
 				)}
 			</div>
 			{children}
@@ -163,12 +164,10 @@ function NextInLinePromptRow() {
 				<Label htmlFor="next-in-line-prompt" className="text-sm font-medium">
 					How to sort Next in line
 				</Label>
-				<p className="text-xs text-muted-foreground">
-					Tell the AI what matters to you when it orders the Next in line column
-					— e.g. "customer bugs before internal work; anything from my manager
-					first; ignore dependency bumps". Leave it empty and the AI judges
-					importance on its own. Saved when you click away; the column re-ranks
-					then.
+				<p className="text-[13px] leading-relaxed text-muted-foreground max-w-xl">
+					What matters to you when the AI orders this column — e.g. "customer
+					bugs first; ignore dependency bumps". Empty lets the AI judge. Saved
+					when you click away.
 				</p>
 			</div>
 			<Textarea
@@ -215,7 +214,9 @@ function LaunchLimitRow({
 				<Label htmlFor={id} className="text-sm font-medium">
 					{label}
 				</Label>
-				<p className="text-xs text-muted-foreground">{description}</p>
+				<p className="text-[13px] leading-relaxed text-muted-foreground max-w-xl">
+					{description}
+				</p>
 			</div>
 			<div className="flex shrink-0 items-center gap-1.5">
 				<Input
@@ -235,7 +236,7 @@ function LaunchLimitRow({
 						}
 					}}
 				/>
-				<span className="text-sm text-muted-foreground">{unit}</span>
+				<span className="w-16 text-sm text-muted-foreground">{unit}</span>
 			</div>
 		</div>
 	);
@@ -251,11 +252,9 @@ function PinOverdueDaysRow() {
 				<Label htmlFor="pin-overdue-days" className="text-sm font-medium">
 					Pin overdue tasks for
 				</Label>
-				<p className="text-xs text-muted-foreground">
-					Tasks with a due date sit at the top of Next in line, under Due. Once
-					a date has passed by more than this, the task drops back into the
-					normal order — a ticket that's a year overdue isn't a deadline
-					anymore. Upcoming dates always pin.
+				<p className="text-[13px] leading-relaxed text-muted-foreground max-w-xl">
+					Dated tasks pin to the top under Due. Once more than this overdue,
+					they drop back into the normal order. Upcoming dates always pin.
 				</p>
 			</div>
 			<div className="flex shrink-0 items-center gap-1.5">
@@ -274,7 +273,7 @@ function PinOverdueDaysRow() {
 							setDays(next);
 					}}
 				/>
-				<span className="text-sm text-muted-foreground">days</span>
+				<span className="w-16 text-sm text-muted-foreground">days</span>
 			</div>
 		</div>
 	);
@@ -290,10 +289,9 @@ function SweepIntervalRow() {
 				<Label htmlFor="sweep-every-hours" className="text-sm font-medium">
 					Sweep the backlog every
 				</Label>
-				<p className="text-xs text-muted-foreground">
-					How often Odin checks every task and queued message against Jira,
-					GitHub and Slack and fills in Review — without you pressing the
-					button. 0 turns it off; the button still works.
+				<p className="text-[13px] leading-relaxed text-muted-foreground max-w-xl">
+					Checks tasks and queued messages against Jira, GitHub and Slack to
+					fill Review. 0 turns it off; the button still works.
 				</p>
 			</div>
 			<div className="flex shrink-0 items-center gap-1.5">
@@ -312,7 +310,7 @@ function SweepIntervalRow() {
 							setHours(next);
 					}}
 				/>
-				<span className="text-sm text-muted-foreground">hours</span>
+				<span className="w-16 text-sm text-muted-foreground">hours</span>
 			</div>
 		</div>
 	);
