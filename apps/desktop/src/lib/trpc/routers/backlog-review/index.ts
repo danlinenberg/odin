@@ -146,22 +146,25 @@ export const createBacklogReviewRouter = () => {
 		 * the answers go straight back. Nothing is written anywhere: a DROP is a
 		 * suggestion until someone clicks it on the Review screen.
 		 *
-		 * A few rows at a time, not all at once: a hundred rows fired together
-		 * blew through Slack's per-minute limit, and every refused lookup came
-		 * back UNKNOWN — so each Sweep again "found" the rows the last one
-		 * couldn't read.
+		 * Sixteen rows at a time; Slack's own gate in `slackApi` holds it to
+		 * four calls, so a Slack row waiting out a 429 doesn't stall the Jira
+		 * and GitHub rows behind it.
 		 */
 		sweep: publicProcedure
 			.input(z.object({ items: z.array(ItemSchema) }))
 			.mutation(async ({ input }) => {
 				const deps = await lookups();
+				const started = Date.now();
 				const rows = await mapLimit(
 					input.items,
-					4,
+					16,
 					async (item: SweepItem) => ({
 						key: item.key,
 						...(await sweepItem(item, deps)),
 					}),
+				);
+				console.warn(
+					`[review] swept ${rows.length} rows in ${Math.round((Date.now() - started) / 1000)}s, ${rows.filter((row) => row.verdict === "UNKNOWN").length} unknown`,
 				);
 				return { rows };
 			}),
