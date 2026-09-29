@@ -15,6 +15,8 @@ export interface Reminder {
 	due: string;
 	/** Kept with the date so a reminder can name its row without its feed. */
 	title: string;
+	/** Set by "Remind me" on a board session: what to resume when it's due. */
+	resume?: { sessionId: string; cwd: string };
 }
 
 export const useReminders = create<{
@@ -303,10 +305,16 @@ export function useDueReminders(upstream: UpstreamDue[]): void {
 			for (const key of dueToFire(all, notified, now)) {
 				const reminder = all[key];
 				if (!reminder) continue;
-				new Notification(
-					reminder.due < today ? "Overdue in Odin" : "Due today in Odin",
+				const note = new Notification(
+					reminder.resume
+						? "Reminder from Odin"
+						: reminder.due < today
+							? "Overdue in Odin"
+							: "Due today in Odin",
 					{ body: reminder.title },
 				);
+				// The session reminder waits on the board; bring Odin forward.
+				note.onclick = () => window.focus();
 				markNotified(key, today);
 			}
 		};

@@ -86,6 +86,11 @@ import {
 import { DiffView } from "./DiffView";
 import { NextInLine } from "./NextInLine";
 import { SessionBrief } from "./SessionBrief";
+import {
+	RemindButton,
+	remindSession,
+	SessionReminders,
+} from "./SessionReminders";
 
 /**
  * The same marks the feed tabs use, so a section header reads as its source at
@@ -2118,6 +2123,24 @@ function DevBoardPage() {
 		toast.success("Done — removed from board");
 	};
 
+	/** Done now; on `day` it pings and waits above the columns to be resumed. */
+	const remindMe = (card: BoardCard, day: string) => {
+		const sessionId =
+			card.pane.claudeSessionId ??
+			usePaneMeta.getState().sessionIdByPane[card.pane.id];
+		const cwd = sessionCwd(card.pane) ?? card.repoPath;
+		if (!sessionId || !cwd) {
+			toast.error(
+				"This session has no conversation id — can't resume it later",
+			);
+			return;
+		}
+		const title = cardTitle(card);
+		remindSession({ sessionId, cwd, title }, day);
+		markDone(card);
+		toast.success(`Reminding you ${day} — ${title.slice(0, 50)}`);
+	};
+
 	return (
 		<div className="flex h-full flex-col">
 			{/* One header row: title, launcher, filter dropdown. */}
@@ -2215,6 +2238,8 @@ function DevBoardPage() {
 					Next in line
 				</button>
 			</div>
+
+			<SessionReminders />
 
 			{tagMenu && (
 				<TagMenu
@@ -2393,6 +2418,10 @@ function DevBoardPage() {
 																	>
 																		✓ done
 																	</button>
+																	<RemindButton
+																		onPick={(day) => remindMe(card, day)}
+																		className="rounded-[5px] px-1.5 text-[11px] text-[#8a8a97] opacity-0 transition-opacity hover:bg-[#221d12] hover:text-[#f5b83d] group-hover:opacity-100"
+																	/>
 																</div>
 																{/* Facts are one grey text line; chips are left only for flags that ask
     something of you. A pill that renders nothing drops out, so the dots
@@ -2464,12 +2493,17 @@ function DevBoardPage() {
 																	)}
 																	<LoadPill card={card} />
 																	{/* Same test as the drawer's Shell dot: a live PTY, not just a remembered pane. */}
-																	{alivePaneIds.has(shellPaneOf(card)?.id ?? "") && (
+																	{alivePaneIds.has(
+																		shellPaneOf(card)?.id ?? "",
+																	) && (
 																		<span
 																			title="This session has a shell running"
 																			className="inline-flex items-center gap-1 rounded-[5px] bg-[#132a1f] px-[7px] text-[11px] font-medium text-[#3ecf8e]"
 																		>
-																			<LuTerminal className="size-3" aria-hidden />
+																			<LuTerminal
+																				className="size-3"
+																				aria-hidden
+																			/>
 																			Shell
 																		</span>
 																	)}
@@ -2854,6 +2888,11 @@ function DevBoardPage() {
 							>
 								✓ Done
 							</button>
+							<RemindButton
+								onPick={(day) => remindMe(drawerCard, day)}
+								label="Remind me"
+								className="rounded-[7px] bg-[#1f1f27] px-3 py-1.5 text-xs font-semibold text-[#a5a5b3] hover:text-[#f5b83d]"
+							/>
 							<button
 								type="button"
 								onClick={() => setDrawerCard(null)}
