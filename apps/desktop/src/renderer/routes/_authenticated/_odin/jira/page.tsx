@@ -374,9 +374,12 @@ function MyJiraPage() {
 													</span>
 												</span>
 												<span className={META_TAG}>
-													{issue.priority && isHotPriority(issue.priority) && (
+													{/* Someone asked me directly — High, whatever the ticket says. */}
+													{(issue.mention ||
+														(issue.priority &&
+															isHotPriority(issue.priority))) && (
 														<span className="rounded-[5px] bg-[#3a1a20] px-[7px] py-[1px] text-[#f0647a]">
-															{issue.priority}
+															{issue.mention ? "High" : issue.priority}
 														</span>
 													)}
 												</span>
