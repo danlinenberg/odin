@@ -441,6 +441,33 @@ function AgePill({
 	);
 }
 
+/** How long a card that just landed in Done keeps saying so. */
+const JUST_DONE_MS = 5 * 60_000;
+
+/**
+ * "just done" on a card whose turn ended in the last JUST_DONE_MS, so the one
+ * that finished while you looked away stands out from the rest of Done.
+ * `since` is when it entered Done; 0 (restored off disk) never shows.
+ */
+function JustDonePill({ since }: { since: number | undefined }) {
+	const [now, setNow] = useState(Date.now);
+	const left = since ? since + JUST_DONE_MS - now : 0;
+	useEffect(() => {
+		if (left <= 0) return;
+		const id = setTimeout(() => setNow(Date.now()), left);
+		return () => clearTimeout(id);
+	}, [left]);
+	if (left <= 0) return null;
+	return (
+		<span
+			title="Its turn ended in the last 5 minutes"
+			className="inline-flex items-center rounded-[5px] bg-[#14301f] px-[7px] text-[11px] font-medium text-[#3ecf8e]"
+		>
+			just done
+		</span>
+	);
+}
+
 /**
  * This session is running under `/loop` — it will wake itself up again, so an
  * idle card isn't done. Read from the schedule calls in its transcript; only
@@ -2617,6 +2644,14 @@ function DevBoardPage() {
 																</div>
 																<div className="mt-1 flex flex-wrap items-center gap-1.5">
 																	<DropPill pane={card.pane} />
+																	{card.status === "review" && (
+																		<JustDonePill
+																			since={
+																				statusSinceRef.current.get(card.pane.id)
+																					?.at
+																			}
+																		/>
+																	)}
 																	{boardTags(
 																		card.pane.odinTags,
 																		customTags,
