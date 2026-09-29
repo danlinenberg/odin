@@ -120,7 +120,10 @@ export function SessionReminders() {
 					key={key}
 					className="flex min-w-0 items-center gap-1.5 rounded-lg border border-[#3a3220] bg-[#14131b] py-0.5 pl-2.5 pr-1"
 				>
-					<span className="max-w-[320px] truncate font-medium text-[#ececf1]">
+					<span
+						dir="auto"
+						className="max-w-[320px] truncate font-medium text-[#ececf1]"
+					>
 						{r.title}
 					</span>
 					<span className="text-[11px] text-[#8a8a97]">
