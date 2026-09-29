@@ -1,3 +1,7 @@
+import {
+	dayOf,
+	isDue,
+} from "renderer/routes/_authenticated/_odin/components/Reminders";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -32,3 +36,18 @@ export const useNextInLineDone = create<{
 		{ name: "odin-next-in-line-done" },
 	),
 );
+
+/**
+ * Whether a task marked done at `doneAt` is still done. "Remind me" is a Done
+ * with a reminder dated after the day it was marked: once that day comes the
+ * task is back. A plain Done on an already-due task stays done — its date
+ * isn't after the day it was finished.
+ */
+export function stillDone(
+	doneAt: number | undefined,
+	due: string | undefined,
+	now: number,
+): boolean {
+	if (!doneAt) return false;
+	return !(due && due > dayOf(doneAt) && isDue(due, now));
+}
