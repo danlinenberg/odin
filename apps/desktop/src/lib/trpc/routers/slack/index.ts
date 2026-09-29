@@ -63,9 +63,15 @@ async function slackApi<T extends SlackResponse>(
 	token: string,
 ): Promise<T> {
 	const url = `${SLACK_API}/${method}?${new URLSearchParams(params)}`;
-	const res = await fetch(url, {
-		headers: { Authorization: `Bearer ${token}` },
-	});
+	// A rate limit is "not yet", not an answer: wait what Slack says and ask
+	// again. Giving up here is what made each sweep read a different random
+	// slice of the backlog as UNKNOWN.
+	let res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+	for (let attempt = 0; res.status === 429 && attempt < 5; attempt++) {
+		const wait = Number(res.headers.get("retry-after")) || 2 ** attempt;
+		await new Promise((resolve) => setTimeout(resolve, wait * 1000));
+		res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+	}
 	const json = (await res.json()) as T;
 	if (!json.ok) {
 		throw new TRPCError({
