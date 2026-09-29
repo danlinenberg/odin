@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+	approverOf,
 	githubRef,
 	jiraRef,
 	type SweepDeps,
@@ -84,6 +85,40 @@ describe("verdicts", () => {
 				)
 			).verdict,
 		).toBe("KEEP");
+	});
+
+	test("a review request someone else approved drops", async () => {
+		const answer = await sweepItem(
+			item({ url: "https://github.com/odin/odin/pull/42" }),
+			deps({
+				githubState: async () => ({
+					state: "open",
+					merged: false,
+					approvedBy: "alice",
+				}),
+			}),
+		);
+		expect(answer).toEqual({
+			verdict: "DROP",
+			evidence: "odin/odin#42 is already approved by alice",
+		});
+	});
+
+	test("an approval counts only while it is someone else's latest word", () => {
+		const r = (login: string, state: string) => ({ state, user: { login } });
+		expect(
+			approverOf([r("alice", "APPROVED"), r("alice", "COMMENTED")], "me"),
+		).toBe("alice");
+		expect(
+			approverOf(
+				[r("alice", "APPROVED"), r("alice", "CHANGES_REQUESTED")],
+				"me",
+			),
+		).toBeNull();
+		expect(
+			approverOf([r("alice", "APPROVED"), r("alice", "DISMISSED")], "me"),
+		).toBeNull();
+		expect(approverOf([r("Me", "APPROVED")], "me")).toBeNull();
 	});
 
 	test("a Done ticket drops, and says which status it read", async () => {

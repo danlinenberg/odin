@@ -2,10 +2,12 @@ import { githubApiFetch } from "main/lib/github-token";
 import { jiraRequestContext } from "main/lib/jira-token";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
-import { resolveGithubToken } from "../odin-config";
+import { readOdinConfig, resolveGithubToken } from "../odin-config";
 import { slackThreadReplies } from "../slack";
 import {
+	approverOf,
 	type Reference,
+	type Review,
 	type SweepDeps,
 	type SweepItem,
 	sweepItem,
@@ -36,6 +38,7 @@ const ItemSchema = z.object({
 async function lookups(): Promise<SweepDeps> {
 	const jira = await jiraRequestContext();
 	const github = resolveGithubToken();
+	const me = readOdinConfig().githubLogin?.toLowerCase();
 	return {
 		jiraStatus: async (key) => {
 			if (!jira) return null;
@@ -83,8 +86,18 @@ async function lookups(): Promise<SweepDeps> {
 					state?: string;
 					merged?: boolean;
 					pull_request?: { merged_at?: string | null };
+					user?: { login?: string };
 				};
+				const author = body.user?.login?.toLowerCase();
+				// Only a PR someone else wrote is a review request; my own
+				// approved PR still wants merging. Without my login there's no
+				// telling the two apart, so don't ask.
+				const approvedBy =
+					!ref.issue && me && author && author !== me && body.state === "open"
+						? await approvedByOther(ref, me, github)
+						: null;
 				return {
+					approvedBy,
 					state: body.state ?? "open",
 					// A /issues/ URL that points at a PR answers from the issues
 					// endpoint, where the merge is on a nested object.
@@ -96,6 +109,30 @@ async function lookups(): Promise<SweepDeps> {
 		},
 		slackThread: slackThreadReplies,
 	};
+}
+
+/**
+ * Who, other than me, currently approves this PR.
+ *
+ * ponytail: first 100 reviews only; page if a PR ever collects more.
+ */
+async function approvedByOther(
+	ref: Extract<Reference, { kind: "github" }>,
+	me: string,
+	token: string,
+): Promise<string | null> {
+	try {
+		const res = await githubApiFetch(
+			`https://api.github.com/repos/${ref.owner}/${ref.repo}/pulls/${ref.number}/reviews?per_page=100`,
+			{ headers: { Accept: "application/vnd.github+json" } },
+			token,
+		);
+		if (!res.ok) return null;
+		const reviews = (await res.json()) as Review[];
+		return approverOf(reviews, me);
+	} catch {
+		return null;
+	}
 }
 
 export const createBacklogReviewRouter = () => {
