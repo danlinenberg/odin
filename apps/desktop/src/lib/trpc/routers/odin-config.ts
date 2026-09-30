@@ -71,6 +71,13 @@ export interface OdinFileConfig {
 	slackToken?: string;
 	/** Reaction that queues a message — a Slack name, no colons. Default `eyes`. */
 	slackReaction?: string;
+	/** Reaction that queues a message and starts its session. Default `robot_face`. */
+	slackLaunchReaction?: string;
+	/**
+	 * When auto-launch was first switched on, ms. Only messages posted after it
+	 * start themselves — an old :robot_face: shouldn't open a dozen sessions.
+	 */
+	slackLaunchSince?: number;
 	/**
 	 * Slack OAuth app, so people can connect with a click instead of minting a
 	 * token by hand. Slack has no PKCE and refuses non-HTTPS redirects, so the

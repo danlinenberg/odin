@@ -8,7 +8,6 @@ import {
 } from "lib/trpc/routers/slack/reactions";
 import { useMemo, useState } from "react";
 import { ConnectNotice } from "renderer/components/ConnectProvider/ConnectProvider";
-import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { useDoneStore } from "renderer/stores/done";
@@ -33,10 +32,8 @@ import {
 import { FeedError } from "../components/FeedError";
 import { PersonChip } from "../components/PersonChip";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
-import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
-import { usePaneMeta } from "../hooks/usePaneMeta";
 import { usePendingFocus } from "../hooks/usePendingFocus";
-import { buildThreadPrompt } from "../thread-prompt";
+import { useStartReaction } from "../hooks/useStartReaction";
 
 /** Narrow to one channel or person — how Insights' Improvements links here. */
 type ReactionsSearch = { channel?: string; person?: string };
@@ -105,8 +102,7 @@ function ReactionsPage() {
 	// ponytail: one row open at a time — click another and this one closes.
 	const [expandedId, setExpandedId] = useState<string | null>(null);
 	const { reactions, syncAll, isSyncing } = useOdinFeeds();
-	const { ensureWorkspace } = useOdinWorkspace();
-	const { launch, isLaunching, launchingKey } = useLaunchTaskSession();
+	const { start, isLaunching, launchingKey } = useStartReaction();
 	const navigate = useNavigate();
 	const area = Route.useSearch();
 	const areaName =
@@ -115,9 +111,6 @@ function ReactionsPage() {
 			? area.channel
 			: channelLabel(area.channel));
 	const openUrl = electronTrpc.external.openUrl.useMutation();
-	const markStarted = electronTrpc.slack.markStarted.useMutation({
-		onSuccess: () => void reactions.refetch(),
-	});
 	const recordDone = useDoneStore((s) => s.setDone);
 	const setDone = electronTrpc.slack.setDone.useMutation({
 		onSuccess: () => void reactions.refetch(),
@@ -196,26 +189,9 @@ function ReactionsPage() {
 	);
 
 	const handleStart = async (row: (typeof rows)[number]) => {
-		if (!row.permalink) return toast.error("No Slack link for this message");
-		const ensured = await ensureWorkspace();
-		if (!ensured.ok) return toast.error(ensured.error);
-		const result = await launch({
-			key: row.id,
-			workspaceId: ensured.workspace.id,
-			title: row.title,
-			description: buildThreadPrompt(row.permalink, row.title, row.text),
-			contact: row.authorName,
-			// The whole message: the title is cut at 120 chars.
-			brief: row.text || row.title,
-			pageId: row.id,
-			source: "reactions",
-		});
-		if (!result.ok) return toast.error(result.error);
-		markStarted.mutate({ id: row.id });
-		usePaneMeta.getState().setTitle(result.paneId, row.title);
-		usePaneMeta.getState().setSessionId(result.paneId, result.sessionId);
-		usePaneMeta.getState().setPaneForPage(row.id, result.paneId);
-		usePendingFocus.getState().focus(result.paneId);
+		const paneId = await start(row);
+		if (!paneId) return;
+		usePendingFocus.getState().focus(paneId);
 		navigate({ to: "/board" });
 	};
 

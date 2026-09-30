@@ -13,6 +13,7 @@ import {
 import {
 	buildPermalink,
 	channelLabel,
+	LAUNCH_REACTION,
 	mentionedUserIds,
 	messageBody,
 	normalizeReaction,
@@ -51,6 +52,30 @@ function slackToken(): string | null {
 function queueReaction(): string {
 	return normalizeReaction(readOdinConfig().slackReaction ?? QUEUE_REACTION);
 }
+
+function launchReaction(): string {
+	return normalizeReaction(
+		readOdinConfig().slackLaunchReaction ?? LAUNCH_REACTION,
+	);
+}
+
+/** Stamped on first read — see `slackLaunchSince`. */
+function launchSince(): number {
+	const since = readOdinConfig().slackLaunchSince;
+	if (since !== undefined) return since;
+	const now = Date.now();
+	updateOdinConfig({ slackLaunchSince: now });
+	return now;
+}
+
+/**
+ * Rows whose message carried my launch reaction on the last sync.
+ *
+ * ponytail: in memory, not a column. The first sync after a restart refills
+ * it from Slack, and `startedAt` is what stops a second launch — so nothing
+ * here needs to survive a restart.
+ */
+const launchRequested = new Set<string>();
 
 interface SlackResponse {
 	ok?: boolean;
@@ -262,8 +287,11 @@ async function syncReactions(token: string, reaction: string): Promise<void> {
 		SlackResponse & { items?: SlackReactionsListItem[] }
 	>("reactions.list", { user: me.userId, limit: "100", full: "true" }, token);
 	const items = res.items ?? [];
-	const eyed = pickEyedMessages(items, me.userId, reaction);
+	const launch = launchReaction();
+	const eyed = pickEyedMessages(items, me.userId, reaction, launch);
 	const now = Date.now();
+	for (const message of eyed)
+		if (message.launch) launchRequested.add(message.id);
 
 	const existing = new Map(
 		localDb
@@ -326,7 +354,7 @@ async function syncReactions(token: string, reaction: string): Promise<void> {
 		stillEyed,
 		VERIFY_PER_SYNC,
 	)) {
-		const on = await reactionStillOn(row, me.userId, reaction, token);
+		const on = await reactionStillOn(row, me.userId, [reaction, launch], token);
 		// Couldn't ask — a deleted message, a channel I left, a rate limit.
 		// Leave the row exactly as it was rather than guessing at it.
 		if (on === null) continue;
@@ -405,7 +433,7 @@ async function conversationAfter(
 }
 
 /**
- * Is the queue reaction still on this one message?
+ * Is either queue reaction still on this one message?
  *
  * null is "Slack wouldn't say", which must never read as "the reaction is
  * gone": the row a stamp retires is the row a DROP on the Review screen
@@ -414,7 +442,7 @@ async function conversationAfter(
 async function reactionStillOn(
 	row: { channelId: string; messageTs: string },
 	myUserId: string,
-	reaction: string,
+	reactions: string[],
 	token: string,
 ): Promise<boolean | null> {
 	try {
@@ -428,7 +456,8 @@ async function reactionStillOn(
 			token,
 		);
 		return (res.message?.reactions ?? []).some(
-			(r) => r.name === reaction && (r.users ?? []).includes(myUserId),
+			(r) =>
+				reactions.includes(r.name ?? "") && (r.users ?? []).includes(myUserId),
 		);
 	} catch {
 		return null;
@@ -618,9 +647,12 @@ export interface ReactionRow {
 	unreacted: boolean;
 	done: boolean;
 	status: ReactionStatus;
+	/** Carries my launch reaction and hasn't been started: start it now. */
+	autoLaunch: boolean;
 }
 
 function readRows(): ReactionRow[] {
+	const since = launchSince();
 	return localDb
 		.select()
 		.from(slackReactions)
@@ -641,6 +673,10 @@ function readRows(): ReactionRow[] {
 			unreacted: row.unreactedAt !== null,
 			done: row.doneAt !== null,
 			status: reactionStatus(row),
+			autoLaunch:
+				launchRequested.has(row.id) &&
+				reactionStatus(row) === "Not started" &&
+				Number(row.messageTs) * 1000 >= since,
 		}));
 }
 
