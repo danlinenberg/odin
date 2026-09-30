@@ -36,6 +36,7 @@ import { usePeriodicSweep } from "./hooks/useBacklogReview";
 import { useNeedsYouByProfile } from "./hooks/useNeedsYouByProfile";
 import { useOdinFeeds } from "./hooks/useOdinFeeds";
 import { useOdinProfile } from "./hooks/useOdinProfile";
+import { useSlackAutoLaunch } from "./hooks/useStartReaction";
 
 /**
  * Odin's shell — minimal chrome for the Dev Board, My Tasks, Slack, Session
@@ -277,6 +278,8 @@ function OdinShell() {
 	// Same reason: tasks held back by the capacity gate wait in Idle → Queued,
 	// and this is what starts them once the Mac (or the checkout) frees up.
 	useTaskQueue();
+	// :robot_face: on a Slack message starts its session — see useStartReaction.
+	useSlackAutoLaunch();
 
 	const { data: workConfig } = electronTrpc.work.getConfig.useQuery();
 	// Single-key nav — D board, T tasks, S slack, H history, J jira, P PRs

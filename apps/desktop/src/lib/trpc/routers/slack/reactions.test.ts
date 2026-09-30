@@ -54,6 +54,20 @@ describe("pickEyedMessages", () => {
 		).toEqual(["100.2"]);
 	});
 
+	test("my launch reaction queues the message and flags it to start", () => {
+		const items = [
+			item({ ts: "100.1" }, [{ name: "eyes", users: [ME] }]),
+			item({ ts: "100.2" }, [{ name: "robot_face", users: [ME] }]),
+			item({ ts: "100.3" }, [{ name: "robot_face", users: ["U_OTHER"] }]),
+		];
+		expect(
+			pickEyedMessages(items, ME).map((m) => [m.messageTs, m.launch]),
+		).toEqual([
+			["100.1", false],
+			["100.2", true],
+		]);
+	});
+
 	test("keys a row by channel + ts, and carries the thread parent", () => {
 		const [row] = pickEyedMessages(
 			[

@@ -7,6 +7,12 @@
 export const QUEUE_REACTION = "eyes";
 
 /**
+ * The reaction that queues a message AND starts its session — "take it
+ * offline" from Slack itself, with nobody at the desk to press Start.
+ */
+export const LAUNCH_REACTION = "robot_face";
+
+/**
  * `:eyes:`, `eyes`, ` Eyes ` → `eyes`. Slack names reactions, so a pasted
  * glyph (👀) is not accepted — ponytail: add a unicode→name table if typing
  * the name ever grates.
@@ -71,6 +77,8 @@ export interface EyedMessage {
 	authorId: string | null;
 	text: string;
 	permalink: string | null;
+	/** It carries my launch reaction: start a session without asking. */
+	launch: boolean;
 }
 
 export function reactionId(channelId: string, messageTs: string): string {
@@ -86,15 +94,18 @@ export function pickEyedMessages(
 	items: SlackReactionsListItem[],
 	myUserId: string,
 	reaction: string = QUEUE_REACTION,
+	launchReaction: string = LAUNCH_REACTION,
 ): EyedMessage[] {
 	const eyed: EyedMessage[] = [];
 	for (const item of items) {
 		const message = item.message;
 		if (item.type !== "message" || !item.channel || !message?.ts) continue;
-		const mine = message.reactions?.some(
-			(r) => r.name === reaction && (r.users ?? []).includes(myUserId),
-		);
-		if (!mine) continue;
+		const mine = (name: string) =>
+			message.reactions?.some(
+				(r) => r.name === name && (r.users ?? []).includes(myUserId),
+			) ?? false;
+		const launch = mine(launchReaction);
+		if (!launch && !mine(reaction)) continue;
 		eyed.push({
 			id: reactionId(item.channel, message.ts),
 			channelId: item.channel,
@@ -103,6 +114,7 @@ export function pickEyedMessages(
 			authorId: message.user ?? null,
 			text: slackTextToPlain(messageBody(message)),
 			permalink: message.permalink ?? null,
+			launch,
 		});
 	}
 	return eyed;
