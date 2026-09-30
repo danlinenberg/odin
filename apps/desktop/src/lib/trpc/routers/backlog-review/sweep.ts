@@ -29,6 +29,10 @@ export interface SweepItem {
 	 * Slack message's own timestamp — whatever the source calls it.
 	 */
 	lastActivityAt?: number;
+	/** The source's own status name, where it keeps one: a Notion row's Status. */
+	status?: string;
+	/** An email row's sender, as the mail client shows it. */
+	sender?: string;
 }
 
 /**
@@ -112,11 +116,56 @@ export function jiraRef(item: SweepItem): string | null {
 	return JIRA_REF.exec(haystack(item))?.[0] ?? null;
 }
 
-/** The Slack message a queue row came from: `slack:<channel>:<ts>`. */
+const SLACK_LINK = /slack\.com\/archives\/([A-Z0-9]+)\/p(\d{10})(\d{6})/;
+
+/**
+ * The Slack message a row is about, as `<channel>:<ts>`: a queue row's own key,
+ * or a permalink in anything else — an inbox copy in Notion carries the link
+ * to the message it was copied from, and the thread there is what says
+ * whether it's still open.
+ */
 export function slackRef(item: SweepItem): string | null {
 	const [kind, ...rest] = item.key.split(":");
-	return kind === "slack" && rest.length === 2 ? rest.join(":") : null;
+	if (kind === "slack") return rest.length === 2 ? rest.join(":") : null;
+	const link = SLACK_LINK.exec(
+		[item.detail, item.url].filter(Boolean).join("\n"),
+	);
+	return link ? `${link[1]}:${link[2]}.${link[3]}` : null;
 }
+
+/**
+ * Rows that are another row over again: an inbox copy of a Slack message the
+ * queue already has. The Slack row is the one to act on — it has the thread,
+ * the :eyes: and the Done marker — so the copy is dropped with a pointer to it.
+ */
+export function duplicates(items: SweepItem[]): Map<string, Answer> {
+	const queued = new Set(
+		items.filter((item) => item.key.startsWith("slack:")).map(slackRef),
+	);
+	const out = new Map<string, Answer>();
+	for (const item of items) {
+		if (item.key.startsWith("slack:")) continue;
+		const ref = slackRef(item);
+		if (ref && queued.has(ref))
+			out.set(item.key, {
+				verdict: "DROP",
+				evidence: "the same Slack message is on the board as its own row",
+			});
+	}
+	return out;
+}
+
+/** A status that means the source considers it finished, whatever it's called. */
+const FINISHED_STATUS =
+	/^(done|complete(d)?|closed|resolved|rejected|cancell?ed|won'?t do|archived)$/i;
+
+/**
+ * Mail no person wrote: a product notification, a confirmation code, a
+ * password reminder. Judged on the address's local part, which is what these
+ * senders have in common and a colleague's address never is.
+ */
+const AUTOMATED_SENDER =
+	/\b(no-?reply|do-?not-?reply|info|notifications?|support|mailer(-daemon)?|newsletter|news)@/i;
 
 /**
  * The three questions the sweep can ask. Each answers null for "couldn't ask"
@@ -129,12 +178,20 @@ export interface SweepDeps {
 		done: boolean;
 		/** See {@link jiraMovedAt}. Beats the feed's `updated` when present. */
 		movedAt?: number | null;
+		/** Who it's assigned to, when that's someone other than me. */
+		owner?: string | null;
+		/** Its newest comment is someone else @-mentioning me. */
+		askedOfMe?: boolean;
 	} | null>;
 	githubState(ref: Extract<Reference, { kind: "github" }>): Promise<{
 		state: string;
 		merged: boolean;
 		/** Someone else's PR that someone other than me approved: their login. */
 		approvedBy?: string | null;
+		/** Someone else's PR with merge conflicts: days since its last commit. */
+		conflictedForDays?: number | null;
+		/** Review asked of this team, not of me, and I haven't reviewed: its slug. */
+		teamOnly?: string | null;
 	} | null>;
 	slackThread(id: string): Promise<{
 		replies: number;
@@ -150,8 +207,14 @@ export interface SweepDeps {
 		channelLastTs: string | null;
 		/** That newest thing is mine — I said something here afterwards. */
 		channelLastByMe: boolean;
-		/** I reacted to that newest thing: their last word, acknowledged. */
+		/** I reacted to that newest thing (not with :eyes:): acknowledged. */
 		channelLastAckedByMe?: boolean;
+		/** What that newest thing said. */
+		channelLastText?: string | null;
+		/** What the newest reply after the ask said. */
+		lastReplyText?: string | null;
+		/** The newest reply is someone else's, and I reacted to it (not :eyes:). */
+		lastReplyAckedByMe?: boolean;
 		/** A DM or group DM, where "I spoke last" is about this and nothing else. */
 		isDirect: boolean;
 		/** Someone tagged alongside me gave the newest reply, after the ask. */
@@ -181,6 +244,17 @@ export async function sweepItem(
 			evidence: "the :eyes: is off the message in Slack",
 		};
 
+	if (item.status && FINISHED_STATUS.test(item.status.trim()))
+		return {
+			verdict: "DROP",
+			evidence: `it's marked ${item.status} in ${item.source}`,
+		};
+	if (item.sender && AUTOMATED_SENDER.test(item.sender))
+		return {
+			verdict: "DROP",
+			evidence: `an automated email from ${item.sender}`,
+		};
+
 	const activity = item.lastActivityAt ?? null;
 
 	const github = githubRef(item);
@@ -202,21 +276,59 @@ export async function sweepItem(
 				verdict: "DROP",
 				evidence: `${name} is already approved by ${state.approvedBy}`,
 			};
+		// Conflicted and untouched for the stale window: the author walked away
+		// from it, and a review would be of code that no longer merges.
+		if (
+			state.conflictedForDays != null &&
+			state.conflictedForDays >= STALE_DAYS
+		)
+			return {
+				verdict: "DROP",
+				evidence: `${name} has merge conflicts and no commit in ${state.conflictedForDays} days`,
+			};
+		// The PR's own row only: a Slack message asking me to review it is a
+		// request of me, whatever the PR says.
+		if (state.teamOnly && item.key.startsWith("pr:"))
+			return {
+				verdict: "DROP",
+				evidence: `${name} asks @${state.teamOnly} for a review, not you`,
+			};
 		return keepOrStale(`${name} is still open`, activity);
 	}
 
 	const jira = jiraRef(item);
 	if (jira) {
 		const status = await deps.jiraStatus(jira);
+		if (status?.done)
+			return { verdict: "DROP", evidence: `${jira} is ${status.name}` };
+		// A ticket on the board because I filed it or was mentioned on it, now
+		// someone else's to finish. Only the ticket's own row: a Slack message
+		// asking me about someone else's ticket is still asking me.
+		if (status?.owner && !status.askedOfMe && item.key.startsWith("jira:"))
+			return {
+				verdict: "DROP",
+				evidence: `${jira} is ${status.name} and assigned to ${status.owner}`,
+			};
 		if (status)
-			return status.done
-				? { verdict: "DROP", evidence: `${jira} is ${status.name}` }
-				: keepOrStale(`${jira} is ${status.name}`, status.movedAt ?? activity);
+			return keepOrStale(
+				`${jira} is ${status.name}`,
+				status.movedAt ?? activity,
+			);
 		// Not a real key, or Jira is out of reach. Either way there may still be
 		// a thread under a Slack row worth reading, so fall through.
 	}
 
 	const slack = slackRef(item);
+	// An @channel post that asks nothing: I read it, which was all it wanted.
+	if (
+		slack &&
+		item.key.startsWith("slack:") &&
+		isAnnouncement(item.detail ?? item.title)
+	)
+		return {
+			verdict: "DROP",
+			evidence: "an @channel announcement that asks nothing of you",
+		};
 	if (slack) {
 		const thread = await deps.slackThread(slack);
 		if (!thread)
@@ -250,22 +362,25 @@ export async function sweepItem(
 				verdict: "DROP",
 				evidence: `${thread.answeredBy}, tagged with you, answered in the thread`,
 			};
-		// In a DM the conversation carried on after the ask, the newest message
-		// is theirs, and I reacted to it — "nevermind, I have it now" 👍. That's
-		// their last word, acknowledged; nobody is waiting on me.
-		if (
-			thread.isDirect &&
-			thread.channelLastTs &&
-			!thread.channelLastByMe &&
-			thread.channelLastAckedByMe
-		)
+		const last = lastWord(thread);
+		if (last?.byMe && last.text && !PROMISE.test(last.text))
 			return {
 				verdict: "DROP",
-				evidence: "you reacted to their last message in the DM",
+				evidence: `you answered last in the ${last.where}: “${clip(last.text)}”`,
 			};
-		// Replying is not finishing. "On it", "will check tomorrow" are the last
-		// word too, and the :eyes: still on the message says it isn't done — so
-		// my reply is only ever context and freshness, never a DROP.
+		// "Nevermind, I have it now" 👍: their last word, and I acknowledged it.
+		if (last && !last.byMe && last.acked)
+			return {
+				verdict: "DROP",
+				evidence: `you reacted to their last message in the ${last.where}`,
+			};
+		if (last && !last.byMe && last.text && closes(last.text))
+			return {
+				verdict: "DROP",
+				evidence: `they closed it in the ${last.where}: “${clip(last.text)}”`,
+			};
+		// Replying with a promise is not finishing: "on it", "will check
+		// tomorrow" — the row stays until the promise is kept.
 		if (thread.lastReplyByMe)
 			return keepOrStale("you replied last in the thread", moved);
 		// Only in a direct conversation: in a channel, me saying something later
@@ -340,6 +455,123 @@ export function jiraMovedAt(issue: JiraActivity): number | null {
 		.map((iso) => (iso ? Date.parse(iso) : Number.NaN))
 		.filter(Number.isFinite);
 	return times.length > 0 ? Math.max(...times) : null;
+}
+
+/** The parts of a Jira issue that say whose it is. */
+export interface JiraOwnership {
+	fields?: {
+		assignee?: { accountId?: string; displayName?: string } | null;
+		comment?: {
+			total?: number;
+			comments?: { author?: { accountId?: string }; body?: unknown }[];
+		};
+	};
+}
+
+/**
+ * Whether a ticket is someone else's to finish: assigned to another person,
+ * and its newest comment isn't that person (or anyone) @-mentioning me — a
+ * mention is how Jira hands a question back. A cut-short comment list can't
+ * say which comment is newest, so it counts as asked.
+ */
+export function jiraOwnership(
+	issue: JiraOwnership,
+	myAccountId: string | null,
+): { owner: string | null; askedOfMe: boolean } {
+	const assignee = issue.fields?.assignee;
+	const owner =
+		myAccountId && assignee?.accountId && assignee.accountId !== myAccountId
+			? (assignee.displayName ?? "someone else")
+			: null;
+	const comments = issue.fields?.comment?.comments ?? [];
+	if ((issue.fields?.comment?.total ?? 0) > comments.length)
+		return { owner, askedOfMe: true };
+	const newest = comments.at(-1);
+	const askedOfMe = Boolean(
+		myAccountId &&
+			newest &&
+			newest.author?.accountId !== myAccountId &&
+			JSON.stringify(newest.body ?? "").includes(myAccountId),
+	);
+	return { owner, askedOfMe };
+}
+
+type Thread = NonNullable<Awaited<ReturnType<SweepDeps["slackThread"]>>>;
+
+/**
+ * The newest message after the ask, wherever it was said: the thread's last
+ * reply, or — in a DM, where answers usually come inline — the conversation's
+ * newest message, whichever is later.
+ */
+function lastWord(thread: Thread): {
+	byMe: boolean;
+	text: string | null;
+	acked: boolean;
+	where: "thread" | "DM";
+} | null {
+	const reply = thread.lastReplyTs
+		? {
+				at: Number(thread.lastReplyTs),
+				byMe: thread.lastReplyByMe,
+				text: thread.lastReplyText ?? null,
+				acked: thread.lastReplyAckedByMe ?? false,
+				where: "thread" as const,
+			}
+		: null;
+	const dm =
+		thread.isDirect && thread.channelLastTs
+			? {
+					at: Number(thread.channelLastTs),
+					byMe: thread.channelLastByMe,
+					text: thread.channelLastText ?? null,
+					acked: thread.channelLastAckedByMe ?? false,
+					where: "DM" as const,
+				}
+			: null;
+	const newest = reply && dm ? (dm.at > reply.at ? dm : reply) : (reply ?? dm);
+	if (!newest) return null;
+	const { at: _at, ...rest } = newest;
+	return rest;
+}
+
+/**
+ * A reply that promises rather than delivers: "fixing this", "will look",
+ * "not yet". Anything else I say last — "Fixed", "Created", a link, an
+ * answer, "lmk if it works" — hands the ball back, and nobody waits on me.
+ *
+ * ponytail: a phrase list, measured against 71 hand-read rows (every promise
+ * caught, one "note to self" missed). Swap for a model call if it drifts.
+ */
+export const PROMISE =
+	/\b(will|i'?ll|we'?ll|fixing|looking|checking|investigating|working on|on it|not yet|soon|tomorrow|later|let me (check|look|see))\b|אבדוק|נבדוק|בודק|אעדכן|נעדכן|אסתכל|מחר|עוד מעט|בהמשך|אחזור|עובד על/i;
+
+/** "Thanks", "👍", "works!", "תודה": a short last word that closes it. */
+const CLOSING =
+	/^(:\+1:|:thumbsup:|:pray:|:white_check_mark:|:heavy_check_mark:|👍|🙏|✅)|\b(thanks?|thank you|thx|cool|great|perfect|awesome|works|worked|done|fixed|resolved|solved|got it|sounds good|all good)\b|תודה|עובד|מעולה|סבבה|אחלה|יופי/i;
+/** Still waiting, however politely: "thanks, looking forward to the fix". */
+const STILL_WAITING =
+	/\?|looking forward|once|when|waiting|let me know|lmk|update|still/i;
+
+/** Slack markup out: mentions, channel links, emoji codes kept as-is. */
+function bare(text: string): string {
+	return text.replace(/<[@#!][^>]*>/g, "").trim();
+}
+
+export function closes(text: string): boolean {
+	const said = bare(text);
+	return said.length <= 60 && CLOSING.test(said) && !STILL_WAITING.test(said);
+}
+
+export function isAnnouncement(text: string): boolean {
+	return (
+		/(^|\s)(@channel|@here|<!channel>|<!here>)/i.test(text) &&
+		!text.includes("?")
+	);
+}
+
+function clip(text: string): string {
+	const said = bare(text).replace(/\s+/g, " ");
+	return said.length > 60 ? `${said.slice(0, 57)}…` : said;
 }
 
 export interface Review {

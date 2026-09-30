@@ -60,6 +60,23 @@ function launchReaction(): string {
 }
 
 /**
+ * I reacted to this message, and not with a queue reaction. The :eyes: on
+ * someone's newest message is me queueing it, which says the opposite of
+ * "acknowledged" — counting it dropped rows that were waiting on me.
+ */
+function ackedByMe(
+	reactions: { name?: string; users?: string[] }[] | undefined,
+	myUserId: string,
+): boolean {
+	const queue = new Set([queueReaction(), launchReaction()]);
+	return (reactions ?? []).some(
+		(r) =>
+			!queue.has(normalizeReaction(r.name ?? "")) &&
+			(r.users ?? []).includes(myUserId),
+	);
+}
+
+/**
  * Rows whose message carried my launch reaction on the last sync.
  *
  * ponytail: in memory, not a column. The first sync after a restart refills
@@ -402,12 +419,14 @@ async function conversationAfter(
 	channelLastTs: string | null;
 	channelLastByMe: boolean;
 	channelLastAckedByMe: boolean;
+	channelLastText: string | null;
 	isDirect: boolean;
 }> {
 	const quiet = {
 		channelLastTs: null,
 		channelLastByMe: false,
 		channelLastAckedByMe: false,
+		channelLastText: null,
 		isDirect: false,
 	};
 	try {
@@ -423,16 +442,19 @@ async function conversationAfter(
 			return { ...quiet, isDirect };
 		const author = await slackRead<
 			SlackResponse & {
-				message?: { user?: string; reactions?: { users?: string[] }[] };
+				message?: {
+					user?: string;
+					text?: string;
+					reactions?: { name?: string; users?: string[] }[];
+				};
 			}
 		>("reactions.get", { channel, timestamp: last, full: "true" }, token);
 		return {
 			channelLastTs: last,
 			channelLastByMe: author.message?.user === myUserId,
 			// Same call, already paid for: did I react to that newest message?
-			channelLastAckedByMe: (author.message?.reactions ?? []).some((r) =>
-				(r.users ?? []).includes(myUserId),
-			),
+			channelLastAckedByMe: ackedByMe(author.message?.reactions, myUserId),
+			channelLastText: author.message?.text ?? null,
 			isDirect,
 		};
 	} catch {
@@ -508,6 +530,12 @@ export async function slackThreadReplies(id: string): Promise<{
 	channelLastByMe: boolean;
 	/** I reacted to that newest thing — their last word, acknowledged. */
 	channelLastAckedByMe: boolean;
+	/** What that newest thing said. */
+	channelLastText: string | null;
+	/** What the newest reply said, when the thread has one after the ask. */
+	lastReplyText?: string | null;
+	/** Who wrote the newest reply is someone other than me, and I reacted to it. */
+	lastReplyAckedByMe?: boolean;
 	/** A DM or group DM, where "I spoke last" is about this and nothing else. */
 	isDirect: boolean;
 	/**
@@ -530,6 +558,7 @@ export async function slackThreadReplies(id: string): Promise<{
 		latest_reply?: string;
 		user?: string;
 		text?: string;
+		reactions?: { name?: string; users?: string[] }[];
 	};
 	const get = (timestamp: string) =>
 		slackRead<SlackResponse & { message?: ThreadMessage }>(
@@ -557,12 +586,10 @@ export async function slackThreadReplies(id: string): Promise<{
 			(user) => user !== me.userId,
 		);
 		const answerable = latest !== null && Number(latest) > Number(ts);
-		// Who spoke last. Only worth a call when it could decide something: I'm
-		// in the thread, or someone tagged with me might have answered.
-		const lastBy =
-			latest && (iReplied || (answerable && coAsked.length > 0))
-				? ((await get(latest)).message?.user ?? null)
-				: null;
+		// The newest reply after the ask: who wrote it and what it said decide
+		// whether anyone is still waiting on me.
+		const newest = latest && answerable ? (await get(latest)).message : null;
+		const lastBy = newest?.user ?? null;
 		return {
 			replies: message.reply_count ?? 0,
 			iReplied,
@@ -577,6 +604,12 @@ export async function slackThreadReplies(id: string): Promise<{
 			// read it as one.
 			repliersComplete: repliers.length >= (message.reply_users_count ?? 0),
 			lastReplyTs: latest,
+			lastReplyText: newest?.text ?? null,
+			lastReplyAckedByMe: Boolean(
+				lastBy &&
+					lastBy !== me.userId &&
+					ackedByMe(newest?.reactions, me.userId),
+			),
 		};
 	} catch {
 		return null;

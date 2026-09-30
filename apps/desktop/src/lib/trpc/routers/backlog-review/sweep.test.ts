@@ -1,8 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import {
 	approverOf,
+	duplicates,
 	githubRef,
 	jiraMovedAt,
+	jiraOwnership,
 	jiraRef,
 	mapLimit,
 	type SweepDeps,
@@ -528,5 +530,156 @@ describe("jiraMovedAt", () => {
 				},
 			}),
 		).toBeNull();
+	});
+});
+
+describe("rows the source already answered", () => {
+	test("a Notion row marked Done drops", async () => {
+		expect(
+			await sweepItem(
+				item({ key: "notion:p1", source: "Notion", status: "Done" }),
+				deps(),
+			),
+		).toEqual({ verdict: "DROP", evidence: "it's marked Done in Notion" });
+	});
+
+	test("a Notion row Not started is judged as usual", async () => {
+		const answer = await sweepItem(
+			item({ key: "notion:p1", source: "Notion", status: "Not started" }),
+			deps(),
+		);
+		expect(answer.verdict).toBe("KEEP");
+	});
+
+	test("an automated email drops; a colleague's doesn't", async () => {
+		expect(
+			(await sweepItem(item({ sender: "Imagen <info@imagen-ai.com>" }), deps()))
+				.verdict,
+		).toBe("DROP");
+		expect(
+			(
+				await sweepItem(
+					item({ sender: "Nir Bitan <nir.b@imagen-ai.com>" }),
+					deps(),
+				)
+			).verdict,
+		).toBe("KEEP");
+	});
+
+	test("an inbox copy of a queued Slack message is a duplicate", () => {
+		const copies = duplicates([
+			item({ key: "slack:C1:1790789194.771389" }),
+			item({
+				key: "notion:p1",
+				detail:
+					"https://x.slack.com/archives/C1/p1790789194771389?thread_ts=1.2",
+			}),
+			item({
+				key: "notion:p2",
+				detail: "https://x.slack.com/archives/C9/p1790789194771389",
+			}),
+		]);
+		expect([...copies.keys()]).toEqual(["notion:p1"]);
+	});
+});
+
+describe("someone else's to finish", () => {
+	const issue = (
+		assignee: string,
+		newest?: { by: string; mentions?: string },
+	) => ({
+		fields: {
+			assignee: { accountId: assignee, displayName: "Ori" },
+			comment: {
+				total: newest ? 1 : 0,
+				comments: newest
+					? [
+							{
+								author: { accountId: newest.by },
+								body: {
+									content: [
+										{ type: "mention", attrs: { id: newest.mentions } },
+									],
+								},
+							},
+						]
+					: [],
+			},
+		},
+	});
+
+	test("assigned to someone else, nothing asked of me", () => {
+		expect(jiraOwnership(issue("ori"), "me")).toEqual({
+			owner: "Ori",
+			askedOfMe: false,
+		});
+		expect(jiraOwnership(issue("me"), "me").owner).toBeNull();
+	});
+
+	test("their newest comment @-mentioning me hands it back", () => {
+		expect(
+			jiraOwnership(issue("ori", { by: "tamir", mentions: "me" }), "me")
+				.askedOfMe,
+		).toBe(true);
+		expect(
+			jiraOwnership(issue("ori", { by: "me", mentions: "tamir" }), "me")
+				.askedOfMe,
+		).toBe(false);
+	});
+
+	test("a Jira row that's someone else's drops; a Slack row naming it doesn't", async () => {
+		const d = deps({
+			jiraStatus: async () => ({
+				name: "Open",
+				done: false,
+				owner: "Ori",
+				askedOfMe: false,
+			}),
+		});
+		expect(
+			await sweepItem(item({ key: "jira:BUGT-1", detail: "BUGT-1" }), d),
+		).toEqual({
+			verdict: "DROP",
+			evidence: "BUGT-1 is Open and assigned to Ori",
+		});
+		expect(
+			(await sweepItem(item({ key: "task:t", title: "look at BUGT-1" }), d))
+				.verdict,
+		).toBe("KEEP");
+	});
+
+	test("a conflicted PR nobody has committed to in weeks drops", async () => {
+		const d = deps({
+			githubState: async () => ({
+				state: "open",
+				merged: false,
+				conflictedForDays: 34,
+			}),
+		});
+		expect(
+			(
+				await sweepItem(
+					item({ key: "pr:o/r#1", url: "https://github.com/o/r/pull/1" }),
+					d,
+				)
+			).evidence,
+		).toBe("o/r#1 has merge conflicts and no commit in 34 days");
+	});
+
+	test("a review asked of a team drops on the PR row only", async () => {
+		const d = deps({
+			githubState: async () => ({
+				state: "open",
+				merged: false,
+				teamOnly: "devops",
+			}),
+		});
+		const url = "https://github.com/o/r/pull/1";
+		expect((await sweepItem(item({ key: "pr:o/r#1", url }), d)).verdict).toBe(
+			"DROP",
+		);
+		expect(
+			(await sweepItem(item({ key: "slack:D1:1.2", url }), d)).verdict,
+		).toBe("KEEP");
 	});
 });
