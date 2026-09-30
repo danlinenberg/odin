@@ -455,12 +455,12 @@ function OdinShell() {
 							type="button"
 							disabled={isSwitchingProfile}
 							onClick={() => switchProfile(otherProfilesNeedingYou[0].id)}
-							title={otherProfilesNeedingYou
-								.map((p) => `${p.name}: ${p.count} needs you`)
-								.join("\n")}
-							className="ml-1.5 rounded-full bg-[#f5a623] px-1.5 py-px text-[10px] font-bold tabular-nums text-[#1f1f27] disabled:opacity-50"
+							title={`Switch to ${otherProfilesNeedingYou[0].name}`}
+							className="ml-1.5 rounded-full bg-[#f5a623] px-2 py-[2px] text-[10px] font-bold tabular-nums text-[#1f1f27] disabled:opacity-50"
 						>
-							{otherProfilesNeedingYou.reduce((sum, p) => sum + p.count, 0)}
+							{otherProfilesNeedingYou
+								.map((p) => `${p.name} · ${p.count} needs you`)
+								.join("  ")}
 						</button>
 					</ZoomStable>
 				)}
