@@ -6,6 +6,8 @@ import { readOdinConfig, resolveGithubToken } from "../odin-config";
 import { slackThreadReplies } from "../slack";
 import {
 	approverOf,
+	type JiraActivity,
+	jiraMovedAt,
 	mapLimit,
 	type Reference,
 	type Review,
@@ -45,7 +47,7 @@ async function lookups(): Promise<SweepDeps> {
 			if (!jira) return null;
 			try {
 				const res = await fetch(
-					`${jira.base}/rest/api/3/issue/${encodeURIComponent(key)}?fields=status`,
+					`${jira.base}/rest/api/3/issue/${encodeURIComponent(key)}?fields=status,created,comment&expand=changelog`,
 					{
 						headers: {
 							Authorization: jira.authorization,
@@ -56,7 +58,7 @@ async function lookups(): Promise<SweepDeps> {
 				// 404 is an ordinary answer here, not a failure: anything
 				// key-shaped gets asked about, "UTF-8" included.
 				if (!res.ok) return null;
-				const issue = (await res.json()) as {
+				const issue = (await res.json()) as JiraActivity & {
 					fields?: {
 						status?: { name?: string; statusCategory?: { key?: string } };
 					};
@@ -69,6 +71,7 @@ async function lookups(): Promise<SweepDeps> {
 					// done) and survives a renamed column, which matching on the
 					// status name would not.
 					done: status.statusCategory?.key === "done",
+					movedAt: jiraMovedAt(issue),
 				};
 			} catch {
 				return null;

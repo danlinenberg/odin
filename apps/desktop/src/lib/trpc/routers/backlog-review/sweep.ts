@@ -124,7 +124,12 @@ export function slackRef(item: SweepItem): string | null {
  * rather than as an answer.
  */
 export interface SweepDeps {
-	jiraStatus(key: string): Promise<{ name: string; done: boolean } | null>;
+	jiraStatus(key: string): Promise<{
+		name: string;
+		done: boolean;
+		/** See {@link jiraMovedAt}. Beats the feed's `updated` when present. */
+		movedAt?: number | null;
+	} | null>;
 	githubState(ref: Extract<Reference, { kind: "github" }>): Promise<{
 		state: string;
 		merged: boolean;
@@ -204,7 +209,7 @@ export async function sweepItem(
 		if (status)
 			return status.done
 				? { verdict: "DROP", evidence: `${jira} is ${status.name}` }
-				: keepOrStale(`${jira} is ${status.name}`, activity);
+				: keepOrStale(`${jira} is ${status.name}`, status.movedAt ?? activity);
 		// Not a real key, or Jira is out of reach. Either way there may still be
 		// a thread under a Slack row worth reading, so fall through.
 	}
@@ -272,6 +277,51 @@ export async function sweepItem(
 	// typed has no upstream and never will, so its age is the only thing there
 	// is to go on — which is a checked row, not an unreadable one.
 	return keepOrStale("nothing upstream to check it against", activity);
+}
+
+/** The parts of a Jira issue (`?fields=created,comment&expand=changelog`) that say it moved. */
+export interface JiraActivity {
+	fields?: {
+		created?: string;
+		comment?: { total?: number; comments?: { created?: string }[] };
+	};
+	changelog?: {
+		total?: number;
+		histories?: { created?: string; items?: { field?: string }[] }[];
+	};
+}
+
+/**
+ * What a sprint carry-over writes. Every unfinished ticket is moved into the
+ * next sprint, which bumps `updated` — so a ticket nobody has looked at in a
+ * year reads as touched two weeks ago, forever, and never goes stale.
+ */
+const CARRY_OVER_FIELDS = new Set(["Sprint", "Rank"]);
+
+/**
+ * When someone last did something to the issue, ms: a comment, or a change
+ * that isn't a carry-over. Null when Jira cut a list short — the missing entry
+ * could be the newest — so the caller falls back to `updated`.
+ */
+export function jiraMovedAt(issue: JiraActivity): number | null {
+	const histories = issue.changelog?.histories ?? [];
+	const comments = issue.fields?.comment?.comments ?? [];
+	if ((issue.changelog?.total ?? 0) > histories.length) return null;
+	if ((issue.fields?.comment?.total ?? 0) > comments.length) return null;
+	const times = [
+		issue.fields?.created,
+		...comments.map((comment) => comment.created),
+		...histories
+			.filter((history) =>
+				history.items?.some(
+					(change) => !CARRY_OVER_FIELDS.has(change.field ?? ""),
+				),
+			)
+			.map((history) => history.created),
+	]
+		.map((iso) => (iso ? Date.parse(iso) : Number.NaN))
+		.filter(Number.isFinite);
+	return times.length > 0 ? Math.max(...times) : null;
 }
 
 export interface Review {
