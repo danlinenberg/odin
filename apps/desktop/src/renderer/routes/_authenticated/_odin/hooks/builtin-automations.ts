@@ -42,6 +42,13 @@ export interface BacklogItem {
 	sender?: string;
 }
 
+/** The first of these that carries an email address. */
+function senderOf(
+	...fields: (string | null | undefined)[]
+): string | undefined {
+	return fields.find((field) => field?.includes("@")) ?? undefined;
+}
+
 /** An ISO date from a feed as ms, or undefined when the feed left it out. */
 function movedAt(iso: string | null | undefined): number | undefined {
 	if (!iso) return undefined;
@@ -105,6 +112,7 @@ export function backlogOf(
 		slackUrl?: string | null;
 		channel?: string | null;
 		contact?: string | null;
+		assignee?: string | null;
 	}[] = [],
 ): BacklogItem[] {
 	return [
@@ -170,8 +178,10 @@ export function backlogOf(
 			// thread, and knows it for the same message when it's a Slack row too.
 			...(page.slackUrl ? { detail: page.slackUrl } : {}),
 			...(page.status ? { status: page.status } : {}),
-			...(page.channel === "Gmail" && page.contact
-				? { sender: page.contact }
+			// The address can sit in either field — Contact often holds only the
+			// display name ("Imagen") and Point of Contact the "Imagen <info@…>".
+			...(page.channel === "Gmail" && senderOf(page.contact, page.assignee)
+				? { sender: senderOf(page.contact, page.assignee) }
 				: {}),
 			...(movedAt(page.updatedAt)
 				? { lastActivityAt: movedAt(page.updatedAt) }
