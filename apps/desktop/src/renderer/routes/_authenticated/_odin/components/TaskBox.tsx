@@ -33,7 +33,8 @@ const joinTask = (title: string, notes: string) =>
  * brief was a sentence of placeholder text you had to read and believe. A
  * labelled line and a labelled box say it without the sentence.
  *
- * Enter adds/saves, Shift+Enter in the brief is a newline, Escape cancels.
+ * Ctrl/⌘+Enter adds/saves, plain Enter in the brief is a newline, Escape
+ * cancels. Plain Enter never submits — it fired half-written tasks.
  */
 export function TaskBox({
 	value,
@@ -73,9 +74,13 @@ export function TaskBox({
 	onCancel?: () => void;
 }) {
 	const [title, notes] = splitTask(value);
-	// Enter submits from either field; only the brief keeps Shift+Enter.
+	// Ctrl/⌘+Enter submits from either field.
 	const keys = (event: React.KeyboardEvent) => {
-		if (event.key === "Enter" && !event.shiftKey) {
+		if (
+			event.key === "Enter" &&
+			(event.metaKey || event.ctrlKey) &&
+			!event.nativeEvent.isComposing
+		) {
 			event.preventDefault();
 			onSubmit();
 		}
@@ -618,7 +623,7 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 				<div className="mb-2 flex shrink-0 items-center text-xs font-semibold text-[#f5f5f7]">
 					New task
 					<span className="ml-1.5 font-normal text-[#8a8a97]">
-						⏎ add · esc cancel
+						⌘⏎ add · esc cancel
 					</span>
 					<button
 						type="button"
