@@ -91,8 +91,13 @@ DEV_BUNDLE="$REPO/apps/desktop/node_modules/electron/dist/Odin Dev.app"
 LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 trap '"$LSREGISTER" -u "$DEV_BUNDLE" >/dev/null 2>&1' EXIT
 
+# The port is the renderer's origin, and localStorage is per origin: tasks,
+# Done, the sweep's answers. Taking whichever port is free meant a restart could
+# land on another origin and show a board from days ago. So the last run's port
+# goes first; the others are only for when something else holds it.
+PORT_FILE="$(dirname "$LOG")/dev-vite-port"
 if [[ -z "${DESKTOP_VITE_PORT:-}" ]]; then
-  for port in 5173 5273 5373 5473; do
+  for port in $(cat "$PORT_FILE" 2>/dev/null) 5173 5273 5373 5473; do
     if ! lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
       DESKTOP_VITE_PORT="$port"
       break
@@ -104,6 +109,7 @@ if [[ -z "${DESKTOP_VITE_PORT:-}" ]]; then
   exit 1
 fi
 export DESKTOP_VITE_PORT
+echo "$DESKTOP_VITE_PORT" >"$PORT_FILE"
 
 echo "    vite port: $DESKTOP_VITE_PORT" >>"$LOG"
 
