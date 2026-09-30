@@ -343,7 +343,7 @@ async function fetchMentionRows(): Promise<SlackQueueRow[]> {
 		throw new TRPCError({
 			code: "FORBIDDEN",
 			message:
-				"Notion won't show Odin comments — turn on \"Read comments\" in the integration's capabilities, then reconnect.",
+				'Notion won\'t show Odin comments. In notion.so/profile/integrations, open Odin → Capabilities, turn on "Read comments", then reconnect Notion.',
 		});
 	}
 	return rows.sort((a, b) =>

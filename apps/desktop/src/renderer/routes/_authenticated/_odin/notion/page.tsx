@@ -228,7 +228,7 @@ function NotionPage() {
 					<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
 						{databaseId
 							? "This database has no rows."
-							: "No open comments mention you."}
+							: "No open comments mention you on the pages Odin was given. Pick a teamspace's top-level pages when connecting Notion; their subpages come with them."}
 					</div>
 				)}
 				{needle && rows.length > 0 && shown.length === 0 && (
