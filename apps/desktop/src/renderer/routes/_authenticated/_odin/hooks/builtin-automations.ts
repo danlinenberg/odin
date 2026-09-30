@@ -36,6 +36,10 @@ export interface BacklogItem {
 	lastActivityAt?: number;
 	/** When it was first written, ms — the task made, the message posted, the ticket filed. */
 	createdAt?: number;
+	/** The source's own status name, where it keeps one: a Notion row's Status. */
+	status?: string;
+	/** An email row's sender, as the mail client shows it. */
+	sender?: string;
 }
 
 /** An ISO date from a feed as ms, or undefined when the feed left it out. */
@@ -97,6 +101,10 @@ export function backlogOf(
 		pageUrl: string;
 		title: string;
 		updatedAt: string | null;
+		status?: string | null;
+		slackUrl?: string | null;
+		channel?: string | null;
+		contact?: string | null;
 	}[] = [],
 ): BacklogItem[] {
 	return [
@@ -158,6 +166,13 @@ export function backlogOf(
 			source: "Notion",
 			title: page.title,
 			url: page.pageUrl,
+			// The Slack message an inbox row was copied from: the sweep reads its
+			// thread, and knows it for the same message when it's a Slack row too.
+			...(page.slackUrl ? { detail: page.slackUrl } : {}),
+			...(page.status ? { status: page.status } : {}),
+			...(page.channel === "Gmail" && page.contact
+				? { sender: page.contact }
+				: {}),
 			...(movedAt(page.updatedAt)
 				? { lastActivityAt: movedAt(page.updatedAt) }
 				: {}),

@@ -6,8 +6,11 @@ import { readOdinConfig, resolveGithubToken } from "../odin-config";
 import { slackThreadReplies } from "../slack";
 import {
 	approverOf,
+	duplicates,
 	type JiraActivity,
+	type JiraOwnership,
 	jiraMovedAt,
+	jiraOwnership,
 	mapLimit,
 	type Reference,
 	type Review,
@@ -35,6 +38,8 @@ const ItemSchema = z.object({
 	url: z.string().optional(),
 	unreacted: z.boolean().optional(),
 	lastActivityAt: z.number().optional(),
+	status: z.string().optional(),
+	sender: z.string().optional(),
 });
 
 /** The lookups, wired to the credentials — resolved once for a whole sweep. */
@@ -42,12 +47,27 @@ async function lookups(): Promise<SweepDeps> {
 	const jira = await jiraRequestContext();
 	const github = resolveGithubToken();
 	const me = readOdinConfig().githubLogin?.toLowerCase();
+	// Who I am to Jira, once per sweep: whose ticket it is turns on it.
+	const myAccountId = jira
+		? await fetch(`${jira.base}/rest/api/3/myself`, {
+				headers: {
+					Authorization: jira.authorization,
+					Accept: "application/json",
+				},
+			})
+				.then(async (res) =>
+					res.ok
+						? (((await res.json()) as { accountId?: string }).accountId ?? null)
+						: null,
+				)
+				.catch(() => null)
+		: null;
 	return {
 		jiraStatus: async (key) => {
 			if (!jira) return null;
 			try {
 				const res = await fetch(
-					`${jira.base}/rest/api/3/issue/${encodeURIComponent(key)}?fields=status,created,comment&expand=changelog`,
+					`${jira.base}/rest/api/3/issue/${encodeURIComponent(key)}?fields=status,created,comment,assignee&expand=changelog`,
 					{
 						headers: {
 							Authorization: jira.authorization,
@@ -58,11 +78,12 @@ async function lookups(): Promise<SweepDeps> {
 				// 404 is an ordinary answer here, not a failure: anything
 				// key-shaped gets asked about, "UTF-8" included.
 				if (!res.ok) return null;
-				const issue = (await res.json()) as JiraActivity & {
-					fields?: {
-						status?: { name?: string; statusCategory?: { key?: string } };
+				const issue = (await res.json()) as JiraActivity &
+					JiraOwnership & {
+						fields?: {
+							status?: { name?: string; statusCategory?: { key?: string } };
+						};
 					};
-				};
 				const status = issue.fields?.status;
 				if (!status?.name) return null;
 				return {
@@ -72,6 +93,7 @@ async function lookups(): Promise<SweepDeps> {
 					// status name would not.
 					done: status.statusCategory?.key === "done",
 					movedAt: jiraMovedAt(issue),
+					...jiraOwnership(issue, myAccountId),
 				};
 			} catch {
 				return null;
@@ -91,17 +113,32 @@ async function lookups(): Promise<SweepDeps> {
 					merged?: boolean;
 					pull_request?: { merged_at?: string | null };
 					user?: { login?: string };
+					mergeable_state?: string;
+					requested_reviewers?: { login?: string }[];
+					requested_teams?: { slug?: string }[];
 				};
 				const author = body.user?.login?.toLowerCase();
 				// Only a PR someone else wrote is a review request; my own
 				// approved PR still wants merging. Without my login there's no
 				// telling the two apart, so don't ask.
-				const approvedBy =
-					!ref.issue && me && author && author !== me && body.state === "open"
-						? await approvedByOther(ref, me, github)
-						: null;
+				const theirs =
+					!ref.issue && me && author && author !== me && body.state === "open";
+				const reviews = theirs ? await reviewsOf(ref, github) : null;
+				const iReviewed = (reviews ?? []).some(
+					(review) => review.user?.login?.toLowerCase() === me,
+				);
+				const askedOfMe = (body.requested_reviewers ?? []).some(
+					(user) => user.login?.toLowerCase() === me,
+				);
+				const team = body.requested_teams?.[0]?.slug ?? null;
 				return {
-					approvedBy,
+					approvedBy: reviews && me ? approverOf(reviews, me) : null,
+					teamOnly:
+						theirs && reviews && team && !askedOfMe && !iReviewed ? team : null,
+					conflictedForDays:
+						theirs && body.mergeable_state === "dirty"
+							? await daysSinceLastCommit(ref, github)
+							: null,
 					state: body.state ?? "open",
 					// A /issues/ URL that points at a PR answers from the issues
 					// endpoint, where the merge is on a nested object.
@@ -116,24 +153,49 @@ async function lookups(): Promise<SweepDeps> {
 }
 
 /**
- * Who, other than me, currently approves this PR.
+ * A PR's reviews, or null when GitHub won't say.
  *
  * ponytail: first 100 reviews only; page if a PR ever collects more.
  */
-async function approvedByOther(
+async function reviewsOf(
 	ref: Extract<Reference, { kind: "github" }>,
-	me: string,
 	token: string,
-): Promise<string | null> {
+): Promise<Review[] | null> {
 	try {
 		const res = await githubApiFetch(
 			`https://api.github.com/repos/${ref.owner}/${ref.repo}/pulls/${ref.number}/reviews?per_page=100`,
 			{ headers: { Accept: "application/vnd.github+json" } },
 			token,
 		);
+		return res.ok ? ((await res.json()) as Review[]) : null;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Days since the PR's newest commit. Null past 100 commits — the list is
+ * oldest-first, so the newest would be off the page.
+ */
+async function daysSinceLastCommit(
+	ref: Extract<Reference, { kind: "github" }>,
+	token: string,
+): Promise<number | null> {
+	try {
+		const res = await githubApiFetch(
+			`https://api.github.com/repos/${ref.owner}/${ref.repo}/pulls/${ref.number}/commits?per_page=100`,
+			{ headers: { Accept: "application/vnd.github+json" } },
+			token,
+		);
 		if (!res.ok) return null;
-		const reviews = (await res.json()) as Review[];
-		return approverOf(reviews, me);
+		const commits = (await res.json()) as {
+			commit?: { committer?: { date?: string } };
+		}[];
+		if (commits.length === 0 || commits.length >= 100) return null;
+		const at = Date.parse(commits.at(-1)?.commit?.committer?.date ?? "");
+		return Number.isFinite(at)
+			? Math.floor((Date.now() - at) / 86_400_000)
+			: null;
 	} catch {
 		return null;
 	}
@@ -158,12 +220,13 @@ export const createBacklogReviewRouter = () => {
 			.mutation(async ({ input }) => {
 				const deps = await lookups();
 				const started = Date.now();
+				const copies = duplicates(input.items);
 				const rows = await mapLimit(
 					input.items,
 					16,
 					async (item: SweepItem) => ({
 						key: item.key,
-						...(await sweepItem(item, deps)),
+						...(copies.get(item.key) ?? (await sweepItem(item, deps))),
 					}),
 				);
 				console.warn(
