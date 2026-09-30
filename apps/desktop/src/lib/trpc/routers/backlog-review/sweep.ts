@@ -150,6 +150,8 @@ export interface SweepDeps {
 		channelLastTs: string | null;
 		/** That newest thing is mine — I said something here afterwards. */
 		channelLastByMe: boolean;
+		/** I reacted to that newest thing: their last word, acknowledged. */
+		channelLastAckedByMe?: boolean;
 		/** A DM or group DM, where "I spoke last" is about this and nothing else. */
 		isDirect: boolean;
 		/** Someone tagged alongside me gave the newest reply, after the ask. */
@@ -248,6 +250,19 @@ export async function sweepItem(
 				verdict: "DROP",
 				evidence: `${thread.answeredBy}, tagged with you, answered in the thread`,
 			};
+		// In a DM the conversation carried on after the ask, the newest message
+		// is theirs, and I reacted to it — "nevermind, I have it now" 👍. That's
+		// their last word, acknowledged; nobody is waiting on me.
+		if (
+			thread.isDirect &&
+			thread.channelLastTs &&
+			!thread.channelLastByMe &&
+			thread.channelLastAckedByMe
+		)
+			return {
+				verdict: "DROP",
+				evidence: "you reacted to their last message in the DM",
+			};
 		// Replying is not finishing. "On it", "will check tomorrow" are the last
 		// word too, and the :eyes: still on the message says it isn't done — so
 		// my reply is only ever context and freshness, never a DROP.
@@ -268,6 +283,9 @@ export async function sweepItem(
 					: "";
 			return keepOrStale(`${count}${whose}`, moved);
 		}
+		// The DM went on after the ask, and not from me: someone did reply.
+		if (thread.isDirect && thread.channelLastTs && !thread.channelLastByMe)
+			return keepOrStale("they wrote last in the DM", moved);
 		return keepOrStale("nobody has replied", moved);
 	}
 

@@ -246,6 +246,32 @@ describe("verdicts", () => {
 		});
 	});
 
+	// "Nevermind, I have it now" 👍: their last word, and I acknowledged it.
+	test("reacting to their last DM message drops it; not reacting doesn't", async () => {
+		const dm = (acked: boolean) =>
+			deps({
+				slackThread: async () => ({
+					replies: 0,
+					lastReplyByMe: false,
+					iReplied: false,
+					repliersComplete: true,
+					lastReplyTs: null,
+					channelLastTs: recentTs(),
+					channelLastByMe: false,
+					channelLastAckedByMe: acked,
+					isDirect: true,
+				}),
+			});
+		expect(await sweepItem(item({ key: "slack:D1:123" }), dm(true))).toEqual({
+			verdict: "DROP",
+			evidence: "you reacted to their last message in the DM",
+		});
+		expect(await sweepItem(item({ key: "slack:D1:123" }), dm(false))).toEqual({
+			verdict: "KEEP",
+			evidence: "they wrote last in the DM",
+		});
+	});
+
 	// The same signal in a channel is me saying something unrelated later.
 	test("speaking later in a CHANNEL is not answering", async () => {
 		const answer = await sweepItem(
