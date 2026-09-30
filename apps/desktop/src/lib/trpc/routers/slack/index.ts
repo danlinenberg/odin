@@ -401,11 +401,13 @@ async function conversationAfter(
 ): Promise<{
 	channelLastTs: string | null;
 	channelLastByMe: boolean;
+	channelLastAckedByMe: boolean;
 	isDirect: boolean;
 }> {
 	const quiet = {
 		channelLastTs: null,
 		channelLastByMe: false,
+		channelLastAckedByMe: false,
 		isDirect: false,
 	};
 	try {
@@ -420,11 +422,17 @@ async function conversationAfter(
 		if (!last || Number(last) <= Number(messageTs))
 			return { ...quiet, isDirect };
 		const author = await slackRead<
-			SlackResponse & { message?: { user?: string } }
+			SlackResponse & {
+				message?: { user?: string; reactions?: { users?: string[] }[] };
+			}
 		>("reactions.get", { channel, timestamp: last, full: "true" }, token);
 		return {
 			channelLastTs: last,
 			channelLastByMe: author.message?.user === myUserId,
+			// Same call, already paid for: did I react to that newest message?
+			channelLastAckedByMe: (author.message?.reactions ?? []).some((r) =>
+				(r.users ?? []).includes(myUserId),
+			),
 			isDirect,
 		};
 	} catch {
@@ -498,6 +506,8 @@ export async function slackThreadReplies(id: string): Promise<{
 	channelLastTs: string | null;
 	/** That newest thing is mine — I said something here after this message. */
 	channelLastByMe: boolean;
+	/** I reacted to that newest thing — their last word, acknowledged. */
+	channelLastAckedByMe: boolean;
 	/** A DM or group DM, where "I spoke last" is about this and nothing else. */
 	isDirect: boolean;
 	/**
