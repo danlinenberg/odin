@@ -22,6 +22,7 @@ import {
 	useBacklogReview,
 	useSweepBacklog,
 } from "../hooks/useBacklogReview";
+import { endSession } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useOdinProfile } from "../hooks/useOdinProfile";
 import { useMyTasks } from "../hooks/useOdinTasks";
@@ -238,6 +239,8 @@ function ReviewPage() {
 			source: row.source,
 			url: row.url ?? null,
 		});
+		// Looked up before the task goes: its pane link lives on the task.
+		const paneId = sessionFor(row, livePanes, taskPanes);
 		if (kind === "task") remove(id);
 		else if (kind === "slack") {
 			try {
@@ -248,8 +251,11 @@ function ReviewPage() {
 				unnoteDropped(row.key);
 				setDone(row.key, null);
 				toast.error(error instanceof Error ? error.message : String(error));
+				return;
 			}
 		}
+		// Dropped is done for its session too: what it was working is gone.
+		if (paneId) endSession(paneId);
 	};
 
 	const dropAll = async () => {
@@ -383,8 +389,8 @@ function ReviewPage() {
 										sessionFor(row, livePanes, taskPanes) && (
 											<LuOctagonX
 												className="size-3.5 shrink-0 text-[#ff7a8a]"
-												title="A session is still working on this — stop it"
-												aria-label="A session is still working on this — stop it"
+												title="A session is still working on this — Drop ends it"
+												aria-label="A session is still working on this — Drop ends it"
 											/>
 										)}
 									<span className="truncate text-[13px] text-[#f5f5f7]">
