@@ -847,18 +847,21 @@ function SchedulesPanel() {
 					const next = task.paused ? null : nextRun(task.cron ?? "");
 					if (editingId === task.id) {
 						return (
-							<TaskBox
-								key={task.id}
-								value={editDraft}
-								autoFocus
-								skills={skills}
-								onChange={setEditDraft}
-								onSubmit={() => {
-									edit(task.id, editDraft);
-									setEditingId(null);
-								}}
-								onCancel={() => setEditingId(null)}
-							/>
+							// shrink-0: the list is a flex column that scrolls, and an
+							// overflowing one squeezes the box's fields to nothing.
+							<div key={task.id} className="shrink-0">
+								<TaskBox
+									value={editDraft}
+									autoFocus
+									skills={skills}
+									onChange={setEditDraft}
+									onSubmit={() => {
+										edit(task.id, editDraft);
+										setEditingId(null);
+									}}
+									onCancel={() => setEditingId(null)}
+								/>
+							</div>
 						);
 					}
 					return (
