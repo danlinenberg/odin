@@ -1,6 +1,7 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@odin/ui/tooltip";
 import { cn } from "@odin/ui/utils";
 import { useMatchRoute, useNavigate } from "@tanstack/react-router";
+import { useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useMyTasks } from "../hooks/useOdinTasks";
 import { FEED_TABS, feedCounts, feedIssues } from "./feed-counts";
@@ -21,13 +22,26 @@ export function FeedTabs() {
 		useOdinFeeds();
 	// todos, not tasks: an automation runs itself, so it isn't waiting on you.
 	const { todos } = useMyTasks();
+	// A row put away with Done is gone from its feed, so it's gone from the
+	// badge too — same keys each feed page filters on.
+	const { isDone } = useDone();
 	const counts = feedCounts({
 		tasks: todos.length,
 		slack: reactions.data?.rows ?? [],
-		jira: jira.data?.issues ?? [],
-		pulls: pulls.data?.pulls ?? [],
-		notion: notion.data?.rows ?? [],
-		emails: (emails.data?.emails ?? []).filter((email) => email.junk !== true),
+		jira: (jira.data?.issues ?? []).filter(
+			(issue) => !isDone({ key: `jira:${issue.key}`, url: issue.url }),
+		),
+		pulls: (pulls.data?.pulls ?? []).filter(
+			(pull) => !isDone({ key: `pr:${pull.id}`, url: pull.url }),
+		),
+		notion: (notion.data?.rows ?? []).filter(
+			(row) => !isDone({ key: `notion:${row.pageId}`, url: row.pageUrl }),
+		),
+		emails: (emails.data?.emails ?? []).filter(
+			(email) =>
+				email.junk !== true &&
+				!isDone({ key: `email:${email.id}`, url: email.url }),
+		),
 	});
 
 	// A tab that's empty because its account is signed out — or because its
