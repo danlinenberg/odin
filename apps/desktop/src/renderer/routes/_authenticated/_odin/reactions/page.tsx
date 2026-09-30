@@ -117,9 +117,6 @@ function ReactionsPage() {
 		onError: (error) => toast.error(error.message),
 	});
 
-	// Which emoji queues a message. Slack names it (`eyes`), so this is a text
-	// field, not a picker — see normalizeReaction.
-	const [editingReaction, setEditingReaction] = useState(false);
 	const setReaction = electronTrpc.slack.setReaction.useMutation({
 		onSuccess: () => void reactions.refetch(),
 		onError: (error) => toast.error(error.message),
@@ -148,23 +145,6 @@ function ReactionsPage() {
 			),
 		[data, area, needle],
 	);
-	// Typed as always-present, but the main process only reloads on restart: an
-	// app still running the old code answers without it, and its setReaction
-	// procedure doesn't exist either. Missing value = editing isn't live yet.
-	const liveReaction = data?.reaction as string | undefined;
-	const reaction = liveReaction ?? "eyes";
-	const canEdit = liveReaction !== undefined;
-
-	const saveReaction = (value: string) => {
-		setEditingReaction(false);
-		const name = value
-			.trim()
-			.replace(/^:+|:+$/g, "")
-			.toLowerCase();
-		if (!name || name === reaction) return;
-		setReaction.mutate({ name });
-	};
-
 	const counts = useMemo(() => {
 		const byStatus = new Map<ReactionStatus, number>();
 		for (const status of REACTION_STATUSES) byStatus.set(status, 0);
@@ -221,40 +201,17 @@ function ReactionsPage() {
 						placeholder="Search person"
 						label="Search by person"
 					/>
-					{/* Which emoji queues a message — the whole explanation is the tooltip. */}
-					{editingReaction ? (
-						<input
-							// biome-ignore lint/a11y/noAutofocus: the field only exists once clicked
-							autoFocus
-							defaultValue={reaction}
-							aria-label="Reaction to watch for"
-							onBlur={(e) => saveReaction(e.currentTarget.value)}
-							onKeyDown={(e) => {
-								if (e.key === "Enter") saveReaction(e.currentTarget.value);
-								if (e.key === "Escape") setEditingReaction(false);
-							}}
-							className="w-28 rounded-[7px] bg-[#1f1f27] px-2 py-1 text-[12px] text-[#f5f5f7] outline-none"
-						/>
-					) : (
-						<button
-							type="button"
-							title={
-								canEdit
-									? `Messages I react to with :${reaction}: in Slack — click to change the emoji`
-									: "Restart Odin to change this — the running app still has the old main process"
-							}
-							onClick={() =>
-								canEdit
-									? setEditingReaction(true)
-									: toast.info(
-											"Restart Odin to change the reaction — the running app still has the old main process.",
-										)
-							}
-							className="shrink-0 rounded-[7px] bg-[#1f1f27] px-2.5 py-1 text-[12px] font-medium text-[#a394ff] transition-colors hover:text-[#c4b8ff]"
-						>
-							:{reaction}:
-						</button>
-					)}
+					{/* Which emojis queue a message — the whole explanation is the tooltip. */}
+					<ReactionChip
+						value={data?.reaction ?? "eyes"}
+						title="Messages I react to with this in Slack land here — click to change the emoji"
+						onSave={(name) => setReaction.mutate({ name })}
+					/>
+					<ReactionChip
+						value={data?.launchReaction ?? "robot_face"}
+						title="Messages I react to with this start a session on their own — click to change the emoji"
+						onSave={(name) => setReaction.mutate({ name, launch: true })}
+					/>
 					<SyncButton isSyncing={isSyncing} onClick={() => void syncAll()} />
 				</div>
 			</FeedHeader>
@@ -395,11 +352,58 @@ function ReactionsPage() {
 				{data?.connected && visible.length === 0 && !reactions.isFetching && (
 					<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
 						{activeStatus === "Not started"
-							? `Nothing here — react to a Slack message with :${reaction}: and hit Sync.`
+							? `Nothing here — react to a Slack message with :${data.reaction}: (or :${data.launchReaction}: to start it right away) and hit Sync.`
 							: `Nothing ${activeStatus.toLowerCase()}.`}
 					</div>
 				)}
 			</div>
 		</div>
+	);
+}
+
+/**
+ * One emoji the queue watches for. Slack names reactions (`eyes`), so this is
+ * a text field, not a picker — see normalizeReaction.
+ */
+function ReactionChip({
+	value,
+	title,
+	onSave,
+}: {
+	value: string;
+	title: string;
+	onSave: (name: string) => void;
+}) {
+	const [editing, setEditing] = useState(false);
+	const save = (raw: string) => {
+		setEditing(false);
+		const name = raw
+			.trim()
+			.replace(/^:+|:+$/g, "")
+			.toLowerCase();
+		if (name && name !== value) onSave(name);
+	};
+	return editing ? (
+		<input
+			// biome-ignore lint/a11y/noAutofocus: the field only exists once clicked
+			autoFocus
+			defaultValue={value}
+			aria-label={title}
+			onBlur={(e) => save(e.currentTarget.value)}
+			onKeyDown={(e) => {
+				if (e.key === "Enter") save(e.currentTarget.value);
+				if (e.key === "Escape") setEditing(false);
+			}}
+			className="w-28 rounded-[7px] bg-[#1f1f27] px-2 py-1 text-[12px] text-[#f5f5f7] outline-none"
+		/>
+	) : (
+		<button
+			type="button"
+			title={title}
+			onClick={() => setEditing(true)}
+			className="shrink-0 rounded-[7px] bg-[#1f1f27] px-2.5 py-1 text-[12px] font-medium text-[#a394ff] transition-colors hover:text-[#c4b8ff]"
+		>
+			:{value}:
+		</button>
 	);
 }

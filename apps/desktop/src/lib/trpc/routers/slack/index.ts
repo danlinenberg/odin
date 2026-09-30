@@ -700,6 +700,7 @@ export const createSlackRouter = () => {
 				syncError,
 				connected: token !== null,
 				reaction,
+				launchReaction: launchReaction(),
 			};
 		}),
 
@@ -716,12 +717,19 @@ export const createSlackRouter = () => {
 				),
 			),
 
-		/** Watch for a different emoji. Rows already queued are left alone. */
+		/**
+		 * Watch for a different emoji — the one that queues, or with `launch` the
+		 * one that queues and starts. Rows already queued are left alone.
+		 */
 		setReaction: publicProcedure
-			.input(z.object({ name: z.string() }))
+			.input(z.object({ name: z.string(), launch: z.boolean().optional() }))
 			.mutation(({ input }) => {
 				const reaction = normalizeReaction(input.name);
-				updateOdinConfig({ slackReaction: reaction });
+				updateOdinConfig(
+					input.launch
+						? { slackLaunchReaction: reaction }
+						: { slackReaction: reaction },
+				);
 				return { reaction };
 			}),
 

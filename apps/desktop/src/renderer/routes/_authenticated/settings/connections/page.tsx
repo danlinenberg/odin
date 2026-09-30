@@ -22,6 +22,7 @@ import {
 	type Provider,
 } from "renderer/components/ConnectProvider/ConnectProvider";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { useOdinFeeds } from "../../_odin/hooks/useOdinFeeds";
 import { resetOdinFeeds } from "../../_odin/hooks/useOdinProfile";
 
 export const Route = createFileRoute("/_authenticated/settings/connections/")({
@@ -46,7 +47,8 @@ const META: Record<
 	slack: {
 		name: "Slack",
 		icon: <FaSlack className="size-5" />,
-		description: "Powers the Reactions tab — messages you marked :eyes:.",
+		description:
+			"Powers the Reactions tab — messages you react to with the emojis below.",
 	},
 	jira: {
 		name: "Jira",
@@ -154,6 +156,10 @@ function ConnectionsSettings() {
 								</div>
 							</div>
 
+							{provider === "slack" && row?.configured && !isOpen && (
+								<SlackReactions />
+							)}
+
 							{isOpen && (
 								<div className="mt-3 ml-11 rounded-lg border bg-muted/30 p-3">
 									<ConnectProvider
@@ -169,6 +175,62 @@ function ConnectionsSettings() {
 					);
 				})}
 			</div>
+		</div>
+	);
+}
+
+/**
+ * The two emojis the Reactions tab watches for — the same values its header
+ * chips edit. Slack names reactions, so these are names, not glyphs.
+ */
+function SlackReactions() {
+	const { reactions } = useOdinFeeds();
+	const setReaction = electronTrpc.slack.setReaction.useMutation({
+		onSuccess: () => void reactions.refetch(),
+		onError: (error) => toast.error(error.message),
+	});
+	const fields = [
+		{
+			label: "Queue",
+			hint: "Adds the message to the Reactions tab.",
+			value: reactions.data?.reaction ?? "eyes",
+			launch: false,
+		},
+		{
+			label: "Queue and start",
+			hint: "Also starts a session on it, no click needed.",
+			value: reactions.data?.launchReaction ?? "robot_face",
+			launch: true,
+		},
+	];
+	const save = (raw: string, current: string, launch: boolean) => {
+		const name = raw
+			.trim()
+			.replace(/^:+|:+$/g, "")
+			.toLowerCase();
+		if (name && name !== current) setReaction.mutate({ name, launch });
+	};
+	return (
+		<div className="mt-3 ml-11 space-y-2">
+			{fields.map((field) => (
+				<div key={field.label} className="flex items-center gap-3 text-xs">
+					<span className="w-28 shrink-0 font-medium">{field.label}</span>
+					<Input
+						// Re-mount on a new value so the field shows what was saved.
+						key={field.value}
+						defaultValue={field.value}
+						aria-label={`${field.label} reaction`}
+						onBlur={(e) =>
+							save(e.currentTarget.value, field.value, field.launch)
+						}
+						onKeyDown={(e) => {
+							if (e.key === "Enter") e.currentTarget.blur();
+						}}
+						className="h-7 w-36 text-xs"
+					/>
+					<span className="text-muted-foreground">{field.hint}</span>
+				</div>
+			))}
 		</div>
 	);
 }
