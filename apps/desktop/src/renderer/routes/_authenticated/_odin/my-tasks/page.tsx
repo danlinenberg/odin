@@ -125,21 +125,24 @@ function MyTasksPage() {
 					const activePaneId = livePaneId(task);
 					if (editingId === task.id) {
 						return (
-							<TaskBox
-								key={task.id}
-								value={editDraft}
-								autoFocus
-								skills={skills}
-								repos={repos}
-								repo={editRepo}
-								onRepoChange={setEditRepo}
-								onChange={setEditDraft}
-								onSubmit={() => {
-									edit(task.id, editDraft, editRepo);
-									setEditingId(null);
-								}}
-								onCancel={() => setEditingId(null)}
-							/>
+							// shrink-0: the list is a flex column that scrolls, and an
+							// overflowing one squeezes the box's fields to nothing.
+							<div key={task.id} className="shrink-0">
+								<TaskBox
+									value={editDraft}
+									autoFocus
+									skills={skills}
+									repos={repos}
+									repo={editRepo}
+									onRepoChange={setEditRepo}
+									onChange={setEditDraft}
+									onSubmit={() => {
+										edit(task.id, editDraft, editRepo);
+										setEditingId(null);
+									}}
+									onCancel={() => setEditingId(null)}
+								/>
+							</div>
 						);
 					}
 					return (
