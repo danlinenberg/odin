@@ -22,7 +22,10 @@ import {
 	type Provider,
 } from "renderer/components/ConnectProvider/ConnectProvider";
 import { electronTrpc } from "renderer/lib/electron-trpc";
-import { useOdinFeeds } from "../../_odin/hooks/useOdinFeeds";
+import {
+	useOdinFeeds,
+	useSetSlackReaction,
+} from "../../_odin/hooks/useOdinFeeds";
 import { resetOdinFeeds } from "../../_odin/hooks/useOdinProfile";
 
 export const Route = createFileRoute("/_authenticated/settings/connections/")({
@@ -185,10 +188,7 @@ function ConnectionsSettings() {
  */
 function SlackReactions() {
 	const { reactions } = useOdinFeeds();
-	const setReaction = electronTrpc.slack.setReaction.useMutation({
-		onSuccess: () => void reactions.refetch(),
-		onError: (error) => toast.error(error.message),
-	});
+	const setReaction = useSetSlackReaction();
 	const fields = [
 		{
 			label: "Queue",
@@ -226,7 +226,7 @@ function SlackReactions() {
 						onKeyDown={(e) => {
 							if (e.key === "Enter") e.currentTarget.blur();
 						}}
-						className="h-7 w-36 text-xs"
+						className="h-7 w-44 text-xs"
 					/>
 					<span className="text-muted-foreground">{field.hint}</span>
 				</div>

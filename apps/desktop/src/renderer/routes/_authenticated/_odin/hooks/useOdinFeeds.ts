@@ -1,3 +1,4 @@
+import { toast } from "@odin/ui/sonner";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 
 /**
@@ -92,4 +93,23 @@ export function useOdinFeeds() {
 				workConfig?.hasGmail === true ? emails.refetch() : null,
 			]),
 	};
+}
+
+/**
+ * Change the queue emoji, or with `launch` the auto-start one. The new name
+ * shows at once: the refetch behind it is a full Slack sync, and until it
+ * lands the old emoji read as "the edit didn't take".
+ */
+export function useSetSlackReaction() {
+	const utils = electronTrpc.useUtils();
+	return electronTrpc.slack.setReaction.useMutation({
+		onMutate: ({ name, launch }) =>
+			utils.slack.reactions.setData(undefined, (prev) =>
+				prev
+					? { ...prev, [launch ? "launchReaction" : "reaction"]: name }
+					: prev,
+			),
+		onSettled: () => void utils.slack.reactions.invalidate(),
+		onError: (error) => toast.error(error.message),
+	});
 }

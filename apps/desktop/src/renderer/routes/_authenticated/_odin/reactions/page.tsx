@@ -31,7 +31,7 @@ import {
 } from "../components/FeedChrome";
 import { FeedError } from "../components/FeedError";
 import { PersonChip } from "../components/PersonChip";
-import { useOdinFeeds } from "../hooks/useOdinFeeds";
+import { useOdinFeeds, useSetSlackReaction } from "../hooks/useOdinFeeds";
 import { usePendingFocus } from "../hooks/usePendingFocus";
 import { useStartReaction } from "../hooks/useStartReaction";
 
@@ -117,10 +117,7 @@ function ReactionsPage() {
 		onError: (error) => toast.error(error.message),
 	});
 
-	const setReaction = electronTrpc.slack.setReaction.useMutation({
-		onSuccess: () => void reactions.refetch(),
-		onError: (error) => toast.error(error.message),
-	});
+	const setReaction = useSetSlackReaction();
 
 	// A row's live session, cross-checked against the tabs store so a killed
 	// pane falls back to "Start session".
@@ -397,7 +394,7 @@ function ReactionChip({
 				if (e.key === "Enter") save(e.currentTarget.value);
 				if (e.key === "Escape") setEditing(false);
 			}}
-			className="w-28 rounded-[7px] bg-[#1f1f27] px-2 py-1 text-[12px] text-[#f5f5f7] outline-none"
+			className="w-44 rounded-[7px] bg-[#1f1f27] px-2 py-1 text-[12px] text-[#f5f5f7] outline-none"
 		/>
 	) : (
 		<button
