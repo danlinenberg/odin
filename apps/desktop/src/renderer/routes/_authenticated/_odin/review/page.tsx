@@ -272,6 +272,21 @@ function ReviewPage() {
 	};
 
 	/** The sweep, off a button. The shell also runs it on a clock. */
+	// In the header, and again mid-page when there's nothing to act on.
+	const sweepButton = (className?: string) => (
+		<button
+			type="button"
+			onClick={() => void sweepNow()}
+			disabled={sweeping}
+			className={cn(ROW_PRIMARY_BUTTON, className)}
+		>
+			{sweeping
+				? `Checking ${backlog.length}…`
+				: swept.length > 0
+					? "Sweep again"
+					: "Sweep now"}
+		</button>
+	);
 	const sweepNow = async () => {
 		if (backlog.length === 0) return toast.error("The backlog is empty");
 		try {
@@ -341,18 +356,7 @@ function ReviewPage() {
 						</FilterPill>
 					</>
 				)}
-				<button
-					type="button"
-					onClick={() => void sweepNow()}
-					disabled={sweeping}
-					className={ROW_PRIMARY_BUTTON}
-				>
-					{sweeping
-						? `Checking ${backlog.length}…`
-						: swept.length > 0
-							? "Sweep again"
-							: "Sweep now"}
-				</button>
+				{sweepButton()}
 			</div>
 
 			<div className={FEED_LIST}>
@@ -362,6 +366,7 @@ function ReviewPage() {
 						Slack message and asks the system it came from where it stands — the
 						ticket's status, whether the PR is merged, whether the thread moved
 						on — then lists what it can show is done.
+						<div>{sweepButton("mt-3")}</div>
 					</div>
 				)}
 				{!needle && view === "dropped" && <DroppedList rows={dropped} />}
@@ -374,6 +379,7 @@ function ReviewPage() {
 								: view === "rest"
 									? "Nothing left to look at."
 									: `${autoDropped > 0 ? `Dropped ${autoDropped} of the ${swept.length} swept${swept_ago ? ` ${swept_ago}` : ""} on its own — they're under Dropped.` : `Nothing to drop from the ${swept.length} swept${swept_ago ? ` ${swept_ago}` : ""}.`} ${counts.keep} to keep, ${counts.unknown} it couldn't check.`}
+							{!needle && view === "drop" && <div>{sweepButton("mt-3")}</div>}
 						</div>
 					)}
 
