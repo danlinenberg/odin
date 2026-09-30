@@ -201,15 +201,16 @@ function ReactionsPage() {
 						placeholder="Search person"
 						label="Search by person"
 					/>
-					{/* Which emojis queue a message — the whole explanation is the tooltip. */}
 					<ReactionChip
+						label="Queue"
 						value={data?.reaction ?? "eyes"}
-						title="Messages I react to with this in Slack land here — click to change the emoji"
+						title="React with this in Slack to add a message here. Click to change the emoji."
 						onSave={(name) => setReaction.mutate({ name })}
 					/>
 					<ReactionChip
+						label="Auto-start"
 						value={data?.launchReaction ?? "robot_face"}
-						title="Messages I react to with this start a session on their own — click to change the emoji"
+						title="React with this in Slack to add a message here and start a session on it. Click to change the emoji."
 						onSave={(name) => setReaction.mutate({ name, launch: true })}
 					/>
 					<SyncButton isSyncing={isSyncing} onClick={() => void syncAll()} />
@@ -366,10 +367,12 @@ function ReactionsPage() {
  * a text field, not a picker — see normalizeReaction.
  */
 function ReactionChip({
+	label,
 	value,
 	title,
 	onSave,
 }: {
+	label: string;
 	value: string;
 	title: string;
 	onSave: (name: string) => void;
@@ -399,11 +402,11 @@ function ReactionChip({
 	) : (
 		<button
 			type="button"
-			title={title}
+			title={`${title} Now :${value}:`}
 			onClick={() => setEditing(true)}
 			className="shrink-0 rounded-[7px] bg-[#1f1f27] px-2.5 py-1 text-[12px] font-medium text-[#a394ff] transition-colors hover:text-[#c4b8ff]"
 		>
-			:{value}:
+			{emojify(`:${value}:`)} {label}
 		</button>
 	);
 }
