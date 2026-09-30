@@ -82,6 +82,7 @@ import { DueChip, OverdueMark } from "../components/Reminders";
 import { TranscriptView } from "../components/TranscriptView";
 import { useBacklogReview } from "../hooks/useBacklogReview";
 import { endSession } from "../hooks/useDone";
+import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useOdinProfile } from "../hooks/useOdinProfile";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePaneMeta } from "../hooks/usePaneMeta";
@@ -1128,6 +1129,10 @@ const applyAutoTitles = (titlesBySession: Record<string, string>) => {
 };
 
 function DevBoardPage() {
+	// The Auto-started pill wears whichever emoji you set to auto-start.
+	const launchEmoji = emojify(
+		`:${useOdinFeeds().reactions.data?.launchReaction ?? "robot_face"}:`,
+	);
 	const tabs = useTabsStore((state) => state.tabs);
 	const panes = useTabsStore((state) => state.panes);
 	// No workspace picker — one workspace in practice, and it listed confusing
@@ -2977,7 +2982,7 @@ function DevBoardPage() {
 																			title="Started by your Slack reaction, not a click"
 																			className="inline-flex items-center gap-1 rounded-[5px] bg-[#1f1b33] px-[7px] text-[11px] font-medium text-[#a394ff]"
 																		>
-																			🤖 Auto-started
+																			{launchEmoji} Auto-started
 																		</span>
 																	)}
 																	{agentPaneIds.has(card.pane.id) && (
