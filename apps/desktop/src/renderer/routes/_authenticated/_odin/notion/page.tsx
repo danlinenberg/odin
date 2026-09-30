@@ -67,6 +67,7 @@ function NotionPage() {
 		notion: rowsQuery,
 		notionConfig: config,
 		notionDatabaseId: databaseId,
+		notionMentions: mentions,
 		syncAll,
 		isSyncing,
 	} = useOdinFeeds();
@@ -77,6 +78,10 @@ function NotionPage() {
 		staleTime: 5 * 60_000,
 	});
 	const setDatabase = electronTrpc.notion.setDatabase.useMutation({
+		onSuccess: () => void utils.notion.getConfig.invalidate(),
+		onError: (error) => toast.error(error.message),
+	});
+	const setMentions = electronTrpc.notion.setMentions.useMutation({
 		onSuccess: () => void utils.notion.getConfig.invalidate(),
 		onError: (error) => toast.error(error.message),
 	});
@@ -147,7 +152,8 @@ function NotionPage() {
 			<FeedHeader>
 				<FeedDivider />
 				<span className="shrink-0 text-[12px] text-[#8a8a97]">
-					{rowsQuery.data?.dbTitle ?? "pick a database"}
+					{rowsQuery.data?.dbTitle ??
+						(mentions ? "mentions" : "pick a database")}
 					{rows.length > 0 && ` · ${rows.length} rows`}
 				</span>
 				<div className="ml-auto flex items-center gap-2.5">
@@ -158,6 +164,21 @@ function NotionPage() {
 							label="Search Notion rows"
 						/>
 					)}
+					<button
+						type="button"
+						aria-pressed={mentions}
+						disabled={!config?.hasToken || setMentions.isPending}
+						onClick={() => setMentions.mutate({ enabled: !mentions })}
+						title="Also list open comment threads that @-mention you as tasks"
+						className={cn(
+							"shrink-0 cursor-pointer rounded-full border px-2.5 py-1 text-[12px] font-medium disabled:opacity-40",
+							mentions
+								? "border-[#a394ff] bg-[#211d3a] text-[#f5f5f7]"
+								: "border-[#25252e] bg-[#16161b] text-[#a5a5b3] hover:text-[#f5f5f7]",
+						)}
+					>
+						@ Mentions
+					</button>
 					<select
 						value={databaseId}
 						disabled={!config?.hasToken || setDatabase.isPending}
@@ -200,12 +221,14 @@ function NotionPage() {
 				)}
 				<FeedError error={rowsQuery.error} />
 				<FeedError error={databases.error} />
-				{config?.hasToken && !databaseId && (
+				{config?.hasToken && !databaseId && !mentions && (
 					<Notice text="Pick a database above to list its rows as tasks. Only databases shared with the Notion integration show up." />
 				)}
-				{databaseId && rowsQuery.data && rows.length === 0 && (
+				{(databaseId || mentions) && rowsQuery.data && rows.length === 0 && (
 					<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
-						This database has no rows.
+						{databaseId
+							? "This database has no rows."
+							: "No open comments mention you."}
 					</div>
 				)}
 				{needle && rows.length > 0 && shown.length === 0 && (

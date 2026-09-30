@@ -54,10 +54,13 @@ export function useOdinFeeds() {
 	// (or no token) means no query — the view says so instead.
 	const { data: notionConfig } = electronTrpc.notion.getConfig.useQuery();
 	const notionDatabaseId = notionConfig?.defaultDatabaseId ?? "";
+	// Comment threads that @-mention me ride along as rows, database or not.
+	const notionMentions = notionConfig?.includeMentions === true;
+	const notionEnabled = notionDatabaseId.length > 0 || notionMentions;
 	const notion = electronTrpc.notion.queryDatabase.useQuery(
-		{ databaseId: notionDatabaseId },
+		{ databaseId: notionDatabaseId, mentions: notionMentions },
 		{
-			enabled: notionDatabaseId.length > 0,
+			enabled: notionEnabled,
 			refetchInterval: 120_000,
 			staleTime: 120_000,
 			refetchOnMount: false,
@@ -74,6 +77,7 @@ export function useOdinFeeds() {
 		emails,
 		notionConfig,
 		notionDatabaseId,
+		notionMentions,
 		isSyncing:
 			reactions.isFetching ||
 			jira.isFetching ||
@@ -89,7 +93,7 @@ export function useOdinFeeds() {
 				reactions.refetch(),
 				workConfig?.hasJira === true ? jira.refetch() : null,
 				workConfig?.hasGithub === true ? pulls.refetch() : null,
-				notionDatabaseId.length > 0 ? notion.refetch() : null,
+				notionEnabled ? notion.refetch() : null,
 				workConfig?.hasGmail === true ? emails.refetch() : null,
 			]),
 	};

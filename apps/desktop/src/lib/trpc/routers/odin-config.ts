@@ -24,6 +24,8 @@ export interface OdinFileConfig {
 	notionToken?: string;
 	/** Notion database the Tasks view lists rows from (picked in that view). */
 	notionTaskDbId?: string;
+	/** Also list open comment threads that @-mention me as Notion tasks. */
+	notionMentions?: boolean;
 	/** Legacy name for the same thing — still read, never written. */
 	slackQueueDbId?: string;
 	defaultRepo?: string;

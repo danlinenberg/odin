@@ -7,6 +7,7 @@ import {
 	resolveNotionToken,
 	updateOdinConfig,
 } from "../odin-config";
+import { type NotionComment, openMentionThreads } from "./mentions";
 
 /**
  * Notion access for the Tasks view: list the databases the integration can
@@ -140,6 +141,7 @@ interface NotionPage {
 	id: string;
 	url: string;
 	created_time: string;
+	last_edited_time?: string;
 	properties: Record<string, NotionPropertyValue>;
 }
 
@@ -222,6 +224,133 @@ function normalizePage(page: NotionPage): SlackQueueRow {
 	};
 }
 
+/** GET/POST that must succeed — a failure becomes a readable TRPCError. */
+async function notionJson<T>(url: string, init: RequestInit = {}): Promise<T> {
+	const response = await notionFetch(url, {
+		...init,
+		headers: { "Content-Type": "application/json" },
+	});
+	if (!response.ok) {
+		const body = await response.text();
+		throw new TRPCError({
+			code: response.status === 403 ? "FORBIDDEN" : "BAD_REQUEST",
+			message: `Notion request failed (${response.status}): ${body.slice(0, 300)}`,
+		});
+	}
+	return (await response.json()) as T;
+}
+
+/**
+ * Open comment threads that @-mention me, one task row each.
+ *
+ * Notion has no "my mentions" endpoint, so this reads the comments on the
+ * pages edited lately. "Me" is whoever signed in: the OAuth bot's owner.
+ */
+async function fetchMentionRows(): Promise<SlackQueueRow[]> {
+	const me = await notionJson<{
+		bot?: { owner?: { user?: { id?: string } } };
+	}>("https://api.notion.com/v1/users/me");
+	const meId = me.bot?.owner?.user?.id;
+	// An internal-integration token belongs to the workspace, not a person.
+	if (!meId) return [];
+
+	// ponytail: page-level comments on the 30 most recently edited pages from
+	// the last 14 days. Inline (block) comments and older pages are missed —
+	// reading those means walking every block, which Notion's 3 req/s won't
+	// carry on a 2-minute poll.
+	const since = Date.now() - 14 * 24 * 60 * 60_000;
+	const search = await notionJson<{ results?: NotionPage[] }>(
+		"https://api.notion.com/v1/search",
+		{
+			method: "POST",
+			body: JSON.stringify({
+				filter: { property: "object", value: "page" },
+				sort: { direction: "descending", timestamp: "last_edited_time" },
+				page_size: 30,
+			}),
+		},
+	);
+	const pages = (search.results ?? []).filter(
+		(page) => new Date(page.last_edited_time ?? 0).getTime() >= since,
+	);
+
+	const names = new Map<string, Promise<string | null>>();
+	const nameOf = (userId: string) => {
+		let name = names.get(userId);
+		if (!name) {
+			name = notionJson<{ name?: string }>(
+				`https://api.notion.com/v1/users/${userId}`,
+			).then(
+				(user) => user.name ?? null,
+				() => null,
+			);
+			names.set(userId, name);
+		}
+		return name;
+	};
+
+	const rows: SlackQueueRow[] = [];
+	let forbidden = 0;
+	for (let i = 0; i < pages.length; i += 3) {
+		await Promise.all(
+			pages.slice(i, i + 3).map(async (page) => {
+				let comments: NotionComment[];
+				try {
+					comments =
+						(
+							await notionJson<{ results?: NotionComment[] }>(
+								`https://api.notion.com/v1/comments?block_id=${page.id}&page_size=100`,
+							)
+						).results ?? [];
+				} catch (error) {
+					if (error instanceof TRPCError && error.code === "FORBIDDEN")
+						forbidden++;
+					return;
+				}
+				const title =
+					plainText(
+						Object.values(page.properties ?? {}).find(
+							(value) => value.type === "title",
+						)?.title,
+					) || "(untitled)";
+				for (const thread of openMentionThreads(comments, meId)) {
+					const text = plainText(thread.comment.rich_text).trim();
+					const from = await nameOf(thread.comment.created_by.id);
+					rows.push({
+						pageId: thread.discussionId,
+						pageUrl: `${page.url}?d=${thread.discussionId.replaceAll("-", "")}`,
+						title: `${title}: ${text.slice(0, 80) || "comment"}`,
+						slackUrl: null,
+						status: "Mentioned",
+						priority: null,
+						contact: null,
+						assignee: from,
+						channel: null,
+						date: thread.comment.created_time,
+						updatedAt: thread.latestAt,
+						createdTime: thread.comment.created_time,
+						fields: {
+							Page: title,
+							...(from ? { From: from } : {}),
+							Comment: text,
+						},
+					});
+				}
+			}),
+		);
+	}
+	if (pages.length > 0 && forbidden === pages.length) {
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message:
+				"Notion won't show Odin comments — turn on \"Read comments\" in the integration's capabilities, then reconnect.",
+		});
+	}
+	return rows.sort((a, b) =>
+		(b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""),
+	);
+}
+
 export const createNotionRouter = () => {
 	return router({
 		/** Set the "Status" property of a queue row (e.g. In progress / Done). */
@@ -262,8 +391,17 @@ export const createNotionRouter = () => {
 					fileConfig.notionTaskDbId ??
 					fileConfig.slackQueueDbId ??
 					null,
+				includeMentions: fileConfig.notionMentions === true,
 			};
 		}),
+
+		/** Remember whether @-mention comment threads show as tasks. */
+		setMentions: publicProcedure
+			.input(z.object({ enabled: z.boolean() }))
+			.mutation(({ input }) => {
+				updateOdinConfig({ notionMentions: input.enabled });
+				return { ok: true };
+			}),
 
 		/** Every database this token can see — the Tasks view's picker. */
 		listDatabases: publicProcedure.query(async () => {
@@ -308,11 +446,23 @@ export const createNotionRouter = () => {
 			}),
 
 		queryDatabase: publicProcedure
-			.input(z.object({ databaseId: z.string().min(1) }))
+			.input(
+				z.object({
+					databaseId: z.string(),
+					mentions: z.boolean().optional(),
+				}),
+			)
 			.query(
 				async ({
 					input,
 				}): Promise<{ rows: SlackQueueRow[]; dbTitle: string | null }> => {
+					const mentionRows = input.mentions ? fetchMentionRows() : null;
+					// Awaited below; this only stops a failed DB query first from
+					// leaving it an unhandled rejection.
+					mentionRows?.catch(() => {});
+					// Mentions alone, no database picked.
+					if (!input.databaseId)
+						return { rows: (await mentionRows) ?? [], dbTitle: null };
 					const headers = { "Content-Type": "application/json" };
 					// Every row, no filter — the view tabs/groups client-side. Paginate
 					// past Notion's 100-row page cap (cap total so a huge DB can't hang).
@@ -358,9 +508,13 @@ export const createNotionRouter = () => {
 								title?: { plain_text?: string }[];
 							})
 						: null;
-					const rows = results
-						.filter((page) => page.object === "page")
-						.map(normalizePage);
+					// Mentions first, so their group leads the view.
+					const rows = [
+						...((await mentionRows) ?? []),
+						...results
+							.filter((page) => page.object === "page")
+							.map(normalizePage),
+					];
 					return {
 						rows,
 						dbTitle:
