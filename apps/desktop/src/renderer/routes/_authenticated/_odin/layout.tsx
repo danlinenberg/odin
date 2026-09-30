@@ -238,6 +238,14 @@ function OdinShell() {
 	// A session waiting on you under the *other* profile is invisible until you
 	// switch — the board only draws one profile's cards. The picker says so.
 	const needsYouByProfile = useNeedsYouByProfile();
+	const otherProfilesNeedingYou = profiles
+		.filter((profile) => profile.id !== activeProfileId)
+		.map((profile) => ({
+			id: profile.id,
+			name: profile.name,
+			count: needsYouByProfile.get(profile.id) ?? 0,
+		}))
+		.filter((profile) => profile.count > 0);
 
 	// Sync every feed (Slack, Jira, PRs, Notion) as soon as the app
 	// opens — the
@@ -437,6 +445,23 @@ function OdinShell() {
 								);
 							})}
 						</select>
+					</ZoomStable>
+				)}
+				{/* The option labels only show once the menu is open; this is what
+				    the closed picker says. Click jumps to the profile that's waiting. */}
+				{otherProfilesNeedingYou.length > 0 && (
+					<ZoomStable enabled={isMac}>
+						<button
+							type="button"
+							disabled={isSwitchingProfile}
+							onClick={() => switchProfile(otherProfilesNeedingYou[0].id)}
+							title={otherProfilesNeedingYou
+								.map((p) => `${p.name}: ${p.count} needs you`)
+								.join("\n")}
+							className="ml-1.5 rounded-full bg-[#f5a623] px-1.5 py-px text-[10px] font-bold tabular-nums text-[#1f1f27] disabled:opacity-50"
+						>
+							{otherProfilesNeedingYou.reduce((sum, p) => sum + p.count, 0)}
+						</button>
 					</ZoomStable>
 				)}
 				<div className="h-full min-w-0 flex-1 [-webkit-app-region:drag]" />
