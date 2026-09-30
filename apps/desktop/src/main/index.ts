@@ -35,6 +35,7 @@ import {
 	shutdownTanstackDbPersistence,
 } from "./lib/persistence/persistence";
 import { ensureProjectIconsDir, getProjectIconPath } from "./lib/project-icons";
+import { startWorktreePruner } from "./lib/prune-worktrees";
 import { runQuitCleanup } from "./lib/quit-sequence";
 import { initSentry } from "./lib/sentry";
 import { acquireSingleUiLock } from "./lib/single-ui-lock";
@@ -461,6 +462,8 @@ if (!gotTheLock) {
 			.catch((error: unknown) => {
 				console.error("[main] host-service reconcile failed:", error);
 			});
+
+		startWorktreePruner();
 
 		try {
 			setupAgentIntegrations();
