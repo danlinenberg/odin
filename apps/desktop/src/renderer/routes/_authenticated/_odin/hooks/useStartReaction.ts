@@ -21,7 +21,10 @@ export function useStartReaction() {
 		onSuccess: () => void reactions.refetch(),
 	});
 
-	const start = async (row: ReactionRow): Promise<string | null> => {
+	const start = async (
+		row: ReactionRow,
+		auto = false,
+	): Promise<string | null> => {
 		if (!row.permalink) {
 			toast.error("No Slack link for this message");
 			return null;
@@ -41,6 +44,7 @@ export function useStartReaction() {
 			brief: row.text || row.title,
 			pageId: row.id,
 			source: "reactions",
+			...(auto ? { tags: ["auto-started"] } : {}),
 		});
 		if (!result.ok) {
 			toast.error(result.error);
@@ -75,7 +79,8 @@ export function useSlackAutoLaunch(): void {
 				// Older main process (pre-restart) doesn't send the flag at all.
 				if (!row.autoLaunch || tried.current.has(row.id)) continue;
 				tried.current.add(row.id);
-				if (await start(row)) toast.success(`Started from Slack: ${row.title}`);
+				if (await start(row, true))
+					toast.success(`Started from Slack: ${row.title}`);
 			}
 		})();
 	}, [rows]);

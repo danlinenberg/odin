@@ -46,7 +46,7 @@ export interface WrittenBrief {
 export { TAG_VOCABULARY };
 
 const BRIEF_TAGS: string[] = TAG_VOCABULARY.filter(
-	(tag) => tag !== "automation",
+	(tag) => tag !== "automation" && tag !== "auto-started",
 );
 
 /** Enough to place a card, few enough to read at a glance on one. */

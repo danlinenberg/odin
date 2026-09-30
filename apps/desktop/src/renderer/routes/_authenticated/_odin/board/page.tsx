@@ -65,6 +65,10 @@ import {
 	odinScreenWrite,
 } from "shared/odin-screen-status";
 import { BOARD_TAGS, boardTags, normalizeTag } from "shared/odin-tags";
+
+/** Tags the card shows as their own pill instead of in the #tag line. */
+const PILL_TAGS = ["automation", "auto-started"];
+
 import { useSearchHotkey } from "../components/FeedChrome";
 import {
 	cardBody,
@@ -2941,10 +2945,12 @@ function DevBoardPage() {
 																	{boardTags(
 																		card.pane.odinTags,
 																		customTags,
-																	).some((tag) => tag !== "automation") && (
+																	).some((tag) => !PILL_TAGS.includes(tag)) && (
 																		<span className="font-mono text-[10.5px] text-[#5e5e6a]">
 																			{boardTags(card.pane.odinTags, customTags)
-																				.filter((tag) => tag !== "automation")
+																				.filter(
+																					(tag) => !PILL_TAGS.includes(tag),
+																				)
 																				.map((tag) => `#${tag}`)
 																				.join(" ")}
 																		</span>
@@ -2962,6 +2968,16 @@ function DevBoardPage() {
 																		>
 																			<LuClock className="size-3" />
 																			Automation
+																		</span>
+																	)}
+																	{card.pane.odinTags?.includes(
+																		"auto-started",
+																	) && (
+																		<span
+																			title="Started by your Slack reaction, not a click"
+																			className="inline-flex items-center gap-1 rounded-[5px] bg-[#1f1b33] px-[7px] text-[11px] font-medium text-[#a394ff]"
+																		>
+																			🤖 Auto-started
 																		</span>
 																	)}
 																	{agentPaneIds.has(card.pane.id) && (
