@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
 	approverOf,
 	githubRef,
+	jiraMovedAt,
 	jiraRef,
 	mapLimit,
 	type SweepDeps,
@@ -386,6 +387,24 @@ describe("verdicts", () => {
 		});
 	});
 
+	// The feed's `updated` says two days ago, but that was a sprint carry-over.
+	test("a ticket only carried across sprints goes stale", async () => {
+		const answer = await sweepItem(
+			item({ title: "BUGT-1234", lastActivityAt: Date.now() - 2 * DAY }),
+			deps({
+				jiraStatus: async () => ({
+					name: "New",
+					done: false,
+					movedAt: Date.now() - 400 * DAY,
+				}),
+			}),
+		);
+		expect(answer).toEqual({
+			verdict: "DROP",
+			evidence: "BUGT-1234 is New, and nothing has moved in 400 days",
+		});
+	});
+
 	// The message is old but the thread answered yesterday: the reply is the
 	// freshest thing that happened, so the row is live.
 	test("a recent reply keeps an old message alive", async () => {
@@ -441,5 +460,47 @@ describe("mapLimit", () => {
 		});
 		expect(out).toEqual([50, 10, 40, 20, 30, 0]);
 		expect(peak).toBe(2);
+	});
+});
+
+describe("jiraMovedAt", () => {
+	const at = (iso: string) => Date.parse(iso);
+	const history = (created: string, ...fields: string[]) => ({
+		created,
+		items: fields.map((field) => ({ field })),
+	});
+
+	test("skips sprint carry-overs, counts comments and real changes", () => {
+		expect(
+			jiraMovedAt({
+				fields: {
+					created: "2025-01-01T00:00:00Z",
+					comment: {
+						total: 1,
+						comments: [{ created: "2025-03-01T00:00:00Z" }],
+					},
+				},
+				changelog: {
+					total: 3,
+					histories: [
+						history("2026-09-22T00:00:00Z", "Sprint"),
+						history("2026-09-01T00:00:00Z", "Rank"),
+						history("2025-02-01T00:00:00Z", "status"),
+					],
+				},
+			}),
+		).toBe(at("2025-03-01T00:00:00Z"));
+	});
+
+	test("a cut-short changelog can't be trusted", () => {
+		expect(
+			jiraMovedAt({
+				fields: { created: "2025-01-01T00:00:00Z" },
+				changelog: {
+					total: 200,
+					histories: [history("2025-02-01T00:00:00Z", "status")],
+				},
+			}),
+		).toBeNull();
 	});
 });
