@@ -22,6 +22,8 @@ export const TAG_VOCABULARY = [
 	// Stamped by the automation runner, so a card that appeared while you were
 	// away says why it's there. Also pickable by hand.
 	"automation",
+	// Stamped when a Slack reaction started the session, not a click.
+	"auto-started",
 	"bug",
 	"feature",
 	"chore",
