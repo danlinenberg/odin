@@ -2,7 +2,10 @@ import { toast } from "@odin/ui/sonner";
 import { useMemo } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { type DoneRow, useDoneStore } from "renderer/stores/done";
+import { useTabsStore } from "renderer/stores/tabs/store";
+import { useReminders } from "../components/Reminders";
 import { useBacklogReview } from "./useBacklogReview";
+import { usePaneMeta } from "./usePaneMeta";
 
 /** What Done needs off a row: its All-feed key, and enough to list it later. */
 export interface Doable {
@@ -10,6 +13,17 @@ export interface Doable {
 	title: string;
 	source: string;
 	url?: string | null;
+}
+
+/**
+ * A session's Done: kill its PTY and take it off the board. Session History
+ * resumes it from Claude's transcript on disk.
+ */
+export function endSession(paneId: string) {
+	const pane = useTabsStore.getState().panes[paneId];
+	useTabsStore.getState().removePane(paneId);
+	usePaneMeta.getState().forgetPane(paneId, pane?.claudeSessionId);
+	useReminders.getState().clear(`session:${paneId}`);
 }
 
 /**

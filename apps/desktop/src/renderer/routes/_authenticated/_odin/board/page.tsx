@@ -74,9 +74,10 @@ import {
 	untruncatedTitle,
 } from "../components/OdinPromptDialog";
 import { PersonChip, personColor } from "../components/PersonChip";
-import { DueChip, OverdueMark, useReminders } from "../components/Reminders";
+import { DueChip, OverdueMark } from "../components/Reminders";
 import { TranscriptView } from "../components/TranscriptView";
 import { useBacklogReview } from "../hooks/useBacklogReview";
+import { endSession } from "../hooks/useDone";
 import { useOdinProfile } from "../hooks/useOdinProfile";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePaneMeta } from "../hooks/usePaneMeta";
@@ -2565,9 +2566,7 @@ function DevBoardPage() {
 	 * session, drag the card to Idle (Park) instead.
 	 */
 	const markDone = (card: BoardCard) => {
-		useTabsStore.getState().removePane(card.pane.id);
-		usePaneMeta.getState().forgetPane(card.pane.id, card.pane.claudeSessionId);
-		useReminders.getState().clear(`session:${card.pane.id}`);
+		endSession(card.pane.id);
 		setDrawerCard(null);
 		toast.success("Done — removed from board");
 	};
