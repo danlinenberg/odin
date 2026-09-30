@@ -74,10 +74,15 @@ export interface OdinFileConfig {
 	/** Reaction that queues a message and starts its session. Default `robot_face`. */
 	slackLaunchReaction?: string;
 	/**
-	 * When auto-launch was first switched on, ms. Only messages posted after it
-	 * start themselves — an old :robot_face: shouldn't open a dozen sessions.
+	 * When auto-launch first synced, ms — set once, and its presence means the
+	 * baseline below was taken.
 	 */
 	slackLaunchSince?: number;
+	/**
+	 * Row ids already carrying the launch reaction on that first sync. They never
+	 * start themselves — an old :robot_face: shouldn't open a dozen sessions.
+	 */
+	slackLaunchBaseline?: string[];
 	/**
 	 * Slack OAuth app, so people can connect with a click instead of minting a
 	 * token by hand. Slack has no PKCE and refuses non-HTTPS redirects, so the

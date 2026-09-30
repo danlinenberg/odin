@@ -59,15 +59,6 @@ function launchReaction(): string {
 	);
 }
 
-/** Stamped on first read — see `slackLaunchSince`. */
-function launchSince(): number {
-	const since = readOdinConfig().slackLaunchSince;
-	if (since !== undefined) return since;
-	const now = Date.now();
-	updateOdinConfig({ slackLaunchSince: now });
-	return now;
-}
-
 /**
  * Rows whose message carried my launch reaction on the last sync.
  *
@@ -290,8 +281,17 @@ async function syncReactions(token: string, reaction: string): Promise<void> {
 	const launch = launchReaction();
 	const eyed = pickEyedMessages(items, me.userId, reaction, launch);
 	const now = Date.now();
-	for (const message of eyed)
-		if (message.launch) launchRequested.add(message.id);
+	// The first sync ever only records what was already there: reacting before
+	// this feature existed wasn't asking for a session. After that, a message
+	// launches whenever it was posted — reacting to an old alert is the point.
+	const flagged = eyed.filter((m) => m.launch).map((m) => m.id);
+	const config = readOdinConfig();
+	if (config.slackLaunchSince === undefined) {
+		updateOdinConfig({ slackLaunchSince: now, slackLaunchBaseline: flagged });
+	} else {
+		const baseline = new Set(config.slackLaunchBaseline ?? []);
+		for (const id of flagged) if (!baseline.has(id)) launchRequested.add(id);
+	}
 
 	const existing = new Map(
 		localDb
@@ -652,7 +652,6 @@ export interface ReactionRow {
 }
 
 function readRows(): ReactionRow[] {
-	const since = launchSince();
 	return localDb
 		.select()
 		.from(slackReactions)
@@ -674,9 +673,7 @@ function readRows(): ReactionRow[] {
 			done: row.doneAt !== null,
 			status: reactionStatus(row),
 			autoLaunch:
-				launchRequested.has(row.id) &&
-				reactionStatus(row) === "Not started" &&
-				Number(row.messageTs) * 1000 >= since,
+				launchRequested.has(row.id) && reactionStatus(row) === "Not started",
 		}));
 }
 
