@@ -338,13 +338,20 @@ function useCardTranscript(card: BoardCard, live: boolean) {
  * ponytail: tasks match by title here, not by the task's pane id; pass the
  * task map if a renamed task card ever misses its verdict.
  */
-function DropPill({ pane }: { pane: Pane }) {
-	const row = useBacklogReview((state) =>
-		state.swept.find(
-			(r) =>
-				r.verdict === "DROP" && sessionFor(r, [pane], new Map()) === pane.id,
-		),
+function useDropFor(pane: Pane | undefined) {
+	return useBacklogReview((state) =>
+		pane
+			? state.swept.find(
+					(r) =>
+						r.verdict === "DROP" &&
+						sessionFor(r, [pane], new Map()) === pane.id,
+				)
+			: undefined,
 	);
+}
+
+function DropPill({ pane }: { pane: Pane }) {
+	const row = useDropFor(pane);
 	if (!row) return null;
 	return (
 		<span
@@ -970,6 +977,7 @@ function TagMenu({
 	customTags,
 	starred,
 	onStar,
+	onKeep,
 	onToggle,
 	onAdd,
 	onForget,
@@ -982,6 +990,8 @@ function TagMenu({
 	customTags: string[];
 	starred: boolean;
 	onStar: () => void;
+	/** Set when the sweep suggests dropping this session. */
+	onKeep?: () => void;
 	onToggle: (tag: string) => void;
 	onAdd: (tag: string) => void;
 	onForget: (tag: string) => void;
@@ -1031,6 +1041,20 @@ function TagMenu({
 				<span className="w-3 text-[#f5c542]">★</span>
 				{starred ? "Unstar" : "Star"}
 			</button>
+			{onKeep && (
+				<button
+					type="button"
+					title="Overrule the sweep's Drop? — stays KEEP through later sweeps"
+					onClick={() => {
+						onKeep();
+						onClose();
+					}}
+					className="mb-1.5 flex w-full items-center gap-2 rounded-md border-b border-[#25252e] px-1.5 pb-2 pt-1 text-left text-[12px] text-[#a5a5b3] transition-colors hover:text-[#3ecf8e]"
+				>
+					<span className="w-3 text-[#3ecf8e]">✓</span>
+					Keep
+				</button>
+			)}
 			<div className="mb-1.5 px-1 text-[10px] font-semibold uppercase tracking-[.4px] text-[#8a8a97]">
 				Tags
 			</div>
@@ -1625,6 +1649,7 @@ function DevBoardPage() {
 		x: number;
 		y: number;
 	} | null>(null);
+	const tagMenuDrop = useDropFor(tagMenu ? panes[tagMenu.paneId] : undefined);
 	// One filter at a time, from the header dropdown: "tag:<tag>",
 	// "repo:<name>", "person:<name>", or "" for everything.
 	const [boardFilter, setBoardFilter] = useState("");
@@ -2731,6 +2756,11 @@ function DevBoardPage() {
 						saveCustomTags(customTags.filter((t) => t !== tag))
 					}
 					starred={!!panes[tagMenu.paneId]?.odinStarred}
+					onKeep={
+						tagMenuDrop
+							? () => useBacklogReview.getState().keep(tagMenuDrop.key)
+							: undefined
+					}
 					onStar={() =>
 						useTabsStore.setState((state) => ({
 							panes: {
