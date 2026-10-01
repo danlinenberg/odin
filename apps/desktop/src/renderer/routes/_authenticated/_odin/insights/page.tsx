@@ -279,14 +279,20 @@ function HourGrid({
 						{day}
 					</div>
 					{HOURS.map((hour) => {
-						const value = cells?.[weekday * 24 + hour] ?? 0;
+						// A row is a working day, 06:00 to 05:59 — so its small hours
+						// are the next calendar day's. Reading this row's own 00–05
+						// put last night's work at the end of today, in the future.
+						// ponytail: Sat's small hours wrap to this week's Sun, not next
+						// week's; bucket by (at - 6h) in workload.ts if that matters.
+						const calendarDay = hour < 6 ? (weekday + 1) % 7 : weekday;
+						const value = cells?.[calendarDay * 24 + hour] ?? 0;
 						const label = String(hour).padStart(2, "0");
 						return (
 							<div
 								key={hour}
 								className="h-[24px] rounded-[3px]"
 								style={cellStyle(value, max)}
-								title={`${day} ${label}:00 — ${describe(value)}`}
+								title={`${WEEKDAYS[calendarDay]} ${label}:00 — ${describe(value)}`}
 							/>
 						);
 					})}
