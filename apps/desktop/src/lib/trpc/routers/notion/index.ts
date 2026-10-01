@@ -280,6 +280,57 @@ async function listAllDatabases<T>(): Promise<T[]> {
 }
 
 /**
+ * Databases with a row edited in the last month, found through their rows.
+ * Notion's database search stops early (100 in a workspace with far more),
+ * but a database where someone just assigned me has a freshly edited row, so
+ * walking recent pages reaches it. Schemas are cached: they rarely change.
+ */
+const schemaCache = new Map<string, Promise<unknown | null>>();
+async function databasesWithRecentRows<T>(known: Set<string>): Promise<T[]> {
+	const since = Date.now() - 30 * 24 * 60 * 60_000;
+	const parents = new Set<string>();
+	let cursor: string | undefined;
+	// ponytail: the 500 most recently edited pages.
+	for (let page = 0; page < 5; page++) {
+		const result = await notionJson<{
+			results?: NotionPage[];
+			has_more?: boolean;
+			next_cursor?: string | null;
+		}>("https://api.notion.com/v1/search", {
+			method: "POST",
+			body: JSON.stringify({
+				filter: { property: "object", value: "page" },
+				sort: { direction: "descending", timestamp: "last_edited_time" },
+				page_size: 100,
+				...(cursor ? { start_cursor: cursor } : {}),
+			}),
+		});
+		const pages = result.results ?? [];
+		for (const row of pages) {
+			const id = row.parent?.database_id;
+			if (id && !known.has(id.replaceAll("-", ""))) parents.add(id);
+		}
+		const oldest = pages.at(-1)?.last_edited_time;
+		if (oldest && new Date(oldest).getTime() < since) break;
+		if (!result.has_more || !result.next_cursor) break;
+		cursor = result.next_cursor;
+	}
+	const schemas = await Promise.all(
+		[...parents].map((id) => {
+			let schema = schemaCache.get(id);
+			if (!schema) {
+				schema = notionJson<T>(
+					`https://api.notion.com/v1/databases/${id}`,
+				).catch(() => null);
+				schemaCache.set(id, schema);
+			}
+			return schema;
+		}),
+	);
+	return schemas.filter((schema): schema is T => schema !== null);
+}
+
+/**
  * Rows of every task database (one with a status) whose people property —
  * Assignee, Owner, … — names me, edited in the last month. Each database is
  * asked directly, so a busy one can't crowd another out of a recent-pages
@@ -293,7 +344,11 @@ async function fetchAssignedRows(
 		id: string;
 		properties?: Record<string, { type?: string }>;
 	};
-	const databases = await listAllDatabases<Database>();
+	const searched = await listAllDatabases<Database>();
+	const recent = await databasesWithRecentRows<Database>(
+		new Set(searched.map((db) => db.id.replaceAll("-", ""))),
+	);
+	const databases = [...searched, ...recent];
 	const taskDatabases = databases
 		.filter((db) => !skip(db.id) && hasStatus(db.properties ?? {}))
 		.map((db) => ({
@@ -366,7 +421,7 @@ async function fetchAssignedRows(
 		);
 	}
 	console.log(
-		`[notion] assigned to me: ${databases.length} databases seen, ${taskDatabases.length} with a status and an assignee field, ${failed} failed, ${rows.length} rows`,
+		`[notion] assigned to me: ${searched.length} databases from search + ${recent.length} from recent rows, ${taskDatabases.length} with a status and an assignee field, ${failed} failed, ${rows.length} rows`,
 	);
 	return rows;
 }
