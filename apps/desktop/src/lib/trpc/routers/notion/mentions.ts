@@ -35,6 +35,13 @@ export function propsNamingMe(
 }
 
 /**
+ * People properties that hand a task to someone. Creator, Reporter or
+ * Attendees name me too, but nothing there is waiting on me.
+ */
+export const isAssignment = (propertyName: string) =>
+	/assign|owner|responsible|\bdri\b|lead/i.test(propertyName);
+
+/**
  * A page is a task when it carries a status — a Status property, or a select
  * named Status. Meeting notes list me under Attendees but have none.
  */

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
 	hasStatus,
+	isAssignment,
 	type NotionComment,
 	openMentionThreads,
 	propsNamingMe,
@@ -85,5 +86,18 @@ describe("hasStatus", () => {
 			hasStatus({ Attendees: { type: "people" }, Date: { type: "date" } }),
 		).toBe(false);
 		expect(hasStatus({ Team: { type: "select" } })).toBe(false);
+	});
+});
+
+describe("isAssignment", () => {
+	test("Assignee and Owner hand me work; Creator and Reporter don't", () => {
+		expect(["Assignee", "Owner", "DRI", "Tech Lead"].map(isAssignment)).toEqual(
+			[true, true, true, true],
+		);
+		expect(["Creator", "Reporter", "Attendees"].map(isAssignment)).toEqual([
+			false,
+			false,
+			false,
+		]);
 	});
 });
