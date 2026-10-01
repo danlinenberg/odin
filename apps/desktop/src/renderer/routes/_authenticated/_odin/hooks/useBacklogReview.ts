@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
-import { electronTrpcClient } from "renderer/lib/trpc-client";
-import { useDoneStore } from "renderer/stores/done";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { keepDropped, type SweptRow } from "../review/verdicts";
@@ -33,8 +31,6 @@ export const useBacklogReview = create<{
 	sweepEveryHours: number;
 	/** What was dropped from Review, newest first. Not cleared by a sweep; see keepDropped. */
 	dropped: DroppedRow[];
-	/** DROPs already put in Done on the sweep's word, so an Undo sticks. */
-	autoDone: string[];
 	noteDropped: (row: SweptRow) => void;
 	unnoteDropped: (key: string) => void;
 	record: (swept: SweptRow[]) => void;
@@ -48,7 +44,6 @@ export const useBacklogReview = create<{
 			sweeping: false,
 			sweepEveryHours: 1,
 			dropped: [],
-			autoDone: [],
 			noteDropped: (row) =>
 				set(({ dropped, swept }) => ({
 					dropped: keepDropped(
@@ -75,52 +70,15 @@ export const useBacklogReview = create<{
 		}),
 		{
 			name: "odin-backlog-review",
-			partialize: ({ swept, sweptAt, sweepEveryHours, dropped, autoDone }) => ({
+			partialize: ({ swept, sweptAt, sweepEveryHours, dropped }) => ({
 				swept,
 				sweptAt,
 				sweepEveryHours,
 				dropped,
-				autoDone,
 			}),
 		},
 	),
 );
-
-/**
- * A sweep DROP is Done without waiting for you to drop it in Review: off
- * every feed and Next in line, listed under Review's Dropped and All tasks'
- * Done, where Undo brings it back for good. Once per row — a re-sweep that
- * still says DROP doesn't re-done what you undid. Nothing is deleted and a
- * live session keeps running; Review's own Drop does those.
- */
-export function doneTheDrops(): void {
-	const { swept, autoDone, noteDropped } = useBacklogReview.getState();
-	const already = new Set(autoDone);
-	const drops = swept.filter(
-		(row) => row.verdict === "DROP" && !already.has(row.key),
-	);
-	const { setDone } = useDoneStore.getState();
-	for (const row of drops) {
-		noteDropped(row);
-		setDone(row.key, {
-			title: row.title,
-			source: row.source,
-			url: row.url ?? null,
-		});
-		if (row.key.startsWith("slack:"))
-			electronTrpcClient.slack.setDone
-				.mutate({ id: row.key.slice("slack:".length), done: true })
-				.catch((error) => console.warn("[review] slack done failed", error));
-	}
-	// Only keys the sweep still lists; one it no longer lists can't come back.
-	const listed = new Set(swept.map((row) => row.key));
-	useBacklogReview.setState({
-		autoDone: [
-			...autoDone.filter((key) => listed.has(key)),
-			...drops.map((row) => row.key),
-		],
-	});
-}
 
 /**
  * Every backlog row checked against the system it came from, answers into the
@@ -154,7 +112,7 @@ export function useSweepBacklog(): () => Promise<boolean> {
 					];
 				}),
 			);
-			doneTheDrops();
+			// A DROP is a suggestion: it waits on Review for you to drop it.
 			return true;
 		} finally {
 			useBacklogReview.setState({ sweeping: false });
@@ -175,8 +133,6 @@ export function usePeriodicSweep(): void {
 	const latest = useRef(sweepBacklog);
 	latest.current = sweepBacklog;
 	useEffect(() => {
-		// DROPs from a sweep that ran before this existed.
-		doneTheDrops();
 		// A failing sweep waits the full interval too, not a retry a minute.
 		let triedAt = 0;
 		const tick = () => {
