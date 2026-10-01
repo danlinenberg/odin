@@ -82,6 +82,8 @@ export interface JiraIssueRow {
 	role: "assigned" | "reported" | "mentioned";
 	/** What was said to me, on the rows that are here because of a mention. */
 	mention: JiraMention | null;
+	/** The ticket's description as plain text, capped — for the hover card. */
+	description?: string | null;
 }
 
 interface JiraComment {
@@ -93,9 +95,9 @@ interface JiraComment {
 /**
  * A comment body is ADF, not text. Flattened to one line for the feed: text
  * nodes as themselves, a mention as the "@Name" Jira already stored on it,
- * breaks as spaces.
+ * breaks as spaces — or as `br`, when the line breaks are worth keeping.
  */
-export function adfToText(node: unknown): string {
+export function adfToText(node: unknown, br = " "): string {
 	if (!node || typeof node !== "object") return "";
 	const adf = node as {
 		type?: string;
@@ -105,9 +107,13 @@ export function adfToText(node: unknown): string {
 	};
 	if (adf.type === "mention") return adf.attrs?.text ?? "";
 	if (adf.type === "text") return adf.text ?? "";
-	const inner = (adf.content ?? []).map(adfToText).join("");
-	return adf.type === "paragraph" || adf.type === "hardBreak"
-		? `${inner} `
+	const inner = (adf.content ?? [])
+		.map((child) => adfToText(child, br))
+		.join("");
+	return adf.type === "paragraph" ||
+		adf.type === "hardBreak" ||
+		(br !== " " && (adf.type === "heading" || adf.type === "listItem"))
+		? `${inner}${br}`
 		: inner;
 }
 
@@ -150,6 +156,8 @@ export interface PullRequestRow {
 	/** When the PR was opened. */
 	created?: string | null;
 	comments: number;
+	/** The PR or issue body, markdown as written, capped. */
+	body?: string | null;
 }
 
 /** One unread inbox email, from Gmail's Atom feed. */
@@ -243,6 +251,7 @@ interface JiraSearchResponse {
 			created?: string;
 			duedate?: string;
 			comment?: { comments?: JiraComment[] };
+			description?: unknown;
 		};
 	}[];
 }
@@ -259,6 +268,7 @@ interface GithubSearchResponse {
 		comments?: number;
 		user?: { login?: string };
 		repository_url?: string;
+		body?: string | null;
 	}[];
 }
 
@@ -434,7 +444,7 @@ export const createWorkRouter = () => {
 					const jql = `${match}${openOnly} ORDER BY updated DESC`;
 					// Comment bodies are only worth their weight on the mention rows,
 					// where they are the point.
-					const fields = `summary,status,priority,project,issuetype,reporter,assignee,updated,created,duedate${role === "mentioned" ? ",comment" : ""}`;
+					const fields = `summary,status,priority,project,issuetype,reporter,assignee,updated,created,duedate,description${role === "mentioned" ? ",comment" : ""}`;
 					const response = await fetch(
 						`${request.base}/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&maxResults=100&fields=${fields}`,
 						{ headers },
@@ -462,6 +472,13 @@ export const createWorkRouter = () => {
 						created: issue.fields?.created ?? null,
 						dueDate: issue.fields?.duedate ?? null,
 						role,
+						// ponytail: capped at 3000 chars so a few hundred tickets stay a
+						// small payload; the hover only shows that much anyway.
+						description:
+							adfToText(issue.fields?.description, "\n")
+								.replace(/\n{3,}/g, "\n\n")
+								.trim()
+								.slice(0, 3000) || null,
 						mention: accountId
 							? latestMention(issue.fields?.comment?.comments ?? [], accountId)
 							: null,
@@ -598,6 +615,7 @@ export const createWorkRouter = () => {
 						updated: item.updated_at ?? null,
 						created: item.created_at ?? null,
 						comments: item.comments ?? 0,
+						body: item.body?.trim().slice(0, 3000) || null,
 					}));
 				};
 				const [mine, review, mentioned] = await Promise.all([
