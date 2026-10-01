@@ -183,12 +183,6 @@ function ReviewPage() {
 		[swept, backlog, loadingKey, droppedKeys],
 	);
 	const counts = countByVerdict(rows);
-	// A sweep's DROPs go straight to Done (doneTheDrops), so they're never
-	// among `rows` — without this the banner says "nothing to drop" right
-	// after the sweep dropped twenty.
-	const autoDropped = swept.filter(
-		(row) => row.verdict === "DROP" && droppedKeys.has(row.key),
-	).length;
 	const pending = rows.filter((row) => !decided[row.key]);
 	// Who a row is from lives on the live backlog, not the swept snapshot — a
 	// row that has since left the backlog searches without a person.
@@ -378,7 +372,7 @@ function ReviewPage() {
 								? `Nothing matches "${search.trim()}".`
 								: view === "rest"
 									? "Nothing left to look at."
-									: `${autoDropped > 0 ? `Dropped ${autoDropped} of the ${swept.length} swept${swept_ago ? ` ${swept_ago}` : ""} on its own — they're under Dropped.` : `Nothing to drop from the ${swept.length} swept${swept_ago ? ` ${swept_ago}` : ""}.`} ${counts.keep} to keep, ${counts.unknown} it couldn't check.`}
+									: `Nothing to drop from the ${swept.length} swept${swept_ago ? ` ${swept_ago}` : ""}. ${counts.keep} to keep, ${counts.unknown} it couldn't check.`}
 							{!needle && view === "drop" && <div>{sweepButton("mt-3")}</div>}
 						</div>
 					)}
