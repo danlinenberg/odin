@@ -22,7 +22,6 @@ import {
 	useBacklogReview,
 	useSweepBacklog,
 } from "../hooks/useBacklogReview";
-import { endSession } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useOdinProfile } from "../hooks/useOdinProfile";
 import { useMyTasks } from "../hooks/useOdinTasks";
@@ -133,7 +132,8 @@ function ReviewPage() {
 	const { remove, todos } = useMyTasks();
 	const panes = useTabsStore((state) => state.panes);
 	const active = useActiveSessions();
-	// The sessions still running, so a DROP row can say "stop working on this".
+	// The sessions still running. A row one is working on can't be dropped from
+	// here — closing the session is what ends it.
 	const livePanes = useMemo(
 		() => active.flatMap((s) => (panes[s.paneId] ? [panes[s.paneId]] : [])),
 		[active, panes],
@@ -145,6 +145,8 @@ function ReviewPage() {
 			),
 		[todos],
 	);
+	const hasSession = (row: ReviewRow) =>
+		Boolean(sessionFor(row, livePanes, taskPanes));
 	const setSlackDone = electronTrpc.slack.setDone.useMutation();
 	const setDone = useDoneStore((s) => s.setDone);
 	const utils = electronTrpc.useUtils();
@@ -220,6 +222,9 @@ function ReviewPage() {
 			? pending
 			: pending.filter((row) => row.verdict === "DROP");
 
+	const droppable = (row: ReviewRow) =>
+		row.verdict === "DROP" && !row.stale && !hasSession(row);
+
 	/**
 	 * Clear one item at its source: a task is deleted, a Slack row gets the
 	 * local handled marker. Slack itself is never written to, so the :eyes: is
@@ -239,8 +244,6 @@ function ReviewPage() {
 			source: row.source,
 			url: row.url ?? null,
 		});
-		// Looked up before the task goes: its pane link lives on the task.
-		const paneId = sessionFor(row, livePanes, taskPanes);
 		if (kind === "task") remove(id);
 		else if (kind === "slack") {
 			try {
@@ -254,13 +257,11 @@ function ReviewPage() {
 				return;
 			}
 		}
-		// Dropped is done for its session too: what it was working is gone.
-		if (paneId) endSession(paneId);
 	};
 
 	const dropAll = async () => {
 		// What's on screen — a search narrows what "Drop all" clears.
-		const drops = shown.filter((row) => row.verdict === "DROP" && !row.stale);
+		const drops = shown.filter(droppable);
 		for (const row of drops) await drop(row);
 		toast.success(`Cleared ${drops.length}`);
 	};
@@ -391,14 +392,13 @@ function ReviewPage() {
 							<div className="min-w-0 flex-1">
 								<div className="flex items-center gap-2">
 									<VerdictChip verdict={row.verdict} />
-									{row.verdict === "DROP" &&
-										sessionFor(row, livePanes, taskPanes) && (
-											<LuOctagonX
-												className="size-3.5 shrink-0 text-[#ff7a8a]"
-												title="A session is still working on this — Drop ends it"
-												aria-label="A session is still working on this — Drop ends it"
-											/>
-										)}
+									{hasSession(row) && (
+										<LuOctagonX
+											className="size-3.5 shrink-0 text-[#ff7a8a]"
+											title="A session is still working on this — close it to drop"
+											aria-label="A session is still working on this — close it to drop"
+										/>
+									)}
 									<span className="truncate text-[13px] text-[#f5f5f7]">
 										{row.title}
 									</span>
@@ -437,7 +437,12 @@ function ReviewPage() {
 							<button
 								type="button"
 								onClick={() => void drop(row)}
-								disabled={row.stale}
+								disabled={row.stale || hasSession(row)}
+								title={
+									hasSession(row)
+										? "A session is still working on this — close it to drop"
+										: undefined
+								}
 								className={ROW_PRIMARY_BUTTON}
 							>
 								Drop
@@ -445,17 +450,15 @@ function ReviewPage() {
 						</div>
 					))}
 
-				{(needle || view === "drop") &&
-					shown.some((row) => row.verdict === "DROP") && (
-						<button
-							type="button"
-							onClick={() => void dropAll()}
-							className={cn(ROW_PRIMARY_BUTTON, "mt-1 self-center")}
-						>
-							Drop all{" "}
-							{shown.filter((r) => r.verdict === "DROP" && !r.stale).length}
-						</button>
-					)}
+				{(needle || view === "drop") && shown.some(droppable) && (
+					<button
+						type="button"
+						onClick={() => void dropAll()}
+						className={cn(ROW_PRIMARY_BUTTON, "mt-1 self-center")}
+					>
+						Drop all {shown.filter(droppable).length}
+					</button>
+				)}
 			</div>
 		</div>
 	);
