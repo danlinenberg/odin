@@ -179,25 +179,17 @@ function useNextInLineRows() {
 			instructions: prompt || undefined,
 		};
 	};
-	// A Slack row's title is the message cut to a line; the hover card wants
-	// the whole thing, which only the feed's own row still has.
-	const slackText = useMemo(
-		() =>
-			new Map((reactions.data?.rows ?? []).map((row) => [row.id, row.text])),
-		[reactions.data],
-	);
 	return {
 		rows,
 		reminders,
 		prompt,
 		rankInput,
-		slackText,
 		refetchSlack: () => void reactions.refetch(),
 	};
 }
 
 export function NextInLine() {
-	const { rows, reminders, prompt, rankInput, slackText, refetchSlack } =
+	const { rows, reminders, prompt, rankInput, refetchSlack } =
 		useNextInLineRows();
 	const { ranking, applied, startedAt, error } = useAiRanking();
 	const pinOverdueDays = useNextInLinePrompt((s) => s.pinOverdueDays);
@@ -441,13 +433,6 @@ export function NextInLine() {
 							swept={sweptFor(item)}
 							rank={applied ? order.get(item.key) : undefined}
 							due={effectiveDue(item.key, reminders, item.dueDate)}
-							text={
-								item.source === "Slack"
-									? (slackText.get(item.launch.key) ?? null)
-									: item.source === "Tasks"
-										? item.launch.description
-										: null
-							}
 						/>
 					</HoverCardContent>
 				</HoverCard>
@@ -495,13 +480,11 @@ export function NextInLine() {
  */
 function TaskHover({
 	item,
-	text,
 	swept,
 	rank,
 	due,
 }: {
 	item: AllItem;
-	text: string | null;
 	swept: SweptRow | undefined;
 	rank: number | undefined;
 	due: string | null;
@@ -510,7 +493,7 @@ function TaskHover({
 	const rows: [string, string][] = [...item.details];
 	if (due && !rows.some(([label]) => label === "Due")) rows.push(["Due", due]);
 	if (rank !== undefined) rows.push(["AI rank", `#${rank + 1}`]);
-	const body = text?.trim();
+	const body = item.body?.trim();
 	return (
 		<div className="space-y-2.5 text-[12px] leading-[1.5]">
 			<div className="flex items-center gap-1.5 text-[11px] text-[#8a8a97]">

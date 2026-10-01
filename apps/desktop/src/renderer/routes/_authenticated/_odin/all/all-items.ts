@@ -61,6 +61,8 @@ export interface AllItem {
 	dueDate: string | null;
 	/** The comment that put it here — Jira's @-mention rows. Null elsewhere. */
 	mention: { author: string | null; text: string } | null;
+	/** The long form the card is cut from — a message, a description, a PR body. */
+	body: string | null;
 	/** Whatever else the source knows that the card has no room for —
 	 * label/value pairs for the hover card, in reading order. */
 	details: [string, string][];
@@ -146,6 +148,7 @@ export function allItems(input: {
 		dueDate?: string | null;
 		mention?: { author: string | null; text: string } | null;
 		issueType?: string | null;
+		description?: string | null;
 		role?: string;
 		created?: string | null;
 	}[];
@@ -159,6 +162,7 @@ export function allItems(input: {
 		kind: "review" | "mine" | "mentioned";
 		updated: string | null;
 		draft?: boolean;
+		body?: string | null;
 		comments?: number;
 		created?: string | null;
 	}[];
@@ -201,6 +205,7 @@ export function allItems(input: {
 				at: task.createdAt,
 				dueDate: null,
 				mention: null,
+				body: task.notes || null,
 				details: facts([
 					["Created", when(task.createdAt)],
 					["Skill", task.skill],
@@ -233,6 +238,7 @@ export function allItems(input: {
 					at: ms(row.postedAt),
 					dueDate: null,
 					mention: null,
+					body: row.text || null,
 					details: facts([
 						["Channel", row.channelName],
 						["From", row.authorName],
@@ -275,6 +281,7 @@ export function allItems(input: {
 					at: ms(issue.updated),
 					dueDate: issue.dueDate ?? null,
 					mention: issue.mention ?? null,
+					body: issue.description ?? null,
 					details: facts([
 						["Type", issue.issueType],
 						["Status", issue.status],
@@ -317,6 +324,7 @@ export function allItems(input: {
 					at: ms(pull.updated),
 					dueDate: null,
 					mention: null,
+					body: pull.body ?? null,
 					details: facts([
 						["Repo", pull.repo],
 						["Author", pull.author],
@@ -359,6 +367,7 @@ export function allItems(input: {
 				at: ms(row.updatedAt ?? row.date),
 				dueDate: null,
 				mention: null,
+				body: null,
 				// Every property the database has, as Notion names it.
 				details: facts([
 					["Status", row.status],
@@ -396,6 +405,7 @@ export function allItems(input: {
 					mention: email.snippet
 						? { author: email.from, text: email.snippet }
 						: null,
+					body: null,
 					details: facts([
 						["From", email.fromEmail ?? email.from],
 						["Received", when(email.at)],
