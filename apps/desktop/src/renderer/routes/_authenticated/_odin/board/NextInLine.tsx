@@ -188,19 +188,18 @@ function useNextInLineRows() {
 	};
 }
 
-export function NextInLine() {
+/**
+ * Next in line as the column shows it: waiting rows in the model's order (or
+ * All tasks order), due ones pinned on top. Shared by the column and the
+ * off-hours runner, so the night works through exactly the list you see.
+ */
+export function useNextInLineQueue(showHidden = false) {
 	const { rows, reminders, prompt, rankInput, refetchSlack } =
 		useNextInLineRows();
-	const { ranking, applied, startedAt, error } = useAiRanking();
+	const { ranking, applied } = useAiRanking();
 	const pinOverdueDays = useNextInLinePrompt((s) => s.pinOverdueDays);
-	const navigate = useNavigate();
-	const { start, livePaneFor, isLaunching, launchingKey } =
-		useStartAllItem(refetchSlack);
-	// The rows your instructions hide, per the model — revealed, dimmed, on ask.
-	const [showHidden, setShowHidden] = useState(false);
-	// Open hands the link to the OS: a Slack permalink goes through Slack's
-	// own hand-off into the desktop app, everything else to the browser.
-	const openUrl = electronTrpc.external.openUrl.useMutation();
+	const startItem = useStartAllItem(refetchSlack);
+	const { livePaneFor } = startItem;
 	// Every external item a session was ever started on — the work ledger
 	// keeps the row after the session ends or is Done'd, which is exactly
 	// what "already picked up, not next" needs. Display-only: the ranking's
@@ -209,31 +208,8 @@ export function NextInLine() {
 		{ limit: 1000 },
 		{ refetchInterval: 60_000 },
 	);
-	// Same Done as every feed, so a row done here is done there and back.
-	const { isDone, markDone } = useDone();
-	const doneWithUndo = (item: AllItem) =>
-		markDone({ ...item, title: cleanTitle(item.title) });
-	// The Review sweep's DROPs, so a row it wants gone says so here too. By key,
-	// or by link for PRs, which Next in line keys by id and the sweep by repo#n.
-	const swept = useBacklogReview((s) => s.swept);
-	const dropFor = useMemo(() => {
-		const drops = swept.filter((row) => row.verdict === "DROP");
-		const byKey = new Map(drops.map((row) => [row.key, row]));
-		const byUrl = new Map(
-			drops.flatMap((row) => (row.url ? [[row.url, row] as const] : [])),
-		);
-		return (item: AllItem) =>
-			byKey.get(item.key) ?? (item.url ? byUrl.get(item.url) : undefined);
-	}, [swept]);
-	// Every verdict, not just DROPs: the hover says what the sweep found either way.
-	const sweptFor = useMemo(() => {
-		const byKey = new Map(swept.map((row) => [row.key, row]));
-		const byUrl = new Map(
-			swept.flatMap((row) => (row.url ? [[row.url, row] as const] : [])),
-		);
-		return (item: AllItem) =>
-			byKey.get(item.key) ?? (item.url ? byUrl.get(item.url) : undefined);
-	}, [swept]);
+	// Done anywhere means not next.
+	const { isDone } = useDone();
 	const startedKeys = useMemo(
 		() => new Set((ledger ?? []).map((row) => row.externalId)),
 		[ledger],
@@ -278,6 +254,69 @@ export function NextInLine() {
 		.toSorted((a, b) => (dueOf(a) ?? "").localeCompare(dueOf(b) ?? ""));
 	const unpinned = pinned.length ? next.filter((item) => !dueOf(item)) : next;
 
+	return {
+		...startItem,
+		reminders,
+		order,
+		prompt,
+		rankInput,
+		waiting,
+		isAiHidden,
+		aiHiddenCount,
+		next,
+		pinned,
+		unpinned,
+	};
+}
+
+export function NextInLine() {
+	const { ranking, applied, startedAt, error } = useAiRanking();
+	const navigate = useNavigate();
+	// The rows your instructions hide, per the model — revealed, dimmed, on ask.
+	const [showHidden, setShowHidden] = useState(false);
+	const {
+		start,
+		isLaunching,
+		launchingKey,
+		reminders,
+		order,
+		prompt,
+		rankInput,
+		waiting,
+		isAiHidden,
+		aiHiddenCount,
+		next,
+		pinned,
+		unpinned,
+	} = useNextInLineQueue(showHidden);
+	// Open hands the link to the OS: a Slack permalink goes through Slack's
+	// own hand-off into the desktop app, everything else to the browser.
+	const openUrl = electronTrpc.external.openUrl.useMutation();
+	// Same Done as every feed, so a row done here is done there and back.
+	const { markDone } = useDone();
+	const doneWithUndo = (item: AllItem) =>
+		markDone({ ...item, title: cleanTitle(item.title) });
+	// The Review sweep's DROPs, so a row it wants gone says so here too. By key,
+	// or by link for PRs, which Next in line keys by id and the sweep by repo#n.
+	const swept = useBacklogReview((s) => s.swept);
+	const dropFor = useMemo(() => {
+		const drops = swept.filter((row) => row.verdict === "DROP");
+		const byKey = new Map(drops.map((row) => [row.key, row]));
+		const byUrl = new Map(
+			drops.flatMap((row) => (row.url ? [[row.url, row] as const] : [])),
+		);
+		return (item: AllItem) =>
+			byKey.get(item.key) ?? (item.url ? byUrl.get(item.url) : undefined);
+	}, [swept]);
+	// Every verdict, not just DROPs: the hover says what the sweep found either way.
+	const sweptFor = useMemo(() => {
+		const byKey = new Map(swept.map((row) => [row.key, row]));
+		const byUrl = new Map(
+			swept.flatMap((row) => (row.url ? [[row.url, row] as const] : [])),
+		);
+		return (item: AllItem) =>
+			byKey.get(item.key) ?? (item.url ? byUrl.get(item.url) : undefined);
+	}, [swept]);
 	return (
 		<div className="flex min-w-[240px] flex-1 flex-col rounded-xl border border-[#4b4380] bg-[#15131f] shadow-[0_0_0_1px_rgba(163,148,255,.12),0_8px_24px_-8px_rgba(163,148,255,.35)]">
 			<div className="flex items-center gap-2 px-3 py-2.5 text-xs font-semibold uppercase tracking-[.4px] text-[#d6d0ff]">

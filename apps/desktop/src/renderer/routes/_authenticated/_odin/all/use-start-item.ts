@@ -41,12 +41,22 @@ export function useStartAllItem(onSlackStarted?: () => void) {
 					pane.odinTaskTitle === item.launch.title),
 		)?.id ?? null;
 
-	const start = async (item: AllItem) => {
+	/**
+	 * `offHours` is the overnight runner's launch: tagged, told nobody is
+	 * watching, handed the night's instructions — and it stays where you are
+	 * instead of pulling the board into view.
+	 */
+	const start = async (item: AllItem, offHours?: { instructions: string }) => {
 		const ensured = await ensureWorkspace();
 		if (!ensured.ok) return toast.error(ensured.error);
+		const description = [item.launch.description, offHours?.instructions]
+			.filter(Boolean)
+			.join("\n\n");
 		const result = await launch({
 			...item.launch,
+			description: description || null,
 			workspaceId: ensured.workspace.id,
+			...(offHours ? { tags: ["off-hours"] } : {}),
 		});
 		if (!result.ok) return toast.error(result.error);
 		if (item.source === "Slack") {
@@ -57,6 +67,7 @@ export function useStartAllItem(onSlackStarted?: () => void) {
 		}
 		// My own tasks keep their row and gain a way into the session.
 		if (item.source === "Tasks") setPane(item.launch.key, result.paneId);
+		if (offHours) return;
 		usePendingFocus.getState().focus(result.paneId);
 		navigate({ to: "/board" });
 	};

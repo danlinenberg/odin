@@ -331,7 +331,7 @@ export function useLaunchTaskSession() {
 						description,
 						attachmentPaths,
 						skill,
-						tags?.includes("automation"),
+						tags?.some((tag) => tag === "automation" || tag === "off-hours"),
 						useOdinRules.getState().rules,
 						checkout,
 					),

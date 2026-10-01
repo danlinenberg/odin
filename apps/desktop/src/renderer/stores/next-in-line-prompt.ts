@@ -1,6 +1,37 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
+export interface OffHours {
+	enabled: boolean;
+	/** "HH:MM", local time. A start after the end wraps past midnight. */
+	start: string;
+	end: string;
+	/** A ceiling on one night's sessions, so a bad night can't burn the quota. */
+	maxSessions: number;
+	/** Appended to every off-hours task's prompt. */
+	instructions: string;
+}
+
+export const DEFAULT_OFF_HOURS: OffHours = {
+	enabled: false,
+	start: "23:00",
+	end: "07:00",
+	maxSessions: 8,
+	instructions:
+		"This is an off-hours run: I'm asleep and will read the result in the morning. Get it as far as you can on your own — investigate, find the root cause, and make and verify the change on a branch with a PR open. Don't do anything other people would see before I've looked: no Slack or email messages, no Jira or PR comments, no merging, no deploys. Leave those in ACTION ITEMS.",
+};
+
+/** Whether `now` falls in the window — `end` exclusive, wrapping midnight. */
+export function inOffHours(now: Date, start: string, end: string): boolean {
+	const minutes = (hhmm: string) => {
+		const [h = 0, m = 0] = hhmm.split(":").map(Number);
+		return h * 60 + m;
+	};
+	const t = now.getHours() * 60 + now.getMinutes();
+	const [s, e] = [minutes(start), minutes(end)];
+	return s <= e ? t >= s && t < e : t >= s || t < e;
+}
+
 /**
  * Settings → Board's "how to sort Next in line": your own words, handed to the
  * model with every ranking. Empty = the model judges importance by itself.
@@ -14,6 +45,12 @@ export const useNextInLinePrompt = create<{
 	/** How long past its date a task still pins under Due. */
 	pinOverdueDays: number;
 	setPinOverdueDays: (days: number) => void;
+	/** Off-hours: work through Next in line, one session at a time, overnight. */
+	offHours: OffHours;
+	setOffHours: (patch: Partial<OffHours>) => void;
+	/** Sessions started in the current window — reset once it closes. */
+	offHoursStarted: number;
+	setOffHoursStarted: (count: number) => void;
 }>()(
 	persist(
 		(set) => ({
@@ -21,7 +58,23 @@ export const useNextInLinePrompt = create<{
 			setPrompt: (prompt) => set({ prompt }),
 			pinOverdueDays: 30,
 			setPinOverdueDays: (pinOverdueDays) => set({ pinOverdueDays }),
+			offHours: DEFAULT_OFF_HOURS,
+			setOffHours: (patch) =>
+				set((state) => ({ offHours: { ...state.offHours, ...patch } })),
+			offHoursStarted: 0,
+			setOffHoursStarted: (offHoursStarted) => set({ offHoursStarted }),
 		}),
-		{ name: "odin-next-in-line-prompt" },
+		{
+			name: "odin-next-in-line-prompt",
+			// A profile saved before off-hours existed gets the defaults, not undefined.
+			merge: (saved, current) => {
+				const persisted = saved as Partial<typeof current> | undefined;
+				return {
+					...current,
+					...persisted,
+					offHours: { ...DEFAULT_OFF_HOURS, ...persisted?.offHours },
+				};
+			},
+		},
 	),
 );
