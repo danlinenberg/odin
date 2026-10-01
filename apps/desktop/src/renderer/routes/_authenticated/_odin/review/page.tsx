@@ -174,9 +174,19 @@ function ReviewPage() {
 	// decide — including after a re-sweep, which re-checks everything still in
 	// the backlog: a Jira or PR row isn't cleared at its source, and a Slack or
 	// task row can still be in the feed the sweep read.
+	// Dropping is marking Done, wherever it happened — a row dropped from Next
+	// in line or marked Done in All tasks is a dropped row here too.
+	const allDropped = useMemo(() => {
+		const here = new Set(dropped.map((row) => row.key));
+		const elsewhere = swept.flatMap((row) => {
+			const at = done[row.key]?.at;
+			return at && !here.has(row.key) ? [{ ...row, droppedAt: at }] : [];
+		});
+		return [...dropped, ...elsewhere].sort((a, b) => b.droppedAt - a.droppedAt);
+	}, [dropped, swept, done]);
 	const droppedKeys = useMemo(
-		() => new Set(dropped.map((row) => row.key)),
-		[dropped],
+		() => new Set(allDropped.map((row) => row.key)),
+		[allDropped],
 	);
 	const rows = useMemo(
 		() =>
@@ -342,7 +352,7 @@ function ReviewPage() {
 						</FilterPill>
 						<FilterPill
 							active={!needle && view === "dropped"}
-							count={dropped.length}
+							count={allDropped.length}
 							onClick={() => {
 								setView("dropped");
 								setSearch("");
@@ -365,7 +375,7 @@ function ReviewPage() {
 						<div>{sweepButton("mt-3")}</div>
 					</div>
 				)}
-				{!needle && view === "dropped" && <DroppedList rows={dropped} />}
+				{!needle && view === "dropped" && <DroppedList rows={allDropped} />}
 				{swept.length > 0 &&
 					shown.length === 0 &&
 					(needle || view !== "dropped") && (
@@ -413,15 +423,7 @@ function ReviewPage() {
 										<> · from {fromDate(createdByKey.get(row.key) ?? 0)}</>
 									)}
 									{row.evidence && <> · {row.evidence}</>}
-									{row.stale &&
-										(done[row.key] ? (
-											<>
-												{" "}
-												· you marked it Done {fromDate(done[row.key]?.at ?? 0)}
-											</>
-										) : (
-											<> · already gone from the backlog</>
-										))}
+									{row.stale && <> · already gone from the backlog</>}
 								</div>
 							</div>
 							{row.url && (
