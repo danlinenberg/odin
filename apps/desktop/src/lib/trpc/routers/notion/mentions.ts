@@ -20,6 +20,20 @@ export interface MentionThread {
 	latestAt: string;
 }
 
+/** Names of the people properties (Assignee, Owner, …) that list me. */
+export function propsNamingMe(
+	properties: Record<string, { type?: string; people?: { id?: string }[] }>,
+	meId: string,
+): string[] {
+	return Object.entries(properties)
+		.filter(
+			([, value]) =>
+				value.type === "people" &&
+				(value.people ?? []).some((person) => person.id === meId),
+		)
+		.map(([name]) => name);
+}
+
 const mentions = (comment: NotionComment, meId: string) =>
 	comment.rich_text.some(
 		(part) =>
