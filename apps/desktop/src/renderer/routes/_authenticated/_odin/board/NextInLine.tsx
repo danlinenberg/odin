@@ -32,6 +32,7 @@ import { useBacklogReview } from "../hooks/useBacklogReview";
 import { useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useMyTasks } from "../hooks/useOdinTasks";
+import type { SweptRow } from "../review/verdicts";
 
 /**
  * A feed title as something to read: Slack's *bold* and ~strike~ markers
@@ -232,6 +233,15 @@ export function NextInLine() {
 		return (item: AllItem) =>
 			byKey.get(item.key) ?? (item.url ? byUrl.get(item.url) : undefined);
 	}, [swept]);
+	// Every verdict, not just DROPs: the hover says what the sweep found either way.
+	const sweptFor = useMemo(() => {
+		const byKey = new Map(swept.map((row) => [row.key, row]));
+		const byUrl = new Map(
+			swept.flatMap((row) => (row.url ? [[row.url, row] as const] : [])),
+		);
+		return (item: AllItem) =>
+			byKey.get(item.key) ?? (item.url ? byUrl.get(item.url) : undefined);
+	}, [swept]);
 	const startedKeys = useMemo(
 		() => new Set((ledger ?? []).map((row) => row.externalId)),
 		[ledger],
@@ -424,10 +434,13 @@ export function NextInLine() {
 					<HoverCardContent
 						side="left"
 						align="start"
-						className="w-[360px] border-[#2c2940] bg-[#16151f] p-3"
+						className="w-[440px] border-[#2c2940] bg-[#16151f] p-3"
 					>
 						<TaskHover
 							item={item}
+							swept={sweptFor(item)}
+							rank={applied ? order.get(item.key) : undefined}
+							due={effectiveDue(item.key, reminders, item.dueDate)}
 							text={
 								item.source === "Slack"
 									? (slackText.get(item.launch.key) ?? null)
@@ -476,30 +489,95 @@ export function NextInLine() {
 
 /**
  * What a card's hover says: the task in full — the whole Slack message, not
- * the line it was cut to — and everything the card had to leave out.
+ * the line it was cut to — and everything the card had to leave out: every
+ * field the source sent, the comment that put it here, what the Review sweep
+ * found, where the AI ranked it, and the link itself.
  */
-function TaskHover({ item, text }: { item: AllItem; text: string | null }) {
+function TaskHover({
+	item,
+	text,
+	swept,
+	rank,
+	due,
+}: {
+	item: AllItem;
+	text: string | null;
+	swept: SweptRow | undefined;
+	rank: number | undefined;
+	due: string | null;
+}) {
 	const Icon = ICON[item.to];
-	const facts = [
-		item.priority,
-		item.status,
-		item.dueDate && `due ${item.dueDate}`,
-	].filter(Boolean);
-	const where = [item.person, item.context].filter(Boolean).join(" · ");
+	const rows: [string, string][] = [...item.details];
+	if (due && !rows.some(([label]) => label === "Due")) rows.push(["Due", due]);
+	if (rank !== undefined) rows.push(["AI rank", `#${rank + 1}`]);
+	const body = text?.trim();
 	return (
-		<div className="space-y-2 text-[12px] leading-[1.5]">
+		<div className="space-y-2.5 text-[12px] leading-[1.5]">
 			<div className="flex items-center gap-1.5 text-[11px] text-[#8a8a97]">
 				{Icon && <Icon className="size-3 shrink-0" aria-hidden />}
 				<span className="font-medium text-[#a5a5b3]">{item.source}</span>
-				{facts.length > 0 && <span>· {facts.join(" · ")}</span>}
+				{item.priority && <span>· {item.priority}</span>}
+				{item.status && <span>· {item.status}</span>}
 			</div>
 			<p
 				dir="auto"
-				className="max-h-[260px] overflow-y-auto whitespace-pre-wrap break-words text-left font-medium text-[#ececf1]"
+				className="break-words text-left font-semibold text-[#ececf1]"
 			>
-				{emojify(cleanTitle(text?.trim() ? text : item.title).slice(0, 1500))}
+				{emojify(cleanTitle(item.title))}
 			</p>
-			{where && <div className="text-[11px] text-[#8a8a97]">{where}</div>}
+			{body && body !== item.title.trim() && (
+				<p
+					dir="auto"
+					className="max-h-[220px] cursor-text select-text overflow-y-auto whitespace-pre-wrap break-words text-left text-[#c9c9d3]"
+				>
+					{emojify(body.slice(0, 3000))}
+				</p>
+			)}
+			{item.mention && (
+				<div className="rounded-md border-l-2 border-[#a394ff] bg-[#1d1a2e] px-2 py-1.5 text-[#c9c9d3]">
+					{item.mention.author && (
+						<div className="text-[11px] font-medium text-[#a394ff]">
+							{item.mention.author}
+						</div>
+					)}
+					<div
+						dir="auto"
+						className="line-clamp-6 whitespace-pre-wrap break-words"
+					>
+						{emojify(item.mention.text)}
+					</div>
+				</div>
+			)}
+			{rows.length > 0 && (
+				<dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[11.5px]">
+					{rows.map(([label, value]) => (
+						<div key={label} className="contents">
+							<dt className="text-[#8a8a97]">{label}</dt>
+							<dd dir="auto" className="min-w-0 break-words text-[#d6d6de]">
+								{value}
+							</dd>
+						</div>
+					))}
+				</dl>
+			)}
+			{swept && (
+				<div
+					className={cn(
+						"rounded-md px-2 py-1.5 text-[11.5px]",
+						swept.verdict === "DROP"
+							? "bg-[#331a1f] text-[#ff9aa6]"
+							: "bg-[#1b1f2a] text-[#b8c0d4]",
+					)}
+				>
+					<span className="font-semibold">Review sweep: {swept.verdict}</span>
+					{swept.evidence && ` — ${swept.evidence}`}
+				</div>
+			)}
+			{item.url && (
+				<div className="cursor-text select-text truncate text-[11px] text-[#6f6f80]">
+					{item.url}
+				</div>
+			)}
 		</div>
 	);
 }
