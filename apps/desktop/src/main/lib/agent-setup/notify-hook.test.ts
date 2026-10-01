@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { NOTIFY_SCRIPT_MARKER } from "./notify-hook";
@@ -205,6 +205,36 @@ describe("getNotifyScriptContent", () => {
 
 		expect(result.stderr.toString()).toContain(
 			`[notify-hook] event=${expected} `,
+		);
+	});
+
+	it("keeps a Stop Working while a background agent is still out", async () => {
+		const dir = mkdtempSync(path.join(tmpdir(), "odin-bg-agents-"));
+		const transcript = path.join(dir, "session.jsonl");
+		const launch = (id: string) =>
+			JSON.stringify({
+				toolUseResult: { isAsync: true, status: "async_launched", agentId: id },
+			});
+		const stopOn = async (lines: string[]) => {
+			writeFileSync(transcript, `${lines.join("\n")}\n`);
+			const result = await runNotifyHook({
+				hook_event_name: "Stop",
+				transcript_path: transcript,
+				last_assistant_message: "Waiting.\n\nACTION ITEMS:\n1. Wait.",
+			});
+			return result.stderr.toString();
+		};
+		mkdirSync(path.join(dir, "session", "subagents"), { recursive: true });
+		writeFileSync(path.join(dir, "session", "subagents", "agent-a1.jsonl"), "");
+
+		expect(await stopOn([launch("a1")])).toContain("event=Start ");
+		// Finished: its task-notification is in the transcript.
+		expect(await stopOn([launch("a1"), "<task-id>a1</task-id>"])).toContain(
+			"event=PermissionRequest ",
+		);
+		// No live transcript for it: a killed session's agent, not a running one.
+		expect(await stopOn([launch("gone")])).toContain(
+			"event=PermissionRequest ",
 		);
 	});
 
