@@ -21,7 +21,12 @@ import { type BrowserOpener, openInBrowser } from "./browser-opener";
  * stray callback can't inject a token.
  */
 
-/** What the Reactions feed needs. Only reactions:read is load-bearing. */
+/**
+ * What the Reactions feed needs (reactions:read is the load-bearing one), plus
+ * the four `*:history` scopes the backlog sweep reads a queued message's
+ * conversation with — the only way to tell "someone else answered" or "I
+ * already did it" from "still waiting on me" is to read what was said.
+ */
 const USER_SCOPES = [
 	"reactions:read",
 	"users:read",
@@ -29,6 +34,10 @@ const USER_SCOPES = [
 	"groups:read",
 	"im:read",
 	"mpim:read",
+	"channels:history",
+	"groups:history",
+	"im:history",
+	"mpim:history",
 ];
 
 /** A consent screen the person abandons shouldn't be resumable forever. */
