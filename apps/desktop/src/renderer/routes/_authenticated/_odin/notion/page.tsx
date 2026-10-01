@@ -192,7 +192,7 @@ function NotionPage() {
 						)}
 					>
 						<option value="">
-							{databases.isLoading ? "loading databases…" : "Pick a database…"}
+							{databases.isLoading ? "loading databases…" : "No database"}
 						</option>
 						{/* A database picked before (or set by env) that the search
 						    didn't return still has to show as selected. */}
@@ -222,7 +222,7 @@ function NotionPage() {
 				<FeedError error={rowsQuery.error} />
 				<FeedError error={databases.error} />
 				{config?.hasToken && !databaseId && !mentions && (
-					<Notice text="Pick a database above to list its rows as tasks. Only databases shared with the Notion integration show up." />
+					<Notice text="Pick a database above to list its rows as tasks, or turn on @ Mentions to list only comments that tag you. Only databases shared with the Notion integration show up." />
 				)}
 				{(databaseId || mentions) && rowsQuery.data && rows.length === 0 && (
 					<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
