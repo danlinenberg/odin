@@ -9,6 +9,7 @@ import {
 } from "../odin-config";
 import {
 	hasStatus,
+	isAssignment,
 	type NotionComment,
 	openMentionThreads,
 	propsNamingMe,
@@ -247,25 +248,19 @@ async function notionJson<T>(url: string, init: RequestInit = {}): Promise<T> {
 }
 
 /**
- * Rows of every task database (one with a status) whose people property —
- * Assignee, Owner, … — names me, edited in the last month. Each database is
- * asked directly, so a busy one can't crowd another out of a recent-pages
- * window. Meeting-note databases list me under Attendees but have no status.
+ * Every database the integration can see, cached for half an hour — the list
+ * barely changes, and walking it costs a request per 100 databases.
  */
-async function fetchAssignedRows(
-	meId: string,
-	skip: (databaseId: string) => boolean,
-): Promise<SlackQueueRow[]> {
-	type Database = {
-		id: string;
-		properties?: Record<string, { type?: string }>;
-	};
-	const databases: Database[] = [];
+let databaseCache: { at: number; databases: unknown[] } | null = null;
+async function listAllDatabases<T>(): Promise<T[]> {
+	if (databaseCache && Date.now() - databaseCache.at < 30 * 60_000)
+		return databaseCache.databases as T[];
+	const databases: T[] = [];
 	let cursor: string | undefined;
-	// ponytail: first 300 databases the integration can see.
-	for (let page = 0; page < 3; page++) {
+	// ponytail: first 1,000 databases the integration can see.
+	for (let page = 0; page < 10; page++) {
 		const result = await notionJson<{
-			results?: Database[];
+			results?: T[];
 			has_more?: boolean;
 			next_cursor?: string | null;
 		}>("https://api.notion.com/v1/search", {
@@ -280,13 +275,33 @@ async function fetchAssignedRows(
 		if (!result.has_more || !result.next_cursor) break;
 		cursor = result.next_cursor;
 	}
+	databaseCache = { at: Date.now(), databases };
+	return databases;
+}
 
+/**
+ * Rows of every task database (one with a status) whose people property —
+ * Assignee, Owner, … — names me, edited in the last month. Each database is
+ * asked directly, so a busy one can't crowd another out of a recent-pages
+ * window. Meeting-note databases list me under Attendees but have no status.
+ */
+async function fetchAssignedRows(
+	meId: string,
+	skip: (databaseId: string) => boolean,
+): Promise<SlackQueueRow[]> {
+	type Database = {
+		id: string;
+		properties?: Record<string, { type?: string }>;
+	};
+	const databases = await listAllDatabases<Database>();
 	const taskDatabases = databases
 		.filter((db) => !skip(db.id) && hasStatus(db.properties ?? {}))
 		.map((db) => ({
 			id: db.id,
 			people: Object.entries(db.properties ?? {})
-				.filter(([, value]) => value.type === "people")
+				.filter(
+					([name, value]) => value.type === "people" && isAssignment(name),
+				)
 				.map(([name]) => name),
 		}))
 		.filter((db) => db.people.length > 0);
@@ -319,7 +334,9 @@ async function fetchAssignedRows(
 					},
 				).catch(() => null);
 				for (const page of result?.results ?? []) {
-					const naming = propsNamingMe(page.properties ?? {}, meId);
+					const naming = propsNamingMe(page.properties ?? {}, meId).filter(
+						isAssignment,
+					);
 					const row = normalizePage(page);
 					rows.push({
 						...row,
