@@ -307,6 +307,7 @@ async function fetchAssignedRows(
 		.filter((db) => db.people.length > 0);
 
 	const rows: SlackQueueRow[] = [];
+	let failed = 0;
 	for (let i = 0; i < taskDatabases.length; i += 3) {
 		await Promise.all(
 			taskDatabases.slice(i, i + 3).map(async (db) => {
@@ -332,7 +333,14 @@ async function fetchAssignedRows(
 							},
 						}),
 					},
-				).catch(() => null);
+				).catch((error: Error) => {
+					// One unreadable database mustn't sink the rest — but say so.
+					failed++;
+					console.warn(
+						`[notion] assigned-to-me query failed for database ${db.id}: ${error.message}`,
+					);
+					return null;
+				});
 				for (const page of result?.results ?? []) {
 					const naming = propsNamingMe(page.properties ?? {}, meId).filter(
 						isAssignment,
@@ -357,6 +365,9 @@ async function fetchAssignedRows(
 			}),
 		);
 	}
+	console.log(
+		`[notion] assigned to me: ${databases.length} databases seen, ${taskDatabases.length} with a status and an assignee field, ${failed} failed, ${rows.length} rows`,
+	);
 	return rows;
 }
 
