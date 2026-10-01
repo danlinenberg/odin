@@ -217,11 +217,11 @@ function MyTasksPage() {
 									<RowActions>
 										<button
 											type="button"
-											title="Delete this task"
+											title="Mark this task as done"
 											onClick={() => remove(task.id)}
 											className="rounded-[7px] px-2 py-1 text-xs font-semibold text-[#8a8a97] hover:bg-[#1f1f27] hover:text-[#f5f5f7]"
 										>
-											✕
+											✓ Mark as done
 										</button>
 									</RowActions>
 								</div>
