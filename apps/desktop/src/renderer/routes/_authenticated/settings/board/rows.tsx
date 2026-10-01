@@ -347,13 +347,20 @@ export function OffHoursRows() {
 			</div>
 			<div className="space-y-1">
 				<Label htmlFor="off-hours-instructions" className="text-sm font-medium">
-					Told to every off-hours session
+					Off-hours instructions
 				</Label>
+				<p className="text-[13px] leading-relaxed text-muted-foreground max-w-xl">
+					Handed to every off-hours session, and used to pick them: "don't
+					include X" keeps X out of the night's queue. An edit applies from the
+					next session on.
+				</p>
 				<Textarea
 					id="off-hours-instructions"
 					value={draft}
-					onChange={(e) => setDraft(e.target.value)}
-					onBlur={() => setOffHours({ instructions: draft.trim() })}
+					onChange={(e) => {
+						setDraft(e.target.value);
+						setOffHours({ instructions: e.target.value.trim() });
+					}}
 					maxLength={4000}
 					rows={4}
 				/>
