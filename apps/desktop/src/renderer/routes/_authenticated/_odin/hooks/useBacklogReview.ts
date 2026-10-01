@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { keepDropped, type SweptRow } from "../review/verdicts";
 import { useBacklog } from "./builtin-automations";
+import { useOdinFeeds } from "./useOdinFeeds";
 
 /** A row dropped from Review, as it was swept, and when. */
 export type DroppedRow = SweptRow & { droppedAt: number };
@@ -86,10 +87,15 @@ export const useBacklogReview = create<{
  */
 export function useSweepBacklog(): () => Promise<boolean> {
 	const backlog = useBacklog();
+	const { reactions, jira, pulls, notion } = useOdinFeeds();
+	// A feed still on its first answer is missing from the backlog only
+	// because nothing has arrived — sweeping then judges a backlog with no
+	// Slack rows in it, as the first tick after every restart did.
+	const loading = [reactions, jira, pulls, notion].some((q) => q.isLoading);
 	const sweep = electronTrpc.backlogReview.sweep.useMutation();
 	return useCallback(async () => {
 		const store = useBacklogReview.getState();
-		if (store.sweeping || backlog.length === 0) return false;
+		if (store.sweeping || loading || backlog.length === 0) return false;
 		useBacklogReview.setState({ sweeping: true });
 		try {
 			const { rows: answers } = await sweep.mutateAsync({ items: backlog });
@@ -117,7 +123,7 @@ export function useSweepBacklog(): () => Promise<boolean> {
 		} finally {
 			useBacklogReview.setState({ sweeping: false });
 		}
-	}, [backlog, sweep.mutateAsync]);
+	}, [backlog, loading, sweep.mutateAsync]);
 }
 
 /**
@@ -133,19 +139,19 @@ export function usePeriodicSweep(): void {
 	const latest = useRef(sweepBacklog);
 	latest.current = sweepBacklog;
 	useEffect(() => {
-		// A failing sweep waits the full interval too, not a retry a minute.
+		// A failing sweep waits the full interval too, not a retry a minute. A
+		// tick that didn't sweep — feeds still loading, one already running —
+		// isn't a try, or a restart's first tick would push the sweep an hour.
 		let triedAt = 0;
 		const tick = () => {
 			const { sweptAt, sweepEveryHours } = useBacklogReview.getState();
 			if (sweepEveryHours <= 0) return;
 			const last = Math.max(sweptAt ?? 0, triedAt);
 			if (Date.now() - last < sweepEveryHours * 3_600_000) return;
-			triedAt = Date.now();
-			latest
-				.current()
-				.catch((error) =>
-					console.warn("[review] periodic sweep failed", error),
-				);
+			latest.current().catch((error) => {
+				triedAt = Date.now();
+				console.warn("[review] periodic sweep failed", error);
+			});
 		};
 		const id = setInterval(tick, 60_000);
 		return () => clearInterval(id);
