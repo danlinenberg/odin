@@ -247,12 +247,110 @@ async function notionJson<T>(url: string, init: RequestInit = {}): Promise<T> {
 }
 
 /**
+ * Rows of every task database (one with a status) whose people property —
+ * Assignee, Owner, … — names me, edited in the last month. Each database is
+ * asked directly, so a busy one can't crowd another out of a recent-pages
+ * window. Meeting-note databases list me under Attendees but have no status.
+ */
+async function fetchAssignedRows(
+	meId: string,
+	skip: (databaseId: string) => boolean,
+): Promise<SlackQueueRow[]> {
+	type Database = {
+		id: string;
+		properties?: Record<string, { type?: string }>;
+	};
+	const databases: Database[] = [];
+	let cursor: string | undefined;
+	// ponytail: first 300 databases the integration can see.
+	for (let page = 0; page < 3; page++) {
+		const result = await notionJson<{
+			results?: Database[];
+			has_more?: boolean;
+			next_cursor?: string | null;
+		}>("https://api.notion.com/v1/search", {
+			method: "POST",
+			body: JSON.stringify({
+				filter: { property: "object", value: "database" },
+				page_size: 100,
+				...(cursor ? { start_cursor: cursor } : {}),
+			}),
+		});
+		databases.push(...(result.results ?? []));
+		if (!result.has_more || !result.next_cursor) break;
+		cursor = result.next_cursor;
+	}
+
+	const taskDatabases = databases
+		.filter((db) => !skip(db.id) && hasStatus(db.properties ?? {}))
+		.map((db) => ({
+			id: db.id,
+			people: Object.entries(db.properties ?? {})
+				.filter(([, value]) => value.type === "people")
+				.map(([name]) => name),
+		}))
+		.filter((db) => db.people.length > 0);
+
+	const rows: SlackQueueRow[] = [];
+	for (let i = 0; i < taskDatabases.length; i += 3) {
+		await Promise.all(
+			taskDatabases.slice(i, i + 3).map(async (db) => {
+				const result = await notionJson<{ results?: NotionPage[] }>(
+					`https://api.notion.com/v1/databases/${db.id}/query`,
+					{
+						method: "POST",
+						body: JSON.stringify({
+							page_size: 50,
+							filter: {
+								and: [
+									{
+										or: db.people.map((property) => ({
+											property,
+											people: { contains: meId },
+										})),
+									},
+									{
+										timestamp: "last_edited_time",
+										last_edited_time: { past_month: {} },
+									},
+								],
+							},
+						}),
+					},
+				).catch(() => null);
+				for (const page of result?.results ?? []) {
+					const naming = propsNamingMe(page.properties ?? {}, meId);
+					const row = normalizePage(page);
+					rows.push({
+						...row,
+						// The row keeps its own status, so finished ones sink.
+						status:
+							row.status ??
+							Object.entries(page.properties ?? {}).find(
+								([name, value]) =>
+									value.type === "select" && /status/i.test(name),
+							)?.[1].select?.name ??
+							"Assigned",
+						fields: {
+							...row.fields,
+							"Why it's here": `${naming.join(", ")}: you`,
+						},
+					});
+				}
+			}),
+		);
+	}
+	return rows;
+}
+
+/**
  * What Notion's inbox calls "mentioned you": pages whose people property
  * (Assignee, Owner, …) names me, and open comment threads that @-mention me.
  *
- * Notion has no "my mentions" endpoint, so this reads the pages edited
- * lately. "Me" is whoever signed in: the OAuth bot's owner. Rows of the
- * picked database are skipped — that feed already lists them.
+ * Notion has no "my mentions" endpoint, so this asks each task database
+ * and reads the comments on pages edited lately. "Me" is whoever signed
+ * in: the OAuth bot's owner. Rows of the picked database are skipped —
+ * that feed already lists them.
  */
 async function fetchMentionRows(
 	skipDatabaseId: string,
@@ -264,10 +362,16 @@ async function fetchMentionRows(
 	// An internal-integration token belongs to the workspace, not a person.
 	if (!meId) return [];
 
-	// ponytail: the 100 most recently edited pages from the last 14 days, and
-	// page-level comments on the first 30 of them. Inline (block) comments,
-	// body @-mentions and older pages are missed — reading those means walking
-	// every block, which Notion's 3 req/s won't carry on a 2-minute poll.
+	const sameId = (a?: string, b?: string) =>
+		!!a && !!b && a.replaceAll("-", "") === b.replaceAll("-", "");
+	const rows = await fetchAssignedRows(meId, (id) =>
+		sameId(id, skipDatabaseId),
+	);
+
+	// ponytail: page-level comments on the 30 most recently edited pages from
+	// the last 14 days. Inline (block) comments, body @-mentions and older
+	// pages are missed — reading those means walking every block, which
+	// Notion's 3 req/s won't carry on a 2-minute poll.
 	const since = Date.now() - 14 * 24 * 60 * 60_000;
 	const search = await notionJson<{ results?: NotionPage[] }>(
 		"https://api.notion.com/v1/search",
@@ -276,38 +380,15 @@ async function fetchMentionRows(
 			body: JSON.stringify({
 				filter: { property: "object", value: "page" },
 				sort: { direction: "descending", timestamp: "last_edited_time" },
-				page_size: 100,
+				page_size: 30,
 			}),
 		},
 	);
-	const sameId = (a?: string, b?: string) =>
-		!!a && !!b && a.replaceAll("-", "") === b.replaceAll("-", "");
-	const pages = (search.results ?? []).filter(
+	const commentPages = (search.results ?? []).filter(
 		(page) =>
 			new Date(page.last_edited_time ?? 0).getTime() >= since &&
 			!sameId(page.parent?.database_id, skipDatabaseId),
 	);
-
-	// Assigned to me: the search already carried every property, so no
-	// extra request. The row keeps its own status, so finished ones sink.
-	// Pages without a status (meeting notes listing me as an attendee)
-	// aren't tasks.
-	const rows: SlackQueueRow[] = [];
-	for (const page of pages) {
-		const naming = propsNamingMe(page.properties ?? {}, meId);
-		if (naming.length === 0 || !hasStatus(page.properties ?? {})) continue;
-		const row = normalizePage(page);
-		rows.push({
-			...row,
-			status:
-				row.status ??
-				Object.entries(page.properties ?? {}).find(
-					([name, value]) => value.type === "select" && /status/i.test(name),
-				)?.[1].select?.name ??
-				"Assigned",
-			fields: { ...row.fields, "Why it's here": `${naming.join(", ")}: you` },
-		});
-	}
 
 	const names = new Map<string, Promise<string | null>>();
 	const nameOf = (userId: string) => {
@@ -324,7 +405,6 @@ async function fetchMentionRows(
 		return name;
 	};
 
-	const commentPages = pages.slice(0, 30);
 	let forbidden = 0;
 	for (let i = 0; i < commentPages.length; i += 3) {
 		await Promise.all(
