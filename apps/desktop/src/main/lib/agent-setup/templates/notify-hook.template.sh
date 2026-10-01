@@ -76,12 +76,34 @@ has_open_action_items() {
       exit 1
     }'
 }
+
+# A turn that ends with background agents still out isn't over: each one's
+# completion re-invokes the session, which Stops again when it's done. The
+# transcript logs a launch as "status":"async_launched","agentId":"<id>" and
+# its end as <task-id><id></task-id>.
+# ponytail: an agent whose own transcript sat untouched for 10 min counts as
+# gone — a killed session never writes its notification. A subagent parked
+# in one Bash call that long lets the card drop to Done/Needs you early.
+has_running_background_agents() {
+  local transcript=$1 id
+  [ -f "$transcript" ] || return 1
+  for id in $(grep -oE '"status":"async_launched","agentId":"[^"]+"' "$transcript" | sed 's/.*"agentId":"//; s/"$//'); do
+    grep -q "<task-id>$id</task-id>" "$transcript" && continue
+    [ -n "$(find "${transcript%.jsonl}/subagents/agent-$id.jsonl" -mmin -10 2>/dev/null)" ] && return 0
+  done
+  return 1
+}
 if [ "$EVENT_TYPE" = "Stop" ]; then
-  case "$INPUT" in
-    *'"last_assistant_message"'*)
-      has_open_action_items "${INPUT#*\"last_assistant_message\"}" && EVENT_TYPE="PermissionRequest"
-      ;;
-  esac
+  TRANSCRIPT_PATH=$(echo "$INPUT" | grep -oE '"transcript_path"[[:space:]]*:[[:space:]]*"[^"]*"' | grep -oE '"[^"]*"$' | tr -d '"')
+  if has_running_background_agents "$TRANSCRIPT_PATH"; then
+    EVENT_TYPE="Start"
+  else
+    case "$INPUT" in
+      *'"last_assistant_message"'*)
+        has_open_action_items "${INPUT#*\"last_assistant_message\"}" && EVENT_TYPE="PermissionRequest"
+        ;;
+    esac
+  fi
 fi
 
 # Only the outermost claude owns the card. A headless `claude -p` that a Stop
