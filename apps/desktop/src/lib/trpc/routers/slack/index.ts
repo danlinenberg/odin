@@ -617,6 +617,83 @@ export async function slackThreadReplies(id: string): Promise<{
 }
 
 /**
+ * The conversation around a queued message, as plain lines a model can read:
+ * the thread it sits in, and in a DM or group DM whatever was said inline
+ * after it — most DM answers never touch a thread. "ME" is me; the queued
+ * message is marked.
+ *
+ * Needs the `*:history` scopes. Without them, or when Slack won't say, null —
+ * and the sweep keeps its rule verdict.
+ *
+ * ponytail: the parent plus the newest 15 messages, 300 chars each. Enough to
+ * see who had the last word and what it was; widen if judgements need more.
+ */
+export async function slackConversation(id: string): Promise<string | null> {
+	const token = slackToken();
+	if (!token) return null;
+	const [channel, ts] = id.split(":");
+	if (!channel || !ts) return null;
+	type Message = {
+		ts?: string;
+		thread_ts?: string;
+		user?: string;
+		username?: string;
+		text?: string;
+	};
+	try {
+		const me = await getIdentity(token);
+		const queued = await slackRead<SlackResponse & { message?: Message }>(
+			"reactions.get",
+			{ channel, timestamp: ts, full: "true" },
+			token,
+		);
+		const parent = threadParentTs(queued.message ?? {}) ?? ts;
+		const thread = await slackApi<SlackResponse & { messages?: Message[] }>(
+			"conversations.replies",
+			{ channel, ts: parent, limit: "200" },
+			token,
+		);
+		const info = await slackRead<
+			SlackResponse & { channel?: { is_im?: boolean; is_mpim?: boolean } }
+		>("conversations.info", { channel }, token);
+		const inline =
+			info.channel?.is_im || info.channel?.is_mpim
+				? ((
+						await slackApi<SlackResponse & { messages?: Message[] }>(
+							"conversations.history",
+							{ channel, oldest: ts, inclusive: "true", limit: "30" },
+							token,
+						)
+					).messages ?? [])
+				: [];
+		const byTs = new Map<string, Message>();
+		for (const message of [...(thread.messages ?? []), ...inline])
+			if (message.ts) byTs.set(message.ts, message);
+		const all = [...byTs.values()].sort((a, b) => Number(a.ts) - Number(b.ts));
+		const shown = all.length > 16 ? [all[0], ...all.slice(-15)] : all;
+		const lines: string[] = [];
+		for (const message of shown) {
+			const who =
+				message.user === me.userId
+					? "ME"
+					: ((await lookupUserName(message.user ?? null, token)) ??
+						message.username ??
+						"someone");
+			const said = (await resolveMentions(message.text ?? "", token))
+				.replace(/\s+/g, " ")
+				.slice(0, 300);
+			const mark = message.ts === ts ? " [QUEUED]" : "";
+			lines.push(`${who}${mark}: ${said}`);
+		}
+		if (all.length > shown.length)
+			lines.splice(1, 0, `(… ${all.length - shown.length} earlier messages)`);
+		return lines.join("\n");
+	} catch {
+		return null;
+	}
+}
+
+/**
  * What a Slack link points at, for the brief's "My links": the channel, who
  * posted, and the message's first real line — so three "Slack thread" links
  * read as three different conversations.
