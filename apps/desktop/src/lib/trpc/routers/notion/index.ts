@@ -441,7 +441,12 @@ export const createNotionRouter = () => {
 		setDatabase: publicProcedure
 			.input(z.object({ databaseId: z.string() }))
 			.mutation(({ input }) => {
-				updateOdinConfig({ notionTaskDbId: input.databaseId.trim() });
+				// Clearing drops the legacy key too, or the old pick comes back.
+				const databaseId = input.databaseId.trim();
+				updateOdinConfig({
+					notionTaskDbId: databaseId,
+					...(databaseId ? {} : { slackQueueDbId: "" }),
+				});
 				return { ok: true };
 			}),
 

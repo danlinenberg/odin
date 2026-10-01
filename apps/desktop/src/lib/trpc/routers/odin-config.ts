@@ -26,7 +26,7 @@ export interface OdinFileConfig {
 	notionTaskDbId?: string;
 	/** Also list open comment threads that @-mention me as Notion tasks. */
 	notionMentions?: boolean;
-	/** Legacy name for the same thing — still read, never written. */
+	/** Legacy name for the same thing — still read, only ever cleared. */
 	slackQueueDbId?: string;
 	defaultRepo?: string;
 
