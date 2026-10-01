@@ -338,6 +338,13 @@ function NotionPage() {
 						</div>
 					</div>
 				))}
+				{config?.hasToken && mentions && (
+					<div className="px-2 py-4 text-center text-[11px] text-[#8a8a97]">
+						Odin only sees the Notion pages you shared with it. To add a
+						teamspace, open its top page in Notion → ••• → Connections → Odin;
+						its subpages come along.
+					</div>
+				)}
 			</div>
 		</div>
 	);

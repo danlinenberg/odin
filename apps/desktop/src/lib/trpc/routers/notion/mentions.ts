@@ -34,6 +34,20 @@ export function propsNamingMe(
 		.map(([name]) => name);
 }
 
+/**
+ * A page is a task when it carries a status — a Status property, or a select
+ * named Status. Meeting notes list me under Attendees but have none.
+ */
+export function hasStatus(
+	properties: Record<string, { type?: string }>,
+): boolean {
+	return Object.entries(properties).some(
+		([name, value]) =>
+			value.type === "status" ||
+			(value.type === "select" && /status/i.test(name)),
+	);
+}
+
 const mentions = (comment: NotionComment, meId: string) =>
 	comment.rich_text.some(
 		(part) =>
