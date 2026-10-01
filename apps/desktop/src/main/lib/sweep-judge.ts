@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { execWithShellEnv } from "lib/trpc/routers/workspaces/utils/shell-env";
@@ -55,13 +55,6 @@ export function parseJudgements(
 	return out;
 }
 
-// ponytail: in memory, per row and exact conversation. The hourly sweep
-// re-asks about the same unchanged threads; only a thread that moved costs a
-// model call. Lost on restart, which only costs one re-judge.
-const verdicts = new Map<string, string | null>();
-const hash = (c: Conversation) =>
-	createHash("sha1").update(`${c.key}\n${c.text}`).digest("hex");
-
 /** One model call over up to 10 conversations. */
 async function judgeBatch(
 	batch: Conversation[],
@@ -101,42 +94,93 @@ async function judgeBatch(
 	}
 }
 
+/** A kept row whose conversation should be read, and what it looked like. */
+export interface KeptRow {
+	key: string;
+	source: string;
+	/** `<channel>:<ts>` of the queued message. */
+	ref: string;
+	/**
+	 * The thread's newest-reply and the DM's newest-message timestamps, from
+	 * the sweep's own cheap lookups. Unchanged stamp = unchanged conversation,
+	 * so the verdict from last time still holds and nothing is re-read.
+	 */
+	stamp: string;
+}
+
+// ponytail: in memory. A restart re-reads every kept thread once, in the
+// background; bound it with a persisted cache if that ever hurts.
+const known = new Map<string, { stamp: string; why: string | null }>();
+const queue = new Map<string, KeptRow>();
+let worker: Promise<void> | null = null;
+
 /**
- * Which of these conversations are done, and why. A batch that fails is
- * left out — those rows keep their rule verdict — rather than failing the
- * whole sweep.
+ * Read what's queued and judge it, ten conversations to a model call.
+ *
+ * Slack holds `conversations.replies`/`.history` to about one call a minute
+ * for an app outside its Marketplace — Odin's — so a full read of 30 threads
+ * takes half an hour. That's why this runs behind the sweep, not inside it.
  */
-export async function judgeConversations(
-	conversations: Conversation[],
+async function drain(
+	read: (ref: string) => Promise<string | null>,
+	claudeBin: string,
+	timeoutMs: number,
+): Promise<void> {
+	while (queue.size > 0) {
+		const batch: (Conversation & { stamp: string })[] = [];
+		for (const row of [...queue.values()]) {
+			queue.delete(row.key);
+			const text = await read(row.ref);
+			if (text) batch.push({ ...row, text });
+			else known.set(row.key, { stamp: row.stamp, why: null });
+			if (batch.length >= 10) break;
+		}
+		if (batch.length === 0) continue;
+		try {
+			const drops = await judgeBatch(batch, claudeBin, timeoutMs);
+			for (const c of batch)
+				known.set(c.key, { stamp: c.stamp, why: drops.get(c.key) ?? null });
+		} catch (error) {
+			console.warn("[review] judging a batch failed", error);
+		}
+	}
+	if (known.size > 2000) known.clear();
+}
+
+/**
+ * The model's DROPs for these kept rows, as far as they're known.
+ *
+ * A row whose conversation changed since it was last judged (or was never
+ * judged) is queued for the background reader. The sweep waits up to
+ * `budgetMs` for it, then answers with what it has; the rest lands on a later
+ * sweep. `pending` says how many are still waiting to be read.
+ */
+export async function judgeKept(
+	rows: KeptRow[],
+	read: (ref: string) => Promise<string | null>,
 	{
+		budgetMs = 30_000,
 		claudeBin = "claude",
 		timeoutMs = 240_000,
-	}: { claudeBin?: string; timeoutMs?: number } = {},
-): Promise<Map<string, string>> {
-	const out = new Map<string, string>();
-	const fresh: Conversation[] = [];
-	for (const c of conversations) {
-		const known = verdicts.get(hash(c));
-		if (known === undefined) fresh.push(c);
-		else if (known !== null) out.set(c.key, known);
+	}: { budgetMs?: number; claudeBin?: string; timeoutMs?: number } = {},
+): Promise<{ drops: Map<string, string>; pending: number }> {
+	for (const row of rows)
+		if (known.get(row.key)?.stamp !== row.stamp) queue.set(row.key, row);
+	if (queue.size > 0 && !worker)
+		worker = drain(read, claudeBin, timeoutMs).finally(() => {
+			worker = null;
+		});
+	if (worker)
+		await Promise.race([
+			worker,
+			new Promise((resolve) => setTimeout(resolve, budgetMs)),
+		]);
+	const drops = new Map<string, string>();
+	let pending = 0;
+	for (const row of rows) {
+		const verdict = known.get(row.key);
+		if (verdict?.stamp !== row.stamp) pending++;
+		else if (verdict.why !== null) drops.set(row.key, verdict.why);
 	}
-	const batches: Conversation[][] = [];
-	for (let i = 0; i < fresh.length; i += 10)
-		batches.push(fresh.slice(i, i + 10));
-	await Promise.all(
-		batches.map(async (batch) => {
-			try {
-				const drops = await judgeBatch(batch, claudeBin, timeoutMs);
-				for (const c of batch) {
-					const why = drops.get(c.key) ?? null;
-					verdicts.set(hash(c), why);
-					if (why !== null) out.set(c.key, why);
-				}
-			} catch (error) {
-				console.warn("[review] judging a batch failed", error);
-			}
-		}),
-	);
-	if (verdicts.size > 2000) verdicts.clear();
-	return out;
+	return { drops, pending };
 }

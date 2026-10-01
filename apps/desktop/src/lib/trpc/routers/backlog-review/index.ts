@@ -219,7 +219,20 @@ export const createBacklogReviewRouter = () => {
 		sweep: publicProcedure
 			.input(z.object({ items: z.array(ItemSchema) }))
 			.mutation(async ({ input }) => {
-				const deps = await lookups();
+				const looked = await lookups();
+				// Each Slack row's thread facts, kept for the conversation read below.
+				const threads = new Map<
+					string,
+					NonNullable<Awaited<ReturnType<SweepDeps["slackThread"]>>>
+				>();
+				const deps: SweepDeps = {
+					...looked,
+					slackThread: async (id) => {
+						const thread = await looked.slackThread(id);
+						if (thread) threads.set(id, thread);
+						return thread;
+					},
+				};
 				const started = Date.now();
 				const copies = duplicates(input.items);
 				const rows = await mapLimit(
@@ -232,27 +245,29 @@ export const createBacklogReviewRouter = () => {
 				);
 				// The rules' KEEPs on a Slack conversation go to a model that reads
 				// it. Only KEEPs: the rules' DROPs and UNKNOWNs stand.
-				const kept = input.items.filter(
-					(item, i) => rows[i].verdict === "KEEP" && slackRef(item),
-				);
-				const conversations = (
-					await mapLimit(kept, 4, async (item) => {
-						const ref = slackRef(item);
-						const text = ref ? await slackConversation(ref) : null;
-						return text ? { key: item.key, source: item.source, text } : null;
-					})
-				).filter((c) => c !== null);
-				const { judgeConversations } = await import("main/lib/sweep-judge");
-				const judged = await judgeConversations(conversations);
+				// The rules' KEEPs on a Slack conversation get read by a model —
+				// in the background, since Slack only lets the reading go a call a
+				// minute. Only KEEPs: the rules' DROPs and UNKNOWNs stand.
+				const kept = input.items.flatMap((item, i) => {
+					const ref = slackRef(item);
+					if (rows[i].verdict !== "KEEP" || !ref) return [];
+					const thread = threads.get(ref);
+					const stamp = thread
+						? `${thread.lastReplyTs}|${thread.isDirect ? thread.channelLastTs : ""}`
+						: "?";
+					return [{ key: item.key, source: item.source, ref, stamp }];
+				});
+				const { judgeKept } = await import("main/lib/sweep-judge");
+				const { drops, pending } = await judgeKept(kept, slackConversation);
 				for (const row of rows) {
-					const why = judged.get(row.key);
+					const why = drops.get(row.key);
 					if (why !== undefined) {
 						row.verdict = "DROP";
 						row.evidence = `read the conversation: ${why || "nobody is waiting on you"}`;
 					}
 				}
 				console.warn(
-					`[review] read ${conversations.length} of ${kept.length} kept conversations, dropped ${judged.size}`,
+					`[review] ${kept.length} kept conversations: ${drops.size} dropped on a read, ${pending} still being read`,
 				);
 				console.warn(
 					`[review] swept ${rows.length} rows in ${Math.round((Date.now() - started) / 1000)}s, ${rows.filter((row) => row.verdict === "UNKNOWN").length} unknown`,
