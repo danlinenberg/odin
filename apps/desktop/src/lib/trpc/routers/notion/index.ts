@@ -51,10 +51,23 @@ async function notionFetch(
 				"Notion-Version": NOTION_VERSION,
 			},
 		});
-	const first = await send(token);
+	// Notion's 5xx and 429s are usually gone a moment later.
+	const sendRetrying = async (bearer: string) => {
+		let response = await send(bearer);
+		for (let attempt = 1; attempt <= 2; attempt++) {
+			if (response.status !== 429 && response.status < 500) break;
+			const retryAfter = Number(response.headers.get("Retry-After"));
+			await new Promise((resolve) =>
+				setTimeout(resolve, retryAfter > 0 ? retryAfter * 1000 : attempt * 500),
+			);
+			response = await send(bearer);
+		}
+		return response;
+	};
+	const first = await sendRetrying(token);
 	if (first.status !== 401) return first;
 	const refreshed = await refreshNotionToken();
-	return refreshed ? send(refreshed) : first;
+	return refreshed ? sendRetrying(refreshed) : first;
 }
 
 export interface SlackQueueRow {
