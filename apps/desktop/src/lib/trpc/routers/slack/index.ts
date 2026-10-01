@@ -669,6 +669,20 @@ export async function slackConversation(id: string): Promise<string | null> {
 		const byTs = new Map<string, Message>();
 		for (const message of [...(thread.messages ?? []), ...inline])
 			if (message.ts) byTs.set(message.ts, message);
+		// Slack hands an app outside its Marketplace the thread's first 15
+		// messages and no more. The newest reply is what decides it, so when
+		// it's past the cut, ask for it alone — reactions.get isn't held back.
+		const head = (thread.messages ?? [])[0] as
+			| (Message & { latest_reply?: string })
+			| undefined;
+		if (head?.latest_reply && !byTs.has(head.latest_reply)) {
+			const newest = await slackRead<SlackResponse & { message?: Message }>(
+				"reactions.get",
+				{ channel, timestamp: head.latest_reply, full: "true" },
+				token,
+			);
+			if (newest.message?.ts) byTs.set(newest.message.ts, newest.message);
+		}
 		const all = [...byTs.values()].sort((a, b) => Number(a.ts) - Number(b.ts));
 		const shown = all.length > 16 ? [all[0], ...all.slice(-15)] : all;
 		const lines: string[] = [];
