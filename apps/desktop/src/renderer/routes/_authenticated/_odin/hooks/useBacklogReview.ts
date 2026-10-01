@@ -14,6 +14,16 @@ export type DroppedRow = SweptRow & { droppedAt: number };
 // are always kept (see keepDropped), or a reload would put them back.
 const DROPPED_KEPT = 500;
 
+/** Your Keep beats the sweep's DROP — on Review and on every card's pill. */
+function keptAsKeep(swept: SweptRow[], kept: string[]): SweptRow[] {
+	const set = new Set(kept);
+	return swept.map((row) =>
+		set.has(row.key) && row.verdict !== "KEEP"
+			? { ...row, verdict: "KEEP", evidence: "You kept this" }
+			: row,
+	);
+}
+
 /**
  * The last sweep's answers.
  *
@@ -32,6 +42,9 @@ export const useBacklogReview = create<{
 	sweepEveryHours: number;
 	/** What was dropped from Review, newest first. Not cleared by a sweep; see keepDropped. */
 	dropped: DroppedRow[];
+	/** Rows you pressed Keep on. They stay KEEP through later sweeps. */
+	kept: string[];
+	keep: (key: string) => void;
 	noteDropped: (row: SweptRow) => void;
 	unnoteDropped: (key: string) => void;
 	record: (swept: SweptRow[]) => void;
@@ -45,6 +58,12 @@ export const useBacklogReview = create<{
 			sweeping: false,
 			sweepEveryHours: 1,
 			dropped: [],
+			kept: [],
+			keep: (key) =>
+				set(({ swept, kept }) => ({
+					kept: [...kept.filter((k) => k !== key), key],
+					swept: keptAsKeep(swept, [key]),
+				})),
 			noteDropped: (row) =>
 				set(({ dropped, swept }) => ({
 					dropped: keepDropped(
@@ -60,19 +79,27 @@ export const useBacklogReview = create<{
 				set(({ dropped }) => ({
 					dropped: dropped.filter((d) => d.key !== key),
 				})),
-			record: (swept) =>
-				set(({ dropped }) => ({
-					swept,
-					sweptAt: Date.now(),
-					dropped: keepDropped(dropped, swept, DROPPED_KEPT),
-				})),
+			record: (fresh) =>
+				set(({ dropped, kept }) => {
+					// ponytail: kept is bounded by pruning to what the sweep still lists.
+					const listed = new Set(fresh.map((row) => row.key));
+					const stillKept = kept.filter((key) => listed.has(key));
+					const swept = keptAsKeep(fresh, stillKept);
+					return {
+						swept,
+						kept: stillKept,
+						sweptAt: Date.now(),
+						dropped: keepDropped(dropped, swept, DROPPED_KEPT),
+					};
+				}),
 			setSweepEveryHours: (sweepEveryHours) => set({ sweepEveryHours }),
 			forget: () => set({ swept: [], sweptAt: null }),
 		}),
 		{
 			name: "odin-backlog-review",
-			partialize: ({ swept, sweptAt, sweepEveryHours, dropped }) => ({
+			partialize: ({ swept, sweptAt, sweepEveryHours, dropped, kept }) => ({
 				swept,
+				kept,
 				sweptAt,
 				sweepEveryHours,
 				dropped,
