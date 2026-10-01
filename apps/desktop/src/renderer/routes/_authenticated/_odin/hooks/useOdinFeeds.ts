@@ -1,5 +1,7 @@
 import { toast } from "@odin/ui/sonner";
+import { useEffect, useMemo } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { useSeenEmails, withSeenEmails } from "renderer/stores/seen-emails";
 
 /**
  * Every external feed Odin shows — my Slack :eyes: reactions, my Jira, my
@@ -42,13 +44,28 @@ export function useOdinFeeds() {
 	});
 
 	// Unread inbox mail — one Atom fetch, so the 2-minute poll is nothing to Gmail.
-	const emails = electronTrpc.work.myEmails.useQuery(undefined, {
+	const emailQuery = electronTrpc.work.myEmails.useQuery(undefined, {
 		enabled: workConfig?.hasGmail === true,
 		refetchInterval: 120_000,
 		staleTime: 120_000,
 		refetchOnMount: false,
 		placeholderData: (prev) => prev,
 	});
+	// The feed is unread-only: opening a mail in Gmail would drop it. Keep
+	// every mail it showed until Done takes it.
+	const seenEmails = useSeenEmails((s) => s.seen);
+	const rememberEmails = useSeenEmails((s) => s.remember);
+	useEffect(() => {
+		if (emailQuery.data) rememberEmails(emailQuery.data.emails);
+	}, [emailQuery.data, rememberEmails]);
+	const emailData = useMemo(
+		() =>
+			emailQuery.data && {
+				emails: withSeenEmails(emailQuery.data.emails, seenEmails),
+			},
+		[emailQuery.data, seenEmails],
+	);
+	const emails = { ...emailQuery, data: emailData };
 
 	// Rows of whichever Notion database is picked in the Tasks view. No pick
 	// (or no token) means no query — the view says so instead.
