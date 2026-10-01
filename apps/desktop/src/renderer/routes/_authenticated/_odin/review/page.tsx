@@ -27,6 +27,7 @@ import { useOdinProfile } from "../hooks/useOdinProfile";
 import { useMyTasks } from "../hooks/useOdinTasks";
 import {
 	countByVerdict,
+	foldRepeats,
 	type ReviewRow,
 	reviewRows,
 	sessionFor,
@@ -190,8 +191,10 @@ function ReviewPage() {
 	);
 	const rows = useMemo(
 		() =>
-			reviewRows(swept, backlog, new Set(loadingKey.split(","))).filter(
-				(row) => !droppedKeys.has(row.key),
+			foldRepeats(
+				reviewRows(swept, backlog, new Set(loadingKey.split(","))).filter(
+					(row) => !droppedKeys.has(row.key),
+				),
 			),
 		[swept, backlog, loadingKey, droppedKeys],
 	);
@@ -242,6 +245,7 @@ function ReviewPage() {
 	 * still on the message and re-reacting is not needed to undo this.
 	 */
 	const drop = async (row: ReviewRow) => {
+		for (const repeat of row.repeats ?? []) await drop(repeat);
 		const [kind, ...rest] = row.key.split(":");
 		const id = rest.join(":");
 		// Off the screen first: the Slack write plus the reactions refetch take
@@ -423,6 +427,9 @@ function ReviewPage() {
 										<> · from {fromDate(createdByKey.get(row.key) ?? 0)}</>
 									)}
 									{row.evidence && <> · {row.evidence}</>}
+									{row.repeats && (
+										<> · +{row.repeats.length} more from this DM</>
+									)}
 									{row.stale && <> · already gone from the backlog</>}
 								</div>
 							</div>
@@ -439,7 +446,13 @@ function ReviewPage() {
 							<button
 								type="button"
 								onClick={() =>
-									setDecided((prev) => ({ ...prev, [row.key]: true }))
+									setDecided((prev) => ({
+										...prev,
+										[row.key]: true,
+										...Object.fromEntries(
+											(row.repeats ?? []).map((r) => [r.key, true]),
+										),
+									}))
 								}
 								className={ROW_LINK_BUTTON}
 							>

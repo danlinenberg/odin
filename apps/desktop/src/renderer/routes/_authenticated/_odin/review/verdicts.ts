@@ -27,6 +27,8 @@ export interface ReviewRow extends SweptRow {
 	n: number;
 	/** The row has since left the backlog — decided elsewhere, or already cleared. */
 	stale: boolean;
+	/** More messages from the same DM with the same answer, folded into this row. */
+	repeats?: ReviewRow[];
 }
 
 const ORDER: Record<SweptRow["verdict"], number> = {
@@ -63,6 +65,35 @@ export function reviewRows(
 				!liveKeys.has(row.key) && !loading.has(row.key.split(":")[0] ?? ""),
 		}))
 		.sort((a, b) => ORDER[a.verdict] - ORDER[b.verdict] || a.n - b.n);
+}
+
+/**
+ * One row per DM answer. A DM's verdict is read off the conversation — "you
+ * answered last in the DM" — so every queued message in it comes back with
+ * the same words, and the screen listed the same thing four times. The first
+ * (newest) row stands for the rest; deciding it decides them all.
+ *
+ * Only DMs (`D…` channels): two threads in one channel can read alike and
+ * still be two different asks.
+ */
+export function foldRepeats(rows: ReviewRow[]): ReviewRow[] {
+	const heads = new Map<string, ReviewRow>();
+	const out: ReviewRow[] = [];
+	for (const row of rows) {
+		const [kind, channel] = row.key.split(":");
+		const id =
+			kind === "slack" && channel?.startsWith("D")
+				? `${channel}\n${row.verdict}\n${row.evidence}\n${row.stale}`
+				: null;
+		const head = id ? heads.get(id) : undefined;
+		if (head) head.repeats = [...(head.repeats ?? []), row];
+		else {
+			const copy = { ...row, repeats: undefined };
+			if (id) heads.set(id, copy);
+			out.push(copy);
+		}
+	}
+	return out;
 }
 
 /** What the header counts, by verdict. */
