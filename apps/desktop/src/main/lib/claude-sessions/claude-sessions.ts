@@ -421,9 +421,12 @@ export async function searchSessions({
 	maxFiles = 400,
 	root = projectsRoot(),
 	people = new Map(),
+	cursor = 0,
 }: {
 	query?: string;
 	limit?: number;
+	/** Browsing only: the transcript index to resume from (a previous `nextCursor`). */
+	cursor?: number;
 	maxFiles?: number;
 	root?: string;
 	/** session id → who asked, for the sessions Odin launched off a feed. */
@@ -433,6 +436,8 @@ export async function searchSessions({
 	scanned: number;
 	total: number;
 	terms: string[];
+	/** Where the next browse page starts; null when searching or out of files. */
+	nextCursor: number | null;
 	/** Everyone who has asked for something, newest first — the filter chips. */
 	askers: string[];
 }> {
@@ -443,8 +448,11 @@ export async function searchSessions({
 	const rejects = terms.map((term) => new RegExp(escapeRegExp(term), "i"));
 	const scored: { session: SessionSummary; score: number }[] = [];
 	let scanned = 0;
+	const start = terms.length > 0 ? 0 : cursor;
+	let index = start;
 
-	for (const file of files) {
+	for (; index < files.length; index++) {
+		const file = files[index];
 		// Browsing wants the newest `limit`; searching has to see everything it
 		// can before ranking, or the best hit may never be read.
 		if (terms.length === 0 && scored.length >= limit) break;
@@ -543,6 +551,7 @@ export async function searchSessions({
 		scanned,
 		total: files.length,
 		terms,
+		nextCursor: terms.length === 0 && index < files.length ? index : null,
 		askers,
 	};
 }
