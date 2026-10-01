@@ -58,6 +58,12 @@ git -C "$root" worktree list --porcelain | sed -n 's/^worktree //p' | while read
 		continue
 	fi
 
+	# Checked up front too, so --dry-run reports what a real run would do.
+	if [ -n "$(git -C "$wt" status --porcelain)" ]; then
+		echo "keep   $name (uncommitted or untracked files)"
+		continue
+	fi
+
 	if [ "$dry" = 1 ]; then
 		echo "remove $name (dry run)"
 	elif git -C "$root" worktree remove "$wt" 2>/dev/null; then

@@ -29,6 +29,9 @@ echo landed >b && g add b && g commit -qm "squash b" && g push -q origin main
 echo mine >.worktrees/unique/c && g -C .worktrees/unique add c && g -C .worktrees/unique commit -qm c
 echo scratch >.worktrees/dirty/notes.txt
 
+! PRUNE_MIN_AGE_HOURS=0 GH_TOKEN= "$DIR/prune-worktrees.sh" --dry-run "$TMP/repo" | grep -q "^remove dirty"
+check "dry run keeps a worktree with untracked files" $?
+
 PRUNE_MIN_AGE_HOURS=0 GH_TOKEN= "$DIR/prune-worktrees.sh" "$TMP/repo" >/dev/null
 [ ! -d .worktrees/landed ]
 check "removes a worktree whose change is already on origin/main" $?
