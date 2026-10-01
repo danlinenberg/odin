@@ -7,7 +7,11 @@ import {
 	resolveNotionToken,
 	updateOdinConfig,
 } from "../odin-config";
-import { type NotionComment, openMentionThreads } from "./mentions";
+import {
+	type NotionComment,
+	openMentionThreads,
+	propsNamingMe,
+} from "./mentions";
 
 /**
  * Notion access for the Tasks view: list the databases the integration can
@@ -79,7 +83,7 @@ type NotionPropertyValue = {
 	status?: { name?: string } | null;
 	select?: { name?: string } | null;
 	multi_select?: { name?: string }[];
-	people?: { name?: string }[];
+	people?: { id?: string; name?: string }[];
 	date?: { start?: string; end?: string } | null;
 	last_edited_time?: string;
 	created_time?: string;
@@ -142,6 +146,7 @@ interface NotionPage {
 	url: string;
 	created_time: string;
 	last_edited_time?: string;
+	parent?: { database_id?: string };
 	properties: Record<string, NotionPropertyValue>;
 }
 
@@ -241,12 +246,16 @@ async function notionJson<T>(url: string, init: RequestInit = {}): Promise<T> {
 }
 
 /**
- * Open comment threads that @-mention me, one task row each.
+ * What Notion's inbox calls "mentioned you": pages whose people property
+ * (Assignee, Owner, …) names me, and open comment threads that @-mention me.
  *
- * Notion has no "my mentions" endpoint, so this reads the comments on the
- * pages edited lately. "Me" is whoever signed in: the OAuth bot's owner.
+ * Notion has no "my mentions" endpoint, so this reads the pages edited
+ * lately. "Me" is whoever signed in: the OAuth bot's owner. Rows of the
+ * picked database are skipped — that feed already lists them.
  */
-async function fetchMentionRows(): Promise<SlackQueueRow[]> {
+async function fetchMentionRows(
+	skipDatabaseId: string,
+): Promise<SlackQueueRow[]> {
 	const me = await notionJson<{
 		bot?: { owner?: { user?: { id?: string } } };
 	}>("https://api.notion.com/v1/users/me");
@@ -254,10 +263,10 @@ async function fetchMentionRows(): Promise<SlackQueueRow[]> {
 	// An internal-integration token belongs to the workspace, not a person.
 	if (!meId) return [];
 
-	// ponytail: page-level comments on the 30 most recently edited pages from
-	// the last 14 days. Inline (block) comments and older pages are missed —
-	// reading those means walking every block, which Notion's 3 req/s won't
-	// carry on a 2-minute poll.
+	// ponytail: the 100 most recently edited pages from the last 14 days, and
+	// page-level comments on the first 30 of them. Inline (block) comments,
+	// body @-mentions and older pages are missed — reading those means walking
+	// every block, which Notion's 3 req/s won't carry on a 2-minute poll.
 	const since = Date.now() - 14 * 24 * 60 * 60_000;
 	const search = await notionJson<{ results?: NotionPage[] }>(
 		"https://api.notion.com/v1/search",
@@ -266,13 +275,31 @@ async function fetchMentionRows(): Promise<SlackQueueRow[]> {
 			body: JSON.stringify({
 				filter: { property: "object", value: "page" },
 				sort: { direction: "descending", timestamp: "last_edited_time" },
-				page_size: 30,
+				page_size: 100,
 			}),
 		},
 	);
+	const sameId = (a?: string, b?: string) =>
+		!!a && !!b && a.replaceAll("-", "") === b.replaceAll("-", "");
 	const pages = (search.results ?? []).filter(
-		(page) => new Date(page.last_edited_time ?? 0).getTime() >= since,
+		(page) =>
+			new Date(page.last_edited_time ?? 0).getTime() >= since &&
+			!sameId(page.parent?.database_id, skipDatabaseId),
 	);
+
+	// Assigned to me: the search already carried every property, so no
+	// extra request. The row keeps its own status, so finished ones sink.
+	const rows: SlackQueueRow[] = [];
+	for (const page of pages) {
+		const naming = propsNamingMe(page.properties ?? {}, meId);
+		if (naming.length === 0) continue;
+		const row = normalizePage(page);
+		rows.push({
+			...row,
+			status: row.status ?? "Assigned",
+			fields: { ...row.fields, "Why it's here": `${naming.join(", ")}: you` },
+		});
+	}
 
 	const names = new Map<string, Promise<string | null>>();
 	const nameOf = (userId: string) => {
@@ -289,11 +316,11 @@ async function fetchMentionRows(): Promise<SlackQueueRow[]> {
 		return name;
 	};
 
-	const rows: SlackQueueRow[] = [];
+	const commentPages = pages.slice(0, 30);
 	let forbidden = 0;
-	for (let i = 0; i < pages.length; i += 3) {
+	for (let i = 0; i < commentPages.length; i += 3) {
 		await Promise.all(
-			pages.slice(i, i + 3).map(async (page) => {
+			commentPages.slice(i, i + 3).map(async (page) => {
 				let comments: NotionComment[];
 				try {
 					comments =
@@ -339,7 +366,7 @@ async function fetchMentionRows(): Promise<SlackQueueRow[]> {
 			}),
 		);
 	}
-	if (pages.length > 0 && forbidden === pages.length) {
+	if (commentPages.length > 0 && forbidden === commentPages.length) {
 		throw new TRPCError({
 			code: "FORBIDDEN",
 			message:
@@ -461,7 +488,9 @@ export const createNotionRouter = () => {
 				async ({
 					input,
 				}): Promise<{ rows: SlackQueueRow[]; dbTitle: string | null }> => {
-					const mentionRows = input.mentions ? fetchMentionRows() : null;
+					const mentionRows = input.mentions
+						? fetchMentionRows(input.databaseId)
+						: null;
 					// Awaited below; this only stops a failed DB query first from
 					// leaving it an unhandled rejection.
 					mentionRows?.catch(() => {});

@@ -169,7 +169,7 @@ function NotionPage() {
 						aria-pressed={mentions}
 						disabled={!config?.hasToken || setMentions.isPending}
 						onClick={() => setMentions.mutate({ enabled: !mentions })}
-						title="Also list open comment threads that @-mention you as tasks"
+						title="Also list pages assigned to you and open comment threads that @-mention you"
 						className={cn(
 							"shrink-0 cursor-pointer rounded-full border px-2.5 py-1 text-[12px] font-medium disabled:opacity-40",
 							mentions
@@ -222,13 +222,13 @@ function NotionPage() {
 				<FeedError error={rowsQuery.error} />
 				<FeedError error={databases.error} />
 				{config?.hasToken && !databaseId && !mentions && (
-					<Notice text="Pick a database above to list its rows as tasks, or turn on @ Mentions to list only comments that tag you. Only databases shared with the Notion integration show up." />
+					<Notice text="Pick a database above to list its rows as tasks, or turn on @ Mentions to list only what Notion says mentions you. Only databases shared with the Notion integration show up." />
 				)}
 				{(databaseId || mentions) && rowsQuery.data && rows.length === 0 && (
 					<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
 						{databaseId
 							? "This database has no rows."
-							: "No open comments mention you on the pages Odin was given. Pick a teamspace's top-level pages when connecting Notion; their subpages come with them."}
+							: "Nothing assigned to you or mentioning you on the pages Odin was given. Pick a teamspace's top-level pages when connecting Notion; their subpages come with them."}
 					</div>
 				)}
 				{needle && rows.length > 0 && shown.length === 0 && (

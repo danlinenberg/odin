@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { type NotionComment, openMentionThreads } from "./mentions";
+import {
+	type NotionComment,
+	openMentionThreads,
+	propsNamingMe,
+} from "./mentions";
 
 const ME = "me";
 const comment = (
@@ -54,5 +58,20 @@ describe("openMentionThreads", () => {
 			ME,
 		);
 		expect(open[0]?.latestAt).toBe("2026-01-03");
+	});
+});
+
+describe("propsNamingMe", () => {
+	test("names the people properties that list me, and only those", () => {
+		expect(
+			propsNamingMe(
+				{
+					Assignee: { type: "people", people: [{ id: "ann" }, { id: ME }] },
+					Reporter: { type: "people", people: [{ id: "ann" }] },
+					Status: { type: "status" },
+				},
+				ME,
+			),
+		).toEqual(["Assignee"]);
 	});
 });
