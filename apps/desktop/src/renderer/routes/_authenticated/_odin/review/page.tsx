@@ -149,6 +149,7 @@ function ReviewPage() {
 		Boolean(sessionFor(row, livePanes, taskPanes));
 	const setSlackDone = electronTrpc.slack.setDone.useMutation();
 	const setDone = useDoneStore((s) => s.setDone);
+	const done = useDoneStore((s) => s.done);
 	const utils = electronTrpc.useUtils();
 	// Decided here, this session's worth. A dropped row also leaves the backlog,
 	// but a kept one doesn't — without this the screen never empties.
@@ -412,7 +413,15 @@ function ReviewPage() {
 										<> · from {fromDate(createdByKey.get(row.key) ?? 0)}</>
 									)}
 									{row.evidence && <> · {row.evidence}</>}
-									{row.stale && <> · already gone from the backlog</>}
+									{row.stale &&
+										(done[row.key] ? (
+											<>
+												{" "}
+												· you marked it Done {fromDate(done[row.key]?.at ?? 0)}
+											</>
+										) : (
+											<> · already gone from the backlog</>
+										))}
 								</div>
 							</div>
 							{row.url && (
