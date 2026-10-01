@@ -8,6 +8,7 @@ import {
 	updateOdinConfig,
 } from "../odin-config";
 import {
+	hasStatus,
 	type NotionComment,
 	openMentionThreads,
 	propsNamingMe,
@@ -289,14 +290,21 @@ async function fetchMentionRows(
 
 	// Assigned to me: the search already carried every property, so no
 	// extra request. The row keeps its own status, so finished ones sink.
+	// Pages without a status (meeting notes listing me as an attendee)
+	// aren't tasks.
 	const rows: SlackQueueRow[] = [];
 	for (const page of pages) {
 		const naming = propsNamingMe(page.properties ?? {}, meId);
-		if (naming.length === 0) continue;
+		if (naming.length === 0 || !hasStatus(page.properties ?? {})) continue;
 		const row = normalizePage(page);
 		rows.push({
 			...row,
-			status: row.status ?? "Assigned",
+			status:
+				row.status ??
+				Object.entries(page.properties ?? {}).find(
+					([name, value]) => value.type === "select" && /status/i.test(name),
+				)?.[1].select?.name ??
+				"Assigned",
 			fields: { ...row.fields, "Why it's here": `${naming.join(", ")}: you` },
 		});
 	}

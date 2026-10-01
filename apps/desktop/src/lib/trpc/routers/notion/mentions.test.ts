@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+	hasStatus,
 	type NotionComment,
 	openMentionThreads,
 	propsNamingMe,
@@ -73,5 +74,16 @@ describe("propsNamingMe", () => {
 				ME,
 			),
 		).toEqual(["Assignee"]);
+	});
+});
+
+describe("hasStatus", () => {
+	test("a task row has one, a meeting note doesn't", () => {
+		expect(hasStatus({ Status: { type: "status" } })).toBe(true);
+		expect(hasStatus({ "Bug status": { type: "select" } })).toBe(true);
+		expect(
+			hasStatus({ Attendees: { type: "people" }, Date: { type: "date" } }),
+		).toBe(false);
+		expect(hasStatus({ Team: { type: "select" } })).toBe(false);
 	});
 });

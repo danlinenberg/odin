@@ -45,7 +45,7 @@ export const Route = createFileRoute("/_authenticated/settings/connections/")({
 
 const META: Record<
 	Provider,
-	{ name: string; icon: React.ReactNode; description: string }
+	{ name: string; icon: React.ReactNode; description: string; help?: string }
 > = {
 	slack: {
 		name: "Slack",
@@ -67,6 +67,7 @@ const META: Record<
 		name: "Notion",
 		icon: <SiNotion className="size-5" />,
 		description: "Rows from a Notion database, in the Notion tab.",
+		help: "Odin reads only the Notion pages you share with it, plus their subpages. To add a teamspace, open its top page in Notion → ••• → Connections → Odin. Pages assigned to you and comments that tag you only show up from shared pages.",
 	},
 	gmail: {
 		name: "Gmail",
@@ -126,6 +127,11 @@ function ConnectionsSettings() {
 										<div className="text-xs text-muted-foreground mt-0.5 truncate">
 											{meta.description}
 										</div>
+										{meta.help && (
+											<div className="text-xs text-muted-foreground mt-1 max-w-[52ch]">
+												{meta.help}
+											</div>
+										)}
 									</div>
 								</div>
 								<div className="flex items-center gap-3 shrink-0">
