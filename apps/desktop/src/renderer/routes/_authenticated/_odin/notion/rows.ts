@@ -1,8 +1,8 @@
 /** Pure row helpers for the Notion view — the parts worth a test. */
 
-/** Statuses that mean "no longer waiting on me" — sunk to the bottom. */
-export const isDoneish = (status: string) =>
-	/done|complete|closed|reject|cancel|archiv|ship/i.test(status);
+import { isDoneish } from "shared/notion-status";
+
+export { isDoneish };
 
 export const NO_STATUS = "No status";
 

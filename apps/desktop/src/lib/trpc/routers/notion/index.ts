@@ -1,5 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { refreshNotionToken } from "main/lib/notion-token";
+import { isDoneish } from "shared/notion-status";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
 import {
@@ -252,6 +253,8 @@ async function notionJson<T>(url: string, init: RequestInit = {}): Promise<T> {
  * barely changes, and walking it costs a request per 100 databases.
  */
 let databaseCache: { at: number; databases: unknown[] } | null = null;
+let databaseSearchHasMore = false;
+let recentWalk = { pages: 0, oldest: "" };
 async function listAllDatabases<T>(): Promise<T[]> {
 	if (databaseCache && Date.now() - databaseCache.at < 30 * 60_000)
 		return databaseCache.databases as T[];
@@ -272,6 +275,7 @@ async function listAllDatabases<T>(): Promise<T[]> {
 			}),
 		});
 		databases.push(...(result.results ?? []));
+		databaseSearchHasMore = result.has_more === true;
 		if (!result.has_more || !result.next_cursor) break;
 		cursor = result.next_cursor;
 	}
@@ -289,6 +293,7 @@ const schemaCache = new Map<string, Promise<unknown | null>>();
 async function databasesWithRecentRows<T>(known: Set<string>): Promise<T[]> {
 	const since = Date.now() - 30 * 24 * 60 * 60_000;
 	const parents = new Set<string>();
+	recentWalk = { pages: 0, oldest: "" };
 	let cursor: string | undefined;
 	// ponytail: the 500 most recently edited pages.
 	for (let page = 0; page < 5; page++) {
@@ -311,6 +316,10 @@ async function databasesWithRecentRows<T>(known: Set<string>): Promise<T[]> {
 			if (id && !known.has(id.replaceAll("-", ""))) parents.add(id);
 		}
 		const oldest = pages.at(-1)?.last_edited_time;
+		recentWalk = {
+			pages: recentWalk.pages + pages.length,
+			oldest: oldest ?? recentWalk.oldest,
+		};
 		if (oldest && new Date(oldest).getTime() < since) break;
 		if (!result.has_more || !result.next_cursor) break;
 		cursor = result.next_cursor;
@@ -401,16 +410,18 @@ async function fetchAssignedRows(
 						isAssignment,
 					);
 					const row = normalizePage(page);
+					const status =
+						row.status ??
+						Object.entries(page.properties ?? {}).find(
+							([name, value]) =>
+								value.type === "select" && /status/i.test(name),
+						)?.[1].select?.name ??
+						"Assigned";
+					// Finished work isn't waiting on me.
+					if (isDoneish(status)) continue;
 					rows.push({
 						...row,
-						// The row keeps its own status, so finished ones sink.
-						status:
-							row.status ??
-							Object.entries(page.properties ?? {}).find(
-								([name, value]) =>
-									value.type === "select" && /status/i.test(name),
-							)?.[1].select?.name ??
-							"Assigned",
+						status,
 						fields: {
 							...row.fields,
 							"Why it's here": `${naming.join(", ")}: you`,
@@ -421,7 +432,7 @@ async function fetchAssignedRows(
 		);
 	}
 	console.log(
-		`[notion] assigned to me: ${searched.length} databases from search + ${recent.length} from recent rows, ${taskDatabases.length} with a status and an assignee field, ${failed} failed, ${rows.length} rows`,
+		`[notion] assigned to me: ${searched.length} databases from search + ${recent.length} from recent rows, ${taskDatabases.length} with a status and an assignee field, ${failed} failed, ${rows.length} rows (database search has_more=${databaseSearchHasMore}; recent walk ${recentWalk.pages} pages back to ${recentWalk.oldest})`,
 	);
 	return rows;
 }
