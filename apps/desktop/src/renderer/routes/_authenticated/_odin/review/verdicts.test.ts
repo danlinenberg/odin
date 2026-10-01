@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { BacklogItem } from "../hooks/builtin-automations";
 import {
 	countByVerdict,
+	foldRepeats,
 	keepDropped,
 	reviewRows,
 	type SweptRow,
@@ -99,5 +100,39 @@ describe("keepDropped", () => {
 		const dropped = ["a", "b", "c", "d"].map((key) => ({ key }));
 		const kept = keepDropped(dropped, [{ key: "c" }, { key: "d" }], 1);
 		expect(kept.map((row) => row.key)).toEqual(["a", "c", "d"]);
+	});
+});
+
+describe("foldRepeats", () => {
+	const row = (key: string, evidence: string) => ({
+		key,
+		source: "Slack",
+		title: key,
+		verdict: "DROP" as const,
+		evidence,
+		n: 0,
+		stale: false,
+	});
+
+	test("one row per DM answer, the rest folded into it", () => {
+		const said = "you answered last in the DM: “מטורף”";
+		const rows = foldRepeats([
+			row("slack:D1:3", said),
+			row("slack:C1:2", "you replied last in the thread"),
+			row("slack:D1:2", said),
+			row("slack:C1:1", "you replied last in the thread"),
+			row("slack:D1:1", said),
+			row("slack:D1:0", "nobody has replied"),
+		]);
+		expect(rows.map((r) => r.key)).toEqual([
+			"slack:D1:3",
+			"slack:C1:2",
+			"slack:C1:1",
+			"slack:D1:0",
+		]);
+		expect(rows[0].repeats?.map((r) => r.key)).toEqual([
+			"slack:D1:2",
+			"slack:D1:1",
+		]);
 	});
 });
