@@ -127,8 +127,15 @@ function fromDate(at: number): string {
 
 function ReviewPage() {
 	const backlog = useBacklog();
-	const { swept, sweptAt, sweeping, dropped, noteDropped, unnoteDropped } =
-		useBacklogReview();
+	const {
+		swept,
+		sweptAt,
+		sweeping,
+		dropped,
+		noteDropped,
+		unnoteDropped,
+		keep,
+	} = useBacklogReview();
 	const sweepBacklog = useSweepBacklog();
 	const { remove, todos } = useMyTasks();
 	const panes = useTabsStore((state) => state.panes);
@@ -445,15 +452,17 @@ function ReviewPage() {
 							)}
 							<button
 								type="button"
-								onClick={() =>
+								onClick={() => {
+									const keys = [
+										row.key,
+										...(row.repeats ?? []).map((r) => r.key),
+									];
 									setDecided((prev) => ({
 										...prev,
-										[row.key]: true,
-										...Object.fromEntries(
-											(row.repeats ?? []).map((r) => [r.key, true]),
-										),
-									}))
-								}
+										...Object.fromEntries(keys.map((key) => [key, true])),
+									}));
+									for (const key of keys) keep(key);
+								}}
 								className={ROW_LINK_BUTTON}
 							>
 								Keep
