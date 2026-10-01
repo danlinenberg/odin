@@ -26,8 +26,12 @@ export function FeedTabs() {
 	// badge too — same keys each feed page filters on.
 	const { isDone } = useDone();
 	const counts = feedCounts({
-		tasks: todos.length,
-		slack: reactions.data?.rows ?? [],
+		tasks: todos.filter((task) => !isDone({ key: `task:${task.id}` })).length,
+		// Filtered here too, not left to the row's status: that only reads "Done"
+		// after slack.setDone lands and the feed refetches, so the badge lagged.
+		slack: (reactions.data?.rows ?? []).filter(
+			(row) => !isDone({ key: `slack:${row.id}`, url: row.permalink }),
+		),
 		jira: (jira.data?.issues ?? []).filter(
 			(issue) => !isDone({ key: `jira:${issue.key}`, url: issue.url }),
 		),
