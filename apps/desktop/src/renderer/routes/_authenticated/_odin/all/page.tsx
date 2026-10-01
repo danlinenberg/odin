@@ -26,7 +26,6 @@ import {
 	ROW_META,
 	ROW_PRIMARY_BUTTON,
 	ROW_PRIMARY_SLOT,
-	RowActions,
 	SyncButton,
 } from "../components/FeedChrome";
 import { FEED_TABS, type FeedPath } from "../components/feed-counts";
@@ -637,9 +636,7 @@ function AllFeedPage() {
 											</button>
 										)}
 									</span>
-									<RowActions>
-										<DoneButton onClick={() => markDone(item)} />
-									</RowActions>
+									<DoneButton onClick={() => markDone(item)} />
 								</div>
 								{/* Same preview the Jira feed shows: a mention row is there
 							    because of one comment. Indented past the source chip

@@ -14,7 +14,6 @@ import {
 	ROW_LIVE_BUTTON,
 	ROW_META,
 	ROW_PRIMARY_BUTTON,
-	RowActions,
 } from "../components/FeedChrome";
 import {
 	BuiltinChip,
@@ -215,9 +214,7 @@ function MyTasksPage() {
 											{launchingKey === task.id ? "Starting…" : "Start session"}
 										</button>
 									)}
-									<RowActions>
-										<DoneButton onClick={() => remove(task.id)} />
-									</RowActions>
+									<DoneButton onClick={() => remove(task.id)} />
 								</div>
 							</div>
 						</div>

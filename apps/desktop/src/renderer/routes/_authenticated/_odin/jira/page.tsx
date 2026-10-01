@@ -25,7 +25,6 @@ import {
 	ROW_LIVE_BUTTON,
 	ROW_PRIMARY_BUTTON,
 	ROW_PRIMARY_SLOT,
-	RowActions,
 	SyncButton,
 } from "../components/FeedChrome";
 import { FeedError } from "../components/FeedError";
@@ -436,9 +435,7 @@ function MyJiraPage() {
 														</button>
 													)}
 												</span>
-												<RowActions>
-													<DoneButton onClick={() => markDone(doable(issue))} />
-												</RowActions>
+												<DoneButton onClick={() => markDone(doable(issue))} />
 											</div>
 											{/* A mention row exists because of one comment — so it
 											    shows that comment, not just the ticket it sits on.

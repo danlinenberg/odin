@@ -23,7 +23,6 @@ import {
 	ROW_LIVE_BUTTON,
 	ROW_PRIMARY_BUTTON,
 	ROW_PRIMARY_SLOT,
-	RowActions,
 	SyncButton,
 } from "../components/FeedChrome";
 import { FeedError } from "../components/FeedError";
@@ -327,9 +326,7 @@ function NotionPage() {
 														</button>
 													)}
 												</span>
-												<RowActions>
-													<DoneButton onClick={() => markDone(doable(row))} />
-												</RowActions>
+												<DoneButton onClick={() => markDone(doable(row))} />
 											</div>
 										</div>
 									</div>
