@@ -61,6 +61,9 @@ export interface AllItem {
 	dueDate: string | null;
 	/** The comment that put it here — Jira's @-mention rows. Null elsewhere. */
 	mention: { author: string | null; text: string } | null;
+	/** Whatever else the source knows that the card has no room for —
+	 * label/value pairs for the hover card, in reading order. */
+	details: [string, string][];
 	/** What to hand `launch` when Start session is clicked on this row. */
 	launch: AllLaunch;
 }
@@ -86,6 +89,30 @@ export function urgencyOf(priority: string | null | undefined): Urgency {
 function ms(iso: string | null | undefined): number {
 	const t = iso ? Date.parse(iso) : Number.NaN;
 	return Number.isNaN(t) ? 0 : t;
+}
+
+/** A date as people read it, or null when there isn't one. */
+function when(at: string | number | null | undefined): string | null {
+	const t = typeof at === "number" ? at : ms(at);
+	return t
+		? new Date(t).toLocaleString(undefined, {
+				dateStyle: "medium",
+				timeStyle: "short",
+			})
+		: null;
+}
+
+/** The pairs that have a value, each label once — an empty field isn't a fact. */
+function facts(
+	pairs: [string, string | null | undefined][],
+): [string, string][] {
+	const seen = new Set<string>();
+	return pairs.filter((pair): pair is [string, string] => {
+		const label = pair[0].toLowerCase();
+		if (!pair[1]?.trim() || seen.has(label)) return false;
+		seen.add(label);
+		return true;
+	});
 }
 
 /**
@@ -118,6 +145,9 @@ export function allItems(input: {
 		updated: string | null;
 		dueDate?: string | null;
 		mention?: { author: string | null; text: string } | null;
+		issueType?: string | null;
+		role?: string;
+		created?: string | null;
 	}[];
 	pulls: {
 		id: number;
@@ -128,6 +158,9 @@ export function allItems(input: {
 		author: string;
 		kind: "review" | "mine" | "mentioned";
 		updated: string | null;
+		draft?: boolean;
+		comments?: number;
+		created?: string | null;
 	}[];
 	notion: (NotionRow & {
 		pageId: string;
@@ -168,6 +201,10 @@ export function allItems(input: {
 				at: task.createdAt,
 				dueDate: null,
 				mention: null,
+				details: facts([
+					["Created", when(task.createdAt)],
+					["Skill", task.skill],
+				]),
 				launch: {
 					key: task.id,
 					title: task.title,
@@ -196,6 +233,11 @@ export function allItems(input: {
 					at: ms(row.postedAt),
 					dueDate: null,
 					mention: null,
+					details: facts([
+						["Channel", row.channelName],
+						["From", row.authorName],
+						["Posted", when(row.postedAt)],
+					]),
 					launch: {
 						key: row.id,
 						title: row.title,
@@ -230,6 +272,17 @@ export function allItems(input: {
 				at: ms(issue.updated),
 				dueDate: issue.dueDate ?? null,
 				mention: issue.mention ?? null,
+				details: facts([
+					["Type", issue.issueType],
+					["Status", issue.status],
+					["Priority", issue.priority],
+					["Why here", issue.role],
+					["Reporter", issue.reporter],
+					["Project", issue.project],
+					["Created", when(issue.created)],
+					["Updated", when(issue.updated)],
+					["Due", issue.dueDate],
+				]),
 				launch: {
 					key: issue.key,
 					title: `${issue.key}: ${issue.title}`,
@@ -261,6 +314,18 @@ export function allItems(input: {
 					at: ms(pull.updated),
 					dueDate: null,
 					mention: null,
+					details: facts([
+						["Repo", pull.repo],
+						["Author", pull.author],
+						[
+							"Why here",
+							pull.kind === "review" ? "review requested" : pull.kind,
+						],
+						["Draft", pull.draft ? "yes" : null],
+						["Comments", pull.comments ? String(pull.comments) : null],
+						["Opened", when(pull.created)],
+						["Updated", when(pull.updated)],
+					]),
 					launch: {
 						key: pull.url,
 						title: `${pull.repo}#${pull.number}: ${pull.title}`,
@@ -291,6 +356,12 @@ export function allItems(input: {
 				at: ms(row.updatedAt ?? row.date),
 				dueDate: null,
 				mention: null,
+				// Every property the database has, as Notion names it.
+				details: facts([
+					["Status", row.status],
+					...Object.entries(row.fields),
+					["Updated", when(row.updatedAt)],
+				]),
 				launch: {
 					key: row.pageId,
 					title: row.title,
@@ -322,6 +393,10 @@ export function allItems(input: {
 					mention: email.snippet
 						? { author: email.from, text: email.snippet }
 						: null,
+					details: facts([
+						["From", email.fromEmail ?? email.from],
+						["Received", when(email.at)],
+					]),
 					launch: {
 						key: email.id,
 						title: email.subject,
