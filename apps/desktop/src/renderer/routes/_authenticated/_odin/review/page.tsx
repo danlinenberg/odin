@@ -135,6 +135,7 @@ function ReviewPage() {
 		noteDropped,
 		unnoteDropped,
 		keep,
+		kept,
 	} = useBacklogReview();
 	const sweepBacklog = useSweepBacklog();
 	const { remove, todos } = useMyTasks();
@@ -159,9 +160,6 @@ function ReviewPage() {
 	const setDone = useDoneStore((s) => s.setDone);
 	const done = useDoneStore((s) => s.done);
 	const utils = electronTrpc.useUtils();
-	// Decided here, this session's worth. A dropped row also leaves the backlog,
-	// but a kept one doesn't — without this the screen never empties.
-	const [decided, setDecided] = useState<Record<string, true>>({});
 	const [view, setView] = useState<"drop" | "rest" | "dropped">("drop");
 	const [search, setSearch] = useState("");
 	const searchHotkey = useSearchHotkey();
@@ -206,7 +204,9 @@ function ReviewPage() {
 		[swept, backlog, loadingKey, droppedKeys],
 	);
 	const counts = countByVerdict(rows);
-	const pending = rows.filter((row) => !decided[row.key]);
+	// A kept row stays off the list, reload or not. Dropped ones already are.
+	const keptKeys = useMemo(() => new Set(kept), [kept]);
+	const pending = rows.filter((row) => !keptKeys.has(row.key));
 	// Who a row is from lives on the live backlog, not the swept snapshot — a
 	// row that has since left the backlog searches without a person.
 	const personByKey = useMemo(
@@ -257,7 +257,6 @@ function ReviewPage() {
 		const id = rest.join(":");
 		// Off the screen first: the Slack write plus the reactions refetch take
 		// seconds, and the row sat there the whole time. Put back on failure.
-		setDecided((prev) => ({ ...prev, [row.key]: true }));
 		noteDropped(row);
 		// Dropped is done, everywhere: a Jira, PR or Notion row can't be cleared
 		// at its source, and would otherwise live on in All tasks.
@@ -272,7 +271,6 @@ function ReviewPage() {
 				await setSlackDone.mutateAsync({ id, done: true });
 				void utils.slack.reactions.invalidate();
 			} catch (error) {
-				setDecided(({ [row.key]: _, ...prev }) => prev);
 				unnoteDropped(row.key);
 				setDone(row.key, null);
 				toast.error(error instanceof Error ? error.message : String(error));
@@ -307,7 +305,7 @@ function ReviewPage() {
 	const sweepNow = async () => {
 		if (backlog.length === 0) return toast.error("The backlog is empty");
 		try {
-			if (await sweepBacklog()) setDecided({});
+			await sweepBacklog();
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : String(error));
 		}
@@ -457,10 +455,6 @@ function ReviewPage() {
 										row.key,
 										...(row.repeats ?? []).map((r) => r.key),
 									];
-									setDecided((prev) => ({
-										...prev,
-										...Object.fromEntries(keys.map((key) => [key, true])),
-									}));
 									for (const key of keys) keep(key);
 								}}
 								className={ROW_LINK_BUTTON}
