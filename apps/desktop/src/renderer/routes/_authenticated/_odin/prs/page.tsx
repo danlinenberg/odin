@@ -24,7 +24,6 @@ import {
 	ROW_META,
 	ROW_PRIMARY_BUTTON,
 	ROW_PRIMARY_SLOT,
-	RowActions,
 	SyncButton,
 } from "../components/FeedChrome";
 import { FeedError } from "../components/FeedError";
@@ -328,9 +327,7 @@ function MyPullRequestsPage() {
 											</button>
 										)}
 									</span>
-									<RowActions>
-										<DoneButton onClick={() => markDone(doable(pull))} />
-									</RowActions>
+									<DoneButton onClick={() => markDone(doable(pull))} />
 								</div>
 							</div>
 						</div>

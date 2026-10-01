@@ -12,6 +12,7 @@ import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { useDoneStore } from "renderer/stores/done";
 import { useTabsStore } from "renderer/stores/tabs/store";
+import { DoneButton } from "../components/DoneButton";
 import {
 	FEED_LIST,
 	FEED_ROW,
@@ -316,8 +317,8 @@ function ReactionsPage() {
 												</button>
 											)}
 										</span>
-										<button
-											type="button"
+										<DoneButton
+											done={row.done}
 											disabled={setDone.isPending}
 											onClick={() => {
 												setDone.mutate({ id: row.id, done: !row.done });
@@ -333,13 +334,7 @@ function ReactionsPage() {
 															},
 												);
 											}}
-											title={
-												row.done ? "Move back to the queue" : "Mark handled"
-											}
-											className="shrink-0 rounded-[7px] bg-[#1f1f27] px-2.5 py-1 text-xs font-semibold text-[#3ecf8e] transition-colors hover:bg-[#14301f] disabled:opacity-40"
-										>
-											{row.done ? "↺ Undo" : "✓ Done"}
-										</button>
+										/>
 									</div>
 								</div>
 							</div>

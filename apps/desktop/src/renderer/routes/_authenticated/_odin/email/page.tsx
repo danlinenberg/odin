@@ -13,7 +13,6 @@ import {
 	META_PERSON,
 	ROW_LINK_BUTTON,
 	ROW_LINK_SLOT,
-	RowActions,
 	SyncButton,
 } from "../components/FeedChrome";
 import { FeedError } from "../components/FeedError";
@@ -123,18 +122,16 @@ function EmailPage() {
 										Open ↗
 									</button>
 								</span>
-								<RowActions>
-									<DoneButton
-										onClick={() =>
-											markDone({
-												key: `email:${email.id}`,
-												title: email.subject,
-												source: "Email",
-												url: email.url,
-											})
-										}
-									/>
-								</RowActions>
+								<DoneButton
+									onClick={() =>
+										markDone({
+											key: `email:${email.id}`,
+											title: email.subject,
+											source: "Email",
+											url: email.url,
+										})
+									}
+								/>
 							</div>
 						</div>
 					</div>
