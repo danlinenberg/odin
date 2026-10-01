@@ -402,12 +402,17 @@ export const createTerminalRouter = () => {
 				z.object({
 					query: z.string().default(""),
 					limit: z.number().int().positive().max(100).default(40),
+					cursor: z.number().int().nonnegative().nullish(),
 				}),
 			)
 			.query(async ({ input }) => {
 				const { searchSessions } = await import("main/lib/claude-sessions");
 				const { sessionPeople } = await import("./session-people");
-				return searchSessions({ ...input, people: sessionPeople() });
+				return searchSessions({
+					...input,
+					cursor: input.cursor ?? 0,
+					people: sessionPeople(),
+				});
 			}),
 
 		/**

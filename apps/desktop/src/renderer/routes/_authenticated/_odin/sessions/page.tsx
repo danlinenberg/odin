@@ -122,21 +122,43 @@ function SessionsPage() {
 		[daemonSessions, panes, sessionIdByPane],
 	);
 
-	const { data, isFetching, error } =
-		electronTrpc.terminal.searchClaudeSessions.useQuery(
+	// Browsing pages back through the store as you scroll; a search is one
+	// ranked page (the server never hands it a next cursor).
+	const { data, isFetching, error, hasNextPage, fetchNextPage } =
+		electronTrpc.terminal.searchClaudeSessions.useInfiniteQuery(
 			{ query, limit: 40 },
-			{ placeholderData: (previous) => previous },
+			{
+				getNextPageParam: (page) => page.nextCursor ?? undefined,
+				placeholderData: (previous) => previous,
+			},
 		);
+	const pages = data?.pages ?? [];
 	// History = finished work; the board owns everything still running.
-	const rows = (data?.sessions ?? []).filter(
-		(row) => !liveSessionIds.has(row.sessionId),
-	);
+	const rows = pages
+		.flatMap((page) => page.sessions)
+		.filter((row) => !liveSessionIds.has(row.sessionId));
 	// The server decides what counts as a term, so highlighting can't drift from
 	// what was actually matched.
-	const terms = data?.terms ?? [];
+	const terms = pages[0]?.terms ?? [];
 	// Everyone who has ever asked Odin for something, newest first — not just
 	// the people in the current results, or clearing a search would empty the row.
-	const askers = data?.askers ?? [];
+	const askers = pages[0]?.askers ?? [];
+	const oldest = rows.at(-1)?.updatedAt;
+
+	// The next page loads once the list's last row scrolls into view.
+	const sentinelRef = useRef<HTMLDivElement>(null);
+	useEffect(() => {
+		const sentinel = sentinelRef.current;
+		if (!sentinel || !hasNextPage) return;
+		const observer = new IntersectionObserver(
+			([entry]) => {
+				if (entry?.isIntersecting && !isFetching) void fetchNextPage();
+			},
+			{ rootMargin: "400px" },
+		);
+		observer.observe(sentinel);
+		return () => observer.disconnect();
+	}, [hasNextPage, isFetching, fetchNextPage]);
 
 	/**
 	 * Resume a found session: a fresh pane running `claude --resume <id>` in the
@@ -207,7 +229,7 @@ function SessionsPage() {
 						: data
 							? terms.length > 0
 								? `best ${rows.length} matches`
-								: `newest ${rows.length} sessions`
+								: `${rows.length} sessions${oldest ? `, back to ${agoLabel(oldest)}` : ""}`
 							: ""}
 				</span>
 			</div>
@@ -330,6 +352,13 @@ function SessionsPage() {
 						</div>
 					))}
 				</div>
+				<div ref={sentinelRef} />
+				{rows.length > 0 && !hasNextPage && !query && (
+					<div className="py-4 text-center text-[11px] text-[#8a8a97]">
+						That's everything still on disk — Claude Code deletes transcripts
+						after 30 days.
+					</div>
+				)}
 			</div>
 
 			{openRow && (

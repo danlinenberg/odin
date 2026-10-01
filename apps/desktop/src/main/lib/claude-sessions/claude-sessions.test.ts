@@ -294,6 +294,26 @@ describe("searchSessions", () => {
 		]);
 	});
 
+	test("browsing pages through the store by cursor, searching never does", async () => {
+		const root = fixtureRoot();
+		const first = await searchSessions({ root, limit: 1 });
+		expect(first.sessions).toHaveLength(1);
+		expect(first.nextCursor).not.toBeNull();
+		const second = await searchSessions({
+			root,
+			limit: 1,
+			cursor: first.nextCursor ?? 0,
+		});
+		expect(second.sessions).toHaveLength(1);
+		expect(second.sessions[0]?.sessionId).not.toBe(
+			first.sessions[0]?.sessionId,
+		);
+		expect(second.nextCursor).toBeNull();
+		expect(
+			(await searchSessions({ root, query: "datadog" })).nextCursor,
+		).toBeNull();
+	});
+
 	test("shared boilerplate no longer makes every session a hit", async () => {
 		const root = fixtureRoot();
 		const { sessions } = await searchSessions({ root, query: "datadog" });
