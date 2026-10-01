@@ -536,14 +536,14 @@ function lastWord(thread: Thread): {
 
 /**
  * A reply that promises rather than delivers: "fixing this", "will look",
- * "not yet". Anything else I say last — "Fixed", "Created", a link, an
+ * "not yet", "note to self: remaining photos". Anything else I say last — "Fixed", "Created", a link, an
  * answer, "lmk if it works" — hands the ball back, and nobody waits on me.
  *
  * ponytail: a phrase list, measured against 71 hand-read rows (every promise
- * caught, one "note to self" missed). Swap for a model call if it drifts.
+ * caught; "note to self" / "todo" / "remaining" added after a miss). Swap for a model call if it drifts.
  */
 export const PROMISE =
-	/\b(will|i'?ll|we'?ll|fixing|looking|checking|investigating|working on|on it|not yet|soon|tomorrow|later|let me (check|look|see))\b|אבדוק|נבדוק|בודק|אעדכן|נעדכן|אסתכל|מחר|עוד מעט|בהמשך|אחזור|עובד על/i;
+	/\b(will|i'?ll|we'?ll|fixing|looking|checking|investigating|working on|on it|not yet|soon|tomorrow|later|let me (check|look|see)|note to self|todo|to-?do|remaining|left to)\b|אבדוק|נבדוק|בודק|אעדכן|נעדכן|אסתכל|מחר|עוד מעט|בהמשך|אחזור|עובד על/i;
 
 /** "Thanks", "👍", "works!", "תודה": a short last word that closes it. */
 const CLOSING =

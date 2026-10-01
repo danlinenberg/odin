@@ -7,6 +7,7 @@ import {
 	jiraOwnership,
 	jiraRef,
 	mapLimit,
+	PROMISE,
 	type SweepDeps,
 	type SweepItem,
 	sweepItem,
@@ -682,4 +683,10 @@ describe("someone else's to finish", () => {
 			(await sweepItem(item({ key: "slack:D1:1.2", url }), d)).verdict,
 		).toBe("KEEP");
 	});
+});
+
+// A note to myself in the thread is a reminder of work left, not an answer.
+test("a note to self is a promise, not an answer", () => {
+	expect(PROMISE.test("note to self: remaining photos")).toBe(true);
+	expect(PROMISE.test("Fixed, lmk if it works")).toBe(false);
 });
