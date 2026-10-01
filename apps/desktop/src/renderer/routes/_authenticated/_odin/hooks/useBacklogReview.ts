@@ -10,9 +10,10 @@ import { useBacklog } from "./builtin-automations";
 /** A row dropped from Review, as it was swept, and when. */
 export type DroppedRow = SweptRow & { droppedAt: number };
 
-// ponytail: fixed cap on drops the sweep no longer lists. Ones it still lists
+// ponytail: fixed cap on drops the sweep no longer lists — 500, since one
+// sweep can auto-drop 200+ and a 100 cap hid most of them from Undo. Ones it still lists
 // are always kept (see keepDropped), or a reload would put them back.
-const DROPPED_KEPT = 100;
+const DROPPED_KEPT = 500;
 
 /**
  * The last sweep's answers.
