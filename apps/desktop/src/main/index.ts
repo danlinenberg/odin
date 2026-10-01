@@ -29,6 +29,7 @@ import { loadWebviewBrowserExtension } from "./lib/extensions";
 import { getHostServiceCoordinator } from "./lib/host-service-coordinator";
 import { completeJiraOAuth, isJiraOAuthCallback } from "./lib/jira-oauth";
 import { localDb } from "./lib/local-db";
+import { startMemoryGuard } from "./lib/memory-guard";
 import { completeNotionOAuth, isNotionOAuthCallback } from "./lib/notion-oauth";
 import {
 	initTanstackDbPersistence,
@@ -464,6 +465,7 @@ if (!gotTheLock) {
 			});
 
 		startWorktreePruner();
+		startMemoryGuard();
 
 		try {
 			setupAgentIntegrations();
