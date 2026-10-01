@@ -151,11 +151,24 @@ async function probeNotion(): Promise<ConnectionStatus> {
 			},
 		});
 		if (!res.ok) return failed("notion", probeError(res.status));
-		const json = (await res.json()) as { name?: string; bot?: unknown };
+		const json = (await res.json()) as {
+			name?: string;
+			bot?: {
+				owner?: { user?: { name?: string; person?: { email?: string } } };
+				workspace_name?: string;
+			};
+		};
+		// The token's own name is the integration ("Odin"); show who signed in.
+		const owner = json.bot?.owner?.user;
 		return {
 			provider: "notion",
 			configured: true,
-			identity: json.name ?? "integration",
+			identity:
+				[owner?.name ?? owner?.person?.email, json.bot?.workspace_name]
+					.filter(Boolean)
+					.join(" · ") ||
+				json.name ||
+				"integration",
 			error: null,
 		};
 	} catch (error) {
