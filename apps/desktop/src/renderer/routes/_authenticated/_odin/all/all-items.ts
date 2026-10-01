@@ -256,43 +256,46 @@ export function allItems(input: {
 					},
 				}),
 			),
-		...input.jira.map(
-			(issue): AllItem => ({
-				key: `jira:${issue.key}`,
-				source: "Jira",
-				to: "/jira",
-				title: `${issue.key}: ${issue.title}`,
-				url: issue.url,
-				person: issue.reporter ?? null,
-				status: issue.status,
-				// An @-mention is someone asking me directly — High, like a reaction.
-				priority: issue.mention ? "High" : (issue.priority ?? null),
-				urgency: issue.mention ? "high" : urgencyOf(issue.priority),
-				context: issue.project,
-				at: ms(issue.updated),
-				dueDate: issue.dueDate ?? null,
-				mention: issue.mention ?? null,
-				details: facts([
-					["Type", issue.issueType],
-					["Status", issue.status],
-					["Priority", issue.priority],
-					["Why here", issue.role],
-					["Reporter", issue.reporter],
-					["Project", issue.project],
-					["Created", when(issue.created)],
-					["Updated", when(issue.updated)],
-					["Due", issue.dueDate],
-				]),
-				launch: {
-					key: issue.key,
+		...input.jira
+			// Tickets I filed wait on someone else — they live on the Jira tab.
+			.filter((issue) => issue.role !== "reported")
+			.map(
+				(issue): AllItem => ({
+					key: `jira:${issue.key}`,
+					source: "Jira",
+					to: "/jira",
 					title: `${issue.key}: ${issue.title}`,
-					description: buildIssuePrompt(issue.key, issue.url, issue.title),
-					contact: issue.reporter ?? null,
-					brief: `${issue.key}: ${issue.title}\n${issue.url}`,
-					source: "jira",
-				},
-			}),
-		),
+					url: issue.url,
+					person: issue.reporter ?? null,
+					status: issue.status,
+					// An @-mention is someone asking me directly — High, like a reaction.
+					priority: issue.mention ? "High" : (issue.priority ?? null),
+					urgency: issue.mention ? "high" : urgencyOf(issue.priority),
+					context: issue.project,
+					at: ms(issue.updated),
+					dueDate: issue.dueDate ?? null,
+					mention: issue.mention ?? null,
+					details: facts([
+						["Type", issue.issueType],
+						["Status", issue.status],
+						["Priority", issue.priority],
+						["Why here", issue.role],
+						["Reporter", issue.reporter],
+						["Project", issue.project],
+						["Created", when(issue.created)],
+						["Updated", when(issue.updated)],
+						["Due", issue.dueDate],
+					]),
+					launch: {
+						key: issue.key,
+						title: `${issue.key}: ${issue.title}`,
+						description: buildIssuePrompt(issue.key, issue.url, issue.title),
+						contact: issue.reporter ?? null,
+						brief: `${issue.key}: ${issue.title}\n${issue.url}`,
+						source: "jira",
+					},
+				}),
+			),
 		...input.pulls
 			// Your own PRs aren't tasks to pick up — they live on the PRs tab.
 			.filter((pull) => pull.kind !== "mine" && !isBot(pull.author))
