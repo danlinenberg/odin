@@ -234,3 +234,9 @@ test("Slack reactions and Jira mentions are High, whatever the ticket says", () 
 			urgency: "high",
 		});
 });
+
+test("tickets I only filed stay on the Jira tab", () => {
+	const filed = { ...feeds.jira[0], key: "BUGT-3", role: "reported" };
+	const items = allItems({ ...feeds, jira: [filed] });
+	expect(items.some((item) => item.source === "Jira")).toBe(false);
+});
