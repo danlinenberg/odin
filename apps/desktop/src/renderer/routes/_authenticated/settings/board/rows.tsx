@@ -276,3 +276,88 @@ export function SweepIntervalRow() {
 		</div>
 	);
 }
+
+/**
+ * Off-hours: Next in line worked through overnight, one session at a time.
+ * Every control saves as you change it; the runner reads them each minute.
+ */
+export function OffHoursRows() {
+	const offHours = useNextInLinePrompt((s) => s.offHours);
+	const setOffHours = useNextInLinePrompt((s) => s.setOffHours);
+	const started = useNextInLinePrompt((s) => s.offHoursStarted);
+	const [draft, setDraft] = useState(offHours.instructions);
+	return (
+		<div className="space-y-4">
+			<div className="flex items-center justify-between gap-6">
+				<div className="space-y-0.5">
+					<Label htmlFor="off-hours" className="text-sm font-medium">
+						Work the backlog off-hours
+					</Label>
+					<p className="text-[13px] leading-relaxed text-muted-foreground max-w-xl">
+						Between these times, Odin starts the top of Next in line, waits for
+						that session to finish its turn, then starts the next. Sessions are
+						tagged #off-hours. Odin has to be open; the Mac awake.
+						{offHours.enabled && started > 0 && ` ${started} started tonight.`}
+					</p>
+				</div>
+				<Switch
+					id="off-hours"
+					checked={offHours.enabled}
+					onCheckedChange={(enabled) => setOffHours({ enabled })}
+				/>
+			</div>
+			<div className="flex items-center gap-3 text-sm">
+				<Label htmlFor="off-hours-start">From</Label>
+				<Input
+					id="off-hours-start"
+					type="time"
+					value={offHours.start}
+					onChange={(e) =>
+						e.target.value && setOffHours({ start: e.target.value })
+					}
+					className="w-28 tabular-nums"
+				/>
+				<Label htmlFor="off-hours-end">to</Label>
+				<Input
+					id="off-hours-end"
+					type="time"
+					value={offHours.end}
+					onChange={(e) =>
+						e.target.value && setOffHours({ end: e.target.value })
+					}
+					className="w-28 tabular-nums"
+				/>
+				<Label htmlFor="off-hours-max" className="ml-4">
+					At most
+				</Label>
+				<Input
+					id="off-hours-max"
+					type="number"
+					min={1}
+					max={50}
+					defaultValue={offHours.maxSessions}
+					className="w-20 tabular-nums"
+					onChange={(event) => {
+						const next = event.target.valueAsNumber;
+						if (Number.isInteger(next) && next >= 1 && next <= 50)
+							setOffHours({ maxSessions: next });
+					}}
+				/>
+				<span className="text-muted-foreground">sessions a night</span>
+			</div>
+			<div className="space-y-1">
+				<Label htmlFor="off-hours-instructions" className="text-sm font-medium">
+					Told to every off-hours session
+				</Label>
+				<Textarea
+					id="off-hours-instructions"
+					value={draft}
+					onChange={(e) => setDraft(e.target.value)}
+					onBlur={() => setOffHours({ instructions: draft.trim() })}
+					maxLength={4000}
+					rows={4}
+				/>
+			</div>
+		</div>
+	);
+}

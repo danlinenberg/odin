@@ -36,6 +36,7 @@ import { usePeriodicSweep } from "./hooks/useBacklogReview";
 import { useNeedsYouByProfile } from "./hooks/useNeedsYouByProfile";
 import { useOdinFeeds } from "./hooks/useOdinFeeds";
 import { useOdinProfile } from "./hooks/useOdinProfile";
+import { useOffHoursRunner } from "./hooks/useOffHoursRunner";
 import { useSlackAutoLaunch } from "./hooks/useStartReaction";
 
 /**
@@ -273,6 +274,7 @@ function OdinShell() {
 	// The clock behind the Automations panel. Here rather than on that page:
 	// a schedule that only runs while you're looking at it isn't one.
 	useAutomationRunner();
+	useOffHoursRunner();
 	// And the backlog sweep, on its interval, so Review is already filled in.
 	usePeriodicSweep();
 	// Same reason: tasks held back by the capacity gate wait in Idle → Queued,
