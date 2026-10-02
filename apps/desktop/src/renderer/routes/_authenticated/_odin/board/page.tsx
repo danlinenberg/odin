@@ -99,7 +99,9 @@ import { sessionFor } from "../review/verdicts";
 import {
 	actionItems,
 	elapsedLabel,
+	jiraIssue,
 	lastMessageAt,
+	linkRefs,
 	mergeReady,
 	mergeTargets,
 	nextCronFire,
@@ -319,8 +321,14 @@ function useCardSessionId(card: BoardCard): string | null {
 	return card.pane.claudeSessionId ?? mirrored ?? null;
 }
 
-/** The agent's `inline code` as code, not as literal backticks. */
-function withCode(text: string): React.ReactNode[] {
+/**
+ * The agent's `inline code` as code, not as literal backticks; the prose
+ * between goes through `prose` (Catch up links its PRs there).
+ */
+function withCode(
+	text: string,
+	prose: (part: string) => React.ReactNode = (part) => part,
+): React.ReactNode[] {
 	return text.split("`").map((part, i) =>
 		i % 2 ? (
 			// biome-ignore lint/suspicious/noArrayIndexKey: a fixed split, never reordered
@@ -328,7 +336,8 @@ function withCode(text: string): React.ReactNode[] {
 				{part}
 			</code>
 		) : (
-			part
+			// biome-ignore lint/suspicious/noArrayIndexKey: a fixed split, never reordered
+			<Fragment key={i}>{prose(part)}</Fragment>
 		),
 	);
 }
@@ -358,6 +367,30 @@ function CatchUpCard({
 		);
 	// The agent's own list, verbatim; the brief's one-liner when it left none.
 	const todo = transcript ? actionItems(transcript.messages) : [];
+	// "Merge imagen-public-mcp #2" opens #2 — the PRs and ticket the session quoted.
+	const quoted = transcript ? (transcript.links ?? transcript.messages) : [];
+	const prs = pullRequests(quoted);
+	const issue = jiraIssue(quoted);
+	const openUrl = electronTrpc.external.openUrl.useMutation();
+	const text = (value: string) =>
+		withCode(value, (part) =>
+			linkRefs(part, prs, issue).map(({ text: run, url }, i) =>
+				url ? (
+					<button
+						// biome-ignore lint/suspicious/noArrayIndexKey: a fixed split, never reordered
+						key={i}
+						type="button"
+						title={url}
+						onClick={() => openUrl.mutate(url)}
+						className="text-[#a394ff] hover:underline"
+					>
+						{run}
+					</button>
+				) : (
+					run
+				),
+			),
+		);
 	const label = "mb-1.5 text-[11px] font-semibold uppercase tracking-[.4px]";
 	return (
 		<div className="flex min-h-0 flex-1 select-text cursor-text flex-col gap-6 overflow-y-auto px-8 py-7">
@@ -367,13 +400,17 @@ function CatchUpCard({
 					<ol className="list-decimal space-y-1.5 pl-5 text-[15px] leading-relaxed text-[#f5f5f7]">
 						{todo.map((item) => (
 							<li key={item} className="break-words">
-								{withCode(item)}
+								{text(item)}
 							</li>
 						))}
 					</ol>
 				) : (
 					<div className="text-[15px] leading-relaxed text-[#f5f5f7]">
-						{written?.next ?? (sessionId ? "reading the conversation…" : "—")}
+						{written?.next
+							? text(written.next)
+							: sessionId
+								? "reading the conversation…"
+								: "—"}
 					</div>
 				)}
 			</div>
@@ -381,7 +418,7 @@ function CatchUpCard({
 				<div>
 					<div className={cn(label, "text-[#8a8a97]")}>Where it stands</div>
 					<div className="text-[13.5px] leading-relaxed text-[#d4d4dc]">
-						{written.status}
+						{text(written.status)}
 					</div>
 				</div>
 			)}
@@ -390,13 +427,13 @@ function CatchUpCard({
 					{written.issue && (
 						<div>
 							<div className={cn(label, "text-[#8a8a97]")}>The issue</div>
-							{written.issue}
+							{text(written.issue)}
 						</div>
 					)}
 					{written.done && (
 						<div>
 							<div className={cn(label, "text-[#8a8a97]")}>What we did</div>
-							{written.done}
+							{text(written.done)}
 						</div>
 					)}
 				</div>
