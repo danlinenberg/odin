@@ -590,7 +590,7 @@ function WeekView({
 									type="button"
 									title={task.prs.join("\n")}
 									onClick={() => openUrl.mutate(task.prs.at(-1) as string)}
-									className="shrink-0 text-[10.5px] tabular-nums text-success hover:underline"
+									className="shrink-0 text-[10.5px] tabular-nums text-primary hover:underline"
 								>
 									{task.prs.length === 1
 										? `#${task.prs[0]?.split("/").pop()}`
