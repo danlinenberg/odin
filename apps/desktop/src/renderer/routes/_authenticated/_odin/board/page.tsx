@@ -368,15 +368,32 @@ function DropPill({ pane }: { pane: Pane }) {
 
 function MergeOnlyPill({ card }: { card: BoardCard }) {
 	const { data } = useCardTranscript(card, card.status === "working");
+	const openUrl = electronTrpc.external.openUrl.useMutation();
 	if (!data || !onlyMergeLeft(data.messages)) return null;
+	// The PR the merge item names ("Merge #12"), else the newest one.
+	const items = actionItems(data.messages).join(" ");
+	const prs = pullRequests(data.messages);
+	const pr =
+		prs.find((p) => new RegExp(`#${p.number}\\b`).test(items)) ?? prs[0];
 	return (
-		<span
-			title="The only action item left is merging the PR"
-			className="inline-flex items-center gap-1 rounded-[5px] bg-[#13301f] px-[7px] text-[11px] font-medium text-[#4ade80]"
+		<button
+			type="button"
+			disabled={!pr}
+			title={
+				pr
+					? `Open ${pr.url} to merge it`
+					: "The only action item left is merging the PR"
+			}
+			onClick={(event) => {
+				// The card itself opens the drawer; the pill opens GitHub.
+				event.stopPropagation();
+				if (pr) openUrl.mutate(pr.url);
+			}}
+			className="inline-flex items-center gap-1 rounded-[5px] bg-[#13301f] px-[7px] text-[11px] font-medium text-[#4ade80] enabled:hover:bg-[#1a4029]"
 		>
 			<LuGitMerge className="size-3" />
-			Just merge
-		</span>
+			Just merge{pr ? ` #${pr.number}` : ""}
+		</button>
 	);
 }
 
