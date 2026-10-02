@@ -20,8 +20,15 @@ const SOURCE_LABEL: Record<string, string> = {
 	notion: "Notion",
 };
 
-const AGENT_COLOR = "#a394ff";
-const YOU_COLOR = "#3ecf8e";
+/**
+ * You vs agent, the page's two series. Not the status hues — green already
+ * means "done" on every other page — and checked as a pair (dataviz
+ * validate_palette, dark, on --card): both inside the dark lightness band,
+ * colour-blind separation ΔE 27. Agent is the brand violet stepped down into
+ * that band, so it still reads as Odin's.
+ */
+const AGENT_COLOR = "#8b7cf6";
+const YOU_COLOR = "#d9773f";
 /** Plain rankings (repo, person, source) — not you vs agent, so neither hue. */
 const RANK_COLOR = "#6b8fb8";
 
@@ -40,10 +47,10 @@ function duration(hours: number): string {
 function Heading({ title, note }: { title: string; note?: string }) {
 	return (
 		<div className="flex items-baseline gap-2">
-			<div className="text-[11px] font-semibold uppercase tracking-[.4px] text-[#8a8a97]">
+			<div className="text-[11px] font-semibold uppercase tracking-[.4px] text-muted-foreground">
 				{title}
 			</div>
-			{note && <div className="text-[11px] text-[#6f6f7d]">{note}</div>}
+			{note && <div className="text-[11px] text-faint-foreground">{note}</div>}
 		</div>
 	);
 }
@@ -72,7 +79,7 @@ function Section({
 
 function Card({ children }: { children: React.ReactNode }) {
 	return (
-		<div className="rounded-[10px] border border-[#25252e] bg-[#111114] p-4">
+		<div className="rounded-[10px] border border-border bg-card p-4">
 			{children}
 		</div>
 	);
@@ -88,12 +95,14 @@ function Stat({
 	hint?: string;
 }) {
 	return (
-		<div className="flex min-w-[112px] flex-1 flex-col gap-1 rounded-[10px] border border-[#25252e] bg-[#111114] px-3.5 py-3">
-			<div className="text-[22px] font-semibold leading-none text-[#f5f5f7]">
+		<div className="flex min-w-[112px] flex-1 flex-col gap-1 rounded-[10px] border border-border bg-card px-3.5 py-3">
+			<div className="text-[22px] font-semibold leading-none text-foreground">
 				{value}
 			</div>
-			<div className="text-[11.5px] text-[#a5a5b3]">{label}</div>
-			{hint && <div className="text-[10.5px] text-[#6f6f7d]">{hint}</div>}
+			<div className="text-[11.5px] text-muted-foreground">{label}</div>
+			{hint && (
+				<div className="text-[10.5px] text-faint-foreground">{hint}</div>
+			)}
 		</div>
 	);
 }
@@ -117,10 +126,10 @@ function Bar({
 }) {
 	return (
 		<div className="flex items-center gap-2.5">
-			<div className="w-[108px] shrink-0 truncate text-[12px] text-[#d6d6dc]">
+			<div className="w-[108px] shrink-0 truncate text-[12px] text-soft-foreground">
 				{name}
 			</div>
-			<div className="h-[6px] min-w-0 max-w-[260px] flex-1 overflow-hidden rounded-full bg-[#1b1b22]">
+			<div className="h-[6px] min-w-0 max-w-[260px] flex-1 overflow-hidden rounded-full bg-secondary">
 				<div
 					className="h-full rounded-full"
 					style={{
@@ -129,7 +138,7 @@ function Bar({
 					}}
 				/>
 			</div>
-			<div className="shrink-0 text-right text-[11.5px] tabular-nums text-[#a5a5b3]">
+			<div className="shrink-0 text-right text-[11.5px] tabular-nums text-muted-foreground">
 				{value}
 			</div>
 		</div>
@@ -168,7 +177,7 @@ function plural(count: number, noun: string): string {
 
 function Spinner() {
 	return (
-		<span className="inline-block size-3 shrink-0 animate-spin rounded-full border-2 border-[#2a2a34] border-t-[#a394ff]" />
+		<span className="inline-block size-3 shrink-0 animate-spin rounded-full border-2 border-border border-t-primary" />
 	);
 }
 
@@ -180,7 +189,7 @@ function Loading() {
 function Empty({ children }: { children: React.ReactNode }) {
 	return (
 		<Card>
-			<div className="text-[12px] text-[#6f6f7d]">{children}</div>
+			<div className="text-[12px] text-faint-foreground">{children}</div>
 		</Card>
 	);
 }
@@ -215,7 +224,7 @@ function WeekChart({
 						{/* justify-end so the number rides on top of its own bar
 						    instead of floating at the top of an empty column. */}
 						<div className="flex h-[132px] w-full flex-col items-center justify-end">
-							<div className="mb-1 text-[11px] font-medium tabular-nums text-[#d6d6dc]">
+							<div className="mb-1 text-[11px] font-medium tabular-nums text-soft-foreground">
 								{week.agentHours > 0 ? duration(week.agentHours) : "—"}
 							</div>
 							<div className="flex w-full items-end justify-center gap-[4px]">
@@ -223,7 +232,7 @@ function WeekChart({
 								<Column hours={week.agentHours} max={max} color={AGENT_COLOR} />
 							</div>
 						</div>
-						<div className="truncate text-[10.5px] text-[#6f6f7d]">
+						<div className="truncate text-[10.5px] text-faint-foreground">
 							{DATE.format(week.start)}
 						</div>
 					</div>
@@ -249,7 +258,7 @@ function Column({
 				// A worked week never renders as nothing: a hairline still reads as
 				// "some", which a zero-height bar doesn't.
 				height: hours > 0 ? `${Math.max(3, (hours / max) * 110)}px` : "2px",
-				background: hours > 0 ? color : "#25252e",
+				background: hours > 0 ? color : "var(--border)",
 			}}
 		/>
 	);
@@ -282,7 +291,7 @@ function HourGrid({
 		>
 			{WEEKDAYS.map((day, weekday) => (
 				<Fragment key={day}>
-					<div className="pr-1.5 text-right text-[11px] leading-[24px] text-[#6f6f7d]">
+					<div className="pr-1.5 text-right text-[11px] leading-[24px] text-faint-foreground">
 						{day}
 					</div>
 					{HOURS.map((hour) => {
@@ -308,7 +317,7 @@ function HourGrid({
 			{HOURS.map((hour, index) => (
 				<div
 					key={hour}
-					className="pt-1 text-center text-[10.5px] text-[#6f6f7d]"
+					className="pt-1 text-center text-[10.5px] text-faint-foreground"
 				>
 					{index % 3 === 0 ? String(hour).padStart(2, "0") : ""}
 				</div>
@@ -382,7 +391,7 @@ function cellStyle(
 	max: number,
 	color: string,
 ): React.CSSProperties {
-	if (value <= 0) return { background: "#1b1b22" };
+	if (value <= 0) return { background: "var(--secondary)" };
 	// Four steps rather than a continuous ramp — quantised, a cell can actually
 	// be matched against its neighbours. Wide spacing so the steps are visible.
 	const step = Math.min(4, Math.ceil((value / max) * 4));
@@ -502,7 +511,7 @@ function WeekView({
 	return (
 		<Card>
 			{searching ? (
-				<div className="mb-3 text-[12px] text-[#d6d6dc]">
+				<div className="mb-3 text-[12px] text-soft-foreground">
 					{listed.length
 						? `${plural(listed.length, "match")} across every week, newest first`
 						: "No task matches that."}
@@ -521,12 +530,12 @@ function WeekView({
 						disabled={start >= thisWeek}
 						onClick={() => setStart(shiftWeeks(start, 1))}
 					/>
-					<div className="text-[12px] text-[#d6d6dc]">
+					<div className="text-[12px] text-soft-foreground">
 						{start === thisWeek
 							? "This week"
 							: `${DATE.format(start)} – ${DATE.format(shiftWeeks(start, 1) - DAY_MS)}`}
 					</div>
-					<div className="ml-auto text-[11.5px] tabular-nums text-[#a5a5b3]">
+					<div className="ml-auto text-[11.5px] tabular-nums text-muted-foreground">
 						{week
 							? `${plural(week.sessions, "session")} · ${duration(week.yourHours)} of yours · ${plural(week.prs, "PR")}`
 							: "nothing logged"}
@@ -535,7 +544,7 @@ function WeekView({
 			)}
 
 			{tasks.length > 0 && (
-				<div className="mb-4 flex flex-col divide-y divide-[#1f1f27]">
+				<div className="mb-4 flex flex-col divide-y divide-border">
 					{tasks.map((task) => (
 						<div
 							key={task.sessionId}
@@ -543,20 +552,18 @@ function WeekView({
 						>
 							<div
 								title="Your time: while its pane was open and you were active, plus the gap before each prompt you typed (up to 5 min)."
-								className="w-10 shrink-0 text-left text-[12.5px] font-semibold tabular-nums"
-								style={{ color: YOU_COLOR }}
+								className="w-10 shrink-0 text-left text-[12.5px] font-semibold tabular-nums text-foreground"
 							>
 								{duration(task.yourHours ?? 0)}
 							</div>
 							<div
 								title={taskTime(task)}
-								className="w-9 shrink-0 text-left text-[11px] tabular-nums"
-								style={{ color: AGENT_COLOR }}
+								className="w-9 shrink-0 text-left text-[11px] tabular-nums text-muted-foreground"
 							>
 								{duration(task.hours)}
 							</div>
 							{searching && (
-								<div className="w-12 shrink-0 text-[10.5px] tabular-nums text-[#6f6f7d]">
+								<div className="w-12 shrink-0 text-[10.5px] tabular-nums text-faint-foreground">
 									{DATE.format(task.startedAt)}
 								</div>
 							)}
@@ -564,17 +571,17 @@ function WeekView({
 							<div
 								dir="auto"
 								title={task.description ?? task.title}
-								className="min-w-0 flex-1 cursor-default truncate text-[12.5px] text-[#e4e4ea]"
+								className="min-w-0 flex-1 cursor-default truncate text-[12.5px] text-soft-foreground"
 							>
 								{task.title}
 							</div>
 							{task.person && (
-								<span className="shrink-0 text-[10.5px] text-[#8a8a97]">
+								<span className="shrink-0 text-[10.5px] text-muted-foreground">
 									{task.person}
 								</span>
 							)}
 							{task.repo && (
-								<span className="shrink-0 rounded-[4px] bg-[#1b1b22] px-1.5 py-[1px] text-[10.5px] text-[#a5a5b3]">
+								<span className="shrink-0 rounded-[4px] bg-secondary px-1.5 py-[1px] text-[10.5px] text-muted-foreground">
 									{task.repo}
 								</span>
 							)}
@@ -583,7 +590,7 @@ function WeekView({
 									type="button"
 									title={task.prs.join("\n")}
 									onClick={() => openUrl.mutate(task.prs.at(-1) as string)}
-									className="shrink-0 text-[10.5px] tabular-nums text-[#3ecf8e] hover:underline"
+									className="shrink-0 text-[10.5px] tabular-nums text-success hover:underline"
 								>
 									{task.prs.length === 1
 										? `#${task.prs[0]?.split("/").pop()}`
@@ -598,7 +605,7 @@ function WeekView({
 				<button
 					type="button"
 					onClick={() => setExpanded(!expanded)}
-					className="-mt-2 mb-4 text-[11px] text-[#8a8a97] hover:text-[#e4e4ea]"
+					className="-mt-2 mb-4 text-[11px] text-muted-foreground hover:text-soft-foreground"
 				>
 					{expanded ? "Show less" : `Show ${listed.length - WEEK_ROWS} more`}
 				</button>
@@ -620,14 +627,14 @@ function ClockToggle({
 	setClock: (clock: Clock) => void;
 }) {
 	return (
-		<div className="flex rounded-[6px] border border-[#25252e] bg-[#16161b] p-[2px] text-[10.5px]">
+		<div className="flex rounded-[6px] border border-border bg-card p-[2px] text-[10.5px]">
 			{(["you", "agents"] as const).map((option) => (
 				<button
 					key={option}
 					type="button"
 					aria-pressed={clock === option}
 					onClick={() => setClock(option)}
-					className={`rounded-[4px] px-2 py-[1px] ${clock === option ? "bg-[#25252e] text-[#e4e4ea]" : "text-[#8a8a97] hover:text-[#e4e4ea]"}`}
+					className={`rounded-[4px] px-2 py-[1px] ${clock === option ? "bg-accent text-soft-foreground" : "text-muted-foreground hover:text-soft-foreground"}`}
 				>
 					{option === "you" ? "My time" : "Agent time"}
 				</button>
@@ -653,7 +660,7 @@ function Step({
 			aria-label={label}
 			disabled={disabled}
 			onClick={onClick}
-			className="h-[22px] w-[22px] rounded-[6px] border border-[#25252e] bg-[#16161b] text-[13px] leading-none text-[#a5a5b3] hover:bg-[#1d1d24] disabled:opacity-35 disabled:hover:bg-[#16161b]"
+			className="h-[22px] w-[22px] rounded-[6px] border border-border bg-card text-[13px] leading-none text-muted-foreground hover:bg-secondary disabled:opacity-35 disabled:hover:bg-card"
 		>
 			{glyph}
 		</button>
@@ -691,12 +698,11 @@ function Headline({
 					// Agent work over your time, as the gain on top of it: 4.9× is +390%.
 					<Big
 						value={`+${Math.round((leverage - 1) * 100)}%`}
-						color="#f5f5f7"
 						label="agent work on top of yours"
 					/>
 				)}
 			</div>
-			<div className="mt-3 text-[11px] text-[#6f6f7d]">
+			<div className="mt-3 text-[11px] text-faint-foreground">
 				{plural(sessions, "session")} ·{" "}
 				<span
 					className="cursor-help underline decoration-dotted underline-offset-2"
@@ -709,21 +715,31 @@ function Headline({
 	);
 }
 
+/** A headline number. The number wears text colour; the series it belongs
+ *  to is the dot by its label, the same key the charts below use. */
 function Big({
 	value,
 	color,
 	label,
 }: {
 	value: string;
-	color: string;
+	color?: string;
 	label: string;
 }) {
 	return (
 		<div className="flex flex-col gap-1">
-			<div className="text-[26px] font-semibold leading-none" style={{ color }}>
+			<div className="text-[26px] font-semibold leading-none text-foreground tabular-nums">
 				{value}
 			</div>
-			<div className="text-[12px] text-[#a5a5b3]">{label}</div>
+			<div className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
+				{color && (
+					<span
+						className="size-[7px] rounded-full"
+						style={{ background: color }}
+					/>
+				)}
+				{label}
+			</div>
 		</div>
 	);
 }
@@ -755,14 +771,14 @@ function RepoFilter({
 					key={name ?? "all"}
 					className={`flex items-center rounded-[6px] border text-[10.5px] ${
 						repo === name
-							? "border-[#a394ff] bg-[#a394ff22] text-[#e4e4ea]"
-							: "border-[#25252e] bg-[#16161b] text-[#a5a5b3]"
+							? "border-primary bg-primary/15 text-soft-foreground"
+							: "border-border bg-card text-muted-foreground"
 					}`}
 				>
 					<button
 						type="button"
 						onClick={() => setRepo(name)}
-						className="px-2 py-[2px] hover:text-[#e4e4ea]"
+						className="px-2 py-[2px] hover:text-soft-foreground"
 					>
 						{name ?? "All repos"}
 					</button>
@@ -772,7 +788,7 @@ function RepoFilter({
 							aria-label={`Hide ${name}`}
 							title="Hide this repo"
 							onClick={() => toggleExcluded(name)}
-							className="pr-1.5 text-[#6f6f7d] hover:text-[#e4e4ea]"
+							className="pr-1.5 text-faint-foreground hover:text-soft-foreground"
 						>
 							×
 						</button>
@@ -785,7 +801,7 @@ function RepoFilter({
 					type="button"
 					title="Hidden — click to show again"
 					onClick={() => toggleExcluded(name)}
-					className="rounded-[6px] border border-dashed border-[#25252e] px-2 py-[2px] text-[10.5px] text-[#6f6f7d] line-through hover:text-[#a5a5b3]"
+					className="rounded-[6px] border border-dashed border-border px-2 py-[2px] text-[10.5px] text-faint-foreground line-through hover:text-muted-foreground"
 				>
 					{name}
 				</button>
@@ -836,7 +852,7 @@ function Workload() {
 				}}
 				placeholder={`Search tasks…${search.hint}`}
 				aria-label="Search tasks"
-				className="h-[22px] w-[180px] shrink-0 rounded-[6px] border border-[#25252e] bg-[#16161b] px-2 text-[11px] text-[#e4e4ea] placeholder:text-[#6f6f7d] focus:border-[#a394ff] focus:outline-none"
+				className="h-[22px] w-[180px] shrink-0 rounded-[6px] border border-border bg-card px-2 text-[11px] text-soft-foreground placeholder:text-faint-foreground focus:border-primary focus:outline-none"
 			/>
 			<RepoFilter
 				repos={data.repos ?? data.byRepo.map((row) => row.repo)}
@@ -940,7 +956,7 @@ function Workload() {
 
 function Legend({ color, label }: { color: string; label: string }) {
 	return (
-		<span className="flex items-center gap-1.5 text-[10.5px] text-[#8a8a97]">
+		<span className="flex items-center gap-1.5 text-[10.5px] text-muted-foreground">
 			<span
 				className="h-[7px] w-[7px] rounded-full"
 				style={{ background: color }}
@@ -1002,19 +1018,19 @@ function Queue() {
 											: { person: gap.name }
 									}
 									title="Open these asks in the Slack feed"
-									className="-mx-1.5 flex items-baseline gap-2.5 rounded px-1.5 text-[12px] hover:bg-[#1f1f27]"
+									className="-mx-1.5 flex items-baseline gap-2.5 rounded px-1.5 text-[12px] hover:bg-secondary"
 								>
-									<div className="w-[180px] shrink-0 truncate text-[#d6d6dc]">
+									<div className="w-[180px] shrink-0 truncate text-soft-foreground">
 										{gap.kind === "channel" && gap.name !== "DMs"
 											? `#${gap.name}`
 											: gap.name}
 									</div>
-									<div className="text-[#a5a5b3]">
+									<div className="text-muted-foreground">
 										{gap.handled === 0
 											? `never picked up — 0 of ${gap.seen}`
 											: `${gap.handled} of ${gap.seen} picked up`}
 										{gap.waiting > 0 && (
-											<span className="text-[#6f6f7d]">
+											<span className="text-faint-foreground">
 												{` · ${gap.waiting} still waiting`}
 											</span>
 										)}
@@ -1116,7 +1132,7 @@ function InsightsPage() {
 		<div ref={ref} className="h-full overflow-y-auto px-[18px] pb-10 pt-4">
 			{tip && (
 				<div
-					className="pointer-events-none fixed z-50 max-w-xs whitespace-pre-line rounded-md border border-[#2a2a34] bg-[#15151b] px-2 py-1 text-[11.5px] text-[#d6d6dc] shadow-lg"
+					className="pointer-events-none fixed z-50 max-w-xs whitespace-pre-line rounded-md border border-border bg-card px-2 py-1 text-[11.5px] text-soft-foreground shadow-lg"
 					style={{
 						left: Math.min(tip.x + 12, window.innerWidth - 330),
 						top: tip.y + 16,
@@ -1130,13 +1146,13 @@ function InsightsPage() {
 			{/* One spinner until every section has data — half a page popping in
 			    under a skeleton read as broken. */}
 			<div className="group mx-auto w-full max-w-[1120px]">
-				<div className="hidden h-[60vh] items-center justify-center gap-2 text-[12px] text-[#6f6f7d] group-has-[[aria-busy=true]]:flex">
+				<div className="hidden h-[60vh] items-center justify-center gap-2 text-[12px] text-faint-foreground group-has-[[aria-busy=true]]:flex">
 					<Spinner />
 					Loading insights…
 				</div>
 				<div className="flex flex-col gap-7 group-has-[[aria-busy=true]]:hidden">
 					<Workload />
-					<div className="h-px bg-[#1f1f27]" />
+					<div className="h-px bg-secondary" />
 					<Queue />
 				</div>
 			</div>

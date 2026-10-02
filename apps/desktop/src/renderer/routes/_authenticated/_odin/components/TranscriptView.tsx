@@ -26,7 +26,7 @@ export function mergeTurns(messages: Turn[]): Turn[] {
 // The renderer's headings are sized for a document; inside a chat bubble they
 // shout. Unlayered .default-markdown CSS beats utilities, hence the `!`.
 const COMPACT_MARKDOWN =
-	"h-auto! overflow-visible! bg-transparent! text-[13px] leading-relaxed text-[#d6d6dc] [&_article]:p-0! [&_h1]:text-[15px]! [&_h2]:text-[14px]! [&_h2]:border-0! [&_h2]:pb-0! [&_h2]:mt-4! [&_h3]:text-[13px]! [&_h3]:mt-3! [&_p:last-child]:mb-0! [&_ul:last-child]:mb-0! [&_ol:last-child]:mb-0! [&_p]:mb-2.5! [&_code]:text-[12px]";
+	"h-auto! overflow-visible! bg-transparent! text-[13px] leading-relaxed text-soft-foreground [&_article]:p-0! [&_h1]:text-[15px]! [&_h2]:text-[14px]! [&_h2]:border-0! [&_h2]:pb-0! [&_h2]:mt-4! [&_h3]:text-[13px]! [&_h3]:mt-3! [&_p:last-child]:mb-0! [&_ul:last-child]:mb-0! [&_ol:last-child]:mb-0! [&_p]:mb-2.5! [&_code]:text-[12px]";
 
 function escapeRegExp(value: string): string {
 	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -44,7 +44,7 @@ export function Highlight({ text, terms }: { text: string; terms: string[] }) {
 					<mark
 						// biome-ignore lint/suspicious/noArrayIndexKey: split() output is positional
 						key={index}
-						className="rounded-[3px] bg-[#a394ff]/30 px-[1px] text-[#dcd6ff]"
+						className="rounded-[3px] bg-primary/30 px-[1px] text-primary"
 					>
 						{part}
 					</mark>
@@ -80,7 +80,7 @@ export function TranscriptView({
 
 	if (error) {
 		return (
-			<div className="flex-1 select-text cursor-text px-4 py-3 text-[12px] text-[#f0647a]">
+			<div className="flex-1 select-text cursor-text px-4 py-3 text-[12px] text-danger">
 				{error.message}
 			</div>
 		);
@@ -90,9 +90,11 @@ export function TranscriptView({
 			ref={ref}
 			className="min-h-0 flex-1 select-text cursor-text overflow-y-auto px-5 py-4"
 		>
-			{isLoading && <div className="text-[12px] text-[#8a8a97]">loading…</div>}
+			{isLoading && (
+				<div className="text-[12px] text-muted-foreground">loading…</div>
+			)}
 			{data?.messages.length === 0 && (
-				<div className="text-[12px] text-[#8a8a97]">
+				<div className="text-[12px] text-muted-foreground">
 					No prose turns in this transcript.
 				</div>
 			)}
@@ -102,19 +104,21 @@ export function TranscriptView({
 						key={`${index}-${turn.at ?? ""}`}
 						className={cn(
 							turn.role === "user" &&
-								"ml-auto max-w-[85%] rounded-[12px] border border-[#2b2646] bg-[#171524] px-3.5 py-2.5",
+								"ml-auto max-w-[85%] rounded-[12px] border border-primary/20 bg-primary/8 px-3.5 py-2.5",
 						)}
 					>
 						<div className="mb-1.5 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.4px]">
 							<span
 								className={
-									turn.role === "user" ? "text-[#a394ff]" : "text-[#3ecf8e]"
+									turn.role === "user"
+										? "text-primary"
+										: "text-muted-foreground"
 								}
 							>
 								{turn.role === "user" ? "you" : "claude"}
 							</span>
 							{turn.at && (
-								<span className="font-normal normal-case tracking-normal text-[#6b6b78]">
+								<span className="font-normal normal-case tracking-normal text-faint-foreground">
 									{new Date(turn.at).toLocaleString()}
 								</span>
 							)}
@@ -122,7 +126,7 @@ export function TranscriptView({
 						{/* Search hits need <mark>s to jump to; otherwise it's Claude's
 						    markdown, so render it as markdown. */}
 						{terms.length > 0 ? (
-							<div className="whitespace-pre-wrap break-words text-[13px] leading-relaxed text-[#d6d6dc]">
+							<div className="whitespace-pre-wrap break-words text-[13px] leading-relaxed text-soft-foreground">
 								<Highlight text={turn.text} terms={terms} />
 							</div>
 						) : (

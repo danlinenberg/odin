@@ -1,25 +1,38 @@
 /**
- * Every coloured pill's colours, in one place. The Night Agent look: a dark
- * gradient that leans into the neighbouring hue, a light label, and a soft
- * glow in the pill's own colour. Grey pills stay flat — a glow on a neutral
- * says nothing.
+ * Every coloured pill's colours, in one place, keyed by what the colour
+ * means — not by hue — so a pill can't pick a colour for looks. A flat tint
+ * of the hue, the hue as text, and a hairline ring in it: no gradients, no
+ * glow. The hues are the semantic tokens in globals.css.
  *
  * Classes only: size, padding and weight stay with each pill.
  */
 export const PILL = {
-	night:
-		"bg-gradient-to-r from-[#302460] to-[#1a4060] text-[#e4dcff] shadow-[0_0_4px_rgba(124,108,255,.32)]",
-	violet:
-		"bg-gradient-to-r from-[#3c246a] to-[#54245f] text-[#efe6ff] shadow-[0_0_4px_rgba(163,148,255,.28)]",
-	green:
-		"bg-gradient-to-r from-[#14492d] to-[#11423c] text-[#d6fbe9] shadow-[0_0_4px_rgba(62,207,142,.28)]",
-	teal: "bg-gradient-to-r from-[#0f4045] to-[#15345a] text-[#d8faf0] shadow-[0_0_4px_rgba(126,224,161,.28)]",
-	amber:
-		"bg-gradient-to-r from-[#573c11] to-[#572814] text-[#ffefcc] shadow-[0_0_4px_rgba(245,184,61,.28)]",
-	red: "bg-gradient-to-r from-[#571c26] to-[#4b183e] text-[#ffe0e5] shadow-[0_0_4px_rgba(240,100,122,.32)]",
-	/** Louder than red: overdue is the one that has to win the row. */
-	alarm:
-		"bg-gradient-to-r from-[#7e1525] to-[#6c103b] text-[#fff1f3] shadow-[0_0_6px_rgba(255,77,94,.45)]",
-	pink: "bg-gradient-to-r from-[#571f3a] to-[#491f59] text-[#ffe3ee] shadow-[0_0_4px_rgba(255,143,174,.28)]",
-	blue: "bg-gradient-to-r from-[#1a4060] to-[#1f2c64] text-[#dcefff] shadow-[0_0_4px_rgba(126,196,255,.28)]",
+	/** Odin's own doing — Night Agent, auto-started, merged. */
+	brand: "bg-primary/12 text-primary ring-1 ring-inset ring-primary/20",
+	/** In flight. */
+	working: "bg-working/12 text-working ring-1 ring-inset ring-working/20",
+	/** Waiting on you, or about to be a problem. */
+	attention:
+		"bg-attention/12 text-attention ring-1 ring-inset ring-attention/20",
+	/** Finished, open, passing, live. */
+	success: "bg-success/12 text-success ring-1 ring-inset ring-success/20",
+	/** Failed, high priority, over a limit. */
+	danger: "bg-danger/12 text-danger ring-1 ring-inset ring-danger/20",
+	/** Louder than danger: overdue is the one that has to win the row. */
+	alarm: "bg-danger/25 text-danger ring-1 ring-inset ring-danger/50",
+	/** A fact, not a flag. */
+	neutral: "bg-secondary text-soft-foreground ring-1 ring-inset ring-border",
+} as const;
+
+/**
+ * Button colours, the same way. A view gets one primary — the thing it exists
+ * for — and everything else is secondary, so violet means "the next click"
+ * wherever you are. Done keeps its green: it's the one action that is also a
+ * status.
+ */
+export const BUTTON = {
+	primary: "bg-primary text-primary-foreground hover:bg-primary/90",
+	secondary:
+		"bg-secondary text-soft-foreground ring-1 ring-inset ring-border hover:bg-accent hover:text-foreground",
+	done: "bg-success/12 text-success ring-1 ring-inset ring-success/20 hover:bg-success/20",
 } as const;

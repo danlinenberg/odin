@@ -56,7 +56,7 @@ export function getDefaultTerminalTheme(): ITheme {
 	const defaultTheme = builtInThemes.find((t) => t.id === DEFAULT_THEME_ID);
 	return defaultTheme
 		? toXtermTheme(getTerminalColors(defaultTheme))
-		: { background: "#151110", foreground: "#eae8e6" };
+		: { background: "#0e0e11", foreground: "#ececf1" };
 }
 
 /**
@@ -64,7 +64,7 @@ export function getDefaultTerminalTheme(): ITheme {
  * This reads from localStorage before store hydration to prevent flash.
  */
 export function getDefaultTerminalBg(): string {
-	return getDefaultTerminalTheme().background ?? "#151110";
+	return getDefaultTerminalTheme().background ?? "#0e0e11";
 }
 
 // Once WebGL fails, skip it for all subsequent terminals (VS Code pattern).

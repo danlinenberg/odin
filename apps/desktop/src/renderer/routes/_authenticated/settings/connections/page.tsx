@@ -444,7 +444,7 @@ function Profiles({ onSwitched }: { onSwitched: () => void }) {
 						<span
 							className={cn(
 								"size-2 shrink-0 rounded-full",
-								profile.active ? "bg-green-500" : "bg-muted-foreground/30",
+								profile.active ? "bg-success" : "bg-muted-foreground/30",
 							)}
 						/>
 						{/* Uncontrolled, saved on blur: a controlled input would write
@@ -579,8 +579,8 @@ function StatusDot({
 	const color = !configured
 		? "bg-muted-foreground/30"
 		: error
-			? "bg-red-500"
-			: "bg-green-500";
+			? "bg-danger"
+			: "bg-success";
 	const label = !configured
 		? "Not connected"
 		: error
@@ -592,7 +592,7 @@ function StatusDot({
 			<span
 				className={cn(
 					"select-text cursor-text text-xs",
-					error ? "text-red-500" : "text-muted-foreground",
+					error ? "text-danger" : "text-muted-foreground",
 				)}
 			>
 				{label}

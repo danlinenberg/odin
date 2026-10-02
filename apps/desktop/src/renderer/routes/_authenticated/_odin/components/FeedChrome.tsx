@@ -2,6 +2,7 @@ import { cn } from "@odin/ui/utils";
 import { type ReactNode, useRef } from "react";
 import { useHotkey } from "renderer/hotkeys";
 import { FeedTabs } from "./FeedTabs";
+import { BUTTON, PILL } from "./pill";
 
 /**
  * One header row per feed. Every view used to stack two bars — the sources on
@@ -11,7 +12,7 @@ import { FeedTabs } from "./FeedTabs";
  */
 export function FeedHeader({ children }: { children?: ReactNode }) {
 	return (
-		<div className="flex items-center gap-2.5 border-b border-[#25252e] px-[18px] py-2.5">
+		<div className="flex items-center gap-2.5 border-b border-border px-[18px] py-2.5">
 			<FeedTabs />
 			{children}
 		</div>
@@ -25,7 +26,7 @@ export function FeedHeader({ children }: { children?: ReactNode }) {
  * "which source" and "which status" land as two groups at a glance.
  */
 export function FeedDivider() {
-	return <span className="mx-2 h-5 w-px shrink-0 bg-[#3c3c4a]" />;
+	return <span className="mx-2 h-5 w-px shrink-0 bg-accent" />;
 }
 
 /**
@@ -50,8 +51,8 @@ export function FilterPill({
 			className={cn(
 				"flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-medium transition-colors",
 				active
-					? "bg-[#1f1f27] text-[#f5f5f7]"
-					: "text-[#8a8a97] hover:text-[#f5f5f7]",
+					? "bg-secondary text-foreground"
+					: "text-muted-foreground hover:text-foreground",
 			)}
 		>
 			{children}
@@ -59,7 +60,7 @@ export function FilterPill({
 				<span
 					className={cn(
 						"rounded-[10px] px-1.5 text-[11px] tabular-nums",
-						active ? "bg-[#2b2b36] text-[#a5a5b3]" : "bg-[#1f1f27]",
+						active ? "bg-accent text-soft-foreground" : "bg-secondary",
 					)}
 				>
 					{count > 99 ? "99+" : count}
@@ -93,8 +94,8 @@ export function FeedSelect({
 			className={cn(
 				"max-w-[180px] cursor-pointer rounded-full border px-2.5 py-1 text-[12px] font-medium outline-none",
 				value
-					? "border-[#a394ff] bg-[#211d3a] text-[#f5f5f7]"
-					: "border-[#25252e] bg-[#16161b] text-[#a5a5b3] hover:text-[#f5f5f7]",
+					? "border-primary bg-primary/15 text-foreground"
+					: "border-border bg-card text-muted-foreground hover:text-foreground",
 			)}
 		>
 			{children}
@@ -143,8 +144,8 @@ export function FeedSearch({
 			placeholder={placeholder + hint}
 			aria-label={label}
 			className={cn(
-				"w-[180px] rounded-full border bg-[#16161b] px-2.5 py-1 text-[12px] text-[#f5f5f7] outline-none placeholder:text-[#6b6b78] focus:border-[#a394ff]",
-				value ? "border-[#a394ff]" : "border-[#25252e]",
+				"w-[180px] rounded-full border bg-card px-2.5 py-1 text-[12px] text-foreground outline-none placeholder:text-faint-foreground focus:border-primary",
+				value ? "border-primary" : "border-border",
 			)}
 		/>
 	);
@@ -164,7 +165,7 @@ export function SyncButton({
 			onClick={onClick}
 			disabled={isSyncing}
 			title="Refresh Slack, Jira, GitHub and Notion"
-			className="shrink-0 rounded-[7px] bg-[#1f1f27] px-2.5 py-1 text-[12px] font-medium text-[#a5a5b3] transition-colors hover:text-[#f5f5f7] disabled:opacity-40"
+			className="shrink-0 rounded-[7px] bg-secondary px-2.5 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
 		>
 			{isSyncing ? "syncing…" : "↻ Sync"}
 		</button>
@@ -186,19 +187,18 @@ export function RowActions({ children }: { children: ReactNode }) {
 }
 
 /**
- * The primary "do the thing" button on a row: calm down the page by default,
- * bright on the button you're actually pointing at. Not on row hover — that
- * lit this one up while the cursor sat on the ✓ Done beside it.
+ * The primary "do the thing" button on a row: a quiet secondary at rest, so a
+ * list of fifty rows isn't fifty violet buttons, and violet on the one you're
+ * actually pointing at. Not on row hover — that lit this one up while the
+ * cursor sat on the ✓ Done beside it.
  */
-export const ROW_PRIMARY_BUTTON =
-	"shrink-0 rounded-[7px] bg-[#1f1f27] px-3 py-1 text-xs font-semibold text-[#a394ff] transition-colors hover:bg-[#a394ff] hover:text-[#131126] disabled:opacity-40";
+export const ROW_PRIMARY_BUTTON = `shrink-0 rounded-[7px] px-3 py-1 text-xs font-semibold transition-colors disabled:opacity-40 ${BUTTON.secondary} hover:bg-primary hover:text-primary-foreground hover:ring-primary`;
 
-/** Same, for a row whose session is live — green rather than purple. */
-export const ROW_LIVE_BUTTON =
-	"shrink-0 rounded-[7px] bg-[#14301f] px-3 py-1 text-xs font-semibold text-[#3ecf8e] transition-colors hover:bg-[#1a3d28]";
+/** Same, for a row whose session is live — blue, the board's "working". */
+export const ROW_LIVE_BUTTON = `shrink-0 rounded-[7px] px-3 py-1 text-xs font-semibold transition-colors ${PILL.working} hover:bg-working/20`;
 
 /** Low-signal row metadata — a date, a project key. Text, not another chip. */
-export const ROW_META = "text-[11px] text-[#8a8a97]";
+export const ROW_META = "text-[11px] text-muted-foreground";
 
 /**
  * Fixed-width meta columns, shared by every feed so they all read the same
@@ -215,8 +215,8 @@ export const META_STATUS =
 	"flex w-[116px] shrink-0 items-center overflow-hidden";
 /** Plain text — the project, the repo, the channel. */
 export const META_TEXT =
-	"w-[132px] shrink-0 truncate text-[11px] text-[#8a8a97]";
-export const META_DATE = "w-[48px] shrink-0 text-[11px] text-[#8a8a97]";
+	"w-[132px] shrink-0 truncate text-[11px] text-muted-foreground";
+export const META_DATE = "w-[48px] shrink-0 text-[11px] text-muted-foreground";
 
 /**
  * "Open it where it lives" — on the row rather than under a hover, because
@@ -231,7 +231,7 @@ export const ROW_LINK_SLOT = "flex w-[84px] shrink-0 justify-end";
  */
 export const ROW_PRIMARY_SLOT = "flex w-[132px] shrink-0 justify-end";
 export const ROW_LINK_BUTTON =
-	"whitespace-nowrap rounded-[7px] px-2.5 py-1 text-xs font-semibold text-[#8a8a97] transition-colors hover:bg-[#211d3a] hover:text-[#a394ff]";
+	"whitespace-nowrap rounded-[7px] px-2.5 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground";
 
 /**
  * The scroller under a header, one row in it, and a notice in the same stack.
@@ -241,6 +241,6 @@ export const ROW_LINK_BUTTON =
 export const FEED_LIST =
 	"flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-[18px] pb-[18px] pt-2";
 export const FEED_ROW =
-	"group rounded-[10px] border border-[#25252e] bg-[#111114] px-3.5 py-2";
+	"group rounded-[10px] border border-border bg-card px-3.5 py-2 transition-colors hover:border-input";
 /** A full-width box in the list — not connected, nothing picked, failed. */
 export const FEED_NOTICE_BOX = "rounded-[10px] px-3.5 py-2.5 text-xs";

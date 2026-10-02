@@ -78,7 +78,7 @@ export function ErrorPage({ error, info }: ErrorComponentProps) {
 								aria-label="Copy error details"
 							>
 								{copied ? (
-									<HiCheck className="w-3.5 h-3.5 text-green-500" />
+									<HiCheck className="w-3.5 h-3.5 text-success" />
 								) : (
 									<HiOutlineClipboard className="w-3.5 h-3.5" />
 								)}

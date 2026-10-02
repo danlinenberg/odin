@@ -87,8 +87,8 @@ export function FeedTabs() {
 								className={cn(
 									"relative flex items-center gap-1.5 rounded-[7px] px-2 py-1.5 text-[13px] font-semibold transition-colors",
 									isActive
-										? "bg-[#25252e] text-[#f5f5f7]"
-										: "text-[#8a8a97] hover:text-[#f5f5f7]",
+										? "bg-secondary text-foreground ring-1 ring-inset ring-border"
+										: "text-muted-foreground hover:text-foreground",
 								)}
 							>
 								<Icon
@@ -101,7 +101,7 @@ export function FeedTabs() {
 											"absolute right-1 top-1 size-[5px] rounded-full",
 											// Amber: nothing signed in. Red: signed in, but the feed
 											// is failing — the tab itself carries the reason.
-											issue === "off" ? "bg-[#f5b83d]" : "bg-[#f0647a]",
+											issue === "off" ? "bg-attention" : "bg-danger",
 										)}
 									/>
 								)}
@@ -110,8 +110,8 @@ export function FeedTabs() {
 										className={cn(
 											"rounded-[10px] px-1.5 text-[11px] font-semibold tabular-nums",
 											isActive
-												? "bg-[#35353f] text-[#c8c8d2]"
-												: "bg-[#1f1f27] text-[#8a8a97]",
+												? "bg-accent text-soft-foreground"
+												: "bg-secondary text-muted-foreground",
 										)}
 									>
 										{/* A 670-row Notion database shouldn't set the strip's width. */}

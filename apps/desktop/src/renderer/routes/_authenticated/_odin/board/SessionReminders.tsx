@@ -8,6 +8,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useRef } from "react";
 import { LuBellRing } from "react-icons/lu";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
+import { BUTTON } from "../components/pill";
 import { dayOf, dueLabel, isDue, useReminders } from "../components/Reminders";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePendingFocus } from "../hooks/usePendingFocus";
@@ -126,44 +127,44 @@ export function SessionReminders() {
 	if (!due.length) return null;
 
 	return (
-		<div className="mx-[18px] mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-[#4a3d1a] bg-[#1d190f] px-3 py-2 text-[12px]">
-			<span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[.4px] text-[#f5b83d]">
+		<div className="mx-[18px] mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-attention/25 bg-attention/8 px-3 py-2 text-[12px]">
+			<span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[.4px] text-attention">
 				<LuBellRing className="size-3.5" aria-hidden />
 				Reminders · {due.length}
 			</span>
 			{due.map(([key, r]) => (
 				<span
 					key={key}
-					className="flex min-w-0 items-center gap-1.5 rounded-lg border border-[#3a3220] bg-[#14131b] py-0.5 pl-2.5 pr-1"
+					className="flex min-w-0 items-center gap-1.5 rounded-lg border border-attention/30 bg-card py-0.5 pl-2.5 pr-1"
 				>
 					<HoverCard openDelay={300} closeDelay={80}>
 						<HoverCardTrigger asChild>
 							<span
 								dir="auto"
-								className="max-w-[320px] cursor-default truncate font-medium text-[#ececf1]"
+								className="max-w-[320px] cursor-default truncate font-medium text-foreground"
 							>
 								{r.title}
 							</span>
 						</HoverCardTrigger>
 						<HoverCardContent
 							align="start"
-							className="w-[380px] space-y-2 border-[#2c2940] bg-[#16151f] p-3 text-[12px] leading-[1.5]"
+							className="w-[380px] space-y-2 border-border bg-popover p-3 text-[12px] leading-[1.5]"
 						>
 							<p
 								dir="auto"
-								className="whitespace-pre-wrap break-words font-medium text-[#ececf1]"
+								className="whitespace-pre-wrap break-words font-medium text-foreground"
 							>
 								{r.title}
 							</p>
 							{r.resume?.brief && (
 								<p
 									dir="auto"
-									className="max-h-[220px] overflow-y-auto whitespace-pre-wrap break-words text-[#a5a5b3]"
+									className="max-h-[220px] overflow-y-auto whitespace-pre-wrap break-words text-muted-foreground"
 								>
 									{r.resume.brief.slice(0, 1500)}
 								</p>
 							)}
-							<div className="space-y-0.5 text-[11px] text-[#8a8a97]">
+							<div className="space-y-0.5 text-[11px] text-muted-foreground">
 								<div>
 									In {r.resume?.cwd.split("/").pop()} · {r.resume?.cwd}
 								</div>
@@ -175,14 +176,14 @@ export function SessionReminders() {
 							</div>
 						</HoverCardContent>
 					</HoverCard>
-					<span className="text-[11px] text-[#8a8a97]">
+					<span className="text-[11px] text-muted-foreground">
 						{dueLabel(r.due, now)}
 					</span>
 					<button
 						type="button"
 						disabled={isLaunching}
 						onClick={() => void resume(key)}
-						className="rounded-md bg-[#14301f] px-2 py-0.5 text-[11px] font-semibold text-[#3ecf8e] hover:bg-[#1a4029] disabled:opacity-60"
+						className={`rounded-md px-2 py-0.5 text-[11px] font-semibold disabled:opacity-60 ${BUTTON.secondary}`}
 					>
 						↻ Resume
 					</button>
@@ -190,7 +191,7 @@ export function SessionReminders() {
 						type="button"
 						title="Dismiss the reminder"
 						onClick={() => clear(key)}
-						className="rounded-md px-1 text-[11px] text-[#8a8a97] hover:text-[#f5f5f7]"
+						className="rounded-md px-1 text-[11px] text-muted-foreground hover:text-foreground"
 					>
 						✕
 					</button>

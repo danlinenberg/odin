@@ -176,7 +176,7 @@ export function OdinPromptDialog({
 				role="dialog"
 				aria-modal="true"
 				aria-label={heading}
-				className="fixed left-1/2 top-[12vh] z-50 w-[620px] max-w-[92vw] -translate-x-1/2 rounded-[10px] border border-[#2e2e38] bg-[#111114] p-3.5 shadow-[0_18px_60px_rgba(0,0,0,0.6)]"
+				className="fixed left-1/2 top-[12vh] z-50 w-[620px] max-w-[92vw] -translate-x-1/2 rounded-[10px] border border-border bg-popover p-3.5 shadow-[0_18px_60px_rgba(0,0,0,0.6)]"
 				onDragOver={(event) => {
 					event.preventDefault();
 					setIsDropping(true);
@@ -188,14 +188,14 @@ export function OdinPromptDialog({
 					void addFiles(event.dataTransfer.files);
 				}}
 			>
-				<div className="mb-2 text-xs font-semibold text-[#f5f5f7]">
+				<div className="mb-2 text-xs font-semibold text-foreground">
 					{heading}
-					<span className="ml-1.5 font-normal text-[#8a8a97]">
+					<span className="ml-1.5 font-normal text-muted-foreground">
 						⌘⏎ start · esc cancel · / for skills · paste or drop images/video
 					</span>
 				</div>
 				{note && (
-					<div className="mb-2 text-[11px] leading-relaxed text-[#a5a5b3]">
+					<div className="mb-2 text-[11px] leading-relaxed text-muted-foreground">
 						{note}
 					</div>
 				)}
@@ -249,14 +249,12 @@ export function OdinPromptDialog({
 					}}
 					rows={7}
 					placeholder={placeholder}
-					className={`w-full resize-y rounded-[7px] border bg-[#16161b] px-2.5 py-2 text-[12.5px] leading-[1.5] text-[#f5f5f7] outline-none placeholder:text-[#8a8a97] ${
-						isDropping
-							? "border-[#3ecf8e]"
-							: "border-[#2e2e38] focus:border-[#3ecf8e]"
+					className={`w-full resize-y rounded-[7px] border bg-card px-2.5 py-2 text-[12.5px] leading-[1.5] text-foreground outline-none placeholder:text-muted-foreground ${
+						isDropping ? "border-primary" : "border-border focus:border-primary"
 					}`}
 				/>
 				{matches.length > 0 && (
-					<div className="mt-1.5 rounded-[7px] border border-[#2e2e38] bg-[#16161b]">
+					<div className="mt-1.5 rounded-[7px] border border-border bg-card">
 						<div className="max-h-[190px] overflow-y-auto py-1">
 							{matches.map((skill, index) => (
 								<button
@@ -269,13 +267,13 @@ export function OdinPromptDialog({
 										pickSkill(skill.name);
 									}}
 									className={`flex w-full items-baseline gap-2 px-2.5 py-1 text-left ${
-										index === activeIndex ? "bg-[#1f1f27]" : ""
+										index === activeIndex ? "bg-secondary" : ""
 									}`}
 								>
-									<span className="shrink-0 text-[12px] font-semibold text-[#3ecf8e]">
+									<span className="shrink-0 font-mono text-[12px] font-semibold text-foreground">
 										/{skill.name}
 									</span>
-									<span className="min-w-0 flex-1 truncate text-[11px] text-[#a5a5b3]">
+									<span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">
 										{skill.description}
 									</span>
 								</button>
@@ -284,7 +282,7 @@ export function OdinPromptDialog({
 						{/* Full description of the highlighted row — hover or arrow keys.
 						    A native `title` tooltip never appears in this window. */}
 						{matches[activeIndex]?.description && (
-							<div className="max-h-[110px] overflow-y-auto border-t border-[#2e2e38] px-2.5 py-1.5 text-[11px] leading-[1.45] text-[#a5a5b3]">
+							<div className="max-h-[110px] overflow-y-auto border-t border-border px-2.5 py-1.5 text-[11px] leading-[1.45] text-muted-foreground">
 								{matches[activeIndex]?.description}
 							</div>
 						)}
@@ -302,7 +300,7 @@ export function OdinPromptDialog({
 										previous.filter((_, at) => at !== index),
 									)
 								}
-								className="group relative size-14 overflow-hidden rounded-[6px] border border-[#2e2e38]"
+								className="group relative size-14 overflow-hidden rounded-[6px] border border-border"
 							>
 								{file.dataUrl ? (
 									<img
@@ -313,14 +311,14 @@ export function OdinPromptDialog({
 								) : (
 									// A path-only attachment (video): no bytes to preview, so
 									// the name is the thumbnail.
-									<span className="flex size-full flex-col items-center justify-center gap-0.5 bg-[#16161b] px-1 text-[9px] leading-tight text-[#a5a5b3]">
+									<span className="flex size-full flex-col items-center justify-center gap-0.5 bg-card px-1 text-[9px] leading-tight text-muted-foreground">
 										<span className="text-[13px]">🎬</span>
 										<span className="w-full truncate text-center">
 											{file.name}
 										</span>
 									</span>
 								)}
-								<span className="absolute inset-0 hidden items-center justify-center bg-black/60 text-xs font-semibold text-[#ff6b6b] group-hover:flex">
+								<span className="absolute inset-0 hidden items-center justify-center bg-black/60 text-xs font-semibold text-danger group-hover:flex">
 									remove
 								</span>
 							</button>
@@ -342,7 +340,7 @@ export function OdinPromptDialog({
 					<button
 						type="button"
 						onClick={() => fileInput.current?.click()}
-						className="rounded-[6px] bg-[#1f1f27] px-2 py-[3px] text-[11px] font-semibold text-[#a5a5b3] transition-colors hover:text-[#f5f5f7]"
+						className="rounded-[6px] bg-secondary px-2 py-[3px] text-[11px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
 					>
 						+ Image / Video
 					</button>
@@ -361,8 +359,8 @@ export function OdinPromptDialog({
 								// Chromium paints that white-on-black over any bg-* — only an
 								// inset shadow and text-fill-color beat it. color-scheme darkens
 								// the dropdown itself.
-								className={`w-[230px] rounded-[6px] bg-[#1f1f27] px-2 py-[3px] text-[11px] font-semibold outline-none [color-scheme:dark] placeholder:font-semibold placeholder:text-[#8a8a97] autofill:shadow-[inset_0_0_0_1000px_#1f1f27] autofill:[-webkit-text-fill-color:#3ecf8e] ${
-									repo ? "text-[#3ecf8e]" : "text-[#a5a5b3]"
+								className={`w-[230px] rounded-[6px] bg-secondary px-2 py-[3px] text-[11px] font-semibold outline-none [color-scheme:inherit] placeholder:font-semibold placeholder:text-muted-foreground autofill:shadow-[inset_0_0_0_1000px_var(--secondary)] autofill:[-webkit-text-fill-color:var(--foreground)] ${
+									repo ? "text-foreground" : "text-muted-foreground"
 								}`}
 							/>
 							<datalist id="odin-repos">
@@ -378,7 +376,7 @@ export function OdinPromptDialog({
 								<span
 									title={repo}
 									className={`max-w-[180px] truncate text-[11px] font-semibold ${
-										repo ? "text-[#3ecf8e]" : "text-[#f0647a]"
+										repo ? "text-muted-foreground" : "text-danger"
 									}`}
 								>
 									{repo
@@ -394,7 +392,7 @@ export function OdinPromptDialog({
 					<button
 						type="button"
 						onClick={onCancel}
-						className="rounded-[6px] px-2 py-[3px] text-[11px] font-semibold text-[#a5a5b3] transition-colors hover:text-[#f5f5f7]"
+						className="rounded-[6px] px-2 py-[3px] text-[11px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
 					>
 						Cancel
 					</button>
@@ -402,7 +400,7 @@ export function OdinPromptDialog({
 						type="button"
 						disabled={isStarting}
 						onClick={() => void start()}
-						className="flex items-center gap-1.5 rounded-[6px] bg-[#14301f] px-2.5 py-[3px] text-[11px] font-semibold text-[#3ecf8e] transition-colors hover:bg-[#1a4029] disabled:cursor-default disabled:opacity-70 disabled:hover:bg-[#14301f]"
+						className="flex items-center gap-1.5 rounded-[6px] bg-primary px-2.5 py-[3px] text-[11px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-default disabled:opacity-70"
 					>
 						{isStarting && (
 							<span className="size-[9px] animate-spin rounded-full border border-current border-t-transparent" />

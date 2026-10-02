@@ -32,6 +32,7 @@ import {
 } from "../components/FeedChrome";
 import { FeedError } from "../components/FeedError";
 import { PersonChip } from "../components/PersonChip";
+import { BUTTON } from "../components/pill";
 import { useOdinFeeds, useSetSlackReaction } from "../hooks/useOdinFeeds";
 import { usePendingFocus } from "../hooks/usePendingFocus";
 import { useStartReaction } from "../hooks/useStartReaction";
@@ -223,7 +224,7 @@ function ReactionsPage() {
 					/>
 				)}
 				{data?.syncError && (
-					<div className="select-text cursor-text rounded-[10px] border border-[#5a2733] bg-[#f0647a]/10 px-3 py-2 text-xs">
+					<div className="select-text cursor-text rounded-[10px] border border-danger/40 bg-danger/10 px-3 py-2 text-xs">
 						Slack sync failed: {data.syncError}
 						{rows.length > 0 && " — showing the last synced rows."}
 					</div>
@@ -253,7 +254,7 @@ function ReactionsPage() {
 										title={expanded ? "Collapse" : "Show the full message"}
 										onClick={() => setExpandedId(expanded ? null : row.id)}
 										className={cn(
-											"min-w-0 flex-1 text-left text-[13px] text-[#f5f5f7]",
+											"min-w-0 flex-1 text-left text-[13px] text-foreground",
 											expanded ? "whitespace-pre-wrap" : "truncate",
 										)}
 									>
@@ -343,7 +344,7 @@ function ReactionsPage() {
 				</div>
 
 				{data?.connected && visible.length === 0 && !reactions.isFetching && (
-					<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
+					<div className="px-2 py-8 text-center text-xs text-muted-foreground">
 						{activeStatus === "Not started"
 							? `Nothing here — react to a Slack message with :${data.reaction}: (or :${data.launchReaction}: to start it right away) and hit Sync.`
 							: `Nothing ${activeStatus.toLowerCase()}.`}
@@ -389,14 +390,14 @@ function ReactionChip({
 				if (e.key === "Enter") save(e.currentTarget.value);
 				if (e.key === "Escape") setEditing(false);
 			}}
-			className="w-44 rounded-[7px] bg-[#1f1f27] px-2 py-1 text-[12px] text-[#f5f5f7] outline-none"
+			className="w-44 rounded-[7px] bg-secondary px-2 py-1 text-[12px] text-foreground outline-none"
 		/>
 	) : (
 		<button
 			type="button"
 			title={`${title} Now :${value}:`}
 			onClick={() => setEditing(true)}
-			className="shrink-0 rounded-[7px] bg-[#1f1f27] px-2.5 py-1 text-[12px] font-medium text-[#a394ff] transition-colors hover:text-[#c4b8ff]"
+			className={`shrink-0 rounded-[7px] px-2.5 py-1 text-[12px] font-medium transition-colors ${BUTTON.secondary}`}
 		>
 			{emojify(`:${value}:`)} {label}
 		</button>

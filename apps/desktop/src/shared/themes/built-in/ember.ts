@@ -1,8 +1,9 @@
 import type { Theme } from "../types";
 
 /**
- * Dark theme - Warm dark theme inspired by the Figma start screen design
- * Features a warm, slightly reddish dark background (#151110)
+ * Dark theme — Odin's own palette. Cool ink neutrals, one brand colour
+ * (violet), and four status hues that live in globals.css (--working,
+ * --attention, --success, --danger) so every page names a state the same way.
  */
 export const darkTheme: Theme = {
 	id: "dark",
@@ -12,100 +13,102 @@ export const darkTheme: Theme = {
 	isBuiltIn: true,
 
 	ui: {
-		// Core - warm dark tones
-		background: "#151110",
-		foreground: "#eae8e6",
-		card: "#201E1C",
-		cardForeground: "#eae8e6",
-		popover: "#201E1C",
-		popoverForeground: "#eae8e6",
+		// Core — cool ink neutrals, a hair of blue so the violet accent sits in
+		// the same family instead of fighting a warm brown.
+		background: "#0e0e11",
+		foreground: "#ececf1",
+		card: "#16161b",
+		cardForeground: "#ececf1",
+		popover: "#1a1a20",
+		popoverForeground: "#ececf1",
 
-		// Primary - light foreground for contrast
-		primary: "#eae8e6",
-		primaryForeground: "#151110",
+		// Primary — Odin violet: the one brand colour. Primary buttons,
+		// switches, focus, links and "selected" all draw from it.
+		primary: "#a394ff",
+		primaryForeground: "#0e0e11",
 
-		// Secondary - warm grays
-		secondary: "#2a2827",
-		secondaryForeground: "#eae8e6",
+		// Secondary — the raised neutral every quiet button and chip sits on
+		secondary: "#1f1f26",
+		secondaryForeground: "#ececf1",
 
-		// Muted - subtle warm grays
-		muted: "#2a2827",
-		mutedForeground: "#a8a5a3",
+		// Muted
+		muted: "#1f1f26",
+		mutedForeground: "#9696a3",
 
-		// Accent - warm highlight
-		accent: "#2a2827",
-		accentForeground: "#eae8e6",
+		// Accent — hover fill for menu rows
+		accent: "#25252d",
+		accentForeground: "#ececf1",
 
-		// Tertiary - panel backgrounds
-		tertiary: "#1a1716",
-		tertiaryActive: "#252220",
+		// Tertiary — rail, top bar, board columns
+		tertiary: "#121216",
+		tertiaryActive: "#1f1f26",
 
-		// Destructive - warm red
-		destructive: "#cc4444",
-		destructiveForeground: "#ffcccc",
+		// Destructive — the same red as a failed session
+		destructive: "#f0647a",
+		destructiveForeground: "#fff1f3",
 
-		// Borders - subtle warm gray
-		border: "#2a2827",
-		input: "#2a2827",
-		ring: "#3a3837",
+		// Borders
+		border: "#26262e",
+		input: "#2e2e37",
+		ring: "#a394ff",
 
-		// Sidebar - slightly lighter than background
-		sidebar: "#1a1716",
-		sidebarForeground: "#eae8e6",
-		sidebarPrimary: "#e07850",
-		sidebarPrimaryForeground: "#151110",
-		sidebarAccent: "#252220",
-		sidebarAccentForeground: "#eae8e6",
-		sidebarBorder: "#2a2827",
-		sidebarRing: "#3a3837",
+		// Sidebar
+		sidebar: "#121216",
+		sidebarForeground: "#ececf1",
+		sidebarPrimary: "#a394ff",
+		sidebarPrimaryForeground: "#0e0e11",
+		sidebarAccent: "#1f1f26",
+		sidebarAccentForeground: "#ececf1",
+		sidebarBorder: "#26262e",
+		sidebarRing: "#a394ff",
 
-		// Charts - warm palette
-		chart1: "#e07850",
-		chart2: "#50a878",
-		chart3: "#d4a84b",
-		chart4: "#7b68ee",
-		chart5: "#dc6b6b",
+		// Charts — the brand, then the four status hues
+		chart1: "#a394ff",
+		chart2: "#5aa9ff",
+		chart3: "#3ecf8e",
+		chart4: "#f5b83d",
+		chart5: "#f0647a",
 
-		// Search highlights - warm orange tint matching ember's accent
-		highlightMatch: "rgba(224, 120, 80, 0.2)",
-		highlightActive: "rgba(224, 120, 80, 0.5)",
+		// Search highlights
+		highlightMatch: "rgba(163, 148, 255, 0.2)",
+		highlightActive: "rgba(163, 148, 255, 0.45)",
 
-		// Brand highlight - ember's warm orange
-		highlight: "#e07850",
-		highlightForeground: "#151110",
+		// Brand highlight
+		highlight: "#a394ff",
+		highlightForeground: "#0e0e11",
 	},
 
 	terminal: {
-		background: "#151110",
-		foreground: "#eae8e6",
-		cursor: "#e07850",
-		cursorAccent: "#151110",
-		selectionBackground: "rgba(224, 120, 80, 0.25)",
+		background: "#0e0e11",
+		foreground: "#ececf1",
+		cursor: "#a394ff",
+		cursorAccent: "#0e0e11",
+		selectionBackground: "rgba(163, 148, 255, 0.28)",
 
-		// Standard ANSI colors - warm tinted
-		black: "#151110",
-		red: "#dc6b6b",
-		green: "#7ec699",
-		yellow: "#e5c07b",
-		blue: "#61afef",
-		magenta: "#c678dd",
-		cyan: "#56b6c2",
-		white: "#eae8e6",
+		// Standard ANSI colors
+		black: "#16161b",
+		red: "#f0647a",
+		green: "#3ecf8e",
+		yellow: "#f5b83d",
+		blue: "#5aa9ff",
+		magenta: "#c49bff",
+		cyan: "#4fd1d9",
+		white: "#ececf1",
 
 		// Bright ANSI colors
-		brightBlack: "#5c5856",
-		brightRed: "#e88888",
-		brightGreen: "#98d1a8",
-		brightYellow: "#ecd08f",
-		brightBlue: "#7ec0f5",
-		brightMagenta: "#d494e6",
-		brightCyan: "#73c7d3",
+		brightBlack: "#6e6e7b",
+		brightRed: "#ff8a9b",
+		brightGreen: "#6ee0ab",
+		brightYellow: "#ffcd6b",
+		brightBlue: "#86c1ff",
+		brightMagenta: "#d6b8ff",
+		brightCyan: "#7fe3e9",
 		brightWhite: "#ffffff",
 	},
 
 	editor: {
 		syntax: {
-			comment: "#a8a5a3",
+			comment: "#8b8b98",
 		},
 	},
 };

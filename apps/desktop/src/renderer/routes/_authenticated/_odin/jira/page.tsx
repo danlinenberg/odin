@@ -68,7 +68,7 @@ const isHotPriority = (p: string | null) =>
 
 // Jira's "In Progress" category lumps Open / On Hold / In Review / rejected
 // together, so the status chip is toned to say which of those are parked.
-// Green means one thing only: an Odin session is running on the ticket.
+// Blue means one thing only: an Odin session is running on the ticket.
 type Tone = "review" | "parked" | "idle";
 const statusTone = (status: string): Tone => {
 	const s = status.toLowerCase();
@@ -77,9 +77,9 @@ const statusTone = (status: string): Tone => {
 	return "idle";
 };
 const TONE_CHIP: Record<Tone, string> = {
-	review: PILL.blue,
-	parked: PILL.amber,
-	idle: "bg-[#1f1f27] text-[#a5a5b3]",
+	review: PILL.working,
+	parked: PILL.attention,
+	idle: "bg-secondary text-muted-foreground",
 };
 
 function shortDate(iso: string | null): string | null {
@@ -98,9 +98,9 @@ const ROLE_TABS = [
 
 /** The "why is this here" chip the All view puts on every row. */
 const ROLE_BADGE = {
-	assigned: { label: "mine", className: PILL.green },
-	reported: { label: "I filed", className: PILL.violet },
-	mentioned: { label: "@me", className: PILL.amber },
+	assigned: { label: "mine", className: PILL.neutral },
+	reported: { label: "I filed", className: PILL.neutral },
+	mentioned: { label: "@me", className: PILL.attention },
 };
 type Role = (typeof ROLE_TABS)[number]["id"];
 
@@ -269,29 +269,29 @@ function MyJiraPage() {
 				)}
 				<FeedError error={issuesQuery.error} />
 				{issuesQuery.data && issues.length === 0 && (
-					<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
+					<div className="px-2 py-8 text-center text-xs text-muted-foreground">
 						Nothing assigned to you 🎉
 					</div>
 				)}
 				{needle && issues.length > 0 && groups.length === 0 && (
-					<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
+					<div className="px-2 py-8 text-center text-xs text-muted-foreground">
 						No issues match your search
 					</div>
 				)}
 
 				{groups.map(([category, rows]) => (
 					<div key={category} className="mb-1">
-						<div className="flex items-center gap-2 py-1 pl-1 text-[11px] font-medium uppercase tracking-[.3px] text-[#8a8a97]">
+						<div className="flex items-center gap-2 py-1 pl-1 text-[11px] font-medium uppercase tracking-[.3px] text-muted-foreground">
 							<span
 								className={cn(
 									"size-1.5 rounded-full",
 									category.toLowerCase() === "in progress"
-										? "bg-[#3ecf8e]"
-										: "bg-[#8a8a97]",
+										? "bg-working"
+										: "bg-muted-foreground",
 								)}
 							/>
 							{category}
-							<span className="rounded-[10px] bg-[#1f1f27] px-1.5 font-medium text-[#a5a5b3]">
+							<span className="rounded-[10px] bg-secondary px-1.5 font-medium text-muted-foreground">
 								{rows.length}
 							</span>
 							{(() => {
@@ -299,7 +299,7 @@ function MyJiraPage() {
 									livePaneByKey.has(r.key),
 								).length;
 								return live > 0 ? (
-									<span className="rounded-[10px] bg-[#14301f] px-1.5 font-medium text-[#3ecf8e]">
+									<span className="rounded-[10px] bg-working/12 px-1.5 font-medium text-working">
 										{live} live
 									</span>
 								) : null;
@@ -315,8 +315,7 @@ function MyJiraPage() {
 										key={issue.key}
 										className={cn(
 											FEED_ROW,
-											activePaneId &&
-												"border-[#1a4029] border-l-2 border-l-[#3ecf8e] bg-[#0f1613]",
+											activePaneId && "border-l-2 border-l-working",
 											!activePaneId && tone === "parked" && "opacity-60",
 										)}
 									>
@@ -324,10 +323,10 @@ function MyJiraPage() {
 										    the space that used to be empty to its right. A grid, not a
 										    flex row, so the mention below can sit in the title's column. */}
 										<div className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-x-2.5">
-											<span className="shrink-0 font-mono text-[11px] font-semibold text-[#a394ff]">
+											<span className="shrink-0 font-mono text-[11px] font-semibold text-muted-foreground">
 												{issue.key}
 											</span>
-											<span className="min-w-0 truncate text-[13px] font-semibold text-[#f5f5f7]">
+											<span className="min-w-0 truncate text-[13px] font-semibold text-foreground">
 												<OverdueMark
 													itemKey={`jira:${issue.key}`}
 													upstream={issue.dueDate}
@@ -361,7 +360,7 @@ function MyJiraPage() {
 														<span
 															className={cn(
 																"inline-flex items-center gap-1 rounded-[5px] px-[7px] py-[1px] font-semibold",
-																PILL.green,
+																PILL.working,
 															)}
 														>
 															<span className="size-1.5 animate-pulse rounded-full bg-current" />
@@ -387,7 +386,7 @@ function MyJiraPage() {
 														<span
 															className={cn(
 																"rounded-[5px] px-[7px] py-[1px]",
-																PILL.red,
+																PILL.danger,
 															)}
 														>
 															{issue.mention ? "High" : issue.priority}
@@ -452,8 +451,8 @@ function MyJiraPage() {
 											    shows that comment, not just the ticket it sits on.
 											    Column 2 keeps it under the title, not under the key. */}
 											{issue.mention && (
-												<div className="col-start-2 mt-1.5 line-clamp-2 select-text cursor-text text-[11.5px] leading-relaxed text-[#a5a5b3]">
-													<span className="font-semibold text-[#f5b83d]">
+												<div className="col-start-2 mt-1.5 line-clamp-2 select-text cursor-text text-[11.5px] leading-relaxed text-muted-foreground">
+													<span className="font-semibold text-soft-foreground">
 														{issue.mention.author ?? "Someone"}
 														{": "}
 													</span>

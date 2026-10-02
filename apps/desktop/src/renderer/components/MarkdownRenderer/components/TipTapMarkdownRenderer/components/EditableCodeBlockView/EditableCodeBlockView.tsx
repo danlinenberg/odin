@@ -133,7 +133,7 @@ export function EditableCodeBlockView({
 					className="flex items-center justify-center rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
 				>
 					{copied ? (
-						<HiCheck className="h-3.5 w-3.5 text-green-500" />
+						<HiCheck className="h-3.5 w-3.5 text-success" />
 					) : (
 						<HiOutlineClipboard className="h-3.5 w-3.5" />
 					)}

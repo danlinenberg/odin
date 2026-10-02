@@ -80,7 +80,7 @@ function EmailPage() {
 					<FeedError error={emails.error} />
 				)}
 				{emails.data && rows.length === 0 && (
-					<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
+					<div className="px-2 py-8 text-center text-xs text-muted-foreground">
 						{junkCount > 0 && !showJunk
 							? `Nothing interesting — ${junkCount} junk hidden`
 							: "No unread mail 🎉"}
@@ -90,17 +90,19 @@ function EmailPage() {
 					<div key={email.id} className={FEED_ROW}>
 						<div className="flex items-center gap-3">
 							<div className="min-w-0 flex-1">
-								<div className="truncate text-[13px] font-semibold text-[#f5f5f7]">
+								<div className="truncate text-[13px] font-semibold text-foreground">
 									{email.subject}
 								</div>
 								{email.snippet && (
-									<div className="truncate text-[11px] text-[#8a8a97]">
+									<div className="truncate text-[11px] text-muted-foreground">
 										{email.snippet}
 									</div>
 								)}
 							</div>
 							<div className="flex shrink-0 items-center gap-2 text-[11px]">
-								<span className={`${META_PERSON} truncate text-[#a5a5b3]`}>
+								<span
+									className={`${META_PERSON} truncate text-muted-foreground`}
+								>
 									{email.from}
 								</span>
 								<span title={email.at ?? undefined} className={META_DATE}>

@@ -216,7 +216,7 @@ export function resolveTerminalAppearance(
 ): TerminalAppearance {
 	return {
 		theme,
-		background: theme.background ?? "#151110",
+		background: theme.background ?? "#0e0e11",
 		fontFamily: sanitizeTerminalFontFamily(fontSettings.terminalFontFamily),
 		fontSize: fontSettings.terminalFontSize ?? DEFAULT_TERMINAL_FONT_SIZE,
 		lineHeight: fontSettings.terminalLineHeight ?? DEFAULT_TERMINAL_LINE_HEIGHT,
@@ -248,5 +248,5 @@ function readCachedTerminalTheme(): ITheme {
 	const defaultTheme = builtInThemes.find((t) => t.id === DEFAULT_THEME_ID);
 	return defaultTheme
 		? toXtermTheme(getTerminalColors(defaultTheme))
-		: { background: "#151110", foreground: "#eae8e6" };
+		: { background: "#0e0e11", foreground: "#ececf1" };
 }

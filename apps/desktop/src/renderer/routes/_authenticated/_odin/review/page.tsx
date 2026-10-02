@@ -50,9 +50,9 @@ export const Route = createFileRoute("/_authenticated/_odin/review/")({
 });
 
 const VERDICT_STYLE = {
-	DROP: PILL.red,
-	KEEP: PILL.green,
-	UNKNOWN: "bg-[#1f1f27] text-[#8a8a97]",
+	DROP: PILL.danger,
+	KEEP: PILL.success,
+	UNKNOWN: "bg-secondary text-muted-foreground",
 } as const;
 
 function VerdictChip({ verdict }: { verdict: ReviewRow["verdict"] }) {
@@ -80,7 +80,7 @@ function shortWhen(at: number): string {
 function DroppedList({ rows }: { rows: DroppedRow[] }) {
 	if (rows.length === 0)
 		return (
-			<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
+			<div className="px-2 py-8 text-center text-xs text-muted-foreground">
 				Nothing dropped yet.
 			</div>
 		);
@@ -89,12 +89,12 @@ function DroppedList({ rows }: { rows: DroppedRow[] }) {
 			<div className="min-w-0 flex-1">
 				<div className="flex items-center gap-2">
 					<VerdictChip verdict={row.verdict} />
-					<span className="truncate text-[13px] text-[#f5f5f7]">
+					<span className="truncate text-[13px] text-foreground">
 						{row.title}
 					</span>
 				</div>
 				<div className={cn(ROW_META, "mt-1")}>
-					<span className="text-[#a394ff]">{row.source}</span>
+					<span className="text-soft-foreground">{row.source}</span>
 					{row.evidence && <> · {row.evidence}</>} · dropped{" "}
 					{shortWhen(row.droppedAt)}
 				</div>
@@ -315,9 +315,11 @@ function ReviewPage() {
 
 	return (
 		<div className="flex h-full flex-col">
-			<div className="flex items-center gap-2.5 border-b border-[#25252e] px-[18px] py-2.5">
-				<span className="text-[13px] font-semibold text-[#f5f5f7]">Review</span>
-				<span className="text-[12px] text-[#8a8a97]">
+			<div className="flex items-center gap-2.5 border-b border-border px-[18px] py-2.5">
+				<span className="text-[13px] font-semibold text-foreground">
+					Review
+				</span>
+				<span className="text-[12px] text-muted-foreground">
 					what the sweep wants gone, checked against the system it came from
 				</span>
 				<div className="flex-1" />
@@ -335,8 +337,8 @@ function ReviewPage() {
 							}}
 							placeholder={`Search title or person${searchHotkey.hint}`}
 							className={cn(
-								"w-[200px] rounded-full border bg-[#16161b] px-2.5 py-1 text-[12px] text-[#f5f5f7] outline-none placeholder:text-[#6b6b78] focus:border-[#a394ff]",
-								search ? "border-[#a394ff]" : "border-[#25252e]",
+								"w-[200px] rounded-full border bg-card px-2.5 py-1 text-[12px] text-foreground outline-none placeholder:text-faint-foreground focus:border-primary",
+								search ? "border-primary" : "border-border",
 							)}
 						/>
 						<FilterPill
@@ -376,7 +378,7 @@ function ReviewPage() {
 
 			<div className={FEED_LIST}>
 				{swept.length === 0 && (
-					<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
+					<div className="px-2 py-8 text-center text-xs text-muted-foreground">
 						Nothing swept yet. "Sweep now" takes every open task and queued
 						Slack message and asks the system it came from where it stands — the
 						ticket's status, whether the PR is merged, whether the thread moved
@@ -388,7 +390,7 @@ function ReviewPage() {
 				{swept.length > 0 &&
 					shown.length === 0 &&
 					(needle || view !== "dropped") && (
-						<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
+						<div className="px-2 py-8 text-center text-xs text-muted-foreground">
 							{needle
 								? `Nothing matches "${search.trim()}".`
 								: view === "rest"
@@ -414,17 +416,17 @@ function ReviewPage() {
 									<VerdictChip verdict={row.verdict} />
 									{hasSession(row) && (
 										<LuOctagonX
-											className="size-3.5 shrink-0 text-[#ff7a8a]"
+											className="size-3.5 shrink-0 text-danger"
 											title="A session is still working on this — close it to drop"
 											aria-label="A session is still working on this — close it to drop"
 										/>
 									)}
-									<span className="truncate text-[13px] text-[#f5f5f7]">
+									<span className="truncate text-[13px] text-foreground">
 										{row.title}
 									</span>
 								</div>
 								<div className={cn(ROW_META, "mt-1")}>
-									<span className="text-[#a394ff]">{row.source}</span>
+									<span className="text-soft-foreground">{row.source}</span>
 									{personByKey.get(row.key) && (
 										<> · {personByKey.get(row.key)}</>
 									)}

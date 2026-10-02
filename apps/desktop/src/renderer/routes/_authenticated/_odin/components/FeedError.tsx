@@ -1,6 +1,7 @@
 import { cn } from "@odin/ui/utils";
 import { useNavigate } from "@tanstack/react-router";
 import { FEED_NOTICE_BOX } from "./FeedChrome";
+import { BUTTON } from "./pill";
 
 /**
  * A feed that failed to load. UNAUTHORIZED means the stored token is dead
@@ -18,7 +19,7 @@ export function FeedError({
 		<div
 			className={cn(
 				FEED_NOTICE_BOX,
-				"flex cursor-text select-text items-center gap-3 border border-[#5a2733] bg-[#f0647a]/10",
+				"flex cursor-text select-text items-center gap-3 border border-danger/40 bg-danger/10",
 			)}
 		>
 			<span className="min-w-0 flex-1">{error.message}</span>
@@ -26,7 +27,10 @@ export function FeedError({
 				<button
 					type="button"
 					onClick={() => navigate({ to: "/settings/connections" })}
-					className="shrink-0 rounded-[7px] bg-[#211d3a] px-2.5 py-1 font-semibold text-[#a394ff] hover:bg-[#28224a]"
+					className={cn(
+						"shrink-0 rounded-[7px] px-2.5 py-1 font-semibold",
+						BUTTON.primary,
+					)}
 				>
 					Reconnect →
 				</button>

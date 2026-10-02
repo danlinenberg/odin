@@ -120,18 +120,12 @@ const SESSION_STATE: Partial<
 };
 
 /**
- * Which system a row came from, at a glance. Live sessions own green, and
- * Tasks keeps the app's own accent. Slack takes the crimson out of its logo
- * rather than another violet — two purples a shade apart aren't a distinction.
+ * Which system a row came from. Every source draws the same neutral chip and
+ * the icon tells them apart: when each source had its own colour, a list of
+ * forty rows was a rainbow that outshouted the priority and due chips — the
+ * colours that actually ask something of you.
  */
-const SOURCE_CHIP: Record<AllItem["source"], string> = {
-	Tasks: PILL.violet,
-	Slack: PILL.pink,
-	Jira: PILL.blue,
-	GitHub: PILL.amber,
-	Notion: "bg-[#1f1f27] text-[#c8c8d2]",
-	Email: PILL.teal,
-};
+const SOURCE_CHIP = PILL.neutral;
 
 /** The source filter, in the order the tab strip lists them. ponytail: a
  * picker, not pills — the tab strip above already draws one row of sources,
@@ -308,13 +302,18 @@ function AllFeedPage() {
 		<div className="flex h-full flex-col">
 			<FeedHeader>
 				<FeedDivider />
-				<span className="shrink-0 text-[12px] text-[#8a8a97]">
+				<span className="shrink-0 text-[12px] text-muted-foreground">
 					{items.length === allRows.length
 						? `${allRows.length} waiting on you`
 						: `${items.length} of ${allRows.length}`}
 				</span>
 				{sessions.length > 0 && (
-					<span className="shrink-0 rounded-[10px] bg-[#14301f] px-1.5 py-[1px] text-[11px] font-semibold text-[#3ecf8e]">
+					<span
+						className={cn(
+							"shrink-0 rounded-[10px] px-1.5 py-[1px] text-[11px] font-semibold",
+							PILL.working,
+						)}
+					>
 						{sessions.length} live
 					</span>
 				)}
@@ -323,7 +322,7 @@ function AllFeedPage() {
 						<button
 							type="button"
 							onClick={clearFilters}
-							className="shrink-0 text-[12px] text-[#8a8a97] transition-colors hover:text-[#a5a5b3]"
+							className="shrink-0 text-[12px] text-muted-foreground transition-colors hover:text-foreground"
 						>
 							clear filters
 						</button>
@@ -405,14 +404,14 @@ function AllFeedPage() {
 						<button
 							type="button"
 							onClick={() => setShowSessions((open) => !open)}
-							className="flex items-center gap-1.5 px-1 pt-1 pb-0.5 text-[11px] font-semibold text-[#3ecf8e]"
+							className="flex items-center gap-1.5 px-1 pt-1 pb-0.5 text-[11px] font-semibold text-working"
 						>
 							<span className="size-1.5 animate-pulse rounded-full bg-current" />
 							Live sessions
-							<span className="rounded-[10px] bg-[#14301f] px-1.5 font-medium">
+							<span className="rounded-[10px] bg-working/12 px-1.5 font-medium">
 								{sessions.length}
 							</span>
-							<span className="text-[#8a8a97]">
+							<span className="text-muted-foreground">
 								{showSessions ? "hide" : "show"}
 							</span>
 						</button>
@@ -427,7 +426,7 @@ function AllFeedPage() {
 											<span
 												className={cn(
 													"flex w-[68px] shrink-0 items-center justify-center gap-1 rounded-[5px] px-[7px] py-[1px] text-[11px] font-semibold",
-													SOURCE_CHIP[source],
+													SOURCE_CHIP,
 												)}
 											>
 												<SourceIcon className="size-3 shrink-0" aria-hidden />
@@ -440,7 +439,7 @@ function AllFeedPage() {
 													usePendingFocus.getState().focus(session.paneId);
 													navigate({ to: "/board" });
 												}}
-												className="min-w-0 flex-1 truncate text-left text-[13px] font-semibold text-[#f5f5f7]"
+												className="min-w-0 flex-1 truncate text-left text-[13px] font-semibold text-foreground"
 											>
 												{emojify(session.title)}
 											</button>
@@ -452,12 +451,7 @@ function AllFeedPage() {
 											<div className="flex shrink-0 items-center gap-2 text-[11px]">
 												<span className={META_TAG}>
 													{session.tags[0] && (
-														<span
-															className={cn(
-																"truncate rounded-[5px] px-[7px] font-medium",
-																PILL.violet,
-															)}
-														>
+														<span className="truncate font-mono text-[10.5px] text-faint-foreground">
 															#{session.tags[0]}
 														</span>
 													)}
@@ -515,7 +509,7 @@ function AllFeedPage() {
 									</div>
 								);
 							})}
-						<div className="px-1 pt-2 pb-0.5 text-[11px] font-semibold text-[#8a8a97]">
+						<div className="px-1 pt-2 pb-0.5 text-[11px] font-semibold text-muted-foreground">
 							Waiting on you
 						</div>
 					</>
@@ -528,7 +522,7 @@ function AllFeedPage() {
 					/>
 				)}
 				{!showDone && items.length === 0 && (
-					<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
+					<div className="px-2 py-8 text-center text-xs text-muted-foreground">
 						{isFiltered ? (
 							<button
 								type="button"
@@ -556,7 +550,7 @@ function AllFeedPage() {
 									<span
 										className={cn(
 											"flex w-[68px] shrink-0 items-center justify-center gap-1 rounded-[5px] px-[7px] py-[1px] text-[11px] font-semibold",
-											SOURCE_CHIP[item.source],
+											SOURCE_CHIP,
 										)}
 									>
 										<SourceIcon className="size-3 shrink-0" aria-hidden />
@@ -566,7 +560,7 @@ function AllFeedPage() {
 										type="button"
 										title={`Open the ${item.source} feed`}
 										onClick={() => navigate({ to: item.to })}
-										className="min-w-0 flex-1 truncate text-left text-[13px] font-semibold text-[#f5f5f7]"
+										className="min-w-0 flex-1 truncate text-left text-[13px] font-semibold text-foreground"
 									>
 										<OverdueMark itemKey={item.key} upstream={item.dueDate} />
 										{emojify(item.title)}
@@ -651,8 +645,8 @@ function AllFeedPage() {
 							    because of one comment. Indented past the source chip
 							    (68px + gap-3) so it sits under the title. */}
 								{item.mention && (
-									<div className="mt-1.5 line-clamp-2 cursor-text select-text pl-[80px] text-[11.5px] leading-relaxed text-[#a5a5b3]">
-										<span className="font-semibold text-[#f5b83d]">
+									<div className="mt-1.5 line-clamp-2 cursor-text select-text pl-[80px] text-[11.5px] leading-relaxed text-muted-foreground">
+										<span className="font-semibold text-soft-foreground">
 											{item.mention.author ?? "Someone"}
 											{": "}
 										</span>
@@ -682,16 +676,16 @@ function DoneList({
 			{rows.map((row) => (
 				<div key={row.key} className={FEED_ROW}>
 					<div className="flex items-center gap-3">
-						<span className="w-[68px] shrink-0 truncate text-[11px] font-semibold text-[#8a8a97]">
+						<span className="w-[68px] shrink-0 truncate text-[11px] font-semibold text-muted-foreground">
 							{row.source}
 						</span>
 						<span
 							dir="auto"
-							className="min-w-0 flex-1 truncate text-[13px] text-[#a5a5b3]"
+							className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground"
 						>
 							{emojify(row.title)}
 						</span>
-						<span className="shrink-0 text-[11px] text-[#8a8a97]">
+						<span className="shrink-0 text-[11px] text-muted-foreground">
 							done{" "}
 							{new Date(row.at).toLocaleDateString(undefined, {
 								month: "short",
@@ -702,7 +696,7 @@ function DoneList({
 							<button
 								type="button"
 								onClick={() => row.url && onOpen(row.url)}
-								className="shrink-0 text-[12px] font-semibold text-[#a5a5b3] hover:text-[#f5f5f7]"
+								className="shrink-0 text-[12px] font-semibold text-muted-foreground hover:text-foreground"
 							>
 								Open ↗
 							</button>
@@ -711,7 +705,7 @@ function DoneList({
 							type="button"
 							onClick={() => onUndo(row)}
 							title="Not done — put it back"
-							className="shrink-0 rounded-[7px] px-2 py-1 text-[12px] font-semibold text-[#8a8a97] hover:bg-[#1f1f27] hover:text-[#f5f5f7]"
+							className="shrink-0 rounded-[7px] px-2 py-1 text-[12px] font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground"
 						>
 							Undo
 						</button>

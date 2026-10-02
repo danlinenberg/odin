@@ -22,7 +22,7 @@ import type { AllItem } from "../all/all-items";
 import { allItems } from "../all/all-items";
 import { useStartAllItem } from "../all/use-start-item";
 import { FEED_TABS } from "../components/feed-counts";
-import { PILL } from "../components/pill";
+import { BUTTON, PILL } from "../components/pill";
 import {
 	DueChip,
 	dayOf,
@@ -319,9 +319,9 @@ export function NextInLine() {
 			byKey.get(item.key) ?? (item.url ? byUrl.get(item.url) : undefined);
 	}, [swept]);
 	return (
-		<div className="flex min-w-[240px] flex-1 flex-col rounded-xl border border-[#4b4380] bg-[#15131f] shadow-[0_0_0_1px_rgba(163,148,255,.12),0_8px_24px_-8px_rgba(163,148,255,.35)]">
-			<div className="flex items-center gap-2 px-3 py-2.5 text-xs font-semibold uppercase tracking-[.4px] text-[#d6d0ff]">
-				<span className="size-2 rounded-full bg-[#a394ff] shadow-[0_0_6px_#a394ff]" />
+		<div className="flex min-w-[240px] flex-1 flex-col rounded-xl border border-border bg-tertiary">
+			<div className="flex items-center gap-2 px-3 py-2.5 text-xs font-semibold uppercase tracking-[.4px] text-muted-foreground">
+				<span className="size-2 rounded-full bg-primary" />
 				Next in line
 				<span className="ml-auto flex items-center gap-2">
 					<button
@@ -334,8 +334,8 @@ export function NextInLine() {
 						}
 						className={
 							prompt
-								? "text-[#a394ff] hover:text-[#f5f5f7]"
-								: "text-[#8a8a97] hover:text-[#f5f5f7]"
+								? "text-primary hover:text-foreground"
+								: "text-muted-foreground hover:text-foreground"
 						}
 					>
 						<LuSettings2 className="size-3.5" aria-hidden />
@@ -346,7 +346,7 @@ export function NextInLine() {
 						onToggle={() => setShowHidden(!showHidden)}
 						className="font-normal normal-case tracking-normal"
 					/>
-					<span className="rounded-[10px] bg-[#2c2750] px-2 font-medium text-[#d6d0ff]">
+					<span className="rounded-[10px] bg-secondary px-2 font-medium">
 						{next.length}
 					</span>
 				</span>
@@ -364,19 +364,19 @@ export function NextInLine() {
 			/>
 			<div className="flex flex-col gap-2 overflow-y-auto px-2 pb-2.5">
 				{next.length === 0 ? (
-					<div className="px-2 py-6 text-center text-xs text-[#8a8a97]">
+					<div className="px-2 py-6 text-center text-xs text-muted-foreground">
 						Nothing waiting to start
 					</div>
 				) : (
 					<>
 						{pinned.length > 0 && (
-							<div className="px-1 pt-0.5 text-[10.5px] font-semibold uppercase tracking-[.4px] text-[#e6c07b]">
+							<div className="px-1 pt-0.5 text-[10.5px] font-semibold uppercase tracking-[.4px] text-attention">
 								Due · {pinned.length}
 							</div>
 						)}
 						{pinned.map((item) => card(item, true))}
 						{pinned.length > 0 && unpinned.length > 0 && (
-							<div className="mt-1 border-t border-[#2c2940] px-1 pt-2 text-[10.5px] font-semibold uppercase tracking-[.4px] text-[#8a8a97]">
+							<div className="mt-1 border-t border-border px-1 pt-2 text-[10.5px] font-semibold uppercase tracking-[.4px] text-muted-foreground">
 								Everything else
 							</div>
 						)}
@@ -394,7 +394,7 @@ export function NextInLine() {
 			<div
 				key={item.key}
 				className={cn(
-					"group relative flex items-start gap-2 rounded-[10px] border border-[#2c2940] bg-[#14131b] px-2.5 py-2 transition-colors hover:border-[#3f3a63]",
+					"group relative flex items-start gap-2 rounded-[10px] border border-border bg-card px-2.5 py-2 transition-colors hover:border-input hover:bg-secondary",
 					isAiHidden(item) && "opacity-50",
 				)}
 				title={
@@ -409,7 +409,7 @@ export function NextInLine() {
 					onClick={() => doneWithUndo(item)}
 					title="Mark done — take it off Next in line"
 					aria-label="Mark done"
-					className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border border-[#4a4a58] text-transparent transition-colors hover:border-[#3ecf8e] hover:bg-[#14301f] hover:text-[#3ecf8e]"
+					className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border border-input text-transparent transition-colors hover:border-success hover:bg-success/15 hover:text-success"
 				>
 					<LuCheck className="size-2.5" strokeWidth={3} aria-hidden />
 				</button>
@@ -422,21 +422,21 @@ export function NextInLine() {
 											    keeps every card's text on the same edge. */}
 							<span
 								dir="auto"
-								className="line-clamp-2 break-words text-left text-[12.5px] font-medium leading-[1.4] text-[#ececf1]"
+								className="line-clamp-2 break-words text-left text-[12.5px] font-medium leading-[1.4] text-foreground"
 							>
 								{emojify(cleanTitle(item.title))}
 							</span>
-							<div className="mt-1 flex items-center gap-1.5 text-[11px] text-[#8a8a97]">
+							<div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
 								{Icon && <Icon className="size-3 shrink-0" aria-hidden />}
 								{item.priority && (
 									<span
 										className={cn(
 											"shrink-0 font-medium",
 											item.urgency === "high"
-												? "text-[#f0a0ad]"
+												? "text-danger"
 												: item.urgency === "medium"
-													? "text-[#e6c07b]"
-													: "text-[#8a8a97]",
+													? "text-attention"
+													: "text-muted-foreground",
 										)}
 									>
 										{item.priority}
@@ -458,7 +458,7 @@ export function NextInLine() {
 									title={`The Review sweep says drop this: ${dropFor(item)?.evidence}`}
 									className={cn(
 										"mt-1 line-clamp-2 rounded-[5px] px-[7px] py-px text-[11px] font-medium",
-										PILL.red,
+										PILL.danger,
 									)}
 								>
 									Drop? {dropFor(item)?.evidence}
@@ -469,7 +469,7 @@ export function NextInLine() {
 					<HoverCardContent
 						side="left"
 						align="start"
-						className="w-[440px] border-[#2c2940] bg-[#16151f] p-3"
+						className="w-[440px] border-border bg-popover p-3"
 					>
 						<TaskHover
 							item={item}
@@ -481,7 +481,7 @@ export function NextInLine() {
 				</HoverCard>
 				<div
 					className={cn(
-						"absolute right-1.5 top-1.5 hidden items-center gap-0.5 rounded-lg border border-[#2c2940] bg-[#1a1824] p-0.5 shadow-lg group-focus-within:flex group-hover:flex",
+						"absolute right-1.5 top-1.5 hidden items-center gap-0.5 rounded-lg border border-border bg-popover p-0.5 shadow-lg group-focus-within:flex group-hover:flex",
 						launchingKey === item.launch.key && "flex",
 					)}
 				>
@@ -495,7 +495,7 @@ export function NextInLine() {
 									: "Open in your browser"
 							}
 							aria-label="Open"
-							className="rounded-md p-1 text-[#a5a5b3] hover:bg-[#262433] hover:text-[#f5f5f7]"
+							className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
 						>
 							<LuExternalLink className="size-3.5" aria-hidden />
 						</button>
@@ -505,7 +505,7 @@ export function NextInLine() {
 						disabled={isLaunching}
 						onClick={() => void start(item)}
 						title="Start an agent session on this task"
-						className="rounded-md bg-[#14301f] px-2 py-0.5 text-[11px] font-semibold text-[#3ecf8e] hover:bg-[#1a4029] disabled:opacity-60"
+						className={`rounded-md px-2 py-0.5 text-[11px] font-semibold disabled:opacity-60 ${BUTTON.primary}`}
 					>
 						{launchingKey === item.launch.key ? "starting…" : "▶ Start"}
 					</button>
@@ -539,30 +539,30 @@ function TaskHover({
 	const body = item.body?.trim();
 	return (
 		<div className="space-y-2.5 text-[12px] leading-[1.5]">
-			<div className="flex items-center gap-1.5 text-[11px] text-[#8a8a97]">
+			<div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
 				{Icon && <Icon className="size-3 shrink-0" aria-hidden />}
-				<span className="font-medium text-[#a5a5b3]">{item.source}</span>
+				<span className="font-medium text-muted-foreground">{item.source}</span>
 				{item.priority && <span>· {item.priority}</span>}
 				{item.status && <span>· {item.status}</span>}
 			</div>
 			<p
 				dir="auto"
-				className="break-words text-left font-semibold text-[#ececf1]"
+				className="break-words text-left font-semibold text-foreground"
 			>
 				{emojify(cleanTitle(item.title))}
 			</p>
 			{body && body !== item.title.trim() && (
 				<p
 					dir="auto"
-					className="max-h-[220px] cursor-text select-text overflow-y-auto whitespace-pre-wrap break-words text-left text-[#c9c9d3]"
+					className="max-h-[220px] cursor-text select-text overflow-y-auto whitespace-pre-wrap break-words text-left text-soft-foreground"
 				>
 					{emojify(body.slice(0, 3000))}
 				</p>
 			)}
 			{item.mention && (
-				<div className="rounded-md border-l-2 border-[#a394ff] bg-[#1d1a2e] px-2 py-1.5 text-[#c9c9d3]">
+				<div className="rounded-md border-l-2 border-primary bg-primary/8 px-2 py-1.5 text-soft-foreground">
 					{item.mention.author && (
-						<div className="text-[11px] font-medium text-[#a394ff]">
+						<div className="text-[11px] font-medium text-primary">
 							{item.mention.author}
 						</div>
 					)}
@@ -578,8 +578,11 @@ function TaskHover({
 				<dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[11.5px]">
 					{rows.map(([label, value]) => (
 						<div key={label} className="contents">
-							<dt className="text-[#8a8a97]">{label}</dt>
-							<dd dir="auto" className="min-w-0 break-words text-[#d6d6de]">
+							<dt className="text-muted-foreground">{label}</dt>
+							<dd
+								dir="auto"
+								className="min-w-0 break-words text-soft-foreground"
+							>
 								{value}
 							</dd>
 						</div>
@@ -591,8 +594,8 @@ function TaskHover({
 					className={cn(
 						"rounded-md px-2 py-1.5 text-[11.5px]",
 						swept.verdict === "DROP"
-							? "bg-[#331a1f] text-[#ff9aa6]"
-							: "bg-[#1b1f2a] text-[#b8c0d4]",
+							? "bg-danger/15 text-danger"
+							: "bg-secondary text-soft-foreground",
 					)}
 				>
 					<span className="font-semibold">Review sweep: {swept.verdict}</span>
@@ -600,7 +603,7 @@ function TaskHover({
 				</div>
 			)}
 			{item.url && (
-				<div className="cursor-text select-text truncate text-[11px] text-[#6f6f80]">
+				<div className="cursor-text select-text truncate text-[11px] text-faint-foreground">
 					{item.url}
 				</div>
 			)}
@@ -638,15 +641,15 @@ function RankStatus({
 
 	if (startedAt)
 		return (
-			<div className="mx-2 mb-2 flex items-start gap-2 rounded-lg border border-[#3a3360] bg-[#1a1730] px-2.5 py-2 text-[11.5px] text-[#d8d2ff]">
+			<div className="mx-2 mb-2 flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/8 px-2.5 py-2 text-[11.5px] text-primary">
 				<LuLoaderCircle
-					className="mt-px size-3.5 shrink-0 animate-spin text-[#a394ff]"
+					className="mt-px size-3.5 shrink-0 animate-spin text-primary"
 					aria-hidden
 				/>
 				<span>
 					AI is ranking {count} tasks…{" "}
 					{Math.max(0, Math.round((now - startedAt) / 1000))}s
-					<span className="block text-[#8a8a97]">
+					<span className="block text-muted-foreground">
 						Usually about 20 seconds. Applies when it's done.
 					</span>
 				</span>
@@ -657,23 +660,23 @@ function RankStatus({
 			type="button"
 			onClick={onApply}
 			title="Rank these now, from scratch, and use the AI's order and hides"
-			className="ml-auto flex shrink-0 items-center gap-1 rounded-md bg-[#2c2750] px-2 py-0.5 font-medium text-[#d6d0ff] hover:bg-[#3a3366]"
+			className="ml-auto flex shrink-0 items-center gap-1 rounded-md bg-primary/15 px-2 py-0.5 font-medium text-primary hover:bg-primary/25"
 		>
-			<LuSparkles className="size-3 text-[#a394ff]" aria-hidden />
+			<LuSparkles className="size-3 text-primary" aria-hidden />
 			{applied && ranked ? "Re-rank" : "Apply AI recommendations"}
 		</button>
 	);
 	return (
-		<div className="mx-2 mb-2 px-1 text-[11px] text-[#8a8a97]">
+		<div className="mx-2 mb-2 px-1 text-[11px] text-muted-foreground">
 			<div className="flex items-center gap-1.5">
 				{applied && ranked ? (
 					<>
-						<LuSparkles className="size-3 text-[#a394ff]" aria-hidden />
+						<LuSparkles className="size-3 text-primary" aria-hidden />
 						Ranked by AI
 						<button
 							type="button"
 							onClick={onUndo}
-							className="hover:text-[#f5f5f7]"
+							className="hover:text-foreground"
 						>
 							· back to All tasks order
 						</button>
@@ -685,7 +688,7 @@ function RankStatus({
 			</div>
 			{error && (
 				<div
-					className="mt-1 cursor-text select-text truncate text-[#f0a0ad]"
+					className="mt-1 cursor-text select-text truncate text-danger"
 					title={error}
 				>
 					AI ranking failed: {error}
@@ -713,7 +716,7 @@ function HiddenToggle({
 			type="button"
 			onClick={onToggle}
 			className={cn(
-				"text-[12px] text-[#8a8a97] transition-colors hover:text-[#a5a5b3]",
+				"text-[12px] text-muted-foreground transition-colors hover:text-foreground",
 				className,
 			)}
 		>
