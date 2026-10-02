@@ -474,25 +474,44 @@ export function mergeTargets(messages: BriefMessage[]): PullRequestLink[] {
 }
 
 /**
- * Finished, bar a click nobody has to think about: the merge is the only item
- * left, and every PR it's for is approved (or merged already). That card is
- * Done, not Needs you. Unknown state (gh can't see the PR, not fetched yet) is
- * not approved, and a reply after the items means you already answered them.
+ * The PRs mergeReady judges a session on. ponytail: the 20 newest —
+ * pullRequestStates' cap; a session that linked more is judged on those.
+ */
+export function mergeCheckUrls(messages: BriefMessage[]): string[] {
+	return pullRequests(messages)
+		.slice(0, 20)
+		.map((pr) => pr.url);
+}
+
+/**
+ * Finished, bar a click: every PR the session linked is approved with no red
+ * check, merged, or closed — and at least one is still open waiting on that
+ * click. That card is Done, not Needs you, whatever else its action items say.
+ * With all of them merged it takes a merge-only item list to say the same
+ * thing; otherwise the items are what's left. Unknown state (gh can't see the
+ * PR, not fetched yet) is not approved, and a reply after the items means you
+ * already answered them.
  */
 export function mergeReady(
 	messages: BriefMessage[],
-	states: Record<string, { state: string; approved?: boolean } | null>,
+	states: Record<
+		string,
+		{ state: string; approved?: boolean; failed?: string[] } | null
+	>,
 ): boolean {
 	if (messages[messages.length - 1]?.role !== "assistant") return false;
-	if (!onlyMergeLeft(messages)) return false;
-	const targets = mergeTargets(messages);
+	const prs = mergeCheckUrls(messages).map((url) => states[url]);
+	if (
+		!prs.length ||
+		prs.some(
+			(pr) =>
+				!pr ||
+				(pr.state === "OPEN" && (pr.approved !== true || !!pr.failed?.length)),
+		)
+	)
+		return false;
 	return (
-		targets.length > 0 &&
-		targets.every(({ url }) => {
-			const pr = states[url];
-			return (
-				pr?.state === "MERGED" || (pr?.state === "OPEN" && pr.approved === true)
-			);
-		})
+		prs.some((pr) => pr?.state === "OPEN") ||
+		(onlyMergeLeft(messages) && prs.some((pr) => pr?.state === "MERGED"))
 	);
 }
