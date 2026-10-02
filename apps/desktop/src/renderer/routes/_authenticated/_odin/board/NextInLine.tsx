@@ -22,6 +22,7 @@ import type { AllItem } from "../all/all-items";
 import { allItems } from "../all/all-items";
 import { useStartAllItem } from "../all/use-start-item";
 import { FEED_TABS } from "../components/feed-counts";
+import { PILL } from "../components/pill";
 import {
 	DueChip,
 	dayOf,
@@ -455,7 +456,10 @@ export function NextInLine() {
 							{dropFor(item) && (
 								<div
 									title={`The Review sweep says drop this: ${dropFor(item)?.evidence}`}
-									className="mt-1 line-clamp-2 rounded-[5px] bg-[#331a1f] px-[7px] py-px text-[11px] font-medium text-[#ff7a8a]"
+									className={cn(
+										"mt-1 line-clamp-2 rounded-[5px] px-[7px] py-px text-[11px] font-medium",
+										PILL.red,
+									)}
 								>
 									Drop? {dropFor(item)?.evidence}
 								</div>

@@ -29,6 +29,7 @@ import {
 	machineLoad,
 } from "shared/machine-load";
 import { FEED_TABS } from "./components/feed-counts";
+import { PILL } from "./components/pill";
 import { type UpstreamDue, useDueReminders } from "./components/Reminders";
 import { QuickAddTask } from "./components/TaskBox";
 import { useAutomationRunner } from "./hooks/useAutomationRunner";
@@ -140,20 +141,20 @@ const NAV_HOTKEY_OPTIONS = {
  */
 function badgeTone(load: MachineLoad, limits: LaunchLimits): string {
 	if (load.busy) {
-		return "bg-[#3a1a20] text-[#f0647a]";
+		return PILL.red;
 	}
 	if (
 		load.cpuPercent >= limits.hostCpuPercent - 15 ||
 		load.availableMemoryGb < limits.minFreeMemoryGb + 1
 	) {
-		return "bg-[#3a2f16] text-[#f5b83d]";
+		return PILL.amber;
 	}
 	return "bg-[#1f1f27] text-[#8a8a97]";
 }
 
 function usageTone(percent: number): string {
-	if (percent >= 90) return "bg-[#3a1a20] text-[#f0647a]";
-	if (percent >= 75) return "bg-[#3a2f16] text-[#f5b83d]";
+	if (percent >= 90) return PILL.red;
+	if (percent >= 75) return PILL.amber;
 	return "bg-[#1f1f27] text-[#8a8a97]";
 }
 

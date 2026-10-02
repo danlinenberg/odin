@@ -82,6 +82,7 @@ import {
 	untruncatedTitle,
 } from "../components/OdinPromptDialog";
 import { PersonChip, personColor } from "../components/PersonChip";
+import { PILL } from "../components/pill";
 import { DueChip, OverdueMark } from "../components/Reminders";
 import { TranscriptView } from "../components/TranscriptView";
 import { useBacklogReview } from "../hooks/useBacklogReview";
@@ -438,7 +439,10 @@ function DropPill({ pane }: { pane: Pane }) {
 	return (
 		<span
 			title={`The Review sweep says drop this: ${row.evidence}`}
-			className="inline-flex items-center rounded-[5px] bg-[#331a1f] px-[7px] text-[11px] font-medium text-[#ff7a8a]"
+			className={cn(
+				"inline-flex items-center rounded-[5px] px-[7px] text-[11px] font-medium",
+				PILL.red,
+			)}
 		>
 			Drop? {row.evidence}
 		</span>
@@ -468,7 +472,10 @@ function MergeOnlyPill({ card }: { card: BoardCard }) {
 				event.stopPropagation();
 				if (pr) openUrl.mutate(pr.url);
 			}}
-			className="inline-flex items-center gap-1 rounded-[5px] bg-[#13301f] px-[7px] text-[11px] font-medium text-[#4ade80] enabled:hover:bg-[#1a4029]"
+			className={cn(
+				"inline-flex items-center gap-1 rounded-[5px] px-[7px] text-[11px] font-medium enabled:hover:brightness-125",
+				PILL.green,
+			)}
 		>
 			<LuGitMerge className="size-3" />
 			Just merge{pr ? ` #${pr.number}` : ""}
@@ -871,7 +878,10 @@ function JustDonePill({
 	return (
 		<span
 			title="Its turn ended in the last 10 minutes you had Odin open"
-			className="inline-flex items-center rounded-[5px] bg-[#14301f] px-[7px] text-[11px] font-medium text-[#3ecf8e]"
+			className={cn(
+				"inline-flex items-center rounded-[5px] px-[7px] text-[11px] font-medium",
+				PILL.green,
+			)}
 		>
 			just done
 		</span>
@@ -921,7 +931,10 @@ function LoopPill({ card }: { card: BoardCard }) {
 	return (
 		<span
 			title={`Under /loop — ${next}${loop.prompt ? `\n${loop.prompt}` : ""}`}
-			className="inline-flex items-center gap-1 rounded-[5px] bg-[#2e2413] px-[7px] text-[11px] font-medium text-[#f5b83d]"
+			className={cn(
+				"inline-flex items-center gap-1 rounded-[5px] px-[7px] text-[11px] font-medium",
+				PILL.amber,
+			)}
 		>
 			<LuRepeat className="size-3" aria-hidden />
 			{countdown
@@ -953,7 +966,10 @@ function LoadPill({ card }: { card: BoardCard }) {
 	return (
 		<span
 			title="What this session's processes are holding right now"
-			className="inline-flex items-center gap-1 rounded-[5px] bg-[#2a1f12] px-[7px] text-[11px] font-medium tabular-nums text-[#f5b83d]"
+			className={cn(
+				"inline-flex items-center gap-1 rounded-[5px] px-[7px] text-[11px] font-medium tabular-nums",
+				PILL.amber,
+			)}
 		>
 			<LuFlame className="size-3 shrink-0" aria-hidden />
 			{label}
@@ -985,19 +1001,15 @@ function ShellChip({
 		? [
 				"This session's shell has exited — open it to start a new one",
 				"Shell exited",
-				"bg-[#3a1820] font-semibold text-[#f0647a] ring-1 ring-[#f0647a]/60",
+				`${PILL.red} font-semibold ring-1 ring-[#f0647a]/60`,
 			]
 		: busy === false
 			? [
 					"The shell is at its prompt — whatever you ran in it has stopped",
 					"Shell stopped",
-					"bg-[#3a2a10] font-semibold text-[#f5b83d] ring-1 ring-[#f5b83d]/60",
+					`${PILL.amber} font-semibold ring-1 ring-[#f5b83d]/60`,
 				]
-			: [
-					"This session has a shell running",
-					"Shell",
-					"bg-[#132a1f] text-[#3ecf8e]",
-				];
+			: ["This session has a shell running", "Shell", PILL.green];
 	return (
 		<span
 			title={title}
@@ -3233,7 +3245,10 @@ function DevBoardPage() {
 																		// otherwise started yourself.
 																		<span
 																			title="Started by a schedule, not by you"
-																			className="inline-flex items-center gap-1 rounded-[5px] bg-[#2e2413] px-[7px] text-[11px] font-medium text-[#f5b83d]"
+																			className={cn(
+																				"inline-flex items-center gap-1 rounded-[5px] px-[7px] text-[11px] font-medium",
+																				PILL.amber,
+																			)}
 																		>
 																			<LuClock className="size-3" />
 																			Automation
@@ -3246,7 +3261,10 @@ function DevBoardPage() {
 																		// picked out from a board you otherwise started yourself.
 																		<span
 																			title="Started overnight by Night Agent, while you were away"
-																			className="inline-flex items-center gap-1 rounded-[5px] bg-gradient-to-r from-[#3b2a7a] to-[#1d4f7a] px-[7px] text-[11px] font-medium text-[#e4dcff] shadow-[0_0_6px_rgba(124,108,255,.45)]"
+																			className={cn(
+																				"inline-flex items-center gap-1 rounded-[5px] px-[7px] text-[11px] font-medium",
+																				PILL.night,
+																			)}
 																		>
 																			<LuMoon className="size-3 text-[#ffd97a]" />
 																			Night Agent
@@ -3257,7 +3275,10 @@ function DevBoardPage() {
 																	) && (
 																		<span
 																			title="Started by your Slack reaction, not a click"
-																			className="inline-flex items-center gap-1 rounded-[5px] bg-[#1f1b33] px-[7px] text-[11px] font-medium text-[#a394ff]"
+																			className={cn(
+																				"inline-flex items-center gap-1 rounded-[5px] px-[7px] text-[11px] font-medium",
+																				PILL.violet,
+																			)}
 																		>
 																			{launchEmoji} Auto-started
 																		</span>
@@ -3607,7 +3628,10 @@ function DevBoardPage() {
 										type="button"
 										title={drawerLink.url}
 										onClick={() => openUrl.mutate(drawerLink.url)}
-										className="rounded-[5px] bg-[#211d3a] px-[7px] text-[11px] font-medium text-[#a394ff] hover:underline"
+										className={cn(
+											"rounded-[5px] px-[7px] text-[11px] font-medium hover:underline",
+											PILL.violet,
+										)}
 									>
 										{drawerLink.label} ↗
 									</button>

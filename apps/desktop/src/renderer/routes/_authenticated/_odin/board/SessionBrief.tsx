@@ -2,6 +2,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@odin/ui/tooltip";
 import { useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
+import { PILL } from "../components/pill";
 import { type BriefLink, usePaneMeta } from "../hooks/usePaneMeta";
 import {
 	actionItems,
@@ -68,10 +69,10 @@ function Section({
 
 /** GitHub's own colours, so merged/open/closed read without a legend. */
 const STATE_CHIP: Record<string, { label: string; className: string }> = {
-	MERGED: { label: "merged", className: "bg-[#241a3f] text-[#a371f7]" },
-	OPEN: { label: "open", className: "bg-[#14301f] text-[#3ecf8e]" },
+	MERGED: { label: "merged", className: PILL.violet },
+	OPEN: { label: "open", className: PILL.green },
 	DRAFT: { label: "draft", className: "bg-[#262a30] text-[#9198a1]" },
-	CLOSED: { label: "closed", className: "bg-[#331a20] text-[#f0647a]" },
+	CLOSED: { label: "closed", className: PILL.red },
 };
 
 function Chip({ label, className }: { label: string; className: string }) {
@@ -124,7 +125,7 @@ function ChecksChip({
 							? `${pending[0]}…`
 							: `${pending.length} running…`
 					}
-					className="bg-[#3a2c12] text-[#d2a336]"
+					className={PILL.amber}
 				/>
 			</span>
 		);
@@ -134,14 +135,14 @@ function ChecksChip({
 			<span title={failed.join("\n")}>
 				<Chip
 					label={failed.length === 1 ? `✗ ${failed[0]}` : `✗ ${failed.length}`}
-					className="bg-[#331a20] text-[#f0647a]"
+					className={PILL.red}
 				/>
 			</span>
 		);
 	}
 	// Nothing ran (no CI on this repo) is not the same as everything passed.
 	if (passed === 0) return null;
-	return <Chip label={`✓ ${passed}`} className="bg-[#14301f] text-[#3ecf8e]" />;
+	return <Chip label={`✓ ${passed}`} className={PILL.green} />;
 }
 
 /**

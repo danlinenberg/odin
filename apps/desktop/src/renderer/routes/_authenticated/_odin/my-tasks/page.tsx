@@ -15,6 +15,7 @@ import {
 	ROW_META,
 	ROW_PRIMARY_BUTTON,
 } from "../components/FeedChrome";
+import { PILL } from "../components/pill";
 import {
 	BuiltinChip,
 	PriorityChip,
@@ -179,7 +180,12 @@ function MyTasksPage() {
 										{task.repo && <RepoChip repo={task.repo} />}
 										{task.builtin && <BuiltinChip />}
 										{activePaneId && (
-											<span className="inline-flex items-center gap-1 rounded-[5px] bg-[#14301f] px-[7px] py-[1px] font-semibold text-[#3ecf8e]">
+											<span
+												className={cn(
+													"inline-flex items-center gap-1 rounded-[5px] px-[7px] py-[1px] font-semibold",
+													PILL.green,
+												)}
+											>
 												<span className="size-1.5 animate-pulse rounded-full bg-current" />
 												Session live
 											</span>

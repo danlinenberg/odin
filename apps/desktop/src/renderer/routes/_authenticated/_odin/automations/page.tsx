@@ -29,6 +29,7 @@ import {
 	ROW_PRIMARY_BUTTON,
 	RowActions,
 } from "../components/FeedChrome";
+import { PILL } from "../components/pill";
 import { dueLabel, isDue, useReminders } from "../components/Reminders";
 import { matchRepos, repoLabel } from "../components/repo-picker";
 import {
@@ -693,7 +694,7 @@ function RemindersPanel() {
 									className={cn(
 										"rounded-[5px] px-[7px] py-[1px] font-semibold",
 										isDue(r.due, now)
-											? "bg-[#221d12] text-[#f5b83d]"
+											? PILL.amber
 											: "bg-[#1f1f27] text-[#a5a5b3]",
 									)}
 								>
@@ -943,7 +944,12 @@ function SchedulesPanel() {
 												: "never run"}
 										</span>
 										{activePaneId && (
-											<span className="inline-flex items-center gap-1 rounded-[5px] bg-[#14301f] px-[7px] py-[1px] font-semibold text-[#3ecf8e]">
+											<span
+												className={cn(
+													"inline-flex items-center gap-1 rounded-[5px] px-[7px] py-[1px] font-semibold",
+													PILL.green,
+												)}
+											>
 												<span className="size-1.5 animate-pulse rounded-full bg-current" />
 												Session live
 											</span>

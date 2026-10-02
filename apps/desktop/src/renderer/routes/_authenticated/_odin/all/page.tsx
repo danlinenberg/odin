@@ -30,6 +30,7 @@ import {
 } from "../components/FeedChrome";
 import { FEED_TABS, type FeedPath } from "../components/feed-counts";
 import { PersonChip } from "../components/PersonChip";
+import { PILL } from "../components/pill";
 import {
 	DueChip,
 	effectiveDue,
@@ -124,12 +125,12 @@ const SESSION_STATE: Partial<
  * rather than another violet — two purples a shade apart aren't a distinction.
  */
 const SOURCE_CHIP: Record<AllItem["source"], string> = {
-	Tasks: "bg-[#211d3a] text-[#a394ff]",
-	Slack: "bg-[#361d28] text-[#ff8fae]",
-	Jira: "bg-[#16283a] text-[#7ec4ff]",
-	GitHub: "bg-[#3a2c14] text-[#f5b83d]",
+	Tasks: PILL.violet,
+	Slack: PILL.pink,
+	Jira: PILL.blue,
+	GitHub: PILL.amber,
 	Notion: "bg-[#1f1f27] text-[#c8c8d2]",
-	Email: "bg-[#1a2e22] text-[#7ee0a1]",
+	Email: PILL.teal,
 };
 
 /** The source filter, in the order the tab strip lists them. ponytail: a
@@ -451,7 +452,12 @@ function AllFeedPage() {
 											<div className="flex shrink-0 items-center gap-2 text-[11px]">
 												<span className={META_TAG}>
 													{session.tags[0] && (
-														<span className="truncate rounded-[5px] bg-[#211d3a] px-[7px] font-medium text-[#a394ff]">
+														<span
+															className={cn(
+																"truncate rounded-[5px] px-[7px] font-medium",
+																PILL.violet,
+															)}
+														>
 															#{session.tags[0]}
 														</span>
 													)}
