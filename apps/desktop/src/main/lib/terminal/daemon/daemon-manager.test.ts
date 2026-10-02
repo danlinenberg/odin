@@ -190,6 +190,15 @@ mock.module("../env", () => ({
 	getDefaultShell: () => "/bin/zsh",
 }));
 
+// The real one shells out to `gh auth token`, which delays the daemon dispatch
+// past the tick these tests wait for, and hands a test the machine's token.
+// Spread the rest so github-token.test.ts keeps the real module.
+const realGithubToken = await import("../../github-token");
+mock.module("../../github-token", () => ({
+	...realGithubToken,
+	githubCliToken: async () => null,
+}));
+
 mock.module("main/lib/app-state", () => ({
 	appState: { data: null },
 }));
