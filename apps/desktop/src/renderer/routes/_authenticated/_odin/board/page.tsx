@@ -341,12 +341,15 @@ function useCardTranscript(card: BoardCard, live: boolean) {
  * Review uses to name the session, read the other way round. A suggestion:
  * the card is still yours to close.
  *
+ * Never on an auto-started card: your launch reaction is the ask, so "nobody
+ * asked" is wrong by construction.
+ *
  * ponytail: tasks match by title here, not by the task's pane id; pass the
  * task map if a renamed task card ever misses its verdict.
  */
 function useDropFor(pane: Pane | undefined) {
 	return useBacklogReview((state) =>
-		pane
+		pane && !pane.odinTags?.includes("auto-started")
 			? state.swept.find(
 					(r) =>
 						r.verdict === "DROP" &&
