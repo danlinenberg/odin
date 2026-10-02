@@ -27,40 +27,25 @@ import {
  * supposed to be doing for you.
  */
 
-/** Each link type's own colour, so Jira, Slack, GitHub and Notion read apart. */
-const LINK_ACCENT = {
-	jira: "#4c9aff",
-	slack: "#e01e5a",
-	pr: "#3ecf8e",
-	notion: "#d6d6dc",
-	artifact: "#d97757",
-	other: "#8a8a97",
-} as const;
-
 function Section({
 	label,
-	accent,
+	divided,
 	children,
 }: {
 	label: string;
-	/** Link sections get a rule above and a coloured dot, so types don't run together. */
-	accent?: string;
+	/** Link sections get a rule above, so types don't run together. The label
+	 *  names the source — a brand-coloured dot beside it only added noise. */
+	divided?: boolean;
 	children: React.ReactNode;
 }) {
 	return (
 		<div
-			className={`flex flex-col gap-1 ${accent ? "border-t border-[#25252e] pt-3" : ""}`}
+			className={`flex flex-col gap-1 ${divided ? "border-t border-border pt-3" : ""}`}
 		>
-			<div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[.4px] text-[#8a8a97]">
-				{accent && (
-					<span
-						className="size-1.5 shrink-0 rounded-full"
-						style={{ background: accent }}
-					/>
-				)}
+			<div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[.4px] text-muted-foreground">
 				{label}
 			</div>
-			<div className="whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-[#d6d6dc]">
+			<div className="whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-soft-foreground">
 				{children}
 			</div>
 		</div>
@@ -69,10 +54,10 @@ function Section({
 
 /** GitHub's own colours, so merged/open/closed read without a legend. */
 const STATE_CHIP: Record<string, { label: string; className: string }> = {
-	MERGED: { label: "merged", className: PILL.violet },
-	OPEN: { label: "open", className: PILL.green },
-	DRAFT: { label: "draft", className: "bg-[#262a30] text-[#9198a1]" },
-	CLOSED: { label: "closed", className: PILL.red },
+	MERGED: { label: "merged", className: PILL.brand },
+	OPEN: { label: "open", className: PILL.success },
+	DRAFT: { label: "draft", className: "bg-secondary text-muted-foreground" },
+	CLOSED: { label: "closed", className: PILL.danger },
 };
 
 function Chip({ label, className }: { label: string; className: string }) {
@@ -125,7 +110,7 @@ function ChecksChip({
 							? `${pending[0]}…`
 							: `${pending.length} running…`
 					}
-					className={PILL.amber}
+					className={PILL.attention}
 				/>
 			</span>
 		);
@@ -135,14 +120,14 @@ function ChecksChip({
 			<span title={failed.join("\n")}>
 				<Chip
 					label={failed.length === 1 ? `✗ ${failed[0]}` : `✗ ${failed.length}`}
-					className={PILL.red}
+					className={PILL.danger}
 				/>
 			</span>
 		);
 	}
 	// Nothing ran (no CI on this repo) is not the same as everything passed.
 	if (passed === 0) return null;
-	return <Chip label={`✓ ${passed}`} className={PILL.green} />;
+	return <Chip label={`✓ ${passed}`} className={PILL.success} />;
 }
 
 /**
@@ -190,7 +175,7 @@ function HideButton({ onClick }: { onClick: () => void }) {
 			type="button"
 			title="Hide from the brief"
 			onClick={onClick}
-			className="ml-auto shrink-0 text-[11px] text-[#7c7c88] opacity-0 hover:text-[#d6d6dc] group-hover:opacity-100"
+			className="ml-auto shrink-0 text-[11px] text-faint-foreground opacity-0 hover:text-soft-foreground group-hover:opacity-100"
 		>
 			hide
 		</button>
@@ -417,12 +402,14 @@ export function SessionBrief({
 						    panel keeps one edge. */}
 						<div
 							dir="auto"
-							className="line-clamp-2 text-left text-[12px] text-[#a394ff]"
+							className="line-clamp-2 text-left text-[12px] text-primary"
 						>
 							{title} ↗
 						</div>
 						{where && (
-							<div className="truncate text-[11px] text-[#8a8a97]">{where}</div>
+							<div className="truncate text-[11px] text-muted-foreground">
+								{where}
+							</div>
 						)}
 					</button>
 				</Hover>
@@ -437,7 +424,7 @@ export function SessionBrief({
 					type="button"
 					title="Remove link"
 					onClick={() => removeLink(paneId, url)}
-					className="text-[12px] text-[#7c7c88] opacity-0 hover:text-[#f0647a] group-hover:opacity-100"
+					className="text-[12px] text-faint-foreground opacity-0 hover:text-danger group-hover:opacity-100"
 				>
 					×
 				</button>
@@ -452,10 +439,7 @@ export function SessionBrief({
 	const resources = (
 		<>
 			{(issue || mine("jira").length > 0) && (
-				<Section
-					label={plural("Jira ticket", issue, mine("jira"))}
-					accent={LINK_ACCENT.jira}
-				>
+				<Section label={plural("Jira ticket", issue, mine("jira"))} divided>
 					<div className="flex flex-col gap-1">
 						{issue && (
 							<div className="group flex items-center gap-1.5">
@@ -463,7 +447,7 @@ export function SessionBrief({
 									<button
 										type="button"
 										onClick={() => openUrl.mutate(issue.url)}
-										className="truncate text-left text-[12px] text-[#a394ff] hover:underline"
+										className="truncate text-left text-[12px] text-primary hover:underline"
 									>
 										{issue.key} ↗
 									</button>
@@ -476,10 +460,7 @@ export function SessionBrief({
 				</Section>
 			)}
 			{(thread || mine("slack").length > 0) && (
-				<Section
-					label={plural("Slack thread", thread, mine("slack"))}
-					accent={LINK_ACCENT.slack}
-				>
+				<Section label={plural("Slack thread", thread, mine("slack"))} divided>
 					<div className="flex flex-col gap-1.5">
 						{thread && (
 							<div className="group flex items-start gap-1.5">
@@ -489,13 +470,13 @@ export function SessionBrief({
 											type="button"
 											onClick={() => openUrl.mutate(thread)}
 											dir="auto"
-											className="line-clamp-2 w-full text-left text-[12px] text-[#a394ff] hover:underline"
+											className="line-clamp-2 w-full text-left text-[12px] text-primary hover:underline"
 										>
 											{threadPreview?.text ?? "Open thread"} ↗
 										</button>
 									</Hover>
 									{threadPreview && (
-										<div className="truncate text-[11px] text-[#8a8a97]">
+										<div className="truncate text-[11px] text-muted-foreground">
 											{[threadPreview.channel, threadPreview.author]
 												.filter(Boolean)
 												.join(" · ")}
@@ -511,7 +492,7 @@ export function SessionBrief({
 			)}
 			{(prs.length > 0 || mine("pr").length > 0) && (
 				<Section
-					accent={LINK_ACCENT.pr}
+					divided
 					label={
 						prs.length + mine("pr").length === 1
 							? "Pull request"
@@ -525,7 +506,7 @@ export function SessionBrief({
 									<button
 										type="button"
 										onClick={() => openUrl.mutate(pr.url)}
-										className="flex min-w-0 items-center gap-1.5 text-left text-[12px] text-[#a394ff] hover:underline"
+										className="flex min-w-0 items-center gap-1.5 text-left text-[12px] text-primary hover:underline"
 									>
 										<span className="truncate">
 											{pr.repo.split("/").pop()} #{pr.number}
@@ -542,10 +523,7 @@ export function SessionBrief({
 				</Section>
 			)}
 			{(page || mine("notion").length > 0) && (
-				<Section
-					label={plural("Notion page", page, mine("notion"))}
-					accent={LINK_ACCENT.notion}
-				>
+				<Section label={plural("Notion page", page, mine("notion"))} divided>
 					<div className="flex flex-col gap-1">
 						{page && (
 							<div className="group flex items-center gap-1.5">
@@ -553,7 +531,7 @@ export function SessionBrief({
 									<button
 										type="button"
 										onClick={() => openUrl.mutate(page.url)}
-										className="block min-w-0 flex-1 truncate text-left text-[12px] text-[#a394ff] hover:underline"
+										className="block min-w-0 flex-1 truncate text-left text-[12px] text-primary hover:underline"
 									>
 										{page.title ?? "Notion page"} ↗
 									</button>
@@ -566,10 +544,7 @@ export function SessionBrief({
 				</Section>
 			)}
 			{(artifact || mine("artifact").length > 0) && (
-				<Section
-					label={plural("Artifact", artifact, mine("artifact"))}
-					accent={LINK_ACCENT.artifact}
-				>
+				<Section label={plural("Artifact", artifact, mine("artifact"))} divided>
 					<div className="flex flex-col gap-1">
 						{artifact && (
 							<div className="group flex items-center gap-1.5">
@@ -577,7 +552,7 @@ export function SessionBrief({
 									<button
 										type="button"
 										onClick={() => openUrl.mutate(artifact)}
-										className="block min-w-0 flex-1 truncate text-left text-[12px] text-[#a394ff] hover:underline"
+										className="block min-w-0 flex-1 truncate text-left text-[12px] text-primary hover:underline"
 									>
 										Open artifact ↗
 									</button>
@@ -590,7 +565,7 @@ export function SessionBrief({
 				</Section>
 			)}
 			{mine("other").length > 0 && (
-				<Section label="Links" accent={LINK_ACCENT.other}>
+				<Section label="Links" divided>
 					<div className="flex flex-col gap-1">{mine("other").map(myLink)}</div>
 				</Section>
 			)}
@@ -601,18 +576,18 @@ export function SessionBrief({
 		return <div className="flex flex-col gap-3.5">{resources}</div>;
 
 	return (
-		<div className="flex w-[340px] shrink-0 flex-col border-l border-[#25252e] bg-[#111114]">
-			<div className="flex items-center gap-2 border-b border-[#25252e] px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[.4px] text-[#8a8a97]">
+		<div className="flex w-[340px] shrink-0 flex-col border-l border-border bg-tertiary">
+			<div className="flex items-center gap-2 border-b border-border px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[.4px] text-muted-foreground">
 				What's going on
 				{isWriting && !written && (
-					<span className="ml-auto normal-case tracking-normal text-[#a394ff]">
+					<span className="ml-auto normal-case tracking-normal text-primary">
 						writing…
 					</span>
 				)}
 			</div>
 			<div className="flex min-h-0 flex-1 select-text cursor-text flex-col gap-3.5 overflow-y-auto px-4 py-3">
 				{!sessionId ? (
-					<div className="text-[12px] text-[#8a8a97]">
+					<div className="text-[12px] text-muted-foreground">
 						{isSearching
 							? "looking for the transcript…"
 							: "This session has no Claude conversation id — nothing to read."}
@@ -620,12 +595,12 @@ export function SessionBrief({
 				) : (
 					<>
 						{transcript?.title && (
-							<div className="text-[13px] font-semibold text-[#f5f5f7]">
+							<div className="text-[13px] font-semibold text-foreground">
 								{transcript.title}
 							</div>
 						)}
 						{error ? (
-							<div className="text-[12px] text-[#f0647a]">{error.message}</div>
+							<div className="text-[12px] text-danger">{error.message}</div>
 						) : written ? (
 							<>
 								{/* Yours to do first, then where it stands — what you open a
@@ -653,7 +628,7 @@ export function SessionBrief({
 								)}
 							</>
 						) : (
-							<div className="text-[12px] text-[#8a8a97]">
+							<div className="text-[12px] text-muted-foreground">
 								reading the conversation…
 							</div>
 						)}
@@ -661,26 +636,26 @@ export function SessionBrief({
 				)}
 				{resources}
 				{rules.length > 0 && (
-					<details className="group/rules flex flex-col gap-1 border-t border-[#25252e] pt-3">
-						<summary className="flex cursor-pointer list-none items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[.4px] text-[#8a8a97] hover:text-[#d6d6dc]">
-							<span className="size-1.5 shrink-0 rounded-full bg-[#a394ff]" />
+					<details className="group/rules flex flex-col gap-1 border-t border-border pt-3">
+						<summary className="flex cursor-pointer list-none items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[.4px] text-muted-foreground hover:text-soft-foreground">
+							<span className="size-1.5 shrink-0 rounded-full bg-primary" />
 							Rules applied ({rules.length})
 							<span className="inline-block transition-transform group-open/rules:rotate-90">
 								›
 							</span>
 						</summary>
-						<div className="mt-1 flex flex-col gap-1.5 text-[12px] leading-relaxed text-[#d6d6dc]">
+						<div className="mt-1 flex flex-col gap-1.5 text-[12px] leading-relaxed text-soft-foreground">
 							{rules.map(({ rule, on }) => (
 								<div key={rule}>
 									<div>{rule}</div>
-									<div className="flex flex-wrap gap-x-2 text-[11px] text-[#8a8a97]">
+									<div className="flex flex-wrap gap-x-2 text-[11px] text-muted-foreground">
 										on
 										{on.map((url) => (
 											<button
 												key={url}
 												type="button"
 												onClick={() => openUrl.mutate(url)}
-												className="text-[#a394ff] hover:underline"
+												className="text-primary hover:underline"
 											>
 												{url.split("/").slice(-3, -2)[0]} #
 												{url.split("/").pop()} ↗
@@ -694,7 +669,7 @@ export function SessionBrief({
 				)}
 				{hiddenList.length > 0 && (
 					<details className="group/hidden">
-						<summary className="cursor-pointer list-none text-[10px] font-semibold uppercase tracking-[.4px] text-[#8a8a97] hover:text-[#d6d6dc]">
+						<summary className="cursor-pointer list-none text-[10px] font-semibold uppercase tracking-[.4px] text-muted-foreground hover:text-soft-foreground">
 							<span className="inline-block transition-transform group-open/hidden:rotate-90">
 								›
 							</span>{" "}
@@ -708,7 +683,7 @@ export function SessionBrief({
 											type="button"
 											onClick={() => openUrl.mutate(url)}
 											dir="auto"
-											className="min-w-0 flex-1 truncate text-left text-[12px] text-[#8a8a97] hover:underline"
+											className="min-w-0 flex-1 truncate text-left text-[12px] text-muted-foreground hover:underline"
 										>
 											{label} ↗
 										</button>
@@ -717,7 +692,7 @@ export function SessionBrief({
 										type="button"
 										title="Show on the brief again"
 										onClick={() => setHidden(paneId, url, false)}
-										className="ml-auto shrink-0 text-[11px] text-[#7c7c88] opacity-0 hover:text-[#d6d6dc] group-hover:opacity-100"
+										className="ml-auto shrink-0 text-[11px] text-faint-foreground opacity-0 hover:text-soft-foreground group-hover:opacity-100"
 									>
 										show
 									</button>
@@ -727,7 +702,7 @@ export function SessionBrief({
 					</details>
 				)}
 				{facts && (
-					<div className="pt-2 text-[11px] text-[#8a8a97]">
+					<div className="pt-2 text-[11px] text-muted-foreground">
 						{facts.turns} turns
 						{facts.at &&
 							` · last activity ${new Date(facts.at).toLocaleString()}`}
@@ -748,11 +723,11 @@ export function SessionBrief({
 							if (parsed.length) setDraftLink("");
 						}}
 						placeholder="Add a link (+ a name), Enter"
-						className="rounded-[7px] border border-[#25252e] bg-[#0a0a0c] px-2 py-1 text-[12px] text-[#d6d6dc] placeholder:text-[#7c7c88] focus:border-[#a394ff] focus:outline-none"
+						className="rounded-[7px] border border-border bg-background px-2 py-1 text-[12px] text-soft-foreground placeholder:text-faint-foreground focus:border-primary focus:outline-none"
 					/>
 				</div>
 				<div className="flex flex-col gap-1 pt-2">
-					<div className="text-[10px] font-semibold uppercase tracking-[.4px] text-[#8a8a97]">
+					<div className="text-[10px] font-semibold uppercase tracking-[.4px] text-muted-foreground">
 						My notes
 					</div>
 					<textarea
@@ -760,7 +735,7 @@ export function SessionBrief({
 						onChange={(event) => setNotes(paneId, event.target.value)}
 						placeholder="Notes to yourself — saved as you type."
 						rows={4}
-						className="resize-y rounded-[7px] border border-[#25252e] bg-[#0a0a0c] px-2 py-1.5 text-[12.5px] leading-relaxed text-[#d6d6dc] placeholder:text-[#7c7c88] focus:border-[#a394ff] focus:outline-none"
+						className="resize-y rounded-[7px] border border-border bg-background px-2 py-1.5 text-[12.5px] leading-relaxed text-soft-foreground placeholder:text-faint-foreground focus:border-primary focus:outline-none"
 					/>
 				</div>
 			</div>

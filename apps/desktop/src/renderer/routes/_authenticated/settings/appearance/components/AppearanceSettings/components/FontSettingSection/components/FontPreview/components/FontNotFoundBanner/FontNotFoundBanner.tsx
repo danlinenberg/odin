@@ -67,7 +67,7 @@ export function FontNotFoundBanner({ fontFamily }: { fontFamily: string }) {
 	if (available !== false || !primaryFont) return null;
 
 	return (
-		<div className="flex items-center gap-2 px-3 py-2 text-xs border-t border-red-500/20 bg-red-500/10 text-red-600 dark:text-red-400">
+		<div className="flex items-center gap-2 px-3 py-2 text-xs border-t border-danger/20 bg-danger/10 text-danger dark:text-danger">
 			<AlertCircleIcon className="size-3.5 shrink-0" />
 			<span>
 				<strong>{primaryFont}</strong> is not installed on this system. Falling

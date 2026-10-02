@@ -83,7 +83,7 @@ export function DiffView({
 			cursorStyle: "bar",
 			cursorInactiveStyle: "none",
 			scrollback: 100_000,
-			theme: { background: "#0a0a0c", foreground: "#d6d6dc" },
+			theme: { background: "#0e0e11", foreground: "#c9c9d3" },
 		});
 		const fit = new FitAddon();
 		xterm.loadAddon(fit);
@@ -151,7 +151,7 @@ export function DiffView({
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
-			<div className="flex items-center gap-2 border-b border-[#25252e] px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[.4px] text-[#8a8a97]">
+			<div className="flex items-center gap-2 border-b border-border px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[.4px] text-muted-foreground">
 				{prs.length > 0 && (
 					<select
 						value={pr ?? ""}
@@ -160,7 +160,7 @@ export function DiffView({
 							setSelected(0);
 						}}
 						title="Which diff to show"
-						className="rounded-[5px] border border-[#25252e] bg-[#17171d] px-1.5 py-0.5 text-[11px] normal-case tracking-normal text-[#e6e6ee] outline-none hover:border-[#3a3a48]"
+						className="rounded-[5px] border border-border bg-card px-1.5 py-0.5 text-[11px] normal-case tracking-normal text-soft-foreground outline-none hover:border-input"
 					>
 						<option value="">Working tree</option>
 						{[...byRepo].map(([repo, links]) => (
@@ -189,7 +189,7 @@ export function DiffView({
 				{data?.ansi.trim() && !data.delta && (
 					<span
 						title="brew install git-delta"
-						className="normal-case tracking-normal text-[#f5b83d]"
+						className="normal-case tracking-normal text-attention"
 					>
 						delta not installed — plain git colours
 					</span>
@@ -197,24 +197,24 @@ export function DiffView({
 				<button
 					type="button"
 					onClick={() => void refetch()}
-					className="ml-auto normal-case tracking-normal text-[#a394ff] hover:underline"
+					className="ml-auto normal-case tracking-normal text-primary hover:underline"
 				>
 					{isFetching ? "reading…" : "↻ refresh"}
 				</button>
 			</div>
 			{error && (
-				<div className="select-text cursor-text border-b border-[#25252e] px-4 py-2 text-[12px] text-[#f0647a]">
+				<div className="select-text cursor-text border-b border-border px-4 py-2 text-[12px] text-danger">
 					{error.message}
 				</div>
 			)}
 			<div className="flex min-h-0 flex-1">
 				{files.length > 0 && (
 					// GitHub's "Files changed" rail: what's in the diff, and a jump to it.
-					<div className="flex w-[240px] shrink-0 flex-col border-r border-[#25252e] bg-[#0d0d10]">
-						<div className="border-b border-[#25252e] px-3 py-1.5 text-[11px] text-[#8a8a97]">
+					<div className="flex w-[240px] shrink-0 flex-col border-r border-border bg-background">
+						<div className="border-b border-border px-3 py-1.5 text-[11px] text-muted-foreground">
 							{files.length} {files.length === 1 ? "file" : "files"}{" "}
-							<span className="text-[#4ade80]">+{total.added}</span>{" "}
-							<span className="text-[#f0647a]">−{total.removed}</span>
+							<span className="text-success">+{total.added}</span>{" "}
+							<span className="text-danger">−{total.removed}</span>
 						</div>
 						<div className="min-h-0 flex-1 overflow-y-auto py-1">
 							{files.map((file, index) => {
@@ -234,33 +234,33 @@ export function DiffView({
 										onClick={() => setSelected(index)}
 										className={`flex w-full items-baseline gap-2 px-3 py-[3px] text-left text-[12px] ${
 											file === current
-												? "bg-[#1f1f27] text-[#e6e6ee]"
-												: "text-[#b5b5c0] hover:bg-[#17171d]"
+												? "bg-secondary text-soft-foreground"
+												: "text-soft-foreground hover:bg-card"
 										}`}
 									>
 										<span className="min-w-0 flex-1">
 											<span
-												className={`block truncate ${binary ? "text-[#6a6a77]" : ""}`}
+												className={`block truncate ${binary ? "text-faint-foreground" : ""}`}
 											>
 												{file.path.slice(slash + 1)}
 											</span>
 											{slash > 0 && (
-												<span className="block truncate text-[10.5px] text-[#6a6a77]">
+												<span className="block truncate text-[10.5px] text-faint-foreground">
 													{file.path.slice(0, slash)}
 												</span>
 											)}
 										</span>
 										<span className="shrink-0 text-[10.5px] tabular-nums">
 											{binary && (
-												<span className="rounded-[4px] border border-[#2e2e38] px-1 text-[#8a8a97]">
+												<span className="rounded-[4px] border border-border px-1 text-muted-foreground">
 													binary
 												</span>
 											)}
 											{file.added > 0 && (
-												<span className="text-[#4ade80]">+{file.added}</span>
+												<span className="text-success">+{file.added}</span>
 											)}{" "}
 											{file.removed > 0 && (
-												<span className="text-[#f0647a]">−{file.removed}</span>
+												<span className="text-danger">−{file.removed}</span>
 											)}
 										</span>
 									</button>
@@ -269,7 +269,7 @@ export function DiffView({
 						</div>
 					</div>
 				)}
-				<div ref={host} className="min-h-0 min-w-0 flex-1 bg-[#0a0a0c] p-2" />
+				<div ref={host} className="min-h-0 min-w-0 flex-1 bg-background p-2" />
 			</div>
 		</div>
 	);

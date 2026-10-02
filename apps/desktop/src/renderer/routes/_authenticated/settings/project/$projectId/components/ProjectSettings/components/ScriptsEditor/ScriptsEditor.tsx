@@ -350,12 +350,12 @@ export function ScriptsEditor({ projectId, className }: ScriptsEditorProps) {
 					<h3 className="text-base font-semibold text-foreground">Scripts</h3>
 					{saveStatus === "saving" && (
 						<span className="text-xs text-muted-foreground flex items-center gap-1">
-							<span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+							<span className="inline-block h-1.5 w-1.5 rounded-full bg-attention animate-pulse" />
 							Saving…
 						</span>
 					)}
 					{saveStatus === "saved" && (
-						<span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+						<span className="text-xs text-success dark:text-success flex items-center gap-1">
 							<HiCheckCircle className="h-3.5 w-3.5" />
 							Saved
 						</span>

@@ -102,7 +102,7 @@ export async function MainWindow() {
 		minWidth: 400,
 		minHeight: 400,
 		show: false,
-		backgroundColor: nativeTheme.shouldUseDarkColors ? "#252525" : "#ffffff",
+		backgroundColor: nativeTheme.shouldUseDarkColors ? "#0e0e11" : "#ffffff",
 		center: initialBounds.center,
 		movable: true,
 		resizable: true,

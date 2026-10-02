@@ -182,9 +182,9 @@ export function mergeUpstream(
 
 const TONE_CLASS: Record<DueTone, string> = {
 	overdue: PILL.alarm,
-	today: PILL.amber,
-	soon: "bg-[#1f1f27] text-[#a5a5b3]",
-	later: "bg-[#1f1f27] text-[#8a8a97]",
+	today: PILL.attention,
+	soon: "bg-secondary text-muted-foreground",
+	later: "bg-secondary text-muted-foreground",
 };
 
 /**
@@ -203,7 +203,7 @@ export function OverdueMark({
 	return (
 		<LuCalendarX
 			title={`Overdue — was due ${due}`}
-			className="mr-1 inline size-3.5 align-[-2px] text-[#ff4d5e]"
+			className="mr-1 inline size-3.5 align-[-2px] text-danger"
 		/>
 	);
 }
@@ -273,7 +273,7 @@ export function DueChip({
 					"truncate rounded-[5px] px-[7px] py-[1px] text-[11px] transition-colors",
 					due
 						? TONE_CLASS[dueTone(due, now)]
-						: "text-[#8a8a97] opacity-0 hover:text-[#f5f5f7] group-hover:opacity-100",
+						: "text-muted-foreground opacity-0 hover:text-foreground group-hover:opacity-100",
 					// An inherited date is lighter than one you chose: the ticket
 					// says so, you didn't.
 					reminder ? "font-semibold" : "font-medium",
@@ -295,7 +295,7 @@ export function DueChip({
 						e.stopPropagation();
 						clear(itemKey);
 					}}
-					className="text-[11px] text-[#8a8a97] opacity-0 transition-opacity hover:text-[#f5f5f7] group-hover:opacity-100"
+					className="text-[11px] text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
 				>
 					✕
 				</button>

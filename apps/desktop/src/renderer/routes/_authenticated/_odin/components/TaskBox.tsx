@@ -92,7 +92,7 @@ export function TaskBox({
 		<div className="flex h-full min-h-0 flex-col gap-1.5">
 			{/* grow, not flex-1: the basis stays the rows=2 height, so inline use is
 			    unchanged and only a resized dialog hands it extra room. */}
-			<div className="flex min-h-0 grow flex-col overflow-hidden rounded-[10px] border border-[#25252e] bg-[#111114] focus-within:border-[#a394ff]">
+			<div className="flex min-h-0 grow flex-col overflow-hidden rounded-[10px] border border-border bg-card focus-within:border-primary">
 				<input
 					value={title}
 					placeholder={placeholder ?? "Name it"}
@@ -101,9 +101,9 @@ export function TaskBox({
 					aria-label="Title"
 					onChange={(event) => onChange(joinTask(event.target.value, notes))}
 					onKeyDown={keys}
-					className="w-full bg-transparent px-3 pt-2 pb-1.5 text-[13px] font-semibold text-[#f5f5f7] outline-none placeholder:font-normal placeholder:text-[#8a8a97]"
+					className="w-full bg-transparent px-3 pt-2 pb-1.5 text-[13px] font-semibold text-foreground outline-none placeholder:font-normal placeholder:text-muted-foreground"
 				/>
-				<div className="mx-3 border-t border-[#25252e]" />
+				<div className="mx-3 border-t border-border" />
 				<textarea
 					value={notes}
 					placeholder="The brief — what it needs, links, anything the session should know (optional)"
@@ -111,7 +111,7 @@ export function TaskBox({
 					aria-label="Brief"
 					onChange={(event) => onChange(joinTask(title, event.target.value))}
 					onKeyDown={keys}
-					className="w-full min-h-0 grow resize-none bg-transparent px-3 pt-1.5 pb-2 text-[13px] text-[#a5a5b3] outline-none placeholder:text-[#8a8a97]"
+					className="w-full min-h-0 grow resize-none bg-transparent px-3 pt-1.5 pb-2 text-[13px] text-muted-foreground outline-none placeholder:text-muted-foreground"
 				/>
 			</div>
 			{/* The picker doesn't hold a value of its own: it rewrites the "!"s in
@@ -136,7 +136,7 @@ export function TaskBox({
 				)}
 				{!hidePriority && (
 					<div className="ml-auto flex items-center gap-1.5">
-						<span className="text-[11px] text-[#8a8a97]">Priority</span>
+						<span className="text-[11px] text-muted-foreground">Priority</span>
 						<select
 							aria-label="Priority"
 							title="Or lead the title with ! (Low) or !!! (High) — no ! is Medium"
@@ -144,7 +144,7 @@ export function TaskBox({
 							onChange={(event) =>
 								onChange(withPriority(value, Number(event.target.value)))
 							}
-							className="cursor-pointer rounded-[6px] bg-[#1f1f27] px-1.5 py-[3px] text-[11px] font-semibold text-[#a5a5b3] outline-none transition-colors hover:text-[#f5f5f7]"
+							className="cursor-pointer rounded-[6px] bg-secondary px-1.5 py-[3px] text-[11px] font-semibold text-muted-foreground outline-none transition-colors hover:text-foreground"
 						>
 							{/* Levels only — slot 0 ("None") is legacy storage, not a choice. */}
 							{PRIORITY_LABELS.slice(1).map((label, index) => (
@@ -237,7 +237,7 @@ function SkillSelect({
 
 	return (
 		<div className="flex items-center gap-1.5">
-			<span className="text-[11px] text-[#8a8a97]">Skill</span>
+			<span className="text-[11px] text-muted-foreground">Skill</span>
 			<input
 				ref={box}
 				aria-label="Skill"
@@ -284,19 +284,19 @@ function SkillSelect({
 					}
 				}}
 				className={cn(
-					"w-[130px] rounded-[6px] bg-[#1f1f27] px-1.5 py-[3px] text-[11px] font-semibold outline-none transition-colors placeholder:font-normal placeholder:text-[#8a8a97]",
+					"w-[130px] rounded-[6px] bg-secondary px-1.5 py-[3px] text-[11px] font-semibold outline-none transition-colors placeholder:font-normal placeholder:text-muted-foreground",
 					// Amber, not red: a name the list doesn't know is usually a skill
 					// installed on another machine, not a typo.
-					current && !known ? "text-[#f5b83d]" : "text-[#3ecf8e]",
+					current && !known ? "text-attention" : "text-foreground",
 				)}
 			/>
 			{current && !known && query === null && (
-				<span className="text-[11px] text-[#8a8a97]">not installed</span>
+				<span className="text-[11px] text-muted-foreground">not installed</span>
 			)}
 			{at && matches.length > 0 && (
 				<div
 					style={{ left: at.left, top: at.top }}
-					className="fixed z-50 w-[340px] overflow-hidden rounded-[7px] border border-[#2e2e38] bg-[#16161b] shadow-[0_12px_40px_rgba(0,0,0,0.6)]"
+					className="fixed z-50 w-[340px] overflow-hidden rounded-[7px] border border-border bg-card shadow-[0_12px_40px_rgba(0,0,0,0.6)]"
 				>
 					{matches.map((skill, index) => (
 						<button
@@ -311,13 +311,13 @@ function SkillSelect({
 							}}
 							className={cn(
 								"flex w-full items-baseline gap-2 px-2.5 py-1 text-left",
-								index === active && "bg-[#1f1f27]",
+								index === active && "bg-secondary",
 							)}
 						>
-							<span className="shrink-0 text-[11px] font-semibold text-[#3ecf8e]">
+							<span className="shrink-0 font-mono text-[11px] font-semibold text-foreground">
 								/{skill.name}
 							</span>
-							<span className="min-w-0 flex-1 truncate text-[10.5px] text-[#a5a5b3]">
+							<span className="min-w-0 flex-1 truncate text-[10.5px] text-muted-foreground">
 								{skill.description}
 							</span>
 						</button>
@@ -368,7 +368,7 @@ function RepoSelect({
 	const unresolved = query.trim() !== "" && !value;
 	return (
 		<div className="flex items-center gap-1.5">
-			<span className="text-[11px] text-[#8a8a97]">Repo</span>
+			<span className="text-[11px] text-muted-foreground">Repo</span>
 			<input
 				list="odin-task-repos"
 				aria-label="Repo"
@@ -393,12 +393,12 @@ function RepoSelect({
 				// Same :autofill override as the New Session dialog — a picked option
 				// otherwise paints white-on-black over any bg-*.
 				className={cn(
-					"w-[140px] rounded-[6px] bg-[#1f1f27] px-1.5 py-[3px] text-[11px] font-semibold outline-none [color-scheme:dark] placeholder:font-normal placeholder:text-[#8a8a97] autofill:shadow-[inset_0_0_0_1000px_#1f1f27] autofill:[-webkit-text-fill-color:#3ecf8e]",
+					"w-[140px] rounded-[6px] bg-secondary px-1.5 py-[3px] text-[11px] font-semibold outline-none [color-scheme:inherit] placeholder:font-normal placeholder:text-muted-foreground autofill:shadow-[inset_0_0_0_1000px_var(--secondary)] autofill:[-webkit-text-fill-color:var(--foreground)]",
 					value
-						? "text-[#3ecf8e]"
+						? "text-foreground"
 						: unresolved
-							? "text-[#f0647a]"
-							: "text-[#a5a5b3]",
+							? "text-danger"
+							: "text-muted-foreground",
 				)}
 			/>
 			<datalist id="odin-task-repos">
@@ -417,7 +417,7 @@ export function RepoChip({ repo }: { repo: string }) {
 	return (
 		<span
 			title={`Runs in ${repo}`}
-			className="rounded-[5px] bg-[#1f1f27] px-[7px] py-[1px] font-semibold text-[#a5a5b3]"
+			className="rounded-[5px] bg-secondary px-[7px] py-[1px] font-semibold text-muted-foreground"
 		>
 			{repoLabel(repo)}
 		</span>
@@ -430,8 +430,8 @@ export function SkillChip({ skill }: { skill: string }) {
 		<span
 			title={`Runs /${skill}`}
 			className={cn(
-				"rounded-[5px] px-[7px] py-[1px] font-semibold",
-				PILL.green,
+				"rounded-[5px] px-[7px] py-[1px] font-mono font-medium",
+				PILL.neutral,
 			)}
 		>
 			/{skill}
@@ -454,7 +454,7 @@ export function BuiltinChip() {
 			title="Odin ships with this one. Edit it, retime it, pause it or delete it like any other — deleting is final, it won't come back."
 			className={cn(
 				"inline-flex items-center gap-1 rounded-[5px] px-[7px] py-[1px] font-semibold",
-				PILL.violet,
+				PILL.brand,
 			)}
 		>
 			<HiOutlineSparkles className="size-3" />
@@ -469,9 +469,9 @@ export function BuiltinChip() {
  */
 const PRIORITY_CHIP = [
 	"",
-	"bg-[#17171c] text-[#6f6f7d]",
-	"bg-[#1f1f27] text-[#a5a5b3]",
-	PILL.red,
+	"bg-card text-faint-foreground",
+	"bg-secondary text-muted-foreground",
+	PILL.danger,
 ];
 
 /** A task's priority on its row. Every task has one — no "!"s means Medium. */
@@ -503,7 +503,8 @@ export const NEXT_RUN_FORMAT: Intl.DateTimeFormatOptions = {
 };
 
 /**
- * What marks an automation out from the tasks around it: amber, a clock, and
+ * What marks an automation out from the tasks around it: violet (Odin runs
+ * it, like Night Agent and auto-started sessions), a clock, and
  * the schedule itself rather than a priority — an automation isn't urgent or
  * not, it's due or it isn't. Paused says so in place of the next run, because
  * "every day at 9" on a row that will never fire is a lie.
@@ -525,7 +526,7 @@ export function AutomationChip({
 			}
 			className={cn(
 				"inline-flex items-center gap-1 rounded-[5px] px-[7px] py-[1px] font-semibold",
-				paused ? "bg-[#17171c] text-[#6f6f7d]" : PILL.amber,
+				paused ? "bg-card text-faint-foreground" : PILL.brand,
 			)}
 		>
 			<HiOutlineClock className="size-3" />
@@ -557,7 +558,7 @@ export function PriorityLabelChip({ label }: { label: string }) {
 		<span
 			className={cn(
 				"truncate rounded-[5px] px-[7px] py-[1px] font-semibold",
-				level > 0 ? PRIORITY_CHIP[level] : "bg-[#1f1f27] text-[#a5a5b3]",
+				level > 0 ? PRIORITY_CHIP[level] : "bg-secondary text-muted-foreground",
 			)}
 		>
 			{label}
@@ -623,20 +624,20 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 				aria-modal="true"
 				aria-label="New task"
 				// ponytail: CSS `resize` — Chromium draws the corner grip for free.
-				className="fixed left-1/2 top-[12vh] z-50 flex h-[190px] max-h-[80vh] w-[520px] min-w-[320px] max-w-[92vw] -translate-x-1/2 resize flex-col overflow-hidden rounded-[10px] border border-[#2e2e38] bg-[#111114] p-3.5 shadow-[0_18px_60px_rgba(0,0,0,0.6)]"
+				className="fixed left-1/2 top-[12vh] z-50 flex h-[190px] max-h-[80vh] w-[520px] min-w-[320px] max-w-[92vw] -translate-x-1/2 resize flex-col overflow-hidden rounded-[10px] border border-border bg-popover p-3.5 shadow-[0_18px_60px_rgba(0,0,0,0.6)]"
 			>
 				{/* The button sits in the header, not under the fields: the dialog's
 				    height is fixed and the fields row is already full at 520px. */}
-				<div className="mb-2 flex shrink-0 items-center text-xs font-semibold text-[#f5f5f7]">
+				<div className="mb-2 flex shrink-0 items-center text-xs font-semibold text-foreground">
 					New task
-					<span className="ml-1.5 font-normal text-[#8a8a97]">
+					<span className="ml-1.5 font-normal text-muted-foreground">
 						⌘⏎ add · esc cancel
 					</span>
 					<button
 						type="button"
 						onClick={save}
 						disabled={!parseTask(draft).title}
-						className="ml-auto rounded-[6px] bg-[#a394ff] px-2.5 py-[3px] text-[11px] font-semibold text-[#111114] transition-opacity hover:opacity-90 disabled:cursor-default disabled:opacity-40"
+						className="ml-auto rounded-[6px] bg-primary px-2.5 py-[3px] text-[11px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-default disabled:opacity-40"
 					>
 						Add task
 					</button>

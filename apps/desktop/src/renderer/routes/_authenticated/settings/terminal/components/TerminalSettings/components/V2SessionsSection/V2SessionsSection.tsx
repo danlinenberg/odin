@@ -221,10 +221,7 @@ function V2SessionsSectionInner() {
 									showSessionList && "rotate-90",
 								)}
 							/>
-							<span
-								aria-hidden
-								className="size-1.5 rounded-full bg-emerald-500"
-							/>
+							<span aria-hidden className="size-1.5 rounded-full bg-success" />
 							{sessionCountLabel}
 						</button>
 					) : (

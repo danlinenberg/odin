@@ -46,7 +46,7 @@ import { useSlackAutoLaunch } from "./hooks/useStartReaction";
 /**
  * Odin's shell — minimal chrome for the Dev Board, My Tasks, Slack, Session
  * History, My Jira and My PRs views:
- * slim icon rail + top bar, fixed dark palette (independent of app theme),
+ * slim icon rail + top bar, drawn from the theme tokens like every other page,
  * matching the agreed mock rather than the stock dashboard.
  */
 
@@ -141,21 +141,21 @@ const NAV_HOTKEY_OPTIONS = {
  */
 function badgeTone(load: MachineLoad, limits: LaunchLimits): string {
 	if (load.busy) {
-		return PILL.red;
+		return PILL.danger;
 	}
 	if (
 		load.cpuPercent >= limits.hostCpuPercent - 15 ||
 		load.availableMemoryGb < limits.minFreeMemoryGb + 1
 	) {
-		return PILL.amber;
+		return PILL.attention;
 	}
-	return "bg-[#1f1f27] text-[#8a8a97]";
+	return "bg-secondary text-muted-foreground";
 }
 
 function usageTone(percent: number): string {
-	if (percent >= 90) return PILL.red;
-	if (percent >= 75) return PILL.amber;
-	return "bg-[#1f1f27] text-[#8a8a97]";
+	if (percent >= 90) return PILL.danger;
+	if (percent >= 75) return PILL.attention;
+	return "bg-secondary text-muted-foreground";
 }
 
 function resetsIn(resetsAt: string | null): string {
@@ -394,8 +394,8 @@ function OdinShell() {
 						className={cn(
 							"flex size-9 items-center justify-center rounded-[9px] transition-colors",
 							isActive
-								? "bg-[#1f1f27] text-[#f5f5f7] shadow-[inset_0_0_0_1px_#25252e]"
-								: "text-[#a5a5b3] hover:text-[#f5f5f7]",
+								? "bg-secondary text-foreground ring-1 ring-inset ring-border"
+								: "text-muted-foreground hover:text-foreground",
 						)}
 					>
 						<Icon className="size-[17px]" />
@@ -407,14 +407,14 @@ function OdinShell() {
 	};
 
 	return (
-		<div className="flex h-full w-full flex-col bg-[#0a0a0c] text-[#f5f5f7]">
+		<div className="flex h-full w-full flex-col bg-background text-foreground">
 			{/* top bar — left pad clears macOS traffic lights; empty areas drag.
 			    The traffic lights are native and DON'T scale with page zoom, so the
 			    bar height and their inset are counter-scaled by 1/zoomFactor to stay
 			    a constant physical size (otherwise zooming out slides the bar under
 			    the lights). Same trick the stock TopBar uses. */}
 			<div
-				className="flex shrink-0 items-center gap-3 border-b border-[#25252e] bg-[#111114] pr-3"
+				className="flex shrink-0 items-center gap-3 border-b border-border bg-tertiary pr-3"
 				style={isMac ? { height: `${36 / zoomFactor}px` } : undefined}
 			>
 				<div
@@ -422,7 +422,7 @@ function OdinShell() {
 					style={{ width: isMac ? `${84 / zoomFactor}px` : "16px" }}
 				/>
 				<ZoomStable enabled={isMac}>
-					<span className="text-xs font-semibold text-[#f5f5f7]">
+					<span className="text-xs font-semibold text-foreground">
 						{workConfig?.isDev ? "Odin Dev" : "Odin"}
 					</span>
 				</ZoomStable>
@@ -440,7 +440,7 @@ function OdinShell() {
 							value={activeProfileId}
 							disabled={isSwitchingProfile}
 							onChange={(event) => switchProfile(event.target.value)}
-							className="cursor-pointer rounded-[6px] bg-[#1f1f27] px-1.5 py-[3px] text-[11px] font-semibold text-[#a5a5b3] outline-none transition-colors hover:text-[#f5f5f7] disabled:opacity-50"
+							className="cursor-pointer rounded-[6px] bg-secondary px-1.5 py-[3px] text-[11px] font-semibold text-muted-foreground outline-none transition-colors hover:text-foreground disabled:opacity-50"
 						>
 							{profiles.map((profile) => {
 								// A native <option> is text and nothing else — no dot, no
@@ -475,8 +475,8 @@ function OdinShell() {
 							className={cn(
 								"ml-1.5 rounded-full px-2 py-[2px] text-[10px] font-bold tabular-nums disabled:opacity-50",
 								otherProfilesBusy.some((p) => p.needsYou > 0)
-									? "bg-[#f5a623] text-[#1f1f27]"
-									: "bg-[#1f1f27] text-[#a5a5b3]",
+									? PILL.attention
+									: "bg-secondary text-muted-foreground",
 							)}
 						>
 							{otherProfilesBusy.map((p) => profileLabel(p.name, p)).join("  ")}
@@ -551,7 +551,7 @@ function OdinShell() {
 
 			<div className="flex min-h-0 flex-1">
 				{/* icon rail */}
-				<div className="flex w-[52px] shrink-0 flex-col items-center gap-1.5 border-r border-[#25252e] bg-[#111114] py-2.5">
+				<div className="flex w-[52px] shrink-0 flex-col items-center gap-1.5 border-r border-border bg-tertiary py-2.5">
 					{RAIL_ITEMS.map(renderRailItem)}
 					<div className="flex-1" />
 					{renderRailItem(INSIGHTS_ITEM)}

@@ -69,7 +69,7 @@ const REPEATS: [Repeat, string][] = [
 ];
 
 const FIELD =
-	"cursor-pointer rounded-[6px] bg-[#1f1f27] px-1.5 py-[3px] text-[11px] font-semibold text-[#a5a5b3] outline-none transition-colors hover:text-[#f5f5f7] focus:text-[#f5f5f7]";
+	"cursor-pointer rounded-[6px] bg-secondary px-1.5 py-[3px] text-[11px] font-semibold text-muted-foreground outline-none transition-colors hover:text-foreground focus:text-foreground";
 
 const HOURS = Array.from({ length: 24 }, (_, hour) =>
 	String(hour).padStart(2, "0"),
@@ -115,7 +115,7 @@ function TimeFields({
 					</option>
 				))}
 			</select>
-			<span className="text-[11px] text-[#8a8a97]">:</span>
+			<span className="text-[11px] text-muted-foreground">:</span>
 			<select
 				aria-label="Minute"
 				value={mm}
@@ -206,10 +206,10 @@ function ScheduleFields({
 						if (event.key === "Enter") commit();
 					}}
 					className={cn(
-						"w-[124px] rounded-[6px] border bg-[#0a0a0c] px-2 py-[2px] font-mono text-[11px] text-[#f5f5f7] outline-none",
+						"w-[124px] rounded-[6px] border bg-background px-2 py-[2px] font-mono text-[11px] text-foreground outline-none",
 						text.trim() && !isValidCron(text)
-							? "border-[#f0647a]"
-							: "border-[#25252e] focus:border-[#f5b83d]",
+							? "border-danger"
+							: "border-border focus:border-primary",
 					)}
 				/>
 			) : (
@@ -241,10 +241,10 @@ function ScheduleFields({
 										className={cn(
 											"rounded-[5px] px-[5px] py-[3px] text-[11px] font-semibold transition-colors",
 											on
-												? "bg-[#2e2413] text-[#f5b83d]"
-												: // #8a8a97, not the dimmer #6f6f7d: an unpicked day
-													// still has to be readable (odin-palette-contrast).
-													"bg-[#1f1f27] text-[#8a8a97] hover:text-[#f5f5f7]",
+												? "bg-primary/15 text-primary ring-1 ring-inset ring-primary/30"
+												: // muted, not faint: an unpicked day still has to be
+													// readable (odin-palette-contrast).
+													"bg-secondary text-muted-foreground hover:text-foreground",
 										)}
 									>
 										{name}
@@ -273,7 +273,7 @@ function ScheduleFields({
 						schedule.repeat !== "30m" &&
 						schedule.repeat !== "hourly" && (
 							<>
-								<span className="text-[11px] text-[#8a8a97]">at</span>
+								<span className="text-[11px] text-muted-foreground">at</span>
 								<TimeFields
 									time={schedule.time}
 									onChange={(time) => set({ time })}
@@ -290,7 +290,7 @@ function ScheduleFields({
 // paints it pale blue with an !important background — an inset shadow is the
 // only thing that covers it.
 const RULE_INPUT =
-	"min-w-0 flex-1 rounded-[6px] border border-[#25252e] bg-[#0a0a0c] px-2 py-1 text-[12px] text-[#f5f5f7] outline-none placeholder:text-[#6f6f7d] focus:border-[#f5b83d] autofill:shadow-[inset_0_0_0_1000px_#0a0a0c] autofill:[-webkit-text-fill-color:#f5f5f7]";
+	"min-w-0 flex-1 rounded-[6px] border border-border bg-background px-2 py-1 text-[12px] text-foreground outline-none placeholder:text-faint-foreground focus:border-primary autofill:shadow-[inset_0_0_0_1000px_var(--background)] autofill:[-webkit-text-fill-color:#f5f5f7]";
 
 /**
  * Chromium's datalist popup can't be styled: a long label runs under the value
@@ -333,8 +333,8 @@ function RepoModeToggle({
 			}
 			onClick={() => onChange(!exclude)}
 			className={cn(
-				"shrink-0 rounded-[6px] px-1.5 py-[2px] text-[11px] font-semibold hover:bg-[#1f1f27]",
-				exclude ? "text-[#f0647a]" : "text-[#8a8a97]",
+				"shrink-0 rounded-[6px] px-1.5 py-[2px] text-[11px] font-semibold hover:bg-secondary",
+				exclude ? "text-danger" : "text-muted-foreground",
 			)}
 		>
 			{exclude ? "not in" : "in"}
@@ -379,14 +379,14 @@ function RepoPicker({
 				<span
 					key={repo}
 					title={repo}
-					className="flex items-center gap-1 rounded-[6px] bg-[#1f1f27] px-1.5 py-[2px] text-[11px] font-semibold text-[#f5f5f7]"
+					className="flex items-center gap-1 rounded-[6px] bg-secondary px-1.5 py-[2px] text-[11px] font-semibold text-foreground"
 				>
 					{repoLabel(repo)}
 					<button
 						type="button"
 						aria-label={`Remove ${repo}`}
 						onClick={() => onChange(value.filter((r) => r !== repo))}
-						className="text-[#8a8a97] hover:text-[#f5f5f7]"
+						className="text-muted-foreground hover:text-foreground"
 					>
 						✕
 					</button>
@@ -445,11 +445,11 @@ function RuleRow({ rule }: { rule: OdinRule }) {
 		<div
 			className={cn(
 				FEED_ROW,
-				"flex items-center gap-2 border-l-2 border-l-[#f5b83d]",
-				rule.paused && "border-l-[#3a3a46] opacity-60",
+				"flex items-center gap-2 border-l-2 border-l-primary/60",
+				rule.paused && "border-l-input opacity-60",
 			)}
 		>
-			<span className="text-[11px] text-[#8a8a97]">When</span>
+			<span className="text-[11px] text-muted-foreground">When</span>
 			<input
 				aria-label="When"
 				value={when}
@@ -457,7 +457,7 @@ function RuleRow({ rule }: { rule: OdinRule }) {
 				onBlur={commit}
 				className={RULE_INPUT}
 			/>
-			<span className="text-[11px] text-[#8a8a97]">do</span>
+			<span className="text-[11px] text-muted-foreground">do</span>
 			<input
 				aria-label="Do"
 				list="odin-rule-skills"
@@ -486,7 +486,7 @@ function RuleRow({ rule }: { rule: OdinRule }) {
 						: "Pause — keep it, stop handing it out"
 				}
 				onClick={() => update(rule.id, { paused: !rule.paused })}
-				className="shrink-0 rounded-[7px] px-2 py-1 text-xs font-semibold text-[#8a8a97] hover:bg-[#1f1f27] hover:text-[#f5f5f7]"
+				className="shrink-0 rounded-[7px] px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground"
 			>
 				{rule.paused ? "Resume" : "Pause"}
 			</button>
@@ -495,7 +495,7 @@ function RuleRow({ rule }: { rule: OdinRule }) {
 					type="button"
 					title="Delete this rule"
 					onClick={() => remove(rule.id)}
-					className="rounded-[7px] px-2 py-1 text-xs font-semibold text-[#8a8a97] hover:bg-[#1f1f27] hover:text-[#f5f5f7]"
+					className="rounded-[7px] px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground"
 				>
 					✕
 				</button>
@@ -530,8 +530,8 @@ function RulesPanel() {
 	return (
 		<>
 			<SkillOptions id="odin-rule-skills" />
-			<div className="flex shrink-0 items-center gap-2 border-b border-[#25252e] px-[18px] py-3">
-				<span className="text-[11px] text-[#8a8a97]">When</span>
+			<div className="flex shrink-0 items-center gap-2 border-b border-border px-[18px] py-3">
+				<span className="text-[11px] text-muted-foreground">When</span>
 				<input
 					aria-label="When"
 					value={when}
@@ -540,7 +540,7 @@ function RulesPanel() {
 					onKeyDown={onEnter}
 					className={RULE_INPUT}
 				/>
-				<span className="text-[11px] text-[#8a8a97]">do</span>
+				<span className="text-[11px] text-muted-foreground">do</span>
 				<input
 					aria-label="Do"
 					list="odin-rule-skills"
@@ -558,7 +558,7 @@ function RulesPanel() {
 			</div>
 			<div className={FEED_LIST}>
 				{rules.length === 0 && (
-					<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
+					<div className="px-2 py-8 text-center text-xs text-muted-foreground">
 						No rules. Say what should happen when — every session Odin starts
 						gets told.
 					</div>
@@ -588,15 +588,15 @@ function AutomationsPage() {
 	);
 	return (
 		<div className="flex h-full flex-col">
-			<div className="flex items-center gap-2.5 border-b border-[#25252e] px-[18px] py-2.5">
-				<span className="text-[13px] font-semibold text-[#f5f5f7]">
+			<div className="flex items-center gap-2.5 border-b border-border px-[18px] py-2.5">
+				<span className="text-[13px] font-semibold text-foreground">
 					Automations
 				</span>
 				{/* A segmented control, not two bare labels: the unselected one has
 				    to look clickable too, or it reads as a caption. */}
 				<div
 					role="tablist"
-					className="flex items-center gap-[2px] rounded-[8px] border border-[#25252e] bg-[#0a0a0c] p-[2px]"
+					className="flex items-center gap-[2px] rounded-[8px] border border-border bg-background p-[2px]"
 				>
 					{(
 						[
@@ -614,15 +614,15 @@ function AutomationsPage() {
 							className={cn(
 								"cursor-pointer rounded-[6px] px-2.5 py-[3px] text-[12px] font-semibold transition-colors",
 								view === value
-									? "bg-[#2e2413] text-[#f5b83d]"
-									: "bg-[#1f1f27] text-[#a5a5b3] hover:bg-[#2a2a34] hover:text-[#f5f5f7]",
+									? "bg-secondary text-foreground ring-1 ring-inset ring-border"
+									: "text-muted-foreground hover:text-foreground",
 							)}
 						>
 							{label}
 						</button>
 					))}
 				</div>
-				<span className="text-[12px] text-[#8a8a97]">
+				<span className="text-[12px] text-muted-foreground">
 					{view === "schedules"
 						? "tasks that start themselves, on a cron — while Odin is open"
 						: view === "rules"
@@ -659,7 +659,7 @@ function RemindersPanel() {
 	return (
 		<div className={FEED_LIST}>
 			{rows.length === 0 && (
-				<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
+				<div className="px-2 py-8 text-center text-xs text-muted-foreground">
 					No reminders. Click the bell on a board session, or set a due date on
 					a feed row, to get one here.
 				</div>
@@ -670,21 +670,21 @@ function RemindersPanel() {
 					className={cn(
 						FEED_ROW,
 						"border-l-2",
-						isDue(r.due, now) ? "border-l-[#f5b83d]" : "border-l-[#3a3a46]",
+						isDue(r.due, now) ? "border-l-attention" : "border-l-input",
 					)}
 				>
 					<div className="flex items-start gap-3">
 						<div className="min-w-0 flex-1">
 							<span
 								dir="auto"
-								className="block truncate text-[13px] font-semibold text-[#f5f5f7]"
+								className="block truncate text-[13px] font-semibold text-foreground"
 							>
 								{r.title}
 							</span>
 							{r.resume?.brief && (
 								<span
 									dir="auto"
-									className="mt-1 block truncate text-[11.5px] text-[#a5a5b3]"
+									className="mt-1 block truncate text-[11.5px] text-muted-foreground"
 								>
 									{r.resume.brief.replace(/\s+/g, " ")}
 								</span>
@@ -694,8 +694,8 @@ function RemindersPanel() {
 									className={cn(
 										"rounded-[5px] px-[7px] py-[1px] font-semibold",
 										isDue(r.due, now)
-											? PILL.amber
-											: "bg-[#1f1f27] text-[#a5a5b3]",
+											? PILL.attention
+											: "bg-secondary text-muted-foreground",
 									)}
 								>
 									{isDue(r.due, now)
@@ -746,13 +746,13 @@ function RemindersPanel() {
 											)
 										: setDue(key, day, r.title)
 								}
-								className="rounded-[7px] px-2 py-1 text-xs font-semibold text-[#8a8a97] hover:bg-[#1f1f27] hover:text-[#f5f5f7]"
+								className="rounded-[7px] px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground"
 							/>
 							<button
 								type="button"
 								title="Drop this reminder"
 								onClick={() => clear(key)}
-								className="rounded-[7px] px-2 py-1 text-xs font-semibold text-[#8a8a97] hover:bg-[#1f1f27] hover:text-[#f5f5f7]"
+								className="rounded-[7px] px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground"
 							>
 								✕
 							</button>
@@ -813,7 +813,7 @@ function SchedulesPanel() {
 
 	return (
 		<>
-			<div className="shrink-0 border-b border-[#25252e] px-[18px] py-3">
+			<div className="shrink-0 border-b border-border px-[18px] py-3">
 				{/* TaskBox is `h-full` so a dialog can stretch it. Left as a direct
 				    child here it claims this whole block — schedule row included —
 				    and its fields paint over the first automation below. Its own
@@ -833,7 +833,7 @@ function SchedulesPanel() {
 					/>
 				</div>
 				<div className="mt-2 flex items-center gap-2">
-					<span className="text-[11px] text-[#8a8a97]">Repeat</span>
+					<span className="text-[11px] text-muted-foreground">Repeat</span>
 					<ScheduleFields cron={draftCron} onChange={setDraftCron} />
 					<span className={ROW_META}>
 						{isValidCron(draftCron)
@@ -853,7 +853,7 @@ function SchedulesPanel() {
 
 			<div className={FEED_LIST}>
 				{automations.length === 0 && (
-					<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
+					<div className="px-2 py-8 text-center text-xs text-muted-foreground">
 						Nothing scheduled. Write the job above, give it a cron, and Odin
 						starts the session for you.
 					</div>
@@ -885,11 +885,11 @@ function SchedulesPanel() {
 							key={task.id}
 							className={cn(
 								FEED_ROW,
-								// Amber left edge — the same mark the row carries in My
-								// Tasks, so an automation reads the same in both places.
-								"border-l-2 border-l-[#f5b83d]",
-								task.paused && "border-l-[#3a3a46] opacity-60",
-								activePaneId && "bg-[#0f1613]",
+								// Violet left edge — Odin runs it, the same as the
+								// Automation chip it carries on the board and in My Tasks.
+								"border-l-2 border-l-primary/60",
+								task.paused && "border-l-input opacity-60",
+								activePaneId && "border-l-working",
 							)}
 						>
 							<div className="flex items-start gap-3">
@@ -903,11 +903,11 @@ function SchedulesPanel() {
 										}}
 										className="w-full cursor-text text-left"
 									>
-										<span className="block truncate text-[13px] font-semibold text-[#f5f5f7]">
+										<span className="block truncate text-[13px] font-semibold text-foreground">
 											{task.title}
 										</span>
 										{task.notes && (
-											<span className="mt-1 block truncate text-[11.5px] text-[#a5a5b3]">
+											<span className="mt-1 block truncate text-[11.5px] text-muted-foreground">
 												{task.notes.replace(/\s+/g, " ")}
 											</span>
 										)}
@@ -947,7 +947,7 @@ function SchedulesPanel() {
 											<span
 												className={cn(
 													"inline-flex items-center gap-1 rounded-[5px] px-[7px] py-[1px] font-semibold",
-													PILL.green,
+													PILL.working,
 												)}
 											>
 												<span className="size-1.5 animate-pulse rounded-full bg-current" />
@@ -990,7 +990,7 @@ function SchedulesPanel() {
 												: "Pause — keep it, stop running it"
 										}
 										onClick={() => setPaused(task.id, !task.paused)}
-										className="shrink-0 rounded-[7px] px-2 py-1 text-xs font-semibold text-[#8a8a97] hover:bg-[#1f1f27] hover:text-[#f5f5f7]"
+										className="shrink-0 rounded-[7px] px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground"
 									>
 										{task.paused ? "Resume" : "Pause"}
 									</button>
@@ -999,7 +999,7 @@ function SchedulesPanel() {
 											type="button"
 											title="Delete this automation"
 											onClick={() => remove(task.id)}
-											className="rounded-[7px] px-2 py-1 text-xs font-semibold text-[#8a8a97] hover:bg-[#1f1f27] hover:text-[#f5f5f7]"
+											className="rounded-[7px] px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground"
 										>
 											✕
 										</button>

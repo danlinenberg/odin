@@ -17,7 +17,6 @@ import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import { createFileRoute } from "@tanstack/react-router";
 import {
-	type CSSProperties,
 	Fragment,
 	useCallback,
 	useEffect,
@@ -84,7 +83,7 @@ import {
 	untruncatedTitle,
 } from "../components/OdinPromptDialog";
 import { PersonChip, personColor } from "../components/PersonChip";
-import { PILL } from "../components/pill";
+import { BUTTON, PILL } from "../components/pill";
 import { DueChip, OverdueMark } from "../components/Reminders";
 import { TranscriptView } from "../components/TranscriptView";
 import { useBacklogReview } from "../hooks/useBacklogReview";
@@ -267,7 +266,7 @@ function HistoryView({ card, live }: { card: BoardCard; live: boolean }) {
 	if (sessionId && !live && !error) {
 		return (
 			<div className="flex min-h-0 flex-1 flex-col">
-				<div className="border-b border-[#25252e] px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[.4px] text-[#8a8a97]">
+				<div className="border-b border-border px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[.4px] text-muted-foreground">
 					Conversation history · session ended
 				</div>
 				<TranscriptView sessionId={sessionId} />
@@ -294,14 +293,14 @@ function ScrollbackView({ card, live }: { card: BoardCard; live: boolean }) {
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
-			<div className="border-b border-[#25252e] px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[.4px] text-[#8a8a97]">
+			<div className="border-b border-border px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[.4px] text-muted-foreground">
 				{live
 					? "Session transcript · live"
 					: "Conversation history · session ended"}
 			</div>
 			<div
 				ref={ref}
-				className="min-h-0 flex-1 select-text cursor-text overflow-y-auto whitespace-pre-wrap break-words bg-[#0a0a0c] px-4 py-3 font-mono text-[11.5px] leading-relaxed text-[#d6d6dc]"
+				className="min-h-0 flex-1 select-text cursor-text overflow-y-auto whitespace-pre-wrap break-words bg-background px-4 py-3 font-mono text-[11.5px] leading-relaxed text-soft-foreground"
 			>
 				{isLoading
 					? "loading history…"
@@ -332,7 +331,7 @@ function withCode(
 	return text.split("`").map((part, i) =>
 		i % 2 ? (
 			// biome-ignore lint/suspicious/noArrayIndexKey: a fixed split, never reordered
-			<code key={i} className="rounded bg-[#1f1f27] px-1 text-[0.9em]">
+			<code key={i} className="rounded bg-secondary px-1 text-[0.9em]">
 				{part}
 			</code>
 		) : (
@@ -388,7 +387,7 @@ function CatchUpCard({
 							event.preventDefault();
 							openUrl.mutate(url);
 						}}
-						className="text-[#a394ff] hover:underline"
+						className="text-primary hover:underline"
 					>
 						{run}
 					</a>
@@ -401,9 +400,9 @@ function CatchUpCard({
 	return (
 		<div className="flex min-h-0 flex-1 select-text cursor-text flex-col gap-6 overflow-y-auto px-8 py-7">
 			<div>
-				<div className={cn(label, "text-[#f5b83d]")}>Your action items</div>
+				<div className={cn(label, "text-attention")}>Your action items</div>
 				{todo.length > 0 ? (
-					<ol className="list-decimal space-y-1.5 pl-5 text-[15px] leading-relaxed text-[#f5f5f7]">
+					<ol className="list-decimal space-y-1.5 pl-5 text-[15px] leading-relaxed text-foreground">
 						{todo.map((item) => (
 							<li key={item} className="break-words">
 								{text(item)}
@@ -411,7 +410,7 @@ function CatchUpCard({
 						))}
 					</ol>
 				) : (
-					<div className="text-[15px] leading-relaxed text-[#f5f5f7]">
+					<div className="text-[15px] leading-relaxed text-foreground">
 						{written?.next
 							? text(written.next)
 							: sessionId
@@ -422,23 +421,29 @@ function CatchUpCard({
 			</div>
 			{written?.status && (
 				<div>
-					<div className={cn(label, "text-[#8a8a97]")}>Where it stands</div>
-					<div className="text-[13.5px] leading-relaxed text-[#d4d4dc]">
+					<div className={cn(label, "text-muted-foreground")}>
+						Where it stands
+					</div>
+					<div className="text-[13.5px] leading-relaxed text-soft-foreground">
 						{text(written.status)}
 					</div>
 				</div>
 			)}
 			{(written?.issue || written?.done) && (
-				<div className="flex flex-col gap-3 text-[13.5px] leading-relaxed text-[#d4d4dc]">
+				<div className="flex flex-col gap-3 text-[13.5px] leading-relaxed text-soft-foreground">
 					{written.issue && (
 						<div>
-							<div className={cn(label, "text-[#8a8a97]")}>The issue</div>
+							<div className={cn(label, "text-muted-foreground")}>
+								The issue
+							</div>
 							{text(written.issue)}
 						</div>
 					)}
 					{written.done && (
 						<div>
-							<div className={cn(label, "text-[#8a8a97]")}>What we did</div>
+							<div className={cn(label, "text-muted-foreground")}>
+								What we did
+							</div>
 							{text(written.done)}
 						</div>
 					)}
@@ -455,7 +460,7 @@ function CatchUpCard({
 			<button
 				type="button"
 				onClick={onShowSession}
-				className="mt-auto self-start text-[12px] text-[#8a8a97] hover:text-[#a394ff]"
+				className="mt-auto self-start text-[12px] text-muted-foreground hover:text-primary"
 			>
 				Show the session ↓
 			</button>
@@ -516,7 +521,7 @@ function DropPill({ pane }: { pane: Pane }) {
 			title={`The Review sweep says drop this: ${row.evidence}`}
 			className={cn(
 				"inline-flex items-center rounded-[5px] px-[7px] text-[11px] font-medium",
-				PILL.red,
+				PILL.neutral,
 			)}
 		>
 			Drop? {row.evidence}
@@ -546,7 +551,7 @@ function MergeOnlyPill({ card }: { card: BoardCard }) {
 			}}
 			className={cn(
 				"inline-flex items-center gap-1 rounded-[5px] px-[7px] text-[11px] font-medium enabled:hover:brightness-125",
-				PILL.green,
+				PILL.success,
 			)}
 		>
 			<LuGitMerge className="size-3" />
@@ -570,7 +575,7 @@ function PrPill({ card, live }: { card: BoardCard; live: boolean }) {
 				event.stopPropagation();
 				openUrl.mutate(pr.url);
 			}}
-			className="hover:text-[#f5f5f7] hover:underline"
+			className="hover:text-foreground hover:underline"
 		>
 			PR #{pr.number}
 			{prs.length > 1 ? ` +${prs.length - 1}` : ""}
@@ -592,7 +597,7 @@ function NotionPill({ card, live }: { card: BoardCard; live: boolean }) {
 				event.stopPropagation();
 				openUrl.mutate(page.url);
 			}}
-			className="hover:text-[#f5f5f7] hover:underline"
+			className="hover:text-foreground hover:underline"
 		>
 			Notion
 		</button>
@@ -637,19 +642,15 @@ function ShellsDot({ live, dead }: { live: string[]; dead: number }) {
 						? `this shell + ${others}`
 						: "this shell"
 					: `${others} live`,
-				"bg-[#3ecf8e]",
+				"bg-working",
 			]
 		: dead
 			? [
 					`${dead} Odin shell${dead === 1 ? "" : "s"} left here whose process has died`,
 					"disconnected",
-					"bg-[#f0647a]",
+					"bg-danger",
 				]
-			: [
-					"No terminal is in this worktree",
-					"no shell",
-					"ring-1 ring-[#5a5a66]",
-				];
+			: ["No terminal is in this worktree", "no shell", "ring-1 ring-input"];
 	return (
 		<span
 			title={title}
@@ -752,12 +753,12 @@ function ShellDot({
 	const { here, atWork } = useShellPlace(card, shell);
 	const where = here?.replace(/^\/Users\/[^/]+/, "~");
 	const [title, color] = !alive
-		? ["Disconnected — open it to start a new one", "bg-[#f0647a]"]
+		? ["Disconnected — open it to start a new one", "bg-danger"]
 		: atWork
-			? [`Live, in ${where}`, "bg-[#3ecf8e]"]
+			? [`Live, in ${where}`, "bg-working"]
 			: [
 					`Live, but in ${where ?? "an unknown directory"} — not in this session's worktree`,
-					"bg-[#f5b83d]",
+					"bg-attention",
 				];
 	return (
 		<span
@@ -811,7 +812,7 @@ function ShellPlaceMenu({ card, shell }: { card: BoardCard; shell: Pane }) {
 				<button
 					type="button"
 					title={where ? `Shell is in ${where} — move it` : "Move this shell"}
-					className="flex min-w-0 max-w-[200px] items-center gap-1 rounded-r-md border-l border-[#0f0f13] bg-[#211d3a] px-2 py-1 text-xs font-medium text-[#a394ff]/80 hover:text-[#a394ff]"
+					className="flex min-w-0 max-w-[200px] items-center gap-1 rounded-r-md border-l border-background bg-secondary px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground"
 				>
 					<span className="truncate">
 						{current ? current.name : here ? basename(here) : "…"}
@@ -838,7 +839,7 @@ function ShellPlaceMenu({ card, shell }: { card: BoardCard; shell: Pane }) {
 						onSelect={() => cd(target.dir)}
 						className="flex items-center gap-2 text-xs"
 					>
-						<span className="w-3 text-[#a394ff]">
+						<span className="w-3 text-primary">
 							{target === current ? "✓" : ""}
 						</span>
 						<span className="w-12 shrink-0 font-semibold tabular-nums">
@@ -952,7 +953,7 @@ function JustDonePill({
 			title="Its turn ended in the last 10 minutes you had Odin open"
 			className={cn(
 				"inline-flex items-center rounded-[5px] px-[7px] text-[11px] font-medium",
-				PILL.green,
+				PILL.success,
 			)}
 		>
 			just done
@@ -1005,7 +1006,7 @@ function LoopPill({ card }: { card: BoardCard }) {
 			title={`Under /loop — ${next}${loop.prompt ? `\n${loop.prompt}` : ""}`}
 			className={cn(
 				"inline-flex items-center gap-1 rounded-[5px] px-[7px] text-[11px] font-medium",
-				PILL.amber,
+				PILL.attention,
 			)}
 		>
 			<LuRepeat className="size-3" aria-hidden />
@@ -1040,7 +1041,7 @@ function LoadPill({ card }: { card: BoardCard }) {
 			title="What this session's processes are holding right now"
 			className={cn(
 				"inline-flex items-center gap-1 rounded-[5px] px-[7px] text-[11px] font-medium tabular-nums",
-				PILL.amber,
+				PILL.attention,
 			)}
 		>
 			<LuFlame className="size-3 shrink-0" aria-hidden />
@@ -1051,9 +1052,9 @@ function LoadPill({ card }: { card: BoardCard }) {
 
 /**
  * The session's shell, and whether anything is still running in it. A dev
- * server that crashed leaves the shell alive at its prompt — green would lie.
+ * server that crashed leaves the shell alive at its prompt — blue would lie.
  * `busy` comes from the same process snapshot LoadPill reads; until it has
- * answered (or on a build whose main process predates it) the chip stays green.
+ * answered (or on a build whose main process predates it) the chip stays blue.
  */
 function ShellChip({
 	shellPaneId,
@@ -1073,15 +1074,15 @@ function ShellChip({
 		? [
 				"This session's shell has exited — open it to start a new one",
 				"Shell exited",
-				`${PILL.red} font-semibold ring-1 ring-[#f0647a]/60`,
+				`${PILL.danger} font-semibold`,
 			]
 		: busy === false
 			? [
 					"The shell is at its prompt — whatever you ran in it has stopped",
 					"Shell stopped",
-					`${PILL.amber} font-semibold ring-1 ring-[#f5b83d]/60`,
+					`${PILL.attention} font-semibold`,
 				]
-			: ["This session has a shell running", "Shell", PILL.green];
+			: ["This session has a shell running", "Shell", PILL.working];
 	return (
 		<span
 			title={title}
@@ -1163,31 +1164,31 @@ function CardHoverContent({
 
 	return (
 		<div className="flex flex-col gap-2">
-			<div className="whitespace-pre-wrap break-words text-[13px] font-semibold text-[#f5f5f7]">
+			<div className="whitespace-pre-wrap break-words text-[13px] font-semibold text-foreground">
 				{title}
 			</div>
 			{contact && <PersonChip name={contact} />}
 			{summary && (
-				<div className="whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-[#d4d4dc]">
+				<div className="whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-soft-foreground">
 					{summary}
 				</div>
 			)}
 			{written?.goal && (
-				<div className="border-t border-[#2e2e3a] pt-2">
-					<div className="mb-1 text-[10.5px] font-semibold uppercase tracking-wide text-[#8a8a97]">
+				<div className="border-t border-border pt-2">
+					<div className="mb-1 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">
 						Goal
 					</div>
-					<div className="break-words text-[12.5px] leading-relaxed text-[#d4d4dc]">
+					<div className="break-words text-[12.5px] leading-relaxed text-soft-foreground">
 						{written.goal}
 					</div>
 				</div>
 			)}
 			{todo.length > 0 && (
-				<div className="border-t border-[#2e2e3a] pt-2">
-					<div className="mb-1 text-[10.5px] font-semibold uppercase tracking-wide text-[#f5b83d]">
+				<div className="border-t border-border pt-2">
+					<div className="mb-1 text-[10.5px] font-semibold uppercase tracking-wide text-attention">
 						Action items
 					</div>
-					<ol className="list-decimal space-y-0.5 pl-4 text-[12.5px] leading-relaxed text-[#d4d4dc]">
+					<ol className="list-decimal space-y-0.5 pl-4 text-[12.5px] leading-relaxed text-soft-foreground">
 						{todo.map((item) => (
 							<li key={item} className="break-words">
 								{item}
@@ -1266,7 +1267,7 @@ function TagMenu({
 		<div
 			ref={ref}
 			style={{ left, top }}
-			className="fixed z-[60] w-[220px] rounded-[10px] border border-[#25252e] bg-[#16161b] p-2 shadow-[0_10px_30px_rgba(0,0,0,.5)]"
+			className="fixed z-[60] w-[220px] rounded-[10px] border border-border bg-card p-2 shadow-[0_10px_30px_rgba(0,0,0,.5)]"
 		>
 			<button
 				type="button"
@@ -1274,9 +1275,9 @@ function TagMenu({
 					onStar();
 					onClose();
 				}}
-				className="mb-1.5 flex w-full items-center gap-2 rounded-md border-b border-[#25252e] px-1.5 pb-2 pt-1 text-left text-[12px] text-[#a5a5b3] transition-colors hover:text-[#f5c542]"
+				className="mb-1.5 flex w-full items-center gap-2 rounded-md border-b border-border px-1.5 pb-2 pt-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-attention"
 			>
-				<span className="w-3 text-[#f5c542]">★</span>
+				<span className="w-3 text-attention">★</span>
 				{starred ? "Unstar" : "Star"}
 			</button>
 			{onKeep && (
@@ -1287,13 +1288,13 @@ function TagMenu({
 						onKeep();
 						onClose();
 					}}
-					className="mb-1.5 flex w-full items-center gap-2 rounded-md border-b border-[#25252e] px-1.5 pb-2 pt-1 text-left text-[12px] text-[#a5a5b3] transition-colors hover:text-[#3ecf8e]"
+					className="mb-1.5 flex w-full items-center gap-2 rounded-md border-b border-border px-1.5 pb-2 pt-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-success"
 				>
-					<span className="w-3 text-[#3ecf8e]">✓</span>
+					<span className="w-3 text-success">✓</span>
 					Keep
 				</button>
 			)}
-			<div className="mb-1.5 px-1 text-[10px] font-semibold uppercase tracking-[.4px] text-[#8a8a97]">
+			<div className="mb-1.5 px-1 text-[10px] font-semibold uppercase tracking-[.4px] text-muted-foreground">
 				Tags
 			</div>
 			<div className="flex max-h-[180px] flex-col overflow-y-auto">
@@ -1306,7 +1307,9 @@ function TagMenu({
 								onClick={() => onToggle(tag)}
 								className={cn(
 									"flex flex-1 items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] transition-colors",
-									on ? "text-[#a394ff]" : "text-[#a5a5b3] hover:text-[#f5f5f7]",
+									on
+										? "text-primary"
+										: "text-muted-foreground hover:text-foreground",
 								)}
 							>
 								<span className="w-3">{on ? "✓" : ""}</span>#{tag}
@@ -1316,7 +1319,7 @@ function TagMenu({
 									type="button"
 									title="Remove this tag from the list"
 									onClick={() => onForget(tag)}
-									className="px-1.5 text-[12px] text-[#5e5e6a] opacity-0 transition-opacity hover:text-[#f5f5f7] group-hover:opacity-100"
+									className="px-1.5 text-[12px] text-faint-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
 								>
 									×
 								</button>
@@ -1334,7 +1337,7 @@ function TagMenu({
 					setDraft("");
 				}}
 				placeholder="New tag…"
-				className="mt-1.5 w-full rounded-md border border-[#25252e] bg-transparent px-1.5 py-1 text-[12px] text-[#f5f5f7] outline-none placeholder:text-[#5e5e6a] focus:border-[#a394ff]"
+				className="mt-1.5 w-full rounded-md border border-border bg-transparent px-1.5 py-1 text-[12px] text-foreground outline-none placeholder:text-faint-foreground focus:border-primary"
 			/>
 		</div>
 	);
@@ -2967,12 +2970,15 @@ function DevBoardPage() {
 					type="button"
 					title="Describe a task and start an agent session"
 					onClick={() => setIsComposerOpen(true)}
-					className="rounded-lg bg-[#14301f] px-2.5 py-1 text-[12px] font-semibold text-[#3ecf8e] transition-colors hover:bg-[#1a4029]"
+					className={cn(
+						"rounded-lg px-2.5 py-1 text-[12px] font-semibold transition-colors",
+						BUTTON.primary,
+					)}
 				>
 					+ New Session
 				</button>
 				{isLaunching && (
-					<span className="text-xs text-[#a5a5b3]">starting…</span>
+					<span className="text-xs text-muted-foreground">starting…</span>
 				)}
 
 				<input
@@ -2987,8 +2993,8 @@ function DevBoardPage() {
 					}}
 					placeholder={`Search sessions${searchHint}`}
 					className={cn(
-						"w-[220px] rounded-full border bg-[#16161b] px-2.5 py-1 text-[12px] text-[#f5f5f7] outline-none placeholder:text-[#6b6b78] focus:border-[#a394ff]",
-						search ? "border-[#a394ff]" : "border-[#25252e]",
+						"w-[220px] rounded-full border bg-card px-2.5 py-1 text-[12px] text-foreground outline-none placeholder:text-faint-foreground focus:border-primary",
+						search ? "border-primary" : "border-border",
 					)}
 				/>
 
@@ -3004,8 +3010,8 @@ function DevBoardPage() {
 						className={cn(
 							"max-w-[220px] cursor-pointer rounded-full border px-2.5 py-1 text-[12px] font-medium outline-none",
 							boardFilter
-								? "border-[#a394ff] bg-[#211d3a] text-[#f5f5f7]"
-								: "border-[#25252e] bg-[#16161b] text-[#a5a5b3] hover:text-[#f5f5f7]",
+								? "border-primary bg-primary/15 text-foreground"
+								: "border-border bg-card text-muted-foreground hover:text-foreground",
 						)}
 					>
 						<option value="">All sessions</option>
@@ -3055,8 +3061,8 @@ function DevBoardPage() {
 					className={cn(
 						"ml-auto flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium",
 						isNextOpen
-							? "border-[#a394ff] bg-[#211d3a] text-[#f5f5f7]"
-							: "border-[#25252e] bg-[#16161b] text-[#a5a5b3] hover:text-[#f5f5f7]",
+							? "border-primary bg-primary/15 text-foreground"
+							: "border-border bg-card text-muted-foreground hover:text-foreground",
 					)}
 				>
 					{isNextOpen ? (
@@ -3154,13 +3160,13 @@ function DevBoardPage() {
 									: undefined
 							}
 							className={cn(
-								"flex min-w-[240px] flex-1 flex-col rounded-xl border bg-[#111114]",
+								"flex min-w-[240px] flex-1 flex-col rounded-xl border bg-tertiary",
 								isDropTarget && dragOverIdle
-									? "border-[#a394ff] bg-[#15131f]"
-									: "border-[#25252e]",
+									? "border-primary bg-primary/15"
+									: "border-border",
 							)}
 						>
-							<div className="flex items-center gap-2 px-3 py-2.5 text-xs font-semibold uppercase tracking-[.4px] text-[#a5a5b3]">
+							<div className="flex items-center gap-2 px-3 py-2.5 text-xs font-semibold uppercase tracking-[.4px] text-muted-foreground">
 								<span
 									className="size-2 rounded-full"
 									style={{ background: PANE_STATUS[column.status].dot }}
@@ -3177,7 +3183,7 @@ function DevBoardPage() {
 										}}
 										// Solid, with a play icon: the dim amber pill read as a tag
 										// beside the count, not as something to press.
-										className="ml-auto flex items-center gap-1 rounded-md bg-[#f5c542] px-2.5 py-1 text-[11px] font-semibold normal-case tracking-normal text-[#1a1408] shadow-sm hover:bg-[#ffd666]"
+										className="ml-auto flex items-center gap-1 rounded-md bg-attention px-2.5 py-1 text-[11px] font-semibold normal-case tracking-normal text-background shadow-sm hover:bg-attention/90"
 									>
 										<LuPlay className="size-2.5 fill-current" />
 										Catch up
@@ -3185,7 +3191,7 @@ function DevBoardPage() {
 								)}
 								<span
 									className={cn(
-										"rounded-[10px] bg-[#1f1f27] px-2 font-medium",
+										"rounded-[10px] bg-secondary px-2 font-medium",
 										!(column.status === "permission" && cards.length > 0) &&
 											"ml-auto",
 									)}
@@ -3195,7 +3201,7 @@ function DevBoardPage() {
 							</div>
 							<div className="flex flex-col gap-2 overflow-y-auto px-2 pb-2.5">
 								{cards.length === 0 ? (
-									<div className="px-2 py-6 text-center text-xs text-[#8a8a97]">
+									<div className="px-2 py-6 text-center text-xs text-muted-foreground">
 										Nothing here
 									</div>
 								) : (
@@ -3204,11 +3210,11 @@ function DevBoardPage() {
 										return (
 											<Fragment key={section}>
 												{labelled && (
-													<div className="flex items-center gap-1.5 px-1 pt-1 text-[10px] font-semibold uppercase tracking-[.5px] text-[#8a8a97]">
+													<div className="flex items-center gap-1.5 px-1 pt-1 text-[10px] font-semibold uppercase tracking-[.5px] text-muted-foreground">
 														<Icon className="size-3" aria-hidden />
 														{SECTION_LABEL[section]}
 														<span className="opacity-70">{group.length}</span>
-														<span className="ml-1 h-px flex-1 bg-[#25252e]" />
+														<span className="ml-1 h-px flex-1 bg-accent" />
 													</div>
 												)}
 												{group.map((card) => (
@@ -3246,26 +3252,20 @@ function DevBoardPage() {
 																	});
 																}}
 																className={cn(
-																	"group cursor-pointer rounded-[10px] border bg-(--tint)/5 px-3 py-2.5 text-left transition-colors hover:border-[#34343f] hover:bg-(--tint)/10",
-																	// The card reads as a faint shade of its column's status hue (see the
-																	// style below). A failure still earns its red edge.
+																	"group cursor-pointer rounded-[10px] border bg-card px-3 py-2.5 text-left transition-colors hover:border-input hover:bg-secondary",
+																	// Cards are neutral — the column header already says the
+																	// status. Only a failure earns its red edge.
 																	card.pane.status === "failed"
-																		? "border-[#5a2733]"
-																		: "border-[#26262c]",
+																		? "border-danger/40"
+																		: "border-border",
 																)}
-																// The column dot's own colour: 5% alpha at rest, 10% on hover.
-																style={
-																	{
-																		"--tint": PANE_STATUS[card.status].dot,
-																	} as CSSProperties
-																}
 															>
 																<div className="flex items-start gap-2">
 																	<div className="min-w-0 flex-1 break-words text-[12.5px] font-semibold">
 																		{card.pane.odinStarred && (
 																			<span
 																				title="Starred"
-																				className="mr-1 text-[#f5c542]"
+																				className="mr-1 text-attention"
 																			>
 																				★
 																			</span>
@@ -3282,21 +3282,21 @@ function DevBoardPage() {
 																			event.stopPropagation();
 																			markDone(card);
 																		}}
-																		className="shrink-0 rounded-[5px] px-1.5 text-[11px] text-[#8a8a97] opacity-0 transition-opacity hover:bg-[#14301f] hover:text-[#3ecf8e] group-hover:opacity-100"
+																		className="shrink-0 rounded-[5px] px-1.5 text-[11px] text-muted-foreground opacity-0 transition-opacity hover:bg-success/15 hover:text-success group-hover:opacity-100"
 																	>
 																		✓ done
 																	</button>
 																	<RemindButton
 																		onPick={(day) => remindMe(card, day)}
-																		className="rounded-[5px] px-1.5 text-[11px] text-[#8a8a97] opacity-0 transition-opacity hover:bg-[#221d12] hover:text-[#f5b83d] group-hover:opacity-100"
+																		className="rounded-[5px] px-1.5 text-[11px] text-muted-foreground opacity-0 transition-opacity hover:bg-attention/15 hover:text-attention group-hover:opacity-100"
 																	/>
 																</div>
 																{/* Facts are one grey text line; chips are left only for flags that ask
     something of you. A pill that renders nothing drops out, so the dots
     between the rest stay right. */}
-																<div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 text-[11.5px] text-[#8a8a97] [&>*+*]:before:inline-block [&>*+*]:before:mr-1.5 [&>*+*]:before:text-[#4a4a55] [&>*+*]:before:content-['·']">
+																<div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 text-[11.5px] text-muted-foreground [&>*+*]:before:inline-block [&>*+*]:before:mr-1.5 [&>*+*]:before:text-faint-foreground [&>*+*]:before:content-['·']">
 																	{cardContact(card) && (
-																		<span className="inline-flex min-w-0 items-center gap-1 font-medium text-[#d6d6dc]">
+																		<span className="inline-flex min-w-0 items-center gap-1 font-medium text-soft-foreground">
 																			<span
 																				className="size-1.5 shrink-0 rounded-full"
 																				style={{
@@ -3345,7 +3345,7 @@ function DevBoardPage() {
 																		card.pane.odinTags,
 																		customTags,
 																	).some((tag) => !PILL_TAGS.includes(tag)) && (
-																		<span className="font-mono text-[10.5px] text-[#5e5e6a]">
+																		<span className="font-mono text-[10.5px] text-faint-foreground">
 																			{boardTags(card.pane.odinTags, customTags)
 																				.filter(
 																					(tag) => !PILL_TAGS.includes(tag),
@@ -3358,14 +3358,14 @@ function DevBoardPage() {
 																		card.pane.odinTags,
 																		customTags,
 																	).includes("automation") && (
-																		// Amber and a clock, the pair the Tasks list gives a scheduled row:
+																		// Violet and a clock, the pair the Tasks list gives a scheduled row:
 																		// the one tag that answers "who started this?" on a board you
 																		// otherwise started yourself.
 																		<span
 																			title="Started by a schedule, not by you"
 																			className={cn(
 																				"inline-flex items-center gap-1 rounded-[5px] px-[7px] text-[11px] font-medium",
-																				PILL.amber,
+																				PILL.brand,
 																			)}
 																		>
 																			<LuClock className="size-3" />
@@ -3375,16 +3375,16 @@ function DevBoardPage() {
 																	{card.pane.odinTags?.includes(
 																		"off-hours",
 																	) && (
-																		// Night-sky gradient and a moon: the overnight run's work,
+																		// Violet and a moon: the overnight run's work,
 																		// picked out from a board you otherwise started yourself.
 																		<span
 																			title="Started overnight by Night Agent, while you were away"
 																			className={cn(
 																				"inline-flex items-center gap-1 rounded-[5px] px-[7px] text-[11px] font-medium",
-																				PILL.night,
+																				PILL.brand,
 																			)}
 																		>
-																			<LuMoon className="size-3 text-[#ffd97a]" />
+																			<LuMoon className="size-3" />
 																			Night Agent
 																		</span>
 																	)}
@@ -3395,7 +3395,7 @@ function DevBoardPage() {
 																			title="Started by your Slack reaction, not a click"
 																			className={cn(
 																				"inline-flex items-center gap-1 rounded-[5px] px-[7px] text-[11px] font-medium",
-																				PILL.violet,
+																				PILL.brand,
 																			)}
 																		>
 																			{launchEmoji} Auto-started
@@ -3421,7 +3421,7 @@ function DevBoardPage() {
 																	/>
 																</div>
 																{card.status === "working" && (
-																	<div className="mt-1.5 flex items-center gap-1.5 text-[11.5px] text-[#a5a5b3]">
+																	<div className="mt-1.5 flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
 																		<span
 																			className="size-[9px] animate-spin rounded-full border"
 																			style={{
@@ -3437,15 +3437,15 @@ function DevBoardPage() {
 															    the raw one; the column merges prompts and failures. */}
 																{card.status === "permission" &&
 																	card.pane.status === "failed" && (
-																		<div className="mt-1.5 text-xs text-[#f0647a]">
+																		<div className="mt-1.5 text-xs text-danger">
 																			✗ failed — click to see what broke
 																		</div>
 																	)}
 																{card.status === "idle" &&
 																	!agentPaneIds.has(card.pane.id) &&
 																	resumingPaneIds.includes(card.pane.id) && (
-																		<div className="mt-1.5 flex items-center gap-1.5 text-[11.5px] text-[#3ecf8e]">
-																			<span className="size-[9px] animate-spin rounded-full border border-[#3ecf8e] border-t-transparent" />
+																		<div className="mt-1.5 flex items-center gap-1.5 text-[11.5px] text-working">
+																			<span className="size-[9px] animate-spin rounded-full border border-working border-t-transparent" />
 																			{card.pane.odinQueued
 																				? "starting…"
 																				: "resuming…"}
@@ -3456,7 +3456,7 @@ function DevBoardPage() {
 																{card.pane.odinQueued &&
 																	!resumingPaneIds.includes(card.pane.id) && (
 																		<div className="mt-1.5 flex items-center gap-2">
-																			<span className="text-[11.5px] text-[#f5b83d]">
+																			<span className="text-[11.5px] text-attention">
 																				⏳ {card.pane.odinQueued.reason}
 																			</span>
 																			<button
@@ -3466,7 +3466,10 @@ function DevBoardPage() {
 																					event.stopPropagation();
 																					void resumeCard(card);
 																				}}
-																				className="ml-auto shrink-0 whitespace-nowrap rounded-[7px] bg-[#1f1f27] px-2.5 py-1 text-xs font-semibold text-[#a5a5b3] hover:text-[#3ecf8e]"
+																				className={cn(
+																					"ml-auto shrink-0 whitespace-nowrap rounded-[7px] px-2.5 py-1 text-xs font-semibold",
+																					BUTTON.secondary,
+																				)}
 																			>
 																				Start now
 																			</button>
@@ -3480,7 +3483,7 @@ function DevBoardPage() {
 																			{/* ponytail: the button says "resume" — only a
 																		    failure is worth spelling out. */}
 																			{card.pane.status === "failed" && (
-																				<span className="text-[11.5px] text-[#f0647a]">
+																				<span className="text-[11.5px] text-danger">
 																					✗ failed
 																				</span>
 																			)}
@@ -3488,7 +3491,7 @@ function DevBoardPage() {
 																		    cards — it puts the agent back to work
 																		    instead of handing you a prompt. */}
 																			{card.pane.status === "working" && (
-																				<span className="text-[11.5px] text-[#f5b83d]">
+																				<span className="text-[11.5px] text-attention">
 																					⏸ died mid-turn
 																				</span>
 																			)}
@@ -3498,7 +3501,10 @@ function DevBoardPage() {
 																					event.stopPropagation();
 																					void resumeCard(card);
 																				}}
-																				className="rounded-[7px] bg-[#14301f] px-2.5 py-1 text-xs font-semibold text-[#3ecf8e] hover:bg-[#1a3d28]"
+																				className={cn(
+																					"rounded-[7px] px-2.5 py-1 text-xs font-semibold",
+																					BUTTON.secondary,
+																				)}
 																			>
 																				Resume
 																			</button>
@@ -3509,7 +3515,7 @@ function DevBoardPage() {
 														<HoverCardContent
 															side="right"
 															align="start"
-															className="max-h-[70vh] w-[400px] overflow-y-auto border-[#4a4a5c] bg-[#1d1d24] p-3 shadow-[0_12px_40px_rgba(0,0,0,0.75)]"
+															className="max-h-[70vh] w-[400px] overflow-y-auto border-input bg-secondary p-3 shadow-[0_12px_40px_rgba(0,0,0,0.75)]"
 														>
 															<CardHoverContent
 																card={card}
@@ -3557,11 +3563,11 @@ function DevBoardPage() {
 										setCatchUp(null);
 										setDrawerCard(null);
 									}}
-									className="absolute left-0 px-2 text-2xl leading-none text-[#a5a5b3] hover:text-[#f5f5f7]"
+									className="absolute left-0 px-2 text-2xl leading-none text-muted-foreground hover:text-foreground"
 								>
 									‹
 								</button>
-								<span className="text-base font-semibold text-[#f5f5f7]">
+								<span className="text-base font-semibold text-foreground">
 									{catchUp.length - catchUp.indexOf(drawerCard.pane.id)} Left
 								</span>
 							</div>
@@ -3570,7 +3576,10 @@ function DevBoardPage() {
 									type="button"
 									title="Leave it in Needs you and go to the next one"
 									onClick={() => catchUpNext(false)}
-									className="flex-1 rounded-2xl border border-[#2c2c36] bg-[#1f1f27] py-3.5 text-[15px] font-semibold text-[#f5f5f7] hover:bg-[#25252e]"
+									className={cn(
+										"flex-1 rounded-2xl py-3.5 text-[15px] font-semibold",
+										BUTTON.secondary,
+									)}
 								>
 									Keep
 								</button>
@@ -3578,7 +3587,10 @@ function DevBoardPage() {
 									type="button"
 									title="Done — remove it from the board and go to the next one"
 									onClick={() => catchUpNext(true)}
-									className="flex-1 rounded-2xl border border-[#1f6b47] bg-[#0f4d33] py-3.5 text-[15px] font-semibold text-[#f5f5f7] hover:bg-[#13603f]"
+									className={cn(
+										"flex-1 rounded-2xl py-3.5 text-[15px] font-semibold",
+										BUTTON.done,
+									)}
 								>
 									✓ Done
 								</button>
@@ -3590,11 +3602,11 @@ function DevBoardPage() {
 					    traffic lights, and the native buttons eat the click. */}
 					<div
 						className={cn(
-							"absolute z-50 flex flex-col bg-[#111114]",
+							"absolute z-50 flex flex-col bg-tertiary",
 							inCatchUp
 								? // Two cards peeking out underneath: the rest of the pile.
-									"bottom-[92px] left-1/2 top-12 w-[min(760px,calc(100%-32px))] -translate-x-1/2 overflow-hidden rounded-[26px] border border-[#2c2c36] shadow-[0_8px_0_-3px_#1a1a21,0_16px_0_-6px_#15151b]"
-								: "right-0 top-0 h-full max-w-full border-l border-[#25252e]",
+									"bottom-[92px] left-1/2 top-12 w-[min(760px,calc(100%-32px))] -translate-x-1/2 overflow-hidden rounded-[26px] border border-border shadow-[0_8px_0_-3px_var(--card),0_16px_0_-6px_var(--tertiary)]"
+								: "right-0 top-0 h-full max-w-full border-l border-border",
 						)}
 						style={
 							inCatchUp
@@ -3608,7 +3620,7 @@ function DevBoardPage() {
 						{!inCatchUp && (
 							<div
 								onPointerDown={startDrawerResize}
-								className="absolute left-0 top-0 z-10 h-full w-1.5 cursor-col-resize hover:bg-[#a394ff]/40"
+								className="absolute left-0 top-0 z-10 h-full w-1.5 cursor-col-resize hover:bg-primary/40"
 							/>
 						)}
 						{/* Minimize, on the edge the pointer is already on — the Close
@@ -3619,19 +3631,19 @@ function DevBoardPage() {
 								aria-label="Minimize"
 								title="Minimize — back to the board (the session keeps running)"
 								onClick={() => setDrawerCard(null)}
-								className="absolute left-0 top-1/2 z-20 -translate-y-1/2 rounded-r-[7px] border border-l-0 border-[#25252e] bg-[#1f1f27] py-2.5 pl-[3px] pr-1 text-[11px] leading-none text-[#a5a5b3] hover:bg-[#25252e] hover:text-[#f5f5f7]"
+								className="absolute left-0 top-1/2 z-20 -translate-y-1/2 rounded-r-[7px] border border-l-0 border-border bg-secondary py-2.5 pl-[3px] pr-1 text-[11px] leading-none text-muted-foreground hover:bg-accent hover:text-foreground"
 							>
 								›
 							</button>
 						)}
-						<div className="border-b border-[#25252e] px-4 py-3.5">
+						<div className="border-b border-border px-4 py-3.5">
 							<div className="flex items-center gap-2">
 								{renameDraft === null ? (
 									<button
 										type="button"
 										title="Click to rename this session"
 										onClick={() => setRenameDraft(cardTitle(drawerCard))}
-										className="min-w-0 flex-1 truncate text-left text-sm font-semibold hover:text-[#a394ff]"
+										className="min-w-0 flex-1 truncate text-left text-sm font-semibold hover:text-primary"
 									>
 										{cardTitle(drawerCard)}
 									</button>
@@ -3647,7 +3659,7 @@ function DevBoardPage() {
 											if (event.key === "Enter")
 												renamePane(drawerCard.pane.id, renameDraft);
 										}}
-										className="min-w-0 flex-1 rounded-md border border-[#a394ff] bg-[#0a0a0c] px-2 py-1 text-sm font-semibold text-[#f5f5f7] outline-none"
+										className="min-w-0 flex-1 rounded-md border border-primary bg-background px-2 py-1 text-sm font-semibold text-foreground outline-none"
 									/>
 								)}
 								{drawerCard.pane.type === "terminal" && !inCatchUp && (
@@ -3661,8 +3673,8 @@ function DevBoardPage() {
 										className={cn(
 											"shrink-0 rounded-md px-2 py-1 text-xs font-semibold",
 											isDiffOpen
-												? "bg-[#211d3a] text-[#a394ff]"
-												: "bg-[#1f1f27] text-[#a5a5b3] hover:text-[#f5f5f7]",
+												? "bg-primary/15 text-primary"
+												: "bg-secondary text-muted-foreground hover:text-foreground",
 										)}
 									>
 										⑂ Diff
@@ -3692,8 +3704,8 @@ function DevBoardPage() {
 													? "rounded-l-md"
 													: "rounded-md",
 												isShellOpen
-													? "bg-[#211d3a] text-[#a394ff]"
-													: "bg-[#1f1f27] text-[#a5a5b3] hover:text-[#f5f5f7]",
+													? "bg-primary/15 text-primary"
+													: "bg-secondary text-muted-foreground hover:text-foreground",
 											)}
 										>
 											❯ Shell
@@ -3718,8 +3730,8 @@ function DevBoardPage() {
 										className={cn(
 											"shrink-0 rounded-md px-2 py-1 text-xs font-semibold",
 											isBriefOpen
-												? "bg-[#211d3a] text-[#a394ff]"
-												: "bg-[#1f1f27] text-[#a5a5b3] hover:text-[#f5f5f7]",
+												? "bg-primary/15 text-primary"
+												: "bg-secondary text-muted-foreground hover:text-foreground",
 										)}
 									>
 										ⓘ Brief
@@ -3732,7 +3744,7 @@ function DevBoardPage() {
 										onClick={() =>
 											setDrawerFraction((fraction) => (fraction < 1 ? 1 : 0.6))
 										}
-										className="shrink-0 rounded-md bg-[#1f1f27] px-2 py-1 text-xs font-semibold text-[#a5a5b3] hover:text-[#f5f5f7]"
+										className="shrink-0 rounded-md bg-secondary px-2 py-1 text-xs font-semibold text-muted-foreground hover:text-foreground"
 									>
 										⛶
 									</button>
@@ -3749,7 +3761,7 @@ function DevBoardPage() {
 										onClick={() => openUrl.mutate(drawerLink.url)}
 										className={cn(
 											"rounded-[5px] px-[7px] text-[11px] font-medium hover:underline",
-											PILL.violet,
+											PILL.brand,
 										)}
 									>
 										{drawerLink.label} ↗
@@ -3758,12 +3770,12 @@ function DevBoardPage() {
 								{sessionCwd(drawerCard.pane) && (
 									<span
 										title={sessionCwd(drawerCard.pane)}
-										className="rounded-[5px] bg-[#1f1f27] px-[7px] text-[11px] text-[#a394ff]"
+										className="rounded-[5px] bg-secondary px-[7px] text-[11px] text-muted-foreground"
 									>
 										{sessionCwd(drawerCard.pane)?.split("/").slice(-1)[0]}
 									</span>
 								)}
-								<span className="rounded-[5px] bg-[#1f1f27] px-[7px] text-[11px] text-[#a5a5b3] capitalize">
+								<span className="rounded-[5px] bg-secondary px-[7px] text-[11px] text-muted-foreground capitalize">
 									{drawerCard.status}
 								</span>
 							</div>
@@ -3781,7 +3793,7 @@ function DevBoardPage() {
 									{isShellOpen && drawerShell ? (
 										// A shell in the same checkout, mounted like any other pane —
 										// it spawns on first mount with the session's cwd.
-										<div className="min-h-0 flex-1 bg-[#0a0a0c] p-2">
+										<div className="min-h-0 flex-1 bg-background p-2">
 											<Terminal
 												key={drawerShell.id}
 												paneId={drawerShell.id}
@@ -3799,7 +3811,7 @@ function DevBoardPage() {
 											workspaceId={drawerCard.workspaceId}
 										/>
 									) : drawerCard.pane.type !== "terminal" ? (
-										<div className="flex-1 select-text cursor-text overflow-y-auto px-4 py-3 text-[12.5px] text-[#a5a5b3]">
+										<div className="flex-1 select-text cursor-text overflow-y-auto px-4 py-3 text-[12.5px] text-muted-foreground">
 											{drawerCard.pane.cwd && (
 												<div>cwd: {drawerCard.pane.cwd}</div>
 											)}
@@ -3811,7 +3823,7 @@ function DevBoardPage() {
 										// Claude running — the real PTY, attached read/write. xterm is the
 										// only thing that renders Claude Code's full-screen TUI legibly
 										// (scrollback replay is a stream of overlapping frames = mush).
-										<div className="min-h-0 flex-1 bg-[#0a0a0c] p-2">
+										<div className="min-h-0 flex-1 bg-background p-2">
 											<Terminal
 												key={drawerCard.pane.id}
 												paneId={drawerCard.pane.id}
@@ -3837,7 +3849,7 @@ function DevBoardPage() {
 								)}
 							</div>
 						)}
-						<div className="flex gap-2 border-t border-[#25252e] px-4 py-3">
+						<div className="flex gap-2 border-t border-border px-4 py-3">
 							{drawerCard.pane.type === "terminal" && (
 								<button
 									type="button"
@@ -3858,7 +3870,10 @@ function DevBoardPage() {
 														? 'Died mid-turn — reopen it and send "Continue"'
 														: "Reopen this conversation at an idle prompt (claude --resume)"
 									}
-									className="rounded-[7px] bg-[#14301f] px-3 py-1.5 text-xs font-semibold text-[#3ecf8e] hover:bg-[#1a3d28] disabled:cursor-not-allowed disabled:bg-[#1f1f27] disabled:text-[#6b6b78]"
+									className={cn(
+										"rounded-[7px] px-3 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:bg-secondary disabled:text-faint-foreground",
+										BUTTON.primary,
+									)}
 								>
 									{drawerCard.pane.odinQueued
 										? resumingPaneIds.includes(drawerCard.pane.id)
@@ -3882,7 +3897,10 @@ function DevBoardPage() {
 									type="button"
 									onClick={() => markDone(drawerCard)}
 									title="Done — end the session and remove it from the board"
-									className="rounded-[7px] bg-[#1f1f27] px-3 py-1.5 text-xs font-semibold text-[#a5a5b3] hover:text-[#3ecf8e]"
+									className={cn(
+										"rounded-[7px] px-3 py-1.5 text-xs font-semibold",
+										BUTTON.done,
+									)}
 								>
 									✓ Done
 								</button>
@@ -3890,13 +3908,19 @@ function DevBoardPage() {
 							<RemindButton
 								onPick={(day) => remindMe(drawerCard, day)}
 								label="Remind me"
-								className="rounded-[7px] bg-[#1f1f27] px-3 py-1.5 text-xs font-semibold text-[#a5a5b3] hover:text-[#f5b83d]"
+								className={cn(
+									"rounded-[7px] px-3 py-1.5 text-xs font-semibold",
+									BUTTON.secondary,
+								)}
 							/>
 							{!inCatchUp && (
 								<button
 									type="button"
 									onClick={() => setDrawerCard(null)}
-									className="ml-auto rounded-[7px] bg-[#1f1f27] px-3 py-1.5 text-xs font-semibold text-[#a5a5b3]"
+									className={cn(
+										"ml-auto rounded-[7px] px-3 py-1.5 text-xs font-semibold",
+										BUTTON.secondary,
+									)}
 								>
 									Close
 								</button>

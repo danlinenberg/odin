@@ -93,12 +93,12 @@ function MyTasksPage() {
 		<div className="flex h-full flex-col">
 			<FeedHeader>
 				<FeedDivider />
-				<span className="shrink-0 text-[12px] text-[#8a8a97]">
+				<span className="shrink-0 text-[12px] text-muted-foreground">
 					my own list · start a session when you're ready
 				</span>
 			</FeedHeader>
 
-			<div className="border-b border-[#25252e] px-[18px] py-3">
+			<div className="border-b border-border px-[18px] py-3">
 				<TaskBox
 					value={draft}
 					skills={skills}
@@ -118,7 +118,7 @@ function MyTasksPage() {
 
 			<div className={FEED_LIST}>
 				{tasks.length === 0 && (
-					<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
+					<div className="px-2 py-8 text-center text-xs text-muted-foreground">
 						Nothing on your list — type it in above.
 					</div>
 				)}
@@ -151,8 +151,7 @@ function MyTasksPage() {
 							key={task.id}
 							className={cn(
 								FEED_ROW,
-								activePaneId &&
-									"border-[#1a4029] border-l-2 border-l-[#3ecf8e] bg-[#0f1613]",
+								activePaneId && "border-l-2 border-l-working",
 							)}
 						>
 							<div className="flex items-start gap-3">
@@ -166,11 +165,11 @@ function MyTasksPage() {
 									}}
 									className="min-w-0 flex-1 cursor-text text-left"
 								>
-									<span className="block truncate text-[13px] font-semibold text-[#f5f5f7]">
+									<span className="block truncate text-[13px] font-semibold text-foreground">
 										{task.title}
 									</span>
 									{task.notes && (
-										<span className="mt-1 block truncate text-[11.5px] text-[#a5a5b3]">
+										<span className="mt-1 block truncate text-[11.5px] text-muted-foreground">
 											{task.notes.replace(/\s+/g, " ")}
 										</span>
 									)}
@@ -183,7 +182,7 @@ function MyTasksPage() {
 											<span
 												className={cn(
 													"inline-flex items-center gap-1 rounded-[5px] px-[7px] py-[1px] font-semibold",
-													PILL.green,
+													PILL.working,
 												)}
 											>
 												<span className="size-1.5 animate-pulse rounded-full bg-current" />

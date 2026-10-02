@@ -1,27 +1,19 @@
 /**
- * A colored chip for a person's name. Color is derived from the name so the
- * same person is always the same color across the Tasks view and Dev Board.
+ * A person's name as a chip. The chip itself is neutral — a list of ten
+ * people used to be ten different coloured pills, louder than the statuses
+ * beside them. The person's colour lives in the dot only, derived from the
+ * name so the same person is the same colour on every page.
  */
 
-// Dark-bg / bright-fg pairs — vivid but readable on the near-black UI.
-const PALETTE: { bg: string; fg: string }[] = [
-	{ bg: "#2a1e3d", fg: "#c4a3ff" }, // violet
-	{ bg: "#0f2e26", fg: "#4ade80" }, // green
-	{ bg: "#0e2740", fg: "#5eb0ff" }, // blue
-	{ bg: "#3a2416", fg: "#ff9f5e" }, // orange
-	{ bg: "#3a1a28", fg: "#ff7ba3" }, // pink
-	{ bg: "#0e2e33", fg: "#4fd4e0" }, // cyan
-	{ bg: "#31300f", fg: "#e0d24f" }, // yellow
-	{ bg: "#301a1a", fg: "#ff8080" }, // red
-	{ bg: "#1a2e1a", fg: "#9fe080" }, // lime
-	{ bg: "#16283a", fg: "#7ec4ff" }, // sky
-];
+// One lightness and chroma, eight hues around the wheel (OKLCH), so no
+// person's dot is brighter than another's — just a different hue.
+const HUES = [300, 155, 240, 55, 0, 195, 95, 270];
 
-export function personColor(name: string): { bg: string; fg: string } {
+export function personColor(name: string): { fg: string } {
 	let hash = 0;
 	for (let i = 0; i < name.length; i++)
 		hash = (hash * 31 + name.charCodeAt(i)) | 0;
-	return PALETTE[Math.abs(hash) % PALETTE.length];
+	return { fg: `oklch(0.76 0.12 ${HUES[Math.abs(hash) % HUES.length]})` };
 }
 
 export function PersonChip({
@@ -31,20 +23,13 @@ export function PersonChip({
 	name: string;
 	className?: string;
 }) {
-	const { bg, fg } = personColor(name);
 	return (
 		<span
-			className={`inline-flex min-w-0 items-center gap-1 rounded-[6px] px-[7px] py-[1px] text-[11px] font-semibold ${className ?? ""}`}
-			// The PILL look (./pill), derived from the name's own colour.
-			style={{
-				backgroundImage: `linear-gradient(to right, color-mix(in srgb, ${fg} 24%, ${bg}), ${bg})`,
-				color: `color-mix(in srgb, ${fg} 35%, white)`,
-				boxShadow: `0 0 4px color-mix(in srgb, ${fg} 28%, transparent)`,
-			}}
+			className={`inline-flex min-w-0 items-center gap-1.5 rounded-[6px] bg-secondary px-[7px] py-[1px] text-[11px] font-medium text-soft-foreground ring-1 ring-inset ring-border ${className ?? ""}`}
 		>
 			<span
 				className="size-1.5 shrink-0 rounded-full"
-				style={{ backgroundColor: fg }}
+				style={{ backgroundColor: personColor(name).fg }}
 			/>
 			{/* The name gives, not the chip: a long GitHub login gets an ellipsis
 			    rather than being cut mid-word by the column edge. */}

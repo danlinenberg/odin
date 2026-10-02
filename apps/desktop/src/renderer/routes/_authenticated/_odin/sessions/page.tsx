@@ -5,9 +5,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useTabsStore } from "renderer/stores/tabs/store";
-import { useSearchHotkey } from "../components/FeedChrome";
+import { ROW_PRIMARY_BUTTON, useSearchHotkey } from "../components/FeedChrome";
 import { PersonChip } from "../components/PersonChip";
-import { PILL } from "../components/pill";
+import { BUTTON, PILL } from "../components/pill";
 import { Highlight, TranscriptView } from "../components/TranscriptView";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePaneMeta } from "../hooks/usePaneMeta";
@@ -202,7 +202,7 @@ function SessionsPage() {
 		<div className="flex h-full flex-col">
 			<div className="flex items-center gap-3 px-[18px] pb-2.5 pt-3.5">
 				<h1 className="text-[15px] font-semibold">Session History</h1>
-				<span className="text-xs text-[#a5a5b3]">
+				<span className="text-xs text-muted-foreground">
 					every session Odin launched · search what was said, read it, resume it
 				</span>
 			</div>
@@ -213,18 +213,18 @@ function SessionsPage() {
 					value={draft}
 					onChange={(event) => setDraft(event.target.value)}
 					placeholder={`Keywords or a person — any words you remember, best matches first (e.g. datadog cost)${hint}`}
-					className="h-8 min-w-0 flex-1 rounded-lg border border-[#25252e] bg-[#111114] px-3 text-[12.5px] text-[#f5f5f7] outline-none placeholder:text-[#8a8a97] focus:border-[#a394ff]"
+					className="h-8 min-w-0 flex-1 rounded-lg border border-border bg-card px-3 text-[12.5px] text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
 				/>
 				{draft && (
 					<button
 						type="button"
 						onClick={() => setDraft("")}
-						className="rounded-lg bg-[#1f1f27] px-2.5 py-1.5 text-[11px] font-semibold text-[#a5a5b3] hover:text-[#f5f5f7]"
+						className="rounded-lg bg-secondary px-2.5 py-1.5 text-[11px] font-semibold text-muted-foreground hover:text-foreground"
 					>
 						clear
 					</button>
 				)}
-				<span className="shrink-0 text-[11px] text-[#8a8a97]">
+				<span className="shrink-0 text-[11px] text-muted-foreground">
 					{isFetching
 						? "searching…"
 						: data
@@ -258,13 +258,13 @@ function SessionsPage() {
 
 			<div className="min-h-0 flex-1 overflow-y-auto px-[18px] pb-[18px]">
 				{rows.length === 0 && !isFetching && (
-					<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
+					<div className="px-2 py-8 text-center text-xs text-muted-foreground">
 						{/* A search that failed is not a machine with no history —
 						    saying so sent this page's one real outage ("cannot find
 						    module ./chunks/…", a rebuild under a running Odin) looking
 						    like an empty store for hours. */}
 						{error ? (
-							<span className="text-[#f0647a]">
+							<span className="text-danger">
 								Couldn't read the session store — {error.message}
 							</span>
 						) : query ? (
@@ -278,36 +278,36 @@ function SessionsPage() {
 					{rows.map((row) => (
 						<div
 							key={`${row.project}/${row.sessionId}`}
-							className="flex items-start gap-3 rounded-[10px] border border-[#25252e] bg-[#111114] px-3 py-2.5 transition-colors hover:border-[#34343f]"
+							className="flex items-start gap-3 rounded-[10px] border border-border bg-card px-3 py-2.5 transition-colors hover:border-input"
 						>
 							<button
 								type="button"
 								onClick={() => setOpenRow(row)}
 								className="min-w-0 flex-1 text-left"
 							>
-								<div className="truncate text-[12.5px] font-semibold text-[#f5f5f7]">
+								<div className="truncate text-[12.5px] font-semibold text-foreground">
 									<Highlight text={row.title} terms={terms} />
 								</div>
-								<div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-[#a5a5b3]">
+								<div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
 									{row.person && <PersonChip name={row.person} />}
 									{repoLabel(row.cwd) && (
 										<span
 											title={row.cwd ?? undefined}
-											className="rounded-[5px] bg-[#1f1f27] px-[7px]"
+											className="rounded-[5px] bg-secondary px-[7px]"
 										>
 											{repoLabel(row.cwd)}
 										</span>
 									)}
 									{cameFrom.get(row.sessionId) && (
-										<span className={cn("rounded-[5px] px-[7px]", PILL.violet)}>
+										<span className={cn("rounded-[5px] px-[7px]", PILL.brand)}>
 											{cameFrom.get(row.sessionId)}
 										</span>
 									)}
 									<span>{agoLabel(row.updatedAt)}</span>
-									<span className="text-[#8a8a97]">·</span>
+									<span className="text-muted-foreground">·</span>
 									<span>{row.messages} msgs</span>
 									{row.matches > 0 && (
-										<span className="text-[#a394ff]">
+										<span className="text-primary">
 											{row.matches} match{row.matches === 1 ? "" : "es"}
 										</span>
 									)}
@@ -317,14 +317,14 @@ function SessionsPage() {
 										{row.snippets.map((snippet, index) => (
 											<div
 												key={`${index}-${snippet.role}`}
-												className="text-[11.5px] leading-relaxed text-[#a5a5b3]"
+												className="text-[11.5px] leading-relaxed text-muted-foreground"
 											>
 												<span
 													className={cn(
 														"mr-1.5 text-[10px] font-semibold uppercase",
 														snippet.role === "user"
-															? "text-[#a394ff]"
-															: "text-[#3ecf8e]",
+															? "text-primary"
+															: "text-muted-foreground",
 													)}
 												>
 													{snippet.role === "user" ? "you" : "claude"}
@@ -335,7 +335,7 @@ function SessionsPage() {
 									</div>
 								) : (
 									row.prompt && (
-										<div className="mt-1.5 line-clamp-2 text-[11.5px] leading-relaxed text-[#8a8a97]">
+										<div className="mt-1.5 line-clamp-2 text-[11.5px] leading-relaxed text-muted-foreground">
 											{row.prompt}
 										</div>
 									)
@@ -346,7 +346,7 @@ function SessionsPage() {
 								disabled={isLaunching}
 								onClick={() => void resume(row)}
 								title={`claude --resume ${row.sessionId}`}
-								className="shrink-0 rounded-[7px] bg-[#14301f] px-2.5 py-1 text-xs font-semibold text-[#3ecf8e] hover:bg-[#1a3d28] disabled:opacity-50"
+								className={cn(ROW_PRIMARY_BUTTON, "disabled:opacity-50")}
 							>
 								Resume
 							</button>
@@ -355,7 +355,7 @@ function SessionsPage() {
 				</div>
 				<div ref={sentinelRef} />
 				{rows.length > 0 && !hasNextPage && !query && (
-					<div className="py-4 text-center text-[11px] text-[#8a8a97]">
+					<div className="py-4 text-center text-[11px] text-muted-foreground">
 						That's everything still on disk — Claude Code deletes transcripts
 						after 30 days.
 					</div>
@@ -371,8 +371,8 @@ function SessionsPage() {
 						onClick={() => setOpenRow(null)}
 					/>
 					{/* absolute: stays inside the content area, clear of the traffic lights */}
-					<div className="absolute right-0 top-0 z-50 flex h-full w-[min(900px,90vw)] flex-col border-l border-[#25252e] bg-[#111114]">
-						<div className="border-b border-[#25252e] px-4 py-3.5">
+					<div className="absolute right-0 top-0 z-50 flex h-full w-[min(900px,90vw)] flex-col border-l border-border bg-tertiary">
+						<div className="border-b border-border px-4 py-3.5">
 							<div className="truncate text-sm font-semibold">
 								{openRow.title}
 							</div>
@@ -380,19 +380,19 @@ function SessionsPage() {
 							    the opening prompt, and the transcript opens scrolled
 							    past it. */}
 							{openRow.prompt && (
-								<div className="mt-1 line-clamp-3 select-text cursor-text text-[12px] leading-relaxed text-[#a5a5b3]">
+								<div className="mt-1 line-clamp-3 select-text cursor-text text-[12px] leading-relaxed text-muted-foreground">
 									{openRow.prompt}
 								</div>
 							)}
-							<div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-[#a5a5b3]">
+							<div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
 								{openRow.person && <PersonChip name={openRow.person} />}
 								{openRow.cwd && (
-									<span className="select-text cursor-text rounded-[5px] bg-[#1f1f27] px-[7px] text-[#a394ff]">
+									<span className="select-text cursor-text rounded-[5px] bg-secondary px-[7px] text-primary">
 										{openRow.cwd}
 									</span>
 								)}
 								<span>{agoLabel(openRow.updatedAt)}</span>
-								<span className="select-text cursor-text text-[#8a8a97]">
+								<span className="select-text cursor-text text-muted-foreground">
 									{openRow.sessionId}
 								</span>
 							</div>
@@ -402,19 +402,22 @@ function SessionsPage() {
 							sessionId={openRow.sessionId}
 							terms={terms}
 						/>
-						<div className="flex gap-2 border-t border-[#25252e] px-4 py-3">
+						<div className="flex gap-2 border-t border-border px-4 py-3">
 							<button
 								type="button"
 								disabled={isLaunching}
 								onClick={() => void resume(openRow)}
-								className="rounded-[7px] bg-[#14301f] px-3 py-1.5 text-xs font-semibold text-[#3ecf8e] hover:bg-[#1a3d28] disabled:opacity-50"
+								className={cn(
+									"rounded-[7px] px-3 py-1.5 text-xs font-semibold disabled:opacity-50",
+									BUTTON.primary,
+								)}
 							>
 								↻ Resume
 							</button>
 							<button
 								type="button"
 								onClick={() => setOpenRow(null)}
-								className="ml-auto rounded-[7px] bg-[#1f1f27] px-3 py-1.5 text-xs font-semibold text-[#a5a5b3]"
+								className="ml-auto rounded-[7px] bg-secondary px-3 py-1.5 text-xs font-semibold text-muted-foreground"
 							>
 								Close
 							</button>

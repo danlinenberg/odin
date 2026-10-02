@@ -15,49 +15,67 @@
  * This ensures the app looks correct during initial load before hydration.
  */
 :root {
-	/* Default to dark (ember) theme colors as fallback */
-	--background: #151110;
-	--foreground: #eae8e6;
-	--card: #201e1c;
-	--card-foreground: #eae8e6;
-	--popover: #201e1c;
-	--popover-foreground: #eae8e6;
-	--primary: #eae8e6;
-	--primary-foreground: #151110;
-	--secondary: #2a2827;
-	--secondary-foreground: #eae8e6;
-	--muted: #2a2827;
-	--muted-foreground: #a8a5a3;
-	--accent: #2a2827;
-	--accent-foreground: #eae8e6;
-	--tertiary: #1a1716;
-	--tertiary-active: #252220;
-	--destructive: #cc4444;
-	--destructive-foreground: #ffcccc;
-	--border: #2a2827;
-	--input: #2a2827;
-	--ring: #3a3837;
-	--chart-1: #e07850;
-	--chart-2: #50a878;
-	--chart-3: #d4a84b;
-	--chart-4: #7b68ee;
-	--chart-5: #dc6b6b;
+	/* Fallbacks = the built-in Dark theme (shared/themes/built-in/ember.ts),
+	   so the first paint before the theme store hydrates already matches. */
+	--background: #0e0e11;
+	--foreground: #ececf1;
+	--card: #16161b;
+	--card-foreground: #ececf1;
+	--popover: #1a1a20;
+	--popover-foreground: #ececf1;
+	--primary: #a394ff;
+	--primary-foreground: #0e0e11;
+	--secondary: #1f1f26;
+	--secondary-foreground: #ececf1;
+	--muted: #1f1f26;
+	--muted-foreground: #9696a3;
+	--accent: #25252d;
+	--accent-foreground: #ececf1;
+	--tertiary: #121216;
+	--tertiary-active: #1f1f26;
+	--destructive: #f0647a;
+	--destructive-foreground: #fff1f3;
+	--border: #26262e;
+	--input: #2e2e37;
+	--ring: #a394ff;
+	--chart-1: #a394ff;
+	--chart-2: #5aa9ff;
+	--chart-3: #3ecf8e;
+	--chart-4: #f5b83d;
+	--chart-5: #f0647a;
 	--radius: 0.625rem;
-	--sidebar: #1a1716;
-	--sidebar-foreground: #eae8e6;
-	--sidebar-primary: #e07850;
-	--sidebar-primary-foreground: #151110;
-	--sidebar-accent: #252220;
-	--sidebar-accent-foreground: #eae8e6;
-	--sidebar-border: #2a2827;
-	--sidebar-ring: #3a3837;
-	--highlight-match: rgba(224, 120, 80, 0.2);
-	--highlight-active: rgba(224, 120, 80, 0.5);
-	--highlight: #e07850;
-	--highlight-foreground: #151110;
+	--sidebar: #121216;
+	--sidebar-foreground: #ececf1;
+	--sidebar-primary: #a394ff;
+	--sidebar-primary-foreground: #0e0e11;
+	--sidebar-accent: #1f1f26;
+	--sidebar-accent-foreground: #ececf1;
+	--sidebar-border: #26262e;
+	--sidebar-ring: #a394ff;
+	--highlight-match: rgba(163, 148, 255, 0.2);
+	--highlight-active: rgba(163, 148, 255, 0.45);
+	--highlight: #a394ff;
+	--highlight-foreground: #0e0e11;
 	/* Sidebar row fills: low-opacity foreground washes so they track any theme */
 	--fill-hover: color-mix(in oklab, var(--foreground) 7%, transparent);
 	--fill-selected: color-mix(in oklab, var(--foreground) 10%, transparent);
+
+	/* Odin's semantic palette. Not theme-store variables: a theme recolours
+	   surfaces, but a state reads the same everywhere. Each hue means one
+	   thing — never use one for decoration:
+	     working   — an agent is running (blue)
+	     attention — waiting on you, a warning (amber)
+	     success   — finished, done, connected (green)
+	     danger    — failed, overdue, destructive (red)
+	   Chips tint them: bg-<hue>/12 text-<hue>. Two text steps sit between
+	   foreground and muted-foreground: soft (body copy) and faint (tags,
+	   separators, placeholders). */
+	--soft-foreground: #c9c9d3;
+	--faint-foreground: #6e6e7b;
+	--working: #5aa9ff;
+	--attention: #f5b83d;
+	--success: #3ecf8e;
+	--danger: #f0647a;
 }
 
 /* Light theme fallback values - applied before hydration if user has light theme saved */
@@ -102,6 +120,12 @@
 	--highlight-foreground: oklch(0.985 0 0);
 	--fill-hover: color-mix(in oklab, var(--foreground) 4%, transparent);
 	--fill-selected: color-mix(in oklab, var(--foreground) 6%, transparent);
+	--soft-foreground: oklch(0.32 0 0);
+	--faint-foreground: oklch(0.62 0 0);
+	--working: #2f7fe0;
+	--attention: #b7791f;
+	--success: #1f9d63;
+	--danger: #d6334f;
 }
 
 @theme inline {
@@ -147,6 +171,12 @@
 	--color-highlight-foreground: var(--highlight-foreground);
 	--color-fill-hover: var(--fill-hover);
 	--color-fill-selected: var(--fill-selected);
+	--color-soft-foreground: var(--soft-foreground);
+	--color-faint-foreground: var(--faint-foreground);
+	--color-working: var(--working);
+	--color-attention: var(--attention);
+	--color-success: var(--success);
+	--color-danger: var(--danger);
 }
 
 @layer base {
@@ -176,6 +206,16 @@
 
 	body {
 		@apply bg-background text-foreground;
+	}
+
+	/* Native controls — date pickers, <select> menus, scrollbars — follow the
+	   theme instead of flashing a white popup on a dark page. */
+	:root {
+		color-scheme: dark;
+	}
+
+	:root.light {
+		color-scheme: light;
 	}
 
 	html,
@@ -240,7 +280,8 @@
 	/* Dark mode scrollbar styling */
 	* {
 		scrollbar-width: thin;
-		scrollbar-color: rgb(63 63 70 / 0.5) transparent;
+		scrollbar-color: color-mix(in oklab, var(--foreground) 14%, transparent)
+			transparent;
 	}
 
 	*::-webkit-scrollbar {
@@ -253,18 +294,18 @@
 	}
 
 	*::-webkit-scrollbar-thumb {
-		background-color: rgb(63 63 70 / 0.5);
+		background-color: color-mix(in oklab, var(--foreground) 14%, transparent);
 		border-radius: 6px;
 		border: 3px solid transparent;
 		background-clip: padding-box;
 	}
 
 	*::-webkit-scrollbar-thumb:hover {
-		background-color: rgb(82 82 91 / 0.7);
+		background-color: color-mix(in oklab, var(--foreground) 22%, transparent);
 	}
 
 	*::-webkit-scrollbar-thumb:active {
-		background-color: rgb(113 113 122 / 0.8);
+		background-color: color-mix(in oklab, var(--foreground) 30%, transparent);
 	}
 
 	*::-webkit-scrollbar-corner {

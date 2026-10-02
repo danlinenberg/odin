@@ -96,7 +96,7 @@ export function FontPreview({
 					</>
 				) : (
 					<>
-						<span className="size-2 rounded-full bg-blue-500" />
+						<span className="size-2 rounded-full bg-working" />
 						<span>settings.ts</span>
 						<span className="ml-auto">TypeScript</span>
 					</>

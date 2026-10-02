@@ -205,7 +205,7 @@ function MyPullRequestsPage() {
 						<button
 							type="button"
 							onClick={() => setShowBots((v) => !v)}
-							className="shrink-0 text-[12px] text-[#8a8a97] transition-colors hover:text-[#a5a5b3]"
+							className="shrink-0 text-[12px] text-muted-foreground transition-colors hover:text-foreground"
 						>
 							{showBots ? "hide" : "show"} bot PRs ({botCount})
 						</button>
@@ -237,7 +237,7 @@ function MyPullRequestsPage() {
 				)}
 				<FeedError error={pullsQuery.error} />
 				{pullsQuery.data && rows.length === 0 && (
-					<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
+					<div className="px-2 py-8 text-center text-xs text-muted-foreground">
 						{needle
 							? "No PRs match your search"
 							: kind === "review"
@@ -256,14 +256,14 @@ function MyPullRequestsPage() {
 							<div className="flex items-center gap-3">
 								<div className="min-w-0 flex-1">
 									<div className="flex items-center gap-2">
-										<span className="font-mono text-[11px] font-semibold text-[#a394ff]">
+										<span className="font-mono text-[11px] font-semibold text-muted-foreground">
 											#{pull.number}
 										</span>
-										<span className="truncate text-[13px] font-semibold text-[#f5f5f7]">
+										<span className="truncate text-[13px] font-semibold text-foreground">
 											{pull.title}
 										</span>
 										{pull.draft && (
-											<span className="shrink-0 rounded-[5px] bg-[#1f1f27] px-[7px] text-[10px] font-semibold uppercase text-[#a5a5b3]">
+											<span className="shrink-0 rounded-[5px] bg-secondary px-[7px] text-[10px] font-semibold uppercase text-muted-foreground">
 												draft
 											</span>
 										)}
