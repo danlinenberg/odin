@@ -16,6 +16,7 @@ export type SettingsSection =
 	| "board"
 	| "launch-limits"
 	| "next-in-line"
+	| "night-agent"
 	| "reminders"
 	| "review"
 	| "permissions"

@@ -22,6 +22,7 @@ import {
 	LuGitBranch,
 	LuKeyboard,
 	LuListOrdered,
+	LuMoon,
 } from "react-icons/lu";
 import { useIsV2CloudEnabled } from "renderer/hooks/useIsV2CloudEnabled";
 import { electronTrpc } from "renderer/lib/electron-trpc";
@@ -37,6 +38,7 @@ type SettingsRoute =
 	| "/settings/board"
 	| "/settings/launch-limits"
 	| "/settings/next-in-line"
+	| "/settings/night-agent"
 	| "/settings/reminders"
 	| "/settings/review"
 	| "/settings/git"
@@ -105,6 +107,12 @@ const SECTION_GROUPS: SectionGroup[] = [
 				section: "next-in-line",
 				label: "Next in line",
 				icon: <LuListOrdered className="h-4 w-4" />,
+			},
+			{
+				id: "/settings/night-agent",
+				section: "night-agent",
+				label: "Night Agent",
+				icon: <LuMoon className="h-4 w-4" />,
 			},
 			{
 				id: "/settings/reminders",

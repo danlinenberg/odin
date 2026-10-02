@@ -8,7 +8,7 @@ export interface OffHours {
 	end: string;
 	/** A ceiling on one night's sessions, so a bad night can't burn the quota. */
 	maxSessions: number;
-	/** Appended to every off-hours task's prompt. */
+	/** Appended to every Night Agent task's prompt. */
 	instructions: string;
 }
 
@@ -18,7 +18,7 @@ export const DEFAULT_OFF_HOURS: OffHours = {
 	end: "07:00",
 	maxSessions: 8,
 	instructions:
-		"This is an off-hours run: I'm asleep and will read the result in the morning. Get it as far as you can on your own — investigate, find the root cause, and make and verify the change on a branch with a PR open. Don't do anything other people would see before I've looked: no Slack or email messages, no Jira or PR comments, no merging, no deploys. Leave those in ACTION ITEMS.",
+		"This is a Night Agent run: I'm asleep and will read the result in the morning. Get it as far as you can on your own — investigate, find the root cause, and make and verify the change on a branch with a PR open. Don't do anything other people would see before I've looked: no Slack or email messages, no Jira or PR comments, no merging, no deploys. Leave those in ACTION ITEMS.",
 };
 
 /** Whether `now` falls in the window — `end` exclusive, wrapping midnight. */
@@ -45,7 +45,7 @@ export const useNextInLinePrompt = create<{
 	/** How long past its date a task still pins under Due. */
 	pinOverdueDays: number;
 	setPinOverdueDays: (days: number) => void;
-	/** Off-hours: work through Next in line, one session at a time, overnight. */
+	/** Night Agent: work through Next in line, one session at a time, overnight. */
 	offHours: OffHours;
 	setOffHours: (patch: Partial<OffHours>) => void;
 	/** Sessions started in the current window — reset once it closes. */
@@ -66,7 +66,7 @@ export const useNextInLinePrompt = create<{
 		}),
 		{
 			name: "odin-next-in-line-prompt",
-			// A profile saved before off-hours existed gets the defaults, not undefined.
+			// A profile saved before Night Agent existed gets the defaults, not undefined.
 			merge: (saved, current) => {
 				const persisted = saved as Partial<typeof current> | undefined;
 				return {

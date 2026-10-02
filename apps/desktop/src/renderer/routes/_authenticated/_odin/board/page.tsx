@@ -3212,11 +3212,11 @@ function DevBoardPage() {
 																		// Night-sky gradient and a moon: the overnight run's work,
 																		// picked out from a board you otherwise started yourself.
 																		<span
-																			title="Started overnight by Off-hours, while you were away"
+																			title="Started overnight by Night Agent, while you were away"
 																			className="inline-flex items-center gap-1 rounded-[5px] bg-gradient-to-r from-[#3b2a7a] to-[#1d4f7a] px-[7px] text-[11px] font-medium text-[#e4dcff] shadow-[0_0_6px_rgba(124,108,255,.45)]"
 																		>
 																			<LuMoon className="size-3 text-[#ffd97a]" />
-																			Off-hours
+																			Night Agent
 																		</span>
 																	)}
 																	{card.pane.odinTags?.includes(

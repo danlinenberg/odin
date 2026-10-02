@@ -31,6 +31,7 @@ describe("variant gating", () => {
 			"keyboard",
 			"launch-limits",
 			"next-in-line",
+			"night-agent",
 			"reminders",
 			"review",
 			"ringtones",

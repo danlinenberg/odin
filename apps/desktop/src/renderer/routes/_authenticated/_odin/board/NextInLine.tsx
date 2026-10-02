@@ -191,7 +191,7 @@ function useNextInLineRows() {
 /**
  * Next in line as the column shows it: waiting rows in the model's order (or
  * All tasks order), due ones pinned on top. Shared by the column and the
- * off-hours runner, so the night works through exactly the list you see.
+ * Night Agent runner, so the night works through exactly the list you see.
  */
 export function useNextInLineQueue(showHidden = false) {
 	const { rows, reminders, prompt, rankInput, refetchSlack } =

@@ -279,10 +279,10 @@ export function SweepIntervalRow() {
 }
 
 /**
- * Off-hours: Next in line worked through overnight, one session at a time.
+ * Night Agent: Next in line worked through overnight, one session at a time.
  * Every control saves as you change it; the runner reads them each minute.
  */
-export function OffHoursRows() {
+export function NightAgentRows() {
 	const offHours = useNextInLinePrompt((s) => s.offHours);
 	const setOffHours = useNextInLinePrompt((s) => s.setOffHours);
 	const started = useNextInLinePrompt((s) => s.offHoursStarted);
@@ -291,26 +291,26 @@ export function OffHoursRows() {
 		<div className="space-y-4">
 			<div className="flex items-center justify-between gap-6">
 				<div className="space-y-0.5">
-					<Label htmlFor="off-hours" className="text-sm font-medium">
-						Work the backlog off-hours
+					<Label htmlFor="night-agent" className="text-sm font-medium">
+						Work the backlog overnight
 					</Label>
 					<p className="text-[13px] leading-relaxed text-muted-foreground max-w-xl">
 						Between these times, Odin starts the top of Next in line, waits for
-						that session to finish its turn, then starts the next. Sessions are
-						tagged #off-hours. Odin has to be open; the Mac awake.
+						that session to finish its turn, then starts the next. Their cards
+						wear a Night Agent pill. Odin has to be open; the Mac awake.
 						{offHours.enabled && started > 0 && ` ${started} started tonight.`}
 					</p>
 				</div>
 				<Switch
-					id="off-hours"
+					id="night-agent"
 					checked={offHours.enabled}
 					onCheckedChange={(enabled) => setOffHours({ enabled })}
 				/>
 			</div>
 			<div className="flex items-center gap-3 text-sm">
-				<Label htmlFor="off-hours-start">From</Label>
+				<Label htmlFor="night-agent-start">From</Label>
 				<Input
-					id="off-hours-start"
+					id="night-agent-start"
 					type="time"
 					value={offHours.start}
 					onChange={(e) =>
@@ -318,9 +318,9 @@ export function OffHoursRows() {
 					}
 					className="w-28 tabular-nums"
 				/>
-				<Label htmlFor="off-hours-end">to</Label>
+				<Label htmlFor="night-agent-end">to</Label>
 				<Input
-					id="off-hours-end"
+					id="night-agent-end"
 					type="time"
 					value={offHours.end}
 					onChange={(e) =>
@@ -328,11 +328,11 @@ export function OffHoursRows() {
 					}
 					className="w-28 tabular-nums"
 				/>
-				<Label htmlFor="off-hours-max" className="ml-4">
+				<Label htmlFor="night-agent-max" className="ml-4">
 					At most
 				</Label>
 				<Input
-					id="off-hours-max"
+					id="night-agent-max"
 					type="number"
 					min={1}
 					max={50}
@@ -347,16 +347,19 @@ export function OffHoursRows() {
 				<span className="text-muted-foreground">sessions a night</span>
 			</div>
 			<div className="space-y-1">
-				<Label htmlFor="off-hours-instructions" className="text-sm font-medium">
-					Off-hours instructions
+				<Label
+					htmlFor="night-agent-instructions"
+					className="text-sm font-medium"
+				>
+					Night Agent instructions
 				</Label>
 				<p className="text-[13px] leading-relaxed text-muted-foreground max-w-xl">
-					Handed to every off-hours session, and used to pick them: "don't
+					Handed to every Night Agent session, and used to pick them: "don't
 					include X" keeps X out of the night's queue. An edit applies from the
 					next session on.
 				</p>
 				<Textarea
-					id="off-hours-instructions"
+					id="night-agent-instructions"
 					value={draft}
 					onChange={(e) => {
 						setDraft(e.target.value);

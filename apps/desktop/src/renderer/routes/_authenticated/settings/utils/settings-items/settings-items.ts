@@ -24,6 +24,7 @@ export const SETTING_ITEM_ID = {
 	BOARD_AUTO_RENAME_SESSIONS: "board-auto-rename-sessions",
 	LAUNCH_LIMITS: "launch-limits",
 	NEXT_IN_LINE_ORDER: "next-in-line-order",
+	NIGHT_AGENT: "night-agent",
 	REMINDERS_NOTIFY_AT: "reminders-notify-at",
 	REVIEW_SWEEP_INTERVAL: "review-sweep-interval",
 
@@ -113,6 +114,7 @@ export const SETTING_ITEM_VARIANT: Record<SettingItemId, SettingVariant> = {
 	[SETTING_ITEM_ID.LAUNCH_LIMITS]: "shared",
 	[SETTING_ITEM_ID.NEXT_IN_LINE_ORDER]: "shared",
 	[SETTING_ITEM_ID.REMINDERS_NOTIFY_AT]: "shared",
+	[SETTING_ITEM_ID.NIGHT_AGENT]: "shared",
 	[SETTING_ITEM_ID.REVIEW_SWEEP_INTERVAL]: "shared",
 
 	// Branch prefix exists in both UIs — v1 `GitSettings`, v2 `V2GitSettings`.
@@ -200,6 +202,7 @@ export const SETTINGS_ITEMS: SettingsItem[] = [
 	{ id: SETTING_ITEM_ID.BOARD_AUTO_RENAME_SESSIONS, section: "board" },
 	{ id: SETTING_ITEM_ID.LAUNCH_LIMITS, section: "launch-limits" },
 	{ id: SETTING_ITEM_ID.NEXT_IN_LINE_ORDER, section: "next-in-line" },
+	{ id: SETTING_ITEM_ID.NIGHT_AGENT, section: "night-agent" },
 	{ id: SETTING_ITEM_ID.REMINDERS_NOTIFY_AT, section: "reminders" },
 	{ id: SETTING_ITEM_ID.REVIEW_SWEEP_INTERVAL, section: "review" },
 
@@ -272,6 +275,7 @@ const VISIBLE_SECTIONS = new Set<SettingsSection>([
 	"board",
 	"launch-limits",
 	"next-in-line",
+	"night-agent",
 	"reminders",
 	"review",
 	// Agent-complete banners are Odin's own, so their sound and their macOS
