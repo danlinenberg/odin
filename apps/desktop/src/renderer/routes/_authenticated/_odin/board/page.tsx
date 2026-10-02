@@ -1404,6 +1404,12 @@ function DevBoardPage() {
 	// The pane ids are a snapshot taken on start, so ✓ done doesn't reshuffle
 	// the cards you haven't reached.
 	const [catchUp, setCatchUp] = useState<string[] | null>(null);
+	// Catch up lasts as long as its drawer. Only ‹ and "All caught up" used to
+	// end it, so a click outside, Esc or Minimize left the queue behind — and
+	// opening one of its cards from the board later came up as Catch up.
+	useEffect(() => {
+		if (!drawerCard) setCatchUp(null);
+	}, [drawerCard]);
 	// Catch up shows a card's full session only after you ask, per card — a pane
 	// id, so the next card starts lean again without an effect to reset it.
 	const [catchUpFull, setCatchUpFull] = useState<string | null>(null);
