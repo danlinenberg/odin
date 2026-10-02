@@ -1,6 +1,32 @@
 import { cn } from "@odin/ui/utils";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import { MarkdownRenderer } from "renderer/components/MarkdownRenderer";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+
+type Turn = { role: "user" | "assistant"; text: string; at: string | null };
+
+/**
+ * Claude speaks in bursts between tool calls — five assistant messages in a
+ * row read as one reply, so show them as one.
+ */
+export function mergeTurns(messages: Turn[]): Turn[] {
+	const turns: Turn[] = [];
+	for (const message of messages) {
+		const last = turns.at(-1);
+		if (last?.role === message.role)
+			turns[turns.length - 1] = {
+				...last,
+				text: `${last.text}\n\n${message.text}`,
+			};
+		else turns.push(message);
+	}
+	return turns;
+}
+
+// The renderer's headings are sized for a document; inside a chat bubble they
+// shout. Unlayered .default-markdown CSS beats utilities, hence the `!`.
+const COMPACT_MARKDOWN =
+	"h-auto! overflow-visible! bg-transparent! text-[13px] leading-relaxed text-[#d6d6dc] [&_article]:p-0! [&_h1]:text-[15px]! [&_h2]:text-[14px]! [&_h2]:border-0! [&_h2]:pb-0! [&_h2]:mt-4! [&_h3]:text-[13px]! [&_h3]:mt-3! [&_p:last-child]:mb-0! [&_ul:last-child]:mb-0! [&_ol:last-child]:mb-0! [&_p]:mb-2.5! [&_code]:text-[12px]";
 
 function escapeRegExp(value: string): string {
 	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -42,6 +68,7 @@ export function TranscriptView({
 }) {
 	const { data, isLoading, error } =
 		electronTrpc.terminal.readClaudeTranscript.useQuery({ project, sessionId });
+	const turns = useMemo(() => mergeTurns(data?.messages ?? []), [data]);
 	const ref = useRef<HTMLDivElement>(null);
 	// Jump to the first hit when arriving from a search, else the latest turn.
 	useEffect(() => {
@@ -61,7 +88,7 @@ export function TranscriptView({
 	return (
 		<div
 			ref={ref}
-			className="min-h-0 flex-1 select-text cursor-text overflow-y-auto px-4 py-3"
+			className="min-h-0 flex-1 select-text cursor-text overflow-y-auto px-5 py-4"
 		>
 			{isLoading && <div className="text-[12px] text-[#8a8a97]">loading…</div>}
 			{data?.messages.length === 0 && (
@@ -69,34 +96,43 @@ export function TranscriptView({
 					No prose turns in this transcript.
 				</div>
 			)}
-			<div className="flex flex-col gap-3">
-				{data?.messages.map((message, index) => (
+			<div className="mx-auto flex max-w-[820px] flex-col gap-5">
+				{turns.map((turn, index) => (
 					<div
-						key={`${index}-${message.at ?? ""}`}
+						key={`${index}-${turn.at ?? ""}`}
 						className={cn(
-							"rounded-[9px] border px-3 py-2",
-							message.role === "user"
-								? "border-[#2b2646] bg-[#171524]"
-								: "border-[#25252e] bg-[#141418]",
+							turn.role === "user" &&
+								"ml-auto max-w-[85%] rounded-[12px] border border-[#2b2646] bg-[#171524] px-3.5 py-2.5",
 						)}
 					>
-						<div className="mb-1 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.4px]">
+						<div className="mb-1.5 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.4px]">
 							<span
 								className={
-									message.role === "user" ? "text-[#a394ff]" : "text-[#3ecf8e]"
+									turn.role === "user" ? "text-[#a394ff]" : "text-[#3ecf8e]"
 								}
 							>
-								{message.role === "user" ? "you" : "claude"}
+								{turn.role === "user" ? "you" : "claude"}
 							</span>
-							{message.at && (
-								<span className="font-normal text-[#8a8a97]">
-									{new Date(message.at).toLocaleString()}
+							{turn.at && (
+								<span className="font-normal normal-case tracking-normal text-[#6b6b78]">
+									{new Date(turn.at).toLocaleString()}
 								</span>
 							)}
 						</div>
-						<div className="whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-[#d6d6dc]">
-							<Highlight text={message.text} terms={terms} />
-						</div>
+						{/* Search hits need <mark>s to jump to; otherwise it's Claude's
+						    markdown, so render it as markdown. */}
+						{terms.length > 0 ? (
+							<div className="whitespace-pre-wrap break-words text-[13px] leading-relaxed text-[#d6d6dc]">
+								<Highlight text={turn.text} terms={terms} />
+							</div>
+						) : (
+							<MarkdownRenderer
+								content={turn.text}
+								style="default"
+								allowHtml={false}
+								className={COMPACT_MARKDOWN}
+							/>
+						)}
 					</div>
 				))}
 			</div>

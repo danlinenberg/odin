@@ -3361,8 +3361,8 @@ function DevBoardPage() {
 											Chat session — no terminal to embed.
 										</div>
 									</div>
-								) : alivePaneIds.has(drawerCard.pane.id) ? (
-									// Live pane — the real PTY, attached read/write. xterm is the
+								) : agentPaneIds.has(drawerCard.pane.id) ? (
+									// Claude running — the real PTY, attached read/write. xterm is the
 									// only thing that renders Claude Code's full-screen TUI legibly
 									// (scrollback replay is a stream of overlapping frames = mush).
 									<div className="min-h-0 flex-1 bg-[#0a0a0c] p-2">
@@ -3374,8 +3374,8 @@ function DevBoardPage() {
 										/>
 									</div>
 								) : (
-									// Dead pane — no live PTY to attach; show the persisted
-									// transcript read-only (best-effort for a TUI).
+									// Claude has exited — the PTY is dead, or a bare zsh outlived
+									// the conversation. Show the conversation, read-only.
 									<HistoryView card={drawerCard} live={false} />
 								)}
 							</div>
