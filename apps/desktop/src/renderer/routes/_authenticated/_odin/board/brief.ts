@@ -393,3 +393,15 @@ export function actionItems(messages: BriefMessage[]): string[] {
 		.map((line) => line.match(/^\s*(?:\d+[.)]|[-*])\s+(.+)/)?.[1]?.trim())
 		.filter((item): item is string => !!item);
 }
+
+// "Merge PR #12", "Review and merge #12" — a merge is the whole item.
+const MERGE_ITEM = /^(?:review(?:,| and)\s+)?merge\b/i;
+
+/**
+ * The session is finished bar the click: every open action item is a merge.
+ * A card in that state needs thirty seconds of you, not a read-through.
+ */
+export function onlyMergeLeft(messages: BriefMessage[]): boolean {
+	const items = actionItems(messages);
+	return items.length > 0 && items.every((item) => MERGE_ITEM.test(item));
+}

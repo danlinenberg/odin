@@ -10,6 +10,7 @@ import {
 	linkLabel,
 	nextCronFire,
 	notionPage,
+	onlyMergeLeft,
 	parseLinks,
 	projectSlug,
 	pullRequests,
@@ -513,5 +514,26 @@ describe("actionItems", () => {
 		expect(
 			actionItems([turn("ACTION ITEMS\n1. x"), turn("Just chatting.")]),
 		).toEqual([]);
+	});
+});
+
+describe("onlyMergeLeft", () => {
+	const turn = (text: string) => ({
+		role: "assistant" as const,
+		text,
+		at: null,
+	});
+	it("is true when every item is a merge", () => {
+		expect(
+			onlyMergeLeft([
+				turn("ACTION ITEMS\n1. Merge PR #12\n2. Review and merge #13"),
+			]),
+		).toBe(true);
+	});
+	it("is false with anything else left, or nothing", () => {
+		expect(
+			onlyMergeLeft([turn("ACTION ITEMS\n1. Merge #12\n2. Restart Odin dev")]),
+		).toBe(false);
+		expect(onlyMergeLeft([turn("ACTION ITEMS: none")])).toBe(false);
 	});
 });

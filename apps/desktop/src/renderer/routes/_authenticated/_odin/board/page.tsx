@@ -30,6 +30,7 @@ import {
 	LuEye,
 	LuEyeOff,
 	LuFlame,
+	LuGitMerge,
 	LuGitPullRequest,
 	LuHourglass,
 	LuMoon,
@@ -96,6 +97,7 @@ import {
 	lastMessageAt,
 	nextCronFire,
 	notionPage,
+	onlyMergeLeft,
 	pullRequests,
 	sourceLink,
 } from "./brief";
@@ -361,6 +363,20 @@ function DropPill({ pane }: { pane: Pane }) {
 			className="inline-flex items-center rounded-[5px] bg-[#331a1f] px-[7px] text-[11px] font-medium text-[#ff7a8a]"
 		>
 			Drop? {row.evidence}
+		</span>
+	);
+}
+
+function MergeOnlyPill({ card }: { card: BoardCard }) {
+	const { data } = useCardTranscript(card, card.status === "working");
+	if (!data || !onlyMergeLeft(data.messages)) return null;
+	return (
+		<span
+			title="The only action item left is merging the PR"
+			className="inline-flex items-center gap-1 rounded-[5px] bg-[#13301f] px-[7px] text-[11px] font-medium text-[#4ade80]"
+		>
+			<LuGitMerge className="size-3" />
+			Just merge
 		</span>
 	);
 }
@@ -3032,6 +3048,7 @@ function DevBoardPage() {
 																</div>
 																<div className="mt-1 flex flex-wrap items-center gap-1.5">
 																	<DropPill pane={card.pane} />
+																	<MergeOnlyPill card={card} />
 																	{card.status === "review" && (
 																		<JustDonePill
 																			since={
