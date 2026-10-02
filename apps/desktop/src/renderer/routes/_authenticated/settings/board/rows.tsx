@@ -5,6 +5,7 @@ import { Switch } from "@odin/ui/switch";
 import { Textarea } from "@odin/ui/textarea";
 import { useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { useIdleClose } from "renderer/stores/idle-close";
 import { useLaunchLimits } from "renderer/stores/launch-limits";
 import { useNextInLinePrompt } from "renderer/stores/next-in-line-prompt";
 import type { LaunchLimits } from "shared/machine-load";
@@ -364,6 +365,44 @@ export function OffHoursRows() {
 					maxLength={4000}
 					rows={4}
 				/>
+			</div>
+		</div>
+	);
+}
+
+/** When the board closes a session that's sat idle. Next minute's sweep. */
+export function IdleCloseRow() {
+	const hours = useIdleClose((s) => s.hours);
+	const setHours = useIdleClose((s) => s.setHours);
+	return (
+		<div className="flex items-center justify-between gap-6">
+			<div className="space-y-0.5">
+				<Label htmlFor="idle-close-hours" className="text-sm font-medium">
+					Close idle sessions after
+				</Label>
+				<p className="text-[13px] leading-relaxed text-muted-foreground max-w-xl">
+					A session out of Working this long, with nothing running in its shell,
+					is closed. Its card stays in its column; Resume reopens it. 0 never
+					closes.
+				</p>
+			</div>
+			<div className="flex shrink-0 items-center gap-1.5">
+				<Input
+					id="idle-close-hours"
+					type="number"
+					min={0}
+					max={168}
+					step={0.5}
+					defaultValue={hours}
+					className="w-20 tabular-nums"
+					onChange={(event) => {
+						const next = event.target.valueAsNumber;
+						// ponytail: same as LaunchLimitRow — a bad value keeps the last good one.
+						if (Number.isFinite(next) && next >= 0 && next <= 168)
+							setHours(next);
+					}}
+				/>
+				<span className="w-16 text-sm text-muted-foreground">hours</span>
 			</div>
 		</div>
 	);
