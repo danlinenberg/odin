@@ -3568,7 +3568,8 @@ function DevBoardPage() {
 										⑂ Diff
 									</button>
 								)}
-								{drawerCard.pane.type === "terminal" && (
+								{/* Not in Catch up: you're deciding Keep or Done, not working. */}
+								{drawerCard.pane.type === "terminal" && !inCatchUp && (
 									// One control: the shell, and — once it's open — where it is.
 									<div className="flex shrink-0 items-stretch">
 										<button
