@@ -103,6 +103,9 @@ const SESSION_SOURCE: Record<
 	// keeps the row honest about the one thing it can say for sure: it isn't a
 	// feed item.
 	parked: { to: "/my-tasks", source: "Tasks" },
+	// Same for these two board-only states.
+	queued: { to: "/my-tasks", source: "Tasks" },
+	recent: { to: "/my-tasks", source: "Tasks" },
 };
 
 /** What a live session is doing — the board's columns, as a chip. */
