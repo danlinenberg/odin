@@ -47,6 +47,7 @@ import { canClaimKeyboard } from "renderer/lib/keyboard";
 import { coldRestoreState } from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/state";
 import { Terminal } from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/Terminal";
 import * as terminalCache from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/v1-terminal-cache";
+import { useIdleClose } from "renderer/stores/idle-close";
 import { launchLimits, useLaunchLimits } from "renderer/stores/launch-limits";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import type { Pane, PaneStatus } from "renderer/stores/tabs/types";
@@ -232,8 +233,6 @@ function slugify(title: string): string {
 const SETTLED_MS = 120_000;
 /** How long after a (re)start Continue stays clickable on a live session. */
 const RECENT_RESTART_MS = 5 * 60_000;
-/** A session idle this long, with no shell running anything, gets closed. */
-const IDLE_CLOSE_MS = 3 * 60 * 60_000;
 
 /** Width of the Odin icon rail in layout.tsx — the drawer stops here. */
 const RAIL_W = 52;
@@ -1473,7 +1472,7 @@ function DevBoardPage() {
 			!!createdAt && Date.now() - Date.parse(createdAt) > RECENT_RESTART_MS
 		);
 	};
-	// Close sessions that have sat idle for IDLE_CLOSE_MS: an open Claude holds
+	// Close sessions that have sat idle past Settings → Cards' timeout: an open Claude holds
 	// memory and a checkout for a conversation Resume can reopen any time. The
 	// card stays in its column (odinClosedIn) — closing it answered nothing.
 	// A session whose shell is still running something (a dev server) is in use.
@@ -1485,6 +1484,8 @@ function DevBoardPage() {
 	// would never get to fire.
 	const sweepIdleRef = useRef<() => Promise<void>>(async () => {});
 	sweepIdleRef.current = async () => {
+		const closeAfterMs = useIdleClose.getState().hours * 60 * 60_000;
+		if (closeAfterMs <= 0) return;
 		const now = Date.now();
 		const stale = Object.values(panes).filter((pane) => {
 			if (!pane.odinTaskTitle && !titleByPane[pane.id]) return false;
@@ -1495,7 +1496,7 @@ function DevBoardPage() {
 				firstSeenRef.current.set(pane.id, now);
 			const since =
 				pane.odinStatusAt ?? firstSeenRef.current.get(pane.id) ?? now;
-			return now - since > IDLE_CLOSE_MS;
+			return now - since > closeAfterMs;
 		});
 		if (stale.length === 0) return;
 		const snapshot = await utils.client.resourceMetrics.getSnapshot
