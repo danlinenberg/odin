@@ -315,6 +315,65 @@ function useCardSessionId(card: BoardCard): string | null {
 }
 
 /**
+ * Catch up's card: what's yours to do, then where it stands — nothing else.
+ * The conversation and the brief panel are one click away, not on screen:
+ * catching up is deciding Keep or Done, not reading.
+ */
+function CatchUpCard({
+	card,
+	onShowSession,
+}: {
+	card: BoardCard;
+	onShowSession: () => void;
+}) {
+	const { data: transcript } = useCardTranscript(card, false);
+	const sessionId = useCardSessionId(card);
+	const { data: written } =
+		electronTrpc.terminal.summarizeClaudeSession.useQuery(
+			{ sessionId: sessionId ?? "" },
+			{ enabled: !!sessionId, retry: false, staleTime: 30_000 },
+		);
+	// The agent's own list, verbatim; the brief's one-liner when it left none.
+	const todo = transcript ? actionItems(transcript.messages) : [];
+	const label = "mb-1.5 text-[11px] font-semibold uppercase tracking-[.4px]";
+	return (
+		<div className="flex min-h-0 flex-1 select-text cursor-text flex-col gap-6 overflow-y-auto px-8 py-7">
+			<div>
+				<div className={cn(label, "text-[#f5b83d]")}>Your action items</div>
+				{todo.length > 0 ? (
+					<ol className="list-decimal space-y-1.5 pl-5 text-[15px] leading-relaxed text-[#f5f5f7]">
+						{todo.map((item) => (
+							<li key={item} className="break-words">
+								{item}
+							</li>
+						))}
+					</ol>
+				) : (
+					<div className="text-[15px] leading-relaxed text-[#f5f5f7]">
+						{written?.next ?? (sessionId ? "reading the conversation…" : "—")}
+					</div>
+				)}
+			</div>
+			{written?.status && (
+				<div>
+					<div className={cn(label, "text-[#8a8a97]")}>Where it stands</div>
+					<div className="text-[13.5px] leading-relaxed text-[#d4d4dc]">
+						{written.status}
+					</div>
+				</div>
+			)}
+			<button
+				type="button"
+				onClick={onShowSession}
+				className="mt-auto self-start text-[12px] text-[#8a8a97] hover:text-[#a394ff]"
+			>
+				Show the session ↓
+			</button>
+		</div>
+	);
+}
+
+/**
  * "This one shipped a PR" — the fact you scan the board for, on the card
  * instead of behind a click. Read from the same transcript the drawer reads, so
  * react-query shares one fetch per session. Newest PR only; the drawer lists
@@ -1307,6 +1366,9 @@ function DevBoardPage() {
 	// The pane ids are a snapshot taken on start, so ✓ done doesn't reshuffle
 	// the cards you haven't reached.
 	const [catchUp, setCatchUp] = useState<string[] | null>(null);
+	// Catch up shows a card's full session only after you ask, per card — a pane
+	// id, so the next card starts lean again without an effect to reset it.
+	const [catchUpFull, setCatchUpFull] = useState<string | null>(null);
 	// Rename a session. Same home as tags (the pane, in app-state.json) and the
 	// first thing cardTitle reads, so the new name shows everywhere and sticks.
 	// Non-null = the drawer's title is being edited.
@@ -1898,6 +1960,11 @@ function DevBoardPage() {
 	// Dev only: hold Vite's reloads while a session is open (see coalesceFullReloadPlugin).
 	const drawerOpen = !!drawerCard;
 	const inCatchUp = !!drawerCard && !!catchUp?.includes(drawerCard.pane.id);
+	const catchUpLean =
+		inCatchUp &&
+		catchUpFull !== drawerCard?.pane.id &&
+		!isShellOpen &&
+		!isDiffOpen;
 	useEffect(() => {
 		import.meta.hot?.send("odin:session-pane", drawerOpen);
 		return () => import.meta.hot?.send("odin:session-pane", false);
@@ -3489,29 +3556,33 @@ function DevBoardPage() {
 										)}
 									</div>
 								)}
-								<button
-									type="button"
-									title="Toggle the session brief"
-									onClick={() => setIsBriefOpen((open) => !open)}
-									className={cn(
-										"shrink-0 rounded-md px-2 py-1 text-xs font-semibold",
-										isBriefOpen
-											? "bg-[#211d3a] text-[#a394ff]"
-											: "bg-[#1f1f27] text-[#a5a5b3] hover:text-[#f5f5f7]",
-									)}
-								>
-									ⓘ Brief
-								</button>
-								<button
-									type="button"
-									title="Toggle full width"
-									onClick={() =>
-										setDrawerFraction((fraction) => (fraction < 1 ? 1 : 0.6))
-									}
-									className="shrink-0 rounded-md bg-[#1f1f27] px-2 py-1 text-xs font-semibold text-[#a5a5b3] hover:text-[#f5f5f7]"
-								>
-									⛶
-								</button>
+								{!catchUpLean && (
+									<button
+										type="button"
+										title="Toggle the session brief"
+										onClick={() => setIsBriefOpen((open) => !open)}
+										className={cn(
+											"shrink-0 rounded-md px-2 py-1 text-xs font-semibold",
+											isBriefOpen
+												? "bg-[#211d3a] text-[#a394ff]"
+												: "bg-[#1f1f27] text-[#a5a5b3] hover:text-[#f5f5f7]",
+										)}
+									>
+										ⓘ Brief
+									</button>
+								)}
+								{!inCatchUp && (
+									<button
+										type="button"
+										title="Toggle full width"
+										onClick={() =>
+											setDrawerFraction((fraction) => (fraction < 1 ? 1 : 0.6))
+										}
+										className="shrink-0 rounded-md bg-[#1f1f27] px-2 py-1 text-xs font-semibold text-[#a5a5b3] hover:text-[#f5f5f7]"
+									>
+										⛶
+									</button>
+								)}
 							</div>
 							<div className="mt-1.5 flex flex-wrap gap-1.5">
 								{cardContact(drawerCard) && (
@@ -3540,65 +3611,72 @@ function DevBoardPage() {
 								</span>
 							</div>
 						</div>
-						{/* terminal on the left, "what's going on" brief on the right */}
-						<div className="flex min-h-0 flex-1">
-							<div className="flex min-h-0 min-w-0 flex-1 flex-col">
-								{isShellOpen && drawerShell ? (
-									// A shell in the same checkout, mounted like any other pane —
-									// it spawns on first mount with the session's cwd.
-									<div className="min-h-0 flex-1 bg-[#0a0a0c] p-2">
-										<Terminal
-											key={drawerShell.id}
-											paneId={drawerShell.id}
-											tabId={drawerShell.tabId}
-											workspaceId={drawerCard.workspaceId}
-										/>
-									</div>
-								) : isDiffOpen && drawerCard.pane.type === "terminal" ? (
-									<DiffView
-										key={drawerCard.pane.id}
-										cwd={sessionCwd(drawerCard.pane) ?? null}
-										claudeSessionId={drawerCard.pane.claudeSessionId ?? null}
-										workspaceId={drawerCard.workspaceId}
-									/>
-								) : drawerCard.pane.type !== "terminal" ? (
-									<div className="flex-1 select-text cursor-text overflow-y-auto px-4 py-3 text-[12.5px] text-[#a5a5b3]">
-										{drawerCard.pane.cwd && (
-											<div>cwd: {drawerCard.pane.cwd}</div>
-										)}
-										<div className="mt-2">
-											Chat session — no terminal to embed.
+						{catchUpLean ? (
+							<CatchUpCard
+								card={drawerCard}
+								onShowSession={() => setCatchUpFull(drawerCard.pane.id)}
+							/>
+						) : (
+							/* terminal on the left, "what's going on" brief on the right */
+							<div className="flex min-h-0 flex-1">
+								<div className="flex min-h-0 min-w-0 flex-1 flex-col">
+									{isShellOpen && drawerShell ? (
+										// A shell in the same checkout, mounted like any other pane —
+										// it spawns on first mount with the session's cwd.
+										<div className="min-h-0 flex-1 bg-[#0a0a0c] p-2">
+											<Terminal
+												key={drawerShell.id}
+												paneId={drawerShell.id}
+												tabId={drawerShell.tabId}
+												workspaceId={drawerCard.workspaceId}
+											/>
 										</div>
-									</div>
-								) : agentPaneIds.has(drawerCard.pane.id) ? (
-									// Claude running — the real PTY, attached read/write. xterm is the
-									// only thing that renders Claude Code's full-screen TUI legibly
-									// (scrollback replay is a stream of overlapping frames = mush).
-									<div className="min-h-0 flex-1 bg-[#0a0a0c] p-2">
-										<Terminal
+									) : isDiffOpen && drawerCard.pane.type === "terminal" ? (
+										<DiffView
 											key={drawerCard.pane.id}
-											paneId={drawerCard.pane.id}
-											tabId={drawerCard.tabId}
+											cwd={sessionCwd(drawerCard.pane) ?? null}
+											claudeSessionId={drawerCard.pane.claudeSessionId ?? null}
 											workspaceId={drawerCard.workspaceId}
 										/>
-									</div>
-								) : (
-									// Claude has exited — the PTY is dead, or a bare zsh outlived
-									// the conversation. Show the conversation, read-only.
-									<HistoryView card={drawerCard} live={false} />
+									) : drawerCard.pane.type !== "terminal" ? (
+										<div className="flex-1 select-text cursor-text overflow-y-auto px-4 py-3 text-[12.5px] text-[#a5a5b3]">
+											{drawerCard.pane.cwd && (
+												<div>cwd: {drawerCard.pane.cwd}</div>
+											)}
+											<div className="mt-2">
+												Chat session — no terminal to embed.
+											</div>
+										</div>
+									) : agentPaneIds.has(drawerCard.pane.id) ? (
+										// Claude running — the real PTY, attached read/write. xterm is the
+										// only thing that renders Claude Code's full-screen TUI legibly
+										// (scrollback replay is a stream of overlapping frames = mush).
+										<div className="min-h-0 flex-1 bg-[#0a0a0c] p-2">
+											<Terminal
+												key={drawerCard.pane.id}
+												paneId={drawerCard.pane.id}
+												tabId={drawerCard.tabId}
+												workspaceId={drawerCard.workspaceId}
+											/>
+										</div>
+									) : (
+										// Claude has exited — the PTY is dead, or a bare zsh outlived
+										// the conversation. Show the conversation, read-only.
+										<HistoryView card={drawerCard} live={false} />
+									)}
+								</div>
+								{isBriefOpen && (
+									<SessionBrief
+										key={drawerCard.pane.id}
+										paneId={drawerCard.pane.id}
+										cwd={drawerCard.pane.cwd ?? null}
+										claudeSessionId={drawerCard.pane.claudeSessionId ?? null}
+										marker={cardTitle(drawerCard)}
+										live={alivePaneIds.has(drawerCard.pane.id)}
+									/>
 								)}
 							</div>
-							{isBriefOpen && (
-								<SessionBrief
-									key={drawerCard.pane.id}
-									paneId={drawerCard.pane.id}
-									cwd={drawerCard.pane.cwd ?? null}
-									claudeSessionId={drawerCard.pane.claudeSessionId ?? null}
-									marker={cardTitle(drawerCard)}
-									live={alivePaneIds.has(drawerCard.pane.id)}
-								/>
-							)}
-						</div>
+						)}
 						<div className="flex gap-2 border-t border-[#25252e] px-4 py-3">
 							{drawerCard.pane.type === "terminal" && (
 								<button
@@ -3638,26 +3716,31 @@ function DevBoardPage() {
 													: "↻ Resume"}
 								</button>
 							)}
-							<button
-								type="button"
-								onClick={() => markDone(drawerCard)}
-								title="Done — end the session and remove it from the board"
-								className="rounded-[7px] bg-[#1f1f27] px-3 py-1.5 text-xs font-semibold text-[#a5a5b3] hover:text-[#3ecf8e]"
-							>
-								✓ Done
-							</button>
+							{/* Catch up has its own ✓ Done and ‹ below and above the card. */}
+							{!inCatchUp && (
+								<button
+									type="button"
+									onClick={() => markDone(drawerCard)}
+									title="Done — end the session and remove it from the board"
+									className="rounded-[7px] bg-[#1f1f27] px-3 py-1.5 text-xs font-semibold text-[#a5a5b3] hover:text-[#3ecf8e]"
+								>
+									✓ Done
+								</button>
+							)}
 							<RemindButton
 								onPick={(day) => remindMe(drawerCard, day)}
 								label="Remind me"
 								className="rounded-[7px] bg-[#1f1f27] px-3 py-1.5 text-xs font-semibold text-[#a5a5b3] hover:text-[#f5b83d]"
 							/>
-							<button
-								type="button"
-								onClick={() => setDrawerCard(null)}
-								className="ml-auto rounded-[7px] bg-[#1f1f27] px-3 py-1.5 text-xs font-semibold text-[#a5a5b3]"
-							>
-								Close
-							</button>
+							{!inCatchUp && (
+								<button
+									type="button"
+									onClick={() => setDrawerCard(null)}
+									className="ml-auto rounded-[7px] bg-[#1f1f27] px-3 py-1.5 text-xs font-semibold text-[#a5a5b3]"
+								>
+									Close
+								</button>
+							)}
 						</div>
 					</div>
 				</>
