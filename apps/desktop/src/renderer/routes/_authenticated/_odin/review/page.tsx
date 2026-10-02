@@ -15,6 +15,7 @@ import {
 	ROW_PRIMARY_BUTTON,
 	useSearchHotkey,
 } from "../components/FeedChrome";
+import { PILL } from "../components/pill";
 import { useBacklog } from "../hooks/builtin-automations";
 import {
 	type DroppedRow,
@@ -49,8 +50,8 @@ export const Route = createFileRoute("/_authenticated/_odin/review/")({
 });
 
 const VERDICT_STYLE = {
-	DROP: "bg-[#331a1f] text-[#ff7a8a]",
-	KEEP: "bg-[#14301f] text-[#3ecf8e]",
+	DROP: PILL.red,
+	KEEP: PILL.green,
 	UNKNOWN: "bg-[#1f1f27] text-[#8a8a97]",
 } as const;
 

@@ -29,6 +29,7 @@ import {
 } from "../components/FeedChrome";
 import { FeedError } from "../components/FeedError";
 import { PersonChip } from "../components/PersonChip";
+import { PILL } from "../components/pill";
 import { DueChip, META_DUE, OverdueMark } from "../components/Reminders";
 import { buildIssuePrompt } from "../feed-prompts";
 import { useDone } from "../hooks/useDone";
@@ -76,8 +77,8 @@ const statusTone = (status: string): Tone => {
 	return "idle";
 };
 const TONE_CHIP: Record<Tone, string> = {
-	review: "bg-[#16283a] text-[#7ec4ff]",
-	parked: "bg-[#221d12] text-[#f5b83d]",
+	review: PILL.blue,
+	parked: PILL.amber,
 	idle: "bg-[#1f1f27] text-[#a5a5b3]",
 };
 
@@ -97,9 +98,9 @@ const ROLE_TABS = [
 
 /** The "why is this here" chip the All view puts on every row. */
 const ROLE_BADGE = {
-	assigned: { label: "mine", className: "bg-[#14301f] text-[#3ecf8e]" },
-	reported: { label: "I filed", className: "bg-[#211d3a] text-[#a394ff]" },
-	mentioned: { label: "@me", className: "bg-[#221d12] text-[#f5b83d]" },
+	assigned: { label: "mine", className: PILL.green },
+	reported: { label: "I filed", className: PILL.violet },
+	mentioned: { label: "@me", className: PILL.amber },
 };
 type Role = (typeof ROLE_TABS)[number]["id"];
 
@@ -357,7 +358,12 @@ function MyJiraPage() {
 												)}
 												<span className={META_TAG}>
 													{activePaneId && (
-														<span className="inline-flex items-center gap-1 rounded-[5px] bg-[#14301f] px-[7px] py-[1px] font-semibold text-[#3ecf8e]">
+														<span
+															className={cn(
+																"inline-flex items-center gap-1 rounded-[5px] px-[7px] py-[1px] font-semibold",
+																PILL.green,
+															)}
+														>
 															<span className="size-1.5 animate-pulse rounded-full bg-current" />
 															Live
 														</span>
@@ -378,7 +384,12 @@ function MyJiraPage() {
 													{(issue.mention ||
 														(issue.priority &&
 															isHotPriority(issue.priority))) && (
-														<span className="rounded-[5px] bg-[#3a1a20] px-[7px] py-[1px] text-[#f0647a]">
+														<span
+															className={cn(
+																"rounded-[5px] px-[7px] py-[1px]",
+																PILL.red,
+															)}
+														>
 															{issue.mention ? "High" : issue.priority}
 														</span>
 													)}

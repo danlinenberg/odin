@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 import { LuCalendarX } from "react-icons/lu";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { PILL } from "./pill";
 
 /**
  * A day I want a row done by — a ticket I promised for Thursday, a thread that
@@ -180,8 +181,8 @@ export function mergeUpstream(
 }
 
 const TONE_CLASS: Record<DueTone, string> = {
-	overdue: "bg-[#3a1418] text-[#ff4d5e]",
-	today: "bg-[#221d12] text-[#f5b83d]",
+	overdue: PILL.red,
+	today: PILL.amber,
 	soon: "bg-[#1f1f27] text-[#a5a5b3]",
 	later: "bg-[#1f1f27] text-[#8a8a97]",
 };

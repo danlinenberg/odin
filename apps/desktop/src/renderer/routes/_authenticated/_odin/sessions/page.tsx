@@ -7,6 +7,7 @@ import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import { useSearchHotkey } from "../components/FeedChrome";
 import { PersonChip } from "../components/PersonChip";
+import { PILL } from "../components/pill";
 import { Highlight, TranscriptView } from "../components/TranscriptView";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePaneMeta } from "../hooks/usePaneMeta";
@@ -298,7 +299,7 @@ function SessionsPage() {
 										</span>
 									)}
 									{cameFrom.get(row.sessionId) && (
-										<span className="rounded-[5px] bg-[#241a3f] px-[7px] text-[#a394ff]">
+										<span className={cn("rounded-[5px] px-[7px]", PILL.violet)}>
 											{cameFrom.get(row.sessionId)}
 										</span>
 									)}

@@ -13,6 +13,7 @@ import {
 	withPriority,
 	withSkill,
 } from "../hooks/useOdinTasks";
+import { PILL } from "./pill";
 import { matchRepos, repoLabel } from "./repo-picker";
 import { matchSkills } from "./skill-picker";
 
@@ -428,7 +429,10 @@ export function SkillChip({ skill }: { skill: string }) {
 	return (
 		<span
 			title={`Runs /${skill}`}
-			className="rounded-[5px] bg-[#0f2a1c] px-[7px] py-[1px] font-semibold text-[#3ecf8e]"
+			className={cn(
+				"rounded-[5px] px-[7px] py-[1px] font-semibold",
+				PILL.green,
+			)}
 		>
 			/{skill}
 		</span>
@@ -448,7 +452,10 @@ export function BuiltinChip() {
 	return (
 		<span
 			title="Odin ships with this one. Edit it, retime it, pause it or delete it like any other — deleting is final, it won't come back."
-			className="inline-flex items-center gap-1 rounded-[5px] bg-[#221a38] px-[7px] py-[1px] font-semibold text-[#a78bfa]"
+			className={cn(
+				"inline-flex items-center gap-1 rounded-[5px] px-[7px] py-[1px] font-semibold",
+				PILL.violet,
+			)}
 		>
 			<HiOutlineSparkles className="size-3" />
 			Built-in
@@ -464,7 +471,7 @@ const PRIORITY_CHIP = [
 	"",
 	"bg-[#17171c] text-[#6f6f7d]",
 	"bg-[#1f1f27] text-[#a5a5b3]",
-	"bg-[#3a1a20] text-[#f0647a]",
+	PILL.red,
 ];
 
 /** A task's priority on its row. Every task has one — no "!"s means Medium. */
@@ -518,7 +525,7 @@ export function AutomationChip({
 			}
 			className={cn(
 				"inline-flex items-center gap-1 rounded-[5px] px-[7px] py-[1px] font-semibold",
-				paused ? "bg-[#17171c] text-[#6f6f7d]" : "bg-[#2e2413] text-[#f5b83d]",
+				paused ? "bg-[#17171c] text-[#6f6f7d]" : PILL.amber,
 			)}
 		>
 			<HiOutlineClock className="size-3" />
