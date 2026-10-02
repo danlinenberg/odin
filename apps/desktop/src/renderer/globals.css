@@ -76,6 +76,13 @@
 	--attention: #f5b83d;
 	--success: #3ecf8e;
 	--danger: #f0647a;
+	/* Each hue's "ink": the hue lifted toward white, for text sitting on its
+	   own tint — the light label on a pill, the top of a glossy button. */
+	--primary-ink: color-mix(in oklab, var(--primary) 52%, white);
+	--working-ink: color-mix(in oklab, var(--working) 52%, white);
+	--attention-ink: color-mix(in oklab, var(--attention) 52%, white);
+	--success-ink: color-mix(in oklab, var(--success) 52%, white);
+	--danger-ink: color-mix(in oklab, var(--danger) 52%, white);
 }
 
 /* Light theme fallback values - applied before hydration if user has light theme saved */
@@ -126,6 +133,11 @@
 	--attention: #b7791f;
 	--success: #1f9d63;
 	--danger: #d6334f;
+	--primary-ink: color-mix(in oklab, var(--primary) 70%, black);
+	--working-ink: color-mix(in oklab, var(--working) 70%, black);
+	--attention-ink: color-mix(in oklab, var(--attention) 70%, black);
+	--success-ink: color-mix(in oklab, var(--success) 70%, black);
+	--danger-ink: color-mix(in oklab, var(--danger) 70%, black);
 }
 
 @theme inline {
@@ -177,6 +189,17 @@
 	--color-attention: var(--attention);
 	--color-success: var(--success);
 	--color-danger: var(--danger);
+	--color-primary-ink: var(--primary-ink);
+	--color-working-ink: var(--working-ink);
+	--color-attention-ink: var(--attention-ink);
+	--color-success-ink: var(--success-ink);
+	--color-danger-ink: var(--danger-ink);
+}
+
+/* A soft halo in a colour — glow-primary, glow-success … Pills and the
+   status dots wear one; neutrals don't, a glow on grey says nothing. */
+@utility glow-* {
+	box-shadow: 0 0 5px color-mix(in oklab, --value(--color-*) 32%, transparent);
 }
 
 @layer base {

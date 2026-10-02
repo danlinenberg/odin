@@ -319,9 +319,15 @@ export function NextInLine() {
 			byKey.get(item.key) ?? (item.url ? byUrl.get(item.url) : undefined);
 	}, [swept]);
 	return (
-		<div className="flex min-w-[240px] flex-1 flex-col rounded-xl border border-border bg-tertiary">
-			<div className="flex items-center gap-2 px-3 py-2.5 text-xs font-semibold uppercase tracking-[.4px] text-muted-foreground">
-				<span className="size-2 rounded-full bg-primary" />
+		// Dressed like the board's columns, in Odin's own violet: it's the one
+		// column the AI fills rather than a session status.
+		<div className="relative flex min-w-[240px] flex-1 flex-col overflow-hidden rounded-xl border border-border bg-tertiary/85 bg-[linear-gradient(to_bottom,color-mix(in_oklab,var(--primary)_9%,transparent),transparent_160px)]">
+			<span
+				aria-hidden
+				className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-primary via-primary/40 to-transparent"
+			/>
+			<div className="flex items-center gap-2 px-3 py-2.5 text-xs font-semibold uppercase tracking-[.4px] text-soft-foreground">
+				<span className="size-2 rounded-full bg-primary shadow-[0_0_8px_var(--primary)]" />
 				Next in line
 				<span className="ml-auto flex items-center gap-2">
 					<button

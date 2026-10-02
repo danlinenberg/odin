@@ -51,7 +51,7 @@ export function FilterPill({
 			className={cn(
 				"flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-medium transition-colors",
 				active
-					? "bg-secondary text-foreground"
+					? BUTTON.selected
 					: "text-muted-foreground hover:text-foreground",
 			)}
 		>
@@ -241,6 +241,6 @@ export const ROW_LINK_BUTTON =
 export const FEED_LIST =
 	"flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-[18px] pb-[18px] pt-2";
 export const FEED_ROW =
-	"group rounded-[10px] border border-border bg-card px-3.5 py-2 transition-colors hover:border-input";
+	"group rounded-[10px] border border-border bg-card px-3.5 py-2 shadow-[inset_0_1px_0_rgb(255_255_255/0.035)] transition-colors hover:border-primary/30 hover:bg-secondary/60";
 /** A full-width box in the list — not connected, nothing picked, failed. */
 export const FEED_NOTICE_BOX = "rounded-[10px] px-3.5 py-2.5 text-xs";
