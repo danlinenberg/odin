@@ -36,6 +36,7 @@ import {
 	LuHourglass,
 	LuMoon,
 	LuPause,
+	LuPlay,
 	LuRepeat,
 	LuTerminal,
 } from "react-icons/lu";
@@ -3078,8 +3079,11 @@ function DevBoardPage() {
 											setCatchUp(queue.map((card) => card.pane.id));
 											openDrawer(queue[0]);
 										}}
-										className="ml-auto rounded-md bg-[#2a2410] px-2 py-0.5 text-[10.5px] font-semibold normal-case tracking-normal text-[#f5c542] hover:bg-[#3a3216]"
+										// Solid, with a play icon: the dim amber pill read as a tag
+										// beside the count, not as something to press.
+										className="ml-auto flex items-center gap-1 rounded-md bg-[#f5c542] px-2.5 py-1 text-[11px] font-semibold normal-case tracking-normal text-[#1a1408] shadow-sm hover:bg-[#ffd666]"
 									>
+										<LuPlay className="size-2.5 fill-current" />
 										Catch up
 									</button>
 								)}
