@@ -337,7 +337,7 @@ describe("warmBriefs", () => {
 						tags: [],
 						raw: "?",
 					},
-					version: 2,
+					version: 3,
 				},
 			}),
 		);

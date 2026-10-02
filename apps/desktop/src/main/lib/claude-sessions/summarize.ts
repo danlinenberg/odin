@@ -96,8 +96,8 @@ const INSTRUCTIONS = `You are briefing an engineer who is about to open an in-pr
 Reply with EXACTLY five lines and nothing else. No markdown, no code fences, no preamble:
 TITLE: <under 60 characters — a name for this session, as a human would title the task. No trailing period.>
 GOAL: <one sentence — what this session is trying to achieve>
-STATUS: <one or two sentences — what has actually been done, and where it stands right now>
-NEXT: <one sentence addressed to the engineer, starting with a verb — the one thing HE has to do now (answer the prompt on screen, review a diff, decide X, merge the PR). If nothing is needed from him, say "Nothing —" and why.>
+STATUS: <one short sentence, under 120 characters — where it stands right now: what's shipped, what's blocked, what's waiting. The latest state, not the history.>
+NEXT: <one sentence addressed to the engineer — never to the agent — starting with a verb: the one thing they have to do now (answer the prompt on screen, review a diff, decide X, merge the PR). If nothing is needed from them, say "Nothing —" and why.>
 TAGS: <1-3 comma-separated tags describing the work, chosen ONLY from this list: ${BRIEF_TAGS.join(", ")}>
 
 Rules:
@@ -180,11 +180,11 @@ interface CacheEntry {
 }
 
 /**
- * Bump when the brief gains a field, so entries written before it are rewritten
+ * Bump when the brief gains a field or its questions change, so entries written before it are rewritten
  * instead of served forever — a title-less brief on an idle session would
  * otherwise never be asked for its title.
  */
-const BRIEF_VERSION = 2;
+const BRIEF_VERSION = 3;
 
 /** Survives restarts, so reopening the app doesn't re-summarise everything. */
 export function defaultCachePath(): string {

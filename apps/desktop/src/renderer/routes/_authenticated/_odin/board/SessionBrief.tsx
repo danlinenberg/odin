@@ -4,6 +4,7 @@ import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { type BriefLink, usePaneMeta } from "../hooks/usePaneMeta";
 import {
+	actionItems,
 	artifactLink,
 	jiraIssue,
 	type LinkKind,
@@ -270,6 +271,9 @@ export function SessionBrief({
 			},
 		);
 	const facts = transcript ? sessionBrief(transcript.messages) : null;
+	// The agent's own ACTION ITEMS list, verbatim — the model paraphrasing it
+	// came out as "execute the six action items", which tells you nothing.
+	const todo = transcript ? actionItems(transcript.messages) : [];
 	// `links` is missing until main restarts onto it; the tail still has most.
 	const linkSource = transcript
 		? (transcript.links ?? transcript.messages)
@@ -465,14 +469,23 @@ export function SessionBrief({
 							<div className="text-[12px] text-[#f0647a]">{error.message}</div>
 						) : written ? (
 							<>
-								{written.goal && <Section label="Goal">{written.goal}</Section>}
-								{written.status && (
-									<Section label="Status">{written.status}</Section>
+								{/* Yours to do first, then where it stands — what you open a
+								    card to find out. The goal is the title's job. */}
+								{todo.length > 0 ? (
+									<Section label="Your action items">
+										<ol className="list-decimal space-y-0.5 whitespace-normal pl-4">
+											{todo.map((item) => (
+												<li key={item}>{item}</li>
+											))}
+										</ol>
+									</Section>
+								) : (
+									written.next && (
+										<Section label="Your move">{written.next}</Section>
+									)
 								)}
-								{/* "Your move", not "Next": the card is in Needs you because
-								    something is waiting on you, and the label should say so. */}
-								{written.next && (
-									<Section label="Your move">{written.next}</Section>
+								{written.status && (
+									<Section label="Where it stands">{written.status}</Section>
 								)}
 								{/* The model ignored the shape we asked for — show what it said
 								    rather than an empty panel. */}
