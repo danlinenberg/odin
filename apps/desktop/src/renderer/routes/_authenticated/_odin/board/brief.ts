@@ -188,6 +188,58 @@ export function jiraIssue(messages: BriefMessage[]): JiraIssueLink | null {
 	return null;
 }
 
+/** A run of prose, and the link it names when it's a PR or ticket. */
+export interface RefPart {
+	text: string;
+	url?: string;
+}
+
+// "imagen-public-mcp #2", "terraform#1455", "PR #6670", "#12" — or a Jira key.
+const REF = /\b([A-Z][A-Z0-9]+-\d+)\b|(?:\b([A-Za-z][\w.-]*)( ?))?#(\d+)\b/g;
+
+/**
+ * Split prose at the PRs and tickets it mentions, linking only ones this
+ * session quoted — a bare "#2" means nothing on its own, the session's own
+ * links say which #2. A repo name or "PR" in front joins the link.
+ */
+export function linkRefs(
+	text: string,
+	prs: PullRequestLink[],
+	issue: JiraIssueLink | null,
+): RefPart[] {
+	const parts: RefPart[] = [];
+	let last = 0;
+	for (const match of text.matchAll(REF)) {
+		const [whole, key, word, space, number] = match;
+		const at = match.index ?? 0;
+		let start = at;
+		let url: string | undefined;
+		if (key) url = issue?.key === key ? issue.url : undefined;
+		else {
+			const same = prs.filter((pr) => pr.number === Number(number));
+			const repo =
+				word &&
+				same.find(
+					(pr) =>
+						pr.repo.split("/").pop()?.toLowerCase() === word.toLowerCase(),
+				);
+			if (repo || word?.toUpperCase() === "PR") url = (repo || same[0])?.url;
+			// "Merge #12": the number is the link. "other-repo#12" names a PR this
+			// session never quoted — leave it.
+			else if (!word || (space && same.length === 1)) {
+				url = same.length === 1 ? same[0].url : undefined;
+				start = at + whole.indexOf("#");
+			}
+		}
+		if (!url) continue;
+		if (start > last) parts.push({ text: text.slice(last, start) });
+		parts.push({ text: text.slice(start, at + whole.length), url });
+		last = at + whole.length;
+	}
+	if (last < text.length) parts.push({ text: text.slice(last) });
+	return parts;
+}
+
 // Trailing ")" / "." is markdown and prose. The query string carries thread_ts,
 // which is what makes the link open the thread rather than the channel.
 const SLACK_URL =

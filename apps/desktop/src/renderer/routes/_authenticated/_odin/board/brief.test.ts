@@ -8,6 +8,7 @@ import {
 	lastMessageAt,
 	linkKind,
 	linkLabel,
+	linkRefs,
 	mergeReady,
 	mergeTargets,
 	nextCronFire,
@@ -596,5 +597,61 @@ describe("mergeReady", () => {
 				(pr) => pr.number,
 			),
 		).toEqual([13]);
+	});
+});
+
+describe("linkRefs", () => {
+	const prs = [
+		{
+			url: "https://github.com/o/imagen-public-mcp/pull/2",
+			repo: "o/imagen-public-mcp",
+			number: 2,
+		},
+		{
+			url: "https://github.com/o/terraform/pull/1455",
+			repo: "o/terraform",
+			number: 1455,
+		},
+		{ url: "https://github.com/o/k8s/pull/2", repo: "o/k8s", number: 2 },
+	];
+	const issue = {
+		key: "BUGT-3781",
+		url: "https://x.atlassian.net/browse/BUGT-3781",
+	};
+	const links = (text: string) =>
+		linkRefs(text, prs, issue)
+			.filter((part) => part.url)
+			.map(
+				(part) => `${part.text} -> ${part.url?.split("/").slice(-3).join("/")}`,
+			);
+
+	it("links a repo-named PR whole, and picks that repo's #2", () => {
+		expect(links("Merge imagen-public-mcp #2.")).toEqual([
+			"imagen-public-mcp #2 -> imagen-public-mcp/pull/2",
+		]);
+		expect(links("Apply terraform#1455: ecr")).toEqual([
+			"terraform#1455 -> terraform/pull/1455",
+		]);
+		expect(links("k8s #2 first")).toEqual(["k8s #2 -> k8s/pull/2"]);
+	});
+
+	it("links only the number after a verb, and only when it's unambiguous", () => {
+		expect(links("Merge #1455 now")).toEqual(["#1455 -> terraform/pull/1455"]);
+		// Two PRs numbered 2: a bare "#2" could be either.
+		expect(links("Merge #2 now")).toEqual([]);
+	});
+
+	it("leaves PRs and tickets the session never quoted alone", () => {
+		expect(links("See other-repo#1455 and UTF-8 and SHIP-12")).toEqual([]);
+		expect(links("Reply on BUGT-3781")).toEqual([
+			"BUGT-3781 -> x.atlassian.net/browse/BUGT-3781",
+		]);
+	});
+
+	it("keeps the prose around the links intact", () => {
+		const parts = linkRefs("Merge terraform#1455, then deploy.", prs, null);
+		expect(parts.map((part) => part.text).join("")).toBe(
+			"Merge terraform#1455, then deploy.",
+		);
 	});
 });
