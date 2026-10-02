@@ -37,9 +37,9 @@ export function PersonChip({
 			className={`inline-flex min-w-0 items-center gap-1 rounded-[6px] px-[7px] py-[1px] text-[11px] font-semibold ${className ?? ""}`}
 			// The PILL look (./pill), derived from the name's own colour.
 			style={{
-				backgroundImage: `linear-gradient(to right, color-mix(in srgb, ${fg} 34%, ${bg}), ${bg})`,
+				backgroundImage: `linear-gradient(to right, color-mix(in srgb, ${fg} 24%, ${bg}), ${bg})`,
 				color: `color-mix(in srgb, ${fg} 35%, white)`,
-				boxShadow: `0 0 6px color-mix(in srgb, ${fg} 40%, transparent)`,
+				boxShadow: `0 0 4px color-mix(in srgb, ${fg} 28%, transparent)`,
 			}}
 		>
 			<span
