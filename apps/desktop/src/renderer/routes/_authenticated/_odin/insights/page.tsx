@@ -51,15 +51,20 @@ function Heading({ title, note }: { title: string; note?: string }) {
 function Section({
 	title,
 	note,
+	aside,
 	children,
 }: {
 	title: string;
 	note?: string;
+	aside?: React.ReactNode;
 	children: React.ReactNode;
 }) {
 	return (
 		<div className="flex min-w-0 flex-col gap-2">
-			<Heading title={title} note={note} />
+			<div className="flex items-center justify-between gap-2">
+				<Heading title={title} note={note} />
+				{aside}
+			</div>
 			{children}
 		</div>
 	);
@@ -262,9 +267,11 @@ const HOURS = Array.from({ length: 24 }, (_, index) => (index + 6) % 24);
  */
 function HourGrid({
 	cells,
+	color,
 	describe = (minutes) => `${minutes}m`,
 }: {
 	cells: number[] | undefined;
+	color: string;
 	describe?: (value: number) => string;
 }) {
 	const max = Math.max(1, ...(cells ?? []));
@@ -291,7 +298,7 @@ function HourGrid({
 							<div
 								key={hour}
 								className="h-[24px] rounded-[3px]"
-								style={cellStyle(value, max)}
+								style={cellStyle(value, max, color)}
 								title={`${WEEKDAYS[calendarDay]} ${label}:00 — ${describe(value)}`}
 							/>
 						);
@@ -317,8 +324,10 @@ function HourGrid({
  */
 function AllWeeksGrid({
 	heatmap,
+	color,
 }: {
 	heatmap: { start: number; minutes: number[] }[];
+	color: string;
 }) {
 	const totals = useMemo(() => {
 		const sum = Array.from({ length: 7 * 24 }, () => 0);
@@ -333,6 +342,7 @@ function AllWeeksGrid({
 		<Card>
 			<HourGrid
 				cells={totals}
+				color={color}
 				describe={(total) =>
 					`${duration(total / 60)} across ${plural(weeks, "week")}, ${Math.round(total / weeks)}m a week`
 				}
@@ -369,12 +379,16 @@ function shiftWeeks(start: number, count: number): number {
  * even when every hour is half-full — an absolute 60-minute scale squeezed a
  * typical week into two near-identical greens.
  */
-function cellStyle(value: number, max: number): React.CSSProperties {
+function cellStyle(
+	value: number,
+	max: number,
+	color: string,
+): React.CSSProperties {
 	if (value <= 0) return { background: "#1b1b22" };
 	// Four steps rather than a continuous ramp — quantised, a cell can actually
 	// be matched against its neighbours. Wide spacing so the steps are visible.
 	const step = Math.min(4, Math.ceil((value / max) * 4));
-	return { background: YOU_COLOR, opacity: [0.15, 0.4, 0.7, 1][step - 1] };
+	return { background: color, opacity: [0.15, 0.4, 0.7, 1][step - 1] };
 }
 
 /** Rows a week shows before "Show more". */
@@ -452,10 +466,12 @@ function matches(task: RecapWeek["tasks"][number], query: string): boolean {
 function WeekView({
 	recap = [],
 	heatmap,
+	color,
 	query = "",
 }: {
 	recap?: RecapWeek[];
 	heatmap: { start: number; minutes: number[] }[];
+	color: string;
 	/** When set, the list searches every week instead of showing one. */
 	query?: string;
 }) {
@@ -590,8 +606,35 @@ function WeekView({
 				</button>
 			)}
 
-			{!searching && <HourGrid cells={cells} />}
+			{!searching && <HourGrid cells={cells} color={color} />}
 		</Card>
+	);
+}
+
+type Clock = "you" | "agents";
+
+/** Whose hours the grids paint: yours, or any agent running — the off-hours. */
+function ClockToggle({
+	clock,
+	setClock,
+}: {
+	clock: Clock;
+	setClock: (clock: Clock) => void;
+}) {
+	return (
+		<div className="flex rounded-[6px] border border-[#25252e] bg-[#16161b] p-[2px] text-[10.5px]">
+			{(["you", "agents"] as const).map((option) => (
+				<button
+					key={option}
+					type="button"
+					aria-pressed={clock === option}
+					onClick={() => setClock(option)}
+					className={`rounded-[4px] px-2 py-[1px] ${clock === option ? "bg-[#25252e] text-[#e4e4ea]" : "text-[#8a8a97] hover:text-[#e4e4ea]"}`}
+				>
+					{option === "you" ? "My time" : "Agent time"}
+				</button>
+			))}
+		</div>
 	);
 }
 
@@ -757,6 +800,7 @@ function Workload() {
 	const [repo, setRepo] = useState<string | null>(null);
 	const [excluded, setExcluded] = useState(readExcluded);
 	const [query, setQuery] = useState("");
+	const [clock, setClock] = useState<Clock>("you");
 	const search = useSearchHotkey();
 	const toggleExcluded = (name: string) => {
 		const next = new Set(excluded);
@@ -779,6 +823,9 @@ function Workload() {
 		);
 
 	if (isLoading || !data) return <Loading />;
+	// `agentHeatmap` is absent until the main process restarts onto this build.
+	const grid = clock === "agents" ? (data.agentHeatmap ?? []) : data.heatmap;
+	const gridColor = clock === "agents" ? AGENT_COLOR : YOU_COLOR;
 	const filter = (
 		<div className="flex items-start gap-2">
 			<input
@@ -839,11 +886,20 @@ function Workload() {
 				</Section>
 
 				<Section title="What you did">
-					<WeekView recap={data.recap} heatmap={data.heatmap} query={query} />
+					<WeekView
+						recap={data.recap}
+						heatmap={grid}
+						color={gridColor}
+						query={query}
+					/>
 				</Section>
 
-				<Section title="Every week" note="all recorded weeks, folded into one">
-					<AllWeeksGrid heatmap={data.heatmap} />
+				<Section
+					title="Every week"
+					note="all recorded weeks, folded into one"
+					aside={<ClockToggle clock={clock} setClock={setClock} />}
+				>
+					<AllWeeksGrid heatmap={grid} color={gridColor} />
 				</Section>
 
 				<Section title="Week by week">

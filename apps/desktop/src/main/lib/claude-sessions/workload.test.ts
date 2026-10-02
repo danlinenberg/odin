@@ -421,6 +421,27 @@ describe("computeWorkload", () => {
 		expect(before[4 * 24 + 0]).toBe(30);
 	});
 
+	test("the agent heatmap paints the run nobody attended", () => {
+		const out = computeWorkload(
+			[
+				session({
+					sessionId: "c",
+					intervals: [[MON + 24 * HOUR, MON + 25 * HOUR]],
+				}),
+				// Overlapping agents at the same hour count once.
+				session({
+					sessionId: "d",
+					intervals: [[MON + 24 * HOUR, MON + 25 * HOUR]],
+				}),
+			],
+			{ now: MON },
+		);
+		expect(out.heatmap).toEqual([]);
+		// Tuesday 09:00 is cell 2 * 24 + 9.
+		expect(out.agentHeatmap[0]?.minutes[2 * 24 + 9]).toBe(60);
+		expect(out.agentHeatmap[0]?.minutes.reduce((a, b) => a + b, 0)).toBe(60);
+	});
+
 	test("nothing recorded divides by nothing", () => {
 		const out = computeWorkload([], { now: MON });
 		expect(out.leverage).toBeNull();

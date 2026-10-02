@@ -511,6 +511,8 @@ export interface Workload {
 	 * `weekday * 24 + hour` with Sunday as weekday 0.
 	 */
 	heatmap: { start: number; minutes: number[] }[];
+	/** The same grid over the agents' clock time — any agent running counts. */
+	agentHeatmap: { start: number; minutes: number[] }[];
 	busiestDay: { at: number; hours: number } | null;
 	/** Sessions with a name attached — the rest are your own. */
 	attributed: number;
@@ -681,6 +683,43 @@ function recap(sessions: SessionWork[]): RecapWeek[] {
 
 const BLIP_MS = 60_000;
 
+/**
+ * Minutes per hour of the day, folded across all weeks (`byHour`) and kept per
+ * week (`heatmap`). Only weeks with a minute in them get a row — an empty grid
+ * is cheaper to draw than to ship.
+ */
+function hourCells(intervals: Interval[]): {
+	byHour: number[];
+	heatmap: { start: number; minutes: number[] }[];
+} {
+	const byHour: number[] = Array.from({ length: 24 }, () => 0);
+	const weekCells = new Map<number, number[]>();
+	for (const [start, end] of intervals) {
+		let at = start;
+		while (at < end) {
+			const date = new Date(at);
+			date.setMinutes(0, 0, 0);
+			const next = Math.min(end, date.getTime() + HOUR_MS);
+			const minutes = Math.round((next - at) / 60_000);
+			byHour[date.getHours()] += minutes;
+			const week = weekStart(at);
+			let cells = weekCells.get(week);
+			if (!cells) {
+				cells = Array.from({ length: 7 * 24 }, () => 0);
+				weekCells.set(week, cells);
+			}
+			cells[date.getDay() * 24 + date.getHours()] += minutes;
+			at = next;
+		}
+	}
+	return {
+		byHour,
+		heatmap: [...weekCells]
+			.sort((a, b) => a[0] - b[0])
+			.map(([start, minutes]) => ({ start, minutes })),
+	};
+}
+
 export function computeWorkload(
 	sessions: SessionWork[],
 	{
@@ -738,31 +777,13 @@ export function computeWorkload(
 	const days = byDay(merged);
 	const busiest = [...days].sort((a, b) => b[1] - a[1])[0];
 
-	const byHour: number[] = Array.from({ length: 24 }, () => 0);
-	// Same walk, banked twice: once folded across all weeks for the day clock,
-	// once kept per week for the heatmap. Only weeks with a minute in them get
-	// a row — an empty grid is cheaper to draw than to ship. Your time, not the
-	// agent's: a scheduled run at 09:00 painted an hour nobody worked.
+	// Your time, not the agent's: a scheduled run at 09:00 painted an hour
+	// nobody worked. The agents' clock time is banked separately so the page can
+	// show the off-hours they ran through — `merged`, so three agents at 2am is
+	// one 2am.
 	const yours = mergeIntervals(all.flatMap(yourSpans));
-	const weekCells = new Map<number, number[]>();
-	for (const [start, end] of yours) {
-		let at = start;
-		while (at < end) {
-			const date = new Date(at);
-			date.setMinutes(0, 0, 0);
-			const next = Math.min(end, date.getTime() + HOUR_MS);
-			const minutes = Math.round((next - at) / 60_000);
-			byHour[date.getHours()] += minutes;
-			const week = weekStart(at);
-			let cells = weekCells.get(week);
-			if (!cells) {
-				cells = Array.from({ length: 7 * 24 }, () => 0);
-				weekCells.set(week, cells);
-			}
-			cells[date.getDay() * 24 + date.getHours()] += minutes;
-			at = next;
-		}
-	}
+	const { byHour, heatmap } = hourCells(yours);
+	const agentHeatmap = hourCells(merged).heatmap;
 
 	// Your time, not "any agent running": that was parallelism, and dividing
 	// by it made leverage read as how many agents ran at once.
@@ -811,9 +832,8 @@ export function computeWorkload(
 			}),
 		),
 		byHour,
-		heatmap: [...weekCells]
-			.sort((a, b) => a[0] - b[0])
-			.map(([start, minutes]) => ({ start, minutes })),
+		heatmap,
+		agentHeatmap,
 		busiestDay: busiest ? { at: busiest[0], hours: hours(busiest[1]) } : null,
 		attributed: all.filter((session) => session.person).length,
 		since,
