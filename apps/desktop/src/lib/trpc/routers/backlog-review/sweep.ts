@@ -222,6 +222,10 @@ export interface SweepDeps {
 	} | null>;
 }
 
+/** The evidence on an :eyes:-off DROP — the board reads it back to spare
+ * auto-started cards, whose reaction says nothing about the work. */
+export const UNREACTED_EVIDENCE = "the :eyes: is off the message in Slack";
+
 /**
  * One item's verdict.
  *
@@ -241,7 +245,7 @@ export async function sweepItem(
 	if (item.unreacted)
 		return {
 			verdict: "DROP",
-			evidence: "the :eyes: is off the message in Slack",
+			evidence: UNREACTED_EVIDENCE,
 		};
 
 	if (item.status && FINISHED_STATUS.test(item.status.trim()))
