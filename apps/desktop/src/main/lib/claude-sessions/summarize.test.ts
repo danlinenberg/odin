@@ -113,6 +113,8 @@ describe("writeBrief", () => {
 			{
 				title: "t",
 				goal: "g",
+				issue: null,
+				done: null,
 				status: "s",
 				next: "n",
 				tags: [],
@@ -337,7 +339,7 @@ describe("warmBriefs", () => {
 						tags: [],
 						raw: "?",
 					},
-					version: 3,
+					version: 4,
 				},
 			}),
 		);
@@ -407,15 +409,19 @@ describe("warmBriefs", () => {
 });
 
 describe("parseBrief", () => {
-	test("reads the three labelled lines", () => {
+	test("reads the labelled lines", () => {
 		const brief = parseBrief(
 			[
 				"GOAL: Create three $1-first-month coupon codes for the October EU conferences.",
+				"ISSUE: Marketing needs $1 coupons for three EU conferences in October.",
+				"DONE: Traced the coupon path; confirmed the flat-fee branch handles it.",
 				"STATUS: Confirmed it is data-only — 34 tests pass over the flat-fee path, no code change needed.",
 				"NEXT: Waiting on marketing for the codes, end dates and per-currency amounts.",
 			].join("\n"),
 		);
 		expect(brief.goal).toStartWith("Create three $1-first-month coupon");
+		expect(brief.issue).toStartWith("Marketing needs $1 coupons");
+		expect(brief.done).toContain("flat-fee branch");
 		expect(brief.status).toContain("34 tests pass");
 		expect(brief.next).toContain("Waiting on marketing");
 		expect(brief.raw).toBeNull();
@@ -488,6 +494,8 @@ describe("parseBrief", () => {
 		expect(parseBrief("   ")).toEqual({
 			title: null,
 			goal: null,
+			issue: null,
+			done: null,
 			status: null,
 			next: null,
 			tags: [],

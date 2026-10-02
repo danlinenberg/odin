@@ -334,8 +334,8 @@ function withCode(text: string): React.ReactNode[] {
 }
 
 /**
- * Catch up's card: what's yours to do, where it stands, and the PRs, tickets
- * and threads it's about — nothing else.
+ * Catch up's card: what's yours to do, where it stands, what the issue was
+ * and what we did, and the PRs, tickets and threads it's about — nothing else.
  * The conversation and the brief panel are one click away, not on screen:
  * catching up is deciding Keep or Done, not reading.
  */
@@ -383,6 +383,22 @@ function CatchUpCard({
 					<div className="text-[13.5px] leading-relaxed text-[#d4d4dc]">
 						{written.status}
 					</div>
+				</div>
+			)}
+			{(written?.issue || written?.done) && (
+				<div className="flex flex-col gap-3 text-[13.5px] leading-relaxed text-[#d4d4dc]">
+					{written.issue && (
+						<div>
+							<div className={cn(label, "text-[#8a8a97]")}>The issue</div>
+							{written.issue}
+						</div>
+					)}
+					{written.done && (
+						<div>
+							<div className={cn(label, "text-[#8a8a97]")}>What we did</div>
+							{written.done}
+						</div>
+					)}
 				</div>
 			)}
 			<SessionBrief
