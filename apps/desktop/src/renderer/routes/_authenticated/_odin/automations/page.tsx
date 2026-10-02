@@ -17,7 +17,6 @@ import {
 	WEEKDAY_NAMES,
 } from "shared/cron";
 import {
-	PREFIX as REMIND_PREFIX,
 	RemindButton,
 	remindSession,
 	useResumeReminder,
@@ -627,7 +626,7 @@ function AutomationsPage() {
 						? "tasks that start themselves, on a cron — while Odin is open"
 						: view === "rules"
 							? "what every session Odin starts should do when something comes up"
-							: "sessions you snoozed with Remind me — they come back on their day"}
+							: "every reminder you set — snoozed sessions and dated feed rows, soonest first"}
 				</span>
 			</div>
 			{view === "schedules" ? (
@@ -642,24 +641,26 @@ function AutomationsPage() {
 }
 
 /**
- * Every "Remind me" session, soonest first — the board only shows them once
+ * Every reminder — snoozed sessions and dated feed rows — soonest first. The board only shows sessions once
  * they're due. Resume early, move the day, or drop it.
  */
 function RemindersPanel() {
 	const reminders = useReminders((s) => s.reminders);
 	const notifyAt = useReminders((s) => s.notifyAt);
 	const clear = useReminders((s) => s.clear);
+	const setDue = useReminders((s) => s.setDue);
 	const { resume, isLaunching } = useResumeReminder();
 	const now = Date.now();
 	const rows = Object.entries(reminders)
-		.filter(([key, r]) => key.startsWith(REMIND_PREFIX) && r.resume)
+		// Every reminder, not just snoozed sessions: a due date set on a feed row
+		// (Next in line, All) pings the same way and belongs on the same list.
 		.toSorted(([, a], [, b]) => a.due.localeCompare(b.due));
 	return (
 		<div className={FEED_LIST}>
 			{rows.length === 0 && (
 				<div className="px-2 py-8 text-center text-xs text-[#8a8a97]">
-					No reminders. Hover a session on the board and click the bell to
-					snooze it to a day.
+					No reminders. Click the bell on a board session, or set a due date on
+					a feed row, to get one here.
 				</div>
 			)}
 			{rows.map(([key, r]) => (
@@ -697,11 +698,13 @@ function RemindersPanel() {
 									)}
 								>
 									{isDue(r.due, now)
-										? "Due now — on the board"
+										? r.resume
+											? "Due now — on the board"
+											: `Due ${dueLabel(r.due, now)}`
 										: `${dueLabel(r.due, now)} at ${notifyAt}`}
 								</span>
 								<span className={ROW_META}>
-									{r.resume?.cwd.split("/").pop()}
+									{r.resume ? r.resume.cwd.split("/").pop() : key.split(":")[0]}
 								</span>
 								{r.resume?.setAt && (
 									<span className={ROW_META}>
@@ -717,27 +720,30 @@ function RemindersPanel() {
 							</div>
 						</div>
 						<div className="flex shrink-0 items-center gap-1.5">
-							<button
-								type="button"
-								disabled={isLaunching}
-								onClick={() => void resume(key)}
-								className={ROW_PRIMARY_BUTTON}
-							>
-								↻ Resume now
-							</button>
+							{r.resume && (
+								<button
+									type="button"
+									disabled={isLaunching}
+									onClick={() => void resume(key)}
+									className={ROW_PRIMARY_BUTTON}
+								>
+									↻ Resume now
+								</button>
+							)}
 							<RemindButton
 								label="Move"
 								onPick={(day) =>
-									r.resume &&
-									remindSession(
-										{
-											sessionId: r.resume.sessionId,
-											cwd: r.resume.cwd,
-											title: r.title,
-											brief: r.resume.brief,
-										},
-										day,
-									)
+									r.resume
+										? remindSession(
+												{
+													sessionId: r.resume.sessionId,
+													cwd: r.resume.cwd,
+													title: r.title,
+													brief: r.resume.brief,
+												},
+												day,
+											)
+										: setDue(key, day, r.title)
 								}
 								className="rounded-[7px] px-2 py-1 text-xs font-semibold text-[#8a8a97] hover:bg-[#1f1f27] hover:text-[#f5f5f7]"
 							/>
