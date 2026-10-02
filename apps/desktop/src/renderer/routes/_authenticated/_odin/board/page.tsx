@@ -1888,6 +1888,7 @@ function DevBoardPage() {
 	};
 	// Dev only: hold Vite's reloads while a session is open (see coalesceFullReloadPlugin).
 	const drawerOpen = !!drawerCard;
+	const inCatchUp = !!drawerCard && !!catchUp?.includes(drawerCard.pane.id);
 	useEffect(() => {
 		import.meta.hot?.send("odin:session-pane", drawerOpen);
 		return () => import.meta.hot?.send("odin:session-pane", false);
@@ -2745,31 +2746,28 @@ function DevBoardPage() {
 	 * keeping the dead pane bought nothing. To stop an agent without ending the
 	 * session, drag the card to Idle (Park) instead.
 	 */
-	/** The drawer's next catch-up card `step` away, or closed: all caught up. */
-	const catchUpStep = (step: 1 | -1, doneCard?: BoardCard) => {
-		const queue = catchUp ?? [];
-		const live = new Map(
-			[...cardsByStatus.values()].flat().map((card) => [card.pane.id, card]),
-		);
-		let at = drawerCard ? queue.indexOf(drawerCard.pane.id) : -1;
-		let next: BoardCard | undefined;
-		do {
-			at += step;
-			const id = queue[at];
-			next = id && id !== doneCard?.pane.id ? live.get(id) : undefined;
-		} while (!next && at >= 0 && at < queue.length);
-		if (doneCard) endSession(doneCard.pane.id);
-		if (next) return openDrawer(next);
-		if (step === -1 && !doneCard) return; // at the first card: nothing back there
-		setCatchUp(null);
-		setDrawerCard(null);
-		toast.success("All caught up");
-	};
-
 	const markDone = (card: BoardCard) => {
 		endSession(card.pane.id);
 		setDrawerCard(null);
 		toast.success("Done — removed from board");
+	};
+
+	/** Catch up's next card (✓ Done ends this one first), or all caught up. */
+	const catchUpNext = (done: boolean) => {
+		const queue = catchUp ?? [];
+		const current = drawerCard?.pane.id;
+		if (done && current) endSession(current);
+		const live = new Map(
+			[...cardsByStatus.values()].flat().map((card) => [card.pane.id, card]),
+		);
+		const next = queue
+			.slice(current ? queue.indexOf(current) + 1 : 0)
+			.map((id) => live.get(id))
+			.find((card) => card);
+		if (next) return openDrawer(next);
+		setCatchUp(null);
+		setDrawerCard(null);
+		toast.success("All caught up");
 	};
 
 	/** Done now; on `day` it pings and waits above the columns to be resumed. */
@@ -3367,68 +3365,90 @@ function DevBoardPage() {
 					<button
 						type="button"
 						aria-label="Close drawer"
-						className="fixed inset-0 z-40 cursor-default bg-black/35 bg-none"
+						className={cn(
+							"fixed inset-0 z-40 cursor-default bg-none",
+							inCatchUp ? "bg-black/70" : "bg-black/35",
+						)}
 						onClick={() => setDrawerCard(null)}
 					/>
-					{/* absolute, not fixed: it fills the content area, which starts below
-					    the top bar. A top-0 fixed drawer put its title under the macOS
-					    traffic lights, and the native buttons eat the click. */}
-					<div
-						className="absolute right-0 top-0 z-50 flex h-full max-w-full flex-col border-l border-[#25252e] bg-[#111114]"
-						style={{
-							width: `max(${MIN_DRAWER_W}px, calc((100vw - ${RAIL_W}px) * ${drawerFraction}))`,
-						}}
-					>
-						{/* drag handle — resize the drawer from its left edge */}
-						<div
-							onPointerDown={startDrawerResize}
-							className="absolute left-0 top-0 z-10 h-full w-1.5 cursor-col-resize hover:bg-[#a394ff]/40"
-						/>
-						{/* Minimize, on the edge the pointer is already on — the Close
-						    button is a whole drawer away. The session keeps running. */}
-						<button
-							type="button"
-							aria-label="Minimize"
-							title="Minimize — back to the board (the session keeps running)"
-							onClick={() => setDrawerCard(null)}
-							className="absolute left-0 top-1/2 z-20 -translate-y-1/2 rounded-r-[7px] border border-l-0 border-[#25252e] bg-[#1f1f27] py-2.5 pl-[3px] pr-1 text-[11px] leading-none text-[#a5a5b3] hover:bg-[#25252e] hover:text-[#f5f5f7]"
-						>
-							›
-						</button>
-						{catchUp?.includes(drawerCard.pane.id) && (
-							<div className="flex items-center gap-2 border-b border-[#25252e] bg-[#1a1710] px-4 py-2 text-xs">
-								<span className="font-semibold text-[#f5c542]">
-									Catching up
-								</span>
-								<span className="text-[#8a8a97]">
-									{catchUp.indexOf(drawerCard.pane.id) + 1} of {catchUp.length}
-								</span>
+					{/* Catch up (Slack mobile's): the drawer becomes the top card of a
+					    stack, with how many are left above it and Keep / Done below. */}
+					{inCatchUp && catchUp && (
+						<>
+							<div className="absolute left-1/2 top-3 z-50 flex w-[min(760px,calc(100%-32px))] -translate-x-1/2 items-center justify-center">
 								<button
 									type="button"
-									title="Back to the previous card"
-									disabled={catchUp.indexOf(drawerCard.pane.id) === 0}
-									onClick={() => catchUpStep(-1)}
-									className="ml-auto rounded-md bg-[#1f1f27] px-2 py-1 font-semibold text-[#a5a5b3] hover:text-[#f5f5f7] disabled:opacity-40"
+									title="Stop catching up — back to the board"
+									onClick={() => {
+										setCatchUp(null);
+										setDrawerCard(null);
+									}}
+									className="absolute left-0 px-2 text-2xl leading-none text-[#a5a5b3] hover:text-[#f5f5f7]"
 								>
-									‹ Back
+									‹
 								</button>
+								<span className="text-base font-semibold text-[#f5f5f7]">
+									{catchUp.length - catchUp.indexOf(drawerCard.pane.id)} Left
+								</span>
+							</div>
+							<div className="absolute bottom-5 left-1/2 z-50 flex w-[min(760px,calc(100%-32px))] -translate-x-1/2 gap-4">
 								<button
 									type="button"
 									title="Leave it in Needs you and go to the next one"
-									onClick={() => catchUpStep(1)}
-									className="rounded-md bg-[#1f1f27] px-2 py-1 font-semibold text-[#a5a5b3] hover:text-[#f5f5f7]"
+									onClick={() => catchUpNext(false)}
+									className="flex-1 rounded-2xl border border-[#2c2c36] bg-[#1f1f27] py-3.5 text-[15px] font-semibold text-[#f5f5f7] hover:bg-[#25252e]"
 								>
-									Skip ›
+									Keep
 								</button>
 								<button
 									type="button"
 									title="Done — remove it from the board and go to the next one"
-									onClick={() => catchUpStep(1, drawerCard)}
-									className="rounded-md bg-[#14301f] px-2 py-1 font-semibold text-[#3ecf8e] hover:bg-[#1a3d28]"
+									onClick={() => catchUpNext(true)}
+									className="flex-1 rounded-2xl border border-[#1f6b47] bg-[#0f4d33] py-3.5 text-[15px] font-semibold text-[#f5f5f7] hover:bg-[#13603f]"
 								>
-									✓ Done & next
+									✓ Done
 								</button>
 							</div>
+						</>
+					)}
+					{/* absolute, not fixed: it fills the content area, which starts below
+					    the top bar. A top-0 fixed drawer put its title under the macOS
+					    traffic lights, and the native buttons eat the click. */}
+					<div
+						className={cn(
+							"absolute z-50 flex flex-col bg-[#111114]",
+							inCatchUp
+								? // Two cards peeking out underneath: the rest of the pile.
+									"bottom-[92px] left-1/2 top-12 w-[min(760px,calc(100%-32px))] -translate-x-1/2 overflow-hidden rounded-[26px] border border-[#2c2c36] shadow-[0_8px_0_-3px_#1a1a21,0_16px_0_-6px_#15151b]"
+								: "right-0 top-0 h-full max-w-full border-l border-[#25252e]",
+						)}
+						style={
+							inCatchUp
+								? undefined
+								: {
+										width: `max(${MIN_DRAWER_W}px, calc((100vw - ${RAIL_W}px) * ${drawerFraction}))`,
+									}
+						}
+					>
+						{/* drag handle — resize the drawer from its left edge */}
+						{!inCatchUp && (
+							<div
+								onPointerDown={startDrawerResize}
+								className="absolute left-0 top-0 z-10 h-full w-1.5 cursor-col-resize hover:bg-[#a394ff]/40"
+							/>
+						)}
+						{/* Minimize, on the edge the pointer is already on — the Close
+						    button is a whole drawer away. The session keeps running. */}
+						{!inCatchUp && (
+							<button
+								type="button"
+								aria-label="Minimize"
+								title="Minimize — back to the board (the session keeps running)"
+								onClick={() => setDrawerCard(null)}
+								className="absolute left-0 top-1/2 z-20 -translate-y-1/2 rounded-r-[7px] border border-l-0 border-[#25252e] bg-[#1f1f27] py-2.5 pl-[3px] pr-1 text-[11px] leading-none text-[#a5a5b3] hover:bg-[#25252e] hover:text-[#f5f5f7]"
+							>
+								›
+							</button>
 						)}
 						<div className="border-b border-[#25252e] px-4 py-3.5">
 							<div className="flex items-center gap-2">
