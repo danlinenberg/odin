@@ -16,7 +16,6 @@ import {
 	useSearchHotkey,
 } from "../components/FeedChrome";
 import { useBacklog } from "../hooks/builtin-automations";
-import { useActiveSessions } from "../hooks/useActiveSessions";
 import {
 	type DroppedRow,
 	useBacklogReview,
@@ -140,12 +139,12 @@ function ReviewPage() {
 	const sweepBacklog = useSweepBacklog();
 	const { remove, todos } = useMyTasks();
 	const panes = useTabsStore((state) => state.panes);
-	const active = useActiveSessions();
-	// The sessions still running. A row one is working on can't be dropped from
-	// here — closing the session is what ends it.
+	// Every card on the board, PTY alive or not — the test Start session uses.
+	// A restart leaves cards dead but resumable, and a row one is on can't be
+	// dropped from here: closing the card is what ends it.
 	const livePanes = useMemo(
-		() => active.flatMap((s) => (panes[s.paneId] ? [panes[s.paneId]] : [])),
-		[active, panes],
+		() => Object.values(panes).filter((pane) => !pane.completed),
+		[panes],
 	);
 	const taskPanes = useMemo(
 		() =>
