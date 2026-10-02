@@ -154,6 +154,11 @@
 		@apply border-border antialiased;
 	}
 
+	/* dir="auto" orders Hebrew right-to-left; it shouldn't also push the line to the right edge. */
+	[dir="auto"] {
+		text-align: left;
+	}
+
 	button,
 	[role="button"] {
 		cursor: pointer;
