@@ -314,6 +314,20 @@ function useCardSessionId(card: BoardCard): string | null {
 	return card.pane.claudeSessionId ?? mirrored ?? null;
 }
 
+/** The agent's `inline code` as code, not as literal backticks. */
+function withCode(text: string): React.ReactNode[] {
+	return text.split("`").map((part, i) =>
+		i % 2 ? (
+			// biome-ignore lint/suspicious/noArrayIndexKey: a fixed split, never reordered
+			<code key={i} className="rounded bg-[#1f1f27] px-1 text-[0.9em]">
+				{part}
+			</code>
+		) : (
+			part
+		),
+	);
+}
+
 /**
  * Catch up's card: what's yours to do, then where it stands — nothing else.
  * The conversation and the brief panel are one click away, not on screen:
@@ -344,7 +358,7 @@ function CatchUpCard({
 					<ol className="list-decimal space-y-1.5 pl-5 text-[15px] leading-relaxed text-[#f5f5f7]">
 						{todo.map((item) => (
 							<li key={item} className="break-words">
-								{item}
+								{withCode(item)}
 							</li>
 						))}
 					</ol>
