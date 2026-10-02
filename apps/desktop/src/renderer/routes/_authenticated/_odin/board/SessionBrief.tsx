@@ -207,6 +207,7 @@ export function SessionBrief({
 	claudeSessionId,
 	marker,
 	live,
+	resourcesOnly = false,
 }: {
 	paneId: string;
 	cwd: string | null;
@@ -214,6 +215,8 @@ export function SessionBrief({
 	/** Card title — identifies the transcript for sessions launched without an id. */
 	marker: string;
 	live: boolean;
+	/** Just the resource sections — no brief, notes or link input. */
+	resourcesOnly?: boolean;
 }) {
 	// Same lookup Resume uses: the pane's own conversation id, then the legacy
 	// localStorage mirror for panes launched before that was recorded, then —
@@ -441,6 +444,161 @@ export function SessionBrief({
 		);
 	};
 
+	// The resources — Jira, Slack, PRs, Notion, artifacts, links you added.
+	// Outside the transcript branch: the ones you added are yours, and a
+	// session with no readable conversation still has them. Catch up's card
+	// shows only these, under its own action items.
+	const resources = (
+		<>
+			{(issue || mine("jira").length > 0) && (
+				<Section
+					label={plural("Jira ticket", issue, mine("jira"))}
+					accent={LINK_ACCENT.jira}
+				>
+					<div className="flex flex-col gap-1">
+						{issue && (
+							<div className="group flex items-center gap-1.5">
+								<Hover text={issue.url}>
+									<button
+										type="button"
+										onClick={() => openUrl.mutate(issue.url)}
+										className="truncate text-left text-[12px] text-[#a394ff] hover:underline"
+									>
+										{issue.key} ↗
+									</button>
+								</Hover>
+								<HideButton onClick={() => hide(issue.url)} />
+							</div>
+						)}
+						{mine("jira").map(myLink)}
+					</div>
+				</Section>
+			)}
+			{(thread || mine("slack").length > 0) && (
+				<Section
+					label={plural("Slack thread", thread, mine("slack"))}
+					accent={LINK_ACCENT.slack}
+				>
+					<div className="flex flex-col gap-1.5">
+						{thread && (
+							<div className="group flex items-start gap-1.5">
+								<div className="min-w-0 flex-1">
+									<Hover text={hoverText(thread, threadPreview)}>
+										<button
+											type="button"
+											onClick={() => openUrl.mutate(thread)}
+											dir="auto"
+											className="line-clamp-2 w-full text-left text-[12px] text-[#a394ff] hover:underline"
+										>
+											{threadPreview?.text ?? "Open thread"} ↗
+										</button>
+									</Hover>
+									{threadPreview && (
+										<div className="truncate text-[11px] text-[#8a8a97]">
+											{[threadPreview.channel, threadPreview.author]
+												.filter(Boolean)
+												.join(" · ")}
+										</div>
+									)}
+								</div>
+								<HideButton onClick={() => hide(thread)} />
+							</div>
+						)}
+						{mine("slack").map(myLink)}
+					</div>
+				</Section>
+			)}
+			{(prs.length > 0 || mine("pr").length > 0) && (
+				<Section
+					accent={LINK_ACCENT.pr}
+					label={
+						prs.length + mine("pr").length === 1
+							? "Pull request"
+							: "Pull requests"
+					}
+				>
+					<div className="flex flex-col gap-1">
+						{prs.map((pr) => (
+							<div key={pr.url} className="group flex items-center gap-1.5">
+								<Hover text={pr.url}>
+									<button
+										type="button"
+										onClick={() => openUrl.mutate(pr.url)}
+										className="flex min-w-0 items-center gap-1.5 text-left text-[12px] text-[#a394ff] hover:underline"
+									>
+										<span className="truncate">
+											{pr.repo.split("/").pop()} #{pr.number}
+										</span>
+										<StateChip status={prStates?.[pr.url]} />
+										<ChecksChip status={prStates?.[pr.url] ?? null} />
+									</button>
+								</Hover>
+								<HideButton onClick={() => hide(pr.url)} />
+							</div>
+						))}
+						{mine("pr").map(myLink)}
+					</div>
+				</Section>
+			)}
+			{(page || mine("notion").length > 0) && (
+				<Section
+					label={plural("Notion page", page, mine("notion"))}
+					accent={LINK_ACCENT.notion}
+				>
+					<div className="flex flex-col gap-1">
+						{page && (
+							<div className="group flex items-center gap-1.5">
+								<Hover text={page.url}>
+									<button
+										type="button"
+										onClick={() => openUrl.mutate(page.url)}
+										className="block min-w-0 flex-1 truncate text-left text-[12px] text-[#a394ff] hover:underline"
+									>
+										{page.title ?? "Notion page"} ↗
+									</button>
+								</Hover>
+								<HideButton onClick={() => hide(page.url)} />
+							</div>
+						)}
+						{mine("notion").map(myLink)}
+					</div>
+				</Section>
+			)}
+			{(artifact || mine("artifact").length > 0) && (
+				<Section
+					label={plural("Artifact", artifact, mine("artifact"))}
+					accent={LINK_ACCENT.artifact}
+				>
+					<div className="flex flex-col gap-1">
+						{artifact && (
+							<div className="group flex items-center gap-1.5">
+								<Hover text={artifact}>
+									<button
+										type="button"
+										onClick={() => openUrl.mutate(artifact)}
+										className="block min-w-0 flex-1 truncate text-left text-[12px] text-[#a394ff] hover:underline"
+									>
+										Open artifact ↗
+									</button>
+								</Hover>
+								<HideButton onClick={() => hide(artifact)} />
+							</div>
+						)}
+						{mine("artifact").map(myLink)}
+					</div>
+				</Section>
+			)}
+			{mine("other").length > 0 && (
+				<Section label="Links" accent={LINK_ACCENT.other}>
+					<div className="flex flex-col gap-1">{mine("other").map(myLink)}</div>
+				</Section>
+			)}
+		</>
+	);
+
+	if (resourcesOnly)
+		return <div className="flex flex-col gap-3.5">{resources}</div>;
+
 	return (
 		<div className="flex w-[340px] shrink-0 flex-col border-l border-[#25252e] bg-[#111114]">
 			<div className="flex items-center gap-2 border-b border-[#25252e] px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[.4px] text-[#8a8a97]">
@@ -500,153 +658,7 @@ export function SessionBrief({
 						)}
 					</>
 				)}
-				{/* Links sit outside the transcript branch: the ones you added are
-				    yours, and a session with no readable conversation still has them. */}
-				{(issue || mine("jira").length > 0) && (
-					<Section
-						label={plural("Jira ticket", issue, mine("jira"))}
-						accent={LINK_ACCENT.jira}
-					>
-						<div className="flex flex-col gap-1">
-							{issue && (
-								<div className="group flex items-center gap-1.5">
-									<Hover text={issue.url}>
-										<button
-											type="button"
-											onClick={() => openUrl.mutate(issue.url)}
-											className="truncate text-left text-[12px] text-[#a394ff] hover:underline"
-										>
-											{issue.key} ↗
-										</button>
-									</Hover>
-									<HideButton onClick={() => hide(issue.url)} />
-								</div>
-							)}
-							{mine("jira").map(myLink)}
-						</div>
-					</Section>
-				)}
-				{(thread || mine("slack").length > 0) && (
-					<Section
-						label={plural("Slack thread", thread, mine("slack"))}
-						accent={LINK_ACCENT.slack}
-					>
-						<div className="flex flex-col gap-1.5">
-							{thread && (
-								<div className="group flex items-start gap-1.5">
-									<div className="min-w-0 flex-1">
-										<Hover text={hoverText(thread, threadPreview)}>
-											<button
-												type="button"
-												onClick={() => openUrl.mutate(thread)}
-												dir="auto"
-												className="line-clamp-2 w-full text-left text-[12px] text-[#a394ff] hover:underline"
-											>
-												{threadPreview?.text ?? "Open thread"} ↗
-											</button>
-										</Hover>
-										{threadPreview && (
-											<div className="truncate text-[11px] text-[#8a8a97]">
-												{[threadPreview.channel, threadPreview.author]
-													.filter(Boolean)
-													.join(" · ")}
-											</div>
-										)}
-									</div>
-									<HideButton onClick={() => hide(thread)} />
-								</div>
-							)}
-							{mine("slack").map(myLink)}
-						</div>
-					</Section>
-				)}
-				{(prs.length > 0 || mine("pr").length > 0) && (
-					<Section
-						accent={LINK_ACCENT.pr}
-						label={
-							prs.length + mine("pr").length === 1
-								? "Pull request"
-								: "Pull requests"
-						}
-					>
-						<div className="flex flex-col gap-1">
-							{prs.map((pr) => (
-								<div key={pr.url} className="group flex items-center gap-1.5">
-									<Hover text={pr.url}>
-										<button
-											type="button"
-											onClick={() => openUrl.mutate(pr.url)}
-											className="flex min-w-0 items-center gap-1.5 text-left text-[12px] text-[#a394ff] hover:underline"
-										>
-											<span className="truncate">
-												{pr.repo.split("/").pop()} #{pr.number}
-											</span>
-											<StateChip status={prStates?.[pr.url]} />
-											<ChecksChip status={prStates?.[pr.url] ?? null} />
-										</button>
-									</Hover>
-									<HideButton onClick={() => hide(pr.url)} />
-								</div>
-							))}
-							{mine("pr").map(myLink)}
-						</div>
-					</Section>
-				)}
-				{(page || mine("notion").length > 0) && (
-					<Section
-						label={plural("Notion page", page, mine("notion"))}
-						accent={LINK_ACCENT.notion}
-					>
-						<div className="flex flex-col gap-1">
-							{page && (
-								<div className="group flex items-center gap-1.5">
-									<Hover text={page.url}>
-										<button
-											type="button"
-											onClick={() => openUrl.mutate(page.url)}
-											className="block min-w-0 flex-1 truncate text-left text-[12px] text-[#a394ff] hover:underline"
-										>
-											{page.title ?? "Notion page"} ↗
-										</button>
-									</Hover>
-									<HideButton onClick={() => hide(page.url)} />
-								</div>
-							)}
-							{mine("notion").map(myLink)}
-						</div>
-					</Section>
-				)}
-				{(artifact || mine("artifact").length > 0) && (
-					<Section
-						label={plural("Artifact", artifact, mine("artifact"))}
-						accent={LINK_ACCENT.artifact}
-					>
-						<div className="flex flex-col gap-1">
-							{artifact && (
-								<div className="group flex items-center gap-1.5">
-									<Hover text={artifact}>
-										<button
-											type="button"
-											onClick={() => openUrl.mutate(artifact)}
-											className="block min-w-0 flex-1 truncate text-left text-[12px] text-[#a394ff] hover:underline"
-										>
-											Open artifact ↗
-										</button>
-									</Hover>
-									<HideButton onClick={() => hide(artifact)} />
-								</div>
-							)}
-							{mine("artifact").map(myLink)}
-						</div>
-					</Section>
-				)}
-				{mine("other").length > 0 && (
-					<Section label="Links" accent={LINK_ACCENT.other}>
-						<div className="flex flex-col gap-1">
-							{mine("other").map(myLink)}
-						</div>
-					</Section>
-				)}
+				{resources}
 				{rules.length > 0 && (
 					<details className="group/rules flex flex-col gap-1 border-t border-[#25252e] pt-3">
 						<summary className="flex cursor-pointer list-none items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[.4px] text-[#8a8a97] hover:text-[#d6d6dc]">
