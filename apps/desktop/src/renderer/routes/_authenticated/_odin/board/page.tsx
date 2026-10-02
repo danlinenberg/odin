@@ -19,6 +19,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import {
 	type CSSProperties,
 	Fragment,
+	useCallback,
 	useEffect,
 	useMemo,
 	useRef,
@@ -98,6 +99,8 @@ import {
 	actionItems,
 	elapsedLabel,
 	lastMessageAt,
+	mergeReady,
+	mergeTargets,
 	nextCronFire,
 	notionPage,
 	onlyMergeLeft,
@@ -466,10 +469,7 @@ function MergeOnlyPill({ card }: { card: BoardCard }) {
 	const openUrl = electronTrpc.external.openUrl.useMutation();
 	if (!data || !onlyMergeLeft(data.messages)) return null;
 	// The PR the merge item names ("Merge #12"), else the newest one.
-	const items = actionItems(data.messages).join(" ");
-	const prs = pullRequests(data.messages);
-	const pr =
-		prs.find((p) => new RegExp(`#${p.number}\\b`).test(items)) ?? prs[0];
+	const pr = mergeTargets(data.messages)[0];
 	return (
 		<button
 			type="button"
@@ -1632,6 +1632,42 @@ function DevBoardPage() {
 		() => new Set(loopingKey ? loopingKey.split(",") : []),
 		[loopingKey],
 	);
+	// Merge-only sessions, off the same transcripts, and the state of the PRs
+	// they want merged. Once every one is approved the card is Done: what's
+	// left is a click, not a decision.
+	const mergeCandidates = loopCandidates.flatMap(({ paneId }, i) => {
+		const messages = loopQueries[i]?.data?.messages;
+		return messages && onlyMergeLeft(messages)
+			? [{ paneId, messages, urls: mergeTargets(messages).map((pr) => pr.url) }]
+			: [];
+	});
+	const mergeStateQueries = electronTrpc.useQueries((t) =>
+		mergeCandidates.map(({ urls }) =>
+			t.terminal.pullRequestStates(
+				{ urls },
+				{ retry: false, staleTime: 30_000, refetchInterval: 60_000 },
+			),
+		),
+	);
+	const mergeReadyKey = mergeCandidates
+		.filter(({ messages }, i) => {
+			const states = mergeStateQueries[i]?.data;
+			return !!states && mergeReady(messages, states);
+		})
+		.map(({ paneId }) => paneId)
+		.join(",");
+	const mergeReadyPaneIds = useMemo(
+		() => new Set(mergeReadyKey ? mergeReadyKey.split(",") : []),
+		[mergeReadyKey],
+	);
+	/** Needs you, unless all it needs is merging approved PRs — then Done. */
+	const withMergeReady = useCallback(
+		(column: PaneStatus, paneId: string): PaneStatus =>
+			column === "permission" && mergeReadyPaneIds.has(paneId)
+				? "review"
+				: column,
+		[mergeReadyPaneIds],
+	);
 	/**
 	 * Live Claude that's been up a while. Continue is for nudging a session
 	 * that just came back (Resume, app/daemon restart) and is sitting idle;
@@ -1687,10 +1723,9 @@ function DevBoardPage() {
 		for (const pane of stale) {
 			const shell = pane.odinShellPaneId;
 			if (shell && alivePaneIds.has(shell) && busyShells.has(shell)) continue;
-			const column = boardColumn(
-				pane.status ?? "idle",
-				true,
-				pane.odinParked ?? false,
+			const column = withMergeReady(
+				boardColumn(pane.status ?? "idle", true, pane.odinParked ?? false),
+				pane.id,
 			);
 			useTabsStore.setState((state) => ({
 				panes: {
@@ -2174,13 +2209,16 @@ function DevBoardPage() {
 					completed.push(card);
 					continue;
 				}
-				const column = boardColumn(
-					status,
-					// `undefined` = the poll hasn't answered yet, which is not "dead".
-					daemonSessions === undefined ? undefined : alive,
-					pane.odinParked ?? false,
-					loopingPaneIds.has(pane.id),
-					pane.odinClosedIn,
+				const column = withMergeReady(
+					boardColumn(
+						status,
+						// `undefined` = the poll hasn't answered yet, which is not "dead".
+						daemonSessions === undefined ? undefined : alive,
+						pane.odinParked ?? false,
+						loopingPaneIds.has(pane.id),
+						pane.odinClosedIn,
+					),
+					pane.id,
 				);
 				for (const tag of boardTags(pane.odinTags, customTags))
 					tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
@@ -2239,6 +2277,7 @@ function DevBoardPage() {
 		projectById,
 		agentPaneIds,
 		loopingPaneIds,
+		withMergeReady,
 		daemonSessions,
 		boardFilter,
 		search,

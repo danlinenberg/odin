@@ -407,3 +407,40 @@ export function onlyMergeLeft(messages: BriefMessage[]): boolean {
 	const items = actionItems(messages);
 	return items.length > 0 && items.every((item) => MERGE_ITEM.test(item));
 }
+
+/**
+ * The PRs the merge items are about: the ones they name ("#12", "…/pull/12"),
+ * else the newest PR the session linked. Newest first, like pullRequests.
+ */
+export function mergeTargets(messages: BriefMessage[]): PullRequestLink[] {
+	const items = actionItems(messages).join(" ");
+	const prs = pullRequests(messages);
+	const named = prs.filter((pr) =>
+		new RegExp(`(?:#|/pull/)${pr.number}\\b`).test(items),
+	);
+	return named.length ? named : prs.slice(0, 1);
+}
+
+/**
+ * Finished, bar a click nobody has to think about: the merge is the only item
+ * left, and every PR it's for is approved (or merged already). That card is
+ * Done, not Needs you. Unknown state (gh can't see the PR, not fetched yet) is
+ * not approved, and a reply after the items means you already answered them.
+ */
+export function mergeReady(
+	messages: BriefMessage[],
+	states: Record<string, { state: string; approved?: boolean } | null>,
+): boolean {
+	if (messages[messages.length - 1]?.role !== "assistant") return false;
+	if (!onlyMergeLeft(messages)) return false;
+	const targets = mergeTargets(messages);
+	return (
+		targets.length > 0 &&
+		targets.every(({ url }) => {
+			const pr = states[url];
+			return (
+				pr?.state === "MERGED" || (pr?.state === "OPEN" && pr.approved === true)
+			);
+		})
+	);
+}
