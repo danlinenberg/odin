@@ -22,11 +22,13 @@ const STATUS = `github.com
 describe("pullRequestState", () => {
 	test("reads the state the active account can see", async () => {
 		const exec: GhExec = async () => ({
-			stdout: '{"state":"MERGED","statusCheckRollup":[]}',
+			stdout:
+				'{"state":"MERGED","reviewDecision":"APPROVED","statusCheckRollup":[]}',
 		});
 		expect(await pullRequestState(URL, exec)).toEqual({
 			state: "MERGED",
 			isDraft: false,
+			approved: true,
 			pending: [],
 			failed: [],
 			passed: 0,
@@ -51,6 +53,7 @@ describe("pullRequestState", () => {
 		expect(await pullRequestState(URL, exec)).toEqual({
 			state: "OPEN",
 			isDraft: true,
+			approved: false,
 			pending: ["Cursor Bugbot", "ci/circleci"],
 			failed: ["pytest"],
 			passed: 1,

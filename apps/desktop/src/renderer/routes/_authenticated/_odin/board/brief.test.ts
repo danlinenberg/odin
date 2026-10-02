@@ -8,6 +8,8 @@ import {
 	lastMessageAt,
 	linkKind,
 	linkLabel,
+	mergeReady,
+	mergeTargets,
 	nextCronFire,
 	notionPage,
 	onlyMergeLeft,
@@ -537,5 +539,62 @@ describe("onlyMergeLeft", () => {
 			onlyMergeLeft([turn("ACTION ITEMS\n1. Merge #12\n2. Restart Odin dev")]),
 		).toBe(false);
 		expect(onlyMergeLeft([turn("ACTION ITEMS: none")])).toBe(false);
+	});
+});
+
+describe("mergeReady", () => {
+	const turn = (text: string) => ({
+		role: "assistant" as const,
+		text,
+		at: null,
+	});
+	const a = "https://github.com/o/r/pull/12";
+	const b = "https://github.com/o/r/pull/13";
+	const opened = turn(`Opened ${a} and ${b}.`);
+	const items = turn("Done.\n\nACTION ITEMS\n1. Merge #12\n2. Merge #13");
+	const approved = { state: "OPEN", approved: true };
+	it("is true once every named PR is approved or merged", () => {
+		expect(
+			mergeReady([opened, items], {
+				[a]: approved,
+				[b]: { state: "MERGED" },
+			}),
+		).toBe(true);
+	});
+	it("is false while any of them waits on review, or is unknown", () => {
+		expect(
+			mergeReady([opened, items], {
+				[a]: approved,
+				[b]: { state: "OPEN", approved: false },
+			}),
+		).toBe(false);
+		expect(mergeReady([opened, items], { [a]: approved, [b]: null })).toBe(
+			false,
+		);
+	});
+	it("is false when something besides the merge is left, or you replied", () => {
+		const states = { [a]: approved, [b]: approved };
+		expect(
+			mergeReady(
+				[opened, turn("ACTION ITEMS\n1. Merge #12\n2. Restart")],
+				states,
+			),
+		).toBe(false);
+		expect(
+			mergeReady(
+				[opened, items, { role: "user", text: "merge them", at: null }],
+				states,
+			),
+		).toBe(false);
+	});
+	it("targets the named PRs, else the newest one", () => {
+		expect(mergeTargets([opened, items]).map((pr) => pr.number)).toEqual([
+			13, 12,
+		]);
+		expect(
+			mergeTargets([opened, turn("ACTION ITEMS\n1. Merge the PR")]).map(
+				(pr) => pr.number,
+			),
+		).toEqual([13]);
 	});
 });
