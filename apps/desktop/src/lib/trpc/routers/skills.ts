@@ -61,8 +61,13 @@ export function collectSkills(options?: { homeDir?: string }): AgentSkill[] {
 		}
 	};
 
-	/** A plugin root: `skills/<name>/SKILL.md` and `commands/<name>.md`. */
+	/**
+	 * A plugin root: `skills/<name>/SKILL.md` and `commands/<name>.md`, or a
+	 * single-skill plugin whose SKILL.md sits at the root (`<plugin>:<plugin>`).
+	 */
 	const addPluginRoot = (prefix: string, root: string) => {
+		const rootSkill = join(root, "SKILL.md");
+		if (existsSync(rootSkill)) add(`${prefix}:${prefix}`, rootSkill);
 		for (const skill of subdirectories(join(root, "skills"))) {
 			const skillMd = join(root, "skills", skill, "SKILL.md");
 			if (existsSync(skillMd)) add(`${prefix}:${skill}`, skillMd);

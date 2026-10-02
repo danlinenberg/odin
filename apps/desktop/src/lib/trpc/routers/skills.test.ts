@@ -65,3 +65,19 @@ test("collectSkills tolerates a missing home", () => {
 		collectSkills({ homeDir: join(tmpdir(), "odin-no-such-home") }),
 	).toEqual([]);
 });
+
+test("collectSkills finds a single-skill plugin whose SKILL.md is at its root", () => {
+	const home = mkdtempSync(join(tmpdir(), "odin-skills-"));
+	const installPath = join(home, "cache", "get-pr-approved", "1.0.0");
+	write(join(installPath, "SKILL.md"), skillFile("Get it approved"));
+	write(
+		join(home, ".claude", "plugins", "installed_plugins.json"),
+		JSON.stringify({
+			plugins: { "get-pr-approved@imagen-skills": [{ installPath }] },
+		}),
+	);
+
+	expect(collectSkills({ homeDir: home })).toEqual([
+		{ name: "get-pr-approved:get-pr-approved", description: "Get it approved" },
+	]);
+});
