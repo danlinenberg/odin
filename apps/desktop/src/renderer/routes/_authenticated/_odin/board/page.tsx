@@ -382,7 +382,8 @@ function CatchUpCard({
 						type="button"
 						title={url}
 						onClick={() => openUrl.mutate(url)}
-						className="text-[#a394ff] hover:underline"
+						// inline, not a button's inline-block: "PR #1." keeps its period
+						className="inline text-[#a394ff] hover:underline"
 					>
 						{run}
 					</button>
