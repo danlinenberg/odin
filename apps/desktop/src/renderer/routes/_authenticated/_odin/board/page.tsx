@@ -2040,11 +2040,9 @@ function DevBoardPage() {
 	// Dev only: hold Vite's reloads while a session is open (see coalesceFullReloadPlugin).
 	const drawerOpen = !!drawerCard;
 	const inCatchUp = !!drawerCard && !!catchUp?.includes(drawerCard.pane.id);
-	const catchUpLean =
-		inCatchUp &&
-		catchUpFull !== drawerCard?.pane.id &&
-		!isShellOpen &&
-		!isDiffOpen;
+	// Catch up has no Diff or Shell — one left open in a normal drawer doesn't
+	// follow you in, since there'd be no button to close it.
+	const catchUpLean = inCatchUp && catchUpFull !== drawerCard?.pane.id;
 	useEffect(() => {
 		import.meta.hot?.send("odin:session-pane", drawerOpen);
 		return () => import.meta.hot?.send("odin:session-pane", false);
@@ -3593,7 +3591,7 @@ function DevBoardPage() {
 										className="min-w-0 flex-1 rounded-md border border-[#a394ff] bg-[#0a0a0c] px-2 py-1 text-sm font-semibold text-[#f5f5f7] outline-none"
 									/>
 								)}
-								{drawerCard.pane.type === "terminal" && (
+								{drawerCard.pane.type === "terminal" && !inCatchUp && (
 									<button
 										type="button"
 										title="Show what this session changed (git diff, rendered by delta)"
@@ -3611,7 +3609,7 @@ function DevBoardPage() {
 										⑂ Diff
 									</button>
 								)}
-								{/* Not in Catch up: you're deciding Keep or Done, not working. */}
+								{/* Not in Catch up (nor Diff): you're deciding Keep or Done. */}
 								{drawerCard.pane.type === "terminal" && !inCatchUp && (
 									// One control: the shell, and — once it's open — where it is.
 									<div className="flex shrink-0 items-stretch">
@@ -3732,7 +3730,9 @@ function DevBoardPage() {
 												workspaceId={drawerCard.workspaceId}
 											/>
 										</div>
-									) : isDiffOpen && drawerCard.pane.type === "terminal" ? (
+									) : isDiffOpen &&
+										!inCatchUp &&
+										drawerCard.pane.type === "terminal" ? (
 										<DiffView
 											key={drawerCard.pane.id}
 											cwd={sessionCwd(drawerCard.pane) ?? null}
