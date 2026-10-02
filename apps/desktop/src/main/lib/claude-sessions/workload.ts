@@ -685,7 +685,8 @@ const BLIP_MS = 60_000;
 
 /**
  * Minutes per hour of the day, folded across all weeks (`byHour`) and kept per
- * week (`heatmap`). Only weeks with a minute in them get a row — an empty grid
+ * week (`heatmap`, cells indexed by working day, so a row's 00–05 are the
+ * night after it). Only weeks with a minute in them get a row — an empty grid
  * is cheaper to draw than to ship.
  */
 function hourCells(intervals: Interval[]): {
@@ -702,13 +703,16 @@ function hourCells(intervals: Interval[]): {
 			const next = Math.min(end, date.getTime() + HOUR_MS);
 			const minutes = Math.round((next - at) / 60_000);
 			byHour[date.getHours()] += minutes;
-			const week = weekStart(at);
+			// A working day runs 06:00 to 05:59, so 02:00 Sunday is Saturday
+			// night's — in last week's row, not this week's.
+			const workday = new Date(at - 6 * HOUR_MS);
+			const week = weekStart(workday.getTime());
 			let cells = weekCells.get(week);
 			if (!cells) {
 				cells = Array.from({ length: 7 * 24 }, () => 0);
 				weekCells.set(week, cells);
 			}
-			cells[date.getDay() * 24 + date.getHours()] += minutes;
+			cells[workday.getDay() * 24 + date.getHours()] += minutes;
 			at = next;
 		}
 	}

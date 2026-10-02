@@ -415,10 +415,22 @@ describe("computeWorkload", () => {
 		// Sunday is weekday 0, so Monday 09:00 is cell 24 + 9 of this week's row.
 		expect(out.heatmap[1]?.minutes[24 + 9]).toBe(60);
 		expect(out.heatmap[1]?.minutes.reduce((a, b) => a + b, 0)).toBe(60);
-		// The overnight run splits: Wednesday 23:00 and Thursday 00:00.
+		// The overnight run splits across 23:00 and 00:00, both Wednesday night's.
 		const before = out.heatmap[0]?.minutes ?? [];
 		expect(before[3 * 24 + 23]).toBe(30);
-		expect(before[4 * 24 + 0]).toBe(30);
+		expect(before[3 * 24 + 0]).toBe(30);
+	});
+
+	test("Saturday night's small hours stay in Saturday's week", () => {
+		// 02:00 on the Sunday that opens MON's week.
+		const sun = new Date(2026, 8, 13, 2, 0, 0).getTime();
+		const out = computeWorkload([session({ intervals: [[sun, sun + HOUR]] })], {
+			now: MON,
+		});
+		expect(out.agentHeatmap.map((week) => week.start)).toEqual([
+			weekStart(sun - 7 * 24 * HOUR),
+		]);
+		expect(out.agentHeatmap[0]?.minutes[6 * 24 + 2]).toBe(60);
 	});
 
 	test("the agent heatmap paints the run nobody attended", () => {
