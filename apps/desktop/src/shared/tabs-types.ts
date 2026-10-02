@@ -197,6 +197,14 @@ export interface Pane {
 	 * Cleared as soon as the session moves again.
 	 */
 	odinParked?: boolean;
+	/** Odin fork: when `status` last changed — how long a session has sat idle. */
+	odinStatusAt?: number;
+	/**
+	 * Odin fork: the column a session was in when the board closed it for
+	 * sitting idle (see IDLE_CLOSE_MS). A dead session normally drops to Idle;
+	 * one Odin closed itself stays where you left it. Cleared once it works again.
+	 */
+	odinClosedIn?: PaneStatus;
 	/**
 	 * Odin fork: created but not started — the Mac was flat out, or another
 	 * agent was working in the same checkout. The card sits in Idle under "Queued" with the reason

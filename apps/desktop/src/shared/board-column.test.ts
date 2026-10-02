@@ -68,4 +68,14 @@ describe("boardColumn", () => {
 		expect(boardColumn("permission", true, false, true)).toBe("permission");
 		expect(boardColumn("failed", true, false, true)).toBe("permission");
 	});
+
+	// Closed by the board for sitting idle: it keeps its column instead of
+	// dropping to Idle like any other dead session.
+	it("keeps an idle-closed session in the column it was closed from", () => {
+		expect(boardColumn("review", false, false, false, "review")).toBe("review");
+		expect(boardColumn("idle", false, false, false, "permission")).toBe(
+			"permission",
+		);
+		expect(boardColumn("review", false, false)).toBe("idle");
+	});
 });

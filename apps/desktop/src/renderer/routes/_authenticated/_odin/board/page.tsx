@@ -230,6 +230,8 @@ function slugify(title: string): string {
 const SETTLED_MS = 120_000;
 /** How long after a (re)start Continue stays clickable on a live session. */
 const RECENT_RESTART_MS = 5 * 60_000;
+/** A session idle this long, with no shell running anything, gets closed. */
+const IDLE_CLOSE_MS = 3 * 60 * 60_000;
 
 /** Width of the Odin icon rail in layout.tsx — the drawer stops here. */
 const RAIL_W = 52;
@@ -1455,6 +1457,65 @@ function DevBoardPage() {
 			!!createdAt && Date.now() - Date.parse(createdAt) > RECENT_RESTART_MS
 		);
 	};
+	// Close sessions that have sat idle for IDLE_CLOSE_MS: an open Claude holds
+	// memory and a checkout for a conversation Resume can reopen any time. The
+	// card stays in its column (odinClosedIn) — closing it answered nothing.
+	// A session whose shell is still running something (a dev server) is in use.
+	// ponytail: a pane with no odinStatusAt (launched before it existed) starts
+	// its clock when this board first sees it.
+	const firstSeenRef = useRef(new Map<string, number>());
+	// Re-assigned every render so the one-minute timer below reads current
+	// state — an effect keyed on `panes` restarts on every status write and
+	// would never get to fire.
+	const sweepIdleRef = useRef<() => Promise<void>>(async () => {});
+	sweepIdleRef.current = async () => {
+		const now = Date.now();
+		const stale = Object.values(panes).filter((pane) => {
+			if (!pane.odinTaskTitle && !titleByPane[pane.id]) return false;
+			if (!agentPaneIds.has(pane.id) || loopingPaneIds.has(pane.id))
+				return false;
+			if (pane.status === "working" || pane.odinQueued) return false;
+			if (!firstSeenRef.current.has(pane.id))
+				firstSeenRef.current.set(pane.id, now);
+			const since =
+				pane.odinStatusAt ?? firstSeenRef.current.get(pane.id) ?? now;
+			return now - since > IDLE_CLOSE_MS;
+		});
+		if (stale.length === 0) return;
+		const snapshot = await utils.client.resourceMetrics.getSnapshot
+			.query()
+			.catch(() => undefined);
+		if (!snapshot) return;
+		const busyShells = new Set(
+			snapshot.workspaces
+				.flatMap((workspace) => workspace.sessions)
+				.filter((session) => session.busy !== false)
+				.map((session) => session.paneId),
+		);
+		for (const pane of stale) {
+			const shell = pane.odinShellPaneId;
+			if (shell && alivePaneIds.has(shell) && busyShells.has(shell)) continue;
+			const column = boardColumn(
+				pane.status ?? "idle",
+				true,
+				pane.odinParked ?? false,
+			);
+			useTabsStore.setState((state) => ({
+				panes: {
+					...state.panes,
+					[pane.id]: { ...state.panes[pane.id], odinClosedIn: column },
+				},
+			}));
+			console.warn(`[board] closing idle session ${pane.id} (${column})`);
+			await utils.client.terminal.kill
+				.mutate({ paneId: pane.id })
+				.catch(() => {});
+		}
+	};
+	useEffect(() => {
+		const id = setInterval(() => void sweepIdleRef.current(), 60_000);
+		return () => clearInterval(id);
+	}, []);
 	/** Alive PTY currently mid-turn — the one state Resume must not touch. */
 	const isWorkingNow = (paneId: string) =>
 		agentPaneIds.has(paneId) && panes[paneId]?.status === "working";
@@ -1915,6 +1976,7 @@ function DevBoardPage() {
 					daemonSessions === undefined ? undefined : alive,
 					pane.odinParked ?? false,
 					loopingPaneIds.has(pane.id),
+					pane.odinClosedIn,
 				);
 				for (const tag of boardTags(pane.odinTags, customTags))
 					tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
