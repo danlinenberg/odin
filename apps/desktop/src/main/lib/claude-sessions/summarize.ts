@@ -104,6 +104,7 @@ Rules:
 - Always answer in English, even when the conversation is in another language.
 - Be concrete: name the files, numbers, PRs, decisions. No filler, no "the user asked".
 - Under 200 characters per line.
+- TITLE names the subject — the user, bug, feature or PR — never the medium. If the session hasn't yet said what it's about (the request is only a link or an image), leave TITLE empty rather than write "Slack thread investigation" or "Review PR": the card keeps the first title it gets.
 - TAGS: never invent a tag outside the list. Pick the fewest that fit; if none fit, leave the line empty.`;
 
 /** Pull the four labelled lines back out; tolerate a chatty model. */
