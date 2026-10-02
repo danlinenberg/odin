@@ -30,7 +30,9 @@ export function useStartAllItem(onSlackStarted?: () => void) {
 	 * The pane already working this row, if there is one. Panes carry the page
 	 * id for Slack/Notion and the launch title for everything else — matching
 	 * both is what keeps Start session from opening a second agent on a ticket
-	 * that already has one.
+	 * that already has one. The brief too: it's written once at launch, while
+	 * the title gets auto-retitled and a session started from the Notion mirror
+	 * of a Slack message carries the Notion page id, not the Slack one.
 	 */
 	const livePaneFor = (item: AllItem): string | null =>
 		Object.values(panes).find(
@@ -38,7 +40,8 @@ export function useStartAllItem(onSlackStarted?: () => void) {
 				!pane.completed &&
 				((item.launch.pageId != null &&
 					pane.odinPageId === item.launch.pageId) ||
-					pane.odinTaskTitle === item.launch.title),
+					pane.odinTaskTitle === item.launch.title ||
+					pane.odinBrief === item.launch.brief),
 		)?.id ?? null;
 
 	/**
