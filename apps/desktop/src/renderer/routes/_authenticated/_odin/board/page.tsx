@@ -16,7 +16,6 @@ import {
 import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import { createFileRoute } from "@tanstack/react-router";
-import { UNREACTED_EVIDENCE } from "lib/trpc/routers/backlog-review/sweep";
 import {
 	type CSSProperties,
 	Fragment,
@@ -348,12 +347,6 @@ function useDropFor(pane: Pane | undefined) {
 			? state.swept.find(
 					(r) =>
 						r.verdict === "DROP" &&
-						// Auto-started: the reaction launched a session, and taking the
-						// :eyes: off afterwards doesn't make that session's work done.
-						!(
-							r.evidence === UNREACTED_EVIDENCE &&
-							pane.odinTags?.includes("auto-started")
-						) &&
 						sessionFor(r, [pane], new Map()) === pane.id,
 				)
 			: undefined,
