@@ -2248,47 +2248,6 @@ function DevBoardPage() {
 	};
 
 	/**
-	 * Wait until Claude's TUI is actually on screen in a freshly respawned pane.
-	 * `claude --resume` takes a second or two to boot, and a write that lands
-	 * before it is reading is swallowed — the empty-session bug, again.
-	 *
-	 * ponytail: polls the same screen read the scan below uses, no new plumbing.
-	 * Ceiling: gives up after ~15s and says so, rather than typing into the void.
-	 */
-	const waitForAgent = async (
-		paneId: string,
-		tabId: string,
-		workspaceId: string,
-	): Promise<boolean> => {
-		// Same rule as the scan: send the mounted xterm's size, or a host that
-		// fills in a missing viewport resizes the live PTY to 80x24.
-		const mounted = terminalCache.get(paneId)?.xterm;
-		for (let attempt = 0; attempt < 15; attempt++) {
-			await new Promise((resolve) => setTimeout(resolve, 1_000));
-			try {
-				const result = (await utils.client.terminal.createOrAttach.mutate({
-					paneId,
-					tabId,
-					workspaceId,
-					skipColdRestore: true,
-					...(mounted && { cols: mounted.cols, rows: mounted.rows }),
-				})) as { snapshot?: { snapshotAnsi?: string }; scrollback?: string };
-				const screen = (
-					result?.snapshot?.snapshotAnsi ??
-					result?.scrollback ??
-					""
-				)
-					.replace(ANSI_RE, "")
-					.slice(-2500);
-				if (agentOnScreen(screen)) return true;
-			} catch {
-				// pane not up yet — try again
-			}
-		}
-		return false;
-	};
-
-	/**
 	 * Pick a session back up. On a live PTY that's literally writing "Continue"
 	 * into the open prompt — nothing to reopen.
 	 *
@@ -2482,18 +2441,20 @@ function DevBoardPage() {
 		}
 		// No opening prompt: Resume reopens the conversation at an idle prompt,
 		// it doesn't put the agent back to work. Deciding what happens next is
-		// the whole reason you came back to the session.
-		const resumeCmd = sessionId
-			? `claude --dangerously-skip-permissions --resume ${sessionId}`
-			: "claude --dangerously-skip-permissions --continue";
+		// the whole reason you came back to the session. Except mid-turn: that
+		// agent comes back with the job half done, so "Continue" rides on the
+		// command line. Typing it in once the TUI looked up raced Claude's boot
+		// — the write was swallowed and the card needed another Resume click.
+		const resumeCmd = `${
+			sessionId
+				? `claude --dangerously-skip-permissions --resume ${sessionId}`
+				: "claude --dangerously-skip-permissions --continue"
+		}${diedWorking ? " Continue" : ""}`;
 		const blocker = await resumeBlocker(card.pane, cwd);
 		if (blocker) {
-			// Held, the waitForAgent nudge below never runs — the prompt rides
-			// on the command instead.
-			const queuedCmd = diedWorking ? `${resumeCmd} Continue` : resumeCmd;
 			queueResume(
 				card.pane,
-				cwd ? `cd '${cwd}' && ${queuedCmd}` : queuedCmd,
+				cwd ? `cd '${cwd}' && ${resumeCmd}` : resumeCmd,
 				blocker,
 				!auto,
 			);
@@ -2518,9 +2479,8 @@ function DevBoardPage() {
 					...state.panes,
 					[card.pane.id]: {
 						...state.panes[card.pane.id],
-						// Alive but not working — nothing was asked of it. A session
-						// that died mid-turn is put back to work below and takes
-						// "working" back then, once the agent is actually up.
+						// Alive but not working yet. A mid-turn one takes "working"
+						// back from its own hooks once its Continue is submitted.
 						status: "idle",
 						odinParked: false,
 						interrupted: false,
@@ -2530,21 +2490,6 @@ function DevBoardPage() {
 			}));
 			// Stay in the drawer: it swaps the read-only history for the live
 			// terminal as soon as the daemon poll (invalidated below) sees the PTY.
-			// It was mid-turn when it died, so reopening the conversation isn't
-			// picking it back up — the agent sits there with the job half done
-			// waiting to be told the obvious. Tell it.
-			if (diedWorking) {
-				void (async () => {
-					if (!(await waitForAgent(card.pane.id, card.tabId, card.workspaceId)))
-						return;
-					try {
-						await sendContinue(card.pane.id);
-						setPaneStatusFromStore(card.pane.id, "working");
-					} catch {
-						// the conversation is open either way — type it yourself
-					}
-				})();
-			}
 			// ponytail: no toast on the happy path — the card renders its own
 			// "resuming…" spinner, and a toast over the board hides other cards.
 			// Only the ambiguous --continue fallback is worth interrupting for.
