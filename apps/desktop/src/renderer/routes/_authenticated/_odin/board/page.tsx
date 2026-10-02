@@ -2478,8 +2478,8 @@ function DevBoardPage() {
 					},
 				},
 			}));
-			// An auto-resume didn't come from the drawer — leave whatever's open.
-			if (!auto) setDrawerCard(null);
+			// Stay in the drawer: it swaps the read-only history for the live
+			// terminal as soon as the daemon poll (invalidated below) sees the PTY.
 			// It was mid-turn when it died, so reopening the conversation isn't
 			// picking it back up — the agent sits there with the job half done
 			// waiting to be told the obvious. Tell it.
