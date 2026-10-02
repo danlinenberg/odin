@@ -183,6 +183,7 @@ function useNextInLineRows() {
 	};
 	return {
 		rows,
+		todos,
 		reminders,
 		prompt,
 		rankInput,
@@ -196,7 +197,7 @@ function useNextInLineRows() {
  * Night Agent runner, so the night works through exactly the list you see.
  */
 export function useNextInLineQueue(showHidden = false) {
-	const { rows, reminders, prompt, rankInput, refetchSlack } =
+	const { rows, todos, reminders, prompt, rankInput, refetchSlack } =
 		useNextInLineRows();
 	const { ranking, applied } = useAiRanking();
 	const pinOverdueDays = useNextInLinePrompt((s) => s.pinOverdueDays);
@@ -212,9 +213,16 @@ export function useNextInLineQueue(showHidden = false) {
 	);
 	// Done anywhere means not next.
 	const { isDone } = useDone();
+	// My own tasks never reach the ledger; theirs is the session they launched.
+	// Not the board's title match: an agent retitles its pane, and then the
+	// Night Agent starts yesterday's todo all over again.
 	const startedKeys = useMemo(
-		() => new Set((ledger ?? []).map((row) => row.externalId)),
-		[ledger],
+		() =>
+			new Set([
+				...(ledger ?? []).map((row) => row.externalId),
+				...todos.flatMap((task) => (task.paneId ? [task.id] : [])),
+			]),
+		[ledger, todos],
 	);
 	// ponytail: every row rendered — a few hundred plain cards scroll fine.
 	// Window it (render on scroll) if the feeds ever reach thousands.
