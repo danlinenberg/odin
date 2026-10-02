@@ -17,6 +17,7 @@ import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import { createFileRoute } from "@tanstack/react-router";
 import {
+	type CSSProperties,
 	Fragment,
 	useCallback,
 	useEffect,
@@ -3160,17 +3161,24 @@ function DevBoardPage() {
 									: undefined
 							}
 							className={cn(
-								"flex min-w-[240px] flex-1 flex-col rounded-xl border bg-tertiary",
+								// The column wears its status: a hairline of the hue along the
+								// top and a wash that fades out under the header. The cards
+								// stay neutral — the colour says where they are, not what.
+								"relative flex min-w-[240px] flex-1 flex-col overflow-hidden rounded-xl border bg-tertiary/85 bg-[linear-gradient(to_bottom,color-mix(in_oklab,var(--col)_9%,transparent),transparent_160px)]",
 								isDropTarget && dragOverIdle
 									? "border-primary bg-primary/15"
 									: "border-border",
 							)}
+							style={
+								{ "--col": PANE_STATUS[column.status].dot } as CSSProperties
+							}
 						>
-							<div className="flex items-center gap-2 px-3 py-2.5 text-xs font-semibold uppercase tracking-[.4px] text-muted-foreground">
-								<span
-									className="size-2 rounded-full"
-									style={{ background: PANE_STATUS[column.status].dot }}
-								/>
+							<span
+								aria-hidden
+								className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-(--col) via-(--col)/40 to-transparent"
+							/>
+							<div className="flex items-center gap-2 px-3 py-2.5 text-xs font-semibold uppercase tracking-[.4px] text-soft-foreground">
+								<span className="size-2 rounded-full bg-(--col) shadow-[0_0_8px_var(--col)]" />
 								{column.label}
 								{column.status === "permission" && cards.length > 0 && (
 									<button
@@ -3183,7 +3191,7 @@ function DevBoardPage() {
 										}}
 										// Solid, with a play icon: the dim amber pill read as a tag
 										// beside the count, not as something to press.
-										className="ml-auto flex items-center gap-1 rounded-md bg-attention px-2.5 py-1 text-[11px] font-semibold normal-case tracking-normal text-background shadow-sm hover:bg-attention/90"
+										className="ml-auto flex items-center gap-1 rounded-md bg-gradient-to-b from-attention-ink to-attention px-2.5 py-1 text-[11px] font-semibold normal-case tracking-normal text-background shadow-[0_2px_10px_-3px_color-mix(in_oklab,var(--attention)_75%,transparent)] hover:brightness-110"
 									>
 										<LuPlay className="size-2.5 fill-current" />
 										Catch up
@@ -3252,7 +3260,9 @@ function DevBoardPage() {
 																	});
 																}}
 																className={cn(
-																	"group cursor-pointer rounded-[10px] border bg-card px-3 py-2.5 text-left transition-colors hover:border-input hover:bg-secondary",
+																	// A lit top edge, and a lift with a violet halo under the
+																	// pointer — the board's one bit of motion you cause.
+																	"group cursor-pointer rounded-[10px] border bg-card px-3 py-2.5 text-left shadow-[inset_0_1px_0_rgb(255_255_255/0.04)] transition-[border-color,background-color,box-shadow,translate] hover:-translate-y-px hover:border-primary/40 hover:bg-secondary hover:shadow-[inset_0_1px_0_rgb(255_255_255/0.05),0_10px_24px_-12px_color-mix(in_oklab,var(--primary)_55%,transparent)]",
 																	// Cards are neutral — the column header already says the
 																	// status. Only a failure earns its red edge.
 																	card.pane.status === "failed"

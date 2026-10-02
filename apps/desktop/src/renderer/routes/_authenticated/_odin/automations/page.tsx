@@ -29,7 +29,7 @@ import {
 	ROW_PRIMARY_BUTTON,
 	RowActions,
 } from "../components/FeedChrome";
-import { PILL } from "../components/pill";
+import { BUTTON, PILL } from "../components/pill";
 import { dueLabel, isDue, useReminders } from "../components/Reminders";
 import { matchRepos, repoLabel } from "../components/repo-picker";
 import {
@@ -614,7 +614,7 @@ function AutomationsPage() {
 							className={cn(
 								"cursor-pointer rounded-[6px] px-2.5 py-[3px] text-[12px] font-semibold transition-colors",
 								view === value
-									? "bg-secondary text-foreground ring-1 ring-inset ring-border"
+									? BUTTON.selected
 									: "text-muted-foreground hover:text-foreground",
 							)}
 						>

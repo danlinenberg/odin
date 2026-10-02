@@ -5,6 +5,7 @@ import { useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useMyTasks } from "../hooks/useOdinTasks";
 import { FEED_TABS, feedCounts, feedIssues } from "./feed-counts";
+import { BUTTON } from "./pill";
 
 /**
  * The one Tasks tab, from the inside: a strip that sits where each feed's title
@@ -87,7 +88,7 @@ export function FeedTabs() {
 								className={cn(
 									"relative flex items-center gap-1.5 rounded-[7px] px-2 py-1.5 text-[13px] font-semibold transition-colors",
 									isActive
-										? "bg-secondary text-foreground ring-1 ring-inset ring-border"
+										? BUTTON.selected
 										: "text-muted-foreground hover:text-foreground",
 								)}
 							>

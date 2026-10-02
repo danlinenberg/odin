@@ -29,7 +29,7 @@ import {
 	machineLoad,
 } from "shared/machine-load";
 import { FEED_TABS } from "./components/feed-counts";
-import { PILL } from "./components/pill";
+import { BUTTON, PILL } from "./components/pill";
 import { type UpstreamDue, useDueReminders } from "./components/Reminders";
 import { QuickAddTask } from "./components/TaskBox";
 import { useAutomationRunner } from "./hooks/useAutomationRunner";
@@ -394,7 +394,7 @@ function OdinShell() {
 						className={cn(
 							"flex size-9 items-center justify-center rounded-[9px] transition-colors",
 							isActive
-								? "bg-secondary text-foreground ring-1 ring-inset ring-border"
+								? BUTTON.selected
 								: "text-muted-foreground hover:text-foreground",
 						)}
 					>
@@ -407,14 +407,16 @@ function OdinShell() {
 	};
 
 	return (
-		<div className="flex h-full w-full flex-col bg-background text-foreground">
+		// The faint violet light over the top-left of every page is the shell's
+		// — it's what keeps a dark, mostly-neutral app from reading as grey.
+		<div className="flex h-full w-full flex-col bg-background bg-[radial-gradient(1200px_420px_at_18%_-160px,color-mix(in_oklab,var(--primary)_13%,transparent),transparent_70%)] text-foreground">
 			{/* top bar — left pad clears macOS traffic lights; empty areas drag.
 			    The traffic lights are native and DON'T scale with page zoom, so the
 			    bar height and their inset are counter-scaled by 1/zoomFactor to stay
 			    a constant physical size (otherwise zooming out slides the bar under
 			    the lights). Same trick the stock TopBar uses. */}
 			<div
-				className="flex shrink-0 items-center gap-3 border-b border-border bg-tertiary pr-3"
+				className="flex shrink-0 items-center gap-3 border-b border-border bg-tertiary/70 pr-3"
 				style={isMac ? { height: `${36 / zoomFactor}px` } : undefined}
 			>
 				<div
@@ -422,7 +424,7 @@ function OdinShell() {
 					style={{ width: isMac ? `${84 / zoomFactor}px` : "16px" }}
 				/>
 				<ZoomStable enabled={isMac}>
-					<span className="text-xs font-semibold text-foreground">
+					<span className="bg-gradient-to-r from-primary-ink to-primary bg-clip-text text-xs font-bold text-transparent">
 						{workConfig?.isDev ? "Odin Dev" : "Odin"}
 					</span>
 				</ZoomStable>
@@ -551,7 +553,7 @@ function OdinShell() {
 
 			<div className="flex min-h-0 flex-1">
 				{/* icon rail */}
-				<div className="flex w-[52px] shrink-0 flex-col items-center gap-1.5 border-r border-border bg-tertiary py-2.5">
+				<div className="flex w-[52px] shrink-0 flex-col items-center gap-1.5 border-r border-border bg-tertiary/70 py-2.5">
 					{RAIL_ITEMS.map(renderRailItem)}
 					<div className="flex-1" />
 					{renderRailItem(INSIGHTS_ITEM)}
