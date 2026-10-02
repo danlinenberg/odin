@@ -75,6 +75,7 @@ import { BOARD_TAGS, boardTags, normalizeTag } from "shared/odin-tags";
 /** Tags the card shows as their own pill instead of in the #tag line. */
 const PILL_TAGS = ["automation", "auto-started", "off-hours"];
 
+import { DropHint } from "../components/DropHint";
 import { useSearchHotkey } from "../components/FeedChrome";
 import {
 	cardBody,
@@ -516,18 +517,7 @@ function useDropFor(pane: Pane | undefined) {
 
 function DropPill({ pane }: { pane: Pane }) {
 	const row = useDropFor(pane);
-	if (!row) return null;
-	return (
-		<span
-			title={`The Review sweep says drop this: ${row.evidence}`}
-			className={cn(
-				"inline-flex items-center rounded-[5px] px-[7px] text-[11px] font-medium",
-				PILL.neutral,
-			)}
-		>
-			Drop? {row.evidence}
-		</span>
-	);
+	return row ? <DropHint evidence={row.evidence} /> : null;
 }
 
 function MergeOnlyPill({ card }: { card: BoardCard }) {
@@ -3338,8 +3328,8 @@ function DevBoardPage() {
 																		}
 																	/>
 																</div>
+																<DropPill pane={card.pane} />
 																<div className="mt-1 flex flex-wrap items-center gap-1.5">
-																	<DropPill pane={card.pane} />
 																	<MergeOnlyPill card={card} />
 																	{(card.status === "review" ||
 																		card.status === "permission") && (

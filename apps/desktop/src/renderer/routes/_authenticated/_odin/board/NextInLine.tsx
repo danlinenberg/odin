@@ -21,8 +21,9 @@ import { create } from "zustand";
 import type { AllItem } from "../all/all-items";
 import { allItems } from "../all/all-items";
 import { useStartAllItem } from "../all/use-start-item";
+import { DropHint } from "../components/DropHint";
 import { FEED_TABS } from "../components/feed-counts";
-import { BUTTON, PILL } from "../components/pill";
+import { BUTTON } from "../components/pill";
 import {
 	DueChip,
 	dayOf,
@@ -460,15 +461,7 @@ export function NextInLine() {
 								)}
 							</div>
 							{dropFor(item) && (
-								<div
-									title={`The Review sweep says drop this: ${dropFor(item)?.evidence}`}
-									className={cn(
-										"mt-1 line-clamp-2 rounded-[5px] px-[7px] py-px text-[11px] font-medium",
-										PILL.danger,
-									)}
-								>
-									Drop? {dropFor(item)?.evidence}
-								</div>
+								<DropHint evidence={dropFor(item)?.evidence ?? ""} />
 							)}
 						</div>
 					</HoverCardTrigger>
