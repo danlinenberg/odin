@@ -153,15 +153,15 @@ export const Route = createFileRoute("/_authenticated/_odin/board/")({
 
 // ponytail: "permission" (blocked on a prompt) and "failed" are the same call
 // to action — one column. "review" is not: it finished and wants nothing.
-const COLUMNS: { status: PaneStatus; label: string }[] = [
-	{ status: "working", label: "Working" },
-	{ status: "permission", label: "Needs you" },
+const COLUMNS: { status: PaneStatus }[] = [
+	{ status: "working" },
+	{ status: "permission" },
 	// Turn ended clean, no prompt on screen — nothing to do but ✓ done it.
-	{ status: "review", label: "Done" },
+	{ status: "review" },
 	// Statuses reset to idle on app reload (upstream can't trust them), but the
 	// PTYs live on in the daemon — alive-but-idle sessions land here instead of
 	// vanishing from the board.
-	{ status: "idle", label: "Idle" },
+	{ status: "idle" },
 ];
 
 interface BoardCard {
@@ -3169,7 +3169,7 @@ function DevBoardPage() {
 							/>
 							<div className="flex items-center gap-2 px-3 py-2.5 text-xs font-semibold uppercase tracking-[.4px] text-soft-foreground">
 								<span className="size-2 rounded-full bg-(--col) shadow-[0_0_8px_var(--col)]" />
-								{column.label}
+								{PANE_STATUS[column.status].label}
 								{column.status === "permission" && cards.length > 0 && (
 									<button
 										type="button"
@@ -3775,8 +3775,8 @@ function DevBoardPage() {
 										{sessionCwd(drawerCard.pane)?.split("/").slice(-1)[0]}
 									</span>
 								)}
-								<span className="rounded-[5px] bg-secondary px-[7px] text-[11px] text-muted-foreground capitalize">
-									{drawerCard.status}
+								<span className="rounded-[5px] bg-secondary px-[7px] text-[11px] text-muted-foreground">
+									{PANE_STATUS[drawerCard.status].label}
 								</span>
 							</div>
 						</div>
