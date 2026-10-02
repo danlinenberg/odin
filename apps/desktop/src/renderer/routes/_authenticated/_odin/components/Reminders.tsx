@@ -181,7 +181,7 @@ export function mergeUpstream(
 }
 
 const TONE_CLASS: Record<DueTone, string> = {
-	overdue: PILL.red,
+	overdue: PILL.alarm,
 	today: PILL.amber,
 	soon: "bg-[#1f1f27] text-[#a5a5b3]",
 	later: "bg-[#1f1f27] text-[#8a8a97]",
