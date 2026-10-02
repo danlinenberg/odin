@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useDoneStore } from "renderer/stores/done";
+import { useTabsStore } from "renderer/stores/tabs/store";
 import { useOdinFeeds } from "./useOdinFeeds";
 import { type OdinTask, useMyTasks } from "./useOdinTasks";
 
@@ -201,18 +202,34 @@ export function useBacklog(): BacklogItem[] {
 	// A done row has been dealt with: the sweep has nothing to ask of it.
 	// Keyed the way All tasks keys them; a PR also by link (see useDone).
 	const done = useDoneStore((s) => s.done);
+	// Messages a reaction auto-started: the reaction's job ended at the launch,
+	// so taking it off afterwards says nothing about whether the work is done.
+	const panes = useTabsStore((s) => s.panes);
+	const autoStarted = useMemo(
+		() =>
+			new Set(
+				Object.values(panes)
+					.filter((pane) => pane.odinTags?.includes("auto-started"))
+					.map((pane) => pane.odinPageId),
+			),
+		[panes],
+	);
 	return useMemo(() => {
 		const urls = new Set(Object.values(done).map((row) => row.url));
 		const live = (key: string, url?: string) =>
 			!(key in done) && !(url && urls.has(url));
 		return backlogOf(
 			todos.filter((task) => live(`task:${task.id}`)),
-			(rows ?? []).filter((row) => live(`slack:${row.id}`)),
+			(rows ?? [])
+				.filter((row) => live(`slack:${row.id}`))
+				.map((row) =>
+					autoStarted.has(row.id) ? { ...row, unreacted: false } : row,
+				),
 			(issues ?? []).filter((issue) => live(`jira:${issue.key}`)),
 			(prs ?? []).filter((pull) => live(`pr:${pull.id}`, pull.url)),
 			(pages ?? []).filter((page) => live(`notion:${page.pageId}`)),
 		);
-	}, [todos, rows, issues, prs, pages, done]);
+	}, [todos, rows, issues, prs, pages, done, autoStarted]);
 }
 
 export interface BuiltinAutomation {
