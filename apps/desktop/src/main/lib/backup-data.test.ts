@@ -9,7 +9,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { backupOdinData } from "./backup-data";
+import { backupOdinData, backupStatus } from "./backup-data";
 
 test("copies a live database consistently, once a day, keeping 14 days", async () => {
 	const root = mkdtempSync(path.join(tmpdir(), "odin-backup-"));
@@ -45,13 +45,23 @@ test("copies a live database consistently, once a day, keeping 14 days", async (
 	).toBe(true);
 
 	expect(await backupOdinData(src, dest, "2026-10-02")).toBeNull();
+	// Settings → Back up now replaces today's copy instead of skipping it.
+	expect(await backupOdinData(src, dest, "2026-10-02", true)).toBe(dir);
 	for (let d = 3; d <= 20; d++)
 		await backupOdinData(src, dest, `2026-10-${String(d).padStart(2, "0")}`);
 	const days = readdirSync(dest).sort();
 	expect(days.length).toBe(14);
 	expect(days[0]).toBe("2026-10-07");
+	const status = await backupStatus(dest);
+	expect(status.available).toBe(true);
+	expect(status.days).toBe(14);
+	expect(status.lastBackupAt).toBeGreaterThan(0);
 
 	expect(
 		await backupOdinData(src, path.join(root, "no-icloud", "Odin Backups")),
 	).toBeNull();
+	expect(
+		(await backupStatus(path.join(root, "no-icloud", "Odin Backups")))
+			.available,
+	).toBe(false);
 });

@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { copyFile, mkdir, readdir, rename, rm } from "node:fs/promises";
+import { copyFile, mkdir, readdir, rename, rm, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -23,6 +23,7 @@ export const BACKUP_DIR = path.join(
 	"Library/Mobile Documents/com~apple~CloudDocs/Odin Backups",
 );
 const KEEP_DAYS = 14;
+const isDay = (d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d);
 const DATABASES = ["local.db", "tanstack-db.sqlite"];
 const FILES = ["app-state.json", "session-briefs.json", "attention.jsonl"];
 const EVERY_MS = 6 * 60 * 60 * 1000;
@@ -37,17 +38,21 @@ async function hostDatabases(src: string): Promise<string[]> {
 		.filter((db) => existsSync(path.join(src, db)));
 }
 
-/** Writes `<dest>/<YYYY-MM-DD>/`, at most once a day; returns it, or null when skipped. */
+/**
+ * Writes `<dest>/<YYYY-MM-DD>/`, at most once a day unless `force` (Settings →
+ * Back up now) replaces today's; returns it, or null when skipped.
+ */
 export async function backupOdinData(
 	src: string,
 	dest: string,
 	today = new Date().toISOString().slice(0, 10),
+	force = false,
 ): Promise<string | null> {
 	// No iCloud Drive (signed out, or turned off): a backup on this same disk
 	// protects nothing, so don't make one.
 	if (!existsSync(path.dirname(dest))) return null;
 	const dir = path.join(dest, today);
-	if (existsSync(dir)) return null;
+	if (existsSync(dir) && !force) return null;
 
 	// Build under a temp name, so a half-written day never counts as done.
 	const tmp = `${dir}.partial`;
@@ -74,14 +79,37 @@ export async function backupOdinData(
 			"terminal-history",
 		]);
 	}
+	await rm(dir, { recursive: true, force: true });
 	await rename(tmp, dir);
 
-	const days = (await readdir(dest))
-		.filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
-		.sort();
+	const days = (await readdir(dest)).filter(isDay).sort();
 	for (const old of days.slice(0, -KEEP_DAYS))
 		await rm(path.join(dest, old), { recursive: true, force: true });
 	return dir;
+}
+
+/** What Settings → Connections shows: is iCloud there, and when did we last copy. */
+export async function backupStatus(dest = BACKUP_DIR): Promise<{
+	path: string;
+	available: boolean;
+	lastBackupAt: number | null;
+	days: number;
+}> {
+	const available = existsSync(path.dirname(dest));
+	const days = existsSync(dest)
+		? (await readdir(dest)).filter(isDay).sort()
+		: [];
+	const last = days.at(-1);
+	return {
+		path: dest,
+		available,
+		lastBackupAt: last ? (await stat(path.join(dest, last))).mtimeMs : null,
+		days: days.length,
+	};
+}
+
+export function backupNow(): Promise<string | null> {
+	return backupOdinData(ODIN_HOME_DIR, BACKUP_DIR, undefined, true);
 }
 
 function backup(): void {
