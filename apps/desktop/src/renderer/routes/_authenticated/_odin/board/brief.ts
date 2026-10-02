@@ -394,8 +394,10 @@ export function actionItems(messages: BriefMessage[]): string[] {
 		.filter((item): item is string => !!item);
 }
 
-// "Merge PR #12", "Review and merge #12" — a merge is the whole item.
-const MERGE_ITEM = /^(?:review(?:,| and)\s+)?merge\b/i;
+// "Merge PR #12", "Review and merge #12", "Get repo#12 merged" — a merge is the
+// whole item.
+const MERGE_ITEM =
+	/^(?:(?:review|approve)(?:,| and)\s+)?merge\b|^get\b.*\bmerged\b/i;
 
 /**
  * The session is finished bar the click: every open action item is a merge.

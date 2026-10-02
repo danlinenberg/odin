@@ -526,7 +526,9 @@ describe("onlyMergeLeft", () => {
 	it("is true when every item is a merge", () => {
 		expect(
 			onlyMergeLeft([
-				turn("ACTION ITEMS\n1. Merge PR #12\n2. Review and merge #13"),
+				turn(
+					"ACTION ITEMS\n1. Merge PR #12\n2. Review and merge #13\n3. Get repo#14 merged so X stops",
+				),
 			]),
 		).toBe(true);
 	});
