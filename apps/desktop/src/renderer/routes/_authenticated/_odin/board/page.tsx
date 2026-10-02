@@ -1719,6 +1719,12 @@ function DevBoardPage() {
 							tabId: pane.tabId,
 							workspaceId: tab.workspaceId,
 							skipColdRestore: true,
+							// A read joins an attach already in flight instead of
+							// superseding it. Main keeps one pending attach per pane and
+							// aborts the older one; when that was the drawer's, its
+							// Terminal drops the cancel silently and never starts its
+							// stream — a blank drawer until you close and reopen it.
+							joinPending: true,
 							...(mounted && { cols: mounted.cols, rows: mounted.rows }),
 						})) as {
 							snapshot?: { snapshotAnsi?: string };
