@@ -7,7 +7,9 @@ import type { PaneStatus } from "./tabs-types";
  *  - an ALIVE agent in "idle" only has a status nobody set, which is not the
  *    same claim, so it wants a look (Needs you) rather than Done;
  *  - a session you dragged to Idle stays parked there until it moves again;
- *  - a DEAD session can't be working or waiting on you, whatever its status says;
+ *  - a DEAD session can't be working or waiting on you, whatever its status says
+ *    — unless the board closed it for sitting idle (`closedIn`): that one keeps
+ *    the column it was closed from, since closing it changed nothing you owe it;
  *  - a live "failed" session is just another thing that needs you;
  *  - a live session under `/loop` that's between turns is Idle, not Done or
  *    Needs you — it will wake itself up, so there's nothing to finish or answer.
@@ -20,6 +22,7 @@ export function boardColumn(
 	alive: boolean | undefined,
 	parked: boolean,
 	looping = false,
+	closedIn?: PaneStatus,
 ): PaneStatus {
 	if (status === "idle" && parked) return "idle";
 	// Only a mounted <Terminal> notices its PTY exit and resets the status
@@ -31,7 +34,7 @@ export function boardColumn(
 	// can't be waiting on you either — there's no prompt left to answer and no
 	// turn left to reply to. Its only move is Resume, which lives on the Idle
 	// card ("session ended — resume to pick it up").
-	if (alive === false) return "idle";
+	if (alive === false) return closedIn ?? "idle";
 	// A prompt on screen or a failure still needs you, loop or not — the next
 	// tick can't fire past it.
 	if (looping && (status === "review" || status === "idle")) return "idle";

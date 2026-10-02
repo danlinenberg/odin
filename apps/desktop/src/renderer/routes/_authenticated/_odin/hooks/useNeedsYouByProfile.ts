@@ -29,6 +29,8 @@ export function needsYouByProfile(
 			pane.status ?? "idle",
 			alive.has(pane.id),
 			pane.odinParked ?? false,
+			false,
+			pane.odinClosedIn,
 		);
 		if (column !== "permission") continue;
 		const profile = profileOf(pane.odinProfile);

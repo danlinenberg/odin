@@ -34,6 +34,8 @@ describe("paneSchema", () => {
 			odinAutoTitled: true,
 			odinProfile: "1d14929a-66cb-4664-b2b1-a655fd00677f",
 			odinParked: false,
+			odinStatusAt: 1,
+			odinClosedIn: "review",
 			odinShellPaneId: "p3",
 			odinCwd: "/tmp/repo",
 			initialCwd: "/tmp",
