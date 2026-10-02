@@ -735,30 +735,66 @@ function AgePill({
 }
 
 /** How long a card that just landed in Done keeps saying so. */
-const JUST_DONE_MS = 5 * 60_000;
+const JUST_DONE_MS = 10 * 60_000;
 
-/** `since` (0 = restored off disk) is within JUST_DONE_MS of now. */
-function justDone(since: number | undefined): boolean {
-	return !!since && Date.now() - since < JUST_DONE_MS;
+/**
+ * When the app last took focus; Infinity while it's in the background. The
+ * just-done countdown only runs while you're looking, so a card that finished
+ * while you were away still says so when you come back.
+ */
+function useFocusedAt(): number {
+	const [focusedAt, setFocusedAt] = useState(() =>
+		document.hasFocus() ? 0 : Number.POSITIVE_INFINITY,
+	);
+	useEffect(() => {
+		const onFocus = () => setFocusedAt(Date.now());
+		const onBlur = () => setFocusedAt(Number.POSITIVE_INFINITY);
+		window.addEventListener("focus", onFocus);
+		window.addEventListener("blur", onBlur);
+		return () => {
+			window.removeEventListener("focus", onFocus);
+			window.removeEventListener("blur", onBlur);
+		};
+	}, []);
+	return focusedAt;
 }
 
 /**
- * "just done" on a card whose turn ended in the last JUST_DONE_MS, so the one
- * that finished while you looked away stands out from the rest of Done.
- * `since` is when it entered Done; 0 (restored off disk) never shows.
+ * Time left on the just-done countdown, which starts at whichever is later:
+ * entering the column, or the app taking focus. `since` 0 (restored off disk)
+ * never counts.
  */
-function JustDonePill({ since }: { since: number | undefined }) {
+function justDoneLeft(
+	since: number | undefined,
+	focusedAt: number,
+	now = Date.now(),
+): number {
+	if (!since) return 0;
+	return Math.max(since, focusedAt) + JUST_DONE_MS - now;
+}
+
+/**
+ * "just done" on a card whose turn ended in the last JUST_DONE_MS you had the
+ * app open, so the one that finished while you looked away stands out.
+ */
+function JustDonePill({
+	since,
+	focusedAt,
+}: {
+	since: number | undefined;
+	focusedAt: number;
+}) {
 	const [now, setNow] = useState(Date.now);
-	const left = since ? since + JUST_DONE_MS - now : 0;
+	const left = justDoneLeft(since, focusedAt, now);
 	useEffect(() => {
-		if (left <= 0) return;
+		if (left <= 0 || left === Number.POSITIVE_INFINITY) return;
 		const id = setTimeout(() => setNow(Date.now()), left);
 		return () => clearTimeout(id);
 	}, [left]);
 	if (left <= 0) return null;
 	return (
 		<span
-			title="Its turn ended in the last 5 minutes"
+			title="Its turn ended in the last 10 minutes you had Odin open"
 			className="inline-flex items-center rounded-[5px] bg-[#14301f] px-[7px] text-[11px] font-medium text-[#3ecf8e]"
 		>
 			just done
@@ -1375,6 +1411,7 @@ function DevBoardPage() {
 			window.removeEventListener("keydown", onKeyDown, { capture: true });
 	}, [drawerCard, renameDraft]);
 
+	const focusedAt = useFocusedAt();
 	// ponytail: in-memory "in this status since" per pane; resets on reload
 	const statusSinceRef = useRef(
 		new Map<string, { status: PaneStatus; at: number }>(),
@@ -2885,13 +2922,15 @@ function DevBoardPage() {
 				{COLUMNS.map((column) => {
 					const cards = cardsByStatus.get(column.status) ?? [];
 					// ponytail: re-sorted on the board's next render, not on the
-					// minute the 5m runs out — the pane polls re-render it often.
+					// minute the 10m runs out — the pane polls re-render it often.
 					const sections = bySection(
 						cards,
 						(card) =>
-							(column.status === "review" ||
-								column.status === "permission") &&
-							justDone(statusSinceRef.current.get(card.pane.id)?.at),
+							(column.status === "review" || column.status === "permission") &&
+							justDoneLeft(
+								statusSinceRef.current.get(card.pane.id)?.at,
+								focusedAt,
+							) > 0,
 					);
 					// One section is just the column — don't label it, unless it's
 					// Parked: "you put these down" is worth saying on its own.
@@ -3087,6 +3126,7 @@ function DevBoardPage() {
 																	{(card.status === "review" ||
 																		card.status === "permission") && (
 																		<JustDonePill
+																			focusedAt={focusedAt}
 																			since={
 																				statusSinceRef.current.get(card.pane.id)
 																					?.at
