@@ -29,10 +29,10 @@ echo landed >b && g add b && g commit -qm "squash b" && g push -q origin main
 echo mine >.worktrees/unique/c && g -C .worktrees/unique add c && g -C .worktrees/unique commit -qm c
 echo scratch >.worktrees/dirty/notes.txt
 
-! PRUNE_MIN_AGE_HOURS=0 GH_TOKEN= "$DIR/prune-worktrees.sh" --dry-run "$TMP/repo" | grep -q "^remove dirty"
+! PRUNE_MIN_AGE_HOURS=0 PRUNE_LANDED_MIN_AGE_HOURS=0 GH_TOKEN= "$DIR/prune-worktrees.sh" --dry-run "$TMP/repo" | grep -q "^remove dirty"
 check "dry run keeps a worktree with untracked files" $?
 
-PRUNE_MIN_AGE_HOURS=0 GH_TOKEN= "$DIR/prune-worktrees.sh" "$TMP/repo" >/dev/null
+PRUNE_MIN_AGE_HOURS=0 PRUNE_LANDED_MIN_AGE_HOURS=0 GH_TOKEN= "$DIR/prune-worktrees.sh" "$TMP/repo" >/dev/null
 [ ! -d .worktrees/landed ]
 check "removes a worktree whose change is already on origin/main" $?
 [ -d .worktrees/unique ]
@@ -44,5 +44,15 @@ g worktree add -q -b fresh .worktrees/fresh origin/main
 PRUNE_MIN_AGE_HOURS=24 GH_TOKEN= "$DIR/prune-worktrees.sh" "$TMP/repo" >/dev/null
 [ -d .worktrees/fresh ]
 check "keeps a worktree touched within the age window" $?
+
+# Landed an hour ago: gone, despite the 24h window. Fresh and empty: kept.
+g worktree add -q -b recent .worktrees/recent origin/main
+echo recent >.worktrees/recent/d && g -C .worktrees/recent add d && g -C .worktrees/recent commit -qm d
+echo recent >d && g add d && g commit -qm "squash d" && g push -q origin main
+PRUNE_MIN_AGE_HOURS=24 PRUNE_LANDED_MIN_AGE_HOURS=0 GH_TOKEN= "$DIR/prune-worktrees.sh" "$TMP/repo" >/dev/null
+[ ! -d .worktrees/recent ]
+check "removes landed work after the short window, not the 24h one" $?
+[ -d .worktrees/fresh ]
+check "still keeps a fresh worktree with no commits for 24h" $?
 
 exit $FAIL

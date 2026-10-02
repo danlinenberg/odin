@@ -15,7 +15,10 @@
 #     untracked tree, so it is the dirty check. Gitignored output (node_modules,
 #     dist) doesn't count and goes with it.
 #   - untouched for $PRUNE_MIN_AGE_HOURS (default 24): a fresh worktree has no
-#     commits yet either, and its session may be about to write.
+#     commits yet either, and its session may be about to write. Work that
+#     already landed only waits $PRUNE_LANDED_MIN_AGE_HOURS (default 1) — at a
+#     dozen merges a day, a full day's grace kept ~35GB of finished worktrees
+#     on disk and filled it.
 #
 # Usage: scripts/prune-worktrees.sh [--dry-run] [repo]     (repo defaults to this one)
 set -euo pipefail
@@ -24,6 +27,7 @@ dry=0
 if [ "${1:-}" = "--dry-run" ]; then dry=1; shift; fi
 root="$(git -C "${1:-$(dirname "$0")}" rev-parse --show-toplevel)"
 min_age=$(( ${PRUNE_MIN_AGE_HOURS:-24} * 3600 ))
+landed_min_age=$(( ${PRUNE_LANDED_MIN_AGE_HOURS:-1} * 3600 ))
 now=$(date +%s)
 
 git -C "$root" fetch --quiet origin main
@@ -42,8 +46,9 @@ git -C "$root" worktree list --porcelain | sed -n 's/^worktree //p' | while read
 	# The newest of: last commit or checkout here, last write to its index.
 	gitdir="$(git -C "$wt" rev-parse --absolute-git-dir)"
 	touched=$(stat -f %m "$gitdir/index" "$gitdir/logs/HEAD" "$gitdir/HEAD" 2>/dev/null | sort -n | tail -1)
-	if [ $(( now - ${touched:-$now} )) -lt "$min_age" ]; then
-		echo "keep   $name (touched in the last $(( min_age / 3600 ))h)"
+	age=$(( now - ${touched:-$now} ))
+	if [ "$age" -lt "$landed_min_age" ]; then
+		echo "keep   $name (touched in the last $(( landed_min_age / 3600 ))h)"
 		continue
 	fi
 
@@ -55,6 +60,11 @@ git -C "$root" worktree list --porcelain | sed -n 's/^worktree //p' | while read
 		! git -C "$wt" diff --quiet origin/main HEAD -- "${files[@]}" &&
 		! merged_at_head "$(git -C "$wt" branch --show-current)" "$(git -C "$wt" rev-parse HEAD)"; then
 		echo "keep   $name (has changes not on origin/main)"
+		continue
+	fi
+	# No commits of its own yet is not "landed" — that's a session just starting.
+	if [ ${#files[@]} -eq 0 ] && [ "$age" -lt "$min_age" ]; then
+		echo "keep   $name (touched in the last $(( min_age / 3600 ))h)"
 		continue
 	fi
 

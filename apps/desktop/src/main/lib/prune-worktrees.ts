@@ -16,7 +16,8 @@ import {
  * lets the script tell a merged PR from unmerged work when main has since
  * changed the same files.
  */
-const EVERY_MS = 6 * 60 * 60 * 1000;
+// Hourly: landed work is removable an hour after its last commit.
+const EVERY_MS = 60 * 60 * 1000;
 const FIRST_RUN_MS = 5 * 60 * 1000;
 
 function prune(): void {
