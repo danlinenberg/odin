@@ -554,37 +554,57 @@ describe("mergeReady", () => {
 	const opened = turn(`Opened ${a} and ${b}.`);
 	const items = turn("Done.\n\nACTION ITEMS\n1. Merge #12\n2. Merge #13");
 	const approved = { state: "OPEN", approved: true };
-	it("is true once every named PR is approved or merged", () => {
+	it("is true once every PR is approved, merged or closed", () => {
 		expect(
 			mergeReady([opened, items], {
 				[a]: approved,
 				[b]: { state: "MERGED" },
 			}),
 		).toBe(true);
+		expect(
+			mergeReady([opened, items], { [a]: approved, [b]: { state: "CLOSED" } }),
+		).toBe(true);
 	});
-	it("is false while any of them waits on review, or is unknown", () => {
+	it("is true with other items left, as long as the PRs are approved", () => {
+		expect(
+			mergeReady(
+				[opened, turn("ACTION ITEMS\n1. Merge #12\n2. Tell CS\n3. Decide X")],
+				{ [a]: approved, [b]: approved },
+			),
+		).toBe(true);
+	});
+	it("is false while any of them waits on review, is red, or is unknown", () => {
 		expect(
 			mergeReady([opened, items], {
 				[a]: approved,
 				[b]: { state: "OPEN", approved: false },
 			}),
 		).toBe(false);
+		expect(
+			mergeReady([opened, items], {
+				[a]: approved,
+				[b]: { ...approved, failed: ["CI"] },
+			}),
+		).toBe(false);
 		expect(mergeReady([opened, items], { [a]: approved, [b]: null })).toBe(
 			false,
 		);
 	});
-	it("is false when something besides the merge is left, or you replied", () => {
-		const states = { [a]: approved, [b]: approved };
+	it("is false with every PR merged and more than a merge left, or you replied", () => {
+		const merged = { state: "MERGED" };
+		expect(mergeReady([opened, items], { [a]: merged, [b]: merged })).toBe(
+			true,
+		);
 		expect(
-			mergeReady(
-				[opened, turn("ACTION ITEMS\n1. Merge #12\n2. Restart")],
-				states,
-			),
+			mergeReady([opened, turn("ACTION ITEMS\n1. Restart Odin dev")], {
+				[a]: merged,
+				[b]: merged,
+			}),
 		).toBe(false);
 		expect(
 			mergeReady(
 				[opened, items, { role: "user", text: "merge them", at: null }],
-				states,
+				{ [a]: approved, [b]: approved },
 			),
 		).toBe(false);
 	});

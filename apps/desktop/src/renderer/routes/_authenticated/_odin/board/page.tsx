@@ -103,6 +103,7 @@ import {
 	jiraIssue,
 	lastMessageAt,
 	linkRefs,
+	mergeCheckUrls,
 	mergeReady,
 	mergeTargets,
 	nextCronFire,
@@ -1686,27 +1687,63 @@ function DevBoardPage() {
 		() => new Set(loopingKey ? loopingKey.split(",") : []),
 		[loopingKey],
 	);
-	// Merge-only sessions, off the same transcripts, and the state of the PRs
-	// they want merged. Once every one is approved the card is Done: what's
-	// left is a click, not a decision.
-	const mergeCandidates = loopCandidates.flatMap(({ paneId }, i) => {
-		const messages = loopQueries[i]?.data?.messages;
-		return messages && onlyMergeLeft(messages)
-			? [{ paneId, messages, urls: mergeTargets(messages).map((pr) => pr.url) }]
+	// Needs-you sessions, open or closed, and the state of every PR they linked.
+	// Once each is approved the card is Done: what's left is a click, not a
+	// decision. Closed ones count — the approval usually lands after the session
+	// went quiet, and a card closed for idling keeps its Needs you column. The
+	// transcripts are the ones the cards' own pills already fetch.
+	const mergeCandidates = Object.values(panes).flatMap((pane) => {
+		const sessionId = pane.claudeSessionId ?? sessionIdByPane[pane.id];
+		if (
+			!sessionId ||
+			(!pane.odinTaskTitle && !titleByPane[pane.id]) ||
+			profileOf(pane.odinProfile) !== activeProfileId
+		)
+			return [];
+		const alive =
+			daemonSessions === undefined ? undefined : agentPaneIds.has(pane.id);
+		const column = boardColumn(
+			pane.status ?? "idle",
+			alive,
+			pane.odinParked ?? false,
+			loopingPaneIds.has(pane.id),
+			pane.odinClosedIn,
+		);
+		return column === "permission"
+			? [{ paneId: pane.id, sessionId, live: !!alive }]
 			: [];
 	});
-	const mergeStateQueries = electronTrpc.useQueries((t) =>
-		mergeCandidates.map(({ urls }) =>
-			t.terminal.pullRequestStates(
-				{ urls },
-				{ retry: false, staleTime: 30_000, refetchInterval: 60_000 },
+	const mergeTranscripts = electronTrpc.useQueries((t) =>
+		mergeCandidates.map(({ sessionId, live }) =>
+			t.terminal.readClaudeTranscript(
+				{ sessionId },
+				{
+					retry: false,
+					staleTime: 60_000,
+					refetchInterval: live ? 60_000 : false,
+				},
 			),
 		),
 	);
+	const mergeStateQueries = electronTrpc.useQueries((t) =>
+		mergeCandidates.map((_, i) => {
+			const urls = mergeCheckUrls(mergeTranscripts[i]?.data?.messages ?? []);
+			return t.terminal.pullRequestStates(
+				{ urls },
+				{
+					enabled: urls.length > 0,
+					retry: false,
+					staleTime: 30_000,
+					refetchInterval: 60_000,
+				},
+			);
+		}),
+	);
 	const mergeReadyKey = mergeCandidates
-		.filter(({ messages }, i) => {
+		.filter((_, i) => {
+			const messages = mergeTranscripts[i]?.data?.messages;
 			const states = mergeStateQueries[i]?.data;
-			return !!states && mergeReady(messages, states);
+			return !!messages && !!states && mergeReady(messages, states);
 		})
 		.map(({ paneId }) => paneId)
 		.join(",");
