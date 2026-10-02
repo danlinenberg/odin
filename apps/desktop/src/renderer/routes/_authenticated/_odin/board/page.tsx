@@ -330,15 +330,19 @@ function withCode(text: string): React.ReactNode[] {
 }
 
 /**
- * Catch up's card: what's yours to do, then where it stands — nothing else.
+ * Catch up's card: what's yours to do, where it stands, and the PRs, tickets
+ * and threads it's about — nothing else.
  * The conversation and the brief panel are one click away, not on screen:
  * catching up is deciding Keep or Done, not reading.
  */
 function CatchUpCard({
 	card,
+	title,
 	onShowSession,
 }: {
 	card: BoardCard;
+	/** The board's title for it — finds the transcript of a session with no id. */
+	title: string;
 	onShowSession: () => void;
 }) {
 	const { data: transcript } = useCardTranscript(card, false);
@@ -377,6 +381,14 @@ function CatchUpCard({
 					</div>
 				</div>
 			)}
+			<SessionBrief
+				resourcesOnly
+				paneId={card.pane.id}
+				cwd={card.pane.cwd ?? null}
+				claudeSessionId={card.pane.claudeSessionId ?? null}
+				marker={title}
+				live={false}
+			/>
 			<button
 				type="button"
 				onClick={onShowSession}
@@ -3652,6 +3664,7 @@ function DevBoardPage() {
 						{catchUpLean ? (
 							<CatchUpCard
 								card={drawerCard}
+								title={cardTitle(drawerCard)}
 								onShowSession={() => setCatchUpFull(drawerCard.pane.id)}
 							/>
 						) : (
