@@ -24,6 +24,7 @@ import { ODIN_HOME_DIR } from "./lib/app-environment";
 import { flushAppStateSync, initAppState } from "./lib/app-state";
 import { requestAppleEventsAccess } from "./lib/apple-events-permission";
 import { isUpdateReadyToInstall, setupAutoUpdater } from "./lib/auto-updater";
+import { startDataBackup } from "./lib/backup-data";
 import { setWorkspaceDockIcon } from "./lib/dock-icon";
 import { loadWebviewBrowserExtension } from "./lib/extensions";
 import { getHostServiceCoordinator } from "./lib/host-service-coordinator";
@@ -465,6 +466,7 @@ if (!gotTheLock) {
 			});
 
 		startWorktreePruner();
+		startDataBackup();
 		startMemoryGuard();
 
 		try {
