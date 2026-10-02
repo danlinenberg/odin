@@ -29,6 +29,10 @@ export interface WrittenBrief {
 	/** A card-sized name for the session — what it's about, not its first line. */
 	title: string | null;
 	goal: string | null;
+	/** The problem or request in plain words — what Catch up calls "The issue". */
+	issue: string | null;
+	/** What the session did about it — found, changed, shipped. */
+	done: string | null;
 	status: string | null;
 	next: string | null;
 	/** Board tags, always from TAG_VOCABULARY. Empty when the model offered none. */
@@ -93,9 +97,11 @@ export function digest({
 
 const INSTRUCTIONS = `You are briefing an engineer who is about to open an in-progress agent session and needs to understand it in ten seconds.
 
-Reply with EXACTLY five lines and nothing else. No markdown, no code fences, no preamble:
+Reply with EXACTLY seven lines and nothing else. No markdown, no code fences, no preamble:
 TITLE: <under 60 characters — a name for this session, as a human would title the task. No trailing period.>
 GOAL: <one sentence — what this session is trying to achieve>
+ISSUE: <one sentence — the problem or request in plain words, as you'd tell a colleague: what's broken or wanted, and for whom>
+DONE: <one or two sentences — what this session actually did about it: what it found, changed, shipped. Name the files, PRs, numbers.>
 STATUS: <one short sentence, under 120 characters — where it stands right now: what's shipped, what's blocked, what's waiting. The latest state, not the history.>
 NEXT: <one sentence addressed to the engineer — never to the agent — starting with a verb: the one thing they have to do now (answer the prompt on screen, review a diff, decide X, merge the PR). If nothing is needed from them, say "Nothing —" and why.>
 TAGS: <1-3 comma-separated tags describing the work, chosen ONLY from this list: ${BRIEF_TAGS.join(", ")}>
@@ -122,6 +128,8 @@ export function parseBrief(text: string): WrittenBrief {
 			.slice(0, TITLE_CAP)
 			.trim() || null;
 	const goal = field("GOAL");
+	const issue = field("ISSUE");
+	const done = field("DONE");
 	const status = field("STATUS");
 	const next = field("NEXT");
 	// Anything off the list is dropped rather than corrected: a model that
@@ -138,6 +146,8 @@ export function parseBrief(text: string): WrittenBrief {
 	return {
 		title,
 		goal,
+		issue,
+		done,
 		status,
 		next,
 		tags,
@@ -184,7 +194,7 @@ interface CacheEntry {
  * instead of served forever — a title-less brief on an idle session would
  * otherwise never be asked for its title.
  */
-const BRIEF_VERSION = 3;
+const BRIEF_VERSION = 4;
 
 /** Survives restarts, so reopening the app doesn't re-summarise everything. */
 export function defaultCachePath(): string {
