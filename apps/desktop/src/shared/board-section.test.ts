@@ -90,3 +90,25 @@ describe("bySection with queued cards", () => {
 		expect(grouped).toEqual([["queued", [{ pane: grouped[0][1][0].pane }]]]);
 	});
 });
+
+describe("bySection with recently finished cards", () => {
+	it("pins them above every other section, and only there", () => {
+		const grouped = bySection(
+			[
+				card({ id: "a", odinSource: "jira" }),
+				card({ id: "b", odinSource: "jira" }),
+				card({ id: "c" }),
+			],
+			(item) => item.pane.id !== "a",
+		);
+		expect(
+			grouped.map(([section, group]) => [
+				section,
+				group.map((item) => item.pane.id),
+			]),
+		).toEqual([
+			["recent", ["b", "c"]],
+			["jira", ["a"]],
+		]);
+	});
+});

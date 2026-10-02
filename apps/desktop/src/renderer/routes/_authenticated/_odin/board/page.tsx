@@ -26,6 +26,7 @@ import {
 } from "react";
 import type { IconType } from "react-icons";
 import {
+	LuCircleCheck,
 	LuClock,
 	LuEye,
 	LuEyeOff,
@@ -117,6 +118,8 @@ import {
  * imported by the main process, which has no business loading React icons.
  */
 const SECTION_ICON: Record<BoardSection, IconType> = {
+	// Not a source — its turn ended in the last JUST_DONE_MS.
+	recent: LuCircleCheck,
 	// Not a source — a task that exists but hasn't started.
 	queued: LuHourglass,
 	// Not a source — a session you put down on purpose.
@@ -733,6 +736,11 @@ function AgePill({
 
 /** How long a card that just landed in Done keeps saying so. */
 const JUST_DONE_MS = 5 * 60_000;
+
+/** `since` (0 = restored off disk) is within JUST_DONE_MS of now. */
+function justDone(since: number | undefined): boolean {
+	return !!since && Date.now() - since < JUST_DONE_MS;
+}
 
 /**
  * "just done" on a card whose turn ended in the last JUST_DONE_MS, so the one
@@ -2876,11 +2884,20 @@ function DevBoardPage() {
 			<div className="flex min-h-0 flex-1 gap-3 overflow-x-auto px-[18px] pb-[18px] pt-1">
 				{COLUMNS.map((column) => {
 					const cards = cardsByStatus.get(column.status) ?? [];
-					const sections = bySection(cards);
+					// ponytail: re-sorted on the board's next render, not on the
+					// minute the 5m runs out — the pane polls re-render it often.
+					const sections = bySection(
+						cards,
+						(card) =>
+							(column.status === "review" ||
+								column.status === "permission") &&
+							justDone(statusSinceRef.current.get(card.pane.id)?.at),
+					);
 					// One section is just the column — don't label it, unless it's
 					// Parked: "you put these down" is worth saying on its own.
 					const labelled =
 						sections.length > 1 ||
+						sections[0]?.[0] === "recent" ||
 						sections[0]?.[0] === "parked" ||
 						sections[0]?.[0] === "queued";
 					const isDropTarget = column.status === "idle";
@@ -3067,7 +3084,8 @@ function DevBoardPage() {
 																<div className="mt-1 flex flex-wrap items-center gap-1.5">
 																	<DropPill pane={card.pane} />
 																	<MergeOnlyPill card={card} />
-																	{card.status === "review" && (
+																	{(card.status === "review" ||
+																		card.status === "permission") && (
 																		<JustDonePill
 																			since={
 																				statusSinceRef.current.get(card.pane.id)

@@ -6,6 +6,7 @@ import type { Pane } from "./tabs-types";
  * of one undifferentiated list.
  */
 export type BoardSection =
+	| "recent"
 	| "queued"
 	| "parked"
 	| "slack"
@@ -16,6 +17,7 @@ export type BoardSection =
 	| "normal";
 
 export const SECTION_LABEL: Record<BoardSection, string> = {
+	recent: "Recently finished",
 	queued: "Queued",
 	parked: "Parked",
 	slack: "Slack",
@@ -54,19 +56,24 @@ function isParked(pane: Pane): boolean {
 /**
  * Cards grouped into sections, empty sections dropped, order fixed.
  *
- * Queued and Parked come first and cut across the source sections: one hasn't
+ * Recently finished cards (`isRecent`) are pinned above everything: the one
+ * that just landed is the one you came to look at.
+ * Queued and Parked come next and cut across the source sections: one hasn't
  * started yet and the other you put down on purpose, so neither is an Idle
  * card asking to be resumed, whichever feed started it. Starred cards sit at
  * the top of whichever section they land in; the rest keep their order.
  */
 export function bySection<T extends { pane: Pane }>(
-	cards: T[],
+	all: T[],
+	isRecent: (card: T) => boolean = () => false,
 ): [BoardSection, T[]][] {
+	const cards = all.filter((card) => !isRecent(card));
 	const rest = cards.filter(
 		(card) => !isParked(card.pane) && !isQueued(card.pane),
 	);
 	return (
 		[
+			["recent", all.filter(isRecent)],
 			["queued", cards.filter((card) => isQueued(card.pane))],
 			[
 				"parked",
