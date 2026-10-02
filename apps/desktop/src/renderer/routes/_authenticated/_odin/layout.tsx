@@ -33,7 +33,10 @@ import { type UpstreamDue, useDueReminders } from "./components/Reminders";
 import { QuickAddTask } from "./components/TaskBox";
 import { useAutomationRunner } from "./hooks/useAutomationRunner";
 import { usePeriodicSweep } from "./hooks/useBacklogReview";
-import { useNeedsYouByProfile } from "./hooks/useNeedsYouByProfile";
+import {
+	profileLabel,
+	useBoardCountsByProfile,
+} from "./hooks/useBoardCountsByProfile";
 import { useNightAgentRunner } from "./hooks/useNightAgentRunner";
 import { useOdinFeeds } from "./hooks/useOdinFeeds";
 import { useOdinProfile } from "./hooks/useOdinProfile";
@@ -237,17 +240,24 @@ function OdinShell() {
 		switchTo: switchProfile,
 		isSwitching: isSwitchingProfile,
 	} = useOdinProfile();
-	// A session waiting on you under the *other* profile is invisible until you
-	// switch — the board only draws one profile's cards. The picker says so.
-	const needsYouByProfile = useNeedsYouByProfile();
-	const otherProfilesNeedingYou = profiles
+	// A session waiting on you — or working — under the *other* profile is
+	// invisible until you switch: the board only draws one profile's cards. The
+	// picker says so.
+	const boardCountsByProfile = useBoardCountsByProfile();
+	const otherProfilesBusy = profiles
 		.filter((profile) => profile.id !== activeProfileId)
 		.map((profile) => ({
 			id: profile.id,
 			name: profile.name,
-			count: needsYouByProfile.get(profile.id) ?? 0,
+			needsYou: 0,
+			working: 0,
+			...boardCountsByProfile.get(profile.id),
 		}))
-		.filter((profile) => profile.count > 0);
+		.filter((profile) => profile.needsYou > 0 || profile.working > 0);
+	// Switch to the one that's waiting on you first; working can wait.
+	const otherProfileToOpen =
+		otherProfilesBusy.find((profile) => profile.needsYou > 0) ??
+		otherProfilesBusy[0];
 
 	// Sync every feed (Slack, Jira, PRs, Notion) as soon as the app
 	// opens — the
@@ -433,19 +443,18 @@ function OdinShell() {
 						>
 							{profiles.map((profile) => {
 								// A native <option> is text and nothing else — no dot, no
-								// badge — so the count goes in the label. Only on the
-								// profiles you're NOT on: the active one's needs-you is
-								// already on the board below, and the selected option is
-								// what the closed button shows.
-								const needsYou =
-									profile.id === activeProfileId
-										? 0
-										: (needsYouByProfile.get(profile.id) ?? 0);
+								// badge — so the counts go in the label. Only on the
+								// profiles you're NOT on: the active one's are already on
+								// the board below, and the selected option is what the
+								// closed button shows.
 								return (
 									<option key={profile.id} value={profile.id}>
-										{needsYou > 0
-											? `${profile.name} · ${needsYou} needs you`
-											: profile.name}
+										{profile.id === activeProfileId
+											? profile.name
+											: profileLabel(
+													profile.name,
+													boardCountsByProfile.get(profile.id),
+												)}
 									</option>
 								);
 							})}
@@ -453,19 +462,23 @@ function OdinShell() {
 					</ZoomStable>
 				)}
 				{/* The option labels only show once the menu is open; this is what
-				    the closed picker says. Click jumps to the profile that's waiting. */}
-				{otherProfilesNeedingYou.length > 0 && (
+				    the closed picker says. Amber when something there is waiting on
+				    you, quiet when it's only working. Click jumps to that profile. */}
+				{otherProfileToOpen && (
 					<ZoomStable enabled={isMac}>
 						<button
 							type="button"
 							disabled={isSwitchingProfile}
-							onClick={() => switchProfile(otherProfilesNeedingYou[0].id)}
-							title={`Switch to ${otherProfilesNeedingYou[0].name}`}
-							className="ml-1.5 rounded-full bg-[#f5a623] px-2 py-[2px] text-[10px] font-bold tabular-nums text-[#1f1f27] disabled:opacity-50"
+							onClick={() => switchProfile(otherProfileToOpen.id)}
+							title={`Switch to ${otherProfileToOpen.name}`}
+							className={cn(
+								"ml-1.5 rounded-full px-2 py-[2px] text-[10px] font-bold tabular-nums disabled:opacity-50",
+								otherProfilesBusy.some((p) => p.needsYou > 0)
+									? "bg-[#f5a623] text-[#1f1f27]"
+									: "bg-[#1f1f27] text-[#a5a5b3]",
+							)}
 						>
-							{otherProfilesNeedingYou
-								.map((p) => `${p.name} · ${p.count} needs you`)
-								.join("  ")}
+							{otherProfilesBusy.map((p) => profileLabel(p.name, p)).join("  ")}
 						</button>
 					</ZoomStable>
 				)}
