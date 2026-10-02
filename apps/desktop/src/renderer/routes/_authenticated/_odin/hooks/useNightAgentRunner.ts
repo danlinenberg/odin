@@ -20,7 +20,7 @@ interface NightRanking {
 	hidden: Set<string>;
 }
 
-/** Your sort words plus the off-hours ones — what the night ranking obeys. */
+/** Your sort words plus the Night Agent ones — what the night ranking obeys. */
 export function nightInstructions(sort: string, offHours: string): string {
 	return [
 		sort,
@@ -32,20 +32,20 @@ export function nightInstructions(sort: string, offHours: string): string {
 }
 
 /**
- * Off-hours: inside the window set in Settings → Next in line, start the top
+ * Night Agent: inside the window set in Settings → Night Agent, start the top
  * of Next in line, wait for that session to stop working, start the next —
  * until the window closes or the night's ceiling is hit. One at a time, so
  * the morning is a column of finished turns rather than a pile-up.
  *
  * Which row is "the top" is the model's call, asked with your sort words and
- * the off-hours instructions, so "don't include X" in either keeps X out.
+ * the Night Agent instructions, so "don't include X" in either keeps X out.
  * Asked again before a start whenever the words changed or new rows came in:
  * an edit applies to the very next session.
  *
  * ponytail: renderer-side and only while Odin is open, same as automations.
  * Move it to main the day it has to run with the window shut.
  */
-export function useOffHoursRunner() {
+export function useNightAgentRunner() {
 	const queue = useNextInLineQueue(true);
 	const latest = useRef(queue);
 	latest.current = queue;
@@ -99,7 +99,7 @@ export function useOffHoursRunner() {
 						hidden: new Set(ranking.hidden),
 					};
 					console.warn(
-						`[off-hours] ranked ${waiting.length}; ruled out:`,
+						`[night-agent] ranked ${waiting.length}; ruled out:`,
 						waiting
 							.filter((row) => ranking.hidden.includes(row.key))
 							.map((row) => row.title),
@@ -117,7 +117,7 @@ export function useOffHoursRunner() {
 				setOffHoursStarted(offHoursStarted + 1);
 				await start(item, { instructions: offHours.instructions });
 			} catch (error) {
-				console.warn("[off-hours] ranking failed, starting nothing:", error);
+				console.warn("[night-agent] ranking failed, starting nothing:", error);
 			} finally {
 				running = false;
 			}
