@@ -15,7 +15,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { FaGithub, FaSlack } from "react-icons/fa";
-import { LuTrash2 } from "react-icons/lu";
+import { LuCloudUpload, LuTrash2 } from "react-icons/lu";
 import { SiGmail, SiJira, SiNotion } from "react-icons/si";
 import {
 	ConnectProvider,
@@ -183,6 +183,74 @@ function ConnectionsSettings() {
 						</div>
 					);
 				})}
+				<BackupRow />
+			</div>
+		</div>
+	);
+}
+
+/**
+ * Not an account, but the same shape as one: a place Odin's data goes. The
+ * daily copy itself runs in main (main/lib/backup-data.ts); this row only
+ * shows where it landed and lets you force one.
+ */
+function BackupRow() {
+	const status = electronTrpc.backup.status.useQuery();
+	const run = electronTrpc.backup.run.useMutation({
+		onSuccess: () => {
+			void status.refetch();
+			toast.success("Backed up to iCloud Drive");
+		},
+		onError: (error) => toast.error(error.message),
+	});
+	const reveal = electronTrpc.backup.reveal.useMutation();
+	const data = status.data;
+	const identity = !data?.lastBackupAt
+		? "No backup yet"
+		: `Last ${new Date(data.lastBackupAt).toLocaleString([], {
+				dateStyle: "medium",
+				timeStyle: "short",
+			})} · ${data.days} ${data.days === 1 ? "day" : "days"} kept`;
+	return (
+		<div className="border-b last:border-b-0 py-3">
+			<div className="flex items-center justify-between gap-8">
+				<div className="flex items-center gap-3 min-w-0">
+					<div className="flex size-8 shrink-0 items-center justify-center">
+						<LuCloudUpload className="size-5" />
+					</div>
+					<div className="min-w-0">
+						<div className="text-sm font-medium">Backup</div>
+						<div className="text-xs text-muted-foreground mt-0.5 truncate">
+							Your board, briefs and scrollback, copied to iCloud Drive daily.
+						</div>
+						<div className="text-xs text-muted-foreground mt-1 max-w-[52ch]">
+							{data?.available === false
+								? "iCloud Drive is off, so nothing is copied. Turn it on in System Settings → Apple Account → iCloud."
+								: "Keeps 14 days in iCloud Drive → Odin Backups. To restore, quit Odin and copy a day's files back into ~/.odin."}
+						</div>
+					</div>
+				</div>
+				<div className="flex items-center gap-3 shrink-0">
+					<StatusDot
+						loading={status.isLoading}
+						configured={data?.available ?? false}
+						identity={identity}
+						error={null}
+					/>
+					<Button
+						variant="outline"
+						size="sm"
+						disabled={!data?.available || run.isPending}
+						onClick={() => run.mutate()}
+					>
+						{run.isPending ? "Backing up…" : "Back up now"}
+					</Button>
+					{data?.lastBackupAt && (
+						<Button variant="ghost" size="sm" onClick={() => reveal.mutate()}>
+							Show
+						</Button>
+					)}
+				</div>
 			</div>
 		</div>
 	);

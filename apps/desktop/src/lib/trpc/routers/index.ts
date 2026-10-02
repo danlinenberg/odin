@@ -3,6 +3,7 @@ import { router } from "..";
 import { createAnalyticsRouter } from "./analytics";
 import { createAutoUpdateRouter } from "./auto-update";
 import { createBacklogReviewRouter } from "./backlog-review";
+import { createBackupRouter } from "./backup";
 import { createBrowserRouter } from "./browser/browser";
 import { createBrowserHistoryRouter } from "./browser-history";
 import { createChangesRouter } from "./changes";
@@ -43,6 +44,7 @@ export const createAppRouter = (getWindow: () => BrowserWindow | null) => {
 		window: createWindowRouter(getWindow),
 		projects: createProjectsRouter(getWindow),
 		repos: createReposRouter(),
+		backup: createBackupRouter(),
 		workspaces: createWorkspacesRouter(),
 		terminal: createTerminalRouter(),
 		changes: createChangesRouter(),
