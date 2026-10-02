@@ -376,17 +376,22 @@ function CatchUpCard({
 		withCode(value, (part) =>
 			linkRefs(part, prs, issue).map(({ text: run, url }, i) =>
 				url ? (
-					<button
+					// An <a>, not a <button>: a button lays out inline-block whatever its
+					// display, so "PR #1." could wrap before its period. The click is
+					// stopped, so the app window doesn't navigate; main opens it.
+					<a
 						// biome-ignore lint/suspicious/noArrayIndexKey: a fixed split, never reordered
 						key={i}
-						type="button"
+						href={url}
 						title={url}
-						onClick={() => openUrl.mutate(url)}
-						// inline, not a button's inline-block: "PR #1." keeps its period
-						className="inline text-[#a394ff] hover:underline"
+						onClick={(event) => {
+							event.preventDefault();
+							openUrl.mutate(url);
+						}}
+						className="text-[#a394ff] hover:underline"
 					>
 						{run}
-					</button>
+					</a>
 				) : (
 					run
 				),
