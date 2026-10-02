@@ -1300,6 +1300,10 @@ function DevBoardPage() {
 	// here; the dialog it opens asks whether to start over from the card's brief.
 	const [lostCard, setLostCard] = useState<BoardCard | null>(null);
 	const [drawerCard, setDrawerCard] = useState<BoardCard | null>(null);
+	// Catch up (Slack mobile's): Needs you one card at a time in the drawer.
+	// The pane ids are a snapshot taken on start, so ✓ done doesn't reshuffle
+	// the cards you haven't reached.
+	const [catchUp, setCatchUp] = useState<string[] | null>(null);
 	// Rename a session. Same home as tags (the pane, in app-state.json) and the
 	// first thing cardTitle reads, so the new name shows everywhere and sticks.
 	// Non-null = the drawer's title is being edited.
@@ -2741,6 +2745,27 @@ function DevBoardPage() {
 	 * keeping the dead pane bought nothing. To stop an agent without ending the
 	 * session, drag the card to Idle (Park) instead.
 	 */
+	/** The drawer's next catch-up card `step` away, or closed: all caught up. */
+	const catchUpStep = (step: 1 | -1, doneCard?: BoardCard) => {
+		const queue = catchUp ?? [];
+		const live = new Map(
+			[...cardsByStatus.values()].flat().map((card) => [card.pane.id, card]),
+		);
+		let at = drawerCard ? queue.indexOf(drawerCard.pane.id) : -1;
+		let next: BoardCard | undefined;
+		do {
+			at += step;
+			const id = queue[at];
+			next = id && id !== doneCard?.pane.id ? live.get(id) : undefined;
+		} while (!next && at >= 0 && at < queue.length);
+		if (doneCard) endSession(doneCard.pane.id);
+		if (next) return openDrawer(next);
+		if (step === -1 && !doneCard) return; // at the first card: nothing back there
+		setCatchUp(null);
+		setDrawerCard(null);
+		toast.success("All caught up");
+	};
+
 	const markDone = (card: BoardCard) => {
 		endSession(card.pane.id);
 		setDrawerCard(null);
@@ -2981,7 +3006,27 @@ function DevBoardPage() {
 									style={{ background: PANE_STATUS[column.status].dot }}
 								/>
 								{column.label}
-								<span className="ml-auto rounded-[10px] bg-[#1f1f27] px-2 font-medium">
+								{column.status === "permission" && cards.length > 0 && (
+									<button
+										type="button"
+										title="Catch up — go through these one at a time"
+										onClick={() => {
+											const queue = sections.flatMap(([, group]) => group);
+											setCatchUp(queue.map((card) => card.pane.id));
+											openDrawer(queue[0]);
+										}}
+										className="ml-auto rounded-md bg-[#2a2410] px-2 py-0.5 text-[10.5px] font-semibold normal-case tracking-normal text-[#f5c542] hover:bg-[#3a3216]"
+									>
+										Catch up
+									</button>
+								)}
+								<span
+									className={cn(
+										"rounded-[10px] bg-[#1f1f27] px-2 font-medium",
+										!(column.status === "permission" && cards.length > 0) &&
+											"ml-auto",
+									)}
+								>
 									{cards.length}
 								</span>
 							</div>
@@ -3350,6 +3395,41 @@ function DevBoardPage() {
 						>
 							›
 						</button>
+						{catchUp?.includes(drawerCard.pane.id) && (
+							<div className="flex items-center gap-2 border-b border-[#25252e] bg-[#1a1710] px-4 py-2 text-xs">
+								<span className="font-semibold text-[#f5c542]">
+									Catching up
+								</span>
+								<span className="text-[#8a8a97]">
+									{catchUp.indexOf(drawerCard.pane.id) + 1} of {catchUp.length}
+								</span>
+								<button
+									type="button"
+									title="Back to the previous card"
+									disabled={catchUp.indexOf(drawerCard.pane.id) === 0}
+									onClick={() => catchUpStep(-1)}
+									className="ml-auto rounded-md bg-[#1f1f27] px-2 py-1 font-semibold text-[#a5a5b3] hover:text-[#f5f5f7] disabled:opacity-40"
+								>
+									‹ Back
+								</button>
+								<button
+									type="button"
+									title="Leave it in Needs you and go to the next one"
+									onClick={() => catchUpStep(1)}
+									className="rounded-md bg-[#1f1f27] px-2 py-1 font-semibold text-[#a5a5b3] hover:text-[#f5f5f7]"
+								>
+									Skip ›
+								</button>
+								<button
+									type="button"
+									title="Done — remove it from the board and go to the next one"
+									onClick={() => catchUpStep(1, drawerCard)}
+									className="rounded-md bg-[#14301f] px-2 py-1 font-semibold text-[#3ecf8e] hover:bg-[#1a3d28]"
+								>
+									✓ Done & next
+								</button>
+							</div>
+						)}
 						<div className="border-b border-[#25252e] px-4 py-3.5">
 							<div className="flex items-center gap-2">
 								{renameDraft === null ? (
