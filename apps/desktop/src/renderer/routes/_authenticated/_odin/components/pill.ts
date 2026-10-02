@@ -17,6 +17,9 @@ export const PILL = {
 	amber:
 		"bg-gradient-to-r from-[#6e4a10] to-[#6e2f14] text-[#ffefcc] shadow-[0_0_6px_rgba(245,184,61,.4)]",
 	red: "bg-gradient-to-r from-[#6e1f2c] to-[#5e1a4c] text-[#ffe0e5] shadow-[0_0_6px_rgba(240,100,122,.45)]",
+	/** Louder than red: overdue is the one that has to win the row. */
+	alarm:
+		"bg-gradient-to-r from-[#a3162b] to-[#8a1048] text-[#fff1f3] shadow-[0_0_8px_rgba(255,77,94,.65)]",
 	pink: "bg-gradient-to-r from-[#6e2446] to-[#5c2470] text-[#ffe3ee] shadow-[0_0_6px_rgba(255,143,174,.4)]",
 	blue: "bg-gradient-to-r from-[#1d4f7a] to-[#24357f] text-[#dcefff] shadow-[0_0_6px_rgba(126,196,255,.4)]",
 } as const;
