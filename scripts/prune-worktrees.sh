@@ -9,8 +9,8 @@
 #     origin/main, or its PR is merged and HEAD is that PR's head, so nothing
 #     was committed after. PRs are squash-merged, so `merge-base --is-ancestor`
 #     says "not merged" for work that did land. Content alone keeps any branch
-#     whose files main has touched since; the PR answer (needs `gh` and
-#     $GH_TOKEN, skipped when either is missing) covers those.
+#     whose files main has touched since; the PR answer (needs `gh`, signed
+#     in or given $GH_TOKEN; skipped without it) covers those.
 #   - nothing uncommitted: plain `git worktree remove` refuses a dirty or
 #     untracked tree, so it is the dirty check. Gitignored output (node_modules,
 #     dist) doesn't count and goes with it.
@@ -35,7 +35,7 @@ repo="$(git -C "$root" remote get-url origin | sed -E 's#^(git@|https://)github.
 
 # Did this branch's PR merge with exactly this commit as its head?
 merged_at_head() { # merged_at_head <branch> <sha>
-	command -v gh >/dev/null && [ -n "${GH_TOKEN:-}" ] || return 1
+	command -v gh >/dev/null || return 1
 	[ "$(gh pr list -R "$repo" --head "$1" --state merged --json headRefOid -q '.[].headRefOid' 2>/dev/null)" = "$2" ]
 }
 
