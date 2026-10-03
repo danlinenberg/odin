@@ -3288,8 +3288,13 @@ function DevBoardPage() {
 																}}
 																className={cn(
 																	// A lit top edge, and a lift with a violet halo under the
-																	// pointer — the board's one bit of motion you cause.
-																	"group cursor-pointer rounded-[10px] border bg-card px-3 py-2.5 text-left shadow-[inset_0_1px_0_rgb(255_255_255/0.04)] transition-[border-color,background-color,box-shadow,translate] hover:-translate-y-px hover:border-primary/40 hover:bg-secondary hover:shadow-[inset_0_1px_0_rgb(255_255_255/0.05),0_10px_24px_-12px_color-mix(in_oklab,var(--primary)_55%,transparent)]",
+																	// pointer — the board's one bit of motion you cause. The halo
+																	// and violet edge sit on an ::after that only fades in:
+																	// box-shadow and border-color can't animate on the
+																	// compositor, so they repainted every frame and stuttered
+																	// whenever the board was busy rendering.
+																	"group relative isolate cursor-pointer rounded-[10px] border bg-card px-3 py-2.5 text-left shadow-[inset_0_1px_0_rgb(255_255_255/0.04)] transition-[background-color,translate] duration-200 ease-out hover:-translate-y-px hover:bg-secondary",
+																	"after:pointer-events-none after:absolute after:-inset-px after:-z-10 after:rounded-[inherit] after:border after:border-primary/40 after:opacity-0 after:shadow-[0_10px_24px_-12px_color-mix(in_oklab,var(--primary)_55%,transparent)] after:transition-opacity after:duration-200 after:ease-out hover:after:opacity-100",
 																	// Cards are neutral — the column header already says the
 																	// status. Only a failure earns its red edge.
 																	card.pane.status === "failed"
