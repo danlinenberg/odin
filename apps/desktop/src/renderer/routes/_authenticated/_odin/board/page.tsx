@@ -95,6 +95,7 @@ import { useOdinProfile } from "../hooks/useOdinProfile";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePaneMeta } from "../hooks/usePaneMeta";
 import { usePendingFocus } from "../hooks/usePendingFocus";
+import { useQuickQuestionDialog } from "../hooks/useQuickQuestion";
 import { PANE_STATUS } from "../pane-status";
 import { sessionFor } from "../review/verdicts";
 import {
@@ -2995,6 +2996,17 @@ function DevBoardPage() {
 					)}
 				>
 					+ New Session
+				</button>
+				<button
+					type="button"
+					title="Ask a Claude that's already running — no start-up wait (⌘⇧I)"
+					onClick={() => useQuickQuestionDialog.getState().setOpen(true)}
+					className={cn(
+						"rounded-lg px-2.5 py-1 text-[12px] font-semibold transition-colors",
+						BUTTON.secondary,
+					)}
+				>
+					Quick question
 				</button>
 				{isLaunching && (
 					<span className="text-xs text-muted-foreground">starting…</span>
