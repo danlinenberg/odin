@@ -554,24 +554,15 @@ function MergeOnlyPill({ card }: { card: BoardCard }) {
 
 function PrPill({ card, live }: { card: BoardCard; live: boolean }) {
 	const { data } = useCardTranscript(card, live);
-	const openUrl = electronTrpc.external.openUrl.useMutation();
 	const prs = data ? pullRequests(data.messages) : [];
 	const pr = prs[0];
 	if (!pr) return null;
+	// Plain text: a click falls through to the card and opens the drawer.
 	return (
-		<button
-			type="button"
-			title={prs.length > 1 ? `${prs.length} PRs — newest: ${pr.url}` : pr.url}
-			onClick={(event) => {
-				// The card itself opens the drawer; the pill opens GitHub.
-				event.stopPropagation();
-				openUrl.mutate(pr.url);
-			}}
-			className="hover:text-foreground hover:underline"
-		>
+		<span>
 			PR #{pr.number}
 			{prs.length > 1 ? ` +${prs.length - 1}` : ""}
-		</button>
+		</span>
 	);
 }
 
