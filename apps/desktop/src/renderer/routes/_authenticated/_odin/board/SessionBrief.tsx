@@ -95,13 +95,14 @@ function ChecksChip({
 	status: {
 		state: string | null;
 		pending: string[];
+		awaiting?: string[];
 		failed: string[];
 		passed: number;
 	} | null;
 }) {
 	// CI only matters while the PR can still change — merged/closed is final.
 	if (!status || status.state !== "OPEN") return null;
-	const { pending, failed, passed } = status;
+	const { pending, awaiting = [], failed, passed } = status;
 	if (pending.length > 0) {
 		return (
 			<span title={pending.join("\n")}>
@@ -123,6 +124,13 @@ function ChecksChip({
 					label={failed.length === 1 ? `✗ ${failed[0]}` : `✗ ${failed.length}`}
 					className={PILL.danger}
 				/>
+			</span>
+		);
+	}
+	if (awaiting.length > 0) {
+		return (
+			<span title={awaiting.join("\n")}>
+				<Chip label="awaiting apply" className={PILL.attention} />
 			</span>
 		);
 	}
