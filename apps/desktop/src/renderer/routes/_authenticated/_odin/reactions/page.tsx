@@ -11,6 +11,7 @@ import { ConnectNotice } from "renderer/components/ConnectProvider/ConnectProvid
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { useDoneStore } from "renderer/stores/done";
+import { openUrl } from "renderer/stores/in-app-browser";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import { DoneButton } from "../components/DoneButton";
 import {
@@ -112,7 +113,6 @@ function ReactionsPage() {
 		(area.channel === undefined || area.channel === "DMs"
 			? area.channel
 			: channelLabel(area.channel));
-	const openUrl = electronTrpc.external.openUrl.useMutation();
 	const recordDone = useDoneStore((s) => s.setDone);
 	const setDone = electronTrpc.slack.setDone.useMutation({
 		onSuccess: () => void reactions.refetch(),
@@ -286,7 +286,7 @@ function ReactionsPage() {
 											{link && (
 												<button
 													type="button"
-													onClick={() => openUrl.mutate(link)}
+													onClick={() => openUrl(link)}
 													className={ROW_LINK_BUTTON}
 												>
 													Thread ↗

@@ -2,8 +2,8 @@ import { cn } from "@odin/ui/utils";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import type { IconType } from "react-icons";
-import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
+import { openUrl } from "renderer/stores/in-app-browser";
 import type { BoardSection } from "shared/board-section";
 import type { PaneStatus } from "shared/tabs-types";
 import { DoneButton } from "../components/DoneButton";
@@ -166,7 +166,6 @@ function AllFeedPage() {
 	const [search, setSearch] = useState("");
 	const needle = search.trim().toLowerCase();
 	const reminders = useReminders((s) => s.reminders);
-	const openUrl = electronTrpc.external.openUrl.useMutation();
 	// todos, not tasks: automations have their own panel and run themselves —
 	// they'd sit in "what have I got on" forever without ever being yours to do.
 	const { todos } = useMyTasks();
@@ -517,7 +516,7 @@ function AllFeedPage() {
 				{showDone && (
 					<DoneList
 						rows={recent}
-						onOpen={(url) => openUrl.mutate(url)}
+						onOpen={(url) => openUrl(url)}
 						onUndo={undo}
 					/>
 				)}
@@ -607,7 +606,7 @@ function AllFeedPage() {
 											<button
 												type="button"
 												title={url}
-												onClick={() => openUrl.mutate(url)}
+												onClick={() => openUrl(url)}
 												className={ROW_LINK_BUTTON}
 											>
 												Open ↗

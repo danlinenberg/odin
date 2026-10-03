@@ -42,7 +42,17 @@ export async function makeAppSetup(
 	});
 
 	app.on("web-contents-created", (_, contents) => {
-		if (contents.getType() === "webview") return;
+		if (contents.getType() === "webview") {
+			// The in-app browser has no tabs: a page opening one (Slack's and
+			// Jira's links do) loads in place instead, and Back returns.
+			contents.setWindowOpenHandler(({ url }) => {
+				if (url.startsWith("http://") || url.startsWith("https://")) {
+					contents.loadURL(url);
+				}
+				return { action: "deny" };
+			});
+			return;
+		}
 		contents.on("will-navigate", (event, url) => {
 			// Always prevent in-app navigation for external URLs
 			if (url.startsWith("http://") || url.startsWith("https://")) {

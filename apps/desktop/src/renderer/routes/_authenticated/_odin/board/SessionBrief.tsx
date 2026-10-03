@@ -2,6 +2,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@odin/ui/tooltip";
 import { useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
+import { openUrl } from "renderer/stores/in-app-browser";
 import { PILL } from "../components/pill";
 import { type BriefLink, usePaneMeta } from "../hooks/usePaneMeta";
 import {
@@ -284,7 +285,6 @@ export function SessionBrief({
 	const artifact =
 		foundArtifact && !isHidden(foundArtifact) ? foundArtifact : null;
 	// An <a> in the renderer would navigate the app window; PRs open in a browser.
-	const openUrl = electronTrpc.external.openUrl.useMutation();
 
 	// Links you added, filed under the section they belong to. One the
 	// transcript already surfaced isn't listed twice.
@@ -394,7 +394,7 @@ export function SessionBrief({
 				<Hover text={hoverText(url, preview)}>
 					<button
 						type="button"
-						onClick={() => openUrl.mutate(url)}
+						onClick={() => openUrl(url)}
 						className="min-w-0 flex-1 text-left hover:underline"
 					>
 						{/* dir="auto": a Hebrew message reads right-to-left and clamps at
@@ -446,7 +446,7 @@ export function SessionBrief({
 								<Hover text={issue.url}>
 									<button
 										type="button"
-										onClick={() => openUrl.mutate(issue.url)}
+										onClick={() => openUrl(issue.url)}
 										className="truncate text-left text-[12px] text-primary hover:underline"
 									>
 										{issue.key} ↗
@@ -468,7 +468,7 @@ export function SessionBrief({
 									<Hover text={hoverText(thread, threadPreview)}>
 										<button
 											type="button"
-											onClick={() => openUrl.mutate(thread)}
+											onClick={() => openUrl(thread)}
 											dir="auto"
 											className="line-clamp-2 w-full text-left text-[12px] text-primary hover:underline"
 										>
@@ -505,7 +505,7 @@ export function SessionBrief({
 								<Hover text={pr.url}>
 									<button
 										type="button"
-										onClick={() => openUrl.mutate(pr.url)}
+										onClick={() => openUrl(pr.url)}
 										className="flex min-w-0 items-center gap-1.5 text-left text-[12px] text-primary hover:underline"
 									>
 										<span className="truncate">
@@ -530,7 +530,7 @@ export function SessionBrief({
 								<Hover text={page.url}>
 									<button
 										type="button"
-										onClick={() => openUrl.mutate(page.url)}
+										onClick={() => openUrl(page.url)}
 										className="block min-w-0 flex-1 truncate text-left text-[12px] text-primary hover:underline"
 									>
 										{page.title ?? "Notion page"} ↗
@@ -551,7 +551,7 @@ export function SessionBrief({
 								<Hover text={artifact}>
 									<button
 										type="button"
-										onClick={() => openUrl.mutate(artifact)}
+										onClick={() => openUrl(artifact)}
 										className="block min-w-0 flex-1 truncate text-left text-[12px] text-primary hover:underline"
 									>
 										Open artifact ↗
@@ -655,7 +655,7 @@ export function SessionBrief({
 											<button
 												key={url}
 												type="button"
-												onClick={() => openUrl.mutate(url)}
+												onClick={() => openUrl(url)}
 												className="text-primary hover:underline"
 											>
 												{url.split("/").slice(-3, -2)[0]} #
@@ -682,7 +682,7 @@ export function SessionBrief({
 									<Hover text={url}>
 										<button
 											type="button"
-											onClick={() => openUrl.mutate(url)}
+											onClick={() => openUrl(url)}
 											dir="auto"
 											className="min-w-0 flex-1 truncate text-left text-[12px] text-muted-foreground hover:underline"
 										>

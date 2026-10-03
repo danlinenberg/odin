@@ -75,6 +75,7 @@ import { BOARD_TAGS, boardTags, normalizeTag } from "shared/odin-tags";
 /** Tags the card shows as their own pill instead of in the #tag line. */
 const PILL_TAGS = ["automation", "auto-started", "off-hours"];
 
+import { openUrl } from "renderer/stores/in-app-browser";
 import { DropHint } from "../components/DropHint";
 import { useSearchHotkey } from "../components/FeedChrome";
 import {
@@ -377,7 +378,6 @@ function CatchUpCard({
 	const quoted = transcript ? (transcript.links ?? transcript.messages) : [];
 	const prs = pullRequests(quoted);
 	const issue = jiraIssue(quoted);
-	const openUrl = electronTrpc.external.openUrl.useMutation();
 	const text = (value: string) =>
 		withCode(value, (part) =>
 			linkRefs(part, prs, issue).map(({ text: run, url }, i) =>
@@ -392,7 +392,7 @@ function CatchUpCard({
 						title={url}
 						onClick={(event) => {
 							event.preventDefault();
-							openUrl.mutate(url);
+							openUrl(url);
 						}}
 						className="text-primary hover:underline"
 					>
@@ -527,7 +527,6 @@ function DropPill({ pane }: { pane: Pane }) {
 
 function MergeOnlyPill({ card }: { card: BoardCard }) {
 	const { data } = useCardTranscript(card, card.status === "working");
-	const openUrl = electronTrpc.external.openUrl.useMutation();
 	if (!data || !onlyMergeLeft(data.messages)) return null;
 	// The PR the merge item names ("Merge #12"), else the newest one.
 	const pr = mergeTargets(data.messages)[0];
@@ -543,7 +542,7 @@ function MergeOnlyPill({ card }: { card: BoardCard }) {
 			onClick={(event) => {
 				// The card itself opens the drawer; the pill opens GitHub.
 				event.stopPropagation();
-				if (pr) openUrl.mutate(pr.url);
+				if (pr) openUrl(pr.url);
 			}}
 			className={cn(
 				"inline-flex items-center gap-1 rounded-[5px] px-[7px] text-[11px] font-medium enabled:hover:brightness-125",
@@ -572,7 +571,6 @@ function PrPill({ card, live }: { card: BoardCard; live: boolean }) {
 
 function NotionPill({ card, live }: { card: BoardCard; live: boolean }) {
 	const { data } = useCardTranscript(card, live);
-	const openUrl = electronTrpc.external.openUrl.useMutation();
 	const page = data ? notionPage(data.messages) : null;
 	if (!page) return null;
 	return (
@@ -582,7 +580,7 @@ function NotionPill({ card, live }: { card: BoardCard; live: boolean }) {
 			onClick={(event) => {
 				// The card itself opens the drawer; the pill opens Notion.
 				event.stopPropagation();
-				openUrl.mutate(page.url);
+				openUrl(page.url);
 			}}
 			className="hover:text-foreground hover:underline"
 		>
@@ -1401,7 +1399,6 @@ function DevBoardPage() {
 	const utils = electronTrpc.useUtils();
 	const { data: workConfig } = electronTrpc.work.getConfig.useQuery();
 	// An <a> would navigate the app window; the ticket opens in a browser.
-	const openUrl = electronTrpc.external.openUrl.useMutation();
 	const contactByPane = usePaneMeta((s) => s.contactByPane);
 	const titleByPane = usePaneMeta((s) => s.titleByPane);
 	const briefByPane = usePaneMeta((s) => s.briefByPane);
@@ -3851,7 +3848,7 @@ function DevBoardPage() {
 									<button
 										type="button"
 										title={drawerLink.url}
-										onClick={() => openUrl.mutate(drawerLink.url)}
+										onClick={() => openUrl(drawerLink.url)}
 										className={cn(
 											"rounded-[5px] px-[7px] text-[11px] font-medium hover:underline",
 											PILL.brand,

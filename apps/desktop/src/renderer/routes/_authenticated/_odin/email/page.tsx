@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { ConnectNotice } from "renderer/components/ConnectProvider/ConnectProvider";
-import { electronTrpc } from "renderer/lib/electron-trpc";
+import { openUrl } from "renderer/stores/in-app-browser";
 import { DoneButton } from "../components/DoneButton";
 import {
 	FEED_LIST,
@@ -30,7 +30,6 @@ export const Route = createFileRoute("/_authenticated/_odin/email/")({
 function EmailPage() {
 	const { emails, workConfig, syncAll, isSyncing } = useOdinFeeds();
 	const { isDone, markDone } = useDone();
-	const openUrl = electronTrpc.external.openUrl.useMutation();
 	// ponytail: local state — opens on the interesting mail every visit.
 	const [showJunk, setShowJunk] = useState(false);
 	const open = (emails.data?.emails ?? []).filter(
@@ -118,7 +117,7 @@ function EmailPage() {
 								<span className={ROW_LINK_SLOT}>
 									<button
 										type="button"
-										onClick={() => openUrl.mutate(email.url)}
+										onClick={() => openUrl(email.url)}
 										className={ROW_LINK_BUTTON}
 									>
 										Open ↗
