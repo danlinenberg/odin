@@ -2,7 +2,6 @@ import {
 	getCellDimensions,
 	installTerminalWheelEventHandler,
 } from "@odin/shared/terminal-wheel-handler";
-import { toast } from "@odin/ui/sonner";
 import { ClipboardAddon } from "@xterm/addon-clipboard";
 import { FitAddon } from "@xterm/addon-fit";
 import { ImageAddon } from "@xterm/addon-image";
@@ -22,6 +21,7 @@ import {
 } from "renderer/lib/terminal/parser-idle-gate";
 import { TerminalLinkManager } from "renderer/lib/terminal/terminal-link-manager";
 import { electronTrpcClient as trpcClient } from "renderer/lib/trpc-client";
+import { openUrl } from "renderer/stores/in-app-browser";
 import { toXtermTheme } from "renderer/stores/theme/utils";
 import {
 	builtInThemes,
@@ -204,15 +204,7 @@ export function createTerminalInWrapper(options: CreateTerminalOptions = {}): {
 				handler(uri);
 				return;
 			}
-			trpcClient.external.openUrl.mutate(uri).catch((error) => {
-				console.error("[Terminal] Failed to open URL:", uri, error);
-				toast.error("Failed to open URL", {
-					description:
-						error instanceof Error
-							? error.message
-							: "Could not open URL in browser",
-				});
-			});
+			openUrl(uri);
 		},
 	});
 

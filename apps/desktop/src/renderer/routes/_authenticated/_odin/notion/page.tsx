@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { ConnectNotice } from "renderer/components/ConnectProvider/ConnectProvider";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { openUrl } from "renderer/stores/in-app-browser";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import { DoneButton } from "../components/DoneButton";
 import {
@@ -88,7 +89,6 @@ function NotionPage() {
 	const { ensureWorkspace } = useOdinWorkspace();
 	const { launch, isLaunching, launchingKey } = useLaunchTaskSession();
 	const navigate = useNavigate();
-	const openUrl = electronTrpc.external.openUrl.useMutation();
 	const panes = useTabsStore((s) => s.panes);
 
 	const { isDone, markDone } = useDone();
@@ -300,7 +300,7 @@ function NotionPage() {
 												<span className={ROW_LINK_SLOT}>
 													<button
 														type="button"
-														onClick={() => openUrl.mutate(row.pageUrl)}
+														onClick={() => openUrl(row.pageUrl)}
 														className={ROW_LINK_BUTTON}
 													>
 														Page ↗

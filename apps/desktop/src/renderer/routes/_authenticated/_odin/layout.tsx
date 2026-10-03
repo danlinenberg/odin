@@ -30,6 +30,7 @@ import {
 } from "shared/machine-load";
 import { FEED_TABS } from "./components/feed-counts";
 import { GettingStarted } from "./components/GettingStarted";
+import { InAppBrowser } from "./components/InAppBrowser";
 import { OdinPromptDialog } from "./components/OdinPromptDialog";
 import { BUTTON, PILL } from "./components/pill";
 import { type UpstreamDue, useDueReminders } from "./components/Reminders";
@@ -579,6 +580,7 @@ function OdinShell() {
 						onAddTask={() => setIsQuickAddOpen(true)}
 						newTaskKeys={newTaskKeys.text}
 					/>
+					<InAppBrowser />
 				</div>
 			</div>
 

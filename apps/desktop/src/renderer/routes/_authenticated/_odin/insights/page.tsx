@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { openUrl } from "renderer/stores/in-app-browser";
 import { useSearchHotkey } from "../components/FeedChrome";
 
 export const Route = createFileRoute("/_authenticated/_odin/insights/")({
@@ -484,7 +485,6 @@ function WeekView({
 }) {
 	const thisWeek = weekStart(Date.now());
 	const [start, setStart] = useState(thisWeek);
-	const openUrl = electronTrpc.external.openUrl.useMutation();
 	const byWeek = useMemo(
 		() => new Map(heatmap.map((week) => [week.start, week.minutes])),
 		[heatmap],
@@ -589,7 +589,7 @@ function WeekView({
 								<button
 									type="button"
 									title={task.prs.join("\n")}
-									onClick={() => openUrl.mutate(task.prs.at(-1) as string)}
+									onClick={() => openUrl(task.prs.at(-1) as string)}
 									className="shrink-0 text-[10.5px] tabular-nums text-primary hover:underline"
 								>
 									{task.prs.length === 1

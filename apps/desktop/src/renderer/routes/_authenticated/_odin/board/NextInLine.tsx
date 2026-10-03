@@ -16,6 +16,7 @@ import {
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
+import { openUrl } from "renderer/stores/in-app-browser";
 import { useNextInLinePrompt } from "renderer/stores/next-in-line-prompt";
 import { create } from "zustand";
 import type { AllItem } from "../all/all-items";
@@ -301,7 +302,6 @@ export function NextInLine() {
 	} = useNextInLineQueue(showHidden);
 	// Open hands the link to the OS: a Slack permalink goes through Slack's
 	// own hand-off into the desktop app, everything else to the browser.
-	const openUrl = electronTrpc.external.openUrl.useMutation();
 	// Same Done as every feed, so a row done here is done there and back.
 	const { markDone } = useDone();
 	const doneWithUndo = (item: AllItem) =>
@@ -495,7 +495,7 @@ export function NextInLine() {
 					{item.url && /^https?:\/\//.test(item.url) && (
 						<button
 							type="button"
-							onClick={() => item.url && openUrl.mutate(item.url)}
+							onClick={() => item.url && openUrl(item.url)}
 							title={
 								item.source === "Slack"
 									? "Open the thread in Slack"
