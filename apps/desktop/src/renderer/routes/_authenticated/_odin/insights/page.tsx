@@ -253,10 +253,17 @@ function WeekChart({
 function ShippedChart({
 	weeks: all,
 }: {
-	weeks: { start: number; shipped: number; daysWorked: number }[];
+	weeks: {
+		start: number;
+		shipped: number;
+		daysWorked: number;
+		yourHours: number;
+	}[];
 }) {
-	// A week you didn't work has no rate; plotted as zero it read as a slump.
-	const weeks = all.filter((week) => week.daysWorked > 0);
+	// A week with none of your time has no rate; plotted as zero it read as a
+	// slump. "None" is what the page shows as "0 of yours" — a stray minute
+	// after midnight doesn't make a week.
+	const weeks = all.filter((week) => week.yourHours > 0 && week.daysWorked > 0);
 	if (weeks.length === 0) return <Empty>Nothing shipped yet.</Empty>;
 	const rates = weeks.map((week) => week.shipped / week.daysWorked);
 	// Headroom so the top point's label clears the card edge.
