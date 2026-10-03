@@ -130,7 +130,7 @@ export function LaunchLimitRow({
 	unit,
 }: {
 	id: string;
-	field: keyof LaunchLimits;
+	field: Exclude<keyof LaunchLimits, "oneSessionPerCheckout">;
 	label: string;
 	description: string;
 	min: number;
@@ -170,6 +170,34 @@ export function LaunchLimitRow({
 				/>
 				<span className="w-16 text-sm text-muted-foreground">{unit}</span>
 			</div>
+		</div>
+	);
+}
+
+/** Hold a second session out of a checkout one is already working in. */
+export function OneSessionPerCheckoutRow() {
+	const enabled = useLaunchLimits((s) => s.oneSessionPerCheckout !== false);
+	const setLimits = useLaunchLimits((s) => s.setLimits);
+	return (
+		<div className="flex items-center justify-between gap-6">
+			<div className="space-y-0.5">
+				<Label
+					htmlFor="one-session-per-checkout"
+					className="text-sm font-medium"
+				>
+					One session per repo at a time
+				</Label>
+				<p className="text-[13px] leading-relaxed text-muted-foreground max-w-xl">
+					A session started in a repo another one is working in waits in Queued
+					until that one stops. Off lets them run side by side — they share one
+					working tree, so each sees the other's edits.
+				</p>
+			</div>
+			<Switch
+				id="one-session-per-checkout"
+				checked={enabled}
+				onCheckedChange={(on) => setLimits({ oneSessionPerCheckout: on })}
+			/>
 		</div>
 	);
 }

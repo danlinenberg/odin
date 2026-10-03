@@ -7,7 +7,8 @@ interface LaunchLimitsState extends LaunchLimits {
 }
 
 /**
- * Settings → Board's CPU and memory limits for the launch gate.
+ * Settings → Launch limits: the launch gate's CPU, memory, session-count and
+ * one-per-checkout limits.
  *
  * ponytail: renderer localStorage, not a settings procedure — every reader
  * (launch, queue, header chip) lives in the renderer, and a new main-process
@@ -29,5 +30,6 @@ export function launchLimits(state: LaunchLimits): LaunchLimits {
 		hostCpuPercent: state.hostCpuPercent,
 		minFreeMemoryGb: state.minFreeMemoryGb,
 		maxWorkingAgents: state.maxWorkingAgents,
+		oneSessionPerCheckout: state.oneSessionPerCheckout,
 	};
 }

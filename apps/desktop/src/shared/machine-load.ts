@@ -59,6 +59,8 @@ export interface LaunchLimits {
 	minFreeMemoryGb: number;
 	/** Sessions working at once before the next one waits; 0 = no cap. */
 	maxWorkingAgents: number;
+	/** One agent per checkout at a time; `false` lets them share. Unset = on. */
+	oneSessionPerCheckout?: boolean;
 }
 
 export const DEFAULT_LAUNCH_LIMITS: LaunchLimits = {
@@ -67,6 +69,7 @@ export const DEFAULT_LAUNCH_LIMITS: LaunchLimits = {
 	// ponytail: the default — Settings → Board overrides it. CPU and memory
 	// miss a board of agents that are mostly waiting on the network.
 	maxWorkingAgents: 5,
+	oneSessionPerCheckout: true,
 };
 
 export interface MachineLoad {
