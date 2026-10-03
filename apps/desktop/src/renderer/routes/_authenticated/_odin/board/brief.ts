@@ -126,24 +126,32 @@ function notionTitle(url: string, id: string): string | null {
  * One page, not a list. A session that reads a Notion database quotes a url
  * per row, and rows come back as bare /p/<id> with no slug — so the brief was
  * rendering a dozen identical "Notion page" lines, which is worse than none.
- * A titled page therefore beats an untitled newer one; otherwise newest wins.
+ *
+ * The newest turn that links a page decides, and within it the first page it
+ * links: a closing report leads with what it made, and the pages it names
+ * after that are references. Ranking pages by their first mention anywhere let
+ * a reference in the report outrank a deliverable linked once before it.
  *
  * Keyed by page id, because the same page comes out as /p/<id> in one turn and
- * as a slug url in the next.
+ * as a slug url in the next; the slug url wins, since it carries the title.
  */
 export function notionPage(messages: BriefMessage[]): NotionPageLink | null {
 	const found = new Map<string, NotionPageLink>();
+	let lead: string | undefined;
 	for (const message of messages.filter((m) => m.role === "assistant")) {
+		let first: string | undefined;
 		for (const match of message.text.match(NOTION_URL) ?? []) {
 			const url = match.replace(/[).,]+$/, "");
 			const id = NOTION_ID.exec(url)?.[0];
 			// A workspace root or search url carries no page id — nothing to reopen.
-			if (!id || found.has(id)) continue;
-			found.set(id, { url, id, title: notionTitle(url, id) });
+			if (!id) continue;
+			first ??= id;
+			if (!found.get(id)?.title)
+				found.set(id, { url, id, title: notionTitle(url, id) });
 		}
+		lead = first ?? lead;
 	}
-	const pages = [...found.values()].reverse();
-	return pages.find((page) => page.title) ?? pages[0] ?? null;
+	return (lead && found.get(lead)) || null;
 }
 
 // claude.ai/artifact/<id> and claude.ai/code/artifact/<uuid>.

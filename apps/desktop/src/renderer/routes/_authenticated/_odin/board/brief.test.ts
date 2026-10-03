@@ -188,7 +188,7 @@ const ADR =
 	"https://www.notion.so/imagen-ai/Spot-Instances-with-On-Demand-Fallback-3d19a1b573ff819b8237f88195e3780f";
 
 describe("notionPage", () => {
-	it("keeps one page, the one whose slug names it", () => {
+	it("keeps one page, titled from its slug", () => {
 		expect(
 			notionPage([
 				user("write it up"),
@@ -205,6 +205,19 @@ describe("notionPage", () => {
 	it("falls back to the newest page when none is titled", () => {
 		const other = "https://app.notion.com/p/3dd9a1b573ff81eeab56d1a8065f87c8";
 		expect(notionPage([claude(BACKLOG), claude(other)])?.url).toBe(other);
+	});
+
+	it("takes the page the closing report leads with, not the ones it cites", () => {
+		const reference =
+			"https://app.notion.com/p/3419a1b573ff805792a9e77aa0acf8b0";
+		expect(
+			notionPage([
+				claude(`Page created: ${BACKLOG}`),
+				claude(
+					`Done: **[the plan](${BACKLOG})**. Misfiled notes in [Meetings](${reference}), see also [the ADR](${ADR}).`,
+				),
+			])?.url,
+		).toBe(BACKLOG);
 	});
 
 	it("treats a /p/ link and a slug link to one page as one page", () => {
