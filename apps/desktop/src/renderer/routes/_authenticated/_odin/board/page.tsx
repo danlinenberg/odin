@@ -95,7 +95,10 @@ import { useOdinProfile } from "../hooks/useOdinProfile";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePaneMeta } from "../hooks/usePaneMeta";
 import { usePendingFocus } from "../hooks/usePendingFocus";
-import { useQuickQuestionDialog } from "../hooks/useQuickQuestion";
+import {
+	QUESTION_TAG,
+	useQuickQuestionDialog,
+} from "../hooks/useQuickQuestion";
 import { PANE_STATUS } from "../pane-status";
 import { sessionFor } from "../review/verdicts";
 import {
@@ -2416,15 +2419,33 @@ function DevBoardPage() {
 		// warmBriefs is a new object each render — the id list is the real trigger.
 	}, [briefSessionIds, autoRename]);
 
+	/** A quick question is no card, but its answer still opens in the drawer. */
+	const questionCard = (paneId: string): BoardCard | undefined => {
+		const pane = panes[paneId];
+		const tab = tabs.find((t) => t.id === pane?.tabId);
+		if (!pane?.odinTags?.includes(QUESTION_TAG) || !tab) return undefined;
+		const projectId = workspaceById.get(tab.workspaceId)?.projectId ?? "";
+		return {
+			pane,
+			status: pane.status ?? "idle",
+			tabId: tab.id,
+			tabName: tab.userTitle ?? tab.name,
+			workspaceId: tab.workspaceId,
+			repoPath: projectById.get(projectId)?.mainRepoPath ?? "",
+		};
+	};
+
 	// A session just launched from the Tasks view → open its drawer here.
 	const pendingPaneId = usePendingFocus((s) => s.paneId);
 	const clearPendingFocus = usePendingFocus((s) => s.clear);
 	useEffect(() => {
 		if (!pendingPaneId) return;
-		const card = [...cardsByStatus.values()]
-			.flat()
-			.concat(completedCards)
-			.find((c) => c.pane.id === pendingPaneId);
+		const card =
+			[...cardsByStatus.values()]
+				.flat()
+				.concat(completedCards)
+				.find((c) => c.pane.id === pendingPaneId) ??
+			questionCard(pendingPaneId);
 		if (card) {
 			openDrawer(card);
 			clearPendingFocus();

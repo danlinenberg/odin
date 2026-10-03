@@ -20,6 +20,12 @@ import { usePendingFocus } from "./usePendingFocus";
  */
 const WARM_TAG = "warm";
 
+/**
+ * Marks an asked question. Like the spare it has no title, so it's no card —
+ * a question isn't a task. The board opens its drawer by this tag instead.
+ */
+export const QUESTION_TAG = "question";
+
 /** Long enough for a fresh spare to reach the daemon's session list. */
 const SPAWN_GRACE_MS = 30_000;
 
@@ -43,8 +49,8 @@ export const useQuickQuestionDialog = create<{
 /**
  * Quick question: a Claude that's already up and sitting at its prompt, so a
  * question costs no boot. One spare runs hidden (no title, so it's no card);
- * asking turns it into a board card, types the question in and opens its
- * drawer, and a fresh spare starts behind it.
+ * asking types the question in and opens its drawer — still no card — and a
+ * fresh spare starts behind it. Only the latest question is kept.
  *
  * Mount once — the layout does. Returns `ask`.
  */
@@ -192,10 +198,12 @@ export function useQuickQuestion() {
 		}
 		const text = [question, ...paths].filter(Boolean).join("\n");
 
-		// Claim it: a title makes it a card, on the profile you're on now.
+		// The previous question's answer has been read — end it.
+		for (const old of Object.values(store.panes))
+			if (old.odinTags?.includes(QUESTION_TAG)) store.removePane(old.id);
+
+		// Claim it — no odinTaskTitle, so it stays off the board.
 		const title = sessionTitle(question, "Quick question");
-		const { activeId: odinProfile } =
-			await utils.client.connections.profiles.query();
 		store.setTabAutoTitle(pane.tabId, title);
 		store.setPaneAutoTitle(pane.id, title);
 		store.setPaneStatus(pane.id, "working");
@@ -204,10 +212,8 @@ export function useQuickQuestion() {
 				...state.panes,
 				[pane.id]: {
 					...state.panes[pane.id],
-					odinTaskTitle: title,
 					odinBrief: text,
-					odinProfile,
-					odinTags: undefined,
+					odinTags: [QUESTION_TAG],
 				},
 			},
 		}));
