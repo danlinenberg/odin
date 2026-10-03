@@ -603,8 +603,9 @@ export function SessionBrief({
 							<div className="text-[12px] text-danger">{error.message}</div>
 						) : written ? (
 							<>
-								{/* Yours to do first, then where it stands — what you open a
-								    card to find out. The goal is the title's job. */}
+								{/* What it's for, then yours to do, then where it stands. A
+								    four-word title can't carry the goal on its own. */}
+								{written.goal && <Section label="Goal">{written.goal}</Section>}
 								{todo.length > 0 ? (
 									<Section label="Your action items">
 										<ol className="list-decimal space-y-0.5 whitespace-normal pl-4">
