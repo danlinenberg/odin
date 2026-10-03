@@ -29,6 +29,7 @@ import {
 	machineLoad,
 } from "shared/machine-load";
 import { FEED_TABS } from "./components/feed-counts";
+import { GettingStarted } from "./components/GettingStarted";
 import { OdinPromptDialog } from "./components/OdinPromptDialog";
 import { BUTTON, PILL } from "./components/pill";
 import { type UpstreamDue, useDueReminders } from "./components/Reminders";
@@ -370,7 +371,7 @@ function OdinShell() {
 	// Write a task down from wherever you are — a chord too, so it reaches you
 	// inside a session's terminal, which is where most of them occur to you.
 	const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
-	useHotkey("ODIN_NEW_TASK", () => setIsQuickAddOpen(true));
+	const newTaskKeys = useHotkey("ODIN_NEW_TASK", () => setIsQuickAddOpen(true));
 	const askQuestion = useQuickQuestion();
 	const isQuestionOpen = useQuickQuestionDialog((s) => s.isOpen);
 	const setQuestionOpen = useQuickQuestionDialog((s) => s.setOpen);
@@ -576,6 +577,10 @@ function OdinShell() {
 					<div className="h-full">
 						<Outlet />
 					</div>
+					<GettingStarted
+						onAddTask={() => setIsQuickAddOpen(true)}
+						newTaskKeys={newTaskKeys.text}
+					/>
 				</div>
 			</div>
 
