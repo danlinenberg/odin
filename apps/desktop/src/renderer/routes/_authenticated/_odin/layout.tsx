@@ -261,10 +261,6 @@ function OdinShell() {
 			...boardCountsByProfile.get(profile.id),
 		}))
 		.filter((profile) => profile.needsYou > 0 || profile.working > 0);
-	// Switch to the one that's waiting on you first; working can wait.
-	const otherProfileToOpen =
-		otherProfilesBusy.find((profile) => profile.needsYou > 0) ??
-		otherProfilesBusy[0];
 
 	// Sync every feed (Slack, Jira, PRs, Notion) as soon as the app
 	// opens — the
@@ -475,26 +471,28 @@ function OdinShell() {
 					</ZoomStable>
 				)}
 				{/* The option labels only show once the menu is open; this is what
-				    the closed picker says. Amber when something there is waiting on
-				    you, quiet when it's only working. Click jumps to that profile. */}
-				{otherProfileToOpen && (
-					<ZoomStable enabled={isMac}>
+				    the closed picker says. One pill per busy profile — sharing one
+				    pill ran "Private · 1 needs you test · 1 needs you" together.
+				    Amber when something there is waiting on you, quiet when it's
+				    only working. Click jumps to that profile. */}
+				{otherProfilesBusy.map((profile) => (
+					<ZoomStable key={profile.id} enabled={isMac}>
 						<button
 							type="button"
 							disabled={isSwitchingProfile}
-							onClick={() => switchProfile(otherProfileToOpen.id)}
-							title={`Switch to ${otherProfileToOpen.name}`}
+							onClick={() => switchProfile(profile.id)}
+							title={`Switch to ${profile.name}`}
 							className={cn(
-								"ml-1.5 rounded-full px-2 py-[2px] text-[10px] font-bold tabular-nums disabled:opacity-50",
-								otherProfilesBusy.some((p) => p.needsYou > 0)
+								"ml-1.5 rounded-full px-2 py-[2px] text-[11px] font-semibold tabular-nums disabled:opacity-50",
+								profile.needsYou > 0
 									? PILL.attention
 									: "bg-secondary text-muted-foreground",
 							)}
 						>
-							{otherProfilesBusy.map((p) => profileLabel(p.name, p)).join("  ")}
+							{profileLabel(profile.name, profile)}
 						</button>
 					</ZoomStable>
-				)}
+				))}
 				<div className="h-full min-w-0 flex-1 [-webkit-app-region:drag]" />
 				<ZoomStable enabled={isMac}>
 					<div className="flex items-center gap-1.5">
