@@ -3202,10 +3202,10 @@ function DevBoardPage() {
 						sections[0]?.[0] === "queued";
 					const isDropTarget = column.status === "idle";
 					// Needs you and Done are the two columns you clear: walk either one
-					// card at a time.
+					// card at a time — once there are more than five, fewer you just scan.
 					const canCatchUp =
 						(column.status === "permission" || column.status === "review") &&
-						cards.length > 0;
+						cards.length > 5;
 					return (
 						// biome-ignore lint/a11y/noStaticElementInteractions: drop zone — drag is the mouse-only shortcut for parking a card in Idle
 						<div
