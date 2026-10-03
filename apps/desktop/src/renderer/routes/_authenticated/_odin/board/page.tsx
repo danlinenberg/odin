@@ -349,7 +349,7 @@ function withCode(
  * Catch up's card: what's yours to do, where it stands, what the issue was
  * and what we did, and the PRs, tickets and threads it's about — nothing else.
  * The conversation and the brief panel are one click away, not on screen:
- * catching up is deciding Keep or Done, not reading.
+ * catching up is deciding Next or Done, not reading.
  */
 function CatchUpCard({
 	card,
@@ -3606,7 +3606,7 @@ function DevBoardPage() {
 						onClick={() => setDrawerCard(null)}
 					/>
 					{/* Catch up (Slack mobile's): the drawer becomes the top card of a
-					    stack, with how many are left above it and Keep / Done below. */}
+					    stack, with how many are left above it and Next / Done below. */}
 					{inCatchUp && catchUp && (
 						<>
 							<div className="absolute left-1/2 top-3 z-50 flex w-[min(760px,calc(100%-32px))] -translate-x-1/2 items-center justify-center">
@@ -3635,7 +3635,7 @@ function DevBoardPage() {
 										BUTTON.secondary,
 									)}
 								>
-									Keep
+									Next
 								</button>
 								<button
 									type="button"
@@ -3734,7 +3734,7 @@ function DevBoardPage() {
 										⑂ Diff
 									</button>
 								)}
-								{/* Not in Catch up (nor Diff): you're deciding Keep or Done. */}
+								{/* Not in Catch up (nor Diff): you're deciding Next or Done. */}
 								{drawerCard.pane.type === "terminal" && !inCatchUp && (
 									// One control: the shell, and — once it's open — where it is.
 									<div className="flex shrink-0 items-stretch">
