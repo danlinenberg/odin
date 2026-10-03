@@ -30,7 +30,7 @@ import {
 	effectiveDue,
 	useReminders,
 } from "../components/Reminders";
-import { useBacklogReview } from "../hooks/useBacklogReview";
+import { useReview } from "../hooks/useBacklogReview";
 import { useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useMyTasks } from "../hooks/useOdinTasks";
@@ -148,7 +148,7 @@ function useNextInLineRows() {
 	const prompt = useNextInLinePrompt((s) => s.prompt);
 	// The Review sweep's verdicts go to the model too, so instructions like
 	// "DROPs last" have something to go on.
-	const swept = useBacklogReview((s) => s.swept);
+	const swept = useReview((review) => review.swept);
 	const rows = useMemo(
 		() =>
 			allItems({
@@ -308,7 +308,7 @@ export function NextInLine() {
 		markDone({ ...item, title: cleanTitle(item.title) });
 	// The Review sweep's DROPs, so a row it wants gone says so here too. By key,
 	// or by link for PRs, which Next in line keys by id and the sweep by repo#n.
-	const swept = useBacklogReview((s) => s.swept);
+	const swept = useReview((review) => review.swept);
 	const dropFor = useMemo(() => {
 		const drops = swept.filter((row) => row.verdict === "DROP");
 		const byKey = new Map(drops.map((row) => [row.key, row]));
