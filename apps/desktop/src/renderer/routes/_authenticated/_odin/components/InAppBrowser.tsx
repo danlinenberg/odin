@@ -10,6 +10,7 @@ import {
 } from "react-icons/hi2";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useInAppBrowser } from "renderer/stores/in-app-browser";
+import { IN_APP_BROWSER_PARTITION } from "shared/constants";
 import { BUTTON } from "./pill";
 
 const CHROME_MAJOR = navigator.userAgent.match(/Chrome\/(\d+)/)?.[1];
@@ -135,7 +136,11 @@ export function InAppBrowser() {
 				<webview
 					ref={view}
 					src={url}
-					partition="persist:odin-web"
+					partition={IN_APP_BROWSER_PARTITION}
+					// No passkeys: Electron can't show the Touch ID prompt, so a site
+					// asking for one (Google does) waits forever. Without WebAuthn it
+					// offers your phone or password instead.
+					disableblinkfeatures="WebAuth"
 					useragent={USER_AGENT}
 					// Only read as present or absent; React drops a boolean `true` on
 					// an attribute it doesn't know, so it has to be a string.
