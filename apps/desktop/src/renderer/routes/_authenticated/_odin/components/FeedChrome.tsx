@@ -111,7 +111,9 @@ export function FeedSelect({
 export function useSearchHotkey() {
 	const ref = useRef<HTMLInputElement>(null);
 	const { text } = useHotkey("ODIN_BOARD_SEARCH", () => ref.current?.focus(), {
-		enableOnFormTags: false,
+		// A dropdown you just picked a filter in keeps focus, and `/` means
+		// nothing to it — so it still searches. Text fields keep their `/`.
+		enableOnFormTags: ["select"],
 		enableOnContentEditable: false,
 	});
 	return { ref, hint: text ? ` (${text})` : "" };
