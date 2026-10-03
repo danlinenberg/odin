@@ -39,7 +39,7 @@ export interface MachineLoadInput {
  * One number, not two: the agents' CPU is part of the Mac's, so a separate
  * agent limit could only ever trip while the Mac still had room.
  *
- * ponytail: the default — Settings → Board overrides it. 85 let launches land
+ * ponytail: the default — Settings → Sessions overrides it. 85 let launches land
  * on a Mac that was already suffocating; 50 held them on one that was fine.
  */
 export const BUSY_HOST_CPU_PERCENT = 70;
@@ -48,12 +48,12 @@ export const BUSY_HOST_CPU_PERCENT = 70;
  * Free memory (free + reclaimable) below which the next launch waits.
  *
  * CPU alone misses a Mac that's out of memory: it swaps, and crawls while the
- * CPU looks idle. ponytail: the default — Settings → Board overrides it. 2 GB
+ * CPU looks idle. ponytail: the default — Settings → Sessions overrides it. 2 GB
  * is one session mid-build.
  */
 export const MIN_FREE_MEMORY_GB = 2;
 
-/** What a launch waits on, as Settings → Board has it. */
+/** What a launch waits on, as Settings → Sessions has it. */
 export interface LaunchLimits {
 	hostCpuPercent: number;
 	minFreeMemoryGb: number;
@@ -66,7 +66,7 @@ export interface LaunchLimits {
 export const DEFAULT_LAUNCH_LIMITS: LaunchLimits = {
 	hostCpuPercent: BUSY_HOST_CPU_PERCENT,
 	minFreeMemoryGb: MIN_FREE_MEMORY_GB,
-	// ponytail: the default — Settings → Board overrides it. CPU and memory
+	// ponytail: the default — Settings → Sessions overrides it. CPU and memory
 	// miss a board of agents that are mostly waiting on the network.
 	maxWorkingAgents: 5,
 	oneSessionPerCheckout: true,

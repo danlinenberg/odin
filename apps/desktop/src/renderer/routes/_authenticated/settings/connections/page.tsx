@@ -27,6 +27,11 @@ import {
 	useSetSlackReaction,
 } from "../../_odin/hooks/useOdinFeeds";
 import { resetOdinFeeds } from "../../_odin/hooks/useOdinProfile";
+import {
+	SettingsPage,
+	SettingsSection,
+	StatusDot,
+} from "../components/SettingsPage";
 
 export const Route = createFileRoute("/_authenticated/settings/connections/")({
 	component: ConnectionsSettings,
@@ -97,26 +102,27 @@ function ConnectionsSettings() {
 	});
 
 	return (
-		<div className="p-6 max-w-4xl w-full">
-			<div className="mb-8">
-				<h2 className="text-xl font-semibold">Connections</h2>
-				<p className="text-sm text-muted-foreground mt-1">
-					Accounts Odin reads your work from. You sign in to each one; the
-					credentials are stored on this machine and never leave it.
-				</p>
-			</div>
+		<SettingsPage
+			title="Connections"
+			description="The accounts Odin reads your work from. You sign in to each one; the credentials stay on this Mac and never leave it."
+		>
+			<SettingsSection
+				title="Profiles"
+				description="Each profile has its own accounts — and its own board sessions, Slack queue and tasks. Only the active one shows anywhere in Odin."
+			>
+				<Profiles onSwitched={() => void status.refetch()} />
+			</SettingsSection>
 
-			<Profiles onSwitched={() => void status.refetch()} />
-
-			<DefaultRepo />
-
-			<div className="space-y-1">
+			<SettingsSection
+				title="Accounts"
+				description="Signed in for the active profile."
+			>
 				{ORDER.map((provider) => {
 					const row = status.data?.find((s) => s.provider === provider);
 					const meta = META[provider];
 					const isOpen = openRow === provider;
 					return (
-						<div key={provider} className="border-b last:border-b-0 py-3">
+						<div key={provider} className="px-4 py-3.5">
 							<div className="flex items-center justify-between gap-8">
 								<div className="flex items-center gap-3 min-w-0">
 									<div className="flex size-8 shrink-0 items-center justify-center">
@@ -183,9 +189,12 @@ function ConnectionsSettings() {
 						</div>
 					);
 				})}
+			</SettingsSection>
+
+			<SettingsSection title="Backup">
 				<BackupRow />
-			</div>
-		</div>
+			</SettingsSection>
+		</SettingsPage>
 	);
 }
 
@@ -212,16 +221,16 @@ function BackupRow() {
 				timeStyle: "short",
 			})} · ${data.days} ${data.days === 1 ? "day" : "days"} kept`;
 	return (
-		<div className="border-b last:border-b-0 py-3">
+		<div className="px-4 py-3.5">
 			<div className="flex items-center justify-between gap-8">
 				<div className="flex items-center gap-3 min-w-0">
 					<div className="flex size-8 shrink-0 items-center justify-center">
 						<LuCloudUpload className="size-5" />
 					</div>
 					<div className="min-w-0">
-						<div className="text-sm font-medium">Backup</div>
+						<div className="text-sm font-medium">iCloud Drive</div>
 						<div className="text-xs text-muted-foreground mt-0.5 truncate">
-							Your board, briefs and scrollback, copied to iCloud Drive daily.
+							Your board, briefs and scrollback, copied daily.
 						</div>
 						<div className="text-xs text-muted-foreground mt-1 max-w-[52ch]">
 							{data?.available === false
@@ -310,72 +319,6 @@ function SlackReactions() {
 }
 
 /**
- * The checkout a session starts in when nothing else names one — the board's
- * new-task input, "Start session", anything without a repo picked.
- *
- * It sits on this screen because Connections is Odin's settings home (the
- * other sections configure a workspace UI Odin doesn't use). Unlike the rows
- * below it isn't an account, so it's machine-wide rather than per-profile.
- */
-function DefaultRepo() {
-	const utils = electronTrpc.useUtils();
-	const { data: path, isLoading } = electronTrpc.repos.getDefault.useQuery();
-	const selectDirectory = electronTrpc.window.selectDirectory.useMutation();
-	const setDefault = electronTrpc.repos.setDefault.useMutation({
-		onSuccess: () => void utils.repos.getDefault.invalidate(),
-		onError: (error) => toast.error(error.message),
-	});
-	const busy = isLoading || selectDirectory.isPending || setDefault.isPending;
-
-	const browse = async () => {
-		const result = await selectDirectory.mutateAsync({
-			title: "Select default repo",
-			defaultPath: path ?? undefined,
-		});
-		if (!result.canceled && result.path) {
-			setDefault.mutate({ path: result.path });
-		}
-	};
-
-	return (
-		<div className="mb-8 overflow-hidden rounded-lg border">
-			<div className="border-b px-4 py-3">
-				<div className="text-sm font-medium">Default repo</div>
-				<p className="mt-1 text-xs text-muted-foreground">
-					Where a session starts when no repo is picked. Unset falls back to the
-					workspace you opened last.
-				</p>
-			</div>
-			<div className="flex items-center gap-2 px-4 py-2">
-				<code className="min-w-0 flex-1 select-text truncate rounded bg-muted px-2 py-1 text-xs">
-					{path ?? "Not set"}
-				</code>
-				<Button
-					variant="outline"
-					size="sm"
-					className="h-8"
-					disabled={busy}
-					onClick={browse}
-				>
-					Browse…
-				</Button>
-				{path && (
-					<Button
-						variant="ghost"
-						size="sm"
-						className="h-8"
-						disabled={busy}
-						onClick={() => setDefault.mutate({ path: null })}
-					>
-						Clear
-					</Button>
-				)}
-			</div>
-		</div>
-	);
-}
-
-/**
  * Profiles — one set of accounts each, and the work that belongs to them.
  *
  * It sits above the provider rows because it decides what they're describing:
@@ -422,16 +365,7 @@ function Profiles({ onSwitched }: { onSwitched: () => void }) {
 	const pending = rows.find((profile) => profile.id === confirmDelete);
 
 	return (
-		<div className="mb-8 overflow-hidden rounded-lg border">
-			<div className="border-b px-4 py-3">
-				<div className="text-sm font-medium">Profiles</div>
-				<p className="mt-1 text-xs text-muted-foreground">
-					Each profile has its own Slack, Jira, GitHub and Notion — and its own
-					board sessions, Slack queue and tasks. Only the active one is shown
-					anywhere in Odin.
-				</p>
-			</div>
-
+		<>
 			<div className="divide-y">
 				{rows.map((profile) => (
 					<div
@@ -496,7 +430,7 @@ function Profiles({ onSwitched }: { onSwitched: () => void }) {
 				))}
 			</div>
 
-			<div className="flex items-center gap-2 border-t bg-muted/20 px-4 py-2">
+			<div className="flex items-center gap-2 bg-muted/20 px-4 py-2">
 				<Input
 					value={newName}
 					placeholder="New profile name"
@@ -559,44 +493,6 @@ function Profiles({ onSwitched }: { onSwitched: () => void }) {
 					</AlertDialogFooter>
 				</EnterEnabledAlertDialogContent>
 			</AlertDialog>
-		</div>
-	);
-}
-
-function StatusDot({
-	loading,
-	configured,
-	identity,
-	error,
-}: {
-	loading: boolean;
-	configured: boolean;
-	identity: string | null;
-	error: string | null;
-}) {
-	if (loading)
-		return <span className="text-xs text-muted-foreground">checking…</span>;
-	const color = !configured
-		? "bg-muted-foreground/30"
-		: error
-			? "bg-danger"
-			: "bg-success";
-	const label = !configured
-		? "Not connected"
-		: error
-			? `Failed: ${error}`
-			: (identity ?? "Connected");
-	return (
-		<div className="flex items-center gap-1.5">
-			<span className={cn("size-2 rounded-full", color)} />
-			<span
-				className={cn(
-					"select-text cursor-text text-xs",
-					error ? "text-danger" : "text-muted-foreground",
-				)}
-			>
-				{label}
-			</span>
-		</div>
+		</>
 	);
 }

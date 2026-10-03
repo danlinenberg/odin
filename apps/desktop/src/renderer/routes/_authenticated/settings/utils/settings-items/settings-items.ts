@@ -21,13 +21,6 @@ export const SETTING_ITEM_ID = {
 	BEHAVIOR_RESOURCE_MONITOR: "behavior-resource-monitor",
 	BEHAVIOR_OPEN_LINKS_IN_APP: "behavior-open-links-in-app",
 
-	BOARD_AUTO_RENAME_SESSIONS: "board-auto-rename-sessions",
-	LAUNCH_LIMITS: "launch-limits",
-	NEXT_IN_LINE_ORDER: "next-in-line-order",
-	NIGHT_AGENT: "night-agent",
-	REMINDERS_NOTIFY_AT: "reminders-notify-at",
-	REVIEW_SWEEP_INTERVAL: "review-sweep-interval",
-
 	GIT_BRANCH_PREFIX: "git-branch-prefix",
 	GIT_DELETE_LOCAL_BRANCH: "git-delete-local-branch",
 	GIT_WORKTREE_LOCATION: "git-worktree-location",
@@ -109,13 +102,6 @@ export const SETTING_ITEM_VARIANT: Record<SettingItemId, SettingVariant> = {
 	[SETTING_ITEM_ID.BEHAVIOR_FILE_OPEN_MODE]: "v1",
 	[SETTING_ITEM_ID.BEHAVIOR_RESOURCE_MONITOR]: "shared",
 	[SETTING_ITEM_ID.BEHAVIOR_OPEN_LINKS_IN_APP]: "v1",
-
-	[SETTING_ITEM_ID.BOARD_AUTO_RENAME_SESSIONS]: "shared",
-	[SETTING_ITEM_ID.LAUNCH_LIMITS]: "shared",
-	[SETTING_ITEM_ID.NEXT_IN_LINE_ORDER]: "shared",
-	[SETTING_ITEM_ID.REMINDERS_NOTIFY_AT]: "shared",
-	[SETTING_ITEM_ID.NIGHT_AGENT]: "shared",
-	[SETTING_ITEM_ID.REVIEW_SWEEP_INTERVAL]: "shared",
 
 	// Branch prefix exists in both UIs — v1 `GitSettings`, v2 `V2GitSettings`.
 	[SETTING_ITEM_ID.GIT_BRANCH_PREFIX]: "shared",
@@ -199,13 +185,6 @@ export const SETTINGS_ITEMS: SettingsItem[] = [
 
 	{ id: SETTING_ITEM_ID.BEHAVIOR_OPEN_LINKS_IN_APP, section: "behavior" },
 
-	{ id: SETTING_ITEM_ID.BOARD_AUTO_RENAME_SESSIONS, section: "board" },
-	{ id: SETTING_ITEM_ID.LAUNCH_LIMITS, section: "launch-limits" },
-	{ id: SETTING_ITEM_ID.NEXT_IN_LINE_ORDER, section: "next-in-line" },
-	{ id: SETTING_ITEM_ID.NIGHT_AGENT, section: "night-agent" },
-	{ id: SETTING_ITEM_ID.REMINDERS_NOTIFY_AT, section: "reminders" },
-	{ id: SETTING_ITEM_ID.REVIEW_SWEEP_INTERVAL, section: "review" },
-
 	{ id: SETTING_ITEM_ID.AGENTS_ENABLED, section: "agents" },
 	{ id: SETTING_ITEM_ID.AGENTS_COMMANDS, section: "agents" },
 	{ id: SETTING_ITEM_ID.AGENTS_TASK_PROMPTS, section: "agents" },
@@ -253,33 +232,20 @@ export const SETTINGS_ITEMS: SettingsItem[] = [
 ];
 
 /**
- * The settings sections Odin shows. The rest configure a workspace UI Odin
- * doesn't use (git, agents, terminal, links, models) — Odin's own behaviour
- * lives on the board, not in a settings panel. `connections` is Odin's own:
- * the credentials its feeds run on.
+ * The inherited sections whose items still render. Odin's own screens
+ * (Sessions, Backlog, …) aren't in this registry at all: the settings sidebar
+ * is a fixed list of them, and their rows don't go through item visibility.
+ * Everything else configures a workspace UI Odin doesn't use (git, agents,
+ * terminal, links, models), so its items are filtered out here.
  *
  * An allowlist rather than a hide-list so anything inherited later stays out
- * until it's deliberately let in. Enforced at the variant gate below, which
- * the sidebar and the per-section item lists both already run through, so
- * one check covers every surface.
- *
- * Hidden sections keep their routes: they are still reachable by direct
- * navigation (the workspace-init toast links to /settings/models). Sections
- * whose routes are gone are gone from here too.
+ * until it's deliberately let in. Hidden sections keep their routes: they are
+ * still reachable by direct navigation (the workspace-init toast links to
+ * /settings/models), and render empty.
  */
 const VISIBLE_SECTIONS = new Set<SettingsSection>([
 	"keyboard",
 	"connections",
-	// The board is Odin's, so how it names and runs its cards belongs here —
-	// the inherited "General" page it would otherwise land on is hidden.
-	"board",
-	"launch-limits",
-	"next-in-line",
-	"night-agent",
-	"reminders",
-	"review",
-	// Agent-complete banners are Odin's own, so their sound and their macOS
-	// banner settings belong here (the section route is named `ringtones`).
 	"ringtones",
 ]);
 
@@ -308,19 +274,4 @@ export function getVisibleItemsForSection(params: {
 		(item) =>
 			item.section === section && isItemAllowedForVariant(item.id, isV2),
 	).map((item) => item.id);
-}
-
-/**
- * Sections that contain at least one item allowed for the active variant.
- * Sections with no allowed items (e.g. `git` in v2, `links` in v1) should
- * be hidden from the sidebar entirely.
- */
-export function getAllowedSectionsForVariant(
-	isV2: boolean,
-): Set<SettingsSection> {
-	const sections = new Set<SettingsSection>();
-	for (const item of SETTINGS_ITEMS) {
-		if (isItemAllowedForVariant(item.id, isV2)) sections.add(item.section);
-	}
-	return sections;
 }

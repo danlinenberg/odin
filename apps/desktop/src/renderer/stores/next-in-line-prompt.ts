@@ -33,7 +33,7 @@ export function inOffHours(now: Date, start: string, end: string): boolean {
 }
 
 /**
- * Settings → Board's "how to sort Next in line": your own words, handed to the
+ * Settings → Backlog's "how to sort it": your own words, handed to the
  * model with every ranking. Empty = the model judges importance by itself.
  *
  * Renderer storage, same reason as launch-limits: the only reader is the

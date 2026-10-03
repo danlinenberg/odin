@@ -297,7 +297,7 @@ export const createBacklogReviewRouter = () => {
 							review: z.string().nullable(),
 						}),
 					),
-					/** Settings → Board: how you want them sorted, in your words. */
+					/** Settings → Backlog: how you want them sorted, in your words. */
 					instructions: z.string().max(4000).optional(),
 					/** Skip the cache: the Apply button always means a new run. */
 					fresh: z.boolean().optional(),

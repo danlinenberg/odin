@@ -1,26 +1,18 @@
 import { Button } from "@odin/ui/button";
-import { Label } from "@odin/ui/label";
+import { Input } from "@odin/ui/input";
 import { Switch } from "@odin/ui/switch";
 import { useCallback } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
+import { useReminders } from "../../../../_odin/components/Reminders";
 import {
-	isItemVisible,
-	SETTING_ITEM_ID,
-	type SettingItemId,
-} from "../../../utils/settings-items";
+	SettingRow,
+	SettingsPage,
+	SettingsSection,
+} from "../../../components/SettingsPage";
 import { VolumeDropdown } from "./components/VolumeDropdown";
 
-interface RingtonesSettingsProps {
-	visibleItems?: SettingItemId[] | null;
-}
-
-export function RingtonesSettings({ visibleItems }: RingtonesSettingsProps) {
-	const showNotification = isItemVisible(
-		SETTING_ITEM_ID.RINGTONES_NOTIFICATION,
-		visibleItems,
-	);
-
+export function RingtonesSettings() {
 	const utils = electronTrpc.useUtils();
 	const { data: isMutedData, isLoading: isMutedLoading } =
 		electronTrpc.settings.getNotificationSoundsMuted.useQuery();
@@ -45,10 +37,6 @@ export function RingtonesSettings({ visibleItems }: RingtonesSettingsProps) {
 		},
 	);
 
-	const handleMutedToggle = (enabled: boolean) => {
-		setMuted.mutate({ muted: !enabled });
-	};
-
 	const handleOpenSystemSettings = useCallback(() => {
 		electronTrpcClient.notifications.openSystemSettings.mutate().catch(() => {
 			// Nothing to recover: the pane either opened or the platform has none.
@@ -56,63 +44,67 @@ export function RingtonesSettings({ visibleItems }: RingtonesSettingsProps) {
 	}, []);
 
 	return (
-		<div className="p-6 max-w-4xl w-full">
-			<div className="mb-8">
-				<h2 className="text-xl font-semibold">Notifications</h2>
-				<p className="text-sm text-muted-foreground mt-1">
-					Banners and sounds for completed tasks
-				</p>
-			</div>
-
-			<div className="space-y-6">
+		<SettingsPage
+			title="Notifications"
+			description="How Odin gets your attention: when a session finishes, and when a reminder or due date comes up."
+		>
+			<SettingsSection
+				title="When a session finishes"
+				description="A banner and a sound each time an agent session completes."
+			>
 				{/* Banners live in macOS: it keys the banner style, the icon and the
 				    app name to the Odin bundle, so there is nothing to toggle here. */}
-				{showNotification && (
-					<div className="flex items-center justify-between">
-						<div className="space-y-0.5">
-							<Label className="text-sm font-medium">Desktop banners</Label>
-							<p className="text-xs text-muted-foreground">
-								macOS decides whether banners appear and shows them under Odin's
-								icon and name
-							</p>
-						</div>
-						<Button
-							type="button"
-							size="sm"
-							variant="outline"
-							onClick={handleOpenSystemSettings}
-						>
-							Open System Settings
-						</Button>
-					</div>
-				)}
+				<SettingRow
+					label="Desktop banners"
+					description="macOS decides whether banners appear, and shows them under Odin's icon and name."
+				>
+					<Button
+						type="button"
+						size="sm"
+						variant="outline"
+						onClick={handleOpenSystemSettings}
+					>
+						Open System Settings
+					</Button>
+				</SettingRow>
+				<SettingRow label="Sound" htmlFor="notification-sounds">
+					<Switch
+						id="notification-sounds"
+						checked={!isMuted}
+						onCheckedChange={(enabled) => setMuted.mutate({ muted: !enabled })}
+						disabled={isMutedLoading || setMuted.isPending}
+					/>
+				</SettingRow>
+				{!isMuted && <VolumeDropdown />}
+			</SettingsSection>
 
-				{/* Sound Toggle */}
-				{showNotification && (
-					<div className="flex items-center justify-between">
-						<div className="space-y-0.5">
-							<Label
-								htmlFor="notification-sounds"
-								className="text-sm font-medium"
-							>
-								Notification sounds
-							</Label>
-							<p className="text-xs text-muted-foreground">
-								Play a sound when tasks complete
-							</p>
-						</div>
-						<Switch
-							id="notification-sounds"
-							checked={!isMuted}
-							onCheckedChange={handleMutedToggle}
-							disabled={isMutedLoading || setMuted.isPending}
-						/>
-					</div>
-				)}
+			<SettingsSection title="Reminders">
+				<NotifyAtRow />
+			</SettingsSection>
+		</SettingsPage>
+	);
+}
 
-				{/* Volume Dropdown */}
-				{showNotification && !isMuted && <VolumeDropdown />}
-			</div>
-		</div>
+/** When the day's reminder and due-date banner goes out. Next minute tick. */
+function NotifyAtRow() {
+	const notifyAt = useReminders((s) => s.notifyAt);
+	const setNotifyAt = useReminders((s) => s.setNotifyAt);
+	return (
+		<SettingRow
+			label="Notify at"
+			htmlFor="reminder-notify-at"
+			description={`When "Remind me" sessions and due dates notify, on their day. All of a day's reminders arrive as one notification. The board shows them from midnight.`}
+		>
+			<Input
+				id="reminder-notify-at"
+				type="time"
+				defaultValue={notifyAt}
+				className="w-28 tabular-nums"
+				style={{ colorScheme: "dark" }}
+				onChange={(event) => {
+					if (event.target.value) setNotifyAt(event.target.value);
+				}}
+			/>
+		</SettingRow>
 	);
 }

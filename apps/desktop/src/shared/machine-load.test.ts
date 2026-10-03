@@ -63,7 +63,7 @@ describe("machineLoad", () => {
 		).toBe(false);
 	});
 
-	it("holds at the limit Settings → Board sets, not the default", () => {
+	it("holds at the limit Settings → Sessions sets, not the default", () => {
 		const limits = {
 			hostCpuPercent: 40,
 			minFreeMemoryGb: 2,

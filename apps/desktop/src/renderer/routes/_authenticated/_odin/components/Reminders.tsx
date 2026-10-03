@@ -31,7 +31,7 @@ export const useReminders = create<{
 	reminders: Record<string, Reminder>;
 	/** The day each key last pinged — a due date nags once a day, not every minute. */
 	notified: Record<string, string>;
-	/** Local `HH:MM` the day's pings wait for — Settings → Board → Reminders. */
+	/** Local `HH:MM` the day's pings wait for — Settings → Notifications. */
 	notifyAt: string;
 	setNotifyAt: (notifyAt: string) => void;
 	setDue: (key: string, due: string, title: string) => void;

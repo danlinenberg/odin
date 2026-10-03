@@ -51,7 +51,7 @@ export function useOdinWorkspace() {
 		const repoPath = repoOverride ?? defaultRepo;
 		if (!repoPath) {
 			return fallback(
-				"No workspace and no default repo — set one in Settings → Connections.",
+				"No workspace and no default repo — set one in Settings → Sessions.",
 			);
 		}
 		// ponytail: unconditional — openFromPath upserts the project and its main

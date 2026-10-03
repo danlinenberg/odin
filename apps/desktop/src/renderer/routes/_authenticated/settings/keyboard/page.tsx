@@ -21,6 +21,7 @@ import {
 	useHotkeyOverridesStore,
 	useRecordHotkeys,
 } from "renderer/hotkeys";
+import { SettingsPage, SettingsSection } from "../components/SettingsPage";
 
 /**
  * Every screen this shell can open, and nothing else — the upstream
@@ -158,21 +159,20 @@ function KeyboardShortcutsPage() {
 	const conflictDisplay = useFormatBinding(pendingConflict?.binding ?? null);
 
 	return (
-		<div className="p-6 max-w-4xl w-full">
-			{/* Header */}
-			<div className="mb-6 flex items-start justify-between gap-4">
-				<div>
-					<h2 className="text-xl font-semibold">Keyboard shortcuts</h2>
-					<p className="text-sm text-muted-foreground mt-1">
-						Customize keyboard shortcuts for your workflow. Press{" "}
-						<KbdGroup>
-							{showHotkeysKeys.map((key) => (
-								<Kbd key={key}>{key}</Kbd>
-							))}
-						</KbdGroup>{" "}
-						to open this page anytime.
-					</p>
-				</div>
+		<SettingsPage
+			title="Keyboard"
+			description={
+				<>
+					Shortcuts for every screen. Click one to record a new key. Press{" "}
+					<KbdGroup>
+						{showHotkeysKeys.map((key) => (
+							<Kbd key={key}>{key}</Kbd>
+						))}
+					</KbdGroup>{" "}
+					to open this page anytime.
+				</>
+			}
+			action={
 				<Button
 					variant="outline"
 					size="sm"
@@ -183,10 +183,10 @@ function KeyboardShortcutsPage() {
 				>
 					Reset all
 				</Button>
-			</div>
-
+			}
+		>
 			{/* One row per tab in the rail */}
-			<div className="rounded-lg border border-border overflow-hidden divide-y divide-border">
+			<SettingsSection title="Shortcuts">
 				{LISTED_HOTKEYS.map((id) => (
 					<HotkeyRow
 						key={id}
@@ -201,7 +201,7 @@ function KeyboardShortcutsPage() {
 						}}
 					/>
 				))}
-			</div>
+			</SettingsSection>
 
 			{/* Conflict dialog */}
 			<AlertDialog
@@ -244,6 +244,6 @@ function KeyboardShortcutsPage() {
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
-		</div>
+		</SettingsPage>
 	);
 }

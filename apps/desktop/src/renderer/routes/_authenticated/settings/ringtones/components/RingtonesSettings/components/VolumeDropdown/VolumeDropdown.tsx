@@ -1,4 +1,3 @@
-import { Label } from "@odin/ui/label";
 import {
 	Select,
 	SelectContent,
@@ -8,6 +7,7 @@ import {
 } from "@odin/ui/select";
 import { useCallback } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { SettingRow } from "../../../../../components/SettingsPage";
 
 const VOLUME_LEVELS = [
 	{ value: 20, label: "Quiet" },
@@ -57,38 +57,33 @@ export function VolumeDropdown() {
 	);
 
 	return (
-		<div>
-			<div className="flex items-center justify-between gap-4">
-				<Label htmlFor="notification-volume" className="text-sm font-medium">
-					Volume
-				</Label>
-				<Select
-					value={volume.toString()}
-					onValueChange={handleVolumeChange}
-					disabled={volumeLoading}
-				>
-					<SelectTrigger id="notification-volume" className="w-[200px]">
-						<SelectValue>
-							<span className="flex items-center gap-2">
-								<span className="font-medium">{getVolumeLabel(volume)}</span>
-								<span className="text-muted-foreground">({volume}%)</span>
-							</span>
-						</SelectValue>
-					</SelectTrigger>
-					<SelectContent>
-						{VOLUME_LEVELS.map((level) => (
-							<SelectItem key={level.value} value={level.value.toString()}>
-								<div className="flex items-center gap-2">
-									<span className="font-medium">{level.label}</span>
-									<span className="text-muted-foreground text-xs">
-										({level.value}%)
-									</span>
-								</div>
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-			</div>
-		</div>
+		<SettingRow label="Volume" htmlFor="notification-volume">
+			<Select
+				value={volume.toString()}
+				onValueChange={handleVolumeChange}
+				disabled={volumeLoading}
+			>
+				<SelectTrigger id="notification-volume" className="w-[200px]">
+					<SelectValue>
+						<span className="flex items-center gap-2">
+							<span className="font-medium">{getVolumeLabel(volume)}</span>
+							<span className="text-muted-foreground">({volume}%)</span>
+						</span>
+					</SelectValue>
+				</SelectTrigger>
+				<SelectContent>
+					{VOLUME_LEVELS.map((level) => (
+						<SelectItem key={level.value} value={level.value.toString()}>
+							<div className="flex items-center gap-2">
+								<span className="font-medium">{level.label}</span>
+								<span className="text-muted-foreground text-xs">
+									({level.value}%)
+								</span>
+							</div>
+						</SelectItem>
+					))}
+				</SelectContent>
+			</Select>
+		</SettingRow>
 	);
 }
