@@ -1,9 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import {
-	getAllowedSectionsForVariant,
-	getVisibleItemsForSection,
-	SETTING_ITEM_ID,
-} from "./settings-items";
+import { getVisibleItemsForSection, SETTING_ITEM_ID } from "./settings-items";
 
 describe("variant gating", () => {
 	it("keeps shared items in both variants", () => {
@@ -24,17 +20,9 @@ describe("variant gating", () => {
 		);
 	});
 
-	it("only allows sections on the visible allowlist", () => {
-		expect([...getAllowedSectionsForVariant(false)].sort()).toEqual([
-			"board",
-			"connections",
-			"keyboard",
-			"launch-limits",
-			"next-in-line",
-			"night-agent",
-			"reminders",
-			"review",
-			"ringtones",
-		]);
+	it("drops sections off the visible allowlist", () => {
+		expect(
+			getVisibleItemsForSection({ section: "behavior", isV2: false }),
+		).toEqual([]);
 	});
 });

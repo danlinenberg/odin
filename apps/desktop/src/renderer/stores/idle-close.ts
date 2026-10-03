@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 /**
- * Settings → Cards: how long a session sits idle before the board closes it.
+ * Settings → Sessions: how long a session sits idle before the board closes it.
  * 0 = never. Renderer localStorage for the same reason as launch-limits: the
  * board's sweep is the only reader.
  */

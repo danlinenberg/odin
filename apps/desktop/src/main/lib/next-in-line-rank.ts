@@ -103,7 +103,7 @@ export async function rankTasks(
 ): Promise<Ranking> {
 	const keys = items.map((item) => item.key);
 	if (items.length < 2) return { keys: [], hidden: [] };
-	// Your own words from Settings → Board, when you've written any. Part of
+	// Your own words from Settings → Backlog, when you've written any. Part of
 	// the cache key, so editing them re-ranks.
 	const how = instructions.trim()
 		? `\n\nHow I want them sorted, in my words:\n${instructions.trim()}`

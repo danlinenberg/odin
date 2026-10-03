@@ -13,12 +13,6 @@ export type SettingsSection =
 	| "models"
 	| "experimental"
 	| "connections"
-	| "board"
-	| "launch-limits"
-	| "next-in-line"
-	| "night-agent"
-	| "reminders"
-	| "review"
 	| "permissions"
 	| "project";
 

@@ -7,7 +7,7 @@ interface LaunchLimitsState extends LaunchLimits {
 }
 
 /**
- * Settings → Launch limits: the launch gate's CPU, memory, session-count and
+ * Settings → Sessions: the launch gate's CPU, memory, session-count and
  * one-per-checkout limits.
  *
  * ponytail: renderer localStorage, not a settings procedure — every reader

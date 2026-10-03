@@ -1769,7 +1769,7 @@ function DevBoardPage() {
 			!!createdAt && Date.now() - Date.parse(createdAt) > RECENT_RESTART_MS
 		);
 	};
-	// Close sessions that have sat idle past Settings → Cards' timeout: an open Claude holds
+	// Close sessions that have sat idle past Settings → Sessions' idle timeout: an open Claude holds
 	// memory and a checkout for a conversation Resume can reopen any time. The
 	// card stays in its column (odinClosedIn) — closing it answered nothing.
 	// A session whose shell is still running something (a dev server) is in use.

@@ -227,7 +227,7 @@ export function useSweepBacklog(): () => Promise<boolean> {
  * The sweep on a clock. Mounted in the shell, like the automation runner: a
  * schedule that only runs while Review is open isn't one. Checks once a
  * minute and sweeps when the active profile's last answers are older than the
- * interval set in Settings → Board, so a relaunch after lunch sweeps straight
+ * interval set in Settings → Backlog, so a relaunch after lunch sweeps straight
  * away, a reload doesn't sweep twice, and a profile you've just switched to is
  * swept on its own clock. A new interval applies on the next tick.
  */
