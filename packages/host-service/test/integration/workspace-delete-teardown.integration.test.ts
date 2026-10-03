@@ -22,6 +22,9 @@ import {
 	type FeatureWorktreeScenario,
 } from "../helpers/scenarios";
 
+// The preload's private home; deleting it would fall back to the real ~/.odin.
+const odinHomeDir = process.env.ODIN_HOME_DIR;
+
 /**
  * Regression coverage for #6174: the external delete surface (CLI/SDK/MCP →
  * `workspace.delete`) hardcodes `force: true` for its non-interactive git
@@ -39,7 +42,7 @@ describe("workspace delete teardown integration", () => {
 		resetTerminalBaseEnvForTests();
 		__setAccountShellForTesting(undefined);
 		delete process.env.ODIN_PTY_DAEMON_SOCKET;
-		delete process.env.ODIN_HOME_DIR;
+		process.env.ODIN_HOME_DIR = odinHomeDir;
 		if (server) {
 			await server.close().catch(() => {});
 			server = null;

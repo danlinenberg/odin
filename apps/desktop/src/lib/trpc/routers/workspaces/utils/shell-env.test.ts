@@ -1,12 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import {
-	existsSync,
-	mkdtempSync,
-	realpathSync,
-	rmSync,
-	writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir, userInfo } from "node:os";
 import { join } from "node:path";
 import {
 	applyShellEnvToProcess,
@@ -82,10 +76,10 @@ describe("shell env cache", () => {
 		const { clearShellEnvCache, getShellEnvironment } = await import(
 			"./shell-env"
 		);
-		const zshPath = ["/bin/zsh", "/usr/bin/zsh"].find((candidate) =>
-			existsSync(candidate),
-		);
-		if (!zshPath) {
+		// shell-env spawns the account's login shell (os.userInfo, not $SHELL),
+		// so a .zshrc only counts on a zsh account — a CI runner's is bash.
+		const zshPath = userInfo().shell;
+		if (!zshPath?.endsWith("/zsh")) {
 			return;
 		}
 
@@ -131,10 +125,10 @@ describe("shell env cache", () => {
 	test("an expired cache is served stale, then refreshed in the background", async () => {
 		const { clearShellEnvCache, expireShellEnvCache, getShellEnvironment } =
 			await import("./shell-env");
-		const zshPath = ["/bin/zsh", "/usr/bin/zsh"].find((candidate) =>
-			existsSync(candidate),
-		);
-		if (!zshPath) {
+		// shell-env spawns the account's login shell (os.userInfo, not $SHELL),
+		// so a .zshrc only counts on a zsh account — a CI runner's is bash.
+		const zshPath = userInfo().shell;
+		if (!zshPath?.endsWith("/zsh")) {
 			return;
 		}
 

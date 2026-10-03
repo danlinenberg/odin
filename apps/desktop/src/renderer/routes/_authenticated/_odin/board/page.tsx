@@ -259,6 +259,7 @@ const MIN_DRAWER_W = 480;
 
 // Built via string escapes — ANSI sequences are control chars by definition
 const ANSI_RE =
+	// biome-ignore lint/suspicious/noControlCharactersInRegex: matching them is the point
 	/\x1b\[[0-9;?<>]*[a-zA-Z]|\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b[()][A-Z0-9]|\x1b[=>]|[\x00-\x08\x0b-\x1f]/g;
 /**
  * Read-only history for a dead pane (killed or previous-run), without
@@ -295,6 +296,7 @@ function ScrollbackView({ card, live }: { card: BoardCard; live: boolean }) {
 	);
 	const ref = useRef<HTMLDivElement>(null);
 	const text = (data?.scrollback ?? "").replace(ANSI_RE, "");
+	// biome-ignore lint/correctness/useExhaustiveDependencies: new text is the trigger to pin the view to the bottom
 	useEffect(() => {
 		if (ref.current) ref.current.scrollTop = ref.current.scrollHeight;
 	}, [text]);
@@ -1505,6 +1507,7 @@ function DevBoardPage() {
 	// gated refit can miss), clipping the bottom of the screen — where Claude
 	// renders its pickers. Nudge it: refit, sync the PTY size (SIGWINCH makes
 	// Claude repaint at the new size), and pin the view to the bottom.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: isBriefOpen is a trigger — the brief resizes the terminal
 	useEffect(() => {
 		if (!drawerCard || drawerCard.pane.type !== "terminal") return;
 		const paneId = drawerCard.pane.id;
@@ -2399,6 +2402,7 @@ function DevBoardPage() {
 				.join(","),
 		[cardsByStatus],
 	);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: warmBriefs is a new object each render — the id list is the real trigger
 	useEffect(() => {
 		if (!briefSessionIds) return;
 		const entries = briefSessionIds.split(",");
@@ -2422,7 +2426,6 @@ function DevBoardPage() {
 		// after its brief is written, and a cache hit costs main one stat.
 		const timer = setInterval(warm, 60_000);
 		return () => clearInterval(timer);
-		// warmBriefs is a new object each render — the id list is the real trigger.
 	}, [briefSessionIds, autoRename]);
 
 	/** A quick question is no card, but its answer still opens in the drawer. */
@@ -2444,6 +2447,7 @@ function DevBoardPage() {
 	// A session just launched from the Tasks view → open its drawer here.
 	const pendingPaneId = usePendingFocus((s) => s.paneId);
 	const clearPendingFocus = usePendingFocus((s) => s.clear);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: openDrawer and questionCard are new each render; the pending pane and the cards are the trigger
 	useEffect(() => {
 		if (!pendingPaneId) return;
 		const card =

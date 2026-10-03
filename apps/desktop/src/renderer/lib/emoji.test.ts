@@ -1,11 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { emojify } from "./emoji";
 
 describe("emojify", () => {
 	it("replaces known shortcodes, back to back", () => {
-		expect(emojify("can you help? :point_up::pray:")).toBe(
-			"can you help? ☝️🙏",
-		);
+		expect(emojify("can you help? :point_up::pray:")).toBe("can you help? ☝️🙏");
 	});
 
 	it("leaves unknown shortcodes and clock times alone", () => {

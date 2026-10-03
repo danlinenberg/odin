@@ -14,6 +14,8 @@ const TEST_HOME = path.join(
 	`pty-daemon-manifest-test-${process.pid}`,
 );
 const TEST_ORG = "org-manifest-test";
+// The preload's private home; clearing it would fall back to the real ~/.odin.
+const odinHomeDir = process.env.ODIN_HOME_DIR;
 
 beforeEach(() => {
 	process.env.ODIN_HOME_DIR = TEST_HOME;
@@ -23,7 +25,7 @@ beforeEach(() => {
 afterEach(() => {
 	removePtyDaemonManifest(TEST_ORG);
 	fs.rmSync(TEST_HOME, { recursive: true, force: true });
-	process.env.ODIN_HOME_DIR = undefined;
+	process.env.ODIN_HOME_DIR = odinHomeDir;
 });
 
 function baseManifest(): PtyDaemonManifest {

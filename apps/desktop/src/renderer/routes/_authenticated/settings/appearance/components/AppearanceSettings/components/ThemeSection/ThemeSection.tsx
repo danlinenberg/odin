@@ -1,4 +1,3 @@
-import { COMPANY } from "@odin/shared/constants";
 import { Button } from "@odin/ui/button";
 import {
 	Select,
@@ -12,11 +11,7 @@ import {
 } from "@odin/ui/select";
 import { toast } from "@odin/ui/sonner";
 import { type ChangeEvent, useRef, useState } from "react";
-import {
-	HiOutlineArrowDownTray,
-	HiOutlineArrowTopRightOnSquare,
-	HiOutlineArrowUpTray,
-} from "react-icons/hi2";
+import { HiOutlineArrowDownTray, HiOutlineArrowUpTray } from "react-icons/hi2";
 import { ThemeSwatch } from "renderer/components/ThemeSwatch";
 import {
 	SYSTEM_THEME_ID,
@@ -281,15 +276,7 @@ export function ThemeSection() {
 		<div className="rounded-lg border border-border overflow-hidden divide-y divide-border">
 			<ThemeRow
 				label="Theme"
-				hint={
-					<>
-						Pick a theme or follow your system appearance. Browse the{" "}
-						{" "}
-						or{" "}
-						
-						.
-					</>
-				}
+				hint={"Pick a theme or follow your system appearance."}
 				value={activeThemeId}
 				onValueChange={setTheme}
 				currentTheme={currentTheme}

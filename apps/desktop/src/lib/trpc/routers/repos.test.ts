@@ -157,6 +157,7 @@ test("wrapLine breaks under the code column and keeps the colour on", () => {
 	const green = "\x1b[48;2;17;48;27m";
 	const line = ` 12 │${green}${"x".repeat(20)}\x1b[0m`;
 	const lines = wrapLine(line, 15).split("\n");
+	// biome-ignore lint/suspicious/noControlCharactersInRegex: strips the colour codes
 	const plain = lines.map((l) => l.replace(/\x1b\[[0-9;]*m/g, ""));
 	expect(plain).toEqual([` 12 │${"x".repeat(10)}`, `     ${"x".repeat(10)}`]);
 	// The continuation re-opens the background it was cut inside.

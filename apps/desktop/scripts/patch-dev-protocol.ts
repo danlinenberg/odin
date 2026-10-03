@@ -192,8 +192,7 @@ const LOCAL_SIGNING_KEYCHAIN_PASSWORD = "odin-signing";
  * a checked-in dev .icns once did.
  */
 export function writeBundleIcon(appPath: string): void {
-	const iconsetDir =
-		mkdtempSync(join(tmpdir(), "odin-icon-")) + "/icon.iconset";
+	const iconsetDir = `${mkdtempSync(join(tmpdir(), "odin-icon-"))}/icon.iconset`;
 	mkdirSync(iconsetDir);
 	const variants: [number, string][] = [
 		[16, "icon_16x16"],

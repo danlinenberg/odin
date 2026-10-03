@@ -21,10 +21,8 @@ mock.module("../../../desktop", () => ({
 	generateTitleFromMessage: generateTitleFromMessageMock,
 }));
 
-const {
-	restartRuntimeFromUserMessage,
-	subscribeToSessionEvents,
-} = await import("./runtime");
+const { restartRuntimeFromUserMessage, subscribeToSessionEvents } =
+	await import("./runtime");
 
 function createRuntimeForTest(): {
 	runtime: RuntimeSession;
@@ -68,11 +66,6 @@ function createRuntimeForTest(): {
 			listener(event);
 		},
 	};
-}
-
-interface RuntimeTestMessage {
-	role: string;
-	content: Array<{ type: string; text?: string }>;
 }
 
 describe("runtime error propagation", () => {

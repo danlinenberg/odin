@@ -25,7 +25,7 @@ report_violation() {
 	#   exit 2: actual rg error (unreadable file, bad regex, etc.) → fail loudly
 	local output
 	local rg_err
-	output=$(rg -n -U --pcre2 "$pattern" "$@" 2>/tmp/rg_stderr.$$) && rc=0 || rc=$?
+	output=$(rg -n -U --pcre2 "$pattern" "$@" . 2>/tmp/rg_stderr.$$) && rc=0 || rc=$?
 	rg_err=$(cat /tmp/rg_stderr.$$ 2>/dev/null || true)
 	rm -f /tmp/rg_stderr.$$
 	case "$rc" in

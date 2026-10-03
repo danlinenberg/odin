@@ -1,9 +1,5 @@
-import { describe, expect, mock, test } from "bun:test";
-
-mock.module("electron", () => ({ Notification: class {} }));
-const { findOffenders, KILL_BYTES, WARN_BYTES } = await import(
-	"./memory-guard"
-);
+import { describe, expect, test } from "bun:test";
+import { findOffenders, KILL_BYTES, WARN_BYTES } from "./memory-guard";
 
 describe("findOffenders", () => {
 	const snapshot = {

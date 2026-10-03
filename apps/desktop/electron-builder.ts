@@ -37,7 +37,9 @@ const config: Configuration = {
 		// directory.
 		const entries = await readdir("dist", { recursive: true });
 		const maps = entries.filter((entry) => entry.endsWith(".map"));
-		await Promise.all(maps.map((file) => rm(join("dist", file), { force: true })));
+		await Promise.all(
+			maps.map((file) => rm(join("dist", file), { force: true })),
+		);
 		console.log(`beforePack: removed ${maps.length} source maps from dist`);
 	},
 
