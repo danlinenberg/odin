@@ -471,10 +471,16 @@ export const createTerminalRouter = () => {
 		 * at once; the queue drains one session at a time.
 		 */
 		warmClaudeSessionBriefs: publicProcedure
-			.input(z.object({ sessionIds: z.array(z.string()).max(100) }))
+			.input(
+				z.object({
+					sessionIds: z.array(z.string()).max(500),
+					/** The ones that stopped working — written now, unthrottled. */
+					settled: z.array(z.string()).max(500).optional(),
+				}),
+			)
 			.mutation(async ({ input }) => {
 				const { warmBriefs } = await import("main/lib/claude-sessions");
-				return warmBriefs(input.sessionIds);
+				return warmBriefs(input.sessionIds, {}, input.settled);
 			}),
 
 		killAllDaemonSessions: publicProcedure.mutation(async () => {
