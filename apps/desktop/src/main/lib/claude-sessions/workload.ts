@@ -460,6 +460,10 @@ export interface WeekRow {
 	agentHours: number;
 	yourHours: number;
 	sessions: number;
+	/** Tasks — sessions — whose first PR opened this week. */
+	shipped: number;
+	/** Days with any of your time in them. */
+	daysWorked: number;
 }
 
 export interface TaskRow {
@@ -762,12 +766,12 @@ export function computeWorkload(
 	const firstWeek = weekStart(now) - (weeks - 1) * 7 * DAY_MS;
 	const buckets = new Map<
 		number,
-		{ agentMs: number; yours: Interval[]; sessions: number }
+		{ agentMs: number; yours: Interval[]; sessions: number; shipped: number }
 	>();
 	for (let index = 0; index < weeks; index++) {
 		// Rebuilt from a date each step so DST can't drift the boundary.
 		const start = weekStart(firstWeek + index * 7 * DAY_MS + DAY_MS / 2);
-		buckets.set(start, { agentMs: 0, yours: [], sessions: 0 });
+		buckets.set(start, { agentMs: 0, yours: [], sessions: 0, shipped: 0 });
 	}
 	const pieces = all.flatMap(byWeek);
 	for (const session of pieces) {
@@ -776,6 +780,14 @@ export function computeWorkload(
 		bucket.agentMs += agentMs(session);
 		bucket.sessions += 1;
 		bucket.yours.push(...yourSpans(session));
+	}
+	// A task ships the week its first PR opens, and counts once however many
+	// PRs it took: a tweak redone three times is one tweak, not three.
+	for (const session of all) {
+		if (session.prs.length === 0) continue;
+		const at = Math.min(...session.prAt.map((at) => at ?? session.startedAt));
+		const bucket = buckets.get(weekStart(at));
+		if (bucket) bucket.shipped += 1;
 	}
 
 	const days = byDay(merged);
@@ -819,6 +831,8 @@ export function computeWorkload(
 				agentHours: hours(bucket.agentMs),
 				yourHours: hours(totalMs(mergeIntervals(bucket.yours))),
 				sessions: bucket.sessions,
+				shipped: bucket.shipped,
+				daysWorked: byDay(mergeIntervals(bucket.yours)).size,
 			})),
 		recap: recap(pieces),
 		byRepo: tallyHours(all, (session) => session.repo, top).map(

@@ -208,6 +208,35 @@ describe("computeWorkload", () => {
 		expect(out.weeks.at(-1)?.start).toBe(weekStart(MON));
 	});
 
+	test("a task ships once, in the week of its first PR, over the days you worked", () => {
+		const nextWeek = MON + 7 * 86_400_000;
+		const out = computeWorkload(
+			[
+				// Three PRs for one fix, the first this week: one task shipped.
+				session({
+					sessionId: "redone",
+					prs: ["a", "b", "c"],
+					prAt: [MON, null, nextWeek],
+					yours: [[MON, MON + 10 * MINUTE]],
+				}),
+				session({
+					sessionId: "tuesday",
+					prs: ["d"],
+					prAt: [MON + 86_400_000],
+					yours: [[MON + 86_400_000, MON + 86_400_000 + MINUTE]],
+				}),
+				session({ sessionId: "unshipped", yours: [[MON, MON + MINUTE]] }),
+			],
+			{ now: nextWeek, weeks: 2 },
+		);
+		expect(
+			out.weeks.map(({ shipped, daysWorked }) => [shipped, daysWorked]),
+		).toEqual([
+			[2, 2],
+			[0, 0],
+		]);
+	});
+
 	test("weeks before the record starts are dropped, not drawn as zero", () => {
 		// Six weeks were asked for; only one has any transcript behind it, and
 		// five empty columns would read as five quiet weeks that never happened.
