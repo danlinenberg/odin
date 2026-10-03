@@ -396,6 +396,19 @@ describe("warmBriefs", () => {
 		expect(runCount()).toBe(1);
 	});
 
+	test("a session that just stopped gets its final brief now, not in five minutes", async () => {
+		const { session, root, bin, transcript, cachePath, runCount } = fixture();
+		await writeBrief({ sessionId: session, claudeBin: bin, root, cachePath });
+		// Its last turn landed seconds after the brief — a busy session's
+		// throttle would serve the mid-work brief for five more minutes.
+		const later = new Date(Date.now() + 1_000);
+		utimesSync(transcript, later, later);
+		await warmBriefs([session], { claudeBin: bin, root, cachePath }, [session]);
+		for (let i = 0; i < 60 && runCount() < 2; i++)
+			await new Promise((r) => setTimeout(r, 50));
+		expect(runCount()).toBe(2);
+	});
+
 	test("a session with no transcript doesn't stall the queue", async () => {
 		const { session, root, bin, cachePath, runCount } = fixture();
 		warmBriefs(["cccc3333-0000-0000-0000-000000000000", session], {

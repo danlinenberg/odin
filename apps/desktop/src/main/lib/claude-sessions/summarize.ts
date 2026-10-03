@@ -265,6 +265,7 @@ export async function writeBrief({
 	root,
 	cachePath = defaultCachePath(),
 	now = Date.now(),
+	settled = false,
 }: {
 	sessionId: string;
 	claudeBin?: string;
@@ -272,6 +273,9 @@ export async function writeBrief({
 	root?: string;
 	cachePath?: string;
 	now?: number;
+	/** The session stopped working, so the throttle that spares a busy one
+	 *  would only hold back its final brief. */
+	settled?: boolean;
 }): Promise<WrittenBrief & { cached: boolean; writtenAt: number }> {
 	const file = await transcriptOf(sessionId, root);
 	if (!file) throw new Error("No transcript on this machine for that session");
@@ -284,7 +288,7 @@ export async function writeBrief({
 			// A brief with no title was written too early to say anything (a launch
 			// with only an image); don't make the card wait five minutes for another.
 			// ponytail: a live session haiku keeps leaving untitled re-runs per warm.
-			(!!hit.brief.title && now - hit.writtenAt < REFRESH_AFTER_MS))
+			(!settled && !!hit.brief.title && now - hit.writtenAt < REFRESH_AFTER_MS))
 	) {
 		return { ...hit.brief, cached: true, writtenAt: hit.writtenAt };
 	}
@@ -381,6 +385,8 @@ let pumping = false;
 export async function warmBriefs(
 	sessionIds: string[],
 	options: WarmOptions = {},
+	/** Sessions that stopped working — written now, not five minutes on. */
+	settled: string[] = [],
 ): Promise<{
 	queued: number;
 	tags: Record<string, string[]>;
@@ -388,9 +394,20 @@ export async function warmBriefs(
 }> {
 	let queued = 0;
 	for (const id of sessionIds) {
-		if (!id || warming.has(id)) continue;
+		if (!id) continue;
+		const stopped = settled.includes(id);
+		if (warming.has(id)) {
+			// It stopped while waiting its turn — don't let the queued write throttle.
+			const waiting = queue.find((entry) => entry.sessionId === id);
+			if (waiting && stopped)
+				waiting.options = { ...waiting.options, settled: true };
+			continue;
+		}
 		warming.add(id);
-		queue.push({ sessionId: id, options });
+		queue.push({
+			sessionId: id,
+			options: stopped ? { ...options, settled: true } : options,
+		});
 		queued++;
 	}
 	void pump();

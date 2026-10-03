@@ -2380,14 +2380,19 @@ function DevBoardPage() {
 		electronTrpc.terminal.warmClaudeSessionBriefs.useMutation();
 	const { data: autoRename } =
 		electronTrpc.settings.getOdinAutoRenameSessions.useQuery();
+	// Each id carries whether its card stopped working, so a session finishing
+	// re-fires the warm at once and its final brief is ready before you open
+	// Catch up — not on the next tick, and not throttled as if still busy.
 	const briefSessionIds = useMemo(
 		() =>
-			[...cardsByStatus.values()]
-				.flat()
-				.map(
-					(card) =>
-						card.pane.claudeSessionId ??
-						usePaneMeta.getState().sessionIdByPane[card.pane.id],
+			[...cardsByStatus]
+				.flatMap(([status, cards]) =>
+					cards.map((card) => {
+						const id =
+							card.pane.claudeSessionId ??
+							usePaneMeta.getState().sessionIdByPane[card.pane.id];
+						return id && (status === "working" ? id : `${id}:settled`);
+					}),
 				)
 				.filter((id): id is string => !!id)
 				.sort()
@@ -2396,10 +2401,14 @@ function DevBoardPage() {
 	);
 	useEffect(() => {
 		if (!briefSessionIds) return;
-		const sessionIds = briefSessionIds.split(",");
+		const entries = briefSessionIds.split(",");
+		const sessionIds = entries.map((entry) => entry.split(":")[0]);
+		const settled = entries
+			.filter((entry) => entry.endsWith(":settled"))
+			.map((entry) => entry.split(":")[0]);
 		const warm = () =>
 			warmBriefs.mutate(
-				{ sessionIds },
+				{ sessionIds, settled },
 				{
 					onSuccess: (r) => {
 						applyAutoTags(r.tags);
