@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { type ReactNode, useMemo, useRef, useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 
 import { matchRepos, repoLabel } from "./repo-picker";
@@ -83,7 +83,7 @@ export function OdinPromptDialog({
 }: {
 	heading?: string;
 	/** A line under the heading, when the dialog needs to say why it opened. */
-	note?: string;
+	note?: ReactNode;
 	placeholder?: string;
 	/**
 	 * Start the prompt from this text instead of empty — a dead card's brief,
