@@ -3226,7 +3226,12 @@ function DevBoardPage() {
 										}}
 										// Solid, with a play icon: the dim pill read as a tag beside
 										// the count, not as something to press. Wears the column's hue.
-										className="ml-auto flex items-center gap-1 rounded-md bg-gradient-to-b from-[color-mix(in_oklab,var(--col)_70%,black)] to-(--col) px-2.5 py-1 text-[11px] font-semibold normal-case tracking-normal text-background shadow-[0_2px_10px_-3px_color-mix(in_oklab,var(--col)_75%,transparent)] hover:brightness-110"
+										className={cn(
+											"ml-auto flex items-center gap-1 rounded-md bg-gradient-to-b to-(--col) px-2.5 py-1 text-[11px] font-semibold normal-case tracking-normal text-background shadow-[0_2px_10px_-3px_color-mix(in_oklab,var(--col)_75%,transparent)] hover:brightness-110",
+											column.status === "review"
+												? "from-success-ink"
+												: "from-attention-ink",
+										)}
 									>
 										<LuPlay className="size-2.5 fill-current" />
 										Catch up
