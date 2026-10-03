@@ -28,6 +28,10 @@ jobs:
         with:
           bun-version-file: .bun-version
 
+      # Odin reads the account's login shell (os.userInfo, not $SHELL), which
+      # is zsh on every Mac since Catalina; the runner account ships with bash.
+      - run: sudo chsh -s /bin/zsh "$USER"
+
       # Tests make throwaway repos and commit into them.
       - run: |
           git config --global user.name "Odin CI"
