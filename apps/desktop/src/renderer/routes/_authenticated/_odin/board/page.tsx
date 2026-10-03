@@ -88,7 +88,7 @@ import { PersonChip, personColor } from "../components/PersonChip";
 import { BUTTON, PILL } from "../components/pill";
 import { DueChip, OverdueMark } from "../components/Reminders";
 import { TranscriptView } from "../components/TranscriptView";
-import { useBacklogReview } from "../hooks/useBacklogReview";
+import { useBacklogReview, useReview } from "../hooks/useBacklogReview";
 import { endSession } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useOdinProfile } from "../hooks/useOdinProfile";
@@ -509,9 +509,9 @@ function useCardTranscript(card: BoardCard, live: boolean) {
  * task map if a renamed task card ever misses its verdict.
  */
 function useDropFor(pane: Pane | undefined) {
-	return useBacklogReview((state) =>
+	return useReview((review) =>
 		pane && !pane.odinTags?.includes("auto-started")
-			? state.swept.find(
+			? review.swept.find(
 					(r) =>
 						r.verdict === "DROP" &&
 						sessionFor(r, [pane], new Map()) === pane.id,
@@ -3157,7 +3157,10 @@ function DevBoardPage() {
 					starred={!!panes[tagMenu.paneId]?.odinStarred}
 					onKeep={
 						tagMenuDrop
-							? () => useBacklogReview.getState().keep(tagMenuDrop.key)
+							? () =>
+									useBacklogReview
+										.getState()
+										.keep(activeProfileId, tagMenuDrop.key)
 							: undefined
 					}
 					onStar={() =>

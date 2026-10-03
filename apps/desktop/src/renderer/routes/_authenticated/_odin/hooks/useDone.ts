@@ -5,6 +5,7 @@ import { type DoneRow, useDoneStore } from "renderer/stores/done";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import { useReminders } from "../components/Reminders";
 import { useBacklogReview } from "./useBacklogReview";
+import { useOdinProfile } from "./useOdinProfile";
 import { usePaneMeta } from "./usePaneMeta";
 
 /** What Done needs off a row: its All-feed key, and enough to list it later. */
@@ -34,6 +35,7 @@ export function endSession(paneId: string) {
 export function useDone() {
 	const done = useDoneStore((s) => s.done);
 	const setDone = useDoneStore((s) => s.setDone);
+	const { activeId } = useOdinProfile();
 	const slackDone = electronTrpc.slack.setDone.useMutation();
 	const utils = electronTrpc.useUtils();
 	// By key, or by link for PRs, which the feeds key by id and the sweep by
@@ -60,7 +62,7 @@ export function useDone() {
 				{ onSettled: () => void utils.slack.reactions.invalidate() },
 			);
 		// A Review drop undone goes back among the rows still to decide.
-		if (!on) useBacklogReview.getState().unnoteDropped(item.key);
+		if (!on) useBacklogReview.getState().unnoteDropped(activeId, item.key);
 	};
 
 	return {

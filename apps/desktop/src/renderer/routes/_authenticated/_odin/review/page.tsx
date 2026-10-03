@@ -20,6 +20,7 @@ import { useBacklog } from "../hooks/builtin-automations";
 import {
 	type DroppedRow,
 	useBacklogReview,
+	useReview,
 	useSweepBacklog,
 } from "../hooks/useBacklogReview";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
@@ -30,6 +31,7 @@ import {
 	foldRepeats,
 	type ReviewRow,
 	reviewRows,
+	type SweptRow,
 	sessionFor,
 } from "./verdicts";
 
@@ -127,16 +129,14 @@ function fromDate(at: number): string {
 
 function ReviewPage() {
 	const backlog = useBacklog();
-	const {
-		swept,
-		sweptAt,
-		sweeping,
-		dropped,
-		noteDropped,
-		unnoteDropped,
-		keep,
-		kept,
-	} = useBacklogReview();
+	const { swept, sweptAt, dropped, kept } = useReview((review) => review);
+	const sweeping = useBacklogReview((s) => s.sweeping);
+	// Decisions land in the profile you're looking at.
+	const { activeId, isLoading: profileLoading } = useOdinProfile();
+	const store = useBacklogReview.getState();
+	const noteDropped = (row: SweptRow) => store.noteDropped(activeId, row);
+	const unnoteDropped = (key: string) => store.unnoteDropped(activeId, key);
+	const keep = (key: string) => store.keep(activeId, key);
 	const sweepBacklog = useSweepBacklog();
 	const { remove, todos } = useMyTasks();
 	const panes = useTabsStore((state) => state.panes);
@@ -166,7 +166,6 @@ function ReviewPage() {
 
 	// A feed that hasn't answered since the reload isn't a backlog that emptied.
 	const { reactions, jira, pulls, notion } = useOdinFeeds();
-	const { isLoading: profileLoading } = useOdinProfile();
 	const loadingKey = [
 		profileLoading && "task",
 		!reactions.data && "slack",
