@@ -104,16 +104,16 @@ export function FeedSelect({
 }
 
 /**
- * The search shortcut (`/` by default) for whichever screen is mounted: focuses
+ * The search shortcut (⌘F by default) for whichever screen is mounted: focuses
  * the box behind `ref`, and `hint` is the key to show in its placeholder. Only
  * one screen's search box is mounted at a time, so one hotkey id serves all.
  */
 export function useSearchHotkey() {
 	const ref = useRef<HTMLInputElement>(null);
 	const { text } = useHotkey("ODIN_BOARD_SEARCH", () => ref.current?.focus(), {
-		// A dropdown you just picked a filter in keeps focus, and `/` means
-		// nothing to it — so it still searches. Text fields keep their `/`.
-		enableOnFormTags: ["select"],
+		// From another field or a filter dropdown too — but not a textarea,
+		// which is xterm's input, where ⌘F is the terminal's own find.
+		enableOnFormTags: ["input", "select"],
 		enableOnContentEditable: false,
 	});
 	return { ref, hint: text ? ` (${text})` : "" };
