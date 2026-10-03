@@ -1,5 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { BoardSettingsPage, LaunchLimitRow } from "../board/rows";
+import {
+	BoardSettingsPage,
+	LaunchLimitRow,
+	OneSessionPerCheckoutRow,
+} from "../board/rows";
 
 export const Route = createFileRoute("/_authenticated/settings/launch-limits/")(
 	{
@@ -43,6 +47,7 @@ function LaunchLimitsSettingsPage() {
 				step={1}
 				unit="sessions"
 			/>
+			<OneSessionPerCheckoutRow />
 		</BoardSettingsPage>
 	);
 }

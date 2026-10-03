@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { claimedCheckout, launchBlocker, sessionInFlight } from "./launch-gate";
-import type { MachineLoadInput } from "./machine-load";
+import { DEFAULT_LAUNCH_LIMITS, type MachineLoadInput } from "./machine-load";
 import type { Pane } from "./tabs-types";
 
 const ODIN = "/Users/dan/dev/odin";
@@ -77,6 +77,18 @@ describe("launchBlocker", () => {
 			'waiting for "x" to finish in the repo checkout',
 		);
 		expect(launchBlocker(snapshot(10), held, "/tmp/other", ODIN)).toBeNull();
+	});
+
+	it("lets agents share a checkout when one-per-checkout is off", () => {
+		const held = [
+			pane({ id: "a", status: "working", odinCwd: "/tmp/repo", name: "x" }),
+		];
+		expect(
+			launchBlocker(snapshot(10), held, "/tmp/repo", ODIN, {
+				...DEFAULT_LAUNCH_LIMITS,
+				oneSessionPerCheckout: false,
+			}),
+		).toBeNull();
 	});
 
 	it("lets a queued Odin task through once the one ahead finishes", () => {

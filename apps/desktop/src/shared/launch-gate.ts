@@ -118,6 +118,7 @@ export function launchBlocker(
 	).length;
 	if (cap > 0 && working >= cap)
 		return `${working} sessions are already working (limit ${cap})`;
+	if (limits?.oneSessionPerCheckout === false) return null;
 	const held = sessionInFlight(panes, cwd, odinRepoPath);
 	return held
 		? `waiting for "${held.title}" to finish in ${checkoutName(cwd, odinRepoPath)}`
