@@ -1275,7 +1275,7 @@ function TagMenu({
 					className="mb-1.5 flex w-full items-center gap-2 rounded-md border-b border-border px-1.5 pb-2 pt-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-success"
 				>
 					<span className="w-3 text-success">✓</span>
-					Next
+					Keep
 				</button>
 			)}
 			<div className="mb-1.5 px-1 text-[10px] font-semibold uppercase tracking-[.4px] text-muted-foreground">
