@@ -30,6 +30,7 @@ describe("pullRequestState", () => {
 			isDraft: false,
 			approved: true,
 			pending: [],
+			awaiting: [],
 			failed: [],
 			passed: 0,
 		});
@@ -55,9 +56,36 @@ describe("pullRequestState", () => {
 			isDraft: true,
 			approved: false,
 			pending: ["Cursor Bugbot", "ci/circleci"],
+			awaiting: [],
 			failed: ["pytest"],
 			passed: 1,
 		});
+	});
+
+	test("a Terrateam apply waiting for its comment is awaiting, not running", async () => {
+		const exec: GhExec = async () => ({
+			stdout: JSON.stringify({
+				state: "OPEN",
+				statusCheckRollup: [
+					{
+						context: "terrateam plan: workspaces/prod/s3 default",
+						state: "SUCCESS",
+					},
+					{ context: "terrateam apply", state: "PENDING" },
+					{
+						context: "terrateam apply: workspaces/prod/s3 default",
+						state: "PENDING",
+					},
+				],
+			}),
+		});
+		const status = await pullRequestState(URL, exec);
+		expect(status?.pending).toEqual([]);
+		expect(status?.awaiting).toEqual([
+			"terrateam apply",
+			"terrateam apply: workspaces/prod/s3 default",
+		]);
+		expect(status?.passed).toBe(1);
 	});
 
 	test("falls through the logged-in accounts until one can see the repo", async () => {

@@ -18,6 +18,12 @@ export interface PullRequestStatus {
 	approved: boolean;
 	/** Checks still running, by name — "Cursor Bugbot" is the one you're waiting on. */
 	pending: string[];
+	/**
+	 * Checks that only move when a person acts, by name. A Terrateam apply sits at
+	 * PENDING from the moment its plan lands until someone comments `terrateam
+	 * apply`, so counting it as running reads as stuck CI.
+	 */
+	awaiting: string[];
 	/** Checks that failed, by name. */
 	failed: string[];
 	/** Checks that came back green. Skipped ones aren't counted either way. */
@@ -48,6 +54,8 @@ interface RollupEntry {
 	state?: string;
 }
 
+const MANUAL_GATE = /^terrateam apply\b/;
+
 const FAILED = new Set([
 	"FAILURE",
 	"ERROR",
@@ -72,6 +80,7 @@ function status(stdout: string): PullRequestStatus | null {
 		isDraft: pr.isDraft === true,
 		approved: pr.reviewDecision === "APPROVED",
 		pending: [],
+		awaiting: [],
 		failed: [],
 		passed: 0,
 	};
@@ -81,7 +90,9 @@ function status(stdout: string): PullRequestStatus | null {
 		// finished is still in flight — that's the bit worth showing live.
 		const done = entry.status ? entry.status === "COMPLETED" : true;
 		const result = entry.conclusion ?? entry.state ?? "";
-		if (!done || result === "PENDING" || result === "EXPECTED") {
+		if (result === "PENDING" && MANUAL_GATE.test(name)) {
+			out.awaiting.push(name);
+		} else if (!done || result === "PENDING" || result === "EXPECTED") {
 			out.pending.push(name);
 		} else if (FAILED.has(result)) {
 			out.failed.push(name);
