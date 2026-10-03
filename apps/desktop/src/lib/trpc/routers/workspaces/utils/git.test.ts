@@ -9,7 +9,7 @@ import {
 	statSync,
 	writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
+import { tmpdir, userInfo } from "node:os";
 import { join } from "node:path";
 import {
 	branchExistsOnRemote,
@@ -367,10 +367,10 @@ describe("Shell Environment", () => {
 		const { clearShellEnvCache, getShellEnvironment } = await import(
 			"./shell-env"
 		);
-		const zshPath = ["/bin/zsh", "/usr/bin/zsh"].find((candidate) =>
-			existsSync(candidate),
-		);
-		if (!zshPath) {
+		// shell-env spawns the account's login shell (os.userInfo, not $SHELL),
+		// so a .zshrc only counts on a zsh account — a CI runner's is bash.
+		const zshPath = userInfo().shell;
+		if (!zshPath?.endsWith("/zsh")) {
 			return;
 		}
 

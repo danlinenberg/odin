@@ -28,27 +28,12 @@ jobs:
         with:
           bun-version-file: .bun-version
 
-      # Odin reads the account's login shell (os.userInfo, not $SHELL), which
-      # is zsh on every Mac since Catalina; the runner account ships with bash.
-      - run: sudo chsh -s /bin/zsh "$USER"
-
       # Tests make throwaway repos and commit into them.
       - run: |
           git config --global user.name "Odin CI"
           git config --global user.email "ci@odin.local"
 
       - run: bun install --frozen-lockfile
-
-      - name: DEBUG shell env (temporary)
-        continue-on-error: true
-        run: |
-          echo "USER=$USER SHELL=$SHELL TMPDIR=$TMPDIR"
-          dscl . -read "/Users/$USER" UserShell
-          bun -e 'console.log("userInfo.shell", require("os").userInfo().shell)'
-          d=$(mktemp -d); echo 'export FOO_ZSHRC=yes' > "$d/.zshrc"
-          ZDOTDIR=$d /bin/zsh -ilc 'echo "zsh sees FOO_ZSHRC=[$FOO_ZSHRC]"'; echo "zsh exit=$?"
-          ZDOTDIR=$d /bin/zsh -ilc 'echo -n "_D_"; command env | grep -c .; echo -n "_D_"; exit' </dev/null; echo "zsh2 exit=$?"
-          cd apps/desktop && bun test src/lib/trpc/routers/workspaces/utils/shell-env.test.ts 2>&1 | tail -40
 
       # The lint guards in scripts/ scan with ripgrep.
       - run: command -v rg || brew install ripgrep
