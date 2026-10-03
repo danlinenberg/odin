@@ -123,30 +123,32 @@ function ConnectionsSettings() {
 					const isOpen = openRow === provider;
 					return (
 						<div key={provider} className="px-4 py-3.5">
-							<div className="flex items-center justify-between gap-8">
-								<div className="flex items-center gap-3 min-w-0">
+							<div className="flex items-start justify-between gap-6">
+								<div className="flex items-start gap-3 min-w-0">
 									<div className="flex size-8 shrink-0 items-center justify-center">
 										{meta.icon}
 									</div>
 									<div className="min-w-0">
-										<div className="text-sm font-medium">{meta.name}</div>
-										<div className="text-xs text-muted-foreground mt-0.5 truncate">
+										<div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+											<span className="text-sm font-medium">{meta.name}</span>
+											<StatusDot
+												loading={status.isLoading}
+												configured={row?.configured ?? false}
+												identity={row?.identity ?? null}
+												error={row?.error ?? null}
+											/>
+										</div>
+										<div className="text-xs text-muted-foreground mt-0.5">
 											{meta.description}
 										</div>
 										{meta.help && (
-											<div className="text-xs text-muted-foreground mt-1 max-w-[52ch]">
+											<div className="text-xs text-muted-foreground mt-1 max-w-[70ch]">
 												{meta.help}
 											</div>
 										)}
 									</div>
 								</div>
-								<div className="flex items-center gap-3 shrink-0">
-									<StatusDot
-										loading={status.isLoading}
-										configured={row?.configured ?? false}
-										identity={row?.identity ?? null}
-										error={row?.error ?? null}
-									/>
+								<div className="flex items-center gap-1 shrink-0">
 									<Button
 										variant="outline"
 										size="sm"
@@ -222,30 +224,32 @@ function BackupRow() {
 			})} · ${data.days} ${data.days === 1 ? "day" : "days"} kept`;
 	return (
 		<div className="px-4 py-3.5">
-			<div className="flex items-center justify-between gap-8">
-				<div className="flex items-center gap-3 min-w-0">
+			<div className="flex items-start justify-between gap-6">
+				<div className="flex items-start gap-3 min-w-0">
 					<div className="flex size-8 shrink-0 items-center justify-center">
 						<LuCloudUpload className="size-5" />
 					</div>
 					<div className="min-w-0">
-						<div className="text-sm font-medium">iCloud Drive</div>
-						<div className="text-xs text-muted-foreground mt-0.5 truncate">
+						<div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+							<span className="text-sm font-medium">iCloud Drive</span>
+							<StatusDot
+								loading={status.isLoading}
+								configured={data?.available ?? false}
+								identity={identity}
+								error={null}
+							/>
+						</div>
+						<div className="text-xs text-muted-foreground mt-0.5">
 							Your board, briefs and scrollback, copied daily.
 						</div>
-						<div className="text-xs text-muted-foreground mt-1 max-w-[52ch]">
+						<div className="text-xs text-muted-foreground mt-1 max-w-[70ch]">
 							{data?.available === false
 								? "iCloud Drive is off, so nothing is copied. Turn it on in System Settings → Apple Account → iCloud."
 								: "Keeps 14 days in iCloud Drive → Odin Backups. To restore, quit Odin and copy a day's files back into ~/.odin."}
 						</div>
 					</div>
 				</div>
-				<div className="flex items-center gap-3 shrink-0">
-					<StatusDot
-						loading={status.isLoading}
-						configured={data?.available ?? false}
-						identity={identity}
-						error={null}
-					/>
+				<div className="flex items-center gap-1 shrink-0">
 					<Button
 						variant="outline"
 						size="sm"

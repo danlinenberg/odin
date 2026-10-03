@@ -25,13 +25,13 @@ const SCREENS = [
 	{
 		to: "/settings/sessions",
 		label: "Sessions",
-		hint: "Default repo, launch limits, idle close",
+		hint: "Default repo, limits, idle close",
 		icon: LuSquareTerminal,
 	},
 	{
 		to: "/settings/backlog",
 		label: "Backlog",
-		hint: "Next in line, Night Agent, Review sweep",
+		hint: "Next in line, Night Agent, Review",
 		icon: LuListOrdered,
 	},
 	{
@@ -53,7 +53,7 @@ export function SettingsSidebar() {
 	const matchRoute = useMatchRoute();
 
 	return (
-		<div className="flex w-64 shrink-0 flex-col overflow-hidden border-r border-border bg-sidebar px-3 py-3">
+		<div className="flex w-72 shrink-0 flex-col overflow-hidden border-r border-border bg-sidebar px-3 py-3">
 			<Link
 				to={originRoute}
 				className="flex items-center gap-2 px-2 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
