@@ -29,6 +29,7 @@ import {
 	machineLoad,
 } from "shared/machine-load";
 import { FEED_TABS } from "./components/feed-counts";
+import { OdinPromptDialog } from "./components/OdinPromptDialog";
 import { BUTTON, PILL } from "./components/pill";
 import { type UpstreamDue, useDueReminders } from "./components/Reminders";
 import { QuickAddTask } from "./components/TaskBox";
@@ -41,6 +42,10 @@ import {
 import { useNightAgentRunner } from "./hooks/useNightAgentRunner";
 import { useOdinFeeds } from "./hooks/useOdinFeeds";
 import { useOdinProfile } from "./hooks/useOdinProfile";
+import {
+	useQuickQuestion,
+	useQuickQuestionDialog,
+} from "./hooks/useQuickQuestion";
 import { useSlackAutoLaunch } from "./hooks/useStartReaction";
 
 /**
@@ -366,6 +371,10 @@ function OdinShell() {
 	// inside a session's terminal, which is where most of them occur to you.
 	const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
 	useHotkey("ODIN_NEW_TASK", () => setIsQuickAddOpen(true));
+	const askQuestion = useQuickQuestion();
+	const isQuestionOpen = useQuickQuestionDialog((s) => s.isOpen);
+	const setQuestionOpen = useQuickQuestionDialog((s) => s.setOpen);
+	useHotkey("ODIN_QUICK_QUESTION", () => setQuestionOpen(true));
 
 	const renderRailItem = ({
 		to,
@@ -572,6 +581,18 @@ function OdinShell() {
 
 			{isQuickAddOpen && (
 				<QuickAddTask onClose={() => setIsQuickAddOpen(false)} />
+			)}
+			{isQuestionOpen && (
+				<OdinPromptDialog
+					heading="Quick question"
+					note="Goes to a Claude that's already running in your default repo — no start-up wait."
+					placeholder="Ask anything"
+					submitLabel="Ask"
+					onCancel={() => setQuestionOpen(false)}
+					onSubmit={async (question, files) => {
+						if (await askQuestion(question, files)) setQuestionOpen(false);
+					}}
+				/>
 			)}
 		</div>
 	);

@@ -130,6 +130,18 @@ export const HOTKEYS_REGISTRY = {
 		category: "Navigation",
 		description: "Write a task down without leaving what you're doing",
 	},
+	// A chord for the same reason as New Task: the question comes up mid-session.
+	ODIN_QUICK_QUESTION: {
+		key: {
+			mac: L("meta+shift+i"),
+			windows: L("ctrl+shift+alt+i"),
+			linux: L("ctrl+shift+alt+i"),
+		},
+		label: "Quick Question",
+		category: "Navigation",
+		description:
+			"Ask a Claude that's already running — no wait for it to start",
+	},
 
 	// Navigation
 	NAVIGATE_BACK: {

@@ -77,6 +77,7 @@ export function OdinPromptDialog({
 	placeholder = "What should the agent do in Odin?",
 	defaultPrompt = "",
 	repoPicker = false,
+	submitLabel = "Start session",
 	onCancel,
 	onSubmit,
 }: {
@@ -91,6 +92,7 @@ export function OdinPromptDialog({
 	defaultPrompt?: string;
 	/** Offer the machine's git checkouts as the session's directory. */
 	repoPicker?: boolean;
+	submitLabel?: string;
 	onCancel: () => void;
 	onSubmit: (
 		prompt: string,
@@ -405,7 +407,7 @@ export function OdinPromptDialog({
 						{isStarting && (
 							<span className="size-[9px] animate-spin rounded-full border border-current border-t-transparent" />
 						)}
-						{isStarting ? "Starting…" : "Start session"}
+						{isStarting ? "Starting…" : submitLabel}
 					</button>
 				</div>
 			</div>

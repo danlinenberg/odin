@@ -23,7 +23,7 @@ function slugify(title: string): string {
 }
 
 /** Single-quote a path for the shell — repo paths come off the user's disk. */
-function quote(path: string): string {
+export function quote(path: string): string {
 	return `'${path.replaceAll("'", `'\\''`)}'`;
 }
 
