@@ -1,0 +1,61 @@
+# Every PR and every push to main: lint, typecheck, the unit and integration
+# suites, the app build, then a smoke test that boots the built app in a
+# throwaway home and clicks through its main flows (apps/desktop/scripts/smoke.ts).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A newer push to the same PR supersedes the run in flight.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    # macOS, like Release: much of the suite drives real PTYs, ps and codesign,
+    # and the smoke test needs a window server to boot Electron.
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      SKIP_ENV_VALIDATION: "true"
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+
+      # Tests make throwaway repos and commit into them.
+      - run: |
+          git config --global user.name "Odin CI"
+          git config --global user.email "ci@odin.local"
+
+      - run: bun install --frozen-lockfile
+
+      - run: bun run lint
+
+      - run: bun run typecheck
+
+      - run: bun run test
+
+      # postinstall skips this when CI is set, so rebuild the native modules
+      # for Electron before booting the app.
+      - run: bun run --filter=@odin/desktop install:deps
+
+      - run: bun run compile:app
+        working-directory: apps/desktop
+
+      - run: bun run smoke
+        working-directory: apps/desktop
+        env:
+          SMOKE_SHOTS_DIR: ${{ runner.temp }}/smoke
+
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-screenshots
+          path: ${{ runner.temp }}/smoke
+          if-no-files-found: ignore

@@ -9,7 +9,6 @@ import {
 	net,
 	protocol,
 	session,
-	systemPreferences,
 } from "electron";
 import { makeAppSetup } from "lib/electron-app/factories/app/setup";
 import { applyShellEnvToProcess } from "lib/trpc/routers/workspaces/utils/shell-env";

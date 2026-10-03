@@ -75,7 +75,8 @@
 				"**/*.bench.ts",
 				"**/test/**",
 				"**/test-helpers.ts",
-				"**/scripts/**"
+				"**/scripts/**",
+				"tools/**"
 			],
 			"linter": {
 				"rules": {

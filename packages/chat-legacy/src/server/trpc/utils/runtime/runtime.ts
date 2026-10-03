@@ -41,15 +41,6 @@ export function syncRuntimeHookSessionId(runtime: RuntimeSession): void {
 	runtime.hookManager?.setSessionId(runtime.sessionId);
 }
 
-interface TextContentPart {
-	type: "text";
-	text: string;
-}
-interface MessageLike {
-	role: string;
-	content: Array<{ type: string; text?: string }>;
-}
-
 interface RuntimeRestartPayload {
 	messageId: string;
 	payload: {
@@ -447,14 +438,3 @@ export async function restartRuntimeFromUserMessage(
 	runtime.lastErrorMessage = null;
 	await runtime.harness.sendMessage(input.payload);
 }
-
-function extractTextContent(parts: MessageLike["content"]): string {
-	return parts
-		.filter(
-			(c): c is TextContentPart =>
-				c.type === "text" && typeof c.text === "string",
-		)
-		.map((c) => c.text)
-		.join(" ");
-}
-

@@ -206,14 +206,14 @@ describe("attachmentsRouter.delete", () => {
 });
 
 describe("getAttachmentsRoot", () => {
-	it("falls back to ~/.odin/host/standalone when HOST_MANIFEST_DIR is blank", () => {
+	const odinHome = () => process.env.ODIN_HOME_DIR || join(homedir(), ".odin");
+
+	it("falls back to the Odin home's host/standalone when HOST_MANIFEST_DIR is blank", () => {
 		const original = process.env.HOST_MANIFEST_DIR;
 		process.env.HOST_MANIFEST_DIR = "";
 		try {
 			const root = getAttachmentsRoot();
-			expect(root).toBe(
-				join(homedir(), ".odin", "host", "standalone", "attachments"),
-			);
+			expect(root).toBe(join(odinHome(), "host", "standalone", "attachments"));
 		} finally {
 			if (original === undefined) delete process.env.HOST_MANIFEST_DIR;
 			else process.env.HOST_MANIFEST_DIR = original;
@@ -225,9 +225,7 @@ describe("getAttachmentsRoot", () => {
 		process.env.HOST_MANIFEST_DIR = "   ";
 		try {
 			const root = getAttachmentsRoot();
-			expect(root).toBe(
-				join(homedir(), ".odin", "host", "standalone", "attachments"),
-			);
+			expect(root).toBe(join(odinHome(), "host", "standalone", "attachments"));
 		} finally {
 			if (original === undefined) delete process.env.HOST_MANIFEST_DIR;
 			else process.env.HOST_MANIFEST_DIR = original;

@@ -123,9 +123,7 @@ try {
 	await cdp.send("Runtime.enable");
 
 	// -- sign in (dev) if the sign-in screen is up ---------------------------
-	const needsSignIn = await evaluate(
-		`${BODY_TEXT}.includes("Sign in as dev")`,
-	);
+	const needsSignIn = await evaluate(`${BODY_TEXT}.includes("Sign in as dev")`);
 	if (needsSignIn) {
 		await evaluate(`
 			[...document.querySelectorAll("button")]

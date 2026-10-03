@@ -79,6 +79,7 @@ function SessionsPage() {
 	}, [draft]);
 
 	// The whole point of the view is the search box — start in it.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: once, on mount
 	useEffect(() => {
 		inputRef.current?.focus();
 	}, []);

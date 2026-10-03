@@ -274,7 +274,6 @@ export class ChatRuntimeService {
 						const userMessage =
 							input.payload.content.trim() || "[non-text message]";
 						await onUserPromptSubmit(runtime, userMessage);
-						const submittedUserMessage = input.payload.content.trim();
 						const selectedModel = input.metadata?.model?.trim();
 						if (selectedModel) {
 							await runtime.harness.switchModel({
@@ -300,7 +299,6 @@ export class ChatRuntimeService {
 						const userMessage =
 							input.payload.content.trim() || "[non-text message]";
 						await onUserPromptSubmit(runtime, userMessage);
-						const submittedUserMessage = input.payload.content.trim();
 						await restartRuntimeFromUserMessage(runtime, {
 							messageId: input.messageId,
 							payload: input.payload,

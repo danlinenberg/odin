@@ -156,6 +156,7 @@ const BOLD = "\x1b[1m";
 const DIM = "\x1b[2m";
 const RESET = "\x1b[0m";
 
+// biome-ignore lint/suspicious/noControlCharactersInRegex: matching ANSI escapes is the point
 const ESCAPE = /(\x1b\[[0-9;]*[A-Za-z])/;
 
 /**

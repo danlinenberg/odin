@@ -37,7 +37,6 @@ import { TRPCError } from "@trpc/server";
 import { app } from "electron";
 import { exitImmediately } from "main/index";
 import { setupSingleAgent } from "main/lib/agent-setup";
-import { getHostServiceCoordinator } from "main/lib/host-service-coordinator";
 import { localDb } from "main/lib/local-db";
 import {
 	DEFAULT_AUTO_APPLY_DEFAULT_PRESET,

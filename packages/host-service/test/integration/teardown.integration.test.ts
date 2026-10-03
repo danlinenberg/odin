@@ -20,6 +20,9 @@ import { __setAccountShellForTesting } from "../../src/terminal/user-shell";
 import { createFishLikePtySpawner, shellQuote } from "../helpers/fake-pty";
 import { type BasicScenario, createBasicScenario } from "../helpers/scenarios";
 
+// The preload's private home; deleting it would fall back to the real ~/.odin.
+const odinHomeDir = process.env.ODIN_HOME_DIR;
+
 describe("runTeardown integration", () => {
 	let scenario: BasicScenario | null = null;
 	let server: Server | null = null;
@@ -31,7 +34,7 @@ describe("runTeardown integration", () => {
 		resetTerminalBaseEnvForTests();
 		__setAccountShellForTesting(undefined);
 		delete process.env.ODIN_PTY_DAEMON_SOCKET;
-		delete process.env.ODIN_HOME_DIR;
+		process.env.ODIN_HOME_DIR = odinHomeDir;
 		if (server) {
 			await server.close().catch(() => {});
 			server = null;

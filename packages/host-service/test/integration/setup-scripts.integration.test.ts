@@ -15,6 +15,9 @@ import { __resetSessionsForTesting } from "../../src/terminal/terminal";
 import { __setAccountShellForTesting } from "../../src/terminal/user-shell";
 import { createProjectScenario } from "../helpers/scenarios";
 
+// The preload's private home; deleting it would fall back to the real ~/.odin.
+const odinHomeDir = process.env.ODIN_HOME_DIR;
+
 describe("setup scripts integration", () => {
 	let dispose: (() => Promise<void>) | undefined;
 
@@ -24,7 +27,7 @@ describe("setup scripts integration", () => {
 		resetTerminalBaseEnvForTests();
 		__setAccountShellForTesting(undefined);
 		delete process.env.ODIN_PTY_DAEMON_SOCKET;
-		delete process.env.ODIN_HOME_DIR;
+		process.env.ODIN_HOME_DIR = odinHomeDir;
 
 		if (dispose) {
 			await dispose();

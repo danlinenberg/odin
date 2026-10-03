@@ -33,6 +33,9 @@ import { __setAccountShellForTesting } from "../../src/terminal/user-shell.ts";
 import { type BasicScenario, createBasicScenario } from "../helpers/scenarios";
 import { seedTerminalSession } from "../helpers/seed";
 
+// The preload's private home; deleting it would fall back to the real ~/.odin.
+const odinHomeDir = process.env.ODIN_HOME_DIR;
+
 describe("terminal router integration", () => {
 	let scenario: BasicScenario;
 
@@ -51,7 +54,7 @@ describe("terminal router integration", () => {
 		resetTerminalBaseEnvForTests();
 		__setAccountShellForTesting(undefined);
 		delete process.env.ODIN_PTY_DAEMON_SOCKET;
-		delete process.env.ODIN_HOME_DIR;
+		process.env.ODIN_HOME_DIR = odinHomeDir;
 		await scenario?.dispose();
 	});
 

@@ -2,11 +2,7 @@ import { Button } from "@odin/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@odin/ui/tabs";
 import { cn } from "@odin/ui/utils";
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-	HiArrowTopRightOnSquare,
-	HiCheckCircle,
-	HiDocumentArrowUp,
-} from "react-icons/hi2";
+import { HiCheckCircle, HiDocumentArrowUp } from "react-icons/hi2";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { invalidateProjectScriptQueries } from "renderer/lib/project-scripts";
 
