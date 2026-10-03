@@ -26,6 +26,10 @@ const WARM_TAG = "warm";
  */
 export const QUESTION_TAG = "question";
 
+/** The open question conversation — ✓ Done removes the pane, which ends it. */
+export const questionPane = (panes: Record<string, Pane>): Pane | undefined =>
+	Object.values(panes).find((pane) => pane.odinTags?.includes(QUESTION_TAG));
+
 /** Long enough for a fresh spare to reach the daemon's session list. */
 const SPAWN_GRACE_MS = 30_000;
 
@@ -50,7 +54,8 @@ export const useQuickQuestionDialog = create<{
  * Quick question: a Claude that's already up and sitting at its prompt, so a
  * question costs no boot. One spare runs hidden (no title, so it's no card);
  * asking types the question in and opens its drawer — still no card — and a
- * fresh spare starts behind it. Only the latest question is kept.
+ * fresh spare starts behind it. The conversation persists: the next question
+ * follows up in it, until ✓ Done in its drawer ends it.
  *
  * Mount once — the layout does. Returns `ask`.
  */
@@ -132,6 +137,42 @@ export function useQuickQuestion() {
 		if (daemon) void ensureWarm(daemon.sessions);
 	}, [daemon, warmId]);
 
+	/**
+	 * The open conversation, live. A PTY that died with the daemon comes back
+	 * with `claude --resume`. False for one Claude never wrote down — the
+	 * question goes to the spare.
+	 */
+	const reopen = async (
+		pane: Pane,
+		sessions: { sessionId: string; isAlive: boolean }[],
+		workspaceId: string,
+		cwd: string,
+	): Promise<boolean> => {
+		if (sessions.some((s) => s.sessionId === pane.id && s.isAlive)) return true;
+		const id = pane.claudeSessionId;
+		const onDisk =
+			!!id &&
+			(await utils.client.terminal.readClaudeTranscript
+				.query({ sessionId: id })
+				.then(
+					() => true,
+					(error) => !String(error).includes("No transcript on this machine"),
+				));
+		if (!onDisk) return false;
+		await utils.client.terminal.kill
+			.mutate({ paneId: pane.id })
+			.catch(() => {});
+		await utils.client.terminal.createOrAttach.mutate({
+			paneId: pane.id,
+			tabId: pane.tabId,
+			workspaceId,
+			cwd,
+			command: `cd ${quote(cwd)} && claude --dangerously-skip-permissions --resume ${id}`,
+			allowKilled: true,
+		});
+		return true;
+	};
+
 	/** Wait for Claude's idle prompt — a spare that only just started may still be booting. */
 	const waitForPrompt = async (pane: Pane, workspaceId: string) => {
 		for (const end = Date.now() + READY_TIMEOUT_MS; Date.now() < end; ) {
@@ -148,7 +189,10 @@ export function useQuickQuestion() {
 					...(mounted && { cols: mounted.cols, rows: mounted.rows }),
 				})) as { snapshot?: { snapshotAnsi?: string } };
 				const screen = stripAnsi(result?.snapshot?.snapshotAnsi ?? "");
-				if (odinScreenStatus(screen) === "review") return true;
+				// Still answering the last question counts: Claude queues a
+				// follow-up typed mid-turn and takes it when the turn ends.
+				const status = odinScreenStatus(screen);
+				if (status === "review" || status === "working") return true;
 			} catch {
 				// An attach the drawer superseded — read again next tick.
 			}
@@ -160,22 +204,40 @@ export function useQuickQuestion() {
 	const ask = async (raw: string, files: PromptImage[]): Promise<boolean> => {
 		const question = raw.trim();
 		if (!question && files.length === 0) return false;
-		const paneId = await ensureWarm(
-			(await utils.client.terminal.listDaemonSessions.query()).sessions,
-		);
+		const { sessions } = await utils.client.terminal.listDaemonSessions.query();
+		/** Where a pane's Claude runs — `initialCwd` is cleared once its drawer opens. */
+		const placeOf = async (pane: Pane | undefined) => {
+			const workspaceId = useTabsStore
+				.getState()
+				.tabs.find((t) => t.id === pane?.tabId)?.workspaceId;
+			const cwd =
+				workspaceId &&
+				(pane?.initialCwd ??
+					(await utils.client.workspaces.get.query({ id: workspaceId }))
+						?.worktreePath);
+			return workspaceId && cwd ? { workspaceId, cwd } : undefined;
+		};
+		const open = questionPane(useTabsStore.getState().panes);
+		const openAt = await placeOf(open);
+		const followUp =
+			!!open &&
+			!!openAt &&
+			(await reopen(open, sessions, openAt.workspaceId, openAt.cwd));
+		// One that can't be followed up is over — the spare starts a new one.
+		if (open && !followUp) useTabsStore.getState().removePane(open.id);
+		const paneId = followUp ? open.id : await ensureWarm(sessions);
 		const store = useTabsStore.getState();
 		const pane = paneId ? store.panes[paneId] : undefined;
-		const workspaceId = store.tabs.find(
-			(t) => t.id === pane?.tabId,
-		)?.workspaceId;
-		if (!pane || !workspaceId) {
+		const place = followUp ? openAt : await placeOf(pane);
+		if (!pane || !place) {
 			toast.error("Couldn't start a Claude session for the question");
 			return false;
 		}
+		const { workspaceId } = place;
 
 		// Attachments become files Claude reads by path, as in a launch.
 		const paths: string[] = [];
-		const attachments = `${pane.initialCwd}/.odin/attachments`;
+		const attachments = `${place.cwd}/.odin/attachments`;
 		if (files.some((file) => file.dataUrl))
 			await utils.client.filesystem.createDirectory.mutate({
 				workspaceId,
@@ -198,25 +260,24 @@ export function useQuickQuestion() {
 		}
 		const text = [question, ...paths].filter(Boolean).join("\n");
 
-		// The previous question's answer has been read — end it.
-		for (const old of Object.values(store.panes))
-			if (old.odinTags?.includes(QUESTION_TAG)) store.removePane(old.id);
-
-		// Claim it — no odinTaskTitle, so it stays off the board.
-		const title = sessionTitle(question, "Quick question");
-		store.setTabAutoTitle(pane.tabId, title);
-		store.setPaneAutoTitle(pane.id, title);
-		store.setPaneStatus(pane.id, "working");
-		useTabsStore.setState((state) => ({
-			panes: {
-				...state.panes,
-				[pane.id]: {
-					...state.panes[pane.id],
-					odinBrief: text,
-					odinTags: [QUESTION_TAG],
+		// Claim the spare — no odinTaskTitle, so it stays off the board. A
+		// follow-up keeps the conversation's first question as its title.
+		if (!followUp) {
+			const title = sessionTitle(question, "Quick question");
+			store.setTabAutoTitle(pane.tabId, title);
+			store.setPaneAutoTitle(pane.id, title);
+			useTabsStore.setState((state) => ({
+				panes: {
+					...state.panes,
+					[pane.id]: {
+						...state.panes[pane.id],
+						odinBrief: text,
+						odinTags: [QUESTION_TAG],
+					},
 				},
-			},
-		}));
+			}));
+		}
+		store.setPaneStatus(pane.id, "working");
 		usePendingFocus.getState().focus(pane.id);
 		navigate({ to: "/board" });
 

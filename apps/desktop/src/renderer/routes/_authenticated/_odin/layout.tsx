@@ -23,6 +23,7 @@ import { useZoomFactor } from "renderer/hooks/useZoomFactor";
 import { useHotkey } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useLaunchLimits } from "renderer/stores/launch-limits";
+import { useTabsStore } from "renderer/stores/tabs/store";
 import {
 	type LaunchLimits,
 	type MachineLoad,
@@ -44,7 +45,9 @@ import {
 import { useNightAgentRunner } from "./hooks/useNightAgentRunner";
 import { useOdinFeeds } from "./hooks/useOdinFeeds";
 import { useOdinProfile } from "./hooks/useOdinProfile";
+import { usePendingFocus } from "./hooks/usePendingFocus";
 import {
+	questionPane,
 	useQuickQuestion,
 	useQuickQuestionDialog,
 } from "./hooks/useQuickQuestion";
@@ -372,6 +375,7 @@ function OdinShell() {
 	const askQuestion = useQuickQuestion();
 	const isQuestionOpen = useQuickQuestionDialog((s) => s.isOpen);
 	const setQuestionOpen = useQuickQuestionDialog((s) => s.setOpen);
+	const openQuestion = useTabsStore((s) => questionPane(s.panes));
 	useHotkey("ODIN_QUICK_QUESTION", () => setQuestionOpen(true));
 
 	const renderRailItem = ({
@@ -590,7 +594,27 @@ function OdinShell() {
 			{isQuestionOpen && (
 				<OdinPromptDialog
 					heading="Quick question"
-					note="Goes to a Claude that's already running in your default repo — no start-up wait."
+					note={
+						openQuestion ? (
+							<>
+								Follows up in “{openQuestion.userTitle ?? openQuestion.name}” —
+								✓ Done in its drawer starts a fresh one.{" "}
+								<button
+									type="button"
+									className="underline hover:text-foreground"
+									onClick={() => {
+										setQuestionOpen(false);
+										usePendingFocus.getState().focus(openQuestion.id);
+										navigate({ to: "/board" });
+									}}
+								>
+									Show it
+								</button>
+							</>
+						) : (
+							"Goes to a Claude that's already running in your default repo — no start-up wait."
+						)
+					}
 					placeholder="Ask anything"
 					submitLabel="Ask"
 					onCancel={() => setQuestionOpen(false)}
