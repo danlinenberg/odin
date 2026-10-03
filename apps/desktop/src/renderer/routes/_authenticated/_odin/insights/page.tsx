@@ -229,8 +229,8 @@ function WeekChart({
 								{week.agentHours > 0 ? duration(week.agentHours) : "—"}
 							</div>
 							<div className="flex w-full items-end justify-center gap-[4px]">
-								<Column hours={week.yourHours} max={max} color={YOU_COLOR} />
-								<Column hours={week.agentHours} max={max} color={AGENT_COLOR} />
+								<Column value={week.yourHours} max={max} color={YOU_COLOR} />
+								<Column value={week.agentHours} max={max} color={AGENT_COLOR} />
 							</div>
 						</div>
 						<div className="truncate text-[10.5px] text-faint-foreground">
@@ -243,12 +243,49 @@ function WeekChart({
 	);
 }
 
+/**
+ * The productivity line: tasks shipped per day you worked. A rate, not a
+ * count, so a half-finished week or a week off isn't read as a slump.
+ */
+function ShippedChart({
+	weeks,
+}: {
+	weeks: { start: number; shipped: number; daysWorked: number }[];
+}) {
+	const rate = (week: { shipped: number; daysWorked: number }) =>
+		week.daysWorked ? week.shipped / week.daysWorked : 0;
+	const max = Math.max(1, ...weeks.map(rate));
+	return (
+		<Card>
+			<div className="flex items-end gap-3">
+				{weeks.map((week) => (
+					<div
+						key={week.start}
+						className="flex min-w-0 flex-1 flex-col items-center gap-2"
+						title={`${plural(week.shipped, "task")} shipped over ${plural(week.daysWorked, "day")} you worked`}
+					>
+						<div className="flex h-[132px] w-full flex-col items-center justify-end">
+							<div className="mb-1 text-[11px] font-medium tabular-nums text-soft-foreground">
+								{week.daysWorked ? Math.round(rate(week) * 10) / 10 : "—"}
+							</div>
+							<Column value={rate(week)} max={max} color="var(--success)" />
+						</div>
+						<div className="truncate text-[10.5px] text-faint-foreground">
+							{DATE.format(week.start)}
+						</div>
+					</div>
+				))}
+			</div>
+		</Card>
+	);
+}
+
 function Column({
-	hours,
+	value,
 	max,
 	color,
 }: {
-	hours: number;
+	value: number;
 	max: number;
 	color: string;
 }) {
@@ -258,8 +295,8 @@ function Column({
 			style={{
 				// A worked week never renders as nothing: a hairline still reads as
 				// "some", which a zero-height bar doesn't.
-				height: hours > 0 ? `${Math.max(3, (hours / max) * 110)}px` : "2px",
-				background: hours > 0 ? color : "var(--border)",
+				height: value > 0 ? `${Math.max(3, (value / max) * 110)}px` : "2px",
+				background: value > 0 ? color : "var(--border)",
 			}}
 		/>
 	);
@@ -898,6 +935,16 @@ function Workload() {
 						sessions={data.sessions}
 					/>
 				</Section>
+
+				{/* `shipped` is absent until the main process restarts onto this build. */}
+				{data.weeks[0]?.shipped !== undefined && (
+					<Section
+						title="Shipped per day you worked"
+						note="tasks that ended in a PR, counted once at the first"
+					>
+						<ShippedChart weeks={data.weeks} />
+					</Section>
+				)}
 
 				<Section title="What you did">
 					<WeekView
