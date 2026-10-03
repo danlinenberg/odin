@@ -245,34 +245,68 @@ function WeekChart({
 
 /**
  * The productivity line: tasks shipped per day you worked. A rate, not a
- * count, so a half-finished week or a week off isn't read as a slump.
+ * count, so a half-finished week isn't read as a slump.
+ *
+ * The line is drawn in a stretched 0–100 SVG box; the dots and labels are
+ * HTML placed by percent on top of it, so they stay round at any width.
  */
 function ShippedChart({
-	weeks,
+	weeks: all,
 }: {
 	weeks: { start: number; shipped: number; daysWorked: number }[];
 }) {
-	const rate = (week: { shipped: number; daysWorked: number }) =>
-		week.daysWorked ? week.shipped / week.daysWorked : 0;
-	const max = Math.max(1, ...weeks.map(rate));
+	// A week you didn't work has no rate; plotted as zero it read as a slump.
+	const weeks = all.filter((week) => week.daysWorked > 0);
+	if (weeks.length === 0) return <Empty>Nothing shipped yet.</Empty>;
+	const rates = weeks.map((week) => week.shipped / week.daysWorked);
+	// Headroom so the top point's label clears the card edge.
+	const max = Math.max(1, ...rates) * 1.2;
+	const points = weeks.map((week, index) => ({
+		week,
+		rate: rates[index] as number,
+		x: weeks.length === 1 ? 50 : 4 + (index * 92) / (weeks.length - 1),
+		y: 100 - ((rates[index] as number) / max) * 100,
+	}));
 	return (
 		<Card>
-			<div className="flex items-end gap-3">
-				{weeks.map((week) => (
+			<div className="relative h-[120px]">
+				<svg
+					viewBox="0 0 100 100"
+					preserveAspectRatio="none"
+					className="absolute inset-0 size-full overflow-visible"
+					aria-hidden="true"
+				>
+					<polyline
+						points={points.map(({ x, y }) => `${x},${y}`).join(" ")}
+						fill="none"
+						stroke="var(--success)"
+						strokeWidth={2}
+						strokeLinejoin="round"
+						vectorEffect="non-scaling-stroke"
+					/>
+				</svg>
+				{points.map(({ week, rate, x, y }) => (
 					<div
 						key={week.start}
-						className="flex min-w-0 flex-1 flex-col items-center gap-2"
+						className="absolute flex size-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center"
+						style={{ left: `${x}%`, top: `${y}%` }}
 						title={`${plural(week.shipped, "task")} shipped over ${plural(week.daysWorked, "day")} you worked`}
 					>
-						<div className="flex h-[132px] w-full flex-col items-center justify-end">
-							<div className="mb-1 text-[11px] font-medium tabular-nums text-soft-foreground">
-								{week.daysWorked ? Math.round(rate(week) * 10) / 10 : "—"}
-							</div>
-							<Column value={rate(week)} max={max} color="var(--success)" />
+						<div className="absolute bottom-full text-[11px] font-medium tabular-nums text-soft-foreground">
+							{Math.round(rate * 10) / 10}
 						</div>
-						<div className="truncate text-[10.5px] text-faint-foreground">
-							{DATE.format(week.start)}
-						</div>
+						<div className="size-2 rounded-full bg-success shadow-[0_0_0_2px_var(--card)]" />
+					</div>
+				))}
+			</div>
+			<div className="relative mt-2 h-[14px]">
+				{points.map(({ week, x }) => (
+					<div
+						key={week.start}
+						className="absolute -translate-x-1/2 whitespace-nowrap text-[10.5px] text-faint-foreground"
+						style={{ left: `${x}%` }}
+					>
+						{DATE.format(week.start)}
 					</div>
 				))}
 			</div>

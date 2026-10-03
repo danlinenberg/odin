@@ -13,8 +13,9 @@
  * is what got done, the other is what it cost you.
  */
 
-import { readdir, readFile, stat } from "node:fs/promises";
+import { readdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { ODIN_HOME_DIR } from "main/lib/app-environment";
 import {
 	firstPrompt,
 	projectsRoot,
@@ -388,26 +389,96 @@ export function agentMs(session: SessionWork): number {
 	);
 }
 
+/** A session's scan as Odin keeps it, with nothing that's looked up live. */
+type KeptSession = TranscriptScan & {
+	sessionId: string;
+	project: string;
+	subagents: Interval[];
+};
+
+/**
+ * Claude Code deletes a transcript after 30 days (`cleanupPeriodDays`), and
+ * Insights' history went with it. Every scan is kept here instead, so a
+ * session outlives its transcript.
+ *
+ * ponytail: one JSON file, ~1 MB a month of sessions, rewritten whole on any
+ * change; move it into local.db if that ever gets slow.
+ */
+export function archivePath(): string {
+	return join(ODIN_HOME_DIR, "session-scans.json");
+}
+
+/** Null when the file is there but unreadable: it's left alone, not overwritten. */
+async function readArchive(
+	path: string,
+): Promise<Map<string, KeptSession> | null> {
+	let text: string;
+	try {
+		text = await readFile(path, "utf-8");
+	} catch {
+		return new Map(); // nothing kept yet
+	}
+	try {
+		return new Map(Object.entries(JSON.parse(text)));
+	} catch (error) {
+		console.warn(
+			"[insights] session archive unreadable, not touching it:",
+			error,
+		);
+		return null;
+	}
+}
+
+async function writeArchive(
+	path: string,
+	kept: Map<string, KeptSession>,
+): Promise<void> {
+	try {
+		// Through a temp file: a crash mid-write must not take the only copy of
+		// sessions whose transcripts are already gone.
+		await writeFile(`${path}.tmp`, JSON.stringify(Object.fromEntries(kept)));
+		await rename(`${path}.tmp`, path);
+	} catch (error) {
+		console.warn("[insights] session archive not saved:", error);
+	}
+}
+
 /**
  * Every session on this machine, scanned, each carrying its subagents' spans
- * (`<session>/subagents/*.jsonl`) rather than listing them as sessions.
+ * (`<session>/subagents/*.jsonl`) rather than listing them as sessions — plus
+ * every session kept in the archive whose transcript has since been deleted.
  */
 export async function scanSessions({
 	root = projectsRoot(),
 	people = new Map<string, SessionPerson>(),
 	attention = new Map<string, Interval[]>(),
+	archive = archivePath(),
 }: {
 	root?: string;
 	people?: Map<string, SessionPerson>;
 	attention?: Map<string, Interval[]>;
+	/** Where scans are kept; null keeps nothing. */
+	archive?: string | null;
 } = {}): Promise<SessionWork[]> {
-	let projects: string[];
+	const kept = archive ? await readArchive(archive) : null;
+	let changed = false;
+	const live = (session: KeptSession): SessionWork => {
+		const who = people.get(session.sessionId);
+		return {
+			...session,
+			attended: attention.get(session.sessionId) ?? [],
+			repo: repoForDirs(session.dirs),
+			person: who?.person ?? null,
+			source: who?.source ?? null,
+		};
+	};
+	let projects: string[] = [];
 	try {
 		projects = (await readdir(root, { withFileTypes: true }))
 			.filter((entry) => entry.isDirectory())
 			.map((entry) => entry.name);
 	} catch {
-		return [];
+		// no transcripts left on disk; the archive may still have some
 	}
 	const sessions: SessionWork[] = [];
 	for (const project of projects) {
@@ -423,7 +494,6 @@ export async function scanSessions({
 			const scan = await scanCached(path);
 			if (!scan) continue;
 			const sessionId = name.slice(0, -".jsonl".length);
-			const who = people.get(sessionId);
 			// Subagents work alongside their parent, in transcripts of their own;
 			// their time is agent work the parent's transcript never shows.
 			const subagents: Interval[] = [];
@@ -439,18 +509,23 @@ export async function scanSessions({
 					subagents.push(
 						...((await scanCached(join(subDir, sub)))?.intervals ?? []),
 					);
-			sessions.push({
-				...scan,
-				subagents,
-				attended: attention.get(sessionId) ?? [],
-				sessionId,
-				project,
-				repo: repoForDirs(scan.dirs),
-				person: who?.person ?? null,
-				source: who?.source ?? null,
-			});
+			const session = { ...scan, subagents, sessionId, project };
+			const was = kept?.get(sessionId);
+			if (
+				kept &&
+				(was?.entries !== scan.entries ||
+					was.subagents.length !== subagents.length)
+			) {
+				kept.set(sessionId, session);
+				changed = true;
+			}
+			sessions.push(live(session));
 		}
 	}
+	const onDisk = new Set(sessions.map((session) => session.sessionId));
+	for (const [sessionId, session] of kept ?? [])
+		if (!onDisk.has(sessionId)) sessions.push(live(session));
+	if (archive && kept && changed) await writeArchive(archive, kept);
 	return sessions;
 }
 
