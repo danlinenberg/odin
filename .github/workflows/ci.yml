@@ -35,6 +35,9 @@ jobs:
 
       - run: bun install --frozen-lockfile
 
+      # The lint guards in scripts/ scan with ripgrep.
+      - run: command -v rg || brew install ripgrep
+
       - run: bun run lint
 
       - run: bun run typecheck
