@@ -44,8 +44,13 @@ git -C "$root" worktree list --porcelain | sed -n 's/^worktree //p' | while read
 	name="${wt#"$root/.worktrees/"}"
 
 	# The newest of: last commit or checkout here, last write to its index.
+	# The reflog's own timestamp, not its mtime: gc's `reflog expire` rewrites
+	# every worktree's reflog at once, so the mtime kept all of them "fresh".
 	gitdir="$(git -C "$wt" rev-parse --absolute-git-dir)"
-	touched=$(stat -f %m "$gitdir/index" "$gitdir/logs/HEAD" "$gitdir/HEAD" 2>/dev/null | sort -n | tail -1)
+	touched=$( {
+		stat -f %m "$gitdir/index" "$gitdir/HEAD" 2>/dev/null
+		tail -1 "$gitdir/logs/HEAD" 2>/dev/null | cut -f1 | awk '{print $(NF-1)}'
+	} | sort -n | tail -1)
 	age=$(( now - ${touched:-$now} ))
 	if [ "$age" -lt "$landed_min_age" ]; then
 		echo "keep   $name (touched in the last $(( landed_min_age / 3600 ))h)"
