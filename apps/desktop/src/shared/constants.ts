@@ -80,3 +80,10 @@ export const DEFAULT_OPEN_LINKS_IN_APP = false;
 export const EXTERNAL_LINKS = {
 	SETUP_TEARDOWN_SCRIPTS: `${process.env.NEXT_PUBLIC_DOCS_URL}/setup-teardown-scripts`,
 } as const;
+
+/**
+ * The in-app link browser's session: its own, so sites' cookies never reach
+ * Odin's, and so the main process can tell its pages (and the sign-in popups
+ * they open) from Odin's windows.
+ */
+export const IN_APP_BROWSER_PARTITION = "persist:odin-web";

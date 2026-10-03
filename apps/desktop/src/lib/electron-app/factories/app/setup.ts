@@ -1,7 +1,7 @@
-import { app, BrowserWindow, shell } from "electron";
+import { app, BrowserWindow, session, shell } from "electron";
 import { env } from "main/env.main";
 import { loadReactDevToolsExtension } from "main/lib/extensions";
-import { PLATFORM } from "shared/constants";
+import { IN_APP_BROWSER_PARTITION, PLATFORM } from "shared/constants";
 import { makeAppId } from "shared/utils";
 import { ignoreConsoleWarnings } from "../../utils/ignore-console-warnings";
 
@@ -42,10 +42,27 @@ export async function makeAppSetup(
 	});
 
 	app.on("web-contents-created", (_, contents) => {
-		if (contents.getType() === "webview") {
-			// The in-app browser has no tabs: a page opening one (Slack's and
-			// Jira's links do) loads in place instead, and Back returns.
-			contents.setWindowOpenHandler(({ url }) => {
+		// The in-app browser, and any sign-in popup a page in it opens, browses
+		// freely; only Odin's own windows send web links out.
+		if (
+			contents.getType() === "webview" ||
+			contents.session === session.fromPartition(IN_APP_BROWSER_PARTITION)
+		) {
+			contents.setWindowOpenHandler(({ url, disposition }) => {
+				// A sized window.open is a sign-in popup (Notion's "Continue with
+				// Google"): it needs a real window that can report back to its
+				// opener, and the same no-passkeys switch as the panel.
+				if (disposition === "new-window") {
+					return {
+						action: "allow",
+						overrideBrowserWindowOptions: {
+							autoHideMenuBar: true,
+							webPreferences: { disableBlinkFeatures: "WebAuth" },
+						},
+					};
+				}
+				// The panel has no tabs: a link opening one (Slack's, Jira's)
+				// loads in place instead, and Back returns.
 				if (url.startsWith("http://") || url.startsWith("https://")) {
 					contents.loadURL(url);
 				}
