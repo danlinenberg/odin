@@ -30,6 +30,19 @@ export const useKeyboardLayoutStore = create<State>(() => ({
 }));
 
 /**
+ * Hebrew, Russian, Greek… have no Latin letters to label shortcuts with, so
+ * macOS runs ⌘-shortcuts through the US key positions there. Do the same: null
+ * sends every binding back to its authored US key. Translating through such a
+ * layout only moves the punctuation it happens to carry — Hebrew prints "/" on
+ * KeyQ, so the `/` search key went dead whenever Hebrew was the input source.
+ */
+function latinLayoutOrNull(
+	map: ReadonlyMap<string, string> | null,
+): ReadonlyMap<string, string> | null {
+	return map && /^[a-z]$/.test(map.get("KeyA") ?? "") ? map : null;
+}
+
+/**
  * The layout map every dispatch consumer should use: shortcuts always match
  * the labels on the keyboard (⌘Z fires on the key labeled "Z", physical KeyY
  * on QWERTZ), the macOS / VS Code / Chrome convention. Null until the first
@@ -37,12 +50,12 @@ export const useKeyboardLayoutStore = create<State>(() => ({
  * chord.
  */
 export function useEffectiveLayoutMap(): ReadonlyMap<string, string> | null {
-	return useKeyboardLayoutStore((s) => s.map);
+	return useKeyboardLayoutStore((s) => latinLayoutOrNull(s.map));
 }
 
 /** Imperative form of {@link useEffectiveLayoutMap} for non-React contexts. */
 export function getEffectiveLayoutMap(): ReadonlyMap<string, string> | null {
-	return useKeyboardLayoutStore.getState().map;
+	return latinLayoutOrNull(useKeyboardLayoutStore.getState().map);
 }
 
 function applySnapshot(data: KeyboardLayoutData): void {
