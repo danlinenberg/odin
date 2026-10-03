@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync } from "node:fs";
+import {
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { firstPrompt, repoOfDir } from "./claude-sessions";
@@ -11,6 +17,7 @@ import {
 	openingLine,
 	repoForDirs,
 	type SessionWork,
+	scanSessions,
 	scanTranscript,
 	totalMs,
 	weekStart,
@@ -163,6 +170,38 @@ describe("scanTranscript", () => {
 
 	test("a transcript with no timestamps is skipped, not counted as zero", () => {
 		expect(scanTranscript('{"type":"summary"}')).toBeNull();
+	});
+});
+
+describe("scanSessions", () => {
+	const transcript = [
+		JSON.stringify({ timestamp: "2026-09-14T09:00:00.000Z", cwd: "/x" }),
+		JSON.stringify({ timestamp: "2026-09-14T09:03:00.000Z", cwd: "/x" }),
+	].join("\n");
+
+	test("a session outlives its transcript once Odin has scanned it", async () => {
+		const root = mkdtempSync(join(tmpdir(), "odin-scans-"));
+		mkdirSync(join(root, "p"));
+		const file = join(root, "p", "s1.jsonl");
+		writeFileSync(file, transcript);
+		const archive = join(root, "kept.json");
+		expect(await scanSessions({ root, archive })).toHaveLength(1);
+		// Claude Code's 30-day cleanup.
+		rmSync(file);
+		const after = await scanSessions({ root, archive });
+		expect(after.map((s) => [s.sessionId, s.activeMs])).toEqual([
+			["s1", 3 * MINUTE],
+		]);
+	});
+
+	test("an unreadable archive is left alone, not overwritten", async () => {
+		const root = mkdtempSync(join(tmpdir(), "odin-scans-"));
+		mkdirSync(join(root, "p"));
+		writeFileSync(join(root, "p", "s1.jsonl"), transcript);
+		const archive = join(root, "kept.json");
+		writeFileSync(archive, "{torn");
+		expect(await scanSessions({ root, archive })).toHaveLength(1);
+		expect(readFileSync(archive, "utf-8")).toBe("{torn");
 	});
 });
 
