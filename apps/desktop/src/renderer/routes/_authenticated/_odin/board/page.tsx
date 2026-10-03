@@ -2553,6 +2553,7 @@ function DevBoardPage() {
 			setResumingPaneIds((ids) => [...ids, card.pane.id]);
 			try {
 				await startQueuedPane(utils.client, card.pane);
+				if (!auto) openDrawer(card);
 				void utils.terminal.listDaemonSessions.invalidate();
 			} catch (error) {
 				toast.error(error instanceof Error ? error.message : String(error));
@@ -2593,6 +2594,7 @@ function DevBoardPage() {
 				);
 				return;
 			}
+			if (!auto) openDrawer(card);
 			try {
 				await sendContinue(card.pane.id);
 			} catch (error) {
@@ -2701,6 +2703,10 @@ function DevBoardPage() {
 			setResumingPaneIds((ids) => ids.filter((id) => id !== card.pane.id));
 			return;
 		}
+		// You resumed it to work in it — bring it up. The drawer swaps its
+		// read-only history for the live terminal once the PTY is back, and that
+		// terminal takes the keyboard. Auto-resume never steals the screen.
+		if (!auto) openDrawer(card);
 		try {
 			// Free the pane (dead or a live cold-restored shell) so the respawn
 			// re-runs the command. Ignore errors — pane may already be dead.
