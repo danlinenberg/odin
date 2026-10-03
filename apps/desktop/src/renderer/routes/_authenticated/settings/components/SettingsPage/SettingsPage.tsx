@@ -44,7 +44,7 @@ export function SettingsSection({
 	children: ReactNode;
 }) {
 	return (
-		<section>
+		<section data-setting={title}>
 			<div className="mb-3 px-1">
 				<h3 className="text-[13px] font-semibold uppercase tracking-[.06em] text-soft-foreground">
 					{title}
@@ -81,6 +81,8 @@ export function SettingRow({
 }) {
 	return (
 		<div
+			// What Settings search scrolls to (settings-index.ts).
+			data-setting={typeof label === "string" ? label : undefined}
 			className={cn(
 				"flex gap-6 px-4 py-3.5",
 				stacked ? "flex-col gap-3" : "items-center justify-between",
