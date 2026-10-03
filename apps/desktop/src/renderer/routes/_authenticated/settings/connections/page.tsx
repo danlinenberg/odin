@@ -122,7 +122,11 @@ function ConnectionsSettings() {
 					const meta = META[provider];
 					const isOpen = openRow === provider;
 					return (
-						<div key={provider} className="px-4 py-3.5">
+						<div
+							key={provider}
+							data-setting={meta.name}
+							className="px-4 py-3.5"
+						>
 							<div className="flex items-start justify-between gap-6">
 								<div className="flex items-start gap-3 min-w-0">
 									<div className="flex size-8 shrink-0 items-center justify-center">
@@ -223,7 +227,7 @@ function BackupRow() {
 				timeStyle: "short",
 			})} · ${data.days} ${data.days === 1 ? "day" : "days"} kept`;
 	return (
-		<div className="px-4 py-3.5">
+		<div data-setting="iCloud Drive" className="px-4 py-3.5">
 			<div className="flex items-start justify-between gap-6">
 				<div className="flex items-start gap-3 min-w-0">
 					<div className="flex size-8 shrink-0 items-center justify-center">
