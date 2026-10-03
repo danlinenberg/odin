@@ -112,8 +112,14 @@ export const HOTKEYS_REGISTRY = {
 		category: "Navigation",
 		description: "Open the picked Notion database as tasks",
 	},
+	// ⌘F, as in every other app. Inside a terminal it stays the terminal's own
+	// find (FIND_IN_TERMINAL): the search box doesn't listen in a textarea.
 	ODIN_BOARD_SEARCH: {
-		key: { mac: L("slash"), windows: L("slash"), linux: L("slash") },
+		key: {
+			mac: L("meta+f"),
+			windows: L("ctrl+shift+f"),
+			linux: L("ctrl+shift+f"),
+		},
 		label: "Search",
 		category: "Navigation",
 		description: "Focus the current screen's search box",
