@@ -3162,6 +3162,11 @@ function DevBoardPage() {
 						sections[0]?.[0] === "parked" ||
 						sections[0]?.[0] === "queued";
 					const isDropTarget = column.status === "idle";
+					// Needs you and Done are the two columns you clear: walk either one
+					// card at a time.
+					const canCatchUp =
+						(column.status === "permission" || column.status === "review") &&
+						cards.length > 0;
 					return (
 						// biome-ignore lint/a11y/noStaticElementInteractions: drop zone — drag is the mouse-only shortcut for parking a card in Idle
 						<div
@@ -3210,7 +3215,7 @@ function DevBoardPage() {
 							<div className="flex items-center gap-2 px-3 py-2.5 text-xs font-semibold uppercase tracking-[.4px] text-soft-foreground">
 								<span className="size-2 rounded-full bg-(--col) shadow-[0_0_8px_var(--col)]" />
 								{PANE_STATUS[column.status].label}
-								{column.status === "permission" && cards.length > 0 && (
+								{canCatchUp && (
 									<button
 										type="button"
 										title="Catch up — go through these one at a time"
@@ -3219,9 +3224,9 @@ function DevBoardPage() {
 											setCatchUp(queue.map((card) => card.pane.id));
 											openDrawer(queue[0]);
 										}}
-										// Solid, with a play icon: the dim amber pill read as a tag
-										// beside the count, not as something to press.
-										className="ml-auto flex items-center gap-1 rounded-md bg-gradient-to-b from-attention-ink to-attention px-2.5 py-1 text-[11px] font-semibold normal-case tracking-normal text-background shadow-[0_2px_10px_-3px_color-mix(in_oklab,var(--attention)_75%,transparent)] hover:brightness-110"
+										// Solid, with a play icon: the dim pill read as a tag beside
+										// the count, not as something to press. Wears the column's hue.
+										className="ml-auto flex items-center gap-1 rounded-md bg-gradient-to-b from-[color-mix(in_oklab,var(--col)_70%,black)] to-(--col) px-2.5 py-1 text-[11px] font-semibold normal-case tracking-normal text-background shadow-[0_2px_10px_-3px_color-mix(in_oklab,var(--col)_75%,transparent)] hover:brightness-110"
 									>
 										<LuPlay className="size-2.5 fill-current" />
 										Catch up
@@ -3230,8 +3235,7 @@ function DevBoardPage() {
 								<span
 									className={cn(
 										"rounded-[10px] bg-secondary px-2 font-medium",
-										!(column.status === "permission" && cards.length > 0) &&
-											"ml-auto",
+										!canCatchUp && "ml-auto",
 									)}
 								>
 									{cards.length}
@@ -3619,7 +3623,7 @@ function DevBoardPage() {
 							<div className="absolute bottom-5 left-1/2 z-50 flex w-[min(760px,calc(100%-32px))] -translate-x-1/2 gap-4">
 								<button
 									type="button"
-									title="Leave it in Needs you and go to the next one"
+									title="Leave it on the board and go to the next one"
 									onClick={() => catchUpNext(false)}
 									className={cn(
 										"flex-1 rounded-2xl py-3.5 text-[15px] font-semibold",
