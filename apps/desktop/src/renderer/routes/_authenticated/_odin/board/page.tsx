@@ -3986,8 +3986,11 @@ function DevBoardPage() {
 														: "Reopen this conversation at an idle prompt (claude --resume)"
 									}
 									className={cn(
-										"rounded-[7px] px-3 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:bg-secondary disabled:text-faint-foreground",
+										"rounded-[7px] px-3 py-1.5 text-xs font-semibold",
 										BUTTON.primary,
+										// The gradient is a background-image, so it has to go before
+										// bg-secondary can show — otherwise disabled stays violet.
+										"disabled:cursor-not-allowed disabled:bg-none disabled:bg-secondary disabled:text-faint-foreground disabled:shadow-none disabled:ring-1 disabled:ring-inset disabled:ring-border disabled:hover:brightness-100",
 									)}
 								>
 									{drawerCard.pane.odinQueued
