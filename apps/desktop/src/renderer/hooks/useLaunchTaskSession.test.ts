@@ -86,6 +86,13 @@ describe("buildPrompt", () => {
 		expect(buildPrompt("Fix the board", null)).toContain("ACTION ITEMS");
 	});
 
+	// "Run the worktree" went to a subagent nobody could watch.
+	it("sends things to run into the session's Shell, not a subagent", () => {
+		const prompt = buildPrompt("Fix the board", null);
+		expect(prompt).toContain("/shell/run");
+		expect(prompt).toContain("paneId=$ODIN_PANE_ID");
+	});
+
 	// Long items with their own options and reasons read like the transcript.
 	it("keeps each action item to one short line", () => {
 		expect(buildPrompt("Fix the board", null)).toContain("One line per item");

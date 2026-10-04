@@ -20,6 +20,13 @@ export interface AgentLifecycleEvent extends NotificationIds {
 		| "Failed";
 }
 
+/** An agent asking Odin to run `command` in its session's Shell pane. */
+export interface RunInShellRequest {
+	/** The agent's own pane — `$ODIN_PANE_ID` in its environment. */
+	paneId: string;
+	command: string;
+}
+
 export type V2NotificationSource =
 	| { type: "terminal"; id: string }
 	| { type: "chat"; id: string };

@@ -15,6 +15,7 @@
  */
 import { spawn } from "node:child_process";
 import {
+	existsSync,
 	mkdirSync,
 	mkdtempSync,
 	readdirSync,
@@ -74,7 +75,8 @@ writeFileSync(
 );
 
 // A checkout for sessions to start in, and a stand-in for Claude Code: it
-// records how Odin invoked it, then stays alive the way a working session does.
+// records how Odin invoked it and the pane it runs in, then stays alive the
+// way a working session does.
 const repo = join(home, "dev", "smoke-repo");
 mkdirSync(repo, { recursive: true });
 writeFileSync(
@@ -94,7 +96,7 @@ mkdirSync(join(home, "bin"));
 writeFileSync(
 	join(home, "bin", "claude"),
 	// One file per run, named by pid (exec keeps it), moved into place whole.
-	`#!/bin/sh\nprintf '%s\\n' "$@" > "$HOME/.claude-$$"\nmv "$HOME/.claude-$$" "$HOME/claude-$$.args"\necho "fake claude is working"\nexec sleep 600\n`,
+	`#!/bin/sh\nprintf '%s %s' "$ODIN_PORT" "$ODIN_PANE_ID" > "$HOME/pane-$$"\nprintf '%s\\n' "$@" > "$HOME/.claude-$$"\nmv "$HOME/.claude-$$" "$HOME/claude-$$.args"\necho "fake claude is working"\nexec sleep 600\n`,
 	{ mode: 0o755 },
 );
 // Sessions run in a login shell, which reads these after macOS's path_helper
@@ -503,6 +505,37 @@ await step(
 		}
 	},
 );
+
+await step("an agent's command runs in its session's own Shell", async () => {
+	// What the launch prompt tells the agent to do, done as the agent would.
+	const [port, paneId] = readFileSync(join(home, `pane-${sessionPid}`), "utf8")
+		.trim()
+		.split(" ");
+	const ran = join(home, "shell-ran");
+	const response = await fetch(`http://127.0.0.1:${port}/shell/run`, {
+		method: "POST",
+		body: new URLSearchParams({
+			paneId,
+			command: `echo "$ODIN_PANE_ID" > '${ran}'`,
+		}),
+	});
+	if (!response.ok)
+		throw new Error(`${response.status} ${await response.text()}`);
+	for (const end = Date.now() + 15_000; !existsSync(ran); await sleep(250)) {
+		if (Date.now() > end) throw new Error("the command never ran");
+	}
+	const shell = readFileSync(ran, "utf8").trim();
+	if (!shell || shell === paneId)
+		throw new Error(`ran in "${shell}", not a Shell pane of its own`);
+	// …and it's the pane the card's ❯ Shell opens.
+	const shellOf = () =>
+		JSON.parse(readFileSync(join(home, ".odin", "app-state.json"), "utf8"))
+			.tabsState?.panes?.[paneId]?.odinShellPaneId;
+	for (const end = Date.now() + 10_000; shellOf() !== shell; await sleep(250)) {
+		if (Date.now() > end)
+			throw new Error(`the card's Shell is ${shellOf()}, not ${shell}`);
+	}
+});
 
 await step(
 	"Done on the card ends the session and clears the board",

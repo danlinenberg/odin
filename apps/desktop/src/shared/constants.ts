@@ -46,6 +46,7 @@ export const NOTIFICATION_EVENTS = {
 	FOCUS_TAB: "focus-tab",
 	FOCUS_V2_NOTIFICATION_SOURCE: "focus-v2-notification-source",
 	TERMINAL_EXIT: "terminal-exit",
+	RUN_IN_SHELL: "run-in-shell",
 } as const;
 
 // There is one organization and it is this machine. The nil UUID is what the

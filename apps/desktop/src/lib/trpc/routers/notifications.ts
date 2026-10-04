@@ -11,7 +11,10 @@ import {
 	notificationsEmitter,
 } from "main/lib/notifications/server";
 import { NOTIFICATION_EVENTS } from "shared/constants";
-import type { V2NotificationSourceFocusTarget } from "shared/notification-types";
+import type {
+	RunInShellRequest,
+	V2NotificationSourceFocusTarget,
+} from "shared/notification-types";
 import { z } from "zod";
 import { publicProcedure, router } from "..";
 
@@ -34,7 +37,8 @@ type NotificationEvent =
 	| {
 			type: typeof NOTIFICATION_EVENTS.TERMINAL_EXIT;
 			data?: TerminalExitNotification;
-	  };
+	  }
+	| { type: typeof NOTIFICATION_EVENTS.RUN_IN_SHELL; data?: RunInShellRequest };
 
 const v2NotificationSourceSchema = z.discriminatedUnion("type", [
 	z.object({ type: z.literal("terminal"), id: z.string().min(1) }),
@@ -167,6 +171,10 @@ export const createNotificationsRouter = (
 					emit.next({ type: NOTIFICATION_EVENTS.TERMINAL_EXIT, data });
 				};
 
+				const onRunInShell = (data: RunInShellRequest) => {
+					emit.next({ type: NOTIFICATION_EVENTS.RUN_IN_SHELL, data });
+				};
+
 				notificationsEmitter.on(
 					NOTIFICATION_EVENTS.AGENT_LIFECYCLE,
 					onLifecycle,
@@ -180,6 +188,7 @@ export const createNotificationsRouter = (
 					NOTIFICATION_EVENTS.TERMINAL_EXIT,
 					onTerminalExit,
 				);
+				notificationsEmitter.on(NOTIFICATION_EVENTS.RUN_IN_SHELL, onRunInShell);
 
 				return () => {
 					notificationsEmitter.off(
@@ -194,6 +203,10 @@ export const createNotificationsRouter = (
 					notificationsEmitter.off(
 						NOTIFICATION_EVENTS.TERMINAL_EXIT,
 						onTerminalExit,
+					);
+					notificationsEmitter.off(
+						NOTIFICATION_EVENTS.RUN_IN_SHELL,
+						onRunInShell,
 					);
 				};
 			});
