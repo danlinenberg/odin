@@ -148,6 +148,17 @@ export const HOTKEYS_REGISTRY = {
 		description:
 			"Ask a Claude that's already running — no wait for it to start",
 	},
+	// ⌘L, where a browser's address bar would be.
+	ODIN_COPY_LINK: {
+		key: {
+			mac: L("meta+l"),
+			windows: L("ctrl+shift+l"),
+			linux: L("ctrl+shift+l"),
+		},
+		label: "Copy Link",
+		category: "Navigation",
+		description: "Copy the link of the page open in the in-app browser",
+	},
 
 	// Navigation
 	NAVIGATE_BACK: {

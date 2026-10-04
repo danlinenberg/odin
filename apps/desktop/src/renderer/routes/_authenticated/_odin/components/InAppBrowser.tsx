@@ -17,6 +17,7 @@ import {
 	HiXMark,
 } from "react-icons/hi2";
 import { useZoomFactor } from "renderer/hooks/useZoomFactor";
+import { getDispatchChord, matchesChord } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import {
 	slackWebClientUrl,
@@ -49,20 +50,14 @@ const alwaysExternal = () => {
 
 /** What a page in the panel logs when Esc goes unhandled there. */
 const ESCAPE_SIGNAL = "odin:in-app-browser:escape";
-/** What it logs for a ⌘C with nothing selected. */
-const COPY_SIGNAL = "odin:in-app-browser:copy";
+/** What it logs, followed by the key as JSON, for a key pressed with ⌘, Ctrl or ⌥. */
+const KEY_SIGNAL = "odin:in-app-browser:key:";
 
-/**
- * ⌘C with no text selected. By key position, so a Hebrew layout's ⌘ב counts.
- * REPORT_KEYS repeats it inside the page.
- */
-const isCopyLink = (event: KeyboardEvent) =>
-	event.code === "KeyC" &&
-	event.metaKey &&
-	!event.shiftKey &&
-	!event.altKey &&
-	!event.ctrlKey &&
-	!window.getSelection()?.toString();
+/** The Copy Link shortcut (⌘L unless Settings → Keyboard says otherwise). */
+const isCopyLink = (event: KeyboardEvent) => {
+	const chord = getDispatchChord("ODIN_COPY_LINK");
+	return !!chord && matchesChord(event, chord);
+};
 
 /**
  * A page in the panel is its own document, so its keys never reach Odin's
@@ -70,14 +65,14 @@ const isCopyLink = (event: KeyboardEvent) =>
  * it) through its console instead. Slack's web client prevents every Esc,
  * open menu or not, so an Esc the page took still counts when nothing was
  * open for it to close. Checked in the capture phase, before the page's own
- * handlers close whatever was open. It reports a ⌘C with nothing selected,
- * in the page or in a field, so that copies the page's link.
+ * handlers close whatever was open. It reports every modifier chord too, and
+ * Odin matches it against the Copy Link shortcut, so a rebind applies to a
+ * page that's already open.
  */
 const REPORT_KEYS = `addEventListener("keydown", (event) => {
-	const field = document.activeElement;
-	if (event.code === "KeyC" && event.metaKey && !event.shiftKey && !event.altKey && !event.ctrlKey
-		&& !getSelection()?.toString() && field?.selectionStart === field?.selectionEnd) {
-		console.debug(${JSON.stringify(COPY_SIGNAL)});
+	if (event.metaKey || event.ctrlKey || event.altKey) {
+		const { code, metaKey, ctrlKey, altKey, shiftKey } = event;
+		console.debug(${JSON.stringify(KEY_SIGNAL)} + JSON.stringify({ code, metaKey, ctrlKey, altKey, shiftKey }));
 	}
 	if (event.key !== "Escape") return;
 	const open = [...document.querySelectorAll("[role=dialog],[role=menu],[role=listbox],[aria-modal=true]")]
@@ -198,7 +193,17 @@ export function InAppBrowser() {
 		const onConsole = (event: Event) => {
 			const message = (event as { message?: string }).message;
 			if (message === ESCAPE_SIGNAL) close();
-			if (message === COPY_SIGNAL) copyLink();
+			if (
+				message?.startsWith(KEY_SIGNAL) &&
+				isCopyLink(
+					new KeyboardEvent(
+						"keydown",
+						JSON.parse(message.slice(KEY_SIGNAL.length)),
+					),
+				)
+			) {
+				copyLink();
+			}
 		};
 		// A Slack link followed inside the panel (from a Jira ticket, a Notion
 		// page, a sign-in redirect) goes to Slack's web client before Slack's
