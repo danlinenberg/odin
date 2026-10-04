@@ -85,11 +85,19 @@ has_open_action_items() {
 # gone — a killed session never writes its notification. A subagent parked
 # in one Bash call that long lets the card drop to Done/Needs you early.
 has_running_background_agents() {
-  local transcript=$1 id
+  local transcript=$1 id out
   [ -f "$transcript" ] || return 1
   for id in $(grep -oE '"status":"async_launched","agentId":"[^"]+"' "$transcript" | sed 's/.*"agentId":"//; s/"$//'); do
     grep -q "<task-id>$id</task-id>" "$transcript" && continue
     [ -n "$(find "${transcript%.jsonl}/subagents/agent-$id.jsonl" -mmin -10 2>/dev/null)" ] && return 0
+  done
+  # Same for a run_in_background Bash (a CI poll): "backgroundTaskId":"<id>" at
+  # launch, the same <task-id> at the end. It's running while its process still
+  # holds the output file open — a silent poll never touches the file's mtime.
+  for id in $(grep -oE '"backgroundTaskId":"[^"]+"' "$transcript" | sed 's/.*:"//; s/"$//'); do
+    grep -q "<task-id>$id</task-id>" "$transcript" && continue
+    out=$(grep -oE "[^\" ]*/tasks/$id\.output" "$transcript" | head -1)
+    [ -n "$out" ] && lsof -t "$out" >/dev/null 2>&1 && return 0
   done
   return 1
 }
