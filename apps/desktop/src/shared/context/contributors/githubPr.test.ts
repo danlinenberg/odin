@@ -38,10 +38,10 @@ describe("githubPrContributor", () => {
 			makeCtx(async () => PR),
 		);
 		expect(section?.id).toBe(`pr:${PR.number}`);
-		expect(section?.label).toBe(`PR #${PR.number} — ${PR.title}`);
+		expect(section?.label).toBe(`PR #${PR.number} - ${PR.title}`);
 		expect(section?.meta).toEqual({ url: PR.url });
 		const text = (section?.content[0] as { type: "text"; text: string }).text;
-		expect(text).toContain(`# PR #${PR.number} — ${PR.title}`);
+		expect(text).toContain(`# PR #${PR.number} - ${PR.title}`);
 		expect(text).toContain(`This PR is checked out`);
 		expect(text).toContain(PR.body);
 	});
@@ -62,7 +62,7 @@ describe("githubPrContributor", () => {
 			makeCtx(async () => ({ ...PR, body: "" })),
 		);
 		const text = (section?.content[0] as { type: "text"; text: string }).text;
-		expect(text).toContain(`# PR #${PR.number} — ${PR.title}`);
+		expect(text).toContain(`# PR #${PR.number} - ${PR.title}`);
 		expect(text).toContain("checked out");
 		expect(text).not.toContain("Replaces"); // body not present
 	});

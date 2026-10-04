@@ -16,7 +16,7 @@ async function main(): Promise<void> {
 		`[host-service] starting (org=${env.ORGANIZATION_ID}, port=${env.PORT}, NODE_ENV=${process.env.NODE_ENV ?? "unset"})`,
 	);
 
-	// Resolve the shell-env snapshot in the background — it must not block the
+	// Resolve the shell-env snapshot in the background - it must not block the
 	// server from listening (the login-shell probe can burn the full 8s
 	// budget). PTY creation awaits waitForTerminalBaseEnv() before it reads the
 	// snapshot; every other request path is unaffected.
@@ -55,7 +55,7 @@ async function main(): Promise<void> {
 			if (shuttingDown) return;
 			shuttingDown = true;
 			console.log(
-				`[host-service] dev-mode ${signal} — stopping pty-daemon for clean iteration`,
+				`[host-service] dev-mode ${signal} - stopping pty-daemon for clean iteration`,
 			);
 			try {
 				await getSupervisor().stop(env.ORGANIZATION_ID);

@@ -7,7 +7,7 @@ import { SiGmail, SiJira, SiNotion, SiSlack } from "react-icons/si";
 
 /**
  * The task feeds, in tab order. One rail entry opens them; the strip in each
- * view's header switches between them — they're all "things to do", so they
+ * view's header switches between them - they're all "things to do", so they
  * read as one place with sources rather than an icon each.
  */
 export const FEED_TABS = [
@@ -22,14 +22,14 @@ export const FEED_TABS = [
 
 export type FeedPath = (typeof FEED_TABS)[number]["to"];
 
-/** Renovate/dependabot/CI accounts — noise in a review queue. */
+/** Renovate/dependabot/CI accounts - noise in a review queue. */
 export const isBot = (author: string) =>
 	/\[bot\]$|^(renovate|dependabot)/i.test(author);
 
 /**
  * The badge on each tab: what's actually waiting on you, not how many rows the
  * feed holds. Slack counts only un-started messages, and PRs drop the bots the
- * PR view itself hides by default — otherwise a renovate spree reads as work.
+ * PR view itself hides by default - otherwise a renovate spree reads as work.
  */
 export function feedCounts(input: {
 	tasks: number;
@@ -48,7 +48,7 @@ export function feedCounts(input: {
 		"/notion": input.notion.length,
 		"/email": input.emails?.length ?? 0,
 	};
-	// All is the sum of the others, not a count of its own — otherwise the strip
+	// All is the sum of the others, not a count of its own - otherwise the strip
 	// would be disagreeing with itself. Less your own PRs, which All leaves out.
 	const mine = input.pulls.filter(
 		(pull) => pull.kind === "mine" && !isBot(pull.author),
@@ -63,7 +63,7 @@ export function feedCounts(input: {
 export type FeedIssue = "off" | "error";
 
 /**
- * Which source tabs to mark, and why. A present token is not a working one —
+ * Which source tabs to mark, and why. A present token is not a working one -
  * a revoked GitHub token leaves the feed erroring with a full account behind
  * it, and an empty tab with no mark reads as "nothing to do" either way.
  *

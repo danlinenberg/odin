@@ -34,7 +34,7 @@ export function openRotatingLogFd(logPath: string, maxBytes: number): number {
 			}
 		}
 		const fd = fs.openSync(logPath, "a", 0o600);
-		// openSync's mode arg only applies on create — normalize an existing
+		// openSync's mode arg only applies on create - normalize an existing
 		// file's perms in case it was rotated out-of-band with laxer bits.
 		try {
 			fs.chmodSync(logPath, 0o600);
@@ -104,7 +104,7 @@ export async function pollHealthCheck(
 	endpoint: string,
 	secret: string,
 	timeoutMs = HEALTH_POLL_TIMEOUT_MS,
-	// Bail out before the deadline once the child is known dead — otherwise a
+	// Bail out before the deadline once the child is known dead - otherwise a
 	// crash-on-startup would stall the caller for the full (now generous)
 	// timeout instead of failing fast.
 	shouldAbort?: () => boolean,

@@ -12,7 +12,7 @@ import type { LocalSetupConfig, SetupConfig } from "shared/types";
 
 /**
  * Worktrees don't include gitignored files, so copy .odin from main repo
- * if it's missing — ensures setup scripts like "./.odin/setup.sh" work.
+ * if it's missing - ensures setup scripts like "./.odin/setup.sh" work.
  */
 export function copyOdinConfigToWorktree(
 	mainRepoPath: string,

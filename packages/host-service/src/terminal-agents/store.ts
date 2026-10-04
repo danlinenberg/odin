@@ -119,7 +119,7 @@ export class TerminalAgentStore extends EventEmitter {
 
 	/**
 	 * Escape hatch for wedged working/permission state (an agent whose final
-	 * Stop hook never fired — interrupts fire no hook at all). Forces the
+	 * Stop hook never fired - interrupts fire no hook at all). Forces the
 	 * workspace's bindings (or just `terminalId`'s) to `Stop`, keeping
 	 * lastEventAt so seen-gating still resolves to idle. Live agents
 	 * re-assert within seconds via their next hook event, so clearing a

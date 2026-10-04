@@ -60,7 +60,7 @@ interface PresetEditorDialogProps {
 	 * Host-service agent configs. When provided and `preset.agentId` matches
 	 * a config id, the dialog renders the linked-agent branch (read-only
 	 * command + Open in Agents settings link). Older v2 rows may store presetId,
-	 * so the resolver keeps a presetId fallback. v1 callers omit this — no v1
+	 * so the resolver keeps a presetId fallback. v1 callers omit this - no v1
 	 * row has agentId, so the linked branch stays dormant.
 	 */
 	agents?: HostAgentConfig[];
@@ -418,11 +418,11 @@ export function PresetEditorDialog({
 														key={index}
 														className="break-all whitespace-pre-wrap text-foreground"
 													>
-														{command || "—"}
+														{command || "-"}
 													</div>
 												))
 											) : (
-												<div className="text-foreground">—</div>
+												<div className="text-foreground">-</div>
 											)}
 										</div>
 									)}

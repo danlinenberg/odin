@@ -3,7 +3,7 @@
 **Status: temporary.** This machinery exists so non-Node clients (today: `apps/mobile`)
 can consume `AppRouter` without typechecking host-service's Node-flavored source under
 their own tsconfig (Expo/RN fails on `.ts` import extensions, its ambient `ProcessEnv`,
-and DOM-style timer types — in this package and its workspace deps).
+and DOM-style timer types - in this package and its workspace deps).
 
 **End state that replaces it:** the wire contract moves to a runtime-neutral package
 (zod schemas + inferred types per procedure; SCP v1 / `packages/chat-protocol` is the
@@ -12,11 +12,11 @@ router conforms. Once that lands, everything below gets reverted.
 
 ## Every change that enables this (from `feat(host-service): ship compiled router type declarations for cross-runtime consumers`)
 
-Declaration emit for the router's type graph — the four packages the router types reach:
+Declaration emit for the router's type graph - the four packages the router types reach:
 
 | File | Change |
 |---|---|
-| `packages/host-service/tsconfig.types.json` | new — `emitDeclarationOnly` into `dist-types/` |
+| `packages/host-service/tsconfig.types.json` | new - `emitDeclarationOnly` into `dist-types/` |
 | `packages/host-service/package.json` | `build:types` script; **types-only `./router` export** → `./dist-types/trpc/router/router.d.ts` |
 | `packages/port-scanner/{tsconfig.types.json,package.json}` | same, **plus `exports.*.types` repointed from `src/*.ts` to `dist-types/*.d.ts`** (affects all consumers, not just mobile) |
 | `packages/pty-daemon/{tsconfig.types.json,package.json}` | same as port-scanner |
@@ -24,7 +24,7 @@ Declaration emit for the router's type graph — the four packages the router ty
 | `turbo.jsonc` | `build:types` task (`outputs: dist-types/**`); `typecheck.dependsOn` gains `^build:types` |
 | `.gitignore` | `dist-types` (artifacts are generated, never committed) |
 
-Nameability shims — declaration emit can't reference unexported types (TS4023/TS2742),
+Nameability shims - declaration emit can't reference unexported types (TS4023/TS2742),
 so these were exported solely for the emit:
 
 | File | Change |

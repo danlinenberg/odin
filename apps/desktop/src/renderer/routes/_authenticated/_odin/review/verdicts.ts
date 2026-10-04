@@ -4,14 +4,14 @@ import type { BacklogItem } from "../hooks/builtin-automations";
  * The sweep's answers, lined up against the backlog as it stands now.
  *
  * The sweep runs inside Odin, so an answer arrives already attached to the row
- * it is about — nothing here has to work out which item a verdict meant. What
+ * it is about - nothing here has to work out which item a verdict meant. What
  * this does is the part that can't be done when the sweep runs: say which rows
  * have since left the backlog, and put what it wants gone at the top.
  */
 
 /** One item as it was swept, with what the lookup found. */
 export interface SweptRow {
-	/** `task:<id>` / `slack:<channel>:<ts>` — the row to clear on DROP. */
+	/** `task:<id>` / `slack:<channel>:<ts>` - the row to clear on DROP. */
 	key: string;
 	source: string;
 	title: string;
@@ -23,9 +23,9 @@ export interface SweptRow {
 
 /** A swept row, ready to render and decide on. */
 export interface ReviewRow extends SweptRow {
-	/** Its place in the sweep, from 1 — so the screen reads as a list. */
+	/** Its place in the sweep, from 1 - so the screen reads as a list. */
 	n: number;
-	/** The row has since left the backlog — decided elsewhere, or already cleared. */
+	/** The row has since left the backlog - decided elsewhere, or already cleared. */
 	stale: boolean;
 	/** More messages from the same DM with the same answer, folded into this row. */
 	repeats?: ReviewRow[];
@@ -43,12 +43,12 @@ const ORDER: Record<SweptRow["verdict"], number> = {
  *
  * `live` is the backlog as it stands right now. An item missing from it was
  * dealt with between the sweep and you looking at this, so its row is marked
- * rather than dropped — seeing "already gone" is the difference between a
+ * rather than dropped - seeing "already gone" is the difference between a
  * screen that agrees with reality and one you stop trusting.
  *
- * `loading` names the sources (`slack`, `jira`, … — the key's prefix) whose
+ * `loading` names the sources (`slack`, `jira`, … - the key's prefix) whose
  * feed hasn't answered yet. Their rows are missing from `live` only because
- * nothing has arrived, so they aren't marked — a reload used to grey out
+ * nothing has arrived, so they aren't marked - a reload used to grey out
  * every Slack row for the second before Slack replied.
  */
 export function reviewRows(
@@ -68,8 +68,8 @@ export function reviewRows(
 }
 
 /**
- * One row per DM answer. A DM's verdict is read off the conversation — "you
- * answered last in the DM" — so every queued message in it comes back with
+ * One row per DM answer. A DM's verdict is read off the conversation - "you
+ * answered last in the DM" - so every queued message in it comes back with
  * the same words, and the screen listed the same thing four times. The first
  * (newest) row stands for the rest; deciding it decides them all.
  *
@@ -117,7 +117,7 @@ export interface LivePane {
 }
 
 /**
- * The running session working this row, if any — a DROP with one still going
+ * The running session working this row, if any - a DROP with one still going
  * means you're spending time on something that's done.
  *
  * Same links "Start session" uses: a task remembers its pane, Slack and Notion
@@ -143,8 +143,8 @@ export function sessionFor(
 }
 
 /**
- * The Dropped list, trimmed. A row the sweep still lists is never let go —
- * forgetting it puts it back among the ones to decide — so "Drop all" on 125
+ * The Dropped list, trimmed. A row the sweep still lists is never let go -
+ * forgetting it puts it back among the ones to decide - so "Drop all" on 125
  * rows keeps all 125. Past that, the newest `cap` others stay for the view.
  * Bounded by the backlog plus `cap`.
  */

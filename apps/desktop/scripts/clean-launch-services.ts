@@ -34,7 +34,7 @@ const currentElectronApp = resolve(
 try {
 	const dump = execFileSync(LSREGISTER, ["-dump"], {
 		encoding: "utf-8",
-		maxBuffer: 50 * 1024 * 1024, // 50 MB — lsregister dump can be large
+		maxBuffer: 50 * 1024 * 1024, // 50 MB - lsregister dump can be large
 	});
 
 	const pathRegex = /^\s*path:\s*(.+Electron\.app)\s*$/gm;
@@ -59,7 +59,7 @@ try {
 			execFileSync(LSREGISTER, ["-u", appPath], { stdio: "ignore" });
 			console.log(`[clean-launch-services] Unregistered: ${appPath}`);
 		} catch {
-			// Best-effort — lsregister -u can fail for already-removed entries
+			// Best-effort - lsregister -u can fail for already-removed entries
 		}
 	}
 
@@ -67,6 +67,6 @@ try {
 		`[clean-launch-services] Cleaned ${staleApps.size} stale registration(s)`,
 	);
 } catch (err) {
-	// Non-fatal — don't block dev startup if cleanup fails
+	// Non-fatal - don't block dev startup if cleanup fails
 	console.warn("[clean-launch-services] Failed to clean:", err);
 }

@@ -54,7 +54,7 @@ describe("glyphForCode", () => {
 	]);
 	const qwertzMap = new Map<string, string>([
 		["KeyA", "a"],
-		["KeyZ", "y"], // QWERTZ — Y/Z swapped
+		["KeyZ", "y"], // QWERTZ - Y/Z swapped
 		["Slash", "-"],
 		["Quote", "ä"],
 	]);
@@ -95,7 +95,7 @@ describe("glyphForCode", () => {
 	});
 
 	it("preserves non-ASCII glyphs that would expand on uppercase (ß, ı)", () => {
-		// "ß".toUpperCase() === "SS" in JS — would break single-keycap display
+		// "ß".toUpperCase() === "SS" in JS - would break single-keycap display
 		const german = new Map<string, string>([["KeyS", "ß"]]);
 		expect(glyphForCode("s", german)).toBe("ß");
 		const turkish = new Map<string, string>([["KeyI", "ı"]]);
@@ -103,7 +103,7 @@ describe("glyphForCode", () => {
 	});
 });
 
-describe("formatHotkeyDisplay — layout-aware", () => {
+describe("formatHotkeyDisplay - layout-aware", () => {
 	const usMap = new Map<string, string>([
 		["KeyZ", "z"],
 		["Slash", "/"],
@@ -121,7 +121,7 @@ describe("formatHotkeyDisplay — layout-aware", () => {
 		);
 	});
 
-	it("falls back to KEY_DISPLAY when layoutMap is null (regression — current behavior)", () => {
+	it("falls back to KEY_DISPLAY when layoutMap is null (regression - current behavior)", () => {
 		expect(formatHotkeyDisplay("meta+z", "mac", null).text).toBe("⌘Z");
 		expect(formatHotkeyDisplay("ctrl+slash", "linux", null).text).toBe(
 			"Ctrl+/",

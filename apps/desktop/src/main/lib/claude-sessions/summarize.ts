@@ -13,7 +13,7 @@ import {
 
 /**
  * A written brief of a session: what it's for, where it got to, what it wants
- * from you. Pasting raw transcript excerpts into the panel did not work — the
+ * from you. Pasting raw transcript excerpts into the panel did not work - the
  * opening prompt is a wall of whatever language it was written in, and the last
  * assistant turn is 300 words of markdown. You have to actually read it to know
  * anything, which is the problem the panel exists to solve.
@@ -26,11 +26,11 @@ import {
  */
 
 export interface WrittenBrief {
-	/** A card-sized name for the session — what it's about, not its first line. */
+	/** A card-sized name for the session - what it's about, not its first line. */
 	title: string | null;
-	/** The session's main objective — what Catch up calls "The issue". */
+	/** The session's main objective - what Catch up calls "The issue". */
 	goal: string | null;
-	/** What the session did about it — found, changed, shipped. */
+	/** What the session did about it - found, changed, shipped. */
 	done: string | null;
 	status: string | null;
 	next: string | null;
@@ -41,7 +41,7 @@ export interface WrittenBrief {
 }
 
 /**
- * The tags the model may hand out — shared with the board, which shows and
+ * The tags the model may hand out - shared with the board, which shows and
  * filters by exactly this list. Closed on purpose: let it invent its own and
  * you get refactor/refactoring/refactors as three pills matching a third of
  * the cards each.
@@ -55,19 +55,19 @@ const BRIEF_TAGS: string[] = TAG_VOCABULARY.filter(
 /** Enough to place a card, few enough to read at a glance on one. */
 const MAX_TAGS = 2;
 
-/** A card is one line wide — a longer title is just truncated on screen. */
+/** A card is one line wide - a longer title is just truncated on screen. */
 const TITLE_CAP = 60;
 
 /** Longest single turn we feed the model. Enough for a report, not a diff. */
 const TURN_CAP = 1200;
 /** How many recent turns describe "where it's at" without burying it. */
 const RECENT_TURNS = 14;
-/** The human's first replies — where the opening request gets pinned down. */
+/** The human's first replies - where the opening request gets pinned down. */
 const EARLY_ASKS = 4;
 
 /**
  * The conversation, compressed to what a brief needs: the ask, then the recent
- * back-and-forth. Long turns lose their middle rather than their end — an
+ * back-and-forth. Long turns lose their middle rather than their end - an
  * assistant turn puts its conclusion last.
  */
 export function digest({
@@ -88,7 +88,7 @@ export function digest({
 		.map((m) => `[${m.role === "user" ? "HUMAN" : "AGENT"}] ${clip(m.text)}`)
 		.join("\n\n");
 	// The objective is often set in the human's first replies ("AWS, no Vercel,
-	// run it on Claude and ChatGPT"), not the opening ping — and a long session
+	// run it on Claude and ChatGPT"), not the opening ping - and a long session
 	// pushes those out of the recent turns. [0] is the opening request itself.
 	const early = messages
 		.slice(1, -RECENT_TURNS)
@@ -109,18 +109,18 @@ export function digest({
 const INSTRUCTIONS = `You are briefing an engineer who is about to open an in-progress agent session and needs to understand it in ten seconds.
 
 Reply with EXACTLY six lines and nothing else. No markdown, no code fences, no preamble:
-TITLE: <under 60 characters — a name for this session, as a human would title the task. No trailing period.>
-GOAL: <one sentence — the main objective of this whole session: the outcome the human wants, read from the OPENING REQUEST and the HUMAN'S FIRST FOLLOW-UPS. Never the latest step or the current blocker — that is STATUS.>
-DONE: <one or two sentences — what this session actually did about it: what it found, changed, shipped. Name the files, PRs, numbers.>
-STATUS: <one short sentence, under 120 characters — where it stands right now: what's shipped, what's blocked, what's waiting. The latest state, not the history.>
-NEXT: <one sentence addressed to the engineer — never to the agent — starting with a verb: the one thing they have to do now (answer the prompt on screen, review a diff, decide X, merge the PR). If nothing is needed from them, say "Nothing —" and why.>
+TITLE: <under 60 characters - a name for this session, as a human would title the task. No trailing period.>
+GOAL: <one sentence - the main objective of this whole session: the outcome the human wants, read from the OPENING REQUEST and the HUMAN'S FIRST FOLLOW-UPS. Never the latest step or the current blocker - that is STATUS.>
+DONE: <one or two sentences - what this session actually did about it: what it found, changed, shipped. Name the files, PRs, numbers.>
+STATUS: <one short sentence, under 120 characters - where it stands right now: what's shipped, what's blocked, what's waiting. The latest state, not the history.>
+NEXT: <one sentence addressed to the engineer - never to the agent - starting with a verb: the one thing they have to do now (answer the prompt on screen, review a diff, decide X, merge the PR). If nothing is needed from them, say "Nothing -" and why.>
 TAGS: <1-3 comma-separated tags describing the work, chosen ONLY from this list: ${BRIEF_TAGS.join(", ")}>
 
 Rules:
 - Always answer in English, even when the conversation is in another language.
 - Be concrete: name the files, numbers, PRs, decisions. No filler, no "the user asked".
 - Under 200 characters per line.
-- TITLE names the subject — the user, bug, feature or PR — never the medium. If the session hasn't yet said what it's about (the request is only a link or an image), leave TITLE empty rather than write "Slack thread investigation" or "Review PR": the card keeps the first title it gets.
+- TITLE names the subject - the user, bug, feature or PR - never the medium. If the session hasn't yet said what it's about (the request is only a link or an image), leave TITLE empty rather than write "Slack thread investigation" or "Review PR": the card keeps the first title it gets.
 - TAGS: never invent a tag outside the list. Pick the fewest that fit; if none fit, leave the line empty.`;
 
 /** Pull the four labelled lines back out; tolerate a chatty model. */
@@ -167,7 +167,7 @@ export function parseBrief(text: string): WrittenBrief {
 }
 
 /**
- * execFile's error message is "Command failed: <cmd> <args>" — and the args are
+ * execFile's error message is "Command failed: <cmd> <args>" - and the args are
  * this whole prompt, transcript included, so the panel showed a page of our own
  * instructions with the actual reason cut off at the bottom. Say why instead.
  */
@@ -199,7 +199,7 @@ interface CacheEntry {
 
 /**
  * Bump when the brief gains a field or its questions change, so entries written before it are rewritten
- * instead of served forever — a title-less brief on an idle session would
+ * instead of served forever - a title-less brief on an idle session would
  * otherwise never be asked for its title.
  */
 const BRIEF_VERSION = 5;
@@ -212,7 +212,7 @@ export function defaultCachePath(): string {
 const CACHE_MAX = 200;
 /**
  * A brief costs ~15s of model time, so a busy session is not re-summarised on
- * every keystroke it writes — only once its transcript has moved AND the last
+ * every keystroke it writes - only once its transcript has moved AND the last
  * brief has gone cold. The panel's turn count and last-activity line come
  * straight from the transcript, so they stay live regardless.
  */
@@ -238,7 +238,7 @@ async function load(path: string): Promise<Map<string, CacheEntry>> {
 			if (entry?.brief) store.entries.set(id, entry);
 		}
 	} catch {
-		// no cache yet, or it's corrupt — either way, start empty
+		// no cache yet, or it's corrupt - either way, start empty
 	}
 	return store.entries;
 }
@@ -255,7 +255,7 @@ async function save(path: string): Promise<void> {
 	}
 }
 
-/** Briefs already written, by session id — read only, never writes one. */
+/** Briefs already written, by session id - read only, never writes one. */
 export async function cachedBriefs(
 	cachePath = defaultCachePath(),
 ): Promise<Map<string, WrittenBrief>> {
@@ -263,7 +263,7 @@ export async function cachedBriefs(
 	return new Map([...entries].map(([id, entry]) => [id, entry.brief]));
 }
 
-/** One run per session at a time — the panel polls, and a spawn takes ~15s. */
+/** One run per session at a time - the panel polls, and a spawn takes ~15s. */
 const inFlight = new Map<string, Promise<WrittenBrief>>();
 
 export async function writeBrief({
@@ -320,7 +320,7 @@ export async function writeBrief({
 			messages: parseTranscript(jsonl),
 		});
 		// `claude -p` files a transcript of its own for every run, and this one runs
-		// on every card, forever — Session History filled up with thousands of
+		// on every card, forever - Session History filled up with thousands of
 		// one-message "sessions" nobody started. Name the session so its transcript
 		// can be deleted again; it is a function call, not a conversation.
 		const briefSessionId = randomUUID();
@@ -372,7 +372,7 @@ export async function writeBrief({
 
 /**
  * Write briefs for sessions nobody has opened yet, one at a time in the
- * background — so the panel is already filled in when you click a card instead
+ * background - so the panel is already filled in when you click a card instead
  * of starting a 15s model call at the moment you want to read it.
  *
  * ponytail: serial, not parallel. Ten cards would otherwise fork ten `claude`
@@ -393,7 +393,7 @@ let pumping = false;
 export async function warmBriefs(
 	sessionIds: string[],
 	options: WarmOptions = {},
-	/** Sessions that stopped working — written now, not five minutes on. */
+	/** Sessions that stopped working - written now, not five minutes on. */
 	settled: string[] = [],
 ): Promise<{
 	queued: number;
@@ -405,7 +405,7 @@ export async function warmBriefs(
 		if (!id) continue;
 		const stopped = settled.includes(id);
 		if (warming.has(id)) {
-			// It stopped while waiting its turn — don't let the queued write throttle.
+			// It stopped while waiting its turn - don't let the queued write throttle.
 			const waiting = queue.find((entry) => entry.sessionId === id);
 			if (waiting && stopped)
 				waiting.options = { ...waiting.options, settled: true };
@@ -420,7 +420,7 @@ export async function warmBriefs(
 	}
 	void pump();
 	// The tags and titles of whatever is already written. The board asks on a
-	// timer, so a session queued by this call reports its own on a later one —
+	// timer, so a session queued by this call reports its own on a later one -
 	// which beats a second channel just to push three words back to a card.
 	const cache = await load(options.cachePath ?? defaultCachePath());
 	const tags: Record<string, string[]> = {};
@@ -446,7 +446,7 @@ async function pump(): Promise<void> {
 				// A cache hit costs one stat, so re-warming a quiet session is free.
 				await writeBrief({ ...options, sessionId });
 			} catch {
-				// no transcript, no claude, model failed — the panel will say so
+				// no transcript, no claude, model failed - the panel will say so
 			} finally {
 				// Re-warmable next round; writeBrief's own throttle stops the waste.
 				warming.delete(sessionId);

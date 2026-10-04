@@ -31,7 +31,7 @@ import { swapScript } from "./update-swap-script";
  *    designated requirement, which for a self-signed leaf pins the exact
  *    certificate. apps/desktop/scripts/create-signing-identity.sh finds an
  *    empty keychain on every hosted runner, so each Release run mints a fresh
- *    "Odin Local Signing" cert — every update would be rejected as signed by a
+ *    "Odin Local Signing" cert - every update would be rejected as signed by a
  *    stranger. Stable signing means putting a p12 in a GitHub secret.
  *  - A Squirrel feed needs latest-mac.yml plus the mac .zip; release.yml
  *    publishes only Odin-arm64.dmg.
@@ -49,7 +49,7 @@ const DMG_URL = `https://github.com/${REPO_SLUG}/releases/latest/download/Odin-a
 
 const UPDATE_CHECK_INTERVAL_MS = 1000 * 60 * 60 * 4; // 4 hours
 
-/** The installed bundle — usually /Applications/Odin.app, wherever it lives. */
+/** The installed bundle - usually /Applications/Odin.app, wherever it lives. */
 function appBundlePath(): string {
 	// .../Odin.app/Contents/MacOS/Odin -> .../Odin.app
 	return dirname(dirname(dirname(app.getPath("exe"))));
@@ -64,7 +64,7 @@ export type { AutoUpdateStatusEvent } from "shared/auto-update";
 
 export const autoUpdateEmitter = new EventEmitter();
 
-// Transient/expected failures — no error state, no dialog, just retry later.
+// Transient/expected failures - no error state, no dialog, just retry later.
 const SILENT_ERROR_PATTERNS = [
 	"ENOTFOUND",
 	"ETIMEDOUT",
@@ -243,7 +243,7 @@ async function runCheck({ userAsked }: { userAsked: boolean }): Promise<void> {
 				title: "Updates",
 				message: app.isPackaged
 					? "In-app updates are only available on macOS."
-					: "This is a development build — update it with scripts/odin-update.sh.",
+					: "This is a development build - update it with scripts/odin-update.sh.",
 			});
 		}
 		return;
@@ -360,7 +360,7 @@ export function setupAutoUpdater(): void {
 	);
 
 	// ponytail: the background check prompts with a dialog because there is no
-	// update UI in the renderer — the trpc autoUpdate router streams the status
+	// update UI in the renderer - the trpc autoUpdate router streams the status
 	// events for one, if a pill ever wants them.
 	const interval = setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL_MS);
 	interval.unref();

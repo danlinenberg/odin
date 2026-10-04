@@ -117,7 +117,7 @@ function kindRank(kind: LaunchSourceKind): number {
 
 /**
  * Kind-specific identity: URL/id-based kinds dedup on their identifier.
- * Attachments never dedup — users dragging N files mean N files.
+ * Attachments never dedup - users dragging N files mean N files.
  */
 function sourceIdentity(source: LaunchSource): string | null {
 	switch (source.kind) {

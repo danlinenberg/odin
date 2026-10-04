@@ -22,7 +22,7 @@ describe("buildThreadPrompt", () => {
 			"https://imagenai.slack.com/archives/C0C1GB6AHCY/p1788966541529909";
 		const prompt = buildThreadPrompt(THREAD, "see this", `see this ${pasted}`);
 		// The board reads a session's thread off the first Slack link in the
-		// transcript — a link someone pasted must never outrank ours.
+		// transcript - a link someone pasted must never outrank ours.
 		expect(slackThread([{ role: "user", text: prompt, at: null }])).toBe(
 			THREAD,
 		);

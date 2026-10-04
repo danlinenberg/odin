@@ -9,7 +9,7 @@ import { briefError } from "./claude-sessions/summarize";
  * The backlog sweep's last rung: a model reads the conversations the rules
  * kept and says which ones nobody is waiting on me in.
  *
- * The rules catch what the data shows — a status, an author, a reaction, a
+ * The rules catch what the data shows - a status, an author, a reaction, a
  * "thanks". What they can't see is meaning: someone else answered in the
  * middle of the thread, I already did the thing and said so two messages
  * up, the ask was withdrawn. Read by hand, that was 18 of 34 kept Slack rows.
@@ -64,7 +64,7 @@ async function judgeBatch(
 	const body = batch
 		.map((c, i) => `=== ${i + 1} · ${c.source} ===\n${c.text}`)
 		.join("\n\n");
-	// Named so its transcript can be deleted — see writeBrief.
+	// Named so its transcript can be deleted - see writeBrief.
 	const sessionId = randomUUID();
 	try {
 		const { stdout } = await execWithShellEnv(
@@ -118,7 +118,7 @@ let worker: Promise<void> | null = null;
  * Read what's queued and judge it, ten conversations to a model call.
  *
  * Slack holds `conversations.replies`/`.history` to about one call a minute
- * for an app outside its Marketplace — Odin's — so a full read of 30 threads
+ * for an app outside its Marketplace - Odin's - so a full read of 30 threads
  * takes half an hour. That's why this runs behind the sweep, not inside it.
  */
 async function drain(

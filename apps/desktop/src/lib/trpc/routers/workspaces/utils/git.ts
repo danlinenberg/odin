@@ -144,7 +144,7 @@ async function isWorktreeRegistered({
 /**
  * Runs `git worktree add`, tolerating hook failures.
  * Post-checkout hooks run after the checkout itself, so they can exit
- * non-zero — or blow past the timeout and get killed — with the worktree
+ * non-zero - or blow past the timeout and get killed - with the worktree
  * fully created. If the worktree verifiably reached the expected state
  * despite the error, we warn and continue.
  */
@@ -162,7 +162,7 @@ async function execWorktreeAdd({
 	/**
 	 * Branch the worktree must have checked out for a failed add to count as
 	 * success. When omitted (detached adds), only a worktree registered by
-	 * THIS call qualifies — a path registered beforehand belongs to some
+	 * THIS call qualifies - a path registered beforehand belongs to some
 	 * other checkout and its "already exists" failure must surface. A
 	 * detached worktree stranded by a killed prior attempt therefore does
 	 * NOT recover via retry: without a branch there is no way to tell a
@@ -278,7 +278,7 @@ export async function getStatusNoLock(repoPath: string): Promise<StatusResult> {
 		);
 	}
 
-	// Parsing failures are our bugs, not the environment's — keep them outside
+	// Parsing failures are our bugs, not the environment's - keep them outside
 	// the catch so they surface as reported 500s.
 	return parsePorcelainStatusV2(stdout);
 }
@@ -834,7 +834,7 @@ export async function removeWorktree(
 			timeout: 10_000,
 		});
 
-		// Delete the moved directory in the background — don't block the caller.
+		// Delete the moved directory in the background - don't block the caller.
 		// Use spawned `rm -rf` instead of Node's fs.rm which can hang on macOS
 		// when encountering .app bundles with extended attributes.
 		const child = spawn("/bin/rm", ["-rf", tempPath], {
@@ -1716,7 +1716,7 @@ export interface PullRequestInfo {
 	number: number;
 	title: string;
 	headRefName: string;
-	/** Head commit SHA — ground truth for whether a PR checkout completed. */
+	/** Head commit SHA - ground truth for whether a PR checkout completed. */
 	headRefOid?: string;
 	headRepository: {
 		owner: string;
@@ -1885,9 +1885,9 @@ export async function createWorktreeFromPr({
 			});
 		}
 
-		// Checkouts run post-checkout hooks too — tolerate a hook failure only
+		// Checkouts run post-checkout hooks too - tolerate a hook failure only
 		// when the checkout verifiably completed: right branch AND at the PR's
-		// head commit. Branch name alone is not enough — in the branch-exists
+		// head commit. Branch name alone is not enough - in the branch-exists
 		// path the branch is already checked out before gh runs, which would
 		// mask genuine gh failures (auth, network) as hook noise.
 		await runWithPostCheckoutHookTolerance({
@@ -1935,7 +1935,7 @@ export async function createWorktreeFromPr({
 					// contains '/' (e.g. "user/feature-branch"). Git has trouble resolving
 					// "origin/user/feature-branch" as a tracking ref inside a worktree.
 					// gh already fetched the remote successfully, so FETCH_HEAD points to
-					// the right commit — fall back to creating the branch without tracking.
+					// the right commit - fall back to creating the branch without tracking.
 					if (!ghMsg.includes("is not a branch")) {
 						throw ghError;
 					}

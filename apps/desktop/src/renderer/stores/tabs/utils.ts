@@ -43,7 +43,7 @@ export const resolveFileViewerMode = ({
 	if (viewMode) return viewMode;
 	// Images always default to rendered (no meaningful diff for binary files)
 	if (isImageFile(filePath)) return "rendered";
-	// New files have no previous version — show raw/rendered instead of an all-green diff
+	// New files have no previous version - show raw/rendered instead of an all-green diff
 	if (diffCategory && fileStatus && isNewFile(fileStatus)) {
 		if (hasRenderedPreview(filePath)) return "rendered";
 		return "raw";
@@ -192,7 +192,7 @@ export interface CreateFileViewerPaneOptions {
 	isPinned?: boolean;
 	diffLayout?: DiffLayout;
 	diffCategory?: ChangeCategory;
-	/** File status from git — used to determine default view mode for new files */
+	/** File status from git - used to determine default view mode for new files */
 	fileStatus?: FileStatus;
 	commitHash?: string;
 	oldPath?: string;

@@ -119,7 +119,7 @@ describe("buildLaunchSpec", () => {
 					{
 						id: "issue:123",
 						kind: "github-issue",
-						label: "Issue #123 — Auth",
+						label: "Issue #123 - Auth",
 						content: [
 							{
 								type: "text",
@@ -349,7 +349,7 @@ Replaces plaintext token storage with encrypted KV.
 
 The user attached these files alongside the prompt. They've been
 written into the worktree at \`.odin/attachments/\`. Read them
-to understand the request — they're part of the task, not
+to understand the request - they're part of the task, not
 optional reference.
 
 - .odin/attachments/logs.txt
@@ -399,7 +399,7 @@ Replaces plaintext token storage with encrypted KV.
 
 The user attached these files alongside the prompt. They've been
 written into the worktree at \`.odin/attachments/\`. Read them
-to understand the request — they're part of the task, not
+to understand the request - they're part of the task, not
 optional reference.
 
 - .odin/attachments/logs.txt

@@ -354,7 +354,7 @@ export const Terminal = memo(function Terminal({
 		defaultRestartCommandRef,
 	});
 
-	// Stream event handler registration — the subscription itself lives in
+	// Stream event handler registration - the subscription itself lives in
 	// v1TerminalCache and stays alive across mount/unmount cycles so data
 	// keeps flowing to xterm even while the tab is hidden.
 	// Placed after useTerminalLifecycle so the cache entry exists on cold mount.
@@ -407,7 +407,7 @@ export const Terminal = memo(function Terminal({
 		},
 	);
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: resizeRef is a stable MutableRefObject — .current is read inside the effect, not a dependency
+	// biome-ignore lint/correctness/useExhaustiveDependencies: resizeRef is a stable MutableRefObject - .current is read inside the effect, not a dependency
 	useEffect(() => {
 		if (!fontSettings) return;
 		const family = sanitizeTerminalFontFamily(fontSettings.terminalFontFamily);
@@ -464,14 +464,14 @@ export const Terminal = memo(function Terminal({
 					<SessionKilledOverlay onRestart={restartTerminal} />
 				)}
 			{/* The "[Process exited]" line scrolls away and a dropped daemon link
-			    gives up silently after MAX_RETRIES — keep either in view. */}
+			    gives up silently after MAX_RETRIES - keep either in view. */}
 			{((exitStatus === "exited" && !isRestoredMode) ||
 				(connectionError && !exitStatus)) && (
 				<div className="absolute inset-x-0 bottom-0 z-10 flex items-center gap-2 border-t border-[#5a2733] bg-[#2a1218]/95 px-3 py-1.5 text-xs text-[#f0647a]">
 					<span className="size-2 shrink-0 rounded-full bg-[#f0647a]" />
 					<span className="min-w-0 flex-1 truncate">
 						{exitStatus === "exited"
-							? "Shell exited — this terminal is no longer running"
+							? "Shell exited - this terminal is no longer running"
 							: `Terminal disconnected: ${connectionError}`}
 					</span>
 					<button

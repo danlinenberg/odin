@@ -91,7 +91,7 @@ describe("sanitizeTerminalFontFamily", () => {
 
 	test("passes through a stack whose primary generic is monospace", () => {
 		// The browser resolves the first generic, so "monospace, sans-serif"
-		// actually renders as monospace — safe.
+		// actually renders as monospace - safe.
 		expect(sanitizeTerminalFontFamily("monospace, sans-serif")).toBe(
 			"monospace, sans-serif",
 		);
@@ -115,7 +115,7 @@ describe("sanitizeTerminalFontFamily", () => {
 
 	test("appends a monospace fallback when the stack lacks one", () => {
 		// If the primary isn't installed, the browser otherwise falls back to a
-		// proportional default — appending "monospace" forces OS monospace.
+		// proportional default - appending "monospace" forces OS monospace.
 		restore = stubCanvas(() => equalWidths);
 		expect(sanitizeTerminalFontFamily('"JetBrains Mono"')).toBe(
 			'"JetBrains Mono", monospace',

@@ -8,8 +8,8 @@ import {
  * Jira OAuth token upkeep, deliberately separate from the consent flow.
  *
  * Atlassian 3LO differs from Slack and Notion in two ways that shape this
- * file. Access tokens are short-lived and the refresh token *rotates* — every
- * refresh issues a new one and invalidates the old — so the stored pair must
+ * file. Access tokens are short-lived and the refresh token *rotates* - every
+ * refresh issues a new one and invalidates the old - so the stored pair must
  * be replaced atomically or the connection is lost. And OAuth calls do not go
  * to your site host: they go to api.atlassian.com/ex/jira/{cloudId}, where the
  * cloudId comes from asking which sites the token can reach.
@@ -33,7 +33,7 @@ interface TokenResponse {
 	error_description?: string;
 }
 
-/** True when Jira is signed in — the only way it connects. */
+/** True when Jira is signed in - the only way it connects. */
 export function hasJiraOAuth(): boolean {
 	return (
 		resolveJiraOAuthApp() !== null && Boolean(readOdinConfig().jiraRefreshToken)

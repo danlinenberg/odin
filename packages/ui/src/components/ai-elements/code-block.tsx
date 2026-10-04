@@ -22,7 +22,7 @@ type CodeBlockProps = HTMLAttributes<HTMLDivElement> & {
 	showLineNumbers?: boolean;
 	/** Starting line number offset (for partial file display). Default: 1 */
 	startLine?: number;
-	/** When false, suppresses syntax-highlight colors — all tokens render in the foreground color. */
+	/** When false, suppresses syntax-highlight colors - all tokens render in the foreground color. */
 	colorize?: boolean;
 };
 
@@ -109,7 +109,7 @@ export async function highlightCode(
 			const plainText = plainTextToHast(code);
 			return [plainText, plainText];
 		}
-		// Unknown/unsupported language — fall back to plain text
+		// Unknown/unsupported language - fall back to plain text
 		return highlightCode(
 			code,
 			"text" as BundledLanguage,

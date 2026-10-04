@@ -65,7 +65,7 @@ describe("refreshNotionToken", () => {
 	});
 
 	test("a pasted internal secret has nothing to refresh", async () => {
-		// The paste path stores no refresh token, and its secret never expires —
+		// The paste path stores no refresh token, and its secret never expires -
 		// so the retry must be inert rather than clobbering anything.
 		updateOdinConfig({ notionRefreshToken: undefined });
 		const calls = mockTokenEndpoint({ access_token: "should-not-happen" });

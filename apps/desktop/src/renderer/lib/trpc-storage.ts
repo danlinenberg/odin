@@ -38,7 +38,7 @@ export function createTrpcStorageAdapter(
 	// dev server's held full-reload that same instant) used to drop the change:
 	// the page came back from the old appState, and a Done card came back with
 	// it. localStorage is synchronous, so park the unsaved value there on the
-	// way out — getItem already prefers a fresh pending snapshot.
+	// way out - getItem already prefers a fresh pending snapshot.
 	let storeName: string | null = null;
 	globalThis.addEventListener?.("pagehide", () => {
 		const unsaved = pendingValue ?? pendingSnapshotValue;

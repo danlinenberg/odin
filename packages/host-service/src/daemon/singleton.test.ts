@@ -1,5 +1,5 @@
 // Tests for the daemon supervisor singleton + bootstrap helpers.
-// We don't spawn a real daemon here — the singleton is just plumbing
+// We don't spawn a real daemon here - the singleton is just plumbing
 // (DI for the supervisor, fire-and-track promise stash). Real-spawn
 // coverage lives in DaemonSupervisor.node-test.ts.
 
@@ -24,7 +24,7 @@ describe("getSupervisor", () => {
 	test("returns the same instance across calls", () => {
 		const a = getSupervisor("/nonexistent");
 		const b = getSupervisor("/different");
-		// Singleton — second arg is ignored after first construction.
+		// Singleton - second arg is ignored after first construction.
 		expect(b).toBe(a);
 	});
 
@@ -32,7 +32,7 @@ describe("getSupervisor", () => {
 		const sup = getSupervisor("/some/path/pty-daemon.js");
 		// We can't read scriptPath via public API, but we can confirm the
 		// supervisor was constructed (not null) and uses the path when it
-		// tries to spawn — `existsSync` check throws "script not found".
+		// tries to spawn - `existsSync` check throws "script not found".
 		expect(sup).toBeInstanceOf(DaemonSupervisor);
 	});
 });
@@ -56,7 +56,7 @@ describe("fire-and-track bootstrap", () => {
 		expect(ensureMock).toHaveBeenCalledTimes(1);
 		expect(ensureMock).toHaveBeenCalledWith("org-fnt");
 
-		// Now await readiness — should complete after ensure resolves.
+		// Now await readiness - should complete after ensure resolves.
 		await waitForDaemonReady("org-fnt");
 		// Readiness re-ensures (ensure is an idempotent map lookup when the
 		// daemon is alive) so a daemon that died post-bootstrap gets revived.

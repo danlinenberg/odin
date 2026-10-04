@@ -76,12 +76,12 @@ Workspace rename does use `collections.v2Workspaces.update` via `useOptimisticCo
 
 These are client-local TanStack DB collections. They are synchronous local persistence, not Electric/Postgres optimistic writes:
 
-- `v2SidebarProjects` — sidebar project order/collapse/default app
-- `v2WorkspaceLocalState` — sidebar placement, pane layout, viewed files, changes tab
-- `v2SidebarSections` — user-created sidebar sections and ordering
-- `v2TerminalPresets` — local terminal presets
-- `pendingWorkspaces` — durable local bus for workspace creation progress and launch handoff
-- `v2UserPreferences` — local v2 preferences such as link behavior and delete-branch default
+- `v2SidebarProjects` - sidebar project order/collapse/default app
+- `v2WorkspaceLocalState` - sidebar placement, pane layout, viewed files, changes tab
+- `v2SidebarSections` - user-created sidebar sections and ordering
+- `v2TerminalPresets` - local terminal presets
+- `pendingWorkspaces` - durable local bus for workspace creation progress and launch handoff
+- `v2UserPreferences` - local v2 preferences such as link behavior and delete-branch default
 
 LocalStorage mutations can still throw for schema/storage errors, but they do not have remote persistence confirmation or Electric rollback semantics.
 

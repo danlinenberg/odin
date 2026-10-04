@@ -137,7 +137,7 @@ try {
 	}
 	check("signed-in", true, needsSignIn ? "clicked dev sign-in" : "already in");
 
-	// Navigate by clicking real nav buttons — TanStack Router ignores raw
+	// Navigate by clicking real nav buttons - TanStack Router ignores raw
 	// location.hash writes. Both the stock sidebar ("Dev board") and the dan
 	// shell rail ("Dev Board") carry aria-labels. Click inside the wait loop:
 	// right after boot the first attempts can run before React has mounted.

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Shared process handling for the Odin scripts. Sourced, not executed.
 #
-# The packaged UI and the terminal-host daemon run the SAME argv[0] — the app's
-# own Electron binary, re-executed with ELECTRON_RUN_AS_NODE — so any pattern
+# The packaged UI and the terminal-host daemon run the SAME argv[0] - the app's
+# own Electron binary, re-executed with ELECTRON_RUN_AS_NODE - so any pattern
 # matching the bundle path hits both. Killing the daemon closes every open
 # terminal session, which is exactly what these helpers exist to avoid: the
 # daemon is spawned detached on purpose, and dev and packaged builds share
@@ -11,7 +11,7 @@
 #   source "$REPO/scripts/odin-procs.sh"
 
 # Enumerate with ps, NOT `pgrep -f`. pgrep silently skips processes whose
-# executable has been moved out from under them — measured here: after a bundle
+# executable has been moved out from under them - measured here: after a bundle
 # rename it reported 3 of the 6 processes ps listed, and the one it dropped was
 # the daemon. That's the one state where being wrong is destructive, since these
 # helpers gate an `rm -rf` of the bundle a live daemon is still running from.

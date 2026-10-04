@@ -4,7 +4,7 @@
 // Pre-protocol-v2, PTY input/output bytes were base64'd into a JSON `data`
 // field. After v2, bytes ride in the frame's binary tail and there are
 // zero encode/decode passes per chunk. This test fails the moment anyone
-// reintroduces a hop in source — much earlier than runtime tests catch it.
+// reintroduces a hop in source - much earlier than runtime tests catch it.
 //
 // Why source-level (not bundle-level): bundlers minify/rename identifiers,
 // so grepping the bundle is fragile. The source files we want to guard are
@@ -35,7 +35,7 @@ function read(relPath: string): string {
 
 function stripComments(src: string): string {
 	// Block comments first (so `// inside /* */` doesn't escape the strip),
-	// then line comments. Naive — doesn't try to parse strings — but more
+	// then line comments. Naive - doesn't try to parse strings - but more
 	// than enough for our well-formatted source files.
 	return src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
 }
@@ -66,7 +66,7 @@ describe("data path is base64-free", () => {
 
 	test('OutputMessage and InputMessage do not declare a "data" field', () => {
 		// If anyone re-adds `data: string` to either message, base64 is
-		// the only way to fit binary into JSON — drop the temptation early.
+		// the only way to fit binary into JSON - drop the temptation early.
 		const src = read("packages/pty-daemon/src/protocol/messages.ts");
 		const outputBlock = extractInterfaceBlock(src, "OutputMessage");
 		const inputBlock = extractInterfaceBlock(src, "InputMessage");

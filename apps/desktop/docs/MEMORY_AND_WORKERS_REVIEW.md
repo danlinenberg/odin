@@ -6,7 +6,7 @@ Initial review 2026-07-18; progress and the large-repository/Pierre reruns updat
 
 | Item | Ticket | Status |
 |---|---|---|
-| Parked-terminal LRU eviction (terminal half) | SUPER-1545 | **Shipped** in PR #5751. Cap defaults to 12 parked, user-configurable (Settings → Terminal → "Background terminal memory"; local-db `terminal_parked_runtime_cap`, migration 0042, zod-clamped 2–64, live-applied via `terminalRuntimeRegistry.setParkedRuntimeCap`). Workspace-close disposal was hardened in PR #5752 and eviction persistence races in PR #5771. CDP-verified: default seeds at boot, 16-tab cycle parks exactly 12, lowering to 6 sweeps immediately, persists, out-of-range rejected. Two controlled A/Bs below (18-terminal fill, 24-terminal live-stream; both measured at cap 5 — savings scale down as the cap rises) |
+| Parked-terminal LRU eviction (terminal half) | SUPER-1545 | **Shipped** in PR #5751. Cap defaults to 12 parked, user-configurable (Settings → Terminal → "Background terminal memory"; local-db `terminal_parked_runtime_cap`, migration 0042, zod-clamped 2–64, live-applied via `terminalRuntimeRegistry.setParkedRuntimeCap`). Workspace-close disposal was hardened in PR #5752 and eviction persistence races in PR #5771. CDP-verified: default seeds at boot, 16-tab cycle parks exactly 12, lowering to 6 sweeps immediately, persists, out-of-range rejected. Two controlled A/Bs below (18-terminal fill, 24-terminal live-stream; both measured at cap 5 - savings scale down as the cap rises) |
 | Parked-webview eviction + alt-screen exemption + quota guard | SUPER-1545 | **Shipped** in PR #5754 (hidden-webview LRU cap 3 in `browserRuntimeRegistry`; alternate-screen TUIs exempt from terminal eviction; eviction skipped when the buffer cannot persist). CDP-verified 2026-07-18 |
 | Chat shiki off main thread | SUPER-1546 | Not started |
 | Collections preload/window/evict | SUPER-1547 | Org-switch eviction **shipped** in PR #5778; preload deferral and table windowing are not started |
@@ -14,7 +14,7 @@ Initial review 2026-07-18; progress and the large-repository/Pierre reruns updat
 | Search pinned worker | SUPER-1549 | Not started (measurement-gated on SUPER-1544) |
 | Memory telemetry | SUPER-1550 | **Shipped** in PR #5777. Production-only, privacy-allowlisted `resource_snapshot` every 5–6 minutes; Electron process-class RSS/counts plus main-process heap/RSS, uptime, window count, and web-contents count |
 | Host-service git worker pool | SUPER-1544 | **Shipped** in PR #5750; watcher batches bounded in PR #5746. Git status and commit-file work run in the generic `worker_threads` pool; base-ref fetch coordination shipped in PR #5776 |
-| Large Changes-list renderer churn | — | **Fix measured; PR #5782 is ready for review.** Latest-main reproduction identified eager `FileRow` mounting as the renderer hot path. Both folder and tree modes now use one bounded `@pierre/trees` renderer; the direct Pierre dependencies were upgraded to `@pierre/diffs` 1.2.12 and `@pierre/trees` 1.0.0-beta.5. Same-workload before/after/final-Pierre evidence is below |
+| Large Changes-list renderer churn | - | **Fix measured; PR #5782 is ready for review.** Latest-main reproduction identified eager `FileRow` mounting as the renderer hot path. Both folder and tree modes now use one bounded `@pierre/trees` renderer; the direct Pierre dependencies were upgraded to `@pierre/diffs` 1.2.12 and `@pierre/trees` 1.0.0-beta.5. Same-workload before/after/final-Pierre evidence is below |
 
 ## Bottom line
 
@@ -27,11 +27,11 @@ Initial review 2026-07-18; progress and the large-repository/Pierre reruns updat
 
 | State | JS heap | Renderer RSS |
 |---|---|---|
-| Boot, collections not synced | 150 MB | — |
-| Electric collections synced (dev org) | 204 MB | — |
-| +1 terminal | 219 MB | — |
-| +6k lines of scrollback | 254 MB | — |
-| 5 terminals | 314 MB | — |
+| Boot, collections not synced | 150 MB | - |
+| Electric collections synced (dev org) | 204 MB | - |
+| +1 terminal | 219 MB | - |
+| +6k lines of scrollback | 254 MB | - |
+| 5 terminals | 314 MB | - |
 | **18 terminals (17 parked)** | **558–570 MB** | **1.54–1.59 GB** |
 
 This was the pre-#5751 baseline: nothing was reclaimed on workspace switch, so with 17/18 terminals parked, heap and all 18 WebGL contexts stayed put. The controlled A/B below measures the shipped eviction behavior.
@@ -132,7 +132,7 @@ The worker-mode host harness completed the measured portion in 5.321 s: 44 `git:
 
 RSS did not show runaway growth in this run: churn maxed at 771.1 MiB and fell to 712.7 MiB after a 10 s cooldown plus explicit GC. JS heap was 125.0 MiB at churn end, 104.4 MiB before that GC, and 104.1 MiB after it; event listeners remained roughly flat (1,049 before GC, 1,061 after). Repeated forced invalidation and full eight-way status result transfer is intentionally harsher than the visible large-change UI's 10 s refetch floor. The production-shaped follow-up above now covers the missing result-render and workspace-switch lifecycle; its remaining caveat is background status freshness after full-tree churn.
 
-### Controlled A/B — parked-terminal LRU eviction (SUPER-1545; measured at cap = 5, shipped default is 12 + configurable)
+### Controlled A/B - parked-terminal LRU eviction (SUPER-1545; measured at cap = 5, shipped default is 12 + configurable)
 
 Identical CDP protocol on fresh launches of each build: open the 18-terminal workspace, drive 5,000 lines into every terminal's xterm, then re-cycle all tabs. Measured at the same settle points.
 
@@ -147,9 +147,9 @@ Identical CDP protocol on fresh launches of each build: open the 18-terminal wor
 
 Trade-off, by design: after the re-cycle pass the eviction build holds ~6.3k buffered lines (evicted terminals restore the 1,000-line serialized window) vs 85k retained in the before build; median tab-switch pays ~17 ms extra when the switch rebuilds an evicted runtime.
 
-### Heavy A/B — 24 terminals with live streaming processes
+### Heavy A/B - 24 terminals with live streaming processes
 
-Same A/B discipline, harder load: 24 terminal tabs, each running a real PTY process streaming continuously (`while true; do seq 1 100; sleep 0.2; done`, ~40 KB/s each; throttled deliberately — a full-rate flood kills the shared daemon socket per the SUPER-1544 plan's finding, which would invalidate the comparison). CPU is a 30 s `cputime` delta during steady state.
+Same A/B discipline, harder load: 24 terminal tabs, each running a real PTY process streaming continuously (`while true; do seq 1 100; sleep 0.2; done`, ~40 KB/s each; throttled deliberately - a full-rate flood kills the shared daemon socket per the SUPER-1544 plan's finding, which would invalidate the comparison). CPU is a 30 s `cputime` delta during steady state.
 
 | Metric (24 streams live) | Before (HEAD) | After (eviction) |
 |---|---|---|
@@ -160,35 +160,35 @@ Same A/B discipline, harder load: 24 terminal tabs, each running a real PTY proc
 | Host-service / daemon / GPU CPU | 2% / 1% / 5% | 2% / 1% / 4% |
 | Tab-switch p50 / p95 under load | 52 / 95 ms | 68 / 114 ms |
 
-Under this real-PTY streaming workload, eviction closes the WebSocket of released terminals, so their streams are neither delivered nor parsed — the before build parses all 24 streams into 23 live xterms forever. Heap is also flat under load in the eviction build vs climbing in the before build. A later 18-terminal synthetic-output rerun confirmed the memory result (−46% JS heap, −30% renderer RSS) but did not reproduce a CPU reduction (`TaskDuration` 1.41 s before vs 1.80 s after), so treat the 30% → 21% CPU sample as workload-specific rather than a general CPU claim.
+Under this real-PTY streaming workload, eviction closes the WebSocket of released terminals, so their streams are neither delivered nor parsed - the before build parses all 24 streams into 23 live xterms forever. Heap is also flat under load in the eviction build vs climbing in the before build. A later 18-terminal synthetic-output rerun confirmed the memory result (−46% JS heap, −30% renderer RSS) but did not reproduce a CPU reduction (`TaskDuration` 1.41 s before vs 1.80 s after), so treat the 30% → 21% CPU sample as workload-specific rather than a general CPU claim.
 
-## Original findings and current disposition — renderer
+## Original findings and current disposition - renderer
 
-- **Original parked-terminal retention — resolved by PRs #5751, #5752, and #5771.** Before the fix, workspace/tab switch reparented xterm into a `position:fixed; left:-9999px` container under `<body>` and retained its buffer, addons, WebSocket, and live WebGL context indefinitely. Current code LRU-evicts eligible parked runtimes, makes workspace-close disposal reliable, and skips eviction when state cannot persist safely.
-- **Original absence of an instance cap — resolved by PRs #5751 and #5754.** The baseline reached 18 registry entries and 18 live WebGL contexts with zero evictions. Current defaults cap fully live parked xterms at 12 and hidden webviews at 3; the terminal cap is user-configurable from 2–64, while alternate-screen TUIs are exempt to avoid corrupt restoration.
-- **Scrollback 5000** (CDP: `term.options.scrollback === 5000`; buffer plateaued at 5,000 + viewport rows). `shared/constants.ts:42`. Park/persist serializes 1,000 lines to `localStorage` `terminal-buffer:<id>` (~69 KB observed) — `terminal-runtime.ts:25`.
-- **Electric collections: 30 per active org (29 org-scoped + shared organizations), fully preloaded at boot** (CDP + code). All reached `ready` on reload with entire tables in heap — dev org alone: 3,501 `githubPullRequests`, 1,719 tasks, 613 runs, 263 chat sessions (~50 MB heap). PR #5778 added org-switch eviction: inactive cache entries are deleted and each collection's public `cleanup()` stops sync and clears in-memory rows, while on-disk rows remain for cache-first rehydration. Active-org preload/windowing is unchanged.
+- **Original parked-terminal retention - resolved by PRs #5751, #5752, and #5771.** Before the fix, workspace/tab switch reparented xterm into a `position:fixed; left:-9999px` container under `<body>` and retained its buffer, addons, WebSocket, and live WebGL context indefinitely. Current code LRU-evicts eligible parked runtimes, makes workspace-close disposal reliable, and skips eviction when state cannot persist safely.
+- **Original absence of an instance cap - resolved by PRs #5751 and #5754.** The baseline reached 18 registry entries and 18 live WebGL contexts with zero evictions. Current defaults cap fully live parked xterms at 12 and hidden webviews at 3; the terminal cap is user-configurable from 2–64, while alternate-screen TUIs are exempt to avoid corrupt restoration.
+- **Scrollback 5000** (CDP: `term.options.scrollback === 5000`; buffer plateaued at 5,000 + viewport rows). `shared/constants.ts:42`. Park/persist serializes 1,000 lines to `localStorage` `terminal-buffer:<id>` (~69 KB observed) - `terminal-runtime.ts:25`.
+- **Electric collections: 30 per active org (29 org-scoped + shared organizations), fully preloaded at boot** (CDP + code). All reached `ready` on reload with entire tables in heap - dev org alone: 3,501 `githubPullRequests`, 1,719 tasks, 613 runs, 263 chat sessions (~50 MB heap). PR #5778 added org-switch eviction: inactive cache entries are deleted and each collection's public `cleanup()` stops sync and clears in-memory rows, while on-disk rows remain for cache-first rehydration. Active-org preload/windowing is unchanged.
 - **Pierre worker pool is real and is the only renderer worker system** (CDP: exactly 8 `worker` CDP targets). `layout.tsx:217` (`poolSize: 8`, shiki-wasm). No SharedWorker/OffscreenCanvas/comlink anywhere.
-- **Chat code blocks highlight on the main thread, twice per block** (code): `codeToHast` with `one-light` then `one-dark-pro`, re-run on every `code` change — `packages/ui/src/components/ai-elements/code-block.tsx:84-159`. Not routed through the pierre pool.
-- **Chat message lists are not virtualized; polling replaces the whole array** (code): refetch clamped to ≥16 ms (`use-chat-display.ts:33`), v2 default `fps = 4` (`useWorkspaceChatDisplay.ts:120`), v1 passes `fps: 60` (`ChatPaneInterface.tsx:273` — v1 is sunset; don't fix, retire).
+- **Chat code blocks highlight on the main thread, twice per block** (code): `codeToHast` with `one-light` then `one-dark-pro`, re-run on every `code` change - `packages/ui/src/components/ai-elements/code-block.tsx:84-159`. Not routed through the pierre pool.
+- **Chat message lists are not virtualized; polling replaces the whole array** (code): refetch clamped to ≥16 ms (`use-chat-display.ts:33`), v2 default `fps = 4` (`useWorkspaceChatDisplay.ts:120`), v1 passes `fps: 60` (`ChatPaneInterface.tsx:273` - v1 is sunset; don't fix, retire).
 
-## Verified findings — Electron main
+## Verified findings - Electron main
 
 - **superjson serializes every IPC round trip on the main thread** (code): `lib/trpc/index.ts:12`.
 - **Desktop main's v1 `WorkerTaskRunner` has one consumer**: `runGitTask` from `changes/status.ts:43,93`. Other v1 git ops run inline on Electron main; v2 git status and commit-file reads now use the separate host-service worker pool shipped in PR #5750.
 - **Port scanner spawns `lsof` on a 2.5 s cadence** (CDP-era behavioral: process-table sampling caught spawns at the rate expected for 2 host-services × 2.5 s interval). `port-scanner/src/port-manager.ts:10` (`SCAN_INTERVAL_MS = 2500`), idle decay 30 s.
-- All v1-backend terminal output transits main (relay + scrollback disk writes) — `daemon-manager.ts:179` (code; v1 backends weren't exercised).
+- All v1-backend terminal output transits main (relay + scrollback disk writes) - `daemon-manager.ts:179` (code; v1 backends weren't exercised).
 
-## Verified findings — host-service / pty-daemon
+## Verified findings - host-service / pty-daemon
 
 - **`spawnSync("ps")` blocks the host-service event loop in-process** (code, import chain confirmed): `packages/host-service/src/terminal/terminal.ts:5` imports `hasRunningForegroundProcess` directly from `@odin/pty-daemon/process-tree` and calls it at `:369` (pane-close probe). `spawnSync` sites: `process-tree.ts:103,145`, `Pty/Pty.ts:147,302`.
 - **PTY buffering is well-bounded** (code): 64 KB replay ring/session (`SessionStore.ts:4`, `terminal.ts:163`), 8 MB socket caps (`Server.ts:46`, `terminal.ts:177`), slow consumers dropped, sessions deleted on exit. Per-session extras: headless-xterm `ModeTracker` + decoders (`terminal.ts:1183`).
-- In-process keyword search/fuzzy scoring reads candidate files onto the heap (`workspace-fs/src/search.ts:618+`, 1 MB/file, 500 results, LRU 12 indexes) — CPU+heap on the service loop (code).
+- In-process keyword search/fuzzy scoring reads candidate files onto the heap (`workspace-fs/src/search.ts:618+`, 1 MB/file, 500 results, LRU 12 indexes) - CPU+heap on the service loop (code).
 - Process topology (CDP-era `ps`): 2 host-service processes per dev app (321/465 MB RSS), each with a pty-daemon child (~60 MB).
 
 ## Recommendations (ranked impact/effort)
 
-### 1. Parked-terminal and hidden-webview LRU eviction — shipped
+### 1. Parked-terminal and hidden-webview LRU eviction - shipped
 
 **Shipped:** PR #5751 caps eligible parked xterm runtimes (default 12, configurable 2–64), serializes the existing 1,000-line restore window, and releases renderer state while the PTY stays alive host-side. PR #5754 adds a hidden-webview cap of 3 plus the alternate-screen exemption and persistence quota guard; PRs #5752 and #5771 harden terminal disposal and persistence edge cases.
 
@@ -200,35 +200,35 @@ Under this real-PTY streaming workload, eviction closes the WebSocket of release
 
 **Change:** route `code-block.tsx` (and `show-code`/`read-file-tool`/`file-diff-tool`) through the existing pierre pool (already runs shiki-wasm in 8 workers) or one dedicated highlight worker; cache results by content hash; highlight both themes in one worker call.
 
-**Effect:** today every code block runs `codeToHast` **twice** (light + dark) on the UI thread and re-runs on every streaming update — a few to tens of ms per update, recurring for the whole stream. That is the main source of chat jank while an agent streams code: frames drop exactly when the user is watching output. Off-thread, streaming stays at frame rate regardless of code volume, and the content-hash cache makes re-renders of settled blocks free.
+**Effect:** today every code block runs `codeToHast` **twice** (light + dark) on the UI thread and re-runs on every streaming update - a few to tens of ms per update, recurring for the whole stream. That is the main source of chat jank while an agent streams code: frames drop exactly when the user is watching output. Off-thread, streaming stays at frame rate regardless of code volume, and the content-hash cache makes re-renders of settled blocks free.
 
-**Cost/risk:** highlight becomes async — first paint of a new block is unstyled for one worker round-trip (~5–15 ms; render plain `<pre>` meanwhile, no layout shift since Streamdown already block-splits). No new infrastructure.
+**Cost/risk:** highlight becomes async - first paint of a new block is unstyled for one worker round-trip (~5–15 ms; render plain `<pre>` meanwhile, no layout shift since Streamdown already block-splits). No new infrastructure.
 
 ### 3. Electric collections: eviction shipped; defer preload + window active-org tables
 
-**Shipped/change:** PR #5778 implemented (a): prior-org collection sets are dropped from `collectionsCache` on org switch and cleaned up. Remaining work is (b) stop `preloadCollections` loading all 29 active-org tables at boot — preload only what the first screen needs, lazy-load the rest on surface open; and (c) window the monotonically-growing tables (`githubPullRequests`, `tasks`, `automationRuns`, `chatSessions`) to a recent slice, paging older rows on demand.
+**Shipped/change:** PR #5778 implemented (a): prior-org collection sets are dropped from `collectionsCache` on org switch and cleaned up. Remaining work is (b) stop `preloadCollections` loading all 29 active-org tables at boot - preload only what the first screen needs, lazy-load the rest on surface open; and (c) window the monotonically-growing tables (`githubPullRequests`, `tasks`, `automationRuns`, `chatSessions`) to a recent slice, paging older rows on demand.
 
-**Effect:** this is the only term in the profile that grows **with org age rather than user action** — the dev org already holds 3,501 PR rows + 1,719 tasks + 613 runs (~50 MB heap); a year-old active org will be several× that, paid by every client at every boot, forever. Windowing caps it permanently. Org-switch eviction returns the full per-org set (collections + secondary indexes) for multi-org users. Deferring preload also cuts boot-time sync burst and time-to-interactive.
+**Effect:** this is the only term in the profile that grows **with org age rather than user action** - the dev org already holds 3,501 PR rows + 1,719 tasks + 613 runs (~50 MB heap); a year-old active org will be several× that, paid by every client at every boot, forever. Windowing caps it permanently. Org-switch eviction returns the full per-org set (collections + secondary indexes) for multi-org users. Deferring preload also cuts boot-time sync burst and time-to-interactive.
 
-**Cost/risk:** windowed surfaces must keep the cache-first rendering rule (AGENTS.md §9) — never blank existing rows while older pages load. Sync writes that expect full-table presence need auditing before (c). Workers don't help here; retention policy does — the data must live on the thread that queries it.
+**Cost/risk:** windowed surfaces must keep the cache-first rendering rule (AGENTS.md §9) - never blank existing rows while older pages load. Sync writes that expect full-table presence need auditing before (c). Workers don't help here; retention policy does - the data must live on the thread that queries it.
 
-### 4. Git compute into a host-service worker pool — shipped; continue measuring
+### 4. Git compute into a host-service worker pool - shipped; continue measuring
 
 **Shipped:** PR #5750 added the host-service `WorkerTaskRunner` + protocol and moved v2 git status and commit-file reads into it; PR #5746 bounded watcher batches. `plans/20260717-host-service-git-worker-pool.md` remains the design and measurement record (static task registry, clone-safe boundary, idle reaping, inline fallback). Do **not** widen the desktop main-process copy of `WorkerTaskRunner`: in v2 the git compute lives in host-service, and the desktop pool dies with v1 (v1-sunset policy).
 
-**Effect:** every ms the host-service loop is busy is added latency for everything it serves — terminal relay, WS, all tRPC for the org — so git churn in big repos (branch storms, watcher-triggered refresh bursts) is felt as whole-app sluggishness, not as "git is slow". Offloading bounds loop occupancy so those stay flat. Port-scan/`ps` parsing measured trivial (per the companion plan's load test) — leave it.
+**Effect:** every ms the host-service loop is busy is added latency for everything it serves - terminal relay, WS, all tRPC for the org - so git churn in big repos (branch storms, watcher-triggered refresh bursts) is felt as whole-app sluggishness, not as "git is slow". Offloading bounds loop occupancy so those stay flat. Port-scan/`ps` parsing measured trivial (per the companion plan's load test) - leave it.
 
-**Priority caveat:** the companion plan's flood test found the daemon↔host-service transport dies (org-wide terminal drop via the 8 MiB `writableLength` destroy in `Server.ts`) before loop contention even becomes measurable. That transport fix landed as PR #5747 (pause flooding PTYs on backpressure instead of destroying the shared socket) — re-measure loop contention on top of it before sizing the pool work.
+**Priority caveat:** the companion plan's flood test found the daemon↔host-service transport dies (org-wide terminal drop via the 8 MiB `writableLength` destroy in `Server.ts`) before loop contention even becomes measurable. That transport fix landed as PR #5747 (pause flooding PTYs on backpressure instead of destroying the shared socket) - re-measure loop contention on top of it before sizing the pool work.
 
 ### 5. Host-service: async process probes + search worker
 
 **Change:** (a) replace the `spawnSync("ps")` probes (`process-tree.ts:103,145`, reached in-process via `terminal.ts:369`) with async `execFile`; (b) move keyword search + fuzzy scoring (`workspace-fs/src/search.ts`) into a `worker_threads` worker.
 
-**Effect:** (a) each sync probe freezes the **entire host-service event loop** for the child's lifetime (~10–30 ms nominal, worse under load — and it fires on pane-close paths). During a freeze, nothing moves: terminal output relay, WS keepalives, git status, port scans. Async-ifying deletes a whole class of "terminal hiccuped for no reason" stalls. (b) search reads up to 1 MB per candidate file onto the service heap and fuzzy-scores the whole index synchronously — while a user types in file search, their terminals stutter. In a worker, search latency no longer couples to terminal smoothness, and the string churn stops fragmenting the service heap.
+**Effect:** (a) each sync probe freezes the **entire host-service event loop** for the child's lifetime (~10–30 ms nominal, worse under load - and it fires on pane-close paths). During a freeze, nothing moves: terminal output relay, WS keepalives, git status, port scans. Async-ifying deletes a whole class of "terminal hiccuped for no reason" stalls. (b) search reads up to 1 MB per candidate file onto the service heap and fuzzy-scores the whole index synchronously - while a user types in file search, their terminals stutter. In a worker, search latency no longer couples to terminal smoothness, and the string churn stops fragmenting the service heap.
 
-**Cost/risk:** (a) is a signature change (`sessionHasRunningProcess` becomes async) with a small call-site ripple. (b) needs index handoff to the worker (transfer once, update incrementally) — the shapes are bounded (LRU 12 indexes, 500 results) so memory doesn't double meaningfully. Note: (b) cannot be a tenant of the request/response pool from the companion plan (its contract forbids worker-held state, and search needs the index resident worker-side) — it wants the plan's pinned-worker follow-up shape or a dedicated worker.
+**Cost/risk:** (a) is a signature change (`sessionHasRunningProcess` becomes async) with a small call-site ripple. (b) needs index handoff to the worker (transfer once, update incrementally) - the shapes are bounded (LRU 12 indexes, 500 results) so memory doesn't double meaningfully. Note: (b) cannot be a tenant of the request/response pool from the companion plan (its contract forbids worker-held state, and search needs the index resident worker-side) - it wants the plan's pinned-worker follow-up shape or a dedicated worker.
 
-### 6. Memory telemetry — shipped; make the next pass data-driven
+### 6. Memory telemetry - shipped; make the next pass data-driven
 
 **Shipped:** PR #5777 samples `app.getAppMetrics()` + `process.memoryUsage()` in production every 5–6 min and emits one privacy-allowlisted PostHog `resource_snapshot` with process-class RSS/counts, main-process heap/RSS, uptime, and window/web-contents counts. It deliberately emits no IDs, names, paths, commands, or repository/terminal/user data.
 
@@ -236,4 +236,4 @@ Under this real-PTY streaming workload, eviction closes the WebSocket of release
 
 ### Not worker candidates
 
-xterm rendering (must stay on the UI thread — WebGL/DOM); per-chunk terminal scanners in host-service (tiny per call and latency-sensitive; postMessage overhead exceeds the work); v1 terminal relay through Electron main (fix by v1 sunset, not `utilityProcess`).
+xterm rendering (must stay on the UI thread - WebGL/DOM); per-chunk terminal scanners in host-service (tiny per call and latency-sensitive; postMessage overhead exceeds the work); v1 terminal relay through Electron main (fix by v1 sunset, not `utilityProcess`).

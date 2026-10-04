@@ -447,7 +447,7 @@ describe("terminal base env preservation", () => {
 			expect(baseEnv.ORGANIZATION_ID).toBeUndefined();
 			expect(baseEnv.ELECTRON_RUN_AS_NODE).toBeUndefined();
 
-			// Modify process.env after init — preserved snapshot unaffected
+			// Modify process.env after init - preserved snapshot unaffected
 			process.env.INJECTED_LATER = "should-not-appear";
 			const freshBaseEnv = getTerminalBaseEnv();
 			expect(freshBaseEnv.INJECTED_LATER).toBeUndefined();

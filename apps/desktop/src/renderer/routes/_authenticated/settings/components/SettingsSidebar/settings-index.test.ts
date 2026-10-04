@@ -21,7 +21,7 @@ describe("settings index", () => {
 		for (const entry of SETTINGS_INDEX) {
 			const source = screenSource(entry.to);
 			// SettingRow label=, SettingsSection title=, account META name:, or
-			// an explicit data-setting — each renders data-setting from it.
+			// an explicit data-setting - each renders data-setting from it.
 			const rendered = [
 				`label="${entry.label}"`,
 				`title="${entry.label}"`,

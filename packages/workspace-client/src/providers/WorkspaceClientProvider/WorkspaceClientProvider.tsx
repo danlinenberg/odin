@@ -55,7 +55,7 @@ function getWorkspaceClients(
 		defaultOptions: {
 			queries: {
 				refetchOnWindowFocus: false,
-				// Retry server-side TIMEOUT errors a couple of times — these come
+				// Retry server-side TIMEOUT errors a couple of times - these come
 				// from `queryProcedure`'s middleware when a host-service query
 				// (filesystem, git) takes longer than its budget. Other errors
 				// fall back to a single retry as before.

@@ -2,7 +2,7 @@ import { execWithShellEnv } from "../workspaces/utils/shell-env";
 
 /**
  * Odin fork: where each live shell actually is. zsh here sends no OSC-7, so a
- * pane's `cwd` only knows where Odin opened it — the process table knows where
+ * pane's `cwd` only knows where Odin opened it - the process table knows where
  * it went since.
  */
 

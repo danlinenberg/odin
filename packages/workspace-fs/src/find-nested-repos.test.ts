@@ -40,7 +40,7 @@ async function makeGitWorktreeFile(dir: string): Promise<void> {
 describe("findNestedRepoRoots", () => {
 	it("discovers nested worktree roots (`.git` as a file) below the root", async () => {
 		const root = await createTempRoot();
-		await makeGitDir(root); // the root is itself a repo — must be exempt
+		await makeGitDir(root); // the root is itself a repo - must be exempt
 		const worktreeA = path.join(root, ".claude", "worktrees", "aaa");
 		const worktreeB = path.join(root, ".claude", "worktrees", "bbb");
 		await makeGitWorktreeFile(worktreeA);
@@ -59,7 +59,7 @@ describe("findNestedRepoRoots", () => {
 		const root = await createTempRoot();
 		const nested = path.join(root, "packages", "vendored");
 		await makeGitDir(nested);
-		// A deeper repo inside the nested one must never be reported — the scan
+		// A deeper repo inside the nested one must never be reported - the scan
 		// prunes at the first boundary.
 		const deeper = path.join(nested, "sub", "inner");
 		await makeGitDir(deeper);
@@ -73,7 +73,7 @@ describe("findNestedRepoRoots", () => {
 
 	it("skips pruned directories (node_modules) without scanning into them", async () => {
 		const root = await createTempRoot();
-		// A repo buried inside node_modules must not be discovered — node_modules
+		// A repo buried inside node_modules must not be discovered - node_modules
 		// is pruned before we ever read its children.
 		const buried = path.join(root, "node_modules", "pkg");
 		await makeGitDir(buried);

@@ -5,12 +5,12 @@
 // Usage (fresh spawn):
 //   pty-daemon --socket=/path/to/sock [--buffer-bytes=65536]
 //
-// Usage (handoff successor — invoked indirectly by a predecessor daemon):
+// Usage (handoff successor - invoked indirectly by a predecessor daemon):
 //   pty-daemon --handoff --snapshot=/path/to/snapshot --socket=/path/to/sock
 //   (PTY master fds are inherited via stdio; control fd is 'ipc'.)
 //
 // The mode signal must be on argv, NOT env: bundlers (Bun, esbuild) inline
-// `process.env.X` references statically and DCE the unused branch — argv is
+// `process.env.X` references statically and DCE the unused branch - argv is
 // fully dynamic and survives every bundler we run.
 //
 // Logs go to stderr; nothing on stdout.
@@ -54,7 +54,7 @@ function parseArgs(argv: string[]): CliArgs {
 async function main(): Promise<void> {
 	// Mode signal goes through argv, NOT env. Bundlers (Bun, esbuild via
 	// electron-vite) statically inline `process.env.<KEY>` references at
-	// build time and constant-fold the comparison — bracket notation
+	// build time and constant-fold the comparison - bracket notation
 	// `process.env["KEY"]` doesn't help; both bundlers see through it.
 	// `process.argv` is fully dynamic, can't be statically analyzed, and
 	// survives every bundler we run (handoff.test.ts, dev electron-vite,
@@ -70,7 +70,7 @@ async function runFresh(): Promise<void> {
 	const args = parseArgs(process.argv.slice(2));
 	// Env takes precedence so the supervisor (or a test harness) can pin
 	// the version to a known value. Falls back to the package.json read
-	// when env is unset — that's the deployed-artifact source of truth.
+	// when env is unset - that's the deployed-artifact source of truth.
 	const daemonVersion = process.env.ODIN_PTY_DAEMON_VERSION ?? DAEMON_VERSION;
 	const server = new Server({
 		socketPath: args.socket,
@@ -168,7 +168,7 @@ async function runHandoffReceiver(): Promise<void> {
 	// path) can race our `listen()` call: we'd bind successfully but then
 	// the predecessor's unlink removes the path entry under us, and the
 	// follow-up chmod hits ENOENT. Predecessor exit closes its IPC channel
-	// — Node delivers that as the 'disconnect' event on our side.
+	// - Node delivers that as the 'disconnect' event on our side.
 	log(`waiting for predecessor disconnect`);
 	await new Promise<void>((resolve) => {
 		if (process.connected !== true) return resolve();

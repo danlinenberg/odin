@@ -38,14 +38,14 @@ export const searchBranches = protectedProcedure
 
 		const git = await ctx.git(localProject.repoPath);
 
-		// Honor `refresh` only if TTL elapsed — prevents thrashing `git fetch`
+		// Honor `refresh` only if TTL elapsed - prevents thrashing `git fetch`
 		// on every keystroke when the client tags first-page requests.
 		if (input.refresh && shouldRefetchRemote(input.projectId)) {
 			markRefetchRemote(input.projectId);
 			try {
 				await git.fetch(["--prune", "--quiet", "--no-tags"]);
 			} catch {
-				// offline — proceed with cached refs
+				// offline - proceed with cached refs
 			}
 		}
 
@@ -55,7 +55,7 @@ export const searchBranches = protectedProcedure
 
 		// Branches that already have a workspace row on this host. The
 		// Worktree tab uses this to distinguish Open (has row) from
-		// Create (orphan worktree — worktree on disk, no workspace row).
+		// Create (orphan worktree - worktree on disk, no workspace row).
 		const workspaceBranches = new Set<string>(
 			ctx.db
 				.select()
@@ -80,7 +80,7 @@ export const searchBranches = protectedProcedure
 				if (!refname) continue;
 
 				// Derive isLocal/isRemote and the user-facing name from
-				// the FULL refname's structural prefix — never from the
+				// the FULL refname's structural prefix - never from the
 				// short form. See GIT_REFS.md.
 				let name: string;
 				let isLocal = false;
@@ -122,7 +122,7 @@ export const searchBranches = protectedProcedure
 		if (input.filter === "worktree") {
 			branches = branches.filter((branch) => worktreeMap.has(branch.name));
 		}
-		// "all" (and undefined) — include every branch, worktree or not.
+		// "all" (and undefined) - include every branch, worktree or not.
 		// The picker tags worktree rows so the user can still tell them apart.
 
 		if (input.query) {

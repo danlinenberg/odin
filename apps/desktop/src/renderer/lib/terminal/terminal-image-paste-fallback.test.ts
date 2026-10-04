@@ -84,7 +84,7 @@ describe("isNonTextPaste", () => {
 	});
 
 	it("returns false when types lists image but no File entry exists", () => {
-		// Synthetic case (e.g. setData("image/png", "...")) — no real file
+		// Synthetic case (e.g. setData("image/png", "...")) - no real file
 		// to attach, the TUI's OS-clipboard read will fail.
 		const { event } = clipboardEvent({
 			types: ["image/png"],
@@ -116,7 +116,7 @@ describe("handleImagePasteFallback", () => {
 		expect(flags.immediateStopped).toBe(true);
 	});
 
-	it("does not call terminal.input for text paste — xterm's built-in handles it", () => {
+	it("does not call terminal.input for text paste - xterm's built-in handles it", () => {
 		const { event, flags } = clipboardEvent({
 			types: ["text/plain"],
 			getData: (t) => (t === "text/plain" ? "hello" : ""),

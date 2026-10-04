@@ -1,7 +1,7 @@
 import type { Pane } from "./tabs-types";
 
 /**
- * Where a session came from — the sections inside a board column, so a column
+ * Where a session came from - the sections inside a board column, so a column
  * of nine cards reads as "four Slack threads, two Jira, three of mine" instead
  * of one undifferentiated list.
  */
@@ -32,7 +32,7 @@ export const SECTION_LABEL: Record<BoardSection, string> = {
 const ORDER: BoardSection[] = ["reactions", "jira", "pr", "notion", "normal"];
 
 export function boardSection(pane: Pane): BoardSection {
-	// "slack" is the retired Slack-queue source, still stored on old panes — it
+	// "slack" is the retired Slack-queue source, still stored on old panes - it
 	// lands in the one Slack section with the reaction cards.
 	if (pane.odinSource)
 		return pane.odinSource === "slack" ? "reactions" : pane.odinSource;
@@ -40,7 +40,7 @@ export function boardSection(pane: Pane): BoardSection {
 	return pane.odinPageId ? "reactions" : "normal";
 }
 
-/** Created but not started yet — waiting on the Mac, or on a busy checkout. */
+/** Created but not started yet - waiting on the Mac, or on a busy checkout. */
 function isQueued(pane: Pane): boolean {
 	return !!pane.odinQueued;
 }

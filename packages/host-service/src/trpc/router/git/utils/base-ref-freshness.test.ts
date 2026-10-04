@@ -48,7 +48,7 @@ describe("scheduleBaseRefFetch", () => {
 		const target = { remote: "origin", branch: "fresh-branch" };
 		await scheduleBaseRefFetch(git, "/repo/wt-fresh", target);
 		await scheduleBaseRefFetch(git, "/repo/wt-fresh", target);
-		// One rev-parse across both calls — resolving per call spawns git on
+		// One rev-parse across both calls - resolving per call spawns git on
 		// the event loop before the fetch-TTL check, on every status poll. A
 		// stale mapping only mis-keys the dedupe (extra/suppressed fetch,
 		// TTL-bounded); the fetch itself always runs in worktreePath.

@@ -1,5 +1,5 @@
 /**
- * The sites Odin's tasks come from — Slack, Jira, GitHub, Notion and Gmail,
+ * The sites Odin's tasks come from - Slack, Jira, GitHub, Notion and Gmail,
  * the providers in Settings → Connections. Only their links open in the
  * in-app browser; anything else goes to your own browser.
  */

@@ -25,7 +25,7 @@ interface FsEventsPayload {
 export interface GitChangedPayload {
 	/**
 	 * Worktree-relative paths when the event was worktree-only. Absent for
-	 * broad state changes (`.git/` activity) — treat as "invalidate everything".
+	 * broad state changes (`.git/` activity) - treat as "invalidate everything".
 	 */
 	paths?: string[];
 }
@@ -66,7 +66,7 @@ export type WorkspaceSnapshotPayload = NonNullable<
 
 export interface WorkspaceChangedPayload {
 	eventType: WorkspaceChangedMessage["eventType"];
-	/** Null for `deleted` — the row is already gone. */
+	/** Null for `deleted` - the row is already gone. */
 	workspace: WorkspaceChangedMessage["workspace"];
 	occurredAt: number;
 }
@@ -82,7 +82,7 @@ export type ProjectSnapshotPayload = NonNullable<
 
 export interface ProjectChangedPayload {
 	eventType: ProjectChangedMessage["eventType"];
-	/** Null for `deleted` — the row is already gone. */
+	/** Null for `deleted` - the row is already gone. */
 	project: ProjectChangedMessage["project"];
 	occurredAt: number;
 }
@@ -235,7 +235,7 @@ function getOrCreateConnection(
 
 	// createHostSocket re-signs the URL with a fresh token before every
 	// attempt; backoff and reconnection live inside partysocket. Buffering is
-	// disabled so command semantics stay "send only while open" — watches are
+	// disabled so command semantics stay "send only while open" - watches are
 	// replayed from state on each open.
 	const socket = createHostSocket({
 		buildUrl: () => `${hostUrl.replace(/\/$/, "")}/events`,

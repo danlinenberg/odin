@@ -63,21 +63,21 @@ export const paneSchema = z.object({
 		"comment",
 	]),
 	name: z.string(),
-	// User/auto title override — was being stripped on persist, so tab titles
+	// User/auto title override - was being stripped on persist, so tab titles
 	// reverted to the shell prompt after a restart.
 	userTitle: z.string().optional(),
 	isNew: z.boolean().optional(),
 	status: z
 		.enum(["idle", "working", "permission", "review", "failed"])
 		.optional(),
-	// Board lifecycle flags — without these in the schema they were stripped on
+	// Board lifecycle flags - without these in the schema they were stripped on
 	// persist, so "Done" (completed) didn't survive a refresh and the session
 	// reappeared in Idle.
 	completed: z.boolean().optional(),
 	interrupted: z.boolean().optional(),
-	// Claude conversation id for Resume — must be in the schema or zod strips it.
+	// Claude conversation id for Resume - must be in the schema or zod strips it.
 	claudeSessionId: z.string().optional(),
-	// Odin task metadata — must be listed or zod strips it on persist.
+	// Odin task metadata - must be listed or zod strips it on persist.
 	odinTaskTitle: z.string().optional(),
 	odinContact: z.string().optional(),
 	odinBrief: z.string().optional(),
@@ -92,7 +92,7 @@ export const paneSchema = z.object({
 	odinClosedIn: z
 		.enum(["idle", "working", "permission", "review", "failed"])
 		.optional(),
-	// A launch held back by the capacity gate — the command to run when it
+	// A launch held back by the capacity gate - the command to run when it
 	// clears. Persisted so a queued task survives a restart.
 	odinQueued: z.object({ command: z.string(), reason: z.string() }).optional(),
 	// The session's shell pane, so the drawer's Terminal reattaches after a restart.
@@ -100,7 +100,7 @@ export const paneSchema = z.object({
 	// The profile that launched the session. Stripped here, every session fell
 	// back to "default" on the next persist and left the profile it belonged to.
 	odinProfile: z.string().optional(),
-	// The launch checkout — the one-agent-per-checkout gate keys on it.
+	// The launch checkout - the one-agent-per-checkout gate keys on it.
 	odinCwd: z.string().optional(),
 	initialCwd: z.string().optional(),
 	url: z.string().optional(),

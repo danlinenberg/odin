@@ -4,7 +4,7 @@
  * and every call round-trips through app.fetch as real tRPC (superjson,
  * auth middleware, zod inputs). Covers the pre-release feature gate (closed
  * by default; `list` feature-detects without erroring), the domain-error →
- * TRPC-code mapping, and a full create → prompt → poll → fold round trip —
+ * TRPC-code mapping, and a full create → prompt → poll → fold round trip -
  * the exact call sequence a mobile client makes over the relay.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
@@ -86,7 +86,7 @@ describe("acp-sessions router: gate closed (default host)", () => {
 
 describe("acp-sessions router: manager injected (gate open)", () => {
 	const workspaceDir = mkdtempSync(path.join(os.tmpdir(), "acp-router-"));
-	// Injecting the manager opens the gate (app.ts) — no env flag needed.
+	// Injecting the manager opens the gate (app.ts) - no env flag needed.
 	const manager = new AcpSessionManager({
 		resolveWorkspaceCwd: () => workspaceDir,
 		adapterEntry: FAKE_ADAPTER,
@@ -121,7 +121,7 @@ describe("acp-sessions router: manager injected (gate open)", () => {
 		expect(listed.items.map((state) => state.sessionId)).toContain(sessionId);
 
 		// prompt acks admission only; the turn's completion is never awaited on
-		// the HTTP request — remote clients poll state (or ride the WS stream).
+		// the HTTP request - remote clients poll state (or ride the WS stream).
 		const ack = await host.trpc.acpSessions.prompt.mutate({
 			sessionId,
 			prompt: [{ type: "text", text: "say hello over trpc" }],

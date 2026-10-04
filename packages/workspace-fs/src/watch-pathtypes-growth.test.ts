@@ -16,7 +16,7 @@ import { FsWatcherManager, type FsWatcherManagerOptions } from "./watch";
  *
  * Uses a real `FsWatcherManager` with the real `@parcel/watcher` backend and
  * real fs writes. Reaches into private `watchers` map after events flush
- * to assert pathTypes growth — the same pattern other tests in this repo
+ * to assert pathTypes growth - the same pattern other tests in this repo
  * use to inspect manager-internal state.
  */
 
@@ -35,7 +35,7 @@ const managers: FsWatcherManager[] = [];
 afterEach(async () => {
 	// Close managers first (releases parcel subscriptions and frees the dir
 	// handles) so fs.rm doesn't race a live watcher. Tests don't bother with
-	// inline cleanup — if an assert throws, this still runs.
+	// inline cleanup - if an assert throws, this still runs.
 	await Promise.all(managers.splice(0).map((m) => m.close()));
 	await Promise.all(
 		tempRoots
@@ -95,7 +95,7 @@ async function waitForCondition(
 	}
 }
 
-describe("FsWatcherManager.pathTypes — monotonic growth", () => {
+describe("FsWatcherManager.pathTypes - monotonic growth", () => {
 	it("creating N new files adds N entries to pathTypes", async () => {
 		const rootPath = await createTempRoot();
 		tempRoots.push(rootPath);
@@ -196,7 +196,7 @@ describe("FsWatcherManager.pathTypes — monotonic growth", () => {
 		// Phase 3: create 5 NEW files with different names. pathTypes grows
 		// again. This is the leak shape: log rotation / dev-server tmp /
 		// hashed build artifacts produce a stream of unique paths whose
-		// older deletes happen sometime — but in the meantime pathTypes
+		// older deletes happen sometime - but in the meantime pathTypes
 		// climbs and climbs.
 		for (let i = 0; i < 5; i++) {
 			await fs.writeFile(path.join(rootPath, `phase3-${i}.txt`), "x");
@@ -209,7 +209,7 @@ describe("FsWatcherManager.pathTypes — monotonic growth", () => {
 		expect(sizeAfterPhase3).toBeGreaterThanOrEqual(sizeAfterDeletes + 5);
 	});
 
-	it("caps pathTypes at filePathsMax — older entries evicted on overflow", async () => {
+	it("caps pathTypes at filePathsMax - older entries evicted on overflow", async () => {
 		// Verify the LRU eviction with a small injected cap so the test stays
 		// fast and doesn't OOM CI. The production cap (FILE_PATHS_MAX) is
 		// orders of magnitude larger; the eviction logic is identical.
@@ -229,7 +229,7 @@ describe("FsWatcherManager.pathTypes — monotonic growth", () => {
 			await fs.writeFile(path.join(rootPath, `cap-${i}.tmp`), `${i}`);
 		}
 
-		// Wait for the last write to land — that guarantees both the eviction
+		// Wait for the last write to land - that guarantees both the eviction
 		// has fired (we're well past the cap) and the most-recent path is
 		// tracked. The original 10k+ test relied on sheer scale to flush in
 		// time; with a small cap we need an explicit settle.
@@ -257,7 +257,7 @@ describe("FsWatcherManager.pathTypes — monotonic growth", () => {
 		// The most realistic leak scenario: a process keeps creating files
 		// with NEW unique names (think rotating logs, hashed build outputs).
 		// Even if old files eventually get cleaned up, the *peak* size of
-		// pathTypes during the watcher's lifetime is unbounded — there's
+		// pathTypes during the watcher's lifetime is unbounded - there's
 		// no LRU or size cap to keep it from spiking.
 		const rootPath = await createTempRoot();
 		tempRoots.push(rootPath);

@@ -16,9 +16,9 @@ import { withReadHeal } from "./withReadHeal";
  * Applied to every localStorage-backed collection:
  * - `startSync: true` + `gcTime: 0`: hydrate at construction, never GC. Write
  *   helpers read `.state` non-reactively, and a write into a not-yet-hydrated
- *   (or GC'd) collection rewrites the whole storage key from empty memory —
+ *   (or GC'd) collection rewrites the whole storage key from empty memory -
  *   erasing every persisted row.
- * - `withReadHeal`: per-row tolerant reads — one malformed entry escaping to
+ * - `withReadHeal`: per-row tolerant reads - one malformed entry escaping to
  *   the library's hydration catch-all would blank the entire store.
  */
 const hardenLocalCollection = <T>(

@@ -25,7 +25,7 @@ function onlyShift(event: KeyboardEvent): boolean {
  *
  * CONTRACT: only check `event.key` for stable named keys (Backspace,
  * ArrowLeft/Right, Home, End, ...). Never `event.key` for printable
- * characters — those vary by layout (`event.key === "p"` on QWERTY is `"r"`
+ * characters - those vary by layout (`event.key === "p"` on QWERTY is `"r"`
  * on Dvorak) and silently break non-US users. Use `event.code` via
  * `resolveHotkeyFromEvent` for any printable-key translation.
  */

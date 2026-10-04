@@ -62,7 +62,7 @@ export class TerminalLinkManager {
 	constructor(private readonly _terminal: XTerm) {}
 
 	/**
-	 * Set link handlers and register providers. Safe to call multiple times —
+	 * Set link handlers and register providers. Safe to call multiple times -
 	 * old providers are disposed before new ones are registered. The resolver
 	 * is reused to preserve the stat cache.
 	 */

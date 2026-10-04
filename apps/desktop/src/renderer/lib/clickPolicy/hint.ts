@@ -7,7 +7,7 @@ const TIERS_2: LinkTier[] = ["meta"];
 
 /**
  * Build a "⇧ click: new tab · ⌘ click: editor" hint string from the bound
- * modifier tiers in the given map. Plain is omitted (redundant — describes
+ * modifier tiers in the given map. Plain is omitted (redundant - describes
  * what already happened on plain click).
  */
 export function buildHint(

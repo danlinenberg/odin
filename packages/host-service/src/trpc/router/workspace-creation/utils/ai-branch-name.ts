@@ -9,7 +9,7 @@ const MAX_BRANCH_LENGTH = 100;
 const GENERATE_TIMEOUT_MS = 5_000;
 
 /**
- * Light sanitizer for AI-generated branch names — lowercase, kebab-case,
+ * Light sanitizer for AI-generated branch names - lowercase, kebab-case,
  * restricted character set. Differs from desktop's full sanitizer: no
  * multi-segment support (AI generates a single segment) and no preserve-case
  * options.

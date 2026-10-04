@@ -88,7 +88,7 @@ describe("priority", () => {
 		const [calm, panic] = useOdinTasks.getState().tasks;
 		expect(panic?.priority).toBe(3);
 		expect(panic?.title).toBe("panic");
-		// Nothing typed means Medium — writing it down is already the decision.
+		// Nothing typed means Medium - writing it down is already the decision.
 		expect(calm?.priority).toBe(DEFAULT_PRIORITY);
 		expect(taskText(calm ?? ({} as never))).toBe("calm");
 	});
@@ -102,13 +102,13 @@ describe("priority", () => {
 });
 
 describe("withPriority", () => {
-	it("is what the picker writes back — the !s change, the rest doesn't", () => {
+	it("is what the picker writes back - the !s change, the rest doesn't", () => {
 		// Every level round-trips through the same text the box holds.
 		expect(withPriority("Ship the fix\nbefore the demo", 3)).toBe(
 			"!!! Ship the fix\nbefore the demo",
 		);
 		expect(withPriority("!!! Ship the fix", 1)).toBe("! Ship the fix");
-		// Medium writes no "!"s at all — that's already what no "!"s means.
+		// Medium writes no "!"s at all - that's already what no "!"s means.
 		expect(withPriority("!!! Ship the fix", DEFAULT_PRIORITY)).toBe(
 			"Ship the fix",
 		);

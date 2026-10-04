@@ -1,7 +1,7 @@
 // Ratchet: keeps blocking work off the host-service event loop. One slow
 // in-process git spawn (or a sync fs walk) head-of-line blocks every tRPC
 // response this process serves. Git subprocess work belongs in the worker
-// pool (src/workers/) — see workers/tasks/git.ts for the pattern.
+// pool (src/workers/) - see workers/tasks/git.ts for the pattern.
 //
 // Counts are per-file matching-line counts, not a file allowlist, so an
 // already-listed file cannot silently grow new call sites. Patterns match
@@ -36,7 +36,7 @@ const RULES: Rule[] = [
 			"providers/model-providers/LocalModelProvider/utils/resolveAnthropicCredential.ts": 2,
 		},
 		advice:
-			"Sync subprocesses freeze this org's only event loop until the child exits — every tRPC response, status poll, and watcher callback queues behind it. Prefer async spawn/execFile: the caller awaits the same result, but the loop keeps serving while the child runs. Git reads belong in a worker task (workers/tasks/git.ts via getHostWorkerPool()).",
+			"Sync subprocesses freeze this org's only event loop until the child exits - every tRPC response, status poll, and watcher callback queues behind it. Prefer async spawn/execFile: the caller awaits the same result, but the loop keeps serving while the child runs. Git reads belong in a worker task (workers/tasks/git.ts via getHostWorkerPool()).",
 	},
 	{
 		name: "sync recursive fs (rmSync/cpSync)",
@@ -46,13 +46,13 @@ const RULES: Rule[] = [
 			"trpc/router/attachments/storage.ts": 2,
 		},
 		advice:
-			"rmSync/cpSync walk the whole tree on the event loop — deleting a large worktree stalls every response for seconds. Prefer `await rm/cp` from node:fs/promises: same result, but the walk runs on libuv's thread pool while the loop keeps serving.",
+			"rmSync/cpSync walk the whole tree on the event loop - deleting a large worktree stalls every response for seconds. Prefer `await rm/cp` from node:fs/promises: same result, but the walk runs on libuv's thread pool while the loop keeps serving.",
 	},
 	{
 		name: "in-process git client construction",
 		pattern: /\b(createUserSimpleGit|simpleGit)\b/,
 		allowedCounts: {
-			// Legacy on-loop git spawners — shrink these counts by porting call
+			// Legacy on-loop git spawners - shrink these counts by porting call
 			// sites to worker tasks (workers/tasks/git.ts).
 			"trpc/router/git/git.ts": 2,
 			"trpc/router/git/utils/git-helpers.ts": 2,
@@ -60,13 +60,13 @@ const RULES: Rule[] = [
 			"trpc/router/workspace-creation/shared/project-helpers.ts": 3,
 		},
 		advice:
-			"simple-git is async, but a client constructed here still pays the spawn syscall + stdout drain on the event loop — cost scales linearly with call volume (measured ~830ms/min at light churn). Async isn't enough for git; route it off-loop: add a task to workers/tasks/git.ts and expose it with an offLoop() resolver (src/trpc/off-loop.ts).",
+			"simple-git is async, but a client constructed here still pays the spawn syscall + stdout drain on the event loop - cost scales linearly with call volume (measured ~830ms/min at light churn). Async isn't enough for git; route it off-loop: add a task to workers/tasks/git.ts and expose it with an offLoop() resolver (src/trpc/off-loop.ts).",
 	},
 	{
 		name: "on-loop git via the ctx.git() shared factory",
 		pattern: /\b(ctx|context)\.git\b/,
 		allowedCounts: {
-			// Legacy ctx.git() consumers — previously invisible to every
+			// Legacy ctx.git() consumers - previously invisible to every
 			// enforcement layer (the client is constructed inside the exempt
 			// runtime/git/). Shrink by porting to worker tasks: resolve env
 			// on-loop with createGitEnvResolver, run the git work in the pool
@@ -83,7 +83,7 @@ const RULES: Rule[] = [
 			"trpc/router/workspaces/workspaces.ts": 1,
 		},
 		advice:
-			"ctx.git() hands back an on-loop client — every call spawns and drains git on the event loop, and the ratchet's other rules can't see it. Resolve the env on-loop (createGitEnvResolver) and run the git work as a worker task instead (workers/tasks/git.ts; see workspace-cleanup/git-ops.ts). The pattern only matches direct property access — don't dodge it by destructuring/aliasing the factory off the context.",
+			"ctx.git() hands back an on-loop client - every call spawns and drains git on the event loop, and the ratchet's other rules can't see it. Resolve the env on-loop (createGitEnvResolver) and run the git work as a worker task instead (workers/tasks/git.ts; see workspace-cleanup/git-ops.ts). The pattern only matches direct property access - don't dodge it by destructuring/aliasing the factory off the context.",
 	},
 ];
 
@@ -93,7 +93,7 @@ const EXEMPT_DIR_PREFIXES = ["workers/", "runtime/git/"];
 const EXEMPT_FILE_PATTERNS = [/\.test\.ts$/, /\.node-test\.ts$/];
 
 /**
- * Matching lines after comment stripping — prose mentions don't count.
+ * Matching lines after comment stripping - prose mentions don't count.
  * Line-comment stripping is naive (`//` inside a string truncates the rest
  * of that line), which can only under-count, never false-positive.
  */
@@ -163,7 +163,7 @@ describe("no new main-loop blocking call sites", () => {
 				.sort();
 			expect(
 				stale,
-				"Allowlisted count(s) too high — lower or delete them in allowedCounts so the ratchet tightens.",
+				"Allowlisted count(s) too high - lower or delete them in allowedCounts so the ratchet tightens.",
 			).toEqual([]);
 		});
 	}

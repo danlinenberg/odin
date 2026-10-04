@@ -7,7 +7,7 @@
  * Asserts inside the page (Runtime.evaluate + session cookie) that
  * integration.list returns 200, a well-formed tRPC array, and no
  * accessToken/refreshToken. Empty list passes. In-page eval beats Network.*
- * sniffing, which misses cached React Query responses — see AGENTS.md.
+ * sniffing, which misses cached React Query responses - see AGENTS.md.
  *
  * Exits 0 on PASS, 1 on FAIL. Dependency-free (Bun WebSocket + fetch).
  */

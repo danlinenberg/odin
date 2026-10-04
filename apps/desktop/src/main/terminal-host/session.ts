@@ -102,10 +102,10 @@ const SHELL_READY_TIMEOUT_MS = 15_000;
 
 /**
  * Shell readiness lifecycle:
- * - `pending`     — shell is initializing; escape sequences dropped, other writes pass through
- * - `ready`       — marker detected; writes pass through
- * - `timed_out`   — marker never arrived within timeout; writes pass through
- * - `unsupported` — shell has no marker (sh, ksh); writes pass through from the start
+ * - `pending`     - shell is initializing; escape sequences dropped, other writes pass through
+ * - `ready`       - marker detected; writes pass through
+ * - `timed_out`   - marker never arrived within timeout; writes pass through
+ * - `unsupported` - shell has no marker (sh, ksh); writes pass through from the start
  */
 type ShellReadyState = "pending" | "ready" | "timed_out" | "unsupported";
 
@@ -178,13 +178,13 @@ export class Session {
 	private ptyReadyPromise: Promise<void>;
 	private ptyReadyResolve: (() => void) | null = null;
 
-	// Shell readiness — tracks the shell's init lifecycle. User input and
+	// Shell readiness - tracks the shell's init lifecycle. User input and
 	// preset commands pass through regardless; only stale xterm terminal-query
 	// responses (DA/DSR) are filtered while `pending`.
 	// See ShellReadyState for lifecycle docs.
 	private shellReadyState: ShellReadyState;
 	private shellReadyTimeoutId: ReturnType<typeof setTimeout> | null = null;
-	// OSC 133;A scanner state — shared with v2 host-service via @odin/shared
+	// OSC 133;A scanner state - shared with v2 host-service via @odin/shared
 	private scanState: ShellReadyScanState = createScanState();
 
 	private emulatorWriteQueue: string[] = [];
@@ -383,7 +383,7 @@ export class Session {
 				if (payload.length === 0) break;
 
 				// Scan for OSC 133;A (shell ready) and strip from output.
-				// scanForShellReady operates on bytes — the OSC marker is pure
+				// scanForShellReady operates on bytes - the OSC marker is pure
 				// ASCII, so byte-level matching is identical to char-level
 				// matching, and we avoid `payload.toString("utf8")` per chunk
 				// (which mangles multi-byte codepoints split across chunks).
@@ -400,7 +400,7 @@ export class Session {
 				// v1's emulator + IPC consumers want a string. UTF-8 decode the
 				// stripped bytes here. Boundary mangling is still possible at
 				// chunk edges (v1 has no per-session StringDecoder), but v1 is
-				// sunset — the v2 daemon-backed path is the supported one and
+				// sunset - the v2 daemon-backed path is the supported one and
 				// it's clean end-to-end.
 				const data = Buffer.from(
 					bytes.buffer,
@@ -849,7 +849,7 @@ export class Session {
 			// pump, which can stall. Every other step of attach is bounded, so an
 			// unbounded wait here is what turns a stall into a session the UI can
 			// never show: the client gives up after 30s, the renderer only calls
-			// startStream() on attach success, and nothing retries — the pane
+			// startStream() on attach success, and nothing retries - the pane
 			// renders an empty xterm forever. A slightly stale snapshot is fine;
 			// the live stream starts right after and repaints it.
 			const flushed = await raceWithAbort(
@@ -896,13 +896,13 @@ export class Session {
 	 * Write data to the PTY's stdin.
 	 *
 	 * Escape-sequence responses (`\x1b`-prefixed) are dropped while the shell
-	 * is still initializing — these are stale DA/DSR replies from the
+	 * is still initializing - these are stale DA/DSR replies from the
 	 * renderer's xterm to terminal queries the shell sent during startup. If
 	 * forwarded, they appear as typed text like `?62;4;9;22c` at the shell
 	 * prompt. The headless emulator answers those queries directly (see
 	 * constructor), so dropping the renderer's duplicate is safe.
 	 *
-	 * All other data — user keystrokes and preset commands alike — passes
+	 * All other data - user keystrokes and preset commands alike - passes
 	 * through immediately. Buffering here previously froze workspaces when
 	 * shell init commands (e.g. fnm's `use-on-cd` hook) opened an interactive
 	 * prompt before the OSC 133;A marker fired. See #3478.
@@ -1087,7 +1087,7 @@ export class Session {
 			clearTimeout(this.shellReadyTimeoutId);
 			this.shellReadyTimeoutId = null;
 		}
-		// Flush held marker bytes — they weren't part of a full marker.
+		// Flush held marker bytes - they weren't part of a full marker.
 		// heldBytes is `number[]` after the byte-scanner refactor; decode to a
 		// utf-8 string for v1's emulator/event surface, which is string-based.
 		if (this.scanState.heldBytes.length > 0) {

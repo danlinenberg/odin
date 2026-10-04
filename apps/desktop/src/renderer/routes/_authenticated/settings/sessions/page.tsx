@@ -36,7 +36,7 @@ function SessionsSettingsPage() {
 					id="launch-limit-host"
 					field="hostCpuPercent"
 					label="Hold new sessions when this Mac is"
-					description="Total CPU load — Odin's sessions, builds, Docker, anything. Lower it if the Mac feels slow before sessions start queueing."
+					description="Total CPU load - Odin's sessions, builds, Docker, anything. Lower it if the Mac feels slow before sessions start queueing."
 					min={1}
 					max={100}
 					step={1}
@@ -74,7 +74,7 @@ function SessionsSettingsPage() {
 }
 
 /**
- * The checkout a session starts in when nothing else names one — the board's
+ * The checkout a session starts in when nothing else names one - the board's
  * new-task input, "Start session", anything without a repo picked. Machine-wide,
  * not per-profile.
  */
@@ -172,7 +172,7 @@ function OneSessionPerCheckoutRow() {
 		<SettingRow
 			label="One session per repo at a time"
 			htmlFor="one-session-per-checkout"
-			description="A session started in a repo another one is working in waits in Queued until that one stops. Off lets them run side by side — they share one working tree, so each sees the other's edits."
+			description="A session started in a repo another one is working in waits in Queued until that one stops. Off lets them run side by side - they share one working tree, so each sees the other's edits."
 		>
 			<Switch
 				id="one-session-per-checkout"

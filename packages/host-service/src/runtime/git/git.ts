@@ -3,7 +3,7 @@ import type { GitCredentialProvider, GitFactory } from "./types";
 import { getRemoteUrl } from "./utils";
 
 // Remote-URL lookup per repo, TTL-cached: without it every env resolution
-// (each ctx.git() call, each worker-task env — ~30 call sites, some in
+// (each ctx.git() call, each worker-task env - ~30 call sites, some in
 // loops) spawns `git remote get-url origin` on the event loop. Credentials
 // themselves are NOT cached here; the provider stays authoritative for
 // refresh/expiry. A changed origin URL is picked up within the TTL.

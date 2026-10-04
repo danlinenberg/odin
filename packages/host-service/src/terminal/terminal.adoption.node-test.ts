@@ -112,7 +112,7 @@ after(async () => {
 	}
 });
 
-describe("createTerminalSessionInternal — host-service restart adoption", () => {
+describe("createTerminalSessionInternal - host-service restart adoption", () => {
 	test("fresh open uses requested initial dimensions", async () => {
 		const terminalId = `e2e-dims-${randomUUID().slice(0, 8)}`;
 		const result = await createTerminalSessionInternal({
@@ -619,7 +619,7 @@ describe("createTerminalSessionInternal — host-service restart adoption", () =
 	test("adopted session does NOT re-fire initialCommand", async () => {
 		// Regression guard: setup.sh terminals pass an initialCommand. After
 		// host-service restart, adopting the same terminalId must NOT run
-		// the command a second time — that would re-execute setup.sh
+		// the command a second time - that would re-execute setup.sh
 		// every host-service restart, which would be catastrophic.
 		const terminalId = `e2e-initcmd-${randomUUID().slice(0, 8)}`;
 		const sentinelFile = path.join(TEST_HOME, `initcmd-${terminalId}.sentinel`);
@@ -662,7 +662,7 @@ describe("createTerminalSessionInternal — host-service restart adoption", () =
 		assert.equal(
 			secondMtime,
 			firstMtime,
-			"initialCommand re-fired on adopted session — would re-run setup.sh on every host-service restart",
+			"initialCommand re-fired on adopted session - would re-run setup.sh on every host-service restart",
 		);
 
 		await disposeSessionAndWait(terminalId, db);
@@ -722,7 +722,7 @@ describe("createTerminalSessionInternal — host-service restart adoption", () =
 			assert.match(second.error, /Workspace (not found|worktree)/);
 		}
 
-		// Daemon still has the orphan session — clean it up directly so the
+		// Daemon still has the orphan session - clean it up directly so the
 		// test suite leaves nothing behind. Production needs a periodic
 		// "orphan session sweep" but that's a separate cleanup concern.
 		await disposeSessionAndWait(terminalId, db);
@@ -746,7 +746,7 @@ describe("createTerminalSessionInternal — host-service restart adoption", () =
 		assert.ok(!("error" in first));
 		if ("error" in first) return;
 
-		// Seed the daemon's ring buffer with a sentinel — that's what would
+		// Seed the daemon's ring buffer with a sentinel - that's what would
 		// be replayed on a normal adoption.
 		const SENTINEL = `noreplay-sentinel-${randomUUID().slice(0, 6)}`;
 		first.pty.write(`echo ${SENTINEL}\n`);
@@ -832,7 +832,7 @@ describe("createTerminalSessionInternal — host-service restart adoption", () =
 			assert.fail(`re-create after dispose failed: ${second.error}`);
 		}
 
-		// Different shell pid (real fresh spawn) — not adoption.
+		// Different shell pid (real fresh spawn) - not adoption.
 		assert.notEqual(
 			second.pty.pid,
 			firstPid,
@@ -842,7 +842,7 @@ describe("createTerminalSessionInternal — host-service restart adoption", () =
 		await disposeSessionAndWait(terminalId, db);
 	});
 
-	// Regression: SUPER-939 / #4993 — heavy/concurrent output must never wedge
+	// Regression: SUPER-939 / #4993 - heavy/concurrent output must never wedge
 	// the shell. Output flow control is gone; back-pressure is bounded buffering
 	// on the host side, never a producer pause. These guard both halves of that.
 
@@ -857,7 +857,7 @@ describe("createTerminalSessionInternal — host-service restart adoption", () =
 		assert.ok(!("error" in result));
 		if ("error" in result) return;
 
-		// ~3 MB with no socket attached — far past any old watermark. With the
+		// ~3 MB with no socket attached - far past any old watermark. With the
 		// ACK flow control removed, the daemon never pauses, so this completes;
 		// the bounded replay buffer just keeps the tail (incl. the marker).
 		const marker = `heavy-done-${randomUUID().slice(0, 6)}`;
@@ -900,7 +900,7 @@ describe("createTerminalSessionInternal — host-service restart adoption", () =
 		);
 
 		// The stuck socket is closed and removed on the next broadcast, and the
-		// PTY keeps producing — the marker lands in the (now socketless) buffer.
+		// PTY keeps producing - the marker lands in the (now socketless) buffer.
 		await waitFor(() => closed && !result.sockets.has(stuckSocket), 10_000);
 		await waitFor(() => sessionBufferText(result).includes(marker), 15_000);
 		await disposeSessionAndWait(terminalId, db);

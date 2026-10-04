@@ -2,7 +2,7 @@
  * Demo: show what buildLaunchContext + buildLaunchSpec produce for various
  * canonical inputs, across all built-in agents.
  *
- * Not a test — manual eyeball tool for template iteration before the V2
+ * Not a test - manual eyeball tool for template iteration before the V2
  * modal wire-up lands (step 9).
  *
  * Run: bun run scripts/demo-launch-spec.ts
@@ -194,7 +194,7 @@ for (const scenario of SCENARIOS) {
 	for (const agentId of requestedAgents) {
 		const config = configs.get(agentId as never);
 		if (!config) {
-			console.log(`\n[skip] ${agentId} — not a known agent`);
+			console.log(`\n[skip] ${agentId} - not a known agent`);
 			continue;
 		}
 
@@ -204,7 +204,7 @@ for (const scenario of SCENARIOS) {
 		console.log(divider("-"));
 
 		if (!spec) {
-			console.log("(null — no agent)");
+			console.log("(null - no agent)");
 			continue;
 		}
 

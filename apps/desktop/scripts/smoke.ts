@@ -4,8 +4,8 @@
  *   bun run compile:app && bun run smoke        # from apps/desktop
  *
  * Boots dist/ with HOME, ODIN_HOME_DIR, TMPDIR and the Chromium profile all in
- * a fresh /tmp dir — the pty-daemon socket and manifest hang off those, so it
- * can't adopt a running Odin's daemon or take its single-instance lock — then
+ * a fresh /tmp dir - the pty-daemon socket and manifest hang off those, so it
+ * can't adopt a running Odin's daemon or take its single-instance lock - then
  * drives the renderer over CDP the way a person would: click the rail, write
  * a task down, add a profile, press ⌘F, start a session (on a fake `claude`)
  * and mark it done. Exits 1 with a list of what broke;
@@ -100,7 +100,7 @@ writeFileSync(
 	{ mode: 0o755 },
 );
 // Sessions run in a login shell, which reads these after macOS's path_helper
-// has reordered PATH — so the fake beats a real claude in /opt/homebrew/bin.
+// has reordered PATH - so the fake beats a real claude in /opt/homebrew/bin.
 for (const profile of [".zprofile", ".bash_profile"])
 	writeFileSync(join(home, profile), 'export PATH="$HOME/bin:$PATH"\n');
 
@@ -128,7 +128,7 @@ async function quit(code: number): Promise<never> {
 	await Promise.race([new Promise((r) => app.once("exit", r)), sleep(5000)]);
 	// The terminal-host daemon, pty-daemon and host-service outlive the app by
 	// design. Whatever still holds a file under the throwaway home (or names
-	// it in its argv) is one of them — nothing else on the machine does.
+	// it in its argv) is one of them - nothing else on the machine does.
 	const holders = Bun.spawnSync(["lsof", "-t", "+D", home]).stdout.toString();
 	for (const pid of new Set(holders.split("\n").filter(Boolean))) {
 		try {
@@ -196,8 +196,8 @@ await send("Runtime.enable");
 
 // Helpers for page expressions, re-declared on every call so a renderer
 // reload can't drop them. CDP can attach before <body> exists, so nothing here
-// may assume it — a throw there failed boot at once instead of waiting. A control's label is its aria-label, else its
-// title, else its text — the rail is icon buttons, Settings is links.
+// may assume it - a throw there failed boot at once instead of waiting. A control's label is its aria-label, else its
+// title, else its text - the rail is icon buttons, Settings is links.
 const IN_PAGE = `
 	var __label = (e) => (e.getAttribute("aria-label") || e.getAttribute("title") || e.textContent || "").trim();
 	var __find = (selector, label, within = document) =>
@@ -393,7 +393,7 @@ await step("a task written down lands in Tasks", async () => {
 	await rail("Dev Board");
 	await click("button", "Add task");
 	await fill('input[placeholder="What needs doing?"]', TASK);
-	// The dialog's submit is the last "Add task" — the checklist has one too.
+	// The dialog's submit is the last "Add task" - the checklist has one too.
 	await page(
 		`[...document.querySelectorAll("button")].filter((e) => __label(e) === "Add task").at(-1).click()`,
 	);
@@ -541,7 +541,7 @@ await step(
 	"Done on the card ends the session and clears the board",
 	async () => {
 		const found = await page<boolean>(`(() => {
-		const done = [...document.querySelectorAll('button[title="Done — remove from the board"]')]
+		const done = [...document.querySelectorAll('button[title="Done - remove from the board"]')]
 			.find((b) => b.parentElement.textContent.includes(${JSON.stringify(SESSION)}));
 		done?.click();
 		return !!done;

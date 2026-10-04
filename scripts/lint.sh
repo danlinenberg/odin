@@ -16,5 +16,10 @@ fi
 # output above is echoed.
 ./scripts/check-git-ref-strings.sh || exit_code=1
 ./scripts/check-simple-git-usage.sh || exit_code=1
+# Plain hyphens only. The em dash is spelled as bytes so this file has none.
+if git grep -nI $'\xe2\x80\x94'; then
+	echo "[em-dash] use a plain hyphen (-) instead of an em dash" >&2
+	exit_code=1
+fi
 
 exit $exit_code

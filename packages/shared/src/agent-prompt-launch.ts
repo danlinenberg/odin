@@ -23,7 +23,7 @@ export function sanitizePromptForPty(prompt: string): string {
 			// biome-ignore lint/suspicious/noControlCharactersInRegex: stripping control chars intentionally
 			.replace(/(?:\x1b\[|\x9b)[0-?]*[ -/]*[@-~]/g, "")
 			// Terminator is required: an unterminated OSC must not swallow the
-			// rest of the line — its lead byte falls through to the strip below.
+			// rest of the line - its lead byte falls through to the strip below.
 			// biome-ignore lint/suspicious/noControlCharactersInRegex: stripping control chars intentionally
 			.replace(/(?:\x1b\]|\x9d)[^\x07\x1b\x9c\n]*(?:\x07|\x1b\\|\x9c)/g, "")
 			// biome-ignore lint/suspicious/noControlCharactersInRegex: stripping control chars intentionally

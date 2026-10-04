@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { isTypingElsewhere } from "./keyboard";
 
-/** No DOM in bun:test — the predicate reads four properties, so a stand-in
+/** No DOM in bun:test - the predicate reads four properties, so a stand-in
     carrying those four exercises every branch. */
 const element = (
 	tagName: string,

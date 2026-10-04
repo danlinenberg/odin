@@ -9,7 +9,7 @@ import { ODIN_HOME_DIR } from "./app-environment";
 const run = promisify(execFile);
 
 /**
- * Copy the board's data off this disk once a day, into iCloud Drive — the one
+ * Copy the board's data off this disk once a day, into iCloud Drive - the one
  * off-machine place every Mac already syncs. Nothing else backs ~/.odin up, so
  * a dead disk used to take every task, brief and scrollback with it.
  *

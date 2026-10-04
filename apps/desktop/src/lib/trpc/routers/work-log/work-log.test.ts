@@ -6,8 +6,8 @@ import { workLogId } from ".";
  * main/lib/local-db wholesale (better-sqlite3 doesn't load under bun test), so
  * the upsert itself can't be exercised in this suite.
  *
- * The rule it enforces — a relaunch keeps the original `startedAt` and takes
- * the newer session — lives in the `onConflictDoUpdate` set clause in ./index.
+ * The rule it enforces - a relaunch keeps the original `startedAt` and takes
+ * the newer session - lives in the `onConflictDoUpdate` set clause in ./index.
  * Adding `startedAt` to that clause would break the ledger silently, so leave
  * it out.
  */
@@ -18,7 +18,7 @@ describe("work log", () => {
 		expect(workLogId("jira", "X")).not.toBe(workLogId("notion", "X"));
 	});
 
-	test("the id is stable — a relaunch addresses the same row", () => {
+	test("the id is stable - a relaunch addresses the same row", () => {
 		expect(workLogId("reactions", "C1:123.45")).toBe(
 			workLogId("reactions", "C1:123.45"),
 		);

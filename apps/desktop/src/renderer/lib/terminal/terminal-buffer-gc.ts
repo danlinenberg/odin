@@ -6,7 +6,7 @@ export const TERMINAL_PERSISTED_AT_KEY = "terminal-buffer-persisted-at";
 /**
  * Persisted buffers are only deleted on an explicit terminal kill; terminals
  * that disappear any other way (workspace deleted, host reset, crash) would
- * leak their snapshot forever — measured at 945 entries / 23.7 MB after two
+ * leak their snapshot forever - measured at 945 entries / 23.7 MB after two
  * months, enough to wedge the renderer on the synchronous localStorage load.
  * Boot-time GC drops entries not touched within the TTL and enforces a total
  * size budget so the store stays bounded regardless of how terminals die.
@@ -144,7 +144,7 @@ export function clearAllTerminalState(storage: Storage = localStorage): number {
 
 /**
  * Run once at renderer boot, before any terminal mounts. Entries with no
- * stamp predate the bounded store and are treated as expired — a one-time
+ * stamp predate the bounded store and are treated as expired - a one-time
  * scrollback-restore loss on first launch after the upgrade, in exchange for
  * clearing the accumulated bloat immediately instead of after a full TTL.
  */

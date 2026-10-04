@@ -48,7 +48,7 @@ function parseClientMessage(data: unknown): ClientMessage | null {
 			}
 		}
 	} catch (error) {
-		console.warn("[event-bus] malformed client message — ignored", { error });
+		console.warn("[event-bus] malformed client message - ignored", { error });
 	}
 	return null;
 }
@@ -151,7 +151,7 @@ export class EventBus {
 			try {
 				sendMessage(socket, message);
 			} catch (error) {
-				console.error("[event-bus:send] socket failed — dropping", { error });
+				console.error("[event-bus:send] socket failed - dropping", { error });
 				dead.push(socket);
 			}
 		}
@@ -190,7 +190,7 @@ export class EventBus {
 
 	/**
 	 * Fan out workspace lifecycle changes (create/rename/delete) from the
-	 * host-owned workspaces table. Broadcast to all clients — list consumers
+	 * host-owned workspaces table. Broadcast to all clients - list consumers
 	 * subscribe host-wide rather than per-workspace.
 	 */
 	broadcastWorkspaceChanged(
@@ -226,7 +226,7 @@ export class EventBus {
 
 	/**
 	 * Fan out project lifecycle changes (create/rename/delete) from the
-	 * host-owned projects table. Broadcast to all clients — list consumers
+	 * host-owned projects table. Broadcast to all clients - list consumers
 	 * subscribe host-wide rather than per-workspace.
 	 */
 	broadcastProjectChanged(

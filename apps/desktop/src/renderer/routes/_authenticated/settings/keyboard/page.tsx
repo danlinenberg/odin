@@ -24,7 +24,7 @@ import {
 import { SettingsPage, SettingsSection } from "../components/SettingsPage";
 
 /**
- * Every screen this shell can open, and nothing else — the upstream
+ * Every screen this shell can open, and nothing else - the upstream
  * workspace/terminal/layout hotkeys stay registered (other code binds them) but
  * this shell has no UI for them, so showing them here was noise.
  */

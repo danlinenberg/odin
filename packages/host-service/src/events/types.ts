@@ -16,8 +16,8 @@ export interface GitChangedMessage {
 	workspaceId: string;
 	/**
 	 * Worktree-relative paths that changed when the batch was worktree-only.
-	 * Absent means a broad git state change (`.git/` activity — commit, index,
-	 * refs, or mixed) — consumers should invalidate everything for the
+	 * Absent means a broad git state change (`.git/` activity - commit, index,
+	 * refs, or mixed) - consumers should invalidate everything for the
 	 * workspace.
 	 */
 	paths?: string[];
@@ -75,7 +75,7 @@ export interface WorkspaceChangedMessage {
 	type: "workspace:changed";
 	workspaceId: string;
 	eventType: "created" | "updated" | "deleted";
-	/** Null for `deleted` — the row is already gone. */
+	/** Null for `deleted` - the row is already gone. */
 	workspace: WorkspaceSnapshot | null;
 	occurredAt: number;
 }
@@ -103,7 +103,7 @@ export interface ProjectChangedMessage {
 	type: "project:changed";
 	projectId: string;
 	eventType: "created" | "updated" | "deleted";
-	/** Null for `deleted` — the row is already gone. */
+	/** Null for `deleted` - the row is already gone. */
 	project: ProjectSnapshot | null;
 	occurredAt: number;
 }

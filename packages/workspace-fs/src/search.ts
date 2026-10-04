@@ -16,7 +16,7 @@ import type { FsContentMatch, FsSearchMatch } from "./types";
 
 const execFileAsync = promisify(execFile);
 
-// No TTL — index is kept current via patchSearchIndexesForRoot from file watcher
+// No TTL - index is kept current via patchSearchIndexesForRoot from file watcher
 const MAX_SEARCH_RESULTS = 500;
 const MAX_KEYWORD_FILE_SIZE_BYTES = 1024 * 1024;
 const BINARY_CHECK_SIZE = 8192;
@@ -26,7 +26,7 @@ const KEYWORD_SEARCH_MAX_COUNT_PER_FILE = 3;
 const KEYWORD_SEARCH_RIPGREP_BUFFER_BYTES = 10 * 1024 * 1024;
 
 // Both the FsWatcherManager and the search-index `fast-glob` walk consume this
-// list. Patterns matched here are not just hidden from consumers — on Linux
+// list. Patterns matched here are not just hidden from consumers - on Linux
 // they're applied at watch-creation time by @parcel/watcher, so no inotify
 // watches are installed for matched dirs. That's the main lever against
 // ENOSPC (inotify watch limit). On macOS FSEvents these are userspace-only
@@ -52,7 +52,7 @@ export const DEFAULT_IGNORE_PATTERNS = [
 	"**/.gradle/**",
 	"**/.pnpm-store/**",
 	"**/.yarn/**",
-	// Agent/worktree tools pile up sibling git worktrees under these dirs — a
+	// Agent/worktree tools pile up sibling git worktrees under these dirs - a
 	// full repo copy each, with its own node_modules. Left unignored, watching a
 	// project that contains one balloons the watcher to millions of directories.
 	// The nested-repo prune in watch.ts catches any worktree generically by its
@@ -143,7 +143,7 @@ export interface SearchContentOptions {
 
 // LRU + idle-TTL on the index cache: bound JS heap as worktree count grows.
 // Inactive worktrees pay a fresh fast-glob walk on next search (~50–200 ms
-// for a 5k-file repo) — cheap relative to keeping every index resident.
+// for a 5k-file repo) - cheap relative to keeping every index resident.
 const SEARCH_INDEX_CACHE_MAX = 12;
 const SEARCH_INDEX_CACHE_TTL_MS = 30 * 60_000;
 
@@ -341,7 +341,7 @@ export async function getSearchIndex(
 
 	const cached = searchIndexCache.get(cacheKey);
 	if (cached) {
-		// TTL is the freshness contract — bypassing it on hits would let a hot
+		// TTL is the freshness contract - bypassing it on hits would let a hot
 		// key serve indefinitely-stale data. Memory is already bounded by LRU.
 		searchIndexCache.delete(cacheKey);
 		if (Date.now() - cached.lastAccessedAt <= SEARCH_INDEX_CACHE_TTL_MS) {
@@ -360,7 +360,7 @@ export async function getSearchIndex(
 		.then((items) => {
 			// Cache only if this build is still current. Invalidation (FSEvents
 			// overflow, root recovery, watcher patches with no cached index)
-			// deletes the builds entry to cancel us — caching anyway would
+			// deletes the builds entry to cancel us - caching anyway would
 			// resurrect an index that predates the events that invalidated it.
 			if (searchIndexBuilds.get(cacheKey) === buildPromise) {
 				evictLruSearchIndexEntries();
@@ -779,7 +779,7 @@ export function patchSearchIndexesForRoot(
 		});
 		const cached = searchIndexCache.get(cacheKey);
 		if (!cached) {
-			// No cached index — also cancel any in-flight build since it'll be stale
+			// No cached index - also cancel any in-flight build since it'll be stale
 			searchIndexBuilds.delete(cacheKey);
 			continue;
 		}
@@ -796,7 +796,7 @@ export function patchSearchIndexesForRoot(
 			});
 		}
 
-		// Patches imply the worktree is alive — bump to MRU and refresh access time.
+		// Patches imply the worktree is alive - bump to MRU and refresh access time.
 		searchIndexCache.delete(cacheKey);
 		searchIndexCache.set(cacheKey, {
 			items: Array.from(nextItemsByPath.values()),
@@ -806,7 +806,7 @@ export function patchSearchIndexesForRoot(
 }
 
 /**
- * IItemAccessor for SearchIndexEntry — maps to VS Code's label/description/path model.
+ * IItemAccessor for SearchIndexEntry - maps to VS Code's label/description/path model.
  * label = filename, description = parent directory path, path = full relative path.
  */
 const searchEntryAccessor: IItemAccessor<SearchIndexEntry> = {

@@ -6,7 +6,7 @@
 #
 # "Running" is read off disk, not tracked: every subagent appends to
 # <claude config>/projects/<project>/<session>/subagents/agent-*.jsonl as it
-# works, so a transcript written in the last few minutes is a live subagent —
+# works, so a transcript written in the last few minutes is a live subagent -
 # including ones launched before this hook existed or whose session crashed.
 #
 # Override the cap with ODIN_MAX_SUBAGENTS (Claude settings.json "env").

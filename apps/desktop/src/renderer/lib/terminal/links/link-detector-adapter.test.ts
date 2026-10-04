@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Tests for LinkDetectorAdapter — the bridge between LocalLinkDetector
+ *  Tests for LinkDetectorAdapter - the bridge between LocalLinkDetector
  *  and xterm's ILinkProvider interface.
  *--------------------------------------------------------------------------------------------*/
 

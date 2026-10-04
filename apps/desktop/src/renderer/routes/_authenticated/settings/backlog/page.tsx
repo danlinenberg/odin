@@ -61,7 +61,7 @@ function NextInLinePromptRow() {
 		<SettingRow
 			label="How to sort it"
 			htmlFor="next-in-line-prompt"
-			description={`What matters to you when the AI orders this column — e.g. "customer bugs first; ignore dependency bumps". Empty lets the AI judge. Saved when you click away.`}
+			description={`What matters to you when the AI orders this column - e.g. "customer bugs first; ignore dependency bumps". Empty lets the AI judge. Saved when you click away.`}
 			stacked
 		>
 			<Textarea

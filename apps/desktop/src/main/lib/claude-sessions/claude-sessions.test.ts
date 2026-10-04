@@ -31,7 +31,7 @@ function user(text: string) {
 	});
 }
 
-/** An opening prompt as Odin's launcher writes it — the only kind listed. */
+/** An opening prompt as Odin's launcher writes it - the only kind listed. */
 function task(text: string) {
 	return user(`Task: ${text}\n\n${text}\n\nWork in the current workspace.`);
 }
@@ -147,7 +147,7 @@ describe("summarizeTranscript", () => {
 				[
 					"Task: use icons for the task category",
 					"",
-					"Attached files — read them before starting:",
+					"Attached files - read them before starting:",
 					"/Users/dan/dev/private/odin/.odin/attachments/shot.png",
 					"",
 					"Work in the current workspace. Investigate.",
@@ -204,10 +204,10 @@ describe("summarizeTranscript", () => {
 					"Hi good morning :sunny:",
 					"Can we stop charging RE users twice for an export?",
 					"",
-					"PHASE 1 — INGEST (do this first, before anything else):",
+					"PHASE 1 - INGEST (do this first, before anything else):",
 					"- Read the ENTIRE thread with your Slack tools.",
 					"",
-					"PHASE 2 — EXECUTE:",
+					"PHASE 2 - EXECUTE:",
 					"- Work from .odin/brief-hi-good-m.md as your instructions.",
 					"",
 					"Work in the current workspace. Investigate.",
@@ -232,7 +232,7 @@ describe("summarizeTranscript", () => {
 		const summary = summarizeTranscript(jsonl, ["datadog"]);
 		expect(summary.prompt).toBe("the real question");
 		expect(summary.messages).toBe(1);
-		// The skill body says "Datadog" — but you never said it, so it's not a hit.
+		// The skill body says "Datadog" - but you never said it, so it's not a hit.
 		expect(summary.bodyTerms.size).toBe(0);
 		expect(summary.matches).toBe(0);
 	});
@@ -343,7 +343,7 @@ describe("searchSessions", () => {
 			join(project, "cccc1111-2222-3333-4444-555566667777.jsonl"),
 			[
 				task("unrelated work"),
-				// Newest file, and says "datadog" more often — but only in passing.
+				// Newest file, and says "datadog" more often - but only in passing.
 				assistant(`datadog datadog datadog ${"datadog ".repeat(20)}`),
 				JSON.stringify({ type: "ai-title", aiTitle: "Something else" }),
 			].join("\n"),
@@ -358,7 +358,7 @@ describe("searchSessions", () => {
 		const root = fixtureRoot();
 		const project = join(root, "-Users-dan-dev-private-odin");
 		// An SDK run (vibe-kanban and friends): its "user" turn was sent by a
-		// program, and it never got a title — it lists as "session dddd1111".
+		// program, and it never got a title - it lists as "session dddd1111".
 		writeFileSync(
 			join(project, "dddd1111-2222-3333-4444-555566667777.jsonl"),
 			[
@@ -573,7 +573,7 @@ describe("parseTranscript / readTranscript", () => {
 		]);
 	});
 
-	test("finds a session by id alone — a pane knows the id, not the directory", async () => {
+	test("finds a session by id alone - a pane knows the id, not the directory", async () => {
 		const transcript = await readTranscript({
 			sessionId: "aaaa1111-2222-3333-4444-555566667777",
 			root: fixtureRoot(),
@@ -643,7 +643,7 @@ describe("repoNameOf", () => {
 describe("workingRepoOf", () => {
 	const SESSION = "bbbb1111-2222-3333-4444-555566667777";
 
-	/** Lay out real checkouts — the resolver walks the filesystem for `.git`. */
+	/** Lay out real checkouts - the resolver walks the filesystem for `.git`. */
 	function repos(root: string, layout: Record<string, "clone" | "worktree">) {
 		for (const [rel, kind] of Object.entries(layout)) {
 			const dir = join(root, rel);
@@ -803,7 +803,7 @@ describe("workingRepoOf", () => {
 
 /**
  * The check behind Resume. A pane pins its conversation id at launch
- * (`--session-id`), but that is not proof Claude ever wrote the transcript —
+ * (`--session-id`), but that is not proof Claude ever wrote the transcript -
  * one board session ran a full turn and left none, so Resume ran
  * `claude --resume <id>`, got "No conversation found with session ID" and
  * exited into a dead pane. Resume reads the transcript by id first and starts

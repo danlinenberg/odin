@@ -44,7 +44,7 @@ import { fetchGmailFeed, gmailCredentials } from "../work";
  * Settings → Connections: the credentials Odin's feeds run on.
  *
  * Each provider is probed with a real "who am I" call, so a row says whether
- * the token actually works — not merely that a string is present. Tokens are
+ * the token actually works - not merely that a string is present. Tokens are
  * obtained by signing in, live in this profile's slice of ~/.config/odin.json
  * and never leave the main process; the renderer only ever sees an identity
  * string.
@@ -52,7 +52,7 @@ import { fetchGmailFeed, gmailCredentials } from "../work";
  * Signing in is the only way in. Nothing here reads a credential out of the
  * environment and nothing takes a pasted token: a shell variable is ambient
  * and would sign every profile into the same account, and a pasted token is a
- * chore that OAuth exists to remove — Gmail is the exception: its OAuth needs a
+ * chore that OAuth exists to remove - Gmail is the exception: its OAuth needs a
  * Google Cloud app and review, so it takes an app password. Slack, Jira and Notion run the
  * browser consent flow; GitHub runs the device flow (no client secret, no
  * redirect URL, the flow GitHub built for desktop apps).
@@ -176,7 +176,7 @@ async function probeNotion(): Promise<ConnectionStatus> {
 	}
 }
 
-/** Gmail has no "who am I" — the feed itself is the probe, and its count the identity. */
+/** Gmail has no "who am I" - the feed itself is the probe, and its count the identity. */
 async function probeGmail(): Promise<ConnectionStatus> {
 	const credentials = gmailCredentials();
 	if (!credentials) return unconfigured("gmail");
@@ -221,15 +221,15 @@ function message(error: unknown): string {
 
 /**
  * What a failed probe should say. A 401 is not a blip to wait out: the
- * provider has thrown the credential away — revoked, expired, or signed out
- * elsewhere — and nothing but a fresh sign-in brings it back. "HTTP 401" next
+ * provider has thrown the credential away - revoked, expired, or signed out
+ * elsewhere - and nothing but a fresh sign-in brings it back. "HTTP 401" next
  * to a Reconnect button leaves you guessing whether clicking it is the fix.
  *
  * 401 only. GitHub answers a rate limit with 403, and telling someone to sign
  * in again when they only need to wait an hour is the same mistake backwards.
  */
 export function probeError(status: number): string {
-	return status === 401 ? "signed out — sign in again" : `HTTP ${status}`;
+	return status === 401 ? "signed out - sign in again" : `HTTP ${status}`;
 }
 
 // --- OAuth -----------------------------------------------------------------
@@ -237,7 +237,7 @@ export function probeError(status: number): string {
 // The four browser flows are identical from here: open a consent screen, get a
 // `state` back, poll until the deep link lands the token. One set of
 // procedures serves all of them, so a fifth provider is three lines of switch.
-// (GitHub is the odd one out — device flow, below.)
+// (GitHub is the odd one out - device flow, below.)
 
 const OAUTH_PROVIDERS = ["slack", "jira", "notion"] as const;
 type OAuthProvider = (typeof OAUTH_PROVIDERS)[number];
@@ -318,8 +318,8 @@ export const createConnectionsRouter = () => {
 
 		/**
 		 * Switch profiles. Slack's in-memory caches are keyed by token, but the
-		 * channel and user name maps aren't — they'd hand the new workspace the
-		 * old workspace's names — so they go with the switch.
+		 * channel and user name maps aren't - they'd hand the new workspace the
+		 * old workspace's names - so they go with the switch.
 		 */
 		setActiveProfile: publicProcedure
 			.input(z.object({ id: z.string().min(1) }))
@@ -369,7 +369,7 @@ export const createConnectionsRouter = () => {
 
 		/**
 		 * Is this provider's sign-in available? It needs an OAuth app, which is
-		 * baked into the build — a build without one says so rather than
+		 * baked into the build - a build without one says so rather than
 		 * offering a button that can only fail.
 		 */
 		oauthConfigured: publicProcedure
@@ -496,7 +496,7 @@ export const createConnectionsRouter = () => {
 				throw new TRPCError({
 					code: "BAD_REQUEST",
 					message:
-						"No GitHub client id — create an OAuth app with device flow enabled and paste its client id here.",
+						"No GitHub client id - create an OAuth app with device flow enabled and paste its client id here.",
 				});
 			}
 			const res = await fetch("https://github.com/login/device/code", {
@@ -572,7 +572,7 @@ export const createConnectionsRouter = () => {
 				) {
 					return {
 						state: "pending" as const,
-						// slow_down carries a new, longer interval — honour it.
+						// slow_down carries a new, longer interval - honour it.
 						intervalSeconds: json.interval ?? null,
 					};
 				}

@@ -148,7 +148,7 @@ export const searchGitHubIssues = protectedProcedure
 				const issueNumber = Number.parseInt(effectiveQuery, 10);
 				const issue = await ghDirectLookup(ctx.execGh, repo, issueNumber);
 				// `gh issue view <n>` happily returns a PR when N is a PR
-				// number — GitHub's API surface treats PRs as a kind of issue.
+				// number - GitHub's API surface treats PRs as a kind of issue.
 				// Octokit's path filters via `issue.pull_request`; we don't
 				// have that field over `gh`, so detect via the canonical URL.
 				if (issue.url.includes("/pull/")) {

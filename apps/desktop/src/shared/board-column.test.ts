@@ -8,8 +8,8 @@ describe("boardColumn", () => {
 	});
 
 	// The bug this guards: everything landed in Done and Needs you emptied out.
-	// An alive-but-idle session has a status nobody set — `merge` cleared it on
-	// restart, or acknowledging the pane did — which is not the same thing as
+	// An alive-but-idle session has a status nobody set - `merge` cleared it on
+	// restart, or acknowledging the pane did - which is not the same thing as
 	// "the agent finished and asked for nothing".
 	it("does not call an alive-but-idle session Done", () => {
 		expect(boardColumn("idle", true, false)).toBe("permission");

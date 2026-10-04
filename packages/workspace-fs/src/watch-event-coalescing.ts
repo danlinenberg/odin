@@ -5,7 +5,7 @@ import { normalizeAbsolutePath } from "./paths";
 /**
  * Pure event algebra for the file watcher: per-path coalescing of raw
  * parcel events and delete/create pair reconciliation into renames.
- * No I/O and no manager state — see watch.ts for the FsWatcherManager.
+ * No I/O and no manager state - see watch.ts for the FsWatcherManager.
  */
 
 export interface InternalWatchEvent {

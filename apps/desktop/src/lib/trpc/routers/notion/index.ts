@@ -83,7 +83,7 @@ export interface SlackQueueRow {
 	date: string | null;
 	updatedAt: string | null;
 	createdTime: string;
-	/** Every Notion property, name → display string — for "show all fields". */
+	/** Every Notion property, name → display string - for "show all fields". */
 	fields: Record<string, string>;
 }
 
@@ -194,7 +194,7 @@ function normalizePage(page: NotionPage): SlackQueueRow {
 	const entries = Object.entries(page.properties);
 	const props = Object.values(page.properties);
 	const titleProp = props.find((value) => value.type === "title");
-	// Prefer the property literally named "Status" — schemas often carry
+	// Prefer the property literally named "Status" - schemas often carry
 	// several status/select properties (Priority, Channel, ...).
 	const statusProp =
 		entries.find(
@@ -245,7 +245,7 @@ function normalizePage(page: NotionPage): SlackQueueRow {
 	};
 }
 
-/** GET/POST that must succeed — a failure becomes a readable TRPCError. */
+/** GET/POST that must succeed - a failure becomes a readable TRPCError. */
 async function notionJson<T>(url: string, init: RequestInit = {}): Promise<T> {
 	const response = await notionFetch(url, {
 		...init,
@@ -262,7 +262,7 @@ async function notionJson<T>(url: string, init: RequestInit = {}): Promise<T> {
 }
 
 /**
- * Every database the integration can see, cached for half an hour — the list
+ * Every database the integration can see, cached for half an hour - the list
  * barely changes, and walking it costs a request per 100 databases.
  */
 let databaseCache: { at: number; databases: unknown[] } | null = null;
@@ -353,8 +353,8 @@ async function databasesWithRecentRows<T>(known: Set<string>): Promise<T[]> {
 }
 
 /**
- * Rows of every task database (one with a status) whose people property —
- * Assignee, Owner, … — names me, edited in the last month. Each database is
+ * Rows of every task database (one with a status) whose people property -
+ * Assignee, Owner, … - names me, edited in the last month. Each database is
  * asked directly, so a busy one can't crowd another out of a recent-pages
  * window. Meeting-note databases list me under Attendees but have no status.
  */
@@ -411,7 +411,7 @@ async function fetchAssignedRows(
 						}),
 					},
 				).catch((error: Error) => {
-					// One unreadable database mustn't sink the rest — but say so.
+					// One unreadable database mustn't sink the rest - but say so.
 					failed++;
 					console.warn(
 						`[notion] assigned-to-me query failed for database ${db.id}: ${error.message}`,
@@ -456,7 +456,7 @@ async function fetchAssignedRows(
  *
  * Notion has no "my mentions" endpoint, so this asks each task database
  * and reads the comments on pages edited lately. "Me" is whoever signed
- * in: the OAuth bot's owner. Rows of the picked database are skipped —
+ * in: the OAuth bot's owner. Rows of the picked database are skipped -
  * that feed already lists them.
  */
 async function fetchMentionRows(
@@ -477,7 +477,7 @@ async function fetchMentionRows(
 
 	// ponytail: page-level comments on the 30 most recently edited pages from
 	// the last 14 days. Inline (block) comments, body @-mentions and older
-	// pages are missed — reading those means walking every block, which
+	// pages are missed - reading those means walking every block, which
 	// Notion's 3 req/s won't carry on a 2-minute poll.
 	const since = Date.now() - 14 * 24 * 60 * 60_000;
 	const search = await notionJson<{ results?: NotionPage[] }>(
@@ -603,7 +603,7 @@ export const createNotionRouter = () => {
 				}
 				return { ok: true };
 			}),
-		/** Config for the Odin views — env first, ~/.config/odin.json fallback. */
+		/** Config for the Odin views - env first, ~/.config/odin.json fallback. */
 		getConfig: publicProcedure.query(() => {
 			const fileConfig = readOdinConfig();
 			return {
@@ -625,7 +625,7 @@ export const createNotionRouter = () => {
 				return { ok: true };
 			}),
 
-		/** Every database this token can see — the Tasks view's picker. */
+		/** Every database this token can see - the Tasks view's picker. */
 		listDatabases: publicProcedure.query(async () => {
 			const response = await notionFetch("https://api.notion.com/v1/search", {
 				method: "POST",
@@ -643,7 +643,7 @@ export const createNotionRouter = () => {
 					message: `Notion search failed (${response.status}): ${body.slice(0, 300)}`,
 				});
 			}
-			// ponytail: first 100 databases, no paging — a workspace with more
+			// ponytail: first 100 databases, no paging - a workspace with more
 			// than that needs a search box, not a longer dropdown.
 			const payload = (await response.json()) as {
 				results?: {
@@ -693,7 +693,7 @@ export const createNotionRouter = () => {
 					if (!input.databaseId)
 						return { rows: (await mentionRows) ?? [], dbTitle: null };
 					const headers = { "Content-Type": "application/json" };
-					// Every row, no filter — the view tabs/groups client-side. Paginate
+					// Every row, no filter - the view tabs/groups client-side. Paginate
 					// past Notion's 100-row page cap (cap total so a huge DB can't hang).
 					const results: NotionPage[] = [];
 					let cursor: string | undefined;

@@ -9,7 +9,7 @@
  *
  * On macOS, calls proc_pid_rusage() for each PID and returns the
  * ri_phys_footprint value (the same "Memory" figure Activity Monitor
- * shows — compressed physical footprint).
+ * shows - compressed physical footprint).
  *
  * On other platforms the function compiles but returns an empty object,
  * so callers can fall back to RSS.

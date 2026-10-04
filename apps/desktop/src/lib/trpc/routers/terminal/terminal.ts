@@ -316,13 +316,13 @@ export const createTerminalRouter = () => {
 
 		// Odin fork: read a pane's persisted scrollback (survives daemon death /
 		// app restart) so the board can show the transcript of a session whose
-		// PTY is gone — killed or from a previous run.
+		// PTY is gone - killed or from a previous run.
 		readHistory: publicProcedure
 			.input(
 				z.object({
 					paneId: z.string(),
 					workspaceId: z.string(),
-					// Tail only (bytes) — the board polls this to read live state.
+					// Tail only (bytes) - the board polls this to read live state.
 					tailBytes: z.number().int().positive().optional(),
 				}),
 			)
@@ -341,7 +341,7 @@ export const createTerminalRouter = () => {
 		/**
 		 * Odin fork: find the Claude Code conversation id for a session we didn't
 		 * launch with --session-id (i.e. any session started before that landed).
-		 * Claude stores transcripts at ~/.claude/projects/<cwd-slug>/<id>.jsonl —
+		 * Claude stores transcripts at ~/.claude/projects/<cwd-slug>/<id>.jsonl -
 		 * pick the newest whose content contains `marker` (the task's prompt/
 		 * title), else the newest in that directory.
 		 */
@@ -380,7 +380,7 @@ export const createTerminalRouter = () => {
 								return { sessionId: idOf(candidate.file) };
 							}
 						} catch {
-							// unreadable transcript — try the next one
+							// unreadable transcript - try the next one
 						}
 					}
 				}
@@ -389,13 +389,13 @@ export const createTerminalRouter = () => {
 
 		/**
 		 * Odin fork: keyword search over Claude Code's own transcripts, so an old
-		 * session can be found by what was said in it — the board's card titles
+		 * session can be found by what was said in it - the board's card titles
 		 * ("Work on Odin", twenty times over) can't do that. Empty query = browse
 		 * the newest sessions.
 		 *
 		 * Who asked is joined in from Odin's own records (see sessionPeople), so
 		 * a name finds the sessions that came from that person's Slack message,
-		 * ticket or PR — the name is in none of those transcripts.
+		 * ticket or PR - the name is in none of those transcripts.
 		 */
 		searchClaudeSessions: publicProcedure
 			.input(
@@ -430,7 +430,7 @@ export const createTerminalRouter = () => {
 			}),
 
 		/**
-		 * A written brief of a session — goal, status, what it wants from you —
+		 * A written brief of a session - goal, status, what it wants from you -
 		 * produced by `claude -p` over the transcript. Cached on the transcript's
 		 * mtime in the main process, so polling an idle session is a stat.
 		 */
@@ -474,7 +474,7 @@ export const createTerminalRouter = () => {
 			.input(
 				z.object({
 					sessionIds: z.array(z.string()).max(500),
-					/** The ones that stopped working — written now, unthrottled. */
+					/** The ones that stopped working - written now, unthrottled. */
 					settled: z.array(z.string()).max(500).optional(),
 				}),
 			)

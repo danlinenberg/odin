@@ -77,7 +77,7 @@ describe("shell env cache", () => {
 			"./shell-env"
 		);
 		// shell-env spawns the account's login shell (os.userInfo, not $SHELL),
-		// so a .zshrc only counts on a zsh account — a CI runner's is bash.
+		// so a .zshrc only counts on a zsh account - a CI runner's is bash.
 		const zshPath = userInfo().shell;
 		if (!zshPath?.endsWith("/zsh")) {
 			return;
@@ -126,7 +126,7 @@ describe("shell env cache", () => {
 		const { clearShellEnvCache, expireShellEnvCache, getShellEnvironment } =
 			await import("./shell-env");
 		// shell-env spawns the account's login shell (os.userInfo, not $SHELL),
-		// so a .zshrc only counts on a zsh account — a CI runner's is bash.
+		// so a .zshrc only counts on a zsh account - a CI runner's is bash.
 		const zshPath = userInfo().shell;
 		if (!zshPath?.endsWith("/zsh")) {
 			return;
@@ -150,7 +150,7 @@ describe("shell env cache", () => {
 		clearShellEnvCache();
 
 		try {
-			// Cold read pays for the shell spawn — that one is allowed to block.
+			// Cold read pays for the shell spawn - that one is allowed to block.
 			const cold = await getShellEnvironment();
 			expect(cold.__ODIN_SHELL_ENV_STALE_TEST__).toBe("first");
 

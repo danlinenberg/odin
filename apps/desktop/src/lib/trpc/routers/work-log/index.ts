@@ -18,7 +18,7 @@ export const createWorkLogRouter = () => {
 		/**
 		 * Log that an agent was started on a feed item.
 		 *
-		 * First launch wins — same rule as slack.markStarted. Re-opening a
+		 * First launch wins - same rule as slack.markStarted. Re-opening a
 		 * session tomorrow must not move `startedAt`, or the ledger stops
 		 * answering "how long did this sit before I got to it".
 		 */
@@ -51,7 +51,7 @@ export const createWorkLogRouter = () => {
 						sessionId: input.sessionId ?? null,
 					})
 					// Relaunch: keep the original startedAt, but take the newer
-					// session — the transcript you'd want is the one still running.
+					// session - the transcript you'd want is the one still running.
 					.onConflictDoUpdate({
 						target: workLog.id,
 						set: {
@@ -63,7 +63,7 @@ export const createWorkLogRouter = () => {
 				return { id };
 			}),
 
-		/** The ledger, newest first. Read-only — nothing prunes it. */
+		/** The ledger, newest first. Read-only - nothing prunes it. */
 		list: publicProcedure
 			.input(z.object({ limit: z.number().min(1).max(1000).default(200) }))
 			.query(({ input }) =>

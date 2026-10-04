@@ -18,14 +18,14 @@ wt="$root/.worktrees/$name"
 
 cd "$root"
 # Always cut from origin/main, never from whatever branch the repo is sitting
-# on — that one is routinely dozens of commits stale and already squash-merged.
+# on - that one is routinely dozens of commits stale and already squash-merged.
 git fetch --quiet origin main
 git worktree add --quiet -b "$branch" "$wt" origin/main
 
 # Install for real rather than symlinking the main checkout's node_modules in.
 # The workspace links under apps/desktop/node_modules/@odin are relative
 # (../../../../packages/shared), so a symlinked node_modules resolves them from
-# its physical home — the main checkout. Edits to packages/* in the worktree
+# its physical home - the main checkout. Edits to packages/* in the worktree
 # then build against the wrong copy, silently when the exports happen to line
 # up. ~20s with a warm cache buys correctness.
 (cd "$wt" && bun install --frozen-lockfile >/dev/null)

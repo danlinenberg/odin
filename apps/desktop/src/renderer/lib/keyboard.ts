@@ -1,7 +1,7 @@
 /**
  * Is someone already typing somewhere? A terminal re-asserts DOM focus at
- * several unprompted moments — when its xterm is (re)created, when a cold
- * restore lands, when the board's drawer re-runs on its 5s poll — and none of
+ * several unprompted moments - when its xterm is (re)created, when a cold
+ * restore lands, when the board's drawer re-runs on its 5s poll - and none of
  * those are the user asking for it. If a box is open over the pane (quick add,
  * rename, a dialog's fields, an open menu), taking the keyboard off it mid-word sends the
  * rest of the sentence to the session.

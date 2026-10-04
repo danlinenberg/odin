@@ -7,7 +7,7 @@ import { createWorkRouter } from ".";
 /**
  * myPullRequests against a stubbed GitHub search, same trick as the Jira
  * test: a temp `ODIN_CONFIG_PATH` with a non-expiring token is enough for
- * `githubAccessToken()`, and only `fetch` is replaced — which makes the three
+ * `githubAccessToken()`, and only `fetch` is replaced - which makes the three
  * search queries readable as assertions.
  */
 

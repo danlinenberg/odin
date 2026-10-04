@@ -22,7 +22,7 @@ function createTestDb() {
 
 type TestDb = ReturnType<typeof createTestDb>;
 
-/** Git stub whose `user.name` is fixed — only the `author` mode reads it. */
+/** Git stub whose `user.name` is fixed - only the `author` mode reads it. */
 function gitWithAuthor(authorName: string | null): SimpleGit {
 	return {
 		getConfig: async () => ({ value: authorName }),
@@ -96,7 +96,7 @@ describe("resolveProjectBranchPrefix", () => {
 		setGlobal(db, "custom", "team");
 		const result = await resolveProjectBranchPrefix({
 			ctx: makeCtx(db),
-			// branchPrefixCustom set but mode null — must NOT count as an override.
+			// branchPrefixCustom set but mode null - must NOT count as an override.
 			project: makeProject({ branchPrefixCustom: "stale" }),
 			git: gitWithAuthor(null),
 			existingBranches: [],

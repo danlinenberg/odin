@@ -5,7 +5,7 @@ import { getCellDimensions } from "./cell-dimensions";
 // Run in DevTools console: localStorage.setItem('ODIN_TERMINAL_STOCK_WHEEL', '1')
 // Checked per wheel event (localStorage reads are sub-microsecond in
 // Chromium) because terminal instances are parked and reused across React
-// mounts — an install-time check would require a full window reload to
+// mounts - an install-time check would require a full window reload to
 // take effect.
 export function isStockWheelForced(): boolean {
 	try {
@@ -15,7 +15,7 @@ export function isStockWheelForced(): boolean {
 	}
 }
 
-// WheelEvent.DOM_DELTA_* — inlined so pure helpers are testable without a DOM.
+// WheelEvent.DOM_DELTA_* - inlined so pure helpers are testable without a DOM.
 const DOM_DELTA_LINE = 1;
 const DOM_DELTA_PAGE = 2;
 
@@ -50,7 +50,7 @@ export interface WheelLineContext {
  * fractional remainder across events.
  *
  * This mirrors xterm's MouseService._consumeWheelEvent with two deliberate
- * differences (the reason this module exists — xterm.js PR #5391 regression):
+ * differences (the reason this module exists - xterm.js PR #5391 regression):
  * - no 0.3x trackpad damping, so pixels map 1:1 onto cell heights
  * - callers emit one sequence per line instead of capping at one per event
  */
@@ -189,7 +189,7 @@ function getReportCoords(
  * Stock xterm.js damps trackpad wheel deltas to 30% and emits at most one
  * report/arrow per DOM wheel event ("scrolling samples every third tick").
  * This handler converts pixels to lines at full fidelity and emits one
- * sequence per line — the report stream a native terminal (kitty, iTerm,
+ * sequence per line - the report stream a native terminal (kitty, iTerm,
  * Ghostty) produces.
  *
  * Coupled to terminal identity: TERM_PROGRAM must claim a kitty-class
@@ -217,7 +217,7 @@ export function createTerminalWheelEventHandler(
 			tracking === "vt200" || tracking === "drag" || tracking === "any";
 
 		if (wantsMouseReports) {
-			// Without SGR encoding we cannot safely synthesize reports — legacy
+			// Without SGR encoding we cannot safely synthesize reports - legacy
 			// X10 byte encoding breaks past column 223. Let stock xterm handle it.
 			if (!isSgrMouseModeActive()) return true;
 		} else if (bufferType !== "alternate") {

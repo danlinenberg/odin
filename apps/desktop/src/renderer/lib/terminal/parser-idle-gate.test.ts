@@ -129,7 +129,7 @@ describe("runWhenParserIdle", () => {
 		});
 
 		// First write drains (queuing the flush microtask), but a new write
-		// arrives before that microtask runs — the flush must bail and re-arm.
+		// arrives before that microtask runs - the flush must bail and re-arm.
 		fake.drain();
 		write("second");
 		await flushMicrotasks();

@@ -42,11 +42,11 @@ export const Route = createFileRoute("/_authenticated/settings/connections/")({
 
 /**
  * Settings → Connections: the accounts Odin's own feeds run on (its Slack
- * reactions, Notion tasks, Jira and GitHub views) — not the cloud
+ * reactions, Notion tasks, Jira and GitHub views) - not the cloud
  * organization integrations upstream Odin ships.
  *
  * Every row connects the same way: sign in. Nothing here takes a pasted token
- * and nothing reads a credential from the environment — see ConnectProvider.
+ * and nothing reads a credential from the environment - see ConnectProvider.
  * Tokens go to this profile's slice of ~/.config/odin.json and stay in the
  * main process; this screen only ever sees an identity string.
  */
@@ -59,7 +59,7 @@ const META: Record<
 		name: "Slack",
 		icon: <FaSlack className="size-5" />,
 		description:
-			"Powers the Reactions tab — messages you react to with the emojis below.",
+			"Powers the Reactions tab - messages you react to with the emojis below.",
 	},
 	jira: {
 		name: "Jira",
@@ -111,7 +111,7 @@ function ConnectionsSettings() {
 		>
 			<SettingsSection
 				title="Profiles"
-				description="Each profile has its own accounts — and its own board sessions, Slack queue and tasks. Only the active one shows anywhere in Odin."
+				description="Each profile has its own accounts - and its own board sessions, Slack queue and tasks. Only the active one shows anywhere in Odin."
 			>
 				<Profiles onSwitched={() => void status.refetch()} />
 			</SettingsSection>
@@ -281,7 +281,7 @@ function BackupRow() {
 }
 
 /**
- * The two emojis the Reactions tab watches for — the same values its header
+ * The two emojis the Reactions tab watches for - the same values its header
  * chips edit. Slack names reactions, so these are names, not glyphs.
  */
 function SlackReactions() {
@@ -334,7 +334,7 @@ function SlackReactions() {
 }
 
 /**
- * Profiles — one set of accounts each, and the work that belongs to them.
+ * Profiles - one set of accounts each, and the work that belongs to them.
  *
  * It sits above the provider rows because it decides what they're describing:
  * every row below is the state of *this* profile's connection, and switching
@@ -365,7 +365,7 @@ function Profiles({ onSwitched }: { onSwitched: () => void }) {
 		},
 		onError: fail,
 	});
-	// A rename changes a label and nothing else — no need to drop any data.
+	// A rename changes a label and nothing else - no need to drop any data.
 	const rename = electronTrpc.connections.renameProfile.useMutation({
 		onSuccess: () => void profiles.refetch(),
 		onError: fail,
@@ -469,7 +469,7 @@ function Profiles({ onSwitched }: { onSwitched: () => void }) {
 				</Button>
 			</div>
 
-			{/* Deleting drops this profile's stored credentials — no undo. */}
+			{/* Deleting drops this profile's stored credentials - no undo. */}
 			<AlertDialog
 				open={pending !== undefined}
 				onOpenChange={(open) => !open && setConfirmDelete(null)}

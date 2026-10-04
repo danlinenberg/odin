@@ -15,7 +15,7 @@ import {
 
 const DAY = 86_400_000;
 
-/** A Slack ts from yesterday — "this thread is alive". */
+/** A Slack ts from yesterday - "this thread is alive". */
 const recentTs = () => ((Date.now() - DAY) / 1000).toFixed(6);
 
 const item = (over: Partial<SweepItem> = {}): SweepItem => ({
@@ -199,7 +199,7 @@ describe("verdicts", () => {
 
 	// Reported from the board: a thread Dan answered in week one, where they
 	// came back in week three asking him to decide. In reply_users, not the last
-	// word — the row is still his.
+	// word - the row is still his.
 	test("answering earlier is not answering: they replied after you", async () => {
 		const answer = await sweepItem(
 			item({ key: "slack:C1:123" }),
@@ -225,7 +225,7 @@ describe("verdicts", () => {
 	// Reported from the board: a group DM where the answer was typed into the
 	// DM, not into a thread. The thread rungs see nothing and the row reads as
 	// 22 days dead.
-	// Replying isn't finishing — "on it" is an answer too. The DM reply keeps
+	// Replying isn't finishing - "on it" is an answer too. The DM reply keeps
 	// the row alive rather than clearing it.
 	test("replying in the DM is not finishing it", async () => {
 		const answer = await sweepItem(
@@ -375,7 +375,7 @@ describe("verdicts", () => {
 	});
 
 	// A task I typed has no upstream and never will. Silence is the only signal
-	// there is, so it counts — this is a checked row, not an unreadable one.
+	// there is, so it counts - this is a checked row, not an unreadable one.
 	test("a row with nothing upstream goes stale instead of staying unknown", async () => {
 		const fresh = await sweepItem(
 			item({ title: "write the thing", lastActivityAt: Date.now() - 3 * DAY }),

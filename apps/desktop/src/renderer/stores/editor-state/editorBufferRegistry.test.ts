@@ -20,7 +20,7 @@ import {
  * (e.g., trailing newlines, spacing), producing slightly different markdown
  * than the original raw file content. The `updateDocumentDraft` function
  * then compares this normalized content with the baseline (raw file content)
- * and marks the document as dirty — triggering the unsaved changes modal.
+ * and marks the document as dirty - triggering the unsaved changes modal.
  */
 
 const TEST_KEY = "test-workspace::working::test-file.md";
@@ -68,7 +68,7 @@ describe("editorBufferRegistry", () => {
 		const raw = "# Hello\n\nWorld\n";
 		setDocumentLoadedContent(TEST_KEY, raw);
 
-		// Content is not modified — should not be dirty
+		// Content is not modified - should not be dirty
 		const isDirty =
 			getDocumentCurrentContent(TEST_KEY) !==
 			getDocumentBaselineContent(TEST_KEY);

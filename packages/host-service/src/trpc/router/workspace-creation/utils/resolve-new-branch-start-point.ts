@@ -11,13 +11,13 @@ export type BaseRefFetcher = (target: BaseRefFetchTarget) => Promise<unknown>;
 
 /**
  * Resolve the start point a *new* branch should fork from. No
- * `resolveRef(branch)` check — callers are responsible for guaranteeing
+ * `resolveRef(branch)` check - callers are responsible for guaranteeing
  * the branch name is fresh (e.g. via `deduplicateBranchName`). Useful
  * when the branch name is being chosen at the same time the start point
  * is resolved (auto-gen + AI naming path), so it can run in parallel
  * with the LLM call.
  *
- * Local refs of *any* base branch go stale — not just the default. If
+ * Local refs of *any* base branch go stale - not just the default. If
  * `main` gets `git fetch`ed regularly but a shared branch like
  * `mirror-flier` hasn't been touched in weeks, forking from local
  * `mirror-flier` silently produces a workspace weeks behind current

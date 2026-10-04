@@ -94,7 +94,7 @@ export async function runTeardown({
 				fn();
 			};
 
-			// "exit" not "close" — background children may hold stdio open
+			// "exit" not "close" - background children may hold stdio open
 			child.on("exit", (code) => {
 				settle(() => {
 					if (code === 0) resolve(combined);

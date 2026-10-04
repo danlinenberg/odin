@@ -28,7 +28,7 @@ export async function getGitHubUsername(
  * A project-level override (any non-null `branchPrefixMode`) wins over the
  * host-wide default in `host_settings`; absent both, no prefix is applied.
  * The resolved prefix is dropped when it would collide with an existing
- * branch name — git can't hold both `censys` and `censys/foo`.
+ * branch name - git can't hold both `censys` and `censys/foo`.
  *
  * Returns the prefix segment (e.g. `censys`) or `undefined` for no prefix.
  */

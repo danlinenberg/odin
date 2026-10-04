@@ -1,17 +1,17 @@
 /**
  * Every coloured pill's colours, in one place, keyed by what the colour
- * means — not by hue — so a pill can't pick a colour for looks. The Night
+ * means - not by hue - so a pill can't pick a colour for looks. The Night
  * Agent look: a gradient that leans into the neighbouring hue, the hue's
  * light ink as the label, and a soft glow in its own colour. Neutral stays
- * flat — a glow on grey says nothing. The hues are the tokens in globals.css.
+ * flat - a glow on grey says nothing. The hues are the tokens in globals.css.
  *
  * Classes only: size, padding and weight stay with each pill.
  */
 export const PILL = {
-	/** Odin's own doing — Night Agent, auto-started, automations, merged. */
+	/** Odin's own doing - Night Agent, auto-started, automations, merged. */
 	brand:
 		"bg-gradient-to-r from-primary/30 to-working/15 text-primary-ink glow-primary",
-	/** In flight — a running agent, a live session. */
+	/** In flight - a running agent, a live session. */
 	working:
 		"bg-gradient-to-r from-working/30 to-primary/15 text-working-ink glow-working",
 	/** Waiting on you, or about to be a problem. */
@@ -31,8 +31,8 @@ export const PILL = {
 } as const;
 
 /**
- * Button colours, the same way. A view gets one primary — the thing it exists
- * for — glossy violet with a halo, and everything else is secondary, so violet
+ * Button colours, the same way. A view gets one primary - the thing it exists
+ * for - glossy violet with a halo, and everything else is secondary, so violet
  * means "the next click" wherever you are. Done keeps its green: it's the one
  * action that is also a status. `selected` is the on-state of any tab, nav
  * item or toggle.

@@ -3,7 +3,7 @@ import type { PaneStatus } from "shared/tabs-types";
 /**
  * The one place a pane status gets a colour and a name. The board's columns
  * and cards and the All feed's chips all draw the same states, and while each
- * kept its own literals they drifted — Working read green on one page and blue
+ * kept its own literals they drifted - Working read green on one page and blue
  * on the other, and Done read blue in its header above a green card. The
  * drawer printed the raw enum, so a blocked card said "Permission". Exhaustive
  * over PaneStatus so a new status can't quietly inherit someone's default.
@@ -12,7 +12,7 @@ import type { PaneStatus } from "shared/tabs-types";
  * Tailwind class name the same colour.
  */
 export const PANE_STATUS: Record<PaneStatus, { dot: string; label: string }> = {
-	// Blue is "in flight" — green is reserved for the finished state, because
+	// Blue is "in flight" - green is reserved for the finished state, because
 	// green-as-running made a board of working cards read as a board of done.
 	working: { dot: "var(--working)", label: "Working" },
 	// "permission" is the hook event (PermissionRequest), not a word for people:

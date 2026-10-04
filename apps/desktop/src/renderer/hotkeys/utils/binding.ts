@@ -3,7 +3,7 @@ import { canonicalizeChord, normalizeToken } from "./resolveHotkeyFromEvent";
 
 /**
  * Keys whose `event.code` is stable across keyboard layouts (Enter, arrows,
- * Backspace, ...). Tokens listed here are post-`normalizeToken` form —
+ * Backspace, ...). Tokens listed here are post-`normalizeToken` form -
  * aliases like `esc` / `up` / `return` resolve to their canonical names
  * (`escape`, `arrowup`, `enter`) before lookup, so this set must mirror the
  * canonical side only.
@@ -109,7 +109,7 @@ const PUNCT_ALIAS_TO_GLYPH: Record<string, string> = {
  * chord for the user's current layout. On US QWERTY: `meta+p` → `meta+p`.
  * On Dvorak: `meta+p` → `meta+r` (physical KeyR prints "p"). Named/F-keys
  * pass through unchanged. Returns null when the produced character isn't on
- * the keyboard — caller falls back to the untranslated chord.
+ * the keyboard - caller falls back to the untranslated chord.
  */
 export function translateLogicalChord(
 	chord: string,

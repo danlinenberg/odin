@@ -122,11 +122,11 @@ export function mergeTabIntoTab(
 	if (!cleanedSourceLayout || !cleanedTargetLayout) return null;
 
 	// Invariant: every pane owned by the source tab should be in its layout.
-	// If not, there's a bug elsewhere — abort rather than inventing cleanup.
+	// If not, there's a bug elsewhere - abort rather than inventing cleanup.
 	const sourcePaneIds = extractPaneIdsFromLayout(cleanedSourceLayout);
 	if (sourcePaneIds.length !== sourceValidIds.size) {
 		console.warn(
-			"[mergeTabIntoTab] Source tab has orphaned panes — aborting merge",
+			"[mergeTabIntoTab] Source tab has orphaned panes - aborting merge",
 		);
 		return null;
 	}

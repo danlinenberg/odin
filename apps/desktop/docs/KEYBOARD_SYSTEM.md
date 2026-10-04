@@ -82,7 +82,7 @@ Each binding is a `ShortcutBinding`:
 
 ```ts
 type ShortcutBinding =
-  | string                                   // legacy / shipped default — implicitly physical
+  | string                                   // legacy / shipped default - implicitly physical
   | { version: 2; mode: BindingMode; chord: string };
 
 type BindingMode = "physical" | "logical" | "named";
@@ -111,7 +111,7 @@ binding.mode === "logical"   → translateLogicalChord(chord, layoutMap)
                                     when layoutMap is null.
 ```
 
-Example: a logical `meta+z` binding on German QWERTZ resolves to `meta+y` (because German's KeyY position prints "z"), so react-hotkeys-hook fires when the user presses the key labeled Z — same letter, different physical position.
+Example: a logical `meta+z` binding on German QWERTZ resolves to `meta+y` (because German's KeyY position prints "z"), so react-hotkeys-hook fires when the user presses the key labeled Z - same letter, different physical position.
 
 ## Recording flow
 
@@ -126,7 +126,7 @@ The Settings page passes `preferredMode: "logical"`. Conflict detection compares
 
 | Concern | Where | Why |
 |---|---|---|
-| **AltGr** (Linux/Windows) | `eventToChord` and `useHotkey.shouldIgnoreEvent` | Chromium reports AltGr as ctrlKey+altKey — without suppression, AltGr-typed printables on non-US layouts (`AltGr+E = €` on German) would false-trigger any `ctrl+alt+e` binding. |
+| **AltGr** (Linux/Windows) | `eventToChord` and `useHotkey.shouldIgnoreEvent` | Chromium reports AltGr as ctrlKey+altKey - without suppression, AltGr-typed printables on non-US layouts (`AltGr+E = €` on German) would false-trigger any `ctrl+alt+e` binding. |
 | **IME composition** (CJK / dead keys) | `eventToChord` and `useHotkey.shouldIgnoreEvent` | `event.isComposing` and Safari's `keyCode === 229` short-circuit matching. Modifier+letter chords bypass IME on macOS by OS design. |
 | **Terminal-reserved chords** | `TERMINAL_RESERVED_CHORDS` set | `Ctrl+C/D/Z/S/Q/\` always go to PTY; recorder rejects them with an error. |
 
@@ -136,15 +136,15 @@ The v1→v2 hotkey storage migration was shipped April 2026 and removed in commi
 
 ## Decision history (brief)
 
-- **April 2026** — Initial refactor. Unified everything on `event.code` (recorder, dispatch, terminal forwarding). Preserved the bare-string storage shape. See `plans/done/20260412-keyboard-recorder-ctrl-binding-fix.md`.
-- **April 27, 2026** — Layout audit and Phase 0–2 plan. Briefly tried `navigator.keyboard.getLayoutMap()` to avoid the native-keymap dep; switched back after discovering Chromium's `layoutchange` event doesn't fire for macOS input-source switches. native-keymap hooks `kTISNotifySelectedKeyboardInputSourceChanged` directly, which fires reliably. See `plans/done/20260427-keyboard-layout-plan.md`.
-- **April 28, 2026** — Phase 1 (native-keymap) + Phase 2 (dual-mode bindings) shipped. v1 migration removed.
+- **April 2026** - Initial refactor. Unified everything on `event.code` (recorder, dispatch, terminal forwarding). Preserved the bare-string storage shape. See `plans/done/20260412-keyboard-recorder-ctrl-binding-fix.md`.
+- **April 27, 2026** - Layout audit and Phase 0–2 plan. Briefly tried `navigator.keyboard.getLayoutMap()` to avoid the native-keymap dep; switched back after discovering Chromium's `layoutchange` event doesn't fire for macOS input-source switches. native-keymap hooks `kTISNotifySelectedKeyboardInputSourceChanged` directly, which fires reliably. See `plans/done/20260427-keyboard-layout-plan.md`.
+- **April 28, 2026** - Phase 1 (native-keymap) + Phase 2 (dual-mode bindings) shipped. v1 migration removed.
 
 ## Known gaps / future work
 
 | Item | Status |
 |---|---|
-| **Menu accelerator sync** — `main/lib/menu.ts` hardcodes `CmdOrCtrl+R/,//Shift+Q`; they shadow user rebinds | Demand-driven. The single concrete user-visible gap. |
+| **Menu accelerator sync** - `main/lib/menu.ts` hardcodes `CmdOrCtrl+R/,//Shift+Q`; they shadow user rebinds | Demand-driven. The single concrete user-visible gap. |
 | **v1 terminal handler** uses catch-all `ctrl/meta` skip → starves TUIs of unbound chords like Ctrl+R | Tracked in `plans/20260409-tui-hotkey-forwarding.md`; v2 already correct. |
 | **AltGr first-class binding token** | Reserved but never wired. AltGr is suppressed at match time, but a user can't *record* `AltGr+E` as their own chord. Drop or implement on demand. |
 | **Numpad / Digit disambiguation** | Collapsed: `Numpad1` and `Digit1` both canonicalize to `"1"`. No current need for separate bindings. |

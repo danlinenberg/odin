@@ -46,7 +46,7 @@ export function isProjectNotSetupCause(
 /**
  * Thrown by `workspaceCleanup.destroy` when another destroy for the same
  * workspace is already in flight. Distinct from a dirty-worktree CONFLICT
- * because the renderer must NOT silently retry with `force: true` — the
+ * because the renderer must NOT silently retry with `force: true` - the
  * second caller should surface as a toast and let the first run finish.
  */
 export interface DeleteInProgressCause {

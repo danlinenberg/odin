@@ -124,7 +124,7 @@ describe("setup scripts integration", () => {
 		expect(created.terminals[0]?.label).toBe("Workspace Setup");
 
 		// The command text and its Enter arrive as separate writes (the Enter is
-		// delayed so shell startup can't eat it) — assert both, in order.
+		// delayed so shell startup can't eat it) - assert both, in order.
 		await waitFor(
 			() =>
 				writes.includes("echo setup-a && echo setup-b") &&

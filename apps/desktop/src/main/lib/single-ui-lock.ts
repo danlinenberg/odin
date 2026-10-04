@@ -15,7 +15,7 @@ import { isProcessAlive } from "./host-service-manifest";
  *
  * `app.requestSingleInstanceLock()` is keyed on the bundle id, so it only stops
  * a second copy of the *same* build. The dev build (`bun dev`) and the packaged
- * app ship different bundle ids while sharing one home dir — so both acquire
+ * app ship different bundle ids while sharing one home dir - so both acquire
  * Electron's lock, both run, and both read and write `app-state.json`. That file
  * holds `tabsState.activeTabIds` and `tabsState.focusedPaneIds`: the session
  * you are currently looking at. Last writer wins, so a background instance
@@ -55,7 +55,7 @@ function removeLock(homeDir: string): void {
 	try {
 		unlinkSync(lockPath(homeDir));
 	} catch {
-		// Already gone — fine.
+		// Already gone - fine.
 	}
 }
 
@@ -94,7 +94,7 @@ function tryCreateLock(homeDir: string, appId: string): UiLockResult | null {
 /**
  * Claim the home dir for this UI process.
  *
- * A lock left by a *dead* pid is stolen — a SIGKILL or a crash must not lock the
+ * A lock left by a *dead* pid is stolen - a SIGKILL or a crash must not lock the
  * user out of their own app. A lock held by a *live* pid is never stolen, and
  * never times out: an instance the user has had open for a week is still the
  * legitimate owner.

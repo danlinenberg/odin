@@ -27,7 +27,7 @@ export const createMigrationRouter = () => {
 		readV1Projects: publicProcedure.query(() => {
 			// Only surface pinned projects. v1's `hideProject` nulls tab_order
 			// when the last workspace in a project is deleted, effectively
-			// abandoning the project — don't resurrect those in v2.
+			// abandoning the project - don't resurrect those in v2.
 			return localDb
 				.select()
 				.from(projects)
@@ -54,7 +54,7 @@ export const createMigrationRouter = () => {
 		/**
 		 * v1 terminal panes from app-state.json, resolved to their workspace
 		 * and best-known cwd. Terminal sessions themselves can't migrate (v1
-		 * and v2 own separate daemon sessions) — the cwd is what carries over.
+		 * and v2 own separate daemon sessions) - the cwd is what carries over.
 		 */
 		readV1TerminalPanes: publicProcedure.query(() => {
 			const tabsState = appState.data.tabsState;
@@ -78,9 +78,9 @@ export const createMigrationRouter = () => {
 
 		/**
 		 * Cross-instance single-flight for the auto-migrator (cf. #5791 for
-		 * host services): one lock file per home dir — instances sharing it
+		 * host services): one lock file per home dir - instances sharing it
 		 * share local.db, so one runner suffices. Acquisition is atomic (`wx`
-		 * create). Locks are stolen only from dead owners — a live pass is
+		 * create). Locks are stolen only from dead owners - a live pass is
 		 * never preempted however long it runs; the 24h age escape only
 		 * covers pid reuse by an unrelated long-lived process.
 		 */

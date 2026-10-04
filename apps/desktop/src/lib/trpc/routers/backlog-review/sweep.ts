@@ -2,19 +2,19 @@
  * The backlog sweep: does this item's upstream still want it done?
  *
  * Odin asks the systems itself rather than handing the question to an agent.
- * A sweep is a set of lookups — a Jira status, a PR state, whether a thread
- * moved on — and Odin is already signed in to all three. Doing it here makes
+ * A sweep is a set of lookups - a Jira status, a PR state, whether a thread
+ * moved on - and Odin is already signed in to all three. Doing it here makes
  * it a screen that fills in seconds instead of a session you start, wait for,
  * and read a transcript of. The judgement stays where it belongs: nothing is
  * cleared without a click on the Review screen.
  *
- * No electron in here — the lookups arrive as `SweepDeps`, so every branch is
+ * No electron in here - the lookups arrive as `SweepDeps`, so every branch is
  * testable without a token (sweep.test.ts).
  */
 
 /** One backlog row, as much of it as a lookup needs. */
 export interface SweepItem {
-	/** `task:<id>` / `slack:<channel>:<ts>` — the row to clear on DROP. */
+	/** `task:<id>` / `slack:<channel>:<ts>` - the row to clear on DROP. */
 	key: string;
 	source: string;
 	title: string;
@@ -26,7 +26,7 @@ export interface SweepItem {
 	/**
 	 * When the thing this row points at last moved, ms. A Jira issue's
 	 * `updated`, a PR's `updated_at`, a Notion page's `last_edited_time`, the
-	 * Slack message's own timestamp — whatever the source calls it.
+	 * Slack message's own timestamp - whatever the source calls it.
 	 */
 	lastActivityAt?: number;
 	/** The source's own status name, where it keeps one: a Notion row's Status. */
@@ -41,7 +41,7 @@ export interface SweepItem {
  *
  * Three weeks, off the shape of a real backlog: rows cluster under two weeks
  * (live) and past three (dead), with a gap between. This is the one rule here
- * that isn't a fact read back from somewhere — it is a judgement about how
+ * that isn't a fact read back from somewhere - it is a judgement about how
  * long "still worth doing" survives silence, which is why it only ever turns a
  * KEEP into a DROP and never speaks over an answer the source gave.
  */
@@ -83,8 +83,8 @@ export type Reference =
 
 const GITHUB_REF = /github\.com\/([\w.-]+)\/([\w.-]+)\/(pull|issues)\/(\d+)/i;
 /**
- * A Jira key as it appears in prose. Deliberately loose — `UTF-8` matches too
- * — because a key nobody's Jira has comes back as "not found", which the
+ * A Jira key as it appears in prose. Deliberately loose - `UTF-8` matches too
+ * - because a key nobody's Jira has comes back as "not found", which the
  * caller then treats as "no reference" and moves on to the next check. A
  * denylist would be one more list to maintain for the same outcome.
  */
@@ -120,7 +120,7 @@ const SLACK_LINK = /slack\.com\/archives\/([A-Z0-9]+)\/p(\d{10})(\d{6})/;
 
 /**
  * The Slack message a row is about, as `<channel>:<ts>`: a queue row's own key,
- * or a permalink in anything else — an inbox copy in Notion carries the link
+ * or a permalink in anything else - an inbox copy in Notion carries the link
  * to the message it was copied from, and the thread there is what says
  * whether it's still open.
  */
@@ -135,8 +135,8 @@ export function slackRef(item: SweepItem): string | null {
 
 /**
  * Rows that are another row over again: an inbox copy of a Slack message the
- * queue already has. The Slack row is the one to act on — it has the thread,
- * the :eyes: and the Done marker — so the copy is dropped with a pointer to it.
+ * queue already has. The Slack row is the one to act on - it has the thread,
+ * the :eyes: and the Done marker - so the copy is dropped with a pointer to it.
  */
 export function duplicates(items: SweepItem[]): Map<string, Answer> {
 	const queued = new Set(
@@ -169,7 +169,7 @@ const AUTOMATED_SENDER =
 
 /**
  * The three questions the sweep can ask. Each answers null for "couldn't ask"
- * — not signed in, not found, scope missing — which always reads as UNKNOWN
+ * - not signed in, not found, scope missing - which always reads as UNKNOWN
  * rather than as an answer.
  */
 export interface SweepDeps {
@@ -195,17 +195,17 @@ export interface SweepDeps {
 	} | null>;
 	slackThread(id: string): Promise<{
 		replies: number;
-		/** The newest reply is mine — nobody is waiting on me here. */
+		/** The newest reply is mine - nobody is waiting on me here. */
 		lastReplyByMe: boolean;
 		/** I said something in the thread, at some point. */
 		iReplied: boolean;
-		/** False when Slack truncated the replier list — see `slackThreadReplies`. */
+		/** False when Slack truncated the replier list - see `slackThreadReplies`. */
 		repliersComplete: boolean;
 		/** Slack ts of the newest reply, when the thread has one. */
 		lastReplyTs: string | null;
 		/** Newest thing seen in the conversation itself, reply or not. */
 		channelLastTs: string | null;
-		/** That newest thing is mine — I said something here afterwards. */
+		/** That newest thing is mine - I said something here afterwards. */
 		channelLastByMe: boolean;
 		/** I reacted to that newest thing (not with :eyes:): acknowledged. */
 		channelLastAckedByMe?: boolean;
@@ -225,9 +225,9 @@ export interface SweepDeps {
 /**
  * One item's verdict.
  *
- * DROP comes off state actually read back from the system that owns the item —
+ * DROP comes off state actually read back from the system that owns the item -
  * a closed ticket, a merged PR, a reaction taken off, a thread someone
- * tagged with me answered — or, where the source still says "open", off that source having gone
+ * tagged with me answered - or, where the source still says "open", off that source having gone
  * quiet for {@link STALE_DAYS}. Everything *unreachable* stays UNKNOWN, because
  * the button next to a DROP deletes something: age can retire a row the source
  * confirmed, never one it refused to talk about.
@@ -339,7 +339,7 @@ export async function sweepItem(
 					: "couldn't read the thread",
 			};
 		// A reply is the freshest thing that happened here, and the row's own
-		// timestamp is the message — so a long-dead thread under an old message
+		// timestamp is the message - so a long-dead thread under an old message
 		// still reads as quiet, and one answered yesterday doesn't.
 		// The freshest of everything actually seen: a reply, something said in the
 		// conversation since, or failing both the message's own timestamp.
@@ -347,7 +347,7 @@ export async function sweepItem(
 			thread.lastReplyTs ? Number(thread.lastReplyTs) * 1000 : null,
 			// Only in a DM. In a channel this is "the channel is busy", which is
 			// true of every channel worth being in and would keep every row alive
-			// forever — a row in #rnd is judged on its own thread, not on whether
+			// forever - a row in #rnd is judged on its own thread, not on whether
 			// #rnd said something this morning.
 			thread.isDirect && thread.channelLastTs
 				? Number(thread.channelLastTs) * 1000
@@ -380,7 +380,7 @@ export async function sweepItem(
 				evidence: `they closed it in the ${last.where}: “${clip(last.text)}”`,
 			};
 		// Replying with a promise is not finishing: "on it", "will check
-		// tomorrow" — the row stays until the promise is kept.
+		// tomorrow" - the row stays until the promise is kept.
 		if (thread.lastReplyByMe)
 			return keepOrStale("you replied last in the thread", moved);
 		// Only in a direct conversation: in a channel, me saying something later
@@ -408,7 +408,7 @@ export async function sweepItem(
 		return { verdict: "UNKNOWN", evidence: `Jira had nothing for ${jira}` };
 	// Nothing to ask is not the same as asking and getting no answer. A task I
 	// typed has no upstream and never will, so its age is the only thing there
-	// is to go on — which is a checked row, not an unreadable one.
+	// is to go on - which is a checked row, not an unreadable one.
 	return keepOrStale("nothing upstream to check it against", activity);
 }
 
@@ -426,15 +426,15 @@ export interface JiraActivity {
 
 /**
  * What a sprint carry-over writes. Every unfinished ticket is moved into the
- * next sprint, which bumps `updated` — so a ticket nobody has looked at in a
+ * next sprint, which bumps `updated` - so a ticket nobody has looked at in a
  * year reads as touched two weeks ago, forever, and never goes stale.
  */
 const CARRY_OVER_FIELDS = new Set(["Sprint", "Rank"]);
 
 /**
  * When someone last did something to the issue, ms: a comment, or a change
- * that isn't a carry-over. Null when Jira cut a list short — the missing entry
- * could be the newest — so the caller falls back to `updated`.
+ * that isn't a carry-over. Null when Jira cut a list short - the missing entry
+ * could be the newest - so the caller falls back to `updated`.
  */
 export function jiraMovedAt(issue: JiraActivity): number | null {
 	const histories = issue.changelog?.histories ?? [];
@@ -470,7 +470,7 @@ export interface JiraOwnership {
 
 /**
  * Whether a ticket is someone else's to finish: assigned to another person,
- * and its newest comment isn't that person (or anyone) @-mentioning me — a
+ * and its newest comment isn't that person (or anyone) @-mentioning me - a
  * mention is how Jira hands a question back. A cut-short comment list can't
  * say which comment is newest, so it counts as asked.
  */
@@ -500,7 +500,7 @@ type Thread = NonNullable<Awaited<ReturnType<SweepDeps["slackThread"]>>>;
 
 /**
  * The newest message after the ask, wherever it was said: the thread's last
- * reply, or — in a DM, where answers usually come inline — the conversation's
+ * reply, or - in a DM, where answers usually come inline - the conversation's
  * newest message, whichever is later.
  */
 function lastWord(thread: Thread): {
@@ -536,8 +536,8 @@ function lastWord(thread: Thread): {
 
 /**
  * A reply that promises rather than delivers: "fixing this", "will look",
- * "not yet", "note to self: remaining photos". Anything else I say last — "Fixed", "Created", a link, an
- * answer, "lmk if it works" — hands the ball back, and nobody waits on me.
+ * "not yet", "note to self: remaining photos". Anything else I say last - "Fixed", "Created", a link, an
+ * answer, "lmk if it works" - hands the ball back, and nobody waits on me.
  *
  * ponytail: a phrase list, measured against 71 hand-read rows (every promise
  * caught; "note to self" / "todo" / "remaining" added after a miss). Swap for a model call if it drifts.

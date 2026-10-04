@@ -47,11 +47,11 @@ export const POSTHOG_COOKIE_NAME = "odin";
 // v2-only users have the v1↔v2 surface switch hidden and v2 cloud forced on.
 // Two windows of account-creation time qualify (stored as ISO strings so the
 // values are identical on server, desktop renderer, web, and admin):
-//   [V2_ONLY_USER_CUTOFF, V2_NEW_USER_V1_EXPERIMENT_START) — the original v2-only
+//   [V2_ONLY_USER_CUTOFF, V2_NEW_USER_V1_EXPERIMENT_START) - the original v2-only
 //     cohort.
-//   [V2_NEW_USER_V2_DEFAULT_START, ∞) — new users now default to v2.
+//   [V2_NEW_USER_V2_DEFAULT_START, ∞) - new users now default to v2.
 // The gap [V2_NEW_USER_V1_EXPERIMENT_START, V2_NEW_USER_V2_DEFAULT_START) is the
-// new-users-v1 experiment cohort; they started in v1 and stay there — flipping
+// new-users-v1 experiment cohort; they started in v1 and stay there - flipping
 // the default must never pull existing v1 users into v2. Pre-cutoff users keep
 // the existing opt-in toggle.
 // 2026-05-15 14:00 UTC = Fri 07:00 PDT / 10:00 EDT.
@@ -86,7 +86,7 @@ export const FEATURE_FLAGS = {
 	RELAY_URL_OVERRIDE: "relay-url-override",
 	/**
 	 * Paces the v1→v2 auto-migration rollout (percentage ramp + high-profile
-	 * org exclusions). Gates only NEW migrations on the v1 surface — post-flip
+	 * org exclusions). Gates only NEW migrations on the v1 surface - post-flip
 	 * catch-up passes are ungated so flipped machines always finish. Off,
 	 * unloaded, or offline all mean "don't migrate yet" (stays on v1).
 	 */
@@ -94,15 +94,15 @@ export const FEATURE_FLAGS = {
 	/**
 	 * Experiment flag (control/test): renders the new-workspace surface as a
 	 * full-screen view with sample prompts instead of the dense modal.
-	 * Eligibility (new accounts only) is a release condition on the flag —
-	 * `created_at` person property, sent with flag requests at identify time —
+	 * Eligibility (new accounts only) is a release condition on the flag -
+	 * `created_at` person property, sent with flag requests at identify time -
 	 * and the flag is only evaluated when the surface opens, so
 	 * `$feature_flag_called` exposure matches the experiment population.
 	 */
 	NEW_WORKSPACE_SCREEN: "new-workspace-screen",
 	/**
 	 * Boolean override that forces the new-workspace screen (test-arm UI)
-	 * without evaluating the experiment flag — no exposure event, so team
+	 * without evaluating the experiment flag - no exposure event, so team
 	 * members and dev accounts can use the screen without contaminating the
 	 * experiment. Checked before eligibility and before the experiment flag.
 	 */
@@ -116,7 +116,7 @@ export const FEATURE_FLAGS = {
 // kitty/iTerm-grade report stream. Under kitty-class identities TUIs trust
 // that stream as-is; a vscode identity would make claude-code amplify each
 // report (its compensation for xterm.js's damped stock stream) and
-// over-scroll ~3x. The identity and the wheel handler must ship together —
+// over-scroll ~3x. The identity and the wheel handler must ship together -
 // reverting one without the other reintroduces slow or runaway scrolling.
 // Kitty *keyboard protocol* support is advertised separately via the CSI-u
 // capability probe.
@@ -127,7 +127,7 @@ export const TERMINAL_TERM_PROGRAM_VERSION = "0.42.0";
 
 // Per-workspace directory for agent briefs (`task-<slug>.md`) and composer
 // attachments. Separate from `.odin/`, which holds the tracked workspace
-// contract (config.json, setup.sh, teardown.sh) the Odin CLI reads —
+// contract (config.json, setup.sh, teardown.sh) the Odin CLI reads -
 // briefs are generated throwaway artifacts and are gitignored.
 // The command string handed to the agent and the code that writes the file
 // live in different packages, so both must read this constant; a literal in

@@ -9,7 +9,7 @@ const sessionInput = z.object({
 });
 
 // Slash-command discovery / preview / resolve are workspace-scoped, not
-// session-scoped — they only need a workspaceId so they work in fresh
+// session-scoped - they only need a workspaceId so they work in fresh
 // chats before the first message creates a session.
 const workspaceSlashInput = z.object({
 	workspaceId: z.uuid(),

@@ -1009,7 +1009,7 @@ describe("agent-wrappers claude settings.json", () => {
 		// Needs you lives or dies on this one. Odin launches Claude with
 		// --dangerously-skip-permissions, so PermissionRequest above never fires;
 		// a PreToolUse scoped to the two tools that block on you is what actually
-		// reports "this session is waiting". The matcher is the whole point — a
+		// reports "this session is waiting". The matcher is the whole point - a
 		// "*" here would call every Bash call a question.
 		expect(
 			parsed.hooks.PreToolUse.some(
@@ -1707,7 +1707,7 @@ describe("vibe hooks.toml", () => {
 			"",
 		].join("\n");
 		const out = getVibeHooksTomlContent(partial);
-		// User hook survives, and exactly one complete managed block is emitted —
+		// User hook survives, and exactly one complete managed block is emitted -
 		// no duplicate hook entries and no dangling marker.
 		expect(out).toContain('name = "mine"');
 		expect(out.split(VIBE_HOOKS_MARKER_START).length - 1).toBe(1);

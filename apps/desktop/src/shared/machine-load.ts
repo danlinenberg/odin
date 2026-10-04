@@ -2,8 +2,8 @@
  * Are the agents already eating enough of this Mac that starting another one
  * would hurt?
  *
- * Reads the snapshot `resourceMetrics.getSnapshot` already collects — pidusage
- * over every live session's process tree — so nothing new is probed.
+ * Reads the snapshot `resourceMetrics.getSnapshot` already collects - pidusage
+ * over every live session's process tree - so nothing new is probed.
  */
 
 /** The fields of a ResourceMetricsSnapshot this needs. */
@@ -12,7 +12,7 @@ export interface MachineLoadInput {
 		cpuCoreCount: number;
 		memoryUsagePercent: number;
 		/**
-		 * The whole machine's CPU, 0-100 — system+user, i.e. 100 minus idle.
+		 * The whole machine's CPU, 0-100 - system+user, i.e. 100 minus idle.
 		 * Zero on a snapshot collected before this existed, and on the first
 		 * one after launch (it's a delta between two readings).
 		 */
@@ -20,7 +20,7 @@ export interface MachineLoadInput {
 		/** This Mac's installed RAM, in bytes. */
 		totalMemory: number;
 		/**
-		 * What the OS could hand a new process right now — free plus reclaimable
+		 * What the OS could hand a new process right now - free plus reclaimable
 		 * pages, in bytes. Zero on a snapshot collected before this existed.
 		 */
 		availableMemory: number;
@@ -33,13 +33,13 @@ export interface MachineLoadInput {
 }
 
 /**
- * How much of the whole machine can be busy — anyone's work, Odin's agents
- * included — before the next launch waits.
+ * How much of the whole machine can be busy - anyone's work, Odin's agents
+ * included - before the next launch waits.
  *
  * One number, not two: the agents' CPU is part of the Mac's, so a separate
  * agent limit could only ever trip while the Mac still had room.
  *
- * ponytail: the default — Settings → Sessions overrides it. 85 let launches land
+ * ponytail: the default - Settings → Sessions overrides it. 85 let launches land
  * on a Mac that was already suffocating; 50 held them on one that was fine.
  */
 export const BUSY_HOST_CPU_PERCENT = 70;
@@ -48,7 +48,7 @@ export const BUSY_HOST_CPU_PERCENT = 70;
  * Free memory (free + reclaimable) below which the next launch waits.
  *
  * CPU alone misses a Mac that's out of memory: it swaps, and crawls while the
- * CPU looks idle. ponytail: the default — Settings → Sessions overrides it. 2 GB
+ * CPU looks idle. ponytail: the default - Settings → Sessions overrides it. 2 GB
  * is one session mid-build.
  */
 export const MIN_FREE_MEMORY_GB = 2;
@@ -66,7 +66,7 @@ export interface LaunchLimits {
 export const DEFAULT_LAUNCH_LIMITS: LaunchLimits = {
 	hostCpuPercent: BUSY_HOST_CPU_PERCENT,
 	minFreeMemoryGb: MIN_FREE_MEMORY_GB,
-	// ponytail: the default — Settings → Sessions overrides it. CPU and memory
+	// ponytail: the default - Settings → Sessions overrides it. CPU and memory
 	// miss a board of agents that are mostly waiting on the network.
 	maxWorkingAgents: 5,
 	oneSessionPerCheckout: true,
@@ -75,18 +75,18 @@ export const DEFAULT_LAUNCH_LIMITS: LaunchLimits = {
 export interface MachineLoad {
 	/**
 	 * Share of the machine Odin's own agents are burning, 0–100+. Shown, not
-	 * acted on — it's already inside `cpuPercent`. Measured per-process, so it
+	 * acted on - it's already inside `cpuPercent`. Measured per-process, so it
 	 * can't blame Claude for someone else's build.
 	 */
 	agentCpuPercent: number;
 	/**
 	 * Resident memory Odin's own processes hold, in GB. Per-process like
 	 * `agentCpuPercent`, so it's a number you can act
-	 * on — it can't blame Claude for the rest of the Mac.
+	 * on - it can't blame Claude for the rest of the Mac.
 	 */
 	agentMemoryGb: number;
 	/**
-	 * Whole machine, 0–100: system+user, i.e. 100 minus idle. Acted on — a Mac
+	 * Whole machine, 0–100: system+user, i.e. 100 minus idle. Acted on - a Mac
 	 * pinned here is choking whoever owns the work, so launching into it is
 	 * how you make it worse.
 	 *
@@ -101,7 +101,7 @@ export interface MachineLoad {
 	 * Acted on below `LaunchLimits.minFreeMemoryGb`. Measured, not predicted. "How many more sessions fit" used to live here
 	 * and was deleted twice over: a count needs a per-session cost, and the
 	 * honest one swings from 0.2 GB parked to 2 GB mid-build, so every constant
-	 * we picked made the badge confidently wrong — "room for 31" on a Mac with
+	 * we picked made the badge confidently wrong - "room for 31" on a Mac with
 	 * 4 GB free, then "room for 2" on the Mac already running nine. Free memory
 	 * and what the agents hold are both facts; you can read them.
 	 */
@@ -138,7 +138,7 @@ export function machineLoad(
 	const availableMemoryGb =
 		Math.round(gb(snapshot.host.availableMemory) * 10) / 10;
 	// Zero means "not measured" (a snapshot from before the field existed), not
-	// "out of memory" — gating on it would park every launch.
+	// "out of memory" - gating on it would park every launch.
 	const memoryBusy =
 		snapshot.host.availableMemory > 0 &&
 		availableMemoryGb < limits.minFreeMemoryGb;
@@ -183,7 +183,7 @@ export interface SessionUsage {
 /**
  * What a session's badge says, and whether it's heavy enough to be loud.
  *
- * Memory is always named — it's what the header chip counts — and CPU only
+ * Memory is always named - it's what the header chip counts - and CPU only
  * when it's the thing that's high. Only a `heavy` session shows the badge.
  */
 export function sessionUsageLabel(usage: SessionUsage): {

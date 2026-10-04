@@ -26,7 +26,7 @@ cask at `Casks/odin.rb` is `version :latest` and downloads
 changes and why `brew upgrade` needs `--greedy`.
 
 Builds are signed ad-hoc, not with an Apple Developer ID, so every install needs
-`xattr -dr com.apple.quarantine /Applications/Odin.app` — `release.sh` does it,
+`xattr -dr com.apple.quarantine /Applications/Odin.app` - `release.sh` does it,
 and the README tells everyone else to.
 
 ## Known gaps

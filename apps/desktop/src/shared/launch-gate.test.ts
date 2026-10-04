@@ -65,7 +65,7 @@ describe("launchBlocker", () => {
 		expect(launchBlocker(snapshot(10), held, ODIN, ODIN)).toBe(
 			'waiting for "x" to finish in Odin\'s checkout',
 		);
-		// Another repo is unaffected — the gate is about the one checkout.
+		// Another repo is unaffected - the gate is about the one checkout.
 		expect(launchBlocker(snapshot(10), held, "/tmp/repo", ODIN)).toBeNull();
 	});
 
@@ -154,7 +154,7 @@ describe("sessionInFlight", () => {
 	});
 
 	// A feed session started in the workspace folder never claimed a checkout,
-	// so it holds nothing — not its folder, not the repos under it.
+	// so it holds nothing - not its folder, not the repos under it.
 	it("ignores a session with no claimed checkout outside Odin", () => {
 		const feed = [
 			working({ odinCwd: undefined, initialCwd: "/Users/dan/dev" }),

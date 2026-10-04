@@ -8,8 +8,8 @@ import { profileOf } from "shared/odin-profile";
 /**
  * Who asked for each session, so Session History can be searched by person.
  *
- * A reporter's name is never in the transcript — the prompt is the ticket, not
- * the person — so it has to be joined in from what Odin recorded at launch.
+ * A reporter's name is never in the transcript - the prompt is the ticket, not
+ * the person - so it has to be joined in from what Odin recorded at launch.
  * Two records hold it, and both are needed: `work_log` is the durable ledger
  * but only exists for launches since it landed, while the board's panes have
  * carried `odinContact` for far longer. The ledger wins where they overlap:
@@ -48,7 +48,7 @@ export function sessionPeople(): Map<string, SessionPerson> {
 	}
 	// Inserted oldest-first and reversed at the end, because the chips want the
 	// people you dealt with most recently. A session in both records keeps its
-	// place and takes the ledger's value — that's the one that outlives the pane.
+	// place and takes the ledger's value - that's the one that outlives the pane.
 	for (const row of [...logged].reverse()) {
 		if (row.sessionId) {
 			people.set(row.sessionId, { person: row.person, source: row.source });
@@ -59,8 +59,8 @@ export function sessionPeople(): Map<string, SessionPerson> {
 
 /**
  * The profile each session was launched under, from the same two records as
- * `sessionPeople` (the ledger wins). A transcript neither knows about — one
- * run outside Odin, or before profiles — reads as the default profile, the
+ * `sessionPeople` (the ledger wins). A transcript neither knows about - one
+ * run outside Odin, or before profiles - reads as the default profile, the
  * same rule `profileOf` applies to an unstamped pane.
  */
 export function sessionProfileOf(): (sessionId: string) => string {

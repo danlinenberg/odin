@@ -23,7 +23,7 @@ interface GitWatcherInternals {
 
 function createWatcher(): GitWatcher {
 	// `start()` is never called, so the dispatch methods under test never touch
-	// the db or filesystem — empty stand-ins are enough.
+	// the db or filesystem - empty stand-ins are enough.
 	return new GitWatcher(
 		{} as unknown as ConstructorParameters<typeof GitWatcher>[0],
 		{} as unknown as ConstructorParameters<typeof GitWatcher>[1],

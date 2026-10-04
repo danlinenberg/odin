@@ -68,7 +68,7 @@ interface HostServiceProcess {
 	/**
 	 * True when this instance spawned the child and owns its lifecycle (may
 	 * SIGTERM it and remove its manifest). False when the entry was *adopted*
-	 * from another live app instance's host-service — we connect to it but must
+	 * from another live app instance's host-service - we connect to it but must
 	 * never kill it or delete its manifest.
 	 */
 	owned: boolean;
@@ -81,7 +81,7 @@ interface PendingStart {
 
 /**
  * Short health check used when deciding whether to adopt a foreign
- * host-service — the endpoint either answers within a couple of attempts or it
+ * host-service - the endpoint either answers within a couple of attempts or it
  * doesn't. Distinct from the long spawn readiness gate (HEALTH_POLL_TIMEOUT_MS).
  */
 const ADOPT_HEALTH_TIMEOUT_MS = 2_500;
@@ -259,7 +259,7 @@ export class HostServiceCoordinator extends EventEmitter {
 		this.rememberPort(organizationId, instance.port);
 
 		// Only owned children are ours to kill + de-manifest. Adopted entries
-		// (owned=false) belong to another live instance — fall through and just
+		// (owned=false) belong to another live instance - fall through and just
 		// drop our local reference below; never SIGTERM it or remove its manifest.
 		if (instance.owned) {
 			try {
@@ -294,16 +294,16 @@ export class HostServiceCoordinator extends EventEmitter {
 
 	/**
 	 * Forcefully reset host-service state for an org. Unlike `restart`, this
-	 * SIGKILLs whatever pid the manifest names — even when no instance is
+	 * SIGKILLs whatever pid the manifest names - even when no instance is
 	 * tracked in this process (e.g. a stale manifest left by a CLI-spawned
-	 * host-service) — then removes the manifest so callers can't pick up the
+	 * host-service) - then removes the manifest so callers can't pick up the
 	 * stale entry, and respawns. Used by the recovery path for
 	 * danlinenberg/odin#4299 where a wedged host-service keeps serving
 	 * stale state.
 	 */
 	async reset(organizationId: string): Promise<Connection> {
 		assertSafeOrganizationId(organizationId);
-		// Capture the manifest pid *before* stop() — stop() removes the manifest
+		// Capture the manifest pid *before* stop() - stop() removes the manifest
 		// for tracked instances and only sends SIGTERM, which a wedged process
 		// can ignore. We escalate to SIGKILL on whatever pid the manifest named.
 		const preferredPorts = this.getPreferredPorts(organizationId);
@@ -419,7 +419,7 @@ export class HostServiceCoordinator extends EventEmitter {
 	 * instances when it changes. Gives a fast edit→reload loop for code
 	 * under packages/host-service and src/main/host-service without
 	 * restarting Electron. In-memory host-service state (PTYs, watchers,
-	 * chat streams) is torn down on each reload — this is not true HMR.
+	 * chat streams) is torn down on each reload - this is not true HMR.
 	 */
 	enableDevReload(): () => void {
 		if (this.devReloadWatcher) return () => {};
@@ -527,7 +527,7 @@ export class HostServiceCoordinator extends EventEmitter {
 			if (lock) {
 				try {
 					// A peer may have finished spawning between our first adopt
-					// attempt and taking the lock — re-check before spawning.
+					// attempt and taking the lock - re-check before spawning.
 					const raced = await this.tryAdopt(organizationId, isStartAllowed);
 					if (raced) return raced;
 					return await this.spawn(
@@ -658,7 +658,7 @@ export class HostServiceCoordinator extends EventEmitter {
 				try {
 					fs.closeSync(logFd);
 				} catch {
-					// Best-effort — child has its own dup of the fd.
+					// Best-effort - child has its own dup of the fd.
 				}
 			}
 		}
@@ -683,7 +683,7 @@ export class HostServiceCoordinator extends EventEmitter {
 			childExited = true;
 			this.handleChildExit(organizationId, childPid, code, signal);
 		});
-		// Don't let the child block Electron's exit — stopAll() handles teardown.
+		// Don't let the child block Electron's exit - stopAll() handles teardown.
 		child.unref();
 
 		const endpoint = `http://127.0.0.1:${port}`;
@@ -750,7 +750,7 @@ export class HostServiceCoordinator extends EventEmitter {
 			// and WS stream route on this env var.
 			...(isInternalBuild() ? { ODIN_ACP_SESSIONS: "1" } : {}),
 			// Namespaced so terminals/agents spawned by the host service don't
-			// inherit a generic SENTRY_DSN — third-party tools with a Sentry SDK
+			// inherit a generic SENTRY_DSN - third-party tools with a Sentry SDK
 			// auto-pick it up and report into our project.
 			...(app.isPackaged && mainEnv.SENTRY_DSN_HOST_SERVICE
 				? {
@@ -968,7 +968,7 @@ export class HostServiceCoordinator extends EventEmitter {
 			title: "Host service crashed",
 			message: `The Odin host service${orgName ? ` for ${orgName}` : ""} stopped unexpectedly (${cause}) and could not be restarted automatically.`,
 			detail:
-				"Its workspaces and terminals are unavailable until it restarts — use the Odin tray menu > Host Service > Restart.",
+				"Its workspaces and terminals are unavailable until it restarts - use the Odin tray menu > Host Service > Restart.",
 		});
 	}
 

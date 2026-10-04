@@ -12,7 +12,7 @@ import { computeInsights } from "./insights";
 export const createInsightsRouter = () => {
 	return router({
 		/**
-		 * Arithmetic over rows already on disk — cheap enough to recompute per
+		 * Arithmetic over rows already on disk - cheap enough to recompute per
 		 * call rather than cache. Scoped to the active profile so work numbers
 		 * can't be inflated by a personal queue.
 		 */
@@ -65,7 +65,7 @@ export const createInsightsRouter = () => {
 		 */
 		/**
 		 * A heartbeat from an open session pane. Only counted when Odin has
-		 * focus and you touched the machine in the last two minutes — an open
+		 * focus and you touched the machine in the last two minutes - an open
 		 * pane you walked away from isn't your time.
 		 */
 		attend: publicProcedure
@@ -101,7 +101,7 @@ export const createInsightsRouter = () => {
 				const mine = sessions.filter(
 					(s) => profileOfSession(s.sessionId) === profileId,
 				);
-				// Only merged PRs count — an open or closed one hasn't shipped.
+				// Only merged PRs count - an open or closed one hasn't shipped.
 				const merged = await mergedPullRequests(mine.flatMap((s) => s.prs));
 				const workload = computeWorkload(
 					mine.map((s) => {

@@ -122,7 +122,7 @@ describe("completeSlackOAuth", () => {
 		await completeSlackOAuth(
 			"odin-odin://oauth/slack?code=attacker&state=not-ours",
 		);
-		// No exchange at all — an unsolicited code must never reach Slack.
+		// No exchange at all - an unsolicited code must never reach Slack.
 		expect(calls).toHaveLength(0);
 		expect(readOdinConfig().slackToken).toBeUndefined();
 	});

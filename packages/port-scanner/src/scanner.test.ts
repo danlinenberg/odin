@@ -92,7 +92,7 @@ describe("getProcessTreesForPids (real process table)", () => {
 	});
 
 	it("includes the root pid and its descendants from one table read", async () => {
-		// Not `sleep` — this package supports win32, where that binary is absent.
+		// Not `sleep` - this package supports win32, where that binary is absent.
 		const child = Bun.spawn([
 			process.execPath,
 			"-e",

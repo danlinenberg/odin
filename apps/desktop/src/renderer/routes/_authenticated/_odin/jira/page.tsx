@@ -50,7 +50,7 @@ export const Route = createFileRoute("/_authenticated/_odin/jira/")({
 });
 
 /**
- * My Jira — open issues assigned to me, ones I filed (BUGT triage tickets are
+ * My Jira - open issues assigned to me, ones I filed (BUGT triage tickets are
  * reported by me, not assigned), and ones where a comment @-mentions me; split
  * by role, grouped by status category, with one click to start an agent session
  * on one (or jump to a running one).
@@ -112,7 +112,7 @@ function MyJiraPage() {
 	// Free text over key, title, reporter, status and project.
 	const [search, setSearch] = useState("");
 	const needle = search.trim().toLowerCase();
-	// Same feeds the shell warms on boot — rows are usually already cached.
+	// Same feeds the shell warms on boot - rows are usually already cached.
 	const {
 		jira: issuesQuery,
 		workConfig: config,
@@ -142,7 +142,7 @@ function MyJiraPage() {
 		}),
 		[allIssues],
 	);
-	// BUGT tickets are ones I filed, not ones assigned to me — hence the split.
+	// BUGT tickets are ones I filed, not ones assigned to me - hence the split.
 	const issues = useMemo(
 		() =>
 			role === "all" ? allIssues : allIssues.filter((i) => i.role === role),
@@ -263,7 +263,7 @@ function MyJiraPage() {
 				{config && !config.hasJira && (
 					<ConnectNotice
 						provider="jira"
-						text="Jira isn't connected — sign in to see the issues assigned to you."
+						text="Jira isn't connected - sign in to see the issues assigned to you."
 					/>
 				)}
 				<FeedError error={issuesQuery.error} />
@@ -378,7 +378,7 @@ function MyJiraPage() {
 													</span>
 												</span>
 												<span className={META_TAG}>
-													{/* Someone asked me directly — High, whatever the ticket says. */}
+													{/* Someone asked me directly - High, whatever the ticket says. */}
 													{(issue.mention ||
 														(issue.priority &&
 															isHotPriority(issue.priority))) && (
@@ -446,7 +446,7 @@ function MyJiraPage() {
 												</span>
 												<DoneButton onClick={() => markDone(doable(issue))} />
 											</div>
-											{/* A mention row exists because of one comment — so it
+											{/* A mention row exists because of one comment - so it
 											    shows that comment, not just the ticket it sits on.
 											    Column 2 keeps it under the title, not under the key. */}
 											{issue.mention && (

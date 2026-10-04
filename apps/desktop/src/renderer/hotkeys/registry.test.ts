@@ -81,7 +81,7 @@ describe("HOTKEYS_REGISTRY shape", () => {
 	});
 
 	it("keeps named-key chords as bare strings (layout-stable, no L() needed)", () => {
-		// Chords whose terminal is a named key gain nothing from logical mode —
+		// Chords whose terminal is a named key gain nothing from logical mode -
 		// translateLogicalChord short-circuits named keys. Authoring them as
 		// bare strings keeps the registry terse.
 		for (const { id, platform, binding } of allBindings()) {
@@ -91,7 +91,7 @@ describe("HOTKEYS_REGISTRY shape", () => {
 				NAMED_TERMINAL_TOKENS.has(token) || isFunctionKey(token);
 			if (!isLayoutStable) {
 				throw new Error(
-					`${id}.${platform}=${binding} is a bare string but its terminal token is not a named key — wrap with L() in registry.ts`,
+					`${id}.${platform}=${binding} is a bare string but its terminal token is not a named key - wrap with L() in registry.ts`,
 				);
 			}
 		}

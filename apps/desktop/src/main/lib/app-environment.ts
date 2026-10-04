@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { ODIN_DIR_NAME } from "shared/constants";
 
-// Honor ODIN_HOME_DIR only — the shell exports
+// Honor ODIN_HOME_DIR only - the shell exports
 // ODIN_HOME_DIR=~/.odin globally, which would silently point Odin at
 // the real Odin app's data and daemon. We still WRITE the resolved path
 // to ODIN_HOME_DIR so spawned children (daemon, host-service) inherit it.

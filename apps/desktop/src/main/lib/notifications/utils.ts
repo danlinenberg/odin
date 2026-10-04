@@ -75,7 +75,7 @@ interface Pane {
  * is what the board card says; the tab name is whatever the shell set.
  *
  * Null when the event belongs to no known pane. The hook lives in the user's
- * global agent config, so every agent anywhere on the machine reports in —
+ * global agent config, so every agent anywhere on the machine reports in -
  * including ones with no pane env, which used to banner as "Terminal needs you"
  * and click through to nothing.
  */
@@ -102,7 +102,7 @@ export function getNotificationTitle({
 
 /**
  * Drops the leading spinner glyph agents write into the terminal title
- * ("✳ Claude Code", "◐ Fix the flaky test") — a frame of animation frozen into
+ * ("✳ Claude Code", "◐ Fix the flaky test") - a frame of animation frozen into
  * a banner reads as a typo.
  */
 function stripSpinner(title: string): string {

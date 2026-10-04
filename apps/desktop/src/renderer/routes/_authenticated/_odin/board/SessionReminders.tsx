@@ -54,7 +54,7 @@ export function useResumeReminder() {
 /**
  * Go to what a dated reminder points at: a board card opens its drawer, a feed
  * row opens its link (or its feed, when it has none). Snoozed sessions resume
- * instead — see useResumeReminder.
+ * instead - see useResumeReminder.
  */
 export function useOpenReminder() {
 	const { reactions, jira, pulls, notion, emails } = useOdinFeeds();
@@ -127,9 +127,9 @@ export function RemindButton({
 			/>
 			<button
 				type="button"
-				title="Remind me — done for now, back on a day you pick"
+				title="Remind me - done for now, back on a day you pick"
 				aria-label="Remind me"
-				// A board card is itself a button — don't open its drawer.
+				// A board card is itself a button - don't open its drawer.
 				onClick={(e) => {
 					e.stopPropagation();
 					input.current?.showPicker();
@@ -145,7 +145,7 @@ export function RemindButton({
 
 /**
  * Every reminder whose day has come, above the columns. A snoozed session gets
- * Resume — the same `claude --resume` into a fresh pane Session History does;
+ * Resume - the same `claude --resume` into a fresh pane Session History does;
  * a dated card or feed row gets Open.
  */
 export function SessionReminders() {
@@ -187,7 +187,7 @@ export function SessionReminders() {
 							>
 								{r.title}
 							</div>
-							{/* The launch-time brief is usually just the title — don't repeat it. */}
+							{/* The launch-time brief is usually just the title - don't repeat it. */}
 							{r.resume?.brief && r.resume.brief.trim() !== r.title.trim() && (
 								<div
 									dir="auto"

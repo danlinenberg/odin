@@ -11,14 +11,14 @@ import {
 import { pullRequests } from "./brief";
 
 /**
- * "What did this session actually change?" — delta's diff for the checkout a
+ * "What did this session actually change?" - delta's diff for the checkout a
  * card runs in.
  *
  * ponytail: delta already emits a rendered diff as ANSI, and the app already
- * ships xterm — so this is a read-only terminal with the bytes written into it,
+ * ships xterm - so this is a read-only terminal with the bytes written into it,
  * not a diff viewer. No parsing, no highlighting, no virtualised list.
  *
- * The header picks which diff: the working tree or any PR the session opened —
+ * The header picks which diff: the working tree or any PR the session opened -
  * a session that shipped five PRs is five diffs, and the working tree is
  * usually none of them.
  */
@@ -27,11 +27,11 @@ export function DiffView({
 	claudeSessionId,
 	workspaceId,
 }: {
-	/** Null until the session's terminal has mounted — the main process then
+	/** Null until the session's terminal has mounted - the main process then
 	 * falls back to the workspace's own checkout. */
 	cwd: string | null;
 	/** The conversation in this pane. Claude Code cds between repos without the
-	 * shell noticing, so its transcript — not `cwd` — knows where the work is. */
+	 * shell noticing, so its transcript - not `cwd` - knows where the work is. */
 	claudeSessionId: string | null;
 	workspaceId: string;
 }) {
@@ -66,7 +66,7 @@ export function DiffView({
 			refetchOnWindowFocus: false,
 			retry: false,
 			// Keep the last diff while a new width re-renders. Dropping it hid the
-			// file list, which widened the terminal, which changed the width again —
+			// file list, which widened the terminal, which changed the width again -
 			// the panel flickered between renders and never settled.
 			placeholderData: keepPreviousData,
 		},
@@ -109,7 +109,7 @@ export function DiffView({
 		};
 	}, []);
 
-	// Missing until main restarts onto it — then the list just isn't there.
+	// Missing until main restarts onto it - then the list just isn't there.
 	const files = data?.files ?? [];
 	const current = files[Math.min(selected, files.length - 1)];
 
@@ -133,7 +133,7 @@ export function DiffView({
 				? text
 				: pr
 					? "This PR has no changes."
-					: "Nothing from this session — no uncommitted changes, and the last commit here predates it.",
+					: "Nothing from this session - no uncommitted changes, and the last commit here predates it.",
 			() => xterm.scrollToTop(),
 		);
 	}, [data, pr, current, files]);
@@ -191,7 +191,7 @@ export function DiffView({
 						title="brew install git-delta"
 						className="normal-case tracking-normal text-attention"
 					>
-						delta not installed — plain git colours
+						delta not installed - plain git colours
 					</span>
 				)}
 				<button
@@ -228,7 +228,7 @@ export function DiffView({
 										type="button"
 										title={
 											binary
-												? `${file.path}\nBinary file — no text diff to show`
+												? `${file.path}\nBinary file - no text diff to show`
 												: file.path
 										}
 										onClick={() => setSelected(index)}

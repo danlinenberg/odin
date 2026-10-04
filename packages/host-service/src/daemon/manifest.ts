@@ -1,6 +1,6 @@
 // Manifest for a running pty-daemon instance. Lives under
 // $ODIN_HOME_DIR/host/{organizationId}/. Different lifecycle from
-// host-service's own manifest — the daemon outlives host-service restarts.
+// host-service's own manifest - the daemon outlives host-service restarts.
 
 import {
 	existsSync,
@@ -81,7 +81,7 @@ export function readPtyDaemonManifest(
 		}
 		// Phase 2 fields are optional. If present, they must have the right
 		// shape; otherwise drop them silently rather than rejecting the whole
-		// manifest — these fields are advisory state and missing/garbage
+		// manifest - these fields are advisory state and missing/garbage
 		// values shouldn't make the daemon unrecoverable.
 		const out: PtyDaemonManifest = {
 			pid: data.pid,

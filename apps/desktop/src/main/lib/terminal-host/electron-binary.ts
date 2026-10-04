@@ -2,7 +2,7 @@
  * Resolving the Electron binary to spawn helpers from.
  *
  * `process.execPath` is captured when the process launches and never updated,
- * so it goes stale the moment the bundle it names moves — which the dev flow
+ * so it goes stale the moment the bundle it names moves - which the dev flow
  * does on purpose: patch-dev-protocol.ts renames `dist/Electron.app` to
  * `Odin Dev.app` while an app or a detached daemon is still running out of the
  * old name. Spawning from that path then fails with ENOENT: the daemon never

@@ -42,7 +42,7 @@ const KEY_DISPLAY: Record<string, string> = {
 // canonical token (e.g. "z", "slash") → event.code (e.g. "KeyZ", "Slash")
 // for keymap lookup against the layout data sourced from native-keymap.
 // Only includes printable keys whose glyph varies by layout. Special keys
-// (Enter, arrows, etc.) deliberately stay on KEY_DISPLAY — their
+// (Enter, arrows, etc.) deliberately stay on KEY_DISPLAY - their
 // event.code isn't a printable character.
 const PRINTABLE_TO_SCAN_CODE: Record<string, string> = {
 	slash: "Slash",
@@ -76,7 +76,7 @@ export function glyphForCode(
 	if (!v || v.length !== 1) return null;
 	// Uppercase only ASCII letters. Some layout glyphs expand to multiple
 	// characters when uppercased (`ß` → `SS`, Turkish `ı` → `I`/`İ`) which
-	// would break single-glyph keycap rendering — keep those as-is.
+	// would break single-glyph keycap rendering - keep those as-is.
 	return /^[a-z]$/.test(v) ? v.toUpperCase() : v;
 }
 
@@ -94,7 +94,7 @@ const isModifier = (p: string): p is Modifier =>
  * the OS keyboard layout (sourced from native-keymap via the main process).
  * When provided, printable keys (letters/digits/punctuation) are looked up
  * so the displayed glyph matches what the user sees on their physical key
- * — e.g. `meta+z` shows `⌘Y` on a German QWERTZ keyboard. When null, falls
+ * - e.g. `meta+z` shows `⌘Y` on a German QWERTZ keyboard. When null, falls
  * back to the US-ANSI glyph table.
  */
 export function formatHotkeyDisplay(
@@ -119,7 +119,7 @@ export function formatHotkeyDisplay(
 	);
 	// Order matters: layoutMap wins for printable keys (so QWERTZ shows the
 	// user's printed glyph for `KeyZ`), KEY_DISPLAY wins for special keys
-	// (Enter, arrows, etc. — glyphForCode returns null for these because
+	// (Enter, arrows, etc. - glyphForCode returns null for these because
 	// PRINTABLE_TO_SCAN_CODE doesn't include them).
 	const keyDisplay =
 		glyphForCode(key, layoutMap) ?? KEY_DISPLAY[key] ?? key.toUpperCase();

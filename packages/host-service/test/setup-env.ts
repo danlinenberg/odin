@@ -13,7 +13,7 @@ process.env.HOST_MIGRATIONS_FOLDER ??= "/tmp/host-service-test-migrations";
 
 // Tests must never reach the live Odin app's pty-daemon. Without ODIN_HOME_DIR
 // the supervisor adopts whatever ~/.odin's manifest points at, and its socket
-// is a hash of the org id under os.tmpdir() — both shared with the running
+// is a hash of the org id under os.tmpdir() - both shared with the running
 // app, so a stray bootstrap adopted the live daemon that holds every real
 // agent session.
 // A private home and tmpdir per run keep whatever a test adopts or spawns its

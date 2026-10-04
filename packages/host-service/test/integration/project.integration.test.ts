@@ -148,7 +148,7 @@ describe("project router integration", () => {
 		expect(result.candidates).toEqual([]);
 	});
 
-	test("findByPath returns no candidates for an unknown repo — create fresh", async () => {
+	test("findByPath returns no candidates for an unknown repo - create fresh", async () => {
 		const host = await createTestHost();
 		const repo = await createGitFixture();
 		await repo.git.addRemote("origin", "https://github.com/octocat/hello.git");

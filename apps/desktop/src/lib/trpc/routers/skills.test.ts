@@ -20,7 +20,7 @@ test("collectSkills finds personal, skills-dir-plugin and installed-plugin skill
 	write(join(claude, "skills", "gdpr", "SKILL.md"), skillFile("Audit tickets"));
 	write(join(claude, "commands", "visualize.md"), skillFile("Draw the flow"));
 
-	// A skills subdir that is really a plugin — namespaced `odin:*`.
+	// A skills subdir that is really a plugin - namespaced `odin:*`.
 	write(join(claude, "skills", "odin", ".claude-plugin", "plugin.json"), "{}");
 	write(
 		join(claude, "skills", "odin", "skills", "doctor", "SKILL.md"),

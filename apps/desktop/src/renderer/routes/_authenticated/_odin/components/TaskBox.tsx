@@ -17,7 +17,7 @@ import { PILL } from "./pill";
 import { matchRepos, repoLabel } from "./repo-picker";
 import { matchSkills } from "./skill-picker";
 
-/** Title is the first line, the brief is the rest — the two fields the box
+/** Title is the first line, the brief is the rest - the two fields the box
     shows are the two halves of the one string the store reads. */
 const splitTask = (text: string): [string, string] => {
 	const [title = "", ...rest] = text.split("\n");
@@ -27,7 +27,7 @@ const joinTask = (title: string, notes: string) =>
 	notes ? `${title}\n\n${notes}` : title;
 
 /**
- * The box you write a task in — compose row, edit row and the hotkey's quick
+ * The box you write a task in - compose row, edit row and the hotkey's quick
  * capture all use this one, so priority works the same in all three.
  *
  * Two fields rather than one: which half names the card and which half is the
@@ -35,7 +35,7 @@ const joinTask = (title: string, notes: string) =>
  * labelled line and a labelled box say it without the sentence.
  *
  * Ctrl/⌘+Enter adds/saves, plain Enter in the brief is a newline, Escape
- * cancels. Plain Enter never submits — it fired half-written tasks.
+ * cancels. Plain Enter never submits - it fired half-written tasks.
  */
 export function TaskBox({
 	value,
@@ -53,18 +53,18 @@ export function TaskBox({
 	value: string;
 	placeholder?: string;
 	autoFocus?: boolean;
-	/** Automations are scheduled, not ranked — the picker means nothing there. */
+	/** Automations are scheduled, not ranked - the picker means nothing there. */
 	hidePriority?: boolean;
 	/**
 	 * The skills this box can offer. Passed in rather than fetched so the box
-	 * stays a plain component — nothing here needs a tRPC context. Without it
+	 * stays a plain component - nothing here needs a tRPC context. Without it
 	 * there's no Skill menu, and a skill typed into the title still works.
 	 */
 	skills?: AgentSkill[];
 	/**
 	 * The checkouts a session could run in. Passed with `onRepoChange`, the box
 	 * shows a Repo field; `repo` is the current pick ("" / absent = none). Held
-	 * apart from the text, unlike skill and priority — a path has no typed form
+	 * apart from the text, unlike skill and priority - a path has no typed form
 	 * worth teaching.
 	 */
 	repos?: string[];
@@ -106,7 +106,7 @@ export function TaskBox({
 				<div className="mx-3 border-t border-border" />
 				<textarea
 					value={notes}
-					placeholder="The brief — what it needs, links, anything the session should know (optional)"
+					placeholder="The brief - what it needs, links, anything the session should know (optional)"
 					rows={2}
 					aria-label="Brief"
 					onChange={(event) => onChange(joinTask(title, event.target.value))}
@@ -119,7 +119,7 @@ export function TaskBox({
 			    picking Low are the same edit, so neither can go stale. Medium is
 			    the no-"!"s case, so the box you just typed into already reads as it.
 
-			    ponytail: a native <select> — it opens as a real menu, it's keyboard
+			    ponytail: a native <select> - it opens as a real menu, it's keyboard
 			    navigable for free, and there's no popup to style. */}
 			{/* One row at the quick-add's 520px: Skill and Repo on the left,
 			    Priority pushed right. Nothing in it grows as you type. */}
@@ -139,14 +139,14 @@ export function TaskBox({
 						<span className="text-[11px] text-muted-foreground">Priority</span>
 						<select
 							aria-label="Priority"
-							title="Or lead the title with ! (Low) or !!! (High) — no ! is Medium"
+							title="Or lead the title with ! (Low) or !!! (High) - no ! is Medium"
 							value={parseTask(value).priority}
 							onChange={(event) =>
 								onChange(withPriority(value, Number(event.target.value)))
 							}
 							className="cursor-pointer rounded-[6px] bg-secondary px-1.5 py-[3px] text-[11px] font-semibold text-muted-foreground outline-none transition-colors hover:text-foreground"
 						>
-							{/* Levels only — slot 0 ("None") is legacy storage, not a choice. */}
+							{/* Levels only - slot 0 ("None") is legacy storage, not a choice. */}
 							{PRIORITY_LABELS.slice(1).map((label, index) => (
 								<option key={label} value={index + 1}>
 									{label}
@@ -161,7 +161,7 @@ export function TaskBox({
 }
 
 /**
- * Which skill the session opens with — the agent's own list, read off disk in
+ * Which skill the session opens with - the agent's own list, read off disk in
  * the main process.
  *
  * It writes a leading `/name` into the text rather than holding a value of its
@@ -169,12 +169,12 @@ export function TaskBox({
  * picking it from here are the same edit, so the menu and the box can't
  * disagree, and the edit box round-trips through one string.
  *
- * ponytail: a native `<select>`. Long list, but it's the platform's own menu —
+ * ponytail: a native `<select>`. Long list, but it's the platform's own menu -
  * scrolling, type-to-search and keyboard nav for free. A search field if it
  * ever outgrows a menu.
  */
 /**
- * Which skill the session opens with — the agent's own list, read off disk in
+ * Which skill the session opens with - the agent's own list, read off disk in
  * the main process.
  *
  * Picking writes a leading `/name` into the text rather than holding a value
@@ -183,8 +183,8 @@ export function TaskBox({
  * disagree and the edit box round-trips through one string.
  *
  * ponytail: the menu is drawn here rather than by a native `<datalist>`. Eighty
- * skills need search either way, and `matchSkills` — the composer's own
- * ranking, name matches before description matches — already exists and is
+ * skills need search either way, and `matchSkills` - the composer's own
+ * ranking, name matches before description matches - already exists and is
  * tested. A native popup also can't show a description, can't be styled to
  * match, and is the one widget that can't be verified from the outside.
  *
@@ -208,7 +208,7 @@ function SkillSelect({
 	const [at, setAt] = useState<{ left: number; top: number } | null>(null);
 	const box = useRef<HTMLInputElement>(null);
 	// Escape has to abandon the search, but blurring the box is what dismisses
-	// it — and the blur handler would then commit the half-typed query. A ref,
+	// it - and the blur handler would then commit the half-typed query. A ref,
 	// not state: it is read inside the blur that Escape itself triggers, before
 	// React has re-rendered.
 	const abandoned = useRef(false);
@@ -244,7 +244,7 @@ function SkillSelect({
 				placeholder="search…"
 				spellCheck={false}
 				autoComplete="off"
-				title="Open the session by running this skill, with the title as its argument. Type to search — by name or by what it does."
+				title="Open the session by running this skill, with the title as its argument. Type to search - by name or by what it does."
 				value={query ?? current}
 				onFocus={open}
 				onChange={(event) => {
@@ -329,15 +329,15 @@ function SkillSelect({
 }
 
 /**
- * Which checkout the session starts in — the New Session dialog's search.
+ * Which checkout the session starts in - the New Session dialog's search.
  *
  * Resolved on every keystroke: exactly one hit is the pick, anything else is
  * none. Leaving the field rewrites a pick as its short `parent/name`, so the
  * box shows which repo it landed on instead of the head of a long path. The
- * state is the text colour — green picked, red not — with the why in the
+ * state is the text colour - green picked, red not - with the why in the
  * tooltip, so the row never grows a note and wraps.
  *
- * ponytail: native `<datalist>` — Chromium does search-as-you-type over the
+ * ponytail: native `<datalist>` - Chromium does search-as-you-type over the
  * paths for free.
  */
 function RepoSelect({
@@ -363,7 +363,7 @@ function RepoSelect({
 	const [query, setQuery] = useState(value ? repoLabel(value) : "");
 	const { hits } = resolve(query);
 	// Set from outside (the compose row clearing after Enter): follow it. Typing
-	// can't trip this — every keystroke writes back what the text resolves to.
+	// can't trip this - every keystroke writes back what the text resolves to.
 	if (resolve(query).repo !== value) setQuery(value ? repoLabel(value) : "");
 	const unresolved = query.trim() !== "" && !value;
 	return (
@@ -381,8 +381,8 @@ function RepoSelect({
 						? value
 						: unresolved
 							? hits > 1
-								? `${hits} repos match — type more of the name`
-								: "No repo matches — the session will start without one"
+								? `${hits} repos match - type more of the name`
+								: "No repo matches - the session will start without one"
 							: "The checkout the session starts in. Type to search."
 				}
 				onChange={(event) => {
@@ -390,7 +390,7 @@ function RepoSelect({
 					onChange(resolve(event.target.value).repo);
 				}}
 				onBlur={() => value && setQuery(repoLabel(value))}
-				// Same :autofill override as the New Session dialog — a picked option
+				// Same :autofill override as the New Session dialog - a picked option
 				// otherwise paints white-on-black over any bg-*.
 				className={cn(
 					"w-[140px] rounded-[6px] bg-secondary px-1.5 py-[3px] text-[11px] font-semibold outline-none [color-scheme:inherit] placeholder:font-normal placeholder:text-muted-foreground autofill:shadow-[inset_0_0_0_1000px_var(--secondary)] autofill:[-webkit-text-fill-color:var(--foreground)]",
@@ -445,13 +445,13 @@ export function SkillChip({ skill }: { skill: string }) {
  * Its own colour rather than a quiet grey note: on a list you scan, the
  * question a built-in raises is "where did THAT come from?", and an answer
  * pitched at the same weight as "last ran never" doesn't get read. Violet is
- * free — amber already means scheduled, green means skill, red means urgent —
+ * free - amber already means scheduled, green means skill, red means urgent -
  * and the row keeps the amber edge, because a built-in is still an automation.
  */
 export function BuiltinChip() {
 	return (
 		<span
-			title="Odin ships with this one. Edit it, retime it, pause it or delete it like any other — deleting is final, it won't come back."
+			title="Odin ships with this one. Edit it, retime it, pause it or delete it like any other - deleting is final, it won't come back."
 			className={cn(
 				"inline-flex items-center gap-1 rounded-[5px] px-[7px] py-[1px] font-semibold",
 				PILL.brand,
@@ -464,7 +464,7 @@ export function BuiltinChip() {
 }
 
 /**
- * Quieter the lower it is — High has to be the one that catches the eye, and
+ * Quieter the lower it is - High has to be the one that catches the eye, and
  * Medium is on most rows now that it's the default, so it can't shout.
  */
 const PRIORITY_CHIP = [
@@ -474,7 +474,7 @@ const PRIORITY_CHIP = [
 	PILL.danger,
 ];
 
-/** A task's priority on its row. Every task has one — no "!"s means Medium. */
+/** A task's priority on its row. Every task has one - no "!"s means Medium. */
 export function PriorityChip({ priority }: { priority?: number }) {
 	const level = priorityOf({ priority });
 	return (
@@ -505,7 +505,7 @@ export const NEXT_RUN_FORMAT: Intl.DateTimeFormatOptions = {
 /**
  * What marks an automation out from the tasks around it: violet (Odin runs
  * it, like Night Agent and auto-started sessions), a clock, and
- * the schedule itself rather than a priority — an automation isn't urgent or
+ * the schedule itself rather than a priority - an automation isn't urgent or
  * not, it's due or it isn't. Paused says so in place of the next run, because
  * "every day at 9" on a row that will never fire is a lie.
  */
@@ -521,7 +521,7 @@ export function AutomationChip({
 		<span
 			title={
 				paused
-					? `Paused — schedule "${cron}" is not running`
+					? `Paused - schedule "${cron}" is not running`
 					: `Runs on "${cron}"`
 			}
 			className={cn(
@@ -546,7 +546,7 @@ export function AutomationChip({
 }
 
 /**
- * The same chip for a source with its own names for the levels — Jira's
+ * The same chip for a source with its own names for the levels - Jira's
  * Highest, Notion's Low. A level it shares with ours is coloured like ours;
  * anything else (P1, Blocker) stays grey rather than guessing at severity.
  */
@@ -570,14 +570,14 @@ export function PriorityLabelChip({ label }: { label: string }) {
 const SIZE_KEY = "odin.quick-add-size";
 
 /** A stored "620px,300px" back into the two inline styles, or null for the
-    class defaults — an unset, half-written or hand-edited entry is not a size. */
+    class defaults - an unset, half-written or hand-edited entry is not a size. */
 export function parseSize(stored: string | null): [string, string] | null {
 	const [width = "", height = ""] = (stored ?? "").split(",");
 	return width.endsWith("px") && height.endsWith("px") ? [width, height] : null;
 }
 
 /**
- * Quick capture — the hotkey's box, over whatever you were looking at. The
+ * Quick capture - the hotkey's box, over whatever you were looking at. The
  * task lands on My Tasks and you go back to what you were doing; walking to
  * the list to write it down is how a task gets lost on the way.
  */
@@ -591,7 +591,7 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 
 	// The size you last dragged it to. Chromium writes the drag straight into the
 	// element's inline style, so the element is the only source worth reading:
-	// restore it on open, write it back on close. ponytail: localStorage — a
+	// restore it on open, write it back on close. ponytail: localStorage - a
 	// remembered box size isn't state worth a migration.
 	useEffect(() => {
 		const box = dialog.current;
@@ -603,7 +603,7 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 	}, []);
 
 	const save = () => {
-		// Same rule the store uses — no title, no task, so don't claim one.
+		// Same rule the store uses - no title, no task, so don't claim one.
 		if (!parseTask(draft).title) return onClose();
 		add(draft, undefined, repo);
 		toast.success("Added to My Tasks");
@@ -623,7 +623,7 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 				role="dialog"
 				aria-modal="true"
 				aria-label="New task"
-				// ponytail: CSS `resize` — Chromium draws the corner grip for free.
+				// ponytail: CSS `resize` - Chromium draws the corner grip for free.
 				className="fixed left-1/2 top-[12vh] z-50 flex h-[190px] max-h-[80vh] w-[520px] min-w-[320px] max-w-[92vw] -translate-x-1/2 resize flex-col overflow-hidden rounded-[10px] border border-border bg-popover p-3.5 shadow-[0_18px_60px_rgba(0,0,0,0.6)]"
 			>
 				{/* The button sits in the header, not under the fields: the dialog's

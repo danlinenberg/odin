@@ -1,6 +1,6 @@
 // Tests for the DaemonSupervisor:
 // - probeDaemonVersion (one-shot hello/hello-ack against an in-process
-//   fake daemon — exercises the *real* probe code, not a parallel impl)
+//   fake daemon - exercises the *real* probe code, not a parallel impl)
 // - update-pending event debouncing on adoption
 // - getUpdateStatus semantics
 // - restart() race-await + circuit-clear semantics
@@ -46,7 +46,7 @@ interface AdoptedForTest {
 beforeEach(() => {
 	loggedEvents.length = 0;
 	console.log = (...args: unknown[]) => {
-		// Try to parse the first arg as JSON — supervisor logs in JSON;
+		// Try to parse the first arg as JSON - supervisor logs in JSON;
 		// non-JSON lines (e.g. plain "[pty-daemon:...] adopted ...") fall
 		// through silently.
 		const first = args[0];
@@ -249,7 +249,7 @@ describe("isDaemonRunningCurrentScript", () => {
 		expect(scriptHash).toBeDefined();
 		// A rebuild that rewrites the file without changing it (the common
 		// case: someone edited host-service, not the daemon) must not count
-		// as stale — killing here takes live PTYs with it.
+		// as stale - killing here takes live PTYs with it.
 		fs.writeFileSync(scriptPath, "console.log('v1')");
 		expect(isDaemonRunningCurrentScript({ scriptHash }, scriptPath)).toBe(true);
 	});
@@ -346,7 +346,7 @@ describe("DaemonSupervisor.tryAdopt", () => {
 
 	test("adopts an unprobeable but pid-alive daemon instead of killing its shells", async () => {
 		const orgId = "org-unprobeable";
-		// Silent but listening: connects succeed, hello never answered —
+		// Silent but listening: connects succeed, hello never answered -
 		// a wedged/overloaded daemon, not a dead one.
 		const fake = await startFakeDaemon({ silent: true });
 		const childPid = spawnIdleChild();
@@ -451,7 +451,7 @@ describe("DaemonSupervisor.tryAdopt", () => {
 
 	test("falls back to the expected socket when the manifest socket is dead", async () => {
 		// A stale manifest can point at a dead socket while a healthy daemon
-		// answers at the expected path — adopt the healthy one.
+		// answers at the expected path - adopt the healthy one.
 		const orgId = "org-manifest-socket-dead";
 		const socketPath = ptyDaemonSocketPath(orgId);
 		const childPid = spawnIdleChild();
@@ -587,7 +587,7 @@ describe("DaemonSupervisor daemon health", () => {
 	test("kicks off auto-update when the late probe reveals a stale version", async () => {
 		// The adopt-time probe failed (version "unknown"), so the adopt path
 		// skipped auto-update. The late read is the same discovery and must
-		// take the same action — this is exactly the post-update-load boot
+		// take the same action - this is exactly the post-update-load boot
 		// the adoption change is for.
 		const fake = await startFakeDaemon({ respondWithVersion: "0.0.1" });
 		try {
@@ -900,7 +900,7 @@ describe("DaemonSupervisor.update concurrency guard", () => {
 		await first;
 
 		// Second call after the first settles should NOT return the cached
-		// promise — it kicks off a new runUpdate.
+		// promise - it kicks off a new runUpdate.
 		const second = sup.update("org-recycle");
 		expect(runUpdateMock).toHaveBeenCalledTimes(2);
 		calls[1]?.resolve({ ok: true, successorPid: 2 });
@@ -947,7 +947,7 @@ describe("DaemonSupervisor.update failure mode", () => {
 		const result = await sup.update("org-fail");
 		expect(result.ok).toBe(false);
 
-		// Sessions live in the predecessor process — if we overwrote this
+		// Sessions live in the predecessor process - if we overwrote this
 		// entry on failure the supervisor would lose track of them.
 		const status = sup.getUpdateStatus("org-fail");
 		expect(status?.running).toBe("0.1.0");

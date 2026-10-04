@@ -154,7 +154,7 @@ async function gitInitMainBranch(targetPath: string): Promise<void> {
 
 /**
  * Returns the canonical git root for `path`, or `null` when `path` is not
- * inside a git work tree. Non-throwing variant of `revParseGitRoot` — callers
+ * inside a git work tree. Non-throwing variant of `revParseGitRoot` - callers
  * that want to branch on "is this a git repo?" use this instead of catching.
  */
 export async function tryRevParseGitRoot(path: string): Promise<string | null> {
@@ -202,7 +202,7 @@ export async function resolveLocalRepo(
 /**
  * Initialize git in an EXISTING, populated folder (in place) and resolve it as
  * a local-only project. Unlike `initEmptyRepo`, this neither mkdirs nor fails on
- * a non-empty directory — it adopts the user's folder. Use for "import a folder
+ * a non-empty directory - it adopts the user's folder. Use for "import a folder
  * that isn't a git repo yet"; the caller must have confirmed intent with the
  * user first, since `git init` writes into their directory.
  *
@@ -278,7 +278,7 @@ export async function resolveMatchingSlug(
  * empty commit. Cleans up the dir on any post-mkdir failure.
  *
  * Catches "empty ident"/`user.email`/`user.name` from git and re-throws as
- * `PRECONDITION_FAILED` with setup instructions — git's raw message is
+ * `PRECONDITION_FAILED` with setup instructions - git's raw message is
  * actionable to a developer but useless to a user.
  */
 export async function initEmptyRepo(
@@ -319,7 +319,7 @@ export async function initEmptyRepo(
 /**
  * Shallow-clone a template into `<parentDir>/<dirName>`, drop its `.git`,
  * re-init, and commit the snapshot as the user's first commit. The result
- * has no remote — the caller is responsible for any first-push provisioning.
+ * has no remote - the caller is responsible for any first-push provisioning.
  * Cleans up the dir on any post-mkdir failure.
  */
 export async function cloneTemplateInto(

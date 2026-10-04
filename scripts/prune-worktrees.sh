@@ -2,7 +2,7 @@
 # Remove session worktrees whose work already landed on origin/main.
 #
 # Every agent session takes a worktree (session-worktree.sh), each a full
-# `bun install` at ~3GB, and nobody removes them once the PR merges — fifteen
+# `bun install` at ~3GB, and nobody removes them once the PR merges - fifteen
 # filled the disk. This removes the ones with nothing left to lose:
 #
 #   - its work landed: every file the branch changed is identical on
@@ -16,7 +16,7 @@
 #     dist) doesn't count and goes with it.
 #   - untouched for $PRUNE_MIN_AGE_HOURS (default 24): a fresh worktree has no
 #     commits yet either, and its session may be about to write. Work that
-#     already landed only waits $PRUNE_LANDED_MIN_AGE_HOURS (default 1) — at a
+#     already landed only waits $PRUNE_LANDED_MIN_AGE_HOURS (default 1) - at a
 #     dozen merges a day, a full day's grace kept ~35GB of finished worktrees
 #     on disk and filled it.
 #
@@ -67,7 +67,7 @@ git -C "$root" worktree list --porcelain | sed -n 's/^worktree //p' | while read
 		echo "keep   $name (has changes not on origin/main)"
 		continue
 	fi
-	# No commits of its own yet is not "landed" — that's a session just starting.
+	# No commits of its own yet is not "landed" - that's a session just starting.
 	if [ ${#files[@]} -eq 0 ] && [ "$age" -lt "$min_age" ]; then
 		echo "keep   $name (touched in the last $(( min_age / 3600 ))h)"
 		continue

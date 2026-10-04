@@ -379,7 +379,7 @@ export class PullRequestRuntimeManager {
 		// Route every workspace through the same per-workspace queue as the
 		// watcher path, so a concurrent watcher-triggered sync can't race the
 		// sweep's read+write and clobber the newer snapshot. enqueueWorkspaceSync
-		// coalesces — if a sync is already running for a workspace, this just
+		// coalesces - if a sync is already running for a workspace, this just
 		// flips its rerunPending flag.
 		const ids = this.db.select({ id: workspaces.id }).from(workspaces).all();
 
@@ -393,7 +393,7 @@ export class PullRequestRuntimeManager {
 
 	private enqueueWorkspaceSync(workspaceId: string): Promise<void> {
 		// Coalesce: if a sync is already running for this workspace, just mark
-		// "rerun pending" — there's no value in queuing N back-to-back syncs
+		// "rerun pending" - there's no value in queuing N back-to-back syncs
 		// when only the final state matters. At most one sync runs and one
 		// rerun is queued, regardless of how many events fire.
 		const existing = this.workspaceSyncState.get(workspaceId);
@@ -423,7 +423,7 @@ export class PullRequestRuntimeManager {
 	}
 
 	private async syncOneWorkspace(workspaceId: string): Promise<void> {
-		// Look up the row fresh — the workspace may have been deleted between
+		// Look up the row fresh - the workspace may have been deleted between
 		// the GitWatcher event firing and this handler running. That's expected
 		// during teardown / workspace removal; silently no-op.
 		const workspace = this.db
@@ -684,7 +684,7 @@ export class PullRequestRuntimeManager {
 	}
 
 	// Guard: a workspace that merely tracks `origin/<default>` (branched off it,
-	// never pushed) must not key on `<default>` and grab a head=<default> PR —
+	// never pushed) must not key on `<default>` and grab a head=<default> PR -
 	// only its own default-branch workspace may. Base repo only, so fork /
 	// `gh pr checkout` renames whose head is `<default>` still link.
 	private effectiveUpstreamKey(

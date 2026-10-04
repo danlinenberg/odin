@@ -14,8 +14,8 @@ const ESC = "\x1b";
 /**
  * The bytes that repaint a reattached alt-screen (TUI) pane.
  *
- * `snapshotAnsi` already carries the alt buffer — the serialize addon appends
- * `ESC[?1049h ESC[H` plus the alt screen after the normal-buffer scrollback —
+ * `snapshotAnsi` already carries the alt buffer - the serialize addon appends
+ * `ESC[?1049h ESC[H` plus the alt screen after the normal-buffer scrollback -
  * so writing it is what puts the TUI back on screen. The rehydrate sequences
  * only restore modes, and their own alt-screen entry is dropped: replaying it
  * after the snapshot would swap to a second, empty alt buffer.
@@ -191,7 +191,7 @@ export function useTerminalRestore({
 				!result.isNew && result.snapshot?.modes.alternateScreen;
 
 			// For alt-screen (TUI) sessions, paint the snapshot's alt-screen
-			// content — don't enter an empty alt screen and wait for the TUI to
+			// content - don't enter an empty alt screen and wait for the TUI to
 			// repaint itself. That repaint only arrives on SIGWINCH, and the
 			// kernel raises SIGWINCH only when the winsize actually changes, so
 			// opening a pane at the size the PTY already has repaints nothing and

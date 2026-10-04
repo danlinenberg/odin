@@ -44,10 +44,10 @@ export default function (pi: ExtensionAPI) {
 				env: { ...process.env, ODIN_AGENT_ID: "pi" },
 			});
 			child.on("error", () => {
-				/* swallow — never let hook failures affect pi */
+				/* swallow - never let hook failures affect pi */
 			});
 			child.stdin?.on("error", () => {
-				/* swallow — happens if notify.sh exits before we finish writing */
+				/* swallow - happens if notify.sh exits before we finish writing */
 			});
 			child.stdin?.end(JSON.stringify({ hook_event_name: eventName }));
 			child.unref();
@@ -67,7 +67,7 @@ export default function (pi: ExtensionAPI) {
 	// that's a niche regression; on >=0.38.0 the gate works precisely.
 	const skip = (ctx: { hasUI?: boolean }) => ctx.hasUI === false;
 
-	// Earliest signal pi is alive in this terminal — pi-mono fires
+	// Earliest signal pi is alive in this terminal - pi-mono fires
 	// `session_start` once per session before any prompt arrives, which lets
 	// the host bind the pane icon before the user types.
 	pi.on("session_start", (_event, ctx) => {

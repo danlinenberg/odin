@@ -8,7 +8,7 @@
  * `^[[99;5u`), mouse moves spray reports, and the terminal is unusable until
  * `reset`.
  *
- * This module owns only the decision logic — a shell-owned epoch (modes armed
+ * This module owns only the decision logic - a shell-owned epoch (modes armed
  * before the first prompt marker belong to shell init and are never reclaimed)
  * and a mark-then-recheck flush (a mode re-armed before the flush keeps its
  * state). It is transport-agnostic so any surface that can observe the terminal
@@ -22,8 +22,8 @@ const ESC = "\x1b";
 /**
  * Odin's app-private prompt marker (`OSC 777;odin-shell-ready`), emitted
  * by the shell wrappers before every prompt. Its arrival means the shell owns the
- * foreground again. Reclaim keys on this — NOT the co-emitted FinalTerm `OSC
- * 133;A` — because 133;A is also emitted by third-party shell integrations and
+ * foreground again. Reclaim keys on this - NOT the co-emitted FinalTerm `OSC
+ * 133;A` - because 133;A is also emitted by third-party shell integrations and
  * forwarded by tmux for shells Odin did not wrap, so disarming on it would
  * clear a live tmux's own modes. Only Odin's wrappers emit 777.
  */
@@ -41,8 +41,8 @@ export const KITTY_KEYBOARD_DISARM_SEQUENCE = `${ESC}[<255u${ESC}[=0;1u`;
 export type LeakableInputMode = "kitty" | "mouse" | "focus";
 
 /**
- * Disarm bytes per leakable mode. Mouse tracking is one xterm group — any level
- * low (`?1003l`) clears the whole protocol — so a single reset covers 9/1000/
+ * Disarm bytes per leakable mode. Mouse tracking is one xterm group - any level
+ * low (`?1003l`) clears the whole protocol - so a single reset covers 9/1000/
  * 1002/1003. Shells never arm these, so reclaiming them at a prompt is safe.
  */
 export const LEAKED_MODE_DISARM: Record<LeakableInputMode, string> = {
@@ -61,7 +61,7 @@ export interface LeakedInputModeReclaimer {
 	 */
 	noteShellReady(): void;
 	/**
-	 * Disarm bytes for modes leaked at the last marker and not re-armed since — so
+	 * Disarm bytes for modes leaked at the last marker and not re-armed since - so
 	 * a live/suspended/racing TUI that owns the foreground keeps its modes.
 	 * Consumes the pending set; returns "" when nothing leaked.
 	 */
@@ -91,7 +91,7 @@ export function createLeakedInputModeReclaimer(): LeakedInputModeReclaimer {
 			if (!s) return;
 			s.armed = armed;
 			if (armed) {
-				// A re-arm cancels a pending reclaim — the mode is live again.
+				// A re-arm cancels a pending reclaim - the mode is live again.
 				s.pending = false;
 				// Armed before the first marker → shell init owns it.
 				if (!sawMarker) s.shellOwned = true;

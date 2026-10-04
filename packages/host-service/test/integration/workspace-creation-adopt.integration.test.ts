@@ -24,7 +24,7 @@ describe("workspaceCreation.adopt integration", () => {
 
 		// Assert the specific PROJECT_NOT_SETUP cause structure (set by
 		// `requireLocalProject`'s `projectNotSetupError`) rather than just
-		// "any throw" — that way an unrelated regression that happens to
+		// "any throw" - that way an unrelated regression that happens to
 		// throw doesn't pass this test.
 		await expect(
 			scenario.host.trpc.workspaceCreation.adopt.mutate({

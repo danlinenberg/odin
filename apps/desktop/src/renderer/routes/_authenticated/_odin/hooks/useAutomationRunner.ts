@@ -21,13 +21,13 @@ const TICK_MS = 30_000;
  * this is what stops the second one starting the job again. Split out from
  * the hook so the rule is testable without a renderer.
  *
- * The schedule is the only say in it — a due run starts even if the last
+ * The schedule is the only say in it - a due run starts even if the last
  * one's session is still open on the board. Pause is how you stop it; the
  * machine-capacity gate in `launch` is what keeps a fast cron from flattening
  * the Mac.
  *
  * ponytail: no catch-up. An automation that came due while the app was shut
- * is skipped, not run at launch — opening Odin on Monday morning should not
+ * is skipped, not run at launch - opening Odin on Monday morning should not
  * fire the weekend's three missed runs at once.
  */
 export function dueAutomations(tasks: OdinTask[], now: Date): OdinTask[] {
@@ -56,7 +56,7 @@ export function useAutomationRunner() {
 	const { activeId, isLoading } = useOdinProfile();
 
 	// Odin's own automations, put on the list the first time this profile is
-	// seen — including profiles that existed before there were any. Waiting for
+	// seen - including profiles that existed before there were any. Waiting for
 	// the profile matters: seeding under "default" and then learning the real id
 	// installs them twice, once in each list.
 	useEffect(() => {

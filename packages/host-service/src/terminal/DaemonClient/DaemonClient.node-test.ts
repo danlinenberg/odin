@@ -136,7 +136,7 @@ test("multiple local subscribers get fanned out from one wire subscription", asy
 			onExit: () => {},
 		},
 	);
-	// Second subscriber must use replay:false — the daemon's buffer was
+	// Second subscriber must use replay:false - the daemon's buffer was
 	// already delivered to the first subscribe; requesting replay again
 	// is now an explicit error (see DaemonClient.subscribe). The
 	// fan-out applies to live output only.
@@ -219,7 +219,7 @@ test("adoption flow: client A opens, drops, client B finds + subscribes-with-rep
 	const b = new DaemonClient({ socketPath: sockPath });
 	await b.connect();
 
-	// Naive open should error with "session already exists" — that's the
+	// Naive open should error with "session already exists" - that's the
 	// signal host-service uses to switch to adoption mode.
 	let openErr: Error | null = null;
 	try {

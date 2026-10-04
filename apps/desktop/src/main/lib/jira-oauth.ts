@@ -141,7 +141,7 @@ export async function completeJiraOAuth(url: string): Promise<void> {
 		if (!json.refresh_token) {
 			// Without offline_access the connection would expire within the hour
 			// and there would be nothing to renew it with.
-			return fail("Jira returned no refresh token — offline_access is missing");
+			return fail("Jira returned no refresh token - offline_access is missing");
 		}
 		// Resolve the site now, so the first feed request isn't doing it.
 		const site = await jiraSite(access);

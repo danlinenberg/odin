@@ -367,7 +367,7 @@ async function writeAtomically({
 }
 
 // Symlink-resolution batch size. Node's fs.readdir and fs.stat ignore
-// AbortSignal, so we can only check it between operations — batching the
+// AbortSignal, so we can only check it between operations - batching the
 // per-entry stat calls bounds how much zombie work continues after an abort.
 const LIST_DIRECTORY_STAT_BATCH_SIZE = 16;
 
@@ -402,7 +402,7 @@ export async function listDirectory({
 							if (stats.isDirectory()) kind = "directory";
 							else if (stats.isFile()) kind = "file";
 						} catch {
-							// Dangling symlink or permission error — keep as "symlink"
+							// Dangling symlink or permission error - keep as "symlink"
 						}
 					}
 					return {
@@ -440,7 +440,7 @@ export async function readFile({
 }): Promise<FsReadResult> {
 	const targetPath = normalizeAbsolutePath(absolutePath);
 	// Explicit outside-root paths are readable, but a path that lexically sits
-	// inside the workspace must also physically resolve there — otherwise a
+	// inside the workspace must also physically resolve there - otherwise a
 	// malicious repo symlink (docs/config.yml -> ~/.ssh/id_rsa) could disguise
 	// a sensitive host file as a workspace file.
 	if (isPathWithinRoot(rootPath, targetPath)) {

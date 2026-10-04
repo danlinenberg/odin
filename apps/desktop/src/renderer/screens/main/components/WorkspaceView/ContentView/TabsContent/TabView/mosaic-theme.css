@@ -126,7 +126,7 @@
 	opacity: 1;
 }
 
-/* Workspace run pane state colors — border + toolbar tint */
+/* Workspace run pane state colors - border + toolbar tint */
 .workspace-run-pane-running {
 	--ws-run-color: #10b981;
 }

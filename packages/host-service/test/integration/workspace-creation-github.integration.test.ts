@@ -10,7 +10,7 @@ import { createTestHost, type TestHost } from "../helpers/createTestHost";
 /**
  * Real temp git working tree with a remote, plus a `projects` row pointing
  * at it. Procedures resolve owner/name from the live remote, so tests need
- * a real `.git` — no fake substitutes for `git remote get-url`.
+ * a real `.git` - no fake substitutes for `git remote get-url`.
  */
 async function seedRepoFixture(
 	host: TestHost,
@@ -380,7 +380,7 @@ describe("gh CLI is first-class when execGh succeeds", () => {
 	const projectId = randomUUID();
 	const ghCalls: Array<{ args: string[]; cwd?: string }> = [];
 
-	// Octokit must NOT be hit when gh succeeds — throws turn accidental
+	// Octokit must NOT be hit when gh succeeds - throws turn accidental
 	// fallbacks into loud failures.
 	const fakeOctokit = {
 		pulls: {
@@ -511,7 +511,7 @@ describe("gh CLI is first-class when execGh succeeds", () => {
 
 	test("searchGitHubIssues #N filters out PRs leaked by `gh issue view`", async () => {
 		// gh CLI happily returns a PR when `gh issue view <pr-number>` is
-		// called — the URL is the only signal we have to detect it.
+		// called - the URL is the only signal we have to detect it.
 		const localHost = await createTestHost({
 			githubFactory: async () => fakeOctokit,
 			execGh: async (args) => {

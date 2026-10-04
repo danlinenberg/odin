@@ -3,7 +3,7 @@
  * fills in the whole path (the exact case); typing "odin" and hitting ⌘⏎
  * without opening the popup is the case that would otherwise be ignored.
  *
- * More than one hit is left ambiguous on purpose — the dialog says how many
+ * More than one hit is left ambiguous on purpose - the dialog says how many
  * rather than guessing which repo you meant.
  */
 export function matchRepos(repos: string[], query: string): string[] {

@@ -21,7 +21,7 @@ export type TeardownResult =
 			/** Unix signal number, or null on normal exit. */
 			signal: number | null;
 			timedOut: boolean;
-			/** Raw PTY bytes — shell output including ANSI. Renderer strips for display. */
+			/** Raw PTY bytes - shell output including ANSI. Renderer strips for display. */
 			outputTail: string;
 	  };
 
@@ -29,7 +29,7 @@ interface RunTeardownOptions {
 	db: HostDb;
 	workspaceId: string;
 	worktreePath: string;
-	/** Main repo path — source of truth for `.odin/config.json`. */
+	/** Main repo path - source of truth for `.odin/config.json`. */
 	repoPath: string;
 	projectId: string;
 	timeoutMs?: number;
@@ -48,7 +48,7 @@ interface RunTeardownOptions {
  * falling back to a `.odin/teardown.sh` script (worktree first, then main
  * repo). Skipped (as a success) when no source resolves to anything runnable.
  *
- * Silent by design — the PTY session is transient and not surfaced as a
+ * Silent by design - the PTY session is transient and not surfaced as a
  * visible pane. The renderer only sees the output tail on failure.
  */
 export async function runTeardown({
@@ -156,8 +156,8 @@ export async function runTeardown({
 /**
  * Resolve the teardown command for a workspace, if any. Uses the shared
  * lifecycle-script posture (see `resolveScript`): configured `teardown`
- * commands — joined with ` && ` so a failing command short-circuits, worktree
- * config overriding the main repo's — then a `teardown.sh` script, worktree
+ * commands - joined with ` && ` so a failing command short-circuits, worktree
+ * config overriding the main repo's - then a `teardown.sh` script, worktree
  * first (state generated during the session must win) and main repo second
  * (gitignored scripts don't exist in worktrees).
  *

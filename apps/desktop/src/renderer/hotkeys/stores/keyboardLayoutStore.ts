@@ -4,13 +4,13 @@ import { create } from "zustand";
 
 // Mirror of the main-process layout service for synchronous reads from
 // React. Lives in main because macOS input-source switches (menu-bar
-// picker, Cmd+Space) don't fire navigator.keyboard's `layoutchange` —
+// picker, Cmd+Space) don't fire navigator.keyboard's `layoutchange` -
 // native-keymap hooks the OS-level
 // kTISNotifySelectedKeyboardInputSourceChanged distributed notification,
 // which fires for every input-source change.
 //
 // Do not import this store directly from dispatch / display / recorder
-// code. Use `useEffectiveLayoutMap` / `getEffectiveLayoutMap` below —
+// code. Use `useEffectiveLayoutMap` / `getEffectiveLayoutMap` below -
 // they're the single chokepoint every consumer reads through, so an option
 // that should affect dispatch doesn't have to be threaded through five
 // callsites and miss one (the root cause of #4078).
@@ -33,7 +33,7 @@ export const useKeyboardLayoutStore = create<State>(() => ({
  * Hebrew, Russian, Greek… have no Latin letters to label shortcuts with, so
  * macOS runs ⌘-shortcuts through the US key positions there. Do the same: null
  * sends every binding back to its authored US key. Translating through such a
- * layout only moves the punctuation it happens to carry — Hebrew prints "/" on
+ * layout only moves the punctuation it happens to carry - Hebrew prints "/" on
  * KeyQ, so the `/` search key went dead whenever Hebrew was the input source.
  */
 function latinLayoutOrNull(
@@ -65,7 +65,7 @@ function applySnapshot(data: KeyboardLayoutData): void {
 	});
 }
 
-// Process-lifetime subscription. If it errors, retry with backoff —
+// Process-lifetime subscription. If it errors, retry with backoff -
 // otherwise `map` would stay null until window reload and every hotkey
 // label would silently fall back to US-ANSI glyphs.
 const RETRY_BACKOFF_MS = [1_000, 2_000, 5_000, 10_000];

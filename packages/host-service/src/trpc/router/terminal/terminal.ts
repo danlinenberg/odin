@@ -75,7 +75,7 @@ async function createTerminalSessionFromInput({
 	};
 }
 
-// Daemon control surface — sibling to the per-workspace terminal ops above.
+// Daemon control surface - sibling to the per-workspace terminal ops above.
 // Org-scoped (one daemon per host-service); org id comes from request ctx
 // rather than env so this module can be imported in tests where env vars
 // aren't set.
@@ -88,7 +88,7 @@ const daemonRouter = router({
 
 	/**
 	 * Whether the daemon is still answering, and for how long it hasn't.
-	 * Deliberately does not `waitForDaemonReady` — this is polled by the
+	 * Deliberately does not `waitForDaemonReady` - this is polled by the
 	 * terminal UI to decide whether a stall is worth surfacing, so it has to
 	 * answer immediately rather than block on the thing that may be wedged.
 	 */
@@ -110,7 +110,7 @@ const daemonRouter = router({
 	/**
 	 * Phase 2: hand off live PTYs to a successor daemon binary.
 	 *
-	 * Sessions survive on success — the kernel master fds are inherited by
+	 * Sessions survive on success - the kernel master fds are inherited by
 	 * the new daemon process via stdio. The renderer surfaces this as the
 	 * "Update" path (vs `restart` which kills sessions). On failure, the
 	 * UI offers force-restart as a fallback.
@@ -292,7 +292,7 @@ export const terminalRouter = router({
 		),
 
 	// Like disposeWorkspaceSessions but for a closed worktree, which no longer
-	// has a workspace id — resolve sessions through the shared worktree path.
+	// has a workspace id - resolve sessions through the shared worktree path.
 	disposeWorktreeSessions: protectedProcedure
 		.input(z.object({ worktreePath: z.string() }))
 		.mutation(({ ctx, input }) =>

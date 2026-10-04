@@ -24,7 +24,7 @@ function getErrorText(error: unknown): string {
  * outcome: post-checkout hooks run after the checkout itself, so a hook
  * that exits non-zero (or outlives the command timeout and gets killed)
  * fails the command even though the worktree/branch is fully in place.
- * `didSucceed` is the ground truth — when it confirms the operation
+ * `didSucceed` is the ground truth - when it confirms the operation
  * completed, the error is demoted to a warning.
  */
 export async function runWithPostCheckoutHookTolerance({
@@ -52,7 +52,7 @@ export async function runWithPostCheckoutHookTolerance({
 
 		const message = getErrorText(error);
 		console.warn(
-			`[git] ${context} but the command reported failure — likely a post-checkout hook (non-fatal): ${message}`,
+			`[git] ${context} but the command reported failure - likely a post-checkout hook (non-fatal): ${message}`,
 		);
 	}
 }

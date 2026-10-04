@@ -50,7 +50,7 @@ import {
  * in pty-daemon; this adapter forwards to it over the daemon socket.
  *
  * onData / onExit register additional subscribers on top of whatever the
- * session's primary subscription is doing — daemon supports multi-
+ * session's primary subscription is doing - daemon supports multi-
  * subscriber fan-out per session, so layered observers work fine.
  */
 interface PtyDataDisposer {
@@ -91,7 +91,7 @@ function makeDaemonPty(
 		onData(cb) {
 			// StringDecoder buffers partial UTF-8 sequences across chunks.
 			// Without it `chunk.toString("utf8")` per chunk replaces the trailing
-			// 1–3 bytes of any codepoint that straddles a boundary with U+FFFD —
+			// 1–3 bytes of any codepoint that straddles a boundary with U+FFFD -
 			// the same bug we ripped out of the primary data path.
 			const decoder = new StringDecoder("utf8");
 			const unsub = daemon.subscribe(
@@ -151,7 +151,7 @@ type TerminalClientMessage =
 	| { type: "resize"; cols: number; rows: number }
 	| { type: "dispose" };
 
-// PTY output bytes travel as binary WebSocket frames — the renderer pipes
+// PTY output bytes travel as binary WebSocket frames - the renderer pipes
 // the ArrayBuffer straight into xterm.write(Uint8Array) without any UTF-8
 // decoding. Control messages stay JSON. Replay (the buffered prefix sent
 // on attach) is a binary frame too; the renderer doesn't distinguish it
@@ -205,9 +205,9 @@ type TerminalSocket = {
 
 /**
  * Upper bound on the OSC 133;A wait before queued automation runs anyway.
- * Wrapper files on disk don't guarantee the marker reaches the scanner —
+ * Wrapper files on disk don't guarantee the marker reaches the scanner -
  * a user rc can exec another process or re-point ZDOTDIR so our .zlogin
- * never runs — and an unbounded wait silently drops preset/agent commands
+ * never runs - and an unbounded wait silently drops preset/agent commands
  * (#4963, regressed by #5774). 15s covers heavy setups like Nix devenv
  * via direnv; same budget as the v1 stack.
  */
@@ -216,7 +216,7 @@ const SHELL_READY_TIMEOUT_MS = 15_000;
 /**
  * Gap between writing the initialCommand text and the Enter (`\r`) that runs
  * it. The shell-ready marker fires from precmd, before the line editor reads
- * input — plugin init in that window can flush the PTY input queue, eating a
+ * input - plugin init in that window can flush the PTY input queue, eating a
  * newline bundled with the command while the text itself survives in the edit
  * buffer (typed-but-never-run). A separated, delayed Enter lands after that
  * init storm.
@@ -225,11 +225,11 @@ const INITIAL_COMMAND_ENTER_DELAY_MS = 500;
 
 /**
  * Shell readiness lifecycle:
- * - `pending`     — shell initialising; scanner active
- * - `ready`       — OSC 133;A detected; scanner off
- * - `timed_out`   — marker never arrived in time; queued automation runs anyway
- * - `unsupported` — launch config has no marker; scanner never started
- * - `cancelled`   — session ended before readiness; queued automation cancelled
+ * - `pending`     - shell initialising; scanner active
+ * - `ready`       - OSC 133;A detected; scanner off
+ * - `timed_out`   - marker never arrived in time; queued automation runs anyway
+ * - `unsupported` - launch config has no marker; scanner never started
+ * - `cancelled`   - session ended before readiness; queued automation cancelled
  */
 type ShellReadyState =
 	| "pending"
@@ -249,7 +249,7 @@ interface TerminalSession {
 	sockets: Set<TerminalSocket>;
 	/**
 	 * Buffered PTY output retained for replay on (re)attach. Bytes, not
-	 * strings — keeping this byte-aligned with the wire frees us from the
+	 * strings - keeping this byte-aligned with the wire frees us from the
 	 * per-chunk UTF-8 decoding that used to mangle TUIs.
 	 */
 	buffer: Uint8Array[];
@@ -286,20 +286,20 @@ interface TerminalSession {
 	 * Side-channel UTF-8 decoder. portManager.checkOutputForHint takes a
 	 * string and does text-pattern matching for "Local: http://…" hints,
 	 * so we keep a per-session StringDecoder that buffers partial codepoints
-	 * across chunks — separate from the data path, never touching what we
+	 * across chunks - separate from the data path, never touching what we
 	 * actually broadcast to the renderer.
 	 */
 	portHintDecoder: StringDecoder;
 
 	/**
 	 * Mirrors PTY output through a headless xterm so a reattaching renderer
-	 * can be resynced via a mode preamble — covers kitty keyboard, bracketed
+	 * can be resynced via a mode preamble - covers kitty keyboard, bracketed
 	 * paste, focus, mouse, etc. that the FIFO can't restore on its own.
 	 */
 	modeTracker: ModeTracker;
 }
 
-/** PTY lifetime is independent of socket lifetime — sockets detach/reattach freely. */
+/** PTY lifetime is independent of socket lifetime - sockets detach/reattach freely. */
 const sessions = new Map<string, TerminalSession>();
 
 // When the daemon disconnects, close every WS socket so the renderer's
@@ -460,7 +460,7 @@ export function listTerminalSessions(
  * So: in-memory sessions first (they carry liveness, titles, attachment, and
  * respect `listed` for hidden internal sessions), then every other alive
  * daemon session joined to an active workspace-owned row. Dispose-stamped
- * rows are scheduled kills awaiting the reaper — never resurfaced. A session
+ * rows are scheduled kills awaiting the reaper - never resurfaced. A session
  * only the daemon knows has never been attached in this process's lifetime,
  * hence `attached: false, title: null`.
  */
@@ -478,7 +478,7 @@ export async function listWorkspaceTerminalSessions(
 			.filter((session) => session.alive)
 			.map((session) => session.id);
 	} catch (error) {
-		// Daemon genuinely down — its PTYs died with it, so the in-memory
+		// Daemon genuinely down - its PTYs died with it, so the in-memory
 		// view is the whole truth. The dropdowns' polls re-query, so a
 		// transient connection failure self-heals.
 		console.warn(
@@ -553,8 +553,8 @@ export function writeInputToSession({
 // Ring-buffer replay after adoption arrives asynchronously over the daemon
 // socket, and it is what rebuilds the mode tracker (bracketed paste, screen
 // content). Protocol v2 has no replay-complete signal, so watch the replayed
-// bytes accumulate — they land in session.buffer, since no renderer is
-// attached right after adoption — and return once they quiesce.
+// bytes accumulate - they land in session.buffer, since no renderer is
+// attached right after adoption - and return once they quiesce.
 const ADOPTION_REPLAY_WAIT_MS = 500;
 
 async function waitForAdoptionReplay(session: TerminalSession): Promise<void> {
@@ -571,7 +571,7 @@ async function waitForAdoptionReplay(session: TerminalSession): Promise<void> {
 /**
  * Resolve a session for headless IO. The in-memory map empties on every
  * host-service restart while the detached daemon keeps PTYs alive, so a
- * miss is not "gone" — recover it the same way pane auto-adoption does.
+ * miss is not "gone" - recover it the same way pane auto-adoption does.
  */
 async function getOrAdoptSession({
 	terminalId,
@@ -647,7 +647,7 @@ export async function writeFramedInputToSession({
 /**
  * Non-destructive read of the terminal's current screen (and recent
  * scrollback) off the per-session headless emulator. For TUI agents this is
- * the alt-screen the agent renders to — i.e. its visible output.
+ * the alt-screen the agent renders to - i.e. its visible output.
  */
 export async function snapshotSession({
 	terminalId,
@@ -775,13 +775,13 @@ function broadcastBytes(session: TerminalSession, bytes: Uint8Array): number {
 }
 
 export function replayBuffer(session: TerminalSession, socket: TerminalSocket) {
-	// sendBytes below no-ops on a non-open socket — bail before clearing the
+	// sendBytes below no-ops on a non-open socket - bail before clearing the
 	// buffer/notice so the next attach can still replay them.
 	if (socket.readyState !== SOCKET_OPEN) return;
 	// Preamble first, then the restored notice, then FIFO. Mode-setting
 	// escapes (kitty keyboard, bracketed paste, focus, …) are typically
 	// emitted once at startup and broadcast away rather than buffered, so a
-	// fresh xterm needs them re-asserted on every attach — even when the
+	// fresh xterm needs them re-asserted on every attach - even when the
 	// FIFO is empty.
 	const preamble = session.modeTracker.buildPreamble();
 	const notice = session.restoredNoticePending ? SESSION_RESTORED_NOTICE : null;
@@ -827,7 +827,7 @@ function resolveShellReady(
 	session.shellReadyState = state;
 	clearShellReadyTimeout(session);
 	// On timeout the scanner may be withholding a partial marker prefix that
-	// never completed — those bytes are real output and must be released.
+	// never completed - those bytes are real output and must be released.
 	if (session.scanState.heldBytes.length > 0) {
 		const heldBytes = Uint8Array.from(session.scanState.heldBytes);
 		session.scanState.heldBytes.length = 0;
@@ -865,7 +865,7 @@ function queueInitialCommand(
 	// PTY input before the first prompt (direnv/devenv is one example). Wait for
 	// that prompt so the command cannot be consumed as startup input. Launches
 	// without a verified marker resolve this promise immediately, and a missing
-	// marker resolves it via SHELL_READY_TIMEOUT_MS — the command must
+	// marker resolves it via SHELL_READY_TIMEOUT_MS - the command must
 	// eventually run; only session teardown may cancel it.
 	void session.shellReadyPromise.then(() => {
 		if (session.exited || session.shellReadyState === "cancelled") return;
@@ -874,8 +874,8 @@ function queueInitialCommand(
 		// syntax-highlighting) can flush the PTY input queue mid-read, eating a
 		// trailing newline sent in the same write: the command text survives in
 		// the editor's buffer but never executes. Send Enter as its own delayed
-		// write — and as `\r`, what a real Enter key sends, bound to accept-line
-		// in every keymap — so it lands after the init storm. One Enter total,
+		// write - and as `\r`, what a real Enter key sends, bound to accept-line
+		// in every keymap - so it lands after the init storm. One Enter total,
 		// so a double-run is impossible.
 		session.pty.write(commandText);
 		setTimeout(() => {
@@ -950,7 +950,7 @@ async function closeDaemonSessionById(
 
 /**
  * Kills the PTY (if live) and marks the DB row disposed. Safe to call even
- * when there's no in-memory session — e.g. for zombie `active` rows left
+ * when there's no in-memory session - e.g. for zombie `active` rows left
  * over from a prior crash. Exported so workspaceCleanup can dispose the
  * transient teardown session.
  */
@@ -973,7 +973,7 @@ export async function disposeSessionAndWait(
 	db: HostDb,
 ): Promise<DisposeSessionResult> {
 	// Durable intent-to-kill: if this attempt fails (daemon hiccup, host
-	// restart mid-kill), the reaper retries any stamped row — a one-shot
+	// restart mid-kill), the reaper retries any stamped row - a one-shot
 	// renderer broadcast must not be the only chance to kill a session.
 	// First request time wins so retries don't look like fresh requests.
 	db.update(terminalSessions)
@@ -1046,7 +1046,7 @@ export async function disposeSessionAndWait(
 			.run();
 
 		// Dispose unsubscribed the daemon callbacks above, so onExit will
-		// never fire for this session — announce the exit here (after the
+		// never fire for this session - announce the exit here (after the
 		// row flips to disposed, so refetching readers see it dead). Skip
 		// sessions whose pty already exited: onExit broadcast that one.
 		if (session && !session.exited) {
@@ -1158,7 +1158,7 @@ interface CreateTerminalSessionOptions {
 	adoptOnly?: boolean;
 	/**
 	 * Replay the daemon's ring buffer on subscribe. Default true. Pass false
-	 * when the renderer's xterm already has the scrollback — replaying then
+	 * when the renderer's xterm already has the scrollback - replaying then
 	 * doubles the visible output. Tradeoff: bytes the PTY produced during
 	 * the WS-down window are dropped (sub-second on a daemon swap).
 	 */
@@ -1276,7 +1276,7 @@ export async function createTerminalSessionInternal({
 		DEFAULT_TERMINAL_ROWS,
 	);
 
-	// Use the preserved shell snapshot — never live process.env. Resolution
+	// Use the preserved shell snapshot - never live process.env. Resolution
 	// runs in the background at startup so the server can listen immediately;
 	// wait for it here before the first PTY needs the snapshot.
 	await waitForTerminalBaseEnv();
@@ -1380,7 +1380,7 @@ export async function createTerminalSessionInternal({
 		.run();
 
 	// Determine shell readiness support. Adopted sessions are already past
-	// shell startup, so treat them as immediately ready — the OSC 133;A
+	// shell startup, so treat them as immediately ready - the OSC 133;A
 	// marker has already flown by and we don't want to gate writes on it.
 	const shellSupportsReady =
 		!isAdopted && shellLaunchExpectsReadyMarker({ shell, odinHomeDir });
@@ -1402,7 +1402,7 @@ export async function createTerminalSessionInternal({
 		sockets: new Set(),
 		buffer: [],
 		bufferBytes: 0,
-		// Adopted sessions kept a live shell — nothing was restored.
+		// Adopted sessions kept a live shell - nothing was restored.
 		restoredNoticePending: restoredNotice && !isAdopted,
 		createdAt,
 		exited: false,
@@ -1422,7 +1422,7 @@ export async function createTerminalSessionInternal({
 		shellReadyTimeoutId: null,
 		scanState: createScanState(),
 		// Adopted sessions have already run their initialCommand in the prior
-		// host-service lifetime — flag it as queued so we don't double-fire it.
+		// host-service lifetime - flag it as queued so we don't double-fire it.
 		initialCommandQueued: isAdopted,
 		portHintDecoder: new StringDecoder("utf8"),
 		modeTracker: createModeTracker(cols, rows),
@@ -1464,7 +1464,7 @@ export async function createTerminalSessionInternal({
 
 				// portManager.checkOutputForHint runs URL/port regexes on
 				// strings; the per-session StringDecoder buffers partial
-				// codepoints across chunks. This is a side branch — the
+				// codepoints across chunks. This is a side branch - the
 				// transport above stays on bytes.
 				const hintText = session.portHintDecoder.write(
 					bytes instanceof Buffer
@@ -1472,10 +1472,10 @@ export async function createTerminalSessionInternal({
 						: Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength),
 				);
 				// Runs even when the decoder buffers a partial codepoint into ""
-				// — the chunk is still output and must refresh the idle clock.
+				// - the chunk is still output and must refresh the idle clock.
 				portManager.checkOutputForHint(terminalId, hintText);
 
-				// Feed the tracker on every byte — broadcast skips the FIFO,
+				// Feed the tracker on every byte - broadcast skips the FIFO,
 				// so this is the only path that catches startup mode escapes.
 				session.modeTracker.feed(bytes);
 
@@ -1562,7 +1562,7 @@ export function registerWorkspaceTerminalRoute({
 		return c.json({ terminalId: result.terminalId, status: "active" });
 	});
 
-	// REST dispose — does not require an open WebSocket
+	// REST dispose - does not require an open WebSocket
 	app.delete("/terminal/sessions/:terminalId", (c) => {
 		const terminalId = c.req.param("terminalId");
 		if (!terminalId) {
@@ -1578,7 +1578,7 @@ export function registerWorkspaceTerminalRoute({
 		return c.json({ terminalId, status: "disposed" });
 	});
 
-	// REST list — enumerate live terminal sessions
+	// REST list - enumerate live terminal sessions
 	app.get("/terminal/sessions", (c) => {
 		const workspaceId = c.req.query("workspaceId") || undefined;
 		return c.json({
@@ -1706,7 +1706,7 @@ export function registerWorkspaceTerminalRoute({
 
 				// Active row but daemon no longer owns the PTY (laptop sleep,
 				// daemon restart, machine reboot). Respawn rather than dead-end
-				// the pane — the renderer's xterm scrollback stays painted above.
+				// the pane - the renderer's xterm scrollback stays painted above.
 				console.log(`[terminal] respawning lost session ${terminalId}`);
 				return createTerminalSessionInternal({
 					terminalId,

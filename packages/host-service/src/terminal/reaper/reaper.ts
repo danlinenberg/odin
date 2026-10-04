@@ -14,7 +14,7 @@ export const REAP_INTERVAL_MS = 5 * 60 * 1000;
 /**
  * A host-service restart begins with an empty port scanner while the detached
  * pty-daemon keeps dev servers alive. The reap pass re-registers those sessions,
- * but it runs only once immediately and then every {@link REAP_INTERVAL_MS} — and
+ * but it runs only once immediately and then every {@link REAP_INTERVAL_MS} - and
  * the just-adopted daemon may not yet list its sessions the instant that first
  * pass runs. Re-sync the port scanner a few times over the first ~90s so restored
  * dev-server ports appear promptly, instead of waiting for the next reap tick or
@@ -59,7 +59,7 @@ export interface PortScanSyncPlan {
  * Register every alive daemon session that maps to an active workspace row and
  * isn't already owned by a live in-memory session. This is what makes a
  * workspace's dev-server ports appear before any renderer attaches to the
- * terminal — e.g. sessions the daemon kept alive across a host-service restart.
+ * terminal - e.g. sessions the daemon kept alive across a host-service restart.
  * v1 desktop did this in its startup reconcile; v2 previously only registered
  * terminals a renderer had explicitly opened, so ports were detected less
  * completely.
@@ -121,7 +121,7 @@ function loadTerminalRowsById(db: HostDb): Map<string, TerminalRow> {
 }
 
 // Port scanning is best-effort: a port-manager error must not propagate to the
-// caller — the reap pass (whose orphan cleanup must still run) or a warm-up sync.
+// caller - the reap pass (whose orphan cleanup must still run) or a warm-up sync.
 function applyPortScanSync(
 	liveSessions: { id: string; pid: number }[],
 	rowById: Map<string, TerminalRow>,
@@ -164,7 +164,7 @@ let inFlightPortScanSync: ReturnType<typeof runPortScanSync> | null = null;
 
 /**
  * Re-register the port scanner against the daemon's live sessions. Extracted so
- * it can run on its own cadence — decoupled from the 5-minute orphan reap —
+ * it can run on its own cadence - decoupled from the 5-minute orphan reap -
  * because restored dev-server ports must appear promptly after a host-service
  * restart. Returns the daemon's live sessions so the reap pass can reuse them
  * without a second `daemon.list()`.

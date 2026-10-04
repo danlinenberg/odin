@@ -48,7 +48,7 @@ export const Route = createFileRoute("/_authenticated/_odin/notion/")({
 });
 
 /**
- * Notion — pick one of the databases the integration can see and read its rows
+ * Notion - pick one of the databases the integration can see and read its rows
  * as tasks: one card each, grouped by status, with one click to start an agent
  * session on a row (or jump to the one already running on it).
  *
@@ -73,7 +73,7 @@ function NotionPage() {
 		isSyncing,
 	} = useOdinFeeds();
 	const utils = electronTrpc.useUtils();
-	// Only worth asking once there's a token — the search 401s without one.
+	// Only worth asking once there's a token - the search 401s without one.
 	const databases = electronTrpc.notion.listDatabases.useQuery(undefined, {
 		enabled: config?.hasToken === true,
 		staleTime: 5 * 60_000,
@@ -216,7 +216,7 @@ function NotionPage() {
 				{config && !config.hasToken && (
 					<ConnectNotice
 						provider="notion"
-						text="Notion isn't connected — sign in and pick the databases Odin may read."
+						text="Notion isn't connected - sign in and pick the databases Odin may read."
 					/>
 				)}
 				<FeedError error={rowsQuery.error} />

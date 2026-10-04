@@ -48,7 +48,7 @@ describe("hasJiraOAuth", () => {
 });
 
 describe("jiraRequestContext", () => {
-	test("null when Jira isn't signed in — there is no other way in", async () => {
+	test("null when Jira isn't signed in - there is no other way in", async () => {
 		expect(await jiraRequestContext()).toBeNull();
 	});
 
@@ -62,7 +62,7 @@ describe("jiraRequestContext", () => {
 			{ id: "cloud-123", url: "https://real-site.atlassian.net" },
 		]);
 		const ctx = await jiraRequestContext();
-		// The cloudId path, never the site host — that's what 3LO requires.
+		// The cloudId path, never the site host - that's what 3LO requires.
 		expect(ctx?.base).toBe("https://api.atlassian.com/ex/jira/cloud-123");
 		expect(ctx?.authorization).toBe("Bearer at-live");
 		expect(ctx?.siteUrl).toBe("https://real-site.atlassian.net");

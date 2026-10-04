@@ -4,7 +4,7 @@ import { paneSchema } from ".";
 
 /**
  * Panes are persisted through `paneSchema`, and zod drops every key the schema
- * doesn't list — which has silently eaten `userTitle`, `completed`,
+ * doesn't list - which has silently eaten `userTitle`, `completed`,
  * `claudeSessionId` and `odinProfile` in turn. `Required<Pane>` makes adding a
  * field to the type a compile error here, and the round-trip fails if the
  * schema then forgets it.

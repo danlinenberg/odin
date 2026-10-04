@@ -1,5 +1,5 @@
 /**
- * "What is this session about, and where is it at?" — derived from Claude's own
+ * "What is this session about, and where is it at?" - derived from Claude's own
  * transcript, which is the only honest record. The card title is whatever was
  * typed at launch and the terminal is a wall of live chatter; neither tells you
  * what you walked in on.
@@ -14,7 +14,7 @@ export interface BriefMessage {
 export interface SessionBrief {
 	/** Your latest instruction, when the session has moved past the opening ask. */
 	lastAsk: string | null;
-	/** What the agent last said with something in it — the de-facto status. */
+	/** What the agent last said with something in it - the de-facto status. */
 	latest: string | null;
 	/** Prose turns (yours + Claude's); tool calls never counted. */
 	turns: number;
@@ -27,7 +27,7 @@ const SUBSTANTIVE = 80;
 
 /**
  * Resume used to launch the agent with the literal prompt "continue", so in
- * older transcripts the newest turn is that — which says nothing about what
+ * older transcripts the newest turn is that - which says nothing about what
  * you asked for. Your real last instruction is the one before it.
  */
 const RESUME_STUB = /^\s*continue\.?\s*$/i;
@@ -37,7 +37,7 @@ export function sessionBrief(messages: BriefMessage[]): SessionBrief {
 		(message) => message.role === "user" && !RESUME_STUB.test(message.text),
 	);
 	const assistants = messages.filter((message) => message.role === "assistant");
-	// "Ok." / "Done." is the reply, but the report is the turn before it — walk
+	// "Ok." / "Done." is the reply, but the report is the turn before it - walk
 	// back to the last one that actually says something.
 	const latest =
 		[...assistants].reverse().find((m) => m.text.length >= SUBSTANTIVE) ??
@@ -67,14 +67,14 @@ const PR_URL =
 
 /**
  * Pull requests this session produced, most recent first. Read straight out of
- * the conversation — a session that opened a PR always ends up printing its URL,
+ * the conversation - a session that opened a PR always ends up printing its URL,
  * and that link is the first thing you want when you come back to it.
  *
  * Most recent first because a long-running session can open a dozen (one deploy
  * session had 15), and the one you want is the one it just made.
  *
- * Claude's turns only. A PR you paste in yourself is the session's *input* —
- * "run it on this pr" — not its output, and listing it as one of the session's
+ * Claude's turns only. A PR you paste in yourself is the session's *input* -
+ * "run it on this pr" - not its output, and listing it as one of the session's
  * PRs is a lie. Anything the session opened it also announces, so nothing real
  * is lost; a PR you quoted that it worked on gets echoed back and still shows.
  */
@@ -105,7 +105,7 @@ const NOTION_URL =
 	/https:\/\/(?:(?:www\.)?notion\.so|app\.notion\.com|[\w-]+\.notion\.site)\/[^\s)]+/g;
 const NOTION_ID = /[0-9a-f]{32}/;
 
-/** "…/Spot-Instances-…-<id>" — Notion puts the page title in the path. */
+/** "…/Spot-Instances-…-<id>" - Notion puts the page title in the path. */
 function notionTitle(url: string, id: string): string | null {
 	const slug = url
 		.split("?")[0]
@@ -118,13 +118,13 @@ function notionTitle(url: string, id: string): string | null {
 }
 
 /**
- * The one Notion page this session produced — pullRequests for the sessions
+ * The one Notion page this session produced - pullRequests for the sessions
  * whose deliverable is a document rather than a diff. Those sessions were
  * leaving the brief with no link at all: a card that shipped code got a PR
  * pill, a card that shipped a page got nothing.
  *
  * One page, not a list. A session that reads a Notion database quotes a url
- * per row, and rows come back as bare /p/<id> with no slug — so the brief was
+ * per row, and rows come back as bare /p/<id> with no slug - so the brief was
  * rendering a dozen identical "Notion page" lines, which is worse than none.
  *
  * The newest turn that links a page decides, and within it the first page it
@@ -143,7 +143,7 @@ export function notionPage(messages: BriefMessage[]): NotionPageLink | null {
 		for (const match of message.text.match(NOTION_URL) ?? []) {
 			const url = match.replace(/[).,]+$/, "");
 			const id = NOTION_ID.exec(url)?.[0];
-			// A workspace root or search url carries no page id — nothing to reopen.
+			// A workspace root or search url carries no page id - nothing to reopen.
 			if (!id) continue;
 			first ??= id;
 			if (!found.get(id)?.title)
@@ -158,7 +158,7 @@ export function notionPage(messages: BriefMessage[]): NotionPageLink | null {
 const ARTIFACT_URL = /https:\/\/claude\.ai\/(?:code\/)?artifact\/[\w-]+/g;
 
 /**
- * The artifact this session published — its deliverable when that's a page
+ * The artifact this session published - its deliverable when that's a page
  * rather than a diff or a doc. Newest wins: a session republishes the same url
  * as it iterates, and a second artifact supersedes the first far more often
  * than it sits beside it. Claude's turns only, like pullRequests: one you
@@ -202,12 +202,12 @@ export interface RefPart {
 	url?: string;
 }
 
-// "imagen-public-mcp #2", "terraform#1455", "PR #6670", "#12" — or a Jira key.
+// "imagen-public-mcp #2", "terraform#1455", "PR #6670", "#12" - or a Jira key.
 const REF = /\b([A-Z][A-Z0-9]+-\d+)\b|(?:\b([A-Za-z][\w.-]*)( ?))?#(\d+)\b/g;
 
 /**
  * Split prose at the PRs and tickets it mentions, linking only ones this
- * session quoted — a bare "#2" means nothing on its own, the session's own
+ * session quoted - a bare "#2" means nothing on its own, the session's own
  * links say which #2. A repo name or "PR" in front joins the link.
  */
 export function linkRefs(
@@ -233,7 +233,7 @@ export function linkRefs(
 				);
 			if (repo || word?.toUpperCase() === "PR") url = (repo || same[0])?.url;
 			// "Merge #12": the number is the link. "other-repo#12" names a PR this
-			// session never quoted — leave it.
+			// session never quoted - leave it.
 			else if (!word || (space && same.length === 1)) {
 				url = same.length === 1 ? same[0].url : undefined;
 				start = at + whole.indexOf("#");
@@ -256,7 +256,7 @@ const SLACK_URL =
 /**
  * The Slack thread this session came from. Slack-sourced sessions open with
  * "This task comes from a Slack thread: <url>" (see buildThreadPrompt), so the
- * first Slack link in the transcript is the thread you were reacting to —
+ * first Slack link in the transcript is the thread you were reacting to -
  * later ones are whatever the agent quoted while working.
  */
 export function slackThread(messages: BriefMessage[]): string | null {
@@ -268,7 +268,7 @@ export function slackThread(messages: BriefMessage[]): string | null {
 }
 
 /**
- * When the conversation last moved, as epoch ms — the newest turn carrying a
+ * When the conversation last moved, as epoch ms - the newest turn carrying a
  * timestamp. This is what a card's age badge should read: "in this status
  * since" is measured from the moment the board first saw the pane, so it
  * resets to "now" on every reload and reports minutes for a session that has
@@ -288,7 +288,7 @@ export function lastMessageAt(messages: BriefMessage[]): number | null {
 
 /**
  * A card's age badge. Reads a real conversation timestamp, so unlike the old
- * "since the board noticed this pane" clock it routinely lands days out — a
+ * "since the board noticed this pane" clock it routinely lands days out - a
  * session parked on Friday is the exact one you want to spot on Monday, and
  * "70h 30m" is not something anyone reads at a glance.
  */
@@ -366,7 +366,7 @@ export function nextCronFire(expr: string, from = Date.now()): number | null {
 /**
  * The row a session was launched from. Jira and PR rows persist `title\nurl`
  * as the pane's launch brief, so the first link in it is the ticket (or pull
- * request) the session exists to work on — and it was being stored and never
+ * request) the session exists to work on - and it was being stored and never
  * shown, which left a card titled "CRR-862: …" with no way to open CRR-862.
  *
  * Host parsed by hand rather than `new URL`: a throw here is a blank drawer.
@@ -387,7 +387,7 @@ export function sourceLink(
 
 /**
  * What a link you attached to the brief yourself is called: an issue key, a
- * PR number, a Notion title, "Slack thread" — else its host, so a raw url
+ * PR number, a Notion title, "Slack thread" - else its host, so a raw url
  * never has to be read to know where it goes.
  */
 export function linkLabel(url: string): string {
@@ -404,7 +404,7 @@ export function linkLabel(url: string): string {
 }
 
 /**
- * What you typed into "My links": every url in it, and — when there's one —
+ * What you typed into "My links": every url in it, and - when there's one -
  * whatever else you wrote as its name. "https://…/p123 deploy rollback" is a
  * link called "deploy rollback".
  */
@@ -415,7 +415,7 @@ export function parseLinks(input: string): { url: string; name?: string }[] {
 	const name = input
 		.replace(/https?:\/\/\S+/g, "")
 		.replace(/\s+/g, " ")
-		.replace(/^[\s:–—-]+|[\s:–—-]+$/g, "");
+		.replace(/^[\s:–\u2014-]+|[\s:–\u2014-]+$/g, "");
 	if (urls.length === 1 && name) return [{ url: urls[0], name }];
 	return urls.map((url) => ({ url }));
 }
@@ -439,7 +439,7 @@ export function linkKind(url: string): LinkKind {
 }
 
 /**
- * The open ACTION ITEMS of the agent's newest turn — what you owe the session.
+ * The open ACTION ITEMS of the agent's newest turn - what you owe the session.
  * Only the last turn counts: an older turn's list was already answered or
  * superseded. "ACTION ITEMS: none" and a turn without the section give [].
  */
@@ -454,7 +454,7 @@ export function actionItems(messages: BriefMessage[]): string[] {
 		.filter((item): item is string => !!item);
 }
 
-// "Merge PR #12", "Review and merge #12", "Get repo#12 merged" — a merge is the
+// "Merge PR #12", "Review and merge #12", "Get repo#12 merged" - a merge is the
 // whole item.
 const MERGE_ITEM =
 	/^(?:(?:review|approve)(?:,| and)\s+)?merge\b|^get\b.*\bmerged\b/i;
@@ -483,7 +483,7 @@ const ASKS = /\bshould\b|\?\s*$/i;
 
 /**
  * The session is finished: every open action item is a look at what shipped.
- * That card is Done, not Needs you — the items still show in its brief.
+ * That card is Done, not Needs you - the items still show in its brief.
  */
 export function onlyLookLeft(messages: BriefMessage[]): boolean {
 	const items = actionItems(messages);
@@ -509,7 +509,7 @@ export function mergeTargets(messages: BriefMessage[]): PullRequestLink[] {
 }
 
 /**
- * The PRs mergeReady judges a session on. ponytail: the 20 newest —
+ * The PRs mergeReady judges a session on. ponytail: the 20 newest -
  * pullRequestStates' cap; a session that linked more is judged on those.
  */
 export function mergeCheckUrls(messages: BriefMessage[]): string[] {
@@ -521,7 +521,7 @@ export function mergeCheckUrls(messages: BriefMessage[]): string[] {
 /**
  * Finished, bar a click: every PR of yours the session linked (a teammate's
  * isn't yours to merge) is approved with no red
- * check, merged, or closed — and at least one is still open waiting on that
+ * check, merged, or closed - and at least one is still open waiting on that
  * click. That card is Done, not Needs you, whatever else its action items say.
  * With all of them merged it takes a merge-only item list to say the same
  * thing; otherwise the items are what's left. Unknown state (gh can't see the

@@ -19,7 +19,7 @@ interface UsePierreRowClickPolicyOptions {
 }
 
 interface UsePierreRowClickPolicyResult {
-	/** Capture-phase handler — attach to the wrapper holding the `PierreFileTree`. */
+	/** Capture-phase handler - attach to the wrapper holding the `PierreFileTree`. */
 	onClickCapture: (e: React.MouseEvent<HTMLDivElement>) => void;
 	/** Find the file-row element under a mouse event (skips folder rows). */
 	findFileRow: (e: React.MouseEvent) => HTMLElement | null;
@@ -34,7 +34,7 @@ interface UsePierreRowClickPolicyResult {
  *   - folder rows → `folderIntentFor` (meta=reveal/no-op, metaShift=external)
  *   - file rows   → settings-driven via the injected `filePolicy`
  *
- * Every resolved action is intercepted (preventDefault + stopPropagation) —
+ * Every resolved action is intercepted (preventDefault + stopPropagation) -
  * we never defer to Pierre's own click → `onSelectionChange` pipeline.
  * Pierre's `selectOnlyPath` no-ops when the clicked row is already selected,
  * which would otherwise silently drop legitimate re-clicks (click-to-pin,
@@ -77,13 +77,13 @@ export function usePierreRowClickPolicy({
 				e.preventDefault();
 				e.stopPropagation();
 				if (intent === "external") openInExternalEditor(trimmed);
-				// "reveal" is a no-op — the folder row is already in this sidebar.
+				// "reveal" is a no-op - the folder row is already in this sidebar.
 				return;
 			}
 
 			const { action } = filePolicy.resolve(e);
 			if (action === null) return;
-			// Always intercept — never defer to Pierre's own selection-change
+			// Always intercept - never defer to Pierre's own selection-change
 			// pipeline. Pierre's selectOnlyPath no-ops when the clicked row is
 			// already selected, which silently drops legitimate re-clicks
 			// (e.g. click-to-pin, or reopening a file after Cmd+W).

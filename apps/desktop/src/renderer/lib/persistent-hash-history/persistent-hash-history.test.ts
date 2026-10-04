@@ -55,7 +55,7 @@ Object.defineProperty(globalThis, "window", {
 	configurable: true,
 });
 
-// Now safe to import — the module-level singleton will find window/localStorage
+// Now safe to import - the module-level singleton will find window/localStorage
 const { createPersistentHashHistory } = await import(
 	"./persistent-hash-history"
 );
@@ -109,7 +109,7 @@ describe("createPersistentHashHistory", () => {
 			history.back();
 			expect(history.location.pathname).toBe("/a");
 
-			// Push new entry — should truncate /b, /c
+			// Push new entry - should truncate /b, /c
 			history.push("/d");
 			expect(history.length).toBe(3); // "/", "/a", "/d"
 			expect(history.location.pathname).toBe("/d");
@@ -277,7 +277,7 @@ describe("createPersistentHashHistory", () => {
 			for (let i = 1; i <= 110; i++) {
 				history.push(`/page/${i}`);
 			}
-			// Navigate back to index 5 — go() calls persistState internally
+			// Navigate back to index 5 - go() calls persistState internally
 			history.go(-105);
 
 			// Check localStorage immediately after go(), before any push that
@@ -292,7 +292,7 @@ describe("createPersistentHashHistory", () => {
 			// Simulate localStorage written by a hypothetical older version that stored
 			// entries as objects instead of plain strings. If loaded without validation,
 			// parseHref would receive an object, throw a TypeError, and crash the app
-			// before the React error boundary is set up — resulting in a blank window.
+			// before the React error boundary is set up - resulting in a blank window.
 			storage.set(
 				"router-history",
 				JSON.stringify({

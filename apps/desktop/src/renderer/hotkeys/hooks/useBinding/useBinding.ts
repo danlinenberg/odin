@@ -6,7 +6,7 @@ import { bindingToDispatchChord } from "../../utils/binding";
 
 /**
  * Reactive: get the effective binding for a hotkey (override ?? default).
- * Returns the raw stored shape — bare chord string (legacy / shipped
+ * Returns the raw stored shape - bare chord string (legacy / shipped
  * defaults, treated as physical mode) or v2 object. Use `parseBinding` to
  * normalize.
  */
@@ -29,7 +29,7 @@ export function getBinding(id: HotkeyId): ShortcutBinding | null {
 /**
  * Imperative dispatch-form chord (event.code-based, layout-translated for
  * logical bindings). Use when synthesizing KeyboardEvents that should match
- * the same registration `useHotkey` makes — otherwise the event won't fire
+ * the same registration `useHotkey` makes - otherwise the event won't fire
  * the bound handler on non-US layouts.
  */
 export function getDispatchChord(id: HotkeyId): string | null {

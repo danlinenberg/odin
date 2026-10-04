@@ -10,7 +10,7 @@ import {
  *
  * Iterates local `projects` and ensures each has a main v2 workspace bound to
  * the current host. Idempotent via the `(projectId, hostId) WHERE type='main'`
- * unique index, so it's safe on every boot — only does real work the first
+ * unique index, so it's safe on every boot - only does real work the first
  * time after upgrade.
  */
 export async function runMainWorkspaceSweep(

@@ -5,7 +5,7 @@ import { publicProcedure, router } from "..";
 
 /**
  * Odin fork: the skills/slash-commands a launched `claude` session can use, so
- * the session composer can search them. Read from disk in the main process —
+ * the session composer can search them. Read from disk in the main process -
  * the renderer has no fs, and the CLI has no "list my skills" command.
  */
 export interface AgentSkill {
@@ -15,7 +15,7 @@ export interface AgentSkill {
 }
 
 /**
- * ponytail: first line of the frontmatter `description:` only — a folded
+ * ponytail: first line of the frontmatter `description:` only - a folded
  * multi-line YAML description gets truncated. Enough for a picker row.
  */
 function readDescription(filePath: string): string {
@@ -39,7 +39,7 @@ function subdirectories(path: string): string[] {
 	}
 }
 
-/** ponytail: top-level *.md only — nested command namespaces aren't used here. */
+/** ponytail: top-level *.md only - nested command namespaces aren't used here. */
 function markdownFiles(path: string): string[] {
 	try {
 		return readdirSync(path, { withFileTypes: true })
@@ -113,7 +113,7 @@ export function collectSkills(options?: { homeDir?: string }): AgentSkill[] {
 			}
 		}
 	} catch {
-		// no plugins installed, or an unreadable manifest — personal skills still work
+		// no plugins installed, or an unreadable manifest - personal skills still work
 	}
 
 	return [...found.values()].sort((a, b) => a.name.localeCompare(b.name));

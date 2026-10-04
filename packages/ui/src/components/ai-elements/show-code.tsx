@@ -89,7 +89,7 @@ export function ShowCode({
 			setIsCopied(true);
 			setTimeout(() => setIsCopied(false), 2000);
 		} catch {
-			// ignore — clipboard unavailable
+			// ignore - clipboard unavailable
 		}
 	};
 

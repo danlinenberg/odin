@@ -18,7 +18,7 @@ import {
 import { BUTTON, PILL } from "./pill";
 
 /**
- * Get started — a checklist a new profile walks through, one pillar per row.
+ * Get started - a checklist a new profile walks through, one pillar per row.
  * It sits in the corner of every Odin view until every row is ticked or it is
  * closed, and each row's button takes you to the place that ticks it.
  *
@@ -35,7 +35,7 @@ interface ProfileProgress {
 }
 
 /**
- * ponytail: one small entry per profile ever seen, never deleted — a deleted
+ * ponytail: one small entry per profile ever seen, never deleted - a deleted
  * profile leaves ~50 bytes behind. Bounded by how many profiles you make.
  */
 const useGettingStarted = create<{
@@ -67,7 +67,7 @@ const STEP_COPY: Record<
 	connections: {
 		title: "Connect your accounts",
 		body: () =>
-			"Slack, GitHub, Jira, Notion or Gmail — what's waiting on you there lands in Tasks.",
+			"Slack, GitHub, Jira, Notion or Gmail - what's waiting on you there lands in Tasks.",
 		action: "Connect",
 	},
 	task: {
@@ -85,7 +85,7 @@ const STEP_COPY: Record<
 	automation: {
 		title: "Schedule an automation",
 		body: () =>
-			"A task on a timer — it starts its own session every morning, or every Monday.",
+			"A task on a timer - it starts its own session every morning, or every Monday.",
 		action: "Automations",
 	},
 	review: {
@@ -194,7 +194,7 @@ export function GettingStarted({
 				<button
 					type="button"
 					onClick={close}
-					title="Close — it won't come back for this profile"
+					title="Close - it won't come back for this profile"
 					aria-label="Close Get started"
 					className="shrink-0 rounded-[6px] p-0.5 text-muted-foreground hover:text-foreground"
 				>

@@ -112,7 +112,7 @@ describe("attachmentsRouter.upload", () => {
 
 	it("accepts a single decoded byte", async () => {
 		const caller = createCaller();
-		// "AA==" is base64 of [0x00] — non-empty after decode.
+		// "AA==" is base64 of [0x00] - non-empty after decode.
 		await expect(
 			caller.upload({
 				data: { kind: "base64", data: "AA==" },
@@ -145,7 +145,7 @@ describe("attachmentsRouter.upload", () => {
 
 	it("rejects oversized payload before decoding", async () => {
 		const caller = createCaller();
-		// A base64 string ~4/3 longer than MAX is enough — we shouldn't even
+		// A base64 string ~4/3 longer than MAX is enough - we shouldn't even
 		// allocate the decoded buffer. Use a fake oversized base64 string
 		// composed only of valid characters; we only care that it's rejected.
 		const oversizedBase64 = "A".repeat(

@@ -11,20 +11,20 @@ import { BUTTON } from "./pill";
  * The one Tasks tab, from the inside: a strip that sits where each feed's title
  * used to, so All / Tasks / Slack / Jira / PRs / Notion are one place you
  * switch sources in rather than a rail icon each to hunt between. Each source
- * shows as its own mark — six words of chrome was more than the header could
- * spend — with the name in a tooltip.
+ * shows as its own mark - six words of chrome was more than the header could
+ * spend - with the name in a tooltip.
  */
 export function FeedTabs() {
 	const navigate = useNavigate();
 	const matchRoute = useMatchRoute();
-	// Same queries the shell warms on boot — React Query serves them from cache,
+	// Same queries the shell warms on boot - React Query serves them from cache,
 	// so the badges cost nothing beyond a render.
 	const { reactions, jira, pulls, notion, emails, workConfig, notionConfig } =
 		useOdinFeeds();
 	// todos, not tasks: an automation runs itself, so it isn't waiting on you.
 	const { todos } = useMyTasks();
 	// A row put away with Done is gone from its feed, so it's gone from the
-	// badge too — same keys each feed page filters on.
+	// badge too - same keys each feed page filters on.
 	const { isDone } = useDone();
 	const counts = feedCounts({
 		tasks: todos.filter((task) => !isDone({ key: `task:${task.id}` })).length,
@@ -54,8 +54,8 @@ export function FeedTabs() {
 		),
 	});
 
-	// A tab that's empty because its account is signed out — or because its
-	// token stopped working — shouldn't read as "nothing to do". Every signal
+	// A tab that's empty because its account is signed out - or because its
+	// token stopped working - shouldn't read as "nothing to do". Every signal
 	// here is already in the feeds' cache, so saying so costs no extra probe.
 	const issues = feedIssues({
 		"/reactions": {
@@ -87,7 +87,7 @@ export function FeedTabs() {
 						<TooltipTrigger asChild>
 							<button
 								type="button"
-								aria-label={note ? `${label} — ${note}` : label}
+								aria-label={note ? `${label} - ${note}` : label}
 								aria-current={isActive ? "page" : undefined}
 								onClick={() => navigate({ to })}
 								className={cn(
@@ -106,7 +106,7 @@ export function FeedTabs() {
 										className={cn(
 											"absolute right-1 top-1 size-[5px] rounded-full",
 											// Amber: nothing signed in. Red: signed in, but the feed
-											// is failing — the tab itself carries the reason.
+											// is failing - the tab itself carries the reason.
 											issue === "off" ? "bg-attention" : "bg-danger",
 										)}
 									/>
@@ -127,7 +127,7 @@ export function FeedTabs() {
 							</button>
 						</TooltipTrigger>
 						<TooltipContent side="bottom">
-							{note ? `${label} — ${note}` : label}
+							{note ? `${label} - ${note}` : label}
 						</TooltipContent>
 					</Tooltip>
 				);

@@ -223,7 +223,7 @@ describe("session lifecycle", () => {
 		await c.waitFor((m) => m.type === "open-ok" && m.id === id);
 		c.send({ type: "subscribe", id, replay: false });
 
-		// Default close — no explicit signal. Server defaults to SIGHUP.
+		// Default close - no explicit signal. Server defaults to SIGHUP.
 		c.send({ type: "close", id });
 		await c.waitFor((m) => m.type === "closed" && m.id === id);
 		// Critical: the shell must actually exit. If SIGTERM defaults
@@ -423,7 +423,7 @@ describe("multi-client fan-out", () => {
 		a.send({ type: "subscribe", id, replay: false });
 		b.send({ type: "subscribe", id, replay: false });
 
-		// First marker — both should see it.
+		// First marker - both should see it.
 		a.send({ type: "input", id }, Buffer.from("echo first-marker\n"));
 		await Promise.all([
 			a.waitFor(
@@ -612,7 +612,7 @@ describe("cross-client continuity (host-service restart simulation)", () => {
 	// This is the headline path the daemon exists for. Client A (host-service v1)
 	// opens a session, then disconnects (host-service crashed). Client B
 	// (host-service v2) connects fresh, discovers the session via list, and
-	// must NOT try to re-open it — it should subscribe-with-replay and
+	// must NOT try to re-open it - it should subscribe-with-replay and
 	// continue. Regression test for the "session already exists" tight loop
 	// observed in production after the first integration land.
 
@@ -625,7 +625,7 @@ describe("cross-client continuity (host-service restart simulation)", () => {
 			meta: { ...baseMeta, argv: ["-c", "echo from-A; sleep 5"] },
 		});
 		await a.waitFor((m) => m.type === "open-ok" && m.id === id);
-		// Force-close A's connection without unsubscribing — this simulates a
+		// Force-close A's connection without unsubscribing - this simulates a
 		// host-service crash. The session must keep running on the daemon.
 		a.socket.destroy();
 
@@ -691,7 +691,7 @@ describe("cross-client continuity (host-service restart simulation)", () => {
 			3000,
 		);
 
-		// A drops without cleanup — host-service "crashed."
+		// A drops without cleanup - host-service "crashed."
 		a.socket.destroy();
 		await new Promise((r) => setTimeout(r, 100));
 
@@ -731,7 +731,7 @@ describe("cross-client continuity (host-service restart simulation)", () => {
 	test("exited sessions are deleted immediately (no accumulation)", async () => {
 		// Sessions are removed from the store the moment their PTY exits.
 		// Late subscribers (e.g. host-service restarting in the exit gap)
-		// get ENOENT — the renderer falls back to a generic "session
+		// get ENOENT - the renderer falls back to a generic "session
 		// unavailable" footer. Tradeoff: niche UX regression in the
 		// restart-during-exit window vs. unbounded session accumulation
 		// (every closed terminal pane otherwise left a row forever).
@@ -842,7 +842,7 @@ describe("hostile input", () => {
 
 	test("input on a session that just exited returns ENOENT", async () => {
 		// Exit deletes the session row, so post-exit input lands on
-		// "unknown session" — same code path as input on a never-existed
+		// "unknown session" - same code path as input on a never-existed
 		// id. EEXITED is no longer returned because there's no exited
 		// session to be "exited"; it's just gone.
 		const c = await connectAndHello(sockPath);
@@ -873,7 +873,7 @@ describe("concurrency", () => {
 		const ids = Array.from({ length: N }, (_, i) => uniqueId(`conc-${i}`));
 
 		// Open all sessions. Use a workload that runs long enough to outlast
-		// the open+subscribe round-trip on a busy machine — the spawns happen
+		// the open+subscribe round-trip on a busy machine - the spawns happen
 		// in parallel, but `subscribe replay:false` would race exits otherwise.
 		for (const id of ids) {
 			c.send({

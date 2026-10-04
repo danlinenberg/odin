@@ -37,11 +37,11 @@ export const Route = createFileRoute("/_authenticated/_odin/my-tasks/")({
 });
 
 /**
- * My Tasks — the one feed with no upstream system behind it. Jira, Slack and
+ * My Tasks - the one feed with no upstream system behind it. Jira, Slack and
  * PRs mirror other people's queues; this is where a task that isn't a ticket
  * yet gets written down, and started with an agent whenever you're ready.
  *
- * ponytail: localStorage (useOdinTasks), not the app DB — a personal todo list
+ * ponytail: localStorage (useOdinTasks), not the app DB - a personal todo list
  * that only this renderer reads doesn't need a migration. Move it if it ever
  * has to be visible from outside the app.
  */
@@ -82,7 +82,7 @@ function MyTasksPage() {
 			repoPath: task.repo,
 		});
 		if (!result.ok) return toast.error(result.error);
-		// The task keeps its row and gains a way into the session — starting one
+		// The task keeps its row and gains a way into the session - starting one
 		// isn't finishing it, so it's still yours to ✕ when it's actually done.
 		setPane(task.id, result.paneId);
 		usePendingFocus.getState().focus(result.paneId);
@@ -119,7 +119,7 @@ function MyTasksPage() {
 			<div className={FEED_LIST}>
 				{tasks.length === 0 && (
 					<div className="px-2 py-8 text-center text-xs text-muted-foreground">
-						Nothing on your list — type it in above.
+						Nothing on your list - type it in above.
 					</div>
 				)}
 				{tasks.map((task) => {

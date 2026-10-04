@@ -2,7 +2,7 @@
 
 This doc is intended for an external architecture review. It provides enough context to understand the problem space and asks open-ended questions to help critique our current direction.
 
-**How to use this:** please read the plan first, then use the questions below as prompts. Feel free to ignore our current approach and propose a better one — we’re explicitly trying to avoid narrowing you into our hypotheses.
+**How to use this:** please read the plan first, then use the questions below as prompts. Feel free to ignore our current approach and propose a better one - we’re explicitly trying to avoid narrowing you into our hypotheses.
 
 ## What we’re trying to build (big picture)
 
@@ -53,7 +53,7 @@ These are constraints we currently operate under; if you think any should change
 
 - **Remote runner / cloud terminals:** terminal sessions execute on a server (possibly while the laptop sleeps).
 - **Multi-device access:** a backend session may outlive any single client, and multiple clients/panes may view the same session.
-- **Provider model:** not just terminals — we likely need a workspace-scoped runtime that can also deliver:
+- **Provider model:** not just terminals - we likely need a workspace-scoped runtime that can also deliver:
   - agent lifecycle events (start/stop/permission requests, etc.)
   - git + “changes” functionality (status/diff/staging/commit/push/pull)
   - file read/write (or a sync layer)

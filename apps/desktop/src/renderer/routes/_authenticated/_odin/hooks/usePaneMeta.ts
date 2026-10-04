@@ -3,7 +3,7 @@ import { persist } from "zustand/middleware";
 
 export interface BriefLink {
 	url: string;
-	/** What you called it when you added it — "deploy thread", "QA sheet". */
+	/** What you called it when you added it - "deploy thread", "QA sheet". */
 	name?: string;
 }
 
@@ -16,13 +16,13 @@ export const linkUrl = (link: BriefLink | string) =>
  *  - contact: point-of-contact → the card's colored person chip.
  *  - brief:   what the task is about → shown on card hover (the terminal only
  *             shows the agent's live chatter, not the original ask).
- *  - notes:   whatever you typed into the session brief panel yourself — the
+ *  - notes:   whatever you typed into the session brief panel yourself - the
  *             written brief is regenerated from the transcript, so your own
  *             "don't forget X" needs somewhere of its own to live.
  *  - links:   resources you attached to the brief yourself (another Slack
- *             thread, a doc) — the brief only finds what the transcript quotes.
+ *             thread, a doc) - the brief only finds what the transcript quotes.
  *  - hidden:  resources the transcript surfaced that you don't want on the
- *             brief — kept under its collapsed "Hidden" section, not dropped.
+ *             brief - kept under its collapsed "Hidden" section, not dropped.
  */
 interface KeptBrief {
 	notes?: string;
@@ -38,7 +38,7 @@ export const usePaneMeta = create<{
 	linksByPane: Record<string, (BriefLink | string)[]>;
 	/** URLs hidden from the brief, per pane. */
 	hiddenByPane: Record<string, string[]>;
-	/** Task title captured at launch — Claude Code's OSC title overwrites the
+	/** Task title captured at launch - Claude Code's OSC title overwrites the
 	 *  pane name/userTitle to "Claude Code", so the board reads this instead. */
 	titleByPane: Record<string, string>;
 	/** Claude Code session id we assigned at launch (--session-id), so Resume
@@ -49,7 +49,7 @@ export const usePaneMeta = create<{
 	 *  (and can jump to it) instead of offering to start a second one. */
 	paneByPage: Record<string, string>;
 	/** What you wrote on a brief whose pane is gone, keyed by its Claude
-	 *  session id — Done drops the pane, Session History resumes the
+	 *  session id - Done drops the pane, Session History resumes the
 	 *  conversation into a new one, and adoptSession hands this back. */
 	keptBySession: Record<string, KeptBrief>;
 	setContact: (paneId: string, contact: string) => void;
@@ -62,7 +62,7 @@ export const usePaneMeta = create<{
 	setSessionId: (paneId: string, sessionId: string) => void;
 	setPaneForPage: (pageId: string, paneId: string) => void;
 	/** Drop every entry for a pane that no longer exists (board "done" removes
-	 *  the pane outright) — otherwise these localStorage maps only ever grow,
+	 *  the pane outright) - otherwise these localStorage maps only ever grow,
 	 *  and a stale paneByPage makes a Notion task look like it still has a
 	 *  session. */
 	forgetPane: (paneId: string, sessionId?: string | null) => void;
@@ -154,7 +154,7 @@ export const usePaneMeta = create<{
 						const { [paneId]: _, ...rest } = map;
 						return rest;
 					};
-					// ponytail: kept entries are never pruned — a few strings per
+					// ponytail: kept entries are never pruned - a few strings per
 					// finished session; prune by age if localStorage ever complains.
 					const sid = sessionId ?? s.sessionIdByPane[paneId];
 					const kept: KeptBrief = {

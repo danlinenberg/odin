@@ -9,7 +9,7 @@ export type { ActiveSession };
 export function useActiveSessions(): ActiveSession[] {
 	const panes = useTabsStore((state) => state.panes);
 	const { activeId, isLoading } = useOdinProfile();
-	// Same 5s poll the board and the profile picker run — one shared query.
+	// Same 5s poll the board and the profile picker run - one shared query.
 	const { data: daemonSessions } =
 		electronTrpc.terminal.listDaemonSessions.useQuery(undefined, {
 			refetchInterval: 5_000,

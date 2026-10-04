@@ -20,7 +20,7 @@ interface NightRanking {
 	hidden: Set<string>;
 }
 
-/** Your sort words plus the Night Agent ones — what the night ranking obeys. */
+/** Your sort words plus the Night Agent ones - what the night ranking obeys. */
 export function nightInstructions(sort: string, offHours: string): string {
 	return [
 		sort,
@@ -33,7 +33,7 @@ export function nightInstructions(sort: string, offHours: string): string {
 
 /**
  * Night Agent: inside the window set in Settings → Backlog, start the top
- * of Next in line, wait for that session to stop working, start the next —
+ * of Next in line, wait for that session to stop working, start the next -
  * until the window closes or the night's ceiling is hit. One at a time, so
  * the morning is a column of finished turns rather than a pile-up.
  *

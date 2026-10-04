@@ -48,7 +48,7 @@ export function joinCommandArgs(command: string, args: string[]): string {
 
 /**
  * Parse a shell-style string into `command` (first token) and the rest as
- * `args`. Drops control operators (`|`, `>`, etc.) — this is a launch
+ * `args`. Drops control operators (`|`, `>`, etc.) - this is a launch
  * spec, not a shell invocation. Empty quoted args (`""`) and tokens with
  * embedded spaces are preserved exactly.
  */

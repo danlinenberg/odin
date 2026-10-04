@@ -14,7 +14,7 @@ import type { WorkspaceRefsSnapshot } from "./utils/workspace-refs";
 // All tests run the real manager against a real, migrated, in-memory SQLite
 // DB. An earlier hand-faked DB ignored query predicates and could only hold a
 // single workspace, which made multi-workspace cross-linking bugs (e.g.
-// case-variant branch collision) inexpressible — so the harness is faithful
+// case-variant branch collision) inexpressible - so the harness is faithful
 // on purpose.
 const MIGRATIONS_FOLDER = resolve(import.meta.dir, "../../../drizzle");
 const PROJECT_ID = "project-1";

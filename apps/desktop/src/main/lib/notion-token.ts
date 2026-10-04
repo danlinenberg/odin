@@ -8,7 +8,7 @@ import {
  * Notion token upkeep, deliberately separate from the consent flow.
  *
  * The Notion tRPC router imports this to retry an expired access token, and
- * that router is loaded in plenty of places — so this file must stay free of
+ * that router is loaded in plenty of places - so this file must stay free of
  * electron. `notion-oauth.ts` owns the browser-opening half.
  */
 
@@ -20,7 +20,7 @@ export interface NotionTokenResponse {
 	error_description?: string;
 }
 
-/** Basic auth over client_id:client_secret — what Notion's token endpoint wants. */
+/** Basic auth over client_id:client_secret - what Notion's token endpoint wants. */
 export function notionBasicAuth(
 	clientId: string,
 	clientSecret: string,

@@ -459,7 +459,7 @@ export type SelectBrowserHistory = typeof browserHistory.$inferSelect;
 /**
  * Odin: Slack messages I reacted to with :eyes:, one row per message.
  *
- * Slack is the source of the feed but not of the state — a row survives
+ * Slack is the source of the feed but not of the state - a row survives
  * un-reacting (`unreactedAt` is stamped, the row stays) so a queue item can't
  * vanish from under a session, and `doneAt` is local: Odin never writes back
  * to Slack.
@@ -467,7 +467,7 @@ export type SelectBrowserHistory = typeof browserHistory.$inferSelect;
 export const slackReactions = sqliteTable(
 	"slack_reactions",
 	{
-		/** `${channelId}:${messageTs}` — Slack's own identity for a message. */
+		/** `${channelId}:${messageTs}` - Slack's own identity for a message. */
 		id: text("id").primaryKey(),
 		/**
 		 * Which Odin profile's Slack this row came from. Rows from a profile you
@@ -507,21 +507,21 @@ export type InsertSlackReaction = typeof slackReactions.$inferInsert;
 export type SelectSlackReaction = typeof slackReactions.$inferSelect;
 
 /**
- * The work ledger — one row per feed item you actually started an agent on,
+ * The work ledger - one row per feed item you actually started an agent on,
  * kept forever.
  *
  * Separate from `slack_reactions` (and from whatever the other feeds grow)
  * on purpose: those tables mirror an upstream queue and are swept when the
- * source changes — unreact and the row retires, `remove` deletes it outright.
+ * source changes - unreact and the row retires, `remove` deletes it outright.
  * The ledger has to outlive the thing it came from, because the question it
  * answers is historical: what landed on me, what did I delegate it to, and
- * what came out. No foreign keys for the same reason — a row here must not
+ * what came out. No foreign keys for the same reason - a row here must not
  * disappear because a workspace or project was cleaned up.
  */
 export const workLog = sqliteTable(
 	"work_log",
 	{
-		/** `${source}:${externalId}` — one row per item, relaunches reuse it. */
+		/** `${source}:${externalId}` - one row per item, relaunches reuse it. */
 		id: text("id").primaryKey(),
 		/** Which feed it came from, matching Pane.odinSource. */
 		source: text("source")
@@ -532,7 +532,7 @@ export const workLog = sqliteTable(
 		/** Back to the thread / issue / PR / page it came from. */
 		externalUrl: text("external_url"),
 		title: text("title").notNull(),
-		/** Who asked — the reporter, the author, the person in the thread. */
+		/** Who asked - the reporter, the author, the person in the thread. */
 		person: text("person"),
 		/** Which Odin profile was active, so work and personal stay apart. */
 		profileId: text("profile_id").notNull().default("default"),
@@ -544,7 +544,7 @@ export const workLog = sqliteTable(
 		cwd: text("cwd"),
 		/** The agent session, for pulling the transcript back up. */
 		sessionId: text("session_id"),
-		// ponytail: outcome columns are written by nothing yet — derive them
+		// ponytail: outcome columns are written by nothing yet - derive them
 		// from `cwd` on read when something needs them. Capture is what can't
 		// be backfilled; derivation always can.
 		branch: text("branch"),

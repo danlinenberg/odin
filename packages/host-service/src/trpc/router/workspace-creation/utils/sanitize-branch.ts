@@ -1,7 +1,7 @@
 /**
  * Branch name deduplication utility.
  *
- * Sanitization/slugification lives on the renderer — the host-service
+ * Sanitization/slugification lives on the renderer - the host-service
  * only deduplicates against existing branches.
  */
 

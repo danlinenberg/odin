@@ -24,7 +24,7 @@ interface HeapSample {
 }
 
 async function gcAndSample(): Promise<HeapSample> {
-	// Multiple GC passes with microtask yields between — single Bun.gc(true)
+	// Multiple GC passes with microtask yields between - single Bun.gc(true)
 	// can leave incremental work pending; double-pumping gets us a stable
 	// reading for benchmark output.
 	if (typeof Bun !== "undefined" && typeof Bun.gc === "function") {
@@ -184,7 +184,7 @@ describe("BENCH: pathTypes heap delta vs unique paths", () => {
 			totalCreated = target;
 
 			// Wait for parcel watcher to catch up. We don't need every event
-			// to flush — we just want pathTypes to reflect the bulk. Once
+			// to flush - we just want pathTypes to reflect the bulk. Once
 			// past the 10k file cap the size plateaus, so we cap the
 			// predicate target to avoid spinning the deadline.
 			const FILE_PATHS_MAX = 10_000;

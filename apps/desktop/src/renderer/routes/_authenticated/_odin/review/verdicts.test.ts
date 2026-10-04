@@ -88,7 +88,7 @@ describe("sessionFor", () => {
 		expect(sessionFor(row("task:a"), live, new Map([["a", "p4"]]))).toBe("p4");
 	});
 
-	test("no session, no match — and BUG-1 doesn't claim BUG-10", () => {
+	test("no session, no match - and BUG-1 doesn't claim BUG-10", () => {
 		const live = [{ id: "p", odinTaskTitle: "BUG-10: other" }];
 		expect(sessionFor(row("jira:BUG-1"), live, none)).toBeNull();
 		expect(sessionFor(row("task:a"), [], new Map([["a", "p"]]))).toBeNull();

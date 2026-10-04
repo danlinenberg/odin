@@ -34,7 +34,7 @@
 			// Slack refuses to redirect to a custom scheme or to localhost, so this
 			// page exists only to bounce the auth code into the desktop app. It
 			// forwards the query string untouched (code + state) and never reads,
-			// stores, or transmits it anywhere else — there is no other JS here, no
+			// stores, or transmits it anywhere else - there is no other JS here, no
 			// analytics, and no network calls.
 			(() => {
 				var target = `odin://oauth/slack${window.location.search}`;
@@ -43,7 +43,7 @@
 				retry.hidden = false;
 				if (!window.location.search) {
 					document.getElementById("status").textContent =
-						"This page expects a Slack redirect — nothing to hand over.";
+						"This page expects a Slack redirect - nothing to hand over.";
 					retry.hidden = true;
 					return;
 				}

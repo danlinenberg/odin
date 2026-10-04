@@ -155,12 +155,12 @@ export const OdinNotifyPlugin = async ({ $, client }) => {
       log('Event:', event.type, 'sessionID:', sessionID);
 
       // SessionStart/SessionEnd give the host binding store its earliest/latest
-      // signal — fired before any prompt arrives. Filter out child sessions so
+      // signal - fired before any prompt arrives. Filter out child sessions so
       // subagent spawns don't change the pane icon.
       if (event.type === "session.created") {
         const isChild = Boolean(event.properties?.info?.parentID);
         // Cache eagerly so session.deleted can resolve isChild synchronously
-        // — by the time deletion fires the session is gone from list().
+        // - by the time deletion fires the session is gone from list().
         if (sessionID) childSessionCache.set(sessionID, isChild);
         if (!isChild) {
           await notify("SessionStart");

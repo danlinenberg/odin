@@ -73,7 +73,7 @@ function emitReadyThenError(child: FakeChildProcess, errorMsg: string): void {
 // Tests
 // =============================================================================
 
-describe("TerminalHost — PTY spawn failure handling", () => {
+describe("TerminalHost - PTY spawn failure handling", () => {
 	let fakeChild: FakeChildProcess;
 
 	beforeEach(() => {

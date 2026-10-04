@@ -29,7 +29,7 @@ const SHELL_BOOTSTRAP_KEYS = [
 	// and git pushes over SSH fail. (#4238)
 	"SSH_AUTH_SOCK",
 	"SSH_AGENT_PID",
-	// Proxy config — typically injected via `launchctl setenv` (corp networks),
+	// Proxy config - typically injected via `launchctl setenv` (corp networks),
 	// not by rc files. Without these, git/curl/npm in terminals bypass the proxy.
 	"HTTP_PROXY",
 	"HTTPS_PROXY",
@@ -39,7 +39,7 @@ const SHELL_BOOTSTRAP_KEYS = [
 	"https_proxy",
 	"no_proxy",
 	"all_proxy",
-	// Corporate CA bundles — same launchd-injected vector as proxies.
+	// Corporate CA bundles - same launchd-injected vector as proxies.
 	"SSL_CERT_FILE",
 	"SSL_CERT_DIR",
 	"NODE_EXTRA_CA_CERTS",
@@ -133,7 +133,7 @@ function spawnCleanShellEnv(): Promise<Record<string, string>> {
 
 		// Anchor at $HOME so the snapshot shell doesn't inherit a cwd
 		// host-service has no control over. Tools called from interactive
-		// rc files — brew is the recurring offender (#4025) — abort when
+		// rc files - brew is the recurring offender (#4025) - abort when
 		// pwd isn't readable to the invoking user, and Electron helpers
 		// can land at /private/var/... or similar at launch.
 		const cwd = env.HOME || os.homedir();

@@ -48,7 +48,7 @@ export async function getGitHubUsernameViaGh(
 /**
  * Git identity used to preview `author`/`github` branch prefixes in settings.
  * `shellEnv` is only for the `gh` spawn; the git config read keeps the
- * process env — simple-git rejects env containing GIT_EDITOR as unsafe.
+ * process env - simple-git rejects env containing GIT_EDITOR as unsafe.
  */
 export async function readGitIdentity(
 	shellEnv: Record<string, string>,

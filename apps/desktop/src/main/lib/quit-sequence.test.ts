@@ -59,7 +59,7 @@ describe("runQuitCleanup", () => {
 		expect(h.scheduled).toHaveLength(0);
 	});
 
-	// Regression: #6048 — pressing "Update" closed the app without installing the
+	// Regression: #6048 - pressing "Update" closed the app without installing the
 	// update and without relaunching. `quitAndInstall()` only starts the
 	// Squirrel.Mac handoff; ShipIt is launched asynchronously and swaps the bundle
 	// after the app terminates. Calling `app.exit(0)` from `before-quit` kills the

@@ -103,7 +103,7 @@ function ContextMenuContent({
 	// treats pointerup with no prior pointerdown as a drag-release and calls
 	// `event.currentTarget?.click()` → onSelect, so opening the menu fires
 	// whatever item sits under the cursor (usually destructive Close Pane).
-	// Intercept pointerup, not mouseup — mouseup arrives too late. Reset per
+	// Intercept pointerup, not mouseup - mouseup arrives too late. Reset per
 	// event so the guard re-arms for force-mounted content. Callback ref
 	// (not useEffect): Portal renders its child only when open, so useEffect
 	// on the wrapper would see a null ref. See danlinenberg/odin#4939.

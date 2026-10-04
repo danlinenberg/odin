@@ -10,7 +10,7 @@
  * for `"odin"` the id is passed as chat-session metadata instead and
  * `modelFlag` is null.
  *
- * The lists are hand-maintained and expected to drift with CLI releases —
+ * The lists are hand-maintained and expected to drift with CLI releases -
  * update them here when a tool adds or retires models.
  */
 
@@ -36,7 +36,7 @@ export interface OdinChatModel extends AgentModelOption {
 
 /**
  * Canonical model catalog for the Odin chat agent. This is the single
- * source of truth — `tRPC chat.getModels` re-shapes it for its API and the
+ * source of truth - `tRPC chat.getModels` re-shapes it for its API and the
  * `"odin"` entry in `AGENT_MODEL_SUPPORT` reuses it for the picker. Keep
  * model edits here so the two never drift.
  */
@@ -108,7 +108,7 @@ export const AGENT_MODEL_SUPPORT: readonly AgentModelSupport[] = [
 			// `--list-models` (2026-07-17); the list is account-dependent and
 			// unknown ids are rejected by the CLI, not silently ignored.
 			// "auto" is the only id free-plan accounts can use (besides
-			// composer) — named models fail there with "Named models
+			// composer) - named models fail there with "Named models
 			// unavailable", so keep an explicit working choice in the picker.
 			{ id: "auto", label: "Auto" },
 			{ id: "claude-fable-5-thinking-high", label: "Fable 5" },
@@ -174,7 +174,7 @@ export interface AgentEffortSupport {
 /**
  * Curated per-agent reasoning-effort catalogs, mirroring
  * `AGENT_MODEL_SUPPORT`. Flags and accepted values were verified against each
- * CLI's `--help` (or its own validator) — agents absent from this list
+ * CLI's `--help` (or its own validator) - agents absent from this list
  * (gemini, opencode, cursor-agent, droid, odin chat) expose no effort
  * control on their interactive launch command.
  */
@@ -282,7 +282,7 @@ export function buildAgentEffortArgs(
  * Argv tokens that select `model` for the given preset, e.g.
  * `["--model", "sonnet"]`. Returns `[]` for unknown presets, presets without
  * a CLI flag (odin chat), an unset model, or a model id that isn't in
- * the preset's curated list — callers can spread the result unconditionally
+ * the preset's curated list - callers can spread the result unconditionally
  * and a stale or arbitrary model id degrades to the CLI default instead of
  * a broken launch.
  */

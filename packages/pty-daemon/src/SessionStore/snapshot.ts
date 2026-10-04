@@ -1,4 +1,4 @@
-// Handoff snapshot — on-disk serialization of the SessionStore that the
+// Handoff snapshot - on-disk serialization of the SessionStore that the
 // successor daemon reads on startup to rebuild its in-memory state.
 //
 // The kernel-side state (PTY master fds) flows through the stdio array of
@@ -13,7 +13,7 @@
 //   [encodeFrame(handoffSession_1, bufferBytes_1)]
 //   ...
 //
-// One byte-encoding format for the whole codebase — no JSON-with-base64
+// One byte-encoding format for the whole codebase - no JSON-with-base64
 // just so disk-resident bytes can fit in a string. Buffer payloads ride
 // the frame's binary tail exactly as they do on the wire.
 //
@@ -52,7 +52,7 @@ export interface SerializedSession {
 	pid: number;
 	meta: SessionMeta;
 	fdIndex: number;
-	/** Live ring buffer bytes — empty Uint8Array when there's no replay. */
+	/** Live ring buffer bytes - empty Uint8Array when there's no replay. */
 	buffer: Uint8Array;
 }
 
@@ -74,7 +74,7 @@ export interface SerializeOptions {
 export function serializeSessions(opts: SerializeOptions): HandoffSnapshot {
 	const out: SerializedSession[] = [];
 	for (const s of opts.sessions) {
-		// Exited sessions don't survive handoff — they have no live PTY fd
+		// Exited sessions don't survive handoff - they have no live PTY fd
 		// to inherit, and the renderer has already received their exit
 		// event (see Server.onExit's delete-on-exit behavior).
 		if (s.exited) continue;
@@ -98,7 +98,7 @@ export function serializeSessions(opts: SerializeOptions): HandoffSnapshot {
 }
 
 /**
- * Atomic write — write to `<path>.tmp` then rename. Successor that reads
+ * Atomic write - write to `<path>.tmp` then rename. Successor that reads
  * `<path>` always sees a complete file (rename is atomic on POSIX).
  */
 export function writeSnapshot(path: string, snapshot: HandoffSnapshot): void {

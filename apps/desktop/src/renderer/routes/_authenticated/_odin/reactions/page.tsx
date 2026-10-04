@@ -38,7 +38,7 @@ import { useOdinFeeds, useSetSlackReaction } from "../hooks/useOdinFeeds";
 import { usePendingFocus } from "../hooks/usePendingFocus";
 import { useStartReaction } from "../hooks/useStartReaction";
 
-/** Narrow to one channel or person — how Insights' Improvements links here. */
+/** Narrow to one channel or person - how Insights' Improvements links here. */
 type ReactionsSearch = { channel?: string; person?: string };
 
 export const Route = createFileRoute("/_authenticated/_odin/reactions/")({
@@ -71,12 +71,12 @@ function inArea(
 }
 
 /**
- * Slack — every message I put the queue reaction (:eyes: by default, click it
+ * Slack - every message I put the queue reaction (:eyes: by default, click it
  * in the header to change) on, straight from Slack. React in Slack, it shows
  * up here; Start session ingests the thread.
  *
- * Rows persist locally — removing the reaction in Slack leaves the row alone,
- * and Done is Odin-only — nothing is written to Slack.
+ * Rows persist locally - removing the reaction in Slack leaves the row alone,
+ * and Done is Odin-only - nothing is written to Slack.
  */
 
 /** Compact "3m / 4h / Aug 4" label for a message's post time. */
@@ -102,7 +102,7 @@ function relativeTime(iso: string): string {
 function ReactionsPage() {
 	// One status at a time.
 	const [statusFilter, setStatusFilter] = useState<ReactionStatus | null>(null);
-	// ponytail: one row open at a time — click another and this one closes.
+	// ponytail: one row open at a time - click another and this one closes.
 	const [expandedId, setExpandedId] = useState<string | null>(null);
 	const { reactions, syncAll, isSyncing } = useOdinFeeds();
 	const { start, isLaunching, launchingKey } = useStartReaction();
@@ -129,7 +129,7 @@ function ReactionsPage() {
 			(pane) => pane.odinPageId === id && !pane.completed,
 		)?.id ?? null;
 
-	// Free text matched against the author only — a name also appears in half
+	// Free text matched against the author only - a name also appears in half
 	// the messages' @-mentions, so matching the text would find everything.
 	const [search, setSearch] = useState("");
 	const needle = search.trim().toLowerCase();
@@ -153,7 +153,7 @@ function ReactionsPage() {
 	}, [rows]);
 
 	// The pill actually rendered: the pick, or the first one with anything in
-	// it — so the view never opens on an empty list.
+	// it - so the view never opens on an empty list.
 	const activeStatus = useMemo(() => {
 		if (statusFilter) return statusFilter;
 		return (
@@ -220,13 +220,13 @@ function ReactionsPage() {
 				{data && !data.connected && (
 					<ConnectNotice
 						provider="slack"
-						text="Slack isn't connected — sign in to queue messages here by reacting to them."
+						text="Slack isn't connected - sign in to queue messages here by reacting to them."
 					/>
 				)}
 				{data?.syncError && (
 					<div className="select-text cursor-text rounded-[10px] border border-danger/40 bg-danger/10 px-3 py-2 text-xs">
 						Slack sync failed: {data.syncError}
-						{rows.length > 0 && " — showing the last synced rows."}
+						{rows.length > 0 && " - showing the last synced rows."}
 					</div>
 				)}
 				<FeedError error={reactions.error} />
@@ -241,7 +241,7 @@ function ReactionsPage() {
 								key={row.id}
 								className={cn(FEED_ROW, row.done && "opacity-50")}
 							>
-								{/* One line per message, like every other feed — click it to
+								{/* One line per message, like every other feed - click it to
 								    read the whole thing without leaving for Slack. */}
 								<div
 									className={cn(
@@ -271,7 +271,7 @@ function ReactionsPage() {
 											)}
 										</span>
 										{/* ponytail: 1:1 DMs have no channel name (conversations.info
-										    omits it for IMs) — leave the slot empty rather than
+										    omits it for IMs) - leave the slot empty rather than
 										    show a raw id. */}
 										<span className={META_TEXT}>{row.channelName}</span>
 										<span
@@ -346,7 +346,7 @@ function ReactionsPage() {
 				{data?.connected && visible.length === 0 && !reactions.isFetching && (
 					<div className="px-2 py-8 text-center text-xs text-muted-foreground">
 						{activeStatus === "Not started"
-							? `Nothing here — react to a Slack message with :${data.reaction}: (or :${data.launchReaction}: to start it right away) and hit Sync.`
+							? `Nothing here - react to a Slack message with :${data.reaction}: (or :${data.launchReaction}: to start it right away) and hit Sync.`
 							: `Nothing ${activeStatus.toLowerCase()}.`}
 					</div>
 				)}
@@ -357,7 +357,7 @@ function ReactionsPage() {
 
 /**
  * One emoji the queue watches for. Slack names reactions (`eyes`), so this is
- * a text field, not a picker — see normalizeReaction.
+ * a text field, not a picker - see normalizeReaction.
  */
 function ReactionChip({
 	label,

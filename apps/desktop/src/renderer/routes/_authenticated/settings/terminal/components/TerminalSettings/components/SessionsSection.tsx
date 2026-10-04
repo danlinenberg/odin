@@ -123,7 +123,7 @@ export function SessionsSection() {
 	});
 
 	const formatTimestamp = (value?: string) => {
-		if (!value) return "—";
+		if (!value) return "-";
 		return value.replace("T", " ").replace(/\.\d+Z$/, "Z");
 	};
 
@@ -224,7 +224,7 @@ export function SessionsSection() {
 												{session.attachedClients}
 											</td>
 											<td className="px-2 py-2 text-right font-mono">
-												{session.pid ?? "—"}
+												{session.pid ?? "-"}
 											</td>
 											<td className="px-2 py-2">
 												{formatTimestamp(session.lastAttachedAt)}

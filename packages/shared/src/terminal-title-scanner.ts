@@ -1,7 +1,7 @@
 // Byte-oriented terminal-title OSC scanner.
 //
 // PTY output flows through here as raw bytes from the daemon, so the
-// scanner runs over `Uint8Array` directly — no per-chunk UTF-8 decoding,
+// scanner runs over `Uint8Array` directly - no per-chunk UTF-8 decoding,
 // no boundary-mangling. OSC framing is pure ASCII (ESC `]`, BEL, ST), so
 // the framing pass is byte-cheap. Only the bounded title payload is
 // decoded to a string, and only at the moment {@link normalizeTerminalTitle}
@@ -46,7 +46,7 @@ export function normalizeTerminalTitle(title: string): string | null {
 			) {
 				return false;
 			}
-			// Strip the UTF-8 replacement character — only ever appears when
+			// Strip the UTF-8 replacement character - only ever appears when
 			// some upstream layer mis-decoded a byte sequence.
 			if (codePoint === 0xfffd) return false;
 			// Strip Braille block. CLIs (Claude Code, ora, oclif, etc.) animate
@@ -131,7 +131,7 @@ function parseTitlePayload(payload: string): string | null | undefined {
 	const value = payload.slice(firstSeparator + 1);
 
 	// A title that normalizes to null (all-Braille, all-U+FFFD, or whitespace
-	// after stripping) is treated as "no meaningful update" — return undefined
+	// after stripping) is treated as "no meaningful update" - return undefined
 	// so the scanner skips it and the previous title stays in place. The
 	// explicit OSC 9;3; reset path below still returns null to clear.
 	if (command === "0" || command === "2") {

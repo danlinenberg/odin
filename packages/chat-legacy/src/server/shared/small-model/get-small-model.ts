@@ -36,7 +36,7 @@ function getAuthStorage(): AuthStorage {
 
 /**
  * Anthropic API keys are issued in the form `sk-ant-api…` (currently
- * `sk-ant-api03-…`). Reject anything else — most importantly OAuth access
+ * `sk-ant-api03-…`). Reject anything else - most importantly OAuth access
  * tokens (`sk-ant-oat…`), which Anthropic rejects when sent as `x-api-key`,
  * and dev placeholders like `dummy`.
  */
@@ -70,7 +70,7 @@ async function resolveAnthropic(): Promise<AnthropicResolved | null> {
 		const authStorage = getAuthStorage();
 
 		// Settings-saved API keys are stored at `apikey:<provider>`. Prefer
-		// these over whatever sits in the main slot — otherwise an OAuth
+		// these over whatever sits in the main slot - otherwise an OAuth
 		// login (which writes to the main slot) would mask a stored API key
 		// the user explicitly added.
 		const storedApiKey = authStorage
@@ -145,10 +145,10 @@ async function resolveOpenAIApiKey(): Promise<string | null> {
  *
  * Resolution order:
  *   1. ANTHROPIC_API_KEY env var (validated)
- *   2. mastracode auth storage — Anthropic api key
- *   3. mastracode auth storage — Anthropic OAuth (refreshed on the fly)
+ *   2. mastracode auth storage - Anthropic api key
+ *   3. mastracode auth storage - Anthropic OAuth (refreshed on the fly)
  *   4. OPENAI_API_KEY env var (validated)
- *   5. mastracode auth storage — OpenAI api key (`openai-codex` / `openai`)
+ *   5. mastracode auth storage - OpenAI api key (`openai-codex` / `openai`)
  *
  * API keys are validated by prefix + minimum length so dev placeholders
  * (e.g. `ANTHROPIC_API_KEY=dummy` from a sample .env) fall through to the
@@ -172,7 +172,7 @@ export async function getSmallModel(): Promise<MastraModelConfig | null> {
 	}
 
 	console.warn(
-		"[get-small-model] no credentials found — naming will fall back",
+		"[get-small-model] no credentials found - naming will fall back",
 	);
 	return null;
 }

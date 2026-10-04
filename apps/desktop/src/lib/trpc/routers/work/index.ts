@@ -10,7 +10,7 @@ import { publicProcedure, router } from "../..";
 import { readOdinConfig, resolveGithubToken } from "../odin-config";
 
 /**
- * Odin fork: read-only "my work" feeds — Jira issues assigned to me and GitHub
+ * Odin fork: read-only "my work" feeds - Jira issues assigned to me and GitHub
  * pull requests I wrote or was asked to review.
  *
  * Runs in the main process: renderer fetches to Jira/GitHub would be blocked by
@@ -35,8 +35,8 @@ function githubToken(): string | null {
 }
 
 /**
- * A feed request that failed. A dead credential is the common case — GitHub
- * OAuth tokens get revoked, Jira tokens expire — so it gets UNAUTHORIZED and
+ * A feed request that failed. A dead credential is the common case - GitHub
+ * OAuth tokens get revoked, Jira tokens expire - so it gets UNAUTHORIZED and
  * the fix, which the panes turn into a "Reconnect" button, instead of dumping
  * the raw API body in the pane. GitHub also spends 403 on rate limits, so that
  * one only counts as auth when the body doesn't say otherwise.
@@ -51,7 +51,7 @@ export function feedError(
 	return new TRPCError({
 		code: isAuth ? "UNAUTHORIZED" : "BAD_REQUEST",
 		message: isAuth
-			? `${provider} rejected the credentials (${status}) — reconnect ${provider} in Settings → Connections.`
+			? `${provider} rejected the credentials (${status}) - reconnect ${provider} in Settings → Connections.`
 			: `${provider} search failed (${status}): ${body.slice(0, 300)}`,
 	});
 }
@@ -82,7 +82,7 @@ export interface JiraIssueRow {
 	role: "assigned" | "reported" | "mentioned";
 	/** What was said to me, on the rows that are here because of a mention. */
 	mention: JiraMention | null;
-	/** The ticket's description as plain text, capped — for the hover card. */
+	/** The ticket's description as plain text, capped - for the hover card. */
 	description?: string | null;
 }
 
@@ -95,7 +95,7 @@ interface JiraComment {
 /**
  * A comment body is ADF, not text. Flattened to one line for the feed: text
  * nodes as themselves, a mention as the "@Name" Jira already stored on it,
- * breaks as spaces — or as `br`, when the line breaks are worth keeping.
+ * breaks as spaces - or as `br`, when the line breaks are worth keeping.
  */
 export function adfToText(node: unknown, br = " "): string {
 	if (!node || typeof node !== "object") return "";
@@ -118,7 +118,7 @@ export function adfToText(node: unknown, br = " "): string {
 }
 
 /**
- * The last thing someone said to me on a ticket — newest first, because that
+ * The last thing someone said to me on a ticket - newest first, because that
  * is the one waiting on an answer. A mention stores my account id in the body,
  * so containing it anywhere is the whole test.
  *
@@ -167,7 +167,7 @@ export interface EmailRow {
 	subject: string;
 	snippet: string;
 	from: string | null;
-	/** The sender's address — what tells a person from a mailer. */
+	/** The sender's address - what tells a person from a mailer. */
 	fromEmail: string | null;
 	at: string | null;
 	/** The model's verdict (invites never junk, RSVPs always); null = it couldn't say. */
@@ -186,7 +186,7 @@ export function gmailCredentials(): GmailCredentials | null {
 		: null;
 }
 
-/** One GET of the Atom feed — the feed, the Connections probe and the save's check. */
+/** One GET of the Atom feed - the feed, the Connections probe and the save's check. */
 export function fetchGmailFeed(
 	credentials: GmailCredentials,
 ): Promise<Response> {
@@ -209,7 +209,7 @@ const unescapeXml = (text: string) =>
 		.replace(/&amp;/g, "&");
 
 /**
- * Gmail's Atom feed → rows. ponytail: regex, not an XML parser — the feed is
+ * Gmail's Atom feed → rows. ponytail: regex, not an XML parser - the feed is
  * a fixed, flat shape Gmail has served unchanged for 15 years. It holds the
  * 20 newest unread inbox threads; that's the ceiling, IMAP is the upgrade.
  */
@@ -274,7 +274,7 @@ interface GithubSearchResponse {
 
 export const createWorkRouter = () => {
 	return router({
-		/** Which feeds are usable — lets the views explain a missing token. */
+		/** Which feeds are usable - lets the views explain a missing token. */
 		getConfig: publicProcedure.query(() => ({
 			hasJira: hasJiraOAuth(),
 			hasGithub: githubToken() !== null,
@@ -287,13 +287,13 @@ export const createWorkRouter = () => {
 			odinRepoPath: odinRepo(),
 			/** Already running from source with hot reload? */
 			isDev: process.env.NODE_ENV === "development",
-			/** Canary or unpackaged run — gates the self-development toolbar. */
+			/** Canary or unpackaged run - gates the self-development toolbar. */
 			isInternalBuild: isInternalBuild(),
 		})),
 
 		/**
 		 * Switch this app into hot-reload mode: run Odin from its checkout so
-		 * renderer edits apply instantly. Detached again — the script quits this
+		 * renderer edits apply instantly. Detached again - the script quits this
 		 * app before starting the dev one (both use ~/.odin, and Electron's
 		 * single-instance lock allows only one).
 		 */
@@ -303,7 +303,7 @@ export const createWorkRouter = () => {
 				throw new TRPCError({
 					code: "PRECONDITION_FAILED",
 					message:
-						'No Odin checkout configured — set ODIN_REPO_DIR or "odinRepo" in ~/.config/odin.json',
+						'No Odin checkout configured - set ODIN_REPO_DIR or "odinRepo" in ~/.config/odin.json',
 				});
 			}
 			const script = join(repo, "scripts/odin-dev.sh");
@@ -354,7 +354,7 @@ export const createWorkRouter = () => {
 		}),
 
 		/**
-		 * Rebuild Odin from its checkout and reinstall it — so Odin can be
+		 * Rebuild Odin from its checkout and reinstall it - so Odin can be
 		 * changed from inside Odin, without going back to Odin.
 		 *
 		 * Spawned DETACHED on purpose: the script quits this app partway through
@@ -368,7 +368,7 @@ export const createWorkRouter = () => {
 					throw new TRPCError({
 						code: "PRECONDITION_FAILED",
 						message:
-							'No Odin checkout configured — set ODIN_REPO_DIR or "odinRepo" in ~/.config/odin.json',
+							'No Odin checkout configured - set ODIN_REPO_DIR or "odinRepo" in ~/.config/odin.json',
 					});
 				}
 				const script = join(repo, "scripts/odin-update.sh");
@@ -395,11 +395,11 @@ export const createWorkRouter = () => {
 		/**
 		 * Jira issues I'm on: assigned to me, ones I filed (BUGT triage tickets
 		 * are reported by me and assigned to whoever picks them up), and ones
-		 * where a comment @-mentions me — being asked a question on someone
+		 * where a comment @-mentions me - being asked a question on someone
 		 * else's ticket is work too.
 		 *
 		 * Separate searches, not one OR'd query: the endpoint caps a result set
-		 * at 100, and the combined set is larger than that — sorted by recency,
+		 * at 100, and the combined set is larger than that - sorted by recency,
 		 * the assigned issues got truncated away, which is why the project
 		 * filter showed almost nothing under "Assigned to me".
 		 */
@@ -416,7 +416,7 @@ export const createWorkRouter = () => {
 					throw new TRPCError({
 						code: "PRECONDITION_FAILED",
 						message:
-							"Jira isn't connected — sign in from Settings → Connections.",
+							"Jira isn't connected - sign in from Settings → Connections.",
 					});
 				}
 				const openOnly = input.includeDone ? "" : " AND statusCategory != Done";
@@ -495,12 +495,12 @@ export const createWorkRouter = () => {
 					search("assigned", "assignee = currentUser()"),
 					search("reported", "reporter = currentUser()"),
 					// An @-mention embeds my account id in the comment body, and
-					// currentUser() resolves to that id — so a text match on
+					// currentUser() resolves to that id - so a text match on
 					// `comment` is what finds "someone tagged me here".
 					search("mentioned", "comment ~ currentUser()"),
 				]);
 				// An issue can come back from several searches; the first claim
-				// wins, strongest first — assigned, then filed, then mentioned. The
+				// wins, strongest first - assigned, then filed, then mentioned. The
 				// mention rides along on the winner: it's what brings a ticket I put
 				// away with Done back when someone asks me something on it.
 				const mentions = new Map(
@@ -556,7 +556,7 @@ export const createWorkRouter = () => {
 					throw new TRPCError({
 						code: "PRECONDITION_FAILED",
 						message:
-							"Gmail isn't connected — add it in Settings → Connections.",
+							"Gmail isn't connected - add it in Settings → Connections.",
 					});
 				}
 				const response = await fetchGmailFeed(credentials);
@@ -577,7 +577,7 @@ export const createWorkRouter = () => {
 
 		/**
 		 * Open PRs I authored + PRs waiting on my review + issues and PRs where
-		 * someone @-mentioned me — being asked a question on someone else's
+		 * someone @-mentioned me - being asked a question on someone else's
 		 * thread is work too, same as the Jira mention rows.
 		 */
 		myPullRequests: publicProcedure.query(
@@ -587,7 +587,7 @@ export const createWorkRouter = () => {
 					throw new TRPCError({
 						code: "PRECONDITION_FAILED",
 						message:
-							"GitHub isn't connected — sign in from Settings → Connections.",
+							"GitHub isn't connected - sign in from Settings → Connections.",
 					});
 				}
 				const headers = {
@@ -631,7 +631,7 @@ export const createWorkRouter = () => {
 					search("is:open mentions:@me archived:false", "mentioned"),
 				]);
 				// A thread can match several searches; the first claim wins,
-				// strongest first — mine, then my review, then merely named.
+				// strongest first - mine, then my review, then merely named.
 				const seen = new Set<number>();
 				const pulls: PullRequestRow[] = [];
 				for (const pull of [...mine, ...review, ...mentioned]) {

@@ -4,12 +4,12 @@ Please use alias as defined in `tsconfig.json` when possible
 
 ## Every change ends as a merged PR
 
-Work on Odin does not stop at "edited the working tree" — Dan's checkout is shared
+Work on Odin does not stop at "edited the working tree" - Dan's checkout is shared
 with other agent sessions, so uncommitted work gets lost or tangled. Finish the job:
 branch off `main`, commit, push, `gh pr create`, wait for CI with `gh pr checks
 <n> --watch`, then `gh pr merge --squash --delete-branch`. `main` requires CI's
 `check` job (lint, typecheck, tests, build, smoke), so a merge before it passes is
-refused; if it fails, fix it on the branch. Standing instruction — don't ask
+refused; if it fails, fix it on the branch. Standing instruction - don't ask
 first, and never push to `main` directly.
 
 Stage by path, never `git add -A`: this checkout almost always carries unrelated
@@ -17,7 +17,7 @@ modified files from other sessions.
 
 ## Never restart the dev Odin without asking first
 
-Dan works *inside* the running dev app — the board, live agent sessions, your own
+Dan works *inside* the running dev app - the board, live agent sessions, your own
 terminal. Anything that takes it down (`scripts/odin-dev.sh`, the "Restart Odin"
 button, `pkill`, quitting Electron) interrupts him, and he is not watching your
 terminal. Ask with a native popup and wait for the answer:
@@ -27,7 +27,7 @@ osascript -e 'display dialog "Restart Odin dev to pick up main-process changes?"
 ```
 
 Exit 0 = go ahead; non-zero = he cancelled, leave the app running. Renderer edits
-hot-reload on their own, so most changes need no restart at all — only edits under
+hot-reload on their own, so most changes need no restart at all - only edits under
 `src/main/`, `src/lib/trpc/` and `src/preload/` do.
 
 For the same reason `dev` runs `electron-vite dev` **without `--watch`**: with agents
@@ -38,12 +38,12 @@ behaviour back.
 
 Renderer saves carry the same hazard by a different route: some route modules (the
 board is one) have no usable Fast Refresh boundary, so Vite gives up on HMR and
-full-reloads the renderer — the whole app reboots, every pane remounts and re-attaches,
+full-reloads the renderer - the whole app reboots, every pane remounts and re-attaches,
 and it reads as "Odin restarted" mid-work. `coalesceFullReloadPlugin` in
 `vite/helpers.ts` holds those full reloads until saves go quiet (10s, or 60s max), so a
 busy fleet costs one reload instead of ten a minute. While a board session drawer is open,
 it holds hot updates and reloads entirely and lands them when the drawer closes. Vite
-still logs `page reload <file>` naming the module that dead-ended — chase that if you
+still logs `page reload <file>` naming the module that dead-ended - chase that if you
 want the boundary actually fixed.
 
 Never kill a dev Electron process by path pattern: the terminal-host daemon and every
@@ -52,32 +52,32 @@ same `node_modules`, so a path match closes real sessions. Kill the UI by pid.
 
 ## One app icon
 
-`src/resources/build/icons/icon.png` is the only icon source. Every other copy — `icon.icns`,
+`src/resources/build/icons/icon.png` is the only icon source. Every other copy - `icon.icns`,
 `resources/odin/icon.png`, the tray `iconTemplate` PNGs and the `odin` preset icon in
-`packages/ui` — is rendered from it by `python3 scripts/render-icons.py`. Edit the master and
+`packages/ui` - is rendered from it by `python3 scripts/render-icons.py`. Edit the master and
 rerun the script; never hand-edit an output or add a per-channel (canary) variant.
 
 ## Server-driven announcements (desktop notices)
 
-To show an announcement/warning popup in the app without shipping a release, insert a row in the `desktop_notices` table (served by `GET /api/desktop/version`). Authoring guide — markdown-only body, severities, triggers, targeting, QA previews: `docs/DESKTOP_NOTICES.md`.
+To show an announcement/warning popup in the app without shipping a release, insert a row in the `desktop_notices` table (served by `GET /api/desktop/version`). Authoring guide - markdown-only body, severities, triggers, targeting, QA previews: `docs/DESKTOP_NOTICES.md`.
 
 ## Persisted renderer state (localStorage) policy
 
-Renderer localStorage has one ~10 MB quota, loads synchronously at boot, and keys outlive the code that wrote them — unbounded growth has frozen the renderer before (23.7 MB profile, GH #5496). Every writer must be allowlisted in `src/renderer/lib/persisted-keys/persisted-key-registry.test-data.ts` (CI fails on unregistered writers), and code review must answer three questions:
+Renderer localStorage has one ~10 MB quota, loads synchronously at boot, and keys outlive the code that wrote them - unbounded growth has frozen the renderer before (23.7 MB profile, GH #5496). Every writer must be allowlisted in `src/renderer/lib/persisted-keys/persisted-key-registry.test-data.ts` (CI fails on unregistered writers), and code review must answer three questions:
 
 1. **What bounds it?** A cap/LRU, a TTL, reconciliation against an owning entity, or "fixed-size singleton". "It's small per write" is not a bound.
 2. **Who deletes it?** New entity-keyed data belongs in SQLite; existing stores must document their deletion path or sunset plan because deletes from CLIs or other machines can bypass UI cleanup. One-shot payloads must be cleared by their consumer. Deleting a map entry means removing the key, never writing `null`.
 3. **What happens when the feature dies?** Move the keys to `DEAD_KEYS` in the same PR that removes the writer; the boot sweep cleans existing profiles. Deleting the writer without registering the key strands it on user profiles forever.
 
-Guardrail: localStorage is for small singleton UI state. Anything entity-scoped with unbounded cardinality, or payloads beyond a few KB, belongs in the SQLite persistence layer (`createElectronSQLitePersistence`) — localStorage collections re-serialize the whole org blob on every mutation.
+Guardrail: localStorage is for small singleton UI state. Anything entity-scoped with unbounded cardinality, or payloads beyond a few KB, belongs in the SQLite persistence layer (`createElectronSQLitePersistence`) - localStorage collections re-serialize the whole org blob on every mutation.
 
 ## Window-drag regions: `drag` on empty leaves only
 
-Never mark a container with interactive children as `drag` and carve the children out with `no-drag`: Chromium loses the carve-outs when they sit inside masked, scrollable, or CSS-zoomed wrappers (OverflowFadeContainer, ZoomStable), which silently deadens every control under the bar. Instead, put `drag` only on dedicated empty leaf elements — traffic-light spacers and flex fillers (see TopBar, DashboardSidebarHeader, packages/panes TabBar). The worst failure mode then is "empty area not draggable" instead of "chrome swallows clicks".
+Never mark a container with interactive children as `drag` and carve the children out with `no-drag`: Chromium loses the carve-outs when they sit inside masked, scrollable, or CSS-zoomed wrappers (OverflowFadeContainer, ZoomStable), which silently deadens every control under the bar. Instead, put `drag` only on dedicated empty leaf elements - traffic-light spacers and flex fillers (see TopBar, DashboardSidebarHeader, packages/panes TabBar). The worst failure mode then is "empty area not draggable" instead of "chrome swallows clicks".
 
 ## Error text must be selectable
 
-The renderer sets `user-select: none` on `body`, so rendered errors need explicit `select-text cursor-text` classes — otherwise users can't copy them into bug reports. (Sonner toasts are exempt; they manage selection themselves.)
+The renderer sets `user-select: none` on `body`, so rendered errors need explicit `select-text cursor-text` classes - otherwise users can't copy them into bug reports. (Sonner toasts are exempt; they manage selection themselves.)
 
 ## tRPC Subscriptions (trpc-electron)
 
@@ -151,10 +151,10 @@ For a non-local workspace, the normal desktop flow intentionally restores an enc
 
 Do not use setup `--force` to fix a stale connection string, a missing CDP cookie, or a corrupt generated Next.js cache. First rerun the applicable setup script without force. If every API route returns Next.js's HTML 404, stop the dev stack, move `apps/api/.next` aside, and restart. `--force` is only appropriate when the user explicitly intends to replace the copied local/host databases and encrypted auth token.
 
-One failure signature where `./.odin/setup.sh --force` IS the fix (verified 2026-07-28): session restore hangs at "Restoring your session", the Local Admin sign-in button returns a bodyless 500, get-session returns 200, and a raw `select 1` against `DATABASE_URL` may still succeed — the worktree's seeded dev state (Neon branch credentials in `.env`, `auth-token.enc`, copied DBs) has gone stale as a set. Rerunning with `--force` recreates the Neon branch, rewrites `.env`, and reseeds `odin-dev-data/` together, which restores sign-in. Two side effects to expect: any manual `.env` edits (e.g. a port remap) are wiped and must be re-applied, and `odin-dev-data/` is reset.
+One failure signature where `./.odin/setup.sh --force` IS the fix (verified 2026-07-28): session restore hangs at "Restoring your session", the Local Admin sign-in button returns a bodyless 500, get-session returns 200, and a raw `select 1` against `DATABASE_URL` may still succeed - the worktree's seeded dev state (Neon branch credentials in `.env`, `auth-token.enc`, copied DBs) has gone stale as a set. Rerunning with `--force` recreates the Neon branch, rewrites `.env`, and reseeds `odin-dev-data/` together, which restores sign-in. Two side effects to expect: any manual `.env` edits (e.g. a port remap) are wiped and must be re-applied, and `odin-dev-data/` is reset.
 
-**Use `Runtime.evaluate` (`awaitPromise`, `returnByValue`), not `Network.*` interception** — sniffing misses React-Query-cached responses, and `refetchInterval` is paused while the window is backgrounded. After verifying the session through the applicable cookie or bearer path above, run requests inside the renderer. `API` below is the dev backend origin (`NEXT_PUBLIC_API_URL`, e.g. `http://localhost:5881`):
+**Use `Runtime.evaluate` (`awaitPromise`, `returnByValue`), not `Network.*` interception** - sniffing misses React-Query-cached responses, and `refetchInterval` is paused while the window is backgrounded. After verifying the session through the applicable cookie or bearer path above, run requests inside the renderer. `API` below is the dev backend origin (`NEXT_PUBLIC_API_URL`, e.g. `http://localhost:5881`):
 
 - Active org: local cookie flow uses `fetch(API + "/api/auth/get-session", {credentials:"include"})`; non-local bearer flow uses `authClient.getSession({ fetchOptions: { throw: false } })`. Require `.session.activeOrganizationId`.
 - A tRPC query (bypasses the cache): GET `API + "/api/trpc/<proc>?batch=1&input=" + encodeURIComponent(JSON.stringify({"0":{json:<input>}}))`; response is `[{result:{data:{json:...}}}]`.
-- `window.location.hash` nav may not remount the route — call the endpoint directly instead.
+- `window.location.hash` nav may not remount the route - call the endpoint directly instead.

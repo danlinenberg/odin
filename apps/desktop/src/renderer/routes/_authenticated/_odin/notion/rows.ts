@@ -1,4 +1,4 @@
-/** Pure row helpers for the Notion view — the parts worth a test. */
+/** Pure row helpers for the Notion view - the parts worth a test. */
 
 import { isDoneish } from "shared/notion-status";
 
@@ -50,6 +50,6 @@ export function buildRowPrompt(
 		...(fields.length > 0 ? ["", "Fields on the page:", ...fields] : []),
 		"",
 		"Read the page in full before changing anything, then investigate, make the change, and verify it when practical.",
-		"Rules: do NOT edit the Notion page — everything stays in this session for review.",
+		"Rules: do NOT edit the Notion page - everything stays in this session for review.",
 	].join("\n");
 }

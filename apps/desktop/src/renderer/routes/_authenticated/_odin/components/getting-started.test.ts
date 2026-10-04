@@ -36,7 +36,7 @@ test("a broken sign-in doesn't count as connected", () => {
 	expect(
 		satisfiedSteps({
 			...empty,
-			connections: [{ configured: true, error: "signed out — sign in again" }],
+			connections: [{ configured: true, error: "signed out - sign in again" }],
 		}),
 	).toEqual([]);
 });

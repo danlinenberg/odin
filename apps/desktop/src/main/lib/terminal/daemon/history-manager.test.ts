@@ -40,7 +40,7 @@ describe("HistoryManager", () => {
 		await manager.initHistoryWriter(args);
 
 		expect(opened.length).toBe(3);
-		// Every writer but the live one is closed — otherwise each re-attach
+		// Every writer but the live one is closed - otherwise each re-attach
 		// leaks a scrollback fd until the process runs out.
 		expect(opened.map((w) => w.closed)).toEqual([true, true, false]);
 	});

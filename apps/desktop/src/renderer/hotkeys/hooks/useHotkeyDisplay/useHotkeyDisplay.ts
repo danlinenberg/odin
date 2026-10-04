@@ -19,7 +19,7 @@ export function useHotkeyDisplay(id: string): HotkeyDisplay {
 /**
  * Format an arbitrary binding (e.g. one captured during recording, before
  * it's saved) with layout-aware glyphs. Use this when you have a
- * ShortcutBinding but no registered hotkey id — most callers should use
+ * ShortcutBinding but no registered hotkey id - most callers should use
  * {@link useHotkeyDisplay} via the hotkey id.
  */
 export function useFormatBinding(

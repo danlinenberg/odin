@@ -20,7 +20,7 @@ export function payloadOf(message: ServerMessage): Uint8Array | null {
 /**
  * UTF-8 view of an output message's payload, for log/text assertions.
  *
- * IMPORTANT: this decodes a SINGLE frame's payload — if a multi-byte
+ * IMPORTANT: this decodes a SINGLE frame's payload - if a multi-byte
  * codepoint straddles two daemon `output` frames, decoding each frame
  * individually emits U+FFFD even though the bytes are intact on the wire.
  * Safe for ASCII markers ("first-marker", "BURST:200", etc.) where the

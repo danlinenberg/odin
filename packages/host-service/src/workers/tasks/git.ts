@@ -1,4 +1,4 @@
-// git/* worker tasks. Handlers build their own SimpleGit — the worker spawns
+// git/* worker tasks. Handlers build their own SimpleGit - the worker spawns
 // the git subprocesses itself, so stdout draining AND parsing leave the
 // host-service event loop. Credential env is resolved in-process (it needs
 // the credential provider) and crosses as plain data.
@@ -112,7 +112,7 @@ export const gitWorktreeStateTask = defineWorkerTask<
 			const count = Number.parseInt(result.trim(), 10);
 			hasUnpushedCommits = Number.isFinite(count) && count > 0;
 		} catch {
-			// Leave false — `rev-list` failure isn't a signal we can act on.
+			// Leave false - `rev-list` failure isn't a signal we can act on.
 		}
 		return { hasChanges: !status.isClean(), hasUnpushedCommits };
 	},
@@ -155,8 +155,8 @@ export const gitDeleteBranchTask = defineWorkerTask<
 	handler: async ({ repoPath, branch, gitEnv }) => {
 		const git = createUserSimpleGit(repoPath).env(gitEnv);
 		// `branch --list` exits 0 whether or not the branch exists (empty
-		// output when absent), so an absent ref — renamed, pruned, or never
-		// materialized — already satisfies the goal, while a thrown failure
+		// output when absent), so an absent ref - renamed, pruned, or never
+		// materialized - already satisfies the goal, while a thrown failure
 		// propagates instead of being misread as "already deleted".
 		const listed = await git.raw(["branch", "--list", branch]);
 		if (listed.trim().length === 0) return { deleted: false };

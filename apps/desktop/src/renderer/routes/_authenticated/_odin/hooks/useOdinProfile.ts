@@ -20,7 +20,7 @@ const PROFILE_SCOPED_ROUTERS = [
 ];
 
 /**
- * Drop every feed that was fetched as the old profile — its rows came from a
+ * Drop every feed that was fetched as the old profile - its rows came from a
  * different Slack, Jira and GitHub, and showing them for a second under the
  * new name is worse than showing a spinner. `reset`, not `invalidate`:
  * invalidated queries keep serving the stale data until the refetch lands.
@@ -42,7 +42,7 @@ export function useOdinProfile() {
 	const queryClient = useQueryClient();
 	const query = electronTrpc.connections.profiles.useQuery(undefined, {
 		// Profiles only change from inside this app, and every mutation refetches
-		// — polling would just re-read a file forever.
+		// - polling would just re-read a file forever.
 		refetchOnWindowFocus: false,
 	});
 	const setActive = electronTrpc.connections.setActiveProfile.useMutation({
@@ -55,7 +55,7 @@ export function useOdinProfile() {
 		profiles: query.data?.profiles ?? [],
 		activeName:
 			query.data?.profiles.find((p) => p.id === activeId)?.name ?? "Default",
-		/** True until the first answer — views shouldn't filter on a guess. */
+		/** True until the first answer - views shouldn't filter on a guess. */
 		isLoading: query.isLoading,
 		switchTo: (id: string) => setActive.mutate({ id }),
 		isSwitching: setActive.isPending,

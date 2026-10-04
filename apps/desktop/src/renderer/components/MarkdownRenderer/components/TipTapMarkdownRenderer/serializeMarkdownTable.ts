@@ -12,7 +12,7 @@ import { CellSelection } from "@tiptap/pm/tables";
  * GFM markdown serialization for TipTap tables in the markdown preview.
  *
  * `tiptap-markdown@0.9.0` ships a `table` serializer that bails to a raw-HTML
- * fallback — which, with `html: false`, writes the literal `[table]` — whenever
+ * fallback - which, with `html: false`, writes the literal `[table]` - whenever
  * a table isn't a clean header+body GFM table. `serializeMarkdownTable` replaces
  * it (registered via each table node's `storage.markdown.serialize`) so both
  * `getMarkdown()` (save) and a whole-table copy produce a real GFM table.
@@ -70,7 +70,7 @@ function renderTableCellContent(
 	internals.closed = previousClosed;
 
 	// Newlines become spaces (GFM cells are single-line) and pipes are escaped.
-	// Internal whitespace is left intact — it is meaningful inside code spans.
+	// Internal whitespace is left intact - it is meaningful inside code spans.
 	return rendered
 		.replace(/\\\r?\n/g, " ") // prosemirror hard break ("\\\n") -> space
 		.replace(/\r?\n/g, " ") // any remaining newline -> space
@@ -140,7 +140,7 @@ export function serializeMarkdownTable(
 	} else {
 		// GFM requires a header + delimiter row. When the (possibly partial)
 		// selection has no header row, emit an empty header and keep every row as a
-		// body row — no data is lost.
+		// body row - no data is lost.
 		lines.push(formatRow([]));
 	}
 

@@ -81,7 +81,7 @@ export function LinksSettings({ visibleItems }: LinksSettingsProps) {
 			<div className="mb-8">
 				<h2 className="text-xl font-semibold">Links</h2>
 				<p className="text-sm text-muted-foreground mt-1">
-					Control what each click — plain or with a modifier — does to a file or
+					Control what each click - plain or with a modifier - does to a file or
 					URL. Each row binds one modifier combination to an action.
 				</p>
 			</div>

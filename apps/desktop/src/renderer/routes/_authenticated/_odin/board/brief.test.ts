@@ -34,7 +34,7 @@ const claude = (text: string, at: string | null = null): BriefMessage => ({
 	at,
 });
 
-const REPORT = `Fixed the drawer focus race — ${"x".repeat(80)}`;
+const REPORT = `Fixed the drawer focus race - ${"x".repeat(80)}`;
 
 describe("sessionBrief", () => {
 	it("reports the agent's last substantive turn as the status", () => {
@@ -112,7 +112,7 @@ describe("pullRequests", () => {
 				),
 				claude("Also https://github.com/imagenai/app-web-server/pull/5918"),
 				// The same PR quoted again later must not double up, and must not
-				// jump the queue — it was still opened first.
+				// jump the queue - it was still opened first.
 				claude("Merged https://github.com/danlinenberg/odin/pull/12"),
 			]),
 		).toEqual([
@@ -526,7 +526,7 @@ describe("actionItems", () => {
 	});
 	it("gives nothing for none or a missing section", () => {
 		expect(
-			actionItems([turn("Done.\n\nACTION ITEMS: none — shipped.")]),
+			actionItems([turn("Done.\n\nACTION ITEMS: none - shipped.")]),
 		).toEqual([]);
 		expect(
 			actionItems([turn("ACTION ITEMS\n1. x"), turn("Just chatting.")]),

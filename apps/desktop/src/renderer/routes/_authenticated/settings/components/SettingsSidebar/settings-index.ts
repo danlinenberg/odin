@@ -47,7 +47,7 @@ export const SCREENS = [
 type ScreenRoute = (typeof SCREENS)[number]["to"];
 
 export interface SettingEntry {
-	/** Exactly the row's label on screen — it's how the row is found to scroll to. */
+	/** Exactly the row's label on screen - it's how the row is found to scroll to. */
 	label: string;
 	to: ScreenRoute;
 	section: string;

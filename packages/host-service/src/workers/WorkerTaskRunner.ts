@@ -104,7 +104,7 @@ export class WorkerTaskRunner {
 		this.execArgv = options.execArgv;
 	}
 
-	/** Live (non-terminating) worker count — exposed for idle-reap tests. */
+	/** Live (non-terminating) worker count - exposed for idle-reap tests. */
 	getWorkerCount(): number {
 		return this.getActiveSlotCount();
 	}
@@ -279,7 +279,7 @@ export class WorkerTaskRunner {
 				if (this.queue.length === 0) break;
 
 				// Keep pulling until this slot actually dispatches or the queue
-				// drains — rejection paths (pre-aborted signal, non-cloneable
+				// drains - rejection paths (pre-aborted signal, non-cloneable
 				// payload) must not strand tasks behind a slot the iteration
 				// already passed.
 				while (this.queue.length > 0 && !slot.activeTaskId) {
@@ -309,7 +309,7 @@ export class WorkerTaskRunner {
 					try {
 						slot.worker.postMessage(request);
 					} catch (error) {
-						// Non-cloneable payload: reject THIS task and free the slot —
+						// Non-cloneable payload: reject THIS task and free the slot -
 						// otherwise the slot stays occupied until the task timeout.
 						slot.activeTaskId = null;
 						this.rejectTask(
@@ -549,7 +549,7 @@ export class WorkerTaskRunner {
 	}
 
 	// Unlike the v1 runner (which spawned the full pool on any work), spawn
-	// only enough workers to cover the queue — idle reaping would otherwise
+	// only enough workers to cover the queue - idle reaping would otherwise
 	// churn spawn/terminate cycles for single-task workloads.
 	private ensureWorkerCapacity(): void {
 		let idle = 0;

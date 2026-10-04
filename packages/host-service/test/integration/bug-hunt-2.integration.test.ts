@@ -170,7 +170,7 @@ describe("bug-hunt-2: partial-failure consistency", () => {
 			.run();
 
 		// Pin the rollback: the call must throw AND the worktree must be
-		// cleaned up — a failed local insert is the one create failure that
+		// cleaned up - a failed local insert is the one create failure that
 		// still rolls back the worktree.
 		await expect(
 			host.trpc.workspaces.create.mutate({
@@ -336,7 +336,7 @@ describe("bug-hunt-2: input edges", () => {
 		const sha = await repo.commit("detach-target", { "d.txt": "d" });
 		await repo.git.checkout(sha);
 
-		// Just shouldn't throw — `currentBranch` may be empty / HEAD.
+		// Just shouldn't throw - `currentBranch` may be empty / HEAD.
 		const status = await host.trpc.git.getStatus.query({ workspaceId });
 		expect(status).toBeDefined();
 		expect(status.staged).toBeDefined();
@@ -359,7 +359,7 @@ describe("bug-hunt-2: input edges", () => {
 	});
 });
 
-// Persistence-after-restart was removed — the test harness creates a
+// Persistence-after-restart was removed - the test harness creates a
 // fresh tmp dbPath per `createTestHost`, so two hosts can never share
 // the same on-disk file by design. A real cross-host persistence probe
 // would need a shared-dbPath option on the harness; add one if/when

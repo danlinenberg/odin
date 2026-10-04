@@ -19,7 +19,7 @@ export interface BoardCounts {
  * profile at once, so the profile picker can say what's going on in each.
  *
  * ponytail: `odinTaskTitle` only, where the board also falls back to the
- * localStorage title mirror — that mirror is written for the active profile,
+ * localStorage title mirror - that mirror is written for the active profile,
  * so it can't answer for the others anyway. Sessions launched before the pane
  * carried a title go uncounted; they age out.
  */

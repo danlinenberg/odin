@@ -127,7 +127,7 @@ test("prepare-upgrade hands off live sessions to a successor binary", async () =
 			daemonA.once("exit", () => resolve());
 		});
 
-		// Reconnect — should hit the successor.
+		// Reconnect - should hit the successor.
 		const reconnectStart = Date.now();
 		while (Date.now() - reconnectStart < 5_000) {
 			try {

@@ -2,7 +2,7 @@
 // (kernel backpressure) instead of destroying the shared daemon socket.
 //
 // Regression: writeMessage() used to socket.destroy() when writableLength
-// exceeded the outbound cap — one flooding terminal severed the connection
+// exceeded the outbound cap - one flooding terminal severed the connection
 // for every session in the org.
 //
 // Runs under Node (`node --experimental-strip-types --test`).

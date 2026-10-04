@@ -28,7 +28,7 @@ export const terminalSessions = sqliteTable(
 		lastAttachedAt: integer("last_attached_at"),
 		endedAt: integer("ended_at"),
 		/**
-		 * Set the moment a dispose is requested — durable intent-to-kill. A
+		 * Set the moment a dispose is requested - durable intent-to-kill. A
 		 * failed kill leaves the row `active` with this stamp, and the reaper
 		 * retries it regardless of workspace liveness (a one-shot renderer
 		 * broadcast must not be the only chance to kill a session).
@@ -80,7 +80,7 @@ export const projects = sqliteTable(
 		// Custom project icon as a small downscaled data-URI. Null falls back to
 		// the GitHub owner avatar (when a repo is linked) or a placeholder.
 		icon: text("icon"),
-		// Empty string means "not yet backfilled" — the startup sweep targets
+		// Empty string means "not yet backfilled" - the startup sweep targets
 		// these rows (name from cloud legacy row if reachable, else basename).
 		name: text().notNull().default(""),
 		// 0 means "predates local ownership"; write paths always set it.
@@ -195,7 +195,7 @@ export const workspaces = sqliteTable(
 		pullRequestId: text("pull_request_id").references(() => pullRequests.id, {
 			onDelete: "set null",
 		}),
-		// Empty string means "not yet backfilled from cloud" — the startup
+		// Empty string means "not yet backfilled from cloud" - the startup
 		// backfill sweep targets these rows.
 		name: text().notNull().default(""),
 		type: text().$type<"main" | "worktree">().notNull().default("worktree"),
@@ -228,7 +228,7 @@ export const workspaces = sqliteTable(
  * Registry of ACP agent sessions (docs/acp-sessions.md). One row per
  * session, kept fresh on every state emit. Rows survive host restarts so the
  * manager can list them as `offline` and resurrect on demand via the
- * adapter's `session/load` — the journal itself is not persisted; transcript
+ * adapter's `session/load` - the journal itself is not persisted; transcript
  * replay comes from the agent harness's own on-disk session store.
  */
 export const acpSessions = sqliteTable(
@@ -236,7 +236,7 @@ export const acpSessions = sqliteTable(
 	{
 		sessionId: text("session_id").primaryKey(),
 		workspaceId: text("workspace_id").notNull(),
-		/** Adapter-side ACP session id — the `session/load` key. */
+		/** Adapter-side ACP session id - the `session/load` key. */
 		acpSessionId: text("acp_session_id").notNull(),
 		harness: text().notNull().$type<HarnessKind>(),
 		cwd: text().notNull(),
@@ -251,7 +251,7 @@ export const acpSessions = sqliteTable(
 /**
  * Tombstones for workspaces deleted while the cloud was unreachable. The
  * reconciler drains this into `v2Workspace.delete` calls; rows are removed
- * once the cloud confirms. Dual-write era only — dropped in R3.
+ * once the cloud confirms. Dual-write era only - dropped in R3.
  */
 export const workspaceCloudDeletes = sqliteTable("workspace_cloud_deletes", {
 	id: text().primaryKey(),

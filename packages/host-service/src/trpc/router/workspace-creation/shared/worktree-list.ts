@@ -5,7 +5,7 @@ import type { GitClient } from "./types";
 // Single source of truth for parsing `git worktree list --porcelain`.
 // Every consumer in this package MUST go through `parseWorktreeList` /
 // `listGitWorktrees` instead of re-parsing the porcelain output inline.
-// Inline parsers drift apart silently — that is exactly how the
+// Inline parsers drift apart silently - that is exactly how the
 // "missing worktrees" bug crept in: one parser gated by managed-root
 // prefix, another by realpath, and they disagreed.
 
@@ -46,7 +46,7 @@ export function parseWorktreeList(raw: string): WorktreeRecord[] {
 				prunable: null,
 			};
 		} else if (!current) {
-			// Stray line before the first `worktree` block — ignore.
+			// Stray line before the first `worktree` block - ignore.
 		} else if (line.startsWith("HEAD ")) {
 			current.head = line.slice("HEAD ".length).trim() || null;
 		} else if (line.startsWith("branch ")) {

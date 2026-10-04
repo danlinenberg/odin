@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Local-development setup. Provisions a fully self-contained, PER-WORKSPACE
-# Odin stack backed by a local Postgres container + fake credentials — no
+# Odin stack backed by a local Postgres container + fake credentials - no
 # Neon account, no real third-party keys. Mirrors setup.sh, but replaces the
 # Neon branch with a docker-compose bundle (Postgres + neon-proxy + Electric +
 # Redis/SRH) on per-workspace allocated ports so multiple worktrees never
@@ -43,7 +43,7 @@ local_ensure_env() {
     cp .odin/env.local.template .env
     success "Created .env from .odin/env.local.template"
   else
-    success ".env already exists — leaving as-is"
+    success ".env already exists - leaving as-is"
   fi
   return 0
 }
@@ -54,7 +54,7 @@ local_check_dependencies() {
   command -v bun &> /dev/null || missing+=("bun (https://bun.sh)")
   command -v docker &> /dev/null || missing+=("docker (https://docker.com)")
   command -v jq &> /dev/null || missing+=("jq (brew install jq)")
-  command -v caddy &> /dev/null || warn "caddy not found — Electric HTTPS proxy won't work (brew install caddy && caddy trust)"
+  command -v caddy &> /dev/null || warn "caddy not found - Electric HTTPS proxy won't work (brew install caddy && caddy trust)"
   if [ ${#missing[@]} -gt 0 ]; then
     error "Missing dependencies:"
     for dep in "${missing[@]}"; do echo "  - $dep"; done
@@ -80,7 +80,7 @@ local_allocate_ports() {
   LOCAL_SRH_PORT=$((base + 17))
   export LOCAL_PG_PORT LOCAL_NEON_PROXY_PORT LOCAL_ELECTRIC_PORT
   export LOCAL_REDIS_PORT LOCAL_SRH_PORT
-  # Export so migrate/seed (child bun processes) use these — an inherited env
+  # Export so migrate/seed (child bun processes) use these - an inherited env
   # var beats the .env file, so this overrides any stale DATABASE_URL.
   export DATABASE_URL="postgres://postgres:postgres@db.localtest.me:$LOCAL_NEON_PROXY_PORT/main"
   export DATABASE_URL_UNPOOLED="postgres://postgres:postgres@localhost:$LOCAL_PG_PORT/main"
@@ -136,7 +136,7 @@ local_db_up() {
   fi
 
   # Same story for SRH: redis being healthy doesn't mean the HTTP shim is
-  # serving yet. Probe a real command. The Content-Type header is required —
+  # serving yet. Probe a real command. The Content-Type header is required -
   # SRH rejects the request without it.
   echo "  Waiting for serverless-redis-http to serve commands on :$LOCAL_SRH_PORT..."
   local k srh_ready=0
@@ -261,7 +261,7 @@ local_write_env() {
     write_env_var "NEXT_PUBLIC_ELECTRIC_URL" "https://localhost:$CADDY_ELECTRIC_PORT"
     write_env_var "NEXT_PUBLIC_ELECTRIC_PROXY_URL" "https://localhost:$CADDY_ELECTRIC_PORT"
     echo ""
-    echo "# Mobile (Expo) — plain-HTTP electric-proxy; RN fetch rejects Caddy's self-signed cert"
+    echo "# Mobile (Expo) - plain-HTTP electric-proxy; RN fetch rejects Caddy's self-signed cert"
     write_env_var "EXPO_PUBLIC_API_URL" "http://localhost:$API_PORT"
     write_env_var "EXPO_PUBLIC_ELECTRIC_URL" "http://localhost:$WRANGLER_PORT"
     write_env_var "EXPO_PUBLIC_POSTHOG_KEY" "phc_local_dev_disabled"
@@ -321,7 +321,7 @@ local_write_config_overlay() {
   "teardown": ["./.odin/teardown.local.sh"]
 }
 CONFIGLOCAL
-  success "config.local.json written — worktrees will use setup.local.sh"
+  success "config.local.json written - worktrees will use setup.local.sh"
   return 0
 }
 

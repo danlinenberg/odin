@@ -1,4 +1,4 @@
-// HostWorkerPool — lazy singleton over WorkerTaskRunner with:
+// HostWorkerPool - lazy singleton over WorkerTaskRunner with:
 //  - script resolution mirroring daemon/singleton.ts (env override →
 //    side-by-side host-worker.js → workspace dist fallback)
 //  - inline fallback: missing bundle or crash-looping workers degrade to
@@ -64,7 +64,7 @@ export class HostWorkerPool {
 	private warnedInline = false;
 	private crashTimestamps: number[] = [];
 	private readonly seenCrashErrors = new WeakSet<WorkerTaskError>();
-	/** Coalesced callers share one inline crash-retry per dedupe key —
+	/** Coalesced callers share one inline crash-retry per dedupe key -
 	 * otherwise a single worker death fans out into N duplicate inline runs. */
 	private readonly inlineRetryByKey = new Map<string, Promise<unknown>>();
 	/** Runners detached at circuit-open; disposed with the pool. */
@@ -99,7 +99,7 @@ export class HostWorkerPool {
 		if (!scriptPath) {
 			this.inlineOnly = true;
 			this.warnInlineOnce(
-				"host-worker bundle not found — running worker tasks inline on the main thread",
+				"host-worker bundle not found - running worker tasks inline on the main thread",
 			);
 			return null;
 		}
@@ -129,7 +129,7 @@ export class HostWorkerPool {
 				error.name === WORKER_CRASH_ERROR_NAME
 			) {
 				this.recordCrash(error);
-				// The task died with the worker, not on its own merits — run it
+				// The task died with the worker, not on its own merits - run it
 				// inline so the caller sees a real result or a real error.
 				const key =
 					options?.strategy === "coalesce" && options.dedupeKey
@@ -152,7 +152,7 @@ export class HostWorkerPool {
 
 	/**
 	 * Inline execution with the same caller-visible timeout/abort semantics as
-	 * the worker path. The handler itself is not cancellable — like a worker
+	 * the worker path. The handler itself is not cancellable - like a worker
 	 * task, it may keep running after the caller's promise settles.
 	 */
 	private async runInline<TInput, TResult>(
@@ -207,7 +207,7 @@ export class HostWorkerPool {
 
 	private recordCrash(error: WorkerTaskError): void {
 		// Coalesced callers all reject with the SAME error instance for one
-		// worker death — count each underlying crash once, not per caller.
+		// worker death - count each underlying crash once, not per caller.
 		if (this.seenCrashErrors.has(error)) return;
 		this.seenCrashErrors.add(error);
 
@@ -219,11 +219,11 @@ export class HostWorkerPool {
 		if (this.crashTimestamps.length >= CRASH_BUDGET && !this.inlineOnly) {
 			this.inlineOnly = true;
 			this.warnInlineOnce(
-				`host-worker crashed ${CRASH_BUDGET}x within ${CRASH_WINDOW_MS / 1000}s — falling back to inline execution for the rest of this process`,
+				`host-worker crashed ${CRASH_BUDGET}x within ${CRASH_WINDOW_MS / 1000}s - falling back to inline execution for the rest of this process`,
 			);
 			// Do NOT dispose the old runner: dispose() would reject its
 			// outstanding tasks with abort errors that bypass the inline
-			// retry. Detach it instead — in-flight tasks settle on their own
+			// retry. Detach it instead - in-flight tasks settle on their own
 			// merits and the idle reaper terminates its workers afterward.
 			// Queued tasks WOULD keep feeding fresh crashing workers, so
 			// reject them with this same crash error: their callers take the

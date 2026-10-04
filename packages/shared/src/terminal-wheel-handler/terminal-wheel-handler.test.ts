@@ -316,7 +316,7 @@ describe("createTerminalWheelEventHandler", () => {
 			expect(handler(wheelEvent(51))).toBe(true);
 			expect(input).not.toHaveBeenCalled();
 
-			// Clearing the flag re-enables the handler on the very next event —
+			// Clearing the flag re-enables the handler on the very next event -
 			// parked/reused terminal instances must not need a window reload.
 			globals.localStorage = { getItem: () => null };
 			expect(handler(wheelEvent(51))).toBe(false);

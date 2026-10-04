@@ -6,7 +6,7 @@ import { electronTrpc } from "renderer/lib/electron-trpc";
 type Turn = { role: "user" | "assistant"; text: string; at: string | null };
 
 /**
- * Claude speaks in bursts between tool calls — five assistant messages in a
+ * Claude speaks in bursts between tool calls - five assistant messages in a
  * row read as one reply, so show them as one.
  */
 export function mergeTurns(messages: Turn[]): Turn[] {
@@ -56,7 +56,7 @@ export function Highlight({ text, terms }: { text: string; terms: string[] }) {
 	);
 }
 
-/** The conversation itself, user/assistant turns only — no tool-call noise. */
+/** The conversation itself, user/assistant turns only - no tool-call noise. */
 export function TranscriptView({
 	project,
 	sessionId,

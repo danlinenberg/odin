@@ -15,7 +15,7 @@ import {
 	resolveConfiguredShell,
 } from "./user-shell.ts";
 
-/** Does not default to /bin/zsh — falls back to /bin/sh (POSIX-guaranteed). */
+/** Does not default to /bin/zsh - falls back to /bin/sh (POSIX-guaranteed). */
 export function resolveLaunchShell(
 	baseEnv: Record<string, string>,
 	options?: ResolveConfiguredShellOptions,

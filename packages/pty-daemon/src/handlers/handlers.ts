@@ -21,7 +21,7 @@ import type { Session, SessionStore } from "../SessionStore/index.ts";
  * Per-connection state owned by the Server. Handlers receive a Conn ref to
  * read/write subscription membership and to send messages.
  *
- * `send` accepts an optional `payload` — the binary tail of the wire frame.
+ * `send` accepts an optional `payload` - the binary tail of the wire frame.
  * Used for output/replay messages so PTY bytes don't have to detour through
  * base64 inside the JSON header. (See ../protocol/framing.ts.)
  */
@@ -135,7 +135,7 @@ export function handleClose(ctx: HandlerCtx, msg: CloseMessage): ServerMessage {
 	if (!session) return errorFor(msg.id, `unknown session: ${msg.id}`, "ENOENT");
 	let killError: unknown = null;
 	try {
-		// SIGHUP is the right signal for "your terminal is going away" —
+		// SIGHUP is the right signal for "your terminal is going away" -
 		// what the kernel sends when a TTY actually closes. Interactive
 		// shells (especially `zsh -l`) trap SIGTERM and stay alive, so
 		// using SIGTERM as the default leaks PTY processes on every
@@ -166,7 +166,7 @@ export function handleList(ctx: HandlerCtx): ListReplyMessage {
 
 /**
  * Subscribe the connection to a session. If `replay` is true, immediately
- * send an `output` frame whose binary tail is the buffered bytes — before
+ * send an `output` frame whose binary tail is the buffered bytes - before
  * live streaming begins. Live streaming is the Server's job once
  * `subscriptions` includes this session id.
  */

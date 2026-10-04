@@ -11,12 +11,12 @@ import { useOdinProfile } from "./useOdinProfile";
 /** A row dropped from Review, as it was swept, and when. */
 export type DroppedRow = SweptRow & { droppedAt: number };
 
-// ponytail: fixed cap on drops the sweep no longer lists — 500, since one
+// ponytail: fixed cap on drops the sweep no longer lists - 500, since one
 // sweep can auto-drop 200+ and a 100 cap hid most of them from Undo. Ones it still lists
 // are always kept (see keepDropped), or a reload would put them back.
 const DROPPED_KEPT = 500;
 
-/** Your Keep beats the sweep's DROP — on Review and on every card's pill. */
+/** Your Keep beats the sweep's DROP - on Review and on every card's pill. */
 function keptAsKeep(swept: SweptRow[], kept: string[]): SweptRow[] {
 	const set = new Set(kept);
 	return swept.map((row) =>
@@ -68,7 +68,7 @@ export function migrateReview(persisted: unknown, version: number): unknown {
 }
 
 /**
- * The last sweep's answers, one set per profile — a sweep reads one profile's
+ * The last sweep's answers, one set per profile - a sweep reads one profile's
  * Slack, Jira and GitHub, so its rows mean nothing under another.
  *
  * Kept here rather than in the screen's state so leaving Review and coming
@@ -76,12 +76,12 @@ export function migrateReview(persisted: unknown, version: number): unknown {
  * Small and fixed-size per profile: one row per backlog item, replaced whole
  * by the next sweep.
  *
- * ponytail: a deleted profile's slice stays behind — one backlog's worth.
+ * ponytail: a deleted profile's slice stays behind - one backlog's worth.
  * Drop it alongside deleteProfile if that ever adds up.
  */
 export const useBacklogReview = create<{
 	profiles: Record<string, ProfileReview | undefined>;
-	/** A sweep is in flight — the button's or the clock's. Not persisted. */
+	/** A sweep is in flight - the button's or the clock's. Not persisted. */
 	sweeping: boolean;
 	/** How often the shell sweeps on its own, hours. 0 turns the clock off. */
 	sweepEveryHours: number;
@@ -161,7 +161,7 @@ export const useBacklogReview = create<{
 );
 
 /**
- * The active profile's Review — the only way a screen reads it. Empty until
+ * The active profile's Review - the only way a screen reads it. Empty until
  * the profile is known, so a reload inside another profile doesn't flash the
  * default one's rows first.
  */
@@ -181,7 +181,7 @@ export function useSweepBacklog(): () => Promise<boolean> {
 	const { reactions, jira, pulls, notion } = useOdinFeeds();
 	const { activeId, isLoading: profileLoading } = useOdinProfile();
 	// A feed still on its first answer is missing from the backlog only
-	// because nothing has arrived — sweeping then judges a backlog with no
+	// because nothing has arrived - sweeping then judges a backlog with no
 	// Slack rows in it, as the first tick after every restart did.
 	const loading =
 		profileLoading || [reactions, jira, pulls, notion].some((q) => q.isLoading);
@@ -196,7 +196,7 @@ export function useSweepBacklog(): () => Promise<boolean> {
 		try {
 			const { rows: answers } = await sweep.mutateAsync({ items: backlog });
 			// The answer carries the key, so what's rendered is the row as it was
-			// swept — an item added while the sweep ran simply isn't in the list.
+			// swept - an item added while the sweep ran simply isn't in the list.
 			const byKey = new Map(answers.map((row) => [row.key, row]));
 			store.record(
 				profileId,
@@ -239,7 +239,7 @@ export function usePeriodicSweep(): void {
 	latest.current = { sweepBacklog, activeId };
 	useEffect(() => {
 		// A failing sweep waits the full interval too, not a retry a minute. A
-		// tick that didn't sweep — feeds still loading, one already running —
+		// tick that didn't sweep - feeds still loading, one already running -
 		// isn't a try, or a restart's first tick would push the sweep an hour.
 		let triedAt = 0;
 		const tick = () => {

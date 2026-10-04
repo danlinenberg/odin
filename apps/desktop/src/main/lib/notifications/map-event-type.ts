@@ -34,8 +34,8 @@ export function mapEventType(
 	) {
 		return "PermissionRequest";
 	}
-	// Claude/Kimi/Grok all register StopFailure — the turn ended on an API
-	// error, with the session still alive — and this returned null for it, so
+	// Claude/Kimi/Grok all register StopFailure - the turn ended on an API
+	// error, with the session still alive - and this returned null for it, so
 	// every one of those was dropped on the floor and the pane kept whatever
 	// status it had. That's the only writer of the "failed" status there is.
 	if (eventType === "StopFailure") {

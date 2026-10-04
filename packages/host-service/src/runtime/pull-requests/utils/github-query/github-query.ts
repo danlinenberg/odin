@@ -255,7 +255,7 @@ export async function fetchPullRequestByHead(
 
 // GitHub's `head=` filter is case-sensitive on the branch (verified), so a
 // drifted-case lookup returns nothing. This repo-wide sweep lets the caller
-// match heads case-insensitively. Open PRs only — `state=all` is unbounded.
+// match heads case-insensitively. Open PRs only - `state=all` is unbounded.
 export async function fetchOpenPullRequestsFromGh(
 	execGh: ExecGh,
 	repository: {

@@ -4,11 +4,11 @@
  * The transcript store is the only record that reaches back: the work ledger
  * starts when it landed, but `~/.claude/projects` holds every session ever run
  * on this machine, each entry stamped with a wall-clock time. So the history
- * is already on disk — it just has to be counted.
+ * is already on disk - it just has to be counted.
  *
  * Two different hours come out of that, and the ratio between them is the point:
  * `agentHours` is the agents' own work (each session's active time less the
- * time it waited on you, plus its subagents — three at once bill three hours);
+ * time it waited on you, plus its subagents - three at once bill three hours);
  * `yourHours` is your reading-and-typing time before each prompt you sent. One
  * is what got done, the other is what it cost you.
  */
@@ -25,7 +25,7 @@ import {
 
 /**
  * Your time in a session: for each prompt you typed, the gap since the agent
- * last wrote — reading its answer and writing yours — capped at the idle gap,
+ * last wrote - reading its answer and writing yours - capped at the idle gap,
  * so a prompt sent after lunch counts five minutes, not the lunch. An
  * estimate, and a floor: it can't see you reading while the agent works.
  */
@@ -47,7 +47,7 @@ export function humanIntervals(jsonl: string, sorted: number[]): Interval[] {
 			continue;
 		const at = Date.parse(entry.timestamp ?? "");
 		if (Number.isNaN(at)) continue;
-		// The last entry before this prompt — the agent's reply you were reading.
+		// The last entry before this prompt - the agent's reply you were reading.
 		let lo = 0;
 		let hi = sorted.length;
 		while (lo < hi) {
@@ -70,7 +70,7 @@ export type Interval = [number, number];
 
 /**
  * A quiet stretch longer than this means the session wasn't running, you'd
- * stepped away, or both — so it isn't time invested. Short enough to exclude a
+ * stepped away, or both - so it isn't time invested. Short enough to exclude a
  * coffee break, long enough to survive a slow build or a thinking pass.
  */
 const IDLE_MS = 5 * 60 * 1000;
@@ -96,7 +96,7 @@ export interface TranscriptScan {
 	prAt: (number | null)[];
 	/** The opening message, clipped. */
 	opening: string | null;
-	/** Timestamped entries — a rough size, used only to break ties. */
+	/** Timestamped entries - a rough size, used only to break ties. */
 	entries: number;
 }
 
@@ -193,7 +193,7 @@ export function openingLine(jsonl: string): string | null {
 	return first.length > 80 ? `${first.slice(0, 79)}…` : first;
 }
 
-/** The session's opening message, clipped — a row's hover description. */
+/** The session's opening message, clipped - a row's hover description. */
 export function openingText(
 	jsonl: string,
 	max = 600,
@@ -229,7 +229,7 @@ export function openingText(
 /**
  * Timestamps and working directory out of a raw transcript, by regex rather
  * than by parsing every line. The store runs to hundreds of megabytes and only
- * two fields are wanted from the body of it — `JSON.parse` per line costs
+ * two fields are wanted from the body of it - `JSON.parse` per line costs
  * several times the whole scan. The title is the one field that does need
  * parsing, and `firstPrompt` reads only the head for it.
  */
@@ -297,7 +297,7 @@ export interface SessionWork extends TranscriptScan {
 	repo: string | null;
 	/** Active spans of the session's subagents, each counted on its own. */
 	subagents: Interval[];
-	/** When its pane was open and you were there — see `attention.ts`. */
+	/** When its pane was open and you were there - see `attention.ts`. */
 	attended: Interval[];
 	person: string | null;
 	source: string | null;
@@ -321,7 +321,7 @@ function repoOf(dir: string): string | null {
  * The repo a session worked in: every directory it ran in, tallied by the
  * repo it belongs to. Tallying rather than taking the busiest folder is what
  * lets a session started in `~/dev` that did its work in a clone land on that
- * clone. Nothing in a repo — a general task — is null.
+ * clone. Nothing in a repo - a general task - is null.
  */
 export function repoForDirs(
 	dirs: [string, number][],
@@ -445,7 +445,7 @@ async function writeArchive(
 
 /**
  * Every session on this machine, scanned, each carrying its subagents' spans
- * (`<session>/subagents/*.jsonl`) rather than listing them as sessions — plus
+ * (`<session>/subagents/*.jsonl`) rather than listing them as sessions - plus
  * every session kept in the archive whose transcript has since been deleted.
  */
 export async function scanSessions({
@@ -546,7 +546,7 @@ export interface TaskRow {
 	person: string | null;
 	source: string | null;
 	hours: number;
-	/** Your time in it, estimated — see `humanIntervals`. */
+	/** Your time in it, estimated - see `humanIntervals`. */
 	yourHours: number;
 	startedAt: number;
 	endedAt: number;
@@ -576,7 +576,7 @@ export interface Workload {
 	leverage: number | null;
 	/** Oldest first, one row per week including the quiet ones. */
 	weeks: WeekRow[];
-	/** Every week with any session, oldest first — what got done in it. */
+	/** Every week with any session, oldest first - what got done in it. */
 	recap: RecapWeek[];
 	byRepo: { repo: string; hours: number; sessions: number }[];
 	byPerson: { person: string; hours: number; sessions: number }[];
@@ -588,14 +588,14 @@ export interface Workload {
 	 * `weekday * 24 + hour` with Sunday as weekday 0.
 	 */
 	heatmap: { start: number; minutes: number[] }[];
-	/** The same grid over the agents' clock time — any agent running counts. */
+	/** The same grid over the agents' clock time - any agent running counts. */
 	agentHeatmap: { start: number; minutes: number[] }[];
 	busiestDay: { at: number; hours: number } | null;
-	/** Sessions with a name attached — the rest are your own. */
+	/** Sessions with a name attached - the rest are your own. */
 	attributed: number;
 	/** When the record starts, so a thin first week reads as thin, not idle. */
 	since: number | null;
-	/** Every repo with any session, busiest first — before any filter. */
+	/** Every repo with any session, busiest first - before any filter. */
 	repos: string[];
 }
 
@@ -621,7 +621,7 @@ function taskRow(session: SessionWork): TaskRow {
 }
 
 /**
- * Sunday 00:00 local time for the week containing `at` — the work week here
+ * Sunday 00:00 local time for the week containing `at` - the work week here
  * runs Sunday to Thursday, so a Monday start split every week in two.
  */
 export function weekStart(at: number): number {
@@ -680,7 +680,7 @@ function tallyHours(
 /**
  * A session cut into one piece per week it was active in, each carrying only
  * that week's bursts and the PRs it opened then. A session left running across
- * the weekend is work in both weeks — filing all of it under the week it
+ * the weekend is work in both weeks - filing all of it under the week it
  * started put a live task's hours in a week you'd stopped looking at.
  *
  * ponytail: a single burst straddling Saturday midnight counts in the week it
@@ -763,7 +763,7 @@ const BLIP_MS = 60_000;
 /**
  * Minutes per hour of the day, folded across all weeks (`byHour`) and kept per
  * week (`heatmap`, cells indexed by working day, so a row's 00–05 are the
- * night after it). Only weeks with a minute in them get a row — an empty grid
+ * night after it). Only weeks with a minute in them get a row - an empty grid
  * is cheaper to draw than to ship.
  */
 function hourCells(intervals: Interval[]): {
@@ -781,7 +781,7 @@ function hourCells(intervals: Interval[]): {
 			const minutes = Math.round((next - at) / 60_000);
 			byHour[date.getHours()] += minutes;
 			// A working day runs 06:00 to 05:59, so 02:00 Sunday is Saturday
-			// night's — in last week's row, not this week's.
+			// night's - in last week's row, not this week's.
 			const workday = new Date(at - 6 * HOUR_MS);
 			const week = weekStart(workday.getTime());
 			let cells = weekCells.get(week);
@@ -833,7 +833,7 @@ export function computeWorkload(
 	const everything = all.flatMap((session) => session.intervals);
 	const merged = mergeIntervals(everything);
 
-	// A week's worth of rows, present or not — a gap in the history is itself
+	// A week's worth of rows, present or not - a gap in the history is itself
 	// the answer to "how was last week", and a bar chart that silently drops
 	// empty weeks makes a quiet fortnight look busy.
 	const firstWeek = weekStart(now) - (weeks - 1) * 7 * DAY_MS;
@@ -867,7 +867,7 @@ export function computeWorkload(
 
 	// Your time, not the agent's: a scheduled run at 09:00 painted an hour
 	// nobody worked. The agents' clock time is banked separately so the page can
-	// show the off-hours they ran through — `merged`, so three agents at 2am is
+	// show the off-hours they ran through - `merged`, so three agents at 2am is
 	// one 2am.
 	const yours = mergeIntervals(all.flatMap(yourSpans));
 	const { byHour, heatmap } = hourCells(yours);
@@ -882,7 +882,7 @@ export function computeWorkload(
 		? Math.min(...all.map((session) => session.startedAt))
 		: null;
 	// Weeks before the transcript store begins aren't quiet weeks, they're weeks
-	// with no record — and a row of empty columns claiming otherwise was the
+	// with no record - and a row of empty columns claiming otherwise was the
 	// chart's least honest part. Drop them; the note says where the record starts.
 	const firstRecorded = since === null ? null : weekStart(since);
 

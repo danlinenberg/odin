@@ -17,7 +17,7 @@ import {
 import { useDefaultWorktreePath } from "../../../components/WorktreeLocationPicker";
 
 /**
- * v2 Git settings — the host-wide branch-prefix default for this machine.
+ * v2 Git settings - the host-wide branch-prefix default for this machine.
  */
 export function V2GitSettings() {
 	const hostService = useLocalHostService();

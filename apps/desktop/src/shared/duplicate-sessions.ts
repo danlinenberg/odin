@@ -1,6 +1,6 @@
 import type { Pane } from "./tabs-types";
 
-/** Ticket keys — BUGT-4008, CRR-870 — the same ask reaching you twice. */
+/** Ticket keys - BUGT-4008, CRR-870 - the same ask reaching you twice. */
 const TICKET = /\b[A-Z][A-Z0-9]+-\d+\b/g;
 
 /** Words two unrelated titles share all the time. */
@@ -37,12 +37,12 @@ function sharesAny<T>(a: Set<T>, b: Set<T>, atLeast = 1): boolean {
  * Two live cards doing the same work: pane id → the other pane's id.
  *
  * The launch guard only stops a second session on the SAME feed row. The same
- * ask arriving twice — a DM and a channel post, a Jira ticket and the Slack
- * thread about it — is two rows, and the overnight runner starts both. What
+ * ask arriving twice - a DM and a channel post, a Jira ticket and the Slack
+ * thread about it - is two rows, and the overnight runner starts both. What
  * gives it away: the same Slack/Notion item, the same ticket key, or the same
  * person asking with two title words in common.
  *
- * ponytail: title words, not the PRs the sessions opened — two agents doing the
+ * ponytail: title words, not the PRs the sessions opened - two agents doing the
  * same job open different PRs. An LLM pass over the briefs is the upgrade if
  * titles start missing real pairs.
  */

@@ -64,9 +64,9 @@ export class SqliteTerminalAgentBindingPersistence
 
 	/**
 	 * Bindings whose terminal session is still `active` and workspace-owned.
-	 * Liveness comes from `terminal_sessions.status` — the source already
+	 * Liveness comes from `terminal_sessions.status` - the source already
 	 * maintained by pty onExit, the dispose routes, and the reaper's orphan
-	 * healing — so a dead terminal's agent is unrepresentable in reads no
+	 * healing - so a dead terminal's agent is unrepresentable in reads no
 	 * matter how the terminal died (kill -9, crash, host downtime).
 	 */
 	listLiveByWorkspace(

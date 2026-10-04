@@ -71,7 +71,7 @@ describe("getGitStatusSnapshot (integration)", () => {
 	test("asks git for untracked-files=normal so the untracked cache stays live", async () => {
 		await getGitStatusSnapshot({ git, worktreePath: repo });
 
-		// `all` is what defeats core.untrackedCache — git only consults the
+		// `all` is what defeats core.untrackedCache - git only consults the
 		// cache in `normal` mode.
 		expect(resolveUntrackedMode(statusInvocation())).toBe("normal");
 	});

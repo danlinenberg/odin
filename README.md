@@ -25,7 +25,7 @@
 ---
 
 Odin runs many CLI agents in parallel on your own machine and keeps them in the
-same place as the work that drives them — a Slack thread, a Jira issue, a review
+same place as the work that drives them - a Slack thread, a Jira issue, a review
 request. One queue, one board, one thing to look at.
 
 ## Install
@@ -68,7 +68,7 @@ Most people run two systems and hold both in their head at once.
 One is where the **work** lives: tickets, threads, review requests, a list
 somewhere. The other is where the **agents** live: terminals, worktrees,
 sessions. Neither knows the other exists. You read the first to work out what
-matters, retype it into the second, and then pay for the gap in both directions —
+matters, retype it into the second, and then pay for the gap in both directions -
 the agent can't tell you which request it came from, and the request can't tell
 you an agent ever touched it. Nothing is marked done in one place because
 something finished in the other.
@@ -76,7 +76,7 @@ something finished in the other.
 That split is a tax on the only thing that's actually scarce.
 
 Running agents is no longer the hard part; you can have six working at once on a
-laptop. What runs out is **your attention** — deciding what to hand over,
+laptop. What runs out is **your attention** - deciding what to hand over,
 noticing which one is stuck, remembering what a session was even about when you
 come back to it an hour later.
 
@@ -106,12 +106,12 @@ That's the whole product. Everything below is one of those four steps.
 
 Five sources land in one queue:
 
-- **Slack** — react `:eyes:` to a message and it becomes a row. The gesture you
+- **Slack** - react `:eyes:` to a message and it becomes a row. The gesture you
   already make is the capture.
-- **Jira** — issues assigned to or reported by you.
-- **GitHub** — pull requests waiting on your review, bots filtered out.
-- **Notion** — rows from a database you pick.
-- **Tasks** — things you type in yourself.
+- **Jira** - issues assigned to or reported by you.
+- **GitHub** - pull requests waiting on your review, bots filtered out.
+- **Notion** - rows from a database you pick.
+- **Tasks** - things you type in yourself.
 
 The **All** tab is every source at once. Tab badges count what is genuinely
 waiting on you, not how many rows exist, so a dependency-bump spree doesn't read
@@ -120,7 +120,7 @@ as work.
 ### Hand it to an agent
 
 One click on any row starts a session: a real terminal agent, in a git worktree,
-with a prompt built from the item — the Slack thread and what was said in it, the
+with a prompt built from the item - the Slack thread and what was said in it, the
 issue key and its description, the PR and what it changes.
 
 Launches are paced to the machine. If the Mac is already loaded, a new session
@@ -147,15 +147,15 @@ so a card stranded by a lost hook still corrects itself.
 
 Re-entry is where the time actually goes, so it gets real machinery:
 
-- **Briefs** — a model reads the transcript and answers "what did I walk into?".
+- **Briefs** - a model reads the transcript and answers "what did I walk into?".
   Not an excerpt: the opening request is a wall of prose and the last turn is 300
   words of markdown, and reading both is the job the panel is supposed to be
   doing for you.
-- **Session History** — search every agent conversation on the machine by what
+- **Session History** - search every agent conversation on the machine by what
   was *said* in it, read it, resume it. Each row is tagged with where it came
   from, because a generated title like "Review Slack thread" loses the fact that
   a named person asked for it.
-- **Insights** — how much lands on you, how much you hand over, how long things
+- **Insights** - how much lands on you, how much you hand over, how long things
   sit before you get to them, and who asks most.
 
 Terminal sessions are owned by a background daemon, so they survive the window
@@ -167,7 +167,7 @@ These are constraints, not gaps. They are what let it be opinionated.
 
 - **Not a team tool.** One person, one machine. No assignment, no shared state,
   no seats. The moment it serves a team it has to serve the average of a team.
-- **Not a cloud service.** Your hardware is the ceiling — which is exactly why
+- **Not a cloud service.** Your hardware is the ceiling - which is exactly why
   launches are paced to it.
 - **Not fire-and-forget.** Odin is built to put you back in the loop at the right
   moment, not to hand you finished work you never watched.
@@ -179,7 +179,7 @@ The person who is a **human router**: work arrives as pings, review requests and
 tickets other people filed. Most of it could be handed to an agent. More time
 goes to re-entering context than to writing code.
 
-In one line — **an agent launcher for people whose work doesn't arrive as
+In one line - **an agent launcher for people whose work doesn't arrive as
 tickets.**
 
 ## Where it's going
@@ -190,8 +190,8 @@ Today Odin shows you the queue and you make every call: which item, which repo,
 which prompt. Those are small judgments made dozens of times a week, and most of
 them aren't interesting.
 
-The direction is that Odin proposes and you approve — *this looks like the
-export-retry kind of ask, repo X, here's the prompt, go?* — with rejecting a
+The direction is that Odin proposes and you approve - *this looks like the
+export-retry kind of ask, repo X, here's the prompt, go?* - with rejecting a
 suggestion cheap enough that a wrong guess costs one keystroke. Getting there
 means recording not just what you delegated but how it turned out, and having
 enough history to see the pattern.

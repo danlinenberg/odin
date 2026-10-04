@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Odin — Updates in the sidebar</title>
+<title>Odin - Updates in the sidebar</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Instrument+Serif:ital@0;1&family=Fragment+Mono:ital@0;1&display=swap" rel="stylesheet" />
@@ -142,7 +142,7 @@
     box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 1px 3px rgba(0,0,0,.4);
   }
 
-  /* spotlight group behind the updates row — the lighter rounded region in the reference */
+  /* spotlight group behind the updates row - the lighter rounded region in the reference */
   .spot {
     margin: 0 2px; padding: 3px; border-radius: 12px;
     background: rgba(255,255,255,.055);
@@ -273,7 +273,7 @@
     60% { transform: translateX(-1.5px); } 80% { transform: translateX(1px); }
   }
 
-  /* ============ V1 — flyout card ============ */
+  /* ============ V1 - flyout card ============ */
   .anchor { position: relative; }
   .flyout {
     position: absolute; bottom: calc(100% + 12px); left: 8px; width: 318px; z-index: 10;
@@ -311,7 +311,7 @@
 
   .up-row-label { flex: 1; }
 
-  /* ============ V2 — docked card ============ */
+  /* ============ V2 - docked card ============ */
   .dock {
     margin: 0 2px 8px; border-radius: 13px; padding: 13px;
     background: linear-gradient(180deg, #26251f, #21201b);
@@ -338,7 +338,7 @@
   .dock .done-line svg { width: 14px; height: 14px; }
   .dock .err-text { color: var(--red-soft); }
 
-  /* ============ V3 — morphing row ============ */
+  /* ============ V3 - morphing row ============ */
   .morph {
     margin: 0 2px; border-radius: 10px; padding: 8.5px 10px;
     display: flex; align-items: center; gap: 10px;
@@ -375,7 +375,7 @@
   .ring .fill { stroke: var(--txt-hi); stroke-linecap: round; transition: stroke-dashoffset .16s linear; }
   .morph .done-check { width: 15px; height: 15px; color: var(--green-soft); flex-shrink: 0; }
 
-  /* ============ V4 — morphing row, dark, with the flyout's detailing ============ */
+  /* ============ V4 - morphing row, dark, with the flyout's detailing ============ */
   .prow {
     border-radius: 9px; padding: 8.5px 11px; position: relative; overflow: hidden;
     display: flex; align-items: center; gap: 9px;
@@ -435,7 +435,7 @@
   .retire { animation: retire .5s cubic-bezier(.5, 0, .3, 1) .1s forwards; }
   @keyframes retire { to { opacity: 0; transform: translateY(8px) scale(.96); } }
 
-  /* ============ V5 — settings-inline mini ============ */
+  /* ============ V5 - settings-inline mini ============ */
   .sb-bottomrow { display: flex; align-items: center; gap: 6px; padding-right: 4px; }
   .sb-bottomrow .sb-item { flex: 1; min-width: 0; }
 
@@ -486,10 +486,10 @@
   <div class="kicker">Odin Desktop · design exploration · rev 4</div>
   <h1>Updates, moved <em>into the sidebar</em></h1>
   <p class="lede">
-    <b>05 up top is the newest idea</b> — the update folded into the bottom settings cluster as a tiny pill,
+    <b>05 up top is the newest idea</b> - the update folded into the bottom settings cluster as a tiny pill,
     much smaller than a full row. 04 (the shipped morphing row) and originals 01–03 below for comparison.
   </p>
-  <div class="hint">tip · select <b>Downloading</b> and wait — the download completes, verifies, and settles into <b>Ready</b> on its own</div>
+  <div class="hint">tip · select <b>Downloading</b> and wait - the download completes, verifies, and settles into <b>Ready</b> on its own</div>
 </header>
 
 <div class="panels" id="panels"></div>
@@ -497,7 +497,7 @@
 <footer class="small-print">
   <b>Integration notes:</b> mock colors map 1:1 to the shadcn tokens WorkspaceSidebar already uses
   (bg-popover, text-muted-foreground, border-border, text-destructive). Data is the existing
-  AutoUpdateStatusEvent — no new plumbing. 01 renders its card in a portal anchored to the sidebar row;
+  AutoUpdateStatusEvent - no new plumbing. 01 renders its card in a portal anchored to the sidebar row;
   02 and 03 are in-flow sidebar children above the user row. All motion honors prefers-reduced-motion.
 </footer>
 
@@ -563,10 +563,10 @@ function v1Slot(state) {
     card = `
       <div class="flyout">
         <div class="head"><span class="tile">${I.download}</span><h3>Downloading update</h3><span class="chip neutral mono">v${VERSION}</span></div>
-        <div class="meta">Sessions keep running — install when it’s ready.</div>
+        <div class="meta">Sessions keep running - install when it’s ready.</div>
         <div class="body" data-body>
           <div class="bar"><i data-bar></i></div>
-          <div class="bar-meta"><span data-mb>0.0 of ${TOTAL_MB} MB</span><span><span data-speed>—</span> · <span data-pct>0%</span></span></div>
+          <div class="bar-meta"><span data-mb>0.0 of ${TOTAL_MB} MB</span><span><span data-speed>-</span> · <span data-pct>0%</span></span></div>
         </div>
       </div>`;
   } else if (state === "ready") {
@@ -574,7 +574,7 @@ function v1Slot(state) {
     card = `
       <div class="flyout">
         <div class="head"><span class="tile">${I.sparkle}</span><h3>Update ready</h3><span class="chip orange">↑ v${VERSION}</span></div>
-        <div class="meta">v${VERSION} is ready — one click, no restart. Terminal sessions won’t be interrupted.</div>
+        <div class="meta">v${VERSION} is ready - one click, no restart. Terminal sessions won’t be interrupted.</div>
         <div class="body">
           <div class="actions"><button class="link">See changes</button><button class="btn primary">Update</button></div>
         </div>
@@ -610,7 +610,7 @@ function v2Slot(state) {
         <div class="head"><span class="tile dark">${I.download}</span><h3>Downloading update</h3><span class="ver">v${VERSION}</span></div>
         <div class="body" data-body>
           <div class="bar on-dark"><i data-bar></i></div>
-          <div class="bar-meta"><span data-mb>0.0 of ${TOTAL_MB} MB</span><span><span data-speed>—</span> · <span data-pct>0%</span></span></div>
+          <div class="bar-meta"><span data-mb>0.0 of ${TOTAL_MB} MB</span><span><span data-speed>-</span> · <span data-pct>0%</span></span></div>
         </div>
       </div>`;
   }
@@ -618,7 +618,7 @@ function v2Slot(state) {
     return `
       <div class="dock">
         <div class="head"><span class="tile dark">${I.sparkle}</span><h3>Update ready</h3><span class="ver">v${VERSION}</span></div>
-        <div class="meta">Ready to install — sessions keep running.</div>
+        <div class="meta">Ready to install - sessions keep running.</div>
         <div class="actions"><button class="btn cream block">Update</button><button class="btn ghost-dark">Later</button></div>
       </div>`;
   }
@@ -659,7 +659,7 @@ function v3Slot(state) {
   return `
     <div class="morph error">
       ${I.refresh}
-      <span class="label">Update failed — retry</span>
+      <span class="label">Update failed - retry</span>
       <span class="right">v${VERSION}</span>
     </div>`;
 }
@@ -739,7 +739,7 @@ function v5Slot(state) {
   }
   if (state === "ready") {
     return v5Bottom(`
-      <span class="mini ready" data-act="install" data-retire title="Install v${VERSION} — sessions keep running">
+      <span class="mini ready" data-act="install" data-retire title="Install v${VERSION} - sessions keep running">
         <span class="dot"></span>↑ update
       </span>`);
   }
@@ -755,7 +755,7 @@ function v5Slot(state) {
     </span>`);
 }
 function v5Complete(slot) {
-  // No download confirmation — the "✓ vX" beat comes after the install,
+  // No download confirmation - the "✓ vX" beat comes after the install,
   // which startInstall's completion already renders before retiring.
   const pct = slot.querySelector("[data-pct]");
   if (pct) pct.textContent = "100%";
@@ -765,19 +765,19 @@ function v5Complete(slot) {
 const PANELS = [
   {
     id: "v5", num: "05", name: "Settings-inline mini", def: "ready",
-    desc: "Smallest possible footprint: the update lives inside the existing settings cluster as a tiny pill — no extra row, no layout shift anywhere. Ring + percent while downloading; a pulsing green “↑ v0.42.1” pill when ready (click to install); a micro ASCII loader while installing; red “↻ retry” on failure. Details on hover via tooltip.",
+    desc: "Smallest possible footprint: the update lives inside the existing settings cluster as a tiny pill - no extra row, no layout shift anywhere. Ring + percent while downloading; a pulsing green “↑ v0.42.1” pill when ready (click to install); a micro ASCII loader while installing; red “↻ retry” on failure. Details on hover via tooltip.",
     slot: v5Slot, complete: v5Complete,
     states: ["downloading", "ready", "installing", "error"], interactive: true, ownBottom: true,
   },
   {
     id: "v4", num: "04", name: "Morphing row", def: "downloading",
-    desc: "The synthesis: 03’s zero-shift morphing row with 01’s detailing — dark and sidebar-native, no card surface. Progress ring while downloading; pulsing green dot, “Install update”, and the orange version chip when ready. Click the ready row — install runs as an ASCII loader (braille spinner + terminal progress bar), then the row retires itself. Click the error row to retry.",
+    desc: "The synthesis: 03’s zero-shift morphing row with 01’s detailing - dark and sidebar-native, no card surface. Progress ring while downloading; pulsing green dot, “Install update”, and the orange version chip when ready. Click the ready row - install runs as an ASCII loader (braille spinner + terminal progress bar), then the row retires itself. Click the error row to retry.",
     slot: v4Slot, complete: v4Complete,
     states: ["downloading", "ready", "installing", "error"], interactive: true,
   },
   {
     id: "v1", num: "01", name: "Flyout card", def: "ready",
-    desc: "Closest to the reference: a badged “Updates” row inside a spotlight group, with a warm paper card floating out over the canvas. The loudest of the three — the card only exists while an update is in flight, so it earns the attention it takes.",
+    desc: "Closest to the reference: a badged “Updates” row inside a spotlight group, with a warm paper card floating out over the canvas. The loudest of the three - the card only exists while an update is in flight, so it earns the attention it takes.",
     slot: v1Slot, complete: v1Complete,
   },
   {
@@ -787,7 +787,7 @@ const PANELS = [
   },
   {
     id: "v3", num: "03", name: "Morphing status row", def: "ready",
-    desc: "One nav row, three costumes: a progress ring while downloading, a soft-glow green pill when ready, a red retry pill on failure. Zero layout shift — it reads like a native sibling of Settings.",
+    desc: "One nav row, three costumes: a progress ring while downloading, a soft-glow green pill when ready, a red retry pill on failure. Zero layout shift - it reads like a native sibling of Settings.",
     slot: v3Slot, complete: v3Complete,
   },
 ];
@@ -847,7 +847,7 @@ const BAR_CELLS = 12;
 function startInstall(inst) {
   const slot = inst.el.querySelector("[data-slot]");
   const note = inst.el.querySelector("[data-note]");
-  note.textContent = "▸ live — installs, then the row retires";
+  note.textContent = "▸ live - installs, then the row retires";
   const spinEl = slot.querySelector("[data-ascii]");
   const barEl = slot.querySelector("[data-ascii-bar]");
   let f = 0, t1, t2;
@@ -871,7 +871,7 @@ function startInstall(inst) {
         if (spot) spot.classList.add("retire");
         t2 = setTimeout(() => {
           slot.innerHTML = "";
-          note.textContent = "▸ up to date — row retires until the next update";
+          note.textContent = "▸ up to date - row retires until the next update";
           for (const b of inst.el.querySelectorAll(".seg button")) {
             b.classList.remove("on");
           }
@@ -886,7 +886,7 @@ function startInstall(inst) {
 function startDownload(inst) {
   const slot = inst.el.querySelector("[data-slot]");
   const note = inst.el.querySelector("[data-note]");
-  note.textContent = "▸ live — completes into Ready";
+  note.textContent = "▸ live - completes into Ready";
   const bar = slot.querySelector("[data-bar]");
   const pct = slot.querySelector("[data-pct]");
   const mb = slot.querySelector("[data-mb]");

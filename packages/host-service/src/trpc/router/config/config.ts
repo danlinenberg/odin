@@ -55,7 +55,7 @@ export const configRouter = router({
 
 	/**
 	 * Read the canonical config file. Returns null content when the file is
-	 * absent — the editor renders an empty form in that case and creates the
+	 * absent - the editor renders an empty form in that case and creates the
 	 * file on first save via updateConfig.
 	 */
 	getConfigContent: protectedProcedure

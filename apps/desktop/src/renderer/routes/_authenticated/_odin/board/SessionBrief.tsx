@@ -20,7 +20,7 @@ import {
 } from "./brief";
 
 /**
- * Session brief — the drawer's side panel. Answers "what did I walk into?".
+ * Session brief - the drawer's side panel. Answers "what did I walk into?".
  *
  * A model writes it, because excerpts don't work: the opening request is a wall
  * of prose in whatever language it was typed in, and the agent's last turn is
@@ -35,7 +35,7 @@ function Section({
 }: {
 	label: string;
 	/** Link sections get a rule above, so types don't run together. The label
-	 *  names the source — a brand-coloured dot beside it only added noise. */
+	 *  names the source - a brand-coloured dot beside it only added noise. */
 	divided?: boolean;
 	children: React.ReactNode;
 }) {
@@ -95,7 +95,7 @@ function StateChip({
 
 /**
  * CI in one word, so "did Bugbot finish?" stops being a trip to the browser.
- * While something is running it names the check rather than counting them —
+ * While something is running it names the check rather than counting them -
  * one pending check is the whole answer, and it's usually the bot.
  */
 function ChecksChip({
@@ -109,7 +109,7 @@ function ChecksChip({
 		passed: number;
 	} | null;
 }) {
-	// CI only matters while the PR can still change — merged/closed is final.
+	// CI only matters while the PR can still change - merged/closed is final.
 	if (!status || status.state !== "OPEN") return null;
 	const { pending, awaiting = [], failed, passed } = status;
 	if (pending.length > 0) {
@@ -160,8 +160,8 @@ function hoverText(
 }
 
 /**
- * A PR link's tooltip: what it does — the title, then the description's opening
- * paragraph — then where it lives, each set apart so it reads at a glance. Both
+ * A PR link's tooltip: what it does - the title, then the description's opening
+ * paragraph - then where it lives, each set apart so it reads at a glance. Both
  * are missing until main restarts onto the procedure that fetches them, so it
  * falls back to the url alone.
  */
@@ -237,7 +237,7 @@ function plural(label: string, found: unknown, mine: unknown[]): string {
 
 /**
  * The hover's half of the brief: the goal, and what the session is waiting on
- * you for. Both are cache hits — the board warms the written brief, and the
+ * you for. Both are cache hits - the board warms the written brief, and the
  * transcript is the one the card's pills already read.
  */
 export function HoverBrief({ sessionId }: { sessionId?: string | null }) {
@@ -293,22 +293,22 @@ export function SessionBrief({
 	paneId: string;
 	cwd: string | null;
 	claudeSessionId: string | null;
-	/** Card title — identifies the transcript for sessions launched without an id. */
+	/** Card title - identifies the transcript for sessions launched without an id. */
 	marker: string;
 	live: boolean;
-	/** Just the resource sections — no brief, notes or link input. */
+	/** Just the resource sections - no brief, notes or link input. */
 	resourcesOnly?: boolean;
 }) {
 	// Same lookup Resume uses: the pane's own conversation id, then the legacy
-	// localStorage mirror for panes launched before that was recorded, then —
-	// for the oldest ones, which have neither — the newest transcript in the
+	// localStorage mirror for panes launched before that was recorded, then -
+	// for the oldest ones, which have neither - the newest transcript in the
 	// session's directory that mentions the task.
 	// Your own notes. Written straight to the persisted store on each keystroke:
 	// it's a handful of characters into localStorage, and anything cleverer
 	// (debounce, save button) can lose the last words you typed.
 	const notes = usePaneMeta((s) => s.notesByPane[paneId] ?? "");
 	const setNotes = usePaneMeta((s) => s.setNotes);
-	// Links you attach yourself — the brief only finds what the transcript quotes.
+	// Links you attach yourself - the brief only finds what the transcript quotes.
 	const links = usePaneMeta((s) => s.linksByPane[paneId]) ?? [];
 	const addLink = usePaneMeta((s) => s.addLink);
 	const removeLink = usePaneMeta((s) => s.removeLink);
@@ -343,7 +343,7 @@ export function SessionBrief({
 		},
 	);
 
-	// Facts, straight from the transcript — they cost nothing and they're the
+	// Facts, straight from the transcript - they cost nothing and they're the
 	// part of the panel that stays true while the brief is still being written.
 	const { data: transcript } =
 		electronTrpc.terminal.readClaudeTranscript.useQuery(
@@ -355,7 +355,7 @@ export function SessionBrief({
 			},
 		);
 	const facts = transcript ? sessionBrief(transcript.messages) : null;
-	// The agent's own ACTION ITEMS list, verbatim — the model paraphrasing it
+	// The agent's own ACTION ITEMS list, verbatim - the model paraphrasing it
 	// came out as "execute the six action items", which tells you nothing.
 	const todo = transcript ? actionItems(transcript.messages) : [];
 	// `links` is missing until main restarts onto it; the tail still has most.
@@ -367,7 +367,7 @@ export function SessionBrief({
 	const foundPage = linkSource ? notionPage(linkSource) : null;
 	const foundIssue = linkSource ? jiraIssue(linkSource) : null;
 	const foundArtifact = linkSource ? artifactLink(linkSource) : null;
-	// Only rules that actually fired, and on which PR — not every rule the
+	// Only rules that actually fired, and on which PR - not every rule the
 	// launch prompt listed. `rules` is missing until main restarts onto it.
 	const rules = transcript?.rules ?? [];
 	// What you hid drops out of its section; the "Hidden" fold below lists it.
@@ -427,7 +427,7 @@ export function SessionBrief({
 	);
 	const threadPreview = thread ? previews?.[thread] : null;
 
-	// Only what's still on the panel — a URL the transcript stopped quoting, or
+	// Only what's still on the panel - a URL the transcript stopped quoting, or
 	// a link you removed, doesn't linger in the fold.
 	const hiddenList = [
 		foundIssue && { url: foundIssue.url, label: foundIssue.key },
@@ -454,7 +454,7 @@ export function SessionBrief({
 	);
 
 	// Which of them shipped, and what CI is still chewing on. One `gh pr view`
-	// per link, so poll only while a PR is still open — a merged one never
+	// per link, so poll only while a PR is still open - a merged one never
 	// changes again, and the panel is otherwise spawning subprocesses forever.
 	const { data: prStates } = electronTrpc.terminal.pullRequestStates.useQuery(
 		{ urls: [...prs.map((pr) => pr.url), ...mine("pr").map((pr) => pr.url)] },
@@ -537,7 +537,7 @@ export function SessionBrief({
 		);
 	};
 
-	// The resources — Jira, Slack, PRs, Notion, artifacts, links you added.
+	// The resources - Jira, Slack, PRs, Notion, artifacts, links you added.
 	// Outside the transcript branch: the ones you added are yours, and a
 	// session with no readable conversation still has them. Catch up's card
 	// shows only these, under its own action items.
@@ -695,7 +695,7 @@ export function SessionBrief({
 					<div className="text-[12px] text-muted-foreground">
 						{isSearching
 							? "looking for the transcript…"
-							: "This session has no Claude conversation id — nothing to read."}
+							: "This session has no Claude conversation id - nothing to read."}
 					</div>
 				) : (
 					<>
@@ -727,7 +727,7 @@ export function SessionBrief({
 								{written.status && (
 									<Section label="Where it stands">{written.status}</Section>
 								)}
-								{/* The model ignored the shape we asked for — show what it said
+								{/* The model ignored the shape we asked for - show what it said
 								    rather than an empty panel. */}
 								{written.raw && (
 									<Section label="Summary">{written.raw}</Section>
@@ -839,7 +839,7 @@ export function SessionBrief({
 					<textarea
 						value={notes}
 						onChange={(event) => setNotes(paneId, event.target.value)}
-						placeholder="Notes to yourself — saved as you type."
+						placeholder="Notes to yourself - saved as you type."
 						rows={4}
 						className="resize-y rounded-[7px] border border-border bg-background px-2 py-1.5 text-[12.5px] leading-relaxed text-soft-foreground placeholder:text-faint-foreground focus:border-primary focus:outline-none"
 					/>

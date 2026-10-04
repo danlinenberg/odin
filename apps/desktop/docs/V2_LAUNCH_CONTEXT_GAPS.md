@@ -1,11 +1,11 @@
-# V2 Launch Context — Body-Fetching Gaps
+# V2 Launch Context - Body-Fetching Gaps
 
 Companion to `V2_LAUNCH_CONTEXT.md`. Tracks remaining work to make
 linked issues / PRs / tasks useful to the agent.
 
 ## Current state (2026-04-15)
 
-Claude receives titles only — no bodies:
+Claude receives titles only - no bodies:
 
 ```
 <user prompt>
@@ -14,8 +14,8 @@ Claude receives titles only — no bodies:
 
 # <issue title>
 
-# PR #<n> — <pr title>
-Branch `<branch>` is checked out in this workspace — commits you make continue this PR.
+# PR #<n> - <pr title>
+Branch `<branch>` is checked out in this workspace - commits you make continue this PR.
 
 # Attached files
 ...
@@ -151,7 +151,7 @@ so the resolvers can make real calls.
 ```
 <user prompt>
 
-# Task TASK-42 — Refactor auth middleware
+# Task TASK-42 - Refactor auth middleware
 
 Split session-token storage from request handling so we can encrypt
 at rest. Keep the public API shape stable.
@@ -161,7 +161,7 @@ Acceptance criteria:
 - No public-API shape change
 - Migration for existing sessions
 
-# Issue #123 — Auth middleware stores tokens in plaintext
+# Issue #123 - Auth middleware stores tokens in plaintext
 
 Legal flagged this. Sessions written to disk without encryption. We
 need to move to an encrypted KV before the compliance deadline.
@@ -170,9 +170,9 @@ The token-issuance path sets kid=k_primary but the active signing
 key rotated to k_2026q1 last quarter. Decrypt falls back to
 legacy plaintext which is the compliance violation...
 
-# PR #200 — Rewrite auth middleware
+# PR #200 - Rewrite auth middleware
 
-Branch `fix/auth-encryption` is checked out in this workspace —
+Branch `fix/auth-encryption` is checked out in this workspace -
 commits you make continue this PR.
 
 Replaces plaintext token storage with encrypted KV. Migrates

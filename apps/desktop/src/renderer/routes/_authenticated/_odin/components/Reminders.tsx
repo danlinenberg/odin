@@ -6,13 +6,13 @@ import { persist } from "zustand/middleware";
 import { PILL } from "./pill";
 
 /**
- * A day I want a row done by — a ticket I promised for Thursday, a thread that
+ * A day I want a row done by - a ticket I promised for Thursday, a thread that
  * has to be answered before the release. The feeds are read-only mirrors of
  * other people's systems, so the date is Odin-local, like hiding: a persisted
  * map from the same `feed:id` key, to the day it's wanted.
  */
 export interface Reminder {
-	/** Local calendar day, `YYYY-MM-DD` — what `<input type="date">` hands back. */
+	/** Local calendar day, `YYYY-MM-DD` - what `<input type="date">` hands back. */
 	due: string;
 	/** Kept with the date so a reminder can name its row without its feed. */
 	title: string;
@@ -20,7 +20,7 @@ export interface Reminder {
 	resume?: {
 		sessionId: string;
 		cwd: string;
-		/** The card's brief when you snoozed it — what the hover shows. */
+		/** The card's brief when you snoozed it - what the hover shows. */
 		brief?: string;
 		/** When you hit Remind me, epoch ms. */
 		setAt?: number;
@@ -29,9 +29,9 @@ export interface Reminder {
 
 export const useReminders = create<{
 	reminders: Record<string, Reminder>;
-	/** The day each key last pinged — a due date nags once a day, not every minute. */
+	/** The day each key last pinged - a due date nags once a day, not every minute. */
 	notified: Record<string, string>;
-	/** Local `HH:MM` the day's pings wait for — Settings → Notifications. */
+	/** Local `HH:MM` the day's pings wait for - Settings → Notifications. */
 	notifyAt: string;
 	setNotifyAt: (notifyAt: string) => void;
 	setDue: (key: string, due: string, title: string) => void;
@@ -64,7 +64,7 @@ export const useReminders = create<{
 );
 
 /**
- * `YYYY-MM-DD` for a moment, in the local zone — the form the date input
+ * `YYYY-MM-DD` for a moment, in the local zone - the form the date input
  * speaks. Not `toISOString()`: that one is UTC, which is already tomorrow for
  * the last hours of every day here, so "due today" would fire a day early.
  */
@@ -116,7 +116,7 @@ export function dueLabel(due: string, now: number): string {
 	});
 }
 
-/** `HH:MM` for a moment, local — the form `<input type="time">` speaks. */
+/** `HH:MM` for a moment, local - the form `<input type="time">` speaks. */
 function timeOf(now: number): string {
 	const d = new Date(now);
 	return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
@@ -124,7 +124,7 @@ function timeOf(now: number): string {
 
 /**
  * Due today or already past, not pinged yet today, and the clock is past
- * `notifyAt` — so a reminder for Thursday waits for Thursday 09:00, not 00:01.
+ * `notifyAt` - so a reminder for Thursday waits for Thursday 09:00, not 00:01.
  */
 export function dueToFire(
 	reminders: Record<string, Reminder>,
@@ -140,7 +140,7 @@ export function dueToFire(
 	);
 }
 
-/** Whether a date is today or past — what the pill counts and filters on. */
+/** Whether a date is today or past - what the pill counts and filters on. */
 export function isDue(due: string | null | undefined, now: number): boolean {
 	return !!due && due <= dayOf(now);
 }
@@ -149,7 +149,7 @@ export function isDue(due: string | null | undefined, now: number): boolean {
  * The date a row actually carries. Jira keeps a Due Date of its own, so a
  * dated ticket arrives already dated; Odin's is an overwrite of that, held
  * here and never written back. Drop the local one and the ticket's own date
- * comes back — Odin can move a deadline, not delete someone else's.
+ * comes back - Odin can move a deadline, not delete someone else's.
  */
 export function effectiveDue(
 	key: string,
@@ -167,7 +167,7 @@ export interface UpstreamDue {
 }
 
 /**
- * Upstream dates with the local overrides laid over them — what the ping
+ * Upstream dates with the local overrides laid over them - what the ping
  * actually runs on, so a Jira deadline nobody retyped into Odin still speaks.
  */
 export function mergeUpstream(
@@ -188,7 +188,7 @@ const TONE_CLASS: Record<DueTone, string> = {
 };
 
 /**
- * The mark an overdue row wears beside its title — its own icon, the way a
+ * The mark an overdue row wears beside its title - its own icon, the way a
  * starred card wears ★, so a missed deadline reads without finding the chip.
  */
 export function OverdueMark({
@@ -202,7 +202,7 @@ export function OverdueMark({
 	if (!due || dueTone(due, Date.now()) !== "overdue") return null;
 	return (
 		<LuCalendarX
-			title={`Overdue — was due ${due}`}
+			title={`Overdue - was due ${due}`}
 			className="mr-1 inline size-3.5 align-[-2px] text-danger"
 		/>
 	);
@@ -212,7 +212,7 @@ export function OverdueMark({
 export const META_DUE = "flex w-[92px] shrink-0 items-center justify-end";
 
 /**
- * Set, move or drop a row's due date. The chip opens the OS date picker — the
+ * Set, move or drop a row's due date. The chip opens the OS date picker - the
  * native input is there, just not its box: a feed row is a line of text, and a
  * `mm/dd/yyyy` control on every one of them is a form.
  *
@@ -258,12 +258,12 @@ export function DueChip({
 				type="button"
 				title={
 					reminder
-						? `Due ${reminder.due} — set in Odin`
+						? `Due ${reminder.due} - set in Odin`
 						: upstream
-							? `Due ${upstream} — from Jira. Setting one here overrides it in Odin only.`
+							? `Due ${upstream} - from Jira. Setting one here overrides it in Odin only.`
 							: "Set a due date"
 				}
-				// A board card is itself a button — without this, dating a session
+				// A board card is itself a button - without this, dating a session
 				// opens its drawer.
 				onClick={(e) => {
 					e.stopPropagation();
@@ -288,7 +288,7 @@ export function DueChip({
 					type="button"
 					title={
 						upstream
-							? `Drop yours — back to Jira's ${upstream}`
+							? `Drop yours - back to Jira's ${upstream}`
 							: "Drop the due date"
 					}
 					onClick={(e) => {
@@ -305,13 +305,13 @@ export function DueChip({
 }
 
 /**
- * Ping for anything due, on launch and every minute after — so a date set for
+ * Ping for anything due, on launch and every minute after - so a date set for
  * Thursday says so on Thursday whether or not the feed that set it is open.
  * Once a day per row, and again each day it stays overdue, which is the whole
  * point of having written the date down.
  *
  * ponytail: a reminder on a row that's since been closed upstream keeps
- * pinging until it's cleared — join against the live feeds here if that turns
+ * pinging until it's cleared - join against the live feeds here if that turns
  * into a nuisance.
  */
 export function useDueReminders(upstream: UpstreamDue[]): void {

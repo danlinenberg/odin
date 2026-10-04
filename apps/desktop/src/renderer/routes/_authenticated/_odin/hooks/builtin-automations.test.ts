@@ -78,7 +78,7 @@ describe("backlogOf", () => {
 	});
 
 	// The key is what a DROP acts on, so it has to name the row *and* which
-	// store it lives in — the two id spaces are unrelated and could collide.
+	// store it lives in - the two id spaces are unrelated and could collide.
 	test("keys each item back to the row it came from", () => {
 		expect(
 			backlogOf([task({ id: "abc" })], [slackRow()]).map((i) => i.key),

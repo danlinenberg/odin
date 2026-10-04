@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { decodeFrame, encodeFrame, FrameDecoder } from "./framing.ts";
 
-describe("framing — JSON-only frames", () => {
+describe("framing - JSON-only frames", () => {
 	test("round-trips a simple object with no payload", () => {
 		const msg = { type: "hello", protocols: [2] };
 		const frame = encodeFrame(msg);
@@ -51,7 +51,7 @@ describe("framing — JSON-only frames", () => {
 	});
 
 	test("rejects frames smaller than the inner header", () => {
-		// totalLen=2 is impossible — the inner jsonLen prefix alone is 4 bytes.
+		// totalLen=2 is impossible - the inner jsonLen prefix alone is 4 bytes.
 		const tinyHeader = Buffer.alloc(4);
 		tinyHeader.writeUInt32BE(2, 0);
 		const dec = new FrameDecoder();
@@ -70,7 +70,7 @@ describe("framing — JSON-only frames", () => {
 	});
 });
 
-describe("framing — frames with binary payload", () => {
+describe("framing - frames with binary payload", () => {
 	test("round-trips a JSON header + arbitrary bytes", () => {
 		const msg = { type: "output", id: "s0" };
 		const payload = Uint8Array.from([0x00, 0xff, 0x80, 0x42]);
@@ -100,7 +100,7 @@ describe("framing — frames with binary payload", () => {
 
 	test("empty payload round-trips as null", () => {
 		// Passing an explicit empty Uint8Array should still decode as `null`
-		// (the wire layout makes payloadLen=0 and absent indistinguishable —
+		// (the wire layout makes payloadLen=0 and absent indistinguishable -
 		// we normalize on the receive side so callers don't have to branch).
 		const msg = { type: "output", id: "s0" };
 		const decoded = decodeFrame(encodeFrame(msg, new Uint8Array(0)));

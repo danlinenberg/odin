@@ -2,7 +2,7 @@
  * V2 terminal environment contract.
  *
  * PTY env is built from a preserved shell snapshot resolved by the host-service
- * at startup — never from desktop main or the live host-service process.env.
+ * at startup - never from desktop main or the live host-service process.env.
  */
 
 export { stripTerminalRuntimeEnv } from "./env-strip.ts";
@@ -64,7 +64,7 @@ function snapshotStringEnv(
  * Desktop main should not construct or own this snapshot.
  *
  * Falls back to a process.env snapshot if the user's login shell can't be
- * probed — crashing host-service startup over a degraded PTY env strands
+ * probed - crashing host-service startup over a degraded PTY env strands
  * users on v2. v1 desktop main does the same in apps/desktop shell-env.ts.
  */
 export async function resolveTerminalBaseEnv(): Promise<
@@ -108,8 +108,8 @@ let _terminalBaseEnvReady: Promise<void> | null = null;
  * Kick off the shell-env snapshot in the background and stash it once resolved.
  *
  * Startup must NOT await this. The login-shell probe can take up to
- * SHELL_ENV_TIMEOUT_MS (8s) — often the full budget when the user's shell is
- * slow (e.g. a wedged powerlevel10k/gitstatus init) — and gating the HTTP
+ * SHELL_ENV_TIMEOUT_MS (8s) - often the full budget when the user's shell is
+ * slow (e.g. a wedged powerlevel10k/gitstatus init) - and gating the HTTP
  * listen on it pushes cold starts past the desktop coordinator's health-check
  * window, especially when every org boots at once. PTY creation awaits
  * `waitForTerminalBaseEnv()` instead, so terminals still get the preserved
@@ -175,7 +175,7 @@ interface BuildV2TerminalEnvParams {
 	agentHookVersion: string;
 	/**
 	 * tRPC URL for the host-service notifications.hook mutation.
-	 * Endpoint is unauthenticated by design — it only broadcasts chimes,
+	 * Endpoint is unauthenticated by design - it only broadcasts chimes,
 	 * no state change. See the router for rationale.
 	 */
 	hostAgentHookUrl?: string;
@@ -204,7 +204,7 @@ export function buildV2TerminalEnv(
 		hostAgentHookUrl,
 	} = params;
 
-	// Defense in depth — baseEnv is pre-stripped at init, but strip again
+	// Defense in depth - baseEnv is pre-stripped at init, but strip again
 	// to guarantee no runtime keys reach PTYs regardless of call site
 	const env = stripTerminalRuntimeEnv(baseEnv);
 
@@ -242,7 +242,7 @@ export function buildV2TerminalEnv(
 	env.ODIN_ENV = odinEnv;
 	env.ODIN_AGENT_HOOK_PORT = agentHookPort;
 	env.ODIN_AGENT_HOOK_VERSION = agentHookVersion;
-	// v2 — agent posts to host-service so the renderer can play the sound
+	// v2 - agent posts to host-service so the renderer can play the sound
 	// client-side. No auth token: the endpoint is unauthenticated by design
 	// (it only broadcasts chimes). The notify-hook script falls back to
 	// the electron endpoint when this URL isn't set.

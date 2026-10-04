@@ -5,7 +5,7 @@ import { useOdinFeeds } from "./useOdinFeeds";
 import { type OdinTask, useMyTasks } from "./useOdinTasks";
 
 /**
- * The automations Odin ships with — installed on first run, already on.
+ * The automations Odin ships with - installed on first run, already on.
  *
  * An empty Automations panel only pays off for someone who already knows what
  * to schedule. These are the jobs worth running for everyone, running from
@@ -19,10 +19,10 @@ export interface BacklogItem {
 	/**
 	 * What to clear when the verdict is DROP: `task:<id>` or
 	 * `slack:<channel>:<ts>`. Also how a verdict finds its way back to the row
-	 * it is about, and — for a Slack row — the message the sweep reads.
+	 * it is about, and - for a Slack row - the message the sweep reads.
 	 */
 	key: string;
-	/** Where it lives — "Tasks", "#eng" — so the report can name it back. */
+	/** Where it lives - "Tasks", "#eng" - so the report can name it back. */
 	source: string;
 	title: string;
 	/** The rest of what was written or said; where a ticket key usually hides. */
@@ -33,9 +33,9 @@ export interface BacklogItem {
 	url?: string;
 	/** Slack only: the :eyes: that queued this is gone from the message. */
 	unreacted?: boolean;
-	/** When the source last moved, ms — what the sweep ages a quiet row against. */
+	/** When the source last moved, ms - what the sweep ages a quiet row against. */
 	lastActivityAt?: number;
-	/** When it was first written, ms — the task made, the message posted, the ticket filed. */
+	/** When it was first written, ms - the task made, the message posted, the ticket filed. */
 	createdAt?: number;
 	/** The source's own status name, where it keeps one: a Notion row's Status. */
 	status?: string;
@@ -61,7 +61,7 @@ function movedAt(iso: string | null | undefined): number | undefined {
  * The backlog, for the purpose of asking whether it's still worth doing:
  * everything on the board, whatever feed it came from.
  *
- * Jira, PRs and Notion do retire their own rows — the Jira feed asks for open
+ * Jira, PRs and Notion do retire their own rows - the Jira feed asks for open
  * issues, the PR feed for open PRs, so a closed ticket and a merged PR leave
  * those tabs on the next sync with nobody reviewing anything. That answers
  * "is it finished", which was never the whole question. An issue still open
@@ -72,7 +72,7 @@ function movedAt(iso: string | null | undefined): number | undefined {
  * "last touched". What differs is what a DROP can then do: a task is deleted
  * and a Slack row gets the local handled marker, while a Jira, PR or Notion
  * row has nothing local to clear and the Review screen can only take it off
- * the list — it comes back on the next sweep unless it moves at the source.
+ * the list - it comes back on the next sweep unless it moves at the source.
  */
 export function backlogOf(
 	todos: OdinTask[],
@@ -179,7 +179,7 @@ export function backlogOf(
 			// thread, and knows it for the same message when it's a Slack row too.
 			...(page.slackUrl ? { detail: page.slackUrl } : {}),
 			...(page.status ? { status: page.status } : {}),
-			// The address can sit in either field — Contact often holds only the
+			// The address can sit in either field - Contact often holds only the
 			// display name ("Imagen") and Point of Contact the "Imagen <info@…>".
 			...(page.channel === "Gmail" && senderOf(page.contact, page.assignee)
 				? { sender: senderOf(page.contact, page.assignee) }
@@ -191,7 +191,7 @@ export function backlogOf(
 	];
 }
 
-/** The live backlog — what the sweep reads, wherever it's launched from. */
+/** The live backlog - what the sweep reads, wherever it's launched from. */
 export function useBacklog(): BacklogItem[] {
 	const { todos } = useMyTasks();
 	const { reactions, jira, pulls, notion } = useOdinFeeds();
@@ -249,7 +249,7 @@ export interface BuiltinAutomation {
  * morning you might not open Odin, and the reading is three API calls Odin can
  * make itself. It is a button on the Review screen now, and Odin's own code.
  *
- * The machinery stays — seeding, the built-in chip, and the retirement below
+ * The machinery stays - seeding, the built-in chip, and the retirement below
  * that takes a row away again once it stops shipping.
  */
 export const BUILTIN_AUTOMATIONS: BuiltinAutomation[] = [];

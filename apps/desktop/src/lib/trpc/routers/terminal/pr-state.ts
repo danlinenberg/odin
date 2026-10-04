@@ -12,11 +12,11 @@ export type PullRequestState = "OPEN" | "MERGED" | "CLOSED";
 
 export interface PullRequestStatus {
 	state: PullRequestState;
-	/** Open but not ready for review — the brief says "draft", not "open". */
+	/** Open but not ready for review - the brief says "draft", not "open". */
 	isDraft: boolean;
 	/** GitHub's review decision is APPROVED: all that's left is the merge click. */
 	approved: boolean;
-	/** Checks still running, by name — "Cursor Bugbot" is the one you're waiting on. */
+	/** Checks still running, by name - "Cursor Bugbot" is the one you're waiting on. */
 	pending: string[];
 	/**
 	 * Checks that only move when a person acts, by name. A Terrateam apply sits at
@@ -49,7 +49,7 @@ export type GhExec = (
 
 const gh: GhExec = (args, env) => execWithShellEnv("gh", args, { env });
 
-/** `✓ Logged in to github.com account NAME (keyring)` — one per account. */
+/** `✓ Logged in to github.com account NAME (keyring)` - one per account. */
 const ACCOUNT = /Logged in to \S+ account (\S+)/g;
 
 /**
@@ -80,7 +80,7 @@ const SUMMARY_MAX = 280;
 
 /**
  * The opening paragraph of a PR description, minus markdown headings and
- * emphasis — the hover is plain text. Odin's PRs lead with what changed.
+ * emphasis - the hover is plain text. Odin's PRs lead with what changed.
  */
 export function firstParagraph(body: string): string | null {
 	for (const block of body.split(/\n\s*\n/)) {
@@ -127,7 +127,7 @@ function status(stdout: string): PullRequestStatus | null {
 	for (const entry of pr.statusCheckRollup ?? []) {
 		const name = entry.name ?? entry.context ?? "check";
 		// A CheckRun carries `status`; a StatusContext only `state`. Anything not
-		// finished is still in flight — that's the bit worth showing live.
+		// finished is still in flight - that's the bit worth showing live.
 		const done = entry.status ? entry.status === "COMPLETED" : true;
 		const result = entry.conclusion ?? entry.state ?? "";
 		if (result === "PENDING" && MANUAL_GATE.test(name)) {
@@ -147,7 +147,7 @@ function status(stdout: string): PullRequestStatus | null {
 
 /**
  * `gh` talks to github.com as its *active* account, so a repo only a second
- * logged-in account can see 404s — a work org while the personal account is
+ * logged-in account can see 404s - a work org while the personal account is
  * active, or the reverse. The owner in the url doesn't name the account that
  * can read it (`imagenai/...` is read by `dan-linenberg-imagenai`), so on a
  * miss just try each logged-in account's token in turn. Null when none of them
@@ -234,7 +234,7 @@ const checkedAt = new Map<string, number>();
  * opened, hundreds of them, so it's one GraphQL call per repo (100 PRs a call)
  * rather than a `gh pr view` each. A merge is final: a merged url is never
  * asked about again, the rest at most every ten minutes. A repo no logged-in
- * account can read counts as unmerged — only a confirmed merge ships.
+ * account can read counts as unmerged - only a confirmed merge ships.
  */
 export async function mergedPullRequests(
 	urls: string[],
@@ -335,9 +335,9 @@ const mainCheckout = (porcelain: string) =>
 
 /**
  * Where a session's PRs live on disk: for each PR it linked, the checkout that
- * has the PR's branch. The transcript's cwds can't say — Claude Code resets
+ * has the PR's branch. The transcript's cwds can't say - Claude Code resets
  * its shell to the launch dir after every command and agents reach worktrees
- * with `git -C` — but a PR names its branch exactly. A PR in another repo is
+ * with `git -C` - but a PR names its branch exactly. A PR in another repo is
  * found through that repo's clone: a sibling of `checkout`'s clone (~/dev/imagen/*
  * sit together), else a path the transcript mentions. Newest first; a PR with
  * no checkout (worktree removed, repo not cloned) drops out.

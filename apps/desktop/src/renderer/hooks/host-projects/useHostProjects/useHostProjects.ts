@@ -18,7 +18,7 @@ const PROJECTS_FALLBACK_REFETCH_INTERVAL_MS = 30_000;
 export interface UseHostProjectsResult {
 	projects: HostProjectRow[];
 	/**
-	 * True once the host answered or failed. Gates empty states only —
+	 * True once the host answered or failed. Gates empty states only -
 	 * existing rows always render (cache-first rule).
 	 */
 	isReady: boolean;
@@ -36,7 +36,7 @@ export function useHostProjects(): UseHostProjectsResult {
 		queryKey: HOST_PROJECTS_QUERY_KEY,
 		enabled: activeHostUrl !== null,
 		refetchInterval: PROJECTS_FALLBACK_REFETCH_INTERVAL_MS,
-		// The host is reachable at 127.0.0.1 even with the machine offline —
+		// The host is reachable at 127.0.0.1 even with the machine offline -
 		// the default "online" networkMode would pause these queries the moment
 		// navigator.onLine goes false, defeating offline-first entirely.
 		networkMode: "always" as const,

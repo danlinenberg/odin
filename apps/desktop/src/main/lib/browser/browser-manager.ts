@@ -237,7 +237,7 @@ class BrowserManager extends EventEmitter {
 		});
 	}
 
-	// When a webview has focus, keystrokes route to the guest renderer — host
+	// When a webview has focus, keystrokes route to the guest renderer - host
 	// `react-hotkeys-hook` listeners never see them and the menu's CmdOrCtrl+W
 	// accelerator closes the whole window. `before-input-event` fires in the
 	// main process before both, and `preventDefault()` suppresses both.

@@ -11,7 +11,7 @@ import { createGitFixture, type GitFixture } from "../helpers/git-fixture";
 
 describe("bug-hunt-v2: progress-store leak on early errors in workspaceCreation.create", () => {
 	// Both `workspaceCreation.create` and `workspaceCreation.getProgress`
-	// were removed by PR #3893 (canonical workspaces.create) — the entire
+	// were removed by PR #3893 (canonical workspaces.create) - the entire
 	// progress store is gone. The leak these tests guarded is no longer
 	// reachable. Re-author against `workspaces.create` if/when an
 	// equivalent surface exists.

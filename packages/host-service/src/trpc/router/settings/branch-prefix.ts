@@ -51,7 +51,7 @@ export const branchPrefixRouter = router({
 		}),
 
 	/**
-	 * Git identity for the settings preview — lets the UI show what the
+	 * Git identity for the settings preview - lets the UI show what the
 	 * `author`/`github` modes would actually resolve to.
 	 */
 	gitInfo: protectedProcedure.query(

@@ -22,7 +22,7 @@ export const MAIN_WORKSPACE_REASON =
  *   - path: worktreePath equals the project's repoPath, after realpath
  *     normalization (without it, symlinks / trailing slash / macOS case
  *     differences silently fail open).
- *   - type: the local row's `type === "main"` — host.db owns the workspace
+ *   - type: the local row's `type === "main"` - host.db owns the workspace
  *     record, so no cloud round-trip is needed.
  *
  * Both signals exist because a row created before `type` was tracked

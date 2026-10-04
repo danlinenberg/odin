@@ -30,7 +30,7 @@ export function resolveOpenableWorktrees(
 ): Map<string, OpenableWorktreeAction> {
 	const result = new Map<string, OpenableWorktreeAction>();
 
-	// External worktrees first (lower priority — tracked overrides)
+	// External worktrees first (lower priority - tracked overrides)
 	for (const wt of externalWorktrees) {
 		if (!wt.branch) continue;
 		if (wt.hasActiveWorkspace) continue;

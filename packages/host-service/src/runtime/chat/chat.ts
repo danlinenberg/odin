@@ -423,7 +423,7 @@ export class ChatRuntimeManager {
 		const INSTRUCTIONS = `${MANAGED_MARKER}
 ## Question Tool
 
-When you need to ask the user ANY question — including simple yes/no, confirmations, and clarifications — ALWAYS use the \`ask_user\` tool. Never ask questions in plain text. The Odin UI renders \`ask_user\` calls as an interactive overlay with clickable option buttons; plain-text questions will not be surfaced to the user in the same way.
+When you need to ask the user ANY question - including simple yes/no, confirmations, and clarifications - ALWAYS use the \`ask_user\` tool. Never ask questions in plain text. The Odin UI renders \`ask_user\` calls as an interactive overlay with clickable option buttons; plain-text questions will not be surfaced to the user in the same way.
 `;
 		try {
 			const dir = join(homedir(), ".mastracode");
@@ -431,14 +431,14 @@ When you need to ask the user ANY question — including simple yes/no, confirma
 			if (existsSync(filePath)) {
 				const existing = readFileSync(filePath, "utf-8");
 				if (!existing.includes(MANAGED_MARKER)) {
-					// User-managed file — don't overwrite
+					// User-managed file - don't overwrite
 					return;
 				}
 			}
 			mkdirSync(dir, { recursive: true });
 			writeFileSync(filePath, INSTRUCTIONS, "utf-8");
 		} catch {
-			// Non-fatal — instructions enhancement is best-effort
+			// Non-fatal - instructions enhancement is best-effort
 		}
 	}
 
@@ -545,7 +545,7 @@ When you need to ask the user ANY question — including simple yes/no, confirma
 			try {
 				await inflight.promise;
 			} catch {
-				// Creation failed — nothing to dispose.
+				// Creation failed - nothing to dispose.
 				return;
 			}
 		}
@@ -562,12 +562,12 @@ When you need to ask the user ANY question — including simple yes/no, confirma
 		try {
 			runtime.harness.abort();
 		} catch {
-			// best-effort — proceed with cleanup even if abort fails
+			// best-effort - proceed with cleanup even if abort fails
 		}
 		try {
 			await runtime.mcpManager?.disconnect();
 		} catch {
-			// best-effort — MCP servers may already be disconnected
+			// best-effort - MCP servers may already be disconnected
 		}
 		this.runtimes.delete(sessionId);
 	}
@@ -575,7 +575,7 @@ When you need to ask the user ANY question — including simple yes/no, confirma
 	/**
 	 * Shape the harness's raw display state into the shape the renderer
 	 * expects. Both getDisplayState and getSnapshot must apply the same
-	 * shaping — keep this the single source of truth so the two functions
+	 * shaping - keep this the single source of truth so the two functions
 	 * cannot drift.
 	 */
 	private buildDisplayState(runtime: RuntimeSession): ChatDisplayState {
@@ -648,7 +648,7 @@ When you need to ask the user ANY question — including simple yes/no, confirma
 	 * from one runtime acquisition. This avoids the dual-poll race between
 	 * independent getDisplayState / listMessages queries on the client.
 	 *
-	 * Note: not a fully locked atomic snapshot — listMessages() is async, so
+	 * Note: not a fully locked atomic snapshot - listMessages() is async, so
 	 * harness state can change between the displayState read and the messages
 	 * read. This still removes the *client-side* two-query race, which is the
 	 * one that caused mismatched message/display state.

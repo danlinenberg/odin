@@ -15,7 +15,7 @@ const FORBIDDEN = [
 	/from\s+["']node-pty["']/,
 	/from\s+["']@parcel\/watcher["']/,
 	/from\s+["']electron["']/,
-	// host-service process singletons — workers get inputs via payload only
+	// host-service process singletons - workers get inputs via payload only
 	/from\s+["'][./]*\.\.\/db(\/|["'])/,
 	/from\s+["'][./]*\.\.\/events(\/|["'])/,
 	/from\s+["'][./]*\.\.\/daemon(\/|["'])/,

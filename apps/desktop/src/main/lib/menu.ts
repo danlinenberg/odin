@@ -29,7 +29,7 @@ export function createApplicationMenu() {
 					},
 				},
 				{ type: "separator" },
-				// Explicit click handler (not `role: "close"`) — `role: "close"` adds
+				// Explicit click handler (not `role: "close"`) - `role: "close"` adds
 				// an implicit CmdOrCtrl+W accelerator that overrides browser-manager's
 				// `before-input-event` interception and closes the window instead of
 				// the focused pane.
@@ -63,7 +63,7 @@ export function createApplicationMenu() {
 						BrowserWindow.getFocusedWindow()?.reload();
 					},
 				},
-				// Explicit click handler (not `role: "forceReload"`) — the role adds
+				// Explicit click handler (not `role: "forceReload"`) - the role adds
 				// an implicit CmdOrCtrl+Shift+R accelerator that prevents the renderer's
 				// Reopen Closed Tab shortcut from receiving the event.
 				{

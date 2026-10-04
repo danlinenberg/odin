@@ -16,7 +16,7 @@ export interface AcpSessionStreamSource {
 	/**
 	 * Resurrect a persisted-but-offline session before attaching (the manager
 	 * implements this; journal-backed test stubs may omit it). Resolving
-	 * without effect for live/dead/unknown ids is expected — `subscribe`
+	 * without effect for live/dead/unknown ids is expected - `subscribe`
 	 * raises its own NotFound for the unknown case.
 	 */
 	ensureLive?(sessionId: string): Promise<void>;
@@ -34,7 +34,7 @@ const SOCKET_OPEN = 1;
 // Same rationale as the terminal route: with no ACK flow control, a client
 // that stops draining would grow the host's send buffer without bound.
 // Envelopes are small, so blowing past this means the client is effectively
-// gone — drop it; reconnect-with-cursor replays what it missed. The drop
+// gone - drop it; reconnect-with-cursor replays what it missed. The drop
 // path is intentionally untested: forcing 8MB of unread kernel buffer in a
 // test is flaky-by-construction, and a false trip only costs a reconnect.
 const WS_SEND_BUFFER_CAP_BYTES = 8 * 1024 * 1024;
@@ -78,10 +78,10 @@ function sendReset(socket: StreamSocket, sessionId: string, reason: string) {
 }
 
 /**
- * `/acp-sessions/:sessionId/stream?since=<seq>` — one JSON
+ * `/acp-sessions/:sessionId/stream?since=<seq>` - one JSON
  * `SessionUpdateEnvelope` per WS message (docs/acp-sessions.md).
  * With `since`, the retained journal tail is replayed before going live; an
- * unservable cursor gets a single `reset` frame and the socket closes — the
+ * unservable cursor gets a single `reset` frame and the socket closes - the
  * client resyncs via get/getMessages and reconnects. The route is
  * server-to-client only; client messages are ignored. Auth is the same
  * `wsAuth` guard app.ts applies to `/terminal/*`.
@@ -164,7 +164,7 @@ export function registerAcpSessionStreamRoute({
 					// Resurrect before attaching so a stream opened right after a
 					// host restart replays the loaded transcript instead of dying on
 					// session_not_found. onOpen can't await, so attach in the
-					// continuation — `closed` guards the socket going away meanwhile.
+					// continuation - `closed` guards the socket going away meanwhile.
 					void sessions.ensureLive(sessionId).then(
 						() => {
 							if (closed || socket.readyState !== SOCKET_OPEN) return;

@@ -60,7 +60,7 @@ export function useAgentLaunchPreferences<TAgent extends string>({
 		window.localStorage.setItem(projectStorageKey, initialProjectId);
 	}, [projectStorageKey, recentProjects, selectedProjectId]);
 
-	// Never persist the fallback to localStorage — a transient unavailability
+	// Never persist the fallback to localStorage - a transient unavailability
 	// should not permanently overwrite the user's explicit choice.
 	useEffect(() => {
 		if (!agentsReady) {

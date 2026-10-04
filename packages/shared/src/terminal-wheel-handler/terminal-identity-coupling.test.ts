@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { TERMINAL_TERM_PROGRAM } from "../constants";
 
 // Identities claude-code (and other agent TUIs) treat as "the terminal
-// delivers full-fidelity wheel reports natively — trust the stream as-is,
+// delivers full-fidelity wheel reports natively - trust the stream as-is,
 // do not amplify". This is claude's kitty-class detection set.
 const KITTY_CLASS_IDENTITIES = [
 	"kitty",

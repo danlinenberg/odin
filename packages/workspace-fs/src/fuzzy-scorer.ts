@@ -1,5 +1,5 @@
 /**
- * Fuzzy file search scorer — ported from VS Code.
+ * Fuzzy file search scorer - ported from VS Code.
  *
  * Copyright (c) Microsoft Corporation. All rights reserved.
  * Licensed under the MIT License.
@@ -34,7 +34,7 @@ enum CharCode {
 	Colon = 58,
 }
 
-/** Path separator — always `/` for our use case (all paths are normalized to forward slashes). */
+/** Path separator - always `/` for our use case (all paths are normalized to forward slashes). */
 const sep = "/";
 
 interface IMatch {
@@ -156,7 +156,7 @@ function doScoreFuzzy(
 
 		const queryIndexGtNull = queryIndex > 0;
 
-		// biome-ignore lint/style/noNonNullAssertion: ported from VS Code — index in bounds by loop
+		// biome-ignore lint/style/noNonNullAssertion: ported from VS Code - index in bounds by loop
 		const queryCharAtIndex = query[queryIndex]!;
 		// biome-ignore lint/style/noNonNullAssertion: ported from VS Code
 		const queryLowerCharAtIndex = queryLower[queryIndex]!;
@@ -233,7 +233,7 @@ function computeCharScore(
 ): number {
 	let score = 0;
 
-	// biome-ignore lint/style/noNonNullAssertion: ported from VS Code — index in bounds by loop
+	// biome-ignore lint/style/noNonNullAssertion: ported from VS Code - index in bounds by loop
 	if (!considerAsEqual(queryLowerCharAtIndex, targetLower[targetIndex]!)) {
 		return score;
 	}
@@ -700,15 +700,15 @@ function computeLabelAndDescriptionMatchDistance<T>(
 	let matchEnd = -1;
 
 	if (score.descriptionMatch?.length) {
-		// biome-ignore lint/style/noNonNullAssertion: ported from VS Code — length already checked
+		// biome-ignore lint/style/noNonNullAssertion: ported from VS Code - length already checked
 		matchStart = score.descriptionMatch[0]!.start;
 	} else if (score.labelMatch?.length) {
-		// biome-ignore lint/style/noNonNullAssertion: ported from VS Code — length already checked
+		// biome-ignore lint/style/noNonNullAssertion: ported from VS Code - length already checked
 		matchStart = score.labelMatch[0]!.start;
 	}
 
 	if (score.labelMatch?.length) {
-		// biome-ignore lint/style/noNonNullAssertion: ported from VS Code — length already checked
+		// biome-ignore lint/style/noNonNullAssertion: ported from VS Code - length already checked
 		matchEnd = score.labelMatch[score.labelMatch.length - 1]!.end;
 		if (score.descriptionMatch?.length) {
 			const itemDescription = accessor.getItemDescription(item);
@@ -717,7 +717,7 @@ function computeLabelAndDescriptionMatchDistance<T>(
 			}
 		}
 	} else if (score.descriptionMatch?.length) {
-		// biome-ignore lint/style/noNonNullAssertion: ported from VS Code — length already checked
+		// biome-ignore lint/style/noNonNullAssertion: ported from VS Code - length already checked
 		matchEnd = score.descriptionMatch[score.descriptionMatch.length - 1]!.end;
 	}
 
@@ -740,13 +740,13 @@ function compareByMatchLength(
 		return 1;
 	}
 
-	// biome-ignore lint/style/noNonNullAssertion: ported from VS Code — length already checked above
+	// biome-ignore lint/style/noNonNullAssertion: ported from VS Code - length already checked above
 	const matchStartA = matchesA[0]!.start;
 	// biome-ignore lint/style/noNonNullAssertion: ported from VS Code
 	const matchEndA = matchesA[matchesA.length - 1]!.end;
 	const matchLengthA = matchEndA - matchStartA;
 
-	// biome-ignore lint/style/noNonNullAssertion: ported from VS Code — length already checked above
+	// biome-ignore lint/style/noNonNullAssertion: ported from VS Code - length already checked above
 	const matchStartB = matchesB[0]!.start;
 	// biome-ignore lint/style/noNonNullAssertion: ported from VS Code
 	const matchEndB = matchesB[matchesB.length - 1]!.end;

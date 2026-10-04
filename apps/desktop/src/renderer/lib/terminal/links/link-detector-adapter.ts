@@ -120,7 +120,7 @@ export class LinkDetectorAdapter implements ILinkProvider {
 		);
 
 		// VENDORED FROM VSCODE (terminalLocalLinkDetector.ts lines 220-252):
-		// Styled-text fallback — if no links found, split lines by terminal
+		// Styled-text fallback - if no links found, split lines by terminal
 		// attributes (bold/underline/italic) and try each styled segment as
 		// a file path. Catches filenames that the app printed with styling.
 		// To disable: remove or comment out this block.

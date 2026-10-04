@@ -59,7 +59,7 @@ export function parseIPv4Hex(hex: string): string | null {
 /**
  * Parse an IPv6 address from the hex form in /proc/net/tcp6. The kernel
  * writes four 32-bit words, each in little-endian byte order within the
- * word — so "0000000000000000FFFF00000100007F" is ::ffff:127.0.0.1, not a
+ * word - so "0000000000000000FFFF00000100007F" is ::ffff:127.0.0.1, not a
  * nonsense string. We render the canonical long form (e.g. "0:0:0:0:0:0:0:1")
  * rather than RFC 5952's "::1" because consumers just forward this to URL
  * builders that tolerate either.
@@ -82,7 +82,7 @@ export function parseIPv6Hex(hex: string): string | null {
  * Parse a single /proc/net/tcp or /proc/net/tcp6 line into a listener record.
  * Returns null for header lines, non-LISTEN states, or malformed rows.
  *
- * Exported for testing — reading real /proc in unit tests is noisy, so we
+ * Exported for testing - reading real /proc in unit tests is noisy, so we
  * feed canned lines here instead.
  */
 export function parseProcNetLine(
@@ -131,7 +131,7 @@ async function readProcNetFile(
 	try {
 		content = await fs.readFile(path, "utf-8");
 	} catch {
-		// /proc/net/tcp6 may not exist on IPv6-disabled kernels — silent skip.
+		// /proc/net/tcp6 may not exist on IPv6-disabled kernels - silent skip.
 		return [];
 	}
 
@@ -171,7 +171,7 @@ function createLimiter(
 
 /**
  * Walk /proc/<pid>/fd/ for each PID we care about and build an inode → pid
- * map. We ignore fds we can't read — they may have been closed between
+ * map. We ignore fds we can't read - they may have been closed between
  * readdir and readlink (fd table races), or the process may have exited.
  */
 async function buildInodeToPid(
@@ -218,7 +218,7 @@ async function buildInodeToPid(
 								inodeToPid.set(inode, pid);
 							}
 						} catch {
-							// fd closed between readdir and readlink — normal.
+							// fd closed between readdir and readlink - normal.
 						}
 					}),
 				),
@@ -229,7 +229,7 @@ async function buildInodeToPid(
 	return inodeToPid;
 }
 
-/** Read /proc/<pid>/comm — kernel stores the task name (max 15 chars + NUL). */
+/** Read /proc/<pid>/comm - kernel stores the task name (max 15 chars + NUL). */
 async function readProcessName(pid: number): Promise<string> {
 	try {
 		const content = await fs.readFile(`/proc/${pid}/comm`, "utf-8");
@@ -241,7 +241,7 @@ async function readProcessName(pid: number): Promise<string> {
 
 /**
  * Linux implementation of `getListeningPortsForPids` backed by /proc.
- * Returns an empty array if /proc reads fail — caller treats empty as
+ * Returns an empty array if /proc reads fail - caller treats empty as
  * "nothing listening" identically to the lsof path, so there's no need
  * to distinguish failures from genuine empties.
  */
@@ -255,7 +255,7 @@ export async function getListeningPortsLinuxProcfs(
 	const pidRank = new Map(pids.map((pid, index) => [pid, index]));
 
 	try {
-		// Walk fds and read /proc/net/tcp{,6} concurrently — they're independent.
+		// Walk fds and read /proc/net/tcp{,6} concurrently - they're independent.
 		const [inodeToPid, ipv4Listeners, ipv6Listeners] = await Promise.all([
 			buildInodeToPid(pidSet, pidRank, signal),
 			readProcNetFile("/proc/net/tcp", false),

@@ -2,7 +2,7 @@
  * Single source of truth for extension-based file classification shared by the
  * host-service git path and the desktop main/renderer code. Keeping these here
  * stops the two sides from drifting on questions like whether `.svg` counts as
- * binary (it does not — it is text and should stay diffable).
+ * binary (it does not - it is text and should stay diffable).
  */
 
 /** Gets the file extension from a path (lowercase, without dot). */

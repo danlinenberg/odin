@@ -24,7 +24,7 @@ import type { PaneStatus } from "./tabs-types";
 const FOOTER_LINES = 10;
 
 /**
- * The horizontal rules Claude draws above and below its input box — the seam
+ * The horizontal rules Claude draws above and below its input box - the seam
  * between transcript and chrome. Matched on the run of box-drawing characters
  * so an indented or padded row still counts.
  */
@@ -37,8 +37,8 @@ const RULE = /^[\s]*[─━]{10,}[\s]*$/;
  *   ✻ Cogitating… (5m 0s · ↑ 12.1k tokens · esc to interrupt)
  *
  * Match the "…(" that opens the counter, not the hint inside it. The hint text
- * drifts between Claude versions — "esc to interrupt" in one, "thought for 1s"
- * in the next — and keying on it called every working session Needs you, so
+ * drifts between Claude versions - "esc to interrupt" in one, "thought for 1s"
+ * in the next - and keying on it called every working session Needs you, so
  * cards flipped Working → Needs you → Working for a whole turn as the hooks
  * and this classifier corrected each other every few seconds. The finished
  * line ("✻ Cooked for 1m 30s") has no ellipsis and no counter, so it doesn't
@@ -52,7 +52,7 @@ const SPINNER = /…[ \t]*\(|esc to interrupt/i;
  * whose agent hooks went missing. Hooks are the fast path; this is the one
  * that can't silently stop firing, because the screen is always there.
  *
- * Returns undefined when the screen doesn't look like any of the three — an
+ * Returns undefined when the screen doesn't look like any of the three - an
  * unrecognised screen must leave the hook-driven status alone rather than
  * guess.
  */
@@ -75,12 +75,12 @@ export function odinScreenStatus(screen: string): PaneStatus | undefined {
 	// to win over the spinner, and the idle prompt's status line ("bypass
 	// permissions on", "? for shortcuts") is painted under both of the others.
 	// "Enter to confirm" is the folder-trust dialog, whose options carry no
-	// numbers — missing it read a session waiting on "Yes, I trust this
+	// numbers - missing it read a session waiting on "Yes, I trust this
 	// folder" as Claude gone from the PTY, and the card as died mid-turn.
 	if (/Enter to (?:select|confirm)|Do you want|❯[ \t]*\d+\.[ \t]/i.test(footer))
 		return "permission";
 	if (SPINNER.test(footer)) return "working";
-	// Claude is sitting at its prompt (not mid-turn, no dialog) — the turn ended
+	// Claude is sitting at its prompt (not mid-turn, no dialog) - the turn ended
 	// and nothing is asking for you. That's "review" (the board's Done column),
 	// not idle and not "needs input".
 	if (/bypass permissions|for shortcuts|shift\+tab to cycle/i.test(footer))
@@ -93,8 +93,8 @@ export function odinScreenStatus(screen: string): PaneStatus | undefined {
  * last said. Screen-reading is a repair tool, not an authority, and the idle
  * prompt is the read it's least sure about: it says the turn is over and
  * nothing more. A session that asked you a question in its final message and
- * one that finished the job clean draw the identical screen — Claude paints no
- * dialog for a question it asked in prose — and the only writer that can tell
+ * one that finished the job clean draw the identical screen - Claude paints no
+ * dialog for a question it asked in prose - and the only writer that can tell
  * them apart is the Stop hook that watched the turn end.
  *
  * So a "review" read never moves a card into Done and never moves one out. All
@@ -120,7 +120,7 @@ export function odinScreenWrite(
  * of Claude (or /exit) and the shell it was launched from outlives it, sitting
  * at a prompt. The board used to read that as "session is open" and offer
  * Continue, which types the word "Continue" at zsh. What that session actually
- * needs is Resume — reopen the conversation with `claude --resume`.
+ * needs is Resume - reopen the conversation with `claude --resume`.
  *
  * Claude's chrome is the tell: the spinner, a dialog, the status line, or the
  * rules around its input box. One of them is on screen in every state of the
@@ -128,7 +128,7 @@ export function odinScreenWrite(
  */
 export function agentOnScreen(screen: string): boolean {
 	if (odinScreenStatus(screen) !== undefined) return true;
-	// The box on its own — Claude drawn, but caught between repaints of the
+	// The box on its own - Claude drawn, but caught between repaints of the
 	// status line under it.
 	return (
 		screen.split(/\r\n|\n|\r/).filter((line) => RULE.test(line)).length >= 2
@@ -138,7 +138,7 @@ export function agentOnScreen(screen: string): boolean {
 /**
  * Does Esc mean something *inside* Claude right now?
  *
- * Claude prints the affordance whenever it is — "Esc to go back" under a menu
+ * Claude prints the affordance whenever it is - "Esc to go back" under a menu
  * or a picker, "(esc)" on the reject option of a permission dialog. The
  * board's drawer swallows Esc to close itself, which in those states steals
  * the key from the menu the user is standing in and the pane disappears
@@ -147,7 +147,7 @@ export function agentOnScreen(screen: string): boolean {
  * "esc to interrupt" is deliberately not matched: mid-turn the drawer closing
  * is the wanted behaviour, and an Esc into the PTY there cancels the turn.
  *
- * ponytail: shares the status classifier's footer window, and its ceiling — a
+ * ponytail: shares the status classifier's footer window, and its ceiling - a
  * transcript line within FOOTER_LINES of the input box that happens to say
  * "esc to go back" costs the drawer its Esc until the screen scrolls. Minimize
  * and click-outside still close it. Parse the box rules as a delimiter pair if

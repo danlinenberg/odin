@@ -103,13 +103,13 @@ test("every source in one list, newest first", () => {
 	]);
 });
 
-test("holds what the tab badges claim — no started Slack, no bots", () => {
+test("holds what the tab badges claim - no started Slack, no bots", () => {
 	const titles = allItems(feeds).map((item) => item.title);
 	expect(titles).not.toContain("already on it");
 	expect(titles).not.toContain("odin#8: Bump lockfile");
 });
 
-test("PRs you opened aren't tasks — they stay on the PRs tab", () => {
+test("PRs you opened aren't tasks - they stay on the PRs tab", () => {
 	const titles = allItems(feeds).map((item) => item.title);
 	expect(titles).not.toContain("odin#9: My own change");
 });

@@ -30,11 +30,11 @@ import {
 } from "./reactions";
 
 /**
- * Odin's :eyes: queue — the Slack messages I reacted to, straight from Slack.
+ * Odin's :eyes: queue - the Slack messages I reacted to, straight from Slack.
  *
  * Runs in the main process: renderer fetches to slack.com would be blocked by
  * CORS, and the token never reaches the renderer. Needs a **user** token
- * (`xoxp-…`, scope `reactions:read`) — a bot token only sees the bot's own
+ * (`xoxp-…`, scope `reactions:read`) - a bot token only sees the bot's own
  * reactions. Set it in Settings → Connections.
  *
  * Slack is the source of the feed, not of the state: rows persist locally, so
@@ -48,7 +48,7 @@ function slackToken(): string | null {
 	return resolveSlackToken();
 }
 
-/** The reaction Odin watches for — Settings lives in `~/.config/odin.json`. */
+/** The reaction Odin watches for - Settings lives in `~/.config/odin.json`. */
 function queueReaction(): string {
 	return normalizeReaction(readOdinConfig().slackReaction ?? QUEUE_REACTION);
 }
@@ -62,7 +62,7 @@ function launchReaction(): string {
 /**
  * I reacted to this message, and not with a queue reaction. The :eyes: on
  * someone's newest message is me queueing it, which says the opposite of
- * "acknowledged" — counting it dropped rows that were waiting on me.
+ * "acknowledged" - counting it dropped rows that were waiting on me.
  */
 function ackedByMe(
 	reactions: { name?: string; users?: string[] }[] | undefined,
@@ -80,7 +80,7 @@ function ackedByMe(
  * Rows whose message carried my launch reaction on the last sync.
  *
  * ponytail: in memory, not a column. The first sync after a restart refills
- * it from Slack, and `startedAt` is what stops a second launch — so nothing
+ * it from Slack, and `startedAt` is what stops a second launch - so nothing
  * here needs to survive a restart.
  */
 const launchRequested = new Set<string>();
@@ -113,8 +113,8 @@ async function slackApi<T extends SlackResponse>(
 }
 
 /**
- * A read the sweep repeats across rows — the same channel's info, the same
- * thread parent, the same last-read message — asked once per few minutes.
+ * A read the sweep repeats across rows - the same channel's info, the same
+ * thread parent, the same last-read message - asked once per few minutes.
  * Failures aren't kept, so a refused call is asked again next time.
  */
 const slackReads = new Map<string, { at: number; value: Promise<unknown> }>();
@@ -177,7 +177,7 @@ export function clearSlackCaches(): void {
 
 /**
  * Drop this profile's queue. Signing out of Slack should take the messages
- * that came from it with it — the rows live here, not in Slack, so nothing
+ * that came from it with it - the rows live here, not in Slack, so nothing
  * else would ever remove them. Reconnecting re-syncs the ones still :eyes:'d;
  * what's lost is the started/done marks on the rest, which is the point of
  * disconnecting.
@@ -202,7 +202,7 @@ async function getIdentity(token: string): Promise<Identity> {
 	if (!res.user_id) {
 		throw new TRPCError({
 			code: "BAD_REQUEST",
-			message: "Slack auth.test returned no user — is this a user token?",
+			message: "Slack auth.test returned no user - is this a user token?",
 		});
 	}
 	const identity: Identity = {
@@ -278,13 +278,13 @@ async function resolveMentions(text: string, token: string): Promise<string> {
  * poll that misses older reactions still accumulates them over time; paginate
  * here if a burst of other reactions ever pushes them off the first page.
  *
- * That page finds new rows. It cannot retire old ones — Slack orders it by
- * when I reacted, so falling off the end says nothing about the message — so
+ * That page finds new rows. It cannot retire old ones - Slack orders it by
+ * when I reacted, so falling off the end says nothing about the message - so
  * retirement is a separate, per-row question at the bottom.
  */
 async function syncReactions(token: string, reaction: string): Promise<void> {
 	// Every read and write below is fenced to the profile whose token this is.
-	// Another profile's rows are not just hidden but untouched — the sweep at
+	// Another profile's rows are not just hidden but untouched - the sweep at
 	// the end retires rows Slack stopped reporting, and an unfenced sweep would
 	// mark the whole of the other workspace's queue unreacted on every switch.
 	const profileId = activeProfileId();
@@ -300,7 +300,7 @@ async function syncReactions(token: string, reaction: string): Promise<void> {
 	const now = Date.now();
 	// The first sync ever only records what was already there: reacting before
 	// this feature existed wasn't asking for a session. After that, a message
-	// launches whenever it was posted — reacting to an old alert is the point.
+	// launches whenever it was posted - reacting to an old alert is the point.
 	const flagged = eyed.filter((m) => m.launch).map((m) => m.id);
 	const config = readOdinConfig();
 	if (config.slackLaunchSince === undefined) {
@@ -363,7 +363,7 @@ async function syncReactions(token: string, reaction: string): Promise<void> {
 	}
 
 	// Retiring a row takes asking about that row. Absence from the page above
-	// means nothing — see `rowsToVerify` — and this stamp is what the Review
+	// means nothing - see `rowsToVerify` - and this stamp is what the Review
 	// screen turns into a DROP, so it is only ever set off an answer.
 	const stillEyed = new Set(eyed.map((message) => message.id));
 	for (const row of rowsToVerify(
@@ -372,7 +372,7 @@ async function syncReactions(token: string, reaction: string): Promise<void> {
 		VERIFY_PER_SYNC,
 	)) {
 		const on = await reactionStillOn(row, me.userId, [reaction, launch], token);
-		// Couldn't ask — a deleted message, a channel I left, a rate limit.
+		// Couldn't ask - a deleted message, a channel I left, a rate limit.
 		// Leave the row exactly as it was rather than guessing at it.
 		if (on === null) continue;
 		localDb
@@ -396,12 +396,12 @@ const VERIFY_PER_SYNC = 8;
  * What happened in the conversation itself after a queued message.
  *
  * Not every answer is a threaded reply. A DM gets answered in the DM, and the
- * thread rungs above see none of it — which is how a message answered nine
+ * thread rungs above see none of it - which is how a message answered nine
  * days later reads as "nobody has replied, and nothing has moved in 22 days".
  *
  * Read from `conversations.info`, under the `*:read` scopes the queue already
  * has. `last_read` is my read cursor, so it is a *lower bound* on the newest
- * message here — it can lag the conversation, never lead it. That direction is
+ * message here - it can lag the conversation, never lead it. That direction is
  * the safe one: it can only make a row look more alive than the thread alone
  * did, never less.
  *
@@ -496,7 +496,7 @@ async function reactionStillOn(
 
 /**
  * The thread under one queued message, for the backlog sweep: how many replies
- * it has, and — the question that decides it — whether the last word is mine.
+ * it has, and - the question that decides it - whether the last word is mine.
  *
  * Being somewhere in `reply_users` is not the same as having answered. A
  * thread where I said something in week one and they asked me a question in
@@ -504,8 +504,8 @@ async function reactionStillOn(
  * clears exactly the rows that still need doing.
  *
  * Read from `reactions.get`, not `conversations.replies`. Reading the thread
- * itself needs `channels:history` and its three siblings — read access to
- * every message in every channel I'm in — for two facts Slack already puts on
+ * itself needs `channels:history` and its three siblings - read access to
+ * every message in every channel I'm in - for two facts Slack already puts on
  * the parent message: `reply_count` and `reply_users`. The queue's own
  * `reactions:read` is enough. Asking for history scopes to learn a reply count
  * would be the broadest permission in the app bought for the least.
@@ -516,19 +516,19 @@ async function reactionStillOn(
  */
 export async function slackThreadReplies(id: string): Promise<{
 	replies: number;
-	/** The newest reply is mine — nobody is waiting on me here. */
+	/** The newest reply is mine - nobody is waiting on me here. */
 	lastReplyByMe: boolean;
 	/** I said something in this thread, at some point. */
 	iReplied: boolean;
 	/** True when `reply_users` is the whole list, so "not mine" means it. */
 	repliersComplete: boolean;
-	/** Slack ts of the newest reply — the freshest thing that happened here. */
+	/** Slack ts of the newest reply - the freshest thing that happened here. */
 	lastReplyTs: string | null;
 	/** Newest thing seen in the conversation itself, reply or not. */
 	channelLastTs: string | null;
-	/** That newest thing is mine — I said something here after this message. */
+	/** That newest thing is mine - I said something here after this message. */
 	channelLastByMe: boolean;
-	/** I reacted to that newest thing — their last word, acknowledged. */
+	/** I reacted to that newest thing - their last word, acknowledged. */
 	channelLastAckedByMe: boolean;
 	/** What that newest thing said. */
 	channelLastText: string | null;
@@ -540,7 +540,7 @@ export async function slackThreadReplies(id: string): Promise<{
 	isDirect: boolean;
 	/**
 	 * Someone else the message tagged alongside me, when theirs is the newest
-	 * reply and it came after the ask — "@Idan @Dan can you help" that Idan
+	 * reply and it came after the ask - "@Idan @Dan can you help" that Idan
 	 * answered. Their name, or null.
 	 */
 	answeredBy: string | null;
@@ -569,8 +569,8 @@ export async function slackThreadReplies(id: string): Promise<{
 	try {
 		const me = await getIdentity(token);
 		const res = await get(ts);
-		// The row usually points at a reply — you react to the message that needs
-		// answering, not to whatever opened the thread — and the thread's facts
+		// The row usually points at a reply - you react to the message that needs
+		// answering, not to whatever opened the thread - and the thread's facts
 		// are on the parent. A failed parent lookup throws to the catch and reads
 		// as "couldn't check", which is the honest answer: without it we would be
 		// calling a 37-message thread empty.
@@ -619,10 +619,10 @@ export async function slackThreadReplies(id: string): Promise<{
 /**
  * The conversation around a queued message, as plain lines a model can read:
  * the thread it sits in, and in a DM or group DM whatever was said inline
- * after it — most DM answers never touch a thread. "ME" is me; the queued
+ * after it - most DM answers never touch a thread. "ME" is me; the queued
  * message is marked.
  *
- * Needs the `*:history` scopes. Without them, or when Slack won't say, null —
+ * Needs the `*:history` scopes. Without them, or when Slack won't say, null -
  * and the sweep keeps its rule verdict.
  *
  * ponytail: the parent plus the newest 15 messages, 300 chars each. Enough to
@@ -671,7 +671,7 @@ export async function slackConversation(id: string): Promise<string | null> {
 			if (message.ts) byTs.set(message.ts, message);
 		// Slack hands an app outside its Marketplace the thread's first 15
 		// messages and no more. The newest reply is what decides it, so when
-		// it's past the cut, ask for it alone — reactions.get isn't held back.
+		// it's past the cut, ask for it alone - reactions.get isn't held back.
 		const head = (thread.messages ?? [])[0] as
 			| (Message & { latest_reply?: string })
 			| undefined;
@@ -709,12 +709,12 @@ export async function slackConversation(id: string): Promise<string | null> {
 
 /**
  * What a Slack link points at, for the brief's "My links": the channel, who
- * posted, and the message's first real line — so three "Slack thread" links
+ * posted, and the message's first real line - so three "Slack thread" links
  * read as three different conversations.
  *
  * `reactions.get` rather than `conversations.history`: it returns the message
- * on the `reactions:read` scope the queue already has. Cached per link — a
- * message's opening line doesn't change — and null on anything Slack won't
+ * on the `reactions:read` scope the queue already has. Cached per link - a
+ * message's opening line doesn't change - and null on anything Slack won't
  * answer, which leaves the link on its plain label.
  */
 const previews = new Map<string, SlackPreview>();
@@ -815,7 +815,7 @@ export const createSlackRouter = () => {
 	return router({
 		/**
 		 * The queue. Syncs from Slack first, but a sync failure returns the stored
-		 * rows with an error string instead of throwing — a flaky token or a
+		 * rows with an error string instead of throwing - a flaky token or a
 		 * rate limit shouldn't blank the view.
 		 */
 		reactions: publicProcedure.query(async () => {
@@ -852,7 +852,7 @@ export const createSlackRouter = () => {
 			),
 
 		/**
-		 * Watch for a different emoji — the one that queues, or with `launch` the
+		 * Watch for a different emoji - the one that queues, or with `launch` the
 		 * one that queues and starts. Rows already queued are left alone.
 		 */
 		setReaction: publicProcedure
@@ -888,7 +888,7 @@ export const createSlackRouter = () => {
 				return { ok: true };
 			}),
 
-		/** Local-only handled marker — Slack is never written to. */
+		/** Local-only handled marker - Slack is never written to. */
 		setDone: publicProcedure
 			.input(z.object({ id: z.string(), done: z.boolean() }))
 			.mutation(({ input }) => {

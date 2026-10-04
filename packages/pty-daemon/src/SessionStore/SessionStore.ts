@@ -24,7 +24,7 @@ export interface SessionStoreOptions {
  *
  * Replay buffer is a circular FIFO of byte chunks per session, capped by
  * total byte size. When new output exceeds the cap, oldest chunks are
- * dropped (head). The cap is small (~64 KB) — enough to redraw a typical
+ * dropped (head). The cap is small (~64 KB) - enough to redraw a typical
  * shell screen on attach. Larger scrollback is the renderer's xterm.js
  * responsibility.
  */

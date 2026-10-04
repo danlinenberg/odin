@@ -25,7 +25,7 @@ export const portsRouter = router({
 				try {
 					return ctx.runtime.filesystem.resolveWorkspaceRoot(workspaceId);
 				} catch {
-					// Workspace deleted or unknown — no labels for this row.
+					// Workspace deleted or unknown - no labels for this row.
 					return null;
 				}
 			};

@@ -14,7 +14,7 @@ export interface TerminalFailureClassification {
 
 /**
  * The host service runs on loopback, so a dropped stream has no remote cause
- * to tell apart — the diagnosis is the fact itself. It's a value rather than a
+ * to tell apart - the diagnosis is the fact itself. It's a value rather than a
  * bare string so the pane header can distinguish "diagnosed an outage" from
  * "healthy".
  */

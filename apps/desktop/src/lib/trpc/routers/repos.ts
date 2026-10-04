@@ -24,20 +24,20 @@ import {
  * point a session at a repo instead of the default workspace.
  *
  * ponytail: one depth-capped `find` under $HOME, scanned once at launch and
- * cached for the app's lifetime — a new clone shows up after a restart. Swap
+ * cached for the app's lifetime - a new clone shows up after a restart. Swap
  * for a watcher only if that ever bites.
  */
 const run = promisify(execFile);
 
 /**
- * Skipped wholesale: vendored copies, macOS's junk drawer, and every dot-dir —
+ * Skipped wholesale: vendored copies, macOS's junk drawer, and every dot-dir -
  * tool caches (~/.claude, ~/.cache), editor plugins and Odin's worktrees
  * all hide there, and none of them is a repo you'd start a session in.
  *
  * Desktop/Documents/Downloads are TCC-protected: descending into them makes
  * macOS throw a "would like to access files in your Desktop folder" prompt at
  * launch, three times over. Pruning by name means `find` never opens them, so
- * no prompt. A checkout parked on the Desktop won't be listed — add it through
+ * no prompt. A checkout parked on the Desktop won't be listed - add it through
  * the folder picker, which grants access without a prompt.
  *
  * Music/Pictures/Movies are the same story with louder prompts: they hold the
@@ -109,7 +109,7 @@ async function pipe(
 		});
 		child.on("error", () => resolve(null));
 		child.on("close", (code) => resolve(code === 0 ? out : null));
-		// EPIPE if it died before reading the input — `error` already handled it.
+		// EPIPE if it died before reading the input - `error` already handled it.
 		child.stdin.on("error", () => {});
 		child.stdin.end(input);
 	});
@@ -162,7 +162,7 @@ const ESCAPE = /(\x1b\[[0-9;]*[A-Za-z])/;
 /**
  * Soft-wrap one rendered line at `width` columns. Delta only wraps side by
  * side; unified, a long line ran off the edge and xterm broke it at column 0
- * — under the line numbers, and one line more than the offsets counted.
+ * - under the line numbers, and one line more than the offsets counted.
  * Continuations start under the code (past delta's `│`) and carry the colours
  * that were on, so a wrapped + line stays green.
  *
@@ -219,9 +219,9 @@ export interface DiffFile {
 	path: string;
 	added: number;
 	removed: number;
-	/** No text diff to show — an image, an .icns. The list says so. */
+	/** No text diff to show - an image, an .icns. The list says so. */
 	binary: boolean;
-	/** Where its header starts in `ansi`, in lines — what the list scrolls to. */
+	/** Where its header starts in `ansi`, in lines - what the list scrolls to. */
 	line: number;
 }
 
@@ -258,7 +258,7 @@ export function splitPatch(patch: string): {
 /**
  * The patch as the panel shows it, plus where each file starts in it.
  *
- * Delta runs once per file so every offset is exact — counting lines of one
+ * Delta runs once per file so every offset is exact - counting lines of one
  * big render would mean guessing which of them is a file header.
  * ponytail: 8 deltas at a time; a 500-file diff is slow, and that's rare.
  */
@@ -278,7 +278,7 @@ async function render(
 			...(await Promise.all(
 				chunks.slice(i, i + 8).map((chunk) =>
 					// Without COLORTERM delta drops to 256 colours, and its +/- fills
-					// land on ANSI 22/52 — an added file comes out flooded bright green.
+					// land on ANSI 22/52 - an added file comes out flooded bright green.
 					pipe("delta", deltaArgs(width), chunk.text, {
 						COLORTERM: "truecolor",
 					}),
@@ -319,9 +319,9 @@ export interface RepoDiff {
 	ansi: string;
 	/** Which diff this is, for the panel header. */
 	source: string;
-	/** False when delta isn't installed — the header says so. */
+	/** False when delta isn't installed - the header says so. */
 	delta: boolean;
-	/** The checkout (or PR url) this is a diff of — the header names it. */
+	/** The checkout (or PR url) this is a diff of - the header names it. */
 	cwd: string;
 	/** Every file in it, in order. */
 	files: DiffFile[];
@@ -331,7 +331,7 @@ export interface RepoDiff {
  * What changed in a checkout, rendered for a terminal view.
  *
  * ponytail: `git diff HEAD` (staged + unstaged), falling back to the last
- * commit — an agent that already committed its turn would otherwise show an
+ * commit - an agent that already committed its turn would otherwise show an
  * empty panel. Untracked files are named, not diffed.
  *
  * @param since When the session started (ms). A clean tree is not proof the
@@ -356,7 +356,7 @@ export async function renderDiff(
 	let source = "uncommitted changes";
 	let patch = await git(["diff", "--no-color", "HEAD"]);
 	if (!patch.trim()) {
-		// Empty on a repo with no commits at all — same answer as a commit that
+		// Empty on a repo with no commits at all - same answer as a commit that
 		// predates the session: there is nothing of this session's to show.
 		const committedAt =
 			Number(await git(["log", "-1", "--format=%ct"]).catch(() => "")) * 1000;
@@ -384,7 +384,7 @@ export async function renderDiff(
 }
 
 /**
- * A pull request's diff, straight from GitHub — the PR may live in a repo (or
+ * A pull request's diff, straight from GitHub - the PR may live in a repo (or
  * a worktree since deleted) that no checkout here still holds.
  */
 export async function renderPullRequestDiff(
@@ -439,7 +439,7 @@ export const createReposRouter = () => {
 						message: `Not a git repo: ${input.path}`,
 					});
 				}
-				// `undefined` deletes the key — that's what clearing it means.
+				// `undefined` deletes the key - that's what clearing it means.
 				updateOdinConfig({ defaultRepo: input.path ?? undefined });
 				return { ok: true };
 			}),
@@ -447,7 +447,7 @@ export const createReposRouter = () => {
 		/**
 		 * What a board card should call its repo. The pane only knows where it was
 		 * launched, which for every feed-started session is the catch-all directory
-		 * — so every card reads `dev` and the pill says nothing. The transcript
+		 * - so every card reads `dev` and the pill says nothing. The transcript
 		 * knows where the agent actually went.
 		 */
 		workingRepoName: publicProcedure
@@ -478,7 +478,7 @@ export const createReposRouter = () => {
 				z.object({
 					/**
 					 * The session's own checkout. Only known once its terminal has
-					 * mounted — the workspace's is the fallback, which is where a
+					 * mounted - the workspace's is the fallback, which is where a
 					 * session runs unless it picked a repo of its own.
 					 */
 					cwd: z.string().nullish(),
@@ -488,7 +488,7 @@ export const createReposRouter = () => {
 					 */
 					claudeSessionId: z.string().nullish(),
 					workspaceId: z.string(),
-					/** Terminal columns to render at — delta assumes 80 when piped. */
+					/** Terminal columns to render at - delta assumes 80 when piped. */
 					width: z.number().int().min(40).max(400).default(120),
 					/** Show this pull request's diff instead of the checkout's. */
 					pr: z.string().url().nullish(),
@@ -516,7 +516,7 @@ export const createReposRouter = () => {
 				}
 				// When the conversation started, so a commit older than the session
 				// isn't passed off as its work. birthtime is 0 on filesystems that
-				// don't keep one — then the panel behaves as it did before.
+				// don't keep one - then the panel behaves as it did before.
 				const transcript = input.claudeSessionId
 					? await transcriptOf(input.claudeSessionId)
 					: null;

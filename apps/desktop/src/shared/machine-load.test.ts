@@ -102,7 +102,7 @@ describe("machineLoad", () => {
 	});
 
 	it("is busy when the Mac is pinned by work that isn't ours", () => {
-		// 98% CPU, 2% idle, everything stuttering — and the agents themselves
+		// 98% CPU, 2% idle, everything stuttering - and the agents themselves
 		// barely on it. Whose CPU it is doesn't matter.
 		const load = machineLoad(
 			snapshot({ hostCpu: 98, totalCpu: 60, agents: 3 }),
@@ -113,7 +113,7 @@ describe("machineLoad", () => {
 	});
 
 	it("reports the agents' own memory in GB", () => {
-		// 3.5 GiB of RSS across the sessions — the number on the badge.
+		// 3.5 GiB of RSS across the sessions - the number on the badge.
 		expect(
 			machineLoad(snapshot({ totalMemory: 3.5 * 1024 ** 3, agents: 2 }))
 				.agentMemoryGb,

@@ -60,7 +60,7 @@ async function withCommitFilesSlot<T>(fn: () => Promise<T>): Promise<T> {
 	}
 }
 
-// Identical requests share one slot AND one task — deduping outside the
+// Identical requests share one slot AND one task - deduping outside the
 // semaphore keeps same-commit bursts from consuming both cap slots or
 // re-running a task that finished while they waited for a slot.
 const inFlightCommitFiles = new Map<string, Promise<ChangedFile[]>>();
@@ -116,7 +116,7 @@ export const gitRouter = router({
 			const git = await ctx.git(worktreePath);
 
 			// `%(HEAD)` emits "*" for the checked-out branch, " " otherwise.
-			// Single spawn — independent of branch count. Only `name`/`isHead`
+			// Single spawn - independent of branch count. Only `name`/`isHead`
 			// are read by the v2 sidebar's BaseBranchSelector; the other
 			// per-branch fields the previous implementation computed (upstream,
 			// ahead/behind, last-commit) cost 4 spawns each and were unused.
@@ -349,7 +349,7 @@ export const gitRouter = router({
 				}
 			} catch (error) {
 				if (error instanceof TRPCError) throw error;
-				// ls-remote failed — probably no remote, safe to rename
+				// ls-remote failed - probably no remote, safe to rename
 			}
 
 			await git.raw(["branch", "-m", input.oldName, input.newName]);
@@ -480,7 +480,7 @@ export const gitRouter = router({
 				const base = await resolveBaseComparison(git, input.baseBranch);
 				const baseRef = base?.baseRef ?? "HEAD";
 				// Use the merge base so the diff excludes unrelated changes
-				// landed on the base branch after we forked — matches what the
+				// landed on the base branch after we forked - matches what the
 				// file list (3-dot diff) is already filtered by.
 				const originRef = await git
 					.raw(["merge-base", baseRef, "HEAD"])
@@ -571,13 +571,13 @@ export const gitRouter = router({
 				pullCount = Number.parseInt(pullStr || "0", 10);
 				pushCount = Number.parseInt(pushStr || "0", 10);
 			} catch {
-				// no upstream — counts stay zero
+				// no upstream - counts stay zero
 			}
 
 			// Read working-tree status separately from branch info so a transient
 			// `git status` failure (e.g. lock contention during a concurrent
 			// operation) doesn't poison the whole sync read. Log on failure so it
-			// isn't silent — `hasUncommitted` defaults to false in that case
+			// isn't silent - `hasUncommitted` defaults to false in that case
 			// because over-reporting "uncommitted" on every blip is more annoying
 			// than under-reporting briefly until the next refetch.
 			let hasUncommitted = false;
@@ -745,7 +745,7 @@ export const gitRouter = router({
 				repo = await resolveGithubRepo(ctx, workspace.projectId);
 			} catch (err) {
 				// Expected resolver failures (project not set up locally, no
-				// GitHub remote) degrade silently — the review tab just stays
+				// GitHub remote) degrade silently - the review tab just stays
 				// empty. Anything else is a real bug; propagate it.
 				if (err instanceof TRPCError) {
 					return { reviewThreads: [], conversationComments: [] };

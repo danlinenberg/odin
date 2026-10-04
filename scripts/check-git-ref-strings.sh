@@ -19,7 +19,7 @@ report_violation() {
 	local pattern="$2"
 	shift 2
 
-	# Don't swallow ripgrep errors — distinguish:
+	# Don't swallow ripgrep errors - distinguish:
 	#   exit 0: matches found → report as violations
 	#   exit 1: no matches → silent pass
 	#   exit 2: actual rg error (unreadable file, bad regex, etc.) → fail loudly
@@ -47,12 +47,12 @@ report_violation() {
 }
 
 # V1 desktop tRPC routers (apps/desktop/src/lib/trpc/routers/**) are out of
-# scope for this rule — see GIT_REFS.md "Open questions" for the v1 cleanup
+# scope for this rule - see GIT_REFS.md "Open questions" for the v1 cleanup
 # follow-up. Once those routers migrate to ResolvedRef, drop the exclusions.
 V1_EXCLUDE='!apps/desktop/src/lib/trpc/routers/**'
 
 report_violation \
-	"[git-refs] '.startsWith(\"origin/\")' is forbidden — a local branch can be named 'origin/foo' and would be misclassified. Use ResolvedRef from @odin/host-service/git." \
+	"[git-refs] '.startsWith(\"origin/\")' is forbidden - a local branch can be named 'origin/foo' and would be misclassified. Use ResolvedRef from @odin/host-service/git." \
 	"\\.startsWith\\(\\s*['\"]origin/" \
 	--type ts \
 	--glob '!**/*.test.ts' \
@@ -60,7 +60,7 @@ report_violation \
 	--glob "$V1_EXCLUDE"
 
 report_violation \
-	"[git-refs] '.replace(\"origin/\", ...)' is forbidden — same misclassification risk. Use ResolvedRef.shortName / .remote instead." \
+	"[git-refs] '.replace(\"origin/\", ...)' is forbidden - same misclassification risk. Use ResolvedRef.shortName / .remote instead." \
 	"\\.replace\\(\\s*['\"]origin/" \
 	--type ts \
 	--glob '!**/*.test.ts' \

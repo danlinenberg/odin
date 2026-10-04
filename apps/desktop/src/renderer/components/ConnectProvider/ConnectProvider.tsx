@@ -9,12 +9,12 @@ import { FEED_NOTICE_BOX } from "renderer/routes/_authenticated/_odin/components
 import { resetOdinFeeds } from "renderer/routes/_authenticated/_odin/hooks/useOdinProfile";
 
 /**
- * Sign in to a provider — the one way into every Odin connection.
+ * Sign in to a provider - the one way into every Odin connection.
  *
  * There is no token to paste and no environment variable to set: a shell
  * variable is ambient and would sign every profile into the same account, and
  * a pasted token is the chore OAuth exists to remove. So this button is the
- * whole story, and it lives wherever a missing connection is noticed — the
+ * whole story, and it lives wherever a missing connection is noticed - the
  * Connections screen and, through `ConnectNotice`, the empty feed itself.
  *
  * Slack, Jira and Notion run the browser consent flow: the token comes
@@ -38,9 +38,9 @@ const SCOPE_BLURB: Record<Provider, string> = {
 	slack:
 		"Opens Slack in your browser. Read-only: your reactions and the messages behind them.",
 	jira: "Opens Atlassian in your browser. Read-only access to issues and users.",
-	github: "Opens github.com and asks for a code — scopes: repo, read:org.",
+	github: "Opens github.com and asks for a code - scopes: repo, read:org.",
 	notion: "Opens Notion in your browser, where you choose what it can see.",
-	gmail: "An app password — read-only access to your unread mail.",
+	gmail: "An app password - read-only access to your unread mail.",
 };
 
 export function ConnectProvider({
@@ -53,7 +53,7 @@ export function ConnectProvider({
 }) {
 	const queryClient = useQueryClient();
 	const done = () => {
-		// The credential changed under every feed, not just this provider's —
+		// The credential changed under every feed, not just this provider's -
 		// the same refetch also repaints the Connections rows.
 		resetOdinFeeds(queryClient);
 		onConnected?.();
@@ -173,7 +173,7 @@ function OAuthConnect({
 
 /**
  * GitHub's device flow: we show a code, GitHub's page takes it, and we poll
- * until it's approved. No client secret, no redirect URL — the flow GitHub
+ * until it's approved. No client secret, no redirect URL - the flow GitHub
  * designed for apps like this one.
  */
 function GithubConnect({ onDone }: { onDone: () => void }) {
@@ -200,7 +200,7 @@ function GithubConnect({ onDone }: { onDone: () => void }) {
 	// Poll on the interval GitHub asked for, until it's approved, fails, or the
 	// panel closes. The mutation and the callback are held in refs and the effect
 	// depends only on `code`: the parent re-renders on every status refetch, and
-	// a re-running effect would clear the pending timer each time — polling every
+	// a re-running effect would clear the pending timer each time - polling every
 	// few seconds would then never actually fire.
 	const pollRef = useRef(poll);
 	pollRef.current = poll;
@@ -317,7 +317,7 @@ function GithubConnect({ onDone }: { onDone: () => void }) {
  * app password is Basic auth on Gmail's Atom feed. The main process checks it
  * against the feed before saving, so a wrong one fails right here.
  */
-/** Odin's own purple, filled — both steps of the form are the thing to click. */
+/** Odin's own purple, filled - both steps of the form are the thing to click. */
 const GMAIL_CTA =
 	"rounded-[7px] bg-[#a394ff] px-3 py-1.5 text-xs font-semibold text-[#131126] transition-colors hover:bg-[#b8adff] disabled:opacity-40";
 
@@ -360,7 +360,7 @@ function GmailConnect({ onDone }: { onDone: () => void }) {
 			/>
 			<Input
 				type="password"
-				placeholder="App password — abcd efgh ijkl mnop"
+				placeholder="App password - abcd efgh ijkl mnop"
 				value={appPassword}
 				onChange={(event) => setAppPassword(event.target.value)}
 			/>

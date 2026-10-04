@@ -17,7 +17,7 @@ const KILL_ESCALATION_TIMEOUT_MS = 1000;
 /**
  * Verify-round backoff after the SIGKILL escalation. The long tail exists
  * for loaded machines: a SIGHUP-trapping shell that only gets scheduled
- * seconds after the volley can still fork (agent MCP spawn bursts) — a
+ * seconds after the volley can still fork (agent MCP spawn bursts) - a
  * short fixed window would hand those forks eternal life. Rounds stop
  * early the moment nothing is left, so a clean kill never pays the tail.
  */
@@ -28,7 +28,7 @@ const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 /**
  * Kill chains still running (SIGKILL escalation + verify rounds). The daemon
  * exits via explicit process.exit(), which would silently drop a chain mid
- * kill — shutdown awaits this first so a requested close always finishes.
+ * kill - shutdown awaits this first so a requested close always finishes.
  */
 const pendingKills = new Set<Promise<void>>();
 
@@ -60,9 +60,9 @@ export async function drainPendingKills(timeoutMs: number): Promise<void> {
  * Kill orchestration shared by both adapters, which differ only in how they
  * signal the root and how they know it's dead.
  *
- * Owns the session root's durable coordinates — controlling tty plus every
+ * Owns the session root's durable coordinates - controlling tty plus every
  * process group ever observed (a ppid walk can't rediscover either once the
- * intermediate parents die) — and the SIGKILL escalation chain: each round
+ * intermediate parents die) - and the SIGKILL escalation chain: each round
  * takes a fresh process-table snapshot, because the initial volley's target
  * list goes stale the moment a descendant forks. Timers stay ref'd on
  * purpose: a naturally-exiting daemon must not drop a half-finished kill.
@@ -91,7 +91,7 @@ class TreeKiller {
 	/**
 	 * Record the root's pgid + tty. Called at construction (if the shell exits
 	 * before the first kill, nothing else can rediscover them) and refreshed
-	 * by every volley from its own table. Async — session-open path.
+	 * by every volley from its own table. Async - session-open path.
 	 */
 	async captureIdentity(): Promise<void> {
 		const { pgid, tty } = await getProcessGroupAndTty(this.rootPid);
@@ -114,7 +114,7 @@ class TreeKiller {
 	/**
 	 * One kill pass: collect the current tree + known-group members + same-tty
 	 * stragglers, record the root's and any newly seen groups, signal all of
-	 * it (root excluded — signalRoot handles that). Pass a pre-read `table`
+	 * it (root excluded - signalRoot handles that). Pass a pre-read `table`
 	 * from async paths; the sync fallback (one ps, same cost as the
 	 * pre-hardening kill) is for the synchronous kill() entrypoint.
 	 */
@@ -155,7 +155,7 @@ class TreeKiller {
 				const { survivors } = this.volley("SIGKILL", table);
 				if (!survivors && !rootAlive) return;
 			}
-			// A null table means ps failed — state unknown; keep the root kill
+			// A null table means ps failed - state unknown; keep the root kill
 			// and burn a round rather than concluding the kill is complete.
 			if (rootAlive) this.signalRoot("SIGKILL");
 			const nextDelay = KILL_VERIFY_DELAYS_MS[round];
@@ -209,7 +209,7 @@ export interface Pty {
 	/**
 	 * Flow control: stop reading from the PTY master. The kernel PTY buffer
 	 * (~64KB) fills and the foreground process blocks on write, throttling
-	 * itself — same mechanism as VS Code's ptyHost pause/resume.
+	 * itself - same mechanism as VS Code's ptyHost pause/resume.
 	 */
 	pause(): void;
 	resume(): void;
@@ -218,7 +218,7 @@ export interface Pty {
 	 *
 	 * Disposal is separate from TreeKiller: callers signal the process tree
 	 * first, then release the descriptor. A successful daemon handoff is the
-	 * exception — the predecessor must leave its adapter untouched because
+	 * exception - the predecessor must leave its adapter untouched because
 	 * node-pty disposal also signals the shell after closing its stream.
 	 */
 	dispose(options?: DisposeOptions): void;
@@ -227,7 +227,7 @@ export interface Pty {
 	 * fd-handoff (Phase 2): the successor daemon process inherits this fd
 	 * via stdio so the slave-side shell stays alive across the binary swap.
 	 *
-	 * Reaches into node-pty's private `_fd` property — see the version pin
+	 * Reaches into node-pty's private `_fd` property - see the version pin
 	 * in package.json and the spawn-time assert below.
 	 */
 	getMasterFd(): number;
@@ -264,8 +264,8 @@ class NodePtyAdapter implements Pty {
 			},
 		);
 		// The immediate capture races the child's setsid/login_tty (it may
-		// still show the daemon's own pgid — collect's current-pgid guard
-		// covers that — and no tty), so re-capture once the child has
+		// still show the daemon's own pgid - collect's current-pgid guard
+		// covers that - and no tty), so re-capture once the child has
 		// certainly run.
 		void this.killer.captureIdentity();
 		setTimeout(() => {
@@ -298,13 +298,13 @@ class NodePtyAdapter implements Pty {
 	getMasterFd(): number {
 		// node-pty 1.2 beta exposes the master fd as the private property `_fd`.
 		// Pinned exactly in package.json so a future bump can't break this
-		// silently — assert here so a missing/changed field surfaces at the
+		// silently - assert here so a missing/changed field surfaces at the
 		// first spawn, not when the user clicks "Update" months later.
 		const fd = (this.term as unknown as { _fd?: unknown })._fd;
 		if (typeof fd !== "number" || !Number.isInteger(fd) || fd < 0) {
 			throw new Error(
 				`node-pty master fd unavailable (got ${typeof fd}: ${fd}). ` +
-					`Phase 2 fd-handoff depends on node-pty's private _fd property — ` +
+					`Phase 2 fd-handoff depends on node-pty's private _fd property - ` +
 					`keep node-pty pinned or update Pty.ts to match the new shape.`,
 			);
 		}
@@ -452,7 +452,7 @@ export function spawn({ meta }: SpawnOptions): Pty {
 }
 
 /**
- * AdoptedPty — wraps a PTY master fd inherited from a predecessor daemon.
+ * AdoptedPty - wraps a PTY master fd inherited from a predecessor daemon.
  *
  * The successor doesn't have a node-pty IPty for these sessions (no
  * `forkpty` was run; the fd already existed). We build a thin adapter
@@ -463,7 +463,7 @@ export function spawn({ meta }: SpawnOptions): Pty {
  * - kill via process.kill(pid)
  * - onExit: read-stream 'end'/'error' OR PID-liveness poll (whichever first)
  *
- * Resize on adopted sessions is a known gap — TIOCSWINSZ requires either
+ * Resize on adopted sessions is a known gap - TIOCSWINSZ requires either
  * a native ioctl helper (koffi) or a dedicated tiny addon. Until then,
  * resize() updates `meta.cols/rows` but leaves the kernel-side window
  * size untouched. Accept the limitation; ship Phase 2; address resize
@@ -490,7 +490,7 @@ class AdoptedPty implements Pty {
 			pid,
 			() => !this.exitFired && isPidAlive(pid),
 			(sig) => {
-				// No node-pty here — signal the adopted root directly.
+				// No node-pty here - signal the adopted root directly.
 				try {
 					process.kill(pid, sig);
 				} catch {
@@ -502,10 +502,10 @@ class AdoptedPty implements Pty {
 		this.reader = new tty.ReadStream(fd);
 
 		// onExit signal sources:
-		//   1. read stream 'end' or 'error' — the slave-side close drives EOF
+		//   1. read stream 'end' or 'error' - the slave-side close drives EOF
 		//      / EIO on the master fd, which Node's stream surfaces as 'end'
 		//      (EOF) or 'error' (EIO).
-		//   2. PID-liveness poll — defense in depth for cases where the read
+		//   2. PID-liveness poll - defense in depth for cases where the read
 		//      stream lingers without firing 'end' promptly.
 		const onExit = (info: { code: number | null; signal: number | null }) => {
 			if (this.exitFired) return;
@@ -578,7 +578,7 @@ class AdoptedPty implements Pty {
 		// for non-adopted sessions; we don't have that native binding
 		// here. Workaround: spawn `stty` with the master fd as its
 		// stdin. stty(1) issues TIOCSWINSZ on its own stdin by default.
-		// One process spawn per resize — resize is rare (window-drag
+		// One process spawn per resize - resize is rare (window-drag
 		// throttled by xterm.js), so this is fine.
 		try {
 			childProcess.spawnSync(
@@ -629,7 +629,7 @@ function isPidAlive(pid: number): boolean {
 		process.kill(pid, 0);
 		return true;
 	} catch (err) {
-		// EPERM means the pid exists but isn't ours — count as alive.
+		// EPERM means the pid exists but isn't ours - count as alive.
 		return (err as NodeJS.ErrnoException).code === "EPERM";
 	}
 }

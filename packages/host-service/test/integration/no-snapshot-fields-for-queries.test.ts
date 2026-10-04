@@ -5,7 +5,7 @@ import { relative, resolve } from "node:path";
 
 /**
  * Hardening guard. GitHub queries must derive owner/name from the live
- * local remote via `resolveGithubRepo(ctx, projectId)` — never from cloud
+ * local remote via `resolveGithubRepo(ctx, projectId)` - never from cloud
  * `repoCloneUrl` or cached `projects.repoOwner`/`repoName`, which drift on
  * rename/fork/remote re-point and silently misroute queries.
  *
@@ -16,7 +16,7 @@ import { relative, resolve } from "node:path";
 const HOST_SERVICE_SRC = resolve(import.meta.dir, "../../src");
 
 const ALLOWLIST = new Set([
-	// Schema and setup pipeline — declares the columns and writes them.
+	// Schema and setup pipeline - declares the columns and writes them.
 	"db/schema.ts",
 	"trpc/router/project/handlers.ts",
 	"trpc/router/project/project.ts",
@@ -40,7 +40,7 @@ const ALLOWLIST = new Set([
 	"trpc/router/git/git.ts",
 ]);
 
-// Member-access reads only — `cloudProject.repoCloneUrl` and
+// Member-access reads only - `cloudProject.repoCloneUrl` and
 // `get.query().repoCloneUrl` both match; `{ repoCloneUrl: … }` doesn't.
 const FORBIDDEN = /\.(repoCloneUrl|repoOwner|repoName)\b/;
 
@@ -84,7 +84,7 @@ test("snapshot fields aren't read for GitHub queries outside the allowlist", asy
 				"Found snapshot-field reads outside the allowlist.",
 				"",
 				"GitHub queries must call `resolveGithubRepo(ctx, projectId)` to",
-				"get owner/name from the live local git remote — not from the",
+				"get owner/name from the live local git remote - not from the",
 				"cached/cloud snapshot fields below:",
 				"",
 				report,

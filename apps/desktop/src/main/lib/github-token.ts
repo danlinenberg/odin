@@ -14,7 +14,7 @@ import {
  * An OAuth app with "expiring user authorization tokens" turned on hands the
  * device flow a token that dies after eight hours, plus a refresh token good
  * for six months. Without the refresh, GitHub's panes go red twice a day and
- * the only cure is signing in again — which is exactly what was happening.
+ * the only cure is signing in again - which is exactly what was happening.
  *
  * Refreshing needs no client secret when the token came from the device flow,
  * which is the whole reason a desktop app can do this at all. The refresh
@@ -23,7 +23,7 @@ import {
  * An app *without* expiring tokens sends neither field; then there is nothing
  * to refresh and the stored token is used until someone revokes it.
  *
- * And they do get revoked — server-side, with no expiry, no audit-log entry and
+ * And they do get revoked - server-side, with no expiry, no audit-log entry and
  * no mail, every day or two. `githubApiFetch` is the answer to that: the `gh`
  * CLI keeps a working token for the same account, so a revoked token costs a
  * pane refresh instead of a trip to Settings.
@@ -117,7 +117,7 @@ export async function githubAccessToken(): Promise<string | null> {
 /**
  * The token `gh` holds for the account Odin is connected as. Pinned to that
  * login, because `gh auth token` alone answers for whichever account is
- * *active* — on a machine signed into a work and a personal account that is a
+ * *active* - on a machine signed into a work and a personal account that is a
  * coin flip, and the wrong one quietly returns somebody else's pull requests.
  */
 export async function githubCliToken(): Promise<string | null> {

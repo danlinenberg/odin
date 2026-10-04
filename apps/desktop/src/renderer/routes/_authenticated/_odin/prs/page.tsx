@@ -54,7 +54,7 @@ export const Route = createFileRoute("/_authenticated/_odin/prs/")({
 });
 
 /**
- * My PRs — open pull requests I opened, plus ones waiting on my review, with a
+ * My PRs - open pull requests I opened, plus ones waiting on my review, with a
  * click to start an agent session on one (review it, or push the fix).
  */
 
@@ -78,7 +78,7 @@ function MyPullRequestsPage() {
 	// Free text over title, author, repo and number.
 	const [search, setSearch] = useState("");
 	const needle = search.trim().toLowerCase();
-	// Same feeds the shell warms on boot — rows are usually already cached.
+	// Same feeds the shell warms on boot - rows are usually already cached.
 	const {
 		pulls: pullsQuery,
 		workConfig: config,
@@ -91,7 +91,7 @@ function MyPullRequestsPage() {
 	const panes = useTabsStore((s) => s.panes);
 
 	// Bot PRs (renovate, CI workflow rollouts) can be dozens of identical rows
-	// that bury the human reviews — hidden by default, one click to show.
+	// that bury the human reviews - hidden by default, one click to show.
 	const [showBots, setShowBots] = useState(false);
 
 	// Hidden PRs drop out first, so the bot count and tab counts agree with
@@ -231,7 +231,7 @@ function MyPullRequestsPage() {
 				{config && !config.hasGithub && (
 					<ConnectNotice
 						provider="github"
-						text="GitHub isn't connected — sign in to see your pull requests and review requests."
+						text="GitHub isn't connected - sign in to see your pull requests and review requests."
 					/>
 				)}
 				<FeedError error={pullsQuery.error} />

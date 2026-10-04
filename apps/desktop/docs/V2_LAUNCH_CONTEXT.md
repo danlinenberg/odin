@@ -83,13 +83,13 @@ pane data. `TerminalPane` attaches the PTY through the terminal WebSocket.
 - **Producer/consumer decoupled**: pending page never touches the V2
   workspace store directly; workspace page never does the spec-build.
   Each side owns its own concern.
-- **Consistent with V2 preset execution** — same "stash a record, live-
+- **Consistent with V2 preset execution** - same "stash a record, live-
   query from the workspace page, open a pane" pattern is how
   `useV2PresetExecution` ships preset commands.
 - **Path to host-owned dispatch** (phase 5): pending page stops
   populating `row.terminalLaunch`; instead passes the spec into
   `host.workspaceCreation.create`. Host returns the already-running
-  terminal in `terminals[]`. Workspace page consumer stays — it now
+  terminal in `terminals[]`. Workspace page consumer stays - it now
   reads the host-returned terminal via live query instead of the
   pending row. Migration is local to the producer side; consumer never
   changes. Chat stays client-driven (chat runtime is in the renderer).
@@ -100,16 +100,16 @@ V1's dispatcher (`WorkspaceInitEffects` → `launchAgentSession` →
 `terminal-adapter`) is hard-coded to V1's `useTabsStore` in the
 orchestrator's default tabs adapter. V2 workspaces render panes from a
 separate `@odin/panes` store, so launches dispatched through V1
-land in a store V2 never reads — the command runs but no pane appears.
+land in a store V2 never reads - the command runs but no pane appears.
 **V2 must own its launch dispatch.**
 
 ### Files (composition, stable)
 
-- `shared/context/types.ts` — `LaunchSource`, `ContentPart`, `ContextSection`, `LaunchContext`, `AgentLaunchSpec`.
-- `shared/context/composer.ts` — `buildLaunchContext` (parallel resolve, dedup, failure-tolerant).
-- `shared/context/contributors/*` — one per source kind: `userPrompt`, `githubIssue`, `githubPr`, `internalTask`, `attachment`.
-- `shared/context/buildLaunchSpec.ts` — agent-aware template rendering, inline-multimodal preservation.
-- `routes/.../pending/$pendingId/buildForkAgentLaunch.ts` — pure helper that runs the composer + buildLaunchSpec from a `PendingWorkspaceRow`.
+- `shared/context/types.ts` - `LaunchSource`, `ContentPart`, `ContextSection`, `LaunchContext`, `AgentLaunchSpec`.
+- `shared/context/composer.ts` - `buildLaunchContext` (parallel resolve, dedup, failure-tolerant).
+- `shared/context/contributors/*` - one per source kind: `userPrompt`, `githubIssue`, `githubPr`, `internalTask`, `attachment`.
+- `shared/context/buildLaunchSpec.ts` - agent-aware template rendering, inline-multimodal preservation.
+- `routes/.../pending/$pendingId/buildForkAgentLaunch.ts` - pure helper that runs the composer + buildLaunchSpec from a `PendingWorkspaceRow`.
 
 ### Files (dispatch, to be reworked per the "pending-row-as-bus" plan)
 
@@ -117,14 +117,14 @@ The first wire-up attempt shipped through V1's `useWorkspaceInitStore` +
 `WorkspaceInitEffects`. That path is being ripped out because V1's
 orchestrator uses V1's `useTabsStore`, which V2 doesn't render from.
 
-- `shared/context/buildAgentLaunchRequest.ts` — **deprecated once dispatch migrates.** Still useful as a reference for the V1 shape if we ever need it; otherwise removable after the pending-row-as-bus rewrite.
-- `renderer/hooks/useEnqueueAgentLaunch/*` — **to be removed.** V1-bus primitive.
-- `routes/.../pending/$pendingId/page.tsx` (the `enqueueAgentLaunch` call) — **to be replaced** by the kind-split described under "Dispatch architecture" above.
+- `shared/context/buildAgentLaunchRequest.ts` - **deprecated once dispatch migrates.** Still useful as a reference for the V1 shape if we ever need it; otherwise removable after the pending-row-as-bus rewrite.
+- `renderer/hooks/useEnqueueAgentLaunch/*` - **to be removed.** V1-bus primitive.
+- `routes/.../pending/$pendingId/page.tsx` (the `enqueueAgentLaunch` call) - **to be replaced** by the kind-split described under "Dispatch architecture" above.
 
 ### Files (dispatch, to be added)
 
-- `pendingWorkspaceSchema` in `providers/.../schema.ts` — gain `terminalLaunch?` and `chatLaunch?` optional fields.
-- `routes/.../v2-workspace/$workspaceId/hooks/useConsumePendingLaunch/*` — mount-effect hook that live-queries the pending row, opens a pane via V2 `@odin/panes` store, writes the command via `workspaceTrpc`, clears the field.
+- `pendingWorkspaceSchema` in `providers/.../schema.ts` - gain `terminalLaunch?` and `chatLaunch?` optional fields.
+- `routes/.../v2-workspace/$workspaceId/hooks/useConsumePendingLaunch/*` - mount-effect hook that live-queries the pending row, opens a pane via V2 `@odin/panes` store, writes the command via `workspaceTrpc`, clears the field.
 
 ### Agent templates
 
@@ -148,16 +148,16 @@ can override per-agent in settings.
 
 - [ ] **Prompt only**. Type "add a README". Submit. Workspace opens; Claude's terminal receives the prompt as an argv.
 - [ ] **Prompt + attachment**. Drop a small text file. Submit. File lands at `<worktree>/.odin/attachments/<filename>`; prompt includes `- .odin/attachments/<filename>`.
-- [ ] **Prompt + linked GitHub issue**. Link an issue via `@` mention. Submit. Prompt includes `# <issue title>`. (Body is empty — see known gaps.)
-- [ ] **Prompt + linked task**. Link an internal task. Submit. Prompt includes `# Task <id> — <title>`; `taskSlug` in launch request matches task slug.
+- [ ] **Prompt + linked GitHub issue**. Link an issue via `@` mention. Submit. Prompt includes `# <issue title>`. (Body is empty - see known gaps.)
+- [ ] **Prompt + linked task**. Link an internal task. Submit. Prompt includes `# Task <id> - <title>`; `taskSlug` in launch request matches task slug.
 - [ ] **Prompt + linked PR**. Link a PR. Submit. Prompt includes `# <PR title>`.
 - [ ] **Multiple sources** (prompt + task + issue + PR + attachment). Submit. All sections appear in the prompt in order. `taskSlug` = first internal-task slug.
 - [ ] **Retry on failure**. Disable network, submit, fail; re-enable, hit retry button. Second attempt re-enqueues correctly (no stale setup lingers).
 
 ### Automated
 
-- `bun test apps/desktop/src/shared/context/ apps/desktop/src/renderer/hooks/useEnqueueAgentLaunch/ apps/desktop/src/renderer/routes/_authenticated/_dashboard/pending/\$pendingId/` — **113 tests**, including composer dedup/ordering/failure, contributor 404-null semantics, Claude/codex snapshot rendering, bridge base64 encoding + filename dedup, pending-page source mapping, and the V1 fallback path.
-- `bunx tsc --noEmit -p apps/desktop/tsconfig.json` — clean in the new surface area.
+- `bun test apps/desktop/src/shared/context/ apps/desktop/src/renderer/hooks/useEnqueueAgentLaunch/ apps/desktop/src/renderer/routes/_authenticated/_dashboard/pending/\$pendingId/` - **113 tests**, including composer dedup/ordering/failure, contributor 404-null semantics, Claude/codex snapshot rendering, bridge base64 encoding + filename dedup, pending-page source mapping, and the V1 fallback path.
+- `bunx tsc --noEmit -p apps/desktop/tsconfig.json` - clean in the new surface area.
 
 ### Demo script
 
@@ -178,7 +178,7 @@ bun run scripts/demo-launch-spec.ts claude       # just claude
 - **No agent picker in the V2 modal.** `getFallbackAgentId` chooses
   (prefers Claude, falls back to first enabled). Settings-level
   overrides are respected.
-- **Remote hosts** (`hostTarget.kind === "remote"`) — launch enqueue
+- **Remote hosts** (`hostTarget.kind === "remote"`) - launch enqueue
   still runs client-side via `useWorkspaceInitStore`. Remote terminals
   are out of scope for phase 1; no regression because V2 doesn't
   support remote agent launch today.
@@ -196,7 +196,7 @@ fixing before the dispatch rewrite is considered done:
 
 1. **Deep solve for binary transport.** Current fix for the
    `PromptInput` blob-URL revoke race (commit 33730ff01) honors the
-   library's contract — uses the `message.files` passed into
+   library's contract - uses the `message.files` passed into
    `onSubmit` (already converted to data URLs) instead of re-reading
    provider state. Works correctly but still transports bytes as
    base64 strings across layers. The deep solve is to flow `File` /
@@ -205,7 +205,7 @@ fixing before the dispatch rewrite is considered done:
    (`FileUIPart & { file: File }` through the provider) + downstream
    `ChatLaunchConfig.initialFiles: { file: Blob, ... }[]` + bytes
    branch for `workspaceTrpc.filesystem.writeFile`. Touches V1, V2,
-   chat, and every consumer — deliberate staged PR, not a quick fix.
+   chat, and every consumer - deliberate staged PR, not a quick fix.
 
 2. **Reload-mid-launch can create a new terminal ID.**
    `consumeTerminalLaunch` calls `crypto.randomUUID()` for `terminalId`
@@ -216,7 +216,7 @@ fixing before the dispatch rewrite is considered done:
    once in `dispatchForkLaunch`).
 
 3. **Silent failure in the consume hook.** `addTab` failures
-   `console.warn` and return — user sees no pane open and no error UI.
+   `console.warn` and return - user sees no pane open and no error UI.
    Wrap in try/toast with the error message. Low urgency while
    `[v2-launch]` debug logs are present; becomes visible when those are
    removed.
@@ -244,7 +244,7 @@ fixing before the dispatch rewrite is considered done:
 
 ## Follow-ups (roughly in priority order)
 
-0. **Rewrite dispatch to pending-row-as-bus** (blocking phase-1 ship —
+0. **Rewrite dispatch to pending-row-as-bus** (blocking phase-1 ship -
    current V1-bus dispatch is broken for V2). See "Dispatch architecture"
    above. Mirrors `useV2PresetExecution`. Estimated 3-4 hours:
    - Schema: `terminalLaunch?` + `chatLaunch?` on `pendingWorkspaceSchema`.

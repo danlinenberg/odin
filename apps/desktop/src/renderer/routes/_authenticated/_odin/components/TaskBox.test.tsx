@@ -29,7 +29,7 @@ describe("TaskBox", () => {
 		expect(html).toContain(">it crashes on empty input</textarea>");
 	});
 
-	it("opens on Medium for an empty box — the default needs no picking", () => {
+	it("opens on Medium for an empty box - the default needs no picking", () => {
 		const html = renderToStaticMarkup(
 			<TaskBox value="" onChange={() => {}} onSubmit={() => {}} />,
 		);
@@ -72,7 +72,7 @@ describe("parseSize", () => {
 	it("restores a size it wrote and ignores anything else", () => {
 		// What the close handler writes: the element's two inline styles.
 		expect(parseSize("760px,420px")).toEqual(["760px", "420px"]);
-		// Never resized (empty inline styles), never stored, or edited by hand —
+		// Never resized (empty inline styles), never stored, or edited by hand -
 		// all of which must leave the dialog on its class defaults.
 		expect(parseSize(",")).toBeNull();
 		expect(parseSize(null)).toBeNull();

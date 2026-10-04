@@ -35,7 +35,7 @@ export function normalizeGitHubQuery(
 		const urlPath = (urlMatch[3] as string).toLowerCase(); // "pull" or "issues"
 		const number = urlMatch[4] as string;
 
-		// Wrong entity type (e.g. issue URL pasted in PR search) — fall through to text search
+		// Wrong entity type (e.g. issue URL pasted in PR search) - fall through to text search
 		const urlEntityKind: GitHubEntityKind =
 			urlPath === "pull" ? "pull" : "issue";
 		if (urlEntityKind !== kind) {
@@ -52,12 +52,12 @@ export function normalizeGitHubQuery(
 		};
 	}
 
-	// `#123` shorthand — strip the `#`, direct lookup by number
+	// `#123` shorthand - strip the `#`, direct lookup by number
 	if (/^#\d+$/.test(raw)) {
 		return { query: raw.slice(1), repoMismatch: false, isDirectLookup: true };
 	}
 
-	// Bare number — direct lookup
+	// Bare number - direct lookup
 	if (/^\d+$/.test(raw)) {
 		return { query: raw, repoMismatch: false, isDirectLookup: true };
 	}

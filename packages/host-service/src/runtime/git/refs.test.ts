@@ -41,7 +41,7 @@ describe("asLocalRef / asRemoteRef", () => {
 	});
 });
 
-describe("resolveRef — input shape contract", () => {
+describe("resolveRef - input shape contract", () => {
 	test("bare name resolves to local when local exists", async () => {
 		const git = createMockGit(new Set(["refs/heads/foo"]));
 		const r = await resolveRef(git, "foo");
@@ -181,7 +181,7 @@ describe("resolveRef — input shape contract", () => {
 	});
 
 	// A genuine for-each-ref failure must propagate, not degrade to "no
-	// branches" — masking it would make an existing branch look absent and let
+	// branches" - masking it would make an existing branch look absent and let
 	// a case-twin be created (the bug this module exists to prevent).
 	test("propagates a for-each-ref failure instead of returning null", async () => {
 		const git = {

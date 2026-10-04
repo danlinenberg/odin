@@ -43,7 +43,7 @@ step_check_dependencies() {
   fi
 
   if ! command -v caddy &> /dev/null; then
-    warn "caddy not found — HTTP/2 proxy for Electric won't work (Run: brew install caddy && caddy trust)"
+    warn "caddy not found - HTTP/2 proxy for Electric won't work (Run: brew install caddy && caddy trust)"
   fi
 
   if [ ${#missing[@]} -gt 0 ]; then
@@ -164,12 +164,12 @@ step_setup_neon_branch() {
 
 cleanup_stale_electric_replication_sessions() {
   if ! command -v psql &> /dev/null; then
-    warn "psql not found — skipping stale Electric replication cleanup"
+    warn "psql not found - skipping stale Electric replication cleanup"
     return 0
   fi
 
   if [ -z "${DIRECT_URL:-}" ]; then
-    warn "Direct database URL not available — skipping stale Electric replication cleanup"
+    warn "Direct database URL not available - skipping stale Electric replication cleanup"
     return 0
   fi
 
@@ -558,7 +558,7 @@ step_write_env() {
 
   # Generate Caddyfile for HTTP/2 reverse proxy (avoids browser 6-connection limit with Electric SSE streams)
   # Caddy proxies to the local Wrangler worker, which handles auth and forwards upstream appropriately.
-  # auto_https disable_redirects keeps Caddy off port 80 — we only need HTTPS on the allocated port.
+  # auto_https disable_redirects keeps Caddy off port 80 - we only need HTTPS on the allocated port.
   cat > Caddyfile <<-CADDYEOF
 	{
 		auto_https disable_redirects
@@ -613,7 +613,7 @@ step_setup_local_mcp() {
 
   local mcp_file=".mcp.json"
   if [ ! -f "$mcp_file" ]; then
-    warn "No .mcp.json found — skipping local MCP setup"
+    warn "No .mcp.json found - skipping local MCP setup"
     step_skipped "Setup local MCP (no .mcp.json)"
     return 0
   fi
@@ -651,7 +651,7 @@ step_seed_auth_token() {
   local dest_token="$dev_data_dir/auth-token.enc"
 
   if [ ! -f "$source_token" ]; then
-    warn "No auth token found at $source_token — skipping (you'll need to sign in)"
+    warn "No auth token found at $source_token - skipping (you'll need to sign in)"
     step_skipped "Seed auth token (no source token)"
     return 0
   fi
@@ -660,7 +660,7 @@ step_seed_auth_token() {
   chmod 700 "$dev_data_dir"
 
   if [ -f "$dest_token" ] && [ "$FORCE_OVERWRITE_DATA" != "1" ]; then
-    warn "Auth token already exists at $dest_token — skipping (use -f/--force)"
+    warn "Auth token already exists at $dest_token - skipping (use -f/--force)"
     step_skipped "Seed auth token (already exists)"
     return 0
   fi
@@ -684,7 +684,7 @@ step_seed_host_dbs() {
   local force_overwrite="$FORCE_OVERWRITE_DATA"
 
   if [ ! -d "$source_root" ]; then
-    warn "No host-service DBs found at $source_root — skipping (host-service will create fresh DBs per org)"
+    warn "No host-service DBs found at $source_root - skipping (host-service will create fresh DBs per org)"
     step_skipped "Seed host-service DBs (no source dir)"
     return 0
   fi
@@ -700,7 +700,7 @@ step_seed_host_dbs() {
   done
 
   if [ ${#org_dirs[@]} -eq 0 ]; then
-    warn "No host.db files under $source_root — skipping"
+    warn "No host.db files under $source_root - skipping"
     step_skipped "Seed host-service DBs (no host.db files)"
     return 0
   fi
@@ -716,7 +716,7 @@ step_seed_host_dbs() {
     local dest_db="$dest_org_dir/host.db"
 
     if [ -f "$dest_db" ] && [ "$force_overwrite" != "1" ]; then
-      warn "Host DB already exists at $dest_db — skipping (use -f/--force)"
+      warn "Host DB already exists at $dest_db - skipping (use -f/--force)"
       skipped=$((skipped + 1))
       continue
     fi
@@ -774,7 +774,7 @@ step_seed_local_db() {
   local force_overwrite="$FORCE_OVERWRITE_DATA"
 
   if [ "$force_overwrite" = "1" ] && [ -d "$dev_data_dir" ]; then
-    warn "Force overwrite enabled — removing existing $dev_data_dir/"
+    warn "Force overwrite enabled - removing existing $dev_data_dir/"
     if ! rm -rf "$dev_data_dir"; then
       error "Failed to remove existing $dev_data_dir/"
       return 1
@@ -782,13 +782,13 @@ step_seed_local_db() {
   fi
 
   if [ ! -f "$source_db" ]; then
-    warn "No source local.db found at $source_db — skipping (app will create a fresh one)"
+    warn "No source local.db found at $source_db - skipping (app will create a fresh one)"
     step_skipped "Seed local DB (no source DB)"
     return 0
   fi
 
   if [ -f "$dest_db" ] && [ "$force_overwrite" != "1" ]; then
-    warn "Destination DB already exists at $dest_db — skipping seed (use -f/--force)"
+    warn "Destination DB already exists at $dest_db - skipping seed (use -f/--force)"
     step_skipped "Seed local DB (already exists)"
     return 0
   fi

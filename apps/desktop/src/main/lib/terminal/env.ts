@@ -465,7 +465,7 @@ export function buildTerminalEnv(params: {
 	const shellEnv = getShellEnv(shell);
 	const locale = getLocale(rawBaseEnv);
 
-	// COLORFGBG: "foreground;background" ANSI color indices — TUI apps use this to detect light/dark
+	// COLORFGBG: "foreground;background" ANSI color indices - TUI apps use this to detect light/dark
 	const colorFgBg = themeType === "light" ? "0;15" : "15;0";
 	// TERM_THEME: explicit light/dark hint that cursor-agent (and other TUIs)
 	// read before falling back to an OSC 11 background probe. Our PTY output
@@ -489,7 +489,7 @@ export function buildTerminalEnv(params: {
 		ODIN_WORKSPACE_NAME: workspaceName || "",
 		ODIN_WORKSPACE_PATH: workspacePath || "",
 		ODIN_ROOT_PATH: rootPath || "",
-		// The port this app's hook server actually bound — not the compiled-in
+		// The port this app's hook server actually bound - not the compiled-in
 		// default, which a second Odin-family app may already own.
 		ODIN_PORT: String(getNotificationsPort()),
 		// Environment identifier for dev/prod separation

@@ -7,7 +7,7 @@ const repo = { owner: "danlinenberg", name: "odin" };
 // Shared behaviors (same for both kinds)
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe("normalizeGitHubQuery — shared behaviors", () => {
+describe("normalizeGitHubQuery - shared behaviors", () => {
 	describe("empty input", () => {
 		test("empty string (pull)", () => {
 			expect(normalizeGitHubQuery("", repo, "pull")).toEqual({
@@ -155,7 +155,7 @@ describe("normalizeGitHubQuery — shared behaviors", () => {
 // PR URL tests (kind = "pull")
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe("normalizeGitHubQuery — PR URLs", () => {
+describe("normalizeGitHubQuery - PR URLs", () => {
 	describe("same repo", () => {
 		test("basic URL", () => {
 			const result = normalizeGitHubQuery(
@@ -350,7 +350,7 @@ describe("normalizeGitHubQuery — PR URLs", () => {
 // Issue URL tests (kind = "issue")
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe("normalizeGitHubQuery — issue URLs", () => {
+describe("normalizeGitHubQuery - issue URLs", () => {
 	describe("same repo", () => {
 		test("basic URL", () => {
 			const result = normalizeGitHubQuery(
@@ -462,7 +462,7 @@ describe("normalizeGitHubQuery — issue URLs", () => {
 // Cross-entity tests (wrong URL kind pasted)
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe("normalizeGitHubQuery — cross-entity fallback", () => {
+describe("normalizeGitHubQuery - cross-entity fallback", () => {
 	test("issue URL pasted into PR search → plain text", () => {
 		const result = normalizeGitHubQuery(
 			"https://github.com/danlinenberg/odin/issues/100",

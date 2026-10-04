@@ -28,7 +28,7 @@ export function endSession(paneId: string) {
 }
 
 /**
- * Done — the one way a row leaves a feed. From any feed, Next in line or a
+ * Done - the one way a row leaves a feed. From any feed, Next in line or a
  * Review drop, it's the same list, so a row put away in one place is gone
  * from all of them, and All tasks' Done list can bring it back.
  */
@@ -69,7 +69,7 @@ export function useDone() {
 		),
 		markDone: (item: Doable) => {
 			mark(item, true);
-			toast.success(`Done — ${item.title.slice(0, 60)}`, {
+			toast.success(`Done - ${item.title.slice(0, 60)}`, {
 				action: { label: "Undo", onClick: () => mark(item, false) },
 			});
 		},

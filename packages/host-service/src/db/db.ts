@@ -21,7 +21,7 @@ export function createDb(dbPath: string, migrationsFolder: string) {
 		`[host-service:db] Initialized at ${dbPath}, migrations from ${migrationsFolder}`,
 	);
 
-	// Let a failed migration throw — never serve a half-migrated DB.
+	// Let a failed migration throw - never serve a half-migrated DB.
 	migrate(db, { migrationsFolder });
 
 	return db;

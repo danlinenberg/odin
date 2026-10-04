@@ -1,6 +1,6 @@
 // Ratchet: src/server/desktop is imported by the Electron main process (the
 // desktop chat-service / chat-runtime-service tRPC routers), so blocking
-// calls here stall every electronTrpc response — the desktop app's own
+// calls here stall every electronTrpc response - the desktop app's own
 // no-main-process-blocking ratchet cannot see across the package boundary.
 //
 // Counts are per-file matching-line counts, not a file allowlist, so an
@@ -35,7 +35,7 @@ const RULES: Rule[] = [
 		name: "sync subprocess (execSync/spawnSync/execFileSync)",
 		pattern: /\b(execSync|spawnSync|execFileSync)\b/,
 		allowedCounts: {
-			// Keychain `security` reads in the sync credential-resolver chain —
+			// Keychain `security` reads in the sync credential-resolver chain -
 			// each spawn blocks Electron main. Port to the async resolvers.
 			"auth/anthropic/anthropic.ts": 3,
 		},
@@ -50,7 +50,7 @@ const RULES: Rule[] = [
 			"chat-service/anthropic-env-config.ts": 2,
 		},
 		advice:
-			"rmSync/cpSync walk the whole tree on the Electron main process — a large copy or delete stalls every electronTrpc response for seconds. Prefer `await rm/cp` from node:fs/promises: same result, but the walk runs on libuv's thread pool while main keeps serving.",
+			"rmSync/cpSync walk the whole tree on the Electron main process - a large copy or delete stalls every electronTrpc response for seconds. Prefer `await rm/cp` from node:fs/promises: same result, but the walk runs on libuv's thread pool while main keeps serving.",
 	},
 	{
 		name: "in-process git client construction",
@@ -64,7 +64,7 @@ const RULES: Rule[] = [
 const EXEMPT_FILE_PATTERNS = [/\.test\.tsx?$/];
 
 /**
- * Matching lines after comment stripping — prose mentions don't count.
+ * Matching lines after comment stripping - prose mentions don't count.
  * Line-comment stripping is naive (`//` inside a string truncates the rest
  * of that line), which can only under-count, never false-positive.
  */
@@ -134,7 +134,7 @@ describe("no new desktop-main blocking call sites in chat server", () => {
 				.sort();
 			expect(
 				stale,
-				"Allowlisted count(s) too high — lower or delete them in allowedCounts so the ratchet tightens.",
+				"Allowlisted count(s) too high - lower or delete them in allowedCounts so the ratchet tightens.",
 			).toEqual([]);
 		});
 	}

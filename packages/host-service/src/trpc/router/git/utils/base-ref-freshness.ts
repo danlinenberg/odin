@@ -21,7 +21,7 @@ const inFlightFetches = new Map<string, Promise<void>>();
 // event loop BEFORE the fetch-TTL check, i.e. every status poll pays it even
 // when the fetch is suppressed. A worktree path re-pointed at a different
 // repo within the TTL only mis-keys the dedupe entry (one extra or one
-// suppressed fetch, bounded by the TTL) — the fetch itself always runs in
+// suppressed fetch, bounded by the TTL) - the fetch itself always runs in
 // `worktreePath`, so it can never hit the wrong repo.
 const COMMON_DIR_TTL_MS = 5 * 60_000;
 const commonDirCache = new Map<string, { dir: string; resolvedAt: number }>();

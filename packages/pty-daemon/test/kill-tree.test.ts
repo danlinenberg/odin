@@ -1,13 +1,13 @@
 // Kill-path integration tests with real PTYs and real process trees.
 // Each scenario is an escape class the tree kill must close:
 //
-//   1. orphan-same-pgid  — descendant's parent exited; the orphan reparented
+//   1. orphan-same-pgid  - descendant's parent exited; the orphan reparented
 //      to pid 1 but kept the session leader's pgid. Must die on the first
 //      volley via the recorded root pgid.
-//   2. fork-during-escalation — HUP-trapping shell forks a new-pgid child
+//   2. fork-during-escalation - HUP-trapping shell forks a new-pgid child
 //      after the first volley. Must die because escalation re-snapshots
 //      instead of replaying the stale target list.
-//   3. tty-straggler — new-pgid child whose parent subshell exited before
+//   3. tty-straggler - new-pgid child whose parent subshell exited before
 //      the kill: not in the ppid tree, group never observed. Must die via
 //      controlling-tty targeting.
 //
@@ -112,7 +112,7 @@ after(() => {
 	}
 	for (const row of ps()) {
 		if (row.command.startsWith("sleep 3")) {
-			// stray sleeper from a failed run — only ours use 300/333/344s
+			// stray sleeper from a failed run - only ours use 300/333/344s
 			if (["sleep 300", "sleep 333", "sleep 344"].includes(row.command)) {
 				try {
 					process.kill(row.pid, "SIGKILL");
@@ -157,7 +157,7 @@ describe("PTY tree kill", () => {
 	test("kills a new-pgid child forked after the first volley (re-snapshot)", async () => {
 		// The HUP trap itself forks the escaper and echoes its pid, so it is
 		// born after the first volley's snapshot by construction (the trap
-		// runs on the volley's own SIGHUP) — only an escalation re-snapshot
+		// runs on the volley's own SIGHUP) - only an escalation re-snapshot
 		// can find it, through the still-alive shell's ppid link. bash blocks
 		// in the `wait` builtin so the trap runs the instant the signal
 		// lands, and the wait loop keeps bash alive afterwards: if the shell

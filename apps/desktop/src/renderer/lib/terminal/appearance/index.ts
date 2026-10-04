@@ -81,7 +81,7 @@ export const DEFAULT_TERMINAL_FONT_FAMILIES = [
 	"Monaco",
 	"Courier New",
 	// None of the above draw Claude Code's ⏺ bullet, ⎿ result elbow or ⏵⏵
-	// mode marker, and Chromium won't search the system for them — they fall
+	// mode marker, and Chromium won't search the system for them - they fall
 	// to .LastResort and render as ⍰. STIX Two Math ships with macOS and has all three.
 	"STIX Two Math",
 	"monospace",
@@ -131,7 +131,7 @@ const monospaceCheckCache = new Map<string, boolean>();
 
 /**
  * Heuristically decide whether `family` is a monospace font using canvas
- * measurement — monospace fonts render narrow ("iiiiii") and wide ("MMMMMM")
+ * measurement - monospace fonts render narrow ("iiiiii") and wide ("MMMMMM")
  * runs at the same width. Returns `true` (permissive) when the canvas API
  * is unavailable (tests/SSR) so we never block a legitimate font.
  */
@@ -198,7 +198,7 @@ export function sanitizeTerminalFontFamily(
 		);
 		return DEFAULT_TERMINAL_FONT_FAMILY;
 	}
-	// Ensure a generic monospace tail — if the configured primary isn't
+	// Ensure a generic monospace tail - if the configured primary isn't
 	// installed on this machine, the browser falls back to the OS monospace
 	// generic instead of a proportional default (mirrors VS Code's behavior
 	// in src/vs/workbench/contrib/terminal/browser/terminalConfigurationService.ts).

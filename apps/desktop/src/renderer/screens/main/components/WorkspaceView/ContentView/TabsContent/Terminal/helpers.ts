@@ -85,7 +85,7 @@ export interface CreateTerminalOptions {
 /**
  * Create an xterm instance opened into a detached wrapper div (not a live container).
  * The wrapper can be moved between DOM containers via appendChild without
- * disposing the terminal — this is the "hide attach" pattern from v2.
+ * disposing the terminal - this is the "hide attach" pattern from v2.
  *
  * Used by v1-terminal-cache.ts to keep xterm alive across React mount/unmount.
  */
@@ -121,7 +121,7 @@ export function createTerminalInWrapper(options: CreateTerminalOptions = {}): {
 	let disposed = false;
 	let webglAddon: WebglAddon | null = null;
 
-	// Open into a detached wrapper div — not the live container.
+	// Open into a detached wrapper div - not the live container.
 	const wrapper = document.createElement("div");
 	wrapper.style.width = "100%";
 	wrapper.style.height = "100%";

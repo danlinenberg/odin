@@ -1,4 +1,4 @@
-# V2 Workspace Creation Modal — Gap Analysis vs V1
+# V2 Workspace Creation Modal - Gap Analysis vs V1
 
 > Generated 2026-04-11. Last updated 2026-04-12. Compares V2 (`DashboardNewWorkspaceModal`) against V1 (`NewWorkspaceModal`).
 
@@ -6,13 +6,13 @@
 
 | # | Gap | Status |
 |---|-----|--------|
-| 1 | Project Picker — Open/New project actions | Open |
-| 2 | Branch Picker — Worktree awareness | Open |
+| 1 | Project Picker - Open/New project actions | Open |
+| 2 | Branch Picker - Worktree awareness | Open |
 | 3 | AI Branch Name Generation | Open |
 | 4 | GitHub Issue Content Auto-Fetching | Open |
 | 5 | Agent Launch Request Building | Open |
 | 6 | Dedicated "Create from PR" Flow | Open |
-| 7 | PR URL Parsing and Cross-Repo Validation | ✅ Resolved (PR #3356) — extended to issues |
+| 7 | PR URL Parsing and Cross-Repo Validation | ✅ Resolved (PR #3356) - extended to issues |
 
 ## File References
 
@@ -27,9 +27,9 @@
 
 ## Gaps
 
-### 1. Project Picker — "Open project" / "New project" actions
+### 1. Project Picker - "Open project" / "New project" actions
 
-**V1**: Project picker includes a separator and two extra items — "Open project" (`onImportRepo`) and "New project" (`onNewProject`).
+**V1**: Project picker includes a separator and two extra items - "Open project" (`onImportRepo`) and "New project" (`onNewProject`).
 
 **V2**: Only lists existing projects with search. No way to import a repo or create a new project from within the modal.
 
@@ -38,7 +38,7 @@
 
 ---
 
-### 2. Branch Picker — Worktree awareness and Open/Create actions
+### 2. Branch Picker - Worktree awareness and Open/Create actions
 
 **V1** has a fully worktree-aware branch picker (`CompareBaseBranchPickerInline`) with:
 - All / Worktrees filter toggle (tabs with counts)
@@ -48,7 +48,7 @@
 - Hover actions: "Open" button to navigate to existing workspace/worktree, "Create" button to create alongside an existing one
 - Keyboard hint labels (Enter / Cmd+Enter)
 
-**V2** has a simplified `CompareBaseBranchPicker` — flat list of branches with `GoGitBranch` icons, "default" and "workspace" badges. No open/create actions, no worktree filter toggle, no differentiated icons.
+**V2** has a simplified `CompareBaseBranchPicker` - flat list of branches with `GoGitBranch` icons, "default" and "workspace" badges. No open/create actions, no worktree filter toggle, no differentiated icons.
 
 **V1 ref**: `PromptGroup.tsx:275-530` (`CompareBaseBranchPickerInline`)
 **V2 ref**: `CompareBaseBranchPicker/CompareBaseBranchPicker.tsx`
@@ -90,7 +90,7 @@
 
 ### 6. Dedicated "Create from PR" Flow
 
-**V1**: When a PR is linked, submit uses a separate code path — `createFromPr.mutateAsyncWithSetup()` — that creates the workspace from the PR's branch and metadata.
+**V1**: When a PR is linked, submit uses a separate code path - `createFromPr.mutateAsyncWithSetup()` - that creates the workspace from the PR's branch and metadata.
 
 **V2**: Sends `linkedPrUrl` as part of `linkedContext`. The PR is treated as context rather than driving branch creation. No separate mutation.
 
@@ -99,7 +99,7 @@
 
 ---
 
-### 7. PR URL Parsing and Cross-Repo Validation — ✅ Resolved (PR #3356)
+### 7. PR URL Parsing and Cross-Repo Validation - ✅ Resolved (PR #3356)
 
 **V1**: `PRLinkCommand` parses pasted GitHub PR URLs (`github.com/:owner/:repo/pull/:number`), detects cross-repository links, and shows an error ("PR URL must match {repo}") for mismatched repos.
 
@@ -123,10 +123,10 @@
 
 | # | Gap | Impact | Effort |
 |---|-----|--------|--------|
-| 5 | Agent launch request building | High — agents won't receive full config/prompt/files | Medium |
-| 3 | AI branch name generation | High — branch names won't be meaningful | Low |
-| 4 | GitHub issue content fetching | Medium — issues linked as URLs only, not rich context | Medium |
-| 6 | Dedicated "create from PR" flow | Medium — PR workspaces may not set up branches properly | Medium |
-| 2 | Branch picker worktree awareness | Medium — can't discover/open existing worktrees | High |
-| 1 | Project picker open/new actions | Low — can do this outside the modal | Low |
-| ~~7~~ | ~~PR URL parsing / cross-repo validation~~ | ✅ Resolved by #3356 | — |
+| 5 | Agent launch request building | High - agents won't receive full config/prompt/files | Medium |
+| 3 | AI branch name generation | High - branch names won't be meaningful | Low |
+| 4 | GitHub issue content fetching | Medium - issues linked as URLs only, not rich context | Medium |
+| 6 | Dedicated "create from PR" flow | Medium - PR workspaces may not set up branches properly | Medium |
+| 2 | Branch picker worktree awareness | Medium - can't discover/open existing worktrees | High |
+| 1 | Project picker open/new actions | Low - can do this outside the modal | Low |
+| ~~7~~ | ~~PR URL parsing / cross-repo validation~~ | ✅ Resolved by #3356 | - |

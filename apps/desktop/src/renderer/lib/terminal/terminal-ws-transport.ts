@@ -22,7 +22,7 @@ export interface TerminalLogEntry {
 }
 
 // PTY output bytes arrive as binary WebSocket frames and are fed straight
-// into xterm.write(Uint8Array) — no UTF-8 decoding hop, so multi-byte
+// into xterm.write(Uint8Array) - no UTF-8 decoding hop, so multi-byte
 // codepoints that straddle a frame boundary stay intact (xterm.js buffers
 // partial sequences internally). Control messages (title/error/exit) stay
 // JSON.
@@ -58,7 +58,7 @@ export interface TerminalTransport {
 	/**
 	 * True once the server has said the PTY is gone for good (live `exit`
 	 * message or a `session-gone` attach error). Distinct from `_terminated`,
-	 * which also covers unknown errors where the PTY may still be alive. Persistence paths must clear — never write — the
+	 * which also covers unknown errors where the PTY may still be alive. Persistence paths must clear - never write - the
 	 * persisted scrollback of a session-ended terminal. Reset on `attached`
 	 * (the session was re-created under the same id).
 	 */
@@ -118,7 +118,7 @@ const BASE_RECONNECT_DELAY = 500;
 const MAX_RECONNECT_DELAY = 10_000;
 // How many consecutive failed dials (partysocket `retryCount`) before the header
 // shows *why* the terminal is down. Below this the socket is quietly (and
-// quickly) retrying — a network blip or host-service restart usually recovers
+// quickly) retrying - a network blip or host-service restart usually recovers
 // inside the window (retryCount resets after a stable connection). The socket
 // keeps retrying forever regardless; this only gates the user-facing diagnosis.
 const DIAGNOSE_AFTER_ATTEMPTS = 10;
@@ -128,9 +128,9 @@ function isWindowHidden(): boolean {
 }
 
 // Once partysocket has failed DIAGNOSE_AFTER_ATTEMPTS consecutive dials, surface
-// why the terminal is down. Driven off partysocket's `retryCount` — the
+// why the terminal is down. Driven off partysocket's `retryCount` - the
 // authoritative per-attempt counter that increments on every failed dial and
-// resets after a stable connection — rather than counting close events: dial
+// resets after a stable connection - rather than counting close events: dial
 // failures (host unreachable, upgrade rejected) arrive as synthetic string-code
 // closes + error events that a hand-rolled close-counter misses, so a purely
 // close-counting gate would leave a genuinely-offline terminal retrying
@@ -142,7 +142,7 @@ function maybeSurfaceDiagnosis(
 ) {
 	if (transport._terminated) return;
 	// A hidden/minimized window shouldn't accrue an "offline" state nobody is
-	// looking at — its failures may be a suspend artifact. The socket keeps
+	// looking at - its failures may be a suspend artifact. The socket keeps
 	// retrying; the resume listener force-redials the moment it's back.
 	if (isWindowHidden()) return;
 	if ((transport._socket?.retryCount ?? 0) < DIAGNOSE_AFTER_ATTEMPTS) return;
@@ -279,7 +279,7 @@ export function createTransport(
 
 // Wall-clock watchdog cadence and the gap that counts as a suspend. A tick gap
 // far larger than the interval means the process was paused (laptop sleep), so
-// any socket still reporting OPEN is almost certainly half-open — dead, but
+// any socket still reporting OPEN is almost certainly half-open - dead, but
 // without a `close` event ever firing. This is the dependable desktop signal:
 // app-suspend doesn't reliably fire focus/visibility when the window was
 // focused both before and after sleep.
@@ -303,7 +303,7 @@ function forceReconnect(transport: TerminalTransport) {
 }
 
 // DOM resume signal (online/focus/visibilitychange). Reconnect only if the
-// socket is actually dead — a healthy or still-connecting socket is left alone.
+// socket is actually dead - a healthy or still-connecting socket is left alone.
 function handleResume(transport: TerminalTransport) {
 	if (transport._terminated) return;
 	const socket = transport._socket;
@@ -420,7 +420,7 @@ export function connect(
 	const base = stripToken(wsUrl);
 
 	// Idempotent: a live socket already pointed at this endpoint just needs the
-	// latest token-bearing URL refreshed (the socket re-signs per dial anyway) —
+	// latest token-bearing URL refreshed (the socket re-signs per dial anyway) -
 	// don't tear the connection down when only the rotating token changed.
 	if (
 		transport._socket &&
@@ -494,7 +494,7 @@ function attachSocketListeners(
 			// animation frame. There's no output ACK back to host-service:
 			// back-pressure lives entirely on the host side, which bounds this
 			// socket's send buffer and drops us (we reconnect and replay) if we
-			// fall hopelessly behind. A slow renderer can never wedge the shell —
+			// fall hopelessly behind. A slow renderer can never wedge the shell -
 			// it just loses some scrollback.
 			transport._writeCoalescer?.push(new Uint8Array(data));
 			transport._hasReceivedBytes = true;
@@ -519,7 +519,7 @@ function attachSocketListeners(
 			transport.lastDiagnosis = null;
 			transport._diagnosisLogged = false;
 			// A successful attach means the session exists again (re-created or
-			// respawned under the same id) — its scrollback is worth keeping.
+			// respawned under the same id) - its scrollback is worth keeping.
 			transport.sessionEnded = false;
 			setConnectionState(transport, "open");
 			sendResize(transport, terminal.cols, terminal.rows);
@@ -566,7 +566,7 @@ function attachSocketListeners(
 		transport._writeCoalescer?.flushSync();
 		setConnectionState(transport, "closed");
 		// Deliberate/terminal closes (PTY exit, fatal error, cleanup) don't
-		// reconnect — partysocket won't re-dial after close(). Synthetic
+		// reconnect - partysocket won't re-dial after close(). Synthetic
 		// dial-error closes carry a string code and are logged via the error
 		// handler; the diagnosis itself is driven off retryCount either way.
 		if (transport._terminated || closeEvent.code === 1000) return;

@@ -6,14 +6,14 @@
 // On disconnect we surface via console.error, notify subscribers (terminal.ts
 // uses this to close WS sockets so the renderer reconnects against the
 // respawned daemon), and let the next caller's getDaemonClient() rebuild
-// the client. There's no in-band reconnect here — see DaemonClient's "dumb"
+// the client. There's no in-band reconnect here - see DaemonClient's "dumb"
 // failure model.
 
 import { getSupervisor, waitForDaemonReady } from "../daemon/index.ts";
 import { DaemonClient } from "./DaemonClient/index.ts";
 
 // Read org id directly from process.env rather than importing the validated
-// `env` module — this singleton is eagerly loaded by the trpc terminal
+// `env` module - this singleton is eagerly loaded by the trpc terminal
 // router, so importing `env` here makes every test that boots the router
 // crash at import time when the production env vars aren't set.
 function getOrganizationId(): string {
@@ -32,7 +32,7 @@ let connecting: Promise<DaemonClient> | null = null;
 /**
  * Subscribers notified whenever the active DaemonClient disconnects.
  * terminal.ts hooks this to close WS sockets and clear in-memory session
- * state — without it, sockets stay open and input/resize silently fails.
+ * state - without it, sockets stay open and input/resize silently fails.
  */
 const disconnectListeners = new Set<(err?: Error) => void>();
 
@@ -56,7 +56,7 @@ async function ptyDaemonSocketPath(): Promise<string> {
 	if (!sockPath) {
 		throw new Error(
 			"pty-daemon is not available: supervisor returned no socket path. " +
-				"The bootstrap must have failed — check host-service logs for spawn errors.",
+				"The bootstrap must have failed - check host-service logs for spawn errors.",
 		);
 	}
 	return sockPath;
@@ -91,7 +91,7 @@ export async function getDaemonClient(): Promise<DaemonClient> {
 			return client;
 		})
 		.catch(async (error) => {
-			// Failed connect — clean up the partially initialized client.
+			// Failed connect - clean up the partially initialized client.
 			await client.dispose().catch(() => {});
 			throw error;
 		})

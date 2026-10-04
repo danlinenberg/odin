@@ -29,7 +29,7 @@ interface SessionMetrics {
 	title: string | null;
 	cpu: number;
 	memory: number;
-	/** The shell has a child process — something is running in it, not just a prompt. */
+	/** The shell has a child process - something is running in it, not just a prompt. */
 	busy: boolean;
 }
 
@@ -52,7 +52,7 @@ interface AppMetrics extends ProcessMetrics {
 interface HostMetrics {
 	totalMemory: number;
 	freeMemory: number;
-	/** Free plus reclaimable — see `readAvailableMemory`. */
+	/** Free plus reclaimable - see `readAvailableMemory`. */
 	availableMemory: number;
 	usedMemory: number;
 	memoryUsagePercent: number;

@@ -6,7 +6,7 @@ API shapes and boundaries between the host service, the Electron desktop layer, 
 
 ## 1. Host Service (`packages/host-service`)
 
-### `createApp()` — the sole entry point
+### `createApp()` - the sole entry point
 
 ```ts
 createApp({
@@ -31,8 +31,8 @@ All fields required. No optional fields. No defaults that assume a desktop envir
 
 **Not config, not providers:**
 
-- `hostId` / `hostName` — generated internally by the host service from machine identity
-- Version — the service reads its own version from package.json, not from a passed-in string.
+- `hostId` / `hostName` - generated internally by the host service from machine identity
+- Version - the service reads its own version from package.json, not from a passed-in string.
 
 ### Provider interfaces
 
@@ -52,7 +52,7 @@ interface GitCredentialProvider {
 
 interface ModelProviderResolver {
   resolve(cwd: string): Promise<RuntimeEnv>;
-  // Returns env vars — does NOT mutate process.env
+  // Returns env vars - does NOT mutate process.env
 }
 ```
 
@@ -64,9 +64,9 @@ interface ModelProviderResolver {
 health.check → { status: "ok" }
 ```
 
-**Authenticated (PSK) — host identity and metadata:**
+**Authenticated (PSK) - host identity and metadata:**
 
-This is how the tray gets the information it needs. `host.info` is the single source of truth for "who is this host" — no metadata passed through the Electron layer.
+This is how the tray gets the information it needs. `host.info` is the single source of truth for "who is this host" - no metadata passed through the Electron layer.
 
 ```ts
 host.info → {
@@ -83,7 +83,7 @@ host.info → {
 }
 ```
 
-**Authenticated (PSK) — workspace and project management:**
+**Authenticated (PSK) - workspace and project management:**
 
 ```ts
 workspace.create → ...
@@ -92,7 +92,7 @@ workspace.list   → ...
 project.remove   → ...   // renamed from removeFromDevice
 ```
 
-**Authenticated (PSK) — WebSocket routes:**
+**Authenticated (PSK) - WebSocket routes:**
 
 ```ts
 terminal/*       → WebSocket
@@ -101,7 +101,7 @@ filesystem/*     → WebSocket
 
 ### What the host service is NOT
 
-`createApp()` is a factory — it wires config + providers into a Hono server and returns it. There is no "host service manager" inside the package. The complexity of the current `createApp()` (~150 lines) is just plumbing: create DB, create git factory, create API client, register routes. Provider construction is one-liners (`new PskHostAuthProvider(secret)`, etc.) — the callers are simple.
+`createApp()` is a factory - it wires config + providers into a Hono server and returns it. There is no "host service manager" inside the package. The complexity of the current `createApp()` (~150 lines) is just plumbing: create DB, create git factory, create API client, register routes. Provider construction is one-liners (`new PskHostAuthProvider(secret)`, etc.) - the callers are simple.
 
 ---
 
@@ -156,13 +156,13 @@ After a service is running (whether spawned or adopted), the coordinator holds:
 
 ```ts
 {
-  pid: number,       // the OS process ID — used for liveness checks and SIGTERM
+  pid: number,       // the OS process ID - used for liveness checks and SIGTERM
   port: number,      // from ready message (spawned) or manifest (adopted)
   secret: string,    // PSK for authenticating with this instance
 }
 ```
 
-That's the steady-state. During spawn, the coordinator picks a free port, passes it to the host service as config (env var), then polls `health.check` on that port until the service is up. No Node IPC channel needed — the host service just starts on the port it's told. Once healthy, the coordinator records the pid/port/secret and discards the `ChildProcess` handle (`unref`'d so it survives app quit). From that point, spawned and adopted processes are treated identically: just a PID to check liveness and signal, a port to connect to, and a secret to authenticate.
+That's the steady-state. During spawn, the coordinator picks a free port, passes it to the host service as config (env var), then polls `health.check` on that port until the service is up. No Node IPC channel needed - the host service just starts on the port it's told. Once healthy, the coordinator records the pid/port/secret and discards the `ChildProcess` handle (`unref`'d so it survives app quit). From that point, spawned and adopted processes are treated identically: just a PID to check liveness and signal, a port to connect to, and a secret to authenticate.
 
 ### Where the complexity lives
 
@@ -172,12 +172,12 @@ The coordinator is ~500 lines. This is irreducible complexity from managing proc
 |---------|---------------------|
 | Spawn + health poll | Must start the child, poll health.check until ready, handle timeout |
 | Adoption from manifests | Must read disk, health-check the process, verify it's reachable |
-| Liveness polling | Adopted processes have no exit event — must poll PID |
+| Liveness polling | Adopted processes have no exit event - must poll PID |
 | Restart with backoff | Crashed services need exponential backoff, not immediate retry |
 | Pending start dedup | Concurrent `start()` calls for the same org must coalesce |
 | Release vs stop | Quit flow needs to either detach or kill each service |
 
-The current 800-line manager mixes these with org metadata, session config, display formatting, compatibility checks, and version tracking. The coordinator drops all of that — it only manages processes. The ~300 lines saved aren't from removing complexity; they're from removing concerns that don't belong.
+The current 800-line manager mixes these with org metadata, session config, display formatting, compatibility checks, and version tracking. The coordinator drops all of that - it only manages processes. The ~300 lines saved aren't from removing complexity; they're from removing concerns that don't belong.
 
 ### What the coordinator does NOT hold
 
@@ -272,11 +272,11 @@ const client = createHostServiceClient(port, secret);
 await client.workspace.list.query();
 ```
 
-The provider maintains `Map<organizationId, { port, url, client }>` — just connection info. No metadata caching.
+The provider maintains `Map<organizationId, { port, url, client }>` - just connection info. No metadata caching.
 
 ---
 
-## 5. Manifest (`apps/desktop` — Electron-only concept)
+## 5. Manifest (`apps/desktop` - Electron-only concept)
 
 On-disk JSON file per org. Written by the coordinator once the spawned service reports it's ready (pid, port). Read by the coordinator for adoption on next app launch. The host service itself has no knowledge of manifests.
 
@@ -290,7 +290,7 @@ interface Manifest {
 }
 ```
 
-Minimal — just enough to reconnect. No version or protocol fields; the coordinator queries `host.info` after adoption for metadata if needed.
+Minimal - just enough to reconnect. No version or protocol fields; the coordinator queries `host.info` after adoption for metadata if needed.
 
 Lives at `~/.odin/host/<organizationId>/manifest.json`. The coordinator writes and reads it. Remote deployments don't use manifests.
 
@@ -335,7 +335,7 @@ Lives at `~/.odin/host/<organizationId>/manifest.json`. The coordinator writes a
 
 | Gap | Fix |
 | --- | --- |
-| `auth` / `cloudApiUrl` not passed | Make required — standalone needs cloud connectivity |
+| `auth` / `cloudApiUrl` not passed | Make required - standalone needs cloud connectivity |
 | `credentials` defaults to `LocalGitCredentialProvider` | Use `CloudGitCredentialProvider` |
 | `modelResolver` defaults to `LocalModelProvider` | Use `CloudModelProvider` |
 | No terminal session reconciliation at startup | Mark orphaned `"active"` sessions as `"disposed"` on boot |

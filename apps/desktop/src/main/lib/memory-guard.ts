@@ -15,7 +15,7 @@ import {
  * terminal-host daemon) once grew to 137 GB and took the Mac down with it.
  * Once a minute, name anything past WARN in ~/.odin/memory-guard.log, and
  * SIGKILL anything past KILL before it gets there. Main and the daemon are
- * spared — killing either takes every session with it. The GPU process is
+ * spared - killing either takes every session with it. The GPU process is
  * not: Chromium relaunches it.
  */
 const EVERY_MS = 60_000;

@@ -66,7 +66,7 @@ export function useTerminalStream({
 			const currentPaneForRun = useTabsStore.getState().panes[paneId];
 			const isWorkspaceRunPane = Boolean(currentPaneForRun?.workspaceRun);
 			// Odin fork: agent sessions run `claude` AS the pane process (no shell
-			// underneath), so the agent quitting exits 0 — which used to delete the
+			// underneath), so the agent quitting exits 0 - which used to delete the
 			// pane, and with it the tab and its board card, mid-work. Keep it around
 			// like a workspace-run pane: the transcript stays readable and Resume
 			// can reattach to the conversation.
@@ -86,7 +86,7 @@ export function useTerminalStream({
 						: "[Restart to start a new session]",
 				);
 			} else if (exitCode === 0 && !isWorkspaceRunPane && !isAgentSession) {
-				// Clean exit (e.g. typing "exit") — close the pane/tab
+				// Clean exit (e.g. typing "exit") - close the pane/tab
 				removePane(paneId);
 				return;
 			} else {
@@ -98,7 +98,7 @@ export function useTerminalStream({
 				xterm.writeln("[Press any key to restart]");
 			}
 
-			// Clear transient pane status on terminal exit — unless the process
+			// Clear transient pane status on terminal exit - unless the process
 			// died on its own, which should show up red on the tab and board card.
 			if (exitCode !== 0) {
 				setPaneStatus(paneId, "failed");

@@ -61,7 +61,7 @@ describe("workspaceCleanup.destroy integration", () => {
 	});
 
 	test("rejects deleting a main workspace (worktreePath === repoPath)", async () => {
-		// Use the main workspace (id), not the feature one — that's the row
+		// Use the main workspace (id), not the feature one - that's the row
 		// whose worktreePath equals the project's repoPath.
 		await expect(
 			scenario.host.trpc.workspaceCleanup.destroy.mutate({

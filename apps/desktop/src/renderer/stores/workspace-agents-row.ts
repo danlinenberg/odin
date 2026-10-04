@@ -4,7 +4,7 @@ import { devtools, persist } from "zustand/middleware";
 /**
  * EXPERIMENT: show running agents inline under each workspace in the sidebar.
  *
- * On by default. Single source of truth for the experiment — read it
+ * On by default. Single source of truth for the experiment - read it
  * everywhere via {@link useWorkspaceAgentsRowEnabled}.
  *
  * To conclude the experiment, pick an outcome and remove the other side:

@@ -15,7 +15,7 @@ via `@odin/pty-daemon/protocol`.
 ## Runtime
 
 **Production: Node ≥ 20** (Electron's bundled Node), via
-`process.execPath` — exactly the same pattern as `host-service` already
+`process.execPath` - exactly the same pattern as `host-service` already
 uses today (`packages/host-service/build.ts` → `dist/host-service.js`,
 spawned by `apps/desktop/src/main/lib/host-service-coordinator.ts`).
 Bun is the build tool, not a runtime. **No new runtime in the desktop
@@ -106,12 +106,12 @@ bun run build:daemon         # bundle src/main.ts → dist/pty-daemon.js (target
 What the integration suites prove:
 
 - **`control-plane.test.ts`**: handshake/version negotiation; session lifecycle (invalid dims, duplicate ids, ENOENT, instant-exit, hung-shell SIGKILL); I/O (resize, burst, multi-byte UTF-8); multi-subscriber fan-out; detach + reattach (replay); concurrency; hostile input; framing across split chunks.
-- **`handoff.test.ts`**: Phase 2 — sessions survive a daemon-binary swap with the same shell PIDs.
+- **`handoff.test.ts`**: Phase 2 - sessions survive a daemon-binary swap with the same shell PIDs.
 - **`fd-lifecycle.test.ts`**: native and adopted real master fds close
   idempotently, including repeated natural-exit churn.
 - **`byte-fidelity.test.ts`**: random bytes (including non-UTF-8) flow daemon → host byte-perfect on live and replay.
 - **`signal-recovery.test.ts`**: SIGKILL of the daemon mid-flight; clients see a clean close.
-- **`no-encoding-hops.test.ts`** (bun): source-level guard — fails the moment anyone reintroduces a base64 hop or per-chunk `chunk.toString("utf8")` on the data path.
+- **`no-encoding-hops.test.ts`** (bun): source-level guard - fails the moment anyone reintroduces a base64 hop or per-chunk `chunk.toString("utf8")` on the data path.
 
 Why two runners? `bun test` is fast for pure-JS work. node-pty doesn't work
 under Bun, so anything that spawns a real PTY runs under Node.
@@ -127,7 +127,7 @@ by host-service with stdout reserved for protocol or kept dark).
 
 ## Out of scope
 
-- Windows ConPTY — not in the protocol; defer until Windows users justify it.
-- "since byte N" replay cursor — would close the gap where bytes the PTY
+- Windows ConPTY - not in the protocol; defer until Windows users justify it.
+- "since byte N" replay cursor - would close the gap where bytes the PTY
   produced during a WS-down window are dropped on reconnect (sub-second on
   a daemon swap; longer on host-service restart). Not built.

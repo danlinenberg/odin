@@ -27,12 +27,12 @@ export const internalTaskContributor: ContextContributor<{
 		}
 
 		const description = task.description?.trim() ?? "";
-		const heading = `# Task ${task.id} — ${task.title}`;
+		const heading = `# Task ${task.id} - ${task.title}`;
 		const text = description ? `${heading}\n\n${description}` : heading;
 		return {
 			id: `task:${task.id}`,
 			kind: "internal-task",
-			label: `Task ${task.id} — ${task.title}`,
+			label: `Task ${task.id} - ${task.title}`,
 			content: [{ type: "text", text }],
 			meta: { taskSlug: task.slug },
 		};

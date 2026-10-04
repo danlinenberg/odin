@@ -31,14 +31,14 @@ export const TAG_VOCABULARY = [
 	"infra",
 ] as const;
 
-/** The full board set — what the tag menu offers. */
+/** The full board set - what the tag menu offers. */
 export const BOARD_TAGS: string[] = [...TAG_VOCABULARY];
 
 /**
  * Drop anything off the list. Sessions tagged under the old, longer vocabulary
  * keep #perf/#ui/#api/… in app-state; this is where they stop being shown,
  * rather than a migration over persisted state. `custom` is the tags you added
- * by hand from the tag menu — on the list because you put them there.
+ * by hand from the tag menu - on the list because you put them there.
  */
 export function boardTags(
 	tags: string[] | undefined,

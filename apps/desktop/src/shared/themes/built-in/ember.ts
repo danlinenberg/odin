@@ -1,7 +1,7 @@
 import type { Theme } from "../types";
 
 /**
- * Dark theme — Odin's own palette. Cool ink neutrals, one brand colour
+ * Dark theme - Odin's own palette. Cool ink neutrals, one brand colour
  * (violet), and four status hues that live in globals.css (--working,
  * --attention, --success, --danger) so every page names a state the same way.
  */
@@ -13,7 +13,7 @@ export const darkTheme: Theme = {
 	isBuiltIn: true,
 
 	ui: {
-		// Core — cool ink neutrals, a hair of blue so the violet accent sits in
+		// Core - cool ink neutrals, a hair of blue so the violet accent sits in
 		// the same family instead of fighting a warm brown.
 		background: "#0e0e11",
 		foreground: "#ececf1",
@@ -22,12 +22,12 @@ export const darkTheme: Theme = {
 		popover: "#1a1a20",
 		popoverForeground: "#ececf1",
 
-		// Primary — Odin violet: the one brand colour. Primary buttons,
+		// Primary - Odin violet: the one brand colour. Primary buttons,
 		// switches, focus, links and "selected" all draw from it.
 		primary: "#a394ff",
 		primaryForeground: "#0e0e11",
 
-		// Secondary — the raised neutral every quiet button and chip sits on
+		// Secondary - the raised neutral every quiet button and chip sits on
 		secondary: "#1f1f26",
 		secondaryForeground: "#ececf1",
 
@@ -35,15 +35,15 @@ export const darkTheme: Theme = {
 		muted: "#1f1f26",
 		mutedForeground: "#9696a3",
 
-		// Accent — hover fill for menu rows
+		// Accent - hover fill for menu rows
 		accent: "#25252d",
 		accentForeground: "#ececf1",
 
-		// Tertiary — rail, top bar, board columns
+		// Tertiary - rail, top bar, board columns
 		tertiary: "#121216",
 		tertiaryActive: "#1f1f26",
 
-		// Destructive — the same red as a failed session
+		// Destructive - the same red as a failed session
 		destructive: "#f0647a",
 		destructiveForeground: "#fff1f3",
 
@@ -62,7 +62,7 @@ export const darkTheme: Theme = {
 		sidebarBorder: "#26262e",
 		sidebarRing: "#a394ff",
 
-		// Charts — the brand, then the four status hues
+		// Charts - the brand, then the four status hues
 		chart1: "#a394ff",
 		chart2: "#5aa9ff",
 		chart3: "#3ecf8e",

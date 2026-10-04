@@ -41,7 +41,7 @@ describe("workspace.create + workspace.delete integration", () => {
 			.get();
 		expect(persisted?.branch).toBe("feature/new");
 		expect(persisted?.worktreePath).toBeTruthy();
-		// Path scheme is `~/.odin/worktrees/<projectId>/<branch>` —
+		// Path scheme is `~/.odin/worktrees/<projectId>/<branch>` -
 		// pin the suffix rather than the absolute path so the test isn't
 		// HOME-dependent.
 		expect(persisted?.worktreePath).toMatch(/feature\/new$/);
