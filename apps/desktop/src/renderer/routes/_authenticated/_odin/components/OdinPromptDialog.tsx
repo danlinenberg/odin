@@ -342,7 +342,7 @@ export function OdinPromptDialog({
 					<button
 						type="button"
 						onClick={() => fileInput.current?.click()}
-						className="rounded-[6px] bg-secondary px-2 py-[3px] text-[11px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
+						className="shrink-0 whitespace-nowrap rounded-[6px] bg-secondary px-2 py-[3px] text-[11px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
 					>
 						+ Image / Video
 					</button>
@@ -361,7 +361,7 @@ export function OdinPromptDialog({
 								// Chromium paints that white-on-black over any bg-* — only an
 								// inset shadow and text-fill-color beat it. color-scheme darkens
 								// the dropdown itself.
-								className={`w-[230px] rounded-[6px] bg-secondary px-2 py-[3px] text-[11px] font-semibold outline-none [color-scheme:inherit] placeholder:font-semibold placeholder:text-muted-foreground autofill:shadow-[inset_0_0_0_1000px_var(--secondary)] autofill:[-webkit-text-fill-color:var(--foreground)] ${
+								className={`w-[230px] min-w-0 rounded-[6px] bg-secondary px-2 py-[3px] text-[11px] font-semibold outline-none [color-scheme:inherit] placeholder:font-semibold placeholder:text-muted-foreground autofill:shadow-[inset_0_0_0_1000px_var(--secondary)] autofill:[-webkit-text-fill-color:var(--foreground)] ${
 									repo ? "text-foreground" : "text-muted-foreground"
 								}`}
 							/>
@@ -394,7 +394,7 @@ export function OdinPromptDialog({
 					<button
 						type="button"
 						onClick={onCancel}
-						className="rounded-[6px] px-2 py-[3px] text-[11px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
+						className="shrink-0 whitespace-nowrap rounded-[6px] px-2 py-[3px] text-[11px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
 					>
 						Cancel
 					</button>
@@ -402,7 +402,7 @@ export function OdinPromptDialog({
 						type="button"
 						disabled={isStarting}
 						onClick={() => void start()}
-						className="flex items-center gap-1.5 rounded-[6px] bg-primary px-2.5 py-[3px] text-[11px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-default disabled:opacity-70"
+						className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[6px] bg-primary px-2.5 py-[3px] text-[11px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-default disabled:opacity-70"
 					>
 						{isStarting && (
 							<span className="size-[9px] animate-spin rounded-full border border-current border-t-transparent" />
