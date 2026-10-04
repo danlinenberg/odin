@@ -2,6 +2,7 @@ import { app, BrowserWindow, session, shell } from "electron";
 import { env } from "main/env.main";
 import { loadReactDevToolsExtension } from "main/lib/extensions";
 import { IN_APP_BROWSER_PARTITION, PLATFORM } from "shared/constants";
+import { opensInOdin } from "shared/in-odin-links";
 import { makeAppId } from "shared/utils";
 import { ignoreConsoleWarnings } from "../../utils/ignore-console-warnings";
 
@@ -62,9 +63,11 @@ export async function makeAppSetup(
 					};
 				}
 				// The panel has no tabs: a link opening one (Slack's, Jira's)
-				// loads in place instead, and Back returns.
-				if (url.startsWith("http://") || url.startsWith("https://")) {
-					contents.loadURL(url);
+				// loads in place instead, and Back returns — if it's another task
+				// source's page. Any other site opens in your browser.
+				if (opensInOdin(url)) contents.loadURL(url);
+				else if (url.startsWith("http://") || url.startsWith("https://")) {
+					shell.openExternal(url);
 				}
 				return { action: "deny" };
 			});
