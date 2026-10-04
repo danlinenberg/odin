@@ -244,7 +244,7 @@ function WeekChart({
 }
 
 /**
- * The productivity line: tasks shipped per week. A finished week is its count;
+ * The productivity line: merged PRs per week. A finished week is its count;
  * a week still going — or the one the record starts in — is the pace of the
  * days it has had, so a half-finished week isn't read as a slump.
  *
@@ -302,7 +302,7 @@ function ShippedChart({
 						key={week.start}
 						className="absolute flex size-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center"
 						style={{ left: `${x}%`, top: `${y}%` }}
-						title={`Week of ${DATE.format(week.start)}: ${plural(week.shipped, "task")} shipped${days[index] === 7 ? "" : ` in ${plural(days[index] as number, "day")}, on pace for ${Math.round(rate * 10) / 10}`}`}
+						title={`Week of ${DATE.format(week.start)}: ${plural(week.shipped, "merged PR")}${days[index] === 7 ? "" : ` in ${plural(days[index] as number, "day")}, on pace for ${Math.round(rate * 10) / 10}`}`}
 					>
 						<div className="absolute bottom-full whitespace-nowrap text-[11px] font-medium tabular-nums text-soft-foreground">
 							{Math.round(rate * 10) / 10}/wk
@@ -1000,7 +1000,7 @@ function Workload() {
 				{data.weeks[0]?.shipped !== undefined && (
 					<Section
 						title="Shipped per week"
-						note="tasks that ended in a merged PR, counted once at the first; a week still going shows its pace"
+						note="merged PRs, by the week they opened; a week still going shows its pace"
 					>
 						<ShippedChart weeks={data.weeks} since={data.since} />
 					</Section>

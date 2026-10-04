@@ -247,11 +247,11 @@ describe("computeWorkload", () => {
 		expect(out.weeks.at(-1)?.start).toBe(weekStart(MON));
 	});
 
-	test("a task ships once, in the week of its first PR", () => {
+	test("every PR ships, in the week it opened", () => {
 		const nextWeek = MON + 7 * 86_400_000;
 		const out = computeWorkload(
 			[
-				// Three PRs for one fix, the first this week: one task shipped.
+				// Two PRs this week (one undated: the session's start), one next.
 				session({
 					sessionId: "redone",
 					prs: ["a", "b", "c"],
@@ -268,7 +268,7 @@ describe("computeWorkload", () => {
 			],
 			{ now: nextWeek, weeks: 2 },
 		);
-		expect(out.weeks.map((week) => week.shipped)).toEqual([2, 0]);
+		expect(out.weeks.map((week) => week.shipped)).toEqual([3, 1]);
 	});
 
 	test("weeks before the record starts are dropped, not drawn as zero", () => {
