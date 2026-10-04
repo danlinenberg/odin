@@ -24,7 +24,7 @@ import { allItems } from "../all/all-items";
 import { useStartAllItem } from "../all/use-start-item";
 import { DropHint } from "../components/DropHint";
 import { FEED_TABS } from "../components/feed-counts";
-import { BUTTON } from "../components/pill";
+import { BUTTON, PILL } from "../components/pill";
 import {
 	DueChip,
 	dayOf,
@@ -36,6 +36,7 @@ import { useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useMyTasks } from "../hooks/useOdinTasks";
 import type { SweptRow } from "../review/verdicts";
+import { duplicateOf, type LedgerRow } from "./duplicates";
 
 /**
  * A feed title as something to read: Slack's *bold* and ~strike~ markers
@@ -47,6 +48,13 @@ function cleanTitle(title: string): string {
 }
 
 const ICON = Object.fromEntries(FEED_TABS.map(({ to, Icon }) => [to, Icon]));
+
+const LEDGER_FEED: Record<LedgerRow["source"], string> = {
+	reactions: "Slack",
+	jira: "Jira",
+	pr: "PR",
+	notion: "Notion",
+};
 
 /**
  * The recommended queue: tasks from every feed that nobody has started yet -
@@ -233,6 +241,9 @@ export function useNextInLineQueue(showHidden = false) {
 		(item) =>
 			!livePaneFor(item) && !startedKeys.has(item.launch.key) && !isDone(item),
 	);
+	// The same ask arriving through a second feed. It stays in the column,
+	// marked, for you to start or tick off - the Night Agent won't.
+	const duplicateFor = (item: AllItem) => duplicateOf(item, ledger ?? []);
 	// Rows your instructions say not to show, per the model. They count as
 	// hidden and come back, dimmed, under the same "show hidden" as yours.
 	const aiHidden = new Set(applied ? ranking?.hidden : []);
@@ -274,6 +285,7 @@ export function useNextInLineQueue(showHidden = false) {
 		waiting,
 		isAiHidden,
 		aiHiddenCount,
+		duplicateFor,
 		next,
 		pinned,
 		unpinned,
@@ -296,6 +308,7 @@ export function NextInLine() {
 		waiting,
 		isAiHidden,
 		aiHiddenCount,
+		duplicateFor,
 		next,
 		pinned,
 		unpinned,
@@ -405,17 +418,20 @@ export function NextInLine() {
 	function card(item: AllItem, due: boolean) {
 		const Icon = ICON[item.to];
 		const meta = [item.person, item.context].filter(Boolean).join(" · ");
+		const duplicate = duplicateFor(item);
 		return (
 			<div
 				key={item.key}
 				className={cn(
 					"group relative flex items-start gap-2 rounded-[10px] border border-border bg-card px-2.5 py-2 transition-colors hover:border-input hover:bg-secondary",
-					isAiHidden(item) && "opacity-50",
+					(isAiHidden(item) || duplicate) && "opacity-50",
 				)}
 				title={
-					isAiHidden(item)
-						? "Hidden by your Next in line instructions"
-						: undefined
+					duplicate
+						? "Suspected duplicate - the Night Agent skips it. Start it yourself if it isn't."
+						: isAiHidden(item)
+							? "Hidden by your Next in line instructions"
+							: undefined
 				}
 			>
 				{/* A to-do's checkbox, where a to-do's checkbox goes. */}
@@ -470,6 +486,18 @@ export function NextInLine() {
 							</div>
 							{dropFor(item) && (
 								<DropHint evidence={dropFor(item)?.evidence ?? ""} />
+							)}
+							{duplicate && (
+								<div
+									className={`mt-1 line-clamp-2 w-full rounded-[5px] px-[7px] py-px text-[11px] font-medium ${PILL.attention}`}
+								>
+									Suspected duplicate of: {cleanTitle(duplicate.title)} ·{" "}
+									{LEDGER_FEED[duplicate.source]} · started{" "}
+									{new Date(duplicate.startedAt).toLocaleDateString(undefined, {
+										month: "short",
+										day: "numeric",
+									})}
+								</div>
 							)}
 						</div>
 					</HoverCardTrigger>

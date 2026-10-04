@@ -106,12 +106,17 @@ export function useNightAgentRunner() {
 					);
 				}
 				const { order, hidden } = night.current as NightRanking;
-				const { pinned, unpinned, start } = latest.current;
+				const { pinned, unpinned, start, duplicateFor } = latest.current;
 				const rank = (key: string) => order.get(key) ?? order.size;
 				const item = [
 					...pinned,
 					...unpinned.toSorted((a, b) => rank(a.key) - rank(b.key)),
-				].find((row) => !hidden.has(row.key) && !tried.current.has(row.key));
+				].find(
+					(row) =>
+						!hidden.has(row.key) &&
+						!tried.current.has(row.key) &&
+						!duplicateFor(row),
+				);
 				if (!item) return;
 				tried.current.add(item.key);
 				setOffHoursStarted(offHoursStarted + 1);
