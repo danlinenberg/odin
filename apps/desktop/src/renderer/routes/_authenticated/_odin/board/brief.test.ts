@@ -17,6 +17,7 @@ import {
 	onlyMergeLeft,
 	parseLinks,
 	projectSlug,
+	prsDropped,
 	pullRequests,
 	sessionBrief,
 	slackThread,
@@ -664,6 +665,29 @@ describe("mergeReady", () => {
 				[opened, items, { role: "user", text: "merge them", at: null }],
 				{ [a]: approved, [b]: approved },
 			),
+		).toBe(false);
+	});
+	it("calls a session dropped once a PR closed and none is left open", () => {
+		const closed = { state: "CLOSED" };
+		const merged = { state: "MERGED" };
+		expect(prsDropped([opened, items], { [a]: closed, [b]: closed })).toBe(
+			true,
+		);
+		expect(prsDropped([opened, items], { [a]: closed, [b]: merged })).toBe(
+			true,
+		);
+		expect(prsDropped([opened, items], { [a]: merged, [b]: merged })).toBe(
+			false,
+		);
+		expect(prsDropped([opened, items], { [a]: closed, [b]: approved })).toBe(
+			false,
+		);
+		expect(prsDropped([opened, items], { [a]: closed, [b]: null })).toBe(false);
+		expect(
+			prsDropped([opened, items], {
+				[a]: { state: "CLOSED", mine: false },
+				[b]: merged,
+			}),
 		).toBe(false);
 	});
 	it("targets the named PRs, else the newest one", () => {

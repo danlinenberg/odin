@@ -528,17 +528,19 @@ export function mergeCheckUrls(messages: BriefMessage[]): string[] {
  * PR, not fetched yet) is not approved, and a reply after the items means you
  * already answered them.
  */
+type PrStates = Record<
+	string,
+	{
+		state: string;
+		approved?: boolean;
+		failed?: string[];
+		mine?: boolean | null;
+	} | null
+>;
+
 export function mergeReady(
 	messages: BriefMessage[],
-	states: Record<
-		string,
-		{
-			state: string;
-			approved?: boolean;
-			failed?: string[];
-			mine?: boolean | null;
-		} | null
-	>,
+	states: PrStates,
 ): boolean {
 	if (messages[messages.length - 1]?.role !== "assistant") return false;
 	const prs = mergeCheckUrls(messages)
@@ -556,5 +558,24 @@ export function mergeReady(
 	return (
 		prs.some((pr) => pr?.state === "OPEN") ||
 		(onlyMergeLeft(messages) && prs.some((pr) => pr?.state === "MERGED"))
+	);
+}
+
+/**
+ * Dropped: none of your PRs the session linked is still open, and at least one
+ * was closed without merging. Whatever its action items say, that work was
+ * abandoned, so the card is Done and says why.
+ */
+export function prsDropped(
+	messages: BriefMessage[],
+	states: PrStates,
+): boolean {
+	const prs = mergeCheckUrls(messages)
+		.map((url) => states[url])
+		.filter((pr) => pr?.mine !== false);
+	return (
+		prs.length > 0 &&
+		prs.every((pr) => !!pr && pr.state !== "OPEN") &&
+		prs.some((pr) => pr?.state === "CLOSED")
 	);
 }
