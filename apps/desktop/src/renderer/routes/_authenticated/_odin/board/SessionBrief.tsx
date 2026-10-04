@@ -160,15 +160,35 @@ function hoverText(
 }
 
 /**
- * A PR link's tooltip: what it does — title, then the description's opening
- * paragraph — then the url. Both are missing until main restarts onto the
- * procedure that fetches them, so it falls back to the url alone.
+ * A PR link's tooltip: what it does — the title, then the description's opening
+ * paragraph — then where it lives, each set apart so it reads at a glance. Both
+ * are missing until main restarts onto the procedure that fetches them, so it
+ * falls back to the url alone.
  */
-function prHoverText(
-	url: string,
-	pr: { title?: string | null; summary?: string | null } | null | undefined,
-): string {
-	return [pr?.title, pr?.summary, url].filter(Boolean).join("\n\n");
+function PrHover({
+	url,
+	pr,
+}: {
+	url: string;
+	pr: { title?: string | null; summary?: string | null } | null | undefined;
+}) {
+	return (
+		<div className="flex flex-col gap-1.5 px-0.5 py-1 font-normal text-pretty">
+			{pr?.title && (
+				<div className="text-[13px] font-semibold leading-snug text-foreground">
+					{pr.title}
+				</div>
+			)}
+			{pr?.summary && (
+				<div className="text-[12px] leading-relaxed text-soft-foreground">
+					{pr.summary}
+				</div>
+			)}
+			<div className="break-all text-[11px] text-faint-foreground">
+				{url.replace(/^https:\/\//, "")}
+			</div>
+		</div>
+	);
 }
 
 /**
@@ -179,7 +199,7 @@ function Hover({
 	text,
 	children,
 }: {
-	text: string;
+	text: React.ReactNode;
 	children: React.ReactNode;
 }) {
 	return (
@@ -188,7 +208,7 @@ function Hover({
 			<TooltipContent
 				side="left"
 				dir="auto"
-				className="max-w-[320px] whitespace-pre-wrap break-words text-left"
+				className="max-w-[360px] whitespace-pre-wrap break-words text-left"
 			>
 				{text}
 			</TooltipContent>
@@ -470,9 +490,11 @@ export function SessionBrief({
 			<div key={url} className="group flex items-start gap-1.5">
 				<Hover
 					text={
-						linkKind(url) === "pr"
-							? prHoverText(url, prStates?.[url])
-							: hoverText(url, preview)
+						linkKind(url) === "pr" ? (
+							<PrHover url={url} pr={prStates?.[url]} />
+						) : (
+							hoverText(url, preview)
+						)
 					}
 				>
 					<button
@@ -585,7 +607,7 @@ export function SessionBrief({
 					<div className="flex flex-col gap-1">
 						{ownPrs.map((pr) => (
 							<div key={pr.url} className="group flex items-center gap-1.5">
-								<Hover text={prHoverText(pr.url, prStates?.[pr.url])}>
+								<Hover text={<PrHover url={pr.url} pr={prStates?.[pr.url]} />}>
 									<button
 										type="button"
 										onClick={() => openUrl(pr.url)}
