@@ -2,7 +2,7 @@
  * Host-service crash isolation.
  *
  * Policy: the main host-service process must stay up even when a subsystem
- * throws. We rely on a process-level safety net as the primary mechanism —
+ * throws. We rely on a process-level safety net as the primary mechanism -
  * Node already routes throws from `setInterval`, `setTimeout`, `EventEmitter`
  * listeners, native callbacks (`pty.onData`/`onExit`), and orphaned promise
  * continuations into `uncaughtException` / `unhandledRejection`, so a single
@@ -22,14 +22,14 @@ export function installProcessSafetyNet(): void {
 	safetyNetInstalled = true;
 
 	process.on("uncaughtException", (error, origin) => {
-		console.error("[host-service] uncaughtException — staying up", {
+		console.error("[host-service] uncaughtException - staying up", {
 			origin,
 			error,
 		});
 	});
 
 	process.on("unhandledRejection", (reason) => {
-		console.error("[host-service] unhandledRejection — staying up", { reason });
+		console.error("[host-service] unhandledRejection - staying up", { reason });
 		Sentry.captureException(reason);
 	});
 }

@@ -178,7 +178,7 @@ describe("LocalLinkDetector", () => {
 		});
 
 		it("should limit resolved links per line", async () => {
-			// Create 15 valid paths — detector should stop at MAX_RESOLVED_LINKS (10)
+			// Create 15 valid paths - detector should stop at MAX_RESOLVED_LINKS (10)
 			const paths = Array.from({ length: 15 }, (_, i) => `/parent/cwd/f${i}`);
 			const detector = createDetector(paths);
 			const text = paths.map((_, i) => `./f${i}`).join(" ");
@@ -279,7 +279,7 @@ describe("LocalLinkDetector", () => {
 
 	describe("trimmed candidates", () => {
 		it("should try trimmed path when original has trailing punctuation", async () => {
-			// Path followed by a bracket that gets included in the match —
+			// Path followed by a bracket that gets included in the match -
 			// generateTrimmedCandidates strips it so the stat succeeds.
 			const detector = createDetector(["/foo/bar"]);
 			const result = await detector.detect("see /foo/bar.");

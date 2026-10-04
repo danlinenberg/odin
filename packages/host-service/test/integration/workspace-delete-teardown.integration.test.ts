@@ -28,7 +28,7 @@ const odinHomeDir = process.env.ODIN_HOME_DIR;
 /**
  * Regression coverage for #6174: the external delete surface (CLI/SDK/MCP →
  * `workspace.delete`) hardcodes `force: true` for its non-interactive git
- * semantics, but teardown must still run — silently skipping it leaks the
+ * semantics, but teardown must still run - silently skipping it leaks the
  * resources the script provisions.
  */
 describe("workspace delete teardown integration", () => {

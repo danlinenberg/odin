@@ -23,7 +23,7 @@ describe("port-scan warm-up schedule", () => {
 
 	it("fully precedes the first scheduled reap so it covers the gap", () => {
 		// Every warm-up must fire before the 5-minute reap would otherwise be the
-		// first re-sync — that's the window this fix closes.
+		// first re-sync - that's the window this fix closes.
 		for (const delay of PORT_SCAN_WARMUP_DELAYS_MS) {
 			expect(delay).toBeLessThan(REAP_INTERVAL_MS);
 		}

@@ -35,7 +35,7 @@ export function useOdinWorkspace() {
 	 * last-opened-wins quietly scattered them across whichever repo happened to
 	 * be touched last. Last-opened is only a fallback now.
 	 *
-	 * `repoOverride` pins a specific checkout — "Work on Odin" passes Odin's own
+	 * `repoOverride` pins a specific checkout - "Work on Odin" passes Odin's own
 	 * repo so the agent starts there rather than working out where it lives.
 	 */
 	const ensureWorkspace = async (
@@ -51,10 +51,10 @@ export function useOdinWorkspace() {
 		const repoPath = repoOverride ?? defaultRepo;
 		if (!repoPath) {
 			return fallback(
-				"No workspace and no default repo — set one in Settings → Sessions.",
+				"No workspace and no default repo - set one in Settings → Sessions.",
 			);
 		}
-		// ponytail: unconditional — openFromPath upserts the project and its main
+		// ponytail: unconditional - openFromPath upserts the project and its main
 		// workspace, so this resolves an already-open repo instead of duplicating it.
 		const result = await openFromPath.mutateAsync({ path: repoPath });
 		if ("error" in result && result.error) {

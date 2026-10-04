@@ -1,8 +1,8 @@
-// offLoop() — resolver factory that makes a procedure body a worker task.
+// offLoop() - resolver factory that makes a procedure body a worker task.
 // `prepare` runs on the event loop (ctx reads, credential/env resolution)
 // and returns the task input as PLAIN DATA; the task then executes in the
 // host worker pool, so its subprocess/fs work never blocks the loop. Prefer
-// this for new procedures over spawning in the resolver — the
+// this for new procedures over spawning in the resolver - the
 // no-main-loop-blocking ratchet only catches regressions after the fact.
 
 import type { HostServiceContext } from "../types";

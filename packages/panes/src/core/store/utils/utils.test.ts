@@ -118,8 +118,8 @@ describe("removePaneFromLayout", () => {
 		expect(result).toEqual({ type: "pane", paneId: "a" });
 	});
 
-	it("collapses nested split — sibling promotion preserves parent", () => {
-		// NESTED: { h: [a, { v: [b, c] }] } — remove b → { h: [a, c] }
+	it("collapses nested split - sibling promotion preserves parent", () => {
+		// NESTED: { h: [a, { v: [b, c] }] } - remove b → { h: [a, c] }
 		const result = removePaneFromLayout(NESTED, "b");
 		expect(result).toMatchObject({
 			type: "split",
@@ -130,7 +130,7 @@ describe("removePaneFromLayout", () => {
 	});
 
 	it("preserves parent splitPercentage when descendant is removed", () => {
-		// DEEP: { v(30%): [a, { v: [b, { v: [c, d] }] }] } — remove c
+		// DEEP: { v(30%): [a, { v: [b, { v: [c, d] }] }] } - remove c
 		const result = removePaneFromLayout(DEEP, "c");
 		expect(result).toMatchObject({
 			type: "split",

@@ -1,9 +1,9 @@
 /**
- * pty-daemon — Desktop bundle target
+ * pty-daemon - Desktop bundle target
  *
  * The supervisor (in @odin/host-service) spawns this script as the
  * daemon process. We need a desktop-side entry so electron-vite emits
- * `apps/desktop/dist/main/pty-daemon.js` alongside `host-service.js` —
+ * `apps/desktop/dist/main/pty-daemon.js` alongside `host-service.js` -
  * the supervisor's `sideBySide` script-path resolution looks for the
  * daemon binary right next to its own bundle.
  *
@@ -16,16 +16,16 @@
  *
  * Important: the mode signal is `process.argv.includes("--handoff")`,
  * NOT an env var. electron-vite's esbuild does aggressive DCE on
- * `process.env.X === "Y"` patterns at build time — we lose the
+ * `process.env.X === "Y"` patterns at build time - we lose the
  * receiver branch entirely. argv is fully dynamic and survives.
  *
  * The actual daemon implementation lives in `@odin/pty-daemon`
  * (Server, snapshot helpers). This file is the entry shim that
- * mirrors the package's main.ts logic — they're kept in sync by hand
+ * mirrors the package's main.ts logic - they're kept in sync by hand
  * because the dual-toolchain (Bun-built package vs electron-vite-bundled
  * desktop) catches different bundler quirks.
  *
- * Headless deploy path: in a non-Electron build, this file is unused —
+ * Headless deploy path: in a non-Electron build, this file is unused -
  * the supervisor instead spawns the @odin/pty-daemon package's
  * built-in main.ts directly.
  */
@@ -114,7 +114,7 @@ async function runHandoffReceiver(): Promise<void> {
 	}
 	log(`snapshotPath=${snapshotPath} socketPath=${socketPath}`);
 
-	// Ignore env in handoff mode — see packages/pty-daemon/src/main.ts.
+	// Ignore env in handoff mode - see packages/pty-daemon/src/main.ts.
 	const daemonVersion = DAEMON_PACKAGE_VERSION;
 	log(`daemonVersion=${daemonVersion}`);
 

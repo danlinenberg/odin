@@ -541,7 +541,7 @@ export class HistoryReader {
 	}
 
 	/**
-	 * Read only the last `bytes` of scrollback — enough to see the current
+	 * Read only the last `bytes` of scrollback - enough to see the current
 	 * screen without pulling a multi-MB history. Returns null if missing.
 	 * ponytail: byte-sliced, so a leading multi-byte char can be clipped;
 	 * callers only pattern-match, they don't render this.

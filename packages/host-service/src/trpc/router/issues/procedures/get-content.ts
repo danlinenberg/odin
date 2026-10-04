@@ -21,7 +21,7 @@ const ghIssueContentSchema = z.object({
 });
 
 // Shell out to the user's `gh` CLI rather than host-service's
-// octokit — `gh auth login` works out of the box while the
+// octokit - `gh auth login` works out of the box while the
 // credential-manager path requires setup most users don't have.
 export const getContent = protectedProcedure
 	.input(getContentInputSchema)

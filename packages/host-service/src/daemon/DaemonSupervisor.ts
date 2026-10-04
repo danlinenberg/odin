@@ -1,11 +1,11 @@
-// DaemonSupervisor — owns the per-organization pty-daemon process for
+// DaemonSupervisor - owns the per-organization pty-daemon process for
 // host-service. Spawns or adopts the daemon and exposes its socket path
 // via getSocketPath(orgId). PTY ownership lives here so host-service can
 // crash/restart freely without losing user shells.
 //
 // History: this used to live in the desktop main process
 // (`apps/desktop/src/main/lib/pty-daemon-coordinator.ts`). It moved here
-// so host-service can be deployed independently of Electron — see
+// so host-service can be deployed independently of Electron - see
 // `apps/desktop/plans/20260430-pty-daemon-host-service-migration.md`.
 
 import * as childProcess from "node:child_process";
@@ -44,7 +44,7 @@ interface DaemonInstance {
 	startedAt: number;
 	/** Version reported by the running daemon's hello-ack. "unknown" if probe failed. */
 	runningVersion: string;
-	/** Bundled-binary version we expect — i.e. EXPECTED_DAEMON_VERSION at spawn time. */
+	/** Bundled-binary version we expect - i.e. EXPECTED_DAEMON_VERSION at spawn time. */
 	expectedVersion: string;
 	/** True when running < expected. Probe failure does NOT set this. */
 	updatePending: boolean;
@@ -93,7 +93,7 @@ const ADOPTION_PROBE_TOTAL_TIMEOUT_MS = 3_000;
 /**
  * Crash supervision parameters. If the daemon for an organization crashes
  * more than CRASH_BUDGET times within CRASH_WINDOW_MS, we stop respawning
- * and surface a hard error — repeated crashes are a bug, not transient
+ * and surface a hard error - repeated crashes are a bug, not transient
  * recovery.
  */
 const CRASH_BUDGET = 3;
@@ -126,7 +126,7 @@ export function shouldKillStaleDaemonForDev(
  * Content hash of the pty-daemon bundle, or null if it can't be read.
  * Content, not mtime: the dev watcher rewrites `dist/main/pty-daemon.js` on
  * every host-service rebuild, so mtime changes constantly while the daemon's
- * code doesn't. The bundle is ~40 KB — hashing it is cheaper than killing a
+ * code doesn't. The bundle is ~40 KB - hashing it is cheaper than killing a
  * PTY someone is working in.
  */
 export function daemonScriptHash(scriptPath: string): string | null {
@@ -155,7 +155,7 @@ export function isDaemonRunningCurrentScript(
 }
 
 /**
- * Per-instance socket path. **Must stay short** — Darwin's `sun_path`
+ * Per-instance socket path. **Must stay short** - Darwin's `sun_path`
  * is 104 bytes, and `$ODIN_HOME_DIR/host/{orgId}/pty-daemon.sock` blows
  * past that in dev (worktree-relative ODIN_HOME_DIR + 36-char UUID), so
  * the socket lives in `os.tmpdir()` under a fixed-length hash. Owner-only
@@ -185,7 +185,7 @@ export function ptyDaemonSocketPath(
 }
 
 /**
- * Structured log helper. Replaces the desktop's `track(...)` calls — we
+ * Structured log helper. Replaces the desktop's `track(...)` calls - we
  * keep the same event names + props so any future telemetry slice can
  * lift them straight back into PostHog.
  */
@@ -217,13 +217,13 @@ export class DaemonSupervisor {
 	private readonly pendingStarts = new Map<string, Promise<DaemonInstance>>();
 	/** Recent crash timestamps per orgId, for the circuit breaker. */
 	private readonly crashTimes = new Map<string, number[]>();
-	/** Orgs we've explicitly stopped — exit isn't a crash, don't respawn. */
+	/** Orgs we've explicitly stopped - exit isn't a crash, don't respawn. */
 	private readonly stopping = new Set<string>();
-	/** Orgs that tripped the circuit breaker — refuse respawn until cleared. */
+	/** Orgs that tripped the circuit breaker - refuse respawn until cleared. */
 	private readonly circuitOpen = new Set<string>();
 	/**
 	 * Last (orgId → "running:expected") pair we logged update-pending for.
-	 * Debounce — re-fire only when either side changes.
+	 * Debounce - re-fire only when either side changes.
 	 */
 	private readonly lastUpdatePendingPair = new Map<string, string>();
 	/**
@@ -239,7 +239,7 @@ export class DaemonSupervisor {
 	/**
 	 * In-flight `update()` promises per orgId. Both auto-update (on adopt
 	 * with version drift) and manual update via the renderer hit the same
-	 * supervisor.update() entry point — without this guard, two concurrent
+	 * supervisor.update() entry point - without this guard, two concurrent
 	 * calls would both try to handoff a daemon that's already mid-handoff.
 	 * The second caller returns the cached promise and gets the same result.
 	 */
@@ -272,7 +272,7 @@ export class DaemonSupervisor {
 	/**
 	 * Returns whether the running daemon is older than the bundled binary.
 	 * Null when we have no instance for this org. `running === "unknown"`
-	 * means the version probe failed during adoption — treat as not-pending
+	 * means the version probe failed during adoption - treat as not-pending
 	 * (probe failure ≠ stale).
 	 */
 	getUpdateStatus(organizationId: string): DaemonUpdateStatus | null {
@@ -309,7 +309,7 @@ export class DaemonSupervisor {
 		started: boolean;
 	} {
 		// Coalesce concurrent calls. Auto-update (on adopt with version
-		// drift) and a manual click of the Update button can race —
+		// drift) and a manual click of the Update button can race -
 		// without this guard, both would try to handoff the same daemon.
 		// The second caller observes the same outcome via the cached
 		// promise.
@@ -378,7 +378,7 @@ export class DaemonSupervisor {
 			return result;
 		}
 
-		// Gate the probe on predecessor exit — see waitForPidExit's docstring
+		// Gate the probe on predecessor exit - see waitForPidExit's docstring
 		// for the race it guards against.
 		let predecessorExited = await waitForPidExit(
 			instance.pid,
@@ -436,7 +436,7 @@ export class DaemonSupervisor {
 			});
 		}
 
-		// Successor wasn't spawned as our child — start liveness polling.
+		// Successor wasn't spawned as our child - start liveness polling.
 		this.startAdoptedLivenessCheck(organizationId, result.successorPid);
 
 		logEvent("pty_daemon_update", {
@@ -451,7 +451,7 @@ export class DaemonSupervisor {
 	}
 
 	/**
-	 * Explicitly restart the daemon for an org — kills sessions, spawns
+	 * Explicitly restart the daemon for an org - kills sessions, spawns
 	 * fresh. The user has opted in via UI confirmation. Distinct from
 	 * crash-respawn: clears the crash circuit (if open) and emits its own
 	 * event so logs can separate intent from recovery.
@@ -478,7 +478,7 @@ export class DaemonSupervisor {
 			try {
 				await pending;
 			} catch {
-				// Failed in-flight spawn — nothing to stop, ensure() will retry.
+				// Failed in-flight spawn - nothing to stop, ensure() will retry.
 			}
 		}
 
@@ -527,7 +527,7 @@ export class DaemonSupervisor {
 	/**
 	 * Live session list from the running daemon. Null when there is no
 	 * daemon for the org, the socket is unreachable, or the request times
-	 * out — the caller treats null as "unknown" (distinct from `[]` which
+	 * out - the caller treats null as "unknown" (distinct from `[]` which
 	 * means "daemon up, no sessions").
 	 */
 	async listSessions(
@@ -551,7 +551,7 @@ export class DaemonSupervisor {
 
 	/**
 	 * Poll an adopted daemon's liveness. Adopted daemons are PIDs we
-	 * inherited via the manifest — we never spawned them as a child, so
+	 * inherited via the manifest - we never spawned them as a child, so
 	 * `child.on("exit")` doesn't fire when they die. Without this poller
 	 * the supervisor's `instances` map carries a stale entry forever:
 	 * `getSocketPath` returns a socket nobody's listening on, terminal
@@ -563,7 +563,7 @@ export class DaemonSupervisor {
 	private startAdoptedLivenessCheck(organizationId: string, pid: number): void {
 		this.startHealthPoll(organizationId, pid, () => {
 			console.log(
-				`[pty-daemon:${organizationId}] adopted process ${pid} died — clearing instance for next-ensure respawn`,
+				`[pty-daemon:${organizationId}] adopted process ${pid} died - clearing instance for next-ensure respawn`,
 			);
 			const current = this.instances.get(organizationId);
 			if (current?.pid === pid) {
@@ -574,8 +574,8 @@ export class DaemonSupervisor {
 	}
 
 	/**
-	 * Poll a daemon's health. Reachability is tracked for every daemon — one
-	 * can wedge no matter how we came by it — but death handling differs:
+	 * Poll a daemon's health. Reachability is tracked for every daemon - one
+	 * can wedge no matter how we came by it - but death handling differs:
 	 * adopted daemons have no child handle, so `onDeath` cleans up for them,
 	 * while spawned ones pass null because `child.on("exit")` already owns
 	 * that (and the crash-respawn that goes with it). Clearing the instance
@@ -611,7 +611,7 @@ export class DaemonSupervisor {
 
 	/**
 	 * Track whether the daemon is still answering. An alive pid says nothing
-	 * about whether the socket works — a wedged daemon holds its shells but
+	 * about whether the socket works - a wedged daemon holds its shells but
 	 * serves nobody. Recording *when* it went quiet lets the UI wait out a
 	 * stall instead of offering a restart that would kill recoverable shells.
 	 *
@@ -638,7 +638,7 @@ export class DaemonSupervisor {
 		if (current.runningVersion === "unknown") {
 			current.runningVersion = probe.daemonVersion;
 			current.updatePending = isVersionUpdatePending(probe.daemonVersion);
-			// The adopt path couldn't see the version, so it skipped these —
+			// The adopt path couldn't see the version, so it skipped these -
 			// this late read is the same "adopted a stale daemon" discovery.
 			this.maybeFireUpdatePending(organizationId, current);
 			if (current.updatePending && this.opts.autoUpdate !== false) {
@@ -673,7 +673,7 @@ export class DaemonSupervisor {
 	 * Auto-update: best-effort opportunistic handoff when the adopted
 	 * daemon is older than the bundled binary. Runs after host-service
 	 * boot, fire-and-track, doesn't block anything. Live sessions are
-	 * fine — the handoff is non-destructive (fd-handoff carries them to
+	 * fine - the handoff is non-destructive (fd-handoff carries them to
 	 * the successor), and on failure the predecessor keeps running.
 	 */
 	private kickoffAutoUpdate(
@@ -789,12 +789,12 @@ export class DaemonSupervisor {
 	/**
 	 * Dev-only: SIGTERM any existing daemon for this org so the next
 	 * adopt-or-spawn always lands on a fresh daemon process. Reads
-	 * the manifest (the only persistent record of "a daemon exists") —
+	 * the manifest (the only persistent record of "a daemon exists") -
 	 * if pid is alive, sends SIGTERM and waits up to 1s for it to exit.
 	 * If still alive, escalates to SIGKILL. Either way we remove the
 	 * manifest so tryAdopt sees a clean slate.
 	 *
-	 * Idempotent — safe to call when no daemon is running.
+	 * Idempotent - safe to call when no daemon is running.
 	 */
 	private async killStaleDaemonForDev(organizationId: string): Promise<void> {
 		const manifest = readPtyDaemonManifest(organizationId);
@@ -804,12 +804,12 @@ export class DaemonSupervisor {
 			return;
 		}
 		// A host-service rebuild is not a pty-daemon rebuild. Killing the
-		// daemon on every `bun dev` rebuild took every live PTY with it —
+		// daemon on every `bun dev` rebuild took every live PTY with it -
 		// agent sessions in other panes died mid-work and their panes closed.
 		// Only kill when the daemon is actually running older bundle code.
 		if (isDaemonRunningCurrentScript(manifest, this.opts.scriptPath)) {
 			console.log(
-				`[pty-daemon:${organizationId}] DEV: keeping daemon pid=${manifest.pid} — already running the current bundle`,
+				`[pty-daemon:${organizationId}] DEV: keeping daemon pid=${manifest.pid} - already running the current bundle`,
 			);
 			return;
 		}
@@ -822,7 +822,7 @@ export class DaemonSupervisor {
 
 	private async start(organizationId: string): Promise<DaemonInstance> {
 		// Dev mode: never adopt. A leftover detached daemon from a previous
-		// `bun dev` session would mask code changes — devs hit Update or
+		// `bun dev` session would mask code changes - devs hit Update or
 		// open a session and see stale-bundle behavior with no obvious
 		// reason. Kill any running daemon for the org and spawn fresh.
 		// Production keeps the adopt path so PTY sessions survive
@@ -906,7 +906,7 @@ export class DaemonSupervisor {
 				reason: "manifest_pid_dead",
 			});
 		}
-		// The pid is alive, so it may still own the user's PTYs — adopt it.
+		// The pid is alive, so it may still own the user's PTYs - adopt it.
 		// Killing it here signalled the daemon's whole process tree, taking
 		// every live shell with it (SUPER-833). A failed probe only means we
 		// couldn't read its version; a wedged daemon is recovered by an
@@ -918,7 +918,7 @@ export class DaemonSupervisor {
 		if (!probe && !(await isSocketConnectable(manifest.socketPath, 1000))) {
 			// Nothing is even accepting on the socket. A live daemon keeps its
 			// listener no matter how overloaded it is, so this pid isn't our
-			// daemon — most likely recycled after a reboot. Adopting it would
+			// daemon - most likely recycled after a reboot. Adopting it would
 			// wedge terminals behind a phantom instance and aim a later user
 			// restart at an innocent process. Never signal it; drop the manifest
 			// and fall back to socket adoption / a fresh spawn.
@@ -1018,7 +1018,7 @@ export class DaemonSupervisor {
 
 		if (!fs.existsSync(this.opts.scriptPath)) {
 			throw new Error(
-				`[pty-daemon:${organizationId}] script not found at ${this.opts.scriptPath} — has the daemon binary been bundled?`,
+				`[pty-daemon:${organizationId}] script not found at ${this.opts.scriptPath} - has the daemon binary been bundled?`,
 			);
 		}
 
@@ -1158,7 +1158,7 @@ export class DaemonSupervisor {
 			if (recent.length > CRASH_BUDGET) {
 				this.circuitOpen.add(organizationId);
 				console.error(
-					`[pty-daemon:${organizationId}] crash circuit OPEN — ${recent.length} crashes in ${CRASH_WINDOW_MS / 1000}s; refusing further respawns until clearCrashCircuit() is called`,
+					`[pty-daemon:${organizationId}] crash circuit OPEN - ${recent.length} crashes in ${CRASH_WINDOW_MS / 1000}s; refusing further respawns until clearCrashCircuit() is called`,
 				);
 				logEvent("pty_daemon_circuit_open", {
 					organizationId,
@@ -1200,7 +1200,7 @@ export class DaemonSupervisor {
 			unreachableSince: null,
 		};
 		this.instances.set(organizationId, instance);
-		// Reachability only — `child.on("exit")` above owns death + respawn.
+		// Reachability only - `child.on("exit")` above owns death + respawn.
 		this.startHealthPoll(organizationId, childPid, null);
 		console.log(
 			`[pty-daemon:${organizationId}] spawned pid=${childPid} socket=${socketPath}`,
@@ -1237,7 +1237,7 @@ function pipeWithPrefix(
 
 /**
  * "Running < expected" per semver. An unreadable version (probe failed)
- * is never pending — probe failure ≠ stale.
+ * is never pending - probe failure ≠ stale.
  */
 function isVersionUpdatePending(
 	probedVersion: string | null | undefined,
@@ -1402,7 +1402,7 @@ async function terminateProcessTreeAndGroups(
 /**
  * Poll `kill(pid, 0)` until the process is gone or the deadline hits.
  * Returns `true` if we observed exit, `false` on timeout. Used to gate
- * a post-handoff version probe on predecessor exit — without this gate,
+ * a post-handoff version probe on predecessor exit - without this gate,
  * the probe can connect to the still-alive predecessor and record its
  * (old) version as the successor's, leaving updatePending true.
  *
@@ -1420,7 +1420,7 @@ async function waitForPidExit(
 			process.kill(pid, 0);
 		} catch (err) {
 			if ((err as NodeJS.ErrnoException).code === "ESRCH") return true;
-			// EPERM: process exists but isn't ours — keep waiting.
+			// EPERM: process exists but isn't ours - keep waiting.
 		}
 		await new Promise((r) => setTimeout(r, 25));
 	}

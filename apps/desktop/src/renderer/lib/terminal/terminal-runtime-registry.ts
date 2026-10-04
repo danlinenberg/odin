@@ -60,8 +60,8 @@ class TerminalRuntimeRegistryImpl {
 	/**
 	 * Cap on parked (hidden) xterm runtimes. Each live runtime holds its full
 	 * scrollback and a WebGL context (~55–70 MB RSS measured), so parked
-	 * instances beyond this are released — buffer persisted to localStorage,
-	 * PTY untouched — and rebuilt from the persisted buffer on next mount.
+	 * instances beyond this are released - buffer persisted to localStorage,
+	 * PTY untouched - and rebuilt from the persisted buffer on next mount.
 	 * User-configurable via settings.setTerminalParkedRuntimeCap. (SUPER-1545)
 	 */
 	private parkedRuntimeCap = DEFAULT_TERMINAL_PARKED_RUNTIME_CAP;
@@ -89,7 +89,7 @@ class TerminalRuntimeRegistryImpl {
 			terminalId,
 			instanceId,
 			runtime: null,
-			// A destroyed PTY (exit / session-gone) has nothing left to restore —
+			// A destroyed PTY (exit / session-gone) has nothing left to restore -
 			// drop the persisted scrollback the moment the server says so.
 			transport: createTransport({
 				onSessionEnded: () => clearPersistedRuntimeState(terminalId),
@@ -165,7 +165,7 @@ class TerminalRuntimeRegistryImpl {
 
 	/**
 	 * Ensure the xterm runtime exists and attach it to `container`.
-	 * Synchronous. DOM-only — the WebSocket transport is untouched.
+	 * Synchronous. DOM-only - the WebSocket transport is untouched.
 	 *
 	 * Matches VSCode's pattern (`TerminalInstance.attachToElement`) and
 	 * Tabby's (`XTermFrontend.attach`): the terminal renders immediately
@@ -240,14 +240,14 @@ class TerminalRuntimeRegistryImpl {
 
 	/**
 	 * Swap the transport onto a new URL when it's already been brought up
-	 * once. Used by effects watching `websocketUrl` — they fire on initial
+	 * once. Used by effects watching `websocketUrl` - they fire on initial
 	 * mount when the transport is still `"disconnected"` and the mount effect
 	 * owns the initial connect.
 	 *
 	 * Skipped states: `"disconnected"` (never opened; caller should use
 	 * `connect()` from the mount path). Allowed states: `"connecting"` (connect()
 	 * cleanly aborts the in-flight socket), `"open"` (standard swap), and
-	 * `"closed"` (previously live and mid-auto-reconnect — swap the URL so the
+	 * `"closed"` (previously live and mid-auto-reconnect - swap the URL so the
 	 * reconnect targets the new endpoint).
 	 */
 	reconnect(terminalId: string, wsUrl: string, instanceId = terminalId) {
@@ -344,7 +344,7 @@ class TerminalRuntimeRegistryImpl {
 		const victims = selectRuntimesToEvict(
 			this.entries.values(),
 			this.parkedRuntimeCap,
-			// Alternate-screen TUIs restore as a garbled static snapshot — never evict them.
+			// Alternate-screen TUIs restore as a garbled static snapshot - never evict them.
 			(entry) => entry.runtime?.terminal.buffer.active.type === "alternate",
 		);
 		for (const entry of victims) {

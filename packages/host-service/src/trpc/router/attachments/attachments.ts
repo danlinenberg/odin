@@ -51,7 +51,7 @@ export const attachmentsRouter = router({
 			});
 		}
 
-		// Buffer.from(..., "base64") never throws on invalid input — it
+		// Buffer.from(..., "base64") never throws on invalid input - it
 		// silently drops unrecognized characters. We rely on bytes.length
 		// (post-decode) to catch payloads that decode to nothing.
 		const bytes = Buffer.from(input.data.data, "base64");
@@ -82,7 +82,7 @@ export const attachmentsRouter = router({
 	}),
 
 	/**
-	 * Delete an attachment by id. Idempotent — succeeds whether or not
+	 * Delete an attachment by id. Idempotent - succeeds whether or not
 	 * the directory still exists. Treat as cleanup; don't rely on it to
 	 * confirm the row was present.
 	 */

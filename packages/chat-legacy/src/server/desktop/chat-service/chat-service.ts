@@ -401,7 +401,7 @@ export class ChatService {
 				});
 				this.openAIOAuthLoopback = loopback;
 			} catch {
-				// Port unavailable or other bind failure — fall back to manual paste.
+				// Port unavailable or other bind failure - fall back to manual paste.
 				loopback.stop();
 			}
 		}

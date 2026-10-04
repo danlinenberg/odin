@@ -61,14 +61,14 @@ void applyShellEnvToProcess().catch((error) => {
 });
 
 // Dev mode: name it "Odin Dev" (it shares the prod icon, so the name is the tell)
-// so a hot-reload window is never mistaken for the installed app — both share
+// so a hot-reload window is never mistaken for the installed app - both share
 // ~/.odin, so knowing which one you're driving matters.
 if (IS_DEV) {
 	app.setName("Odin Dev");
 }
 
 // `bun dev` runs unpackaged, so there is no Info.plist and app.getVersion()
-// falls back to Electron's own version — the About panel claimed Odin was
+// falls back to Electron's own version - the About panel claimed Odin was
 // version 40.x. Baked in from package.json, the same value packaged builds ship.
 declare const __APP_VERSION__: string;
 app.setAboutPanelOptions({
@@ -90,7 +90,7 @@ if (process.defaultApp) {
 async function processDeepLink(url: string): Promise<void> {
 	// Slack OAuth callback, bounced here by the redirect page. Handled in the
 	// main process (it carries an auth code, and the token exchange needs the
-	// client secret) — never forwarded to the renderer as navigation.
+	// client secret) - never forwarded to the renderer as navigation.
 	if (isSlackOAuthCallback(url)) {
 		console.log("[main] Processing Slack OAuth callback");
 		await completeSlackOAuth(url);
@@ -293,7 +293,7 @@ if (process.env.NODE_ENV === "development") {
 		if (signalHandled) return;
 		signalHandled = true;
 		console.log(`[main] Received ${signal}, quitting...`);
-		// Persist tab/session state synchronously first — the async lowdb write
+		// Persist tab/session state synchronously first - the async lowdb write
 		// wouldn't finish before app.exit(0), which is what drops the board on a
 		// dev (--watch SIGTERM) restart.
 		flushAppStateSync();
@@ -354,7 +354,7 @@ const gotTheLock = app.requestSingleInstanceLock();
 
 // Electron's lock is per bundle id, so it only catches a second copy of *this*
 // build. The dev build and the packaged app have different bundle ids and share
-// one home dir, so both would otherwise run and fight over app-state.json —
+// one home dir, so both would otherwise run and fight over app-state.json -
 // which is what silently drags you off the session you're working in.
 const uiLock = gotTheLock
 	? acquireSingleUiLock(app.getName())
@@ -367,7 +367,7 @@ if (!gotTheLock) {
 		"Another Odin is already running",
 		uiLock.holder
 			? `"${uiLock.holder.app}" (pid ${uiLock.holder.pid}) is using ${ODIN_HOME_DIR}. ` +
-					"Quit it before starting this one — two UIs on one home directory " +
+					"Quit it before starting this one - two UIs on one home directory " +
 					"overwrite each other's open tabs and panes."
 			: `Another UI is using ${ODIN_HOME_DIR}. Quit it before starting this one.`,
 	);

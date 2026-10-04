@@ -45,7 +45,7 @@ export function Workspace<TData>({
 	// While dragging the active tab, render its neighbor (preceding tab, or the
 	// next one when dragging the first tab) instead. Dropping a tab onto its own
 	// view is a no-op (you'd merge it into itself), so showing a sibling lets
-	// you see — and drop onto — an actual merge target.
+	// you see - and drop onto - an actual merge target.
 	const displayedTab = useMemo(() => {
 		if (draggedTabId && draggedTabId === activeTabId) {
 			const index = tabs.findIndex((t) => t.id === draggedTabId);

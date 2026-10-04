@@ -24,7 +24,7 @@ import { type BrowserOpener, openInBrowser } from "./browser-opener";
 /**
  * What the Reactions feed needs (reactions:read is the load-bearing one), plus
  * the four `*:history` scopes the backlog sweep reads a queued message's
- * conversation with — the only way to tell "someone else answered" or "I
+ * conversation with - the only way to tell "someone else answered" or "I
  * already did it" from "still waiting on me" is to read what was said.
  */
 const USER_SCOPES = [
@@ -50,7 +50,7 @@ type Pending =
 			/**
 			 * The stored token when this flow began. A packaged Odin and a dev
 			 * build both register `odin-odin://`, so macOS can hand the
-			 * callback to the sibling app — which writes the same odin.json. A
+			 * callback to the sibling app - which writes the same odin.json. A
 			 * token that changed underneath therefore means "this succeeded, just
 			 * not in this process", and the UI shouldn't wait forever.
 			 */
@@ -127,7 +127,7 @@ export function isSlackOAuthCallback(url: string): boolean {
 }
 
 /**
- * Handle `odin://oauth/slack?code=…&state=…` — verify the state we
+ * Handle `odin://oauth/slack?code=…&state=…` - verify the state we
  * issued, trade the code for a user token, and store it.
  */
 export async function completeSlackOAuth(url: string): Promise<void> {
@@ -179,7 +179,7 @@ export async function completeSlackOAuth(url: string): Promise<void> {
 			// A bot-only install lands here: the app requested no user scopes, so
 			// there's no xoxp token and the reactions feed would stay empty.
 			return fail(
-				"Slack returned no user token — the app must request user scopes",
+				"Slack returned no user token - the app must request user scopes",
 			);
 		}
 		updateOdinConfig({ slackToken: token });

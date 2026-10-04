@@ -2,7 +2,7 @@
  * Downscale an image data URI to a small square-bounded icon and re-encode it
  * as PNG. Agent icons live inline in the per-machine host-service SQLite DB and
  * ship on every `agentConfigs.list()`, so a full-resolution upload would bloat
- * every query — clamp it to icon size before storing. Returns the original data
+ * every query - clamp it to icon size before storing. Returns the original data
  * URI if decoding/encoding fails.
  */
 /** Icons render small; clamp uploads to this square bound before storing. */

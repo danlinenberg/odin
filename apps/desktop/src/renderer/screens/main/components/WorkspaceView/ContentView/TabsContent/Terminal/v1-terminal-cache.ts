@@ -97,7 +97,7 @@ function fitAndRefresh(entry: CachedTerminal): boolean {
 	return dimensionsChanged;
 }
 
-/** Fit once the parser is idle — xterm's resize re-enters the parser and
+/** Fit once the parser is idle - xterm's resize re-enters the parser and
  * bricks it if an async image decode is mid-flight (see parser-idle-gate). */
 function scheduleFitAndRefresh(
 	entry: CachedTerminal,
@@ -200,7 +200,7 @@ export function detachFromContainer(paneId: string): void {
 	entry.resizeObserver?.disconnect();
 	entry.resizeObserver = null;
 	entry.container = null;
-	// Park instead of .remove() so xterm survives the React unmount —
+	// Park instead of .remove() so xterm survives the React unmount -
 	// see getTerminalParkingContainer.
 	getTerminalParkingContainer().appendChild(entry.wrapper);
 }
@@ -234,7 +234,7 @@ export function updateAppearance(
 	const reportResize = () => onResize?.({ cols: xterm.cols, rows: xterm.rows });
 	scheduleFitAndRefresh(entry, reportResize);
 
-	// The new font may still be loading — schedule a second refit once it
+	// The new font may still be loading - schedule a second refit once it
 	// resolves so dimensions match the actually-rendered glyphs.
 	scheduleFontSettleRefit(
 		xterm,
@@ -252,13 +252,13 @@ function routeEvent(entry: CachedTerminal, event: TerminalStreamEvent): void {
 		return;
 	}
 
-	// Component mounted — forward all events there.
+	// Component mounted - forward all events there.
 	if (entry.eventHandler) {
 		entry.eventHandler(event);
 		return;
 	}
 
-	// Component unmounted — write data directly to xterm, queue the rest.
+	// Component unmounted - write data directly to xterm, queue the rest.
 	if (event.type === "data") {
 		entry.xterm.write(event.data);
 	} else {
@@ -285,7 +285,7 @@ export function startStream(paneId: string): void {
 			routeEvent(entry, event);
 		},
 		onError: (error: unknown) => {
-			// Subscription is dead after onError — null it so startStream()
+			// Subscription is dead after onError - null it so startStream()
 			// can create a replacement on remount.
 			entry.subscription = null;
 

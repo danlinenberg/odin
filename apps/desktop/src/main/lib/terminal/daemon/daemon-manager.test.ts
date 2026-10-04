@@ -379,7 +379,7 @@ describe("DaemonTerminalManager kill tracking", () => {
 
 	// A caller with no view of its own (the Odin board reads a pane's screen
 	// through createOrAttach) must not carry an invented 80x24 down to the
-	// daemon — the host resizes the live PTY to whatever it's handed, which
+	// daemon - the host resizes the live PTY to whatever it's handed, which
 	// squashed the session the drawer was actually showing.
 	it("forwards no dimensions when the caller asked for none", async () => {
 		const manager = new DaemonTerminalManager();
@@ -580,7 +580,7 @@ describe("DaemonTerminalManager kill tracking", () => {
 			skipColdRestore: true,
 		});
 
-		// The lifecycle call is aborted — this is the bug the user sees
+		// The lifecycle call is aborted - this is the bug the user sees
 		await expect(lifecyclePromise).rejects.toThrow(
 			TERMINAL_ATTACH_CANCELED_MESSAGE,
 		);

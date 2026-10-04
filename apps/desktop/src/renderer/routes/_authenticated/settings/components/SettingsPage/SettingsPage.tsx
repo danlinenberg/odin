@@ -33,7 +33,7 @@ export function SettingsPage({
 	);
 }
 
-/** A titled card of rows — one topic, e.g. "When sessions start". */
+/** A titled card of rows - one topic, e.g. "When sessions start". */
 export function SettingsSection({
 	title,
 	description,
@@ -110,7 +110,7 @@ export function SettingRow({
 /**
  * A number box that only saves values inside its range.
  * ponytail: an empty or out-of-range box keeps the last good value rather than
- * arguing — the field is the only place to fix it.
+ * arguing - the field is the only place to fix it.
  */
 export function NumberSetting({
 	id,

@@ -57,7 +57,7 @@ export async function findNestedRepoRoots(
 	const deadline =
 		options.deadlineMs !== undefined ? now() + options.deadlineMs : null;
 	const roots: string[] = [];
-	// FIFO queue with a head cursor — plain `shift()` would be O(n) per dequeue.
+	// FIFO queue with a head cursor - plain `shift()` would be O(n) per dequeue.
 	const queue: string[] = [rootPath];
 	let head = 0;
 	let scanned = 0;
@@ -73,7 +73,7 @@ export async function findNestedRepoRoots(
 		const dir = queue[head++] as string;
 		scanned += 1;
 
-		// Vanished or unreadable mid-scan — nothing to prune here.
+		// Vanished or unreadable mid-scan - nothing to prune here.
 		const entries = await readdir(dir, { withFileTypes: true }).catch(
 			() => null,
 		);

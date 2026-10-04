@@ -89,7 +89,7 @@ test("input is forwarded and echoed via output", async () => {
 });
 
 test("Pty.getMasterFd returns a usable kernel fd", () => {
-	// Phase 2 fd-handoff depends on this — surface a clear failure if the
+	// Phase 2 fd-handoff depends on this - surface a clear failure if the
 	// node-pty private-property contract changes under us.
 	const pty = spawnPty({
 		meta: { shell: "/bin/sh", argv: ["-c", "sleep 1"], cols: 80, rows: 24 },
@@ -154,7 +154,7 @@ test("adoptFromFd validates inputs", () => {
 
 test("adoptFromFd wraps a real PTY master fd without crashing", async () => {
 	// API-surface check only. End-to-end I/O on an adopted fd is validated
-	// in the cross-process handoff integration test — in this test process,
+	// in the cross-process handoff integration test - in this test process,
 	// node-pty's native worker is actively reading from the master fd, so
 	// adoptFromFd's read stream would race with it. In a real successor
 	// daemon, node-pty doesn't exist for the adopted session.

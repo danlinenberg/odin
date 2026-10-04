@@ -67,7 +67,7 @@ export interface PaneDefinition<TData> {
 	/**
 	 * Optional reactive title source. When defined, the tab title (and other
 	 * title-aware UI) subscribes to it and re-renders when the runtime title
-	 * changes — without mirroring runtime state into the pane store.
+	 * changes - without mirroring runtime state into the pane store.
 	 */
 	titleSource?(pane: Pane<TData>): PaneTitleSource | undefined;
 	getIcon?(context: RendererContext<TData>): ReactNode;

@@ -29,7 +29,7 @@ describe("websocket route auth", () => {
 		// Without an `Upgrade: websocket` header Hono's WS handler doesn't
 		// 101-switch and the route falls through to the default 404. The
 		// point of this test: auth passed (no 401) AND we hit the WS
-		// route (no 5xx). Both 404 and 426 signal that — be explicit so a
+		// route (no 5xx). Both 404 and 426 signal that - be explicit so a
 		// future change to a 5xx fails this test instead of silently
 		// passing.
 		expect([404, 426]).toContain(res.status);

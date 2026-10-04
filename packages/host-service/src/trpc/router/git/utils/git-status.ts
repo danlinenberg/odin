@@ -30,7 +30,7 @@ export interface GitStatusSnapshotComputation {
  * Expand the `dir/` entries `--untracked-files=normal` collapses back into the
  * individual files `-uall` would have listed, keyed by the collapsed entry.
  * The walk is scoped to the untracked directories themselves rather than the
- * whole worktree, so it costs a fraction of what `-uall` does — and nothing at
+ * whole worktree, so it costs a fraction of what `-uall` does - and nothing at
  * all in the common case where there are no untracked directories.
  */
 async function expandUntrackedDirectories(
@@ -80,7 +80,7 @@ export async function getGitStatusSnapshot({
 			: buildBranch(git, currentBranchName, true),
 		// Override simple-git's hardcoded bare `-u` (= `all`). Git only consults
 		// `core.untrackedCache` in `normal` mode, so `-uall` silently re-walks the
-		// entire worktree on every refresh — reported at ~1.9s vs ~0.03s on a 60k
+		// entire worktree on every refresh - reported at ~1.9s vs ~0.03s on a 60k
 		// file repo. statusTask appends custom args after its own `-u` and git
 		// honours the last flag, so this wins. `normal` collapses a wholly-
 		// untracked directory to one `dir/` entry, which the expansion below
@@ -107,7 +107,7 @@ export async function getGitStatusSnapshot({
 
 	const againstBase = await getChangedFilesForDiff(git, [`${baseRef}...HEAD`]);
 
-	// Staged — use status.files index character for correct status. `-M` lets
+	// Staged - use status.files index character for correct status. `-M` lets
 	// numstat collapse renamed entries without the tree-wide copy-source scan
 	// that `-C` performs.
 	const stagedNumstat = parseNumstat(

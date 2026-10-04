@@ -20,7 +20,7 @@ import {
 
 // override: true ensures .env values take precedence over inherited env vars.
 // Odin fork: packaged builds (ODIN_PACKAGE=1) must not inhale the dev
-// worktree's .env — it bakes dev identity, local URLs, and ports into the app.
+// worktree's .env - it bakes dev identity, local URLs, and ports into the app.
 if (!process.env.ODIN_PACKAGE) {
 	config({
 		path: resolve(__dirname, "../../.env"),
@@ -89,7 +89,7 @@ export default defineConfig({
 			// offer one-click sign-in without every machine holding credentials.
 			// Deliberately separate _BAKED keys: replacing the plain ODIN_SLACK_*
 			// names would make them literals and stop a runtime env var from ever
-			// winning. The "" fallback keeps the emitted value a valid string —
+			// winning. The "" fallback keeps the emitted value a valid string -
 			// defineEnv(undefined) returns undefined, which esbuild won't inline.
 			"process.env.ODIN_SLACK_CLIENT_ID_BAKED": defineEnv(
 				process.env.ODIN_SLACK_CLIENT_ID,
@@ -103,7 +103,7 @@ export default defineConfig({
 				process.env.ODIN_SLACK_REDIRECT_URL,
 				"",
 			),
-			// GitHub's device flow needs only a client id, and it isn't a secret —
+			// GitHub's device flow needs only a client id, and it isn't a secret -
 			// the flow has none. Baking it is what makes that row one click.
 			"process.env.ODIN_GITHUB_CLIENT_ID_BAKED": defineEnv(
 				process.env.ODIN_GITHUB_CLIENT_ID,
@@ -151,7 +151,7 @@ export default defineConfig({
 					// pty-daemon - long-lived per-org Unix-socket server that owns PTYs.
 					// Spawned by PtyDaemonCoordinator; survives host-service restarts.
 					"pty-daemon": resolve("src/main/pty-daemon/index.ts"),
-					// host-service worker thread — emitted side-by-side with
+					// host-service worker thread - emitted side-by-side with
 					// host-service.js so the pool's script resolution finds it.
 					"host-worker": resolve("src/main/host-worker/index.ts"),
 				},
@@ -159,7 +159,7 @@ export default defineConfig({
 					dir: resolve(devPath, "main"),
 					// Odin fork: name lazy chunks after what's *in* them, not after
 					// their contents. A content hash renames a chunk on every edit,
-					// and the rebuild deletes the old name — so the Odin still running
+					// and the rebuild deletes the old name - so the Odin still running
 					// can no longer resolve any `await import()` it hasn't already
 					// loaded, and whole pages (Session History) fail with "Cannot find
 					// module ./chunks/…". Nothing here is served over HTTP, so the

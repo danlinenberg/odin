@@ -29,7 +29,7 @@ export interface TestHostOptions {
 	githubToken?: string | null;
 	/**
 	 * Fake-runtime overrides typed as `unknown` so tests only need to
-	 * implement the methods they exercise — the real surfaces (Octokit,
+	 * implement the methods they exercise - the real surfaces (Octokit,
 	 * ChatRuntimeManager, ChatService) are far too large to stub fully.
 	 */
 	githubFactory?: () => Promise<unknown>;
@@ -49,7 +49,7 @@ export interface TestHost {
 
 	/** tRPC client that talks to the real Hono app via in-process fetch. */
 	trpc: ReturnType<typeof createTRPCClient<HostAppRouter>>;
-	/** tRPC client without the auth header — for testing 401 paths. */
+	/** tRPC client without the auth header - for testing 401 paths. */
 	unauthenticatedTrpc: ReturnType<typeof createTRPCClient<HostAppRouter>>;
 	/** Raw fetch into the app, useful for non-tRPC routes (CORS, websockets). */
 	fetch: (input: Request | string, init?: RequestInit) => Promise<Response>;

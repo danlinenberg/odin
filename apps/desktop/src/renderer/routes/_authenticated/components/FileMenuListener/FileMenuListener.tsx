@@ -10,7 +10,7 @@ export function FileMenuListener() {
 			if (event.type !== "open-project") return;
 			const projects = await openNew();
 			if (projects.length > 0) {
-				toast.success("Project ready — open it from the sidebar.");
+				toast.success("Project ready - open it from the sidebar.");
 			}
 		},
 	});

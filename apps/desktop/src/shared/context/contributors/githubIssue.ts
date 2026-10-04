@@ -27,12 +27,12 @@ export const githubIssueContributor: ContextContributor<{
 		}
 
 		const body = issue.body.trim();
-		const heading = `# GitHub Issue #${issue.number} — ${issue.title}`;
+		const heading = `# GitHub Issue #${issue.number} - ${issue.title}`;
 		const text = body ? `${heading}\n\n${body}` : heading;
 		return {
 			id: `issue:${issue.number}`,
 			kind: "github-issue",
-			label: `Issue #${issue.number} — ${issue.title}`,
+			label: `Issue #${issue.number} - ${issue.title}`,
 			content: [{ type: "text", text }],
 			meta: { url: issue.url, taskSlug: issue.slug },
 		};

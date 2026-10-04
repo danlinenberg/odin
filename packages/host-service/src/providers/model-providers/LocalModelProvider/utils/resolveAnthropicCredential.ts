@@ -119,7 +119,7 @@ async function getAnthropicCredentialFromAuthStorage(): Promise<LocalResolvedCre
 									: undefined,
 						};
 					}
-					// Refresh returned no usable access token — callers must
+					// Refresh returned no usable access token - callers must
 					// fall back rather than proxying an expired credential.
 					return null;
 				} catch (error) {

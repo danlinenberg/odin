@@ -46,7 +46,7 @@ describe("createGitEnvResolver", () => {
 		const provider = createRecordingProvider();
 
 		// Fresh resolver per call mirrors resolveGitTaskEnv, which constructs
-		// one per request — the cache must live at module level to help.
+		// one per request - the cache must live at module level to help.
 		await createGitEnvResolver(provider)(repo);
 		await createGitEnvResolver(provider)(repo);
 		await createGitEnvResolver(provider)(repo);

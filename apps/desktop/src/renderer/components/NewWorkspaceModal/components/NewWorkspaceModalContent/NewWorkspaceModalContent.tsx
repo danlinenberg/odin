@@ -10,7 +10,7 @@ interface NewWorkspaceModalContentProps {
 	onNewProject: () => void;
 }
 
-/** Content pane for the New Workspace modal — handles project selection, branch search, and workspace creation. */
+/** Content pane for the New Workspace modal - handles project selection, branch search, and workspace creation. */
 export function NewWorkspaceModalContent({
 	isOpen,
 	preSelectedProjectId,

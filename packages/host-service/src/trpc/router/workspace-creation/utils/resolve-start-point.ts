@@ -8,7 +8,7 @@ import {
 
 async function refExists(git: SimpleGit, fullRef: string): Promise<boolean> {
 	try {
-		// See refs.ts — `--quiet` makes simple-git's `raw` mis-resolve a
+		// See refs.ts - `--quiet` makes simple-git's `raw` mis-resolve a
 		// missing ref as success with empty stdout. Drop it; verify a sha
 		// was actually printed.
 		const out = await git.raw(["rev-parse", "--verify", `${fullRef}^{commit}`]);
@@ -23,7 +23,7 @@ async function refExists(git: SimpleGit, fullRef: string): Promise<boolean> {
  * when it exists, falls back to a remote-tracking ref, then HEAD.
  *
  * Why local-first: users pick branches from a list of refs they can see
- * locally — they expect to fork from that exact local state, not from a
+ * locally - they expect to fork from that exact local state, not from a
  * remote ref that may be stale (deleted upstream, missed prune, points at
  * a pruned commit). Workspace branches in particular are local-only and
  * an incidental `refs/remotes/origin/<name>` cache (from a one-off push
@@ -34,7 +34,7 @@ async function refExists(git: SimpleGit, fullRef: string): Promise<boolean> {
  *
  * Probes use full refnames so a local branch literally named `origin/foo`
  * cannot be misclassified as remote-tracking. Callers switch on
- * `result.kind` — see `GIT_REFS.md`.
+ * `result.kind` - see `GIT_REFS.md`.
  */
 export async function resolveStartPoint(
 	git: SimpleGit,

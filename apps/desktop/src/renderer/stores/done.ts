@@ -4,7 +4,7 @@ import { persist } from "zustand/middleware";
 /** Long past the point a feed still lists a task you finished. */
 const KEEP_MS = 90 * 86_400_000;
 
-/** A row as it looked when it was done — it may have left its feed since. */
+/** A row as it looked when it was done - it may have left its feed since. */
 export interface DoneRow {
 	at: number;
 	title: string;
@@ -16,7 +16,7 @@ const HIDDEN_V0 = "odin-hidden-items";
 
 /**
  * v0 → v1: timestamps become rows, and the old hidden keys become done. Also
- * the initial state, since persist only migrates a value that exists — and
+ * the initial state, since persist only migrates a value that exists - and
  * someone who hid rows but never pressed Done has none.
  */
 export function migrateDone(persisted: unknown): {
@@ -46,8 +46,8 @@ export function migrateDone(persisted: unknown): {
 
 /**
  * Is this row done? By key, or by link for PRs, which the feeds key by id and
- * the sweep by repo#n. A mention newer than the Done brings the row back —
- * someone asked me something on it since — and Done again puts it away.
+ * the sweep by repo#n. A mention newer than the Done brings the row back -
+ * someone asked me something on it since - and Done again puts it away.
  */
 export function doneChecker(done: Record<string, DoneRow>) {
 	const byUrl = new Map(
@@ -67,7 +67,7 @@ export function doneChecker(done: Record<string, DoneRow>) {
 }
 
 /**
- * Everything marked Done — from any feed, Next in line, or a Review drop.
+ * Everything marked Done - from any feed, Next in line, or a Review drop.
  * Odin-only: nothing is written upstream (a Slack row also gets slack.setDone).
  * Keyed by the All-feed key, pruned after KEEP_MS so it stays a few KB. The
  * snapshot is what All tasks' Done list shows, since a done row may have left

@@ -81,7 +81,7 @@ export interface AddFileViewerPaneOptions {
 	/** Override default view mode (raw/diff/rendered) */
 	viewMode?: FileViewerMode;
 	diffCategory?: ChangeCategory;
-	/** File status from git — used to determine default view mode for new files */
+	/** File status from git - used to determine default view mode for new files */
 	fileStatus?: FileStatus;
 	commitHash?: string;
 	/** Canonical absolute original path for renamed files */

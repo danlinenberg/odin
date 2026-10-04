@@ -13,7 +13,7 @@
  *   2. Forces a full repaint (`xterm.refresh()`)
  *
  * If the user switches focus multiple times in rapid succession (within 120ms),
- * subsequent recovery calls hit the throttle and return early — without ever
+ * subsequent recovery calls hit the throttle and return early - without ever
  * scheduling a retry. The terminal stays blank/stale until the next container
  * resize event (which may never come).
  *
@@ -101,7 +101,7 @@ function makeScheduler(runRecovery: (forceResize: boolean) => void): {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe("scheduleReattachRecovery throttle — issue #1873", () => {
+describe("scheduleReattachRecovery throttle - issue #1873", () => {
 	it("runs recovery on first window.focus event", () => {
 		let calls = 0;
 		const { schedule, flush } = makeScheduler(() => {
@@ -131,7 +131,7 @@ describe("scheduleReattachRecovery throttle — issue #1873", () => {
 	});
 
 	/**
-	 * REPRODUCTION TEST — this test currently FAILS, demonstrating the bug.
+	 * REPRODUCTION TEST - this test currently FAILS, demonstrating the bug.
 	 *
 	 * Expected behaviour: when a recovery call is throttled, a retry should be
 	 * scheduled to run after the remaining throttle window expires. Without a

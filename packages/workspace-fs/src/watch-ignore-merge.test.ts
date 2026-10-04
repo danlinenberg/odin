@@ -64,7 +64,7 @@ describe("FsWatcherManager ignore patterns", () => {
 			seen.includes(path.join(rootPath, "src/app.ts")),
 		);
 		// Ordered-delivery barrier: a later write arriving proves the earlier
-		// ignored writes had their chance to arrive — no timing dependence.
+		// ignored writes had their chance to arrive - no timing dependence.
 		await fs.writeFile(path.join(rootPath, "src/barrier.ts"), "x");
 		await waitForCondition(() =>
 			seen.includes(path.join(rootPath, "src/barrier.ts")),

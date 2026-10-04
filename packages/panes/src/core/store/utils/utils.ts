@@ -61,7 +61,7 @@ export function removePaneFromLayout(
 
 	// Both removed (shouldn't happen in practice)
 	if (!newFirst && !newSecond) return null;
-	// Sibling promotion — one child removed, promote the other
+	// Sibling promotion - one child removed, promote the other
 	if (!newFirst) return newSecond;
 	if (!newSecond) return newFirst;
 

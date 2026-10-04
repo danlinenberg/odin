@@ -17,7 +17,7 @@ import type { HostServiceContext } from "../../../types";
 import { configRouter } from "./config";
 
 const MIGRATIONS_FOLDER = resolve(import.meta.dir, "../../../../drizzle");
-// Valid v4 UUID — zod's .uuid() rejects all-1s.
+// Valid v4 UUID - zod's .uuid() rejects all-1s.
 const PROJECT_ID = "1f0e8c7e-1234-4abc-8def-0123456789ab";
 
 interface Sandbox {

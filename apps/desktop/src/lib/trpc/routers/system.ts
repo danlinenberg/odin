@@ -10,8 +10,8 @@ interface GhDetectResult {
 
 async function detectGhCli(): Promise<GhDetectResult> {
 	// Resolve `gh` via the user's login-shell PATH (execWithShellEnv retries with
-	// the derived shell env on ENOENT), so we find it wherever it's installed —
-	// homebrew, MacPorts, nix, asdf, etc. — not just a hardcoded path list.
+	// the derived shell env on ENOENT), so we find it wherever it's installed -
+	// homebrew, MacPorts, nix, asdf, etc. - not just a hardcoded path list.
 	let version: string | null = null;
 	try {
 		const { stdout } = await execWithShellEnv("gh", ["--version"], {

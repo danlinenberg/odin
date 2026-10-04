@@ -1,8 +1,8 @@
 /**
  * Deterministic stand-in for the `claude-agent-acp` adapter, spawned by
  * AcpSessionManager via the `adapterEntry` option. Speaks real ACP over
- * stdio ndjson through the official SDK — same wire protocol, no model, no
- * tokens, no network — so integration tests can drive many turns, permission
+ * stdio ndjson through the official SDK - same wire protocol, no model, no
+ * tokens, no network - so integration tests can drive many turns, permission
  * flows, cancellations, and crashes reproducibly.
  *
  * Behavior is scripted by the first line of each prompt's text:
@@ -32,7 +32,7 @@
  *   mode                  echoes `mode:<currentModeId>`
  *   env <NAME>            echoes `env:<NAME>=<value|<unset>>` from this
  *                         process's environment
- *   reject <reason>       throws inside session/prompt — the request errors
+ *   reject <reason>       throws inside session/prompt - the request errors
  *                         but the adapter process stays alive
  *   hang                  tool_call in_progress; resolves cancelled only on
  *                         session/cancel
@@ -46,14 +46,14 @@
  * on-disk session store: session/new mints a unique session id and every
  * update (including the user's prompt chunks, which the real store also
  * keeps) is appended to `<cwd>/.fake-acp-store/<sessionId>.jsonl`. A later
- * process — the manager's restart-resurrection path — replays that file
+ * process - the manager's restart-resurrection path - replays that file
  * verbatim via session/load before the response resolves, exactly like the
  * real adapter's replay. Loaded sessions start back in bypassPermissions so
  * the manager's on-load bypass override is exercised too.
  *
  * Payload shapes are copied verbatim from the real adapter's construction
  * (claude-agent-acp dist: buildAvailableModes, buildConfigOptions,
- * describeAlwaysAllow's permission options, askUserQuestionsToCreateRequest —
+ * describeAlwaysAllow's permission options, askUserQuestionsToCreateRequest -
  * including the per-question `question_<n>_custom` "Other" fields) so tests
  * exercise exactly what real runs put on the wire; only the values are canned.
  */
@@ -115,7 +115,7 @@ let cancelActiveTurn: (() => void) | null = null;
 
 /**
  * Verbatim buildConfigOptions output for a host like ours: Mode and Model
- * selects, plus Fast mode as the two-value select FALLBACK — the host's
+ * selects, plus Fast mode as the two-value select FALLBACK - the host's
  * initialize does not declare `session.configOptions.boolean`, so a real run
  * degrades to this shape (createFastModeConfigOption), never the boolean
  * toggle. Model-gated options (effort, agent) are omitted like a run where
@@ -173,7 +173,7 @@ interface AskQuestion {
  * forms put each question's text in its field description. Every question is
  * followed by its free-text `question_<n>_custom` "Other" field, which the
  * host must ignore when extracting question cards. `title` is required on
- * every enum option (zEnumOption) — without it the SDK's form-mode schema
+ * every enum option (zEnumOption) - without it the SDK's form-mode schema
  * variant fails and requestedSchema is silently stripped.
  */
 function buildAskForm(questions: AskQuestion[]): {
@@ -518,7 +518,7 @@ const app = agent({ name: "fake-acp-adapter" })
 					...form,
 				} as schema.CreateElicitationRequest);
 				// The tool call is adapter-owned, so the terminal status comes from
-				// here — the host must not journal a second one.
+				// here - the host must not journal a second one.
 				await notifyUpdate({
 					sessionUpdate: "tool_call_update",
 					toolCallId,
@@ -617,7 +617,7 @@ const app = agent({ name: "fake-acp-adapter" })
 					status: "in_progress",
 				});
 				setTimeout(() => process.exit(1), 20);
-				// Never resolves — the process dies mid-request, like a real crash.
+				// Never resolves - the process dies mid-request, like a real crash.
 				return new Promise<never>(() => {});
 			}
 
@@ -629,7 +629,7 @@ const app = agent({ name: "fake-acp-adapter" })
 	});
 
 // `toWeb` returns differently-parameterized stream types depending on the
-// active @types/node lib — same unknown-cast the manager itself uses.
+// active @types/node lib - same unknown-cast the manager itself uses.
 app.connect(
 	ndJsonStream(
 		Writable.toWeb(process.stdout) as unknown as WritableStream<Uint8Array>,

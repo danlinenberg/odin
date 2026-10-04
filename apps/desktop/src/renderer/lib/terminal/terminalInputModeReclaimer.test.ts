@@ -53,7 +53,7 @@ describe("createLeakedInputModeReclaimer", () => {
 		expect(out).toContain("\x1b[?1004l"); // focus reporting off
 	});
 
-	it("consumes the pending set — a second collect is empty", () => {
+	it("consumes the pending set - a second collect is empty", () => {
 		const r = createLeakedInputModeReclaimer();
 		r.noteShellReady();
 		r.noteArm("kitty", true);

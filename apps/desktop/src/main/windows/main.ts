@@ -53,7 +53,7 @@ export function flushWindowStateSync(): void {
 // Routers receive this getter so they always see the current window, not a stale reference
 const getWindow = () => currentWindow;
 
-// invalidate() alone may not rebuild corrupted GPU layers — a tiny resize
+// invalidate() alone may not rebuild corrupted GPU layers - a tiny resize
 // forces Chromium to reconstruct the compositor layer tree.
 const forceRepaint = (win: BrowserWindow) => {
 	if (win.isDestroyed()) return;
@@ -78,7 +78,7 @@ app.on("child-process-gone", (_event, details) => {
 export async function MainWindow() {
 	const savedWindowState = loadWindowState();
 	const initialBounds = getInitialWindowBounds(savedWindowState);
-	// Restoring zoom via setZoomLevel() after load doesn't stick — Chromium resets
+	// Restoring zoom via setZoomLevel() after load doesn't stick - Chromium resets
 	// it while the renderer boots. webPreferences applies it before the first
 	// paint and survives reloads. Clamped: Electron rejects factors outside 25%-500%.
 	const initialZoomFactor = Math.min(
@@ -89,7 +89,7 @@ export async function MainWindow() {
 	const isDev = env.NODE_ENV === "development";
 	const workspaceName = isDev ? getEnvWorkspaceName() : undefined;
 	const windowTitle = workspaceName
-		? `${productName} — ${workspaceName}`
+		? `${productName} - ${workspaceName}`
 		: productName;
 
 	const window = createWindow({
@@ -259,7 +259,7 @@ export async function MainWindow() {
 	}
 
 	// Persist window bounds on move/resize so state survives app.exit(0)
-	// (which skips the close handler — e.g. electron-vite SIGTERM during dev).
+	// (which skips the close handler - e.g. electron-vite SIGTERM during dev).
 	// Gated by `initialized` so the initial maximize() doesn't immediately
 	// write isMaximized: true back to disk before the user touches the window.
 	let initialized = false;

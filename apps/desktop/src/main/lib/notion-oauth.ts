@@ -16,7 +16,7 @@ import { type NotionTokenResponse, notionBasicAuth } from "./notion-token";
  * Two differences from Slack. The consent screen is a *page picker*, so the
  * person chooses which databases Odin may read rather than pasting a database
  * id afterwards. And Notion's access tokens expire, so the refresh token is
- * stored and spent on demand — Slack's user tokens never expire, so that path
+ * stored and spent on demand - Slack's user tokens never expire, so that path
  * doesn't exist there.
  */
 

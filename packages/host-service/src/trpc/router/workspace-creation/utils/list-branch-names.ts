@@ -15,7 +15,7 @@ export async function listBranchNames(
 		]);
 		const names = new Set<string>();
 		for (const refname of raw.trim().split("\n").filter(Boolean)) {
-			// Use the full refname's structural prefix to classify (safe — a
+			// Use the full refname's structural prefix to classify (safe - a
 			// branch name can't contain `refs/heads/`). Stripping `origin/`
 			// from the SHORT name would misclassify a local branch named
 			// `origin/foo`. See GIT_REFS.md.

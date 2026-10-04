@@ -103,7 +103,7 @@ export const SETTING_ITEM_VARIANT: Record<SettingItemId, SettingVariant> = {
 	[SETTING_ITEM_ID.BEHAVIOR_RESOURCE_MONITOR]: "shared",
 	[SETTING_ITEM_ID.BEHAVIOR_OPEN_LINKS_IN_APP]: "v1",
 
-	// Branch prefix exists in both UIs — v1 `GitSettings`, v2 `V2GitSettings`.
+	// Branch prefix exists in both UIs - v1 `GitSettings`, v2 `V2GitSettings`.
 	[SETTING_ITEM_ID.GIT_BRANCH_PREFIX]: "shared",
 	[SETTING_ITEM_ID.GIT_DELETE_LOCAL_BRANCH]: "v1",
 	[SETTING_ITEM_ID.GIT_WORKTREE_LOCATION]: "shared",
@@ -262,7 +262,7 @@ export function isItemVisible(
 
 /**
  * Items in `section` that are allowed for the active v1/v2 variant. Returns
- * an array suitable for passing to `isItemVisible` at the leaf — never
+ * an array suitable for passing to `isItemVisible` at the leaf - never
  * `null`, so variant-hidden items are always excluded.
  */
 export function getVisibleItemsForSection(params: {

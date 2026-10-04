@@ -7,7 +7,7 @@ import {
 
 const enc = new TextEncoder();
 // Latin-1 encoder: each char → its low byte. Used for fixtures that include
-// raw C1 control bytes (0x9D OSC / 0x9C ST) — TextEncoder would emit those
+// raw C1 control bytes (0x9D OSC / 0x9C ST) - TextEncoder would emit those
 // as their 2-byte UTF-8 forms, but PTYs send them as single bytes on the wire.
 const bin = (s: string) => new Uint8Array(Buffer.from(s, "binary"));
 

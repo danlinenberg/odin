@@ -26,7 +26,7 @@ const config: Configuration = {
 	// Source maps are built for Sentry and for validate-native-runtime, both of
 	// which have already run by the time packaging starts. A negated .map entry
 	// in `files` only filters the node_modules electron-builder collects on its
-	// own — files pulled in by an explicit dist pattern ignore it, and 92 MB of
+	// own - files pulled in by an explicit dist pattern ignore it, and 92 MB of
 	// maps shipped anyway. Deleting them here catches every packaging path, and
 	// the next build regenerates them.
 	//
@@ -44,11 +44,11 @@ const config: Configuration = {
 	},
 
 	// Odin fork: distinct identity so it never collides with the installed
-	// Odin app, and no update feed — upstream's updater would otherwise
+	// Odin app, and no update feed - upstream's updater would otherwise
 	// "update" Odin back into stock Odin.
 	appId: "com.dan.odin",
 	productName,
-	copyright: `Copyright © ${currentYear} — ${author}`,
+	copyright: `Copyright © ${currentYear} - ${author}`,
 	electronVersion: pkg.devDependencies.electron.replace(/^\^/, ""),
 
 	// Directories
@@ -118,7 +118,7 @@ const config: Configuration = {
 		// bundles require only eleven modules at runtime: electron, better-sqlite3,
 		// node-pty, @parcel/watcher, native-keymap, @odin/macos-process-metrics,
 		// mastracode, ajv, iconv-lite, zod and esprima. Everything below is a
-		// renderer library that vite already compiled into dist/renderer — and the
+		// renderer library that vite already compiled into dist/renderer - and the
 		// renderer is a browser context, so it could not require one of these even
 		// if it wanted to. 614 MB of the app was these libraries a second time.
 		//
@@ -153,7 +153,7 @@ const config: Configuration = {
 	// macOS DMG installer
 	dmg: {
 		...(existsSync(dmgBackgroundPath) ? { background: dmgBackgroundPath } : {}),
-		// Explicit size — dmgbuild's auto-calc under-allocates and silently truncates
+		// Explicit size - dmgbuild's auto-calc under-allocates and silently truncates
 		// the last large file above ~1.7GB of contents. `shrink: true` (default) keeps
 		// the final artifact compact.
 		size: "4g",
@@ -166,13 +166,13 @@ const config: Configuration = {
 		// arm64 only, to match the release workflow and the cask's
 		// `depends_on arch: :arm64`. The `files` excludes above strip the
 		// darwin-x64 native prebuilds, so an x64 build would package cleanly and
-		// then fail to load node-pty at runtime — better to refuse the arch here.
+		// then fail to load node-pty at runtime - better to refuse the arch here.
 		target: [{ target: "default", arch: ["arm64"] }],
 		hardenedRuntime: true,
 		gatekeeperAssess: false,
 		// Signed with the stable self-signed cert from
 		// scripts/create-signing-identity.sh. Ad-hoc signing gave every build a
-		// new signature, and macOS keys privacy grants to the signature — so every
+		// new signature, and macOS keys privacy grants to the signature - so every
 		// rebuild wiped the permissions and re-prompted. Notarization needs a real
 		// Developer ID, which this fork doesn't have and doesn't need: locally
 		// built apps aren't quarantined, so Gatekeeper never inspects them.
@@ -204,7 +204,7 @@ const config: Configuration = {
 		},
 	},
 
-	// Deep linking protocol — Odin's own scheme, never the installed
+	// Deep linking protocol - Odin's own scheme, never the installed
 	// Odin's, or OAuth callbacks open the wrong app.
 	protocols: {
 		name: productName,

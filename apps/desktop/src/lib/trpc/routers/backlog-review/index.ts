@@ -43,7 +43,7 @@ const ItemSchema = z.object({
 	sender: z.string().optional(),
 });
 
-/** The lookups, wired to the credentials — resolved once for a whole sweep. */
+/** The lookups, wired to the credentials - resolved once for a whole sweep. */
 async function lookups(): Promise<SweepDeps> {
 	const jira = await jiraRequestContext();
 	const github = resolveGithubToken();
@@ -175,7 +175,7 @@ async function reviewsOf(
 }
 
 /**
- * Days since the PR's newest commit. Null past 100 commits — the list is
+ * Days since the PR's newest commit. Null past 100 commits - the list is
  * oldest-first, so the newest would be off the page.
  */
 async function daysSinceLastCommit(
@@ -207,8 +207,8 @@ export const createBacklogReviewRouter = () => {
 		/**
 		 * Check the whole backlog and answer for every row.
 		 *
-		 * The items are passed in because that is where the backlog lives —
-		 * tasks in renderer storage, the Slack queue behind an IPC call — and
+		 * The items are passed in because that is where the backlog lives -
+		 * tasks in renderer storage, the Slack queue behind an IPC call - and
 		 * the answers go straight back. Nothing is written anywhere: a DROP is a
 		 * suggestion until someone clicks it on the Review screen.
 		 *
@@ -245,7 +245,7 @@ export const createBacklogReviewRouter = () => {
 				);
 				// The rules' KEEPs on a Slack conversation go to a model that reads
 				// it. Only KEEPs: the rules' DROPs and UNKNOWNs stand.
-				// The rules' KEEPs on a Slack conversation get read by a model —
+				// The rules' KEEPs on a Slack conversation get read by a model -
 				// in the background, since Slack only lets the reading go a call a
 				// minute. Only KEEPs: the rules' DROPs and UNKNOWNs stand.
 				const kept = input.items.flatMap((item, i) => {
@@ -278,7 +278,7 @@ export const createBacklogReviewRouter = () => {
 		/**
 		 * The board's Next in line order: every unstarted feed task, most
 		 * important first, as ranked by `claude -p`, plus the keys your
-		 * instructions say to leave out. Keys only — the board
+		 * instructions say to leave out. Keys only - the board
 		 * already holds the rows. Cached on the exact input in main.
 		 */
 		rankNextInLine: publicProcedure

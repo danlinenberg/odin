@@ -49,8 +49,8 @@ function cleanTitle(title: string): string {
 const ICON = Object.fromEntries(FEED_TABS.map(({ to, Icon }) => [to, Icon]));
 
 /**
- * The recommended queue: tasks from every feed that nobody has started yet —
- * no session on the board, idle or otherwise — in All tasks order, until you
+ * The recommended queue: tasks from every feed that nobody has started yet -
+ * no session on the board, idle or otherwise - in All tasks order, until you
  * apply the model's (`rankNextInLine`) order and hides. Click
  * Start to launch its session, same as All's Start button. A board column,
  * but not a status: nothing lands here or leaves by drag.
@@ -116,7 +116,7 @@ type RankInput = Parameters<
 >[0];
 
 /**
- * One fresh run on the tasks as they are now — no cache on either side — then
+ * One fresh run on the tasks as they are now - no cache on either side - then
  * its order and hides go on. Only ever from the Apply button: nothing ranks in
  * the background.
  */
@@ -204,7 +204,7 @@ export function useNextInLineQueue(showHidden = false) {
 	const pinOverdueDays = useNextInLinePrompt((s) => s.pinOverdueDays);
 	const startItem = useStartAllItem(refetchSlack);
 	const { livePaneFor } = startItem;
-	// Every external item a session was ever started on — the work ledger
+	// Every external item a session was ever started on - the work ledger
 	// keeps the row after the session ends or is Done'd, which is exactly
 	// what "already picked up, not next" needs. Display-only: the ranking's
 	// input doesn't change, so this never costs a re-rank.
@@ -225,10 +225,10 @@ export function useNextInLineQueue(showHidden = false) {
 			]),
 		[ledger, todos],
 	);
-	// ponytail: every row rendered — a few hundred plain cards scroll fine.
+	// ponytail: every row rendered - a few hundred plain cards scroll fine.
 	// Window it (render on scroll) if the feeds ever reach thousands.
 	// The model's order, nothing else. Until it answers (or if it fails) the
-	// column stays in feed order and says so — no rule of ours stands in.
+	// column stays in feed order and says so - no rule of ours stands in.
 	const waiting = rows.filter(
 		(item) =>
 			!livePaneFor(item) && !startedKeys.has(item.launch.key) && !isDone(item),
@@ -250,7 +250,7 @@ export function useNextInLineQueue(showHidden = false) {
 			)
 		: candidates;
 	// Anything due, or overdue by up to a month, is pinned above the order,
-	// soonest first — a deadline outranks whatever the model thinks. Older
+	// soonest first - a deadline outranks whatever the model thinks. Older
 	// than that it's a stale ticket's leftover, not a deadline: it stays put.
 	// A rolling window, not the calendar year, so January keeps December's.
 	// ponytail: every future date pins, however far out; add a horizon if a
@@ -283,7 +283,7 @@ export function useNextInLineQueue(showHidden = false) {
 export function NextInLine() {
 	const { ranking, applied, startedAt, error } = useAiRanking();
 	const navigate = useNavigate();
-	// The rows your instructions hide, per the model — revealed, dimmed, on ask.
+	// The rows your instructions hide, per the model - revealed, dimmed, on ask.
 	const [showHidden, setShowHidden] = useState(false);
 	const {
 		start,
@@ -344,7 +344,7 @@ export function NextInLine() {
 						onClick={() => navigate({ to: "/settings/backlog" })}
 						title={
 							prompt
-								? "Sorted your way — edit how in Settings"
+								? "Sorted your way - edit how in Settings"
 								: "Tell the AI how to sort these, in Settings"
 						}
 						className={
@@ -422,7 +422,7 @@ export function NextInLine() {
 				<button
 					type="button"
 					onClick={() => doneWithUndo(item)}
-					title="Mark done — take it off Next in line"
+					title="Mark done - take it off Next in line"
 					aria-label="Mark done"
 					className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border border-input text-transparent transition-colors hover:border-success hover:bg-success/15 hover:text-success"
 				>
@@ -523,8 +523,8 @@ export function NextInLine() {
 }
 
 /**
- * What a card's hover says: the task in full — the whole Slack message, not
- * the line it was cut to — and everything the card had to leave out: every
+ * What a card's hover says: the task in full - the whole Slack message, not
+ * the line it was cut to - and everything the card had to leave out: every
  * field the source sent, the comment that put it here, what the Review sweep
  * found, where the AI ranked it, and the link itself.
  */
@@ -606,7 +606,7 @@ function TaskHover({
 					)}
 				>
 					<span className="font-semibold">Review sweep: {swept.verdict}</span>
-					{swept.evidence && ` — ${swept.evidence}`}
+					{swept.evidence && ` - ${swept.evidence}`}
 				</div>
 			)}
 			{item.url && (
@@ -705,7 +705,7 @@ function RankStatus({
 	);
 }
 
-/** "show hidden (N)" — the rows your instructions hide, never without a way back. */
+/** "show hidden (N)" - the rows your instructions hide, never without a way back. */
 function HiddenToggle({
 	count,
 	showing,

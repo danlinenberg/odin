@@ -119,7 +119,7 @@ describe("the picker's schedules", () => {
 	});
 
 	test("a day range opens as the days it means", () => {
-		// Written by hand, or by an older build — it lights Mon-Fri rather than
+		// Written by hand, or by an older build - it lights Mon-Fri rather than
 		// dropping the whole thing into the Custom box.
 		expect(scheduleOf("0 9 * * 1-5")).toMatchObject({
 			repeat: "days",
@@ -133,7 +133,7 @@ describe("the picker's schedules", () => {
 	});
 
 	test("a cron the picker can't express reads as custom, not as a near miss", () => {
-		// :15 past the hour is NOT "every hour" — rendering it as one would
+		// :15 past the hour is NOT "every hour" - rendering it as one would
 		// save the minute away.
 		expect(scheduleOf("15 * * * *")).toBeNull();
 		expect(scheduleOf("0 9 * * 8")).toBeNull();

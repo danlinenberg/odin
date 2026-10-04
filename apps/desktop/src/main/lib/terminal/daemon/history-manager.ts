@@ -31,7 +31,7 @@ export class HistoryManager {
 		initialScrollback?: string;
 	}): Promise<void> {
 		// Re-attaching a live pane runs this again, and the old writer's stream
-		// stays open unless we close it — one leaked scrollback fd per attach.
+		// stays open unless we close it - one leaked scrollback fd per attach.
 		const previous = this.historyWriters.get(paneId);
 		if (previous) {
 			this.historyWriters.delete(paneId);

@@ -89,7 +89,7 @@ export interface FoldedTimeline {
 	state: SessionScopedState | null;
 	/** Seq of the last folded envelope (0 = nothing folded). */
 	lastSeq: number;
-	/** Set when a reset frame is folded — the caller must resync. */
+	/** Set when a reset frame is folded - the caller must resync. */
 	resetReason: string | null;
 }
 
@@ -112,7 +112,7 @@ export function emptyTimeline(): FoldedTimeline {
 // ---------------------------------------------------------------------------
 // Folding. Pure: every call returns a new FoldedTimeline (fresh items array),
 // so React consumers get reference changes exactly when content changes.
-// Envelopes are assumed in seq order — ordering/dedup is the stream client's
+// Envelopes are assumed in seq order - ordering/dedup is the stream client's
 // job, not the fold's.
 // ---------------------------------------------------------------------------
 
@@ -329,7 +329,7 @@ function appendChunk(
 		const blocks = [...last.blocks];
 		const previous = blocks[blocks.length - 1];
 		if (previous?.type === "text" && content.type === "text") {
-			// Agent/thought chunks are streaming fragments of one message — plain
+			// Agent/thought chunks are streaming fragments of one message - plain
 			// concatenation. User chunks are whole blocks of one prompt (the
 			// adapter doesn't echo prompts; the host journals them itself), so
 			// text blocks meeting here get a paragraph break between them.
@@ -361,7 +361,7 @@ function appendChunk(
 
 /**
  * Flag the user message whose seq range covers the rejected prompt's first
- * journaled chunk. Falls back to the newest user message — the rejection
+ * journaled chunk. Falls back to the newest user message - the rejection
  * always follows the journaled prompt closely.
  */
 function markPromptFailed(
@@ -436,7 +436,7 @@ function claudeParentToolUseId(source: { _meta?: unknown }): string | null {
 /**
  * Merge a tool frame into the tree. A tagged frame can arrive after untagged
  * ones already parked the item at top level (permission-synthesized
- * placeholder, tool_progress) — when its Task parent exists, the item is
+ * placeholder, tool_progress) - when its Task parent exists, the item is
  * re-homed under it so the run can't render twice.
  */
 function upsertToolCall(
@@ -517,7 +517,7 @@ function patchToolCall(
 	return false;
 }
 
-/** Append a tool item — under its Task parent when the tag resolves, else top-level. */
+/** Append a tool item - under its Task parent when the tag resolves, else top-level. */
 function insertToolCall(
 	items: TimelineItem[],
 	item: ToolCallItem,

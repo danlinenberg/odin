@@ -22,13 +22,13 @@ import { isMainWorkspace } from "./is-main-workspace";
  * `DELETE_IN_PROGRESS` cause) so the renderer can render a toast instead
  * of mistaking it for a dirty-worktree race and silently force-retrying.
  *
- * Doesn't survive a host-service crash mid-delete — but neither does the
+ * Doesn't survive a host-service crash mid-delete - but neither does the
  * destroy itself, and the saga is idempotent enough that a second attempt
  * after restart is safe.
  */
 const destroysInFlight = new Set<string>();
 
-/** @internal — exposed for tests to introspect / clear the guard. */
+/** @internal - exposed for tests to introspect / clear the guard. */
 export const __testDestroysInFlight = destroysInFlight;
 
 export interface DestroyWorkspaceInput {
@@ -36,23 +36,23 @@ export interface DestroyWorkspaceInput {
 	deleteBranch: boolean;
 	force: boolean;
 	/**
-	 * Teardown (step 1) behavior — deliberately separate from `force`, which
+	 * Teardown (step 1) behavior - deliberately separate from `force`, which
 	 * only carries the destructive git semantics (skip preflight, double-force
 	 * worktree removal):
 	 *   - "blocking":    a failed script throws PRECONDITION_FAILED so an
 	 *                    interactive caller can prompt a force-retry.
 	 *   - "best-effort": always runs; a failure degrades to a warning. For
 	 *                    non-interactive callers (CLI/SDK/MCP) with nobody to
-	 *                    prompt — skipping instead would leak the resources the
+	 *                    prompt - skipping instead would leak the resources the
 	 *                    script provisions (#6174).
-	 *   - "skip":        don't run — the interactive force-retry contract.
+	 *   - "skip":        don't run - the interactive force-retry contract.
 	 */
 	teardownMode: "blocking" | "best-effort" | "skip";
 }
 
 /**
  * Discriminated so the renderer can't accidentally treat
- * `{ canDelete: false, reason: null }` as a no-op — it's an unrepresentable
+ * `{ canDelete: false, reason: null }` as a no-op - it's an unrepresentable
  * combination at the type level.
  */
 type InspectResult =
@@ -134,12 +134,12 @@ export const workspaceCleanupRouter = router({
 	/**
 	 * Destroy a workspace in five phases:
 	 *
-	 *   0. Preflight     — dirty-worktree check (skip if force)
-	 *   1. Teardown      — run .odin/teardown.sh (per teardownMode)
-	 *   2. Local cleanup — PTYs, worktree
+	 *   0. Preflight     - dirty-worktree check (skip if force)
+	 *   1. Teardown      - run .odin/teardown.sh (per teardownMode)
+	 *   2. Local cleanup - PTYs, worktree
 	 *   3. Local delete  ← authoritative UI state
-	 *   4. Branch delete — optional local branch cleanup
-	 *   5. Host sqlite   — local index cleanup
+	 *   4. Branch delete - optional local branch cleanup
+	 *   5. Host sqlite   - local index cleanup
 	 *
 	 * Worktree removal is intentionally before the row delete. If it fails
 	 * while the path still exists, the row remains so the workspace is still
@@ -155,7 +155,7 @@ export const workspaceCleanupRouter = router({
 	 * Typed errors for the renderer:
 	 *   - CONFLICT             → dirty worktree; prompt force-retry.
 	 *                            CONFLICT with `data.deleteInProgress` is a
-	 *                            different beast — another destroy is in
+	 *                            different beast - another destroy is in
 	 *                            flight for the same workspace; surface as
 	 *                            a toast and do NOT force-retry.
 	 *   - PRECONDITION_FAILED with `data.teardownFailure` → teardown
@@ -234,7 +234,7 @@ async function runDestroy(
 			if (isIndeterminateGitTaskFailure(err)) {
 				// Timeout/pool failure: dirty-state is UNKNOWN. Fail closed on
 				// this destructive path rather than silently skipping the
-				// dirty-worktree block — a retry usually succeeds (the first
+				// dirty-worktree block - a retry usually succeeds (the first
 				// attempt warmed the FS cache), and force skips preflight
 				// entirely as the explicit escape hatch.
 				const message = err instanceof Error ? err.message : String(err);
@@ -243,7 +243,7 @@ async function runDestroy(
 					message: `Couldn't verify worktree state at ${local.worktreePath}: ${message}`,
 				});
 			}
-			// Can't read status (missing worktree dir, etc.) — not a
+			// Can't read status (missing worktree dir, etc.) - not a
 			// conflict. Continue; step 3b will skip idempotently.
 		}
 	}
@@ -268,7 +268,7 @@ async function runDestroy(
 					timedOut: teardown.timedOut,
 					outputTail: teardown.outputTail,
 				};
-				// Recoverable via force-retry — an expected user-script failure, not a
+				// Recoverable via force-retry - an expected user-script failure, not a
 				// service bug; must not be reported as a 500.
 				throw new TRPCError({
 					code: "PRECONDITION_FAILED",
@@ -328,7 +328,7 @@ async function runDestroy(
 		}
 
 		if (repoGitEnv) {
-			// A task failure here means the post-remove state is unknown —
+			// A task failure here means the post-remove state is unknown -
 			// treat that like "still registered" and block rather than risk
 			// orphaning disk past the commit point.
 			let stillRegistered = true;
@@ -346,7 +346,7 @@ async function runDestroy(
 				});
 			}
 			if (stillRegistered) {
-				// git still tracks a live worktree here — removal genuinely
+				// git still tracks a live worktree here - removal genuinely
 				// failed. Keep the local row so the workspace stays visible and
 				// retryable instead of orphaning disk past the commit point.
 				throw new TRPCError({

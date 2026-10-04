@@ -26,7 +26,7 @@ import {
 
 /**
  * Integration tests against real on-disk git repositories. The point is
- * to catch regressions in the local-only project setup paths — every
+ * to catch regressions in the local-only project setup paths - every
  * negative case below has a paired assertion on the *specific* error
  * message or shape so a behavior change can't silently pass.
  */
@@ -332,7 +332,7 @@ describe("cloneRepoInto", () => {
 	});
 
 	test("strips .git suffix when deriving the target directory name", async () => {
-		// Source dir ends in ".git" — clone should land in "myrepo", not
+		// Source dir ends in ".git" - clone should land in "myrepo", not
 		// "myrepo.git", because deriveCloneDirectoryName trims it.
 		const dotGitSource = join(workRoot, "myrepo.git");
 		const git = await initRepoAt(dotGitSource);

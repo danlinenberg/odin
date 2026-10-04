@@ -50,7 +50,7 @@ describe("v2 wire shape", () => {
 	});
 
 	test("control frames have jsonLen === totalLen - 4 (no payload)", () => {
-		// Control messages must NOT accidentally pick up a binary tail —
+		// Control messages must NOT accidentally pick up a binary tail -
 		// that would either confuse the receiver or mask a real bug where
 		// someone slips bytes through a JSON-only message type.
 		const cases = [
@@ -70,7 +70,7 @@ describe("v2 wire shape", () => {
 		}
 	});
 
-	test("payload bytes ARE the bytes — not base64, not anything else", () => {
+	test("payload bytes ARE the bytes - not base64, not anything else", () => {
 		// Round-trip a buffer of bytes whose base64 encoding is a recognizable
 		// distinct string ("aGVsbG8=" ← "hello"), then assert the wire frame
 		// contains the raw bytes ("hello") and NOT their base64 form.

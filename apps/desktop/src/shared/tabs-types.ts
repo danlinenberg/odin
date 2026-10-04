@@ -147,7 +147,7 @@ export interface Pane {
 	status?: PaneStatus;
 	/** Odin fork: a previous-run session, resurfaced in Idle as resumable. */
 	interrupted?: boolean;
-	/** Odin fork: explicitly killed — stays in the hidden Completed section. */
+	/** Odin fork: explicitly killed - stays in the hidden Completed section. */
 	completed?: boolean;
 	/**
 	 * Odin fork: the Claude Code conversation id this pane was launched with
@@ -158,7 +158,7 @@ export interface Pane {
 	claudeSessionId?: string;
 	/**
 	 * Odin fork: task metadata for the board, kept on the pane (persisted in
-	 * app-state.json) rather than renderer localStorage — localStorage is
+	 * app-state.json) rather than renderer localStorage - localStorage is
 	 * per-app, so the dev and packaged builds couldn't see each other's.
 	 */
 	odinTaskTitle?: string;
@@ -166,7 +166,7 @@ export interface Pane {
 	odinBrief?: string;
 	/** Notion pageId this session was launched from. */
 	odinPageId?: string;
-	/** Which Odin view started this session — the board's column sections.
+	/** Which Odin view started this session - the board's column sections.
 	 *  Absent = started from a prompt (New Session / Work on Odin). */
 	odinSource?: "slack" | "reactions" | "jira" | "pr" | "notion";
 	/** Free-form labels for filtering the board (right-click a card). */
@@ -175,11 +175,11 @@ export interface Pane {
 	odinStarred?: boolean;
 	/**
 	 * The generated tags have been applied to this card once. Set so a tag you
-	 * deleted stays deleted — without it, the next brief puts it straight back.
+	 * deleted stays deleted - without it, the next brief puts it straight back.
 	 */
 	odinAutoTagged?: boolean;
 	/**
-	 * This card's name is no longer up for grabs — either auto-rename has had
+	 * This card's name is no longer up for grabs - either auto-rename has had
 	 * its one go at it, or you renamed it yourself. Renaming a card on every
 	 * brief would move the name under you while you're reading the board.
 	 */
@@ -188,16 +188,16 @@ export interface Pane {
 	 * Odin fork: the profile that was active when this session was launched.
 	 * The board shows only its own profile's sessions, so a work card can't
 	 * turn up in the middle of a personal board. Absent on sessions started
-	 * before profiles existed — read those as the default profile.
+	 * before profiles existed - read those as the default profile.
 	 */
 	odinProfile?: string;
 	/**
-	 * Odin fork: parked by dragging the card to Idle — keeps an alive-but-idle
+	 * Odin fork: parked by dragging the card to Idle - keeps an alive-but-idle
 	 * session in Idle instead of the board calling it "waiting on your input".
 	 * Cleared as soon as the session moves again.
 	 */
 	odinParked?: boolean;
-	/** Odin fork: when `status` last changed — how long a session has sat idle. */
+	/** Odin fork: when `status` last changed - how long a session has sat idle. */
 	odinStatusAt?: number;
 	/**
 	 * Odin fork: the column a session was in when the board closed it for
@@ -206,19 +206,19 @@ export interface Pane {
 	 */
 	odinClosedIn?: PaneStatus;
 	/**
-	 * Odin fork: created but not started — the Mac was flat out, or another
+	 * Odin fork: created but not started - the Mac was flat out, or another
 	 * agent was working in the same checkout. The card sits in Idle under "Queued" with the reason
 	 * on it, and the queue runner spawns `command` the moment the gate clears.
 	 */
 	odinQueued?: { command: string; reason: string };
 	/**
-	 * Odin fork: the pane holding this session's shell — a plain terminal in the
+	 * Odin fork: the pane holding this session's shell - a plain terminal in the
 	 * same checkout, opened from the drawer. Kept on the session so reopening
 	 * the drawer reattaches to that shell instead of spawning another one.
 	 */
 	odinShellPaneId?: string;
 	/**
-	 * Odin fork: where the session was launched — the checkout it holds while
+	 * Odin fork: where the session was launched - the checkout it holds while
 	 * it works. Unlike `initialCwd`, never cleared when a terminal opens.
 	 */
 	odinCwd?: string;
@@ -242,7 +242,7 @@ export type WorkspaceRunState = NonNullable<Pane["workspaceRun"]>["state"];
 
 // TODO: `initialFiles` stores base64 data URLs inline. This bloats
 // the pane layout state in localStorage (v2WorkspaceLocalState
-// collection). Migrate to IndexedDB blob storage — store file
+// collection). Migrate to IndexedDB blob storage - store file
 // references here, actual blobs in IndexedDB keyed by session/pane ID.
 // See renderer/lib/pending-attachment-store.ts for the IndexedDB pattern.
 export interface ChatLaunchConfig {

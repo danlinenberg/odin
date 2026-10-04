@@ -4,7 +4,7 @@ import { GENERIC_FAMILIES, parsePrimaryFamily } from "../../../../font-utils";
 
 /**
  * Canvas-based font availability check.
- * Measures text with the target font against a known fallback — if the widths
+ * Measures text with the target font against a known fallback - if the widths
  * differ, the font is installed.
  */
 function isFontInstalled(family: string): boolean {
@@ -13,7 +13,7 @@ function isFontInstalled(family: string): boolean {
 	try {
 		const canvas = document.createElement("canvas");
 		const ctx = canvas.getContext("2d");
-		if (!ctx) return true; // Can't measure — assume installed
+		if (!ctx) return true; // Can't measure - assume installed
 
 		const testString = "mmmmmmmmmmlli10OQ@#$%";
 		const fallbacks = ["monospace", "sans-serif"] as const;
@@ -35,7 +35,7 @@ function isFontInstalled(family: string): boolean {
 			`[FontNotFoundBanner] Failed to check availability for "${family}":`,
 			err,
 		);
-		return true; // Can't determine — assume installed
+		return true; // Can't determine - assume installed
 	}
 }
 

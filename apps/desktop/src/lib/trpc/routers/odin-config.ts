@@ -4,15 +4,15 @@ import { dirname, join } from "node:path";
 import { DEFAULT_PROFILE_ID } from "shared/odin-profile";
 
 /**
- * Odin's own config file — `~/.config/odin.json`.
+ * Odin's own config file - `~/.config/odin.json`.
  *
  * Every Odin feed (Notion tasks, Jira, GitHub, Slack) reads its credentials
  * from this file, and every one of them is an OAuth token Settings →
  * Connections wrote after a sign-in. Nothing here is pasted or exported from a
- * shell — a packaged app launched from Finder has no shell env anyway.
+ * shell - a packaged app launched from Finder has no shell env anyway.
  *
- * The file holds one bundle of credentials **per profile** — work and personal
- * are different Slack workspaces, different Jiras, different GitHub accounts —
+ * The file holds one bundle of credentials **per profile** - work and personal
+ * are different Slack workspaces, different Jiras, different GitHub accounts -
  * and everything else in Odin that is account-shaped (the Slack queue, board
  * sessions, my tasks) is scoped by the same profile id.
  *
@@ -26,7 +26,7 @@ export interface OdinFileConfig {
 	notionTaskDbId?: string;
 	/** Also list open comment threads that @-mention me as Notion tasks. */
 	notionMentions?: boolean;
-	/** Legacy name for the same thing — still read, only ever cleared. */
+	/** Legacy name for the same thing - still read, only ever cleared. */
 	slackQueueDbId?: string;
 	defaultRepo?: string;
 
@@ -43,7 +43,7 @@ export interface OdinFileConfig {
 	jiraRefreshToken?: string;
 	jiraTokenExpiresAt?: number;
 	jiraCloudId?: string;
-	/** Site host, for browse links — request paths use cloudId instead. */
+	/** Site host, for browse links - request paths use cloudId instead. */
 	jiraSiteUrl?: string;
 
 	githubToken?: string;
@@ -69,20 +69,20 @@ export interface OdinFileConfig {
 	gmailAddress?: string;
 	gmailAppPassword?: string;
 
-	/** Slack **user** token (`xoxp-…`) — bot tokens can't read my reactions. */
+	/** Slack **user** token (`xoxp-…`) - bot tokens can't read my reactions. */
 	slackToken?: string;
-	/** Reaction that queues a message — a Slack name, no colons. Default `eyes`. */
+	/** Reaction that queues a message - a Slack name, no colons. Default `eyes`. */
 	slackReaction?: string;
 	/** Reaction that queues a message and starts its session. Default `robot_face`. */
 	slackLaunchReaction?: string;
 	/**
-	 * When auto-launch first synced, ms — set once, and its presence means the
+	 * When auto-launch first synced, ms - set once, and its presence means the
 	 * baseline below was taken.
 	 */
 	slackLaunchSince?: number;
 	/**
 	 * Row ids already carrying the launch reaction on that first sync. They never
-	 * start themselves — an old :robot_face: shouldn't open a dozen sessions.
+	 * start themselves - an old :robot_face: shouldn't open a dozen sessions.
 	 */
 	slackLaunchBaseline?: string[];
 	/**
@@ -117,8 +117,8 @@ function configPath(): string {
 // Profiles
 //
 // A profile is one set of accounts: its own Slack, Jira, GitHub and Notion.
-// The id is what the rest of the app stamps on the things a profile owns —
-// Slack queue rows, board sessions, my tasks — so it must be stable once
+// The id is what the rest of the app stamps on the things a profile owns -
+// Slack queue rows, board sessions, my tasks - so it must be stable once
 // written. The profile the flat pre-profiles file becomes keeps the literal id
 // `default`, which is also what an unstamped row is read as.
 // ---------------------------------------------------------------------------
@@ -134,13 +134,13 @@ export interface OdinProfile {
 /**
  * Keys that describe this machine rather than an account, and so stay at the
  * top level and are shared by every profile. `odinRepo` is the checkout Odin
- * rebuilds itself from — a new profile that lost it would break Update Odin.
+ * rebuilds itself from - a new profile that lost it would break Update Odin.
  */
 const SHARED_KEYS = [
 	"odinRepo",
 	// The OAuth apps: which Slack/Jira/Notion app Odin *is*, and
 	// GitHub's device-flow client id. They describe the build, not an account,
-	// so every profile signs in through the same one — a profile that didn't
+	// so every profile signs in through the same one - a profile that didn't
 	// have them would offer no way to sign in at all.
 	"slackClientId",
 	"slackClientSecret",
@@ -202,7 +202,7 @@ function readRoot(): RootConfig {
 
 	// Files written before the apps became shared keep them inside a profile;
 	// hoist them, or every other profile comes up with nothing to sign in
-	// with. ponytail: the copy is left in the profile — harmless, since the
+	// with. ponytail: the copy is left in the profile - harmless, since the
 	// values are identical and the active profile's copy wins either way.
 	for (const key of SHARED_KEYS) {
 		if (shared[key] !== undefined) continue;
@@ -212,7 +212,7 @@ function readRoot(): RootConfig {
 
 	// Jira's old API-token trio, from before sign-in existed. Dropped on read,
 	// so a live token stops being handed out now and leaves the file on the
-	// next write. ponytail: no migration step — there is nothing to migrate to,
+	// next write. ponytail: no migration step - there is nothing to migrate to,
 	// Jira reconnects through OAuth.
 	for (const profile of profiles) {
 		for (const key of ["jiraBaseUrl", "jiraEmail", "jiraToken"]) {
@@ -221,7 +221,7 @@ function readRoot(): RootConfig {
 	}
 
 	// An active id naming a profile that no longer exists falls back to the
-	// first one — never to "no profile", which would read as "nothing connected".
+	// first one - never to "no profile", which would read as "nothing connected".
 	const wanted = raw.activeProfileId;
 	const activeProfileId = profiles.some((p) => p.id === wanted)
 		? (wanted as string)
@@ -239,7 +239,7 @@ function writeRoot(root: RootConfig): void {
 		profiles: root.profiles,
 	};
 	writeFileSync(path, `${JSON.stringify(body, null, 2)}\n`, "utf-8");
-	// It holds API tokens — keep it owner-only like the rest of ~/.odin.
+	// It holds API tokens - keep it owner-only like the rest of ~/.odin.
 	chmodSync(path, 0o600);
 }
 
@@ -299,7 +299,7 @@ export function setActiveProfile(id: string): void {
 	writeRoot({ ...root, activeProfileId: id });
 }
 
-/** A new profile starts empty — you connect its accounts from scratch. */
+/** A new profile starts empty - you connect its accounts from scratch. */
 export function createProfile(name: string): OdinProfile {
 	const root = readRoot();
 	const profile: OdinProfile = { id: crypto.randomUUID(), name, config: {} };
@@ -321,7 +321,7 @@ export function renameProfile(id: string, name: string): void {
  * accounts in play, and "none" has no meaning anywhere downstream.
  *
  * ponytail: the rows the profile owned (Slack queue, sessions, tasks) are left
- * where they are — orphaned, filtered out of every view, and gone for good the
+ * where they are - orphaned, filtered out of every view, and gone for good the
  * next time their table is swept. Delete them eagerly if that ever shows up as
  * real disk.
  */
@@ -348,13 +348,13 @@ export function deleteProfile(id: string): string {
 //
 // An account credential comes from the active profile and nowhere else: it is
 // there because someone signed in *on this profile*. The environment is not
-// consulted at all — a shell exports one set of accounts, so falling back to
+// consulted at all - a shell exports one set of accounts, so falling back to
 // it would mean a brand-new empty profile came up already signed into the work
 // Jira, GitHub and Notion, which is exactly what profiles exist to stop.
 //
 // The OAuth *apps* below (which Slack/Jira/Notion app Odin is, and
-// GitHub's device-flow client id) are not account credentials — they describe
-// the build — so those do read the environment, and are shared by every
+// GitHub's device-flow client id) are not account credentials - they describe
+// the build - so those do read the environment, and are shared by every
 // profile.
 // ---------------------------------------------------------------------------
 
@@ -366,7 +366,7 @@ function fromEnv(...names: string[]): string | null {
 	return null;
 }
 
-/** App config — this machine's override, else the environment. */
+/** App config - this machine's override, else the environment. */
 function appValue(
 	envNames: string[],
 	fileValue: string | undefined,
@@ -375,7 +375,7 @@ function appValue(
 	return fromEnv(...envNames);
 }
 
-/** Slack **user** token — a bot token cannot read my reactions. */
+/** Slack **user** token - a bot token cannot read my reactions. */
 export function resolveSlackToken(): string | null {
 	return readOdinConfig().slackToken ?? null;
 }
@@ -438,7 +438,7 @@ function bakedSlackApp() {
 }
 
 /**
- * The Slack OAuth app, if one is configured. All three parts are required —
+ * The Slack OAuth app, if one is configured. All three parts are required -
  * a half-configured app would fail at the exchange, after the person already
  * approved the consent screen, which is the worst place to find out.
  */
@@ -486,7 +486,7 @@ export function resolveNotionOAuthApp(): NotionOAuthApp | null {
 }
 
 /**
- * GitHub OAuth app client id for the device flow. Not a secret — that flow has
+ * GitHub OAuth app client id for the device flow. Not a secret - that flow has
  * no client secret at all, which is why it suits a desktop app.
  *
  * Same precedence as the Slack app: runtime env, then this machine's config,

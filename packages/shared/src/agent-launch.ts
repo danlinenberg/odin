@@ -210,8 +210,8 @@ export interface SetupPaneLaunch {
 /**
  * Targets an agent launch at the workspace-setup pane. A terminal request
  * that does not already target a pane either chains behind the setup commands
- * in the setup pane itself — so the agent starts only after setup succeeds,
- * in one terminal instead of two — or splits a new pane off it. Chaining
+ * in the setup pane itself - so the agent starts only after setup succeeds,
+ * in one terminal instead of two - or splits a new pane off it. Chaining
  * requires `waitForSetup`, setup commands and an auto-executing launch. Chat
  * launches and requests already targeting a pane pass through unchanged.
  */

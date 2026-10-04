@@ -310,7 +310,7 @@ describe("loadSetupConfig", () => {
 
 	it("local overlay only takes effect when there is a base config", () => {
 		// loadSetupConfig returns null when no base exists, even if a local
-		// overlay is present — the overlay needs something to overlay onto.
+		// overlay is present - the overlay needs something to overlay onto.
 		writeRepoLocalConfig(sandbox.repoPath, {
 			setup: { before: ["echo x"] },
 		});

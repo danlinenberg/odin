@@ -1,5 +1,5 @@
 /**
- * Pure helpers for the :eyes: feed — no network, no db, so they're testable
+ * Pure helpers for the :eyes: feed - no network, no db, so they're testable
  * on their own (see reactions.test.ts).
  */
 
@@ -7,14 +7,14 @@
 export const QUEUE_REACTION = "eyes";
 
 /**
- * The reaction that queues a message AND starts its session — "take it
+ * The reaction that queues a message AND starts its session - "take it
  * offline" from Slack itself, with nobody at the desk to press Start.
  */
 export const LAUNCH_REACTION = "robot_face";
 
 /**
  * `:eyes:`, `eyes`, ` Eyes ` → `eyes`. Slack names reactions, so a pasted
- * glyph (👀) is not accepted — ponytail: add a unicode→name table if typing
+ * glyph (👀) is not accepted - ponytail: add a unicode→name table if typing
  * the name ever grates.
  */
 export function normalizeReaction(name: string): string {
@@ -88,7 +88,7 @@ export function reactionId(channelId: string, messageTs: string): string {
 /**
  * The messages *I* put the queue reaction on. `reactions.list` returns every
  * reaction the user made, of any emoji, so both the emoji and the reactor are
- * checked — someone else's :eyes: is not my queue item.
+ * checked - someone else's :eyes: is not my queue item.
  */
 export function pickEyedMessages(
 	items: SlackReactionsListItem[],
@@ -124,8 +124,8 @@ export function pickEyedMessages(
  * The message that carries a thread's facts, given the message a row points at.
  *
  * `reply_count`, `reply_users` and `latest_reply` live on the thread PARENT.
- * Read them off a reply — which is what a queue row often is, since you react
- * to the message that needs answering, not to whatever started the thread —
+ * Read them off a reply - which is what a queue row often is, since you react
+ * to the message that needs answering, not to whatever started the thread -
  * and a thread with 37 messages in it reads as "nobody has replied", aged off
  * the reply's own timestamp instead of the thread's last activity.
  *
@@ -151,7 +151,7 @@ export function threadParentTs(message: {
  * missing row is a `reactions.get` about that one message.
  *
  * ponytail: a few per sync, least-recently-confirmed first, and the caller
- * bumps `lastSeenAt` on every answer — so the queue rotates through in a
+ * bumps `lastSeenAt` on every answer - so the queue rotates through in a
  * handful of polls instead of costing one call per row every two minutes.
  * Raise the budget if a queue ever grows faster than it rotates.
  */
@@ -172,7 +172,7 @@ const ENTITIES: Record<string, string> = {
 
 /**
  * Slack's mrkdwn link/mention syntax rendered as something readable.
- * User and channel ids stay as ids when Slack didn't include a label —
+ * User and channel ids stay as ids when Slack didn't include a label -
  * resolving them would cost an API call per mention.
  */
 export function slackTextToPlain(text: string): string {
@@ -215,7 +215,7 @@ export function replaceMentions(
  * A line that is nothing but hello: "Hi Dan.", "Hi good morning :sunny:",
  * "@Dan Linenberg 🙏". Slack messages open with one routinely, and titling a
  * message by its first line then puts the greeting on the board card and
- * leaves the actual ask off it — and out of every search over titles.
+ * leaves the actual ask off it - and out of every search over titles.
  *
  * ponytail: a word list, not language detection. A greeting it doesn't know
  * costs one mistitled card, which is exactly what happens today anyway.
@@ -236,7 +236,7 @@ export function isGreeting(line: string): boolean {
 	);
 }
 
-/** A one-line label for a message — first line that says something, capped. */
+/** A one-line label for a message - first line that says something, capped. */
 export function toTitle(text: string): string {
 	const lines = text
 		.split("\n")
@@ -276,7 +276,7 @@ export type ReactionStatus = (typeof REACTION_STATUSES)[number];
 /**
  * A row's status, derived rather than stored: Done wins, then anything a
  * session was ever launched for is in progress. Deriving keeps one source of
- * truth — there's no status field to drift from the timestamps behind it.
+ * truth - there's no status field to drift from the timestamps behind it.
  */
 export function reactionStatus(row: {
 	startedAt: number | null;
@@ -289,7 +289,7 @@ export function reactionStatus(row: {
 
 /**
  * The stored channel name as something worth reading. Group DMs come back from
- * Slack under their internal name — `mpdm-dan.l--netanel--shahar-1` — which is
+ * Slack under their internal name - `mpdm-dan.l--netanel--shahar-1` - which is
  * not a channel and should not wear a `#`.
  *
  * ponytail: the member list keeps you in it, because the label is built where

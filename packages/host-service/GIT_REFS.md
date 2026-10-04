@@ -6,8 +6,8 @@ Pattern + rules for working with git refs in the host-service. Written after a r
 
 Git ref names come in two forms:
 
-- **Full** — `refs/heads/foo`, `refs/remotes/origin/foo`, `refs/tags/v1.0`. The prefix is a structural namespace; it cannot appear inside a name.
-- **Short** — `foo`, `origin/foo`, `v1.0`. The prefix here is part of the *user* namespace; it absolutely can appear inside a name.
+- **Full** - `refs/heads/foo`, `refs/remotes/origin/foo`, `refs/tags/v1.0`. The prefix is a structural namespace; it cannot appear inside a name.
+- **Short** - `foo`, `origin/foo`, `v1.0`. The prefix here is part of the *user* namespace; it absolutely can appear inside a name.
 
 Inferring ref type from a short string is unsafe:
 
@@ -27,7 +27,7 @@ This pattern repeats: branch names that contain `/` (`origin/foo`, `feature/orig
 
 ## The principle
 
-> Classify a ref **once**, at the boundary, against the **full refname**. Carry the type tag with the value forever after. Downstream code reads the tag — never re-derives type from a string.
+> Classify a ref **once**, at the boundary, against the **full refname**. Carry the type tag with the value forever after. Downstream code reads the tag - never re-derives type from a string.
 
 This is exactly how mature git apps do it.
 
@@ -35,16 +35,16 @@ This is exactly how mature git apps do it.
 
 **GitHub Desktop** (`~/workplace/desktop/app/src/`):
 
-- `models/branch.ts:7-62` — `class Branch { type: BranchType; ref: string; ... }`. `ref` is the full refname; `type` is `BranchType.Local | BranchType.Remote`.
-- `lib/git/for-each-ref.ts:53-55` — classification site: `type = ref.fullName.startsWith('refs/heads') ? Local : Remote`. Done once at parse.
-- `lib/git/refs.ts:14-26` — `formatAsLocalRef()` normalizes user input to a full refname *before* downstream operations. Worth porting.
+- `models/branch.ts:7-62` - `class Branch { type: BranchType; ref: string; ... }`. `ref` is the full refname; `type` is `BranchType.Local | BranchType.Remote`.
+- `lib/git/for-each-ref.ts:53-55` - classification site: `type = ref.fullName.startsWith('refs/heads') ? Local : Remote`. Done once at parse.
+- `lib/git/refs.ts:14-26` - `formatAsLocalRef()` normalizes user input to a full refname *before* downstream operations. Worth porting.
 
 **VSCode Git extension** (`~/workplace/vscode/extensions/git/src/`):
 
-- `api/git.d.ts:23-47` — `interface Ref { type: RefType; remote?: string; ... }` with `enum RefType { Head, RemoteHead, Tag }`. Field `remote` is only meaningfully set when `type === RemoteHead`.
-- `git.ts:1330-1340` — three mutually exclusive regexes against the full refname assign `type` once.
+- `api/git.d.ts:23-47` - `interface Ref { type: RefType; remote?: string; ... }` with `enum RefType { Head, RemoteHead, Tag }`. Field `remote` is only meaningfully set when `type === RemoteHead`.
+- `git.ts:1330-1340` - three mutually exclusive regexes against the full refname assign `type` once.
 
-Both apps converge on the same model. Difference: GitHub Desktop is class-based with an enum; VSCode is interface-based with a flat `Ref` type. Neither uses a TypeScript-discriminated union — partly age, partly API stability.
+Both apps converge on the same model. Difference: GitHub Desktop is class-based with an enum; VSCode is interface-based with a flat `Ref` type. Neither uses a TypeScript-discriminated union - partly age, partly API stability.
 
 ## Our shape
 
@@ -81,15 +81,15 @@ switch (r.kind) {
 }
 ```
 
-There is no place in the consumer that does `.startsWith("origin/")` — the bug class is removed, not avoided.
+There is no place in the consumer that does `.startsWith("origin/")` - the bug class is removed, not avoided.
 
 ## What to vendor
 
 If we copy code from these repos, attribute and licence-check first (both MIT). Specific files worth porting or directly translating:
 
-- `~/workplace/desktop/app/src/lib/git/refs.ts` — `formatAsLocalRef`, `formatAsRemoteRef`, refspec helpers.
-- `~/workplace/desktop/app/src/lib/git/for-each-ref.ts` — parsing pattern, format string, classification site.
-- `~/workplace/desktop/app/src/lib/git/reflog.ts` — already loosely vendored (recency parsing) for the branch picker; same source.
+- `~/workplace/desktop/app/src/lib/git/refs.ts` - `formatAsLocalRef`, `formatAsRemoteRef`, refspec helpers.
+- `~/workplace/desktop/app/src/lib/git/for-each-ref.ts` - parsing pattern, format string, classification site.
+- `~/workplace/desktop/app/src/lib/git/reflog.ts` - already loosely vendored (recency parsing) for the branch picker; same source.
 
 VSCode is harder to vendor (deeply tied to their VS Code API surface), but worth reading for the discriminated approach.
 
@@ -125,7 +125,7 @@ Bad:
 type Ref = { kind: "local" | "remote-tracking" | "tag" | "head"; remote?: string; ... }
 ```
 
-Now `ref.remote` is `string | undefined` everywhere — defeats the point. The narrowing only works when `remote` is **only present in the variant where it's required**:
+Now `ref.remote` is `string | undefined` everywhere - defeats the point. The narrowing only works when `remote` is **only present in the variant where it's required**:
 
 ```ts
 type ResolvedRef =
@@ -141,9 +141,9 @@ After narrowing on `kind === "remote-tracking"`, `ref.remote` is `string`, no `!
 fullRef: `refs/heads/${string}`
 ```
 
-This doesn't validate at runtime — git could hand us a wrong-shaped string and TS wouldn't notice. The value is at the *caller* boundary: if downstream code tries to assign `someShortName` (typed as plain `string`) into a `` `refs/heads/${string}` `` slot, the compiler catches it. The mistake gets surfaced at the assignment, not three function calls later when something silently mis-resolves.
+This doesn't validate at runtime - git could hand us a wrong-shaped string and TS wouldn't notice. The value is at the *caller* boundary: if downstream code tries to assign `someShortName` (typed as plain `string`) into a `` `refs/heads/${string}` `` slot, the compiler catches it. The mistake gets surfaced at the assignment, not three function calls later when something silently mis-resolves.
 
-Use template-literal types for `fullRef` and `asLocalRef`'s return type. Don't use them on user-facing parameters (everyone passes `string` and you'd need brand assertions everywhere — friction without payoff).
+Use template-literal types for `fullRef` and `asLocalRef`'s return type. Don't use them on user-facing parameters (everyone passes `string` and you'd need brand assertions everywhere - friction without payoff).
 
 ### 4. Type-only re-exports across package boundaries
 
@@ -165,17 +165,17 @@ function isRemoteTracking(r: ResolvedRef): r is Extract<ResolvedRef, { kind: "re
 }
 ```
 
-you've already lost — `r.kind === "remote-tracking"` already narrows TS-natively. Type guards are only useful when narrowing crosses a function boundary (rare for this module). Skip them by default.
+you've already lost - `r.kind === "remote-tracking"` already narrows TS-natively. Type guards are only useful when narrowing crosses a function boundary (rare for this module). Skip them by default.
 
 ## Enforcement
 
 Two layers:
 
-1. **Type system** (above) — once `ResolvedRef` exists and the helpers consume it, downstream code can't reintroduce the bug for *new* call sites. The compiler narrows correctly. The exhaustive-switch pattern catches breakage when the union grows.
+1. **Type system** (above) - once `ResolvedRef` exists and the helpers consume it, downstream code can't reintroduce the bug for *new* call sites. The compiler narrows correctly. The exhaustive-switch pattern catches breakage when the union grows.
 
-2. **Lint** — Biome rule banning `\.startsWith\(['"]origin/` and `\.startsWith\(['"]refs/remotes/origin/` outside of `runtime/git/refs.ts`. There's no legitimate use of that string check elsewhere — every match is the smoking gun for this bug class. Cheap belt-and-suspenders for grep-style audits.
+2. **Lint** - Biome rule banning `\.startsWith\(['"]origin/` and `\.startsWith\(['"]refs/remotes/origin/` outside of `runtime/git/refs.ts`. There's no legitimate use of that string check elsewhere - every match is the smoking gun for this bug class. Cheap belt-and-suspenders for grep-style audits.
 
-Add the rule as part of the refactor PR, not after — otherwise it'll never get added.
+Add the rule as part of the refactor PR, not after - otherwise it'll never get added.
 
 ## V1 cleanup
 

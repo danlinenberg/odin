@@ -55,7 +55,7 @@ async function createTempWorktree(fileCount: number): Promise<string> {
 
 describe("searchIndexCache LRU eviction", () => {
 	it("retains up to CACHE_MAX recently-used indexes", async () => {
-		// Build exactly CACHE_MAX indexes — none should be evicted.
+		// Build exactly CACHE_MAX indexes - none should be evicted.
 		const roots: string[] = [];
 		for (let i = 0; i < CACHE_MAX; i++) {
 			roots.push(await createTempWorktree(3));
@@ -95,7 +95,7 @@ describe("searchIndexCache LRU eviction", () => {
 			);
 		}
 
-		// Add one more worktree — this should evict entry 0 (oldest).
+		// Add one more worktree - this should evict entry 0 (oldest).
 		const extraRoot = await createTempWorktree(2);
 		await getSearchIndex({ rootPath: extraRoot, includeHidden: false });
 
@@ -106,12 +106,12 @@ describe("searchIndexCache LRU eviction", () => {
 			includeHidden: false,
 		});
 
-		// Entry 0 was evicted, then rebuilt — different array reference.
+		// Entry 0 was evicted, then rebuilt - different array reference.
 		expect(refetchedRoot0).not.toBe(initialReads[0]);
 		expect(refetchedRoot0.length).toBe(2);
 	});
 
-	it("LRU bump on access — touching the oldest keeps it alive", async () => {
+	it("LRU bump on access - touching the oldest keeps it alive", async () => {
 		const roots: string[] = [];
 		const initialReads: Awaited<ReturnType<typeof getSearchIndex>>[] = [];
 		for (let i = 0; i < CACHE_MAX; i++) {
@@ -122,12 +122,12 @@ describe("searchIndexCache LRU eviction", () => {
 			);
 		}
 
-		// Touch entry 0 — bumps it to MRU. Entry 1 becomes LRU.
+		// Touch entry 0 - bumps it to MRU. Entry 1 becomes LRU.
 		const root0 = roots[0];
 		if (!root0) throw new Error("missing root");
 		await getSearchIndex({ rootPath: root0, includeHidden: false });
 
-		// Add a new worktree — entry 1 should be evicted, not entry 0.
+		// Add a new worktree - entry 1 should be evicted, not entry 0.
 		const extraRoot = await createTempWorktree(2);
 		await getSearchIndex({ rootPath: extraRoot, includeHidden: false });
 
@@ -166,7 +166,7 @@ describe("searchIndexCache LRU eviction", () => {
 
 		// Start a build, then invalidate before it completes (as FSEvents
 		// overflow or root recovery would). The build must not cache its
-		// result — that index predates whatever triggered the invalidation.
+		// result - that index predates whatever triggered the invalidation.
 		const inFlight = getSearchIndex({ rootPath, includeHidden: false });
 		invalidateSearchIndexesForRoot(rootPath);
 		await inFlight;

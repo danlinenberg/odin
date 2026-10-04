@@ -7,7 +7,7 @@
  *     bun run apps/desktop/scripts/cdp-eval.ts probe.js
  *
  * The expression runs in the page, so `import("/stores/tabs/store.ts")` reaches
- * the app's own modules — except ones edited this session, which HMR re-serves
+ * the app's own modules - except ones edited this session, which HMR re-serves
  * with a `?t=` query, handing you a second instance. Assert on the DOM there.
  */
 const PORT = process.env.RENDERER_REMOTE_DEBUG_PORT ?? "9333";

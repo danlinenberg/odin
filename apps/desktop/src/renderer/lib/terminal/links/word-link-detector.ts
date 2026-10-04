@@ -39,7 +39,7 @@ interface WordLink {
  * validates each word against the filesystem. Only words that resolve to
  * actual files become links.
  *
- * Registered as lowest priority — only runs if the primary file-path
+ * Registered as lowest priority - only runs if the primary file-path
  * and URL detectors found nothing for the line.
  */
 export class WordLinkDetector implements ILinkProvider {

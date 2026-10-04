@@ -8,21 +8,21 @@ import { claimedCheckout, launchBlocker } from "shared/launch-gate";
 /**
  * Tasks created while the gate was shut, oldest first.
  *
- * Insertion order is creation order — panes are keyed by uuid and the store
- * rebuilds them from the persisted array in the same order — so the queue is
+ * Insertion order is creation order - panes are keyed by uuid and the store
+ * rebuilds them from the persisted array in the same order - so the queue is
  * first-come-first-served without carrying a timestamp around.
  */
 export function queuedPanes(panes: Record<string, Pane>): Pane[] {
 	return Object.values(panes).filter((pane) => !!pane.odinQueued);
 }
 
-/** Where a queued pane's agent runs — set at launch, never confirmed since. */
+/** Where a queued pane's agent runs - set at launch, never confirmed since. */
 function queuedCwd(pane: Pane): string {
 	return pane.initialCwd ?? pane.cwd ?? "";
 }
 
 /**
- * The checkout a queued pane will claim when it starts — what the gate
+ * The checkout a queued pane will claim when it starts - what the gate
  * compares. `odinCwd` survives opening the card; `initialCwd` doesn't.
  */
 function queuedCheckout(pane: Pane, odinRepoPath: string | null | undefined) {
@@ -38,7 +38,7 @@ type TrpcClient = ReturnType<typeof electronTrpc.useUtils>["client"];
  * pane, and clear the queue flag so the card leaves the Queued section.
  *
  * Killed first, like Resume does: opening a queued card in the workspace view
- * mounts a terminal, which attaches a plain shell to the pane — and
+ * mounts a terminal, which attaches a plain shell to the pane - and
  * `createOrAttach` on a pane that already has a session ignores the command,
  * so the agent would never start. `allowKilled` for the same reason the pane
  * needs killing at all.
@@ -65,7 +65,7 @@ export async function startQueuedPane(
 			...state.panes,
 			[pane.id]: {
 				...state.panes[pane.id],
-				// A Resume reopens at an idle prompt — nothing was asked of it —
+				// A Resume reopens at an idle prompt - nothing was asked of it -
 				// unless it was queued with "Continue" on the end.
 				status:
 					/ --(resume|continue)\b/.test(queued.command) &&
@@ -109,7 +109,7 @@ function refreshQueuedReasons(
  * The clock behind the Queued section: every poll, if the gate is open, start
  * the task that has waited longest.
  *
- * One per tick, deliberately — the session it just started turns the Odin gate
+ * One per tick, deliberately - the session it just started turns the Odin gate
  * red and shows up in the next CPU reading, so the tick after it re-decides
  * against a machine that actually has the new agent on it.
  *
@@ -119,7 +119,7 @@ function refreshQueuedReasons(
 export function useTaskQueue(): void {
 	const utils = electronTrpc.useUtils();
 	const { data: workConfig } = electronTrpc.work.getConfig.useQuery();
-	// The same 5s snapshot the header chip reads — one shared query.
+	// The same 5s snapshot the header chip reads - one shared query.
 	const { data: metrics } = electronTrpc.resourceMetrics.getSnapshot.useQuery(
 		undefined,
 		{ refetchInterval: 5_000 },
@@ -155,7 +155,7 @@ export function useTaskQueue(): void {
 		starting.current = true;
 		void startQueuedPane(utils.client, next)
 			.catch(() => {
-				// Leave it queued — the next tick tries again.
+				// Leave it queued - the next tick tries again.
 			})
 			.finally(() => {
 				starting.current = false;

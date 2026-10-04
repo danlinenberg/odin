@@ -7,7 +7,7 @@ export const PLATFORM = {
 };
 
 const workspace = getWorkspaceName();
-// Odin fork: own data universe — sharing ~/.odin (db + terminal daemon)
+// Odin fork: own data universe - sharing ~/.odin (db + terminal daemon)
 // with the installed Odin app corrupts both. Dev worktrees keep their
 // isolated dirs; packaged Odin lives in ~/.odin.
 export const ODIN_DIR_NAME = workspace ? `.odin-${workspace}` : ".odin";
@@ -16,7 +16,7 @@ export const ODIN_DIR_NAME = workspace ? `.odin-${workspace}` : ".odin";
  * so callbacks can't open the wrong app.
  *
  * This used to keep a `odin-` prefix on the theory that the auth server
- * only accepts that family — it is handed the scheme as `?protocol=` and
+ * only accepts that family - it is handed the scheme as `?protocol=` and
  * redirects sign-in back to it. That doesn't apply here: `auth.signIn` is the
  * only caller, and it is unreachable, because every Odin build is made with
  * SKIP_ENV_VALIDATION=1 (scripts/odin-update.sh, scripts/odin-dev.sh), which
@@ -63,11 +63,11 @@ export const MAX_TERMINAL_PARKED_RUNTIME_CAP = 64;
 
 // Default user preference values
 // Odin fork: sessions live in the daemon and resurface on relaunch, so
-// quitting is cheap — no confirm-on-quit nag.
+// quitting is cheap - no confirm-on-quit nag.
 export const DEFAULT_CONFIRM_ON_QUIT = false;
 export const DEFAULT_TERMINAL_LINK_BEHAVIOR = "file-viewer" as const;
 export const DEFAULT_FILE_OPEN_MODE = "split-pane" as const;
-// Odin fork: no preset auto-spawn — every session comes from the board/queue
+// Odin fork: no preset auto-spawn - every session comes from the board/queue
 // with an explicit task command; preset panes are noise on the kanban.
 export const DEFAULT_AUTO_APPLY_DEFAULT_PRESET = false;
 export const DEFAULT_WAIT_FOR_SETUP_BEFORE_AGENT = false;

@@ -154,7 +154,7 @@ function readPluginSkill(
 }
 
 /**
- * Every skill in the bundled plugin ships everywhere automatically — adding a
+ * Every skill in the bundled plugin ships everywhere automatically - adding a
  * skill to plugins/odin/skills/ requires no code change here. Returns null
  * on enumeration failure: the caller must abort (an empty desired set would
  * make the reaper delete every previously-provisioned skill).
@@ -252,7 +252,7 @@ export async function createManagedSkills(
 	const bundledSkills = listBundledSkills(bundledPluginDir);
 	if (bundledSkills === null) {
 		console.warn(
-			"[agent-setup] Skipping skill provisioning and reaping — bundled plugin unreadable",
+			"[agent-setup] Skipping skill provisioning and reaping - bundled plugin unreadable",
 		);
 		return;
 	}

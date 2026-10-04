@@ -18,7 +18,7 @@ import { isProcessAlive, manifestDir } from "./host-service-manifest";
  * same org's host-service at once. This atomic exclusive-create lockfile
  * single-flights the spawn+health-check critical section across processes.
  *
- * The lock records the *app instance's* pid (Electron main), not the child's —
+ * The lock records the *app instance's* pid (Electron main), not the child's -
  * its liveness tracks the spawner so a crashed instance's lock can be stolen.
  */
 export interface SpawnLock {
@@ -56,7 +56,7 @@ function removeLock(organizationId: string): void {
 	try {
 		unlinkSync(lockPath(organizationId));
 	} catch {
-		// Already gone — fine.
+		// Already gone - fine.
 	}
 }
 
@@ -109,7 +109,7 @@ export function acquireSpawnLock(
 	const handle = tryCreateLock(organizationId);
 	if (handle) return handle;
 
-	// Lock exists — decide whether the holder is dead/wedged and stealable.
+	// Lock exists - decide whether the holder is dead/wedged and stealable.
 	const existing = readSpawnLock(organizationId);
 	const stealable =
 		!existing || // garbage / partial write

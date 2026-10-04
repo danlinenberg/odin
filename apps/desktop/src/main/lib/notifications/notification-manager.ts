@@ -66,7 +66,7 @@ export class NotificationManager {
 	handleAgentLifecycle(event: AgentLifecycleEvent): void {
 		const stateKey = event.sessionId ?? event.paneId;
 
-		// Working again — the next Needs you event is a fresh arrival, not a repeat.
+		// Working again - the next Needs you event is a fresh arrival, not a repeat.
 		if (event.eventType === "Start") {
 			if (stateKey) this.waiting.delete(stateKey);
 			return;
@@ -87,7 +87,7 @@ export class NotificationManager {
 
 		if (this.shouldSuppressForVisiblePane(event)) return;
 
-		// No pane, no name, and nothing for a click to land on — the agent is
+		// No pane, no name, and nothing for a click to land on - the agent is
 		// running outside Odin. Banners for those read "Terminal needs you".
 		const task = this.deps.getNotificationTitle(event);
 		if (!task) return;
@@ -145,7 +145,7 @@ export class NotificationManager {
 	 * landing in Needs you, so the rule lives in `boardColumn` and is read from
 	 * here rather than restated. Two inputs it can't look up:
 	 *
-	 * `alive` is always true — a lifecycle hook is the agent's own process
+	 * `alive` is always true - a lifecycle hook is the agent's own process
 	 * reporting in, which is proof of life. Reading the daemon poll instead would
 	 * only add a way to be wrong.
 	 *

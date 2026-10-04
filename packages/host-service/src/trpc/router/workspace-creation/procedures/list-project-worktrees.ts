@@ -9,9 +9,9 @@ import {
 } from "../shared/worktree-list";
 
 /**
- * Returns the live `git worktree list` for a project — only entries that
+ * Returns the live `git worktree list` for a project - only entries that
  * are valid adoption targets (have a real branch checked out, not bare,
- * not prunable) — annotated with whether a workspace row already tracks
+ * not prunable) - annotated with whether a workspace row already tracks
  * them. Used by the v1→v2 importer to filter out v1 workspaces whose
  * worktree no longer exists on disk, and by the sidebar's "Import
  * Worktrees" action to find untracked worktrees.
@@ -23,7 +23,7 @@ export const listProjectWorktrees = protectedProcedure
 		const git = await ctx.git(localProject.repoPath);
 		const records = await listGitWorktrees(git);
 
-		// Tracking key is (projectId, branch) — same as searchBranches — but
+		// Tracking key is (projectId, branch) - same as searchBranches - but
 		// also match by normalized path so a tracked worktree whose branch was
 		// renamed out from under its row isn't offered for re-import.
 		const workspaceRows = ctx.db

@@ -546,7 +546,7 @@ describe("firstPrompt", () => {
 						"@Dan can you help? :pray:",
 						"Exports are being charged twice.",
 						"",
-						"PHASE 1 — INGEST (do this first, before anything else):",
+						"PHASE 1 - INGEST (do this first, before anything else):",
 						"- Read the ENTIRE thread.",
 						"",
 						"Work in the current workspace. Investigate.",

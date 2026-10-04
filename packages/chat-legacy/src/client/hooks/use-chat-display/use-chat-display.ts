@@ -42,7 +42,7 @@ function findLastUserMessageIndex(messages: ListMessagesOutput): number {
 		// (both the use-chat-display internal channel and the ChatPaneInterface
 		// setData injection). Skipping them here keeps the turn-boundary anchored
 		// to the real committed user message so withoutActiveTurnAssistantHistory
-		// can dedupe the in-flight assistant message — see SUPER-753.
+		// can dedupe the in-flight assistant message - see SUPER-753.
 		if (message?.role === "user" && !message.id?.startsWith("optimistic-")) {
 			return index;
 		}
@@ -92,10 +92,10 @@ export function withoutActiveTurnAssistantHistory({
 	const activeTurnMessages = messages.slice(turnStartIndex);
 
 	// Keep a historical assistant message only when it is both:
-	//   1. Fully completed (has a stopReason) — a completed prior phase such as
+	//   1. Fully completed (has a stopReason) - a completed prior phase such as
 	//      the read-file + ask_user message before a question answer.
 	//   2. Not the message currently being streamed (different id from currentMessage)
-	//      — guards the brief transition window where the same message is committed
+	//      - guards the brief transition window where the same message is committed
 	//      to history while currentMessage still references it.
 	const currentMessageId = (currentMessage as { id?: string }).id;
 	const deduped = activeTurnMessages.filter((message: HistoryMessage) => {

@@ -1,7 +1,7 @@
 // Real-signal recovery tests: spawn the bundled daemon as a child process,
 // then SIGKILL it (no graceful close events) and verify the client surfaces
 // the disconnect cleanly. Different from the existing control-plane tests,
-// which use Server.close() — that's the cooperative shutdown path. Real
+// which use Server.close() - that's the cooperative shutdown path. Real
 // production crashes don't go through Server.close.
 //
 // Runs under Node (`node --experimental-strip-types --test`).
@@ -114,7 +114,7 @@ describe("daemon SIGKILL recovery", () => {
 		try {
 			client.send({ type: "list" });
 		} catch {
-			// Either path is acceptable — just don't hang.
+			// Either path is acceptable - just don't hang.
 		}
 
 		// Process is gone; ensure cleanup so `after` doesn't block.
@@ -122,7 +122,7 @@ describe("daemon SIGKILL recovery", () => {
 		try {
 			fs.unlinkSync(SOCK);
 		} catch {
-			// best-effort — daemon's atexit didn't run because of SIGKILL
+			// best-effort - daemon's atexit didn't run because of SIGKILL
 		}
 	});
 });

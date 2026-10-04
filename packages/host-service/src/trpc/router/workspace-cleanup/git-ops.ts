@@ -1,7 +1,7 @@
 // Off-loop git operations for the workspace-delete saga. Env resolution
 // stays on the event loop (it needs the credential provider); the git
-// subprocesses — status preflight, `worktree remove` (a recursive delete
-// of the whole worktree), branch delete — run in the host worker pool.
+// subprocesses - status preflight, `worktree remove` (a recursive delete
+// of the whole worktree), branch delete - run in the host worker pool.
 //
 // Exported as a mutable object: the unit tests patch these methods per
 // test and restore them (bun's mock.module leaks across test files in the
@@ -22,9 +22,9 @@ import {
 } from "../../../workers/WorkerTaskRunner";
 
 /**
- * Pool-infrastructure failure (timeout, queue rejection, abort) — the git
+ * Pool-infrastructure failure (timeout, queue rejection, abort) - the git
  * result is UNKNOWN, unlike a git error thrown by the task handler itself
- * (whose original `name` — e.g. GitError — is preserved across the worker
+ * (whose original `name` - e.g. GitError - is preserved across the worker
  * boundary). The destroy preflight fails closed on these instead of
  * proceeding without its dirty-worktree check.
  */
@@ -34,7 +34,7 @@ export function isIndeterminateGitTaskFailure(err: unknown): boolean {
 }
 
 export const cleanupGitOps = {
-	/** Same failure surface as `ctx.git(repoPath)` — a throw here maps to the
+	/** Same failure surface as `ctx.git(repoPath)` - a throw here maps to the
 	 * saga's "failed to open project repo" handling. */
 	resolveGitEnv(
 		ctx: Pick<HostServiceContext, "credentials">,

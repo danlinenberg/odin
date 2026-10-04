@@ -131,7 +131,7 @@ function sha256(...buffers: Uint8Array[]): string {
 /**
  * Subscribe sends no ack on success. To make sure the subscribe has been
  * processed before we start injecting bytes, send a `list` and wait for
- * its reply — the daemon dispatches in order, so list-reply implies the
+ * its reply - the daemon dispatches in order, so list-reply implies the
  * preceding subscribe is live.
  */
 async function subscribeAndDrain(

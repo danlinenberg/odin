@@ -222,7 +222,7 @@ export const createExternalRouter = () => {
 			.input(
 				z.object({
 					path: z.string(),
-					/** Absolute workspace worktree path — relative `path`s are resolved against this. */
+					/** Absolute workspace worktree path - relative `path`s are resolved against this. */
 					worktreePath: z.string().optional(),
 				}),
 			)
@@ -276,7 +276,7 @@ export const createExternalRouter = () => {
 					/**
 					 * Explicit app override from the caller (e.g. the v2 CMD+O
 					 * choice stored client-side in tanstack-db). When provided,
-					 * bypasses the server-side `resolveDefaultEditor` lookup —
+					 * bypasses the server-side `resolveDefaultEditor` lookup -
 					 * which only knows about v1 localDb tables and would
 					 * otherwise return a stale global default for v2 projects.
 					 */

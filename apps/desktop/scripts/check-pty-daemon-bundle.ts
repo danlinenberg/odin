@@ -25,7 +25,7 @@ const MARKERS: Marker[] = [
 	{
 		pattern: /runHandoffReceiver/,
 		description:
-			"runHandoffReceiver function — Phase 2 successor entry point. " +
+			"runHandoffReceiver function - Phase 2 successor entry point. " +
 			"If missing, the bundler dead-code-eliminated the receiver " +
 			"branch, which means the handoff signal is being statically " +
 			'inlined. Verify the entry uses `process.argv.includes("--handoff")`, NOT `process.env.X`.',
@@ -33,7 +33,7 @@ const MARKERS: Marker[] = [
 	{
 		pattern: /--handoff/,
 		description:
-			"--handoff argv flag — predecessor uses this to signal " +
+			"--handoff argv flag - predecessor uses this to signal " +
 			"the spawned successor that it's a handoff receiver. Both the " +
 			"spawn site (in Server.prepareUpgrade) and the receiver-side " +
 			"check should mention this string.",
@@ -42,27 +42,27 @@ const MARKERS: Marker[] = [
 	{
 		pattern: /upgrade-ack/,
 		description:
-			"upgrade-ack message type — successor sends this to predecessor " +
+			"upgrade-ack message type - successor sends this to predecessor " +
 			"over the IPC control channel after adopting sessions. Missing " +
 			"means the receiver protocol code was eliminated.",
 	},
 	{
 		pattern: /adoptSnapshot/,
 		description:
-			"Server.adoptSnapshot — rebuilds session store from the snapshot " +
+			"Server.adoptSnapshot - rebuilds session store from the snapshot " +
 			"file. Missing means the adopt path was DCE'd.",
 	},
 	{
 		pattern: /adoptFromFd/,
 		description:
-			"Pty.adoptFromFd — wraps an inherited PTY master fd into a Pty " +
+			"Pty.adoptFromFd - wraps an inherited PTY master fd into a Pty " +
 			"adapter. Missing means the receiver can't actually take over " +
 			"sessions even if the rest of the protocol survives.",
 	},
 ];
 
 function parseArgs(argv: string[]): { bundle: string } {
-	// fileURLToPath, not URL.pathname — the latter returns a URL-encoded string
+	// fileURLToPath, not URL.pathname - the latter returns a URL-encoded string
 	// that doesn't round-trip on Windows (drive-letter paths break).
 	const here = path.dirname(fileURLToPath(import.meta.url));
 	let bundle = path.resolve(here, "..", "dist", "main", "pty-daemon.js");
@@ -90,7 +90,7 @@ function main(): void {
 		const min = m.min ?? 1;
 		if (matches.length < min) {
 			failures.push(
-				`  ✗ ${m.pattern} — found ${matches.length}, expected >= ${min}\n` +
+				`  ✗ ${m.pattern} - found ${matches.length}, expected >= ${min}\n` +
 					`    ${m.description}`,
 			);
 		}

@@ -46,7 +46,7 @@ describe("githubAccessToken", () => {
 		expect(await githubAccessToken()).toBeNull();
 	});
 
-	test("a token with no expiry is used as-is — that app doesn't expire them", async () => {
+	test("a token with no expiry is used as-is - that app doesn't expire them", async () => {
 		updateOdinConfig({ githubToken: "gho_forever" });
 		const calls = mockFetch({});
 		expect(await githubAccessToken()).toBe("gho_forever");
@@ -150,7 +150,7 @@ describe("githubApiFetch", () => {
 		]);
 	});
 
-	test("a 403 is returned as-is — the CLI token would hit the same wall", async () => {
+	test("a 403 is returned as-is - the CLI token would hit the same wall", async () => {
 		updateOdinConfig({ githubLogin: "octocat" });
 		stubGhCli("echo gho_from_cli");
 		let calls = 0;

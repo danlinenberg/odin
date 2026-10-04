@@ -42,7 +42,7 @@ describe("listenForHooks", () => {
 			const port = getNotificationsPort();
 			expect(port).not.toBe(taken);
 
-			// The reported port is the one that actually answers — that's the whole
+			// The reported port is the one that actually answers - that's the whole
 			// point: agents read it from ODIN_PORT.
 			const response = await fetch(`http://127.0.0.1:${port}/`);
 			expect(response.status).toBe(200);

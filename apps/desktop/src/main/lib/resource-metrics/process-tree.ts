@@ -40,7 +40,7 @@ export interface SubtreeResources {
  * Capture an atomic snapshot of all running processes.
  *
  * On macOS/Linux a single `ps` call returns PID, parent PID, CPU%, and
- * RSS together — so the tree structure and resource numbers are from the
+ * RSS together - so the tree structure and resource numbers are from the
  * same point in time (no race between "discover children" and "read
  * metrics" that the old pidtree+pidusage two-step had).
  *
@@ -124,7 +124,7 @@ export function getSubtreeResources(
 /**
  * Replace RSS values with macOS `phys_footprint` for the given PIDs.
  *
- * `phys_footprint` is what Activity Monitor shows as "Memory" — it
+ * `phys_footprint` is what Activity Monitor shows as "Memory" - it
  * accounts for compressed pages, unlike RSS which always reports the
  * uncompressed size.  On non-macOS platforms this is a no-op.
  */
@@ -224,7 +224,7 @@ async function listProcessesWindows(): Promise<ProcessInfo[]> {
 /**
  * Memory the OS can hand a new process right now, in bytes.
  *
- * `os.freemem()` is useless for this on macOS — it counts only the pages that
+ * `os.freemem()` is useless for this on macOS - it counts only the pages that
  * are already free (0.1 GB on a healthy 24 GB Mac), so anything built on it
  * reads "full" forever. `vm_stat`'s inactive + speculative + purgeable pages
  * are the ones the kernel reclaims on demand, which is what "available"
@@ -263,14 +263,14 @@ let previousCpuTicks: { idle: number; total: number } | null = null;
 let lastCpuUsagePercent = 0;
 
 /**
- * Whole-machine CPU from `os.cpus()` tick deltas — cumulative counters, so a
+ * Whole-machine CPU from `os.cpus()` tick deltas - cumulative counters, so a
  * reading is the busy share of the interval between two snapshots.
  *
  * `loadAverage1m` can't do this job: macOS counts threads blocked in I/O, so
  * it reads high on a Mac doing nothing and low-ish on one that's choking.
  * Idle ticks don't lie.
  *
- * ponytail: the first call has nothing to subtract and reports 0 — the gate
+ * ponytail: the first call has nothing to subtract and reports 0 - the gate
  * fails open for one poll, then has real numbers. Sampling on a timer to fill
  * that in is a background job for a 5-second problem.
  */

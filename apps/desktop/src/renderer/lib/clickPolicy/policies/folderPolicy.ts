@@ -3,7 +3,7 @@ import type { ModifierEvent } from "../types";
 /**
  * Folder click rules are intentionally hardcoded (not settings-driven):
  *
- *   plain         → null   (caller decides — toggle/hint)
+ *   plain         → null   (caller decides - toggle/hint)
  *   shift         → null   (no folder-friendly mapping)
  *   meta / ctrl   → reveal in sidebar
  *   meta+shift    → open in external editor

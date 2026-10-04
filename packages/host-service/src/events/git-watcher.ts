@@ -10,7 +10,7 @@ const execFileAsync = promisify(execFile);
 
 const RESCAN_INTERVAL_MS = 30_000;
 
-/** Debounce window for batches with worktree edits — flush fast, latency matters. */
+/** Debounce window for batches with worktree edits - flush fast, latency matters. */
 export const DEBOUNCE_MS = 300;
 
 /**
@@ -28,7 +28,7 @@ export const MAX_WORKTREE_PATHS_PER_BATCH = 128;
 
 /**
  * `.git/` top-level dirs whose churn never changes `git status`: `objects/**`
- * (fetch/gc/repack blobs — the bulk of idle churn), `lfs/**` (object cache),
+ * (fetch/gc/repack blobs - the bulk of idle churn), `lfs/**` (object cache),
  * `logs/**` (reflog). A real state change always touches refs/index/HEAD too.
  */
 const IGNORED_GIT_DIR_TOP_LEVELS = new Set(["objects", "lfs", "logs"]);
@@ -72,7 +72,7 @@ export function collectWorktreeBatchPaths(
 		if (absolutePath === worktreePath) return null;
 		if (!absolutePath.startsWith(worktreePrefix)) return null;
 		const relative = absolutePath.slice(worktreePrefix.length);
-		// Defensive: ignore anything inside .git/ — the dedicated .git watcher
+		// Defensive: ignore anything inside .git/ - the dedicated .git watcher
 		// handles those and the worktree fs watcher's default ignore patterns
 		// already exclude it, but a rare leak shouldn't pollute the paths list.
 		if (relative === ".git" || relative.startsWith(".git/")) return null;
@@ -127,21 +127,21 @@ interface WatchedWorkspace {
  *
  * Two sources feed into the same debounced emit per workspace:
  *
- * 1. `.git/` directory (via `node:fs.watch`) — catches commits, staging,
+ * 1. `.git/` directory (via `node:fs.watch`) - catches commits, staging,
  *    branch switches, fetches, including from an external terminal. Paths that
  *    can't change `git status` (`objects/**`, `lfs/**`, `logs/**`, `FETCH_HEAD`)
  *    are filtered via `isStatusRelevantGitDirEvent`; `.git/`-only batches use
  *    the wider `GIT_DIR_DEBOUNCE_MS` window.
- * 2. Worktree root (via `@odin/workspace-fs` watcher manager) — catches
+ * 2. Worktree root (via `@odin/workspace-fs` watcher manager) - catches
  *    working-tree file edits that change `git status` output. The underlying
  *    watcher honors `DEFAULT_IGNORE_PATTERNS`, which excludes `.git/`,
- *    `node_modules/`, `dist/`, etc. — exactly the paths that don't affect
+ *    `node_modules/`, `dist/`, etc. - exactly the paths that don't affect
  *    `git status`, so we don't waste refetches on them. Subscription is
  *    multiplexed by `FsWatcherManager` per absolute path, so this shares the
  *    underlying native watcher with any client-owned `fs:watch` subscriptions.
  *
  * Consumers therefore only need to subscribe to `git:changed` for refetch
- * purposes — no separate client-side debounce over `fs:events`.
+ * purposes - no separate client-side debounce over `fs:events`.
  */
 export class GitWatcher {
 	private readonly db: HostDb;
@@ -264,7 +264,7 @@ export class GitWatcher {
 					try {
 						listener(event);
 					} catch (error) {
-						console.error("[git-watcher:listener] threw — contained", {
+						console.error("[git-watcher:listener] threw - contained", {
 							error,
 						});
 					}
@@ -326,7 +326,7 @@ export class GitWatcher {
 				gitDir = `${worktreePath}/${gitDir}`;
 			}
 		} catch {
-			// Not a git repo or path doesn't exist — skip
+			// Not a git repo or path doesn't exist - skip
 			return;
 		}
 
@@ -352,7 +352,7 @@ export class GitWatcher {
 		}
 
 		watcher.on("error", () => {
-			// Watcher died — clean up so rescan can re-add
+			// Watcher died - clean up so rescan can re-add
 			disposeWorktreeWatch();
 			this.watched.delete(workspaceId);
 			watcher.close();

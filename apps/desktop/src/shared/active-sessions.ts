@@ -5,7 +5,7 @@ import { boardTags } from "./odin-tags";
 import type { Pane, PaneStatus } from "./tabs-types";
 
 /**
- * Every session running right now, whichever feed started it — the answer the
+ * Every session running right now, whichever feed started it - the answer the
  * per-source tabs can't give between them, since each one only knows about its
  * own rows (and a Slack row leaves the queue the moment its session starts).
  *
@@ -15,19 +15,19 @@ import type { Pane, PaneStatus } from "./tabs-types";
 export interface ActiveSession {
 	paneId: string;
 	title: string;
-	/** Which feed launched it — the board's own sections. */
+	/** Which feed launched it - the board's own sections. */
 	source: BoardSection;
 	/** Where the board would file it: permission / working / review / idle. */
 	column: PaneStatus;
-	/** Who it's for — the person who asked. Absent on your own tasks. */
+	/** Who it's for - the person who asked. Absent on your own tasks. */
 	contact: string | null;
 	/** The board card's tags, same list. */
 	tags: string[];
-	/** Which repo it's running in — the cwd's last segment. */
+	/** Which repo it's running in - the cwd's last segment. */
 	repo: string | null;
 }
 
-/** Needs-you first — the whole point of looking. */
+/** Needs-you first - the whole point of looking. */
 const COLUMN_ORDER: PaneStatus[] = ["permission", "working", "review", "idle"];
 
 export function activeSessions(

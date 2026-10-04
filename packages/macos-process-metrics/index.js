@@ -2,7 +2,7 @@ let native;
 try {
 	native = require("./build/Release/macos_process_metrics.node");
 } catch {
-	// Non-macOS, or native build was skipped — fall back gracefully.
+	// Non-macOS, or native build was skipped - fall back gracefully.
 	native = null;
 }
 
@@ -10,7 +10,7 @@ try {
  * Get the physical memory footprint (phys_footprint) for a list of PIDs.
  *
  * This is the same value macOS Activity Monitor shows in its "Memory"
- * column — it accounts for compressed pages and proportional shared
+ * column - it accounts for compressed pages and proportional shared
  * memory, unlike RSS which always reports the uncompressed size.
  *
  * @param {number[]} pids

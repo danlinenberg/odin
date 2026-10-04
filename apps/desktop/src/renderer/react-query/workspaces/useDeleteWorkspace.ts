@@ -55,7 +55,7 @@ export function useDeleteWorkspace(
 			await options?.onSettled?.(...args);
 		},
 		onSuccess: async (data, variables, context, ...rest) => {
-			// Delete succeeded on the electron path — dispose the workspace's
+			// Delete succeeded on the electron path - dispose the workspace's
 			// host-service terminals so backgrounded sessions don't leak.
 			if (data.success) {
 				const retryDispose = () =>

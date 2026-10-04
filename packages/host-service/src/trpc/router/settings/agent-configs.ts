@@ -132,7 +132,7 @@ function seedDefaultsIfEmpty(db: HostDb): HostAgentConfigRow[] {
 
 // An icon override is either a built-in icon key ("claude") or an uploaded
 // `data:` image URI. Capped so an oversized upload can't bloat the per-machine
-// SQLite DB — the client downscales images before sending.
+// SQLite DB - the client downscales images before sending.
 const MAX_ICON_ID_LENGTH = 256 * 1024;
 const iconIdSchema = z.string().trim().min(1).max(MAX_ICON_ID_LENGTH);
 // `null` clears the icon override (fall back to `presetId`); a string sets it.
@@ -187,7 +187,7 @@ export const agentConfigsRouter = router({
 	 * lookup (and as the icon fallback), defaulting to `"custom"` when omitted.
 	 * `iconId` optionally overrides the rendered icon with a built-in icon key
 	 * (used by user-authored agents, whose `presetId` is `"custom"`). Duplicate
-	 * `presetId` values are allowed — each row gets a fresh `id`.
+	 * `presetId` values are allowed - each row gets a fresh `id`.
 	 */
 	add: protectedProcedure.input(addInputSchema).mutation(({ ctx, input }) => {
 		const existing = listOrdered(ctx.db);
@@ -363,7 +363,7 @@ export const agentConfigsRouter = router({
 
 	/**
 	 * Persist a new ordering. The submitted ids must match the current
-	 * configured ids exactly — no additions, no removals, no duplicates.
+	 * configured ids exactly - no additions, no removals, no duplicates.
 	 * All updates run in a single transaction so a crash mid-loop can't
 	 * leave displayOrder half-updated.
 	 */

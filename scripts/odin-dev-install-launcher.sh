@@ -25,11 +25,11 @@ fi
 
 # Reskin in place rather than bailing out: an already-installed launcher kept
 # whatever icon Odin had on the day it was compiled, and nothing ever refreshed
-# it — so the old icon stayed in the Dock, Spotlight and every banner macOS
+# it - so the old icon stayed in the Dock, Spotlight and every banner macOS
 # draws by app name. Only the osacompile is skipped; the icon and the Launch
 # Services record are rewritten on every run.
 if [[ -d "$APP" && "${1:-}" != "--force" ]]; then
-  echo "$APP already installed — refreshing icon (--force to rebuild)"
+  echo "$APP already installed - refreshing icon (--force to rebuild)"
 else
   osacompile -o "$APP" -e "do shell script \"$FOCUS\"" || exit 1
 fi

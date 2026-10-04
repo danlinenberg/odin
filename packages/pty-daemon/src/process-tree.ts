@@ -31,20 +31,20 @@ export interface SignalProcessTreeAndGroupsOptions {
 	signalPids?: boolean;
 	excludeCurrentProcessGroup?: boolean;
 	/**
-	 * Also target live processes whose controlling terminal matches — catches
+	 * Also target live processes whose controlling terminal matches - catches
 	 * descendants that reparented to pid 1 in a new process group but kept
 	 * the session's tty.
 	 */
 	ttyName?: string | null;
 	/**
-	 * Also target live members of these process groups — groups recorded on
+	 * Also target live members of these process groups - groups recorded on
 	 * earlier kill passes. A ppid walk can't rediscover a group once its
 	 * last tree-reachable member died, but reparented stragglers keep it.
 	 */
 	knownPgids?: ReadonlySet<number>;
 	/**
 	 * Pre-read process table. Pass one (from readProcessTableAsync) when
-	 * calling from the daemon's async paths — the sync fallback blocks the
+	 * calling from the daemon's async paths - the sync fallback blocks the
 	 * event loop for the duration of a ps spawn.
 	 */
 	table?: ProcessInfo[];
@@ -142,7 +142,7 @@ export function readProcessTable(): ProcessInfo[] {
 }
 
 /**
- * Resolves null when ps itself fails — callers making liveness decisions
+ * Resolves null when ps itself fails - callers making liveness decisions
  * (e.g. "no survivors, stop escalating") must treat null as unknown, never
  * as an empty table.
  */
@@ -234,7 +234,7 @@ function normalizeTtyName(raw: string | undefined): string | null {
  * Uses the tty's foreground process group (`tpgid`): at an idle prompt it equals
  * the shell's own process group; while a command runs in the foreground the
  * shell has handed the terminal to the command's group, so they differ. This is
- * precise — unlike a "shell has descendants" check it does not false-positive on
+ * precise - unlike a "shell has descendants" check it does not false-positive on
  * suspended or background jobs. Fails closed (returns false) on any ps error.
  */
 export function hasRunningForegroundProcess(shellPid: number): boolean {

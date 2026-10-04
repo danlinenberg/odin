@@ -82,7 +82,7 @@ function rowToConfig(
 /**
  * Look up a HostAgentConfig by its instance id first, then fall back to the
  * lowest-`order` row matching by presetId. Preset ids are short slugs;
- * instance ids are UUIDs — they don't collide.
+ * instance ids are UUIDs - they don't collide.
  */
 export function resolveHostAgentConfig(
 	db: HostDb,
@@ -114,7 +114,7 @@ export function resolveHostAgentConfig(
  *
  * Prompts that sanitize to empty drop `promptArgs` and the prompt payload so
  * codex/opencode/copilot don't get stray prompt-mode flags during promptless
- * launches — emptiness is only knowable after sanitization, so the check
+ * launches - emptiness is only knowable after sanitization, so the check
  * lives here rather than in the router's zod schema.
  */
 export function buildAgentCommandString(
@@ -287,11 +287,11 @@ export function buildTerminalAgentLaunch(
 	const config = resolveHostAgentConfig(db, input.agent);
 	if (!config) {
 		// Worded for end users (automation run errors show this verbatim), but
-		// keep "No host agent config matching" — the desktop matches on it to
+		// keep "No host agent config matching" - the desktop matches on it to
 		// attach re-select guidance.
 		throw new TRPCError({
 			code: "NOT_FOUND",
-			message: `No host agent config matching '${input.agent}' — the agent may have been removed or this host's agents were reset. Re-select an agent (or use a preset id like "claude").`,
+			message: `No host agent config matching '${input.agent}' - the agent may have been removed or this host's agents were reset. Re-select an agent (or use a preset id like "claude").`,
 		});
 	}
 	validateAgentEffortSelection(config.presetId, config.label, input.effort);
@@ -368,7 +368,7 @@ export async function runAgentInWorkspace(
 		// dead workspace pin apart from a host-side failure.
 		throw new TRPCError({
 			code: "NOT_FOUND",
-			message: `Workspace ${input.workspaceId} not found on this host — it may have been deleted.`,
+			message: `Workspace ${input.workspaceId} not found on this host - it may have been deleted.`,
 		});
 	}
 	if (input.agent === ODIN_AGENT_ID) {

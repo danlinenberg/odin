@@ -152,8 +152,8 @@ export function InAppBrowser() {
 	useEffect(() => {
 		const webview = view.current;
 		if (!url || !webview) return;
-		// Whatever had focus when the link opened — the session's terminal,
-		// Catch up — gets it back on close, instead of it falling to <body>.
+		// Whatever had focus when the link opened - the session's terminal,
+		// Catch up - gets it back on close, instead of it falling to <body>.
 		const opener = document.activeElement;
 		setPage({ title: "", url });
 		const onNavigate = (event: Event) =>
@@ -167,7 +167,7 @@ export function InAppBrowser() {
 				title: (event as { title?: string }).title ?? "",
 			}));
 		// Captured and stopped at the window: Esc closes the panel and nothing
-		// under it — not the session drawer, not Catch up, not the terminal.
+		// under it - not the session drawer, not Catch up, not the terminal.
 		const copyLink = () => {
 			copyText(webview.getURL());
 			toast("Link copied");

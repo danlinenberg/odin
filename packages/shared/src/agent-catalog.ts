@@ -24,7 +24,7 @@ export type BuiltinAgentId = (typeof BUILTIN_AGENT_IDS)[number];
 export type AgentDefinitionId = BuiltinAgentId | `custom:${string}`;
 
 /**
- * Agents Odin can identify via lifecycle hooks but cannot launch —
+ * Agents Odin can identify via lifecycle hooks but cannot launch -
  * they run in an external app whose hooks land on a Odin terminal.
  */
 export const EXTERNAL_AGENT_IDS = ["cursor-composer"] as const;

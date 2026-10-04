@@ -41,7 +41,7 @@ test("how a due date reads and looks", () => {
 	}
 });
 
-test("due means today or past — tomorrow isn't due yet", () => {
+test("due means today or past - tomorrow isn't due yet", () => {
 	expect(isDue("2026-09-20", LATE_TODAY)).toBe(true);
 	expect(isDue("2026-09-22", LATE_TODAY)).toBe(true);
 	expect(isDue("2026-09-23", LATE_TODAY)).toBe(false);
@@ -52,7 +52,7 @@ test("Jira's date shows through until Odin has one of its own", () => {
 	const mine = { "jira:BUGT-1": { due: "2026-10-01", title: "mine" } };
 	// Nothing local: the ticket's own date is what the row carries.
 	expect(effectiveDue("jira:BUGT-1", {}, "2026-09-25")).toBe("2026-09-25");
-	// Mine wins while it's there — and dropping it gives Jira's back, because
+	// Mine wins while it's there - and dropping it gives Jira's back, because
 	// Odin overwrites a deadline rather than deleting someone else's.
 	expect(effectiveDue("jira:BUGT-1", mine, "2026-09-25")).toBe("2026-10-01");
 	expect(effectiveDue("jira:BUGT-1", {}, null)).toBe(null);
@@ -111,7 +111,7 @@ test("pings wait for the configured time of day", () => {
 /**
  * An undated row offers a date, and the OS picker is the control. Only the
  * empty chip is rendered here: renderToStaticMarkup reads a zustand store
- * through `getInitialState`, so a seeded one renders empty anyway — what the
+ * through `getInitialState`, so a seeded one renders empty anyway - what the
  * chip says once a date is on it is `dueLabel`/`dueTone`, tested above.
  */
 test("the chip offers a date, with the native picker behind it", () => {

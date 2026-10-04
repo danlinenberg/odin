@@ -15,7 +15,7 @@ interface LinkHoverHintProps {
 	/** What would clicking right now do, given current modifiers. Null to hide. */
 	hoverLabel: string | null;
 	hoverPosition: Position | null;
-	/** Transient "click did nothing — here's the bind" hint. Hidden when hover is showing. */
+	/** Transient "click did nothing - here's the bind" hint. Hidden when hover is showing. */
 	clickHint: Position | null;
 }
 

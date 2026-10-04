@@ -20,7 +20,7 @@ describe("createModeTracker", () => {
 		const t = createModeTracker(120, 32);
 		t.feed(enc.encode("\x1b[>7u"));
 
-		// 200 KB of filler — well past the host-service FIFO's 64 KiB cap.
+		// 200 KB of filler - well past the host-service FIFO's 64 KiB cap.
 		// Tracker state is independent of the FIFO so flags should hold.
 		const filler = "x".repeat(2048);
 		for (let i = 0; i < 100; i += 1) {
@@ -61,7 +61,7 @@ describe("createModeTracker", () => {
 	test("focus reporting and mouse tracking are captured", () => {
 		// `?1002h` is button-tracking, NOT SGR encoding (`?1006h`). xterm.js's
 		// public IModes doesn't expose mouse encoding format, so the preamble
-		// can't restore it — clients reattaching mid-session keep the default
+		// can't restore it - clients reattaching mid-session keep the default
 		// X10 encoding. Acceptable today; revisit if a TUI relying on SGR
 		// breaks on reattach.
 		const t = createModeTracker(120, 32);

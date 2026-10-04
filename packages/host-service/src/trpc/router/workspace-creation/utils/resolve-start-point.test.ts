@@ -31,7 +31,7 @@ function createMockGit(existingFullRefs: Set<string>, defaultBranch?: string) {
 
 describe("resolveStartPoint", () => {
 	test("prefers local branch when it exists (even if origin/<branch> also exists)", async () => {
-		// User picked a branch from a list of refs they can see — fork from
+		// User picked a branch from a list of refs they can see - fork from
 		// the local state, not a possibly-stale remote ref.
 		const git = createMockGit(
 			new Set(["refs/remotes/origin/main", "refs/heads/main"]),
@@ -69,7 +69,7 @@ describe("resolveStartPoint", () => {
 
 	// Regression: workspace branches like `agreeable-ermine` exist locally
 	// only. A stale `refs/remotes/origin/agreeable-ermine` cached ref must
-	// not win — `git worktree add ... origin/agreeable-ermine` would fail
+	// not win - `git worktree add ... origin/agreeable-ermine` would fail
 	// with "invalid reference" if the remote ref doesn't actually resolve.
 	test("workspace-style branch (local + stale remote cache) prefers local", async () => {
 		const git = createMockGit(

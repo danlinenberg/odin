@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Self-check for prune-worktrees.sh: it removes landed work and keeps the rest.
 #
-# Builds a throwaway repo with an origin and four worktrees — one squash-landed,
-# one with a commit main doesn't have, one dirty, one fresh — and checks which
+# Builds a throwaway repo with an origin and four worktrees - one squash-landed,
+# one with a commit main doesn't have, one dirty, one fresh - and checks which
 # survive. No gh here, so this covers the content rule only.
 #
 #   scripts/prune-worktrees.test.sh

@@ -20,7 +20,7 @@ export interface AgentSelectAgent {
 	id: string;
 	label: string;
 	iconId?: string;
-	/** Host preset slug ("claude", "custom", …) — stable across hosts and DB re-seeds, unlike `id`. */
+	/** Host preset slug ("claude", "custom", …) - stable across hosts and DB re-seeds, unlike `id`. */
 	presetId?: string;
 }
 

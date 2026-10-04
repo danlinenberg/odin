@@ -42,7 +42,7 @@ interface AgentLaunchFieldsProps {
 	idPrefix: string;
 	commandText: string;
 	onCommandTextChange: (value: string) => void;
-	/** Called on blur — used by the edit pane to autosave. */
+	/** Called on blur - used by the edit pane to autosave. */
 	onCommandBlur?: () => void;
 	promptArgsText: string;
 	onPromptArgsTextChange: (value: string) => void;
@@ -88,7 +88,7 @@ export function AgentLaunchFields({
 				label="Prompt-only args"
 				hint={
 					<>
-						Added only when launching with a prompt — e.g. <code>--</code>,{" "}
+						Added only when launching with a prompt - e.g. <code>--</code>,{" "}
 						<code>--prompt</code>, <code>-i</code>.
 					</>
 				}

@@ -7,7 +7,7 @@ import { spawn } from "./Pty.ts";
 // `npm run test:integration`. Here we only cover the synchronous validation
 // logic that doesn't require spawning a real PTY.
 
-describe("Pty wrapper (validation only — spawn behavior tested under node)", () => {
+describe("Pty wrapper (validation only - spawn behavior tested under node)", () => {
 	test("rejects invalid spawn dims (cols)", () => {
 		expect(() =>
 			spawn({

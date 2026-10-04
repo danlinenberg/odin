@@ -13,7 +13,7 @@ import {
  * through the terminal-host daemon's HeadlessEmulator, so the host-side foreground
  * reclaim never runs for them. A TUI (mastracode/pi-tui, Claude Code) that arms
  * the kitty keyboard protocol / mouse / focus reporting and is killed while
- * attached leaves every keystroke CSI-u encoded — Ctrl+C dead, shell unusable
+ * attached leaves every keystroke CSI-u encoded - Ctrl+C dead, shell unusable
  * until `reset`. #5519's renderer disarm only fires on cold restore / terminal
  * restart, not a live kill.
  *

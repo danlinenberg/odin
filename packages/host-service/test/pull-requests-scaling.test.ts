@@ -3,14 +3,14 @@ import { PullRequestRuntimeManager } from "../src/runtime/pull-requests/pull-req
 
 /**
  * Pins the cost of the **safety-net sweep** that runs every
- * `SAFETY_NET_INTERVAL_MS` (5 min) — the long-cadence backup for the
+ * `SAFETY_NET_INTERVAL_MS` (5 min) - the long-cadence backup for the
  * event-driven `GitWatcher` subscription. When `syncWorkspaceBranches`
  * runs, it still walks every workspace and spawns ~5 git subprocesses
  * for each one. The fix from finding #1 doesn't change the safety-net
  * sweep's cost; it only ensures that path runs at 5 min instead of 30 s.
  *
- * The steady-state idle behavior — zero git ops when nothing changed in
- * any `.git/` directory — is covered by
+ * The steady-state idle behavior - zero git ops when nothing changed in
+ * any `.git/` directory - is covered by
  * `pull-requests-scaling.integration.test.ts`.
  */
 
@@ -145,7 +145,7 @@ async function runSync(workspaceCount: number) {
 	return { rawCalls, gitFactoryCalls };
 }
 
-describe("syncWorkspaceBranches safety-net sweep — worktree-scaling", () => {
+describe("syncWorkspaceBranches safety-net sweep - worktree-scaling", () => {
 	test("git subprocess count grows linearly with workspace count", async () => {
 		const small = await runSync(2);
 		const large = await runSync(20);
@@ -162,7 +162,7 @@ describe("syncWorkspaceBranches safety-net sweep — worktree-scaling", () => {
 		const perWorkspaceLarge = large.rawCalls.length / 20;
 		expect(perWorkspaceSmall).toBe(perWorkspaceLarge);
 
-		// Per-workspace cost is non-trivial — at least a branch lookup, HEAD,
+		// Per-workspace cost is non-trivial - at least a branch lookup, HEAD,
 		// and push-ref resolution. If this drops below 3 the runtime probably
 		// dropped some git work and this scaling concern is partially fixed.
 		expect(perWorkspaceSmall).toBeGreaterThanOrEqual(3);
@@ -175,7 +175,7 @@ describe("syncWorkspaceBranches safety-net sweep — worktree-scaling", () => {
 	});
 
 	test("safety-net sweep calls all N git factories even when zero workspaces changed", async () => {
-		// The safety-net sweep still walks every workspace — that's its job.
+		// The safety-net sweep still walks every workspace - that's its job.
 		// What changed in finding #1 is the **cadence**: this used to fire every
 		// 30s; now it fires every 5 min, and the steady-state per-workspace
 		// sync runs only on real `.git/` activity.
@@ -185,7 +185,7 @@ describe("syncWorkspaceBranches safety-net sweep — worktree-scaling", () => {
 		expect(new Set(gitFactoryCalls).size).toBe(10);
 		expect(rawCalls.length).toBeGreaterThanOrEqual(30); // ≥3 ops × 10 workspaces
 
-		// Each workspace got its share of the work — no batching, no shortcut.
+		// Each workspace got its share of the work - no batching, no shortcut.
 		const callsByWorktree = new Map<string, number>();
 		for (const call of rawCalls) {
 			callsByWorktree.set(

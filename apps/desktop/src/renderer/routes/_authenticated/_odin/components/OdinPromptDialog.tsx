@@ -11,7 +11,7 @@ import { insertSkill, matchSkills, skillToken } from "./skill-picker";
 export type PromptImage = { name: string; dataUrl?: string; path?: string };
 
 /**
- * Read a File as a data URL — the browser does the base64 for us, and unlike
+ * Read a File as a data URL - the browser does the base64 for us, and unlike
  * btoa(String.fromCharCode(...)) it doesn't blow the stack on a big screenshot.
  */
 function readFile(file: File): Promise<PromptImage> {
@@ -37,7 +37,7 @@ export function sessionTitle(prompt: string, fallback: string): string {
 
 /**
  * A title cut to "…" (the old 60-char session cap, Slack's 120-char row title)
- * gets the rest of its line back from the text it was cut from — wherever in
+ * gets the rest of its line back from the text it was cut from - wherever in
  * that text the line sits, since a Slack title skips the greeting line.
  */
 export function untruncatedTitle(title: string, source: string | null): string {
@@ -86,7 +86,7 @@ export function OdinPromptDialog({
 	note?: ReactNode;
 	placeholder?: string;
 	/**
-	 * Start the prompt from this text instead of empty — a dead card's brief,
+	 * Start the prompt from this text instead of empty - a dead card's brief,
 	 * so starting over doesn't mean retyping the ask. Editable like any prompt.
 	 */
 	defaultPrompt?: string;
@@ -122,7 +122,7 @@ export function OdinPromptDialog({
 	};
 
 	// Skill picker: type `/` and the agent's own skills/commands are searchable.
-	// Picking one drops its `/name` into the prompt — the agent invokes it.
+	// Picking one drops its `/name` into the prompt - the agent invokes it.
 	// ponytail: only a slash token at the END of the text opens the menu;
 	// mid-text insertion isn't supported (nobody composes that way).
 	const { data: skills = [] } = electronTrpc.skills.list.useQuery();
@@ -155,7 +155,7 @@ export function OdinPromptDialog({
 		const read = await Promise.all(
 			accepted.map(async (file) => {
 				// ponytail: a video that's already on disk is cited by path, never
-				// base64'd — a screen recording through IPC wedges the renderer.
+				// base64'd - a screen recording through IPC wedges the renderer.
 				// Pasted video (no path) still falls back to bytes.
 				const path = file.type.startsWith("video/")
 					? window.webUtils.getPathForFile(file)
@@ -217,7 +217,7 @@ export function OdinPromptDialog({
 					}}
 					onKeyDown={(event) => {
 						if (matches.length > 0) {
-							// While the skill menu is open it owns these keys — Escape
+							// While the skill menu is open it owns these keys - Escape
 							// dismisses the menu, not the whole dialog.
 							if (event.key === "Escape") {
 								event.preventDefault();
@@ -281,7 +281,7 @@ export function OdinPromptDialog({
 								</button>
 							))}
 						</div>
-						{/* Full description of the highlighted row — hover or arrow keys.
+						{/* Full description of the highlighted row - hover or arrow keys.
 						    A native `title` tooltip never appears in this window. */}
 						{matches[activeIndex]?.description && (
 							<div className="max-h-[110px] overflow-y-auto border-t border-border px-2.5 py-1.5 text-[11px] leading-[1.45] text-muted-foreground">
@@ -347,7 +347,7 @@ export function OdinPromptDialog({
 						+ Image / Video
 					</button>
 					{repoPicker && (
-						// ponytail: native <datalist> — Chromium does the search-as-you-type
+						// ponytail: native <datalist> - Chromium does the search-as-you-type
 						// popup over ~100 paths for free. Blank = the agent picks.
 						<>
 							<input
@@ -358,7 +358,7 @@ export function OdinPromptDialog({
 								placeholder="No repo (agent picks)"
 								title={repo || "Search your git checkouts"}
 								// Picking a <datalist> option marks the field :autofill, and
-								// Chromium paints that white-on-black over any bg-* — only an
+								// Chromium paints that white-on-black over any bg-* - only an
 								// inset shadow and text-fill-color beat it. color-scheme darkens
 								// the dropdown itself.
 								className={`w-[230px] min-w-0 rounded-[6px] bg-secondary px-2 py-[3px] text-[11px] font-semibold outline-none [color-scheme:inherit] placeholder:font-semibold placeholder:text-muted-foreground autofill:shadow-[inset_0_0_0_1000px_var(--secondary)] autofill:[-webkit-text-fill-color:var(--foreground)] ${
@@ -372,7 +372,7 @@ export function OdinPromptDialog({
 									</option>
 								))}
 							</datalist>
-							{/* What the typed text resolved to — a half-typed name is a
+							{/* What the typed text resolved to - a half-typed name is a
 							    valid pick, so say which repo it landed on. */}
 							{repoQuery.trim() && (
 								<span

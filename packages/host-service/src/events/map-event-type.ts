@@ -1,14 +1,14 @@
 /**
  * Normalized lifecycle event types broadcast over the WS event bus.
  *
- * - `Start` / `Stop`: per-turn working-state cadence — drives the working
+ * - `Start` / `Stop`: per-turn working-state cadence - drives the working
  *   indicator and the completion chime.
  * - `PermissionRequest`: agent is blocked waiting for a tool/exec decision.
  * - `Failed`: the agent reported its turn ended in failure (e.g. Claude Code's
  *   `StopFailure` API-error hook). Distinct from `Stop` so the UI can surface
- *   it instead of showing a clean completion — this is what stops failures
+ *   it instead of showing a clean completion - this is what stops failures
  *   from being silent.
- * - `Attached` / `Detached`: session-lifetime signal — drives the pane icon
+ * - `Attached` / `Detached`: session-lifetime signal - drives the pane icon
  *   binding only. NOT working state: SessionStart fires on agent boot when
  *   the agent is still idle waiting for input.
  */

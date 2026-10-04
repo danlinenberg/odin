@@ -19,11 +19,11 @@ SLUG=danlinenberg/odin
 
 # Every GitHub call goes out as the personal account. git's configured helper
 # answers with whichever account it saw last, and that one cannot reach this
-# repo — clear the list (KEY_0) before naming this one (KEY_1).
+# repo - clear the list (KEY_0) before naming this one (KEY_1).
 #
 # KEY_2 is what makes the other two matter: `origin` is an SSH remote, and git
 # never consults a credential helper for SSH. Reads succeed on the key alone,
-# so this only shows up at the push — "Please make sure you have the correct
+# so this only shows up at the push - "Please make sure you have the correct
 # access rights", from a key that resolves to the work account. Rewriting the
 # remote to HTTPS for the length of this script puts the helper back in the
 # path.
@@ -38,7 +38,7 @@ export GIT_CONFIG_VALUE_2='git@github.com:'
 cd "$REPO"
 git fetch --quiet origin main
 
-# --no-install publishes the release without upgrading this machine onto it —
+# --no-install publishes the release without upgrading this machine onto it -
 # which is how you get a version to test the app's own updater against.
 INSTALL=1
 if [[ "${1:-}" == "--no-install" ]]; then
@@ -54,9 +54,9 @@ NEW="${1:-$(awk -F. '{print $1"."$2"."$3+1}' <<<"$OLD")}"
 TAG="v$NEW"
 
 # release.yml would fail on a taken version too, but only after a 10-minute
-# build and a merged version bump — catch it here first.
+# build and a merged version bump - catch it here first.
 if gh release view "$TAG" --repo "$SLUG" >/dev/null 2>&1; then
-	echo "$TAG is already released — pass a version that is not taken" >&2
+	echo "$TAG is already released - pass a version that is not taken" >&2
 	exit 1
 fi
 echo "==> $OLD -> $NEW"
@@ -69,7 +69,7 @@ trap 'git worktree remove --force "$WORK/wt" 2>/dev/null || true
 git worktree add --quiet -b "$BRANCH" "$WORK/wt" origin/main
 
 # desktop and host-service have shared a version since the fork, and bun.lock
-# records both — CI installs with --frozen-lockfile, so a stale lock fails the
+# records both - CI installs with --frozen-lockfile, so a stale lock fails the
 # build before it starts. The anchor is the one tab-indented "version" line, so
 # no dependency's pinned version is touched.
 cd "$WORK/wt"
@@ -97,7 +97,7 @@ echo "==> building $TAG (about 10 minutes)"
 gh workflow run Release --repo "$SLUG"
 # ponytail: the dispatched run takes a moment to exist, so wait for one that
 # started after we asked rather than watching whatever ran last. Give up after a
-# minute — if it never appears, the dispatch is the thing that went wrong.
+# minute - if it never appears, the dispatch is the thing that went wrong.
 for _ in $(seq 30); do
 	RUN=$(gh run list --repo "$SLUG" --workflow Release --limit 1 \
 		--json databaseId,status -q '.[] | select(.status != "completed") | .databaseId')

@@ -2,8 +2,8 @@
  * Browser-side Sentry noise suppression shared by the Next.js apps.
  *
  * Policy: errors thrown by OUR code get fixed, not filtered. These lists only
- * cover code we don't control — browser internals and extension-injected
- * scripts — plus origin patterns for the thirdPartyErrorFilterIntegration
+ * cover code we don't control - browser internals and extension-injected
+ * scripts - plus origin patterns for the thirdPartyErrorFilterIntegration
  * belt-and-suspenders. Keep additions rare; the integration (keyed on
  * applicationKey) already drops events with no first-party frames.
  */

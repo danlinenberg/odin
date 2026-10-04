@@ -67,7 +67,7 @@ export async function runQuitCleanup(deps: QuitCleanupDeps): Promise<void> {
 		// `quitAndInstall()` only *starts* the Squirrel.Mac handoff: ShipIt is
 		// launched asynchronously and swaps the app bundle (then relaunches) once
 		// this process terminates on its own. `app.exit()` kills the browser
-		// process immediately and skips `will-quit`, which preempts that handoff —
+		// process immediately and skips `will-quit`, which preempts that handoff -
 		// the app closes but is still on the old version and never comes back
 		// (#6048). Let Electron's normal termination finish the install, and keep
 		// the forced exit only as a watchdog so a wedged quit can't hang forever.

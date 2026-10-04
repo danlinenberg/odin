@@ -13,7 +13,7 @@
 // Failure model: connection-level errors (daemon crash, socket close) are
 // surfaced via onDisconnect. The desktop coordinator is responsible for
 // respawning the daemon and host-service can reconnect by constructing a new
-// DaemonClient. There is no in-band reconnect logic here — keep it dumb.
+// DaemonClient. There is no in-band reconnect logic here - keep it dumb.
 
 import * as net from "node:net";
 import {
@@ -56,7 +56,7 @@ export interface DaemonClientOptions {
  * Per-request timeouts. The daemon should respond within milliseconds for
  * close/list, and within a few seconds for open (PTY spawn includes shell
  * startup). Without these, a live-but-stuck daemon can hang callers
- * indefinitely — a real risk if `node-pty.spawn` ever blocks.
+ * indefinitely - a real risk if `node-pty.spawn` ever blocks.
  */
 const OPEN_TIMEOUT_MS = 15_000;
 const CLOSE_TIMEOUT_MS = 5_000;
@@ -89,7 +89,7 @@ export class DaemonClient {
 		try {
 			await this.handshake();
 		} catch (err) {
-			// Handshake rejected — destroy the socket and clear state so the
+			// Handshake rejected - destroy the socket and clear state so the
 			// caller's retry sees a clean slate. Without this, the socket and
 			// its listeners leak across failed connect attempts.
 			this.socket = null;
@@ -155,7 +155,7 @@ export class DaemonClient {
 	/**
 	 * Phase 2: ask the daemon to spawn a successor process that inherits PTY
 	 * master fds and adopts all live sessions. On success the daemon exits
-	 * shortly after replying — this client's connection will close.
+	 * shortly after replying - this client's connection will close.
 	 *
 	 * Timeout is generous: the daemon has to write a snapshot, spawn a child
 	 * Node process, wait for the successor's adopt+ack, then reply.
@@ -190,7 +190,7 @@ export class DaemonClient {
 	 * Subscribe to a session's output + exit stream. Returns an unsubscribe
 	 * function. With `replay: true` the daemon sends its current ring buffer
 	 * before live streaming begins. Multiple subscribers per session are
-	 * supported — the daemon fans output out to all of them.
+	 * supported - the daemon fans output out to all of them.
 	 */
 	subscribe(
 		id: string,
@@ -208,7 +208,7 @@ export class DaemonClient {
 		// Only the first subscribe per session id sends the wire `subscribe`.
 		// Subsequent local callbacks just register into the existing entry.
 		// The daemon's ring buffer is delivered once, on the first subscribe
-		// — so `replay: true` only makes sense on a fresh subscription.
+		// - so `replay: true` only makes sense on a fresh subscription.
 		// Loud-fail the surprising case where a later subscriber asks for
 		// replay; the caller needs to replay from a server-side cache
 		// instead (see terminal.ts replayBuffer).
@@ -345,7 +345,7 @@ export class DaemonClient {
 					return;
 				}
 				// Non-session error frames (no `id`) belong to the
-				// most-recent non-session request — settle on those. Errors
+				// most-recent non-session request - settle on those. Errors
 				// keyed to a session id come from concurrent ops on that
 				// session; ignore them here.
 				if (m.type === "error" && m.id === undefined) settle(m);
@@ -410,7 +410,7 @@ export class DaemonClient {
 		try {
 			frames = this.decoder.drain();
 		} catch (err) {
-			// Protocol decode failure — the wire stream is corrupt. Hard-close
+			// Protocol decode failure - the wire stream is corrupt. Hard-close
 			// the transport so we don't keep accepting data on a broken
 			// connection. Without destroy() the socket can keep delivering
 			// frames after onClose() has fired.

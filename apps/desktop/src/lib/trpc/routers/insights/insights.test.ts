@@ -33,7 +33,7 @@ describe("computeInsights", () => {
 				ask({ startedAt: 1 }),
 				ask({ doneAt: 1 }),
 				ask(),
-				// Reaction removed: withdrawn, not ignored — not counted as waiting.
+				// Reaction removed: withdrawn, not ignored - not counted as waiting.
 				ask({ unreactedAt: 1 }),
 			],
 			[],

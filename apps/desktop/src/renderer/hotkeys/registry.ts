@@ -25,11 +25,11 @@ export const PLATFORM: Platform = detectPlatform();
 
 /**
  * Mark a printable chord as logical so it follows the labeled key on
- * non-US layouts (e.g. on QWERTZ ⌘Z fires on the key printed "Z" — physical
- * KeyY — instead of physical KeyZ). Honored when `adaptiveLayoutEnabled`
+ * non-US layouts (e.g. on QWERTZ ⌘Z fires on the key printed "Z" - physical
+ * KeyY - instead of physical KeyZ). Honored when `adaptiveLayoutEnabled`
  * is on; falls through to the original chord otherwise (matching physical
  * dispatch). Use bare strings only for chords whose terminal token is a
- * named key (arrows, Enter, Escape, F1–F12, …) — those are layout-stable
+ * named key (arrows, Enter, Escape, F1–F12, …) - those are layout-stable
  * and `defaultModeForChord` classifies them as "named" automatically.
  */
 const L = (chord: string): ShortcutBinding => ({
@@ -43,7 +43,7 @@ const L = (chord: string): ShortcutBinding => ({
 // ---------------------------------------------------------------------------
 
 export const HOTKEYS_REGISTRY = {
-	// Odin's own shortcuts — a bare key per tab in the shell's rail, plus quick
+	// Odin's own shortcuts - a bare key per tab in the shell's rail, plus quick
 	// capture. These are the only ones the settings page lists (see
 	// settings/keyboard/page.tsx).
 	ODIN_BOARD: {
@@ -125,7 +125,7 @@ export const HOTKEYS_REGISTRY = {
 		description: "Focus the current screen's search box",
 	},
 	// Not a rail key: a modifier chord, so writing a task down still works from
-	// inside a terminal or a text box — which is where you think of one.
+	// inside a terminal or a text box - which is where you think of one.
 	ODIN_NEW_TASK: {
 		key: {
 			mac: L("meta+shift+a"),
@@ -146,7 +146,7 @@ export const HOTKEYS_REGISTRY = {
 		label: "Quick Question",
 		category: "Navigation",
 		description:
-			"Ask a Claude that's already running — no wait for it to start",
+			"Ask a Claude that's already running - no wait for it to start",
 	},
 	// ⌘L, where a browser's address bar would be.
 	ODIN_COPY_LINK: {

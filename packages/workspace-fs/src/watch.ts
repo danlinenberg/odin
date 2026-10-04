@@ -25,14 +25,14 @@ import {
 
 // Cap per-watcher file-path memory so a monotonic stream of unique paths
 // (log rotation, hashed build artifacts) doesn't grow JS heap unbounded.
-// Directories are tracked separately and uncapped — directory count per
+// Directories are tracked separately and uncapped - directory count per
 // worktree is bounded by repo structure (O(100s) even for huge repos), and
 // losing a directory hint causes a delete event to fall back to file-only
 // search-index pruning, leaving stale descendant entries until the next
 // full rebuild.
 const FILE_PATHS_MAX = 10_000;
 
-// Throttler bounds (mirror VS Code's parcelWatcher.ts:181-188 — same algorithm,
+// Throttler bounds (mirror VS Code's parcelWatcher.ts:181-188 - same algorithm,
 // same numbers). Bounds the rate at which events fan out to listeners so a
 // legitimate burst (mass refactor, branch checkout) can't pin a CPU draining
 // downstream consumers, and a runaway producer can't grow the JS heap unbounded.
@@ -42,7 +42,7 @@ const MAX_BUFFERED_EVENTS = 30_000;
 
 // Recovery liveness probe: a freshly attached FSEvents stream can be deaf for
 // a sub-second window after subscribe() resolves (observed on a busy Electron
-// main loop) — writes in that window are missed forever. Recovery writes a
+// main loop) - writes in that window are missed forever. Recovery writes a
 // probe file and only announces the resumed root once its event arrives.
 const PROBE_PREFIX = ".odin-watcher-probe-";
 const PROBE_TIMEOUT_MS = 4_000;
@@ -55,12 +55,12 @@ function escapeGlobMagic(input: string): string {
 }
 
 // Wall-clock budget for the nested-repo scan (bounds attach latency on a slow
-// or network-backed FS, where readdir latency — not directory count — is the
+// or network-backed FS, where readdir latency - not directory count - is the
 // limiter). The static ignore globs still cover the known worktree conventions
 // if the scan truncates here.
 const NESTED_REPO_SCAN_DEADLINE_MS = 3_000;
 
-// Watches are always recursive — @parcel/watcher offers no shallow mode.
+// Watches are always recursive - @parcel/watcher offers no shallow mode.
 export interface WatchPathOptions {
 	absolutePath: string;
 }
@@ -107,7 +107,7 @@ interface WatcherState {
 	 * Per-state throttler. VS Code (parcelWatcher.ts:181-188) uses a single
 	 * shared throttler at the watcher class level; ours is per-state because
 	 * each FsWatcherManager subscriber consumes events for its own watch root
-	 * independently — sharing one buffer would let a noisy worktree starve
+	 * independently - sharing one buffer would let a noisy worktree starve
 	 * a quiet one's listeners.
 	 */
 	throttler: ThrottledWorker<FsWatchEvent>;
@@ -171,7 +171,7 @@ export class FsWatcherManager {
 	/**
 	 * One-shot dedup so a single ENOSPC report doesn't spam logs across every
 	 * watcher creation that follows it. Mirrors VS Code's `enospcErrorLogged`
-	 * (parcelWatcher.ts:190). Intentionally never reset — once a process hits
+	 * (parcelWatcher.ts:190). Intentionally never reset - once a process hits
 	 * the inotify limit, surfacing it again per error doesn't help; the user
 	 * needs to bump `fs.inotify.max_user_watches` and restart.
 	 */
@@ -246,7 +246,7 @@ export class FsWatcherManager {
 	 * Resolve symlinks once at watch start and record the deltas needed to
 	 * map kernel-reported event paths back to the caller's requested form.
 	 * Port of VS Code parcelWatcher.ts `normalizePath` (lines 488-516). Casing
-	 * normalization (`realcase`) is intentionally skipped — that's macOS-only
+	 * normalization (`realcase`) is intentionally skipped - that's macOS-only
 	 * and requires a non-trivial helper from VS Code's pfs module; symlink
 	 * resolution alone covers our use cases.
 	 */
@@ -285,7 +285,7 @@ export class FsWatcherManager {
 	 * filenames in NFD; consumers compare against NFC) and map paths back from
 	 * the resolved-symlink form to the caller's requested form. Port of VS Code
 	 * parcelWatcher.ts `normalizeEvents` (lines 518-539). Windows root-drive
-	 * workaround is omitted — desktop doesn't ship on Windows yet.
+	 * workaround is omitted - desktop doesn't ship on Windows yet.
 	 */
 	private normalizeEvents(
 		events: ParcelWatcherEvent[],
@@ -319,10 +319,10 @@ export class FsWatcherManager {
 	 *
 	 * - `'No space left on device'` (ENOSPC): Linux inotify watch limit
 	 *   exhausted. Log once with a remediation hint; spamming repeats doesn't
-	 *   help — user has to bump the system limit and restart.
+	 *   help - user has to bump the system limit and restart.
 	 * - `'File system must be re-scanned'`: macOS FSEvents kernel queue
 	 *   overflowed. Log and invalidate the search index (next search rebuilds
-	 *   from disk). Crucially, do NOT emit a synthetic event to listeners —
+	 *   from disk). Crucially, do NOT emit a synthetic event to listeners -
 	 *   overflow means "some events were dropped," not "git state changed,"
 	 *   and downstream consumers (git-watcher → renderer's useGitStatus →
 	 *   host-service git.getStatus) would interpret it as the latter and storm
@@ -436,16 +436,16 @@ export class FsWatcherManager {
 		state.realPathDiffers = realPathDiffers;
 		const generation = ++state.generation;
 
-		// Nested git repos/worktrees (agent tools pile these up — a full repo copy
+		// Nested git repos/worktrees (agent tools pile these up - a full repo copy
 		// each) balloon a recursive watch to millions of dirs. Discover them and
 		// hand parcel a root-relative `<relative>/**` glob per repo, which prunes
 		// the subtree from traversal (same mechanism as the `**/node_modules/**`
-		// default — stops inotify watch creation on Linux, the ENOSPC trigger).
+		// default - stops inotify watch creation on Linux, the ENOSPC trigger).
 		const nestedRepoIgnores = await this.computeNestedRepoIgnores(realPath);
 
 		// parcel dedupes native backends by (dir, ignore-set); a wedged backend
 		// from the dead stream (its unsubscribe can hang) would be silently
-		// joined and never deliver. The pattern matches nothing real — it only
+		// joined and never deliver. The pattern matches nothing real - it only
 		// forces a distinct backend identity.
 		const ignore = [
 			...this.ignore,
@@ -463,7 +463,7 @@ export class FsWatcherManager {
 			(error, events) => {
 				if (state.generation !== generation) {
 					// Late callback from a superseded stream (suspended or
-					// replaced by recovery) — its events describe a dead tree.
+					// replaced by recovery) - its events describe a dead tree.
 					return;
 				}
 				if (error) {
@@ -530,7 +530,7 @@ export class FsWatcherManager {
 			});
 			if (truncated) {
 				console.warn(
-					"[workspace-fs/watch] nested-repo scan hit cap — some nested repos may still be watched",
+					"[workspace-fs/watch] nested-repo scan hit cap - some nested repos may still be watched",
 					{ absolutePath: realPath, found: roots.length },
 				);
 			}
@@ -557,7 +557,7 @@ export class FsWatcherManager {
 	 * The watch root was deleted: the native stream is dead and will never
 	 * deliver again (FSEvents keeps following the old inode). Keep the state
 	 * and its listeners, drop the native side, and poll for the path to
-	 * reappear — VS Code's suspend/resume pattern (baseWatcher.ts).
+	 * reappear - VS Code's suspend/resume pattern (baseWatcher.ts).
 	 */
 	/**
 	 * A kernel overflow can swallow the root-delete event itself (reproduced
@@ -608,13 +608,13 @@ export class FsWatcherManager {
 			return;
 		}
 		console.error(
-			"[workspace-fs/watch] watch root deleted — polling for recreation:",
+			"[workspace-fs/watch] watch root deleted - polling for recreation:",
 			{ absolutePath: state.absolutePath },
 		);
 		const deadSubscription = state.subscription;
 		state.subscription = null;
 		// A stale root-delete flushed after resume would re-suspend the
-		// recovered stream — invalidate the dead stream and drop its queue.
+		// recovered stream - invalidate the dead stream and drop its queue.
 		state.generation += 1;
 		state.pendingEvents.length = 0;
 		if (state.flushTimer) {
@@ -653,7 +653,7 @@ export class FsWatcherManager {
 			}
 			await this.attachNativeSubscription(state);
 			if (!(await this.verifyStreamLiveness(state))) {
-				// Deaf stream — detach and retry on the next poll tick.
+				// Deaf stream - detach and retry on the next poll tick.
 				const deafSubscription = state.subscription;
 				state.subscription = null;
 				await unsubscribeQuietly(deafSubscription);
@@ -682,7 +682,7 @@ export class FsWatcherManager {
 		state.filePaths.clear();
 		state.directoryPaths.clear();
 		invalidateSearchIndexesForRoot(state.absolutePath);
-		console.error("[workspace-fs/watch] watch root recreated — resumed:", {
+		console.error("[workspace-fs/watch] watch root recreated - resumed:", {
 			absolutePath: state.absolutePath,
 		});
 		this.emit(state, {
@@ -818,7 +818,7 @@ export class FsWatcherManager {
 		const accepted = state.throttler.work(batch.events);
 		if (!accepted) {
 			console.warn(
-				"[workspace-fs/watch] throttler buffer full — dropping events",
+				"[workspace-fs/watch] throttler buffer full - dropping events",
 				{
 					absolutePath: state.absolutePath,
 					droppedBatchSize: batch.events.length,

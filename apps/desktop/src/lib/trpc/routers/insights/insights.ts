@@ -1,7 +1,7 @@
 /**
  * What lands on you and what you do with it.
  *
- * Everything here is arithmetic over rows Odin already keeps — no model call,
+ * Everything here is arithmetic over rows Odin already keeps - no model call,
  * no network. Two stores answer different halves: `slack_reactions` has the
  * long history (every ask seen, whether it was picked up), while `work_log`
  * spans all four feeds but only since it landed. Neither is asked a question
@@ -18,7 +18,7 @@ export interface AskRow {
 	channelName?: string | null;
 }
 
-/** An area — a channel or a person — whose asks you mostly leave lying. */
+/** An area - a channel or a person - whose asks you mostly leave lying. */
 export interface Gap {
 	kind: "channel" | "person";
 	name: string;
@@ -46,7 +46,7 @@ export interface Insights {
 	waiting: number;
 	/**
 	 * Hours from an ask appearing to an agent being started on it. Median
-	 * rather than mean — one thread left overnight would otherwise swamp a
+	 * rather than mean - one thread left overnight would otherwise swamp a
 	 * week of same-minute pickups.
 	 */
 	medianPickupHours: number | null;
@@ -55,7 +55,7 @@ export interface Insights {
 	askers: { name: string; asks: number }[];
 	/** Delegations per feed, from the ledger. Empty until it fills. */
 	bySource: { source: string; count: number }[];
-	/** Ledger rows total — how much history the numbers above stand on. */
+	/** Ledger rows total - how much history the numbers above stand on. */
 	delegationsLogged: number;
 	/** Channels and people you pick up least, never-touched first. */
 	gaps: Gap[];

@@ -19,7 +19,7 @@ import {
  * executable for display only. Launch still uses the linked agent when present
  * and the preset's stored commands otherwise.
  *
- * Never resolve by `preset.name` — it's user-editable display text and would
+ * Never resolve by `preset.name` - it's user-editable display text and would
  * silently break for any label with spaces, casing differences, or edits.
  */
 export function resolveV2PresetIcon(

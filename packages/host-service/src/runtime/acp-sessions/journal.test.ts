@@ -126,7 +126,7 @@ describe("SessionJournal", () => {
 
 	test("page() reports exhaustion when no older matching frame remains", () => {
 		const journal = new SessionJournal(20);
-		journal.append("s", stateFrame()); // seq 1 — never matches
+		journal.append("s", stateFrame()); // seq 1 - never matches
 		journal.append("s", updateFrame("only")); // seq 2
 		const page = journal.page({
 			limit: 1,

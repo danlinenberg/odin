@@ -1,4 +1,4 @@
-/** Which Notion comment threads are waiting on me — pure, so it's testable. */
+/** Which Notion comment threads are waiting on me - pure, so it's testable. */
 
 export interface NotionComment {
 	id: string;
@@ -42,7 +42,7 @@ export const isAssignment = (propertyName: string) =>
 	/assign|owner|responsible|\bdri\b|lead/i.test(propertyName);
 
 /**
- * A page is a task when it carries a status — a Status property, or a select
+ * A page is a task when it carries a status - a Status property, or a select
  * named Status. Meeting notes list me under Attendees but have none.
  */
 export function hasStatus(
@@ -64,7 +64,7 @@ const mentions = (comment: NotionComment, meId: string) =>
 	);
 
 /**
- * Threads where someone @-mentioned me and I haven't replied since — once my
+ * Threads where someone @-mentioned me and I haven't replied since - once my
  * reply is the newest comment, the thread is off my plate.
  */
 export function openMentionThreads(

@@ -1,7 +1,7 @@
 import { WebSocket as ReconnectingWebSocket } from "partysocket";
 
 export interface HostSocketOptions {
-	/** URL for this attempt, WITHOUT the auth token — the wrapper signs it. */
+	/** URL for this attempt, WITHOUT the auth token - the wrapper signs it. */
 	buildUrl: () => string | Promise<string>;
 	/** Fresh token per attempt. */
 	getToken: () => string | null | Promise<string | null>;
@@ -28,7 +28,7 @@ function signUrl(url: string, token: string | null): string {
 
 /**
  * Reconnecting WebSocket for the host service. partysocket evaluates the async
- * URL provider before EVERY attempt, so each dial carries a fresh token — the
+ * URL provider before EVERY attempt, so each dial carries a fresh token - the
  * class of bug where a reconnect loop reuses a URL signed with a rotated token
  * can't recur here.
  */

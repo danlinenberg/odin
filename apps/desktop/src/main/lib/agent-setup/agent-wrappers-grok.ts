@@ -33,7 +33,7 @@ const GROK_MANAGED_HOOK_EVENTS = [
 // Grok Notification subtypes where the agent is blocked waiting on the user:
 // tool and plan approvals both arrive as permission_prompt; ask_user_question
 // arrives as elicitation_dialog. notify-hook.template.sh filters on the same
-// list — a test asserts the two stay in sync.
+// list - a test asserts the two stay in sync.
 export const GROK_BLOCKING_NOTIFICATION_TYPES = [
 	"permission_prompt",
 	"elicitation_dialog",
@@ -60,7 +60,7 @@ export function getGrokConfigTomlPath(): string {
 
 /**
  * Grok merges every `*.json` under `~/.grok/hooks/`, so Odin owns this
- * file outright — no merge with user config needed.
+ * file outright - no merge with user config needed.
  */
 export function getGrokHooksJsonContent(): string {
 	const hooks = Object.fromEntries(
@@ -141,7 +141,7 @@ function stripOrphanedManagedBlock(base: string, start: number): string {
 
 /**
  * Preserve user config while replacing Odin's marker-owned compat block.
- * A vendor table the user already defines outside the block is skipped — TOML
+ * A vendor table the user already defines outside the block is skipped - TOML
  * rejects duplicate table headers, and the user's setting should win anyway.
  */
 export function getGrokConfigTomlContent(existing: string): string {

@@ -4,7 +4,7 @@ import { electronTrpc } from "renderer/lib/electron-trpc";
 
 /**
  * Experimental toggle for the wait-for-setup agent gate. Self-contained
- * (owns its query and mutation) so it can be moved or removed as a unit —
+ * (owns its query and mutation) so it can be moved or removed as a unit -
  * the launch-side gating lives in `buildSetupPaneLaunchRequest` (v1) and the
  * host `workspaces.create` chaining (v2).
  */

@@ -63,10 +63,10 @@ export class SessionJournal {
 	}
 
 	/**
-	 * Envelopes with seq > since, oldest first — the catch-up replay for a
+	 * Envelopes with seq > since, oldest first - the catch-up replay for a
 	 * subscriber resuming at cursor `since`. Returns null when the cursor is
 	 * not servable: part of the range was evicted, or the cursor is ahead of
-	 * everything journaled (a stale cursor from a prior session incarnation —
+	 * everything journaled (a stale cursor from a prior session incarnation -
 	 * serving [] would leave the client discarding every live envelope as a
 	 * duplicate). The client must resync from scratch in both cases.
 	 */

@@ -22,7 +22,7 @@ export interface AgentLifecycleEvent extends NotificationIds {
 
 /** An agent asking Odin to run `command` in its session's Shell pane. */
 export interface RunInShellRequest {
-	/** The agent's own pane — `$ODIN_PANE_ID` in its environment. */
+	/** The agent's own pane - `$ODIN_PANE_ID` in its environment. */
 	paneId: string;
 	command: string;
 }

@@ -1,11 +1,11 @@
 // End-to-end tests for the headless follow-up surface: writeFramedInputToSession
 // and snapshotSession. Drives a real pty-daemon Server (in-process), real
-// SQLite host DB, and real shells — same harness as terminal.adoption.node-test.
+// SQLite host DB, and real shells - same harness as terminal.adoption.node-test.
 //
 // Covers the behaviors the public terminals.send / terminals.read verbs rely on:
 //   - send delivers text + Enter into a live shell
 //   - multi-line text is framed as a bracketed paste when (and only when) the
-//     running program enabled paste mode — verified byte-for-byte via `cat > f`
+//     running program enabled paste mode - verified byte-for-byte via `cat > f`
 //   - snapshot returns the emulator's screen text (normal and alt buffer),
 //     respects maxLines, and never disturbs the session
 //   - both verbs adopt daemon-owned sessions after a host-service restart
@@ -255,7 +255,7 @@ describe("writeFramedInputToSession / snapshotSession", () => {
 		assert.ok(!("error" in sent));
 
 		// EOF for cat: the framed write ended in Enter, so input is at line
-		// start and a single ^D terminates it. Sent byte-exact — the framed
+		// start and a single ^D terminates it. Sent byte-exact - the framed
 		// path would paste-wrap the control char (send has text semantics).
 		const eof = writeInputToSession({
 			terminalId,
@@ -455,7 +455,7 @@ describe("writeFramedInputToSession / snapshotSession", () => {
 
 // The wire surface: same scenarios through appRouter.createCaller, so the
 // zod schemas, the `submit` default, and the TRPCError mapping are what's
-// actually exercised — the public MCP/SDK/CLI verbs hit exactly this layer.
+// actually exercised - the public MCP/SDK/CLI verbs hit exactly this layer.
 describe("terminal.send / terminal.snapshot tRPC procedures", () => {
 	const TEST_ORG_ID = "00000000-0000-4000-8000-000000000000";
 

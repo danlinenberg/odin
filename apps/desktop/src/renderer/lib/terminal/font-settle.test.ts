@@ -84,7 +84,7 @@ describe("waitForFontReady", () => {
 			resolved = true;
 		});
 
-		// Give the microtask queue a chance to drain — the promise must still be pending.
+		// Give the microtask queue a chance to drain - the promise must still be pending.
 		await new Promise((res) => setTimeout(res, 10));
 		expect(resolved).toBe(false);
 

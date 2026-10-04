@@ -48,7 +48,7 @@ function stripOrphanedManagedBlock(base: string, start: number): string {
 	const before = base.slice(0, start);
 	const lines = base.slice(start).split("\n");
 	const isTableHeader = (line: string) => /^\s*\[/.test(line);
-	// Default: nothing foreign follows the orphaned block — strip to end-of-file.
+	// Default: nothing foreign follows the orphaned block - strip to end-of-file.
 	let cut = lines.length;
 	for (let i = 1; i < lines.length; i++) {
 		if (!isTableHeader(lines[i])) continue;
@@ -77,7 +77,7 @@ function stripOrphanedManagedBlock(base: string, start: number): string {
 
 /**
  * Merge our managed block into an existing hooks.toml: strip any prior managed
- * block, then append the fresh one. Preserves user hooks and is idempotent —
+ * block, then append the fresh one. Preserves user hooks and is idempotent -
  * no TOML parser needed since we own the block content.
  */
 export function getVibeHooksTomlContent(existing: string): string {
@@ -111,7 +111,7 @@ export function createVibeHooksToml(): void {
 /**
  * Wrapper for `vibe`: enables experimental hooks (so hooks.toml loads) and
  * stamps ODIN_AGENT_ID so the notify payload carries identity. Modeled on
- * createOpenCodeWrapper (plain export + exec — no session-log watcher).
+ * createOpenCodeWrapper (plain export + exec - no session-log watcher).
  */
 export function getVibeWrapperScript(): string {
 	return buildWrapperScript(

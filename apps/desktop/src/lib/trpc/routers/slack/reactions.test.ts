@@ -183,7 +183,7 @@ describe("toTitle", () => {
 		expect(toTitle("Hi Dan.\ncan you look at BUGT-1?")).toBe(
 			"can you look at BUGT-1?",
 		);
-		// A mention followed by the ask is the ask — don't skip the line.
+		// A mention followed by the ask is the ask - don't skip the line.
 		expect(toTitle("@Dan Linenberg can you help? :pray:")).toBe(
 			"@Dan Linenberg can you help? :pray:",
 		);
@@ -198,7 +198,7 @@ describe("isGreeting", () => {
 		expect(isGreeting("Hey @Dan Linenberg 👀")).toBe(true);
 		expect(isGreeting("boker tov!")).toBe(true);
 		expect(isGreeting("Hi, the HDR merge is failing")).toBe(false);
-		expect(isGreeting("Morning — from Ladis, can you check?")).toBe(false);
+		expect(isGreeting("Morning - from Ladis, can you check?")).toBe(false);
 	});
 });
 
@@ -236,7 +236,7 @@ describe("reactionStatus", () => {
 
 	test("a launched session reads as in progress, and keeps reading that way", () => {
 		// startedAt persists, so this holds after the pane is gone and the app
-		// has restarted — the whole reason it isn't inferred from live panes.
+		// has restarted - the whole reason it isn't inferred from live panes.
 		expect(reactionStatus({ startedAt: 1, doneAt: null })).toBe("In progress");
 	});
 

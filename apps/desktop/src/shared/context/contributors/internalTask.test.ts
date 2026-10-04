@@ -37,9 +37,9 @@ describe("internalTaskContributor", () => {
 			makeCtx(async () => TASK),
 		);
 		expect(section?.id).toBe(`task:${TASK.id}`);
-		expect(section?.label).toBe(`Task ${TASK.id} — ${TASK.title}`);
+		expect(section?.label).toBe(`Task ${TASK.id} - ${TASK.title}`);
 		const text = (section?.content[0] as { type: "text"; text: string }).text;
-		expect(text).toContain(`# Task ${TASK.id} — ${TASK.title}`);
+		expect(text).toContain(`# Task ${TASK.id} - ${TASK.title}`);
 		if (TASK.description) expect(text).toContain(TASK.description);
 		expect(section?.meta).toEqual({ taskSlug: TASK.slug });
 	});
@@ -50,7 +50,7 @@ describe("internalTaskContributor", () => {
 			makeCtx(async () => ({ ...TASK, description: null })),
 		);
 		const text = (section?.content[0] as { type: "text"; text: string }).text;
-		expect(text).toBe(`# Task ${TASK.id} — ${TASK.title}`);
+		expect(text).toBe(`# Task ${TASK.id} - ${TASK.title}`);
 	});
 
 	test("returns null on 404", async () => {

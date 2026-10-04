@@ -9,7 +9,7 @@ import { z } from "zod";
  * Pins the @tanstack/db lifecycle semantics `hardenLocalCollection` relies on
  * (collections.ts): a localStorage collection only hydrates when sync starts,
  * and a mutation on a never-synced (`idle`) collection re-serializes the whole
- * storage key from empty memory — erasing every persisted row. `startSync:
+ * storage key from empty memory - erasing every persisted row. `startSync:
  * true` makes that state unrepresentable. If a library upgrade changes either
  * behavior, these tests flag that the hardening needs a fresh look.
  */
@@ -73,7 +73,7 @@ function makeCollection(
 }
 
 describe("localStorage collection lifecycle", () => {
-	it("startSync: true — insert on a fresh collection preserves existing rows", () => {
+	it("startSync: true - insert on a fresh collection preserves existing rows", () => {
 		const { store, api: storage } = makeMapStorage();
 		seedRow(storage, "test-live");
 
@@ -88,7 +88,7 @@ describe("localStorage collection lifecycle", () => {
 		expect(persisted).toContain('"id":"new"');
 	});
 
-	it("without startSync — the same insert wipes the store (the hazard being defended against)", () => {
+	it("without startSync - the same insert wipes the store (the hazard being defended against)", () => {
 		const { store, api: storage } = makeMapStorage();
 		seedRow(storage, "test-idle");
 

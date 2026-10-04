@@ -25,7 +25,7 @@ describe("runWithPostCheckoutHookTolerance", () => {
 		const timeoutError = new Error(
 			"Command failed: git -C /repo worktree add --no-track -b drew/believed-armadillo /worktrees/drew/believed-armadillo origin/staging\n" +
 				"Updating files: 100% (10925/10925), done.\n" +
-				"Fresh worktree detected — installing dependencies...",
+				"Fresh worktree detected - installing dependencies...",
 		);
 
 		await expect(

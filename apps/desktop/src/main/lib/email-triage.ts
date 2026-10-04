@@ -5,7 +5,7 @@ import { execWithShellEnv } from "lib/trpc/routers/workspaces/utils/shell-env";
 import { transcriptOf } from "./claude-sessions/claude-sessions";
 
 /**
- * Which unread emails are junk. A model reads sender, subject and preview —
+ * Which unread emails are junk. A model reads sender, subject and preview -
  * no sender list to maintain. Same `claude -p` haiku path as Next in line.
  */
 
@@ -17,7 +17,7 @@ export interface TriageEmail {
 	fromEmail: string | null;
 }
 
-/** An invite asks something of me — always a row, no model needed. */
+/** An invite asks something of me - always a row, no model needed. */
 export const isCalendarInvite = (subject: string) =>
 	/^(updated |new event: )?invitation:/i.test(subject.trim());
 
@@ -28,8 +28,8 @@ export const isCalendarReply = (subject: string) =>
 	);
 
 const INSTRUCTIONS = `You triage my unread email. Say which ones are worth my attention.
-Interesting: a person writing to me or asking something of me, anything I'd want to read or answer — including a meeting invite someone sent me.
-Junk: automated mail — alerts, notifications, receipts, product updates, newsletters, marketing, event platforms, "your X is ready".
+Interesting: a person writing to me or asking something of me, anything I'd want to read or answer - including a meeting invite someone sent me.
+Junk: automated mail - alerts, notifications, receipts, product updates, newsletters, marketing, event platforms, "your X is ready".
 Each line is: number | sender name <address> | subject | preview.
 Answer with ONLY a JSON object, no prose: {"interesting": [line numbers]}.`;
 
@@ -53,12 +53,12 @@ export function parseTriage(text: string, ids: string[]): Set<string> | null {
 	}
 }
 
-// ponytail: in-memory verdict per email id — each email is asked about once,
+// ponytail: in-memory verdict per email id - each email is asked about once,
 // so a poll with nothing new costs nothing. A restart re-asks about ≤20.
 const verdicts = new Map<string, boolean>();
 let inFlight: Promise<void> | null = null;
 
-/** Email id → junk? Missing ids are ones the model couldn't judge — show them. */
+/** Email id → junk? Missing ids are ones the model couldn't judge - show them. */
 export async function triageEmails(
 	emails: TriageEmail[],
 	{ timeoutMs = 90_000 }: { timeoutMs?: number } = {},

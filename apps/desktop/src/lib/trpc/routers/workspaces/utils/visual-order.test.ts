@@ -6,7 +6,7 @@ describe("computeVisualOrder", () => {
 		expect(computeVisualOrder([], [], [])).toEqual([]);
 	});
 
-	test("single project, no sections — all workspaces are ungrouped", () => {
+	test("single project, no sections - all workspaces are ungrouped", () => {
 		const projects = [{ id: "p1", tabOrder: 0 }];
 		const workspaces = [
 			{ id: "w1", projectId: "p1", sectionId: null, tabOrder: 1 },

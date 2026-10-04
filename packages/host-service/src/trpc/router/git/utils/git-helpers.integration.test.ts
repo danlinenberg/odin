@@ -14,7 +14,7 @@ import {
 /**
  * Integration tests that exercise the git-correctness fixes against real
  * on-disk repositories. Validates the exact scenarios the user-facing
- * fixes are meant to handle — stale local default branches, fork
+ * fixes are meant to handle - stale local default branches, fork
  * workflows with a distinct upstream remote, non-ASCII filenames, etc.
  */
 
@@ -117,7 +117,7 @@ describe("resolveBaseComparison (integration)", () => {
 		git = await initRepo(repo);
 		await commitFile(git, repo, "README.md", "hello", "initial");
 		// Simulate a remote so origin/HEAD can be set. We don't need an
-		// actual remote to fetch from — `symbolic-ref` on the remote HEAD
+		// actual remote to fetch from - `symbolic-ref` on the remote HEAD
 		// is all getDefaultBranchName reads.
 		await git.raw(["update-ref", "refs/remotes/origin/main", "HEAD"]);
 		await git.raw([
@@ -282,7 +282,7 @@ describe("getChangedFilesForDiff (integration)", () => {
 		const rename = files.find((f) => f.path === "new.ts");
 		expect(rename?.status).toBe("renamed");
 		expect(rename?.oldPath).toBe("old.ts");
-		// With 2 line edits we should see non-zero add/del — the bug
+		// With 2 line edits we should see non-zero add/del - the bug
 		// before this PR was that these came back as 0/0.
 		expect(rename?.additions).toBeGreaterThan(0);
 		expect(rename?.deletions).toBeGreaterThan(0);
@@ -312,7 +312,7 @@ describe("getChangedFilesForDiff (integration)", () => {
 		expect(ja?.status).toBe("added");
 		// Pre-fix: additions would be 0 because --name-status quoted the
 		// path as "\346\227\245\346\234\254\350\252\236.ts" while
-		// --numstat -z emitted it raw — the lookup never matched.
+		// --numstat -z emitted it raw - the lookup never matched.
 		expect(ja?.additions).toBe(2);
 	});
 
@@ -333,7 +333,7 @@ describe("getChangedFilesForDiff (integration)", () => {
 	});
 
 	test("3-dot diff excludes changes on base after divergence", async () => {
-		// base: A — B
+		// base: A - B
 		//        \
 		// branch: X
 		// Then advance base with commit C that branch doesn't know about.
@@ -352,7 +352,7 @@ describe("getChangedFilesForDiff (integration)", () => {
 
 		const files = await getChangedFilesForDiff(git, [`${baseSha}...HEAD`]);
 		const paths = files.map((f) => f.path).sort();
-		// Only our branch's file should show — C on main is excluded by 3-dot.
+		// Only our branch's file should show - C on main is excluded by 3-dot.
 		expect(paths).toEqual(["branch-only.ts"]);
 	});
 });

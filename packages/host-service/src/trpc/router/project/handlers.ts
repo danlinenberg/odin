@@ -38,9 +38,9 @@ export interface CreateResult {
 }
 
 /**
- * Create-project saga — fully local, the cloud is never involved:
+ * Create-project saga - fully local, the cloud is never involved:
  *
- *   1. Local file ops (handled by the caller — clone / mkdir / etc.)
+ *   1. Local file ops (handled by the caller - clone / mkdir / etc.)
  *   2. Local DB project row (host-minted UUID)
  *   3. Local main workspace (ensureMainWorkspaceStrict)
  *
@@ -115,8 +115,8 @@ export async function createFromClone(
 }
 
 /**
- * Resolve an existing repo, or — when `initIfNeeded` and the folder isn't a git
- * repo yet — `git init` it in place first. The init branch only runs after the
+ * Resolve an existing repo, or - when `initIfNeeded` and the folder isn't a git
+ * repo yet - `git init` it in place first. The init branch only runs after the
  * UI has confirmed intent with the user.
  */
 async function resolveOrInitLocalRepo(
@@ -146,7 +146,7 @@ export async function createFromImportLocal(
 
 /**
  * Empty mode: mkdir + git init + initial commit, then run the saga.
- * The project lives local-only — no GitHub remote until first push.
+ * The project lives local-only - no GitHub remote until first push.
  */
 export async function createFromEmpty(
 	ctx: HostServiceContext,
@@ -165,7 +165,7 @@ export async function createFromEmpty(
 
 /**
  * Template mode: clone the template repo, strip history, re-init, then
- * run the saga. Like empty, the project lives local-only — no GitHub
+ * run the saga. Like empty, the project lives local-only - no GitHub
  * remote until first push.
  */
 export async function createFromTemplate(

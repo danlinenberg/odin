@@ -14,7 +14,7 @@ import { seedProject, seedWorkspace } from "../helpers/seed";
  *
  * Wires a real `GitWatcher` into the runtime, lets the initial sweep settle,
  * then fires a single real `git commit` in one workspace. Asserts that ONLY
- * that workspace's sync runs — the other N-1 stay quiet. This is the
+ * that workspace's sync runs - the other N-1 stay quiet. This is the
  * post-fix steady state: idle workspaces do zero git work.
  *
  * The safety-net sweep's per-workspace cost (linearity + always-walks-N) is
@@ -135,7 +135,7 @@ async function waitFor(
 }
 
 /**
- * Wait until `getValue()` stops growing for `quietMs` consecutive ms — i.e.
+ * Wait until `getValue()` stops growing for `quietMs` consecutive ms - i.e.
  * the system has settled. We need this when the initial sweep + concurrent
  * GitWatcher debounce flushes are still trickling in: a fixed-time sleep
  * after `start()` might snapshot mid-flush, leaving leftover ops to count
@@ -170,7 +170,7 @@ describe("PullRequestRuntimeManager event-driven steady state", () => {
 	});
 
 	test("git:changed in one workspace triggers a single-workspace sync, not a full sweep", async () => {
-		// 3 worktrees is enough to prove "only the target's worktree got ops" —
+		// 3 worktrees is enough to prove "only the target's worktree got ops" -
 		// the other 2 must stay quiet. Larger N just multiplies setup cost.
 		const scenario = await createEventDrivenScenario(3);
 		scenarios.push(scenario);
@@ -179,7 +179,7 @@ describe("PullRequestRuntimeManager event-driven steady state", () => {
 		scenario.manager.start();
 
 		// Wait until the initial sweep AND any startup-related GitWatcher
-		// events have fully drained — otherwise we'd snapshot mid-flush and
+		// events have fully drained - otherwise we'd snapshot mid-flush and
 		// see leftover ops from another workspace counted as "event-driven".
 		await waitFor(() => scenario.gitOpLog.length > 0, { timeoutMs: 10_000 });
 		await waitUntilQuiet(() => scenario.gitOpLog.length, {

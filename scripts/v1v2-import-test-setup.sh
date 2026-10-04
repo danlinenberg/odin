@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Set up the manual test fixtures for the v1→v2 importer.
 #
-# Idempotent — safe to re-run. Pair with v1v2-import-test-cleanup.sh.
+# Idempotent - safe to re-run. Pair with v1v2-import-test-cleanup.sh.
 #
 # Targets:
 #   - Dev neon branch via .env DATABASE_URL (must be a non-prod branch)
@@ -10,7 +10,7 @@
 #   - ~/code/<repo>                       (on-disk fixture repos)
 #
 # v1 local DB project rows that already exist (odin, cal.com, onbook,
-# onlook, mastra, chatbot) are NOT recreated — we just bump their tab_order
+# onlook, mastra, chatbot) are NOT recreated - we just bump their tab_order
 # so they show up in the importer. New synthetic rows (v1v2-no-remote,
 # v1v2-ghost) are inserted with id prefix 22222222-bbbb-...
 
@@ -33,14 +33,14 @@ ONBOOK_FIXTURE_V2_ID=33333333-aaaa-4aaa-8aaa-000000000004
 # ---- 0. sanity checks --------------------------------------------------------
 
 if [ ! -f "$DEV_DATA_LOCAL_DB" ]; then
-  echo "✗ $DEV_DATA_LOCAL_DB missing — run the dev build at least once first."
+  echo "✗ $DEV_DATA_LOCAL_DB missing - run the dev build at least once first."
   exit 1
 fi
 
 PGURL=$(grep '^DATABASE_URL=' .env | sed 's/^DATABASE_URL=//;s/^"//;s/"$//')
 BRANCH_NAME=$(grep '^NEON_BRANCH_ID=' .env | sed 's/^NEON_BRANCH_ID=//;s/^"//;s/"$//')
 if [ -z "$BRANCH_NAME" ] || [ "$BRANCH_NAME" = "br-billowing-dream-af839yib" ]; then
-  echo "✗ refusing to seed — .env DATABASE_URL points at the prod neon branch."
+  echo "✗ refusing to seed - .env DATABASE_URL points at the prod neon branch."
   echo "  Spin up a dev branch and update .env first."
   exit 1
 fi
@@ -66,7 +66,7 @@ mkdir -p "$HOME/code/v1v2-no-remote"
 (
   cd "$HOME/code/v1v2-no-remote"
   git init -q -b main
-  echo "# v1v2-no-remote — local-only fixture" > README.md
+  echo "# v1v2-no-remote - local-only fixture" > README.md
   git -c user.email=test@odin.local -c user.name=Test add README.md
   git -c user.email=test@odin.local -c user.name=Test commit -q -m init
 )
@@ -104,7 +104,7 @@ INSERT INTO public.v2_projects (id, organization_id, name, slug, repo_clone_url)
 ON CONFLICT (id) DO NOTHING;
 SQL
 
-# ---- 3. cloud v2 fixtures (Odin Org — where active session usually is) --
+# ---- 3. cloud v2 fixtures (Odin Org - where active session usually is) --
 
 echo "→ seeding v2 projects in Odin Org"
 psql "$PGURL" >/dev/null <<SQL

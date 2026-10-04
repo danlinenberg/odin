@@ -15,7 +15,7 @@ interface AddRepositoryModalState {
 	active: ActiveModal;
 	/**
 	 * Opens the modal and resolves with the created project (or `null` if the
-	 * user closed it). Only one open call can be in flight at a time — calling
+	 * user closed it). Only one open call can be in flight at a time - calling
 	 * again while a previous open is pending resolves the prior promise to
 	 * `null` before opening fresh. The discriminated `active` state ensures only
 	 * one global add-project modal can be active at a time.

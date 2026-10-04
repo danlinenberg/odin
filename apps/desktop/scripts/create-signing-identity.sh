@@ -8,7 +8,7 @@
 # requirement identical across rebuilds, so the grants stick.
 #
 # Idempotent: re-running is a no-op once the identity exists. To start over,
-# `security delete-keychain odin-signing.keychain-db` and run this again — that
+# `security delete-keychain odin-signing.keychain-db` and run this again - that
 # resets the signature, so macOS will ask for permissions once more.
 set -euo pipefail
 
@@ -40,7 +40,7 @@ security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
 
 # Reuse the existing certificate if a previous run got as far as importing one
 # (the trust step below can be cancelled). Minting a second cert would change the
-# signature — the exact thing this script exists to keep stable.
+# signature - the exact thing this script exists to keep stable.
 if security find-certificate -c "$IDENTITY" "$KEYCHAIN" >/dev/null 2>&1; then
 	echo "Reusing the certificate from an earlier run."
 else
@@ -79,7 +79,7 @@ security find-certificate -c "$IDENTITY" -p "$KEYCHAIN" >"$tmp/cert.pem"
 # Trusting a certificate is the one step macOS wants a password for.
 if [[ -n "${CI:-}" ]]; then
 	# No one is there to type a password, and no GUI session owns the user trust
-	# settings — but sudo is passwordless on hosted runners, so trust it system-wide.
+	# settings - but sudo is passwordless on hosted runners, so trust it system-wide.
 	sudo security add-trusted-cert -d -r trustRoot -p codeSign \
 		-k /Library/Keychains/System.keychain "$tmp/cert.pem"
 else

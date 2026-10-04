@@ -56,7 +56,7 @@ export function FontFamilyCombobox({
 		return { nerdFonts: nerd, monoFonts: mono, otherFonts: other };
 	}, [fonts]);
 
-	// Terminal fonts must be monospace — arbitrary free-form names would let
+	// Terminal fonts must be monospace - arbitrary free-form names would let
 	// users pick proportional fonts (see issue #3513), so the custom-entry
 	// escape hatches below are gated off for the terminal variant.
 	const allowCustomEntry = variant !== "terminal";

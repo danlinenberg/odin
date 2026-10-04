@@ -18,10 +18,10 @@ export const DEFAULT_OFF_HOURS: OffHours = {
 	end: "07:00",
 	maxSessions: 8,
 	instructions:
-		"This is a Night Agent run: I'm asleep and will read the result in the morning. Get it as far as you can on your own — investigate, find the root cause, and make and verify the change on a branch with a PR open. Don't do anything other people would see before I've looked: no Slack or email messages, no Jira or PR comments, no merging, no deploys. Leave those in ACTION ITEMS.",
+		"This is a Night Agent run: I'm asleep and will read the result in the morning. Get it as far as you can on your own - investigate, find the root cause, and make and verify the change on a branch with a PR open. Don't do anything other people would see before I've looked: no Slack or email messages, no Jira or PR comments, no merging, no deploys. Leave those in ACTION ITEMS.",
 };
 
-/** Whether `now` falls in the window — `end` exclusive, wrapping midnight. */
+/** Whether `now` falls in the window - `end` exclusive, wrapping midnight. */
 export function inOffHours(now: Date, start: string, end: string): boolean {
 	const minutes = (hhmm: string) => {
 		const [h = 0, m = 0] = hhmm.split(":").map(Number);
@@ -48,7 +48,7 @@ export const useNextInLinePrompt = create<{
 	/** Night Agent: work through Next in line, one session at a time, overnight. */
 	offHours: OffHours;
 	setOffHours: (patch: Partial<OffHours>) => void;
-	/** Sessions started in the current window — reset once it closes. */
+	/** Sessions started in the current window - reset once it closes. */
 	offHoursStarted: number;
 	setOffHoursStarted: (count: number) => void;
 }>()(

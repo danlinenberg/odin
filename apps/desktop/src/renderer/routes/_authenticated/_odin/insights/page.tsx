@@ -9,7 +9,7 @@ export const Route = createFileRoute("/_authenticated/_odin/insights/")({
 });
 
 /**
- * Insights — what you got done, and what it cost you. Arithmetic over the
+ * Insights - what you got done, and what it cost you. Arithmetic over the
  * transcript store, not a model call: a summary you wait fifteen seconds for
  * is one you stop opening.
  */
@@ -22,15 +22,15 @@ const SOURCE_LABEL: Record<string, string> = {
 };
 
 /**
- * You vs agent, the page's two series. Not the status hues — green already
- * means "done" on every other page — and checked as a pair (dataviz
+ * You vs agent, the page's two series. Not the status hues - green already
+ * means "done" on every other page - and checked as a pair (dataviz
  * validate_palette, dark, on --card): both inside the dark lightness band,
  * colour-blind separation ΔE 27. Agent is the brand violet stepped down into
  * that band, so it still reads as Odin's.
  */
 const AGENT_COLOR = "#8b7cf6";
 const YOU_COLOR = "#d9773f";
-/** Plain rankings (repo, person, source) — not you vs agent, so neither hue. */
+/** Plain rankings (repo, person, source) - not you vs agent, so neither hue. */
 const RANK_COLOR = "#6b8fb8";
 
 const DATE = new Intl.DateTimeFormat(undefined, {
@@ -198,7 +198,7 @@ function Empty({ children }: { children: React.ReactNode }) {
 /**
  * Weeks as paired columns: what the agents did against what it cost you.
  *
- * One scale for both series on purpose — the gap between the pair IS the
+ * One scale for both series on purpose - the gap between the pair IS the
  * reading, and rescaling each series separately would flatten it. Only weeks
  * the transcript store actually covers are drawn.
  */
@@ -226,7 +226,7 @@ function WeekChart({
 						    instead of floating at the top of an empty column. */}
 						<div className="flex h-[132px] w-full flex-col items-center justify-end">
 							<div className="mb-1 text-[11px] font-medium tabular-nums text-soft-foreground">
-								{week.agentHours > 0 ? duration(week.agentHours) : "—"}
+								{week.agentHours > 0 ? duration(week.agentHours) : "-"}
 							</div>
 							<div className="flex w-full items-end justify-center gap-[4px]">
 								<Column value={week.yourHours} max={max} color={YOU_COLOR} />
@@ -245,7 +245,7 @@ function WeekChart({
 
 /**
  * The productivity line: merged PRs per week. A finished week is its count;
- * a week still going — or the one the record starts in — is the pace of the
+ * a week still going - or the one the record starts in - is the pace of the
  * days it has had, so a half-finished week isn't read as a slump.
  *
  * The line is drawn in a stretched 0–100 SVG box; the dots and labels are
@@ -263,7 +263,7 @@ function ShippedChart({
 	since: number | null;
 }) {
 	// A week with none of your time has no rate; plotted as zero it read as a
-	// slump. "None" is what the page shows as "0 of yours" — a stray minute
+	// slump. "None" is what the page shows as "0 of yours" - a stray minute
 	// after midnight doesn't make a week.
 	const weeks = all.filter((week) => week.yourHours > 0);
 	if (weeks.length === 0) return <Empty>Nothing shipped yet.</Empty>;
@@ -349,7 +349,7 @@ function Column({
 }
 
 /**
- * A fixed 24-hour axis, not a list of data — starting at 06:00, so the day
+ * A fixed 24-hour axis, not a list of data - starting at 06:00, so the day
  * reads left to right and the small hours sit at the end of it.
  */
 const HOURS = Array.from({ length: 24 }, (_, index) => (index + 6) % 24);
@@ -379,7 +379,7 @@ function HourGrid({
 						{day}
 					</div>
 					{HOURS.map((hour) => {
-						// A row is a working day, 06:00 to 05:59 — workload.ts buckets
+						// A row is a working day, 06:00 to 05:59 - workload.ts buckets
 						// the small hours into the day before, so a row's 00–05 are
 						// the next calendar day's.
 						const calendarDay = hour < 6 ? (weekday + 1) % 7 : weekday;
@@ -390,7 +390,7 @@ function HourGrid({
 								key={hour}
 								className="h-[24px] rounded-[3px]"
 								style={cellStyle(value, max, color)}
-								title={`${WEEKDAYS[calendarDay]} ${label}:00 — ${describe(value)}`}
+								title={`${WEEKDAYS[calendarDay]} ${label}:00 - ${describe(value)}`}
 							/>
 						);
 					})}
@@ -447,7 +447,7 @@ const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const DAY_MS = 86_400_000;
 
 /**
- * Sunday 00:00 local. The same rule the main process buckets cells by — four
+ * Sunday 00:00 local. The same rule the main process buckets cells by - four
  * lines duplicated rather than imported, because that module reaches for
  * `node:fs` and can't come into the renderer.
  */
@@ -481,7 +481,7 @@ function shiftWeeks(start: number, count: number): number {
 
 /**
  * Shaded against the grid's own busiest cell, so the shape of a week reads
- * even when every hour is half-full — an absolute 60-minute scale squeezed a
+ * even when every hour is half-full - an absolute 60-minute scale squeezed a
  * typical week into two near-identical greens.
  */
 function cellStyle(
@@ -490,7 +490,7 @@ function cellStyle(
 	color: string,
 ): React.CSSProperties {
 	if (value <= 0) return { background: "var(--secondary)" };
-	// Four steps rather than a continuous ramp — quantised, a cell can actually
+	// Four steps rather than a continuous ramp - quantised, a cell can actually
 	// be matched against its neighbours. Wide spacing so the steps are visible.
 	const step = Math.min(4, Math.ceil((value / max) * 4));
 	return { background: color, opacity: [0.15, 0.4, 0.7, 1][step - 1] };
@@ -499,7 +499,7 @@ function cellStyle(
 /** Rows a week shows before "Show more". */
 const WEEK_ROWS = 20;
 
-/** Repos hidden across the page — a per-viewer preference, so localStorage. */
+/** Repos hidden across the page - a per-viewer preference, so localStorage. */
 const EXCLUDED_KEY = "odin.insights.excludedRepos";
 
 function readExcluded(): Set<string> {
@@ -513,7 +513,7 @@ function readExcluded(): Set<string> {
 
 /**
  * What a row's hours are: the session's own active time, summed from bursts
- * that can be days apart — never read as "one sitting".
+ * that can be days apart - never read as "one sitting".
  */
 function taskTime(task: {
 	startedAt: number;
@@ -555,7 +555,7 @@ type RecapWeek = {
  * Weeks step by the calendar rather than by the rows that came back, so a week
  * off renders as empty instead of being skipped past.
  */
-/** Every word must appear somewhere in the row — title, brief, repo or person. */
+/** Every word must appear somewhere in the row - title, brief, repo or person. */
 function matches(task: RecapWeek["tasks"][number], query: string): boolean {
 	const haystack = [task.title, task.description, task.repo, task.person]
 		.filter(Boolean)
@@ -715,7 +715,7 @@ function WeekView({
 
 type Clock = "you" | "agents";
 
-/** Whose hours the grids paint: yours, or any agent running — the off-hours. */
+/** Whose hours the grids paint: yours, or any agent running - the off-hours. */
 function ClockToggle({
 	clock,
 	setClock,
@@ -765,7 +765,7 @@ function Step({
 }
 
 const METHOD = [
-	"Your time: while a session's pane was open in a focused Odin with you active in the last 2 min, plus the gap before each prompt you typed (up to 5 min) — the only record before pane time was logged.",
+	"Your time: while a session's pane was open in a focused Odin with you active in the last 2 min, plus the gap before each prompt you typed (up to 5 min) - the only record before pane time was logged.",
 	"Agent work: each session's active time less yours, plus subagents; parallel agents counted each.",
 	"Before pane time was logged, your time is a floor, so the gain is a ceiling.",
 ].join("\n");
@@ -896,7 +896,7 @@ function RepoFilter({
 				<button
 					key={name}
 					type="button"
-					title="Hidden — click to show again"
+					title="Hidden - click to show again"
 					onClick={() => toggleExcluded(name)}
 					className="rounded-[6px] border border-dashed border-border px-2 py-[2px] text-[10.5px] text-faint-foreground line-through hover:text-muted-foreground"
 				>
@@ -1084,7 +1084,7 @@ function Queue() {
 	// A main process started before `gaps` existed won't send it.
 	const gaps = data.gaps ?? [];
 	const pickup =
-		data.medianPickupHours === null ? "—" : duration(data.medianPickupHours);
+		data.medianPickupHours === null ? "-" : duration(data.medianPickupHours);
 
 	return (
 		<div className="flex flex-col gap-5">
@@ -1108,7 +1108,7 @@ function Queue() {
 
 			<Section
 				title="Improvements"
-				note="channels and people whose asks you mostly leave — under half picked up or marked done"
+				note="channels and people whose asks you mostly leave - under half picked up or marked done"
 			>
 				{gaps.length === 0 ? (
 					<Empty>No channel or person you're leaving behind.</Empty>
@@ -1134,7 +1134,7 @@ function Queue() {
 									</div>
 									<div className="text-muted-foreground">
 										{gap.handled === 0
-											? `never picked up — 0 of ${gap.seen}`
+											? `never picked up - 0 of ${gap.seen}`
 											: `${gap.handled} of ${gap.seen} picked up`}
 										{gap.waiting > 0 && (
 											<span className="text-faint-foreground">
@@ -1250,7 +1250,7 @@ function InsightsPage() {
 			)}
 			{/* Capped, not full-bleed: on a wide window every row stretched to
 			    2000px and nothing lined up close enough to compare. */}
-			{/* One spinner until every section has data — half a page popping in
+			{/* One spinner until every section has data - half a page popping in
 			    under a skeleton read as broken. */}
 			<div className="group mx-auto w-full max-w-[1120px]">
 				<div className="hidden h-[60vh] items-center justify-center gap-2 text-[12px] text-faint-foreground group-has-[[aria-busy=true]]:flex">

@@ -5,7 +5,7 @@ import { devtools, persist } from "zustand/middleware";
  * EXPERIMENT: inline workspace ports vs. bottom ports panel.
  *
  * This flag exists only to A/B the two port layouts. It is the single source of
- * truth for the experiment — read it everywhere via {@link useInlineWorkspacePortsEnabled}.
+ * truth for the experiment - read it everywhere via {@link useInlineWorkspacePortsEnabled}.
  *
  * To conclude the experiment, pick the winning layout and remove the other:
  *   1. This store + `useInlineWorkspacePortsEnabled`.

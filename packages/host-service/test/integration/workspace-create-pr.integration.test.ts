@@ -364,7 +364,7 @@ describe("workspaces.create PR checkout integration", () => {
 			pr: prNumber,
 		});
 
-		// Cloud create failing no longer rolls anything back — the local row
+		// Cloud create failing no longer rolls anything back - the local row
 		// is authoritative and stays cloud-dirty for the reconciler.
 		expect(result.workspace.id).toBeDefined();
 		const persisted = getWorkspaceRow(scenario, expectedBranch);
@@ -743,7 +743,7 @@ describe("workspaces.create PR checkout integration", () => {
 		expect(
 			(await simpleGit(row.worktreePath).raw(["rev-parse", "HEAD"])).trim(),
 		).toBe(prHeadOid);
-		// Exactly one local row — the second create reused it, no duplicate.
+		// Exactly one local row - the second create reused it, no duplicate.
 		expect(
 			scenario.host.db
 				.select()

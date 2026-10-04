@@ -10,7 +10,7 @@ import { usePendingFocus } from "../hooks/usePendingFocus";
 import type { AllItem } from "./all-items";
 
 /**
- * Start a session on an All row, from wherever the row is shown — the All
+ * Start a session on an All row, from wherever the row is shown - the All
  * feed, or the board's Next in line. `onSlackStarted` refetches whatever
  * list the Slack row should now leave.
  */
@@ -20,7 +20,7 @@ export function useStartAllItem(onSlackStarted?: () => void) {
 	const { launch, isLaunching, launchingKey } = useLaunchTaskSession();
 	const { setPane } = useMyTasks();
 	const panes = useTabsStore((s) => s.panes);
-	// Starting a Slack row is what takes it out of the queue — the same call
+	// Starting a Slack row is what takes it out of the queue - the same call
 	// the Slack feed makes, so a message started here doesn't come back.
 	const markStarted = electronTrpc.slack.markStarted.useMutation({
 		onSuccess: () => onSlackStarted?.(),
@@ -28,7 +28,7 @@ export function useStartAllItem(onSlackStarted?: () => void) {
 
 	/**
 	 * The pane already working this row, if there is one. Panes carry the page
-	 * id for Slack/Notion and the launch title for everything else — matching
+	 * id for Slack/Notion and the launch title for everything else - matching
 	 * both is what keeps Start session from opening a second agent on a ticket
 	 * that already has one. The brief too: it's written once at launch, while
 	 * the title gets auto-retitled and a session started from the Notion mirror
@@ -46,7 +46,7 @@ export function useStartAllItem(onSlackStarted?: () => void) {
 
 	/**
 	 * `offHours` is the overnight runner's launch: tagged, told nobody is
-	 * watching, handed the night's instructions — and it stays where you are
+	 * watching, handed the night's instructions - and it stays where you are
 	 * instead of pulling the board into view.
 	 */
 	const start = async (item: AllItem, offHours?: { instructions: string }) => {

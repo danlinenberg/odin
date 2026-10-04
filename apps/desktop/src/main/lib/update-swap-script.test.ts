@@ -35,7 +35,7 @@ describe("swapScript", () => {
 
 /**
  * The wait loop gates an `mv` of the installed bundle, so it has to see the UI
- * and not see the daemon — which runs the same binary from the same bundle.
+ * and not see the daemon - which runs the same binary from the same bundle.
  * `ps` is stubbed with a shell function so the real process table stays out of
  * it; the stub also carries a grep whose own argv holds the bundle path, the
  * self-match that `grep -vw grep` fails to filter under ugrep.

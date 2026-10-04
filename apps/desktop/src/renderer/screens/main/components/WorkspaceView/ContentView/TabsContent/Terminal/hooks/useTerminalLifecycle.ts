@@ -238,7 +238,7 @@ export function useTerminalLifecycle({
 
 		// Use the v1 terminal cache: reuse existing xterm instance across tab
 		// switches instead of creating/disposing each time (v2 "hide attach" pattern).
-		// Only treat as reattach when the prior mount actually completed attach —
+		// Only treat as reattach when the prior mount actually completed attach -
 		// a cache entry can exist with streamReady=false if the previous mount
 		// unmounted before createOrAttach finished (e.g. bulk tab creation where
 		// React remounts a pane mid-attach). Taking the reattach fast path in
@@ -363,7 +363,7 @@ export function useTerminalLifecycle({
 				isStreamReadyRef.current = false;
 				wasKilledByUserRef.current = false;
 				setExitStatus(null);
-				// A fresh process — drop the red "died" mark from the last one.
+				// A fresh process - drop the red "died" mark from the last one.
 				if (useTabsStore.getState().panes[paneId]?.status === "failed") {
 					useTabsStore.getState().setPaneStatus(paneId, "idle");
 				}
@@ -473,7 +473,7 @@ export function useTerminalLifecycle({
 					return;
 				}
 				// For workspace-run panes, don't restart until the run command
-				// has been resolved via tRPC query — otherwise we'd start a
+				// has been resolved via tRPC query - otherwise we'd start a
 				// plain interactive shell instead of the configured command.
 				if (isWorkspaceRunPane && !defaultRestartCommandRef.current) {
 					return;
@@ -542,7 +542,7 @@ export function useTerminalLifecycle({
 		let cancelInitialAttach: (() => void) | null = null;
 
 		if (isReattach) {
-			// Stream is ready — the cache has been writing data to xterm.
+			// Stream is ready - the cache has been writing data to xterm.
 			// Resize is handled by attachToContainer's ResizeObserver above.
 			isStreamReadyRef.current = true;
 		} else {
@@ -821,15 +821,15 @@ export function useTerminalLifecycle({
 			unregisterPasteCallbackRef.current(paneId);
 
 			if (paneDestroyed) {
-				// Pane was explicitly destroyed — full cleanup.
+				// Pane was explicitly destroyed - full cleanup.
 				killTerminalForPane(paneId);
 				coldRestoreState.delete(paneId);
 				pendingDetaches.delete(paneId);
 				v1TerminalCache.dispose(paneId);
 			} else {
-				// Pane hidden (tab switch) — detach wrapper from DOM but keep
+				// Pane hidden (tab switch) - detach wrapper from DOM but keep
 				// xterm AND stream subscription alive in the cache.
-				// No backend detach — the session stays connected so data
+				// No backend detach - the session stays connected so data
 				// continues flowing to xterm while hidden.
 				v1TerminalCache.detachFromContainer(paneId);
 			}
@@ -838,7 +838,7 @@ export function useTerminalLifecycle({
 			resetModes();
 			renderDisposable?.dispose();
 
-			// Do NOT dispose xterm or reset stream state — the cache owns
+			// Do NOT dispose xterm or reset stream state - the cache owns
 			// both the xterm lifecycle and the stream subscription.
 
 			xtermRef.current = null;

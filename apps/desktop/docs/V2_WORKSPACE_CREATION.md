@@ -1,4 +1,4 @@
-# V2 Workspace Creation — Design
+# V2 Workspace Creation - Design
 
 Umbrella design for the v2 "new workspace" flow: branch discovery, the three creation intents (fork / checkout / adopt), the pending-page dispatch, and the delete counterpart that ships in a follow-up PR. Cross-cutting patterns for git-ref handling live in `packages/host-service/GIT_REFS.md`.
 
@@ -14,7 +14,7 @@ Not in scope here: v1 (`NewWorkspaceModal`, deliberately diverged), chat session
 
 ## Data shape
 
-One procedure — `workspaceCreation.searchBranches` — returns everything the picker needs per row:
+One procedure - `workspaceCreation.searchBranches` - returns everything the picker needs per row:
 
 ```ts
 input: {
@@ -44,28 +44,28 @@ type BranchRow = {
 };
 ```
 
-One procedure with rich metadata rather than two (branches + worktrees) because worktrees aren't a separate searchable surface — they're a filter + decoration on the same branch list. Single source of truth, one invalidation trigger, no flicker from two queries arriving out of order.
+One procedure with rich metadata rather than two (branches + worktrees) because worktrees aren't a separate searchable surface - they're a filter + decoration on the same branch list. Single source of truth, one invalidation trigger, no flicker from two queries arriving out of order.
 
 ## Server flow
 
 Executed on every `searchBranches` call:
 
 1. If `refresh` is set and the 30s per-project TTL has elapsed, `git fetch --prune --quiet --no-tags`. The TTL prevents keystroke-level thrash.
-2. `git for-each-ref --sort=-committerdate refs/heads/ refs/remotes/origin/` — one call, both namespaces, ~20ms on 10k refs.
+2. `git for-each-ref --sort=-committerdate refs/heads/ refs/remotes/origin/` - one call, both namespaces, ~20ms on 10k refs.
 3. `git worktree list --porcelain` → two maps: `worktreeMap` (Odin-managed only, under `.worktrees/<branch>/`) and `checkedOutBranches` (every worktree incl. primary).
 4. `git log -g --pretty=%gs --grep-reflog=checkout: -n 500` → reflog recency ordinals per branch.
-5. Parse refs using the **full** refname prefix (`refs/heads/` vs `refs/remotes/origin/`) — a structural namespace that can't appear inside a branch name. Short-name prefixes like `origin/` are unsafe because a local branch can legitimately be named `origin/foo`. See `GIT_REFS.md`.
+5. Parse refs using the **full** refname prefix (`refs/heads/` vs `refs/remotes/origin/`) - a structural namespace that can't appear inside a branch name. Short-name prefixes like `origin/` are unsafe because a local branch can legitimately be named `origin/foo`. See `GIT_REFS.md`.
 6. Collapse local+remote pairs by name; attach worktree + recency + hasWorkspace flags.
 7. Apply `filter`: `branch` excludes worktree'd rows (`!worktreeMap.has(name)`), `worktree` includes only them.
 8. Apply `query` substring (case-insensitive).
 9. Sort: default branch first, then reflog-recent ascending, then everything else by `committerdate` desc.
 10. Slice `[offset, offset + limit)`; return `nextCursor` if more.
 
-Cursor is opaque — currently `base64(JSON.stringify({ offset }))`. We don't cache between calls because `for-each-ref` is cheap enough; if profiling ever shows it, memoize per `(projectId, query, generation)`.
+Cursor is opaque - currently `base64(JSON.stringify({ offset }))`. We don't cache between calls because `for-each-ref` is cheap enough; if profiling ever shows it, memoize per `(projectId, query, generation)`.
 
 ## Client flow
 
-`useBranchContext` wraps `useInfiniteQuery` keyed by `(projectId, hostUrl, query, filter)`. First page (`pageParam === undefined`) sends `refresh: true`; subsequent pages don't. Types (`BranchFilter`, `BranchRow`) are derived from the server schema via `inferRouterInputs<AppRouter>` / `inferRouterOutputs<AppRouter>` — single source of truth, no duplicate enums.
+`useBranchContext` wraps `useInfiniteQuery` keyed by `(projectId, hostUrl, query, filter)`. First page (`pageParam === undefined`) sends `refresh: true`; subsequent pages don't. Types (`BranchFilter`, `BranchRow`) are derived from the server schema via `inferRouterInputs<AppRouter>` / `inferRouterOutputs<AppRouter>` - single source of truth, no duplicate enums.
 
 The picker is a popover with:
 - Search input (server-side, substring).
@@ -82,10 +82,10 @@ The picker dispatches one of four actions based on which tab and what the row's 
 | Tab      | Row state | Click row body | Hover-reveal action |
 |----------|-----------|----------------|---------------------|
 | Branch   | (no worktree) | Set as base branch → submit prompt → **Fork** | **Check out** (disabled if `isCheckedOut`) |
-| Worktree | Has cloud workspace row | Set as base branch → Fork from this worktree's branch | **Open** — navigate to existing workspace |
-| Worktree | Orphan (worktree on disk, no cloud row) | Set as base branch → Fork | **Create** — adopt the orphan |
+| Worktree | Has cloud workspace row | Set as base branch → Fork from this worktree's branch | **Open** - navigate to existing workspace |
+| Worktree | Orphan (worktree on disk, no cloud row) | Set as base branch → Fork | **Create** - adopt the orphan |
 
-**Why click ≠ action button.** Click preserves today's prompt-driven fork flow; the user types and submits. Action buttons commit immediately — one click, skip the prompt dance — when the user's intent is clear.
+**Why click ≠ action button.** Click preserves today's prompt-driven fork flow; the user types and submits. Action buttons commit immediately - one click, skip the prompt dance - when the user's intent is clear.
 
 **Why "Check out" instead of "Create" on Branch tab.** Both paths create a workspace; the distinguishing axis is branch-level: Check out reuses the existing branch; Fork forks a new one from it. The labels signal the right distinction.
 
@@ -127,7 +127,7 @@ Previously only fork went through this; checkout and adopt were fire-and-forget 
 }
 ```
 
-`hostTarget`, `linkedIssues`, `linkedPR` are structured zod shapes (discriminatedUnion, typed objects) — not `z.unknown()`. Malformed rows fail zod parse at the collection boundary instead of crashing a downstream consumer.
+`hostTarget`, `linkedIssues`, `linkedPR` are structured zod shapes (discriminatedUnion, typed objects) - not `z.unknown()`. Malformed rows fail zod parse at the collection boundary instead of crashing a downstream consumer.
 
 ## Pending page dispatch
 
@@ -141,17 +141,17 @@ switch (pending.intent) {
 }
 ```
 
-Payload builders live in `buildIntentPayload.ts` — pure functions, no React, no IO. Contract-tested in `buildIntentPayload.test.ts` (11 cases covering every input shape + edge cases: empty prompts, orphan hostTarget kinds, linkedIssue filtering).
+Payload builders live in `buildIntentPayload.ts` - pure functions, no React, no IO. Contract-tested in `buildIntentPayload.test.ts` (11 cases covering every input shape + edge cases: empty prompts, orphan hostTarget kinds, linkedIssue filtering).
 
 Guards on the page:
 - **`firedRef`** ensures the mutation fires once per pending page. Resets when `pendingId` changes under a mounted component (user navigates from one pending page to another).
-- **`workspaceSynced`** is a live-query against `v2Workspaces` — the page waits for the newly-created cloud row to arrive via Electric before navigating to `/v2-workspace/<id>`, with a 3s timeout fallback. Fast intents (adopt) would otherwise beat sync and land on "workspace not found."
+- **`workspaceSynced`** is a live-query against `v2Workspaces` - the page waits for the newly-created cloud row to arrive via Electric before navigating to `/v2-workspace/<id>`, with a 3s timeout fallback. Fast intents (adopt) would otherwise beat sync and land on "workspace not found."
 - **`navigatedRef`** prevents double-navigation; also reset on `pendingId` change.
 
 ## Intent-specific UI
 
 - **Fork / Checkout**: polls `workspaceCreation.getProgress` for step labels (`ensuring_repo` → `creating_worktree` → `registering`) at 500ms.
-- **Adopt**: server doesn't instrument progress (it's DB ops only, typically <100ms), so the page renders a generic spinner. The `workspaceSynced` gate adds enough wait for the cloud row to arrive — no "workspace not found" flash.
+- **Adopt**: server doesn't instrument progress (it's DB ops only, typically <100ms), so the page renders a generic spinner. The `workspaceSynced` gate adds enough wait for the cloud row to arrive - no "workspace not found" flash.
 
 ## The three mutations
 
@@ -159,9 +159,9 @@ The router entrypoint is `packages/host-service/src/trpc/router/workspace-creati
 
 **`create`** (fork from a base branch):
 1. Ensure local project (clone if missing).
-2. Resolve start point — either `buildStartPointFromHint(baseBranch, baseBranchSource)` when the picker supplied a hint, or `resolveStartPoint(git, baseBranch)` probing full refnames. Both return a `ResolvedRef`.
+2. Resolve start point - either `buildStartPointFromHint(baseBranch, baseBranchSource)` when the picker supplied a hint, or `resolveStartPoint(git, baseBranch)` probing full refnames. Both return a `ResolvedRef`.
 3. If remote-tracking, `git fetch origin <branch>` for freshness.
-4. `git worktree add --no-track -b <newBranch> <path> <startPoint>` — `--no-track` since the new branch is intentionally untethered.
+4. `git worktree add --no-track -b <newBranch> <path> <startPoint>` - `--no-track` since the new branch is intentionally untethered.
 5. `ensureV2Host` → cloud `v2Workspace.create` → rollback worktree on cloud failure.
 6. Insert local `workspaces` row.
 7. Optionally spawn setup terminal (`.odin/setup.sh`).
@@ -169,13 +169,13 @@ The router entrypoint is `packages/host-service/src/trpc/router/workspace-creati
 **`checkout`** (reuse an existing branch):
 1. Same project-ensure prelude.
 2. `resolveRef(git, branch)` → switch on `kind`. Tags rejected.
-3. For remote-tracking: `git fetch origin <branch>` then `git worktree add --track -b <branch> <path> origin/<branch>`. The `--track -b` is essential — bare `git worktree add <path> origin/<branch>` produces a detached HEAD.
+3. For remote-tracking: `git fetch origin <branch>` then `git worktree add --track -b <branch> <path> origin/<branch>`. The `--track -b` is essential - bare `git worktree add <path> origin/<branch>` produces a detached HEAD.
 4. Same cloud + local registration as `create`.
 
 **`adopt`** (register an existing worktree as a workspace):
 1. Project-ensure.
 2. `listWorktreeBranches` → find the existing `.worktrees/<branch>/` directory.
-3. `ensureV2Host` → cloud `v2Workspace.create`. Always creates a fresh cloud row — **no local-idempotency shortcut**: previously we returned the existing `workspaces.id` without calling cloud, which echoed a phantom id when the original cloud row had been hard-deleted.
+3. `ensureV2Host` → cloud `v2Workspace.create`. Always creates a fresh cloud row - **no local-idempotency shortcut**: previously we returned the existing `workspaces.id` without calling cloud, which echoed a phantom id when the original cloud row had been hard-deleted.
 4. Replace any stale local `workspaces` row for this (project, branch) with the new cloud id.
 5. No git ops, no setup script (worktree already exists).
 
@@ -197,7 +197,7 @@ picker row (isLocal: true)
 
 Server falls back to `resolveStartPoint` only when no hint is given (legacy pending rows, non-picker callers). Benefit: the server never has to re-resolve, so stale cached remote refs can't silently win and produce `git worktree add` failures like `fatal: invalid reference: origin/<branch>`.
 
-This is the "classify at the boundary, carry the tag" principle applied at the API layer. Same shape as `ResolvedRef` — but for the API contract instead of the ref type.
+This is the "classify at the boundary, carry the tag" principle applied at the API layer. Same shape as `ResolvedRef` - but for the API contract instead of the ref type.
 
 ## UX per row
 
@@ -217,7 +217,7 @@ On hover/focus (keyboard users get this via `group-focus-within`):
 
 # 4. Workspace delete (follow-up PR)
 
-**Not implemented here.** The creation flow left host-side state leaking on cloud delete — the picker handles this defensively today via the client-collection `hasWorkspace` check and Create-adopts-orphans. Full cleanup lives in a follow-up PR with the design below.
+**Not implemented here.** The creation flow left host-side state leaking on cloud delete - the picker handles this defensively today via the client-collection `hasWorkspace` check and Create-adopts-orphans. Full cleanup lives in a follow-up PR with the design below.
 
 ## Principle
 
@@ -240,7 +240,7 @@ workspaceCleanup.destroy: protectedProcedure
     //    capture stdout/stderr tail. On failure (and no `force`), throw TEARDOWN_FAILED
     //    typed so renderer can prompt "delete anyway" → re-call with force: true.
     // 3. `git worktree remove <path>` (add --force if input.force). Throws CONFLICT
-    //    if dirty without force — renderer prompts.
+    //    if dirty without force - renderer prompts.
     // 4. If deleteBranch: `git branch -d <branch>` (or -D with force).
     // 5. Cloud delete (`v2Workspace.delete`). Failures logged + warned; disk is
     //    already clean, cloud self-heals.
@@ -269,7 +269,7 @@ Fast path: one click for clean worktree, no branch delete. Confirm only on dirty
 ## What this replaces
 
 - Direct calls to `v2Workspace.delete.mutate` from the renderer. Cloud endpoint locks down to require a host-service service token after cutover.
-- The picker's "stale hasWorkspace" defensive fix stays — belt-and-suspenders against partial-failure modes.
+- The picker's "stale hasWorkspace" defensive fix stays - belt-and-suspenders against partial-failure modes.
 - Host-side `workspaces` table leak fixed by step 6.
 
 ## Open decisions for the delete PR
@@ -301,9 +301,9 @@ See `packages/host-service/GIT_REFS.md` for the pattern. Key rules:
 
 ## Tests
 
-- `packages/host-service/src/runtime/git/refs.test.ts` — 12 tests, contract suite for every input shape.
-- `packages/host-service/src/trpc/router/workspace-creation/utils/resolve-start-point.test.ts` — 11 tests, including regression for local-named-`origin/foo` branches.
-- `apps/desktop/src/renderer/routes/_authenticated/_dashboard/pending/$pendingId/buildIntentPayload.test.ts` — 11 tests, intent payload construction.
+- `packages/host-service/src/runtime/git/refs.test.ts` - 12 tests, contract suite for every input shape.
+- `packages/host-service/src/trpc/router/workspace-creation/utils/resolve-start-point.test.ts` - 11 tests, including regression for local-named-`origin/foo` branches.
+- `apps/desktop/src/renderer/routes/_authenticated/_dashboard/pending/$pendingId/buildIntentPayload.test.ts` - 11 tests, intent payload construction.
 
 ## Lint
 
@@ -313,7 +313,7 @@ See `packages/host-service/GIT_REFS.md` for the pattern. Key rules:
 ## Type guarantees
 
 - `ResolvedRef` kind → compiler enforces narrowing before accessing variant-only fields.
-- `BranchFilter`, `BranchRow`, `CreateWorkspaceInput`, `CheckoutWorkspaceInput`, `AdoptWorktreeInput` are all inferred from server schemas — renaming a field on either side fails compilation at every call site.
+- `BranchFilter`, `BranchRow`, `CreateWorkspaceInput`, `CheckoutWorkspaceInput`, `AdoptWorktreeInput` are all inferred from server schemas - renaming a field on either side fails compilation at every call site.
 - Pending row's `hostTarget` / `linkedIssues` / `linkedPR` are zod-typed, not `z.unknown()`. No `as` casts at read sites.
 
 ---
@@ -340,7 +340,7 @@ Background research that informed the start-point resolution + targeted-fetch ap
 
 ### VS Code (Copilot worktree creation)
 
-`chatSessionWorktreeServiceImpl.ts:79-92` — resolves the branch's **upstream tracking ref** via `getBranch()`:
+`chatSessionWorktreeServiceImpl.ts:79-92` - resolves the branch's **upstream tracking ref** via `getBranch()`:
 
 ```ts
 if (isAgentSessionsWorkspace && baseBranch) {
@@ -352,16 +352,16 @@ if (isAgentSessionsWorkspace && baseBranch) {
 // Then: git worktree add -b <newBranch> --no-track <path> <baseBranch>
 ```
 
-Properties: works with non-`origin` remotes via tracking config. No-op when tracking isn't configured (freshly cloned repos). No fetch before creation — relies on last background fetch. Always passes `--no-track`.
+Properties: works with non-`origin` remotes via tracking config. No-op when tracking isn't configured (freshly cloned repos). No fetch before creation - relies on last background fetch. Always passes `--no-track`.
 
 ### T3Code (worktree creation)
 
-`GitCore.ts:1896-1917` — passes `baseBranch` straight through `createWorktree`. The chain lives in `resolveBaseBranchForNoUpstream` (line 1068):
+`GitCore.ts:1896-1917` - passes `baseBranch` straight through `createWorktree`. The chain lives in `resolveBaseBranchForNoUpstream` (line 1068):
 
 ```
 1. git config: branch.<name>.gh-merge-base
 2. git symbolic-ref refs/remotes/<remote>/HEAD  (remote default branch)
-3. Candidates ["main", "master"] — check local refs/heads/ then remote refs/remotes/
+3. Candidates ["main", "master"] - check local refs/heads/ then remote refs/remotes/
 ```
 
 Has a **15-second cache-based upstream refresh** (`git fetch --quiet --no-tags`) for status checks, separate from worktree creation. Resolves primary remote dynamically (`origin` → first remote → error).
@@ -394,7 +394,7 @@ Freshness: background fetcher every ~1 hour (min 5 min). After each fetch, `git 
 
 ### Odin v1
 
-`workspace-init.ts:217-273` — `resolveLocalStartPoint`:
+`workspace-init.ts:217-273` - `resolveLocalStartPoint`:
 ```
 1. origin/<branch>        (git rev-parse --verify --quiet)
 2. <branch> locally
@@ -408,10 +408,10 @@ Fast: `rev-parse` is local I/O only (<5ms). No network calls.
 | | VS Code | T3Code | GitHub Desktop | Odin v1 | **Odin v2** |
 |--|---------|--------|----------------|-------------|-----------------|
 | **Strategy** | Upstream tracking lookup | Config → symbolic-ref → candidates | Symbolic-ref → config → "main" + local/remote search | `origin/<branch>` prefix → local → scan | **Local-first** + symbolic-ref default + `origin/<branch>` fallback → HEAD |
-| **Prefers remote ref?** | Yes (via upstream) | Yes (when only remote exists) | Prefers local that tracks remote | Yes (`origin/` first) | **No — local-first** (avoids stale remote refs) |
+| **Prefers remote ref?** | Yes (via upstream) | Yes (when only remote exists) | Prefers local that tracks remote | Yes (`origin/` first) | **No - local-first** (avoids stale remote refs) |
 | **Handles non-origin remotes?** | Yes | Yes | Yes | No | No (origin hardcoded today) |
 | **Default branch detection** | N/A | `symbolic-ref refs/remotes/<remote>/HEAD` | symbolic-ref + `init.defaultBranch` + `"main"` | Hardcoded `"main"` | `symbolic-ref refs/remotes/origin/HEAD` → `"main"` |
-| **Fetches before creation?** | No | No (15s cache for status) | No (background hourly) | No | **Yes — targeted single-ref fetch** when remote-tracking |
+| **Fetches before creation?** | No | No (15s cache for status) | No (background hourly) | No | **Yes - targeted single-ref fetch** when remote-tracking |
 | **`--no-track`?** | Yes always | No | Only for upstream default | No (`^{commit}` instead) | Yes always |
 | **Complexity** | Low | High (Effect services, caches) | Medium (enum + multi-layer) | Low | Low |
 
@@ -423,7 +423,7 @@ Fast: `rev-parse` is local I/O only (<5ms). No network calls.
 - **Over T3Code's `gh-merge-base` config + GitHub CLI calls**: too heavy for a request-driven hot path; T3Code can amortize via long-lived services, host-service can't.
 - **Over GitHub Desktop's pre-resolved state + background fetcher**: great for a long-running GUI app; host-service is request-driven and shouldn't carry that infrastructure.
 - **Over v1's common-branch scan**: unnecessary when `symbolic-ref` is authoritative for the actual default branch name. Scanning `master`/`develop`/`trunk` is a guess.
-- **Over remote-first** (which earlier versions of this PR used): a stale cached `refs/remotes/origin/<branch>` (one-off push, missed prune) silently won and produced `git worktree add` failures like `fatal: invalid reference: origin/<branch>`. Local-first matches user intent — the user picks branches from a list they see locally.
+- **Over remote-first** (which earlier versions of this PR used): a stale cached `refs/remotes/origin/<branch>` (one-off push, missed prune) silently won and produced `git worktree add` failures like `fatal: invalid reference: origin/<branch>`. Local-first matches user intent - the user picks branches from a list they see locally.
 
 ## Future: periodic background fetch
 
@@ -432,4 +432,4 @@ Host-service is long-running, so a T3Code/GitHub Desktop-style background fetch 
 - **Periodic fetch**: `git fetch --quiet --no-tags origin` every N minutes per repo (T3Code uses 15s for status, GitHub Desktop uses ~1hr).
 - **Cache with TTL**: track last-fetch time per repo, only fetch if stale.
 
-The picker's `refresh: true` on modal-open already does a TTL-gated full fetch (30s) — covers the most common freshness need. Move to background-fetch infrastructure only if branch listings start showing visibly stale state in practice.
+The picker's `refresh: true` on modal-open already does a TTL-gated full fetch (30s) - covers the most common freshness need. Move to background-fetch infrastructure only if branch listings start showing visibly stale state in practice.

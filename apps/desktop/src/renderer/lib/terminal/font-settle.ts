@@ -43,7 +43,7 @@ export async function waitForFontReady({
 			timeoutPromise,
 		]);
 	} catch {
-		// Swallow — caller still refits even if the load promise rejected,
+		// Swallow - caller still refits even if the load promise rejected,
 		// so a poisoned spec can't permanently block rendering recovery.
 	} finally {
 		if (timeoutId !== null) clearTimeout(timeoutId);

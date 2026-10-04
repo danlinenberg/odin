@@ -62,7 +62,7 @@ export const workspaceRouter = router({
 
 	/**
 	 * Rename / branch-repoint / task-link update: the host.db row commits
-	 * and broadcasts immediately. `branch` only re-points the record —
+	 * and broadcasts immediately. `branch` only re-points the record -
 	 * callers rename the git branch themselves.
 	 */
 	update: protectedProcedure
@@ -88,7 +88,7 @@ export const workspaceRouter = router({
 				throw new TRPCError({
 					code: "BAD_REQUEST",
 					message:
-						'The local workspace cannot be renamed — it always displays as "local".',
+						'The local workspace cannot be renamed - it always displays as "local".',
 				});
 			}
 			const patch: { name?: string; branch?: string; taskId?: string | null } =
@@ -148,7 +148,7 @@ export const workspaceRouter = router({
 			// Legacy external surface used by CLI/SDK/MCP. Preserve its
 			// non-interactive contract while reusing the v2 cleanup path:
 			// force covers the git semantics (no dirty-worktree prompt), but
-			// teardown still runs — a failure lands in `warnings` since there
+			// teardown still runs - a failure lands in `warnings` since there
 			// is nobody to prompt for a force-retry (#6174).
 			return destroyWorkspace(ctx, {
 				workspaceId: input.id,

@@ -33,12 +33,12 @@ const MACOS_APP_NAMES: Record<ExternalApp, string | null> = {
 };
 
 /**
- * Bundle ID candidates for apps with multiple installable variants — JetBrains
+ * Bundle ID candidates for apps with multiple installable variants - JetBrains
  * editions and Zed release channels. `open -b <bundleId>` works regardless of
  * the .app display name, so "IntelliJ IDEA Ultimate.app"/"IntelliJ IDEA CE.app"
  * and "Zed.app"/"Zed Preview.app" all resolve correctly. Candidates are tried in
  * order and the first installed one wins, so a user who has only a non-stable
- * variant still launches — `open -a Zed` fails outright for someone whose only
+ * variant still launches - `open -a Zed` fails outright for someone whose only
  * install is Zed Preview (its app is named "Zed Preview", not "Zed").
  */
 const BUNDLE_ID_CANDIDATES: Partial<Record<ExternalApp, string[]>> = {
@@ -98,10 +98,10 @@ const LINUX_CLI_CANDIDATES: Partial<Record<ExternalApp, string[]>> = {
  * IntelliJ-platform JetBrains IDEs. On macOS these must receive the target as
  * a launcher CLI argument (`open -n ... --args <path>`) rather than as an
  * "open document" Apple event (`open -a/-b <path>`); otherwise an already
- * running instance just reopens its last project — e.g. the base repo instead
+ * running instance just reopens its last project - e.g. the base repo instead
  * of the git worktree (#5090). The native launcher detects a running instance
  * and routes the open-project request to it, so `-n` doesn't spawn a duplicate
- * IDE. Fleet is excluded — it ships a different launcher with its own CLI.
+ * IDE. Fleet is excluded - it ships a different launcher with its own CLI.
  */
 const JETBRAINS_APPS = new Set<ExternalApp>([
 	"intellij",
@@ -120,7 +120,7 @@ const JETBRAINS_APPS = new Set<ExternalApp>([
 
 /**
  * Get candidate commands to open a path in the specified app.
- * Returns an array of commands to try in order — for multi-edition apps (IntelliJ, PyCharm),
+ * Returns an array of commands to try in order - for multi-edition apps (IntelliJ, PyCharm),
  * multiple candidates are returned so the caller can fall back if one isn't installed.
  *
  * macOS: Uses `open -b` (bundle ID) for multi-edition apps and `open -a` (app name) for others.
@@ -335,7 +335,7 @@ export class RelativePathWithoutCwdError extends Error {
  * Strips wrapping characters like quotes, parentheses, brackets, etc.
  *
  * Throws `RelativePathWithoutCwdError` if the input resolves to a relative
- * path and no `cwd` was supplied — callers must be explicit about what
+ * path and no `cwd` was supplied - callers must be explicit about what
  * relative paths are relative to. (A silent `process.cwd()` fallback would
  * point at Electron's working directory, not the workspace.)
  */

@@ -10,7 +10,7 @@ describe("stopStatus", () => {
 		expect(stopStatus("working", true)).toBe("idle");
 	});
 
-	test("answering a prompt already engaged you — no Done card for it", () => {
+	test("answering a prompt already engaged you - no Done card for it", () => {
 		expect(stopStatus("permission", false)).toBe("idle");
 	});
 });

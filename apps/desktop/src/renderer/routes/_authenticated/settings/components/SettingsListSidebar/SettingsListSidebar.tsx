@@ -13,9 +13,9 @@ interface SettingsListSidebarProps<T> {
 	searchAriaLabel?: string;
 	/** Hide the filter input when every group is empty (no rows at all). */
 	hideFilterWhenEmpty?: boolean;
-	/** Rendered to the right of the filter input — typically an icon-sized action. */
+	/** Rendered to the right of the filter input - typically an icon-sized action. */
 	toolbar?: ReactNode;
-	/** Rendered between the filter and the grouped list — typically a list-row-style "Add" trigger. */
+	/** Rendered between the filter and the grouped list - typically a list-row-style "Add" trigger. */
 	listHeader?: ReactNode;
 	groups: Array<SettingsListGroup<T>>;
 	filterRow: (row: T, query: string) => boolean;

@@ -213,14 +213,14 @@ describe("Session shell-ready: marker detection", () => {
 		const firstHalf = SHELL_READY_MARKER.slice(0, half);
 		const secondHalf = SHELL_READY_MARKER.slice(half);
 
-		// Send first half — shell should still be pending
+		// Send first half - shell should still be pending
 		sendData(proc, `output${firstHalf}`);
 
 		// Writes pass through even while pending
 		session.write("first\n");
 		expect(getWrittenData(proc)).toEqual(["first\n"]);
 
-		// Send second half — should complete the marker
+		// Send second half - should complete the marker
 		sendData(proc, `${secondHalf}prompt`);
 
 		// Post-marker writes still pass through
@@ -260,14 +260,14 @@ describe("Session shell-ready: marker detection", () => {
 		session.write("first\n");
 		expect(getWrittenData(proc)).toEqual(["first\n"]);
 
-		// Now send the real marker — no backlog to flush.
+		// Now send the real marker - no backlog to flush.
 		sendData(proc, SHELL_READY_MARKER);
 		expect(getWrittenData(proc)).toEqual(["first\n"]);
 	});
 
 	// Wrappers now emit both the legacy OSC 777 and the current OSC 133;A in
 	// a single printf so either daemon version can detect readiness without a
-	// restart. The scanner only matches 133;A — 777 passes through to the
+	// restart. The scanner only matches 133;A - 777 passes through to the
 	// emulator, which drops unknown OSC sequences silently. This test guards
 	// against a future wrapper regression that swaps the order (which would
 	// leave 133;A in the pre-777 slice and still work) or drops 133;A
@@ -295,7 +295,7 @@ describe("Session shell-ready: kill/exit before readiness", () => {
 		session.write("echo pending\n");
 		expect(getWrittenData(proc)).toEqual(["echo pending\n"]);
 
-		// Subprocess exits without ever sending the marker — no replay,
+		// Subprocess exits without ever sending the marker - no replay,
 		// no duplicate writes.
 		sendExit(proc, 1);
 		proc.emit("exit", 1);

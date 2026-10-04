@@ -65,7 +65,7 @@ function safeLoadLabels(worktreePath: string): Map<number, string> | null {
 
 /**
  * Read `<worktree>/.odin/ports.json` and return a `port → label` map.
- * Returns null if the file is missing or malformed — this endpoint is a
+ * Returns null if the file is missing or malformed - this endpoint is a
  * best-effort label hint, not a validator, so parse errors are silent.
  */
 function loadLabels(worktreePath: string): Map<number, string> | null {
@@ -85,7 +85,7 @@ function loadLabels(worktreePath: string): Map<number, string> | null {
 /**
  * Memoize label lookups per workspaceId. Called by host port snapshots and
  * add-event enrichment, so the workspace-root + fs reads would otherwise repeat
- * needlessly. `labels: null` with a resolved worktree means "no labels file" —
+ * needlessly. `labels: null` with a resolved worktree means "no labels file" -
  * that negative can stick until the file signature changes. A missing
  * worktreePath is not cached because workspace hydration can race first reads.
  */

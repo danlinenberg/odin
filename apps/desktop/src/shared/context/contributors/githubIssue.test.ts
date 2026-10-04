@@ -38,9 +38,9 @@ describe("githubIssueContributor", () => {
 			makeCtx(async () => ISSUE),
 		);
 		expect(section?.id).toBe(`issue:${ISSUE.number}`);
-		expect(section?.label).toBe(`Issue #${ISSUE.number} — ${ISSUE.title}`);
+		expect(section?.label).toBe(`Issue #${ISSUE.number} - ${ISSUE.title}`);
 		const text = (section?.content[0] as { type: "text"; text: string }).text;
-		expect(text).toContain(`# GitHub Issue #${ISSUE.number} — ${ISSUE.title}`);
+		expect(text).toContain(`# GitHub Issue #${ISSUE.number} - ${ISSUE.title}`);
 		expect(text).toContain(ISSUE.body);
 		expect(section?.meta).toEqual({ url: ISSUE.url, taskSlug: ISSUE.slug });
 	});
@@ -72,6 +72,6 @@ describe("githubIssueContributor", () => {
 			makeCtx(async () => ({ ...ISSUE, body: "" })),
 		);
 		const text = (section?.content[0] as { type: "text"; text: string }).text;
-		expect(text).toBe(`# GitHub Issue #${ISSUE.number} — ${ISSUE.title}`);
+		expect(text).toBe(`# GitHub Issue #${ISSUE.number} - ${ISSUE.title}`);
 	});
 });

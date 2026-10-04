@@ -144,7 +144,7 @@ function LayoutNodeView<TData>({
 	onSplitResizeDragging?: TabProps<TData>["onSplitResizeDragging"];
 	parentDirection?: "horizontal" | "vertical" | null;
 }) {
-	// A persisted layout can be malformed — a split node with a missing
+	// A persisted layout can be malformed - a split node with a missing
 	// child, or a corrupt node shape from an older schema. Render nothing
 	// rather than crashing the whole renderer on `node.type` of undefined.
 	if (!node || (node.type !== "pane" && node.type !== "split")) {

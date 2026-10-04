@@ -100,7 +100,7 @@ async function resolveWorkspaceUpstream(
 		}
 	}
 
-	// Fallback when `@{push}` isn't configured — mirrors gh's config chain.
+	// Fallback when `@{push}` isn't configured - mirrors gh's config chain.
 	// Require `branch.<n>.merge`; without it, `remote.pushDefault` alone would
 	// re-open the same-name collision hole on untracked branches.
 	const mergeRef = await tryConfig(git, `branch.${localBranch}.merge`);

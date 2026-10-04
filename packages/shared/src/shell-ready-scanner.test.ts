@@ -30,7 +30,7 @@ describe("shell-ready scanner (bytes)", () => {
 		expect(dec.decode(r.output)).toBe("\x1bX");
 	});
 
-	it("passes UTF-8 bytes through verbatim — even split mid-codepoint", () => {
+	it("passes UTF-8 bytes through verbatim - even split mid-codepoint", () => {
 		// The whole point of the byte scanner: no per-chunk utf-8 decoding,
 		// so a smiley split across chunks survives untouched.
 		const state = createScanState();

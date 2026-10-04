@@ -50,7 +50,7 @@ const DEFAULT_OUTBOUND_BUFFER_CAP_BYTES = 8 * 1024 * 1024;
 // Flow control: when a subscriber's socket buffers more than this, pause the
 // producing PTYs instead of letting the buffer grow toward the destroy cap.
 // The kernel PTY buffer then fills and the foreground process blocks on
-// write — the flood throttles itself at the source (VS Code ptyHost does the
+// write - the flood throttles itself at the source (VS Code ptyHost does the
 // same via pause/resume; our congestion signal is local writableLength
 // instead of renderer ACKs). Resume on socket 'drain'.
 const DEFAULT_OUTBOUND_PAUSE_THRESHOLD_BYTES = 1 * 1024 * 1024;
@@ -191,7 +191,7 @@ export class Server {
 		//   [0] ignore (stdin)
 		//   [1] inherited stderr/stdout fd (re-use ours so dev-mode log piping keeps working)
 		//   [2] inherited stderr fd
-		//   [3] 'ipc' — Node-managed control channel
+		//   [3] 'ipc' - Node-managed control channel
 		//   [4..N+3] PTY master fds, one per live session
 		const HANDOFF_STDIO_PTY_BASE = 4;
 		const stdio: Array<"ignore" | "inherit" | "ipc" | number> = [
@@ -230,7 +230,7 @@ export class Server {
 		// (or a dev rebuild), so spawning it again loads the new bytecode.
 		const scriptPath = process.argv[1];
 		if (!scriptPath) {
-			return { ok: false, reason: "process.argv[1] empty — can't self-spawn" };
+			return { ok: false, reason: "process.argv[1] empty - can't self-spawn" };
 		}
 
 		// Forward process.execArgv (--experimental-strip-types etc.) so the
@@ -239,7 +239,7 @@ export class Server {
 		process.stderr.write(
 			`[pty-daemon prep-upgrade pid=${process.pid}] spawning successor: ${process.execPath} ${[...process.execArgv, scriptPath].join(" ")} (sessions=${liveSessions.length}, ptyFds=${liveSessions.map((s) => s.pty.getMasterFd()).join(",")})\n`,
 		);
-		// Don't pass our own pinned version through to the successor — it
+		// Don't pass our own pinned version through to the successor - it
 		// would report it as its running version, and the supervisor would
 		// loop forever auto-updating. Successor reads its bundle's
 		// package.json instead.
@@ -299,7 +299,7 @@ export class Server {
 		// flushed the upgrade-prepared reply. Closing here would destroy
 		// the supervisor's connection before the reply lands. The
 		// successor is blocked on our IPC `disconnect` (process.exit closes
-		// the channel), so we want to exit promptly — but not so promptly
+		// the channel), so we want to exit promptly - but not so promptly
 		// that we beat the reply.
 		setImmediate(() => {
 			void this.finalizeHandoff();
@@ -327,7 +327,7 @@ export class Server {
 		if (killSessions) {
 			// Kill all owned PTYs so the daemon process can actually exit (open
 			// master fds keep the event loop alive). This is what the v1
-			// lessons call "synchronous teardown only" — no setTimeout, no
+			// lessons call "synchronous teardown only" - no setTimeout, no
 			// graceful drain.
 			//
 			// Phase 2 handoff exit sets killSessions=false: the master fds are
@@ -557,14 +557,14 @@ export class Server {
 				c.pausedSessions.delete(session.id);
 			}
 			// Delete the session immediately. Without this, every closed
-			// terminal pane left a row in the store forever — list-reply
+			// terminal pane left a row in the store forever - list-reply
 			// inflated, memory grew unbounded.
 			//
 			// Tradeoff: a late subscriber that connects after this point
 			// (e.g. host-service restarting *during* the shell exit window)
 			// gets ENOENT instead of the buffered output + exit event. The
 			// renderer's xterm.js already has whatever was rendered before
-			// disconnect — it just loses the "Process exited with code N"
+			// disconnect - it just loses the "Process exited with code N"
 			// footer for that narrow window.
 			this.store.delete(session.id);
 		});
@@ -572,7 +572,7 @@ export class Server {
 
 	private dropConn(conn: ConnState): void {
 		this.conns.delete(conn);
-		// A destroyed socket never drains — release its paused producers here.
+		// A destroyed socket never drains - release its paused producers here.
 		this.resumePausedSessions(conn);
 	}
 

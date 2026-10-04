@@ -168,7 +168,7 @@ export function getProjectConfigPath(repoPath: string): string {
 /**
  * Candidate user-override files, highest priority first: keyed by the
  * project's repo path mirrored under the projects dir (e.g.
- * `~/.odin/projects/Users/me/work/app/config.json` — discoverable
+ * `~/.odin/projects/Users/me/work/app/config.json` - discoverable
  * without looking up an ID), then by project id (legacy). The first
  * candidate that parses wins.
  */
@@ -193,10 +193,10 @@ function getLocalOverlayPath(repoPath: string): string {
  * Resolve setup/teardown/run config for a v2 project. Base merge, per key,
  * later wins:
  *
- *   1. <repoPath>/.odin/config.json      — canonical project config
- *   2. <worktreePath>/.odin/config.json  — workspace/branch override
+ *   1. <repoPath>/.odin/config.json      - canonical project config
+ *   2. <worktreePath>/.odin/config.json  - workspace/branch override
  *      (only when a worktree is in scope: setup at create, teardown at delete)
- *   3. ~/.odin/projects/<repoPath>/config.json — per-machine user
+ *   3. ~/.odin/projects/<repoPath>/config.json - per-machine user
  *      override (falls back to the legacy <project-id> key)
  *
  * Then a local overlay with before/after/replace semantics: the worktree's
@@ -261,10 +261,10 @@ export type ResolvedScript =
  * Resolve a lifecycle script (`setup` | `teardown` | `run`) for a project.
  * Every key gets the same posture:
  *
- *   1. Configured commands via {@link loadSetupConfig} — worktree config
+ *   1. Configured commands via {@link loadSetupConfig} - worktree config
  *      overrides the main repo's when `worktreePath` is in scope.
  *   2. Fallback: `.odin/<key>.sh`, worktree first (when in scope), then
- *      the main repo — gitignored scripts only exist in the main repo.
+ *      the main repo - gitignored scripts only exist in the main repo.
  *
  * Setup and teardown pass their worktree; `run` resolves per project, where
  * no single worktree exists, so it uses the main repo only.

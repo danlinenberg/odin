@@ -64,7 +64,7 @@ function safeLoadLabelsForWorktree(
  * server that flaps 5 ports cascades into 5 `getAll` calls × N workspaces of
  * sync SQLite reads on the main thread. Cache once; ports.json rarely changes.
  *
- * `labels: null` with a resolved worktree means "no labels file" — still
+ * `labels: null` with a resolved worktree means "no labels file" - still
  * cached so we don't re-check the filesystem every event. A missing worktree is
  * not cached because workspace hydration can race first reads.
  *

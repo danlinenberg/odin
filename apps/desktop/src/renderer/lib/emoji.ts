@@ -6,7 +6,7 @@ import shortcodes from "emojibase-data/en/shortcodes/iamcal.json";
  *
  * iamcal is the shortcode set Slack itself uses; GitHub's overlaps almost
  * entirely. ponytail: no second map for GitHub's handful of extras, and a
- * shortcode we don't know stays as typed — which is what Slack does too.
+ * shortcode we don't know stays as typed - which is what Slack does too.
  */
 const BY_SHORTCODE = new Map<string, string>(
 	Object.entries(shortcodes as Record<string, string | string[]>).flatMap(
@@ -15,7 +15,7 @@ const BY_SHORTCODE = new Map<string, string>(
 				.split("-")
 				.map((point) => String.fromCodePoint(Number.parseInt(point, 16)))
 				.join("");
-			// Legacy BMP symbols (☝, ☀, ❤) default to the thin text glyph — the
+			// Legacy BMP symbols (☝, ☀, ❤) default to the thin text glyph - the
 			// variation selector is what asks for the colour emoji. Sequences
 			// already carry theirs.
 			const shown =

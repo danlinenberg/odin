@@ -41,7 +41,7 @@ describe("bug-hunt-4: cross-project leakage", () => {
 		// Create a real worktree in repoB, then ask host to adopt it
 		// against projectIdA. The procedure pulls `localProject.repoPath`
 		// from projectIdA; passing repoB's worktree path is a confusion
-		// attack — would give projectIdA a worktree row that points at
+		// attack - would give projectIdA a worktree row that points at
 		// repoB's filesystem.
 		const worktreePathInB = join(repoB.repoPath, ".worktrees", "feature-x");
 		await repoB.git.raw([
@@ -61,7 +61,7 @@ describe("bug-hunt-4: cross-project leakage", () => {
 			})
 			.catch((err) => err);
 
-		// If this SUCCEEDED, host has bound projectIdA → repoB worktree —
+		// If this SUCCEEDED, host has bound projectIdA → repoB worktree -
 		// data leak. We expect it to fail (`getWorktreeBranchAtPath` runs
 		// against repoA's git so it won't find the worktree from repoB).
 		expect(result).toBeInstanceOf(Error);
@@ -124,7 +124,7 @@ describe("bug-hunt-4: double-call idempotency", () => {
 		});
 		expect(first.success).toBe(true);
 
-		// Second call: the local row is already gone — destroy is idempotent.
+		// Second call: the local row is already gone - destroy is idempotent.
 		const second = await host.trpc.workspaceCleanup.destroy.mutate({
 			workspaceId,
 		});

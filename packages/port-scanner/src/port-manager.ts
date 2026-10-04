@@ -38,7 +38,7 @@ const PORT_HINT_PATTERNS = [
  * Restricted to phrases that strongly imply a server just started listening;
  * looser patterns like a bare "port 22" or trailing ":12345" are omitted
  * because they match routine log output (ssh banners, timestamps, etc.) and
- * triggered excessive lsof scans — see issue #3372.
+ * triggered excessive lsof scans - see issue #3372.
  *
  * `Local:  http://localhost:5173/` and `development server at …` are added so
  * Vite, Next.js 14+, and Django get detected on first boot rather than waiting
@@ -99,7 +99,7 @@ function dedupePortInfosByPort(portInfos: PortInfo[]): PortInfo[] {
 
 interface SessionEntry {
 	workspaceId: string;
-	/** PTY process ID — null when the terminal isn't yet spawned (or has exited). */
+	/** PTY process ID - null when the terminal isn't yet spawned (or has exited). */
 	pid: number | null;
 	/** Last time this session produced PTY output or was registered with a new pid. */
 	lastActivityAt: number;
@@ -214,7 +214,7 @@ export class PortManager extends EventEmitter {
 
 	/**
 	 * Lazily allocate the AbortController. Guards against the case where a
-	 * pending `hintScanTimeout` fires after `stopPeriodicScan` nulled it out —
+	 * pending `hintScanTimeout` fires after `stopPeriodicScan` nulled it out -
 	 * without this, the follow-up scan would run with `signal = undefined` and
 	 * lsof children would become un-abortable.
 	 */
@@ -310,13 +310,13 @@ export class PortManager extends EventEmitter {
 		for (const { terminalId, pid } of dueSessions) {
 			const entry = this.sessions.get(terminalId);
 			// The session may have been replaced (new pid) or unregistered while
-			// the table read was in flight; its tree is stale — don't apply it.
+			// the table read was in flight; its tree is stale - don't apply it.
 			if (!entry || entry.pid !== pid) continue;
 			entry.lastScannedAt = now;
 
 			const pids = trees.get(pid) ?? [];
 			if (pids.length === 0) {
-				// Root pid absent from the process table — the session exited.
+				// Root pid absent from the process table - the session exited.
 				scanState.emptyTreeTerminals.add(terminalId);
 				continue;
 			}
@@ -546,7 +546,7 @@ export class PortManager extends EventEmitter {
 
 	/**
 	 * Kill the process listening on a tracked port.
-	 * Refuses to kill the terminal's own shell — that would close the terminal.
+	 * Refuses to kill the terminal's own shell - that would close the terminal.
 	 * A dev server is always a descendant (different PID), so `killFn` with the
 	 * port's owning PID correctly tears down the server without touching the shell.
 	 */
@@ -566,7 +566,7 @@ export class PortManager extends EventEmitter {
 		const detectedPort = this.ports.get(key);
 
 		if (!detectedPort) {
-			// The port is no longer tracked — nothing is listening on it, which is
+			// The port is no longer tracked - nothing is listening on it, which is
 			// exactly the outcome a kill aims for. Treat it as success rather than a
 			// failure. This is the common case when closing several ports at once
 			// (e.g. "Close all"): killing one tears down a shared process tree, and a

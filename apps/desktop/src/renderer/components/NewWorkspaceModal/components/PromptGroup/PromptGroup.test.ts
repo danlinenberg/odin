@@ -15,7 +15,7 @@ import { join } from "node:path";
 // wrapper and the dropdown can't scroll past the first ~8 items.
 //
 // Every other picker in this file and in the dashboard variant uses the same
-// `onWheel={(event) => event.stopPropagation()}` mitigation — see
+// `onWheel={(event) => event.stopPropagation()}` mitigation - see
 // CompareBaseBranchPickerInline below in the same file, and
 // routes/_authenticated/components/DashboardNewWorkspaceModal/.../ProjectPickerPill.tsx.
 describe("ProjectPickerPill (PromptGroup)", () => {

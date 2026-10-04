@@ -149,7 +149,7 @@ describe("translateLogicalChord", () => {
 		// US: Slash prints "/" → no change
 		expect(translateLogicalChord("ctrl+slash", usMap)).toBe("ctrl+slash");
 		// QWERTZ: Slash prints "-", but the binding wants the "/" character.
-		// On QWERTZ "/" is at Shift+7, not on a single key — so no scan code
+		// On QWERTZ "/" is at Shift+7, not on a single key - so no scan code
 		// has unshifted glyph "/", returns null (caller falls back).
 		expect(translateLogicalChord("ctrl+slash", qwertzMap)).toBeNull();
 	});
@@ -163,7 +163,7 @@ describe("translateLogicalChord", () => {
 	});
 
 	it("returns null when the produced character isn't on the keyboard", () => {
-		// Logical "meta+ñ" — no scan code in usMap has "ñ" as unshifted glyph
+		// Logical "meta+ñ" - no scan code in usMap has "ñ" as unshifted glyph
 		expect(translateLogicalChord("meta+ñ", usMap)).toBeNull();
 	});
 

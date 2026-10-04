@@ -111,7 +111,7 @@ export function resolveAuthMethodForProvider(
 	if (credential?.type === "api_key" && credential.key.trim().length > 0) {
 		return "api_key";
 	}
-	// Check the backup slot — API key may have been displaced by OAuth.
+	// Check the backup slot - API key may have been displaced by OAuth.
 	if (authStorage.hasStoredApiKey(providerId)) {
 		return "api_key";
 	}

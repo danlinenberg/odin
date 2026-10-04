@@ -23,7 +23,7 @@ export const HOST_PROJECTS_QUERY_KEY = [
 
 /**
  * Normalize a project.list row. Hosts running pre-local-first builds don't
- * serve `name`/`createdAt`/`updatedAt` — fall back the same way the new host
+ * serve `name`/`createdAt`/`updatedAt` - fall back the same way the new host
  * does (folder basename; both path separators).
  */
 export function normalizeHostProjectRow(

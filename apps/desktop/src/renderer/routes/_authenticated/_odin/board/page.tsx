@@ -130,22 +130,22 @@ import {
 
 /**
  * The same marks the feed tabs use, so a section header reads as its source at
- * a glance. Kept here rather than in shared/board-section — that module is
+ * a glance. Kept here rather than in shared/board-section - that module is
  * imported by the main process, which has no business loading React icons.
  */
 const SECTION_ICON: Record<BoardSection, IconType> = {
-	// Not a source — its turn ended in the last JUST_DONE_MS.
+	// Not a source - its turn ended in the last JUST_DONE_MS.
 	recent: LuCircleCheck,
-	// Not a source — a task that exists but hasn't started.
+	// Not a source - a task that exists but hasn't started.
 	queued: LuHourglass,
-	// Not a source — a session you put down on purpose.
+	// Not a source - a session you put down on purpose.
 	parked: LuPause,
 	slack: SiSlack,
 	reactions: SiSlack,
 	jira: SiJira,
 	pr: LuGitPullRequest,
 	notion: SiNotion,
-	// Not from a feed — a session you opened yourself.
+	// Not from a feed - a session you opened yourself.
 	normal: LuTerminal,
 };
 
@@ -154,20 +154,20 @@ export const Route = createFileRoute("/_authenticated/_odin/board/")({
 });
 
 /**
- * Dev Board — kanban over live agent state, styled per the agreed mock.
+ * Dev Board - kanban over live agent state, styled per the agreed mock.
  * Columns are the pane statuses the app already tracks; cards jump to the
  * pane; the input launches a new agent session into the selected workspace.
  */
 
 // ponytail: "permission" (blocked on a prompt) and "failed" are the same call
-// to action — one column. "review" is not: it finished and wants nothing.
+// to action - one column. "review" is not: it finished and wants nothing.
 const COLUMNS: { status: PaneStatus }[] = [
 	{ status: "working" },
 	{ status: "permission" },
-	// Turn ended clean, no prompt on screen — nothing to do but ✓ done it.
+	// Turn ended clean, no prompt on screen - nothing to do but ✓ done it.
 	{ status: "review" },
 	// Statuses reset to idle on app reload (upstream can't trust them), but the
-	// PTYs live on in the daemon — alive-but-idle sessions land here instead of
+	// PTYs live on in the daemon - alive-but-idle sessions land here instead of
 	// vanishing from the board.
 	{ status: "idle" },
 ];
@@ -177,7 +177,7 @@ interface BoardCard {
 	tabId: string;
 	tabName: string;
 	workspaceId: string;
-	/** The workspace's own checkout — where a card with no pane cwd runs. */
+	/** The workspace's own checkout - where a card with no pane cwd runs. */
 	repoPath: string;
 	status: PaneStatus;
 }
@@ -202,7 +202,7 @@ function visibleScreen(paneId: string): string {
 
 /**
  * Which checkout this session runs in. `cwd` is only filled in once the pane's
- * terminal mounts (seeded there, then confirmed by OSC-7) — until someone opens
+ * terminal mounts (seeded there, then confirmed by OSC-7) - until someone opens
  * the session, the repo picked at launch lives only in `initialCwd`.
  */
 function sessionCwd(pane: Pane): string | undefined {
@@ -211,13 +211,13 @@ function sessionCwd(pane: Pane): string | undefined {
 
 /**
  * The checkout a card runs in, in one word. Feed-launched sessions have no
- * repo of their own — they run in the workspace's checkout, so name that.
+ * repo of their own - they run in the workspace's checkout, so name that.
  */
 function repoLabel(card: BoardCard): string {
 	return (sessionCwd(card.pane) ?? card.repoPath).split("/").pop() || "repo";
 }
 
-/** The repo a card works on — a worktree session counts as its parent repo. */
+/** The repo a card works on - a worktree session counts as its parent repo. */
 function repoName(card: BoardCard): string {
 	return (
 		(sessionCwd(card.pane) ?? card.repoPath)
@@ -227,7 +227,7 @@ function repoName(card: BoardCard): string {
 	);
 }
 
-/** Same slug rule as useLaunchTaskSession — to locate a task's prompt file. */
+/** Same slug rule as useLaunchTaskSession - to locate a task's prompt file. */
 function slugify(title: string): string {
 	return (
 		title
@@ -246,20 +246,20 @@ function slugify(title: string): string {
  *
  * Two minutes rather than the twenty seconds this used to be: a healthy turn
  * goes quiet for as long as its longest single tool call, and measured against
- * real sessions that is over a minute — a test run, a subagent, a big search.
+ * real sessions that is over a minute - a test run, a subagent, a big search.
  * Every one of those gaps handed a mid-turn card to the scan below.
  */
 const SETTLED_MS = 120_000;
 /** How long after a (re)start Continue stays clickable on a live session. */
 const RECENT_RESTART_MS = 5 * 60_000;
 
-/** Width of the Odin icon rail in layout.tsx — the drawer stops here. */
+/** Width of the Odin icon rail in layout.tsx - the drawer stops here. */
 const RAIL_W = 52;
 
 /** Narrowest the drawer goes, in px. */
 const MIN_DRAWER_W = 480;
 
-// Built via string escapes — ANSI sequences are control chars by definition
+// Built via string escapes - ANSI sequences are control chars by definition
 const ANSI_RE =
 	// biome-ignore lint/suspicious/noControlCharactersInRegex: matching them is the point
 	/\x1b\[[0-9;?<>]*[a-zA-Z]|\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b[()][A-Z0-9]|\x1b[=>]|[\x00-\x08\x0b-\x1f]/g;
@@ -289,7 +289,7 @@ function HistoryView({ card, live }: { card: BoardCard; live: boolean }) {
 
 /** The persisted PTY output, for panes with no Claude conversation behind them. */
 function ScrollbackView({ card, live }: { card: BoardCard; live: boolean }) {
-	// Read the persisted scrollback from disk — always reliable, unlike the
+	// Read the persisted scrollback from disk - always reliable, unlike the
 	// embedded xterm which intermittently renders blank in this drawer. Poll
 	// while the session is live so the transcript stays current.
 	const { data, isLoading } = electronTrpc.terminal.readHistory.useQuery(
@@ -327,7 +327,7 @@ function ScrollbackView({ card, live }: { card: BoardCard; live: boolean }) {
 /** The conversation behind a card, for the pills that read it. */
 function useCardSessionId(card: BoardCard): string | null {
 	const mirrored = usePaneMeta((s) => s.sessionIdByPane[card.pane.id]);
-	// ponytail: no findClaudeSession fallback — that's an extra query per card to
+	// ponytail: no findClaudeSession fallback - that's an extra query per card to
 	// serve only pre-claudeSessionId panes. They get no pill; open the card.
 	return card.pane.claudeSessionId ?? mirrored ?? null;
 }
@@ -355,7 +355,7 @@ function withCode(
 
 /**
  * Catch up's card: what the issue was, what's yours to do, where it stands
- * and what we did, and the PRs, tickets and threads it's about — nothing else.
+ * and what we did, and the PRs, tickets and threads it's about - nothing else.
  * The conversation and the brief panel are one click away, not on screen:
  * catching up is deciding Next or Done, not reading.
  */
@@ -365,7 +365,7 @@ function CatchUpCard({
 	onShowSession,
 }: {
 	card: BoardCard;
-	/** The board's title for it — finds the transcript of a session with no id. */
+	/** The board's title for it - finds the transcript of a session with no id. */
 	title: string;
 	onShowSession: () => void;
 }) {
@@ -378,7 +378,7 @@ function CatchUpCard({
 		);
 	// The agent's own list, verbatim; the brief's one-liner when it left none.
 	const todo = transcript ? actionItems(transcript.messages) : [];
-	// "Merge imagen-public-mcp #2" opens #2 — the PRs and ticket the session quoted.
+	// "Merge imagen-public-mcp #2" opens #2 - the PRs and ticket the session quoted.
 	const quoted = transcript ? (transcript.links ?? transcript.messages) : [];
 	const prs = pullRequests(quoted);
 	const issue = jiraIssue(quoted);
@@ -412,7 +412,7 @@ function CatchUpCard({
 		<div className="flex min-h-0 flex-1 select-text cursor-text flex-col gap-6 overflow-y-auto px-8 py-7">
 			{/* What it's about first, at the size of the action items: you can't
 			    decide Next or Done on a session you don't recognise. Its label is
-			    grey: amber is the one label that means something — yours to do. */}
+			    grey: amber is the one label that means something - yours to do. */}
 			{written?.goal && (
 				<div>
 					<div className={cn(label, "text-muted-foreground")}>The issue</div>
@@ -437,7 +437,7 @@ function CatchUpCard({
 							? text(written.next)
 							: sessionId
 								? "reading the conversation…"
-								: "—"}
+								: "-"}
 					</div>
 				)}
 			</div>
@@ -483,7 +483,7 @@ function CatchUpCard({
 }
 
 /**
- * "This one shipped a PR" — the fact you scan the board for, on the card
+ * "This one shipped a PR" - the fact you scan the board for, on the card
  * instead of behind a click. Read from the same transcript the drawer reads, so
  * react-query shares one fetch per session. Newest PR only; the drawer lists
  * the rest.
@@ -504,7 +504,7 @@ function useCardTranscript(card: BoardCard, live: boolean) {
 }
 
 /**
- * The Review sweep said the thing this session is working is done or gone —
+ * The Review sweep said the thing this session is working is done or gone -
  * a merged PR, a closed ticket, a thread someone else answered. Same link
  * Review uses to name the session, read the other way round. A suggestion:
  * the card is still yours to close.
@@ -544,7 +544,7 @@ function DuplicateHint({
 	return (
 		<button
 			type="button"
-			title="Looks like the same ask as another session — open it"
+			title="Looks like the same ask as another session - open it"
 			onClick={(event) => {
 				// The card itself opens its own drawer; the hint opens the other one.
 				event.stopPropagation();
@@ -628,7 +628,7 @@ function NotionPill({ card, live }: { card: BoardCard; live: boolean }) {
  * Which repo this card's work landed in.
  *
  * The pane only records where it was launched, and every feed-started session
- * launches in the same catch-all directory — so the old label read `dev` on
+ * launches in the same catch-all directory - so the old label read `dev` on
  * card after card. The transcript records where the agent actually went, and
  * a worktree resolves to the repo that owns it rather than its branch name.
  * Falls back to the launch directory while the transcript is still loading, or
@@ -713,7 +713,7 @@ function useShellPlace(card: BoardCard, shell: Pane) {
 		!!dir && (dir === root || dir.startsWith(`${root}/`));
 	/** Live shells sitting in `root`, and Odin panes left there whose PTY is gone. */
 	/**
-	 * In `root` itself — a worktree checked out under it (`.worktrees/x`) is its
+	 * In `root` itself - a worktree checked out under it (`.worktrees/x`) is its
 	 * own checkout, not the clone's.
 	 * ponytail: the two worktree folders Odin and Claude Code use; anything else
 	 * nested counts as the clone until this reads each cwd's `.git`.
@@ -773,11 +773,11 @@ function ShellDot({
 	const { here, atWork } = useShellPlace(card, shell);
 	const where = here?.replace(/^\/Users\/[^/]+/, "~");
 	const [title, color] = !alive
-		? ["Disconnected — open it to start a new one", "bg-danger"]
+		? ["Disconnected - open it to start a new one", "bg-danger"]
 		: atWork
 			? [`Live, in ${where}`, "bg-working"]
 			: [
-					`Live, but in ${where ?? "an unknown directory"} — not in this session's worktree`,
+					`Live, but in ${where ?? "an unknown directory"} - not in this session's worktree`,
 					"bg-attention",
 				];
 	return (
@@ -790,8 +790,8 @@ function ShellDot({
 
 /**
  * Where the shell is, and a menu to move it into the session's work. The
- * shell opens where the session launched — for feed sessions the catch-all
- * directory — while the agent cd'd into a worktree the shell never saw.
+ * shell opens where the session launched - for feed sessions the catch-all
+ * directory - while the agent cd'd into a worktree the shell never saw.
  */
 function ShellPlaceMenu({ card, shell }: { card: BoardCard; shell: Pane }) {
 	const { data, here, inside, shellsIn } = useShellPlace(card, shell);
@@ -831,7 +831,7 @@ function ShellPlaceMenu({ card, shell }: { card: BoardCard; shell: Pane }) {
 			<DropdownMenuTrigger asChild>
 				<button
 					type="button"
-					title={where ? `Shell is in ${where} — move it` : "Move this shell"}
+					title={where ? `Shell is in ${where} - move it` : "Move this shell"}
 					className="flex min-w-0 max-w-[200px] items-center gap-1 rounded-r-md border-l border-background bg-secondary px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground"
 				>
 					<span className="truncate">
@@ -843,7 +843,7 @@ function ShellPlaceMenu({ card, shell }: { card: BoardCard; shell: Pane }) {
 			<DropdownMenuContent align="end" className="w-80">
 				<DropdownMenuLabel className="truncate text-[10px] font-normal text-muted-foreground">
 					{where
-						? `Shell is in ${where}${current ? "" : " — outside this session's work"}`
+						? `Shell is in ${where}${current ? "" : " - outside this session's work"}`
 						: "This shell's location is unknown"}
 				</DropdownMenuLabel>
 				<DropdownMenuSeparator />
@@ -880,7 +880,7 @@ function ShellPlaceMenu({ card, shell }: { card: BoardCard; shell: Pane }) {
 }
 
 /**
- * How long this card has been sitting — measured from the last message in the
+ * How long this card has been sitting - measured from the last message in the
  * conversation, which is the thing you actually want to know ("nobody has
  * touched this in two days"). The board's own "in this status since" clock is
  * only a fallback: it starts when the board process first saw the pane, so it
@@ -982,14 +982,14 @@ function JustDonePill({
 }
 
 /**
- * This session is running under `/loop` — it will wake itself up again, so an
+ * This session is running under `/loop` - it will wake itself up again, so an
  * idle card isn't done. Read from the schedule calls in its transcript; only
  * asked of a session whose claude is still running, since the schedule dies
  * with it.
  */
 function LoopPill({ card }: { card: BoardCard }) {
 	const { data, refetch } = useCardTranscript(card, true);
-	// The schedule is booked at the very end of a turn — re-read as the card
+	// The schedule is booked at the very end of a turn - re-read as the card
 	// settles, or the last poll mid-turn misses it.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: re-read on status change only
 	useEffect(() => {
@@ -1020,10 +1020,10 @@ function LoopPill({ card }: { card: BoardCard }) {
 		at && `next run ${at}`,
 	]
 		.filter(Boolean)
-		.join(" — ");
+		.join(" - ");
 	return (
 		<span
-			title={`Under /loop — ${next}${loop.prompt ? `\n${loop.prompt}` : ""}`}
+			title={`Under /loop - ${next}${loop.prompt ? `\n${loop.prompt}` : ""}`}
 			className={cn(
 				"inline-flex items-center gap-1 rounded-[5px] px-[7px] text-[11px] font-medium",
 				PILL.attention,
@@ -1041,7 +1041,7 @@ function LoopPill({ card }: { card: BoardCard }) {
  * The badge that answers "which of these is eating the Mac". The header chip
  * already says nine sessions hold 11 GB; this says which three of them do.
  *
- * Same snapshot the chip reads — one query, shared by every card through the
+ * Same snapshot the chip reads - one query, shared by every card through the
  * React Query cache. Only a heavy session gets one; a parked session's few
  * hundred MB is noise on the card.
  */
@@ -1072,7 +1072,7 @@ function LoadPill({ card }: { card: BoardCard }) {
 
 /**
  * The session's shell, and whether anything is still running in it. A dev
- * server that crashed leaves the shell alive at its prompt — blue would lie.
+ * server that crashed leaves the shell alive at its prompt - blue would lie.
  * `busy` comes from the same process snapshot LoadPill reads; until it has
  * answered (or on a build whose main process predates it) the chip stays blue.
  */
@@ -1092,13 +1092,13 @@ function ShellChip({
 		.find((session) => session.paneId === shellPaneId)?.busy;
 	const [title, label, className] = !alive
 		? [
-				"This session's shell has exited — open it to start a new one",
+				"This session's shell has exited - open it to start a new one",
 				"Shell exited",
 				`${PILL.danger} font-semibold`,
 			]
 		: busy === false
 			? [
-					"The shell is at its prompt — whatever you ran in it has stopped",
+					"The shell is at its prompt - whatever you ran in it has stopped",
 					"Shell stopped",
 					`${PILL.attention} font-semibold`,
 				]
@@ -1166,7 +1166,7 @@ function CardHoverContent({
 					.replace(/\n+Work in the current workspace\.[\s\S]*$/i, "")
 					.trim()
 			: null;
-	// The launch-time brief is usually just the title — don't repeat it.
+	// The launch-time brief is usually just the title - don't repeat it.
 	const summary =
 		text ?? (known && known.trim() !== title.trim() ? known : fileBrief);
 	const sessionId = useCardSessionId(card);
@@ -1192,7 +1192,7 @@ function CardHoverContent({
  * Positioned at the cursor; closes on Escape or click-outside.
  *
  * The built-in list is closed (shared/odin-tags); the field at the bottom adds
- * your own, and × forgets one — its cards keep it in app-state, just unshown.
+ * your own, and × forgets one - its cards keep it in app-state, just unshown.
  */
 function TagMenu({
 	x,
@@ -1269,7 +1269,7 @@ function TagMenu({
 			{onKeep && (
 				<button
 					type="button"
-					title="Overrule the sweep's Drop? — stays KEEP through later sweeps"
+					title="Overrule the sweep's Drop? - stays KEEP through later sweeps"
 					onClick={() => {
 						onKeep();
 						onClose();
@@ -1332,7 +1332,7 @@ function TagMenu({
 /**
  * Stamp each card with the tags its brief came back with. The model picks
  * them while writing the brief that every card already gets, so this costs
- * no extra model call — it only carries the answer over to the pane.
+ * no extra model call - it only carries the answer over to the pane.
  *
  * Once per card: your tags win afterwards, including the ones you removed.
  */
@@ -1358,7 +1358,7 @@ const applyAutoTags = (tagsBySession: Record<string, string[]>) => {
 };
 
 /**
- * Rename cards from the brief the model wrote for them — on, that is, when the
+ * Rename cards from the brief the model wrote for them - on, that is, when the
  * setting is. One rename per session: the brief is rewritten as the session
  * works, and a card whose name shifts every five minutes is worse than one
  * named after the line you typed.
@@ -1387,7 +1387,7 @@ function DevBoardPage() {
 	);
 	const tabs = useTabsStore((state) => state.tabs);
 	const panes = useTabsStore((state) => state.panes);
-	// No workspace picker — one workspace in practice, and it listed confusing
+	// No workspace picker - one workspace in practice, and it listed confusing
 	// duplicate "default" entries. ensureWorkspace still provisions/resolves the
 	// workspace sessions launch into, and `workspaces` labels cards with their
 	// workspace name.
@@ -1412,7 +1412,7 @@ function DevBoardPage() {
 		() => new Map((slackFeed?.rows ?? []).map((row) => [row.id, row.text])),
 		[slackFeed],
 	);
-	// Prefer the task title captured at launch — Claude Code's OSC title rewrites
+	// Prefer the task title captured at launch - Claude Code's OSC title rewrites
 	// the pane name to "Claude Code" once it starts.
 	// `panes` first: the drawer holds a snapshot card, so a rename has to be read
 	// from the live pane or the drawer keeps showing the old name.
@@ -1433,7 +1433,7 @@ function DevBoardPage() {
 				cardSource(card),
 			),
 		);
-	// The full message behind an auto-renamed (or first-line) title — hover only.
+	// The full message behind an auto-renamed (or first-line) title - hover only.
 	const cardText = (card: BoardCard) => {
 		const body = cardBody(cardTitle(card), cardSource(card));
 		return body && emojify(body);
@@ -1453,22 +1453,22 @@ function DevBoardPage() {
 	// the cards you haven't reached.
 	const [catchUp, setCatchUp] = useState<string[] | null>(null);
 	// Catch up lasts as long as its drawer. Only ‹ and "All caught up" used to
-	// end it, so a click outside, Esc or Minimize left the queue behind — and
+	// end it, so a click outside, Esc or Minimize left the queue behind - and
 	// opening one of its cards from the board later came up as Catch up.
 	useEffect(() => {
 		if (!drawerCard) setCatchUp(null);
 	}, [drawerCard]);
-	// Catch up shows a card's full session only after you ask, per card — a pane
+	// Catch up shows a card's full session only after you ask, per card - a pane
 	// id, so the next card starts lean again without an effect to reset it.
 	const [catchUpFull, setCatchUpFull] = useState<string | null>(null);
 	// Rename a session. Same home as tags (the pane, in app-state.json) and the
 	// first thing cardTitle reads, so the new name shows everywhere and sticks.
 	// Non-null = the drawer's title is being edited.
 	const [renameDraft, setRenameDraft] = useState<string | null>(null);
-	// The ticket (or PR) this session was launched from — the drawer's title says
+	// The ticket (or PR) this session was launched from - the drawer's title says
 	// "CRR-862: …" and until now there was no way to open CRR-862.
 	const drawerLink = drawerCard ? sourceLink(drawerCard.pane.odinBrief) : null;
-	// Open wide by default — a session needs room to read the terminal. Held as
+	// Open wide by default - a session needs room to read the terminal. Held as
 	// a fraction of the width beside the icon rail, not px: a px width measured
 	// once went stale when the window was minimized/resized, and the drawer
 	// stopped short of the rail or overran it.
@@ -1476,15 +1476,15 @@ function DevBoardPage() {
 	// The brief panel: open by default, because "what did I walk into?" is the
 	// question you have every single time you open a session.
 	const [isBriefOpen, setIsBriefOpen] = useState(true);
-	// The diff takes the terminal's place rather than a side panel — a diff needs
+	// The diff takes the terminal's place rather than a side panel - a diff needs
 	// the width, and you read one instead of watching the session, not alongside.
 	const [isDiffOpen, setIsDiffOpen] = useState(false);
 	// A plain shell in the session's checkout. Takes the terminal's place for the
-	// same reason the diff does — you go to the shell instead of the session.
+	// same reason the diff does - you go to the shell instead of the session.
 	const [isShellOpen, setIsShellOpen] = useState(false);
 	// Panes whose Resume is in flight. Resuming takes a second (session lookup,
 	// kill, respawn) and the card can't flip out of Idle until the 5s daemon
-	// poll sees the new PTY — without this the click looks like it did nothing.
+	// poll sees the new PTY - without this the click looks like it did nothing.
 	const [resumingPaneIds, setResumingPaneIds] = useState<string[]>([]);
 
 	const startDrawerResize = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -1503,10 +1503,10 @@ function DevBoardPage() {
 	};
 
 	// The cached xterm can mount into the drawer with stale dimensions (its
-	// gated refit can miss), clipping the bottom of the screen — where Claude
+	// gated refit can miss), clipping the bottom of the screen - where Claude
 	// renders its pickers. Nudge it: refit, sync the PTY size (SIGWINCH makes
 	// Claude repaint at the new size), and pin the view to the bottom.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: isBriefOpen is a trigger — the brief resizes the terminal
+	// biome-ignore lint/correctness/useExhaustiveDependencies: isBriefOpen is a trigger - the brief resizes the terminal
 	useEffect(() => {
 		if (!drawerCard || drawerCard.pane.type !== "terminal") return;
 		const paneId = drawerCard.pane.id;
@@ -1539,7 +1539,7 @@ function DevBoardPage() {
 	}, [drawerCard, utils, isBriefOpen]);
 
 	// Esc closes the drawer. Captured at the window so it doesn't reach the
-	// terminal by default — an Esc in the PTY cancels Claude's pending menu and
+	// terminal by default - an Esc in the PTY cancels Claude's pending menu and
 	// trips upstream's "user interrupted → idle" status heuristic. The
 	// exceptions below are the states where Esc already means something to
 	// whatever is on screen, and there it's handed back.
@@ -1556,7 +1556,7 @@ function DevBoardPage() {
 				return;
 			// Same rule for Claude's own menus: standing in a picker that says
 			// "Esc to go back", Esc belongs to the picker, not to the drawer.
-			// Read the mounted xterm rather than the scan's cached status — the
+			// Read the mounted xterm rather than the scan's cached status - the
 			// scan runs on a 3s timer and a menu opens and closes inside that.
 			if (
 				event.target instanceof HTMLElement &&
@@ -1566,7 +1566,7 @@ function DevBoardPage() {
 				return;
 			event.preventDefault();
 			event.stopImmediatePropagation();
-			// Mid-rename, Esc abandons the rename — not the drawer.
+			// Mid-rename, Esc abandons the rename - not the drawer.
 			if (renameDraft !== null) setRenameDraft(null);
 			else setDrawerCard(null);
 		};
@@ -1600,7 +1600,7 @@ function DevBoardPage() {
 		}
 	}, [panes]);
 
-	// A parked session that started moving again isn't parked any more — drop the
+	// A parked session that started moving again isn't parked any more - drop the
 	// flag so its next finished turn lands in Needs you, not back in Idle.
 	useEffect(() => {
 		const revived = Object.values(panes).filter(
@@ -1630,7 +1630,7 @@ function DevBoardPage() {
 		return map;
 	}, [projects]);
 
-	// Live PTYs in the daemon — lets the board show sessions that survived an
+	// Live PTYs in the daemon - lets the board show sessions that survived an
 	// app reload even though their pane status was reset to idle.
 	const { data: daemonSessions } =
 		electronTrpc.terminal.listDaemonSessions.useQuery(undefined, {
@@ -1645,11 +1645,11 @@ function DevBoardPage() {
 			),
 		[daemonSessions],
 	);
-	// Panes whose PTY is alive but has no agent in it — Ctrl+C out of Claude and
+	// Panes whose PTY is alive but has no agent in it - Ctrl+C out of Claude and
 	// the shell outlives the conversation. Filled in by the screen scan below.
 	const [agentGonePaneIds, setAgentGonePaneIds] = useState<string[]>([]);
 	/**
-	 * PTY alive AND Claude still running in it. This — not the raw daemon poll —
+	 * PTY alive AND Claude still running in it. This - not the raw daemon poll -
 	 * is what "the session is open" means to a card: everything a live pane is
 	 * offered (Continue, its column, no Resume button) assumes there's a
 	 * conversation on the other end, and a bare shell prompt is not one.
@@ -1660,7 +1660,7 @@ function DevBoardPage() {
 		[alivePaneIds, agentGonePaneIds],
 	);
 	// Sessions under `/loop`, read from the same transcript query the loop pill
-	// uses, so it's one fetch per session. Between ticks they belong in Idle —
+	// uses, so it's one fetch per session. Between ticks they belong in Idle -
 	// every turn ends clean, but they aren't done.
 	const sessionIdByPane = usePaneMeta((s) => s.sessionIdByPane);
 	const loopCandidates = [...agentPaneIds].flatMap((paneId) => {
@@ -1685,7 +1685,7 @@ function DevBoardPage() {
 	);
 	// Needs-you sessions, open or closed, and the state of every PR they linked.
 	// Once each is approved the card is Done: what's left is a click, not a
-	// decision. Closed ones count — the approval usually lands after the session
+	// decision. Closed ones count - the approval usually lands after the session
 	// went quiet, and a card closed for idling keeps its Needs you column. The
 	// transcripts are the ones the cards' own pills already fetch.
 	const mergeCandidates = Object.values(panes).flatMap((pane) => {
@@ -1752,7 +1752,7 @@ function DevBoardPage() {
 	);
 	/**
 	 * Needs you, unless all it needs is merging approved PRs or a look at what
-	 * shipped — then Done.
+	 * shipped - then Done.
 	 */
 	const withMergeReady = useCallback(
 		(column: PaneStatus, paneId: string): PaneStatus =>
@@ -1765,7 +1765,7 @@ function DevBoardPage() {
 	 * Live Claude that's been up a while. Continue is for nudging a session
 	 * that just came back (Resume, app/daemon restart) and is sitting idle;
 	 * on one that's been open all along it's a stray prompt. The PTY's
-	 * createdAt is the restart — Resume respawns it. Re-evaluated on the 5s poll.
+	 * createdAt is the restart - Resume respawns it. Re-evaluated on the 5s poll.
 	 */
 	const isSettledAgent = (paneId: string) => {
 		if (!agentPaneIds.has(paneId)) return false;
@@ -1778,13 +1778,13 @@ function DevBoardPage() {
 	};
 	// Close sessions that have sat idle past Settings → Sessions' idle timeout: an open Claude holds
 	// memory and a checkout for a conversation Resume can reopen any time. The
-	// card stays in its column (odinClosedIn) — closing it answered nothing.
+	// card stays in its column (odinClosedIn) - closing it answered nothing.
 	// A session whose shell is still running something (a dev server) is in use.
 	// ponytail: a pane with no odinStatusAt (launched before it existed) starts
 	// its clock when this board first sees it.
 	const firstSeenRef = useRef(new Map<string, number>());
 	// Re-assigned every render so the one-minute timer below reads current
-	// state — an effect keyed on `panes` restarts on every status write and
+	// state - an effect keyed on `panes` restarts on every status write and
 	// would never get to fire.
 	const sweepIdleRef = useRef<() => Promise<void>>(async () => {});
 	sweepIdleRef.current = async () => {
@@ -1836,10 +1836,10 @@ function DevBoardPage() {
 		const id = setInterval(() => void sweepIdleRef.current(), 60_000);
 		return () => clearInterval(id);
 	}, []);
-	/** Alive PTY currently mid-turn — the one state Resume must not touch. */
+	/** Alive PTY currently mid-turn - the one state Resume must not touch. */
 	const isWorkingNow = (paneId: string) =>
 		agentPaneIds.has(paneId) && panes[paneId]?.status === "working";
-	// Drop the "resuming…" flag once the poll actually sees the new PTY — that's
+	// Drop the "resuming…" flag once the poll actually sees the new PTY - that's
 	// the moment the card moves to Working on its own.
 	useEffect(() => {
 		setResumingPaneIds((ids) => {
@@ -1851,7 +1851,7 @@ function DevBoardPage() {
 	// The open drawer can't wait for the scan below: it only reads a screen once
 	// the hooks have been quiet for SETTLED_MS, so for two minutes after you
 	// Ctrl+C out of Claude the button kept saying Continue. The drawer's xterm
-	// already holds the screen — read it directly, with the same two-reads rule.
+	// already holds the screen - read it directly, with the same two-reads rule.
 	// While a session's pane is open, tell Insights you're looking at it. The
 	// main process decides whether it counts (focused window, not idle).
 	// ponytail: a pane without a claudeSessionId isn't tracked.
@@ -1874,7 +1874,7 @@ function DevBoardPage() {
 		if (!drawerPaneId || !alivePaneIds.has(drawerPaneId)) return;
 		const check = () => {
 			const screen = visibleScreen(drawerPaneId);
-			if (!screen.trim()) return; // not mounted yet — nothing to judge
+			if (!screen.trim()) return; // not mounted yet - nothing to judge
 			const gone = !agentOnScreen(screen);
 			const goneTwice = gone && sawNoAgentRef.current.has(drawerPaneId);
 			if (gone) sawNoAgentRef.current.add(drawerPaneId);
@@ -1894,16 +1894,16 @@ function DevBoardPage() {
 	}, [drawerPaneId, alivePaneIds]);
 
 	// Screen-reading keeps the columns honest. Agent hooks are the fast path,
-	// but they go missing — Stop doesn't fire on Ctrl+C, a notification can miss
+	// but they go missing - Stop doesn't fire on Ctrl+C, a notification can miss
 	// a pane that wasn't in the store yet, and statuses reset to idle on reload
 	// while the PTYs live on. Any of those strands a card mid-flight ("Working"
 	// forever on a session that's been sitting at its prompt for an hour), so
 	// re-read every live board session on a timer instead of once.
 	const setPaneStatusFromStore = useTabsStore((state) => state.setPaneStatus);
 	const readingRef = useRef(new Set<string>());
-	/** Panes whose last scan read the idle prompt — see the write below. */
+	/** Panes whose last scan read the idle prompt - see the write below. */
 	const sawIdlePromptRef = useRef(new Set<string>());
-	/** Panes whose last scan found no Claude on screen — same doubt, same fix. */
+	/** Panes whose last scan found no Claude on screen - same doubt, same fix. */
 	const sawNoAgentRef = useRef(new Set<string>());
 	const lastScanRef = useRef(0);
 	useEffect(() => {
@@ -1913,7 +1913,7 @@ function DevBoardPage() {
 			if (Date.now() - lastScanRef.current < 3_000) return;
 			lastScanRef.current = Date.now();
 			for (const pane of Object.values(panes)) {
-				// You parked it — don't let screen-reading drag it back out of Idle.
+				// You parked it - don't let screen-reading drag it back out of Idle.
 				if (pane.odinParked) continue;
 				// Nothing to read: a queued task has no process yet.
 				if (pane.odinQueued) continue;
@@ -1922,12 +1922,12 @@ function DevBoardPage() {
 				// screen in between only has to be wrong once for the card to flip
 				// Working → Needs you → Working. So don't arbitrate: the hooks win
 				// while they're live, and this steps in once a status has gone quiet
-				// — which is the only case it exists for, because a hook that never
+				// - which is the only case it exists for, because a hook that never
 				// arrives leaves the card stuck for hours, not for seconds.
 				// Quiet means the *hooks* have stopped talking, not that the status
 				// stopped changing. They aren't the same thing: setPaneStatus no-ops
 				// on an unchanged value, so a turn's worth of "working" hooks never
-				// moves `statusSince` — which left this scan re-reading the screen of
+				// moves `statusSince` - which left this scan re-reading the screen of
 				// every live session every 5 seconds, all turn, and a single bad read
 				// bounced the card to Needs you until the next hook bounced it back.
 				const since = Math.max(
@@ -1935,17 +1935,17 @@ function DevBoardPage() {
 					lastAgentHookAt.get(pane.id) ?? 0,
 				);
 				if (Date.now() - since < SETTLED_MS) continue;
-				// Board sessions only — never attach to a terminal the board doesn't own.
+				// Board sessions only - never attach to a terminal the board doesn't own.
 				if (!pane.odinTaskTitle && !titleByPane[pane.id]) continue;
 				if (!alivePaneIds.has(pane.id)) continue;
-				// A read is already in flight for this pane — don't stack them.
+				// A read is already in flight for this pane - don't stack them.
 				if (readingRef.current.has(pane.id)) continue;
 				const tab = tabs.find((item) => item.id === pane.tabId);
 				if (!tab) continue;
 				readingRef.current.add(pane.id);
 				// Reading a screen must not resize the session. createOrAttach hands
 				// the host a viewport, and a host old enough to fill in a missing one
-				// resizes the live PTY to 80x24 — Claude repaints its TUI at 80
+				// resizes the live PTY to 80x24 - Claude repaints its TUI at 80
 				// columns inside whatever the drawer is actually showing. Send the
 				// size the mounted xterm already has, so the resize is a no-op.
 				const mounted = terminalCache.get(pane.id)?.xterm;
@@ -1960,7 +1960,7 @@ function DevBoardPage() {
 							// superseding it. Main keeps one pending attach per pane and
 							// aborts the older one; when that was the drawer's, its
 							// Terminal drops the cancel silently and never starts its
-							// stream — a blank drawer until you close and reopen it.
+							// stream - a blank drawer until you close and reopen it.
 							joinPending: true,
 							...(mounted && { cols: mounted.cols, rows: mounted.rows }),
 						})) as {
@@ -1976,7 +1976,7 @@ function DevBoardPage() {
 							.slice(-2500);
 						// The PTY outliving the agent is its own state: Ctrl+C out of
 						// Claude and the shell is still there, alive to the daemon
-						// with no conversation in it. Two reads have to agree —
+						// with no conversation in it. Two reads have to agree -
 						// a snapshot caught mid-repaint can come back with none of
 						// Claude's chrome on it.
 						const gone = !agentOnScreen(screen);
@@ -1989,14 +1989,14 @@ function DevBoardPage() {
 								: ids.filter((id) => id !== pane.id);
 							return next.length === ids.length ? ids : next;
 						});
-						// `pane` was captured before the await — read the status the
+						// `pane` was captured before the await - read the status the
 						// hooks hold now, not the one they held when the scan started.
 						const read = odinScreenStatus(screen);
 						const current = useTabsStore.getState().panes[pane.id]?.status;
 						// The one read worth doubting. A dialog and a spinner are
 						// things Claude drew; "sitting at the prompt" is the absence
 						// of both, which is also what a snapshot caught mid-repaint
-						// looks like — and taking it at face value is what yanked a
+						// looks like - and taking it at face value is what yanked a
 						// working card into Needs you until the next hook yanked it
 						// back. A tool call outlasting SETTLED_MS still gets here, so
 						// make this one wait for a second scan to agree.
@@ -2013,13 +2013,13 @@ function DevBoardPage() {
 						// hooks already said, leaves the status alone.
 						if (status) setPaneStatusFromStore(pane.id, status);
 					} catch {
-						// leave it be — the next scan or agent event will correct it
+						// leave it be - the next scan or agent event will correct it
 					} finally {
 						readingRef.current.delete(pane.id);
 					}
 					// NOTE: do NOT detach here. The whole app shares one socket to the
 					// daemon, so detach({paneId}) tears down the stream for the drawer's
-					// live terminal too — which was making it render blank.
+					// live terminal too - which was making it render blank.
 				})();
 			}
 		};
@@ -2046,7 +2046,7 @@ function DevBoardPage() {
 	const { ref: searchRef, hint: searchHint } = useSearchHotkey();
 	// Highlight the Idle column while a card is dragged over it.
 	const [dragOverIdle, setDragOverIdle] = useState(false);
-	// "Next in line" column — hidden until you ask for it; remembered per machine.
+	// "Next in line" column - hidden until you ask for it; remembered per machine.
 	const [isNextOpen, setIsNextOpen] = useState(() => {
 		try {
 			return localStorage.getItem("odin:board-next-open") === "1";
@@ -2062,7 +2062,7 @@ function DevBoardPage() {
 		} catch {}
 	};
 
-	// Tags you typed into the tag menu. Per machine, like the column above —
+	// Tags you typed into the tag menu. Per machine, like the column above -
 	// Odin is local-only, so there's no other machine to sync them to.
 	const [customTags, setCustomTags] = useState<string[]>(() => {
 		try {
@@ -2088,7 +2088,7 @@ function DevBoardPage() {
 	};
 	/**
 	 * The session's shell pane, if it still exists. Read off the live pane map
-	 * rather than the drawer's snapshot — the drawer holds the card it was
+	 * rather than the drawer's snapshot - the drawer holds the card it was
 	 * opened with, which predates the shell.
 	 */
 	const shellPaneOf = (card: BoardCard): Pane | undefined => {
@@ -2102,7 +2102,7 @@ function DevBoardPage() {
 	 */
 	const openShell = async (card: BoardCard) => {
 		if (!shellPaneOf(card)) {
-			// Open where the work is — the PR's worktree — not where it launched.
+			// Open where the work is - the PR's worktree - not where it launched.
 			const sessionId =
 				card.pane.claudeSessionId ??
 				usePaneMeta.getState().sessionIdByPane[card.pane.id];
@@ -2115,7 +2115,7 @@ function DevBoardPage() {
 				initialCwd: repo?.worktree ?? repo?.checkout ?? sessionCwd(card.pane),
 			});
 			// No odinTaskTitle: a shell you opened isn't a task, so it gets no card
-			// of its own on the board — same rule the session list uses.
+			// of its own on the board - same rule the session list uses.
 			useTabsStore.setState((state) => ({
 				panes: {
 					...state.panes,
@@ -2132,7 +2132,7 @@ function DevBoardPage() {
 	// Dev only: hold Vite's reloads while a session is open (see coalesceFullReloadPlugin).
 	const drawerOpen = !!drawerCard;
 	const inCatchUp = !!drawerCard && !!catchUp?.includes(drawerCard.pane.id);
-	// Catch up has no Diff or Shell — one left open in a normal drawer doesn't
+	// Catch up has no Diff or Shell - one left open in a normal drawer doesn't
 	// follow you in, since there'd be no button to close it.
 	const catchUpLean = inCatchUp && catchUpFull !== drawerCard?.pane.id;
 	useEffect(() => {
@@ -2143,7 +2143,7 @@ function DevBoardPage() {
 	const drawerShell = drawerCard ? shellPaneOf(drawerCard) : undefined;
 	/**
 	 * This session's shell is already running. A shell that exists but whose PTY
-	 * died reads as no shell here — you'd be restarting it, not walking into one
+	 * died reads as no shell here - you'd be restarting it, not walking into one
 	 * you left mid-command.
 	 */
 	const shellRunning = !!drawerShell && alivePaneIds.has(drawerShell.id);
@@ -2188,7 +2188,7 @@ function DevBoardPage() {
 	// Search also reaches the repos a session worked in and the PRs it opened
 	// ("odin" finds every card with a PR in danlinenberg/odin). Same queries,
 	// same options as the card's PR and repo pills, so these are cache hits;
-	// transcripts are only fetched while you're searching. Repos always are —
+	// transcripts are only fetched while you're searching. Repos always are -
 	// the Repos filter needs them.
 	const sessionCandidates = Object.values(panes).flatMap((pane) => {
 		const sessionId = pane.claudeSessionId ?? sessionIdByPane[pane.id];
@@ -2213,7 +2213,7 @@ function DevBoardPage() {
 			),
 		),
 	);
-	// The repo the agent actually worked in — the launch dir is `~/dev` for
+	// The repo the agent actually worked in - the launch dir is `~/dev` for
 	// every feed session. Same source as the card's RepoPill.
 	const workingRepoByPane: Record<string, string> = {};
 	sessionCandidates.forEach(({ paneId }, i) => {
@@ -2249,7 +2249,7 @@ function DevBoardPage() {
 		const map = new Map<PaneStatus, BoardCard[]>();
 		let starred = 0;
 		const completed: BoardCard[] = [];
-		// Counted over the sessions the board actually shows — counting every
+		// Counted over the sessions the board actually shows - counting every
 		// pane made the pill promise cards that were killed or aren't tasks.
 		const tagCounts = new Map<string, number>();
 		const personCounts = new Map<string, number>();
@@ -2273,7 +2273,7 @@ function DevBoardPage() {
 						projectById.get(workspace?.projectId ?? "")?.mainRepoPath ?? "",
 				};
 				if (pane.type !== "terminal") continue; // chat panes aren't board cards
-				// Another profile's work — not this board's. Until the profile is
+				// Another profile's work - not this board's. Until the profile is
 				// known, no card is: on a reload inside another profile, guessing
 				// "default" would flash the work board for a frame.
 				if (
@@ -2342,7 +2342,7 @@ function DevBoardPage() {
 						].some((text) => text?.toLowerCase().includes(needle)))
 				)
 					continue;
-				// Every session stays on the board in its column until it's Done'd —
+				// Every session stays on the board in its column until it's Done'd -
 				// nothing is silently dropped.
 				map.get(column)?.push({ ...card, status: column });
 			}
@@ -2404,7 +2404,7 @@ function DevBoardPage() {
 		electronTrpc.settings.getOdinAutoRenameSessions.useQuery();
 	// Each id carries whether its card stopped working, so a session finishing
 	// re-fires the warm at once and its final brief is ready before you open
-	// Catch up — not on the next tick, and not throttled as if still busy.
+	// Catch up - not on the next tick, and not throttled as if still busy.
 	const briefSessionIds = useMemo(
 		() =>
 			[...cardsByStatus]
@@ -2421,7 +2421,7 @@ function DevBoardPage() {
 				.join(","),
 		[cardsByStatus],
 	);
-	// biome-ignore lint/correctness/useExhaustiveDependencies: warmBriefs is a new object each render — the id list is the real trigger
+	// biome-ignore lint/correctness/useExhaustiveDependencies: warmBriefs is a new object each render - the id list is the real trigger
 	useEffect(() => {
 		if (!briefSessionIds) return;
 		const entries = briefSessionIds.split(",");
@@ -2487,7 +2487,7 @@ function DevBoardPage() {
 	 * that was killed+resumed or cold-restored leaves stale module state
 	 * (read-only "restored" mode / exited-session gate) that makes the fresh
 	 * mount silently drop every keystroke. A clean mount does a clean live
-	 * attach — typeable.
+	 * attach - typeable.
 	 *
 	 * Never purge the pane the drawer is already showing: its Terminal stays
 	 * mounted (same paneId, nothing re-runs), so disposing its xterm pulls the
@@ -2515,7 +2515,7 @@ function DevBoardPage() {
 		if (!alivePaneIds.has(drawerCard.pane.id)) return;
 		const focus = () => {
 			// alivePaneIds churns on a 5s poll, so this re-runs the whole time the
-			// drawer is open, not just when it opens — it can only take the
+			// drawer is open, not just when it opens - it can only take the
 			// keyboard when nothing else has it.
 			if (!canClaimKeyboard()) return;
 			document
@@ -2539,17 +2539,17 @@ function DevBoardPage() {
 
 	/**
 	 * Pick a session back up. On a live PTY that's literally writing "Continue"
-	 * into the open prompt — nothing to reopen.
+	 * into the open prompt - nothing to reopen.
 	 *
 	 * On a dead one: reopen the conversation (`claude --resume <id>`) in its worktree,
-	 * with no opening prompt — the agent comes back idle, not working. Always
-	 * respawns the pane running the command as its process — typing into a
+	 * with no opening prompt - the agent comes back idle, not working. Always
+	 * respawns the pane running the command as its process - typing into a
 	 * cold-restored shell races its startup (p10k/omz) and gets SIGINT'd, so
 	 * we kill any existing session first, then createOrAttach with the command
 	 * (no shell-typing race, works whether the prior claude is alive or dead).
 	 */
 	/**
-	 * What a Resume has to wait for — the same gate a launch waits on, since a
+	 * What a Resume has to wait for - the same gate a launch waits on, since a
 	 * resumed agent takes a slot on the Mac like a new one. The card itself is
 	 * left out: a session that died mid-turn still reads "working" and would
 	 * otherwise hold its own checkout. A failed read lets it through.
@@ -2594,7 +2594,7 @@ function DevBoardPage() {
 	const resumeCard = async (card: BoardCard, auto = false) => {
 		if (resumingPaneIds.includes(card.pane.id)) return;
 		// Never started: there's no conversation to resume, only the launch that
-		// was held back. Run it now — that's what "Start now" meant on the toast
+		// was held back. Run it now - that's what "Start now" meant on the toast
 		// this queue replaced.
 		if (card.pane.odinQueued) {
 			setResumingPaneIds((ids) => [...ids, card.pane.id]);
@@ -2610,13 +2610,13 @@ function DevBoardPage() {
 			return;
 		}
 		// Resume kills the PTY first, so on a session that's mid-turn it's an
-		// interrupt wearing a Resume label — it throws away the running turn.
+		// interrupt wearing a Resume label - it throws away the running turn.
 		// Live pane + live status (not the drawer's stale snapshot card).
 		if (isWorkingNow(card.pane.id)) {
-			toast.error("Session is still working — nothing to resume");
+			toast.error("Session is still working - nothing to resume");
 			return;
 		}
-		// Live PTY: the button says Continue, so it just says Continue — the
+		// Live PTY: the button says Continue, so it just says Continue - the
 		// conversation is already open, killing it to reopen it would only cost
 		// the scrollback. Unless the terminal on screen right now is a bare shell:
 		// you just Ctrl+C'd out of Claude, the scan hasn't caught up, and
@@ -2650,7 +2650,7 @@ function DevBoardPage() {
 			return;
 		}
 		// What it was doing when it died. A session killed mid-turn (app quit,
-		// daemon restart, machine asleep) keeps "working" on its pane — nothing
+		// daemon restart, machine asleep) keeps "working" on its pane - nothing
 		// clears it, which is what makes it readable now. Reopening that one at
 		// an idle prompt asks you to retype the obvious; reopening a session
 		// that had already stopped doesn't.
@@ -2658,12 +2658,12 @@ function DevBoardPage() {
 			useTabsStore.getState().panes[card.pane.id]?.status === "working";
 		// initialCwd included: a session whose terminal was never opened has no
 		// confirmed cwd, and resuming without one lands in the wrong repo. The
-		// workspace checkout is the last resort — `claude --resume` only finds a
+		// workspace checkout is the last resort - `claude --resume` only finds a
 		// conversation from the directory it ran in, so resuming from the
 		// daemon's default cwd fails exactly like resuming a missing id.
 		const cwd = sessionCwd(card.pane) ?? card.repoPath;
 		// Resume THIS conversation, not "whatever ran last here" (what --continue
-		// does — wrong as soon as two sessions share a workspace). Session id
+		// does - wrong as soon as two sessions share a workspace). Session id
 		// comes from launch (--session-id); for older sessions, look it up in
 		// Claude's transcripts by the task title.
 		let sessionId =
@@ -2672,10 +2672,10 @@ function DevBoardPage() {
 		// A pinned --session-id is not proof Claude ever wrote that conversation:
 		// this pane ran a full turn (its hooks fired) and left no transcript, so
 		// Resume ran `claude --resume <id>`, got "No conversation found with
-		// session ID" and exited 1 — a dead pane whose whole history was that
+		// session ID" and exited 1 - a dead pane whose whole history was that
 		// line. Ask before touching the PTY, and when it's gone stop here: the
 		// answer is a new session, which is the drawer's question to ask, not
-		// something to do behind your back. Nothing is substituted either — the
+		// something to do behind your back. Nothing is substituted either - the
 		// title search below matches the newest transcript merely *mentioning*
 		// the card title (on this board, an unrelated session), and --continue
 		// takes whatever ran last in the repo.
@@ -2689,9 +2689,9 @@ function DevBoardPage() {
 				await utils.client.terminal.readClaudeTranscript.query({ sessionId });
 			} catch (error) {
 				// Only "Claude has no such conversation" is lost. An unreadable or
-				// half-written transcript still belongs to this card — resume it.
+				// half-written transcript still belongs to this card - resume it.
 				if (String(error).includes("No transcript on this machine")) {
-					// Nobody asked — don't pop a dialog at them; the card keeps
+					// Nobody asked - don't pop a dialog at them; the card keeps
 					// its Resume button for when they do.
 					if (!auto) setLostCard(card);
 					return;
@@ -2699,7 +2699,7 @@ function DevBoardPage() {
 			}
 		}
 		setResumingPaneIds((ids) => [...ids, card.pane.id]);
-		// The respawn puts Claude back in this PTY — don't make the next scan
+		// The respawn puts Claude back in this PTY - don't make the next scan
 		// (up to 10s away, twice over) re-prove it before the card stops
 		// offering Resume.
 		sawNoAgentRef.current.delete(card.pane.id);
@@ -2733,18 +2733,18 @@ function DevBoardPage() {
 		// the whole reason you came back to the session. Except mid-turn: that
 		// agent comes back with the job half done, so "Continue" rides on the
 		// command line. Typing it in once the TUI looked up raced Claude's boot
-		// — the write was swallowed and the card needed another Resume click.
+		// - the write was swallowed and the card needed another Resume click.
 		const resumeCmd = `${
 			sessionId
 				? `claude --dangerously-skip-permissions --resume ${sessionId}`
 				: "claude --dangerously-skip-permissions --continue"
 		}${diedWorking ? " Continue" : ""}`;
-		// You resumed it to work in it — bring it up. The drawer swaps its
+		// You resumed it to work in it - bring it up. The drawer swaps its
 		// read-only history for the live terminal once the PTY is back, and that
 		// terminal takes the keyboard. Auto-resume never steals the screen.
 		if (!auto) openDrawer(card);
 		// Only a Resume that goes back to work waits on the gate. One reopening
-		// at an idle prompt takes no working slot and holds no checkout — queuing
+		// at an idle prompt takes no working slot and holds no checkout - queuing
 		// it parked you behind every task in line, looking at the board.
 		const blocker = diedWorking ? await resumeBlocker(card.pane, cwd) : null;
 		if (blocker) {
@@ -2758,7 +2758,7 @@ function DevBoardPage() {
 		}
 		try {
 			// Free the pane (dead or a live cold-restored shell) so the respawn
-			// re-runs the command. Ignore errors — pane may already be dead.
+			// re-runs the command. Ignore errors - pane may already be dead.
 			await terminalKill.mutateAsync({ paneId: card.pane.id }).catch(() => {});
 			await new Promise((resolve) => setTimeout(resolve, 300));
 			await utils.client.terminal.createOrAttach.mutate({
@@ -2785,7 +2785,7 @@ function DevBoardPage() {
 			}));
 			// Stay in the drawer: it swaps the read-only history for the live
 			// terminal as soon as the daemon poll (invalidated below) sees the PTY.
-			// ponytail: no toast on the happy path — the card renders its own
+			// ponytail: no toast on the happy path - the card renders its own
 			// "resuming…" spinner, and a toast over the board hides other cards.
 			// Only the ambiguous --continue fallback is worth interrupting for.
 			if (!sessionId) {
@@ -2793,10 +2793,10 @@ function DevBoardPage() {
 					"Resuming latest session in this repo (no session id found)",
 				);
 			}
-			// Don't sit on the stale poll for up to 5s — ask now so the card leaves
+			// Don't sit on the stale poll for up to 5s - ask now so the card leaves
 			// Idle as soon as the PTY exists.
 			void utils.terminal.listDaemonSessions.invalidate();
-			// ponytail: fixed timeout, not a retry loop — if the respawned claude
+			// ponytail: fixed timeout, not a retry loop - if the respawned claude
 			// dies on startup the pane never goes alive, and a stuck spinner would
 			// cost the card its Resume button for good.
 			setTimeout(
@@ -2812,12 +2812,12 @@ function DevBoardPage() {
 
 	/**
 	 * A session whose PTY died mid-turn (app quit, daemon restart, sleep) comes
-	 * back on its own — the same Resume the "⏸ died mid-turn" button runs, which
+	 * back on its own - the same Resume the "⏸ died mid-turn" button runs, which
 	 * reopens the conversation and types Continue. Only a dead PTY: a live one
 	 * with a bare shell is you Ctrl+C'ing out, and that's yours to decide.
 	 * One card at a time so each launch-gate check sees the last one's slot.
 	 */
-	// ponytail: once per pane per app run — a session that dies again on
+	// ponytail: once per pane per app run - a session that dies again on
 	// startup keeps its Resume button instead of looping.
 	const autoResumedRef = useRef(new Set<string>());
 	const resumeCardRef = useRef(resumeCard);
@@ -2895,7 +2895,7 @@ function DevBoardPage() {
 	/**
 	 * What the replacement session should start from: the ask the dead card was
 	 * still holding. The brief is the only part of that conversation Odin keeps
-	 * for itself — Claude's transcript is what went missing — so it is exactly
+	 * for itself - Claude's transcript is what went missing - so it is exactly
 	 * what makes starting over feel like carrying on.
 	 */
 	const lostCardPrompt = (card: BoardCard): string => {
@@ -2911,7 +2911,7 @@ function DevBoardPage() {
 	 * checkout, carrying the card's identity (person, feed item, tags) so the
 	 * board shows the same piece of work rather than an anonymous new one.
 	 *
-	 * The dead card is left alone — its scrollback is the only record of what
+	 * The dead card is left alone - its scrollback is the only record of what
 	 * happened, and Done'ing it for you would throw that away.
 	 */
 	const startOverFromLost = async (
@@ -2943,7 +2943,7 @@ function DevBoardPage() {
 		usePaneMeta.getState().setTitle(result.paneId, title);
 		usePaneMeta.getState().setSessionId(result.paneId, result.sessionId);
 		setDrawerCard(null);
-		// The title is the prompt's whole first line — often a paragraph — and a
+		// The title is the prompt's whole first line - often a paragraph - and a
 		// toast that long covers the cards under it.
 		toast.success(
 			`Started over on "${title.length > 60 ? `${title.slice(0, 59)}…` : title}"`,
@@ -2955,7 +2955,7 @@ function DevBoardPage() {
 	/**
 	 * Park a card by dragging it to Idle. Idle is the only drop target: the other
 	 * columns describe what the agent is actually doing, and dragging a card
-	 * can't make that true. A running turn is interrupted first (Esc) — a card
+	 * can't make that true. A running turn is interrupted first (Esc) - a card
 	 * sitting in Idle while its agent works would be a lie.
 	 */
 	const parkCard = async (card: BoardCard) => {
@@ -2974,13 +2974,13 @@ function DevBoardPage() {
 				},
 			},
 		}));
-		toast.success("Parked in Idle — session still open");
+		toast.success("Parked in Idle - session still open");
 	};
 
 	/**
 	 * Done = end it and off the board. removePane kills the PTY and drops the
 	 * pane (and its tab, when it's the only one). There used to be a separate
-	 * Kill button; it did the same thing minus the cleanup — the card left the
+	 * Kill button; it did the same thing minus the cleanup - the card left the
 	 * board either way and the orphaned pane/tab stayed behind forever. Session
 	 * History resumes finished sessions from Claude's transcripts on disk, so
 	 * keeping the dead pane bought nothing. To stop an agent without ending the
@@ -2989,7 +2989,7 @@ function DevBoardPage() {
 	const markDone = (card: BoardCard) => {
 		endSession(card.pane.id);
 		setDrawerCard(null);
-		toast.success("Done — removed from board");
+		toast.success("Done - removed from board");
 	};
 
 	/** Catch up's next card (✓ Done ends this one first), or all caught up. */
@@ -3018,7 +3018,7 @@ function DevBoardPage() {
 		const cwd = sessionCwd(card.pane) ?? card.repoPath;
 		if (!sessionId || !cwd) {
 			toast.error(
-				"This session has no conversation id — can't resume it later",
+				"This session has no conversation id - can't resume it later",
 			);
 			return;
 		}
@@ -3033,7 +3033,7 @@ function DevBoardPage() {
 			day,
 		);
 		markDone(card);
-		toast.success(`Reminding you ${day} — ${title.slice(0, 50)}`);
+		toast.success(`Reminding you ${day} - ${title.slice(0, 50)}`);
 	};
 
 	return (
@@ -3054,7 +3054,7 @@ function DevBoardPage() {
 				</button>
 				<button
 					type="button"
-					title="Ask a Claude that's already running — no start-up wait (⌘⇧I)"
+					title="Ask a Claude that's already running - no start-up wait (⌘⇧I)"
 					onClick={() => useQuickQuestionDialog.getState().setOpen(true)}
 					className={cn(
 						"rounded-lg px-2.5 py-1 text-[12px] font-semibold transition-colors",
@@ -3084,7 +3084,7 @@ function DevBoardPage() {
 					)}
 				/>
 
-				{/* filter — right-click a card to tag it; people are the card's contact */}
+				{/* filter - right-click a card to tag it; people are the card's contact */}
 				{(allTags.length > 0 ||
 					allPeople.length > 0 ||
 					allRepos.length > 1 ||
@@ -3134,7 +3134,7 @@ function DevBoardPage() {
 					</select>
 				)}
 
-				{/* A view toggle, not a filter — kept apart from search and the dropdown. */}
+				{/* A view toggle, not a filter - kept apart from search and the dropdown. */}
 				<button
 					type="button"
 					onClick={toggleNext}
@@ -3202,7 +3202,7 @@ function DevBoardPage() {
 				{COLUMNS.map((column) => {
 					const cards = cardsByStatus.get(column.status) ?? [];
 					// ponytail: re-sorted on the board's next render, not on the
-					// minute the 10m runs out — the pane polls re-render it often.
+					// minute the 10m runs out - the pane polls re-render it often.
 					const sections = bySection(
 						cards,
 						(card) =>
@@ -3212,7 +3212,7 @@ function DevBoardPage() {
 								focusedAt,
 							) > 0,
 					);
-					// One section is just the column — don't label it, unless it's
+					// One section is just the column - don't label it, unless it's
 					// Parked: "you put these down" is worth saying on its own.
 					const labelled =
 						sections.length > 1 ||
@@ -3221,12 +3221,12 @@ function DevBoardPage() {
 						sections[0]?.[0] === "queued";
 					const isDropTarget = column.status === "idle";
 					// Needs you and Done are the two columns you clear: walk either one
-					// card at a time — once there are more than five, fewer you just scan.
+					// card at a time - once there are more than five, fewer you just scan.
 					const canCatchUp =
 						(column.status === "permission" || column.status === "review") &&
 						cards.length > 5;
 					return (
-						// biome-ignore lint/a11y/noStaticElementInteractions: drop zone — drag is the mouse-only shortcut for parking a card in Idle
+						// biome-ignore lint/a11y/noStaticElementInteractions: drop zone - drag is the mouse-only shortcut for parking a card in Idle
 						<div
 							key={column.status}
 							onDragOver={
@@ -3256,7 +3256,7 @@ function DevBoardPage() {
 							className={cn(
 								// The column wears its status: a hairline of the hue along the
 								// top and a wash that fades out under the header. The cards
-								// stay neutral — the colour says where they are, not what.
+								// stay neutral - the colour says where they are, not what.
 								"relative flex min-w-[240px] flex-1 flex-col overflow-hidden rounded-xl border bg-tertiary/85 bg-[linear-gradient(to_bottom,color-mix(in_oklab,var(--col)_9%,transparent),transparent_160px)]",
 								isDropTarget && dragOverIdle
 									? "border-primary bg-primary/15"
@@ -3276,7 +3276,7 @@ function DevBoardPage() {
 								{canCatchUp && (
 									<button
 										type="button"
-										title="Catch up — go through these one at a time"
+										title="Catch up - go through these one at a time"
 										onClick={() => {
 											const queue = sections.flatMap(([, group]) => group);
 											setCatchUp(queue.map((card) => card.pane.id));
@@ -3358,14 +3358,14 @@ function DevBoardPage() {
 																}}
 																className={cn(
 																	// A lit top edge, and a lift with a violet halo under the
-																	// pointer — the board's one bit of motion you cause. The
+																	// pointer - the board's one bit of motion you cause. The
 																	// whole hover look (fill, violet edge, halo) is an ::after
 																	// that only fades in: background, border and shadow can't
 																	// animate on the compositor, so they repainted every frame
 																	// and stuttered whenever the board was busy rendering.
 																	"group relative isolate cursor-pointer rounded-[10px] border bg-card px-3 py-2.5 text-left shadow-[inset_0_1px_0_rgb(255_255_255/0.04)] transition-[translate] duration-200 ease-out hover:-translate-y-px",
 																	"after:pointer-events-none after:absolute after:-inset-px after:-z-10 after:rounded-[inherit] after:border after:border-primary/40 after:bg-secondary after:opacity-0 after:shadow-[inset_0_1px_0_rgb(255_255_255/0.05),0_10px_24px_-12px_color-mix(in_oklab,var(--primary)_55%,transparent)] after:transition-opacity after:duration-200 after:ease-out hover:after:opacity-100",
-																	// Cards are neutral — the column header already says the
+																	// Cards are neutral - the column header already says the
 																	// status. Only a failure earns its red edge.
 																	card.pane.status === "failed"
 																		? "border-danger/40"
@@ -3389,7 +3389,7 @@ function DevBoardPage() {
 																	</div>
 																	<button
 																		type="button"
-																		title="Done — remove from the board"
+																		title="Done - remove from the board"
 																		onClick={(event) => {
 																			event.stopPropagation();
 																			markDone(card);
@@ -3549,12 +3549,12 @@ function DevBoardPage() {
 																	</div>
 																)}
 																{/* ponytail: the "Needs you"/"Done" headers already say
-															    the rest — only a failure adds anything. pane.status is
+															    the rest - only a failure adds anything. pane.status is
 															    the raw one; the column merges prompts and failures. */}
 																{card.status === "permission" &&
 																	card.pane.status === "failed" && (
 																		<div className="mt-1.5 text-xs text-danger">
-																			✗ failed — click to see what broke
+																			✗ failed - click to see what broke
 																		</div>
 																	)}
 																{card.status === "idle" &&
@@ -3567,7 +3567,7 @@ function DevBoardPage() {
 																				: "resuming…"}
 																		</div>
 																	)}
-																{/* Never started — it's waiting on the machine, not
+																{/* Never started - it's waiting on the machine, not
 																    on you. Says what for, and lets you overrule it. */}
 																{card.pane.odinQueued &&
 																	!resumingPaneIds.includes(card.pane.id) && (
@@ -3596,7 +3596,7 @@ function DevBoardPage() {
 																	!agentPaneIds.has(card.pane.id) &&
 																	!resumingPaneIds.includes(card.pane.id) && (
 																		<div className="mt-1.5 flex items-center gap-2">
-																			{/* ponytail: the button says "resume" — only a
+																			{/* ponytail: the button says "resume" - only a
 																		    failure is worth spelling out. */}
 																			{card.pane.status === "failed" && (
 																				<span className="text-[11.5px] text-danger">
@@ -3604,7 +3604,7 @@ function DevBoardPage() {
 																				</span>
 																			)}
 																			{/* Resume does more here than on the other
-																		    cards — it puts the agent back to work
+																		    cards - it puts the agent back to work
 																		    instead of handing you a prompt. */}
 																			{card.pane.status === "working" && (
 																				<span className="text-[11.5px] text-attention">
@@ -3674,7 +3674,7 @@ function DevBoardPage() {
 							<div className="absolute left-1/2 top-3 z-50 flex w-[min(760px,calc(100%-32px))] -translate-x-1/2 items-center justify-center">
 								<button
 									type="button"
-									title="Stop catching up — back to the board"
+									title="Stop catching up - back to the board"
 									onClick={() => {
 										setCatchUp(null);
 										setDrawerCard(null);
@@ -3701,7 +3701,7 @@ function DevBoardPage() {
 								</button>
 								<button
 									type="button"
-									title="Done — remove it from the board and go to the next one"
+									title="Done - remove it from the board and go to the next one"
 									onClick={() => catchUpNext(true)}
 									className={cn(
 										"flex-1 rounded-2xl py-3.5 text-[15px] font-semibold",
@@ -3732,20 +3732,20 @@ function DevBoardPage() {
 									}
 						}
 					>
-						{/* drag handle — resize the drawer from its left edge */}
+						{/* drag handle - resize the drawer from its left edge */}
 						{!inCatchUp && (
 							<div
 								onPointerDown={startDrawerResize}
 								className="absolute left-0 top-0 z-10 h-full w-1.5 cursor-col-resize hover:bg-primary/40"
 							/>
 						)}
-						{/* Minimize, on the edge the pointer is already on — the Close
+						{/* Minimize, on the edge the pointer is already on - the Close
 						    button is a whole drawer away. The session keeps running. */}
 						{!inCatchUp && (
 							<button
 								type="button"
 								aria-label="Minimize"
-								title="Minimize — back to the board (the session keeps running)"
+								title="Minimize - back to the board (the session keeps running)"
 								onClick={() => setDrawerCard(null)}
 								className="absolute left-0 top-1/2 z-20 -translate-y-1/2 rounded-r-[7px] border border-l-0 border-border bg-secondary py-2.5 pl-[3px] pr-1 text-[11px] leading-none text-muted-foreground hover:bg-accent hover:text-foreground"
 							>
@@ -3766,7 +3766,7 @@ function DevBoardPage() {
 								) : (
 									<input
 										// Focus on mount without the autoFocus attribute the a11y
-										// lint flags — same trick as TagMenu's input.
+										// lint flags - same trick as TagMenu's input.
 										ref={(element) => element?.focus()}
 										value={renameDraft}
 										onChange={(event) => setRenameDraft(event.target.value)}
@@ -3798,15 +3798,15 @@ function DevBoardPage() {
 								)}
 								{/* Not in Catch up (nor Diff): you're deciding Next or Done. */}
 								{drawerCard.pane.type === "terminal" && !inCatchUp && (
-									// One control: the shell, and — once it's open — where it is.
+									// One control: the shell, and - once it's open - where it is.
 									<div className="flex shrink-0 items-stretch">
 										<button
 											type="button"
 											title={
 												shellRunning
-													? "This session already has a shell running — reattach to it"
+													? "This session already has a shell running - reattach to it"
 													: drawerShell
-														? "This session's shell is disconnected — open it to start a new one"
+														? "This session's shell is disconnected - open it to start a new one"
 														: "Open a shell in this session's checkout"
 											}
 											onClick={() =>
@@ -3908,7 +3908,7 @@ function DevBoardPage() {
 							<div className="flex min-h-0 flex-1">
 								<div className="flex min-h-0 min-w-0 flex-1 flex-col">
 									{isShellOpen && drawerShell ? (
-										// A shell in the same checkout, mounted like any other pane —
+										// A shell in the same checkout, mounted like any other pane -
 										// it spawns on first mount with the session's cwd.
 										<div className="min-h-0 flex-1 bg-background p-2">
 											<Terminal
@@ -3933,11 +3933,11 @@ function DevBoardPage() {
 												<div>cwd: {drawerCard.pane.cwd}</div>
 											)}
 											<div className="mt-2">
-												Chat session — no terminal to embed.
+												Chat session - no terminal to embed.
 											</div>
 										</div>
 									) : agentPaneIds.has(drawerCard.pane.id) ? (
-										// Claude running — the real PTY, attached read/write. xterm is the
+										// Claude running - the real PTY, attached read/write. xterm is the
 										// only thing that renders Claude Code's full-screen TUI legibly
 										// (scrollback replay is a stream of overlapping frames = mush).
 										<div className="min-h-0 flex-1 bg-background p-2">
@@ -3949,7 +3949,7 @@ function DevBoardPage() {
 											/>
 										</div>
 									) : (
-										// Claude has exited — the PTY is dead, or a bare zsh outlived
+										// Claude has exited - the PTY is dead, or a bare zsh outlived
 										// the conversation. Show the conversation, read-only.
 										<HistoryView card={drawerCard} live={false} />
 									)}
@@ -3976,7 +3976,7 @@ function DevBoardPage() {
 										isSettledAgent(drawerCard.pane.id)
 									}
 									onClick={() => {
-										// Catch up's lean card hides the terminal — resuming there
+										// Catch up's lean card hides the terminal - resuming there
 										// left you staring at "Working…" with the session out of view.
 										if (inCatchUp) setCatchUpFull(drawerCard.pane.id);
 										const pane = panes[drawerCard.pane.id];
@@ -3986,20 +3986,20 @@ function DevBoardPage() {
 									}}
 									title={
 										isWorkingNow(drawerCard.pane.id)
-											? "Already working — resuming would kill the running turn"
+											? "Already working - resuming would kill the running turn"
 											: isSettledAgent(drawerCard.pane.id)
-												? "Session is already open — type in the terminal"
+												? "Session is already open - type in the terminal"
 												: agentPaneIds.has(drawerCard.pane.id)
-													? 'Session is open — send it "Continue"'
+													? 'Session is open - send it "Continue"'
 													: drawerCard.pane.status === "working"
-														? 'Died mid-turn — reopen it and send "Continue"'
+														? 'Died mid-turn - reopen it and send "Continue"'
 														: "Reopen this conversation at an idle prompt (claude --resume)"
 									}
 									className={cn(
 										"rounded-[7px] px-3 py-1.5 text-xs font-semibold",
 										BUTTON.primary,
 										// The gradient is a background-image, so it has to go before
-										// bg-secondary can show — otherwise disabled stays violet.
+										// bg-secondary can show - otherwise disabled stays violet.
 										"disabled:cursor-not-allowed disabled:bg-none disabled:bg-secondary disabled:text-faint-foreground disabled:shadow-none disabled:ring-1 disabled:ring-inset disabled:ring-border disabled:hover:brightness-100",
 									)}
 								>
@@ -4013,7 +4013,7 @@ function DevBoardPage() {
 											? "↻ Resuming…"
 											: isWorkingNow(drawerCard.pane.id)
 												? "↻ Working…"
-												: // Resume already landed and Claude is up — the button
+												: // Resume already landed and Claude is up - the button
 													// writes "Continue" into the open prompt. A live PTY with
 													// no Claude in it (Ctrl+C'd out) still says Resume.
 													agentPaneIds.has(drawerCard.pane.id)
@@ -4026,7 +4026,7 @@ function DevBoardPage() {
 								<button
 									type="button"
 									onClick={() => markDone(drawerCard)}
-									title="Done — end the session and remove it from the board"
+									title="Done - end the session and remove it from the board"
 									className={cn(
 										"rounded-[7px] px-3 py-1.5 text-xs font-semibold",
 										BUTTON.done,

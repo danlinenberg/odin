@@ -3,7 +3,7 @@ import { BUTTON } from "./pill";
 /**
  * Per-row Done, the same green pill on every feed and always visible: it's the
  * other half of what a queue row is for. Undo is on the toast, in All tasks'
- * Done list, and — on Reactions — this same button with `done` set.
+ * Done list, and - on Reactions - this same button with `done` set.
  */
 export function DoneButton({
 	onClick,

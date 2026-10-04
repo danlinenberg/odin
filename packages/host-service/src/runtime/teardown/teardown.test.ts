@@ -150,7 +150,7 @@ describe("resolveTeardownCommand", () => {
 	test("falls back to <repoPath>/.odin/teardown.sh when no teardown is configured", () => {
 		const sb = makeSandbox();
 		try {
-			// Config exists but only defines setup — teardown must fall back.
+			// Config exists but only defines setup - teardown must fall back.
 			// The main repo is the source, matching setup.sh resolution:
 			// gitignored scripts don't exist in worktrees.
 			writeConfig(sb.repoPath, { setup: ["bash setup.sh"] });

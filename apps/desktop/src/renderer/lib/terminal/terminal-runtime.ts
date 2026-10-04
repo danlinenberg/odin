@@ -346,7 +346,7 @@ export function attachToContainer(
 ) {
 	// If we're already attached to this exact container, do nothing. Prevents
 	// redundant refresh/fit from transient remounts during provider key
-	// churn — VSCode setVisible() is idempotent for the same host element.
+	// churn - VSCode setVisible() is idempotent for the same host element.
 	const sameContainer =
 		runtime.container === container &&
 		runtime.wrapper.parentElement === container;
@@ -385,7 +385,7 @@ export function detachFromContainer(runtime: TerminalRuntime) {
 	runtime.resizeObserver?.disconnect();
 	runtime.resizeObserver = null;
 	cancelParserIdleWork(runtime.gate);
-	// Park instead of .remove() so xterm survives the React unmount —
+	// Park instead of .remove() so xterm survives the React unmount -
 	// see getTerminalParkingContainer.
 	getTerminalParkingContainer().appendChild(runtime.wrapper);
 	runtime.container = null;
@@ -411,7 +411,7 @@ export function updateRuntimeAppearance(
 		terminal.options.letterSpacing = appearance.letterSpacing;
 		terminal.options.fontWeight = appearance.fontWeight;
 		measureAndResize(runtime, onResize, { forceNotify: true });
-		// The freshly-selected font may still be loading — schedule a follow-up
+		// The freshly-selected font may still be loading - schedule a follow-up
 		// refit once it resolves so dimensions track the rendered glyphs.
 		scheduleFontSettleRefit(
 			runtime.terminal,

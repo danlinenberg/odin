@@ -70,7 +70,7 @@ export async function getShellEnvironment(
 	if (cachedEnv) {
 		const ttl = isFallbackCache ? fallbackCacheTtlMs : CACHE_TTL_MS;
 		// Stale-while-revalidate. Re-reading the environment spawns an interactive
-		// login shell, which costs seconds on a heavy profile — and every git call
+		// login shell, which costs seconds on a heavy profile - and every git call
 		// in the app waits on it, so an expired cache surfaced as a multi-second
 		// freeze on whatever the user clicked next. PATH barely changes between
 		// reads, so hand back the stale copy and refresh behind the caller.
@@ -157,7 +157,7 @@ export function clearShellEnvCache(): void {
 /**
  * Ages the cached environment out without discarding it, so the next read
  * serves the stale copy and revalidates behind it. What the TTL does on its
- * own — exposed so the behaviour is testable without waiting a minute.
+ * own - exposed so the behaviour is testable without waiting a minute.
  */
 export function expireShellEnvCache(): void {
 	cacheTime = 0;

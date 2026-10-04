@@ -128,7 +128,7 @@ describe("readCpuUsagePercent", () => {
 	}
 
 	it("reads the busy share of the interval between two samples", () => {
-		// First sample only primes the baseline — cumulative counters have
+		// First sample only primes the baseline - cumulative counters have
 		// nothing to subtract yet.
 		expect(readCpuUsagePercent(cpus(1000, 1000))).toBe(0);
 		// Next interval: 20 ms idle, 980 ms busy per core. That's the Mac in

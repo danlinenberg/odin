@@ -18,7 +18,7 @@ interface ZoomStableProps {
  * pinned to the fixed macOS traffic lights, so icon controls don't grow past
  * the pinned row and overflow when the user zooms the page in.
  *
- * Keep the wrapper content-sized — avoid `w-full` / `h-full` / `flex-1` on it.
+ * Keep the wrapper content-sized - avoid `w-full` / `h-full` / `flex-1` on it.
  * CSS `zoom` scales percentage-based sizes too, so a stretched child would
  * under/overflow. Percentage sizing and the traffic-light inset belong on the
  * surrounding row, which stays in the normal (un-zoomed) coordinate space.

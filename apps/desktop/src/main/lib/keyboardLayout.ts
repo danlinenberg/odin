@@ -4,7 +4,7 @@ import { EventEmitter } from "node:events";
 // keyboardLayoutMainService). Lazy-loads on first read so the native module
 // only initializes when actually needed. On macOS, native-keymap hooks
 // Apple's kTISNotifySelectedKeyboardInputSourceChanged distributed
-// notification — input-source switches fire onChange within milliseconds,
+// notification - input-source switches fire onChange within milliseconds,
 // which navigator.keyboard.layoutchange does not do in Chromium.
 
 export interface KeyboardLayoutData {

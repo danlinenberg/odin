@@ -58,7 +58,7 @@ export function V2PresetsSection({
 }: V2PresetsSectionProps) {
 	const isDark = useIsDarkTheme();
 
-	// Read v2 agent configs from the host service — this is the same
+	// Read v2 agent configs from the host service - this is the same
 	// data source the v2 /settings/agents page reads and writes, so edits
 	// there propagate here. The query is invalidated by those mutations.
 	const { activeHostUrl } = useLocalHostService();
@@ -81,7 +81,7 @@ export function V2PresetsSection({
 		[hostProjects],
 	);
 
-	// V2TerminalPresetRow is a superset of TerminalPreset — safe to cast
+	// V2TerminalPresetRow is a superset of TerminalPreset - safe to cast
 	// for the prop-driven sub-components.
 	const serverPresets = useMemo<TerminalPreset[]>(
 		() => v2Presets as unknown as TerminalPreset[],
@@ -191,7 +191,7 @@ export function V2PresetsSection({
 		[serverPresets],
 	);
 
-	// One pill per host-agent config — agent.id is unique, so multiple
+	// One pill per host-agent config - agent.id is unique, so multiple
 	// Claude/Codex configs each get their own pill.
 	const quickAddPills = useMemo<QuickAddAgentPill[]>(() => {
 		const pills: QuickAddAgentPill[] = [];
@@ -264,7 +264,7 @@ export function V2PresetsSection({
 	);
 
 	// Migrate legacy rows whose agentId still holds a presetId. Skip when the
-	// presetId resolves to multiple configs — we can't pick one safely.
+	// presetId resolves to multiple configs - we can't pick one safely.
 	useEffect(() => {
 		if (agents.length === 0 || serverPresets.length === 0) return;
 
@@ -289,7 +289,7 @@ export function V2PresetsSection({
 	}, []);
 
 	// The stored `commands` array is the launch fallback used whenever the
-	// agent config isn't loaded, so it must track the edited agent command —
+	// agent config isn't loaded, so it must track the edited agent command -
 	// otherwise launches can silently run the command from preset-creation time.
 	const syncLinkedPresetSnapshots = useCallback(
 		(updated: HostAgentConfig) => {

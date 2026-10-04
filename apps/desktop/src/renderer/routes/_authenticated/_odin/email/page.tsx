@@ -24,13 +24,13 @@ export const Route = createFileRoute("/_authenticated/_odin/email/")({
 });
 
 /**
- * Gmail inbox mail (unread when first seen; it stays after you open it until Done), junk (the model's call, and every RSVP or cancellation — invites stay) hidden until "All". Read-only:
+ * Gmail inbox mail (unread when first seen; it stays after you open it until Done), junk (the model's call, and every RSVP or cancellation - invites stay) hidden until "All". Read-only:
  * Open takes you to the thread, Done takes the row out of Odin (not Gmail).
  */
 function EmailPage() {
 	const { emails, workConfig, syncAll, isSyncing } = useOdinFeeds();
 	const { isDone, markDone } = useDone();
-	// ponytail: local state — opens on the interesting mail every visit.
+	// ponytail: local state - opens on the interesting mail every visit.
 	const [showJunk, setShowJunk] = useState(false);
 	const open = (emails.data?.emails ?? []).filter(
 		(email) => !isDone({ key: `email:${email.id}`, url: email.url }),
@@ -65,7 +65,7 @@ function EmailPage() {
 				{workConfig && !workConfig.hasGmail && (
 					<ConnectNotice
 						provider="gmail"
-						text="Gmail isn't connected — add an app password to see your unread mail."
+						text="Gmail isn't connected - add an app password to see your unread mail."
 					/>
 				)}
 				{/* A dead app password is fixed right here, not in Settings: paste a
@@ -73,7 +73,7 @@ function EmailPage() {
 				{emails.error?.data?.code === "UNAUTHORIZED" ? (
 					<ConnectNotice
 						provider="gmail"
-						text="Gmail rejected the app password — it was revoked or changed. Paste a new one."
+						text="Gmail rejected the app password - it was revoked or changed. Paste a new one."
 					/>
 				) : (
 					<FeedError error={emails.error} />
@@ -81,7 +81,7 @@ function EmailPage() {
 				{emails.data && rows.length === 0 && (
 					<div className="px-2 py-8 text-center text-xs text-muted-foreground">
 						{junkCount > 0 && !showJunk
-							? `Nothing interesting — ${junkCount} junk hidden`
+							? `Nothing interesting - ${junkCount} junk hidden`
 							: "No unread mail 🎉"}
 					</div>
 				)}

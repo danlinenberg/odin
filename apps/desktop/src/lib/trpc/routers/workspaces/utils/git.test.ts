@@ -368,7 +368,7 @@ describe("Shell Environment", () => {
 			"./shell-env"
 		);
 		// shell-env spawns the account's login shell (os.userInfo, not $SHELL),
-		// so a .zshrc only counts on a zsh account — a CI runner's is bash.
+		// so a .zshrc only counts on a zsh account - a CI runner's is bash.
 		const zshPath = userInfo().shell;
 		if (!zshPath?.endsWith("/zsh")) {
 			return;
@@ -536,7 +536,7 @@ describe("createWorktree hook tolerance", () => {
 			stdio: "ignore",
 		});
 
-		// The registered worktree holds other/branch — tolerating this would
+		// The registered worktree holds other/branch - tolerating this would
 		// hand the workspace a worktree on the wrong branch.
 		await expect(
 			createWorktree(repoPath, "feature/wanted", worktreePath, "HEAD"),
@@ -1082,7 +1082,7 @@ describe("hasUnpushedCommits", () => {
 		// Prune locally
 		execSync("git fetch --prune", { cwd: localPath, stdio: "ignore" });
 
-		// Should still return true — commits are genuinely not merged
+		// Should still return true - commits are genuinely not merged
 		expect(await hasUnpushedCommits(localPath)).toBe(true);
 	}, 15_000);
 

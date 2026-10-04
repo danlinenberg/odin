@@ -11,7 +11,7 @@ import { bindingToDispatchChord } from "./binding";
  * KeyboardEvent → registered {@link HotkeyId}, or `null` if unbound. Uses the
  * same `event.code` normalization as react-hotkeys-hook so the reverse index
  * can't drift from the matcher. Index reflects current overrides, not frozen
- * defaults — see {@link registeredAppChords}.
+ * defaults - see {@link registeredAppChords}.
  */
 export function resolveHotkeyFromEvent(event: KeyboardEvent): HotkeyId | null {
 	if (event.type !== "keydown") return null;
@@ -125,7 +125,7 @@ function buildRegisteredAppChords(
 	for (const id of Object.keys(HOTKEYS) as HotkeyId[]) {
 		const hasOverride = id in overrides;
 		const override = hasOverride ? overrides[id] : undefined;
-		// Explicit unassignment (null override) must drop from the index — else
+		// Explicit unassignment (null override) must drop from the index - else
 		// the terminal's isAppHotkey check would swallow the freed chord.
 		if (hasOverride && override === null) continue;
 		const binding = override ?? HOTKEYS[id].key;
@@ -139,7 +139,7 @@ function buildRegisteredAppChords(
 
 // Reassigned on each override or layout change; `let` is required so the
 // subscribe callbacks can replace the reference the resolver reads. Read the
-// layout map through `getEffectiveLayoutMap` — the single chokepoint — so a
+// layout map through `getEffectiveLayoutMap` - the single chokepoint - so a
 // rebuild always sees what dispatch sees.
 let registeredAppChords = buildRegisteredAppChords(
 	useHotkeyOverridesStore.getState().overrides,

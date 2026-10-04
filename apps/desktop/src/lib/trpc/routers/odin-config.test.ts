@@ -42,7 +42,7 @@ describe("updateOdinConfig", () => {
 	test("creates the file (and its directory), owner-only", () => {
 		updateOdinConfig({ slackToken: "xoxp-1" });
 		expect(readOdinConfig().slackToken).toBe("xoxp-1");
-		// Tokens live here — the file must not be world-readable.
+		// Tokens live here - the file must not be world-readable.
 		const mode = statSync(process.env.ODIN_CONFIG_PATH as string).mode & 0o777;
 		expect(mode).toBe(0o600);
 	});
@@ -159,7 +159,7 @@ describe("profiles", () => {
 	test("each profile keeps its own credentials", () => {
 		updateOdinConfig({ slackToken: "work" });
 		const personal = createProfile("Personal");
-		// Creating one doesn't switch to it — the work feeds keep running.
+		// Creating one doesn't switch to it - the work feeds keep running.
 		expect(readOdinConfig().slackToken).toBe("work");
 		setActiveProfile(personal.id);
 		expect(readOdinConfig().slackToken).toBeUndefined();
@@ -212,7 +212,7 @@ describe("profiles", () => {
 	});
 
 	test("the OAuth app is shared, so a new profile can sign in at all", () => {
-		// The app says which Slack app Odin *is* — a property of the build, not
+		// The app says which Slack app Odin *is* - a property of the build, not
 		// of an account. A profile without it would offer no sign-in button.
 		updateOdinConfig({
 			slackClientId: "id",

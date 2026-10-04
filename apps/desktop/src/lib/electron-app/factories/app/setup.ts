@@ -63,7 +63,7 @@ export async function makeAppSetup(
 					};
 				}
 				// The panel has no tabs: a link opening one (Slack's, Jira's)
-				// loads in place instead, and Back returns — if it's another task
+				// loads in place instead, and Back returns - if it's another task
 				// source's page. Any other site opens in your browser.
 				if (opensInOdin(url)) contents.loadURL(url);
 				else if (url.startsWith("http://") || url.startsWith("https://")) {
@@ -82,7 +82,7 @@ export async function makeAppSetup(
 		});
 	});
 
-	// macOS: keep the app alive (standard behavior) — tray/dock provide re-entry.
+	// macOS: keep the app alive (standard behavior) - tray/dock provide re-entry.
 	// Windows/Linux: quit the app UI. Host-services are coupled to the app and
 	// stop with it; v1 pty-daemon survives separately.
 	app.on("window-all-closed", () => !PLATFORM.IS_MAC && app.quit());
@@ -111,7 +111,7 @@ if (env.NODE_ENV === "development" && process.env.RENDERER_REMOTE_DEBUG_PORT) {
 	);
 }
 
-// this app is Odin — name + valknut dock icon.
+// this app is Odin - name + valknut dock icon.
 app.setName("Odin");
 if (PLATFORM.IS_MAC) {
 	void app.whenReady().then(() => {
@@ -126,14 +126,14 @@ if (PLATFORM.IS_MAC) {
 						);
 			app.dock?.setIcon(iconPath);
 		} catch {
-			// cosmetic only — fall back to the default icon
+			// cosmetic only - fall back to the default icon
 		}
 	});
 }
 
 // Each xterm pane holds one WebGL context. v2 parking keeps panes alive
 // across workspace switches, so cumulative contexts can reach the low
-// hundreds — past Chromium's default cap of 16, Blink force-evicts the
+// hundreds - past Chromium's default cap of 16, Blink force-evicts the
 // oldest context and the terminal blanks out. 256 covers the parking load
 // while staying bounded enough that a runaway leak still surfaces (Tabby
 // raises this to 9000, which masks leaks).

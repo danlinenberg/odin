@@ -54,30 +54,30 @@ export const Route = createFileRoute("/_authenticated/_odin/all/")({
 });
 
 /**
- * All — every source in one list, newest first. The per-source tabs are for
+ * All - every source in one list, newest first. The per-source tabs are for
  * working a queue; this is for the question they can't answer between them,
  * which is "what have I actually got on". Clicking a row goes to its feed,
  * where the Start session button lives.
  *
- * Every session running right now sits above them, whichever tab started it —
+ * Every session running right now sits above them, whichever tab started it -
  * the per-source feeds each mark only their own rows live, and a Slack row
  * leaves its queue as soon as its session starts, so this is the one place
  * that can answer "what's already going".
  *
  * Rows are filtered, not just listed: by source, by how urgent they are in
- * whatever terms their system uses, and by where they live — the channel, the
+ * whatever terms their system uses, and by where they live - the channel, the
  * repo, the project. And anything that isn't yours to do can be hidden, under
  * the same key its own feed hides it with.
  *
  * Rows start a session here too. Each feed's prompt builder is shared rather
  * than duplicated (feed-prompts.ts, thread-prompt.ts, notion/rows.ts), so a
  * row started from All is the same session the feed itself would have given
- * you — the launch payload is built in all-items.ts, where the source's own
+ * you - the launch payload is built in all-items.ts, where the source's own
  * fields still exist.
  */
 
 /**
- * The tab strip's own mark for each feed, reused — a row's chip should say
+ * The tab strip's own mark for each feed, reused - a row's chip should say
  * "Slack" the same way the tab that opens Slack does.
  */
 const SOURCE_ICON = Object.fromEntries(
@@ -85,7 +85,7 @@ const SOURCE_ICON = Object.fromEntries(
 ) as Record<FeedPath, IconType>;
 
 /**
- * A running session's source, in the same terms the rows use — the board's
+ * A running session's source, in the same terms the rows use - the board's
  * section names on one side, the feed that started it on the other. "normal"
  * is a session started from a prompt rather than a feed row.
  */
@@ -99,7 +99,7 @@ const SESSION_SOURCE: Record<
 	pr: { to: "/prs", source: "GitHub" },
 	notion: { to: "/notion", source: "Notion" },
 	normal: { to: "/my-tasks", source: "Tasks" },
-	// Parked is a state, not a source — a session from any feed can be in it,
+	// Parked is a state, not a source - a session from any feed can be in it,
 	// and the board's own section is where that's visible. Reading it as a task
 	// keeps the row honest about the one thing it can say for sure: it isn't a
 	// feed item.
@@ -109,7 +109,7 @@ const SESSION_SOURCE: Record<
 	recent: { to: "/my-tasks", source: "Tasks" },
 };
 
-/** What a live session is doing — the board's columns, as a chip. */
+/** What a live session is doing - the board's columns, as a chip. */
 const SESSION_STATE: Partial<
 	Record<PaneStatus, { label: string; dot: string }>
 > = {
@@ -122,13 +122,13 @@ const SESSION_STATE: Partial<
 /**
  * Which system a row came from. Every source draws the same neutral chip and
  * the icon tells them apart: when each source had its own colour, a list of
- * forty rows was a rainbow that outshouted the priority and due chips — the
+ * forty rows was a rainbow that outshouted the priority and due chips - the
  * colours that actually ask something of you.
  */
 const SOURCE_CHIP = PILL.neutral;
 
 /** The source filter, in the order the tab strip lists them. ponytail: a
- * picker, not pills — the tab strip above already draws one row of sources,
+ * picker, not pills - the tab strip above already draws one row of sources,
  * and a second row of the same names read as two of the same control. */
 const SOURCES = [
 	"Tasks",
@@ -139,7 +139,7 @@ const SOURCES = [
 	"Email",
 ] as const;
 
-/** The urgency filter's options — "none" is the rows their source never rated. */
+/** The urgency filter's options - "none" is the rows their source never rated. */
 const URGENCIES: { id: Exclude<Urgency, null> | "none"; label: string }[] = [
 	{ id: "high", label: "High" },
 	{ id: "medium", label: "Medium" },
@@ -151,7 +151,7 @@ function AllFeedPage() {
 	const { reactions, jira, pulls, notion, emails, syncAll, isSyncing } =
 		useOdinFeeds();
 	const navigate = useNavigate();
-	// ponytail: local state, so it starts collapsed every visit — that's the ask.
+	// ponytail: local state, so it starts collapsed every visit - that's the ask.
 	const [showSessions, setShowSessions] = useState(false);
 	// The three ways to cut the list. Local state too: All is the "what have I
 	// got on" view, and it should open saying everything, every time.
@@ -161,12 +161,12 @@ function AllFeedPage() {
 	// A fourth cut, but a toggle rather than a select: "what's due" has one
 	// answer, and it's the one you want on the morning something is late.
 	const [dueOnly, setDueOnly] = useState(false);
-	// And free text, matched against everything a row shows — title, who, where,
-	// status — so "terraform" or a colleague's name finds it without a picker.
+	// And free text, matched against everything a row shows - title, who, where,
+	// status - so "terraform" or a colleague's name finds it without a picker.
 	const [search, setSearch] = useState("");
 	const needle = search.trim().toLowerCase();
 	const reminders = useReminders((s) => s.reminders);
-	// todos, not tasks: automations have their own panel and run themselves —
+	// todos, not tasks: automations have their own panel and run themselves -
 	// they'd sit in "what have I got on" forever without ever being yours to do.
 	const { todos } = useMyTasks();
 	const {
@@ -177,10 +177,10 @@ function AllFeedPage() {
 	} = useStartAllItem(() => void reactions.refetch());
 	// What's already running, whichever tab started it. Each feed only marks its
 	// own rows live, and a Slack row leaves its queue the moment a session
-	// starts — so this is the only place "what have I got going" is answerable.
+	// starts - so this is the only place "what have I got going" is answerable.
 	const sessions = useActiveSessions();
 
-	// Done rows — from any feed, Next in line, or a Review drop — aren't
+	// Done rows - from any feed, Next in line, or a Review drop - aren't
 	// waiting on you. They're one click away under "Done", with Undo.
 	const { isDone, markDone, undo, recent } = useDone();
 	const [showDone, setShowDone] = useState(false);
@@ -218,7 +218,7 @@ function AllFeedPage() {
 	);
 
 	// Both pickers count what picking them would leave, against the filters
-	// above them — urgency within the chosen source, place within both.
+	// above them - urgency within the chosen source, place within both.
 	const urgencyCounts = useMemo(() => {
 		const counts = new Map<string, number>();
 		for (const item of bySource) {
@@ -236,7 +236,7 @@ function AllFeedPage() {
 		[bySource, urgency],
 	);
 
-	/** Channels, repos, projects — whatever the remaining rows call home. */
+	/** Channels, repos, projects - whatever the remaining rows call home. */
 	const places = useMemo(() => {
 		const counts = new Map<string, number>();
 		for (const item of byUrgency)
@@ -367,7 +367,7 @@ function AllFeedPage() {
 					<FeedSelect
 						value={urgency}
 						onChange={setUrgency}
-						title="Filter by priority — every source's own words, in three levels"
+						title="Filter by priority - every source's own words, in three levels"
 					>
 						<option value="">Any priority</option>
 						{URGENCIES.map(({ id, label }) => (
@@ -396,7 +396,7 @@ function AllFeedPage() {
 
 			<div className={FEED_LIST}>
 				{/* ponytail: no error banner here. A broken source already marks
-				    its own tab, and fixing it happens on that tab — the roll-up
+				    its own tab, and fixing it happens on that tab - the roll-up
 				    just shows the rows the other sources returned. */}
 				{sessions.length > 0 && (
 					<>
@@ -445,7 +445,7 @@ function AllFeedPage() {
 											{/* The same columns the rows below use, so a live
 										    session says what its board card says: who it's
 										    for, its tags, which repo it's in, what it's
-										    doing. ponytail: no age column — the board's is a
+										    doing. ponytail: no age column - the board's is a
 										    transcript read per card, too much for a list. */}
 											<div className="flex shrink-0 items-center gap-2 text-[11px]">
 												<span className={META_TAG}>
@@ -528,7 +528,7 @@ function AllFeedPage() {
 								onClick={clearFilters}
 								className="underline-offset-2 hover:underline"
 							>
-								Nothing matches these filters — clear them
+								Nothing matches these filters - clear them
 							</button>
 						) : (
 							"Nothing waiting on you 🎉"
@@ -660,7 +660,7 @@ function AllFeedPage() {
 	);
 }
 
-/** What was done lately, newest first, as it looked then — with the way back. */
+/** What was done lately, newest first, as it looked then - with the way back. */
 function DoneList({
 	rows,
 	onOpen,
@@ -703,7 +703,7 @@ function DoneList({
 						<button
 							type="button"
 							onClick={() => onUndo(row)}
-							title="Not done — put it back"
+							title="Not done - put it back"
 							className="shrink-0 rounded-[7px] px-2 py-1 text-[12px] font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground"
 						>
 							Undo

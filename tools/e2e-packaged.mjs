@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * End-to-end QA for the PACKAGED Odin.app — the full user journey:
+ * End-to-end QA for the PACKAGED Odin.app - the full user journey:
  *
  *   fresh universe → boot (no login) → type a task on the board →
  *   workspace auto-provisions → session launches → drawer terminal shows
@@ -173,7 +173,7 @@ check(
 // --- 6. THE assertion: the agent actually did the task ----------------------
 // The task instructs the agent to create ODIN_E2E.txt in the repo root, so
 // the file appearing proves prompt delivery + correct cwd + auto mode in one
-// observable outcome. (xterm paints to canvas — reading its DOM text lies.)
+// observable outcome. (xterm paints to canvas - reading its DOM text lies.)
 await ev(`document.querySelector('[role="button"][tabindex]')?.click()`);
 const proofPath = join(homedir(), "dev/imagen/internal-claude/ODIN_E2E.txt");
 let proof = false;

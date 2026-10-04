@@ -53,7 +53,7 @@ export const permissionOutcomeSchema = z.custom<RequestPermissionOutcome>(
 
 export const listSessionsInput = z.object({
 	workspaceId: z.string().min(1).optional(),
-	// `<createdAt>:<sessionId>` — the previous page's last row (a sort
+	// `<createdAt>:<sessionId>` - the previous page's last row (a sort
 	// position; see AcpSessionManager.list). Rejecting malformed cursors here
 	// keeps list consistent with getMessages (BAD_REQUEST, not an empty page).
 	cursor: z
@@ -120,7 +120,7 @@ export type RespondToPermissionResult =
 /**
  * prompt acks admission, not completion: a turn can run for minutes-to-hours
  * (it blocks on human permission decisions), far beyond what a buffered
- * relay HTTP request survives. Turn completion — stop reason, errors — is
+ * relay HTTP request survives. Turn completion - stop reason, errors - is
  * observed on the update stream's `state` frames.
  */
 export interface PromptAccepted {

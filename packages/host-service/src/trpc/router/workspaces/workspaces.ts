@@ -143,7 +143,7 @@ type AgentLaunchResult =
 	| { ok: false; error: string };
 
 /**
- * Idempotency lookup — the local table is authoritative, so an existing
+ * Idempotency lookup - the local table is authoritative, so an existing
  * (project, branch) row answers the create call outright.
  */
 function findExistingWorkspaceByBranch(
@@ -292,7 +292,7 @@ async function planBranchSource(
 	if (resolved && resolved.kind === "tag") {
 		throw new TRPCError({
 			code: "BAD_REQUEST",
-			message: `"${branch}" is a tag, not a branch — cannot check out into a workspace`,
+			message: `"${branch}" is a tag, not a branch - cannot check out into a workspace`,
 		});
 	}
 
@@ -304,7 +304,7 @@ async function planBranchSource(
 	return { branch, startPoint, usedExistingBranch: false };
 }
 
-// Adopt any worktree git knows about, no matter where it lives —
+// Adopt any worktree git knows about, no matter where it lives -
 // tools other than Odin can also `git worktree add`, and their
 // worktrees are valid adoption targets.
 function isBranchInUseByWorktreeError(err: unknown): boolean {
@@ -349,7 +349,7 @@ export async function addBranchWorktree(args: {
 		});
 
 	if (plan.usedExistingBranch) {
-		// Existing branch — check it out into a fresh worktree. Remote-tracking
+		// Existing branch - check it out into a fresh worktree. Remote-tracking
 		// refs need explicit --track + -b so the worktree gets a real local
 		// branch, not detached HEAD.
 		await runWorktreeAdd(
@@ -418,7 +418,7 @@ async function recordBaseBranchConfig(args: {
 }
 
 /**
- * Registration: the host mints the id and commits the local row — the
+ * Registration: the host mints the id and commits the local row - the
  * authoritative and only record.
  */
 async function registerLocalWorkspace(args: {
@@ -497,7 +497,7 @@ export const workspacesRouter = router({
 			// immediately-available branch while the LLM call proceeds in
 			// parallel; the AI title (and branch, when auto-generated) is
 			// applied as a rename before terminals/agents start. A typed
-			// name suppresses naming entirely — it titles the workspace and
+			// name suppresses naming entirely - it titles the workspace and
 			// seeds the branch. The PR and worktree-adopt paths skip too:
 			// their names are already meaningful.
 			const composerPrompt =
@@ -521,7 +521,7 @@ export const workspacesRouter = router({
 			aiNamesPromise?.catch(() => {});
 
 			// True only when this call freshly created an auto-generated
-			// branch — the one case where the deferred AI rename may also
+			// branch - the one case where the deferred AI rename may also
 			// rename the git branch.
 			let aiCanRenameBranch = false;
 
@@ -536,7 +536,7 @@ export const workspacesRouter = router({
 				localProject.worktreeBaseDir ?? getHostWorktreeBaseDir(ctx);
 
 			// Free branches still claimed by registrations whose dirs are
-			// gone — without this, `git worktree add` later fails with
+			// gone - without this, `git worktree add` later fails with
 			// "branch is already used by worktree at <missing-path>".
 			await git
 				.raw(["worktree", "prune"])
@@ -760,7 +760,7 @@ export const workspacesRouter = router({
 				}
 			} else if (input.worktreePath) {
 				// Read the branch from git rather than trusting `input.branch`
-				// — a stale name on the caller side would otherwise mis-target
+				// - a stale name on the caller side would otherwise mis-target
 				// the registration.
 				const actualBranch = await getWorktreeBranchAtPath(
 					git,
@@ -833,7 +833,7 @@ export const workspacesRouter = router({
 				} else {
 					// Auto-gen branch: a typed workspace name seeds the branch
 					// slug; otherwise friendly random. The AI branch name (when a
-					// prompt exists) lands as a rename after registration — the
+					// prompt exists) lands as a rename after registration - the
 					// worktree add never waits for the LLM.
 					const [startPoint, existing] = await Promise.all([
 						resolveNewBranchStartPoint(
@@ -871,7 +871,7 @@ export const workspacesRouter = router({
 					workspaceRow = existing;
 					alreadyExists = true;
 				} else {
-					// Adopt at any path git already knows for this branch — git
+					// Adopt at any path git already knows for this branch - git
 					// refuses a second checkout of the same branch, so falling
 					// through to `git worktree add` would block re-entry.
 					const existingWorktreePath = (

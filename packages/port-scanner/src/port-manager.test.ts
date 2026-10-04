@@ -9,7 +9,7 @@ import {
 } from "bun:test";
 import type { DetectedPort } from "./types";
 
-// mock.module leaks across test files in the same bun process — hold the real
+// mock.module leaks across test files in the same bun process - hold the real
 // module and restore it after this file so scanner.test.ts tests the real one.
 const realScanner = { ...(await import("./scanner.ts")) };
 afterAll(() => {
@@ -145,7 +145,7 @@ afterEach(() => {
 	manager.stopPeriodicScan();
 });
 
-describe("PortManager — #3372 lifecycle (interval runs only with sessions)", () => {
+describe("PortManager - #3372 lifecycle (interval runs only with sessions)", () => {
 	it("forceScan is a no-op when no sessions are registered", async () => {
 		await manager.forceScan();
 		expect(spy.getProcessTrees).toBe(0);
@@ -199,14 +199,14 @@ describe("PortManager — #3372 lifecycle (interval runs only with sessions)", (
 	});
 });
 
-describe("PortManager — #3372 concurrency (at most one lsof in flight)", () => {
+describe("PortManager - #3372 concurrency (at most one lsof in flight)", () => {
 	it("bulk scan batches every session into one tree read and one lsof call", async () => {
 		for (let i = 0; i < 10; i++) {
 			manager.upsertSession(`p${i}`, `ws${i}`, 1000 + i);
 		}
 		await manager.forceScan();
 
-		// One system-wide process-table read covers all sessions — a
+		// One system-wide process-table read covers all sessions - a
 		// per-session pidtree call spawned a full `ps` each.
 		expect(spy.getProcessTrees).toBe(1);
 		expect(spy.lastTreeRootPids).toHaveLength(10);
@@ -220,7 +220,7 @@ describe("PortManager — #3372 concurrency (at most one lsof in flight)", () =>
 
 		const firstScan = manager.forceScan();
 
-		// 100 hints while the first scan is running — all on the hot path.
+		// 100 hints while the first scan is running - all on the hot path.
 		for (let i = 0; i < 100; i++) {
 			manager.checkOutputForHint("p1", "listening on port 3000\n");
 		}
@@ -229,12 +229,12 @@ describe("PortManager — #3372 concurrency (at most one lsof in flight)", () =>
 		await sleep(PAST_DEBOUNCE_MS); // let the single debounced follow-up run
 
 		expect(spy.maxInFlight).toBe(1);
-		// Exact — one initial scan + one coalesced follow-up, never more, never fewer.
+		// Exact - one initial scan + one coalesced follow-up, never more, never fewer.
 		expect(spy.getListeningPortsForPids).toBe(2);
 	});
 });
 
-describe("PortManager — port identity updates", () => {
+describe("PortManager - port identity updates", () => {
 	it("keeps common development service ports", async () => {
 		manager.upsertSession("p1", "ws1", 1000);
 
@@ -329,7 +329,7 @@ describe("PortManager — port identity updates", () => {
 	});
 });
 
-describe("PortManager — killPort", () => {
+describe("PortManager - killPort", () => {
 	it("kills a tracked port and reports success", async () => {
 		const killed: number[] = [];
 		const killManager = new PortManager({
@@ -408,7 +408,7 @@ describe("PortManager — killPort", () => {
 	});
 });
 
-describe("PortManager — #3372 hint regex narrowing", () => {
+describe("PortManager - #3372 hint regex narrowing", () => {
 	beforeEach(() => {
 		manager.upsertSession("p1", "ws1", 1000);
 		resetSpy();
@@ -463,7 +463,7 @@ describe("PortManager — #3372 hint regex narrowing", () => {
 	});
 });
 
-describe("PortManager — #3372 teardown (no orphan children)", () => {
+describe("PortManager - #3372 teardown (no orphan children)", () => {
 	it("stopPeriodicScan aborts any in-flight lsof", async () => {
 		lsofDelayMs = 200;
 		manager.upsertSession("p1", "ws1", 1000);
@@ -502,7 +502,7 @@ describe("PortManager — #3372 teardown (no orphan children)", () => {
 		manager.upsertSession("p1", "ws1", 1000);
 
 		manager.checkOutputForHint("p1", "listening on port 3000\n");
-		// Unregister immediately — this triggers stopPeriodicScanIfNoSessions
+		// Unregister immediately - this triggers stopPeriodicScanIfNoSessions
 		// which clears the hint timer. If any code path regresses and the timer
 		// survives past abort-nulling, ensureScanAbort must still produce a
 		// valid signal rather than throwing.
@@ -515,7 +515,7 @@ describe("PortManager — #3372 teardown (no orphan children)", () => {
 	});
 });
 
-describe("PortManager — idle decay (sessions without output scan rarely)", () => {
+describe("PortManager - idle decay (sessions without output scan rarely)", () => {
 	const scan = () => pmInternals().scanAllSessions();
 	const session = (terminalId: string) => {
 		const entry = pmInternals().sessions.get(terminalId);
@@ -550,7 +550,7 @@ describe("PortManager — idle decay (sessions without output scan rarely)", () 
 		entry.lastActivityAt = Date.now() - IDLE_AFTER_MS - 1;
 		entry.lastScannedAt = Date.now();
 
-		// Plain output — not a port hint — still counts as activity.
+		// Plain output - not a port hint - still counts as activity.
 		manager.checkOutputForHint("p1", "make: nothing to be done\n");
 		await scan();
 		expect(spy.getProcessTrees).toBe(1);
@@ -597,7 +597,7 @@ describe("PortManager — idle decay (sessions without output scan rarely)", () 
 		entry.lastActivityAt = Date.now() - IDLE_AFTER_MS - 1;
 		entry.lastScannedAt = Date.now();
 
-		// The server "dies" while the session is skipped — its port must
+		// The server "dies" while the session is skipped - its port must
 		// survive untouched until the session's own next scan.
 		listeningPorts = [];
 		await scan();
@@ -625,7 +625,7 @@ describe("PortManager — idle decay (sessions without output scan rarely)", () 
 		entry.lastScannedAt = Date.now();
 
 		// scanAllSessions marks itself in-flight synchronously, so with no await
-		// in between the force scan is guaranteed to coalesce — and the follow-up
+		// in between the force scan is guaranteed to coalesce - and the follow-up
 		// is awaited inside the periodic promise, so no timers are needed.
 		const periodic = scan();
 		await manager.forceScan();
@@ -646,7 +646,7 @@ describe("PortManager — idle decay (sessions without output scan rarely)", () 
 		];
 
 		const scanPromise = scan();
-		// The shell is replaced (new pid) while the table read is blocked — the
+		// The shell is replaced (new pid) while the table read is blocked - the
 		// stale tree for pid 1000 must not be attributed to the new session.
 		manager.upsertSession("p1", "ws1", 9999);
 		release();

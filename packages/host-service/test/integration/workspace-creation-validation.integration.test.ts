@@ -58,7 +58,7 @@ describe("workspaceCreation create/checkout input validation", () => {
 			}),
 		).rejects.toBeInstanceOf(TRPCClientError);
 
-		// Both — also rejected
+		// Both - also rejected
 		await expect(
 			host.trpc.workspaceCreation.checkout.mutate({
 				pendingId: randomUUID(),

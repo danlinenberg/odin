@@ -56,7 +56,7 @@ describe("bug-hunt-3: branch-name path traversal in workspace.create", () => {
 		// The procedure should have rejected the input. If it didn't, a
 		// worktree was placed at expectedEscapePath, outside the repo.
 		// Log the error message so we can see WHY it rejected (git's branch
-		// name validation? or our own?) — important for understanding the
+		// name validation? or our own?) - important for understanding the
 		// defense.
 		if (result instanceof Error) {
 			console.error("[bug-hunt-3] rejected with:", result.message);
@@ -225,7 +225,7 @@ describe("bug-hunt-3: more concurrency probes", () => {
 			.values({ id: projectId, repoPath: repo.repoPath })
 			.run();
 
-		// Two different branches in parallel — they both call
+		// Two different branches in parallel - they both call
 		// `git worktree add` and `git branch.<name>.base` writes via
 		// ensureMainWorkspace / inside the procedure.
 		const results = await Promise.allSettled([
@@ -241,7 +241,7 @@ describe("bug-hunt-3: more concurrency probes", () => {
 			}),
 		]);
 
-		// Document current behavior. If both succeed, great — we have no
+		// Document current behavior. If both succeed, great - we have no
 		// bug. If one fails with a config-lock or worktree-lock error,
 		// that's a real issue to file.
 		const failures = results.filter((r) => r.status === "rejected");

@@ -12,7 +12,7 @@ import { buildRowPrompt, type NotionRow } from "../notion/rows";
 import { buildThreadPrompt } from "../thread-prompt";
 
 /**
- * Everything useLaunchTaskSession needs for a row except the workspace — so
+ * Everything useLaunchTaskSession needs for a row except the workspace - so
  * All can start a session itself instead of sending you to the feed that
  * knows how. Built where the row is flattened, because that's the last place
  * the source's own fields (the Slack message text, the PR's kind, the Notion
@@ -24,46 +24,46 @@ export interface AllLaunch {
 	description: string | null;
 	contact: string | null;
 	brief: string;
-	/** Slack/Notion only — the upstream page a pane is matched back to. */
+	/** Slack/Notion only - the upstream page a pane is matched back to. */
 	pageId?: string;
 	/** Absent for my own tasks: they're not work anyone delegated. */
 	source?: OdinSource;
-	/** My own tasks only — the skill the session opens with. */
+	/** My own tasks only - the skill the session opens with. */
 	skill?: string;
 }
 
 /**
- * One row of the All feed — a task from any source, flattened to the few
+ * One row of the All feed - a task from any source, flattened to the few
  * things every source has: a name, where it came from, where to open it.
  */
 export interface AllItem {
-	/** Unique across sources — two systems can hand out the same id. */
+	/** Unique across sources - two systems can hand out the same id. */
 	key: string;
 	source: "Tasks" | "Slack" | "Jira" | "GitHub" | "Notion" | "Email";
-	/** The feed this row lives in — clicking the title goes there. */
+	/** The feed this row lives in - clicking the title goes there. */
 	to: FeedPath;
 	title: string;
 	/** Upstream link. My own tasks have none: they only exist in Odin. */
 	url: string | null;
-	/** Who it's from — the reporter, the author, the person who asked. */
+	/** Who it's from - the reporter, the author, the person who asked. */
 	person: string | null;
 	/** Where it stands upstream. My own tasks have no status but done. */
 	status: string | null;
-	/** Where it lives — the project, the repo, the channel. */
+	/** Where it lives - the project, the repo, the channel. */
 	context: string | null;
-	/** However the source names it — High, Highest, P1. Ours are PRIORITY_LABELS. */
+	/** However the source names it - High, Highest, P1. Ours are PRIORITY_LABELS. */
 	priority: string | null;
 	/** The same priority in terms every source shares, so one filter fits all. */
 	urgency: Urgency;
 	/** Sort key in ms. 0 when the source didn't date it. */
 	at: number;
-	/** The date the source itself wants it by — Jira's Due Date. Ours overrides it. */
+	/** The date the source itself wants it by - Jira's Due Date. Ours overrides it. */
 	dueDate: string | null;
-	/** The comment that put it here — Jira's @-mention rows. Null elsewhere. */
+	/** The comment that put it here - Jira's @-mention rows. Null elsewhere. */
 	mention: { author: string | null; text: string; at?: string | null } | null;
-	/** The long form the card is cut from — a message, a description, a PR body. */
+	/** The long form the card is cut from - a message, a description, a PR body. */
 	body: string | null;
-	/** Whatever else the source knows that the card has no room for —
+	/** Whatever else the source knows that the card has no room for -
 	 * label/value pairs for the hover card, in reading order. */
 	details: [string, string][];
 	/** What to hand `launch` when Start session is clicked on this row. */
@@ -74,7 +74,7 @@ export interface AllItem {
 export type Urgency = "high" | "medium" | "low" | null;
 
 /**
- * Each source names priority its own way — Jira says Highest, Notion says P1,
+ * Each source names priority its own way - Jira says Highest, Notion says P1,
  * my own tasks say High. One filter can only span them if they answer to the
  * same three words.
  */
@@ -104,7 +104,7 @@ function when(at: string | number | null | undefined): string | null {
 		: null;
 }
 
-/** The pairs that have a value, each label once — an empty field isn't a fact. */
+/** The pairs that have a value, each label once - an empty field isn't a fact. */
 function facts(
 	pairs: [string, string | null | undefined][],
 ): [string, string][] {
@@ -120,8 +120,8 @@ function facts(
 /**
  * Every feed as one list, newest first.
  *
- * Same rules the tab badges use — Slack counts only un-started messages, PRs
- * drop the bots — so All holds exactly what the other tabs claim between them
+ * Same rules the tab badges use - Slack counts only un-started messages, PRs
+ * drop the bots - so All holds exactly what the other tabs claim between them
  * rather than being a second, larger truth.
  */
 export function allItems(input: {
@@ -181,7 +181,7 @@ export function allItems(input: {
 		updatedAt: string | null;
 		date: string | null;
 	})[];
-	/** Unread inbox mail — optional, most callers predate it. */
+	/** Unread inbox mail - optional, most callers predate it. */
 	emails?: {
 		id: string;
 		url: string;
@@ -235,7 +235,7 @@ export function allItems(input: {
 					url: row.permalink,
 					person: row.authorName,
 					status: null,
-					// A reaction is someone asking me directly — always High.
+					// A reaction is someone asking me directly - always High.
 					priority: "High",
 					urgency: "high",
 					context: row.channelName,
@@ -267,7 +267,7 @@ export function allItems(input: {
 				}),
 			),
 		...input.jira
-			// Tickets I filed wait on someone else — they live on the Jira tab.
+			// Tickets I filed wait on someone else - they live on the Jira tab.
 			.filter((issue) => issue.role !== "reported")
 			.map(
 				(issue): AllItem => ({
@@ -278,7 +278,7 @@ export function allItems(input: {
 					url: issue.url,
 					person: issue.reporter ?? null,
 					status: issue.status,
-					// An @-mention is someone asking me directly — High, like a reaction.
+					// An @-mention is someone asking me directly - High, like a reaction.
 					priority: issue.mention ? "High" : (issue.priority ?? null),
 					urgency: issue.mention ? "high" : urgencyOf(issue.priority),
 					context: issue.project,
@@ -308,11 +308,11 @@ export function allItems(input: {
 				}),
 			),
 		...input.pulls
-			// Your own PRs aren't tasks to pick up — they live on the PRs tab.
+			// Your own PRs aren't tasks to pick up - they live on the PRs tab.
 			.filter((pull) => pull.kind !== "mine" && !isBot(pull.author))
 			.map(
 				(pull): AllItem => ({
-					// The PRs feed hides under `pr:<id>` — same key here, so a row
+					// The PRs feed hides under `pr:<id>` - same key here, so a row
 					// dismissed in either place is dismissed in both.
 					key: `pr:${pull.id}`,
 					source: "GitHub",
@@ -323,7 +323,7 @@ export function allItems(input: {
 					status: null,
 					priority: null,
 					urgency: null,
-					// Every repo is the same org — the column is for the repo name.
+					// Every repo is the same org - the column is for the repo name.
 					context: pull.repo.split("/").at(-1) ?? pull.repo,
 					at: ms(pull.updated),
 					dueDate: null,

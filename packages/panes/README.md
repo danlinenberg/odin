@@ -1,6 +1,6 @@
 # @odin/panes
 
-A generic, headless workspace layout engine. Tabs hold panes arranged in split layouts. The package provides the data model, store, and React components — you provide the pane content.
+A generic, headless workspace layout engine. Tabs hold panes arranged in split layouts. The package provides the data model, store, and React components - you provide the pane content.
 
 ## Concepts
 
@@ -15,10 +15,10 @@ Workspace
 └── ...
 ```
 
-- **Workspace** — top-level container. Holds tabs, tracks the active tab.
-- **Tab** — a named workspace context. Each tab has a split layout of panes and a flat pane data map.
-- **Pane** — a leaf in the layout tree. Typed with your own data (`TData`). Rendered by a registry of pane definitions.
-- **Layout tree** — purely structural. Describes how panes are arranged (splits + weights) but holds no pane data — just `paneId` references into the tab's flat `panes` map.
+- **Workspace** - top-level container. Holds tabs, tracks the active tab.
+- **Tab** - a named workspace context. Each tab has a split layout of panes and a flat pane data map.
+- **Pane** - a leaf in the layout tree. Typed with your own data (`TData`). Rendered by a registry of pane definitions.
+- **Layout tree** - purely structural. Describes how panes are arranged (splits + weights) but holds no pane data - just `paneId` references into the tab's flat `panes` map.
 
 ## Quick Start
 
@@ -39,7 +39,7 @@ The registry tells the layout engine how to render each pane kind:
 import type { PaneRegistry } from "@odin/panes";
 
 const registry: PaneRegistry<MyPaneData> = {
-  // Simple pane — just title + icon, default header
+  // Simple pane - just title + icon, default header
   terminal: {
     renderPane: (ctx) => <Terminal sessionId={ctx.pane.data.sessionId} />,
     getTitle: () => "Terminal",
@@ -106,7 +106,7 @@ function App() {
 }
 ```
 
-That's it. You get a tab bar, split panes with resizable handles, pane headers with close buttons, and context menus — all wired up.
+That's it. You get a tab bar, split panes with resizable handles, pane headers with close buttons, and context menus - all wired up.
 
 ## Data Model
 
@@ -120,9 +120,9 @@ type LayoutNode =
   | { type: "split"; id: string; direction: "horizontal" | "vertical"; children: LayoutNode[]; weights: number[] };
 ```
 
-Splits are **n-ary** (not binary) — a 3-way split is `children: [A, B, C], weights: [1, 1, 1]`, not nested binary nodes.
+Splits are **n-ary** (not binary) - a 3-way split is `children: [A, B, C], weights: [1, 1, 1]`, not nested binary nodes.
 
-**Weights** are relative, not percentages. `[1, 1, 1]` = equal thirds. `[3, 2]` = 60/40. They don't need to sum to any specific value — CSS `flex-grow` handles the proportional rendering.
+**Weights** are relative, not percentages. `[1, 1, 1]` = equal thirds. `[3, 2]` = 60/40. They don't need to sum to any specific value - CSS `flex-grow` handles the proportional rendering.
 
 ### Pane
 
@@ -145,7 +145,7 @@ interface Tab<TData> {
   createdAt: number;
   activePaneId: string | null;
   layout: LayoutNode | null;
-  panes: Record<string, Pane<TData>>;  // flat map — layout tree references these by paneId
+  panes: Record<string, Pane<TData>>;  // flat map - layout tree references these by paneId
 }
 ```
 
@@ -154,7 +154,7 @@ The **flat `panes` map** is separate from the layout tree. The tree is purely st
 ## Store
 
 The store is a vanilla zustand `StoreApi` (not a React hook store). This is intentional:
-- Stable reference — created once, passed as a prop
+- Stable reference - created once, passed as a prop
 - Subscribable from both React (`useStore`) and non-React code (`store.subscribe`)
 - Works with any persistence layer (localStorage, IndexedDB, TanStack DB, etc.) via `replaceState` for hydration and `store.subscribe` for writes
 
@@ -192,7 +192,7 @@ store.getState().splitPane(tabId, paneId, position, newPane, weights?)
 // splits the target pane, steals space from it (other panes untouched)
 
 store.getState().addPane(tabId, pane, position?, relativeToPaneId?)
-// ergonomic wrapper — splits relative to a target, or appends to edge
+// ergonomic wrapper - splits relative to a target, or appends to edge
 
 store.getState().resizeSplit(tabId, splitId, weights)
 store.getState().equalizeSplit(tabId, splitId) // sets all weights to 1
@@ -211,10 +211,10 @@ Each pane kind registers how it renders:
 
 ```ts
 interface PaneDefinition<TData> {
-  renderPane(context: RendererContext<TData>): ReactNode;     // required — the pane content
+  renderPane(context: RendererContext<TData>): ReactNode;     // required - the pane content
   getTitle?(context: RendererContext<TData>): ReactNode;       // derived title (titleOverride wins)
   getIcon?(context: RendererContext<TData>): ReactNode;        // icon in the pane header
-  renderToolbar?(context: RendererContext<TData>): ReactNode;  // full eject — replaces entire header content
+  renderToolbar?(context: RendererContext<TData>): ReactNode;  // full eject - replaces entire header content
 }
 ```
 
@@ -283,11 +283,11 @@ function BrowserPane({ context }: { context: RendererContext<MyPaneData> }) {
 ```
 
 Context menu items support:
-- `variant: "destructive"` — red text styling
-- `shortcut` — display-only keyboard hint (e.g. `"⌘K"`)
-- `disabled` — grayed out
-- `type: "separator"` — visual divider
-- `type: "submenu"` — nested menu with `items`
+- `variant: "destructive"` - red text styling
+- `shortcut` - display-only keyboard hint (e.g. `"⌘K"`)
+- `disabled` - grayed out
+- `type: "separator"` - visual divider
+- `type: "submenu"` - nested menu with `items`
 
 ## Splitting
 
@@ -311,7 +311,7 @@ Position determines direction and order:
 
 ## Preview Panes (Pin/Unpin)
 
-Unpinned panes can be replaced in-place without creating a new split — useful for file preview (click a file → replaces the preview pane, double-click or edit → pins it):
+Unpinned panes can be replaced in-place without creating a new split - useful for file preview (click a file → replaces the preview pane, double-click or edit → pins it):
 
 ```ts
 // Find any unpinned file pane in the tab
@@ -347,7 +347,7 @@ function App() {
 }
 ```
 
-This is intentional — embedding a provider inside `Workspace` would conflict with any parent `DndProvider` in your app (the HTML5 backend cannot be instantiated twice). Keeping it external lets you share a single backend across your entire component tree.
+This is intentional - embedding a provider inside `Workspace` would conflict with any parent `DndProvider` in your app (the HTML5 backend cannot be instantiated twice). Keeping it external lets you share a single backend across your entire component tree.
 
 ## Workspace Props
 

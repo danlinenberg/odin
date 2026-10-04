@@ -17,8 +17,8 @@ export type V2NotificationSourceInput =
 
 /**
  * Renderer-local notification state. Terminal agent statuses
- * (working/permission/idle/review) are DERIVED from host agent bindings —
- * see `renderer/hooks/host-service/useV2NotificationStatus` — so the only
+ * (working/permission/idle/review) are DERIVED from host agent bindings -
+ * see `renderer/hooks/host-service/useV2NotificationStatus` - so the only
  * facts stored here are about the user, not the agents:
  * manual unread marks and per-terminal seen timestamps.
  */
@@ -29,7 +29,7 @@ export interface V2NotificationState {
 	 * terminalId → last agent event the user has seen for that terminal.
 	 * Compared to the host binding's lastEventAt to derive `review` (unseen
 	 * Stop). `at` must be a HOST-clock value (event occurredAt or binding
-	 * lastEventAt) — never the renderer clock, which can drift either way
+	 * lastEventAt) - never the renderer clock, which can drift either way
 	 * and, with the monotonic guard, poison the comparison.
 	 */
 	terminalSeenAt: Record<string, number>;

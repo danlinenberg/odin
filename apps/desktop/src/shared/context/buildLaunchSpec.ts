@@ -19,7 +19,7 @@ const PLACEHOLDER_RE = /\{\{\s*([^}]+?)\s*\}\}/g;
  * - Returns null for the "none" agent or when config is missing (matches
  *   V1's buildPromptAgentLaunchRequest semantics).
  * - The user-prompt section's content parts are spliced into spec.user
- *   *in place* at the template's {{userPrompt}} position — so a
+ *   *in place* at the template's {{userPrompt}} position - so a
  *   text + image + text rich-editor prompt keeps its inline ordering for
  *   chat agents. Terminal adapters flatten later (step 7) by rendering
  *   file/image parts as markdown refs at their inline position.
@@ -108,7 +108,7 @@ function renderUserTemplate(
 }
 
 /**
- * Placeholder substitution with no trim / no newline collapse — for
+ * Placeholder substitution with no trim / no newline collapse - for
  * template halves where surrounding whitespace is structural.
  */
 function substituteVariables(
@@ -184,7 +184,7 @@ function renderKindBlock(sections: ContextSection[]): string {
 
 /**
  * Attachments block covers (a) explicit attachment-kind sections and
- * (b) inline non-text parts from the user prompt — so CLI agents
+ * (b) inline non-text parts from the user prompt - so CLI agents
  * reading just the prompt text still see a reference to every
  * file/image, with a framing header cueing the agent to actually read
  * them rather than treating them as passive metadata.
@@ -207,7 +207,7 @@ function renderAttachmentsList(sections: ContextSection[]): string {
 		"",
 		"The user attached these files alongside the prompt. They've been",
 		`written into the worktree at \`${BRIEF_DIR}/attachments/\`. Read them`,
-		"to understand the request — they're part of the task, not",
+		"to understand the request - they're part of the task, not",
 		"optional reference.",
 		"",
 		refs.join("\n"),

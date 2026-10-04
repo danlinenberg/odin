@@ -5,8 +5,8 @@ import { FeedTabs } from "./FeedTabs";
 import { BUTTON, PILL } from "./pill";
 
 /**
- * One header row per feed. Every view used to stack two bars — the sources on
- * top, its own filters underneath — which read as two competing tab strips
+ * One header row per feed. Every view used to stack two bars - the sources on
+ * top, its own filters underneath - which read as two competing tab strips
  * over a list. They're one row now: sources, a hairline, this feed's filters,
  * then its tools on the right.
  */
@@ -21,7 +21,7 @@ export function FeedHeader({ children }: { children?: ReactNode }) {
 
 /**
  * Break between the source strip and a feed's own filters. It was a hairline in
- * the header's own border colour with 10px of gap either side — which read as
+ * the header's own border colour with 10px of gap either side - which read as
  * one continuous row of ten pills. Brighter, taller, and set further apart, so
  * "which source" and "which status" land as two groups at a glance.
  */
@@ -30,7 +30,7 @@ export function FeedDivider() {
 }
 
 /**
- * A feed's own filter. Deliberately quieter than the source strip next to it —
+ * A feed's own filter. Deliberately quieter than the source strip next to it -
  * same row, second rank.
  */
 export function FilterPill({
@@ -71,7 +71,7 @@ export function FilterPill({
 }
 
 /**
- * A feed's "narrow it down" picker — repo, project, channel, priority. A
+ * A feed's "narrow it down" picker - repo, project, channel, priority. A
  * select rather than more pills because the options are the data's, not the
  * app's: there can be two of them or forty.
  */
@@ -111,7 +111,7 @@ export function FeedSelect({
 export function useSearchHotkey() {
 	const ref = useRef<HTMLInputElement>(null);
 	const { text } = useHotkey("ODIN_BOARD_SEARCH", () => ref.current?.focus(), {
-		// From another field or a filter dropdown too — but not a textarea,
+		// From another field or a filter dropdown too - but not a textarea,
 		// which is xterm's input, where ⌘F is the terminal's own find.
 		enableOnFormTags: ["input", "select"],
 		enableOnContentEditable: false,
@@ -153,7 +153,7 @@ export function FeedSearch({
 	);
 }
 
-/** Refresh every feed, not just this one — same button in each view. */
+/** Refresh every feed, not just this one - same button in each view. */
 export function SyncButton({
 	isSyncing,
 	onClick,
@@ -177,7 +177,7 @@ export function SyncButton({
 /**
  * Row actions that only matter once you're pointing at the row: hidden until
  * hover (or keyboard focus), so a long list is titles rather than buttons.
- * Put the primary action outside this — it stays visible. Always last on the
+ * Put the primary action outside this - it stays visible. Always last on the
  * row, after the primary button: the ✕ lands in the same place in every feed.
  */
 export function RowActions({ children }: { children: ReactNode }) {
@@ -191,15 +191,15 @@ export function RowActions({ children }: { children: ReactNode }) {
 /**
  * The primary "do the thing" button on a row: a quiet secondary at rest, so a
  * list of fifty rows isn't fifty violet buttons, and violet on the one you're
- * actually pointing at. Not on row hover — that lit this one up while the
+ * actually pointing at. Not on row hover - that lit this one up while the
  * cursor sat on the ✓ Done beside it.
  */
 export const ROW_PRIMARY_BUTTON = `shrink-0 rounded-[7px] px-3 py-1 text-xs font-semibold transition-colors disabled:opacity-40 ${BUTTON.secondary} hover:bg-primary hover:text-primary-foreground hover:ring-primary`;
 
-/** Same, for a row whose session is live — blue, the board's "working". */
+/** Same, for a row whose session is live - blue, the board's "working". */
 export const ROW_LIVE_BUTTON = `shrink-0 rounded-[7px] px-3 py-1 text-xs font-semibold transition-colors ${PILL.working} hover:bg-working/20`;
 
-/** Low-signal row metadata — a date, a project key. Text, not another chip. */
+/** Low-signal row metadata - a date, a project key. Text, not another chip. */
 export const ROW_META = "text-[11px] text-muted-foreground";
 
 /**
@@ -210,18 +210,18 @@ export const ROW_META = "text-[11px] text-muted-foreground";
  */
 export const META_PERSON =
 	"flex w-[160px] shrink-0 items-center overflow-hidden";
-/** A short chip — live, priority, why this row is here. */
+/** A short chip - live, priority, why this row is here. */
 export const META_TAG = "flex w-[62px] shrink-0 items-center overflow-hidden";
 /** A status chip, which can run as long as "Discovery & Scoping". */
 export const META_STATUS =
 	"flex w-[116px] shrink-0 items-center overflow-hidden";
-/** Plain text — the project, the repo, the channel. */
+/** Plain text - the project, the repo, the channel. */
 export const META_TEXT =
 	"w-[132px] shrink-0 truncate text-[11px] text-muted-foreground";
 export const META_DATE = "w-[48px] shrink-0 text-[11px] text-muted-foreground";
 
 /**
- * "Open it where it lives" — on the row rather than under a hover, because
+ * "Open it where it lives" - on the row rather than under a hover, because
  * reading the thread, the ticket or the PR is half of what a queue is for.
  * The slot keeps its width for rows that have no link.
  */
@@ -237,12 +237,12 @@ export const ROW_LINK_BUTTON =
 
 /**
  * The scroller under a header, one row in it, and a notice in the same stack.
- * Every feed grew its own gutter, row padding and gap — 4px here, 6px there —
+ * Every feed grew its own gutter, row padding and gap - 4px here, 6px there -
  * which read as a different app per tab. One set of numbers, shared.
  */
 export const FEED_LIST =
 	"flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-[18px] pb-[18px] pt-2";
 export const FEED_ROW =
 	"group rounded-[10px] border border-border bg-card px-3.5 py-2 shadow-[inset_0_1px_0_rgb(255_255_255/0.035)] transition-colors hover:border-primary/30 hover:bg-secondary/60";
-/** A full-width box in the list — not connected, nothing picked, failed. */
+/** A full-width box in the list - not connected, nothing picked, failed. */
 export const FEED_NOTICE_BOX = "rounded-[10px] px-3.5 py-2.5 text-xs";

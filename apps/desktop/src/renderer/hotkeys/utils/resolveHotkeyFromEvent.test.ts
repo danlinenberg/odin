@@ -14,7 +14,7 @@ import {
 	TERMINAL_RESERVED_CHORDS,
 } from "./resolveHotkeyFromEvent";
 
-// Minimal stub — the renderer references `navigator` only at import time.
+// Minimal stub - the renderer references `navigator` only at import time.
 // Bun's test runtime doesn't have a DOM navigator by default; registry.ts
 // detects platform via `navigator.platform` and falls back to "mac" when
 // navigator is undefined. We only assert platform-agnostic behavior here.
@@ -147,7 +147,7 @@ function ev(init: StubInit): KeyboardEvent {
 	} as unknown as KeyboardEvent;
 }
 
-describe("resolveHotkeyFromEvent — live override index", () => {
+describe("resolveHotkeyFromEvent - live override index", () => {
 	let originalOverrides: Record<string, ShortcutBinding | null>;
 	beforeEach(() => {
 		originalOverrides = useHotkeyOverridesStore.getState().overrides;
@@ -158,7 +158,7 @@ describe("resolveHotkeyFromEvent — live override index", () => {
 
 	// Resolve once so registry reorders / removals surface as a test failure
 	// here instead of silently skipping the cases below. Defaults can be
-	// stored as bare strings (named/legacy) or v2 objects (logical) — extract
+	// stored as bare strings (named/legacy) or v2 objects (logical) - extract
 	// the canonical chord via parseBinding so test helpers stay string-shaped.
 	const sampleEntry = Object.entries(HOTKEYS).find(
 		(entry): entry is [HotkeyId, HotkeyDefinition & { key: ShortcutBinding }] =>

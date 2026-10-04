@@ -5,24 +5,24 @@ import { persist } from "zustand/middleware";
 import { useOdinProfile } from "./useOdinProfile";
 
 /**
- * One thing I decided to do myself — the feed with no upstream system behind
+ * One thing I decided to do myself - the feed with no upstream system behind
  * it. Jira, Slack and PRs are mirrors of other people's queues; this is the
  * list you type into when the thing you have to do isn't a ticket yet.
  */
 export interface OdinTask {
 	id: string;
-	/** First line — names the card, the tab and the session. */
+	/** First line - names the card, the tab and the session. */
 	title: string;
 	/** The rest of what you typed: the actual ask, sent as the prompt. */
 	notes: string;
 	createdAt: number;
-	/** 1–3 — Low, Medium, High (PRIORITY_LABELS). Absent (or 0) reads as Medium. */
+	/** 1–3 - Low, Medium, High (PRIORITY_LABELS). Absent (or 0) reads as Medium. */
 	priority?: number;
 	/** The session started from this task, once there is one. */
 	paneId?: string;
 	/**
 	 * The profile that wrote it. Work todos and personal todos are different
-	 * lists. Absent on tasks written before profiles — those read as default.
+	 * lists. Absent on tasks written before profiles - those read as default.
 	 */
 	profileId?: string;
 	/**
@@ -36,7 +36,7 @@ export interface OdinTask {
 	/** The minute the schedule last fired, so one tick can't fire it twice. */
 	lastRunAt?: number;
 	/**
-	 * The skill this runs — `gdpr`, `imagen-core:triage`. The session opens by
+	 * The skill this runs - `gdpr`, `imagen-core:triage`. The session opens by
 	 * invoking it, with the title as its argument, so a task that is really
 	 * "run /ship-status" says so on the card instead of hiding it in prose.
 	 */
@@ -55,18 +55,18 @@ export interface OdinTask {
 	builtin?: string;
 }
 
-/** Scheduled, so it runs itself — the one thing automations don't share. */
+/** Scheduled, so it runs itself - the one thing automations don't share. */
 export const isAutomation = (task: OdinTask): boolean => !!task.cron;
 
 /**
- * Priority by level — what the chip says and the select offers. Slot 0 is only
+ * Priority by level - what the chip says and the select offers. Slot 0 is only
  * what tasks written before Medium was the default still hold; nothing writes
  * it any more and it reads as Medium.
  */
 export const PRIORITY_LABELS = ["None", "Low", "Medium", "High"] as const;
 
 /**
- * No "!"s means Medium. Everything you write down is something you mean to do —
+ * No "!"s means Medium. Everything you write down is something you mean to do -
  * "None" was a level that said nothing about when, and picking one on every
  * task is a tax. Say Low or High when it isn't the middle.
  */
@@ -87,7 +87,7 @@ export const priorityOf = (task: { priority?: number }): number =>
  * then the name. The parser and both writers (priority, skill) go through
  * here, so picking from a menu and typing it by hand can't disagree.
  *
- * The skill token must be followed by a space or the end of the line —
+ * The skill token must be followed by a space or the end of the line -
  * otherwise a title that starts with a path ("/Users/dan/notes.md") would read
  * as a skill called `Users`.
  */
@@ -124,7 +124,7 @@ export function parseTask(text: string): {
 	const [first = "", ...rest] = text.trim().split("\n");
 	const { bangs, skill, title } = splitFirstLine(first);
 	return {
-		// "/ship-status" on its own is a task — the skill names it, so the card
+		// "/ship-status" on its own is a task - the skill names it, so the card
 		// isn't blank and `add` doesn't reject it as titleless.
 		title: title || skill,
 		notes: rest.join("\n").trim(),
@@ -137,13 +137,13 @@ export const useOdinTasks = create<{
 	tasks: OdinTask[];
 	/**
 	 * One entry per built-in already installed, keyed by profile. Kept apart
-	 * from the tasks so deleting one is final — without it the row would be
+	 * from the tasks so deleting one is final - without it the row would be
 	 * back on the next launch, which is the behaviour that teaches you to pause
 	 * things you actually meant to throw away.
 	 */
 	seeded: string[];
 	/**
-	 * Newest first. Blank text is a no-op — Enter on an empty box. Pass a cron
+	 * Newest first. Blank text is a no-op - Enter on an empty box. Pass a cron
 	 * and it lands as an automation instead of a one-shot task.
 	 */
 	add: (text: string, profileId?: string, cron?: string, repo?: string) => void;
@@ -197,7 +197,7 @@ export const useOdinTasks = create<{
 			edit: (id, text, repo) =>
 				set((s) => {
 					const { title, notes, priority, skill } = parseTask(text);
-					// Editing a task to nothing means deleting it — one fewer button.
+					// Editing a task to nothing means deleting it - one fewer button.
 					if (!title) return { tasks: s.tasks.filter((t) => t.id !== id) };
 					return {
 						tasks: s.tasks.map((t) =>
@@ -289,7 +289,7 @@ export const useOdinTasks = create<{
 );
 
 /**
- * The task list as a view of the active profile — what every screen wants.
+ * The task list as a view of the active profile - what every screen wants.
  * The store keeps every profile's tasks in one array (it's one localStorage
  * key either way); this is the only way anything reads it.
  */
@@ -298,7 +298,7 @@ export function useMyTasks() {
 	const store = useOdinTasks();
 	const tasks = useMemo(
 		// Until the profile is known, show nothing rather than the default
-		// profile's list — on a reload inside another profile that would flash
+		// profile's list - on a reload inside another profile that would flash
 		// someone else's todos before settling.
 		() =>
 			isLoading
@@ -314,7 +314,7 @@ export function useMyTasks() {
 		tasks,
 		/**
 		 * The list minus the automations. Everything that counts "what's waiting
-		 * on you" — the tab badge, the All feed — asks for this one: a schedule
+		 * on you" - the tab badge, the All feed - asks for this one: a schedule
 		 * that fires itself is not a thing sitting on you.
 		 */
 		todos: useMemo(() => tasks.filter((task) => !isAutomation(task)), [tasks]),
@@ -325,13 +325,13 @@ export function useMyTasks() {
 }
 
 /**
- * The same text at another priority — what the select writes back into the
+ * The same text at another priority - what the select writes back into the
  * box. Rewrites the leading "!"s of the first line and touches nothing else.
  */
 export function withPriority(text: string, priority: number): string {
 	const [first = "", ...rest] = text.split("\n");
 	const level = Math.min(Math.max(priority, 1), 3);
-	// Medium is what no "!"s already means, so the default writes none — the
+	// Medium is what no "!"s already means, so the default writes none - the
 	// box stays the text you typed until you actually pick Low or High.
 	const bangs = level === DEFAULT_PRIORITY ? "" : "!".repeat(level);
 	return [joinFirstLine({ ...splitFirstLine(first), bangs }), ...rest].join(
@@ -340,7 +340,7 @@ export function withPriority(text: string, priority: number): string {
 }
 
 /**
- * The same text running a different skill — what the Skill menu writes back
+ * The same text running a different skill - what the Skill menu writes back
  * into the box. An empty name takes the skill off.
  */
 export function withSkill(text: string, skill: string): string {
@@ -350,7 +350,7 @@ export function withSkill(text: string, skill: string): string {
 	);
 }
 
-/** What you'd have to type to get this task back — the edit box's text. */
+/** What you'd have to type to get this task back - the edit box's text. */
 export function taskText(task: OdinTask): string {
 	return withSkill(
 		withPriority(taskPrompt(task), priorityOf(task)),
@@ -358,7 +358,7 @@ export function taskText(task: OdinTask): string {
 	);
 }
 
-/** The prompt a task launches with — what you typed, minus the "!"s. */
+/** The prompt a task launches with - what you typed, minus the "!"s. */
 export function taskPrompt(task: OdinTask): string {
 	return task.notes ? `${task.title}\n\n${task.notes}` : task.title;
 }

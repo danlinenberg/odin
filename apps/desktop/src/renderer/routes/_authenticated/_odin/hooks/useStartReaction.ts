@@ -9,7 +9,7 @@ import { useOdinWorkspace } from "./useOdinWorkspace";
 import { usePaneMeta } from "./usePaneMeta";
 
 /**
- * Start a session on a queued Slack message — the Reactions page's Start
+ * Start a session on a queued Slack message - the Reactions page's Start
  * button and the :robot_face: auto-launcher both come through here. Resolves
  * to the new pane id, or null after toasting why it couldn't start.
  */

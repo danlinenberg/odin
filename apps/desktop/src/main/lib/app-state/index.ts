@@ -49,7 +49,7 @@ export async function initAppState(): Promise<void> {
 /**
  * Persist the current state to disk synchronously. lowdb's `write()` is async
  * and won't complete before `app.exit()` on quit / SIGTERM, which drops the
- * most recent tab (session) state — this writes it in one blocking call so
+ * most recent tab (session) state - this writes it in one blocking call so
  * exit handlers can guarantee it lands.
  */
 export function flushAppStateSync(): void {

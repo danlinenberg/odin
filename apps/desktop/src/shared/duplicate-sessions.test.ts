@@ -26,7 +26,7 @@ it("pairs the same ask arriving twice, and nothing else", () => {
 			odinTaskTitle: "TouchPoint user abuse investigation",
 			odinContact: "Richu Joseph George",
 		}),
-		// Same symptom, different customers and root causes — not a duplicate.
+		// Same symptom, different customers and root causes - not a duplicate.
 		pane({
 			id: "jira-color",
 			odinTaskTitle: "Color profile preview mismatch (BUGT-4008)",
@@ -40,7 +40,7 @@ it("pairs the same ask arriving twice, and nothing else", () => {
 		// Same person, two tickets: the shared "BUGT" prefix doesn't count.
 		pane({
 			id: "jira-download",
-			odinTaskTitle: "BUGT-4032 — error 3010 image download 404",
+			odinTaskTitle: "BUGT-4032 - error 3010 image download 404",
 			odinContact: "Vanessa Li",
 		}),
 		// The ticket and the Slack thread about it.

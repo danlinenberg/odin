@@ -13,7 +13,7 @@ import { seedProject, seedWorkspace } from "./seed";
  * repeating the four-step `beforeEach` (host + repo + project + workspace)
  * across every file.
  *
- * Each scenario owns its `dispose()` — call it from `afterEach` to
+ * Each scenario owns its `dispose()` - call it from `afterEach` to
  * clean up both the host and the on-disk repo in the right order.
  */
 

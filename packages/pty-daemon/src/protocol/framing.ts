@@ -6,7 +6,7 @@
 //                     └────── totalLen counts everything from here ──────┘
 //
 // `payloadLen = totalLen - 4 - jsonLen` (implicit). A frame with `jsonLen
-// === totalLen - 4` carries no payload — every control message looks
+// === totalLen - 4` carries no payload - every control message looks
 // exactly like that.
 //
 // PTY input/output bytes ride in the payload tail rather than being
@@ -19,7 +19,7 @@ const MAX_FRAME_BYTES = 8 * 1024 * 1024; // 8 MB hard cap; abort the connection 
 
 export interface DecodedFrame {
 	message: unknown;
-	/** Optional binary tail — `null` when the frame carries only JSON. */
+	/** Optional binary tail - `null` when the frame carries only JSON. */
 	payload: Uint8Array | null;
 }
 

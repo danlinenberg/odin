@@ -77,7 +77,7 @@ const DESKTOP_AGENT_SETUP_RUNNERS: Record<DesktopAgentSetupAction, () => void> =
 
 /**
  * One bad $HOME state (permissions, a config another tool corrupted) must not
- * break app boot or block the remaining agents' setup — isolate every action.
+ * break app boot or block the remaining agents' setup - isolate every action.
  */
 export function runSetupAction(label: string, action: () => void): boolean {
 	try {
@@ -115,7 +115,7 @@ export function setupDesktopAgentCapabilities(): void {
 
 /**
  * Re-run setupActions for one agent. Bootstrap actions run first because
- * per-agent hooks reference the shared notify script — without them the
+ * per-agent hooks reference the shared notify script - without them the
  * per-agent setup isn't self-sufficient. Returns `false` for unknown ids.
  */
 export function setupSingleAgent(agentId: string): boolean {

@@ -7,7 +7,7 @@
 // Live programs typically set these modes ONCE at startup (e.g. codex emits
 // `\x1b[>7u` to enable kitty keyboard). Those bytes are broadcast straight to
 // the live socket and never enter the FIFO replay, so a renderer reload
-// reattaches a fresh xterm with default modes — Shift+Enter starts submitting
+// reattaches a fresh xterm with default modes - Shift+Enter starts submitting
 // instead of inserting newline, paste arrives as keystrokes, etc.
 //
 // Pattern adapted from VSCode's XtermSerializer
@@ -69,7 +69,7 @@ export function createModeTracker(cols: number, rows: number): ModeTracker {
 	if (!optionsRaw || typeof writeBuffer?.writeSync !== "function") {
 		throw new Error(
 			"@xterm/headless internals not found (optionsService.rawOptions, " +
-				"_writeBuffer.writeSync). Likely a version-pinning regression — " +
+				"_writeBuffer.writeSync). Likely a version-pinning regression - " +
 				"check that the pinned version still exposes these.",
 		);
 	}
@@ -98,7 +98,7 @@ export function createModeTracker(cols: number, rows: number): ModeTracker {
 		// Inverted: defaults true, only emit when explicitly disabled.
 		if (!m.showCursor) parts.push("\x1b[?25l");
 		if (!m.wraparoundMode) parts.push("\x1b[?7l");
-		// synchronizedOutputMode intentionally omitted — re-asserting it on
+		// synchronizedOutputMode intentionally omitted - re-asserting it on
 		// attach would suspend rendering until the next end-marker.
 
 		switch (m.mouseTrackingMode) {
@@ -120,7 +120,7 @@ export function createModeTracker(cols: number, rows: number): ModeTracker {
 
 		const kittyFlags = internals._core?.coreService?.kittyKeyboard?.flags ?? 0;
 		if (kittyFlags > 0) {
-			// `=N;1u` sets flags directly — restoring effective state to a
+			// `=N;1u` sets flags directly - restoring effective state to a
 			// fresh peer, not modeling the program's push/pop stack.
 			parts.push(`\x1b[=${kittyFlags};1u`);
 		}

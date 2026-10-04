@@ -62,11 +62,11 @@
 
 	/* Odin's semantic palette. Not theme-store variables: a theme recolours
 	   surfaces, but a state reads the same everywhere. Each hue means one
-	   thing — never use one for decoration:
-	     working   — an agent is running (blue)
-	     attention — waiting on you, a warning (amber)
-	     success   — finished, done, connected (green)
-	     danger    — failed, overdue, destructive (red)
+	   thing - never use one for decoration:
+	     working   - an agent is running (blue)
+	     attention - waiting on you, a warning (amber)
+	     success   - finished, done, connected (green)
+	     danger    - failed, overdue, destructive (red)
 	   Chips tint them: bg-<hue>/12 text-<hue>. Two text steps sit between
 	   foreground and muted-foreground: soft (body copy) and faint (tags,
 	   separators, placeholders). */
@@ -80,7 +80,7 @@
 	   working status. */
 	--link: #4dd0e1;
 	/* Each hue's "ink": the hue lifted toward white, for text sitting on its
-	   own tint — the light label on a pill, the top of a glossy button. */
+	   own tint - the light label on a pill, the top of a glossy button. */
 	--primary-ink: color-mix(in oklab, var(--primary) 52%, white);
 	--working-ink: color-mix(in oklab, var(--working) 52%, white);
 	--attention-ink: color-mix(in oklab, var(--attention) 52%, white);
@@ -145,7 +145,7 @@
 }
 
 /* tw-animate-css's enter/exit always animate `filter: blur(…)`, even at 0, and a
-   blur keeps the whole animation off the compositor — every popover, hover card,
+   blur keeps the whole animation off the compositor - every popover, hover card,
    menu and dialog entrance repainted per frame on the main thread. Same keyframes
    minus the blur (nothing here uses blur-in/blur-out); being registered after the
    import, these are emitted last and win. */
@@ -241,7 +241,7 @@
 	--color-danger-ink: var(--danger-ink);
 }
 
-/* A soft halo in a colour — glow-primary, glow-success … Pills and the
+/* A soft halo in a colour - glow-primary, glow-success … Pills and the
    status dots wear one; neutrals don't, a glow on grey says nothing. */
 @utility glow-* {
 	box-shadow: 0 0 5px color-mix(in oklab, --value(--color-*) 32%, transparent);
@@ -264,7 +264,7 @@
 
 	/* The button under the cursor lights up. Feed rows fill their primary
 	   button on *row* hover, so pointing at any button on a row lit a
-	   different one — nothing marked the one you were about to click.
+	   different one - nothing marked the one you were about to click.
 	   A flat gradient, not box-shadow: it layers over whatever bg-* the
 	   button already has instead of wiping its ring utility. */
 	button:not(:disabled):hover,
@@ -276,7 +276,7 @@
 		@apply bg-background text-foreground;
 	}
 
-	/* Native controls — date pickers, <select> menus, scrollbars — follow the
+	/* Native controls - date pickers, <select> menus, scrollbars - follow the
 	   theme instead of flashing a white popup on a dark page. */
 	:root {
 		color-scheme: dark;
@@ -438,7 +438,7 @@
 		}
 	}
 
-	/* UpdatesPill: retro pixel-dissolve when the confirmation expires — a
+	/* UpdatesPill: retro pixel-dissolve when the confirmation expires - a
 	   checkerboard mask flips on and coarsens in discrete steps (mask-image
 	   animates discretely, swapping at segment midpoints) until the pill
 	   crumbles away */

@@ -14,7 +14,7 @@ interface StartSetupTerminalArgs {
 	/**
 	 * Appended to the resolved setup command with ` && `, so it runs in the
 	 * setup terminal only after setup succeeds. Ignored when no setup command
-	 * resolves — the caller must then dispatch it separately.
+	 * resolves - the caller must then dispatch it separately.
 	 */
 	chainCommand?: string;
 }

@@ -36,7 +36,7 @@ import type { PathValidationCode } from "shared/changes-types";
 
 const PATH_VALIDATION_TO_TRPC: Record<PathValidationCode, TRPCError["code"]> = {
 	// A worktree that was deleted while a poller still references it is the
-	// common case — a missing resource, not a server fault.
+	// common case - a missing resource, not a server fault.
 	UNREGISTERED_WORKTREE: "NOT_FOUND",
 	ABSOLUTE_PATH: "BAD_REQUEST",
 	PATH_TRAVERSAL: "BAD_REQUEST",

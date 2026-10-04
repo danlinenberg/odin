@@ -42,7 +42,7 @@ const t = initTRPC.create({
  *
  * Contract: expected domain states are translated by routers/adapters into
  * non-500 TRPCErrors before they get here. Anything still
- * INTERNAL_SERVER_ERROR at this boundary is a bug and is always reported —
+ * INTERNAL_SERVER_ERROR at this boundary is a bug and is always reported -
  * fix the missing translation at the throw site, never add a filter here.
  */
 const sentryMiddleware = t.middleware(async ({ next, path, type }) => {

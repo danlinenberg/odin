@@ -8,7 +8,7 @@ import type { AgentDefinitionId, AgentIdentityId } from "./agent-catalog";
  *
  * `agentId` is the wrapper-level id and matches `AgentIdentityId` /
  * `PRESET_ICONS`. `definitionId` is the user-customized id when the launch
- * path stamps it; it's reserved for a future PR — wrappers can't distinguish
+ * path stamps it; it's reserved for a future PR - wrappers can't distinguish
  * user definitions on their own.
  */
 export interface AgentIdentity {

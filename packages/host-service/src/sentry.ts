@@ -36,6 +36,6 @@ export async function captureFatalStartupError(error: unknown): Promise<void> {
 	try {
 		await Sentry.flush(2_000);
 	} catch {
-		// Best-effort — the process is exiting either way.
+		// Best-effort - the process is exiting either way.
 	}
 }

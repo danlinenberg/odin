@@ -24,20 +24,26 @@ it would do.
 
 **Why.** In a shared working tree `git checkout`, `git reset --hard` and
 `git stash` are global: they rewrite every tracked file, including the ones
-another session has open and uncommitted. Measured on this repo — local `main`
+another session has open and uncommitted. Measured on this repo - local `main`
 sat 40 commits stale for 28 hours while sessions kept branching off it, and one
 `git stash` followed by `git pull --rebase` took 40 files and 1280 insertions
 off disk in a single second. Nobody popped the stash. Uncommitted work in a
 shared checkout has no owner.
 
 `git stash` is blocked here by a `reference-transaction` hook for that reason.
-Commit to a branch instead — a commit has an owner and survives a checkout.
+Commit to a branch instead - a commit has an owner and survives a checkout.
+
+## Writing
+
+No em dashes anywhere: code, comments, UI strings, docs, commit messages, PR
+descriptions. Use a plain hyphen `-`. `scripts/lint.sh` (CI's lint step) fails
+on one.
 
 ## Committing
 
 - Cut branches from `origin/main`, never from the branch the repo happens to be
   sitting on: it is routinely stale and often already squash-merged.
-- Commit with an explicit pathspec — `git commit -m "..." -- <path>` — so a
+- Commit with an explicit pathspec - `git commit -m "..." -- <path>` - so a
   dirty index elsewhere can't ride along. `git show --stat HEAD` before pushing,
   and confirm the file list is exactly yours.
 - Never `git add -A`. It sweeps up whatever another session left in the tree.
@@ -46,7 +52,7 @@ Commit to a branch instead — a commit has an owner and survives a checkout.
 
 ## Verifying
 
-- `bun run compile:app` in `apps/desktop` is the build check that matters —
+- `bun run compile:app` in `apps/desktop` is the build check that matters -
   it reaches entry points (`index.html`, the host-service and CLI bins) that
   nothing imports, so `tsc --noEmit` alone can miss a break.
 - `bun run smoke` in `apps/desktop`, after `compile:app`, boots the built app in

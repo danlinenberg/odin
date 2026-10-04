@@ -12,7 +12,7 @@ import { electronReactClient } from "../../lib/trpc-client";
 // In Electron, blurring the BrowserWindow keeps document.visibilityState
 // "visible", so React Query's default visibilitychange listener never fires.
 // Wire window focus/blur instead so refetchOnWindowFocus actually works.
-// focusManager is a module-global singleton — this covers every query client
+// focusManager is a module-global singleton - this covers every query client
 // in the renderer, including chat-service's.
 focusManager.setEventListener((handleFocus) => {
 	const onFocus = () => handleFocus(true);
@@ -25,7 +25,7 @@ focusManager.setEventListener((handleFocus) => {
 	};
 });
 
-// Bump when query response shapes change — invalidates the persisted cache.
+// Bump when query response shapes change - invalidates the persisted cache.
 const PERSIST_BUSTER = "v1";
 
 // Shared QueryClient for tRPC hooks and router loaders
@@ -58,7 +58,7 @@ const persister = createAsyncStoragePersister({
 	key: "odin-rq-cache",
 });
 
-// Whitelist of queryKey prefixes worth persisting — anything else (auth
+// Whitelist of queryKey prefixes worth persisting - anything else (auth
 // tokens, ephemeral host state, transient mutations) is left in memory only.
 const PERSIST_KEY_PREFIXES = new Set([
 	"tasks", // PR/issue list infinite queries

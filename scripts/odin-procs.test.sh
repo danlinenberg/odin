@@ -3,8 +3,8 @@
 #
 # The packaged UI and the terminal-host daemon run the SAME argv[0], so the only
 # thing telling them apart is the daemon script in argv[1]. Getting this wrong
-# kills the daemon and closes every open session — and in odin-update.sh it also
-# gates an `rm -rf` of the bundle a live daemon is running from — so it gets a
+# kills the daemon and closes every open session - and in odin-update.sh it also
+# gates an `rm -rf` of the bundle a live daemon is running from - so it gets a
 # check. The two I/O boundaries (ps, the pid file) are stubbed; everything else
 # is the real code.
 #
@@ -32,7 +32,7 @@ got="$(ui_pids | tr '\n' ' ')"
 got="$(daemon_pids | tr '\n' ' ')"
 [[ "$got" == "202 " ]] || fail "daemon_pids returned '$got', want '202 '"
 
-# The pid file is authoritative even when ps can't see the daemon at all — the
+# The pid file is authoritative even when ps can't see the daemon at all - the
 # renamed-bundle case that made pgrep unusable in the first place.
 odin_procs() { printf '%s\n' "$UI_LINE"; }
 daemon_pid_file() { printf '303\n'; }

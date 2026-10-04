@@ -10,7 +10,7 @@ import { ODIN_HOME_DIR } from "../app-environment";
  *
  * Agents notify the app over HTTP: `notify.sh` POSTs to `$ODIN_PORT`, which
  * the terminal env exports from here. Odin inherits its upstream's
- * default port, so when both apps run at once the second one loses the bind —
+ * default port, so when both apps run at once the second one loses the bind -
  * and every agent event (Start/Stop/PermissionRequest) goes to the app that
  * doesn't own the session. Symptom: a session that keeps working while the
  * board still shows it as needing input, because no event ever arrives to
@@ -28,7 +28,7 @@ export function getNotificationsPort(): number {
 /**
  * Where notify.sh looks the port up at call time. $ODIN_PORT is baked into
  * a session's env at launch and goes stale the moment the app restarts onto a
- * different fallback port — the session keeps running, every hook POSTs into
+ * different fallback port - the session keeps running, every hook POSTs into
  * the void, and its board card freezes (the bug this file's header describes,
  * one restart later). The file is per-app (ODIN_HOME_DIR), so two
  * Odin-family apps still route to their own sessions.
@@ -40,7 +40,7 @@ function writePortFile(port: number): void {
 		fs.mkdirSync(ODIN_HOME_DIR, { recursive: true });
 		fs.writeFileSync(PORT_FILE, String(port));
 	} catch (error) {
-		// Best effort — $ODIN_PORT still covers the no-restart case.
+		// Best effort - $ODIN_PORT still covers the no-restart case.
 		console.error("[notifications] Could not write port file:", error);
 	}
 }
@@ -51,7 +51,7 @@ function writePortFile(port: number): void {
  * the fallback replaces it.
  *
  * The server is created here rather than via `app.listen()` so the `error`
- * listener is attached before the bind — otherwise EADDRINUSE can land before
+ * listener is attached before the bind - otherwise EADDRINUSE can land before
  * anything is listening for it, and the fallback never runs.
  */
 export function listenForHooks(
@@ -70,7 +70,7 @@ export function listenForHooks(
 				return;
 			}
 			console.error(
-				`[notifications] Port ${port} is taken — another Odin-family app owns it. Falling back to a free port so this app's agent hooks reach it.`,
+				`[notifications] Port ${port} is taken - another Odin-family app owns it. Falling back to a free port so this app's agent hooks reach it.`,
 			);
 			bind(0);
 		});

@@ -37,7 +37,7 @@ config({
 	quiet: true,
 });
 
-// Import directly — shared/constants.ts would trigger Zod env validation during predev
+// Import directly - shared/constants.ts would trigger Zod env validation during predev
 import {
 	deriveWorkspaceNameFromWorktreeSegments,
 	getWorkspaceName,
@@ -186,7 +186,7 @@ const LOCAL_SIGNING_KEYCHAIN_PASSWORD = "odin-signing";
  * Rebuilds the bundle's CFBundleIconFile from Odin's dev icon.
  *
  * Notification banners, Launch Services and the app switcher read the icon off
- * disk from the bundle — `app.setName()` and the dock-icon code never reach
+ * disk from the bundle - `app.setName()` and the dock-icon code never reach
  * them, so an agent-complete banner showed Electron's atom logo. Generated from
  * the PNG rather than committed as a second .icns so it can't go stale the way
  * a checked-in dev .icns once did.
@@ -218,7 +218,7 @@ export function writeBundleIcon(appPath: string): void {
 	rmSync(dirname(iconsetDir), { recursive: true, force: true });
 
 	// IconServices caches a bundle's icon by path and only re-reads it when the
-	// bundle's own mtime moves — rewriting electron.icns underneath it is
+	// bundle's own mtime moves - rewriting electron.icns underneath it is
 	// invisible. This bundle was Electron.app first and kept its inode through
 	// the rename, so notifications kept drawing the cached atom logo while the
 	// icns on disk was already Odin's. mtime only: the signature seals file
@@ -236,7 +236,7 @@ export function writeBundleIcon(appPath: string): void {
  * checkout. The path is the symlinked `apps/desktop/node_modules` one, not its
  * .bun realpath, so an Electron upgrade keeps the ID (and its TCC grants).
  *
- * Not what put Electron's atom on the banners — that was the two icon caches
+ * Not what put Electron's atom on the banners - that was the two icon caches
  * handled in `writeBundleIcon` and after the Launch Services re-register.
  */
 export function devBundleId(distDir: string): string {
@@ -248,7 +248,7 @@ export function devBundleId(distDir: string): string {
  * The identity to re-sign the patched dev bundle with.
  *
  * macOS keys privacy grants (screen recording, mic, automation) to the
- * signature, and ad-hoc gives every re-sign a different one — so each re-patch
+ * signature, and ad-hoc gives every re-sign a different one - so each re-patch
  * silently revoked Odin's permissions and macOS prompted again. Reuse the stable
  * self-signed cert the packaged build uses (`scripts/create-signing-identity.sh`)
  * when it's in the keychain; fall back to ad-hoc, which still beats no seal.
@@ -301,7 +301,7 @@ const LSREGISTER =
 // Upstream names the dev bundle after the workspace so several concurrent dev
 // instances stay apart. Odin only ever runs one, and the workspace slug it
 // picked up read as "Odin (so-this-is-a-complex-project-i-w)" in the menu
-// bar. Match app.setName("Odin Dev") in main/index.ts instead — CFBundleName
+// bar. Match app.setName("Odin Dev") in main/index.ts instead - CFBundleName
 // is what macOS shows, setName alone doesn't reach it.
 export const DISPLAY_NAME = "Odin Dev";
 export const DEV_APP_BUNDLE_NAME = `${DISPLAY_NAME}.app`;
@@ -311,7 +311,7 @@ export const DEV_APP_BUNDLE_NAME = `${DISPLAY_NAME}.app`;
  *
  * odin-dev.sh drops this again when the dev stack stops: registered but not
  * running, "Odin Dev" is still openable from Spotlight, and opening it launches
- * the bare Electron binary with no app path — which is Electron's welcome
+ * the bare Electron binary with no app path - which is Electron's welcome
  * screen ("Electron path-to-app"), not Odin. So this has to run on EVERY dev
  * start, including the fast path where the bundle itself needs no patching.
  */
@@ -328,12 +328,12 @@ export function registerWithLaunchServices(appPath: string): void {
 }
 
 /**
- * The deep-link scheme for this dev bundle — mirrors PROTOCOL_SCHEME in
+ * The deep-link scheme for this dev bundle - mirrors PROTOCOL_SCHEME in
  * shared/constants.ts, which the app itself uses.
  *
  * Running dev straight from the main checkout (not a ~/.odin/worktrees one, no
  * ODIN_WORKSPACE_NAME) resolves no workspace, and this used to bail out of
- * main() entirely — so the bundle kept CFBundleName "Electron" and Electron's
+ * main() entirely - so the bundle kept CFBundleName "Electron" and Electron's
  * atom icon in the dock. Only the scheme ever needed the workspace; the name,
  * icon, bundle ID and signature do not.
  */
@@ -443,7 +443,7 @@ export function main() {
 		`/usr/libexec/PlistBuddy -c "Set :CFBundleName ${DISPLAY_NAME}" "${PLIST_PATH}"`,
 	);
 
-	// CFBundleDisplayName may not exist — delete then add to handle both cases
+	// CFBundleDisplayName may not exist - delete then add to handle both cases
 	try {
 		execSync(
 			`/usr/libexec/PlistBuddy -c "Delete :CFBundleDisplayName" "${PLIST_PATH}" 2>/dev/null`,
@@ -482,7 +482,7 @@ export function main() {
 	// Not hypothetical: `bun install` restores dist/Electron.app, so the next dev
 	// run renames again and breaks whatever daemon was alive.
 	// Uses the pid the daemon records, not `pkill -f`: once the executable has
-	// moved, pgrep/pkill stop seeing the process at all (measured — pgrep listed
+	// moved, pgrep/pkill stop seeing the process at all (measured - pgrep listed
 	// 3 of the 6 processes ps reported, dropping the daemon), and this runs at
 	// exactly that moment.
 	const retireDaemonUnder = (bundlePath: string) => {
@@ -504,7 +504,7 @@ export function main() {
 				"[patch-dev-protocol] Retired the terminal-host daemon (its binary moved)",
 			);
 		} catch {
-			// No pid file, dead pid, or ps had nothing to say — nothing to retire.
+			// No pid file, dead pid, or ps had nothing to say - nothing to retire.
 		}
 	};
 
@@ -526,7 +526,7 @@ export function main() {
 				// Already correctly renamed
 				actualAppPath = desiredAppPath;
 			} else {
-				// Different workspace name from previous run — update
+				// Different workspace name from previous run - update
 				const oldTargetPath = resolve(ELECTRON_DIST_DIR, currentTarget);
 				retireDaemonUnder(oldTargetPath);
 				unlinkSync(ELECTRON_APP_PATH);
@@ -537,7 +537,7 @@ export function main() {
 				actualAppPath = desiredAppPath;
 			}
 		} else {
-			// Real directory — rename and create symlink
+			// Real directory - rename and create symlink
 			retireDaemonUnder(ELECTRON_APP_PATH);
 			if (existsSync(desiredAppPath)) {
 				rmSync(desiredAppPath, { recursive: true });
@@ -594,7 +594,7 @@ export function main() {
 				`[patch-dev-protocol] Bounced ${proc} to drop its icon cache`,
 			);
 		} catch {
-			// Not running, or already restarting — either way the cache is gone.
+			// Not running, or already restarting - either way the cache is gone.
 		}
 	}
 

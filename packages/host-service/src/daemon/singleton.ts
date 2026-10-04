@@ -1,7 +1,7 @@
 // Singleton DaemonSupervisor for the host-service process. One supervisor
 // per host-service instance; it manages exactly one daemon (per the org
 // host-service was started with). Lazy bootstrap so tests can construct
-// host-service without spawning a real daemon — the bootstrap is kicked
+// host-service without spawning a real daemon - the bootstrap is kicked
 // off explicitly from `serve.ts`.
 
 import { existsSync } from "node:fs";
@@ -16,7 +16,7 @@ let bootstrapPromise: Promise<unknown> | null = null;
  * Resolve the daemon entry script path. In production, host-service.js and
  * pty-daemon.js are bundled side-by-side in the same dist directory. In
  * dev (running from source under bun), we fall back to the workspace
- * package's `dist/pty-daemon.js`. Either is fine — both are real Node
+ * package's `dist/pty-daemon.js`. Either is fine - both are real Node
  * scripts.
  */
 export function resolveSupervisorScriptPath(): string {
@@ -57,7 +57,7 @@ export function getSupervisor(scriptPath?: string): DaemonSupervisor {
 
 /**
  * Kick off `ensure(orgId)` without awaiting (per the host-service
- * migration plan, decision D3 — fire-and-track). Stash the promise so
+ * migration plan, decision D3 - fire-and-track). Stash the promise so
  * callers that need the daemon up can await it via `waitForDaemonReady`.
  */
 export function startDaemonBootstrap(organizationId: string): void {
@@ -103,7 +103,7 @@ export async function waitForDaemonReady(
 	await getSupervisor().ensure(organizationId);
 }
 
-/** Test-only — reset the singleton between tests. */
+/** Test-only - reset the singleton between tests. */
 export function __resetSupervisorForTesting(): void {
 	supervisor = null;
 	bootstrapPromise = null;

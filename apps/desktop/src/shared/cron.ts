@@ -1,6 +1,6 @@
 /**
- * The five-field cron an automation runs on — minute, hour, day-of-month,
- * month, day-of-week — plus the `@daily` shorthands people actually type.
+ * The five-field cron an automation runs on - minute, hour, day-of-month,
+ * month, day-of-week - plus the `@daily` shorthands people actually type.
  *
  * ponytail: ~60 lines instead of a dependency. It covers wildcards, single
  * values, ranges, steps (`a-b/n`) and comma lists, which is every schedule
@@ -28,7 +28,7 @@ const ALIASES: Record<string, string> = {
 export interface Cron {
 	/** Every value each field matches. */
 	fields: Set<number>[];
-	/** Whether day-of-month / day-of-week were narrowed — see cronMatches. */
+	/** Whether day-of-month / day-of-week were narrowed - see cronMatches. */
 	domRestricted: boolean;
 	dowRestricted: boolean;
 }
@@ -93,7 +93,7 @@ export function cronMatches(cron: Cron, date: Date): boolean {
 	const onDay = !!dom?.has(date.getDate());
 	const onWeekday = !!dow?.has(date.getDay());
 	// Cron's one oddity: with BOTH day fields narrowed they're OR'd, not AND'd
-	// — "0 9 1 * 1" is the 1st and every Monday, not Mondays that are the 1st.
+	// - "0 9 1 * 1" is the 1st and every Monday, not Mondays that are the 1st.
 	return cron.domRestricted && cron.dowRestricted
 		? onDay || onWeekday
 		: onDay && onWeekday;
@@ -102,7 +102,7 @@ export function cronMatches(cron: Cron, date: Date): boolean {
 /**
  * The next minute this fires, searching forward from `from` (exclusive).
  *
- * ponytail: it steps a minute at a time over a year — half a million set
+ * ponytail: it steps a minute at a time over a year - half a million set
  * lookups in the worst case, and the worst case is a schedule that never
  * fires (February 30th). A real one lands within a day. Walk the fields
  * instead if this ever shows up in a profile.
@@ -135,12 +135,12 @@ export interface Schedule {
 	/** "HH:MM". Unused by the sub-hourly repeats, kept so switching keeps it. */
 	time: string;
 	/**
-	 * Which days, 0–6 Sunday first — the "days" repeat. A set rather than one
+	 * Which days, 0–6 Sunday first - the "days" repeat. A set rather than one
 	 * day: Mon/Wed/Fri is a schedule people actually keep, and "every weekday"
 	 * is just this list rather than a menu entry of its own.
 	 */
 	weekdays: number[];
-	/** 1–28 — monthly only. The 29th-31st don't exist in every month. */
+	/** 1–28 - monthly only. The 29th-31st don't exist in every month. */
 	day: number;
 }
 
@@ -154,7 +154,7 @@ export const DEFAULT_SCHEDULE: Schedule = {
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
-/** Ascending, no repeats — the one order a day set is ever written in. */
+/** Ascending, no repeats - the one order a day set is ever written in. */
 const sortedDays = (days: number[]): number[] =>
 	[...new Set(days)].sort((a, b) => a - b);
 
@@ -201,7 +201,7 @@ export function cronOf(schedule: Schedule): string {
 }
 
 /**
- * The picker's reading of a cron, or null when it has none — a cron the picker
+ * The picker's reading of a cron, or null when it has none - a cron the picker
  * can't express must stay exactly as written, so this is deliberately strict.
  * "Every hour" is `0 * * * *` and nothing else: accepting `15 * * * *` would
  * mean re-rendering it as "every hour" and quietly saving away the :15.
@@ -267,7 +267,7 @@ function namedDays(days: number[]): string {
 	return `${names.slice(0, -1).join(", ")} & ${names.at(-1)}`;
 }
 
-/** 1st, 2nd, 3rd, 11th, 21st — for "on the Nth". */
+/** 1st, 2nd, 3rd, 11th, 21st - for "on the Nth". */
 export function ordinal(n: number): string {
 	const tens = n % 100;
 	if (tens >= 11 && tens <= 13) return `${n}th`;
@@ -276,7 +276,7 @@ export function ordinal(n: number): string {
 
 /**
  * The schedule in words. A cron the picker can't express is returned as
- * written — saying something vague about it would be worse than the cron.
+ * written - saying something vague about it would be worse than the cron.
  */
 export function describeCron(expr: string): string {
 	const s = scheduleOf(expr);
@@ -297,5 +297,5 @@ export function describeCron(expr: string): string {
 	}
 }
 
-/** Sunday-first, matching cron's own numbering — for the weekday picker. */
+/** Sunday-first, matching cron's own numbering - for the weekday picker. */
 export const WEEKDAY_NAMES = DAYS;

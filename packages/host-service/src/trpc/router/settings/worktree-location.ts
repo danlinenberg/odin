@@ -39,7 +39,7 @@ export function getHostWorktreeBaseDir(
 	if (existing) return existing.worktreeBaseDir ?? null;
 
 	// v1 didn't validate paths, so a malformed legacy value shouldn't brick
-	// the first .get() — treat anything that won't normalize as "no legacy".
+	// the first .get() - treat anything that won't normalize as "no legacy".
 	let legacy: string | null = null;
 	try {
 		legacy = normalizeWorktreeBaseDir(

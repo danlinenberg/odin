@@ -1,8 +1,8 @@
 // Ratchet: the pty-daemon is one long-lived event loop serving every
-// terminal session in the org — a sync spawn or fs walk here stalls all
+// terminal session in the org - a sync spawn or fs walk here stalls all
 // PTY IO at once. The existing spawnSync sites are deliberate (the kill
 // chain and shutdown drain want bounded sync semantics; the hot
-// exit-detection path already uses readProcessTableAsync) — this test
+// exit-detection path already uses readProcessTableAsync) - this test
 // freezes them so new ones don't creep in.
 //
 // Counts are per-file matching-line counts, not a file allowlist, so an
@@ -39,26 +39,26 @@ const RULES: Rule[] = [
 		allowedCounts: {
 			// Shell probe + shutdown diagnostics; cold paths.
 			"Pty/Pty.ts": 2,
-			// Kill-chain ps reads — bounded by PS_TIMEOUT_MS; the hot polling
+			// Kill-chain ps reads - bounded by PS_TIMEOUT_MS; the hot polling
 			// path uses readProcessTableAsync instead.
 			"process-tree.ts": 3,
 		},
 		advice:
-			"A sync subprocess freezes the daemon's only event loop until the child exits — every terminal session in the org stops flowing (keystrokes and output stall). Prefer async spawn/execFile (see readProcessTableAsync): the caller awaits the same result, but session IO keeps flowing while the child runs.",
+			"A sync subprocess freezes the daemon's only event loop until the child exits - every terminal session in the org stops flowing (keystrokes and output stall). Prefer async spawn/execFile (see readProcessTableAsync): the caller awaits the same result, but session IO keeps flowing while the child runs.",
 	},
 	{
 		name: "sync recursive fs (rmSync/cpSync)",
 		pattern: /\b(rmSync|cpSync)\b/,
 		allowedCounts: {},
 		advice:
-			"rmSync/cpSync walk the whole tree on the daemon loop — every terminal session's IO stalls for the duration. Prefer `await rm/cp` from node:fs/promises: same result, but the walk runs on libuv's thread pool while session IO keeps flowing.",
+			"rmSync/cpSync walk the whole tree on the daemon loop - every terminal session's IO stalls for the duration. Prefer `await rm/cp` from node:fs/promises: same result, but the walk runs on libuv's thread pool while session IO keeps flowing.",
 	},
 ];
 
 const EXEMPT_FILE_PATTERNS = [/\.test\.ts$/];
 
 /**
- * Matching lines after comment stripping — prose mentions don't count.
+ * Matching lines after comment stripping - prose mentions don't count.
  * Line-comment stripping is naive (`//` inside a string truncates the rest
  * of that line), which can only under-count, never false-positive.
  */
@@ -127,7 +127,7 @@ describe("no new daemon-loop blocking call sites", () => {
 				.sort();
 			expect(
 				stale,
-				"Allowlisted count(s) too high — lower or delete them in allowedCounts so the ratchet tightens.",
+				"Allowlisted count(s) too high - lower or delete them in allowedCounts so the ratchet tightens.",
 			).toEqual([]);
 		});
 	}

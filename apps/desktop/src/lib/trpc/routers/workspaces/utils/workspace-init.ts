@@ -80,7 +80,7 @@ export async function initializeWorkspaceWorktree({
 	try {
 		await manager.acquireProjectLock(projectId);
 
-		// Don't emit "failed" for cancellations — the workspace is being deleted,
+		// Don't emit "failed" for cancellations - the workspace is being deleted,
 		// and emitting would trigger a refetch race condition where it temporarily
 		// reappears. finalizeJob() in the finally block still unblocks waitForInit().
 		if (manager.isCancellationRequested(workspaceId)) {

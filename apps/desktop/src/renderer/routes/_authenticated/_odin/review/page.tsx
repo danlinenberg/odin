@@ -36,11 +36,11 @@ import {
 } from "./verdicts";
 
 /**
- * Review — what the backlog sweep wants gone, and one click per decision.
+ * Review - what the backlog sweep wants gone, and one click per decision.
  *
  * The sweep runs here, in Odin: pressing the button asks Jira, GitHub and
  * Slack about every backlog row and fills this list in seconds. No session is
- * started for it — it is three lookups against credentials Odin already holds,
+ * started for it - it is three lookups against credentials Odin already holds,
  * and a session would only add a transcript to read.
  *
  * Nothing is decided automatically. Dropping a row is a click, and a verdict
@@ -140,7 +140,7 @@ function ReviewPage() {
 	const sweepBacklog = useSweepBacklog();
 	const { remove, todos } = useMyTasks();
 	const panes = useTabsStore((state) => state.panes);
-	// Every card on the board, PTY alive or not — the test Start session uses.
+	// Every card on the board, PTY alive or not - the test Start session uses.
 	// A restart leaves cards dead but resumable, and a row one is on can't be
 	// dropped from here: closing the card is what ends it.
 	const livePanes = useMemo(
@@ -176,10 +176,10 @@ function ReviewPage() {
 		.filter(Boolean)
 		.join(",");
 	// A row dropped here lives under Dropped, not among the ones still to
-	// decide — including after a re-sweep, which re-checks everything still in
+	// decide - including after a re-sweep, which re-checks everything still in
 	// the backlog: a Jira or PR row isn't cleared at its source, and a Slack or
 	// task row can still be in the feed the sweep read.
-	// Dropping is marking Done, wherever it happened — a row dropped from Next
+	// Dropping is marking Done, wherever it happened - a row dropped from Next
 	// in line or marked Done in All tasks is a dropped row here too.
 	const allDropped = useMemo(() => {
 		const here = new Set(dropped.map((row) => row.key));
@@ -206,7 +206,7 @@ function ReviewPage() {
 	// A kept row stays off the list, reload or not. Dropped ones already are.
 	const keptKeys = useMemo(() => new Set(kept), [kept]);
 	const pending = rows.filter((row) => !keptKeys.has(row.key));
-	// Who a row is from lives on the live backlog, not the swept snapshot — a
+	// Who a row is from lives on the live backlog, not the swept snapshot - a
 	// row that has since left the backlog searches without a person.
 	const personByKey = useMemo(
 		() => new Map(backlog.map((item) => [item.key, item.person])),
@@ -224,7 +224,7 @@ function ReviewPage() {
 			.replace(/[^\p{L}\p{N}]+/gu, " ")
 			.trim();
 	const needle = words(search);
-	// A search looks across every verdict — who you're after is usually on a
+	// A search looks across every verdict - who you're after is usually on a
 	// KEEP row, and the Drop pill is the default.
 	const shown = needle
 		? pending.filter((row) =>
@@ -279,7 +279,7 @@ function ReviewPage() {
 	};
 
 	const dropAll = async () => {
-		// What's on screen — a search narrows what "Drop all" clears.
+		// What's on screen - a search narrows what "Drop all" clears.
 		const drops = shown.filter(droppable);
 		for (const row of drops) await drop(row);
 		toast.success(`Cleared ${drops.length}`);
@@ -379,9 +379,9 @@ function ReviewPage() {
 				{swept.length === 0 && (
 					<div className="px-2 py-8 text-center text-xs text-muted-foreground">
 						Nothing swept yet. "Sweep now" takes every open task and queued
-						Slack message and asks the system it came from where it stands — the
+						Slack message and asks the system it came from where it stands - the
 						ticket's status, whether the PR is merged, whether the thread moved
-						on — then lists what it can show is done.
+						on - then lists what it can show is done.
 						<div>{sweepButton("mt-3")}</div>
 					</div>
 				)}
@@ -416,8 +416,8 @@ function ReviewPage() {
 									{hasSession(row) && (
 										<LuOctagonX
 											className="size-3.5 shrink-0 text-danger"
-											title="A session is still working on this — close it to drop"
-											aria-label="A session is still working on this — close it to drop"
+											title="A session is still working on this - close it to drop"
+											aria-label="A session is still working on this - close it to drop"
 										/>
 									)}
 									<span className="truncate text-[13px] text-foreground">
@@ -468,7 +468,7 @@ function ReviewPage() {
 								disabled={row.stale || hasSession(row)}
 								title={
 									hasSession(row)
-										? "A session is still working on this — close it to drop"
+										? "A session is still working on this - close it to drop"
 										: undefined
 								}
 								className={ROW_PRIMARY_BUTTON}

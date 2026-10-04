@@ -67,7 +67,7 @@ export class ThrottledWorker<T> {
 		// Drain remaining work even if a handler throws. Without this,
 		// one bad listener batch wedges the worker until the next work()
 		// call happens to fire. (VS Code's ThrottledWorker has the same
-		// bug — async.ts:1351 — relying on process-level uncaughtException
+		// bug - async.ts:1351 - relying on process-level uncaughtException
 		// handlers to contain the throw, which doesn't unstick the buffer.)
 		try {
 			if (chunk.length > 0) this.handler(chunk);

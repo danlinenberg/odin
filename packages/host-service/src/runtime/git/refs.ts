@@ -41,7 +41,7 @@ export function asRemoteRef(
 
 async function refExists(git: SimpleGit, fullRef: string): Promise<boolean> {
 	try {
-		// Don't use `--quiet` — simple-git's `raw` mis-resolves on empty
+		// Don't use `--quiet` - simple-git's `raw` mis-resolves on empty
 		// stderr and reports the missing ref as a success with empty stdout.
 		// Without `--quiet`, git writes the error to stderr and simple-git
 		// rejects as expected. We then verify a sha was actually printed.
@@ -65,7 +65,7 @@ async function listBranchShortNames(
 	const remoteTracking: string[] = [];
 	let raw: string;
 	try {
-		// A real git failure must not be masked as "no branches" — that hides an
+		// A real git failure must not be masked as "no branches" - that hides an
 		// existing branch and lets a case-twin be created. (An empty repo isn't
 		// a failure: for-each-ref exits 0 with no output.)
 		raw = await git.raw([
@@ -121,7 +121,7 @@ export interface ResolveRefOptions {
  *   - remote-qualified shortname (`origin/foo`)
  *   - tag name                   (`v1.0`)
  *
- * Resolution order — local always wins, so a local branch literally named
+ * Resolution order - local always wins, so a local branch literally named
  * `origin/foo` resolves to `kind: "local"`, not `remote-tracking`:
  *
  *   1. local branch (`refs/heads/<input>`)
@@ -151,7 +151,7 @@ export async function resolveRef(
 
 	// For the remote form, accept both bare names (`foo`) and the natural
 	// short form (`origin/foo`). Strip the `<remote>/` prefix only if it's
-	// present in the input — without this, `origin/foo` would look up
+	// present in the input - without this, `origin/foo` would look up
 	// `refs/remotes/origin/origin/foo` and miss.
 	const remotePrefix = `${remote}/`;
 	const remoteShortName = trimmed.startsWith(remotePrefix)

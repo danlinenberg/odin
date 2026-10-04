@@ -17,7 +17,7 @@ export function createFishLikePtySpawner(
 			| null = null;
 
 		queueMicrotask(() => {
-			// OSC 133;A — shell-integration prompt-start marker the terminal
+			// OSC 133;A - shell-integration prompt-start marker the terminal
 			// session waits for before sending the initial command.
 			dataCallback?.(Buffer.from("\x1b]133;A\x07"));
 		});

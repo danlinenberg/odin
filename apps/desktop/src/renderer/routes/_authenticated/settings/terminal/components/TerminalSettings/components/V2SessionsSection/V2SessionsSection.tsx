@@ -1,6 +1,6 @@
 // V2 Settings → Terminal → Manage daemon section.
 //
-// Talks to host-service's `terminal.daemon` namespace — the supervisor
+// Talks to host-service's `terminal.daemon` namespace - the supervisor
 // that owns pty-daemon's lifecycle lives there, not in desktop main.
 // What's *not* duplicated from v1: kill-all-sessions, clear-history,
 // per-row kill. Restart already achieves the kill-all effect for v2;
@@ -12,7 +12,7 @@
 // (they're org-level), so we mount our own here using the active org's
 // host URL from LocalHostServiceProvider. Without this wrapping, hooks
 // fall through to electron-trpc and fail with "no procedure on path
-// terminal.daemon.*" — there's no such namespace on electron-trpc.
+// terminal.daemon.*" - there's no such namespace on electron-trpc.
 
 import {
 	AlertDialog,
@@ -78,7 +78,7 @@ function V2SessionsSectionInner() {
 	const sessionsQuery = workspaceTrpc.terminal.daemon.listSessions.useQuery(
 		undefined,
 		{
-			// Poll while the user keeps the list expanded — sessions
+			// Poll while the user keeps the list expanded - sessions
 			// die/come up while they watch. Otherwise refetch on focus only.
 			refetchInterval: showSessionList ? REFETCH_WHILE_OPEN_MS : false,
 			refetchOnWindowFocus: true,
@@ -264,7 +264,7 @@ function V2SessionsSectionInner() {
 									<tr key={s.id} className="hover:bg-muted/30">
 										<td className="px-2 py-2 font-mono">{s.id}</td>
 										<td className="px-2 py-2 text-right font-mono">
-											{s.pid || "—"}
+											{s.pid || "-"}
 										</td>
 										<td className="px-2 py-2 text-right font-mono">
 											{s.cols}×{s.rows}

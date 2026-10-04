@@ -30,7 +30,7 @@ export interface ResolvedLink {
  *
  * The callback receives a path that may be absolute or relative. The host
  * service resolves relative paths against the workspace root, tilde paths
- * against $HOME, etc. — all resolution happens server-side.
+ * against $HOME, etc. - all resolution happens server-side.
  *
  * Return `{ isDirectory, resolvedPath? }` if the path exists, or `null` if
  * it doesn't. `resolvedPath` allows the host to report the final absolute
@@ -103,7 +103,7 @@ export class TerminalLinkResolver {
 				try {
 					linkPath = decodeURIComponent(linkPath.replace(/^file:\/\//, ""));
 				} catch {
-					// Malformed URI — use as-is with scheme stripped
+					// Malformed URI - use as-is with scheme stripped
 					linkPath = linkPath.replace(/^file:\/\//, "");
 				}
 			}

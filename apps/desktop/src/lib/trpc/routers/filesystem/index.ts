@@ -368,7 +368,7 @@ export const createFilesystemRouter = () => {
 								error: toErrorMessage(error),
 							});
 
-							// Never mask this as a synthetic overflow event — consumers
+							// Never mask this as a synthetic overflow event - consumers
 							// read overflow as "rescan", not "watcher died" (see watch.ts).
 							runCleanup();
 							try {
@@ -378,7 +378,7 @@ export const createFilesystemRouter = () => {
 										: new Error(toErrorMessage(error)),
 								);
 							} catch {
-								// Stream already closed by the client — nothing to notify.
+								// Stream already closed by the client - nothing to notify.
 							}
 						}
 					})();

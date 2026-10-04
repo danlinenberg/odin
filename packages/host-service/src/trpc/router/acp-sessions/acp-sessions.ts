@@ -20,7 +20,7 @@ import { protectedProcedure, router } from "../../index";
 
 /**
  * Every ACP procedure except `list` sits behind the pre-release feature gate
- * (see HostServiceRuntime.acpSessionsEnabled) — a disabled host rejects the
+ * (see HostServiceRuntime.acpSessionsEnabled) - a disabled host rejects the
  * surface with PRECONDITION_FAILED instead of exposing half-shipped behavior.
  * `list` stays ungated and answers `enabled: false` so clients can feature-
  * detect from the call they already make, without an extra request or error.
@@ -54,7 +54,7 @@ function rethrowMapped(error: unknown): never {
 
 /**
  * ACP session surface (docs/acp-sessions.md). Thin passthrough to
- * `ctx.runtime.acpSessions` — inputs come from `@odin/session-protocol`
+ * `ctx.runtime.acpSessions` - inputs come from `@odin/session-protocol`
  * so mobile and host validate against the same schemas. Fully parallel to the
  * mastra `chat` router, which stays untouched.
  */
@@ -114,7 +114,7 @@ export const acpSessionsRouter = router({
 			}
 		}),
 
-	// Acks admission only — turn progress and completion ride the WS stream.
+	// Acks admission only - turn progress and completion ride the WS stream.
 	// Never await the turn here: it can block on human permission decisions
 	// far beyond the relay's buffered-HTTP timeout.
 	prompt: gatedProcedure.input(promptInput).mutation(async ({ ctx, input }) => {

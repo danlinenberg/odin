@@ -9,7 +9,7 @@ export const createBackupRouter = () =>
 		run: publicProcedure.mutation(async () => {
 			if (!(await backupNow()))
 				throw new Error(
-					"iCloud Drive is off — turn it on in System Settings → Apple Account → iCloud.",
+					"iCloud Drive is off - turn it on in System Settings → Apple Account → iCloud.",
 				);
 		}),
 		reveal: publicProcedure.mutation(async () => {

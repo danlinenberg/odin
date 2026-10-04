@@ -4,7 +4,7 @@ What a host service is, how it's layered, and what needs to change.
 
 ## What is a host service?
 
-A process that runs workspaces on a machine — laptop or remote server. It clones repos, runs terminals, watches filesystems, runs AI chat, and registers itself with the cloud as a **host**.
+A process that runs workspaces on a machine - laptop or remote server. It clones repos, runs terminals, watches filesystems, runs AI chat, and registers itself with the cloud as a **host**.
 
 A **device** is anything that connects (phone, browser, desktop app). A **host** is something that runs workspaces. A MacBook is both. A phone is only a device. A remote server is only a host.
 
@@ -55,7 +55,7 @@ Rename in host service context:
 - `deviceName` → `hostName` (generated internally from `os.hostname()`)
 - `device.ensureV2Host` → `host.register`
 
-Host identity is intrinsic — the host service generates it at startup, not passed in as config.
+Host identity is intrinsic - the host service generates it at startup, not passed in as config.
 
 ---
 

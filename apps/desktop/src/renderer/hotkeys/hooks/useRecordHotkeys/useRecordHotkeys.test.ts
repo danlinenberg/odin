@@ -36,7 +36,7 @@ function ev(init: StubInit): KeyboardEvent {
 	} as unknown as KeyboardEvent;
 }
 
-describe("captureHotkeyFromEvent — Bug 1: lone Ctrl must not auto-commit", () => {
+describe("captureHotkeyFromEvent - Bug 1: lone Ctrl must not auto-commit", () => {
 	it("returns null when only Control is pressed", () => {
 		expect(
 			captureHotkeyFromEvent(ev({ code: "ControlLeft", ctrlKey: true })),
@@ -68,7 +68,7 @@ describe("captureHotkeyFromEvent — Bug 1: lone Ctrl must not auto-commit", () 
 	});
 });
 
-describe("captureHotkeyFromEvent — codeChord uses event.code, not event.key", () => {
+describe("captureHotkeyFromEvent - codeChord uses event.code, not event.key", () => {
 	it("Ctrl+Shift+2 codeChord is ctrl+shift+2 (not ctrl+shift+@)", () => {
 		const captured = captureHotkeyFromEvent(
 			ev({ code: "Digit2", key: "@", ctrlKey: true, shiftKey: true }),
@@ -120,7 +120,7 @@ describe("captureHotkeyFromEvent — codeChord uses event.code, not event.key", 
 	});
 });
 
-describe("captureHotkeyFromEvent — modifier ordering", () => {
+describe("captureHotkeyFromEvent - modifier ordering", () => {
 	it("emits modifiers in MODIFIER_ORDER (meta, ctrl, alt, shift)", () => {
 		const captured = captureHotkeyFromEvent(
 			ev({
@@ -136,7 +136,7 @@ describe("captureHotkeyFromEvent — modifier ordering", () => {
 	});
 });
 
-describe("captureHotkeyFromEvent — classification & dual-form capture", () => {
+describe("captureHotkeyFromEvent - classification & dual-form capture", () => {
 	it("classifies F-keys", () => {
 		const captured = captureHotkeyFromEvent(ev({ code: "F5", key: "F5" }));
 		expect(captured?.classification).toBe("fkey");
@@ -198,7 +198,7 @@ describe("captureHotkeyFromEvent — classification & dual-form capture", () => 
 	});
 
 	it("printable '+' falls back to codeChord (would collide with chord separator)", () => {
-		// Shift+= on US produces event.key "+" — accepting it as a logical
+		// Shift+= on US produces event.key "+" - accepting it as a logical
 		// token would build "meta+shift++" which can't be parsed back.
 		const captured = captureHotkeyFromEvent(
 			ev({ code: "Equal", key: "+", metaKey: true, shiftKey: true }),

@@ -24,7 +24,7 @@ const nextSession = () =>
 
 /**
  * A store holding one session, plus a stand-in for the `claude` binary that
- * counts its runs — so the caching can be checked without a 15s model call.
+ * counts its runs - so the caching can be checked without a 15s model call.
  */
 function fixture(session: string = nextSession()) {
 	const root = mkdtempSync(join(tmpdir(), "summarize-"));
@@ -53,7 +53,7 @@ function fixture(session: string = nextSession()) {
 	writeFileSync(runs, "");
 	const bin = join(root, "fake-claude.sh");
 	// Like the real thing, it files a transcript of its own run under
-	// --session-id — the litter writeBrief has to clear up after itself.
+	// --session-id - the litter writeBrief has to clear up after itself.
 	writeFileSync(
 		bin,
 		[
@@ -106,7 +106,7 @@ describe("writeBrief", () => {
 		expect(runCount()).toBe(1);
 	});
 
-	test("the brief survives a restart — it is read back off disk", async () => {
+	test("the brief survives a restart - it is read back off disk", async () => {
 		const { session, root, bin, cachePath, runCount } = fixture();
 		await writeBrief({ sessionId: session, claudeBin: bin, root, cachePath });
 		expect(JSON.parse(readFileSync(cachePath, "utf-8"))[session].brief).toEqual(
@@ -211,7 +211,7 @@ describe("writeBrief", () => {
 			cachePath,
 			now: t0,
 		});
-		// The agent wrote another turn seconds later — too soon to pay for a rewrite.
+		// The agent wrote another turn seconds later - too soon to pay for a rewrite.
 		const later = new Date(t0 + 30_000);
 		utimesSync(transcript, later, later);
 		const again = await writeBrief({
@@ -228,7 +228,7 @@ describe("writeBrief", () => {
 	test("leaves no transcript of its own behind", async () => {
 		const { session, root, bin, project, cachePath } = fixture();
 		await writeBrief({ sessionId: session, claudeBin: bin, root, cachePath });
-		// Only the session being summarised — the summarising run's own transcript
+		// Only the session being summarised - the summarising run's own transcript
 		// is gone, or Session History fills with sessions nobody started.
 		expect(readdirSync(project)).toEqual([`${session}.jsonl`]);
 	});
@@ -398,7 +398,7 @@ describe("warmBriefs", () => {
 	test("a session that just stopped gets its final brief now, not in five minutes", async () => {
 		const { session, root, bin, transcript, cachePath, runCount } = fixture();
 		await writeBrief({ sessionId: session, claudeBin: bin, root, cachePath });
-		// Its last turn landed seconds after the brief — a busy session's
+		// Its last turn landed seconds after the brief - a busy session's
 		// throttle would serve the mid-work brief for five more minutes.
 		const later = new Date(Date.now() + 1_000);
 		utimesSync(transcript, later, later);
@@ -426,7 +426,7 @@ describe("parseBrief", () => {
 			[
 				"GOAL: Create three $1-first-month coupon codes for the October EU conferences.",
 				"DONE: Traced the coupon path; confirmed the flat-fee branch handles it.",
-				"STATUS: Confirmed it is data-only — 34 tests pass over the flat-fee path, no code change needed.",
+				"STATUS: Confirmed it is data-only - 34 tests pass over the flat-fee path, no code change needed.",
 				"NEXT: Waiting on marketing for the codes, end dates and per-currency amounts.",
 			].join("\n"),
 		);
@@ -445,12 +445,12 @@ describe("parseBrief", () => {
 				"**GOAL**: Ship the session side panel.",
 				"",
 				"**STATUS**: Panel renders, 35 tests green.",
-				"**NEXT**: Nothing — it's done.",
+				"**NEXT**: Nothing - it's done.",
 			].join("\n"),
 		);
 		expect(brief.goal).toBe("Ship the session side panel.");
 		expect(brief.status).toBe("Panel renders, 35 tests green.");
-		expect(brief.next).toBe("Nothing — it's done.");
+		expect(brief.next).toBe("Nothing - it's done.");
 	});
 
 	test("reads a title a card can show, unquoted and cut to fit", () => {
@@ -472,12 +472,12 @@ describe("parseBrief", () => {
 			[
 				"GOAL: Stop the feed nagging about sources you never signed in to.",
 				"STATUS: Tab now says so instead.",
-				"NEXT: Nothing — it's done.",
+				"NEXT: Nothing - it's done.",
 				"TAGS: bug, #DOCS, frontend, bug",
 			].join("\n"),
 		);
 		// Cased, hashed and duplicated all resolve; "frontend" isn't a tag we have
-		// — nor is "ui" any more, the vocabulary is five words now.
+		// - nor is "ui" any more, the vocabulary is five words now.
 		expect(brief.tags).toEqual(["bug", "docs"]);
 	});
 

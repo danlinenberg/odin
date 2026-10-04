@@ -48,7 +48,7 @@ export interface CreateAppOptions {
 		modelResolver: ModelProviderRuntimeResolver;
 	};
 	/**
-	 * Test-harness override hooks. Production never sets these — `createApp`
+	 * Test-harness override hooks. Production never sets these - `createApp`
 	 * builds each subsystem itself when omitted. `db` is overridden so tests
 	 * can swap in `bun:sqlite` (better-sqlite3 isn't loadable under Bun;
 	 * prod uses it on bundled Node). `api`, `github`, `chatRuntime`, and
@@ -128,11 +128,11 @@ export function createApp(options: CreateAppOptions): CreateAppResult {
 	// per-workspace. ChatService is a long-lived singleton wrapping mastra's
 	// auth storage; the `host.auth.*` router proxies to it.
 	const chatService = options.chatService ?? new ChatService();
-	// ACP session harness (docs/acp-sessions.md) — owns Claude Code
+	// ACP session harness (docs/acp-sessions.md) - owns Claude Code
 	// adapter child processes. Fully parallel to the mastra chat runtime.
 	// Pre-release, so internal-channel only: the desktop coordinator spawns
 	// hosts with ODIN_ACP_SESSIONS=1 on canary/dev builds, never on
-	// stable. Without it the harness is inert — no WS route, every RPC except
+	// stable. Without it the harness is inert - no WS route, every RPC except
 	// the `list` capability probe rejected. Tests that inject a manager opt
 	// in implicitly.
 	const acpSessionsEnabled =
@@ -150,7 +150,7 @@ export function createApp(options: CreateAppOptions): CreateAppResult {
 				return workspace.worktreePath;
 			},
 			// Registry rows only (workspace binding, adapter session id, title)
-			// — the journal stays in-memory; a restarted host lists these as
+			// - the journal stays in-memory; a restarted host lists these as
 			// `offline` and resurrects on demand via the adapter's session/load.
 			persistence: new SqliteAcpSessionPersistence(db),
 		});
@@ -189,7 +189,7 @@ export function createApp(options: CreateAppOptions): CreateAppResult {
 	const terminalAgentPersistence = new SqliteTerminalAgentBindingPersistence(
 		db,
 	);
-	// Hygiene only — reads hide defunct bindings via the session-liveness
+	// Hygiene only - reads hide defunct bindings via the session-liveness
 	// join regardless, so a failure here must not block startup.
 	try {
 		terminalAgentPersistence.deleteDefunct();
@@ -204,7 +204,7 @@ export function createApp(options: CreateAppOptions): CreateAppResult {
 	// Startup sweep runs in the background so it doesn't block server startup.
 	void (async () => {
 		// Backfill `kind='main'` workspaces for projects already set up before
-		// this column shipped. Idempotent — only does real work the first
+		// this column shipped. Idempotent - only does real work the first
 		// time after upgrade.
 		await runMainWorkspaceSweep({
 			db,

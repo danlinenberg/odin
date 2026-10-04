@@ -26,7 +26,7 @@ export function encodeNextCursor(
 	return offset + limit < total ? encodeCursor(offset + limit) : null;
 }
 
-// 30s TTL on `git fetch` per project — keeps rapid searches from thrashing.
+// 30s TTL on `git fetch` per project - keeps rapid searches from thrashing.
 const REMOTE_REFETCH_TTL_MS = 30_000;
 const lastRemoteRefetch = new Map<string, number>();
 
@@ -39,7 +39,7 @@ export function markRefetchRemote(projectId: string): void {
 	lastRemoteRefetch.set(projectId, Date.now());
 }
 
-// No gating on managed root or workspaces table — foreign worktrees
+// No gating on managed root or workspaces table - foreign worktrees
 // (user ran `git worktree add` themselves) surface too, so the v2
 // picker shows everything git would. `checkedOutBranches` disables
 // Checkout when a branch is already in use elsewhere. Prunable entries

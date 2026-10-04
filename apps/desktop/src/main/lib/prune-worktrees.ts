@@ -7,7 +7,7 @@ import {
 } from "lib/trpc/routers/odin-config";
 
 /**
- * Remove session worktrees whose PR already merged — each one is a full
+ * Remove session worktrees whose PR already merged - each one is a full
  * `bun install`, and fifteen of them filled the disk. The rules live in
  * scripts/prune-worktrees.sh, which is also runnable by hand with --dry-run.
  *

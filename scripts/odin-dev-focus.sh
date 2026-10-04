@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Raycast reads these; it lists a script only if they're present, and it can't
-# pick a file directly — add this directory under Extensions → Script Commands.
+# pick a file directly - add this directory under Extensions → Script Commands.
 # Required parameters:
 # @raycast.schemaVersion 1
 # @raycast.title Odin Dev
@@ -16,7 +16,7 @@
 #   scripts/odin-dev-focus.sh          # focus the dev app, or start it
 #   scripts/odin-dev-focus.sh --check  # print what it sees, change nothing
 #
-# Launching the bundle directly — Raycast, the Dock, Recents, Spotlight — runs a
+# Launching the bundle directly - Raycast, the Dock, Recents, Spotlight - runs a
 # bare Electron with no app path, and that is Electron's own welcome screen
 # ("Electron path-to-app"), not Odin. Odin only exists when electron-vite hands
 # the binary its entry point, so the hotkey has to start the dev stack, not the
@@ -28,7 +28,7 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # The dev UI is the one Electron under this checkout that was GIVEN an app path.
 # The terminal-host daemon and every live session run the same binary from the
-# same bundle, so the trailing argument is the only thing separating them — and
+# same bundle, so the trailing argument is the only thing separating them - and
 # it's why this must never grow into a pkill.
 #
 # ps, not pgrep: pgrep silently skips processes whose executable moved out from
@@ -41,12 +41,12 @@ dev_ui_pid() {
 }
 
 # odin-dev.sh runs `bun dev` in a pipeline, so it stays alive as long as the
-# stack does — its presence means a stack exists, booting or already up.
+# stack does - its presence means a stack exists, booting or already up.
 #
 # That distinction matters because a start takes 17s to ~2min (predev, vite,
 # then Electron), and for all of it dev_ui_pid is empty: the UI genuinely isn't
 # up yet. Without this check the hotkey reads that as "not running" and starts a
-# SECOND stack, whose pkill kills the boot already in progress — so the hotkey
+# SECOND stack, whose pkill kills the boot already in progress - so the hotkey
 # pressed to get Odin back is what kept taking it away, and it read as a crash.
 #
 # ps, not pgrep, for the same reason as above.
@@ -76,15 +76,15 @@ if [[ -n "$pid" ]]; then
 fi
 
 if [[ -n "$stack" ]]; then
-  echo "Odin dev is already starting (odin-dev.sh pid $stack) — leaving it to finish"
+  echo "Odin dev is already starting (odin-dev.sh pid $stack) - leaving it to finish"
   exit 0
 fi
 
 # Detached, NOT exec'd: odin-dev.sh runs bun dev in the foreground and never
-# returns, and a launcher waits for the script command it invoked — Raycast
+# returns, and a launcher waits for the script command it invoked - Raycast
 # would sit on a spinner for the whole dev session. It already tees everything
 # to the log, so there is no output to keep here.
 LOG="${ODIN_HOME_DIR:-$HOME/.odin}/dev.log"
 nohup "$REPO/scripts/odin-dev.sh" >/dev/null 2>&1 &
 disown
-echo "starting Odin dev — logs: $LOG"
+echo "starting Odin dev - logs: $LOG"

@@ -10,7 +10,7 @@ import { resolveUpstream } from "../../../../runtime/git/refs";
 import { createUserSimpleGit } from "../../../../runtime/git/simple-git";
 import type { Branch, ChangedFile, FileStatus } from "../types";
 
-// Skip line counting for files larger than this — anything over a MB
+// Skip line counting for files larger than this - anything over a MB
 // of "source" is almost certainly a data file or accidental binary,
 // and the LOC signal isn't useful for it.
 const MAX_UNTRACKED_LINE_COUNT_SIZE = 1 * 1024 * 1024;
@@ -68,8 +68,8 @@ export function mapGitStatus(code: string): FileStatus {
 
 /**
  * Parse the NUL-delimited output of `git diff --numstat -z`. Renames
- * appear as `<add>\t<del>\t\0<old>\0<new>\0` — three NUL-separated
- * cells — and are indexed under both source and destination paths so
+ * appear as `<add>\t<del>\t\0<old>\0<new>\0` - three NUL-separated
+ * cells - and are indexed under both source and destination paths so
  * callers keyed by either get a hit.
  */
 export function parseNumstat(
@@ -168,7 +168,7 @@ export async function resolveBaseComparison(
 	if (!branchName) return null;
 	const upstream = await resolveUpstream(git, branchName);
 	// Git encodes a branch tracking another local branch as
-	// `branch.<name>.remote = .` — in that case the merge target is
+	// `branch.<name>.remote = .` - in that case the merge target is
 	// already a bare branch name in this repo, not `./<name>`.
 	if (upstream) {
 		return upstream.remote === "."
@@ -264,7 +264,7 @@ function isPathWithinWorktree(
 /**
  * Untracked files don't appear in `git diff --numstat` (they're not in
  * the index). The only batch-friendly way to get their line counts is
- * to read them directly — `git diff --no-index` requires a subprocess
+ * to read them directly - `git diff --no-index` requires a subprocess
  * per file, and `git add -N` would mutate the index inside a read.
  */
 export async function countUntrackedFileLines(
@@ -361,7 +361,7 @@ export interface DetectedRename {
  * Run git's real rename detection across the working tree by copying the
  * index to a temp file, marking untracked files intent-to-add against that
  * copy, and diffing. Real index is never mutated. Falls back to an empty
- * result on any error — caller still has the unrelated deleted+untracked
+ * result on any error - caller still has the unrelated deleted+untracked
  * entries to display.
  */
 export async function detectUnstagedRenames(

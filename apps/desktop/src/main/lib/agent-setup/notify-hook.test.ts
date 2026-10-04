@@ -94,7 +94,7 @@ describe("getNotifyScriptContent", () => {
 	// "waiting on your input".
 	it("falls past a stale port file to a port that answers", async () => {
 		const home = mkdtempSync(path.join(tmpdir(), "odin-hook-port-"));
-		// Port 1 is nobody's hook server — loopback refuses it immediately.
+		// Port 1 is nobody's hook server - loopback refuses it immediately.
 		writeFileSync(path.join(home, "notifications-port"), "1");
 
 		const hits: string[] = [];
@@ -191,7 +191,7 @@ describe("getNotifyScriptContent", () => {
 	it.each([
 		["Done.\n\nACTION ITEMS:\n1. Restart Odin dev.", "PermissionRequest"],
 		["Done.\n\n**ACTION ITEMS**\n- Merge #12", "PermissionRequest"],
-		["Done.\n\nACTION ITEMS: none — nothing left.", "Stop"],
+		["Done.\n\nACTION ITEMS: none - nothing left.", "Stop"],
 		["Done.\n\nAction items: None, all merged.", "Stop"],
 		["Quoting ACTION ITEMS:\n1. x\n\nACTION ITEMS: none", "Stop"],
 		["No closing section at all.", "Stop"],

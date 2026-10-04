@@ -204,7 +204,7 @@ describe("bug-hunt: git-flag injection", () => {
 
 	test("setBaseBranch with a flag-shaped value stores it as a literal config value", async () => {
 		// `git config branch.main.base --global` would only be a flag-injection
-		// risk if simple-git ran a shell — it doesn't (argv spawn), so the
+		// risk if simple-git ran a shell - it doesn't (argv spawn), so the
 		// value lands as literal text. Pin that round-trip behavior.
 		await host.trpc.git.setBaseBranch.mutate({
 			workspaceId,
@@ -232,7 +232,7 @@ describe("bug-hunt: git-flag injection", () => {
 
 		const branches = await repo.git.branchLocal();
 		// Either git refused the rename (target still there) or accepted
-		// `--force` as a literal branch name — never both gone, never main
+		// `--force` as a literal branch name - never both gone, never main
 		// affected.
 		expect(
 			branches.all.includes("rename-target") ||
@@ -300,7 +300,7 @@ describe("bug-hunt: idempotency + double-fire", () => {
 		]);
 
 		// We must never end up with more than one workspace row pointing
-		// at the same branch — that's the actual collision we're guarding
+		// at the same branch - that's the actual collision we're guarding
 		// against. Either both calls collide (one row, one error) or git's
 		// own worktree-add lock causes one to fail; never two rows.
 		const rows = host.db
@@ -373,7 +373,7 @@ describe("bug-hunt: SQL/identifier injection smoke", () => {
 		).rejects.toBeInstanceOf(TRPCClientError);
 
 		// Table still exists. A second NOT_FOUND with a benign id proves
-		// the schema is intact — assert the rejection explicitly instead
+		// the schema is intact - assert the rejection explicitly instead
 		// of swallowing it, otherwise a schema corruption would silently
 		// pass this test.
 		await expect(

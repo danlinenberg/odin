@@ -193,7 +193,7 @@ ${ODIN_ENV_SAVE}
 _odin_home="\${ODIN_ORIG_ZDOTDIR:-$HOME}"
 export ZDOTDIR="$_odin_home"
 # Odin fork: interactive rc prompts hang agent panes before their command
-# runs — oh-my-zsh's updater is the known offender. Disable it for panes
+# runs - oh-my-zsh's updater is the known offender. Disable it for panes
 # spawned by this app only (set before the user's rc loads omz).
 zstyle ':omz:update' mode disabled
 export DISABLE_AUTO_UPDATE=true DISABLE_UPDATE_PROMPT=true
@@ -278,7 +278,7 @@ ${buildPathPrependFunction(paths.BIN_DIR)}
 hash -r 2>/dev/null || true
 # Minimal prompt (path/env shown in toolbar) - emerald to match app theme
 export PS1=$'\\[\\e[1;38;2;52;211;153m\\]❯\\[\\e[0m\\] '
-# Shell readiness markers — see zsh wrapper for rationale on emitting both.
+# Shell readiness markers - see zsh wrapper for rationale on emitting both.
 # Protocol ref: https://gitlab.freedesktop.org/Per_Bothner/specifications/blob/master/proposals/semantic-prompts.md
 __odin_prompt_mark() {
   printf "\\033]777;odin-shell-ready\\007\\033]133;A\\007"

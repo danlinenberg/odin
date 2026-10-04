@@ -27,7 +27,7 @@ export interface ClaudeUsageWindow {
 /**
  * The same numbers Claude Code's /usage shows: the rolling 5-hour window and
  * the week. Read with the Claude Code login from the macOS keychain; null when
- * there is no login or the endpoint is down — the pill just isn't drawn.
+ * there is no login or the endpoint is down - the pill just isn't drawn.
  */
 async function claudeUsage(): Promise<{
 	fiveHour: ClaudeUsageWindow | null;

@@ -1,6 +1,6 @@
 import { Navigate } from "@tanstack/react-router";
 
-// Hoisted for stable props identity — <Navigate> re-navigates every re-render
+// Hoisted for stable props identity - <Navigate> re-navigates every re-render
 // otherwise (react error #185 loop).
 const boardRedirect = <Navigate to="/board" replace />;
 

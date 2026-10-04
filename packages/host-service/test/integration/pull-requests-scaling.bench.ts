@@ -15,12 +15,12 @@ import { seedProject, seedWorkspace } from "../helpers/seed";
  *
  * Two measurements relevant after Fix #1 (event-driven branch sync):
  *
- * 1. **Event-to-DB-update latency** — wall-clock time from a real `git
+ * 1. **Event-to-DB-update latency** - wall-clock time from a real `git
  *    commit` until the workspaces.headSha row is updated. This is the new
  *    primary cost: paid only on real `.git/` activity, regardless of how
  *    many idle worktrees exist.
  *
- * 2. **Safety-net sweep cost** — wall-clock time for the long-cadence
+ * 2. **Safety-net sweep cost** - wall-clock time for the long-cadence
  *    `syncWorkspaceBranches` call at N ∈ {1, 5, 20}. The sweep still does
  *    O(N) work *if it fires*, but now fires every 5 min instead of every
  *    30 s, so daily wall-clock waste drops by 10×.
@@ -134,7 +134,7 @@ async function waitFor(
 	}
 }
 
-describe("BENCH: pull-requests runtime — post-fix steady state", () => {
+describe("BENCH: pull-requests runtime - post-fix steady state", () => {
 	let scenarios: BenchScenario[] = [];
 
 	afterEach(async () => {

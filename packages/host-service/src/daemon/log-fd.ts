@@ -1,5 +1,5 @@
 // Append-mode log fd for the daemon's stdio with size-based rotation.
-// Mirrors the desktop's host-service log handling — when the bundle moves
+// Mirrors the desktop's host-service log handling - when the bundle moves
 // host-service into a headless deploy, daemon logs are still recoverable
 // without an external log shipper.
 

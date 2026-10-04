@@ -80,7 +80,7 @@ export const terminalAgentsRouter = router({
 	 * Status-clearing escape hatch: force the workspace's bindings (or just
 	 * `terminalId`'s) to `Stop` so a wedged working/permission indicator
 	 * resets. Used by sidebar "Clear Status" and the pane interrupt handler
-	 * (agents fire no hook on Esc/Ctrl+C). Deliberately not a hook event —
+	 * (agents fire no hook on Esc/Ctrl+C). Deliberately not a hook event -
 	 * it must not broadcast a completion chime/notification. Safe on live
 	 * agents: their next hook event re-asserts the real state.
 	 */
@@ -101,7 +101,7 @@ export const terminalAgentsRouter = router({
 	 * `(workspaceId, agentId, definitionId)` triple, or spawns a fresh
 	 * terminal and waits up to 10s for the agent's hook to register.
 	 *
-	 * Resolves on the first lifecycle hook — not on REPL prompt-readiness.
+	 * Resolves on the first lifecycle hook - not on REPL prompt-readiness.
 	 * Callers that need to `terminal.writeInput` immediately should add
 	 * their own readiness wait. Input formatting also lives in the caller.
 	 */
@@ -162,7 +162,7 @@ export const terminalAgentsRouter = router({
 					});
 					return { binding, created: true };
 				} catch (err) {
-					// Hook never landed — tear down the orphaned pty so retries
+					// Hook never landed - tear down the orphaned pty so retries
 					// don't pile up zombies.
 					await disposeSessionAndWait(created.terminalId, ctx.db).catch(
 						(cleanupError) => {

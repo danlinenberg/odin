@@ -7,7 +7,7 @@
 //
 // Without the withoutActiveTurnAssistantHistory dedupe filter the message
 // renders twice: once from currentMessage, once from historicalMessages.
-// WITH the filter the message is supposed to be suppressed in history —
+// WITH the filter the message is supposed to be suppressed in history -
 // but the filter only suppresses assistant messages that have NO stopReason.
 //
 // The BUG (M1 from the red-hat review): if the optimistic user message is
@@ -56,7 +56,7 @@ function asCurrentMessage(
 }
 
 /**
- * Regression guard — proves dual-poll race causes duplicate message rendering.
+ * Regression guard - proves dual-poll race causes duplicate message rendering.
  *
  * Scenario (matches the flicker UX exactly):
  *   1. User sends message U1.
@@ -77,7 +77,7 @@ function asCurrentMessage(
  *         dedup filter has nothing to remove. A1 remains in history AND
  *         appears in currentMessage → the message renders TWICE.
  */
-describe("dual-poll race — flicker reproduction", () => {
+describe("dual-poll race - flicker reproduction", () => {
 	it("suppresses in-flight assistant message from history when optimistic user message was appended after it", () => {
 		// History from listMessages (tick B): contains committed U1 + in-flight A1
 		const historicalMessagesFromListMessages: ListMessagesOutput = [
@@ -111,7 +111,7 @@ describe("dual-poll race — flicker reproduction", () => {
 		// EXPECTED: a_1 should NOT appear in the message list because it is the
 		// active-turn message being streamed (no stopReason, matches currentMessage id).
 		// The only messages should be u_1 (the real user message). The optimistic
-		// user message may or may not be present — that's a separate concern.
+		// user message may or may not be present - that's a separate concern.
 		const assistantIds = result
 			.filter((m) => m.role === "assistant")
 			.map((m) => m.id);

@@ -99,7 +99,7 @@ describe("message folding", () => {
 		seqCounter = 0;
 		// The host journals one prompt's blocks in a single synchronous run and
 		// always emits a state frame between turns, so a non-contiguous seq means
-		// a different prompt — the bubbles must not merge.
+		// a different prompt - the bubbles must not merge.
 		const timeline = foldEnvelopes(emptyTimeline(), [
 			textChunk("user_message_chunk", "first prompt"),
 			envelope({ kind: "state", state: fakeState() }),
@@ -456,7 +456,7 @@ describe("purity", () => {
 
 // Frame shapes below mirror a captured claude-agent-acp subagent run: the Task
 // tool_call is untagged; the subagent's tools arrive as top-level frames tagged
-// _meta.claudeCode.parentToolUseId — except some updates (tool_progress, hook
+// _meta.claudeCode.parentToolUseId - except some updates (tool_progress, hook
 // paths) which arrive UNTAGGED and must still route into the nested item.
 describe("subagent nesting", () => {
 	const taggedMeta = { claudeCode: { parentToolUseId: "task-1" } };

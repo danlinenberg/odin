@@ -60,7 +60,7 @@ function makeFixtureRepo(): string {
 	fs.writeFileSync(path.join(dir, "b.txt"), "alpha\n");
 	git("add", "-A", "--", ".");
 	git("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init");
-	// one modified, one staged, one untracked — exercises every snapshot bucket
+	// one modified, one staged, one untracked - exercises every snapshot bucket
 	fs.appendFileSync(path.join(dir, "a.txt"), "three\n");
 	fs.writeFileSync(path.join(dir, "c.txt"), "new file\n");
 	fs.writeFileSync(path.join(dir, "staged.txt"), "staged\n");
@@ -154,8 +154,8 @@ describe("HostWorkerPool", () => {
 		});
 
 		// Three callers coalesced onto one worker task; the single crash must
-		// be recorded once — per-caller counting would consume the whole
-		// budget (3) and open the circuit off a single worker death — and the
+		// be recorded once - per-caller counting would consume the whole
+		// budget (3) and open the circuit off a single worker death - and the
 		// inline retry must also be shared, not run once per caller.
 		const opts = { strategy: "coalesce" as const, dedupeKey: "same" };
 		const [a, b, c] = await Promise.all([
@@ -256,7 +256,7 @@ describe("HostWorkerPool", () => {
 			pool.run(echo, { v: 1, fn: () => 1 }, { timeoutMs: 10_000 }),
 		).rejects.toThrow("postMessage failed");
 		// The slot must be free again: a valid task completes promptly via the
-		// worker path (registry rejects the unknown type — still a worker round
+		// worker path (registry rejects the unknown type - still a worker round
 		// trip, which is what proves the slot isn't wedged).
 		await expect(withTimeout(pool.run(echo, { v: 2 }))).rejects.toThrow(
 			"unknown worker task type",

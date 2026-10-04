@@ -9,7 +9,7 @@ import { PR_RULES_HEADER } from "shared/odin-rules";
  *
  * Claude writes one JSONL per session at
  * `~/.claude/projects/<slugified-cwd>/<session-id>.jsonl`. That file is the only
- * durable record of what a session was actually about — the board's card titles
+ * durable record of what a session was actually about - the board's card titles
  * are whatever was typed at launch ("Work on Odin", twenty times over), and a
  * pane's scrollback is ANSI mush. So: find an old session by keyword here, then
  * resume it by its id (`claude --resume <id>`).
@@ -21,7 +21,7 @@ export function projectsRoot(): string {
 }
 
 export interface TranscriptFile {
-	/** Directory name under `projects/` — Claude's slug of the session's cwd. */
+	/** Directory name under `projects/` - Claude's slug of the session's cwd. */
 	project: string;
 	sessionId: string;
 	path: string;
@@ -86,7 +86,7 @@ const NOISE =
  * Claude Code files a lot of things as `type: "user"` that you never typed:
  * skill bodies, CLAUDE.md, hook output, image placeholders, task notifications,
  * slash-command markers. They're byte-identical across sessions, so searching
- * them made almost every session match the same boilerplate — the noise that
+ * them made almost every session match the same boilerplate - the noise that
  * made this view useless. `promptSource` is the reliable discriminator (present
  * throughout the transcript history); the heuristics are only for the handful of
  * entries that lack it.
@@ -102,11 +102,11 @@ function isTypedByUser(entry: Record<string, unknown>, text: string): boolean {
 
 const MAX_SNIPPETS = 3;
 
-/** Filter chips shown above the results — a header, not a directory. */
+/** Filter chips shown above the results - a header, not a directory. */
 const MAX_ASKERS = 12;
 
 /** Top-level transcripts, newest first. `<session>/subagents/*.jsonl` are
- * side-conversations of a session, not sessions you can resume — skipped. */
+ * side-conversations of a session, not sessions you can resume - skipped. */
 export async function listTranscripts(
 	root: string = projectsRoot(),
 ): Promise<TranscriptFile[]> {
@@ -166,7 +166,7 @@ function messageText(content: unknown): string {
  * `Task: <first line>\n\n<whole prompt>\n\nWork in the current workspace…`,
  * which otherwise reads as the first line stuttering.
  *
- * Slack-sourced sessions get a second layer — the two-phase ingest recipe from
+ * Slack-sourced sessions get a second layer - the two-phase ingest recipe from
  * buildThreadPrompt. That's Odin talking to itself, identical in every Slack
  * session, and it buried the actual ask in the row subtitle.
  */
@@ -175,14 +175,14 @@ function cleanPrompt(text: string): string {
 		.replace(/^Task:\s*/i, "")
 		// Both tails are the launcher's, and the attachment list (when there is
 		// one) always runs to the end of the prompt.
-		.replace(/\n+Attached files —[\s\S]*$/i, "")
+		.replace(/\n+Attached files [\u2014-][\s\S]*$/i, "")
 		.replace(/\n+Work in the current workspace\.[\s\S]*$/i, "")
-		.replace(/\n+PHASE 1 [—-] INGEST[\s\S]*$/i, "")
+		.replace(/\n+PHASE 1 [\u2014-] INGEST[\s\S]*$/i, "")
 		.trim();
 	const [first, ...rest] = body.split("\n\n");
 	const remainder = rest.join("\n\n").trim();
 	// The Task: line is the title, which is ELIDED at the launcher's length cap
-	// ("…explanation of thi…") — so it only prefixes the body once the ellipsis
+	// ("…explanation of thi…") - so it only prefixes the body once the ellipsis
 	// is off, and without this the prompt reads as a half-word stutter.
 	const head = first?.trim().replace(/(?:…|\.\.\.)$/, "");
 	return head && remainder.startsWith(head) ? remainder : body;
@@ -191,14 +191,14 @@ function cleanPrompt(text: string): string {
 /**
  * The line `buildPrompt` (useLaunchTaskSession) ends every task prompt with.
  * Claude's JSONL records nothing about who started a session, so this sentence
- * in the opening prompt is the only durable mark of "Odin launched this" — and
+ * in the opening prompt is the only durable mark of "Odin launched this" - and
  * Session History wants nothing else: sessions typed into a plain terminal
  * aren't work this app is tracking.
  *
  * ponytail: a prompt fingerprint, not a registry of launched ids. It misses
  * empty-prompt panes (nothing was typed at launch to fingerprint) and sessions
  * resumed out of a non-Odin transcript. Keep a `~/.odin/launched-sessions`
- * ledger if those ever matter — but it would start empty, hiding every session
+ * ledger if those ever matter - but it would start empty, hiding every session
  * to date, which this doesn't.
  */
 const ODIN_LAUNCH_MARKER = /\n\s*Work in the current workspace\./i;
@@ -212,7 +212,7 @@ function escapeRegExp(value: string): string {
 }
 
 /**
- * Split a query into keywords. You don't remember a session's exact wording —
+ * Split a query into keywords. You don't remember a session's exact wording -
  * you remember roughly what it was about ("optimizing datadog costs" for a
  * session titled "reduce repeating Datadog logs"), so an exact-phrase search
  * finds nothing. Terms are matched independently and the hits are ranked by how
@@ -250,7 +250,7 @@ function countTerms(
 
 /**
  * Derive a session's summary from its JSONL, optionally collecting matches for
- * `terms` (case-insensitive, over what you typed and what Claude said only —
+ * `terms` (case-insensitive, over what you typed and what Claude said only -
  * injected context, tool output and file contents would bury the real hits).
  */
 export function summarizeTranscript(
@@ -302,15 +302,15 @@ export function summarizeTranscript(
 		const message = entry.message as { content?: unknown } | undefined;
 		const text = messageText(message?.content).trim();
 		if (!text) continue;
-		// Only what you typed and what Claude said — injected context is neither,
+		// Only what you typed and what Claude said - injected context is neither,
 		// and it's identical in every session, so it can't tell them apart.
 		if (role === "user" && !isTypedByUser(entry, text)) continue;
 		messages++;
 		if (role === "user" && !prompt) {
 			// Before cleanPrompt, which strips the marker off the stored prompt.
 			fromOdin = ODIN_LAUNCH_MARKER.test(text);
-			// buildPrompt's first line is the card's title — `Task: <title>` or
-			// `/<skill> <title>` — which is what the board showed, and what a
+			// buildPrompt's first line is the card's title - `Task: <title>` or
+			// `/<skill> <title>` - which is what the board showed, and what a
 			// person remembers the session by.
 			cardTitle =
 				/^(?:Task:|\/[\w:-]+)[ \t]+(.+)/.exec(text)?.[1]?.trim() || null;
@@ -403,7 +403,7 @@ function scoreOf(
  * Browse (empty query) or keyword-search the transcript store, restricted to
  * sessions Odin itself launched (see ODIN_LAUNCH_MARKER).
  *
- * `people` maps a session id to who asked for it — Odin knows that for every
+ * `people` maps a session id to who asked for it - Odin knows that for every
  * session it launched off a feed, and the name appears nowhere in the
  * transcript (the prompt is the ticket, not the reporter). So it's matched and
  * ranked alongside the prose: "ofek" finds the sessions Ofek asked for, even
@@ -438,7 +438,7 @@ export async function searchSessions({
 	terms: string[];
 	/** Where the next browse page starts; null when searching or out of files. */
 	nextCursor: number | null;
-	/** Everyone who has asked for something, newest first — the filter chips. */
+	/** Everyone who has asked for something, newest first - the filter chips. */
 	askers: string[];
 }> {
 	const files = await listTranscripts(root);
@@ -459,7 +459,7 @@ export async function searchSessions({
 		if (scanned >= maxFiles) break;
 		scanned++;
 		const who = people.get(file.sessionId);
-		// Who asked is matched before the file is even parsed — the name isn't in
+		// Who asked is matched before the file is even parsed - the name isn't in
 		// there, so the prose reject below would throw the session away.
 		const whoTerms =
 			terms.length > 0
@@ -476,15 +476,15 @@ export async function searchSessions({
 			}
 			const summary = summarizeTranscript(jsonl, terms);
 			// Nothing you ever typed and no title Claude gave itself: a
-			// programmatic run (`promptSource: "sdk"` — vibe-kanban and friends) or
+			// programmatic run (`promptSource: "sdk"` - vibe-kanban and friends) or
 			// a session that died before its first turn. Those list as
 			// "session 2d3839e1 · 0 msgs" with nothing to read and nothing worth
 			// resuming, which is the noise that drowned the real sessions.
 			if (!summary.aiTitle && !summary.prompt) continue;
-			// Not launched from Odin — a conversation from some other terminal,
+			// Not launched from Odin - a conversation from some other terminal,
 			// which this board never tracked and can't resume into a card.
 			if (!summary.fromOdin) continue;
-			// Matched only in injected context or tool output — not a real hit.
+			// Matched only in injected context or tool output - not a real hit.
 			if (
 				terms.length > 0 &&
 				summary.bodyTerms.size === 0 &&
@@ -526,7 +526,7 @@ export async function searchSessions({
 				},
 			});
 		} catch {
-			// unreadable transcript — skip it
+			// unreadable transcript - skip it
 		}
 	}
 	// Best match first when searching; newest first when browsing (already sorted).
@@ -535,7 +535,7 @@ export async function searchSessions({
 			(a, b) => b.score - a.score || b.session.updatedAt - a.session.updatedAt,
 		);
 	}
-	// Only people whose session is still on disk — a chip that finds nothing is
+	// Only people whose session is still on disk - a chip that finds nothing is
 	// worse than no chip. Map order is insertion order, i.e. newest first.
 	const onDisk = new Set(files.map((file) => file.sessionId));
 	const askers = [
@@ -562,7 +562,7 @@ export interface TranscriptMessage {
 	at: string | null;
 }
 
-/** The conversation, prose only — the readable form of a session. */
+/** The conversation, prose only - the readable form of a session. */
 export function parseTranscript(
 	jsonl: string,
 	maxMessages = 500,
@@ -650,7 +650,7 @@ function isSafeSegment(value: string): boolean {
 /**
  * The project directory holding a session, found by id alone. A board pane
  * records the conversation id it launched with but not the directory it ran in,
- * and Claude names the directory after a cwd we'd only be guessing at — so look
+ * and Claude names the directory after a cwd we'd only be guessing at - so look
  * for the file instead. One stat per project, no reads.
  */
 async function projectOf(
@@ -703,12 +703,12 @@ export async function readTranscript({
 	root?: string;
 }): Promise<{
 	messages: TranscriptMessage[];
-	/** Every URL-quoting turn of the whole session — see `transcriptLinks`. */
+	/** Every URL-quoting turn of the whole session - see `transcriptLinks`. */
 	links: TranscriptMessage[];
 	cwd: string | null;
 	/** Claude's own generated title for the conversation, when it has one. */
 	title: string | null;
-	/** The real opening prompt — `messages` is only the tail of a long session. */
+	/** The real opening prompt - `messages` is only the tail of a long session. */
 	prompt: string | null;
 	/** A `/loop` (or any schedule) still armed in this conversation. */
 	loop: ActiveLoop | null;
@@ -734,14 +734,14 @@ export async function readTranscript({
 }
 
 export interface RuleFiring {
-	/** The rule as the agent read it — "When …: …". */
+	/** The rule as the agent read it - "When …: …". */
 	rule: string;
 	/** PR urls it fired on, oldest first. */
 	on: string[];
 }
 
 /**
- * A command that really opens or pushes to a PR — at the start of a line or
+ * A command that really opens or pushes to a PR - at the start of a line or
  * after `&&`/`;`/`|`, past any `VAR=value` prefix; git may carry options
  * before `push`. The hook itself greps the whole payload, so it also fires on
  * a `cat` of a file that merely mentions `git push`; those aren't the rule
@@ -757,7 +757,7 @@ const RULE_SCOPE = / \((only|except) in the repos? at ([^)]+)\):/;
 /**
  * Whether a repo-pinned rule covers this PR. A feed session's checkout isn't
  * known at launch, so the hook hands it every pinned rule and the agent skips
- * the ones for other repos — those didn't fire.
+ * the ones for other repos - those didn't fire.
  *
  * ponytail: matches the PR's GitHub repo name against the pinned folder's
  * name; a checkout folder renamed away from its repo would need a remote lookup.
@@ -775,10 +775,10 @@ function coversPr(rule: string, pr: string): boolean {
 /**
  * The PR-rule hook's firings, each pinned to the PR it fired on: the PR url
  * in that Bash call's output (`gh pr create` prints it), else the session's
- * latest PR so far — a later `git push` prints only the branch.
+ * latest PR so far - a later `git push` prints only the branch.
  *
  * ponytail: prompt-only rules (not about PRs) have no firing to find, so
- * they never show — the transcript can't say whether the agent followed them.
+ * they never show - the transcript can't say whether the agent followed them.
  */
 export function ruleFirings(jsonl: string): RuleFiring[] {
 	const commands = new Map<string, string>();
@@ -857,10 +857,10 @@ const WAKEUP_GRACE_MS = 15 * 60_000;
  * Whether this conversation is running under `/loop`, read from the schedule
  * tool calls it made: a recurring CronCreate not yet CronDeleted, or a
  * ScheduleWakeup whose fire time (plus a turn's grace) hasn't passed and that
- * wasn't a `stop`. Both only live inside the running claude process — the
+ * wasn't a `stop`. Both only live inside the running claude process - the
  * caller has to check the session is still up.
  *
- * ponytail: crons are counted, not matched by id — the id is only in the
+ * ponytail: crons are counted, not matched by id - the id is only in the
  * tool_result text. Match ids if sessions ever juggle several jobs.
  */
 export function activeLoop(
@@ -912,7 +912,7 @@ export function activeLoop(
 function repoRootOf(dir: string): string | null {
 	let current = dir;
 	while (true) {
-		// A worktree's `.git` is a file, a clone's is a directory — either is a root.
+		// A worktree's `.git` is a file, a clone's is a directory - either is a root.
 		if (existsSync(join(current, ".git"))) return current;
 		const parent = dirname(current);
 		if (parent === current) return null;
@@ -921,7 +921,7 @@ function repoRootOf(dir: string): string | null {
 }
 
 /**
- * The repo a checkout belongs to — itself for a clone, the owning clone for a
+ * The repo a checkout belongs to - itself for a clone, the owning clone for a
  * worktree. A worktree's `.git` is a file pointing at
  * `<repo>/.git/worktrees/<name>`, so its owner is one read away.
  *
@@ -929,7 +929,7 @@ function repoRootOf(dir: string): string | null {
  * the branch it holds, and a card reading `review-6460` says nothing about
  * where the work landed. The tally needs it because a session that splits its
  * time between a repo and a worktree of that same repo is working in ONE repo,
- * and counting them separately splits the vote — that is how a session with
+ * and counting them separately splits the vote - that is how a session with
  * 259 entries in app-web-server came out labelled `dev`.
  */
 function ownerRepoOf(checkout: string): string {
@@ -944,13 +944,13 @@ function ownerRepoOf(checkout: string): string {
 			if (owner) return owner;
 		}
 	} catch {
-		// Unreadable .git — the checkout is its own best answer.
+		// Unreadable .git - the checkout is its own best answer.
 	}
 	return checkout;
 }
 
 /**
- * The repo a directory sits in, by name — or null when it isn't in one. A
+ * The repo a directory sits in, by name - or null when it isn't in one. A
  * folder's own basename is not a repo name: a plain `~/Documents/Dan Wedding`
  * or a scratchpad would otherwise pass for one. A deleted worktree still
  * resolves, since its path walks up into the clone that held it.
@@ -963,7 +963,7 @@ export function repoOfDir(dir: string): string | null {
 const containers = new Map<string, boolean>();
 
 /**
- * Whether a repo is a folder of other clones — `~/dev`, a repo of loose
+ * Whether a repo is a folder of other clones - `~/dev`, a repo of loose
  * scripts that also contains every checkout. Work run from there is general,
  * not work on it. Looks two levels down (`~/dev/imagen/<clone>`), skipping
  * dot-folders so a repo's own `.worktrees` don't count against it.
@@ -1003,7 +1003,7 @@ export function repoNameOf(checkout: string): string {
  * The checkout a session did its work in.
  *
  * Claude Code stamps a cwd on every transcript entry, and that cwd is the
- * working directory of each individual tool call — so it hops between repos,
+ * working directory of each individual tool call - so it hops between repos,
  * worktrees and deep subdirectories as the agent moves. Reading the *last* one
  * makes the answer depend on whichever directory the agent happened to run its
  * most recent command in: a session whose work lives in one repo will report a
@@ -1015,7 +1015,7 @@ export function repoNameOf(checkout: string): string {
  * winner is still a checkout, because the caller diffs it. Ties go to the most
  * recent, which keeps the answer stable rather than dependent on Map ordering.
  *
- * ponytail: entry counts, not edited-file counts — the transcript records where
+ * ponytail: entry counts, not edited-file counts - the transcript records where
  * commands ran, and reading it is one file read. Weigh actual writes if a
  * chatty read-only detour in another repo ever outvotes the real work.
  */
@@ -1040,7 +1040,7 @@ export async function workingRepoOf(
 
 /**
  * The worktree a session last worked in, inside the repo `workingRepoOf`
- * picked — or null when it never left the clone. An agent typically runs a
+ * picked - or null when it never left the clone. An agent typically runs a
  * dozen commands in the clone before cutting its worktree, so "busiest" lands
  * on the clone; the place to go to pick the work up is the worktree.
  */
@@ -1133,7 +1133,7 @@ async function tallyCheckouts(
 
 	// A repo whose tree holds other checkouts is a container, not the subject.
 	// `~/dev` is a repo of loose scripts that also happens to contain every
-	// clone, so every tool call that never cd'd anywhere votes for it — enough
+	// clone, so every tool call that never cd'd anywhere votes for it - enough
 	// to outscore the repo the session actually edited. When the leader holds
 	// other candidates, the work is in one of those.
 	let winner = leader(perRepo.keys());
@@ -1151,8 +1151,8 @@ async function tallyCheckouts(
 /**
  * What a session was about, in one line.
  *
- * `cleanPrompt` keeps the whole Slack preamble on purpose — Session History
- * searches it — but a one-line label has room for the ask and nothing else. So
+ * `cleanPrompt` keeps the whole Slack preamble on purpose - Session History
+ * searches it - but a one-line label has room for the ask and nothing else. So
  * when Odin quoted the thread, the quote IS the title, and the framing above it
  * ("This task comes from a Slack thread: <url>") is dropped.
  */
@@ -1169,8 +1169,8 @@ function titleFromPrompt(prompt: string): string {
  * The opening ask of a session, for labelling it in a list.
  *
  * Only the head of the file is looked at: the first thing you typed is within
- * the first few entries, and the alternative — parsing whole transcripts for a
- * string that lives in line three — is what makes a whole-store scan expensive.
+ * the first few entries, and the alternative - parsing whole transcripts for a
+ * string that lives in line three - is what makes a whole-store scan expensive.
  * Sessions that open with nothing typed (a resume, an empty pane) have no
  * answer, which is honest; the caller names them by id.
  */

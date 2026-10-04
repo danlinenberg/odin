@@ -3,7 +3,7 @@
  *
  * Order is the order a new profile needs them in: accounts first (every feed
  * is empty without one), then a task of your own, then the things you do with
- * tasks — run one, schedule one, clear the backlog.
+ * tasks - run one, schedule one, clear the backlog.
  */
 export const STEPS = [
 	"connections",
@@ -21,7 +21,7 @@ interface Connection {
 
 /**
  * A profile nobody has used yet: no account signed in, nothing written down.
- * Only these get the checklist — a profile already in use would get a card
+ * Only these get the checklist - a profile already in use would get a card
  * full of ticks telling it what it already knows.
  */
 export function isFreshProfile(

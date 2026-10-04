@@ -64,7 +64,7 @@ describe("acquireSingleUiLock", () => {
 		expect(acquireSingleUiLock("Odin", home).ok).toBe(false);
 	});
 
-	test("a dead holder's lock is stolen — a crash must not lock the user out", () => {
+	test("a dead holder's lock is stolen - a crash must not lock the user out", () => {
 		writeHolder(4242);
 		isProcessAliveMock.mockImplementation(() => false);
 

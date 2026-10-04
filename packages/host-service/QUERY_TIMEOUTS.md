@@ -8,7 +8,7 @@ ops self-recover without leaving the UI spinning forever.
 
 ## Where it lives
 
-- **Server middleware**: `src/trpc/index.ts` — `timeoutMiddleware` races
+- **Server middleware**: `src/trpc/index.ts` - `timeoutMiddleware` races
   `next()` against a per-procedure timer.
 - **Builder**: `queryProcedure = protectedProcedure.use(timeoutMiddleware)`
   in the same file. Use this for every `.query` procedure.
@@ -25,7 +25,7 @@ harm than good.
 ## Adding a new query
 
 ```ts
-// Defaults to 5s — fine for most local fs/git work.
+// Defaults to 5s - fine for most local fs/git work.
 myFastQuery: queryProcedure
   .input(...)
   .query(async ({ ctx, input }) => { ... }),
@@ -56,7 +56,7 @@ tight and healthy queries time out under load.
 ## What the timeout does *not* do
 
 The middleware only races a timer against the procedure's `next()`
-result. It does **not** kill the underlying work — `fs.readdir`, `git`
+result. It does **not** kill the underlying work - `fs.readdir`, `git`
 child processes, etc. continue server-side until they finish naturally.
 For ops that *can* be cancelled, the procedure should plumb the
 `AbortSignal` through. `filesystem.listDirectory` does this:
@@ -72,6 +72,6 @@ between operations.
 
 `TRPCClientError` with `error.data.code === "TIMEOUT"`. The
 `WorkspaceClientProvider` retry predicate keys on this. Bespoke per-hook
-retry logic should not be necessary — if it is, the procedure's budget
+retry logic should not be necessary - if it is, the procedure's budget
 is probably wrong, or the underlying work isn't really a single query
 and should be split.

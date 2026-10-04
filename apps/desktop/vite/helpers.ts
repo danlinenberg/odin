@@ -77,22 +77,22 @@ export function copyResourcesPlugin(): Plugin {
  * Coalesces Vite's dev full page reloads.
  *
  * This checkout is shared with agent sessions that save renderer files
- * constantly, and some route modules — the board is one — have no usable Fast
+ * constantly, and some route modules - the board is one - have no usable Fast
  * Refresh boundary, so Vite gives up on HMR and full-reloads the renderer
  * instead. A full reload reboots the whole app: every pane remounts and
  * re-attaches, the board flashes, and it reads as "Odin restarted" mid-work.
  * Bursts of ten reloads inside a minute were normal.
  *
- * The reload still lands, just once the saves go quiet — or after `maxHoldMs`,
+ * The reload still lands, just once the saves go quiet - or after `maxHoldMs`,
  * so a fleet that never goes quiet still picks changes up. Hot updates pass
  * straight through, untouched.
  *
  * While a session pane is open (the board sends `odin:session-pane`), every
- * payload — hot updates too — is held until it closes, so nothing remounts the
+ * payload - hot updates too - is held until it closes, so nothing remounts the
  * terminal you're typing into. Closing it replays them; a held full reload
  * supersedes the updates and lands right away.
  *
- * ponytail: coalescing, not a boundary fix — whatever module dead-ends the
+ * ponytail: coalescing, not a boundary fix - whatever module dead-ends the
  * board's HMR chain still dead-ends it, and Vite still logs `page reload
  * <file>` naming it. Chase that if a held reload ever costs more than a calm
  * app does.
@@ -124,11 +124,11 @@ export function coalesceFullReloadPlugin({
 					(a) => (a[0] as { type?: string })?.type === "full-reload",
 				);
 				if (reload) {
-					server.config.logger.info("odin: reloading — session pane closed");
+					server.config.logger.info("odin: reloading - session pane closed");
 					send(...reload);
 				} else for (const a of queued) send(...a);
 			});
-			// A client that reconnects loads fresh modules — whatever it held is moot.
+			// A client that reconnects loads fresh modules - whatever it held is moot.
 			hot.on("vite:client:disconnect", () => {
 				paneOpen = false;
 				held = [];
@@ -152,7 +152,7 @@ export function coalesceFullReloadPlugin({
 					clearTimeout(timer);
 					timer = undefined;
 					server.config.logger.info(
-						`odin: reloading — renderer saves never went quiet (held ${Math.round(maxHoldMs / 1000)}s)`,
+						`odin: reloading - renderer saves never went quiet (held ${Math.round(maxHoldMs / 1000)}s)`,
 					);
 					send(...args);
 					return;
@@ -166,7 +166,7 @@ export function coalesceFullReloadPlugin({
 						return;
 					}
 					server.config.logger.info(
-						"odin: reloading — renderer saves went quiet",
+						"odin: reloading - renderer saves went quiet",
 					);
 					send(...args);
 				}, quietMs);

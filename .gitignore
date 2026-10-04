@@ -58,7 +58,7 @@ next-env.d.ts
 # Odin (track scripts/config; ignore generated workspace artifacts)
 .odin/ports.json
 .odin/config.local.json
-# Per-session task prompts written by "Work on Odin" — now that those sessions
+# Per-session task prompts written by "Work on Odin" - now that those sessions
 # run in this checkout, they'd otherwise show up as untracked files.
 .odin/task-*.md
 # Images pasted/dropped into the "Work on Odin" composer, saved for the agent.

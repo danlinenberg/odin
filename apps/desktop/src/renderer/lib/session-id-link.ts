@@ -11,7 +11,7 @@ let globalOperationId = Date.now();
 /**
  * trpc-electron throws its own copy of TRPCClientError. @trpc/client v11 only
  * trusts `instanceof`, so it re-wraps that one and buries `data` (the tRPC
- * code — UNAUTHORIZED and friends) under `cause`, where nothing looks. Rebuilt
+ * code - UNAUTHORIZED and friends) under `cause`, where nothing looks. Rebuilt
  * from the server's error shape here, `error.data.code` is there again.
  */
 export function asClientError<E>(err: E): E {

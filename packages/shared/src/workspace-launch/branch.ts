@@ -135,7 +135,7 @@ const MAX_BRANCH_LENGTH = 100;
 /**
  * Turns arbitrary text (a prompt, a title) into a branch-name-shaped slug.
  * Lowercases, replaces spaces with dashes, strips special chars.
- * Use this when the input is NOT a branch name — it's a sentence.
+ * Use this when the input is NOT a branch name - it's a sentence.
  */
 export function slugifyForBranch(
 	text: string,
@@ -157,7 +157,7 @@ export function slugifyForBranch(
 
 /**
  * Strips only what git forbids from a user-typed branch name.
- * Preserves case, slashes, underscores — respects user intent.
+ * Preserves case, slashes, underscores - respects user intent.
  * Use this when the input IS a branch name the user explicitly typed.
  *
  * Git ref rules: no `..`, no ASCII control chars, no `~^:?*[\`,

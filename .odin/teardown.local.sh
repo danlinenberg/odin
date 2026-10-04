@@ -23,5 +23,5 @@ echo "🧹 Tearing down local DB stack ($project)..."
 if docker compose -p "$project" -f "$ROOT_DIR/docker-compose.yml" down -v; then
   success "Local DB stack removed ($project)"
 else
-  warn "docker compose down reported an issue — stack may already be gone"
+  warn "docker compose down reported an issue - stack may already be gone"
 fi

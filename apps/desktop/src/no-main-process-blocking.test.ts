@@ -1,5 +1,5 @@
 // Ratchet: keeps blocking work off the Electron main process. Every
-// electronTrpc call is served by this one event loop — an in-process git
+// electronTrpc call is served by this one event loop - an in-process git
 // spawn or sync fs walk stalls all of them. Git reads belong in the changes
 // git worker (src/lib/trpc/routers/changes/workers/).
 //
@@ -39,12 +39,12 @@ const RULES: Rule[] = [
 		name: "sync subprocess (execSync/spawnSync/execFileSync)",
 		pattern: /\b(execSync|spawnSync|execFileSync)\b/,
 		allowedCounts: {
-			// Dead code (no callers) — delete rather than call on main.
+			// Dead code (no callers) - delete rather than call on main.
 			// Cold daemon-recovery path only (connect failure / respawn).
 			"main/lib/terminal-host/client.ts": 2,
 		},
 		advice:
-			"Sync subprocesses freeze the Electron main process until the child exits — every electronTrpc response and IPC event queues behind it, so the whole app feels hung. Prefer async spawn/execFile: the caller awaits the same result, but main keeps serving while the child runs.",
+			"Sync subprocesses freeze the Electron main process until the child exits - every electronTrpc response and IPC event queues behind it, so the whole app feels hung. Prefer async spawn/execFile: the caller awaits the same result, but main keeps serving while the child runs.",
 	},
 	{
 		name: "sync recursive fs (rmSync/cpSync)",
@@ -54,15 +54,15 @@ const RULES: Rule[] = [
 			"lib/trpc/routers/workspaces/utils/setup.ts": 2,
 		},
 		advice:
-			"rmSync/cpSync walk the whole tree on the Electron main process — a large copy or delete stalls every electronTrpc response for seconds. Prefer `await rm/cp` from node:fs/promises: same result, but the walk runs on libuv's thread pool while main keeps serving.",
+			"rmSync/cpSync walk the whole tree on the Electron main process - a large copy or delete stalls every electronTrpc response for seconds. Prefer `await rm/cp` from node:fs/promises: same result, but the walk runs on libuv's thread pool while main keeps serving.",
 	},
 	{
 		name: "in-process git client construction",
 		pattern: /\b(simpleGit|getSimpleGitWithShellPath)\b/,
 		allowedCounts: {
-			// The factory module itself — permanent entry.
+			// The factory module itself - permanent entry.
 			"lib/trpc/routers/workspaces/utils/git-client.ts": 4,
-			// Legacy on-main git spawners — shrink these counts by porting reads
+			// Legacy on-main git spawners - shrink these counts by porting reads
 			// to worker task types (changes/workers/git-task-types.ts).
 			"lib/trpc/routers/changes/git-operations.ts": 2,
 			"lib/trpc/routers/changes/security/git-commands.ts": 2,
@@ -72,7 +72,7 @@ const RULES: Rule[] = [
 			"lib/trpc/routers/workspaces/utils/git.ts": 21,
 		},
 		advice:
-			"simple-git is async, but a client constructed here still pays the spawn syscall + stdout drain on the Electron main process — cost scales linearly with call volume (branch polls, sidebar rows). Async isn't enough for git; route it off-process: add a task type to changes/workers/git-task-types.ts and run it via runGitTask.",
+			"simple-git is async, but a client constructed here still pays the spawn syscall + stdout drain on the Electron main process - cost scales linearly with call volume (branch polls, sidebar rows). Async isn't enough for git; route it off-process: add a task type to changes/workers/git-task-types.ts and run it via runGitTask.",
 	},
 ];
 
@@ -82,7 +82,7 @@ const EXEMPT_DIR_PREFIXES = ["lib/trpc/routers/changes/workers/"];
 const EXEMPT_FILE_PATTERNS = [/\.test\.tsx?$/, /(^|\/)test-helpers\.ts$/];
 
 /**
- * Matching lines after comment stripping — prose mentions don't count.
+ * Matching lines after comment stripping - prose mentions don't count.
  * Line-comment stripping is naive (`//` inside a string truncates the rest
  * of that line), which can only under-count, never false-positive.
  */
@@ -158,7 +158,7 @@ describe("no new main-process blocking call sites", () => {
 				.sort();
 			expect(
 				stale,
-				"Allowlisted count(s) too high — lower or delete them in allowedCounts so the ratchet tightens.",
+				"Allowlisted count(s) too high - lower or delete them in allowedCounts so the ratchet tightens.",
 			).toEqual([]);
 		});
 	}

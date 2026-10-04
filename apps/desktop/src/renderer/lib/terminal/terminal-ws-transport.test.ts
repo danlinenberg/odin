@@ -11,7 +11,7 @@ import {
 import * as hostSocketModule from "@odin/workspace-client/host-socket";
 import type { Terminal as XTerm } from "@xterm/xterm";
 
-// The transport builds on createHostSocket (partysocket) — reconnection,
+// The transport builds on createHostSocket (partysocket) - reconnection,
 // backoff, and the relay preflight live inside the shared socket. We inject a
 // fake so tests drive the transport's own behavior (state, diagnosis,
 // coalescing, liveness) deterministically, without a real socket or fetch.
@@ -30,7 +30,7 @@ class FakeHostSocket {
 	reconnectCount = 0;
 	// partysocket's authoritative per-attempt counter: bumped on each failed
 	// dial, reset to 0 by reconnect() and (in reality) after minUptime of a
-	// stable connection — simulated here by stabilize().
+	// stable connection - simulated here by stabilize().
 	retryCount = 0;
 	closed = false;
 	readonly options: Record<string, unknown>;
@@ -110,7 +110,7 @@ class FakeHostSocket {
 // module's other named exports. Preserve the real exports and override only
 // createHostSocket. (auth-client / posthog are deliberately NOT mocked: with a
 // faked socket getToken/ensureFreshJwt never runs, and posthog.capture before
-// init is a harmless no-op — the real modules load fine, as the prior test did.)
+// init is a harmless no-op - the real modules load fine, as the prior test did.)
 mock.module("@odin/workspace-client/host-socket", () => ({
 	...hostSocketModule,
 	createHostSocket: (options: Record<string, unknown>) =>
@@ -354,7 +354,7 @@ describe("terminal-ws-transport", () => {
 		const { socket } = connectAttached();
 
 		// A host that stays offline drops us over and over. The transport must
-		// keep delegating retries to the shared socket — never close it (which
+		// keep delegating retries to the shared socket - never close it (which
 		// would stop partysocket) and never re-create it.
 		for (let i = 0; i < 25; i++) socket.drop(1006, "offline");
 
@@ -390,7 +390,7 @@ describe("terminal-ws-transport", () => {
 		const originalDocument = (globalThis as { document?: unknown }).document;
 		(globalThis as { document?: unknown }).document = { hidden: true };
 		try {
-			// Well past the threshold, but hidden — the header must stay clean.
+			// Well past the threshold, but hidden - the header must stay clean.
 			for (let i = 0; i < 20; i++) socket.drop(1006, "offline");
 			expect(transport.lastDiagnosis).toBeNull();
 			expect(
@@ -418,14 +418,14 @@ describe("terminal-ws-transport", () => {
 		expect(transport.lastDiagnosis).toBeNull();
 
 		// Once the connection has been stable a while (retryCount reset), a fresh
-		// failure starts the threshold count from scratch — no instant re-flag.
+		// failure starts the threshold count from scratch - no instant re-flag.
 		socket.stabilize();
 		socket.drop(1006, "offline");
 		expect(transport.lastDiagnosis).toBeNull();
 	});
 
 	test("surfaces the diagnosis for dial failures that never open", () => {
-		// Never opened: connect but don't open/attach — the host is unreachable.
+		// Never opened: connect but don't open/attach - the host is unreachable.
 		const transport = createTransport();
 		connect(transport, createMockTerminal(), "ws://host/terminal/t1");
 		const socket = FakeHostSocket.instances.at(-1);

@@ -32,7 +32,7 @@ export const env = createEnv({
 	},
 	emptyStringAsUndefined: true,
 	// Odin fork: also skip during packaging (no dev .env is loaded then) and
-	// whenever the no-login flag is set — defaults cover every URL we use.
+	// whenever the no-login flag is set - defaults cover every URL we use.
 	skipValidation:
 		!!process.env.ODIN_PACKAGE ||
 		!!process.env.SKIP_ENV_VALIDATION ||

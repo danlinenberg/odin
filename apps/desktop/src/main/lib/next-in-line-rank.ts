@@ -7,7 +7,7 @@ import { briefError } from "./claude-sessions/summarize";
 
 /**
  * The board's Next in line column, ordered by a model: which unstarted task
- * matters most. The app has no opinion of its own — no priority rules, no
+ * matters most. The app has no opinion of its own - no priority rules, no
  * fallback order. Same `claude -p` path as the session briefs.
  */
 
@@ -41,7 +41,7 @@ Each line is: number | source | priority | due | age in days | person | where | 
 Answer with ONLY a JSON object, no prose: {"order": [every line number to show, most important first], "hide": [line numbers my instructions say not to show]}.`;
 
 /**
- * The model answers in line numbers, not keys — a 200-task answer is then
+ * The model answers in line numbers, not keys - a 200-task answer is then
  * ~1KB instead of ~4KB, and output is where the minute goes (measured: 22-45s
  * vs 70-104s for 205 tasks). Known lines in its order, once each.
  */
@@ -115,7 +115,7 @@ export async function rankTasks(
 	if (running) return running;
 
 	const work = (async () => {
-		// Named so its transcript can be deleted — see writeBrief.
+		// Named so its transcript can be deleted - see writeBrief.
 		const sessionId = randomUUID();
 		try {
 			const { stdout } = await execWithShellEnv(

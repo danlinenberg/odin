@@ -97,7 +97,7 @@ function buildHostServiceSubmenu(): MenuItemConstructorOptions[] {
 	return [
 		{ label: status, enabled: false },
 		{
-			// Enabled in "stopped" too — that's the state where users most need
+			// Enabled in "stopped" too - that's the state where users most need
 			// restart to work (host-service crashed or never came up). Disabled
 			// only while a start is in flight, to avoid racing the pending start.
 			label: "Restart",
@@ -148,7 +148,7 @@ async function loadSessions(): Promise<ActiveSession[]> {
 	}
 }
 
-/** Opens the session's drawer on the board — what clicking its banner does. */
+/** Opens the session's drawer on the board - what clicking its banner does. */
 function openSession(paneId: string): void {
 	focusMainWindow();
 	notificationsEmitter.emit(NOTIFICATION_EVENTS.FOCUS_TAB, { paneId });
@@ -167,7 +167,7 @@ function buildSessionItems(
 			{ label: `${label} (${rows.length})`, enabled: false },
 			...rows.map(
 				(s): MenuItemConstructorOptions => ({
-					label: s.repo ? `${s.title} — ${s.repo}` : s.title,
+					label: s.repo ? `${s.title} - ${s.repo}` : s.title,
 					click: () => openSession(s.paneId),
 				}),
 			),

@@ -47,7 +47,7 @@ const AGENTS = `
   ◯ general-purpose  Fetching final four Studio pages     42s · ↓ 98.6k tokens
   ◯ general-purpose  Fetch Studio report descriptions C   29s · ↓ 61.8k tokens
 `;
-// Ten lines of scrolled-past transcript — far enough above the chrome that
+// Ten lines of scrolled-past transcript - far enough above the chrome that
 // whatever it says is none of the classifier's business.
 const TRANSCRIPT = (text: string) =>
 	`${text}\n${Array.from({ length: 10 }, (_, i) => `⏺ line ${i}`).join("\n")}\n`;
@@ -63,7 +63,7 @@ describe("odinScreenStatus", () => {
 
 	// The flap this guards: the spinner's trailing hint changes between Claude
 	// versions, and a release that says "thought for 1s" instead of "esc to
-	// interrupt" made every working session read as Needs you — so cards ran
+	// interrupt" made every working session read as Needs you - so cards ran
 	// Working → Needs you → Working for a whole turn as the agent hooks and the
 	// 5s re-read corrected each other.
 	it("calls a session mid-turn Working whatever the spinner hint says", () => {
@@ -118,7 +118,7 @@ describe("odinScreenStatus", () => {
 	// Everything below is about how far the chrome reaches. The rows under the
 	// status line grow with the fleet, so a window measured from the bottom of
 	// the screen loses the spinner off its top edge exactly when the session is
-	// busiest — which is the flip Working → Needs you → Working, all turn.
+	// busiest - which is the flip Working → Needs you → Working, all turn.
 	describe("with rows below the input box", () => {
 		it("finds the spinner past a fleet of running agents", () => {
 			expect(
@@ -152,7 +152,7 @@ describe("odinScreenStatus", () => {
 
 // The bug this guards: the idle prompt read as "the turn is over" got written
 // straight to the pane, so every session that had been sitting at its prompt
-// for 20s was stamped Done — including the ones whose last message asked Dan a
+// for 20s was stamped Done - including the ones whose last message asked Dan a
 // question. Done filled up and Needs you emptied out.
 describe("odinScreenWrite", () => {
 	it("never promotes a card into Done off a screen read", () => {
@@ -246,7 +246,7 @@ Type to search · Space to toggle · f to favorite · Enter to view · Esc to go
 		).toBe(true);
 	});
 
-	// Mid-turn the drawer closing is what's wanted — an Esc into the PTY there
+	// Mid-turn the drawer closing is what's wanted - an Esc into the PTY there
 	// cancels the turn.
 	it("leaves the drawer to close mid-turn", () => {
 		expect(escIsHandledOnScreen(MID_TURN)).toBe(false);

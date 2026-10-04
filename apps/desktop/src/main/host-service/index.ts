@@ -1,5 +1,5 @@
 /**
- * Workspace Service — Desktop Entry Point
+ * Workspace Service - Desktop Entry Point
  *
  * Starts the host-service HTTP server on a port assigned by the coordinator.
  * The coordinator polls health.check to know when it's ready.
@@ -45,7 +45,7 @@ async function main(): Promise<void> {
 			process.exit(0);
 		}
 		server.close();
-		// SSE/WS streams (chat, watchers) ignore server.close() — give in-flight
+		// SSE/WS streams (chat, watchers) ignore server.close() - give in-flight
 		// HTTP a brief window, then forcibly tear sockets down.
 		const forceExit = setTimeout(() => {
 			const httpServer = server as unknown as {

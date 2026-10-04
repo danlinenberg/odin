@@ -9,7 +9,7 @@ type SeenEmail = EmailRow & { seenAt: number };
 
 /**
  * Every email the feed has shown. Gmail's feed is unread-only, so opening a
- * mail drops it from the next poll — but Done is the one way a row leaves a
+ * mail drops it from the next poll - but Done is the one way a row leaves a
  * feed, so the rows stay here until Done (or KEEP_MS) takes them.
  */
 export const useSeenEmails = create<{

@@ -1,4 +1,4 @@
-// Public package surface — host-service imports from "@odin/pty-daemon" or
+// Public package surface - host-service imports from "@odin/pty-daemon" or
 // "@odin/pty-daemon/protocol". Daemon implementation runtime is Node;
 // host-service is a CLIENT of the daemon (importing protocol types only),
 // not a runtime peer.

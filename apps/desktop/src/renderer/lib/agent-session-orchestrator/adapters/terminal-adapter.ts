@@ -107,7 +107,7 @@ async function writeAttachmentFiles(
 	}
 
 	// The brief dir doesn't exist in a fresh worktree, so this must be
-	// recursive — a plain mkdir ENOENTs and kills the whole agent launch.
+	// recursive - a plain mkdir ENOENTs and kills the whole agent launch.
 	const attachmentsDirectory = joinAbsolutePath(
 		workspace.worktreePath,
 		`${BRIEF_DIR}/attachments`,
@@ -225,8 +225,8 @@ export async function launchTerminalAdapter(
 
 		if (request.terminal.reuseExistingPane) {
 			// The target pane belongs to the caller (e.g. the workspace setup
-			// terminal). This launch owns attaching it — the caller must not
-			// createOrAttach it separately — but never removes it on failure.
+			// terminal). This launch owns attaching it - the caller must not
+			// createOrAttach it separately - but never removes it on failure.
 			await writeLaunchFiles(workspaceId, request.terminal);
 			await launchCommandInPane({
 				paneId: targetPaneId,

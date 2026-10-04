@@ -23,7 +23,7 @@ describe("git history + diff procedures", () => {
 
 	test("listCommits returns commits on a feature branch ahead of base", async () => {
 		// Synthesize an `origin/main` ref pointing at the current main without
-		// configuring a real remote — `resolveBaseComparison` falls back to
+		// configuring a real remote - `resolveBaseComparison` falls back to
 		// `origin/<default>` when no upstream is configured, so the ref must
 		// exist for `git log origin/main..HEAD` to resolve.
 		await scenario.repo.git.raw([

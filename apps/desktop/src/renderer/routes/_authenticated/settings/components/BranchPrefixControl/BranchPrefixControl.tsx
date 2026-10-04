@@ -16,7 +16,7 @@ import {
 	BRANCH_PREFIX_MODE_LABELS_WITH_DEFAULT,
 } from "../../utils/branch-prefix";
 
-/** Select value standing in for "no override — inherit the host default". */
+/** Select value standing in for "no override - inherit the host default". */
 const DEFAULT_VALUE = "default";
 
 /** Mode communicated by the control. `null` only appears when `showDefault`. */
@@ -73,7 +73,7 @@ export function BranchPrefixControl({
 		const sanitized = sanitizeSegment(customPrefixInput);
 		setCustomPrefixInput(sanitized);
 		// Empty sanitized prefix: don't persist `mode=custom, customPrefix=null`
-		// — that lies about user intent. Leave the dropdown alone so they can
+		// - that lies about user intent. Leave the dropdown alone so they can
 		// type again; an explicit mode change is how they exit `custom`.
 		if (!sanitized) return;
 		onChange({ mode: "custom", customPrefix: sanitized });

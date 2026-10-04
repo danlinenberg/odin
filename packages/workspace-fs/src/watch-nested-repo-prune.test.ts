@@ -42,7 +42,7 @@ async function waitFor(
 describe("FsWatcherManager nested-repo pruning", () => {
 	it("does not emit events for files inside a nested git worktree", async () => {
 		const rootPath = await createTempRoot();
-		// A nested git worktree present at subscribe time — the shape of a
+		// A nested git worktree present at subscribe time - the shape of a
 		// piled-up agent worktree. Deliberately NOT under `.claude/worktrees/` so
 		// this exercises the generic nested-repo prune, not the static glob.
 		const nested = path.join(rootPath, "vendor-checkout", "abc");
@@ -92,7 +92,7 @@ describe("FsWatcherManager nested-repo pruning", () => {
 		});
 
 		await fs.writeFile(path.join(nested, "should-be-ignored.ts"), "x");
-		// A sibling under `app/` (not the nested repo) must still surface — proves
+		// A sibling under `app/` (not the nested repo) must still surface - proves
 		// the escaped glob doesn't over-match the bracket segment.
 		const siblingFile = path.join(rootPath, "app", "other.ts");
 		await fs.writeFile(siblingFile, "x");

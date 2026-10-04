@@ -15,7 +15,7 @@ import { resolveNotificationTarget } from "./utils/resolve-notification-target";
  * STATUS MAPPING:
  * - Start → "working" (amber pulsing indicator)
  * - Stop → "review" (green static) if pane's tab not active, "idle" if tab is active
- * - Failed (StopFailure) → "failed" (red) — the turn died on an API error
+ * - Failed (StopFailure) → "failed" (red) - the turn died on an API error
  * - PermissionRequest → "permission" (red pulsing indicator)
  * - Terminal Exit → "idle" (handled in Terminal.tsx when mounted; also forwarded via notifications for unmounted panes)
  *
@@ -53,8 +53,8 @@ function getCurrentWorkspaceId(): string | null {
 /**
  * When each pane last heard from its agent hooks, whatever they said.
  *
- * `setPaneStatus` no-ops on an unchanged value, so a pane mid-turn — where
- * every few seconds another hook repeats "working" — looks frozen to anything
+ * `setPaneStatus` no-ops on an unchanged value, so a pane mid-turn - where
+ * every few seconds another hook repeats "working" - looks frozen to anything
  * measuring how long a status has held. The board's screen-reading repair scan
  * was measuring exactly that, so it read live screens all turn long and one
  * bad read was enough to flip the card to Needs you. What it actually wants is
@@ -65,7 +65,7 @@ export const lastAgentHookAt = new Map<string, number>();
 /**
  * Where a card lands when the agent's turn ends: Done ("review") unless you
  * watched it end, or you were already engaged with it (a permission prompt you
- * answered — that turn's end is not news).
+ * answered - that turn's end is not news).
  */
 export function stopStatus(
 	paneStatus: PaneStatus | undefined,
@@ -84,8 +84,8 @@ const thenShell = (command: string) =>
 	`trap : INT; ${command}\ntrap - INT; exec "\${SHELL:-/bin/zsh}" -l`;
 
 /**
- * Run an agent's `command` in its session's Shell — the pane the drawer's
- * ❯ Shell button opens — where you can watch it and stop it.
+ * Run an agent's `command` in its session's Shell - the pane the drawer's
+ * ❯ Shell button opens - where you can watch it and stop it.
  *
  * Always a fresh pane whose process is the command: typed into a cold shell
  * it gets swallowed, and typed into a busy one it goes to whatever is running.
@@ -161,7 +161,7 @@ export function useAgentHookListener() {
 					const isTabActive = tabId != null && tabId === activeTabId;
 					// Odin fork: "you watched this turn end" has to mean the URL names
 					// the workspace. Every tab is created active with its pane focused,
-					// so a `focusedPaneIds` fallback is true for every session forever —
+					// so a `focusedPaneIds` fallback is true for every session forever -
 					// which sent the workspace's newest session to Idle when it finished
 					// instead of Done, and the newest session is the one you just
 					// launched and are waiting on.

@@ -5,7 +5,7 @@ import { BUTTON } from "./pill";
 
 /**
  * A feed that failed to load. UNAUTHORIZED means the stored token is dead
- * (revoked, expired), which is fixable in one place — so the box carries the
+ * (revoked, expired), which is fixable in one place - so the box carries the
  * way there instead of leaving a raw API error in a dead end.
  */
 export function FeedError({

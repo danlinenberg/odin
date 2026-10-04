@@ -2,7 +2,7 @@
  * Derive the local branch name for a PR workspace.
  *
  * Same-repo PRs use the head ref as-is. Cross-repo (fork) PRs get the
- * fork owner as a lowercase prefix — avoids collisions with local/upstream
+ * fork owner as a lowercase prefix - avoids collisions with local/upstream
  * branches of the same name and namespaces by author.
  * If GitHub no longer reports the fork owner, fall back to `pr/<number>` so
  * the checkout can still recover from GitHub's synthetic PR ref.

@@ -55,7 +55,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-	// Detached daemons survive the test process by design — kill any we
+	// Detached daemons survive the test process by design - kill any we
 	// spawned so they don't leak across test runs.
 	for (const { sup, orgId } of supervisorsToCleanup.splice(0)) {
 		try {
@@ -100,7 +100,7 @@ describe("DaemonSupervisor.ensure (real spawn)", () => {
 		// Track the daemon for cleanup; we'll stop via supervisor B since
 		// that's the live owner by the end of the test.
 		try {
-			// Supervisor B simulates a host-service restart — fresh state,
+			// Supervisor B simulates a host-service restart - fresh state,
 			// but the manifest + running daemon are still on disk/live.
 			const supB = new DaemonSupervisor({ scriptPath: DAEMON_BUNDLE });
 			supervisorsToCleanup.push({ sup: supB, orgId: "org-adopt" });
@@ -168,7 +168,7 @@ describe("DaemonSupervisor.ensure (real spawn)", () => {
 			writePtyDaemonManifest(manifest);
 
 			// Fresh supervisor adopts and probes. autoUpdate=false because
-			// this test asserts the version-drift flag — auto-update would
+			// this test asserts the version-drift flag - auto-update would
 			// race a real handoff right after ensure() returns.
 			const sup = new DaemonSupervisor({
 				scriptPath: DAEMON_BUNDLE,
@@ -215,7 +215,7 @@ describe("DaemonSupervisor.ensure (real spawn)", () => {
 		// SIGKILL the running daemon, wait for the supervisor's on-exit
 		// handler to fire, and verify a new daemon comes up. Crash-budget
 		// behavior past this point is covered by the unit tests in
-		// DaemonSupervisor.test.ts (mocked stop/ensure for determinism —
+		// DaemonSupervisor.test.ts (mocked stop/ensure for determinism -
 		// killing 4 daemons in a row from this test would race with the
 		// auto-respawn loop).
 		const sup = new DaemonSupervisor({ scriptPath: DAEMON_BUNDLE });
@@ -448,7 +448,7 @@ describe("DaemonSupervisor.update (Phase 2 fd-handoff)", () => {
 			assert.equal(isAlive(currentPid), true, "successor should be alive");
 			// Predecessor exits via setTimeout(50ms) after sending the
 			// upgrade-prepared reply that resolved update(). The instance-
-			// map swap above happens BEFORE that timer fires — give the
+			// map swap above happens BEFORE that timer fires - give the
 			// predecessor a moment to actually exit before asserting.
 			const exitDeadline = Date.now() + 2000;
 			while (Date.now() < exitDeadline && isAlive(oldPid)) {
@@ -539,12 +539,12 @@ describe("DaemonSupervisor.update (Phase 2 fd-handoff)", () => {
 			assert.notEqual(
 				status.running,
 				"0.0.1-stale",
-				"successor must NOT report the predecessor's stale env version — main.ts ignores env in handoff mode and Server.prepareUpgrade strips it from the spawn env",
+				"successor must NOT report the predecessor's stale env version - main.ts ignores env in handoff mode and Server.prepareUpgrade strips it from the spawn env",
 			);
 			assert.notEqual(
 				status.running,
 				"unknown",
-				"version probe must succeed — waitForPidExit gates the probe on predecessor exit",
+				"version probe must succeed - waitForPidExit gates the probe on predecessor exit",
 			);
 			assert.equal(
 				status.pending,
@@ -601,7 +601,7 @@ describe("DaemonSupervisor.update (Phase 2 fd-handoff)", () => {
 				organizationId: orgId,
 			});
 
-			// autoUpdate defaults to true — adopt fires the background handoff.
+			// autoUpdate defaults to true - adopt fires the background handoff.
 			const sup = new DaemonSupervisor({ scriptPath: DAEMON_BUNDLE });
 			supervisorsToCleanup.push({ sup, orgId });
 			const adopted = await sup.ensure(orgId);
@@ -680,7 +680,7 @@ describe("DaemonSupervisor.update (Phase 2 fd-handoff)", () => {
 			assert.equal(ready, true);
 
 			// Open a session BEFORE auto-update kicks in. This is the
-			// "user has live shells" path — the failure must leave them alone.
+			// "user has live shells" path - the failure must leave them alone.
 			const { DaemonClient } = await import(
 				"../terminal/DaemonClient/index.ts"
 			);
@@ -765,7 +765,7 @@ describe("DaemonSupervisor.update (Phase 2 fd-handoff)", () => {
 		const orgId = "org-update-noop";
 		const sup = new DaemonSupervisor({ scriptPath: DAEMON_BUNDLE });
 		supervisorsToCleanup.push({ sup, orgId });
-		// Don't ensure() — there's no instance.
+		// Don't ensure() - there's no instance.
 		const result = await sup.update(orgId);
 		assert.equal(result.ok, false);
 		if (!result.ok) {

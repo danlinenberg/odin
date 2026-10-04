@@ -139,7 +139,7 @@ const writeFileContentSchema = z.union([
 export const filesystemRouter = router({
 	/**
 	 * Browse any directory on the host filesystem. Unlike `listDirectory`,
-	 * this is not scoped to a workspace — used by the project setup flow to
+	 * this is not scoped to a workspace - used by the project setup flow to
 	 * pick a parent/repo path on a host that doesn't yet have a workspace.
 	 *
 	 * Path handling: absolute paths or ~-prefixed paths only. Returns the
@@ -312,7 +312,7 @@ export const filesystemRouter = router({
 					targetPath = join(home, input.path.substring(1));
 				} else if (isAbsolute(input.path)) {
 					// Absolute paths are intentionally not confined to the workspace
-					// root — terminal output can reference files anywhere on the host
+					// root - terminal output can reference files anywhere on the host
 					// (e.g. /usr/local/bin/node, stack traces). This endpoint is
 					// behind protectedProcedure so only authenticated clients can call it.
 					targetPath = normalize(input.path);

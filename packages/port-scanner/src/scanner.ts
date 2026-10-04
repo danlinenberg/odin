@@ -8,7 +8,7 @@ const execFileAsync = promisify(execFile);
 
 /**
  * Run execFile and tolerate a plain non-zero exit by returning its stdout.
- * lsof exits 1 when no PIDs match the filter — a legitimate "empty" result.
+ * lsof exits 1 when no PIDs match the filter - a legitimate "empty" result.
  * Aborts, timeouts, and signal-kills are NOT tolerated: partial stdout from a
  * killed child is not a trustworthy snapshot, so rethrow and let the caller's
  * outer catch turn it into `[]`.
@@ -137,7 +137,7 @@ async function getListeningPortsLsof(
 	try {
 		const pidArg = pids.join(",");
 		const pidSet = new Set(pids);
-		// -a: AND the selectors — without it lsof ORs -p with -iTCP and
+		// -a: AND the selectors - without it lsof ORs -p with -iTCP and
 		//     walks every process on the machine, only to be filtered below
 		// -p: filter by PIDs
 		// -iTCP: only TCP connections

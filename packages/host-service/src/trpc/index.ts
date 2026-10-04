@@ -70,7 +70,7 @@ const t = initTRPC
  *
  * Contract: expected domain states are translated by routers/adapters into
  * non-500 TRPCErrors before they get here. Anything still
- * INTERNAL_SERVER_ERROR at this boundary is a bug and is always reported —
+ * INTERNAL_SERVER_ERROR at this boundary is a bug and is always reported -
  * fix the missing translation at the throw site, never add a filter here.
  */
 const sentryMiddleware = t.middleware(async ({ next, path, type }) => {
@@ -140,7 +140,7 @@ const timeoutMiddleware = t.middleware(async ({ next, type, path, meta }) => {
  * rejects after `meta.timeoutMs` (default 5s) so the renderer doesn't
  * spin forever. React Query is configured to retry on `TIMEOUT` errors.
  *
- * Use this for `.query` procedures only — mutations have variable
+ * Use this for `.query` procedures only - mutations have variable
  * latency and shouldn't share a blanket budget.
  *
  * See `packages/host-service/QUERY_TIMEOUTS.md` for the policy and
@@ -152,5 +152,5 @@ export type {
 	ProjectNotSetupCause,
 	TeardownFailureCause,
 } from "./error-types";
-// INTERIM cross-runtime types via dist-types — see docs/interim-router-types.md
+// INTERIM cross-runtime types via dist-types - see docs/interim-router-types.md
 export type { AppRouter } from "./router";

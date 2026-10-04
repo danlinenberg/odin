@@ -54,7 +54,7 @@ import {
 import { useSlackAutoLaunch } from "./hooks/useStartReaction";
 
 /**
- * Odin's shell — minimal chrome for the Dev Board, My Tasks, Slack, Session
+ * Odin's shell - minimal chrome for the Dev Board, My Tasks, Slack, Session
  * History, My Jira and My PRs views:
  * slim icon rail + top bar, drawn from the theme tokens like every other page,
  * matching the agreed mock rather than the stock dashboard.
@@ -65,7 +65,7 @@ export const Route = createFileRoute("/_authenticated/_odin")({
 });
 
 /**
- * The rail, in order. Every feed — my own tasks, Slack, Jira, PRs, Notion,
+ * The rail, in order. Every feed - my own tasks, Slack, Jira, PRs, Notion,
  * is one Tasks entry: they're all things to do, so they live behind a single icon
  * and switch through the strip in the view's header (FeedTabs). The per-feed
  * keys still jump straight to one; each is rebindable in Settings → Keyboard.
@@ -94,7 +94,7 @@ const RAIL_ITEMS = [
 	},
 	// Its own rail entry, not a seventh feed tab: every tab in that strip
 	// answers "what's waiting on me", and an automation is the one thing that
-	// isn't — it runs itself.
+	// isn't - it runs itself.
 	{
 		to: "/automations" as const,
 		hotkey: "ODIN_AUTOMATIONS" as const,
@@ -104,7 +104,7 @@ const RAIL_ITEMS = [
 ];
 
 /**
- * Settings is app chrome, not a feed — foot of the rail. The stock entry point
+ * Settings is app chrome, not a feed - foot of the rail. The stock entry point
  * lives in the sidebar this fork redirects away from, so without this the
  * settings screen (rail key rebinding included) is unreachable by mouse.
  */
@@ -115,7 +115,7 @@ const SETTINGS_ITEM = {
 	Icon: HiOutlineCog6Tooth,
 };
 
-/** Insights reads the logs rather than being one — it sits with History. */
+/** Insights reads the logs rather than being one - it sits with History. */
 const INSIGHTS_ITEM = {
 	to: "/insights" as const,
 	hotkey: "ODIN_INSIGHTS" as const,
@@ -123,7 +123,7 @@ const INSIGHTS_ITEM = {
 	Icon: HiOutlineChartBar,
 };
 
-/** History is a log, not a feed — it sits alone at the foot of the rail. */
+/** History is a log, not a feed - it sits alone at the foot of the rail. */
 const HISTORY_ITEM = {
 	to: "/sessions" as const,
 	hotkey: "ODIN_SESSIONS" as const,
@@ -133,7 +133,7 @@ const HISTORY_ITEM = {
 
 /**
  * Single-key nav: bare keys, so they must not fire while you're typing.
- * react-hotkeys-hook skips form tags and contenteditable when told to — which
+ * react-hotkeys-hook skips form tags and contenteditable when told to - which
  * also covers xterm's hidden textarea, i.e. the embedded agent terminals.
  */
 const NAV_HOTKEY_OPTIONS = {
@@ -143,11 +143,11 @@ const NAV_HOTKEY_OPTIONS = {
 
 /**
  * The load badge's colour: the app's own status palette, walked up as the Mac
- * gets tighter — grey while there's slack, amber when it's filling up, red
+ * gets tighter - grey while there's slack, amber when it's filling up, red
  * when agents are queueing or the memory is gone.
  *
  * ponytail: amber is 15% CPU / 1 GB short of the limits that gate a launch,
- * eyeballed — it only picks a colour.
+ * eyeballed - it only picks a colour.
  */
 function badgeTone(load: MachineLoad, limits: LaunchLimits): string {
 	if (load.busy) {
@@ -183,7 +183,7 @@ type ClaudeUsage = {
 const CLAUDE_USAGE_KEY = "odin:last-claude-usage";
 
 /** The last good usage reading, kept across remounts and reloads. A window
- *  whose reset has passed is dropped — its percent no longer holds. */
+ *  whose reset has passed is dropped - its percent no longer holds. */
 function useLastClaudeUsage(
 	now: ClaudeUsage | null | undefined,
 ): ClaudeUsage | null {
@@ -218,7 +218,7 @@ function OdinShell() {
 	// overlapping the traffic lights.
 	const isMac = platform === undefined || platform === "darwin";
 
-	// What the agents are costing this Mac — the same reading that decides
+	// What the agents are costing this Mac - the same reading that decides
 	// whether a new session starts now or waits (see useLaunchTaskSession).
 	const { data: metrics } = electronTrpc.resourceMetrics.getSnapshot.useQuery(
 		undefined,
@@ -229,13 +229,13 @@ function OdinShell() {
 	const maxWorkingAgents = useLaunchLimits((s) => s.maxWorkingAgents);
 	const limits = { hostCpuPercent, minFreeMemoryGb, maxWorkingAgents };
 	const load = metrics ? machineLoad(metrics, limits) : null;
-	// Claude plan usage — the 5-hour window and the week, as /usage shows them.
+	// Claude plan usage - the 5-hour window and the week, as /usage shows them.
 	// The endpoint 429s when polled hard (every Claude Code CLI hits it too)
-	// and a failed read comes back null — so poll gently and keep showing the
+	// and a failed read comes back null - so poll gently and keep showing the
 	// last good reading rather than dropping the pill. The reading lives in
 	// localStorage, not a ref: a remount, a renderer reload or a profile switch
 	// (which resets every query) would otherwise blank it until a poll landed
-	// between 429s — with twenty sessions polling too, that's minutes.
+	// between 429s - with twenty sessions polling too, that's minutes.
 	const { data: usageNow } =
 		electronTrpc.resourceMetrics.getClaudeUsage.useQuery(undefined, {
 			refetchInterval: 5 * 60_000,
@@ -251,7 +251,7 @@ function OdinShell() {
 		switchTo: switchProfile,
 		isSwitching: isSwitchingProfile,
 	} = useOdinProfile();
-	// A session waiting on you — or working — under the *other* profile is
+	// A session waiting on you - or working - under the *other* profile is
 	// invisible until you switch: the board only draws one profile's cards. The
 	// picker says so.
 	const boardCountsByProfile = useBoardCountsByProfile();
@@ -267,8 +267,8 @@ function OdinShell() {
 		.filter((profile) => profile.needsYou > 0 || profile.working > 0);
 
 	// Sync every feed (Slack, Jira, PRs, Notion) as soon as the app
-	// opens — the
-	// shell mounts on boot and on reload — so switching views shows rows
+	// opens - the
+	// shell mounts on boot and on reload - so switching views shows rows
 	// instead of an empty "syncing…".
 	const { jira } = useOdinFeeds();
 	// Due dates ping from the shell, not from the feed that set them: the feed
@@ -297,11 +297,11 @@ function OdinShell() {
 	// Same reason: tasks held back by the capacity gate wait in Idle → Queued,
 	// and this is what starts them once the Mac (or the checkout) frees up.
 	useTaskQueue();
-	// :robot_face: on a Slack message starts its session — see useStartReaction.
+	// :robot_face: on a Slack message starts its session - see useStartReaction.
 	useSlackAutoLaunch();
 
 	const { data: workConfig } = electronTrpc.work.getConfig.useQuery();
-	// Single-key nav — D board, T tasks, S slack, H history, J jira, P PRs
+	// Single-key nav - D board, T tasks, S slack, H history, J jira, P PRs
 	// by default, and whatever
 	// Settings → Keyboard shortcuts says after that. The returned display drives
 	// each rail tooltip, so the hint can't drift from the binding.
@@ -361,14 +361,14 @@ function OdinShell() {
 			() => navigate({ to: "/notion" }),
 			NAV_HOTKEY_OPTIONS,
 		),
-		// Modifier chord (⌘,), so it stays live inside terminals and inputs —
+		// Modifier chord (⌘,), so it stays live inside terminals and inputs -
 		// hence the default options rather than NAV_HOTKEY_OPTIONS.
 		OPEN_SETTINGS: useHotkey("OPEN_SETTINGS", () =>
 			navigate({ to: "/settings" }),
 		),
 	};
 
-	// Write a task down from wherever you are — a chord too, so it reaches you
+	// Write a task down from wherever you are - a chord too, so it reaches you
 	// inside a session's terminal, which is where most of them occur to you.
 	const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
 	const newTaskKeys = useHotkey("ODIN_NEW_TASK", () => setIsQuickAddOpen(true));
@@ -389,7 +389,7 @@ function OdinShell() {
 		| typeof HISTORY_ITEM
 		| typeof SETTINGS_ITEM) => {
 		// Tasks stands for every feed: lit on any of them, and always opening on
-		// All — every source at once is the answer to "what's waiting on me".
+		// All - every source at once is the answer to "what's waiting on me".
 		const isFeeds = to === "/all";
 		const isActive = isFeeds ? isFeedRoute : !!matchRoute({ to, fuzzy: true });
 		const keys = railHotkeys[hotkey].text;
@@ -419,9 +419,9 @@ function OdinShell() {
 
 	return (
 		// The faint violet light over the top-left of every page is the shell's
-		// — it's what keeps a dark, mostly-neutral app from reading as grey.
+		// - it's what keeps a dark, mostly-neutral app from reading as grey.
 		<div className="flex h-full w-full flex-col bg-background bg-[radial-gradient(1200px_420px_at_18%_-160px,color-mix(in_oklab,var(--primary)_13%,transparent),transparent_70%)] text-foreground">
-			{/* top bar — left pad clears macOS traffic lights; empty areas drag.
+			{/* top bar - left pad clears macOS traffic lights; empty areas drag.
 			    The traffic lights are native and DON'T scale with page zoom, so the
 			    bar height and their inset are counter-scaled by 1/zoomFactor to stay
 			    a constant physical size (otherwise zooming out slides the bar under
@@ -441,7 +441,7 @@ function OdinShell() {
 				</ZoomStable>
 				{/* Which set of accounts is live. Next to the app name because it
 				    changes what every view below is showing, not just one feed.
-				    A plain <select> — it opens as a native menu, it's keyboard
+				    A plain <select> - it opens as a native menu, it's keyboard
 				    navigable for free, and there is nothing to style on the popup.
 				    Creating and deleting profiles lives in Settings → Connections,
 				    next to the credentials they hold. */}
@@ -449,15 +449,15 @@ function OdinShell() {
 					<ZoomStable enabled={isMac}>
 						<select
 							aria-label="Profile"
-							title="The accounts Odin is reading — its Slack, Jira, GitHub, sessions and tasks"
+							title="The accounts Odin is reading - its Slack, Jira, GitHub, sessions and tasks"
 							value={activeProfileId}
 							disabled={isSwitchingProfile}
 							onChange={(event) => switchProfile(event.target.value)}
 							className="cursor-pointer rounded-[6px] bg-secondary px-1.5 py-[3px] text-[11px] font-semibold text-muted-foreground outline-none transition-colors hover:text-foreground disabled:opacity-50"
 						>
 							{profiles.map((profile) => {
-								// A native <option> is text and nothing else — no dot, no
-								// badge — so the counts go in the label. Only on the
+								// A native <option> is text and nothing else - no dot, no
+								// badge - so the counts go in the label. Only on the
 								// profiles you're NOT on: the active one's are already on
 								// the board below, and the selected option is what the
 								// closed button shows.
@@ -476,7 +476,7 @@ function OdinShell() {
 					</ZoomStable>
 				)}
 				{/* The option labels only show once the menu is open; this is what
-				    the closed picker says. One pill per busy profile — sharing one
+				    the closed picker says. One pill per busy profile - sharing one
 				    pill ran "Private · 1 needs you test · 1 needs you" together.
 				    Amber when something there is waiting on you, quiet when it's
 				    only working. Click jumps to that profile. */}
@@ -535,7 +535,7 @@ function OdinShell() {
 								</TooltipContent>
 							</Tooltip>
 						)}
-						{/* What the agents hold and what the Mac has left — every
+						{/* What the agents hold and what the Mac has left - every
 						    build, not just internal ones: "can I start another?" is a
 						    question on a stable release too. Two measurements, no
 						    forecast: see MachineLoad.availableMemoryGb. */}
@@ -555,7 +555,7 @@ function OdinShell() {
 								</TooltipTrigger>
 								<TooltipContent side="bottom" className="max-w-[280px]">
 									{load.busy
-										? `${load.reason} — new sessions wait until that clears. ${load.agentCount} session(s) using ${load.agentMemoryGb} GB; this Mac is ${load.cpuPercent}% busy with ${load.availableMemoryGb} GB free.`
+										? `${load.reason} - new sessions wait until that clears. ${load.agentCount} session(s) using ${load.agentMemoryGb} GB; this Mac is ${load.cpuPercent}% busy with ${load.availableMemoryGb} GB free.`
 										: `${load.agentCount} session(s) using ${load.agentMemoryGb} GB of memory. This Mac has ${load.availableMemoryGb} GB free. Agents are on ${load.agentCpuPercent}% of the CPU · this Mac is ${load.cpuPercent}% busy.`}
 								</TooltipContent>
 							</Tooltip>
@@ -597,7 +597,7 @@ function OdinShell() {
 					note={
 						openQuestion ? (
 							<>
-								Follows up in “{openQuestion.userTitle ?? openQuestion.name}” —
+								Follows up in “{openQuestion.userTitle ?? openQuestion.name}” -
 								✓ Done in its drawer starts a fresh one.{" "}
 								<button
 									type="button"
@@ -612,7 +612,7 @@ function OdinShell() {
 								</button>
 							</>
 						) : (
-							"Goes to a Claude that's already running in your default repo — no start-up wait."
+							"Goes to a Claude that's already running in your default repo - no start-up wait."
 						)
 					}
 					placeholder="Ask anything"

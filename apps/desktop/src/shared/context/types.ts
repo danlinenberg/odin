@@ -17,8 +17,8 @@ export type LaunchSource =
 export type LaunchSourceKind = LaunchSource["kind"];
 
 /**
- * An attachment carried through composition. Stored as raw bytes — not
- * base64 — so we skip the 33% overhead internally. Base64 encoding happens
+ * An attachment carried through composition. Stored as raw bytes - not
+ * base64 - so we skip the 33% overhead internally. Base64 encoding happens
  * only at the chat provider API boundary.
  */
 export interface AttachmentFile {
@@ -58,7 +58,7 @@ export interface ContextSection {
 }
 
 /**
- * Collaborators handed to every contributor. Kept small and explicit —
+ * Collaborators handed to every contributor. Kept small and explicit -
  * contributors should not reach into globals.
  */
 export interface ResolveCtx {

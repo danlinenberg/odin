@@ -3,7 +3,7 @@ import type { HostDb } from "../../db";
 import { acpSessions } from "../../db/schema";
 
 /**
- * One persisted session-registry row — the minimum needed to list a session
+ * One persisted session-registry row - the minimum needed to list a session
  * after a host restart and resurrect it via the adapter's `session/load`.
  * The journal/transcript is NOT here: replay comes from the agent harness's
  * own on-disk session store, keyed by `acpSessionId`.
@@ -11,7 +11,7 @@ import { acpSessions } from "../../db/schema";
 export interface AcpSessionRecord {
 	sessionId: string;
 	workspaceId: string;
-	/** Adapter-side ACP session id — the `session/load` key. */
+	/** Adapter-side ACP session id - the `session/load` key. */
 	acpSessionId: string;
 	harness: HarnessKind;
 	cwd: string;
@@ -24,7 +24,7 @@ export interface AcpSessionRecord {
 /**
  * Durable registry behind AcpSessionManager. `loadAll` seeds the manager's
  * offline set at startup; `upsert` runs on every state emit (create, title
- * change, turn end, death) and must be cheap — the manager treats failures
+ * change, turn end, death) and must be cheap - the manager treats failures
  * as best-effort and never lets them break the live path.
  */
 export interface AcpSessionPersistence {

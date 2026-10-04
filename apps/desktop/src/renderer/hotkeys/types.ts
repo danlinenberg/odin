@@ -30,12 +30,12 @@ export interface HotkeyDefinition {
 
 /**
  * How a binding identifies a key:
- * - `logical`: matches the produced character — same printed letter on
+ * - `logical`: matches the produced character - same printed letter on
  *   every layout, even when it lives on different physical keys. Default
  *   for shipped registry entries (`⌘Z` always fires on the labeled-Z
  *   key) and for new user-recorded printable bindings, when adaptive
  *   layout mapping is enabled.
- * - `physical`: matches `event.code` — same physical key on every
+ * - `physical`: matches `event.code` - same physical key on every
  *   layout regardless of what's printed on it. Used when adaptive
  *   layout mapping is off, or for explicit position-anchored bindings.
  * - `named`: stable named keys (Enter, ArrowUp, F1-F12, ...). Used
@@ -46,7 +46,7 @@ export type BindingMode = "physical" | "logical" | "named";
 /**
  * Stored as a bare chord string for legacy storage (implicitly physical
  * or named, decided by `defaultModeForChord`) or a v2 object for explicit
- * modes. Shipped defaults use the v2 object form for printable chords —
+ * modes. Shipped defaults use the v2 object form for printable chords -
  * see the `L()` helper in `registry.ts`.
  */
 export type ShortcutBinding =

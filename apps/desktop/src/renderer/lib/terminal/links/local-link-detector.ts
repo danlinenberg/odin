@@ -78,7 +78,7 @@ export class LocalLinkDetector {
 				continue;
 			}
 
-			// Skip URLs — they're handled by the URL link provider
+			// Skip URLs - they're handled by the URL link provider
 			if (this._isUrl(parsedLink.path.text)) {
 				continue;
 			}
@@ -150,7 +150,7 @@ export class LocalLinkDetector {
 		}
 
 		// ODIN ADDITION (not in VSCode's shared fallback matchers):
-		// Last resort — treat the whole trimmed line as a path candidate.
+		// Last resort - treat the whole trimmed line as a path candidate.
 		// Safe because we validate via stat (false positives are filtered out).
 		// Matches VSCode's `/^ *(?<link>(?<path>.+))/` whole-line fallback in
 		// terminalLocalLinkDetector.ts. Kept here (not in shared fallback
@@ -191,7 +191,7 @@ export class LocalLinkDetector {
 
 	/**
 	 * Build candidate paths from the raw link text.
-	 * The raw path is sent to the host for resolution — we only strip
+	 * The raw path is sent to the host for resolution - we only strip
 	 * the line/column suffix here.
 	 */
 	private _buildCandidates(pathText: string): string[] {

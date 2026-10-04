@@ -14,7 +14,7 @@ const registry: PaneRegistry<TestData> = {
 	},
 	untitled: {
 		renderPane: () => null,
-		// no getTitle — exercises the fallback path
+		// no getTitle - exercises the fallback path
 	},
 };
 

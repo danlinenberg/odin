@@ -1,6 +1,6 @@
 #!/bin/bash
 {{MARKER}}
-# CLI agent lifecycle hook — POSTs an AgentIdentity payload to the v2
+# CLI agent lifecycle hook - POSTs an AgentIdentity payload to the v2
 # host-service endpoint, with a v1 Electron hook fallback while both
 # terminal stacks are supported.
 
@@ -42,7 +42,7 @@ fi
 # Grok serializes its configured Notification event as lowercase
 # "notification". Only subtypes where the agent is blocked waiting on the
 # user count: permission_prompt (tool/plan approval) and elicitation_dialog
-# (ask_user_question — the common case, since Odin launches grok with
+# (ask_user_question - the common case, since Odin launches grok with
 # --always-approve so tool approvals rarely prompt). Keep the case pattern
 # in sync with GROK_BLOCKING_NOTIFICATION_TYPES in agent-wrappers-grok.ts.
 if [ "$EVENT_TYPE" = "notification" ]; then
@@ -82,7 +82,7 @@ has_open_action_items() {
 # transcript logs a launch as "status":"async_launched","agentId":"<id>" and
 # its end as <task-id><id></task-id>.
 # ponytail: an agent whose own transcript sat untouched for 10 min counts as
-# gone — a killed session never writes its notification. A subagent parked
+# gone - a killed session never writes its notification. A subagent parked
 # in one Bash call that long lets the card drop to Done/Needs you early.
 has_running_background_agents() {
   local transcript=$1 id out
@@ -93,7 +93,7 @@ has_running_background_agents() {
   done
   # Same for a run_in_background Bash (a CI poll): "backgroundTaskId":"<id>" at
   # launch, the same <task-id> at the end. It's running while its process still
-  # holds the output file open — a silent poll never touches the file's mtime.
+  # holds the output file open - a silent poll never touches the file's mtime.
   for id in $(grep -oE '"backgroundTaskId":"[^"]+"' "$transcript" | sed 's/.*:"//; s/"$//'); do
     grep -q "<task-id>$id</task-id>" "$transcript" && continue
     out=$(grep -oE "[^\" ]*/tasks/$id\.output" "$transcript" | head -1)
@@ -116,7 +116,7 @@ fi
 
 # Only the outermost claude owns the card. A headless `claude -p` that a Stop
 # hook, script or Bash call spawns inherits the card's ODIN_* env, so its own
-# Start/Stop land on that card too — and its Stop, with no ACTION ITEMS of its
+# Start/Stop land on that card too - and its Stop, with no ACTION ITEMS of its
 # own, turns the card's Needs you into Done a few seconds after the real turn
 # ended. Walk up to the terminal host: a second claude above the first means
 # this one is somebody's helper. So does a claude with no terminal of its own:
@@ -144,7 +144,7 @@ spawned_by_another_claude() {
 spawned_by_another_claude && exit 0
 
 # Claude puts its session_id on every hook it fires. An event without one was
-# piped in by hand — an agent testing this script from its own pane, which
+# piped in by hand - an agent testing this script from its own pane, which
 # inherits the card's ODIN_* env. Its Stop turned a working card to Done, and
 # the queue took that as Odin's checkout coming free: a second session started
 # alongside the first one still editing it.
@@ -154,7 +154,7 @@ spawned_by_another_claude && exit 0
 # by mapEventType so the wire stays a single source of truth.
 [ "$EVENT_TYPE" = "UserPromptSubmit" ] && EVENT_TYPE="Start"
 
-# Never default to "Stop" on parse failure — silent drop is safer than
+# Never default to "Stop" on parse failure - silent drop is safer than
 # a false completion notification.
 [ -z "$EVENT_TYPE" ] && exit 0
 
@@ -218,7 +218,7 @@ fi
 # app's most recent bind, but it is one shared slot: a second Odin-family app
 # that loses the preferred port writes *its* fallback port there, and once
 # that app exits the file names a port nobody is listening on. Trusting it
-# blindly dropped every event from every live session — the board never heard
+# blindly dropped every event from every live session - the board never heard
 # Start, so mid-turn cards sat in Needs you claiming "waiting on your input"
 # with no hook left to move them. $ODIN_PORT is the port this session's own
 # app had at launch, and the default is where a restarted app lands again.

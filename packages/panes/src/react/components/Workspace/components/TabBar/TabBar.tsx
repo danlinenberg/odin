@@ -171,7 +171,7 @@ export function TabBar<TData>({
 		<div
 			ref={setRootRef}
 			// Only the empty filler right of the tabs is an
-			// Electron window-drag region — marking the whole bar `drag` and carving
+			// Electron window-drag region - marking the whole bar `drag` and carving
 			// children out with `no-drag` loses the carve-outs once they sit inside
 			// the masked/scrollable OverflowFadeContainer, which made the entire bar
 			// swallow clicks.

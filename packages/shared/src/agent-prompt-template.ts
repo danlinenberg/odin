@@ -43,7 +43,7 @@ function substituteOwnProperties(
 }
 
 // ---------------------------------------------------------------------------
-// Task prompt variables (unchanged from v1 — used by the task-run flow)
+// Task prompt variables (unchanged from v1 - used by the task-run flow)
 // ---------------------------------------------------------------------------
 
 export const AGENT_TASK_PROMPT_VARIABLES = [
@@ -96,7 +96,7 @@ function getTaskPromptVariables(task: TaskInput): TaskPromptVariables {
  * New callers should prefer `renderPromptTemplate` directly.
  *
  * Matches V1 semantics exactly: own-property substitution + trim.
- * Does NOT apply the generic's 3+-newline collapse pass — task
+ * Does NOT apply the generic's 3+-newline collapse pass - task
  * templates may rely on intentional blank lines.
  */
 export function renderTaskPromptTemplate(
@@ -118,7 +118,7 @@ export function validateTaskPromptTemplate(template: string): {
 }
 
 // ---------------------------------------------------------------------------
-// Context prompt variables (new — used by V2 launch composition)
+// Context prompt variables (new - used by V2 launch composition)
 // ---------------------------------------------------------------------------
 
 export const AGENT_CONTEXT_PROMPT_VARIABLES = [
@@ -144,11 +144,11 @@ export function validateContextPromptTemplate(template: string): {
 }
 
 /**
- * Default context templates. Plain markdown — works for every agent
+ * Default context templates. Plain markdown - works for every agent
  * (Claude, Codex, Cursor, custom). Users can override per-agent in
  * settings if they want XML or other wrapping.
  *
- * System is empty by default — agent harnesses (Claude CLI, Codex, etc.)
+ * System is empty by default - agent harnesses (Claude CLI, Codex, etc.)
  * discover their own instructions files from the worktree.
  */
 export const DEFAULT_CONTEXT_PROMPT_TEMPLATE_SYSTEM = "";

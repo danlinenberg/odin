@@ -1815,7 +1815,7 @@ export const useTabsStore = create<TabsStore>()(
 							),
 						});
 					} else {
-						// No existing browser pane — add one to the active tab
+						// No existing browser pane - add one to the active tab
 						const resolvedActiveTabId = resolveActiveTabIdForWorkspace({
 							workspaceId,
 							tabs: state.tabs,
@@ -2303,7 +2303,7 @@ export const useTabsStore = create<TabsStore>()(
 					const persisted = persistedState as TabsState;
 					if (persisted.panes) {
 						for (const pane of Object.values(persisted.panes)) {
-							// Statuses are kept exactly as you left them — including
+							// Statuses are kept exactly as you left them - including
 							// "working". Upstream cleared it here ("the agent can't be
 							// working after a restart"), but in Odin the PTYs live in a
 							// daemon that outlives the renderer, so after a reload most of
@@ -2321,7 +2321,7 @@ export const useTabsStore = create<TabsStore>()(
 							if (pane.type === "terminal" && !pane.completed) {
 								pane.interrupted = true;
 							}
-							// Workspace-run "running" state can't survive a restart —
+							// Workspace-run "running" state can't survive a restart -
 							// the daemon session is gone. Mark as exited so the sidebar
 							// indicator is correct even if the pane never remounts.
 							if (pane.workspaceRun?.state === "running") {

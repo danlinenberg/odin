@@ -273,7 +273,7 @@ function extractRepoName(urlInput: string): string | null {
 			repoSegment = pathname.split("/").filter(Boolean).pop();
 		}
 	} catch {
-		// Not a standard URL — fall through to SSH-style parsing
+		// Not a standard URL - fall through to SSH-style parsing
 	}
 
 	if (!repoSegment) {
@@ -601,7 +601,7 @@ export const createProjectsRouter = (getWindow: () => BrowserWindow | null) => {
 
 					const git = await getSimpleGitWithShellPath(project.mainRepoPath);
 
-					// No fetch — use only locally available refs
+					// No fetch - use only locally available refs
 					const branchSummary = await git.branch(["-a"]);
 
 					const localBranchSet = new Set<string>();
@@ -966,7 +966,7 @@ export const createProjectsRouter = (getWindow: () => BrowserWindow | null) => {
 					const search = input.search.trim();
 					const searchLower = search.toLowerCase();
 
-					// Always list all refs — git glob `*` doesn't cross `/` and is
+					// Always list all refs - git glob `*` doesn't cross `/` and is
 					// case-sensitive, so we filter in JS for reliable substring search.
 					const localPattern = "refs/heads/";
 					const remotePattern = "refs/remotes/origin/";

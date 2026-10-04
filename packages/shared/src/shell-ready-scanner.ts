@@ -1,7 +1,7 @@
 /**
  * OSC 133 shell readiness scanner (FinalTerm semantic prompt standard).
  *
- * Pure scanning logic, byte-oriented — no per-chunk UTF-8 decoding hop.
+ * Pure scanning logic, byte-oriented - no per-chunk UTF-8 decoding hop.
  * The marker (`\x1b]133;A...\x07`) is pure ASCII, so byte-level matching
  * is identical to char-level matching while letting callers keep PTY
  * output as opaque bytes from the daemon all the way to xterm.js.

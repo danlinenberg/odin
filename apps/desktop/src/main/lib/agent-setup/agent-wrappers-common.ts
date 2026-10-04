@@ -22,7 +22,7 @@ export function getManagedNotifyHookCommand(agentId: string): string {
 }
 
 // Dev setup (.odin/lib/setup/steps.sh) points ODIN_HOME_DIR at
-// $PWD/odin-dev-data — without a leading dot — so we must recognize that
+// $PWD/odin-dev-data - without a leading dot - so we must recognize that
 // variant to reap stale notify.sh paths from deleted worktrees.
 const ODIN_MANAGED_HOOK_PATH_PATTERN =
 	/\/(?:\.odin(?:-[^/'"\s\\]+)?|odin-dev-data)\//;

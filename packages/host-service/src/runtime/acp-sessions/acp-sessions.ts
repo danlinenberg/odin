@@ -46,10 +46,10 @@ const CLIENT_INFO = { name: "odin-host", version: "1" };
 const STDERR_TAIL_LIMIT = 8_192;
 /**
  * Dead runtimes are kept around so get/getMessages can still serve their
- * journal, but only this many — beyond it the oldest are evicted outright.
+ * journal, but only this many - beyond it the oldest are evicted outright.
  */
 const MAX_DEAD_RUNTIMES = 20;
-/** Frames served by getMessages pages — everything fold renders as timeline. */
+/** Frames served by getMessages pages - everything fold renders as timeline. */
 const MESSAGE_FRAME_KINDS = new Set<SessionUpdateFrame["kind"]>([
 	"update",
 	"permission_requested",
@@ -87,7 +87,7 @@ interface ElicitationQuestion {
 /**
  * Pull AskUserQuestion-style fields (`question_<n>` with enum options) out of
  * a form elicitation, in question order. The paired free-text
- * `question_<n>_custom` fields are ignored — mobile renders tappable options
+ * `question_<n>_custom` fields are ignored - mobile renders tappable options
  * only. Single-question forms carry the question text in `message`;
  * multi-question forms put each question's text in its field description.
  */
@@ -131,7 +131,7 @@ function extractElicitationQuestions(
 interface AcpSessionRuntime {
 	/** Mutable session-scoped state; snapshots are cloned on the way out. */
 	state: SessionScopedState;
-	/** The adapter's ACP session id — host-internal, never leaves this file. */
+	/** The adapter's ACP session id - host-internal, never leaves this file. */
 	acpSessionId: string;
 	child: ChildProcess;
 	connection: ClientConnection;
@@ -141,7 +141,7 @@ interface AcpSessionRuntime {
 	pendingResolvers: Map<string, (outcome: RequestPermissionOutcome) => void>;
 	/**
 	 * Tool calls whose latest journaled status is non-terminal. Turn end and
-	 * adapter death terminalize whatever is left here — without that, a
+	 * adapter death terminalize whatever is left here - without that, a
 	 * cancelled or crashed turn leaves rows rendering as running forever.
 	 */
 	openToolCalls: Set<string>;
@@ -184,14 +184,14 @@ export interface AcpSessionManagerOptions {
  * `claude-agent-acp` process per session, spoken to over JSON-RPC/stdio via
  * the official SDK. Every session/update, permission request/resolution, and
  * state transition is journaled as a seq-numbered envelope (gapless, from 1)
- * and broadcast to subscribers — the WS stream and getMessages pagination
+ * and broadcast to subscribers - the WS stream and getMessages pagination
  * both read from that journal. Sessions are kept alive until the adapter
  * process dies or the manager is disposed; dead sessions keep their journal
  * (list/get/getMessages still serve them) until the graveyard evicts them.
  *
  * With `persistence`, session binding rows survive host restarts: a restarted
- * manager lists them as `offline` (get/list are passive) and `ensureLive` —
- * called by the router and stream route before every live-path operation —
+ * manager lists them as `offline` (get/list are passive) and `ensureLive` -
+ * called by the router and stream route before every live-path operation -
  * resurrects one on demand via the adapter's `session/load`, which replays
  * the harness-stored transcript into a fresh journal. That new journal starts
  * seqs at 1; numeric cursors do not yet carry an incarnation id, so callers
@@ -262,7 +262,7 @@ export class AcpSessionManager {
 	/**
 	 * Resurrect a persisted-but-offline session before a live-path call: spawn
 	 * a fresh adapter and `session/load` the stored transcript back into a new
-	 * journal. Live and dead runtimes pass through untouched — dead sessions
+	 * journal. Live and dead runtimes pass through untouched - dead sessions
 	 * stay dead within a host lifetime (read-only journal) and only become
 	 * resurrectable after a restart turns them offline. Unknown ids are a
 	 * no-op so the sync call that follows raises its usual NotFound. Failed
@@ -276,12 +276,12 @@ export class AcpSessionManager {
 	}
 
 	/**
-	 * Sessions newest first — dead ones included (a crashed session's
+	 * Sessions newest first - dead ones included (a crashed session's
 	 * transcript, and the error that killed it, must stay discoverable until
 	 * the graveyard evicts it) and offline ones too (persisted rows from
 	 * before a host restart, resurrectable on demand); clients read the
 	 * status off the state. The cursor is `<createdAt>:<sessionId>` (the
-	 * previous page's last row) — a sort position, not an id, so pagination
+	 * previous page's last row) - a sort position, not an id, so pagination
 	 * resumes correctly even if that session was evicted between pages.
 	 */
 	list(input: {
@@ -330,7 +330,7 @@ export class AcpSessionManager {
 				last && start + limit < states.length
 					? `${last.createdAt}:${last.sessionId}`
 					: null,
-			// Reaching the manager at all means the feature gate is open — the
+			// Reaching the manager at all means the feature gate is open - the
 			// router answers `enabled: false` itself when the gate is closed.
 			enabled: true,
 		};
@@ -359,8 +359,8 @@ export class AcpSessionManager {
 
 	/**
 	 * Starts a turn and acks admission. A turn can block on human permission
-	 * decisions for minutes-to-hours — longer than any buffered relay HTTP
-	 * request survives — so remote callers must never long-poll on turn end;
+	 * decisions for minutes-to-hours - longer than any buffered relay HTTP
+	 * request survives - so remote callers must never long-poll on turn end;
 	 * completion (stop reason, errors) lands in journaled state frames. The
 	 * returned `turn` promise is for in-process callers (tests) only.
 	 */
@@ -370,7 +370,7 @@ export class AcpSessionManager {
 	} {
 		const runtime = this.requireLive(input.sessionId);
 		// The adapter does not echo the prompt back as user_message_chunk
-		// updates, so journal the user's message here — otherwise it is
+		// updates, so journal the user's message here - otherwise it is
 		// invisible to every subscriber and to history replay. Journaled
 		// synchronously before session/prompt so it always precedes the
 		// agent's output in seq order.
@@ -382,7 +382,7 @@ export class AcpSessionManager {
 			});
 			if (promptStartSeq === 0) promptStartSeq = envelope.seq;
 		}
-		// A fresh turn starts with a clean error slate — anything in lastError
+		// A fresh turn starts with a clean error slate - anything in lastError
 		// from here on is about THIS turn, so clients can show it verbatim.
 		runtime.state.lastError = null;
 		runtime.activePromptCount += 1;
@@ -401,7 +401,7 @@ export class AcpSessionManager {
 				if (!runtime.dead) {
 					runtime.state.lastError = reason;
 				}
-				// The user's message is already journaled and looks delivered —
+				// The user's message is already journaled and looks delivered -
 				// this frame lets fold mark it failed on every client.
 				this.journalFrame(runtime, {
 					kind: "prompt_rejected",
@@ -443,7 +443,7 @@ export class AcpSessionManager {
 	async cancel(input: { sessionId: string }): Promise<void> {
 		const runtime = this.requireLive(input.sessionId);
 		// ACP: a client cancelling the turn must answer outstanding permission
-		// requests as cancelled — the adapter won't re-ask for them.
+		// requests as cancelled - the adapter won't re-ask for them.
 		for (const requestId of [...runtime.pendingResolvers.keys()]) {
 			this.settlePermission(runtime, requestId, { outcome: "cancelled" });
 		}
@@ -491,7 +491,7 @@ export class AcpSessionManager {
 						value: input.value,
 					},
 		);
-		// The refreshed catalog rides the response — the adapter emits no
+		// The refreshed catalog rides the response - the adapter emits no
 		// config_option_update notification for client-initiated changes.
 		runtime.state.configOptions = response.configOptions;
 		this.emitState(runtime);
@@ -534,7 +534,7 @@ export class AcpSessionManager {
 		};
 	}
 
-	/** Adapter process pid — lets tests and ops target the child directly. */
+	/** Adapter process pid - lets tests and ops target the child directly. */
 	adapterPid(sessionId: string): number | null {
 		return this.require(sessionId).child.pid ?? null;
 	}
@@ -549,12 +549,12 @@ export class AcpSessionManager {
 			try {
 				runtime.connection.close();
 			} catch {
-				// best-effort — the stream may already be closed
+				// best-effort - the stream may already be closed
 			}
 			try {
 				runtime.child.kill();
 			} catch {
-				// best-effort — the process may already be gone
+				// best-effort - the process may already be gone
 			}
 		}
 		this.runtimes.clear();
@@ -590,7 +590,7 @@ export class AcpSessionManager {
 
 		// A create() re-issued for a persisted session (the client's normal
 		// open-session flow after a host restart) resurrects instead of minting
-		// a fresh adapter session — same idempotency contract as the live case.
+		// a fresh adapter session - same idempotency contract as the live case.
 		const record = this.offline.get(sessionId);
 		if (record) {
 			if (record.workspaceId !== workspaceId) {
@@ -640,13 +640,13 @@ export class AcpSessionManager {
 	): Promise<AcpSessionRuntime> {
 		const cwd = await this.resolveWorkspaceCwd(workspaceId);
 		// process.execPath instead of a PATH lookup for "node": inside the
-		// packaged Electron app there is no node on PATH — the Electron binary
+		// packaged Electron app there is no node on PATH - the Electron binary
 		// itself runs the script when ELECTRON_RUN_AS_NODE is set (the same
 		// pattern the desktop coordinator uses to spawn this host service).
 		// Ambient Anthropic credentials (repo .env pulled in by a dev launcher,
 		// shell profile) must never reach the agent child: they silently
 		// override the user's own Claude login for the whole session. Scrubbed
-		// here — the spawn site — so every launch path is covered, not just dev.
+		// here - the spawn site - so every launch path is covered, not just dev.
 		const env: Record<string, string | undefined> = {
 			...process.env,
 			ELECTRON_RUN_AS_NODE: "1",
@@ -745,7 +745,7 @@ export class AcpSessionManager {
 					fs: { readTextFile: false, writeTextFile: false },
 					terminal: false,
 					// UNSTABLE ACP extension, but it is what re-enables Claude
-					// Code's built-in AskUserQuestion tool — the adapter disallows
+					// Code's built-in AskUserQuestion tool - the adapter disallows
 					// the tool for clients that can't render form elicitations.
 					elicitation: { form: {} },
 				},
@@ -755,7 +755,7 @@ export class AcpSessionManager {
 			let configOptions: SessionConfigOption[];
 			if (resume) {
 				// session/load replays the harness-stored transcript as ordinary
-				// session/update notifications before the response resolves — they
+				// session/update notifications before the response resolves - they
 				// buffer in earlyUpdates and land in the fresh journal from seq 1.
 				const loaded = await connection.agent.request("session/load", {
 					sessionId: resume.acpSessionId,
@@ -830,7 +830,7 @@ export class AcpSessionManager {
 				if (notification) this.handleUpdate(created, notification);
 			}
 			if (resume) {
-				// Nothing replayed can still be running — the process it ran in is
+				// Nothing replayed can still be running - the process it ran in is
 				// gone. Terminalize whatever the stored transcript left open so it
 				// doesn't render as in-progress forever.
 				this.terminalizeOpenToolCalls(created);
@@ -846,7 +846,7 @@ export class AcpSessionManager {
 				this.markDead(created, "adapter connection closed");
 			});
 			// The process may have died between session/new resolving and the
-			// listeners attaching — catch up on that state, else seed the journal.
+			// listeners attaching - catch up on that state, else seed the journal.
 			if (child.exitCode !== null || child.signalCode !== null) {
 				this.markDead(
 					created,
@@ -864,7 +864,7 @@ export class AcpSessionManager {
 			try {
 				connection.close();
 			} catch {
-				// best-effort — the stream may already be closed
+				// best-effort - the stream may already be closed
 			}
 			child.kill();
 			throw error;
@@ -989,7 +989,7 @@ export class AcpSessionManager {
 				resolve({ outcome }),
 			);
 			// The adapter aborts the request when the turn ends unanswered
-			// (session/cancel, turn error) — settle so nothing leaks. The signal
+			// (session/cancel, turn error) - settle so nothing leaks. The signal
 			// may already be aborted by the time we get here (listeners on an
 			// aborted signal never fire), so check first.
 			const settleCancelled = () =>
@@ -1005,7 +1005,7 @@ export class AcpSessionManager {
 	/**
 	 * A form elicitation (the adapter's rendering of Claude Code's built-in
 	 * AskUserQuestion tool) parked as one synthetic pending-permission card per
-	 * question — the same journal/resolution plumbing and mobile UI as real
+	 * question - the same journal/resolution plumbing and mobile UI as real
 	 * permission asks. Questions are presented one at a time; each card's
 	 * options are the question's enum labels plus a Skip, and the accepted
 	 * response maps chosen labels back onto the form's `question_<n>` fields.
@@ -1025,7 +1025,7 @@ export class AcpSessionManager {
 		const questions = extractElicitationQuestions(params);
 		if (questions.length === 0) {
 			// An arbitrary form (e.g. from a user-configured MCP server) with no
-			// recognizable question fields — decline rather than abort the tool.
+			// recognizable question fields - decline rather than abort the tool.
 			return { action: "decline" };
 		}
 		// Request-scoped elicitations (pre-session) carry no toolCallId.
@@ -1033,7 +1033,7 @@ export class AcpSessionManager {
 			"toolCallId" in params ? (params.toolCallId ?? null) : null;
 		const toolCallId = adapterToolCallId ?? `elicitation-${randomUUID()}`;
 		// A synthetic card's tool row has no adapter behind it to ever send a
-		// terminal status — journal one ourselves or it renders as running
+		// terminal status - journal one ourselves or it renders as running
 		// forever. Adapter-owned tool calls get their updates from the adapter.
 		const finish = (
 			response: CreateElicitationResponse,
@@ -1122,7 +1122,7 @@ export class AcpSessionManager {
 		return new Promise<RequestPermissionOutcome>((resolve) => {
 			runtime.pendingResolvers.set(requestId, resolve);
 			// The adapter aborts the elicitation when the turn ends unanswered
-			// (session/cancel, turn error) — settle so nothing leaks. The signal
+			// (session/cancel, turn error) - settle so nothing leaks. The signal
 			// may already be aborted (listeners on an aborted signal never fire),
 			// so check first.
 			const settleCancelled = () =>
@@ -1199,14 +1199,14 @@ export class AcpSessionManager {
 		runtime.state.updatedAt = Date.now();
 		this.journalFrame(runtime, {
 			kind: "state",
-			// The snapshot rides in the next envelope — lastSeq is that seq.
+			// The snapshot rides in the next envelope - lastSeq is that seq.
 			state: {
 				...this.snapshotState(runtime),
 				lastSeq: runtime.journal.latestSeq + 1,
 			},
 		});
 		// Every state emit refreshes the registry row (create, title change,
-		// turn end, death) — best-effort; the live path never depends on it.
+		// turn end, death) - best-effort; the live path never depends on it.
 		this.persistState(runtime);
 	}
 

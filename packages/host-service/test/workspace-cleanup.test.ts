@@ -44,7 +44,7 @@ interface ContextSpec {
 }
 
 // Mutable per-test behavior read by the patched ops; makeCtx resets it.
-// The methods are patched in place (NOT via mock.module — bun leaks module
+// The methods are patched in place (NOT via mock.module - bun leaks module
 // mocks across test files in the same process, which would poison the
 // integration suite's real git-ops) and restored in afterAll.
 let gitOpsSpec: ContextSpec = {};
@@ -87,7 +87,7 @@ function makeCtx(spec: ContextSpec): HostServiceContext & {
 	}));
 
 	// The delete mock is shared across tables; per destroy, call #1 is the
-	// terminal-sessions sweep and call #2 is the workspace row — the one the
+	// terminal-sessions sweep and call #2 is the workspace row - the one the
 	// throw specs target.
 	let deleteCalls = 0;
 	let deleteThrown = false;
@@ -107,7 +107,7 @@ function makeCtx(spec: ContextSpec): HostServiceContext & {
 		isAuthenticated: true,
 		organizationId: "org-1",
 		git: (async () => {
-			throw new Error("unexpected ctx.git call — cleanup goes through git-ops");
+			throw new Error("unexpected ctx.git call - cleanup goes through git-ops");
 		}) as never,
 		github: (async () => ({})) as never,
 		db: {
@@ -359,7 +359,7 @@ describe("workspaceCleanup.destroy in-flight guard", () => {
 		).rejects.toThrow();
 		expect(__testDestroysInFlight.has("ws-1")).toBe(false);
 
-		// Second attempt must NOT see DELETE_IN_PROGRESS — the Set was cleaned.
+		// Second attempt must NOT see DELETE_IN_PROGRESS - the Set was cleaned.
 		const result = await caller.destroy({
 			workspaceId: "ws-1",
 			deleteBranch: false,
@@ -384,7 +384,7 @@ describe("workspaceCleanup.destroy cleanup ordering", () => {
 					branch: "feature",
 				},
 				project: { id: "p-1", repoPath: "/repo" },
-				// git still lists the worktree after the remove attempt — the
+				// git still lists the worktree after the remove attempt - the
 				// authoritative signal that cleanup did not succeed.
 				removeWorktree: async () => ({ stillRegistered: true }),
 			});
@@ -530,7 +530,7 @@ describe("workspaceCleanup.destroy cleanup ordering", () => {
 			},
 			project: { id: "p-1", repoPath: "/repo" },
 			// Default-named WorkerTaskError = pool infrastructure failure
-			// (timeout) — dirty-state unknown, so the destroy must not proceed.
+			// (timeout) - dirty-state unknown, so the destroy must not proceed.
 			worktreeState: () =>
 				Promise.reject(
 					new WorkerTaskError(
@@ -558,7 +558,7 @@ describe("workspaceCleanup.destroy cleanup ordering", () => {
 				branch: "feature",
 			},
 			project: { id: "p-1", repoPath: "/repo" },
-			// Plain git error (handler-thrown) — cleanup handles missing state.
+			// Plain git error (handler-thrown) - cleanup handles missing state.
 			worktreeState: () => Promise.reject(new Error("fatal: not a git repo")),
 		});
 		const caller = workspaceCleanupRouter.createCaller(ctx);

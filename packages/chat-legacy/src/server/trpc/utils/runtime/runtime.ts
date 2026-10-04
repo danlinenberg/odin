@@ -147,7 +147,7 @@ export function reloadHookConfig(runtime: RuntimeSession): void {
 	try {
 		runtime.hookManager.reload();
 	} catch {
-		// Best-effort — swallow reload failures
+		// Best-effort - swallow reload failures
 	}
 }
 
@@ -171,7 +171,7 @@ export interface LifecycleEvent {
 
 /**
  * Subscribe to harness lifecycle events for a runtime session.
- * Call once after creating a runtime — handles runtime error state and stop hooks.
+ * Call once after creating a runtime - handles runtime error state and stop hooks.
  *
  * The optional `onLifecycleEvent` callback is invoked for agent start/stop and
  * permission-request events so the host (e.g. the desktop app) can update UI

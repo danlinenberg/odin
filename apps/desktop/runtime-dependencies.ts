@@ -41,7 +41,7 @@ const externalizedRuntimeModules: ExternalizedRuntimeModule[] = [
 		specifier: "node-pty",
 		materialize: ["node-pty"],
 		// An explicit copy is its own file set, so the exclusions in
-		// electron-builder.ts never reach it — node-pty's Windows prebuilds
+		// electron-builder.ts never reach it - node-pty's Windows prebuilds
 		// (24 MB of .pdb debug symbols, OpenConsole.exe and conpty.dll) have to
 		// be filtered out right here.
 		packagedCopies: [

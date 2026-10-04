@@ -48,7 +48,7 @@ export interface AdoptExistingWorktreeResult {
  *
  * The host's own table is authoritative.
  *
- * Cross-project safety is the caller's responsibility — only pass a
+ * Cross-project safety is the caller's responsibility - only pass a
  * `worktreePath` that came from `git worktree list` on this project's
  * `git`. A path registered against a different repo's git dir won't be
  * detected here and will silently land as a row in the wrong project.
@@ -108,7 +108,7 @@ export async function adoptExistingWorktree(
 		};
 	}
 
-	// Already linked at this exact (branch, path) — reuse the row.
+	// Already linked at this exact (branch, path) - reuse the row.
 	const existingByBranch = ctx.db.query.workspaces
 		.findFirst({
 			where: and(
@@ -125,7 +125,7 @@ export async function adoptExistingWorktree(
 		};
 	}
 
-	// Same path, different branch — branch was renamed in place. Re-point
+	// Same path, different branch - branch was renamed in place. Re-point
 	// the row at the new branch instead of leaving a phantom row.
 	const existingByPath = ctx.db.query.workspaces
 		.findFirst({

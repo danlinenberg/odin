@@ -46,7 +46,7 @@ export function slackWebClientUrl(url: string): string {
 
 /**
  * Opens a task source's link (a Slack thread, a Jira ticket) inside Odin, in
- * the slide-over browser, so it doesn't throw you out to another app — unless
+ * the slide-over browser, so it doesn't throw you out to another app - unless
  * you chose your own browser. Any other link, and anything that isn't a web
  * page (mailto:, a file), goes to the system.
  */

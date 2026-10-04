@@ -7,13 +7,13 @@ type ElectronTrpcUtils = ReturnType<typeof electronTrpc.useUtils>;
 
 export interface DisposeHostSessionsResult {
 	terminated: number;
-	/** Kills a host attempted but could not confirm (stamped — its reaper retries). */
+	/** Kills a host attempted but could not confirm (stamped - its reaper retries). */
 	failed: number;
-	/** Hosts that errored before reporting counts — nothing stamped, nothing retrying. */
+	/** Hosts that errored before reporting counts - nothing stamped, nothing retrying. */
 	unreachableHosts: number;
 	/**
 	 * The coordinator lookup itself failed, so we don't even know which hosts
-	 * to ask — the dispose never happened and nothing was stamped.
+	 * to ask - the dispose never happened and nothing was stamped.
 	 */
 	coordinatorUnavailable: boolean;
 }
@@ -24,7 +24,7 @@ export interface DisposeHostSessionsResult {
  * doesn't know which org owns the workspace; each host no-ops for workspaces it
  * doesn't own, so this is safe and covers non-active-org workspaces too.
  *
- * Returns null (not []) when the coordinator lookup FAILS — the caller must
+ * Returns null (not []) when the coordinator lookup FAILS - the caller must
  * distinguish "no hosts running" (safe: nothing to dispose) from "couldn't ask"
  * (a real failure that would otherwise masquerade as success).
  */
@@ -90,7 +90,7 @@ async function disposeViaHosts(
  * The electron delete/close/deleteWorktree paths only kill the main-process
  * daemon's terminals, so a workspace's host-service sessions (backgrounded,
  * renderer-detached ones included) would leak. Tell every local host-service
- * to dispose them and report what happened — callers surface failures via
+ * to dispose them and report what happened - callers surface failures via
  * {@link toastDisposeFailures}. Never throws.
  */
 export function disposeHostSessionsForWorkspace(
@@ -106,7 +106,7 @@ export function disposeHostSessionsForWorkspace(
 }
 
 /**
- * Same as {@link disposeHostSessionsForWorkspace} but keyed by worktree path —
+ * Same as {@link disposeHostSessionsForWorkspace} but keyed by worktree path -
  * used when deleting a closed worktree, which no longer has a workspace id.
  */
 export function disposeHostSessionsForWorktreePath(

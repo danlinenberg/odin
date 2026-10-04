@@ -44,13 +44,13 @@ function mkTmp(): string {
 }
 
 // ───────────────────────────────────────────────────────────────────
-// Surface A — Creating a new workspace
+// Surface A - Creating a new workspace
 // Doc: new worktree starts at the real upstream tip, not at a stale
 // local copy of main. Fork users branch from `upstream/main`, not
 // `origin/main`.
 // ───────────────────────────────────────────────────────────────────
 
-describe("Surface A — new workspace creation", () => {
+describe("Surface A - new workspace creation", () => {
 	let repo: string;
 	let git: SimpleGit;
 
@@ -173,12 +173,12 @@ describe("Surface A — new workspace creation", () => {
 });
 
 // ───────────────────────────────────────────────────────────────────
-// Surfaces B/C — Dashboard sidebar badge & Changes tab counts
+// Surfaces B/C - Dashboard sidebar badge & Changes tab counts
 // Doc: counts reflect "me since I forked," stable as main advances,
 // correct for fork workflows and non-ASCII filenames.
 // ───────────────────────────────────────────────────────────────────
 
-describe("Surfaces B/C — sidebar badge + Changes tab counts", () => {
+describe("Surfaces B/C - sidebar badge + Changes tab counts", () => {
 	let repo: string;
 	let git: SimpleGit;
 
@@ -206,7 +206,7 @@ describe("Surfaces B/C — sidebar badge + Changes tab counts", () => {
 		const afterFilesLocal = await getChangedFilesForDiff(git, [
 			"main...feature",
 		]);
-		// Count must remain the same — three-dot pins to the fork point.
+		// Count must remain the same - three-dot pins to the fork point.
 		expect(afterFilesLocal.map((f) => f.path).sort()).toEqual(["mine.ts"]);
 		// Also verify the pre-fix two-dot behavior WOULD have drifted:
 		const twoDot = await getChangedFilesForDiff(git, ["main", "feature"]);
@@ -250,7 +250,7 @@ describe("Surfaces B/C — sidebar badge + Changes tab counts", () => {
 	});
 
 	test("three buckets (againstBase, staged, unstaged) stay distinct", async () => {
-		// This surface exercises more than just getChangedFilesForDiff —
+		// This surface exercises more than just getChangedFilesForDiff -
 		// the renderer merges three buckets. We verify that each bucket
 		// can be computed independently with the expected semantics.
 		await commitFile(git, repo, "a.txt", "1\n", "base");
@@ -273,12 +273,12 @@ describe("Surfaces B/C — sidebar badge + Changes tab counts", () => {
 });
 
 // ───────────────────────────────────────────────────────────────────
-// Surface D — Per-file diff view (merge-base content comparison)
+// Surface D - Per-file diff view (merge-base content comparison)
 // Doc: clicking a file shows content at fork point vs HEAD, so
 // unrelated edits on main don't appear as your changes.
 // ───────────────────────────────────────────────────────────────────
 
-describe("Surface D — per-file diff uses merge-base", () => {
+describe("Surface D - per-file diff uses merge-base", () => {
 	let repo: string;
 	let git: SimpleGit;
 
@@ -304,7 +304,7 @@ describe("Surface D — per-file diff uses merge-base", () => {
 		await git.raw(["commit", "-am", "main edit"]);
 
 		// The per-file diff under the new behavior shows content at the
-		// merge-base vs content at HEAD of feature — not main's tip vs
+		// merge-base vs content at HEAD of feature - not main's tip vs
 		// feature's tip. So main's unrelated edit doesn't leak in.
 		const mergeBase = (await git.raw(["merge-base", "main", "feature"])).trim();
 		expect(mergeBase).toBe(forkSha);
@@ -319,18 +319,18 @@ describe("Surface D — per-file diff uses merge-base", () => {
 		const mainTipContent = await git.show(["main:shared.ts"]);
 		expect(mainTipContent).toBe("line1\nMAIN CHANGED\nline3\n");
 		// If we had diffed main:shared.ts vs feature:shared.ts the diff
-		// would include both edits — proving merge-base is the right
+		// would include both edits - proving merge-base is the right
 		// origin for a "your changes only" view.
 		expect(mainTipContent).not.toBe(baseContent);
 	});
 });
 
 // ───────────────────────────────────────────────────────────────────
-// Surface F — Ahead/behind counts in branch lists
+// Surface F - Ahead/behind counts in branch lists
 // Doc: 3-dot symmetric count via `rev-list --left-right --count base...branch`.
 // ───────────────────────────────────────────────────────────────────
 
-describe("Surface F — ahead/behind counts", () => {
+describe("Surface F - ahead/behind counts", () => {
 	let repo: string;
 	let git: SimpleGit;
 
@@ -370,10 +370,10 @@ describe("Surface F — ahead/behind counts", () => {
 
 // ───────────────────────────────────────────────────────────────────
 // Renames (separate section in the doc)
-// Doc: renamed files now show correct line counts — the bug was +0 -0.
+// Doc: renamed files now show correct line counts - the bug was +0 -0.
 // ───────────────────────────────────────────────────────────────────
 
-describe("Rename files — line counts", () => {
+describe("Rename files - line counts", () => {
 	let repo: string;
 	let git: SimpleGit;
 

@@ -2,7 +2,7 @@ import { PILL } from "./pill";
 
 /**
  * The Review sweep's DROP verdict on a row, the same red hint on every screen
- * — Review's DROP chip colour — so a board card and Next in line agree.
+ * - Review's DROP chip colour - so a board card and Next in line agree.
  */
 export function DropHint({ evidence }: { evidence: string }) {
 	return (

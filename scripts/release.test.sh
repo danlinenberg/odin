@@ -31,11 +31,11 @@ done
 desktop=$(jq -r .version "$REPO/${MANIFESTS[0]}")
 host=$(jq -r .version "$REPO/${MANIFESTS[1]}")
 [[ "$desktop" == "$host" ]] ||
-	fail "desktop is $desktop but host-service is $host — they share a version"
+	fail "desktop is $desktop but host-service is $host - they share a version"
 
 # bun.lock carries both, and CI installs with --frozen-lockfile.
 [[ $(grep -c "\"version\": \"$desktop\"" "$REPO/bun.lock") -ge 2 ]] ||
-	fail "bun.lock does not record $desktop for both packages — refresh it"
+	fail "bun.lock does not record $desktop for both packages - refresh it"
 
 # The patch bump, the one piece of arithmetic in the script.
 got=$(awk -F. '{print $1"."$2"."$3+1}' <<<"1.18.9")

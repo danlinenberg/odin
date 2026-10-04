@@ -21,12 +21,12 @@ import { usePendingFocus } from "./usePendingFocus";
 const WARM_TAG = "warm";
 
 /**
- * Marks an asked question. Like the spare it has no title, so it's no card —
+ * Marks an asked question. Like the spare it has no title, so it's no card -
  * a question isn't a task. The board opens its drawer by this tag instead.
  */
 export const QUESTION_TAG = "question";
 
-/** The open question conversation — ✓ Done removes the pane, which ends it. */
+/** The open question conversation - ✓ Done removes the pane, which ends it. */
 export const questionPane = (panes: Record<string, Pane>): Pane | undefined =>
 	Object.values(panes).find((pane) => pane.odinTags?.includes(QUESTION_TAG));
 
@@ -44,7 +44,7 @@ const warmPane = (panes: Record<string, Pane>): Pane | undefined =>
 		(pane) => pane.odinTags?.includes(WARM_TAG) && !pane.odinTaskTitle,
 	);
 
-/** Who opens the Quick question dialog — the hotkey, or the board's button. */
+/** Who opens the Quick question dialog - the hotkey, or the board's button. */
 export const useQuickQuestionDialog = create<{
 	isOpen: boolean;
 	setOpen: (isOpen: boolean) => void;
@@ -53,11 +53,11 @@ export const useQuickQuestionDialog = create<{
 /**
  * Quick question: a Claude that's already up and sitting at its prompt, so a
  * question costs no boot. One spare runs hidden (no title, so it's no card);
- * asking types the question in and opens its drawer — still no card — and a
+ * asking types the question in and opens its drawer - still no card - and a
  * fresh spare starts behind it. The conversation persists: the next question
  * follows up in it, until ✓ Done in its drawer ends it.
  *
- * Mount once — the layout does. Returns `ask`.
+ * Mount once - the layout does. Returns `ask`.
  */
 export function useQuickQuestion() {
 	const utils = electronTrpc.useUtils();
@@ -125,7 +125,7 @@ export function useQuickQuestion() {
 			const alive = sessions.some((s) => s.sessionId === pane.id && s.isAlive);
 			if (alive || Date.now() - spawnedAt.current < SPAWN_GRACE_MS)
 				return pane.id;
-			// Persisted from a run whose daemon is gone — nothing in it to ask.
+			// Persisted from a run whose daemon is gone - nothing in it to ask.
 			useTabsStore.getState().removePane(pane.id);
 		}
 		return spawn();
@@ -139,7 +139,7 @@ export function useQuickQuestion() {
 
 	/**
 	 * The open conversation, live. A PTY that died with the daemon comes back
-	 * with `claude --resume`. False for one Claude never wrote down — the
+	 * with `claude --resume`. False for one Claude never wrote down - the
 	 * question goes to the spare.
 	 */
 	const reopen = async (
@@ -173,7 +173,7 @@ export function useQuickQuestion() {
 		return true;
 	};
 
-	/** Wait for Claude's idle prompt — a spare that only just started may still be booting. */
+	/** Wait for Claude's idle prompt - a spare that only just started may still be booting. */
 	const waitForPrompt = async (pane: Pane, workspaceId: string) => {
 		for (const end = Date.now() + READY_TIMEOUT_MS; Date.now() < end; ) {
 			// The drawer may already be showing it: read at its size, so the read
@@ -194,7 +194,7 @@ export function useQuickQuestion() {
 				const status = odinScreenStatus(screen);
 				if (status === "review" || status === "working") return true;
 			} catch {
-				// An attach the drawer superseded — read again next tick.
+				// An attach the drawer superseded - read again next tick.
 			}
 			await sleep(1_000);
 		}
@@ -205,7 +205,7 @@ export function useQuickQuestion() {
 		const question = raw.trim();
 		if (!question && files.length === 0) return false;
 		const { sessions } = await utils.client.terminal.listDaemonSessions.query();
-		/** Where a pane's Claude runs — `initialCwd` is cleared once its drawer opens. */
+		/** Where a pane's Claude runs - `initialCwd` is cleared once its drawer opens. */
 		const placeOf = async (pane: Pane | undefined) => {
 			const workspaceId = useTabsStore
 				.getState()
@@ -223,7 +223,7 @@ export function useQuickQuestion() {
 			!!open &&
 			!!openAt &&
 			(await reopen(open, sessions, openAt.workspaceId, openAt.cwd));
-		// One that can't be followed up is over — the spare starts a new one.
+		// One that can't be followed up is over - the spare starts a new one.
 		if (open && !followUp) useTabsStore.getState().removePane(open.id);
 		const paneId = followUp ? open.id : await ensureWarm(sessions);
 		const store = useTabsStore.getState();
@@ -260,7 +260,7 @@ export function useQuickQuestion() {
 		}
 		const text = [question, ...paths].filter(Boolean).join("\n");
 
-		// Claim the spare — no odinTaskTitle, so it stays off the board. A
+		// Claim the spare - no odinTaskTitle, so it stays off the board. A
 		// follow-up keeps the conversation's first question as its title.
 		if (!followUp) {
 			const title = sessionTitle(question, "Quick question");
@@ -281,13 +281,13 @@ export function useQuickQuestion() {
 		usePendingFocus.getState().focus(pane.id);
 		navigate({ to: "/board" });
 
-		// Typed, not passed as an argument — the process is already running. As a
+		// Typed, not passed as an argument - the process is already running. As a
 		// bracketed paste (Claude turns the mode on), so a multi-line question
 		// lands whole instead of each newline submitting; Enter goes separately.
 		void (async () => {
 			if (!(await waitForPrompt(pane, workspaceId))) {
 				useTabsStore.getState().setPaneStatus(pane.id, "permission");
-				toast.error("Claude didn't reach its prompt — type the question in");
+				toast.error("Claude didn't reach its prompt - type the question in");
 				return;
 			}
 			await utils.client.terminal.write.mutate({

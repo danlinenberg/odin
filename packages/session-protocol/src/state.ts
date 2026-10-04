@@ -24,7 +24,7 @@ export type SessionStatus =
 	| "dead";
 
 export interface PendingPermission {
-	/** JSON-RPC request id from the adapter — the resolution key. */
+	/** JSON-RPC request id from the adapter - the resolution key. */
 	requestId: string;
 	/** ACP type, verbatim from the session/request_permission request. */
 	toolCall: ToolCallUpdate;
@@ -41,7 +41,7 @@ export interface PendingPermission {
 
 /**
  * Multi-select answers ride the ACP-reserved `_meta` extension point on a
- * `selected` outcome — the ACP type itself is single-option, and it crosses
+ * `selected` outcome - the ACP type itself is single-option, and it crosses
  * the wire verbatim (D7), so the extra picks travel as metadata. `optionId`
  * stays the first pick, keeping single-select consumers correct.
  */
@@ -74,14 +74,14 @@ export function selectedOptionIds(outcome: RequestPermissionOutcome): string[] {
 }
 
 export interface SessionScopedState {
-	/** Odin id (uuid) — the adapter's ACP SessionId stays host-internal. */
+	/** Odin id (uuid) - the adapter's ACP SessionId stays host-internal. */
 	sessionId: string;
 	workspaceId: string;
 	harness: HarnessKind;
 	status: SessionStatus;
 	/**
-	 * Claude-generated session title (session_info_update). Lives here — not
-	 * only in the journaled timeline frame — so it survives resyncs that only
+	 * Claude-generated session title (session_info_update). Lives here - not
+	 * only in the journaled timeline frame - so it survives resyncs that only
 	 * fetch the newest messages page.
 	 */
 	title: string | null;

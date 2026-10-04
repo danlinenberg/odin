@@ -81,7 +81,7 @@ export class OpenAIOAuthLoopback {
 						res.writeHead(500, { "content-type": "text/plain" });
 						res.end(message);
 					} catch {
-						// Response may have already been sent — ignore.
+						// Response may have already been sent - ignore.
 					}
 					options.onError?.(err instanceof Error ? err : new Error(message));
 				}

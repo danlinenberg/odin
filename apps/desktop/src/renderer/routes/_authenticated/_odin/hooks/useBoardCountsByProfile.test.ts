@@ -18,7 +18,7 @@ describe("boardCountsByProfile", () => {
 				pane({ id: "b", status: "failed", odinProfile: "work" }),
 				pane({ id: "c", status: "working", odinProfile: "work" }),
 				pane({ id: "d", status: "permission", odinProfile: "private" }),
-				// Unstamped panes predate profiles — they belong to "default".
+				// Unstamped panes predate profiles - they belong to "default".
 				pane({ id: "e", status: "permission" }),
 				// Not a board session: no task title.
 				pane({ id: "f", status: "permission", odinTaskTitle: undefined }),

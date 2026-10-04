@@ -56,7 +56,7 @@ export const projectRouter = router({
 			}));
 	}),
 
-	/** Rename. Commits locally — projects have no cloud dependency. */
+	/** Rename. Commits locally - projects have no cloud dependency. */
 	update: protectedProcedure
 		.input(
 			z.object({
@@ -232,7 +232,7 @@ export const projectRouter = router({
 		.query(async ({ ctx, input }) => {
 			// Detect "folder isn't a git repo yet" without throwing, so the import
 			// UI can offer to `git init` it (create importLocal + initIfNeeded)
-			// instead of dead-ending on a BAD_REQUEST. Additive optional field —
+			// instead of dead-ending on a BAD_REQUEST. Additive optional field -
 			// repo paths never carry needsGitInit, so existing callers are
 			// unaffected.
 			const root = await tryRevParseGitRoot(input.repoPath);
@@ -270,7 +270,7 @@ export const projectRouter = router({
 				.sync();
 
 			// Default behavior (folder-first import): a local-DB hit is the
-			// only candidate source — no hit means the caller creates a fresh
+			// only candidate source - no hit means the caller creates a fresh
 			// local project.
 			if (!input.walkAllRemotes) {
 				if (localProject) {
@@ -292,7 +292,7 @@ export const projectRouter = router({
 				return { candidates: [] };
 			}
 
-			// walkAllRemotes branch — v1→v2 importer.
+			// walkAllRemotes branch - v1→v2 importer.
 			const candidates: Candidate[] = localProject
 				? [
 						{
@@ -427,7 +427,7 @@ export const projectRouter = router({
 			switch (input.mode.kind) {
 				case "clone": {
 					if (existing) {
-						// Already on this device — same folder name predicted from
+						// Already on this device - same folder name predicted from
 						// the local row; a different parentDir means a repoint.
 						rejectIfRepoint(
 							resolvePath(input.mode.parentDir, basename(existing.repoPath)),
@@ -446,7 +446,7 @@ export const projectRouter = router({
 						throw new TRPCError({
 							code: "BAD_REQUEST",
 							message:
-								"Project has no linked GitHub repository — cannot clone. Import an existing local folder instead.",
+								"Project has no linked GitHub repository - cannot clone. Import an existing local folder instead.",
 						});
 					}
 					const expectedParsed = parseGitHubRemote(origin.repoCloneUrl);
@@ -548,7 +548,7 @@ export const projectRouter = router({
 	 *      workspace so subsequent worktree commands aren't confused.
 	 *
 	 *   3. Local DB rows (workspaces + project). A failure here surfaces as
-	 *      an error — the local table is what the UI lists from, so a
+	 *      an error - the local table is what the UI lists from, so a
 	 *      swallowed failure would toast "Deleted" over a surviving row.
 	 *
 	 * The on-disk repo directory is NEVER auto-removed. The user's code is

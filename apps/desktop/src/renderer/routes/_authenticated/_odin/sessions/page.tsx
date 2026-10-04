@@ -20,13 +20,13 @@ export const Route = createFileRoute("/_authenticated/_odin/sessions/")({
 });
 
 /**
- * Session History — search every session Odin has launched by what was said in
+ * Session History - search every session Odin has launched by what was said in
  * it, read it, and resume it.
  *
  * The board can't do this: its cards are named by whatever was typed at launch
  * ("Work on Odin", twenty times over), they only cover panes that still exist,
  * and their history is de-ANSI'd terminal mush. Claude's own transcripts have
- * the real prompt, the card's title as launched, and the prose of every turn — so
+ * the real prompt, the card's title as launched, and the prose of every turn - so
  * that's what this searches. Conversations started outside Odin live in the
  * same store and are filtered out server-side; they were never this app's work.
  *
@@ -78,7 +78,7 @@ function SessionsPage() {
 		return () => clearTimeout(timer);
 	}, [draft]);
 
-	// The whole point of the view is the search box — start in it.
+	// The whole point of the view is the search box - start in it.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: once, on mount
 	useEffect(() => {
 		inputRef.current?.focus();
@@ -96,7 +96,7 @@ function SessionsPage() {
 	const panes = useTabsStore((state) => state.panes);
 	const sessionIdByPane = usePaneMeta((state) => state.sessionIdByPane);
 	// What each session was launched from. The transcript knows what was said
-	// but not who asked — the work ledger is the only thing holding that link.
+	// but not who asked - the work ledger is the only thing holding that link.
 	const { data: ledger } = electronTrpc.workLog.list.useQuery({ limit: 500 });
 	const cameFrom = useMemo(
 		() =>
@@ -142,7 +142,7 @@ function SessionsPage() {
 	// The server decides what counts as a term, so highlighting can't drift from
 	// what was actually matched.
 	const terms = pages[0]?.terms ?? [];
-	// Everyone who has ever asked Odin for something, newest first — not just
+	// Everyone who has ever asked Odin for something, newest first - not just
 	// the people in the current results, or clearing a search would empty the row.
 	const askers = pages[0]?.askers ?? [];
 	const oldest = rows.at(-1)?.updatedAt;
@@ -170,7 +170,7 @@ function SessionsPage() {
 	const resume = async (row: SessionRow) => {
 		if (!row.cwd) {
 			toast.error(
-				"This transcript has no recorded directory — can't resume it",
+				"This transcript has no recorded directory - can't resume it",
 			);
 			return;
 		}
@@ -185,7 +185,7 @@ function SessionsPage() {
 			description: null,
 			resumeSessionId: row.sessionId,
 			// `claude --resume <id>` only finds the conversation from the directory
-			// it ran in, and the workspace is the repo root — a session that ran in
+			// it ran in, and the workspace is the repo root - a session that ran in
 			// a worktree or a subdirectory resumed into "No conversation found".
 			repoPath: row.cwd,
 			brief: row.prompt,
@@ -213,7 +213,7 @@ function SessionsPage() {
 					ref={inputRef}
 					value={draft}
 					onChange={(event) => setDraft(event.target.value)}
-					placeholder={`Keywords or a person — any words you remember, best matches first (e.g. datadog cost)${hint}`}
+					placeholder={`Keywords or a person - any words you remember, best matches first (e.g. datadog cost)${hint}`}
 					className="h-8 min-w-0 flex-1 rounded-lg border border-border bg-card px-3 text-[12.5px] text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
 				/>
 				{draft && (
@@ -260,13 +260,13 @@ function SessionsPage() {
 			<div className="min-h-0 flex-1 overflow-y-auto px-[18px] pb-[18px]">
 				{rows.length === 0 && !isFetching && (
 					<div className="px-2 py-8 text-center text-xs text-muted-foreground">
-						{/* A search that failed is not a machine with no history —
+						{/* A search that failed is not a machine with no history -
 						    saying so sent this page's one real outage ("cannot find
 						    module ./chunks/…", a rebuild under a running Odin) looking
 						    like an empty store for hours. */}
 						{error ? (
 							<span className="text-danger">
-								Couldn't read the session store — {error.message}
+								Couldn't read the session store - {error.message}
 							</span>
 						) : query ? (
 							`No Odin session mentions ${terms.map((term) => `"${term}"`).join(" or ")}, or came from anyone by that name.`
@@ -357,7 +357,7 @@ function SessionsPage() {
 				<div ref={sentinelRef} />
 				{rows.length > 0 && !hasNextPage && !query && (
 					<div className="py-4 text-center text-[11px] text-muted-foreground">
-						That's everything still on disk — Claude Code deletes transcripts
+						That's everything still on disk - Claude Code deletes transcripts
 						after 30 days.
 					</div>
 				)}

@@ -128,8 +128,8 @@ app.get("/hook/complete", (req, res) => {
 });
 
 /**
- * An agent hands Odin something to run where you can watch it — the app from
- * a worktree, a dev server — and it runs in that session's Shell pane, not in
+ * An agent hands Odin something to run where you can watch it - the app from
+ * a worktree, a dev server - and it runs in that session's Shell pane, not in
  * a subagent or background Bash you never see.
  *
  * `curl -sf http://127.0.0.1:$ODIN_PORT/shell/run --data-urlencode paneId=$ODIN_PANE_ID --data-urlencode "command=…"`

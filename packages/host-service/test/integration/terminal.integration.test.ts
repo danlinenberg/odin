@@ -298,7 +298,7 @@ describe("terminal router integration", () => {
 			rmSync(tmp, { recursive: true, force: true });
 		}
 		// Two full kill sequences, each blocking on the ~1s SIGKILL escalation,
-		// plus daemon boot and two login-shell starts — the 5s default budget
+		// plus daemon boot and two login-shell starts - the 5s default budget
 		// is marginal under load.
 	}, 20_000);
 
@@ -444,7 +444,7 @@ describe("terminal router integration", () => {
 				.run();
 
 			// Simulate a host-service restart: the daemon keeps both PTYs, this
-			// process forgets them. No renderer pane ever attaches — the
+			// process forgets them. No renderer pane ever attaches - the
 			// background-agent case. The list must be correct immediately, with
 			// no reaper pass, warm-up, or renderer attach in between.
 			__resetSessionsForTesting();

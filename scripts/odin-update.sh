@@ -5,7 +5,7 @@
 # Odin would kill it mid-build), so the app spawns it detached. Run it by hand
 # the same way:  scripts/odin-update.sh [--pull]
 #
-# Order matters — build first while the old app still runs, and only swap the
+# Order matters - build first while the old app still runs, and only swap the
 # bundle once the UI has quit.
 #
 # Open terminal sessions are preserved: the terminal-host daemon is left running
@@ -39,10 +39,10 @@ if ! (cd "$REPO/apps/desktop" &&
   # electron-builder's DMG step fails intermittently on a plist parse; the .app
   # is complete by then, so only bail if the bundle itself is missing.
   if [[ ! -d "$REPO/apps/desktop/release/mac-arm64/Odin.app" ]]; then
-    log "BUILD FAILED — see $LOG"
+    log "BUILD FAILED - see $LOG"
     exit 1
   fi
-  log "packaging step failed after the app was built (usually the DMG) — continuing"
+  log "packaging step failed after the app was built (usually the DMG) - continuing"
 fi
 
 APP="$REPO/apps/desktop/release/mac-arm64/Odin.app"
@@ -64,9 +64,9 @@ log "quitting Odin…"
 quit_packaged_ui
 
 if [[ -n "$NEW_PROTO" && "$NEW_PROTO" == "$OLD_PROTO" ]]; then
-  log "keeping the terminal-host daemon (protocol v$NEW_PROTO unchanged) — sessions survive"
+  log "keeping the terminal-host daemon (protocol v$NEW_PROTO unchanged) - sessions survive"
 else
-  log "daemon protocol ${OLD_PROTO:-unknown} → ${NEW_PROTO:-unknown} — restarting it; open sessions will be lost"
+  log "daemon protocol ${OLD_PROTO:-unknown} → ${NEW_PROTO:-unknown} - restarting it; open sessions will be lost"
   for pid in $(daemon_pids); do kill "$pid" 2>/dev/null || true; done
   sleep 2
 fi
@@ -95,7 +95,7 @@ if [[ -d /Applications/Odin.app ]]; then
     { log "could not move the installed bundle aside"; exit 1; }
 fi
 if ! ditto "$APP" /Applications/Odin.app >>"$LOG" 2>&1; then
-  log "INSTALL FAILED — restoring the previous bundle"
+  log "INSTALL FAILED - restoring the previous bundle"
   rm -rf /Applications/Odin.app
   [[ -d "$STALE" ]] && mv "$STALE" /Applications/Odin.app
   exit 1

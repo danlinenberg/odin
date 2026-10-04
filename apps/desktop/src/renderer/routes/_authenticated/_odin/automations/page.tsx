@@ -53,7 +53,7 @@ export const Route = createFileRoute("/_authenticated/_odin/automations/")({
 });
 
 const CRON_HELP =
-	"minute hour day-of-month month day-of-week — e.g. 0 9 * * 1-5 for weekdays at 09:00.";
+	"minute hour day-of-month month day-of-week - e.g. 0 9 * * 1-5 for weekdays at 09:00.";
 
 /** What the Repeat menu offers, in order. */
 const REPEATS: [Repeat, string][] = [
@@ -77,7 +77,7 @@ const HOURS = Array.from({ length: 24 }, (_, hour) =>
 );
 
 /**
- * ponytail: five-minute steps — twelve entries you can see at once instead of
+ * ponytail: five-minute steps - twelve entries you can see at once instead of
  * sixty you scroll. A schedule already on an odd minute keeps it (below), and
  * Custom cron is the way to set a new one.
  */
@@ -88,7 +88,7 @@ const MINUTES = Array.from({ length: 12 }, (_, i) =>
 /**
  * The hour and the minute, as two menus.
  *
- * Not `<input type="time">`: Chromium draws that popup itself — a tall
+ * Not `<input type="time">`: Chromium draws that popup itself - a tall
  * blue-highlighted spinner that ignores the palette and can't be styled, which
  * is a jarring thing to hit in the middle of a dark toolbar. Two selects are
  * the same two numbers, in the app's own clothes, and they open as the
@@ -137,11 +137,11 @@ function TimeFields({
 }
 
 /**
- * When a job runs, said in the terms people think in — a repeat, a day, a
+ * When a job runs, said in the terms people think in - a repeat, a day, a
  * time. Cron is still what's stored and matched; nobody has to write one.
  *
  * ponytail: plain `<select>`s throughout. The fields hold no state of their
- * own — they read the cron and write a new one, so what's shown and what runs
+ * own - they read the cron and write a new one, so what's shown and what runs
  * can't drift apart.
  *
  * Anything the menu can't express (`0 9 * * 1,3,5`) stays a cron: the Custom
@@ -288,7 +288,7 @@ function ScheduleFields({
 }
 
 // Picking a <datalist> option marks the field as autofilled, and Chromium then
-// paints it pale blue with an !important background — an inset shadow is the
+// paints it pale blue with an !important background - an inset shadow is the
 // only thing that covers it.
 const RULE_INPUT =
 	"min-w-0 flex-1 rounded-[6px] border border-border bg-background px-2 py-1 text-[12px] text-foreground outline-none placeholder:text-faint-foreground focus:border-primary autofill:shadow-[inset_0_0_0_1000px_var(--background)] autofill:[-webkit-text-fill-color:#f5f5f7]";
@@ -316,7 +316,7 @@ function SkillOptions({ id }: { id: string }) {
 	);
 }
 
-/** "in" / "not in" — whether the repos beside it are the only ones or the ones left out. */
+/** "in" / "not in" - whether the repos beside it are the only ones or the ones left out. */
 function RepoModeToggle({
 	exclude,
 	onChange,
@@ -329,8 +329,8 @@ function RepoModeToggle({
 			type="button"
 			title={
 				exclude
-					? "Every repo except these — click for only these"
-					: "Only these repos — click for every repo except them"
+					? "Every repo except these - click for only these"
+					: "Only these repos - click for every repo except them"
 			}
 			onClick={() => onChange(!exclude)}
 			className={cn(
@@ -344,11 +344,11 @@ function RepoModeToggle({
 }
 
 /**
- * The repos a rule is pinned to, as removable chips — none leaves it on every
+ * The repos a rule is pinned to, as removable chips - none leaves it on every
  * session. Type any part of a path to search the checkouts; picking from the
  * list adds it at once, typed text resolves on Enter or blur, the same way the
  * new-session dialog's repo field does (`matchRepos`).
- * ponytail: native <datalist> — Chromium does the search-as-you-type popup.
+ * ponytail: native <datalist> - Chromium does the search-as-you-type popup.
  */
 function RepoPicker({
 	value,
@@ -370,7 +370,7 @@ function RepoPicker({
 		if (hits.length === 1) return addRepo(hits[0] as string);
 		toast.error(
 			hits.length > 1
-				? `"${draft}" matches ${hits.length} repos — type more of the path.`
+				? `"${draft}" matches ${hits.length} repos - type more of the path.`
 				: `No repo matches "${draft}".`,
 		);
 	};
@@ -401,7 +401,7 @@ function RepoPicker({
 				title="Search your git checkouts"
 				onChange={(event) => {
 					const text = event.target.value;
-					// A pick from the datalist is a whole path — take it right away.
+					// A pick from the datalist is a whole path - take it right away.
 					if (repos.includes(text)) addRepo(text);
 					else setDraft(text);
 				}}
@@ -483,8 +483,8 @@ function RuleRow({ rule }: { rule: OdinRule }) {
 				type="button"
 				title={
 					rule.paused
-						? "Resume — hand it to new sessions again"
-						: "Pause — keep it, stop handing it out"
+						? "Resume - hand it to new sessions again"
+						: "Pause - keep it, stop handing it out"
 				}
 				onClick={() => update(rule.id, { paused: !rule.paused })}
 				className="shrink-0 rounded-[7px] px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground"
@@ -506,7 +506,7 @@ function RuleRow({ rule }: { rule: OdinRule }) {
 }
 
 /**
- * Rules — what an agent does when something comes up, rather than at a time.
+ * Rules - what an agent does when something comes up, rather than at a time.
  * Each one rides in the launch prompt of every session Odin starts from here
  * on; a session already running, or one you resume, has the prompt it had.
  */
@@ -560,7 +560,7 @@ function RulesPanel() {
 			<div className={FEED_LIST}>
 				{rules.length === 0 && (
 					<div className="px-2 py-8 text-center text-xs text-muted-foreground">
-						No rules. Say what should happen when — every session Odin starts
+						No rules. Say what should happen when - every session Odin starts
 						gets told.
 					</div>
 				)}
@@ -573,7 +573,7 @@ function RulesPanel() {
 }
 
 /**
- * Automations — the tasks that start themselves.
+ * Automations - the tasks that start themselves.
  *
  * Its own panel rather than another tab in the feed strip: every feed there
  * answers "what's waiting on me", and an automation is the opposite of that.
@@ -625,10 +625,10 @@ function AutomationsPage() {
 				</div>
 				<span className="text-[12px] text-muted-foreground">
 					{view === "schedules"
-						? "tasks that start themselves, on a cron — while Odin is open"
+						? "tasks that start themselves, on a cron - while Odin is open"
 						: view === "rules"
 							? "what every session Odin starts should do when something comes up"
-							: "every reminder you set — snoozed sessions and dated feed rows, soonest first"}
+							: "every reminder you set - snoozed sessions and dated feed rows, soonest first"}
 				</span>
 			</div>
 			{view === "schedules" ? (
@@ -643,7 +643,7 @@ function AutomationsPage() {
 }
 
 /**
- * Every reminder — snoozed sessions and dated feed rows — soonest first. The board only shows sessions once
+ * Every reminder - snoozed sessions and dated feed rows - soonest first. The board only shows sessions once
  * they're due. Resume early, move the day, or drop it.
  */
 function RemindersPanel() {
@@ -701,7 +701,7 @@ function RemindersPanel() {
 									)}
 								>
 									{isDue(r.due, now)
-										? `Due ${dueLabel(r.due, now)} — on the board`
+										? `Due ${dueLabel(r.due, now)} - on the board`
 										: `${dueLabel(r.due, now)} at ${notifyAt}`}
 								</span>
 								<span className={ROW_META}>
@@ -823,7 +823,7 @@ function SchedulesPanel() {
 		<>
 			<div className="shrink-0 border-b border-border px-[18px] py-3">
 				{/* TaskBox is `h-full` so a dialog can stretch it. Left as a direct
-				    child here it claims this whole block — schedule row included —
+				    child here it claims this whole block - schedule row included -
 				    and its fields paint over the first automation below. Its own
 				    auto-height wrapper is what makes `h-full` mean "as tall as the
 				    box wants". */}
@@ -832,7 +832,7 @@ function SchedulesPanel() {
 						value={draft}
 						skills={skills}
 						// Priority says which task you'd do first. An automation has a
-						// time instead — the schedule below is its whole answer.
+						// time instead - the schedule below is its whole answer.
 						hidePriority
 						placeholder="What should run on a schedule?"
 						onChange={setDraft}
@@ -845,7 +845,7 @@ function SchedulesPanel() {
 					<ScheduleFields cron={draftCron} onChange={setDraftCron} />
 					<span className={ROW_META}>
 						{isValidCron(draftCron)
-							? `next ${nextRun(draftCron)?.toLocaleString(undefined, NEXT_RUN_FORMAT) ?? "— never fires"}`
+							? `next ${nextRun(draftCron)?.toLocaleString(undefined, NEXT_RUN_FORMAT) ?? "- never fires"}`
 							: "not a cron expression"}
 					</span>
 					<div className="flex-1" />
@@ -893,7 +893,7 @@ function SchedulesPanel() {
 							key={task.id}
 							className={cn(
 								FEED_ROW,
-								// Violet left edge — Odin runs it, the same as the
+								// Violet left edge - Odin runs it, the same as the
 								// Automation chip it carries on the board and in My Tasks.
 								"border-l-2 border-l-primary/60",
 								task.paused && "border-l-input opacity-60",
@@ -994,8 +994,8 @@ function SchedulesPanel() {
 										type="button"
 										title={
 											task.paused
-												? "Resume — put it back on its schedule"
-												: "Pause — keep it, stop running it"
+												? "Resume - put it back on its schedule"
+												: "Pause - keep it, stop running it"
 										}
 										onClick={() => setPaused(task.id, !task.paused)}
 										className="shrink-0 rounded-[7px] px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground"

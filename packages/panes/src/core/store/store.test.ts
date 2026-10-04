@@ -381,7 +381,7 @@ describe("split operations", () => {
 });
 
 describe("collapsing", () => {
-	it("close pane in 2-pane split — sibling promotion", () => {
+	it("close pane in 2-pane split - sibling promotion", () => {
 		const store = makeStore();
 		store.getState().addTab({ id: "t1", panes: [tp("p1")] });
 		store.getState().splitPane({
@@ -399,7 +399,7 @@ describe("collapsing", () => {
 		expect(tab?.panes.p1).toBeUndefined();
 	});
 
-	it("close pane in nested split — only sibling affected", () => {
+	it("close pane in nested split - only sibling affected", () => {
 		const store = makeStore();
 		store.getState().addTab({ id: "t1", panes: [tp("p1")] });
 		store.getState().splitPane({

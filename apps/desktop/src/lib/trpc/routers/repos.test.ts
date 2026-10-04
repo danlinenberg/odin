@@ -58,7 +58,7 @@ test("the default repo round-trips through the config file, and rejects a non-re
 	expect(caller.setDefault({ path: join(home, "Documents") })).rejects.toThrow(
 		/Not a git repo/,
 	);
-	// Still the one that was set — a rejected pick must not clear it.
+	// Still the one that was set - a rejected pick must not clear it.
 	expect(await caller.getDefault()).toBe(repo);
 
 	await caller.setDefault({ path: null });
@@ -76,12 +76,12 @@ test("renderDiff shows uncommitted work, and the last commit when there is none"
 	git("add", "a.txt");
 	git("commit", "-qm", "add a");
 
-	// Clean tree — the panel falls back to the commit that just landed.
+	// Clean tree - the panel falls back to the commit that just landed.
 	const clean = await renderDiff(repo, 80);
 	expect(clean.source).toBe("last commit");
 	expect(clean.ansi).toContain("add a");
 
-	// A session that started after that commit owns none of it — the panel says
+	// A session that started after that commit owns none of it - the panel says
 	// so instead of passing a stranger's work off as this session's.
 	const stale = await renderDiff(repo, 80, Date.now() + 1000);
 	expect(stale.source).toBe("nothing from this session");

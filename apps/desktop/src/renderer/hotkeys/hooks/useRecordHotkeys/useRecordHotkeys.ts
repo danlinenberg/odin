@@ -69,7 +69,7 @@ export function captureHotkeyFromEvent(
 	let keyChord = codeChord;
 	if (classification === "printable") {
 		const produced = (event.key ?? "").toLowerCase();
-		// Single printable char only — strings like "Dead", "Process" or
+		// Single printable char only - strings like "Dead", "Process" or
 		// multi-char IME output stay on codeChord. "+" would collide with
 		// the chord separator and break round-tripping (`meta+shift++`).
 		if (produced.length === 1 && /\S/.test(produced) && produced !== "+") {
@@ -157,7 +157,7 @@ function getHotkeyConflict(
 
 interface UseRecordHotkeysOptions {
 	/** User's mode preference for new printable bindings. Default `"logical"`
-	 *  — the recorded chord follows the printed character (Dvorak user
+	 *  - the recorded chord follows the printed character (Dvorak user
 	 *  pressing the P-labeled key gets a binding for the P character, which
 	 *  works on any layout). F-keys and named keys ignore this and use
 	 *  `"named"` mode regardless. */

@@ -130,7 +130,7 @@ describe("listWorktreeBranches vs raw git worktree list", () => {
 			["foreign-feat", "main", "managed-feat"].sort(),
 		);
 
-		// Compare full entries, not just keys — a regression that mangled
+		// Compare full entries, not just keys - a regression that mangled
 		// the path while preserving the branch name would otherwise pass.
 		const sortEntries = (m: Map<string, string>) =>
 			[...m.entries()].sort(([a], [b]) => a.localeCompare(b));

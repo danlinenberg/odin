@@ -32,7 +32,7 @@ async function getCurrentBranchName(
 
 /**
  * Idempotent log-and-continue variant. Returns null on any failure so a
- * transient blip during setup or sweep doesn't fail the caller — the
+ * transient blip during setup or sweep doesn't fail the caller - the
  * startup sweep retries on the next boot. Create flows want strict
  * semantics instead; see `ensureMainWorkspaceStrict`.
  */
@@ -107,7 +107,7 @@ export async function ensureMainWorkspaceStrict(
 	} catch (err) {
 		// A concurrent caller (e.g. the startup sweep racing a create saga)
 		// won the one-main-per-project unique index. That's the desired
-		// invariant, not a failure — re-query and return the winner's row.
+		// invariant, not a failure - re-query and return the winner's row.
 		const winner = ctx.db.query.workspaces
 			.findFirst({
 				where: and(

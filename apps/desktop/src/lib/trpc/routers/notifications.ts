@@ -128,7 +128,7 @@ export const createNotificationsRouter = (
 
 		/**
 		 * Banner style, whether banners appear at all, and the icon and app name
-		 * they carry are all macOS-side settings keyed to the app bundle — nothing
+		 * they carry are all macOS-side settings keyed to the app bundle - nothing
 		 * an in-app toggle can override. So point at the system pane instead.
 		 */
 		openSystemSettings: publicProcedure.mutation(async () => {
