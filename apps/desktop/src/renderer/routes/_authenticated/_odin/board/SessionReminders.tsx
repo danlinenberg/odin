@@ -12,6 +12,7 @@ import { BUTTON } from "../components/pill";
 import { dayOf, dueLabel, isDue, useReminders } from "../components/Reminders";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePendingFocus } from "../hooks/usePendingFocus";
+import { HoverBrief } from "./SessionBrief";
 
 /**
  * "Remind me" on a board session: Done now, back on a day you pick. The
@@ -148,23 +149,25 @@ export function SessionReminders() {
 						</HoverCardTrigger>
 						<HoverCardContent
 							align="start"
-							className="w-[380px] space-y-2 border-border bg-popover p-3 text-[12px] leading-[1.5]"
+							className="flex max-h-[70vh] w-[400px] flex-col gap-2 overflow-y-auto border-input bg-secondary p-3 shadow-[0_12px_40px_rgba(0,0,0,0.75)]"
 						>
-							<p
+							<div
 								dir="auto"
-								className="whitespace-pre-wrap break-words font-medium text-foreground"
+								className="whitespace-pre-wrap break-words text-[13px] font-semibold text-foreground"
 							>
 								{r.title}
-							</p>
-							{r.resume?.brief && (
-								<p
+							</div>
+							{/* The launch-time brief is usually just the title — don't repeat it. */}
+							{r.resume?.brief && r.resume.brief.trim() !== r.title.trim() && (
+								<div
 									dir="auto"
-									className="max-h-[220px] overflow-y-auto whitespace-pre-wrap break-words text-muted-foreground"
+									className="whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-soft-foreground"
 								>
 									{r.resume.brief.slice(0, 1500)}
-								</p>
+								</div>
 							)}
-							<div className="space-y-0.5 text-[11px] text-muted-foreground">
+							<HoverBrief sessionId={r.resume?.sessionId} />
+							<div className="border-t border-border pt-2 text-[11px] text-muted-foreground">
 								<div>
 									In {r.resume?.cwd.split("/").pop()} · {r.resume?.cwd}
 								</div>
