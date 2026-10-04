@@ -70,7 +70,8 @@ export function useOpenReminder() {
 			jira: jira.data?.issues ?? [],
 			pulls: pulls.data?.pulls ?? [],
 			notion: notion.data?.rows ?? [],
-			emails: emails.data?.emails ?? [],
+			// Junk too: All hides calendar mail, but one you dated is one you want.
+			emails: (emails.data?.emails ?? []).map((e) => ({ ...e, junk: false })),
 		}).find((row) => row.key === key);
 		if (item?.url) return openUrl(item.url);
 		navigate({ to: item?.to ?? "/all" });
