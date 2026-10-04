@@ -507,7 +507,7 @@ export function SessionBrief({
 						    panel keeps one edge. */}
 						<div
 							dir="auto"
-							className="line-clamp-2 text-left text-[12px] text-primary"
+							className="line-clamp-2 text-left text-[12px] text-link"
 						>
 							{title} ↗
 						</div>
@@ -552,7 +552,7 @@ export function SessionBrief({
 									<button
 										type="button"
 										onClick={() => openUrl(issue.url)}
-										className="truncate text-left text-[12px] text-primary hover:underline"
+										className="truncate text-left text-[12px] text-link hover:underline"
 									>
 										{issue.key} ↗
 									</button>
@@ -575,7 +575,7 @@ export function SessionBrief({
 											type="button"
 											onClick={() => openUrl(thread)}
 											dir="auto"
-											className="line-clamp-2 w-full text-left text-[12px] text-primary hover:underline"
+											className="line-clamp-2 w-full text-left text-[12px] text-link hover:underline"
 										>
 											{threadPreview?.text ?? "Open thread"} ↗
 										</button>
@@ -611,7 +611,7 @@ export function SessionBrief({
 									<button
 										type="button"
 										onClick={() => openUrl(pr.url)}
-										className="flex min-w-0 items-center gap-1.5 text-left text-[12px] text-primary hover:underline"
+										className="flex min-w-0 items-center gap-1.5 text-left text-[12px] text-link hover:underline"
 									>
 										<span className="truncate">
 											{pr.repo.split("/").pop()} #{pr.number}
@@ -636,7 +636,7 @@ export function SessionBrief({
 									<button
 										type="button"
 										onClick={() => openUrl(page.url)}
-										className="block min-w-0 flex-1 truncate text-left text-[12px] text-primary hover:underline"
+										className="block min-w-0 flex-1 truncate text-left text-[12px] text-link hover:underline"
 									>
 										{page.title ?? "Notion page"} ↗
 									</button>
@@ -657,7 +657,7 @@ export function SessionBrief({
 									<button
 										type="button"
 										onClick={() => openUrl(artifact)}
-										className="block min-w-0 flex-1 truncate text-left text-[12px] text-primary hover:underline"
+										className="block min-w-0 flex-1 truncate text-left text-[12px] text-link hover:underline"
 									>
 										Open artifact ↗
 									</button>
@@ -761,7 +761,7 @@ export function SessionBrief({
 												key={url}
 												type="button"
 												onClick={() => openUrl(url)}
-												className="text-primary hover:underline"
+												className="text-link hover:underline"
 											>
 												{url.split("/").slice(-3, -2)[0]} #
 												{url.split("/").pop()} ↗

@@ -323,7 +323,7 @@ export function FontSettingSection({
 										href="https://www.nerdfonts.com"
 										target="_blank"
 										rel="noopener noreferrer"
-										className="text-primary hover:underline"
+										className="text-link hover:underline"
 									>
 										Nerd Fonts
 									</a>{" "}
