@@ -2563,13 +2563,11 @@ function DevBoardPage() {
 		}
 	};
 
-	/** Park a Resume in Queued; useTaskQueue runs `command` when the gate clears. */
-	const queueResume = (
-		pane: Pane,
-		command: string,
-		reason: string,
-		closeDrawer = true,
-	) => {
+	/**
+	 * Park a Resume in Queued; useTaskQueue runs `command` when the gate clears.
+	 * The drawer stays put: it shows the wait and its ▶ Start now.
+	 */
+	const queueResume = (pane: Pane, command: string, reason: string) => {
 		useTabsStore.setState((state) => ({
 			panes: {
 				...state.panes,
@@ -2583,7 +2581,6 @@ function DevBoardPage() {
 				},
 			},
 		}));
-		if (closeDrawer) setDrawerCard(null);
 	};
 
 	const resumeCard = async (card: BoardCard, auto = false) => {
@@ -2619,6 +2616,7 @@ function DevBoardPage() {
 		const screen = visibleScreen(card.pane.id);
 		const shellOnScreen = screen.trim() !== "" && !agentOnScreen(screen);
 		if (agentPaneIds.has(card.pane.id) && !shellOnScreen) {
+			if (!auto) openDrawer(card);
 			const blocker = await resumeBlocker(card.pane, sessionCwd(card.pane));
 			if (blocker) {
 				const id =
@@ -2636,7 +2634,6 @@ function DevBoardPage() {
 				);
 				return;
 			}
-			if (!auto) openDrawer(card);
 			try {
 				await sendContinue(card.pane.id);
 			} catch (error) {
@@ -2734,21 +2731,23 @@ function DevBoardPage() {
 				? `claude --dangerously-skip-permissions --resume ${sessionId}`
 				: "claude --dangerously-skip-permissions --continue"
 		}${diedWorking ? " Continue" : ""}`;
-		const blocker = await resumeBlocker(card.pane, cwd);
+		// You resumed it to work in it — bring it up. The drawer swaps its
+		// read-only history for the live terminal once the PTY is back, and that
+		// terminal takes the keyboard. Auto-resume never steals the screen.
+		if (!auto) openDrawer(card);
+		// Only a Resume that goes back to work waits on the gate. One reopening
+		// at an idle prompt takes no working slot and holds no checkout — queuing
+		// it parked you behind every task in line, looking at the board.
+		const blocker = diedWorking ? await resumeBlocker(card.pane, cwd) : null;
 		if (blocker) {
 			queueResume(
 				card.pane,
 				cwd ? `cd '${cwd}' && ${resumeCmd}` : resumeCmd,
 				blocker,
-				!auto,
 			);
 			setResumingPaneIds((ids) => ids.filter((id) => id !== card.pane.id));
 			return;
 		}
-		// You resumed it to work in it — bring it up. The drawer swaps its
-		// read-only history for the live terminal once the PTY is back, and that
-		// terminal takes the keyboard. Auto-resume never steals the screen.
-		if (!auto) openDrawer(card);
 		try {
 			// Free the pane (dead or a live cold-restored shell) so the respawn
 			// re-runs the command. Ignore errors — pane may already be dead.
@@ -3972,7 +3971,10 @@ function DevBoardPage() {
 										// Catch up's lean card hides the terminal — resuming there
 										// left you staring at "Working…" with the session out of view.
 										if (inCatchUp) setCatchUpFull(drawerCard.pane.id);
-										void resumeCard(drawerCard);
+										const pane = panes[drawerCard.pane.id];
+										void resumeCard(
+											pane ? { ...drawerCard, pane } : drawerCard,
+										);
 									}}
 									title={
 										isWorkingNow(drawerCard.pane.id)
@@ -3993,7 +3995,9 @@ function DevBoardPage() {
 										"disabled:cursor-not-allowed disabled:bg-none disabled:bg-secondary disabled:text-faint-foreground disabled:shadow-none disabled:ring-1 disabled:ring-inset disabled:ring-border disabled:hover:brightness-100",
 									)}
 								>
-									{drawerCard.pane.odinQueued
+									{/* The live pane: a Resume queued from this drawer leaves
+									    drawerCard's snapshot without the flag. */}
+									{panes[drawerCard.pane.id]?.odinQueued
 										? resumingPaneIds.includes(drawerCard.pane.id)
 											? "▶ Starting…"
 											: "▶ Start now"
