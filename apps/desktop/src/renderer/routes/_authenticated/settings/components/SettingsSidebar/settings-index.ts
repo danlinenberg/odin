@@ -15,7 +15,7 @@ export const SCREENS = [
 	{
 		to: "/settings/connections",
 		label: "Connections",
-		hint: "Profiles, accounts, iCloud backup",
+		hint: "Profiles, accounts, links, iCloud backup",
 		icon: LuPlug,
 	},
 	{
@@ -96,6 +96,12 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		to: "/settings/connections",
 		section: "Accounts",
 		keywords: "account sign in connect email mail unread",
+	},
+	{
+		label: "Open links inside Odin",
+		to: "/settings/connections",
+		section: "Links",
+		keywords: "in-app browser default external chrome safari always",
 	},
 	{
 		label: "iCloud Drive",
