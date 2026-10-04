@@ -468,11 +468,18 @@ export function onlyMergeLeft(messages: BriefMessage[]): boolean {
 	return items.length > 0 && items.every((item) => MERGE_ITEM.test(item));
 }
 
-// "Reload the Odin window (⌘R) and open the All feed", "Open Insights and
-// check the new color", "Confirm the row stays gone" — a look at work that
-// already shipped. "Check why…", "Confirm I should…" and restarts stay open.
-const LOOK_ITEM =
-	/^(?:press\s+)?(?:⌘R|cmd\+R|(?:hard[- ])?(?:reload|refresh)\b|(?:re)?open\b.*\b(?:check|confirm|see|try)\b|(?:check|confirm) that\b|confirm the\b)/i;
+// A look at work that already shipped. "Check why…", "Confirm I should…",
+// restarts and "Open Settings and set X" stay open.
+const LOOK_ITEMS = [
+	// "Reload the Odin window (⌘R) and open the All feed", "Close the drawer".
+	/^(?:press\s+)?(?:⌘R|cmd\+R)|^(?:hard[- ])?(?:reload|refresh)\b|^close\b.*\bdrawer\b/i,
+	// "Check that the badge matches", "Confirm the row stays gone".
+	/^(?:check|confirm) that\b|^confirm the\b/i,
+	// "Open Insights and check the color", "Click Resume; confirm it opens".
+	/^(?:open|reopen|go to|click|right-click|press|close|resume|type|search|switch|toggle|star|mark|add|pick|set|hover|resize|let|leave|start|glance at|look at)\b.*\b(?:check|confirm|see|try)\b/i,
+];
+// "Confirm the two channels should stay out" is a question.
+const ASKS = /\bshould\b|\?\s*$/i;
 
 /**
  * The session is finished: every open action item is a look at what shipped.
@@ -480,7 +487,12 @@ const LOOK_ITEM =
  */
 export function onlyLookLeft(messages: BriefMessage[]): boolean {
 	const items = actionItems(messages);
-	return items.length > 0 && items.every((item) => LOOK_ITEM.test(item));
+	return (
+		items.length > 0 &&
+		items.every(
+			(item) => !ASKS.test(item) && LOOK_ITEMS.some((re) => re.test(item)),
+		)
+	);
 }
 
 /**

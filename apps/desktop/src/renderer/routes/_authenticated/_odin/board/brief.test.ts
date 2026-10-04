@@ -571,6 +571,8 @@ describe("onlyLookLeft", () => {
 			"Open Insights and check the new bar color.",
 			"Check that all 10 cards appear under Needs you.",
 			'Confirm the "Drop?" rows are gone from Next in line.',
+			"Close the open drawer; press ⌘R if Resume still bounces.",
+			"Click Resume on a stopped card; confirm the drawer opens.",
 		])
 			expect(onlyLookLeft([turn(`ACTION ITEMS\n1. ${item}`)])).toBe(true);
 	});
@@ -581,6 +583,8 @@ describe("onlyLookLeft", () => {
 			"Check why the GitHub token returns 401.",
 			"Confirm I should fire the 6 DELETEs.",
 			"Open Settings → Board and set your session limit.",
+			"Confirm the two excluded channels should stay out.",
+			"Open the brief and check it reads right?",
 		])
 			expect(
 				onlyLookLeft([turn(`ACTION ITEMS\n1. Reload Odin.\n2. ${item}`)]),
