@@ -544,8 +544,9 @@ function AllFeedPage() {
 							<div key={item.key} className={FEED_ROW}>
 								{/* The same columns the per-source feeds use, so a row here
 							    carries what its own feed would tell you: who it's from,
-							    where it stands, where it lives. */}
-								<div className="flex items-center gap-3">
+							    where it stands, where it lives. A grid, not a flex row,
+							    so the mention below wraps inside the title's column. */}
+								<div className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto_auto_auto] items-center gap-x-3">
 									<span
 										className={cn(
 											"flex w-[68px] shrink-0 items-center justify-center gap-1 rounded-[5px] px-[7px] py-[1px] text-[11px] font-semibold",
@@ -639,19 +640,18 @@ function AllFeedPage() {
 										)}
 									</span>
 									<DoneButton onClick={() => markDone(item)} />
+									{/* Same preview the Jira feed shows: a mention row is there
+								    because of one comment. Column 2 keeps it under the title. */}
+									{item.mention && (
+										<div className="col-start-2 mt-1.5 line-clamp-2 cursor-text select-text text-[11.5px] leading-relaxed text-muted-foreground">
+											<span className="font-semibold text-soft-foreground">
+												{item.mention.author ?? "Someone"}
+												{": "}
+											</span>
+											{item.mention.text}
+										</div>
+									)}
 								</div>
-								{/* Same preview the Jira feed shows: a mention row is there
-							    because of one comment. Indented past the source chip
-							    (68px + gap-3) so it sits under the title. */}
-								{item.mention && (
-									<div className="mt-1.5 line-clamp-2 cursor-text select-text pl-[80px] text-[11.5px] leading-relaxed text-muted-foreground">
-										<span className="font-semibold text-soft-foreground">
-											{item.mention.author ?? "Someone"}
-											{": "}
-										</span>
-										{item.mention.text}
-									</div>
-								)}
 							</div>
 						);
 					})}
