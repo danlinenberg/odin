@@ -411,11 +411,11 @@ function CatchUpCard({
 		<div className="flex min-h-0 flex-1 select-text cursor-text flex-col gap-6 overflow-y-auto px-8 py-7">
 			{/* What it's about first, at the size of the action items: you can't
 			    decide Next or Done on a session you don't recognise. */}
-			{written?.issue && (
+			{written?.goal && (
 				<div>
 					<div className={cn(label, "text-muted-foreground")}>The issue</div>
 					<div className="text-[15px] leading-relaxed text-foreground">
-						{text(written.issue)}
+						{text(written.goal)}
 					</div>
 				</div>
 			)}

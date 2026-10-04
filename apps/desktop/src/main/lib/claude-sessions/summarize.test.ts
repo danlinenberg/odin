@@ -113,7 +113,6 @@ describe("writeBrief", () => {
 			{
 				title: "t",
 				goal: "g",
-				issue: null,
 				done: null,
 				status: "s",
 				next: "n",
@@ -426,14 +425,12 @@ describe("parseBrief", () => {
 		const brief = parseBrief(
 			[
 				"GOAL: Create three $1-first-month coupon codes for the October EU conferences.",
-				"ISSUE: Marketing needs $1 coupons for three EU conferences in October.",
 				"DONE: Traced the coupon path; confirmed the flat-fee branch handles it.",
 				"STATUS: Confirmed it is data-only — 34 tests pass over the flat-fee path, no code change needed.",
 				"NEXT: Waiting on marketing for the codes, end dates and per-currency amounts.",
 			].join("\n"),
 		);
 		expect(brief.goal).toStartWith("Create three $1-first-month coupon");
-		expect(brief.issue).toStartWith("Marketing needs $1 coupons");
 		expect(brief.done).toContain("flat-fee branch");
 		expect(brief.status).toContain("34 tests pass");
 		expect(brief.next).toContain("Waiting on marketing");
@@ -507,7 +504,6 @@ describe("parseBrief", () => {
 		expect(parseBrief("   ")).toEqual({
 			title: null,
 			goal: null,
-			issue: null,
 			done: null,
 			status: null,
 			next: null,
@@ -536,6 +532,21 @@ describe("digest", () => {
 		expect(text).toContain("turn 29");
 		// The oldest turns are dropped, not the newest.
 		expect(text).not.toContain("turn 5 ");
+	});
+
+	test("a long session keeps the human's first follow-ups, where the objective is set", () => {
+		const messages = [
+			turn("user", "ping me when it's on the server"),
+			turn("assistant", "which host?"),
+			turn("user", "AWS, no vercel. run it on claude and chatgpt"),
+			...Array.from({ length: 30 }, (_, i) => turn("assistant", `step ${i}`)),
+		];
+		const text = digest({ title: null, prompt: "ping me", messages });
+		expect(text).toContain(
+			"HUMAN'S FIRST FOLLOW-UPS:\n- AWS, no vercel. run it on claude and chatgpt",
+		);
+		// The opening request is already its own section.
+		expect(text).not.toContain("- ping me");
 	});
 
 	test("a long turn loses its middle, never its conclusion", () => {
