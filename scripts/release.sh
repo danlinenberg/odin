@@ -81,6 +81,15 @@ git commit --quiet -m "Odin $NEW"
 git push --quiet -u origin "$BRANCH"
 gh pr create --repo "$SLUG" --base main --head "$BRANCH" \
 	--title "Odin $NEW" --body "Version bump for the $TAG release." >/dev/null
+# main requires CI's `check` job, so a merge before it passes is refused. The
+# check takes a moment to register on a new PR; then watch it to the end.
+echo "==> waiting for CI on the version bump (about 10 minutes)"
+for _ in $(seq 30); do
+	out=$(gh pr checks "$BRANCH" --repo "$SLUG" 2>&1 || true)
+	[[ $out == *"no checks reported"* ]] || break
+	sleep 2
+done
+gh pr checks "$BRANCH" --repo "$SLUG" --watch --fail-fast
 gh pr merge "$BRANCH" --repo "$SLUG" --squash --delete-branch
 
 cd "$REPO"
