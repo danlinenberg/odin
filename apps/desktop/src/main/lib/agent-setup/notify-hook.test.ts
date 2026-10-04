@@ -46,7 +46,7 @@ async function runNotifyHook(
 
 describe("getNotifyScriptContent", () => {
 	it("bumps the notify hook marker when hook semantics change", () => {
-		expect(NOTIFY_SCRIPT_MARKER).toBe("# Odin agent notification hook v9");
+		expect(NOTIFY_SCRIPT_MARKER).toBe("# Odin agent notification hook v10");
 	});
 
 	it("emits the v2 host-service payload with full agent identity", () => {
@@ -236,6 +236,43 @@ describe("getNotifyScriptContent", () => {
 		expect(await stopOn([launch("gone")])).toContain(
 			"event=PermissionRequest ",
 		);
+	});
+
+	it("keeps a Stop Working while a background Bash is still running", async () => {
+		const dir = mkdtempSync(path.join(tmpdir(), "odin-bg-bash-"));
+		const transcript = path.join(dir, "session.jsonl");
+		const out = path.join(dir, "tasks", "b1.output");
+		mkdirSync(path.dirname(out), { recursive: true });
+		writeFileSync(out, "");
+		const launch = JSON.stringify({
+			message: { content: `Output is being written to: ${out}. You will…` },
+			toolUseResult: { backgroundTaskId: "b1" },
+		});
+		const stopOn = async (lines: string[]) => {
+			writeFileSync(transcript, `${lines.join("\n")}\n`);
+			const result = await runNotifyHook({
+				hook_event_name: "Stop",
+				transcript_path: transcript,
+				last_assistant_message: "Waiting on CI.\n\nACTION ITEMS:\n1. Wait.",
+			});
+			return result.stderr.toString();
+		};
+		// The poll holds its output file open while it runs.
+		const poll = Bun.spawn({
+			cmd: ["bash", "-c", `exec >>"${out}"; exec sleep 30`],
+		});
+		try {
+			await Bun.sleep(200);
+			expect(await stopOn([launch])).toContain("event=Start ");
+			expect(await stopOn([launch, "<task-id>b1</task-id>"])).toContain(
+				"event=PermissionRequest ",
+			);
+		} finally {
+			poll.kill();
+			await poll.exited;
+		}
+		// Gone without a notification (killed): nobody holds the file.
+		expect(await stopOn([launch])).toContain("event=PermissionRequest ");
 	});
 
 	it("drops every event from a claude running under another claude", async () => {
