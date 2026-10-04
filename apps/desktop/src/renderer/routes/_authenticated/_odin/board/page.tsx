@@ -469,12 +469,13 @@ function CatchUpCard({
 			<button
 				type="button"
 				onClick={onShowSession}
+				title="Leave Catch up and open this session"
 				className={cn(
 					"mt-auto self-start rounded-[7px] px-3 py-1.5 text-xs font-semibold",
 					BUTTON.secondary,
 				)}
 			>
-				Show the session ↓
+				Back to session
 			</button>
 		</div>
 	);
@@ -3849,7 +3850,8 @@ function DevBoardPage() {
 							<CatchUpCard
 								card={drawerCard}
 								title={cardTitle(drawerCard)}
-								onShowSession={() => setCatchUpFull(drawerCard.pane.id)}
+								// Out of Catch up, onto this card's normal drawer.
+								onShowSession={() => setCatchUp(null)}
 							/>
 						) : (
 							/* terminal on the left, "what's going on" brief on the right */
