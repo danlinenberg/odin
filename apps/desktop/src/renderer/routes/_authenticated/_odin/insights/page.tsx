@@ -244,28 +244,33 @@ function WeekChart({
 }
 
 /**
- * The productivity line: tasks shipped per day you worked. A rate, not a
- * count, so a half-finished week isn't read as a slump.
+ * The productivity line: tasks shipped per day that has passed. A rate, not a
+ * count, so a half-finished week isn't read as a slump — and per calendar day,
+ * not per day worked, so a two-day week doesn't outrun a full one.
  *
  * The line is drawn in a stretched 0–100 SVG box; the dots and labels are
  * HTML placed by percent on top of it, so they stay round at any width.
  */
 function ShippedChart({
 	weeks: all,
+	since,
 }: {
 	weeks: {
 		start: number;
 		shipped: number;
-		daysWorked: number;
 		yourHours: number;
 	}[];
+	since: number | null;
 }) {
 	// A week with none of your time has no rate; plotted as zero it read as a
 	// slump. "None" is what the page shows as "0 of yours" — a stray minute
 	// after midnight doesn't make a week.
-	const weeks = all.filter((week) => week.yourHours > 0 && week.daysWorked > 0);
+	const weeks = all.filter((week) => week.yourHours > 0);
 	if (weeks.length === 0) return <Empty>Nothing shipped yet.</Empty>;
-	const rates = weeks.map((week) => week.shipped / week.daysWorked);
+	const days = weeks.map((week) => daysPassed(week.start, since));
+	const rates = weeks.map(
+		(week, index) => week.shipped / (days[index] as number),
+	);
 	// Headroom so the top point's label clears the card edge.
 	const max = Math.max(1, ...rates) * 1.2;
 	const points = weeks.map((week, index) => ({
@@ -292,12 +297,12 @@ function ShippedChart({
 						vectorEffect="non-scaling-stroke"
 					/>
 				</svg>
-				{points.map(({ week, rate, x, y }) => (
+				{points.map(({ week, rate, x, y }, index) => (
 					<div
 						key={week.start}
 						className="absolute flex size-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center"
 						style={{ left: `${x}%`, top: `${y}%` }}
-						title={`${plural(week.shipped, "task")} shipped over ${plural(week.daysWorked, "day")} you worked`}
+						title={`${plural(week.shipped, "task")} shipped over ${plural(days[index] as number, "day")}`}
 					>
 						<div className="absolute bottom-full text-[11px] font-medium tabular-nums text-soft-foreground">
 							{Math.round(rate * 10) / 10}
@@ -451,6 +456,20 @@ function weekStart(at: number): number {
 	date.setHours(0, 0, 0, 0);
 	date.setDate(date.getDate() - date.getDay());
 	return date.getTime();
+}
+
+/**
+ * Days of the week at `start` that have happened: seven for a past week, today
+ * and before for this one, and from the first record on for the week it began.
+ */
+function daysPassed(start: number, since: number | null): number {
+	const from = new Date(Math.max(start, since ?? start));
+	from.setHours(0, 0, 0, 0);
+	const tomorrow = new Date();
+	tomorrow.setHours(24, 0, 0, 0);
+	const end = Math.min(shiftWeeks(start, 1), tomorrow.getTime());
+	// Rounded: a week across a DST change is an hour off seven days.
+	return Math.round((end - from.getTime()) / DAY_MS);
 }
 
 /** `count` weeks from `start`, stepped as a date so DST can't drift it. */
@@ -980,10 +999,10 @@ function Workload() {
 				{/* `shipped` is absent until the main process restarts onto this build. */}
 				{data.weeks[0]?.shipped !== undefined && (
 					<Section
-						title="Shipped per day you worked"
+						title="Shipped per day"
 						note="tasks that ended in a PR, counted once at the first"
 					>
-						<ShippedChart weeks={data.weeks} />
+						<ShippedChart weeks={data.weeks} since={data.since} />
 					</Section>
 				)}
 

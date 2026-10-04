@@ -247,7 +247,7 @@ describe("computeWorkload", () => {
 		expect(out.weeks.at(-1)?.start).toBe(weekStart(MON));
 	});
 
-	test("a task ships once, in the week of its first PR, over the days you worked", () => {
+	test("a task ships once, in the week of its first PR", () => {
 		const nextWeek = MON + 7 * 86_400_000;
 		const out = computeWorkload(
 			[
@@ -268,12 +268,7 @@ describe("computeWorkload", () => {
 			],
 			{ now: nextWeek, weeks: 2 },
 		);
-		expect(
-			out.weeks.map(({ shipped, daysWorked }) => [shipped, daysWorked]),
-		).toEqual([
-			[2, 2],
-			[0, 0],
-		]);
+		expect(out.weeks.map((week) => week.shipped)).toEqual([2, 0]);
 	});
 
 	test("weeks before the record starts are dropped, not drawn as zero", () => {

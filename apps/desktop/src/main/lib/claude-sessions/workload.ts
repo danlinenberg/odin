@@ -537,8 +537,6 @@ export interface WeekRow {
 	sessions: number;
 	/** Tasks — sessions — whose first PR opened this week. */
 	shipped: number;
-	/** Days with any of your time in them. */
-	daysWorked: number;
 }
 
 export interface TaskRow {
@@ -907,7 +905,6 @@ export function computeWorkload(
 				yourHours: hours(totalMs(mergeIntervals(bucket.yours))),
 				sessions: bucket.sessions,
 				shipped: bucket.shipped,
-				daysWorked: byDay(mergeIntervals(bucket.yours)).size,
 			})),
 		recap: recap(pieces),
 		byRepo: tallyHours(all, (session) => session.repo, top).map(
