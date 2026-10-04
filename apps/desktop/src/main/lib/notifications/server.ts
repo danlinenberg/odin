@@ -2,7 +2,10 @@ import { EventEmitter } from "node:events";
 import express from "express";
 import { NOTIFICATION_EVENTS } from "shared/constants";
 import { env } from "shared/env.shared";
-import type { AgentLifecycleEvent } from "shared/notification-types";
+import type {
+	AgentLifecycleEvent,
+	RunInShellRequest,
+} from "shared/notification-types";
 import { HOOK_PROTOCOL_VERSION } from "../terminal/env";
 import { mapEventType } from "./map-event-type";
 import { resolvePaneId } from "./resolve-pane-id";
@@ -122,6 +125,37 @@ app.get("/hook/complete", (req, res) => {
 	notificationsEmitter.emit(NOTIFICATION_EVENTS.AGENT_LIFECYCLE, event);
 
 	res.json({ success: true, paneId: resolvedPaneId, tabId });
+});
+
+/**
+ * An agent hands Odin something to run where you can watch it — the app from
+ * a worktree, a dev server — and it runs in that session's Shell pane, not in
+ * a subagent or background Bash you never see.
+ *
+ * `curl -sf http://127.0.0.1:$ODIN_PORT/shell/run --data-urlencode paneId=$ODIN_PANE_ID --data-urlencode "command=…"`
+ *
+ * This runs commands, and the CORS above lets any web page reach this port, so
+ * it takes POST only and refuses anything a browser sent: browsers stamp an
+ * Origin on every cross-site POST, curl never does.
+ */
+app.post("/shell/run", express.urlencoded({ extended: false }), (req, res) => {
+	if (req.headers.origin) {
+		return res.status(403).send("Not from a browser.\n");
+	}
+	const { paneId, command } = req.body ?? {};
+	if (
+		typeof paneId !== "string" ||
+		!paneId ||
+		typeof command !== "string" ||
+		!command.trim()
+	) {
+		return res.status(400).send("Need paneId and command.\n");
+	}
+	const request: RunInShellRequest = { paneId, command };
+	if (!notificationsEmitter.emit(NOTIFICATION_EVENTS.RUN_IN_SHELL, request)) {
+		return res.status(503).send("Odin's window isn't open.\n");
+	}
+	res.send("Running in this session's Shell in Odin.\n");
 });
 
 // Health check

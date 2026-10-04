@@ -1,5 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { electronTrpcClient } from "renderer/lib/trpc-client";
 import { usePendingFocus } from "renderer/routes/_authenticated/_odin/hooks/usePendingFocus";
 import { NOTIFICATION_EVENTS } from "shared/constants";
 import { debugLog } from "shared/debug";
@@ -74,6 +75,50 @@ export function stopStatus(
 	return watched ? "idle" : "review";
 }
 
+/**
+ * `command`, then a shell to come back to. Ctrl+C has to stop the command, not
+ * the pane: the trap keeps `zsh -c` alive through it (the command itself still
+ * gets the default SIGINT), and then it hands over to a login shell.
+ */
+const thenShell = (command: string) =>
+	`trap : INT; ${command}\ntrap - INT; exec "\${SHELL:-/bin/zsh}" -l`;
+
+/**
+ * Run an agent's `command` in its session's Shell — the pane the drawer's
+ * ❯ Shell button opens — where you can watch it and stop it.
+ *
+ * Always a fresh pane whose process is the command: typed into a cold shell
+ * it gets swallowed, and typed into a busy one it goes to whatever is running.
+ * Asking to run something there again means replacing what's there, so the
+ * session's previous shell goes.
+ */
+async function runInSessionShell(
+	sessionPaneId: string,
+	workspaceId: string,
+	command: string,
+) {
+	const state = useTabsStore.getState();
+	const session = state.panes[sessionPaneId];
+	if (!session) return;
+	const previous = session.odinShellPaneId;
+	if (previous && state.panes[previous]) state.removePane(previous);
+	const cwd = session.cwd ?? session.initialCwd ?? undefined;
+	const { tabId, paneId } = state.addTab(workspaceId, { initialCwd: cwd });
+	useTabsStore.setState((s) => ({
+		panes: {
+			...s.panes,
+			[sessionPaneId]: { ...s.panes[sessionPaneId], odinShellPaneId: paneId },
+		},
+	}));
+	await electronTrpcClient.terminal.createOrAttach.mutate({
+		paneId,
+		tabId,
+		workspaceId,
+		cwd,
+		command: thenShell(command),
+	});
+}
+
 export function useAgentHookListener() {
 	const navigate = useNavigate();
 
@@ -146,6 +191,11 @@ export function useAgentHookListener() {
 				) {
 					state.setPaneStatus(paneId, "idle");
 				}
+			} else if (event.type === NOTIFICATION_EVENTS.RUN_IN_SHELL) {
+				if (paneId)
+					runInSessionShell(paneId, workspaceId, event.data.command).catch(
+						(error) => console.warn("[run-in-shell] failed:", error),
+					);
 			} else if (event.type === NOTIFICATION_EVENTS.FOCUS_TAB) {
 				// A banner names a board card, so clicking it opens that card's
 				// session drawer. The board is where every session lives now.
