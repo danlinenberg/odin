@@ -119,7 +119,7 @@ import {
 } from "./brief";
 import { DiffView } from "./DiffView";
 import { NextInLine } from "./NextInLine";
-import { SessionBrief } from "./SessionBrief";
+import { HoverBrief, SessionBrief } from "./SessionBrief";
 import {
 	RemindButton,
 	remindSession,
@@ -1139,18 +1139,7 @@ function CardHoverContent({
 	// The launch-time brief is usually just the title — don't repeat it.
 	const summary =
 		text ?? (known && known.trim() !== title.trim() ? known : fileBrief);
-	// What the session is waiting on you for — the same cached transcript the
-	// card's pills read, so hovering costs no fetch.
-	const { data: transcript } = useCardTranscript(card, false);
-	const todo = transcript ? actionItems(transcript.messages) : [];
-	// The drawer's written brief — the board warms it for every card, so this
-	// is a cache hit, not a model call.
 	const sessionId = useCardSessionId(card);
-	const { data: written } =
-		electronTrpc.terminal.summarizeClaudeSession.useQuery(
-			{ sessionId: sessionId ?? "" },
-			{ enabled: !!sessionId, retry: false, staleTime: 30_000 },
-		);
 
 	return (
 		<div className="flex flex-col gap-2">
@@ -1163,30 +1152,7 @@ function CardHoverContent({
 					{summary}
 				</div>
 			)}
-			{written?.goal && (
-				<div className="border-t border-border pt-2">
-					<div className="mb-1 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">
-						Goal
-					</div>
-					<div className="break-words text-[12.5px] leading-relaxed text-soft-foreground">
-						{written.goal}
-					</div>
-				</div>
-			)}
-			{todo.length > 0 && (
-				<div className="border-t border-border pt-2">
-					<div className="mb-1 text-[10.5px] font-semibold uppercase tracking-wide text-attention">
-						Action items
-					</div>
-					<ol className="list-decimal space-y-0.5 pl-4 text-[12.5px] leading-relaxed text-soft-foreground">
-						{todo.map((item) => (
-							<li key={item} className="break-words">
-								{item}
-							</li>
-						))}
-					</ol>
-				</div>
-			)}
+			<HoverBrief sessionId={sessionId} />
 		</div>
 	);
 }

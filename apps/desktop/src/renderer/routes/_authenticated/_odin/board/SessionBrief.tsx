@@ -203,6 +203,53 @@ function plural(label: string, found: unknown, mine: unknown[]): string {
 	return (found ? 1 : 0) + mine.length > 1 ? `${label}s` : label;
 }
 
+/**
+ * The hover's half of the brief: the goal, and what the session is waiting on
+ * you for. Both are cache hits — the board warms the written brief, and the
+ * transcript is the one the card's pills already read.
+ */
+export function HoverBrief({ sessionId }: { sessionId?: string | null }) {
+	const { data: transcript } =
+		electronTrpc.terminal.readClaudeTranscript.useQuery(
+			{ sessionId: sessionId ?? "" },
+			{ enabled: !!sessionId, retry: false, staleTime: 60_000 },
+		);
+	const { data: written } =
+		electronTrpc.terminal.summarizeClaudeSession.useQuery(
+			{ sessionId: sessionId ?? "" },
+			{ enabled: !!sessionId, retry: false, staleTime: 30_000 },
+		);
+	const todo = transcript ? actionItems(transcript.messages) : [];
+	return (
+		<>
+			{written?.goal && (
+				<div className="border-t border-border pt-2">
+					<div className="mb-1 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">
+						Goal
+					</div>
+					<div className="break-words text-[12.5px] leading-relaxed text-soft-foreground">
+						{written.goal}
+					</div>
+				</div>
+			)}
+			{todo.length > 0 && (
+				<div className="border-t border-border pt-2">
+					<div className="mb-1 text-[10.5px] font-semibold uppercase tracking-wide text-attention">
+						Action items
+					</div>
+					<ol className="list-decimal space-y-0.5 pl-4 text-[12.5px] leading-relaxed text-soft-foreground">
+						{todo.map((item) => (
+							<li key={item} className="break-words">
+								{item}
+							</li>
+						))}
+					</ol>
+				</div>
+			)}
+		</>
+	);
+}
+
 export function SessionBrief({
 	paneId,
 	cwd,
