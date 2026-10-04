@@ -9,23 +9,20 @@ import { ODIN_HOME_DIR } from "./app-environment";
  * titles here; a closed card keeps its last one.
  */
 const titlesPath = () => join(ODIN_HOME_DIR, "card-titles.json");
-let titles: Record<string, string> | null = null;
 
-export function cardTitles(): Record<string, string> {
-	if (!titles) {
-		try {
-			titles = JSON.parse(readFileSync(titlesPath(), "utf8"));
-		} catch {
-			titles = {};
-		}
+export function cardTitles(path = titlesPath()): Record<string, string> {
+	try {
+		return JSON.parse(readFileSync(path, "utf8"));
+	} catch {
+		return {};
 	}
-	return titles as Record<string, string>;
 }
 
 export function rememberCardTitles(
 	panes: Record<string, { claudeSessionId?: string; odinTaskTitle?: string }>,
+	path = titlesPath(),
 ): void {
-	const saved = cardTitles();
+	const saved = cardTitles(path);
 	let changed = false;
 	for (const { claudeSessionId, odinTaskTitle } of Object.values(panes)) {
 		if (!claudeSessionId || !odinTaskTitle) continue;
@@ -36,7 +33,7 @@ export function rememberCardTitles(
 	if (!changed) return;
 	// A full disk loses a rename, not the board save that carried it.
 	try {
-		writeFileSync(titlesPath(), JSON.stringify(saved));
+		writeFileSync(path, JSON.stringify(saved));
 	} catch (error) {
 		console.warn("[card-titles] not saved:", error);
 	}
