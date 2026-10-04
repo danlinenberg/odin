@@ -28,6 +28,13 @@ export interface PullRequestStatus {
 	failed: string[];
 	/** Checks that came back green. Skipped ones aren't counted either way. */
 	passed: number;
+	/** The PR author's login. */
+	author: string | null;
+	/**
+	 * Opened by one of the logged-in gh accounts. A teammate's PR the session only
+	 * linked is context, not its output. Null when either side is unknown.
+	 */
+	mine: boolean | null;
 }
 
 /** Injectable so the retry below is testable without a GitHub account. */
@@ -71,6 +78,7 @@ function status(stdout: string): PullRequestStatus | null {
 		isDraft?: boolean;
 		reviewDecision?: string | null;
 		statusCheckRollup?: RollupEntry[] | null;
+		author?: { login?: string } | null;
 	};
 	if (pr.state !== "OPEN" && pr.state !== "MERGED" && pr.state !== "CLOSED") {
 		return null;
@@ -83,6 +91,8 @@ function status(stdout: string): PullRequestStatus | null {
 		awaiting: [],
 		failed: [],
 		passed: 0,
+		author: pr.author?.login ?? null,
+		mine: null,
 	};
 	for (const entry of pr.statusCheckRollup ?? []) {
 		const name = entry.name ?? entry.context ?? "check";
@@ -145,22 +155,43 @@ export async function ghAsAnyAccount<T>(
 	return null;
 }
 
+let defaultAccounts: Promise<Set<string>> | null = null;
+
+/** Every logged-in gh login. Empty when gh can't say. */
+function loggedInAccounts(exec: GhExec): Promise<Set<string>> {
+	if (exec === gh && defaultAccounts) return defaultAccounts;
+	const accounts = exec(["auth", "status"]).then(
+		({ stdout }) => new Set([...stdout.matchAll(ACCOUNT)].map(([, a]) => a)),
+		() => new Set<string>(),
+	);
+	if (exec === gh) {
+		defaultAccounts = accounts.then((found) => {
+			if (!found.size) defaultAccounts = null;
+			return found;
+		});
+	}
+	return accounts;
+}
+
 /** Null when no logged-in account can see the PR; the panel shows no label. */
-export function pullRequestState(
+export async function pullRequestState(
 	url: string,
 	exec: GhExec = gh,
 ): Promise<PullRequestStatus | null> {
-	return ghAsAnyAccount(
+	const pr = await ghAsAnyAccount(
 		[
 			"pr",
 			"view",
 			url,
 			"--json",
-			"state,isDraft,reviewDecision,statusCheckRollup",
+			"state,isDraft,reviewDecision,statusCheckRollup,author",
 		],
 		status,
 		exec,
 	);
+	if (!pr?.author) return pr;
+	const accounts = await loggedInAccounts(exec);
+	return { ...pr, mine: accounts.size ? accounts.has(pr.author) : null };
 }
 
 /** The checkout in `git worktree list --porcelain` that has `branch` checked out. */

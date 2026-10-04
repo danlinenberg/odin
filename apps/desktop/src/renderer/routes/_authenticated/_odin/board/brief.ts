@@ -492,7 +492,8 @@ export function mergeCheckUrls(messages: BriefMessage[]): string[] {
 }
 
 /**
- * Finished, bar a click: every PR the session linked is approved with no red
+ * Finished, bar a click: every PR of yours the session linked (a teammate's
+ * isn't yours to merge) is approved with no red
  * check, merged, or closed — and at least one is still open waiting on that
  * click. That card is Done, not Needs you, whatever else its action items say.
  * With all of them merged it takes a merge-only item list to say the same
@@ -504,11 +505,18 @@ export function mergeReady(
 	messages: BriefMessage[],
 	states: Record<
 		string,
-		{ state: string; approved?: boolean; failed?: string[] } | null
+		{
+			state: string;
+			approved?: boolean;
+			failed?: string[];
+			mine?: boolean | null;
+		} | null
 	>,
 ): boolean {
 	if (messages[messages.length - 1]?.role !== "assistant") return false;
-	const prs = mergeCheckUrls(messages).map((url) => states[url]);
+	const prs = mergeCheckUrls(messages)
+		.map((url) => states[url])
+		.filter((pr) => pr?.mine !== false);
 	if (
 		!prs.length ||
 		prs.some(
