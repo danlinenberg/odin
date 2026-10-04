@@ -7,13 +7,21 @@
  * a fresh /tmp dir — the pty-daemon socket and manifest hang off those, so it
  * can't adopt a running Odin's daemon or take its single-instance lock — then
  * drives the renderer over CDP the way a person would: click the rail, write
- * a task down, add a profile, press ⌘F. Exits 1 with a list of what broke;
+ * a task down, add a profile, press ⌘F, start a session (on a fake `claude`)
+ * and mark it done. Exits 1 with a list of what broke;
  * SMOKE_SHOTS_DIR=<dir> also saves a screenshot of every failed step.
  *
  * Dependency-free (Bun WebSocket + fetch), like the other cdp-*.ts scripts.
  */
 import { spawn } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import electronBinary from "electron";
 
@@ -65,6 +73,34 @@ writeFileSync(
 	}),
 );
 
+// A checkout for sessions to start in, and a stand-in for Claude Code: it
+// records how Odin invoked it, then stays alive the way a working session does.
+const repo = join(home, "dev", "smoke-repo");
+mkdirSync(repo, { recursive: true });
+writeFileSync(
+	join(home, ".gitconfig"),
+	"[user]\n\tname = Odin Smoke\n\temail = smoke@odin.local\n",
+);
+for (const args of [
+	["init", "-q", "-b", "main"],
+	["commit", "-q", "--allow-empty", "-m", "init"],
+])
+	Bun.spawnSync(["git", "-C", repo, ...args], { env: { ...env } });
+env.DAN_DEFAULT_REPO = repo;
+// Either would point the app at the real config or shell setup.
+delete env.ODIN_CONFIG_PATH;
+delete env.ZDOTDIR;
+mkdirSync(join(home, "bin"));
+writeFileSync(
+	join(home, "bin", "claude"),
+	`#!/bin/sh\nprintf '%s\\n' "$@" > "$HOME/claude.args"\necho $$ > "$HOME/claude.pid"\necho "fake claude is working"\nexec sleep 600\n`,
+	{ mode: 0o755 },
+);
+// Sessions run in a login shell, which reads these after macOS's path_helper
+// has reordered PATH — so the fake beats a real claude in /opt/homebrew/bin.
+for (const profile of [".zprofile", ".bash_profile"])
+	writeFileSync(join(home, profile), 'export PATH="$HOME/bin:$PATH"\n');
+
 const app = spawn(
 	electronBinary as unknown as string,
 	[
@@ -103,7 +139,7 @@ async function quit(code: number): Promise<never> {
 setTimeout(() => {
 	console.error("FAIL smoke timed out\n", appLog.slice(-4000));
 	void quit(1);
-}, 240_000).unref();
+}, 300_000).unref();
 
 // --- CDP ---------------------------------------------------------------------
 type Target = { type: string; url: string; webSocketDebuggerUrl?: string };
@@ -213,6 +249,39 @@ async function expectHealthy() {
 	}
 }
 const rail = (label: string) => click("button", label);
+async function waitForFile(path: string, ms: number) {
+	for (const end = Date.now() + ms; !existsSync(path); await sleep(500)) {
+		if (Date.now() > end) throw new Error(`${path} never appeared`);
+	}
+}
+function isAlive(pid: number) {
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch {
+		return false;
+	}
+}
+/** The end of every session's saved terminal output, for a failure report. */
+function terminalTails() {
+	const files = Bun.spawnSync([
+		"find",
+		join(home, ".odin"),
+		"-name",
+		"scrollback.bin",
+	])
+		.stdout.toString()
+		.split("\n")
+		.filter(Boolean);
+	return files
+		.map((f) =>
+			readFileSync(f, "utf8")
+				// biome-ignore lint/suspicious/noControlCharactersInRegex: stripping ANSI escapes
+				.replace(/\x1b\[[0-9;?]*[a-zA-Z]|\x1b\][^\x07]*\x07/g, "")
+				.slice(-400),
+		)
+		.join("\n---\n");
+}
 
 // --- flows -------------------------------------------------------------------
 const failures: string[] = [];
@@ -224,6 +293,11 @@ async function step(name: string, flow: () => Promise<void>) {
 	} catch (error) {
 		failures.push(`${name}: ${(error as Error).message}`);
 		console.log(`FAIL ${name}\n     ${(error as Error).message}`);
+		// CI has no window to look at: say what was on screen and in the PTYs.
+		const body = await page<string>("document.body.innerText").catch(() => "");
+		console.log(`     page: ${body.replace(/\s+/g, " ").slice(0, 600)}`);
+		const tails = terminalTails();
+		if (tails) console.log(`     terminals:\n${tails}`);
 		if (SHOTS) {
 			const { data } = await send("Page.captureScreenshot");
 			await Bun.write(
@@ -385,6 +459,48 @@ await step("Quick question follows up in the open conversation", async () => {
 	await waitForText("follows up in", false);
 	await waitForText(QUESTION);
 });
+
+const SESSION = `Smoke session ${Date.now()}`;
+await step(
+	"New Session puts a card on the board and gives claude the prompt",
+	async () => {
+		// The previous step left the conversation's drawer open; Esc closes it.
+		await page(
+			`window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`,
+		);
+		await rail("Dev Board");
+		await waitForText("next in line");
+		await click("button", "Describe a task and start an agent session");
+		await fill('textarea[placeholder^="What should the agent do?"]', SESSION);
+		await click("button", "Start session");
+		await waitForText(SESSION, true, 30_000);
+		// Written last by the fake, so the args are complete once it's there. A busy
+		// machine queues the launch, hence the long wait.
+		await waitForFile(join(home, "claude.pid"), 90_000);
+		const args = readFileSync(join(home, "claude.args"), "utf8");
+		if (!args.includes("--session-id") || !args.includes(SESSION))
+			throw new Error(`claude was run with: ${args.slice(0, 300)}`);
+	},
+);
+
+await step(
+	"Done on the card ends the session and clears the board",
+	async () => {
+		const pid = Number(readFileSync(join(home, "claude.pid"), "utf8"));
+		const found = await page<boolean>(`(() => {
+		const done = [...document.querySelectorAll('button[title="Done — remove from the board"]')]
+			.find((b) => b.parentElement.textContent.includes(${JSON.stringify(SESSION)}));
+		done?.click();
+		return !!done;
+	})()`);
+		if (!found) throw new Error("no Done button on the session's card");
+		await waitForText(SESSION, false);
+		for (const end = Date.now() + 15_000; isAlive(pid); await sleep(250)) {
+			if (Date.now() > end)
+				throw new Error(`claude (pid ${pid}) still running`);
+		}
+	},
+);
 
 await step("no uncaught errors in the renderer", async () => {
 	if (exceptions.length) throw new Error(exceptions.join("\n     "));
