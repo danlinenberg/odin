@@ -271,6 +271,24 @@ describe("computeWorkload", () => {
 		expect(out.weeks.map((week) => week.shipped)).toEqual([3, 1]);
 	});
 
+	test("a PR merged the week after its session ships then, without a session", () => {
+		const nextWeek = MON + 7 * 86_400_000;
+		const out = computeWorkload(
+			[
+				session({
+					sessionId: "thursday",
+					prs: ["a"],
+					prAt: [nextWeek],
+					yours: [[MON, MON + 10 * MINUTE]],
+				}),
+			],
+			{ now: nextWeek, weeks: 2 },
+		);
+		expect(out.weeks.map((week) => week.shipped)).toEqual([0, 1]);
+		expect(out.weeks.map((week) => week.sessions)).toEqual([1, 0]);
+		expect(out.recap.map((week) => week.sessions)).toEqual([1, 0]);
+	});
+
 	test("weeks before the record starts are dropped, not drawn as zero", () => {
 		// Six weeks were asked for; only one has any transcript behind it, and
 		// five empty columns would read as five quiet weeks that never happened.

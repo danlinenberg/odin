@@ -1001,7 +1001,7 @@ function Workload() {
 				{data.weeks[0]?.shipped !== undefined && (
 					<Section
 						title="Shipped per week"
-						note="merged PRs, by the week they opened; a week still going shows its pace"
+						note="your PRs from sessions, by the week they merged; a week still going shows its pace"
 					>
 						<ShippedChart weeks={data.weeks} since={data.since} />
 					</Section>

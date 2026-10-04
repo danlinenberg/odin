@@ -535,7 +535,7 @@ export interface WeekRow {
 	agentHours: number;
 	yourHours: number;
 	sessions: number;
-	/** Merged PRs opened this week. */
+	/** PRs shipped this week - Insights passes merge times, so merged. */
 	shipped: number;
 }
 
@@ -748,7 +748,7 @@ function recap(sessions: SessionWork[]): RecapWeek[] {
 		.sort((a, b) => a[0] - b[0])
 		.map(([start, list]) => ({
 			start,
-			sessions: list.length,
+			sessions: list.filter((s) => s.intervals.length).length,
 			agentHours: hours(list.reduce((sum, s) => sum + agentMs(s), 0)),
 			yourHours: hours(totalMs(mergeIntervals(list.flatMap(yourSpans)))),
 			prs: list.reduce((sum, s) => sum + s.prs.length, 0),
@@ -851,11 +851,13 @@ export function computeWorkload(
 		const bucket = buckets.get(weekStart(session.startedAt));
 		if (!bucket) continue;
 		bucket.agentMs += agentMs(session);
-		bucket.sessions += 1;
+		// A week holding only a merge - the work ran the week before - isn't a
+		// session that week.
+		if (session.intervals.length) bucket.sessions += 1;
 		bucket.yours.push(...yourSpans(session));
 	}
-	// Every merged PR ships in the week it opened. The caller drops unmerged
-	// ones, so a fix redone after a closed PR still counts once.
+	// Every PR ships in the week of its `prAt`. Insights passes merge times
+	// and drops unmerged PRs, so a fix redone after a closed PR counts once.
 	for (const session of all)
 		for (const at of session.prAt) {
 			const bucket = buckets.get(weekStart(at ?? session.startedAt));
