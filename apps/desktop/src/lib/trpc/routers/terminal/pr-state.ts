@@ -226,24 +226,26 @@ export async function pullRequestState(
 
 const PR_PARTS = /^https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/pull\/(\d+)$/;
 const RECHECK_MS = 10 * 60_000;
-const mergedUrls = new Set<string>();
+const merges = new Map<string, { at: number; author: string | null }>();
 const checkedAt = new Map<string, number>();
 
 /**
- * Which of `urls` are merged PRs. Insights asks about every PR a session
- * opened, hundreds of them, so it's one GraphQL call per repo (100 PRs a call)
- * rather than a `gh pr view` each. A merge is final: a merged url is never
- * asked about again, the rest at most every ten minutes. A repo no logged-in
- * account can read counts as unmerged - only a confirmed merge ships.
+ * Your merged PRs among `urls`, each with when it merged. Insights asks about
+ * every PR a session opened, hundreds of them, so it's one GraphQL call per
+ * repo (100 PRs a call) rather than a `gh pr view` each. A merge is final: a
+ * merged url is never asked about again, the rest at most every ten minutes. A
+ * repo no logged-in account can read counts as unmerged - only a confirmed
+ * merge ships. "Yours" = authored by a logged-in gh account; a teammate's PR a
+ * session pushed to isn't. When gh can't name the accounts, nothing is dropped.
  */
 export async function mergedPullRequests(
 	urls: string[],
 	exec: GhExec = gh,
-): Promise<Set<string>> {
+): Promise<Map<string, number>> {
 	const now = Date.now();
 	const byRepo = new Map<string, Map<number, string>>();
 	for (const url of new Set(urls)) {
-		if (mergedUrls.has(url) || now - (checkedAt.get(url) ?? 0) < RECHECK_MS)
+		if (merges.has(url) || now - (checkedAt.get(url) ?? 0) < RECHECK_MS)
 			continue;
 		const [, owner, name, number] = PR_PARTS.exec(url) ?? [];
 		if (!number) continue;
@@ -251,6 +253,11 @@ export async function mergedPullRequests(
 		if (!byRepo.has(repo)) byRepo.set(repo, new Map());
 		byRepo.get(repo)?.set(Number(number), url);
 	}
+	type Found = {
+		merged?: boolean;
+		mergedAt?: string | null;
+		author?: { login?: string } | null;
+	};
 	const asks: Promise<void>[] = [];
 	for (const [repo, prs] of byRepo) {
 		const [owner, name] = repo.split("/");
@@ -258,7 +265,10 @@ export async function mergedPullRequests(
 		for (let at = 0; at < numbers.length; at += 100) {
 			const chunk = numbers.slice(at, at + 100);
 			const fields = chunk
-				.map((n) => `p${n}: pullRequest(number: ${n}) { merged }`)
+				.map(
+					(n) =>
+						`p${n}: pullRequest(number: ${n}) { merged mergedAt author { login } }`,
+				)
 				.join(" ");
 			const query = `query { repository(owner: ${JSON.stringify(owner)}, name: ${JSON.stringify(name)}) { ${fields} } }`;
 			asks.push(
@@ -267,14 +277,20 @@ export async function mergedPullRequests(
 					(stdout) =>
 						(
 							JSON.parse(stdout) as {
-								data: { repository: Record<string, { merged?: boolean }> };
+								data: { repository: Record<string, Found> };
 							}
 						).data.repository,
 					exec,
 				).then((found) => {
 					for (const n of chunk) {
 						const url = prs.get(n) as string;
-						if (found?.[`p${n}`]?.merged) mergedUrls.add(url);
+						const pr = found?.[`p${n}`];
+						const mergedAt = pr?.merged && Date.parse(pr.mergedAt ?? "");
+						if (mergedAt)
+							merges.set(url, {
+								at: mergedAt,
+								author: pr?.author?.login ?? null,
+							});
 						else checkedAt.set(url, now);
 					}
 				}),
@@ -282,7 +298,17 @@ export async function mergedPullRequests(
 		}
 	}
 	await Promise.all(asks);
-	return new Set(urls.filter((url) => mergedUrls.has(url)));
+	const accounts = await loggedInAccounts(exec);
+	const mine = new Map<string, number>();
+	for (const url of urls) {
+		const merge = merges.get(url);
+		if (
+			merge &&
+			(!accounts.size || (merge.author && accounts.has(merge.author)))
+		)
+			mine.set(url, merge.at);
+	}
+	return mine;
 }
 
 /** The checkout in `git worktree list --porcelain` that has `branch` checked out. */

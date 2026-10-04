@@ -103,15 +103,17 @@ export const createInsightsRouter = () => {
 				const mine = sessions.filter(
 					(s) => profileOfSession(s.sessionId) === profileId,
 				);
-				// Only merged PRs count - an open or closed one hasn't shipped.
+				// Only your merged PRs count - an open or closed one hasn't shipped,
+				// and a teammate's isn't yours. Each lands in the week it merged:
+				// one opened Thursday and merged Sunday shipped Sunday.
 				const merged = await mergedPullRequests(mine.flatMap((s) => s.prs));
 				const workload = computeWorkload(
 					mine.map((s) => {
-						const keep = s.prs.map((url) => merged.has(url));
+						const prs = s.prs.filter((url) => merged.has(url));
 						return {
 							...s,
-							prs: s.prs.filter((_, i) => keep[i]),
-							prAt: s.prAt.filter((_, i) => keep[i]),
+							prs,
+							prAt: prs.map((url) => merged.get(url) ?? null),
 						};
 					}),
 					input,

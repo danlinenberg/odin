@@ -274,17 +274,28 @@ describe("pullRequestWorktrees", () => {
 });
 
 describe("mergedPullRequests", () => {
-	test("one call per repo; keeps only merged PRs, and caches the merge", async () => {
+	const merged = (login: string) => ({
+		merged: true,
+		mergedAt: "2026-10-04T10:00:00Z",
+		author: { login },
+	});
+
+	test("one call per repo; only your merged PRs, with when they merged", async () => {
 		const calls: string[] = [];
 		const exec: GhExec = async (args) => {
+			if (args[0] === "auth") return { stdout: STATUS };
 			const query = args.at(-1) as string;
 			calls.push(query);
 			return {
 				stdout: JSON.stringify({
 					data: {
 						repository: query.includes('"odin"')
-							? { p1: { merged: true }, p2: { merged: false } }
-							: { p7: { merged: true } },
+							? {
+									p1: merged("danlinenberg"),
+									p2: { merged: false, mergedAt: null },
+									p3: merged("teammate"),
+								}
+							: { p7: merged("dan-linenberg-imagenai") },
 					},
 				}),
 			};
@@ -292,16 +303,18 @@ describe("mergedPullRequests", () => {
 		const urls = [
 			"https://github.com/me/odin/pull/1",
 			"https://github.com/me/odin/pull/2",
+			"https://github.com/me/odin/pull/3",
 			"https://github.com/me/web/pull/7",
 		];
-		expect(await mergedPullRequests(urls, exec)).toEqual(
-			new Set([urls[0], urls[2]]),
-		);
+		const at = Date.parse("2026-10-04T10:00:00Z");
+		const expected = new Map([
+			[urls[0], at],
+			[urls[3], at],
+		]);
+		expect(await mergedPullRequests(urls, exec)).toEqual(expected);
 		expect(calls).toHaveLength(2);
 		// Merged is final and the unmerged one was just asked: no new calls.
-		expect(await mergedPullRequests(urls, exec)).toEqual(
-			new Set([urls[0], urls[2]]),
-		);
+		expect(await mergedPullRequests(urls, exec)).toEqual(expected);
 		expect(calls).toHaveLength(2);
 	});
 
@@ -311,6 +324,6 @@ describe("mergedPullRequests", () => {
 		};
 		expect(
 			await mergedPullRequests(["https://github.com/me/secret/pull/3"], exec),
-		).toEqual(new Set());
+		).toEqual(new Map());
 	});
 });
