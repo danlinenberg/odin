@@ -413,7 +413,7 @@ function CatchUpCard({
 			    decide Next or Done on a session you don't recognise. */}
 			{written?.issue && (
 				<div>
-					<div className={cn(label, "text-muted-foreground")}>The issue</div>
+					<div className={cn(label, "text-primary")}>The issue</div>
 					<div className="text-[15px] leading-relaxed text-foreground">
 						{text(written.issue)}
 					</div>
