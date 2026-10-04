@@ -80,6 +80,10 @@ export const DEFAULT_TERMINAL_FONT_FAMILIES = [
 	"Menlo",
 	"Monaco",
 	"Courier New",
+	// None of the above draw Claude Code's ⏺ bullet, ⎿ result elbow or ⏵⏵
+	// mode marker, and Chromium won't search the system for them — they fall
+	// to .LastResort and render as ⍰. STIX Two Math ships with macOS and has all three.
+	"STIX Two Math",
 	"monospace",
 ] as const;
 
