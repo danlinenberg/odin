@@ -33,7 +33,34 @@ describe("pullRequestState", () => {
 			awaiting: [],
 			failed: [],
 			passed: 0,
+			author: null,
+			mine: null,
 		});
+	});
+
+	test("mine when a logged-in account opened it, not when a teammate did", async () => {
+		const by =
+			(login: string): GhExec =>
+			async (args) => ({
+				stdout:
+					args[1] === "status"
+						? STATUS
+						: JSON.stringify({ state: "OPEN", author: { login } }),
+			});
+		expect((await pullRequestState(URL, by("danlinenberg")))?.mine).toBe(true);
+		expect((await pullRequestState(URL, by("assafd-svg")))?.mine).toBe(false);
+	});
+
+	test("mine is unknown, not false, when gh can't list the accounts", async () => {
+		const exec: GhExec = async (args) => {
+			if (args[1] === "status") throw new Error("gh auth status failed");
+			return {
+				stdout: JSON.stringify({ state: "OPEN", author: { login: "x" } }),
+			};
+		};
+		const status = await pullRequestState(URL, exec);
+		expect(status?.author).toBe("x");
+		expect(status?.mine).toBeNull();
 	});
 
 	test("splits the rollup into running, failed and green", async () => {
@@ -59,6 +86,8 @@ describe("pullRequestState", () => {
 			awaiting: [],
 			failed: ["pytest"],
 			passed: 1,
+			author: null,
+			mine: null,
 		});
 	});
 

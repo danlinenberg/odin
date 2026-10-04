@@ -586,6 +586,14 @@ describe("mergeReady", () => {
 			),
 		).toBe(true);
 	});
+	it("ignores a teammate's PR the session only linked", () => {
+		expect(
+			mergeReady([opened, items], {
+				[a]: approved,
+				[b]: { state: "OPEN", approved: false, mine: false },
+			}),
+		).toBe(true);
+	});
 	it("is false while any of them waits on review, is red, or is unknown", () => {
 		expect(
 			mergeReady([opened, items], {

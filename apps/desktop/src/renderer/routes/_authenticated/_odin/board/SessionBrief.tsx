@@ -432,10 +432,13 @@ export function SessionBrief({
 			staleTime: 10_000,
 			refetchInterval: (query) =>
 				Object.values(query.state.data ?? {}).some(
-					(status) => status?.state === "OPEN",
+					(status) => status?.state === "OPEN" && status.mine !== false,
 				) && 15_000,
 		},
 	);
+	// Someone else's PR the session only linked isn't one of its PRs. Listed
+	// until its author is known, so the section doesn't flash empty.
+	const ownPrs = prs.filter((pr) => prStates?.[pr.url]?.mine !== false);
 
 	// A link you added: your name for it, else what Slack says the message is,
 	// else its kind; the line under it says where it lives. Removable, since
@@ -552,17 +555,17 @@ export function SessionBrief({
 					</div>
 				</Section>
 			)}
-			{(prs.length > 0 || mine("pr").length > 0) && (
+			{(ownPrs.length > 0 || mine("pr").length > 0) && (
 				<Section
 					divided
 					label={
-						prs.length + mine("pr").length === 1
+						ownPrs.length + mine("pr").length === 1
 							? "Pull request"
 							: "Pull requests"
 					}
 				>
 					<div className="flex flex-col gap-1">
-						{prs.map((pr) => (
+						{ownPrs.map((pr) => (
 							<div key={pr.url} className="group flex items-center gap-1.5">
 								<Hover text={pr.url}>
 									<button
