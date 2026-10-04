@@ -13,7 +13,7 @@
  * Dependency-free (Bun WebSocket + fetch), like the other cdp-*.ts scripts.
  */
 import { spawn } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import electronBinary from "electron";
 
@@ -33,6 +33,37 @@ const env: Record<string, string | undefined> = {
 };
 // Set inside an Odin terminal; it would boot Electron as plain node.
 delete env.ELECTRON_RUN_AS_NODE;
+
+// A Quick question conversation an earlier run left open: it has to survive
+// the restart and take the next question.
+const QUESTION = "Smoke question";
+mkdirSync(join(home, ".odin"));
+writeFileSync(
+	join(home, ".odin", "app-state.json"),
+	JSON.stringify({
+		tabsState: {
+			tabs: [
+				{
+					id: "tab-smoke-question",
+					name: QUESTION,
+					workspaceId: "smoke-workspace",
+					createdAt: 0,
+					layout: "pane-smoke-question",
+				},
+			],
+			panes: {
+				"pane-smoke-question": {
+					id: "pane-smoke-question",
+					tabId: "tab-smoke-question",
+					type: "terminal",
+					name: QUESTION,
+					claudeSessionId: crypto.randomUUID(),
+					odinTags: ["question"],
+				},
+			},
+		},
+	}),
+);
 
 const app = spawn(
 	electronBinary as unknown as string,
@@ -343,6 +374,16 @@ await step("Settings is exactly its five screens, and each opens", async () => {
 	}
 	await click("a", "Back");
 	await waitForText("waiting on you");
+});
+
+await step("Quick question follows up in the open conversation", async () => {
+	await rail("Dev Board");
+	await waitForText("next in line");
+	await click("button", "Ask a Claude");
+	await waitForText(`follows up in “${QUESTION}”`);
+	await click("button", "Show it");
+	await waitForText("follows up in", false);
+	await waitForText(QUESTION);
 });
 
 await step("no uncaught errors in the renderer", async () => {
