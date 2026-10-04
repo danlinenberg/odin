@@ -3954,7 +3954,12 @@ function DevBoardPage() {
 										isWorkingNow(drawerCard.pane.id) ||
 										isSettledAgent(drawerCard.pane.id)
 									}
-									onClick={() => void resumeCard(drawerCard)}
+									onClick={() => {
+										// Catch up's lean card hides the terminal — resuming there
+										// left you staring at "Working…" with the session out of view.
+										if (inCatchUp) setCatchUpFull(drawerCard.pane.id);
+										void resumeCard(drawerCard);
+									}}
 									title={
 										isWorkingNow(drawerCard.pane.id)
 											? "Already working — resuming would kill the running turn"
