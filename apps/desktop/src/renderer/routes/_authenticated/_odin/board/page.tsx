@@ -61,6 +61,7 @@ import {
 	bySection,
 	SECTION_LABEL,
 } from "shared/board-section";
+import { duplicateSessions } from "shared/duplicate-sessions";
 import { claimedCheckout, launchBlocker } from "shared/launch-gate";
 import { sessionUsageLabel } from "shared/machine-load";
 import { profileOf } from "shared/odin-profile";
@@ -527,6 +528,34 @@ function useDropFor(pane: Pane | undefined) {
 function DropPill({ pane }: { pane: Pane }) {
 	const row = useDropFor(pane);
 	return row ? <DropHint evidence={row.evidence} /> : null;
+}
+
+/** Another live card is on the same ask. The click opens it, to Done one. */
+function DuplicateHint({
+	other,
+	titleOf,
+}: {
+	other: BoardCard | undefined;
+	titleOf: (card: BoardCard) => string;
+}) {
+	if (!other) return null;
+	return (
+		<button
+			type="button"
+			title="Looks like the same ask as another session — open it"
+			onClick={(event) => {
+				// The card itself opens its own drawer; the hint opens the other one.
+				event.stopPropagation();
+				usePendingFocus.getState().focus(other.pane.id);
+			}}
+			className={cn(
+				"mt-1 line-clamp-2 w-full rounded-[5px] px-[7px] py-px text-left text-[11px] font-medium hover:brightness-125",
+				PILL.attention,
+			)}
+		>
+			Duplicate? Same ask as “{titleOf(other)}”
+		</button>
+	);
 }
 
 function MergeOnlyPill({ card }: { card: BoardCard }) {
@@ -2344,6 +2373,18 @@ function DevBoardPage() {
 		isProfileLoading,
 		customTags,
 	]);
+	// Two cards on this board working the same ask: each names the other.
+	const duplicateOf = useMemo(() => {
+		const cards = [...cardsByStatus.values()].flat();
+		const byId = new Map(cards.map((card) => [card.pane.id, card]));
+		const pairs = duplicateSessions(cards.map((card) => card.pane));
+		return new Map(
+			[...pairs].flatMap(([id, other]) => {
+				const card = byId.get(other);
+				return card ? [[id, card] as const] : [];
+			}),
+		);
+	}, [cardsByStatus]);
 
 	// Write the session briefs in the background, so opening a card shows one
 	// straight away rather than starting a 15s model call while you wait. The
@@ -3393,6 +3434,10 @@ function DevBoardPage() {
 																	/>
 																</div>
 																<DropPill pane={card.pane} />
+																<DuplicateHint
+																	other={duplicateOf.get(card.pane.id)}
+																	titleOf={cardTitle}
+																/>
 																<div className="mt-1 flex flex-wrap items-center gap-1.5">
 																	<MergeOnlyPill card={card} />
 																	{(card.status === "review" ||
