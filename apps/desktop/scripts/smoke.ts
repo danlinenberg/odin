@@ -193,13 +193,14 @@ function send(method: string, params: object = {}): Promise<CdpResult> {
 await send("Runtime.enable");
 
 // Helpers for page expressions, re-declared on every call so a renderer
-// reload can't drop them. A control's label is its aria-label, else its
+// reload can't drop them. CDP can attach before <body> exists, so nothing here
+// may assume it — a throw there failed boot at once instead of waiting. A control's label is its aria-label, else its
 // title, else its text — the rail is icon buttons, Settings is links.
 const IN_PAGE = `
 	var __label = (e) => (e.getAttribute("aria-label") || e.getAttribute("title") || e.textContent || "").trim();
 	var __find = (selector, label, within = document) =>
 		[...within.querySelectorAll(selector)].find((e) => __label(e).startsWith(label));
-	var __text = () => document.body.innerText.toLowerCase();
+	var __text = () => (document.body?.innerText ?? "").toLowerCase();
 `;
 
 /** Evaluate in the page; the value comes back by value. */
@@ -243,7 +244,7 @@ async function waitForText(needle: string, present = true, ms = 15_000) {
 	);
 }
 async function expectHealthy() {
-	const body = await page<string>("document.body.innerText");
+	const body = await page<string>(`document.body?.innerText ?? ""`);
 	for (const crash of ["Something went wrong", "Odin failed to start"]) {
 		if (body.includes(crash))
 			throw new Error(`"${crash}": ${body.slice(0, 400)}`);
@@ -299,7 +300,9 @@ async function step(name: string, flow: () => Promise<void>) {
 		failures.push(`${name}: ${(error as Error).message}`);
 		console.log(`FAIL ${name}\n     ${(error as Error).message}`);
 		// CI has no window to look at: say what was on screen and in the PTYs.
-		const body = await page<string>("document.body.innerText").catch(() => "");
+		const body = await page<string>(`document.body?.innerText ?? ""`).catch(
+			() => "",
+		);
 		console.log(`     page: ${body.replace(/\s+/g, " ").slice(0, 600)}`);
 		const tails = terminalTails();
 		if (tails) console.log(`     terminals:\n${tails}`);
