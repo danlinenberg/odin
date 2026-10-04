@@ -20,13 +20,25 @@ export const useInAppBrowser = create<InAppBrowserState>()(
 );
 
 /**
+ * Slack's `/archives/` link is a "Launching Slack" page that hands off to the
+ * desktop app; `/messages/` is the same link in Slack's web client, which is
+ * where that page's own "open this link in your browser" goes.
+ */
+export function slackWebClientUrl(url: string): string {
+	return url.replace(
+		/^(https:\/\/[\w.-]+\.slack\.com)\/archives\//i,
+		"$1/messages/",
+	);
+}
+
+/**
  * Opens a link inside Odin, in the slide-over browser, so a Slack thread or a
  * Jira ticket doesn't throw you out to another app — unless you chose your own
  * browser. Anything that isn't a web page (mailto:, a file) goes to the system.
  */
 export function openUrl(url: string): void {
 	if (/^https?:\/\//i.test(url) && !useInAppBrowser.getState().external) {
-		useInAppBrowser.setState({ url });
+		useInAppBrowser.setState({ url: slackWebClientUrl(url) });
 		return;
 	}
 	electronTrpcClient.external.openUrl.mutate(url).catch((error) => {
