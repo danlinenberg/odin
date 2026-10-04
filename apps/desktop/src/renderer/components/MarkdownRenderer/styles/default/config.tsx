@@ -37,7 +37,7 @@ export const defaultConfig: MarkdownStyleConfig = {
 		a: ({ href, children }) => (
 			<a
 				href={href}
-				className="text-primary underline underline-offset-2 hover:text-primary/80"
+				className="text-link underline underline-offset-2 hover:text-link/80"
 				target="_blank"
 				rel="noopener noreferrer"
 			>

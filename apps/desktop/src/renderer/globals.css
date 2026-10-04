@@ -76,6 +76,9 @@
 	--attention: #f5b83d;
 	--success: #3ecf8e;
 	--danger: #f0647a;
+	/* Links: cyan, so a link is never mistaken for a violet label or a blue
+	   working status. */
+	--link: #4dd0e1;
 	/* Each hue's "ink": the hue lifted toward white, for text sitting on its
 	   own tint — the light label on a pill, the top of a glossy button. */
 	--primary-ink: color-mix(in oklab, var(--primary) 52%, white);
@@ -133,6 +136,7 @@
 	--attention: #b7791f;
 	--success: #1f9d63;
 	--danger: #d6334f;
+	--link: #0e7490;
 	--primary-ink: color-mix(in oklab, var(--primary) 70%, black);
 	--working-ink: color-mix(in oklab, var(--working) 70%, black);
 	--attention-ink: color-mix(in oklab, var(--attention) 70%, black);
@@ -229,6 +233,7 @@
 	--color-attention: var(--attention);
 	--color-success: var(--success);
 	--color-danger: var(--danger);
+	--color-link: var(--link);
 	--color-primary-ink: var(--primary-ink);
 	--color-working-ink: var(--working-ink);
 	--color-attention-ink: var(--attention-ink);

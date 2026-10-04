@@ -398,7 +398,7 @@ function CatchUpCard({
 							event.preventDefault();
 							openUrl(url);
 						}}
-						className="text-primary hover:underline"
+						className="text-link hover:underline"
 					>
 						{run}
 					</a>
@@ -412,8 +412,7 @@ function CatchUpCard({
 		<div className="flex min-h-0 flex-1 select-text cursor-text flex-col gap-6 overflow-y-auto px-8 py-7">
 			{/* What it's about first, at the size of the action items: you can't
 			    decide Next or Done on a session you don't recognise. Its label is
-			    grey, not violet: violet is a link on this card, and amber is the
-			    one label that means something — yours to do. */}
+			    grey: amber is the one label that means something — yours to do. */}
 			{written?.goal && (
 				<div>
 					<div className={cn(label, "text-muted-foreground")}>The issue</div>
