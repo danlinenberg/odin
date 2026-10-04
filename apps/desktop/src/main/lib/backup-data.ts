@@ -25,7 +25,12 @@ export const BACKUP_DIR = path.join(
 const KEEP_DAYS = 14;
 const isDay = (d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d);
 const DATABASES = ["local.db", "tanstack-db.sqlite"];
-const FILES = ["app-state.json", "session-briefs.json", "attention.jsonl"];
+const FILES = [
+	"app-state.json",
+	"session-briefs.json",
+	"attention.jsonl",
+	"card-titles.json",
+];
 const EVERY_MS = 6 * 60 * 60 * 1000;
 const FIRST_RUN_MS = 10 * 60 * 1000;
 

@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { appState } from "main/lib/app-state";
 import type { TabsState, ThemeState } from "main/lib/app-state/schemas";
+import { rememberCardTitles } from "main/lib/card-titles";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
 
@@ -334,6 +335,7 @@ export const createUiStateRouter = () => {
 				.mutation(async ({ input }) => {
 					appState.data.tabsState = input;
 					await writeAppState();
+					rememberCardTitles(input.panes);
 					return { success: true };
 				}),
 		}),
