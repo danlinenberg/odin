@@ -8,10 +8,12 @@ on:
   push:
     branches: [main]
 
-# A newer push to the same PR supersedes the run in flight.
+# A newer push to the same PR supersedes the run in flight. On main a started
+# run always finishes — PRs merge faster than a run takes, so cancelling there
+# left main with no result at all; only the newest waiting run is kept.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check:
