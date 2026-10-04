@@ -114,6 +114,7 @@ import {
 	mergeTargets,
 	nextCronFire,
 	notionPage,
+	onlyLookLeft,
 	onlyMergeLeft,
 	pullRequests,
 	sourceLink,
@@ -1737,7 +1738,10 @@ function DevBoardPage() {
 		.filter((_, i) => {
 			const messages = mergeTranscripts[i]?.data?.messages;
 			const states = mergeStateQueries[i]?.data;
-			return !!messages && !!states && mergeReady(messages, states);
+			return (
+				!!messages &&
+				(onlyLookLeft(messages) || (!!states && mergeReady(messages, states)))
+			);
 		})
 		.map(({ paneId }) => paneId)
 		.join(",");
@@ -1745,7 +1749,10 @@ function DevBoardPage() {
 		() => new Set(mergeReadyKey ? mergeReadyKey.split(",") : []),
 		[mergeReadyKey],
 	);
-	/** Needs you, unless all it needs is merging approved PRs — then Done. */
+	/**
+	 * Needs you, unless all it needs is merging approved PRs or a look at what
+	 * shipped — then Done.
+	 */
 	const withMergeReady = useCallback(
 		(column: PaneStatus, paneId: string): PaneStatus =>
 			column === "permission" && mergeReadyPaneIds.has(paneId)
