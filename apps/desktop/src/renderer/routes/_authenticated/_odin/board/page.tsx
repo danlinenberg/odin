@@ -469,7 +469,10 @@ function CatchUpCard({
 			<button
 				type="button"
 				onClick={onShowSession}
-				className="mt-auto self-start text-[12px] text-muted-foreground hover:text-primary"
+				className={cn(
+					"mt-auto self-start rounded-[7px] px-3 py-1.5 text-xs font-semibold",
+					BUTTON.secondary,
+				)}
 			>
 				Show the session ↓
 			</button>
