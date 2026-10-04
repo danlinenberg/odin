@@ -500,13 +500,18 @@ export const createWorkRouter = () => {
 					search("mentioned", "comment ~ currentUser()"),
 				]);
 				// An issue can come back from several searches; the first claim
-				// wins, strongest first — assigned, then filed, then mentioned.
+				// wins, strongest first — assigned, then filed, then mentioned. The
+				// mention rides along on the winner: it's what brings a ticket I put
+				// away with Done back when someone asks me something on it.
+				const mentions = new Map(
+					mentioned.map((row) => [row.key, row.mention]),
+				);
 				const seen = new Set<string>();
 				const issues: JiraIssueRow[] = [];
 				for (const issue of [...assigned, ...reported, ...mentioned]) {
 					if (seen.has(issue.key)) continue;
 					seen.add(issue.key);
-					issues.push(issue);
+					issues.push({ ...issue, mention: mentions.get(issue.key) ?? null });
 				}
 				// A due date Jira keeps but doesn't show: an issue type whose
 				// screen has no Due date field still returns the stored value (an

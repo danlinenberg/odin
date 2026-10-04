@@ -34,7 +34,12 @@ export function FeedTabs() {
 			(row) => !isDone({ key: `slack:${row.id}`, url: row.permalink }),
 		),
 		jira: (jira.data?.issues ?? []).filter(
-			(issue) => !isDone({ key: `jira:${issue.key}`, url: issue.url }),
+			(issue) =>
+				!isDone({
+					key: `jira:${issue.key}`,
+					url: issue.url,
+					mention: issue.mention,
+				}),
 		),
 		pulls: (pulls.data?.pulls ?? []).filter(
 			(pull) => !isDone({ key: `pr:${pull.id}`, url: pull.url }),

@@ -129,7 +129,7 @@ function MyJiraPage() {
 	const allIssues = useMemo(
 		() =>
 			(issuesQuery.data?.issues ?? []).filter(
-				(issue) => !isDone(doable(issue)),
+				(issue) => !isDone({ ...doable(issue), mention: issue.mention }),
 			),
 		[issuesQuery.data, isDone],
 	);

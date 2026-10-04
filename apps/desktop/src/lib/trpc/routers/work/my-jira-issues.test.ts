@@ -197,11 +197,17 @@ describe("myJiraIssues", () => {
 		});
 	});
 
-	it("leaves assigned and filed rows without a comment", async () => {
+	it("keeps the mention on a ticket a stronger claim won", async () => {
 		const { issues } = await call();
+		// BUGT-2 is mine as filer and names me in a comment; ODIN-1 names nobody.
 		expect(
-			issues.filter((i) => i.role !== "mentioned").map((i) => i.mention),
-		).toEqual([null, null]);
+			issues
+				.filter((i) => i.role !== "mentioned")
+				.map((i) => [i.key, i.role, i.mention?.author ?? null]),
+		).toEqual([
+			["ODIN-1", "assigned", null],
+			["BUGT-2", "reported", "Nadav Rotem"],
+		]);
 	});
 
 	it("only pays for comment bodies on the mention search", async () => {
