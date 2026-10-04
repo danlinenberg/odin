@@ -244,9 +244,9 @@ function WeekChart({
 }
 
 /**
- * The productivity line: tasks shipped per day that has passed. A rate, not a
- * count, so a half-finished week isn't read as a slump — and per calendar day,
- * not per day worked, so a two-day week doesn't outrun a full one.
+ * The productivity line: tasks shipped per week. A finished week is its count;
+ * a week still going — or the one the record starts in — is the pace of the
+ * days it has had, so a half-finished week isn't read as a slump.
  *
  * The line is drawn in a stretched 0–100 SVG box; the dots and labels are
  * HTML placed by percent on top of it, so they stay round at any width.
@@ -269,7 +269,7 @@ function ShippedChart({
 	if (weeks.length === 0) return <Empty>Nothing shipped yet.</Empty>;
 	const days = weeks.map((week) => daysPassed(week.start, since));
 	const rates = weeks.map(
-		(week, index) => week.shipped / (days[index] as number),
+		(week, index) => (week.shipped / (days[index] as number)) * 7,
 	);
 	// Headroom so the top point's label clears the card edge.
 	const max = Math.max(1, ...rates) * 1.2;
@@ -302,10 +302,10 @@ function ShippedChart({
 						key={week.start}
 						className="absolute flex size-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center"
 						style={{ left: `${x}%`, top: `${y}%` }}
-						title={`${plural(week.shipped, "task")} shipped over ${plural(days[index] as number, "day")}`}
+						title={`Week of ${DATE.format(week.start)}: ${plural(week.shipped, "task")} shipped${days[index] === 7 ? "" : ` in ${plural(days[index] as number, "day")}, on pace for ${Math.round(rate * 10) / 10}`}`}
 					>
-						<div className="absolute bottom-full text-[11px] font-medium tabular-nums text-soft-foreground">
-							{Math.round(rate * 10) / 10}
+						<div className="absolute bottom-full whitespace-nowrap text-[11px] font-medium tabular-nums text-soft-foreground">
+							{Math.round(rate * 10) / 10}/wk
 						</div>
 						<div className="size-2 rounded-full bg-success shadow-[0_0_0_2px_var(--card)]" />
 					</div>
@@ -999,8 +999,8 @@ function Workload() {
 				{/* `shipped` is absent until the main process restarts onto this build. */}
 				{data.weeks[0]?.shipped !== undefined && (
 					<Section
-						title="Shipped per day"
-						note="tasks that ended in a PR, counted once at the first"
+						title="Shipped per week"
+						note="tasks that ended in a PR, counted once at the first; a week still going shows its pace"
 					>
 						<ShippedChart weeks={data.weeks} since={data.since} />
 					</Section>
