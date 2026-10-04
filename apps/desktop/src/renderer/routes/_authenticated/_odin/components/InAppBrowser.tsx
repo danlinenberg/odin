@@ -53,11 +53,19 @@ const ESCAPE_SIGNAL = "odin:in-app-browser:escape";
 /**
  * A page in the panel is its own document, so its keys never reach Odin's
  * window. It reports an Esc it didn't use itself (a Jira modal closing takes
- * it) through its console instead.
+ * it) through its console instead. Slack's web client prevents every Esc,
+ * open menu or not, so an Esc the page took still counts when nothing was
+ * open for it to close. Checked in the capture phase, before the page's own
+ * handlers close whatever was open.
  */
 const REPORT_ESCAPE = `addEventListener("keydown", (event) => {
-	if (event.key === "Escape" && !event.defaultPrevented) console.debug(${JSON.stringify(ESCAPE_SIGNAL)});
-});`;
+	if (event.key !== "Escape") return;
+	const open = [...document.querySelectorAll("[role=dialog],[role=menu],[role=listbox],[aria-modal=true]")]
+		.some((el) => el.getClientRects().length > 0);
+	setTimeout(() => {
+		if (!event.defaultPrevented || !open) console.debug(${JSON.stringify(ESCAPE_SIGNAL)});
+	});
+}, true);`;
 
 const ICON_BUTTON =
 	"flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground";
