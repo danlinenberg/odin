@@ -1,4 +1,5 @@
 import { electronTrpcClient } from "renderer/lib/trpc-client";
+import { opensInOdin } from "shared/in-odin-links";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -44,12 +45,13 @@ export function slackWebClientUrl(url: string): string {
 }
 
 /**
- * Opens a link inside Odin, in the slide-over browser, so a Slack thread or a
- * Jira ticket doesn't throw you out to another app — unless you chose your own
- * browser. Anything that isn't a web page (mailto:, a file) goes to the system.
+ * Opens a task source's link (a Slack thread, a Jira ticket) inside Odin, in
+ * the slide-over browser, so it doesn't throw you out to another app — unless
+ * you chose your own browser. Any other link, and anything that isn't a web
+ * page (mailto:, a file), goes to the system.
  */
 export function openUrl(url: string): void {
-	if (/^https?:\/\//i.test(url) && !useInAppBrowser.getState().external) {
+	if (opensInOdin(url) && !useInAppBrowser.getState().external) {
 		useInAppBrowser.setState({ url: slackWebClientUrl(url) });
 		return;
 	}
