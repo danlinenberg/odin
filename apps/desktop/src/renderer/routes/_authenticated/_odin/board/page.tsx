@@ -4028,7 +4028,7 @@ function DevBoardPage() {
 								label="Remind me"
 								className={cn(
 									"rounded-[7px] px-3 py-1.5 text-xs font-semibold",
-									BUTTON.secondary,
+									BUTTON.remind,
 								)}
 							/>
 							{!inCatchUp && (

@@ -33,9 +33,9 @@ export const PILL = {
 /**
  * Button colours, the same way. A view gets one primary — the thing it exists
  * for — glossy violet with a halo, and everything else is secondary, so violet
- * means "the next click" wherever you are. Done keeps its green: it's the one
- * action that is also a status. `selected` is the on-state of any tab, nav
- * item or toggle.
+ * means "the next click" wherever you are. Done keeps its green and Remind me
+ * its amber: they're the actions that are also statuses. `selected` is the
+ * on-state of any tab, nav item or toggle.
  */
 export const BUTTON = {
 	primary:
@@ -43,6 +43,9 @@ export const BUTTON = {
 	secondary:
 		"bg-secondary text-soft-foreground ring-1 ring-inset ring-border shadow-[inset_0_1px_0_rgb(255_255_255/0.04)] hover:bg-accent hover:text-foreground",
 	done: "bg-gradient-to-r from-success/25 to-success/10 text-success-ink ring-1 ring-inset ring-success/25 hover:from-success/35 hover:to-success/15",
+	/** Remind me, in the amber every reminder wears (the strip, the "today" pill). */
+	remind:
+		"bg-gradient-to-r from-attention/25 to-attention/10 text-attention-ink ring-1 ring-inset ring-attention/25 hover:from-attention/35 hover:to-attention/15",
 	selected:
 		"bg-gradient-to-r from-primary/20 to-primary/8 text-primary-ink ring-1 ring-inset ring-primary/30",
 } as const;
