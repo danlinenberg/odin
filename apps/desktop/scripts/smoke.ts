@@ -15,9 +15,9 @@
  */
 import { spawn } from "node:child_process";
 import {
-	existsSync,
 	mkdirSync,
 	mkdtempSync,
+	readdirSync,
 	readFileSync,
 	rmSync,
 	writeFileSync,
@@ -93,7 +93,8 @@ delete env.ZDOTDIR;
 mkdirSync(join(home, "bin"));
 writeFileSync(
 	join(home, "bin", "claude"),
-	`#!/bin/sh\nprintf '%s\\n' "$@" > "$HOME/claude.args"\necho $$ > "$HOME/claude.pid"\necho "fake claude is working"\nexec sleep 600\n`,
+	// One file per run, named by pid (exec keeps it), moved into place whole.
+	`#!/bin/sh\nprintf '%s\\n' "$@" > "$HOME/.claude-$$"\nmv "$HOME/.claude-$$" "$HOME/claude-$$.args"\necho "fake claude is working"\nexec sleep 600\n`,
 	{ mode: 0o755 },
 );
 // Sessions run in a login shell, which reads these after macOS's path_helper
@@ -249,10 +250,14 @@ async function expectHealthy() {
 	}
 }
 const rail = (label: string) => click("button", label);
-async function waitForFile(path: string, ms: number) {
-	for (const end = Date.now() + ms; !existsSync(path); await sleep(500)) {
-		if (Date.now() > end) throw new Error(`${path} never appeared`);
-	}
+/** Every time the fake claude ran: its pid and the argv it was given. */
+function fakeClaudeRuns() {
+	return readdirSync(home)
+		.filter((f) => /^claude-\d+\.args$/.test(f))
+		.map((f) => ({
+			pid: Number(f.match(/\d+/)?.[0]),
+			args: readFileSync(join(home, f), "utf8"),
+		}));
 }
 function isAlive(pid: number) {
 	try {
@@ -461,12 +466,13 @@ await step("Quick question follows up in the open conversation", async () => {
 });
 
 const SESSION = `Smoke session ${Date.now()}`;
+let sessionPid = 0;
 await step(
 	"New Session puts a card on the board and gives claude the prompt",
 	async () => {
 		// The previous step left the conversation's drawer open; Esc closes it.
 		await page(
-			`window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`,
+			`(document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`,
 		);
 		await rail("Dev Board");
 		await waitForText("next in line");
@@ -474,19 +480,30 @@ await step(
 		await fill('textarea[placeholder^="What should the agent do?"]', SESSION);
 		await click("button", "Start session");
 		await waitForText(SESSION, true, 30_000);
-		// Written last by the fake, so the args are complete once it's there. A busy
-		// machine queues the launch, hence the long wait.
-		await waitForFile(join(home, "claude.pid"), 90_000);
-		const args = readFileSync(join(home, "claude.args"), "utf8");
-		if (!args.includes("--session-id") || !args.includes(SESSION))
-			throw new Error(`claude was run with: ${args.slice(0, 300)}`);
+		// A busy machine (a CI runner right after the build) queues the launch;
+		// the card's Start now is how a person gets past the gate.
+		await sleep(2000);
+		await page(
+			`document.querySelector('button[title="Start this session now, gate or no gate"]')?.click()`,
+		);
+		// Quick question keeps its own claude warm, so pick out the run that
+		// carries this session's prompt.
+		for (const end = Date.now() + 60_000; !sessionPid; await sleep(500)) {
+			if (Date.now() > end) {
+				const runs = fakeClaudeRuns().map((r) => r.args.replace(/\n/g, " "));
+				throw new Error(`no claude got the prompt; runs: ${runs.join(" | ")}`);
+			}
+			const run = fakeClaudeRuns().find((r) => r.args.includes(SESSION));
+			if (run && !run.args.includes("--session-id"))
+				throw new Error(`claude ran without --session-id: ${run.args}`);
+			sessionPid = run?.pid ?? 0;
+		}
 	},
 );
 
 await step(
 	"Done on the card ends the session and clears the board",
 	async () => {
-		const pid = Number(readFileSync(join(home, "claude.pid"), "utf8"));
 		const found = await page<boolean>(`(() => {
 		const done = [...document.querySelectorAll('button[title="Done — remove from the board"]')]
 			.find((b) => b.parentElement.textContent.includes(${JSON.stringify(SESSION)}));
@@ -495,9 +512,14 @@ await step(
 	})()`);
 		if (!found) throw new Error("no Done button on the session's card");
 		await waitForText(SESSION, false);
-		for (const end = Date.now() + 15_000; isAlive(pid); await sleep(250)) {
+		if (!sessionPid) throw new Error("the session's claude never started");
+		for (
+			const end = Date.now() + 15_000;
+			isAlive(sessionPid);
+			await sleep(250)
+		) {
 			if (Date.now() > end)
-				throw new Error(`claude (pid ${pid}) still running`);
+				throw new Error(`claude (pid ${sessionPid}) still running`);
 		}
 	},
 );
