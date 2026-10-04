@@ -61,9 +61,18 @@ const STATE_CHIP: Record<string, { label: string; className: string }> = {
 	CLOSED: { label: "closed", className: PILL.danger },
 };
 
-function Chip({ label, className }: { label: string; className: string }) {
+function Chip({
+	label,
+	className,
+	title,
+}: {
+	label: string;
+	className: string;
+	title?: string;
+}) {
 	return (
 		<span
+			title={title}
 			className={`inline-block max-w-[130px] shrink-0 truncate rounded-[4px] px-[5px] align-bottom text-[10px] font-medium ${className}`}
 		>
 			{label}
@@ -105,33 +114,31 @@ function ChecksChip({
 	const { pending, awaiting = [], failed, passed } = status;
 	if (pending.length > 0) {
 		return (
-			<span title={pending.join("\n")}>
-				<Chip
-					label={
-						pending.length === 1
-							? `${pending[0]}…`
-							: `${pending.length} running…`
-					}
-					className={PILL.attention}
-				/>
-			</span>
+			<Chip
+				title={pending.join("\n")}
+				label={
+					pending.length === 1 ? `${pending[0]}…` : `${pending.length} running…`
+				}
+				className={PILL.attention}
+			/>
 		);
 	}
 	if (failed.length > 0) {
 		return (
-			<span title={failed.join("\n")}>
-				<Chip
-					label={failed.length === 1 ? `✗ ${failed[0]}` : `✗ ${failed.length}`}
-					className={PILL.danger}
-				/>
-			</span>
+			<Chip
+				title={failed.join("\n")}
+				label={failed.length === 1 ? `✗ ${failed[0]}` : `✗ ${failed.length}`}
+				className={PILL.danger}
+			/>
 		);
 	}
 	if (awaiting.length > 0) {
 		return (
-			<span title={awaiting.join("\n")}>
-				<Chip label="awaiting apply" className={PILL.attention} />
-			</span>
+			<Chip
+				title={awaiting.join("\n")}
+				label="awaiting apply"
+				className={PILL.attention}
+			/>
 		);
 	}
 	// Nothing ran (no CI on this repo) is not the same as everything passed.
