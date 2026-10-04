@@ -18,7 +18,10 @@ import {
 } from "react-icons/hi2";
 import { useZoomFactor } from "renderer/hooks/useZoomFactor";
 import { electronTrpc } from "renderer/lib/electron-trpc";
-import { useInAppBrowser } from "renderer/stores/in-app-browser";
+import {
+	slackWebClientUrl,
+	useInAppBrowser,
+} from "renderer/stores/in-app-browser";
 import { IN_APP_BROWSER_PARTITION } from "shared/constants";
 import { BUTTON } from "./pill";
 
@@ -123,11 +126,26 @@ export function InAppBrowser() {
 		const onConsole = (event: Event) => {
 			if ((event as { message?: string }).message === ESCAPE_SIGNAL) close();
 		};
+		// A Slack link followed inside the panel (from a Jira ticket, a Notion
+		// page, a sign-in redirect) goes to Slack's web client before Slack's
+		// desktop hand-off page can load, as openUrl does for Odin's own links.
+		const toSlackWebClient = (event: {
+			url: string;
+			isMainFrame: boolean;
+			isInPlace: boolean;
+		}) => {
+			const web = slackWebClientUrl(event.url);
+			if (event.isMainFrame && !event.isInPlace && web !== event.url) {
+				webview.loadURL(web).catch(() => {});
+			}
+		};
 		webview.addEventListener("did-navigate", onNavigate);
 		webview.addEventListener("did-navigate-in-page", onNavigate);
 		webview.addEventListener("page-title-updated", onTitle);
 		webview.addEventListener("dom-ready", onReady);
 		webview.addEventListener("console-message", onConsole);
+		webview.addEventListener("did-start-navigation", toSlackWebClient);
+		webview.addEventListener("did-redirect-navigation", toSlackWebClient);
 		window.addEventListener("keydown", onKey, { capture: true });
 		return () => {
 			webview.removeEventListener("did-navigate", onNavigate);
@@ -135,6 +153,8 @@ export function InAppBrowser() {
 			webview.removeEventListener("page-title-updated", onTitle);
 			webview.removeEventListener("dom-ready", onReady);
 			webview.removeEventListener("console-message", onConsole);
+			webview.removeEventListener("did-start-navigation", toSlackWebClient);
+			webview.removeEventListener("did-redirect-navigation", toSlackWebClient);
 			window.removeEventListener("keydown", onKey, { capture: true });
 			if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
 		};
