@@ -35,6 +35,10 @@ export interface PullRequestStatus {
 	 * linked is context, not its output. Null when either side is unknown.
 	 */
 	mine: boolean | null;
+	/** What the PR does: its title, for the link's hover. */
+	title: string | null;
+	/** The description's first paragraph, plain text, clipped. */
+	summary: string | null;
 }
 
 /** Injectable so the retry below is testable without a GitHub account. */
@@ -72,6 +76,28 @@ const FAILED = new Set([
 	"STARTUP_FAILURE",
 ]);
 
+const SUMMARY_MAX = 280;
+
+/**
+ * The opening paragraph of a PR description, minus markdown headings and
+ * emphasis — the hover is plain text. Odin's PRs lead with what changed.
+ */
+export function firstParagraph(body: string): string | null {
+	for (const block of body.split(/\n\s*\n/)) {
+		const text = block
+			.split("\n")
+			.filter((line) => !/^\s*#/.test(line))
+			.join("\n")
+			.replace(/\*\*|__|`/g, "")
+			.trim();
+		if (!text) continue;
+		return text.length > SUMMARY_MAX
+			? `${text.slice(0, SUMMARY_MAX).trimEnd()}…`
+			: text;
+	}
+	return null;
+}
+
 function status(stdout: string): PullRequestStatus | null {
 	const pr = JSON.parse(stdout) as {
 		state?: string;
@@ -79,6 +105,8 @@ function status(stdout: string): PullRequestStatus | null {
 		reviewDecision?: string | null;
 		statusCheckRollup?: RollupEntry[] | null;
 		author?: { login?: string } | null;
+		title?: string;
+		body?: string;
 	};
 	if (pr.state !== "OPEN" && pr.state !== "MERGED" && pr.state !== "CLOSED") {
 		return null;
@@ -93,6 +121,8 @@ function status(stdout: string): PullRequestStatus | null {
 		passed: 0,
 		author: pr.author?.login ?? null,
 		mine: null,
+		title: pr.title || null,
+		summary: firstParagraph(pr.body ?? ""),
 	};
 	for (const entry of pr.statusCheckRollup ?? []) {
 		const name = entry.name ?? entry.context ?? "check";
@@ -184,7 +214,7 @@ export async function pullRequestState(
 			"view",
 			url,
 			"--json",
-			"state,isDraft,reviewDecision,statusCheckRollup,author",
+			"state,isDraft,reviewDecision,statusCheckRollup,author,title,body",
 		],
 		status,
 		exec,
