@@ -10,6 +10,7 @@ describe("opensInOdin", () => {
 			"https://github.com/danlinenberg/odin/pull/595",
 			"https://www.notion.so/imagen/Page-abc123",
 			"https://mail.google.com/mail/u/0/#inbox/abc",
+			"https://docs.google.com/document/d/abc/edit",
 		]) {
 			expect(opensInOdin(url)).toBe(true);
 		}
@@ -18,7 +19,7 @@ describe("opensInOdin", () => {
 	it("sends everything else to your browser", () => {
 		for (const url of [
 			"https://www.google.com/search?q=odin",
-			"https://docs.google.com/document/d/abc",
+			"https://drive.google.com/file/d/abc",
 			"http://localhost:5173",
 			"https://evilgithub.com/x",
 			"https://github.com.evil.io/x",
