@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { emojify } from "renderer/lib/emoji";
 import { openUrl } from "renderer/stores/in-app-browser";
 import { useSearchHotkey } from "../components/FeedChrome";
 
@@ -670,7 +671,7 @@ function WeekView({
 								title={task.description ?? task.title}
 								className="min-w-0 flex-1 cursor-default truncate text-[12.5px] text-soft-foreground"
 							>
-								{task.title}
+								{emojify(task.title)}
 							</div>
 							{task.person && (
 								<span className="shrink-0 text-[10.5px] text-muted-foreground">

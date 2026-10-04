@@ -1,6 +1,7 @@
 import { slackReactions, workLog } from "@odin/local-db";
 import { eq } from "drizzle-orm";
 import { BrowserWindow, powerMonitor } from "electron";
+import { appState } from "main/lib/app-state";
 import { localDb } from "main/lib/local-db";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
@@ -114,11 +115,20 @@ export const createInsightsRouter = () => {
 					}),
 					input,
 				);
+				// The name the board shows - a rename included - while the card is
+				// still there; once it's gone, the brief's title, which is rewritten
+				// as the session works. The transcript's own title is the fallback.
+				const cardTitles = new Map<string, string>();
+				for (const pane of Object.values(appState.data.tabsState.panes ?? {}))
+					if (pane.claudeSessionId && pane.odinTaskTitle)
+						cardTitles.set(pane.claudeSessionId, pane.odinTaskTitle);
 				// A written brief says what a session did, not just what it was
 				// asked; use it where the board already paid for one.
 				for (const week of workload.recap)
 					for (const task of week.tasks) {
 						const brief = briefs.get(task.sessionId);
+						task.title =
+							cardTitles.get(task.sessionId) || brief?.title || task.title;
 						const said = [brief?.goal, brief?.status]
 							.filter(Boolean)
 							.join("\n\n");
