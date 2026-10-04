@@ -45,6 +45,28 @@ export function migrateDone(persisted: unknown): {
 }
 
 /**
+ * Is this row done? By key, or by link for PRs, which the feeds key by id and
+ * the sweep by repo#n. A mention newer than the Done brings the row back —
+ * someone asked me something on it since — and Done again puts it away.
+ */
+export function doneChecker(done: Record<string, DoneRow>) {
+	const byUrl = new Map(
+		Object.values(done).flatMap((row) =>
+			row.url ? [[row.url, row] as const] : [],
+		),
+	);
+	return (item: {
+		key: string;
+		url?: string | null;
+		mention?: { at?: string | null } | null;
+	}) => {
+		const row = done[item.key] ?? (item.url ? byUrl.get(item.url) : null);
+		const askedAt = Date.parse(item.mention?.at ?? "");
+		return !!row && !(askedAt > row.at);
+	};
+}
+
+/**
  * Everything marked Done — from any feed, Next in line, or a Review drop.
  * Odin-only: nothing is written upstream (a Slack row also gets slack.setDone).
  * Keyed by the All-feed key, pruned after KEEP_MS so it stays a few KB. The

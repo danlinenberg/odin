@@ -60,7 +60,7 @@ export interface AllItem {
 	/** The date the source itself wants it by — Jira's Due Date. Ours overrides it. */
 	dueDate: string | null;
 	/** The comment that put it here — Jira's @-mention rows. Null elsewhere. */
-	mention: { author: string | null; text: string } | null;
+	mention: { author: string | null; text: string; at?: string | null } | null;
 	/** The long form the card is cut from — a message, a description, a PR body. */
 	body: string | null;
 	/** Whatever else the source knows that the card has no room for —
@@ -146,7 +146,11 @@ export function allItems(input: {
 		reporter?: string | null;
 		updated: string | null;
 		dueDate?: string | null;
-		mention?: { author: string | null; text: string } | null;
+		mention?: {
+			author: string | null;
+			text: string;
+			at?: string | null;
+		} | null;
 		issueType?: string | null;
 		description?: string | null;
 		role?: string;

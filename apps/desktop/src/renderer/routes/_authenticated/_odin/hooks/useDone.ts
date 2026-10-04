@@ -1,7 +1,7 @@
 import { toast } from "@odin/ui/sonner";
 import { useMemo } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
-import { type DoneRow, useDoneStore } from "renderer/stores/done";
+import { type DoneRow, doneChecker, useDoneStore } from "renderer/stores/done";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import { useReminders } from "../components/Reminders";
 import { useBacklogReview } from "./useBacklogReview";
@@ -38,15 +38,7 @@ export function useDone() {
 	const { activeId } = useOdinProfile();
 	const slackDone = electronTrpc.slack.setDone.useMutation();
 	const utils = electronTrpc.useUtils();
-	// By key, or by link for PRs, which the feeds key by id and the sweep by
-	// repo#n.
-	const isDone = useMemo(() => {
-		const urls = new Set(
-			Object.values(done).flatMap((row) => (row.url ? [row.url] : [])),
-		);
-		return (item: { key: string; url?: string | null }) =>
-			item.key in done || (!!item.url && urls.has(item.url));
-	}, [done]);
+	const isDone = useMemo(() => doneChecker(done), [done]);
 
 	const mark = (item: Doable, on: boolean) => {
 		setDone(
