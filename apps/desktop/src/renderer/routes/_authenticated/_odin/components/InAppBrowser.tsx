@@ -43,6 +43,18 @@ const alwaysExternal = () => {
 	});
 };
 
+/** What a page in the panel logs when Esc goes unhandled there. */
+const ESCAPE_SIGNAL = "odin:in-app-browser:escape";
+
+/**
+ * A page in the panel is its own document, so its keys never reach Odin's
+ * window. It reports an Esc it didn't use itself (a Jira modal closing takes
+ * it) through its console instead.
+ */
+const REPORT_ESCAPE = `addEventListener("keydown", (event) => {
+	if (event.key === "Escape" && !event.defaultPrevented) console.debug(${JSON.stringify(ESCAPE_SIGNAL)});
+});`;
+
 const ICON_BUTTON =
 	"flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground";
 
@@ -61,6 +73,9 @@ export function InAppBrowser() {
 	useEffect(() => {
 		const webview = view.current;
 		if (!url || !webview) return;
+		// Whatever had focus when the link opened — the session's terminal,
+		// Catch up — gets it back on close, instead of it falling to <body>.
+		const opener = document.activeElement;
 		setPage({ title: "", url });
 		const onNavigate = (event: Event) =>
 			setPage((prev) => ({
@@ -72,18 +87,36 @@ export function InAppBrowser() {
 				...prev,
 				title: (event as { title?: string }).title ?? "",
 			}));
+		// Captured and stopped at the window: Esc closes the panel and nothing
+		// under it — not the session drawer, not Catch up, not the terminal.
 		const onKey = (event: KeyboardEvent) => {
-			if (event.key === "Escape") close();
+			if (event.key !== "Escape") return;
+			// The "Open in browser" menu closes itself first.
+			if ((event.target as HTMLElement | null)?.closest("[role=menu]")) return;
+			event.preventDefault();
+			event.stopImmediatePropagation();
+			close();
+		};
+		const onReady = () => {
+			webview.executeJavaScript(REPORT_ESCAPE).catch(() => {});
+		};
+		const onConsole = (event: Event) => {
+			if ((event as { message?: string }).message === ESCAPE_SIGNAL) close();
 		};
 		webview.addEventListener("did-navigate", onNavigate);
 		webview.addEventListener("did-navigate-in-page", onNavigate);
 		webview.addEventListener("page-title-updated", onTitle);
-		window.addEventListener("keydown", onKey);
+		webview.addEventListener("dom-ready", onReady);
+		webview.addEventListener("console-message", onConsole);
+		window.addEventListener("keydown", onKey, { capture: true });
 		return () => {
 			webview.removeEventListener("did-navigate", onNavigate);
 			webview.removeEventListener("did-navigate-in-page", onNavigate);
 			webview.removeEventListener("page-title-updated", onTitle);
-			window.removeEventListener("keydown", onKey);
+			webview.removeEventListener("dom-ready", onReady);
+			webview.removeEventListener("console-message", onConsole);
+			window.removeEventListener("keydown", onKey, { capture: true });
+			if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
 		};
 	}, [url]);
 

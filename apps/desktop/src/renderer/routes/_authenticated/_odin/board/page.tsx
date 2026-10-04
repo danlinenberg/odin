@@ -75,7 +75,7 @@ import { BOARD_TAGS, boardTags, normalizeTag } from "shared/odin-tags";
 /** Tags the card shows as their own pill instead of in the #tag line. */
 const PILL_TAGS = ["automation", "auto-started", "off-hours"];
 
-import { openUrl } from "renderer/stores/in-app-browser";
+import { openUrl, useInAppBrowser } from "renderer/stores/in-app-browser";
 import { DropHint } from "../components/DropHint";
 import { useSearchHotkey } from "../components/FeedChrome";
 import {
@@ -1548,6 +1548,8 @@ function DevBoardPage() {
 		if (!drawerCard) return;
 		const onKeyDown = (event: KeyboardEvent) => {
 			if (event.key !== "Escape") return;
+			// A link open over the drawer takes this Esc and closes alone.
+			if (useInAppBrowser.getState().url) return;
 			// A box opened over the pane cancels itself on Esc. Captured this
 			// early we'd swallow that keypress and close the drawer out from
 			// under it instead, so hand the key back and leave the drawer alone.
