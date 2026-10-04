@@ -352,7 +352,7 @@ function withCode(
 }
 
 /**
- * Catch up's card: what's yours to do, where it stands, what the issue was
+ * Catch up's card: what the issue was, what's yours to do, where it stands
  * and what we did, and the PRs, tickets and threads it's about — nothing else.
  * The conversation and the brief panel are one click away, not on screen:
  * catching up is deciding Next or Done, not reading.
@@ -408,6 +408,16 @@ function CatchUpCard({
 	const label = "mb-1.5 text-[11px] font-semibold uppercase tracking-[.4px]";
 	return (
 		<div className="flex min-h-0 flex-1 select-text cursor-text flex-col gap-6 overflow-y-auto px-8 py-7">
+			{/* What it's about first, at the size of the action items: you can't
+			    decide Next or Done on a session you don't recognise. */}
+			{written?.issue && (
+				<div>
+					<div className={cn(label, "text-muted-foreground")}>The issue</div>
+					<div className="text-[15px] leading-relaxed text-foreground">
+						{text(written.issue)}
+					</div>
+				</div>
+			)}
 			<div>
 				<div className={cn(label, "text-attention")}>Your action items</div>
 				{todo.length > 0 ? (
@@ -438,24 +448,12 @@ function CatchUpCard({
 					</div>
 				</div>
 			)}
-			{(written?.issue || written?.done) && (
-				<div className="flex flex-col gap-3 text-[13.5px] leading-relaxed text-soft-foreground">
-					{written.issue && (
-						<div>
-							<div className={cn(label, "text-muted-foreground")}>
-								The issue
-							</div>
-							{text(written.issue)}
-						</div>
-					)}
-					{written.done && (
-						<div>
-							<div className={cn(label, "text-muted-foreground")}>
-								What we did
-							</div>
-							{text(written.done)}
-						</div>
-					)}
+			{written?.done && (
+				<div>
+					<div className={cn(label, "text-muted-foreground")}>What we did</div>
+					<div className="text-[13.5px] leading-relaxed text-soft-foreground">
+						{text(written.done)}
+					</div>
 				</div>
 			)}
 			<SessionBrief
