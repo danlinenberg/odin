@@ -385,6 +385,14 @@ export function sourceLink(
 	};
 }
 
+/** The PR a session was launched on, when its launch brief is a PR row. */
+export function launchPullRequest(
+	brief: string | null | undefined,
+): PullRequestLink | null {
+	const url = sourceLink(brief)?.url ?? "";
+	return pullRequests([{ role: "assistant", text: url, at: null }])[0] ?? null;
+}
+
 /**
  * What a link you attached to the brief yourself is called: an issue key, a
  * PR number, a Notion title, "Slack thread" - else its host, so a raw url

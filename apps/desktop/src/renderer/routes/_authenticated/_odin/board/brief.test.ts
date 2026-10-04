@@ -6,6 +6,7 @@ import {
 	elapsedLabel,
 	jiraIssue,
 	lastMessageAt,
+	launchPullRequest,
 	linkKind,
 	linkLabel,
 	linkRefs,
@@ -324,6 +325,26 @@ describe("elapsedLabel", () => {
 
 	it("says nothing when there is no timestamp", () => {
 		expect(elapsedLabel(undefined, now)).toBeNull();
+	});
+});
+
+describe("launchPullRequest", () => {
+	it("is the PR a PR row was launched on, and nothing for any other row", () => {
+		expect(
+			launchPullRequest(
+				"imagenai/submitter-app-electron#6012: fix: stale\nhttps://github.com/imagenai/submitter-app-electron/pull/6012",
+			),
+		).toEqual({
+			url: "https://github.com/imagenai/submitter-app-electron/pull/6012",
+			repo: "imagenai/submitter-app-electron",
+			number: 6012,
+		});
+		expect(
+			launchPullRequest(
+				"CRR-862\nhttps://imagen-ai.atlassian.net/browse/CRR-862",
+			),
+		).toBeNull();
+		expect(launchPullRequest(null)).toBeNull();
 	});
 });
 
