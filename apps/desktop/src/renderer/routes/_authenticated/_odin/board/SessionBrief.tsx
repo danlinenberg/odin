@@ -160,6 +160,18 @@ function hoverText(
 }
 
 /**
+ * A PR link's tooltip: what it does — title, then the description's opening
+ * paragraph — then the url. Both are missing until main restarts onto the
+ * procedure that fetches them, so it falls back to the url alone.
+ */
+function prHoverText(
+	url: string,
+	pr: { title?: string | null; summary?: string | null } | null | undefined,
+): string {
+	return [pr?.title, pr?.summary, url].filter(Boolean).join("\n\n");
+}
+
+/**
  * A link's hover: the full message or url, up after 150ms. The native `title`
  * tooltip waits the OS's ~1s and can't be told otherwise.
  */
@@ -456,7 +468,13 @@ export function SessionBrief({
 			.join(" · ");
 		return (
 			<div key={url} className="group flex items-start gap-1.5">
-				<Hover text={hoverText(url, preview)}>
+				<Hover
+					text={
+						linkKind(url) === "pr"
+							? prHoverText(url, prStates?.[url])
+							: hoverText(url, preview)
+					}
+				>
 					<button
 						type="button"
 						onClick={() => openUrl(url)}
@@ -567,7 +585,7 @@ export function SessionBrief({
 					<div className="flex flex-col gap-1">
 						{ownPrs.map((pr) => (
 							<div key={pr.url} className="group flex items-center gap-1.5">
-								<Hover text={pr.url}>
+								<Hover text={prHoverText(pr.url, prStates?.[pr.url])}>
 									<button
 										type="button"
 										onClick={() => openUrl(pr.url)}

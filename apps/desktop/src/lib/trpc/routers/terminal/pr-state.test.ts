@@ -4,6 +4,7 @@ import { mkdtempSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+	firstParagraph,
 	type GhExec,
 	pullRequestState,
 	pullRequestWorktrees,
@@ -35,7 +36,28 @@ describe("pullRequestState", () => {
 			passed: 0,
 			author: null,
 			mine: null,
+			title: null,
+			summary: null,
 		});
+	});
+
+	test("carries the title and the description's opening paragraph", async () => {
+		const exec: GhExec = async () => ({
+			stdout: JSON.stringify({
+				state: "OPEN",
+				title: "Brief: list only your PRs",
+				body: "## Summary\n\nThe brief listed **every** PR as `its own`.\n\n- detail",
+			}),
+		});
+		const status = await pullRequestState(URL, exec);
+		expect(status?.title).toBe("Brief: list only your PRs");
+		expect(status?.summary).toBe("The brief listed every PR as its own.");
+	});
+
+	test("clips a long opening paragraph, and an empty body has none", () => {
+		expect(firstParagraph("x".repeat(400))).toBe(`${"x".repeat(280)}…`);
+		expect(firstParagraph("")).toBeNull();
+		expect(firstParagraph("## Only a heading")).toBeNull();
 	});
 
 	test("mine when a logged-in account opened it, not when a teammate did", async () => {
@@ -88,6 +110,8 @@ describe("pullRequestState", () => {
 			passed: 1,
 			author: null,
 			mine: null,
+			title: null,
+			summary: null,
 		});
 	});
 
