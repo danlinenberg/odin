@@ -49,6 +49,15 @@ export const NOTIFICATION_EVENTS = {
 	RUN_IN_SHELL: "run-in-shell",
 } as const;
 
+/**
+ * Where an agent runs something you'll use or watch: its session's Shell, via
+ * the hook server's /shell/run. A task launch puts it in the prompt; every other
+ * Claude session in Odin gets it at SessionStart (templates/shell-rule.template.sh),
+ * so a session you started by hand doesn't fall back to a background Bash you
+ * can't see.
+ */
+export const SHELL_RULE = `To run something for me to use or watch - the app from a worktree, a dev server - don't use a subagent or a background Bash: run it in this session's Shell in Odin, where I can see and stop it: \`curl -sf http://127.0.0.1:$ODIN_PORT/shell/run --data-urlencode paneId=$ODIN_PANE_ID --data-urlencode "command=cd <dir> && <command>"\`. Running it again replaces what's there.`;
+
 // There is one organization and it is this machine. The nil UUID is what the
 // host service already keyed its state directory on, so existing ~/.odin/host
 // databases keep working.
