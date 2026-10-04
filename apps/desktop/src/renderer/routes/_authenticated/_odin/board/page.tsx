@@ -103,6 +103,7 @@ import {
 } from "../hooks/useQuickQuestion";
 import { PANE_STATUS } from "../pane-status";
 import { sessionFor } from "../review/verdicts";
+import type { BriefMessage } from "./brief";
 import {
 	actionItems,
 	elapsedLabel,
@@ -116,6 +117,7 @@ import {
 	notionPage,
 	onlyLookLeft,
 	onlyMergeLeft,
+	prsDropped,
 	pullRequests,
 	sourceLink,
 } from "./brief";
@@ -1735,24 +1737,39 @@ function DevBoardPage() {
 			);
 		}),
 	);
-	const mergeReadyKey = mergeCandidates
-		.filter((_, i) => {
-			const messages = mergeTranscripts[i]?.data?.messages;
-			const states = mergeStateQueries[i]?.data;
-			return (
-				!!messages &&
-				(onlyLookLeft(messages) || (!!states && mergeReady(messages, states)))
-			);
-		})
-		.map(({ paneId }) => paneId)
-		.join(",");
+	const candidateKey = (
+		test: (
+			messages: BriefMessage[],
+			states: Parameters<typeof mergeReady>[1] | undefined,
+		) => boolean,
+	) =>
+		mergeCandidates
+			.filter((_, i) => {
+				const messages = mergeTranscripts[i]?.data?.messages;
+				return !!messages && test(messages, mergeStateQueries[i]?.data);
+			})
+			.map(({ paneId }) => paneId)
+			.join(",");
+	const mergeReadyKey = candidateKey(
+		(messages, states) =>
+			onlyLookLeft(messages) ||
+			(!!states &&
+				(mergeReady(messages, states) || prsDropped(messages, states))),
+	);
+	const droppedKey = candidateKey(
+		(messages, states) => !!states && prsDropped(messages, states),
+	);
 	const mergeReadyPaneIds = useMemo(
 		() => new Set(mergeReadyKey ? mergeReadyKey.split(",") : []),
 		[mergeReadyKey],
 	);
+	const droppedPaneIds = useMemo(
+		() => new Set(droppedKey ? droppedKey.split(",") : []),
+		[droppedKey],
+	);
 	/**
 	 * Needs you, unless all it needs is merging approved PRs or a look at what
-	 * shipped - then Done.
+	 * shipped, or its PRs were closed - then Done.
 	 */
 	const withMergeReady = useCallback(
 		(column: PaneStatus, paneId: string): PaneStatus =>
@@ -3407,6 +3424,11 @@ function DevBoardPage() {
     something of you. A pill that renders nothing drops out, so the dots
     between the rest stay right. */}
 																<div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 text-[11.5px] text-muted-foreground [&>*+*]:before:inline-block [&>*+*]:before:mr-1.5 [&>*+*]:before:text-faint-foreground [&>*+*]:before:content-['·']">
+																	{droppedPaneIds.has(card.pane.id) && (
+																		<span className="font-medium text-danger">
+																			Dropped: PR closed
+																		</span>
+																	)}
 																	{cardContact(card) && (
 																		<span className="inline-flex min-w-0 items-center gap-1 font-medium text-soft-foreground">
 																			<span
