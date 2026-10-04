@@ -19,6 +19,7 @@ import {
 import {
 	RemindButton,
 	remindSession,
+	useOpenReminder,
 	useResumeReminder,
 } from "../board/SessionReminders";
 import {
@@ -651,6 +652,7 @@ function RemindersPanel() {
 	const clear = useReminders((s) => s.clear);
 	const setDue = useReminders((s) => s.setDue);
 	const { resume, isLaunching } = useResumeReminder();
+	const open = useOpenReminder();
 	const now = Date.now();
 	const rows = Object.entries(reminders)
 		// Every reminder, not just snoozed sessions: a due date set on a feed row
@@ -699,9 +701,7 @@ function RemindersPanel() {
 									)}
 								>
 									{isDue(r.due, now)
-										? r.resume
-											? "Due now — on the board"
-											: `Due ${dueLabel(r.due, now)}`
+										? `Due ${dueLabel(r.due, now)} — on the board`
 										: `${dueLabel(r.due, now)} at ${notifyAt}`}
 								</span>
 								<span className={ROW_META}>
@@ -721,7 +721,7 @@ function RemindersPanel() {
 							</div>
 						</div>
 						<div className="flex shrink-0 items-center gap-1.5">
-							{r.resume && (
+							{r.resume ? (
 								<button
 									type="button"
 									disabled={isLaunching}
@@ -729,6 +729,14 @@ function RemindersPanel() {
 									className={ROW_PRIMARY_BUTTON}
 								>
 									↻ Resume now
+								</button>
+							) : (
+								<button
+									type="button"
+									onClick={() => open(key)}
+									className={ROW_PRIMARY_BUTTON}
+								>
+									Open
 								</button>
 							)}
 							<RemindButton

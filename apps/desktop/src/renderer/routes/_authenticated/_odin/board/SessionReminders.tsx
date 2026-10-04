@@ -8,8 +8,11 @@ import { useNavigate } from "@tanstack/react-router";
 import { useRef } from "react";
 import { LuBellRing } from "react-icons/lu";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
+import { openUrl } from "renderer/stores/in-app-browser";
+import { allItems } from "../all/all-items";
 import { BUTTON } from "../components/pill";
 import { dayOf, dueLabel, isDue, useReminders } from "../components/Reminders";
+import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePendingFocus } from "../hooks/usePendingFocus";
 import { HoverBrief } from "./SessionBrief";
@@ -46,6 +49,33 @@ export function useResumeReminder() {
 		navigate({ to: "/board" });
 	};
 	return { resume, isLaunching };
+}
+
+/**
+ * Go to what a dated reminder points at: a board card opens its drawer, a feed
+ * row opens its link (or its feed, when it has none). Snoozed sessions resume
+ * instead — see useResumeReminder.
+ */
+export function useOpenReminder() {
+	const { reactions, jira, pulls, notion, emails } = useOdinFeeds();
+	const navigate = useNavigate();
+	return (key: string) => {
+		if (key.startsWith("session:")) {
+			usePendingFocus.getState().focus(key.slice("session:".length));
+			return void navigate({ to: "/board" });
+		}
+		const item = allItems({
+			tasks: [],
+			slack: reactions.data?.rows ?? [],
+			jira: jira.data?.issues ?? [],
+			pulls: pulls.data?.pulls ?? [],
+			notion: notion.data?.rows ?? [],
+			// Junk too: All hides calendar mail, but one you dated is one you want.
+			emails: (emails.data?.emails ?? []).map((e) => ({ ...e, junk: false })),
+		}).find((row) => row.key === key);
+		if (item?.url) return openUrl(item.url);
+		navigate({ to: item?.to ?? "/all" });
+	};
 }
 
 export function remindSession(
@@ -114,17 +144,17 @@ export function RemindButton({
 }
 
 /**
- * Sessions whose reminder day has come, above the columns, each with Resume —
- * the same `claude --resume` into a fresh pane Session History does.
+ * Every reminder whose day has come, above the columns. A snoozed session gets
+ * Resume — the same `claude --resume` into a fresh pane Session History does;
+ * a dated card or feed row gets Open.
  */
 export function SessionReminders() {
 	const reminders = useReminders((s) => s.reminders);
 	const clear = useReminders((s) => s.clear);
 	const { resume, isLaunching } = useResumeReminder();
+	const open = useOpenReminder();
 	const now = Date.now();
-	const due = Object.entries(reminders).filter(
-		([key, r]) => key.startsWith(PREFIX) && r.resume && isDue(r.due, now),
-	);
+	const due = Object.entries(reminders).filter(([, r]) => isDue(r.due, now));
 	if (!due.length) return null;
 
 	return (
@@ -168,9 +198,11 @@ export function SessionReminders() {
 							)}
 							<HoverBrief sessionId={r.resume?.sessionId} />
 							<div className="border-t border-border pt-2 text-[11px] text-muted-foreground">
-								<div>
-									In {r.resume?.cwd.split("/").pop()} · {r.resume?.cwd}
-								</div>
+								{r.resume && (
+									<div>
+										In {r.resume.cwd.split("/").pop()} · {r.resume.cwd}
+									</div>
+								)}
 								<div>
 									Due {r.due}
 									{r.resume?.setAt &&
@@ -185,10 +217,10 @@ export function SessionReminders() {
 					<button
 						type="button"
 						disabled={isLaunching}
-						onClick={() => void resume(key)}
+						onClick={() => (r.resume ? void resume(key) : open(key))}
 						className={`rounded-md px-2 py-0.5 text-[11px] font-semibold disabled:opacity-60 ${BUTTON.secondary}`}
 					>
-						↻ Resume
+						{r.resume ? "↻ Resume" : "Open"}
 					</button>
 					<button
 						type="button"
