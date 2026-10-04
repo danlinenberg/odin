@@ -3,20 +3,32 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 /**
- * The page the in-app browser is showing, or null while it's closed, and
- * whether links skip it for your own browser (Settings → Connections, or
- * "Always" on the browser's "Open in browser" button).
+ * The page the in-app browser is showing, or null while it's closed; whether
+ * links skip it for your own browser (Settings → Connections, or "Always" on
+ * the browser's "Open in browser" button); and the panel's width as a share of
+ * the window, once you've dragged its edge (null = the default width).
  */
 interface InAppBrowserState {
 	url: string | null;
 	external: boolean;
+	widthFraction: number | null;
 }
 
 export const useInAppBrowser = create<InAppBrowserState>()(
-	persist((): InAppBrowserState => ({ url: null, external: false }), {
-		name: "odin-in-app-browser",
-		partialize: ({ external }) => ({ external }),
-	}),
+	persist(
+		(): InAppBrowserState => ({
+			url: null,
+			external: false,
+			widthFraction: null,
+		}),
+		{
+			name: "odin-in-app-browser",
+			partialize: ({ external, widthFraction }) => ({
+				external,
+				widthFraction,
+			}),
+		},
+	),
 );
 
 /**

@@ -59,6 +59,36 @@ const REPORT_ESCAPE = `addEventListener("keydown", (event) => {
 	if (event.key === "Escape" && !event.defaultPrevented) console.debug(${JSON.stringify(ESCAPE_SIGNAL)});
 });`;
 
+/** Narrow enough to keep a board column in view, wide enough for Jira's sidebar. */
+const MIN_WIDTH = 480;
+
+/**
+ * Drag the panel's left edge. Its width is kept as a share of the area it
+ * opens over, like the session drawer's, so it still fits a smaller window.
+ */
+const startResize = (
+	event: React.PointerEvent<HTMLDivElement>,
+	setResizing: (resizing: boolean) => void,
+) => {
+	event.preventDefault();
+	const area = event.currentTarget.parentElement?.parentElement;
+	if (!area) return;
+	setResizing(true);
+	const onMove = (move: PointerEvent) => {
+		const { right, width } = area.getBoundingClientRect();
+		useInAppBrowser.setState({
+			widthFraction: Math.min(Math.max((right - move.clientX) / width, 0), 1),
+		});
+	};
+	const onUp = () => {
+		setResizing(false);
+		window.removeEventListener("pointermove", onMove);
+		window.removeEventListener("pointerup", onUp);
+	};
+	window.addEventListener("pointermove", onMove);
+	window.addEventListener("pointerup", onUp);
+};
+
 const ICON_BUTTON =
 	"flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground";
 
@@ -70,6 +100,8 @@ const ICON_BUTTON =
  */
 export function InAppBrowser() {
 	const url = useInAppBrowser((state) => state.url);
+	const widthFraction = useInAppBrowser((state) => state.widthFraction);
+	const [resizing, setResizing] = useState(false);
 	const openExternal = electronTrpc.external.openUrl.useMutation();
 	const view = useRef<WebviewTag>(null);
 	const [page, setPage] = useState({ title: "", url: "" });
@@ -170,7 +202,21 @@ export function InAppBrowser() {
 				className="absolute inset-0 z-[60] cursor-default bg-black/35"
 				onClick={close}
 			/>
-			<div className="absolute inset-y-0 right-0 z-[60] flex w-[min(1200px,92%)] flex-col border-l border-border bg-background shadow-2xl">
+			<div
+				className={cn(
+					"absolute inset-y-0 right-0 z-[60] flex max-w-full flex-col border-l border-border bg-background shadow-2xl",
+					widthFraction === null && "w-[min(1200px,92%)]",
+				)}
+				style={
+					widthFraction === null
+						? undefined
+						: { width: `max(${MIN_WIDTH}px, ${widthFraction * 100}%)` }
+				}
+			>
+				<div
+					onPointerDown={(event) => startResize(event, setResizing)}
+					className="absolute left-0 top-0 z-10 h-full w-1.5 cursor-col-resize hover:bg-primary/40"
+				/>
 				<div className="flex h-10 shrink-0 items-center gap-1 border-b border-border px-2">
 					<button
 						type="button"
@@ -267,7 +313,9 @@ export function InAppBrowser() {
 					// Only read as present or absent; React drops a boolean `true` on
 					// an attribute it doesn't know, so it has to be a string.
 					allowpopups={"true" as unknown as boolean}
-					className="min-h-0 flex-1"
+					// A page under the pointer swallows its moves, which ends a drag of
+					// the edge the moment it crosses into the page.
+					className={cn("min-h-0 flex-1", resizing && "pointer-events-none")}
 				/>
 			</div>
 		</>
