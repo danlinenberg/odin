@@ -13,6 +13,7 @@ import {
 	mergeTargets,
 	nextCronFire,
 	notionPage,
+	onlyLookLeft,
 	onlyMergeLeft,
 	parseLinks,
 	projectSlug,
@@ -553,6 +554,38 @@ describe("onlyMergeLeft", () => {
 			onlyMergeLeft([turn("ACTION ITEMS\n1. Merge #12\n2. Restart Odin dev")]),
 		).toBe(false);
 		expect(onlyMergeLeft([turn("ACTION ITEMS: none")])).toBe(false);
+	});
+});
+
+describe("onlyLookLeft", () => {
+	const turn = (text: string) => ({
+		role: "assistant" as const,
+		text,
+		at: null,
+	});
+	it("is true when every item is a look at what shipped", () => {
+		for (const item of [
+			"Reload the Odin window (⌘R) and open the All feed.",
+			"Press ⌘R in Odin, then press Keep on a row.",
+			"Refresh the Review page and confirm they stay gone.",
+			"Open Insights and check the new bar color.",
+			"Check that all 10 cards appear under Needs you.",
+			'Confirm the "Drop?" rows are gone from Next in line.',
+		])
+			expect(onlyLookLeft([turn(`ACTION ITEMS\n1. ${item}`)])).toBe(true);
+	});
+	it("is false with anything else left, or nothing", () => {
+		for (const item of [
+			"Restart Odin dev to load the fix.",
+			"Merge #12",
+			"Check why the GitHub token returns 401.",
+			"Confirm I should fire the 6 DELETEs.",
+			"Open Settings → Board and set your session limit.",
+		])
+			expect(
+				onlyLookLeft([turn(`ACTION ITEMS\n1. Reload Odin.\n2. ${item}`)]),
+			).toBe(false);
+		expect(onlyLookLeft([turn("ACTION ITEMS: none")])).toBe(false);
 	});
 });
 

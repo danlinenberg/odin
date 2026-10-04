@@ -468,6 +468,21 @@ export function onlyMergeLeft(messages: BriefMessage[]): boolean {
 	return items.length > 0 && items.every((item) => MERGE_ITEM.test(item));
 }
 
+// "Reload the Odin window (⌘R) and open the All feed", "Open Insights and
+// check the new color", "Confirm the row stays gone" — a look at work that
+// already shipped. "Check why…", "Confirm I should…" and restarts stay open.
+const LOOK_ITEM =
+	/^(?:press\s+)?(?:⌘R|cmd\+R|(?:hard[- ])?(?:reload|refresh)\b|(?:re)?open\b.*\b(?:check|confirm|see|try)\b|(?:check|confirm) that\b|confirm the\b)/i;
+
+/**
+ * The session is finished: every open action item is a look at what shipped.
+ * That card is Done, not Needs you — the items still show in its brief.
+ */
+export function onlyLookLeft(messages: BriefMessage[]): boolean {
+	const items = actionItems(messages);
+	return items.length > 0 && items.every((item) => LOOK_ITEM.test(item));
+}
+
 /**
  * The PRs the merge items are about: the ones they name ("#12", "…/pull/12"),
  * else the newest PR the session linked. Newest first, like pullRequests.
