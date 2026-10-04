@@ -10,6 +10,7 @@ import {
 import { Button } from "@odin/ui/button";
 import { Input } from "@odin/ui/input";
 import { toast } from "@odin/ui/sonner";
+import { Switch } from "@odin/ui/switch";
 import { cn } from "@odin/ui/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
@@ -22,12 +23,14 @@ import {
 	type Provider,
 } from "renderer/components/ConnectProvider/ConnectProvider";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { useInAppBrowser } from "renderer/stores/in-app-browser";
 import {
 	useOdinFeeds,
 	useSetSlackReaction,
 } from "../../_odin/hooks/useOdinFeeds";
 import { resetOdinFeeds } from "../../_odin/hooks/useOdinProfile";
 import {
+	SettingRow,
 	SettingsPage,
 	SettingsSection,
 	StatusDot,
@@ -195,6 +198,10 @@ function ConnectionsSettings() {
 						</div>
 					);
 				})}
+			</SettingsSection>
+
+			<SettingsSection title="Links">
+				<OpenLinksInOdinRow />
 			</SettingsSection>
 
 			<SettingsSection title="Backup">
@@ -502,5 +509,25 @@ function Profiles({ onSwitched }: { onSwitched: () => void }) {
 				</EnterEnabledAlertDialogContent>
 			</AlertDialog>
 		</>
+	);
+}
+
+/** Undoes "Always open links in your browser" from the in-app browser. */
+function OpenLinksInOdinRow() {
+	const external = useInAppBrowser((state) => state.external);
+	return (
+		<SettingRow
+			label="Open links inside Odin"
+			htmlFor="open-links-in-odin"
+			description="Slack, Jira, GitHub and Notion links open in a panel over the page instead of another app. Off sends them to your default browser."
+		>
+			<Switch
+				id="open-links-in-odin"
+				checked={!external}
+				onCheckedChange={(inOdin) =>
+					useInAppBrowser.setState({ external: !inOdin })
+				}
+			/>
+		</SettingRow>
 	);
 }

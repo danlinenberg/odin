@@ -1,3 +1,10 @@
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@odin/ui/dropdown-menu";
+import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import type { WebviewTag } from "electron";
 import { useEffect, useRef, useState } from "react";
@@ -6,6 +13,7 @@ import {
 	HiArrowPath,
 	HiArrowRight,
 	HiArrowTopRightOnSquare,
+	HiChevronDown,
 	HiXMark,
 } from "react-icons/hi2";
 import { electronTrpc } from "renderer/lib/electron-trpc";
@@ -22,6 +30,18 @@ const CHROME_MAJOR = navigator.userAgent.match(/Chrome\/(\d+)/)?.[1];
 const USER_AGENT = `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${CHROME_MAJOR}.0.0.0 Safari/537.36`;
 
 const close = () => useInAppBrowser.setState({ url: null });
+
+/** From now on links skip this panel; Undo, or Settings → Connections, brings it back. */
+const alwaysExternal = () => {
+	useInAppBrowser.setState({ external: true });
+	toast("Links now open in your browser", {
+		description: "Switch back in Settings → Connections.",
+		action: {
+			label: "Undo",
+			onClick: () => useInAppBrowser.setState({ external: false }),
+		},
+	});
+};
 
 const ICON_BUTTON =
 	"flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground";
@@ -109,21 +129,50 @@ export function InAppBrowser() {
 					>
 						{page.title || new URL(page.url || url).host}
 					</span>
-					<button
-						type="button"
-						title="Open in your browser"
-						onClick={() => {
-							openExternal.mutate(page.url || url);
-							close();
-						}}
-						className={cn(
-							"flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium",
-							BUTTON.secondary,
-						)}
-					>
-						<HiArrowTopRightOnSquare className="size-3.5" />
-						Open in browser
-					</button>
+					<div className="flex">
+						<button
+							type="button"
+							title="Open in your browser"
+							onClick={() => {
+								openExternal.mutate(page.url || url);
+								close();
+							}}
+							className={cn(
+								"flex items-center gap-1.5 rounded-l-md px-2.5 py-1 text-xs font-medium",
+								BUTTON.secondary,
+							)}
+						>
+							<HiArrowTopRightOnSquare className="size-3.5" />
+							Open in browser
+						</button>
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<button
+									type="button"
+									aria-label="More ways to open"
+									className={cn(
+										"-ml-px flex items-center rounded-r-md px-1.5",
+										BUTTON.secondary,
+									)}
+								>
+									<HiChevronDown className="size-3.5" />
+								</button>
+							</DropdownMenuTrigger>
+							{/* Above the panel's z-[60]. */}
+							<DropdownMenuContent align="end" className="z-[70]">
+								<DropdownMenuItem
+									onSelect={() => {
+										openExternal.mutate(page.url || url);
+										close();
+										alwaysExternal();
+									}}
+								>
+									<HiArrowTopRightOnSquare className="size-3.5" />
+									Always open links in your browser
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
+					</div>
 					<button
 						type="button"
 						title="Close (Esc)"
