@@ -49,6 +49,20 @@ const alwaysExternal = () => {
 
 /** What a page in the panel logs when Esc goes unhandled there. */
 const ESCAPE_SIGNAL = "odin:in-app-browser:escape";
+/** What it logs for a ⌘C with nothing selected. */
+const COPY_SIGNAL = "odin:in-app-browser:copy";
+
+/**
+ * ⌘C with no text selected. By key position, so a Hebrew layout's ⌘ב counts.
+ * REPORT_KEYS repeats it inside the page.
+ */
+const isCopyLink = (event: KeyboardEvent) =>
+	event.code === "KeyC" &&
+	event.metaKey &&
+	!event.shiftKey &&
+	!event.altKey &&
+	!event.ctrlKey &&
+	!window.getSelection()?.toString();
 
 /**
  * A page in the panel is its own document, so its keys never reach Odin's
@@ -56,9 +70,15 @@ const ESCAPE_SIGNAL = "odin:in-app-browser:escape";
  * it) through its console instead. Slack's web client prevents every Esc,
  * open menu or not, so an Esc the page took still counts when nothing was
  * open for it to close. Checked in the capture phase, before the page's own
- * handlers close whatever was open.
+ * handlers close whatever was open. It reports a ⌘C with nothing selected,
+ * in the page or in a field, so that copies the page's link.
  */
-const REPORT_ESCAPE = `addEventListener("keydown", (event) => {
+const REPORT_KEYS = `addEventListener("keydown", (event) => {
+	const field = document.activeElement;
+	if (event.code === "KeyC" && event.metaKey && !event.shiftKey && !event.altKey && !event.ctrlKey
+		&& !getSelection()?.toString() && field?.selectionStart === field?.selectionEnd) {
+		console.debug(${JSON.stringify(COPY_SIGNAL)});
+	}
 	if (event.key !== "Escape") return;
 	const open = [...document.querySelectorAll("[role=dialog],[role=menu],[role=listbox],[aria-modal=true]")]
 		.some((el) => el.getClientRects().length > 0);
@@ -111,6 +131,7 @@ export function InAppBrowser() {
 	const widthFraction = useInAppBrowser((state) => state.widthFraction);
 	const [resizing, setResizing] = useState(false);
 	const openExternal = electronTrpc.external.openUrl.useMutation();
+	const { mutate: copyText } = electronTrpc.external.copyText.useMutation();
 	const view = useRef<WebviewTag>(null);
 	const [page, setPage] = useState({ title: "", url: "" });
 	const zoomFactor = useZoomFactor();
@@ -152,7 +173,18 @@ export function InAppBrowser() {
 			}));
 		// Captured and stopped at the window: Esc closes the panel and nothing
 		// under it — not the session drawer, not Catch up, not the terminal.
+		const copyLink = () => {
+			copyText(webview.getURL());
+			toast("Link copied");
+		};
 		const onKey = (event: KeyboardEvent) => {
+			// The toolbar, or whatever kept focus under the panel.
+			if (isCopyLink(event)) {
+				event.preventDefault();
+				event.stopImmediatePropagation();
+				copyLink();
+				return;
+			}
 			if (event.key !== "Escape") return;
 			// The "Open in browser" menu closes itself first.
 			if ((event.target as HTMLElement | null)?.closest("[role=menu]")) return;
@@ -161,10 +193,12 @@ export function InAppBrowser() {
 			close();
 		};
 		const onReady = () => {
-			webview.executeJavaScript(REPORT_ESCAPE).catch(() => {});
+			webview.executeJavaScript(REPORT_KEYS).catch(() => {});
 		};
 		const onConsole = (event: Event) => {
-			if ((event as { message?: string }).message === ESCAPE_SIGNAL) close();
+			const message = (event as { message?: string }).message;
+			if (message === ESCAPE_SIGNAL) close();
+			if (message === COPY_SIGNAL) copyLink();
 		};
 		// A Slack link followed inside the panel (from a Jira ticket, a Notion
 		// page, a sign-in redirect) goes to Slack's web client before Slack's
@@ -198,7 +232,7 @@ export function InAppBrowser() {
 			window.removeEventListener("keydown", onKey, { capture: true });
 			if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
 		};
-	}, [url]);
+	}, [url, copyText]);
 
 	if (!url) return null;
 
