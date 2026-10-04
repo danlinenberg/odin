@@ -6,9 +6,11 @@ Please use alias as defined in `tsconfig.json` when possible
 
 Work on Odin does not stop at "edited the working tree" — Dan's checkout is shared
 with other agent sessions, so uncommitted work gets lost or tangled. Finish the job:
-branch off `main`, commit, push, `gh pr create`, then `gh pr merge --squash
---delete-branch`. Standing instruction — don't ask first, and never push to `main`
-directly.
+branch off `main`, commit, push, `gh pr create`, wait for CI with `gh pr checks
+<n> --watch`, then `gh pr merge --squash --delete-branch`. `main` requires CI's
+`check` job (lint, typecheck, tests, build, smoke), so a merge before it passes is
+refused; if it fails, fix it on the branch. Standing instruction — don't ask
+first, and never push to `main` directly.
 
 Stage by path, never `git add -A`: this checkout almost always carries unrelated
 modified files from other sessions.
