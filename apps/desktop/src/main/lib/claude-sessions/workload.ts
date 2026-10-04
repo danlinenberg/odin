@@ -535,7 +535,7 @@ export interface WeekRow {
 	agentHours: number;
 	yourHours: number;
 	sessions: number;
-	/** Tasks — sessions — whose first merged PR opened this week. */
+	/** Merged PRs opened this week. */
 	shipped: number;
 }
 
@@ -854,14 +854,13 @@ export function computeWorkload(
 		bucket.sessions += 1;
 		bucket.yours.push(...yourSpans(session));
 	}
-	// A task ships the week its first PR opens, and counts once however many
-	// PRs it took: a tweak redone three times is one tweak, not three.
-	for (const session of all) {
-		if (session.prs.length === 0) continue;
-		const at = Math.min(...session.prAt.map((at) => at ?? session.startedAt));
-		const bucket = buckets.get(weekStart(at));
-		if (bucket) bucket.shipped += 1;
-	}
+	// Every merged PR ships in the week it opened. The caller drops unmerged
+	// ones, so a fix redone after a closed PR still counts once.
+	for (const session of all)
+		for (const at of session.prAt) {
+			const bucket = buckets.get(weekStart(at ?? session.startedAt));
+			if (bucket) bucket.shipped += 1;
+		}
 
 	const days = byDay(merged);
 	const busiest = [...days].sort((a, b) => b[1] - a[1])[0];
