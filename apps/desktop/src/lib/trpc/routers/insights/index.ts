@@ -5,6 +5,7 @@ import { localDb } from "main/lib/local-db";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
 import { activeProfileId } from "../odin-config";
+import { mergedPullRequests } from "../terminal/pr-state";
 import { sessionPeople, sessionProfileOf } from "../terminal/session-people";
 import { computeInsights } from "./insights";
 
@@ -97,8 +98,20 @@ export const createInsightsRouter = () => {
 				// Same scope as `summary`: only the active profile's sessions.
 				const profileId = activeProfileId();
 				const profileOfSession = sessionProfileOf();
+				const mine = sessions.filter(
+					(s) => profileOfSession(s.sessionId) === profileId,
+				);
+				// Only merged PRs count — an open or closed one hasn't shipped.
+				const merged = await mergedPullRequests(mine.flatMap((s) => s.prs));
 				const workload = computeWorkload(
-					sessions.filter((s) => profileOfSession(s.sessionId) === profileId),
+					mine.map((s) => {
+						const keep = s.prs.map((url) => merged.has(url));
+						return {
+							...s,
+							prs: s.prs.filter((_, i) => keep[i]),
+							prAt: s.prAt.filter((_, i) => keep[i]),
+						};
+					}),
 					input,
 				);
 				// A written brief says what a session did, not just what it was

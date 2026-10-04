@@ -224,6 +224,67 @@ export async function pullRequestState(
 	return { ...pr, mine: accounts.size ? accounts.has(pr.author) : null };
 }
 
+const PR_PARTS = /^https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/pull\/(\d+)$/;
+const RECHECK_MS = 10 * 60_000;
+const mergedUrls = new Set<string>();
+const checkedAt = new Map<string, number>();
+
+/**
+ * Which of `urls` are merged PRs. Insights asks about every PR a session
+ * opened, hundreds of them, so it's one GraphQL call per repo (100 PRs a call)
+ * rather than a `gh pr view` each. A merge is final: a merged url is never
+ * asked about again, the rest at most every ten minutes. A repo no logged-in
+ * account can read counts as unmerged — only a confirmed merge ships.
+ */
+export async function mergedPullRequests(
+	urls: string[],
+	exec: GhExec = gh,
+): Promise<Set<string>> {
+	const now = Date.now();
+	const byRepo = new Map<string, Map<number, string>>();
+	for (const url of new Set(urls)) {
+		if (mergedUrls.has(url) || now - (checkedAt.get(url) ?? 0) < RECHECK_MS)
+			continue;
+		const [, owner, name, number] = PR_PARTS.exec(url) ?? [];
+		if (!number) continue;
+		const repo = `${owner}/${name}`;
+		if (!byRepo.has(repo)) byRepo.set(repo, new Map());
+		byRepo.get(repo)?.set(Number(number), url);
+	}
+	const asks: Promise<void>[] = [];
+	for (const [repo, prs] of byRepo) {
+		const [owner, name] = repo.split("/");
+		const numbers = [...prs.keys()];
+		for (let at = 0; at < numbers.length; at += 100) {
+			const chunk = numbers.slice(at, at + 100);
+			const fields = chunk
+				.map((n) => `p${n}: pullRequest(number: ${n}) { merged }`)
+				.join(" ");
+			const query = `query { repository(owner: ${JSON.stringify(owner)}, name: ${JSON.stringify(name)}) { ${fields} } }`;
+			asks.push(
+				ghAsAnyAccount(
+					["api", "graphql", "-f", `query=${query}`],
+					(stdout) =>
+						(
+							JSON.parse(stdout) as {
+								data: { repository: Record<string, { merged?: boolean }> };
+							}
+						).data.repository,
+					exec,
+				).then((found) => {
+					for (const n of chunk) {
+						const url = prs.get(n) as string;
+						if (found?.[`p${n}`]?.merged) mergedUrls.add(url);
+						else checkedAt.set(url, now);
+					}
+				}),
+			);
+		}
+	}
+	await Promise.all(asks);
+	return new Set(urls.filter((url) => mergedUrls.has(url)));
+}
+
 /** The checkout in `git worktree list --porcelain` that has `branch` checked out. */
 export function worktreeHolding(
 	porcelain: string,

@@ -535,7 +535,7 @@ export interface WeekRow {
 	agentHours: number;
 	yourHours: number;
 	sessions: number;
-	/** Tasks — sessions — whose first PR opened this week. */
+	/** Tasks — sessions — whose first merged PR opened this week. */
 	shipped: number;
 }
 

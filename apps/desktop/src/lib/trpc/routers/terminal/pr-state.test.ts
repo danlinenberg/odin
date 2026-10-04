@@ -6,6 +6,7 @@ import { join } from "node:path";
 import {
 	firstParagraph,
 	type GhExec,
+	mergedPullRequests,
 	pullRequestState,
 	pullRequestWorktrees,
 	worktreeHolding,
@@ -269,5 +270,47 @@ describe("pullRequestWorktrees", () => {
 				isMain: true,
 			},
 		]);
+	});
+});
+
+describe("mergedPullRequests", () => {
+	test("one call per repo; keeps only merged PRs, and caches the merge", async () => {
+		const calls: string[] = [];
+		const exec: GhExec = async (args) => {
+			const query = args.at(-1) as string;
+			calls.push(query);
+			return {
+				stdout: JSON.stringify({
+					data: {
+						repository: query.includes('"odin"')
+							? { p1: { merged: true }, p2: { merged: false } }
+							: { p7: { merged: true } },
+					},
+				}),
+			};
+		};
+		const urls = [
+			"https://github.com/me/odin/pull/1",
+			"https://github.com/me/odin/pull/2",
+			"https://github.com/me/web/pull/7",
+		];
+		expect(await mergedPullRequests(urls, exec)).toEqual(
+			new Set([urls[0], urls[2]]),
+		);
+		expect(calls).toHaveLength(2);
+		// Merged is final and the unmerged one was just asked: no new calls.
+		expect(await mergedPullRequests(urls, exec)).toEqual(
+			new Set([urls[0], urls[2]]),
+		);
+		expect(calls).toHaveLength(2);
+	});
+
+	test("a repo no account can read counts as unmerged", async () => {
+		const exec: GhExec = async () => {
+			throw new Error("Could not resolve to a Repository");
+		};
+		expect(
+			await mergedPullRequests(["https://github.com/me/secret/pull/3"], exec),
+		).toEqual(new Set());
 	});
 });

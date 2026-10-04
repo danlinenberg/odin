@@ -1000,7 +1000,7 @@ function Workload() {
 				{data.weeks[0]?.shipped !== undefined && (
 					<Section
 						title="Shipped per week"
-						note="tasks that ended in a PR, counted once at the first; a week still going shows its pace"
+						note="tasks that ended in a merged PR, counted once at the first; a week still going shows its pace"
 					>
 						<ShippedChart weeks={data.weeks} since={data.since} />
 					</Section>
