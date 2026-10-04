@@ -16,6 +16,7 @@ import {
 	HiChevronDown,
 	HiXMark,
 } from "react-icons/hi2";
+import { useZoomFactor } from "renderer/hooks/useZoomFactor";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useInAppBrowser } from "renderer/stores/in-app-browser";
 import { IN_APP_BROWSER_PARTITION } from "shared/constants";
@@ -69,6 +70,25 @@ export function InAppBrowser() {
 	const openExternal = electronTrpc.external.openUrl.useMutation();
 	const view = useRef<WebviewTag>(null);
 	const [page, setPage] = useState({ title: "", url: "" });
+	const zoomFactor = useZoomFactor();
+
+	// A <webview> keeps its own zoom: it starts at 100% whatever Odin's zoom
+	// is, and Chromium resets it per site. So it takes Odin's on every
+	// navigation, and again whenever Odin's changes.
+	useEffect(() => {
+		const webview = view.current;
+		if (!url || !webview) return;
+		const apply = () => webview.setZoomFactor(zoomFactor);
+		try {
+			apply();
+		} catch {
+			// Not attached yet; its first did-navigate applies it.
+		}
+		webview.addEventListener("did-navigate", apply);
+		return () => {
+			webview.removeEventListener("did-navigate", apply);
+		};
+	}, [url, zoomFactor]);
 
 	useEffect(() => {
 		const webview = view.current;

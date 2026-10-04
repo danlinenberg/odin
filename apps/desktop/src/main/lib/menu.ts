@@ -6,6 +6,11 @@ import { checkForUpdatesInteractive } from "./auto-updater";
 import { menuEmitter } from "./menu-events";
 import { confirmAndQuitCompletely } from "./quit-completely";
 
+function zoomFocusedWindow(next: (level: number) => number) {
+	const contents = BrowserWindow.getFocusedWindow()?.webContents;
+	if (contents) contents.zoomLevel = next(contents.zoomLevel);
+}
+
 export function createApplicationMenu() {
 	const reloadAccelerator = "CmdOrCtrl+R";
 	const closeAccelerator = "CmdOrCtrl+Shift+Q";
@@ -69,9 +74,24 @@ export function createApplicationMenu() {
 				},
 				{ role: "toggleDevTools" },
 				{ type: "separator" },
-				{ role: "resetZoom" },
-				{ role: "zoomIn" },
-				{ role: "zoomOut" },
+				// Not the zoom roles: those zoom whatever has focus, so with the in-app
+				// browser focused only the browser zoomed. Zooming the window always
+				// zooms the browser with it (see InAppBrowser).
+				{
+					label: "Actual Size",
+					accelerator: "CommandOrControl+0",
+					click: () => zoomFocusedWindow(() => 0),
+				},
+				{
+					label: "Zoom In",
+					accelerator: "CommandOrControl+Plus",
+					click: () => zoomFocusedWindow((level) => level + 0.5),
+				},
+				{
+					label: "Zoom Out",
+					accelerator: "CommandOrControl+-",
+					click: () => zoomFocusedWindow((level) => level - 0.5),
+				},
 				{ type: "separator" },
 				{
 					label: "Toggle Presets Bar",
