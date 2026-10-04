@@ -268,10 +268,11 @@ export function useLaunchTaskSession() {
 			// the gate clears. A failed read lets the launch through — a broken
 			// gauge must not be the reason a session doesn't start.
 			// An empty prompt hands the session straight back to you, so it isn't
-			// held. A Resume is: the reopened conversation takes a slot on the Mac
-			// and sits in its checkout like any other agent.
+			// held — and neither is a Resume, which reopens at an idle prompt too.
+			// Idle takes no working slot and holds no checkout; queuing it only
+			// left you on the board behind every task in line.
 			let queuedReason: string | null = null;
-			if (now !== true && !noPrompt) {
+			if (now !== true && !noPrompt && !resumeSessionId) {
 				try {
 					queuedReason = launchBlocker(
 						await utils.client.resourceMetrics.getSnapshot.query(),
