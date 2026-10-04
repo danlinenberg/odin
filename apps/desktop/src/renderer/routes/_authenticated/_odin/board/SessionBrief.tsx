@@ -10,6 +10,7 @@ import {
 	artifactLink,
 	jiraIssue,
 	type LinkKind,
+	launchPullRequest,
 	linkKind,
 	linkLabel,
 	notionPage,
@@ -288,6 +289,7 @@ export function SessionBrief({
 	claudeSessionId,
 	marker,
 	live,
+	launch = null,
 	resourcesOnly = false,
 }: {
 	paneId: string;
@@ -296,6 +298,8 @@ export function SessionBrief({
 	/** Card title - identifies the transcript for sessions launched without an id. */
 	marker: string;
 	live: boolean;
+	/** The pane's launch brief - the row it was started from. */
+	launch?: string | null;
 	/** Just the resource sections - no brief, notes or link input. */
 	resourcesOnly?: boolean;
 }) {
@@ -362,7 +366,15 @@ export function SessionBrief({
 	const linkSource = transcript
 		? (transcript.links ?? transcript.messages)
 		: null;
-	const allPrs = linkSource ? pullRequests(linkSource) : [];
+	// The PR the session was launched on is its subject even when a teammate
+	// opened it and the replies only call it "#12": a review lists what it
+	// reviewed.
+	const launchPr = launchPullRequest(launch);
+	const linkedPrs = linkSource ? pullRequests(linkSource) : [];
+	const allPrs =
+		launchPr && !linkedPrs.some((pr) => pr.url === launchPr.url)
+			? [...linkedPrs, launchPr]
+			: linkedPrs;
 	const foundThread = linkSource ? slackThread(linkSource) : null;
 	const foundPage = linkSource ? notionPage(linkSource) : null;
 	const foundIssue = linkSource ? jiraIssue(linkSource) : null;
@@ -470,7 +482,9 @@ export function SessionBrief({
 	);
 	// Someone else's PR the session only linked isn't one of its PRs. Listed
 	// until its author is known, so the section doesn't flash empty.
-	const ownPrs = prs.filter((pr) => prStates?.[pr.url]?.mine !== false);
+	const ownPrs = prs.filter(
+		(pr) => pr.url === launchPr?.url || prStates?.[pr.url]?.mine !== false,
+	);
 
 	// A link you added: your name for it, else what Slack says the message is,
 	// else its kind; the line under it says where it lives. Removable, since

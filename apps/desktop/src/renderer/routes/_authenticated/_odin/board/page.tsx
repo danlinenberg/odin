@@ -468,6 +468,7 @@ function CatchUpCard({
 				claudeSessionId={card.pane.claudeSessionId ?? null}
 				marker={title}
 				live={false}
+				launch={card.pane.odinBrief}
 			/>
 			<button
 				type="button"
@@ -3984,6 +3985,7 @@ function DevBoardPage() {
 										claudeSessionId={drawerCard.pane.claudeSessionId ?? null}
 										marker={cardTitle(drawerCard)}
 										live={alivePaneIds.has(drawerCard.pane.id)}
+										launch={drawerCard.pane.odinBrief}
 									/>
 								)}
 							</div>
