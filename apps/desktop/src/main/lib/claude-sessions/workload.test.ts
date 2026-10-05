@@ -424,6 +424,24 @@ describe("computeWorkload", () => {
 		expect(hidden.recap[0]?.tasks.map((task) => task.sessionId)).toEqual(["b"]);
 	});
 
+	test("a hidden repo's PRs drop out even from another repo's session", () => {
+		const odinPr = "https://github.com/danlinenberg/odin/pull/1";
+		const webPr = "https://github.com/imagenai/app-web-server/pull/2";
+		const out = computeWorkload(
+			[
+				session({
+					repo: "app-web-server",
+					prs: [odinPr, webPr],
+					prAt: [MON, MON],
+				}),
+			],
+			{ now: MON, hide: ["odin"] },
+		);
+		expect(out.weeks.at(-1)?.shipped).toBe(1);
+		expect(out.recap[0]?.prs).toBe(1);
+		expect(out.recap[0]?.tasks[0]?.prs).toEqual([webPr]);
+	});
+
 	test("hours are credited to whoever asked", () => {
 		const out = computeWorkload(
 			[
