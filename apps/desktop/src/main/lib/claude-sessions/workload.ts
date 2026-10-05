@@ -826,10 +826,26 @@ export function computeWorkload(
 	const worked = sessions.filter(
 		(session) => session.activeMs >= BLIP_MS || session.prs.length > 0,
 	);
-	const all = worked.filter((session) => {
-		const repo = repoOf(session);
-		return (!only || repo === only) && !(repo && hide.includes(repo));
-	});
+	const all = worked
+		.filter((session) => {
+			const repo = repoOf(session);
+			return (!only || repo === only) && !(repo && hide.includes(repo));
+		})
+		.map((session) => {
+			// A hidden repo's PRs go too, whichever session opened them: an odin
+			// PR shipped from an app-web-server session still counted with odin hidden.
+			// ponytail: `only` stays per session - a renamed repo's old PRs
+			// (odin-private) would drop out of their own repo otherwise.
+			const shown = session.prs.map(
+				(url) => !hide.includes(url.split("/")[4] ?? ""),
+			);
+			if (shown.every(Boolean)) return session;
+			return {
+				...session,
+				prs: session.prs.filter((_, index) => shown[index]),
+				prAt: session.prAt.filter((_, index) => shown[index]),
+			};
+		});
 	const everything = all.flatMap((session) => session.intervals);
 	const merged = mergeIntervals(everything);
 
