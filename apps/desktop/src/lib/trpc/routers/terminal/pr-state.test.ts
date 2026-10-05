@@ -327,3 +327,62 @@ describe("mergedPullRequests", () => {
 		).toEqual(new Map());
 	});
 });
+
+describe("pullRequestWorktrees picks the PR repo's own clone", () => {
+	test("skips another repo's worktree that only shares the name", async () => {
+		const root = realpathSync(mkdtempSync(join(tmpdir(), "odin-prclone-")));
+		const repo = (dir: string, remote: string) => {
+			const git = (...args: string[]) =>
+				execFileSync("git", ["-C", dir, ...args], { stdio: "pipe" });
+			execFileSync("git", ["init", "-q", "-b", "main", dir]);
+			git(
+				"-c",
+				"user.email=a@b",
+				"-c",
+				"user.name=a",
+				"commit",
+				"-q",
+				"--allow-empty",
+				"-m",
+				"x",
+			);
+			git("remote", "add", "origin", remote);
+			return git;
+		};
+		// infra has a worktree called "web"; the real web clone lives elsewhere.
+		const infraWeb = join(root, "infra/.worktrees/web");
+		repo(join(root, "infra"), "git@github.com:o/infra.git")(
+			"worktree",
+			"add",
+			"-q",
+			"-b",
+			"web",
+			infraWeb,
+		);
+		const realWeb = join(root, "code/web");
+		repo(realWeb, "https://github.com/o/web.git")(
+			"worktree",
+			"add",
+			"-q",
+			"-b",
+			"feat/x",
+			join(realWeb, ".worktrees/x"),
+		);
+
+		const url = "https://github.com/o/web/pull/5";
+		const exec: GhExec = async () => ({ stdout: "feat/x\n" });
+		const transcript = `cd ${infraWeb} && ls\ncd ${realWeb}/.worktrees/x\n${url}`;
+
+		expect(
+			await pullRequestWorktrees(transcript, join(root, "infra"), exec),
+		).toEqual([
+			{
+				url,
+				number: 5,
+				repo: "web",
+				worktree: join(realWeb, ".worktrees/x"),
+				isMain: false,
+			},
+		]);
+	});
+});
