@@ -223,6 +223,12 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		section: "Shortcuts",
 		keywords: "keyboard hotkey keys rebind",
 	},
+	{
+		label: "Double-tap right ⌘ to open Odin",
+		to: "/settings/keyboard",
+		section: "From any app",
+		keywords: "double tap karabiner global hotkey open odin anywhere",
+	},
 ];
 
 const SCREEN_LABEL = new Map<string, string>(
