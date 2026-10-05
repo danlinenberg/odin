@@ -393,12 +393,23 @@ export function launchPullRequest(
 	return pullRequests([{ role: "assistant", text: url, at: null }])[0] ?? null;
 }
 
+const GOOGLE_FILE: Record<string, string> = {
+	document: "Google Doc",
+	spreadsheets: "Google Sheet",
+	presentation: "Google Slides",
+	forms: "Google Form",
+};
+
 /**
  * What a link you attached to the brief yourself is called: an issue key, a
- * PR number, a Notion title, "Slack thread" - else its host, so a raw url
- * never has to be read to know where it goes.
+ * PR number, a Notion title, "Slack thread", "Google Sheet" - else its host,
+ * so a raw url never has to be read to know where it goes.
  */
 export function linkLabel(url: string): string {
+	const google = url.match(
+		/docs\.google\.com\/(document|spreadsheets|presentation|forms)\//,
+	)?.[1];
+	if (google) return GOOGLE_FILE[google] ?? "Google Doc";
 	const pr = url.match(/github\.com\/[\w.-]+\/([\w.-]+)\/pull\/(\d+)/);
 	if (pr) return `${pr[1]} #${pr[2]}`;
 	if (/\.slack\.com\/archives\/[\w-]+\/p\d+/.test(url)) return "Slack thread";
@@ -444,6 +455,77 @@ export function linkKind(url: string): LinkKind {
 	if (/notion\.(?:so|com|site)\//.test(url)) return "notion";
 	if (/claude\.ai\/(?:code\/)?artifact\//.test(url)) return "artifact";
 	return "other";
+}
+
+export interface LinkContext {
+	/** The label the session gave the link - `[label](url)`. */
+	title: string | null;
+	/** The line the link sat on, as prose. */
+	summary: string | null;
+}
+
+const MD_LINK = /\[([^\]]+)\]\(([^)\s]+)\)/g;
+
+/**
+ * What the session said a link is, for the brief's hover: the label it gave
+ * it and the sentence it sat in, from the first of Claude's turns that quotes
+ * it (yours when Claude never did). The first mention is the introduction -
+ * "Here's the draft Gantt: <url>" - and later ones are updates to it, "live at
+ * the same link". A bare url, or "Artifact: <url>", says nothing, so the
+ * search goes on to the next one. A Notion page is matched by id - one turn
+ * quotes /p/<id>, the next the slug url.
+ */
+export function linkContext(
+	messages: BriefMessage[],
+	url: string,
+): LinkContext | null {
+	const key = (linkKind(url) === "notion" && NOTION_ID.exec(url)?.[0]) || url;
+	for (const role of ["assistant", "user"])
+		for (const message of messages) {
+			if (message.role !== role) continue;
+			for (const line of message.text.split("\n")) {
+				if (!line.includes(key)) continue;
+				// A table row's cells all describe the link; prose only the
+				// sentence holding it.
+				const row = line.trimStart().startsWith("|");
+				const sentence = row
+					? line
+					: (line
+							.split(/(?<=[.!?][*_"')]*)\s+/)
+							.find((part) => part.includes(key)) ?? line);
+				const title =
+					[...sentence.matchAll(MD_LINK)].find(([, , href]) =>
+						href?.includes(key),
+					)?.[1] ?? null;
+				const prose = sentence
+					.replace(MD_LINK, "$1")
+					.replace(/https?:\/\/\S+/g, "")
+					.replace(/^\s*(?:[-*>#]+|\d+[.)])\s+/, "")
+					.replace(/[*`]/g, "")
+					.split("|")
+					.map((cell) => cell.trim())
+					.filter(Boolean)
+					.join(" · ")
+					.replace(/\s+/g, " ")
+					.replace(/^[\s:·,–\u2014-]+|[\s:·,(–\u2014-]+$/g, "");
+				// A table row leads with the link; the cells after it are the news.
+				const rest =
+					row && title && prose.startsWith(title)
+						? prose.slice(title.length).replace(/^[\s:·,–\u2014-]+/, "")
+						: prose;
+				const words = rest
+					.split(" ")
+					.filter((word) => /[\p{L}\p{N}]/u.test(word));
+				const summary =
+					words.length < 3
+						? null
+						: rest.length > 300
+							? `${rest.slice(0, 300).trimEnd()}…`
+							: rest;
+				if (title || summary) return { title, summary };
+			}
+		}
+	return null;
 }
 
 /**

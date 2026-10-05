@@ -626,10 +626,11 @@ const ANY_URL = /https:\/\/[^\s)>\]"'`|]+/g;
 
 /**
  * Every turn that quotes a URL, across the whole conversation, cut down to
- * its URLs. The brief finds its Slack thread, ticket, PRs and Notion page in
- * these: `parseTranscript` keeps only the tail, and in a long session the
- * thread you started from and the ticket you pasted are the first messages
- * to fall out of it.
+ * the lines that quote one. The brief finds its Slack thread, ticket, PRs and
+ * Notion page in these: `parseTranscript` keeps only the tail, and in a long
+ * session the thread you started from and the ticket you pasted are the first
+ * messages to fall out of it. The rest of the line is what the session said
+ * the link is - the brief's hover reads it.
  */
 export function transcriptLinks(jsonl: string): TranscriptMessage[] {
 	return parseTranscript(
@@ -637,8 +638,15 @@ export function transcriptLinks(jsonl: string): TranscriptMessage[] {
 		Number.POSITIVE_INFINITY,
 		Number.POSITIVE_INFINITY,
 	).flatMap((message) => {
-		const urls = message.text.match(ANY_URL);
-		return urls ? [{ ...message, text: urls.join("\n") }] : [];
+		// ponytail: a line past 600 chars is a paragraph, not a label - keep its
+		// urls only, so one wall of prose can't bloat every transcript read.
+		const lines = message.text
+			.split("\n")
+			.flatMap((line) =>
+				line.length > 600 ? (line.match(ANY_URL) ?? []) : [line],
+			)
+			.filter((line) => line.includes("https://"));
+		return lines.length ? [{ ...message, text: lines.join("\n") }] : [];
 	});
 }
 
