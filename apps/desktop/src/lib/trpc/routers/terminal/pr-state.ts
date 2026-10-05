@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { execWithShellEnv } from "../workspaces/utils/shell-env";
@@ -378,18 +377,18 @@ const mainCheckout = (porcelain: string) =>
  * and picking it lists the wrong repo's worktrees, so the PR's branch is never
  * found. No origin to compare means no way to tell - keep it.
  */
-function originIs(dir: string, repo: string): boolean {
+async function originIs(dir: string, repo: string): Promise<boolean> {
 	try {
-		const url = execFileSync(
-			"git",
-			["-C", dir, "remote", "get-url", "origin"],
-			{
-				encoding: "utf-8",
-				stdio: ["ignore", "pipe", "ignore"],
-			},
-		).trim();
+		const { stdout } = await execWithShellEnv("git", [
+			"-C",
+			dir,
+			"remote",
+			"get-url",
+			"origin",
+		]);
 		return (
-			url
+			stdout
+				.trim()
 				.replace(/\.git$/, "")
 				.split(/[/:]/)
 				.pop() === repo
@@ -419,7 +418,7 @@ export async function pullRequestWorktrees(
 		return lists.get(dir) as Promise<string>;
 	};
 	const home = mainCheckout(await listOf(checkout)) ?? checkout;
-	const cloneOf = (repo: string): string | null => {
+	const cloneOf = async (repo: string): Promise<string | null> => {
 		if (basename(home) === repo) return home;
 		const mentioned = [
 			...transcript.matchAll(
@@ -429,16 +428,17 @@ export async function pullRequestWorktrees(
 				),
 			),
 		].map((match) => match[1]);
-		return (
-			[...new Set([join(dirname(home), repo), ...mentioned])].find(
-				(dir) => existsSync(join(dir, ".git")) && originIs(dir, repo),
-			) ?? null
-		);
+		for (const dir of new Set([join(dirname(home), repo), ...mentioned])) {
+			if (existsSync(join(dir, ".git")) && (await originIs(dir, repo))) {
+				return dir;
+			}
+		}
+		return null;
 	};
 
 	const found = await Promise.all(
 		urls.map(async ([url, { repo, number }]) => {
-			const clone = cloneOf(repo);
+			const clone = await cloneOf(repo);
 			if (!clone) return null;
 			const branch = await ghAsAnyAccount(
 				["pr", "view", url, "--json", "headRefName", "-q", ".headRefName"],
