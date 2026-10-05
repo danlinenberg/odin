@@ -24,7 +24,7 @@ export const Route = createFileRoute("/_authenticated/_odin/email/")({
 });
 
 /**
- * Gmail inbox mail (unread when first seen; it stays after you open it until Done), junk (the model's call, and every RSVP or cancellation - invites stay) hidden until "All". Read-only:
+ * Gmail inbox mail (unread when first seen; it stays after you open it until Done), junk (the model's call, and every invite, RSVP or cancellation) hidden until "All". Read-only:
  * Open takes you to the thread, Done takes the row out of Odin (not Gmail).
  */
 function EmailPage() {
