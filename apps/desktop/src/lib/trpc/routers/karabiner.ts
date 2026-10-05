@@ -60,16 +60,21 @@ function doubleTapRule(key: DoubleTapKey, command: string) {
 }
 
 /**
- * A running Odin toggles itself through its local server. Otherwise it's
- * started: the dev bundle is a bare Electron that shows its welcome screen
- * when opened on its own, so dev goes through the launcher applet.
+ * A focused Odin hides itself through its local server and answers "hidden".
+ * Otherwise it restores its window and answers "shown", and the rule raises
+ * it with open on the running bundle, which activates the live process:
+ * macOS won't let Odin pull itself to the front. Odin not running (curl
+ * fails) means start it - in dev through the launcher applet, since the bare
+ * dev bundle opened on its own shows Electron's welcome screen.
+ * ponytail: the dev bundle path carries electron's install hash, so a bun
+ * install that bumps it leaves the rule stale until the key is set again.
  */
 function toggleOdinCommand(): string {
 	const home = process.env.ODIN_HOME_DIR ?? join(homedir(), ".odin");
-	const bundle = app.isPackaged
-		? resolve(process.execPath, "../../..")
-		: "/Applications/Odin Dev.app";
-	return `curl -sf -X POST "http://127.0.0.1:$(cat '${home}/notifications-port')/toggle" || open '${bundle}'`;
+	const running = resolve(process.execPath, "../../..");
+	const start = app.isPackaged ? running : "/Applications/Odin Dev.app";
+	const toggle = `curl -sf -X POST "http://127.0.0.1:$(cat '${home}/notifications-port')/toggle"`;
+	return `case "$(${toggle})" in hidden) ;; shown) open '${running}' ;; *) open '${start}' ;; esac`;
 }
 
 function selectedProfile(config: KarabinerConfig) {

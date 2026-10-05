@@ -161,7 +161,8 @@ app.post("/shell/run", express.urlencoded({ extended: false }), (req, res) => {
 
 /**
  * What the Karabiner double-tap calls (lib/trpc/routers/karabiner.ts): hide
- * Odin if you're looking at it, otherwise bring it forward. Same browser
+ * Odin if you're looking at it, otherwise restore its window and answer
+ * "shown" so the caller raises it. Same browser
  * guard as /shell/run, since any web page can reach this port.
  */
 app.post("/toggle", (req, res) => {
@@ -170,12 +171,13 @@ app.post("/toggle", (req, res) => {
 	}
 	if (BrowserWindow.getFocusedWindow()) {
 		electronApp.hide();
-	} else {
-		// The activate handler restores, shows or recreates the window.
-		electronApp.emit("activate");
-		electronApp.focus({ steal: true });
+		return res.send("hidden");
 	}
-	res.send("ok\n");
+	// The activate handler restores, shows or recreates the window. Raising
+	// it is the caller's job: macOS won't let a background app take focus
+	// itself, so app.focus({ steal: true }) here does nothing.
+	electronApp.emit("activate");
+	res.send("shown");
 });
 
 // Health check
