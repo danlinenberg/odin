@@ -17,10 +17,13 @@ Once the PR is merged:
 git worktree remove .worktrees/<name>
 ```
 
-If you forget, Odin runs `scripts/prune-worktrees.sh` every hour and removes
-worktrees whose work landed. It never removes one with uncommitted files, with
-commits main doesn't have, or touched in the last 24h (1h once its PR merged). `--dry-run` shows what
-it would do.
+If you forget, Odin runs `scripts/prune-worktrees.sh` every hour over every
+repo with a `.worktrees/` and removes worktrees whose work landed or whose PR
+closed. It never removes one with commits its default branch doesn't have, or
+touched in the last 24h (1h once its PR merged or closed). Uncommitted files
+keep a worktree for 7 days; after that they're committed to
+`refs/pruned/<name>` first, and `git checkout refs/pruned/<name> -- .` brings
+them back. `--dry-run` shows what it would do.
 
 **Why.** In a shared working tree `git checkout`, `git reset --hard` and
 `git stash` are global: they rewrite every tracked file, including the ones
