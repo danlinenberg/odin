@@ -11,7 +11,7 @@ import { Kbd, KbdGroup } from "@odin/ui/kbd";
 import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
 	HOTKEYS,
 	type HotkeyId,
@@ -22,7 +22,7 @@ import {
 	useRecordHotkeys,
 } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
-import { DOUBLE_TAP_KEYS, doubleTapKeyForCode } from "shared/double-tap-keys";
+import { DOUBLE_TAP_LABELS } from "shared/double-tap-keys";
 import {
 	SettingRow,
 	SettingsPage,
@@ -113,80 +113,58 @@ function HotkeyRow({
 }
 
 /**
- * Stored in Karabiner's config, not Odin's: Karabiner is what sees the key.
- * The key is recorded, not picked from a list: with ⌘ and ⌥ swapped in
- * Karabiner, "Left ⌘" names a different physical key than the one labelled ⌘,
- * and pressing it is the only way to say which one you mean.
+ * The key is recorded by Odin's own key listener, not the window: software
+ * keyboards like Synergy send a bare modifier as a flags change the window
+ * never sees, and may remap it on the way. Whatever arrives is what counts.
  */
 function DoubleTapRow() {
 	const utils = electronTrpc.useUtils();
-	const { data, error } = electronTrpc.karabiner.doubleTap.useQuery();
-	const { mutate, isPending } = electronTrpc.karabiner.setDoubleTap.useMutation(
-		{
-			onError: (error) => toast.error(error.message),
-			onSettled: () => utils.karabiner.doubleTap.invalidate(),
-		},
-	);
-	const [recording, setRecording] = useState(false);
+	const { data: modifier, error } = electronTrpc.doubleTap.get.useQuery();
+	const done = {
+		onError: (error: { message: string }) => toast.error(error.message),
+		onSettled: () => utils.doubleTap.get.invalidate(),
+	};
+	const record = electronTrpc.doubleTap.record.useMutation(done);
+	const set = electronTrpc.doubleTap.set.useMutation(done);
 
-	useEffect(() => {
-		if (!recording) return;
-		const onKeyDown = (event: KeyboardEvent) => {
-			event.preventDefault();
-			event.stopPropagation();
-			if (event.code === "Escape") return setRecording(false);
-			const key = doubleTapKeyForCode(event.code);
-			if (!key) return toast.warning("Press a modifier: ⌘, ⌥, ⌃ or ⇧");
-			setRecording(false);
-			mutate({ key });
-		};
-		window.addEventListener("keydown", onKeyDown, true);
-		return () => window.removeEventListener("keydown", onKeyDown, true);
-	}, [recording, mutate]);
-
-	const disabled = !data?.available || isPending;
 	return (
 		<SettingRow
-			label="Double-tap to open Odin"
+			label="Double-tap to show or hide Odin"
 			description={
-				// A dev window hot-reloaded ahead of its main process lands here
-				// ("No procedure found") until Odin restarts.
 				error ? (
 					<span className="select-text cursor-text text-destructive">
 						{error.message}
 					</span>
-				) : data?.available === false ? (
-					"Needs Karabiner-Elements, which is what sees the key."
 				) : (
-					"Tap the key twice to bring Odin to the front, or start it, from any app. Set up through Karabiner-Elements."
+					"Tap a modifier twice, from any app or keyboard (Synergy too): Odin comes forward, or hides if it's already in front."
 				)
 			}
 		>
 			<button
 				type="button"
-				disabled={disabled}
-				onClick={() => setRecording((r) => !r)}
+				disabled={record.isPending || set.isPending}
+				onClick={() => record.mutate()}
 				className={cn(
-					"h-7 px-3 rounded-md border text-xs transition-colors disabled:opacity-50",
-					recording
+					"h-7 px-3 rounded-md border text-xs transition-colors",
+					record.isPending
 						? "border-destructive/50 bg-destructive/10 text-destructive ring-2 ring-destructive/20"
 						: "border-border bg-accent/20 text-foreground hover:bg-accent/40",
 				)}
 			>
-				{recording ? (
-					<span>Press the key…</span>
-				) : data?.key ? (
-					<Kbd>{DOUBLE_TAP_KEYS[data.key].label}</Kbd>
+				{record.isPending ? (
+					<span>Double-tap a modifier…</span>
+				) : modifier ? (
+					<Kbd>{DOUBLE_TAP_LABELS[modifier]}</Kbd>
 				) : (
-					<span>Record a key</span>
+					<span>Record</span>
 				)}
 			</button>
-			{data?.key && (
+			{modifier && (
 				<Button
 					variant="ghost"
 					size="sm"
-					disabled={disabled}
-					onClick={() => mutate({ key: null })}
+					disabled={record.isPending || set.isPending}
+					onClick={() => set.mutate({ modifier: null })}
 				>
 					Turn off
 				</Button>

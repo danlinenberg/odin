@@ -29,6 +29,8 @@ export interface OdinFileConfig {
 	/** Legacy name for the same thing - still read, only ever cleared. */
 	slackQueueDbId?: string;
 	defaultRepo?: string;
+	/** Double-tap this modifier to show or hide Odin (main/lib/double-tap). */
+	doubleTapModifier?: string;
 
 	/**
 	 * Jira OAuth (Atlassian 3LO). These tokens expire and the refresh token
@@ -138,6 +140,7 @@ export interface OdinProfile {
  */
 const SHARED_KEYS = [
 	"odinRepo",
+	"doubleTapModifier",
 	// The OAuth apps: which Slack/Jira/Notion app Odin *is*, and
 	// GitHub's device-flow client id. They describe the build, not an account,
 	// so every profile signs in through the same one - a profile that didn't

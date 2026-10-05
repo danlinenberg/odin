@@ -224,11 +224,11 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		keywords: "keyboard hotkey keys rebind",
 	},
 	{
-		label: "Double-tap to open Odin",
+		label: "Double-tap to show or hide Odin",
 		to: "/settings/keyboard",
 		section: "From any app",
 		keywords:
-			"double tap karabiner global hotkey open odin anywhere key mapping button",
+			"double tap global hotkey open hide odin anywhere key mapping button synergy",
 	},
 ];
 
