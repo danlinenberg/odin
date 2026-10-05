@@ -9,6 +9,7 @@ import {
 import { Button } from "@odin/ui/button";
 import { Kbd, KbdGroup } from "@odin/ui/kbd";
 import { toast } from "@odin/ui/sonner";
+import { Switch } from "@odin/ui/switch";
 import { cn } from "@odin/ui/utils";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
@@ -21,7 +22,12 @@ import {
 	useHotkeyOverridesStore,
 	useRecordHotkeys,
 } from "renderer/hotkeys";
-import { SettingsPage, SettingsSection } from "../components/SettingsPage";
+import { electronTrpc } from "renderer/lib/electron-trpc";
+import {
+	SettingRow,
+	SettingsPage,
+	SettingsSection,
+} from "../components/SettingsPage";
 
 /**
  * Every screen this shell can open, and nothing else - the upstream
@@ -103,6 +109,34 @@ function HotkeyRow({
 				</Button>
 			</div>
 		</div>
+	);
+}
+
+/** Stored in Karabiner's config, not Odin's: Karabiner is what sees the key. */
+function DoubleTapRow() {
+	const utils = electronTrpc.useUtils();
+	const { data } = electronTrpc.karabiner.doubleTap.useQuery();
+	const setDoubleTap = electronTrpc.karabiner.setDoubleTap.useMutation({
+		onError: (error) => toast.error(error.message),
+		onSettled: () => utils.karabiner.doubleTap.invalidate(),
+	});
+	return (
+		<SettingRow
+			label="Double-tap right ⌘ to open Odin"
+			htmlFor="double-tap-open"
+			description={
+				data?.available === false
+					? "Needs Karabiner-Elements, which is what sees the key."
+					: "Brings Odin to the front, or starts it, from any app. Set up through Karabiner-Elements."
+			}
+		>
+			<Switch
+				id="double-tap-open"
+				checked={data?.enabled ?? false}
+				disabled={!data?.available || setDoubleTap.isPending}
+				onCheckedChange={(enabled) => setDoubleTap.mutate({ enabled })}
+			/>
+		</SettingRow>
 	);
 }
 
@@ -202,6 +236,10 @@ function KeyboardShortcutsPage() {
 						}}
 					/>
 				))}
+			</SettingsSection>
+
+			<SettingsSection title="From any app">
+				<DoubleTapRow />
 			</SettingsSection>
 
 			{/* Conflict dialog */}
