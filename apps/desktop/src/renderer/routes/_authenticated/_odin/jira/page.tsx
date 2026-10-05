@@ -1,6 +1,7 @@
 import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import type { PullRequestRow } from "lib/trpc/routers/work";
 import { useMemo, useState } from "react";
 import { ConnectNotice } from "renderer/components/ConnectProvider/ConnectProvider";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
@@ -36,6 +37,7 @@ import { useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePendingFocus } from "../hooks/usePendingFocus";
+import { reviewPullFor } from "./review-pull";
 
 /** A row as Done wants it: its All-feed key, and enough to list it later. */
 const doable = (issue: { key: string; title: string; url: string }) => ({
@@ -96,7 +98,7 @@ const ROLE_TABS = [
 	{ id: "all" as const, label: "All" },
 ];
 
-/** The "why is this here" chip the All view puts on every row. */
+/** The "why is this here" chip on every row - unless a PR on it waits on my review. */
 const ROLE_BADGE = {
 	assigned: { label: "mine", className: PILL.neutral },
 	reported: { label: "I filed", className: PILL.neutral },
@@ -115,6 +117,7 @@ function MyJiraPage() {
 	// Same feeds the shell warms on boot - rows are usually already cached.
 	const {
 		jira: issuesQuery,
+		pulls: pullsQuery,
 		workConfig: config,
 		syncAll,
 		isSyncing,
@@ -158,6 +161,17 @@ function MyJiraPage() {
 				map.set(pane.odinTaskTitle.split(":")[0], pane.id);
 		return map;
 	}, [panes]);
+
+	// Issue key → the open PR on it that's waiting on me (see reviewPullFor).
+	const reviewPullByKey = useMemo(() => {
+		const pulls = pullsQuery.data?.pulls ?? [];
+		const map = new Map<string, PullRequestRow>();
+		for (const issue of allIssues) {
+			const pull = reviewPullFor(issue.key, pulls);
+			if (pull) map.set(issue.key, pull);
+		}
+		return map;
+	}, [allIssues, pullsQuery.data]);
 
 	const projects = useMemo(() => {
 		const counts = new Map<string, number>();
@@ -309,6 +323,7 @@ function MyJiraPage() {
 								const activePaneId = livePaneByKey.get(issue.key) ?? null;
 								const date = shortDate(issue.updated);
 								const tone = statusTone(issue.status);
+								const reviewPull = reviewPullByKey.get(issue.key);
 								return (
 									<div
 										key={issue.key}
@@ -341,9 +356,22 @@ function MyJiraPage() {
 														/>
 													)}
 												</span>
-												{/* Only the All view mixes roles, so only it needs to say why a row is here. */}
-												{role === "all" && (
-													<span className={META_TAG}>
+												{/* What the row wants from me: a review when a PR on it
+												    waits on me (click opens the PR), else why it's here. */}
+												<span className={META_TAG}>
+													{reviewPull ? (
+														<button
+															type="button"
+															onClick={() => openUrl(reviewPull.url)}
+															title={`Waiting on your review: ${reviewPull.repo}#${reviewPull.number} ${reviewPull.title}`}
+															className={cn(
+																"rounded-[5px] px-[7px] py-[1px] font-semibold",
+																PILL.attention,
+															)}
+														>
+															review
+														</button>
+													) : (
 														<span
 															className={cn(
 																"rounded-[5px] px-[7px] py-[1px]",
@@ -352,8 +380,8 @@ function MyJiraPage() {
 														>
 															{ROLE_BADGE[issue.role].label}
 														</span>
-													</span>
-												)}
+													)}
+												</span>
 												<span className={META_TAG}>
 													{activePaneId && (
 														<span
