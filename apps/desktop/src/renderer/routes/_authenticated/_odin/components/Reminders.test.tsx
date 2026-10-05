@@ -10,6 +10,7 @@ import {
 	effectiveDue,
 	isDue,
 	mergeUpstream,
+	useReminders,
 } from "./Reminders";
 
 /** Late enough in the day that UTC has already rolled over east of Greenwich. */
@@ -120,4 +121,14 @@ test("the chip offers a date, with the native picker behind it", () => {
 	);
 	expect(html).toContain("+ Due");
 	expect(html).toContain('type="date"');
+});
+
+test("reminders stay with the profile they were set under", () => {
+	const store = useReminders.getState();
+	store.setProfile("work");
+	store.setDue("jira:A-1", "2026-09-22", "Work thing");
+	useReminders.getState().setProfile("private");
+	expect(useReminders.getState().reminders).toEqual({});
+	useReminders.getState().setProfile("work");
+	expect(Object.keys(useReminders.getState().reminders)).toEqual(["jira:A-1"]);
 });

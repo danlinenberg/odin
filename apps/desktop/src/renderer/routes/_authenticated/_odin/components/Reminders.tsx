@@ -1,6 +1,7 @@
 import { cn } from "@odin/ui/utils";
 import { useEffect, useRef } from "react";
 import { LuCalendarX } from "react-icons/lu";
+import { DEFAULT_PROFILE_ID } from "shared/odin-profile";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { PILL } from "./pill";
@@ -27,39 +28,106 @@ export interface Reminder {
 	};
 }
 
+interface ProfileReminders {
+	reminders: Record<string, Reminder>;
+	notified: Record<string, string>;
+}
+
+/** `reminders`/`notified` replaced, and filed under the profile they belong to. */
+function writeActive(
+	s: { profileId: string | null; byProfile: Record<string, ProfileReminders> },
+	slice: ProfileReminders,
+) {
+	const id = s.profileId ?? DEFAULT_PROFILE_ID;
+	return { ...slice, byProfile: { ...s.byProfile, [id]: slice } };
+}
+
+/**
+ * Reminders are per profile: a Work meeting has no business nagging on the
+ * Private board. `reminders` and `notified` are the active profile's slice -
+ * empty until `setProfile` says which one that is - so readers stay plain
+ * `s.reminders`; every write goes through `writeActive` to land in `byProfile`.
+ */
 export const useReminders = create<{
+	profileId: string | null;
+	byProfile: Record<string, ProfileReminders>;
 	reminders: Record<string, Reminder>;
 	/** The day each key last pinged - a due date nags once a day, not every minute. */
 	notified: Record<string, string>;
 	/** Local `HH:MM` the day's pings wait for - Settings → Notifications. */
 	notifyAt: string;
+	setProfile: (profileId: string) => void;
 	setNotifyAt: (notifyAt: string) => void;
 	setDue: (key: string, due: string, title: string) => void;
+	setReminder: (key: string, reminder: Reminder) => void;
 	clear: (key: string) => void;
 	markNotified: (key: string, day: string) => void;
 }>()(
 	persist(
 		(set) => ({
+			profileId: null,
+			byProfile: {},
 			reminders: {},
 			notified: {},
 			notifyAt: "09:00",
+			setProfile: (profileId) =>
+				set((s) => ({
+					profileId,
+					reminders: s.byProfile[profileId]?.reminders ?? {},
+					notified: s.byProfile[profileId]?.notified ?? {},
+				})),
 			setNotifyAt: (notifyAt) => set({ notifyAt }),
 			setDue: (key, due, title) =>
-				set((s) => ({
-					reminders: { ...s.reminders, [key]: { due, title } },
-					// Moving the date arms it again: pushed to Friday, it pings Friday.
-					notified: { ...s.notified, [key]: "" },
-				})),
+				set((s) =>
+					writeActive(s, {
+						reminders: { ...s.reminders, [key]: { due, title } },
+						// Moving the date arms it again: pushed to Friday, it pings Friday.
+						notified: { ...s.notified, [key]: "" },
+					}),
+				),
+			setReminder: (key, reminder) =>
+				set((s) =>
+					writeActive(s, {
+						reminders: { ...s.reminders, [key]: reminder },
+						notified: { ...s.notified, [key]: "" },
+					}),
+				),
 			clear: (key) =>
 				set((s) => {
 					const { [key]: _due, ...reminders } = s.reminders;
 					const { [key]: _seen, ...notified } = s.notified;
-					return { reminders, notified };
+					return writeActive(s, { reminders, notified });
 				}),
 			markNotified: (key, day) =>
-				set((s) => ({ notified: { ...s.notified, [key]: day } })),
+				set((s) =>
+					writeActive(s, {
+						reminders: s.reminders,
+						notified: { ...s.notified, [key]: day },
+					}),
+				),
 		}),
-		{ name: "odin-reminders" },
+		{
+			name: "odin-reminders",
+			version: 1,
+			// The view is derived from `byProfile` once the profile is known.
+			partialize: (s) => ({ byProfile: s.byProfile, notifyAt: s.notifyAt }),
+			// v0 was one global set: it was made under the default profile.
+			migrate: (persisted, version) => {
+				if (version >= 1) return persisted as never;
+				const old = persisted as Partial<ProfileReminders> & {
+					notifyAt?: string;
+				};
+				return {
+					notifyAt: old.notifyAt ?? "09:00",
+					byProfile: {
+						[DEFAULT_PROFILE_ID]: {
+							reminders: old.reminders ?? {},
+							notified: old.notified ?? {},
+						},
+					},
+				} as never;
+			},
+		},
 	),
 );
 

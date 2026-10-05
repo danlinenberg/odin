@@ -7,7 +7,7 @@ import {
 	useNavigate,
 } from "@tanstack/react-router";
 import type { ClaudeUsageWindow } from "lib/trpc/routers/resource-metrics";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
 	HiOutlineBolt,
 	HiOutlineChartBar,
@@ -34,7 +34,11 @@ import { GettingStarted } from "./components/GettingStarted";
 import { InAppBrowser } from "./components/InAppBrowser";
 import { OdinPromptDialog } from "./components/OdinPromptDialog";
 import { BUTTON, PILL } from "./components/pill";
-import { type UpstreamDue, useDueReminders } from "./components/Reminders";
+import {
+	type UpstreamDue,
+	useDueReminders,
+	useReminders,
+} from "./components/Reminders";
 import { QuickAddTask } from "./components/TaskBox";
 import { useAutomationRunner } from "./hooks/useAutomationRunner";
 import { usePeriodicSweep } from "./hooks/useBacklogReview";
@@ -247,6 +251,7 @@ function OdinShell() {
 	// the old profile's rows under the new name.
 	const {
 		activeId: activeProfileId,
+		isLoading: isProfileLoading,
 		profiles,
 		switchTo: switchProfile,
 		isSwitching: isSwitchingProfile,
@@ -286,6 +291,11 @@ function OdinShell() {
 				})),
 		[jira.data],
 	);
+	// Reminders show and ping for the active profile only.
+	const setReminderProfile = useReminders((s) => s.setProfile);
+	useEffect(() => {
+		if (!isProfileLoading) setReminderProfile(activeProfileId);
+	}, [isProfileLoading, activeProfileId, setReminderProfile]);
 	useDueReminders(jiraDue);
 
 	// The clock behind the Automations panel. Here rather than on that page:

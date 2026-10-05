@@ -82,22 +82,16 @@ export function remindSession(
 	session: { sessionId: string; cwd: string; title: string; brief?: string },
 	day: string,
 ): void {
-	useReminders.setState((s) => ({
-		reminders: {
-			...s.reminders,
-			[PREFIX + session.sessionId]: {
-				due: day,
-				title: session.title,
-				resume: {
-					sessionId: session.sessionId,
-					cwd: session.cwd,
-					brief: session.brief,
-					setAt: Date.now(),
-				},
-			},
+	useReminders.getState().setReminder(PREFIX + session.sessionId, {
+		due: day,
+		title: session.title,
+		resume: {
+			sessionId: session.sessionId,
+			cwd: session.cwd,
+			brief: session.brief,
+			setAt: Date.now(),
 		},
-		notified: { ...s.notified, [PREFIX + session.sessionId]: "" },
-	}));
+	});
 }
 
 /** The bell: opens the OS date picker, tomorrow at the earliest. */
