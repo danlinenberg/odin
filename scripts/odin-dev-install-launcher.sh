@@ -2,7 +2,9 @@
 
 #   scripts/odin-dev-install-launcher.sh [--force]
 #
-# Installs /Applications/Odin Dev.app, an applet that runs odin-dev-focus.sh.
+# Installs /Applications/Odin Dev.app, an applet that runs odin-dev-focus.sh,
+# and, if Karabiner-Elements is set up, a "double-tap right command to open
+# Odin" rule: Karabiner → Complex Modifications → Add predefined rule → Odin.
 set -uo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -48,3 +50,11 @@ touch "$APP"
 "$LSREGISTER" -f "$APP" >/dev/null 2>&1
 
 echo "installed $APP -> $FOCUS"
+
+KARABINER="$HOME/.config/karabiner"
+if [[ -d "$KARABINER" ]]; then
+  mkdir -p "$KARABINER/assets/complex_modifications"
+  cp "$(dirname "${BASH_SOURCE[0]}")/odin-dev-double-tap.karabiner.json" \
+    "$KARABINER/assets/complex_modifications/odin-dev.json"
+  echo "Karabiner rule ready: Complex Modifications → Add predefined rule → Odin"
+fi
