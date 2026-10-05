@@ -1052,6 +1052,31 @@ describe("agent-wrappers claude settings.json", () => {
 		);
 	});
 
+	it("gives every Claude session the Shell rule at SessionStart, once, across re-merges", () => {
+		const claudeSettingsPath = path.join(
+			mockedHomeDir,
+			".claude",
+			"settings.json",
+		);
+		mkdirSync(path.dirname(claudeSettingsPath), { recursive: true });
+		writeFileSync(claudeSettingsPath, JSON.stringify({}));
+		const notifyPath = "/tmp/.odin/hooks/notify.sh";
+		for (let i = 0; i < 2; i++) {
+			const content = getClaudeGlobalSettingsJsonContent(notifyPath);
+			if (content === null) throw new Error("Expected content");
+			writeFileSync(claudeSettingsPath, content);
+		}
+		const parsed = JSON.parse(readFileSync(claudeSettingsPath, "utf-8"));
+		const commands: string[] = parsed.hooks.SessionStart.flatMap(
+			(def: { hooks: { command: string }[] }) =>
+				def.hooks.map((hook) => hook.command),
+		);
+		expect(
+			commands.filter((c) => c.includes("/hooks/shell-rule.sh")),
+		).toHaveLength(1);
+		expect(commands.some((c) => c.includes("notify.sh"))).toBe(true);
+	});
+
 	it("preserves user hooks and non-hook settings when merging", () => {
 		const claudeSettingsPath = path.join(
 			mockedHomeDir,

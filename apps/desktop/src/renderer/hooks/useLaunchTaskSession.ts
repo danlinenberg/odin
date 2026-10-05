@@ -9,6 +9,7 @@ import {
 	useOdinRules,
 } from "renderer/stores/odin-rules";
 import { useTabsStore } from "renderer/stores/tabs/store";
+import { SHELL_RULE } from "shared/constants";
 import { isVideoFile } from "shared/file-types";
 import { claimedCheckout, launchBlocker } from "shared/launch-gate";
 
@@ -61,7 +62,7 @@ export function buildPrompt(
 		// A subagent or a background Bash runs it where nobody can see it; the
 		// card's Shell is where I'd look for it.
 		"",
-		`To run something for me to use or watch - the app from a worktree, a dev server - don't use a subagent or a background Bash: run it in this session's Shell in Odin, where I can see and stop it: \`curl -sf http://127.0.0.1:$ODIN_PORT/shell/run --data-urlencode paneId=$ODIN_PANE_ID --data-urlencode "command=cd <dir> && <command>"\`. Running it again replaces what's there.`,
+		SHELL_RULE,
 		// A scheduled run reads exactly like one I typed, so the agent stops on
 		// the first ambiguity and waits - at 4am, for hours, for nobody.
 		...(unattended

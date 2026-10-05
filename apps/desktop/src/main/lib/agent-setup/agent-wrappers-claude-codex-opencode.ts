@@ -12,6 +12,7 @@ import {
 import {
 	getNotifyScriptPath,
 	NOTIFY_SCRIPT_NAME,
+	SHELL_RULE_SCRIPT_NAME,
 	SUBAGENT_CAP_SCRIPT_NAME,
 } from "./notify-hook";
 import { OPENCODE_CONFIG_DIR, OPENCODE_PLUGIN_DIR } from "./paths";
@@ -90,11 +91,13 @@ function isManagedClaudeHookCommand(
 		command?.includes(notifyScriptPath) ||
 		command?.includes(CLAUDE_DYNAMIC_NOTIFY_PATH_MARKER) ||
 		isOdinManagedHookCommand(command, NOTIFY_SCRIPT_NAME) ||
-		!!command?.includes(`/hooks/${SUBAGENT_CAP_SCRIPT_NAME}`)
+		!!command?.includes(`/hooks/${SUBAGENT_CAP_SCRIPT_NAME}`) ||
+		!!command?.includes(`/hooks/${SHELL_RULE_SCRIPT_NAME}`)
 	);
 }
 
 const SUBAGENT_CAP_HOOK_COMMAND = `[ -n "$ODIN_HOME_DIR" ] && [ -x "$ODIN_HOME_DIR/hooks/${SUBAGENT_CAP_SCRIPT_NAME}" ] && "$ODIN_HOME_DIR/hooks/${SUBAGENT_CAP_SCRIPT_NAME}" || true`;
+const SHELL_RULE_HOOK_COMMAND = `[ -n "$ODIN_HOME_DIR" ] && [ -x "$ODIN_HOME_DIR/hooks/${SHELL_RULE_SCRIPT_NAME}" ] && "$ODIN_HOME_DIR/hooks/${SHELL_RULE_SCRIPT_NAME}" || true`;
 
 function readExistingClaudeSettings(
 	globalPath: string,
@@ -190,6 +193,14 @@ export function getClaudeGlobalSettingsJsonContent(
 		{
 			eventName: "SessionStart",
 			definition: { hooks: [{ type: "command", command: managedHookCommand }] },
+		},
+		// Every session, not only task launches, runs what you'll watch in its
+		// Shell (templates/shell-rule.template.sh).
+		{
+			eventName: "SessionStart",
+			definition: {
+				hooks: [{ type: "command", command: SHELL_RULE_HOOK_COMMAND }],
+			},
 		},
 		{
 			eventName: "SessionEnd",

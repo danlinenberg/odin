@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { SHELL_RULE } from "shared/constants";
 import { env } from "shared/env.shared";
 import { HOOKS_DIR } from "./paths";
 
@@ -17,6 +18,25 @@ const SUBAGENT_CAP_SCRIPT_MARKER = "# Odin subagent cap hook v1";
 // ponytail: 4 subagents machine-wide, not per session. Raise it with
 // ODIN_MAX_SUBAGENTS if the machine can take more.
 const DEFAULT_SUBAGENT_CAP = 4;
+
+export const SHELL_RULE_SCRIPT_NAME = "shell-rule.sh";
+const SHELL_RULE_SCRIPT_MARKER = "# Odin shell rule hook v1";
+
+export function getShellRuleScriptContent(): string {
+	const output = JSON.stringify({
+		hookSpecificOutput: {
+			hookEventName: "SessionStart",
+			additionalContext: SHELL_RULE,
+		},
+	});
+	return fs
+		.readFileSync(
+			path.join(__dirname, "templates", "shell-rule.template.sh"),
+			"utf-8",
+		)
+		.replaceAll("{{MARKER}}", SHELL_RULE_SCRIPT_MARKER)
+		.replaceAll("{{OUTPUT_JSON}}", output);
+}
 
 function writeFileIfChanged(
 	filePath: string,
@@ -66,6 +86,11 @@ export function createNotifyScript(): void {
 	writeFileIfChanged(
 		path.join(HOOKS_DIR, SUBAGENT_CAP_SCRIPT_NAME),
 		capScript,
+		0o755,
+	);
+	writeFileIfChanged(
+		path.join(HOOKS_DIR, SHELL_RULE_SCRIPT_NAME),
+		getShellRuleScriptContent(),
 		0o755,
 	);
 }

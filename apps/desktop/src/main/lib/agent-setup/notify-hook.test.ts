@@ -2,7 +2,8 @@ import { describe, expect, it } from "bun:test";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { NOTIFY_SCRIPT_MARKER } from "./notify-hook";
+import { SHELL_RULE } from "shared/constants";
+import { getShellRuleScriptContent, NOTIFY_SCRIPT_MARKER } from "./notify-hook";
 
 const notifyHookTemplatePath = path.join(
 	import.meta.dir,
@@ -389,4 +390,29 @@ describe("per-agent hook scripts dispatch to v2", () => {
 			expect(script).toContain("ODIN_PANE_ID");
 		});
 	}
+});
+
+describe("shell rule SessionStart hook", () => {
+	const run = (env: Record<string, string>) =>
+		Bun.spawnSync({
+			cmd: ["bash", "-c", getShellRuleScriptContent()],
+			env: { PATH: process.env.PATH ?? "", ...env },
+		});
+
+	it("hands a session inside Odin the Shell rule as SessionStart context", () => {
+		const out = run({ ODIN_PANE_ID: "pane-1", ODIN_PORT: "51741" });
+		expect(out.exitCode).toBe(0);
+		expect(JSON.parse(out.stdout.toString())).toEqual({
+			hookSpecificOutput: {
+				hookEventName: "SessionStart",
+				additionalContext: SHELL_RULE,
+			},
+		});
+	});
+
+	it("says nothing outside Odin, where there's no Shell to run in", () => {
+		const out = run({});
+		expect(out.exitCode).toBe(0);
+		expect(out.stdout.toString()).toBe("");
+	});
 });
