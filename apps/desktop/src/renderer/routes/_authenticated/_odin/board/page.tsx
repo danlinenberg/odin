@@ -109,6 +109,7 @@ import {
 	elapsedLabel,
 	jiraIssue,
 	lastMessageAt,
+	launchPullRequest,
 	linkRefs,
 	mergeCheckUrls,
 	mergeReady,
@@ -593,9 +594,52 @@ function MergeOnlyPill({ card }: { card: BoardCard }) {
 	);
 }
 
-function PrPill({ card, live }: { card: BoardCard; live: boolean }) {
+/**
+ * The PRs a card is about. A card launched on a PR leads with that PR: the
+ * newest one the agent quoted is often just a related PR it mentioned.
+ */
+function useCardPrs(card: BoardCard, live: boolean) {
 	const { data } = useCardTranscript(card, live);
-	const prs = data ? pullRequests(data.messages) : [];
+	const quoted = data ? pullRequests(data.messages) : [];
+	const launched = launchPullRequest(card.pane.odinBrief);
+	const prs = launched
+		? [launched, ...quoted.filter((pr) => pr.url !== launched.url)]
+		: quoted;
+	// buildReviewPrompt's opener: a PR launched to review, not one of mine.
+	const reviewing =
+		!!launched &&
+		!!data?.messages
+			.find((message) => message.role === "user")
+			?.text.includes("Review this pull request:");
+	return { prs, review: reviewing ? launched : null };
+}
+
+/** Someone else's PR, waiting on my review. The pill opens it on GitHub. */
+function ReviewPill({ card }: { card: BoardCard }) {
+	const { review } = useCardPrs(card, card.status === "working");
+	if (!review) return null;
+	return (
+		<button
+			type="button"
+			title={`Open ${review.url} to review it`}
+			onClick={(event) => {
+				// The card itself opens the drawer; the pill opens GitHub.
+				event.stopPropagation();
+				openUrl(review.url);
+			}}
+			className={cn(
+				"inline-flex items-center gap-1 rounded-[5px] px-[7px] text-[11px] font-medium hover:brightness-125",
+				PILL.attention,
+			)}
+		>
+			<LuGitPullRequest className="size-3" />
+			Review #{review.number}
+		</button>
+	);
+}
+
+function PrPill({ card, live }: { card: BoardCard; live: boolean }) {
+	const { prs } = useCardPrs(card, live);
 	const pr = prs[0];
 	if (!pr) return null;
 	// Plain text: a click falls through to the card and opens the drawer.
@@ -3469,6 +3513,7 @@ function DevBoardPage() {
 																	titleOf={cardTitle}
 																/>
 																<div className="mt-1 flex flex-wrap items-center gap-1.5">
+																	<ReviewPill card={card} />
 																	<MergeOnlyPill card={card} />
 																	{(card.status === "review" ||
 																		card.status === "permission") && (
