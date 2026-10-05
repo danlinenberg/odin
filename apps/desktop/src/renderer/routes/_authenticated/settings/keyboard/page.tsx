@@ -8,17 +8,10 @@ import {
 } from "@odin/ui/alert-dialog";
 import { Button } from "@odin/ui/button";
 import { Kbd, KbdGroup } from "@odin/ui/kbd";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@odin/ui/select";
 import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
 	HOTKEYS,
 	type HotkeyId,
@@ -29,7 +22,7 @@ import {
 	useRecordHotkeys,
 } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
-import { DOUBLE_TAP_KEYS, type DoubleTapKey } from "shared/double-tap-keys";
+import { DOUBLE_TAP_KEYS, doubleTapKeyForCode } from "shared/double-tap-keys";
 import {
 	SettingRow,
 	SettingsPage,
@@ -119,14 +112,39 @@ function HotkeyRow({
 	);
 }
 
-/** Stored in Karabiner's config, not Odin's: Karabiner is what sees the key. */
+/**
+ * Stored in Karabiner's config, not Odin's: Karabiner is what sees the key.
+ * The key is recorded, not picked from a list: with ⌘ and ⌥ swapped in
+ * Karabiner, "Left ⌘" names a different physical key than the one labelled ⌘,
+ * and pressing it is the only way to say which one you mean.
+ */
 function DoubleTapRow() {
 	const utils = electronTrpc.useUtils();
 	const { data, error } = electronTrpc.karabiner.doubleTap.useQuery();
-	const setDoubleTap = electronTrpc.karabiner.setDoubleTap.useMutation({
-		onError: (error) => toast.error(error.message),
-		onSettled: () => utils.karabiner.doubleTap.invalidate(),
-	});
+	const { mutate, isPending } = electronTrpc.karabiner.setDoubleTap.useMutation(
+		{
+			onError: (error) => toast.error(error.message),
+			onSettled: () => utils.karabiner.doubleTap.invalidate(),
+		},
+	);
+	const [recording, setRecording] = useState(false);
+
+	useEffect(() => {
+		if (!recording) return;
+		const onKeyDown = (event: KeyboardEvent) => {
+			event.preventDefault();
+			event.stopPropagation();
+			if (event.code === "Escape") return setRecording(false);
+			const key = doubleTapKeyForCode(event.code);
+			if (!key) return toast.warning("Press a modifier: ⌘, ⌥, ⌃ or ⇧");
+			setRecording(false);
+			mutate({ key });
+		};
+		window.addEventListener("keydown", onKeyDown, true);
+		return () => window.removeEventListener("keydown", onKeyDown, true);
+	}, [recording, mutate]);
+
+	const disabled = !data?.available || isPending;
 	return (
 		<SettingRow
 			label="Double-tap to open Odin"
@@ -144,27 +162,35 @@ function DoubleTapRow() {
 				)
 			}
 		>
-			<Select
-				value={data?.key ?? "off"}
-				onValueChange={(value) =>
-					setDoubleTap.mutate({
-						key: value === "off" ? null : (value as DoubleTapKey),
-					})
-				}
-				disabled={!data?.available || setDoubleTap.isPending}
+			<button
+				type="button"
+				disabled={disabled}
+				onClick={() => setRecording((r) => !r)}
+				className={cn(
+					"h-7 px-3 rounded-md border text-xs transition-colors disabled:opacity-50",
+					recording
+						? "border-destructive/50 bg-destructive/10 text-destructive ring-2 ring-destructive/20"
+						: "border-border bg-accent/20 text-foreground hover:bg-accent/40",
+				)}
 			>
-				<SelectTrigger className="w-[140px]">
-					<SelectValue />
-				</SelectTrigger>
-				<SelectContent>
-					<SelectItem value="off">Off</SelectItem>
-					{Object.entries(DOUBLE_TAP_KEYS).map(([key, label]) => (
-						<SelectItem key={key} value={key}>
-							{label}
-						</SelectItem>
-					))}
-				</SelectContent>
-			</Select>
+				{recording ? (
+					<span>Press the key…</span>
+				) : data?.key ? (
+					<Kbd>{DOUBLE_TAP_KEYS[data.key].label}</Kbd>
+				) : (
+					<span>Record a key</span>
+				)}
+			</button>
+			{data?.key && (
+				<Button
+					variant="ghost"
+					size="sm"
+					disabled={disabled}
+					onClick={() => mutate({ key: null })}
+				>
+					Turn off
+				</Button>
+			)}
 		</SettingRow>
 	);
 }
