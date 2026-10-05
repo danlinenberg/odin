@@ -115,7 +115,7 @@ function HotkeyRow({
 /** Stored in Karabiner's config, not Odin's: Karabiner is what sees the key. */
 function DoubleTapRow() {
 	const utils = electronTrpc.useUtils();
-	const { data } = electronTrpc.karabiner.doubleTap.useQuery();
+	const { data, error } = electronTrpc.karabiner.doubleTap.useQuery();
 	const setDoubleTap = electronTrpc.karabiner.setDoubleTap.useMutation({
 		onError: (error) => toast.error(error.message),
 		onSettled: () => utils.karabiner.doubleTap.invalidate(),
@@ -125,9 +125,17 @@ function DoubleTapRow() {
 			label="Double-tap right ⌘ to open Odin"
 			htmlFor="double-tap-open"
 			description={
-				data?.available === false
-					? "Needs Karabiner-Elements, which is what sees the key."
-					: "Brings Odin to the front, or starts it, from any app. Set up through Karabiner-Elements."
+				// A dev window hot-reloaded ahead of its main process lands here
+				// ("No procedure found") until Odin restarts.
+				error ? (
+					<span className="select-text cursor-text text-destructive">
+						{error.message}
+					</span>
+				) : data?.available === false ? (
+					"Needs Karabiner-Elements, which is what sees the key."
+				) : (
+					"Brings Odin to the front, or starts it, from any app. Set up through Karabiner-Elements."
+				)
 			}
 		>
 			<Switch
