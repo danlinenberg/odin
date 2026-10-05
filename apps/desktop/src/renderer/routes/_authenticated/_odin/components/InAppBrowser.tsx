@@ -20,6 +20,8 @@ import { useZoomFactor } from "renderer/hooks/useZoomFactor";
 import { getDispatchChord, matchesChord } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import {
+	type SlackThread,
+	slackThread,
 	slackWebClientUrl,
 	useInAppBrowser,
 } from "renderer/stores/in-app-browser";
@@ -46,6 +48,11 @@ const alwaysExternal = () => {
 			onClick: () => useInAppBrowser.setState({ external: false }),
 		},
 	});
+};
+
+const copyLink = (webview: WebviewTag, copyText: (text: string) => void) => {
+	copyText(webview.getURL());
+	toast("Link copied");
 };
 
 /** What a page in the panel logs when Esc goes unhandled there. */
@@ -81,6 +88,89 @@ const REPORT_KEYS = `addEventListener("keydown", (event) => {
 		if (!event.defaultPrevented || !open) console.debug(${JSON.stringify(ESCAPE_SIGNAL)});
 	});
 }, true);`;
+
+/**
+ * Runs in Slack's web client: opens a thread the way Slack's own Back button
+ * does, in the client that's already running, instead of booting it again
+ * (~2s, a dozen API round trips before the thread's own). Slack renders the
+ * view a popstate's state names, as long as its id is an entry Slack made, so
+ * the current entry is rewritten to name the thread. True once the thread is
+ * on screen; false when this isn't that workspace's client, or Slack didn't
+ * take it, and the link should load instead.
+ */
+async function openSlackThread({
+	workspace,
+	channel,
+	threadTs,
+	replyTs,
+}: SlackThread): Promise<boolean> {
+	const current = history.state;
+	if (!current?.isIA4 || !current.state?.home) return false;
+	const config = JSON.parse(localStorage.getItem("localConfig_v2") ?? "{}");
+	if (config.teams?.[current.teamId]?.domain !== workspace) return false;
+	const threadId = `${channel}-${threadTs}`;
+	const next = structuredClone(current);
+	next.activeTab = "home";
+	next.state.home.primary = {
+		id: channel,
+		viewType: "Channel",
+		params: {
+			teamOrEnterpriseId: current.teamId,
+			entityId: channel,
+			threadId,
+			replyTs,
+			parentTab: channel,
+			tabId: "channel",
+		},
+		uiState: { [channel]: {} },
+	};
+	next.state.home.secondary = {
+		id: "thread",
+		viewType: "Thread",
+		params: { threadId, replyTs, parentTab: channel },
+	};
+	history.replaceState(next, "");
+	dispatchEvent(new PopStateEvent("popstate", { state: next }));
+	// A long thread opens scrolled to the reply, its first message unrendered.
+	// A slow one is still worth the wait: giving up starts the load over.
+	const shown = `[data-msg-ts="${threadTs}"], [data-msg-ts="${replyTs}"]`;
+	for (let i = 0; i < 160; i++) {
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		const pane = document.querySelector('[data-qa="threads_flexpane"]');
+		if (pane?.querySelector(shown)) return true;
+	}
+	return false;
+}
+
+/** Takes a page that's already open to a new link. */
+async function show(webview: WebviewTag, url: string) {
+	try {
+		const thread = slackThread(url);
+		if (
+			thread &&
+			(await webview.executeJavaScript(
+				`(${openSlackThread})(${JSON.stringify(thread)})`,
+			))
+		) {
+			return;
+		}
+		// Another link took over while Slack had a go at this one.
+		if (useInAppBrowser.getState().url !== url) return;
+		webview.loadURL(url).catch(() => {});
+	} catch {
+		// Its first page isn't far enough along to take a script or a load.
+		webview.src = url;
+	}
+}
+
+/**
+ * Slack keeps a page of its own, so its client stays booted while a Jira
+ * ticket or a PR opens in between.
+ */
+type Site = "slack" | "web";
+const SITES: Site[] = ["slack", "web"];
+const siteOf = (url: string): Site =>
+	/^https:\/\/([\w-]+\.)*slack\.com\//i.test(url) ? "slack" : "web";
 
 /** Narrow enough to keep a board column in view, wide enough for Jira's sidebar. */
 const MIN_WIDTH = 480;
@@ -127,57 +217,127 @@ export function InAppBrowser() {
 	const [resizing, setResizing] = useState(false);
 	const openExternal = electronTrpc.external.openUrl.useMutation();
 	const { mutate: copyText } = electronTrpc.external.copyText.useMutation();
-	const view = useRef<WebviewTag>(null);
-	const [page, setPage] = useState({ title: "", url: "" });
+	// Each site's first link. Its page stays loaded while the panel is
+	// closed, so the next link doesn't start the site over.
+	const [sites, setSites] = useState<Partial<Record<Site, string>>>({});
+	const views = useRef<Partial<Record<Site, WebviewTag>>>({});
+	const [pages, setPages] = useState<
+		Partial<Record<Site, { title: string; url: string }>>
+	>({});
 	const zoomFactor = useZoomFactor();
+	const site = url ? siteOf(url) : null;
+	const page = (site && pages[site]) || { title: "", url: "" };
 
-	// A <webview> keeps its own zoom: it starts at 100% whatever Odin's zoom
-	// is, and Chromium resets it per site. So it takes Odin's on every
-	// navigation, and again whenever Odin's changes.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: sites re-reads views when a site's page mounts
 	useEffect(() => {
-		const webview = view.current;
-		if (!url || !webview) return;
-		const apply = () => webview.setZoomFactor(zoomFactor);
-		try {
-			apply();
-		} catch {
-			// Not attached yet; its first did-navigate applies it.
-		}
-		webview.addEventListener("did-navigate", apply);
+		const detach = Object.entries(views.current).map(([key, webview]) => {
+			const site = key as Site;
+			// A <webview> keeps its own zoom: it starts at 100% whatever Odin's
+			// zoom is, and Chromium resets it per site. So it takes Odin's on
+			// every navigation, and again whenever Odin's changes.
+			const applyZoom = () => webview.setZoomFactor(zoomFactor);
+			try {
+				applyZoom();
+			} catch {
+				// Not attached yet; its first did-navigate applies it.
+			}
+			const setPage = (patch: { title?: string; url?: string }) =>
+				setPages((prev) => ({
+					...prev,
+					[site]: { title: "", url: "", ...prev[site], ...patch },
+				}));
+			const onNavigate = (event: Event) => {
+				const { url } = event as { url?: string };
+				if (url) setPage({ url });
+			};
+			const onTitle = (event: Event) =>
+				setPage({ title: (event as { title?: string }).title ?? "" });
+			const onReady = () => {
+				webview.executeJavaScript(REPORT_KEYS).catch(() => {});
+			};
+			const onConsole = (event: Event) => {
+				const message = (event as { message?: string }).message;
+				if (message === ESCAPE_SIGNAL) close();
+				if (
+					message?.startsWith(KEY_SIGNAL) &&
+					isCopyLink(
+						new KeyboardEvent(
+							"keydown",
+							JSON.parse(message.slice(KEY_SIGNAL.length)),
+						),
+					)
+				) {
+					copyLink(webview, copyText);
+				}
+			};
+			// A Slack link followed inside the panel (from a Jira ticket, a Notion
+			// page, a sign-in redirect) goes to Slack's web client before Slack's
+			// desktop hand-off page can load, as openUrl does for Odin's own links.
+			const toSlackWebClient = (event: {
+				url: string;
+				isMainFrame: boolean;
+				isInPlace: boolean;
+			}) => {
+				const web = slackWebClientUrl(event.url);
+				if (event.isMainFrame && !event.isInPlace && web !== event.url) {
+					webview.loadURL(web).catch(() => {});
+				}
+			};
+			webview.addEventListener("did-navigate", applyZoom);
+			webview.addEventListener("did-navigate", onNavigate);
+			webview.addEventListener("did-navigate-in-page", onNavigate);
+			webview.addEventListener("page-title-updated", onTitle);
+			webview.addEventListener("dom-ready", onReady);
+			webview.addEventListener("console-message", onConsole);
+			webview.addEventListener("did-start-navigation", toSlackWebClient);
+			webview.addEventListener("did-redirect-navigation", toSlackWebClient);
+			return () => {
+				webview.removeEventListener("did-navigate", applyZoom);
+				webview.removeEventListener("did-navigate", onNavigate);
+				webview.removeEventListener("did-navigate-in-page", onNavigate);
+				webview.removeEventListener("page-title-updated", onTitle);
+				webview.removeEventListener("dom-ready", onReady);
+				webview.removeEventListener("console-message", onConsole);
+				webview.removeEventListener("did-start-navigation", toSlackWebClient);
+				webview.removeEventListener(
+					"did-redirect-navigation",
+					toSlackWebClient,
+				);
+			};
+		});
 		return () => {
-			webview.removeEventListener("did-navigate", apply);
+			for (const listener of detach) listener();
 		};
-	}, [url, zoomFactor]);
+	}, [sites, zoomFactor, copyText]);
 
 	useEffect(() => {
-		const webview = view.current;
-		if (!url || !webview) return;
+		if (!url) return;
+		const site = siteOf(url);
+		const webview = views.current[site];
+		if (webview) {
+			setPages((prev) => ({ ...prev, [site]: { title: "", url } }));
+			void show(webview, url);
+		} else {
+			// Its <webview>'s src loads it.
+			setSites((prev) => ({ ...prev, [site]: url }));
+		}
+	}, [url]);
+
+	useEffect(() => {
+		if (!url) return;
+		const site = siteOf(url);
 		// Whatever had focus when the link opened - the session's terminal,
 		// Catch up - gets it back on close, instead of it falling to <body>.
 		const opener = document.activeElement;
-		setPage({ title: "", url });
-		const onNavigate = (event: Event) =>
-			setPage((prev) => ({
-				...prev,
-				url: (event as { url?: string }).url ?? prev.url,
-			}));
-		const onTitle = (event: Event) =>
-			setPage((prev) => ({
-				...prev,
-				title: (event as { title?: string }).title ?? "",
-			}));
 		// Captured and stopped at the window: Esc closes the panel and nothing
 		// under it - not the session drawer, not Catch up, not the terminal.
-		const copyLink = () => {
-			copyText(webview.getURL());
-			toast("Link copied");
-		};
 		const onKey = (event: KeyboardEvent) => {
 			// The toolbar, or whatever kept focus under the panel.
 			if (isCopyLink(event)) {
 				event.preventDefault();
 				event.stopImmediatePropagation();
-				copyLink();
+				const webview = views.current[site];
+				if (webview) copyLink(webview, copyText);
 				return;
 			}
 			if (event.key !== "Escape") return;
@@ -187,72 +347,32 @@ export function InAppBrowser() {
 			event.stopImmediatePropagation();
 			close();
 		};
-		const onReady = () => {
-			webview.executeJavaScript(REPORT_KEYS).catch(() => {});
-		};
-		const onConsole = (event: Event) => {
-			const message = (event as { message?: string }).message;
-			if (message === ESCAPE_SIGNAL) close();
-			if (
-				message?.startsWith(KEY_SIGNAL) &&
-				isCopyLink(
-					new KeyboardEvent(
-						"keydown",
-						JSON.parse(message.slice(KEY_SIGNAL.length)),
-					),
-				)
-			) {
-				copyLink();
-			}
-		};
-		// A Slack link followed inside the panel (from a Jira ticket, a Notion
-		// page, a sign-in redirect) goes to Slack's web client before Slack's
-		// desktop hand-off page can load, as openUrl does for Odin's own links.
-		const toSlackWebClient = (event: {
-			url: string;
-			isMainFrame: boolean;
-			isInPlace: boolean;
-		}) => {
-			const web = slackWebClientUrl(event.url);
-			if (event.isMainFrame && !event.isInPlace && web !== event.url) {
-				webview.loadURL(web).catch(() => {});
-			}
-		};
-		webview.addEventListener("did-navigate", onNavigate);
-		webview.addEventListener("did-navigate-in-page", onNavigate);
-		webview.addEventListener("page-title-updated", onTitle);
-		webview.addEventListener("dom-ready", onReady);
-		webview.addEventListener("console-message", onConsole);
-		webview.addEventListener("did-start-navigation", toSlackWebClient);
-		webview.addEventListener("did-redirect-navigation", toSlackWebClient);
 		window.addEventListener("keydown", onKey, { capture: true });
 		return () => {
-			webview.removeEventListener("did-navigate", onNavigate);
-			webview.removeEventListener("did-navigate-in-page", onNavigate);
-			webview.removeEventListener("page-title-updated", onTitle);
-			webview.removeEventListener("dom-ready", onReady);
-			webview.removeEventListener("console-message", onConsole);
-			webview.removeEventListener("did-start-navigation", toSlackWebClient);
-			webview.removeEventListener("did-redirect-navigation", toSlackWebClient);
 			window.removeEventListener("keydown", onKey, { capture: true });
 			if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
 		};
 	}, [url, copyText]);
 
-	if (!url) return null;
+	if (!url && !sites.slack && !sites.web) return null;
+	const view = () => (site ? views.current[site] : undefined);
 
 	return (
 		<>
-			<button
-				type="button"
-				aria-label="Close browser"
-				className="absolute inset-0 z-[60] cursor-default bg-black/35"
-				onClick={close}
-			/>
+			{url && (
+				<button
+					type="button"
+					aria-label="Close browser"
+					className="absolute inset-0 z-[60] cursor-default bg-black/35"
+					onClick={close}
+				/>
+			)}
 			<div
 				className={cn(
 					"absolute inset-y-0 right-0 z-[60] flex max-w-full flex-col border-l border-border bg-background shadow-2xl",
 					widthFraction === null && "w-[min(1200px,92%)]",
+					// Closed, it stays loaded, out of sight.
+					!url && "invisible",
 				)}
 				style={
 					widthFraction === null
@@ -269,7 +389,7 @@ export function InAppBrowser() {
 						type="button"
 						title="Back"
 						className={ICON_BUTTON}
-						onClick={() => view.current?.goBack()}
+						onClick={() => view()?.goBack()}
 					>
 						<HiArrowLeft className="size-4" />
 					</button>
@@ -277,7 +397,7 @@ export function InAppBrowser() {
 						type="button"
 						title="Forward"
 						className={ICON_BUTTON}
-						onClick={() => view.current?.goForward()}
+						onClick={() => view()?.goForward()}
 					>
 						<HiArrowRight className="size-4" />
 					</button>
@@ -285,7 +405,7 @@ export function InAppBrowser() {
 						type="button"
 						title="Reload"
 						className={ICON_BUTTON}
-						onClick={() => view.current?.reload()}
+						onClick={() => view()?.reload()}
 					>
 						<HiArrowPath className="size-4" />
 					</button>
@@ -293,14 +413,14 @@ export function InAppBrowser() {
 						title={page.url}
 						className="min-w-0 flex-1 truncate px-2 text-[13px] text-muted-foreground"
 					>
-						{page.title || new URL(page.url || url).host}
+						{url && (page.title || new URL(page.url || url).host)}
 					</span>
 					<div className="flex">
 						<button
 							type="button"
 							title="Open in your browser"
 							onClick={() => {
-								openExternal.mutate(page.url || url);
+								if (url) openExternal.mutate(page.url || url);
 								close();
 							}}
 							className={cn(
@@ -328,7 +448,7 @@ export function InAppBrowser() {
 							<DropdownMenuContent align="end" className="z-[70]">
 								<DropdownMenuItem
 									onSelect={() => {
-										openExternal.mutate(page.url || url);
+										if (url) openExternal.mutate(page.url || url);
 										close();
 										alwaysExternal();
 									}}
@@ -348,22 +468,38 @@ export function InAppBrowser() {
 						<HiXMark className="size-4" />
 					</button>
 				</div>
-				<webview
-					ref={view}
-					src={url}
-					partition={IN_APP_BROWSER_PARTITION}
-					// No passkeys: Electron can't show the Touch ID prompt, so a site
-					// asking for one (Google does) waits forever. Without WebAuthn it
-					// offers your phone or password instead.
-					disableblinkfeatures="WebAuth"
-					useragent={USER_AGENT}
-					// Only read as present or absent; React drops a boolean `true` on
-					// an attribute it doesn't know, so it has to be a string.
-					allowpopups={"true" as unknown as boolean}
-					// A page under the pointer swallows its moves, which ends a drag of
-					// the edge the moment it crosses into the page.
-					className={cn("min-h-0 flex-1", resizing && "pointer-events-none")}
-				/>
+				<div className="relative min-h-0 flex-1">
+					{SITES.map(
+						(key) =>
+							sites[key] && (
+								<webview
+									key={key}
+									ref={(element) => {
+										if (element) views.current[key] = element as WebviewTag;
+										else delete views.current[key];
+									}}
+									src={sites[key]}
+									partition={IN_APP_BROWSER_PARTITION}
+									// No passkeys: Electron can't show the Touch ID prompt, so a
+									// site asking for one (Google does) waits forever. Without
+									// WebAuthn it offers your phone or password instead.
+									disableblinkfeatures="WebAuth"
+									useragent={USER_AGENT}
+									// Only read as present or absent; React drops a boolean
+									// `true` on an attribute it doesn't know, so it has to be a
+									// string.
+									allowpopups={"true" as unknown as boolean}
+									// A page under the pointer swallows its moves, which ends a
+									// drag of the edge the moment it crosses into the page.
+									className={cn(
+										"absolute inset-0",
+										key !== site && "invisible",
+										resizing && "pointer-events-none",
+									)}
+								/>
+							),
+					)}
+				</div>
 			</div>
 		</>
 	);
