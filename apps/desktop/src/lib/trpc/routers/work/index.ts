@@ -170,7 +170,7 @@ export interface EmailRow {
 	/** The sender's address - what tells a person from a mailer. */
 	fromEmail: string | null;
 	at: string | null;
-	/** The model's verdict (invites never junk, RSVPs always); null = it couldn't say. */
+	/** The model's verdict (calendar mail always junk); null = it couldn't say. */
 	junk?: boolean | null;
 }
 

@@ -17,18 +17,14 @@ export interface TriageEmail {
 	fromEmail: string | null;
 }
 
-/** An invite asks something of me - always a row, no model needed. */
-export const isCalendarInvite = (subject: string) =>
-	/^(updated |new event: )?invitation:/i.test(subject.trim());
-
-/** RSVPs and cancellations are never worth a row. */
-export const isCalendarReply = (subject: string) =>
-	/^(canceled event: |cancelled event: )?(accepted|declined|tentatively accepted|canceled|cancelled)( event)?:/i.test(
+/** Invites, RSVPs and cancellations are never a row - the calendar has them. */
+export const isCalendarMail = (subject: string) =>
+	/^(updated |new event: |canceled event: |cancelled event: )?(invitation|accepted|declined|tentatively accepted|canceled|cancelled)( event)?:/i.test(
 		subject.trim(),
 	);
 
 const INSTRUCTIONS = `You triage my unread email. Say which ones are worth my attention.
-Interesting: a person writing to me or asking something of me, anything I'd want to read or answer - including a meeting invite someone sent me.
+Interesting: a person writing to me or asking something of me, anything I'd want to read or answer.
 Junk: automated mail - alerts, notifications, receipts, product updates, newsletters, marketing, event platforms, "your X is ready".
 Each line is: number | sender name <address> | subject | preview.
 Answer with ONLY a JSON object, no prose: {"interesting": [line numbers]}.`;
@@ -64,8 +60,7 @@ export async function triageEmails(
 	{ timeoutMs = 90_000 }: { timeoutMs?: number } = {},
 ): Promise<Map<string, boolean>> {
 	for (const email of emails)
-		if (isCalendarInvite(email.subject)) verdicts.set(email.id, false);
-		else if (isCalendarReply(email.subject)) verdicts.set(email.id, true);
+		if (isCalendarMail(email.subject)) verdicts.set(email.id, true);
 	// One model call at a time: the next poll waits for it rather than
 	// asking the same question twice.
 	if (inFlight) await inFlight.catch(() => {});
