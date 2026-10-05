@@ -601,6 +601,9 @@ describe("onlyLookLeft", () => {
 			'Confirm the "Drop?" rows are gone from Next in line.',
 			"Close the open drawer; press ⌘R if Resume still bounces.",
 			"Click Resume on a stopped card; confirm the drawer opens.",
+			"Send the reply to Gil.",
+			"Post the draft in #studio-bug-report.",
+			"Paste the reply into the Slack thread.",
 		])
 			expect(onlyLookLeft([turn(`ACTION ITEMS\n1. ${item}`)])).toBe(true);
 	});
@@ -613,6 +616,8 @@ describe("onlyLookLeft", () => {
 			"Open Settings → Board and set your session limit.",
 			"Confirm the two excluded channels should stay out.",
 			"Open the brief and check it reads right?",
+			"Send me the failing request ID.",
+			"Send the reply to Gil, or should I hold it?",
 		])
 			expect(
 				onlyLookLeft([turn(`ACTION ITEMS\n1. Reload Odin.\n2. ${item}`)]),
