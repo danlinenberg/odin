@@ -393,6 +393,21 @@ export function launchPullRequest(
 	return pullRequests([{ role: "assistant", text: url, at: null }])[0] ?? null;
 }
 
+/**
+ * The PR a session was launched to review - buildReviewPrompt's opener - not
+ * one of mine. Null for any other session.
+ */
+export function reviewedPullRequest(
+	brief: string | null | undefined,
+	messages: BriefMessage[],
+): PullRequestLink | null {
+	const launched = launchPullRequest(brief);
+	const opener = messages.find((message) => message.role === "user");
+	return launched && opener?.text.includes("Review this pull request:")
+		? launched
+		: null;
+}
+
 const GOOGLE_FILE: Record<string, string> = {
 	document: "Google Doc",
 	spreadsheets: "Google Sheet",
@@ -695,4 +710,16 @@ export function prsDropped(
 		prs.every((pr) => !!pr && pr.state !== "OPEN") &&
 		prs.some((pr) => pr?.state === "CLOSED")
 	);
+}
+
+/**
+ * A review whose PR merged or closed has nothing left to review, so whatever
+ * its action items say, the card is Done. Returns that state, else null.
+ */
+export function reviewEnded(
+	reviewed: PullRequestLink | null,
+	states: PrStates,
+): string | null {
+	const pr = reviewed && states[reviewed.url];
+	return pr && pr.state !== "OPEN" ? pr.state : null;
 }
