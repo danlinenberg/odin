@@ -42,6 +42,17 @@ export async function makeAppSetup(
 		}
 	});
 
+	// The in-app browser keeps Slack's web client running after you close it,
+	// and Electron grants every permission by default: without this, it would
+	// post a second copy of every notification Slack's own app already shows.
+	const inAppBrowser = session.fromPartition(IN_APP_BROWSER_PARTITION);
+	inAppBrowser.setPermissionCheckHandler(
+		(_, permission) => permission !== "notifications",
+	);
+	inAppBrowser.setPermissionRequestHandler((_, permission, callback) =>
+		callback(permission !== "notifications"),
+	);
+
 	app.on("web-contents-created", (_, contents) => {
 		// The in-app browser, and any sign-in popup a page in it opens, browses
 		// freely; only Odin's own windows send web links out.
