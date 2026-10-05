@@ -108,6 +108,7 @@ async function runInSessionShell(
 		panes: {
 			...s.panes,
 			[sessionPaneId]: { ...s.panes[sessionPaneId], odinShellPaneId: paneId },
+			[paneId]: { ...s.panes[paneId], odinAgentRun: true },
 		},
 	}));
 	await electronTrpcClient.terminal.createOrAttach.mutate({

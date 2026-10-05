@@ -218,6 +218,12 @@ export interface Pane {
 	 */
 	odinShellPaneId?: string;
 	/**
+	 * Odin fork: this Shell is running something an agent launched through
+	 * /shell/run. The agent picked its directory on purpose, so its dot is green
+	 * wherever it sits.
+	 */
+	odinAgentRun?: boolean;
+	/**
 	 * Odin fork: where the session was launched - the checkout it holds while
 	 * it works. Unlike `initialCwd`, never cleared when a terminal opens.
 	 */

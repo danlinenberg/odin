@@ -805,8 +805,9 @@ function useShellPlace(card: BoardCard, shell: Pane) {
 }
 
 /**
- * ❯ Shell's dot: green when the shell is live and in this session's work,
- * amber when it's live but somewhere else, red when its PTY is gone.
+ * ❯ Shell's dot: green when the shell is live and in this session's work or
+ * running what its agent launched, amber when it's live but somewhere else,
+ * red when its PTY is gone.
  */
 function ShellDot({
 	card,
@@ -821,7 +822,7 @@ function ShellDot({
 	const where = here?.replace(/^\/Users\/[^/]+/, "~");
 	const [title, color] = !alive
 		? ["Disconnected - open it to start a new one", "bg-danger"]
-		: atWork
+		: atWork || shell.odinAgentRun
 			? [`Live, in ${where}`, "bg-success"]
 			: [
 					`Live, but in ${where ?? "an unknown directory"} - not in this session's worktree`,
