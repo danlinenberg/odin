@@ -72,10 +72,14 @@ const isCopyLink = (event: KeyboardEvent) => {
  * it) through its console instead. Slack's web client prevents every Esc,
  * open menu or not, so an Esc the page took still counts when nothing was
  * open for it to close. Checked in the capture phase, before the page's own
- * handlers close whatever was open. It reports every modifier chord too, and
- * Odin matches it against the Copy Link shortcut, so a rebind applies to a
- * page that's already open.
+ * handlers close whatever was open. A Slack preview that opened without
+ * taking focus (focus stays on <body>) never sees the Esc, so it gets the Esc
+ * passed on and closes, instead of the panel closing under it. It reports
+ * every modifier chord too, and Odin matches it against the Copy Link
+ * shortcut, so a rebind applies to a page that's already open.
  */
+// ponytail: only react-modal (Slack's previews) gets the Esc passed on; add
+// another site's modal class when one turns up with the same focus gap.
 const REPORT_KEYS = `addEventListener("keydown", (event) => {
 	if (event.metaKey || event.ctrlKey || event.altKey) {
 		const { code, metaKey, ctrlKey, altKey, shiftKey } = event;
@@ -83,9 +87,15 @@ const REPORT_KEYS = `addEventListener("keydown", (event) => {
 	}
 	if (event.key !== "Escape") return;
 	const open = [...document.querySelectorAll("[role=dialog],[role=menu],[role=listbox],[aria-modal=true]")]
-		.some((el) => el.getClientRects().length > 0);
+		.filter((el) => el.getClientRects().length > 0);
 	setTimeout(() => {
-		if (!event.defaultPrevented || !open) console.debug(${JSON.stringify(ESCAPE_SIGNAL)});
+		if (event.defaultPrevented && open.length) return;
+		const modal = open.findLast((el) => el.matches(".ReactModal__Content"));
+		if (modal && !modal.contains(event.target)) {
+			modal.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", keyCode: 27, bubbles: true, cancelable: true }));
+			return;
+		}
+		console.debug(${JSON.stringify(ESCAPE_SIGNAL)});
 	});
 }, true);`;
 
