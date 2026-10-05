@@ -822,7 +822,7 @@ function ShellDot({
 	const [title, color] = !alive
 		? ["Disconnected - open it to start a new one", "bg-danger"]
 		: atWork
-			? [`Live, in ${where}`, "bg-working"]
+			? [`Live, in ${where}`, "bg-success"]
 			: [
 					`Live, but in ${where ?? "an unknown directory"} - not in this session's worktree`,
 					"bg-attention",
