@@ -11,6 +11,7 @@ import {
 	jiraIssue,
 	type LinkKind,
 	launchPullRequest,
+	linkContext,
 	linkKind,
 	linkLabel,
 	notionPage,
@@ -148,41 +149,29 @@ function ChecksChip({
 }
 
 /**
- * A Slack link's tooltip: the whole message (the link shows two lines of it),
- * then the url. `full` is missing until main restarts onto the procedure that
- * returns it, so fall back to the line we have.
+ * A link's tooltip: what it is - a title, then a line about it - then where it
+ * lives, each set apart so it reads at a glance. With nothing known about the
+ * link it's the url alone.
  */
-function hoverText(
-	url: string,
-	preview: { text: string; full?: string } | null | undefined,
-): string {
-	const message = preview?.full ?? preview?.text;
-	return message ? `${message}\n\n${url}` : url;
-}
-
-/**
- * A PR link's tooltip: what it does - the title, then the description's opening
- * paragraph - then where it lives, each set apart so it reads at a glance. Both
- * are missing until main restarts onto the procedure that fetches them, so it
- * falls back to the url alone.
- */
-function PrHover({
+function LinkHover({
 	url,
-	pr,
+	title,
+	summary,
 }: {
 	url: string;
-	pr: { title?: string | null; summary?: string | null } | null | undefined;
+	title?: string | null;
+	summary?: string | null;
 }) {
 	return (
 		<div className="flex flex-col gap-1.5 px-0.5 py-1 font-normal text-pretty">
-			{pr?.title && (
+			{title && (
 				<div className="text-[13px] font-semibold leading-snug text-foreground">
-					{pr.title}
+					{title}
 				</div>
 			)}
-			{pr?.summary && (
+			{summary && (
 				<div className="text-[12px] leading-relaxed text-soft-foreground">
-					{pr.summary}
+					{summary}
 				</div>
 			)}
 			<div className="break-all text-[11px] text-faint-foreground">
@@ -486,6 +475,37 @@ export function SessionBrief({
 		(pr) => pr.url === launchPr?.url || prStates?.[pr.url]?.mine !== false,
 	);
 
+	// Every link's hover. A PR's comes from GitHub, a Slack link's from Slack
+	// (the whole message - the link shows two lines of it); the rest say what
+	// the session said the link is. `full`, `title` and `summary` are missing
+	// until main restarts onto the procedures that return them.
+	const said = transcript
+		? [...(transcript.links ?? []), ...transcript.messages]
+		: [];
+	const hoverFor = (url: string, name?: string | null) => {
+		if (linkKind(url) === "pr") {
+			const pr = prStates?.[url];
+			return <LinkHover url={url} title={pr?.title} summary={pr?.summary} />;
+		}
+		const preview = previews?.[url];
+		if (preview)
+			return (
+				<LinkHover
+					url={url}
+					title={[preview.channel, preview.author].filter(Boolean).join(" · ")}
+					summary={preview.full ?? preview.text}
+				/>
+			);
+		const context = linkContext(said, url);
+		return (
+			<LinkHover
+				url={url}
+				title={name ?? context?.title ?? linkLabel(url)}
+				summary={context?.summary}
+			/>
+		);
+	};
+
 	// A link you added: your name for it, else what Slack says the message is,
 	// else its kind; the line under it says where it lives. Removable, since
 	// it's yours.
@@ -502,15 +522,7 @@ export function SessionBrief({
 			.join(" · ");
 		return (
 			<div key={url} className="group flex items-start gap-1.5">
-				<Hover
-					text={
-						linkKind(url) === "pr" ? (
-							<PrHover url={url} pr={prStates?.[url]} />
-						) : (
-							hoverText(url, preview)
-						)
-					}
-				>
+				<Hover text={hoverFor(url, name)}>
 					<button
 						type="button"
 						onClick={() => openUrl(url)}
@@ -562,7 +574,7 @@ export function SessionBrief({
 					<div className="flex flex-col gap-1">
 						{issue && (
 							<div className="group flex items-center gap-1.5">
-								<Hover text={issue.url}>
+								<Hover text={hoverFor(issue.url, issue.key)}>
 									<button
 										type="button"
 										onClick={() => openUrl(issue.url)}
@@ -584,7 +596,7 @@ export function SessionBrief({
 						{thread && (
 							<div className="group flex items-start gap-1.5">
 								<div className="min-w-0 flex-1">
-									<Hover text={hoverText(thread, threadPreview)}>
+									<Hover text={hoverFor(thread)}>
 										<button
 											type="button"
 											onClick={() => openUrl(thread)}
@@ -621,7 +633,7 @@ export function SessionBrief({
 					<div className="flex flex-col gap-1">
 						{ownPrs.map((pr) => (
 							<div key={pr.url} className="group flex items-center gap-1.5">
-								<Hover text={<PrHover url={pr.url} pr={prStates?.[pr.url]} />}>
+								<Hover text={hoverFor(pr.url)}>
 									<button
 										type="button"
 										onClick={() => openUrl(pr.url)}
@@ -646,7 +658,7 @@ export function SessionBrief({
 					<div className="flex flex-col gap-1">
 						{page && (
 							<div className="group flex items-center gap-1.5">
-								<Hover text={page.url}>
+								<Hover text={hoverFor(page.url, page.title)}>
 									<button
 										type="button"
 										onClick={() => openUrl(page.url)}
@@ -667,7 +679,7 @@ export function SessionBrief({
 					<div className="flex flex-col gap-1">
 						{artifact && (
 							<div className="group flex items-center gap-1.5">
-								<Hover text={artifact}>
+								<Hover text={hoverFor(artifact)}>
 									<button
 										type="button"
 										onClick={() => openUrl(artifact)}
@@ -771,15 +783,16 @@ export function SessionBrief({
 									<div className="flex flex-wrap gap-x-2 text-[11px] text-muted-foreground">
 										on
 										{on.map((url) => (
-											<button
-												key={url}
-												type="button"
-												onClick={() => openUrl(url)}
-												className="text-link hover:underline"
-											>
-												{url.split("/").slice(-3, -2)[0]} #
-												{url.split("/").pop()} ↗
-											</button>
+											<Hover key={url} text={hoverFor(url)}>
+												<button
+													type="button"
+													onClick={() => openUrl(url)}
+													className="text-link hover:underline"
+												>
+													{url.split("/").slice(-3, -2)[0]} #
+													{url.split("/").pop()} ↗
+												</button>
+											</Hover>
 										))}
 									</div>
 								</div>
@@ -798,7 +811,7 @@ export function SessionBrief({
 						<div className="mt-1 flex flex-col gap-1">
 							{hiddenList.map(({ url, label }) => (
 								<div key={url} className="group flex items-center gap-1.5">
-									<Hover text={url}>
+									<Hover text={hoverFor(url)}>
 										<button
 											type="button"
 											onClick={() => openUrl(url)}

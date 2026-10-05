@@ -562,7 +562,7 @@ describe("parseTranscript / readTranscript", () => {
 		expect(transcriptLinks(jsonl)).toEqual([
 			{
 				role: "user",
-				text: "https://acme.slack.com/archives/D1/p123?thread_ts=1.2&cid=D1\nhttps://acme.atlassian.net/browse/SHIP-1",
+				text: "This task comes from a Slack thread: https://acme.slack.com/archives/D1/p123?thread_ts=1.2&cid=D1\nTicket: [SHIP-1](https://acme.atlassian.net/browse/SHIP-1)",
 				at: "2026-08-10T11:51:56.283Z",
 			},
 			{

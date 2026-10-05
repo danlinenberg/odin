@@ -7,6 +7,7 @@ import {
 	jiraIssue,
 	lastMessageAt,
 	launchPullRequest,
+	linkContext,
 	linkKind,
 	linkLabel,
 	linkRefs,
@@ -432,8 +433,12 @@ describe("linkLabel", () => {
 			),
 		).toBe("Spot Instances");
 		expect(linkLabel("https://docs.google.com/document/d/x")).toBe(
-			"docs.google.com",
+			"Google Doc",
 		);
+		expect(linkLabel("https://docs.google.com/spreadsheets/d/x/edit")).toBe(
+			"Google Sheet",
+		);
+		expect(linkLabel("https://docs.google.com/a/b")).toBe("docs.google.com");
 	});
 });
 
@@ -776,5 +781,91 @@ describe("linkRefs", () => {
 		expect(parts.map((part) => part.text).join("")).toBe(
 			"Merge terraform#1455, then deploy.",
 		);
+	});
+});
+
+describe("linkContext", () => {
+	const say = (text: string): BriefMessage => ({
+		role: "assistant",
+		text,
+		at: null,
+	});
+	const doc = "https://docs.google.com/spreadsheets/d/1I9T/edit?gid=0#gid=0";
+
+	it("reads the label and the sentence the link sat in", () => {
+		expect(
+			linkContext(
+				[
+					say(
+						`**The file you asked for.** [Touchpoint requests](${doc}) is in Sources.`,
+					),
+				],
+				doc,
+			),
+		).toEqual({
+			title: "Touchpoint requests",
+			summary: "Touchpoint requests is in Sources.",
+		});
+	});
+
+	it("drops the label off a table row, keeping the cells after it", () => {
+		const page = "https://app.notion.com/p/3799a1b573ff81cfacb3fa9191ea2359";
+		expect(
+			linkContext(
+				[say(`| [Sources](${page}) | 16 team-owned artifacts | appended |`)],
+				page,
+			),
+		).toEqual({
+			title: "Sources",
+			summary: "16 team-owned artifacts · appended",
+		});
+	});
+
+	it("reads the first mention - the introduction, not the updates after it", () => {
+		const art = "https://claude.ai/code/artifact/abc-123";
+		expect(
+			linkContext(
+				[
+					say(`Artifact: ${art}`),
+					say(`Here's the draft Gantt with the suggested owners: ${art}`),
+					say(
+						`The legend says "Planned" now. It's live at the same link: ${art}`,
+					),
+				],
+				art,
+			),
+		).toEqual({
+			title: null,
+			summary: "Here's the draft Gantt with the suggested owners",
+		});
+	});
+
+	it("keeps only the sentence the link sits in", () => {
+		const page = "https://app.notion.com/p/8a858df8532b40b7a00b2912852932ab";
+		expect(
+			linkContext(
+				[
+					say(
+						`**It's private.** The real schedule is the Notion Gantt: ${page}`,
+					),
+				],
+				page,
+			)?.summary,
+		).toBe("The real schedule is the Notion Gantt");
+	});
+
+	it("matches a Notion page by id across its url shapes", () => {
+		const id = "8a858df8532b40b7a00b2912852932ab";
+		expect(
+			linkContext(
+				[say(`Wrote [Department requests](https://www.notion.so/Dept-${id})`)],
+				`https://app.notion.com/p/${id}`,
+			)?.title,
+		).toBe("Department requests");
+	});
+
+	it("is null for a link nobody described", () => {
+		expect(linkContext([say(doc)], doc)).toBeNull();
+		expect(linkContext([], doc)).toBeNull();
 	});
 });
