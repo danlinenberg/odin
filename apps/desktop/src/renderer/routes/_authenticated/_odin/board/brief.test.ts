@@ -22,6 +22,8 @@ import {
 	projectSlug,
 	prsDropped,
 	pullRequests,
+	reviewEnded,
+	reviewedPullRequest,
 	sessionBrief,
 	slackThread,
 	sourceLink,
@@ -721,6 +723,28 @@ describe("mergeReady", () => {
 				[b]: merged,
 			}),
 		).toBe(false);
+	});
+	it("ends a review once the PR under review merges or closes", () => {
+		const url = "https://github.com/acme/web/pull/7";
+		const brief = `Task\n\nLink: ${url}`;
+		const review = [
+			{
+				role: "user" as const,
+				text: `Review this pull request: Fix\n${url}`,
+				at: null,
+			},
+		];
+		const reviewed = reviewedPullRequest(brief, review);
+		expect(reviewed?.number).toBe(7);
+		expect(reviewedPullRequest(brief, [opened])).toBeNull();
+		expect(
+			reviewEnded(reviewed, { [url]: { state: "MERGED", mine: false } }),
+		).toBe("MERGED");
+		expect(reviewEnded(reviewed, { [url]: { state: "CLOSED" } })).toBe(
+			"CLOSED",
+		);
+		expect(reviewEnded(reviewed, { [url]: { state: "OPEN" } })).toBeNull();
+		expect(reviewEnded(reviewed, {})).toBeNull();
 	});
 	it("targets the named PRs, else the newest one", () => {
 		expect(mergeTargets([opened, items]).map((pr) => pr.number)).toEqual([

@@ -120,6 +120,8 @@ import {
 	onlyMergeLeft,
 	prsDropped,
 	pullRequests,
+	reviewEnded,
+	reviewedPullRequest,
 	sourceLink,
 } from "./brief";
 import { DiffView } from "./DiffView";
@@ -605,13 +607,10 @@ function useCardPrs(card: BoardCard, live: boolean) {
 	const prs = launched
 		? [launched, ...quoted.filter((pr) => pr.url !== launched.url)]
 		: quoted;
-	// buildReviewPrompt's opener: a PR launched to review, not one of mine.
-	const reviewing =
-		!!launched &&
-		!!data?.messages
-			.find((message) => message.role === "user")
-			?.text.includes("Review this pull request:");
-	return { prs, review: reviewing ? launched : null };
+	return {
+		prs,
+		review: reviewedPullRequest(card.pane.odinBrief, data?.messages ?? []),
+	};
 }
 
 /** Someone else's PR, waiting on my review. The pill opens it on GitHub. */
@@ -1753,7 +1752,7 @@ function DevBoardPage() {
 			pane.odinClosedIn,
 		);
 		return column === "permission"
-			? [{ paneId: pane.id, sessionId, live: !!alive }]
+			? [{ paneId: pane.id, sessionId, live: !!alive, brief: pane.odinBrief }]
 			: [];
 	});
 	const mergeTranscripts = electronTrpc.useQueries((t) =>
@@ -1769,8 +1768,11 @@ function DevBoardPage() {
 		),
 	);
 	const mergeStateQueries = electronTrpc.useQueries((t) =>
-		mergeCandidates.map((_, i) => {
-			const urls = mergeCheckUrls(mergeTranscripts[i]?.data?.messages ?? []);
+		mergeCandidates.map(({ brief }, i) => {
+			const messages = mergeTranscripts[i]?.data?.messages ?? [];
+			const reviewed = reviewedPullRequest(brief, messages);
+			const urls = mergeCheckUrls(messages);
+			if (reviewed && !urls.includes(reviewed.url)) urls.push(reviewed.url);
 			return t.terminal.pullRequestStates(
 				{ urls },
 				{
@@ -1786,23 +1788,38 @@ function DevBoardPage() {
 		test: (
 			messages: BriefMessage[],
 			states: Parameters<typeof mergeReady>[1] | undefined,
+			brief: string | null | undefined,
 		) => boolean,
 	) =>
 		mergeCandidates
-			.filter((_, i) => {
+			.filter(({ brief }, i) => {
 				const messages = mergeTranscripts[i]?.data?.messages;
-				return !!messages && test(messages, mergeStateQueries[i]?.data);
+				return !!messages && test(messages, mergeStateQueries[i]?.data, brief);
 			})
 			.map(({ paneId }) => paneId)
 			.join(",");
 	const mergeReadyKey = candidateKey(
-		(messages, states) =>
+		(messages, states, brief) =>
 			onlyLookLeft(messages) ||
 			(!!states &&
-				(mergeReady(messages, states) || prsDropped(messages, states))),
+				(mergeReady(messages, states) ||
+					prsDropped(messages, states) ||
+					!!reviewEnded(reviewedPullRequest(brief, messages), states))),
 	);
 	const droppedKey = candidateKey(
-		(messages, states) => !!states && prsDropped(messages, states),
+		(messages, states, brief) =>
+			!!states &&
+			(prsDropped(messages, states) ||
+				reviewEnded(reviewedPullRequest(brief, messages), states) === "CLOSED"),
+	);
+	const reviewMergedKey = candidateKey(
+		(messages, states, brief) =>
+			!!states &&
+			reviewEnded(reviewedPullRequest(brief, messages), states) === "MERGED",
+	);
+	const reviewMergedPaneIds = useMemo(
+		() => new Set(reviewMergedKey ? reviewMergedKey.split(",") : []),
+		[reviewMergedKey],
 	);
 	const mergeReadyPaneIds = useMemo(
 		() => new Set(mergeReadyKey ? mergeReadyKey.split(",") : []),
@@ -3469,9 +3486,12 @@ function DevBoardPage() {
     something of you. A pill that renders nothing drops out, so the dots
     between the rest stay right. */}
 																<div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 text-[11.5px] text-muted-foreground [&>*+*]:before:inline-block [&>*+*]:before:mr-1.5 [&>*+*]:before:text-faint-foreground [&>*+*]:before:content-['·']">
-																	{droppedPaneIds.has(card.pane.id) && (
+																	{(droppedPaneIds.has(card.pane.id) ||
+																		reviewMergedPaneIds.has(card.pane.id)) && (
 																		<span className="font-medium text-danger">
-																			Dropped: PR closed
+																			{reviewMergedPaneIds.has(card.pane.id)
+																				? "Dropped: PR merged"
+																				: "Dropped: PR closed"}
 																		</span>
 																	)}
 																	{cardContact(card) && (
