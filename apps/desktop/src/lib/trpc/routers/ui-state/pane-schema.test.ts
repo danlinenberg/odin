@@ -37,6 +37,7 @@ describe("paneSchema", () => {
 			odinStatusAt: 1,
 			odinClosedIn: "review",
 			odinShellPaneId: "p3",
+			odinAgentRun: true,
 			odinCwd: "/tmp/repo",
 			initialCwd: "/tmp",
 			url: "https://example.com",
