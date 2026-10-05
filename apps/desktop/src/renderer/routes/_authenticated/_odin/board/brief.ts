@@ -590,19 +590,24 @@ const LOOK_ITEMS = [
 	// "Open Insights and check the color", "Click Resume; confirm it opens".
 	/^(?:open|reopen|go to|click|right-click|press|close|resume|type|search|switch|toggle|star|mark|add|pick|set|hover|resize|let|leave|start|glance at|look at)\b.*\b(?:check|confirm|see|try)\b/i,
 ];
+const SEND_DRAFT =
+	/^(?:send|post|paste|forward)\b(?!\s+me\b).*\b(?:reply|draft|message|note|comment|email|dm)\b/i;
 // "Confirm the two channels should stay out" is a question.
 const ASKS = /\bshould\b|\?\s*$/i;
 
 /**
- * The session is finished: every open action item is a look at what shipped.
- * That card is Done, not Needs you - the items still show in its brief.
+ * The session is finished: every open action item is a look at what shipped,
+ * or sending a message it drafted for you. That card is Done, not Needs you -
+ * the items still show in its brief.
  */
 export function onlyLookLeft(messages: BriefMessage[]): boolean {
 	const items = actionItems(messages);
 	return (
 		items.length > 0 &&
 		items.every(
-			(item) => !ASKS.test(item) && LOOK_ITEMS.some((re) => re.test(item)),
+			(item) =>
+				!ASKS.test(item) &&
+				(SEND_DRAFT.test(item) || LOOK_ITEMS.some((re) => re.test(item))),
 		)
 	);
 }
