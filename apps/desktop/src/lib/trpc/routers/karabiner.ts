@@ -60,15 +60,16 @@ function doubleTapRule(key: DoubleTapKey, command: string) {
 }
 
 /**
- * The dev bundle is a bare Electron that shows its welcome screen when opened
- * on its own, so dev goes through the launcher applet, which raises the dev
- * window or starts the dev stack.
+ * A running Odin toggles itself through its local server. Otherwise it's
+ * started: the dev bundle is a bare Electron that shows its welcome screen
+ * when opened on its own, so dev goes through the launcher applet.
  */
-function openOdinCommand(): string {
+function toggleOdinCommand(): string {
+	const home = process.env.ODIN_HOME_DIR ?? join(homedir(), ".odin");
 	const bundle = app.isPackaged
 		? resolve(process.execPath, "../../..")
 		: "/Applications/Odin Dev.app";
-	return `open '${bundle}'`;
+	return `curl -sf -X POST "http://127.0.0.1:$(cat '${home}/notifications-port')/toggle" || open '${bundle}'`;
 }
 
 function selectedProfile(config: KarabinerConfig) {
@@ -134,7 +135,7 @@ export const createKarabinerRouter = () => {
 			.mutation(({ input }) => {
 				const config = readConfig();
 				if (!config) throw new Error("Karabiner-Elements isn't set up");
-				withDoubleTap(config, input.key, openOdinCommand());
+				withDoubleTap(config, input.key, toggleOdinCommand());
 				// Write-then-rename, so Karabiner never reloads a half-written file.
 				const tmp = `${CONFIG_PATH}.odin-tmp`;
 				writeFileSync(tmp, `${JSON.stringify(config, null, 4)}\n`);
