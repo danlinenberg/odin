@@ -18,6 +18,7 @@ import {
 	onlyLookLeft,
 	onlyMergeLeft,
 	parseLinks,
+	postedMessage,
 	projectSlug,
 	prsDropped,
 	pullRequests,
@@ -867,5 +868,27 @@ describe("linkContext", () => {
 	it("is null for a link nobody described", () => {
 		expect(linkContext([say(doc)], doc)).toBeNull();
 		expect(linkContext([], doc)).toBeNull();
+	});
+});
+
+describe("postedMessage", () => {
+	const url = "https://acme.slack.com/archives/C1/p1791124797945759";
+	const prompt = (text: string): BriefMessage => ({
+		role: "user",
+		text,
+		at: null,
+	});
+
+	it("reads the message Odin quoted when it launched the session", () => {
+		const launch = `Task: Can we have a Gantt\n\nThis task comes from a Slack thread: ${url}\n\nWhat was posted there:\n@channel all V2 initiatives are here.\n\nCan we have a Gantt by EOW?\n\nPHASE 1 - INGEST (do this first):\n- Read it`;
+		expect(postedMessage([prompt(launch)], url)).toBe(
+			"@channel all V2 initiatives are here.\n\nCan we have a Gantt by EOW?",
+		);
+	});
+
+	it("is null for another thread, or a launch that quoted nothing", () => {
+		const bare = `This task comes from a Slack thread: ${url}\n\nPHASE 1 - INGEST`;
+		expect(postedMessage([prompt(bare)], url)).toBeNull();
+		expect(postedMessage([prompt(bare)], `${url}9`)).toBeNull();
 	});
 });

@@ -761,7 +761,26 @@ async function slackPreview(url: string): Promise<SlackPreview | null> {
 		previews.set(url, preview);
 		return preview;
 	} catch {
-		return null;
+		// reactions.get refuses some conversations - a group DM is one - that
+		// the reaction queue already stored. Not cached: Slack may answer later.
+		const row = localDb
+			.select()
+			.from(slackReactions)
+			.where(
+				and(
+					eq(slackReactions.channelId, channel),
+					eq(slackReactions.messageTs, `${secs}.${micros}`),
+				),
+			)
+			.get();
+		return row
+			? {
+					channel: channelLabel(row.channelName),
+					author: row.authorName,
+					text: toTitle(row.text),
+					full: row.text,
+				}
+			: null;
 	}
 }
 

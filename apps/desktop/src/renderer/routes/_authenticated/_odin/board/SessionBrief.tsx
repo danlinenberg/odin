@@ -16,6 +16,7 @@ import {
 	linkLabel,
 	notionPage,
 	parseLinks,
+	postedMessage,
 	pullRequests,
 	sessionBrief,
 	slackThread,
@@ -427,6 +428,11 @@ export function SessionBrief({
 		},
 	);
 	const threadPreview = thread ? previews?.[thread] : null;
+	// The message's first line when Slack sent none: the opening prompt quotes it.
+	const threadPosted =
+		thread && !threadPreview
+			? postedMessage(transcript?.messages ?? [], thread)?.split("\n")[0]
+			: null;
 
 	// Only what's still on the panel - a URL the transcript stopped quoting, or
 	// a link you removed, doesn't linger in the fold.
@@ -495,6 +501,11 @@ export function SessionBrief({
 					title={[preview.channel, preview.author].filter(Boolean).join(" · ")}
 					summary={preview.full ?? preview.text}
 				/>
+			);
+		const posted = postedMessage(said, url);
+		if (posted)
+			return (
+				<LinkHover url={url} title="Slack thread" summary={emojify(posted)} />
 			);
 		const context = linkContext(said, url);
 		return (
@@ -603,7 +614,10 @@ export function SessionBrief({
 											dir="auto"
 											className="line-clamp-2 w-full text-left text-[12px] text-link hover:underline"
 										>
-											{threadPreview?.text ?? "Open thread"} ↗
+											{threadPreview?.text ??
+												(threadPosted && emojify(threadPosted)) ??
+												"Open thread"}{" "}
+											↗
 										</button>
 									</Hover>
 									{threadPreview && (

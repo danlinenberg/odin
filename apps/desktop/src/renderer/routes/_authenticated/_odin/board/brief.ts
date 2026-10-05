@@ -457,6 +457,28 @@ export function linkKind(url: string): LinkKind {
 	return "other";
 }
 
+/**
+ * The Slack message a session was launched from, as Odin quoted it in the
+ * opening prompt (see buildThreadPrompt) - the hover's fallback when Slack
+ * won't hand the message over itself.
+ */
+export function postedMessage(
+	messages: BriefMessage[],
+	url: string,
+): string | null {
+	const prompt = messages.find(
+		(message) =>
+			message.role === "user" &&
+			message.text.includes(`comes from a Slack thread: ${url}`),
+	);
+	return (
+		prompt?.text
+			.split(/\n\s*What was posted there:\s*\n/)[1]
+			?.split(/\n\s*PHASE 1 /)[0]
+			?.trim() || null
+	);
+}
+
 export interface LinkContext {
 	/** The label the session gave the link - `[label](url)`. */
 	title: string | null;
