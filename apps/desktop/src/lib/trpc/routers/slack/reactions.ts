@@ -183,7 +183,9 @@ export function slackTextToPlain(text: string): string {
 		)
 		.replace(/<@([A-Z0-9]+)>/g, "@$1")
 		.replace(/<#([A-Z0-9]+)>/g, "#$1")
-		.replace(/<([^|>]+)\|([^>]*)>/g, "$2")
+		.replace(/<([^|>]+)\|([^>]*)>/g, (_, url, label) =>
+			label === url ? url : `${label} (${url})`,
+		)
 		.replace(/<([^|>]+)>/g, "$1")
 		.replace(/&amp;|&lt;|&gt;/g, (entity) => ENTITIES[entity] ?? entity)
 		.trim();
