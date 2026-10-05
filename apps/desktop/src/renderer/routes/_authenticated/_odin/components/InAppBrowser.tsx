@@ -129,7 +129,9 @@ async function openSlackThread({
 		viewType: "Thread",
 		params: { threadId, replyTs, parentTab: channel },
 	};
-	history.replaceState(next, "");
+	// The channel's own URL, as Slack writes it, so Copy Link and Open in
+	// browser name this channel rather than the one before.
+	history.replaceState(next, "", `/client/${current.teamId}/${channel}`);
 	dispatchEvent(new PopStateEvent("popstate", { state: next }));
 	// A long thread opens scrolled to the reply, its first message unrendered.
 	// A slow one is still worth the wait: giving up starts the load over.
