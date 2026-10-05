@@ -148,7 +148,10 @@ describe("rowsToVerify", () => {
 describe("slackTextToPlain", () => {
 	test("renders links, mentions and entities", () => {
 		expect(slackTextToPlain("see <https://x.dev|the docs>")).toBe(
-			"see the docs",
+			"see the docs (https://x.dev)",
+		);
+		expect(slackTextToPlain("<https://x.dev|https://x.dev>")).toBe(
+			"https://x.dev",
 		);
 		expect(slackTextToPlain("see <https://x.dev>")).toBe("see https://x.dev");
 		expect(slackTextToPlain("<@U123|dan> ping <@U456>")).toBe(
