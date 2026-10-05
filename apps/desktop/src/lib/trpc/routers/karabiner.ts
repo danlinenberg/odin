@@ -2,48 +2,54 @@ import { readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { app } from "electron";
+import { DOUBLE_TAP_KEYS, type DoubleTapKey } from "shared/double-tap-keys";
 import { z } from "zod";
 import { publicProcedure, router } from "..";
 
 /**
- * Double-tap right command to open Odin from any app. Electron can't see a
+ * Double-tap a modifier to open Odin from any app. Electron can't see a
  * modifier double-tap without a native key monitor, so the rule lives in
  * Karabiner-Elements, and Karabiner's own config file is the only record of
- * the setting. Karabiner reloads that file whenever it changes.
+ * the setting, key included. Karabiner reloads that file whenever it changes.
  */
-const DESCRIPTION = "Double-tap right command to open Odin";
-const TAPPED = "odin_right_command_tapped";
+const IS_OURS = /^Double-tap .+ to open Odin$/;
+const TAPPED = "odin_double_tapped";
 const CONFIG_PATH = join(homedir(), ".config/karabiner/karabiner.json");
 
 interface KarabinerConfig {
 	profiles: {
 		selected?: boolean;
-		complex_modifications?: { rules?: { description?: string }[] };
+		complex_modifications?: { rules?: KarabinerRule[] };
 	}[];
+}
+
+interface KarabinerRule {
+	description?: string;
+	manipulators?: { from?: { key_code?: string } }[];
 }
 
 /**
  * The first press sets a flag that any other key, or 500ms, clears. The
- * second press opens Odin only if it's released alone, so right command still
- * works as a modifier: ⌘C then ⌘V never opens anything.
+ * second press opens Odin only if it's released alone, so the key still works
+ * as a modifier: ⌘C then ⌘V never opens anything.
  */
-function doubleTapRule(command: string) {
+function doubleTapRule(key: DoubleTapKey, command: string) {
 	const tapped = (value: number) => ({ set_variable: { name: TAPPED, value } });
-	const from = { key_code: "right_command", modifiers: { optional: ["any"] } };
+	const from = { key_code: key, modifiers: { optional: ["any"] } };
 	return {
-		description: DESCRIPTION,
+		description: `Double-tap ${key.replace("_", " ")} to open Odin`,
 		manipulators: [
 			{
 				type: "basic",
 				conditions: [{ type: "variable_if", name: TAPPED, value: 1 }],
 				from,
-				to: [{ key_code: "right_command" }],
+				to: [{ key_code: key }],
 				to_if_alone: [{ shell_command: command }],
 			},
 			{
 				type: "basic",
 				from,
-				to: [tapped(1), { key_code: "right_command" }],
+				to: [tapped(1), { key_code: key }],
 				to_delayed_action: {
 					to_if_invoked: [tapped(0)],
 					to_if_canceled: [tapped(0)],
@@ -71,23 +77,27 @@ function selectedProfile(config: KarabinerConfig) {
 	return profile;
 }
 
-export function hasDoubleTap(config: KarabinerConfig): boolean {
+/** The key the installed rule listens to, or null when there's no rule. */
+export function doubleTapKey(config: KarabinerConfig): DoubleTapKey | null {
 	const rules = selectedProfile(config).complex_modifications?.rules ?? [];
-	return rules.some((r) => r.description === DESCRIPTION);
+	const key = rules.find((r) => IS_OURS.test(r.description ?? ""))
+		?.manipulators?.[0]?.from?.key_code;
+	return key && key in DOUBLE_TAP_KEYS ? (key as DoubleTapKey) : null;
 }
 
 /** Appended after the rules already there, so a Kid lock above it still wins. */
 export function withDoubleTap(
 	config: KarabinerConfig,
-	command: string | null,
+	key: DoubleTapKey | null,
+	command: string,
 ): KarabinerConfig {
 	const profile = selectedProfile(config);
 	const others = (profile.complex_modifications?.rules ?? []).filter(
-		(r) => r.description !== DESCRIPTION,
+		(r) => !IS_OURS.test(r.description ?? ""),
 	);
 	profile.complex_modifications = {
 		...profile.complex_modifications,
-		rules: command ? [...others, doubleTapRule(command)] : others,
+		rules: key ? [...others, doubleTapRule(key, command)] : others,
 	};
 	return config;
 }
@@ -109,15 +119,22 @@ export const createKarabinerRouter = () => {
 			const config = readConfig();
 			return {
 				available: config !== null,
-				enabled: config ? hasDoubleTap(config) : false,
+				key: config ? doubleTapKey(config) : null,
 			};
 		}),
+		/** null turns it off. */
 		setDoubleTap: publicProcedure
-			.input(z.object({ enabled: z.boolean() }))
+			.input(
+				z.object({
+					key: z
+						.enum(Object.keys(DOUBLE_TAP_KEYS) as [DoubleTapKey])
+						.nullable(),
+				}),
+			)
 			.mutation(({ input }) => {
 				const config = readConfig();
 				if (!config) throw new Error("Karabiner-Elements isn't set up");
-				withDoubleTap(config, input.enabled ? openOdinCommand() : null);
+				withDoubleTap(config, input.key, openOdinCommand());
 				// Write-then-rename, so Karabiner never reloads a half-written file.
 				const tmp = `${CONFIG_PATH}.odin-tmp`;
 				writeFileSync(tmp, `${JSON.stringify(config, null, 4)}\n`);

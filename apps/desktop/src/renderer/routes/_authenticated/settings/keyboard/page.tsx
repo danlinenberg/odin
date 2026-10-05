@@ -8,8 +8,14 @@ import {
 } from "@odin/ui/alert-dialog";
 import { Button } from "@odin/ui/button";
 import { Kbd, KbdGroup } from "@odin/ui/kbd";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@odin/ui/select";
 import { toast } from "@odin/ui/sonner";
-import { Switch } from "@odin/ui/switch";
 import { cn } from "@odin/ui/utils";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
@@ -23,6 +29,7 @@ import {
 	useRecordHotkeys,
 } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { DOUBLE_TAP_KEYS, type DoubleTapKey } from "shared/double-tap-keys";
 import {
 	SettingRow,
 	SettingsPage,
@@ -122,8 +129,7 @@ function DoubleTapRow() {
 	});
 	return (
 		<SettingRow
-			label="Double-tap right ⌘ to open Odin"
-			htmlFor="double-tap-open"
+			label="Double-tap to open Odin"
 			description={
 				// A dev window hot-reloaded ahead of its main process lands here
 				// ("No procedure found") until Odin restarts.
@@ -134,16 +140,31 @@ function DoubleTapRow() {
 				) : data?.available === false ? (
 					"Needs Karabiner-Elements, which is what sees the key."
 				) : (
-					"Brings Odin to the front, or starts it, from any app. Set up through Karabiner-Elements."
+					"Tap the key twice to bring Odin to the front, or start it, from any app. Set up through Karabiner-Elements."
 				)
 			}
 		>
-			<Switch
-				id="double-tap-open"
-				checked={data?.enabled ?? false}
+			<Select
+				value={data?.key ?? "off"}
+				onValueChange={(value) =>
+					setDoubleTap.mutate({
+						key: value === "off" ? null : (value as DoubleTapKey),
+					})
+				}
 				disabled={!data?.available || setDoubleTap.isPending}
-				onCheckedChange={(enabled) => setDoubleTap.mutate({ enabled })}
-			/>
+			>
+				<SelectTrigger className="w-[140px]">
+					<SelectValue />
+				</SelectTrigger>
+				<SelectContent>
+					<SelectItem value="off">Off</SelectItem>
+					{Object.entries(DOUBLE_TAP_KEYS).map(([key, label]) => (
+						<SelectItem key={key} value={key}>
+							{label}
+						</SelectItem>
+					))}
+				</SelectContent>
+			</Select>
 		</SettingRow>
 	);
 }
