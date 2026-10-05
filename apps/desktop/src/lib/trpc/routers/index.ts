@@ -10,11 +10,11 @@ import { createChangesRouter } from "./changes";
 import { createConfigRouter } from "./config";
 import { createConnectionsRouter } from "./connections";
 import { createDeviceRouter } from "./device";
+import { createDoubleTapRouter } from "./double-tap";
 import { createExternalRouter } from "./external";
 import { createFilesystemRouter } from "./filesystem";
 import { createHostServiceCoordinatorRouter } from "./host-service-coordinator";
 import { createInsightsRouter } from "./insights";
-import { createKarabinerRouter } from "./karabiner";
 import { createKeyboardLayoutRouter } from "./keyboardLayout";
 import { createMenuRouter } from "./menu";
 import { createMigrationRouter } from "./migration";
@@ -61,7 +61,7 @@ export const createAppRouter = (getWindow: () => BrowserWindow | null) => {
 		permissions: createPermissionsRouter(),
 		ports: createPortsRouter(),
 		resourceMetrics: createResourceMetricsRouter(),
-		karabiner: createKarabinerRouter(),
+		doubleTap: createDoubleTapRouter(),
 		keyboardLayout: createKeyboardLayoutRouter(),
 		menu: createMenuRouter(),
 		external: createExternalRouter(),
