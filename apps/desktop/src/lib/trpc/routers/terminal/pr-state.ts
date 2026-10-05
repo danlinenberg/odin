@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { execWithShellEnv } from "../workspaces/utils/shell-env";
@@ -371,6 +372,33 @@ const mainCheckout = (porcelain: string) =>
  * ponytail: 8 newest PRs, one gh call each. Batch through GraphQL if sessions
  * start opening more than that.
  */
+/**
+ * A checkout named like the PR's repo isn't necessarily its clone: a worktree
+ * of another repo can share the name (k8s-app-layer/.worktrees/imagen-public-mcp),
+ * and picking it lists the wrong repo's worktrees, so the PR's branch is never
+ * found. No origin to compare means no way to tell - keep it.
+ */
+function originIs(dir: string, repo: string): boolean {
+	try {
+		const url = execFileSync(
+			"git",
+			["-C", dir, "remote", "get-url", "origin"],
+			{
+				encoding: "utf-8",
+				stdio: ["ignore", "pipe", "ignore"],
+			},
+		).trim();
+		return (
+			url
+				.replace(/\.git$/, "")
+				.split(/[/:]/)
+				.pop() === repo
+		);
+	} catch {
+		return true;
+	}
+}
+
 export async function pullRequestWorktrees(
 	transcript: string,
 	checkout: string,
@@ -402,8 +430,8 @@ export async function pullRequestWorktrees(
 			),
 		].map((match) => match[1]);
 		return (
-			[join(dirname(home), repo), ...mentioned].find((dir) =>
-				existsSync(join(dir, ".git")),
+			[...new Set([join(dirname(home), repo), ...mentioned])].find(
+				(dir) => existsSync(join(dir, ".git")) && originIs(dir, repo),
 			) ?? null
 		);
 	};
