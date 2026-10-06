@@ -3857,24 +3857,6 @@ function DevBoardPage() {
 										className="min-w-0 flex-1 rounded-md border border-primary bg-background px-2 py-1 text-sm font-semibold text-foreground outline-none"
 									/>
 								)}
-								{/* The drawer keeps Esc for itself, so a turn needs its own stop.
-								    Live status: drawerCard is a snapshot from when it opened. */}
-								{drawerCard.pane.type === "terminal" &&
-									panes[drawerCard.pane.id]?.status === "working" && (
-										<button
-											type="button"
-											title="Interrupt the agent (sends Esc to the session)"
-											onClick={() =>
-												utils.client.terminal.write.mutate({
-													paneId: drawerCard.pane.id,
-													data: "\x1b",
-												})
-											}
-											className="shrink-0 rounded-md bg-secondary px-2 py-1 text-xs font-semibold text-muted-foreground hover:text-foreground"
-										>
-											■ Interrupt
-										</button>
-									)}
 								{drawerCard.pane.type === "terminal" && !inCatchUp && (
 									<button
 										type="button"
@@ -4128,20 +4110,26 @@ function DevBoardPage() {
 													: "↻ Resume"}
 								</button>
 							)}
-							{/* Catch up has its own ✓ Done and ‹ below and above the card. */}
-							{!inCatchUp && (
-								<button
-									type="button"
-									onClick={() => markDone(drawerCard)}
-									title="Done - end the session and remove it from the board"
-									className={cn(
-										"rounded-[7px] px-3 py-1.5 text-xs font-semibold",
-										BUTTON.done,
-									)}
-								>
-									✓ Done
-								</button>
-							)}
+							{/* The drawer keeps Esc for itself, so a turn needs its own stop. */}
+							{drawerCard.pane.type === "terminal" &&
+								isWorkingNow(drawerCard.pane.id) && (
+									<button
+										type="button"
+										title="Interrupt the agent (sends Esc to the session)"
+										onClick={() =>
+											utils.client.terminal.write.mutate({
+												paneId: drawerCard.pane.id,
+												data: "\x1b",
+											})
+										}
+										className={cn(
+											"rounded-[7px] px-3 py-1.5 text-xs font-semibold",
+											BUTTON.secondary,
+										)}
+									>
+										■ Interrupt
+									</button>
+								)}
 							<RemindButton
 								onPick={(day) => remindMe(drawerCard, day)}
 								label="Remind me"
@@ -4150,12 +4138,26 @@ function DevBoardPage() {
 									BUTTON.secondary,
 								)}
 							/>
+							{/* Catch up has its own ✓ Done and ‹ below and above the card. */}
+							{!inCatchUp && (
+								<button
+									type="button"
+									onClick={() => markDone(drawerCard)}
+									title="Done - end the session and remove it from the board"
+									className={cn(
+										"ml-auto rounded-[7px] px-3 py-1.5 text-xs font-semibold",
+										BUTTON.done,
+									)}
+								>
+									✓ Done
+								</button>
+							)}
 							{!inCatchUp && (
 								<button
 									type="button"
 									onClick={() => setDrawerCard(null)}
 									className={cn(
-										"ml-auto rounded-[7px] px-3 py-1.5 text-xs font-semibold",
+										"rounded-[7px] px-3 py-1.5 text-xs font-semibold",
 										BUTTON.secondary,
 									)}
 								>
