@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
 	createReposRouter,
+	detectReposFolder,
 	renderDiff,
 	renderPullRequestDiff,
 	scanRepos,
@@ -51,7 +52,9 @@ test("the default repo round-trips through the config file, takes a plain folder
 
 	const caller = createReposRouter().createCaller({});
 
-	expect(await caller.getDefault()).toBeNull();
+	// Unset: detected from the machine's real checkouts.
+	const detected = detectReposFolder(await caller.list());
+	expect(await caller.getDefault()).toBe(detected);
 	await caller.setDefault({ path: repo });
 	expect(await caller.getDefault()).toBe(repo);
 
@@ -67,7 +70,7 @@ test("the default repo round-trips through the config file, takes a plain folder
 	expect(await caller.getDefault()).toBe(repo);
 
 	await caller.setDefault({ path: null });
-	expect(await caller.getDefault()).toBeNull();
+	expect(await caller.getDefault()).toBe(detected);
 });
 
 test("renderDiff shows uncommitted work, and the last commit when there is none", async () => {
@@ -169,4 +172,20 @@ test("wrapLine breaks under the code column and keeps the colour on", () => {
 	expect(lines[1]).toContain(green);
 	// A line that fits is left alone.
 	expect(wrapLine("short", 15)).toBe("short");
+});
+
+test("detectReposFolder picks the home folder holding the most repos", () => {
+	const home = "/Users/x";
+	expect(
+		detectReposFolder(
+			[
+				"/Users/x/dev/odin",
+				"/Users/x/dev/work/api",
+				"/Users/x/code/one",
+				"/Users/x/dotfiles",
+			],
+			home,
+		),
+	).toBe("/Users/x/dev");
+	expect(detectReposFolder(["/Users/x/dotfiles", "/opt/repo"], home)).toBeNull();
 });

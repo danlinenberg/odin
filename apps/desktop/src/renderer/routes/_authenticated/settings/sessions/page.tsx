@@ -101,7 +101,7 @@ function DefaultRepoRow() {
 	return (
 		<SettingRow
 			label="Default folder"
-			description="Where a session starts when no repo is picked. Any folder works, git or not. Unset falls back to the workspace you opened last."
+			description="Where a session starts when no repo is picked. Any folder works, git or not. Unset: the folder your repos live in, detected."
 			stacked
 		>
 			<div className="flex items-center gap-2">

@@ -2,7 +2,7 @@ import { execFile, spawn } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname } from "node:path";
+import { dirname, join, relative, sep } from "node:path";
 import { promisify } from "node:util";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
@@ -87,6 +87,25 @@ export async function scanRepos(home: string = homedir()): Promise<string[]> {
 		.then((result) => result.stdout)
 		.catch((error: { stdout?: string }) => error.stdout ?? "");
 	return [...new Set(stdout.split("\n").filter(Boolean).map(dirname))].sort();
+}
+
+/**
+ * Where the checkouts live: the folder right under home that holds the most of
+ * them (`~/dev` for `~/dev/odin`, `~/dev/work/api`, ...). A repo sitting
+ * directly in home doesn't count - home itself is never the answer.
+ */
+export function detectReposFolder(
+	repos: string[],
+	home: string = homedir(),
+): string | null {
+	const counts = new Map<string, number>();
+	for (const repo of repos) {
+		const rest = relative(home, repo).split(sep);
+		if (rest.length < 2 || rest[0] === "..") continue;
+		const top = join(home, rest[0]);
+		counts.set(top, (counts.get(top) ?? 0) + 1);
+	}
+	return [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
 }
 
 /** Enough diff to read; past this the renderer is the thing that suffers. */
@@ -419,12 +438,15 @@ export const createReposRouter = () => {
 
 		/**
 		 * The checkout a session starts in when nothing else names one. Set in
-		 * Settings → Connections; `DAN_DEFAULT_REPO` is only a fallback, so a
-		 * path picked in the UI is never shadowed by a stale shell export.
+		 * Settings → Sessions; `DAN_DEFAULT_REPO` is only a fallback, so a path
+		 * picked in the UI is never shadowed by a stale shell export. Neither set:
+		 * the folder the repos live in, detected.
 		 */
 		getDefault: publicProcedure.query(
-			() =>
-				readOdinConfig().defaultRepo ?? process.env.DAN_DEFAULT_REPO ?? null,
+			async () =>
+				readOdinConfig().defaultRepo ??
+				process.env.DAN_DEFAULT_REPO ??
+				detectReposFolder(await repos),
 		),
 
 		setDefault: publicProcedure
