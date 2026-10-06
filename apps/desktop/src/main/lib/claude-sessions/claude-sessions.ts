@@ -761,12 +761,13 @@ const PR_URL = /https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/g;
 
 /**
  * A Bash command that opens a PR: `gh pr create`, or a POST to the REST
- * `pulls` endpoint (the fallback when GraphQL is rate-limited).
+ * `pulls` endpoint itself (the fallback when GraphQL is rate-limited) - not a
+ * comment or review on one, `pulls/<n>/...`.
  */
 export function opensPr(command: string): boolean {
 	return (
 		/\bgh pr create\b/.test(command) ||
-		(/\bgh api\b.*\/pulls\b/.test(command) &&
+		(/\bgh api\b.*\/pulls(?![/\w])/.test(command) &&
 			/(?:-X|--method)[\s=]*POST\b/i.test(command))
 	);
 }

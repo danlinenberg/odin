@@ -537,6 +537,8 @@ describe("parseTranscript / readTranscript", () => {
 				result("t3", "https://github.com/a/b/pull/7"),
 				bash("t4", "gh api repos/a/b/pulls/8"),
 				result("t4", "https://github.com/a/b/pull/8"),
+				bash("t5", "gh api repos/a/b/pulls/9/comments -X POST -f body=x"),
+				result("t5", "https://github.com/a/b/pull/9#discussion_r1"),
 				assistant("Merged as #232."),
 			].join("\n"),
 		);
