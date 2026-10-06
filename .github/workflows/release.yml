@@ -66,7 +66,21 @@ jobs:
           echo "TAG=$TAG" >> "$GITHUB_ENV"
           echo "releasing $TAG"
 
+      # electron.vite.config.ts bakes these into the bundle as *_BAKED. Without
+      # them a fresh install (brew, DMG) has no OAuth apps and every
+      # Connections row says "This build has no <name> app".
       - run: bun run build
+        env:
+          ODIN_SLACK_CLIENT_ID: ${{ secrets.ODIN_SLACK_CLIENT_ID }}
+          ODIN_SLACK_CLIENT_SECRET: ${{ secrets.ODIN_SLACK_CLIENT_SECRET }}
+          ODIN_SLACK_REDIRECT_URL: ${{ secrets.ODIN_SLACK_REDIRECT_URL }}
+          ODIN_GITHUB_CLIENT_ID: ${{ secrets.ODIN_GITHUB_CLIENT_ID }}
+          ODIN_NOTION_CLIENT_ID: ${{ secrets.ODIN_NOTION_CLIENT_ID }}
+          ODIN_NOTION_CLIENT_SECRET: ${{ secrets.ODIN_NOTION_CLIENT_SECRET }}
+          ODIN_NOTION_REDIRECT_URL: ${{ secrets.ODIN_NOTION_REDIRECT_URL }}
+          ODIN_JIRA_CLIENT_ID: ${{ secrets.ODIN_JIRA_CLIENT_ID }}
+          ODIN_JIRA_CLIENT_SECRET: ${{ secrets.ODIN_JIRA_CLIENT_SECRET }}
+          ODIN_JIRA_REDIRECT_URL: ${{ secrets.ODIN_JIRA_REDIRECT_URL }}
 
       - name: Publish
         env:

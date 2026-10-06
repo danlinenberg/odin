@@ -19,7 +19,14 @@
 		"POSTHOG_API_KEY",
 		"POSTHOG_PROJECT_ID",
 		"KV_REST_API_URL",
-		"KV_REST_API_TOKEN"
+		"KV_REST_API_TOKEN",
+		// Odin: OAuth apps baked into the bundle (electron.vite.config.ts).
+		// Hashed, not passed through, so a build without them never cache-hits
+		// for a build with them.
+		"ODIN_SLACK_*",
+		"ODIN_GITHUB_CLIENT_ID",
+		"ODIN_NOTION_*",
+		"ODIN_JIRA_*"
 	],
 	"globalPassThroughEnv": [
 		"NODE_ENV",
