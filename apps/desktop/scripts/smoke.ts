@@ -26,7 +26,6 @@ import {
 import { join } from "node:path";
 import electronBinary from "electron";
 
-const PORT = 19_331;
 const APP_DIR = join(import.meta.dir, "..");
 const SHOTS = process.env.SMOKE_SHOTS_DIR;
 if (SHOTS) mkdirSync(SHOTS, { recursive: true });
@@ -39,6 +38,8 @@ const env: Record<string, string | undefined> = {
 	ODIN_HOME_DIR: join(home, ".odin"),
 	TMPDIR: home,
 	NODE_ENV: "production",
+	// Off-screen-ish: no Dock icon, and the window never takes focus.
+	ODIN_SMOKE: "1",
 };
 // Set inside an Odin terminal; it would boot Electron as plain node.
 delete env.ELECTRON_RUN_AS_NODE;
@@ -108,7 +109,8 @@ const app = spawn(
 	electronBinary as unknown as string,
 	[
 		APP_DIR,
-		`--remote-debugging-port=${PORT}`,
+		// 0 = any free port: agents run smoke in parallel worktrees.
+		"--remote-debugging-port=0",
 		`--user-data-dir=${join(home, "chromium")}`,
 	],
 	{ env, stdio: ["ignore", "pipe", "pipe"] },
@@ -147,9 +149,14 @@ setTimeout(() => {
 // --- CDP ---------------------------------------------------------------------
 type Target = { type: string; url: string; webSocketDebuggerUrl?: string };
 let target: Target | undefined;
+const portFile = join(home, "chromium", "DevToolsActivePort");
 for (let i = 0; i < 60 && !target; i++) {
 	await sleep(1000);
-	const targets = (await fetch(`http://127.0.0.1:${PORT}/json/list`)
+	// Chromium writes the port it picked as the first line of this file.
+	const port =
+		existsSync(portFile) && readFileSync(portFile, "utf8").split("\n")[0];
+	if (!port) continue;
+	const targets = (await fetch(`http://127.0.0.1:${port}/json/list`)
 		.then((r) => r.json())
 		.catch(() => [])) as Target[];
 	target = targets.find(
