@@ -4149,6 +4149,10 @@ function DevBoardPage() {
 										"rounded-[7px] px-3 py-1.5 text-xs font-semibold",
 										BUTTON.done,
 									)}
+								>
+									✓ Done
+								</button>
+							)}
 							<RemindButton
 								onPick={(day) => remindMe(drawerCard, day)}
 								label="Remind me"
@@ -4157,10 +4161,6 @@ function DevBoardPage() {
 									BUTTON.remind,
 								)}
 							/>
-								>
-									✓ Done
-								</button>
-							)}
 							{!inCatchUp && (
 								<button
 									type="button"
