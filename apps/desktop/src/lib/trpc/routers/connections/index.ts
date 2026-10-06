@@ -377,6 +377,27 @@ export const createConnectionsRouter = () => {
 			.query(({ input }) => ({ configured: oauthConfigured(input.provider) })),
 
 		/**
+		 * This machine's OAuth app, for a build that wasn't compiled with one -
+		 * a fresh clone run in dev. Same file the README says to edit by hand.
+		 */
+		saveOAuthApp: publicProcedure
+			.input(
+				oauthInput.extend({
+					clientId: z.string().trim().min(1),
+					clientSecret: z.string().trim().min(1),
+					redirectUrl: z.string().trim().url(),
+				}),
+			)
+			.mutation(({ input: { provider, ...app } }) => {
+				updateOdinConfig({
+					[`${provider}ClientId`]: app.clientId,
+					[`${provider}ClientSecret`]: app.clientSecret,
+					[`${provider}RedirectUrl`]: app.redirectUrl,
+				});
+				return { configured: oauthConfigured(provider) };
+			}),
+
+		/**
 		 * Open the provider's consent screen in the browser. The token comes
 		 * back through the deep link, into the main process, so the caller polls
 		 * `oauthResult` with the state returned here rather than awaiting this.

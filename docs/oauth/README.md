@@ -86,8 +86,9 @@ The redirect URL must match what's registered on the Slack app character for
 character - Slack compares it on both the authorize call and the exchange.
 
 Settings → Connections then shows **Sign in with Slack** on the Slack row. Until
-all three values are set, that row falls back to pasting a token, which keeps
-working either way.
+all three values are set, that row asks for them and saves them to
+`~/.config/odin.json`, so a fresh clone run in dev on another machine needs only
+a paste (Slack, Notion and Jira alike).
 
 ## Two ways to supply the credentials
 
