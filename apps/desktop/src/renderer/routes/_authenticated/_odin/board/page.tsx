@@ -3857,6 +3857,24 @@ function DevBoardPage() {
 										className="min-w-0 flex-1 rounded-md border border-primary bg-background px-2 py-1 text-sm font-semibold text-foreground outline-none"
 									/>
 								)}
+								{/* The drawer keeps Esc for itself, so a turn needs its own stop.
+								    Live status: drawerCard is a snapshot from when it opened. */}
+								{drawerCard.pane.type === "terminal" &&
+									panes[drawerCard.pane.id]?.status === "working" && (
+										<button
+											type="button"
+											title="Interrupt the agent (sends Esc to the session)"
+											onClick={() =>
+												utils.client.terminal.write.mutate({
+													paneId: drawerCard.pane.id,
+													data: "\x1b",
+												})
+											}
+											className="shrink-0 rounded-md bg-secondary px-2 py-1 text-xs font-semibold text-muted-foreground hover:text-foreground"
+										>
+											■ Interrupt
+										</button>
+									)}
 								{drawerCard.pane.type === "terminal" && !inCatchUp && (
 									<button
 										type="button"
