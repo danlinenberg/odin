@@ -41,7 +41,7 @@ test("scanRepos finds checkouts, skips pruned dirs and nested worktrees", async 
 	]);
 });
 
-test("the default repo round-trips through the config file, and rejects a non-repo", async () => {
+test("the default repo round-trips through the config file, takes a plain folder, and rejects a missing one", async () => {
 	const home = mkdtempSync(join(tmpdir(), "odin-default-repo-"));
 	process.env.ODIN_CONFIG_PATH = join(home, "odin.json");
 	delete process.env.DAN_DEFAULT_REPO;
@@ -55,8 +55,13 @@ test("the default repo round-trips through the config file, and rejects a non-re
 	await caller.setDefault({ path: repo });
 	expect(await caller.getDefault()).toBe(repo);
 
-	expect(caller.setDefault({ path: join(home, "Documents") })).rejects.toThrow(
-		/Not a git repo/,
+	// Not a git repo, still fine.
+	await caller.setDefault({ path: join(home, "Documents") });
+	expect(await caller.getDefault()).toBe(join(home, "Documents"));
+	await caller.setDefault({ path: repo });
+
+	expect(caller.setDefault({ path: join(home, "nope") })).rejects.toThrow(
+		/No such folder/,
 	);
 	// Still the one that was set - a rejected pick must not clear it.
 	expect(await caller.getDefault()).toBe(repo);

@@ -2,7 +2,7 @@ import { execFile, spawn } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname } from "node:path";
 import { promisify } from "node:util";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
@@ -430,13 +430,12 @@ export const createReposRouter = () => {
 		setDefault: publicProcedure
 			.input(z.object({ path: z.string().nullable() }))
 			.mutation(({ input }) => {
-				// Checked here rather than at launch: a path that isn't a checkout
-				// only fails much later, when a session tries to start in it.
-				// `.git` is a file in a worktree and a directory in a clone.
-				if (input.path && !existsSync(join(input.path, ".git"))) {
+				// Any folder will do - git or not. Checked here rather than at
+				// launch, where a missing path only fails much later.
+				if (input.path && !existsSync(input.path)) {
 					throw new TRPCError({
 						code: "BAD_REQUEST",
-						message: `Not a git repo: ${input.path}`,
+						message: `No such folder: ${input.path}`,
 					});
 				}
 				// `undefined` deletes the key - that's what clearing it means.

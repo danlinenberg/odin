@@ -90,7 +90,7 @@ function DefaultRepoRow() {
 
 	const browse = async () => {
 		const result = await selectDirectory.mutateAsync({
-			title: "Select default repo",
+			title: "Select default folder",
 			defaultPath: path ?? undefined,
 		});
 		if (!result.canceled && result.path) {
@@ -100,8 +100,8 @@ function DefaultRepoRow() {
 
 	return (
 		<SettingRow
-			label="Default repo"
-			description="Where a session starts when no repo is picked. Unset falls back to the workspace you opened last."
+			label="Default folder"
+			description="Where a session starts when no repo is picked. Any folder works, git or not. Unset falls back to the workspace you opened last."
 			stacked
 		>
 			<div className="flex items-center gap-2">

@@ -183,7 +183,12 @@ async function ensureMainWorkspace(project: Project): Promise<void> {
 		return;
 	}
 
-	const branch = await getCurrentBranch(project.mainRepoPath);
+	// ponytail: a non-git folder has no branch, so it gets the default's name.
+	const branch =
+		(await getCurrentBranch(project.mainRepoPath)) ??
+		(existsSync(join(project.mainRepoPath, ".git"))
+			? null
+			: project.defaultBranch);
 	if (!branch) {
 		console.warn(
 			`[ensureMainWorkspace] Could not determine current branch for project ${project.id}`,
@@ -1154,21 +1159,19 @@ export const createProjectsRouter = (getWindow: () => BrowserWindow | null) => {
 					};
 				}
 
-				let mainRepoPath: string;
+				// A plain folder opens as-is: sessions only need somewhere to run.
+				let mainRepoPath = selectedPath;
+				let isGitRepo = true;
 				try {
 					mainRepoPath = await getGitRoot(selectedPath);
 				} catch (error) {
-					if (error instanceof NotGitRepoError) {
-						return {
-							canceled: false,
-							needsGitInit: true as const,
-							selectedPath,
-						};
-					}
-					throw error;
+					if (!(error instanceof NotGitRepoError)) throw error;
+					isGitRepo = false;
 				}
 
-				const defaultBranch = await getDefaultBranch(mainRepoPath);
+				const defaultBranch = isGitRepo
+					? await getDefaultBranch(mainRepoPath)
+					: "main";
 
 				const project = upsertProject(mainRepoPath, defaultBranch);
 				await ensureMainWorkspace(project);
