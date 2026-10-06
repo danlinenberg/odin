@@ -532,6 +532,11 @@ describe("parseTranscript / readTranscript", () => {
 				// Reading someone else's PR isn't opening one.
 				bash("t2", "gh pr view 5760"),
 				result("t2", "https://github.com/imagenai/app/pull/5760"),
+				// The REST fallback opens one too; a GET of the same endpoint doesn't.
+				bash("t3", "gh api repos/a/b/pulls -X POST -f base=main"),
+				result("t3", "https://github.com/a/b/pull/7"),
+				bash("t4", "gh api repos/a/b/pulls/8"),
+				result("t4", "https://github.com/a/b/pull/8"),
 				assistant("Merged as #232."),
 			].join("\n"),
 		);
@@ -539,6 +544,11 @@ describe("parseTranscript / readTranscript", () => {
 			{
 				role: "assistant",
 				text: "https://github.com/danlinenberg/odin/pull/232",
+				at: "2026-09-27T07:32:00.000Z",
+			},
+			{
+				role: "assistant",
+				text: "https://github.com/a/b/pull/7",
 				at: "2026-09-27T07:32:00.000Z",
 			},
 			{ role: "assistant", text: "Merged as #232.", at: null },

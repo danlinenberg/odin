@@ -589,7 +589,7 @@ export function parseTranscript(
 				if (
 					block?.type === "tool_use" &&
 					block.name === "Bash" &&
-					/\bgh pr create\b/.test(String(block.input?.command ?? ""))
+					opensPr(String(block.input?.command ?? ""))
 				)
 					prCreates.add(block.id);
 				else if (
@@ -758,6 +758,18 @@ export interface RuleFiring {
 const PR_ACTION =
 	/(?:^|[;&|])\s*(?:\w+=\S*\s+)*(?:gh pr (?:create|edit|ready)|git\b[^;&|\n]*?\spush)\b/m;
 const PR_URL = /https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/g;
+
+/**
+ * A Bash command that opens a PR: `gh pr create`, or a POST to the REST
+ * `pulls` endpoint (the fallback when GraphQL is rate-limited).
+ */
+export function opensPr(command: string): boolean {
+	return (
+		/\bgh pr create\b/.test(command) ||
+		(/\bgh api\b.*\/pulls\b/.test(command) &&
+			/(?:-X|--method)[\s=]*POST\b/i.test(command))
+	);
+}
 
 /** A rule line's repo pin, as `ruleLine` writes it. */
 const RULE_SCOPE = / \((only|except) in the repos? at ([^)]+)\):/;
