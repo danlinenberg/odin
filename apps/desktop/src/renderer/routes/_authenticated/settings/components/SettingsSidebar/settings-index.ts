@@ -21,7 +21,7 @@ export const SCREENS = [
 	{
 		to: "/settings/sessions",
 		label: "Sessions",
-		hint: "Default repo, limits, idle close",
+		hint: "Default folder, limits, idle close",
 		icon: LuSquareTerminal,
 	},
 	{
@@ -110,10 +110,10 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		keywords: "backup restore copy daily",
 	},
 	{
-		label: "Default repo",
+		label: "Default folder",
 		to: "/settings/sessions",
 		section: "Where they start",
-		keywords: "repository folder checkout path directory workspace",
+		keywords: "repo repository folder checkout path directory workspace git",
 	},
 	{
 		label: "Hold new sessions when this Mac is",
