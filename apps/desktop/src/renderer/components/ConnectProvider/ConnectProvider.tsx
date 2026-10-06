@@ -137,10 +137,10 @@ function OAuthConnect({
 	// already approved a consent screen.
 	if (!configured.data?.configured) {
 		return (
-			<p className="text-xs text-muted-foreground">
-				This build has no {name} app, so there's nothing to sign in to. See
-				docs/oauth/README.md.
-			</p>
+			<OAuthAppForm
+				provider={provider}
+				onSaved={() => void configured.refetch()}
+			/>
 		);
 	}
 
@@ -167,6 +167,63 @@ function OAuthConnect({
 				{start.isPending ? `Opening ${name}…` : `Sign in with ${name}`}
 			</Button>
 			<p className="text-xs text-muted-foreground">{SCOPE_BLURB[provider]}</p>
+		</div>
+	);
+}
+
+/**
+ * A build compiled without this provider's app - a fresh clone run in dev -
+ * takes it here instead, once per machine. Release builds have it baked in.
+ */
+function OAuthAppForm({
+	provider,
+	onSaved,
+}: {
+	provider: Exclude<Provider, "github" | "gmail">;
+	onSaved: () => void;
+}) {
+	const name = PROVIDER_NAME[provider];
+	const [app, setApp] = useState({
+		clientId: "",
+		clientSecret: "",
+		redirectUrl: "",
+	});
+	const save = electronTrpc.connections.saveOAuthApp.useMutation({
+		onSuccess: onSaved,
+		onError: (error) => toast.error(error.message),
+	});
+	const field = (key: keyof typeof app, placeholder: string) => (
+		<Input
+			value={app[key]}
+			onChange={(e) => setApp({ ...app, [key]: e.target.value })}
+			placeholder={placeholder}
+			type={key === "clientSecret" ? "password" : "text"}
+			className="h-8 max-w-96 font-mono text-xs"
+		/>
+	);
+
+	return (
+		<div className="space-y-2">
+			<p className="text-xs text-muted-foreground">
+				This build has no {name} app. Paste its Client ID, Client Secret and
+				Redirect URL once on this machine (another machine has them in
+				~/.config/odin.json). Setup: docs/oauth/README.md.
+			</p>
+			{field("clientId", "Client ID")}
+			{field("clientSecret", "Client Secret")}
+			{field("redirectUrl", `https://…/${provider}.html`)}
+			<Button
+				size="sm"
+				disabled={
+					!app.clientId.trim() ||
+					!app.clientSecret.trim() ||
+					!app.redirectUrl.trim() ||
+					save.isPending
+				}
+				onClick={() => save.mutate({ provider, ...app })}
+			>
+				Save
+			</Button>
 		</div>
 	);
 }
