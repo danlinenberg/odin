@@ -185,6 +185,7 @@ function LinkHover({
 /**
  * A link's hover: the full message or url, up after 150ms. The native `title`
  * tooltip waits the OS's ~1s and can't be told otherwise.
+ * Selectable, so the PR title or url can be copied (the app is select-none).
  */
 function Hover({
 	text,
@@ -199,7 +200,7 @@ function Hover({
 			<TooltipContent
 				side="left"
 				dir="auto"
-				className="max-w-[360px] whitespace-pre-wrap break-words text-left"
+				className="max-w-[360px] cursor-text select-text whitespace-pre-wrap break-words text-left"
 			>
 				{text}
 			</TooltipContent>
