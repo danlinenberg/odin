@@ -38,7 +38,7 @@ const env: Record<string, string | undefined> = {
 	ODIN_HOME_DIR: join(home, ".odin"),
 	TMPDIR: home,
 	NODE_ENV: "production",
-	// Off-screen-ish: no Dock icon, and the window never takes focus.
+	// No Dock icon, and the window never takes focus from the user.
 	ODIN_SMOKE: "1",
 };
 // Set inside an Odin terminal; it would boot Electron as plain node.
