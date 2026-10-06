@@ -567,6 +567,18 @@ await step(
 	},
 );
 
+await step("⌘Z after Done resumes the session onto the board", async () => {
+	await page(`document.activeElement?.blur()`);
+	await page(
+		`document.dispatchEvent(new KeyboardEvent("keydown", { key: "z", code: "KeyZ", metaKey: true, bubbles: true }))`,
+	);
+	await waitForText(SESSION, true, 30_000);
+	for (const end = Date.now() + 30_000; ; await sleep(500)) {
+		if (fakeClaudeRuns().some((r) => r.args.includes("--resume"))) break;
+		if (Date.now() > end) throw new Error("no claude --resume ran");
+	}
+});
+
 await step("no uncaught errors in the renderer", async () => {
 	if (exceptions.length) throw new Error(exceptions.join("\n     "));
 });
