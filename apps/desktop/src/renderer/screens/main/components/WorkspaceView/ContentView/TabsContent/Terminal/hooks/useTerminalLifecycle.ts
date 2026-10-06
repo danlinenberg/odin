@@ -672,6 +672,13 @@ export function useTerminalLifecycle({
 									}
 									const workspaceRun = getPaneWorkspaceRun(paneId);
 									if (error.message?.includes("TERMINAL_SESSION_KILLED")) {
+										// Reopening a shell the user killed earlier: start a
+										// fresh one instead of the "Session killed" card. A
+										// stopped workspace run stays stopped.
+										if (!workspaceRun) {
+											void restartTerminalRef.current().catch(() => {});
+											return;
+										}
 										rejectTerminalSessionReady(
 											paneId,
 											new Error(error.message || "Terminal session killed"),
