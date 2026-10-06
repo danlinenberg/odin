@@ -13,6 +13,8 @@ export function useOdinWorkspace() {
 	const { data: defaultRepo } = electronTrpc.repos.getDefault.useQuery();
 	const { data: workspaces = [] } = electronTrpc.workspaces.getAll.useQuery();
 	const openFromPath = electronTrpc.projects.openFromPath.useMutation();
+	const selectDirectory = electronTrpc.window.selectDirectory.useMutation();
+	const setDefault = electronTrpc.repos.setDefault.useMutation();
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
 		null,
 	);
@@ -48,11 +50,22 @@ export function useOdinWorkspace() {
 				? ({ ok: true, workspace: launchWorkspace } as const)
 				: ({ ok: false, error } as const);
 
-		const repoPath = repoOverride ?? defaultRepo;
+		let repoPath = repoOverride ?? defaultRepo;
+		// Nowhere to start: ask for a folder now and keep it as the default,
+		// rather than send the user off to Settings.
+		if (!repoPath && !launchWorkspace) {
+			const picked = await selectDirectory.mutateAsync({
+				title: "Where should sessions start?",
+			});
+			if (picked.canceled || !picked.path) {
+				return fallback("No folder picked - sessions need one to start in.");
+			}
+			repoPath = picked.path;
+			await setDefault.mutateAsync({ path: repoPath }).catch(() => {});
+			void utils.repos.getDefault.invalidate();
+		}
 		if (!repoPath) {
-			return fallback(
-				"No workspace and no default repo - set one in Settings → Sessions.",
-			);
+			return fallback("No default folder - set one in Settings → Sessions.");
 		}
 		// ponytail: unconditional - openFromPath upserts the project and its main
 		// workspace, so this resolves an already-open repo instead of duplicating it.

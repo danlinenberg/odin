@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
 	createReposRouter,
+	detectReposFolder,
 	renderDiff,
 	renderPullRequestDiff,
 	scanRepos,
@@ -41,7 +42,7 @@ test("scanRepos finds checkouts, skips pruned dirs and nested worktrees", async 
 	]);
 });
 
-test("the default repo round-trips through the config file, and rejects a non-repo", async () => {
+test("the default repo round-trips through the config file, takes a plain folder, and rejects a missing one", async () => {
 	const home = mkdtempSync(join(tmpdir(), "odin-default-repo-"));
 	process.env.ODIN_CONFIG_PATH = join(home, "odin.json");
 	delete process.env.DAN_DEFAULT_REPO;
@@ -51,18 +52,25 @@ test("the default repo round-trips through the config file, and rejects a non-re
 
 	const caller = createReposRouter().createCaller({});
 
-	expect(await caller.getDefault()).toBeNull();
+	// Unset: detected from the machine's real checkouts.
+	const detected = detectReposFolder(await caller.list());
+	expect(await caller.getDefault()).toBe(detected);
 	await caller.setDefault({ path: repo });
 	expect(await caller.getDefault()).toBe(repo);
 
-	expect(caller.setDefault({ path: join(home, "Documents") })).rejects.toThrow(
-		/Not a git repo/,
+	// Not a git repo, still fine.
+	await caller.setDefault({ path: join(home, "Documents") });
+	expect(await caller.getDefault()).toBe(join(home, "Documents"));
+	await caller.setDefault({ path: repo });
+
+	expect(caller.setDefault({ path: join(home, "nope") })).rejects.toThrow(
+		/No such folder/,
 	);
 	// Still the one that was set - a rejected pick must not clear it.
 	expect(await caller.getDefault()).toBe(repo);
 
 	await caller.setDefault({ path: null });
-	expect(await caller.getDefault()).toBeNull();
+	expect(await caller.getDefault()).toBe(detected);
 });
 
 test("renderDiff shows uncommitted work, and the last commit when there is none", async () => {
@@ -164,4 +172,22 @@ test("wrapLine breaks under the code column and keeps the colour on", () => {
 	expect(lines[1]).toContain(green);
 	// A line that fits is left alone.
 	expect(wrapLine("short", 15)).toBe("short");
+});
+
+test("detectReposFolder picks the home folder holding the most repos", () => {
+	const home = "/Users/x";
+	expect(
+		detectReposFolder(
+			[
+				"/Users/x/dev/odin",
+				"/Users/x/dev/work/api",
+				"/Users/x/code/one",
+				"/Users/x/dotfiles",
+			],
+			home,
+		),
+	).toBe("/Users/x/dev");
+	expect(
+		detectReposFolder(["/Users/x/dotfiles", "/opt/repo"], home),
+	).toBeNull();
 });
