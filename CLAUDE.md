@@ -58,10 +58,11 @@ on one.
 - `bun run compile:app` in `apps/desktop` is the build check that matters -
   it reaches entry points (`index.html`, the host-service and CLI bins) that
   nothing imports, so `tsc --noEmit` alone can miss a break.
-- `bun run smoke` in `apps/desktop`, after `compile:app`, boots the built app in
-  a throwaway home and clicks through the main flows (rail, Tasks, profiles,
-  ⌘F, Settings, a session on a fake `claude` through to Done). CI
-  (`.github/workflows/ci.yml`) runs it on every PR after lint, typecheck and
-  `bun run test`; a flow you change or add belongs in it.
+- `bun run smoke` in `apps/desktop` boots the built app in a throwaway home
+  and clicks through the main flows (rail, Tasks, profiles, ⌘F, Settings, a
+  session on a fake `claude` through to Done). CI (`.github/workflows/ci.yml`)
+  runs it on every PR after lint, typecheck and `bun run test`. Don't run it
+  locally unless Dan asks: each run opens another Odin on his screen. Read the
+  CI result instead. A flow you change or add belongs in it.
 - `routeTree.gen.ts` is generated and gitignored. A fresh worktree reporting a
   wall of missing-route errors just needs `bun run generate:routes`.
