@@ -124,17 +124,6 @@ export const HOTKEYS_REGISTRY = {
 		category: "Navigation",
 		description: "Focus the current screen's search box",
 	},
-	// Off in text boxes and terminals (their own undo); see the Board's useBoardUndo.
-	ODIN_BOARD_UNDO: {
-		key: {
-			mac: L("meta+z"),
-			windows: L("ctrl+z"),
-			linux: L("ctrl+z"),
-		},
-		label: "Undo",
-		category: "Navigation",
-		description: "Undo the last Done or Park on the board",
-	},
 	// Not a rail key: a modifier chord, so writing a task down still works from
 	// inside a terminal or a text box - which is where you think of one.
 	ODIN_NEW_TASK: {

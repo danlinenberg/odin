@@ -1,5 +1,5 @@
 import { COMPANY } from "@odin/shared/constants";
-import { app, BrowserWindow, Menu, shell } from "electron";
+import { app, BrowserWindow, Menu, shell, webContents } from "electron";
 import { env } from "main/env.main";
 import { resetTerminalStateDev } from "main/lib/terminal/dev-reset";
 import { checkForUpdatesInteractive } from "./auto-updater";
@@ -44,7 +44,16 @@ export function createApplicationMenu() {
 		{
 			label: "Edit",
 			submenu: [
-				{ role: "undo" },
+				// Not `role: "undo"`: the role's implicit ⌘Z is taken before the page
+				// sees the key, so the Board's undo (Done, Park) never heard it.
+				{
+					label: "Undo",
+					accelerator: "CmdOrCtrl+Z",
+					click: () => {
+						webContents.getFocusedWebContents()?.undo();
+						menuEmitter.emit("undo");
+					},
+				},
 				{ role: "redo" },
 				{ type: "separator" },
 				{ role: "cut" },

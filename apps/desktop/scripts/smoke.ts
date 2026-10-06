@@ -545,7 +545,7 @@ await step("an agent's command runs in its session's own Shell", async () => {
 });
 
 await step(
-	"Done on the card ends the session and clears the board",
+	"Done on the card ends the session; its toast's Undo resumes it",
 	async () => {
 		const found = await page<boolean>(`(() => {
 		const done = [...document.querySelectorAll('button[title="Done - remove from the board"]')]
@@ -555,6 +555,8 @@ await step(
 	})()`);
 		if (!found) throw new Error("no Done button on the session's card");
 		await waitForText(SESSION, false);
+		// ⌘Z (a native menu accelerator CDP can't press) runs the same undo.
+		await click("button", "Undo");
 		if (!sessionPid) throw new Error("the session's claude never started");
 		for (
 			const end = Date.now() + 15_000;
@@ -564,20 +566,13 @@ await step(
 			if (Date.now() > end)
 				throw new Error(`claude (pid ${sessionPid}) still running`);
 		}
+		await waitForText(SESSION, true, 30_000);
+		for (const end = Date.now() + 30_000; ; await sleep(500)) {
+			if (fakeClaudeRuns().some((r) => r.args.includes("--resume"))) break;
+			if (Date.now() > end) throw new Error("no claude --resume ran");
+		}
 	},
 );
-
-await step("⌘Z after Done resumes the session onto the board", async () => {
-	await page(`document.activeElement?.blur()`);
-	await page(
-		`document.dispatchEvent(new KeyboardEvent("keydown", { key: "z", code: "KeyZ", metaKey: true, bubbles: true }))`,
-	);
-	await waitForText(SESSION, true, 30_000);
-	for (const end = Date.now() + 30_000; ; await sleep(500)) {
-		if (fakeClaudeRuns().some((r) => r.args.includes("--resume"))) break;
-		if (Date.now() > end) throw new Error("no claude --resume ran");
-	}
-});
 
 await step("no uncaught errors in the renderer", async () => {
 	if (exceptions.length) throw new Error(exceptions.join("\n     "));

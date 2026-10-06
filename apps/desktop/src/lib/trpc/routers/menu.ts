@@ -11,7 +11,8 @@ type MenuEvent =
 	| { type: "open-settings"; data: OpenSettingsEvent }
 	| { type: "open-workspace"; data: OpenWorkspaceEvent }
 	| { type: "open-project" }
-	| { type: "toggle-presets-bar" };
+	| { type: "toggle-presets-bar" }
+	| { type: "undo" };
 
 export const createMenuRouter = () => {
 	return router({
@@ -37,12 +38,15 @@ export const createMenuRouter = () => {
 				menuEmitter.on("open-workspace", onOpenWorkspace);
 				menuEmitter.on("open-project", onOpenProject);
 				menuEmitter.on("toggle-presets-bar", onTogglePresetsBar);
+				const onUndo = () => emit.next({ type: "undo" });
+				menuEmitter.on("undo", onUndo);
 
 				return () => {
 					menuEmitter.off("open-settings", onOpenSettings);
 					menuEmitter.off("open-workspace", onOpenWorkspace);
 					menuEmitter.off("open-project", onOpenProject);
 					menuEmitter.off("toggle-presets-bar", onTogglePresetsBar);
+					menuEmitter.off("undo", onUndo);
 				};
 			});
 		}),

@@ -44,7 +44,6 @@ import {
 import { SiJira, SiNotion, SiSlack } from "react-icons/si";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { startQueuedPane } from "renderer/hooks/useTaskQueue";
-import { useHotkey } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { canClaimKeyboard } from "renderer/lib/keyboard";
@@ -3130,10 +3129,16 @@ function DevBoardPage() {
 	};
 	const undoAction = (undo?: () => void) =>
 		undo && { action: { label: "Undo", onClick: undo } };
-	// Text boxes and terminals (xterm's input is a textarea) keep their own ⌘Z.
-	useHotkey("ODIN_BOARD_UNDO", undoLast, {
-		enableOnFormTags: false,
-		enableOnContentEditable: false,
+	// ⌘Z is Edit > Undo's: it undoes text and tells us. Text boxes and
+	// terminals (xterm's input is a textarea) keep it for themselves.
+	electronTrpc.menu.subscribe.useSubscription(undefined, {
+		onData: (event) => {
+			const focused = document.activeElement as HTMLElement | null;
+			const editing =
+				focused?.isContentEditable ||
+				["INPUT", "TEXTAREA", "SELECT"].includes(focused?.tagName ?? "");
+			if (event.type === "undo" && !editing) undoLast();
+		},
 	});
 
 	/** Catch up's next card (✓ Done ends this one first), or all caught up. */
