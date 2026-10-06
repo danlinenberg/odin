@@ -58,6 +58,10 @@ export const NOTIFICATION_EVENTS = {
  */
 export const SHELL_RULE = `To run something for me to use or watch - the app from a worktree, a dev server - don't use a subagent or a background Bash: run it in this session's Shell in Odin, where I can see and stop it: \`curl -sf http://127.0.0.1:$ODIN_PORT/shell/run --data-urlencode paneId=$ODIN_PANE_ID --data-urlencode "command=cd <dir> && <command>"\`. Running it again replaces what's there.`;
 
+/** How every Claude session in Odin writes its replies - delivered with SHELL_RULE at SessionStart. */
+export const STE_RULE =
+	"Write your replies in ASD-STE100 Simplified Technical English: short sentences (procedural steps 20 words or fewer, descriptive text 25 or fewer), active voice, one instruction per sentence, the imperative for instructions, simple common words with one meaning each, and no idioms or phrasal verbs. Code, commands, file paths, identifiers and quoted text stay exactly as they are.";
+
 // There is one organization and it is this machine. The nil UUID is what the
 // host service already keyed its state directory on, so existing ~/.odin/host
 // databases keep working.

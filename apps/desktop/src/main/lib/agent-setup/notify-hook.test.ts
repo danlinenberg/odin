@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { SHELL_RULE } from "shared/constants";
+import { SHELL_RULE, STE_RULE } from "shared/constants";
 import { getShellRuleScriptContent, NOTIFY_SCRIPT_MARKER } from "./notify-hook";
 
 const notifyHookTemplatePath = path.join(
@@ -405,7 +405,7 @@ describe("shell rule SessionStart hook", () => {
 		expect(JSON.parse(out.stdout.toString())).toEqual({
 			hookSpecificOutput: {
 				hookEventName: "SessionStart",
-				additionalContext: SHELL_RULE,
+				additionalContext: `${SHELL_RULE}\n\n${STE_RULE}`,
 			},
 		});
 	});
