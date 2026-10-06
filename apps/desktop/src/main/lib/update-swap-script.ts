@@ -33,8 +33,11 @@ STALE_DIR="$HOME/.odin/stale"
 echo "[$(date '+%H:%M:%S')] === in-app release update -> $APP ==="
 
 # Wait for the UI to go. Two traps here, both load-bearing:
-#  - the terminal-host daemon re-execs the SAME binary from the same bundle, so
-#    it has to be excluded by argv (terminal-host.js), not by path;
+#  - the background processes - terminal-host, host-service, every
+#    pty-subprocess - run the SAME binary from the same bundle and outlive the
+#    UI, so they are excluded by argv, not by path: each runs a .js script and
+#    the UI runs none. Matching only terminal-host.js let host-service hold the
+#    loop for its full 60s on every update;
 #  - the match runs in bash, not through a grep for "$APP", because that
 #    grep's own argv contains the path and so matches itself. The usual patch,
 #    grep -vw grep, silently fails wherever grep is ugrep or ripgrep.
@@ -46,7 +49,7 @@ ui_running() {
   while read -r pid cmd; do
     case "$cmd" in
       "$APP/Contents/MacOS/Odin"*)
-        case "$cmd" in *terminal-host.js*) ;; *) return 0 ;; esac ;;
+        case "$cmd" in *.js*) ;; *) return 0 ;; esac ;;
     esac
   done < <(ps ax -o pid=,command=)
   return 1

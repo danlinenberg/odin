@@ -58,6 +58,8 @@ describe("the wait loop's UI check", () => {
 	const UI = "  501 /Applications/Odin.app/Contents/MacOS/Odin\n";
 	const DAEMON =
 		"  502 /Applications/Odin.app/Contents/MacOS/Odin /Applications/Odin.app/Contents/Resources/app.asar/dist/main/terminal-host.js\n";
+	const HOST_SERVICE =
+		"  504 /Applications/Odin.app/Contents/MacOS/Odin /Applications/Odin.app/Contents/Resources/app.asar/dist/main/host-service.js\n";
 	const SELF_MATCHING_GREP =
 		"  503 ugrep -F /Applications/Odin.app/Contents/MacOS/Odin\n";
 
@@ -65,8 +67,8 @@ describe("the wait loop's UI check", () => {
 		expect(uiRunning(UI + DAEMON)).toBe(true);
 	});
 
-	test("does not see the daemon on its own", () => {
-		expect(uiRunning(DAEMON)).toBe(false);
+	test("does not see the background processes on their own", () => {
+		expect(uiRunning(DAEMON + HOST_SERVICE)).toBe(false);
 	});
 
 	test("is not fooled by a grep carrying the path in its argv", () => {
