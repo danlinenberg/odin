@@ -21,6 +21,7 @@ import { useNextInLinePrompt } from "renderer/stores/next-in-line-prompt";
 import { create } from "zustand";
 import type { AllItem } from "../all/all-items";
 import { allItems } from "../all/all-items";
+import { cleanTitle, TaskDetails } from "../all/TaskDetails";
 import { useStartAllItem } from "../all/use-start-item";
 import { DropHint } from "../components/DropHint";
 import { FEED_TABS } from "../components/feed-counts";
@@ -43,10 +44,6 @@ import { duplicateOf, type LedgerRow } from "./duplicates";
  * dropped (they arrive raw), whitespace collapsed. The full original is the
  * card's tooltip.
  */
-function cleanTitle(title: string): string {
-	return title.replace(/[*~]/g, "").replace(/\s+/g, " ").trim();
-}
-
 const ICON = Object.fromEntries(FEED_TABS.map(({ to, Icon }) => [to, Icon]));
 
 const LEDGER_FEED: Record<LedgerRow["source"], string> = {
@@ -551,10 +548,9 @@ export function NextInLine() {
 }
 
 /**
- * What a card's hover says: the task in full - the whole Slack message, not
- * the line it was cut to - and everything the card had to leave out: every
- * field the source sent, the comment that put it here, what the Review sweep
- * found, where the AI ranked it, and the link itself.
+ * What a card's hover says: the task in full (TaskDetails), plus what only
+ * Next in line knows - the due date you set, where the AI ranked it, and what
+ * the Review sweep found.
  */
 function TaskHover({
 	item,
@@ -567,63 +563,11 @@ function TaskHover({
 	rank: number | undefined;
 	due: string | null;
 }) {
-	const Icon = ICON[item.to];
-	const rows: [string, string][] = [...item.details];
-	if (due && !rows.some(([label]) => label === "Due")) rows.push(["Due", due]);
-	if (rank !== undefined) rows.push(["AI rank", `#${rank + 1}`]);
-	const body = item.body?.trim();
+	const extraRows: [string, string][] = [];
+	if (due) extraRows.push(["Due", due]);
+	if (rank !== undefined) extraRows.push(["AI rank", `#${rank + 1}`]);
 	return (
-		<div className="space-y-2.5 text-[12px] leading-[1.5]">
-			<div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-				{Icon && <Icon className="size-3 shrink-0" aria-hidden />}
-				<span className="font-medium text-muted-foreground">{item.source}</span>
-				{item.priority && <span>· {item.priority}</span>}
-				{item.status && <span>· {item.status}</span>}
-			</div>
-			<p
-				dir="auto"
-				className="break-words text-left font-semibold text-foreground"
-			>
-				{emojify(cleanTitle(item.title))}
-			</p>
-			{body && body !== item.title.trim() && (
-				<p
-					dir="auto"
-					className="max-h-[220px] cursor-text select-text overflow-y-auto whitespace-pre-wrap break-words text-left text-soft-foreground"
-				>
-					{emojify(body.slice(0, 3000))}
-				</p>
-			)}
-			{item.mention && (
-				<div className="rounded-md border-l-2 border-primary bg-primary/8 px-2 py-1.5 text-soft-foreground">
-					{item.mention.author && (
-						<div className="text-[11px] font-medium text-primary">
-							{item.mention.author}
-						</div>
-					)}
-					<div
-						dir="auto"
-						className="line-clamp-6 whitespace-pre-wrap break-words"
-					>
-						{emojify(item.mention.text)}
-					</div>
-				</div>
-			)}
-			{rows.length > 0 && (
-				<dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[11.5px]">
-					{rows.map(([label, value]) => (
-						<div key={label} className="contents">
-							<dt className="text-muted-foreground">{label}</dt>
-							<dd
-								dir="auto"
-								className="min-w-0 break-words text-soft-foreground"
-							>
-								{value}
-							</dd>
-						</div>
-					))}
-				</dl>
-			)}
+		<TaskDetails item={item} extraRows={extraRows}>
 			{swept && (
 				<div
 					className={cn(
@@ -637,12 +581,7 @@ function TaskHover({
 					{swept.evidence && ` - ${swept.evidence}`}
 				</div>
 			)}
-			{item.url && (
-				<div className="cursor-text select-text truncate text-[11px] text-faint-foreground">
-					{item.url}
-				</div>
-			)}
-		</div>
+		</TaskDetails>
 	);
 }
 

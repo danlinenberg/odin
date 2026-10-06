@@ -457,10 +457,24 @@ await step("Read later moves a task to Reading material and back", async () => {
 	await waitForText("waiting on you");
 });
 
+await step("A task's title opens its details beside the list", async () => {
+	await rail("Tasks");
+	await waitForText(TASK);
+	// Its label is its title, "Show details"; match on the task text instead.
+	await page(
+		`[...document.querySelectorAll("button")].find((e) => e.textContent.trim() === ${JSON.stringify(TASK)})?.click()`,
+	);
+	await waitForText("Tasks feed →");
+	const hash = await page<string>("location.hash");
+	if (!hash.startsWith("#/all")) throw new Error(`title click opened ${hash}`);
+	await click("button", "Close details");
+	await waitForText("Tasks feed →", false);
+});
+
 await step("Done takes a task off the list", async () => {
 	await rail("Tasks");
 	await waitForText(TASK);
-	// The title button is labelled "Open the Tasks feed"; match its text.
+	// The title button's text is the task itself; match on that.
 	const found = await page<boolean>(`(() => {
 		let row = [...document.querySelectorAll("button")].find((e) => e.textContent.trim() === ${JSON.stringify(TASK)});
 		while (row && !row.querySelector('button[title="Mark done"]')) row = row.parentElement;
