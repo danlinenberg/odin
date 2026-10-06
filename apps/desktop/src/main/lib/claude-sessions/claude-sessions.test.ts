@@ -539,6 +539,11 @@ describe("parseTranscript / readTranscript", () => {
 				result("t4", "https://github.com/a/b/pull/8"),
 				bash("t5", "gh api repos/a/b/pulls/9/comments -X POST -f body=x"),
 				result("t5", "https://github.com/a/b/pull/9#discussion_r1"),
+				// Searching for the words prints urls that aren't this session's.
+				bash("t6", 'grep -n "gh pr create" src/a.test.ts'),
+				result("t6", "https://github.com/acme/app/pull/10"),
+				bash("t7", "TOKEN=$(gh auth token) gh api repos/a/b/pulls -X POST"),
+				result("t7", "https://github.com/a/b/pull/11"),
 				assistant("Merged as #232."),
 			].join("\n"),
 		);
@@ -551,6 +556,11 @@ describe("parseTranscript / readTranscript", () => {
 			{
 				role: "assistant",
 				text: "https://github.com/a/b/pull/7",
+				at: "2026-09-27T07:32:00.000Z",
+			},
+			{
+				role: "assistant",
+				text: "https://github.com/a/b/pull/11",
 				at: "2026-09-27T07:32:00.000Z",
 			},
 			{ role: "assistant", text: "Merged as #232.", at: null },
