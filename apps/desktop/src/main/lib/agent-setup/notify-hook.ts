@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { SHELL_RULE } from "shared/constants";
+import { SHELL_RULE, STE_RULE } from "shared/constants";
 import { env } from "shared/env.shared";
 import { HOOKS_DIR } from "./paths";
 
@@ -20,13 +20,13 @@ const SUBAGENT_CAP_SCRIPT_MARKER = "# Odin subagent cap hook v1";
 const DEFAULT_SUBAGENT_CAP = 4;
 
 export const SHELL_RULE_SCRIPT_NAME = "shell-rule.sh";
-const SHELL_RULE_SCRIPT_MARKER = "# Odin shell rule hook v1";
+const SHELL_RULE_SCRIPT_MARKER = "# Odin shell rule hook v2";
 
 export function getShellRuleScriptContent(): string {
 	const output = JSON.stringify({
 		hookSpecificOutput: {
 			hookEventName: "SessionStart",
-			additionalContext: SHELL_RULE,
+			additionalContext: `${SHELL_RULE}\n\n${STE_RULE}`,
 		},
 	});
 	return fs
