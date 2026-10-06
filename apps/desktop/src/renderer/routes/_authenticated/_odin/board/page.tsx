@@ -1149,7 +1149,7 @@ function ShellChip({
 					"Shell stopped",
 					`${PILL.attention} font-semibold`,
 				]
-			: ["This session has a shell running", "Shell", PILL.working];
+			: ["This session has a shell running", "Shell", PILL.success];
 	return (
 		<span
 			title={title}
