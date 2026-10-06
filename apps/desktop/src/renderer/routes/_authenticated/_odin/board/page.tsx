@@ -654,20 +654,8 @@ function NotionPill({ card, live }: { card: BoardCard; live: boolean }) {
 	const { data } = useCardTranscript(card, live);
 	const page = data ? notionPage(data.messages) : null;
 	if (!page) return null;
-	return (
-		<button
-			type="button"
-			title={page.title ?? page.url}
-			onClick={(event) => {
-				// The card itself opens the drawer; the pill opens Notion.
-				event.stopPropagation();
-				openUrl(page.url);
-			}}
-			className="hover:text-foreground hover:underline"
-		>
-			Notion
-		</button>
-	);
+	// Plain text, like PrPill: a click falls through to the card and opens the drawer.
+	return <span title={page.title ?? page.url}>Notion</span>;
 }
 
 /**
