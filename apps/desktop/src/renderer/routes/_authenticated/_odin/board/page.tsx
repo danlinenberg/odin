@@ -4136,12 +4136,15 @@ function DevBoardPage() {
 									■ Interrupt
 								</button>
 							)}
+							{/* Remind, Done and Minimize sit right; RemindButton wraps its button
+							    in a span, so the gap is a spacer rather than ml-auto. */}
+							<div className="flex-1" />
 							<RemindButton
 								onPick={(day) => remindMe(drawerCard, day)}
 								label="Remind me"
 								className={cn(
 									"rounded-[7px] px-3 py-1.5 text-xs font-semibold",
-									BUTTON.secondary,
+									BUTTON.remind,
 								)}
 							/>
 							{/* Catch up has its own ✓ Done and ‹ below and above the card. */}
@@ -4151,7 +4154,7 @@ function DevBoardPage() {
 									onClick={() => markDone(drawerCard)}
 									title="Done - end the session and remove it from the board"
 									className={cn(
-										"ml-auto rounded-[7px] px-3 py-1.5 text-xs font-semibold",
+										"rounded-[7px] px-3 py-1.5 text-xs font-semibold",
 										BUTTON.done,
 									)}
 								>
@@ -4167,7 +4170,7 @@ function DevBoardPage() {
 										BUTTON.secondary,
 									)}
 								>
-									Close
+									Minimize Session
 								</button>
 							)}
 						</div>

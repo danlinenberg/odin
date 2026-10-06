@@ -43,6 +43,8 @@ export const BUTTON = {
 	secondary:
 		"bg-secondary text-soft-foreground ring-1 ring-inset ring-border shadow-[inset_0_1px_0_rgb(255_255_255/0.04)] hover:bg-accent hover:text-foreground",
 	done: "bg-gradient-to-r from-success/25 to-success/10 text-success-ink ring-1 ring-inset ring-success/25 hover:from-success/35 hover:to-success/15",
+	remind:
+		"bg-gradient-to-r from-attention/25 to-attention/10 text-attention-ink ring-1 ring-inset ring-attention/25 hover:from-attention/35 hover:to-attention/15",
 	selected:
 		"bg-gradient-to-r from-primary/20 to-primary/8 text-primary-ink ring-1 ring-inset ring-primary/30",
 } as const;
