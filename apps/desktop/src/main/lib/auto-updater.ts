@@ -106,7 +106,7 @@ function emitStatus(
 	currentError = error;
 	currentProgress = progress;
 
-	if (isDismissed && status === AUTO_UPDATE_STATUS.READY) {
+	if (isDismissed && isOffer(status)) {
 		return;
 	}
 
@@ -114,8 +114,16 @@ function emitStatus(
 	autoUpdateEmitter.emit("status-changed", event);
 }
 
+/** The states that ask the user to update - the ones "Later" hides. */
+function isOffer(status: AutoUpdateStatus): boolean {
+	return (
+		status === AUTO_UPDATE_STATUS.AVAILABLE ||
+		status === AUTO_UPDATE_STATUS.READY
+	);
+}
+
 export function getUpdateStatus(): AutoUpdateStatusEvent {
-	if (isDismissed && currentStatus === AUTO_UPDATE_STATUS.READY) {
+	if (isDismissed && isOffer(currentStatus)) {
 		return { status: AUTO_UPDATE_STATUS.IDLE };
 	}
 	return {
@@ -212,16 +220,33 @@ async function downloadAndMount(
 	return { mountPoint, workDir };
 }
 
-export function installUpdate(): void {
-	if (isInstalling) {
+/** Download (unless already staged), then quit and swap. Only a click calls this. */
+export async function installUpdate(): Promise<void> {
+	if (isInstalling || isChecking) {
 		log.info("[auto-updater] Install already in progress");
 		return;
 	}
 	if (!staged) {
-		log.warn(
-			`[auto-updater] Install ignored: nothing staged (${currentStatus})`,
-		);
-		return;
+		if (currentStatus !== AUTO_UPDATE_STATUS.AVAILABLE || !currentVersion) {
+			log.warn(
+				`[auto-updater] Install ignored: nothing available (${currentStatus})`,
+			);
+			return;
+		}
+		const version = currentVersion;
+		isChecking = true;
+		try {
+			emitStatus(AUTO_UPDATE_STATUS.DOWNLOADING, version);
+			staged = { version, ...(await downloadAndMount(version)) };
+			emitStatus(AUTO_UPDATE_STATUS.READY, version);
+		} catch (error) {
+			log.error("[auto-updater] Download failed:", error);
+			// Back to the offer, so the banner's button can try again.
+			emitStatus(AUTO_UPDATE_STATUS.AVAILABLE, version, errorMessage(error));
+			return;
+		} finally {
+			isChecking = false;
+		}
 	}
 	isInstalling = true;
 	log.info(`[auto-updater] Installing ${staged.version} and relaunching`);
@@ -255,7 +280,7 @@ async function runCheck({ userAsked }: { userAsked: boolean }): Promise<void> {
 	if (staged) {
 		isDismissed = false;
 		emitStatus(AUTO_UPDATE_STATUS.READY, staged.version);
-		await restartIntoUpdate(staged.version);
+		if (userAsked) await offerUpdate(staged.version);
 		return;
 	}
 
@@ -283,12 +308,10 @@ async function runCheck({ userAsked }: { userAsked: boolean }): Promise<void> {
 		log.info(
 			`[auto-updater] Update available: ${app.getVersion()} → ${latest}`,
 		);
-		// Updates are mandatory: no "Later". Every install runs the newest
-		// release, so a fix ships to everyone once it is released.
-		emitStatus(AUTO_UPDATE_STATUS.DOWNLOADING, latest);
-		staged = { version: latest, ...(await downloadAndMount(latest)) };
-		emitStatus(AUTO_UPDATE_STATUS.READY, latest);
-		await restartIntoUpdate(latest);
+		// Announce only - the renderer's banner downloads and installs on a
+		// click. Nothing updates on its own.
+		emitStatus(AUTO_UPDATE_STATUS.AVAILABLE, latest);
+		if (userAsked) await offerUpdate(latest);
 	} catch (error) {
 		if (isNetworkError(error)) {
 			log.info("[auto-updater] Network unavailable, will retry later");
@@ -317,16 +340,19 @@ async function runCheck({ userAsked }: { userAsked: boolean }): Promise<void> {
 	}
 }
 
-async function restartIntoUpdate(version: string): Promise<void> {
-	await dialog.showMessageBox({
+/** Menu/tray "Check for Updates" asked, so answer with a choice. */
+async function offerUpdate(version: string): Promise<void> {
+	const { response } = await dialog.showMessageBox({
 		type: "info",
-		title: "Update Ready",
-		message: `Odin ${version} is ready to install.`,
+		title: "Update Available",
+		message: `Odin ${version} is available.`,
 		detail:
-			"Odin will quit, swap itself out and reopen. Open terminal sessions survive.",
-		buttons: ["Restart Now"],
+			"Odin will download it, quit, swap itself out and reopen. Open terminal sessions survive.",
+		buttons: ["Update Now", "Later"],
+		defaultId: 0,
+		cancelId: 1,
 	});
-	installUpdate();
+	if (response === 0) await installUpdate();
 }
 
 export function checkForUpdates(): void {
@@ -345,9 +371,8 @@ export function setupAutoUpdater(): void {
 		`[auto-updater] Initialized: version=${app.getVersion()}, bundle=${appBundlePath()}`,
 	);
 
-	// ponytail: the background check prompts with a dialog because there is no
-	// update UI in the renderer - the trpc autoUpdate router streams the status
-	// events for one, if a pill ever wants them.
+	// The background check only announces: UpdateBanner in the renderer shows
+	// the offer and its button is the only thing that installs.
 	const interval = setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL_MS);
 	interval.unref();
 	app
