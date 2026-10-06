@@ -187,5 +187,7 @@ test("detectReposFolder picks the home folder holding the most repos", () => {
 			home,
 		),
 	).toBe("/Users/x/dev");
-	expect(detectReposFolder(["/Users/x/dotfiles", "/opt/repo"], home)).toBeNull();
+	expect(
+		detectReposFolder(["/Users/x/dotfiles", "/opt/repo"], home),
+	).toBeNull();
 });
