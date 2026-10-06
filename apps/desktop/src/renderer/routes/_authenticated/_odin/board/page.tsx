@@ -4111,11 +4111,15 @@ function DevBoardPage() {
 								</button>
 							)}
 							{/* The drawer keeps Esc for itself, so a turn needs its own stop. */}
-							{drawerCard.pane.type === "terminal" &&
-								isWorkingNow(drawerCard.pane.id) && (
+							{drawerCard.pane.type === "terminal" && (
 									<button
 										type="button"
-										title="Interrupt the agent (sends Esc to the session)"
+										disabled={!isWorkingNow(drawerCard.pane.id)}
+										title={
+											isWorkingNow(drawerCard.pane.id)
+												? "Interrupt the agent (sends Esc to the session)"
+												: "Nothing to interrupt - the agent isn't working"
+										}
 										onClick={() =>
 											utils.client.terminal.write.mutate({
 												paneId: drawerCard.pane.id,
@@ -4123,7 +4127,7 @@ function DevBoardPage() {
 											})
 										}
 										className={cn(
-											"rounded-[7px] px-3 py-1.5 text-xs font-semibold",
+											"rounded-[7px] px-3 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50",
 											BUTTON.secondary,
 										)}
 									>
