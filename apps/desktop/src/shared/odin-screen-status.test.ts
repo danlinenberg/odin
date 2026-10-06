@@ -238,6 +238,14 @@ Type to search · Space to toggle · f to favorite · Enter to view · Esc to go
 		expect(escIsHandledOnScreen(PICKER)).toBe(true);
 	});
 
+	it("sees /mcp's terser Esc to back", () => {
+		expect(
+			escIsHandledOnScreen(
+				"  5. Disable\n\n  ↑/↓ to navigate · Enter to select · Esc to back\n",
+			),
+		).toBe(true);
+	});
+
 	it("sees a permission dialog's reject option", () => {
 		expect(
 			escIsHandledOnScreen(
