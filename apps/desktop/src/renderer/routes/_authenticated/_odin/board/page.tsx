@@ -1483,11 +1483,6 @@ function DevBoardPage() {
 	// here; the dialog it opens asks whether to start over from the card's brief.
 	const [lostCard, setLostCard] = useState<BoardCard | null>(null);
 	const [drawerCard, setDrawerCard] = useState<BoardCard | null>(null);
-	// One Ctrl+C per turn: the status lags the stop by a scan, and a second
-	// Ctrl+C landing at Claude's idle prompt starts quitting it.
-	const [interruptedPaneId, setInterruptedPaneId] = useState<string | null>(
-		null,
-	);
 	// Catch up (Slack mobile's): Needs you one card at a time in the drawer.
 	// The pane ids are a snapshot taken on start, so ✓ done doesn't reshuffle
 	// the cards you haven't reached.
@@ -4121,10 +4116,7 @@ function DevBoardPage() {
 							{drawerCard.pane.type === "terminal" && (
 								<button
 									type="button"
-									disabled={
-										!isWorkingNow(drawerCard.pane.id) ||
-										interruptedPaneId === drawerCard.pane.id
-									}
+									disabled={!isWorkingNow(drawerCard.pane.id)}
 									title={
 										isWorkingNow(drawerCard.pane.id)
 											? "Stop the agent (sends Ctrl+C to the session)"
@@ -4132,22 +4124,26 @@ function DevBoardPage() {
 									}
 									onClick={() => {
 										const paneId = drawerCard.pane.id;
-										setInterruptedPaneId(paneId);
-										// ponytail: fixed 10s lock; still working after it, retry is allowed
-										setTimeout(() => setInterruptedPaneId(null), 10_000);
 										utils.client.terminal.write.mutate({
 											paneId,
 											data: "\x03",
 										});
+										// Claude fires no Stop hook on an interrupt, so the card would
+										// read Working until the scan - and a second click would land
+										// Ctrl+C at the idle prompt and start quitting it. Same as Park.
+										useTabsStore.setState((state) => ({
+											panes: {
+												...state.panes,
+												[paneId]: { ...state.panes[paneId], status: "idle" },
+											},
+										}));
 									}}
 									className={cn(
 										"rounded-[7px] px-3 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50",
 										BUTTON.secondary,
 									)}
 								>
-									{interruptedPaneId === drawerCard.pane.id
-										? "■ Stopping…"
-										: "■ Interrupt"}
+									■ Interrupt
 								</button>
 							)}
 							{/* Done, Remind and Minimize sit right; RemindButton wraps its button
