@@ -38,6 +38,20 @@ describe("TaskBox", () => {
 		expect(html).not.toContain("None");
 	});
 
+	it("shows a submit button, off until there's a title", () => {
+		const html = (value: string) =>
+			renderToStaticMarkup(
+				<TaskBox
+					value={value}
+					submitLabel="Add task"
+					onChange={() => {}}
+					onSubmit={() => {}}
+				/>,
+			);
+		expect(html("")).toMatch(/<button[^>]*disabled=""[^>]*>Add task<\/button>/);
+		expect(html("Ship the fix")).not.toMatch(/disabled=""[^>]*>Add task/);
+	});
+
 	it("offers a Repo field showing the checkout already picked", () => {
 		const html = renderToStaticMarkup(
 			<TaskBox

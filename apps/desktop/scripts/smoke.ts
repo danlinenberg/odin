@@ -401,6 +401,17 @@ await step("a task written down lands in Tasks", async () => {
 	await waitForText(TASK);
 });
 
+await step("the My Tasks composer adds a task with its button", async () => {
+	const typed = `Button task ${Date.now()}`;
+	await page(`(() => {
+		const strip = __find("button", "Slack").parentElement;
+		__find("button", "Tasks", strip).click();
+	})()`);
+	await fill('input[placeholder="What needs doing?"]', typed);
+	await click("button", "Add task");
+	await waitForText(typed);
+});
+
 await step("a new profile sees none of the first one's tasks", async () => {
 	await rail("Settings");
 	await waitForText("profiles");
