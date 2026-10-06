@@ -186,7 +186,10 @@ function AllFeedPage() {
 	// but worth keeping: off every queue and the Night Agent, listed apart.
 	const { isDone, markDone, markReading, undo, recent, reading } = useDone();
 	const [shelf, setShelf] = useState<"done" | "reading" | null>(null);
-	const showDone = shelf !== null;
+	const shelfRows =
+		shelf === "reading" ? reading : shelf === "done" ? recent : [];
+	// Undo on the last row hides its pill too: back to the queue, not a blank.
+	const showDone = shelfRows.length > 0;
 	const allRows = useMemo(
 		() =>
 			allItems({
@@ -527,7 +530,7 @@ function AllFeedPage() {
 				)}
 				{showDone && (
 					<DoneList
-						rows={shelf === "reading" ? reading : recent}
+						rows={shelfRows}
 						verb={shelf === "reading" ? "saved" : "done"}
 						onOpen={(url) => openUrl(url)}
 						onUndo={undo}

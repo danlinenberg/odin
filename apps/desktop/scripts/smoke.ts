@@ -440,9 +440,10 @@ await step("Read later moves a task to Reading material and back", async () => {
 	await click("button", "Reading material");
 	await waitForText(TASK);
 	await waitForText("saved");
+	// Undo on the only row empties the shelf: back on the queue, row and all.
 	await click("button", "Put it back");
-	await click("button", "Reading material");
 	await waitForText(TASK);
+	await waitForText("waiting on you");
 });
 
 await step("Done takes a task off the list", async () => {
