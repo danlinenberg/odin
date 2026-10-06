@@ -10,6 +10,8 @@ export interface DoneRow {
 	title: string;
 	source: string;
 	url: string | null;
+	/** Put away to read later, not finished - All tasks' Reading material. */
+	reading?: boolean;
 }
 
 const HIDDEN_V0 = "odin-hidden-items";

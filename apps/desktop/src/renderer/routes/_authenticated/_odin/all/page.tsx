@@ -182,8 +182,11 @@ function AllFeedPage() {
 
 	// Done rows - from any feed, Next in line, or a Review drop - aren't
 	// waiting on you. They're one click away under "Done", with Undo.
-	const { isDone, markDone, undo, recent } = useDone();
-	const [showDone, setShowDone] = useState(false);
+	// Reading material is the same put-away, for rows with nothing left to do
+	// but worth keeping: off every queue and the Night Agent, listed apart.
+	const { isDone, markDone, markReading, undo, recent, reading } = useDone();
+	const [shelf, setShelf] = useState<"done" | "reading" | null>(null);
+	const showDone = shelf !== null;
 	const allRows = useMemo(
 		() =>
 			allItems({
@@ -336,11 +339,20 @@ function AllFeedPage() {
 							Due
 						</FilterPill>
 					)}
+					{reading.length > 0 && (
+						<FilterPill
+							active={shelf === "reading"}
+							count={reading.length}
+							onClick={() => setShelf(shelf === "reading" ? null : "reading")}
+						>
+							Reading material
+						</FilterPill>
+					)}
 					{recent.length > 0 && (
 						<FilterPill
-							active={showDone}
+							active={shelf === "done"}
 							count={recent.length}
-							onClick={() => setShowDone(!showDone)}
+							onClick={() => setShelf(shelf === "done" ? null : "done")}
 						>
 							Done
 						</FilterPill>
@@ -515,7 +527,8 @@ function AllFeedPage() {
 				)}
 				{showDone && (
 					<DoneList
-						rows={recent}
+						rows={shelf === "reading" ? reading : recent}
+						verb={shelf === "reading" ? "saved" : "done"}
 						onOpen={(url) => openUrl(url)}
 						onUndo={undo}
 					/>
@@ -546,7 +559,7 @@ function AllFeedPage() {
 							    carries what its own feed would tell you: who it's from,
 							    where it stands, where it lives. A grid, not a flex row,
 							    so the mention below wraps inside the title's column. */}
-								<div className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto_auto_auto] items-center gap-x-3">
+								<div className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto_auto_auto_auto] items-center gap-x-3">
 									<span
 										className={cn(
 											"flex w-[68px] shrink-0 items-center justify-center gap-1 rounded-[5px] px-[7px] py-[1px] text-[11px] font-semibold",
@@ -639,6 +652,14 @@ function AllFeedPage() {
 											</button>
 										)}
 									</span>
+									<button
+										type="button"
+										onClick={() => markReading(item)}
+										title="Nothing to do, but keep it - moves it to Reading material"
+										className={ROW_LINK_BUTTON}
+									>
+										Read later
+									</button>
 									<DoneButton onClick={() => markDone(item)} />
 									{/* Same preview the Jira feed shows: a mention row is there
 								    because of one comment. Column 2 keeps it under the title. */}
@@ -660,13 +681,15 @@ function AllFeedPage() {
 	);
 }
 
-/** What was done lately, newest first, as it looked then - with the way back. */
+/** What was put away lately, newest first, as it looked then - with the way back. */
 function DoneList({
 	rows,
+	verb,
 	onOpen,
 	onUndo,
 }: {
 	rows: ReturnType<typeof useDone>["recent"];
+	verb: string;
 	onOpen: (url: string) => void;
 	onUndo: (row: ReturnType<typeof useDone>["recent"][number]) => void;
 }) {
@@ -685,7 +708,7 @@ function DoneList({
 							{emojify(row.title)}
 						</span>
 						<span className="shrink-0 text-[11px] text-muted-foreground">
-							done{" "}
+							{verb}{" "}
 							{new Date(row.at).toLocaleDateString(undefined, {
 								month: "short",
 								day: "numeric",
@@ -703,7 +726,7 @@ function DoneList({
 						<button
 							type="button"
 							onClick={() => onUndo(row)}
-							title="Not done - put it back"
+							title="Put it back in the queue"
 							className="shrink-0 rounded-[7px] px-2 py-1 text-[12px] font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground"
 						>
 							Undo

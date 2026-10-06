@@ -40,11 +40,16 @@ export function useDone() {
 	const utils = electronTrpc.useUtils();
 	const isDone = useMemo(() => doneChecker(done), [done]);
 
-	const mark = (item: Doable, on: boolean) => {
+	const mark = (item: Doable, on: boolean, reading = false) => {
 		setDone(
 			item.key,
 			on
-				? { title: item.title, source: item.source, url: item.url ?? null }
+				? {
+						title: item.title,
+						source: item.source,
+						url: item.url ?? null,
+						...(reading && { reading }),
+					}
 				: null,
 		);
 		// Slack has a Done of its own (Odin-only, shared with the Slack feed).
@@ -57,16 +62,26 @@ export function useDone() {
 		if (!on) useBacklogReview.getState().unnoteDropped(activeId, item.key);
 	};
 
+	// Newest first. Reading material is a Done that isn't finished: off every
+	// queue the same way, listed apart.
+	const rows = useMemo(
+		() =>
+			Object.entries(done)
+				.map(([key, row]): DoneRow & { key: string } => ({ key, ...row }))
+				.sort((a, b) => b.at - a.at),
+		[done],
+	);
+
 	return {
 		isDone,
-		/** Newest first, for the Done list. */
-		recent: useMemo(
-			() =>
-				Object.entries(done)
-					.map(([key, row]): DoneRow & { key: string } => ({ key, ...row }))
-					.sort((a, b) => b.at - a.at),
-			[done],
-		),
+		recent: useMemo(() => rows.filter((row) => !row.reading), [rows]),
+		reading: useMemo(() => rows.filter((row) => row.reading), [rows]),
+		markReading: (item: Doable) => {
+			mark(item, true, true);
+			toast.success(`Reading material - ${item.title.slice(0, 60)}`, {
+				action: { label: "Undo", onClick: () => mark(item, false) },
+			});
+		},
 		markDone: (item: Doable) => {
 			mark(item, true);
 			toast.success(`Done - ${item.title.slice(0, 60)}`, {
