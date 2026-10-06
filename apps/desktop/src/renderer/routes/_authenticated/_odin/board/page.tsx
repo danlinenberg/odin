@@ -2764,6 +2764,8 @@ function DevBoardPage() {
 		// on disk" by id alone, and reusing it keeps the whole check in the
 		// renderer. A new main-process procedure sits dormant until the app
 		// restarts, which is a fix that silently isn't running.
+		// Spinner from the click on: the transcript check below can take a beat.
+		setResumingPaneIds((ids) => [...ids, card.pane.id]);
 		if (sessionId) {
 			try {
 				await utils.client.terminal.readClaudeTranscript.query({ sessionId });
@@ -2771,6 +2773,7 @@ function DevBoardPage() {
 				// Only "Claude has no such conversation" is lost. An unreadable or
 				// half-written transcript still belongs to this card - resume it.
 				if (String(error).includes("No transcript on this machine")) {
+					setResumingPaneIds((ids) => ids.filter((id) => id !== card.pane.id));
 					// Nobody asked - don't pop a dialog at them; the card keeps
 					// its Resume button for when they do.
 					if (!auto) setLostCard(card);
@@ -2778,7 +2781,6 @@ function DevBoardPage() {
 				}
 			}
 		}
-		setResumingPaneIds((ids) => [...ids, card.pane.id]);
 		// The respawn puts Claude back in this PTY - don't make the next scan
 		// (up to 10s away, twice over) re-prove it before the card stops
 		// offering Resume.
@@ -4036,6 +4038,15 @@ function DevBoardPage() {
 												tabId={drawerCard.tabId}
 												workspaceId={drawerCard.workspaceId}
 											/>
+										</div>
+									) : resumingPaneIds.includes(drawerCard.pane.id) ? (
+										// Between the click and the PTY coming up, "Session ended"
+										// history reads as if Resume did nothing.
+										<div className="flex flex-1 items-center justify-center gap-2 text-[13px] text-working">
+											<span className="size-[12px] animate-spin rounded-full border-2 border-working border-t-transparent" />
+											{drawerCard.pane.odinQueued
+												? "Starting session…"
+												: "Resuming session…"}
 										</div>
 									) : (
 										// Claude has exited - the PTY is dead, or a bare zsh outlived
