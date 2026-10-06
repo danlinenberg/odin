@@ -138,7 +138,8 @@ export function agentOnScreen(screen: string): boolean {
 /**
  * Does Esc mean something *inside* Claude right now?
  *
- * Claude prints the affordance whenever it is - "Esc to go back" under a menu
+ * Claude prints the affordance whenever it is - "Esc to go back" (or "Esc to
+ * back", as /mcp's server panel says) under a menu
  * or a picker, "(esc)" on the reject option of a permission dialog. The
  * board's drawer swallows Esc to close itself, which in those states steals
  * the key from the menu the user is standing in and the pane disappears
@@ -154,7 +155,7 @@ export function agentOnScreen(screen: string): boolean {
  * that ever bites.
  */
 export function escIsHandledOnScreen(screen: string): boolean {
-	return /esc(?:ape)? to (?:go back|cancel|exit|close|dismiss)|\(esc\)/i.test(
+	return /esc(?:ape)? to (?:go back|back|cancel|exit|close|dismiss)|\(esc\)/i.test(
 		footerOf(screen),
 	);
 }
