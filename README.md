@@ -61,6 +61,29 @@ in-app **Restart Odin** button, or `ODIN_DEV_WATCH=--watch` to restart on every
 save. Logs stream to `~/.odin/dev.log`, and the run that died is kept as
 `dev.log.prev`.
 
+### Windows (from source, experimental)
+
+The packaged app and `odin-dev.sh` are macOS-only, but the dev build runs on
+Windows from Git Bash:
+
+- **Node 20.11 or newer first on `PATH`.** `electron-vite` and
+  `@electron/rebuild` run under it and need `import.meta.dirname`; on Node 18
+  both fail with `The "path" argument must be of type string. Received undefined`.
+- **Visual Studio Build Tools** with the "Desktop development with C++" workload.
+  `bun install` rebuilds the native modules for Electron, and several
+  (`@parcel/watcher`, `native-keymap`) have no Windows prebuild for it.
+- **A free renderer port.** The dev server insists on 5173; if another Vite app
+  holds it, set `DESKTOP_VITE_PORT`.
+
+```sh
+bun install
+cd apps/desktop
+DESKTOP_VITE_PORT=5183 bun run dev
+```
+
+Terminal daemons listen on named pipes (`\\.\pipe\odin-*`) instead of socket
+files.
+
 ## The idea
 
 Most people run two systems and hold both in their head at once.

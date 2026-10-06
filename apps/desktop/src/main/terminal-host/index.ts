@@ -25,6 +25,7 @@ import { createServer, type Server, Socket } from "node:net";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { ODIN_DIR_NAME } from "shared/constants";
+import { terminalHostSocketPath } from "../lib/terminal-host/socket-path";
 import {
 	type CancelCreateOrAttachRequest,
 	type ClearScrollbackRequest,
@@ -60,7 +61,7 @@ const DAEMON_VERSION = "1.0.0";
 const ODIN_HOME_DIR = join(homedir(), ODIN_DIR_NAME);
 
 // Socket and token paths
-const SOCKET_PATH = join(ODIN_HOME_DIR, "terminal-host.sock");
+const SOCKET_PATH = terminalHostSocketPath(ODIN_HOME_DIR);
 const TOKEN_PATH = join(ODIN_HOME_DIR, "terminal-host.token");
 const PID_PATH = join(ODIN_HOME_DIR, "terminal-host.pid");
 
