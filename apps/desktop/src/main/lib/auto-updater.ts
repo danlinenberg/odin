@@ -47,7 +47,7 @@ const LATEST_RELEASE_API = `https://api.github.com/repos/${REPO_SLUG}/releases/l
 // /releases/latest/download always points at the newest build.
 const DMG_URL = `https://github.com/${REPO_SLUG}/releases/latest/download/Odin-arm64.dmg`;
 
-const UPDATE_CHECK_INTERVAL_MS = 1000 * 60 * 60 * 4; // 4 hours
+const UPDATE_CHECK_INTERVAL_MS = 1000 * 60 * 60; // 1 hour
 
 /** The installed bundle - usually /Applications/Odin.app, wherever it lives. */
 function appBundlePath(): string {
@@ -255,7 +255,7 @@ async function runCheck({ userAsked }: { userAsked: boolean }): Promise<void> {
 	if (staged) {
 		isDismissed = false;
 		emitStatus(AUTO_UPDATE_STATUS.READY, staged.version);
-		await offerRestart(staged.version);
+		await restartIntoUpdate(staged.version);
 		return;
 	}
 
@@ -283,24 +283,12 @@ async function runCheck({ userAsked }: { userAsked: boolean }): Promise<void> {
 		log.info(
 			`[auto-updater] Update available: ${app.getVersion()} → ${latest}`,
 		);
-		const { response } = await dialog.showMessageBox({
-			type: "info",
-			title: "Update Available",
-			message: `Odin ${latest} is available.`,
-			detail: `You're on ${app.getVersion()}. Downloading is about 280 MB.`,
-			buttons: ["Download", "Later"],
-			defaultId: 0,
-			cancelId: 1,
-		});
-		if (response !== 0) {
-			emitStatus(AUTO_UPDATE_STATUS.IDLE);
-			return;
-		}
-
+		// Updates are mandatory: no "Later". Every install runs the newest
+		// release, so a fix ships to everyone once it is released.
 		emitStatus(AUTO_UPDATE_STATUS.DOWNLOADING, latest);
 		staged = { version: latest, ...(await downloadAndMount(latest)) };
 		emitStatus(AUTO_UPDATE_STATUS.READY, latest);
-		await offerRestart(latest);
+		await restartIntoUpdate(latest);
 	} catch (error) {
 		if (isNetworkError(error)) {
 			log.info("[auto-updater] Network unavailable, will retry later");
@@ -329,18 +317,16 @@ async function runCheck({ userAsked }: { userAsked: boolean }): Promise<void> {
 	}
 }
 
-async function offerRestart(version: string): Promise<void> {
-	const { response } = await dialog.showMessageBox({
+async function restartIntoUpdate(version: string): Promise<void> {
+	await dialog.showMessageBox({
 		type: "info",
 		title: "Update Ready",
 		message: `Odin ${version} is ready to install.`,
 		detail:
 			"Odin will quit, swap itself out and reopen. Open terminal sessions survive.",
-		buttons: ["Restart Now", "Later"],
-		defaultId: 0,
-		cancelId: 1,
+		buttons: ["Restart Now"],
 	});
-	if (response === 0) installUpdate();
+	installUpdate();
 }
 
 export function checkForUpdates(): void {
