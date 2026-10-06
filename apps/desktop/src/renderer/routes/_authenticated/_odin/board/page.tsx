@@ -3637,7 +3637,7 @@ function DevBoardPage() {
 																		agent running
 																	</div>
 																)}
-																{/* ponytail: the "Needs you"/"Done" headers already say
+																{/* ponytail: the "Needs you"/"Final Review" headers already say
 															    the rest - only a failure adds anything. pane.status is
 															    the raw one; the column merges prompts and failures. */}
 																{card.status === "permission" &&

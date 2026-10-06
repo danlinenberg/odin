@@ -128,7 +128,7 @@ function buildHostServiceSubmenu(): MenuItemConstructorOptions[] {
 const SECTIONS: { column: PaneStatus; label: string }[] = [
 	{ column: "permission", label: "Needs you" },
 	{ column: "working", label: "Working" },
-	{ column: "review", label: "Done" },
+	{ column: "review", label: "Final Review" },
 	{ column: "idle", label: "Idle" },
 ];
 

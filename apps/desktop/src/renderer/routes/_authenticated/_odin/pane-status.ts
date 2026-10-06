@@ -18,7 +18,7 @@ export const PANE_STATUS: Record<PaneStatus, { dot: string; label: string }> = {
 	// "permission" is the hook event (PermissionRequest), not a word for people:
 	// the session is blocked on a prompt or a question.
 	permission: { dot: "var(--attention)", label: "Needs you" },
-	review: { dot: "var(--success)", label: "Done" },
+	review: { dot: "var(--success)", label: "Final Review" },
 	// Idle is grey: nothing is running and nothing is wrong. Red is kept for
 	// a failure, so a parked column no longer reads as a column of errors.
 	idle: { dot: "var(--faint-foreground)", label: "Idle" },
