@@ -16,6 +16,7 @@ import {
 	ROW_PRIMARY_BUTTON,
 } from "../components/FeedChrome";
 import { PILL } from "../components/pill";
+import { askSessionContext } from "../components/SessionContextDialog";
 import {
 	BuiltinChip,
 	PriorityChip,
@@ -70,9 +71,12 @@ function MyTasksPage() {
 	};
 
 	const handleStart = async (task: OdinTask) => {
+		const context = await askSessionContext(task.title);
+		if (!context) return;
 		const ensured = await ensureWorkspace();
 		if (!ensured.ok) return toast.error(ensured.error);
 		const result = await launch({
+			...context,
 			key: task.id,
 			workspaceId: ensured.workspace.id,
 			title: task.title,

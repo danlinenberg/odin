@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useTabsStore } from "renderer/stores/tabs/store";
+import { askSessionContext } from "../components/SessionContextDialog";
 import { useMyTasks } from "../hooks/useOdinTasks";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePaneMeta } from "../hooks/usePaneMeta";
@@ -50,6 +51,9 @@ export function useStartAllItem(onSlackStarted?: () => void) {
 	 * instead of pulling the board into view.
 	 */
 	const start = async (item: AllItem, offHours?: { instructions: string }) => {
+		// Nobody is there to answer at night.
+		const context = offHours ? {} : await askSessionContext(item.launch.title);
+		if (!context) return;
 		const ensured = await ensureWorkspace();
 		if (!ensured.ok) return toast.error(ensured.error);
 		const description = [item.launch.description, offHours?.instructions]
@@ -57,6 +61,7 @@ export function useStartAllItem(onSlackStarted?: () => void) {
 			.join("\n\n");
 		const result = await launch({
 			...item.launch,
+			...context,
 			description: description || null,
 			workspaceId: ensured.workspace.id,
 			...(offHours ? { tags: ["off-hours"] } : {}),

@@ -29,6 +29,7 @@ import {
 import { FeedError } from "../components/FeedError";
 import { isBot } from "../components/feed-counts";
 import { PersonChip } from "../components/PersonChip";
+import { askSessionContext } from "../components/SessionContextDialog";
 import { buildReviewPrompt } from "../feed-prompts";
 import { useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
@@ -152,10 +153,13 @@ function MyPullRequestsPage() {
 	);
 
 	const handleStart = async (pull: (typeof pulls)[number]) => {
+		const title = `${pull.repo}#${pull.number}: ${pull.title}`;
+		const context = await askSessionContext(title);
+		if (!context) return;
 		const ensured = await ensureWorkspace();
 		if (!ensured.ok) return toast.error(ensured.error);
-		const title = `${pull.repo}#${pull.number}: ${pull.title}`;
 		const result = await launch({
+			...context,
 			key: pull.url,
 			workspaceId: ensured.workspace.id,
 			title,

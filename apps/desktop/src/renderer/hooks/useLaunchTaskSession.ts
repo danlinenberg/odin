@@ -28,6 +28,10 @@ export function quote(path: string): string {
 	return `'${path.replaceAll("'", `'\\''`)}'`;
 }
 
+/** Heads the context a person added when they started the session. */
+export const GUIDELINES_HEADER =
+	"Context and guidelines from me for this session - keep them in mind throughout:";
+
 export function buildPrompt(
 	title: string,
 	description: string | null,
@@ -36,6 +40,7 @@ export function buildPrompt(
 	unattended = false,
 	rules: OdinRule[] = [],
 	checkout = "",
+	guidelines = "",
 ): string {
 	return [
 		// A skill leads the prompt, on its own line, with the title as its
@@ -57,6 +62,7 @@ export function buildPrompt(
 						: []),
 				]
 			: []),
+		...(guidelines.trim() ? ["", GUIDELINES_HEADER, guidelines.trim()] : []),
 		"",
 		"Work in the current workspace. Investigate, make the changes, and verify them when practical.",
 		// A subagent or a background Bash runs it where nobody can see it; the
@@ -193,6 +199,7 @@ export function useLaunchTaskSession() {
 		repoPath,
 		key,
 		now,
+		guidelines,
 	}: {
 		workspaceId: string;
 		/** Caller's row id - echoed back as `launchingKey` while this runs. */
@@ -232,6 +239,8 @@ export function useLaunchTaskSession() {
 		skill?: string;
 		/** Start now regardless of how loaded the machine is. */
 		now?: boolean;
+		/** Context the person added at start (`askSessionContext`). */
+		guidelines?: string;
 	}): Promise<
 		| {
 				ok: true;
@@ -340,6 +349,7 @@ export function useLaunchTaskSession() {
 						tags?.some((tag) => tag === "automation" || tag === "off-hours"),
 						useOdinRules.getState().rules,
 						checkout,
+						guidelines,
 					),
 					encoding: "utf-8",
 				});

@@ -419,6 +419,17 @@ await step("a new profile sees none of the first one's tasks", async () => {
 	await waitForText(TASK);
 });
 
+await step("starting a task asks for optional context first", async () => {
+	await rail("Tasks");
+	await waitForText(TASK);
+	await click("button", "Start session");
+	await waitForText("leave it empty to start as is");
+	await click("button", "Cancel");
+	await waitForText("leave it empty to start as is", false);
+	if (fakeClaudeRuns().some((r) => r.args.includes(TASK)))
+		throw new Error("Cancel still started a session");
+});
+
 await step("Done takes a task off the list", async () => {
 	await rail("Tasks");
 	await waitForText(TASK);
