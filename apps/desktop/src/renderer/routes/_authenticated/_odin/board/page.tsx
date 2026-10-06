@@ -4184,6 +4184,45 @@ function DevBoardPage() {
 													: "↻ Resume"}
 								</button>
 							)}
+							{/* The drawer keeps Esc for itself, so a turn needs its own stop:
+							    Ctrl+C, which stops Claude mid-turn. Only while working - at
+							    an idle prompt a second Ctrl+C quits Claude. */}
+							{drawerCard.pane.type === "terminal" && (
+								<button
+									type="button"
+									disabled={!isWorkingNow(drawerCard.pane.id)}
+									title={
+										isWorkingNow(drawerCard.pane.id)
+											? "Stop the agent (sends Ctrl+C to the session)"
+											: "Nothing to interrupt - the agent isn't working"
+									}
+									onClick={() => {
+										const paneId = drawerCard.pane.id;
+										utils.client.terminal.write.mutate({
+											paneId,
+											data: "\x03",
+										});
+										// Claude fires no Stop hook on an interrupt, so the card would
+										// read Working until the scan - and a second click would land
+										// Ctrl+C at the idle prompt and start quitting it. Same as Park.
+										useTabsStore.setState((state) => ({
+											panes: {
+												...state.panes,
+												[paneId]: { ...state.panes[paneId], status: "idle" },
+											},
+										}));
+									}}
+									className={cn(
+										"rounded-[7px] px-3 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50",
+										BUTTON.secondary,
+									)}
+								>
+									■ Interrupt
+								</button>
+							)}
+							{/* Done, Remind and Minimize sit right; RemindButton wraps its button
+							    in a span, so the gap is a spacer rather than ml-auto. */}
+							<div className="flex-1" />
 							{/* Catch up has its own ✓ Done and ‹ below and above the card. */}
 							{!inCatchUp && (
 								<button
@@ -4203,7 +4242,7 @@ function DevBoardPage() {
 								label="Remind me"
 								className={cn(
 									"rounded-[7px] px-3 py-1.5 text-xs font-semibold",
-									BUTTON.secondary,
+									BUTTON.remind,
 								)}
 							/>
 							{!inCatchUp && (
@@ -4211,11 +4250,11 @@ function DevBoardPage() {
 									type="button"
 									onClick={() => setDrawerCard(null)}
 									className={cn(
-										"ml-auto rounded-[7px] px-3 py-1.5 text-xs font-semibold",
+										"rounded-[7px] px-3 py-1.5 text-xs font-semibold",
 										BUTTON.secondary,
 									)}
 								>
-									Close
+									Minimize Session
 								</button>
 							)}
 						</div>
