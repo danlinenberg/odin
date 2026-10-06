@@ -4136,17 +4136,9 @@ function DevBoardPage() {
 									■ Interrupt
 								</button>
 							)}
-							{/* Remind, Done and Minimize sit right; RemindButton wraps its button
+							{/* Done, Remind and Minimize sit right; RemindButton wraps its button
 							    in a span, so the gap is a spacer rather than ml-auto. */}
 							<div className="flex-1" />
-							<RemindButton
-								onPick={(day) => remindMe(drawerCard, day)}
-								label="Remind me"
-								className={cn(
-									"rounded-[7px] px-3 py-1.5 text-xs font-semibold",
-									BUTTON.remind,
-								)}
-							/>
 							{/* Catch up has its own ✓ Done and ‹ below and above the card. */}
 							{!inCatchUp && (
 								<button
@@ -4157,6 +4149,14 @@ function DevBoardPage() {
 										"rounded-[7px] px-3 py-1.5 text-xs font-semibold",
 										BUTTON.done,
 									)}
+							<RemindButton
+								onPick={(day) => remindMe(drawerCard, day)}
+								label="Remind me"
+								className={cn(
+									"rounded-[7px] px-3 py-1.5 text-xs font-semibold",
+									BUTTON.remind,
+								)}
+							/>
 								>
 									✓ Done
 								</button>
