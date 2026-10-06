@@ -440,7 +440,7 @@ await step("Read later moves a task to Reading material and back", async () => {
 	await click("button", "Reading material");
 	await waitForText(TASK);
 	await waitForText("saved");
-	await click("button", "Undo");
+	await click("button", "Put it back");
 	await click("button", "Reading material");
 	await waitForText(TASK);
 });
