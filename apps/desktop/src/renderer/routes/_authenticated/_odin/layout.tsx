@@ -40,6 +40,7 @@ import {
 	useReminders,
 } from "./components/Reminders";
 import { QuickAddTask } from "./components/TaskBox";
+import { UpdateBanner } from "./components/UpdateBanner";
 import { useAutomationRunner } from "./hooks/useAutomationRunner";
 import { usePeriodicSweep } from "./hooks/useBacklogReview";
 import {
@@ -573,6 +574,7 @@ function OdinShell() {
 					</div>
 				</ZoomStable>
 			</div>
+			<UpdateBanner />
 
 			<div className="flex min-h-0 flex-1">
 				{/* icon rail */}

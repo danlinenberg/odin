@@ -1,6 +1,8 @@
 export const AUTO_UPDATE_STATUS = {
 	IDLE: "idle",
 	CHECKING: "checking",
+	/** A newer release exists; nothing downloads until the user asks */
+	AVAILABLE: "available",
 	DOWNLOADING: "downloading",
 	READY: "ready",
 	/** Transient: the app just relaunched on a new version after an install */
