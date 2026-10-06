@@ -18,6 +18,7 @@ import { join } from "node:path";
 import { ODIN_HOME_DIR } from "main/lib/app-environment";
 import {
 	firstPrompt,
+	opensPr,
 	projectsRoot,
 	repoOfDir,
 	type SessionPerson,
@@ -145,14 +146,14 @@ export function totalMs(intervals: Interval[]): number {
 const PR_URL = /https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/g;
 
 /**
- * PRs a transcript opened: the url `gh pr create` printed. Only lines that can
+ * PRs a transcript opened: the url the creating command printed. Only lines that can
  * hold one are parsed, so this stays cheap next to the regex scan.
  */
 export function openedPrs(jsonl: string): { url: string; at: number | null }[] {
 	const creates = new Set<string>();
 	const prs = new Map<string, number | null>();
 	for (const line of jsonl.split("\n")) {
-		if (!line.includes("gh pr create") && !line.includes("/pull/")) continue;
+		if (!line.includes("gh pr create") && !line.includes("/pull")) continue;
 		let entry: {
 			isSidechain?: boolean;
 			timestamp?: string;
@@ -168,7 +169,7 @@ export function openedPrs(jsonl: string): { url: string; at: number | null }[] {
 		for (const block of content) {
 			if (
 				block?.type === "tool_use" &&
-				/\bgh pr create\b/.test(String(block.input?.command ?? ""))
+				opensPr(String(block.input?.command ?? ""))
 			)
 				creates.add(block.id);
 			else if (block?.type === "tool_result" && creates.has(block.tool_use_id))

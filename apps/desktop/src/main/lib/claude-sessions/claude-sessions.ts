@@ -589,7 +589,7 @@ export function parseTranscript(
 				if (
 					block?.type === "tool_use" &&
 					block.name === "Bash" &&
-					/\bgh pr create\b/.test(String(block.input?.command ?? ""))
+					opensPr(String(block.input?.command ?? ""))
 				)
 					prCreates.add(block.id);
 				else if (
@@ -758,6 +758,25 @@ export interface RuleFiring {
 const PR_ACTION =
 	/(?:^|[;&|])\s*(?:\w+=\S*\s+)*(?:gh pr (?:create|edit|ready)|git\b[^;&|\n]*?\spush)\b/m;
 const PR_URL = /https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/g;
+
+/**
+ * A Bash command that opens a PR: `gh pr create`, or a POST to the REST
+ * `pulls` endpoint itself (the fallback when GraphQL is rate-limited) - not a
+ * comment or review on one, `pulls/<n>/...`. Only in command position: a
+ * `grep "gh pr create"` prints PR urls that are not this session's.
+ */
+const GH_COMMAND =
+	/(?:^|[;&|(])\s*(?:\w+=(?:\$\([^)]*\)|\S*)\s+)*gh (pr create\b|api\b[^;&|\n]*)/gm;
+export function opensPr(command: string): boolean {
+	for (const [, args = ""] of command.matchAll(GH_COMMAND))
+		if (
+			args.startsWith("pr create") ||
+			(/\/pulls(?![/\w])/.test(args) &&
+				/(?:-X|--method)[\s=]*POST\b/i.test(args))
+		)
+			return true;
+	return false;
+}
 
 /** A rule line's repo pin, as `ruleLine` writes it. */
 const RULE_SCOPE = / \((only|except) in the repos? at ([^)]+)\):/;
