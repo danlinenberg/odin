@@ -8,8 +8,8 @@ import { useNavigate } from "@tanstack/react-router";
 import { useRef } from "react";
 import { LuBellRing } from "react-icons/lu";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
-import { openUrl } from "renderer/stores/in-app-browser";
 import { allItems } from "../all/all-items";
+import { useStartAllItem } from "../all/use-start-item";
 import { BUTTON } from "../components/pill";
 import { dayOf, dueLabel, isDue, useReminders } from "../components/Reminders";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
@@ -52,13 +52,15 @@ export function useResumeReminder() {
 }
 
 /**
- * Go to what a dated reminder points at: a board card opens its drawer, a feed
- * row opens its link (or its feed, when it has none). Snoozed sessions resume
- * instead - see useResumeReminder.
+ * Go to the session behind a dated reminder: a board card opens its drawer, a
+ * feed row opens the session working it - or starts one, the way All's Start
+ * session does. A row that has left its feed goes to All.
+ * Snoozed sessions resume instead - see useResumeReminder.
  */
 export function useOpenReminder() {
 	const { reactions, jira, pulls, notion, emails } = useOdinFeeds();
 	const navigate = useNavigate();
+	const { start, livePaneFor } = useStartAllItem();
 	return (key: string) => {
 		if (key.startsWith("session:")) {
 			usePendingFocus.getState().focus(key.slice("session:".length));
@@ -73,8 +75,13 @@ export function useOpenReminder() {
 			// Junk too: All hides calendar mail, but one you dated is one you want.
 			emails: (emails.data?.emails ?? []).map((e) => ({ ...e, junk: false })),
 		}).find((row) => row.key === key);
-		if (item?.url) return openUrl(item.url);
-		navigate({ to: item?.to ?? "/all" });
+		if (item) {
+			const paneId = livePaneFor(item);
+			if (!paneId) return void start(item);
+			usePendingFocus.getState().focus(paneId);
+			return void navigate({ to: "/board" });
+		}
+		navigate({ to: "/all" });
 	};
 }
 
