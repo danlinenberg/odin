@@ -4110,30 +4110,32 @@ function DevBoardPage() {
 													: "↻ Resume"}
 								</button>
 							)}
-							{/* The drawer keeps Esc for itself, so a turn needs its own stop. */}
+							{/* The drawer keeps Esc for itself, so a turn needs its own stop:
+							    Ctrl+C, which stops Claude mid-turn. Only while working - at
+							    an idle prompt a second Ctrl+C quits Claude. */}
 							{drawerCard.pane.type === "terminal" && (
-									<button
-										type="button"
-										disabled={!isWorkingNow(drawerCard.pane.id)}
-										title={
-											isWorkingNow(drawerCard.pane.id)
-												? "Interrupt the agent (sends Esc to the session)"
-												: "Nothing to interrupt - the agent isn't working"
-										}
-										onClick={() =>
-											utils.client.terminal.write.mutate({
-												paneId: drawerCard.pane.id,
-												data: "\x1b",
-											})
-										}
-										className={cn(
-											"rounded-[7px] px-3 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50",
-											BUTTON.secondary,
-										)}
-									>
-										■ Interrupt
-									</button>
-								)}
+								<button
+									type="button"
+									disabled={!isWorkingNow(drawerCard.pane.id)}
+									title={
+										isWorkingNow(drawerCard.pane.id)
+											? "Stop the agent (sends Ctrl+C to the session)"
+											: "Nothing to interrupt - the agent isn't working"
+									}
+									onClick={() =>
+										utils.client.terminal.write.mutate({
+											paneId: drawerCard.pane.id,
+											data: "\x03",
+										})
+									}
+									className={cn(
+										"rounded-[7px] px-3 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50",
+										BUTTON.secondary,
+									)}
+								>
+									■ Interrupt
+								</button>
+							)}
 							<RemindButton
 								onPick={(day) => remindMe(drawerCard, day)}
 								label="Remind me"
