@@ -296,7 +296,9 @@ export async function MainWindow() {
 			if (initialBounds.isMaximized) {
 				window.maximize();
 			}
-			window.show();
+			// Smoke runs (scripts/smoke.ts) must not steal focus from the user.
+			if (process.env.ODIN_SMOKE) window.showInactive();
+			else window.show();
 			initialized = true;
 			hasCompletedFirstLoad = true;
 		}

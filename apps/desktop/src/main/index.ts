@@ -387,6 +387,8 @@ if (!gotTheLock) {
 
 	(async () => {
 		await app.whenReady();
+		// A smoke run (scripts/smoke.ts) gets no Dock icon or app switcher entry.
+		if (process.env.ODIN_SMOKE) app.dock?.hide();
 		registerWithMacOSNotificationCenter();
 		// The one permission worth asking for up front: an Automation prompt
 		// mid-session blocks the osascript an agent just ran. Everything else
