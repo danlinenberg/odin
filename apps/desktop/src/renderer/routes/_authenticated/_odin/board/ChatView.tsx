@@ -1,12 +1,15 @@
 import { odinIcon } from "@odin/ui/icons/preset-icons";
 import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LuChevronRight, LuSquareTerminal, LuTerminal } from "react-icons/lu";
 import { MarkdownRenderer } from "renderer/components/MarkdownRenderer";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { openUrl } from "renderer/stores/in-app-browser";
 import { useSessionView } from "renderer/stores/session-view";
 import { COMPACT_MARKDOWN } from "../components/TranscriptView";
+import { PlanCard, QuestionCard } from "./ChatPrompts";
+import { collectRefs, linkify } from "./chat-links";
 
 type Item =
 	| { kind: "user"; id: string; text: string }
@@ -326,13 +329,13 @@ export function segments(items: Item[]): (Item | Tool[])[] {
 }
 
 /** A question or plan approval Claude is still waiting on - a menu only the TUI draws. */
-function asking(items: Item[]): boolean {
+function asking(items: Item[]): Tool | null {
 	const last = items.at(-1);
-	return (
-		last?.kind === "tool" &&
+	return last?.kind === "tool" &&
 		last.result === undefined &&
 		(last.name === "AskUserQuestion" || last.name === "ExitPlanMode")
-	);
+		? last
+		: null;
 }
 
 const VERBS: Record<string, [string, string]> = {
@@ -434,12 +437,15 @@ function UserBubble({ text, pending }: { text: string; pending?: boolean }) {
  * Its own dark tile, brightened and ringed so the lines read on the drawer;
  * a violet screen-blend washed it out.
  */
-function OdinMark() {
+function OdinMark({ className }: { className?: string }) {
 	return (
 		<img
 			src={odinIcon}
 			alt=""
-			className="size-7 shrink-0 rounded-lg ring-1 ring-white/20 brightness-150 contrast-[1.15]"
+			className={cn(
+				"size-7 shrink-0 rounded-lg ring-1 ring-white/20 brightness-150 contrast-[1.15]",
+				className,
+			)}
 		/>
 	);
 }
@@ -480,6 +486,7 @@ function ActionItems({
 	text: string;
 	onDo?: (item: string, number: number) => void;
 }) {
+	// text arrives linkified from ItemView.
 	const items = onDo ? actionItemList(text) : [];
 	const [sent, setSent] = useState<Set<number>>(new Set());
 	return (
@@ -531,30 +538,40 @@ function ActionItems({
 	);
 }
 
-const ItemView = memo(function ItemView({
-	item,
-	onDo,
-}: {
-	item: Item;
-	onDo?: (item: string, number: number) => void;
-}) {
-	if (item.kind === "tool") return <ToolRow item={item} />;
-	if (item.kind === "user") return <UserBubble text={item.text} />;
-	const { body, actions } = splitActionItems(item.text);
-	return (
-		<div className="select-text cursor-text">
-			{body && (
-				<MarkdownRenderer
-					content={body}
-					style="default"
-					allowHtml={false}
-					className={COMPACT_MARKDOWN}
-				/>
-			)}
-			{actions && <ActionItems text={actions} onDo={onDo} />}
-		</div>
-	);
-});
+const ItemView = memo(
+	function ItemView({
+		item,
+		refs,
+		onDo,
+	}: {
+		item: Item;
+		refs: Map<string, string>;
+		/** Changes only when a new ref appears - the memo's cue to re-link. */
+		refsKey: string;
+		onDo?: (item: string, number: number) => void;
+	}) {
+		if (item.kind === "tool") return <ToolRow item={item} />;
+		if (item.kind === "user") return <UserBubble text={item.text} />;
+		const { body, actions } = splitActionItems(linkify(item.text, refs));
+		return (
+			<div className="select-text cursor-text">
+				{body && (
+					<MarkdownRenderer
+						content={body}
+						style="default"
+						allowHtml={false}
+						className={COMPACT_MARKDOWN}
+					/>
+				)}
+				{actions && <ActionItems text={actions} onDo={onDo} />}
+			</div>
+		);
+	},
+	(prev, next) =>
+		prev.item === next.item &&
+		prev.refsKey === next.refsKey &&
+		prev.onDo === next.onDo,
+);
 
 /**
  * A live session as Claude Code looks in the Claude desktop app: prose,
@@ -599,6 +616,34 @@ export function ChatView({
 			? transcriptPath(home, startCwd, sessionId)
 			: null;
 	const { items, missing, poke } = useLiveItems(path, workspaceId);
+	// PR and ticket refs this session has URLs for, so "#676" can link.
+	const refs = useMemo(
+		() =>
+			collectRefs(
+				items.map((item) =>
+					item.kind === "tool"
+						? `${JSON.stringify(item.input)} ${(item.result ?? "").slice(0, 20_000)}`
+						: item.text,
+				),
+			),
+		[items],
+	);
+	const refsKey = [...refs.keys()].join(" ");
+	const write = electronTrpc.terminal.write.useMutation();
+	// A menu answer is a few keys in a row; each needs the TUI to have redrawn
+	// before the next lands.
+	const sendKeys = async (keys: string[]) => {
+		try {
+			for (const key of keys) {
+				await write.mutateAsync({ paneId, data: key });
+				await new Promise((resolve) => setTimeout(resolve, 250));
+			}
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : String(error));
+		}
+		for (const ms of [300, 1000, 2500]) setTimeout(poke, ms);
+	};
+	const prompt = onShowTerminal ? asking(items) : null;
 	// What you just sent, shown at once - Claude writes it to the transcript a
 	// beat later, and that echo replaces it.
 	const [pending, setPending] = useState<{ id: number; text: string }[]>([]);
@@ -661,6 +706,14 @@ export function ChatView({
 					pinnedRef.current =
 						el.scrollHeight - el.scrollTop - el.clientHeight < 80;
 				}}
+				// Links open in Odin's browser, like everywhere else on the board.
+				onClickCapture={(event) => {
+					const anchor = (event.target as HTMLElement).closest("a");
+					if (anchor?.href.startsWith("http")) {
+						event.preventDefault();
+						openUrl(anchor.href);
+					}
+				}}
 				className="min-h-0 flex-1 overflow-y-auto px-8 py-6"
 			>
 				<div className="flex flex-col gap-2.5">
@@ -678,7 +731,14 @@ export function ChatView({
 							(index === 0 ||
 								(!Array.isArray(previous) && previous?.kind === "user"));
 						if (!Array.isArray(segment) && segment.kind === "user")
-							return <ItemView key={segment.id} item={segment} />;
+							return (
+								<ItemView
+									key={segment.id}
+									item={segment}
+									refs={refs}
+									refsKey={refsKey}
+								/>
+							);
 						const key = Array.isArray(segment) ? segment[0]?.id : segment.id;
 						return (
 							<div
@@ -695,6 +755,8 @@ export function ChatView({
 									) : (
 										<ItemView
 											item={segment}
+											refs={refs}
+											refsKey={refsKey}
 											onDo={onShowTerminal ? doItem : undefined}
 										/>
 									)}
@@ -705,12 +767,37 @@ export function ChatView({
 					{pending.map((sent) => (
 						<UserBubble key={sent.id} text={sent.text} pending />
 					))}
-					{working && (
+					{prompt && (
+						<div className={cn("flex min-w-0 gap-3", ENTER)}>
+							<OdinMark />
+							<div className="min-w-0 flex-1">
+								{prompt.name === "AskUserQuestion" ? (
+									<QuestionCard
+										key={prompt.id}
+										input={prompt.input}
+										onKeys={sendKeys}
+									/>
+								) : (
+									<PlanCard
+										key={prompt.id}
+										input={prompt.input}
+										onKeys={sendKeys}
+									/>
+								)}
+								<button
+									type="button"
+									onClick={onShowTerminal}
+									className="mt-1.5 text-[11.5px] text-muted-foreground hover:text-foreground"
+								>
+									Answer in Terminal View instead
+								</button>
+							</div>
+						</div>
+					)}
+					{working && !prompt && (
 						<div className="flex items-center gap-3 text-[12.5px] text-working">
-							{/* The board card's "agent running" spinner, in the icon's column. */}
-							<span className="flex w-7 shrink-0 justify-center">
-								<span className="size-[11px] animate-spin rounded-full border-[1.5px] border-working border-t-transparent" />
-							</span>
+							{/* Odin's icon, nodding along while Claude works. */}
+							<OdinMark className="animate-[odin-nod_1.6s_ease-in-out_infinite]" />
 							Working…
 						</div>
 					)}
@@ -718,25 +805,15 @@ export function ChatView({
 			</div>
 			{onShowTerminal ? (
 				<>
-					{asking(items) && (
-						<div className="px-5 pb-1 text-[12px] text-muted-foreground">
-							Claude is asking you a question - its choices only show in the
-							terminal:{" "}
-							<button
-								type="button"
-								onClick={onShowTerminal}
-								className="text-link hover:underline"
-							>
-								answer it there
-							</button>
-						</div>
+					{/* While a menu waits, typed text would land in it - the card answers. */}
+					{!prompt && (
+						<Composer
+							paneId={paneId}
+							working={working}
+							onSent={onSent}
+							onStop={onStop}
+						/>
 					)}
-					<Composer
-						paneId={paneId}
-						working={working}
-						onSent={onSent}
-						onStop={onStop}
-					/>
 				</>
 			) : (
 				<div className="border-t border-border px-5 py-2 text-center text-[11.5px] text-muted-foreground">
