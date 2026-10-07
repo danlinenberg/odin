@@ -191,3 +191,21 @@ test("detectReposFolder picks the home folder holding the most repos", () => {
 		detectReposFolder(["/Users/x/dotfiles", "/opt/repo"], home),
 	).toBeNull();
 });
+
+test("renderDiff keeps a long line whole when wrapping is off", async () => {
+	const repo = mkdtempSync(join(tmpdir(), "odin-diff-"));
+	const git = (...args: string[]) =>
+		execFileSync("git", args, { cwd: repo, encoding: "utf8" });
+	git("init", "-q");
+	git("config", "user.email", "test@example.com");
+	git("config", "user.name", "test");
+	writeFileSync(join(repo, "a.txt"), "one\n");
+	git("add", "a.txt");
+	git("commit", "-qm", "add a");
+	writeFileSync(join(repo, "a.txt"), `${"x".repeat(150)}\n`);
+
+	const whole = (ansi: string) =>
+		ansi.split("\n").some((line) => line.includes("x".repeat(150)));
+	expect(whole((await renderDiff(repo, 80)).ansi)).toBe(false);
+	expect(whole((await renderDiff(repo, 80, undefined, false)).ansi)).toBe(true);
+});
