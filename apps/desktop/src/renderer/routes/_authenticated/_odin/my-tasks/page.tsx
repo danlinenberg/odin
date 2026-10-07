@@ -13,7 +13,7 @@ import {
 	FeedHeader,
 	ROW_LIVE_BUTTON,
 	ROW_META,
-	ROW_PRIMARY_BUTTON,
+	ROW_START_BUTTON,
 } from "../components/FeedChrome";
 import { PILL } from "../components/pill";
 import { askSessionContext } from "../components/SessionContextDialog";
@@ -225,7 +225,7 @@ function MyTasksPage() {
 											type="button"
 											disabled={isLaunching}
 											onClick={() => void handleStart(task)}
-											className={ROW_PRIMARY_BUTTON}
+											className={ROW_START_BUTTON}
 										>
 											{launchingKey === task.id ? "Starting…" : "Start session"}
 										</button>
