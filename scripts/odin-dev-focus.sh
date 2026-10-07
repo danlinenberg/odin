@@ -60,6 +60,23 @@ dev_stack_pid() {
 pid="$(dev_ui_pid)"
 stack="$(dev_stack_pid)"
 
+# A stack can outlive its UI: when the dev Electron quits, turbo's node stays
+# up, so odin-dev.sh never returns and the check above reads "booting" forever -
+# the hotkey did nothing at all. A boot that's had 3 minutes with no window is
+# dead; drop it and start over (odin-dev.sh pkills the leftover turbo).
+# etime is [[dd-]hh:]mm:ss - macOS ps has no etimes.
+etime_seconds() {
+  awk '{d=0; t=$1; if (index(t, "-")) { split(t, a, "-"); d=a[1]; t=a[2] }
+        n=split(t, p, ":"); s=0; for (i=1; i<=n; i++) s=s*60+p[i]; print d*86400+s}'
+}
+if [[ -z "$pid" && -n "$stack" ]]; then
+  age="$(ps -o etime= -p "$stack" | etime_seconds)"
+  if [[ "${age:-0}" -gt 180 ]]; then
+    echo "odin-dev.sh pid $stack has run ${age}s with no UI - restarting"
+    stack=""
+  fi
+fi
+
 if [[ "${1:-}" == "--check" ]]; then
   if [[ -n "$pid" ]]; then echo "dev UI running, pid $pid"; else echo "dev UI not running"; fi
   if [[ -n "$stack" ]]; then echo "dev stack alive, odin-dev.sh pid $stack"; fi
