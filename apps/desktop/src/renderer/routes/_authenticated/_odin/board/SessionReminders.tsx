@@ -85,11 +85,23 @@ export function useOpenReminder() {
 	};
 }
 
+/** The leading Jira key of a title ("CRR-917: Add ..." -> "CRR-917"), if any. */
+export function ticketKey(title: string): string | null {
+	return /^([A-Z][A-Z0-9]+-\d+)\b/.exec(title.trim())?.[1] ?? null;
+}
+
 export function remindSession(
 	session: { sessionId: string; cwd: string; title: string; brief?: string },
 	day: string,
 ): void {
-	useReminders.getState().setReminder(PREFIX + session.sessionId, {
+	const { reminders, clear, setReminder } = useReminders.getState();
+	// A second session on the same ticket replaces the first one's reminder -
+	// otherwise the strip shows the ticket twice under two auto-titles.
+	const ticket = ticketKey(session.title);
+	if (ticket)
+		for (const [key, r] of Object.entries(reminders))
+			if (key.startsWith(PREFIX) && ticketKey(r.title) === ticket) clear(key);
+	setReminder(PREFIX + session.sessionId, {
 		due: day,
 		title: session.title,
 		resume: {
