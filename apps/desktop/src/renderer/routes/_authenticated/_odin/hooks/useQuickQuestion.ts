@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { parseDataUrl, quote } from "renderer/hooks/useLaunchTaskSession";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import * as terminalCache from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/v1-terminal-cache";
+import { claudeCli } from "renderer/stores/claude-command";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import type { Pane } from "renderer/stores/tabs/types";
 import { odinScreenStatus } from "shared/odin-screen-status";
@@ -99,7 +100,7 @@ export function useQuickQuestion() {
 			tabId,
 			workspaceId,
 			cwd,
-			command: `cd ${quote(cwd)} && claude --dangerously-skip-permissions --session-id ${sessionId}`,
+			command: `cd ${quote(cwd)} && ${claudeCli()} --session-id ${sessionId}`,
 		});
 		return paneId;
 	};
@@ -167,7 +168,7 @@ export function useQuickQuestion() {
 			tabId: pane.tabId,
 			workspaceId,
 			cwd,
-			command: `cd ${quote(cwd)} && claude --dangerously-skip-permissions --resume ${id}`,
+			command: `cd ${quote(cwd)} && ${claudeCli()} --resume ${id}`,
 			allowKilled: true,
 		});
 		return true;

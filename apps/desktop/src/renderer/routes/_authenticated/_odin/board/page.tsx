@@ -52,6 +52,7 @@ import { canClaimKeyboard } from "renderer/lib/keyboard";
 import { coldRestoreState } from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/state";
 import { Terminal } from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/Terminal";
 import * as terminalCache from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/v1-terminal-cache";
+import { claudeCli } from "renderer/stores/claude-command";
 import { useIdleClose } from "renderer/stores/idle-close";
 import { launchLimits, useLaunchLimits } from "renderer/stores/launch-limits";
 import { useSessionView } from "renderer/stores/session-view";
@@ -2826,7 +2827,7 @@ function DevBoardPage() {
 				}
 				queueResume(
 					card.pane,
-					`cd '${cwd}' && claude --dangerously-skip-permissions --resume ${id} Continue`,
+					`cd '${cwd}' && ${claudeCli()} --resume ${id} Continue`,
 					blocker,
 				);
 				return;
@@ -2927,8 +2928,8 @@ function DevBoardPage() {
 		// - the write was swallowed and the card needed another Resume click.
 		const resumeCmd = `${
 			sessionId
-				? `claude --dangerously-skip-permissions --resume ${sessionId}`
-				: "claude --dangerously-skip-permissions --continue"
+				? `${claudeCli()} --resume ${sessionId}`
+				: `${claudeCli()} --continue`
 		}${diedWorking ? " Continue" : ""}`;
 		// You resumed it to work in it - bring it up. The drawer swaps its
 		// read-only history for the live terminal once the PTY is back, and that

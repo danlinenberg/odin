@@ -2,8 +2,12 @@ import { ODIN_AUTO_RENAME_SESSIONS_DEFAULT } from "@odin/shared/constants";
 import { Button } from "@odin/ui/button";
 import { toast } from "@odin/ui/sonner";
 import { Switch } from "@odin/ui/switch";
+import { Textarea } from "@odin/ui/textarea";
 import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
+import { ClaudeCommandPicker } from "renderer/components/ClaudeCommandPicker";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { useClaudeCommand } from "renderer/stores/claude-command";
 import { useIdleClose } from "renderer/stores/idle-close";
 import { useLaunchLimits } from "renderer/stores/launch-limits";
 import type { LaunchLimits } from "shared/machine-load";
@@ -26,6 +30,7 @@ function SessionsSettingsPage() {
 		>
 			<SettingsSection title="Where they start">
 				<DefaultRepoRow />
+				<ClaudeCommandRow />
 			</SettingsSection>
 
 			<SettingsSection
@@ -129,6 +134,46 @@ function DefaultRepoRow() {
 					</Button>
 				)}
 			</div>
+		</SettingRow>
+	);
+}
+
+/**
+ * What Odin runs instead of `claude` - an alias or function from your shell
+ * rc works, the session shell sources it. One per line; two or more puts a
+ * picker in the top bar.
+ */
+function ClaudeCommandRow() {
+	const commands = useClaudeCommand((s) => s.commands);
+	const setCommands = useClaudeCommand((s) => s.setCommands);
+	const [draft, setDraft] = useState(commands.join("\n"));
+	const save = () =>
+		setCommands([
+			...new Set(
+				draft
+					.split("\n")
+					.map((line) => line.trim())
+					.filter(Boolean),
+			),
+		]);
+	return (
+		<SettingRow
+			label="Claude command"
+			htmlFor="claude-command"
+			description="What starts Claude in a new or resumed session, e.g. an alias for another account. One per line - with two or more, pick one in the top bar. Empty: claude."
+			stacked
+		>
+			<Textarea
+				id="claude-command"
+				value={draft}
+				placeholder="claude"
+				rows={3}
+				spellCheck={false}
+				className="font-mono text-xs"
+				onChange={(event) => setDraft(event.target.value)}
+				onBlur={save}
+			/>
+			<ClaudeCommandPicker className="mt-2" />
 		</SettingRow>
 	);
 }
