@@ -336,7 +336,7 @@ function ScrollbackView({ card, live }: { card: BoardCard; live: boolean }) {
  * A live session as a chat, Claude desktop style: the transcript as messages
  * and a box that types into the same PTY. Claude keeps running in its terminal
  * behind it - this is a different view of it, not a different session. Menus
- * the TUI draws (questions, plan approval) only show in the terminal.
+ * the TUI draws (questions, plan approval) hand the drawer back to the terminal.
  */
 function ChatView({ card, working }: { card: BoardCard; working: boolean }) {
 	const sessionId = useCardSessionId(card);
@@ -4185,7 +4185,11 @@ function DevBoardPage() {
 												Chat session - no terminal to embed.
 											</div>
 										</div>
-									) : agentPaneIds.has(drawerCard.pane.id) && chatView ? (
+									) : agentPaneIds.has(drawerCard.pane.id) &&
+										chatView &&
+										// A question or plan approval is a menu only the TUI draws -
+										// the chat can't answer it, so the terminal takes over.
+										panes[drawerCard.pane.id]?.status !== "permission" ? (
 										<ChatView
 											key={drawerCard.pane.id}
 											card={drawerCard}
