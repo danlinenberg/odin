@@ -6,6 +6,7 @@ import {
 	elapsedLabel,
 	emailLink,
 	jiraIssue,
+	jiraKey,
 	lastMessageAt,
 	launchPullRequest,
 	linkContext,
@@ -378,6 +379,15 @@ describe("sourceLink", () => {
 		// Slack-sourced cards: the brief is the message text, not a URL.
 		expect(sourceLink("Morning Dan, can you check?")).toBeNull();
 		expect(sourceLink(null)).toBeNull();
+	});
+});
+
+describe("jiraKey", () => {
+	it("reads the key from a browse link, ignoring its query", () => {
+		expect(
+			jiraKey("https://imagen.atlassian.net/browse/CRR-905?atlOrigin=x"),
+		).toBe("CRR-905");
+		expect(jiraKey("https://example.com/CRR-905")).toBeNull();
 	});
 });
 
