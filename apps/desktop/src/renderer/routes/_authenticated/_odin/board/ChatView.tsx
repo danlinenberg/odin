@@ -371,7 +371,7 @@ const ToolGroup = memo(
 				<button
 					type="button"
 					onClick={() => setOpen((value) => !value)}
-					className="flex min-w-0 max-w-full items-center gap-2 self-start rounded-lg border border-border bg-secondary/40 px-2.5 py-1 text-left text-[12px] text-muted-foreground hover:bg-secondary hover:text-foreground"
+					className="flex min-w-0 max-w-full items-center gap-2 self-start rounded-lg border border-border bg-secondary px-2.5 py-1 text-left text-[12px] text-soft-foreground hover:bg-accent hover:text-foreground"
 				>
 					<LuTerminal className="size-3.5 shrink-0" />
 					<span className="shrink-0">{groupSummary(tools)}</span>
@@ -424,17 +424,26 @@ function UserBubble({ text, pending }: { text: string; pending?: boolean }) {
 	);
 }
 
-/** Odin's icon, on the first block of each reply - who's talking, at a glance. */
+/**
+ * Odin's icon, on the first block of each reply - who's talking, at a glance.
+ * The icon is white lines on near-black, which vanished on the dark drawer;
+ * screen-blended over the primary button's gradient, the lines stay white and
+ * the tile turns violet.
+ */
 function OdinMark({ className }: { className?: string }) {
 	return (
-		<img
-			src={odinIcon}
-			alt=""
+		<span
 			className={cn(
-				"size-6 shrink-0 rounded-md shadow-[0_0_10px_-2px] shadow-primary/50 ring-1 ring-primary/40",
+				"flex size-7 shrink-0 overflow-hidden rounded-lg bg-gradient-to-br from-primary to-primary-ink shadow-[0_0_12px_-2px_color-mix(in_oklab,var(--primary)_70%,transparent)]",
 				className,
 			)}
-		/>
+		>
+			<img
+				src={odinIcon}
+				alt=""
+				className="size-full scale-125 mix-blend-screen"
+			/>
+		</span>
 	);
 }
 
@@ -598,7 +607,7 @@ export function ChatView({
 								key={Array.isArray(segment) ? segment[0]?.id : segment.id}
 								className="flex min-w-0 gap-3"
 							>
-								{opensReply ? <OdinMark /> : <span className="w-6 shrink-0" />}
+								{opensReply ? <OdinMark /> : <span className="w-7 shrink-0" />}
 								<div className="min-w-0 flex-1">
 									{Array.isArray(segment) ? (
 										<ToolGroup tools={segment} />
