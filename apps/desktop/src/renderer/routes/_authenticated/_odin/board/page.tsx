@@ -2588,12 +2588,20 @@ function DevBoardPage() {
 			// drawer is open, not just when it opens - it can only take the
 			// keyboard when nothing else has it.
 			if (!canClaimKeyboard()) return;
+			// Parked terminals are inert, so the first match can be one that
+			// silently refuses focus.
 			document
-				.querySelector<HTMLTextAreaElement>(".xterm-helper-textarea")
+				.querySelector<HTMLTextAreaElement>(
+					".xterm-helper-textarea:not(#terminal-parking *)",
+				)
 				?.focus();
 		};
-		const t = setTimeout(focus, 300);
-		return () => clearTimeout(t);
+		// A Resume respawns the PTY and remounts the xterm, which can land well
+		// after 300ms - one shot left Superwhisper pasting into nothing.
+		const timers = [300, 1200, 3500].map((ms) => setTimeout(focus, ms));
+		return () => {
+			for (const timer of timers) clearTimeout(timer);
+		};
 	}, [drawerCard, alivePaneIds]);
 
 	/**
@@ -3448,7 +3456,7 @@ function DevBoardPage() {
 									{cards.length}
 								</span>
 							</div>
-							<div className="flex flex-col gap-2 overflow-y-auto px-2 pb-2.5">
+							<div className="flex flex-col gap-2 overflow-y-auto px-2 pt-0.5 pb-2.5">
 								{cards.length === 0 ? (
 									<div className="px-2 py-6 text-center text-xs text-muted-foreground">
 										Nothing here

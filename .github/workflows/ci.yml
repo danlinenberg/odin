@@ -1,6 +1,8 @@
 # Every PR and every push to main: lint, typecheck, the unit and integration
 # suites, the app build, then a smoke test that boots the built app in a
 # throwaway home and clicks through its main flows (apps/desktop/scripts/smoke.ts).
+# Three jobs run side by side, so a run takes as long as the app build and
+# smoke, not the sum of every step.
 name: CI
 
 on:
@@ -16,35 +18,47 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  check:
-    # macOS, like Release: much of the suite drives real PTYs, ps and codesign,
-    # and the smoke test needs a window server to boot Electron.
-    runs-on: macos-15
-    timeout-minutes: 45
+  # Nothing here touches the OS, so it runs on Linux and keeps the scarce
+  # macOS runners for the jobs that need one.
+  static:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     env:
       SKIP_ENV_VALIDATION: "true"
     steps:
       - uses: actions/checkout@v5
-
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: .bun-version
-
-      # Tests make throwaway repos and commit into them.
-      - run: |
-          git config --global user.name "Odin CI"
-          git config --global user.email "ci@odin.local"
-
-      - run: bun install --frozen-lockfile
+      - uses: ./.github/actions/setup
 
       # The lint guards in scripts/ scan with ripgrep.
-      - run: command -v rg || brew install ripgrep
+      - run: command -v rg || sudo apt-get install -y ripgrep
 
       - run: bun run lint
 
       - run: bun run typecheck
 
+  # macOS, like Release: much of the suite drives real PTYs, ps and codesign.
+  test:
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      SKIP_ENV_VALIDATION: "true"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+
       - run: bun run test
+
+  # The smoke test needs a window server to boot Electron.
+  app:
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      SKIP_ENV_VALIDATION: "true"
+      # Nothing reads them here, and they cost a third of the renderer build.
+      ODIN_SKIP_SOURCEMAPS: "1"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
 
       # postinstall skips this when CI is set, so rebuild the native modules
       # for Electron before booting the app.
@@ -64,3 +78,12 @@ jobs:
           name: smoke-screenshots
           path: ${{ runner.temp }}/smoke
           if-no-files-found: ignore
+
+  # Branch protection requires one check named `check`. It passes only when all
+  # three jobs passed: a skipped required check would count as green.
+  check:
+    if: always()
+    needs: [static, test, app]
+    runs-on: ubuntu-latest
+    steps:
+      - run: ${{ !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && !contains(needs.*.result, 'skipped') }}

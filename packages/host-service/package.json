@@ -1,6 +1,6 @@
 {
 	"name": "@odin/host-service",
-	"version": "1.0.11",
+	"version": "1.0.12",
 	"private": true,
 	"type": "module",
 	"exports": {
@@ -51,7 +51,7 @@
 		"build:host": "bun run build.ts",
 		"build:types": "tsc -p tsconfig.types.json",
 		"generate": "drizzle-kit generate",
-		"test": "bun test --pass-with-no-tests",
+		"test": "bun test --pass-with-no-tests --parallel",
 		"test:integration": "bun test --pass-with-no-tests test/integration",
 		"test:integration:daemon": "node --experimental-strip-types --test src/terminal/DaemonClient/DaemonClient.node-test.ts src/daemon/DaemonSupervisor.node-test.ts",
 		"test:e2e": "bun run scripts/test-e2e.ts",

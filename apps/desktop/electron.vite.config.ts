@@ -136,7 +136,7 @@ export default defineConfig({
 		},
 
 		build: {
-			sourcemap: true,
+			sourcemap: !process.env.ODIN_SKIP_SOURCEMAPS,
 			rollupOptions: {
 				input: {
 					index: resolve("src/main/index.ts"),
@@ -280,7 +280,7 @@ export default defineConfig({
 		publicDir: resolve(resources, "public"),
 
 		build: {
-			sourcemap: true,
+			sourcemap: !process.env.ODIN_SKIP_SOURCEMAPS,
 			outDir: resolve(devPath, "renderer"),
 
 			rollupOptions: {

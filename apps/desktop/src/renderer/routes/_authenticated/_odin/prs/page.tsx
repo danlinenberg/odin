@@ -22,8 +22,8 @@ import {
 	ROW_LINK_SLOT,
 	ROW_LIVE_BUTTON,
 	ROW_META,
-	ROW_PRIMARY_BUTTON,
 	ROW_PRIMARY_SLOT,
+	ROW_START_BUTTON,
 	SyncButton,
 } from "../components/FeedChrome";
 import { FeedError } from "../components/FeedError";
@@ -318,7 +318,7 @@ function MyPullRequestsPage() {
 												type="button"
 												disabled={isLaunching}
 												onClick={() => void handleStart(pull)}
-												className={ROW_PRIMARY_BUTTON}
+												className={ROW_START_BUTTON}
 											>
 												{launchingKey === pull.url
 													? "Starting…"

@@ -196,6 +196,9 @@ export function RowActions({ children }: { children: ReactNode }) {
  */
 export const ROW_PRIMARY_BUTTON = `shrink-0 rounded-[7px] px-3 py-1 text-xs font-semibold transition-colors disabled:opacity-40 ${BUTTON.secondary} hover:bg-primary hover:text-primary-foreground hover:ring-primary`;
 
+/** Start session: always violet, unlike the other row primaries. */
+export const ROW_START_BUTTON = `shrink-0 rounded-[7px] px-3 py-1 text-xs font-semibold transition-[filter] disabled:opacity-40 ${BUTTON.primary}`;
+
 /** Same, for a row whose session is live - blue, the board's "working". */
 export const ROW_LIVE_BUTTON = `shrink-0 rounded-[7px] px-3 py-1 text-xs font-semibold transition-colors ${PILL.working} hover:bg-working/20`;
 
