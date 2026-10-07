@@ -19,3 +19,6 @@ export const DEFAULT_PROFILE_ID = "default";
 export function profileOf(id: string | undefined | null): string {
 	return id || DEFAULT_PROFILE_ID;
 }
+
+/** How long a deleted profile can still be restored. */
+export const PROFILE_RESTORE_MS = 30 * 24 * 60 * 60 * 1000;

@@ -1,7 +1,7 @@
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { DEFAULT_PROFILE_ID } from "shared/odin-profile";
+import { DEFAULT_PROFILE_ID, PROFILE_RESTORE_MS } from "shared/odin-profile";
 
 /**
  * Odin's own config file - `~/.config/odin.json`.
@@ -157,9 +157,15 @@ const SHARED_KEYS = [
 	"githubClientId",
 ] as const;
 
+interface DeletedProfile extends OdinProfile {
+	deletedAt: number;
+}
+
 interface RootConfig {
 	activeProfileId: string;
 	profiles: OdinProfile[];
+	/** Deleted in the last 30 days, restorable. Older ones drop on read. */
+	deletedProfiles: DeletedProfile[];
 	shared: OdinFileConfig;
 }
 
@@ -230,7 +236,19 @@ function readRoot(): RootConfig {
 		? (wanted as string)
 		: profiles[0].id;
 
-	return { activeProfileId, profiles, shared };
+	const deletedProfiles = (
+		Array.isArray(raw.deletedProfiles)
+			? (raw.deletedProfiles as DeletedProfile[])
+			: []
+	).filter(
+		(p) =>
+			p?.id &&
+			p?.name &&
+			typeof p.deletedAt === "number" &&
+			Date.now() - p.deletedAt < PROFILE_RESTORE_MS,
+	);
+
+	return { activeProfileId, profiles, deletedProfiles, shared };
 }
 
 function writeRoot(root: RootConfig): void {
@@ -240,6 +258,7 @@ function writeRoot(root: RootConfig): void {
 		activeProfileId: root.activeProfileId,
 		...root.shared,
 		profiles: root.profiles,
+		deletedProfiles: root.deletedProfiles,
 	};
 	writeFileSync(path, `${JSON.stringify(body, null, 2)}\n`, "utf-8");
 	// It holds API tokens - keep it owner-only like the rest of ~/.odin.
@@ -294,6 +313,34 @@ export function listProfiles(): {
 	}));
 }
 
+/** Profiles deleted in the last 30 days, newest first. */
+export function listDeletedProfiles(): {
+	id: string;
+	name: string;
+	deletedAt: number;
+}[] {
+	return readRoot()
+		.deletedProfiles.map(({ id, name, deletedAt }) => ({
+			id,
+			name,
+			deletedAt,
+		}))
+		.sort((a, b) => b.deletedAt - a.deletedAt);
+}
+
+/** Bring a deleted profile back, credentials and all. It does not become active. */
+export function restoreProfile(id: string): void {
+	const root = readRoot();
+	const deleted = root.deletedProfiles.find((p) => p.id === id);
+	if (!deleted) throw new Error(`No deleted profile to restore: ${id}`);
+	const { deletedAt: _d, ...profile } = deleted;
+	writeRoot({
+		...root,
+		profiles: [...root.profiles, profile],
+		deletedProfiles: root.deletedProfiles.filter((p) => p.id !== id),
+	});
+}
+
 export function setActiveProfile(id: string): void {
 	const root = readRoot();
 	if (!root.profiles.some((p) => p.id === id)) {
@@ -319,13 +366,14 @@ export function renameProfile(id: string, name: string): void {
 }
 
 /**
- * Delete a profile and its credentials. Returns the profile that is active
- * afterwards. The last profile can't go: Odin always has exactly one set of
+ * Delete a profile. It moves to `deletedProfiles` and can be restored for 30
+ * days; after that the next read drops it and its credentials. Returns the
+ * profile that is active afterwards. The last profile can't go: Odin always has exactly one set of
  * accounts in play, and "none" has no meaning anywhere downstream.
  *
  * ponytail: the rows the profile owned (Slack queue, sessions, tasks) are left
- * where they are - orphaned, filtered out of every view, and gone for good the
- * next time their table is swept. Delete them eagerly if that ever shows up as
+ * where they are - filtered out of every view, back on restore, and gone for
+ * good the next time their table is swept. Delete them eagerly if that ever shows up as
  * real disk.
  */
 export function deleteProfile(id: string): string {
@@ -333,13 +381,20 @@ export function deleteProfile(id: string): string {
 	if (root.profiles.length <= 1) {
 		throw new Error("The last profile can't be deleted");
 	}
+	const gone = root.profiles.find((p) => p.id === id);
+	if (!gone) throw new Error(`No such profile: ${id}`);
 	const profiles = root.profiles.filter((p) => p.id !== id);
-	if (profiles.length === root.profiles.length) {
-		throw new Error(`No such profile: ${id}`);
-	}
 	const activeProfileId =
 		root.activeProfileId === id ? profiles[0].id : root.activeProfileId;
-	writeRoot({ ...root, profiles, activeProfileId });
+	writeRoot({
+		...root,
+		profiles,
+		activeProfileId,
+		deletedProfiles: [
+			...root.deletedProfiles,
+			{ ...gone, deletedAt: Date.now() },
+		],
+	});
 	return activeProfileId;
 }
 
