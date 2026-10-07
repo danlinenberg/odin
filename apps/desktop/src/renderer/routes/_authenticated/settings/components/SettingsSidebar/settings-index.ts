@@ -2,6 +2,7 @@ import {
 	LuBell,
 	LuKeyboard,
 	LuListOrdered,
+	LuPalette,
 	LuPlug,
 	LuSquareTerminal,
 } from "react-icons/lu";
@@ -35,6 +36,12 @@ export const SCREENS = [
 		label: "Notifications",
 		hint: "Banners, sound, reminder time",
 		icon: LuBell,
+	},
+	{
+		to: "/settings/appearance",
+		label: "Appearance",
+		hint: "Light or dark theme, fonts",
+		icon: LuPalette,
 	},
 	{
 		to: "/settings/keyboard",
@@ -216,6 +223,12 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		to: "/settings/ringtones",
 		section: "Reminders",
 		keywords: "reminder remind me due date time morning",
+	},
+	{
+		label: "Theme",
+		to: "/settings/appearance",
+		section: "Theme",
+		keywords: "light dark bright mode color colour system appearance",
 	},
 	{
 		label: "Shortcuts",

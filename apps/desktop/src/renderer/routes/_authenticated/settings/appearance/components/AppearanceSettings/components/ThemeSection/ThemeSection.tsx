@@ -66,7 +66,10 @@ function ThemeRow({
 }: ThemeRowProps) {
 	const isSystem = includeSystem !== undefined && value === SYSTEM_THEME_ID;
 	return (
-		<div className="flex items-center justify-between gap-6 p-4">
+		<div
+			data-setting={label}
+			className="flex items-center justify-between gap-6 p-4"
+		>
 			<div className="min-w-0 flex-1">
 				<div className="text-sm font-medium">{label}</div>
 				<div className="text-xs text-muted-foreground">{hint}</div>
