@@ -423,6 +423,7 @@ await step("starting a task asks for optional context first", async () => {
 	await rail("Tasks");
 	await waitForText(TASK);
 	await click("button", "Start session");
+	await click("button", "+ Add context or guidelines (optional)");
 	await waitForText("leave it empty to start as is");
 	await click("button", "Cancel");
 	await waitForText("leave it empty to start as is", false);
