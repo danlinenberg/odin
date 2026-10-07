@@ -11,7 +11,10 @@ import {
 	session,
 } from "electron";
 import { makeAppSetup } from "lib/electron-app/factories/app/setup";
-import { applyShellEnvToProcess } from "lib/trpc/routers/workspaces/utils/shell-env";
+import {
+	applyShellEnvToProcess,
+	setFallbackBinDir,
+} from "lib/trpc/routers/workspaces/utils/shell-env";
 import {
 	DEFAULT_CONFIRM_ON_QUIT,
 	LOCAL_ORG_ID,
@@ -19,6 +22,7 @@ import {
 	PROTOCOL_SCHEME,
 } from "shared/constants";
 import { setupAgentIntegrations } from "./lib/agent-setup";
+import { bundledClaudePath } from "./lib/agent-setup/bundled-claude";
 import { ODIN_HOME_DIR } from "./lib/app-environment";
 import { flushAppStateSync, initAppState } from "./lib/app-state";
 import { requestAppleEventsAccess } from "./lib/apple-events-permission";
@@ -56,6 +60,11 @@ import { flushWindowStateSync, MainWindow } from "./windows/main";
 
 console.log("[main] Local database ready:", !!localDb);
 const IS_DEV = process.env.NODE_ENV === "development";
+
+// Odin's own Claude Code goes last on PATH: a Mac without `claude` can run
+// sessions, and one with it keeps using its own.
+const bundledClaude = bundledClaudePath();
+if (bundledClaude) setFallbackBinDir(path.dirname(bundledClaude));
 
 void applyShellEnvToProcess().catch((error) => {
 	console.error("[main] Failed to apply shell environment:", error);

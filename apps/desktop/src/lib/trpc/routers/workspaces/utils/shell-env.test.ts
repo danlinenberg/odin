@@ -6,7 +6,25 @@ import {
 	applyShellEnvToProcess,
 	getProcessEnvWithShellEnv,
 	getProcessEnvWithShellPath,
+	setFallbackBinDir,
+	withFallbackBinDir,
 } from "./shell-env";
+
+describe("withFallbackBinDir", () => {
+	test("appends the bundled dir last, once", () => {
+		const saved = process.env.PATH;
+		setFallbackBinDir("/Odin.app/bin");
+		process.env.PATH = saved;
+		expect(withFallbackBinDir("/opt/homebrew/bin:/usr/bin")).toBe(
+			"/opt/homebrew/bin:/usr/bin:/Odin.app/bin",
+		);
+		expect(withFallbackBinDir("/usr/bin:/Odin.app/bin")).toBe(
+			"/usr/bin:/Odin.app/bin",
+		);
+		setFallbackBinDir(null);
+		process.env.PATH = saved;
+	});
+});
 
 describe("shell env merging", () => {
 	test("getProcessEnvWithShellEnv fills in missing shell variables", async () => {

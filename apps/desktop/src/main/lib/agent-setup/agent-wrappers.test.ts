@@ -184,6 +184,41 @@ describe("agent-wrappers copilot", () => {
 		expect(updated).not.toContain("/tmp/old-hook.sh");
 	});
 
+	it("falls back to the bundled claude only when none is on PATH", () => {
+		const dir = path.join(TEST_ROOT, "bundled-claude");
+		const bundled = path.join(dir, "bundled", "claude");
+		const realBinDir = path.join(dir, "real");
+		mkdirSync(path.dirname(bundled), { recursive: true });
+		mkdirSync(realBinDir, { recursive: true });
+		writeFileSync(
+			bundled,
+			'#!/bin/bash\necho "bundled $DISABLE_AUTOUPDATER"\n',
+			{
+				mode: 0o755,
+			},
+		);
+		writeFileSync(path.join(realBinDir, "claude"), "#!/bin/bash\necho real\n", {
+			mode: 0o755,
+		});
+		const wrapperPath = path.join(dir, "wrapper");
+		writeFileSync(
+			wrapperPath,
+			buildWrapperScript("claude", `exec "$REAL_BIN" "$@"`, {
+				fallbackBin: bundled,
+			}),
+			{ mode: 0o755 },
+		);
+		const run = (PATH: string) =>
+			execFileSync(wrapperPath, [], {
+				env: { ...process.env, PATH },
+				encoding: "utf-8",
+			}).trim();
+
+		// Yours wins; the bundled one runs only when there is none.
+		expect(run(`${realBinDir}:/usr/bin:/bin`)).toBe("real");
+		expect(run("/usr/bin:/bin")).toBe("bundled 1");
+	});
+
 	it("tails codex's process-scoped TUI session log to drive Start events", () => {
 		createCodexWrapper();
 

@@ -30,6 +30,7 @@ import {
 	type MachineLoad,
 	machineLoad,
 } from "shared/machine-load";
+import { ClaudeSignInBanner } from "./components/ClaudeSignInBanner";
 import { FEED_TABS } from "./components/feed-counts";
 import { GettingStarted } from "./components/GettingStarted";
 import { InAppBrowser } from "./components/InAppBrowser";
@@ -578,6 +579,7 @@ function OdinShell() {
 				</ZoomStable>
 			</div>
 			<UpdateBanner />
+			<ClaudeSignInBanner />
 
 			<div className="flex min-h-0 flex-1">
 				{/* icon rail */}
