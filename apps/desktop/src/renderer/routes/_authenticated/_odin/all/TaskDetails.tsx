@@ -1,10 +1,41 @@
 import type { ReactNode } from "react";
 import { emojify } from "renderer/lib/emoji";
+import { openUrl } from "renderer/stores/in-app-browser";
 import { FEED_TABS } from "../components/feed-counts";
 import type { AllItem } from "./all-items";
 
 export function cleanTitle(title: string): string {
 	return title.replace(/[*~]/g, "").replace(/\s+/g, " ").trim();
+}
+
+// ponytail: bare URLs only - Slack's <url|label> is already unwrapped upstream.
+const URL_RE = /https?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)\]]/g;
+
+/** Text with every URL in it a link that opens where links open in Odin. */
+export function Linked({ text }: { text: string }) {
+	const parts: ReactNode[] = [];
+	let last = 0;
+	for (const match of text.matchAll(URL_RE)) {
+		const url = match[0];
+		parts.push(emojify(text.slice(last, match.index)));
+		parts.push(
+			<a
+				key={match.index}
+				href={url}
+				onClick={(e) => {
+					e.preventDefault();
+					e.stopPropagation();
+					openUrl(url);
+				}}
+				className="break-all text-link hover:underline"
+			>
+				{url}
+			</a>,
+		);
+		last = match.index + url.length;
+	}
+	parts.push(emojify(text.slice(last)));
+	return <>{parts}</>;
 }
 
 const ICON = Object.fromEntries(FEED_TABS.map(({ to, Icon }) => [to, Icon]));
@@ -81,7 +112,7 @@ export function TaskDetails({
 					dir="auto"
 					className="max-h-[220px] cursor-text select-text overflow-y-auto whitespace-pre-wrap break-words text-left text-soft-foreground"
 				>
-					{emojify(body.slice(0, 3000))}
+					<Linked text={body.slice(0, 3000)} />
 				</p>
 			)}
 			{item.mention && (
@@ -95,7 +126,7 @@ export function TaskDetails({
 						dir="auto"
 						className="line-clamp-6 whitespace-pre-wrap break-words"
 					>
-						{emojify(item.mention.text)}
+						<Linked text={item.mention.text} />
 					</div>
 				</div>
 			)}
@@ -108,7 +139,7 @@ export function TaskDetails({
 								dir="auto"
 								className="min-w-0 break-words text-soft-foreground"
 							>
-								{value}
+								<Linked text={value} />
 							</dd>
 						</div>
 					))}
@@ -116,8 +147,8 @@ export function TaskDetails({
 			)}
 			{children}
 			{item.url && (
-				<div className="cursor-text select-text truncate text-[11px] text-faint-foreground">
-					{item.url}
+				<div className="truncate text-[11px]">
+					<Linked text={item.url} />
 				</div>
 			)}
 		</div>
