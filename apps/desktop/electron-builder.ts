@@ -215,7 +215,7 @@ const config: Configuration = {
 	win: {
 		icon: join(pkg.resources, "build/icons/icon.png"),
 		target: [{ target: "nsis", arch: ["x64"] }],
-		artifactName: "Odin-Setup-x64.${ext}",
+		artifactName: "Odin-Setup-x64.exe",
 	},
 	nsis: {
 		oneClick: false,
