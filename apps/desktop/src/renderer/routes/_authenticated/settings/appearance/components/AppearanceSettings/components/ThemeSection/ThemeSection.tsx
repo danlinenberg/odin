@@ -30,6 +30,7 @@ import {
 	parseThemeConfigFile,
 	type Theme,
 } from "shared/themes";
+import { LightModeIntervention } from "./LightModeIntervention";
 
 const MAX_THEME_FILE_SIZE = 256 * 1024; // 256 KB
 
@@ -130,6 +131,9 @@ function ThemeRow({
 export function ThemeSection() {
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const [isImporting, setIsImporting] = useState(false);
+	const [pendingLightThemeId, setPendingLightThemeId] = useState<string | null>(
+		null,
+	);
 	const activeThemeId = useThemeId();
 	const setTheme = useSetTheme();
 	const activeTheme = useThemeStore((state) => state.activeTheme);
@@ -277,11 +281,23 @@ export function ThemeSection() {
 
 	return (
 		<div className="rounded-lg border border-border overflow-hidden divide-y divide-border">
+			<LightModeIntervention
+				open={pendingLightThemeId !== null}
+				onConfirm={() => {
+					if (pendingLightThemeId) setTheme(pendingLightThemeId);
+					setPendingLightThemeId(null);
+				}}
+				onCancel={() => setPendingLightThemeId(null)}
+			/>
 			<ThemeRow
 				label="Theme"
 				hint={"Pick a theme or follow your system appearance."}
 				value={activeThemeId}
-				onValueChange={setTheme}
+				onValueChange={(id) =>
+					allThemes.find((t) => t.id === id)?.type === "light"
+						? setPendingLightThemeId(id)
+						: setTheme(id)
+				}
 				currentTheme={currentTheme}
 				options={allOptions}
 				includeSystem={{
