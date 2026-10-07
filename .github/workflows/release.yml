@@ -69,8 +69,14 @@ jobs:
       # electron.vite.config.ts bakes these into the bundle as *_BAKED. Without
       # them a fresh install (brew, DMG) has no OAuth apps and every
       # Connections row says "This build has no <name> app".
-      - run: bun run build
+      # ODIN_SIGNING_P12 is the one signing cert every release uses. macOS keys
+      # privacy grants to it, so a fresh cert per release re-prompts every user
+      # for Desktop/Documents access after each update. Fail rather than mint one.
+      - run: |
+          : "${ODIN_SIGNING_P12:?ODIN_SIGNING_P12 secret is missing}"
+          bun run build
         env:
+          ODIN_SIGNING_P12: ${{ secrets.ODIN_SIGNING_P12 }}
           ODIN_SLACK_CLIENT_ID: ${{ secrets.ODIN_SLACK_CLIENT_ID }}
           ODIN_SLACK_CLIENT_SECRET: ${{ secrets.ODIN_SLACK_CLIENT_SECRET }}
           ODIN_SLACK_REDIRECT_URL: ${{ secrets.ODIN_SLACK_REDIRECT_URL }}
