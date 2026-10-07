@@ -132,7 +132,14 @@ export interface BuildWrapperScriptOptions {
 	 * notify-hook script forwards this into the v2 hook payload.
 	 */
 	agentId?: string;
+	/**
+	 * A binary to run when none is found on PATH - Odin's bundled Claude Code.
+	 * Never consulted while one of yours resolves, so existing setups are untouched.
+	 */
+	fallbackBin?: string | null;
 }
+
+const quote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
 
 export function buildWrapperScript(
 	binaryName: string,
@@ -142,13 +149,21 @@ export function buildWrapperScript(
 	const exportAgentId = options.agentId
 		? `export ODIN_AGENT_ID="${options.agentId}"\n\n`
 		: "";
+	// Odin updates its bundled copy, so it must not try to update itself.
+	const fallback = options.fallbackBin
+		? `if [ -z "$REAL_BIN" ] && [ -x ${quote(options.fallbackBin)} ]; then
+  REAL_BIN=${quote(options.fallbackBin)}
+  export DISABLE_AUTOUPDATER=1
+fi
+`
+		: "";
 	return `#!/bin/bash
 ${WRAPPER_MARKER}
 # Odin wrapper for ${binaryName}
 
 ${buildRealBinaryResolver()}
 REAL_BIN="$(find_real_binary "${binaryName}")"
-if [ -z "$REAL_BIN" ]; then
+${fallback}if [ -z "$REAL_BIN" ]; then
   echo "${getMissingBinaryMessage(binaryName)}" >&2
   exit 127
 fi

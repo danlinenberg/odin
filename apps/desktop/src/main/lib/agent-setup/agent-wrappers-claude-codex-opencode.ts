@@ -9,6 +9,7 @@ import {
 	MANAGED_NOTIFY_RELATIVE_PATH,
 	writeFileIfChanged,
 } from "./agent-wrappers-common";
+import { bundledClaudePath } from "./bundled-claude";
 import {
 	getNotifyScriptPath,
 	NOTIFY_SCRIPT_NAME,
@@ -329,6 +330,7 @@ export function getOpenCodePluginContent(notifyPath: string): string {
 export function createClaudeWrapper(): void {
 	const script = buildWrapperScript("claude", `exec "$REAL_BIN" "$@"`, {
 		agentId: "claude",
+		fallbackBin: bundledClaudePath(),
 	});
 	createWrapper("claude", script);
 }

@@ -1,5 +1,10 @@
+import { type ChildProcess, spawn } from "node:child_process";
+import { z } from "zod";
 import { publicProcedure, router } from "..";
-import { execWithShellEnv } from "./workspaces/utils/shell-env";
+import {
+	execWithShellEnv,
+	getProcessEnvWithShellPath,
+} from "./workspaces/utils/shell-env";
 
 interface GhDetectResult {
 	installed: boolean;
@@ -69,10 +74,93 @@ async function detectBrew(): Promise<BrewDetectResult> {
 	}
 }
 
+/**
+ * Whether `claude` can start a session on this Mac: `claude auth status`.
+ * `signedIn: null` means we couldn't tell (an old CLI, a Bedrock or custom
+ * setup, a timeout) - the sign-in banner only ever shows on an explicit
+ * `false`, so a setup we don't understand is never nagged.
+ */
+async function claudeAuthStatus(): Promise<{ signedIn: boolean | null }> {
+	try {
+		const { stdout } = await execWithShellEnv(
+			"claude",
+			["auth", "status", "--json"],
+			{ timeout: 15_000 },
+		);
+		const status = JSON.parse(stdout) as { loggedIn?: unknown };
+		return {
+			signedIn: typeof status.loggedIn === "boolean" ? status.loggedIn : null,
+		};
+	} catch (error) {
+		// Not signed in exits 1 with the same JSON on stdout.
+		const stdout = (error as { stdout?: string }).stdout;
+		try {
+			const status = JSON.parse(stdout ?? "") as { loggedIn?: unknown };
+			if (status.loggedIn === false) return { signedIn: false };
+		} catch {}
+		return { signedIn: null };
+	}
+}
+
+/**
+ * `claude auth login`, with no terminal: the CLI opens the browser on
+ * claude.ai, you approve, and it stores the login itself - Odin never sees a
+ * token. If the browser can't hand the login back, claude.ai shows a code,
+ * which claudeLoginCode types into the waiting CLI.
+ */
+let login: ChildProcess | null = null;
+
+async function claudeLogin(): Promise<{ ok: boolean; error?: string }> {
+	login?.kill();
+	const child = spawn("claude", ["auth", "login", "--claudeai"], {
+		env: await getProcessEnvWithShellPath(),
+		stdio: ["pipe", "pipe", "pipe"],
+	});
+	login = child;
+	let output = "";
+	child.stdout?.on("data", (chunk) => {
+		output += chunk;
+	});
+	child.stderr?.on("data", (chunk) => {
+		output += chunk;
+	});
+	// ponytail: abandoned logins die after 10 minutes, not on a Cancel button.
+	const timer = setTimeout(() => child.kill(), 10 * 60_000);
+	return new Promise((resolve) => {
+		child.on("error", (error) => {
+			clearTimeout(timer);
+			resolve({ ok: false, error: error.message });
+		});
+		child.on("exit", (code) => {
+			clearTimeout(timer);
+			if (login === child) login = null;
+			resolve(
+				code === 0
+					? { ok: true }
+					: {
+							ok: false,
+							error:
+								output.trim().split("\n").pop()?.slice(0, 300) ||
+								`claude auth login exited ${code}`,
+						},
+			);
+		});
+	});
+}
+
 export const createSystemRouter = () => {
 	return router({
 		detectGhCli: publicProcedure.query(detectGhCli),
 		detectBrew: publicProcedure.query(detectBrew),
+		claudeAuthStatus: publicProcedure.query(claudeAuthStatus),
+		claudeLogin: publicProcedure.mutation(claudeLogin),
+		claudeLoginCode: publicProcedure
+			.input(z.object({ code: z.string().trim().min(1) }))
+			.mutation(({ input }) => {
+				if (!login?.stdin?.writable) return { sent: false };
+				login.stdin.write(`${input.code}\n`);
+				return { sent: true };
+			}),
 	});
 };
 

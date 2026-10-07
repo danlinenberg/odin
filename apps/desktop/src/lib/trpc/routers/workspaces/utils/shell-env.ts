@@ -114,6 +114,24 @@ function refreshShellEnvironment(): Promise<Record<string, string>> {
 	return refreshInFlight;
 }
 
+/**
+ * Odin's own Claude Code (Resources/resources/bin), kept LAST on the app's
+ * PATH so the `claude -p` calls in main find it on a Mac with no `claude` -
+ * and never shadow one you installed. Set once at startup by bundled-claude.ts.
+ */
+let fallbackBinDir: string | null = null;
+
+/** `path` with the fallback dir appended, once. */
+export function withFallbackBinDir(path: string): string {
+	if (!fallbackBinDir || path.split(":").includes(fallbackBinDir)) return path;
+	return [path, fallbackBinDir].filter(Boolean).join(":");
+}
+
+export function setFallbackBinDir(dir: string | null): void {
+	fallbackBinDir = dir;
+	process.env.PATH = withFallbackBinDir(process.env.PATH ?? "");
+}
+
 const COMMON_MACOS_PATHS = [
 	"/opt/homebrew/bin",
 	"/opt/homebrew/sbin",
@@ -211,7 +229,7 @@ export async function getProcessEnvWithShellPath(
 
 	const shellPath = shellEnvResult.PATH || shellEnvResult.Path;
 	if (shellPath) {
-		env.PATH = shellPath;
+		env.PATH = withFallbackBinDir(shellPath);
 		if (
 			process.platform === "win32" ||
 			"Path" in baseEnv ||
@@ -278,7 +296,7 @@ export async function execWithShellEnv(
 
 			// Retry with fixed env (respect caller's other env vars, force PATH if present)
 			const retryEnv = shellEnvResult.PATH
-				? { ...mergedShellEnv, PATH: shellEnvResult.PATH }
+				? { ...mergedShellEnv, PATH: withFallbackBinDir(shellEnvResult.PATH) }
 				: mergedShellEnv;
 
 			const result = await execFileAsync(cmd, args, {
@@ -289,7 +307,7 @@ export async function execWithShellEnv(
 
 			// Persist the fix to process.env only after the retry succeeds.
 			if (shellEnvResult.PATH) {
-				process.env.PATH = shellEnvResult.PATH;
+				process.env.PATH = withFallbackBinDir(shellEnvResult.PATH);
 				pathFixSucceeded = true;
 				console.log("[shell-env] Fixed process.env.PATH for GUI app");
 			}
