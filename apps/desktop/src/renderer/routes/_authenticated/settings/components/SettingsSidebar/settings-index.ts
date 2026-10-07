@@ -2,6 +2,7 @@ import {
 	LuBell,
 	LuKeyboard,
 	LuListOrdered,
+	LuPalette,
 	LuPlug,
 	LuSquareTerminal,
 } from "react-icons/lu";
@@ -35,6 +36,12 @@ export const SCREENS = [
 		label: "Notifications",
 		hint: "Banners, sound, reminder time",
 		icon: LuBell,
+	},
+	{
+		to: "/settings/appearance",
+		label: "Appearance",
+		hint: "Theme, fonts, sessions as a chat",
+		icon: LuPalette,
 	},
 	{
 		to: "/settings/keyboard",
@@ -216,6 +223,12 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		to: "/settings/ringtones",
 		section: "Reminders",
 		keywords: "reminder remind me due date time morning",
+	},
+	{
+		label: "Show sessions as a chat",
+		to: "/settings/appearance",
+		section: "Sessions",
+		keywords: "chat terminal claude desktop ui display view messages",
 	},
 	{
 		label: "Shortcuts",

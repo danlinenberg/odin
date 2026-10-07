@@ -1,6 +1,7 @@
 import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import { memo, useEffect, useRef, useState } from "react";
+import { LuChevronRight, LuTerminal } from "react-icons/lu";
 import { MarkdownRenderer } from "renderer/components/MarkdownRenderer";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { COMPACT_MARKDOWN } from "../components/TranscriptView";
@@ -365,15 +366,13 @@ const ToolGroup = memo(
 		const running = tools.find((tool) => tool.result === undefined);
 		const failed = tools.some((tool) => tool.isError);
 		return (
-			<div>
+			<div className="flex min-w-0 flex-col">
 				<button
 					type="button"
 					onClick={() => setOpen((value) => !value)}
-					className="flex w-full min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12.5px] text-muted-foreground hover:bg-secondary"
+					className="flex min-w-0 max-w-full items-center gap-2 self-start rounded-lg border border-border bg-secondary/40 px-2.5 py-1 text-left text-[12px] text-muted-foreground hover:bg-secondary hover:text-foreground"
 				>
-					<span className="shrink-0 text-[10px] text-faint-foreground">
-						{open ? "▾" : "▸"}
-					</span>
+					<LuTerminal className="size-3.5 shrink-0" />
 					<span className="shrink-0">{groupSummary(tools)}</span>
 					{failed && <span className="shrink-0 text-danger">· error</span>}
 					{running && (
@@ -384,9 +383,15 @@ const ToolGroup = memo(
 							</span>
 						</span>
 					)}
+					<LuChevronRight
+						className={cn(
+							"size-3.5 shrink-0 transition-transform",
+							open && "rotate-90",
+						)}
+					/>
 				</button>
 				{open && (
-					<div className="ml-3 border-l border-border pl-2">
+					<div className="mt-1.5 rounded-lg border border-border bg-secondary/20 p-1.5">
 						{tools.map((tool) => (
 							<ToolRow key={tool.id} item={tool} />
 						))}
@@ -401,14 +406,35 @@ const ToolGroup = memo(
 		prev.tools.every((tool, i) => tool === next.tools[i]),
 );
 
+/**
+ * Your message: a violet bubble on the right with room above it, so a reply
+ * opens a new turn instead of reading as a line in Claude's text.
+ */
+function UserBubble({ text, pending }: { text: string; pending?: boolean }) {
+	return (
+		<div
+			className={cn(
+				"mt-5 mb-1 ml-auto max-w-[75%] select-text cursor-text whitespace-pre-wrap break-words rounded-2xl rounded-br-md border border-primary/30 bg-primary/15 px-4 py-2.5 text-[13.5px] leading-relaxed text-foreground shadow-sm first:mt-0",
+				pending && "opacity-60",
+			)}
+		>
+			{text}
+		</div>
+	);
+}
+
+/** Claude's mark, on the first block of each reply - who's talking, at a glance. */
+function ClaudeMark() {
+	return (
+		<span className="mt-[3px] flex size-5 shrink-0 items-center justify-center rounded-md bg-[#d97757]/15 text-[13px] leading-none text-[#d97757]">
+			✳
+		</span>
+	);
+}
+
 const ItemView = memo(function ItemView({ item }: { item: Item }) {
 	if (item.kind === "tool") return <ToolRow item={item} />;
-	if (item.kind === "user")
-		return (
-			<div className="ml-auto max-w-[85%] select-text cursor-text whitespace-pre-wrap break-words rounded-[14px] bg-secondary px-3.5 py-2.5 text-[13px] leading-relaxed text-foreground">
-				{item.text}
-			</div>
-		);
+	if (item.kind === "user") return <UserBubble text={item.text} />;
 	return (
 		<div className="select-text cursor-text">
 			<MarkdownRenderer
@@ -504,32 +530,54 @@ export function ChatView({
 					pinnedRef.current =
 						el.scrollHeight - el.scrollTop - el.clientHeight < 80;
 				}}
-				className="min-h-0 flex-1 overflow-y-auto px-5 py-4"
+				className="min-h-0 flex-1 overflow-y-auto px-8 py-6"
 			>
-				<div className="flex flex-col gap-3">
+				<div className="flex flex-col gap-2.5">
 					{missing && items.length === 0 && (
 						<div className="select-text cursor-text text-[12px] text-muted-foreground">
 							{missing}
 						</div>
 					)}
-					{segments(items).map((segment) =>
-						Array.isArray(segment) ? (
-							<ToolGroup key={segment[0]?.id} tools={segment} />
-						) : (
-							<ItemView key={segment.id} item={segment} />
-						),
-					)}
+					{segments(items).map((segment, index, all) => {
+						const previous = all[index - 1];
+						// A reply starts after your message (or at the top); its first
+						// block carries Claude's mark, the rest line up beside it.
+						const opensReply =
+							!(!Array.isArray(segment) && segment.kind === "user") &&
+							(index === 0 ||
+								(!Array.isArray(previous) && previous?.kind === "user"));
+						if (!Array.isArray(segment) && segment.kind === "user")
+							return <ItemView key={segment.id} item={segment} />;
+						return (
+							<div
+								key={Array.isArray(segment) ? segment[0]?.id : segment.id}
+								className="flex min-w-0 gap-3"
+							>
+								{opensReply ? (
+									<ClaudeMark />
+								) : (
+									<span className="w-5 shrink-0" />
+								)}
+								<div className="min-w-0 flex-1">
+									{Array.isArray(segment) ? (
+										<ToolGroup tools={segment} />
+									) : (
+										<ItemView item={segment} />
+									)}
+								</div>
+							</div>
+						);
+					})}
 					{pending.map((sent) => (
-						<div
-							key={sent.id}
-							className="ml-auto max-w-[85%] whitespace-pre-wrap break-words rounded-[14px] bg-secondary px-3.5 py-2.5 text-[13px] leading-relaxed text-foreground opacity-70"
-						>
-							{sent.text}
-						</div>
+						<UserBubble key={sent.id} text={sent.text} pending />
 					))}
 					{working && (
-						<div className="flex items-center gap-2 px-1.5 text-[12px] text-working">
-							<span className="size-[10px] animate-spin rounded-full border-2 border-working border-t-transparent" />
+						<div className="flex items-center gap-3 text-[12.5px] text-[#d97757]">
+							<span className="flex size-5 shrink-0 items-center justify-center">
+								<span className="animate-spin text-[13px] leading-none [animation-duration:2.4s]">
+									✳
+								</span>
+							</span>
 							Working…
 						</div>
 					)}
