@@ -1,6 +1,6 @@
 import { cn } from "@odin/ui/utils";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import type { IconType } from "react-icons";
 import { emojify } from "renderer/lib/emoji";
 import { openUrl } from "renderer/stores/in-app-browser";
@@ -479,7 +479,12 @@ function AllFeedPage() {
 										    for, its tags, which repo it's in, what it's
 										    doing. ponytail: no age column - the board's is a
 										    transcript read per card, too much for a list. */}
-												<div className="flex shrink-0 items-center gap-2 text-[11px]">
+												<div
+													className={cn(
+														"flex shrink-0 items-center gap-2 text-[11px]",
+														openItem && "hidden",
+													)}
+												>
 													<span className={META_TAG}>
 														{session.tags[0] && (
 															<span className="truncate font-mono text-[10.5px] text-faint-foreground">
@@ -609,7 +614,15 @@ function AllFeedPage() {
 											<OverdueMark itemKey={item.key} upstream={item.dueDate} />
 											{emojify(item.title)}
 										</button>
-										<div className="flex shrink-0 items-center gap-2 text-[11px]">
+										{/* The open row's meta is in the panel, and with the panel
+										    open the columns don't fit beside it - they squeezed the
+										    title to nothing and pushed Done past the row's edge. */}
+										<div
+											className={cn(
+												"flex shrink-0 items-center gap-2 text-[11px]",
+												openItem && "hidden",
+											)}
+										>
 											<span className={META_TAG}>
 												{item.priority && (
 													<PriorityLabelChip label={item.priority} />
@@ -713,7 +726,20 @@ function AllFeedPage() {
 						item={openItem}
 						onClose={() => setOpenKey(null)}
 						onOpenFeed={() => navigate({ to: openItem.to })}
-					/>
+					>
+						<DetailsActions
+							activePaneId={livePaneFor(openItem)}
+							isLaunching={isLaunching}
+							launching={launchingKey === openItem.launch.key}
+							onStart={() => void handleStart(openItem)}
+							onGoTo={(paneId) => {
+								usePendingFocus.getState().focus(paneId);
+								navigate({ to: "/board" });
+							}}
+							onReadLater={() => markReading(openItem)}
+							onDone={() => markDone(openItem)}
+						/>
+					</DetailsPanel>
 				)}
 			</div>
 		</div>
@@ -728,10 +754,12 @@ function DetailsPanel({
 	item,
 	onClose,
 	onOpenFeed,
+	children,
 }: {
 	item: AllItem;
 	onClose: () => void;
 	onOpenFeed: () => void;
+	children: ReactNode;
 }) {
 	const url = item.url;
 	const rename = useTitleOverrides((s) => s.rename);
@@ -767,7 +795,61 @@ function DetailsPanel({
 			<div className="min-h-0 flex-1 overflow-y-auto px-3.5 pb-[18px]">
 				<TaskDetails item={item} onRename={rename} />
 			</div>
+			{children}
 		</aside>
+	);
+}
+
+/** The row's own buttons, so a task read in the panel is acted on there. */
+function DetailsActions({
+	activePaneId,
+	isLaunching,
+	launching,
+	onStart,
+	onGoTo,
+	onReadLater,
+	onDone,
+}: {
+	activePaneId: string | null;
+	isLaunching: boolean;
+	launching: boolean;
+	onStart: () => void;
+	onGoTo: (paneId: string) => void;
+	onReadLater: () => void;
+	onDone: () => void;
+}) {
+	return (
+		<div className="flex shrink-0 items-center gap-2 border-t border-border px-3.5 py-2.5">
+			{activePaneId ? (
+				<button
+					type="button"
+					onClick={() => onGoTo(activePaneId)}
+					className={ROW_LIVE_BUTTON}
+				>
+					Go to session →
+				</button>
+			) : (
+				<button
+					type="button"
+					disabled={isLaunching}
+					onClick={onStart}
+					className={ROW_START_BUTTON}
+				>
+					{launching ? "Starting…" : "Start session"}
+				</button>
+			)}
+			<button
+				type="button"
+				onClick={onReadLater}
+				title="Nothing to do, but keep it - moves it to Reading material"
+				className={ROW_LINK_BUTTON}
+			>
+				Read later
+			</button>
+			<span className="ml-auto">
+				<DoneButton onClick={onDone} />
+			</span>
+		</div>
 	);
 }
 
