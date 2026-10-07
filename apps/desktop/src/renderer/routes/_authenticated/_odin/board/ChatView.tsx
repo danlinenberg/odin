@@ -1,3 +1,4 @@
+import { odinIcon } from "@odin/ui/icons/preset-icons";
 import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import { memo, useEffect, useRef, useState } from "react";
@@ -423,42 +424,70 @@ function UserBubble({ text, pending }: { text: string; pending?: boolean }) {
 	);
 }
 
-/** Claude's spark, drawn - the ✳ character renders as macOS's green emoji. */
-function Spark({ className }: { className?: string }) {
+/** Odin's icon, on the first block of each reply - who's talking, at a glance. */
+function OdinMark({ className }: { className?: string }) {
 	return (
-		<svg
-			viewBox="0 0 16 16"
-			aria-hidden="true"
-			className={className}
-			stroke="currentColor"
-			strokeWidth="1.8"
-			strokeLinecap="round"
-		>
-			<path d="M8 1.5v13M1.5 8h13M3.4 3.4l9.2 9.2M12.6 3.4l-9.2 9.2" />
-		</svg>
+		<img
+			src={odinIcon}
+			alt=""
+			className={cn(
+				"size-6 shrink-0 rounded-md shadow-[0_0_10px_-2px] shadow-primary/50 ring-1 ring-primary/40",
+				className,
+			)}
+		/>
 	);
 }
 
-/** Claude's mark, on the first block of each reply - who's talking, at a glance. */
-function ClaudeMark() {
+/**
+ * Split a reply at its ACTION ITEMS line, in any of the shapes agents write it
+ * ("ACTION ITEMS:", "## Action items", "**ACTION ITEMS:** none ..."). Whatever
+ * follows on that line stays with the items.
+ */
+export function splitActionItems(text: string): {
+	body: string;
+	actions: string | null;
+} {
+	const match = text.match(/^[#>*_\s]*ACTION ITEMS\b[*_:\s]*(.*)$/im);
+	if (match?.index === undefined) return { body: text, actions: null };
+	const rest = text.slice(match.index + match[0].length);
+	return {
+		body: text.slice(0, match.index).trim(),
+		actions: `${match[1] ?? ""}${rest}`.trim() || null,
+	};
+}
+
+/** What's on you, set apart in the board's Needs-you colour. */
+function ActionItems({ text }: { text: string }) {
 	return (
-		<span className="mt-[3px] flex size-5 shrink-0 items-center justify-center text-[#d97757]">
-			<Spark className="size-3.5" />
-		</span>
+		<div className="mt-2 rounded-xl border border-attention/35 bg-attention/[0.07] px-4 py-3">
+			<div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[.08em] text-attention">
+				Action items
+			</div>
+			<MarkdownRenderer
+				content={text}
+				style="default"
+				allowHtml={false}
+				className={COMPACT_MARKDOWN}
+			/>
+		</div>
 	);
 }
 
 const ItemView = memo(function ItemView({ item }: { item: Item }) {
 	if (item.kind === "tool") return <ToolRow item={item} />;
 	if (item.kind === "user") return <UserBubble text={item.text} />;
+	const { body, actions } = splitActionItems(item.text);
 	return (
 		<div className="select-text cursor-text">
-			<MarkdownRenderer
-				content={item.text}
-				style="default"
-				allowHtml={false}
-				className={COMPACT_MARKDOWN}
-			/>
+			{body && (
+				<MarkdownRenderer
+					content={body}
+					style="default"
+					allowHtml={false}
+					className={COMPACT_MARKDOWN}
+				/>
+			)}
+			{actions && <ActionItems text={actions} />}
 		</div>
 	);
 });
@@ -569,11 +598,7 @@ export function ChatView({
 								key={Array.isArray(segment) ? segment[0]?.id : segment.id}
 								className="flex min-w-0 gap-3"
 							>
-								{opensReply ? (
-									<ClaudeMark />
-								) : (
-									<span className="w-5 shrink-0" />
-								)}
+								{opensReply ? <OdinMark /> : <span className="w-6 shrink-0" />}
 								<div className="min-w-0 flex-1">
 									{Array.isArray(segment) ? (
 										<ToolGroup tools={segment} />
@@ -588,10 +613,8 @@ export function ChatView({
 						<UserBubble key={sent.id} text={sent.text} pending />
 					))}
 					{working && (
-						<div className="flex items-center gap-3 text-[12.5px] text-[#d97757]">
-							<span className="flex size-5 shrink-0 items-center justify-center">
-								<Spark className="size-3.5 animate-spin [animation-duration:2.4s]" />
-							</span>
+						<div className="flex items-center gap-3 text-[12.5px] text-working">
+							<OdinMark className="animate-pulse" />
 							Working…
 						</div>
 					)}

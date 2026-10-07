@@ -3,6 +3,7 @@ import {
 	applyLines,
 	groupSummary,
 	segments,
+	splitActionItems,
 	transcriptPath,
 	userText,
 } from "./ChatView";
@@ -88,5 +89,20 @@ describe("ChatView transcript", () => {
 		]);
 		expect(out.length).toBe(3);
 		expect(groupSummary(out[1] as never)).toBe("Ran 2 commands, read 1 file");
+	});
+
+	test("action items split off in the shapes agents write them", () => {
+		expect(splitActionItems("Done.\n\nACTION ITEMS:\n1. Merge it")).toEqual({
+			body: "Done.",
+			actions: "1. Merge it",
+		});
+		expect(splitActionItems("x\n**ACTION ITEMS:** none - all shipped")).toEqual(
+			{
+				body: "x",
+				actions: "none - all shipped",
+			},
+		);
+		expect(splitActionItems("## Action items\n- a").actions).toBe("- a");
+		expect(splitActionItems("no list here").actions).toBeNull();
 	});
 });
