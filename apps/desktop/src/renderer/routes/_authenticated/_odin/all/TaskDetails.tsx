@@ -18,9 +18,12 @@ const ICON = Object.fromEntries(FEED_TABS.map(({ to, Icon }) => [to, Icon]));
 export function TaskDetails({
 	item,
 	extraRows = [],
+	onRename,
 	children,
 }: {
 	item: AllItem;
+	/** Makes the title editable - the Tasks side panel is the one place to rename. */
+	onRename?: (key: string, title: string) => void;
 	/** Fields only the caller knows - Next in line's due date and AI rank. */
 	extraRows?: [string, string][];
 	/** Drawn after the fields - Next in line's Review sweep verdict. */
@@ -32,6 +35,7 @@ export function TaskDetails({
 		if (!rows.some(([label]) => label === row[0])) rows.push(row);
 	}
 	const body = item.body?.trim();
+	const shownTitle = emojify(cleanTitle(item.title));
 	return (
 		<div className="space-y-2.5 text-[12px] leading-[1.5]">
 			<div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
@@ -40,12 +44,38 @@ export function TaskDetails({
 				{item.priority && <span>· {item.priority}</span>}
 				{item.status && <span>· {item.status}</span>}
 			</div>
-			<p
-				dir="auto"
-				className="break-words text-left font-semibold text-foreground"
-			>
-				{emojify(cleanTitle(item.title))}
-			</p>
+			{onRename ? (
+				<textarea
+					// Remount on a new row or a saved name, so the box always shows
+					// the name in force - clearing it brings the original back here too.
+					key={`${item.key}:${item.title}`}
+					dir="auto"
+					rows={1}
+					title="Rename - Enter saves, Esc cancels, empty restores the original"
+					defaultValue={shownTitle}
+					onKeyDown={(e) => {
+						if (e.key === "Enter") {
+							e.preventDefault();
+							e.currentTarget.blur();
+						} else if (e.key === "Escape") {
+							e.currentTarget.value = shownTitle;
+							e.currentTarget.blur();
+						}
+					}}
+					onBlur={(e) => {
+						const title = e.currentTarget.value.trim();
+						if (title !== shownTitle) onRename(item.key, title);
+					}}
+					className="-mx-1 block w-[calc(100%+0.5rem)] resize-none rounded-[5px] bg-transparent px-1 font-semibold text-foreground outline-none [field-sizing:content] hover:bg-secondary focus:bg-secondary focus:ring-1 focus:ring-primary/50"
+				/>
+			) : (
+				<p
+					dir="auto"
+					className="break-words text-left font-semibold text-foreground"
+				>
+					{shownTitle}
+				</p>
+			)}
 			{body && body !== item.title.trim() && (
 				<p
 					dir="auto"

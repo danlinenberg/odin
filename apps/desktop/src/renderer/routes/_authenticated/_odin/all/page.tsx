@@ -48,6 +48,7 @@ import { usePendingFocus } from "../hooks/usePendingFocus";
 import { PANE_STATUS } from "../pane-status";
 import { type AllItem, allItems, type Urgency } from "./all-items";
 import { TaskDetails } from "./TaskDetails";
+import { useTitleOverrides } from "./title-overrides";
 import { useStartAllItem } from "./use-start-item";
 
 export const Route = createFileRoute("/_authenticated/_odin/all/")({
@@ -195,6 +196,7 @@ function AllFeedPage() {
 	// rather than jumping to the row's own feed tab, which dropped you out of
 	// this list and left you hunting for the row again.
 	const [openKey, setOpenKey] = useState<string | null>(null);
+	const titles = useTitleOverrides((s) => s.titles);
 	const allRows = useMemo(
 		() =>
 			allItems({
@@ -204,8 +206,13 @@ function AllFeedPage() {
 				pulls: pulls.data?.pulls ?? [],
 				notion: notion.data?.rows ?? [],
 				emails: emails.data?.emails ?? [],
-			}).filter((item) => !isDone(item)),
+			})
+				.filter((item) => !isDone(item))
+				.map((item) =>
+					titles[item.key] ? { ...item, title: titles[item.key] } : item,
+				),
 		[
+			titles,
 			todos,
 			reactions.data,
 			jira.data,
@@ -463,7 +470,7 @@ function AllFeedPage() {
 														usePendingFocus.getState().focus(session.paneId);
 														navigate({ to: "/board" });
 													}}
-													className="min-w-0 flex-1 truncate text-left text-[13px] font-semibold text-foreground"
+													className="min-w-0 flex-1 truncate bg-none text-left text-[13px] font-semibold text-foreground"
 												>
 													{emojify(session.title)}
 												</button>
@@ -597,7 +604,7 @@ function AllFeedPage() {
 											onClick={() =>
 												setOpenKey(item.key === openKey ? null : item.key)
 											}
-											className="min-w-0 flex-1 truncate text-left text-[13px] font-semibold text-foreground"
+											className="min-w-0 flex-1 truncate bg-none text-left text-[13px] font-semibold text-foreground"
 										>
 											<OverdueMark itemKey={item.key} upstream={item.dueDate} />
 											{emojify(item.title)}
@@ -727,6 +734,7 @@ function DetailsPanel({
 	onOpenFeed: () => void;
 }) {
 	const url = item.url;
+	const rename = useTitleOverrides((s) => s.rename);
 	return (
 		<aside className="flex w-[380px] shrink-0 flex-col border-l border-border">
 			<div className="flex shrink-0 items-center gap-2 px-3.5 pt-2 pb-1.5">
@@ -757,7 +765,7 @@ function DetailsPanel({
 				</button>
 			</div>
 			<div className="min-h-0 flex-1 overflow-y-auto px-3.5 pb-[18px]">
-				<TaskDetails item={item} />
+				<TaskDetails item={item} onRename={rename} />
 			</div>
 		</aside>
 	);
