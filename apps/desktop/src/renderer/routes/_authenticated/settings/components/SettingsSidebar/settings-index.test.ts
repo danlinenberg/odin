@@ -54,5 +54,6 @@ describe("settings index", () => {
 			"Sound",
 			"Volume",
 		]);
+		expect(searchSettings("light mode")[0]?.label).toBe("Theme");
 	});
 });
