@@ -246,6 +246,11 @@ export function InAppBrowser() {
 	// closed, so the next link doesn't start the site over.
 	const [sites, setSites] = useState<Partial<Record<Site, string>>>({});
 	const views = useRef<Partial<Record<Site, WebviewTag>>>({});
+	// Webviews already handed the cursor once. The ref below is inline, so React
+	// calls it with null and then the same element on every render - keyed on
+	// `views` alone, each re-render looked like a new site and took the keyboard
+	// back from whatever you were typing in (the chat box, beside the panel).
+	const focusedViews = useRef(new WeakSet<Element>());
 	const [pages, setPages] = useState<
 		Partial<Record<Site, { title: string; url: string }>>
 	>({});
@@ -620,10 +625,13 @@ export function InAppBrowser() {
 									ref={(element) => {
 										if (!element) {
 											delete views.current[key];
-										} else if (!views.current[key]) {
+										} else {
 											views.current[key] = element as WebviewTag;
-											// A site's first link takes the cursor too.
-											element.focus();
+											// A site's first link takes the cursor too - once.
+											if (!focusedViews.current.has(element)) {
+												focusedViews.current.add(element);
+												element.focus();
+											}
 										}
 									}}
 									src={sites[key]}
