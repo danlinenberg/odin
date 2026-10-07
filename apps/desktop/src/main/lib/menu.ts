@@ -92,6 +92,25 @@ export function createApplicationMenu() {
 					accelerator: "CommandOrControl+-",
 					click: () => zoomFocusedWindow((level) => level - 0.5),
 				},
+				// "Plus" is Shift+= outside macOS, so Ctrl+= did nothing on Windows.
+				// Hidden twins catch it and the numpad keys; macOS already matches
+				// Cmd+= to Zoom In, and a twin there would zoom twice.
+				...(process.platform === "darwin"
+					? []
+					: (
+							[
+								["CommandOrControl+=", 0.5],
+								["CommandOrControl+numadd", 0.5],
+								["CommandOrControl+numsub", -0.5],
+							] as const
+						).map(
+							([accelerator, step]): Electron.MenuItemConstructorOptions => ({
+								label: step > 0 ? "Zoom In" : "Zoom Out",
+								accelerator,
+								visible: false,
+								click: () => zoomFocusedWindow((level) => level + step),
+							}),
+						)),
 				{ type: "separator" },
 				{
 					label: "Toggle Presets Bar",
