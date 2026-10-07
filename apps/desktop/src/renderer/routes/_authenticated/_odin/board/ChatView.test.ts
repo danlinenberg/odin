@@ -14,6 +14,23 @@ describe("ChatView transcript", () => {
 		expect(userText("hi <system-reminder>x</system-reminder>")).toBe("hi");
 	});
 
+	test("a message sent mid-turn shows as yours", () => {
+		const items = applyLines(
+			[],
+			[
+				{
+					type: "attachment",
+					uuid: "q1",
+					attachment: {
+						type: "queued_command",
+						prompt: [{ type: "text", text: "also this" }],
+					},
+				},
+			],
+		);
+		expect(items).toEqual([{ kind: "user", id: "q1", text: "also this" }]);
+	});
+
 	test("a tool result fills in its tool row; meta lines are skipped", () => {
 		const items = applyLines(
 			[],

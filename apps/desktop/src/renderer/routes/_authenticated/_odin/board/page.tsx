@@ -283,6 +283,17 @@ function HistoryView({ card, live }: { card: BoardCard; live: boolean }) {
 	// Same query the card's pills run, so this is a cache hit. Claude prunes old
 	// transcripts; when the file is gone, the saved screen is all that's left.
 	const { error } = useCardTranscript(card, false);
+	const chatView = useSessionView((s) => s.chat);
+	if (sessionId && !live && !error && chatView) {
+		return (
+			<ChatView
+				paneId={card.pane.id}
+				sessionId={sessionId}
+				cwd={sessionCwd(card.pane) ?? card.repoPath}
+				workspaceId={card.workspaceId}
+			/>
+		);
+	}
 	if (sessionId && !live && !error) {
 		return (
 			<div className="flex min-h-0 flex-1 flex-col">
@@ -1522,6 +1533,9 @@ function DevBoardPage() {
 	// same reason the diff does - you go to the shell instead of the session.
 	const [isShellOpen, setIsShellOpen] = useState(false);
 	const chatView = useSessionView((s) => s.chat);
+	// The chat can't answer a TUI menu; this pane's drawer shows the terminal
+	// until you go back to the chat.
+	const [terminalPaneId, setTerminalPaneId] = useState<string | null>(null);
 	// Panes whose Resume is in flight. Resuming takes a second (session lookup,
 	// kill, respawn) and the card can't flip out of Idle until the 5s daemon
 	// poll sees the new PTY - without this the click looks like it did nothing.
@@ -4102,9 +4116,7 @@ function DevBoardPage() {
 										</div>
 									) : agentPaneIds.has(drawerCard.pane.id) &&
 										chatView &&
-										// A question or plan approval is a menu only the TUI draws -
-										// the chat can't answer it, so the terminal takes over.
-										panes[drawerCard.pane.id]?.status !== "permission" ? (
+										terminalPaneId !== drawerCard.pane.id ? (
 										<ChatView
 											key={drawerCard.pane.id}
 											paneId={drawerCard.pane.id}
@@ -4118,12 +4130,27 @@ function DevBoardPage() {
 											cwd={sessionCwd(drawerCard.pane) ?? drawerCard.repoPath}
 											workspaceId={drawerCard.workspaceId}
 											working={isWorkingNow(drawerCard.pane.id)}
+											waiting={
+												panes[drawerCard.pane.id]?.status === "permission"
+											}
+											onShowTerminal={() =>
+												setTerminalPaneId(drawerCard.pane.id)
+											}
 										/>
 									) : agentPaneIds.has(drawerCard.pane.id) ? (
 										// Claude running - the real PTY, attached read/write. xterm is the
 										// only thing that renders Claude Code's full-screen TUI legibly
 										// (scrollback replay is a stream of overlapping frames = mush).
-										<div className="min-h-0 flex-1 bg-background p-2">
+										<div className="flex min-h-0 flex-1 flex-col bg-background p-2">
+											{chatView && (
+												<button
+													type="button"
+													onClick={() => setTerminalPaneId(null)}
+													className="mb-1 self-start text-[12px] text-link hover:underline"
+												>
+													← Back to chat
+												</button>
+											)}
 											<Terminal
 												key={drawerCard.pane.id}
 												paneId={drawerCard.pane.id}

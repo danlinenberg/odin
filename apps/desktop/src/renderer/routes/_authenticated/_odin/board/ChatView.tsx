@@ -34,10 +34,12 @@ type Line = {
 	isMeta?: boolean;
 	isSidechain?: boolean;
 	message?: { content?: string | Block[] };
+	/** A message you sent mid-turn rides in as a queued_command attachment. */
+	attachment?: { type?: string; prompt?: string | Block[] };
 };
 
 /** First read takes the transcript's tail - a long session's JSONL runs to MBs. */
-const TAIL_BYTES = 1_500_000;
+const TAIL_BYTES = 4_000_000;
 const POLL_MS = 1_000;
 
 /** Where Claude files a conversation: its cwd with every non-alphanumeric as "-". */
@@ -76,8 +78,14 @@ export function applyLines(items: Item[], lines: Line[]): Item[] {
 		if (item.kind === "tool") toolIndex.set(item.id, index);
 	});
 	lines.forEach((line, lineIndex) => {
-		if (line.isMeta || line.isSidechain || !line.message) return;
+		if (line.isMeta || line.isSidechain) return;
 		const id = line.uuid ?? `${items.length}-${lineIndex}`;
+		if (line.attachment?.type === "queued_command") {
+			const text = userText(blockText(line.attachment.prompt));
+			if (text) next.push({ kind: "user", id, text });
+			return;
+		}
+		if (!line.message) return;
 		const content = line.message.content;
 		if (line.type === "user") {
 			if (typeof content === "string") {
@@ -125,7 +133,7 @@ export function applyLines(items: Item[], lines: Line[]): Item[] {
  */
 function useLiveItems(path: string | null, workspaceId: string) {
 	const [items, setItems] = useState<Item[]>([]);
-	const [missing, setMissing] = useState(false);
+	const [missing, setMissing] = useState<string | null>(null);
 	const utils = electronTrpc.useUtils();
 	useEffect(() => {
 		if (!path) return;
@@ -136,7 +144,7 @@ function useLiveItems(path: string | null, workspaceId: string) {
 		const decoder = new TextDecoder();
 		let timer: ReturnType<typeof setTimeout>;
 		setItems([]);
-		setMissing(false);
+		setMissing(null);
 		const tick = async () => {
 			try {
 				if (offset === null) {
@@ -145,7 +153,9 @@ function useLiveItems(path: string | null, workspaceId: string) {
 						absolutePath: path,
 					});
 					if (!meta) {
-						if (!cancelled) setMissing(true);
+						if (!cancelled) setMissing(`Not on disk yet: ${path}`);
+						// Claude writes the file on its first turn - keep looking.
+						timer = setTimeout(tick, POLL_MS * 3);
 						return;
 					}
 					offset = Math.max(0, (meta.size ?? 0) - TAIL_BYTES);
@@ -182,9 +192,10 @@ function useLiveItems(path: string | null, workspaceId: string) {
 					});
 					if (lines.length) setItems((prev) => applyLines(prev, lines));
 				}
-				setMissing(false);
-			} catch {
-				if (!cancelled) setMissing(true);
+				setMissing(null);
+			} catch (error) {
+				if (!cancelled)
+					setMissing(error instanceof Error ? error.message : String(error));
 			}
 			if (!cancelled) timer = setTimeout(tick, POLL_MS);
 		};
@@ -312,17 +323,35 @@ export function ChatView({
 	sessionId,
 	cwd,
 	workspaceId,
-	working,
+	working = false,
+	waiting = false,
+	onShowTerminal,
 }: {
 	paneId: string;
 	sessionId: string | null;
 	cwd: string | undefined;
 	workspaceId: string;
-	working: boolean;
+	working?: boolean;
+	/** Needs you - possibly a menu (question, plan approval) only the TUI draws. */
+	waiting?: boolean;
+	/** Omitted for an ended session: nothing to type into, so no composer. */
+	onShowTerminal?: () => void;
 }) {
 	const { data: home } = electronTrpc.window.getHomeDir.useQuery();
+	// Claude files the conversation under the directory it STARTED in - the
+	// transcript's first cwd. The pane's cwd has often moved on since (a feed
+	// session starts in ~/dev and works in a worktree). Same query and options
+	// as the card's pills, so it's a cache hit; the pane's cwd is the fallback.
+	const { data: transcript } =
+		electronTrpc.terminal.readClaudeTranscript.useQuery(
+			{ sessionId: sessionId ?? "" },
+			{ enabled: !!sessionId, retry: false, staleTime: 60_000 },
+		);
+	const startCwd = transcript?.cwd ?? cwd;
 	const path =
-		home && cwd && sessionId ? transcriptPath(home, cwd, sessionId) : null;
+		home && startCwd && sessionId
+			? transcriptPath(home, startCwd, sessionId)
+			: null;
 	const { items, missing } = useLiveItems(path, workspaceId);
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const pinnedRef = useRef(true);
@@ -344,9 +373,9 @@ export function ChatView({
 				className="min-h-0 flex-1 overflow-y-auto px-5 py-4"
 			>
 				<div className="mx-auto flex max-w-[780px] flex-col gap-3">
-					{missing && (
-						<div className="text-[12px] text-muted-foreground">
-							No conversation on disk for this session yet.
+					{missing && items.length === 0 && (
+						<div className="select-text cursor-text text-[12px] text-muted-foreground">
+							{missing}
 						</div>
 					)}
 					{items.map((item) => (
@@ -360,7 +389,27 @@ export function ChatView({
 					)}
 				</div>
 			</div>
-			<Composer paneId={paneId} working={working} />
+			{onShowTerminal ? (
+				<>
+					{waiting && (
+						<div className="mx-auto w-full max-w-[780px] px-4 pb-1 text-[12px] text-muted-foreground">
+							A question or plan approval only shows in the terminal -{" "}
+							<button
+								type="button"
+								onClick={onShowTerminal}
+								className="text-link hover:underline"
+							>
+								answer it there
+							</button>
+						</div>
+					)}
+					<Composer paneId={paneId} working={working} />
+				</>
+			) : (
+				<div className="border-t border-border px-5 py-2 text-center text-[11.5px] text-muted-foreground">
+					Session ended - Resume to reply
+				</div>
+			)}
 		</div>
 	);
 }
