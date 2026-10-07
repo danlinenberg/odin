@@ -423,11 +423,27 @@ function UserBubble({ text, pending }: { text: string; pending?: boolean }) {
 	);
 }
 
+/** Claude's spark, drawn - the ✳ character renders as macOS's green emoji. */
+function Spark({ className }: { className?: string }) {
+	return (
+		<svg
+			viewBox="0 0 16 16"
+			aria-hidden="true"
+			className={className}
+			stroke="currentColor"
+			strokeWidth="1.8"
+			strokeLinecap="round"
+		>
+			<path d="M8 1.5v13M1.5 8h13M3.4 3.4l9.2 9.2M12.6 3.4l-9.2 9.2" />
+		</svg>
+	);
+}
+
 /** Claude's mark, on the first block of each reply - who's talking, at a glance. */
 function ClaudeMark() {
 	return (
-		<span className="mt-[3px] flex size-5 shrink-0 items-center justify-center rounded-md bg-[#d97757]/15 text-[13px] leading-none text-[#d97757]">
-			✳
+		<span className="mt-[3px] flex size-5 shrink-0 items-center justify-center text-[#d97757]">
+			<Spark className="size-3.5" />
 		</span>
 	);
 }
@@ -574,9 +590,7 @@ export function ChatView({
 					{working && (
 						<div className="flex items-center gap-3 text-[12.5px] text-[#d97757]">
 							<span className="flex size-5 shrink-0 items-center justify-center">
-								<span className="animate-spin text-[13px] leading-none [animation-duration:2.4s]">
-									✳
-								</span>
+								<Spark className="size-3.5 animate-spin [animation-duration:2.4s]" />
 							</span>
 							Working…
 						</div>
