@@ -141,7 +141,7 @@ async function pipe(
  * readable columns. ~/.gitconfig's [delta] is ignored, so it looks the same on
  * every machine - a `side-by-side = true` there split even a narrow panel in two.
  */
-function deltaArgs(width: number): string[] {
+function deltaArgs(width: number, wrap: boolean): string[] {
 	return [
 		"--no-gitconfig",
 		"--paging=never",
@@ -149,7 +149,8 @@ function deltaArgs(width: number): string[] {
 		"--line-numbers",
 		// Delta's default is 8 columns a tab; deep JSX then starts mid-panel.
 		"--tabs=2",
-		...(width >= 200 ? ["--side-by-side"] : []),
+		// Unwrapped, side by side would cut each pane at half the width.
+		...(wrap && width >= 200 ? ["--side-by-side"] : []),
 		"--file-style=bold #e6e6ee",
 		// The rule above each file is drawn in render(): delta sizes its own to
 		// the file name, which left short stubs dangling around a wide header.
@@ -286,6 +287,8 @@ async function render(
 	patch: string,
 	width: number,
 	note = "",
+	/** Off, long lines run on and the panel scrolls sideways. */
+	wrap = true,
 ): Promise<Pick<RepoDiff, "ansi" | "delta" | "files">> {
 	if (!patch.trim()) return { ansi: "", delta: true, files: [] };
 	if (patch.length > MAX_PATCH_BYTES) {
@@ -299,7 +302,7 @@ async function render(
 				chunks.slice(i, i + 8).map((chunk) =>
 					// Without COLORTERM delta drops to 256 colours, and its +/- fills
 					// land on ANSI 22/52 - an added file comes out flooded bright green.
-					pipe("delta", deltaArgs(width), chunk.text, {
+					pipe("delta", deltaArgs(width, wrap), chunk.text, {
 						COLORTERM: "truecolor",
 					}),
 				),
@@ -313,10 +316,12 @@ async function render(
 	chunks.forEach((chunk, index) => {
 		const body = delta ? (rendered[index] as string) : colourPatch(chunk.text);
 		// A full-width rule, then the file name straight under it.
-		const wrapped = body
-			.split("\n")
-			.map((line) => wrapLine(line, width))
-			.join("\n");
+		const wrapped = wrap
+			? body
+					.split("\n")
+					.map((line) => wrapLine(line, width))
+					.join("\n")
+			: body;
 		const text = chunk.path
 			? `${DIM}${"─".repeat(width)}${RESET}\n${wrapped.replace(/^\n+/, "")}`
 			: wrapped;
@@ -363,6 +368,7 @@ export async function renderDiff(
 	cwd: string,
 	width: number,
 	since?: number,
+	wrap = true,
 ): Promise<RepoDiff> {
 	const git = async (args: string[]) =>
 		(
@@ -400,7 +406,7 @@ export async function renderDiff(
 		? `${DIM}${untracked.length} untracked file(s), not shown: ${untracked.slice(0, 3).join(", ")}${untracked.length > 3 ? ", …" : ""}${RESET}\n\n`
 		: "";
 
-	return { ...(await render(patch, width, note)), source, cwd };
+	return { ...(await render(patch, width, note, wrap)), source, cwd };
 }
 
 /**
@@ -411,6 +417,7 @@ export async function renderPullRequestDiff(
 	url: string,
 	width: number,
 	exec?: GhExec,
+	wrap = true,
 ): Promise<RepoDiff> {
 	const patch = await ghAsAnyAccount(
 		["pr", "diff", url, "--color=never"],
@@ -426,7 +433,7 @@ export async function renderPullRequestDiff(
 	// https://github.com/<owner>/<repo>/pull/<n>
 	const [, , , , repo, , number] = url.split("/");
 	return {
-		...(await render(patch, width)),
+		...(await render(patch, width, "", wrap)),
 		source: `${repo} PR #${number}`,
 		cwd: url,
 	};
@@ -512,12 +519,20 @@ export const createReposRouter = () => {
 					workspaceId: z.string(),
 					/** Terminal columns to render at - delta assumes 80 when piped. */
 					width: z.number().int().min(40).max(400).default(120),
+					/** Soft-wrap long lines; off, they run on and the panel scrolls sideways. */
+					wrap: z.boolean().default(true),
 					/** Show this pull request's diff instead of the checkout's. */
 					pr: z.string().url().nullish(),
 				}),
 			)
 			.query(async ({ input }) => {
-				if (input.pr) return renderPullRequestDiff(input.pr, input.width);
+				if (input.pr)
+					return renderPullRequestDiff(
+						input.pr,
+						input.width,
+						undefined,
+						input.wrap,
+					);
 				// The repo the agent worked in wins: Claude Code cds between repos
 				// and worktrees without the shell ever noticing, so `input.cwd` is
 				// often just the catch-all directory the pane was launched in.
@@ -545,7 +560,7 @@ export const createReposRouter = () => {
 				const since = transcript
 					? statSync(transcript.path).birthtimeMs || undefined
 					: undefined;
-				return renderDiff(dir, input.width, since);
+				return renderDiff(dir, input.width, since, input.wrap);
 			}),
 	});
 };
