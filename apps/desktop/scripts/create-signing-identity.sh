@@ -43,6 +43,16 @@ security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
 # signature - the exact thing this script exists to keep stable.
 if security find-certificate -c "$IDENTITY" "$KEYCHAIN" >/dev/null 2>&1; then
 	echo "Reusing the certificate from an earlier run."
+elif [[ -n "${ODIN_SIGNING_P12:-}" ]]; then
+	# Release runners start empty, so minting there gave every release a new
+	# signature and wiped users' grants on each update. The release imports the
+	# one cert kept in the ODIN_SIGNING_P12 secret (base64 PKCS#12, password
+	# $KEYCHAIN_PASSWORD) instead.
+	base64 --decode <<<"$ODIN_SIGNING_P12" >"$tmp/identity.p12"
+	security import "$tmp/identity.p12" -k "$KEYCHAIN" -P "$KEYCHAIN_PASSWORD" \
+		-T /usr/bin/codesign -T /usr/bin/security
+	security set-key-partition-list -S apple-tool:,apple:,codesign: -s \
+		-k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null 2>&1
 else
 	cat >"$tmp/openssl.cnf" <<EOF
 [req]
