@@ -2686,6 +2686,20 @@ function DevBoardPage() {
 		}));
 	};
 
+	/** Ctrl+C the turn. Shared by the drawer's Interrupt and the chat's stop. */
+	const interruptPane = (paneId: string) => {
+		utils.client.terminal.write.mutate({ paneId, data: "\x03" });
+		// Claude fires no Stop hook on an interrupt, so the card would read
+		// Working until the scan - and a second click would land Ctrl+C at the
+		// idle prompt and start quitting it. Same as Park.
+		useTabsStore.setState((state) => ({
+			panes: {
+				...state.panes,
+				[paneId]: { ...state.panes[paneId], status: "idle" },
+			},
+		}));
+	};
+
 	const resumeCard = async (card: BoardCard, auto = false) => {
 		if (resumingPaneIds.includes(card.pane.id)) return;
 		// Never started: there's no conversation to resume, only the launch that
@@ -4136,6 +4150,7 @@ function DevBoardPage() {
 											onShowTerminal={() =>
 												setTerminalPaneId(drawerCard.pane.id)
 											}
+											onStop={() => interruptPane(drawerCard.pane.id)}
 										/>
 									) : agentPaneIds.has(drawerCard.pane.id) ? (
 										// Claude running - the real PTY, attached read/write. xterm is the
@@ -4253,22 +4268,7 @@ function DevBoardPage() {
 											? "Stop the agent (sends Ctrl+C to the session)"
 											: "Nothing to interrupt - the agent isn't working"
 									}
-									onClick={() => {
-										const paneId = drawerCard.pane.id;
-										utils.client.terminal.write.mutate({
-											paneId,
-											data: "\x03",
-										});
-										// Claude fires no Stop hook on an interrupt, so the card would
-										// read Working until the scan - and a second click would land
-										// Ctrl+C at the idle prompt and start quitting it. Same as Park.
-										useTabsStore.setState((state) => ({
-											panes: {
-												...state.panes,
-												[paneId]: { ...state.panes[paneId], status: "idle" },
-											},
-										}));
-									}}
+									onClick={() => interruptPane(drawerCard.pane.id)}
 									className={cn(
 										"rounded-[7px] px-3 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50",
 										BUTTON.secondary,

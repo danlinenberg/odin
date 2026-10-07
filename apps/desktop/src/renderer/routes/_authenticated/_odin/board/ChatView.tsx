@@ -135,6 +135,9 @@ function useLiveItems(path: string | null, workspaceId: string) {
 	const [items, setItems] = useState<Item[]>([]);
 	const [missing, setMissing] = useState<string | null>(null);
 	const utils = electronTrpc.useUtils();
+	// Read now instead of at the next poll - after a send, so Claude's echo of
+	// your message lands as soon as it's written.
+	const pokeRef = useRef(() => {});
 	useEffect(() => {
 		if (!path) return;
 		let cancelled = false;
@@ -143,9 +146,17 @@ function useLiveItems(path: string | null, workspaceId: string) {
 		let remainder = "";
 		const decoder = new TextDecoder();
 		let timer: ReturnType<typeof setTimeout>;
+		let running = false;
+		let again = false;
 		setItems([]);
 		setMissing(null);
 		const tick = async () => {
+			if (running) {
+				again = true;
+				return;
+			}
+			running = true;
+			clearTimeout(timer);
 			try {
 				if (offset === null) {
 					const meta = await utils.client.filesystem.getMetadata.query({
@@ -155,6 +166,7 @@ function useLiveItems(path: string | null, workspaceId: string) {
 					if (!meta) {
 						if (!cancelled) setMissing(`Not on disk yet: ${path}`);
 						// Claude writes the file on its first turn - keep looking.
+						running = false;
 						timer = setTimeout(tick, POLL_MS * 3);
 						return;
 					}
@@ -197,15 +209,18 @@ function useLiveItems(path: string | null, workspaceId: string) {
 				if (!cancelled)
 					setMissing(error instanceof Error ? error.message : String(error));
 			}
-			if (!cancelled) timer = setTimeout(tick, POLL_MS);
+			running = false;
+			if (!cancelled) timer = setTimeout(tick, again ? 0 : POLL_MS);
+			again = false;
 		};
+		pokeRef.current = () => void tick();
 		void tick();
 		return () => {
 			cancelled = true;
 			clearTimeout(timer);
 		};
 	}, [path, workspaceId, utils]);
-	return { items, missing };
+	return { items, missing, poke: () => pokeRef.current() };
 }
 
 function toolSummary(input: Record<string, unknown>): string {
@@ -326,6 +341,7 @@ export function ChatView({
 	working = false,
 	waiting = false,
 	onShowTerminal,
+	onStop,
 }: {
 	paneId: string;
 	sessionId: string | null;
@@ -336,6 +352,8 @@ export function ChatView({
 	waiting?: boolean;
 	/** Omitted for an ended session: nothing to type into, so no composer. */
 	onShowTerminal?: () => void;
+	/** Interrupt the turn - the drawer's Interrupt, so the card leaves Working too. */
+	onStop?: () => void;
 }) {
 	const { data: home } = electronTrpc.window.getHomeDir.useQuery();
 	// Claude files the conversation under the directory it STARTED in - the
@@ -352,15 +370,40 @@ export function ChatView({
 		home && startCwd && sessionId
 			? transcriptPath(home, startCwd, sessionId)
 			: null;
-	const { items, missing } = useLiveItems(path, workspaceId);
+	const { items, missing, poke } = useLiveItems(path, workspaceId);
+	// What you just sent, shown at once - Claude writes it to the transcript a
+	// beat later, and that echo replaces it.
+	const [pending, setPending] = useState<{ id: number; text: string }[]>([]);
+	useEffect(() => {
+		setPending((list) =>
+			list.filter(
+				(sent) =>
+					!items.some(
+						(item) => item.kind === "user" && item.text.includes(sent.text),
+					),
+			),
+		);
+	}, [items]);
+	const onSent = (text: string) => {
+		const id = Date.now();
+		pinnedRef.current = true;
+		setPending((list) => [...list, { id, text }]);
+		// Claude takes a moment to write it; look again a few times meanwhile.
+		for (const ms of [150, 500, 1000]) setTimeout(poke, ms);
+		// ponytail: an echo that never matches (Claude rewrote it) just expires.
+		setTimeout(
+			() => setPending((list) => list.filter((sent) => sent.id !== id)),
+			30_000,
+		);
+	};
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const pinnedRef = useRef(true);
 	// Follow new output only while you're at the bottom - scrolling up to read
 	// shouldn't get yanked back every second.
 	useEffect(() => {
 		const el = scrollRef.current;
-		if (el && pinnedRef.current && items.length) el.scrollTop = el.scrollHeight;
-	}, [items]);
+		if (el && pinnedRef.current) el.scrollTop = el.scrollHeight;
+	}, [items, pending]);
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
 			<div
@@ -380,6 +423,14 @@ export function ChatView({
 					)}
 					{items.map((item) => (
 						<ItemView key={item.id} item={item} />
+					))}
+					{pending.map((sent) => (
+						<div
+							key={sent.id}
+							className="ml-auto max-w-[85%] whitespace-pre-wrap break-words rounded-[14px] bg-secondary px-3.5 py-2.5 text-[13px] leading-relaxed text-foreground opacity-70"
+						>
+							{sent.text}
+						</div>
 					))}
 					{working && (
 						<div className="flex items-center gap-2 px-1.5 text-[12px] text-working">
@@ -403,7 +454,12 @@ export function ChatView({
 							</button>
 						</div>
 					)}
-					<Composer paneId={paneId} working={working} />
+					<Composer
+						paneId={paneId}
+						working={working}
+						onSent={onSent}
+						onStop={onStop}
+					/>
 				</>
 			) : (
 				<div className="border-t border-border px-5 py-2 text-center text-[11.5px] text-muted-foreground">
@@ -420,7 +476,17 @@ export function ChatView({
  * submit early), then Enter in its own write. An image paste is Ctrl+V into the
  * PTY: Claude Code reads the clipboard image itself and attaches it.
  */
-function Composer({ paneId, working }: { paneId: string; working: boolean }) {
+function Composer({
+	paneId,
+	working,
+	onSent,
+	onStop,
+}: {
+	paneId: string;
+	working: boolean;
+	onSent: (text: string) => void;
+	onStop?: () => void;
+}) {
 	const [draft, setDraft] = useState("");
 	const [images, setImages] = useState(0);
 	const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -439,13 +505,14 @@ function Composer({ paneId, working }: { paneId: string; working: boolean }) {
 		if (!text && images === 0) return;
 		setDraft("");
 		setImages(0);
+		if (text) onSent(text);
 		try {
 			if (text)
 				await write.mutateAsync({
 					paneId,
 					data: text.includes("\n") ? `\x1b[200~${text}\x1b[201~` : text,
 				});
-			await new Promise((resolve) => setTimeout(resolve, 60));
+			await new Promise((resolve) => setTimeout(resolve, 30));
 			await write.mutateAsync({ paneId, data: "\r" });
 		} catch (error) {
 			setDraft(text);
@@ -494,8 +561,10 @@ function Composer({ paneId, working }: { paneId: string; working: boolean }) {
 					{working ? (
 						<button
 							type="button"
-							title="Stop Claude (Esc)"
-							onClick={() => write.mutate({ paneId, data: "\x1b" })}
+							title="Stop Claude"
+							onClick={() =>
+								onStop ? onStop() : write.mutate({ paneId, data: "\x03" })
+							}
 							className="ml-auto flex size-7 items-center justify-center rounded-full bg-foreground text-background hover:opacity-85"
 						>
 							<span className="size-[9px] rounded-[2px] bg-background" />
