@@ -70,7 +70,7 @@ function getIconsDir(): string {
 }
 
 /** Every build, canary included, uses the one Odin icon. */
-function getIconPath(): string {
+export function getIconPath(): string {
 	return join(getIconsDir(), "icon.png");
 }
 

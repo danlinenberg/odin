@@ -14,6 +14,7 @@ import { createIPCHandler } from "trpc-electron/main";
 import { productName } from "~/package.json";
 import { appState } from "../lib/app-state";
 import { browserManager } from "../lib/browser/browser-manager";
+import { getIconPath } from "../lib/dock-icon";
 import { attachEditContextMenu } from "../lib/edit-context-menu";
 import { createApplicationMenu } from "../lib/menu";
 import { playNotificationSound } from "../lib/notification-sound";
@@ -113,6 +114,9 @@ export async function MainWindow() {
 		// y centres the 12px lights in the 36px top bar (see _odin/layout.tsx),
 		// so they line up with the app name beside them.
 		trafficLightPosition: { x: 16, y: 12 },
+		// macOS takes the Dock icon from the bundle; Windows and Linux need it
+		// on the window or the taskbar button shows none.
+		...(PLATFORM.IS_MAC ? {} : { icon: getIconPath() }),
 		webPreferences: {
 			preload: join(__dirname, "../preload/index.js"),
 			webviewTag: true,

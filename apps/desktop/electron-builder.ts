@@ -150,7 +150,7 @@ const config: Configuration = {
 		// Nothing in the repo declares @anthropic-ai/claude-agent-sdk and nothing
 		// reaches it; Odin drives the agent CLI already on your PATH. Its vendored
 		// copy of the claude binary was the single largest file in the app.
-		"!**/node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64/**",
+		"!**/node_modules/@anthropic-ai/claude-agent-sdk-*/**",
 	],
 
 	// Rebuild native modules for Electron's Node.js version
