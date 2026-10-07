@@ -22,11 +22,22 @@ import {
 	readdirSync,
 	readFileSync,
 	realpathSync,
+	rmdirSync,
 	rmSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { satisfies } from "semver";
 import { requiredMaterializedNodeModules } from "../runtime-dependencies";
+
+/**
+ * Remove a symlinked module, never its target. Bun links modules with
+ * directory junctions on Windows, which rmSync refuses (EISDIR) and rmdirSync
+ * removes as a link.
+ */
+function removeLink(path: string): void {
+	if (process.platform === "win32") rmdirSync(path);
+	else rmSync(path);
+}
 
 // Target architecture for cross-compilation. When set, platform-specific
 // packages for this arch are fetched from npm if not already present.
@@ -97,8 +108,7 @@ function copyModuleIfSymlink(
 		console.log(`  ${moduleName}: symlink -> replacing with real files`);
 		console.log(`    Real path: ${realPath}`);
 
-		// Remove the symlink
-		rmSync(modulePath);
+		removeLink(modulePath);
 
 		// Copy the actual files
 		cpSync(realPath, modulePath, { recursive: true });
@@ -203,7 +213,7 @@ function copyDependencyForPackage(
 		const nestedStats = lstatSync(nestedDependencyPath);
 		if (nestedStats.isSymbolicLink()) {
 			const realPath = realpathSync(nestedDependencyPath);
-			rmSync(nestedDependencyPath);
+			removeLink(nestedDependencyPath);
 			cpSync(realPath, nestedDependencyPath, {
 				recursive: true,
 			});
