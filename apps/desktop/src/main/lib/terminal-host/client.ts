@@ -35,6 +35,7 @@ import { ODIN_DIR_NAME } from "shared/constants";
 import { throwIfAborted } from "../terminal/abort";
 import { TerminalAttachCanceledError } from "../terminal/errors";
 import { resolveElectronBinary } from "./electron-binary";
+import { terminalHostSocketPath } from "./socket-path";
 import {
 	type CancelCreateOrAttachRequest,
 	type ClearScrollbackRequest,
@@ -77,7 +78,7 @@ const DEBUG_CLIENT = process.env.ODIN_TERMINAL_DEBUG === "1";
 // Get from shared constants for multi-worktree support (imported at top of file)
 const ODIN_HOME_DIR = join(homedir(), ODIN_DIR_NAME);
 
-const SOCKET_PATH = join(ODIN_HOME_DIR, "terminal-host.sock");
+const SOCKET_PATH = terminalHostSocketPath(ODIN_HOME_DIR);
 const TOKEN_PATH = join(ODIN_HOME_DIR, "terminal-host.token");
 const PID_PATH = join(ODIN_HOME_DIR, "terminal-host.pid");
 const SPAWN_LOCK_PATH = join(ODIN_HOME_DIR, "terminal-host.spawn.lock");

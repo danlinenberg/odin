@@ -70,6 +70,10 @@ function snapshotStringEnv(
 export async function resolveTerminalBaseEnv(): Promise<
 	Record<string, string>
 > {
+	// Windows has no login-shell rc files to source: the env a GUI process
+	// inherits is already the user's full env, and probing cmd.exe with
+	// `-i -l -c` only fails and falls through to this same snapshot.
+	if (process.platform === "win32") return snapshotStringEnv(process.env);
 	try {
 		return await getStrictShellEnvironment();
 	} catch (error) {

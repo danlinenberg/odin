@@ -167,10 +167,14 @@ export function isDaemonRunningCurrentScript(
  * socket-probe fallback. Namespace only development worktrees with a
  * non-default `ODIN_HOME_DIR`; all production paths deliberately keep the
  * legacy org-only socket so existing packaged daemons remain adoptable.
+ *
+ * Windows has no Unix-domain socket files - `listen()` on a filesystem path
+ * fails with EACCES - so there the same hash names a named pipe instead.
  */
 export function ptyDaemonSocketPath(
 	organizationId: string,
 	env: NodeJS.ProcessEnv = process.env,
+	platform: NodeJS.Platform = process.platform,
 ): string {
 	const home = env.ODIN_HOME_DIR;
 	const defaultHome = path.join(os.homedir(), ".odin");
@@ -181,6 +185,7 @@ export function ptyDaemonSocketPath(
 			? `${organizationId}:${home}`
 			: organizationId;
 	const shortId = createHash("sha256").update(key).digest("hex").slice(0, 12);
+	if (platform === "win32") return `\\\\.\\pipe\\odin-ptyd-${shortId}`;
 	return path.join(os.tmpdir(), `odin-ptyd-${shortId}.sock`);
 }
 

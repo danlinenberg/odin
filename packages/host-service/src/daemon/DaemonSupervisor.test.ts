@@ -1437,4 +1437,12 @@ describe("ptyDaemonSocketPath", () => {
 		});
 		expect(Buffer.byteLength(socket)).toBeLessThan(104);
 	});
+
+	test("Windows gets a named pipe under the same hash", () => {
+		const env = { NODE_ENV: "production" };
+		const unixName = path.basename(ptyDaemonSocketPath(ORG, env, "darwin"));
+		expect(ptyDaemonSocketPath(ORG, env, "win32")).toBe(
+			`\\\\.\\pipe\\${unixName.replace(/\.sock$/, "")}`,
+		);
+	});
 });
