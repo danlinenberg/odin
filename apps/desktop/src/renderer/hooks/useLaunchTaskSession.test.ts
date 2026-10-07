@@ -98,6 +98,23 @@ describe("buildPrompt", () => {
 		expect(buildPrompt("Fix the board", null)).toContain("One line per item");
 	});
 
+	// Settings -> Sessions -> Default prompt replaces the standing ending.
+	it("ends with your own instructions in place of the default", () => {
+		const prompt = buildPrompt(
+			"Fix the board",
+			null,
+			[],
+			undefined,
+			false,
+			[],
+			"",
+			"",
+			"Reply in haiku.",
+		);
+		expect(prompt.endsWith("Reply in haiku.")).toBe(true);
+		expect(prompt).not.toContain("ACTION ITEMS");
+	});
+
 	// A 4am cron run that stops to ask a question waits until morning for an
 	// answer it could have defaulted.
 	it("tells a scheduled run that nobody is watching it", () => {

@@ -9,6 +9,7 @@ import {
 	rulesSettings,
 	useOdinRules,
 } from "renderer/stores/odin-rules";
+import { useSessionInstructions } from "renderer/stores/session-instructions";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import { SHELL_RULE } from "shared/constants";
 import { isVideoFile } from "shared/file-types";
@@ -33,6 +34,26 @@ export function quote(path: string): string {
 export const GUIDELINES_HEADER =
 	"Context and guidelines from me for this session - keep them in mind throughout:";
 
+/**
+ * What every task prompt ends with. Settings -> Sessions can replace it
+ * (`useSessionInstructions`); this is what Reset goes back to.
+ */
+export const DEFAULT_SESSION_INSTRUCTIONS = [
+	"Work in the current workspace. Investigate, make the changes, and verify them when practical.",
+	// A subagent or a background Bash runs it where nobody can see it; the
+	// card's Shell is where I'd look for it.
+	"",
+	SHELL_RULE,
+	// Every session lands on the board, and most of them land under "Needs
+	// you" - where the only question being asked is "what do I have to do
+	// about this one?". A turn that stops at "here's what I found" makes
+	// you read the whole transcript to answer it.
+	"",
+	// Items that carry their own background and options turn the list
+	// back into a transcript; the reasoning already lives above it.
+	'Finish every reply with a section headed "ACTION ITEMS": a short numbered list of what I - the human reviewing this - have to do next (decide something, run or check something, unblock you). Anything you left open is an item: a PR not merged, a change not live yet, a question you are asking me. Shipped work is not: no "review this" for something already merged. One line per item, an imperative of about 12 words or fewer - no background, reasons or option lists (those belong above the section). If there is nothing for me to do, write "ACTION ITEMS: none" and say why in a few words.',
+].join("\n");
+
 export function buildPrompt(
 	title: string,
 	description: string | null,
@@ -42,6 +63,7 @@ export function buildPrompt(
 	rules: OdinRule[] = [],
 	checkout = "",
 	guidelines = "",
+	instructions = DEFAULT_SESSION_INSTRUCTIONS,
 ): string {
 	return [
 		// A skill leads the prompt, on its own line, with the title as its
@@ -64,12 +86,6 @@ export function buildPrompt(
 				]
 			: []),
 		...(guidelines.trim() ? ["", GUIDELINES_HEADER, guidelines.trim()] : []),
-		"",
-		"Work in the current workspace. Investigate, make the changes, and verify them when practical.",
-		// A subagent or a background Bash runs it where nobody can see it; the
-		// card's Shell is where I'd look for it.
-		"",
-		SHELL_RULE,
 		// A scheduled run reads exactly like one I typed, so the agent stops on
 		// the first ambiguity and waits - at 4am, for hours, for nobody.
 		...(unattended
@@ -79,14 +95,7 @@ export function buildPrompt(
 				]
 			: []),
 		...rulesPrompt(rules, checkout),
-		// Every session lands on the board, and most of them land under "Needs
-		// you" - where the only question being asked is "what do I have to do
-		// about this one?". A turn that stops at "here's what I found" makes
-		// you read the whole transcript to answer it.
-		"",
-		// Items that carry their own background and options turn the list
-		// back into a transcript; the reasoning already lives above it.
-		'Finish every reply with a section headed "ACTION ITEMS": a short numbered list of what I - the human reviewing this - have to do next (decide something, run or check something, unblock you). Anything you left open is an item: a PR not merged, a change not live yet, a question you are asking me. Shipped work is not: no "review this" for something already merged. One line per item, an imperative of about 12 words or fewer - no background, reasons or option lists (those belong above the section). If there is nothing for me to do, write "ACTION ITEMS: none" and say why in a few words.',
+		...(instructions.trim() ? ["", instructions.trim()] : []),
 	].join("\n");
 }
 
@@ -351,6 +360,8 @@ export function useLaunchTaskSession() {
 						useOdinRules.getState().rules,
 						checkout,
 						guidelines,
+						useSessionInstructions.getState().instructions ??
+							DEFAULT_SESSION_INSTRUCTIONS,
 					),
 					encoding: "utf-8",
 				});
