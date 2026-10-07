@@ -764,6 +764,13 @@ export function ChatView({
 		const el = scrollRef.current;
 		if (el && pinnedRef.current) el.scrollTop = el.scrollHeight;
 	}, [items, pending]);
+	// A live session whose first prompt hasn't reached the transcript yet: the
+	// file doesn't exist ("Not on disk yet") or holds no turn so far.
+	const starting =
+		!!onShowTerminal &&
+		items.length === 0 &&
+		pending.length === 0 &&
+		(!missing || missing.startsWith("Not on disk yet"));
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
 			<div
@@ -784,10 +791,18 @@ export function ChatView({
 				className="min-h-0 flex-1 overflow-y-auto px-8 py-6"
 			>
 				<div className="flex flex-col gap-2.5">
-					{missing && items.length === 0 && (
-						<div className="select-text cursor-text text-[12px] text-muted-foreground">
-							{missing}
+					{starting ? (
+						<div className="flex items-center gap-3 text-[12.5px] text-working">
+							<OdinMark className="animate-[odin-nod_1.6s_ease-in-out_infinite]" />
+							Starting session…
 						</div>
+					) : (
+						missing &&
+						items.length === 0 && (
+							<div className="select-text cursor-text text-[12px] text-muted-foreground">
+								{missing}
+							</div>
+						)
 					)}
 					{segments(items).map((segment, index, all) => {
 						const previous = all[index - 1];
@@ -866,7 +881,7 @@ export function ChatView({
 							</div>
 						</div>
 					)}
-					{working && !prompt && (
+					{working && !prompt && !starting && (
 						<div className="flex items-center gap-3 text-[12.5px] text-working">
 							{/* Odin's icon, nodding along while Claude works. */}
 							<OdinMark className="animate-[odin-nod_1.6s_ease-in-out_infinite]" />
