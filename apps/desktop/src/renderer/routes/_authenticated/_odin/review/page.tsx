@@ -3,7 +3,6 @@ import { cn } from "@odin/ui/utils";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { LuOctagonX } from "react-icons/lu";
-import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useDoneStore } from "renderer/stores/done";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import {
@@ -23,7 +22,7 @@ import {
 	useReview,
 	useSweepBacklog,
 } from "../hooks/useBacklogReview";
-import { useOdinFeeds } from "../hooks/useOdinFeeds";
+import { useOdinFeeds, useSetSlackDone } from "../hooks/useOdinFeeds";
 import { useOdinProfile } from "../hooks/useOdinProfile";
 import { useMyTasks } from "../hooks/useOdinTasks";
 import {
@@ -156,10 +155,9 @@ function ReviewPage() {
 	);
 	const hasSession = (row: ReviewRow) =>
 		Boolean(sessionFor(row, livePanes, taskPanes));
-	const setSlackDone = electronTrpc.slack.setDone.useMutation();
+	const setSlackDone = useSetSlackDone();
 	const setDone = useDoneStore((s) => s.setDone);
 	const done = useDoneStore((s) => s.done);
-	const utils = electronTrpc.useUtils();
 	const [view, setView] = useState<"drop" | "rest" | "dropped">("drop");
 	const [search, setSearch] = useState("");
 	const searchHotkey = useSearchHotkey();
@@ -271,11 +269,10 @@ function ReviewPage() {
 		else if (kind === "slack") {
 			try {
 				await setSlackDone.mutateAsync({ id, done: true });
-				void utils.slack.reactions.invalidate();
-			} catch (error) {
+			} catch {
+				// useSetSlackDone already toasted the error.
 				unnoteDropped(row.key);
 				setDone(row.key, null);
-				toast.error(error instanceof Error ? error.message : String(error));
 				return;
 			}
 		}
