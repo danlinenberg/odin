@@ -754,7 +754,7 @@ function Composer({
 						className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-secondary hover:text-foreground"
 					>
 						<LuSquareTerminal className="size-3.5" />
-						Terminal
+						Terminal View
 					</button>
 					<span className="text-[11px] text-faint-foreground">
 						Enter to send · Shift+Enter for a new line
