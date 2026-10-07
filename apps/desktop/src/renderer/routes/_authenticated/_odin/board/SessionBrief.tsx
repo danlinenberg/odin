@@ -58,6 +58,29 @@ function Section({
 	);
 }
 
+/** The model writes markdown: show `code` and **bold** as such, not as raw
+ *  backticks and asterisks. Anything else stays plain text. */
+function Inline({ text }: { text: string }) {
+	return text.split(/(`[^`]+`|\*\*[^*]+\*\*)/).map((part, i) =>
+		part.startsWith("`") && part.length > 2 ? (
+			<code
+				// biome-ignore lint/suspicious/noArrayIndexKey: parts never reorder
+				key={i}
+				className="rounded bg-secondary px-1 py-px font-mono text-[11.5px] text-foreground"
+			>
+				{part.slice(1, -1)}
+			</code>
+		) : part.startsWith("**") && part.length > 4 ? (
+			// biome-ignore lint/suspicious/noArrayIndexKey: parts never reorder
+			<strong key={i} className="font-semibold text-foreground">
+				{part.slice(2, -2)}
+			</strong>
+		) : (
+			part
+		),
+	);
+}
+
 /** GitHub's own colours, so merged/open/closed read without a legend. */
 const STATE_CHIP: Record<string, { label: string; className: string }> = {
 	MERGED: { label: "merged", className: PILL.brand },
@@ -819,27 +842,39 @@ export function SessionBrief({
 							<>
 								{/* What it's for, then yours to do, then where it stands. A
 								    four-word title can't carry the goal on its own. */}
-								{written.goal && <Section label="Goal">{written.goal}</Section>}
+								{written.goal && (
+									<Section label="Goal">
+										<Inline text={written.goal} />
+									</Section>
+								)}
 								{todo.length > 0 ? (
 									<Section label="Your action items">
 										<ol className="list-decimal space-y-0.5 whitespace-normal pl-4">
 											{todo.map((item) => (
-												<li key={item}>{item}</li>
+												<li key={item}>
+													<Inline text={item} />
+												</li>
 											))}
 										</ol>
 									</Section>
 								) : (
 									written.next && (
-										<Section label="Your move">{written.next}</Section>
+										<Section label="Your move">
+											<Inline text={written.next} />
+										</Section>
 									)
 								)}
 								{written.status && (
-									<Section label="Where it stands">{written.status}</Section>
+									<Section label="Where it stands">
+										<Inline text={written.status} />
+									</Section>
 								)}
 								{/* The model ignored the shape we asked for - show what it said
 								    rather than an empty panel. */}
 								{written.raw && (
-									<Section label="Summary">{written.raw}</Section>
+									<Section label="Summary">
+										<Inline text={written.raw} />
+									</Section>
 								)}
 							</>
 						) : (
