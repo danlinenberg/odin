@@ -408,6 +408,9 @@ const ToolGroup = memo(
 		prev.tools.every((tool, i) => tool === next.tools[i]),
 );
 
+/** A row arriving while you watch: a short fade and rise, compositor-only. */
+const ENTER = "animate-in fade-in slide-in-from-bottom-2 duration-300 ease-out";
+
 /**
  * Your message: a violet bubble on the right with room above it, so a reply
  * opens a new turn instead of reading as a line in Claude's text.
@@ -418,6 +421,7 @@ function UserBubble({ text, pending }: { text: string; pending?: boolean }) {
 			className={cn(
 				"mt-5 mb-1 ml-auto max-w-[75%] select-text cursor-text whitespace-pre-wrap break-words rounded-2xl rounded-br-md border border-primary/30 bg-primary/15 px-4 py-2.5 text-[13.5px] leading-relaxed text-foreground shadow-sm first:mt-0",
 				pending && "opacity-60",
+				pending && ENTER,
 			)}
 		>
 			{text}
@@ -564,6 +568,11 @@ export function ChatView({
 	};
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const pinnedRef = useRef(true);
+	// What was already there when the drawer opened shows still; only rows
+	// that arrive after it animate in.
+	const firstIdsRef = useRef<Set<string> | null>(null);
+	if (firstIdsRef.current === null && items.length > 0)
+		firstIdsRef.current = new Set(items.map((item) => item.id));
 	// Follow new output only while you're at the bottom - scrolling up to read
 	// shouldn't get yanked back every second.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: items/pending are the trigger - new rows change scrollHeight
@@ -598,10 +607,14 @@ export function ChatView({
 								(!Array.isArray(previous) && previous?.kind === "user"));
 						if (!Array.isArray(segment) && segment.kind === "user")
 							return <ItemView key={segment.id} item={segment} />;
+						const key = Array.isArray(segment) ? segment[0]?.id : segment.id;
 						return (
 							<div
-								key={Array.isArray(segment) ? segment[0]?.id : segment.id}
-								className="flex min-w-0 gap-3"
+								key={key}
+								className={cn(
+									"flex min-w-0 gap-3",
+									key && !firstIdsRef.current?.has(key) && ENTER,
+								)}
 							>
 								{opensReply ? <OdinMark /> : <span className="w-7 shrink-0" />}
 								<div className="min-w-0 flex-1">
