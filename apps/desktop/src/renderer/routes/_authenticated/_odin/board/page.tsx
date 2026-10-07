@@ -2690,6 +2690,16 @@ function DevBoardPage() {
 			return;
 		}
 		try {
+			// Same check as Resume: a pinned --session-id Claude never wrote would
+			// kill a working pane for a handoff that fails with "No conversation".
+			await utils.client.terminal.readClaudeTranscript.query({ sessionId });
+		} catch (error) {
+			if (String(error).includes("No transcript on this machine")) {
+				toast.error("Claude has no saved conversation for this session yet");
+				return;
+			}
+		}
+		try {
 			await terminalKill.mutateAsync({ paneId: card.pane.id }).catch(() => {});
 			await new Promise((resolve) => setTimeout(resolve, 300));
 			await utils.client.terminal.createOrAttach.mutate({
