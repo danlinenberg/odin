@@ -61,13 +61,21 @@ export function TranscriptView({
 	project,
 	sessionId,
 	terms = [],
+	live = false,
 }: {
 	project?: string;
 	sessionId: string;
 	terms?: string[];
+	/** A running session: poll, so new turns appear as Claude writes them. */
+	live?: boolean;
 }) {
 	const { data, isLoading, error } =
-		electronTrpc.terminal.readClaudeTranscript.useQuery({ project, sessionId });
+		electronTrpc.terminal.readClaudeTranscript.useQuery(
+			{ project, sessionId },
+			// ponytail: re-parses the whole JSONL each poll; cache on mtime in
+			// main if a long session makes this show up in a profile.
+			{ refetchInterval: live ? 2_000 : false },
+		);
 	const turns = useMemo(() => mergeTurns(data?.messages ?? []), [data]);
 	const ref = useRef<HTMLDivElement>(null);
 	// Jump to the first hit when arriving from a search, else the latest turn.

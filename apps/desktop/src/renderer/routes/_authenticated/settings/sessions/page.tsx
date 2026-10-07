@@ -6,6 +6,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useIdleClose } from "renderer/stores/idle-close";
 import { useLaunchLimits } from "renderer/stores/launch-limits";
+import { useSessionView } from "renderer/stores/session-view";
 import type { LaunchLimits } from "shared/machine-load";
 import {
 	NumberSetting,
@@ -68,6 +69,7 @@ function SessionsSettingsPage() {
 			<SettingsSection title="On the board">
 				<AutoRenameRow />
 				<IdleCloseRow />
+				<ChatViewRow />
 			</SettingsSection>
 		</SettingsPage>
 	);
@@ -219,6 +221,21 @@ function AutoRenameRow() {
 				onCheckedChange={(enabled) => setAutoRename.mutate({ enabled })}
 				disabled={isLoading || setAutoRename.isPending}
 			/>
+		</SettingRow>
+	);
+}
+
+/** The drawer's 💬 Chat toggle, as a setting - the same flag. */
+function ChatViewRow() {
+	const chat = useSessionView((s) => s.chat);
+	const setChat = useSessionView((s) => s.setChat);
+	return (
+		<SettingRow
+			label="Show sessions as a chat"
+			htmlFor="session-chat-view"
+			description="Open a running session as messages and a reply box, like the Claude desktop app, instead of its terminal. The session is the same; 💬 Chat in the drawer switches back."
+		>
+			<Switch id="session-chat-view" checked={chat} onCheckedChange={setChat} />
 		</SettingRow>
 	);
 }

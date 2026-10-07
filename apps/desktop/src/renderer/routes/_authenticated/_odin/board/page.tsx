@@ -53,6 +53,7 @@ import { Terminal } from "renderer/screens/main/components/WorkspaceView/Content
 import * as terminalCache from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/v1-terminal-cache";
 import { useIdleClose } from "renderer/stores/idle-close";
 import { launchLimits, useLaunchLimits } from "renderer/stores/launch-limits";
+import { useSessionView } from "renderer/stores/session-view";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import type { Pane, PaneStatus } from "renderer/stores/tabs/types";
 import { lastAgentHookAt } from "renderer/stores/tabs/useAgentHookListener";
@@ -326,6 +327,68 @@ function ScrollbackView({ card, live }: { card: BoardCard; live: boolean }) {
 					: text.trim()
 						? text
 						: "No saved history for this session."}
+			</div>
+		</div>
+	);
+}
+
+/**
+ * A live session as a chat, Claude desktop style: the transcript as messages
+ * and a box that types into the same PTY. Claude keeps running in its terminal
+ * behind it - this is a different view of it, not a different session. Menus
+ * the TUI draws (questions, plan approval) only show in the terminal.
+ */
+function ChatView({ card, working }: { card: BoardCard; working: boolean }) {
+	const sessionId = useCardSessionId(card);
+	const [draft, setDraft] = useState("");
+	const inputRef = useRef<HTMLTextAreaElement>(null);
+	useEffect(() => inputRef.current?.focus(), []);
+	const write = electronTrpc.terminal.write.useMutation();
+	const send = async () => {
+		const text = draft.trim();
+		if (!text) return;
+		setDraft("");
+		try {
+			// Text and Enter in separate writes, like sendContinue: a chunk ending
+			// in a newline is read as a paste and inserted, not submitted.
+			await write.mutateAsync({ paneId: card.pane.id, data: text });
+			await new Promise((resolve) => setTimeout(resolve, 50));
+			await write.mutateAsync({ paneId: card.pane.id, data: "\r" });
+		} catch (error) {
+			setDraft(text);
+			toast.error(error instanceof Error ? error.message : String(error));
+		}
+	};
+	return (
+		<div className="flex min-h-0 flex-1 flex-col">
+			{sessionId ? (
+				<TranscriptView sessionId={sessionId} live />
+			) : (
+				<div className="flex-1 px-5 py-4 text-[12px] text-muted-foreground">
+					No conversation yet.
+				</div>
+			)}
+			<div className="border-t border-border px-4 py-3">
+				{working && (
+					<div className="mb-2 flex items-center gap-2 text-[12px] text-working">
+						<span className="size-[10px] animate-spin rounded-full border-2 border-working border-t-transparent" />
+						Claude is working…
+					</div>
+				)}
+				<textarea
+					ref={inputRef}
+					value={draft}
+					onChange={(event) => setDraft(event.target.value)}
+					onKeyDown={(event) => {
+						if (event.key === "Enter" && !event.shiftKey) {
+							event.preventDefault();
+							void send();
+						}
+					}}
+					rows={3}
+					placeholder="Reply to Claude - Enter sends, Shift+Enter for a new line"
+					className="w-full resize-none rounded-[10px] border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary"
+				/>
 			</div>
 		</div>
 	);
@@ -1519,6 +1582,8 @@ function DevBoardPage() {
 	// A plain shell in the session's checkout. Takes the terminal's place for the
 	// same reason the diff does - you go to the shell instead of the session.
 	const [isShellOpen, setIsShellOpen] = useState(false);
+	const chatView = useSessionView((s) => s.chat);
+	const setChatView = useSessionView((s) => s.setChat);
 	// Panes whose Resume is in flight. Resuming takes a second (session lookup,
 	// kill, respawn) and the card can't flip out of Idle until the 5s daemon
 	// poll sees the new PTY - without this the click looks like it did nothing.
@@ -2667,53 +2732,6 @@ function DevBoardPage() {
 				},
 			},
 		}));
-	};
-
-	/**
-	 * Hand the conversation to the Claude desktop app (`claude --desktop
-	 * --resume <id>`, what Claude's own /desktop does). The pane's claude is
-	 * killed first - two UIs writing one conversation fork it. The handoff runs
-	 * in the pane, so a "Download Claude Desktop? (y/n)" shows in the drawer,
-	 * and the pane exits once Desktop has it. Resume brings it back here.
-	 */
-	const openInClaudeDesktop = async (card: BoardCard) => {
-		if (isWorkingNow(card.pane.id)) {
-			toast.error("Session is still working - interrupt it first");
-			return;
-		}
-		const sessionId =
-			card.pane.claudeSessionId ??
-			usePaneMeta.getState().sessionIdByPane[card.pane.id];
-		const cwd = sessionCwd(card.pane) ?? card.repoPath;
-		if (!sessionId || !cwd) {
-			toast.error("No Claude conversation found for this session");
-			return;
-		}
-		try {
-			// Same check as Resume: a pinned --session-id Claude never wrote would
-			// kill a working pane for a handoff that fails with "No conversation".
-			await utils.client.terminal.readClaudeTranscript.query({ sessionId });
-		} catch (error) {
-			if (String(error).includes("No transcript on this machine")) {
-				toast.error("Claude has no saved conversation for this session yet");
-				return;
-			}
-		}
-		try {
-			await terminalKill.mutateAsync({ paneId: card.pane.id }).catch(() => {});
-			await new Promise((resolve) => setTimeout(resolve, 300));
-			await utils.client.terminal.createOrAttach.mutate({
-				paneId: card.pane.id,
-				tabId: card.tabId,
-				workspaceId: card.workspaceId,
-				cwd,
-				command: `cd '${cwd}' && claude --desktop --resume ${sessionId}`,
-				allowKilled: true,
-			});
-			void utils.terminal.listDaemonSessions.invalidate();
-		} catch (error) {
-			toast.error(error instanceof Error ? error.message : String(error));
-		}
 	};
 
 	const resumeCard = async (card: BoardCard, auto = false) => {
@@ -4004,6 +4022,29 @@ function DevBoardPage() {
 										⑂ Diff
 									</button>
 								)}
+								{drawerCard.pane.type === "terminal" && !inCatchUp && (
+									<button
+										type="button"
+										title={
+											chatView
+												? "Show the session's terminal"
+												: "Show the session as a chat, like the Claude desktop app"
+										}
+										onClick={() => {
+											setIsShellOpen(false);
+											setIsDiffOpen(false);
+											setChatView(!chatView);
+										}}
+										className={cn(
+											"shrink-0 rounded-md px-2 py-1 text-xs font-semibold",
+											chatView
+												? "bg-primary/15 text-primary"
+												: "bg-secondary text-muted-foreground hover:text-foreground",
+										)}
+									>
+										💬 Chat
+									</button>
+								)}
 								{/* Not in Catch up (nor Diff): you're deciding Next or Done. */}
 								{drawerCard.pane.type === "terminal" && !inCatchUp && (
 									// One control: the shell, and - once it's open - where it is.
@@ -4144,6 +4185,12 @@ function DevBoardPage() {
 												Chat session - no terminal to embed.
 											</div>
 										</div>
+									) : agentPaneIds.has(drawerCard.pane.id) && chatView ? (
+										<ChatView
+											key={drawerCard.pane.id}
+											card={drawerCard}
+											working={isWorkingNow(drawerCard.pane.id)}
+										/>
 									) : agentPaneIds.has(drawerCard.pane.id) ? (
 										// Claude running - the real PTY, attached read/write. xterm is the
 										// only thing that renders Claude Code's full-screen TUI legibly
@@ -4237,29 +4284,6 @@ function DevBoardPage() {
 													agentPaneIds.has(drawerCard.pane.id)
 													? "↻ Continue"
 													: "↻ Resume"}
-								</button>
-							)}
-							{drawerCard.pane.type === "terminal" && (
-								<button
-									type="button"
-									disabled={isWorkingNow(drawerCard.pane.id)}
-									title={
-										isWorkingNow(drawerCard.pane.id)
-											? "Still working - interrupt it first"
-											: "Continue this conversation in the Claude desktop app instead of the terminal"
-									}
-									onClick={() => {
-										const pane = panes[drawerCard.pane.id];
-										void openInClaudeDesktop(
-											pane ? { ...drawerCard, pane } : drawerCard,
-										);
-									}}
-									className={cn(
-										"rounded-[7px] px-3 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50",
-										BUTTON.secondary,
-									)}
-								>
-									Open in Claude Desktop
 								</button>
 							)}
 							{/* The drawer keeps Esc for itself, so a turn needs its own stop:
