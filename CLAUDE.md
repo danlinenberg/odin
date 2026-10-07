@@ -61,7 +61,7 @@ on one.
 - `bun run smoke` in `apps/desktop` boots the built app in a throwaway home
   and clicks through the main flows (rail, Tasks, profiles, ⌘F, Settings, a
   session on a fake `claude` through to Done). CI (`.github/workflows/ci.yml`)
-  runs it on every PR after lint, typecheck and `bun run test`. Don't run it
+  runs it on every PR, beside lint, typecheck and `bun run test`. Don't run it
   locally unless Dan asks: each run opens another Odin on his screen. Read the
   CI result instead. A flow you change or add belongs in it.
 - `routeTree.gen.ts` is generated and gitignored. A fresh worktree reporting a
