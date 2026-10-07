@@ -125,10 +125,13 @@ Rules:
 
 /** Pull the four labelled lines back out; tolerate a chatty model. */
 export function parseBrief(text: string): WrittenBrief {
+	// [ \t], not \s: an empty "TITLE:" line must not read on into "GOAL: ...".
 	const field = (label: string) =>
 		text
-			.match(new RegExp(`^\\s*\\**${label}\\**\\s*:\\s*(.+)$`, "im"))?.[1]
-			?.trim() ?? null;
+			.match(
+				new RegExp(`^[ \\t]*\\**${label}\\**[ \\t]*:[ \\t]*(.+)$`, "im"),
+			)?.[1]
+			?.trim() || null;
 	// Models like to wrap a title in quotes and end it with a full stop; a card
 	// is one line wide, so what's left is cut to fit rather than by CSS.
 	const title =

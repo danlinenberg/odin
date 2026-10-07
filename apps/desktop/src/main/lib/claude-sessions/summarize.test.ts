@@ -459,6 +459,10 @@ describe("parseBrief", () => {
 		);
 		expect(parseBrief(`TITLE: ${"x".repeat(80)}`).title).toHaveLength(60);
 		expect(parseBrief("GOAL: x").title).toBeNull();
+		// A session opened with no prompt: the model leaves TITLE empty.
+		const empty = parseBrief("TITLE:\nGOAL: No conversation yet\nDONE: ");
+		expect(empty.title).toBeNull();
+		expect(empty.done).toBeNull();
 	});
 
 	test("keeps an off-shape answer rather than showing an empty panel", () => {
