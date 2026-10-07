@@ -1,7 +1,7 @@
 import { odinIcon } from "@odin/ui/icons/preset-icons";
 import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { LuChevronRight, LuSquareTerminal, LuTerminal } from "react-icons/lu";
 import { MarkdownRenderer } from "renderer/components/MarkdownRenderer";
 import { electronTrpc } from "renderer/lib/electron-trpc";
@@ -462,24 +462,82 @@ export function splitActionItems(text: string): {
 	};
 }
 
-/** What's on you, set apart in the board's Needs-you colour. */
-function ActionItems({ text }: { text: string }) {
+/** The numbered or bulleted lines of an ACTION ITEMS block; [] for "none". */
+export function actionItemList(text: string): string[] {
+	return [...text.matchAll(/^\s*(?:\d+[.)]|[-*])\s+(.+)$/gm)].map(
+		(match) => match[1]?.trim() ?? "",
+	);
+}
+
+/**
+ * What's on you, set apart in the board's Needs-you colour. In a live session
+ * each item gets a "Do it" button that hands it back to Claude.
+ */
+function ActionItems({
+	text,
+	onDo,
+}: {
+	text: string;
+	onDo?: (item: string, number: number) => void;
+}) {
+	const items = onDo ? actionItemList(text) : [];
+	const [sent, setSent] = useState<Set<number>>(new Set());
 	return (
 		<div className="mt-2 rounded-xl border border-attention/35 bg-attention/[0.07] px-4 py-3">
 			<div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[.08em] text-attention">
 				Action items
 			</div>
-			<MarkdownRenderer
-				content={text}
-				style="default"
-				allowHtml={false}
-				className={COMPACT_MARKDOWN}
-			/>
+			{onDo && items.length > 0 ? (
+				<ol className="flex flex-col gap-1">
+					{items.map((item, index) => (
+						<li
+							// biome-ignore lint/suspicious/noArrayIndexKey: the list is fixed once written
+							key={index}
+							className="flex items-start gap-2"
+						>
+							<span className="w-4 shrink-0 pt-px text-right text-[13px] tabular-nums text-muted-foreground">
+								{index + 1}.
+							</span>
+							<MarkdownRenderer
+								content={item}
+								style="default"
+								allowHtml={false}
+								className={cn(COMPACT_MARKDOWN, "min-w-0 flex-1")}
+							/>
+							<button
+								type="button"
+								title="Ask Claude to do this for you"
+								disabled={sent.has(index)}
+								onClick={() => {
+									setSent((prev) => new Set(prev).add(index));
+									onDo(item, index + 1);
+								}}
+								className="shrink-0 rounded-md border border-attention/40 px-2 py-0.5 text-[11px] font-medium text-attention hover:bg-attention/15 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent"
+							>
+								{sent.has(index) ? "Sent" : "Do it"}
+							</button>
+						</li>
+					))}
+				</ol>
+			) : (
+				<MarkdownRenderer
+					content={text}
+					style="default"
+					allowHtml={false}
+					className={COMPACT_MARKDOWN}
+				/>
+			)}
 		</div>
 	);
 }
 
-const ItemView = memo(function ItemView({ item }: { item: Item }) {
+const ItemView = memo(function ItemView({
+	item,
+	onDo,
+}: {
+	item: Item;
+	onDo?: (item: string, number: number) => void;
+}) {
 	if (item.kind === "tool") return <ToolRow item={item} />;
 	if (item.kind === "user") return <UserBubble text={item.text} />;
 	const { body, actions } = splitActionItems(item.text);
@@ -493,7 +551,7 @@ const ItemView = memo(function ItemView({ item }: { item: Item }) {
 					className={COMPACT_MARKDOWN}
 				/>
 			)}
-			{actions && <ActionItems text={actions} />}
+			{actions && <ActionItems text={actions} onDo={onDo} />}
 		</div>
 	);
 });
@@ -566,6 +624,20 @@ export function ChatView({
 			30_000,
 		);
 	};
+	const write = electronTrpc.terminal.write.useMutation();
+	const onSentRef = useRef(onSent);
+	onSentRef.current = onSent;
+	// Stable, so the memoized rows don't all re-render on every poll.
+	const doItem = useCallback(
+		(item: string, number: number) => {
+			const text = `Do action item ${number} for me: ${item}`;
+			onSentRef.current(text);
+			void typeIntoClaude(write.mutateAsync, paneId, text).catch((error) =>
+				toast.error(error instanceof Error ? error.message : String(error)),
+			);
+		},
+		[paneId, write.mutateAsync],
+	);
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const pinnedRef = useRef(true);
 	// What was already there when the drawer opened shows still; only rows
@@ -621,7 +693,10 @@ export function ChatView({
 									{Array.isArray(segment) ? (
 										<ToolGroup tools={segment} />
 									) : (
-										<ItemView item={segment} />
+										<ItemView
+											item={segment}
+											onDo={onShowTerminal ? doItem : undefined}
+										/>
 									)}
 								</div>
 							</div>
@@ -673,9 +748,27 @@ export function ChatView({
 }
 
 /**
+ * Types a message into Claude's PTY and submits it. Text goes in as a
+ * bracketed paste when it spans lines (a bare newline would submit early),
+ * then Enter in its own write.
+ */
+async function typeIntoClaude(
+	write: (input: { paneId: string; data: string }) => Promise<unknown>,
+	paneId: string,
+	text: string,
+) {
+	if (text)
+		await write({
+			paneId,
+			data: text.includes("\n") ? `\x1b[200~${text}\x1b[201~` : text,
+		});
+	await new Promise((resolve) => setTimeout(resolve, 30));
+	await write({ paneId, data: "\r" });
+}
+
+/**
  * Its own component so a keystroke re-renders the box, not the conversation.
- * Text goes in as a bracketed paste when it spans lines (a bare newline would
- * submit early), then Enter in its own write. An image paste is Ctrl+V into the
+ * An image paste is Ctrl+V into the
  * PTY: Claude Code reads the clipboard image itself and attaches it.
  */
 function Composer({
@@ -710,13 +803,7 @@ function Composer({
 		setImages(0);
 		if (text) onSent(text);
 		try {
-			if (text)
-				await write.mutateAsync({
-					paneId,
-					data: text.includes("\n") ? `\x1b[200~${text}\x1b[201~` : text,
-				});
-			await new Promise((resolve) => setTimeout(resolve, 30));
-			await write.mutateAsync({ paneId, data: "\r" });
+			await typeIntoClaude(write.mutateAsync, paneId, text);
 		} catch (error) {
 			setDraft(text);
 			toast.error(error instanceof Error ? error.message : String(error));

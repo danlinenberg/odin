@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+	actionItemList,
 	applyLines,
 	groupSummary,
 	segments,
@@ -104,5 +105,14 @@ describe("ChatView transcript", () => {
 		);
 		expect(splitActionItems("## Action items\n- a").actions).toBe("- a");
 		expect(splitActionItems("no list here").actions).toBeNull();
+	});
+
+	test("action items list one entry per numbered or bulleted line", () => {
+		expect(actionItemList("1. Merge it\n2) Check `x` works")).toEqual([
+			"Merge it",
+			"Check `x` works",
+		]);
+		expect(actionItemList("- a\n* b")).toEqual(["a", "b"]);
+		expect(actionItemList("none - all shipped")).toEqual([]);
 	});
 });
