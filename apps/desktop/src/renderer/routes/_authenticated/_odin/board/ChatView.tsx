@@ -400,6 +400,7 @@ export function ChatView({
 	const pinnedRef = useRef(true);
 	// Follow new output only while you're at the bottom - scrolling up to read
 	// shouldn't get yanked back every second.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: items/pending are the trigger - new rows change scrollHeight
 	useEffect(() => {
 		const el = scrollRef.current;
 		if (el && pinnedRef.current) el.scrollTop = el.scrollHeight;
