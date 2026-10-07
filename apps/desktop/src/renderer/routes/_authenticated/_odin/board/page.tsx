@@ -35,6 +35,7 @@ import {
 	LuGitMerge,
 	LuGitPullRequest,
 	LuHourglass,
+	LuMessageSquare,
 	LuMoon,
 	LuPause,
 	LuPlay,
@@ -53,6 +54,7 @@ import { Terminal } from "renderer/screens/main/components/WorkspaceView/Content
 import * as terminalCache from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/v1-terminal-cache";
 import { useIdleClose } from "renderer/stores/idle-close";
 import { launchLimits, useLaunchLimits } from "renderer/stores/launch-limits";
+import { useSessionView } from "renderer/stores/session-view";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import type { Pane, PaneStatus } from "renderer/stores/tabs/types";
 import { lastAgentHookAt } from "renderer/stores/tabs/useAgentHookListener";
@@ -126,6 +128,7 @@ import {
 	reviewedPullRequest,
 	sourceLink,
 } from "./brief";
+import { ChatView } from "./ChatView";
 import { DiffView } from "./DiffView";
 import { NextInLine } from "./NextInLine";
 import { HoverBrief, SessionBrief } from "./SessionBrief";
@@ -261,6 +264,9 @@ const SETTLED_MS = 120_000;
 /** How long after a (re)start Continue stays clickable on a live session. */
 const RECENT_RESTART_MS = 5 * 60_000;
 
+/** The pane whose drawer was open, so a reload reopens it. */
+const OPEN_DRAWER_KEY = "odin-open-drawer";
+
 /** Width of the Odin icon rail in layout.tsx - the drawer stops here. */
 const RAIL_W = 52;
 
@@ -282,6 +288,17 @@ function HistoryView({ card, live }: { card: BoardCard; live: boolean }) {
 	// Same query the card's pills run, so this is a cache hit. Claude prunes old
 	// transcripts; when the file is gone, the saved screen is all that's left.
 	const { error } = useCardTranscript(card, false);
+	const chatView = useSessionView((s) => s.chat);
+	if (sessionId && !live && !error && chatView) {
+		return (
+			<ChatView
+				paneId={card.pane.id}
+				sessionId={sessionId}
+				cwd={sessionCwd(card.pane) ?? card.repoPath}
+				workspaceId={card.workspaceId}
+			/>
+		);
+	}
 	if (sessionId && !live && !error) {
 		return (
 			<div className="flex min-h-0 flex-1 flex-col">
@@ -1520,6 +1537,11 @@ function DevBoardPage() {
 	// A plain shell in the session's checkout. Takes the terminal's place for the
 	// same reason the diff does - you go to the shell instead of the session.
 	const [isShellOpen, setIsShellOpen] = useState(false);
+	const chatView = useSessionView((s) => s.chat);
+	const setChatView = useSessionView((s) => s.setChat);
+	// The chat can't answer a TUI menu; this pane's drawer shows the terminal
+	// until you go back to the chat.
+	const [terminalPaneId, setTerminalPaneId] = useState<string | null>(null);
 	// Panes whose Resume is in flight. Resuming takes a second (session lookup,
 	// kill, respawn) and the card can't flip out of Idle until the 5s daemon
 	// poll sees the new PTY - without this the click looks like it did nothing.
@@ -2621,6 +2643,38 @@ function DevBoardPage() {
 		setDrawerCard(card);
 	};
 
+	// A reload (⌘R, a renderer full reload) lands you back in the session you
+	// had open, not on the board. sessionStorage: this window only, and gone
+	// with it - nothing to bound or clean up.
+	const restoredDrawerRef = useRef(false);
+	useEffect(() => {
+		if (!restoredDrawerRef.current) return;
+		try {
+			if (drawerCard)
+				sessionStorage.setItem(OPEN_DRAWER_KEY, drawerCard.pane.id);
+			else sessionStorage.removeItem(OPEN_DRAWER_KEY);
+		} catch {
+			// storage blocked - a reload just lands on the board
+		}
+	}, [drawerCard]);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: runs once, when the board first has cards
+	useEffect(() => {
+		if (restoredDrawerRef.current) return;
+		const cards = [...cardsByStatus.values()].flat();
+		if (cards.length === 0) return;
+		restoredDrawerRef.current = true;
+		let paneId: string | null = null;
+		try {
+			paneId = sessionStorage.getItem(OPEN_DRAWER_KEY);
+		} catch {
+			return;
+		}
+		const card = paneId
+			? cards.find((candidate) => candidate.pane.id === paneId)
+			: undefined;
+		if (card) openDrawer(card);
+	}, [cardsByStatus]);
+
 	// Focus the terminal when a live session's drawer opens, so typing /
 	// paste (ctrl+v) / menu keys go straight to Claude Code.
 	useEffect(() => {
@@ -2708,6 +2762,20 @@ function DevBoardPage() {
 					completed: false,
 					odinQueued: { command, reason },
 				},
+			},
+		}));
+	};
+
+	/** Ctrl+C the turn. Shared by the drawer's Interrupt and the chat's stop. */
+	const interruptPane = (paneId: string) => {
+		utils.client.terminal.write.mutate({ paneId, data: "\x03" });
+		// Claude fires no Stop hook on an interrupt, so the card would read
+		// Working until the scan - and a second click would land Ctrl+C at the
+		// idle prompt and start quitting it. Same as Park.
+		useTabsStore.setState((state) => ({
+			panes: {
+				...state.panes,
+				[paneId]: { ...state.panes[paneId], status: "idle" },
 			},
 		}));
 	};
@@ -4149,11 +4217,32 @@ function DevBoardPage() {
 												Chat session - no terminal to embed.
 											</div>
 										</div>
+									) : agentPaneIds.has(drawerCard.pane.id) &&
+										chatView &&
+										terminalPaneId !== drawerCard.pane.id ? (
+										<ChatView
+											key={drawerCard.pane.id}
+											paneId={drawerCard.pane.id}
+											sessionId={
+												drawerCard.pane.claudeSessionId ??
+												usePaneMeta.getState().sessionIdByPane[
+													drawerCard.pane.id
+												] ??
+												null
+											}
+											cwd={sessionCwd(drawerCard.pane) ?? drawerCard.repoPath}
+											workspaceId={drawerCard.workspaceId}
+											working={isWorkingNow(drawerCard.pane.id)}
+											onShowTerminal={() =>
+												setTerminalPaneId(drawerCard.pane.id)
+											}
+											onStop={() => interruptPane(drawerCard.pane.id)}
+										/>
 									) : agentPaneIds.has(drawerCard.pane.id) ? (
 										// Claude running - the real PTY, attached read/write. xterm is the
 										// only thing that renders Claude Code's full-screen TUI legibly
 										// (scrollback replay is a stream of overlapping frames = mush).
-										<div className="min-h-0 flex-1 bg-background p-2">
+										<div className="flex min-h-0 flex-1 flex-col bg-background p-2">
 											<Terminal
 												key={drawerCard.pane.id}
 												paneId={drawerCard.pane.id}
@@ -4256,22 +4345,7 @@ function DevBoardPage() {
 											? "Stop the agent (sends Ctrl+C to the session)"
 											: "Nothing to interrupt - the agent isn't working"
 									}
-									onClick={() => {
-										const paneId = drawerCard.pane.id;
-										utils.client.terminal.write.mutate({
-											paneId,
-											data: "\x03",
-										});
-										// Claude fires no Stop hook on an interrupt, so the card would
-										// read Working until the scan - and a second click would land
-										// Ctrl+C at the idle prompt and start quitting it. Same as Park.
-										useTabsStore.setState((state) => ({
-											panes: {
-												...state.panes,
-												[paneId]: { ...state.panes[paneId], status: "idle" },
-											},
-										}));
-									}}
+									onClick={() => interruptPane(drawerCard.pane.id)}
 									className={cn(
 										"rounded-[7px] px-3 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50",
 										BUTTON.secondary,
@@ -4280,6 +4354,25 @@ function DevBoardPage() {
 									■ Interrupt
 								</button>
 							)}
+							{/* Back from Terminal View: out of a question peek, or the
+							    setting itself when the terminal is the choice. */}
+							{drawerCard.pane.type === "terminal" &&
+								(!chatView || terminalPaneId === drawerCard.pane.id) && (
+									<button
+										type="button"
+										title="Show sessions as a chat (Settings > Appearance)"
+										onClick={() =>
+											chatView ? setTerminalPaneId(null) : setChatView(true)
+										}
+										className={cn(
+											"flex items-center gap-1.5 rounded-[7px] px-3 py-1.5 text-xs font-semibold",
+											BUTTON.secondary,
+										)}
+									>
+										<LuMessageSquare className="size-3.5" />
+										Chat View
+									</button>
+								)}
 							{/* Done, Remind and Minimize sit right; RemindButton wraps its button
 							    in a span, so the gap is a spacer rather than ml-auto. */}
 							<div className="flex-1" />

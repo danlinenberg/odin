@@ -1,0 +1,118 @@
+import { describe, expect, test } from "bun:test";
+import {
+	actionItemList,
+	applyLines,
+	groupSummary,
+	segments,
+	splitActionItems,
+	transcriptPath,
+	userText,
+} from "./ChatView";
+
+describe("ChatView transcript", () => {
+	test("files the transcript under the cwd with non-alphanumerics as dashes", () => {
+		expect(transcriptPath("/Users/d", "/Users/d/dev/x.y", "abc")).toBe(
+			"/Users/d/.claude/projects/-Users-d-dev-x-y/abc.jsonl",
+		);
+	});
+
+	test("user text drops hook chatter and shows a slash command as itself", () => {
+		expect(userText("<system-reminder>x</system-reminder>")).toBeNull();
+		expect(userText("<command-name>/compact</command-name>")).toBe("/compact");
+		expect(userText("hi <system-reminder>x</system-reminder>")).toBe("hi");
+	});
+
+	test("a message sent mid-turn shows as yours", () => {
+		const items = applyLines(
+			[],
+			[
+				{
+					type: "attachment",
+					uuid: "q1",
+					attachment: {
+						type: "queued_command",
+						prompt: [{ type: "text", text: "also this" }],
+					},
+				},
+			],
+		);
+		expect(items).toEqual([{ kind: "user", id: "q1", text: "also this" }]);
+	});
+
+	test("a tool result fills in its tool row; meta lines are skipped", () => {
+		const items = applyLines(
+			[],
+			[
+				{ type: "user", uuid: "u1", message: { content: "fix it" } },
+				{ type: "user", uuid: "m", isMeta: true, message: { content: "meta" } },
+				{
+					type: "assistant",
+					uuid: "a1",
+					message: {
+						content: [
+							{ type: "text", text: "On it." },
+							{
+								type: "tool_use",
+								id: "t1",
+								name: "Bash",
+								input: { command: "ls" },
+							},
+						],
+					},
+				},
+			],
+		);
+		const done = applyLines(items, [
+			{
+				type: "user",
+				uuid: "r1",
+				message: {
+					content: [
+						{ type: "tool_result", tool_use_id: "t1", content: "a.ts" },
+					],
+				},
+			},
+		]);
+		expect(done.map((item) => item.kind)).toEqual(["user", "text", "tool"]);
+		expect(done[2]).toMatchObject({ kind: "tool", result: "a.ts" });
+		expect(done[0]).toBe(items[0]);
+	});
+
+	test("tool runs fold into one group with a counted summary", () => {
+		const tool = (id: string, name: string) =>
+			({ kind: "tool", id, name, input: {} }) as const;
+		const out = segments([
+			{ kind: "text", id: "a", text: "hi" },
+			tool("1", "Bash"),
+			tool("2", "Bash"),
+			tool("3", "Read"),
+			{ kind: "text", id: "b", text: "done" },
+		]);
+		expect(out.length).toBe(3);
+		expect(groupSummary(out[1] as never)).toBe("Ran 2 commands, read 1 file");
+	});
+
+	test("action items split off in the shapes agents write them", () => {
+		expect(splitActionItems("Done.\n\nACTION ITEMS:\n1. Merge it")).toEqual({
+			body: "Done.",
+			actions: "1. Merge it",
+		});
+		expect(splitActionItems("x\n**ACTION ITEMS:** none - all shipped")).toEqual(
+			{
+				body: "x",
+				actions: "none - all shipped",
+			},
+		);
+		expect(splitActionItems("## Action items\n- a").actions).toBe("- a");
+		expect(splitActionItems("no list here").actions).toBeNull();
+	});
+
+	test("action items list one entry per numbered or bulleted line", () => {
+		expect(actionItemList("1. Merge it\n2) Check `x` works")).toEqual([
+			"Merge it",
+			"Check `x` works",
+		]);
+		expect(actionItemList("- a\n* b")).toEqual(["a", "b"]);
+		expect(actionItemList("none - all shipped")).toEqual([]);
+	});
+});

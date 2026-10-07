@@ -25,7 +25,7 @@ export function mergeTurns(messages: Turn[]): Turn[] {
 
 // The renderer's headings are sized for a document; inside a chat bubble they
 // shout. Unlayered .default-markdown CSS beats utilities, hence the `!`.
-const COMPACT_MARKDOWN =
+export const COMPACT_MARKDOWN =
 	"h-auto! overflow-visible! bg-transparent! text-[13px] leading-relaxed text-soft-foreground [&_article]:p-0! [&_h1]:text-[15px]! [&_h2]:text-[14px]! [&_h2]:border-0! [&_h2]:pb-0! [&_h2]:mt-4! [&_h3]:text-[13px]! [&_h3]:mt-3! [&_p:last-child]:mb-0! [&_ul:last-child]:mb-0! [&_ol:last-child]:mb-0! [&_p]:mb-2.5! [&_code]:text-[12px]";
 
 function escapeRegExp(value: string): string {

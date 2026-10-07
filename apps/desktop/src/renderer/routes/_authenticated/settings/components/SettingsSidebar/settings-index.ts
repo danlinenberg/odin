@@ -40,7 +40,7 @@ export const SCREENS = [
 	{
 		to: "/settings/appearance",
 		label: "Appearance",
-		hint: "Light or dark theme, fonts",
+		hint: "Theme, fonts, sessions as a chat",
 		icon: LuPalette,
 	},
 	{
@@ -229,6 +229,12 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		to: "/settings/appearance",
 		section: "Theme",
 		keywords: "light dark bright mode color colour system appearance",
+	},
+	{
+		label: "Show sessions as a chat",
+		to: "/settings/appearance",
+		section: "Sessions",
+		keywords: "chat terminal claude desktop ui display view messages",
 	},
 	{
 		label: "Shortcuts",

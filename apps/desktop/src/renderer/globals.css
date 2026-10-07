@@ -484,3 +484,17 @@
 		margin: 0;
 	}
 }
+
+/* The chat view's Working mark: Odin's icon nodding along. Transform only. */
+@keyframes odin-nod {
+	0%,
+	100% {
+		transform: translateY(0) rotate(0);
+	}
+	30% {
+		transform: translateY(-2px) rotate(-8deg);
+	}
+	60% {
+		transform: translateY(0) rotate(5deg);
+	}
+}

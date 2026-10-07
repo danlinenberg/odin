@@ -1,4 +1,7 @@
+import { Switch } from "@odin/ui/switch";
 import type { ReactNode } from "react";
+import { useSessionView } from "renderer/stores/session-view";
+import { SettingRow, SettingsSection } from "../../../components/SettingsPage";
 import {
 	isItemVisible,
 	SETTING_ITEM_ID,
@@ -62,6 +65,7 @@ export function AppearanceSettings({ visibleItems }: AppearanceSettingsProps) {
 
 			<SectionList>
 				{showThemeSection && <ThemeSection key="theme" />}
+				<SessionDisplaySection key="sessions" />
 				{showMarkdown && <MarkdownStyleSection key="markdown" />}
 				{(showEditorFont || showTerminalFont) && (
 					<FontSettingSection
@@ -72,5 +76,26 @@ export function AppearanceSettings({ visibleItems }: AppearanceSettingsProps) {
 				)}
 			</SectionList>
 		</div>
+	);
+}
+
+/** How a session shows in its drawer: a chat, or its terminal. */
+function SessionDisplaySection() {
+	const chat = useSessionView((s) => s.chat);
+	const setChat = useSessionView((s) => s.setChat);
+	return (
+		<SettingsSection title="Sessions">
+			<SettingRow
+				label="Show sessions as a chat"
+				htmlFor="session-chat-view"
+				description="Show a session like Claude Code in the Claude desktop app - messages, folded tool calls and a reply box - instead of its terminal. Same session behind it; a question or plan approval still opens the terminal."
+			>
+				<Switch
+					id="session-chat-view"
+					checked={chat}
+					onCheckedChange={setChat}
+				/>
+			</SettingRow>
+		</SettingsSection>
 	);
 }
