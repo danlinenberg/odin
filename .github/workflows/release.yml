@@ -4,6 +4,10 @@
 # All three resolve /releases/latest/download/Odin-arm64.dmg, so the asset name
 # below has to stay exactly that.
 #
+# The windows job adds Odin-Setup-x64.exe to the same release. Dispatched on a
+# branch other than main, only the windows job runs, and the installer lands
+# as a workflow artifact instead of a release - that is how to test it.
+#
 # ponytail: arm64 only, no matrix. The machine that builds it and the machines
 # that run it are the same shape; add an x64 leg when someone on an Intel Mac
 # asks for one.
@@ -21,11 +25,13 @@ jobs:
   macos:
     # Only this repo cuts Odin releases - a fork running this would publish to
     # its own releases under our version numbers, and burn macOS minutes doing it.
-    if: github.repository == 'danlinenberg/odin'
+    if: github.repository == 'danlinenberg/odin' && (github.ref_type == 'tag' || github.ref == 'refs/heads/main')
     runs-on: macos-15
     # Holds ODIN_SIGNING_P12; only v* tags and main may deploy to it.
     environment: release
     timeout-minutes: 60
+    outputs:
+      tag: ${{ steps.pick.outputs.tag }}
     env:
       SKIP_ENV_VALIDATION: "true"
     steps:
@@ -47,6 +53,7 @@ jobs:
       # ponytail: main's package.json then lags the latest release; the next
       # run bumps past the latest tag, so nothing collides.
       - name: Pick version
+        id: pick
         env:
           GH_TOKEN: ${{ github.token }}
           REF_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
@@ -66,6 +73,7 @@ jobs:
             TAG="v$V"
           fi
           echo "TAG=$TAG" >> "$GITHUB_ENV"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "releasing $TAG"
 
       # electron.vite.config.ts bakes these into the bundle as *_BAKED. Without
@@ -104,3 +112,68 @@ jobs:
           gh release create "$TAG" Odin-arm64.dmg \
             --title "$TAG" \
             --generate-notes
+
+  windows:
+    needs: macos
+    # Runs after macos publishes the release, and alone when macos is skipped
+    # (a branch dispatch). A failed macos build means no release to add to.
+    if: github.repository == 'danlinenberg/odin' && !failure() && !cancelled()
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    env:
+      SKIP_ENV_VALIDATION: "true"
+      TAG: ${{ needs.macos.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+
+      - run: bun install --frozen-lockfile
+
+      - run: bun run --filter=@odin/desktop install:deps
+
+      # The app reports the version macos picked, bumped in place like there.
+      - name: Set version
+        if: env.TAG != ''
+        run: |
+          for f in apps/desktop/package.json packages/host-service/package.json; do
+            jq --arg v "${TAG#v}" '.version = $v' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+          done
+
+      # Not `bun run build`: its prebuild mints a macOS signing identity.
+      # ponytail: unsigned, so SmartScreen warns on first run ("More info" ->
+      # "Run anyway"); buy a code-signing cert if that stops being acceptable.
+      - working-directory: apps/desktop
+        run: |
+          bun run generate:icons
+          bun run compile:app
+          bun run copy:native-modules
+          bun run validate:native-runtime
+          bunx electron-builder --win --publish never
+        env:
+          ODIN_SLACK_CLIENT_ID: ${{ secrets.ODIN_SLACK_CLIENT_ID }}
+          ODIN_SLACK_CLIENT_SECRET: ${{ secrets.ODIN_SLACK_CLIENT_SECRET }}
+          ODIN_SLACK_REDIRECT_URL: ${{ secrets.ODIN_SLACK_REDIRECT_URL }}
+          ODIN_GITHUB_CLIENT_ID: ${{ secrets.ODIN_GITHUB_CLIENT_ID }}
+          ODIN_NOTION_CLIENT_ID: ${{ secrets.ODIN_NOTION_CLIENT_ID }}
+          ODIN_NOTION_CLIENT_SECRET: ${{ secrets.ODIN_NOTION_CLIENT_SECRET }}
+          ODIN_NOTION_REDIRECT_URL: ${{ secrets.ODIN_NOTION_REDIRECT_URL }}
+          ODIN_JIRA_CLIENT_ID: ${{ secrets.ODIN_JIRA_CLIENT_ID }}
+          ODIN_JIRA_CLIENT_SECRET: ${{ secrets.ODIN_JIRA_CLIENT_SECRET }}
+          ODIN_JIRA_REDIRECT_URL: ${{ secrets.ODIN_JIRA_REDIRECT_URL }}
+
+      - if: env.TAG != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" apps/desktop/release/Odin-Setup-x64.exe
+
+      - if: env.TAG == ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: Odin-Setup-x64
+          path: apps/desktop/release/Odin-Setup-x64.exe

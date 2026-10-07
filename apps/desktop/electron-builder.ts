@@ -108,10 +108,16 @@ const config: Configuration = {
 
 		// A macOS arm64 app cannot load a Linux .so, a Windows .dll or an x64
 		// dylib, but every multi-platform package ships the full set anyway.
-		"!**/node_modules/onnxruntime-node/bin/napi-v3/{linux,win32}/**",
-		"!**/node_modules/onnxruntime-node/bin/napi-v3/darwin/x64/**",
-		"!**/node_modules/koffi/build/koffi/{darwin_x64,freebsd_*,linux_*,netbsd_*,openbsd_*,win32_*}/**",
-		"!**/node_modules/**/prebuilds/{android-*,darwin-x64,freebsd-*,linux-*,win32-*}/**",
+		// electron-builder packages for the OS it runs on, so the Windows build
+		// keeps its own binaries.
+		...(process.platform === "win32"
+			? []
+			: [
+					"!**/node_modules/onnxruntime-node/bin/napi-v3/{linux,win32}/**",
+					"!**/node_modules/onnxruntime-node/bin/napi-v3/darwin/x64/**",
+					"!**/node_modules/koffi/build/koffi/{darwin_x64,freebsd_*,linux_*,netbsd_*,openbsd_*,win32_*}/**",
+					"!**/node_modules/**/prebuilds/{android-*,darwin-x64,freebsd-*,linux-*,win32-*}/**",
+				]),
 		"!**/node_modules/node-pty/third_party/**",
 
 		// electron-builder copies every production dependency, but the packaged
@@ -202,6 +208,18 @@ const config: Configuration = {
 			NSRemovableVolumesUsageDescription:
 				"Odin needs access to removable volumes so projects stored on external drives can be opened.",
 		},
+	},
+
+	// Windows: an unsigned x64 NSIS installer. No auto-update there - the
+	// in-app updater swaps a macOS bundle, so Windows users rerun the installer.
+	win: {
+		icon: join(pkg.resources, "build/icons/icon.png"),
+		target: [{ target: "nsis", arch: ["x64"] }],
+		artifactName: "Odin-Setup-x64.${ext}",
+	},
+	nsis: {
+		oneClick: false,
+		allowToChangeInstallationDirectory: true,
 	},
 
 	// Deep linking protocol - Odin's own scheme, never the installed

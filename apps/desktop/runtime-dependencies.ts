@@ -43,11 +43,13 @@ const externalizedRuntimeModules: ExternalizedRuntimeModule[] = [
 		// An explicit copy is its own file set, so the exclusions in
 		// electron-builder.ts never reach it - node-pty's Windows prebuilds
 		// (24 MB of .pdb debug symbols, OpenConsole.exe and conpty.dll) have to
-		// be filtered out right here.
+		// be filtered out right here, except in the Windows build that runs them.
 		packagedCopies: [
 			copyModuleSubtree("node-pty", [
 				"**/*",
-				"!prebuilds/{android,freebsd,linux,win32}-*/**",
+				process.platform === "win32"
+					? "!prebuilds/{android,darwin,freebsd,linux}-*/**"
+					: "!prebuilds/{android,freebsd,linux,win32}-*/**",
 				"!third_party/**",
 			]),
 		],
