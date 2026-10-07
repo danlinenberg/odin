@@ -22,6 +22,13 @@ describe("ChatView transcript", () => {
 		expect(userText("hi <system-reminder>x</system-reminder>")).toBe("hi");
 	});
 
+	test("a ! command shows as typed, then its output", () => {
+		expect(userText("<bash-input>df -h</bash-input>")).toBe("!df -h");
+		expect(
+			userText("<bash-stdout>ok</bash-stdout><bash-stderr>warn</bash-stderr>"),
+		).toBe("ok\n\nwarn");
+	});
+
 	test("a message sent mid-turn shows as yours", () => {
 		const items = applyLines(
 			[],
