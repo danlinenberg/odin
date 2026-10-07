@@ -4156,18 +4156,6 @@ function DevBoardPage() {
 										// only thing that renders Claude Code's full-screen TUI legibly
 										// (scrollback replay is a stream of overlapping frames = mush).
 										<div className="flex min-h-0 flex-1 flex-col bg-background p-2">
-											{/* The way back to the chat: out of a question peek, or
-											    the setting itself when the terminal is the choice. */}
-											<button
-												type="button"
-												onClick={() =>
-													chatView ? setTerminalPaneId(null) : setChatView(true)
-												}
-												className="mb-1 flex items-center gap-1 self-start rounded-md px-1.5 py-0.5 text-[12px] text-muted-foreground hover:bg-secondary hover:text-foreground"
-											>
-												<LuMessageSquare className="size-3.5" />
-												{chatView ? "Back to chat" : "Chat"}
-											</button>
 											<Terminal
 												key={drawerCard.pane.id}
 												paneId={drawerCard.pane.id}
@@ -4279,6 +4267,25 @@ function DevBoardPage() {
 									■ Interrupt
 								</button>
 							)}
+							{/* Back from Terminal View: out of a question peek, or the
+							    setting itself when the terminal is the choice. */}
+							{drawerCard.pane.type === "terminal" &&
+								(!chatView || terminalPaneId === drawerCard.pane.id) && (
+									<button
+										type="button"
+										title="Show sessions as a chat (Settings > Appearance)"
+										onClick={() =>
+											chatView ? setTerminalPaneId(null) : setChatView(true)
+										}
+										className={cn(
+											"flex items-center gap-1.5 rounded-[7px] px-3 py-1.5 text-xs font-semibold",
+											BUTTON.secondary,
+										)}
+									>
+										<LuMessageSquare className="size-3.5" />
+										Chat View
+									</button>
+								)}
 							{/* Done, Remind and Minimize sit right; RemindButton wraps its button
 							    in a span, so the gap is a spacer rather than ml-auto. */}
 							<div className="flex-1" />
