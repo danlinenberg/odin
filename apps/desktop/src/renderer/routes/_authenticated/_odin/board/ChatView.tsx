@@ -669,7 +669,6 @@ export function ChatView({
 			30_000,
 		);
 	};
-	const write = electronTrpc.terminal.write.useMutation();
 	const onSentRef = useRef(onSent);
 	onSentRef.current = onSent;
 	// Stable, so the memoized rows don't all re-render on every poll.
