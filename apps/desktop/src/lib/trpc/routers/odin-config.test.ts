@@ -13,12 +13,14 @@ import {
 	createProfile,
 	DEFAULT_PROFILE_ID,
 	deleteProfile,
+	listDeletedProfiles,
 	listProfiles,
 	readOdinConfig,
 	renameProfile,
 	resolveGithubClientId,
 	resolveSlackOAuthApp,
 	resolveSlackToken,
+	restoreProfile,
 	setActiveProfile,
 	updateOdinConfig,
 } from "./odin-config";
@@ -189,6 +191,28 @@ describe("profiles", () => {
 		setActiveProfile(personal.id);
 		expect(deleteProfile(personal.id)).toBe(DEFAULT_PROFILE_ID);
 		expect(activeProfileId()).toBe(DEFAULT_PROFILE_ID);
+	});
+
+	test("a deleted profile restores with its sign-ins for 30 days", () => {
+		const personal = createProfile("Personal");
+		setActiveProfile(personal.id);
+		updateOdinConfig({ slackToken: "personal" });
+		deleteProfile(personal.id);
+		expect(listDeletedProfiles().map((p) => p.id)).toEqual([personal.id]);
+		restoreProfile(personal.id);
+		expect(listDeletedProfiles()).toEqual([]);
+		setActiveProfile(personal.id);
+		expect(readOdinConfig().slackToken).toBe("personal");
+
+		const realNow = Date.now;
+		deleteProfile(personal.id);
+		Date.now = () => realNow() + 31 * 24 * 60 * 60 * 1000;
+		try {
+			expect(listDeletedProfiles()).toEqual([]);
+			expect(() => restoreProfile(personal.id)).toThrow();
+		} finally {
+			Date.now = realNow;
+		}
 	});
 
 	test("the last profile can't be deleted", () => {

@@ -24,6 +24,7 @@ import {
 } from "renderer/components/ConnectProvider/ConnectProvider";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useInAppBrowser } from "renderer/stores/in-app-browser";
+import { PROFILE_RESTORE_MS } from "shared/odin-profile";
 import {
 	useOdinFeeds,
 	useSetSlackReaction,
@@ -341,6 +342,14 @@ function SlackReactions() {
  * re-probes the lot. Sessions, the Slack queue and my tasks follow the same
  * id, so switching here changes the whole app, not just these five rows.
  */
+function daysLeft(deletedAt: number): string {
+	const days = Math.max(
+		1,
+		Math.ceil((deletedAt + PROFILE_RESTORE_MS - Date.now()) / 86_400_000),
+	);
+	return days === 1 ? "1 more day" : `${days} more days`;
+}
+
 function Profiles({ onSwitched }: { onSwitched: () => void }) {
 	const queryClient = useQueryClient();
 	const profiles = electronTrpc.connections.profiles.useQuery();
@@ -374,8 +383,13 @@ function Profiles({ onSwitched }: { onSwitched: () => void }) {
 		onSuccess: done,
 		onError: fail,
 	});
+	const restore = electronTrpc.connections.restoreProfile.useMutation({
+		onSuccess: () => void profiles.refetch(),
+		onError: fail,
+	});
 
 	const rows = profiles.data?.profiles ?? [];
+	const deleted = profiles.data?.deleted ?? [];
 	const isLast = rows.length <= 1;
 	const pending = rows.find((profile) => profile.id === confirmDelete);
 
@@ -445,6 +459,30 @@ function Profiles({ onSwitched }: { onSwitched: () => void }) {
 				))}
 			</div>
 
+			{deleted.map((profile) => (
+				<div
+					key={profile.id}
+					className="flex items-center gap-3 border-t px-4 py-2"
+				>
+					<span className="size-2 shrink-0 rounded-full border border-muted-foreground/30" />
+					<span className="min-w-0 flex-1 truncate px-2 text-sm text-muted-foreground">
+						{profile.name}
+					</span>
+					<span className="shrink-0 text-xs text-muted-foreground">
+						Deleted - restorable for {daysLeft(profile.deletedAt)}
+					</span>
+					<Button
+						variant="outline"
+						size="sm"
+						className="h-7 shrink-0"
+						disabled={restore.isPending}
+						onClick={() => restore.mutate({ id: profile.id })}
+					>
+						Restore
+					</Button>
+				</div>
+			))}
+
 			<div className="flex items-center gap-2 bg-muted/20 px-4 py-2">
 				<Input
 					value={newName}
@@ -469,7 +507,7 @@ function Profiles({ onSwitched }: { onSwitched: () => void }) {
 				</Button>
 			</div>
 
-			{/* Deleting drops this profile's stored credentials - no undo. */}
+			{/* Deleting keeps the profile restorable for 30 days. */}
 			<AlertDialog
 				open={pending !== undefined}
 				onOpenChange={(open) => !open && setConfirmDelete(null)}
@@ -480,9 +518,9 @@ function Profiles({ onSwitched }: { onSwitched: () => void }) {
 							Delete profile "{pending?.name}"?
 						</AlertDialogTitle>
 						<AlertDialogDescription className="text-muted-foreground">
-							Its Slack, Jira, GitHub and Notion sign-ins are removed from this
-							machine, along with its board sessions and tasks. This can't be
-							undone.
+							Its Slack, Jira, GitHub and Notion sign-ins, board sessions and
+							tasks are hidden. You can restore it here for 30 days. After that
+							it is gone for good.
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter className="flex-row justify-end gap-2 px-4 pt-2 pb-4">

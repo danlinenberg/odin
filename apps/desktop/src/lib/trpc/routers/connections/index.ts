@@ -28,12 +28,14 @@ import {
 	activeProfileId,
 	createProfile,
 	deleteProfile,
+	listDeletedProfiles,
 	listProfiles,
 	readOdinConfig,
 	renameProfile,
 	resolveGithubClientId,
 	resolveNotionToken,
 	resolveSlackToken,
+	restoreProfile,
 	setActiveProfile,
 	updateOdinConfig,
 } from "../odin-config";
@@ -314,6 +316,7 @@ export const createConnectionsRouter = () => {
 		profiles: publicProcedure.query(() => ({
 			activeId: activeProfileId(),
 			profiles: listProfiles(),
+			deleted: listDeletedProfiles(),
 		})),
 
 		/**
@@ -353,6 +356,21 @@ export const createConnectionsRouter = () => {
 					const activeId = deleteProfile(input.id);
 					clearSlackCaches();
 					return { activeId };
+				} catch (error) {
+					throw new TRPCError({
+						code: "BAD_REQUEST",
+						message: error instanceof Error ? error.message : String(error),
+					});
+				}
+			}),
+
+		/** Undo a delete from the last 30 days. */
+		restoreProfile: publicProcedure
+			.input(z.object({ id: z.string().min(1) }))
+			.mutation(({ input }) => {
+				try {
+					restoreProfile(input.id);
+					return { ok: true };
 				} catch (error) {
 					throw new TRPCError({
 						code: "BAD_REQUEST",
