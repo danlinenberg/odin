@@ -17,6 +17,7 @@ import {
 	HiOutlineScale,
 	HiOutlineViewColumns,
 } from "react-icons/hi2";
+import { ClaudeCommandPicker } from "renderer/components/ClaudeCommandPicker";
 import { ZoomStable } from "renderer/components/ZoomStable/ZoomStable";
 import { useTaskQueue } from "renderer/hooks/useTaskQueue";
 import { useZoomFactor } from "renderer/hooks/useZoomFactor";
@@ -513,6 +514,7 @@ function OdinShell() {
 				<div className="h-full min-w-0 flex-1 [-webkit-app-region:drag]" />
 				<ZoomStable enabled={isMac}>
 					<div className="flex items-center gap-1.5">
+						<ClaudeCommandPicker />
 						{usage && (usage.fiveHour || usage.week) && (
 							<Tooltip delayDuration={300}>
 								<TooltipTrigger asChild>
