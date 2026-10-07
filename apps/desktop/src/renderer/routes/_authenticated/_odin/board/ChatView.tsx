@@ -427,24 +427,16 @@ function UserBubble({ text, pending }: { text: string; pending?: boolean }) {
 
 /**
  * Odin's icon, on the first block of each reply - who's talking, at a glance.
- * The icon is white lines on near-black, which vanished on the dark drawer;
- * screen-blended over the primary button's gradient, the lines stay white and
- * the tile turns violet.
+ * Its own dark tile, brightened and ringed so the lines read on the drawer;
+ * a violet screen-blend washed it out.
  */
-function OdinMark({ className }: { className?: string }) {
+function OdinMark() {
 	return (
-		<span
-			className={cn(
-				"flex size-7 shrink-0 overflow-hidden rounded-lg bg-gradient-to-br from-primary to-primary-ink shadow-[0_0_12px_-2px_color-mix(in_oklab,var(--primary)_70%,transparent)]",
-				className,
-			)}
-		>
-			<img
-				src={odinIcon}
-				alt=""
-				className="size-full scale-125 mix-blend-screen"
-			/>
-		</span>
+		<img
+			src={odinIcon}
+			alt=""
+			className="size-7 shrink-0 rounded-lg ring-1 ring-white/20 brightness-150 contrast-[1.15]"
+		/>
 	);
 }
 
@@ -531,12 +523,15 @@ export function ChatView({
 	// transcript's first cwd. The pane's cwd has often moved on since (a feed
 	// session starts in ~/dev and works in a worktree). Same query and options
 	// as the card's pills, so it's a cache hit; the pane's cwd is the fallback.
-	const { data: transcript } =
+	const { data: transcript, isError } =
 		electronTrpc.terminal.readClaudeTranscript.useQuery(
 			{ sessionId: sessionId ?? "" },
 			{ enabled: !!sessionId, retry: false, staleTime: 60_000 },
 		);
-	const startCwd = transcript?.cwd ?? cwd;
+	// Wait for the answer: guessing with the pane's cwd first flashed "Not on
+	// disk yet" at a wrong path. The pane's cwd only stands in when there's no
+	// transcript to ask (not written yet, or unreadable).
+	const startCwd = transcript ? (transcript.cwd ?? cwd) : isError ? cwd : null;
 	const path =
 		home && startCwd && sessionId
 			? transcriptPath(home, startCwd, sessionId)
@@ -624,11 +619,9 @@ export function ChatView({
 					))}
 					{working && (
 						<div className="flex items-center gap-3 text-[12.5px] text-working">
-							{/* Full-colour icon; a ring turning round it says "busy" -
-							    pulsing the icon itself faded it to grey. */}
-							<span className="relative flex shrink-0">
-								<OdinMark />
-								<span className="absolute -inset-[3px] animate-spin rounded-[10px] border-2 border-primary/70 border-r-transparent border-b-transparent [animation-duration:1.4s]" />
+							{/* The board card's "agent running" spinner, in the icon's column. */}
+							<span className="flex w-7 shrink-0 justify-center">
+								<span className="size-[11px] animate-spin rounded-full border-[1.5px] border-working border-t-transparent" />
 							</span>
 							Working…
 						</div>
