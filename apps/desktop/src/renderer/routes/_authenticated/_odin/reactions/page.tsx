@@ -27,8 +27,8 @@ import {
 	ROW_LINK_BUTTON,
 	ROW_LINK_SLOT,
 	ROW_LIVE_BUTTON,
-	ROW_PRIMARY_BUTTON,
 	ROW_PRIMARY_SLOT,
+	ROW_START_BUTTON,
 	SyncButton,
 } from "../components/FeedChrome";
 import { FeedError } from "../components/FeedError";
@@ -310,7 +310,7 @@ function ReactionsPage() {
 													type="button"
 													disabled={isLaunching || !row.permalink}
 													onClick={() => void handleStart(row)}
-													className={ROW_PRIMARY_BUTTON}
+													className={ROW_START_BUTTON}
 												>
 													{launchingKey === row.id
 														? "Starting…"
