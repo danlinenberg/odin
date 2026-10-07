@@ -128,7 +128,8 @@ jobs:
       TAG: ${{ needs.macos.outputs.tag }}
       # native-keymap builds with warnings-as-errors, and Electron 40's V8
       # headers deprecate an API it calls (C4996). MSVC reads extra flags from CL.
-      CL: /wd4996
+      # Dash, not slash: Git Bash rewrites /wd4996 into a path.
+      CL: -wd4996
     steps:
       - uses: actions/checkout@v5
 
