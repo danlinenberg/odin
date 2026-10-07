@@ -39,6 +39,40 @@ describe("ChatView transcript", () => {
 		expect(items).toEqual([{ kind: "user", id: "q1", text: "also this" }]);
 	});
 
+	test("a pasted image shows in its bubble, minus the [Image #N] tag", () => {
+		const image = {
+			type: "image",
+			source: { type: "base64", media_type: "image/png", data: "AAAA" },
+		};
+		const items = applyLines(
+			[],
+			[
+				{
+					type: "user",
+					uuid: "u1",
+					message: {
+						content: [{ type: "text", text: "[Image #2] look" }, image],
+					},
+				},
+				{ type: "user", uuid: "u2", message: { content: [image] } },
+			],
+		);
+		expect(items).toEqual([
+			{
+				kind: "user",
+				id: "u1:0",
+				text: "look",
+				images: ["data:image/png;base64,AAAA"],
+			},
+			{
+				kind: "user",
+				id: "u2",
+				text: "",
+				images: ["data:image/png;base64,AAAA"],
+			},
+		]);
+	});
+
 	test("a tool result fills in its tool row; meta lines are skipped", () => {
 		const items = applyLines(
 			[],

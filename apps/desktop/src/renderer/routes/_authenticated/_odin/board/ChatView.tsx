@@ -12,7 +12,7 @@ import { PlanCard, QuestionCard } from "./ChatPrompts";
 import { collectRefs, linkify } from "./chat-links";
 
 type Item =
-	| { kind: "user"; id: string; text: string }
+	| { kind: "user"; id: string; text: string; images?: string[] }
 	| { kind: "text"; id: string; text: string }
 	| {
 			kind: "tool";
@@ -32,6 +32,7 @@ type Block = {
 	tool_use_id?: string;
 	content?: string | Block[];
 	is_error?: boolean;
+	source?: { type?: string; media_type?: string; data?: string };
 };
 
 type Line = {
@@ -99,6 +100,13 @@ export function applyLines(items: Item[], lines: Line[]): Item[] {
 				if (text) next.push({ kind: "user", id, text });
 				return;
 			}
+			// A pasted image is an image block beside "[Image #N] ..." text.
+			const images = (content ?? []).flatMap((block) =>
+				block.type === "image" && block.source?.type === "base64"
+					? [`data:${block.source.media_type};base64,${block.source.data}`]
+					: [],
+			);
+			let imagesShown = images.length === 0;
 			for (const [i, block] of (content ?? []).entries()) {
 				if (block.type === "tool_result" && block.tool_use_id) {
 					const at = toolIndex.get(block.tool_use_id);
@@ -110,10 +118,21 @@ export function applyLines(items: Item[], lines: Line[]): Item[] {
 							isError: block.is_error,
 						};
 				} else if (block.type === "text" && block.text) {
-					const text = userText(block.text);
-					if (text) next.push({ kind: "user", id: `${id}:${i}`, text });
+					const raw = userText(block.text);
+					const text = imagesShown
+						? raw
+						: (raw?.replace(/\[Image #\d+\]\s*/g, "").trim() ?? "");
+					if (text === null || (!text && imagesShown)) continue;
+					next.push({
+						kind: "user",
+						id: `${id}:${i}`,
+						text,
+						...(imagesShown ? {} : { images }),
+					});
+					imagesShown = true;
 				}
 			}
+			if (!imagesShown) next.push({ kind: "user", id, text: "", images });
 		} else if (line.type === "assistant" && Array.isArray(content)) {
 			for (const [i, block] of content.entries()) {
 				if (block.type === "text" && block.text?.trim())
@@ -418,7 +437,15 @@ const ENTER = "animate-in fade-in slide-in-from-bottom-2 duration-300 ease-out";
  * Your message: a violet bubble on the right with room above it, so a reply
  * opens a new turn instead of reading as a line in Claude's text.
  */
-function UserBubble({ text, pending }: { text: string; pending?: boolean }) {
+function UserBubble({
+	text,
+	images,
+	pending,
+}: {
+	text: string;
+	images?: Preview[];
+	pending?: boolean;
+}) {
 	return (
 		<div
 			className={cn(
@@ -427,7 +454,44 @@ function UserBubble({ text, pending }: { text: string; pending?: boolean }) {
 				pending && ENTER,
 			)}
 		>
+			{images && images.length > 0 && (
+				<PreviewStrip previews={images} className={text ? "mb-2" : ""} />
+			)}
 			{text}
+		</div>
+	);
+}
+
+/** A pasted image or video: an image's URL alone, or a video with its file. */
+type Preview = string | { url: string; video: true };
+
+function PreviewStrip({
+	previews,
+	className,
+}: {
+	previews: Preview[];
+	className?: string;
+}) {
+	return (
+		<div className={cn("flex flex-wrap gap-2", className)}>
+			{previews.map((preview) =>
+				typeof preview === "string" ? (
+					<img
+						key={preview}
+						src={preview}
+						alt="Pasted"
+						className="max-h-40 max-w-60 rounded-lg border border-border object-contain"
+					/>
+				) : (
+					<video
+						key={preview.url}
+						src={preview.url}
+						controls
+						muted
+						className="max-h-40 max-w-60 rounded-lg border border-border"
+					/>
+				),
+			)}
 		</div>
 	);
 }
@@ -552,7 +616,8 @@ const ItemView = memo(
 		onDo?: (item: string, number: number) => void;
 	}) {
 		if (item.kind === "tool") return <ToolRow item={item} />;
-		if (item.kind === "user") return <UserBubble text={item.text} />;
+		if (item.kind === "user")
+			return <UserBubble text={item.text} images={item.images} />;
 		const { body, actions } = splitActionItems(linkify(item.text, refs));
 		return (
 			<div className="select-text cursor-text">
@@ -647,7 +712,9 @@ export function ChatView({
 	const prompt = onShowTerminal ? asking(items) : null;
 	// What you just sent, shown at once - Claude writes it to the transcript a
 	// beat later, and that echo replaces it.
-	const [pending, setPending] = useState<{ id: number; text: string }[]>([]);
+	const [pending, setPending] = useState<
+		{ id: number; text: string; previews?: Preview[] }[]
+	>([]);
 	useEffect(() => {
 		setPending((list) =>
 			list.filter(
@@ -658,10 +725,10 @@ export function ChatView({
 			),
 		);
 	}, [items]);
-	const onSent = (text: string) => {
+	const onSent = (text: string, previews?: Preview[]) => {
 		const id = Date.now();
 		pinnedRef.current = true;
-		setPending((list) => [...list, { id, text }]);
+		setPending((list) => [...list, { id, text, previews }]);
 		// Claude takes a moment to write it; look again a few times meanwhile.
 		for (const ms of [150, 500, 1000]) setTimeout(poke, ms);
 		// ponytail: an echo that never matches (Claude rewrote it) just expires.
@@ -765,7 +832,12 @@ export function ChatView({
 						);
 					})}
 					{pending.map((sent) => (
-						<UserBubble key={sent.id} text={sent.text} pending />
+						<UserBubble
+							key={sent.id}
+							text={sent.text}
+							images={sent.previews}
+							pending
+						/>
 					))}
 					{prompt && (
 						<div className={cn("flex min-w-0 gap-3", ENTER)}>
@@ -846,7 +918,8 @@ async function typeIntoClaude(
 /**
  * Its own component so a keystroke re-renders the box, not the conversation.
  * An image paste is Ctrl+V into the
- * PTY: Claude Code reads the clipboard image itself and attaches it.
+ * PTY: Claude Code reads the clipboard image itself and attaches it. Claude
+ * takes no video, so a pasted video file goes in as its path.
  */
 function Composer({
 	paneId,
@@ -856,11 +929,11 @@ function Composer({
 }: {
 	paneId: string;
 	working: boolean;
-	onSent: (text: string) => void;
+	onSent: (text: string, previews?: Preview[]) => void;
 	onStop?: () => void;
 }) {
 	const [draft, setDraft] = useState("");
-	const [images, setImages] = useState(0);
+	const [previews, setPreviews] = useState<Preview[]>([]);
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const write = electronTrpc.terminal.write.useMutation();
 	const setChat = useSessionView((s) => s.setChat);
@@ -875,10 +948,11 @@ function Composer({
 	}, [draft]);
 	const send = async () => {
 		const text = draft.trim();
-		if (!text && images === 0) return;
+		if (!text && previews.length === 0) return;
 		setDraft("");
-		setImages(0);
-		if (text) onSent(text);
+		setPreviews([]);
+		// ponytail: blob URLs are never revoked - a few per session.
+		onSent(text, previews);
 		try {
 			await typeIntoClaude(write.mutateAsync, paneId, text);
 		} catch (error) {
@@ -889,19 +963,34 @@ function Composer({
 	return (
 		<div className="px-4 pb-3 pt-1">
 			<div className="rounded-[14px] border border-border bg-background px-3 pb-2 pt-2.5 focus-within:border-primary/60">
+				{previews.length > 0 && (
+					<PreviewStrip previews={previews} className="mb-2" />
+				)}
 				<textarea
 					ref={inputRef}
 					value={draft}
 					rows={1}
 					onChange={(event) => setDraft(event.target.value)}
 					onPaste={(event) => {
-						const hasImage = [...event.clipboardData.items].some((item) =>
-							item.type.startsWith("image/"),
-						);
-						if (!hasImage) return;
+						const files = [...event.clipboardData.files];
+						const images = files.filter((f) => f.type.startsWith("image/"));
+						const videos = files.filter((f) => f.type.startsWith("video/"));
+						if (images.length === 0 && videos.length === 0) return;
 						event.preventDefault();
-						write.mutate({ paneId, data: "\x16" });
-						setImages((count) => count + 1);
+						if (images.length > 0) write.mutate({ paneId, data: "\x16" });
+						const paths = videos
+							.map((file) => window.webUtils.getPathForFile(file))
+							.filter(Boolean);
+						if (paths.length > 0)
+							setDraft((text) => [text, ...paths].filter(Boolean).join(" "));
+						setPreviews((list) => [
+							...list,
+							...images.map((file) => URL.createObjectURL(file)),
+							...videos.map((file) => ({
+								url: URL.createObjectURL(file),
+								video: true as const,
+							})),
+						]);
 					}}
 					onKeyDown={(event) => {
 						if (
@@ -917,11 +1006,6 @@ function Composer({
 					className="block max-h-[220px] w-full resize-none bg-transparent text-[13.5px] leading-relaxed text-foreground outline-none placeholder:text-faint-foreground"
 				/>
 				<div className="mt-1.5 flex items-center gap-2">
-					{images > 0 && (
-						<span className="rounded-md bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground">
-							🖼 {images} image{images > 1 ? "s" : ""} attached
-						</span>
-					)}
 					<button
 						type="button"
 						title="Show sessions as their terminal (Settings > Appearance)"
@@ -949,7 +1033,7 @@ function Composer({
 						<button
 							type="button"
 							title="Send (Enter)"
-							disabled={!draft.trim() && images === 0}
+							disabled={!draft.trim() && previews.length === 0}
 							onClick={() => void send()}
 							className="ml-auto flex size-7 items-center justify-center rounded-full bg-primary text-[14px] font-bold text-primary-foreground hover:brightness-110 disabled:opacity-40"
 						>
