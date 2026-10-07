@@ -78,3 +78,12 @@ jobs:
           name: smoke-screenshots
           path: ${{ runner.temp }}/smoke
           if-no-files-found: ignore
+
+  # Branch protection requires one check named `check`. It passes only when all
+  # three jobs passed: a skipped required check would count as green.
+  check:
+    if: always()
+    needs: [static, test, app]
+    runs-on: ubuntu-latest
+    steps:
+      - run: ${{ !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && !contains(needs.*.result, 'skipped') }}
