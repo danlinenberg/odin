@@ -480,12 +480,13 @@ await step("A task's title opens its details beside the list", async () => {
 	const hash = await page<string>("location.hash");
 	if (!hash.startsWith("#/all")) throw new Error(`title click opened ${hash}`);
 	// Renaming lives in the panel; the row picks the new name up. Empty restores.
+	// focusout by hand: blur() fires nothing in an unfocused CI window, and
+	// focusout is what React's onBlur listens to.
 	const rename = (to: string) =>
 		page(`(() => {
 			const box = document.querySelector('textarea[title^="Rename"]');
-			box.focus();
 			box.value = ${JSON.stringify(to)};
-			box.blur();
+			box.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
 		})()`);
 	await rename("Renamed in the panel");
 	await waitForText("Renamed in the panel");
