@@ -502,6 +502,19 @@ function ActionItems({
 							key={index}
 							className="flex items-start gap-2"
 						>
+							{/* The button leads the row - you scan for it first. */}
+							<button
+								type="button"
+								title="Ask Claude to do this for you"
+								disabled={sent.has(index)}
+								onClick={() => {
+									setSent((prev) => new Set(prev).add(index));
+									onDo(item, index + 1);
+								}}
+								className="w-[52px] shrink-0 rounded-md border border-attention/40 px-2 py-0.5 text-[11px] font-medium text-attention hover:bg-attention/15 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent"
+							>
+								{sent.has(index) ? "Sent" : "Do it"}
+							</button>
 							<span className="w-4 shrink-0 pt-px text-right text-[13px] tabular-nums text-muted-foreground">
 								{index + 1}.
 							</span>
@@ -511,18 +524,6 @@ function ActionItems({
 								allowHtml={false}
 								className={cn(COMPACT_MARKDOWN, "min-w-0 flex-1")}
 							/>
-							<button
-								type="button"
-								title="Ask Claude to do this for you"
-								disabled={sent.has(index)}
-								onClick={() => {
-									setSent((prev) => new Set(prev).add(index));
-									onDo(item, index + 1);
-								}}
-								className="shrink-0 rounded-md border border-attention/40 px-2 py-0.5 text-[11px] font-medium text-attention hover:bg-attention/15 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent"
-							>
-								{sent.has(index) ? "Sent" : "Do it"}
-							</button>
 						</li>
 					))}
 				</ol>
