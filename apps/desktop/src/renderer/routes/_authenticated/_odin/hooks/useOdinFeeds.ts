@@ -134,3 +134,35 @@ export function useSetSlackReaction() {
 		onError: (error) => toast.error(error.message),
 	});
 }
+
+/**
+ * Slack's Odin-only Done. The row flips in the cache at once: the refetch
+ * behind it is a full Slack sync, which held the row on screen for minutes.
+ */
+export function useSetSlackDone() {
+	const utils = electronTrpc.useUtils();
+	return electronTrpc.slack.setDone.useMutation({
+		onMutate: ({ id, done }) =>
+			utils.slack.reactions.setData(undefined, (prev) =>
+				prev
+					? {
+							...prev,
+							rows: prev.rows.map((row) =>
+								row.id === id
+									? {
+											...row,
+											done,
+											// Undone falls back to Not started until the sync says otherwise.
+											status: done
+												? ("Done" as const)
+												: ("Not started" as const),
+										}
+									: row,
+							),
+						}
+					: prev,
+			),
+		onSettled: () => void utils.slack.reactions.invalidate(),
+		onError: (error) => toast.error(error.message),
+	});
+}

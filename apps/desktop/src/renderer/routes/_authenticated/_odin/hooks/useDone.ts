@@ -1,10 +1,10 @@
 import { toast } from "@odin/ui/sonner";
 import { useMemo } from "react";
-import { electronTrpc } from "renderer/lib/electron-trpc";
 import { type DoneRow, doneChecker, useDoneStore } from "renderer/stores/done";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import { useReminders } from "../components/Reminders";
 import { useBacklogReview } from "./useBacklogReview";
+import { useSetSlackDone } from "./useOdinFeeds";
 import { useOdinProfile } from "./useOdinProfile";
 import { usePaneMeta } from "./usePaneMeta";
 
@@ -36,8 +36,7 @@ export function useDone() {
 	const done = useDoneStore((s) => s.done);
 	const setDone = useDoneStore((s) => s.setDone);
 	const { activeId } = useOdinProfile();
-	const slackDone = electronTrpc.slack.setDone.useMutation();
-	const utils = electronTrpc.useUtils();
+	const slackDone = useSetSlackDone();
 	const isDone = useMemo(() => doneChecker(done), [done]);
 
 	const mark = (item: Doable, on: boolean, reading = false) => {
@@ -54,10 +53,7 @@ export function useDone() {
 		);
 		// Slack has a Done of its own (Odin-only, shared with the Slack feed).
 		if (item.key.startsWith("slack:"))
-			slackDone.mutate(
-				{ id: item.key.slice("slack:".length), done: on },
-				{ onSettled: () => void utils.slack.reactions.invalidate() },
-			);
+			slackDone.mutate({ id: item.key.slice("slack:".length), done: on });
 		// A Review drop undone goes back among the rows still to decide.
 		if (!on) useBacklogReview.getState().unnoteDropped(activeId, item.key);
 	};

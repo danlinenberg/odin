@@ -1,4 +1,3 @@
-import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
@@ -8,7 +7,6 @@ import {
 } from "lib/trpc/routers/slack/reactions";
 import { useMemo, useState } from "react";
 import { ConnectNotice } from "renderer/components/ConnectProvider/ConnectProvider";
-import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { useDoneStore } from "renderer/stores/done";
 import { openUrl } from "renderer/stores/in-app-browser";
@@ -34,7 +32,11 @@ import {
 import { FeedError } from "../components/FeedError";
 import { PersonChip } from "../components/PersonChip";
 import { BUTTON } from "../components/pill";
-import { useOdinFeeds, useSetSlackReaction } from "../hooks/useOdinFeeds";
+import {
+	useOdinFeeds,
+	useSetSlackDone,
+	useSetSlackReaction,
+} from "../hooks/useOdinFeeds";
 import { usePendingFocus } from "../hooks/usePendingFocus";
 import { useStartReaction } from "../hooks/useStartReaction";
 
@@ -114,10 +116,7 @@ function ReactionsPage() {
 			? area.channel
 			: channelLabel(area.channel));
 	const recordDone = useDoneStore((s) => s.setDone);
-	const setDone = electronTrpc.slack.setDone.useMutation({
-		onSuccess: () => void reactions.refetch(),
-		onError: (error) => toast.error(error.message),
-	});
+	const setDone = useSetSlackDone();
 
 	const setReaction = useSetSlackReaction();
 
