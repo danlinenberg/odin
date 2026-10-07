@@ -3456,7 +3456,7 @@ function DevBoardPage() {
 									{cards.length}
 								</span>
 							</div>
-							<div className="flex flex-col gap-2 overflow-y-auto px-2 pb-2.5">
+							<div className="flex flex-col gap-2 overflow-y-auto px-2 pt-0.5 pb-2.5">
 								{cards.length === 0 ? (
 									<div className="px-2 py-6 text-center text-xs text-muted-foreground">
 										Nothing here
