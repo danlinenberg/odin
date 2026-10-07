@@ -952,6 +952,8 @@ function Composer({
 	onStop?: () => void;
 }) {
 	const [draft, setDraft] = useState("");
+	// "!" on an empty box switches to bash mode, like the terminal's prompt.
+	const [bash, setBash] = useState(false);
 	const [previews, setPreviews] = useState<Preview[]>([]);
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const write = electronTrpc.terminal.write.useMutation();
@@ -966,64 +968,97 @@ function Composer({
 		el.style.height = `${Math.min(el.scrollHeight, 220)}px`;
 	}, [draft]);
 	const send = async () => {
-		const text = draft.trim();
-		if (!text && previews.length === 0) return;
+		const body = draft.trim();
+		if (bash ? !body : !body && previews.length === 0) return;
+		const text = bash ? `!${body}` : body;
 		setDraft("");
+		setBash(false);
 		setPreviews([]);
 		// ponytail: blob URLs are never revoked - a few per session.
 		onSent(text, previews);
 		try {
 			await typeIntoClaude(write.mutateAsync, paneId, text);
 		} catch (error) {
-			setDraft(text);
+			setDraft(body);
+			setBash(bash);
 			toast.error(error instanceof Error ? error.message : String(error));
 		}
 	};
 	return (
 		<div className="px-4 pb-3 pt-1">
-			<div className="rounded-[14px] border border-border bg-background px-3 pb-2 pt-2.5 focus-within:border-primary/60">
+			<div
+				className={cn(
+					"rounded-[14px] border border-border bg-background px-3 pb-2 pt-2.5 focus-within:border-primary/60",
+					bash && "border-pink-500/60 focus-within:border-pink-500",
+				)}
+			>
 				{previews.length > 0 && (
 					<PreviewStrip previews={previews} className="mb-2" />
 				)}
-				<textarea
-					ref={inputRef}
-					value={draft}
-					rows={1}
-					onChange={(event) => setDraft(event.target.value)}
-					onPaste={(event) => {
-						const files = [...event.clipboardData.files];
-						const images = files.filter((f) => f.type.startsWith("image/"));
-						const videos = files.filter((f) => f.type.startsWith("video/"));
-						if (images.length === 0 && videos.length === 0) return;
-						event.preventDefault();
-						if (images.length > 0) write.mutate({ paneId, data: "\x16" });
-						const paths = videos
-							.map((file) => window.webUtils.getPathForFile(file))
-							.filter(Boolean);
-						if (paths.length > 0)
-							setDraft((text) => [text, ...paths].filter(Boolean).join(" "));
-						setPreviews((list) => [
-							...list,
-							...images.map((file) => URL.createObjectURL(file)),
-							...videos.map((file) => ({
-								url: URL.createObjectURL(file),
-								video: true as const,
-							})),
-						]);
-					}}
-					onKeyDown={(event) => {
-						if (
-							event.key === "Enter" &&
-							!event.shiftKey &&
-							!event.nativeEvent.isComposing
-						) {
+				<div className="flex gap-1.5">
+					{bash && (
+						<span className="font-mono text-[13.5px] leading-relaxed text-pink-500">
+							!
+						</span>
+					)}
+					<textarea
+						ref={inputRef}
+						value={draft}
+						rows={1}
+						onChange={(event) => {
+							const value = event.target.value;
+							if (!bash && !draft && value.startsWith("!")) {
+								setBash(true);
+								setDraft(value.slice(1));
+							} else setDraft(value);
+						}}
+						onPaste={(event) => {
+							const files = [...event.clipboardData.files];
+							const images = files.filter((f) => f.type.startsWith("image/"));
+							const videos = files.filter((f) => f.type.startsWith("video/"));
+							if (images.length === 0 && videos.length === 0) return;
 							event.preventDefault();
-							void send();
-						}
-					}}
-					placeholder="Reply to Claude"
-					className="block max-h-[220px] w-full resize-none bg-transparent text-[13.5px] leading-relaxed text-foreground outline-none placeholder:text-faint-foreground"
-				/>
+							if (images.length > 0) write.mutate({ paneId, data: "\x16" });
+							const paths = videos
+								.map((file) => window.webUtils.getPathForFile(file))
+								.filter(Boolean);
+							if (paths.length > 0)
+								setDraft((text) => [text, ...paths].filter(Boolean).join(" "));
+							setPreviews((list) => [
+								...list,
+								...images.map((file) => URL.createObjectURL(file)),
+								...videos.map((file) => ({
+									url: URL.createObjectURL(file),
+									video: true as const,
+								})),
+							]);
+						}}
+						onKeyDown={(event) => {
+							if (
+								bash &&
+								!draft &&
+								(event.key === "Backspace" || event.key === "Escape")
+							) {
+								event.preventDefault();
+								setBash(false);
+								return;
+							}
+							if (
+								event.key === "Enter" &&
+								!event.shiftKey &&
+								!event.nativeEvent.isComposing
+							) {
+								event.preventDefault();
+								void send();
+							}
+						}}
+						placeholder={bash ? "Run a shell command" : "Reply to Claude"}
+						className={cn(
+							"block max-h-[220px] w-full resize-none bg-transparent text-[13.5px] leading-relaxed text-foreground outline-none placeholder:text-faint-foreground",
+							bash && "font-mono",
+						)}
+					/>
+				</div>
 				<div className="mt-1.5 flex items-center gap-2">
 					<button
 						type="button"
@@ -1034,9 +1069,15 @@ function Composer({
 						<LuSquareTerminal className="size-3.5" />
 						Terminal View
 					</button>
-					<span className="text-[11px] text-faint-foreground">
-						Enter to send · Shift+Enter for a new line
-					</span>
+					{bash ? (
+						<span className="text-[11px] text-pink-500">
+							Bash mode · Backspace on empty to exit
+						</span>
+					) : (
+						<span className="text-[11px] text-faint-foreground">
+							Enter to send · Shift+Enter for a new line · ! for bash
+						</span>
+					)}
 					{working ? (
 						<button
 							type="button"
