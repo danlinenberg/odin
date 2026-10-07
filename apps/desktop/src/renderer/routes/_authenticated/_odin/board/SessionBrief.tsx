@@ -8,6 +8,7 @@ import { type BriefLink, usePaneMeta } from "../hooks/usePaneMeta";
 import {
 	actionItems,
 	artifactLink,
+	emailLink,
 	jiraIssue,
 	type LinkKind,
 	launchPullRequest,
@@ -370,6 +371,7 @@ export function SessionBrief({
 	const foundPage = linkSource ? notionPage(linkSource) : null;
 	const foundIssue = linkSource ? jiraIssue(linkSource) : null;
 	const foundArtifact = linkSource ? artifactLink(linkSource) : null;
+	const foundEmail = emailLink(launch, linkSource ?? []);
 	// Only rules that actually fired, and on which PR - not every rule the
 	// launch prompt listed. `rules` is missing until main restarts onto it.
 	const rules = transcript?.rules ?? [];
@@ -381,6 +383,7 @@ export function SessionBrief({
 	const issue = foundIssue && !isHidden(foundIssue.url) ? foundIssue : null;
 	const artifact =
 		foundArtifact && !isHidden(foundArtifact) ? foundArtifact : null;
+	const email = foundEmail && !isHidden(foundEmail) ? foundEmail : null;
 	// An <a> in the renderer would navigate the app window; PRs open in a browser.
 
 	// Links you added, filed under the section they belong to. One the
@@ -391,6 +394,7 @@ export function SessionBrief({
 			foundThread,
 			foundPage?.url,
 			foundArtifact,
+			foundEmail,
 			...allPrs.map((pr) => pr.url),
 		].filter(Boolean),
 	);
@@ -452,6 +456,7 @@ export function SessionBrief({
 			label: foundPage.title ?? "Notion page",
 		},
 		foundArtifact && { url: foundArtifact, label: "Artifact" },
+		foundEmail && { url: foundEmail, label: "Email" },
 		...allAdded.map((link) => ({
 			url: link.url,
 			label: link.name ?? previews?.[link.url]?.text ?? linkLabel(link.url),
@@ -707,6 +712,27 @@ export function SessionBrief({
 							</div>
 						)}
 						{mine("artifact").map(myLink)}
+					</div>
+				</Section>
+			)}
+			{(email || mine("email").length > 0) && (
+				<Section label={plural("Email", email, mine("email"))} divided>
+					<div className="flex flex-col gap-1">
+						{email && (
+							<div className="group flex items-center gap-1.5">
+								<Hover text={hoverFor(email)}>
+									<button
+										type="button"
+										onClick={() => openUrl(email)}
+										className="block min-w-0 flex-1 truncate text-left text-[12px] text-link hover:underline"
+									>
+										Open email ↗
+									</button>
+								</Hover>
+								<HideButton onClick={() => hide(email)} />
+							</div>
+						)}
+						{mine("email").map(myLink)}
 					</div>
 				</Section>
 			)}
