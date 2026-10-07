@@ -11,6 +11,7 @@
 <p align="center">
   <a href="LICENSE.md"><img alt="License: Elastic 2.0" src="https://img.shields.io/badge/license-Elastic%202.0-1d212c"></a>
   <a href="#install"><img alt="macOS, Apple Silicon" src="https://img.shields.io/badge/macOS-Apple%20Silicon-1d212c"></a>
+  <a href="#windows"><img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-1d212c"></a>
   <a href="https://github.com/danlinenberg/odin/actions/workflows/release.yml"><img alt="Release" src="https://github.com/danlinenberg/odin/actions/workflows/release.yml/badge.svg"></a>
 </p>
 
@@ -34,9 +35,16 @@ request. One queue, one board, one thing to look at.
 brew trust --tap danlinenberg/odin && brew tap danlinenberg/odin && brew install --cask odin
 ```
 
+### Windows
+
+Download **[Odin-Setup-x64.exe](https://github.com/danlinenberg/odin/releases/latest/download/Odin-Setup-x64.exe)**
+and run it. The installer is not code-signed, so SmartScreen warns on first run:
+click **More info**, then **Run anyway**. Windows has no in-app update yet - run
+the newest installer to upgrade.
+
 ### Upgrade
 
-Odin updates itself: **Odin → Check for Updates…**, and it offers on launch when
+On macOS, Odin updates itself: **Odin → Check for Updates…**, and it offers on launch when
 a release is newer than what you are running. It downloads the DMG and swaps the
 bundle in place. Open terminal sessions survive the swap, because the
 terminal-host daemon keeps running from the bundle the update parks aside.
@@ -61,10 +69,9 @@ in-app **Restart Odin** button, or `ODIN_DEV_WATCH=--watch` to restart on every
 save. Logs stream to `~/.odin/dev.log`, and the run that died is kept as
 `dev.log.prev`.
 
-### Windows (from source, experimental)
+### Windows from source
 
-The packaged app and `odin-dev.sh` are macOS-only, but the dev build runs on
-Windows from Git Bash:
+`odin-dev.sh` is macOS-only, but the dev build runs on Windows from Git Bash:
 
 - **Node 20.11 or newer first on `PATH`.** `electron-vite` and
   `@electron/rebuild` run under it and need `import.meta.dirname`; on Node 18
