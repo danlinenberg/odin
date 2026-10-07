@@ -138,11 +138,12 @@ async function pipe(
  * Delta, restyled for a panel rather than a pager: line numbers instead of the
  * boxed "1:" hunk headers, file names as quiet rules, and muted +/- fills so a
  * whole new file isn't a slab of green. Side by side once there's room for two
- * readable columns. Flags beat whatever ~/.gitconfig sets, so it looks the same
- * on every machine.
+ * readable columns. ~/.gitconfig's [delta] is ignored, so it looks the same on
+ * every machine - a `side-by-side = true` there split even a narrow panel in two.
  */
 function deltaArgs(width: number): string[] {
 	return [
+		"--no-gitconfig",
 		"--paging=never",
 		`--width=${width}`,
 		"--line-numbers",
