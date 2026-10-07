@@ -4,6 +4,7 @@ import {
 	artifactLink,
 	type BriefMessage,
 	elapsedLabel,
+	emailLink,
 	jiraIssue,
 	lastMessageAt,
 	launchPullRequest,
@@ -919,5 +920,23 @@ describe("postedMessage", () => {
 		const bare = `This task comes from a Slack thread: ${url}\n\nPHASE 1 - INGEST`;
 		expect(postedMessage([prompt(bare)], url)).toBeNull();
 		expect(postedMessage([prompt(bare)], `${url}9`)).toBeNull();
+	});
+});
+
+describe("emailLink", () => {
+	const gmail = "https://mail.google.com/mail/u/0/#inbox/FMfcgzQ123";
+	it("takes the launch row's Gmail link", () => {
+		expect(emailLink(`Reply to Asya\n${gmail}`, [])).toBe(gmail);
+	});
+	it("falls back to the first Gmail link in the conversation", () => {
+		expect(
+			emailLink("https://acme.atlassian.net/browse/SHIP-1", [
+				{ role: "user", text: `see (${gmail}).`, at: null },
+			]),
+		).toBe(gmail);
+		expect(linkKind(gmail)).toBe("email");
+	});
+	it("is null with no Gmail link", () => {
+		expect(emailLink(null, [])).toBeNull();
 	});
 });
