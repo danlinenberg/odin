@@ -149,7 +149,13 @@ async function openSlackThread({
 	for (let i = 0; i < 160; i++) {
 		await new Promise((resolve) => setTimeout(resolve, 50));
 		const pane = document.querySelector('[data-qa="threads_flexpane"]');
-		if (pane?.querySelector(shown)) return true;
+		if (pane?.querySelector(shown)) {
+			// The cursor goes to the reply box, as Slack's own thread click does.
+			pane
+				.querySelector<HTMLElement>('.ql-editor[contenteditable="true"]')
+				?.focus();
+			return true;
+		}
 	}
 	return false;
 }
@@ -341,6 +347,9 @@ export function InAppBrowser() {
 		// Whatever had focus when the link opened - the session's terminal,
 		// Catch up - gets it back on close, instead of it falling to <body>.
 		const opener = document.activeElement;
+		// Typing goes to the link, not the terminal under the panel. A site's
+		// first link has no page yet; its <webview> takes focus as it mounts.
+		views.current[site]?.focus();
 		// Captured and stopped at the window: Esc closes the panel and nothing
 		// under it - not the session drawer, not Catch up, not the terminal.
 		const onKey = (event: KeyboardEvent) => {
@@ -487,8 +496,13 @@ export function InAppBrowser() {
 								<webview
 									key={key}
 									ref={(element) => {
-										if (element) views.current[key] = element as WebviewTag;
-										else delete views.current[key];
+										if (!element) {
+											delete views.current[key];
+										} else if (!views.current[key]) {
+											views.current[key] = element as WebviewTag;
+											// A site's first link takes the cursor too.
+											element.focus();
+										}
 									}}
 									src={sites[key]}
 									partition={IN_APP_BROWSER_PARTITION}
