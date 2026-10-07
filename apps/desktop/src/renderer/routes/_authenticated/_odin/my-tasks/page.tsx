@@ -24,6 +24,7 @@ import {
 	SkillChip,
 	TaskBox,
 } from "../components/TaskBox";
+import { useDone } from "../hooks/useDone";
 import {
 	type OdinTask,
 	taskPrompt,
@@ -49,7 +50,11 @@ export const Route = createFileRoute("/_authenticated/_odin/my-tasks/")({
 
 function MyTasksPage() {
 	// Automations live on their own page; this list is only what waits on you.
-	const { todos: tasks, add, edit, remove, setPane } = useMyTasks();
+	// Done or Reading material from All tasks is put away here too, the way
+	// the tab's badge already counts it.
+	const { todos, add, edit, remove, setPane } = useMyTasks();
+	const { isDone } = useDone();
+	const tasks = todos.filter((task) => !isDone({ key: `task:${task.id}` }));
 	const [draft, setDraft] = useState("");
 	const [editingId, setEditingId] = useState<string | null>(null);
 	const [editDraft, setEditDraft] = useState("");
@@ -117,6 +122,7 @@ function MyTasksPage() {
 						setDraftRepo("");
 					}}
 					onCancel={() => setDraft("")}
+					submitLabel="Add task"
 				/>
 			</div>
 
@@ -146,6 +152,7 @@ function MyTasksPage() {
 										setEditingId(null);
 									}}
 									onCancel={() => setEditingId(null)}
+									submitLabel="Save"
 								/>
 							</div>
 						);

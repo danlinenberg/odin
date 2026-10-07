@@ -13,6 +13,7 @@ import {
 	withPriority,
 	withSkill,
 } from "../hooks/useOdinTasks";
+import { ROW_PRIMARY_BUTTON } from "./FeedChrome";
 import { PILL } from "./pill";
 import { matchRepos, repoLabel } from "./repo-picker";
 import { matchSkills } from "./skill-picker";
@@ -49,6 +50,7 @@ export function TaskBox({
 	onChange,
 	onSubmit,
 	onCancel,
+	submitLabel,
 }: {
 	value: string;
 	placeholder?: string;
@@ -73,6 +75,8 @@ export function TaskBox({
 	onChange: (text: string) => void;
 	onSubmit: () => void;
 	onCancel?: () => void;
+	/** Shows a button that does what Ctrl/⌘+Enter does. */
+	submitLabel?: string;
 }) {
 	const [title, notes] = splitTask(value);
 	// Ctrl/⌘+Enter submits from either field.
@@ -154,6 +158,16 @@ export function TaskBox({
 							))}
 						</select>
 					</div>
+				)}
+				{submitLabel && (
+					<button
+						type="button"
+						disabled={!title.trim()}
+						onClick={onSubmit}
+						className={cn(ROW_PRIMARY_BUTTON, hidePriority && "ml-auto")}
+					>
+						{submitLabel}
+					</button>
 				)}
 			</div>
 		</div>

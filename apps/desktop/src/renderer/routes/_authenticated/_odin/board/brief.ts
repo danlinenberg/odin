@@ -267,6 +267,26 @@ export function slackThread(messages: BriefMessage[]): string | null {
 	return null;
 }
 
+const GMAIL_URL = /https:\/\/mail\.google\.com\/mail\/[^\s)>"]+/;
+
+/**
+ * The email this session is about: the launch row's link when it's a Gmail
+ * one (the Notion feed mirrors email), else the first Gmail link in the
+ * conversation.
+ */
+export function emailLink(
+	launch: string | null | undefined,
+	messages: BriefMessage[],
+): string | null {
+	const launched = sourceLink(launch)?.url;
+	if (launched && linkKind(launched) === "email") return launched;
+	for (const message of messages) {
+		const found = GMAIL_URL.exec(message.text)?.[0];
+		if (found) return found.replace(/[).,]+$/, "");
+	}
+	return null;
+}
+
 /**
  * When the conversation last moved, as epoch ms - the newest turn carrying a
  * timestamp. This is what a card's age badge should read: "in this status
@@ -434,6 +454,7 @@ export function linkLabel(url: string): string {
 		: undefined;
 	if (notionId) return notionTitle(url, notionId) ?? "Notion page";
 	if (/claude\.ai\/(?:code\/)?artifact\//.test(url)) return "Artifact";
+	if (/mail\.google\.com\/mail\//.test(url)) return "Email";
 	return sourceLink(url)?.label ?? url;
 }
 
@@ -460,6 +481,7 @@ export type LinkKind =
 	| "pr"
 	| "notion"
 	| "artifact"
+	| "email"
 	| "other";
 
 /** Which brief section a link you added belongs in. */
@@ -469,6 +491,7 @@ export function linkKind(url: string): LinkKind {
 	if (/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/.test(url)) return "pr";
 	if (/notion\.(?:so|com|site)\//.test(url)) return "notion";
 	if (/claude\.ai\/(?:code\/)?artifact\//.test(url)) return "artifact";
+	if (/mail\.google\.com\/mail\//.test(url)) return "email";
 	return "other";
 }
 

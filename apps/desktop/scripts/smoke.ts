@@ -26,7 +26,6 @@ import {
 import { join } from "node:path";
 import electronBinary from "electron";
 
-const PORT = 19_331;
 const APP_DIR = join(import.meta.dir, "..");
 const SHOTS = process.env.SMOKE_SHOTS_DIR;
 if (SHOTS) mkdirSync(SHOTS, { recursive: true });
@@ -39,6 +38,8 @@ const env: Record<string, string | undefined> = {
 	ODIN_HOME_DIR: join(home, ".odin"),
 	TMPDIR: home,
 	NODE_ENV: "production",
+	// No Dock icon, and the window never takes focus from the user.
+	ODIN_SMOKE: "1",
 };
 // Set inside an Odin terminal; it would boot Electron as plain node.
 delete env.ELECTRON_RUN_AS_NODE;
@@ -108,7 +109,8 @@ const app = spawn(
 	electronBinary as unknown as string,
 	[
 		APP_DIR,
-		`--remote-debugging-port=${PORT}`,
+		// 0 = any free port: agents run smoke in parallel worktrees.
+		"--remote-debugging-port=0",
 		`--user-data-dir=${join(home, "chromium")}`,
 	],
 	{ env, stdio: ["ignore", "pipe", "pipe"] },
@@ -147,9 +149,14 @@ setTimeout(() => {
 // --- CDP ---------------------------------------------------------------------
 type Target = { type: string; url: string; webSocketDebuggerUrl?: string };
 let target: Target | undefined;
+const portFile = join(home, "chromium", "DevToolsActivePort");
 for (let i = 0; i < 60 && !target; i++) {
 	await sleep(1000);
-	const targets = (await fetch(`http://127.0.0.1:${PORT}/json/list`)
+	// Chromium writes the port it picked as the first line of this file.
+	const port =
+		existsSync(portFile) && readFileSync(portFile, "utf8").split("\n")[0];
+	if (!port) continue;
+	const targets = (await fetch(`http://127.0.0.1:${port}/json/list`)
 		.then((r) => r.json())
 		.catch(() => [])) as Target[];
 	target = targets.find(
@@ -401,6 +408,17 @@ await step("a task written down lands in Tasks", async () => {
 	await waitForText(TASK);
 });
 
+await step("the My Tasks composer adds a task with its button", async () => {
+	const typed = `Button task ${Date.now()}`;
+	await page(`(() => {
+		const strip = __find("button", "Slack").parentElement;
+		__find("button", "Tasks", strip).click();
+	})()`);
+	await fill('input[placeholder="What needs doing?"]', typed);
+	await click("button", "Add task");
+	await waitForText(typed);
+});
+
 await step("a new profile sees none of the first one's tasks", async () => {
 	await rail("Settings");
 	await waitForText("profiles");
@@ -429,6 +447,26 @@ await step("starting a task asks for optional context first", async () => {
 	await waitForText("leave it empty to start as is", false);
 	if (fakeClaudeRuns().some((r) => r.args.includes(TASK)))
 		throw new Error("Cancel still started a session");
+});
+
+await step("Read later moves a task to Reading material and back", async () => {
+	await rail("Tasks");
+	await waitForText(TASK);
+	const found = await page<boolean>(`(() => {
+		let row = [...document.querySelectorAll("button")].find((e) => e.textContent.trim() === ${JSON.stringify(TASK)});
+		while (row && !row.querySelector('button[title^="Nothing to do"]')) row = row.parentElement;
+		row?.querySelector('button[title^="Nothing to do"]').click();
+		return !!row;
+	})()`);
+	if (!found) throw new Error("no Read later button on the task's row");
+	await waitForText(TASK, false);
+	await click("button", "Reading material");
+	await waitForText(TASK);
+	await waitForText("saved");
+	// Undo on the only row empties the shelf: back on the queue, row and all.
+	await click("button", "Put it back");
+	await waitForText(TASK);
+	await waitForText("waiting on you");
 });
 
 await step("Done takes a task off the list", async () => {
@@ -571,6 +609,18 @@ await step(
 		}
 	},
 );
+
+await step("⌘Z after Done resumes the session onto the board", async () => {
+	await page(`document.activeElement?.blur()`);
+	await page(
+		`document.dispatchEvent(new KeyboardEvent("keydown", { key: "z", code: "KeyZ", metaKey: true, bubbles: true }))`,
+	);
+	await waitForText(SESSION, true, 30_000);
+	for (const end = Date.now() + 30_000; ; await sleep(500)) {
+		if (fakeClaudeRuns().some((r) => r.args.includes("--resume"))) break;
+		if (Date.now() > end) throw new Error("no claude --resume ran");
+	}
+});
 
 await step("no uncaught errors in the renderer", async () => {
 	if (exceptions.length) throw new Error(exceptions.join("\n     "));

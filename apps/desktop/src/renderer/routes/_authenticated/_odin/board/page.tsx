@@ -44,6 +44,7 @@ import {
 import { SiJira, SiNotion, SiSlack } from "react-icons/si";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { startQueuedPane } from "renderer/hooks/useTaskQueue";
+import { useHotkey } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { canClaimKeyboard } from "renderer/lib/keyboard";
@@ -88,7 +89,7 @@ import {
 } from "../components/OdinPromptDialog";
 import { PersonChip, personColor } from "../components/PersonChip";
 import { BUTTON, PILL } from "../components/pill";
-import { DueChip, OverdueMark } from "../components/Reminders";
+import { DueChip, OverdueMark, useReminders } from "../components/Reminders";
 import { TranscriptView } from "../components/TranscriptView";
 import { useBacklogReview, useReview } from "../hooks/useBacklogReview";
 import { endSession } from "../hooks/useDone";
@@ -128,6 +129,7 @@ import { DiffView } from "./DiffView";
 import { NextInLine } from "./NextInLine";
 import { HoverBrief, SessionBrief } from "./SessionBrief";
 import {
+	PREFIX as REMIND_PREFIX,
 	RemindButton,
 	remindSession,
 	SessionReminders,
@@ -3029,6 +3031,23 @@ function DevBoardPage() {
 	 * sitting in Idle while its agent works would be a lie.
 	 */
 	const parkCard = async (card: BoardCard) => {
+		const before = {
+			// An interrupted turn can't be un-interrupted: back as a stopped session.
+			status: card.pane.status === "working" ? "idle" : card.pane.status,
+			odinParked: card.pane.odinParked,
+		};
+		const undo = pushUndo(() =>
+			useTabsStore.setState((state) =>
+				state.panes[card.pane.id]
+					? {
+							panes: {
+								...state.panes,
+								[card.pane.id]: { ...state.panes[card.pane.id], ...before },
+							},
+						}
+					: state,
+			),
+		);
 		if (card.pane.status === "working") {
 			await terminalWrite
 				.mutateAsync({ paneId: card.pane.id, data: "\x1b" })
@@ -3044,7 +3063,7 @@ function DevBoardPage() {
 				},
 			},
 		}));
-		toast.success("Parked in Idle - session still open");
+		toast.success("Parked in Idle - session still open", undoAction(undo));
 	};
 
 	/**
@@ -3057,16 +3076,71 @@ function DevBoardPage() {
 	 * session, drag the card to Idle (Park) instead.
 	 */
 	const markDone = (card: BoardCard) => {
-		endSession(card.pane.id);
+		const undo = endCard(card);
 		setDrawerCard(null);
-		toast.success("Done - removed from board");
+		toast.success("Done - removed from board", undoAction(undo));
 	};
+
+	/**
+	 * Done, undoable: the PTY dies with the pane, so undo resumes the same
+	 * conversation (`claude --resume`) into a fresh pane, like Session History.
+	 */
+	const endCard = (card: BoardCard) => {
+		const sessionId =
+			card.pane.claudeSessionId ??
+			usePaneMeta.getState().sessionIdByPane[card.pane.id];
+		const cwd = sessionCwd(card.pane) ?? card.repoPath;
+		const title = cardTitle(card);
+		const brief = usePaneMeta.getState().briefByPane[card.pane.id];
+		endSession(card.pane.id);
+		if (!sessionId) return;
+		return pushUndo(async () => {
+			const result = await launch({
+				workspaceId: card.workspaceId,
+				title,
+				description: null,
+				resumeSessionId: sessionId,
+				repoPath: cwd,
+				brief,
+			});
+			if (!result.ok) return void toast.error(result.error);
+			// Undoing Remind me: it's back now, no need to ping about it later.
+			useReminders.getState().clear(REMIND_PREFIX + sessionId);
+			toast.success(`Back on the board - ${title.slice(0, 50)}`);
+		});
+	};
+
+	// ponytail: in-memory, this board mount only - a reload forgets it.
+	const undoStack = useRef<(() => void)[]>([]);
+	/** Stack `revert` for ⌘Z; returns the one-shot undo for this action's toast. */
+	const pushUndo = (revert: () => unknown) => {
+		const undo = () => {
+			const at = undoStack.current.indexOf(undo);
+			if (at === -1) return; // already undone
+			undoStack.current.splice(at, 1);
+			void revert();
+		};
+		undoStack.current.push(undo);
+		return undo;
+	};
+	const undoLast = () => {
+		const last = undoStack.current.at(-1);
+		if (!last) return void toast.info("Nothing to undo");
+		last();
+	};
+	const undoAction = (undo?: () => void) =>
+		undo && { action: { label: "Undo", onClick: undo } };
+	// Text boxes and terminals (xterm's input is a textarea) keep their own ⌘Z.
+	useHotkey("ODIN_BOARD_UNDO", undoLast, {
+		enableOnFormTags: false,
+		enableOnContentEditable: false,
+	});
 
 	/** Catch up's next card (✓ Done ends this one first), or all caught up. */
 	const catchUpNext = (done: boolean) => {
 		const queue = catchUp ?? [];
 		const current = drawerCard?.pane.id;
-		if (done && current) endSession(current);
+		if (done && drawerCard) endCard(drawerCard);
 		const live = new Map(
 			[...cardsByStatus.values()].flat().map((card) => [card.pane.id, card]),
 		);
@@ -4110,6 +4184,45 @@ function DevBoardPage() {
 													: "↻ Resume"}
 								</button>
 							)}
+							{/* The drawer keeps Esc for itself, so a turn needs its own stop:
+							    Ctrl+C, which stops Claude mid-turn. Only while working - at
+							    an idle prompt a second Ctrl+C quits Claude. */}
+							{drawerCard.pane.type === "terminal" && (
+								<button
+									type="button"
+									disabled={!isWorkingNow(drawerCard.pane.id)}
+									title={
+										isWorkingNow(drawerCard.pane.id)
+											? "Stop the agent (sends Ctrl+C to the session)"
+											: "Nothing to interrupt - the agent isn't working"
+									}
+									onClick={() => {
+										const paneId = drawerCard.pane.id;
+										utils.client.terminal.write.mutate({
+											paneId,
+											data: "\x03",
+										});
+										// Claude fires no Stop hook on an interrupt, so the card would
+										// read Working until the scan - and a second click would land
+										// Ctrl+C at the idle prompt and start quitting it. Same as Park.
+										useTabsStore.setState((state) => ({
+											panes: {
+												...state.panes,
+												[paneId]: { ...state.panes[paneId], status: "idle" },
+											},
+										}));
+									}}
+									className={cn(
+										"rounded-[7px] px-3 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50",
+										BUTTON.secondary,
+									)}
+								>
+									■ Interrupt
+								</button>
+							)}
+							{/* Done, Remind and Minimize sit right; RemindButton wraps its button
+							    in a span, so the gap is a spacer rather than ml-auto. */}
+							<div className="flex-1" />
 							{/* Catch up has its own ✓ Done and ‹ below and above the card. */}
 							{!inCatchUp && (
 								<button
@@ -4129,7 +4242,7 @@ function DevBoardPage() {
 								label="Remind me"
 								className={cn(
 									"rounded-[7px] px-3 py-1.5 text-xs font-semibold",
-									BUTTON.secondary,
+									BUTTON.remind,
 								)}
 							/>
 							{!inCatchUp && (
@@ -4137,11 +4250,11 @@ function DevBoardPage() {
 									type="button"
 									onClick={() => setDrawerCard(null)}
 									className={cn(
-										"ml-auto rounded-[7px] px-3 py-1.5 text-xs font-semibold",
+										"rounded-[7px] px-3 py-1.5 text-xs font-semibold",
 										BUTTON.secondary,
 									)}
 								>
-									Close
+									Minimize Session
 								</button>
 							)}
 						</div>
