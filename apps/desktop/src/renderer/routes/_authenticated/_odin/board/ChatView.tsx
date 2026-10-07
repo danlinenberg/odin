@@ -2,9 +2,10 @@ import { odinIcon } from "@odin/ui/icons/preset-icons";
 import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import { memo, useEffect, useRef, useState } from "react";
-import { LuChevronRight, LuTerminal } from "react-icons/lu";
+import { LuChevronRight, LuSquareTerminal, LuTerminal } from "react-icons/lu";
 import { MarkdownRenderer } from "renderer/components/MarkdownRenderer";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { useSessionView } from "renderer/stores/session-view";
 import { COMPACT_MARKDOWN } from "../components/TranscriptView";
 
 type Item =
@@ -681,6 +682,7 @@ function Composer({
 	const [images, setImages] = useState(0);
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const write = electronTrpc.terminal.write.useMutation();
+	const setChat = useSessionView((s) => s.setChat);
 	useEffect(() => inputRef.current?.focus(), []);
 	// Grow with the text, up to ~10 lines, like the desktop app's box.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: re-measure on every draft change
@@ -745,6 +747,15 @@ function Composer({
 							🖼 {images} image{images > 1 ? "s" : ""} attached
 						</span>
 					)}
+					<button
+						type="button"
+						title="Show sessions as their terminal (Settings > Appearance)"
+						onClick={() => setChat(false)}
+						className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-secondary hover:text-foreground"
+					>
+						<LuSquareTerminal className="size-3.5" />
+						Terminal
+					</button>
 					<span className="text-[11px] text-faint-foreground">
 						Enter to send · Shift+Enter for a new line
 					</span>

@@ -35,6 +35,7 @@ import {
 	LuGitMerge,
 	LuGitPullRequest,
 	LuHourglass,
+	LuMessageSquare,
 	LuMoon,
 	LuPause,
 	LuPlay,
@@ -1533,6 +1534,7 @@ function DevBoardPage() {
 	// same reason the diff does - you go to the shell instead of the session.
 	const [isShellOpen, setIsShellOpen] = useState(false);
 	const chatView = useSessionView((s) => s.chat);
+	const setChatView = useSessionView((s) => s.setChat);
 	// The chat can't answer a TUI menu; this pane's drawer shows the terminal
 	// until you go back to the chat.
 	const [terminalPaneId, setTerminalPaneId] = useState<string | null>(null);
@@ -4154,15 +4156,18 @@ function DevBoardPage() {
 										// only thing that renders Claude Code's full-screen TUI legibly
 										// (scrollback replay is a stream of overlapping frames = mush).
 										<div className="flex min-h-0 flex-1 flex-col bg-background p-2">
-											{chatView && (
-												<button
-													type="button"
-													onClick={() => setTerminalPaneId(null)}
-													className="mb-1 self-start text-[12px] text-link hover:underline"
-												>
-													← Back to chat
-												</button>
-											)}
+											{/* The way back to the chat: out of a question peek, or
+											    the setting itself when the terminal is the choice. */}
+											<button
+												type="button"
+												onClick={() =>
+													chatView ? setTerminalPaneId(null) : setChatView(true)
+												}
+												className="mb-1 flex items-center gap-1 self-start rounded-md px-1.5 py-0.5 text-[12px] text-muted-foreground hover:bg-secondary hover:text-foreground"
+											>
+												<LuMessageSquare className="size-3.5" />
+												{chatView ? "Back to chat" : "Chat"}
+											</button>
 											<Terminal
 												key={drawerCard.pane.id}
 												paneId={drawerCard.pane.id}
