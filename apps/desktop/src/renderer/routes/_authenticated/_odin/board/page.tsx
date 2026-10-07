@@ -2669,6 +2669,43 @@ function DevBoardPage() {
 		}));
 	};
 
+	/**
+	 * Hand the conversation to the Claude desktop app (`claude --desktop
+	 * --resume <id>`, what Claude's own /desktop does). The pane's claude is
+	 * killed first - two UIs writing one conversation fork it. The handoff runs
+	 * in the pane, so a "Download Claude Desktop? (y/n)" shows in the drawer,
+	 * and the pane exits once Desktop has it. Resume brings it back here.
+	 */
+	const openInClaudeDesktop = async (card: BoardCard) => {
+		if (isWorkingNow(card.pane.id)) {
+			toast.error("Session is still working - interrupt it first");
+			return;
+		}
+		const sessionId =
+			card.pane.claudeSessionId ??
+			usePaneMeta.getState().sessionIdByPane[card.pane.id];
+		const cwd = sessionCwd(card.pane) ?? card.repoPath;
+		if (!sessionId || !cwd) {
+			toast.error("No Claude conversation found for this session");
+			return;
+		}
+		try {
+			await terminalKill.mutateAsync({ paneId: card.pane.id }).catch(() => {});
+			await new Promise((resolve) => setTimeout(resolve, 300));
+			await utils.client.terminal.createOrAttach.mutate({
+				paneId: card.pane.id,
+				tabId: card.tabId,
+				workspaceId: card.workspaceId,
+				cwd,
+				command: `cd '${cwd}' && claude --desktop --resume ${sessionId}`,
+				allowKilled: true,
+			});
+			void utils.terminal.listDaemonSessions.invalidate();
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : String(error));
+		}
+	};
+
 	const resumeCard = async (card: BoardCard, auto = false) => {
 		if (resumingPaneIds.includes(card.pane.id)) return;
 		// Never started: there's no conversation to resume, only the launch that
@@ -4190,6 +4227,29 @@ function DevBoardPage() {
 													agentPaneIds.has(drawerCard.pane.id)
 													? "↻ Continue"
 													: "↻ Resume"}
+								</button>
+							)}
+							{drawerCard.pane.type === "terminal" && (
+								<button
+									type="button"
+									disabled={isWorkingNow(drawerCard.pane.id)}
+									title={
+										isWorkingNow(drawerCard.pane.id)
+											? "Still working - interrupt it first"
+											: "Continue this conversation in the Claude desktop app instead of the terminal"
+									}
+									onClick={() => {
+										const pane = panes[drawerCard.pane.id];
+										void openInClaudeDesktop(
+											pane ? { ...drawerCard, pane } : drawerCard,
+										);
+									}}
+									className={cn(
+										"rounded-[7px] px-3 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50",
+										BUTTON.secondary,
+									)}
+								>
+									Open in Claude Desktop
 								</button>
 							)}
 							{/* The drawer keeps Esc for itself, so a turn needs its own stop:
