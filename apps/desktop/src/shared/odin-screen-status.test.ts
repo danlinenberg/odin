@@ -214,6 +214,15 @@ dan@MacBook-Pro-5 ~/dev/imagen  main +
 		expect(agentOnScreen(`${RULE}\n❯\n${RULE}\n`)).toBe(true);
 	});
 
+	// Trimmed from a real /btw screen: the panel replaces the box and the
+	// status line, so nothing else on it says Claude.
+	it("sees Claude behind the /btw panel", () => {
+		const panel = (body: string) =>
+			`${"▔".repeat(120)}\n    /btw what is 2+2?\n${body}\n    Esc to close\n`;
+		expect(agentOnScreen(panel("      ✽ Answering…"))).toBe(true);
+		expect(agentOnScreen(panel("      Four."))).toBe(true);
+	});
+
 	it("does not see Claude in the shell it left behind", () => {
 		expect(agentOnScreen(SHELL)).toBe(false);
 	});

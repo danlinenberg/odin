@@ -31,6 +31,13 @@ const FOOTER_LINES = 10;
 const RULE = /^[\s]*[─━]{10,}[\s]*$/;
 
 /**
+ * The top edge of the /btw side-question panel. While it's open Claude draws
+ * no input box, no status line and no "…(" spinner - this edge is the only
+ * chrome left, and missing it read every /btw as Claude gone from the PTY.
+ */
+const BTW_EDGE = /^[\s]*▔{10,}[\s]*$/;
+
+/**
  * The spinner line, which is the only thing on screen that says "mid-turn":
  *
  *   ✳ Calculating… (11m 48s · ↓ 40.9k tokens · thought for 1s)
@@ -130,8 +137,10 @@ export function agentOnScreen(screen: string): boolean {
 	if (odinScreenStatus(screen) !== undefined) return true;
 	// The box on its own - Claude drawn, but caught between repaints of the
 	// status line under it.
+	const lines = screen.split(/\r\n|\n|\r/);
 	return (
-		screen.split(/\r\n|\n|\r/).filter((line) => RULE.test(line)).length >= 2
+		lines.filter((line) => RULE.test(line)).length >= 2 ||
+		lines.some((line) => BTW_EDGE.test(line))
 	);
 }
 
