@@ -14,6 +14,7 @@ import {
 	HiArrowRight,
 	HiArrowTopRightOnSquare,
 	HiChevronDown,
+	HiChevronUp,
 	HiXMark,
 } from "react-icons/hi2";
 import { useZoomFactor } from "renderer/hooks/useZoomFactor";
@@ -66,6 +67,12 @@ const isCopyLink = (event: KeyboardEvent) => {
 	return !!chord && matchesChord(event, chord);
 };
 
+/** Search (⌘F unless Settings → Keyboard says otherwise) finds in the page. */
+const isFind = (event: KeyboardEvent) => {
+	const chord = getDispatchChord("ODIN_BOARD_SEARCH");
+	return !!chord && matchesChord(event, chord);
+};
+
 /**
  * A page in the panel is its own document, so its keys never reach Odin's
  * window. It reports an Esc it didn't use itself (a Jira modal closing takes
@@ -75,8 +82,8 @@ const isCopyLink = (event: KeyboardEvent) => {
  * handlers close whatever was open. A Slack preview that opened without
  * taking focus (focus stays on <body>) never sees the Esc, so it gets the Esc
  * passed on and closes, instead of the panel closing under it. It reports
- * every modifier chord too, and Odin matches it against the Copy Link
- * shortcut, so a rebind applies to a page that's already open.
+ * every modifier chord too, and Odin matches it against the Copy Link and
+ * Search shortcuts, so a rebind applies to a page that's already open.
  */
 // ponytail: only react-modal (Slack's previews) gets the Esc passed on; add
 // another site's modal class when one turns up with the same focus gap.
@@ -149,7 +156,13 @@ async function openSlackThread({
 	for (let i = 0; i < 160; i++) {
 		await new Promise((resolve) => setTimeout(resolve, 50));
 		const pane = document.querySelector('[data-qa="threads_flexpane"]');
-		if (pane?.querySelector(shown)) return true;
+		if (pane?.querySelector(shown)) {
+			// The cursor goes to the reply box, as Slack's own thread click does.
+			pane
+				.querySelector<HTMLElement>('.ql-editor[contenteditable="true"]')
+				?.focus();
+			return true;
+		}
 	}
 	return false;
 }
@@ -239,6 +252,30 @@ export function InAppBrowser() {
 	const zoomFactor = useZoomFactor();
 	const site = url ? siteOf(url) : null;
 	const page = (site && pages[site]) || { title: "", url: "" };
+	// The find bar's text; null while it's hidden.
+	const [find, setFind] = useState<string | null>(null);
+	const [matches, setMatches] = useState({ active: 0, total: 0 });
+	const findInput = useRef<HTMLInputElement>(null);
+	const openFind = () => {
+		setFind((prev) => prev ?? "");
+		// It may not be rendered yet.
+		requestAnimationFrame(() => findInput.current?.select());
+	};
+	const closeFind = (refocus: boolean) => {
+		setFind(null);
+		setMatches({ active: 0, total: 0 });
+		const webview = site ? views.current[site] : undefined;
+		try {
+			webview?.stopFindInPage("clearSelection");
+		} catch {
+			// Not attached.
+		}
+		if (refocus) webview?.focus();
+	};
+	const findNext = (forward: boolean) => {
+		const webview = site ? views.current[site] : undefined;
+		if (webview && find) webview.findInPage(find, { forward, findNext: false });
+	};
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: sites re-reads views when a site's page mounts
 	useEffect(() => {
@@ -281,6 +318,26 @@ export function InAppBrowser() {
 				) {
 					copyLink(webview, copyText);
 				}
+				if (
+					message?.startsWith(KEY_SIGNAL) &&
+					isFind(
+						new KeyboardEvent(
+							"keydown",
+							JSON.parse(message.slice(KEY_SIGNAL.length)),
+						),
+					)
+				) {
+					openFind();
+				}
+			};
+			const onFound = (event: Event) => {
+				const { result } = event as unknown as {
+					result: { activeMatchOrdinal: number; matches: number };
+				};
+				setMatches({
+					active: result.activeMatchOrdinal,
+					total: result.matches,
+				});
 			};
 			// A Slack link followed inside the panel (from a Jira ticket, a Notion
 			// page, a sign-in redirect) goes to Slack's web client before Slack's
@@ -301,6 +358,7 @@ export function InAppBrowser() {
 			webview.addEventListener("page-title-updated", onTitle);
 			webview.addEventListener("dom-ready", onReady);
 			webview.addEventListener("console-message", onConsole);
+			webview.addEventListener("found-in-page", onFound);
 			webview.addEventListener("did-start-navigation", toSlackWebClient);
 			webview.addEventListener("did-redirect-navigation", toSlackWebClient);
 			return () => {
@@ -310,6 +368,7 @@ export function InAppBrowser() {
 				webview.removeEventListener("page-title-updated", onTitle);
 				webview.removeEventListener("dom-ready", onReady);
 				webview.removeEventListener("console-message", onConsole);
+				webview.removeEventListener("found-in-page", onFound);
 				webview.removeEventListener("did-start-navigation", toSlackWebClient);
 				webview.removeEventListener(
 					"did-redirect-navigation",
@@ -321,6 +380,10 @@ export function InAppBrowser() {
 			for (const listener of detach) listener();
 		};
 	}, [sites, zoomFactor, copyText]);
+
+	// A new link, or the panel closing, ends the find.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: runs on url only
+	useEffect(() => () => closeFind(false), [url]);
 
 	useEffect(() => {
 		if (!url) return;
@@ -335,12 +398,16 @@ export function InAppBrowser() {
 		}
 	}, [url]);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: openFind only sets state and a ref
 	useEffect(() => {
 		if (!url) return;
 		const site = siteOf(url);
 		// Whatever had focus when the link opened - the session's terminal,
 		// Catch up - gets it back on close, instead of it falling to <body>.
 		const opener = document.activeElement;
+		// Typing goes to the link, not the terminal under the panel. A site's
+		// first link has no page yet; its <webview> takes focus as it mounts.
+		views.current[site]?.focus();
 		// Captured and stopped at the window: Esc closes the panel and nothing
 		// under it - not the session drawer, not Catch up, not the terminal.
 		const onKey = (event: KeyboardEvent) => {
@@ -352,9 +419,18 @@ export function InAppBrowser() {
 				if (webview) copyLink(webview, copyText);
 				return;
 			}
+			if (isFind(event)) {
+				event.preventDefault();
+				event.stopImmediatePropagation();
+				openFind();
+				return;
+			}
 			if (event.key !== "Escape") return;
-			// The "Open in browser" menu closes itself first.
-			if ((event.target as HTMLElement | null)?.closest("[role=menu]")) return;
+			// The "Open in browser" menu and the find bar close themselves first.
+			if (
+				(event.target as HTMLElement | null)?.closest("[role=menu],[data-find]")
+			)
+				return;
 			event.preventDefault();
 			event.stopImmediatePropagation();
 			close();
@@ -427,6 +503,61 @@ export function InAppBrowser() {
 					>
 						{url && (page.title || new URL(page.url || url).host)}
 					</span>
+					{find !== null && (
+						<div
+							data-find
+							className="flex items-center gap-0.5 rounded-md border border-border px-1.5"
+						>
+							<input
+								ref={findInput}
+								value={find}
+								placeholder="Find in page"
+								className="w-40 bg-transparent py-1 text-xs outline-none"
+								onChange={(event) => {
+									const text = event.target.value;
+									setFind(text);
+									const webview = view();
+									if (!webview) return;
+									if (text) webview.findInPage(text, { findNext: true });
+									else {
+										webview.stopFindInPage("clearSelection");
+										setMatches({ active: 0, total: 0 });
+									}
+								}}
+								onKeyDown={(event) => {
+									if (event.key === "Enter") findNext(!event.shiftKey);
+									if (event.key === "Escape") closeFind(true);
+								}}
+							/>
+							<span className="min-w-10 text-right text-xs tabular-nums text-muted-foreground">
+								{find && `${matches.active}/${matches.total}`}
+							</span>
+							<button
+								type="button"
+								title="Previous (⇧↩)"
+								className={ICON_BUTTON}
+								onClick={() => findNext(false)}
+							>
+								<HiChevronUp className="size-3.5" />
+							</button>
+							<button
+								type="button"
+								title="Next (↩)"
+								className={ICON_BUTTON}
+								onClick={() => findNext(true)}
+							>
+								<HiChevronDown className="size-3.5" />
+							</button>
+							<button
+								type="button"
+								title="Close find (Esc)"
+								className={ICON_BUTTON}
+								onClick={() => closeFind(true)}
+							>
+								<HiXMark className="size-3.5" />
+							</button>
+						</div>
+					)}
 					<div className="flex">
 						<button
 							type="button"
@@ -487,8 +618,13 @@ export function InAppBrowser() {
 								<webview
 									key={key}
 									ref={(element) => {
-										if (element) views.current[key] = element as WebviewTag;
-										else delete views.current[key];
+										if (!element) {
+											delete views.current[key];
+										} else if (!views.current[key]) {
+											views.current[key] = element as WebviewTag;
+											// A site's first link takes the cursor too.
+											element.focus();
+										}
 									}}
 									src={sites[key]}
 									partition={IN_APP_BROWSER_PARTITION}

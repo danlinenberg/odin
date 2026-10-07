@@ -68,6 +68,12 @@ if (IS_DEV) {
 	app.setName("Odin Dev");
 }
 
+// Windows ties a taskbar button to its Start-menu shortcut (and that
+// shortcut's icon) by this id; the NSIS installer stamps the appId on it.
+if (process.platform === "win32") {
+	app.setAppUserModelId("com.dan.odin");
+}
+
 // `bun dev` runs unpackaged, so there is no Info.plist and app.getVersion()
 // falls back to Electron's own version - the About panel claimed Odin was
 // version 40.x. Baked in from package.json, the same value packaged builds ship.

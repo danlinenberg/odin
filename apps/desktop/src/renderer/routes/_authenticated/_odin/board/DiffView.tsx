@@ -10,6 +10,9 @@ import {
 } from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/config";
 import { pullRequests } from "./brief";
 
+// biome-ignore lint/suspicious/noControlCharactersInRegex: stripping ANSI escapes is the point
+const ESCAPES = /\x1b\[[0-9;]*[A-Za-z]/g;
+
 /**
  * "What did this session actually change?" - delta's diff for the checkout a
  * card runs in.
@@ -45,6 +48,24 @@ export function DiffView({
 	/** The file on screen. One at a time, so scrolling stops at its end
 	 * instead of running on into the next file. */
 	const [selected, setSelected] = useState(0);
+	/** Soft-wrap long lines; off, they run on and the panel scrolls sideways.
+	 * Remembered per machine. */
+	const [wrap, setWrap] = useState(() => {
+		try {
+			return localStorage.getItem("odin:diff-wrap") !== "0";
+		} catch {
+			return true;
+		}
+	});
+	const toggleWrap = () => {
+		setWrap(!wrap);
+		try {
+			localStorage.setItem("odin:diff-wrap", wrap ? "0" : "1");
+		} catch {}
+	};
+	/** Columns the longest line on screen needs; 0 while wrapping. xterm only
+	 * scrolls down, so unwrapped it is made this wide and its box scrolls. */
+	const longest = useRef(0);
 
 	// Same query (and cache entry) the brief beside it reads its PRs from.
 	const { data: transcript } =
@@ -61,7 +82,7 @@ export function DiffView({
 	);
 
 	const { data, error, isFetching, refetch } = electronTrpc.repos.diff.useQuery(
-		{ cwd, claudeSessionId, workspaceId, width, pr },
+		{ cwd, claudeSessionId, workspaceId, width, pr, wrap },
 		{
 			refetchOnWindowFocus: false,
 			retry: false,
@@ -96,6 +117,8 @@ export function DiffView({
 			try {
 				fit.fit();
 				setWidth(Math.max(xterm.cols, 40));
+				if (longest.current > xterm.cols)
+					xterm.resize(longest.current, xterm.rows);
 			} catch {
 				// mid-unmount; nothing to size
 			}
@@ -116,7 +139,6 @@ export function DiffView({
 	useEffect(() => {
 		const xterm = term.current?.xterm;
 		if (!xterm || !data) return;
-		xterm.reset();
 		// Only the selected file's lines; the first file also carries whatever
 		// precedes it (a commit header, a note).
 		const index = current ? files.indexOf(current) : -1;
@@ -127,6 +149,23 @@ export function DiffView({
 						.split("\n")
 						.slice(index === 0 ? 0 : current.line, files[index + 1]?.line)
 						.join("\n");
+		// Fit first, then widen to the longest line - before writing, so xterm
+		// never breaks a line it is about to hold.
+		term.current?.fit.fit();
+		longest.current = wrap
+			? 0
+			: text
+					.split("\n")
+					.reduce(
+						(most, line) =>
+							Math.max(most, Array.from(line.replace(ESCAPES, "")).length),
+						0,
+					);
+		if (longest.current > xterm.cols) xterm.resize(longest.current, xterm.rows);
+		// Its scrollbar sits at the box's first right edge and slides into the
+		// code once you scroll sideways; the wheel still scrolls down.
+		xterm.options.scrollbar = { showScrollbar: wrap };
+		xterm.reset();
 		// Writing leaves the viewport at the end; you read a file from the top.
 		xterm.write(
 			data.ansi.trim()
@@ -136,7 +175,7 @@ export function DiffView({
 					: "Nothing from this session - no uncommitted changes, and the last commit here predates it.",
 			() => xterm.scrollToTop(),
 		);
-	}, [data, pr, current, files]);
+	}, [data, pr, current, files, wrap]);
 	const total = files.reduce(
 		(sum, file) => ({
 			added: sum.added + file.added,
@@ -196,8 +235,20 @@ export function DiffView({
 				)}
 				<button
 					type="button"
+					onClick={toggleWrap}
+					title={
+						wrap
+							? "Long lines wrap - click to keep them on one line and scroll sideways"
+							: "Long lines run on - click to wrap them"
+					}
+					className={`ml-auto normal-case tracking-normal hover:underline ${wrap ? "text-primary" : "text-muted-foreground"}`}
+				>
+					{wrap ? "↵ wrap on" : "→ wrap off"}
+				</button>
+				<button
+					type="button"
 					onClick={() => void refetch()}
-					className="ml-auto normal-case tracking-normal text-primary hover:underline"
+					className="normal-case tracking-normal text-primary hover:underline"
 				>
 					{isFetching ? "reading…" : "↻ refresh"}
 				</button>
@@ -269,7 +320,10 @@ export function DiffView({
 						</div>
 					</div>
 				)}
-				<div ref={host} className="min-h-0 min-w-0 flex-1 bg-background p-2" />
+				<div
+					ref={host}
+					className="min-h-0 min-w-0 flex-1 overflow-x-auto bg-background p-2"
+				/>
 			</div>
 		</div>
 	);

@@ -98,7 +98,9 @@ export function useAutomationRunner() {
 					// that sits waiting for a busy Mac, must not leave the job due on
 					// the next tick as well.
 					latest.current.markRun(task.id, minute);
-					const ensured = await latest.current.ensureWorkspace();
+					const ensured = await latest.current.ensureWorkspace(null, {
+						askForFolder: false,
+					});
 					if (!ensured.ok) continue;
 					const result = await latest.current.launch({
 						key: task.id,

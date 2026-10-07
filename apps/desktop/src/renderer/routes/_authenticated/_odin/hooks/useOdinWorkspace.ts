@@ -39,9 +39,13 @@ export function useOdinWorkspace() {
 	 *
 	 * `repoOverride` pins a specific checkout - "Work on Odin" passes Odin's own
 	 * repo so the agent starts there rather than working out where it lives.
+	 *
+	 * `askForFolder: false` never opens a dialog - background launches
+	 * (automations) must not throw a Finder picker at a fresh install.
 	 */
 	const ensureWorkspace = async (
 		repoOverride?: string | null,
+		{ askForFolder = true }: { askForFolder?: boolean } = {},
 	): Promise<
 		{ ok: true; workspace: SelectWorkspace } | { ok: false; error: string }
 	> => {
@@ -52,8 +56,17 @@ export function useOdinWorkspace() {
 
 		let repoPath = repoOverride ?? defaultRepo;
 		// Nowhere to start: ask for a folder now and keep it as the default,
-		// rather than send the user off to Settings.
+		// rather than send the user off to Settings. Only on a user's own launch,
+		// and only after saying why a Finder window is about to open.
 		if (!repoPath && !launchWorkspace) {
+			if (
+				!askForFolder ||
+				!window.confirm(
+					"Pick the folder your sessions start in. Odin keeps it as the default - change it later in Settings → Sessions.",
+				)
+			) {
+				return fallback("No folder picked - sessions need one to start in.");
+			}
 			const picked = await selectDirectory.mutateAsync({
 				title: "Where should sessions start?",
 			});

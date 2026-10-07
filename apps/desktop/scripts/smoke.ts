@@ -511,15 +511,16 @@ await step("Done takes a task off the list", async () => {
 	await waitForText(TASK, false);
 });
 
-// Settings is five fixed screens; each sidebar link and the route it opens.
+// Settings is six fixed screens; each sidebar link and the route it opens.
 const SETTINGS: [string, string][] = [
 	["Connections", "#/settings/connections"],
 	["Sessions", "#/settings/sessions"],
 	["Backlog", "#/settings/backlog"],
 	["Notifications", "#/settings/ringtones"],
+	["Appearance", "#/settings/appearance"],
 	["Keyboard", "#/settings/keyboard"],
 ];
-await step("Settings is exactly its five screens, and each opens", async () => {
+await step("Settings is exactly its six screens, and each opens", async () => {
 	await rail("Settings");
 	await waitForText("profiles");
 	const links = await page<string[]>(

@@ -225,6 +225,12 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		keywords: "reminder remind me due date time morning",
 	},
 	{
+		label: "Theme",
+		to: "/settings/appearance",
+		section: "Theme",
+		keywords: "light dark bright mode color colour system appearance",
+	},
+	{
 		label: "Show sessions as a chat",
 		to: "/settings/appearance",
 		section: "Sessions",

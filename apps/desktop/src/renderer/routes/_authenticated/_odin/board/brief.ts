@@ -694,9 +694,22 @@ type PrStates = Record<
 		state: string;
 		approved?: boolean;
 		failed?: string[];
+		pending?: string[];
 		mine?: boolean | null;
 	} | null
 >;
+
+/**
+ * The checks still running on your open PRs in these states, by name. A
+ * session that stopped with CI in flight isn't finished or waiting on you -
+ * it's waiting on CI - so its card stays in Working until this is empty. A
+ * teammate's PR the session only linked doesn't count.
+ */
+export function ciRunning(states: PrStates): string[] {
+	return Object.values(states).flatMap((pr) =>
+		pr?.state === "OPEN" && pr.mine !== false ? (pr.pending ?? []) : [],
+	);
+}
 
 export function mergeReady(
 	messages: BriefMessage[],
