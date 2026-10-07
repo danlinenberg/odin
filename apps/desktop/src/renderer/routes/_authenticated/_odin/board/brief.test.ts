@@ -3,6 +3,7 @@ import {
 	actionItems,
 	artifactLink,
 	type BriefMessage,
+	ciRunning,
 	elapsedLabel,
 	emailLink,
 	jiraIssue,
@@ -636,6 +637,42 @@ describe("onlyLookLeft", () => {
 				onlyLookLeft([turn(`ACTION ITEMS\n1. Reload Odin.\n2. ${item}`)]),
 			).toBe(false);
 		expect(onlyLookLeft([turn("ACTION ITEMS: none")])).toBe(false);
+	});
+});
+
+describe("ciRunning", () => {
+	const pr = (
+		state: string,
+		pending: string[],
+		mine: boolean | null = true,
+	) => ({
+		state,
+		pending,
+		mine,
+	});
+
+	it("names the checks still running on your open PRs", () => {
+		expect(
+			ciRunning({
+				a: pr("OPEN", ["check", "smoke"]),
+				b: pr("OPEN", []),
+				c: null,
+			}),
+		).toEqual(["check", "smoke"]);
+	});
+
+	it("ignores a teammate's PR and a closed or merged one", () => {
+		expect(
+			ciRunning({
+				a: pr("OPEN", ["check"], false),
+				b: pr("MERGED", ["check"]),
+				c: pr("CLOSED", ["check"]),
+			}),
+		).toEqual([]);
+	});
+
+	it("counts a PR whose author is unknown", () => {
+		expect(ciRunning({ a: pr("OPEN", ["check"], null) })).toEqual(["check"]);
 	});
 });
 

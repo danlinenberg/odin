@@ -107,6 +107,7 @@ import { sessionFor } from "../review/verdicts";
 import type { BriefMessage } from "./brief";
 import {
 	actionItems,
+	ciRunning,
 	elapsedLabel,
 	jiraIssue,
 	lastMessageAt,
@@ -1720,10 +1721,11 @@ function DevBoardPage() {
 		() => new Set(loopingKey ? loopingKey.split(",") : []),
 		[loopingKey],
 	);
-	// Needs-you sessions, open or closed, and the state of every PR they linked.
-	// Once each is approved the card is Done: what's left is a click, not a
-	// decision. Closed ones count - the approval usually lands after the session
-	// went quiet, and a card closed for idling keeps its Needs you column. The
+	// Needs-you and Done sessions, open or closed, and the state of every PR
+	// they linked. Once each is approved a Needs you card is Done: what's left is
+	// a click, not a decision. While CI still runs on one, either card is
+	// Working. Closed ones count - the approval usually lands after the session
+	// went quiet, and a card closed for idling keeps its column. The
 	// transcripts are the ones the cards' own pills already fetch.
 	const mergeCandidates = Object.values(panes).flatMap((pane) => {
 		const sessionId = pane.claudeSessionId ?? sessionIdByPane[pane.id];
@@ -1742,8 +1744,16 @@ function DevBoardPage() {
 			loopingPaneIds.has(pane.id),
 			pane.odinClosedIn,
 		);
-		return column === "permission"
-			? [{ paneId: pane.id, sessionId, live: !!alive, brief: pane.odinBrief }]
+		return column === "permission" || column === "review"
+			? [
+					{
+						paneId: pane.id,
+						sessionId,
+						live: !!alive,
+						brief: pane.odinBrief,
+						column,
+					},
+				]
 			: [];
 	});
 	const mergeTranscripts = electronTrpc.useQueries((t) =>
@@ -1775,15 +1785,18 @@ function DevBoardPage() {
 			);
 		}),
 	);
+	// Needs you cards only, unless `anyColumn`: Done ones are here for CI.
 	const candidateKey = (
 		test: (
 			messages: BriefMessage[],
 			states: Parameters<typeof mergeReady>[1] | undefined,
 			brief: string | null | undefined,
 		) => boolean,
+		anyColumn = false,
 	) =>
 		mergeCandidates
-			.filter(({ brief }, i) => {
+			.filter(({ brief, column }, i) => {
+				if (!anyColumn && column !== "permission") return false;
 				const messages = mergeTranscripts[i]?.data?.messages;
 				return !!messages && test(messages, mergeStateQueries[i]?.data, brief);
 			})
@@ -1816,20 +1829,47 @@ function DevBoardPage() {
 		() => new Set(mergeReadyKey ? mergeReadyKey.split(",") : []),
 		[mergeReadyKey],
 	);
+	// pane id -> the checks still running on its PRs. Keyed by a string so the
+	// map only changes when a check starts or ends.
+	const ciKey = mergeCandidates
+		.map(({ paneId }, i) => {
+			const states = mergeStateQueries[i]?.data;
+			const checks = states ? ciRunning(states) : [];
+			return checks.length ? `${paneId}\t${checks.join("\t")}` : "";
+		})
+		.filter(Boolean)
+		.join("\n");
+	const ciChecksByPane = useMemo(
+		() =>
+			new Map(
+				ciKey
+					? ciKey.split("\n").map((line) => {
+							const [paneId = "", ...checks] = line.split("\t");
+							return [paneId, checks];
+						})
+					: [],
+			),
+		[ciKey],
+	);
 	const droppedPaneIds = useMemo(
 		() => new Set(droppedKey ? droppedKey.split(",") : []),
 		[droppedKey],
 	);
 	/**
-	 * Needs you, unless all it needs is merging approved PRs or a look at what
-	 * shipped, or its PRs were closed - then Done.
+	 * Needs you or Done, but Working while CI runs on one of its PRs: the
+	 * session is waiting on CI, not on you. Otherwise Needs you, unless all it
+	 * needs is merging approved PRs or a look at what shipped, or its PRs were
+	 * closed - then Done.
 	 */
 	const withMergeReady = useCallback(
 		(column: PaneStatus, paneId: string): PaneStatus =>
-			column === "permission" && mergeReadyPaneIds.has(paneId)
-				? "review"
-				: column,
-		[mergeReadyPaneIds],
+			(column === "permission" || column === "review") &&
+			ciChecksByPane.has(paneId)
+				? "working"
+				: column === "permission" && mergeReadyPaneIds.has(paneId)
+					? "review"
+					: column,
+		[mergeReadyPaneIds, ciChecksByPane],
 	);
 	/**
 	 * Live Claude that's been up a while. Continue is for nudging a session
@@ -1866,6 +1906,9 @@ function DevBoardPage() {
 			if (!agentPaneIds.has(pane.id) || loopingPaneIds.has(pane.id))
 				return false;
 			if (pane.status === "working" || pane.odinQueued) return false;
+			// Waiting on CI: closing it now would file the card under Working
+			// for good.
+			if (ciChecksByPane.has(pane.id)) return false;
 			if (!firstSeenRef.current.has(pane.id))
 				firstSeenRef.current.set(pane.id, now);
 			const since =
@@ -3587,6 +3630,15 @@ function DevBoardPage() {
 																		card={card}
 																		live={card.status === "working"}
 																	/>
+																	{ciChecksByPane.has(card.pane.id) && (
+																		<span
+																			title={`CI running: ${ciChecksByPane.get(card.pane.id)?.join(", ")}`}
+																			className="inline-flex items-center gap-1 font-medium text-working"
+																		>
+																			<span className="size-1.5 shrink-0 animate-pulse rounded-full bg-working" />
+																			CI running
+																		</span>
+																	)}
 																	<NotionPill
 																		card={card}
 																		live={card.status === "working"}
