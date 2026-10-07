@@ -308,6 +308,99 @@ const ToolRow = memo(function ToolRow({
 	);
 });
 
+type Tool = Extract<Item, { kind: "tool" }>;
+
+/** Runs of tool calls fold into one group, like the desktop app hides its commands. */
+export function segments(items: Item[]): (Item | Tool[])[] {
+	const out: (Item | Tool[])[] = [];
+	for (const item of items) {
+		const last = out.at(-1);
+		if (item.kind !== "tool") out.push(item);
+		else if (Array.isArray(last)) last.push(item);
+		else out.push([item]);
+	}
+	return out;
+}
+
+/** A question or plan approval Claude is still waiting on - a menu only the TUI draws. */
+function asking(items: Item[]): boolean {
+	const last = items.at(-1);
+	return (
+		last?.kind === "tool" &&
+		last.result === undefined &&
+		(last.name === "AskUserQuestion" || last.name === "ExitPlanMode")
+	);
+}
+
+const VERBS: Record<string, [string, string]> = {
+	Bash: ["ran", "command"],
+	Read: ["read", "file"],
+	Edit: ["edited", "file"],
+	MultiEdit: ["edited", "file"],
+	Write: ["wrote", "file"],
+	Grep: ["searched", "time"],
+	Glob: ["searched", "time"],
+};
+
+/** "Ran 3 commands, read 2 files" - same verb counted once. */
+export function groupSummary(tools: Tool[]): string {
+	const counts = new Map<string, number>();
+	for (const tool of tools) {
+		const [verb, noun] = VERBS[tool.name] ?? ["used", "tool"];
+		const key = `${verb} ${noun}`;
+		counts.set(key, (counts.get(key) ?? 0) + 1);
+	}
+	const text = [...counts]
+		.map(([key, n]) => {
+			const [verb, noun] = key.split(" ");
+			return `${verb} ${n} ${noun}${n > 1 ? "s" : ""}`;
+		})
+		.join(", ");
+	return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+const ToolGroup = memo(
+	function ToolGroup({ tools }: { tools: Tool[] }) {
+		const [open, setOpen] = useState(false);
+		const running = tools.find((tool) => tool.result === undefined);
+		const failed = tools.some((tool) => tool.isError);
+		return (
+			<div>
+				<button
+					type="button"
+					onClick={() => setOpen((value) => !value)}
+					className="flex w-full min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12.5px] text-muted-foreground hover:bg-secondary"
+				>
+					<span className="shrink-0 text-[10px] text-faint-foreground">
+						{open ? "▾" : "▸"}
+					</span>
+					<span className="shrink-0">{groupSummary(tools)}</span>
+					{failed && <span className="shrink-0 text-danger">· error</span>}
+					{running && (
+						<span className="flex min-w-0 items-center gap-1.5 text-working">
+							<span className="size-[6px] shrink-0 animate-pulse rounded-full bg-working" />
+							<span className="truncate font-mono text-[11.5px]">
+								{running.name} {toolSummary(running.input)}
+							</span>
+						</span>
+					)}
+				</button>
+				{open && (
+					<div className="ml-3 border-l border-border pl-2">
+						{tools.map((tool) => (
+							<ToolRow key={tool.id} item={tool} />
+						))}
+					</div>
+				)}
+			</div>
+		);
+	},
+	// The array is rebuilt every render; its rows only change by reference.
+	(prev, next) =>
+		prev.tools.length === next.tools.length &&
+		prev.tools.every((tool, i) => tool === next.tools[i]),
+);
+
 const ItemView = memo(function ItemView({ item }: { item: Item }) {
 	if (item.kind === "tool") return <ToolRow item={item} />;
 	if (item.kind === "user")
@@ -339,7 +432,6 @@ export function ChatView({
 	cwd,
 	workspaceId,
 	working = false,
-	waiting = false,
 	onShowTerminal,
 	onStop,
 }: {
@@ -348,8 +440,6 @@ export function ChatView({
 	cwd: string | undefined;
 	workspaceId: string;
 	working?: boolean;
-	/** Needs you - possibly a menu (question, plan approval) only the TUI draws. */
-	waiting?: boolean;
 	/** Omitted for an ended session: nothing to type into, so no composer. */
 	onShowTerminal?: () => void;
 	/** Interrupt the turn - the drawer's Interrupt, so the card leaves Working too. */
@@ -416,15 +506,19 @@ export function ChatView({
 				}}
 				className="min-h-0 flex-1 overflow-y-auto px-5 py-4"
 			>
-				<div className="mx-auto flex max-w-[780px] flex-col gap-3">
+				<div className="flex flex-col gap-3">
 					{missing && items.length === 0 && (
 						<div className="select-text cursor-text text-[12px] text-muted-foreground">
 							{missing}
 						</div>
 					)}
-					{items.map((item) => (
-						<ItemView key={item.id} item={item} />
-					))}
+					{segments(items).map((segment) =>
+						Array.isArray(segment) ? (
+							<ToolGroup key={segment[0]?.id} tools={segment} />
+						) : (
+							<ItemView key={segment.id} item={segment} />
+						),
+					)}
 					{pending.map((sent) => (
 						<div
 							key={sent.id}
@@ -443,9 +537,10 @@ export function ChatView({
 			</div>
 			{onShowTerminal ? (
 				<>
-					{waiting && (
-						<div className="mx-auto w-full max-w-[780px] px-4 pb-1 text-[12px] text-muted-foreground">
-							A question or plan approval only shows in the terminal -{" "}
+					{asking(items) && (
+						<div className="px-5 pb-1 text-[12px] text-muted-foreground">
+							Claude is asking you a question - its choices only show in the
+							terminal:{" "}
 							<button
 								type="button"
 								onClick={onShowTerminal}
@@ -522,7 +617,7 @@ function Composer({
 	};
 	return (
 		<div className="px-4 pb-3 pt-1">
-			<div className="mx-auto max-w-[780px] rounded-[14px] border border-border bg-background px-3 pb-2 pt-2.5 focus-within:border-primary/60">
+			<div className="rounded-[14px] border border-border bg-background px-3 pb-2 pt-2.5 focus-within:border-primary/60">
 				<textarea
 					ref={inputRef}
 					value={draft}

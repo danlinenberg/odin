@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { applyLines, transcriptPath, userText } from "./ChatView";
+import {
+	applyLines,
+	groupSummary,
+	segments,
+	transcriptPath,
+	userText,
+} from "./ChatView";
 
 describe("ChatView transcript", () => {
 	test("files the transcript under the cwd with non-alphanumerics as dashes", () => {
@@ -68,5 +74,19 @@ describe("ChatView transcript", () => {
 		expect(done.map((item) => item.kind)).toEqual(["user", "text", "tool"]);
 		expect(done[2]).toMatchObject({ kind: "tool", result: "a.ts" });
 		expect(done[0]).toBe(items[0]);
+	});
+
+	test("tool runs fold into one group with a counted summary", () => {
+		const tool = (id: string, name: string) =>
+			({ kind: "tool", id, name, input: {} }) as const;
+		const out = segments([
+			{ kind: "text", id: "a", text: "hi" },
+			tool("1", "Bash"),
+			tool("2", "Bash"),
+			tool("3", "Read"),
+			{ kind: "text", id: "b", text: "done" },
+		]);
+		expect(out.length).toBe(3);
+		expect(groupSummary(out[1] as never)).toBe("Ran 2 commands, read 1 file");
 	});
 });

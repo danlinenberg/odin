@@ -4144,9 +4144,6 @@ function DevBoardPage() {
 											cwd={sessionCwd(drawerCard.pane) ?? drawerCard.repoPath}
 											workspaceId={drawerCard.workspaceId}
 											working={isWorkingNow(drawerCard.pane.id)}
-											waiting={
-												panes[drawerCard.pane.id]?.status === "permission"
-											}
 											onShowTerminal={() =>
 												setTerminalPaneId(drawerCard.pane.id)
 											}
