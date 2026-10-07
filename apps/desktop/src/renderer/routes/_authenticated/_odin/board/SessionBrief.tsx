@@ -10,6 +10,7 @@ import {
 	artifactLink,
 	emailLink,
 	jiraIssue,
+	jiraKey,
 	type LinkKind,
 	launchPullRequest,
 	linkContext,
@@ -95,6 +96,28 @@ function StateChip({
 	const chip = state ? STATE_CHIP[state] : undefined;
 	if (!chip) return null;
 	return <Chip label={chip.label} className={chip.className} />;
+}
+
+// A Jira status category's colour: done like a merged PR, in progress like a
+// running agent, anything else (To Do, Backlog) a plain fact.
+const JIRA_CHIP: Record<string, string> = {
+	Done: PILL.brand,
+	"In Progress": PILL.working,
+};
+
+/** A Jira ticket's status in its own words - "closed", "in review". */
+function JiraChip({
+	status,
+}: {
+	status: { status: string; statusCategory: string } | undefined;
+}) {
+	if (!status) return null;
+	return (
+		<Chip
+			label={status.status.toLowerCase()}
+			className={JIRA_CHIP[status.statusCategory] ?? PILL.neutral}
+		/>
+	);
 }
 
 /**
@@ -481,6 +504,21 @@ export function SessionBrief({
 				) && 15_000,
 		},
 	);
+	// Every linked ticket's status in one search. A ticket moves slowly, so a
+	// minute between looks is plenty.
+	const jiraKeys = [
+		issue?.key,
+		...mine("jira").map((link) => jiraKey(link.url)),
+	].filter((key): key is string => !!key);
+	const { data: jiraStates } = electronTrpc.work.jiraIssueStates.useQuery(
+		{ keys: jiraKeys },
+		{
+			enabled: jiraKeys.length > 0,
+			retry: false,
+			staleTime: 30_000,
+			refetchInterval: 60_000,
+		},
+	);
 	// Someone else's PR the session only linked isn't one of its PRs. Listed
 	// until its author is known, so the section doesn't flash empty.
 	const ownPrs = prs.filter(
@@ -561,6 +599,9 @@ export function SessionBrief({
 						)}
 					</button>
 				</Hover>
+				{linkKind(url) === "jira" && (
+					<JiraChip status={jiraStates?.[jiraKey(url) ?? ""]} />
+				)}
 				{linkKind(url) === "pr" && (
 					<>
 						<StateChip status={prStates?.[url]} />
@@ -600,6 +641,7 @@ export function SessionBrief({
 										{issue.key} ↗
 									</button>
 								</Hover>
+								<JiraChip status={jiraStates?.[issue.key]} />
 								<HideButton onClick={() => hide(issue.url)} />
 							</div>
 						)}

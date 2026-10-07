@@ -196,6 +196,11 @@ export function jiraIssue(messages: BriefMessage[]): JiraIssueLink | null {
 	return null;
 }
 
+/** The issue key in a Jira browse link - "CRR-905" - or null. */
+export function jiraKey(url: string): string | null {
+	return JIRA_URL.exec(url)?.[2] ?? null;
+}
+
 /** A run of prose, and the link it names when it's a PR or ticket. */
 export interface RefPart {
 	text: string;

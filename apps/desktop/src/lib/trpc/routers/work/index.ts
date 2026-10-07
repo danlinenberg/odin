@@ -546,6 +546,49 @@ export const createWorkRouter = () => {
 			}),
 
 		/**
+		 * Status of the Jira tickets a session links, keyed by issue key - the
+		 * brief's "open / done" chip. One search for all of them; empty when
+		 * Jira isn't connected, so the panel just shows no chip.
+		 */
+		jiraIssueStates: publicProcedure
+			.input(z.object({ keys: z.array(z.string()) }))
+			.query(
+				async ({
+					input,
+				}): Promise<
+					Record<string, { status: string; statusCategory: string }>
+				> => {
+					const keys = input.keys.filter((key) =>
+						/^[A-Z][A-Z0-9_]+-\d+$/.test(key),
+					);
+					const request = await jiraRequestContext();
+					if (!request || keys.length === 0) return {};
+					const jql = `key in (${keys.join(",")})`;
+					const response = await fetch(
+						`${request.base}/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&maxResults=100&fields=status`,
+						{
+							headers: {
+								Authorization: request.authorization,
+								Accept: "application/json",
+							},
+						},
+					);
+					if (!response.ok) return {};
+					const payload = (await response.json()) as JiraSearchResponse;
+					return Object.fromEntries(
+						(payload.issues ?? []).map((issue) => [
+							issue.key,
+							{
+								status: issue.fields?.status?.name ?? "Unknown",
+								statusCategory:
+									issue.fields?.status?.statusCategory?.name ?? "Unknown",
+							},
+						]),
+					);
+				},
+			),
+
+		/**
 		 * Unread inbox mail. No OAuth: Gmail still takes Basic auth with an app
 		 * password on its Atom feed, so this is one fetch.
 		 */
