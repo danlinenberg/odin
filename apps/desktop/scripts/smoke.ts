@@ -426,6 +426,26 @@ await step("a new profile sees none of the first one's tasks", async () => {
 	await waitForText(TASK);
 });
 
+await step("Read later moves a task to Reading material and back", async () => {
+	await rail("Tasks");
+	await waitForText(TASK);
+	const found = await page<boolean>(`(() => {
+		let row = [...document.querySelectorAll("button")].find((e) => e.textContent.trim() === ${JSON.stringify(TASK)});
+		while (row && !row.querySelector('button[title^="Nothing to do"]')) row = row.parentElement;
+		row?.querySelector('button[title^="Nothing to do"]').click();
+		return !!row;
+	})()`);
+	if (!found) throw new Error("no Read later button on the task's row");
+	await waitForText(TASK, false);
+	await click("button", "Reading material");
+	await waitForText(TASK);
+	await waitForText("saved");
+	// Undo on the only row empties the shelf: back on the queue, row and all.
+	await click("button", "Put it back");
+	await waitForText(TASK);
+	await waitForText("waiting on you");
+});
+
 await step("Done takes a task off the list", async () => {
 	await rail("Tasks");
 	await waitForText(TASK);

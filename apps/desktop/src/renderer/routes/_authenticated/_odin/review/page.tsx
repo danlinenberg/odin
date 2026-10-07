@@ -185,7 +185,10 @@ function ReviewPage() {
 		const here = new Set(dropped.map((row) => row.key));
 		const elsewhere = swept.flatMap((row) => {
 			const at = done[row.key]?.at;
-			return at && !here.has(row.key) ? [{ ...row, droppedAt: at }] : [];
+			// Reading material was put away to keep, not dropped.
+			return at && !done[row.key]?.reading && !here.has(row.key)
+				? [{ ...row, droppedAt: at }]
+				: [];
 		});
 		return [...dropped, ...elsewhere].sort((a, b) => b.droppedAt - a.droppedAt);
 	}, [dropped, swept, done]);
