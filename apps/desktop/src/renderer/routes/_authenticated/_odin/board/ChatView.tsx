@@ -58,6 +58,10 @@ export function transcriptPath(home: string, cwd: string, sessionId: string) {
 export function userText(text: string): string | null {
 	const command = text.match(/<command-name>([^<]*)<\/command-name>/);
 	if (command) return command[1] ?? null;
+	const bash = text.match(/<bash-input>([\s\S]*?)<\/bash-input>/);
+	if (bash) return `!${bash[1]}`;
+	if (/^\s*<bash-stdout>/.test(text))
+		return text.replace(/<\/?bash-(stdout|stderr)>/g, "\n").trim() || null;
 	if (/^\s*<(local-command|task-notification)/.test(text)) return null;
 	if (text.startsWith("Caveat:")) return null;
 	const stripped = text
