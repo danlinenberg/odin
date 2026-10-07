@@ -2951,6 +2951,14 @@ function DevBoardPage() {
 			// Free the pane (dead or a live cold-restored shell) so the respawn
 			// re-runs the command. Ignore errors - pane may already be dead.
 			await terminalKill.mutateAsync({ paneId: card.pane.id }).catch(() => {});
+			// Same purge as openDrawer: a Resume from the open drawer never passes
+			// through it, so the respawned PTY mounted the dead one's cached xterm -
+			// a blank drawer stuck on Working until closed and reopened. Not while a
+			// Terminal shows it: disposing pulls the canvas out from under it.
+			if (!terminalCache.get(card.pane.id)?.container) {
+				coldRestoreState.delete(card.pane.id);
+				terminalCache.dispose(card.pane.id);
+			}
 			await new Promise((resolve) => setTimeout(resolve, 300));
 			await utils.client.terminal.createOrAttach.mutate({
 				paneId: card.pane.id,
