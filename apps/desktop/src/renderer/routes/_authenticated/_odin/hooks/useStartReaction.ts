@@ -3,6 +3,7 @@ import type { ReactionRow } from "lib/trpc/routers/slack";
 import { useEffect, useRef } from "react";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { askSessionContext } from "../components/SessionContextDialog";
 import { buildThreadPrompt } from "../thread-prompt";
 import { useOdinFeeds } from "./useOdinFeeds";
 import { useOdinWorkspace } from "./useOdinWorkspace";
@@ -29,12 +30,16 @@ export function useStartReaction() {
 			toast.error("No Slack link for this message");
 			return null;
 		}
+		// An auto-start has nobody to ask.
+		const context = auto ? {} : await askSessionContext(row.title);
+		if (!context) return null;
 		const ensured = await ensureWorkspace();
 		if (!ensured.ok) {
 			toast.error(ensured.error);
 			return null;
 		}
 		const result = await launch({
+			...context,
 			key: row.id,
 			workspaceId: ensured.workspace.id,
 			title: row.title,

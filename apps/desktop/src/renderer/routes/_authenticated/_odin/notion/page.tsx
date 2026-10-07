@@ -29,6 +29,7 @@ import {
 import { FeedError } from "../components/FeedError";
 import { PersonChip } from "../components/PersonChip";
 import { PILL } from "../components/pill";
+import { askSessionContext } from "../components/SessionContextDialog";
 import { useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
@@ -127,9 +128,12 @@ function NotionPage() {
 	);
 
 	const handleStart = async (row: (typeof rows)[number]) => {
+		const context = await askSessionContext(row.title);
+		if (!context) return;
 		const ensured = await ensureWorkspace();
 		if (!ensured.ok) return toast.error(ensured.error);
 		const result = await launch({
+			...context,
 			key: row.pageId,
 			workspaceId: ensured.workspace.id,
 			title: row.title,

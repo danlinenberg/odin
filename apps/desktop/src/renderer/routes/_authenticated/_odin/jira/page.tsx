@@ -32,6 +32,7 @@ import { FeedError } from "../components/FeedError";
 import { PersonChip } from "../components/PersonChip";
 import { PILL } from "../components/pill";
 import { DueChip, META_DUE, OverdueMark } from "../components/Reminders";
+import { askSessionContext } from "../components/SessionContextDialog";
 import { buildIssuePrompt } from "../feed-prompts";
 import { useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
@@ -212,10 +213,13 @@ function MyJiraPage() {
 	}, [issues, projectFilter, needle, livePaneByKey]);
 
 	const handleStart = async (issue: (typeof issues)[number]) => {
+		const title = `${issue.key}: ${issue.title}`;
+		const context = await askSessionContext(title);
+		if (!context) return;
 		const ensured = await ensureWorkspace();
 		if (!ensured.ok) return toast.error(ensured.error);
-		const title = `${issue.key}: ${issue.title}`;
 		const result = await launch({
+			...context,
 			key: issue.key,
 			workspaceId: ensured.workspace.id,
 			title,

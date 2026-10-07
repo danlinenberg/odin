@@ -39,6 +39,7 @@ import {
 	useDueReminders,
 	useReminders,
 } from "./components/Reminders";
+import { SessionContextDialog } from "./components/SessionContextDialog";
 import { QuickAddTask } from "./components/TaskBox";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { useAutomationRunner } from "./hooks/useAutomationRunner";
@@ -600,6 +601,7 @@ function OdinShell() {
 				</div>
 			</div>
 
+			<SessionContextDialog />
 			{isQuickAddOpen && (
 				<QuickAddTask onClose={() => setIsQuickAddOpen(false)} />
 			)}

@@ -132,6 +132,15 @@ describe("buildPrompt with rules", () => {
 			buildPrompt("Fix it", null, [], undefined, false, [rule("x", true)]),
 		).not.toContain("Standing rules");
 	});
+
+	it("hands the agent the context added at start, and nothing when blank", () => {
+		const prompt = (guidelines: string) =>
+			buildPrompt("Fix it", null, [], undefined, false, [], "", guidelines);
+		expect(prompt("Explain in plain words")).toContain(
+			"Explain in plain words",
+		);
+		expect(prompt("  \n ")).not.toContain("Context and guidelines");
+	});
 });
 
 describe("parseDataUrl", () => {
