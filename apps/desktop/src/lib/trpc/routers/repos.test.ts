@@ -10,7 +10,6 @@ import {
 	renderPullRequestDiff,
 	scanRepos,
 	splitPatch,
-	wrapLine,
 } from "./repos";
 
 test("scanRepos finds checkouts, skips pruned dirs and nested worktrees", async () => {
@@ -85,49 +84,46 @@ test("renderDiff shows uncommitted work, and the last commit when there is none"
 	git("commit", "-qm", "add a");
 
 	// Clean tree - the panel falls back to the commit that just landed.
-	const clean = await renderDiff(repo, 80);
+	const clean = await renderDiff(repo);
 	expect(clean.source).toBe("last commit");
-	expect(clean.ansi).toContain("add a");
+	expect(clean.files.map((file) => file.path)).toEqual(["a.txt"]);
 
 	// A session that started after that commit owns none of it - the panel says
 	// so instead of passing a stranger's work off as this session's.
-	const stale = await renderDiff(repo, 80, Date.now() + 1000);
+	const stale = await renderDiff(repo, Date.now() + 1000);
 	expect(stale.source).toBe("nothing from this session");
-	expect(stale.ansi).toBe("");
+	expect(stale.files).toEqual([]);
 
 	writeFileSync(join(repo, "a.txt"), "two\n");
 	writeFileSync(join(repo, "b.txt"), "untracked\n");
-	const dirty = await renderDiff(repo, 80);
+	const dirty = await renderDiff(repo);
 	expect(dirty.source).toBe("uncommitted changes");
-	expect(dirty.ansi).toContain("two");
-	expect(dirty.ansi).toContain("1 untracked file(s), not shown: b.txt");
-	// The file list points at the line each file starts on.
-	expect(dirty.files).toEqual([
-		{ path: "a.txt", added: 1, removed: 1, binary: false, line: 2 },
+	expect(dirty.note).toBe("1 untracked file(s), not shown: b.txt");
+	expect(dirty.files).toMatchObject([
+		{ path: "a.txt", added: 1, removed: 1, binary: false },
 	]);
-	expect(dirty.ansi.split("\n").slice(2, 5).join("\n")).toContain("a.txt");
+	expect(dirty.files[0].patch).toContain("+two");
 });
 
 test("renderPullRequestDiff reads the PR through gh, and says when nobody can", async () => {
 	const patch =
 		"diff --git a/x.ts b/x.ts\n--- a/x.ts\n+++ b/x.ts\n@@ -1 +1 @@\n-old\n+new\n";
 	const url = "https://github.com/danlinenberg/odin/pull/7";
-	const pr = await renderPullRequestDiff(url, 80, async (args) => {
+	const pr = await renderPullRequestDiff(url, async (args) => {
 		expect(args).toEqual(["pr", "diff", url, "--color=never"]);
 		return { stdout: patch };
 	});
 	expect(pr.source).toBe("odin PR #7");
-	expect(pr.ansi).toContain("new");
-	expect(pr.ansi).toContain("x.ts");
+	expect(pr.files).toMatchObject([{ path: "x.ts", patch }]);
 
 	expect(
-		renderPullRequestDiff(url, 80, async () => {
+		renderPullRequestDiff(url, async () => {
 			throw new Error("404");
 		}),
 	).rejects.toThrow(/No logged-in gh account/);
 });
 
-test("splitPatch cuts per file, keeps a commit header, and counts +/-", () => {
+test("splitPatch cuts per file, drops a commit header, and counts +/-", () => {
 	const chunks = splitPatch(
 		[
 			"commit abc",
@@ -154,24 +150,10 @@ test("splitPatch cuts per file, keeps a commit header, and counts +/-", () => {
 			binary,
 		]),
 	).toEqual([
-		[null, 0, 0, false],
 		["one.ts", 2, 1, false],
 		["new name.ts", 0, 0, false],
 		["icon.png", 0, 0, true],
 	]);
-});
-
-test("wrapLine breaks under the code column and keeps the colour on", () => {
-	const green = "\x1b[48;2;17;48;27m";
-	const line = ` 12 │${green}${"x".repeat(20)}\x1b[0m`;
-	const lines = wrapLine(line, 15).split("\n");
-	// biome-ignore lint/suspicious/noControlCharactersInRegex: strips the colour codes
-	const plain = lines.map((l) => l.replace(/\x1b\[[0-9;]*m/g, ""));
-	expect(plain).toEqual([` 12 │${"x".repeat(10)}`, `     ${"x".repeat(10)}`]);
-	// The continuation re-opens the background it was cut inside.
-	expect(lines[1]).toContain(green);
-	// A line that fits is left alone.
-	expect(wrapLine("short", 15)).toBe("short");
 });
 
 test("detectReposFolder picks the home folder holding the most repos", () => {
@@ -190,22 +172,4 @@ test("detectReposFolder picks the home folder holding the most repos", () => {
 	expect(
 		detectReposFolder(["/Users/x/dotfiles", "/opt/repo"], home),
 	).toBeNull();
-});
-
-test("renderDiff keeps a long line whole when wrapping is off", async () => {
-	const repo = mkdtempSync(join(tmpdir(), "odin-diff-"));
-	const git = (...args: string[]) =>
-		execFileSync("git", args, { cwd: repo, encoding: "utf8" });
-	git("init", "-q");
-	git("config", "user.email", "test@example.com");
-	git("config", "user.name", "test");
-	writeFileSync(join(repo, "a.txt"), "one\n");
-	git("add", "a.txt");
-	git("commit", "-qm", "add a");
-	writeFileSync(join(repo, "a.txt"), `${"x".repeat(150)}\n`);
-
-	const whole = (ansi: string) =>
-		ansi.split("\n").some((line) => line.includes("x".repeat(150)));
-	expect(whole((await renderDiff(repo, 80)).ansi)).toBe(false);
-	expect(whole((await renderDiff(repo, 80, undefined, false)).ansi)).toBe(true);
 });

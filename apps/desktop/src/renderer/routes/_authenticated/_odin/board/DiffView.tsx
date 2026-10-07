@@ -1,25 +1,14 @@
-import { FitAddon } from "@xterm/addon-fit";
-import { Terminal as XTerm } from "@xterm/xterm";
-import "@xterm/xterm/css/xterm.css";
+import { PatchDiff } from "@pierre/diffs/react";
 import { keepPreviousData } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
-import {
-	DEFAULT_TERMINAL_FONT_FAMILY,
-	DEFAULT_TERMINAL_FONT_SIZE,
-} from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/config";
+import { DIFF_POOL_RENDER_OPTIONS } from "renderer/screens/main/components/WorkspaceView/utils/code-theme/diff-render-options";
 import { pullRequests } from "./brief";
 
-// biome-ignore lint/suspicious/noControlCharactersInRegex: stripping ANSI escapes is the point
-const ESCAPES = /\x1b\[[0-9;]*[A-Za-z]/g;
-
 /**
- * "What did this session actually change?" - delta's diff for the checkout a
- * card runs in.
- *
- * ponytail: delta already emits a rendered diff as ANSI, and the app already
- * ships xterm - so this is a read-only terminal with the bytes written into it,
- * not a diff viewer. No parsing, no highlighting, no virtualised list.
+ * "What did this session actually change?" - the diff for the checkout a card
+ * runs in, one file at a time, rendered by @pierre/diffs (the app's own diff
+ * engine, themed by the worker pool) - nothing to install on the machine.
  *
  * The header picks which diff: the working tree or any PR the session opened -
  * a session that shipped five PRs is five diffs, and the working tree is
@@ -38,11 +27,6 @@ export function DiffView({
 	claudeSessionId: string | null;
 	workspaceId: string;
 }) {
-	const host = useRef<HTMLDivElement>(null);
-	const term = useRef<{ xterm: XTerm; fit: FitAddon } | null>(null);
-	// Delta needs a column count up front (piped, it assumes 80). Start at the
-	// default and re-query once xterm has measured the real width.
-	const [width, setWidth] = useState(120);
 	/** The PR on screen; null is the checkout's own diff. */
 	const [pr, setPr] = useState<string | null>(null);
 	/** The file on screen. One at a time, so scrolling stops at its end
@@ -63,10 +47,6 @@ export function DiffView({
 			localStorage.setItem("odin:diff-wrap", wrap ? "0" : "1");
 		} catch {}
 	};
-	/** Columns the longest line on screen needs; 0 while wrapping. xterm only
-	 * scrolls down, so unwrapped it is made this wide and its box scrolls. */
-	const longest = useRef(0);
-
 	// Same query (and cache entry) the brief beside it reads its PRs from.
 	const { data: transcript } =
 		electronTrpc.terminal.readClaudeTranscript.useQuery(
@@ -82,100 +62,18 @@ export function DiffView({
 	);
 
 	const { data, error, isFetching, refetch } = electronTrpc.repos.diff.useQuery(
-		{ cwd, claudeSessionId, workspaceId, width, pr, wrap },
+		{ cwd, claudeSessionId, workspaceId, pr },
 		{
 			refetchOnWindowFocus: false,
 			retry: false,
-			// Keep the last diff while a new width re-renders. Dropping it hid the
-			// file list, which widened the terminal, which changed the width again -
-			// the panel flickered between renders and never settled.
+			// Keep the last diff on screen while a refresh reads the next one.
 			placeholderData: keepPreviousData,
 		},
 	);
 
-	useEffect(() => {
-		if (!host.current) return;
-		const xterm = new XTerm({
-			fontSize: DEFAULT_TERMINAL_FONT_SIZE,
-			fontFamily: DEFAULT_TERMINAL_FONT_FAMILY,
-			// Delta ends lines with \n; nothing here drives a PTY.
-			convertEol: true,
-			disableStdin: true,
-			cursorStyle: "bar",
-			cursorInactiveStyle: "none",
-			scrollback: 100_000,
-			theme: { background: "#0e0e11", foreground: "#c9c9d3" },
-		});
-		const fit = new FitAddon();
-		xterm.loadAddon(fit);
-		xterm.open(host.current);
-		fit.fit();
-		setWidth(Math.max(xterm.cols, 40));
-		term.current = { xterm, fit };
-
-		const observer = new ResizeObserver(() => {
-			try {
-				fit.fit();
-				setWidth(Math.max(xterm.cols, 40));
-				if (longest.current > xterm.cols)
-					xterm.resize(longest.current, xterm.rows);
-			} catch {
-				// mid-unmount; nothing to size
-			}
-		});
-		observer.observe(host.current);
-
-		return () => {
-			observer.disconnect();
-			term.current = null;
-			xterm.dispose();
-		};
-	}, []);
-
-	// Missing until main restarts onto it - then the list just isn't there.
 	const files = data?.files ?? [];
 	const current = files[Math.min(selected, files.length - 1)];
 
-	useEffect(() => {
-		const xterm = term.current?.xterm;
-		if (!xterm || !data) return;
-		// Only the selected file's lines; the first file also carries whatever
-		// precedes it (a commit header, a note).
-		const index = current ? files.indexOf(current) : -1;
-		const text =
-			index < 0
-				? data.ansi
-				: data.ansi
-						.split("\n")
-						.slice(index === 0 ? 0 : current.line, files[index + 1]?.line)
-						.join("\n");
-		// Fit first, then widen to the longest line - before writing, so xterm
-		// never breaks a line it is about to hold.
-		term.current?.fit.fit();
-		longest.current = wrap
-			? 0
-			: text
-					.split("\n")
-					.reduce(
-						(most, line) =>
-							Math.max(most, Array.from(line.replace(ESCAPES, "")).length),
-						0,
-					);
-		if (longest.current > xterm.cols) xterm.resize(longest.current, xterm.rows);
-		// Its scrollbar sits at the box's first right edge and slides into the
-		// code once you scroll sideways; the wheel still scrolls down.
-		xterm.options.scrollbar = { showScrollbar: wrap };
-		xterm.reset();
-		// Writing leaves the viewport at the end; you read a file from the top.
-		xterm.write(
-			data.ansi.trim()
-				? text
-				: pr
-					? "This PR has no changes."
-					: "Nothing from this session - no uncommitted changes, and the last commit here predates it.",
-			() => xterm.scrollToTop(),
-		);
-	}, [data, pr, current, files, wrap]);
 	const total = files.reduce(
 		(sum, file) => ({
 			added: sum.added + file.added,
@@ -225,14 +123,6 @@ export function DiffView({
 							: `${data.cwd.split("/").pop()} · ${data.source}`
 						: "…"}
 				</span>
-				{data?.ansi.trim() && !data.delta && (
-					<span
-						title="brew install git-delta"
-						className="normal-case tracking-normal text-attention"
-					>
-						delta not installed - plain git colours
-					</span>
-				)}
 				<button
 					type="button"
 					onClick={toggleWrap}
@@ -270,12 +160,10 @@ export function DiffView({
 						<div className="min-h-0 flex-1 overflow-y-auto py-1">
 							{files.map((file, index) => {
 								const slash = file.path.lastIndexOf("/");
-								// `binary` is missing until main restarts onto it; nothing
-								// added or removed is the same tell for these files.
-								const binary = file.binary ?? file.added + file.removed === 0;
+								const binary = file.binary;
 								return (
 									<button
-										key={`${file.path}:${file.line}`}
+										key={file.path}
 										type="button"
 										title={
 											binary
@@ -320,10 +208,37 @@ export function DiffView({
 						</div>
 					</div>
 				)}
-				<div
-					ref={host}
-					className="min-h-0 min-w-0 flex-1 overflow-x-auto bg-background p-2"
-				/>
+				<div className="min-h-0 min-w-0 flex-1 overflow-auto bg-background">
+					{data?.note && (
+						<div className="px-4 py-1.5 text-[11px] text-faint-foreground">
+							{data.note}
+						</div>
+					)}
+					{current ? (
+						<PatchDiff
+							key={`${pr}:${current.path}`}
+							patch={current.patch}
+							options={{
+								...DIFF_POOL_RENDER_OPTIONS,
+								diffStyle: "unified",
+								overflow: wrap ? "wrap" : "scroll",
+								// pierre scrolls each file sideways inside itself (and paint-
+								// contains it), so the bar sat under the file's last line.
+								// Unclipped, this panel's own box - one screen tall - scrolls.
+								unsafeCSS:
+									"[data-code] { overflow-x: visible; contain: none; }",
+							}}
+						/>
+					) : (
+						data && (
+							<div className="px-4 py-3 text-[12px] text-muted-foreground">
+								{pr
+									? "This PR has no changes."
+									: "Nothing from this session - no uncommitted changes, and the last commit here predates it."}
+							</div>
+						)
+					)}
+				</div>
 			</div>
 		</div>
 	);

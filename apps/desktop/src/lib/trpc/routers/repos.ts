@@ -1,4 +1,4 @@
-import { execFile, spawn } from "node:child_process";
+import { execFile } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -14,10 +14,7 @@ import {
 	pullRequestWorktrees,
 } from "./terminal/pr-state";
 import { getWorkspaceTerminalContext } from "./terminal/utils/workspace-terminal-context";
-import {
-	execWithShellEnv,
-	getProcessEnvWithShellPath,
-} from "./workspaces/utils/shell-env";
+import { execWithShellEnv } from "./workspaces/utils/shell-env";
 
 /**
  * Odin fork: the git checkouts on this machine, so the session composer can
@@ -111,161 +108,30 @@ export function detectReposFolder(
 /** Enough diff to read; past this the renderer is the thing that suffers. */
 const MAX_PATCH_BYTES = 1_000_000;
 
-/** Feed `input` to a command's stdin; its stdout, or null if it failed. */
-async function pipe(
-	command: string,
-	args: string[],
-	input: string,
-	extraEnv: Record<string, string> = {},
-): Promise<string | null> {
-	const env = await getProcessEnvWithShellPath();
-	return new Promise((resolve) => {
-		const child = spawn(command, args, { env: { ...env, ...extraEnv } });
-		let out = "";
-		child.stdout.setEncoding("utf8");
-		child.stdout.on("data", (chunk: string) => {
-			out += chunk;
-		});
-		child.on("error", () => resolve(null));
-		child.on("close", (code) => resolve(code === 0 ? out : null));
-		// EPIPE if it died before reading the input - `error` already handled it.
-		child.stdin.on("error", () => {});
-		child.stdin.end(input);
-	});
-}
-
-/**
- * Delta, restyled for a panel rather than a pager: line numbers instead of the
- * boxed "1:" hunk headers, file names as quiet rules, and muted +/- fills so a
- * whole new file isn't a slab of green. Side by side once there's room for two
- * readable columns. ~/.gitconfig's [delta] is ignored, so it looks the same on
- * every machine - a `side-by-side = true` there split even a narrow panel in two.
- */
-function deltaArgs(width: number, wrap: boolean): string[] {
-	return [
-		"--no-gitconfig",
-		"--paging=never",
-		`--width=${width}`,
-		"--line-numbers",
-		// Delta's default is 8 columns a tab; deep JSX then starts mid-panel.
-		"--tabs=2",
-		// Unwrapped, side by side would cut each pane at half the width.
-		...(wrap && width >= 200 ? ["--side-by-side"] : []),
-		"--file-style=bold #e6e6ee",
-		// The rule above each file is drawn in render(): delta sizes its own to
-		// the file name, which left short stubs dangling around a wide header.
-		"--file-decoration-style=none",
-		"--hunk-header-style=syntax",
-		"--hunk-header-decoration-style=none",
-		"--minus-style=syntax #3a1419",
-		"--minus-emph-style=syntax #6e1f2a",
-		"--plus-style=syntax #11301b",
-		"--plus-emph-style=syntax #1d5c31",
-		"--line-numbers-minus-style=#f0647a",
-		"--line-numbers-plus-style=#4ade80",
-		"--line-numbers-zero-style=#4a4a57",
-		"--line-numbers-left-style=#2e2e38",
-		"--line-numbers-right-style=#2e2e38",
-		"--syntax-theme=OneHalfDark",
-	];
-}
-
-const RED = "\x1b[31m";
-const GREEN = "\x1b[32m";
-const CYAN = "\x1b[36m";
-const BOLD = "\x1b[1m";
-const DIM = "\x1b[2m";
-const RESET = "\x1b[0m";
-
-// biome-ignore lint/suspicious/noControlCharactersInRegex: matching ANSI escapes is the point
-const ESCAPE = /(\x1b\[[0-9;]*[A-Za-z])/;
-
-/**
- * Soft-wrap one rendered line at `width` columns. Delta only wraps side by
- * side; unified, a long line ran off the edge and xterm broke it at column 0
- * - under the line numbers, and one line more than the offsets counted.
- * Continuations start under the code (past delta's `│`) and carry the colours
- * that were on, so a wrapped + line stays green.
- *
- * ponytail: one column per code point; wide CJK/emoji would overshoot.
- */
-export function wrapLine(line: string, width: number): string {
-	const parts = line.split(ESCAPE);
-	const plain = parts.filter((_, i) => i % 2 === 0).join("");
-	if (Array.from(plain).length <= width) return line;
-	const bar = Array.from(plain).indexOf("│");
-	const indent = bar >= 0 && bar < width / 2 ? bar + 1 : 0;
-	let out = "";
-	let column = 0;
-	let active: string[] = [];
-	parts.forEach((part, i) => {
-		if (i % 2 === 1) {
-			out += part;
-			if (part.endsWith("m"))
-				active = part === RESET || part === "\x1b[m" ? [] : [...active, part];
-			return;
-		}
-		for (const char of Array.from(part)) {
-			if (column === width) {
-				out += `${RESET}\n${" ".repeat(indent)}${active.join("")}`;
-				column = indent;
-			}
-			out += char;
-			column += 1;
-		}
-	});
-	return out;
-}
-
-/** Without delta: git's own palette, by hand, since the patch is fetched plain. */
-function colourPatch(patch: string): string {
-	return patch
-		.split("\n")
-		.map((line) =>
-			line.startsWith("diff --git")
-				? `${BOLD}${line}${RESET}`
-				: line.startsWith("@@")
-					? `${CYAN}${line}${RESET}`
-					: line.startsWith("+") && !line.startsWith("+++")
-						? `${GREEN}${line}${RESET}`
-						: line.startsWith("-") && !line.startsWith("---")
-							? `${RED}${line}${RESET}`
-							: line,
-		)
-		.join("\n");
-}
-
-/** One file of a diff, for the panel's file list. */
+/** One file of a diff: the list's row, and the patch the panel renders. */
 export interface DiffFile {
 	path: string;
 	added: number;
 	removed: number;
 	/** No text diff to show - an image, an .icns. The list says so. */
 	binary: boolean;
-	/** Where its header starts in `ansi`, in lines - what the list scrolls to. */
-	line: number;
+	/** This file's `diff --git` section, as git printed it. */
+	patch: string;
 }
 
 /**
  * A patch cut at each `diff --git`. Whatever precedes the first one (a
- * commit's header, from `git show`) comes back with a null path.
+ * commit's header, from `git show`) has no path and is dropped.
  */
-export function splitPatch(patch: string): {
-	path: string | null;
-	text: string;
-	added: number;
-	removed: number;
-	binary: boolean;
-}[] {
+export function splitPatch(patch: string): DiffFile[] {
 	return patch
 		.split(/^(?=diff --git )/m)
-		.filter(Boolean)
 		.map((text) => {
 			const lines = text.split("\n");
 			const header = lines[0].match(/^diff --git a\/.* b\/(.*)$/);
 			return {
-				path: header ? header[1] : null,
-				text,
+				path: header?.[1] ?? "",
+				patch: text,
 				added: lines.filter((l) => l.startsWith("+") && !l.startsWith("+++"))
 					.length,
 				removed: lines.filter((l) => l.startsWith("-") && !l.startsWith("---"))
@@ -273,87 +139,42 @@ export function splitPatch(patch: string): {
 				// `git diff` says "Binary files … differ"; with --binary, a GIT binary patch.
 				binary: /^(Binary files |GIT binary patch)/m.test(text),
 			};
-		});
+		})
+		.filter((file) => file.path);
 }
 
-/**
- * The patch as the panel shows it, plus where each file starts in it.
- *
- * Delta runs once per file so every offset is exact - counting lines of one
- * big render would mean guessing which of them is a file header.
- * ponytail: 8 deltas at a time; a 500-file diff is slow, and that's rare.
- */
-async function render(
-	patch: string,
-	width: number,
-	note = "",
-	/** Off, long lines run on and the panel scrolls sideways. */
-	wrap = true,
-): Promise<Pick<RepoDiff, "ansi" | "delta" | "files">> {
-	if (!patch.trim()) return { ansi: "", delta: true, files: [] };
-	if (patch.length > MAX_PATCH_BYTES) {
-		patch = `${patch.slice(0, MAX_PATCH_BYTES)}\n\n… diff truncated at ${MAX_PATCH_BYTES / 1000}kB\n`;
-	}
-	const chunks = splitPatch(patch);
-	const rendered: (string | null)[] = [];
-	for (let i = 0; i < chunks.length; i += 8) {
-		rendered.push(
-			...(await Promise.all(
-				chunks.slice(i, i + 8).map((chunk) =>
-					// Without COLORTERM delta drops to 256 colours, and its +/- fills
-					// land on ANSI 22/52 - an added file comes out flooded bright green.
-					pipe("delta", deltaArgs(width, wrap), chunk.text, {
-						COLORTERM: "truecolor",
-					}),
-				),
-			)),
-		);
-	}
-	const delta = rendered.every((out) => out !== null);
-
-	let ansi = note;
-	const files: DiffFile[] = [];
-	chunks.forEach((chunk, index) => {
-		const body = delta ? (rendered[index] as string) : colourPatch(chunk.text);
-		// A full-width rule, then the file name straight under it.
-		const wrapped = wrap
-			? body
-					.split("\n")
-					.map((line) => wrapLine(line, width))
-					.join("\n")
-			: body;
-		const text = chunk.path
-			? `${DIM}${"─".repeat(width)}${RESET}\n${wrapped.replace(/^\n+/, "")}`
-			: wrapped;
-		if (chunk.path) {
-			files.push({
-				path: chunk.path,
-				added: chunk.added,
-				removed: chunk.removed,
-				binary: chunk.binary,
-				line: ansi.split("\n").length - 1,
-			});
-		}
-		ansi += text.endsWith("\n") ? text : `${text}\n`;
+/** Whole files up to MAX_PATCH_BYTES - a file cut mid-hunk wouldn't parse. */
+function capped(files: DiffFile[]): { files: DiffFile[]; dropped: number } {
+	let bytes = 0;
+	const kept = files.filter((file) => {
+		bytes += file.patch.length;
+		return bytes <= MAX_PATCH_BYTES || file === files[0];
 	});
-	return { ansi, delta, files };
+	return { files: kept, dropped: files.length - kept.length };
 }
 
 export interface RepoDiff {
-	/** Ready to write into a terminal: delta's output, or git's own colours. */
-	ansi: string;
 	/** Which diff this is, for the panel header. */
 	source: string;
-	/** False when delta isn't installed - the header says so. */
-	delta: boolean;
 	/** The checkout (or PR url) this is a diff of - the header names it. */
 	cwd: string;
 	/** Every file in it, in order. */
 	files: DiffFile[];
+	/** What the panel should say that no file shows: untracked or dropped files. */
+	note: string;
+}
+
+function diffOf(patch: string, note: string[] = []) {
+	const { files, dropped } = capped(splitPatch(patch));
+	if (dropped)
+		note.push(
+			`${dropped} more file(s) past ${MAX_PATCH_BYTES / 1000}kB, not shown`,
+		);
+	return { files, note: note.join(" · ") };
 }
 
 /**
- * What changed in a checkout, rendered for a terminal view.
+ * What changed in a checkout, file by file.
  *
  * ponytail: `git diff HEAD` (staged + unstaged), falling back to the last
  * commit - an agent that already committed its turn would otherwise show an
@@ -366,9 +187,7 @@ export interface RepoDiff {
  */
 export async function renderDiff(
 	cwd: string,
-	width: number,
 	since?: number,
-	wrap = true,
 ): Promise<RepoDiff> {
 	const git = async (args: string[]) =>
 		(
@@ -387,13 +206,7 @@ export async function renderDiff(
 		const committedAt =
 			Number(await git(["log", "-1", "--format=%ct"]).catch(() => "")) * 1000;
 		if (since && !(committedAt >= since)) {
-			return {
-				ansi: "",
-				source: "nothing from this session",
-				delta: true,
-				cwd,
-				files: [],
-			};
+			return { source: "nothing from this session", cwd, files: [], note: "" };
 		}
 		source = "last commit";
 		patch = await git(["show", "--no-color", "HEAD"]);
@@ -403,10 +216,12 @@ export async function renderDiff(
 		.split("\n")
 		.filter(Boolean);
 	const note = untracked.length
-		? `${DIM}${untracked.length} untracked file(s), not shown: ${untracked.slice(0, 3).join(", ")}${untracked.length > 3 ? ", …" : ""}${RESET}\n\n`
-		: "";
+		? [
+				`${untracked.length} untracked file(s), not shown: ${untracked.slice(0, 3).join(", ")}${untracked.length > 3 ? ", …" : ""}`,
+			]
+		: [];
 
-	return { ...(await render(patch, width, note, wrap)), source, cwd };
+	return { ...diffOf(patch, note), source, cwd };
 }
 
 /**
@@ -415,9 +230,7 @@ export async function renderDiff(
  */
 export async function renderPullRequestDiff(
 	url: string,
-	width: number,
 	exec?: GhExec,
-	wrap = true,
 ): Promise<RepoDiff> {
 	const patch = await ghAsAnyAccount(
 		["pr", "diff", url, "--color=never"],
@@ -433,7 +246,7 @@ export async function renderPullRequestDiff(
 	// https://github.com/<owner>/<repo>/pull/<n>
 	const [, , , , repo, , number] = url.split("/");
 	return {
-		...(await render(patch, width, "", wrap)),
+		...diffOf(patch),
 		source: `${repo} PR #${number}`,
 		cwd: url,
 	};
@@ -517,22 +330,12 @@ export const createReposRouter = () => {
 					 */
 					claudeSessionId: z.string().nullish(),
 					workspaceId: z.string(),
-					/** Terminal columns to render at - delta assumes 80 when piped. */
-					width: z.number().int().min(40).max(400).default(120),
-					/** Soft-wrap long lines; off, they run on and the panel scrolls sideways. */
-					wrap: z.boolean().default(true),
 					/** Show this pull request's diff instead of the checkout's. */
 					pr: z.string().url().nullish(),
 				}),
 			)
 			.query(async ({ input }) => {
-				if (input.pr)
-					return renderPullRequestDiff(
-						input.pr,
-						input.width,
-						undefined,
-						input.wrap,
-					);
+				if (input.pr) return renderPullRequestDiff(input.pr);
 				// The repo the agent worked in wins: Claude Code cds between repos
 				// and worktrees without the shell ever noticing, so `input.cwd` is
 				// often just the catch-all directory the pane was launched in.
@@ -560,7 +363,7 @@ export const createReposRouter = () => {
 				const since = transcript
 					? statSync(transcript.path).birthtimeMs || undefined
 					: undefined;
-				return renderDiff(dir, input.width, since, input.wrap);
+				return renderDiff(dir, since);
 			}),
 	});
 };

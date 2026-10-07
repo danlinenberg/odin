@@ -4071,7 +4071,7 @@ function DevBoardPage() {
 								{drawerCard.pane.type === "terminal" && !inCatchUp && (
 									<button
 										type="button"
-										title="Show what this session changed (git diff, rendered by delta)"
+										title="Show what this session changed (git diff)"
 										onClick={() => {
 											setIsShellOpen(false);
 											setIsDiffOpen((open) => !open);
