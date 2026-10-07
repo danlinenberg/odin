@@ -118,6 +118,7 @@ function MyTasksPage() {
 						setDraftRepo("");
 					}}
 					onCancel={() => setDraft("")}
+					submitLabel="Add task"
 				/>
 			</div>
 
@@ -147,6 +148,7 @@ function MyTasksPage() {
 										setEditingId(null);
 									}}
 									onCancel={() => setEditingId(null)}
+									submitLabel="Save"
 								/>
 							</div>
 						);
