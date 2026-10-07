@@ -225,7 +225,7 @@ function AutoRenameRow() {
 	);
 }
 
-/** The drawer's 💬 Chat toggle, as a setting - the same flag. */
+/** Whether a running session opens as a chat or as its terminal. */
 function ChatViewRow() {
 	const chat = useSessionView((s) => s.chat);
 	const setChat = useSessionView((s) => s.setChat);
@@ -233,7 +233,7 @@ function ChatViewRow() {
 		<SettingRow
 			label="Show sessions as a chat"
 			htmlFor="session-chat-view"
-			description="Open a running session as messages and a reply box, like the Claude desktop app, instead of its terminal. The session is the same; 💬 Chat in the drawer switches back."
+			description="Open a running session like Claude Code in the Claude desktop app - messages, tool calls and a reply box - instead of its terminal. Same session behind it; while Claude asks a question or wants plan approval, the terminal shows."
 		>
 			<Switch id="session-chat-view" checked={chat} onCheckedChange={setChat} />
 		</SettingRow>

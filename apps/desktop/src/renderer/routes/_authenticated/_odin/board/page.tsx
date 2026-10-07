@@ -126,6 +126,7 @@ import {
 	reviewedPullRequest,
 	sourceLink,
 } from "./brief";
+import { ChatView } from "./ChatView";
 import { DiffView } from "./DiffView";
 import { NextInLine } from "./NextInLine";
 import { HoverBrief, SessionBrief } from "./SessionBrief";
@@ -327,68 +328,6 @@ function ScrollbackView({ card, live }: { card: BoardCard; live: boolean }) {
 					: text.trim()
 						? text
 						: "No saved history for this session."}
-			</div>
-		</div>
-	);
-}
-
-/**
- * A live session as a chat, Claude desktop style: the transcript as messages
- * and a box that types into the same PTY. Claude keeps running in its terminal
- * behind it - this is a different view of it, not a different session. Menus
- * the TUI draws (questions, plan approval) hand the drawer back to the terminal.
- */
-function ChatView({ card, working }: { card: BoardCard; working: boolean }) {
-	const sessionId = useCardSessionId(card);
-	const [draft, setDraft] = useState("");
-	const inputRef = useRef<HTMLTextAreaElement>(null);
-	useEffect(() => inputRef.current?.focus(), []);
-	const write = electronTrpc.terminal.write.useMutation();
-	const send = async () => {
-		const text = draft.trim();
-		if (!text) return;
-		setDraft("");
-		try {
-			// Text and Enter in separate writes, like sendContinue: a chunk ending
-			// in a newline is read as a paste and inserted, not submitted.
-			await write.mutateAsync({ paneId: card.pane.id, data: text });
-			await new Promise((resolve) => setTimeout(resolve, 50));
-			await write.mutateAsync({ paneId: card.pane.id, data: "\r" });
-		} catch (error) {
-			setDraft(text);
-			toast.error(error instanceof Error ? error.message : String(error));
-		}
-	};
-	return (
-		<div className="flex min-h-0 flex-1 flex-col">
-			{sessionId ? (
-				<TranscriptView sessionId={sessionId} live />
-			) : (
-				<div className="flex-1 px-5 py-4 text-[12px] text-muted-foreground">
-					No conversation yet.
-				</div>
-			)}
-			<div className="border-t border-border px-4 py-3">
-				{working && (
-					<div className="mb-2 flex items-center gap-2 text-[12px] text-working">
-						<span className="size-[10px] animate-spin rounded-full border-2 border-working border-t-transparent" />
-						Claude is working…
-					</div>
-				)}
-				<textarea
-					ref={inputRef}
-					value={draft}
-					onChange={(event) => setDraft(event.target.value)}
-					onKeyDown={(event) => {
-						if (event.key === "Enter" && !event.shiftKey) {
-							event.preventDefault();
-							void send();
-						}
-					}}
-					rows={3}
-					placeholder="Reply to Claude - Enter sends, Shift+Enter for a new line"
-					className="w-full resize-none rounded-[10px] border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary"
-				/>
 			</div>
 		</div>
 	);
@@ -1583,7 +1522,6 @@ function DevBoardPage() {
 	// same reason the diff does - you go to the shell instead of the session.
 	const [isShellOpen, setIsShellOpen] = useState(false);
 	const chatView = useSessionView((s) => s.chat);
-	const setChatView = useSessionView((s) => s.setChat);
 	// Panes whose Resume is in flight. Resuming takes a second (session lookup,
 	// kill, respawn) and the card can't flip out of Idle until the 5s daemon
 	// poll sees the new PTY - without this the click looks like it did nothing.
@@ -4022,29 +3960,6 @@ function DevBoardPage() {
 										⑂ Diff
 									</button>
 								)}
-								{drawerCard.pane.type === "terminal" && !inCatchUp && (
-									<button
-										type="button"
-										title={
-											chatView
-												? "Show the session's terminal"
-												: "Show the session as a chat, like the Claude desktop app"
-										}
-										onClick={() => {
-											setIsShellOpen(false);
-											setIsDiffOpen(false);
-											setChatView(!chatView);
-										}}
-										className={cn(
-											"shrink-0 rounded-md px-2 py-1 text-xs font-semibold",
-											chatView
-												? "bg-primary/15 text-primary"
-												: "bg-secondary text-muted-foreground hover:text-foreground",
-										)}
-									>
-										💬 Chat
-									</button>
-								)}
 								{/* Not in Catch up (nor Diff): you're deciding Next or Done. */}
 								{drawerCard.pane.type === "terminal" && !inCatchUp && (
 									// One control: the shell, and - once it's open - where it is.
@@ -4192,7 +4107,16 @@ function DevBoardPage() {
 										panes[drawerCard.pane.id]?.status !== "permission" ? (
 										<ChatView
 											key={drawerCard.pane.id}
-											card={drawerCard}
+											paneId={drawerCard.pane.id}
+											sessionId={
+												drawerCard.pane.claudeSessionId ??
+												usePaneMeta.getState().sessionIdByPane[
+													drawerCard.pane.id
+												] ??
+												null
+											}
+											cwd={sessionCwd(drawerCard.pane) ?? drawerCard.repoPath}
+											workspaceId={drawerCard.workspaceId}
 											working={isWorkingNow(drawerCard.pane.id)}
 										/>
 									) : agentPaneIds.has(drawerCard.pane.id) ? (
