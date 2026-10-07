@@ -624,7 +624,12 @@ export function ChatView({
 					))}
 					{working && (
 						<div className="flex items-center gap-3 text-[12.5px] text-working">
-							<OdinMark className="animate-pulse" />
+							{/* Full-colour icon; a ring turning round it says "busy" -
+							    pulsing the icon itself faded it to grey. */}
+							<span className="relative flex shrink-0">
+								<OdinMark />
+								<span className="absolute -inset-[3px] animate-spin rounded-[10px] border-2 border-primary/70 border-r-transparent border-b-transparent [animation-duration:1.4s]" />
+							</span>
 							Working…
 						</div>
 					)}

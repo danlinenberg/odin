@@ -263,6 +263,9 @@ const SETTLED_MS = 120_000;
 /** How long after a (re)start Continue stays clickable on a live session. */
 const RECENT_RESTART_MS = 5 * 60_000;
 
+/** The pane whose drawer was open, so a reload reopens it. */
+const OPEN_DRAWER_KEY = "odin-open-drawer";
+
 /** Width of the Odin icon rail in layout.tsx - the drawer stops here. */
 const RAIL_W = 52;
 
@@ -2596,6 +2599,38 @@ function DevBoardPage() {
 		setIsShellOpen(false); // the shell belongs to the session you came from
 		setDrawerCard(card);
 	};
+
+	// A reload (⌘R, a renderer full reload) lands you back in the session you
+	// had open, not on the board. sessionStorage: this window only, and gone
+	// with it - nothing to bound or clean up.
+	const restoredDrawerRef = useRef(false);
+	useEffect(() => {
+		if (!restoredDrawerRef.current) return;
+		try {
+			if (drawerCard)
+				sessionStorage.setItem(OPEN_DRAWER_KEY, drawerCard.pane.id);
+			else sessionStorage.removeItem(OPEN_DRAWER_KEY);
+		} catch {
+			// storage blocked - a reload just lands on the board
+		}
+	}, [drawerCard]);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: runs once, when the board first has cards
+	useEffect(() => {
+		if (restoredDrawerRef.current) return;
+		const cards = [...cardsByStatus.values()].flat();
+		if (cards.length === 0) return;
+		restoredDrawerRef.current = true;
+		let paneId: string | null = null;
+		try {
+			paneId = sessionStorage.getItem(OPEN_DRAWER_KEY);
+		} catch {
+			return;
+		}
+		const card = paneId
+			? cards.find((candidate) => candidate.pane.id === paneId)
+			: undefined;
+		if (card) openDrawer(card);
+	}, [cardsByStatus]);
 
 	// Focus the terminal when a live session's drawer opens, so typing /
 	// paste (ctrl+v) / menu keys go straight to Claude Code.
