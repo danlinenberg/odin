@@ -47,6 +47,7 @@ import { useMyTasks } from "../hooks/useOdinTasks";
 import { usePendingFocus } from "../hooks/usePendingFocus";
 import { PANE_STATUS } from "../pane-status";
 import { type AllItem, allItems, type Urgency } from "./all-items";
+import { TaskDetails } from "./TaskDetails";
 import { useStartAllItem } from "./use-start-item";
 
 export const Route = createFileRoute("/_authenticated/_odin/all/")({
@@ -190,6 +191,10 @@ function AllFeedPage() {
 		shelf === "reading" ? reading : shelf === "done" ? recent : [];
 	// Undo on the last row hides its pill too: back to the queue, not a blank.
 	const showDone = shelfRows.length > 0;
+	// The row whose details sit in the side panel. A title click opens it here
+	// rather than jumping to the row's own feed tab, which dropped you out of
+	// this list and left you hunting for the row again.
+	const [openKey, setOpenKey] = useState<string | null>(null);
 	const allRows = useMemo(
 		() =>
 			allItems({
@@ -292,6 +297,10 @@ function AllFeedPage() {
 				.includes(needle),
 		);
 	}, [byContext, dueOnly, reminders, needle]);
+
+	// From every row, not the filtered ones: narrowing the list shouldn't shut
+	// the panel you're reading. Marking it done does - it's gone from both.
+	const openItem = allRows.find((item) => item.key === openKey);
 
 	const isFiltered =
 		source !== "" || urgency !== "" || context !== "" || dueOnly || !!needle;
@@ -409,278 +418,348 @@ function AllFeedPage() {
 				</div>
 			</FeedHeader>
 
-			<div className={FEED_LIST}>
-				{/* ponytail: no error banner here. A broken source already marks
+			<div className="flex min-h-0 flex-1">
+				<div className={FEED_LIST}>
+					{/* ponytail: no error banner here. A broken source already marks
 				    its own tab, and fixing it happens on that tab - the roll-up
 				    just shows the rows the other sources returned. */}
-				{sessions.length > 0 && (
-					<>
-						<button
-							type="button"
-							onClick={() => setShowSessions((open) => !open)}
-							className="flex items-center gap-1.5 px-1 pt-1 pb-0.5 text-[11px] font-semibold text-working"
-						>
-							<span className="size-1.5 animate-pulse rounded-full bg-current" />
-							Live sessions
-							<span className="rounded-[10px] bg-working/12 px-1.5 font-medium">
-								{sessions.length}
-							</span>
-							<span className="text-muted-foreground">
-								{showSessions ? "hide" : "show"}
-							</span>
-						</button>
-						{showSessions &&
-							sessions.map((session) => {
-								const { to, source } = SESSION_SOURCE[session.source];
-								const SourceIcon = SOURCE_ICON[to];
-								const state = SESSION_STATE[session.column];
-								return (
-									<div key={session.paneId} className={FEED_ROW}>
-										<div className="flex items-center gap-3">
-											<span
-												className={cn(
-													"flex w-[68px] shrink-0 items-center justify-center gap-1 rounded-[5px] px-[7px] py-[1px] text-[11px] font-semibold",
-													SOURCE_CHIP,
-												)}
-											>
-												<SourceIcon className="size-3 shrink-0" aria-hidden />
-												{source}
-											</span>
-											<button
-												type="button"
-												title="Open the session on the board"
-												onClick={() => {
-													usePendingFocus.getState().focus(session.paneId);
-													navigate({ to: "/board" });
-												}}
-												className="min-w-0 flex-1 truncate text-left text-[13px] font-semibold text-foreground"
-											>
-												{emojify(session.title)}
-											</button>
-											{/* The same columns the rows below use, so a live
+					{sessions.length > 0 && (
+						<>
+							<button
+								type="button"
+								onClick={() => setShowSessions((open) => !open)}
+								className="flex items-center gap-1.5 px-1 pt-1 pb-0.5 text-[11px] font-semibold text-working"
+							>
+								<span className="size-1.5 animate-pulse rounded-full bg-current" />
+								Live sessions
+								<span className="rounded-[10px] bg-working/12 px-1.5 font-medium">
+									{sessions.length}
+								</span>
+								<span className="text-muted-foreground">
+									{showSessions ? "hide" : "show"}
+								</span>
+							</button>
+							{showSessions &&
+								sessions.map((session) => {
+									const { to, source } = SESSION_SOURCE[session.source];
+									const SourceIcon = SOURCE_ICON[to];
+									const state = SESSION_STATE[session.column];
+									return (
+										<div key={session.paneId} className={FEED_ROW}>
+											<div className="flex items-center gap-3">
+												<span
+													className={cn(
+														"flex w-[68px] shrink-0 items-center justify-center gap-1 rounded-[5px] px-[7px] py-[1px] text-[11px] font-semibold",
+														SOURCE_CHIP,
+													)}
+												>
+													<SourceIcon className="size-3 shrink-0" aria-hidden />
+													{source}
+												</span>
+												<button
+													type="button"
+													title="Open the session on the board"
+													onClick={() => {
+														usePendingFocus.getState().focus(session.paneId);
+														navigate({ to: "/board" });
+													}}
+													className="min-w-0 flex-1 truncate text-left text-[13px] font-semibold text-foreground"
+												>
+													{emojify(session.title)}
+												</button>
+												{/* The same columns the rows below use, so a live
 										    session says what its board card says: who it's
 										    for, its tags, which repo it's in, what it's
 										    doing. ponytail: no age column - the board's is a
 										    transcript read per card, too much for a list. */}
-											<div className="flex shrink-0 items-center gap-2 text-[11px]">
-												<span className={META_TAG}>
-													{session.tags[0] && (
-														<span className="truncate font-mono text-[10.5px] text-faint-foreground">
-															#{session.tags[0]}
-														</span>
-													)}
-												</span>
-												<span className={META_PERSON}>
-													{session.contact && (
-														<PersonChip
-															name={session.contact}
-															className="max-w-full truncate"
-														/>
-													)}
-												</span>
-												<span className={META_STATUS}>
-													{state && (
-														<span
-															className={cn(
-																ROW_META,
-																"flex items-center gap-1.5",
-															)}
-														>
-															<span
-																className="size-1.5 rounded-full"
-																style={{ backgroundColor: state.dot }}
+												<div className="flex shrink-0 items-center gap-2 text-[11px]">
+													<span className={META_TAG}>
+														{session.tags[0] && (
+															<span className="truncate font-mono text-[10.5px] text-faint-foreground">
+																#{session.tags[0]}
+															</span>
+														)}
+													</span>
+													<span className={META_PERSON}>
+														{session.contact && (
+															<PersonChip
+																name={session.contact}
+																className="max-w-full truncate"
 															/>
-															{state.label}
-														</span>
-													)}
-												</span>
-												<span className={META_TEXT} title={session.repo ?? ""}>
-													{session.repo}
-												</span>
-												{/* A live session has no date of its own, but the
+														)}
+													</span>
+													<span className={META_STATUS}>
+														{state && (
+															<span
+																className={cn(
+																	ROW_META,
+																	"flex items-center gap-1.5",
+																)}
+															>
+																<span
+																	className="size-1.5 rounded-full"
+																	style={{ backgroundColor: state.dot }}
+																/>
+																{state.label}
+															</span>
+														)}
+													</span>
+													<span
+														className={META_TEXT}
+														title={session.repo ?? ""}
+													>
+														{session.repo}
+													</span>
+													{/* A live session has no date of its own, but the
 												    empty slot keeps its due chip under the rows'. */}
-												<span className={META_DATE} />
-												<span className={META_DUE}>
-													<DueChip
-														itemKey={`session:${session.paneId}`}
-														title={session.title}
-													/>
+													<span className={META_DATE} />
+													<span className={META_DUE}>
+														<DueChip
+															itemKey={`session:${session.paneId}`}
+															title={session.title}
+														/>
+													</span>
+												</div>
+												<span className={ROW_PRIMARY_SLOT}>
+													<button
+														type="button"
+														onClick={() => {
+															usePendingFocus.getState().focus(session.paneId);
+															navigate({ to: "/board" });
+														}}
+														className={ROW_LIVE_BUTTON}
+													>
+														Go to session →
+													</button>
 												</span>
 											</div>
-											<span className={ROW_PRIMARY_SLOT}>
+										</div>
+									);
+								})}
+							<div className="px-1 pt-2 pb-0.5 text-[11px] font-semibold text-muted-foreground">
+								Waiting on you
+							</div>
+						</>
+					)}
+					{showDone && (
+						<DoneList
+							rows={shelfRows}
+							verb={shelf === "reading" ? "saved" : "done"}
+							onOpen={(url) => openUrl(url)}
+							onUndo={undo}
+						/>
+					)}
+					{!showDone && items.length === 0 && (
+						<div className="px-2 py-8 text-center text-xs text-muted-foreground">
+							{isFiltered ? (
+								<button
+									type="button"
+									onClick={clearFilters}
+									className="underline-offset-2 hover:underline"
+								>
+									Nothing matches these filters - clear them
+								</button>
+							) : (
+								"Nothing waiting on you 🎉"
+							)}
+						</div>
+					)}
+					{!showDone &&
+						items.map((item) => {
+							const url = item.url;
+							const SourceIcon = SOURCE_ICON[item.to];
+							const activePaneId = livePaneFor(item);
+							return (
+								<div
+									key={item.key}
+									className={cn(
+										FEED_ROW,
+										item.key === openKey && "border-primary/50 bg-secondary/60",
+									)}
+								>
+									{/* The same columns the per-source feeds use, so a row here
+							    carries what its own feed would tell you: who it's from,
+							    where it stands, where it lives. A grid, not a flex row,
+							    so the mention below wraps inside the title's column. */}
+									<div className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto_auto_auto_auto] items-center gap-x-3">
+										<span
+											className={cn(
+												"flex w-[68px] shrink-0 items-center justify-center gap-1 rounded-[5px] px-[7px] py-[1px] text-[11px] font-semibold",
+												SOURCE_CHIP,
+											)}
+										>
+											<SourceIcon className="size-3 shrink-0" aria-hidden />
+											{item.source}
+										</span>
+										<button
+											type="button"
+											title="Show details"
+											onClick={() =>
+												setOpenKey(item.key === openKey ? null : item.key)
+											}
+											className="min-w-0 flex-1 truncate text-left text-[13px] font-semibold text-foreground"
+										>
+											<OverdueMark itemKey={item.key} upstream={item.dueDate} />
+											{emojify(item.title)}
+										</button>
+										<div className="flex shrink-0 items-center gap-2 text-[11px]">
+											<span className={META_TAG}>
+												{item.priority && (
+													<PriorityLabelChip label={item.priority} />
+												)}
+											</span>
+											<span className={META_PERSON}>
+												{item.person && (
+													<PersonChip
+														name={item.person}
+														className="max-w-full truncate"
+													/>
+												)}
+											</span>
+											<span className={META_STATUS}>
+												{item.status && (
+													<span className={cn(ROW_META, "truncate")}>
+														{item.status}
+													</span>
+												)}
+											</span>
+											<span className={META_TEXT}>{item.context}</span>
+											<span className={META_DATE}>
+												{item.at > 0 &&
+													new Date(item.at).toLocaleDateString(undefined, {
+														month: "short",
+														day: "numeric",
+													})}
+											</span>
+											<span className={META_DUE}>
+												<DueChip
+													itemKey={item.key}
+													title={item.title}
+													upstream={item.dueDate}
+												/>
+											</span>
+										</div>
+										<span className={ROW_LINK_SLOT}>
+											{url && (
+												<button
+													type="button"
+													title={url}
+													onClick={() => openUrl(url)}
+													className={ROW_LINK_BUTTON}
+												>
+													Open ↗
+												</button>
+											)}
+										</span>
+										<span className={ROW_PRIMARY_SLOT}>
+											{activePaneId ? (
 												<button
 													type="button"
 													onClick={() => {
-														usePendingFocus.getState().focus(session.paneId);
+														usePendingFocus.getState().focus(activePaneId);
 														navigate({ to: "/board" });
 													}}
 													className={ROW_LIVE_BUTTON}
 												>
 													Go to session →
 												</button>
-											</span>
-										</div>
+											) : (
+												<button
+													type="button"
+													disabled={isLaunching}
+													onClick={() => void handleStart(item)}
+													className={ROW_PRIMARY_BUTTON}
+												>
+													{launchingKey === item.launch.key
+														? "Starting…"
+														: "Start session"}
+												</button>
+											)}
+										</span>
+										<button
+											type="button"
+											onClick={() => markReading(item)}
+											title="Nothing to do, but keep it - moves it to Reading material"
+											className={ROW_LINK_BUTTON}
+										>
+											Read later
+										</button>
+										<DoneButton onClick={() => markDone(item)} />
+										{/* Same preview the Jira feed shows: a mention row is there
+								    because of one comment. Column 2 keeps it under the title. */}
+										{item.mention && (
+											<div className="col-start-2 mt-1.5 line-clamp-2 cursor-text select-text text-[11.5px] leading-relaxed text-muted-foreground">
+												<span className="font-semibold text-soft-foreground">
+													{item.mention.author ?? "Someone"}
+													{": "}
+												</span>
+												{item.mention.text}
+											</div>
+										)}
 									</div>
-								);
-							})}
-						<div className="px-1 pt-2 pb-0.5 text-[11px] font-semibold text-muted-foreground">
-							Waiting on you
-						</div>
-					</>
-				)}
-				{showDone && (
-					<DoneList
-						rows={shelfRows}
-						verb={shelf === "reading" ? "saved" : "done"}
-						onOpen={(url) => openUrl(url)}
-						onUndo={undo}
+								</div>
+							);
+						})}
+				</div>
+				{openItem && (
+					<DetailsPanel
+						item={openItem}
+						onClose={() => setOpenKey(null)}
+						onOpenFeed={() => navigate({ to: openItem.to })}
 					/>
 				)}
-				{!showDone && items.length === 0 && (
-					<div className="px-2 py-8 text-center text-xs text-muted-foreground">
-						{isFiltered ? (
-							<button
-								type="button"
-								onClick={clearFilters}
-								className="underline-offset-2 hover:underline"
-							>
-								Nothing matches these filters - clear them
-							</button>
-						) : (
-							"Nothing waiting on you 🎉"
-						)}
-					</div>
-				)}
-				{!showDone &&
-					items.map((item) => {
-						const url = item.url;
-						const SourceIcon = SOURCE_ICON[item.to];
-						const activePaneId = livePaneFor(item);
-						return (
-							<div key={item.key} className={FEED_ROW}>
-								{/* The same columns the per-source feeds use, so a row here
-							    carries what its own feed would tell you: who it's from,
-							    where it stands, where it lives. A grid, not a flex row,
-							    so the mention below wraps inside the title's column. */}
-								<div className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto_auto_auto_auto] items-center gap-x-3">
-									<span
-										className={cn(
-											"flex w-[68px] shrink-0 items-center justify-center gap-1 rounded-[5px] px-[7px] py-[1px] text-[11px] font-semibold",
-											SOURCE_CHIP,
-										)}
-									>
-										<SourceIcon className="size-3 shrink-0" aria-hidden />
-										{item.source}
-									</span>
-									<button
-										type="button"
-										title={`Open the ${item.source} feed`}
-										onClick={() => navigate({ to: item.to })}
-										className="min-w-0 flex-1 truncate text-left text-[13px] font-semibold text-foreground"
-									>
-										<OverdueMark itemKey={item.key} upstream={item.dueDate} />
-										{emojify(item.title)}
-									</button>
-									<div className="flex shrink-0 items-center gap-2 text-[11px]">
-										<span className={META_TAG}>
-											{item.priority && (
-												<PriorityLabelChip label={item.priority} />
-											)}
-										</span>
-										<span className={META_PERSON}>
-											{item.person && (
-												<PersonChip
-													name={item.person}
-													className="max-w-full truncate"
-												/>
-											)}
-										</span>
-										<span className={META_STATUS}>
-											{item.status && (
-												<span className={cn(ROW_META, "truncate")}>
-													{item.status}
-												</span>
-											)}
-										</span>
-										<span className={META_TEXT}>{item.context}</span>
-										<span className={META_DATE}>
-											{item.at > 0 &&
-												new Date(item.at).toLocaleDateString(undefined, {
-													month: "short",
-													day: "numeric",
-												})}
-										</span>
-										<span className={META_DUE}>
-											<DueChip
-												itemKey={item.key}
-												title={item.title}
-												upstream={item.dueDate}
-											/>
-										</span>
-									</div>
-									<span className={ROW_LINK_SLOT}>
-										{url && (
-											<button
-												type="button"
-												title={url}
-												onClick={() => openUrl(url)}
-												className={ROW_LINK_BUTTON}
-											>
-												Open ↗
-											</button>
-										)}
-									</span>
-									<span className={ROW_PRIMARY_SLOT}>
-										{activePaneId ? (
-											<button
-												type="button"
-												onClick={() => {
-													usePendingFocus.getState().focus(activePaneId);
-													navigate({ to: "/board" });
-												}}
-												className={ROW_LIVE_BUTTON}
-											>
-												Go to session →
-											</button>
-										) : (
-											<button
-												type="button"
-												disabled={isLaunching}
-												onClick={() => void handleStart(item)}
-												className={ROW_PRIMARY_BUTTON}
-											>
-												{launchingKey === item.launch.key
-													? "Starting…"
-													: "Start session"}
-											</button>
-										)}
-									</span>
-									<button
-										type="button"
-										onClick={() => markReading(item)}
-										title="Nothing to do, but keep it - moves it to Reading material"
-										className={ROW_LINK_BUTTON}
-									>
-										Read later
-									</button>
-									<DoneButton onClick={() => markDone(item)} />
-									{/* Same preview the Jira feed shows: a mention row is there
-								    because of one comment. Column 2 keeps it under the title. */}
-									{item.mention && (
-										<div className="col-start-2 mt-1.5 line-clamp-2 cursor-text select-text text-[11.5px] leading-relaxed text-muted-foreground">
-											<span className="font-semibold text-soft-foreground">
-												{item.mention.author ?? "Someone"}
-												{": "}
-											</span>
-											{item.mention.text}
-										</div>
-									)}
-								</div>
-							</div>
-						);
-					})}
 			</div>
 		</div>
+	);
+}
+
+/**
+ * One row in full, beside the list - so reading a task doesn't cost you your
+ * place in it. Its own feed and its upstream page stay one click away.
+ */
+function DetailsPanel({
+	item,
+	onClose,
+	onOpenFeed,
+}: {
+	item: AllItem;
+	onClose: () => void;
+	onOpenFeed: () => void;
+}) {
+	const url = item.url;
+	return (
+		<aside className="flex w-[380px] shrink-0 flex-col border-l border-border">
+			<div className="flex shrink-0 items-center gap-2 px-3.5 pt-2 pb-1.5">
+				<button
+					type="button"
+					onClick={onOpenFeed}
+					className="text-[12px] font-semibold text-muted-foreground hover:text-foreground"
+				>
+					{item.source} feed →
+				</button>
+				{url && (
+					<button
+						type="button"
+						title={url}
+						onClick={() => openUrl(url)}
+						className="text-[12px] font-semibold text-muted-foreground hover:text-foreground"
+					>
+						Open ↗
+					</button>
+				)}
+				<button
+					type="button"
+					onClick={onClose}
+					aria-label="Close details"
+					className="ml-auto rounded-[7px] px-2 py-0.5 text-[13px] text-muted-foreground hover:bg-secondary hover:text-foreground"
+				>
+					✕
+				</button>
+			</div>
+			<div className="min-h-0 flex-1 overflow-y-auto px-3.5 pb-[18px]">
+				<TaskDetails item={item} />
+			</div>
+		</aside>
 	);
 }
 
