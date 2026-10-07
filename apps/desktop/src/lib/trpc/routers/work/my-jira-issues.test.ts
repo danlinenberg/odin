@@ -89,6 +89,8 @@ const RESULTS: Record<string, string[]> = {
 	// OPS-4 is the one the mention search returns because I commented on it,
 	// not because anybody named me.
 	comment: ["BUGT-2", "BUGT-3", "OPS-4"],
+	// jiraIssueStates' `key in (...)` lookup.
+	key: ["ODIN-1"],
 };
 
 const realFetch = globalThis.fetch;
@@ -224,5 +226,28 @@ describe("myJiraIssues", () => {
 	it("links rows to the site host, not the OAuth gateway", async () => {
 		const { issues } = await call();
 		expect(issues[0].url).toBe(`${SITE}/browse/ODIN-1`);
+	});
+});
+
+describe("jiraIssueStates", () => {
+	const states = (keys: string[]) =>
+		createWorkRouter()
+			.createCaller({} as never)
+			.jiraIssueStates({ keys });
+
+	it("returns each linked ticket's status, keyed by issue key", async () => {
+		expect(await states(["ODIN-1"])).toEqual({
+			"ODIN-1": { status: "In Progress", statusCategory: "In Progress" },
+		});
+	});
+
+	it("drops anything that isn't an issue key before it reaches the JQL", async () => {
+		await states(["ODIN-1", "x) OR project = SECRET"]);
+		expect(jqls).toEqual(["key in (ODIN-1)"]);
+	});
+
+	it("asks nothing when there are no keys", async () => {
+		expect(await states([])).toEqual({});
+		expect(jqls).toEqual([]);
 	});
 });
