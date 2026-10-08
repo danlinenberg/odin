@@ -21,7 +21,7 @@ import { ClaudeCommandPicker } from "renderer/components/ClaudeCommandPicker";
 import { ZoomStable } from "renderer/components/ZoomStable/ZoomStable";
 import { useTaskQueue } from "renderer/hooks/useTaskQueue";
 import { useZoomFactor } from "renderer/hooks/useZoomFactor";
-import { useHotkey } from "renderer/hotkeys";
+import { parseBinding, useBinding, useHotkey } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useLaunchLimits } from "renderer/stores/launch-limits";
 import { useTabsStore } from "renderer/stores/tabs/store";
@@ -383,6 +383,31 @@ function OdinShell() {
 	// inside a session's terminal, which is where most of them occur to you.
 	const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
 	const newTaskKeys = useHotkey("ODIN_NEW_TASK", () => setIsQuickAddOpen(true));
+	// The same chord from any other app too: Odin comes forward with the box
+	// open, and steps back once you're done with it.
+	const [hideOnQuickAddClose, setHideOnQuickAddClose] = useState(false);
+	const newTaskBinding = useBinding("ODIN_NEW_TASK");
+	const newTaskChord = newTaskBinding
+		? parseBinding(newTaskBinding).chord
+		: null;
+	const setNewTaskChord = electronTrpc.menu.setNewTaskChord.useMutation();
+	const hideApp = electronTrpc.menu.hideApp.useMutation();
+	// biome-ignore lint/correctness/useExhaustiveDependencies: mutate is stable
+	useEffect(() => {
+		setNewTaskChord.mutate({ chord: newTaskChord });
+	}, [newTaskChord]);
+	electronTrpc.menu.subscribe.useSubscription(undefined, {
+		onData: (event) => {
+			if (event.type !== "new-task") return;
+			setHideOnQuickAddClose(event.data.fromElsewhere);
+			setIsQuickAddOpen(true);
+		},
+	});
+	const closeQuickAdd = () => {
+		setIsQuickAddOpen(false);
+		if (hideOnQuickAddClose) hideApp.mutate();
+		setHideOnQuickAddClose(false);
+	};
 	const askCrow = useCrow();
 	const isCrowOpen = useCrowDialog((s) => s.isOpen);
 	const setCrowOpen = useCrowDialog((s) => s.setOpen);
@@ -605,9 +630,7 @@ function OdinShell() {
 			</div>
 
 			<SessionContextDialog />
-			{isQuickAddOpen && (
-				<QuickAddTask onClose={() => setIsQuickAddOpen(false)} />
-			)}
+			{isQuickAddOpen && <QuickAddTask onClose={closeQuickAdd} />}
 			{isSearchAllOpen && (
 				<SearchAll onClose={() => setIsSearchAllOpen(false)} />
 			)}
