@@ -1002,6 +1002,15 @@ describe("agent-wrappers claude settings.json", () => {
 		rmSync(TEST_ROOT, { recursive: true, force: true });
 	});
 
+	it("pre-accepts Claude's bypass-permissions warning", () => {
+		const content = getClaudeGlobalSettingsJsonContent(
+			"/tmp/.odin/hooks/notify.sh",
+		);
+		expect(JSON.parse(content ?? "{}").skipDangerousModePermissionPrompt).toBe(
+			true,
+		);
+	});
+
 	it("creates Claude settings.json with hooks when no file exists", () => {
 		const notifyPath = "/tmp/.odin/hooks/notify.sh";
 		const content = getClaudeGlobalSettingsJsonContent(notifyPath);

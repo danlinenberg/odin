@@ -296,6 +296,10 @@ export function getClaudeGlobalSettingsJsonContent(
 	if (existing.hooks.SubagentStop.length === 0) {
 		delete existing.hooks.SubagentStop;
 	}
+	// Odin launches Claude with --dangerously-skip-permissions. Without this
+	// key the CLI opens its one-time "Bypass Permissions mode" warning, which
+	// defaults to "No, exit" and leaves a task session stuck on it.
+	existing.skipDangerousModePermissionPrompt = true;
 
 	return JSON.stringify(existing, null, 2);
 }
