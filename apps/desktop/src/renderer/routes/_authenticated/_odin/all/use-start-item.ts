@@ -10,6 +10,18 @@ import { usePaneMeta } from "../hooks/usePaneMeta";
 import { usePendingFocus } from "../hooks/usePendingFocus";
 import type { AllItem } from "./all-items";
 
+/** Is this pane the session started on this row? See livePaneFor. */
+export function paneWorksOn(
+	pane: { odinPageId?: string; odinTaskTitle?: string; odinBrief?: string },
+	item: AllItem,
+): boolean {
+	return (
+		(item.launch.pageId != null && pane.odinPageId === item.launch.pageId) ||
+		pane.odinTaskTitle === item.launch.title ||
+		pane.odinBrief === item.launch.brief
+	);
+}
+
 /**
  * Start a session on an All row, from wherever the row is shown - the All
  * feed, or the board's Next in line. `onSlackStarted` refetches whatever
@@ -37,12 +49,7 @@ export function useStartAllItem(onSlackStarted?: () => void) {
 	 */
 	const livePaneFor = (item: AllItem): string | null =>
 		Object.values(panes).find(
-			(pane) =>
-				!pane.completed &&
-				((item.launch.pageId != null &&
-					pane.odinPageId === item.launch.pageId) ||
-					pane.odinTaskTitle === item.launch.title ||
-					pane.odinBrief === item.launch.brief),
+			(pane) => !pane.completed && paneWorksOn(pane, item),
 		)?.id ?? null;
 
 	/**
