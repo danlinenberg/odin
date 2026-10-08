@@ -335,6 +335,7 @@ await step("boots straight onto the Dev Board, no sign-in", async () => {
 
 // Each rail entry and a line only its screen prints.
 const SCREENS: [string, string][] = [
+	["Home", "nothing is running"],
 	["Tasks", "waiting on you"],
 	["Review", "sweep now"],
 	["Automations", "add automation"],

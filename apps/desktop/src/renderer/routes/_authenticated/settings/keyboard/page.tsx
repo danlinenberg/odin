@@ -35,6 +35,7 @@ import {
  * this shell has no UI for them, so showing them here was noise.
  */
 const LISTED_HOTKEYS: HotkeyId[] = [
+	"ODIN_HOME",
 	"ODIN_BOARD",
 	"ODIN_BOARD_SEARCH",
 	"ODIN_ALL",
