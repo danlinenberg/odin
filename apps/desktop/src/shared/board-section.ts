@@ -6,6 +6,7 @@ import type { Pane } from "./tabs-types";
  * of one undifferentiated list.
  */
 export type BoardSection =
+	| "starred"
 	| "recent"
 	| "queued"
 	| "parked"
@@ -17,6 +18,7 @@ export type BoardSection =
 	| "normal";
 
 export const SECTION_LABEL: Record<BoardSection, string> = {
+	starred: "Starred",
 	recent: "Recently finished",
 	queued: "Queued",
 	parked: "Parked",
@@ -56,24 +58,28 @@ function isParked(pane: Pane): boolean {
 /**
  * Cards grouped into sections, empty sections dropped, order fixed.
  *
- * Recently finished cards (`isRecent`) are pinned above everything: the one
- * that just landed is the one you came to look at.
+ * Starred cards are pinned above everything, in their own section: you
+ * marked them as the ones that matter.
+ * Recently finished cards (`isRecent`) come next: the one that just landed is
+ * the one you came to look at.
  * Queued and Parked come next and cut across the source sections: one hasn't
  * started yet and the other you put down on purpose, so neither is an Idle
- * card asking to be resumed, whichever feed started it. Starred cards sit at
- * the top of whichever section they land in; the rest keep their order.
+ * card asking to be resumed, whichever feed started it.
  */
 export function bySection<T extends { pane: Pane }>(
 	all: T[],
 	isRecent: (card: T) => boolean = () => false,
 ): [BoardSection, T[]][] {
-	const cards = all.filter((card) => !isRecent(card));
+	const starred = all.filter((card) => card.pane.odinStarred);
+	const unstarred = all.filter((card) => !card.pane.odinStarred);
+	const cards = unstarred.filter((card) => !isRecent(card));
 	const rest = cards.filter(
 		(card) => !isParked(card.pane) && !isQueued(card.pane),
 	);
 	return (
 		[
-			["recent", all.filter(isRecent)],
+			["starred", starred],
+			["recent", unstarred.filter(isRecent)],
 			["queued", cards.filter((card) => isQueued(card.pane))],
 			[
 				"parked",
@@ -84,13 +90,5 @@ export function bySection<T extends { pane: Pane }>(
 				rest.filter((card) => boardSection(card.pane) === section),
 			]),
 		] as [BoardSection, T[]][]
-	)
-		.filter(([, group]) => group.length > 0)
-		.map(([section, group]) => [
-			section,
-			// Stable sort: starred first, everything else in arrival order.
-			group.toSorted(
-				(a, b) => Number(!!b.pane.odinStarred) - Number(!!a.pane.odinStarred),
-			),
-		]);
+	).filter(([, group]) => group.length > 0);
 }

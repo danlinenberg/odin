@@ -48,22 +48,29 @@ describe("bySection", () => {
 });
 
 describe("bySection with starred cards", () => {
-	it("pins starred cards to the top of each section, keeping order", () => {
-		const grouped = bySection([
-			card({ id: "a", odinSource: "jira" }),
-			card({ id: "b", odinSource: "jira", odinStarred: true }),
-			card({ id: "c" }),
-			card({ id: "d" }),
-			card({ id: "e", odinStarred: true }),
-			card({ id: "f", odinParked: true }),
-			card({ id: "g", odinParked: true, odinStarred: true }),
-		]);
+	it("lifts starred cards into one section above all others, keeping order", () => {
+		const grouped = bySection(
+			[
+				card({ id: "a", odinSource: "jira" }),
+				card({ id: "b", odinSource: "jira", odinStarred: true }),
+				card({ id: "c" }),
+				card({ id: "d" }),
+				card({ id: "e", odinStarred: true }),
+				card({ id: "f", odinParked: true }),
+				card({ id: "g", odinParked: true, odinStarred: true }),
+				card({ id: "h", odinStarred: true }),
+			],
+			// A starred card that just finished stays in Starred.
+			(item) => item.pane.id === "c" || item.pane.id === "h",
+		);
 		expect(
 			grouped.map(([section, group]) => [section, group.map((c) => c.pane.id)]),
 		).toEqual([
-			["parked", ["g", "f"]],
-			["jira", ["b", "a"]],
-			["normal", ["e", "c", "d"]],
+			["starred", ["b", "e", "g", "h"]],
+			["recent", ["c"]],
+			["parked", ["f"]],
+			["jira", ["a"]],
+			["normal", ["d"]],
 		]);
 	});
 });

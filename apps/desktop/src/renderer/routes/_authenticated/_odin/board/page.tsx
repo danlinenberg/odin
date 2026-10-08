@@ -40,6 +40,7 @@ import {
 	LuPause,
 	LuPlay,
 	LuRepeat,
+	LuStar,
 	LuTerminal,
 } from "react-icons/lu";
 import { SiJira, SiNotion, SiSlack } from "react-icons/si";
@@ -147,6 +148,8 @@ import {
  * imported by the main process, which has no business loading React icons.
  */
 const SECTION_ICON: Record<BoardSection, IconType> = {
+	// Not a source - the sessions you marked as the ones that matter.
+	starred: LuStar,
 	// Not a source - its turn ended in the last JUST_DONE_MS.
 	recent: LuCircleCheck,
 	// Not a source - a task that exists but hasn't started.
@@ -3243,6 +3246,17 @@ function DevBoardPage() {
 		toast.success("Parked in Idle - session still open", undoAction(undo));
 	};
 
+	const toggleStar = (paneId: string) =>
+		useTabsStore.setState((state) => ({
+			panes: {
+				...state.panes,
+				[paneId]: {
+					...state.panes[paneId],
+					odinStarred: !state.panes[paneId]?.odinStarred,
+				},
+			},
+		}));
+
 	/**
 	 * Done = end it and off the board. removePane kills the PTY and drops the
 	 * pane (and its tab, when it's the only one). There used to be a separate
@@ -3498,17 +3512,7 @@ function DevBoardPage() {
 										.keep(activeProfileId, tagMenuDrop.key)
 							: undefined
 					}
-					onStar={() =>
-						useTabsStore.setState((state) => ({
-							panes: {
-								...state.panes,
-								[tagMenu.paneId]: {
-									...state.panes[tagMenu.paneId],
-									odinStarred: !state.panes[tagMenu.paneId]?.odinStarred,
-								},
-							},
-						}))
-					}
+					onStar={() => toggleStar(tagMenu.paneId)}
 					onToggle={(tag) => toggleTag(tagMenu.paneId, tag)}
 					onClose={() => setTagMenu(null)}
 				/>
@@ -3528,10 +3532,11 @@ function DevBoardPage() {
 								focusedAt,
 							) > 0,
 					);
-					// One section is just the column - don't label it, unless it's
-					// Parked: "you put these down" is worth saying on its own.
+					// One section is just the column - don't label it, unless it says
+					// something on its own (Starred, Parked: "you put these down").
 					const labelled =
 						sections.length > 1 ||
+						sections[0]?.[0] === "starred" ||
 						sections[0]?.[0] === "recent" ||
 						sections[0]?.[0] === "parked" ||
 						sections[0]?.[0] === "queued";
@@ -3690,19 +3695,31 @@ function DevBoardPage() {
 															>
 																<div className="flex items-start gap-2">
 																	<div className="min-w-0 flex-1 break-words text-[12.5px] font-semibold">
-																		{card.pane.odinStarred && (
-																			<span
-																				title="Starred"
-																				className="mr-1 text-attention"
-																			>
-																				★
-																			</span>
-																		)}
 																		<OverdueMark
 																			itemKey={`session:${card.pane.id}`}
 																		/>
 																		{cardTitle(card)}
 																	</div>
+																	<button
+																		type="button"
+																		title={
+																			card.pane.odinStarred
+																				? "Unstar"
+																				: "Star - pin to the top"
+																		}
+																		aria-pressed={!!card.pane.odinStarred}
+																		onClick={(event) => {
+																			event.stopPropagation();
+																			toggleStar(card.pane.id);
+																		}}
+																		className={cn(
+																			"shrink-0 rounded-[5px] px-1 text-[12px] text-attention transition-opacity hover:bg-attention/15",
+																			!card.pane.odinStarred &&
+																				"opacity-0 group-hover:opacity-100",
+																		)}
+																	>
+																		{card.pane.odinStarred ? "★" : "☆"}
+																	</button>
 																	<button
 																		type="button"
 																		title="Done - remove from the board"
