@@ -14,8 +14,8 @@ import {
 	HiOutlineClipboardDocumentCheck,
 	HiOutlineClock,
 	HiOutlineCog6Tooth,
-	HiOutlineHome,
 	HiOutlineScale,
+	HiOutlineSquares2X2,
 	HiOutlineViewColumns,
 } from "react-icons/hi2";
 import { ClaudeCommandPicker } from "renderer/components/ClaudeCommandPicker";
@@ -83,8 +83,8 @@ const RAIL_ITEMS = [
 	{
 		to: "/home" as const,
 		hotkey: "ODIN_HOME" as const,
-		label: "Home",
-		Icon: HiOutlineHome,
+		label: "Sessions",
+		Icon: HiOutlineSquares2X2,
 	},
 	{
 		to: "/board" as const,

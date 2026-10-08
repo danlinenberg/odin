@@ -48,7 +48,7 @@ export const HOTKEYS_REGISTRY = {
 	// settings/keyboard/page.tsx).
 	ODIN_HOME: {
 		key: { mac: L("o"), windows: L("o"), linux: L("o") },
-		label: "Home",
+		label: "Sessions",
 		category: "Navigation",
 		description: "Open the live terminals of every session working or waiting",
 	},

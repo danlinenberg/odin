@@ -424,7 +424,7 @@ function HomePage() {
 
 	const header = (
 		<div className="flex shrink-0 items-center gap-3 px-[18px] pb-2 pt-2.5">
-			<h1 className="text-[15px] font-semibold">Home</h1>
+			<h1 className="text-[15px] font-semibold">Sessions</h1>
 			<button
 				type="button"
 				title="Describe a task and start an agent session"
