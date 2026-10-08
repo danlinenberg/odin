@@ -58,7 +58,7 @@ export function useNightAgentRunner() {
 		let running = false;
 		const tick = async () => {
 			if (running) return;
-			const { offHours, offHoursStarted, setOffHoursStarted } =
+			const { offHours, offHoursStarted, setOffHours, setOffHoursStarted } =
 				useNextInLinePrompt.getState();
 			if (!offHours.enabled) return;
 			if (!inOffHours(new Date(), offHours.start, offHours.end)) {
@@ -78,7 +78,30 @@ export function useNightAgentRunner() {
 			if (busy) return;
 			running = true;
 			try {
-				const { waiting, rankInput, prompt } = latest.current;
+				const { waiting, rankInput, prompt, start, duplicateFor } =
+					latest.current;
+				if (offHours.picked.length) {
+					// Picks are yours, so the ranking and its hides don't apply to them.
+					const byKey = new Map(waiting.map((row) => [row.key, row]));
+					// A pick the feed no longer lists is dropped, so it can't hold a cap slot.
+					if (waiting.length && offHours.picked.some((key) => !byKey.has(key)))
+						setOffHours({
+							picked: offHours.picked.filter((key) => byKey.has(key)),
+						});
+					const item = offHours.picked
+						.map((key) => byKey.get(key))
+						.find(
+							(row) => row && !tried.current.has(row.key) && !duplicateFor(row),
+						);
+					if (!item) return;
+					tried.current.add(item.key);
+					setOffHours({
+						picked: offHours.picked.filter((key) => key !== item.key),
+					});
+					setOffHoursStarted(offHoursStarted + 1);
+					await start(item, { instructions: offHours.instructions });
+					return;
+				}
 				const instructions = nightInstructions(prompt, offHours.instructions);
 				const stale =
 					night.current?.instructions !== instructions ||
@@ -106,7 +129,7 @@ export function useNightAgentRunner() {
 					);
 				}
 				const { order, hidden } = night.current as NightRanking;
-				const { pinned, unpinned, start, duplicateFor } = latest.current;
+				const { pinned, unpinned } = latest.current;
 				const rank = (key: string) => order.get(key) ?? order.size;
 				const item = [
 					...pinned,

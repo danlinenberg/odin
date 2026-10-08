@@ -10,13 +10,19 @@ export interface OffHours {
 	maxSessions: number;
 	/** Appended to every Night Agent task's prompt. */
 	instructions: string;
+	/** Rows you picked for the night, in start order. The Night Agent runs only these, when any are set. */
+	picked: string[];
 }
+
+/** A cap on picks, so the saved list stays a few hundred bytes. */
+export const MAX_NIGHT_PICKS = 20;
 
 export const DEFAULT_OFF_HOURS: OffHours = {
 	enabled: false,
 	start: "23:00",
 	end: "07:00",
 	maxSessions: 8,
+	picked: [],
 	instructions:
 		"This is a Night Agent run: I'm asleep and will read the result in the morning. Get it as far as you can on your own - investigate, find the root cause, and make and verify the change on a branch with a PR open. Don't do anything other people would see before I've looked: no Slack or email messages, no Jira or PR comments, no merging, no deploys. Leave those in ACTION ITEMS.",
 };
@@ -30,6 +36,17 @@ export function inOffHours(now: Date, start: string, end: string): boolean {
 	const t = now.getHours() * 60 + now.getMinutes();
 	const [s, e] = [minutes(start), minutes(end)];
 	return s <= e ? t >= s && t < e : t >= s || t < e;
+}
+
+/** Adds or removes a row from tonight's picks. Adding is refused at the cap. */
+export function toggleNightPick(key: string): void {
+	const { offHours, setOffHours } = useNextInLinePrompt.getState();
+	const picked = offHours.picked;
+	if (picked.includes(key)) {
+		setOffHours({ picked: picked.filter((pick) => pick !== key) });
+	} else if (picked.length < MAX_NIGHT_PICKS) {
+		setOffHours({ picked: [...picked, key] });
+	}
 }
 
 /**

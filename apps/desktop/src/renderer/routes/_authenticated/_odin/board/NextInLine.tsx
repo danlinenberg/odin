@@ -10,6 +10,7 @@ import {
 	LuCheck,
 	LuExternalLink,
 	LuLoaderCircle,
+	LuMoon,
 	LuSettings2,
 	LuSparkles,
 } from "react-icons/lu";
@@ -17,7 +18,11 @@ import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
 import { openUrl } from "renderer/stores/in-app-browser";
-import { useNextInLinePrompt } from "renderer/stores/next-in-line-prompt";
+import {
+	MAX_NIGHT_PICKS,
+	toggleNightPick,
+	useNextInLinePrompt,
+} from "renderer/stores/next-in-line-prompt";
 import { create } from "zustand";
 import type { AllItem } from "../all/all-items";
 import { allItems } from "../all/all-items";
@@ -291,6 +296,7 @@ export function useNextInLineQueue(showHidden = false) {
 
 export function NextInLine() {
 	const { ranking, applied, startedAt, error } = useAiRanking();
+	const picked = useNextInLinePrompt((s) => s.offHours.picked);
 	const navigate = useNavigate();
 	// The rows your instructions hide, per the model - revealed, dimmed, on ask.
 	const [showHidden, setShowHidden] = useState(false);
@@ -365,6 +371,15 @@ export function NextInLine() {
 					>
 						<LuSettings2 className="size-3.5" aria-hidden />
 					</button>
+					{picked.length > 0 && (
+						<span
+							title="Picked for tonight - the Night Agent runs only these"
+							className="flex items-center gap-1 font-normal normal-case tracking-normal text-primary"
+						>
+							<LuMoon className="size-3" aria-hidden />
+							{picked.length}
+						</span>
+					)}
 					<HiddenToggle
 						count={aiHiddenCount}
 						showing={showHidden}
@@ -416,6 +431,8 @@ export function NextInLine() {
 		const Icon = ICON[item.to];
 		const meta = [item.person, item.context].filter(Boolean).join(" · ");
 		const duplicate = duplicateFor(item);
+		const pickIndex = picked.indexOf(item.key);
+		const pickFull = pickIndex < 0 && picked.length >= MAX_NIGHT_PICKS;
 		return (
 			<div
 				key={item.key}
@@ -471,6 +488,11 @@ export function NextInLine() {
 									</span>
 								)}
 								<span className="min-w-0 truncate">{meta}</span>
+								{pickIndex >= 0 && (
+									<span className="shrink-0 font-medium text-primary">
+										Night #{pickIndex + 1}
+									</span>
+								)}
 								{due && (
 									<span className="ml-auto shrink-0">
 										<DueChip
@@ -517,6 +539,28 @@ export function NextInLine() {
 						launchingKey === item.launch.key && "flex",
 					)}
 				>
+					<button
+						type="button"
+						onClick={() => toggleNightPick(item.key)}
+						disabled={pickFull}
+						aria-pressed={pickIndex >= 0}
+						aria-label="Pick for tonight"
+						title={
+							pickIndex >= 0
+								? "Take off tonight's picks"
+								: pickFull
+									? `Tonight's picks are full (${MAX_NIGHT_PICKS})`
+									: "Pick for tonight - the Night Agent runs only picks"
+						}
+						className={cn(
+							"rounded-md p-1 hover:bg-accent disabled:opacity-40",
+							pickIndex >= 0
+								? "text-primary"
+								: "text-muted-foreground hover:text-foreground",
+						)}
+					>
+						<LuMoon className="size-3.5" aria-hidden />
+					</button>
 					{item.url && /^https?:\/\//.test(item.url) && (
 						<button
 							type="button"
