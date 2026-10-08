@@ -3,6 +3,7 @@ import { useState } from "react";
 import { MarkdownRenderer } from "renderer/components/MarkdownRenderer";
 import { BUTTON } from "../components/pill";
 import { COMPACT_MARKDOWN } from "../components/TranscriptView";
+import { menuKeys, type ScreenMenu } from "./screen-menu";
 
 type Question = {
 	question?: string;
@@ -193,6 +194,54 @@ export function PlanCard({
 				>
 					Ask for changes
 				</button>
+			</div>
+		</div>
+	);
+}
+
+/**
+ * Any other pick-one menu the TUI draws (a startup warning, folder trust, a
+ * slash-command picker), mirrored from the screen - it never reaches the
+ * transcript.
+ */
+export function ScreenMenuCard({
+	menu,
+	onKeys,
+}: {
+	menu: ScreenMenu;
+	onKeys: (keys: string[]) => void;
+}) {
+	const [sent, setSent] = useState(false);
+	return (
+		<div className="rounded-xl border border-attention/35 bg-attention/[0.07] px-4 py-3">
+			<div className="mb-2 text-[11px] font-semibold uppercase tracking-[.08em] text-attention">
+				The terminal is asking
+			</div>
+			{menu.title && (
+				<div className="mb-3 max-h-[240px] select-text cursor-text overflow-y-auto whitespace-pre-wrap text-[12.5px] text-soft-foreground">
+					{menu.title}
+				</div>
+			)}
+			<div className="flex flex-wrap gap-2">
+				{menu.options.map((option, index) => (
+					<button
+						key={`${index}-${option}`}
+						type="button"
+						disabled={sent}
+						onClick={() => {
+							setSent(true);
+							onKeys(menuKeys(menu, index));
+						}}
+						className={cn(
+							"max-w-full rounded-lg border px-3 py-1.5 text-left text-[12.5px] font-medium disabled:opacity-60",
+							index === menu.selected
+								? "border-primary/60 bg-primary/10 text-foreground"
+								: "border-border bg-secondary text-soft-foreground hover:bg-accent hover:text-foreground",
+						)}
+					>
+						{option}
+					</button>
+				))}
 			</div>
 		</div>
 	);
