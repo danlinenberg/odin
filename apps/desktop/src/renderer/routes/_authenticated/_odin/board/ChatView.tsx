@@ -315,6 +315,23 @@ function toolSummary(input: Record<string, unknown>): string {
 	return "";
 }
 
+/** Colour +/- lines green/red like the terminal, only for output that has a diff hunk. */
+function DiffColored({ text }: { text: string }) {
+	if (!/^@@ /m.test(text)) return <>{text}</>;
+	return text.split("\n").map((line, index) => (
+		<div
+			// biome-ignore lint/suspicious/noArrayIndexKey: static lines, never reordered
+			key={index}
+			className={cn(
+				/^\+(?!\+\+ )/.test(line) && "text-emerald-400",
+				/^-(?!-- )/.test(line) && "text-danger",
+			)}
+		>
+			{line || "\u00a0"}
+		</div>
+	));
+}
+
 const ToolRow = memo(function ToolRow({
 	item,
 }: {
@@ -374,7 +391,7 @@ const ToolRow = memo(function ToolRow({
 							)}
 						>
 							{/* ponytail: capped - a 2MB tool output in a <pre> stalls the drawer */}
-							{item.result.slice(0, 20_000)}
+							<DiffColored text={item.result.slice(0, 20_000)} />
 						</pre>
 					)}
 				</div>
