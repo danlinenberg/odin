@@ -563,8 +563,10 @@ function UserBubble({
 	pending?: boolean;
 }) {
 	// A launch prompt (task + standing rules + reply format) fills the screen;
-	// show its first lines until clicked open.
-	const long = text.length > 300 || text.split("\n").length > 4;
+	// show just the request you typed until clicked open.
+	const request = launchRequest(text);
+	const long =
+		request !== null || text.length > 300 || text.split("\n").length > 4;
 	const [open, setOpen] = useState(false);
 	return (
 		<div
@@ -580,7 +582,7 @@ function UserBubble({
 			<div className={cn(long && !open && "line-clamp-3")}>
 				{/* Typed line breaks stay: markdown would fold them into spaces. */}
 				<MarkdownRenderer
-					content={text}
+					content={open || request === null ? text : request}
 					style="default"
 					allowHtml={false}
 					className={cn(
@@ -595,7 +597,11 @@ function UserBubble({
 					onClick={() => setOpen(!open)}
 					className="mt-1 text-[12px] text-link hover:underline"
 				>
-					{open ? "Show less" : "Show more"}
+					{open
+						? "Show less"
+						: request === null
+							? "Show more"
+							: "Show full prompt"}
 				</button>
 			)}
 		</div>
@@ -688,6 +694,26 @@ export function splitActionItems(text: string): {
 		body: text.slice(0, match.index).trim(),
 		actions: `${match[1] ?? ""}${rest}`.trim() || null,
 	};
+}
+
+/**
+ * The block heads useLaunchTaskSession and the rules store put after a task's
+ * title and description: attachments, your context, standing rules, and the
+ * closing instructions. Keep these in step with those writers.
+ */
+const LAUNCH_SCAFFOLD =
+	/^(Attached files|Context and guidelines from me|This run was started by a schedule|Standing rules - follow each one|Work in the current workspace\.)/;
+
+/**
+ * The request you typed in a launch prompt - its title and description, without
+ * the scaffolding the launcher added after them. null when there is none to fold.
+ */
+export function launchRequest(text: string): string | null {
+	const blocks = text.split(/\n\n+/);
+	const at = blocks.findIndex(
+		(block, i) => i > 0 && LAUNCH_SCAFFOLD.test(block),
+	);
+	return at < 0 ? null : blocks.slice(0, at).join("\n\n");
 }
 
 /** An item that asks you to sign off - it gets an Approve button, "(you only)" or not. */
