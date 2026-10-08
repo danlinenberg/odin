@@ -8,6 +8,11 @@ import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useCompacting } from "renderer/stores/compacting";
 import { openUrl } from "renderer/stores/in-app-browser";
 import { useSessionView } from "renderer/stores/session-view";
+import {
+	insertSkill,
+	matchSkills,
+	skillToken,
+} from "../components/skill-picker";
 import { COMPACT_MARKDOWN } from "../components/TranscriptView";
 import { PlanCard, QuestionCard } from "./ChatPrompts";
 import { collectRefs, linkify } from "./chat-links";
@@ -1107,6 +1112,21 @@ function Composer({
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const write = electronTrpc.terminal.write.useMutation();
 	const setChat = useSessionView((s) => s.setChat);
+	// Type `/` and the agent's skills/commands are searchable, like the New
+	// Session dialog. Picking one fills in `/name `; Enter then sends it.
+	const { data: skills = [] } = electronTrpc.skills.list.useQuery();
+	const [menuClosed, setMenuClosed] = useState(false);
+	const [selected, setSelected] = useState(0);
+	const token = bash ? undefined : skillToken(draft);
+	const matches = useMemo(
+		() => (token === undefined || menuClosed ? [] : matchSkills(skills, token)),
+		[skills, token, menuClosed],
+	);
+	const activeIndex = Math.min(selected, Math.max(matches.length - 1, 0));
+	const pickSkill = (name: string) => {
+		setDraft((text) => insertSkill(text, name));
+		setSelected(0);
+	};
 	useEffect(() => inputRef.current?.focus(), []);
 	// Grow with the text, up to ~10 lines, like the desktop app's box.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: re-measure on every draft change
@@ -1137,10 +1157,39 @@ function Composer({
 		<div className="px-4 pb-3 pt-1">
 			<div
 				className={cn(
-					"rounded-[14px] border border-border bg-background px-3 pb-2 pt-2.5 focus-within:border-primary/60",
+					"relative rounded-[14px] border border-border bg-background px-3 pb-2 pt-2.5 focus-within:border-primary/60",
 					bash && "border-pink-500/60 focus-within:border-pink-500",
 				)}
 			>
+				{matches.length > 0 && (
+					<div className="absolute inset-x-0 bottom-full mb-1.5 overflow-hidden rounded-[10px] border border-border bg-popover shadow-[0_12px_40px_rgba(0,0,0,0.5)]">
+						<div className="max-h-[240px] overflow-y-auto py-1">
+							{matches.map((skill, index) => (
+								<button
+									key={skill.name}
+									type="button"
+									onMouseEnter={() => setSelected(index)}
+									// The textarea keeps focus: mousedown fires before blur.
+									onMouseDown={(event) => {
+										event.preventDefault();
+										pickSkill(skill.name);
+									}}
+									className={cn(
+										"flex w-full items-baseline gap-2 px-3 py-1 text-left",
+										index === activeIndex && "bg-secondary",
+									)}
+								>
+									<span className="shrink-0 font-mono text-[12.5px] font-semibold text-foreground">
+										/{skill.name}
+									</span>
+									<span className="min-w-0 flex-1 truncate text-[11.5px] text-muted-foreground">
+										{skill.description}
+									</span>
+								</button>
+							))}
+						</div>
+					</div>
+				)}
 				{previews.length > 0 && (
 					<PreviewStrip previews={previews} className="mb-2" />
 				)}
@@ -1160,6 +1209,7 @@ function Composer({
 								setBash(true);
 								setDraft(value.slice(1));
 							} else setDraft(value);
+							setMenuClosed(false);
 						}}
 						onPaste={(event) => {
 							const files = [...event.clipboardData.files];
@@ -1183,6 +1233,30 @@ function Composer({
 							]);
 						}}
 						onKeyDown={(event) => {
+							if (matches.length > 0 && !event.nativeEvent.isComposing) {
+								// While the skill menu is open it owns these keys.
+								if (event.key === "Escape") {
+									event.preventDefault();
+									setMenuClosed(true);
+									return;
+								}
+								if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+									event.preventDefault();
+									const step =
+										event.key === "ArrowDown" ? 1 : matches.length - 1;
+									setSelected((index) => (index + step) % matches.length);
+									return;
+								}
+								if (
+									(event.key === "Enter" && !event.shiftKey) ||
+									event.key === "Tab"
+								) {
+									event.preventDefault();
+									const match = matches[activeIndex];
+									if (match) pickSkill(match.name);
+									return;
+								}
+							}
 							if (
 								bash &&
 								!draft &&
@@ -1224,7 +1298,8 @@ function Composer({
 						</span>
 					) : (
 						<span className="text-[11px] text-faint-foreground">
-							Enter to send · Shift+Enter for a new line · ! for bash
+							Enter to send · Shift+Enter for a new line · ! for bash · / for
+							skills
 						</span>
 					)}
 					{working ? (
