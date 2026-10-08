@@ -29,6 +29,11 @@ describe("linkKind", () => {
 			kind: "notion",
 			id: ID,
 		});
+		// The API's own page urls, which the Notion feed passes on.
+		expect(linkKind(`https://app.notion.com/p/Add-feed-${ID}`)).toEqual({
+			kind: "notion",
+			id: ID,
+		});
 		expect(linkKind(`https://www.notion.so/ws/0000?v=1&p=${ID}`)).toEqual({
 			kind: "notion",
 			id: ID,
