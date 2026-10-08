@@ -128,6 +128,7 @@ import {
 	remindSession,
 	SessionReminders,
 } from "./SessionReminders";
+import { visibleScreen } from "./visible-screen";
 
 /**
  * The same marks the feed tabs use, so a section header reads as its source at
@@ -181,24 +182,6 @@ interface BoardCard {
 	/** The workspace's own checkout - where a card with no pane cwd runs. */
 	repoPath: string;
 	status: PaneStatus;
-}
-
-/**
- * What the mounted terminal is showing right now, as plain text. The board's
- * other screen reads go through the daemon and come back on a timer; a
- * keypress can't wait for that, and the xterm in the drawer already holds the
- * same rows.
- */
-function visibleScreen(paneId: string): string {
-	const xterm = terminalCache.get(paneId)?.xterm;
-	if (!xterm) return "";
-	const buffer = xterm.buffer.active;
-	const lines: string[] = [];
-	for (let row = 0; row < xterm.rows; row++)
-		lines.push(
-			buffer.getLine(buffer.viewportY + row)?.translateToString(true) ?? "",
-		);
-	return lines.join("\n");
 }
 
 /**

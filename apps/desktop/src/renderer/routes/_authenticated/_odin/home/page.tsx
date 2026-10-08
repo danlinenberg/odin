@@ -13,7 +13,9 @@ import {
 } from "react";
 import {
 	HiOutlineArrowsPointingOut,
+	HiOutlineArrowTopRightOnSquare,
 	HiOutlineChatBubbleLeftRight,
+	HiOutlineXMark,
 } from "react-icons/hi2";
 import { emojify } from "renderer/lib/emoji";
 import { runWhenParserIdle } from "renderer/lib/terminal/parser-idle-gate";
@@ -25,9 +27,12 @@ import { useHomeOrder } from "renderer/stores/home-order";
 import { useInAppBrowser } from "renderer/stores/in-app-browser";
 import { useSessionView } from "renderer/stores/session-view";
 import { useTabsStore } from "renderer/stores/tabs/store";
+import type { Pane, PaneStatus } from "renderer/stores/tabs/types";
 import { profileOf } from "shared/odin-profile";
+import { escIsHandledOnScreen } from "shared/odin-screen-status";
 import { ChatView } from "../board/ChatView";
 import { interruptPane } from "../board/interrupt";
+import { visibleScreen } from "../board/visible-screen";
 import { NewSessionDialog } from "../components/NewSessionDialog";
 import { untruncatedTitle } from "../components/OdinPromptDialog";
 import { BUTTON } from "../components/pill";
@@ -36,13 +41,7 @@ import { useOdinProfile } from "../hooks/useOdinProfile";
 import { usePaneMeta } from "../hooks/usePaneMeta";
 import { usePendingFocus } from "../hooks/usePendingFocus";
 import { PANE_STATUS } from "../pane-status";
-import {
-	type HomeCard,
-	homeCards,
-	homeGrid,
-	homeOrder,
-	moveCard,
-} from "./home-cards";
+import { homeCards, homeGrid, homeOrder, moveCard } from "./home-cards";
 
 /**
  * Home - every session that's working or waiting on you, side by side and
@@ -136,6 +135,27 @@ function HeaderIcon({
 	);
 }
 
+/** The board's column dot, in the column's colour. */
+function StatusDot({ column }: { column: PaneStatus }) {
+	return (
+		<HeaderIcon label={PANE_STATUS[column].label}>
+			<span
+				role="img"
+				aria-label={PANE_STATUS[column].label}
+				className="flex size-6 shrink-0 items-center justify-center"
+				style={{ "--col": PANE_STATUS[column].dot } as CSSProperties}
+			>
+				<span
+					className={cn(
+						"size-2 rounded-full bg-(--col) shadow-[0_0_8px_var(--col)]",
+						column === "working" && "animate-pulse",
+					)}
+				/>
+			</span>
+		</HeaderIcon>
+	);
+}
+
 function HomePage() {
 	const navigate = useNavigate();
 	const tabs = useTabsStore((state) => state.tabs);
@@ -205,6 +225,16 @@ function HomePage() {
 	const [dropId, setDropId] = useState<string | null>(null);
 
 	const rootRef = useRef<HTMLDivElement>(null);
+	// A session started from here gets scrolled into view once its card shows
+	// up, which can be a poll or two after the launch.
+	const [scrollToId, setScrollToId] = useState<string | null>(null);
+	useEffect(() => {
+		if (!scrollToId || !presentKey.split(",").includes(scrollToId)) return;
+		rootRef.current
+			?.querySelector(`[data-pane-id="${CSS.escape(scrollToId)}"]`)
+			?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+		setScrollToId(null);
+	}, [scrollToId, presentKey]);
 	const [focusedId, setFocusedId] = useState<string | null>(null);
 	// A focused card that left Home (finished, went idle) leaves nothing focused,
 	// and doesn't take the keyboard back if it returns.
@@ -235,8 +265,162 @@ function HomePage() {
 		return () => window.removeEventListener("keydown", onKeyDown);
 	}, [focused, clearFocus]);
 
+	// One session opened big over Home. It stays open while its pane exists,
+	// even after it leaves the grid, so a finished answer doesn't vanish.
+	const [expandedId, setExpandedId] = useState<string | null>(null);
+	const expandedPane = expandedId ? panes[expandedId] : undefined;
+	useEffect(() => {
+		if (expandedId && !expandedPane) setExpandedId(null);
+	}, [expandedId, expandedPane]);
+
+	// Esc closes the big view, by the drawer's rules: a box or a link open
+	// over it, or a Claude menu on screen, keeps the key.
+	useEffect(() => {
+		if (!expandedId) return;
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (event.key !== "Escape") return;
+			if (useInAppBrowser.getState().url) return;
+			const target = event.target as HTMLElement | null;
+			if (target?.closest("[role=dialog]")) return;
+			if (
+				target?.closest(".xterm") &&
+				escIsHandledOnScreen(visibleScreen(expandedId))
+			)
+				return;
+			event.preventDefault();
+			event.stopImmediatePropagation();
+			setExpandedId(null);
+		};
+		window.addEventListener("keydown", onKeyDown, { capture: true });
+		return () =>
+			window.removeEventListener("keydown", onKeyDown, { capture: true });
+	}, [expandedId]);
+
 	// Nothing to say until the first poll: every session would read as dead.
 	if (!ready) return null;
+
+	const titleOf = (pane: Pane) =>
+		emojify(
+			untruncatedTitle(
+				pane.odinTaskTitle ??
+					titleByPane[pane.id] ??
+					pane.userTitle ??
+					pane.name,
+				pane.odinBrief ?? briefByPane[pane.id] ?? null,
+			),
+		);
+	const showsTerminal = (pane: Pane) =>
+		!chatView || terminalPaneIds.includes(pane.id);
+
+	const chatButton = (pane: Pane) =>
+		showsTerminal(pane) &&
+		agentPaneIds.has(pane.id) && (
+			<HeaderIcon label="Show as a chat (Settings > Appearance)">
+				<button
+					type="button"
+					aria-label="Show as a chat"
+					onClick={() =>
+						chatView
+							? setTerminalPaneIds((ids) => ids.filter((id) => id !== pane.id))
+							: setChatView(true)
+					}
+					className={ICON_BUTTON}
+				>
+					<HiOutlineChatBubbleLeftRight className="size-3.5" />
+				</button>
+			</HeaderIcon>
+		);
+
+	const sessionBody = (
+		pane: Pane,
+		isFocused: boolean,
+		density: "default" | "compact",
+	) => {
+		const workspaceId = workspaceByTab.get(pane.tabId) ?? "";
+		if (!agentPaneIds.has(pane.id))
+			// No Claude to attach to (closed for sitting idle, or only a shell
+			// left): the drawer's history and Resume.
+			return (
+				<div className="flex flex-1 items-center justify-center px-4 text-center text-[12px] text-muted-foreground">
+					Session closed - open it on the Dev Board to resume.
+				</div>
+			);
+		if (showsTerminal(pane))
+			return (
+				<div className="min-h-0 flex-1">
+					<CardTerminal
+						paneId={pane.id}
+						tabId={pane.tabId}
+						workspaceId={workspaceId}
+						focused={isFocused}
+					/>
+				</div>
+			);
+		return (
+			<ChatView
+				paneId={pane.id}
+				sessionId={pane.claudeSessionId ?? sessionIdByPane[pane.id] ?? null}
+				cwd={pane.cwd ?? pane.initialCwd ?? pane.odinCwd}
+				workspaceId={workspaceId}
+				working={pane.status === "working"}
+				onShowTerminal={() => setTerminalPaneIds((ids) => [...ids, pane.id])}
+				onStop={() => interruptPane(pane.id)}
+				focusComposer={isFocused}
+				density={density}
+			/>
+		);
+	};
+
+	// Fixed, but held below the top bar: its empty areas are the window's
+	// drag region, and that eats clicks whatever sits on top.
+	const expandedView = expandedPane && (
+		<>
+			<button
+				type="button"
+				aria-label="Close"
+				className="fixed inset-0 z-40 cursor-default bg-black/50"
+				onClick={() => setExpandedId(null)}
+			/>
+			<section
+				aria-label={titleOf(expandedPane)}
+				className="fixed inset-x-[5vw] top-[max(5vh,44px)] bottom-[5vh] z-50 flex flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl"
+			>
+				<div className="flex h-10 shrink-0 items-center gap-0.5 border-b border-border pr-2 pl-4">
+					<h2 className="min-w-0 flex-1 truncate text-[14px] font-medium">
+						{titleOf(expandedPane)}
+					</h2>
+					<StatusDot column={columnOf(expandedPane)} />
+					{chatButton(expandedPane)}
+					<HeaderIcon label="Open on the Dev Board">
+						<button
+							type="button"
+							aria-label="Open on the Dev Board"
+							onClick={() => {
+								usePendingFocus.getState().focus(expandedPane.id);
+								navigate({ to: "/board" });
+							}}
+							className={ICON_BUTTON}
+						>
+							<HiOutlineArrowTopRightOnSquare className="size-3.5" />
+						</button>
+					</HeaderIcon>
+					<HeaderIcon label="Close (Esc)">
+						<button
+							type="button"
+							aria-label="Close"
+							onClick={() => setExpandedId(null)}
+							className={ICON_BUTTON}
+						>
+							<HiOutlineXMark className="size-4" />
+						</button>
+					</HeaderIcon>
+				</div>
+				<div className="flex min-h-0 flex-1 flex-col">
+					{sessionBody(expandedPane, true, "default")}
+				</div>
+			</section>
+		</>
+	);
 
 	const header = (
 		<div className="flex shrink-0 items-center gap-3 px-[18px] pb-2 pt-2.5">
@@ -253,7 +437,10 @@ function HomePage() {
 				+ New Session
 			</button>
 			{isNewSessionOpen && (
-				<NewSessionDialog onClose={() => setIsNewSessionOpen(false)} />
+				<NewSessionDialog
+					onClose={() => setIsNewSessionOpen(false)}
+					onLaunched={setScrollToId}
+				/>
 			)}
 		</div>
 	);
@@ -268,21 +455,12 @@ function HomePage() {
 						Open the Dev Board
 					</Link>
 				</div>
+				{expandedView}
 			</div>
 		);
 	}
 
 	const { cols, rows } = homeGrid(cards.length);
-	const title = ({ pane }: HomeCard) =>
-		emojify(
-			untruncatedTitle(
-				pane.odinTaskTitle ??
-					titleByPane[pane.id] ??
-					pane.userTitle ??
-					pane.name,
-				pane.odinBrief ?? briefByPane[pane.id] ?? null,
-			),
-		);
 	// Rendered in a fixed order and placed with `order`: a card that moves -
 	// dragged, or another one arriving or leaving - never has its DOM node
 	// moved, which would remount it or blur the terminal you're typing in.
@@ -304,16 +482,13 @@ function HomePage() {
 						gridAutoRows: `calc((100cqh - 22px - ${(rows - 1) * 12}px) / ${rows})`,
 					}}
 				>
-					{stable.map((card) => {
-						const { pane, column } = card;
+					{stable.map(({ pane, column }) => {
 						const isFocused = focused === pane.id;
-						const workspaceId = workspaceByTab.get(pane.tabId) ?? "";
-						const showsTerminal =
-							!chatView || terminalPaneIds.includes(pane.id);
 						return (
 							<section
 								key={pane.id}
-								aria-label={title(card)}
+								data-pane-id={pane.id}
+								aria-label={titleOf(pane)}
 								style={{ order: order.indexOf(pane.id) }}
 								onDragOver={(event) => {
 									if (!dragId || !event.dataTransfer.types.includes(CARD_DRAG))
@@ -369,51 +544,17 @@ function HomePage() {
 										}
 										className="min-w-0 flex-1 truncate rounded-sm text-left text-[12.5px] font-medium text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60"
 									>
-										{title(card)}
+										{titleOf(pane)}
 									</button>
-									<HeaderIcon label={PANE_STATUS[column].label}>
-										{/* The board's column dot, in the column's colour. */}
-										<span
-											role="img"
-											aria-label={PANE_STATUS[column].label}
-											className="flex size-6 shrink-0 items-center justify-center"
-											style={
-												{ "--col": PANE_STATUS[column].dot } as CSSProperties
-											}
-										>
-											<span
-												className={cn(
-													"size-2 rounded-full bg-(--col) shadow-[0_0_8px_var(--col)]",
-													column === "working" && "animate-pulse",
-												)}
-											/>
-										</span>
-									</HeaderIcon>
-									{showsTerminal && agentPaneIds.has(pane.id) && (
-										<HeaderIcon label="Show as a chat (Settings > Appearance)">
-											<button
-												type="button"
-												aria-label="Show as a chat"
-												onClick={() =>
-													chatView
-														? setTerminalPaneIds((ids) =>
-																ids.filter((id) => id !== pane.id),
-															)
-														: setChatView(true)
-												}
-												className={ICON_BUTTON}
-											>
-												<HiOutlineChatBubbleLeftRight className="size-3.5" />
-											</button>
-										</HeaderIcon>
-									)}
-									<HeaderIcon label="Open on the Dev Board">
+									<StatusDot column={column} />
+									{chatButton(pane)}
+									<HeaderIcon label="Expand">
 										<button
 											type="button"
-											aria-label="Open on the Dev Board"
+											aria-label="Expand"
 											onClick={() => {
-												usePendingFocus.getState().focus(pane.id);
-												navigate({ to: "/board" });
+												clearFocus();
+												setExpandedId(pane.id);
 											}}
 											className={ICON_BUTTON}
 										>
@@ -427,37 +568,12 @@ function HomePage() {
 									onPointerDownCapture={() => setFocusedId(pane.id)}
 									onFocusCapture={() => setFocusedId(pane.id)}
 								>
-									{!agentPaneIds.has(pane.id) ? (
-										// No Claude to attach to (closed for sitting idle, or
-										// only a shell left): the drawer's history and Resume.
-										<div className="flex flex-1 items-center justify-center px-4 text-center text-[12px] text-muted-foreground">
-											Session closed - open it on the Dev Board to resume.
-										</div>
-									) : showsTerminal ? (
-										<div className="min-h-0 flex-1">
-											<CardTerminal
-												paneId={pane.id}
-												tabId={pane.tabId}
-												workspaceId={workspaceId}
-												focused={isFocused}
-											/>
+									{expandedId === pane.id ? (
+										<div className="flex flex-1 items-center justify-center text-[12px] text-muted-foreground">
+											Expanded
 										</div>
 									) : (
-										<ChatView
-											paneId={pane.id}
-											sessionId={
-												pane.claudeSessionId ?? sessionIdByPane[pane.id] ?? null
-											}
-											cwd={pane.cwd ?? pane.initialCwd ?? pane.odinCwd}
-											workspaceId={workspaceId}
-											working={pane.status === "working"}
-											onShowTerminal={() =>
-												setTerminalPaneIds((ids) => [...ids, pane.id])
-											}
-											onStop={() => interruptPane(pane.id)}
-											focusComposer={isFocused}
-											density="compact"
-										/>
+										sessionBody(pane, isFocused, "compact")
 									)}
 								</div>
 							</section>
@@ -465,6 +581,7 @@ function HomePage() {
 					})}
 				</div>
 			</div>
+			{expandedView}
 		</div>
 	);
 }

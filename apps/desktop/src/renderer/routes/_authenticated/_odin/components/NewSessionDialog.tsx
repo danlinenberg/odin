@@ -13,7 +13,13 @@ import {
  * "+ New Session": describe a task, pick the repo, and an agent session starts
  * on it. The Dev Board and Home both open this one.
  */
-export function NewSessionDialog({ onClose }: { onClose: () => void }) {
+export function NewSessionDialog({
+	onClose,
+	onLaunched,
+}: {
+	onClose: () => void;
+	onLaunched?: (paneId: string) => void;
+}) {
 	const { ensureWorkspace } = useOdinWorkspace();
 	const { launch } = useLaunchTaskSession();
 	const { data: projects = [] } = electronTrpc.projects.getRecents.useQuery();
@@ -51,6 +57,7 @@ export function NewSessionDialog({ onClose }: { onClose: () => void }) {
 			toast.success(
 				`Session started in ${(repoPath || mainRepoPath || "").split("/").pop() || "your repo"}`,
 			);
+			onLaunched?.(result.paneId);
 		} else {
 			toast.error(result.error);
 		}
