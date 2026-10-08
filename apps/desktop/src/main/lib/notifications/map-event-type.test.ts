@@ -20,8 +20,12 @@ describe("mapEventType", () => {
 		expect(mapEventType("Stop")).toBe("Stop");
 	});
 
+	it("reports a compaction starting", () => {
+		expect(mapEventType("PreCompact")).toBe("Compacting");
+	});
+
 	it("drops an event it doesn't know", () => {
-		expect(mapEventType("PreCompact")).toBeNull();
+		expect(mapEventType("SubagentStop")).toBeNull();
 		expect(mapEventType(undefined)).toBeNull();
 	});
 });

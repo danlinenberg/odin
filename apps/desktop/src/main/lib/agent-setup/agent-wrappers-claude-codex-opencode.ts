@@ -188,7 +188,8 @@ export function getClaudeGlobalSettingsJsonContent(
 			| "PreToolUse"
 			| "PostToolUse"
 			| "PostToolUseFailure"
-			| "PermissionRequest";
+			| "PermissionRequest"
+			| "PreCompact";
 		definition: ClaudeHookDefinition;
 	}> = [
 		{
@@ -255,6 +256,12 @@ export function getClaudeGlobalSettingsJsonContent(
 				matcher: "AskUserQuestion|ExitPlanMode",
 				hooks: [{ type: "command", command: managedHookCommand }],
 			},
+		},
+		{
+			// The chat view says "Compacting" while it runs - the transcript stays
+			// silent until the summary lands.
+			eventName: "PreCompact",
+			definition: { hooks: [{ type: "command", command: managedHookCommand }] },
 		},
 		// Machine-wide cap on concurrent subagents (templates/subagent-cap.template.sh).
 		{

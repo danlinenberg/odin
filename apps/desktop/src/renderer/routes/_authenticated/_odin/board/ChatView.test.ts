@@ -80,6 +80,38 @@ describe("ChatView transcript", () => {
 		]);
 	});
 
+	test("a compaction is one row with its summary folded in, not a message", () => {
+		const items = applyLines(
+			[],
+			[
+				{
+					type: "system",
+					subtype: "compact_boundary",
+					uuid: "b",
+					timestamp: "2026-10-08T09:32:51.520Z",
+					compactMetadata: { preTokens: 378462, postTokens: 41000 },
+				},
+				{
+					type: "user",
+					uuid: "s",
+					isCompactSummary: true,
+					message: { content: "Summary: long" },
+				},
+			],
+		);
+		expect(items).toEqual([
+			{
+				kind: "compact",
+				id: "b",
+				at: Date.parse("2026-10-08T09:32:51.520Z"),
+				preTokens: 378462,
+				postTokens: 41000,
+				durationMs: undefined,
+				summary: "Summary: long",
+			},
+		]);
+	});
+
 	test("a tool result fills in its tool row; meta lines are skipped", () => {
 		const items = applyLines(
 			[],

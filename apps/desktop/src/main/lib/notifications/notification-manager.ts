@@ -67,7 +67,7 @@ export class NotificationManager {
 		const stateKey = event.sessionId ?? event.paneId;
 
 		// Working again - the next Needs you event is a fresh arrival, not a repeat.
-		if (event.eventType === "Start") {
+		if (event.eventType === "Start" || event.eventType === "Compacting") {
 			if (stateKey) this.waiting.delete(stateKey);
 			return;
 		}

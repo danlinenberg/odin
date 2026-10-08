@@ -17,7 +17,8 @@ export interface AgentLifecycleEvent extends NotificationIds {
 		| "Stop"
 		| "PermissionRequest"
 		| "PendingQuestion"
-		| "Failed";
+		| "Failed"
+		| "Compacting";
 }
 
 /** An agent asking Odin to run `command` in its session's Shell pane. */
