@@ -35,7 +35,6 @@ import { CrowButton } from "./components/CrowButton";
 import { FEED_TABS } from "./components/feed-counts";
 import { GettingStarted } from "./components/GettingStarted";
 import { InAppBrowser } from "./components/InAppBrowser";
-import { OdinPromptDialog } from "./components/OdinPromptDialog";
 import { BUTTON, PILL } from "./components/pill";
 import {
 	type UpstreamDue,
@@ -612,39 +611,32 @@ function OdinShell() {
 			{isSearchAllOpen && (
 				<SearchAll onClose={() => setIsSearchAllOpen(false)} />
 			)}
-			<CrowButton onOpen={() => setCrowOpen(true)} keys={crowKeys.text} />
-			{isCrowOpen && (
-				<OdinPromptDialog
-					heading="Ask the crow"
-					note={
-						openCrow ? (
-							<>
-								Follows up in “{openCrow.userTitle ?? openCrow.name}” - ✓ Done
-								in its drawer starts a fresh one.{" "}
-								<button
-									type="button"
-									className="underline hover:text-foreground"
-									onClick={() => {
-										setCrowOpen(false);
-										usePendingFocus.getState().focus(openCrow.id);
-										navigate({ to: "/board" });
-									}}
-								>
-									Show it
-								</button>
-							</>
-						) : (
-							'Odin\'s own agent, already running in your default repo. Ask anything, or tell it what to do in Odin - "start my top 5 backlog tasks".'
-						)
-					}
-					placeholder="Ask anything, or tell Odin what to do"
-					submitLabel="Ask"
-					onCancel={() => setCrowOpen(false)}
-					onSubmit={async (text, files) => {
-						if (await askCrow(text, files)) setCrowOpen(false);
-					}}
-				/>
-			)}
+			<CrowButton
+				open={isCrowOpen}
+				onOpen={() => setCrowOpen(true)}
+				onClose={() => setCrowOpen(false)}
+				onAsk={askCrow}
+				keys={crowKeys.text}
+				note={
+					openCrow && (
+						<>
+							Follows up in “{openCrow.userTitle ?? openCrow.name}” - ✓ Done in
+							its drawer starts a fresh one.{" "}
+							<button
+								type="button"
+								className="underline hover:text-white/80"
+								onClick={() => {
+									setCrowOpen(false);
+									usePendingFocus.getState().focus(openCrow.id);
+									navigate({ to: "/board" });
+								}}
+							>
+								Show it
+							</button>
+						</>
+					)
+				}
+			/>
 		</div>
 	);
 }
