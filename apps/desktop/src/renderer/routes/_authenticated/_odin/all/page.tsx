@@ -149,12 +149,28 @@ const URGENCIES: { id: Exclude<Urgency, null> | "none"; label: string }[] = [
 	{ id: "none", label: "Unrated" },
 ];
 
+const SHOW_SESSIONS_KEY = "odin.all.showSessions";
+
+function readShowSessions(): boolean {
+	try {
+		return localStorage.getItem(SHOW_SESSIONS_KEY) === "true";
+	} catch {
+		return false;
+	}
+}
+
 function AllFeedPage() {
 	const { reactions, jira, pulls, notion, emails, syncAll, isSyncing } =
 		useOdinFeeds();
 	const navigate = useNavigate();
-	// ponytail: local state, so it starts collapsed every visit - that's the ask.
-	const [showSessions, setShowSessions] = useState(false);
+	const [showSessions, setShowSessions] = useState(readShowSessions);
+	const toggleSessions = () => {
+		const next = !showSessions;
+		setShowSessions(next);
+		try {
+			localStorage.setItem(SHOW_SESSIONS_KEY, String(next));
+		} catch {}
+	};
 	// The three ways to cut the list. Local state too: All is the "what have I
 	// got on" view, and it should open saying everything, every time.
 	const [source, setSource] = useState<AllItem["source"] | "">("");
@@ -434,7 +450,7 @@ function AllFeedPage() {
 						<>
 							<button
 								type="button"
-								onClick={() => setShowSessions((open) => !open)}
+								onClick={toggleSessions}
 								className="flex items-center gap-1.5 px-1 pt-1 pb-0.5 text-[11px] font-semibold text-working"
 							>
 								<span className="size-1.5 animate-pulse rounded-full bg-current" />
