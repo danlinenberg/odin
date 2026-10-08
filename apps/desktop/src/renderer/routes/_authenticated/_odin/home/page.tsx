@@ -28,7 +28,6 @@ import { profileOf } from "shared/odin-profile";
 import { ChatView } from "../board/ChatView";
 import { interruptPane } from "../board/interrupt";
 import { untruncatedTitle } from "../components/OdinPromptDialog";
-import { BUTTON } from "../components/pill";
 import { useBoardColumns } from "../hooks/useBoardColumns";
 import { useOdinProfile } from "../hooks/useOdinProfile";
 import { usePaneMeta } from "../hooks/usePaneMeta";
@@ -105,10 +104,9 @@ function CardTerminal({
 	);
 }
 
-const ICON_BUTTON = cn(
-	"flex size-6 shrink-0 items-center justify-center rounded-md",
-	BUTTON.secondary,
-);
+/** Quiet until hovered: the header is the card's frame, not a toolbar. */
+const ICON_BUTTON =
+	"flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60";
 
 /** A header icon, its words in a tooltip. */
 function HeaderIcon({
@@ -256,19 +254,19 @@ function HomePage() {
 							aria-label={title(card)}
 							style={{ order: cards.indexOf(card) }}
 							className={cn(
-								"flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border bg-tertiary/85 transition-opacity",
+								"flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border bg-card transition-opacity duration-150",
 								isFocused ? "border-primary/50" : "border-border",
 								focused && !isFocused && "opacity-[0.55]",
 							)}
 						>
-							<div className="flex items-center gap-2 border-b border-border px-3 py-2">
+							<div className="flex h-8 shrink-0 items-center gap-0.5 border-b border-border pr-1 pl-3">
 								<button
 									type="button"
 									title={isFocused ? "Unfocus" : "Focus this session"}
 									onClick={() =>
 										isFocused ? clearFocus() : setFocusedId(pane.id)
 									}
-									className="min-w-0 flex-1 truncate text-left text-[13px] font-semibold text-foreground"
+									className="min-w-0 flex-1 truncate rounded-sm text-left text-[12.5px] font-medium text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60"
 								>
 									{title(card)}
 								</button>
@@ -324,14 +322,14 @@ function HomePage() {
 							</div>
 							{/* Clicking or tabbing into the body makes this the focused card. */}
 							<div
-								className="flex min-h-0 flex-1 flex-col bg-background"
+								className="flex min-h-0 flex-1 flex-col"
 								onPointerDownCapture={() => setFocusedId(pane.id)}
 								onFocusCapture={() => setFocusedId(pane.id)}
 							>
 								{!agentPaneIds.has(pane.id) ? (
 									// No Claude to attach to (closed for sitting idle, or
 									// only a shell left): the drawer's history and Resume.
-									<div className="flex flex-1 items-center justify-center px-4 text-center text-xs text-muted-foreground">
+									<div className="flex flex-1 items-center justify-center px-4 text-center text-[12px] text-muted-foreground">
 										Session closed - open it on the Dev Board to resume.
 									</div>
 								) : showsTerminal ? (
@@ -357,6 +355,7 @@ function HomePage() {
 										}
 										onStop={() => interruptPane(pane.id)}
 										focusComposer={isFocused}
+										density="compact"
 									/>
 								)}
 							</div>

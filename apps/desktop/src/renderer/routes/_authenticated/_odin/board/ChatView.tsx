@@ -1,8 +1,22 @@
 import { odinIcon } from "@odin/ui/icons/preset-icons";
 import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LuChevronRight, LuSquareTerminal, LuTerminal } from "react-icons/lu";
+import {
+	createContext,
+	memo,
+	useCallback,
+	useContext,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
+import {
+	LuArrowUp,
+	LuChevronRight,
+	LuSquareTerminal,
+	LuTerminal,
+} from "react-icons/lu";
 import { MarkdownRenderer } from "renderer/components/MarkdownRenderer";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { openUrl } from "renderer/stores/in-app-browser";
@@ -44,6 +58,17 @@ type Line = {
 	/** A message you sent mid-turn rides in as a queued_command attachment. */
 	attachment?: { type?: string; prompt?: string | Block[] };
 };
+
+/**
+ * Home's cards set this: a session in a sixth of the screen, so dense type,
+ * no reply marks, quiet tool rows and a one-line composer. The drawer leaves
+ * it off and looks as it always has.
+ */
+const Compact = createContext(false);
+
+/** Prose at card density - COMPACT_MARKDOWN a size down, tighter rhythm. */
+const CARD_MARKDOWN =
+	"h-auto! overflow-visible! bg-transparent! text-[12.5px] leading-normal text-soft-foreground [&_article]:p-0! [&_p]:leading-normal! [&_h1]:text-[13px]! [&_h2]:text-[13px]! [&_h3]:text-[12.5px]! [&_h1]:mb-1! [&_h2]:border-0! [&_h2]:pb-0! [&_h2]:mt-2.5! [&_h2]:mb-1! [&_h3]:mt-2! [&_h3]:mb-1! [&_p]:mb-1.5! [&_ul]:mb-1.5! [&_ol]:mb-1.5! [&_ul]:pl-4! [&_ol]:pl-4! [&_p:last-child]:mb-0! [&_ul:last-child]:mb-0! [&_ol:last-child]:mb-0! [&_code]:text-[11.5px] [&_pre]:my-1.5!";
 
 /** First read takes the transcript's tail - a long session's JSONL runs to MBs. */
 const TAIL_BYTES = 4_000_000;
@@ -275,15 +300,19 @@ const ToolRow = memo(function ToolRow({
 	item: Extract<Item, { kind: "tool" }>;
 }) {
 	const [open, setOpen] = useState(false);
+	const compact = useContext(Compact);
 	const done = item.result !== undefined;
 	const oldText = item.input.old_string;
 	const newText = item.input.new_string;
 	return (
-		<div className="text-[12.5px]">
+		<div className={compact ? "text-[11.5px]" : "text-[12.5px]"}>
 			<button
 				type="button"
 				onClick={() => setOpen((value) => !value)}
-				className="flex w-full min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-left hover:bg-secondary"
+				className={cn(
+					"flex w-full min-w-0 items-center gap-2 rounded-md text-left hover:bg-secondary",
+					compact ? "px-1 py-0.5" : "px-1.5 py-1",
+				)}
 			>
 				<span
 					className={cn(
@@ -391,6 +420,7 @@ export function groupSummary(tools: Tool[]): string {
 const ToolGroup = memo(
 	function ToolGroup({ tools }: { tools: Tool[] }) {
 		const [open, setOpen] = useState(false);
+		const compact = useContext(Compact);
 		const running = tools.find((tool) => tool.result === undefined);
 		const failed = tools.some((tool) => tool.isError);
 		return (
@@ -398,9 +428,16 @@ const ToolGroup = memo(
 				<button
 					type="button"
 					onClick={() => setOpen((value) => !value)}
-					className="flex min-w-0 max-w-full items-center gap-2 self-start rounded-lg border border-border bg-secondary px-2.5 py-1 text-left text-[12px] text-soft-foreground hover:bg-accent hover:text-foreground"
+					className={cn(
+						"flex min-w-0 max-w-full items-center gap-2 self-start text-left",
+						compact
+							? "rounded-md py-0.5 text-[11.5px] text-muted-foreground hover:text-foreground"
+							: "rounded-lg border border-border bg-secondary px-2.5 py-1 text-[12px] text-soft-foreground hover:bg-accent hover:text-foreground",
+					)}
 				>
-					<LuTerminal className="size-3.5 shrink-0" />
+					<LuTerminal
+						className={cn("shrink-0", compact ? "size-3" : "size-3.5")}
+					/>
 					<span className="shrink-0">{groupSummary(tools)}</span>
 					{failed && <span className="shrink-0 text-danger">· error</span>}
 					{running && (
@@ -419,7 +456,13 @@ const ToolGroup = memo(
 					/>
 				</button>
 				{open && (
-					<div className="mt-1.5 rounded-lg border border-border bg-secondary/20 p-1.5">
+					<div
+						className={cn(
+							compact
+								? "mt-0.5 ml-1.5 border-l border-border pl-1.5"
+								: "mt-1.5 rounded-lg border border-border bg-secondary/20 p-1.5",
+						)}
+					>
 						{tools.map((tool) => (
 							<ToolRow key={tool.id} item={tool} />
 						))}
@@ -450,10 +493,14 @@ function UserBubble({
 	images?: Preview[];
 	pending?: boolean;
 }) {
+	const compact = useContext(Compact);
 	return (
 		<div
 			className={cn(
-				"mt-5 mb-1 ml-auto max-w-[75%] select-text cursor-text whitespace-pre-wrap break-words rounded-2xl rounded-br-md border border-primary/30 bg-primary/15 px-4 py-2.5 text-[13.5px] leading-relaxed text-foreground shadow-sm first:mt-0",
+				"ml-auto select-text cursor-text whitespace-pre-wrap break-words text-foreground first:mt-0",
+				compact
+					? "mt-2 max-w-[85%] rounded-lg rounded-br-sm bg-primary/15 px-2.5 py-1.5 text-[12.5px] leading-normal"
+					: "mt-5 mb-1 max-w-[75%] rounded-2xl rounded-br-md border border-primary/30 bg-primary/15 px-4 py-2.5 text-[13.5px] leading-relaxed shadow-sm",
 				pending && "opacity-60",
 				pending && ENTER,
 			)}
@@ -518,6 +565,27 @@ function OdinMark({ className }: { className?: string }) {
 	);
 }
 
+/** "Starting session…" / "Working…": Odin's icon nodding along, or at card
+ *  density a pulsing dot. */
+function Activity({ label }: { label: string }) {
+	const compact = useContext(Compact);
+	return (
+		<div
+			className={cn(
+				"flex items-center text-working",
+				compact ? "gap-2 text-[11.5px]" : "gap-3 text-[12.5px]",
+			)}
+		>
+			{compact ? (
+				<span className="size-1.5 shrink-0 animate-pulse rounded-full bg-working" />
+			) : (
+				<OdinMark className="animate-[odin-nod_1.6s_ease-in-out_infinite]" />
+			)}
+			{label}
+		</div>
+	);
+}
+
 /**
  * Split a reply at its ACTION ITEMS line, in any of the shapes agents write it
  * ("ACTION ITEMS:", "## Action items", "**ACTION ITEMS:** none ..."). Whatever
@@ -557,13 +625,28 @@ function ActionItems({
 	// text arrives linkified from ItemView.
 	const items = onDo ? actionItemList(text) : [];
 	const [sent, setSent] = useState<Set<number>>(new Set());
+	const compact = useContext(Compact);
+	const markdown = compact ? CARD_MARKDOWN : COMPACT_MARKDOWN;
 	return (
-		<div className="mt-2 rounded-xl border border-attention/35 bg-attention/[0.07] px-4 py-3">
-			<div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[.08em] text-attention">
+		<div
+			className={
+				compact
+					? "mt-1.5 border-t border-attention/30 pt-1.5"
+					: "mt-2 rounded-xl border border-attention/35 bg-attention/[0.07] px-4 py-3"
+			}
+		>
+			<div
+				className={cn(
+					"font-semibold text-attention",
+					compact
+						? "mb-1 text-[11px]"
+						: "mb-1.5 text-[11px] uppercase tracking-[.08em]",
+				)}
+			>
 				Action items
 			</div>
 			{onDo && items.length > 0 ? (
-				<ol className="flex flex-col gap-1">
+				<ol className={cn("flex flex-col", compact ? "gap-0.5" : "gap-1")}>
 					{items.map((item, index) => (
 						<li
 							// biome-ignore lint/suspicious/noArrayIndexKey: the list is fixed once written
@@ -579,18 +662,28 @@ function ActionItems({
 									setSent((prev) => new Set(prev).add(index));
 									onDo(item, index + 1);
 								}}
-								className="w-[52px] shrink-0 rounded-md border border-attention/40 px-2 py-0.5 text-[11px] font-medium text-attention hover:bg-attention/15 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent"
+								className={cn(
+									"shrink-0 text-[11px] font-medium text-attention disabled:cursor-default disabled:opacity-50",
+									compact
+										? "w-9 rounded px-1 text-left hover:underline disabled:no-underline"
+										: "w-[52px] rounded-md border border-attention/40 px-2 py-0.5 hover:bg-attention/15 disabled:hover:bg-transparent",
+								)}
 							>
 								{sent.has(index) ? "Sent" : "Do it"}
 							</button>
-							<span className="w-4 shrink-0 pt-px text-right text-[13px] tabular-nums text-muted-foreground">
+							<span
+								className={cn(
+									"w-4 shrink-0 pt-px text-right tabular-nums text-muted-foreground",
+									compact ? "text-[12px]" : "text-[13px]",
+								)}
+							>
 								{index + 1}.
 							</span>
 							<MarkdownRenderer
 								content={item}
 								style="default"
 								allowHtml={false}
-								className={cn(COMPACT_MARKDOWN, "min-w-0 flex-1")}
+								className={cn(markdown, "min-w-0 flex-1")}
 							/>
 						</li>
 					))}
@@ -600,7 +693,7 @@ function ActionItems({
 					content={text}
 					style="default"
 					allowHtml={false}
-					className={COMPACT_MARKDOWN}
+					className={markdown}
 				/>
 			)}
 		</div>
@@ -619,6 +712,7 @@ const ItemView = memo(
 		refsKey: string;
 		onDo?: (item: string, number: number) => void;
 	}) {
+		const compact = useContext(Compact);
 		if (item.kind === "tool") return <ToolRow item={item} />;
 		if (item.kind === "user")
 			return <UserBubble text={item.text} images={item.images} />;
@@ -630,7 +724,7 @@ const ItemView = memo(
 						content={body}
 						style="default"
 						allowHtml={false}
-						className={COMPACT_MARKDOWN}
+						className={compact ? CARD_MARKDOWN : COMPACT_MARKDOWN}
 					/>
 				)}
 				{actions && <ActionItems text={actions} onDo={onDo} />}
@@ -648,7 +742,15 @@ const ItemView = memo(
  * collapsible tool rows, and a composer. Claude keeps running in its terminal
  * behind it - this types into the same PTY.
  */
-export function ChatView({
+export function ChatView(props: Parameters<typeof ChatViewBody>[0]) {
+	return (
+		<Compact.Provider value={props.density === "compact"}>
+			<ChatViewBody {...props} />
+		</Compact.Provider>
+	);
+}
+
+function ChatViewBody({
 	paneId,
 	sessionId,
 	cwd,
@@ -669,7 +771,10 @@ export function ChatView({
 	onStop?: () => void;
 	/** The composer takes the keyboard when this is (or turns) true. */
 	focusComposer?: boolean;
+	/** "compact" for a card (Home); the drawer keeps the default. */
+	density?: "default" | "compact";
 }) {
+	const compact = useContext(Compact);
 	const { data: home } = electronTrpc.window.getHomeDir.useQuery();
 	// Claude files the conversation under the directory it STARTED in - the
 	// transcript's first cwd. The pane's cwd has often moved on since (a feed
@@ -795,14 +900,14 @@ export function ChatView({
 						openUrl(anchor.href);
 					}
 				}}
-				className="min-h-0 flex-1 overflow-y-auto px-8 py-6"
+				className={cn(
+					"min-h-0 flex-1 overflow-y-auto",
+					compact ? "px-3 py-2.5" : "px-8 py-6",
+				)}
 			>
-				<div className="flex flex-col gap-2.5">
+				<div className={cn("flex flex-col", compact ? "gap-1.5" : "gap-2.5")}>
 					{starting ? (
-						<div className="flex items-center gap-3 text-[12.5px] text-working">
-							<OdinMark className="animate-[odin-nod_1.6s_ease-in-out_infinite]" />
-							Starting session…
-						</div>
+						<Activity label="Starting session…" />
 					) : (
 						missing &&
 						items.length === 0 && (
@@ -837,7 +942,12 @@ export function ChatView({
 									key && !firstIdsRef.current?.has(key) && ENTER,
 								)}
 							>
-								{opensReply ? <OdinMark /> : <span className="w-7 shrink-0" />}
+								{/* A card has no room for the reply mark's column. */}
+								{compact ? null : opensReply ? (
+									<OdinMark />
+								) : (
+									<span className="w-7 shrink-0" />
+								)}
 								<div className="min-w-0 flex-1">
 									{Array.isArray(segment) ? (
 										<ToolGroup tools={segment} />
@@ -863,7 +973,7 @@ export function ChatView({
 					))}
 					{prompt && (
 						<div className={cn("flex min-w-0 gap-3", ENTER)}>
-							<OdinMark />
+							{!compact && <OdinMark />}
 							<div className="min-w-0 flex-1">
 								{prompt.name === "AskUserQuestion" ? (
 									<QuestionCard
@@ -888,13 +998,7 @@ export function ChatView({
 							</div>
 						</div>
 					)}
-					{working && !prompt && !starting && (
-						<div className="flex items-center gap-3 text-[12.5px] text-working">
-							{/* Odin's icon, nodding along while Claude works. */}
-							<OdinMark className="animate-[odin-nod_1.6s_ease-in-out_infinite]" />
-							Working…
-						</div>
-					)}
+					{working && !prompt && !starting && <Activity label="Working…" />}
 				</div>
 			</div>
 			{onShowTerminal ? (
@@ -957,6 +1061,7 @@ function Composer({
 	onStop?: () => void;
 	autoFocus: boolean;
 }) {
+	const compact = useContext(Compact);
 	const [draft, setDraft] = useState("");
 	// "!" on an empty box switches to bash mode, like the terminal's prompt.
 	const [bash, setBash] = useState(false);
@@ -973,7 +1078,7 @@ function Composer({
 		const el = inputRef.current;
 		if (!el) return;
 		el.style.height = "auto";
-		el.style.height = `${Math.min(el.scrollHeight, 220)}px`;
+		el.style.height = `${Math.min(el.scrollHeight, compact ? 96 : 220)}px`;
 	}, [draft]);
 	const send = async () => {
 		const body = draft.trim();
@@ -992,6 +1097,127 @@ function Composer({
 			toast.error(error instanceof Error ? error.message : String(error));
 		}
 	};
+	const input = (
+		<textarea
+			ref={inputRef}
+			value={draft}
+			rows={1}
+			onChange={(event) => {
+				const value = event.target.value;
+				if (!bash && !draft && value.startsWith("!")) {
+					setBash(true);
+					setDraft(value.slice(1));
+				} else setDraft(value);
+			}}
+			onPaste={(event) => {
+				const files = [...event.clipboardData.files];
+				const images = files.filter((f) => f.type.startsWith("image/"));
+				const videos = files.filter((f) => f.type.startsWith("video/"));
+				if (images.length === 0 && videos.length === 0) return;
+				event.preventDefault();
+				if (images.length > 0) write.mutate({ paneId, data: "\x16" });
+				const paths = videos
+					.map((file) => window.webUtils.getPathForFile(file))
+					.filter(Boolean);
+				if (paths.length > 0)
+					setDraft((text) => [text, ...paths].filter(Boolean).join(" "));
+				setPreviews((list) => [
+					...list,
+					...images.map((file) => URL.createObjectURL(file)),
+					...videos.map((file) => ({
+						url: URL.createObjectURL(file),
+						video: true as const,
+					})),
+				]);
+			}}
+			onKeyDown={(event) => {
+				if (
+					bash &&
+					!draft &&
+					(event.key === "Backspace" || event.key === "Escape")
+				) {
+					event.preventDefault();
+					setBash(false);
+					return;
+				}
+				if (
+					event.key === "Enter" &&
+					!event.shiftKey &&
+					!event.nativeEvent.isComposing
+				) {
+					event.preventDefault();
+					void send();
+				}
+			}}
+			placeholder={bash ? "Run a shell command" : "Reply to Claude"}
+			aria-label={bash ? "Run a shell command" : "Reply to Claude"}
+			className={cn(
+				"block w-full resize-none bg-transparent text-foreground outline-none",
+				compact
+					? "max-h-24 text-[12.5px] leading-normal placeholder:text-muted-foreground"
+					: "max-h-[220px] text-[13.5px] leading-relaxed placeholder:text-faint-foreground",
+				bash && "font-mono",
+			)}
+		/>
+	);
+	const stop = () =>
+		onStop ? onStop() : write.mutate({ paneId, data: "\x03" });
+	if (compact)
+		return (
+			<div
+				className={cn(
+					"border-t px-3 py-1.5",
+					bash ? "border-pink-500/60" : "border-border",
+				)}
+			>
+				{previews.length > 0 && (
+					<PreviewStrip previews={previews} className="mb-1.5" />
+				)}
+				<div className="flex items-end gap-1.5">
+					{bash && (
+						<span className="font-mono text-[12.5px] leading-normal text-pink-500">
+							!
+						</span>
+					)}
+					<div className="min-w-0 flex-1 py-0.5">{input}</div>
+					{/* The rest only on the card you're in - unfocused ones stay a line. */}
+					{autoFocus && (
+						<button
+							type="button"
+							title="Terminal View (Settings > Appearance)"
+							aria-label="Terminal View"
+							onClick={() => setChat(false)}
+							className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground"
+						>
+							<LuSquareTerminal className="size-3.5" />
+						</button>
+					)}
+					{autoFocus &&
+						(working ? (
+							<button
+								type="button"
+								title="Stop Claude"
+								aria-label="Stop Claude"
+								onClick={stop}
+								className="flex size-6 shrink-0 items-center justify-center rounded-full bg-foreground hover:opacity-85"
+							>
+								<span className="size-[7px] rounded-[1.5px] bg-background" />
+							</button>
+						) : (
+							<button
+								type="button"
+								title="Send (Enter)"
+								aria-label="Send"
+								disabled={!draft.trim() && previews.length === 0}
+								onClick={() => void send()}
+								className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground hover:brightness-110 disabled:opacity-40"
+							>
+								<LuArrowUp className="size-3.5" />
+							</button>
+						))}
+				</div>
+			</div>
+		);
 	return (
 		<div className="px-4 pb-3 pt-1">
 			<div
@@ -1009,63 +1235,7 @@ function Composer({
 							!
 						</span>
 					)}
-					<textarea
-						ref={inputRef}
-						value={draft}
-						rows={1}
-						onChange={(event) => {
-							const value = event.target.value;
-							if (!bash && !draft && value.startsWith("!")) {
-								setBash(true);
-								setDraft(value.slice(1));
-							} else setDraft(value);
-						}}
-						onPaste={(event) => {
-							const files = [...event.clipboardData.files];
-							const images = files.filter((f) => f.type.startsWith("image/"));
-							const videos = files.filter((f) => f.type.startsWith("video/"));
-							if (images.length === 0 && videos.length === 0) return;
-							event.preventDefault();
-							if (images.length > 0) write.mutate({ paneId, data: "\x16" });
-							const paths = videos
-								.map((file) => window.webUtils.getPathForFile(file))
-								.filter(Boolean);
-							if (paths.length > 0)
-								setDraft((text) => [text, ...paths].filter(Boolean).join(" "));
-							setPreviews((list) => [
-								...list,
-								...images.map((file) => URL.createObjectURL(file)),
-								...videos.map((file) => ({
-									url: URL.createObjectURL(file),
-									video: true as const,
-								})),
-							]);
-						}}
-						onKeyDown={(event) => {
-							if (
-								bash &&
-								!draft &&
-								(event.key === "Backspace" || event.key === "Escape")
-							) {
-								event.preventDefault();
-								setBash(false);
-								return;
-							}
-							if (
-								event.key === "Enter" &&
-								!event.shiftKey &&
-								!event.nativeEvent.isComposing
-							) {
-								event.preventDefault();
-								void send();
-							}
-						}}
-						placeholder={bash ? "Run a shell command" : "Reply to Claude"}
-						className={cn(
-							"block max-h-[220px] w-full resize-none bg-transparent text-[13.5px] leading-relaxed text-foreground outline-none placeholder:text-faint-foreground",
-							bash && "font-mono",
-						)}
-					/>
+					{input}
 				</div>
 				<div className="mt-1.5 flex items-center gap-2">
 					<button
@@ -1090,9 +1260,7 @@ function Composer({
 						<button
 							type="button"
 							title="Stop Claude"
-							onClick={() =>
-								onStop ? onStop() : write.mutate({ paneId, data: "\x03" })
-							}
+							onClick={stop}
 							className="ml-auto flex size-7 items-center justify-center rounded-full bg-foreground text-background hover:opacity-85"
 						>
 							<span className="size-[9px] rounded-[2px] bg-background" />
