@@ -13,19 +13,25 @@ import {
 import {
 	buildPermalink,
 	channelLabel,
+	type EyedMessage,
 	LAUNCH_REACTION,
 	mentionedUserIds,
 	messageBody,
 	normalizeReaction,
 	pickEyedMessages,
+	pickSavedMessages,
 	QUEUE_REACTION,
 	type ReactionStatus,
 	reactionStatus,
 	replaceMentions,
 	rowsToVerify,
+	type SavedMessageRef,
 	type SlackAttachment,
+	type SlackListedMessage,
 	type SlackReactionsListItem,
+	savedRowsToClose,
 	threadParentTs,
+	toEyedMessage,
 	toTitle,
 	untilNextQueued,
 } from "./reactions";
@@ -37,6 +43,11 @@ import {
  * CORS, and the token never reaches the renderer. Needs a **user** token
  * (`xoxp-…`, scope `reactions:read`) - a bot token only sees the bot's own
  * reactions. Set it in Settings → Connections.
+ *
+ * Messages in my Slack Later list ("Save for later") join the same queue,
+ * read from `saved.list`: an undocumented web-client method that may refuse
+ * this token or vanish. Any failure there just leaves saved items out of
+ * that sync.
  *
  * Slack is the source of the feed, not of the state: rows persist locally, so
  * un-reacting marks a row instead of losing it, and Done is Odin-only. Nothing
@@ -174,6 +185,7 @@ export function clearSlackCaches(): void {
 	identityCache = null;
 	channelNames.clear();
 	userNames.clear();
+	savedLookupFailed.clear();
 }
 
 /**
@@ -304,6 +316,7 @@ async function syncReactions(token: string, reaction: string): Promise<void> {
 	const items = res.items ?? [];
 	const launch = launchReaction();
 	const eyed = pickEyedMessages(items, me.userId, reaction, launch);
+	const saved = await fetchSavedMessages(token);
 	const now = Date.now();
 	// The first sync ever only records what was already there: reacting before
 	// this feature existed wasn't asking for a session. After that, a message
@@ -326,17 +339,11 @@ async function syncReactions(token: string, reaction: string): Promise<void> {
 			.map((row) => [row.id, row]),
 	);
 
-	for (const message of eyed) {
-		const text = await resolveMentions(message.text, token);
-		if (existing.has(message.id)) {
-			// Re-reacting after un-reacting puts the row back in the queue.
-			localDb
-				.update(slackReactions)
-				.set({ lastSeenAt: now, unreactedAt: null, text })
-				.where(eq(slackReactions.id, message.id))
-				.run();
-			continue;
-		}
+	const insertRow = async (
+		message: EyedMessage,
+		text: string,
+		source: "reaction" | "saved",
+	) => {
 		const [channelName, authorName] = await Promise.all([
 			lookupChannelName(message.channelId, token),
 			lookupUserName(message.authorId, token),
@@ -362,20 +369,81 @@ async function syncReactions(token: string, reaction: string): Promise<void> {
 								threadTs: message.threadTs,
 							})
 						: null),
+				source,
 				firstSeenAt: now,
 				lastSeenAt: now,
 			})
 			.onConflictDoNothing()
 			.run();
+	};
+
+	for (const message of eyed) {
+		const text = await resolveMentions(message.text, token);
+		if (existing.has(message.id)) {
+			// Re-reacting after un-reacting puts the row back in the queue.
+			localDb
+				.update(slackReactions)
+				.set({ lastSeenAt: now, unreactedAt: null, text, source: "reaction" })
+				.where(eq(slackReactions.id, message.id))
+				.run();
+			continue;
+		}
+		await insertRow(message, text, "reaction");
+	}
+
+	const eyedIds = new Set(eyed.map((message) => message.id));
+	const savedIds = new Set(saved?.refs.map((ref) => ref.id));
+	if (saved) {
+		const fresh: SavedMessageRef[] = [];
+		for (const ref of saved.refs) {
+			if (eyedIds.has(ref.id)) continue;
+			const row = existing.get(ref.id);
+			if (!row) fresh.push(ref);
+			// Saving it again after unsaving - or after its :eyes: went - puts the
+			// row back in the queue. An open :eyes: row stays the reaction's.
+			else if (row.source === "saved" || row.unreactedAt !== null)
+				localDb
+					.update(slackReactions)
+					.set({ lastSeenAt: now, unreactedAt: null, source: "saved" })
+					.where(eq(slackReactions.id, ref.id))
+					.run();
+		}
+		for (const ref of fresh
+			.filter((ref) => !savedLookupFailed.has(ref.id))
+			.slice(0, SAVED_LOOKUPS_PER_SYNC)) {
+			const message = await savedMessage(ref, token);
+			if (!message) {
+				savedLookupFailed.add(ref.id);
+				continue;
+			}
+			await insertRow(
+				message,
+				await resolveMentions(message.text, token),
+				"saved",
+			);
+		}
+		if (saved.complete)
+			for (const row of savedRowsToClose(
+				[...existing.values()],
+				savedIds,
+				eyedIds,
+			))
+				localDb
+					.update(slackReactions)
+					.set({ unreactedAt: now })
+					.where(eq(slackReactions.id, row.id))
+					.run();
 	}
 
 	// Retiring a row takes asking about that row. Absence from the page above
 	// means nothing - see `rowsToVerify` - and this stamp is what the Review
 	// screen turns into a DROP, so it is only ever set off an answer.
-	const stillEyed = new Set(eyed.map((message) => message.id));
+	// Saved rows are the saved sweep's to retire, and a :eyes:'d message that
+	// is also saved stays queued while it is.
+	const stillQueued = new Set([...eyedIds, ...savedIds]);
 	for (const row of rowsToVerify(
-		[...existing.values()],
-		stillEyed,
+		[...existing.values()].filter((row) => row.source !== "saved"),
+		stillQueued,
 		VERIFY_PER_SYNC,
 	)) {
 		const on = await reactionStillOn(row, me.userId, [reaction, launch], token);
@@ -398,6 +466,86 @@ async function syncReactions(token: string, reaction: string): Promise<void> {
 /** How many missing rows one sync asks Slack about. `reactions.get` is tier 3
  * (~50/min) and the queue polls every 2 minutes, so this is nowhere near it. */
 const VERIFY_PER_SYNC = 8;
+
+/** New saved messages fetched per sync - each is one `reactions.get`. */
+const SAVED_LOOKUPS_PER_SYNC = 8;
+/** `saved.list` pages read per sync, at the web client's own page size. */
+const SAVED_PAGE_SIZE = 15;
+const SAVED_MAX_PAGES = 20;
+
+/**
+ * Saved messages `reactions.get` wouldn't return - a group DM, a channel I
+ * left. Skipped until restart so they can't starve the per-sync budget.
+ */
+const savedLookupFailed = new Set<string>();
+/** The last `saved.list` failure, so a poll that repeats it stays quiet. */
+let savedListProblem: string | null = null;
+
+/**
+ * My open Later items, or null when `saved.list` won't answer this token.
+ * `complete` is false when the list ran past the page cap - then a missing
+ * row says nothing, and the caller must not retire on it.
+ */
+async function fetchSavedMessages(
+	token: string,
+): Promise<{ refs: SavedMessageRef[]; complete: boolean } | null> {
+	try {
+		const items: unknown[] = [];
+		let cursor = "";
+		for (let page = 0; page < SAVED_MAX_PAGES; page++) {
+			const res = await slackApi<
+				SlackResponse & {
+					saved_items?: unknown;
+					response_metadata?: { next_cursor?: unknown };
+				}
+			>(
+				"saved.list",
+				{
+					filter: "saved",
+					limit: String(SAVED_PAGE_SIZE),
+					...(cursor ? { cursor } : {}),
+				},
+				token,
+			);
+			if (!Array.isArray(res.saved_items))
+				throw new Error("Slack saved.list: no saved_items in the response");
+			items.push(...res.saved_items);
+			const next = res.response_metadata?.next_cursor;
+			cursor = typeof next === "string" ? next : "";
+			if (!cursor) {
+				savedListProblem = null;
+				return { refs: pickSavedMessages(items), complete: true };
+			}
+		}
+		return { refs: pickSavedMessages(items), complete: false };
+	} catch (error) {
+		const problem = error instanceof Error ? error.message : String(error);
+		if (problem !== savedListProblem)
+			console.warn("[slack] saved items unavailable:", problem);
+		savedListProblem = problem;
+		return null;
+	}
+}
+
+/** The saved message itself - `saved.list` only says where it is. */
+async function savedMessage(
+	ref: SavedMessageRef,
+	token: string,
+): Promise<EyedMessage | null> {
+	try {
+		const res = await slackApi<
+			SlackResponse & { message?: SlackListedMessage }
+		>(
+			"reactions.get",
+			{ channel: ref.channelId, timestamp: ref.messageTs, full: "true" },
+			token,
+		);
+		if (!res.message) return null;
+		return toEyedMessage(ref.channelId, ref.messageTs, res.message, false);
+	} catch {
+		return null;
+	}
+}
 
 /**
  * What happened in the conversation itself after a queued message.

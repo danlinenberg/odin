@@ -486,7 +486,15 @@ export const slackReactions = sqliteTable(
 		/** When Odin first saw the reaction (not when the message was posted). */
 		firstSeenAt: integer("first_seen_at").notNull(),
 		lastSeenAt: integer("last_seen_at").notNull(),
-		/** Set when the :eyes: is gone; null while it's still on the message. */
+		/**
+		 * What queued it, and so which sweep retires it: my :eyes: (`reaction`)
+		 * or Slack's Later list (`saved`).
+		 */
+		source: text("source")
+			.notNull()
+			.default("reaction")
+			.$type<"reaction" | "saved">(),
+		/** Set when the :eyes: (or the save) is gone; null while it's still there. */
 		unreactedAt: integer("unreacted_at"),
 		/**
 		 * When a session was first launched for this row. Persisted rather than
