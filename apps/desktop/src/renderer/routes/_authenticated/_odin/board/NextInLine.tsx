@@ -298,6 +298,7 @@ export function NextInLine() {
 	const { ranking, applied, startedAt, error } = useAiRanking();
 	const picked = useNextInLinePrompt((s) => s.offHours.picked);
 	const afterPicks = useNextInLinePrompt((s) => s.offHours.afterPicks);
+	const nightAgentOn = useNextInLinePrompt((s) => s.offHours.enabled);
 	const setOffHours = useNextInLinePrompt((s) => s.setOffHours);
 	const navigate = useNavigate();
 	// The rows your instructions hide, per the model - revealed, dimmed, on ask.
@@ -426,6 +427,16 @@ export function NextInLine() {
 									then {afterPicks === "stop" ? "stop" : "the rest below"}
 								</button>
 							</div>
+						)}
+						{tonight.length > 0 && !nightAgentOn && (
+							<button
+								type="button"
+								onClick={() => setOffHours({ enabled: true })}
+								title="Picks only start while the Night Agent is on"
+								className="mx-1 rounded-md border border-attention/40 bg-attention/10 px-2 py-1 text-left text-[11px] text-attention hover:bg-attention/20"
+							>
+								Night Agent is off, these won't start. Turn on
+							</button>
 						)}
 						{tonight.map((item) => card(item, false))}
 						{pinnedRest.length > 0 && (
