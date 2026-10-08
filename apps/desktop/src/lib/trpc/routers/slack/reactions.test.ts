@@ -7,12 +7,15 @@ import {
 	messageBody,
 	normalizeReaction,
 	pickEyedMessages,
+	pickSavedMessages,
 	reactionStatus,
 	replaceMentions,
 	rowsToVerify,
 	type SlackReactionsListItem,
+	savedRowsToClose,
 	slackTextToPlain,
 	threadParentTs,
+	toEyedMessage,
 	toTitle,
 } from "./reactions";
 
@@ -142,6 +145,118 @@ describe("rowsToVerify", () => {
 			"a",
 			"b",
 		]);
+	});
+});
+
+describe("pickSavedMessages", () => {
+	const saved = (partial: Record<string, unknown> = {}) => ({
+		item_id: "C1",
+		item_type: "message",
+		ts: "100.1",
+		state: "in_progress",
+		todo_state: "saved",
+		...partial,
+	});
+
+	test("an open saved message is a queue item", () => {
+		expect(pickSavedMessages([saved()])).toEqual([
+			{ id: "C1:100.1", channelId: "C1", messageTs: "100.1" },
+		]);
+	});
+
+	test("saved files and channels are not", () => {
+		const items = [
+			saved({ item_type: "file", item_id: "F1" }),
+			saved({ item_type: "channel" }),
+		];
+		expect(pickSavedMessages(items)).toEqual([]);
+	});
+
+	test("completed and archived items are not", () => {
+		const items = [
+			saved({ ts: "1.1", state: "completed" }),
+			saved({ ts: "1.2", todo_state: "completed" }),
+			saved({ ts: "1.3", is_archived: true }),
+			saved({ ts: "1.4", date_completed: 1790000000 }),
+			saved({ ts: "1.5", date_completed: 0, is_archived: false }),
+		];
+		expect(pickSavedMessages(items).map((m) => m.messageTs)).toEqual(["1.5"]);
+	});
+
+	test("anything not shaped like a saved message is skipped, not trusted", () => {
+		const items = [
+			null,
+			"C1:100.1",
+			saved({ item_id: 42 }),
+			saved({ ts: undefined }),
+			saved({ item_id: "" }),
+			saved({ ts: "100.2", extra: { nested: true } }),
+		];
+		expect(pickSavedMessages(items).map((m) => m.id)).toEqual(["C1:100.2"]);
+	});
+
+	test("the same message twice is one item", () => {
+		expect(pickSavedMessages([saved(), saved()])).toHaveLength(1);
+	});
+});
+
+describe("toEyedMessage", () => {
+	test("builds the same row a reaction would, never launching", () => {
+		expect(
+			toEyedMessage(
+				"C1",
+				"200.1",
+				{
+					user: "U_AUTHOR",
+					text: "<@U1|dan> can you look?",
+					thread_ts: "100.1",
+					permalink: "https://x.slack.com/archives/C1/p2001",
+				},
+				false,
+			),
+		).toEqual({
+			id: "C1:200.1",
+			channelId: "C1",
+			messageTs: "200.1",
+			threadTs: "100.1",
+			authorId: "U_AUTHOR",
+			text: "@dan can you look?",
+			permalink: "https://x.slack.com/archives/C1/p2001",
+			launch: false,
+		});
+	});
+});
+
+describe("savedRowsToClose", () => {
+	const row = (
+		id: string,
+		source: "reaction" | "saved" = "saved",
+		extra: { unreactedAt?: number | null; doneAt?: number | null } = {},
+	) => ({ id, source, unreactedAt: null, doneAt: null, ...extra });
+
+	test("a saved row gone from the Later list closes", () => {
+		const rows = [row("kept"), row("gone")];
+		expect(
+			savedRowsToClose(rows, new Set(["kept"]), new Set()).map((r) => r.id),
+		).toEqual(["gone"]);
+	});
+
+	test(":eyes: rows are the reaction sweep's, not this one's", () => {
+		expect(
+			savedRowsToClose([row("a", "reaction")], new Set(), new Set()),
+		).toEqual([]);
+	});
+
+	test("a saved row I :eyes:'d this sync stays open", () => {
+		expect(savedRowsToClose([row("a")], new Set(), new Set(["a"]))).toEqual([]);
+	});
+
+	test("rows already closed or done are left alone", () => {
+		const rows = [
+			row("closed", "saved", { unreactedAt: 5 }),
+			row("done", "saved", { doneAt: 5 }),
+		];
+		expect(savedRowsToClose(rows, new Set(), new Set())).toEqual([]);
 	});
 });
 
