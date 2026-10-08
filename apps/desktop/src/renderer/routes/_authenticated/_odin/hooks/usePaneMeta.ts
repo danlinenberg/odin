@@ -7,6 +7,12 @@ export interface BriefLink {
 	name?: string;
 }
 
+/** A note you submitted - a reminder for when the agent finishes. */
+export interface BriefTodo {
+	text: string;
+	done?: boolean;
+}
+
 export const linkUrl = (link: BriefLink | string) =>
 	typeof link === "string" ? link : link.url;
 
@@ -19,6 +25,8 @@ export const linkUrl = (link: BriefLink | string) =>
  *  - notes:   whatever you typed into the session brief panel yourself - the
  *             written brief is regenerated from the transcript, so your own
  *             "don't forget X" needs somewhere of its own to live.
+ *  - todos:   notes you submitted to a list - "ask it about X once this
+ *             lands" - ticked off one at a time.
  *  - links:   resources you attached to the brief yourself (another Slack
  *             thread, a doc) - the brief only finds what the transcript quotes.
  *  - hidden:  resources the transcript surfaced that you don't want on the
@@ -26,6 +34,7 @@ export const linkUrl = (link: BriefLink | string) =>
  */
 interface KeptBrief {
 	notes?: string;
+	todos?: BriefTodo[];
 	links?: (BriefLink | string)[];
 	hidden?: string[];
 }
@@ -34,6 +43,7 @@ export const usePaneMeta = create<{
 	contactByPane: Record<string, string>;
 	briefByPane: Record<string, string>;
 	notesByPane: Record<string, string>;
+	todosByPane: Record<string, BriefTodo[]>;
 	/** Plain strings are links saved before they could carry a name. */
 	linksByPane: Record<string, (BriefLink | string)[]>;
 	/** URLs hidden from the brief, per pane. */
@@ -55,6 +65,9 @@ export const usePaneMeta = create<{
 	setContact: (paneId: string, contact: string) => void;
 	setBrief: (paneId: string, brief: string) => void;
 	setNotes: (paneId: string, notes: string) => void;
+	addTodo: (paneId: string, text: string) => void;
+	/** Done flips its tick; otherwise the to-do is removed. */
+	updateTodo: (paneId: string, index: number, done?: boolean) => void;
 	addLink: (paneId: string, url: string, name?: string) => void;
 	removeLink: (paneId: string, url: string) => void;
 	setHidden: (paneId: string, url: string, hidden: boolean) => void;
@@ -74,6 +87,7 @@ export const usePaneMeta = create<{
 			contactByPane: {},
 			briefByPane: {},
 			notesByPane: {},
+			todosByPane: {},
 			linksByPane: {},
 			hiddenByPane: {},
 			titleByPane: {},
@@ -97,6 +111,29 @@ export const usePaneMeta = create<{
 						return { notesByPane: rest };
 					}
 					return { notesByPane: { ...s.notesByPane, [paneId]: notes } };
+				}),
+			addTodo: (paneId, text) =>
+				set((s) => {
+					if (!text.trim()) return {};
+					const todos = [
+						...(s.todosByPane[paneId] ?? []),
+						{ text: text.trim() },
+					];
+					return { todosByPane: { ...s.todosByPane, [paneId]: todos } };
+				}),
+			updateTodo: (paneId, index, done) =>
+				set((s) => {
+					const todos = (s.todosByPane[paneId] ?? []).flatMap((todo, i) =>
+						i !== index
+							? [todo]
+							: done === undefined
+								? []
+								: [{ ...todo, done }],
+					);
+					const { [paneId]: _, ...rest } = s.todosByPane;
+					return {
+						todosByPane: todos.length ? { ...rest, [paneId]: todos } : rest,
+					};
 				}),
 			addLink: (paneId, url, name) =>
 				set((s) => {
@@ -159,10 +196,11 @@ export const usePaneMeta = create<{
 					const sid = sessionId ?? s.sessionIdByPane[paneId];
 					const kept: KeptBrief = {
 						notes: s.notesByPane[paneId],
+						todos: s.todosByPane[paneId],
 						links: s.linksByPane[paneId],
 						hidden: s.hiddenByPane[paneId],
 					};
-					const hasKept = kept.notes || kept.links || kept.hidden;
+					const hasKept = kept.notes || kept.todos || kept.links || kept.hidden;
 					return {
 						keptBySession:
 							sid && hasKept
@@ -171,6 +209,7 @@ export const usePaneMeta = create<{
 						contactByPane: drop(s.contactByPane),
 						briefByPane: drop(s.briefByPane),
 						notesByPane: drop(s.notesByPane),
+						todosByPane: drop(s.todosByPane),
 						linksByPane: drop(s.linksByPane),
 						hiddenByPane: drop(s.hiddenByPane),
 						titleByPane: drop(s.titleByPane),
@@ -189,6 +228,9 @@ export const usePaneMeta = create<{
 						keptBySession: rest,
 						...(kept.notes
 							? { notesByPane: { ...s.notesByPane, [paneId]: kept.notes } }
+							: {}),
+						...(kept.todos
+							? { todosByPane: { ...s.todosByPane, [paneId]: kept.todos } }
 							: {}),
 						...(kept.links
 							? { linksByPane: { ...s.linksByPane, [paneId]: kept.links } }

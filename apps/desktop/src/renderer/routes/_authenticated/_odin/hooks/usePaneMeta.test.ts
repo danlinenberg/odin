@@ -37,10 +37,29 @@ describe("setNotes", () => {
 	});
 });
 
+describe("todos", () => {
+	it("adds a submitted note, ticks it, and removes it", () => {
+		const s = usePaneMeta.getState();
+		s.addTodo("p4", "  ask about the contract endpoint ");
+		s.addTodo("p4", "   ");
+		s.addTodo("p4", "check the migration");
+		s.updateTodo("p4", 0, true);
+		expect(usePaneMeta.getState().todosByPane.p4).toEqual([
+			{ text: "ask about the contract endpoint", done: true },
+			{ text: "check the migration" },
+		]);
+
+		s.updateTodo("p4", 0);
+		s.updateTodo("p4", 0);
+		expect("p4" in usePaneMeta.getState().todosByPane).toBe(false);
+	});
+});
+
 describe("Done then resume", () => {
 	it("hands your notes and links to the resumed conversation's new pane", () => {
 		const s = usePaneMeta.getState();
 		s.setNotes("old", "ping QA after deploy");
+		s.addTodo("old", "ask about retries");
 		s.addLink("old", "https://x.test/doc", "doc");
 		s.setHidden("old", "https://x.test/noise", true);
 
@@ -50,6 +69,7 @@ describe("Done then resume", () => {
 		s.adoptSession("new", "sess-9");
 		const after = usePaneMeta.getState();
 		expect(after.notesByPane.new).toBe("ping QA after deploy");
+		expect(after.todosByPane.new).toEqual([{ text: "ask about retries" }]);
 		expect(after.linksByPane.new).toEqual([
 			{ url: "https://x.test/doc", name: "doc" },
 		]);

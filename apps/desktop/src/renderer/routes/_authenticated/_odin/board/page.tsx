@@ -133,7 +133,7 @@ import {
 import { ChatView } from "./ChatView";
 import { DiffView } from "./DiffView";
 import { NextInLine } from "./NextInLine";
-import { HoverBrief, SessionBrief } from "./SessionBrief";
+import { HoverBrief, MyTodos, SessionBrief } from "./SessionBrief";
 import {
 	PREFIX as REMIND_PREFIX,
 	RemindButton,
@@ -458,6 +458,8 @@ function CatchUpCard({
 				),
 			),
 		);
+	// The notes you submitted - the question you saved for when it finished.
+	const hasTodos = usePaneMeta((s) => !!s.todosByPane[card.pane.id]);
 	const label = "mb-1.5 text-[11px] font-semibold uppercase tracking-[.4px]";
 	return (
 		<div className="flex min-h-0 flex-1 select-text cursor-text flex-col gap-6 overflow-y-auto px-8 py-7">
@@ -492,6 +494,12 @@ function CatchUpCard({
 					</div>
 				)}
 			</div>
+			{hasTodos && (
+				<div>
+					<div className={cn(label, "text-attention")}>Your to-dos</div>
+					<MyTodos paneId={card.pane.id} />
+				</div>
+			)}
 			{written?.status && (
 				<div>
 					<div className={cn(label, "text-muted-foreground")}>
