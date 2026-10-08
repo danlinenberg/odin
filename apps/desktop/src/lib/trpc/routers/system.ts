@@ -1,4 +1,6 @@
 import { type ChildProcess, spawn } from "node:child_process";
+import { accessSync, constants } from "node:fs";
+import { join } from "node:path";
 import { z } from "zod";
 import { publicProcedure, router } from "..";
 import {
@@ -110,12 +112,36 @@ async function claudeAuthStatus(): Promise<{ signedIn: boolean | null }> {
  */
 let login: ChildProcess | null = null;
 
+/**
+ * The first runnable `claude` on PATH. Node's own lookup stops at the first
+ * entry it can't run (EPERM) instead of trying the next folder, so an
+ * unreadable copy early on PATH would hide Odin's bundled one at the end.
+ */
+export function findClaude(path: string): string | null {
+	for (const dir of path.split(":").filter(Boolean)) {
+		const bin = join(dir, "claude");
+		try {
+			accessSync(bin, constants.X_OK);
+			return bin;
+		} catch {}
+	}
+	return null;
+}
+
 async function claudeLogin(): Promise<{ ok: boolean; error?: string }> {
 	login?.kill();
-	const child = spawn("claude", ["auth", "login", "--claudeai"], {
-		env: await getProcessEnvWithShellPath(),
-		stdio: ["pipe", "pipe", "pipe"],
-	});
+	const env = await getProcessEnvWithShellPath();
+	const bin = findClaude(env.PATH ?? "");
+	if (!bin) return { ok: false, error: "Claude Code was not found." };
+	let child: ChildProcess;
+	try {
+		child = spawn(bin, ["auth", "login", "--claudeai"], {
+			env,
+			stdio: ["pipe", "pipe", "pipe"],
+		});
+	} catch (error) {
+		return { ok: false, error: (error as Error).message };
+	}
 	login = child;
 	let output = "";
 	child.stdout?.on("data", (chunk) => {
