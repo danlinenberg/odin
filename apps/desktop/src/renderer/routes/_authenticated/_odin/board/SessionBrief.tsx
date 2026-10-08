@@ -328,6 +328,7 @@ export function SessionBrief({
 	marker,
 	live,
 	launch = null,
+	starting = false,
 	resourcesOnly = false,
 }: {
 	paneId: string;
@@ -338,6 +339,8 @@ export function SessionBrief({
 	live: boolean;
 	/** The pane's launch brief - the row it was started from. */
 	launch?: string | null;
+	/** Queued or launching: no transcript yet is expected, not an error. */
+	starting?: boolean;
 	/** Just the resource sections - no brief, notes or link input. */
 	resourcesOnly?: boolean;
 }) {
@@ -836,7 +839,11 @@ export function SessionBrief({
 								{transcript.title}
 							</div>
 						)}
-						{error ? (
+						{error && starting ? (
+							<div className="text-[12px] text-muted-foreground">
+								Nothing yet - the session hasn't started.
+							</div>
+						) : error ? (
 							<div className="text-[12px] text-danger">{error.message}</div>
 						) : written ? (
 							<>

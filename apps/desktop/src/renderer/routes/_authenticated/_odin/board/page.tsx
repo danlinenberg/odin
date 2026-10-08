@@ -300,6 +300,10 @@ function HistoryView({ card, live }: { card: BoardCard; live: boolean }) {
 			/>
 		);
 	}
+	// A fresh launch: the conversation file isn't written until Claude's first
+	// turn, and the daemon poll hasn't seen the PTY yet.
+	if (error && card.pane.status === "working")
+		return <StartingView label="Starting session…" />;
 	if (sessionId && !live && !error) {
 		return (
 			<div className="flex min-h-0 flex-1 flex-col">
@@ -311,6 +315,16 @@ function HistoryView({ card, live }: { card: BoardCard; live: boolean }) {
 		);
 	}
 	return <ScrollbackView card={card} live={live} />;
+}
+
+/** Spinner for the gap before a session has anything to show. */
+function StartingView({ label }: { label: string }) {
+	return (
+		<div className="flex flex-1 items-center justify-center gap-2 text-[13px] text-working">
+			<span className="size-[12px] animate-spin rounded-full border-2 border-working border-t-transparent" />
+			{label}
+		</div>
+	);
 }
 
 /** The persisted PTY output, for panes with no Claude conversation behind them. */
@@ -4271,15 +4285,20 @@ function DevBoardPage() {
 												workspaceId={drawerCard.workspaceId}
 											/>
 										</div>
-									) : resumingPaneIds.includes(drawerCard.pane.id) ? (
+									) : resumingPaneIds.includes(drawerCard.pane.id) ||
+										panes[drawerCard.pane.id]?.odinQueued ? (
 										// Between the click and the PTY coming up, "Session ended"
-										// history reads as if Resume did nothing.
-										<div className="flex flex-1 items-center justify-center gap-2 text-[13px] text-working">
-											<span className="size-[12px] animate-spin rounded-full border-2 border-working border-t-transparent" />
-											{drawerCard.pane.odinQueued
-												? "Starting session…"
-												: "Resuming session…"}
-										</div>
+										// history reads as if Resume did nothing. A queued task has
+										// no history at all yet - it's waiting for a free slot.
+										<StartingView
+											label={
+												resumingPaneIds.includes(drawerCard.pane.id)
+													? panes[drawerCard.pane.id]?.odinQueued
+														? "Starting session…"
+														: "Resuming session…"
+													: `Waiting to start - ${panes[drawerCard.pane.id]?.odinQueued?.reason}`
+											}
+										/>
 									) : (
 										// Claude has exited - the PTY is dead, or a bare zsh outlived
 										// the conversation. Show the conversation, read-only.
@@ -4295,6 +4314,11 @@ function DevBoardPage() {
 										marker={cardTitle(drawerCard)}
 										live={alivePaneIds.has(drawerCard.pane.id)}
 										launch={drawerCard.pane.odinBrief}
+										starting={
+											!!panes[drawerCard.pane.id]?.odinQueued ||
+											resumingPaneIds.includes(drawerCard.pane.id) ||
+											drawerCard.pane.status === "working"
+										}
 									/>
 								)}
 							</div>
