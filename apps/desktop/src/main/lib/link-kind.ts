@@ -18,7 +18,7 @@ export function linkKind(url: string): LinkKind | null {
 			? /\b([A-Z][A-Z0-9]+-\d+)\b/.exec(url)
 			: null);
 	if (jira) return { kind: "jira", key: jira[1] };
-	if (/notion\.(?:so|site)\//.test(url)) {
+	if (/notion\.(?:so|site|com)\//.test(url)) {
 		// A peeked row (?p=) names its page there; otherwise the id ends the
 		// path, after a dashed title whose own hex letters must not leak in.
 		const parsed = new URL(url);
