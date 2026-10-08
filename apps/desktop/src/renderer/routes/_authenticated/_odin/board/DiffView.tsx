@@ -234,7 +234,7 @@ export function DiffView({
 							<div className="px-4 py-3 text-[12px] text-muted-foreground">
 								{pr
 									? "This PR has no changes."
-									: "Nothing from this session - no uncommitted changes, and the last commit here predates it."}
+									: "Nothing from this session - no changes of its own here, and the last commit is not its."}
 							</div>
 						)
 					)}
