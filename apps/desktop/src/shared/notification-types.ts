@@ -28,6 +28,15 @@ export interface RunInShellRequest {
 	command: string;
 }
 
+/** An agent asking Odin itself to do something - the crow's `/odin` API. */
+export interface OdinActionRequest {
+	/** Matches the renderer's reply to the HTTP request waiting on it. */
+	id: string;
+	action: string;
+	/** The rest of the form: `ids`, `text`. */
+	args: Record<string, string>;
+}
+
 export type V2NotificationSource =
 	| { type: "terminal"; id: string }
 	| { type: "chat"; id: string };

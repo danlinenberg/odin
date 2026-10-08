@@ -9,9 +9,11 @@ import {
 	type AgentLifecycleEvent,
 	type NotificationIds,
 	notificationsEmitter,
+	replyToOdinAction,
 } from "main/lib/notifications/server";
 import { NOTIFICATION_EVENTS } from "shared/constants";
 import type {
+	OdinActionRequest,
 	RunInShellRequest,
 	V2NotificationSourceFocusTarget,
 } from "shared/notification-types";
@@ -38,7 +40,8 @@ type NotificationEvent =
 			type: typeof NOTIFICATION_EVENTS.TERMINAL_EXIT;
 			data?: TerminalExitNotification;
 	  }
-	| { type: typeof NOTIFICATION_EVENTS.RUN_IN_SHELL; data?: RunInShellRequest };
+	| { type: typeof NOTIFICATION_EVENTS.RUN_IN_SHELL; data?: RunInShellRequest }
+	| { type: typeof NOTIFICATION_EVENTS.ODIN_ACTION; data?: OdinActionRequest };
 
 const v2NotificationSourceSchema = z.discriminatedUnion("type", [
 	z.object({ type: z.literal("terminal"), id: z.string().min(1) }),
@@ -141,6 +144,14 @@ export const createNotificationsRouter = (
 			return { success: true as const };
 		}),
 
+		/** The renderer's answer to a crow's `/odin` request. */
+		odinReply: publicProcedure
+			.input(z.object({ id: z.string(), text: z.string() }))
+			.mutation(({ input }) => {
+				replyToOdinAction(input.id, input.text);
+				return { success: true as const };
+			}),
+
 		setDockBadge: publicProcedure
 			.input(z.object({ count: z.number().int().min(0) }))
 			.mutation(({ input }) => {
@@ -175,6 +186,10 @@ export const createNotificationsRouter = (
 					emit.next({ type: NOTIFICATION_EVENTS.RUN_IN_SHELL, data });
 				};
 
+				const onOdinAction = (data: OdinActionRequest) => {
+					emit.next({ type: NOTIFICATION_EVENTS.ODIN_ACTION, data });
+				};
+
 				notificationsEmitter.on(
 					NOTIFICATION_EVENTS.AGENT_LIFECYCLE,
 					onLifecycle,
@@ -189,6 +204,7 @@ export const createNotificationsRouter = (
 					onTerminalExit,
 				);
 				notificationsEmitter.on(NOTIFICATION_EVENTS.RUN_IN_SHELL, onRunInShell);
+				notificationsEmitter.on(NOTIFICATION_EVENTS.ODIN_ACTION, onOdinAction);
 
 				return () => {
 					notificationsEmitter.off(
@@ -207,6 +223,10 @@ export const createNotificationsRouter = (
 					notificationsEmitter.off(
 						NOTIFICATION_EVENTS.RUN_IN_SHELL,
 						onRunInShell,
+					);
+					notificationsEmitter.off(
+						NOTIFICATION_EVENTS.ODIN_ACTION,
+						onOdinAction,
 					);
 				};
 			});

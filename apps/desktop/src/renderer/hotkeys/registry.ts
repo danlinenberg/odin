@@ -159,17 +159,16 @@ export const HOTKEYS_REGISTRY = {
 		category: "Navigation",
 		description: "Write a task down without leaving what you're doing",
 	},
-	// A chord for the same reason as New Task: the question comes up mid-session.
-	ODIN_QUICK_QUESTION: {
+	// A chord for the same reason as New Task: the ask comes up mid-session.
+	ODIN_ASK_CROW: {
 		key: {
 			mac: L("meta+shift+i"),
 			windows: L("ctrl+shift+alt+i"),
 			linux: L("ctrl+shift+alt+i"),
 		},
-		label: "Quick Question",
+		label: "Ask the Crow",
 		category: "Navigation",
-		description:
-			"Ask a Claude that's already running - no wait for it to start",
+		description: "Ask Odin's own agent anything, or tell it what to do in Odin",
 	},
 	// ⌘L, where a browser's address bar would be.
 	ODIN_COPY_LINK: {

@@ -31,6 +31,7 @@ import {
 	machineLoad,
 } from "shared/machine-load";
 import { ClaudeSignInBanner } from "./components/ClaudeSignInBanner";
+import { CrowButton } from "./components/CrowButton";
 import { FEED_TABS } from "./components/feed-counts";
 import { GettingStarted } from "./components/GettingStarted";
 import { InAppBrowser } from "./components/InAppBrowser";
@@ -51,15 +52,11 @@ import {
 	profileLabel,
 	useBoardCountsByProfile,
 } from "./hooks/useBoardCountsByProfile";
+import { crowPane, useCrow, useCrowDialog } from "./hooks/useCrow";
 import { useNightAgentRunner } from "./hooks/useNightAgentRunner";
 import { useOdinFeeds } from "./hooks/useOdinFeeds";
 import { useOdinProfile } from "./hooks/useOdinProfile";
 import { usePendingFocus } from "./hooks/usePendingFocus";
-import {
-	questionPane,
-	useQuickQuestion,
-	useQuickQuestionDialog,
-} from "./hooks/useQuickQuestion";
 import { useSlackAutoLaunch } from "./hooks/useStartReaction";
 
 /**
@@ -387,11 +384,11 @@ function OdinShell() {
 	// inside a session's terminal, which is where most of them occur to you.
 	const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
 	const newTaskKeys = useHotkey("ODIN_NEW_TASK", () => setIsQuickAddOpen(true));
-	const askQuestion = useQuickQuestion();
-	const isQuestionOpen = useQuickQuestionDialog((s) => s.isOpen);
-	const setQuestionOpen = useQuickQuestionDialog((s) => s.setOpen);
-	const openQuestion = useTabsStore((s) => questionPane(s.panes));
-	useHotkey("ODIN_QUICK_QUESTION", () => setQuestionOpen(true));
+	const askCrow = useCrow();
+	const isCrowOpen = useCrowDialog((s) => s.isOpen);
+	const setCrowOpen = useCrowDialog((s) => s.setOpen);
+	const openCrow = useTabsStore((s) => crowPane(s.panes));
+	const crowKeys = useHotkey("ODIN_ASK_CROW", () => setCrowOpen(true));
 	const [isSearchAllOpen, setIsSearchAllOpen] = useState(false);
 	useHotkey("ODIN_SEARCH_ALL", () => setIsSearchAllOpen(true));
 
@@ -615,20 +612,21 @@ function OdinShell() {
 			{isSearchAllOpen && (
 				<SearchAll onClose={() => setIsSearchAllOpen(false)} />
 			)}
-			{isQuestionOpen && (
+			<CrowButton onOpen={() => setCrowOpen(true)} keys={crowKeys.text} />
+			{isCrowOpen && (
 				<OdinPromptDialog
-					heading="Quick question"
+					heading="Ask the crow"
 					note={
-						openQuestion ? (
+						openCrow ? (
 							<>
-								Follows up in “{openQuestion.userTitle ?? openQuestion.name}” -
-								✓ Done in its drawer starts a fresh one.{" "}
+								Follows up in “{openCrow.userTitle ?? openCrow.name}” - ✓ Done
+								in its drawer starts a fresh one.{" "}
 								<button
 									type="button"
 									className="underline hover:text-foreground"
 									onClick={() => {
-										setQuestionOpen(false);
-										usePendingFocus.getState().focus(openQuestion.id);
+										setCrowOpen(false);
+										usePendingFocus.getState().focus(openCrow.id);
 										navigate({ to: "/board" });
 									}}
 								>
@@ -636,14 +634,14 @@ function OdinShell() {
 								</button>
 							</>
 						) : (
-							"Goes to a Claude that's already running in your default repo - no start-up wait."
+							'Odin\'s own agent, already running in your default repo. Ask anything, or tell it what to do in Odin - "start my top 5 backlog tasks".'
 						)
 					}
-					placeholder="Ask anything"
+					placeholder="Ask anything, or tell Odin what to do"
 					submitLabel="Ask"
-					onCancel={() => setQuestionOpen(false)}
-					onSubmit={async (question, files) => {
-						if (await askQuestion(question, files)) setQuestionOpen(false);
+					onCancel={() => setCrowOpen(false)}
+					onSubmit={async (text, files) => {
+						if (await askCrow(text, files)) setCrowOpen(false);
 					}}
 				/>
 			)}
