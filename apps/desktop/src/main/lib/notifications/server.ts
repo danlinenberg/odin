@@ -207,7 +207,7 @@ app.post("/odin", express.urlencoded({ extended: false }), async (req, res) => {
 });
 
 /**
- * A Slack, Jira, GitHub or Notion link as plain text, read with Odin's own
+ * A Slack, Jira, GitHub, Notion or ClickUp link as plain text, read with Odin's own
  * connections - so a session reads its source the same way on every machine,
  * whatever MCP servers Claude has (see main/lib/read-link.ts). A thread or
  * ticket is private, so browsers are refused here too.

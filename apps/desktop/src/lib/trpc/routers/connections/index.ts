@@ -17,6 +17,7 @@ import {
 	readNotionOAuthResult,
 	startNotionOAuth,
 } from "main/lib/notion-oauth";
+import { clickupFetch } from "main/lib/read-link";
 import {
 	isSlackOAuthConfigured,
 	readSlackOAuthResult,
@@ -55,12 +56,20 @@ import { fetchGmailFeed, gmailCredentials } from "../work";
  * environment and nothing takes a pasted token: a shell variable is ambient
  * and would sign every profile into the same account, and a pasted token is a
  * chore that OAuth exists to remove - Gmail is the exception: its OAuth needs a
- * Google Cloud app and review, so it takes an app password. Slack, Jira and Notion run the
- * browser consent flow; GitHub runs the device flow (no client secret, no
+ * Google Cloud app and review, so it takes an app password, and ClickUp's
+ * needs an app registered per workspace, so it takes a personal API token.
+ * Slack, Jira and Notion run the browser consent flow; GitHub runs the device flow (no client secret, no
  * redirect URL, the flow GitHub built for desktop apps).
  */
 
-const PROVIDERS = ["slack", "jira", "github", "notion", "gmail"] as const;
+const PROVIDERS = [
+	"slack",
+	"jira",
+	"github",
+	"notion",
+	"gmail",
+	"clickup",
+] as const;
 type Provider = (typeof PROVIDERS)[number];
 
 export interface ConnectionStatus {
@@ -201,6 +210,26 @@ async function probeGmail(): Promise<ConnectionStatus> {
 	}
 }
 
+async function probeClickup(): Promise<ConnectionStatus> {
+	const token = readOdinConfig().clickupToken;
+	if (!token) return unconfigured("clickup");
+	try {
+		const res = await clickupFetch("user", token);
+		if (!res.ok) return failed("clickup", probeError(res.status));
+		const { user } = (await res.json()) as {
+			user?: { username?: string; email?: string };
+		};
+		return {
+			provider: "clickup",
+			configured: true,
+			identity: user?.email ?? user?.username ?? null,
+			error: null,
+		};
+	} catch (error) {
+		return failed("clickup", message(error));
+	}
+}
+
 function unconfigured(provider: Provider): ConnectionStatus {
 	return { provider, configured: false, identity: null, error: null };
 }
@@ -305,6 +334,7 @@ export const createConnectionsRouter = () => {
 				probeGithub(),
 				probeNotion(),
 				probeGmail(),
+				probeClickup(),
 			]);
 		}),
 
@@ -471,6 +501,9 @@ export const createConnectionsRouter = () => {
 							gmailAppPassword: undefined,
 						});
 						break;
+					case "clickup":
+						updateOdinConfig({ clickupToken: undefined });
+						break;
 					case "jira":
 						updateOdinConfig({
 							jiraAccessToken: undefined,
@@ -514,6 +547,24 @@ export const createConnectionsRouter = () => {
 					gmailAddress: credentials.address,
 					gmailAppPassword: credentials.password,
 				});
+				return { ok: true };
+			}),
+
+		/** ClickUp's way in: a personal API token, checked before it's stored. */
+		saveClickup: publicProcedure
+			.input(z.object({ token: z.string().trim().min(1) }))
+			.mutation(async ({ input }) => {
+				const res = await clickupFetch("user", input.token);
+				if (!res.ok) {
+					throw new TRPCError({
+						code: "BAD_REQUEST",
+						message:
+							res.status === 401
+								? "ClickUp rejected that token."
+								: `ClickUp answered HTTP ${res.status}`,
+					});
+				}
+				updateOdinConfig({ clickupToken: input.token });
 				return { ok: true };
 			}),
 

@@ -21,6 +21,15 @@ describe("linkKind", () => {
 			linkKind("https://x.atlassian.net/jira/board/1?selectedIssue=CRR-9"),
 		).toEqual({ kind: "jira", key: "CRR-9" });
 		expect(linkKind("CRR-9")).toEqual({ kind: "jira", key: "CRR-9" });
+		expect(linkKind("https://app.clickup.com/t/86c1ab2cd")).toEqual({
+			kind: "clickup",
+			id: "86c1ab2cd",
+		});
+		expect(linkKind("https://app.clickup.com/t/9012345/DEV-42")).toEqual({
+			kind: "clickup",
+			id: "DEV-42",
+			teamId: "9012345",
+		});
 		expect(linkKind("https://example.com/x")).toBeNull();
 	});
 
