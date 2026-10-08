@@ -171,7 +171,7 @@ export interface Pane {
 	odinSource?: "slack" | "reactions" | "jira" | "pr" | "notion";
 	/** Free-form labels for filtering the board (right-click a card). */
 	odinTags?: string[];
-	/** Starred from the card's right-click menu: a ★ marks the important ones. */
+	/** Starred from the card's ★ button or right-click menu: pinned to the top section. */
 	odinStarred?: boolean;
 	/**
 	 * The generated tags have been applied to this card once. Set so a tag you
