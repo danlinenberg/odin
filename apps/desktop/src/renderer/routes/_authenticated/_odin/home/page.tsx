@@ -21,19 +21,28 @@ import { electronTrpcClient } from "renderer/lib/trpc-client";
 import { coldRestoreState } from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/state";
 import { Terminal } from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/Terminal";
 import * as terminalCache from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/v1-terminal-cache";
+import { useHomeOrder } from "renderer/stores/home-order";
 import { useInAppBrowser } from "renderer/stores/in-app-browser";
 import { useSessionView } from "renderer/stores/session-view";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import { profileOf } from "shared/odin-profile";
 import { ChatView } from "../board/ChatView";
 import { interruptPane } from "../board/interrupt";
+import { NewSessionDialog } from "../components/NewSessionDialog";
 import { untruncatedTitle } from "../components/OdinPromptDialog";
+import { BUTTON } from "../components/pill";
 import { useBoardColumns } from "../hooks/useBoardColumns";
 import { useOdinProfile } from "../hooks/useOdinProfile";
 import { usePaneMeta } from "../hooks/usePaneMeta";
 import { usePendingFocus } from "../hooks/usePendingFocus";
 import { PANE_STATUS } from "../pane-status";
-import { type HomeCard, homeCards, homeGrid } from "./home-cards";
+import {
+	type HomeCard,
+	homeCards,
+	homeGrid,
+	homeOrder,
+	moveCard,
+} from "./home-cards";
 
 /**
  * Home - every session that's working or waiting on you, side by side and
@@ -44,6 +53,9 @@ import { type HomeCard, homeCards, homeGrid } from "./home-cards";
 export const Route = createFileRoute("/_authenticated/_odin/home/")({
 	component: HomePage,
 });
+
+/** What a dragged card carries - not text, so no terminal or box takes it. */
+const CARD_DRAG = "application/x-odin-home-card";
 
 /** A PTY nobody has attached to runs at the daemon's launch size. */
 const LAUNCH_SIZE = { cols: 80, rows: 24 };
@@ -150,7 +162,7 @@ function HomePage() {
 		[tabs],
 	);
 	// The board's own cards: terminals Odin launched, under this profile.
-	const { cards, more } = useMemo(
+	const cards = useMemo(
 		() =>
 			homeCards(
 				Object.values(panes).filter(
@@ -172,6 +184,25 @@ function HomePage() {
 			agentPaneIds,
 		],
 	);
+	// Where each card sits: the order they arrived in, or where you dragged
+	// them. Never by status, so nothing moves under you.
+	const savedOrder = useHomeOrder((s) => s.byProfile[activeProfileId]);
+	const setOrder = useHomeOrder((s) => s.setOrder);
+	const presentKey = cards.map((card) => card.pane.id).join(",");
+	const order = useMemo(
+		() => homeOrder(savedOrder ?? [], presentKey ? presentKey.split(",") : []),
+		[savedOrder, presentKey],
+	);
+	const ready = daemonSessions !== undefined && !isProfileLoading;
+	// Save what's on Home now, so a card that left drops out and comes back
+	// at the end. Not before the first poll: everything reads as gone then.
+	useEffect(() => {
+		if (ready && order.join(",") !== (savedOrder ?? []).join(","))
+			setOrder(activeProfileId, order);
+	}, [ready, order, savedOrder, setOrder, activeProfileId]);
+	const [isNewSessionOpen, setIsNewSessionOpen] = useState(false);
+	const [dragId, setDragId] = useState<string | null>(null);
+	const [dropId, setDropId] = useState<string | null>(null);
 
 	const rootRef = useRef<HTMLDivElement>(null);
 	const [focusedId, setFocusedId] = useState<string | null>(null);
@@ -205,15 +236,38 @@ function HomePage() {
 	}, [focused, clearFocus]);
 
 	// Nothing to say until the first poll: every session would read as dead.
-	if (daemonSessions === undefined || isProfileLoading) return null;
+	if (!ready) return null;
+
+	const header = (
+		<div className="flex shrink-0 items-center gap-3 px-[18px] pb-2 pt-2.5">
+			<h1 className="text-[15px] font-semibold">Home</h1>
+			<button
+				type="button"
+				title="Describe a task and start an agent session"
+				onClick={() => setIsNewSessionOpen(true)}
+				className={cn(
+					"rounded-lg px-2.5 py-1 text-[12px] font-semibold transition-colors",
+					BUTTON.primary,
+				)}
+			>
+				+ New Session
+			</button>
+			{isNewSessionOpen && (
+				<NewSessionDialog onClose={() => setIsNewSessionOpen(false)} />
+			)}
+		</div>
+	);
 
 	if (cards.length === 0) {
 		return (
-			<div className="flex h-full items-center justify-center gap-1 text-[13px] text-muted-foreground">
-				Nothing is running.
-				<Link to="/board" className="underline hover:text-foreground">
-					Open the Dev Board
-				</Link>
+			<div className="flex h-full flex-col">
+				{header}
+				<div className="flex flex-1 items-center justify-center gap-1 text-[13px] text-muted-foreground">
+					Nothing is running.
+					<Link to="/board" className="underline hover:text-foreground">
+						Open the Dev Board
+					</Link>
+				</div>
 			</div>
 		);
 	}
@@ -229,148 +283,188 @@ function HomePage() {
 				pane.odinBrief ?? briefByPane[pane.id] ?? null,
 			),
 		);
-	// Rendered in a fixed order and placed with `order`: a card that changes
-	// column moves on screen without React moving its DOM node, which would
-	// blur the terminal you're typing in.
+	// Rendered in a fixed order and placed with `order`: a card that moves -
+	// dragged, or another one arriving or leaving - never has its DOM node
+	// moved, which would remount it or blur the terminal you're typing in.
 	const stable = [...cards].sort((a, b) => a.pane.id.localeCompare(b.pane.id));
 
 	return (
-		<div ref={rootRef} className="flex h-full flex-col gap-2 p-[18px]">
+		<div ref={rootRef} className="flex h-full flex-col">
+			{header}
+			{/* A size container, so a row can be a fraction of the visible height:
+			    the first `rows` rows fill the screen, the rest scroll below. */}
 			<div
-				className="grid min-h-0 flex-1 gap-3"
-				style={{
-					gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
-					gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
-				}}
+				className="min-h-0 flex-1 overflow-y-auto"
+				style={{ containerType: "size" }}
 			>
-				{stable.map((card) => {
-					const { pane, column } = card;
-					const isFocused = focused === pane.id;
-					const workspaceId = workspaceByTab.get(pane.tabId) ?? "";
-					const showsTerminal = !chatView || terminalPaneIds.includes(pane.id);
-					return (
-						<section
-							key={pane.id}
-							aria-label={title(card)}
-							style={{ order: cards.indexOf(card) }}
-							className={cn(
-								"flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border bg-card transition-opacity duration-150",
-								isFocused ? "border-primary/50" : "border-border",
-								focused && !isFocused && "opacity-[0.55]",
-							)}
-						>
-							<div className="flex h-8 shrink-0 items-center gap-0.5 border-b border-border pr-1 pl-3">
-								<button
-									type="button"
-									title={isFocused ? "Unfocus" : "Focus this session"}
-									onClick={() =>
-										isFocused ? clearFocus() : setFocusedId(pane.id)
-									}
-									className="min-w-0 flex-1 truncate rounded-sm text-left text-[12.5px] font-medium text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60"
-								>
-									{title(card)}
-								</button>
-								<HeaderIcon label={PANE_STATUS[column].label}>
-									{/* The board's column dot, in the column's colour. */}
-									<span
-										role="img"
-										aria-label={PANE_STATUS[column].label}
-										className="flex size-6 shrink-0 items-center justify-center"
-										style={
-											{ "--col": PANE_STATUS[column].dot } as CSSProperties
-										}
-									>
-										<span
-											className={cn(
-												"size-2 rounded-full bg-(--col) shadow-[0_0_8px_var(--col)]",
-												column === "working" && "animate-pulse",
-											)}
-										/>
-									</span>
-								</HeaderIcon>
-								{showsTerminal && agentPaneIds.has(pane.id) && (
-									<HeaderIcon label="Show as a chat (Settings > Appearance)">
-										<button
-											type="button"
-											aria-label="Show as a chat"
-											onClick={() =>
-												chatView
-													? setTerminalPaneIds((ids) =>
-															ids.filter((id) => id !== pane.id),
-														)
-													: setChatView(true)
-											}
-											className={ICON_BUTTON}
-										>
-											<HiOutlineChatBubbleLeftRight className="size-3.5" />
-										</button>
-									</HeaderIcon>
+				<div
+					className="grid gap-3 px-[18px] pb-[18px] pt-1"
+					style={{
+						gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+						gridAutoRows: `calc((100cqh - 22px - ${(rows - 1) * 12}px) / ${rows})`,
+					}}
+				>
+					{stable.map((card) => {
+						const { pane, column } = card;
+						const isFocused = focused === pane.id;
+						const workspaceId = workspaceByTab.get(pane.tabId) ?? "";
+						const showsTerminal =
+							!chatView || terminalPaneIds.includes(pane.id);
+						return (
+							<section
+								key={pane.id}
+								aria-label={title(card)}
+								style={{ order: order.indexOf(pane.id) }}
+								onDragOver={(event) => {
+									if (!dragId || !event.dataTransfer.types.includes(CARD_DRAG))
+										return;
+									event.preventDefault();
+									event.dataTransfer.dropEffect = "move";
+									if (dropId !== pane.id) setDropId(pane.id);
+								}}
+								onDragLeave={(event) => {
+									if (
+										!event.currentTarget.contains(event.relatedTarget as Node)
+									)
+										setDropId(null);
+								}}
+								onDrop={(event) => {
+									if (!dragId || !event.dataTransfer.types.includes(CARD_DRAG))
+										return;
+									event.preventDefault();
+									setOrder(activeProfileId, moveCard(order, dragId, pane.id));
+									setDragId(null);
+									setDropId(null);
+								}}
+								className={cn(
+									"flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border bg-card transition-opacity duration-150",
+									isFocused || dropId === pane.id
+										? "border-primary/50"
+										: "border-border",
+									dragId === pane.id
+										? "opacity-40"
+										: focused && !isFocused && "opacity-[0.55]",
 								)}
-								<HeaderIcon label="Open on the Dev Board">
+							>
+								{/* The header is the drag handle - the body is for reading and typing. */}
+								{/* biome-ignore lint/a11y/noStaticElementInteractions: drag is the mouse-only shortcut for reordering; the buttons inside stay keyboard-reachable */}
+								<div
+									draggable
+									onDragStart={(event) => {
+										event.dataTransfer.setData(CARD_DRAG, pane.id);
+										event.dataTransfer.effectAllowed = "move";
+										setDragId(pane.id);
+									}}
+									onDragEnd={() => {
+										setDragId(null);
+										setDropId(null);
+									}}
+									className="flex h-8 shrink-0 cursor-grab items-center gap-0.5 border-b border-border pr-1 pl-3 active:cursor-grabbing"
+								>
 									<button
 										type="button"
-										aria-label="Open on the Dev Board"
-										onClick={() => {
-											usePendingFocus.getState().focus(pane.id);
-											navigate({ to: "/board" });
-										}}
-										className={ICON_BUTTON}
+										title={isFocused ? "Unfocus" : "Focus this session"}
+										onClick={() =>
+											isFocused ? clearFocus() : setFocusedId(pane.id)
+										}
+										className="min-w-0 flex-1 truncate rounded-sm text-left text-[12.5px] font-medium text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60"
 									>
-										<HiOutlineArrowsPointingOut className="size-3.5" />
+										{title(card)}
 									</button>
-								</HeaderIcon>
-							</div>
-							{/* Clicking or tabbing into the body makes this the focused card. */}
-							<div
-								className="flex min-h-0 flex-1 flex-col"
-								onPointerDownCapture={() => setFocusedId(pane.id)}
-								onFocusCapture={() => setFocusedId(pane.id)}
-							>
-								{!agentPaneIds.has(pane.id) ? (
-									// No Claude to attach to (closed for sitting idle, or
-									// only a shell left): the drawer's history and Resume.
-									<div className="flex flex-1 items-center justify-center px-4 text-center text-[12px] text-muted-foreground">
-										Session closed - open it on the Dev Board to resume.
-									</div>
-								) : showsTerminal ? (
-									<div className="min-h-0 flex-1">
-										<CardTerminal
+									<HeaderIcon label={PANE_STATUS[column].label}>
+										{/* The board's column dot, in the column's colour. */}
+										<span
+											role="img"
+											aria-label={PANE_STATUS[column].label}
+											className="flex size-6 shrink-0 items-center justify-center"
+											style={
+												{ "--col": PANE_STATUS[column].dot } as CSSProperties
+											}
+										>
+											<span
+												className={cn(
+													"size-2 rounded-full bg-(--col) shadow-[0_0_8px_var(--col)]",
+													column === "working" && "animate-pulse",
+												)}
+											/>
+										</span>
+									</HeaderIcon>
+									{showsTerminal && agentPaneIds.has(pane.id) && (
+										<HeaderIcon label="Show as a chat (Settings > Appearance)">
+											<button
+												type="button"
+												aria-label="Show as a chat"
+												onClick={() =>
+													chatView
+														? setTerminalPaneIds((ids) =>
+																ids.filter((id) => id !== pane.id),
+															)
+														: setChatView(true)
+												}
+												className={ICON_BUTTON}
+											>
+												<HiOutlineChatBubbleLeftRight className="size-3.5" />
+											</button>
+										</HeaderIcon>
+									)}
+									<HeaderIcon label="Open on the Dev Board">
+										<button
+											type="button"
+											aria-label="Open on the Dev Board"
+											onClick={() => {
+												usePendingFocus.getState().focus(pane.id);
+												navigate({ to: "/board" });
+											}}
+											className={ICON_BUTTON}
+										>
+											<HiOutlineArrowsPointingOut className="size-3.5" />
+										</button>
+									</HeaderIcon>
+								</div>
+								{/* Clicking or tabbing into the body makes this the focused card. */}
+								<div
+									className="flex min-h-0 flex-1 flex-col"
+									onPointerDownCapture={() => setFocusedId(pane.id)}
+									onFocusCapture={() => setFocusedId(pane.id)}
+								>
+									{!agentPaneIds.has(pane.id) ? (
+										// No Claude to attach to (closed for sitting idle, or
+										// only a shell left): the drawer's history and Resume.
+										<div className="flex flex-1 items-center justify-center px-4 text-center text-[12px] text-muted-foreground">
+											Session closed - open it on the Dev Board to resume.
+										</div>
+									) : showsTerminal ? (
+										<div className="min-h-0 flex-1">
+											<CardTerminal
+												paneId={pane.id}
+												tabId={pane.tabId}
+												workspaceId={workspaceId}
+												focused={isFocused}
+											/>
+										</div>
+									) : (
+										<ChatView
 											paneId={pane.id}
-											tabId={pane.tabId}
+											sessionId={
+												pane.claudeSessionId ?? sessionIdByPane[pane.id] ?? null
+											}
+											cwd={pane.cwd ?? pane.initialCwd ?? pane.odinCwd}
 											workspaceId={workspaceId}
-											focused={isFocused}
+											working={pane.status === "working"}
+											onShowTerminal={() =>
+												setTerminalPaneIds((ids) => [...ids, pane.id])
+											}
+											onStop={() => interruptPane(pane.id)}
+											focusComposer={isFocused}
+											density="compact"
 										/>
-									</div>
-								) : (
-									<ChatView
-										paneId={pane.id}
-										sessionId={
-											pane.claudeSessionId ?? sessionIdByPane[pane.id] ?? null
-										}
-										cwd={pane.cwd ?? pane.initialCwd ?? pane.odinCwd}
-										workspaceId={workspaceId}
-										working={pane.status === "working"}
-										onShowTerminal={() =>
-											setTerminalPaneIds((ids) => [...ids, pane.id])
-										}
-										onStop={() => interruptPane(pane.id)}
-										focusComposer={isFocused}
-										density="compact"
-									/>
-								)}
-							</div>
-						</section>
-					);
-				})}
+									)}
+								</div>
+							</section>
+						);
+					})}
+				</div>
 			</div>
-			{more > 0 && (
-				<Link
-					to="/board"
-					className="self-end text-xs text-muted-foreground hover:text-foreground hover:underline"
-				>
-					+{more} more on the Dev Board
-				</Link>
-			)}
 		</div>
 	);
 }

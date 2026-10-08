@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import type { Pane, PaneStatus } from "renderer/stores/tabs/types";
-import { HOME_LIMIT, homeCards, homeGrid } from "./home-cards";
+import { homeCards, homeGrid, homeOrder, moveCard } from "./home-cards";
 
 const pane = (id: string, fields: Partial<Pane> = {}): Pane => ({
 	id,
@@ -13,8 +13,8 @@ const pane = (id: string, fields: Partial<Pane> = {}): Pane => ({
 /** Stands in for the board's column: whatever the test filed the pane under. */
 const columnOf = (pane: Pane): PaneStatus => pane.status ?? "idle";
 
-const ids = (result: ReturnType<typeof homeCards>) =>
-	result.cards.map((card) => card.pane.id);
+const ids = (cards: ReturnType<typeof homeCards>) =>
+	cards.map((card) => card.pane.id);
 
 describe("homeCards", () => {
 	it("keeps the board's Working and Needs you, and leaves Done and Idle out", () => {
@@ -24,58 +24,93 @@ describe("homeCards", () => {
 			pane("done", { status: "review" }),
 			pane("idle", { status: "idle" }),
 		];
-		const result = homeCards(panes, columnOf, new Set(panes.map((p) => p.id)));
-		expect(ids(result).sort()).toEqual(["asking", "working"]);
+		const cards = homeCards(panes, columnOf, new Set(panes.map((p) => p.id)));
+		expect(ids(cards)).toEqual(["working", "asking"]);
 	});
 
 	// The board's column, not the pane's status: a /loop session between ticks
 	// reads "review" on the pane but sits in Idle on the board.
 	it("files a session under the column the board gives it", () => {
-		const result = homeCards(
+		const cards = homeCards(
 			[pane("looping", { status: "review" })],
 			() => "idle",
 			new Set(["looping"]),
 		);
-		expect(result.cards).toEqual([]);
+		expect(cards).toEqual([]);
 	});
 
 	it("leaves out a completed session the board keeps off", () => {
-		const result = homeCards(
+		const cards = homeCards(
 			[pane("gone", { status: "permission", completed: true })],
 			columnOf,
 			new Set(),
 		);
-		expect(result.cards).toEqual([]);
+		expect(cards).toEqual([]);
 	});
 
-	it("puts Needs you first, then Working, newest first within each", () => {
+	// No sort: Needs you doesn't jump ahead of Working.
+	it("keeps the order it was given", () => {
 		const panes = [
-			pane("old-working", { status: "working", odinStatusAt: 1 }),
-			pane("new-working", { status: "working", odinStatusAt: 5 }),
-			pane("old-asking", { status: "permission", odinStatusAt: 2 }),
-			pane("new-asking", { status: "permission", odinStatusAt: 4 }),
+			pane("a", { status: "working", odinStatusAt: 1 }),
+			pane("b", { status: "permission", odinStatusAt: 5 }),
 		];
-		const result = homeCards(panes, columnOf, new Set(panes.map((p) => p.id)));
-		expect(ids(result)).toEqual([
-			"new-asking",
-			"old-asking",
-			"new-working",
-			"old-working",
+		const cards = homeCards(panes, columnOf, new Set(["a", "b"]));
+		expect(ids(cards)).toEqual(["a", "b"]);
+	});
+});
+
+describe("homeOrder", () => {
+	it("starts in the order the sessions are listed", () => {
+		expect(homeOrder([], ["a", "b", "c"])).toEqual(["a", "b", "c"]);
+	});
+
+	it("keeps a saved order, whatever order they're listed in now", () => {
+		expect(homeOrder(["c", "a", "b"], ["a", "b", "c"])).toEqual([
+			"c",
+			"a",
+			"b",
 		]);
 	});
 
-	it(`shows ${HOME_LIMIT} and counts the rest`, () => {
-		const panes = Array.from({ length: 9 }, (_, i) =>
-			pane(`p${i}`, { status: "working", odinStatusAt: i }),
-		);
-		const result = homeCards(panes, columnOf, new Set(panes.map((p) => p.id)));
-		expect(result.cards).toHaveLength(HOME_LIMIT);
-		expect(result.more).toBe(3);
-		expect(ids(result)[0]).toBe("p8");
+	it("puts a new session at the end", () => {
+		expect(homeOrder(["b", "a"], ["a", "b", "new"])).toEqual(["b", "a", "new"]);
 	});
 
-	it("has nothing more when everything fits", () => {
-		expect(homeCards([], columnOf, new Set()).more).toBe(0);
+	it("drops a session that left", () => {
+		expect(homeOrder(["a", "gone", "b"], ["a", "b"])).toEqual(["a", "b"]);
+	});
+
+	// Leaving drops it from the saved order, so the comeback is a new arrival.
+	it("puts a session that comes back at the end", () => {
+		const afterLeaving = homeOrder(["a", "b", "c"], ["b", "c"]);
+		expect(homeOrder(afterLeaving, ["a", "b", "c"])).toEqual(["b", "c", "a"]);
+	});
+});
+
+describe("moveCard", () => {
+	it("moves a card forward onto another's place", () => {
+		expect(moveCard(["a", "b", "c", "d"], "a", "c")).toEqual([
+			"b",
+			"c",
+			"a",
+			"d",
+		]);
+	});
+
+	it("moves a card back onto another's place", () => {
+		expect(moveCard(["a", "b", "c", "d"], "d", "b")).toEqual([
+			"a",
+			"d",
+			"b",
+			"c",
+		]);
+	});
+
+	it("leaves the order alone for itself or an unknown card", () => {
+		const order = ["a", "b"];
+		expect(moveCard(order, "a", "a")).toBe(order);
+		expect(moveCard(order, "x", "a")).toBe(order);
+		expect(moveCard(order, "a", "x")).toBe(order);
 	});
 });
 
@@ -89,5 +124,10 @@ describe("homeGrid", () => {
 			{ cols: 3, rows: 2 },
 			{ cols: 3, rows: 2 },
 		]);
+	});
+
+	it("keeps a 3x2 screen past six, so the rest scroll", () => {
+		expect(homeGrid(7)).toEqual({ cols: 3, rows: 2 });
+		expect(homeGrid(13)).toEqual({ cols: 3, rows: 2 });
 	});
 });

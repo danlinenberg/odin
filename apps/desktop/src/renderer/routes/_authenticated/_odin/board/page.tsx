@@ -76,6 +76,7 @@ const PILL_TAGS = ["automation", "auto-started", "off-hours"];
 import { openUrl, useInAppBrowser } from "renderer/stores/in-app-browser";
 import { DropHint } from "../components/DropHint";
 import { useSearchHotkey } from "../components/FeedChrome";
+import { NewSessionDialog } from "../components/NewSessionDialog";
 import {
 	cardBody,
 	OdinPromptDialog,
@@ -1416,10 +1417,9 @@ function DevBoardPage() {
 	const tabs = useTabsStore((state) => state.tabs);
 	const panes = useTabsStore((state) => state.panes);
 	// No workspace picker - one workspace in practice, and it listed confusing
-	// duplicate "default" entries. ensureWorkspace still provisions/resolves the
-	// workspace sessions launch into, and `workspaces` labels cards with their
+	// duplicate "default" entries. `workspaces` labels cards with their
 	// workspace name.
-	const { workspaces, ensureWorkspace } = useOdinWorkspace();
+	const { workspaces } = useOdinWorkspace();
 	// Sessions belong to the profile they were started under; the others stay
 	// alive in their panes, they just aren't this board's business.
 	const { activeId: activeProfileId, isLoading: isProfileLoading } =
@@ -2644,41 +2644,6 @@ function DevBoardPage() {
 		resumingPaneIds,
 		autoResumeTick,
 	]);
-
-	const handleNewSession = async (
-		rawPrompt: string,
-		images: PromptImage[],
-		repoPath: string,
-	) => {
-		const prompt = rawPrompt.trim();
-		if (!prompt && images.length === 0) return;
-		const ensured = await ensureWorkspace();
-		if (!ensured.ok) {
-			toast.error(ensured.error);
-			return;
-		}
-		// First line names the session; the full prompt (multi-line) rides in the
-		// task file as the description.
-		const title = sessionTitle(prompt, "New session");
-		const result = await launch({
-			workspaceId: ensured.workspace.id,
-			title,
-			description: prompt && prompt !== title ? prompt : null,
-			images,
-			repoPath,
-		});
-		setIsComposerOpen(false);
-		if (result.ok) {
-			usePaneMeta.getState().setBrief(result.paneId, prompt || title);
-			usePaneMeta.getState().setTitle(result.paneId, title);
-			usePaneMeta.getState().setSessionId(result.paneId, result.sessionId);
-			toast.success(
-				`Session started in ${(repoPath || projectById.get(ensured.workspace.projectId)?.mainRepoPath || "").split("/").pop() || "your repo"}`,
-			);
-		} else {
-			toast.error(result.error);
-		}
-	};
 
 	/**
 	 * What the replacement session should start from: the ask the dead card was
@@ -4026,13 +3991,7 @@ function DevBoardPage() {
 			)}
 
 			{isComposerOpen && (
-				<OdinPromptDialog
-					heading="New Session"
-					placeholder="What should the agent do? (it picks the repo)"
-					repoPicker
-					onCancel={() => setIsComposerOpen(false)}
-					onSubmit={handleNewSession}
-				/>
+				<NewSessionDialog onClose={() => setIsComposerOpen(false)} />
 			)}
 		</div>
 	);
