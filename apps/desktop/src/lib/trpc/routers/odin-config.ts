@@ -48,11 +48,13 @@ export interface OdinFileConfig {
 	/** Site host, for browse links - request paths use cloudId instead. */
 	jiraSiteUrl?: string;
 
+	/** Set once the in-app browser has offered to import your browser's sign-ins. */
+	cookieImportOffered?: boolean;
 	/**
-	 * Set when the Keychain refused the browser's cookie key, so the in-app
-	 * browser stops importing sign-ins on its own. A manual import clears it.
+	 * Browsers' cookie keys by Keychain item, encrypted with Odin's safeStorage,
+	 * so later imports don't show macOS's Keychain prompt again.
 	 */
-	cookieImportDenied?: boolean;
+	cookieKeys?: Record<string, string>;
 
 	githubToken?: string;
 	/**

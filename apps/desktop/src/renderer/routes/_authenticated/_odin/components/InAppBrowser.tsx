@@ -284,23 +284,48 @@ export function InAppBrowser() {
 	// `views` alone, each re-render looked like a new site and took the keyboard
 	// back from whatever you were typing in (the chat box, beside the panel).
 	const focusedViews = useRef(new WeakSet<Element>());
-	// Sites open signed in like your everyday browser: its cookies come over
-	// the first time the panel opens after each launch.
-	useEffect(() => {
-		if (!url || askedToImport.current) return;
-		askedToImport.current = true;
-		importOnLaunch(undefined, {
+	const reloadAll = () => {
+		for (const webview of Object.values(views.current)) {
+			try {
+				webview?.reload();
+			} catch {
+				// Not attached yet; it loads with the new cookies anyway.
+			}
+		}
+	};
+	// The menu item, and the offer below. Only this one shows macOS's Keychain
+	// prompt, and only the first time per browser.
+	const importSignIns = () =>
+		importCookies.mutate(undefined, {
 			onSuccess: (result) => {
 				if (!result) return;
 				toast(`Signed in like ${result.browser}`, {
 					description: `${result.imported} cookies from ${result.profile}, refreshed each launch.`,
 				});
-				for (const webview of Object.values(views.current)) {
-					try {
-						webview?.reload();
-					} catch {
-						// Not attached yet; it loads with the new cookies anyway.
-					}
+				reloadAll();
+			},
+			onError: (error) => toast(error.message),
+		});
+	// Sites open signed in like your everyday browser: once you've imported,
+	// its cookies come over again the first time the panel opens each launch.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: importSignIns and reloadAll only read refs and a stable mutation.
+	useEffect(() => {
+		if (!url || askedToImport.current) return;
+		askedToImport.current = true;
+		importOnLaunch(undefined, {
+			onSuccess: (result) => {
+				if (result === "offer") {
+					toast("Open sites signed in?", {
+						description:
+							"Odin can copy the sign-ins from your browser. macOS asks once for Keychain access - choose Always Allow.",
+						duration: 30_000,
+						action: { label: "Import", onClick: importSignIns },
+					});
+				} else if (result) {
+					toast(`Signed in like ${result.browser}`, {
+						description: `${result.imported} cookies from ${result.profile}, refreshed each launch.`,
+					});
+					reloadAll();
 				}
 			},
 		});
@@ -685,19 +710,7 @@ export function InAppBrowser() {
 									<HiArrowTopRightOnSquare className="size-3.5" />
 									Always open links in your browser
 								</DropdownMenuItem>
-								<DropdownMenuItem
-									onSelect={() =>
-										importCookies.mutate(undefined, {
-											onSuccess: ({ browser, profile, imported }) => {
-												toast(`Signed in like ${browser}`, {
-													description: `${imported} cookies from ${profile}.`,
-												});
-												view()?.reload();
-											},
-											onError: (error) => toast(error.message),
-										})
-									}
-								>
+								<DropdownMenuItem onSelect={importSignIns}>
 									<HiArrowDownTray className="size-3.5" />
 									Import sign-ins from your browser
 								</DropdownMenuItem>
