@@ -11,6 +11,16 @@ function slugify(title: string): string {
 }
 
 /**
+ * The command a session reads a Slack, Jira, GitHub or Notion link with:
+ * Odin's own connections (main/lib/read-link.ts), never the MCP servers
+ * Claude may or may not have on this machine. $ODIN_PORT is in every
+ * session's shell.
+ */
+export function readThroughOdin(url: string): string {
+	return `curl -sfG "http://127.0.0.1:$ODIN_PORT/read" --data-urlencode "url=${url}"`;
+}
+
+/**
  * The prompt every Slack-sourced session starts from - shared by the Slack
  * Queue (Notion rows) and the Reactions feed, so both ingest a thread the
  * same way.
@@ -38,7 +48,8 @@ export function buildThreadPrompt(
 		// greeting.
 		...(posted ? ["What was posted there:", posted, ""] : []),
 		"PHASE 1 - INGEST (do this first, before anything else):",
-		"- Read the ENTIRE thread with your Slack tools - every message, reply, and linked resource (tickets, docs, screenshots).",
+		`- Read the ENTIRE thread through Odin's Slack connection: ${readThroughOdin(slackUrl)}`,
+		"- Then every linked resource (tickets, docs, PRs, screenshots) - the same command reads any Slack, Jira, GitHub or Notion link.",
 		`- Write your digest to ${briefPath} (this task's own brief file): context, who's asking, the exact request, constraints, acceptance criteria, and links. Create the ${BRIEF_DIR}/ dir if needed.`,
 		"",
 		"PHASE 2 - EXECUTE:",

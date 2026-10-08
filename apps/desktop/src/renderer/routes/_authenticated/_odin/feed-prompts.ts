@@ -6,6 +6,8 @@
  * route page can't be shared with either.
  */
 
+import { readThroughOdin } from "./thread-prompt";
+
 /** Investigate-first prompt, so the agent reads the ticket before touching code. */
 export function buildIssuePrompt(
 	key: string,
@@ -17,7 +19,8 @@ export function buildIssuePrompt(
 		`Ticket: ${url}`,
 		"",
 		"PHASE 1 - UNDERSTAND (do this first):",
-		`- Read ${key} in full: description, acceptance criteria, comments, linked issues and attachments.`,
+		`- Read ${key} in full through Odin's Jira connection: ${readThroughOdin(url)}`,
+		"- Go through the description, acceptance criteria, comments, linked issues and attachments. The same command reads any Slack, Jira, GitHub or Notion link.",
 		"- If the repo isn't obvious from the ticket, work it out from the code before changing anything.",
 		"",
 		"PHASE 2 - EXECUTE:",
@@ -43,7 +46,8 @@ export function buildReviewPrompt(
 			`Link: ${url}`,
 			`Repo: ${repo}`,
 			"",
-			"- Read the thread and work out what is being asked of you.",
+			`- Read the thread through Odin's GitHub connection: ${readThroughOdin(url)}`,
+			"- Work out what is being asked of you.",
 			"- Answer it here: what you would reply, and what it would take to do.",
 			"",
 			"Rules: do NOT comment on GitHub - leave the reply here for me to send.",
@@ -55,7 +59,8 @@ export function buildReviewPrompt(
 		`Title: ${title}`,
 		"",
 		"PHASE 1 - READ (do this first):",
-		"- Read the PR: description, the full diff, CI status, and existing review comments.",
+		`- Read the PR through Odin's GitHub connection: ${readThroughOdin(url)}`,
+		"- Go through the description, the full diff, CI status, and existing review comments.",
 		"- Check out the branch locally if you need to run or trace anything.",
 		"",
 	];

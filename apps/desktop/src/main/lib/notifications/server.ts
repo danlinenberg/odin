@@ -6,6 +6,7 @@ import type {
 	AgentLifecycleEvent,
 	RunInShellRequest,
 } from "shared/notification-types";
+import { readLink } from "../read-link";
 import { HOOK_PROTOCOL_VERSION } from "../terminal/env";
 import { mapEventType } from "./map-event-type";
 import { resolvePaneId } from "./resolve-pane-id";
@@ -156,6 +157,29 @@ app.post("/shell/run", express.urlencoded({ extended: false }), (req, res) => {
 		return res.status(503).send("Odin's window isn't open.\n");
 	}
 	res.send("Running in this session's Shell in Odin.\n");
+});
+
+/**
+ * A Slack, Jira, GitHub or Notion link as plain text, read with Odin's own
+ * connections - so a session reads its source the same way on every machine,
+ * whatever MCP servers Claude has (see main/lib/read-link.ts). A thread or
+ * ticket is private, so browsers are refused here too.
+ *
+ * `curl -sfG http://127.0.0.1:$ODIN_PORT/read --data-urlencode url=<link>`
+ */
+app.get("/read", async (req, res) => {
+	if (req.headers.origin) {
+		return res.status(403).send("Not from a browser.\n");
+	}
+	const { url } = req.query;
+	if (typeof url !== "string" || !url) {
+		return res.status(400).send("Need url.\n");
+	}
+	try {
+		res.send(`${await readLink(url)}\n`);
+	} catch (error) {
+		res.status(502).send(`${error instanceof Error ? error.message : error}\n`);
+	}
 });
 
 // Health check
