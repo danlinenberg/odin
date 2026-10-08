@@ -85,5 +85,7 @@ export function useDone() {
 			});
 		},
 		undo: (item: Doable) => mark(item, false),
+		/** Done without a toast - for a caller that shows its own. */
+		set: mark,
 	};
 }

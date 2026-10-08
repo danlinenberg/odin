@@ -81,6 +81,8 @@ import { BOARD_TAGS, boardTags, normalizeTag } from "shared/odin-tags";
 const PILL_TAGS = ["automation", "auto-started", "off-hours"];
 
 import { openUrl, useInAppBrowser } from "renderer/stores/in-app-browser";
+import { useAllItems } from "../all/use-all-items";
+import { paneWorksOn } from "../all/use-start-item";
 import { DropHint } from "../components/DropHint";
 import { useSearchHotkey } from "../components/FeedChrome";
 import {
@@ -95,7 +97,7 @@ import { BUTTON, PILL } from "../components/pill";
 import { DueChip, OverdueMark, useReminders } from "../components/Reminders";
 import { TranscriptView } from "../components/TranscriptView";
 import { useBacklogReview, useReview } from "../hooks/useBacklogReview";
-import { endSession } from "../hooks/useDone";
+import { endSession, useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useOdinProfile } from "../hooks/useOdinProfile";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
@@ -3239,6 +3241,8 @@ function DevBoardPage() {
 	 * Done, undoable: the PTY dies with the pane, so undo resumes the same
 	 * conversation (`claude --resume`) into a fresh pane, like Session History.
 	 */
+	const allTasks = useAllItems();
+	const { set: setRowDone } = useDone();
 	const endCard = (card: BoardCard) => {
 		const sessionId =
 			card.pane.claudeSessionId ??
@@ -3246,9 +3250,13 @@ function DevBoardPage() {
 		const cwd = sessionCwd(card.pane) ?? card.repoPath;
 		const title = cardTitle(card);
 		const brief = usePaneMeta.getState().briefByPane[card.pane.id];
+		// The feed row this session was started on is finished with it.
+		const row = allTasks.find((item) => paneWorksOn(card.pane, item));
+		if (row) setRowDone(row, true);
 		endSession(card.pane.id);
 		if (!sessionId) return;
 		return pushUndo(async () => {
+			if (row) setRowDone(row, false);
 			const result = await launch({
 				workspaceId: card.workspaceId,
 				title,
