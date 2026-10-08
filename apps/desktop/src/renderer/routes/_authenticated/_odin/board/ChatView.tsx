@@ -937,6 +937,16 @@ export function ChatView({
 						<div className="flex items-center gap-3 text-[12.5px] text-working">
 							<OdinMark className="animate-[odin-nod_1.6s_ease-in-out_infinite]" />
 							Starting session…
+							{/* Before its first turn the CLI can stop on a terminal-only
+							    prompt (folder trust, bypass-permissions warning) that no
+							    transcript ever shows. */}
+							<button
+								type="button"
+								onClick={onShowTerminal}
+								className="text-[11.5px] text-muted-foreground hover:text-foreground"
+							>
+								Stuck? Show terminal
+							</button>
 						</div>
 					) : (
 						missing &&
