@@ -48,6 +48,12 @@ export interface OdinFileConfig {
 	/** Site host, for browse links - request paths use cloudId instead. */
 	jiraSiteUrl?: string;
 
+	/**
+	 * Set when the Keychain refused the browser's cookie key, so the in-app
+	 * browser stops importing sign-ins on its own. A manual import clears it.
+	 */
+	cookieImportDenied?: boolean;
+
 	githubToken?: string;
 	/**
 	 * An OAuth app with expiring tokens enabled issues an eight-hour access
