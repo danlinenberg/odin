@@ -1,5 +1,6 @@
 import { profileOf } from "shared/odin-profile";
 import type { Pane, PaneStatus } from "shared/tabs-types";
+import { repoLabel } from "../sessions/row-labels";
 
 /** A Dev Board session, as Search all lists it. */
 export interface SessionHit {
@@ -39,21 +40,24 @@ export function boardSessions(
 	} = { titles: {}, contacts: {}, briefs: {} },
 ): SessionHit[] {
 	return Object.values(panes)
+		.map((pane) => ({
+			pane,
+			title: pane.odinTaskTitle ?? mirror.titles[pane.id],
+		}))
 		.filter(
-			(pane) =>
+			({ pane, title }) =>
 				pane.type === "terminal" &&
-				!!(pane.odinTaskTitle ?? mirror.titles[pane.id]) &&
+				!!title &&
 				!pane.completed &&
 				tabIds.has(pane.tabId) &&
 				profileOf(pane.odinProfile) === profileId,
 		)
-		.map((pane) => ({
+		.map(({ pane, title }) => ({
 			paneId: pane.id,
-			title: pane.odinTaskTitle ?? mirror.titles[pane.id] ?? "",
+			title: title ?? "",
 			status: pane.status ?? "idle",
 			contact: pane.odinContact ?? mirror.contacts[pane.id] ?? null,
-			repo:
-				(pane.cwd ?? pane.initialCwd)?.split("/").filter(Boolean).pop() ?? null,
+			repo: repoLabel(pane.cwd ?? pane.initialCwd),
 			brief: pane.odinBrief ?? mirror.briefs[pane.id] ?? null,
 			tags: pane.odinTags ?? [],
 		}))
@@ -109,35 +113,39 @@ export interface Ranked<T> {
 	tier: number;
 }
 
-const normalize = (query: string) =>
+export const normalizeQuery = (query: string) =>
 	query.trim().toLowerCase().replace(/\s+/g, " ");
+
+/** Items that match, best tier first; nothing typed matches everything at tier 0. */
+function rankBy<T>(
+	query: string,
+	items: T[],
+	fields: (item: T) => [title: string, extra: (string | null | undefined)[]],
+): Ranked<T>[] {
+	const needle = normalizeQuery(query);
+	return items
+		.flatMap((item) => {
+			const tier = needle ? matchRank(needle, ...fields(item)) : 0;
+			return tier === null ? [] : [{ item, tier }];
+		})
+		.sort((a, b) => a.tier - b.tier);
+}
 
 /**
  * Rows that match, best tier first, then open before done, then in the order
- * given (newest first, as allItems hands them over). Nothing typed matches
- * everything at tier 0, so the palette opens on what's open and current.
+ * given (newest first, as allItems hands them over), so the palette opens on
+ * what's open and current.
  */
 export function rankRows<Row extends SearchableRow>(
 	query: string,
 	rows: Row[],
 ): Ranked<Row>[] {
-	const needle = normalize(query);
-	return rows
-		.flatMap((item) => {
-			const tier = needle
-				? matchRank(needle, item.title, [
-						item.source,
-						item.person,
-						item.context,
-						item.status,
-					])
-				: 0;
-			return tier === null ? [] : [{ item, tier }];
-		})
-		.sort(
-			(a, b) =>
-				a.tier - b.tier || Number(!!a.item.done) - Number(!!b.item.done),
-		);
+	return rankBy(query, rows, (row) => [
+		row.title,
+		[row.source, row.person, row.context, row.status],
+	]).sort(
+		(a, b) => a.tier - b.tier || Number(!!a.item.done) - Number(!!b.item.done),
+	);
 }
 
 /** Board cards that match, best tier first, then in the board's column order. */
@@ -145,20 +153,10 @@ export function rankSessions(
 	query: string,
 	sessions: SessionHit[],
 ): Ranked<SessionHit>[] {
-	const needle = normalize(query);
-	return sessions
-		.flatMap((item) => {
-			const tier = needle
-				? matchRank(needle, item.title, [
-						item.contact,
-						item.repo,
-						item.brief,
-						...item.tags,
-					])
-				: 0;
-			return tier === null ? [] : [{ item, tier }];
-		})
-		.sort((a, b) => a.tier - b.tier);
+	return rankBy(query, sessions, (session) => [
+		session.title,
+		[session.contact, session.repo, session.brief, ...session.tags],
+	]);
 }
 
 export interface ResultGroup<T> {

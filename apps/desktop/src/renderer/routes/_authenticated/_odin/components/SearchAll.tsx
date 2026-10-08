@@ -22,12 +22,14 @@ import { usePaneMeta } from "../hooks/usePaneMeta";
 import { usePendingFocus } from "../hooks/usePendingFocus";
 import { PANE_STATUS } from "../pane-status";
 import { liveConversationIds } from "../sessions/live-sessions";
+import { agoLabel, repoLabel } from "../sessions/row-labels";
 import { ROW_META } from "./FeedChrome";
 import { FEED_TABS } from "./feed-counts";
 import {
 	boardSessions,
 	groupResults,
 	matchRank,
+	normalizeQuery,
 	type Ranked,
 	rankRows,
 	rankSessions,
@@ -71,13 +73,6 @@ const HISTORY = "Session History";
 const CAP = 8;
 
 const ITEM = "gap-2.5 rounded-[7px] px-2.5 py-1.5 text-[13px]";
-
-function agoLabel(at: number): string {
-	const hours = Math.floor((Date.now() - at) / 3_600_000);
-	if (hours < 1) return "this hour";
-	if (hours < 24) return `${hours}h ago`;
-	return `${Math.floor(hours / 24)}d ago`;
-}
 
 /** Typing shouldn't fire a full transcript scan per keystroke. */
 function useDebounced(value: string, ms: number): string {
@@ -161,7 +156,7 @@ export function SearchAll({ onClose }: { onClose: () => void }) {
 			panes,
 			sessionIdByPane,
 		);
-		const needle = transcriptQuery.toLowerCase().replace(/\s+/g, " ");
+		const needle = normalizeQuery(transcriptQuery);
 		const found: PastSession[] = history.data?.pages[0]?.sessions ?? [];
 		return found
 			.filter((row) => !live.has(row.sessionId))
@@ -240,7 +235,6 @@ export function SearchAll({ onClose }: { onClose: () => void }) {
 		}
 		if (hit.kind === "history") {
 			const { row } = hit;
-			const repo = row.cwd?.split("/").filter(Boolean).pop();
 			return (
 				<CommandItem
 					key={row.sessionId}
@@ -260,7 +254,7 @@ export function SearchAll({ onClose }: { onClose: () => void }) {
 							{emojify(row.title)}
 						</span>
 						<span className={cn(ROW_META, "shrink-0")}>
-							{[row.person, repo, agoLabel(row.updatedAt)]
+							{[row.person, repoLabel(row.cwd), agoLabel(row.updatedAt)]
 								.filter(Boolean)
 								.join(" · ")}
 						</span>

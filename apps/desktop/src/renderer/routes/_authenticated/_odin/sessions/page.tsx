@@ -14,6 +14,7 @@ import { usePaneMeta } from "../hooks/usePaneMeta";
 import { usePendingFocus } from "../hooks/usePendingFocus";
 import { liveConversationIds } from "./live-sessions";
 import { provenanceLabel } from "./provenance";
+import { agoLabel, repoLabel } from "./row-labels";
 
 /** How Search all lands here: `q` searches, `open` reads that session. */
 type SessionsSearch = { q?: string; open?: string };
@@ -53,21 +54,6 @@ interface SessionRow {
 	snippets: { role: "user" | "assistant"; text: string }[];
 	/** Who asked, for the sessions Odin launched off Slack/Jira/PRs/Notion. */
 	person: string | null;
-}
-
-function agoLabel(at: number): string {
-	const minutes = Math.round((Date.now() - at) / 60_000);
-	if (minutes < 1) return "just now";
-	if (minutes < 60) return `${minutes}m ago`;
-	const hours = Math.floor(minutes / 60);
-	if (hours < 24) return `${hours}h ago`;
-	const days = Math.floor(hours / 24);
-	if (days < 30) return `${days}d ago`;
-	return new Date(at).toLocaleDateString();
-}
-
-function repoLabel(cwd: string | null): string | null {
-	return cwd ? (cwd.split("/").filter(Boolean).pop() ?? null) : null;
 }
 
 function SessionsPage() {
