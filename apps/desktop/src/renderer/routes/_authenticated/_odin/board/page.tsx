@@ -2614,8 +2614,20 @@ function DevBoardPage() {
 		if (card) {
 			openDrawer(card);
 			clearPendingFocus();
+		} else if (panes[pendingPaneId] && (boardFilter || search)) {
+			// The board's filter or search hides it: asked for by name, so lift
+			// them and let this run again on the unfiltered cards.
+			setBoardFilter("");
+			setSearch("");
 		}
-	}, [pendingPaneId, cardsByStatus, completedCards, clearPendingFocus]);
+	}, [
+		pendingPaneId,
+		cardsByStatus,
+		completedCards,
+		clearPendingFocus,
+		boardFilter,
+		search,
+	]);
 
 	/**
 	 * Open a session's drawer. For a LIVE pane, purge the pane's cached xterm

@@ -124,6 +124,18 @@ export const HOTKEYS_REGISTRY = {
 		category: "Navigation",
 		description: "Focus the current screen's search box",
 	},
+	// ⌘F's wider sibling: every feed row and every session, not just this
+	// screen. Not ⌘K - that's Clear Terminal. A chord, so it works from a terminal.
+	ODIN_SEARCH_ALL: {
+		key: {
+			mac: L("meta+shift+f"),
+			windows: L("ctrl+shift+alt+f"),
+			linux: L("ctrl+shift+alt+f"),
+		},
+		label: "Search All",
+		category: "Navigation",
+		description: "Search every feed and Dev Board session at once",
+	},
 	// Off in text boxes and terminals (their own undo); see the Board's useBoardUndo.
 	ODIN_BOARD_UNDO: {
 		key: {

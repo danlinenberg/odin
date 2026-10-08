@@ -1,6 +1,6 @@
 import { cn } from "@odin/ui/utils";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import type { IconType } from "react-icons";
 import { emojify } from "renderer/lib/emoji";
 import { openUrl } from "renderer/stores/in-app-browser";
@@ -43,16 +43,22 @@ import { PriorityLabelChip } from "../components/TaskBox";
 import { useActiveSessions } from "../hooks/useActiveSessions";
 import { useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
-import { useMyTasks } from "../hooks/useOdinTasks";
 import { usePendingFocus } from "../hooks/usePendingFocus";
 import { PANE_STATUS } from "../pane-status";
-import { type AllItem, allItems, type Urgency } from "./all-items";
+import type { AllItem, Urgency } from "./all-items";
 import { TaskDetails } from "./TaskDetails";
 import { useTitleOverrides } from "./title-overrides";
+import { useAllItems, useSearchableItems } from "./use-all-items";
 import { useStartAllItem } from "./use-start-item";
+
+/** `open`: a row key whose details to open - how Search all lands on a row. */
+type AllSearch = { open?: string };
 
 export const Route = createFileRoute("/_authenticated/_odin/all/")({
 	component: AllFeedPage,
+	validateSearch: (search: Record<string, unknown>): AllSearch => ({
+		open: typeof search.open === "string" ? search.open : undefined,
+	}),
 });
 
 /**
@@ -160,8 +166,7 @@ function readShowSessions(): boolean {
 }
 
 function AllFeedPage() {
-	const { reactions, jira, pulls, notion, emails, syncAll, isSyncing } =
-		useOdinFeeds();
+	const { reactions, syncAll, isSyncing } = useOdinFeeds();
 	const navigate = useNavigate();
 	const [showSessions, setShowSessions] = useState(readShowSessions);
 	const toggleSessions = () => {
@@ -184,9 +189,6 @@ function AllFeedPage() {
 	const [search, setSearch] = useState("");
 	const needle = search.trim().toLowerCase();
 	const reminders = useReminders((s) => s.reminders);
-	// todos, not tasks: automations have their own panel and run themselves -
-	// they'd sit in "what have I got on" forever without ever being yours to do.
-	const { todos } = useMyTasks();
 	const {
 		start: handleStart,
 		livePaneFor,
@@ -202,7 +204,7 @@ function AllFeedPage() {
 	// waiting on you. They're one click away under "Done", with Undo.
 	// Reading material is the same put-away, for rows with nothing left to do
 	// but worth keeping: off every queue and the Night Agent, listed apart.
-	const { isDone, markDone, markReading, undo, recent, reading } = useDone();
+	const { markDone, markReading, undo, recent, reading } = useDone();
 	const [shelf, setShelf] = useState<"done" | "reading" | null>(null);
 	const shelfRows =
 		shelf === "reading" ? reading : shelf === "done" ? recent : [];
@@ -212,32 +214,15 @@ function AllFeedPage() {
 	// rather than jumping to the row's own feed tab, which dropped you out of
 	// this list and left you hunting for the row again.
 	const [openKey, setOpenKey] = useState<string | null>(null);
-	const titles = useTitleOverrides((s) => s.titles);
-	const allRows = useMemo(
-		() =>
-			allItems({
-				tasks: todos,
-				slack: reactions.data?.rows ?? [],
-				jira: jira.data?.issues ?? [],
-				pulls: pulls.data?.pulls ?? [],
-				notion: notion.data?.rows ?? [],
-				emails: emails.data?.emails ?? [],
-			})
-				.filter((item) => !isDone(item))
-				.map((item) =>
-					titles[item.key] ? { ...item, title: titles[item.key] } : item,
-				),
-		[
-			titles,
-			todos,
-			reactions.data,
-			jira.data,
-			pulls.data,
-			notion.data,
-			emails.data,
-			isDone,
-		],
-	);
+	// Taken off the URL once read, so picking the same row again reopens it.
+	const { open } = Route.useSearch();
+	useEffect(() => {
+		if (!open) return;
+		setOpenKey(open);
+		void navigate({ to: "/all", search: {}, replace: true });
+	}, [open, navigate]);
+	const allRows = useAllItems();
+	const everyRow = useSearchableItems();
 
 	const sourceCounts = useMemo(() => {
 		const counts = new Map<AllItem["source"], number>();
@@ -322,8 +307,11 @@ function AllFeedPage() {
 	}, [byContext, dueOnly, reminders, needle]);
 
 	// From every row, not the filtered ones: narrowing the list shouldn't shut
-	// the panel you're reading. Marking it done does - it's gone from both.
-	const openItem = allRows.find((item) => item.key === openKey);
+	// the panel you're reading. Marking it done does. Search all can open a row
+	// All leaves out (Done'd, started, your own PR), hence the wider fallback.
+	const openItem =
+		allRows.find((item) => item.key === openKey) ??
+		everyRow.find((item) => item.key === openKey);
 
 	const isFiltered =
 		source !== "" || urgency !== "" || context !== "" || dueOnly || !!needle;
@@ -752,8 +740,14 @@ function AllFeedPage() {
 								usePendingFocus.getState().focus(paneId);
 								navigate({ to: "/board" });
 							}}
-							onReadLater={() => markReading(openItem)}
-							onDone={() => markDone(openItem)}
+							onReadLater={() => {
+								markReading(openItem);
+								setOpenKey(null);
+							}}
+							onDone={() => {
+								markDone(openItem);
+								setOpenKey(null);
+							}}
 						/>
 					</DetailsPanel>
 				)}

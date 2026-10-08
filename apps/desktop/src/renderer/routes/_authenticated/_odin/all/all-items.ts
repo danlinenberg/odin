@@ -122,77 +122,81 @@ function facts(
  *
  * Same rules the tab badges use - Slack counts only un-started messages, PRs
  * drop the bots - so All holds exactly what the other tabs claim between them
- * rather than being a second, larger truth.
+ * rather than being a second, larger truth. `everything` drops those rules, for
+ * Search all: a started Slack thread or your own PR is still worth finding.
  */
-export function allItems(input: {
-	tasks: OdinTask[];
-	slack: {
-		id: string;
-		title: string;
-		text: string;
-		status: string;
-		permalink: string | null;
-		channelName: string | null;
-		authorName: string | null;
-		postedAt: string;
-	}[];
-	jira: {
-		key: string;
-		title: string;
-		url: string;
-		project: string;
-		status: string;
-		priority?: string | null;
-		reporter?: string | null;
-		updated: string | null;
-		dueDate?: string | null;
-		mention?: {
-			author: string | null;
+export function allItems(
+	input: {
+		tasks: OdinTask[];
+		slack: {
+			id: string;
+			title: string;
 			text: string;
-			at?: string | null;
-		} | null;
-		issueType?: string | null;
-		description?: string | null;
-		role?: string;
-		created?: string | null;
-	}[];
-	pulls: {
-		id: number;
-		url: string;
-		title: string;
-		repo: string;
-		number: number;
-		author: string;
-		kind: "review" | "mine" | "mentioned";
-		updated: string | null;
-		draft?: boolean;
-		body?: string | null;
-		comments?: number;
-		created?: string | null;
-	}[];
-	notion: (NotionRow & {
-		pageId: string;
-		title: string;
-		pageUrl: string;
-		status: string | null;
-		assignee: string | null;
-		priority?: string | null;
-		channel?: string | null;
-		updatedAt: string | null;
-		date: string | null;
-	})[];
-	/** Unread inbox mail - optional, most callers predate it. */
-	emails?: {
-		id: string;
-		url: string;
-		subject: string;
-		snippet: string;
-		from: string | null;
-		fromEmail?: string | null;
-		at: string | null;
-		junk?: boolean | null;
-	}[];
-}): AllItem[] {
+			status: string;
+			permalink: string | null;
+			channelName: string | null;
+			authorName: string | null;
+			postedAt: string;
+		}[];
+		jira: {
+			key: string;
+			title: string;
+			url: string;
+			project: string;
+			status: string;
+			priority?: string | null;
+			reporter?: string | null;
+			updated: string | null;
+			dueDate?: string | null;
+			mention?: {
+				author: string | null;
+				text: string;
+				at?: string | null;
+			} | null;
+			issueType?: string | null;
+			description?: string | null;
+			role?: string;
+			created?: string | null;
+		}[];
+		pulls: {
+			id: number;
+			url: string;
+			title: string;
+			repo: string;
+			number: number;
+			author: string;
+			kind: "review" | "mine" | "mentioned";
+			updated: string | null;
+			draft?: boolean;
+			body?: string | null;
+			comments?: number;
+			created?: string | null;
+		}[];
+		notion: (NotionRow & {
+			pageId: string;
+			title: string;
+			pageUrl: string;
+			status: string | null;
+			assignee: string | null;
+			priority?: string | null;
+			channel?: string | null;
+			updatedAt: string | null;
+			date: string | null;
+		})[];
+		/** Unread inbox mail - optional, most callers predate it. */
+		emails?: {
+			id: string;
+			url: string;
+			subject: string;
+			snippet: string;
+			from: string | null;
+			fromEmail?: string | null;
+			at: string | null;
+			junk?: boolean | null;
+		}[];
+	},
+	{ everything = false }: { everything?: boolean } = {},
+): AllItem[] {
 	return [
 		...input.tasks.map(
 			(task): AllItem => ({
@@ -225,7 +229,7 @@ export function allItems(input: {
 			}),
 		),
 		...input.slack
-			.filter((row) => row.status === "Not started")
+			.filter((row) => everything || row.status === "Not started")
 			.map(
 				(row): AllItem => ({
 					key: `slack:${row.id}`,
@@ -234,7 +238,8 @@ export function allItems(input: {
 					title: row.title,
 					url: row.permalink,
 					person: row.authorName,
-					status: null,
+					// Only Search all sees the others - In progress, Done.
+					status: row.status === "Not started" ? null : row.status,
 					// A reaction is someone asking me directly - always High.
 					priority: "High",
 					urgency: "high",
@@ -268,7 +273,7 @@ export function allItems(input: {
 			),
 		...input.jira
 			// Tickets I filed wait on someone else - they live on the Jira tab.
-			.filter((issue) => issue.role !== "reported")
+			.filter((issue) => everything || issue.role !== "reported")
 			.map(
 				(issue): AllItem => ({
 					key: `jira:${issue.key}`,
@@ -309,7 +314,9 @@ export function allItems(input: {
 			),
 		...input.pulls
 			// Your own PRs aren't tasks to pick up - they live on the PRs tab.
-			.filter((pull) => pull.kind !== "mine" && !isBot(pull.author))
+			.filter(
+				(pull) => everything || (pull.kind !== "mine" && !isBot(pull.author)),
+			)
 			.map(
 				(pull): AllItem => ({
 					// The PRs feed hides under `pr:<id>` - same key here, so a row
@@ -391,7 +398,7 @@ export function allItems(input: {
 		),
 		// Junk (the model's call, plus calendar mail) stays in the Email tab behind "All".
 		...(input.emails ?? [])
-			.filter((email) => email.junk !== true)
+			.filter((email) => everything || email.junk !== true)
 			.map(
 				(email): AllItem => ({
 					key: `email:${email.id}`,

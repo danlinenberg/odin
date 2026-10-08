@@ -497,6 +497,35 @@ await step("A task's title opens its details beside the list", async () => {
 	await waitForText("Tasks feed →", false);
 });
 
+await step("⌘⇧F Search all finds a task and opens its details", async () => {
+	await rail("Dev Board");
+	await waitForText("next in line");
+	await page(`document.activeElement?.blur()`);
+	await page(
+		`document.dispatchEvent(new KeyboardEvent("keydown", { key: "f", code: "KeyF", metaKey: true, shiftKey: true, bubbles: true }))`,
+	);
+	await sleep(300);
+	await fill(
+		'input[placeholder="Search feeds, the board and every past session"]',
+		TASK,
+	);
+	// The board can show the task too: wait for it as the palette's picked hit.
+	const picked = `document.querySelector('[cmdk-item][data-selected="true"]')?.textContent.includes(${JSON.stringify(TASK)})`;
+	for (const end = Date.now() + 5_000; !(await page<boolean>(picked)); ) {
+		if (Date.now() > end) throw new Error("the task never came up first");
+		await sleep(200);
+	}
+	// Enter picks it, the way the keyboard would.
+	await page(
+		`document.activeElement?.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", bubbles: true }))`,
+	);
+	await waitForText("Tasks feed →");
+	const hash = await page<string>("location.hash");
+	if (!hash.startsWith("#/all")) throw new Error(`Search all opened ${hash}`);
+	await click("button", "Close details");
+	await waitForText("Tasks feed →", false);
+});
+
 await step("Done takes a task off the list", async () => {
 	await rail("Tasks");
 	await waitForText(TASK);

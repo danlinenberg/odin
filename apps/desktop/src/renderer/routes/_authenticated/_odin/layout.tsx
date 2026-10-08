@@ -41,6 +41,7 @@ import {
 	useDueReminders,
 	useReminders,
 } from "./components/Reminders";
+import { SearchAll } from "./components/SearchAll";
 import { SessionContextDialog } from "./components/SessionContextDialog";
 import { QuickAddTask } from "./components/TaskBox";
 import { UpdateBanner } from "./components/UpdateBanner";
@@ -391,6 +392,8 @@ function OdinShell() {
 	const setQuestionOpen = useQuickQuestionDialog((s) => s.setOpen);
 	const openQuestion = useTabsStore((s) => questionPane(s.panes));
 	useHotkey("ODIN_QUICK_QUESTION", () => setQuestionOpen(true));
+	const [isSearchAllOpen, setIsSearchAllOpen] = useState(false);
+	useHotkey("ODIN_SEARCH_ALL", () => setIsSearchAllOpen(true));
 
 	const renderRailItem = ({
 		to,
@@ -608,6 +611,9 @@ function OdinShell() {
 			<SessionContextDialog />
 			{isQuickAddOpen && (
 				<QuickAddTask onClose={() => setIsQuickAddOpen(false)} />
+			)}
+			{isSearchAllOpen && (
+				<SearchAll onClose={() => setIsSearchAllOpen(false)} />
 			)}
 			{isQuestionOpen && (
 				<OdinPromptDialog
