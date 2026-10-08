@@ -1,5 +1,7 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { accessSync, constants } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
 import { publicProcedure, router } from "..";
@@ -186,6 +188,28 @@ export const createSystemRouter = () => {
 				if (!login?.stdin?.writable) return { sent: false };
 				login.stdin.write(`${input.code}\n`);
 				return { sent: true };
+			}),
+		/**
+		 * A pasted screenshot has no file behind it, and a task is one string in
+		 * localStorage - so the bytes land in ~/.odin/attachments and the task
+		 * keeps the path. ponytail: never cleaned up, prune by age if it grows.
+		 */
+		saveAttachment: publicProcedure
+			.input(
+				z.object({
+					base64: z.string(),
+					extension: z.string().regex(/^[a-z0-9]{1,8}$/i),
+				}),
+			)
+			.mutation(async ({ input }) => {
+				const dir = join(homedir(), ".odin", "attachments");
+				await mkdir(dir, { recursive: true });
+				const path = join(
+					dir,
+					`${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${input.extension}`,
+				);
+				await writeFile(path, Buffer.from(input.base64, "base64"));
+				return path;
 			}),
 	});
 };

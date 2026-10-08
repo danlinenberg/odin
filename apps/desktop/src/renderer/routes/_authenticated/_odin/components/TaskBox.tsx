@@ -14,6 +14,7 @@ import {
 	withSkill,
 } from "../hooks/useOdinTasks";
 import { ROW_PRIMARY_BUTTON } from "./FeedChrome";
+import { readFile } from "./OdinPromptDialog";
 import { PILL } from "./pill";
 import { matchRepos, repoLabel } from "./repo-picker";
 import { matchSkills } from "./skill-picker";
@@ -26,6 +27,31 @@ const splitTask = (text: string): [string, string] => {
 };
 const joinTask = (title: string, notes: string) =>
 	notes ? `${title}\n\n${notes}` : title;
+
+const isMedia = (file: File) => /^(image|video)\//.test(file.type);
+
+/**
+ * Dropped or pasted photos and videos, as paths the session can open. A task
+ * is one string in localStorage, so it holds paths, never bytes: a file from
+ * Finder is cited where it lies, a pasted screenshot is saved to disk first.
+ * Imported on use so the box still renders without Electron (the tests).
+ */
+async function attachmentPaths(files: File[]): Promise<string[]> {
+	const [{ electronTrpcClient }, { parseDataUrl }] = await Promise.all([
+		import("renderer/lib/trpc-client"),
+		import("renderer/hooks/useLaunchTaskSession"),
+	]);
+	return Promise.all(
+		files.map(async (file) => {
+			const path = window.webUtils.getPathForFile(file);
+			if (path) return path;
+			const { dataUrl = "" } = await readFile(file);
+			return electronTrpcClient.system.saveAttachment.mutate(
+				parseDataUrl(dataUrl),
+			);
+		}),
+	);
+}
 
 /**
  * The box you write a task in - compose row, edit row and the hotkey's quick
@@ -91,12 +117,33 @@ export function TaskBox({
 		}
 		if (event.key === "Escape") onCancel?.();
 	};
+	// Paths go on their own lines at the end of the brief, where the session's
+	// prompt picks them up like any other text.
+	const attach = (list: FileList, event: React.SyntheticEvent) => {
+		const files = [...list].filter(isMedia);
+		if (files.length === 0) return;
+		event.preventDefault();
+		attachmentPaths(files)
+			.then((paths) =>
+				onChange(joinTask(title, [notes, ...paths].filter(Boolean).join("\n"))),
+			)
+			.catch(() => toast.error("Couldn't attach that file"));
+	};
 
 	return (
 		<div className="flex h-full min-h-0 flex-col gap-1.5">
 			{/* grow, not flex-1: the basis stays the rows=2 height, so inline use is
 			    unchanged and only a resized dialog hands it extra room. */}
-			<div className="flex min-h-0 grow flex-col overflow-hidden rounded-[10px] border border-border bg-card focus-within:border-primary">
+			<fieldset
+				aria-label="Task"
+				onDragOver={(event) => {
+					if (event.dataTransfer.types.includes("Files"))
+						event.preventDefault();
+				}}
+				onDrop={(event) => attach(event.dataTransfer.files, event)}
+				onPaste={(event) => attach(event.clipboardData.files, event)}
+				className="flex min-h-0 min-w-0 grow flex-col overflow-hidden rounded-[10px] border border-border bg-card focus-within:border-primary"
+			>
 				<input
 					value={title}
 					placeholder={placeholder ?? "Name it"}
@@ -110,14 +157,14 @@ export function TaskBox({
 				<div className="mx-3 border-t border-border" />
 				<textarea
 					value={notes}
-					placeholder="The brief - what it needs, links, anything the session should know (optional)"
+					placeholder="The brief - what it needs, links, anything the session should know. Drop or paste photos and videos (optional)"
 					rows={2}
 					aria-label="Brief"
 					onChange={(event) => onChange(joinTask(title, event.target.value))}
 					onKeyDown={keys}
 					className="w-full min-h-0 grow resize-none bg-transparent px-3 pt-1.5 pb-2 text-[13px] text-muted-foreground outline-none placeholder:text-muted-foreground"
 				/>
-			</div>
+			</fieldset>
 			{/* The picker doesn't hold a value of its own: it rewrites the "!"s in
 			    the text, which is what the store reads either way. Typing "!" and
 			    picking Low are the same edit, so neither can go stale. Medium is
