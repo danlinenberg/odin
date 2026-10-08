@@ -4,6 +4,7 @@ import {
 	applyLines,
 	groupSummary,
 	isApprovalItem,
+	launchRequest,
 	segments,
 	splitActionItems,
 	transcriptPath,
@@ -197,5 +198,48 @@ describe("ChatView transcript", () => {
 		expect(isApprovalItem("**Approve** the plan")).toBe(true);
 		expect(isApprovalItem("Decide whether to approve the PR")).toBe(false);
 		expect(isApprovalItem("Approved PRs need nothing")).toBe(false);
+	});
+});
+
+describe("launchRequest - the request you typed, without the launcher's scaffolding", () => {
+	test("folds a task prompt to its title, before the attachment list", () => {
+		const prompt = [
+			"Task: improve text formatting",
+			"",
+			"Attached files - read them before starting:",
+			"/Users/dan/dev/.odin/attachments/a.png",
+			"",
+			"Work in the current workspace. Investigate, make the changes.",
+		].join("\n");
+		expect(launchRequest(prompt)).toBe("Task: improve text formatting");
+	});
+
+	test("keeps the description and folds at the first scaffold block", () => {
+		const prompt = [
+			"Task: ship the thing",
+			"",
+			"Make it fast.\nAnd small.",
+			"",
+			"Standing rules - follow each one whenever its situation comes up during this session, without being asked:\n- When you open a pull request: auto merge",
+			"",
+			"Work in the current workspace. Investigate.",
+		].join("\n");
+		expect(launchRequest(prompt)).toBe(
+			"Task: ship the thing\n\nMake it fast.\nAnd small.",
+		);
+	});
+
+	test("folds a skill launch at the guidelines the person added", () => {
+		const prompt = [
+			"/triage ODIN-12",
+			"",
+			"Context and guidelines from me for this session - keep them in mind throughout:\nUse the staging DB.",
+		].join("\n");
+		expect(launchRequest(prompt)).toBe("/triage ODIN-12");
+	});
+
+	test("returns null for a typed message with no scaffolding", () => {
+		expect(launchRequest("Can you check the build?\n\nThanks")).toBeNull();
+		expect(launchRequest("Task: only a title")).toBeNull();
 	});
 });
