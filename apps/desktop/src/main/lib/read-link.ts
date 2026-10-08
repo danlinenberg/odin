@@ -20,7 +20,8 @@ export async function readLink(url: string): Promise<string> {
 			const text = await slackThreadText(link.url);
 			if (!text)
 				throw new Error(
-					"Slack isn't connected in Odin, or won't share that thread.",
+					// Tokens from before v1.0.10 lack the *:history scopes.
+					"Odin couldn't read that thread. Reconnect Slack in Odin's Settings > Connections to grant read access, then retry.",
 				);
 			return text;
 		}
