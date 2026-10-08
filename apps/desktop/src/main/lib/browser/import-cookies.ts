@@ -12,7 +12,7 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import Database from "better-sqlite3";
-import { session } from "electron";
+import { safeStorage, session } from "electron";
 import { IN_APP_BROWSER_PARTITION } from "shared/constants";
 import {
 	readOdinConfig,
@@ -21,11 +21,10 @@ import {
 
 const run = promisify(execFile);
 
-class KeychainError extends Error {}
-
 /**
  * Chromium browsers on macOS, with the Keychain item that holds each one's
- * cookie key. Reading it shows macOS's own "allow access" prompt.
+ * cookie key. Reading it shows macOS's own "allow access" prompt, so Odin only
+ * reads it when you ask, then keeps it encrypted under Odin's own Keychain key.
  */
 const BROWSERS = [
 	{ name: "Arc", dir: "Arc/User Data", keychain: "Arc Safe Storage" },
@@ -138,34 +137,64 @@ function newestCookieDb() {
 	return newest;
 }
 
+type Browser = (typeof BROWSERS)[number];
+
+function savedKeychainPassword(browser: Browser): string | null {
+	const saved = readOdinConfig().cookieKeys?.[browser.keychain];
+	if (!saved || !safeStorage.isEncryptionAvailable()) return null;
+	try {
+		return safeStorage.decryptString(Buffer.from(saved, "base64"));
+	} catch {
+		return null;
+	}
+}
+
+async function askKeychainPassword(browser: Browser): Promise<string> {
+	const { stdout } = await run(
+		"security",
+		["find-generic-password", "-w", "-s", browser.keychain],
+		{ timeout: 60_000 },
+	).catch(() => {
+		throw new Error(
+			`Couldn't read ${browser.name}'s cookie key from the Keychain.`,
+		);
+	});
+	const password = stdout.trim();
+	if (safeStorage.isEncryptionAvailable()) {
+		updateOdinConfig({
+			cookieKeys: {
+				...readOdinConfig().cookieKeys,
+				[browser.keychain]: safeStorage
+					.encryptString(password)
+					.toString("base64"),
+			},
+		});
+	}
+	return password;
+}
+
 /**
  * Copies the signed-in sessions of your everyday browser into the in-app
  * browser. Reads a copy of the cookie DB, since the browser keeps it locked.
+ * `ask: false` never shows the Keychain prompt: it returns null instead when
+ * Odin hasn't saved that browser's cookie key yet.
  */
-export async function importBrowserCookies(): Promise<{
+export async function importBrowserCookies({ ask = true } = {}): Promise<{
 	browser: string;
 	profile: string;
 	imported: number;
-}> {
+} | null> {
 	if (process.platform !== "darwin") {
 		throw new Error("Importing cookies works on macOS only.");
 	}
 	const source = newestCookieDb();
 	if (!source) throw new Error("No Chrome, Arc, Brave or Edge profile found.");
 
-	const { stdout } = await run(
-		"security",
-		["find-generic-password", "-w", "-s", source.browser.keychain],
-		{ timeout: 60_000 },
-	).catch(() => {
-		throw new KeychainError(
-			`Couldn't read ${source.browser.name}'s cookie key from the Keychain.`,
-		);
-	});
-	const key = cookieKey(stdout.trim());
-	if (readOdinConfig().cookieImportDenied) {
-		updateOdinConfig({ cookieImportDenied: undefined });
-	}
+	const password =
+		savedKeychainPassword(source.browser) ??
+		(ask ? await askKeychainPassword(source.browser) : null);
+	if (password === null) return null;
+	const key = cookieKey(password);
 
 	const tmp = mkdtempSync(path.join(os.tmpdir(), "odin-cookies-"));
 	try {
@@ -213,18 +242,17 @@ let importedThisLaunch = false;
 
 /**
  * The automatic import: the first time the in-app browser opens after Odin
- * starts. Null when it already ran, or failed. A Keychain refusal turns it off
- * until a manual import succeeds, so "Deny" doesn't come back every launch.
+ * starts. Silent - it runs only once you've imported by hand and Odin has the
+ * cookie key saved. Before that it returns "offer", once ever, so the panel
+ * can explain the import and let you start it; null otherwise.
  */
 export async function importBrowserCookiesOnLaunch() {
-	if (importedThisLaunch || readOdinConfig().cookieImportDenied) return null;
+	if (importedThisLaunch || process.platform !== "darwin") return null;
 	importedThisLaunch = true;
-	try {
-		return await importBrowserCookies();
-	} catch (error) {
-		if (error instanceof KeychainError) {
-			updateOdinConfig({ cookieImportDenied: true });
-		}
-		return null;
+	const result = await importBrowserCookies({ ask: false }).catch(() => null);
+	if (result || readOdinConfig().cookieImportOffered || !newestCookieDb()) {
+		return result;
 	}
+	updateOdinConfig({ cookieImportOffered: true });
+	return "offer" as const;
 }
