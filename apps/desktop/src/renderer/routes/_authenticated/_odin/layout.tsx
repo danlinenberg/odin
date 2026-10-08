@@ -14,6 +14,7 @@ import {
 	HiOutlineClipboardDocumentCheck,
 	HiOutlineClock,
 	HiOutlineCog6Tooth,
+	HiOutlineCommandLine,
 	HiOutlineScale,
 	HiOutlineViewColumns,
 } from "react-icons/hi2";
@@ -85,6 +86,14 @@ const RAIL_ITEMS = [
 		hotkey: "ODIN_BOARD" as const,
 		label: "Dev Board",
 		Icon: HiOutlineViewColumns,
+	},
+	// The board's sessions as Superset lays them out: a list on the left and
+	// one terminal on the right, so moving between them is a click or an arrow.
+	{
+		to: "/live" as const,
+		hotkey: "ODIN_LIVE" as const,
+		label: "Live",
+		Icon: HiOutlineCommandLine,
 	},
 	{
 		to: "/all" as const,
@@ -334,6 +343,11 @@ function OdinShell() {
 		ODIN_AUTOMATIONS: useHotkey(
 			"ODIN_AUTOMATIONS",
 			() => navigate({ to: "/automations" }),
+			NAV_HOTKEY_OPTIONS,
+		),
+		ODIN_LIVE: useHotkey(
+			"ODIN_LIVE",
+			() => navigate({ to: "/live" }),
 			NAV_HOTKEY_OPTIONS,
 		),
 		ODIN_REVIEW: useHotkey(

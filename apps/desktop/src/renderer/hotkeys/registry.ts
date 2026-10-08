@@ -64,6 +64,12 @@ export const HOTKEYS_REGISTRY = {
 		category: "Navigation",
 		description: "Open the tasks that run on a cron schedule",
 	},
+	ODIN_LIVE: {
+		key: { mac: L("l"), windows: L("l"), linux: L("l") },
+		label: "Live",
+		category: "Navigation",
+		description: "Flip through the running sessions, one terminal at a time",
+	},
 	ODIN_REVIEW: {
 		key: { mac: L("r"), windows: L("r"), linux: L("r") },
 		label: "Review",
