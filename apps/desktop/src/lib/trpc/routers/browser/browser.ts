@@ -1,6 +1,7 @@
 import { observable } from "@trpc/server/observable";
 import { session } from "electron";
 import { browserManager } from "main/lib/browser/browser-manager";
+import { importBrowserCookies } from "main/lib/browser/import-cookies";
 import { findOnePasswordLogin } from "main/lib/browser/one-password";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
@@ -182,6 +183,8 @@ export const createBrowserRouter = () => {
 		onePasswordLogin: publicProcedure
 			.input(z.object({ url: z.string() }))
 			.mutation(({ input }) => findOnePasswordLogin(input.url)),
+
+		importCookies: publicProcedure.mutation(() => importBrowserCookies()),
 
 		clearBrowsingData: publicProcedure
 			.input(
