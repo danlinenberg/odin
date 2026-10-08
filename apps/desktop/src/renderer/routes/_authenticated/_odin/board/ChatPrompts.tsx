@@ -28,6 +28,11 @@ export function answerKeys(questions: Question[], picks: number[][]): string[] {
 	return [...keys, "\r"];
 }
 
+/** The menu lists "Type something" after the options, then "Chat about this". */
+export function chatAboutKeys(questions: Question[]): string[] {
+	return [String((questions[0]?.options?.length ?? 0) + 2)];
+}
+
 /** AskUserQuestion, answered in the chat - its menu only draws in the TUI. */
 export function QuestionCard({
 	input,
@@ -108,6 +113,19 @@ export function QuestionCard({
 					</div>
 				))}
 			</div>
+			{single && (
+				<button
+					type="button"
+					disabled={sent}
+					onClick={() => {
+						setSent(true);
+						onKeys(chatAboutKeys(questions));
+					}}
+					className="mt-3 text-[11.5px] text-muted-foreground hover:text-foreground disabled:opacity-60"
+				>
+					Chat about this
+				</button>
+			)}
 			{!single && (
 				<button
 					type="button"

@@ -1,6 +1,13 @@
 import { describe, expect, test } from "bun:test";
-import { answerKeys } from "./ChatPrompts";
+import { answerKeys, chatAboutKeys } from "./ChatPrompts";
 import { collectRefs, linkify } from "./chat-links";
+
+describe("chatAboutKeys - Claude Code's question menu", () => {
+	test("Chat about this sits two past the last option, after Type something", () => {
+		expect(chatAboutKeys([{ options: [{}, {}] }])).toEqual(["4"]);
+		expect(chatAboutKeys([{ options: [{}, {}, {}] }])).toEqual(["5"]);
+	});
+});
 
 describe("answerKeys - Claude Code's question menu", () => {
 	test("a lone single-choice question answers on its number", () => {
