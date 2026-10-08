@@ -58,11 +58,18 @@ export function useNightAgentRunner() {
 		let running = false;
 		const tick = async () => {
 			if (running) return;
-			const { offHours, offHoursStarted, setOffHours, setOffHoursStarted } =
-				useNextInLinePrompt.getState();
+			const {
+				offHours,
+				offHoursStarted,
+				offHoursFromPicks,
+				setOffHours,
+				setOffHoursStarted,
+				setOffHoursFromPicks,
+			} = useNextInLinePrompt.getState();
 			if (!offHours.enabled) return;
 			if (!inOffHours(new Date(), offHours.start, offHours.end)) {
 				if (offHoursStarted) setOffHoursStarted(0);
+				if (offHoursFromPicks) setOffHoursFromPicks(false);
 				tried.current.clear();
 				night.current = null;
 				return;
@@ -93,15 +100,23 @@ export function useNightAgentRunner() {
 						.find(
 							(row) => row && !tried.current.has(row.key) && !duplicateFor(row),
 						);
-					if (!item) return;
-					tried.current.add(item.key);
-					setOffHours({
-						picked: offHours.picked.filter((key) => key !== item.key),
-					});
-					setOffHoursStarted(offHoursStarted + 1);
-					await start(item, { instructions: offHours.instructions });
-					return;
+					if (item) {
+						tried.current.add(item.key);
+						setOffHours({
+							picked: offHours.picked.filter((key) => key !== item.key),
+						});
+						setOffHoursFromPicks(true);
+						setOffHoursStarted(offHoursStarted + 1);
+						await start(item, { instructions: offHours.instructions });
+						return;
+					}
 				}
+				// A night with picks runs only picks, unless you said to go on after them.
+				if (
+					(offHours.picked.length || offHoursFromPicks) &&
+					offHours.afterPicks === "stop"
+				)
+					return;
 				const instructions = nightInstructions(prompt, offHours.instructions);
 				const stale =
 					night.current?.instructions !== instructions ||

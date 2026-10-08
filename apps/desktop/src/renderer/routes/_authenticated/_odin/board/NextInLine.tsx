@@ -297,6 +297,8 @@ export function useNextInLineQueue(showHidden = false) {
 export function NextInLine() {
 	const { ranking, applied, startedAt, error } = useAiRanking();
 	const picked = useNextInLinePrompt((s) => s.offHours.picked);
+	const afterPicks = useNextInLinePrompt((s) => s.offHours.afterPicks);
+	const setOffHours = useNextInLinePrompt((s) => s.setOffHours);
 	const navigate = useNavigate();
 	// The rows your instructions hide, per the model - revealed, dimmed, on ask.
 	const [showHidden, setShowHidden] = useState(false);
@@ -373,11 +375,27 @@ export function NextInLine() {
 					</button>
 					{picked.length > 0 && (
 						<span
-							title="Picked for tonight - the Night Agent runs only these"
+							title="Picked for tonight - the Night Agent starts these first"
 							className="flex items-center gap-1 font-normal normal-case tracking-normal text-primary"
 						>
 							<LuMoon className="size-3" aria-hidden />
 							{picked.length}
+							<button
+								type="button"
+								onClick={() =>
+									setOffHours({
+										afterPicks: afterPicks === "stop" ? "ranked" : "stop",
+									})
+								}
+								title={
+									afterPicks === "stop"
+										? "After the picks, the Night Agent stops. Click to go on with the ranked queue."
+										: "After the picks, the Night Agent goes on with the ranked queue. Click to stop after the picks."
+								}
+								className="text-muted-foreground hover:text-foreground"
+							>
+								· then {afterPicks === "stop" ? "stop" : "ranked"}
+							</button>
 						</span>
 					)}
 					<HiddenToggle
@@ -550,7 +568,7 @@ export function NextInLine() {
 								? "Take off tonight's picks"
 								: pickFull
 									? `Tonight's picks are full (${MAX_NIGHT_PICKS})`
-									: "Pick for tonight - the Night Agent runs only picks"
+									: "Pick for tonight - the Night Agent starts picks first"
 						}
 						className={cn(
 							"rounded-md p-1 hover:bg-accent disabled:opacity-40",
