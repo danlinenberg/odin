@@ -272,6 +272,9 @@ export function InAppBrowser() {
 	const { mutate: copyText } = electronTrpc.external.copyText.useMutation();
 	const onePassword = electronTrpc.browser.onePasswordLogin.useMutation();
 	const importCookies = electronTrpc.browser.importCookies.useMutation();
+	const { mutate: importOnLaunch } =
+		electronTrpc.browser.importCookiesOnLaunch.useMutation();
+	const askedToImport = useRef(false);
 	// Each site's first link. Its page stays loaded while the panel is
 	// closed, so the next link doesn't start the site over.
 	const [sites, setSites] = useState<Partial<Record<Site, string>>>({});
@@ -281,6 +284,27 @@ export function InAppBrowser() {
 	// `views` alone, each re-render looked like a new site and took the keyboard
 	// back from whatever you were typing in (the chat box, beside the panel).
 	const focusedViews = useRef(new WeakSet<Element>());
+	// Sites open signed in like your everyday browser: its cookies come over
+	// the first time the panel opens after each launch.
+	useEffect(() => {
+		if (!url || askedToImport.current) return;
+		askedToImport.current = true;
+		importOnLaunch(undefined, {
+			onSuccess: (result) => {
+				if (!result) return;
+				toast(`Signed in like ${result.browser}`, {
+					description: `${result.imported} cookies from ${result.profile}, refreshed each launch.`,
+				});
+				for (const webview of Object.values(views.current)) {
+					try {
+						webview?.reload();
+					} catch {
+						// Not attached yet; it loads with the new cookies anyway.
+					}
+				}
+			},
+		});
+	}, [url, importOnLaunch]);
 	const [pages, setPages] = useState<
 		Partial<Record<Site, { title: string; url: string }>>
 	>({});

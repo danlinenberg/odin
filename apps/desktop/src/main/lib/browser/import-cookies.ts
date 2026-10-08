@@ -14,8 +14,14 @@ import { promisify } from "node:util";
 import Database from "better-sqlite3";
 import { session } from "electron";
 import { IN_APP_BROWSER_PARTITION } from "shared/constants";
+import {
+	readOdinConfig,
+	updateOdinConfig,
+} from "../../../lib/trpc/routers/odin-config";
 
 const run = promisify(execFile);
+
+class KeychainError extends Error {}
 
 /**
  * Chromium browsers on macOS, with the Keychain item that holds each one's
@@ -152,11 +158,14 @@ export async function importBrowserCookies(): Promise<{
 		["find-generic-password", "-w", "-s", source.browser.keychain],
 		{ timeout: 60_000 },
 	).catch(() => {
-		throw new Error(
+		throw new KeychainError(
 			`Couldn't read ${source.browser.name}'s cookie key from the Keychain.`,
 		);
 	});
 	const key = cookieKey(stdout.trim());
+	if (readOdinConfig().cookieImportDenied) {
+		updateOdinConfig({ cookieImportDenied: undefined });
+	}
 
 	const tmp = mkdtempSync(path.join(os.tmpdir(), "odin-cookies-"));
 	try {
@@ -197,5 +206,25 @@ export async function importBrowserCookies(): Promise<{
 		};
 	} finally {
 		await rm(tmp, { recursive: true, force: true });
+	}
+}
+
+let importedThisLaunch = false;
+
+/**
+ * The automatic import: the first time the in-app browser opens after Odin
+ * starts. Null when it already ran, or failed. A Keychain refusal turns it off
+ * until a manual import succeeds, so "Deny" doesn't come back every launch.
+ */
+export async function importBrowserCookiesOnLaunch() {
+	if (importedThisLaunch || readOdinConfig().cookieImportDenied) return null;
+	importedThisLaunch = true;
+	try {
+		return await importBrowserCookies();
+	} catch (error) {
+		if (error instanceof KeychainError) {
+			updateOdinConfig({ cookieImportDenied: true });
+		}
+		return null;
 	}
 }
