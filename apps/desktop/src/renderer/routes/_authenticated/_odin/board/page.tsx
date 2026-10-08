@@ -286,7 +286,16 @@ const ANSI_RE =
  * draws in the alternate screen, so its scrollback is hundreds of cursor-placed
  * repaints that read as run-together words once the escapes are stripped.
  */
-function HistoryView({ card, live }: { card: BoardCard; live: boolean }) {
+function HistoryView({
+	card,
+	live,
+	onDo,
+}: {
+	card: BoardCard;
+	live: boolean;
+	/** Resume the session with this as its opening message. */
+	onDo?: (text: string) => void;
+}) {
 	const sessionId = useCardSessionId(card);
 	// Same query the card's pills run, so this is a cache hit. Claude prunes old
 	// transcripts; when the file is gone, the saved screen is all that's left.
@@ -299,6 +308,7 @@ function HistoryView({ card, live }: { card: BoardCard; live: boolean }) {
 				sessionId={sessionId}
 				cwd={sessionCwd(card.pane) ?? card.repoPath}
 				workspaceId={card.workspaceId}
+				onResumeWith={onDo}
 			/>
 		);
 	}
@@ -2731,12 +2741,12 @@ function DevBoardPage() {
 	}, [drawerCard, alivePaneIds]);
 
 	/**
-	 * Type "Continue" at a live agent's prompt. Text and Enter go in separate
+	 * Type "Continue" (or `text`) at a live agent's prompt. Text and Enter go in separate
 	 * writes: claude's TUI reads a chunk ending in a newline as a paste and
 	 * inserts it instead of submitting.
 	 */
-	const sendContinue = async (paneId: string) => {
-		await terminalWrite.mutateAsync({ paneId, data: "Continue" });
+	const sendContinue = async (paneId: string, text = "Continue") => {
+		await terminalWrite.mutateAsync({ paneId, data: text });
 		await new Promise((resolve) => setTimeout(resolve, 50));
 		await terminalWrite.mutateAsync({ paneId, data: "\r" });
 	};
@@ -2809,7 +2819,11 @@ function DevBoardPage() {
 		}));
 	};
 
-	const resumeCard = async (card: BoardCard, auto = false) => {
+	/**
+	 * `prompt` replaces the opening "Continue" (or the idle prompt): a "Do it"
+	 * on an ended session reopens it already working on that item.
+	 */
+	const resumeCard = async (card: BoardCard, auto = false, prompt?: string) => {
 		if (resumingPaneIds.includes(card.pane.id)) return;
 		// Never started: there's no conversation to resume, only the launch that
 		// was held back. Run it now - that's what "Start now" meant on the toast
@@ -2841,6 +2855,9 @@ function DevBoardPage() {
 		// "Continue" typed at zsh is a command-not-found, not a resume.
 		const screen = visibleScreen(card.pane.id);
 		const shellOnScreen = screen.trim() !== "" && !agentOnScreen(screen);
+		const opening = prompt
+			? `'${prompt.replaceAll("'", "'\\''")}'`
+			: "Continue";
 		if (agentPaneIds.has(card.pane.id) && !shellOnScreen) {
 			if (!auto) openDrawer(card);
 			const blocker = await resumeBlocker(card.pane, sessionCwd(card.pane));
@@ -2855,13 +2872,13 @@ function DevBoardPage() {
 				}
 				queueResume(
 					card.pane,
-					`cd '${cwd}' && ${claudeCli()} --resume ${id} Continue`,
+					`cd '${cwd}' && ${claudeCli()} --resume ${id} ${opening}`,
 					blocker,
 				);
 				return;
 			}
 			try {
-				await sendContinue(card.pane.id);
+				await sendContinue(card.pane.id, prompt);
 			} catch (error) {
 				toast.error(error instanceof Error ? error.message : String(error));
 			}
@@ -2958,7 +2975,7 @@ function DevBoardPage() {
 			sessionId
 				? `${claudeCli()} --resume ${sessionId}`
 				: `${claudeCli()} --continue`
-		}${diedWorking ? " Continue" : ""}`;
+		}${diedWorking || prompt ? ` ${opening}` : ""}`;
 		// You resumed it to work in it - bring it up. The drawer swaps its
 		// read-only history for the live terminal once the PTY is back, and that
 		// terminal takes the keyboard. Auto-resume never steals the screen.
@@ -2966,7 +2983,8 @@ function DevBoardPage() {
 		// Only a Resume that goes back to work waits on the gate. One reopening
 		// at an idle prompt takes no working slot and holds no checkout - queuing
 		// it parked you behind every task in line, looking at the board.
-		const blocker = diedWorking ? await resumeBlocker(card.pane, cwd) : null;
+		const blocker =
+			diedWorking || prompt ? await resumeBlocker(card.pane, cwd) : null;
 		if (blocker) {
 			queueResume(
 				card.pane,
@@ -4310,7 +4328,11 @@ function DevBoardPage() {
 									) : (
 										// Claude has exited - the PTY is dead, or a bare zsh outlived
 										// the conversation. Show the conversation, read-only.
-										<HistoryView card={drawerCard} live={false} />
+										<HistoryView
+											card={drawerCard}
+											live={false}
+											onDo={(text) => void resumeCard(drawerCard, false, text)}
+										/>
 									)}
 								</div>
 								{isBriefOpen && (

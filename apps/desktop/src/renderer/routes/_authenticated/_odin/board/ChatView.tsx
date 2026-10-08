@@ -663,9 +663,9 @@ export function actionItemList(text: string): string[] {
 }
 
 /**
- * What's on you, set apart in the board's Needs-you colour. In a live session
- * each item gets a "Do it" button that hands it back to Claude, except the
- * ones Claude marked "(you only)".
+ * What's on you, set apart in the board's Needs-you colour. Each item gets a
+ * "Do it" button that hands it back to Claude (resuming an ended session
+ * first), except the ones Claude marked "(you only)".
  */
 function ActionItems({
 	text,
@@ -782,6 +782,7 @@ export function ChatView({
 	working = false,
 	onShowTerminal,
 	onStop,
+	onResumeWith,
 }: {
 	paneId: string;
 	sessionId: string | null;
@@ -792,6 +793,8 @@ export function ChatView({
 	onShowTerminal?: () => void;
 	/** Interrupt the turn - the drawer's Interrupt, so the card leaves Working too. */
 	onStop?: () => void;
+	/** Ended session: resume it with this as the opening message. */
+	onResumeWith?: (text: string) => void;
 }) {
 	const { data: home } = electronTrpc.window.getHomeDir.useQuery();
 	// Claude files the conversation under the directory it STARTED in - the
@@ -872,9 +875,16 @@ export function ChatView({
 	const onSentRef = useRef(onSent);
 	onSentRef.current = onSent;
 	// Stable, so the memoized rows don't all re-render on every poll.
+	// A ref, so a fresh arrow from the drawer doesn't re-render every message.
+	const onResumeRef = useRef(onResumeWith);
+	onResumeRef.current = onResumeWith;
 	const doItem = useCallback(
 		(item: string, number: number) => {
 			const text = `Do action item ${number} for me: ${item}`;
+			if (onResumeRef.current) {
+				onResumeRef.current(text);
+				return;
+			}
 			onSentRef.current(text);
 			void typeIntoClaude(write.mutateAsync, paneId, text).catch((error) =>
 				toast.error(error instanceof Error ? error.message : String(error)),
@@ -985,7 +995,7 @@ export function ChatView({
 											item={segment}
 											refs={refs}
 											refsKey={refsKey}
-											onDo={onShowTerminal ? doItem : undefined}
+											onDo={onShowTerminal || onResumeWith ? doItem : undefined}
 										/>
 									)}
 								</div>
