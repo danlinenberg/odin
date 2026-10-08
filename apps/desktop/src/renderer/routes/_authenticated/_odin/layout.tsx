@@ -617,25 +617,12 @@ function OdinShell() {
 				onClose={() => setCrowOpen(false)}
 				onAsk={askCrow}
 				keys={crowKeys.text}
-				note={
-					openCrow && (
-						<>
-							Follows up in “{openCrow.userTitle ?? openCrow.name}” - ✓ Done in
-							its drawer starts a fresh one.{" "}
-							<button
-								type="button"
-								className="underline hover:text-white/80"
-								onClick={() => {
-									setCrowOpen(false);
-									usePendingFocus.getState().focus(openCrow.id);
-									navigate({ to: "/board" });
-								}}
-							>
-								Show it
-							</button>
-						</>
-					)
-				}
+				conversation={openCrow}
+				onShowOnBoard={(paneId) => {
+					setCrowOpen(false);
+					usePendingFocus.getState().focus(paneId);
+					navigate({ to: "/board" });
+				}}
 			/>
 		</div>
 	);

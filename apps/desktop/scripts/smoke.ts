@@ -570,14 +570,15 @@ await step("Settings is exactly its six screens, and each opens", async () => {
 	await waitForText("waiting on you");
 });
 
-await step("the crow follows up in the open conversation", async () => {
+await step("the crow opens its panel in place", async () => {
 	await rail("Dev Board");
 	await waitForText("next in line");
 	await click("button", "Ask the crow");
-	await waitForText(`follows up in “${QUESTION}”`);
-	await click("button", "Show it");
-	await waitForText("follows up in", false);
-	await waitForText(QUESTION);
+	// The left-open conversation's Claude died with the last run, so the panel
+	// greets; asking would resume it there.
+	await waitForText("how can i help you today?");
+	await click("button", "Ask the crow");
+	await waitForText("how can i help you today?", false);
 });
 
 const SESSION = `Smoke session ${Date.now()}`;
@@ -585,7 +586,7 @@ let sessionPid = 0;
 await step(
 	"New Session puts a card on the board and gives claude the prompt",
 	async () => {
-		// The previous step left the conversation's drawer open; Esc closes it.
+		// Esc first, so nothing an earlier step opened is in the way.
 		await page(
 			`(document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`,
 		);
