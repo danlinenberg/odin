@@ -2,6 +2,12 @@ export interface TerminalProps {
 	paneId: string;
 	tabId: string;
 	workspaceId: string;
+	/**
+	 * Overrides the tab's focused pane. Every board session is alone in its
+	 * tab, so with several mounted at once each would claim the keyboard and
+	 * its terminal hotkeys (Clear, Find) on mount.
+	 */
+	focused?: boolean;
 }
 
 export type TerminalExitReason = "killed" | "exited" | "error";

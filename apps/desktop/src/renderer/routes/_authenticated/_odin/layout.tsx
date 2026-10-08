@@ -14,6 +14,7 @@ import {
 	HiOutlineClipboardDocumentCheck,
 	HiOutlineClock,
 	HiOutlineCog6Tooth,
+	HiOutlineHome,
 	HiOutlineScale,
 	HiOutlineViewColumns,
 } from "react-icons/hi2";
@@ -80,6 +81,12 @@ export const Route = createFileRoute("/_authenticated/_odin")({
  * keys still jump straight to one; each is rebindable in Settings → Keyboard.
  */
 const RAIL_ITEMS = [
+	{
+		to: "/home" as const,
+		hotkey: "ODIN_HOME" as const,
+		label: "Home",
+		Icon: HiOutlineHome,
+	},
 	{
 		to: "/board" as const,
 		hotkey: "ODIN_BOARD" as const,
@@ -316,11 +323,16 @@ function OdinShell() {
 	useSlackAutoLaunch();
 
 	const { data: workConfig } = electronTrpc.work.getConfig.useQuery();
-	// Single-key nav - D board, T tasks, S slack, H history, J jira, P PRs
+	// Single-key nav - O home, D board, T tasks, S slack, H history, J jira, P PRs
 	// by default, and whatever
 	// Settings → Keyboard shortcuts says after that. The returned display drives
 	// each rail tooltip, so the hint can't drift from the binding.
 	const railHotkeys = {
+		ODIN_HOME: useHotkey(
+			"ODIN_HOME",
+			() => navigate({ to: "/home" }),
+			NAV_HOTKEY_OPTIONS,
+		),
 		ODIN_BOARD: useHotkey(
 			"ODIN_BOARD",
 			() => navigate({ to: "/board" }),

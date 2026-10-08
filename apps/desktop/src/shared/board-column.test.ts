@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { boardColumn } from "./board-column";
+import { boardColumn, mergeStateColumn } from "./board-column";
 
 describe("boardColumn", () => {
 	// Done, not Needs you: the turn ended and nothing is asking for you.
@@ -77,5 +77,24 @@ describe("boardColumn", () => {
 			"permission",
 		);
 		expect(boardColumn("review", false, false)).toBe("idle");
+	});
+});
+
+describe("mergeStateColumn", () => {
+	// Waiting on CI, not on you - from either column you'd otherwise clear.
+	it("moves Needs you and Done to Working while CI runs", () => {
+		expect(mergeStateColumn("permission", true, false)).toBe("working");
+		expect(mergeStateColumn("review", true, true)).toBe("working");
+	});
+
+	it("files a Needs you card with only a merge left under Done", () => {
+		expect(mergeStateColumn("permission", false, true)).toBe("review");
+	});
+
+	it("leaves every other column alone", () => {
+		expect(mergeStateColumn("permission", false, false)).toBe("permission");
+		expect(mergeStateColumn("working", true, true)).toBe("working");
+		expect(mergeStateColumn("idle", true, true)).toBe("idle");
+		expect(mergeStateColumn("review", false, true)).toBe("review");
 	});
 });

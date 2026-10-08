@@ -46,6 +46,12 @@ export const HOTKEYS_REGISTRY = {
 	// Odin's own shortcuts - a bare key per tab in the shell's rail, plus quick
 	// capture. These are the only ones the settings page lists (see
 	// settings/keyboard/page.tsx).
+	ODIN_HOME: {
+		key: { mac: L("o"), windows: L("o"), linux: L("o") },
+		label: "Home",
+		category: "Navigation",
+		description: "Open the live terminals of every session working or waiting",
+	},
 	ODIN_BOARD: {
 		key: { mac: L("d"), windows: L("d"), linux: L("d") },
 		label: "Dev Board",
