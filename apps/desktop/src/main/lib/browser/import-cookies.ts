@@ -5,9 +5,9 @@ import {
 	existsSync,
 	mkdtempSync,
 	readdirSync,
-	rmSync,
 	statSync,
 } from "node:fs";
+import { rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -196,6 +196,6 @@ export async function importBrowserCookies(): Promise<{
 			imported,
 		};
 	} finally {
-		rmSync(tmp, { recursive: true, force: true });
+		await rm(tmp, { recursive: true, force: true });
 	}
 }
