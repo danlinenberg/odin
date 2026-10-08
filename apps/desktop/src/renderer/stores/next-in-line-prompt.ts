@@ -10,13 +10,22 @@ export interface OffHours {
 	maxSessions: number;
 	/** Appended to every Night Agent task's prompt. */
 	instructions: string;
+	/** Rows you picked for the night, in start order. They run before anything ranked. */
+	picked: string[];
+	/** Once tonight's picks are started: stop there, or go on with the ranked queue. */
+	afterPicks: "stop" | "ranked";
 }
+
+/** A cap on picks, so the saved list stays a few hundred bytes. */
+export const MAX_NIGHT_PICKS = 20;
 
 export const DEFAULT_OFF_HOURS: OffHours = {
 	enabled: false,
 	start: "23:00",
 	end: "07:00",
 	maxSessions: 8,
+	picked: [],
+	afterPicks: "stop",
 	instructions:
 		"This is a Night Agent run: I'm asleep and will read the result in the morning. Get it as far as you can on your own - investigate, find the root cause, and make and verify the change on a branch with a PR open. Don't do anything other people would see before I've looked: no Slack or email messages, no Jira or PR comments, no merging, no deploys. Leave those in ACTION ITEMS.",
 };
@@ -30,6 +39,17 @@ export function inOffHours(now: Date, start: string, end: string): boolean {
 	const t = now.getHours() * 60 + now.getMinutes();
 	const [s, e] = [minutes(start), minutes(end)];
 	return s <= e ? t >= s && t < e : t >= s || t < e;
+}
+
+/** Adds or removes a row from tonight's picks. Adding is refused at the cap. */
+export function toggleNightPick(key: string): void {
+	const { offHours, setOffHours } = useNextInLinePrompt.getState();
+	const picked = offHours.picked;
+	if (picked.includes(key)) {
+		setOffHours({ picked: picked.filter((pick) => pick !== key) });
+	} else if (picked.length < MAX_NIGHT_PICKS) {
+		setOffHours({ picked: [...picked, key] });
+	}
 }
 
 /**
@@ -51,6 +71,9 @@ export const useNextInLinePrompt = create<{
 	/** Sessions started in the current window - reset once it closes. */
 	offHoursStarted: number;
 	setOffHoursStarted: (count: number) => void;
+	/** Whether this window has started a pick - reset once it closes. */
+	offHoursFromPicks: boolean;
+	setOffHoursFromPicks: (fromPicks: boolean) => void;
 }>()(
 	persist(
 		(set) => ({
@@ -63,6 +86,8 @@ export const useNextInLinePrompt = create<{
 				set((state) => ({ offHours: { ...state.offHours, ...patch } })),
 			offHoursStarted: 0,
 			setOffHoursStarted: (offHoursStarted) => set({ offHoursStarted }),
+			offHoursFromPicks: false,
+			setOffHoursFromPicks: (offHoursFromPicks) => set({ offHoursFromPicks }),
 		}),
 		{
 			name: "odin-next-in-line-prompt",
