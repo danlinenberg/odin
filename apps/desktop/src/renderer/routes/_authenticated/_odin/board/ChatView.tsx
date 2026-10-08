@@ -448,7 +448,10 @@ const ToolGroup = memo(
 				>
 					<LuTerminal className="size-3.5 shrink-0" />
 					<span className="shrink-0">{groupSummary(tools)}</span>
-					{failed && <span className="shrink-0 text-danger">· error</span>}
+					{/* ponytail: muted - a failed command is routine, Claude retries */}
+					{failed && (
+						<span className="shrink-0 text-faint-foreground">· error</span>
+					)}
 					{running && (
 						<span className="flex min-w-0 items-center gap-1.5 text-working">
 							<span className="size-[6px] shrink-0 animate-pulse rounded-full bg-working" />
