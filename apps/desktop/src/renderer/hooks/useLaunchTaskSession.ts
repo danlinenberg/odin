@@ -1,8 +1,8 @@
 import { useState } from "react";
+import { currentLaunchBlocker } from "renderer/hooks/useTaskQueue";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { usePaneMeta } from "renderer/routes/_authenticated/_odin/hooks/usePaneMeta";
 import { claudeCli } from "renderer/stores/claude-command";
-import { launchLimits, useLaunchLimits } from "renderer/stores/launch-limits";
 import {
 	type OdinRule,
 	rulesPrompt,
@@ -13,7 +13,7 @@ import { useSessionInstructions } from "renderer/stores/session-instructions";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import { SHELL_RULE } from "shared/constants";
 import { isVideoFile } from "shared/file-types";
-import { claimedCheckout, launchBlocker } from "shared/launch-gate";
+import { claimedCheckout } from "shared/launch-gate";
 
 function slugify(title: string): string {
 	return (
@@ -298,12 +298,10 @@ export function useLaunchTaskSession() {
 			let queuedReason: string | null = null;
 			if (now !== true && !noPrompt && !resumeSessionId) {
 				try {
-					queuedReason = launchBlocker(
-						await utils.client.resourceMetrics.getSnapshot.query(),
-						Object.values(useTabsStore.getState().panes),
+					queuedReason = await currentLaunchBlocker(
+						utils.client,
 						checkout,
 						workConfig?.odinRepoPath,
-						launchLimits(useLaunchLimits.getState()),
 					);
 				} catch {
 					queuedReason = null;
