@@ -48,7 +48,7 @@ import { PANE_STATUS } from "../pane-status";
 import type { AllItem, Urgency } from "./all-items";
 import { TaskDetails } from "./TaskDetails";
 import { useTitleOverrides } from "./title-overrides";
-import { useAllItems } from "./use-all-items";
+import { useAllItems, useSearchableItems } from "./use-all-items";
 import { useStartAllItem } from "./use-start-item";
 
 /** `open`: a row key whose details to open - how Search all lands on a row. */
@@ -206,6 +206,7 @@ function AllFeedPage() {
 		void navigate({ to: "/all", search: {}, replace: true });
 	}, [open, navigate]);
 	const allRows = useAllItems();
+	const everyRow = useSearchableItems();
 
 	const sourceCounts = useMemo(() => {
 		const counts = new Map<AllItem["source"], number>();
@@ -290,8 +291,11 @@ function AllFeedPage() {
 	}, [byContext, dueOnly, reminders, needle]);
 
 	// From every row, not the filtered ones: narrowing the list shouldn't shut
-	// the panel you're reading. Marking it done does - it's gone from both.
-	const openItem = allRows.find((item) => item.key === openKey);
+	// the panel you're reading. Marking it done does. Search all can open a row
+	// All leaves out (Done'd, started, your own PR), hence the wider fallback.
+	const openItem =
+		allRows.find((item) => item.key === openKey) ??
+		everyRow.find((item) => item.key === openKey);
 
 	const isFiltered =
 		source !== "" || urgency !== "" || context !== "" || dueOnly || !!needle;
@@ -720,8 +724,14 @@ function AllFeedPage() {
 								usePendingFocus.getState().focus(paneId);
 								navigate({ to: "/board" });
 							}}
-							onReadLater={() => markReading(openItem)}
-							onDone={() => markDone(openItem)}
+							onReadLater={() => {
+								markReading(openItem);
+								setOpenKey(null);
+							}}
+							onDone={() => {
+								markDone(openItem);
+								setOpenKey(null);
+							}}
 						/>
 					</DetailsPanel>
 				)}

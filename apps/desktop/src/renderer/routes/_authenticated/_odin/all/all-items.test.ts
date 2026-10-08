@@ -240,3 +240,21 @@ test("tickets I only filed stay on the Jira tab", () => {
 	const items = allItems({ ...feeds, jira: [filed] });
 	expect(items.some((item) => item.source === "Jira")).toBe(false);
 });
+
+test("everything keeps what All leaves out, for Search all", () => {
+	const filed = { ...feeds.jira[0], key: "BUGT-3", role: "reported" };
+	const items = allItems(
+		{ ...feeds, jira: [...feeds.jira, filed] },
+		{ everything: true },
+	);
+	const titles = items.map((item) => item.title);
+	expect(titles).toContain("already on it");
+	expect(titles).toContain("odin#8: Bump lockfile");
+	expect(titles).toContain("odin#9: My own change");
+	expect(titles).toContain("BUGT-3: It breaks");
+	// A started Slack row says so; an un-started one stays blank, as in All.
+	expect(items.find((item) => item.key === "slack:s2")?.status).toBe(
+		"In progress",
+	);
+	expect(items.find((item) => item.key === "slack:s1")?.status).toBeNull();
+});

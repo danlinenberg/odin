@@ -2,30 +2,49 @@ import { expect, test } from "bun:test";
 import type { Pane } from "shared/tabs-types";
 import {
 	boardSessions,
+	groupResults,
+	isClosedStatus,
 	matchRank,
+	rankRows,
+	rankSessions,
 	type SessionHit,
-	searchAll,
+	TRANSCRIPT_TIER,
 } from "./search-all";
 
 const row = (
 	title: string,
-	extra: { source?: string; person?: string; context?: string } = {},
+	extra: {
+		source?: string;
+		person?: string;
+		context?: string;
+		done?: boolean;
+	} = {},
 ) => ({
 	title,
 	source: extra.source ?? "Jira",
 	person: extra.person ?? null,
 	context: extra.context ?? null,
 	status: null,
+	done: extra.done ?? false,
 });
 
-const session = (paneId: string, title: string): SessionHit => ({
+const session = (
+	paneId: string,
+	title: string,
+	extra: Partial<SessionHit> = {},
+): SessionHit => ({
 	paneId,
 	title,
 	status: "idle",
-	source: "normal",
 	contact: null,
 	repo: null,
+	brief: null,
+	tags: [],
+	...extra,
 });
+
+const titles = (hits: { item: { title: string } }[]) =>
+	hits.map((hit) => hit.item.title);
 
 test("title start beats a word in the title beats anywhere in it", () => {
 	expect(matchRank("fix", "Fix the login", [])).toBe(0);
@@ -40,47 +59,85 @@ test("every word has to turn up somewhere, title or extra fields", () => {
 	expect(matchRank("slack", "can you look", ["Slack"])).toBe(3);
 });
 
-test("blank lists the first of each, in the order given", () => {
-	const rows = [row("a"), row("b"), row("c")];
-	const sessions = [session("p1", "one"), session("p2", "two")];
-	expect(searchAll("  ", rows, sessions, 2)).toEqual({
-		sessions,
-		rows: [rows[0], rows[1]],
-	});
+test("transcript hits rank below every field match", () => {
+	expect(TRANSCRIPT_TIER).toBeGreaterThan(3);
 });
 
-test("best match first, ties keep the given order", () => {
+test("best tier first, then open before done, then the order given", () => {
 	const rows = [
 		row("Review the deploy"),
+		row("Deploy the old thing", { done: true }),
 		row("BUGT-1: deploy breaks"),
 		row("Deploy the thing"),
 		row("Redeploy it"),
 		row("Unrelated"),
 	];
-	expect(searchAll("Deploy", rows, []).rows.map((r) => r.title)).toEqual([
+	expect(titles(rankRows("Deploy", rows))).toEqual([
 		"Deploy the thing",
+		"Deploy the old thing",
 		"Review the deploy",
 		"BUGT-1: deploy breaks",
 		"Redeploy it",
 	]);
 });
 
+test("nothing typed lists everything, open first", () => {
+	const rows = [row("a", { done: true }), row("b"), row("c")];
+	expect(titles(rankRows("  ", rows))).toEqual(["b", "c", "a"]);
+});
+
 test("a Jira key or a PR number in the title finds the row", () => {
 	const rows = [row("BUGT-12: It breaks"), row("odin#7: Fix it")];
-	expect(searchAll("bugt-12", rows, []).rows).toEqual([rows[0]]);
-	expect(searchAll("#7", rows, []).rows).toEqual([rows[1]]);
+	expect(titles(rankRows("bugt-12", rows))).toEqual(["BUGT-12: It breaks"]);
+	expect(titles(rankRows("#7", rows))).toEqual(["odin#7: Fix it"]);
 });
 
-test("rows match on who and where, sessions on contact and repo", () => {
+test("rows match on who and where", () => {
 	const rows = [row("can you look", { person: "Ada", context: "#eng" })];
-	const sessions = [{ ...session("p1", "Fix it"), repo: "odin" }];
-	expect(searchAll("ada", rows, sessions)).toEqual({ sessions: [], rows });
-	expect(searchAll("odin", rows, sessions)).toEqual({ sessions, rows: [] });
+	expect(rankRows("ada", rows)).toEqual([{ item: rows[0], tier: 3 }]);
+	expect(rankRows("#eng", rows)).toHaveLength(1);
 });
 
-test("caps each list at the limit", () => {
-	const rows = Array.from({ length: 5 }, (_, i) => row(`task ${i}`));
-	expect(searchAll("task", rows, [], 3).rows).toHaveLength(3);
+test("board cards match on contact, repo, brief and tags", () => {
+	const sessions = [
+		session("p1", "Fix it", {
+			repo: "odin",
+			contact: "Ada",
+			brief: "the flaky deploy",
+			tags: ["urgent"],
+		}),
+	];
+	for (const query of ["odin", "ada", "flaky", "urgent"])
+		expect(rankSessions(query, sessions)).toHaveLength(1);
+	expect(rankSessions("grace", sessions)).toEqual([]);
+});
+
+test("closed reads the same in every source's words", () => {
+	for (const status of ["Done", "closed", "Resolved", "Won't Do", "Merged"])
+		expect(isClosedStatus(status)).toBe(true);
+	for (const status of ["In progress", "Open", "To Do", null])
+		expect(isClosedStatus(status)).toBe(false);
+});
+
+test("groups: best hit's source first, capped, expandable, empty ones dropped", () => {
+	const hits = (tiers: number[]) =>
+		tiers.map((tier, i) => ({ item: `${tier}.${i}`, tier }));
+	const groups = [
+		{ id: "Jira", hits: hits([2, 3, 3]) },
+		{ id: "Slack", hits: hits([0]) },
+		{ id: "Email", hits: [] },
+		{ id: "History", hits: hits([4, 4, 4, 4]) },
+	];
+	expect(groupResults(groups, 2, new Set())).toEqual([
+		{ id: "Slack", items: ["0.0"], more: 0 },
+		{ id: "Jira", items: ["2.0", "3.1"], more: 1 },
+		{ id: "History", items: ["4.0", "4.1"], more: 2 },
+	]);
+	expect(groupResults(groups, 2, new Set(["History"]))[2]).toEqual({
+		id: "History",
+		items: ["4.0", "4.1", "4.2", "4.3"],
+		more: 0,
+	});
 });
 
 const pane = (id: string, extra: Partial<Pane> = {}): Pane => ({
@@ -92,19 +149,29 @@ const pane = (id: string, extra: Partial<Pane> = {}): Pane => ({
 	...extra,
 });
 
-test("the board's sessions: Odin-launched terminals in this profile", () => {
+test("the board's cards: every column, Odin-launched terminals in this profile", () => {
 	const panes = {
 		live: pane("live", { status: "working", cwd: "/Users/dan/dev/odin" }),
 		mine: pane("mine", { odinTaskTitle: undefined }),
+		legacy: pane("legacy", { odinTaskTitle: undefined, status: "review" }),
 		chat: pane("chat", { type: "chat" }),
 		killed: pane("killed", { completed: true }),
 		orphan: pane("orphan", { tabId: "gone" }),
 		other: pane("other", { odinProfile: "work" }),
 		asks: pane("asks", { status: "permission" }),
 	};
-	const hits = boardSessions(panes, new Set(["t1"]), "default");
-	expect(hits.map((hit) => hit.paneId)).toEqual(["asks", "live"]);
+	const mirror = {
+		titles: { legacy: "From the old mirror" },
+		contacts: { legacy: "Ada" },
+		briefs: {},
+	};
+	const hits = boardSessions(panes, new Set(["t1"]), "default", mirror);
+	expect(hits.map((hit) => hit.paneId)).toEqual(["asks", "live", "legacy"]);
 	expect(hits[1]).toMatchObject({ title: "Session live", repo: "odin" });
+	expect(hits[2]).toMatchObject({
+		title: "From the old mirror",
+		contact: "Ada",
+	});
 	expect(
 		boardSessions(panes, new Set(["t1"]), "work").map((hit) => hit.paneId),
 	).toEqual(["other"]);

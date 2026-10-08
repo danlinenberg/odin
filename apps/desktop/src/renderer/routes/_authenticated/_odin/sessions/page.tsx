@@ -15,8 +15,15 @@ import { usePendingFocus } from "../hooks/usePendingFocus";
 import { liveConversationIds } from "./live-sessions";
 import { provenanceLabel } from "./provenance";
 
+/** How Search all lands here: `q` searches, `open` reads that session. */
+type SessionsSearch = { q?: string; open?: string };
+
 export const Route = createFileRoute("/_authenticated/_odin/sessions/")({
 	component: SessionsPage,
+	validateSearch: (search: Record<string, unknown>): SessionsSearch => ({
+		q: typeof search.q === "string" ? search.q : undefined,
+		open: typeof search.open === "string" ? search.open : undefined,
+	}),
 });
 
 /**
@@ -65,12 +72,20 @@ function repoLabel(cwd: string | null): string | null {
 
 function SessionsPage() {
 	const navigate = useNavigate();
-	const [draft, setDraft] = useState("");
-	const [query, setQuery] = useState("");
+	const handoff = Route.useSearch();
+	const [draft, setDraft] = useState(handoff.q ?? "");
+	const [query, setQuery] = useState(handoff.q?.trim() ?? "");
 	const [openRow, setOpenRow] = useState<SessionRow | null>(null);
 	const { ensureWorkspace } = useOdinWorkspace();
 	const { launch, isLaunching } = useLaunchTaskSession();
 	const { ref: inputRef, hint } = useSearchHotkey();
+
+	// Search all again while already here: take its query over.
+	useEffect(() => {
+		if (handoff.q === undefined) return;
+		setDraft(handoff.q);
+		setQuery(handoff.q.trim());
+	}, [handoff.q]);
 
 	// Typing shouldn't fire a ~400ms full-store scan per keystroke.
 	useEffect(() => {
@@ -146,6 +161,16 @@ function SessionsPage() {
 	// the people in the current results, or clearing a search would empty the row.
 	const askers = pages[0]?.askers ?? [];
 	const oldest = rows.at(-1)?.updatedAt;
+
+	// Search all's pick: open it once this query's results are in, then drop
+	// the handoff from the URL so the next pick of the same row opens it again.
+	useEffect(() => {
+		if (!handoff.open || query !== (handoff.q ?? "").trim()) return;
+		if (isFetching || !data) return;
+		const row = rows.find((candidate) => candidate.sessionId === handoff.open);
+		if (row) setOpenRow(row);
+		void navigate({ to: "/sessions", search: {}, replace: true });
+	}, [handoff.open, handoff.q, query, isFetching, data, rows, navigate]);
 
 	// The next page loads once the list's last row scrolls into view.
 	const sentinelRef = useRef<HTMLDivElement>(null);

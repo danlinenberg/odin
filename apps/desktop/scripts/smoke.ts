@@ -505,7 +505,10 @@ await step("⌘⇧F Search all finds a task and opens its details", async () => 
 		`document.dispatchEvent(new KeyboardEvent("keydown", { key: "f", code: "KeyF", metaKey: true, shiftKey: true, bubbles: true }))`,
 	);
 	await sleep(300);
-	await fill('input[placeholder="Search every feed and session"]', TASK);
+	await fill(
+		'input[placeholder="Search feeds, the board and every past session"]',
+		TASK,
+	);
 	// The board can show the task too: wait for it as the palette's picked hit.
 	const picked = `document.querySelector('[cmdk-item][data-selected="true"]')?.textContent.includes(${JSON.stringify(TASK)})`;
 	for (const end = Date.now() + 5_000; !(await page<boolean>(picked)); ) {
