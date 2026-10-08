@@ -23,7 +23,13 @@ import { resetOdinFeeds } from "renderer/routes/_authenticated/_odin/hooks/useOd
  * code instead.
  */
 
-export type Provider = "slack" | "jira" | "github" | "notion" | "gmail";
+export type Provider =
+	| "slack"
+	| "jira"
+	| "github"
+	| "notion"
+	| "gmail"
+	| "clickup";
 
 export const PROVIDER_NAME: Record<Provider, string> = {
 	slack: "Slack",
@@ -31,6 +37,7 @@ export const PROVIDER_NAME: Record<Provider, string> = {
 	github: "GitHub",
 	notion: "Notion",
 	gmail: "Gmail",
+	clickup: "ClickUp",
 };
 
 /** What the consent screen is about to ask for, in one line. */
@@ -41,6 +48,8 @@ const SCOPE_BLURB: Record<Provider, string> = {
 	github: "Opens github.com and asks for a code - scopes: repo, read:org.",
 	notion: "Opens Notion in your browser, where you choose what it can see.",
 	gmail: "An app password - read-only access to your unread mail.",
+	clickup:
+		"A personal API token - lets sessions read the ClickUp tasks they're given.",
 };
 
 export function ConnectProvider({
@@ -64,6 +73,8 @@ export function ConnectProvider({
 		<GithubConnect onDone={done} />
 	) : provider === "gmail" ? (
 		<GmailConnect onDone={done} />
+	) : provider === "clickup" ? (
+		<ClickupConnect onDone={done} />
 	) : (
 		<OAuthConnect provider={provider} onDone={done} />
 	);
@@ -97,7 +108,7 @@ function OAuthConnect({
 	provider,
 	onDone,
 }: {
-	provider: Exclude<Provider, "github" | "gmail">;
+	provider: Exclude<Provider, "github" | "gmail" | "clickup">;
 	onDone: () => void;
 }) {
 	const name = PROVIDER_NAME[provider];
@@ -179,7 +190,7 @@ function OAuthAppForm({
 	provider,
 	onSaved,
 }: {
-	provider: Exclude<Provider, "github" | "gmail">;
+	provider: Exclude<Provider, "github" | "gmail" | "clickup">;
 	onSaved: () => void;
 }) {
 	const name = PROVIDER_NAME[provider];
@@ -427,6 +438,52 @@ function GmailConnect({ onDone }: { onDone: () => void }) {
 				disabled={!address || !appPassword || save.isPending}
 			>
 				{save.isPending ? "Checking…" : "2. Connect Gmail"}
+			</button>
+		</form>
+	);
+}
+
+/** Like Gmail: ClickUp's OAuth needs a registered app, so it takes a pasted token. */
+function ClickupConnect({ onDone }: { onDone: () => void }) {
+	const [token, setToken] = useState("");
+	const openUrl = electronTrpc.external.openUrl.useMutation();
+	const save = electronTrpc.connections.saveClickup.useMutation({
+		onSuccess: () => {
+			toast.success("ClickUp connected");
+			onDone();
+		},
+		onError: (error) => toast.error(error.message),
+	});
+	return (
+		<form
+			className="space-y-2"
+			onSubmit={(event) => {
+				event.preventDefault();
+				save.mutate({ token });
+			}}
+		>
+			<button
+				type="button"
+				className={GMAIL_CTA}
+				onClick={() => openUrl.mutate("https://app.clickup.com/settings/apps")}
+			>
+				1. Generate an API token ↗
+			</button>
+			<p className="text-xs text-muted-foreground">
+				Settings → Apps → API Token. Then paste it below.
+			</p>
+			<Input
+				type="password"
+				placeholder="pk_…"
+				value={token}
+				onChange={(event) => setToken(event.target.value)}
+			/>
+			<button
+				type="submit"
+				className={GMAIL_CTA}
+				disabled={!token || save.isPending}
+			>
+				{save.isPending ? "Checking…" : "2. Connect ClickUp"}
 			</button>
 		</form>
 	);

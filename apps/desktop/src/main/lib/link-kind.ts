@@ -3,7 +3,8 @@ export type LinkKind =
 	| { kind: "slack"; url: string }
 	| { kind: "github"; repo: string; number: string }
 	| { kind: "jira"; key: string }
-	| { kind: "notion"; id: string };
+	| { kind: "notion"; id: string }
+	| { kind: "clickup"; id: string; teamId?: string };
 
 export function linkKind(url: string): LinkKind | null {
 	if (/slack\.com\/archives\//.test(url)) return { kind: "slack", url };
@@ -18,6 +19,12 @@ export function linkKind(url: string): LinkKind | null {
 			? /\b([A-Z][A-Z0-9]+-\d+)\b/.exec(url)
 			: null);
 	if (jira) return { kind: "jira", key: jira[1] };
+	// app.clickup.com/t/<id>, or /t/<teamId>/<CUSTOM-ID> for a custom task id.
+	const clickup = /clickup\.com\/t\/(?:(\d+)\/)?([\w-]+)/.exec(url);
+	if (clickup)
+		return clickup[1]
+			? { kind: "clickup", id: clickup[2], teamId: clickup[1] }
+			: { kind: "clickup", id: clickup[2] };
 	if (/notion\.(?:so|site|com)\//.test(url)) {
 		// A peeked row (?p=) names its page there; otherwise the id ends the
 		// path, after a dashed title whose own hex letters must not leak in.

@@ -20,7 +20,7 @@ export function buildIssuePrompt(
 		"",
 		"PHASE 1 - UNDERSTAND (do this first):",
 		`- Read ${key} in full ${readVia("Jira", url)}`,
-		"- Go through the description, acceptance criteria, comments, linked issues and attachments. The same fallback reads any Slack, Jira, GitHub or Notion link, and the attachments it lists.",
+		"- Go through the description, acceptance criteria, comments, linked issues and attachments. The same fallback reads any Slack, Jira, GitHub, Notion or ClickUp link, and the attachments it lists.",
 		"- If the repo isn't obvious from the ticket, work it out from the code before changing anything.",
 		"",
 		"PHASE 2 - EXECUTE:",

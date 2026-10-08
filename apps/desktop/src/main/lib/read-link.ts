@@ -1,11 +1,14 @@
-import { resolveNotionToken } from "lib/trpc/routers/odin-config";
+import {
+	readOdinConfig,
+	resolveNotionToken,
+} from "lib/trpc/routers/odin-config";
 import { slackFile, slackThreadText } from "lib/trpc/routers/slack";
 import { githubAccessToken, githubApiFetch } from "./github-token";
 import { jiraRequestContext } from "./jira-token";
 import { linkKind } from "./link-kind";
 
 /**
- * A Slack, Jira, GitHub or Notion link read as plain text with Odin's own
+ * A Slack, Jira, GitHub, Notion or ClickUp link read as plain text with Odin's own
  * connection - so a session never depends on which MCP servers happen to be
  * connected on this machine. Served at /read (notifications/server.ts).
  *
@@ -31,9 +34,11 @@ export async function readLink(url: string): Promise<string> {
 			return readJira(link.key);
 		case "notion":
 			return readNotion(link.id);
+		case "clickup":
+			return readClickup(link.id, link.teamId);
 		default:
 			throw new Error(
-				"Odin can't read that link: not a Slack, Jira, GitHub or Notion one.",
+				"Odin can't read that link: not a Slack, Jira, GitHub, Notion or ClickUp one.",
 			);
 	}
 }
@@ -192,6 +197,77 @@ async function readGithub(repo: string, number: string): Promise<string> {
 		);
 	}
 	return lines.join("\n");
+}
+
+/** ClickUp's v2 API, with the personal token Settings → Connections saved. */
+export function clickupFetch(path: string, token: string): Promise<Response> {
+	return fetch(`https://api.clickup.com/api/v2/${path}`, {
+		headers: { Authorization: token },
+	});
+}
+
+async function readClickup(id: string, teamId?: string): Promise<string> {
+	const token = readOdinConfig().clickupToken;
+	if (!token) throw new Error("ClickUp isn't connected in Odin.");
+	// A custom id (DEV-42) only resolves with its workspace named.
+	const custom = teamId ? `custom_task_ids=true&team_id=${teamId}` : "";
+	const res = await clickupFetch(
+		`task/${encodeURIComponent(id)}?include_subtasks=true&include_markdown_description=true&${custom}`,
+		token,
+	);
+	if (!res.ok) throw new Error(`ClickUp answered ${res.status} for ${id}.`);
+	type User = { username?: string } | null | undefined;
+	const task = (await res.json()) as {
+		name?: string;
+		url?: string;
+		status?: { status?: string };
+		creator?: User;
+		assignees?: User[];
+		list?: { name?: string };
+		markdown_description?: string;
+		text_content?: string;
+		subtasks?: { name?: string; status?: { status?: string } }[];
+		attachments?: { title?: string; url?: string }[];
+	};
+	const commentsRes = await clickupFetch(
+		`task/${encodeURIComponent(id)}/comment?${custom}`,
+		token,
+	);
+	const { comments = [] } = commentsRes.ok
+		? ((await commentsRes.json()) as {
+				comments?: { comment_text?: string; user?: User; date?: string }[];
+			})
+		: {};
+	const who = (u: User) => u?.username ?? "?";
+	return [
+		`ClickUp ${id}: ${task.name ?? ""} (${task.url ?? ""})`,
+		`Status: ${task.status?.status ?? "?"} · List: ${task.list?.name ?? "?"} · Assignees: ${task.assignees?.map(who).join(", ") || "none"} · Creator: ${who(task.creator)}`,
+		"",
+		"Description:",
+		task.markdown_description || task.text_content || "(empty)",
+		...(task.subtasks?.length
+			? [
+					"",
+					"Subtasks:",
+					...task.subtasks.map(
+						(t) => `- ${t.name ?? ""} (${t.status?.status ?? "?"})`,
+					),
+				]
+			: []),
+		...(task.attachments?.length
+			? [
+					"",
+					"Attachments:",
+					...task.attachments.map((a) => `- ${a.title ?? "file"}: ${a.url}`),
+				]
+			: []),
+		"",
+		"Comments:",
+		...comments.map(
+			(c) =>
+				`- ${who(c.user)} (${c.date ? new Date(Number(c.date)).toISOString() : ""}): ${c.comment_text ?? ""}`,
+		),
+	].join("\n");
 }
 
 type RichText = { plain_text?: string }[];

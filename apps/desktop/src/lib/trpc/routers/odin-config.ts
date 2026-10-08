@@ -79,6 +79,12 @@ export interface OdinFileConfig {
 	gmailAddress?: string;
 	gmailAppPassword?: string;
 
+	/**
+	 * ClickUp personal API token (`pk_…`), pasted like Gmail's app password:
+	 * ClickUp's OAuth needs a registered app per workspace. Read by /read only.
+	 */
+	clickupToken?: string;
+
 	/** Slack **user** token (`xoxp-…`) - bot tokens can't read my reactions. */
 	slackToken?: string;
 	/** Reaction that queues a message - a Slack name, no colons. Default `eyes`. */

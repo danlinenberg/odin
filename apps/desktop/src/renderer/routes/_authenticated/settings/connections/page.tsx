@@ -17,7 +17,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { FaGithub, FaSlack } from "react-icons/fa";
 import { LuCloudUpload, LuTrash2 } from "react-icons/lu";
-import { SiGmail, SiJira, SiNotion } from "react-icons/si";
+import { SiClickup, SiGmail, SiJira, SiNotion } from "react-icons/si";
 import {
 	ConnectProvider,
 	type Provider,
@@ -83,9 +83,21 @@ const META: Record<
 		icon: <SiGmail className="size-5" />,
 		description: "Unread mail, in the Email tab.",
 	},
+	clickup: {
+		name: "ClickUp",
+		icon: <SiClickup className="size-5" />,
+		description: "Lets sessions read the ClickUp tasks they're given.",
+	},
 };
 
-const ORDER: Provider[] = ["slack", "github", "jira", "notion", "gmail"];
+const ORDER: Provider[] = [
+	"slack",
+	"github",
+	"jira",
+	"notion",
+	"gmail",
+	"clickup",
+];
 
 function ConnectionsSettings() {
 	const queryClient = useQueryClient();

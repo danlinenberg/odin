@@ -11,7 +11,7 @@ function slugify(title: string): string {
 }
 
 /**
- * How a session reads a Slack, Jira, GitHub or Notion link: its own MCP tools
+ * How a session reads a Slack, Jira, GitHub, Notion or ClickUp link: its own MCP tools
  * when it has them, and Odin's connection (main/lib/read-link.ts) when they're
  * missing, disconnected or lack access - so the read never depends on what
  * this machine's Claude has set up. $ODIN_PORT is in every session's shell.
@@ -49,7 +49,7 @@ export function buildThreadPrompt(
 		...(posted ? ["What was posted there:", posted, ""] : []),
 		"PHASE 1 - INGEST (do this first, before anything else):",
 		`- Read the ENTIRE thread ${readVia("Slack", slackUrl)}`,
-		"- Then every linked resource (tickets, docs, PRs, screenshots) - the same fallback reads any Slack, Jira, GitHub or Notion link, and the files it lists.",
+		"- Then every linked resource (tickets, docs, PRs, screenshots) - the same fallback reads any Slack, Jira, GitHub, Notion or ClickUp link, and the files it lists.",
 		`- Write your digest to ${briefPath} (this task's own brief file): context, who's asking, the exact request, constraints, acceptance criteria, and links. Create the ${BRIEF_DIR}/ dir if needed.`,
 		"",
 		"PHASE 2 - EXECUTE:",
