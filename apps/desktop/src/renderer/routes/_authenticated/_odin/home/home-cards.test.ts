@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import type { Pane } from "renderer/stores/tabs/types";
+import type { Pane, PaneStatus } from "renderer/stores/tabs/types";
 import { HOME_LIMIT, homeCards, homeGrid } from "./home-cards";
 
 const pane = (id: string, fields: Partial<Pane> = {}): Pane => ({
@@ -10,57 +10,52 @@ const pane = (id: string, fields: Partial<Pane> = {}): Pane => ({
 	...fields,
 });
 
+/** Stands in for the board's column: whatever the test filed the pane under. */
+const columnOf = (pane: Pane): PaneStatus => pane.status ?? "idle";
+
 const ids = (result: ReturnType<typeof homeCards>) =>
 	result.cards.map((card) => card.pane.id);
 
 describe("homeCards", () => {
-	it("keeps Working and Needs you, and leaves Done and Idle out", () => {
-		const result = homeCards(
-			[
-				pane("working", { status: "working" }),
-				pane("asking", { status: "permission" }),
-				pane("done", { status: "review" }),
-				pane("parked", { status: "idle", odinParked: true }),
-				pane("dead", { status: "working" }),
-			],
-			new Set(["working", "asking", "done", "parked"]),
-		);
+	it("keeps the board's Working and Needs you, and leaves Done and Idle out", () => {
+		const panes = [
+			pane("working", { status: "working" }),
+			pane("asking", { status: "permission" }),
+			pane("done", { status: "review" }),
+			pane("idle", { status: "idle" }),
+		];
+		const result = homeCards(panes, columnOf, new Set(panes.map((p) => p.id)));
 		expect(ids(result).sort()).toEqual(["asking", "working"]);
 	});
 
-	// The board's column, not the raw status: an alive session nobody set a
-	// status on wants a look, and a failed one needs you.
+	// The board's column, not the pane's status: a /loop session between ticks
+	// reads "review" on the pane but sits in Idle on the board.
 	it("files a session under the column the board gives it", () => {
 		const result = homeCards(
-			[pane("unset", { status: "idle" }), pane("failed", { status: "failed" })],
-			new Set(["unset", "failed"]),
+			[pane("looping", { status: "review" })],
+			() => "idle",
+			new Set(["looping"]),
 		);
-		expect(result.cards.map((card) => card.column)).toEqual([
-			"permission",
-			"permission",
-		]);
+		expect(result.cards).toEqual([]);
 	});
 
-	it("keeps a session closed for idling in the column it was closed from", () => {
+	it("leaves out a completed session the board keeps off", () => {
 		const result = homeCards(
-			[pane("closed", { status: "idle", odinClosedIn: "permission" })],
+			[pane("gone", { status: "permission", completed: true })],
+			columnOf,
 			new Set(),
 		);
-		expect(result.cards).toEqual([
-			{ pane: expect.objectContaining({ id: "closed" }), column: "permission" },
-		]);
+		expect(result.cards).toEqual([]);
 	});
 
 	it("puts Needs you first, then Working, newest first within each", () => {
-		const result = homeCards(
-			[
-				pane("old-working", { status: "working", odinStatusAt: 1 }),
-				pane("new-working", { status: "working", odinStatusAt: 5 }),
-				pane("old-asking", { status: "permission", odinStatusAt: 2 }),
-				pane("new-asking", { status: "permission", odinStatusAt: 4 }),
-			],
-			new Set(["old-working", "new-working", "old-asking", "new-asking"]),
-		);
+		const panes = [
+			pane("old-working", { status: "working", odinStatusAt: 1 }),
+			pane("new-working", { status: "working", odinStatusAt: 5 }),
+			pane("old-asking", { status: "permission", odinStatusAt: 2 }),
+			pane("new-asking", { status: "permission", odinStatusAt: 4 }),
+		];
+		const result = homeCards(panes, columnOf, new Set(panes.map((p) => p.id)));
 		expect(ids(result)).toEqual([
 			"new-asking",
 			"old-asking",
@@ -73,14 +68,14 @@ describe("homeCards", () => {
 		const panes = Array.from({ length: 9 }, (_, i) =>
 			pane(`p${i}`, { status: "working", odinStatusAt: i }),
 		);
-		const result = homeCards(panes, new Set(panes.map((p) => p.id)));
+		const result = homeCards(panes, columnOf, new Set(panes.map((p) => p.id)));
 		expect(result.cards).toHaveLength(HOME_LIMIT);
 		expect(result.more).toBe(3);
 		expect(ids(result)[0]).toBe("p8");
 	});
 
 	it("has nothing more when everything fits", () => {
-		expect(homeCards([], new Set()).more).toBe(0);
+		expect(homeCards([], columnOf, new Set()).more).toBe(0);
 	});
 });
 

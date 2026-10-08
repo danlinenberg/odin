@@ -8,7 +8,6 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { runWhenParserIdle } from "renderer/lib/terminal/parser-idle-gate";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
@@ -20,6 +19,7 @@ import { useTabsStore } from "renderer/stores/tabs/store";
 import { profileOf } from "shared/odin-profile";
 import { untruncatedTitle } from "../components/OdinPromptDialog";
 import { BUTTON, PILL } from "../components/pill";
+import { useBoardColumns } from "../hooks/useBoardColumns";
 import { useOdinProfile } from "../hooks/useOdinProfile";
 import { usePaneMeta } from "../hooks/usePaneMeta";
 import { usePendingFocus } from "../hooks/usePendingFocus";
@@ -101,23 +101,16 @@ function HomePage() {
 	const briefByPane = usePaneMeta((s) => s.briefByPane);
 	const { activeId: activeProfileId, isLoading: isProfileLoading } =
 		useOdinProfile();
-	const { data: daemonSessions } =
-		electronTrpc.terminal.listDaemonSessions.useQuery(undefined, {
-			refetchInterval: 5_000,
-		});
+	const { daemonSessions, agentPaneIds, columnOf } = useBoardColumns({
+		panes,
+		tabs,
+		titleByPane,
+		activeProfileId,
+	});
 
 	const workspaceByTab = useMemo(
 		() => new Map(tabs.map((tab) => [tab.id, tab.workspaceId])),
 		[tabs],
-	);
-	const alive = useMemo(
-		() =>
-			new Set(
-				(daemonSessions?.sessions ?? [])
-					.filter((session) => session.isAlive)
-					.map((session) => session.sessionId),
-			),
-		[daemonSessions],
 	);
 	// The board's own cards: terminals Odin launched, under this profile.
 	const { cards, more } = useMemo(
@@ -130,9 +123,17 @@ function HomePage() {
 						profileOf(pane.odinProfile) === activeProfileId &&
 						workspaceByTab.has(pane.tabId),
 				),
-				alive,
+				columnOf,
+				agentPaneIds,
 			),
-		[panes, titleByPane, activeProfileId, workspaceByTab, alive],
+		[
+			panes,
+			titleByPane,
+			activeProfileId,
+			workspaceByTab,
+			columnOf,
+			agentPaneIds,
+		],
 	);
 
 	const rootRef = useRef<HTMLDivElement>(null);
@@ -265,7 +266,7 @@ function HomePage() {
 								</button>
 							</div>
 							<div className="min-h-0 flex-1 bg-background">
-								{alive.has(pane.id) ? (
+								{agentPaneIds.has(pane.id) ? (
 									<CardTerminal
 										paneId={pane.id}
 										tabId={pane.tabId}
@@ -273,8 +274,8 @@ function HomePage() {
 										focused={isFocused}
 									/>
 								) : (
-									// Closed for sitting idle: attaching would start a bare
-									// shell in its place. The drawer resumes it.
+									// No Claude to attach to (closed for sitting idle, or
+									// only a shell left): the drawer's history and Resume.
 									<div className="flex h-full items-center justify-center px-4 text-center text-xs text-muted-foreground">
 										Session closed - Open it to resume.
 									</div>

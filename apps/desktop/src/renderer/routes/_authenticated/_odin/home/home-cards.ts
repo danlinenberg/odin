@@ -1,5 +1,4 @@
-import type { Pane } from "renderer/stores/tabs/types";
-import { boardColumn } from "shared/board-column";
+import type { Pane, PaneStatus } from "renderer/stores/tabs/types";
 
 /** As many terminals as stay readable side by side: a 3x2 split. */
 export const HOME_LIMIT = 6;
@@ -14,23 +13,18 @@ export interface HomeCard {
  * first and the most recent status change first within each, cut at
  * HOME_LIMIT. `more` is how many didn't fit.
  *
- * The column is the board's own `boardColumn`, with the inputs the profile
- * picker's counts use - see boardCountsByProfile.
+ * `columnOf` is the board's own (useBoardColumns), and `alive` its agent set,
+ * which also keeps the board's completed panes off.
  */
 export function homeCards(
 	panes: Pane[],
+	columnOf: (pane: Pane) => PaneStatus,
 	alive: Set<string>,
 ): { cards: HomeCard[]; more: number } {
 	const picked: HomeCard[] = [];
 	for (const pane of panes) {
 		if (pane.completed && !alive.has(pane.id)) continue;
-		const column = boardColumn(
-			pane.status ?? "idle",
-			alive.has(pane.id),
-			pane.odinParked ?? false,
-			false,
-			pane.odinClosedIn,
-		);
+		const column = columnOf(pane);
 		if (column === "permission" || column === "working")
 			picked.push({ pane, column });
 	}
