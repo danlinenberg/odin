@@ -3,6 +3,7 @@ import {
 	actionItemList,
 	applyLines,
 	groupSummary,
+	isApprovalItem,
 	segments,
 	splitActionItems,
 	transcriptPath,
@@ -187,5 +188,14 @@ describe("ChatView transcript", () => {
 		]);
 		expect(actionItemList("- a\n* b")).toEqual(["a", "b"]);
 		expect(actionItemList("none - all shipped")).toEqual([]);
+	});
+
+	test("an item asking you to approve something gets the Approve button", () => {
+		expect(
+			isApprovalItem("Approve a commit and PR, or tell me to hold. (you only)"),
+		).toBe(true);
+		expect(isApprovalItem("**Approve** the plan")).toBe(true);
+		expect(isApprovalItem("Decide whether to approve the PR")).toBe(false);
+		expect(isApprovalItem("Approved PRs need nothing")).toBe(false);
 	});
 });
