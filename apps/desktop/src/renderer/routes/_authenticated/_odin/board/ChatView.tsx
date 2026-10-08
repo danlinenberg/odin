@@ -5,6 +5,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LuChevronRight, LuSquareTerminal, LuTerminal } from "react-icons/lu";
 import { MarkdownRenderer } from "renderer/components/MarkdownRenderer";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { useCompacting } from "renderer/stores/compacting";
 import { openUrl } from "renderer/stores/in-app-browser";
 import { useSessionView } from "renderer/stores/session-view";
 import { COMPACT_MARKDOWN } from "../components/TranscriptView";
@@ -21,6 +22,16 @@ type Item =
 			input: Record<string, unknown>;
 			result?: string;
 			isError?: boolean;
+	  }
+	| {
+			kind: "compact";
+			id: string;
+			/** When it finished (ms). */
+			at?: number;
+			summary?: string;
+			preTokens?: number;
+			postTokens?: number;
+			durationMs?: number;
 	  };
 
 type Block = {
@@ -40,6 +51,15 @@ type Line = {
 	uuid?: string;
 	isMeta?: boolean;
 	isSidechain?: boolean;
+	subtype?: string;
+	timestamp?: string;
+	compactMetadata?: {
+		preTokens?: number;
+		postTokens?: number;
+		durationMs?: number;
+	};
+	/** The summary Claude continues from - long, and not something you typed. */
+	isCompactSummary?: boolean;
 	message?: { content?: string | Block[] };
 	/** A message you sent mid-turn rides in as a queued_command attachment. */
 	attachment?: { type?: string; prompt?: string | Block[] };
@@ -94,6 +114,26 @@ export function applyLines(items: Item[], lines: Line[]): Item[] {
 		if (line.attachment?.type === "queued_command") {
 			const text = userText(blockText(line.attachment.prompt));
 			if (text) next.push({ kind: "user", id, text });
+			return;
+		}
+		if (line.subtype === "compact_boundary") {
+			const { preTokens, postTokens, durationMs } = line.compactMetadata ?? {};
+			next.push({
+				kind: "compact",
+				id,
+				at: line.timestamp ? Date.parse(line.timestamp) : undefined,
+				preTokens,
+				postTokens,
+				durationMs,
+			});
+			return;
+		}
+		if (line.isCompactSummary) {
+			const summary = blockText(line.message?.content);
+			const last = next.at(-1);
+			if (last?.kind === "compact")
+				next[next.length - 1] = { ...last, summary };
+			else next.push({ kind: "compact", id, summary });
 			return;
 		}
 		if (!line.message) return;
@@ -434,6 +474,72 @@ const ToolGroup = memo(
 		prev.tools.every((tool, i) => tool === next.tools[i]),
 );
 
+const kTokens = (n: number) => `${Math.round(n / 1000)}k`;
+
+/**
+ * Where Claude compacted: one quiet line with what it saved. The summary it
+ * continues from runs to pages, so it stays folded until you ask.
+ */
+function CompactRow({ item }: { item: Extract<Item, { kind: "compact" }> }) {
+	const [open, setOpen] = useState(false);
+	const stats = [
+		item.preTokens && item.postTokens
+			? `${kTokens(item.preTokens)} → ${kTokens(item.postTokens)} tokens`
+			: null,
+		item.durationMs ? `${Math.round(item.durationMs / 1000)}s` : null,
+	]
+		.filter(Boolean)
+		.join(" · ");
+	return (
+		<div className="my-3 flex flex-col">
+			<button
+				type="button"
+				disabled={!item.summary}
+				onClick={() => setOpen((value) => !value)}
+				className="flex items-center gap-3 text-[11.5px] text-muted-foreground enabled:hover:text-foreground"
+			>
+				<span className="h-px flex-1 bg-border" />
+				{item.summary && (
+					<LuChevronRight
+						className={cn(
+							"size-3.5 shrink-0 transition-transform",
+							open && "rotate-90",
+						)}
+					/>
+				)}
+				<span className="shrink-0">
+					Conversation compacted{stats && ` · ${stats}`}
+				</span>
+				<span className="h-px flex-1 bg-border" />
+			</button>
+			{open && item.summary && (
+				<div className="mt-2 max-h-[420px] select-text cursor-text overflow-y-auto rounded-lg border border-border bg-secondary/20 p-3">
+					<MarkdownRenderer
+						content={item.summary}
+						style="default"
+						allowHtml={false}
+						className={COMPACT_MARKDOWN}
+					/>
+				</div>
+			)}
+		</div>
+	);
+}
+
+/** Seconds since a moment, ticking. */
+function Elapsed({ since }: { since: number }) {
+	const [now, setNow] = useState(Date.now);
+	useEffect(() => {
+		const timer = setInterval(() => setNow(Date.now()), 1000);
+		return () => clearInterval(timer);
+	}, []);
+	return (
+		<span className="tabular-nums text-muted-foreground">
+			{Math.max(0, Math.round((now - since) / 1000))}s
+		</span>
+	);
+}
+
 /** A row arriving while you watch: a short fade and rise, compositor-only. */
 const ENTER = "animate-in fade-in slide-in-from-bottom-2 duration-300 ease-out";
 
@@ -620,6 +726,7 @@ const ItemView = memo(
 		onDo?: (item: string, number: number) => void;
 	}) {
 		if (item.kind === "tool") return <ToolRow item={item} />;
+		if (item.kind === "compact") return <CompactRow item={item} />;
 		if (item.kind === "user")
 			return <UserBubble text={item.text} images={item.images} />;
 		const { body, actions } = splitActionItems(linkify(item.text, refs));
@@ -693,7 +800,9 @@ export function ChatView({
 				items.map((item) =>
 					item.kind === "tool"
 						? `${JSON.stringify(item.input)} ${(item.result ?? "").slice(0, 20_000)}`
-						: item.text,
+						: item.kind === "compact"
+							? ""
+							: item.text,
 				),
 			),
 		[items],
@@ -770,6 +879,16 @@ export function ChatView({
 	}, [items, pending]);
 	// A live session whose first prompt hasn't reached the transcript yet: the
 	// file doesn't exist ("Not on disk yet") or holds no turn so far.
+	// Claude's PreCompact hook marked the start; the boundary it writes when
+	// done ends it.
+	const compactStart = useCompacting((state) => state.since[paneId]);
+	const compacting =
+		compactStart !== undefined &&
+		!items.some(
+			(item) => item.kind === "compact" && (item.at ?? 0) >= compactStart,
+		)
+			? compactStart
+			: null;
 	const starting =
 		!!onShowTerminal &&
 		items.length === 0 &&
@@ -815,8 +934,12 @@ export function ChatView({
 						const opensReply =
 							!(!Array.isArray(segment) && segment.kind === "user") &&
 							(index === 0 ||
-								(!Array.isArray(previous) && previous?.kind === "user"));
-						if (!Array.isArray(segment) && segment.kind === "user")
+								(!Array.isArray(previous) &&
+									(previous?.kind === "user" || previous?.kind === "compact")));
+						if (
+							!Array.isArray(segment) &&
+							(segment.kind === "user" || segment.kind === "compact")
+						)
 							return (
 								<ItemView
 									key={segment.id}
@@ -889,7 +1012,14 @@ export function ChatView({
 						<div className="flex items-center gap-3 text-[12.5px] text-working">
 							{/* Odin's icon, nodding along while Claude works. */}
 							<OdinMark className="animate-[odin-nod_1.6s_ease-in-out_infinite]" />
-							Working…
+							{compacting === null ? (
+								"Working…"
+							) : (
+								<>
+									Compacting conversation…
+									<Elapsed since={compacting} />
+								</>
+							)}
 						</div>
 					)}
 				</div>

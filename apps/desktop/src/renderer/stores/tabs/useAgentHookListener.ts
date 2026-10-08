@@ -2,6 +2,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
 import { usePendingFocus } from "renderer/routes/_authenticated/_odin/hooks/usePendingFocus";
+import { useCompacting } from "renderer/stores/compacting";
 import { NOTIFICATION_EVENTS } from "shared/constants";
 import { debugLog } from "shared/debug";
 import type { PaneStatus } from "shared/tabs-types";
@@ -14,6 +15,7 @@ import { resolveNotificationTarget } from "./utils/resolve-notification-target";
  *
  * STATUS MAPPING:
  * - Start → "working" (amber pulsing indicator)
+ * - Compacting (PreCompact) → "working", and the chat view says "Compacting"
  * - Stop → "review" (green static) if pane's tab not active, "idle" if tab is active
  * - Failed (StopFailure) → "failed" (red) - the turn died on an API error
  * - PermissionRequest → "permission" (red pulsing indicator)
@@ -144,8 +146,11 @@ export function useAgentHookListener() {
 				if (!lifecycleEvent) return;
 
 				const { eventType } = lifecycleEvent;
+				useCompacting
+					.getState()
+					.mark(paneId, eventType === "Compacting" ? Date.now() : null);
 
-				if (eventType === "Start") {
+				if (eventType === "Start" || eventType === "Compacting") {
 					state.setPaneStatus(paneId, "working");
 				} else if (
 					eventType === "PermissionRequest" ||
