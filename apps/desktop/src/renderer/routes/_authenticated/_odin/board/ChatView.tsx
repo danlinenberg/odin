@@ -690,6 +690,11 @@ export function splitActionItems(text: string): {
 	};
 }
 
+/** An item that asks you to sign off - it gets an Approve button, "(you only)" or not. */
+export function isApprovalItem(item: string): boolean {
+	return /^\W*approve\b/i.test(item);
+}
+
 /** The numbered or bulleted lines of an ACTION ITEMS block; [] for "none". */
 export function actionItemList(text: string): string[] {
 	return [...text.matchAll(/^\s*(?:\d+[.)]|[-*])\s+(.+)$/gm)].map(
@@ -700,14 +705,15 @@ export function actionItemList(text: string): string[] {
 /**
  * What's on you, set apart in the board's Needs-you colour. Each item gets a
  * "Do it" button that hands it back to Claude (resuming an ended session
- * first), except the ones Claude marked "(you only)".
+ * first), except the ones Claude marked "(you only)". An item asking you to
+ * approve something gets "Approve" instead, which tells Claude to go ahead.
  */
 function ActionItems({
 	text,
 	onDo,
 }: {
 	text: string;
-	onDo?: (item: string, number: number) => void;
+	onDo?: (item: string, number: number, approve: boolean) => void;
 }) {
 	// text arrives linkified from ItemView.
 	const items = onDo ? actionItemList(text) : [];
@@ -726,21 +732,29 @@ function ActionItems({
 							className="flex items-start gap-2"
 						>
 							{/* The button leads the row - you scan for it first. */}
-							{/\(you only\)\W*$/i.test(item) ? (
+							{/\(you only\)\W*$/i.test(item) && !isApprovalItem(item) ? (
 								// Claude marks what it can't do; handing it back is a dead-end turn.
-								<span className="w-[52px] shrink-0" />
+								<span className="w-[64px] shrink-0" />
 							) : (
 								<button
 									type="button"
-									title="Ask Claude to do this for you"
+									title={
+										isApprovalItem(item)
+											? "Tell Claude you approve and to go ahead"
+											: "Ask Claude to do this for you"
+									}
 									disabled={sent.has(index)}
 									onClick={() => {
 										setSent((prev) => new Set(prev).add(index));
-										onDo(item, index + 1);
+										onDo(item, index + 1, isApprovalItem(item));
 									}}
-									className="w-[52px] shrink-0 rounded-md border border-attention/40 px-2 py-0.5 text-[11px] font-medium text-attention hover:bg-attention/15 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent"
+									className="w-[64px] shrink-0 rounded-md border border-attention/40 px-2 py-0.5 text-[11px] font-medium text-attention hover:bg-attention/15 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent"
 								>
-									{sent.has(index) ? "Sent" : "Do it"}
+									{sent.has(index)
+										? "Sent"
+										: isApprovalItem(item)
+											? "Approve"
+											: "Do it"}
 								</button>
 							)}
 							<span className="w-4 shrink-0 pt-px text-right text-[13px] tabular-nums text-muted-foreground">
@@ -777,7 +791,7 @@ const ItemView = memo(
 		refs: Map<string, string>;
 		/** Changes only when a new ref appears - the memo's cue to re-link. */
 		refsKey: string;
-		onDo?: (item: string, number: number) => void;
+		onDo?: (item: string, number: number, approve: boolean) => void;
 	}) {
 		if (item.kind === "tool") return <ToolRow item={item} />;
 		if (item.kind === "compact") return <CompactRow item={item} />;
@@ -925,8 +939,10 @@ export function ChatView({
 	const onResumeRef = useRef(onResumeWith);
 	onResumeRef.current = onResumeWith;
 	const doItem = useCallback(
-		(item: string, number: number) => {
-			const text = `Do action item ${number} for me: ${item}`;
+		(item: string, number: number, approve: boolean) => {
+			const text = approve
+				? `Approved - go ahead with action item ${number}: ${item}`
+				: `Do action item ${number} for me: ${item}`;
 			if (onResumeRef.current) {
 				onResumeRef.current(text);
 				return;
