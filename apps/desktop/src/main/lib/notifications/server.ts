@@ -1,13 +1,12 @@
 import { EventEmitter } from "node:events";
 import express from "express";
-import { slackFile } from "lib/trpc/routers/slack";
 import { NOTIFICATION_EVENTS } from "shared/constants";
 import { env } from "shared/env.shared";
 import type {
 	AgentLifecycleEvent,
 	RunInShellRequest,
 } from "shared/notification-types";
-import { readLink } from "../read-link";
+import { fetchFile, readLink } from "../read-link";
 import { HOOK_PROTOCOL_VERSION } from "../terminal/env";
 import { mapEventType } from "./map-event-type";
 import { resolvePaneId } from "./resolve-pane-id";
@@ -183,19 +182,19 @@ app.get("/read", async (req, res) => {
 	}
 });
 
-/** A Slack file a /read thread lists, downloaded with Odin's Slack token. */
-app.get("/slack/file", async (req, res) => {
+/** A Slack file or Jira attachment a /read lists, downloaded with Odin's token. */
+app.get("/file", async (req, res) => {
 	if (req.headers.origin) {
 		return res.status(403).send("Not from a browser.\n");
 	}
 	const { url } = req.query;
 	const file =
-		typeof url === "string" ? await slackFile(url).catch(() => null) : null;
+		typeof url === "string" ? await fetchFile(url).catch(() => null) : null;
 	if (!file) {
 		return res
 			.status(502)
 			.send(
-				"Odin couldn't fetch that file. Reconnect Slack in Odin's Settings > Connections to grant file access, then retry.\n",
+				"Odin couldn't fetch that file. Reconnect that service in Odin's Settings > Connections to grant file access, then retry.\n",
 			);
 	}
 	res.type(file.headers.get("content-type") ?? "application/octet-stream");

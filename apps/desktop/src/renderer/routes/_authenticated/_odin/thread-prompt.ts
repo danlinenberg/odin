@@ -11,13 +11,13 @@ function slugify(title: string): string {
 }
 
 /**
- * The command a session reads a Slack, Jira, GitHub or Notion link with:
- * Odin's own connections (main/lib/read-link.ts), never the MCP servers
- * Claude may or may not have on this machine. $ODIN_PORT is in every
- * session's shell.
+ * How a session reads a Slack, Jira, GitHub or Notion link: its own MCP tools
+ * when it has them, and Odin's connection (main/lib/read-link.ts) when they're
+ * missing, disconnected or lack access - so the read never depends on what
+ * this machine's Claude has set up. $ODIN_PORT is in every session's shell.
  */
-export function readThroughOdin(url: string): string {
-	return `curl -sfG "http://127.0.0.1:$ODIN_PORT/read" --data-urlencode "url=${url}"`;
+export function readVia(provider: string, url: string): string {
+	return `with your ${provider} tools. If they're missing, disconnected or lack access, read it through Odin's ${provider} connection instead: curl -sfG "http://127.0.0.1:$ODIN_PORT/read" --data-urlencode "url=${url}"`;
 }
 
 /**
@@ -48,8 +48,8 @@ export function buildThreadPrompt(
 		// greeting.
 		...(posted ? ["What was posted there:", posted, ""] : []),
 		"PHASE 1 - INGEST (do this first, before anything else):",
-		`- Read the ENTIRE thread through Odin's Slack connection: ${readThroughOdin(slackUrl)}`,
-		"- Then every linked resource (tickets, docs, PRs, screenshots) - the same command reads any Slack, Jira, GitHub or Notion link.",
+		`- Read the ENTIRE thread ${readVia("Slack", slackUrl)}`,
+		"- Then every linked resource (tickets, docs, PRs, screenshots) - the same fallback reads any Slack, Jira, GitHub or Notion link, and the files it lists.",
 		`- Write your digest to ${briefPath} (this task's own brief file): context, who's asking, the exact request, constraints, acceptance criteria, and links. Create the ${BRIEF_DIR}/ dir if needed.`,
 		"",
 		"PHASE 2 - EXECUTE:",

@@ -706,7 +706,7 @@ export async function slackConversation(
 			for (const file of message.files ?? [])
 				if (file.url_private)
 					lines.push(
-						`  [file ${file.name ?? ""}] curl -sfG "http://127.0.0.1:$ODIN_PORT/slack/file" --data-urlencode "url=${file.url_private}" -o <path>`,
+						`  [file ${file.name ?? ""}] curl -sfG "http://127.0.0.1:$ODIN_PORT/file" --data-urlencode "url=${file.url_private}" -o <path>`,
 					);
 		}
 		if (all.length > shown.length)

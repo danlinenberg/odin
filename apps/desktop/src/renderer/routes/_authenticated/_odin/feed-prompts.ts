@@ -6,7 +6,7 @@
  * route page can't be shared with either.
  */
 
-import { readThroughOdin } from "./thread-prompt";
+import { readVia } from "./thread-prompt";
 
 /** Investigate-first prompt, so the agent reads the ticket before touching code. */
 export function buildIssuePrompt(
@@ -19,8 +19,8 @@ export function buildIssuePrompt(
 		`Ticket: ${url}`,
 		"",
 		"PHASE 1 - UNDERSTAND (do this first):",
-		`- Read ${key} in full through Odin's Jira connection: ${readThroughOdin(url)}`,
-		"- Go through the description, acceptance criteria, comments, linked issues and attachments. The same command reads any Slack, Jira, GitHub or Notion link.",
+		`- Read ${key} in full ${readVia("Jira", url)}`,
+		"- Go through the description, acceptance criteria, comments, linked issues and attachments. The same fallback reads any Slack, Jira, GitHub or Notion link, and the attachments it lists.",
 		"- If the repo isn't obvious from the ticket, work it out from the code before changing anything.",
 		"",
 		"PHASE 2 - EXECUTE:",
@@ -46,7 +46,7 @@ export function buildReviewPrompt(
 			`Link: ${url}`,
 			`Repo: ${repo}`,
 			"",
-			`- Read the thread through Odin's GitHub connection: ${readThroughOdin(url)}`,
+			`- Read the thread ${readVia("GitHub", url)}`,
 			"- Work out what is being asked of you.",
 			"- Answer it here: what you would reply, and what it would take to do.",
 			"",
@@ -59,7 +59,7 @@ export function buildReviewPrompt(
 		`Title: ${title}`,
 		"",
 		"PHASE 1 - READ (do this first):",
-		`- Read the PR through Odin's GitHub connection: ${readThroughOdin(url)}`,
+		`- Read the PR ${readVia("GitHub", url)}`,
 		"- Go through the description, the full diff, CI status, and existing review comments.",
 		"- Check out the branch locally if you need to run or trace anything.",
 		"",
