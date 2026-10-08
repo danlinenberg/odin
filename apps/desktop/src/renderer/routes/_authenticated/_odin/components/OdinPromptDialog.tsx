@@ -18,7 +18,7 @@ export type PromptImage = { name: string; dataUrl?: string; path?: string };
  * Read a File as a data URL - the browser does the base64 for us, and unlike
  * btoa(String.fromCharCode(...)) it doesn't blow the stack on a big screenshot.
  */
-function readFile(file: File): Promise<PromptImage> {
+export function readFile(file: File): Promise<PromptImage> {
 	return new Promise((resolve, reject) => {
 		const reader = new FileReader();
 		reader.onload = () =>
