@@ -149,7 +149,6 @@ const URGENCIES: { id: Exclude<Urgency, null> | "none"; label: string }[] = [
 	{ id: "none", label: "Unrated" },
 ];
 
-/** Whether the live-sessions list was left open - a per-viewer preference, so localStorage. */
 const SHOW_SESSIONS_KEY = "odin.all.showSessions";
 
 function readShowSessions(): boolean {
@@ -164,8 +163,6 @@ function AllFeedPage() {
 	const { reactions, jira, pulls, notion, emails, syncAll, isSyncing } =
 		useOdinFeeds();
 	const navigate = useNavigate();
-	// Starts collapsed until opened once, so the queue stays above the fold by
-	// default; after that it keeps whatever state it was left in.
 	const [showSessions, setShowSessions] = useState(readShowSessions);
 	const toggleSessions = () => {
 		const next = !showSessions;
