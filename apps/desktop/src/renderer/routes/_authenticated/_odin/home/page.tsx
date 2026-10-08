@@ -1,6 +1,9 @@
+import { Tooltip, TooltipContent, TooltipTrigger } from "@odin/ui/tooltip";
 import { cn } from "@odin/ui/utils";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
+	type CSSProperties,
+	type ReactNode,
 	useCallback,
 	useEffect,
 	useLayoutEffect,
@@ -8,7 +11,10 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { LuMessageSquare } from "react-icons/lu";
+import {
+	HiOutlineArrowsPointingOut,
+	HiOutlineChatBubbleLeftRight,
+} from "react-icons/hi2";
 import { emojify } from "renderer/lib/emoji";
 import { runWhenParserIdle } from "renderer/lib/terminal/parser-idle-gate";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
@@ -22,7 +28,7 @@ import { profileOf } from "shared/odin-profile";
 import { ChatView } from "../board/ChatView";
 import { interruptPane } from "../board/interrupt";
 import { untruncatedTitle } from "../components/OdinPromptDialog";
-import { BUTTON, PILL } from "../components/pill";
+import { BUTTON } from "../components/pill";
 import { useBoardColumns } from "../hooks/useBoardColumns";
 import { useOdinProfile } from "../hooks/useOdinProfile";
 import { usePaneMeta } from "../hooks/usePaneMeta";
@@ -96,6 +102,27 @@ function CardTerminal({
 			workspaceId={workspaceId}
 			focused={focused}
 		/>
+	);
+}
+
+const ICON_BUTTON = cn(
+	"flex size-6 shrink-0 items-center justify-center rounded-md",
+	BUTTON.secondary,
+);
+
+/** A header icon, its words in a tooltip. */
+function HeaderIcon({
+	label,
+	children,
+}: {
+	label: string;
+	children: ReactNode;
+}) {
+	return (
+		<Tooltip delayDuration={300}>
+			<TooltipTrigger asChild>{children}</TooltipTrigger>
+			<TooltipContent side="bottom">{label}</TooltipContent>
+		</Tooltip>
 	);
 }
 
@@ -245,48 +272,55 @@ function HomePage() {
 								>
 									{title(card)}
 								</button>
-								<span
-									className={cn(
-										"shrink-0 rounded-full px-2 py-[2px] text-[11px] font-semibold",
-										column === "working" ? PILL.working : PILL.attention,
-									)}
-								>
-									{PANE_STATUS[column].label}
-								</span>
+								<HeaderIcon label={PANE_STATUS[column].label}>
+									{/* The board's column dot, in the column's colour. */}
+									<span
+										role="img"
+										aria-label={PANE_STATUS[column].label}
+										className="flex size-6 shrink-0 items-center justify-center"
+										style={
+											{ "--col": PANE_STATUS[column].dot } as CSSProperties
+										}
+									>
+										<span
+											className={cn(
+												"size-2 rounded-full bg-(--col) shadow-[0_0_8px_var(--col)]",
+												column === "working" && "animate-pulse",
+											)}
+										/>
+									</span>
+								</HeaderIcon>
 								{showsTerminal && agentPaneIds.has(pane.id) && (
+									<HeaderIcon label="Show as a chat (Settings > Appearance)">
+										<button
+											type="button"
+											aria-label="Show as a chat"
+											onClick={() =>
+												chatView
+													? setTerminalPaneIds((ids) =>
+															ids.filter((id) => id !== pane.id),
+														)
+													: setChatView(true)
+											}
+											className={ICON_BUTTON}
+										>
+											<HiOutlineChatBubbleLeftRight className="size-3.5" />
+										</button>
+									</HeaderIcon>
+								)}
+								<HeaderIcon label="Open on the Dev Board">
 									<button
 										type="button"
-										title="Show sessions as a chat (Settings > Appearance)"
-										onClick={() =>
-											chatView
-												? setTerminalPaneIds((ids) =>
-														ids.filter((id) => id !== pane.id),
-													)
-												: setChatView(true)
-										}
-										className={cn(
-											"flex shrink-0 items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold",
-											BUTTON.secondary,
-										)}
+										aria-label="Open on the Dev Board"
+										onClick={() => {
+											usePendingFocus.getState().focus(pane.id);
+											navigate({ to: "/board" });
+										}}
+										className={ICON_BUTTON}
 									>
-										<LuMessageSquare className="size-3" />
-										Chat
+										<HiOutlineArrowsPointingOut className="size-3.5" />
 									</button>
-								)}
-								<button
-									type="button"
-									title="Open this session on the Dev Board"
-									onClick={() => {
-										usePendingFocus.getState().focus(pane.id);
-										navigate({ to: "/board" });
-									}}
-									className={cn(
-										"shrink-0 rounded-md px-2 py-0.5 text-[11px] font-semibold",
-										BUTTON.secondary,
-									)}
-								>
-									Open
-								</button>
+								</HeaderIcon>
 							</div>
 							{/* Clicking or tabbing into the body makes this the focused card. */}
 							<div
@@ -298,7 +332,7 @@ function HomePage() {
 									// No Claude to attach to (closed for sitting idle, or
 									// only a shell left): the drawer's history and Resume.
 									<div className="flex flex-1 items-center justify-center px-4 text-center text-xs text-muted-foreground">
-										Session closed - Open it to resume.
+										Session closed - open it on the Dev Board to resume.
 									</div>
 								) : showsTerminal ? (
 									<div className="min-h-0 flex-1">
