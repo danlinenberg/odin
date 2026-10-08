@@ -44,8 +44,8 @@ const env: Record<string, string | undefined> = {
 // Set inside an Odin terminal; it would boot Electron as plain node.
 delete env.ELECTRON_RUN_AS_NODE;
 
-// A Quick question conversation an earlier run left open: it has to survive
-// the restart and take the next question.
+// A crow conversation an earlier run left open: it has to survive the
+// restart and take the next ask.
 const QUESTION = "Smoke question";
 mkdirSync(join(home, ".odin"));
 writeFileSync(
@@ -570,10 +570,10 @@ await step("Settings is exactly its six screens, and each opens", async () => {
 	await waitForText("waiting on you");
 });
 
-await step("Quick question follows up in the open conversation", async () => {
+await step("the crow follows up in the open conversation", async () => {
 	await rail("Dev Board");
 	await waitForText("next in line");
-	await click("button", "Ask a Claude");
+	await click("button", "Ask the crow");
 	await waitForText(`follows up in “${QUESTION}”`);
 	await click("button", "Show it");
 	await waitForText("follows up in", false);
@@ -601,7 +601,7 @@ await step(
 		await page(
 			`document.querySelector('button[title="Start this session now, gate or no gate"]')?.click()`,
 		);
-		// Quick question keeps its own claude warm, so pick out the run that
+		// The crow keeps its own claude warm, so pick out the run that
 		// carries this session's prompt.
 		for (const end = Date.now() + 60_000; !sessionPid; await sleep(500)) {
 			if (Date.now() > end) {

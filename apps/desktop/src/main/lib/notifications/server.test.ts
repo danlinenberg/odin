@@ -3,7 +3,11 @@ import type { AddressInfo } from "node:net";
 import { NOTIFICATION_EVENTS } from "shared/constants";
 import { mapEventType } from "./map-event-type";
 import { resolvePaneId } from "./resolve-pane-id";
-import { notificationsApp, notificationsEmitter } from "./server";
+import {
+	notificationsApp,
+	notificationsEmitter,
+	replyToOdinAction,
+} from "./server";
 
 describe("notifications/server", () => {
 	describe("resolvePaneId", () => {
@@ -137,6 +141,29 @@ describe("notifications/server", () => {
 			const { status, seen } = await post({ origin: "https://evil.example" });
 			expect(status).toBe(403);
 			expect(seen).toEqual([]);
+		});
+	});
+
+	// The crow's Odin actions: the window answers, and that answer is the response.
+	describe("POST /odin", () => {
+		it("answers with the window's reply", async () => {
+			const server = notificationsApp.listen(0, "127.0.0.1");
+			await new Promise((resolve) => server.once("listening", resolve));
+			const listener = (request: { id: string; action: string }) =>
+				replyToOdinAction(request.id, `did ${request.action}`);
+			notificationsEmitter.on(NOTIFICATION_EVENTS.ODIN_ACTION, listener);
+			try {
+				const { port } = server.address() as AddressInfo;
+				const response = await fetch(`http://127.0.0.1:${port}/odin`, {
+					method: "POST",
+					body: new URLSearchParams({ action: "tasks" }),
+				});
+				expect(response.status).toBe(200);
+				expect(await response.text()).toBe("did tasks\n");
+			} finally {
+				notificationsEmitter.off(NOTIFICATION_EVENTS.ODIN_ACTION, listener);
+				server.close();
+			}
 		});
 	});
 });

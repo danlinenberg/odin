@@ -99,16 +99,13 @@ import { BUTTON, PILL } from "../components/pill";
 import { DueChip, OverdueMark, useReminders } from "../components/Reminders";
 import { TranscriptView } from "../components/TranscriptView";
 import { useBacklogReview, useReview } from "../hooks/useBacklogReview";
+import { CROW_TAG } from "../hooks/useCrow";
 import { endSession, useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useOdinProfile } from "../hooks/useOdinProfile";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePaneMeta } from "../hooks/usePaneMeta";
 import { usePendingFocus } from "../hooks/usePendingFocus";
-import {
-	QUESTION_TAG,
-	useQuickQuestionDialog,
-} from "../hooks/useQuickQuestion";
 import { PANE_STATUS } from "../pane-status";
 import { sessionFor } from "../review/verdicts";
 import type { BriefMessage } from "./brief";
@@ -2611,11 +2608,11 @@ function DevBoardPage() {
 		return () => clearInterval(timer);
 	}, [briefSessionIds, autoRename]);
 
-	/** A quick question is no card, but its answer still opens in the drawer. */
-	const questionCard = (paneId: string): BoardCard | undefined => {
+	/** The crow's conversation is no card, but it still opens in the drawer. */
+	const crowCard = (paneId: string): BoardCard | undefined => {
 		const pane = panes[paneId];
 		const tab = tabs.find((t) => t.id === pane?.tabId);
-		if (!pane?.odinTags?.includes(QUESTION_TAG) || !tab) return undefined;
+		if (!pane?.odinTags?.includes(CROW_TAG) || !tab) return undefined;
 		const projectId = workspaceById.get(tab.workspaceId)?.projectId ?? "";
 		return {
 			pane,
@@ -2630,15 +2627,14 @@ function DevBoardPage() {
 	// A session just launched from the Tasks view → open its drawer here.
 	const pendingPaneId = usePendingFocus((s) => s.paneId);
 	const clearPendingFocus = usePendingFocus((s) => s.clear);
-	// biome-ignore lint/correctness/useExhaustiveDependencies: openDrawer and questionCard are new each render; the pending pane and the cards are the trigger
+	// biome-ignore lint/correctness/useExhaustiveDependencies: openDrawer and crowCard are new each render; the pending pane and the cards are the trigger
 	useEffect(() => {
 		if (!pendingPaneId) return;
 		const card =
 			[...cardsByStatus.values()]
 				.flat()
 				.concat(completedCards)
-				.find((c) => c.pane.id === pendingPaneId) ??
-			questionCard(pendingPaneId);
+				.find((c) => c.pane.id === pendingPaneId) ?? crowCard(pendingPaneId);
 		if (card) {
 			openDrawer(card);
 			clearPendingFocus();
@@ -3374,17 +3370,6 @@ function DevBoardPage() {
 					)}
 				>
 					+ New Session
-				</button>
-				<button
-					type="button"
-					title="Ask a Claude that's already running - no start-up wait (⌘⇧I)"
-					onClick={() => useQuickQuestionDialog.getState().setOpen(true)}
-					className={cn(
-						"rounded-lg px-2.5 py-1 text-[12px] font-semibold transition-colors",
-						BUTTON.secondary,
-					)}
-				>
-					Quick question
 				</button>
 				{isLaunching && (
 					<span className="text-xs text-muted-foreground">starting…</span>

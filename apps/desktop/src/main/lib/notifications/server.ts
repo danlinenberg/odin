@@ -1,9 +1,11 @@
+import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import express from "express";
 import { NOTIFICATION_EVENTS } from "shared/constants";
 import { env } from "shared/env.shared";
 import type {
 	AgentLifecycleEvent,
+	OdinActionRequest,
 	RunInShellRequest,
 } from "shared/notification-types";
 import { fetchFile, readLink } from "../read-link";
@@ -157,6 +159,51 @@ app.post("/shell/run", express.urlencoded({ extended: false }), (req, res) => {
 		return res.status(503).send("Odin's window isn't open.\n");
 	}
 	res.send("Running in this session's Shell in Odin.\n");
+});
+
+/** `/odin` requests waiting on the renderer's answer, by request id. */
+const pendingOdinActions = new Map<string, (text: string) => void>();
+
+/** The renderer's answer to an `/odin` request (notifications.odinReply). */
+export function replyToOdinAction(id: string, text: string): void {
+	pendingOdinActions.get(id)?.(text);
+	pendingOdinActions.delete(id);
+}
+
+/**
+ * The crow drives Odin: list the backlog, start tasks, add one, list the
+ * board (CROW_RULE in shared/constants has the calls). The renderer owns that
+ * state, so the request goes to it and the response waits for its reply.
+ * Changes the board, so browsers are refused like /shell/run.
+ */
+app.post("/odin", express.urlencoded({ extended: false }), async (req, res) => {
+	if (req.headers.origin) {
+		return res.status(403).send("Not from a browser.\n");
+	}
+	const { action, ...rest } = req.body ?? {};
+	if (typeof action !== "string" || !action) {
+		return res
+			.status(400)
+			.send("Need action: tasks, start, add or sessions.\n");
+	}
+	const args = Object.fromEntries(
+		Object.entries(rest).filter(
+			(entry): entry is [string, string] => typeof entry[1] === "string",
+		),
+	);
+	const request: OdinActionRequest = { id: randomUUID(), action, args };
+	const reply = new Promise<string | null>((resolve) => {
+		pendingOdinActions.set(request.id, resolve);
+		setTimeout(() => resolve(null), 30_000);
+	});
+	if (!notificationsEmitter.emit(NOTIFICATION_EVENTS.ODIN_ACTION, request)) {
+		pendingOdinActions.delete(request.id);
+		return res.status(503).send("Odin's window isn't open.\n");
+	}
+	const text = await reply;
+	pendingOdinActions.delete(request.id);
+	if (text === null) return res.status(504).send("Odin didn't answer.\n");
+	res.send(`${text}\n`);
 });
 
 /**
