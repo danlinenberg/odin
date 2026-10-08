@@ -2553,6 +2553,11 @@ function DevBoardPage() {
 		isProfileLoading,
 		customTags,
 	]);
+	// The drawer's session list: what's in flight, needs-you first. Idle is out -
+	// those are put down, not in progress.
+	const switchCards = (["permission", "working", "review"] as const).flatMap(
+		(status) => cardsByStatus.get(status) ?? [],
+	);
 	// Two cards on this board working the same ask: each names the other.
 	const duplicateOf = useMemo(() => {
 		const cards = [...cardsByStatus.values()].flat();
@@ -4069,7 +4074,7 @@ function DevBoardPage() {
 					    traffic lights, and the native buttons eat the click. */}
 					<div
 						className={cn(
-							"absolute z-50 flex flex-col bg-tertiary",
+							"@container absolute z-50 flex flex-col bg-tertiary",
 							inCatchUp
 								? // Two cards peeking out underneath: the rest of the pile.
 									"bottom-[92px] left-1/2 top-12 w-[min(760px,calc(100%-32px))] -translate-x-1/2 overflow-hidden rounded-[26px] border border-border shadow-[0_8px_0_-3px_var(--card),0_16px_0_-6px_var(--tertiary)]"
@@ -4257,6 +4262,36 @@ function DevBoardPage() {
 						) : (
 							/* terminal on the left, "what's going on" brief on the right */
 							<div className="flex min-h-0 flex-1">
+								{/* The other sessions in flight, one click away - no Minimize
+								    and hunt for the card on the board. Hidden on a narrow
+								    drawer, where the chat needs the room. */}
+								{!inCatchUp && switchCards.length > 1 && (
+									<nav
+										aria-label="Sessions"
+										className="hidden w-[210px] shrink-0 flex-col overflow-y-auto border-r border-border py-1.5 @3xl:flex"
+									>
+										{switchCards.map((card) => (
+											<button
+												key={card.pane.id}
+												type="button"
+												title={`${PANE_STATUS[card.status].label} - ${cardTitle(card)}`}
+												onClick={() => openDrawer(card)}
+												className={cn(
+													"flex items-center gap-2 px-3 py-1.5 text-left text-xs",
+													card.pane.id === drawerCard.pane.id
+														? "bg-primary/15 font-semibold text-foreground"
+														: "text-muted-foreground hover:bg-accent hover:text-foreground",
+												)}
+											>
+												<span
+													className="size-2 shrink-0 rounded-full"
+													style={{ background: PANE_STATUS[card.status].dot }}
+												/>
+												<span className="truncate">{cardTitle(card)}</span>
+											</button>
+										))}
+									</nav>
+								)}
 								<div className="flex min-h-0 min-w-0 flex-1 flex-col">
 									{isShellOpen && drawerShell ? (
 										// A shell in the same checkout, mounted like any other pane -
