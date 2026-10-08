@@ -5,6 +5,7 @@ import {
 	groupSummary,
 	isAnswerItem,
 	isApprovalItem,
+	isYouOnly,
 	itemOptions,
 	launchRequest,
 	segments,
@@ -275,5 +276,15 @@ describe("launchRequest - the request you typed, without the launcher's scaffold
 	test("returns null for a typed message with no scaffolding", () => {
 		expect(launchRequest("Can you check the build?\n\nThanks")).toBeNull();
 		expect(launchRequest("Task: only a title")).toBeNull();
+	});
+});
+
+describe("isYouOnly", () => {
+	test("a plain (you only) item gets no button", () => {
+		expect(isYouOnly("Reload the Odin window (you only).")).toBe(true);
+	});
+	test("an item Claude can do, or one asking for an answer, still gets one", () => {
+		expect(isYouOnly("Look at #740 if CI fails.")).toBe(false);
+		expect(isYouOnly("Tell me which repo to use (you only).")).toBe(false);
 	});
 });

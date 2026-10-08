@@ -788,15 +788,28 @@ type DoItem = (
 const ACTION_BUTTON =
 	"shrink-0 rounded-md border border-attention/40 px-2 py-0.5 text-[11px] font-medium text-attention hover:bg-attention/15 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent";
 
+/** Claude marks what it can't do "(you only)"; handing it back is a dead-end turn. */
+export function isYouOnly(item: string): boolean {
+	return (
+		/\(you only\)\W*$/i.test(item) &&
+		!isApprovalItem(item) &&
+		!isAnswerItem(item) &&
+		itemOptions(item).options.length === 0
+	);
+}
+
 /** One action item: its button, number, text, and - for a question - the reply box and choices. */
 function ActionItemRow({
 	item,
 	number,
 	onDo,
+	buttonColumn,
 }: {
 	item: string;
 	number: number;
 	onDo: DoItem;
+	/** Some item in the list has a button - line this one's number up with it. */
+	buttonColumn: boolean;
 }) {
 	const [sent, setSent] = useState(false);
 	const [answer, setAnswer] = useState("");
@@ -810,9 +823,8 @@ function ActionItemRow({
 	return (
 		<li className="flex items-start gap-2">
 			{/* The button leads the row - you scan for it first. */}
-			{/\(you only\)\W*$/i.test(item) && !approve && !asks ? (
-				// Claude marks what it can't do; handing it back is a dead-end turn.
-				<span className="w-[64px] shrink-0" />
+			{isYouOnly(item) ? (
+				buttonColumn && <span className="w-[64px] shrink-0" />
 			) : (
 				<button
 					type="button"
@@ -880,6 +892,7 @@ function ActionItemRow({
 function ActionItems({ text, onDo }: { text: string; onDo?: DoItem }) {
 	// text arrives linkified from ItemView.
 	const items = onDo ? actionItemList(text) : [];
+	const buttonColumn = !items.every(isYouOnly);
 	return (
 		<div className="mt-2 rounded-xl border border-attention/35 bg-attention/[0.07] px-4 py-3">
 			<div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[.08em] text-attention">
@@ -894,6 +907,7 @@ function ActionItems({ text, onDo }: { text: string; onDo?: DoItem }) {
 							item={item}
 							number={index + 1}
 							onDo={onDo}
+							buttonColumn={buttonColumn}
 						/>
 					))}
 				</ol>
