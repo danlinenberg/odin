@@ -44,7 +44,10 @@ import {
 } from "react-icons/lu";
 import { SiJira, SiNotion, SiSlack } from "react-icons/si";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
-import { startQueuedPane } from "renderer/hooks/useTaskQueue";
+import {
+	currentLaunchBlocker,
+	startQueuedPane,
+} from "renderer/hooks/useTaskQueue";
 import { useHotkey } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
@@ -54,7 +57,6 @@ import { Terminal } from "renderer/screens/main/components/WorkspaceView/Content
 import * as terminalCache from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/v1-terminal-cache";
 import { claudeCli } from "renderer/stores/claude-command";
 import { useIdleClose } from "renderer/stores/idle-close";
-import { launchLimits, useLaunchLimits } from "renderer/stores/launch-limits";
 import { useSessionView } from "renderer/stores/session-view";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import type { Pane, PaneStatus } from "renderer/stores/tabs/types";
@@ -66,7 +68,7 @@ import {
 	SECTION_LABEL,
 } from "shared/board-section";
 import { duplicateSessions } from "shared/duplicate-sessions";
-import { claimedCheckout, launchBlocker } from "shared/launch-gate";
+import { claimedCheckout } from "shared/launch-gate";
 import { sessionUsageLabel } from "shared/machine-load";
 import { profileOf } from "shared/odin-profile";
 import {
@@ -2770,15 +2772,12 @@ function DevBoardPage() {
 	 */
 	const resumeBlocker = async (pane: Pane, cwd: string | undefined) => {
 		try {
-			return launchBlocker(
-				await utils.client.resourceMetrics.getSnapshot.query(),
-				Object.values(useTabsStore.getState().panes).filter(
-					(other) => other.id !== pane.id,
-				),
+			return await currentLaunchBlocker(
+				utils.client,
 				pane.odinCwd ??
 					claimedCheckout(undefined, cwd ?? "", workConfig?.odinRepoPath),
 				workConfig?.odinRepoPath,
-				launchLimits(useLaunchLimits.getState()),
+				pane.id,
 			);
 		} catch {
 			return null;

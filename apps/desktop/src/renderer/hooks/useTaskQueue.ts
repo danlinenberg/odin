@@ -31,7 +31,44 @@ function queuedCheckout(pane: Pane, odinRepoPath: string | null | undefined) {
 	);
 }
 
+/** Panes whose PTY is alive in the daemon - the only ones that can be working. */
+export function livePanes(
+	panes: Record<string, Pane>,
+	sessions: { sessionId: string; isAlive: boolean }[],
+): Pane[] {
+	const alive = new Set(
+		sessions.filter((s) => s.isAlive).map((s) => s.sessionId),
+	);
+	return Object.values(panes).filter((pane) => alive.has(pane.id));
+}
+
 type TrpcClient = ReturnType<typeof electronTrpc.useUtils>["client"];
+
+/**
+ * `launchBlocker` against the live Mac and the live PTYs, read now - for a
+ * one-off decision (a launch, a Resume) rather than the queue's poll.
+ * `except` leaves a pane out: a Resume's own card can't block itself.
+ */
+export async function currentLaunchBlocker(
+	client: TrpcClient,
+	checkout: string,
+	odinRepoPath: string | null | undefined,
+	except?: string,
+): Promise<string | null> {
+	const [snapshot, { sessions }] = await Promise.all([
+		client.resourceMetrics.getSnapshot.query(),
+		client.terminal.listDaemonSessions.query(),
+	]);
+	return launchBlocker(
+		snapshot,
+		livePanes(useTabsStore.getState().panes, sessions).filter(
+			(pane) => pane.id !== except,
+		),
+		checkout,
+		odinRepoPath,
+		launchLimits(useLaunchLimits.getState()),
+	);
+}
 
 /**
  * Start a task that was held back: spawn the command its launch parked on the
@@ -124,24 +161,36 @@ export function useTaskQueue(): void {
 		undefined,
 		{ refetchInterval: 5_000 },
 	);
+	// Which PTYs are actually running. A restart kills every PTY but keeps each
+	// pane's "working" status, so without this a dead card counted toward the
+	// cap - and held its checkout - for good, and the queue never drained.
+	const { data: daemonSessions } =
+		electronTrpc.terminal.listDaemonSessions.useQuery(undefined, {
+			refetchInterval: 5_000,
+		});
 	// A spawn takes a second or two; without this the next poll starts the same
 	// card again while the first attach is still in flight.
 	const starting = useRef(false);
 
 	useEffect(() => {
-		if (!metrics || starting.current) return;
+		if (!metrics || !daemonSessions || starting.current) return;
 		const panes = useTabsStore.getState().panes;
 		const queue = queuedPanes(panes);
-		const next = queue[0];
-		if (!next) return;
-		const blocker = launchBlocker(
-			metrics,
-			Object.values(panes),
-			queuedCheckout(next, workConfig?.odinRepoPath),
-			workConfig?.odinRepoPath,
-			launchLimits(useLaunchLimits.getState()),
-		);
-		if (blocker) {
+		if (!queue.length) return;
+		const live = livePanes(panes, daemonSessions.sessions);
+		const blockerFor = (pane: Pane) =>
+			launchBlocker(
+				metrics,
+				live,
+				queuedCheckout(pane, workConfig?.odinRepoPath),
+				workConfig?.odinRepoPath,
+				launchLimits(useLaunchLimits.getState()),
+			);
+		// The longest-waiting card that can go now - a card waiting on its own
+		// busy repo doesn't hold back one aimed at a free repo.
+		const next = queue.find((pane) => !blockerFor(pane));
+		if (!next) {
+			const blocker = blockerFor(queue[0]) ?? "";
 			// Only the head waits on the blocker; the rest wait on the card ahead,
 			// so repeating the blocker on every card says nothing new.
 			refreshQueuedReasons(queue, (pane) => {
@@ -160,5 +209,5 @@ export function useTaskQueue(): void {
 			.finally(() => {
 				starting.current = false;
 			});
-	}, [metrics, workConfig, utils]);
+	}, [metrics, daemonSessions, workConfig, utils]);
 }
