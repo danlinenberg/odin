@@ -209,19 +209,19 @@ describe("getNotifyScriptContent", () => {
 		);
 	});
 
-	it("keeps a Stop Working while a background agent is still out", async () => {
+	it("keeps a Stop Working while a background agent is still out, unless it asks you something", async () => {
 		const dir = mkdtempSync(path.join(tmpdir(), "odin-bg-agents-"));
 		const transcript = path.join(dir, "session.jsonl");
 		const launch = (id: string) =>
 			JSON.stringify({
 				toolUseResult: { isAsync: true, status: "async_launched", agentId: id },
 			});
-		const stopOn = async (lines: string[]) => {
+		const stopOn = async (lines: string[], message = "Waiting.") => {
 			writeFileSync(transcript, `${lines.join("\n")}\n`);
 			const result = await runNotifyHook({
 				hook_event_name: "Stop",
 				transcript_path: transcript,
-				last_assistant_message: "Waiting.\n\nACTION ITEMS:\n1. Wait.",
+				last_assistant_message: message,
 			});
 			return result.stderr.toString();
 		};
@@ -229,14 +229,16 @@ describe("getNotifyScriptContent", () => {
 		writeFileSync(path.join(dir, "session", "subagents", "agent-a1.jsonl"), "");
 
 		expect(await stopOn([launch("a1")])).toContain("event=Start ");
+		// An open action item needs you even while the agent runs.
+		expect(
+			await stopOn([launch("a1")], "Waiting.\n\nACTION ITEMS:\n1. Pick one."),
+		).toContain("event=PermissionRequest ");
 		// Finished: its task-notification is in the transcript.
 		expect(await stopOn([launch("a1"), "<task-id>a1</task-id>"])).toContain(
-			"event=PermissionRequest ",
+			"event=Stop ",
 		);
 		// No live transcript for it: a killed session's agent, not a running one.
-		expect(await stopOn([launch("gone")])).toContain(
-			"event=PermissionRequest ",
-		);
+		expect(await stopOn([launch("gone")])).toContain("event=Stop ");
 	});
 
 	it("keeps a Stop Working while a background Bash is still running", async () => {
@@ -254,7 +256,7 @@ describe("getNotifyScriptContent", () => {
 			const result = await runNotifyHook({
 				hook_event_name: "Stop",
 				transcript_path: transcript,
-				last_assistant_message: "Waiting on CI.\n\nACTION ITEMS:\n1. Wait.",
+				last_assistant_message: "Waiting on CI.",
 			});
 			return result.stderr.toString();
 		};
@@ -266,14 +268,14 @@ describe("getNotifyScriptContent", () => {
 			await Bun.sleep(200);
 			expect(await stopOn([launch])).toContain("event=Start ");
 			expect(await stopOn([launch, "<task-id>b1</task-id>"])).toContain(
-				"event=PermissionRequest ",
+				"event=Stop ",
 			);
 		} finally {
 			poll.kill();
 			await poll.exited;
 		}
 		// Gone without a notification (killed): nobody holds the file.
-		expect(await stopOn([launch])).toContain("event=PermissionRequest ");
+		expect(await stopOn([launch])).toContain("event=Stop ");
 	});
 
 	it("drops every event from a claude running under another claude", async () => {

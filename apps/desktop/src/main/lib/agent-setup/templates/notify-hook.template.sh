@@ -103,14 +103,15 @@ has_running_background_agents() {
 }
 if [ "$EVENT_TYPE" = "Stop" ]; then
   TRANSCRIPT_PATH=$(echo "$INPUT" | grep -oE '"transcript_path"[[:space:]]*:[[:space:]]*"[^"]*"' | grep -oE '"[^"]*"$' | tr -d '"')
-  if has_running_background_agents "$TRANSCRIPT_PATH"; then
+  # Open ACTION ITEMS win over running background agents: the turn asked you
+  # something, and that question waits on you whatever else is still out.
+  case "$INPUT" in
+    *'"last_assistant_message"'*)
+      has_open_action_items "${INPUT#*\"last_assistant_message\"}" && EVENT_TYPE="PermissionRequest"
+      ;;
+  esac
+  if [ "$EVENT_TYPE" = "Stop" ] && has_running_background_agents "$TRANSCRIPT_PATH"; then
     EVENT_TYPE="Start"
-  else
-    case "$INPUT" in
-      *'"last_assistant_message"'*)
-        has_open_action_items "${INPUT#*\"last_assistant_message\"}" && EVENT_TYPE="PermissionRequest"
-        ;;
-    esac
   fi
 fi
 
