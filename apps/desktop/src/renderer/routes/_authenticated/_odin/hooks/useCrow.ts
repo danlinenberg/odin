@@ -1,5 +1,4 @@
 import { toast } from "@odin/ui/sonner";
-import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 import {
 	parseDataUrl,
@@ -20,7 +19,6 @@ import { type PromptImage, sessionTitle } from "../components/OdinPromptDialog";
 import { useDone } from "./useDone";
 import { taskPrompt, useMyTasks } from "./useOdinTasks";
 import { useOdinWorkspace } from "./useOdinWorkspace";
-import { usePendingFocus } from "./usePendingFocus";
 
 /**
  * Marks the spare. A tag rather than a pane field of its own: `odinTags`
@@ -69,7 +67,7 @@ export const useCrowDialog = create<{
 
 /**
  * The crow: Odin's own agent. A Claude that's already up and sitting at its
- * prompt, so asking costs no boot, and that can drive Odin through `/odin`
+ * prompt, so asking costs no boot, and it answers in its own panel, and that can drive Odin through `/odin`
  * (CROW_RULE) - list the backlog, start tasks, add one. Asking One spare runs hidden (no title, so it's no card);
  * types the ask in and opens its drawer - still no card - and a
  * fresh spare starts behind it. The conversation persists: the next question
@@ -80,7 +78,6 @@ export const useCrowDialog = create<{
  */
 export function useCrow() {
 	const utils = electronTrpc.useUtils();
-	const navigate = useNavigate();
 	const { ensureWorkspace } = useOdinWorkspace();
 	const { data: daemon } = electronTrpc.terminal.listDaemonSessions.useQuery(
 		undefined,
@@ -304,9 +301,8 @@ export function useCrow() {
 				},
 			}));
 		}
+		// No navigation: the crow's panel shows the conversation where you asked.
 		store.setPaneStatus(pane.id, "working");
-		usePendingFocus.getState().focus(pane.id);
-		navigate({ to: "/board" });
 
 		// Typed, not passed as an argument - the process is already running. As a
 		// bracketed paste (Claude turns the mode on), so a multi-line question

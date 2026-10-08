@@ -1,6 +1,11 @@
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { electronTrpc } from "renderer/lib/electron-trpc";
+import { useTabsStore } from "renderer/stores/tabs/store";
+import type { Pane } from "renderer/stores/tabs/types";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { ChatView } from "../board/ChatView";
+import { endSession } from "../hooks/useDone";
 import { type PromptImage, readFile } from "./OdinPromptDialog";
 
 /** Where you dragged the crow; null = its default, low on the left. */
@@ -13,7 +18,12 @@ const useCrowPosition = create<{
 	}),
 );
 
-const SIZE = 40;
+/** A rail icon's size, so it sits in the rail like one. */
+const SIZE = 36;
+/** The rail's width - the crow's default spot is centred in it. */
+const RAIL_W = 52;
+/** Above the rail's bottom three icons (Insights, History, Settings). */
+const RAIL_BOTTOM = 10 + 3 * (SIZE + 6);
 /** A press that moves less than this is a click, not a drag. */
 const DRAG_PX = 4;
 
@@ -31,6 +41,9 @@ function CrowIcon({ className = "size-6" }: { className?: string }) {
 }
 
 const PANEL_W = 340;
+/** Wider and taller once there's a conversation to read. */
+const CHAT_W = 440;
+const CHAT_H = 560;
 
 /** Asks that show what the crow can do in Odin - a click sends one. */
 const SUGGESTIONS = [
@@ -50,15 +63,17 @@ const firstName = () => {
  */
 function CrowPanel({
 	anchor,
-	note,
+	conversation,
 	onAsk,
 	onClose,
+	onShowOnBoard,
 }: {
 	anchor: { x: number; y: number };
-	/** Shown above the box - the open conversation this follows up in. */
-	note?: ReactNode;
+	/** The open conversation - shown right here, with its reply box. */
+	conversation?: Pane;
 	onAsk: (text: string, files: PromptImage[]) => Promise<boolean>;
 	onClose: () => void;
+	onShowOnBoard: (paneId: string) => void;
 }) {
 	const [text, setText] = useState("");
 	const [files, setFiles] = useState<PromptImage[]>([]);
@@ -84,29 +99,73 @@ function CrowPanel({
 	const send = async (ask: string) => {
 		if (sending || (!ask.trim() && files.length === 0)) return;
 		setSending(true);
-		if (await onAsk(ask, files)) onClose();
+		if (await onAsk(ask, files)) {
+			setText("");
+			setFiles([]);
+		}
 		setSending(false);
 	};
 
 	// Beside the button, on whichever side has room; bottoms aligned.
+	const width = conversation ? CHAT_W : PANEL_W;
 	const right = anchor.x + SIZE / 2 < window.innerWidth / 2;
-	const left = right ? anchor.x + SIZE + 10 : anchor.x - PANEL_W - 10;
+	const left = right ? anchor.x + SIZE + 10 : anchor.x - width - 10;
 	const bottom = Math.max(window.innerHeight - anchor.y - SIZE, 8);
 	const name = firstName();
+	const header = (
+		<div className="flex items-center gap-3">
+			<span className="relative flex size-8 items-center justify-center">
+				<span className="absolute inset-0 rounded-full bg-violet-500/60 blur-md" />
+				<CrowIcon className="relative size-7" />
+			</span>
+			<span className="text-[17px] font-semibold">Crow</span>
+			{conversation && (
+				<span className="ml-auto flex gap-1">
+					<button
+						type="button"
+						title="Open this conversation on the board"
+						onClick={() => onShowOnBoard(conversation.id)}
+						className="rounded-md px-2 py-1 text-[11.5px] text-white/60 hover:bg-white/10 hover:text-white"
+					>
+						Open on the board
+					</button>
+					<button
+						type="button"
+						title="End this conversation and start a fresh one"
+						onClick={() => endSession(conversation.id)}
+						className="rounded-md px-2 py-1 text-[11.5px] text-white/60 hover:bg-white/10 hover:text-white"
+					>
+						New chat
+					</button>
+				</span>
+			)}
+		</div>
+	);
+
+	if (conversation)
+		return (
+			<div
+				ref={panel}
+				style={{
+					left: Math.max(left, 8),
+					bottom,
+					width,
+					height: Math.min(CHAT_H, window.innerHeight - bottom - 8),
+				}}
+				className="fixed z-50 flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#1c1c1f] text-white shadow-2xl shadow-black/50"
+			>
+				<div className="border-b border-white/10 px-5 py-3">{header}</div>
+				<CrowChat pane={conversation} onShowOnBoard={onShowOnBoard} />
+			</div>
+		);
 
 	return (
 		<div
 			ref={panel}
-			style={{ left: Math.max(left, 8), bottom, width: PANEL_W }}
+			style={{ left: Math.max(left, 8), bottom, width }}
 			className="fixed z-50 flex max-h-[80vh] flex-col gap-5 rounded-2xl border border-white/10 bg-[#1c1c1f] p-6 text-white shadow-2xl shadow-black/50"
 		>
-			<div className="flex items-center gap-3">
-				<span className="relative flex size-8 items-center justify-center">
-					<span className="absolute inset-0 rounded-full bg-violet-500/60 blur-md" />
-					<CrowIcon className="relative size-7" />
-				</span>
-				<span className="text-[17px] font-semibold">Crow</span>
-			</div>
+			{header}
 			<div className="text-[17px] leading-snug">
 				<div className="font-semibold">Hi{name && ` ${name}`},</div>
 				<div className="text-white/85">How can I help you today?</div>
@@ -125,7 +184,6 @@ function CrowPanel({
 					</button>
 				))}
 			</div>
-			{note && <div className="text-[11.5px] text-white/50">{note}</div>}
 			{files.length > 0 && (
 				<div className="flex flex-wrap gap-1.5">
 					{files.map((file, index) => (
@@ -178,6 +236,43 @@ function CrowPanel({
 	);
 }
 
+/** The conversation itself - the board drawer's chat view, reply box and all. */
+function CrowChat({
+	pane,
+	onShowOnBoard,
+}: {
+	pane: Pane;
+	onShowOnBoard: (paneId: string) => void;
+}) {
+	const utils = electronTrpc.useUtils();
+	const workspaceId = useTabsStore(
+		(s) => s.tabs.find((tab) => tab.id === pane.tabId)?.workspaceId,
+	);
+	if (!workspaceId) return null;
+	return (
+		<div className="flex min-h-0 flex-1 flex-col">
+			<ChatView
+				key={pane.id}
+				paneId={pane.id}
+				sessionId={pane.claudeSessionId ?? null}
+				cwd={pane.cwd ?? pane.initialCwd ?? undefined}
+				workspaceId={workspaceId}
+				working={pane.status === "working"}
+				onShowTerminal={() => onShowOnBoard(pane.id)}
+				onStop={() => {
+					// The drawer's Interrupt: Ctrl+C, and out of Working now - Claude
+					// fires no Stop hook on an interrupt.
+					void utils.client.terminal.write.mutate({
+						paneId: pane.id,
+						data: "\x03",
+					});
+					useTabsStore.getState().setPaneStatus(pane.id, "idle");
+				}}
+			/>
+		</div>
+	);
+}
+
 /**
  * The crow: a small button floating on the left that opens Odin's own agent
  * in a panel beside it.
@@ -188,25 +283,42 @@ export function CrowButton({
 	onOpen,
 	onClose,
 	onAsk,
-	note,
+	conversation,
+	onShowOnBoard,
 	keys,
 }: {
 	open: boolean;
 	onOpen: () => void;
 	onClose: () => void;
 	onAsk: (text: string, files: PromptImage[]) => Promise<boolean>;
-	note?: ReactNode;
+	conversation?: Pane;
+	onShowOnBoard: (paneId: string) => void;
 	/** The hotkey, for the tooltip. */
 	keys?: string;
 }) {
 	const { pos, setPos } = useCrowPosition();
+	// Same query and interval as useCrow's, so a cache hit.
+	const { data: daemon } = electronTrpc.terminal.listDaemonSessions.useQuery(
+		undefined,
+		{ refetchInterval: 15_000 },
+	);
+	// Shown only while its Claude runs. One a restart ended has nothing to
+	// type into; the greeting's box asks through useCrow, which resumes it.
+	const liveConversation = daemon?.sessions.some(
+		(s) => s.sessionId === conversation?.id && s.isAlive,
+	)
+		? conversation
+		: undefined;
 	const press = useRef<{ x: number; y: number; dx: number; dy: number }>(null);
 	/** Set once a press moves - the click that ends a drag doesn't open. */
 	const dragged = useRef(false);
 	// Clamped, so a smaller window never strands it off-screen.
-	const x = Math.min(Math.max(pos?.x ?? 14, 0), window.innerWidth - SIZE);
+	const x = Math.min(
+		Math.max(pos?.x ?? (RAIL_W - SIZE) / 2, 0),
+		window.innerWidth - SIZE,
+	);
 	const y = Math.min(
-		Math.max(pos?.y ?? window.innerHeight - SIZE - 72, 0),
+		Math.max(pos?.y ?? window.innerHeight - SIZE - RAIL_BOTTOM, 0),
 		window.innerHeight - SIZE,
 	);
 
@@ -218,7 +330,7 @@ export function CrowButton({
 				aria-label="Ask the crow"
 				title={`Ask the crow - anything, or tell it what to do in Odin${keys ? ` (${keys})` : ""}. Drag to move.`}
 				style={{ left: x, top: y, width: SIZE, height: SIZE }}
-				className="fixed z-40 flex touch-none items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-indigo-900 text-white shadow-lg shadow-violet-500/30 ring-1 ring-white/15 transition-transform hover:scale-110 active:cursor-grabbing"
+				className={`fixed z-40 flex touch-none items-center justify-center rounded-[9px] transition-colors active:cursor-grabbing ${open ? "bg-violet-500/20 text-violet-200" : "text-muted-foreground hover:text-foreground"}`}
 				onPointerDown={(e) => {
 					e.currentTarget.setPointerCapture(e.pointerId);
 					dragged.current = false;
@@ -246,14 +358,15 @@ export function CrowButton({
 					dragged.current = false;
 				}}
 			>
-				<CrowIcon />
+				<CrowIcon className="size-[19px] drop-shadow-[0_0_5px_rgba(167,139,250,0.6)]" />
 			</button>
 			{open && (
 				<CrowPanel
 					anchor={{ x, y }}
-					note={note}
+					conversation={liveConversation}
 					onAsk={onAsk}
 					onClose={onClose}
+					onShowOnBoard={onShowOnBoard}
 				/>
 			)}
 		</>
