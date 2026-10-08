@@ -9,6 +9,7 @@ import { cn } from "@odin/ui/utils";
 import type { WebviewTag } from "electron";
 import { useEffect, useRef, useState } from "react";
 import {
+	HiArrowDownTray,
 	HiArrowLeft,
 	HiArrowPath,
 	HiArrowRight,
@@ -270,6 +271,7 @@ export function InAppBrowser() {
 	const openExternal = electronTrpc.external.openUrl.useMutation();
 	const { mutate: copyText } = electronTrpc.external.copyText.useMutation();
 	const onePassword = electronTrpc.browser.onePasswordLogin.useMutation();
+	const importCookies = electronTrpc.browser.importCookies.useMutation();
 	// Each site's first link. Its page stays loaded while the panel is
 	// closed, so the next link doesn't start the site over.
 	const [sites, setSites] = useState<Partial<Record<Site, string>>>({});
@@ -658,6 +660,22 @@ export function InAppBrowser() {
 								>
 									<HiArrowTopRightOnSquare className="size-3.5" />
 									Always open links in your browser
+								</DropdownMenuItem>
+								<DropdownMenuItem
+									onSelect={() =>
+										importCookies.mutate(undefined, {
+											onSuccess: ({ browser, profile, imported }) => {
+												toast(`Signed in like ${browser}`, {
+													description: `${imported} cookies from ${profile}.`,
+												});
+												view()?.reload();
+											},
+											onError: (error) => toast(error.message),
+										})
+									}
+								>
+									<HiArrowDownTray className="size-3.5" />
+									Import sign-ins from your browser
 								</DropdownMenuItem>
 							</DropdownMenuContent>
 						</DropdownMenu>

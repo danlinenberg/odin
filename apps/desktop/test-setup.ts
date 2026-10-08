@@ -146,6 +146,7 @@ Object.defineProperty(globalThis, "localStorage", {
 // =============================================================================
 
 mock.module("electron", () => ({
+	session: { fromPartition: mock(() => ({})) },
 	app: {
 		getPath: mock(() => testTmpDir),
 		getName: mock(() => "test-app"),
