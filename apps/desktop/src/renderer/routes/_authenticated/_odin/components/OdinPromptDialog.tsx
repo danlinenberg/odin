@@ -1,5 +1,9 @@
 import { type ReactNode, useMemo, useRef, useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import {
+	CLAUDE_MODELS,
+	useClaudeCommand,
+} from "renderer/stores/claude-command";
 
 import { matchRepos, repoLabel } from "./repo-picker";
 import { insertSkill, matchSkills, skillToken } from "./skill-picker";
@@ -77,6 +81,7 @@ export function OdinPromptDialog({
 	placeholder = "What should the agent do in Odin?",
 	defaultPrompt = "",
 	repoPicker = false,
+	modelPicker = false,
 	submitLabel = "Start session",
 	onCancel,
 	onSubmit,
@@ -92,6 +97,8 @@ export function OdinPromptDialog({
 	defaultPrompt?: string;
 	/** Offer the machine's git checkouts as the session's directory. */
 	repoPicker?: boolean;
+	/** Pick the session's model; the pick sticks for every later launch. */
+	modelPicker?: boolean;
 	submitLabel?: string;
 	onCancel: () => void;
 	onSubmit: (
@@ -106,6 +113,8 @@ export function OdinPromptDialog({
 	const [repoQuery, setRepoQuery] = useState("");
 	const [isDropping, setIsDropping] = useState(false);
 	const [isStarting, setIsStarting] = useState(false);
+	const model = useClaudeCommand((state) => state.model);
+	const setModel = useClaudeCommand((state) => state.setModel);
 	const fileInput = useRef<HTMLInputElement>(null);
 
 	// Launching takes a couple of seconds (workspace + PTY), so wait on the
@@ -389,6 +398,22 @@ export function OdinPromptDialog({
 								</span>
 							)}
 						</>
+					)}
+					{modelPicker && (
+						<select
+							aria-label="Model"
+							value={model}
+							onChange={(event) => setModel(event.target.value)}
+							className={`shrink-0 rounded-[6px] bg-secondary px-1.5 py-[3px] text-[11px] font-semibold outline-none [color-scheme:inherit] ${
+								model ? "text-foreground" : "text-muted-foreground"
+							}`}
+						>
+							{CLAUDE_MODELS.map((option) => (
+								<option key={option.value} value={option.value}>
+									{option.label}
+								</option>
+							))}
+						</select>
 					)}
 					<div className="flex-1" />
 					<button

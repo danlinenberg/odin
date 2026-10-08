@@ -4478,6 +4478,7 @@ function DevBoardPage() {
 					heading="New Session"
 					placeholder="What should the agent do? (it picks the repo)"
 					repoPicker
+					modelPicker
 					onCancel={() => setIsComposerOpen(false)}
 					onSubmit={handleNewSession}
 				/>
