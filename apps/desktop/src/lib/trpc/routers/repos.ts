@@ -34,8 +34,8 @@ const run = promisify(execFile);
  * Desktop/Documents/Downloads are TCC-protected: descending into them makes
  * macOS throw a "would like to access files in your Desktop folder" prompt at
  * launch, three times over. Pruning by name means `find` never opens them, so
- * no prompt. A checkout parked on the Desktop won't be listed - add it through
- * the folder picker, which grants access without a prompt.
+ * no prompt. A checkout parked there is listed once it's added through the
+ * folder picker, which grants access without a prompt - see `projectRepos`.
  *
  * Music/Pictures/Movies are the same story with louder prompts: they hold the
  * Apple Music, Photos and TV libraries, so walking them asks for access to
@@ -84,6 +84,23 @@ export async function scanRepos(home: string = homedir()): Promise<string[]> {
 		.then((result) => result.stdout)
 		.catch((error: { stdout?: string }) => error.stdout ?? "");
 	return [...new Set(stdout.split("\n").filter(Boolean).map(dirname))].sort();
+}
+
+/**
+ * The folders added as projects. The scan can't see a checkout under a
+ * TCC-protected folder (~/Documents/GitHub/...), so without these the picker
+ * never offers it. Read per call, so a folder added a moment ago shows up.
+ * Imported lazily: local-db pulls in Electron, which the tests don't have.
+ */
+async function projectRepos(): Promise<string[]> {
+	const { projects } = await import("@odin/local-db");
+	const { localDb } = await import("main/lib/local-db");
+	return localDb
+		.select({ path: projects.mainRepoPath })
+		.from(projects)
+		.all()
+		.map((row) => row.path)
+		.filter((path) => existsSync(join(path, ".git")));
 }
 
 /**
@@ -252,10 +269,14 @@ export async function renderPullRequestDiff(
 	};
 }
 
-export const createReposRouter = () => {
+export const createReposRouter = (
+	added: () => Promise<string[]> = projectRepos,
+) => {
 	const repos = scanRepos();
 	return router({
-		list: publicProcedure.query(() => repos),
+		list: publicProcedure.query(async () =>
+			[...new Set([...(await repos), ...(await added())])].sort(),
+		),
 
 		/**
 		 * The checkout a session starts in when nothing else names one. Set in

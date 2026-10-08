@@ -41,6 +41,16 @@ test("scanRepos finds checkouts, skips pruned dirs and nested worktrees", async 
 	]);
 });
 
+test("list adds the folders added as projects, which the scan can't see", async () => {
+	const added = join(
+		mkdtempSync(join(tmpdir(), "odin-added-")),
+		"Documents/GitHub/app",
+	);
+	const caller = createReposRouter(async () => [added, added]).createCaller({});
+	const listed = await caller.list();
+	expect(listed.filter((path) => path === added)).toEqual([added]);
+});
+
 test("the default repo round-trips through the config file, takes a plain folder, and rejects a missing one", async () => {
 	const home = mkdtempSync(join(tmpdir(), "odin-default-repo-"));
 	process.env.ODIN_CONFIG_PATH = join(home, "odin.json");
@@ -49,7 +59,7 @@ test("the default repo round-trips through the config file, takes a plain folder
 	mkdirSync(join(repo, ".git"), { recursive: true });
 	mkdirSync(join(home, "Documents"), { recursive: true });
 
-	const caller = createReposRouter().createCaller({});
+	const caller = createReposRouter(async () => []).createCaller({});
 
 	// Unset: detected from the machine's real checkouts.
 	const detected = detectReposFolder(await caller.list());
