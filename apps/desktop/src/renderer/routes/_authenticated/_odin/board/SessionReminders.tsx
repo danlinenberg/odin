@@ -164,6 +164,7 @@ export function RemindButton({
 export function SessionReminders() {
 	const reminders = useReminders((s) => s.reminders);
 	const clear = useReminders((s) => s.clear);
+	const setReminder = useReminders((s) => s.setReminder);
 	const { resume, isLaunching } = useResumeReminder();
 	const open = useOpenReminder();
 	const now = Date.now();
@@ -235,6 +236,11 @@ export function SessionReminders() {
 					>
 						{r.resume ? "↻ Resume" : "Open"}
 					</button>
+					<RemindButton
+						label="Snooze"
+						onPick={(day) => setReminder(key, { ...r, due: day })}
+						className={`rounded-md px-2 py-0.5 text-[11px] font-semibold ${BUTTON.secondary}`}
+					/>
 					<button
 						type="button"
 						title="Dismiss the reminder"
