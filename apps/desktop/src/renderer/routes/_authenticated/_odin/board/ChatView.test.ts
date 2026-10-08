@@ -169,6 +169,23 @@ describe("ChatView transcript", () => {
 		expect(groupSummary(out[1] as never)).toBe("Ran 2 commands, read 1 file");
 	});
 
+	test("narration between two runs folds into one group; the last reply stays", () => {
+		const tool = (id: string, name: string) =>
+			({ kind: "tool", id, name, input: {} }) as const;
+		const out = segments([
+			{ kind: "text", id: "a", text: "first" },
+			tool("1", "Bash"),
+			{ kind: "text", id: "b", text: "next" },
+			tool("2", "Bash"),
+			{ kind: "text", id: "c", text: "and" },
+			tool("3", "Write"),
+			{ kind: "text", id: "d", text: "done" },
+		]);
+		expect(out.length).toBe(3);
+		expect(groupSummary(out[1] as never)).toBe("Ran 2 commands, wrote 1 file");
+		expect((out[2] as { id: string }).id).toBe("d");
+	});
+
 	test("action items split off in the shapes agents write them", () => {
 		expect(splitActionItems("Done.\n\nACTION ITEMS:\n1. Merge it")).toEqual({
 			body: "Done.",

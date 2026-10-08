@@ -384,15 +384,24 @@ const ToolRow = memo(function ToolRow({
 });
 
 type Tool = Extract<Item, { kind: "tool" }>;
+type Group = (Tool | Extract<Item, { kind: "text" }>)[];
 
-/** Runs of tool calls fold into one group, like the desktop app hides its commands. */
-export function segments(items: Item[]): (Item | Tool[])[] {
-	const out: (Item | Tool[])[] = [];
+/**
+ * Runs of tool calls fold into one group, like the desktop app hides its
+ * commands. A line of narration between two runs folds in too, so a long
+ * stretch of work is one section, not a ladder of "Ran 1 command".
+ */
+export function segments(items: Item[]): (Item | Group)[] {
+	const out: (Item | Group)[] = [];
 	for (const item of items) {
 		const last = out.at(-1);
+		const before = out.at(-2);
 		if (item.kind !== "tool") out.push(item);
 		else if (Array.isArray(last)) last.push(item);
-		else out.push([item]);
+		else if (last?.kind === "text" && Array.isArray(before)) {
+			out.pop();
+			before.push(last, item);
+		} else out.push([item]);
 	}
 	return out;
 }
@@ -418,9 +427,10 @@ const VERBS: Record<string, [string, string]> = {
 };
 
 /** "Ran 3 commands, read 2 files" - same verb counted once. */
-export function groupSummary(tools: Tool[]): string {
+export function groupSummary(group: Group): string {
 	const counts = new Map<string, number>();
-	for (const tool of tools) {
+	for (const tool of group) {
+		if (tool.kind !== "tool") continue;
 		const [verb, noun] = VERBS[tool.name] ?? ["used", "tool"];
 		const key = `${verb} ${noun}`;
 		counts.set(key, (counts.get(key) ?? 0) + 1);
@@ -435,8 +445,9 @@ export function groupSummary(tools: Tool[]): string {
 }
 
 const ToolGroup = memo(
-	function ToolGroup({ tools }: { tools: Tool[] }) {
+	function ToolGroup({ group }: { group: Group }) {
 		const [open, setOpen] = useState(false);
+		const tools = group.filter((item): item is Tool => item.kind === "tool");
 		const running = tools.find((tool) => tool.result === undefined);
 		const failed = tools.some((tool) => tool.isError);
 		return (
@@ -447,7 +458,7 @@ const ToolGroup = memo(
 					className="flex min-w-0 max-w-full items-center gap-2 self-start rounded-lg border border-border bg-secondary px-2.5 py-1 text-left text-[12px] text-soft-foreground hover:bg-accent hover:text-foreground"
 				>
 					<LuTerminal className="size-3.5 shrink-0" />
-					<span className="shrink-0">{groupSummary(tools)}</span>
+					<span className="shrink-0">{groupSummary(group)}</span>
 					{/* ponytail: muted - a failed command is routine, Claude retries */}
 					{failed && (
 						<span className="shrink-0 text-faint-foreground">· error</span>
@@ -469,9 +480,19 @@ const ToolGroup = memo(
 				</button>
 				{open && (
 					<div className="mt-1.5 rounded-lg border border-border bg-secondary/20 p-1.5">
-						{tools.map((tool) => (
-							<ToolRow key={tool.id} item={tool} />
-						))}
+						{group.map((item) =>
+							item.kind === "tool" ? (
+								<ToolRow key={item.id} item={item} />
+							) : (
+								// ponytail: plain text, not markdown - it's a one-line aside
+								<div
+									key={item.id}
+									className="select-text whitespace-pre-wrap px-2 py-1 text-[12px] text-muted-foreground"
+								>
+									{item.text}
+								</div>
+							),
+						)}
 					</div>
 				)}
 			</div>
@@ -479,8 +500,8 @@ const ToolGroup = memo(
 	},
 	// The array is rebuilt every render; its rows only change by reference.
 	(prev, next) =>
-		prev.tools.length === next.tools.length &&
-		prev.tools.every((tool, i) => tool === next.tools[i]),
+		prev.group.length === next.group.length &&
+		prev.group.every((item, i) => item === next.group[i]),
 );
 
 const kTokens = (n: number) => `${Math.round(n / 1000)}k`;
@@ -1171,7 +1192,7 @@ export function ChatView({
 								{opensReply ? <OdinMark /> : <span className="w-7 shrink-0" />}
 								<div className="min-w-0 flex-1">
 									{Array.isArray(segment) ? (
-										<ToolGroup tools={segment} />
+										<ToolGroup group={segment} />
 									) : (
 										<ItemView
 											item={segment}
