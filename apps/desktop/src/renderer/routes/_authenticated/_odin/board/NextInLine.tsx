@@ -318,6 +318,13 @@ export function NextInLine() {
 		pinned,
 		unpinned,
 	} = useNextInLineQueue(showHidden);
+	// Tonight's picks in pick order - the order the Night Agent starts them -
+	// so the column reads top-down the way the night runs.
+	const byKey = new Map(next.map((item) => [item.key, item]));
+	const tonight = picked.flatMap((key) => byKey.get(key) ?? []);
+	const notPicked = (item: AllItem) => !picked.includes(item.key);
+	const pinnedRest = pinned.filter(notPicked);
+	const rest = unpinned.filter(notPicked);
 	// Open hands the link to the OS: a Slack permalink goes through Slack's
 	// own hand-off into the desktop app, everything else to the browser.
 	// Same Done as every feed, so a row done here is done there and back.
@@ -373,31 +380,6 @@ export function NextInLine() {
 					>
 						<LuSettings2 className="size-3.5" aria-hidden />
 					</button>
-					{picked.length > 0 && (
-						<span
-							title="Picked for tonight - the Night Agent starts these first"
-							className="flex items-center gap-1 font-normal normal-case tracking-normal text-primary"
-						>
-							<LuMoon className="size-3" aria-hidden />
-							{picked.length}
-							<button
-								type="button"
-								onClick={() =>
-									setOffHours({
-										afterPicks: afterPicks === "stop" ? "ranked" : "stop",
-									})
-								}
-								title={
-									afterPicks === "stop"
-										? "After the picks, the Night Agent stops. Click to go on with the ranked queue."
-										: "After the picks, the Night Agent goes on with the ranked queue. Click to stop after the picks."
-								}
-								className="text-muted-foreground hover:text-foreground"
-							>
-								· then {afterPicks === "stop" ? "stop" : "ranked"}
-							</button>
-						</span>
-					)}
 					<HiddenToggle
 						count={aiHiddenCount}
 						showing={showHidden}
@@ -427,18 +409,45 @@ export function NextInLine() {
 					</div>
 				) : (
 					<>
-						{pinned.length > 0 && (
-							<div className="px-1 pt-0.5 text-[10.5px] font-semibold uppercase tracking-[.4px] text-attention">
-								Due · {pinned.length}
+						{tonight.length > 0 && (
+							<div className="flex items-center gap-1.5 px-1 pt-0.5 text-[10.5px] font-semibold uppercase tracking-[.4px] text-primary">
+								<LuMoon className="size-3" aria-hidden />
+								Tonight · {tonight.length}
+								<button
+									type="button"
+									onClick={() =>
+										setOffHours({
+											afterPicks: afterPicks === "stop" ? "ranked" : "stop",
+										})
+									}
+									title="What the Night Agent does after these. Click to switch."
+									className="ml-auto font-normal normal-case tracking-normal text-muted-foreground hover:text-foreground"
+								>
+									then {afterPicks === "stop" ? "stop" : "the rest below"}
+								</button>
 							</div>
 						)}
-						{pinned.map((item) => card(item, true))}
-						{pinned.length > 0 && unpinned.length > 0 && (
-							<div className="mt-1 border-t border-border px-1 pt-2 text-[10.5px] font-semibold uppercase tracking-[.4px] text-muted-foreground">
-								Everything else
+						{tonight.map((item) => card(item, false))}
+						{pinnedRest.length > 0 && (
+							<div
+								className={cn(
+									"px-1 text-[10.5px] font-semibold uppercase tracking-[.4px] text-attention",
+									tonight.length
+										? "mt-1 border-t border-border pt-2"
+										: "pt-0.5",
+								)}
+							>
+								Due · {pinnedRest.length}
 							</div>
 						)}
-						{unpinned.map((item) => card(item, false))}
+						{pinnedRest.map((item) => card(item, true))}
+						{(tonight.length > 0 || pinnedRest.length > 0) &&
+							rest.length > 0 && (
+								<div className="mt-1 border-t border-border px-1 pt-2 text-[10.5px] font-semibold uppercase tracking-[.4px] text-muted-foreground">
+									Everything else
+								</div>
+							)}
+						{rest.map((item) => card(item, false))}
 					</>
 				)}
 			</div>
@@ -506,11 +515,6 @@ export function NextInLine() {
 									</span>
 								)}
 								<span className="min-w-0 truncate">{meta}</span>
-								{pickIndex >= 0 && (
-									<span className="shrink-0 font-medium text-primary">
-										Night #{pickIndex + 1}
-									</span>
-								)}
 								{due && (
 									<span className="ml-auto shrink-0">
 										<DueChip
@@ -699,7 +703,7 @@ function RankStatus({
 			className="ml-auto flex shrink-0 items-center gap-1 rounded-md bg-primary/15 px-2 py-0.5 font-medium text-primary hover:bg-primary/25"
 		>
 			<LuSparkles className="size-3 text-primary" aria-hidden />
-			{applied && ranked ? "Re-rank" : "Apply AI recommendations"}
+			{applied && ranked ? "Re-sort" : "Sort with AI"}
 		</button>
 	);
 	return (
@@ -708,17 +712,17 @@ function RankStatus({
 				{applied && ranked ? (
 					<>
 						<LuSparkles className="size-3 text-primary" aria-hidden />
-						Ranked by AI
+						Sorted by AI
 						<button
 							type="button"
 							onClick={onUndo}
 							className="hover:text-foreground"
 						>
-							· back to All tasks order
+							· undo
 						</button>
 					</>
 				) : (
-					"All tasks order"
+					"Newest first"
 				)}
 				{button}
 			</div>
