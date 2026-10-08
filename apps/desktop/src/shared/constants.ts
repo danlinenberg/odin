@@ -56,7 +56,7 @@ export const NOTIFICATION_EVENTS = {
  * so a session you started by hand doesn't fall back to a background Bash you
  * can't see.
  */
-export const SHELL_RULE = `To run something for me to use or watch - the app from a worktree, a dev server - don't use a subagent or a background Bash: run it in this session's Shell in Odin, where I can see and stop it: \`curl -sf http://127.0.0.1:$ODIN_PORT/shell/run --data-urlencode paneId=$ODIN_PANE_ID --data-urlencode "command=cd <dir> && <command>"\`. Running it again replaces what's there.`;
+export const SHELL_RULE = `To run something for me to use or watch - the app from a worktree, a dev server - don't use a subagent or a background Bash: run it in this session's Shell in Odin, where I can see and stop it: \`curl -sf http://127.0.0.1:$ODIN_PORT/shell/run --data-urlencode paneId=$ODIN_PANE_ID --data-urlencode "command=cd <dir> && <command>"\`. Running it again replaces what's there. That Shell doesn't get your session's env vars and you can't read its output, so when a skill gives its own launch steps, or the command needs your env (credentials), use those steps or run it from your own Bash instead.`;
 
 /** How every Claude session in Odin writes its replies - delivered with SHELL_RULE at SessionStart. */
 export const STE_RULE =
