@@ -8,6 +8,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { LuMessageSquare } from "react-icons/lu";
 import { emojify } from "renderer/lib/emoji";
 import { runWhenParserIdle } from "renderer/lib/terminal/parser-idle-gate";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
@@ -15,8 +16,11 @@ import { coldRestoreState } from "renderer/screens/main/components/WorkspaceView
 import { Terminal } from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/Terminal";
 import * as terminalCache from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/v1-terminal-cache";
 import { useInAppBrowser } from "renderer/stores/in-app-browser";
+import { useSessionView } from "renderer/stores/session-view";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import { profileOf } from "shared/odin-profile";
+import { ChatView } from "../board/ChatView";
+import { interruptPane } from "../board/interrupt";
 import { untruncatedTitle } from "../components/OdinPromptDialog";
 import { BUTTON, PILL } from "../components/pill";
 import { useBoardColumns } from "../hooks/useBoardColumns";
@@ -27,8 +31,10 @@ import { PANE_STATUS } from "../pane-status";
 import { type HomeCard, homeCards, homeGrid } from "./home-cards";
 
 /**
- * Home - the live terminal of every session that's working or waiting on you,
- * side by side, so you can watch them all and answer one without opening it.
+ * Home - every session that's working or waiting on you, side by side and
+ * live, so you can watch them all and answer one without opening it. Each
+ * card shows its session the way the board's drawer does: as a chat, or as
+ * its terminal (Settings > Appearance).
  */
 export const Route = createFileRoute("/_authenticated/_odin/home/")({
 	component: HomePage,
@@ -99,6 +105,12 @@ function HomePage() {
 	const panes = useTabsStore((state) => state.panes);
 	const titleByPane = usePaneMeta((s) => s.titleByPane);
 	const briefByPane = usePaneMeta((s) => s.briefByPane);
+	const sessionIdByPane = usePaneMeta((s) => s.sessionIdByPane);
+	const chatView = useSessionView((s) => s.chat);
+	const setChatView = useSessionView((s) => s.setChat);
+	// The cards answering a menu in their terminal, like the drawer's
+	// terminalPaneId: the chat can't answer a TUI menu.
+	const [terminalPaneIds, setTerminalPaneIds] = useState<string[]>([]);
 	const { activeId: activeProfileId, isLoading: isProfileLoading } =
 		useOdinProfile();
 	const { daemonSessions, agentPaneIds, columnOf } = useBoardColumns({
@@ -210,21 +222,12 @@ function HomePage() {
 					const { pane, column } = card;
 					const isFocused = focused === pane.id;
 					const workspaceId = workspaceByTab.get(pane.tabId) ?? "";
+					const showsTerminal = !chatView || terminalPaneIds.includes(pane.id);
 					return (
 						<section
 							key={pane.id}
 							aria-label={title(card)}
 							style={{ order: cards.indexOf(card) }}
-							// Clicking into a terminal focuses it natively; this makes it
-							// the focused card too.
-							onFocusCapture={(event) => {
-								if (
-									(event.target as HTMLElement).classList.contains(
-										"xterm-helper-textarea",
-									)
-								)
-									setFocusedId(pane.id);
-							}}
 							className={cn(
 								"flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border bg-tertiary/85 transition-opacity",
 								isFocused ? "border-primary/50" : "border-border",
@@ -250,6 +253,26 @@ function HomePage() {
 								>
 									{PANE_STATUS[column].label}
 								</span>
+								{showsTerminal && agentPaneIds.has(pane.id) && (
+									<button
+										type="button"
+										title="Show sessions as a chat (Settings > Appearance)"
+										onClick={() =>
+											chatView
+												? setTerminalPaneIds((ids) =>
+														ids.filter((id) => id !== pane.id),
+													)
+												: setChatView(true)
+										}
+										className={cn(
+											"flex shrink-0 items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold",
+											BUTTON.secondary,
+										)}
+									>
+										<LuMessageSquare className="size-3" />
+										Chat
+									</button>
+								)}
 								<button
 									type="button"
 									title="Open this session on the Dev Board"
@@ -265,20 +288,42 @@ function HomePage() {
 									Open
 								</button>
 							</div>
-							<div className="min-h-0 flex-1 bg-background">
-								{agentPaneIds.has(pane.id) ? (
-									<CardTerminal
-										paneId={pane.id}
-										tabId={pane.tabId}
-										workspaceId={workspaceId}
-										focused={isFocused}
-									/>
-								) : (
+							{/* Clicking or tabbing into the body makes this the focused card. */}
+							<div
+								className="flex min-h-0 flex-1 flex-col bg-background"
+								onPointerDownCapture={() => setFocusedId(pane.id)}
+								onFocusCapture={() => setFocusedId(pane.id)}
+							>
+								{!agentPaneIds.has(pane.id) ? (
 									// No Claude to attach to (closed for sitting idle, or
 									// only a shell left): the drawer's history and Resume.
-									<div className="flex h-full items-center justify-center px-4 text-center text-xs text-muted-foreground">
+									<div className="flex flex-1 items-center justify-center px-4 text-center text-xs text-muted-foreground">
 										Session closed - Open it to resume.
 									</div>
+								) : showsTerminal ? (
+									<div className="min-h-0 flex-1">
+										<CardTerminal
+											paneId={pane.id}
+											tabId={pane.tabId}
+											workspaceId={workspaceId}
+											focused={isFocused}
+										/>
+									</div>
+								) : (
+									<ChatView
+										paneId={pane.id}
+										sessionId={
+											pane.claudeSessionId ?? sessionIdByPane[pane.id] ?? null
+										}
+										cwd={pane.cwd ?? pane.initialCwd ?? pane.odinCwd}
+										workspaceId={workspaceId}
+										working={pane.status === "working"}
+										onShowTerminal={() =>
+											setTerminalPaneIds((ids) => [...ids, pane.id])
+										}
+										onStop={() => interruptPane(pane.id)}
+										focusComposer={isFocused}
+									/>
 								)}
 							</div>
 						</section>

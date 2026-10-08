@@ -656,6 +656,7 @@ export function ChatView({
 	working = false,
 	onShowTerminal,
 	onStop,
+	focusComposer = true,
 }: {
 	paneId: string;
 	sessionId: string | null;
@@ -666,6 +667,8 @@ export function ChatView({
 	onShowTerminal?: () => void;
 	/** Interrupt the turn - the drawer's Interrupt, so the card leaves Working too. */
 	onStop?: () => void;
+	/** The composer takes the keyboard when this is (or turns) true. */
+	focusComposer?: boolean;
 }) {
 	const { data: home } = electronTrpc.window.getHomeDir.useQuery();
 	// Claude files the conversation under the directory it STARTED in - the
@@ -903,6 +906,7 @@ export function ChatView({
 							working={working}
 							onSent={onSent}
 							onStop={onStop}
+							autoFocus={focusComposer}
 						/>
 					)}
 				</>
@@ -945,11 +949,13 @@ function Composer({
 	working,
 	onSent,
 	onStop,
+	autoFocus,
 }: {
 	paneId: string;
 	working: boolean;
 	onSent: (text: string, previews?: Preview[]) => void;
 	onStop?: () => void;
+	autoFocus: boolean;
 }) {
 	const [draft, setDraft] = useState("");
 	// "!" on an empty box switches to bash mode, like the terminal's prompt.
@@ -958,7 +964,9 @@ function Composer({
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const write = electronTrpc.terminal.write.useMutation();
 	const setChat = useSessionView((s) => s.setChat);
-	useEffect(() => inputRef.current?.focus(), []);
+	useEffect(() => {
+		if (autoFocus) inputRef.current?.focus();
+	}, [autoFocus]);
 	// Grow with the text, up to ~10 lines, like the desktop app's box.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: re-measure on every draft change
 	useEffect(() => {
