@@ -556,6 +556,10 @@ function UserBubble({
 	images?: Preview[];
 	pending?: boolean;
 }) {
+	// A launch prompt (task + standing rules + reply format) fills the screen;
+	// show its first lines until clicked open.
+	const long = text.length > 300 || text.split("\n").length > 4;
+	const [open, setOpen] = useState(false);
 	return (
 		<div
 			className={cn(
@@ -567,7 +571,16 @@ function UserBubble({
 			{images && images.length > 0 && (
 				<PreviewStrip previews={images} className={text ? "mb-2" : ""} />
 			)}
-			{text}
+			<div className={cn(long && !open && "line-clamp-3")}>{text}</div>
+			{long && (
+				<button
+					type="button"
+					onClick={() => setOpen(!open)}
+					className="mt-1 text-[12px] text-link hover:underline"
+				>
+					{open ? "Show less" : "Show more"}
+				</button>
+			)}
 		</div>
 	);
 }
