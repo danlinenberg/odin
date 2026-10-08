@@ -563,7 +563,7 @@ function UserBubble({
 	return (
 		<div
 			className={cn(
-				"mt-5 mb-1 ml-auto max-w-[75%] select-text cursor-text whitespace-pre-wrap break-words rounded-2xl rounded-br-md border border-primary/30 bg-primary/15 px-4 py-2.5 text-[13.5px] leading-relaxed text-foreground shadow-sm first:mt-0",
+				"mt-5 mb-1 ml-auto max-w-[75%] select-text cursor-text break-words rounded-2xl rounded-br-md border border-primary/30 bg-primary/15 px-4 py-2.5 text-[13.5px] leading-relaxed text-foreground shadow-sm first:mt-0",
 				pending && "opacity-60",
 				pending && ENTER,
 			)}
@@ -571,7 +571,18 @@ function UserBubble({
 			{images && images.length > 0 && (
 				<PreviewStrip previews={images} className={text ? "mb-2" : ""} />
 			)}
-			<div className={cn(long && !open && "line-clamp-3")}>{text}</div>
+			<div className={cn(long && !open && "line-clamp-3")}>
+				{/* Typed line breaks stay: markdown would fold them into spaces. */}
+				<MarkdownRenderer
+					content={text}
+					style="default"
+					allowHtml={false}
+					className={cn(
+						COMPACT_MARKDOWN,
+						"text-[13.5px] text-foreground [&_li]:whitespace-pre-wrap [&_p]:whitespace-pre-wrap",
+					)}
+				/>
+			</div>
 			{long && (
 				<button
 					type="button"
