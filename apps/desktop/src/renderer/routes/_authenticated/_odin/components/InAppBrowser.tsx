@@ -15,6 +15,7 @@ import {
 	HiArrowTopRightOnSquare,
 	HiChevronDown,
 	HiChevronUp,
+	HiKey,
 	HiXMark,
 } from "react-icons/hi2";
 import { useZoomFactor } from "renderer/hooks/useZoomFactor";
@@ -55,6 +56,32 @@ const copyLink = (webview: WebviewTag, copyText: (text: string) => void) => {
 	copyText(webview.getURL());
 	toast("Link copied");
 };
+
+/**
+ * Fills the page's sign-in form. Values go in through the native setter and
+ * an input event, so a framework-controlled field (React) keeps them.
+ */
+const fillLoginScript = ({
+	username,
+	password,
+}: {
+	username: string;
+	password: string;
+}) => `(() => {
+	const password = document.querySelector("input[type=password]");
+	if (!password) return false;
+	const set = (el, value) => {
+		Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(el, value);
+		el.dispatchEvent(new Event("input", { bubbles: true }));
+		el.dispatchEvent(new Event("change", { bubbles: true }));
+	};
+	const user = [...document.querySelectorAll("input")].filter((el) =>
+		["", "text", "email"].includes(el.type) && el.compareDocumentPosition(password) & Node.DOCUMENT_POSITION_FOLLOWING,
+	).at(-1);
+	if (user) set(user, ${JSON.stringify(username)});
+	set(password, ${JSON.stringify(password)});
+	return true;
+})()`;
 
 /** What a page in the panel logs when Esc goes unhandled there. */
 const ESCAPE_SIGNAL = "odin:in-app-browser:escape";
@@ -242,6 +269,7 @@ export function InAppBrowser() {
 	const [resizing, setResizing] = useState(false);
 	const openExternal = electronTrpc.external.openUrl.useMutation();
 	const { mutate: copyText } = electronTrpc.external.copyText.useMutation();
+	const onePassword = electronTrpc.browser.onePasswordLogin.useMutation();
 	// Each site's first link. Its page stays loaded while the panel is
 	// closed, so the next link doesn't start the site over.
 	const [sites, setSites] = useState<Partial<Record<Site, string>>>({});
@@ -501,6 +529,33 @@ export function InAppBrowser() {
 						onClick={() => view()?.reload()}
 					>
 						<HiArrowPath className="size-4" />
+					</button>
+					<button
+						type="button"
+						title="Fill login from 1Password"
+						className={ICON_BUTTON}
+						onClick={() => {
+							const webview = view();
+							if (!webview) return;
+							onePassword.mutate(
+								{ url: webview.getURL() },
+								{
+									onSuccess: async (login) => {
+										if (!login) {
+											toast("No 1Password login for this site");
+											return;
+										}
+										const filled = await webview.executeJavaScript(
+											fillLoginScript(login),
+										);
+										if (!filled) toast("No password field on this page");
+									},
+									onError: (error) => toast(error.message),
+								},
+							);
+						}}
+					>
+						<HiKey className="size-4" />
 					</button>
 					<span
 						title={page.url}
