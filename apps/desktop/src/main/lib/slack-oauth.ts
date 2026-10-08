@@ -38,7 +38,7 @@ const USER_SCOPES = [
 	"groups:history",
 	"im:history",
 	"mpim:history",
-	// Screenshots and files in a thread a session reads (see /slack/file).
+	// Screenshots and files in a thread a session reads (see /file).
 	"files:read",
 ];
 

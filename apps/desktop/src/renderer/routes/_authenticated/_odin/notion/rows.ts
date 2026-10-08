@@ -1,7 +1,7 @@
 /** Pure row helpers for the Notion view - the parts worth a test. */
 
 import { isDoneish } from "shared/notion-status";
-import { readThroughOdin } from "../thread-prompt";
+import { readVia } from "../thread-prompt";
 
 export { isDoneish };
 
@@ -50,7 +50,7 @@ export function buildRowPrompt(
 		`Page: ${row.pageUrl}`,
 		...(fields.length > 0 ? ["", "Fields on the page:", ...fields] : []),
 		"",
-		`Read the page in full through Odin's Notion connection before changing anything: ${readThroughOdin(row.pageUrl)}`,
+		`Read the page in full before changing anything, ${readVia("Notion", row.pageUrl)}`,
 		"Then investigate, make the change, and verify it when practical.",
 		"Rules: do NOT edit the Notion page - everything stays in this session for review.",
 	].join("\n");

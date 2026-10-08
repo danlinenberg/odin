@@ -1,5 +1,5 @@
 import { resolveNotionToken } from "lib/trpc/routers/odin-config";
-import { slackThreadText } from "lib/trpc/routers/slack";
+import { slackFile, slackThreadText } from "lib/trpc/routers/slack";
 import { githubAccessToken, githubApiFetch } from "./github-token";
 import { jiraRequestContext } from "./jira-token";
 import { linkKind } from "./link-kind";
@@ -36,6 +36,28 @@ export async function readLink(url: string): Promise<string> {
 				"Odin can't read that link: not a Slack, Jira, GitHub or Notion one.",
 			);
 	}
+}
+
+/** The /file command a session downloads a listed attachment with. */
+export const fileCommand = (url: string) =>
+	`curl -sfG "http://127.0.0.1:$ODIN_PORT/file" --data-urlencode "url=${url}" -o <path>`;
+
+/**
+ * A file a /read listed - a Slack upload or a Jira attachment - fetched with
+ * Odin's token for it. Each token only ever goes to its own provider's host,
+ * whatever the url says. Null when Odin can't: not connected, or no access.
+ */
+export async function fetchFile(url: string): Promise<Response | null> {
+	if (new URL(url).hostname === "files.slack.com") return slackFile(url);
+	const jira = /\/rest\/api\/3\/attachment\/content\/(\d+)/.exec(url);
+	if (!jira) return null;
+	const ctx = await jiraRequestContext();
+	if (!ctx) return null;
+	const res = await fetch(
+		`${ctx.base}/rest/api/3/attachment/content/${jira[1]}`,
+		{ headers: { Authorization: ctx.authorization } },
+	);
+	return res.ok ? res : null;
 }
 
 const stripHtml = (html: string | null | undefined) =>
@@ -99,7 +121,10 @@ async function readJira(key: string): Promise<string> {
 			? [
 					"",
 					"Attachments:",
-					...fields.attachment.map((a) => `- ${a.filename} ${a.content}`),
+					...fields.attachment.map(
+						(a) =>
+							`- ${a.filename}: ${a.content ? fileCommand(a.content) : "(no link)"}`,
+					),
 				]
 			: []),
 		"",
@@ -234,10 +259,18 @@ async function readNotion(id: string): Promise<string> {
 			next_cursor: string | null;
 		};
 		for (const block of batch.results) {
-			const text = plain(
-				(block[block.type] as { rich_text?: RichText } | undefined)?.rich_text,
-			);
+			const body = block[block.type] as
+				| {
+						rich_text?: RichText;
+						file?: { url?: string };
+						external?: { url?: string };
+				  }
+				| undefined;
+			const text = plain(body?.rich_text);
 			if (text) lines.push(text);
+			// Images and files carry a signed link that needs no token (1h).
+			const link = body?.file?.url ?? body?.external?.url;
+			if (link) lines.push(`[${block.type}] curl -sf "${link}" -o <path>`);
 		}
 		cursor = batch.next_cursor ?? undefined;
 	} while (cursor);
