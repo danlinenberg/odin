@@ -611,16 +611,34 @@ function PreviewStrip({
 	previews: Preview[];
 	className?: string;
 }) {
+	// A click toggles one picture between thumbnail and a larger view.
+	const [enlarged, setEnlarged] = useState<string | null>(null);
 	return (
 		<div className={cn("flex flex-wrap gap-2", className)}>
 			{previews.map((preview) =>
 				typeof preview === "string" ? (
-					<img
+					<button
 						key={preview}
-						src={preview}
-						alt="Pasted"
-						className="max-h-40 max-w-60 rounded-lg border border-border object-contain"
-					/>
+						type="button"
+						onClick={() =>
+							setEnlarged((url) => (url === preview ? null : preview))
+						}
+						className={cn(
+							"block",
+							enlarged === preview ? "cursor-zoom-out" : "cursor-zoom-in",
+						)}
+					>
+						<img
+							src={preview}
+							alt="Pasted"
+							className={cn(
+								"rounded-lg border border-border object-contain",
+								enlarged === preview
+									? "max-h-[60vh] max-w-full"
+									: "max-h-40 max-w-60",
+							)}
+						/>
+					</button>
 				) : (
 					<video
 						key={preview.url}
@@ -1140,6 +1158,7 @@ function Composer({
 	// "!" on an empty box switches to bash mode, like the terminal's prompt.
 	const [bash, setBash] = useState(false);
 	const [previews, setPreviews] = useState<Preview[]>([]);
+	const [dragging, setDragging] = useState(false);
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const write = electronTrpc.terminal.write.useMutation();
 	const setChat = useSessionView((s) => s.setChat);
@@ -1186,11 +1205,42 @@ function Composer({
 	};
 	return (
 		<div className="px-4 pb-3 pt-1">
+			{/* biome-ignore lint/a11y/noStaticElementInteractions: drop zone - dragging media onto the box attaches it, the textarea stays the input */}
 			<div
 				className={cn(
 					"relative rounded-[14px] border border-border bg-background px-3 pb-2 pt-2.5 focus-within:border-primary/60",
 					bash && "border-pink-500/60 focus-within:border-pink-500",
+					dragging && "border-primary bg-primary/10",
 				)}
+				onDragOver={(event) => {
+					if (!event.dataTransfer.types.includes("Files")) return;
+					event.preventDefault();
+					setDragging(true);
+				}}
+				onDragLeave={() => setDragging(false)}
+				onDrop={(event) => {
+					if (!event.dataTransfer.types.includes("Files")) return;
+					// Stop Electron from opening a dropped file in the window.
+					event.preventDefault();
+					setDragging(false);
+					const files = [...event.dataTransfer.files];
+					const images = files.filter((f) => f.type.startsWith("image/"));
+					const videos = files.filter((f) => f.type.startsWith("video/"));
+					if (images.length === 0 && videos.length === 0) return;
+					// Dropped files have no clipboard entry, so their paths go in the draft.
+					const paths = [...images, ...videos]
+						.map((file) => window.webUtils.getPathForFile(file))
+						.filter(Boolean);
+					setDraft((text) => [text, ...paths].filter(Boolean).join(" "));
+					setPreviews((list) => [
+						...list,
+						...images.map((file) => URL.createObjectURL(file)),
+						...videos.map((file) => ({
+							url: URL.createObjectURL(file),
+							video: true as const,
+						})),
+					]);
+				}}
 			>
 				{matches.length > 0 && (
 					<div className="absolute inset-x-0 bottom-full mb-1.5 overflow-hidden rounded-[10px] border border-border bg-popover shadow-[0_12px_40px_rgba(0,0,0,0.5)]">
