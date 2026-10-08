@@ -3,8 +3,11 @@
  * @see https://www.electron.build/configuration/configuration
  */
 
+// biome-ignore lint/style/noRestrictedImports: build config, runs once before packaging - no event loop to block
+import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readdir, rm } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Configuration } from "electron-builder";
 import pkg from "./package.json";
@@ -21,6 +24,26 @@ const dmgBackgroundPath = join(
 	pkg.resources,
 	"build/installer/background.tiff",
 );
+
+// The odin-signing keychain relocks on every reboot, and a locked one makes
+// codesign pop a "wants to use the odin-signing keychain" password dialog.
+// `prebuild` unlocks it, but `bunx electron-builder` skips prebuild - so unlock
+// here, where every packaging path passes. Password is public: see
+// scripts/create-signing-identity.sh.
+const signingKeychain = join(
+	homedir(),
+	"Library/Keychains/odin-signing.keychain-db",
+);
+if (process.platform === "darwin" && existsSync(signingKeychain)) {
+	try {
+		execFileSync("/usr/bin/security", [
+			"unlock-keychain",
+			"-p",
+			"odin-signing",
+			signingKeychain,
+		]);
+	} catch {}
+}
 
 const config: Configuration = {
 	// Source maps are built for Sentry and for validate-native-runtime, both of
