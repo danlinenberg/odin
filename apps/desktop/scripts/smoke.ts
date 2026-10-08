@@ -97,7 +97,9 @@ mkdirSync(join(home, "bin"));
 writeFileSync(
 	join(home, "bin", "claude"),
 	// One file per run, named by pid (exec keeps it), moved into place whole.
-	`#!/bin/sh\nprintf '%s %s' "$ODIN_PORT" "$ODIN_PANE_ID" > "$HOME/pane-$$"\nprintf '%s\\n' "$@" > "$HOME/.claude-$$"\nmv "$HOME/.claude-$$" "$HOME/claude-$$.args"\necho "fake claude is working"\nexec sleep 600\n`,
+	// A --session-id launch leaves a transcript, like the real one: Resume
+	// refuses an id Claude never saved.
+	`#!/bin/sh\nfor a; do [ "$prev" = --session-id ] && mkdir -p "$HOME/.claude/projects/smoke" && : > "$HOME/.claude/projects/smoke/$a.jsonl"; prev=$a; done\nprintf '%s %s' "$ODIN_PORT" "$ODIN_PANE_ID" > "$HOME/pane-$$"\nprintf '%s\\n' "$@" > "$HOME/.claude-$$"\nmv "$HOME/.claude-$$" "$HOME/claude-$$.args"\necho "fake claude is working"\nexec sleep 600\n`,
 	{ mode: 0o755 },
 );
 // Sessions run in a login shell, which reads these after macOS's path_helper

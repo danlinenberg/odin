@@ -286,6 +286,29 @@ export function useLaunchTaskSession() {
 				workConfig?.odinRepoPath,
 			);
 
+			// A pinned --session-id is not proof Claude ever wrote the
+			// conversation: a card Done'd or snoozed before Claude took its prompt
+			// has none, and `claude --resume` then prints "No conversation found"
+			// and exits - a fresh pane whose whole history is that line. The board's
+			// Resume asks first; Remind me's Resume and Done's undo come through
+			// here, so ask here too.
+			if (resumeSessionId) {
+				try {
+					await utils.client.terminal.readClaudeTranscript.query({
+						sessionId: resumeSessionId,
+					});
+				} catch (error) {
+					// Only "no such conversation" is lost - an unreadable transcript
+					// still resumes.
+					if (String(error).includes("No transcript on this machine"))
+						return {
+							ok: false,
+							error:
+								"Claude never saved this conversation, so there is nothing to resume. Start the task again.",
+						};
+				}
+			}
+
 			// 0. Two gates - the Mac's headroom, and one agent at a time per
 			// checkout. Read once, and never blocking: a launch that has to
 			// wait still gets its card, and the queue runner starts the agent when
