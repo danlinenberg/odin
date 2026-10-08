@@ -91,6 +91,10 @@ class LocalTerminalRuntime implements TerminalRuntime {
 		return this.backend.clearScrollback(params);
 	};
 
+	readScreen: TerminalRuntime["readScreen"] = (params) => {
+		return this.backend.readScreen(params);
+	};
+
 	ackColdRestore: TerminalRuntime["ackColdRestore"] = (paneId) => {
 		return this.backend.ackColdRestore(paneId);
 	};

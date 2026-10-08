@@ -50,6 +50,8 @@ import {
 	type KillRequest,
 	type ListSessionsResponse,
 	PROTOCOL_VERSION,
+	type ReadScreenRequest,
+	type ReadScreenResponse,
 	type ResizeRequest,
 	type ShutdownRequest,
 	type SignalRequest,
@@ -1620,6 +1622,12 @@ export class TerminalHostClient extends EventEmitter {
 	): Promise<EmptyResponse> {
 		await this.ensureConnected();
 		return this.sendRequest<EmptyResponse>("clearScrollback", request);
+	}
+
+	/** A session's visible screen as plain text. */
+	async readScreen(request: ReadScreenRequest): Promise<ReadScreenResponse> {
+		await this.ensureConnected();
+		return this.sendRequest<ReadScreenResponse>("readScreen", request);
 	}
 
 	/**

@@ -211,6 +211,18 @@ export class HeadlessEmulator {
 		return this.terminal.buffer.active.length;
 	}
 
+	/** The visible screen as plain text, one line per row. */
+	getScreenText(): string {
+		const buffer = this.terminal.buffer.active;
+		const lines: string[] = [];
+		for (let y = 0; y < this.terminal.rows; y++) {
+			lines.push(
+				buffer.getLine(buffer.viewportY + y)?.translateToString(true) ?? "",
+			);
+		}
+		return lines.join("\n");
+	}
+
 	/**
 	 * Flush all pending writes to the terminal.
 	 * Call this before getSnapshot() if you've written data without waiting.

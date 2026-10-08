@@ -309,6 +309,14 @@ export const createTerminalRouter = () => {
 				await terminal.clearScrollback(input);
 			}),
 
+		// Odin fork: what the TUI shows right now, so the chat view can mirror
+		// a menu that never reaches the transcript.
+		readScreen: publicProcedure
+			.input(z.object({ paneId: z.string() }))
+			.query(async ({ input }) => ({
+				text: await terminal.readScreen(input),
+			})),
+
 		listDaemonSessions: publicProcedure.query(async () => {
 			const { sessions } = await terminal.management.listSessions();
 			return { sessions };

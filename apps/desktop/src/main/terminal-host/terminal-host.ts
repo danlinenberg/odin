@@ -10,6 +10,8 @@ import type {
 	KillAllRequest,
 	KillRequest,
 	ListSessionsResponse,
+	ReadScreenRequest,
+	ReadScreenResponse,
 	ResizeRequest,
 	SignalRequest,
 	WriteRequest,
@@ -338,6 +340,11 @@ export class TerminalHost {
 		const session = this.getActiveSession(request.sessionId);
 		session.clearScrollback();
 		return { success: true };
+	}
+
+	/** A session's visible screen as plain text. */
+	readScreen(request: ReadScreenRequest): ReadScreenResponse {
+		return { text: this.getActiveSession(request.sessionId).getScreenText() };
 	}
 
 	/**

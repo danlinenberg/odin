@@ -756,6 +756,21 @@ export class DaemonTerminalManager extends EventEmitter {
 		}
 	}
 
+	/**
+	 * The pane's visible screen, or null when the daemon can't say (no live
+	 * session, or a daemon from an older build without readScreen).
+	 */
+	async readScreen(params: { paneId: string }): Promise<string | null> {
+		try {
+			const { text } = await this.client.readScreen({
+				sessionId: params.paneId,
+			});
+			return text;
+		} catch {
+			return null;
+		}
+	}
+
 	async clearScrollback(params: { paneId: string }): Promise<void> {
 		const { paneId } = params;
 

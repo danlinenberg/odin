@@ -9,8 +9,9 @@ import { useCompacting } from "renderer/stores/compacting";
 import { openUrl } from "renderer/stores/in-app-browser";
 import { useSessionView } from "renderer/stores/session-view";
 import { COMPACT_MARKDOWN } from "../components/TranscriptView";
-import { PlanCard, QuestionCard } from "./ChatPrompts";
+import { PlanCard, QuestionCard, ScreenMenuCard } from "./ChatPrompts";
 import { collectRefs, linkify } from "./chat-links";
+import { parseScreenMenu } from "./screen-menu";
 
 type Item =
 	| { kind: "user"; id: string; text: string; images?: string[] }
@@ -843,8 +844,19 @@ export function ChatView({
 			toast.error(error instanceof Error ? error.message : String(error));
 		}
 		for (const ms of [300, 1000, 2500]) setTimeout(poke, ms);
+		void screen.refetch();
 	};
 	const prompt = onShowTerminal ? asking(items) : null;
+	// Menus the transcript never sees, read off the live screen.
+	const screen = electronTrpc.terminal.readScreen.useQuery(
+		{ paneId },
+		{ enabled: !!onShowTerminal && !prompt, refetchInterval: POLL_MS },
+	);
+	const screenText = onShowTerminal && !prompt ? screen.data?.text : null;
+	const screenMenu = useMemo(
+		() => (screenText ? parseScreenMenu(screenText) : null),
+		[screenText],
+	);
 	// What you just sent, shown at once - Claude writes it to the transcript a
 	// beat later, and that echo replaces it.
 	const [pending, setPending] = useState<
@@ -920,6 +932,7 @@ export function ChatView({
 			: null;
 	const starting =
 		!!onShowTerminal &&
+		!screenMenu &&
 		items.length === 0 &&
 		pending.length === 0 &&
 		(!missing || missing.startsWith("Not on disk yet"));
@@ -1037,7 +1050,26 @@ export function ChatView({
 							</div>
 						</div>
 					)}
-					{working && !prompt && !starting && (
+					{screenMenu && (
+						<div className={cn("flex min-w-0 gap-3", ENTER)}>
+							<OdinMark />
+							<div className="min-w-0 flex-1">
+								<ScreenMenuCard
+									key={`${screenMenu.title}\n${screenMenu.options.join("\n")}`}
+									menu={screenMenu}
+									onKeys={sendKeys}
+								/>
+								<button
+									type="button"
+									onClick={onShowTerminal}
+									className="mt-1.5 text-[11.5px] text-muted-foreground hover:text-foreground"
+								>
+									Answer in Terminal View instead
+								</button>
+							</div>
+						</div>
+					)}
+					{working && !prompt && !screenMenu && !starting && (
 						<div className="flex items-center gap-3 text-[12.5px] text-working">
 							{/* Odin's icon, nodding along while Claude works. */}
 							<OdinMark className="animate-[odin-nod_1.6s_ease-in-out_infinite]" />
@@ -1056,7 +1088,7 @@ export function ChatView({
 			{onShowTerminal ? (
 				<>
 					{/* While a menu waits, typed text would land in it - the card answers. */}
-					{!prompt && (
+					{!prompt && !screenMenu && (
 						<Composer
 							paneId={paneId}
 							working={working}

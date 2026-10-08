@@ -934,6 +934,11 @@ export class Session {
 		this.emulator.clear();
 	}
 
+	/** The visible screen as plain text. */
+	getScreenText(): string {
+		return this.emulator.getScreenText();
+	}
+
 	/**
 	 * Get session snapshot
 	 */

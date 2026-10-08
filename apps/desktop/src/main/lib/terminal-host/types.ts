@@ -264,6 +264,17 @@ export interface ClearScrollbackRequest {
 }
 
 /**
+ * Read a session's visible screen as plain text
+ */
+export interface ReadScreenRequest {
+	sessionId: string;
+}
+
+export interface ReadScreenResponse {
+	text: string;
+}
+
+/**
  * Shutdown the daemon gracefully
  */
 export interface ShutdownRequest {
@@ -376,5 +387,6 @@ export type RequestTypeMap = {
 	killAll: { request: KillAllRequest; response: EmptyResponse };
 	listSessions: { request: undefined; response: ListSessionsResponse };
 	clearScrollback: { request: ClearScrollbackRequest; response: EmptyResponse };
+	readScreen: { request: ReadScreenRequest; response: ReadScreenResponse };
 	shutdown: { request: ShutdownRequest; response: EmptyResponse };
 };

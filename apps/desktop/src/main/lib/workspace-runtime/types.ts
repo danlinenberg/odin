@@ -99,6 +99,9 @@ export interface TerminalSessionOperations {
 	/** Clear the scrollback buffer */
 	clearScrollback(params: { paneId: string }): void | Promise<void>;
 
+	/** The visible screen as plain text, or null when unavailable */
+	readScreen(params: { paneId: string }): Promise<string | null>;
+
 	/** Acknowledge cold restore - clears sticky cold restore info. */
 	ackColdRestore(paneId: string): void;
 

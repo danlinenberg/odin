@@ -60,6 +60,19 @@ describe("HeadlessEmulator", () => {
 		emulator.dispose();
 	});
 
+	test("getScreenText reads an alt-screen frame drawn with cursor moves", async () => {
+		// Claude Code places text with cursor-forward instead of spaces.
+		const row = (y: number, text: string) =>
+			MOVE_CURSOR(y, 1) + text.replaceAll(" ", `${CSI}1C`);
+		await emulator.writeSync(
+			`${ENTER_ALT_SCREEN}${CLEAR_SCREEN}${row(2, "  \x1b[36m❯ No, exit\x1b[0m")}${row(3, "    Yes, I accept")}`,
+		);
+		const lines = emulator.getScreenText().split("\n");
+		expect(lines).toHaveLength(24);
+		expect(lines[1]).toBe("  ❯ No, exit");
+		expect(lines[2]).toBe("    Yes, I accept");
+	});
+
 	describe("basic functionality", () => {
 		test("should initialize with default modes", () => {
 			const modes = emulator.getModes();
