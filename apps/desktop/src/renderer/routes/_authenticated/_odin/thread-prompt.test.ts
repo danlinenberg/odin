@@ -17,6 +17,12 @@ describe("buildThreadPrompt", () => {
 		);
 	});
 
+	it("reads the thread through Odin's connection, not an MCP", () => {
+		expect(buildThreadPrompt(THREAD, "hi")).toContain(
+			`/read" --data-urlencode "url=${THREAD}"`,
+		);
+	});
+
 	it("keeps its own thread link first, above any link in the message", () => {
 		const pasted =
 			"https://imagenai.slack.com/archives/C0C1GB6AHCY/p1788966541529909";

@@ -51,7 +51,8 @@ manifest*, then paste:
         "channels:history",
         "groups:history",
         "im:history",
-        "mpim:history"
+        "mpim:history",
+        "files:read"
       ]
     }
   },

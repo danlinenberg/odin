@@ -628,7 +628,10 @@ export async function slackThreadReplies(id: string): Promise<{
  * ponytail: the parent plus the newest 15 messages, 300 chars each. Enough to
  * see who had the last word and what it was; widen if judgements need more.
  */
-export async function slackConversation(id: string): Promise<string | null> {
+export async function slackConversation(
+	id: string,
+	chars = 300,
+): Promise<string | null> {
 	const token = slackToken();
 	if (!token) return null;
 	const [channel, ts] = id.split(":");
@@ -639,6 +642,7 @@ export async function slackConversation(id: string): Promise<string | null> {
 		user?: string;
 		username?: string;
 		text?: string;
+		files?: { name?: string; url_private?: string }[];
 	};
 	try {
 		const me = await getIdentity(token);
@@ -695,9 +699,15 @@ export async function slackConversation(id: string): Promise<string | null> {
 						"someone");
 			const said = (await resolveMentions(message.text ?? "", token))
 				.replace(/\s+/g, " ")
-				.slice(0, 300);
+				.slice(0, chars);
 			const mark = message.ts === ts ? " [QUEUED]" : "";
 			lines.push(`${who}${mark}: ${said}`);
+			// A session downloads these through Odin; it holds no Slack token.
+			for (const file of message.files ?? [])
+				if (file.url_private)
+					lines.push(
+						`  [file ${file.name ?? ""}] curl -sfG "http://127.0.0.1:$ODIN_PORT/slack/file" --data-urlencode "url=${file.url_private}" -o <path>`,
+					);
 		}
 		if (all.length > shown.length)
 			lines.splice(1, 0, `(… ${all.length - shown.length} earlier messages)`);
@@ -705,6 +715,34 @@ export async function slackConversation(id: string): Promise<string | null> {
 	} catch {
 		return null;
 	}
+}
+
+/**
+ * A file from a thread (a screenshot, a log), fetched with Odin's Slack token.
+ * Only files.slack.com links: the token is never sent anywhere else. Null
+ * when Slack refuses - a token from before `files:read` was asked for.
+ */
+export async function slackFile(url: string): Promise<Response | null> {
+	const token = slackToken();
+	if (!token || new URL(url).hostname !== "files.slack.com") return null;
+	const res = await fetch(url, {
+		headers: { Authorization: `Bearer ${token}` },
+	});
+	// Slack answers a missing scope with its HTML sign-in page, not a 403.
+	const type = res.headers.get("content-type") ?? "";
+	return res.ok && !type.startsWith("text/html") ? res : null;
+}
+
+/**
+ * A thread link read with Odin's own Slack token, for a session that has no
+ * Slack MCP (see main/lib/read-link.ts). Messages come whole; null when the link
+ * isn't a message or Slack won't answer.
+ */
+export function slackThreadText(url: string): Promise<string | null> {
+	const match = /\/archives\/([\w-]+)\/p(\d{10})(\d{6})/.exec(url);
+	if (!match) return Promise.resolve(null);
+	const [, channel, secs, micros] = match;
+	return slackConversation(`${channel}:${secs}.${micros}`, 4000);
 }
 
 /**
