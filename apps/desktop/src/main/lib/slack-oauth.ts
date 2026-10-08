@@ -38,6 +38,8 @@ const USER_SCOPES = [
 	"groups:history",
 	"im:history",
 	"mpim:history",
+	// Screenshots and files in a thread a session reads (see /slack/file).
+	"files:read",
 ];
 
 /** A consent screen the person abandons shouldn't be resumable forever. */

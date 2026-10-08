@@ -1,5 +1,6 @@
 import { EventEmitter } from "node:events";
 import express from "express";
+import { slackFile } from "lib/trpc/routers/slack";
 import { NOTIFICATION_EVENTS } from "shared/constants";
 import { env } from "shared/env.shared";
 import type {
@@ -180,6 +181,25 @@ app.get("/read", async (req, res) => {
 	} catch (error) {
 		res.status(502).send(`${error instanceof Error ? error.message : error}\n`);
 	}
+});
+
+/** A Slack file a /read thread lists, downloaded with Odin's Slack token. */
+app.get("/slack/file", async (req, res) => {
+	if (req.headers.origin) {
+		return res.status(403).send("Not from a browser.\n");
+	}
+	const { url } = req.query;
+	const file =
+		typeof url === "string" ? await slackFile(url).catch(() => null) : null;
+	if (!file) {
+		return res
+			.status(502)
+			.send(
+				"Odin couldn't fetch that file. Reconnect Slack in Odin's Settings > Connections to grant file access, then retry.\n",
+			);
+	}
+	res.type(file.headers.get("content-type") ?? "application/octet-stream");
+	res.send(Buffer.from(await file.arrayBuffer()));
 });
 
 // Health check
