@@ -21,6 +21,7 @@ import {
 	reviewEnded,
 	reviewedPullRequest,
 } from "../board/brief";
+import { uniqueQueries } from "./unique-queries";
 import { usePaneMeta } from "./usePaneMeta";
 
 /**
@@ -138,8 +139,9 @@ export function useBoardColumns({
 		const sessionId = panes[paneId]?.claudeSessionId ?? sessionIdByPane[paneId];
 		return sessionId ? [{ paneId, sessionId }] : [];
 	});
+	const loopSessions = uniqueQueries(loopCandidates, (c) => c.sessionId);
 	const loopQueries = electronTrpc.useQueries((t) =>
-		loopCandidates.map(({ sessionId }) =>
+		loopSessions.unique.map(({ sessionId }) =>
 			t.terminal.readClaudeTranscript(
 				{ sessionId },
 				{ retry: false, staleTime: 60_000, refetchInterval: 60_000 },
@@ -147,7 +149,7 @@ export function useBoardColumns({
 		),
 	);
 	const loopingKey = loopCandidates
-		.filter((_, i) => loopQueries[i]?.data?.loop)
+		.filter((_, i) => loopQueries[loopSessions.slot[i] ?? -1]?.data?.loop)
 		.map(({ paneId }) => paneId)
 		.join(",");
 	const loopingPaneIds = useMemo(
@@ -189,25 +191,39 @@ export function useBoardColumns({
 				]
 			: [];
 	});
-	const mergeTranscripts = electronTrpc.useQueries((t) =>
-		mergeCandidates.map(({ sessionId, live }) =>
+	// One query per conversation and per PR list, mapped back to the cards.
+	const mergeSessions = uniqueQueries(mergeCandidates, (c) => c.sessionId);
+	const liveSessionIds = new Set(
+		mergeCandidates.filter((c) => c.live).map((c) => c.sessionId),
+	);
+	const mergeTranscriptQueries = electronTrpc.useQueries((t) =>
+		mergeSessions.unique.map(({ sessionId }) =>
 			t.terminal.readClaudeTranscript(
 				{ sessionId },
 				{
 					retry: false,
 					staleTime: 60_000,
-					refetchInterval: live ? 60_000 : false,
+					refetchInterval: liveSessionIds.has(sessionId) ? 60_000 : false,
 				},
 			),
 		),
 	);
-	const mergeStateQueries = electronTrpc.useQueries((t) =>
+	const mergeTranscripts = mergeCandidates.map(
+		(_, i) => mergeTranscriptQueries[mergeSessions.slot[i] ?? -1],
+	);
+	const mergeUrlLists = uniqueQueries(
 		mergeCandidates.map(({ brief }, i) => {
 			const messages = mergeTranscripts[i]?.data?.messages ?? [];
 			const reviewed = reviewedPullRequest(brief, messages);
 			const urls = mergeCheckUrls(messages);
 			if (reviewed && !urls.includes(reviewed.url)) urls.push(reviewed.url);
-			return t.terminal.pullRequestStates(
+			return urls;
+		}),
+		(urls) => JSON.stringify(urls),
+	);
+	const mergeStateResults = electronTrpc.useQueries((t) =>
+		mergeUrlLists.unique.map((urls) =>
+			t.terminal.pullRequestStates(
 				{ urls },
 				{
 					enabled: urls.length > 0,
@@ -215,8 +231,11 @@ export function useBoardColumns({
 					staleTime: 30_000,
 					refetchInterval: 60_000,
 				},
-			);
-		}),
+			),
+		),
+	);
+	const mergeStateQueries = mergeCandidates.map(
+		(_, i) => mergeStateResults[mergeUrlLists.slot[i] ?? -1],
 	);
 	// Needs you cards only, unless `anyColumn`: Done ones are here for CI.
 	const candidateKey = (
