@@ -3,7 +3,9 @@ import {
 	actionItemList,
 	applyLines,
 	groupSummary,
+	isAnswerItem,
 	isApprovalItem,
+	itemOptions,
 	launchRequest,
 	segments,
 	splitActionItems,
@@ -198,6 +200,21 @@ describe("ChatView transcript", () => {
 		expect(isApprovalItem("**Approve** the plan")).toBe(true);
 		expect(isApprovalItem("Decide whether to approve the PR")).toBe(false);
 		expect(isApprovalItem("Approved PRs need nothing")).toBe(false);
+	});
+
+	test("an item asking you to tell Claude something gets a reply box", () => {
+		expect(isAnswerItem("Tell me the target seniority.")).toBe(true);
+		expect(isAnswerItem("**Pick** a name")).toBe(true);
+		expect(isAnswerItem("Merge PR #12")).toBe(false);
+	});
+
+	test("trailing [A | B] choices become buttons", () => {
+		expect(itemOptions("Tell me the format [CSV | shareable page].")).toEqual({
+			text: "Tell me the format",
+			options: ["CSV", "shareable page"],
+		});
+		expect(itemOptions("Open [the PR](https://x)").options).toEqual([]);
+		expect(itemOptions("Tell me the seniority.").options).toEqual([]);
 	});
 });
 

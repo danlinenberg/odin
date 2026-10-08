@@ -732,21 +732,133 @@ export function actionItemList(text: string): string[] {
 }
 
 /**
+ * An item that asks you to tell Claude something - a choice, a value, a
+ * preference. It gets a reply box instead of a bare "Do it".
+ */
+export function isAnswerItem(item: string): boolean {
+	return /^\W*(tell|answer|decide|choose|pick|confirm|let me know|say)\b/i.test(
+		item,
+	);
+}
+
+/**
+ * The choices Claude offered as a trailing "[A | B | C]", and the item without
+ * them. The launch prompt asks for that shape; no brackets means no choices.
+ */
+export function itemOptions(item: string): { text: string; options: string[] } {
+	const match = item.match(/\s*\[([^\]]*\|[^\]]*)\](?!\()\W*$/);
+	if (match?.index === undefined) return { text: item, options: [] };
+	return {
+		text: item.slice(0, match.index),
+		options: (match[1] ?? "")
+			.split("|")
+			.map((option) => option.trim())
+			.filter(Boolean),
+	};
+}
+
+type DoItem = (
+	item: string,
+	number: number,
+	approve: boolean,
+	answer?: string,
+) => void;
+
+const ACTION_BUTTON =
+	"shrink-0 rounded-md border border-attention/40 px-2 py-0.5 text-[11px] font-medium text-attention hover:bg-attention/15 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent";
+
+/** One action item: its button, number, text, and - for a question - the reply box and choices. */
+function ActionItemRow({
+	item,
+	number,
+	onDo,
+}: {
+	item: string;
+	number: number;
+	onDo: DoItem;
+}) {
+	const [sent, setSent] = useState(false);
+	const [answer, setAnswer] = useState("");
+	const { text, options } = itemOptions(item);
+	const approve = isApprovalItem(item);
+	const asks = !approve && (isAnswerItem(item) || options.length > 0);
+	const send = (reply?: string) => {
+		setSent(true);
+		onDo(text, number, approve, reply);
+	};
+	return (
+		<li className="flex items-start gap-2">
+			{/* The button leads the row - you scan for it first. */}
+			{/\(you only\)\W*$/i.test(item) && !approve && !asks ? (
+				// Claude marks what it can't do; handing it back is a dead-end turn.
+				<span className="w-[64px] shrink-0" />
+			) : (
+				<button
+					type="button"
+					title={
+						approve
+							? "Tell Claude you approve and to go ahead"
+							: asks
+								? "Send your answer to Claude"
+								: "Ask Claude to do this for you"
+					}
+					disabled={sent || (asks && !answer.trim())}
+					onClick={() => send(asks ? answer.trim() : undefined)}
+					className={cn(ACTION_BUTTON, "w-[64px]")}
+				>
+					{sent ? "Sent" : approve ? "Approve" : "Do it"}
+				</button>
+			)}
+			<span className="w-4 shrink-0 pt-px text-right text-[13px] tabular-nums text-muted-foreground">
+				{number}.
+			</span>
+			<div className="min-w-0 flex-1">
+				<MarkdownRenderer
+					content={text}
+					style="default"
+					allowHtml={false}
+					className={COMPACT_MARKDOWN}
+				/>
+				{asks && !sent && (
+					<div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+						{options.map((option) => (
+							<button
+								key={option}
+								type="button"
+								title="Send this choice to Claude"
+								onClick={() => send(option)}
+								className={ACTION_BUTTON}
+							>
+								{option}
+							</button>
+						))}
+						<input
+							value={answer}
+							onChange={(event) => setAnswer(event.target.value)}
+							onKeyDown={(event) => {
+								if (event.key === "Enter" && answer.trim()) send(answer.trim());
+							}}
+							placeholder={options.length ? "Or type your own" : "Your answer"}
+							className="min-w-[160px] flex-1 rounded-md border border-attention/30 bg-transparent px-2 py-0.5 text-[12px] outline-none placeholder:text-muted-foreground/70 focus:border-attention/60"
+						/>
+					</div>
+				)}
+			</div>
+		</li>
+	);
+}
+
+/**
  * What's on you, set apart in the board's Needs-you colour. Each item gets a
  * "Do it" button that hands it back to Claude (resuming an ended session
  * first), except the ones Claude marked "(you only)". An item asking you to
- * approve something gets "Approve" instead, which tells Claude to go ahead.
+ * approve something gets "Approve" instead, which tells Claude to go ahead. An
+ * item asking you to tell Claude something gets a reply box, plus a button per
+ * choice when Claude listed them.
  */
-function ActionItems({
-	text,
-	onDo,
-}: {
-	text: string;
-	onDo?: (item: string, number: number, approve: boolean) => void;
-}) {
+function ActionItems({ text, onDo }: { text: string; onDo?: DoItem }) {
 	// text arrives linkified from ItemView.
 	const items = onDo ? actionItemList(text) : [];
-	const [sent, setSent] = useState<Set<number>>(new Set());
 	return (
 		<div className="mt-2 rounded-xl border border-attention/35 bg-attention/[0.07] px-4 py-3">
 			<div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[.08em] text-attention">
@@ -755,47 +867,13 @@ function ActionItems({
 			{onDo && items.length > 0 ? (
 				<ol className="flex flex-col gap-1">
 					{items.map((item, index) => (
-						<li
+						<ActionItemRow
 							// biome-ignore lint/suspicious/noArrayIndexKey: the list is fixed once written
 							key={index}
-							className="flex items-start gap-2"
-						>
-							{/* The button leads the row - you scan for it first. */}
-							{/\(you only\)\W*$/i.test(item) && !isApprovalItem(item) ? (
-								// Claude marks what it can't do; handing it back is a dead-end turn.
-								<span className="w-[64px] shrink-0" />
-							) : (
-								<button
-									type="button"
-									title={
-										isApprovalItem(item)
-											? "Tell Claude you approve and to go ahead"
-											: "Ask Claude to do this for you"
-									}
-									disabled={sent.has(index)}
-									onClick={() => {
-										setSent((prev) => new Set(prev).add(index));
-										onDo(item, index + 1, isApprovalItem(item));
-									}}
-									className="w-[64px] shrink-0 rounded-md border border-attention/40 px-2 py-0.5 text-[11px] font-medium text-attention hover:bg-attention/15 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent"
-								>
-									{sent.has(index)
-										? "Sent"
-										: isApprovalItem(item)
-											? "Approve"
-											: "Do it"}
-								</button>
-							)}
-							<span className="w-4 shrink-0 pt-px text-right text-[13px] tabular-nums text-muted-foreground">
-								{index + 1}.
-							</span>
-							<MarkdownRenderer
-								content={item}
-								style="default"
-								allowHtml={false}
-								className={cn(COMPACT_MARKDOWN, "min-w-0 flex-1")}
-							/>
-						</li>
+							item={item}
+							number={index + 1}
+							onDo={onDo}
+						/>
 					))}
 				</ol>
 			) : (
@@ -820,7 +898,7 @@ const ItemView = memo(
 		refs: Map<string, string>;
 		/** Changes only when a new ref appears - the memo's cue to re-link. */
 		refsKey: string;
-		onDo?: (item: string, number: number, approve: boolean) => void;
+		onDo?: DoItem;
 	}) {
 		if (item.kind === "tool") return <ToolRow item={item} />;
 		if (item.kind === "compact") return <CompactRow item={item} />;
@@ -968,10 +1046,12 @@ export function ChatView({
 	const onResumeRef = useRef(onResumeWith);
 	onResumeRef.current = onResumeWith;
 	const doItem = useCallback(
-		(item: string, number: number, approve: boolean) => {
+		(item: string, number: number, approve: boolean, answer?: string) => {
 			const text = approve
 				? `Approved - go ahead with action item ${number}: ${item}`
-				: `Do action item ${number} for me: ${item}`;
+				: answer !== undefined
+					? `Action item ${number} (${item}): ${answer}`
+					: `Do action item ${number} for me: ${item}`;
 			if (onResumeRef.current) {
 				onResumeRef.current(text);
 				return;
