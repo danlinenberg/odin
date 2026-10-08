@@ -1,4 +1,5 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@odin/ui/tooltip";
+import { cn } from "@odin/ui/utils";
 import { useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
@@ -32,6 +33,54 @@ import {
  * 300 words of markdown. Both need reading, which is the job the panel is
  * supposed to be doing for you.
  */
+
+/**
+ * Notes you submitted, as a list to tick off once the agent is free - the
+ * question you didn't want to interrupt the current change with.
+ */
+export function MyTodos({ paneId }: { paneId: string }) {
+	const todos = usePaneMeta((s) => s.todosByPane[paneId]) ?? [];
+	const updateTodo = usePaneMeta((s) => s.updateTodo);
+	if (!todos.length) return null;
+	return (
+		<ul className="flex flex-col gap-1">
+			{todos.map((todo, i) => (
+				<li
+					// biome-ignore lint/suspicious/noArrayIndexKey: the index is the to-do's id
+					key={i}
+					className="group flex items-start gap-2 text-[12.5px] leading-relaxed"
+				>
+					<input
+						type="checkbox"
+						checked={!!todo.done}
+						onChange={(event) => updateTodo(paneId, i, event.target.checked)}
+						aria-label="Done"
+						className="mt-1 shrink-0 accent-primary"
+					/>
+					<span
+						dir="auto"
+						className={cn(
+							"min-w-0 flex-1 whitespace-pre-wrap break-words",
+							todo.done
+								? "text-faint-foreground line-through"
+								: "text-soft-foreground",
+						)}
+					>
+						{todo.text}
+					</span>
+					<button
+						type="button"
+						title="Remove to-do"
+						onClick={() => updateTodo(paneId, i)}
+						className="text-[12px] text-faint-foreground opacity-0 hover:text-danger group-hover:opacity-100"
+					>
+						×
+					</button>
+				</li>
+			))}
+		</ul>
+	);
+}
 
 function Section({
 	label,
@@ -353,6 +402,11 @@ export function SessionBrief({
 	// (debounce, save button) can lose the last words you typed.
 	const notes = usePaneMeta((s) => s.notesByPane[paneId] ?? "");
 	const setNotes = usePaneMeta((s) => s.setNotes);
+	const addTodo = usePaneMeta((s) => s.addTodo);
+	const submitNote = () => {
+		addTodo(paneId, notes);
+		setNotes(paneId, "");
+	};
 	// Links you attach yourself - the brief only finds what the transcript quotes.
 	const links = usePaneMeta((s) => s.linksByPane[paneId]) ?? [];
 	const addLink = usePaneMeta((s) => s.addLink);
@@ -988,13 +1042,30 @@ export function SessionBrief({
 					<div className="text-[10px] font-semibold uppercase tracking-[.4px] text-muted-foreground">
 						My notes
 					</div>
+					<MyTodos paneId={paneId} />
 					<textarea
 						value={notes}
 						onChange={(event) => setNotes(paneId, event.target.value)}
-						placeholder="Notes to yourself - saved as you type."
+						onKeyDown={(event) => {
+							if (event.key !== "Enter" || !(event.metaKey || event.ctrlKey))
+								return;
+							event.preventDefault();
+							submitNote();
+						}}
+						placeholder="Notes to yourself - saved as you type. ⌘Enter adds it to your to-dos."
 						rows={4}
 						className="resize-y rounded-[7px] border border-border bg-background px-2 py-1.5 text-[12.5px] leading-relaxed text-soft-foreground placeholder:text-faint-foreground focus:border-primary focus:outline-none"
 					/>
+					{notes.trim() && (
+						<button
+							type="button"
+							onClick={submitNote}
+							title="Move this note to your to-do list (⌘Enter)"
+							className="self-end text-[11px] font-semibold text-link hover:underline"
+						>
+							Add to to-dos
+						</button>
+					)}
 				</div>
 			</div>
 		</div>
