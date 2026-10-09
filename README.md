@@ -76,9 +76,12 @@ save. Logs stream to `~/.odin/dev.log`, and the run that died is kept as
 - **Node 20.11 or newer first on `PATH`.** `electron-vite` and
   `@electron/rebuild` run under it and need `import.meta.dirname`; on Node 18
   both fail with `The "path" argument must be of type string. Received undefined`.
-- **Visual Studio Build Tools** with the "Desktop development with C++" workload.
+- **Visual Studio Build Tools** with the "Desktop development with C++" workload,
+  plus the Spectre-mitigated libraries for your architecture ("MSVC ... Spectre-mitigated
+  libs" under Individual components; ARM64 on a Windows-on-ARM machine).
   `bun install` rebuilds the native modules for Electron, and several
-  (`@parcel/watcher`, `native-keymap`) have no Windows prebuild for it.
+  (`@parcel/watcher`, `native-keymap`) have no Windows prebuild for it; `node-pty`
+  fails with `MSB8040` without the Spectre libraries.
 - **A free renderer port.** The dev server insists on 5173; if another Vite app
   holds it, set `DESKTOP_VITE_PORT`.
 
