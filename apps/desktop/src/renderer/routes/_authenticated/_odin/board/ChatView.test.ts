@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
 	actionItemList,
 	applyLines,
+	elapsedLabel,
 	isAnswerItem,
 	isApprovalItem,
 	isDoneItem,
@@ -341,5 +342,31 @@ describe("toolDescription", () => {
 		expect(toolDescription({ name: "Bash", input: { command: "ls" } })).toBe(
 			"Bash ls",
 		);
+	});
+});
+
+describe("elapsedLabel", () => {
+	test("seconds, then minutes, then hours", () => {
+		expect(elapsedLabel(42_000)).toBe("42s");
+		expect(elapsedLabel(185_000)).toBe("3m 05s");
+		expect(elapsedLabel(3_720_000)).toBe("1h 02m");
+		expect(elapsedLabel(-5)).toBe("0s");
+	});
+});
+
+test("a user turn keeps when it was sent", () => {
+	const [item] = applyLines(
+		[],
+		[
+			{
+				type: "user",
+				timestamp: "2026-10-10T10:00:00Z",
+				message: { content: "hi" },
+			},
+		],
+	);
+	expect(item).toMatchObject({
+		kind: "user",
+		at: Date.parse("2026-10-10T10:00:00Z"),
 	});
 });

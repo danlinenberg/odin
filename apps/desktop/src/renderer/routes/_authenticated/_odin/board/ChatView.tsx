@@ -26,7 +26,14 @@ import { collectRefs, linkify } from "./chat-links";
 import { parseScreenMenu } from "./screen-menu";
 
 type Item =
-	| { kind: "user"; id: string; text: string; images?: string[] }
+	| {
+			kind: "user";
+			id: string;
+			text: string;
+			images?: string[];
+			/** When you sent it (ms) - a turn's start. Unset for a mid-turn queued message. */
+			at?: number;
+	  }
 	| { kind: "text"; id: string; text: string }
 	| {
 			kind: "tool";
@@ -151,10 +158,11 @@ export function applyLines(items: Item[], lines: Line[]): Item[] {
 		}
 		if (!line.message) return;
 		const content = line.message.content;
+		const at = line.timestamp ? Date.parse(line.timestamp) : undefined;
 		if (line.type === "user") {
 			if (typeof content === "string") {
 				const text = userText(content);
-				if (text) next.push({ kind: "user", id, text });
+				if (text) next.push({ kind: "user", id, text, at });
 				return;
 			}
 			// A pasted image is an image block beside "[Image #N] ..." text.
@@ -166,10 +174,10 @@ export function applyLines(items: Item[], lines: Line[]): Item[] {
 			let imagesShown = images.length === 0;
 			for (const [i, block] of (content ?? []).entries()) {
 				if (block.type === "tool_result" && block.tool_use_id) {
-					const at = toolIndex.get(block.tool_use_id);
-					const tool = at === undefined ? undefined : next[at];
-					if (at !== undefined && tool?.kind === "tool")
-						next[at] = {
+					const index = toolIndex.get(block.tool_use_id);
+					const tool = index === undefined ? undefined : next[index];
+					if (index !== undefined && tool?.kind === "tool")
+						next[index] = {
 							...tool,
 							result: blockText(block.content),
 							isError: block.is_error,
@@ -184,12 +192,13 @@ export function applyLines(items: Item[], lines: Line[]): Item[] {
 						kind: "user",
 						id: `${id}:${i}`,
 						text,
+						at,
 						...(imagesShown ? {} : { images }),
 					});
 					imagesShown = true;
 				}
 			}
-			if (!imagesShown) next.push({ kind: "user", id, text: "", images });
+			if (!imagesShown) next.push({ kind: "user", id, text: "", images, at });
 		} else if (line.type === "assistant" && Array.isArray(content)) {
 			for (const [i, block] of content.entries()) {
 				if (block.type === "text" && block.text?.trim())
@@ -576,7 +585,7 @@ function CompactRow({ item }: { item: Extract<Item, { kind: "compact" }> }) {
 	);
 }
 
-/** Seconds since a moment, ticking. */
+/** Time since a moment, ticking: "42s", then "3m 05s", then "1h 02m". */
 function Elapsed({ since }: { since: number }) {
 	const [now, setNow] = useState(Date.now);
 	useEffect(() => {
@@ -584,10 +593,18 @@ function Elapsed({ since }: { since: number }) {
 		return () => clearInterval(timer);
 	}, []);
 	return (
-		<span className="tabular-nums text-muted-foreground">
-			{Math.max(0, Math.round((now - since) / 1000))}s
+		<span className="shrink-0 tabular-nums text-muted-foreground">
+			{elapsedLabel(now - since)}
 		</span>
 	);
+}
+
+export function elapsedLabel(ms: number): string {
+	const s = Math.max(0, Math.round(ms / 1000));
+	const pad = (n: number) => String(n).padStart(2, "0");
+	if (s < 60) return `${s}s`;
+	if (s < 3600) return `${Math.floor(s / 60)}m ${pad(s % 60)}s`;
+	return `${Math.floor(s / 3600)}h ${pad(Math.floor(s / 60) % 60)}m`;
 }
 
 /** A row arriving while you watch: a short fade and rise, compositor-only. */
@@ -1145,6 +1162,11 @@ export function ChatView({
 	const running = items.findLast(
 		(item): item is Tool => item.kind === "tool" && item.result === undefined,
 	);
+	// The turn began with your last message; "Working..." counts from it.
+	const turnStart = items.findLast(
+		(item): item is Extract<Item, { kind: "user" }> =>
+			item.kind === "user" && item.at !== undefined,
+	)?.at;
 	// Menus the transcript never sees, read off the live screen.
 	const screen = electronTrpc.terminal.readScreen.useQuery(
 		{ paneId },
@@ -1415,6 +1437,7 @@ export function ChatView({
 							{compacting === null ? (
 								<>
 									<span className="shrink-0">Working…</span>
+									{turnStart !== undefined && <Elapsed since={turnStart} />}
 									{running && (
 										<span className="min-w-0 truncate font-mono text-[11.5px] text-muted-foreground">
 											{typeof running.input.command === "string"
