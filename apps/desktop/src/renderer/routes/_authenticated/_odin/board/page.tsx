@@ -3795,9 +3795,18 @@ function DevBoardPage() {
 																			event.stopPropagation();
 																			markDone(card);
 																		}}
-																		className="shrink-0 rounded-[5px] px-1.5 text-[11px] text-muted-foreground opacity-0 transition-opacity hover:bg-success/15 hover:text-success group-hover:opacity-100"
+																		className={cn(
+																			"shrink-0 whitespace-nowrap",
+																			// Final review is where a card waits for you to close it,
+																			// so Done is the always-visible green pill there.
+																			card.status === "review"
+																				? `rounded-[7px] px-2.5 py-1 text-xs font-semibold transition-colors ${BUTTON.done}`
+																				: "rounded-[5px] px-1.5 text-[11px] text-muted-foreground opacity-0 transition-opacity hover:bg-success/15 hover:text-success group-hover:opacity-100",
+																		)}
 																	>
-																		✓ done
+																		{card.status === "review"
+																			? "✓ Done"
+																			: "✓ done"}
 																	</button>
 																	<RemindButton
 																		onPick={(day) => remindMe(card, day)}
