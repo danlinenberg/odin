@@ -3362,6 +3362,17 @@ function DevBoardPage() {
 		enableOnFormTags: false,
 		enableOnContentEditable: false,
 	});
+	// ⌘⌥↑/↓ walk the drawer's session list; stops at either end.
+	const stepSession = (step: 1 | -1) => {
+		if (!drawerCard || inCatchUp) return;
+		const at = switchCards.findIndex(
+			(card) => card.pane.id === drawerCard.pane.id,
+		);
+		const card = switchCards[at + step];
+		if (card) openDrawer(card);
+	};
+	useHotkey("PREV_SESSION", () => stepSession(-1));
+	useHotkey("NEXT_SESSION", () => stepSession(1));
 
 	/** Catch up's next card (✓ Done ends this one first), or all caught up. */
 	const catchUpNext = (done: boolean) => {
