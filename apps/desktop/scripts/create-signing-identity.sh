@@ -53,6 +53,10 @@ elif [[ -n "${ODIN_SIGNING_P12:-}" ]]; then
 		-T /usr/bin/codesign -T /usr/bin/security
 	security set-key-partition-list -S apple-tool:,apple:,codesign: -s \
 		-k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null 2>&1
+elif [[ -n "${CI:-}" ]]; then
+	# A minted cert in CI is a new signature per release - the bug above. Fail.
+	echo "ODIN_SIGNING_P12 is not set - refusing to mint a cert in CI" >&2
+	exit 1
 else
 	cat >"$tmp/openssl.cnf" <<EOF
 [req]
