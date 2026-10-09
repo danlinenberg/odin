@@ -91,6 +91,11 @@ cd apps/desktop
 DESKTOP_VITE_PORT=5183 bun run dev
 ```
 
+Windows on ARM can't run it from source: `mastracode` loads `@anush008/tokenizers`,
+which has no `win32-arm64` binding, so the main process fails at load with
+`Cannot find module '@anush008/tokenizers-win32-arm64-msvc'`. The x64 installer runs
+there under emulation.
+
 Terminal daemons listen on named pipes (`\\.\pipe\odin-*`) instead of socket
 files.
 
