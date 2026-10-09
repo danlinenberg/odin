@@ -1129,6 +1129,19 @@ export function ChatView({
 		const el = scrollRef.current;
 		if (el && pinnedRef.current) el.scrollTop = el.scrollHeight;
 	}, [items, pending]);
+	// Rows also grow after they mount (code blocks, images, markdown), so a
+	// switched-to session would stop short of the bottom; follow that too.
+	const contentRef = useRef<HTMLDivElement>(null);
+	useEffect(() => {
+		const el = scrollRef.current;
+		const content = contentRef.current;
+		if (!el || !content) return;
+		const observer = new ResizeObserver(() => {
+			if (pinnedRef.current) el.scrollTop = el.scrollHeight;
+		});
+		observer.observe(content);
+		return () => observer.disconnect();
+	}, []);
 	// A live session whose first prompt hasn't reached the transcript yet: the
 	// file doesn't exist ("Not on disk yet") or holds no turn so far.
 	// Claude's PreCompact hook marked the start; the boundary it writes when
@@ -1166,7 +1179,7 @@ export function ChatView({
 				}}
 				className="min-h-0 flex-1 overflow-y-auto px-8 py-6"
 			>
-				<div className="flex flex-col gap-2.5">
+				<div ref={contentRef} className="flex flex-col gap-2.5">
 					{starting ? (
 						<div className="flex items-center gap-3 text-[12.5px] text-working">
 							<OdinMark className="animate-[odin-nod_1.6s_ease-in-out_infinite]" />
