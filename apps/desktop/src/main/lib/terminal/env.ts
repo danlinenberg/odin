@@ -77,16 +77,33 @@ export function normalizeDefaultShell(
 	return null;
 }
 
+/**
+ * Git for Windows' bash. Session commands, the agent wrappers and notify hooks
+ * are all POSIX shell (single quotes, `&&`, `source`), which cmd.exe - what
+ * COMSPEC and `default-shell` give on Windows - can't run: a session there
+ * died with `'laude'' is not recognized`. Sessions already need Git.
+ */
+export function findGitBash(): string | null {
+	const roots = [
+		process.env.ProgramW6432,
+		process.env.ProgramFiles,
+		process.env.LOCALAPPDATA && `${process.env.LOCALAPPDATA}\\Programs`,
+	];
+	for (const root of roots) {
+		const bash = root && `${root}\\Git\\bin\\bash.exe`;
+		if (bash && fs.existsSync(bash)) return bash;
+	}
+	return null;
+}
+
 export function getDefaultShell(): string {
+	if (os.platform() === "win32") {
+		return findGitBash() ?? process.env.COMSPEC ?? "powershell.exe";
+	}
+
 	const resolvedDefaultShell = normalizeDefaultShell(defaultShell);
 	if (resolvedDefaultShell) {
 		return resolvedDefaultShell;
-	}
-
-	const platform = os.platform();
-
-	if (platform === "win32") {
-		return process.env.COMSPEC || "powershell.exe";
 	}
 
 	if (process.env.SHELL) {

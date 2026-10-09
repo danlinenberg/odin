@@ -1,8 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
 	buildSafeEnv,
 	buildTerminalEnv,
 	FALLBACK_SHELL,
+	findGitBash,
 	getLocale,
 	normalizeDefaultShell,
 	removeAppEnvVars,
@@ -18,6 +22,33 @@ describe("env", () => {
 
 	afterEach(() => {
 		resetTerminalEnvCachesForTests();
+	});
+
+	describe("findGitBash", () => {
+		const roots = ["ProgramW6432", "ProgramFiles", "LOCALAPPDATA"] as const;
+		const saved = roots.map((name) => process.env[name]);
+		afterEach(() => {
+			roots.forEach((name, i) => {
+				if (saved[i] === undefined) delete process.env[name];
+				else process.env[name] = saved[i];
+			});
+		});
+
+		it("finds Git for Windows' bash under a program root, else null", () => {
+			const root = mkdtempSync(join(tmpdir(), "odin-git-bash-"));
+			delete process.env.ProgramW6432;
+			delete process.env.LOCALAPPDATA;
+			process.env.ProgramFiles = root;
+			expect(findGitBash()).toBeNull();
+
+			// The lookup builds Windows paths, so on POSIX the backslashes are
+			// part of one file name - still the exact path it checks.
+			const bash = `${root}\\Git\\bin\\bash.exe`;
+			writeFileSync(bash, "");
+			expect(findGitBash()).toBe(bash);
+			rmSync(bash, { force: true });
+			rmSync(root, { recursive: true, force: true });
+		});
 	});
 
 	describe("constants", () => {
