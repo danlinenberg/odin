@@ -2,6 +2,7 @@ import {
 	type ExecFileOptionsWithStringEncoding,
 	execFile,
 } from "node:child_process";
+import { delimiter } from "node:path";
 import { promisify } from "node:util";
 import { shellEnv } from "shell-env";
 
@@ -123,8 +124,9 @@ let fallbackBinDir: string | null = null;
 
 /** `path` with the fallback dir appended, once. */
 export function withFallbackBinDir(path: string): string {
-	if (!fallbackBinDir || path.split(":").includes(fallbackBinDir)) return path;
-	return [path, fallbackBinDir].filter(Boolean).join(":");
+	if (!fallbackBinDir || path.split(delimiter).includes(fallbackBinDir))
+		return path;
+	return [path, fallbackBinDir].filter(Boolean).join(delimiter);
 }
 
 export function setFallbackBinDir(dir: string | null): void {

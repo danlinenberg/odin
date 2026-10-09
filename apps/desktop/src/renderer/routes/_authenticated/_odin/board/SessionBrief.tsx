@@ -1052,7 +1052,7 @@ export function SessionBrief({
 							event.preventDefault();
 							submitNote();
 						}}
-						placeholder="Notes to yourself - saved as you type. ⌘Enter adds it to your to-dos."
+						placeholder={`Notes to yourself - saved as you type. ${navigator.platform.toLowerCase().includes("mac") ? "⌘Enter" : "Ctrl+Enter"} adds it to your to-dos.`}
 						rows={4}
 						className="resize-y rounded-[7px] border border-border bg-background px-2 py-1.5 text-[12.5px] leading-relaxed text-soft-foreground placeholder:text-faint-foreground focus:border-primary focus:outline-none"
 					/>
