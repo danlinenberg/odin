@@ -48,6 +48,10 @@
 		"DAN_DEFAULT_REPO",
 		"SKIP_ENV_VALIDATION",
 		"ODIN_PACKAGE",
+		// The release's one signing cert (create-signing-identity.sh). Strict env
+		// mode dropped it, so every release minted a new cert and macOS re-asked
+		// for Desktop access after each update.
+		"ODIN_SIGNING_P12",
 		// Odin: My Jira / My PRs views (read in desktop main)
 		"CLAUDE_JIRA_BASE_URL",
 		"CLAUDE_JIRA_EMAIL",
