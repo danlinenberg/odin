@@ -20,7 +20,7 @@ export const Route = createFileRoute("/_authenticated/settings/backlog/")({
 function BacklogSettingsPage() {
 	return (
 		<SettingsPage
-			title="Backlog"
+			title="Backlog & Night Agent"
 			description="Tasks nobody has started yet: how Next in line orders them, what the Night Agent works through, and how often Review re-checks them."
 		>
 			<SettingsSection
