@@ -40,7 +40,8 @@ brew trust --tap danlinenberg/odin && brew tap danlinenberg/odin && brew install
 Download **[Odin-Setup-x64.exe](https://github.com/danlinenberg/odin/releases/latest/download/Odin-Setup-x64.exe)**
 and run it. The installer is not code-signed, so SmartScreen warns on first run:
 click **More info**, then **Run anyway**. Windows has no in-app update yet - run
-the newest installer to upgrade.
+the newest installer to upgrade. Sessions need [Git for Windows](https://git-scm.com/download/win)
+on `PATH`; a fresh Windows doesn't have it.
 
 ### Upgrade
 

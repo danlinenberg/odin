@@ -1,3 +1,4 @@
+import { toast } from "@odin/ui/sonner";
 import { type ReactNode, useMemo, useRef, useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import {
@@ -13,6 +14,8 @@ import { insertSkill, matchSkills, skillToken } from "./skill-picker";
  * file already on disk (`path`).
  */
 export type PromptImage = { name: string; dataUrl?: string; path?: string };
+
+const IS_MAC = navigator.platform.toLowerCase().includes("mac");
 
 /**
  * Read a File as a data URL - the browser does the base64 for us, and unlike
@@ -125,6 +128,15 @@ export function OdinPromptDialog({
 		setIsStarting(true);
 		try {
 			await onSubmit(prompt, files, repo);
+		} catch (error) {
+			// A rejected launch used to be an unhandled rejection: the dialog just
+			// sat there. Most often it's a fresh Windows without Git.
+			const message = error instanceof Error ? error.message : String(error);
+			toast.error(
+				/spawn git ENOENT/.test(message)
+					? "Odin needs Git to start a session. Install it from git-scm.com, then restart Odin."
+					: `Couldn't start the session: ${message}`,
+			);
 		} finally {
 			setIsStarting(false);
 		}
@@ -202,7 +214,8 @@ export function OdinPromptDialog({
 				<div className="mb-2 text-xs font-semibold text-foreground">
 					{heading}
 					<span className="ml-1.5 font-normal text-muted-foreground">
-						⌘⏎ start · esc cancel · / for skills · paste or drop images/video
+						{IS_MAC ? "⌘⏎" : "Ctrl+Enter"} start · esc cancel · / for skills ·
+						paste or drop images/video
 					</span>
 				</div>
 				{note && (
