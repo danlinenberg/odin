@@ -297,25 +297,26 @@ export const HOTKEYS_REGISTRY = {
 		label: "Switch to Workspace 9",
 		category: "Workspace",
 	},
-	PREV_WORKSPACE: {
+	// A chord, so it works from the chat box and the terminal too.
+	PREV_SESSION: {
 		key: {
 			mac: "meta+alt+up",
 			windows: "ctrl+shift+alt+up",
 			linux: "ctrl+shift+alt+up",
 		},
-		label: "Previous Workspace",
-		category: "Workspace",
-		description: "Navigate to the previous workspace in the sidebar",
+		label: "Previous Session",
+		category: "Navigation",
+		description: "Open the session above in the drawer's session list",
 	},
-	NEXT_WORKSPACE: {
+	NEXT_SESSION: {
 		key: {
 			mac: "meta+alt+down",
 			windows: "ctrl+shift+alt+down",
 			linux: "ctrl+shift+alt+down",
 		},
-		label: "Next Workspace",
-		category: "Workspace",
-		description: "Navigate to the next workspace in the sidebar",
+		label: "Next Session",
+		category: "Navigation",
+		description: "Open the session below in the drawer's session list",
 	},
 	CLOSE_WORKSPACE: {
 		key: {
