@@ -2228,6 +2228,14 @@ function DevBoardPage() {
 			return false;
 		}
 	});
+	// Night Agent sessions not yet marked Done - the badge on the toggle,
+	// so a closed column still tells you the night ran.
+	const nightStarted = useTabsStore(
+		(s) =>
+			Object.values(s.panes).filter(
+				(pane) => !pane.completed && pane.odinTags?.includes("off-hours"),
+			).length,
+	);
 	const toggleNext = () => {
 		const next = !isNextOpen;
 		setIsNextOpen(next);
@@ -3509,6 +3517,18 @@ function DevBoardPage() {
 						<LuEyeOff className="size-3.5" aria-hidden />
 					)}
 					Next in line
+					{nightStarted > 0 && (
+						<span
+							title={`Night Agent started ${nightStarted} session${nightStarted === 1 ? "" : "s"} you haven't marked Done`}
+							className={cn(
+								"inline-flex items-center gap-1 rounded-[5px] px-[5px] text-[11px]",
+								PILL.brand,
+							)}
+						>
+							<LuMoon className="size-3" aria-hidden />
+							{nightStarted}
+						</span>
+					)}
 				</button>
 			</div>
 
