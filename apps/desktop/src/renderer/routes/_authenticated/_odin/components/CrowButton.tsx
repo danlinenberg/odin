@@ -20,15 +20,38 @@ const wasSeen = () => {
 /** A rail icon's size, so it sits in the rail like one. */
 const SIZE = 36;
 
-/** Odin's raven, perched: Huginn, eye lit. */
-function CrowIcon({ className = "size-6" }: { className?: string }) {
+/** Odin's raven, perched on a branch: Huginn, eye lit. */
+function CrowIcon({
+	className = "size-6",
+	idle = false,
+}: {
+	className?: string;
+	/** Now and then the branch sways and the raven hops. */
+	idle?: boolean;
+}) {
 	return (
 		<svg viewBox="0 0 24 24" className={className} aria-hidden="true">
-			<path
-				fill="currentColor"
-				d="M2.5 17.5 7 14.2C6.8 10.2 9.8 7.2 13.6 7c1-1.9 3-2.6 4.8-1.6l3.6 1-3.3 1.2c.6 2.6-.5 5.6-3.5 7.4l-2 .9 1 4.1h-1.4l-1.1-3.8-1.5.2.5 3.6H9.3l-.6-3.5Z"
-			/>
-			<circle cx="17.2" cy="6.9" r="0.75" className="fill-amber-300" />
+			<g
+				className={`[transform-origin:13px_21px] ${idle ? "animate-[huginn-sway_12s_ease-in-out_infinite]" : ""}`}
+			>
+				<path
+					fill="none"
+					stroke="currentColor"
+					strokeWidth="1.4"
+					strokeLinecap="round"
+					opacity="0.7"
+					d="M3 20.6h18M17.5 20.6l2.6-2.4"
+				/>
+				<g
+					className={`[transform-origin:11px_20px] ${idle ? "animate-[huginn-hop_12s_ease-in-out_infinite]" : ""}`}
+				>
+					<path
+						fill="currentColor"
+						d="M2.5 17.5 7 14.2C6.8 10.2 9.8 7.2 13.6 7c1-1.9 3-2.6 4.8-1.6l3.6 1-3.3 1.2c.6 2.6-.5 5.6-3.5 7.4l-2 .9 1 4.1h-1.4l-1.1-3.8-1.5.2.5 3.6H9.3l-.6-3.5Z"
+					/>
+					<circle cx="17.2" cy="6.9" r="0.75" className="fill-amber-300" />
+				</g>
+			</g>
 		</svg>
 	);
 }
@@ -335,7 +358,8 @@ export function CrowButton({
 						onClick={open ? onClose : onOpen}
 					>
 						<CrowIcon
-							className={`size-[19px] drop-shadow-[0_0_5px_rgba(167,139,250,0.6)] ${working ? "animate-[odin-nod_1.6s_ease-in-out_infinite]" : "animate-[huginn-hop_12s_ease-in-out_infinite]"} motion-reduce:animate-none`}
+							className={`size-[19px] drop-shadow-[0_0_5px_rgba(167,139,250,0.6)] ${working ? "animate-[odin-nod_1.6s_ease-in-out_infinite]" : ""} motion-reduce:[&_*]:animate-none motion-reduce:animate-none`}
+							idle={!working}
 						/>
 						{!seen && !open && (
 							<span className="pointer-events-none absolute -inset-0.5 rounded-[11px] border-2 border-violet-400 animate-[huginn-ring_2.4s_ease-out_infinite] motion-reduce:animate-none" />
