@@ -602,11 +602,32 @@ export function actionItems(messages: BriefMessage[]): string[] {
 	const last = messages.findLast((m) => m.role === "assistant")?.text ?? "";
 	const at = last.toUpperCase().lastIndexOf("ACTION ITEMS");
 	if (at < 0) return [];
-	return last
-		.slice(at + "ACTION ITEMS".length)
-		.split("\n")
-		.map((line) => line.match(/^\s*(?:\d+[.)]|[-*])\s+(.+)/)?.[1]?.trim())
-		.filter((item): item is string => !!item);
+	return actionItemLines(last.slice(at + "ACTION ITEMS".length));
+}
+
+/**
+ * The numbered or bulleted lines of an ACTION ITEMS block. An item with
+ * indented sub-items is a heading ("Still waiting:"), not an item: each
+ * sub-item becomes one, carrying the heading so it reads alone.
+ */
+export function actionItemLines(block: string): string[] {
+	const items: { text: string; heading: boolean; child: boolean }[] = [];
+	let base = -1;
+	for (const line of block.split("\n")) {
+		const m = line.match(/^(\s*)(?:\d+[.)]|[-*])\s+(.+)/);
+		if (!m?.[2]) continue;
+		const indent = m[1]?.length ?? 0;
+		const text = m[2].trim();
+		const parent = items.findLast((i) => !i.child);
+		if (base < 0 || indent <= base || !parent) {
+			base = base < 0 ? indent : Math.min(base, indent);
+			items.push({ text, heading: false, child: false });
+			continue;
+		}
+		parent.heading = true;
+		items.push({ text: `${parent.text} ${text}`, heading: false, child: true });
+	}
+	return items.filter((i) => !i.heading).map((i) => i.text);
 }
 
 // "Merge PR #12", "Review and merge #12", "Get repo#12 merged" - a merge is the

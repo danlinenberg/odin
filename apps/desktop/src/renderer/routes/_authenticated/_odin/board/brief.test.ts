@@ -566,6 +566,20 @@ describe("actionItems", () => {
 			]),
 		).toEqual(["Merge #12", "Restart Odin dev", "Check it"]);
 	});
+	it("turns a heading's sub-items into items that carry it", () => {
+		expect(
+			actionItems([
+				turn(
+					"ACTION ITEMS\n1. **You:** Merge #26\n2. **Still waiting:**\n   - your OK on the PR\n   - your pick\n3. Restart",
+				),
+			]),
+		).toEqual([
+			"**You:** Merge #26",
+			"**Still waiting:** your OK on the PR",
+			"**Still waiting:** your pick",
+			"Restart",
+		]);
+	});
 	it("gives nothing for none or a missing section", () => {
 		expect(
 			actionItems([turn("Done.\n\nACTION ITEMS: none - shipped.")]),
