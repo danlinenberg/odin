@@ -40,7 +40,7 @@ function CrowIcon({ className = "size-6" }: { className?: string }) {
 	);
 }
 
-const PANEL_W = 340;
+const PANEL_W = 300;
 /** Wider and taller once there's a conversation to read. */
 const CHAT_W = 440;
 const CHAT_H = 560;
@@ -114,11 +114,11 @@ function CrowPanel({
 	const name = firstName();
 	const header = (
 		<div className="flex items-center gap-3">
-			<span className="relative flex size-8 items-center justify-center">
+			<span className="relative flex size-6 items-center justify-center">
 				<span className="absolute inset-0 rounded-full bg-violet-500/60 blur-md" />
-				<CrowIcon className="relative size-7" />
+				<CrowIcon className="relative size-5" />
 			</span>
-			<span className="text-[17px] font-semibold">Crow</span>
+			<span className="text-[13.5px] font-semibold">Crow</span>
 			{conversation && (
 				<span className="ml-auto flex gap-1">
 					<button
@@ -154,7 +154,7 @@ function CrowPanel({
 				}}
 				className="fixed z-50 flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#1c1c1f] text-white shadow-2xl shadow-black/50"
 			>
-				<div className="border-b border-white/10 px-5 py-3">{header}</div>
+				<div className="border-b border-white/10 px-4 py-2.5">{header}</div>
 				<CrowChat pane={conversation} onShowOnBoard={onShowOnBoard} />
 			</div>
 		);
@@ -163,21 +163,21 @@ function CrowPanel({
 		<div
 			ref={panel}
 			style={{ left: Math.max(left, 8), bottom, width }}
-			className="fixed z-50 flex max-h-[80vh] flex-col gap-5 rounded-2xl border border-white/10 bg-[#1c1c1f] p-6 text-white shadow-2xl shadow-black/50"
+			className="fixed z-50 flex max-h-[80vh] flex-col gap-3.5 rounded-xl border border-white/10 bg-[#1c1c1f] p-4 text-white shadow-2xl shadow-black/50"
 		>
 			{header}
-			<div className="text-[17px] leading-snug">
+			<div className="text-[14px] leading-snug">
 				<div className="font-semibold">Hi{name && ` ${name}`},</div>
 				<div className="text-white/85">How can I help you today?</div>
 			</div>
-			<div className="flex flex-col gap-3">
+			<div className="flex flex-col gap-2">
 				{SUGGESTIONS.map((ask) => (
 					<button
 						key={ask}
 						type="button"
 						disabled={sending}
 						onClick={() => void send(ask)}
-						className="flex items-start gap-3 text-left text-[14px] text-indigo-300 hover:text-indigo-200"
+						className="flex items-start gap-2 text-left text-[12.5px] text-indigo-300 hover:text-indigo-200"
 					>
 						<span aria-hidden="true">↳</span>
 						{ask}
@@ -204,7 +204,7 @@ function CrowPanel({
 					e.preventDefault();
 					void send(text);
 				}}
-				className="flex items-center gap-2 rounded-full bg-white/10 py-1.5 pl-4 pr-1.5"
+				className="flex items-center gap-2 rounded-full bg-white/10 py-1 pl-3.5 pr-1"
 			>
 				<input
 					// biome-ignore lint/a11y/noAutofocus: the panel only opens on an explicit click, and typing is the next step
@@ -221,13 +221,13 @@ function CrowPanel({
 						setFiles((current) => [...current, ...read]);
 					}}
 					placeholder="Got a job for me?"
-					className="min-w-0 flex-1 bg-transparent text-[14px] text-white outline-none placeholder:text-white/45"
+					className="min-w-0 flex-1 bg-transparent text-[12.5px] text-white outline-none placeholder:text-white/45"
 				/>
 				<button
 					type="submit"
 					aria-label="Send"
 					disabled={sending || (!text.trim() && files.length === 0)}
-					className="flex size-7 shrink-0 items-center justify-center rounded-full bg-white/15 text-white transition-colors hover:bg-white/25 disabled:opacity-40"
+					className="flex size-6 shrink-0 items-center justify-center rounded-full bg-white/15 text-white transition-colors hover:bg-white/25 disabled:opacity-40"
 				>
 					↑
 				</button>
