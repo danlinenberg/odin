@@ -4359,6 +4359,14 @@ function DevBoardPage() {
 																{cardTitle(card)}
 															</span>
 														)}
+														{!isSwitchListMin && card.pane.odinStarred && (
+															<span
+																title="Starred"
+																className="ml-auto shrink-0 text-attention"
+															>
+																★
+															</span>
+														)}
 													</button>
 												</HoverCardTrigger>
 												<HoverCardContent
