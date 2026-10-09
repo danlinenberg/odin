@@ -991,6 +991,7 @@ export function ChatView({
 	onShowTerminal,
 	onStop,
 	onResumeWith,
+	noTerminal = false,
 }: {
 	paneId: string;
 	sessionId: string | null;
@@ -1003,6 +1004,8 @@ export function ChatView({
 	onStop?: () => void;
 	/** Ended session: resume it with this as the opening message. */
 	onResumeWith?: (text: string) => void;
+	/** Hide the links to the terminal view (the crow's panel has none). */
+	noTerminal?: boolean;
 }) {
 	const { data: home } = electronTrpc.window.getHomeDir.useQuery();
 	// Claude files the conversation under the directory it STARTED in - the
@@ -1187,13 +1190,15 @@ export function ChatView({
 							{/* Before its first turn the CLI can stop on a terminal-only
 							    prompt (folder trust, bypass-permissions warning) that no
 							    transcript ever shows. */}
-							<button
-								type="button"
-								onClick={onShowTerminal}
-								className="text-[11.5px] text-muted-foreground hover:text-foreground"
-							>
-								Stuck? Show terminal
-							</button>
+							{!noTerminal && (
+								<button
+									type="button"
+									onClick={onShowTerminal}
+									className="text-[11.5px] text-muted-foreground hover:text-foreground"
+								>
+									Stuck? Show terminal
+								</button>
+							)}
 						</div>
 					) : (
 						missing &&
@@ -1274,13 +1279,15 @@ export function ChatView({
 										onKeys={sendKeys}
 									/>
 								)}
-								<button
-									type="button"
-									onClick={onShowTerminal}
-									className="mt-1.5 text-[11.5px] text-muted-foreground hover:text-foreground"
-								>
-									Answer in Terminal View instead
-								</button>
+								{!noTerminal && (
+									<button
+										type="button"
+										onClick={onShowTerminal}
+										className="mt-1.5 text-[11.5px] text-muted-foreground hover:text-foreground"
+									>
+										Answer in Terminal View instead
+									</button>
+								)}
 							</div>
 						</div>
 					)}
@@ -1293,13 +1300,15 @@ export function ChatView({
 									menu={screenMenu}
 									onKeys={sendKeys}
 								/>
-								<button
-									type="button"
-									onClick={onShowTerminal}
-									className="mt-1.5 text-[11.5px] text-muted-foreground hover:text-foreground"
-								>
-									Answer in Terminal View instead
-								</button>
+								{!noTerminal && (
+									<button
+										type="button"
+										onClick={onShowTerminal}
+										className="mt-1.5 text-[11.5px] text-muted-foreground hover:text-foreground"
+									>
+										Answer in Terminal View instead
+									</button>
+								)}
 							</div>
 						</div>
 					)}
@@ -1328,6 +1337,7 @@ export function ChatView({
 							working={working}
 							onSent={onSent}
 							onStop={onStop}
+							noTerminal={noTerminal}
 						/>
 					)}
 				</>
@@ -1370,11 +1380,13 @@ function Composer({
 	working,
 	onSent,
 	onStop,
+	noTerminal,
 }: {
 	paneId: string;
 	working: boolean;
 	onSent: (text: string, previews?: Preview[]) => void;
 	onStop?: () => void;
+	noTerminal: boolean;
 }) {
 	const [draft, setDraft] = useState("");
 	// "!" on an empty box switches to bash mode, like the terminal's prompt.
@@ -1586,15 +1598,17 @@ function Composer({
 					/>
 				</div>
 				<div className="mt-1.5 flex items-center gap-2">
-					<button
-						type="button"
-						title="Show sessions as their terminal (Settings > Appearance)"
-						onClick={() => setChat(false)}
-						className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-secondary hover:text-foreground"
-					>
-						<LuSquareTerminal className="size-3.5" />
-						Terminal View
-					</button>
+					{!noTerminal && (
+						<button
+							type="button"
+							title="Show sessions as their terminal (Settings > Appearance)"
+							onClick={() => setChat(false)}
+							className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-secondary hover:text-foreground"
+						>
+							<LuSquareTerminal className="size-3.5" />
+							Terminal View
+						</button>
+					)}
 					{bash ? (
 						<span className="text-[11px] text-pink-500">
 							Bash mode · Backspace on empty to exit
