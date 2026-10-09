@@ -604,11 +604,12 @@ function UserBubble({
 	pending?: boolean;
 }) {
 	// A launch prompt (task + standing rules + reply format) fills the screen;
-	// show just the request you typed until clicked open.
+	// show just the request you typed, and Odin's part only on its own button.
 	const request = launchRequest(text);
-	const long =
-		request !== null || text.length > 300 || text.split("\n").length > 4;
 	const [open, setOpen] = useState(false);
+	const [full, setFull] = useState(false);
+	const shown = full || request === null ? text : request;
+	const long = shown.length > 300 || shown.split("\n").length > 4;
 	return (
 		<div
 			className={cn(
@@ -623,7 +624,7 @@ function UserBubble({
 			<div className={cn(long && !open && "line-clamp-3")}>
 				{/* Typed line breaks stay: markdown would fold them into spaces. */}
 				<MarkdownRenderer
-					content={open || request === null ? text : request}
+					content={shown}
 					style="default"
 					allowHtml={false}
 					className={cn(
@@ -632,18 +633,27 @@ function UserBubble({
 					)}
 				/>
 			</div>
-			{long && (
-				<button
-					type="button"
-					onClick={() => setOpen(!open)}
-					className="mt-1 text-[12px] text-link hover:underline"
-				>
-					{open
-						? "Show less"
-						: request === null
-							? "Show more"
-							: "Show full prompt"}
-				</button>
+			{(long || request !== null) && (
+				<div className="mt-1 flex gap-3 text-[12px]">
+					{long && (
+						<button
+							type="button"
+							onClick={() => setOpen(!open)}
+							className="text-link hover:underline"
+						>
+							{open ? "Show less" : "Show more"}
+						</button>
+					)}
+					{request !== null && (
+						<button
+							type="button"
+							onClick={() => setFull(!full)}
+							className="text-link hover:underline"
+						>
+							{full ? "Hide Odin's prompt" : "Show Odin's prompt"}
+						</button>
+					)}
+				</div>
 			)}
 		</div>
 	);
