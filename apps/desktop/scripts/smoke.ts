@@ -570,14 +570,14 @@ await step("Settings is exactly its six screens, and each opens", async () => {
 	await waitForText("waiting on you");
 });
 
-await step("the crow opens its panel in place", async () => {
+await step("Hugin opens its panel in place", async () => {
 	await rail("Dev Board");
 	await waitForText("next in line");
-	await click("button", "Ask the crow");
+	await click("button", "Ask Hugin");
 	// The left-open conversation's Claude died with the last run, so the panel
 	// greets; asking would resume it there.
 	await waitForText("how can i help you today?");
-	await click("button", "Ask the crow");
+	await click("button", "Ask Hugin");
 	await waitForText("how can i help you today?", false);
 });
 

@@ -1,3 +1,4 @@
+import { Tooltip, TooltipContent, TooltipTrigger } from "@odin/ui/tooltip";
 import { useEffect, useRef, useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useTabsStore } from "renderer/stores/tabs/store";
@@ -8,7 +9,7 @@ import { ChatView } from "../board/ChatView";
 import { endSession } from "../hooks/useDone";
 import { type PromptImage, readFile } from "./OdinPromptDialog";
 
-/** Where you dragged the crow; null = its default, low on the left. */
+/** Where you dragged Hugin; null = its slot at the bottom of the rail. */
 const useCrowPosition = create<{
 	pos: { x: number; y: number } | null;
 	setPos: (pos: { x: number; y: number }) => void;
@@ -22,12 +23,12 @@ const useCrowPosition = create<{
 const SIZE = 36;
 /** The rail's width - the crow's default spot is centred in it. */
 const RAIL_W = 52;
-/** Above the rail's bottom three icons (Insights, History, Settings). */
-const RAIL_BOTTOM = 10 + 3 * (SIZE + 6);
+/** The rail's bottom padding: Hugin's slot is the last one, under Settings. */
+const RAIL_BOTTOM = 10;
 /** A press that moves less than this is a click, not a drag. */
 const DRAG_PX = 4;
 
-/** Odin's raven, perched: Huginn or Muninn, eye lit. */
+/** Odin's raven, perched: Hugin, eye lit. */
 function CrowIcon({ className = "size-6" }: { className?: string }) {
 	return (
 		<svg viewBox="0 0 24 24" className={className} aria-hidden="true">
@@ -118,7 +119,7 @@ function CrowPanel({
 				<span className="absolute inset-0 rounded-full bg-violet-500/60 blur-md" />
 				<CrowIcon className="relative size-5" />
 			</span>
-			<span className="text-[13.5px] font-semibold">Crow</span>
+			<span className="text-[13.5px] font-semibold">Hugin</span>
 			{conversation && (
 				<span className="ml-auto flex gap-1">
 					<button
@@ -259,6 +260,7 @@ function CrowChat({
 				workspaceId={workspaceId}
 				working={pane.status === "working"}
 				noTerminal
+				placeholder="Tell Hugin what Odin should do"
 				onShowTerminal={() => onShowOnBoard(pane.id)}
 				onStop={() => {
 					// The drawer's Interrupt: Ctrl+C, and out of Working now - Claude
@@ -314,53 +316,66 @@ export function CrowButton({
 	/** Set once a press moves - the click that ends a drag doesn't open. */
 	const dragged = useRef(false);
 	// Clamped, so a smaller window never strands it off-screen.
-	const x = Math.min(
-		Math.max(pos?.x ?? (RAIL_W - SIZE) / 2, 0),
-		window.innerWidth - SIZE,
-	);
-	const y = Math.min(
-		Math.max(pos?.y ?? window.innerHeight - SIZE - RAIL_BOTTOM, 0),
-		window.innerHeight - SIZE,
-	);
+	// Dropped back on the rail, it docks in its slot again.
+	const docked = !pos || pos.x < RAIL_W - SIZE / 2;
+	const x = docked
+		? (RAIL_W - SIZE) / 2
+		: Math.min(Math.max(pos.x, 0), window.innerWidth - SIZE);
+	const y = docked
+		? window.innerHeight - SIZE - RAIL_BOTTOM
+		: Math.min(Math.max(pos.y, 0), window.innerHeight - SIZE);
 
 	return (
 		<>
-			<button
-				type="button"
-				data-crow
-				aria-label="Ask the crow"
-				title={`Ask the crow - anything, or tell it what to do in Odin${keys ? ` (${keys})` : ""}. Drag to move.`}
-				style={{ left: x, top: y, width: SIZE, height: SIZE }}
-				className={`fixed z-40 flex touch-none items-center justify-center rounded-[9px] transition-colors active:cursor-grabbing ${open ? "bg-violet-500/20 text-violet-200" : "text-muted-foreground hover:text-foreground"}`}
-				onPointerDown={(e) => {
-					e.currentTarget.setPointerCapture(e.pointerId);
-					dragged.current = false;
-					press.current = {
-						x: e.clientX,
-						y: e.clientY,
-						dx: e.clientX - x,
-						dy: e.clientY - y,
-					};
-				}}
-				onPointerMove={(e) => {
-					const start = press.current;
-					if (!start) return;
-					const moved =
-						Math.abs(e.clientX - start.x) + Math.abs(e.clientY - start.y);
-					if (!dragged.current && moved < DRAG_PX) return;
-					dragged.current = true;
-					setPos({ x: e.clientX - start.dx, y: e.clientY - start.dy });
-				}}
-				onPointerUp={() => {
-					press.current = null;
-				}}
-				onClick={() => {
-					if (!dragged.current) (open ? onClose : onOpen)();
-					dragged.current = false;
-				}}
-			>
-				<CrowIcon className="size-[19px] drop-shadow-[0_0_5px_rgba(167,139,250,0.6)]" />
-			</button>
+			<Tooltip delayDuration={300}>
+				<TooltipTrigger asChild>
+					<button
+						type="button"
+						data-crow
+						aria-label="Ask Hugin"
+						style={{ left: x, top: y, width: SIZE, height: SIZE }}
+						className={`fixed z-40 flex touch-none items-center justify-center rounded-[9px] transition-colors active:cursor-grabbing ${open ? "bg-violet-500/20 text-violet-200" : "text-muted-foreground hover:text-foreground"}`}
+						onPointerDown={(e) => {
+							e.currentTarget.setPointerCapture(e.pointerId);
+							dragged.current = false;
+							press.current = {
+								x: e.clientX,
+								y: e.clientY,
+								dx: e.clientX - x,
+								dy: e.clientY - y,
+							};
+						}}
+						onPointerMove={(e) => {
+							const start = press.current;
+							if (!start) return;
+							const moved =
+								Math.abs(e.clientX - start.x) + Math.abs(e.clientY - start.y);
+							if (!dragged.current && moved < DRAG_PX) return;
+							dragged.current = true;
+							setPos({ x: e.clientX - start.dx, y: e.clientY - start.dy });
+						}}
+						onPointerUp={() => {
+							press.current = null;
+						}}
+						onClick={() => {
+							if (!dragged.current) (open ? onClose : onOpen)();
+							dragged.current = false;
+						}}
+					>
+						<CrowIcon className="size-[19px] drop-shadow-[0_0_5px_rgba(167,139,250,0.6)]" />
+					</button>
+				</TooltipTrigger>
+				{!open && (
+					<TooltipContent side="right" className="max-w-[240px]">
+						<div className="font-semibold">
+							Hugin, Odin's raven{keys && ` (${keys})`}
+						</div>
+						<div className="text-muted-foreground">
+							Give it instructions for Odin, or ask it anything. Drag to move.
+						</div>
+					</TooltipContent>
+				)}
+			</Tooltip>
 			{open && (
 				<CrowPanel
 					anchor={{ x, y }}

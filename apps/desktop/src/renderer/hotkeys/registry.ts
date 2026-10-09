@@ -166,9 +166,10 @@ export const HOTKEYS_REGISTRY = {
 			windows: L("ctrl+shift+alt+i"),
 			linux: L("ctrl+shift+alt+i"),
 		},
-		label: "Ask the Crow",
+		label: "Ask Hugin",
 		category: "Navigation",
-		description: "Ask Odin's own agent anything, or tell it what to do in Odin",
+		description:
+			"Odin's raven: give it instructions for Odin, or ask it anything",
 	},
 	// ⌘L, where a browser's address bar would be.
 	ODIN_COPY_LINK: {

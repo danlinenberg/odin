@@ -613,6 +613,8 @@ function OdinShell() {
 					{renderRailItem(INSIGHTS_ITEM)}
 					{renderRailItem(HISTORY_ITEM)}
 					{renderRailItem(SETTINGS_ITEM)}
+					{/* Hugin's slot: CrowButton floats over it so it can be dragged off. */}
+					<div className="size-9 shrink-0" />
 				</div>
 
 				{/* `relative`: the page drawers anchor to this area, not the viewport,
