@@ -27,7 +27,7 @@ export const SCREENS = [
 	},
 	{
 		to: "/settings/backlog",
-		label: "Backlog",
+		label: "Backlog & Night Agent",
 		hint: "Next in line, Night Agent, Review",
 		icon: LuListOrdered,
 	},

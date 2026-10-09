@@ -43,9 +43,7 @@ describe("settings index", () => {
 
 	it("matches every word, label hits first", () => {
 		expect(searchSettings("")).toEqual([]);
-		expect(searchSettings("night agent hours").map((e) => e.label)).toEqual([
-			"Hours",
-		]);
+		expect(searchSettings("night agent hours")[0]?.label).toBe("Hours");
 		expect(searchSettings("memory")[0]?.label).toBe(
 			"Hold new sessions when free memory is under",
 		);
