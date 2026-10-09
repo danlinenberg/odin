@@ -485,21 +485,27 @@
 	}
 }
 
-/* Hugin, now and then: a hop and a head tilt, then 19s of stillness. */
-@keyframes hugin-hop {
+/* Huginn, now and then: two hops and a head tilt, then ~10s of stillness. */
+@keyframes huginn-hop {
 	0%,
-	6%,
+	12%,
 	100% {
 		transform: translateY(0) rotate(0);
 	}
-	1.5% {
-		transform: translateY(-3px) rotate(-10deg);
+	2% {
+		transform: translateY(-5px) rotate(-12deg);
 	}
-	3% {
+	4% {
 		transform: translateY(0) rotate(0);
 	}
-	4.5% {
-		transform: translateY(0) rotate(8deg);
+	6% {
+		transform: translateY(-3px) rotate(-6deg);
+	}
+	8% {
+		transform: translateY(0) rotate(0);
+	}
+	10% {
+		transform: translateY(0) rotate(10deg);
 	}
 }
 

@@ -7,10 +7,20 @@ import { ChatView } from "../board/ChatView";
 import { endSession } from "../hooks/useDone";
 import { type PromptImage, readFile } from "./OdinPromptDialog";
 
+/** Set once Huginn's panel has been opened; until then it asks to be tried. */
+const SEEN_KEY = "odin-huginn-seen";
+const wasSeen = () => {
+	try {
+		return localStorage.getItem(SEEN_KEY) === "1";
+	} catch {
+		return true;
+	}
+};
+
 /** A rail icon's size, so it sits in the rail like one. */
 const SIZE = 36;
 
-/** Odin's raven, perched: Hugin, eye lit. */
+/** Odin's raven, perched: Huginn, eye lit. */
 function CrowIcon({ className = "size-6" }: { className?: string }) {
 	return (
 		<svg viewBox="0 0 24 24" className={className} aria-hidden="true">
@@ -106,7 +116,7 @@ function CrowPanel({
 				<span className="absolute inset-0 rounded-full bg-violet-500/60 blur-md" />
 				<CrowIcon className="relative size-5" />
 			</span>
-			<span className="text-[13.5px] font-semibold">Hugin</span>
+			<span className="text-[13.5px] font-semibold">Huginn</span>
 			{conversation && (
 				<span className="ml-auto flex gap-1">
 					<button
@@ -257,7 +267,7 @@ function CrowChat({
 }
 
 /**
- * Hugin: the last icon in the rail, under Settings. Opens Odin's own agent
+ * Huginn: the last icon in the rail, under Settings. Opens Odin's own agent
  * in a panel beside it.
  */
 export function CrowButton({
@@ -302,23 +312,37 @@ export function CrowButton({
 			useTabsStore.getState().setPaneStatus(conversation.id, "idle");
 	}, [open, conversation]);
 	const rect = open ? button.current?.getBoundingClientRect() : undefined;
+	// Never opened: a dot, and the tooltip stays up to say how to use it.
+	const [seen, setSeen] = useState(wasSeen);
+	const [hover, setHover] = useState(false);
+	useEffect(() => {
+		if (!open || seen) return;
+		setSeen(true);
+		try {
+			localStorage.setItem(SEEN_KEY, "1");
+		} catch {}
+	}, [open, seen]);
 
 	return (
 		<>
-			<Tooltip delayDuration={300}>
+			<Tooltip
+				delayDuration={300}
+				open={!open && (hover || !seen)}
+				onOpenChange={setHover}
+			>
 				<TooltipTrigger asChild>
 					<button
 						type="button"
 						data-crow
-						aria-label="Ask Hugin"
+						aria-label="Ask Huginn"
 						ref={button}
 						className={`relative flex size-9 items-center justify-center rounded-[9px] transition-colors ${open ? "bg-violet-500/20 text-violet-200" : "text-muted-foreground hover:text-foreground"}`}
 						onClick={open ? onClose : onOpen}
 					>
 						<CrowIcon
-							className={`size-[19px] drop-shadow-[0_0_5px_rgba(167,139,250,0.6)] ${working ? "animate-[odin-nod_1.6s_ease-in-out_infinite]" : "animate-[hugin-hop_20s_ease-in-out_infinite]"} motion-reduce:animate-none`}
+							className={`size-[19px] drop-shadow-[0_0_5px_rgba(167,139,250,0.6)] ${working ? "animate-[odin-nod_1.6s_ease-in-out_infinite]" : "animate-[huginn-hop_12s_ease-in-out_infinite]"} motion-reduce:animate-none`}
 						/>
-						{(working || waiting) && !open && (
+						{(working || waiting || !seen) && !open && (
 							<span
 								className={`absolute right-1 top-1 size-2 rounded-full ring-2 ring-tertiary ${working ? "animate-pulse bg-working" : "bg-attention"}`}
 							/>
@@ -328,14 +352,16 @@ export function CrowButton({
 				{!open && (
 					<TooltipContent side="right" align="end" className="max-w-[240px]">
 						<div className="font-semibold">
-							Hugin, Odin's raven{keys && ` (${keys})`}
+							{!seen && "New: "}Huginn, Odin's raven{keys && ` (${keys})`}
 						</div>
 						<div className="text-muted-foreground">
-							{working
-								? "Working on it..."
-								: waiting
-									? "Has something for you."
-									: "Give it instructions for Odin, or ask it anything."}
+							{!seen
+								? 'Click me and tell me what to do in Odin, like "Start my top 5 backlog tasks". I answer anything else too.'
+								: working
+									? "Working on it..."
+									: waiting
+										? "Has something for you."
+										: "Give it instructions for Odin, or ask it anything."}
 						</div>
 					</TooltipContent>
 				)}

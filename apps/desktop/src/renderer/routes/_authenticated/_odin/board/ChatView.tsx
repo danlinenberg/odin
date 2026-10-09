@@ -1137,7 +1137,7 @@ export function ChatView({
 	noTerminal?: boolean;
 	/** The reply box's prompt, in place of "Reply to Claude". */
 	placeholder?: string;
-	/** Follows a `#session=<paneId>` link in a reply (Hugin writes them). */
+	/** Follows a `#session=<paneId>` link in a reply (Huginn writes them). */
 	onOpenSession?: (paneId: string) => void;
 }) {
 	const { data: home } = electronTrpc.window.getHomeDir.useQuery();

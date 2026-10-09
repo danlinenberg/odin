@@ -19,7 +19,7 @@ export const DEAD_KEYS: DeadKey[] = [
 	{ key: "workspace-details-store", match: "exact" },
 	// Replaced by the v2 onboarding setup flow (#4080)
 	{ key: "odin-onboarding-v1", match: "exact" },
-	// Where Hugin was dragged; it's pinned to the rail now
+	// Where Huginn was dragged; it's pinned to the rail now
 	{ key: "odin-crow-position", match: "exact" },
 	// Analytics funnel marker removed in #502-era simplification
 	{ key: "odin_auth_completed", match: "exact" },

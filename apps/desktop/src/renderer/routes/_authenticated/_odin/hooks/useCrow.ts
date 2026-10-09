@@ -254,7 +254,7 @@ export function useCrow() {
 		const pane = paneId ? store.panes[paneId] : undefined;
 		const place = followUp ? openAt : await placeOf(pane);
 		if (!pane || !place) {
-			toast.error("Couldn't start a Claude session for Hugin");
+			toast.error("Couldn't start a Claude session for Huginn");
 			return false;
 		}
 		const { workspaceId } = place;
@@ -287,7 +287,7 @@ export function useCrow() {
 		// Claim the spare - no odinTaskTitle, so it stays off the board. A
 		// follow-up keeps the conversation's first question as its title.
 		if (!followUp) {
-			const title = sessionTitle(question, "Hugin");
+			const title = sessionTitle(question, "Huginn");
 			store.setTabAutoTitle(pane.tabId, title);
 			store.setPaneAutoTitle(pane.id, title);
 			useTabsStore.setState((state) => ({
