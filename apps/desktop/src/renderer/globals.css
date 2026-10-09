@@ -509,6 +509,24 @@
 	}
 }
 
+/* Huginn's branch, in step with the hop: a sway that settles. */
+@keyframes huginn-sway {
+	0%,
+	13%,
+	100% {
+		transform: rotate(0);
+	}
+	3% {
+		transform: rotate(-3deg);
+	}
+	7% {
+		transform: rotate(2deg);
+	}
+	10.5% {
+		transform: rotate(-1deg);
+	}
+}
+
 /* Huginn before its first open: a ring that swells and fades, saying "click me". */
 @keyframes huginn-ring {
 	0% {
