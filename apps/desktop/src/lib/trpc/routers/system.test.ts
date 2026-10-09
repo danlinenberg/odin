@@ -20,4 +20,16 @@ describe("findClaude", () => {
 		);
 		expect(findClaude(`${broken}:${empty}`)).toBeNull();
 	});
+
+	test("on Windows, splits PATH on ; and looks for claude.exe", () => {
+		const root = mkdtempSync(join(tmpdir(), "find-claude-win-"));
+		const [empty, local] = ["empty", "local"].map((name) => join(root, name));
+		for (const dir of [empty, local]) mkdirSync(dir);
+		writeFileSync(join(local, "claude.exe"), "", { mode: 0o755 });
+
+		expect(findClaude(`${empty};${local}`, "win32")).toBe(
+			join(local, "claude.exe"),
+		);
+		expect(findClaude(`${empty};${local}`, "darwin")).toBeNull();
+	});
 });

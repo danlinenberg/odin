@@ -119,9 +119,13 @@ let login: ChildProcess | null = null;
  * entry it can't run (EPERM) instead of trying the next folder, so an
  * unreadable copy early on PATH would hide Odin's bundled one at the end.
  */
-export function findClaude(path: string): string | null {
-	for (const dir of path.split(":").filter(Boolean)) {
-		const bin = join(dir, "claude");
+export function findClaude(
+	path: string,
+	platform: NodeJS.Platform = process.platform,
+): string | null {
+	const win = platform === "win32";
+	for (const dir of path.split(win ? ";" : ":").filter(Boolean)) {
+		const bin = join(dir, win ? "claude.exe" : "claude");
 		try {
 			accessSync(bin, constants.X_OK);
 			return bin;
