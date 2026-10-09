@@ -7,7 +7,10 @@ import {
 } from "renderer/hooks/useLaunchTaskSession";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import * as terminalCache from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/v1-terminal-cache";
-import { claudeCli } from "renderer/stores/claude-command";
+import {
+	pickClaudeCommand,
+	useClaudeCommand,
+} from "renderer/stores/claude-command";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import type { Pane } from "renderer/stores/tabs/types";
 import { CROW_RULE, NOTIFICATION_EVENTS } from "shared/constants";
@@ -41,9 +44,14 @@ export const CROW_TAG = "question";
 export const crowPane = (panes: Record<string, Pane>): Pane | undefined =>
 	Object.values(panes).find((pane) => pane.odinTags?.includes(CROW_TAG));
 
-/** Claude, told it is the crow and how to drive Odin. */
-const crowCli = () =>
-	`${claudeCli()} --append-system-prompt ${quote(CROW_RULE)}`;
+/**
+ * Claude, told it is the crow and how to drive Odin. On Haiku - the alias is
+ * always the latest one - whatever model the board's sessions use.
+ */
+const crowCli = () => {
+	const { commands, active } = useClaudeCommand.getState();
+	return `${pickClaudeCommand(commands, active)} --dangerously-skip-permissions --model haiku --append-system-prompt ${quote(CROW_RULE)}`;
+};
 
 /** Long enough for a fresh spare to reach the daemon's session list. */
 const SPAWN_GRACE_MS = 30_000;
