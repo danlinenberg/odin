@@ -178,14 +178,20 @@ export function clearSlackCaches(): void {
 /**
  * Drop this profile's queue. Signing out of Slack should take the messages
  * that came from it with it - the rows live here, not in Slack, so nothing
- * else would ever remove them. Reconnecting re-syncs the ones still :eyes:'d;
- * what's lost is the started/done marks on the rest, which is the point of
- * disconnecting.
+ * else would ever remove them. Rows already started or Done stay: they're off
+ * the queue anyway, and a reconnect (re-granting scopes is one) re-syncs the
+ * :eyes:'d messages - without their marks they'd all come back as new.
  */
 export function clearSlackQueue(): void {
 	localDb
 		.delete(slackReactions)
-		.where(eq(slackReactions.profileId, activeProfileId()))
+		.where(
+			and(
+				eq(slackReactions.profileId, activeProfileId()),
+				isNull(slackReactions.startedAt),
+				isNull(slackReactions.doneAt),
+			),
+		)
 		.run();
 }
 

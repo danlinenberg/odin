@@ -86,7 +86,7 @@ import { BOARD_TAGS, boardTags, normalizeTag } from "shared/odin-tags";
 const PILL_TAGS = ["automation", "auto-started", "off-hours"];
 
 import { openUrl, useInAppBrowser } from "renderer/stores/in-app-browser";
-import { useAllItems } from "../all/use-all-items";
+import { useSearchableItems } from "../all/use-all-items";
 import { paneWorksOn } from "../all/use-start-item";
 import { DropHint } from "../components/DropHint";
 import { useSearchHotkey } from "../components/FeedChrome";
@@ -3321,7 +3321,9 @@ function DevBoardPage() {
 	 * Done, undoable: the PTY dies with the pane, so undo resumes the same
 	 * conversation (`claude --resume`) into a fresh pane, like Session History.
 	 */
-	const allTasks = useAllItems();
+	// Every row, not just All's queue: a started Slack row has left the queue,
+	// and missing it here left it un-Done - back as new after a Slack reconnect.
+	const allTasks = useSearchableItems();
 	const { set: setRowDone } = useDone();
 	const endCard = (card: BoardCard) => {
 		const sessionId =
