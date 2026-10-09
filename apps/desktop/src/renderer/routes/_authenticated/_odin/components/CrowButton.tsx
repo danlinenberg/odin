@@ -107,11 +107,16 @@ function CrowPanel({
 		setSending(false);
 	};
 
-	// Beside the button, on whichever side has room; bottoms aligned.
+	// Beside the button, on whichever side has room. Low on the screen it
+	// grows up from the button's bottom; high up, down from its top.
 	const width = conversation ? CHAT_W : PANEL_W;
 	const right = anchor.x + SIZE / 2 < window.innerWidth / 2;
 	const left = right ? anchor.x + SIZE + 10 : anchor.x - width - 10;
-	const bottom = Math.max(window.innerHeight - anchor.y - SIZE, 8);
+	const down = anchor.y + SIZE / 2 < window.innerHeight / 2;
+	const vertical = down
+		? { top: Math.max(anchor.y, 8) }
+		: { bottom: Math.max(window.innerHeight - anchor.y - SIZE, 8) };
+	const room = window.innerHeight - (vertical.top ?? vertical.bottom ?? 0) - 8;
 	const name = firstName();
 	const header = (
 		<div className="flex items-center gap-3">
@@ -149,9 +154,9 @@ function CrowPanel({
 				ref={panel}
 				style={{
 					left: Math.max(left, 8),
-					bottom,
+					...vertical,
 					width,
-					height: Math.min(CHAT_H, window.innerHeight - bottom - 8),
+					height: Math.min(CHAT_H, room),
 				}}
 				className="fixed z-50 flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#1c1c1f] text-white shadow-2xl shadow-black/50"
 			>
@@ -163,8 +168,8 @@ function CrowPanel({
 	return (
 		<div
 			ref={panel}
-			style={{ left: Math.max(left, 8), bottom, width }}
-			className="fixed z-50 flex max-h-[80vh] flex-col gap-3.5 rounded-xl border border-white/10 bg-[#1c1c1f] p-4 text-white shadow-2xl shadow-black/50"
+			style={{ left: Math.max(left, 8), ...vertical, width, maxHeight: room }}
+			className="fixed z-50 flex flex-col gap-3.5 rounded-xl border border-white/10 bg-[#1c1c1f] p-4 text-white shadow-2xl shadow-black/50"
 		>
 			{header}
 			<div className="text-[14px] leading-snug">
