@@ -4335,27 +4335,40 @@ function DevBoardPage() {
 											)}
 										</button>
 										{switchCards.map((card) => (
-											<button
-												key={card.pane.id}
-												type="button"
-												title={`${PANE_STATUS[card.status].label} - ${cardTitle(card)}`}
-												onClick={() => openDrawer(card)}
-												className={cn(
-													"flex items-center gap-2 py-1.5 text-left text-xs",
-													isSwitchListMin ? "justify-center" : "px-3",
-													card.pane.id === drawerCard.pane.id
-														? "bg-primary/15 font-semibold text-foreground"
-														: "text-muted-foreground hover:bg-accent hover:text-foreground",
-												)}
-											>
-												<span
-													className="size-2 shrink-0 rounded-full"
-													style={{ background: PANE_STATUS[card.status].dot }}
-												/>
-												{!isSwitchListMin && (
-													<span className="truncate">{cardTitle(card)}</span>
-												)}
-											</button>
+											<HoverCard key={card.pane.id} openDelay={350}>
+												<HoverCardTrigger asChild>
+													<button
+														type="button"
+														onClick={() => openDrawer(card)}
+														className={cn(
+															"flex items-center gap-2 py-1.5 text-left text-xs",
+															isSwitchListMin ? "justify-center" : "px-3",
+															card.pane.id === drawerCard.pane.id
+																? "bg-primary/15 font-semibold text-foreground"
+																: "text-muted-foreground hover:bg-accent hover:text-foreground",
+														)}
+													>
+														<span
+															className="size-2 shrink-0 rounded-full"
+															style={{
+																background: PANE_STATUS[card.status].dot,
+															}}
+														/>
+														{!isSwitchListMin && (
+															<span className="truncate">
+																{cardTitle(card)}
+															</span>
+														)}
+													</button>
+												</HoverCardTrigger>
+												<HoverCardContent
+													side="right"
+													align="start"
+													className="max-h-[70vh] w-[400px] overflow-y-auto border-input bg-secondary p-3 shadow-[0_12px_40px_rgba(0,0,0,0.75)]"
+												>
+													<CardHoverContent card={card} text={cardText(card)} />
+												</HoverCardContent>
+											</HoverCard>
 										))}
 									</nav>
 								)}
