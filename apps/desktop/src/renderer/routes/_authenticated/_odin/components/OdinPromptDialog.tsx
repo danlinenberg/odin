@@ -220,7 +220,7 @@ export function OdinPromptDialog({
 				<div className="mb-2 flex items-baseline justify-between gap-3 text-xs font-semibold text-foreground">
 					{heading}
 					<span className="truncate text-[11px] font-normal text-muted-foreground/70">
-						/ for skills · paste or drop images and video
+						{sendKeys} start · / for skills · paste or drop images and video
 					</span>
 				</div>
 				{note && (
@@ -455,7 +455,6 @@ export function OdinPromptDialog({
 					<button
 						type="button"
 						onClick={onCancel}
-						title="Esc"
 						className="h-7 shrink-0 whitespace-nowrap rounded-[6px] px-2.5 text-[11.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
 					>
 						Cancel
@@ -464,7 +463,6 @@ export function OdinPromptDialog({
 						type="button"
 						disabled={isStarting}
 						onClick={() => void start()}
-						title={sendKeys}
 						className="flex h-7 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[6px] bg-primary px-3 text-[11.5px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-default disabled:opacity-70"
 					>
 						{isStarting && (
