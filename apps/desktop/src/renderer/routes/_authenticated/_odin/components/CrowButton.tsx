@@ -312,9 +312,8 @@ export function CrowButton({
 			useTabsStore.getState().setPaneStatus(conversation.id, "idle");
 	}, [open, conversation]);
 	const rect = open ? button.current?.getBoundingClientRect() : undefined;
-	// Never opened: a dot, and the tooltip stays up to say how to use it.
+	// Never opened: a pulsing ring, and the tooltip says how to use it.
 	const [seen, setSeen] = useState(wasSeen);
-	const [hover, setHover] = useState(false);
 	useEffect(() => {
 		if (!open || seen) return;
 		setSeen(true);
@@ -325,11 +324,7 @@ export function CrowButton({
 
 	return (
 		<>
-			<Tooltip
-				delayDuration={300}
-				open={!open && (hover || !seen)}
-				onOpenChange={setHover}
-			>
+			<Tooltip delayDuration={300}>
 				<TooltipTrigger asChild>
 					<button
 						type="button"
@@ -342,7 +337,10 @@ export function CrowButton({
 						<CrowIcon
 							className={`size-[19px] drop-shadow-[0_0_5px_rgba(167,139,250,0.6)] ${working ? "animate-[odin-nod_1.6s_ease-in-out_infinite]" : "animate-[huginn-hop_12s_ease-in-out_infinite]"} motion-reduce:animate-none`}
 						/>
-						{(working || waiting || !seen) && !open && (
+						{!seen && !open && (
+							<span className="pointer-events-none absolute -inset-0.5 rounded-[11px] border-2 border-violet-400 animate-[huginn-ring_2.4s_ease-out_infinite] motion-reduce:animate-none" />
+						)}
+						{(working || waiting) && !open && (
 							<span
 								className={`absolute right-1 top-1 size-2 rounded-full ring-2 ring-tertiary ${working ? "animate-pulse bg-working" : "bg-attention"}`}
 							/>
