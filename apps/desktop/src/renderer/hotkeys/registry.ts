@@ -166,7 +166,7 @@ export const HOTKEYS_REGISTRY = {
 			windows: L("ctrl+shift+alt+i"),
 			linux: L("ctrl+shift+alt+i"),
 		},
-		label: "Ask Huginn",
+		label: "Ask the raven",
 		category: "Navigation",
 		description:
 			"Odin's raven: give it instructions for Odin, or ask it anything",
