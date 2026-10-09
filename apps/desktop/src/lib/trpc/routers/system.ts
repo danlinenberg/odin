@@ -1,6 +1,6 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { accessSync, constants } from "node:fs";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
@@ -163,9 +163,10 @@ async function claudeLogin(): Promise<{ ok: boolean; error?: string }> {
 			clearTimeout(timer);
 			resolve({ ok: false, error: error.message });
 		});
-		child.on("exit", (code) => {
+		child.on("exit", async (code) => {
 			clearTimeout(timer);
 			if (login === child) login = null;
+			if (code === 0) await markClaudeOnboarded().catch(() => {});
 			resolve(
 				code === 0
 					? { ok: true }
@@ -178,6 +179,33 @@ async function claudeLogin(): Promise<{ ok: boolean; error?: string }> {
 			);
 		});
 	});
+}
+
+/**
+ * Claude Code's first-run answers that aren't safety decisions - "onboarding
+ * done" and a text style - so the first session after Sign in starts at
+ * Claude's prompt instead of its setup screens. Only adds what's missing, and
+ * leaves a config it can't parse alone. The bypass-permissions warning is not
+ * touched: that one stays the user's to accept.
+ */
+export async function markClaudeOnboarded(
+	file = join(homedir(), ".claude.json"),
+): Promise<void> {
+	let config: Record<string, unknown> = {};
+	try {
+		config = JSON.parse(await readFile(file, "utf8"));
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code !== "ENOENT") return;
+	}
+	if (config.hasCompletedOnboarding && config.theme) return;
+	await writeFile(
+		file,
+		JSON.stringify(
+			{ theme: "dark", ...config, hasCompletedOnboarding: true },
+			null,
+			2,
+		),
+	);
 }
 
 export const createSystemRouter = () => {

@@ -1,8 +1,14 @@
 import { describe, expect, test } from "bun:test";
-import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import {
+	chmodSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { findClaude } from "./system";
+import { findClaude, markClaudeOnboarded } from "./system";
 
 describe("findClaude", () => {
 	test("skips a claude it can't run and takes the next one on PATH", () => {
@@ -31,5 +37,33 @@ describe("findClaude", () => {
 			join(local, "claude.exe"),
 		);
 		expect(findClaude(`${empty};${local}`, "darwin")).toBeNull();
+	});
+});
+
+describe("markClaudeOnboarded", () => {
+	test("adds the missing first-run answers and keeps everything else", async () => {
+		const file = join(mkdtempSync(join(tmpdir(), "claude-json-")), "c.json");
+		writeFileSync(
+			file,
+			JSON.stringify({ oauthAccount: { id: 1 }, theme: "light" }),
+		);
+		await markClaudeOnboarded(file);
+		expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({
+			oauthAccount: { id: 1 },
+			theme: "light",
+			hasCompletedOnboarding: true,
+		});
+	});
+
+	test("creates the file when missing, and leaves one it can't parse alone", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "claude-json-"));
+		await markClaudeOnboarded(join(dir, "new.json"));
+		expect(JSON.parse(readFileSync(join(dir, "new.json"), "utf8"))).toEqual({
+			theme: "dark",
+			hasCompletedOnboarding: true,
+		});
+		writeFileSync(join(dir, "bad.json"), "{not json");
+		await markClaudeOnboarded(join(dir, "bad.json"));
+		expect(readFileSync(join(dir, "bad.json"), "utf8")).toBe("{not json");
 	});
 });
