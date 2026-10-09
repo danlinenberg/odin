@@ -3,30 +3,12 @@ import { useEffect, useRef, useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import type { Pane } from "renderer/stores/tabs/types";
-import { create } from "zustand";
-import { persist } from "zustand/middleware";
 import { ChatView } from "../board/ChatView";
 import { endSession } from "../hooks/useDone";
 import { type PromptImage, readFile } from "./OdinPromptDialog";
 
-/** Where you dragged Hugin; null = its slot at the bottom of the rail. */
-const useCrowPosition = create<{
-	pos: { x: number; y: number } | null;
-	setPos: (pos: { x: number; y: number }) => void;
-}>()(
-	persist((set) => ({ pos: null, setPos: (pos) => set({ pos }) }), {
-		name: "odin-crow-position",
-	}),
-);
-
 /** A rail icon's size, so it sits in the rail like one. */
 const SIZE = 36;
-/** The rail's width - the crow's default spot is centred in it. */
-const RAIL_W = 52;
-/** The rail's bottom padding: Hugin's slot is the last one, under Settings. */
-const RAIL_BOTTOM = 10;
-/** A press that moves less than this is a click, not a drag. */
-const DRAG_PX = 4;
 
 /** Odin's raven, perched: Hugin, eye lit. */
 function CrowIcon({ className = "size-6" }: { className?: string }) {
@@ -127,14 +109,6 @@ function CrowPanel({
 			<span className="text-[13.5px] font-semibold">Hugin</span>
 			{conversation && (
 				<span className="ml-auto flex gap-1">
-					<button
-						type="button"
-						title="Open this conversation on the board"
-						onClick={() => onShowOnBoard(conversation.id)}
-						className="rounded-md px-2 py-1 text-[11.5px] text-white/60 hover:bg-white/10 hover:text-white"
-					>
-						Open on the board
-					</button>
 					<button
 						type="button"
 						title="End this conversation and start a fresh one"
@@ -282,9 +256,8 @@ function CrowChat({
 }
 
 /**
- * The crow: a small button floating on the left that opens Odin's own agent
+ * Hugin: the last icon in the rail, under Settings. Opens Odin's own agent
  * in a panel beside it.
- * Drag it anywhere; it stays where you put it.
  */
 export function CrowButton({
 	open,
@@ -304,7 +277,6 @@ export function CrowButton({
 	/** The hotkey, for the tooltip. */
 	keys?: string;
 }) {
-	const { pos, setPos } = useCrowPosition();
 	// Same query and interval as useCrow's, so a cache hit.
 	const { data: daemon } = electronTrpc.terminal.listDaemonSessions.useQuery(
 		undefined,
@@ -317,18 +289,8 @@ export function CrowButton({
 	)
 		? conversation
 		: undefined;
-	const press = useRef<{ x: number; y: number; dx: number; dy: number }>(null);
-	/** Set once a press moves - the click that ends a drag doesn't open. */
-	const dragged = useRef(false);
-	// Clamped, so a smaller window never strands it off-screen.
-	// Dropped back on the rail, it docks in its slot again.
-	const docked = !pos || pos.x < RAIL_W - SIZE / 2;
-	const x = docked
-		? (RAIL_W - SIZE) / 2
-		: Math.min(Math.max(pos.x, 0), window.innerWidth - SIZE);
-	const y = docked
-		? window.innerHeight - SIZE - RAIL_BOTTOM
-		: Math.min(Math.max(pos.y, 0), window.innerHeight - SIZE);
+	const button = useRef<HTMLButtonElement>(null);
+	const rect = open ? button.current?.getBoundingClientRect() : undefined;
 
 	return (
 		<>
@@ -338,36 +300,11 @@ export function CrowButton({
 						type="button"
 						data-crow
 						aria-label="Ask Hugin"
-						style={{ left: x, top: y, width: SIZE, height: SIZE }}
-						className={`fixed z-40 flex touch-none items-center justify-center rounded-[9px] transition-colors active:cursor-grabbing ${open ? "bg-violet-500/20 text-violet-200" : "text-muted-foreground hover:text-foreground"}`}
-						onPointerDown={(e) => {
-							e.currentTarget.setPointerCapture(e.pointerId);
-							dragged.current = false;
-							press.current = {
-								x: e.clientX,
-								y: e.clientY,
-								dx: e.clientX - x,
-								dy: e.clientY - y,
-							};
-						}}
-						onPointerMove={(e) => {
-							const start = press.current;
-							if (!start) return;
-							const moved =
-								Math.abs(e.clientX - start.x) + Math.abs(e.clientY - start.y);
-							if (!dragged.current && moved < DRAG_PX) return;
-							dragged.current = true;
-							setPos({ x: e.clientX - start.dx, y: e.clientY - start.dy });
-						}}
-						onPointerUp={() => {
-							press.current = null;
-						}}
-						onClick={() => {
-							if (!dragged.current) (open ? onClose : onOpen)();
-							dragged.current = false;
-						}}
+						ref={button}
+						className={`flex size-9 items-center justify-center rounded-[9px] transition-colors ${open ? "bg-violet-500/20 text-violet-200" : "text-muted-foreground hover:text-foreground"}`}
+						onClick={open ? onClose : onOpen}
 					>
-						<CrowIcon className="size-[19px] drop-shadow-[0_0_5px_rgba(167,139,250,0.6)]" />
+						<CrowIcon className="size-[19px] drop-shadow-[0_0_5px_rgba(167,139,250,0.6)] animate-[hugin-hop_20s_ease-in-out_infinite] motion-reduce:animate-none" />
 					</button>
 				</TooltipTrigger>
 				{!open && (
@@ -376,14 +313,14 @@ export function CrowButton({
 							Hugin, Odin's raven{keys && ` (${keys})`}
 						</div>
 						<div className="text-muted-foreground">
-							Give it instructions for Odin, or ask it anything. Drag to move.
+							Give it instructions for Odin, or ask it anything.
 						</div>
 					</TooltipContent>
 				)}
 			</Tooltip>
-			{open && (
+			{rect && (
 				<CrowPanel
-					anchor={{ x, y }}
+					anchor={{ x: rect.x, y: rect.y }}
 					conversation={liveConversation}
 					onAsk={onAsk}
 					onClose={onClose}

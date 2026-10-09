@@ -485,6 +485,24 @@
 	}
 }
 
+/* Hugin, now and then: a hop and a head tilt, then 19s of stillness. */
+@keyframes hugin-hop {
+	0%,
+	6%,
+	100% {
+		transform: translateY(0) rotate(0);
+	}
+	1.5% {
+		transform: translateY(-3px) rotate(-10deg);
+	}
+	3% {
+		transform: translateY(0) rotate(0);
+	}
+	4.5% {
+		transform: translateY(0) rotate(8deg);
+	}
+}
+
 /* The chat view's Working mark: Odin's icon nodding along. Transform only. */
 @keyframes odin-nod {
 	0%,

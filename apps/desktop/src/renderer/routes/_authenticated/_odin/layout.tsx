@@ -613,8 +613,19 @@ function OdinShell() {
 					{renderRailItem(INSIGHTS_ITEM)}
 					{renderRailItem(HISTORY_ITEM)}
 					{renderRailItem(SETTINGS_ITEM)}
-					{/* Hugin's slot: CrowButton floats over it so it can be dragged off. */}
-					<div className="size-9 shrink-0" />
+					<CrowButton
+						open={isCrowOpen}
+						onOpen={() => setCrowOpen(true)}
+						onClose={() => setCrowOpen(false)}
+						onAsk={askCrow}
+						keys={crowKeys.text}
+						conversation={openCrow}
+						onShowOnBoard={(paneId) => {
+							setCrowOpen(false);
+							usePendingFocus.getState().focus(paneId);
+							navigate({ to: "/board" });
+						}}
+					/>
 				</div>
 
 				{/* `relative`: the page drawers anchor to this area, not the viewport,
@@ -636,19 +647,6 @@ function OdinShell() {
 			{isSearchAllOpen && (
 				<SearchAll onClose={() => setIsSearchAllOpen(false)} />
 			)}
-			<CrowButton
-				open={isCrowOpen}
-				onOpen={() => setCrowOpen(true)}
-				onClose={() => setCrowOpen(false)}
-				onAsk={askCrow}
-				keys={crowKeys.text}
-				conversation={openCrow}
-				onShowOnBoard={(paneId) => {
-					setCrowOpen(false);
-					usePendingFocus.getState().focus(paneId);
-					navigate({ to: "/board" });
-				}}
-			/>
 		</div>
 	);
 }
