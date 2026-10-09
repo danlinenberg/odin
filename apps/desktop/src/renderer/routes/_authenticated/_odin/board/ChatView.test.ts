@@ -10,6 +10,7 @@ import {
 	launchRequest,
 	segments,
 	splitActionItems,
+	toolDescription,
 	transcriptPath,
 	userText,
 } from "./ChatView";
@@ -286,5 +287,29 @@ describe("isYouOnly", () => {
 	test("an item Claude can do, or one asking for an answer, still gets one", () => {
 		expect(isYouOnly("Look at #740 if CI fails.")).toBe(false);
 		expect(isYouOnly("Tell me which repo to use (you only).")).toBe(false);
+	});
+});
+
+describe("toolDescription", () => {
+	test("a command reads as the description Claude gave it", () => {
+		expect(
+			toolDescription({
+				name: "Bash",
+				input: { command: "gh pr checks 768 --watch", description: "Watch CI" },
+			}),
+		).toBe("Watch CI");
+	});
+	test("a file tool reads as the file it touched", () => {
+		expect(
+			toolDescription({
+				name: "Edit",
+				input: { file_path: "/a/b/ChatView.tsx" },
+			}),
+		).toBe("Edited ChatView.tsx");
+	});
+	test("a command with no description falls back to the command", () => {
+		expect(toolDescription({ name: "Bash", input: { command: "ls" } })).toBe(
+			"Bash ls",
+		);
 	});
 });
