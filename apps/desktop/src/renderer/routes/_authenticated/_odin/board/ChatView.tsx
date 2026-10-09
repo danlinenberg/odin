@@ -2,7 +2,7 @@ import { odinIcon } from "@odin/ui/icons/preset-icons";
 import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LuChevronRight, LuSquareTerminal, LuTerminal } from "react-icons/lu";
+import { LuChevronRight, LuSquareTerminal } from "react-icons/lu";
 import { MarkdownRenderer } from "renderer/components/MarkdownRenderer";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useCompacting } from "renderer/stores/compacting";
@@ -472,40 +472,11 @@ function asking(items: Item[]): Tool | null {
 		: null;
 }
 
-const VERBS: Record<string, [string, string]> = {
-	Bash: ["ran", "command"],
-	Read: ["read", "file"],
-	Edit: ["edited", "file"],
-	MultiEdit: ["edited", "file"],
-	Write: ["wrote", "file"],
-	Grep: ["searched", "time"],
-	Glob: ["searched", "time"],
-};
-
-/** "Ran 3 commands, read 2 files" - same verb counted once. */
-export function groupSummary(group: Group): string {
-	const counts = new Map<string, number>();
-	for (const tool of group) {
-		if (tool.kind !== "tool") continue;
-		const [verb, noun] = VERBS[tool.name] ?? ["used", "tool"];
-		const key = `${verb} ${noun}`;
-		counts.set(key, (counts.get(key) ?? 0) + 1);
-	}
-	const text = [...counts]
-		.map(([key, n]) => {
-			const [verb, noun] = key.split(" ");
-			return `${verb} ${n} ${noun}${n > 1 ? "s" : ""}`;
-		})
-		.join(", ");
-	return text.charAt(0).toUpperCase() + text.slice(1);
-}
-
 const ToolGroup = memo(
 	function ToolGroup({ group }: { group: Group }) {
 		const [open, setOpen] = useState(false);
 		const tools = group.filter((item): item is Tool => item.kind === "tool");
 		const running = tools.find((tool) => tool.result === undefined);
-		const latest = running ?? tools.at(-1);
 		const failed = tools.some((tool) => tool.isError);
 		return (
 			<div className="flex min-w-0 flex-col">
@@ -514,23 +485,12 @@ const ToolGroup = memo(
 					onClick={() => setOpen((value) => !value)}
 					className="flex min-w-0 max-w-full items-center gap-2 self-start rounded-lg border border-border bg-secondary px-2.5 py-1 text-left text-[12px] text-soft-foreground hover:bg-accent hover:text-foreground"
 				>
-					{running ? (
+					{running && (
 						<span className="size-[6px] shrink-0 animate-pulse rounded-full bg-working" />
-					) : (
-						<LuTerminal className="size-3.5 shrink-0" />
 					)}
-					{latest && (
-						<span
-							className={cn(
-								"min-w-0 truncate",
-								running ? "text-working" : "text-foreground",
-							)}
-						>
-							{toolDescription(latest)}
-						</span>
-					)}
-					<span className="shrink-0 text-faint-foreground">
-						· {groupSummary(group)}
+					{/* The commands themselves are noise; they wait behind the chevron. */}
+					<span className={running ? "text-working" : undefined}>
+						{running ? "Working..." : "Worked"}
 					</span>
 					{/* ponytail: muted - a failed command is routine, Claude retries */}
 					{failed && (
