@@ -6,9 +6,9 @@
 // biome-ignore lint/style/noRestrictedImports: build config, runs once before packaging - no event loop to block
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { readdir, rm } from "node:fs/promises";
+import { copyFile, readdir, readFile, rm } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { Configuration } from "electron-builder";
 import pkg from "./package.json";
 import {
@@ -64,6 +64,43 @@ const config: Configuration = {
 			maps.map((file) => rm(join("dist", file), { force: true })),
 		);
 		console.log(`beforePack: removed ${maps.length} source maps from dist`);
+	},
+
+	// Windows: some prebuilt native modules (fastembed's tokenizers, onnxruntime,
+	// ast-grep, libsql) link the Visual C++ runtime, which a fresh Windows
+	// doesn't have. Without it the main process blocks loading tokenizers at
+	// startup and Odin never opens a window. Node loads a .node with the altered
+	// search path, so a DLL next to Odin.exe isn't found: copy the runtime into
+	// each folder whose binary imports it, from the build machine's System32.
+	afterPack: async (context) => {
+		if (context.electronPlatformName !== "win32") return;
+		const runtimeDlls = [
+			"vcruntime140.dll",
+			"vcruntime140_1.dll",
+			"msvcp140.dll",
+			"msvcp140_1.dll",
+		];
+		const system32 = join(process.env.SystemRoot ?? "C:\\Windows", "System32");
+		const unpacked = join(context.appOutDir, "resources/app.asar.unpacked");
+		const dirs = new Set<string>();
+		for (const entry of await readdir(unpacked, { recursive: true })) {
+			// The DLLs are x64 only, like the installer.
+			if (!/\.(node|dll)$/i.test(entry) || /arm64|ia32/i.test(entry)) continue;
+			const bytes = (await readFile(join(unpacked, entry)))
+				.toString("latin1")
+				.toLowerCase();
+			if (bytes.includes("vcruntime140") || bytes.includes("msvcp140")) {
+				dirs.add(dirname(join(unpacked, entry)));
+			}
+		}
+		for (const dir of dirs) {
+			for (const dll of runtimeDlls) {
+				// Throws when the build machine lacks one: better than an installer
+				// that hangs on a clean PC.
+				await copyFile(join(system32, dll), join(dir, dll));
+			}
+		}
+		console.log(`afterPack: VC++ runtime copied into ${dirs.size} folders`);
 	},
 
 	// Odin fork: distinct identity so it never collides with the installed
