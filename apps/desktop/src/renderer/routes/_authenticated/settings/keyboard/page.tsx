@@ -15,6 +15,7 @@ import { useState } from "react";
 import {
 	HOTKEYS,
 	type HotkeyId,
+	LISTED_HOTKEYS,
 	type ShortcutBinding,
 	useFormatBinding,
 	useHotkeyDisplay,
@@ -28,31 +29,6 @@ import {
 	SettingsPage,
 	SettingsSection,
 } from "../components/SettingsPage";
-
-/**
- * Every screen this shell can open, and nothing else - the upstream
- * workspace/terminal/layout hotkeys stay registered (other code binds them) but
- * this shell has no UI for them, so showing them here was noise.
- */
-const LISTED_HOTKEYS: HotkeyId[] = [
-	"ODIN_BOARD",
-	"ODIN_BOARD_SEARCH",
-	"ODIN_SEARCH_ALL",
-	"ODIN_ALL",
-	"ODIN_TASKS",
-	"ODIN_AUTOMATIONS",
-	"ODIN_REVIEW",
-	"ODIN_SLACK",
-	"ODIN_JIRA",
-	"ODIN_PRS",
-	"ODIN_NOTION",
-	"ODIN_SESSIONS",
-	"ODIN_INSIGHTS",
-	"ODIN_NEW_TASK",
-	"ODIN_ASK_CROW",
-	"ODIN_COPY_LINK",
-	"OPEN_SETTINGS",
-];
 
 function HotkeyRow({
 	id,
@@ -254,7 +230,6 @@ function KeyboardShortcutsPage() {
 				</Button>
 			}
 		>
-			{/* One row per tab in the rail */}
 			<SettingsSection title="Shortcuts">
 				{LISTED_HOTKEYS.map((id) => (
 					<HotkeyRow

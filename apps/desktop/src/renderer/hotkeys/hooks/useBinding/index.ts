@@ -1,1 +1,6 @@
-export { getBinding, getDispatchChord, useBinding } from "./useBinding";
+export {
+	getBinding,
+	getDispatchChord,
+	isHotkey,
+	useBinding,
+} from "./useBinding";

@@ -4,12 +4,14 @@ export { formatHotkeyDisplay } from "./display";
 export {
 	getBinding,
 	getDispatchChord,
+	isHotkey,
 	useBinding,
 	useFormatBinding,
 	useHotkey,
 	useHotkeyDisplay,
 	useRecordHotkeys,
 } from "./hooks";
+export { LISTED_HOTKEYS } from "./listed";
 export { HOTKEYS, type HotkeyId, PLATFORM } from "./registry";
 export { useHotkeyOverridesStore } from "./stores";
 export type {

@@ -1,6 +1,7 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@odin/ui/tooltip";
 import { cn } from "@odin/ui/utils";
 import { useState } from "react";
+import { isHotkey, useHotkeyDisplay } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { openUrl } from "renderer/stores/in-app-browser";
@@ -393,6 +394,7 @@ export function SessionBrief({
 	/** Just the resource sections - no brief, notes or link input. */
 	resourcesOnly?: boolean;
 }) {
+	const sendKeys = useHotkeyDisplay("SUBMIT").text;
 	// Same lookup Resume uses: the pane's own conversation id, then the legacy
 	// localStorage mirror for panes launched before that was recorded, then -
 	// for the oldest ones, which have neither - the newest transcript in the
@@ -1047,12 +1049,11 @@ export function SessionBrief({
 						value={notes}
 						onChange={(event) => setNotes(paneId, event.target.value)}
 						onKeyDown={(event) => {
-							if (event.key !== "Enter" || !(event.metaKey || event.ctrlKey))
-								return;
+							if (!isHotkey("SUBMIT", event.nativeEvent)) return;
 							event.preventDefault();
 							submitNote();
 						}}
-						placeholder={`Notes to yourself - saved as you type. ${navigator.platform.toLowerCase().includes("mac") ? "⌘Enter" : "Ctrl+Enter"} adds it to your to-dos.`}
+						placeholder={`Notes to yourself - saved as you type. ${sendKeys} adds it to your to-dos.`}
 						rows={4}
 						className="resize-y rounded-[7px] border border-border bg-background px-2 py-1.5 text-[12.5px] leading-relaxed text-soft-foreground placeholder:text-faint-foreground focus:border-primary focus:outline-none"
 					/>
@@ -1060,7 +1061,7 @@ export function SessionBrief({
 						<button
 							type="button"
 							onClick={submitNote}
-							title="Move this note to your to-do list (⌘Enter)"
+							title={`Move this note to your to-do list (${sendKeys})`}
 							className="self-end text-[11px] font-semibold text-link hover:underline"
 						>
 							Add to to-dos

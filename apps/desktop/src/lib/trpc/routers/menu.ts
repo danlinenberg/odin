@@ -1,6 +1,7 @@
 import { observable } from "@trpc/server/observable";
 import { app } from "electron";
 import { setGlobalNewTaskChord } from "main/lib/global-new-task";
+import { setMenuChords } from "main/lib/menu";
 import {
 	menuEmitter,
 	type OpenSettingsEvent,
@@ -60,6 +61,10 @@ export const createMenuRouter = () => {
 		setNewTaskChord: publicProcedure
 			.input(z.object({ chord: z.string().nullable() }))
 			.mutation(({ input }) => setGlobalNewTaskChord(input.chord)),
+		/** The native menu's chords, by hotkey id; null leaves an item unbound. */
+		setMenuChords: publicProcedure
+			.input(z.record(z.string(), z.string().nullable()))
+			.mutation(({ input }) => setMenuChords(input)),
 		/** Back to whichever app was in front before the New Task chord. */
 		hideApp: publicProcedure.mutation(() => {
 			if (process.platform === "darwin") app.hide();

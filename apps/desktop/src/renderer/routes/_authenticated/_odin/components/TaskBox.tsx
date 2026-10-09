@@ -3,6 +3,7 @@ import { cn } from "@odin/ui/utils";
 import type { AgentSkill } from "lib/trpc/routers/skills";
 import { useEffect, useRef, useState } from "react";
 import { HiOutlineClock, HiOutlineSparkles } from "react-icons/hi2";
+import { isHotkey } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useClaudeCommand } from "renderer/stores/claude-command";
 import { describeCron, nextRun } from "shared/cron";
@@ -108,13 +109,9 @@ export function TaskBox({
 	submitLabel?: string;
 }) {
 	const [title, notes] = splitTask(value);
-	// Ctrl/⌘+Enter submits from either field.
+	// Send (⌘Enter unless rebound) submits from either field.
 	const keys = (event: React.KeyboardEvent) => {
-		if (
-			event.key === "Enter" &&
-			(event.metaKey || event.ctrlKey) &&
-			!event.nativeEvent.isComposing
-		) {
+		if (isHotkey("SUBMIT", event.nativeEvent)) {
 			event.preventDefault();
 			onSubmit();
 		}

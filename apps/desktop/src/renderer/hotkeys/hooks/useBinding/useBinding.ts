@@ -3,6 +3,7 @@ import { useHotkeyOverridesStore } from "../../stores/hotkeyOverridesStore";
 import { getEffectiveLayoutMap } from "../../stores/keyboardLayoutStore";
 import type { ShortcutBinding } from "../../types";
 import { bindingToDispatchChord } from "../../utils/binding";
+import { matchesChord } from "../../utils/resolveHotkeyFromEvent";
 
 /**
  * Reactive: get the effective binding for a hotkey (override ?? default).
@@ -34,4 +35,10 @@ export function getBinding(id: HotkeyId): ShortcutBinding | null {
  */
 export function getDispatchChord(id: HotkeyId): string | null {
 	return bindingToDispatchChord(getBinding(id), getEffectiveLayoutMap());
+}
+
+/** True if `event` is the current binding of `id`: for a box's own key handler. */
+export function isHotkey(id: HotkeyId, event: KeyboardEvent): boolean {
+	const chord = getDispatchChord(id);
+	return !!chord && matchesChord(event, chord);
 }
