@@ -546,7 +546,7 @@ await step("Done takes a task off the list", async () => {
 const SETTINGS: [string, string][] = [
 	["Connections", "#/settings/connections"],
 	["Sessions", "#/settings/sessions"],
-	["Backlog", "#/settings/backlog"],
+	["Backlog & Night Agent", "#/settings/backlog"],
 	["Notifications", "#/settings/ringtones"],
 	["Appearance", "#/settings/appearance"],
 	["Keyboard", "#/settings/keyboard"],
