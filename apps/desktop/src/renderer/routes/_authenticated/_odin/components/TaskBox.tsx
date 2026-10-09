@@ -40,7 +40,7 @@ const isMedia = (file: File) => /^(image|video)\//.test(file.type);
  * Finder is cited where it lies, a pasted screenshot is saved to disk first.
  * Imported on use so the box still renders without Electron (the tests).
  */
-async function attachmentPaths(files: File[]): Promise<string[]> {
+export async function attachmentPaths(files: File[]): Promise<string[]> {
 	const [{ electronTrpcClient }, { parseDataUrl }] = await Promise.all([
 		import("renderer/lib/trpc-client"),
 		import("renderer/hooks/useLaunchTaskSession"),

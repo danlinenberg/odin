@@ -18,6 +18,7 @@ import {
 	matchSkills,
 	skillToken,
 } from "../components/skill-picker";
+import { attachmentPaths } from "../components/TaskBox";
 import { COMPACT_MARKDOWN } from "../components/TranscriptView";
 import { PlanCard, QuestionCard, ScreenMenuCard } from "./ChatPrompts";
 import { collectRefs, linkify } from "./chat-links";
@@ -1676,9 +1677,23 @@ function Composer({
 							const images = files.filter((f) => f.type.startsWith("image/"));
 							const videos = files.filter((f) => f.type.startsWith("video/"));
 							if (images.length === 0 && videos.length === 0) return;
-							// ponytail: no PTY to Ctrl+V into yet - drop an image file instead.
-							if (onResume && images.length > 0) return;
 							event.preventDefault();
+							// No PTY to Ctrl+V into yet: the image goes in as a saved file's
+							// path, which Claude attaches when the resume sends it.
+							if (onResume) {
+								void attachmentPaths([...images, ...videos]).then(
+									(paths) =>
+										setDraft((text) =>
+											[text, ...paths].filter(Boolean).join(" "),
+										),
+									(error) => toast.error(String(error)),
+								);
+								setPreviews((list) => [
+									...list,
+									...images.map((file) => URL.createObjectURL(file)),
+								]);
+								return;
+							}
 							if (images.length > 0) write.mutate({ paneId, data: "\x16" });
 							const paths = videos
 								.map((file) => window.webUtils.getPathForFile(file))
