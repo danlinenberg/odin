@@ -1141,6 +1141,10 @@ export function ChatView({
 		void screen.refetch();
 	};
 	const prompt = onShowTerminal ? asking(items) : null;
+	// The command Claude is in right now, so "Working..." says what it's doing.
+	const running = items.findLast(
+		(item): item is Tool => item.kind === "tool" && item.result === undefined,
+	);
 	// Menus the transcript never sees, read off the live screen.
 	const screen = electronTrpc.terminal.readScreen.useQuery(
 		{ paneId },
@@ -1405,11 +1409,20 @@ export function ChatView({
 						</div>
 					)}
 					{working && !prompt && !screenMenu && !starting && (
-						<div className="flex items-center gap-3 text-[12.5px] text-working">
+						<div className="flex min-w-0 items-center gap-3 text-[12.5px] text-working">
 							{/* Odin's icon, nodding along while Claude works. */}
 							<OdinMark className="animate-[odin-nod_1.6s_ease-in-out_infinite]" />
 							{compacting === null ? (
-								"Working…"
+								<>
+									<span className="shrink-0">Working…</span>
+									{running && (
+										<span className="min-w-0 truncate font-mono text-[11.5px] text-muted-foreground">
+											{typeof running.input.command === "string"
+												? running.input.command
+												: toolDescription(running)}
+										</span>
+									)}
+								</>
 							) : (
 								<>
 									Compacting conversation…
