@@ -11,8 +11,6 @@ export const isImeComposing = (e: AnyKeyboardEvent): boolean => {
 };
 
 export type IsEnterSubmitOptions = {
-	// Require Cmd (mac) / Ctrl (other) to be held. Defaults to false.
-	requireMod?: boolean;
 	// Treat Shift+Enter as submit. Defaults to false (Shift+Enter = newline).
 	allowShift?: boolean;
 };
@@ -21,11 +19,10 @@ export type IsEnterSubmitOptions = {
 // not during IME composition, and matching the modifier policy.
 export const isEnterSubmit = (
 	e: AnyKeyboardEvent,
-	{ requireMod = false, allowShift = false }: IsEnterSubmitOptions = {},
+	{ allowShift = false }: IsEnterSubmitOptions = {},
 ): boolean => {
 	if (e.key !== "Enter") return false;
 	if (isImeComposing(e)) return false;
 	if (!allowShift && e.shiftKey) return false;
-	if (requireMod && !(e.metaKey || e.ctrlKey)) return false;
 	return true;
 };

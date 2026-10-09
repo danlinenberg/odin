@@ -2,6 +2,7 @@ import { COMPANY } from "@odin/shared/constants";
 import { app, BrowserWindow, Menu, shell } from "electron";
 import { env } from "main/env.main";
 import { resetTerminalStateDev } from "main/lib/terminal/dev-reset";
+import { chordToAccelerator } from "shared/chord-accelerator";
 import { checkForUpdatesInteractive } from "./auto-updater";
 import { menuEmitter } from "./menu-events";
 import { confirmAndQuitCompletely } from "./quit-completely";
@@ -11,19 +12,27 @@ function zoomFocusedWindow(next: (level: number) => number) {
 	if (contents) contents.zoomLevel = next(contents.zoomLevel);
 }
 
-export function createApplicationMenu() {
-	const reloadAccelerator = "CmdOrCtrl+R";
-	const closeAccelerator = "CmdOrCtrl+Shift+Q";
-	const showHotkeysAccelerator = "CmdOrCtrl+/";
-	const openSettingsAccelerator = "CmdOrCtrl+,";
+/** Hotkey id -> chord. The renderer owns the bindings (Settings -> Keyboard) and pushes them. */
+let menuChords: Record<string, string | null> = {};
 
+export function setMenuChords(chords: Record<string, string | null>): void {
+	menuChords = chords;
+	createApplicationMenu();
+}
+
+const accelerator = (id: string) => {
+	const chord = menuChords[id];
+	return (chord && chordToAccelerator(chord)) || undefined;
+};
+
+export function createApplicationMenu() {
 	const template: Electron.MenuItemConstructorOptions[] = [
 		{
 			label: "File",
 			submenu: [
 				{
 					label: "Open Repo...",
-					accelerator: "CmdOrCtrl+O",
+					accelerator: accelerator("OPEN_PROJECT"),
 					click: () => {
 						menuEmitter.emit("open-project");
 					},
@@ -58,7 +67,7 @@ export function createApplicationMenu() {
 			submenu: [
 				{
 					label: "Reload",
-					accelerator: reloadAccelerator,
+					accelerator: accelerator("RELOAD_WINDOW"),
 					click: () => {
 						BrowserWindow.getFocusedWindow()?.reload();
 					},
@@ -79,38 +88,19 @@ export function createApplicationMenu() {
 				// zooms the browser with it (see InAppBrowser).
 				{
 					label: "Actual Size",
-					accelerator: "CommandOrControl+0",
+					accelerator: accelerator("ZOOM_RESET"),
 					click: () => zoomFocusedWindow(() => 0),
 				},
 				{
 					label: "Zoom In",
-					accelerator: "CommandOrControl+Plus",
+					accelerator: accelerator("ZOOM_IN"),
 					click: () => zoomFocusedWindow((level) => level + 0.5),
 				},
 				{
 					label: "Zoom Out",
-					accelerator: "CommandOrControl+-",
+					accelerator: accelerator("ZOOM_OUT"),
 					click: () => zoomFocusedWindow((level) => level - 0.5),
 				},
-				// "Plus" is Shift+= outside macOS, so Ctrl+= did nothing on Windows.
-				// Hidden twins catch it and the numpad keys; macOS already matches
-				// Cmd+= to Zoom In, and a twin there would zoom twice.
-				...(process.platform === "darwin"
-					? []
-					: (
-							[
-								["CommandOrControl+=", 0.5],
-								["CommandOrControl+numadd", 0.5],
-								["CommandOrControl+numsub", -0.5],
-							] as const
-						).map(
-							([accelerator, step]): Electron.MenuItemConstructorOptions => ({
-								label: step > 0 ? "Zoom In" : "Zoom Out",
-								accelerator,
-								visible: false,
-								click: () => zoomFocusedWindow((level) => level + step),
-							}),
-						)),
 				{ type: "separator" },
 				{
 					label: "Toggle Presets Bar",
@@ -128,7 +118,13 @@ export function createApplicationMenu() {
 				{ role: "minimize" },
 				{ role: "zoom" },
 				{ type: "separator" },
-				{ role: "close", accelerator: closeAccelerator },
+				// Not `role: "close"`: with no chord bound it falls back to ⌘W, which
+				// closes the focused pane, not the window.
+				{
+					label: "Close",
+					accelerator: accelerator("CLOSE_WINDOW"),
+					click: () => BrowserWindow.getFocusedWindow()?.close(),
+				},
 			],
 		},
 		{
@@ -143,7 +139,7 @@ export function createApplicationMenu() {
 				{ type: "separator" },
 				{
 					label: "Keyboard Shortcuts",
-					accelerator: showHotkeysAccelerator,
+					accelerator: accelerator("SHOW_HOTKEYS"),
 					click: () => {
 						menuEmitter.emit("open-settings", "keyboard");
 					},
@@ -183,7 +179,7 @@ export function createApplicationMenu() {
 				{ type: "separator" },
 				{
 					label: "Settings...",
-					accelerator: openSettingsAccelerator,
+					accelerator: accelerator("OPEN_SETTINGS"),
 					click: () => {
 						menuEmitter.emit("open-settings");
 					},

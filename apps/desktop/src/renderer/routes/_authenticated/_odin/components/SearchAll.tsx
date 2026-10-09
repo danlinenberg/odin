@@ -12,6 +12,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import type { IconType } from "react-icons";
 import { HiOutlineBolt } from "react-icons/hi2";
+import { isHotkey, useHotkeyDisplay } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { openUrl } from "renderer/stores/in-app-browser";
@@ -113,6 +114,7 @@ function useDebounced(value: string, ms: number): string {
  * past session its transcript in Session History.
  */
 export function SearchAll({ onClose }: { onClose: () => void }) {
+	const actionKeys = useHotkeyDisplay("ODIN_SEARCH_ROW_MENU").text;
 	const navigate = useNavigate();
 	const [query, setQuery] = useState("");
 	const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
@@ -401,8 +403,7 @@ export function SearchAll({ onClose }: { onClose: () => void }) {
 					value={active}
 					onValueChange={setActive}
 					onKeyDown={(event) => {
-						// By code, so it works on the Hebrew layout too.
-						if (!event.metaKey || event.code !== "KeyK") return;
+						if (!isHotkey("ODIN_SEARCH_ROW_MENU", event.nativeEvent)) return;
 						event.preventDefault();
 						event.stopPropagation();
 						if (menuFor) closeMenu();
@@ -466,7 +467,7 @@ export function SearchAll({ onClose }: { onClose: () => void }) {
 						)}
 					</CommandList>
 					<div className="flex justify-end gap-3 border-t border-border px-3 py-1.5 text-[11px] text-muted-foreground">
-						{menuFor ? "Esc Back" : "⌘K Actions"}
+						{menuFor ? "Esc Back" : `${actionKeys} Actions`}
 					</div>
 				</Command>
 			</DialogContent>

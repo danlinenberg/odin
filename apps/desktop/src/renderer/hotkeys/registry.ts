@@ -183,6 +183,24 @@ export const HOTKEYS_REGISTRY = {
 		description: "Copy the link of the page open in the in-app browser",
 	},
 
+	// Send from a multi-line box (a task, a prompt, a note), where Enter is a newline.
+	SUBMIT: {
+		key: { mac: "meta+enter", windows: "ctrl+enter", linux: "ctrl+enter" },
+		label: "Send",
+		category: "Navigation",
+		description: "Send a task, prompt or note from its text box",
+	},
+	ODIN_SEARCH_ROW_MENU: {
+		key: {
+			mac: L("meta+k"),
+			windows: L("ctrl+shift+alt+k"),
+			linux: L("ctrl+shift+alt+k"),
+		},
+		label: "Search Result Actions",
+		category: "Navigation",
+		description: "Show the actions for the highlighted Search All result",
+	},
+
 	// Navigation
 	NAVIGATE_BACK: {
 		key: {
@@ -841,6 +859,47 @@ export const HOTKEYS_REGISTRY = {
 		label: "Copy Path",
 		category: "Window",
 		description: "Copy the workspace path to the clipboard",
+	},
+
+	// The native menu's own items: the renderer pushes these to main (see
+	// routes/-layout.tsx), which registers them as menu accelerators.
+	RELOAD_WINDOW: {
+		key: { mac: L("meta+r"), windows: L("ctrl+r"), linux: L("ctrl+r") },
+		label: "Reload",
+		category: "Window",
+		description: "Reload the Odin window",
+	},
+	CLOSE_WINDOW: {
+		key: {
+			mac: L("meta+shift+q"),
+			windows: L("ctrl+shift+q"),
+			linux: L("ctrl+shift+q"),
+		},
+		label: "Close Window",
+		category: "Window",
+	},
+	ZOOM_RESET: {
+		key: { mac: L("meta+0"), windows: L("ctrl+0"), linux: L("ctrl+0") },
+		label: "Actual Size",
+		category: "Window",
+	},
+	ZOOM_IN: {
+		key: {
+			mac: L("meta+equal"),
+			windows: L("ctrl+equal"),
+			linux: L("ctrl+equal"),
+		},
+		label: "Zoom In",
+		category: "Window",
+	},
+	ZOOM_OUT: {
+		key: {
+			mac: L("meta+minus"),
+			windows: L("ctrl+minus"),
+			linux: L("ctrl+minus"),
+		},
+		label: "Zoom Out",
+		category: "Window",
 	},
 
 	// Help

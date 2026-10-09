@@ -29,7 +29,6 @@ import {
 	CommandSeparator,
 } from "@odin/ui/command";
 import { Input } from "@odin/ui/input";
-import { isEnterSubmit } from "@odin/ui/lib/keyboard";
 import { Popover, PopoverContent, PopoverTrigger } from "@odin/ui/popover";
 import { toast } from "@odin/ui/sonner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@odin/ui/tooltip";
@@ -53,7 +52,7 @@ import { LuFolderGit, LuFolderOpen, LuGitPullRequest } from "react-icons/lu";
 import { AgentSelect } from "renderer/components/AgentSelect";
 import { LinkedIssuePill } from "renderer/components/Chat/ChatInterface/components/ChatInputFooter/components/LinkedIssuePill";
 import { useAgentLaunchPreferences } from "renderer/hooks/useAgentLaunchPreferences";
-import { PLATFORM } from "renderer/hotkeys";
+import { isHotkey, PLATFORM } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { formatRelativeTime } from "renderer/lib/formatRelativeTime";
 import { resolveEffectiveWorkspaceBaseBranch } from "renderer/lib/workspaceBaseBranch";
@@ -1052,7 +1051,7 @@ ${sanitizeText(truncatedBody)}`;
 	useEffect(() => {
 		if (!isNewWorkspaceModalOpen) return;
 		const handler = (e: KeyboardEvent) => {
-			if (!isEnterSubmit(e, { requireMod: true })) return;
+			if (!isHotkey("SUBMIT", e)) return;
 			e.preventDefault();
 			void handleCreate();
 		};

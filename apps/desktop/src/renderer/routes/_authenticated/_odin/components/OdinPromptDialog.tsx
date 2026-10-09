@@ -1,5 +1,6 @@
 import { toast } from "@odin/ui/sonner";
 import { type ReactNode, useMemo, useRef, useState } from "react";
+import { isHotkey, useHotkeyDisplay } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import {
 	CLAUDE_MODELS,
@@ -14,8 +15,6 @@ import { insertSkill, matchSkills, skillToken } from "./skill-picker";
  * file already on disk (`path`).
  */
 export type PromptImage = { name: string; dataUrl?: string; path?: string };
-
-const IS_MAC = navigator.platform.toLowerCase().includes("mac");
 
 /**
  * Read a File as a data URL - the browser does the base64 for us, and unlike
@@ -114,6 +113,7 @@ export function OdinPromptDialog({
 		repo: string,
 	) => void | Promise<void>;
 }) {
+	const sendKeys = useHotkeyDisplay("SUBMIT").text;
 	const [prompt, setPrompt] = useState(defaultPrompt);
 	const [files, setFiles] = useState<PromptImage[]>([]);
 	const [repoQuery, setRepoQuery] = useState("");
@@ -220,8 +220,8 @@ export function OdinPromptDialog({
 				<div className="mb-2 text-xs font-semibold text-foreground">
 					{heading}
 					<span className="ml-1.5 font-normal text-muted-foreground">
-						{IS_MAC ? "⌘⏎" : "Ctrl+Enter"} start · esc cancel · / for skills ·
-						paste or drop images/video
+						{sendKeys} start · esc cancel · / for skills · paste or drop
+						images/video
 					</span>
 				</div>
 				{note && (
@@ -259,7 +259,7 @@ export function OdinPromptDialog({
 								return;
 							}
 							if (event.key === "Enter" || event.key === "Tab") {
-								if (!event.metaKey && !event.ctrlKey) {
+								if (!isHotkey("SUBMIT", event.nativeEvent)) {
 									event.preventDefault();
 									const match = matches[activeIndex];
 									if (match) pickSkill(match.name);
@@ -268,11 +268,7 @@ export function OdinPromptDialog({
 							}
 						}
 						if (event.key === "Escape") onCancel();
-						else if (
-							event.key === "Enter" &&
-							(event.metaKey || event.ctrlKey) &&
-							!event.nativeEvent.isComposing
-						) {
+						else if (isHotkey("SUBMIT", event.nativeEvent)) {
 							event.preventDefault();
 							void start();
 						}
