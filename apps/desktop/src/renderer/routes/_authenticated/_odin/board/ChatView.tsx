@@ -9,6 +9,11 @@ import { useCompacting } from "renderer/stores/compacting";
 import { openUrl } from "renderer/stores/in-app-browser";
 import { useSessionView } from "renderer/stores/session-view";
 import {
+	getImageMimeType,
+	getVideoMimeType,
+	isPreviewableVideoFile,
+} from "shared/file-types";
+import {
 	insertSkill,
 	matchSkills,
 	skillToken,
@@ -640,14 +645,21 @@ function UserBubble({
 	text,
 	images,
 	pending,
+	workspaceId,
 }: {
 	text: string;
 	images?: Preview[];
 	pending?: boolean;
+	workspaceId?: string;
 }) {
 	// A launch prompt (task + standing rules + reply format) fills the screen;
 	// show just the request you typed, and Odin's part only on its own button.
 	const request = launchRequest(text);
+	const attached = useAttachedPreviews(
+		request === null ? [] : launchAttachments(text),
+		workspaceId,
+	);
+	const previews = [...(images ?? []), ...attached];
 	const [open, setOpen] = useState(false);
 	const [full, setFull] = useState(false);
 	const shown = full || request === null ? text : request;
@@ -660,8 +672,8 @@ function UserBubble({
 				pending && ENTER,
 			)}
 		>
-			{images && images.length > 0 && (
-				<PreviewStrip previews={images} className={text ? "mb-2" : ""} />
+			{previews.length > 0 && (
+				<PreviewStrip previews={previews} className={text ? "mb-2" : ""} />
 			)}
 			<div className={cn(long && !open && "line-clamp-3")}>
 				{/* Typed line breaks stay: markdown would fold them into spaces. */}
@@ -699,6 +711,44 @@ function UserBubble({
 			)}
 		</div>
 	);
+}
+
+/**
+ * The launch prompt's attached images and videos, read off disk as data URLs -
+ * the folded bubble hides the paths, so these show what was attached.
+ */
+function useAttachedPreviews(
+	paths: string[],
+	workspaceId: string | undefined,
+): Preview[] {
+	const reads = electronTrpc.useQueries((t) =>
+		workspaceId
+			? paths.map((absolutePath) =>
+					t.filesystem.readFile(
+						{ workspaceId, absolutePath, encoding: "base64" },
+						{ staleTime: Number.POSITIVE_INFINITY, retry: false },
+					),
+				)
+			: [],
+	);
+	return paths.flatMap((path, i): Preview[] => {
+		const content = reads[i]?.data?.content;
+		if (typeof content !== "string") return [];
+		const video = getVideoMimeType(path);
+		return video
+			? [{ url: `data:${video};base64,${content}`, video: true as const }]
+			: [`data:${getImageMimeType(path)};base64,${content}`];
+	});
+}
+
+/** The image and video paths under a launch prompt's "Attached files" head. */
+export function launchAttachments(text: string): string[] {
+	const block = text
+		.split(/\n\n+/)
+		.find((part) => part.startsWith("Attached files"));
+	return (block?.split("\n").slice(1) ?? [])
+		.map((line) => line.trim())
+		.filter((path) => getImageMimeType(path) || isPreviewableVideoFile(path));
 }
 
 /** A pasted image or video: an image's URL alone, or a video with its file. */
@@ -997,9 +1047,11 @@ const ItemView = memo(
 		item,
 		refs,
 		onDo,
+		workspaceId,
 	}: {
 		item: Item;
 		refs: Map<string, string>;
+		workspaceId: string;
 		/** Changes only when a new ref appears - the memo's cue to re-link. */
 		refsKey: string;
 		onDo?: DoItem;
@@ -1007,7 +1059,13 @@ const ItemView = memo(
 		if (item.kind === "tool") return <ToolRow item={item} />;
 		if (item.kind === "compact") return <CompactRow item={item} />;
 		if (item.kind === "user")
-			return <UserBubble text={item.text} images={item.images} />;
+			return (
+				<UserBubble
+					text={item.text}
+					images={item.images}
+					workspaceId={workspaceId}
+				/>
+			);
 		const { body, actions } = splitActionItems(linkify(item.text, refs));
 		return (
 			<div className="select-text cursor-text">
@@ -1026,6 +1084,7 @@ const ItemView = memo(
 	(prev, next) =>
 		prev.item === next.item &&
 		prev.refsKey === next.refsKey &&
+		prev.workspaceId === next.workspaceId &&
 		prev.onDo === next.onDo,
 );
 
@@ -1282,6 +1341,7 @@ export function ChatView({
 									item={segment}
 									refs={refs}
 									refsKey={refsKey}
+									workspaceId={workspaceId}
 								/>
 							);
 						const key = Array.isArray(segment) ? segment[0]?.id : segment.id;
@@ -1302,6 +1362,7 @@ export function ChatView({
 											item={segment}
 											refs={refs}
 											refsKey={refsKey}
+											workspaceId={workspaceId}
 											onDo={onShowTerminal || onResumeWith ? doItem : undefined}
 										/>
 									)}

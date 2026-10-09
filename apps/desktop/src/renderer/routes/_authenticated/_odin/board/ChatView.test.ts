@@ -7,6 +7,7 @@ import {
 	isApprovalItem,
 	isYouOnly,
 	itemOptions,
+	launchAttachments,
 	launchRequest,
 	segments,
 	splitActionItems,
@@ -234,6 +235,26 @@ describe("ChatView transcript", () => {
 		});
 		expect(itemOptions("Open [the PR](https://x)").options).toEqual([]);
 		expect(itemOptions("Tell me the seniority.").options).toEqual([]);
+	});
+});
+
+describe("launchAttachments - the images and videos a launch prompt attached", () => {
+	test("lists image and video paths, skipping other files and the ffmpeg hint", () => {
+		const prompt = [
+			"Task: fix it",
+			"",
+			"Attached files - read them before starting:",
+			"/Users/dan/dev/.odin/attachments/a b.png",
+			"/Users/dan/dev/.odin/attachments/clip.mp4",
+			"/Users/dan/dev/.odin/attachments/notes.txt",
+			"",
+			"Videos can't be read directly - pull frames first.",
+		].join("\n");
+		expect(launchAttachments(prompt)).toEqual([
+			"/Users/dan/dev/.odin/attachments/a b.png",
+			"/Users/dan/dev/.odin/attachments/clip.mp4",
+		]);
+		expect(launchAttachments("Task: no files")).toEqual([]);
 	});
 });
 
