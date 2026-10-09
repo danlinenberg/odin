@@ -27,6 +27,8 @@ import {
 } from "react";
 import type { IconType } from "react-icons";
 import {
+	LuChevronLeft,
+	LuChevronRight,
 	LuCircleCheck,
 	LuClock,
 	LuEye,
@@ -2558,6 +2560,21 @@ function DevBoardPage() {
 	const switchCards = (["permission", "working", "review"] as const).flatMap(
 		(status) => cardsByStatus.get(status) ?? [],
 	);
+	// Minimized to a rail of status dots; remembered per machine.
+	const [isSwitchListMin, setIsSwitchListMin] = useState(() => {
+		try {
+			return localStorage.getItem("odin:drawer-sessions-min") === "1";
+		} catch {
+			return false;
+		}
+	});
+	const toggleSwitchList = () => {
+		const next = !isSwitchListMin;
+		setIsSwitchListMin(next);
+		try {
+			localStorage.setItem("odin:drawer-sessions-min", next ? "1" : "0");
+		} catch {}
+	};
 	// Two cards on this board working the same ask: each names the other.
 	const duplicateOf = useMemo(() => {
 		const cards = [...cardsByStatus.values()].flat();
@@ -4268,8 +4285,35 @@ function DevBoardPage() {
 								{!inCatchUp && switchCards.length > 1 && (
 									<nav
 										aria-label="Sessions"
-										className="hidden w-[210px] shrink-0 flex-col overflow-y-auto border-r border-border py-1.5 @3xl:flex"
+										className={cn(
+											"hidden shrink-0 flex-col overflow-y-auto border-r border-border py-1.5 @3xl:flex",
+											isSwitchListMin ? "w-8" : "w-[210px]",
+										)}
 									>
+										<button
+											type="button"
+											title={
+												isSwitchListMin
+													? "Show session list"
+													: "Minimize session list"
+											}
+											aria-label={
+												isSwitchListMin
+													? "Show session list"
+													: "Minimize session list"
+											}
+											onClick={toggleSwitchList}
+											className={cn(
+												"mb-1 flex h-6 shrink-0 items-center text-muted-foreground hover:text-foreground",
+												isSwitchListMin ? "justify-center" : "justify-end px-2",
+											)}
+										>
+											{isSwitchListMin ? (
+												<LuChevronRight className="size-3.5" />
+											) : (
+												<LuChevronLeft className="size-3.5" />
+											)}
+										</button>
 										{switchCards.map((card) => (
 											<button
 												key={card.pane.id}
@@ -4277,7 +4321,8 @@ function DevBoardPage() {
 												title={`${PANE_STATUS[card.status].label} - ${cardTitle(card)}`}
 												onClick={() => openDrawer(card)}
 												className={cn(
-													"flex items-center gap-2 px-3 py-1.5 text-left text-xs",
+													"flex items-center gap-2 py-1.5 text-left text-xs",
+													isSwitchListMin ? "justify-center" : "px-3",
 													card.pane.id === drawerCard.pane.id
 														? "bg-primary/15 font-semibold text-foreground"
 														: "text-muted-foreground hover:bg-accent hover:text-foreground",
@@ -4287,7 +4332,9 @@ function DevBoardPage() {
 													className="size-2 shrink-0 rounded-full"
 													style={{ background: PANE_STATUS[card.status].dot }}
 												/>
-												<span className="truncate">{cardTitle(card)}</span>
+												{!isSwitchListMin && (
+													<span className="truncate">{cardTitle(card)}</span>
+												)}
 											</button>
 										))}
 									</nav>
