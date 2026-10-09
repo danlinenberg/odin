@@ -8,9 +8,15 @@ interface ClaudeCommandState {
 	active: string;
 	/** `--model` for new sessions; "" leaves it to Claude's own default. */
 	model: string;
+	/** New Session: park the prompt on My Tasks instead of starting it. */
+	toBacklog: boolean;
+	/** New task: start a session on it right away instead of just listing it. */
+	startNow: boolean;
 	setCommands: (commands: string[]) => void;
 	setActive: (command: string) => void;
 	setModel: (model: string) => void;
+	setToBacklog: (toBacklog: boolean) => void;
+	setStartNow: (startNow: boolean) => void;
 }
 
 /** The New Session model picker: CLI aliases, so each tracks the latest. */
@@ -37,9 +43,13 @@ export const useClaudeCommand = create<ClaudeCommandState>()(
 			commands: [],
 			active: "",
 			model: "",
+			toBacklog: false,
+			startNow: false,
 			setCommands: (commands) => set({ commands }),
 			setActive: (active) => set({ active }),
 			setModel: (model) => set({ model }),
+			setToBacklog: (toBacklog) => set({ toBacklog }),
+			setStartNow: (startNow) => set({ startNow }),
 		}),
 		{ name: "odin-claude-command" },
 	),

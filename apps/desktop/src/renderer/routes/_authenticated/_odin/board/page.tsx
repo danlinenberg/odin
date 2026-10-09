@@ -58,7 +58,7 @@ import { canClaimKeyboard } from "renderer/lib/keyboard";
 import { coldRestoreState } from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/state";
 import { Terminal } from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/Terminal";
 import * as terminalCache from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/v1-terminal-cache";
-import { claudeCli } from "renderer/stores/claude-command";
+import { claudeCli, useClaudeCommand } from "renderer/stores/claude-command";
 import { useIdleClose } from "renderer/stores/idle-close";
 import { useSessionView } from "renderer/stores/session-view";
 import { useTabsStore } from "renderer/stores/tabs/store";
@@ -106,6 +106,7 @@ import { CROW_TAG } from "../hooks/useCrow";
 import { endSession, useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useOdinProfile } from "../hooks/useOdinProfile";
+import { useMyTasks } from "../hooks/useOdinTasks";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePaneMeta } from "../hooks/usePaneMeta";
 import { usePendingFocus } from "../hooks/usePendingFocus";
@@ -3139,6 +3140,7 @@ function DevBoardPage() {
 		autoResumeTick,
 	]);
 
+	const { add: addTask } = useMyTasks();
 	const handleNewSession = async (
 		rawPrompt: string,
 		images: PromptImage[],
@@ -3146,6 +3148,19 @@ function DevBoardPage() {
 	) => {
 		const prompt = rawPrompt.trim();
 		if (!prompt && images.length === 0) return;
+		if (useClaudeCommand.getState().toBacklog) {
+			// ponytail: a My Tasks row is plain text, so attachments have nowhere
+			// to live yet - say so rather than drop them.
+			if (images.length > 0)
+				return void toast.error(
+					"Backlog tasks can't keep images or videos yet. Remove them or start the session now.",
+				);
+			if (!prompt) return;
+			addTask(prompt, undefined, repoPath);
+			setIsComposerOpen(false);
+			toast.success("Added to My Tasks");
+			return;
+		}
 		const ensured = await ensureWorkspace();
 		if (!ensured.ok) {
 			toast.error(ensured.error);
@@ -4633,6 +4648,7 @@ function DevBoardPage() {
 					placeholder="What should the agent do? (it picks the repo)"
 					repoPicker
 					modelPicker
+					backlogToggle
 					onCancel={() => setIsComposerOpen(false)}
 					onSubmit={handleNewSession}
 				/>

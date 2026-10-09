@@ -85,6 +85,7 @@ export function OdinPromptDialog({
 	defaultPrompt = "",
 	repoPicker = false,
 	modelPicker = false,
+	backlogToggle = false,
 	submitLabel = "Start session",
 	onCancel,
 	onSubmit,
@@ -102,6 +103,8 @@ export function OdinPromptDialog({
 	repoPicker?: boolean;
 	/** Pick the session's model; the pick sticks for every later launch. */
 	modelPicker?: boolean;
+	/** Offer "Backlog": park the prompt on My Tasks instead of starting it. */
+	backlogToggle?: boolean;
 	submitLabel?: string;
 	onCancel: () => void;
 	onSubmit: (
@@ -118,6 +121,9 @@ export function OdinPromptDialog({
 	const [isStarting, setIsStarting] = useState(false);
 	const model = useClaudeCommand((state) => state.model);
 	const setModel = useClaudeCommand((state) => state.setModel);
+	const storedToBacklog = useClaudeCommand((state) => state.toBacklog);
+	const setToBacklog = useClaudeCommand((state) => state.setToBacklog);
+	const toBacklog = backlogToggle && storedToBacklog;
 	const fileInput = useRef<HTMLInputElement>(null);
 
 	// Launching takes a couple of seconds (workspace + PTY), so wait on the
@@ -428,6 +434,22 @@ export function OdinPromptDialog({
 							))}
 						</select>
 					)}
+					{backlogToggle && (
+						<label
+							title="Add it to My Tasks instead of starting a session now"
+							className={`flex shrink-0 cursor-pointer items-center gap-1 rounded-[6px] bg-secondary px-2 py-[3px] text-[11px] font-semibold ${
+								toBacklog ? "text-foreground" : "text-muted-foreground"
+							}`}
+						>
+							<input
+								type="checkbox"
+								checked={toBacklog}
+								onChange={(event) => setToBacklog(event.target.checked)}
+								className="accent-primary"
+							/>
+							Backlog
+						</label>
+					)}
 					<div className="flex-1" />
 					<button
 						type="button"
@@ -445,7 +467,11 @@ export function OdinPromptDialog({
 						{isStarting && (
 							<span className="size-[9px] animate-spin rounded-full border border-current border-t-transparent" />
 						)}
-						{isStarting ? "Starting…" : submitLabel}
+						{isStarting
+							? "Starting…"
+							: toBacklog
+								? "Add to backlog"
+								: submitLabel}
 					</button>
 				</div>
 			</div>
