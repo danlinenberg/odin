@@ -315,6 +315,39 @@ function toolSummary(input: Record<string, unknown>): string {
 	return "";
 }
 
+const base = (path: unknown) =>
+	typeof path === "string" ? (path.split("/").pop() ?? path) : "";
+
+/**
+ * What a tool call is doing, in words: Claude writes a description for every
+ * command and agent, the rest read off the file or pattern. The raw input
+ * stays one click under it.
+ */
+export function toolDescription(tool: Pick<Tool, "name" | "input">): string {
+	const { name, input } = tool;
+	if (typeof input.description === "string" && input.description)
+		return input.description;
+	switch (name) {
+		case "Read":
+			return `Read ${base(input.file_path)}`;
+		case "Edit":
+		case "MultiEdit":
+			return `Edited ${base(input.file_path)}`;
+		case "Write":
+			return `Wrote ${base(input.file_path)}`;
+		case "Grep":
+		case "Glob":
+			return `Searched for ${input.pattern}`;
+		case "Skill":
+			return `Used the ${input.skill} skill`;
+		case "WebFetch":
+			return `Opened ${input.url}`;
+		case "WebSearch":
+			return `Searched the web for ${input.query}`;
+	}
+	return `${name} ${toolSummary(input)}`.trim();
+}
+
 /** Colour +/- lines green/red like the terminal, only for output that has a diff hunk. */
 function DiffColored({ text }: { text: string }) {
 	if (!/^@@ /m.test(text)) return <>{text}</>;
@@ -355,11 +388,11 @@ const ToolRow = memo(function ToolRow({
 						done && (item.isError ? "bg-danger" : "bg-emerald-500"),
 					)}
 				/>
-				<span className="shrink-0 font-semibold text-foreground">
-					{item.name}
+				<span className="min-w-0 truncate text-foreground">
+					{toolDescription(item)}
 				</span>
-				<span className="min-w-0 truncate font-mono text-[11.5px] text-muted-foreground">
-					{toolSummary(item.input)}
+				<span className="min-w-0 flex-1 truncate font-mono text-[11px] text-faint-foreground">
+					{item.name}
 				</span>
 				<span className="ml-auto shrink-0 text-[10px] text-faint-foreground">
 					{open ? "▾" : "▸"}
@@ -466,6 +499,7 @@ const ToolGroup = memo(
 		const [open, setOpen] = useState(false);
 		const tools = group.filter((item): item is Tool => item.kind === "tool");
 		const running = tools.find((tool) => tool.result === undefined);
+		const latest = running ?? tools.at(-1);
 		const failed = tools.some((tool) => tool.isError);
 		return (
 			<div className="flex min-w-0 flex-col">
@@ -474,19 +508,27 @@ const ToolGroup = memo(
 					onClick={() => setOpen((value) => !value)}
 					className="flex min-w-0 max-w-full items-center gap-2 self-start rounded-lg border border-border bg-secondary px-2.5 py-1 text-left text-[12px] text-soft-foreground hover:bg-accent hover:text-foreground"
 				>
-					<LuTerminal className="size-3.5 shrink-0" />
-					<span className="shrink-0">{groupSummary(group)}</span>
+					{running ? (
+						<span className="size-[6px] shrink-0 animate-pulse rounded-full bg-working" />
+					) : (
+						<LuTerminal className="size-3.5 shrink-0" />
+					)}
+					{latest && (
+						<span
+							className={cn(
+								"min-w-0 truncate",
+								running ? "text-working" : "text-foreground",
+							)}
+						>
+							{toolDescription(latest)}
+						</span>
+					)}
+					<span className="shrink-0 text-faint-foreground">
+						· {groupSummary(group)}
+					</span>
 					{/* ponytail: muted - a failed command is routine, Claude retries */}
 					{failed && (
 						<span className="shrink-0 text-faint-foreground">· error</span>
-					)}
-					{running && (
-						<span className="flex min-w-0 items-center gap-1.5 text-working">
-							<span className="size-[6px] shrink-0 animate-pulse rounded-full bg-working" />
-							<span className="truncate font-mono text-[11.5px]">
-								{running.name} {toolSummary(running.input)}
-							</span>
-						</span>
 					)}
 					<LuChevronRight
 						className={cn(
