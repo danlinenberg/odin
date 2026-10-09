@@ -475,11 +475,6 @@ export function OdinPromptDialog({
 							: toBacklog
 								? "Add to backlog"
 								: submitLabel}
-						{!isStarting && (
-							<kbd className="font-sans text-[10.5px] font-medium opacity-60">
-								{sendKeys}
-							</kbd>
-						)}
 					</button>
 				</div>
 			</div>
