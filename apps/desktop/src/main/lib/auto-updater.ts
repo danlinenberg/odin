@@ -39,13 +39,17 @@ import { swapScript } from "./update-swap-script";
  * So this does what the Homebrew cask does, from inside the app: read the
  * latest release tag, download the DMG, mount it, and swap the bundle once the
  * UI has quit. No signature pinning, nothing to add to the release.
+ *
+ * Windows does the same with the NSIS installer: download it, quit, and run it
+ * silently with the flags electron-updater uses, which reopen Odin after.
  */
 
 const REPO_SLUG = "danlinenberg/odin";
 const LATEST_RELEASE_API = `https://api.github.com/repos/${REPO_SLUG}/releases/latest`;
-// Same URL the cask resolves; release.yml keeps the asset name stable so that
-// /releases/latest/download always points at the newest build.
-const DMG_URL = `https://github.com/${REPO_SLUG}/releases/latest/download/Odin-arm64.dmg`;
+// release.yml keeps these asset names stable (the cask resolves the DMG's).
+const ASSET_NAME = PLATFORM.IS_WINDOWS
+	? "Odin-Setup-x64.exe"
+	: "Odin-arm64.dmg";
 
 const UPDATE_CHECK_INTERVAL_MS = 1000 * 60 * 60; // 1 hour
 
@@ -55,9 +59,9 @@ function appBundlePath(): string {
 	return dirname(dirname(dirname(app.getPath("exe"))));
 }
 
-/** Updates only make sense for a packaged macOS build; `bun dev` has git. */
+/** Updates only make sense for a packaged build; `bun dev` has git. */
 function canUpdate(): boolean {
-	return app.isPackaged && PLATFORM.IS_MAC;
+	return app.isPackaged && (PLATFORM.IS_MAC || PLATFORM.IS_WINDOWS);
 }
 
 export type { AutoUpdateStatusEvent } from "shared/auto-update";
@@ -90,10 +94,13 @@ let currentProgress: AutoUpdateProgress | undefined;
 let isDismissed = false;
 let isInstalling = false;
 let isChecking = false;
-/** A downloaded, mounted DMG waiting for the restart that installs it. */
-let staged:
-	| { version: string; mountPoint: string; workDir: string }
-	| undefined;
+/** The newest release's download for this platform, once a check found it. */
+let availableUrl: string | undefined;
+/**
+ * A download waiting for the restart that installs it. path is the mounted
+ * DMG on macOS and the installer .exe on Windows.
+ */
+let staged: { version: string; workDir: string; path: string } | undefined;
 
 function emitStatus(
 	status: AutoUpdateStatus,
@@ -143,8 +150,15 @@ export function dismissUpdate(): void {
 	autoUpdateEmitter.emit("status-changed", { status: AUTO_UPDATE_STATUS.IDLE });
 }
 
-/** The newest published release, or null when the tag isn't a version. */
-async function fetchLatestVersion(): Promise<string | null> {
+/**
+ * The newest published release and this platform's download, or null when
+ * the tag isn't a version or the asset isn't uploaded yet (release.yml adds
+ * the Windows installer some minutes after it publishes the release).
+ */
+async function fetchLatestRelease(): Promise<{
+	version: string;
+	url: string;
+} | null> {
 	const response = await fetch(LATEST_RELEASE_API, {
 		headers: {
 			Accept: "application/vnd.github+json",
@@ -156,22 +170,32 @@ async function fetchLatestVersion(): Promise<string | null> {
 			`GitHub returned ${response.status} for the latest release`,
 		);
 	}
-	const release = (await response.json()) as { tag_name?: string };
+	const release = (await response.json()) as {
+		tag_name?: string;
+		assets?: { name: string; browser_download_url: string }[];
+	};
 	const version = release.tag_name?.replace(/^v/, "");
-	return version && valid(version) ? version : null;
+	const url = release.assets?.find(
+		(asset) => asset.name === ASSET_NAME,
+	)?.browser_download_url;
+	return version && valid(version) && url ? { version, url } : null;
 }
 
 const PROGRESS_EMIT_INTERVAL_MS = 500;
 
-/** Download the release DMG and mount it. Returns the mounted Odin.app's dir. */
-async function downloadAndMount(
+/**
+ * Download the release asset. On macOS mount the DMG and return the mounted
+ * Odin.app's dir; on Windows return the installer's path.
+ */
+async function downloadRelease(
 	version: string,
-): Promise<{ mountPoint: string; workDir: string }> {
+	url: string,
+): Promise<{ path: string; workDir: string }> {
 	const workDir = await mkdtemp(join(tmpdir(), "odin-update-"));
-	const dmgPath = join(workDir, "Odin.dmg");
+	const filePath = join(workDir, ASSET_NAME);
 	const mountPoint = join(workDir, "mnt");
 
-	const response = await fetch(DMG_URL, {
+	const response = await fetch(url, {
 		headers: { "User-Agent": `Odin/${app.getVersion()}` },
 	});
 	if (!response.ok || !response.body) {
@@ -197,13 +221,16 @@ async function downloadAndMount(
 			totalBytes,
 		});
 	});
-	await pipeline(body, createWriteStream(dmgPath));
-	log.info(`[auto-updater] Downloaded ${transferredBytes} bytes to ${dmgPath}`);
+	await pipeline(body, createWriteStream(filePath));
+	log.info(
+		`[auto-updater] Downloaded ${transferredBytes} bytes to ${filePath}`,
+	);
+	if (PLATFORM.IS_WINDOWS) return { path: filePath, workDir };
 
 	await new Promise<void>((resolve, reject) => {
 		const child = spawn(
 			"/usr/bin/hdiutil",
-			["attach", dmgPath, "-nobrowse", "-readonly", "-mountpoint", mountPoint],
+			["attach", filePath, "-nobrowse", "-readonly", "-mountpoint", mountPoint],
 			{ stdio: "ignore" },
 		);
 		child.on("error", reject);
@@ -217,7 +244,7 @@ async function downloadAndMount(
 	if (!existsSync(join(mountPoint, "Odin.app"))) {
 		throw new Error("The downloaded disk image has no Odin.app in it");
 	}
-	return { mountPoint, workDir };
+	return { path: mountPoint, workDir };
 }
 
 /** Download (unless already staged), then quit and swap. Only a click calls this. */
@@ -227,17 +254,22 @@ export async function installUpdate(): Promise<void> {
 		return;
 	}
 	if (!staged) {
-		if (currentStatus !== AUTO_UPDATE_STATUS.AVAILABLE || !currentVersion) {
+		if (
+			currentStatus !== AUTO_UPDATE_STATUS.AVAILABLE ||
+			!currentVersion ||
+			!availableUrl
+		) {
 			log.warn(
 				`[auto-updater] Install ignored: nothing available (${currentStatus})`,
 			);
 			return;
 		}
 		const version = currentVersion;
+		const url = availableUrl;
 		isChecking = true;
 		try {
 			emitStatus(AUTO_UPDATE_STATUS.DOWNLOADING, version);
-			staged = { version, ...(await downloadAndMount(version)) };
+			staged = { version, ...(await downloadRelease(version, url)) };
 			emitStatus(AUTO_UPDATE_STATUS.READY, version);
 		} catch (error) {
 			log.error("[auto-updater] Download failed:", error);
@@ -250,11 +282,26 @@ export async function installUpdate(): Promise<void> {
 	}
 	isInstalling = true;
 	log.info(`[auto-updater] Installing ${staged.version} and relaunching`);
-	const child = spawn(
-		"/bin/bash",
-		["-c", swapScript({ appBundle: appBundlePath(), ...staged })],
-		{ detached: true, stdio: "ignore" },
-	);
+	// The NSIS installer waits for Odin to exit (and closes it if it lingers).
+	// These are electron-updater's flags: --updated keeps the user's shortcuts,
+	// /S runs it silently, --force-run reopens Odin when it's done.
+	const child = PLATFORM.IS_WINDOWS
+		? spawn(staged.path, ["--updated", "/S", "--force-run"], {
+				detached: true,
+				stdio: "ignore",
+			})
+		: spawn(
+				"/bin/bash",
+				[
+					"-c",
+					swapScript({
+						appBundle: appBundlePath(),
+						workDir: staged.workDir,
+						mountPoint: staged.path,
+					}),
+				],
+				{ detached: true, stdio: "ignore" },
+			);
 	child.unref();
 	setSkipQuitConfirmation();
 	app.quit();
@@ -267,7 +314,7 @@ async function runCheck({ userAsked }: { userAsked: boolean }): Promise<void> {
 				type: "info",
 				title: "Updates",
 				message: app.isPackaged
-					? "In-app updates are only available on macOS."
+					? "In-app updates are only available on macOS and Windows."
 					: "This is a development build - update it with scripts/odin-update.sh.",
 			});
 		}
@@ -288,8 +335,9 @@ async function runCheck({ userAsked }: { userAsked: boolean }): Promise<void> {
 	isDismissed = false;
 	emitStatus(AUTO_UPDATE_STATUS.CHECKING);
 	try {
-		const latest = await fetchLatestVersion();
-		if (!latest || !gt(latest, app.getVersion())) {
+		const release = await fetchLatestRelease();
+		const latest = release?.version;
+		if (!release || !latest || !gt(latest, app.getVersion())) {
 			emitStatus(AUTO_UPDATE_STATUS.IDLE);
 			log.info(
 				`[auto-updater] Up to date (current=${app.getVersion()}, latest=${latest ?? "unknown"})`,
@@ -310,6 +358,7 @@ async function runCheck({ userAsked }: { userAsked: boolean }): Promise<void> {
 		);
 		// Announce only - the renderer's banner downloads and installs on a
 		// click. Nothing updates on its own.
+		availableUrl = release.url;
 		emitStatus(AUTO_UPDATE_STATUS.AVAILABLE, latest);
 		if (userAsked) await offerUpdate(latest);
 	} catch (error) {
@@ -346,8 +395,9 @@ async function offerUpdate(version: string): Promise<void> {
 		type: "info",
 		title: "Update Available",
 		message: `Odin ${version} is available.`,
-		detail:
-			"Odin will download it, quit, swap itself out and reopen. Open terminal sessions survive.",
+		detail: PLATFORM.IS_WINDOWS
+			? "Odin will download it, quit, install it and reopen. Running sessions end when Odin quits."
+			: "Odin will download it, quit, swap itself out and reopen. Open terminal sessions survive.",
 		buttons: ["Update Now", "Later"],
 		defaultId: 0,
 		cancelId: 1,
@@ -368,7 +418,7 @@ export function setupAutoUpdater(): void {
 
 	log.transports.file.level = "info";
 	log.info(
-		`[auto-updater] Initialized: version=${app.getVersion()}, bundle=${appBundlePath()}`,
+		`[auto-updater] Initialized: version=${app.getVersion()}, exe=${app.getPath("exe")}`,
 	);
 
 	// The background check only announces: UpdateBanner in the renderer shows
