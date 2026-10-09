@@ -382,7 +382,7 @@ export function CrowButton({
 				{!open && (
 					<TooltipContent side="right" align="end" className="max-w-[240px]">
 						<div className="font-semibold">
-							{!seen && "New: "}Odin's raven{keys && ` (${keys})`}
+							{!seen && "New: "}Huginn, Odin's raven{keys && ` (${keys})`}
 						</div>
 						<div className="text-muted-foreground">
 							{!seen
