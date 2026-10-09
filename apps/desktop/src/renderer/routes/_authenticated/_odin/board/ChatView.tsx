@@ -20,6 +20,7 @@ import {
 } from "../components/skill-picker";
 import { attachmentPaths } from "../components/TaskBox";
 import { COMPACT_MARKDOWN } from "../components/TranscriptView";
+import { actionItemLines } from "./brief";
 import { PlanCard, QuestionCard, ScreenMenuCard } from "./ChatPrompts";
 import { collectRefs, linkify } from "./chat-links";
 import { parseScreenMenu } from "./screen-menu";
@@ -820,11 +821,7 @@ export function isApprovalItem(item: string): boolean {
 }
 
 /** The numbered or bulleted lines of an ACTION ITEMS block; [] for "none". */
-export function actionItemList(text: string): string[] {
-	return [...text.matchAll(/^\s*(?:\d+[.)]|[-*])\s+(.+)$/gm)].map(
-		(match) => match[1]?.trim() ?? "",
-	);
-}
+export const actionItemList = actionItemLines;
 
 /**
  * An item that asks you to tell Claude something - a choice, a value, a
