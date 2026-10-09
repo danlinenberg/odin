@@ -477,7 +477,8 @@ const ToolGroup = memo(
 	function ToolGroup({ group }: { group: Group }) {
 		const [open, setOpen] = useState(false);
 		const tools = group.filter((item): item is Tool => item.kind === "tool");
-		const failed = tools.some((tool) => tool.isError);
+		// A failure Claude retried past is routine; only flag a run that ended failing.
+		const failed = tools.at(-1)?.isError === true;
 		return (
 			<div className="flex min-w-0 flex-col">
 				<button
@@ -487,7 +488,6 @@ const ToolGroup = memo(
 				>
 					{/* Live work shows once, in the turn's own "Working..." row below. */}
 					<span>Worked</span>
-					{/* ponytail: muted - a failed command is routine, Claude retries */}
 					{failed && (
 						<span className="shrink-0 text-faint-foreground">· error</span>
 					)}
