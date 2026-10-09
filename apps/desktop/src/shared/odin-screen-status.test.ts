@@ -223,6 +223,25 @@ dan@MacBook-Pro-5 ~/dev/imagen  main +
 		expect(agentOnScreen(panel("      Four."))).toBe(true);
 	});
 
+	// Trimmed from a fresh Windows VM's first session: no box, no status line.
+	it("sees Claude on its first-run setup", () => {
+		const THEME = `
+Welcome to Claude Code v2.1.295
+ Let's get started.
+ Choose the text style that looks best with your terminal
+ To change this later, run /theme
+     Auto (match terminal)
+ ❯ Dark mode
+     Light mode
+`;
+		expect(agentOnScreen(THEME)).toBe(true);
+		expect(
+			agentOnScreen(
+				" WARNING: Claude Code running in Bypass Permissions mode\n",
+			),
+		).toBe(true);
+	});
+
 	it("does not see Claude in the shell it left behind", () => {
 		expect(agentOnScreen(SHELL)).toBe(false);
 	});
