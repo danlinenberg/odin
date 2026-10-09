@@ -320,8 +320,9 @@ export function NextInLine() {
 		unpinned,
 	} = useNextInLineQueue(showHidden);
 	// Tonight's picks in pick order - the order the Night Agent starts them -
-	// so the column reads top-down the way the night runs.
-	const byKey = new Map(next.map((item) => [item.key, item]));
+	// so the column reads top-down the way the night runs. From everything
+	// waiting, not just what's shown: the AI's hides don't apply to your picks.
+	const byKey = new Map(waiting.map((item) => [item.key, item]));
 	const tonight = picked.flatMap((key) => byKey.get(key) ?? []);
 	const notPicked = (item: AllItem) => !picked.includes(item.key);
 	const pinnedRest = pinned.filter(notPicked);
@@ -388,7 +389,7 @@ export function NextInLine() {
 						className="font-normal normal-case tracking-normal"
 					/>
 					<span className="rounded-[10px] bg-secondary px-2 font-medium">
-						{next.length}
+						{tonight.length + pinnedRest.length + rest.length}
 					</span>
 				</span>
 			</div>
@@ -404,7 +405,7 @@ export function NextInLine() {
 				count={waiting.length}
 			/>
 			<div className="flex flex-col gap-2 overflow-y-auto px-2 pb-2.5">
-				{next.length === 0 ? (
+				{next.length + tonight.length === 0 ? (
 					<div className="px-2 py-6 text-center text-xs text-muted-foreground">
 						Nothing waiting to start
 					</div>
