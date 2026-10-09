@@ -1104,6 +1104,7 @@ export function ChatView({
 	onResumeWith,
 	noTerminal = false,
 	placeholder,
+	onOpenSession,
 }: {
 	paneId: string;
 	sessionId: string | null;
@@ -1120,6 +1121,8 @@ export function ChatView({
 	noTerminal?: boolean;
 	/** The reply box's prompt, in place of "Reply to Claude". */
 	placeholder?: string;
+	/** Follows a `#session=<paneId>` link in a reply (Hugin writes them). */
+	onOpenSession?: (paneId: string) => void;
 }) {
 	const { data: home } = electronTrpc.window.getHomeDir.useQuery();
 	// Claude files the conversation under the directory it STARTED in - the
@@ -1289,7 +1292,13 @@ export function ChatView({
 				// Links open in Odin's browser, like everywhere else on the board.
 				onClickCapture={(event) => {
 					const anchor = (event.target as HTMLElement).closest("a");
-					if (anchor?.href.startsWith("http")) {
+					const session = anchor
+						?.getAttribute("href")
+						?.match(/^#session=(.+)$/)?.[1];
+					if (session && onOpenSession) {
+						event.preventDefault();
+						onOpenSession(decodeURIComponent(session));
+					} else if (anchor?.href.startsWith("http")) {
 						event.preventDefault();
 						openUrl(anchor.href);
 					}

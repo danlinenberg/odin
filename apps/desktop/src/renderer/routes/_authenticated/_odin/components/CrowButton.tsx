@@ -241,6 +241,7 @@ function CrowChat({
 				noTerminal
 				placeholder="What else can I do for you?"
 				onShowTerminal={() => onShowOnBoard(pane.id)}
+				onOpenSession={onShowOnBoard}
 				onStop={() => {
 					// The drawer's Interrupt: Ctrl+C, and out of Working now - Claude
 					// fires no Stop hook on an interrupt.
@@ -290,6 +291,16 @@ export function CrowButton({
 		? conversation
 		: undefined;
 	const button = useRef<HTMLButtonElement>(null);
+	const status = liveConversation?.status;
+	const working = status === "working";
+	// An answer, a question, or a failure waiting for you.
+	const waiting =
+		status === "review" || status === "permission" || status === "failed";
+	// Reading the answer is enough: a question still waits for its reply.
+	useEffect(() => {
+		if (open && conversation && conversation.status === "review")
+			useTabsStore.getState().setPaneStatus(conversation.id, "idle");
+	}, [open, conversation]);
 	const rect = open ? button.current?.getBoundingClientRect() : undefined;
 
 	return (
@@ -301,19 +312,30 @@ export function CrowButton({
 						data-crow
 						aria-label="Ask Hugin"
 						ref={button}
-						className={`flex size-9 items-center justify-center rounded-[9px] transition-colors ${open ? "bg-violet-500/20 text-violet-200" : "text-muted-foreground hover:text-foreground"}`}
+						className={`relative flex size-9 items-center justify-center rounded-[9px] transition-colors ${open ? "bg-violet-500/20 text-violet-200" : "text-muted-foreground hover:text-foreground"}`}
 						onClick={open ? onClose : onOpen}
 					>
-						<CrowIcon className="size-[19px] drop-shadow-[0_0_5px_rgba(167,139,250,0.6)] animate-[hugin-hop_20s_ease-in-out_infinite] motion-reduce:animate-none" />
+						<CrowIcon
+							className={`size-[19px] drop-shadow-[0_0_5px_rgba(167,139,250,0.6)] ${working ? "animate-[odin-nod_1.6s_ease-in-out_infinite]" : "animate-[hugin-hop_20s_ease-in-out_infinite]"} motion-reduce:animate-none`}
+						/>
+						{(working || waiting) && !open && (
+							<span
+								className={`absolute right-1 top-1 size-2 rounded-full ring-2 ring-tertiary ${working ? "animate-pulse bg-working" : "bg-attention"}`}
+							/>
+						)}
 					</button>
 				</TooltipTrigger>
 				{!open && (
-					<TooltipContent side="right" className="max-w-[240px]">
+					<TooltipContent side="right" align="end" className="max-w-[240px]">
 						<div className="font-semibold">
 							Hugin, Odin's raven{keys && ` (${keys})`}
 						</div>
 						<div className="text-muted-foreground">
-							Give it instructions for Odin, or ask it anything.
+							{working
+								? "Working on it..."
+								: waiting
+									? "Has something for you."
+									: "Give it instructions for Odin, or ask it anything."}
 						</div>
 					</TooltipContent>
 				)}
