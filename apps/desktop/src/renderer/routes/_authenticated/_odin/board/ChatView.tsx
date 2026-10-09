@@ -992,6 +992,7 @@ export function ChatView({
 	onStop,
 	onResumeWith,
 	noTerminal = false,
+	placeholder,
 }: {
 	paneId: string;
 	sessionId: string | null;
@@ -1006,6 +1007,8 @@ export function ChatView({
 	onResumeWith?: (text: string) => void;
 	/** Hide the links to the terminal view (the crow's panel has none). */
 	noTerminal?: boolean;
+	/** The reply box's prompt, in place of "Reply to Claude". */
+	placeholder?: string;
 }) {
 	const { data: home } = electronTrpc.window.getHomeDir.useQuery();
 	// Claude files the conversation under the directory it STARTED in - the
@@ -1338,6 +1341,7 @@ export function ChatView({
 							onSent={onSent}
 							onStop={onStop}
 							noTerminal={noTerminal}
+							placeholder={placeholder}
 						/>
 					)}
 				</>
@@ -1381,12 +1385,14 @@ function Composer({
 	onSent,
 	onStop,
 	noTerminal,
+	placeholder = "Reply to Claude",
 }: {
 	paneId: string;
 	working: boolean;
 	onSent: (text: string, previews?: Preview[]) => void;
 	onStop?: () => void;
 	noTerminal: boolean;
+	placeholder?: string;
 }) {
 	const [draft, setDraft] = useState("");
 	// "!" on an empty box switches to bash mode, like the terminal's prompt.
@@ -1590,7 +1596,7 @@ function Composer({
 								void send();
 							}
 						}}
-						placeholder={bash ? "Run a shell command" : "Reply to Claude"}
+						placeholder={bash ? "Run a shell command" : placeholder}
 						className={cn(
 							"block max-h-[220px] w-full resize-none bg-transparent text-[13.5px] leading-relaxed text-foreground outline-none placeholder:text-faint-foreground",
 							bash && "font-mono",

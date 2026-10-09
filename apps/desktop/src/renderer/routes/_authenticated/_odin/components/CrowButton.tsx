@@ -260,6 +260,7 @@ function CrowChat({
 				workspaceId={workspaceId}
 				working={pane.status === "working"}
 				noTerminal
+				placeholder="Tell Hugin what Odin should do"
 				onShowTerminal={() => onShowOnBoard(pane.id)}
 				onStop={() => {
 					// The drawer's Interrupt: Ctrl+C, and out of Working now - Claude
