@@ -217,11 +217,10 @@ export function OdinPromptDialog({
 					void addFiles(event.dataTransfer.files);
 				}}
 			>
-				<div className="mb-2 text-xs font-semibold text-foreground">
+				<div className="mb-2 flex items-baseline justify-between gap-3 text-xs font-semibold text-foreground">
 					{heading}
-					<span className="ml-1.5 font-normal text-muted-foreground">
-						{sendKeys} start · esc cancel · / for skills · paste or drop
-						images/video
+					<span className="truncate text-[11px] font-normal text-muted-foreground/70">
+						{sendKeys} start · / for skills · paste or drop images and video
 					</span>
 				</div>
 				{note && (
@@ -351,7 +350,7 @@ export function OdinPromptDialog({
 						))}
 					</div>
 				)}
-				<div className="mt-2.5 flex items-center gap-1.5">
+				<div className="mt-3 flex items-center gap-1.5">
 					<input
 						ref={fileInput}
 						type="file"
@@ -366,9 +365,10 @@ export function OdinPromptDialog({
 					<button
 						type="button"
 						onClick={() => fileInput.current?.click()}
-						className="shrink-0 whitespace-nowrap rounded-[6px] bg-secondary px-2 py-[3px] text-[11px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
+						title="Add images or video - you can also paste or drop them"
+						className="h-7 shrink-0 rounded-[6px] bg-secondary px-2.5 text-[11.5px] font-semibold whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground"
 					>
-						+ Image / Video
+						+ Attach
 					</button>
 					{repoPicker && (
 						// ponytail: native <datalist> - Chromium does the search-as-you-type
@@ -379,13 +379,13 @@ export function OdinPromptDialog({
 								aria-label="Repository"
 								value={repoQuery}
 								onChange={(event) => setRepoQuery(event.target.value)}
-								placeholder="No repo (agent picks)"
+								placeholder="Repo: agent picks"
 								title={repo || "Search your git checkouts"}
 								// Picking a <datalist> option marks the field :autofill, and
 								// Chromium paints that white-on-black over any bg-* - only an
 								// inset shadow and text-fill-color beat it. color-scheme darkens
 								// the dropdown itself.
-								className={`w-[230px] min-w-0 rounded-[6px] bg-secondary px-2 py-[3px] text-[11px] font-semibold outline-none [color-scheme:inherit] placeholder:font-semibold placeholder:text-muted-foreground autofill:shadow-[inset_0_0_0_1000px_var(--secondary)] autofill:[-webkit-text-fill-color:var(--foreground)] ${
+								className={`h-7 w-[200px] min-w-[120px] shrink rounded-[6px] bg-secondary px-2.5 text-[11.5px] font-semibold outline-none [color-scheme:inherit] placeholder:font-semibold placeholder:text-muted-foreground autofill:shadow-[inset_0_0_0_1000px_var(--secondary)] autofill:[-webkit-text-fill-color:var(--foreground)] ${
 									repo ? "text-foreground" : "text-muted-foreground"
 								}`}
 							/>
@@ -419,7 +419,7 @@ export function OdinPromptDialog({
 							aria-label="Model"
 							value={model}
 							onChange={(event) => setModel(event.target.value)}
-							className={`shrink-0 rounded-[6px] bg-secondary px-1.5 py-[3px] text-[11px] font-semibold outline-none [color-scheme:inherit] ${
+							className={`h-7 shrink-0 rounded-[6px] bg-secondary px-2 text-[11.5px] font-semibold outline-none [color-scheme:inherit] ${
 								model ? "text-foreground" : "text-muted-foreground"
 							}`}
 						>
@@ -433,15 +433,20 @@ export function OdinPromptDialog({
 					{backlogToggle && (
 						<label
 							title="Add it to My Tasks instead of starting a session now"
-							className={`flex shrink-0 cursor-pointer items-center gap-1 rounded-[6px] bg-secondary px-2 py-[3px] text-[11px] font-semibold ${
-								toBacklog ? "text-foreground" : "text-muted-foreground"
+							className={`flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-[6px] px-2.5 text-[11.5px] font-semibold transition-colors has-[:focus-visible]:ring-1 has-[:focus-visible]:ring-primary ${
+								toBacklog
+									? "bg-primary/20 text-primary"
+									: "bg-secondary text-muted-foreground hover:text-foreground"
 							}`}
 						>
 							<input
 								type="checkbox"
 								checked={toBacklog}
 								onChange={(event) => setToBacklog(event.target.checked)}
-								className="accent-primary"
+								className="sr-only"
+							/>
+							<span
+								className={`size-1.5 rounded-full ${toBacklog ? "bg-primary" : "bg-muted-foreground/50"}`}
 							/>
 							Backlog
 						</label>
@@ -450,7 +455,7 @@ export function OdinPromptDialog({
 					<button
 						type="button"
 						onClick={onCancel}
-						className="shrink-0 whitespace-nowrap rounded-[6px] px-2 py-[3px] text-[11px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
+						className="h-7 shrink-0 whitespace-nowrap rounded-[6px] px-2.5 text-[11.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
 					>
 						Cancel
 					</button>
@@ -458,7 +463,7 @@ export function OdinPromptDialog({
 						type="button"
 						disabled={isStarting}
 						onClick={() => void start()}
-						className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[6px] bg-primary px-2.5 py-[3px] text-[11px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-default disabled:opacity-70"
+						className="flex h-7 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[6px] bg-primary px-3 text-[11.5px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-default disabled:opacity-70"
 					>
 						{isStarting && (
 							<span className="size-[9px] animate-spin rounded-full border border-current border-t-transparent" />
