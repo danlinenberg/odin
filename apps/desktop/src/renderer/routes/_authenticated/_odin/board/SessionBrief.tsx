@@ -874,6 +874,9 @@ export function SessionBrief({
 	return (
 		<div className="flex w-[340px] shrink-0 flex-col border-l border-border bg-tertiary">
 			<div className="flex items-center gap-2 border-b border-border px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[.4px] text-muted-foreground">
+				<span className="rounded bg-primary/15 px-1.5 py-0.5 normal-case tracking-normal text-primary">
+					ⓘ Brief
+				</span>
 				What's going on
 				{isWriting && !written && (
 					<span className="ml-auto normal-case tracking-normal text-primary">
