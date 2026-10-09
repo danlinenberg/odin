@@ -4,15 +4,18 @@ import type { AgentSkill } from "lib/trpc/routers/skills";
 import { useEffect, useRef, useState } from "react";
 import { HiOutlineClock, HiOutlineSparkles } from "react-icons/hi2";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { useClaudeCommand } from "renderer/stores/claude-command";
 import { describeCron, nextRun } from "shared/cron";
 import {
 	PRIORITY_LABELS,
 	parseTask,
 	priorityOf,
 	useMyTasks,
+	useOdinTasks,
 	withPriority,
 	withSkill,
 } from "../hooks/useOdinTasks";
+import { useStartTask } from "../hooks/useStartTask";
 import { ROW_PRIMARY_BUTTON } from "./FeedChrome";
 import { readFile } from "./OdinPromptDialog";
 import { PILL } from "./pill";
@@ -644,6 +647,9 @@ export function parseSize(stored: string | null): [string, string] | null {
  */
 export function QuickAddTask({ onClose }: { onClose: () => void }) {
 	const { add } = useMyTasks();
+	const { startTask } = useStartTask();
+	const startNow = useClaudeCommand((state) => state.startNow);
+	const setStartNow = useClaudeCommand((state) => state.setStartNow);
 	const { data: skills } = electronTrpc.skills.list.useQuery();
 	const { data: repos } = electronTrpc.repos.list.useQuery();
 	const [draft, setDraft] = useState("");
@@ -667,8 +673,11 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 		// Same rule the store uses - no title, no task, so don't claim one.
 		if (!parseTask(draft).title) return onClose();
 		add(draft, undefined, repo);
-		toast.success("Added to My Tasks");
 		onClose();
+		if (!startNow) return void toast.success("Added to My Tasks");
+		// The store puts a new task first, so that's the one just added.
+		const task = useOdinTasks.getState().tasks[0];
+		if (task) void startTask(task);
 	};
 
 	return (
@@ -694,13 +703,28 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 					<span className="ml-1.5 font-normal text-muted-foreground">
 						⌘⏎ add · esc cancel
 					</span>
+					<label
+						title="Start a session on it right away, not just add it to My Tasks"
+						className={cn(
+							"ml-auto flex cursor-pointer items-center gap-1 rounded-[6px] bg-secondary px-2 py-[3px] text-[11px] font-semibold",
+							startNow ? "text-foreground" : "text-muted-foreground",
+						)}
+					>
+						<input
+							type="checkbox"
+							checked={startNow}
+							onChange={(event) => setStartNow(event.target.checked)}
+							className="accent-primary"
+						/>
+						Start now
+					</label>
 					<button
 						type="button"
 						onClick={save}
 						disabled={!parseTask(draft).title}
-						className="ml-auto rounded-[6px] bg-primary px-2.5 py-[3px] text-[11px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-default disabled:opacity-40"
+						className="ml-1.5 rounded-[6px] bg-primary px-2.5 py-[3px] text-[11px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-default disabled:opacity-40"
 					>
-						Add task
+						{startNow ? "Start session" : "Add task"}
 					</button>
 				</div>
 				<TaskBox

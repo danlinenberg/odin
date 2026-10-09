@@ -1,8 +1,6 @@
-import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import { DoneButton } from "../components/DoneButton";
@@ -25,14 +23,9 @@ import {
 	TaskBox,
 } from "../components/TaskBox";
 import { useDone } from "../hooks/useDone";
-import {
-	type OdinTask,
-	taskPrompt,
-	taskText,
-	useMyTasks,
-} from "../hooks/useOdinTasks";
-import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
+import { type OdinTask, taskText, useMyTasks } from "../hooks/useOdinTasks";
 import { usePendingFocus } from "../hooks/usePendingFocus";
+import { useStartTask } from "../hooks/useStartTask";
 
 export const Route = createFileRoute("/_authenticated/_odin/my-tasks/")({
 	component: MyTasksPage,
@@ -52,7 +45,7 @@ function MyTasksPage() {
 	// Automations live on their own page; this list is only what waits on you.
 	// Done or Reading material from All tasks is put away here too, the way
 	// the tab's badge already counts it.
-	const { todos, add, edit, remove, setPane } = useMyTasks();
+	const { todos, add, edit, remove } = useMyTasks();
 	const { isDone } = useDone();
 	const tasks = todos.filter((task) => !isDone({ key: `task:${task.id}` }));
 	const [draft, setDraft] = useState("");
@@ -60,8 +53,7 @@ function MyTasksPage() {
 	const [editDraft, setEditDraft] = useState("");
 	const [draftRepo, setDraftRepo] = useState("");
 	const [editRepo, setEditRepo] = useState("");
-	const { ensureWorkspace } = useOdinWorkspace();
-	const { launch, isLaunching, launchingKey } = useLaunchTaskSession();
+	const { startTask, isLaunching, launchingKey } = useStartTask();
 	const navigate = useNavigate();
 	const panes = useTabsStore((s) => s.panes);
 	// The agent's own skills, for the compose box and every edit box below.
@@ -78,24 +70,7 @@ function MyTasksPage() {
 	const handleStart = async (task: OdinTask) => {
 		const context = await askSessionContext(task.title);
 		if (!context) return;
-		const ensured = await ensureWorkspace();
-		if (!ensured.ok) return toast.error(ensured.error);
-		const result = await launch({
-			...context,
-			key: task.id,
-			workspaceId: ensured.workspace.id,
-			title: task.title,
-			description: task.notes || null,
-			brief: taskPrompt(task),
-			skill: task.skill,
-			repoPath: task.repo,
-		});
-		if (!result.ok) return toast.error(result.error);
-		// The task keeps its row and gains a way into the session - starting one
-		// isn't finishing it, so it's still yours to ✕ when it's actually done.
-		setPane(task.id, result.paneId);
-		usePendingFocus.getState().focus(result.paneId);
-		navigate({ to: "/board" });
+		await startTask(task, context);
 	};
 
 	return (
