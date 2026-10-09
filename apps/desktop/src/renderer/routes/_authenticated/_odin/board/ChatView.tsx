@@ -476,7 +476,6 @@ const ToolGroup = memo(
 	function ToolGroup({ group }: { group: Group }) {
 		const [open, setOpen] = useState(false);
 		const tools = group.filter((item): item is Tool => item.kind === "tool");
-		const running = tools.find((tool) => tool.result === undefined);
 		const failed = tools.some((tool) => tool.isError);
 		return (
 			<div className="flex min-w-0 flex-col">
@@ -485,13 +484,8 @@ const ToolGroup = memo(
 					onClick={() => setOpen((value) => !value)}
 					className="flex min-w-0 max-w-full items-center gap-2 self-start rounded-lg border border-border bg-secondary px-2.5 py-1 text-left text-[12px] text-soft-foreground hover:bg-accent hover:text-foreground"
 				>
-					{running && (
-						<span className="size-[6px] shrink-0 animate-pulse rounded-full bg-working" />
-					)}
-					{/* The commands themselves are noise; they wait behind the chevron. */}
-					<span className={running ? "text-working" : undefined}>
-						{running ? "Working..." : "Worked"}
-					</span>
+					{/* Live work shows once, in the turn's own "Working..." row below. */}
+					<span>Worked</span>
 					{/* ponytail: muted - a failed command is routine, Claude retries */}
 					{failed && (
 						<span className="shrink-0 text-faint-foreground">· error</span>
