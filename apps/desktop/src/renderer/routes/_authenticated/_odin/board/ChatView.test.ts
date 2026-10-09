@@ -5,6 +5,7 @@ import {
 	groupSummary,
 	isAnswerItem,
 	isApprovalItem,
+	isDoneItem,
 	isYouOnly,
 	itemOptions,
 	launchAttachments,
@@ -226,6 +227,15 @@ describe("ChatView transcript", () => {
 		expect(isAnswerItem("Tell me the target seniority.")).toBe(true);
 		expect(isAnswerItem("**Pick** a name")).toBe(true);
 		expect(isAnswerItem("Merge PR #12")).toBe(false);
+		expect(
+			isAnswerItem("Tell me when you have authorized, so I can run the test."),
+		).toBe(false);
+		expect(
+			isDoneItem("Tell me when you have authorized, so I can run the test."),
+		).toBe(true);
+		expect(isDoneItem("Let me know once it is merged")).toBe(true);
+		expect(isDoneItem("Tell me the target seniority.")).toBe(false);
+		expect(isDoneItem("Tell me when to ship [today | tomorrow]")).toBe(false);
 	});
 
 	test("trailing [A | B] choices become buttons", () => {

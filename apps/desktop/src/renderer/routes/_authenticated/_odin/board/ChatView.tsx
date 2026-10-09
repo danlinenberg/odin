@@ -877,8 +877,20 @@ export function actionItemList(text: string): string[] {
  * preference. It gets a reply box instead of a bare "Do it".
  */
 export function isAnswerItem(item: string): boolean {
-	return /^\W*(tell|answer|decide|choose|pick|confirm|let me know|say)\b/i.test(
-		item,
+	return (
+		!isDoneItem(item) &&
+		/^\W*(tell|answer|decide|choose|pick|confirm|let me know|say)\b/i.test(item)
+	);
+}
+
+/**
+ * "Tell me when you have authorized X" - the only reply is "done", so it gets
+ * a Done button and no reply box.
+ */
+export function isDoneItem(item: string): boolean {
+	return (
+		/^\W*(tell me|let me know)\s+(when|once|after)\b/i.test(item) &&
+		itemOptions(item).options.length === 0
 	);
 }
 
@@ -935,6 +947,7 @@ function ActionItemRow({
 	const [answer, setAnswer] = useState("");
 	const { text, options } = itemOptions(item);
 	const approve = isApprovalItem(item);
+	const done = !approve && isDoneItem(item);
 	const asks = !approve && (isAnswerItem(item) || options.length > 0);
 	const send = (reply?: string) => {
 		setSent(true);
@@ -953,13 +966,15 @@ function ActionItemRow({
 							? "Tell Claude you approve and to go ahead"
 							: asks
 								? "Send your answer to Claude"
-								: "Ask Claude to do this for you"
+								: done
+									? "Tell Claude this is done"
+									: "Ask Claude to do this for you"
 					}
 					disabled={sent || (asks && !answer.trim())}
-					onClick={() => send(asks ? answer.trim() : undefined)}
+					onClick={() => send(asks ? answer.trim() : done ? "Done" : undefined)}
 					className={cn(ACTION_BUTTON, "w-[64px]")}
 				>
-					{sent ? "Sent" : approve ? "Approve" : "Do it"}
+					{sent ? "Sent" : approve ? "Approve" : done ? "Done" : "Do it"}
 				</button>
 			)}
 			<span className="w-4 shrink-0 pt-px text-right text-[13px] tabular-nums text-muted-foreground">
