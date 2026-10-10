@@ -731,48 +731,64 @@ type Preview = string | { url: string; video: true };
 function PreviewStrip({
 	previews,
 	className,
+	onRemove,
 }: {
 	previews: Preview[];
 	className?: string;
+	/** The composer's previews: each gets an × that drops it before sending. */
+	onRemove?: (index: number) => void;
 }) {
 	// A click toggles one picture between thumbnail and a larger view.
 	const [enlarged, setEnlarged] = useState<string | null>(null);
 	return (
 		<div className={cn("flex flex-wrap gap-2", className)}>
-			{previews.map((preview) =>
-				typeof preview === "string" ? (
-					<button
-						key={preview}
-						type="button"
-						onClick={() =>
-							setEnlarged((url) => (url === preview ? null : preview))
-						}
-						className={cn(
-							"block",
-							enlarged === preview ? "cursor-zoom-out" : "cursor-zoom-in",
-						)}
-					>
-						<img
-							src={preview}
-							alt="Pasted"
+			{previews.map((preview, index) => (
+				<div
+					key={typeof preview === "string" ? preview : preview.url}
+					className="relative"
+				>
+					{onRemove && (
+						<button
+							type="button"
+							title="Remove"
+							onClick={() => onRemove(index)}
+							className="absolute -right-1.5 -top-1.5 z-10 flex size-5 items-center justify-center rounded-full border border-border bg-background text-[12px] leading-none text-muted-foreground hover:text-foreground"
+						>
+							×
+						</button>
+					)}
+					{typeof preview === "string" ? (
+						<button
+							type="button"
+							onClick={() =>
+								setEnlarged((url) => (url === preview ? null : preview))
+							}
 							className={cn(
-								"rounded-lg border border-border object-contain",
-								enlarged === preview
-									? "max-h-[60vh] max-w-full"
-									: "max-h-40 max-w-60",
+								"block",
+								enlarged === preview ? "cursor-zoom-out" : "cursor-zoom-in",
 							)}
+						>
+							<img
+								src={preview}
+								alt="Pasted"
+								className={cn(
+									"rounded-lg border border-border object-contain",
+									enlarged === preview
+										? "max-h-[60vh] max-w-full"
+										: "max-h-40 max-w-60",
+								)}
+							/>
+						</button>
+					) : (
+						<video
+							src={preview.url}
+							controls
+							muted
+							className="max-h-40 max-w-60 rounded-lg border border-border"
 						/>
-					</button>
-				) : (
-					<video
-						key={preview.url}
-						src={preview.url}
-						controls
-						muted
-						className="max-h-40 max-w-60 rounded-lg border border-border"
-					/>
-				),
-			)}
+					)}
+				</div>
+			))}
 		</div>
 	);
 }
@@ -1551,9 +1567,10 @@ async function typeIntoClaude(
 
 /**
  * Its own component so a keystroke re-renders the box, not the conversation.
- * An image paste is Ctrl+V into the
- * PTY: Claude Code reads the clipboard image itself and attaches it. Claude
- * takes no video, so a pasted video file goes in as its path.
+ * A pasted or dropped image or video is saved and held as a preview with its
+ * path until you send, so its × can still drop it. Sending pastes each path
+ * into Claude's prompt, where an image path turns into an [Image #N]
+ * attachment and a video stays a path (Claude takes no video).
  */
 function Composer({
 	paneId,
@@ -1580,7 +1597,29 @@ function Composer({
 	);
 	// "!" on an empty box switches to bash mode, like the terminal's prompt.
 	const [bash, setBash] = useState(false);
-	const [previews, setPreviews] = useState<Preview[]>([]);
+	const [attached, setAttached] = useState<
+		{ preview: Preview; path: string }[]
+	>([]);
+	const attach = (files: File[]) => {
+		const media = files.filter(
+			(f) => f.type.startsWith("image/") || f.type.startsWith("video/"),
+		);
+		if (media.length === 0) return false;
+		void attachmentPaths(media).then(
+			(paths) =>
+				setAttached((list) => [
+					...list,
+					...media.map((file, index) => ({
+						path: paths[index] ?? "",
+						preview: file.type.startsWith("video/")
+							? { url: URL.createObjectURL(file), video: true as const }
+							: URL.createObjectURL(file),
+					})),
+				]),
+			(error) => toast.error(String(error)),
+		);
+		return true;
+	};
 	const [dragging, setDragging] = useState(false);
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const write = electronTrpc.terminal.write.useMutation();
@@ -1611,22 +1650,31 @@ function Composer({
 	}, [draft]);
 	const send = async () => {
 		const body = draft.trim();
-		if (bash ? !body : !body && previews.length === 0) return;
+		const sending = bash ? [] : attached;
+		if (!body && sending.length === 0) return;
 		const text = bash ? `!${body}` : body;
+		const paths = sending.map((item) => item.path);
 		setDraft("");
 		setBash(false);
-		setPreviews([]);
+		if (!bash) setAttached([]);
 		if (onResume) {
-			onResume(text);
+			onResume([text, ...paths].filter(Boolean).join(" "));
 			return;
 		}
 		// ponytail: blob URLs are never revoked - a few per session.
-		onSent(text, previews);
+		onSent(
+			text,
+			sending.map((item) => item.preview),
+		);
 		try {
+			// A bracketed paste, not typing: only a pasted path becomes an attachment.
+			for (const path of paths)
+				await write.mutateAsync({ paneId, data: `\x1b[200~${path}\x1b[201~ ` });
 			await typeIntoClaude(write.mutateAsync, paneId, text);
 		} catch (error) {
 			setDraft(body);
 			setBash(bash);
+			setAttached(sending);
 			toast.error(error instanceof Error ? error.message : String(error));
 		}
 	};
@@ -1650,23 +1698,7 @@ function Composer({
 					// Stop Electron from opening a dropped file in the window.
 					event.preventDefault();
 					setDragging(false);
-					const files = [...event.dataTransfer.files];
-					const images = files.filter((f) => f.type.startsWith("image/"));
-					const videos = files.filter((f) => f.type.startsWith("video/"));
-					if (images.length === 0 && videos.length === 0) return;
-					// Dropped files have no clipboard entry, so their paths go in the draft.
-					const paths = [...images, ...videos]
-						.map((file) => window.webUtils.getPathForFile(file))
-						.filter(Boolean);
-					setDraft((text) => [text, ...paths].filter(Boolean).join(" "));
-					setPreviews((list) => [
-						...list,
-						...images.map((file) => URL.createObjectURL(file)),
-						...videos.map((file) => ({
-							url: URL.createObjectURL(file),
-							video: true as const,
-						})),
-					]);
+					attach([...event.dataTransfer.files]);
 				}}
 			>
 				{matches.length > 0 && (
@@ -1698,8 +1730,14 @@ function Composer({
 						</div>
 					</div>
 				)}
-				{previews.length > 0 && (
-					<PreviewStrip previews={previews} className="mb-2" />
+				{attached.length > 0 && (
+					<PreviewStrip
+						previews={attached.map((item) => item.preview)}
+						onRemove={(index) =>
+							setAttached((list) => list.filter((_, i) => i !== index))
+						}
+						className="mb-2"
+					/>
 				)}
 				<div className="flex gap-1.5">
 					{bash && (
@@ -1720,41 +1758,8 @@ function Composer({
 							setMenuClosed(false);
 						}}
 						onPaste={(event) => {
-							const files = [...event.clipboardData.files];
-							const images = files.filter((f) => f.type.startsWith("image/"));
-							const videos = files.filter((f) => f.type.startsWith("video/"));
-							if (images.length === 0 && videos.length === 0) return;
-							event.preventDefault();
-							// No PTY to Ctrl+V into yet: the image goes in as a saved file's
-							// path, which Claude attaches when the resume sends it.
-							if (onResume) {
-								void attachmentPaths([...images, ...videos]).then(
-									(paths) =>
-										setDraft((text) =>
-											[text, ...paths].filter(Boolean).join(" "),
-										),
-									(error) => toast.error(String(error)),
-								);
-								setPreviews((list) => [
-									...list,
-									...images.map((file) => URL.createObjectURL(file)),
-								]);
-								return;
-							}
-							if (images.length > 0) write.mutate({ paneId, data: "\x16" });
-							const paths = videos
-								.map((file) => window.webUtils.getPathForFile(file))
-								.filter(Boolean);
-							if (paths.length > 0)
-								setDraft((text) => [text, ...paths].filter(Boolean).join(" "));
-							setPreviews((list) => [
-								...list,
-								...images.map((file) => URL.createObjectURL(file)),
-								...videos.map((file) => ({
-									url: URL.createObjectURL(file),
-									video: true as const,
-								})),
-							]);
+							if (attach([...event.clipboardData.files]))
+								event.preventDefault();
 						}}
 						onKeyDown={(event) => {
 							if (matches.length > 0 && !event.nativeEvent.isComposing) {
@@ -1843,7 +1848,7 @@ function Composer({
 						<button
 							type="button"
 							title="Send (Enter)"
-							disabled={!draft.trim() && previews.length === 0}
+							disabled={!draft.trim() && attached.length === 0}
 							onClick={() => void send()}
 							className="ml-auto flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-[14px] font-bold text-primary-foreground hover:brightness-110 disabled:opacity-40"
 						>
