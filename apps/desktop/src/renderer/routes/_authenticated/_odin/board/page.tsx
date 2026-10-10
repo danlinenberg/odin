@@ -3326,6 +3326,22 @@ function DevBoardPage() {
 		toast.success("Done - removed from board", undoAction(undo));
 	};
 
+	// The drawer's Done stays in the drawer: the next session opens and the
+	// finished row fades out of the side list before it ends.
+	const [leavingPaneId, setLeavingPaneId] = useState<string | null>(null);
+	const markDoneInDrawer = (card: BoardCard) => {
+		const at = switchCards.findIndex((c) => c.pane.id === card.pane.id);
+		const next = switchCards[at + 1] ?? switchCards[at - 1];
+		if (!next) return markDone(card);
+		setLeavingPaneId(card.pane.id);
+		openDrawer(next);
+		setTimeout(() => {
+			const undo = endCard(card);
+			setLeavingPaneId(null);
+			toast.success("Done - removed from board", undoAction(undo));
+		}, 450);
+	};
+
 	/**
 	 * Done, undoable: the PTY dies with the pane, so undo resumes the same
 	 * conversation (`claude --resume`) into a fresh pane, like Session History.
@@ -4387,11 +4403,13 @@ function DevBoardPage() {
 														type="button"
 														onClick={() => openDrawer(card)}
 														className={cn(
-															"flex items-center gap-2 py-1.5 text-left text-xs",
+															"flex items-center gap-2 py-1.5 text-left text-xs transition-all duration-[450ms]",
 															isSwitchListMin ? "justify-center" : "px-3",
-															card.pane.id === drawerCard.pane.id
-																? "bg-primary/15 font-semibold text-foreground"
-																: "text-muted-foreground hover:bg-accent hover:text-foreground",
+															card.pane.id === leavingPaneId
+																? "pointer-events-none -translate-x-6 bg-success/20 text-success-ink opacity-0"
+																: card.pane.id === drawerCard.pane.id
+																	? "bg-primary/15 font-semibold text-foreground"
+																	: "text-muted-foreground hover:bg-accent hover:text-foreground",
 														)}
 													>
 														<span
@@ -4641,7 +4659,7 @@ function DevBoardPage() {
 							{!inCatchUp && (
 								<button
 									type="button"
-									onClick={() => markDone(drawerCard)}
+									onClick={() => markDoneInDrawer(drawerCard)}
 									title="Done - end the session and remove it from the board"
 									className={cn(
 										"rounded-[7px] px-3 py-1.5 text-xs font-semibold",
