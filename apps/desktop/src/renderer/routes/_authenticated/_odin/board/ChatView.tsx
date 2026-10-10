@@ -35,10 +35,13 @@ type Item =
 			/** When you sent it (ms) - a turn's start. Unset for a mid-turn queued message. */
 			at?: number;
 	  }
-	| { kind: "text"; id: string; text: string }
+	| { kind: "text"; id: string; text: string; msg?: string; out?: number }
 	| {
 			kind: "tool";
 			id: string;
+			/** The API message it came in, and that message's output tokens so far. */
+			msg?: string;
+			out?: number;
 			name: string;
 			input: Record<string, unknown>;
 			result?: string;
@@ -81,7 +84,11 @@ type Line = {
 	};
 	/** The summary Claude continues from - long, and not something you typed. */
 	isCompactSummary?: boolean;
-	message?: { content?: string | Block[] };
+	message?: {
+		id?: string;
+		content?: string | Block[];
+		usage?: { output_tokens?: number };
+	};
 	/** A message you sent mid-turn rides in as a queued_command attachment. */
 	attachment?: { type?: string; prompt?: string | Block[] };
 };
@@ -201,9 +208,17 @@ export function applyLines(items: Item[], lines: Line[]): Item[] {
 			}
 			if (!imagesShown) next.push({ kind: "user", id, text: "", images, at });
 		} else if (line.type === "assistant" && Array.isArray(content)) {
+			const msg = line.message.id;
+			const out = line.message.usage?.output_tokens;
 			for (const [i, block] of content.entries()) {
 				if (block.type === "text" && block.text?.trim())
-					next.push({ kind: "text", id: `${id}:${i}`, text: block.text });
+					next.push({
+						kind: "text",
+						id: `${id}:${i}`,
+						text: block.text,
+						msg,
+						out,
+					});
 				else if (block.type === "tool_use" && block.id) {
 					toolIndex.set(block.id, next.length);
 					next.push({
@@ -211,6 +226,8 @@ export function applyLines(items: Item[], lines: Line[]): Item[] {
 						id: block.id,
 						name: block.name ?? "Tool",
 						input: block.input ?? {},
+						msg,
+						out,
 					});
 				}
 			}
@@ -584,6 +601,29 @@ function CompactRow({ item }: { item: Extract<Item, { kind: "compact" }> }) {
 			)}
 		</div>
 	);
+}
+
+/**
+ * Output tokens across these items. Claude writes one line per block, each
+ * carrying its message's running total, so the largest per message counts.
+ */
+export function outputTokens(items: Item[]): number {
+	const byMessage = new Map<string, number>();
+	for (const item of items)
+		if ((item.kind === "text" || item.kind === "tool") && item.msg)
+			byMessage.set(
+				item.msg,
+				Math.max(byMessage.get(item.msg) ?? 0, item.out ?? 0),
+			);
+	let total = 0;
+	for (const out of byMessage.values()) total += out;
+	return total;
+}
+
+/** "840", "2.1k", "12k". */
+export function tokenLabel(n: number): string {
+	if (n < 1000) return String(n);
+	return n < 10_000 ? `${(n / 1000).toFixed(1)}k` : `${Math.round(n / 1000)}k`;
 }
 
 /** Time since a moment, ticking: "42s", then "3m 05s", then "1h 02m". */
@@ -1171,6 +1211,7 @@ export function ChatView({
 	const turnTools = items
 		.slice(turnIndex + 1)
 		.filter((item): item is Tool => item.kind === "tool");
+	const turnTokens = outputTokens(items.slice(turnIndex + 1));
 	const [showCommands, setShowCommands] = useState(false);
 	// Menus the transcript never sees, read off the live screen.
 	const screen = electronTrpc.terminal.readScreen.useQuery(
@@ -1454,6 +1495,14 @@ export function ChatView({
 									>
 										<span className="shrink-0">Working…</span>
 										{turnStart !== undefined && <Elapsed since={turnStart} />}
+										{turnTokens > 0 && (
+											<span
+												title="Tokens Claude has written this turn"
+												className="shrink-0 tabular-nums text-muted-foreground"
+											>
+												↓ {tokenLabel(turnTokens)} tokens
+											</span>
+										)}
 										{turnTools.length > 0 && (
 											<LuChevronRight
 												className={cn(
