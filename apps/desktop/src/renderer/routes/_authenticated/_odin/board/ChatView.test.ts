@@ -10,8 +10,10 @@ import {
 	itemOptions,
 	launchAttachments,
 	launchRequest,
+	outputTokens,
 	segments,
 	splitActionItems,
+	tokenLabel,
 	toolDescription,
 	transcriptPath,
 	userText,
@@ -343,6 +345,26 @@ describe("toolDescription", () => {
 			"Bash ls",
 		);
 	});
+});
+
+test("output tokens count each message once, at its largest", () => {
+	const line = (id: string, out: number, block: object) => ({
+		type: "assistant",
+		uuid: `${id}-${out}`,
+		message: { id, usage: { output_tokens: out }, content: [block] },
+	});
+	const items = applyLines(
+		[],
+		[
+			line("m1", 3, { type: "text", text: "Looking" }),
+			line("m1", 400, { type: "tool_use", id: "t1", name: "Bash", input: {} }),
+			line("m2", 1800, { type: "text", text: "Done" }),
+		],
+	);
+	expect(outputTokens(items)).toBe(2200);
+	expect(tokenLabel(840)).toBe("840");
+	expect(tokenLabel(2200)).toBe("2.2k");
+	expect(tokenLabel(12_400)).toBe("12k");
 });
 
 describe("elapsedLabel", () => {
