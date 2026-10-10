@@ -868,13 +868,16 @@ export function isDoneItem(item: string): boolean {
  * them. The launch prompt asks for that shape; no brackets means no choices.
  */
 export function itemOptions(item: string): { text: string; options: string[] } {
-	const match = item.match(/\s*\[([^\]]*\|[^\]]*)\](?!\()\W*$/);
+	// An option may hold a link ("after [#826](url) merges"); a button shows its words.
+	const match = item.match(
+		/\s*\[((?:[^[\]]|\[[^\]]*\]\([^)]*\))*\|(?:[^[\]]|\[[^\]]*\]\([^)]*\))*)\](?!\()\W*$/,
+	);
 	if (match?.index === undefined) return { text: item, options: [] };
 	return {
 		text: item.slice(0, match.index),
 		options: (match[1] ?? "")
 			.split("|")
-			.map((option) => option.trim())
+			.map((option) => option.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1").trim())
 			.filter(Boolean),
 	};
 }

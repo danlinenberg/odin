@@ -244,6 +244,14 @@ describe("ChatView transcript", () => {
 			options: ["CSV", "shareable page"],
 		});
 		expect(itemOptions("Open [the PR](https://x)").options).toEqual([]);
+		expect(
+			itemOptions(
+				"Update main now. [yes | after [#826](https://x/826) merges]",
+			),
+		).toEqual({
+			text: "Update main now.",
+			options: ["yes", "after #826 merges"],
+		});
 		expect(itemOptions("Tell me the seniority.").options).toEqual([]);
 	});
 });
