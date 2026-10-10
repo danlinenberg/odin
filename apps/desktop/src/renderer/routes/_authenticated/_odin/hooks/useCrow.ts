@@ -24,7 +24,7 @@ import {
 import stripAnsi from "strip-ansi";
 import { create } from "zustand";
 import { type PromptImage, sessionTitle } from "../components/OdinPromptDialog";
-import { readState, writeState } from "./crow-state";
+import { readState, runAction, writeState } from "./crow-state";
 import { endSession, useDone } from "./useDone";
 import { taskPrompt, useMyTasks } from "./useOdinTasks";
 import { useOdinWorkspace } from "./useOdinWorkspace";
@@ -361,8 +361,9 @@ export function useCrow() {
 		onData: (event) => {
 			if (event.type !== NOTIFICATION_EVENTS.ODIN_ACTION || !event.data) return;
 			const request = event.data as OdinActionRequest;
-			const text = runOdinAction(request, latest.current);
-			odinReply.mutate({ id: request.id, text });
+			void Promise.resolve(runOdinAction(request, latest.current)).then(
+				(text) => odinReply.mutate({ id: request.id, text }),
+			);
 		},
 	});
 
@@ -387,7 +388,7 @@ type CrowDeps = {
 function runOdinAction(
 	{ action, args }: OdinActionRequest,
 	deps: CrowDeps,
-): string {
+): string | Promise<string> {
 	const panes = useTabsStore.getState().panes;
 	const started = (paneId?: string) =>
 		!!paneId && !!panes[paneId] && !panes[paneId].completed;
@@ -464,6 +465,7 @@ function runOdinAction(
 	}
 	if (action === "state") return readState(args);
 	if (action === "set") return writeState(args);
+	if (action === "run") return runAction(args);
 	if (action === "open") {
 		const screens = Object.keys(deps.router.routesByPath).filter(
 			(path) => !path.includes("$"),
