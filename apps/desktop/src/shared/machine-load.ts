@@ -159,7 +159,13 @@ export function machineLoad(
 		snapshot.host.availableMemory > 0 &&
 		availableMemoryGb < limits.minFreeMemoryGb;
 	const disk = snapshot.host.diskFreePercent;
-	const diskFreePercent = disk === undefined ? null : Math.floor(disk);
+	// One decimal below 10%: 3.5 GB of a 460 GB disk is 0.8%, not "0%".
+	const diskFreePercent =
+		disk === undefined
+			? null
+			: disk < 10
+				? Math.floor(disk * 10) / 10
+				: Math.floor(disk);
 	const diskBusy =
 		diskFreePercent !== null && diskFreePercent < limits.minFreeDiskPercent;
 	const busy = cpuBusy || memoryBusy || diskBusy;
