@@ -71,8 +71,10 @@ const CHAT_H = 560;
 
 /** Asks that show what the crow can do in Odin - a click sends one. */
 const SUGGESTIONS = [
-	"Start my top 5 backlog tasks",
-	"What's waiting on me on the board?",
+	"Turn on the Night Agent tonight, 23:00 to 07:00",
+	"Start my 3 highest-priority backlog tasks",
+	"Which sessions are waiting on me, and why?",
+	'Add "Renew the SSL cert" to my backlog as high priority',
 ];
 
 /** "dan" from the OS account - Odin has no profile name of its own. */
@@ -141,26 +143,11 @@ function CrowPanel({
 		: { bottom: Math.max(window.innerHeight - anchor.y - SIZE, 8) };
 	const room = window.innerHeight - (vertical.top ?? vertical.bottom ?? 0) - 8;
 	const name = firstName();
-	const header = (
-		<div className="flex items-center gap-3">
-			<span className="relative flex size-6 items-center justify-center">
-				<span className="absolute inset-0 rounded-full bg-violet-500/60 blur-md" />
-				<CrowIcon className="relative size-5" />
-			</span>
-			<span className="text-[13.5px] font-semibold">Odin's raven</span>
-			{conversation && (
-				<span className="ml-auto flex gap-1">
-					<button
-						type="button"
-						title="End this conversation and start a fresh one"
-						onClick={() => endSession(conversation.id)}
-						className="rounded-md px-2 py-1 text-[11.5px] text-white/60 hover:bg-white/10 hover:text-white"
-					>
-						New chat
-					</button>
-				</span>
-			)}
-		</div>
+	const icon = (
+		<span className="relative flex size-6 shrink-0 items-center justify-center">
+			<span className="absolute inset-0 rounded-full bg-violet-500/60 blur-md" />
+			<CrowIcon className="relative size-5" />
+		</span>
 	);
 
 	if (conversation)
@@ -175,8 +162,19 @@ function CrowPanel({
 				}}
 				className="fixed z-[60] flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#1c1c1f] text-white shadow-2xl shadow-black/50"
 			>
-				<div className="border-b border-white/10 px-4 py-2.5">{header}</div>
 				<CrowChat pane={conversation} onShowOnBoard={onShowOnBoard} />
+				{/* Over the chat's top padding, not a row of their own. */}
+				<span className="pointer-events-none absolute left-2.5 top-2.5">
+					{icon}
+				</span>
+				<button
+					type="button"
+					title="End this conversation and start a fresh one"
+					onClick={() => endSession(conversation.id)}
+					className="absolute right-2.5 top-1.5 rounded-md bg-[#1c1c1f] px-2 py-0.5 text-[11.5px] text-white/60 hover:bg-white/10 hover:text-white"
+				>
+					New chat
+				</button>
 			</div>
 		);
 
@@ -186,10 +184,12 @@ function CrowPanel({
 			style={{ left: Math.max(left, 8), ...vertical, width, maxHeight: room }}
 			className="fixed z-[60] flex flex-col gap-3.5 rounded-xl border border-white/10 bg-[#1c1c1f] p-4 text-white shadow-2xl shadow-black/50"
 		>
-			{header}
-			<div className="text-[14px] leading-snug">
-				<div className="font-semibold">Hi{name && ` ${name}`},</div>
-				<div className="text-white/85">How can I help you today?</div>
+			<div className="flex items-start gap-2.5 text-[14px] leading-snug">
+				{icon}
+				<div>
+					<div className="font-semibold">Hi{name && ` ${name}`},</div>
+					<div className="text-white/85">How can I help you today?</div>
+				</div>
 			</div>
 			<div className="flex flex-col gap-2">
 				{SUGGESTIONS.map((ask) => (
