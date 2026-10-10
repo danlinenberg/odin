@@ -236,12 +236,12 @@ export async function sweepItem(
 	item: SweepItem,
 	deps: SweepDeps,
 ): Promise<Answer> {
-	// Cheapest and strongest: the :eyes: that queued this is gone from the
-	// message, which is what dealing with it looks like from Slack's side.
+	// Cheapest and strongest: the :eyes: or Later save that queued this is
+	// gone, which is what dealing with it looks like from Slack's side.
 	if (item.unreacted)
 		return {
 			verdict: "DROP",
-			evidence: "the :eyes: is off the message in Slack",
+			evidence: "it's no longer :eyes:'d or saved for later in Slack",
 		};
 
 	if (item.status && FINISHED_STATUS.test(item.status.trim()))

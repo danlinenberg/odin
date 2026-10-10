@@ -29,17 +29,19 @@ export function normalizeReaction(name: string): string {
 export interface SlackReactionsListItem {
 	type?: string;
 	channel?: string;
-	message?: {
-		user?: string;
-		username?: string;
-		bot_id?: string;
-		text?: string;
-		attachments?: SlackAttachment[];
-		ts?: string;
-		thread_ts?: string;
-		permalink?: string;
-		reactions?: { name?: string; users?: string[] }[];
-	};
+	message?: SlackListedMessage;
+}
+
+export interface SlackListedMessage {
+	user?: string;
+	username?: string;
+	bot_id?: string;
+	text?: string;
+	attachments?: SlackAttachment[];
+	ts?: string;
+	thread_ts?: string;
+	permalink?: string;
+	reactions?: { name?: string; users?: string[] }[];
 }
 
 export interface SlackAttachment {
@@ -106,18 +108,99 @@ export function pickEyedMessages(
 			) ?? false;
 		const launch = mine(launchReaction);
 		if (!launch && !mine(reaction)) continue;
-		eyed.push({
-			id: reactionId(item.channel, message.ts),
-			channelId: item.channel,
-			messageTs: message.ts,
-			threadTs: message.thread_ts ?? null,
-			authorId: message.user ?? null,
-			text: slackTextToPlain(messageBody(message)),
-			permalink: message.permalink ?? null,
-			launch,
-		});
+		eyed.push(toEyedMessage(item.channel, message.ts, message, launch));
 	}
 	return eyed;
+}
+
+/** A Slack message as a queue row, whichever way it got into the queue. */
+export function toEyedMessage(
+	channelId: string,
+	messageTs: string,
+	message: SlackListedMessage,
+	launch: boolean,
+): EyedMessage {
+	return {
+		id: reactionId(channelId, messageTs),
+		channelId,
+		messageTs,
+		threadTs: message.thread_ts ?? null,
+		authorId: message.user ?? null,
+		text: slackTextToPlain(messageBody(message)),
+		permalink: message.permalink ?? null,
+		launch,
+	};
+}
+
+/**
+ * One entry of `saved.list`, the undocumented web-client method behind
+ * Slack's Later tab. It carries where the item is, not the message itself.
+ */
+export interface SlackSavedItem {
+	/** The channel, for a message. */
+	item_id?: unknown;
+	item_type?: unknown;
+	ts?: unknown;
+	state?: unknown;
+	todo_state?: unknown;
+	is_archived?: unknown;
+	date_completed?: unknown;
+}
+
+export interface SavedMessageRef {
+	id: string;
+	channelId: string;
+	messageTs: string;
+}
+
+/**
+ * The messages still open in my Later list. Saved files and channels are not
+ * queue items, and neither is anything completed or archived. The response is
+ * undocumented, so every field is checked rather than trusted.
+ */
+export function pickSavedMessages(items: unknown[]): SavedMessageRef[] {
+	const picked = new Map<string, SavedMessageRef>();
+	for (const raw of items) {
+		if (!raw || typeof raw !== "object") continue;
+		const item = raw as SlackSavedItem;
+		const { item_id: channelId, ts: messageTs } = item;
+		if (item.item_type !== "message") continue;
+		if (typeof channelId !== "string" || !channelId) continue;
+		if (typeof messageTs !== "string" || !messageTs) continue;
+		const closed =
+			item.state === "completed" ||
+			item.todo_state === "completed" ||
+			item.is_archived === true ||
+			(typeof item.date_completed === "number" && item.date_completed > 0);
+		if (closed) continue;
+		const id = reactionId(channelId, messageTs);
+		picked.set(id, { id, channelId, messageTs });
+	}
+	return [...picked.values()];
+}
+
+/**
+ * Saved rows whose message has left my Later list - unsaved, completed or
+ * archived. Unlike `reactions.list`, the caller reads the whole list, so a
+ * missing row is an answer; only pass `savedIds` from a complete read.
+ * A row I also :eyes:'d this sync stays open: the reaction still queues it.
+ */
+export function savedRowsToClose<
+	T extends {
+		id: string;
+		source: string;
+		unreactedAt: number | null;
+		doneAt: number | null;
+	},
+>(rows: T[], savedIds: Set<string>, eyedIds: Set<string>): T[] {
+	return rows.filter(
+		(row) =>
+			row.source === "saved" &&
+			row.unreactedAt === null &&
+			row.doneAt === null &&
+			!savedIds.has(row.id) &&
+			!eyedIds.has(row.id),
+	);
 }
 
 /**
