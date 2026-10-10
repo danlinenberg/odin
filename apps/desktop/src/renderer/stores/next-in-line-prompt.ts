@@ -14,6 +14,8 @@ export interface OffHours {
 	picked: string[];
 	/** Once tonight's picks are started: stop there, or go on with the ranked queue. */
 	afterPicks: "stop" | "ranked";
+	/** Whether the first-use notice (keeps the computer awake, power only) was shown. */
+	introSeen: boolean;
 }
 
 /** A cap on picks, so the saved list stays a few hundred bytes. */
@@ -26,6 +28,7 @@ export const DEFAULT_OFF_HOURS: OffHours = {
 	maxSessions: 8,
 	picked: [],
 	afterPicks: "stop",
+	introSeen: false,
 	instructions:
 		"This is a Night Agent run: I'm asleep and will read the result in the morning. Get it as far as you can on your own - investigate, find the root cause, and make and verify the change on a branch with a PR open. Don't do anything other people would see before I've looked: no Slack or email messages, no Jira or PR comments, no merging, no deploys. Leave those in ACTION ITEMS.",
 };
@@ -97,7 +100,12 @@ export const useNextInLinePrompt = create<{
 				return {
 					...current,
 					...persisted,
-					offHours: { ...DEFAULT_OFF_HOURS, ...persisted?.offHours },
+					offHours: {
+						...DEFAULT_OFF_HOURS,
+						// Already turned on before the notice existed: it was their first time.
+						introSeen: !!persisted?.offHours?.enabled,
+						...persisted?.offHours,
+					},
 				};
 			},
 		},

@@ -1,5 +1,5 @@
 import { getHostId } from "@odin/shared/host-info";
-import { powerSaveBlocker } from "electron";
+import { powerMonitor, powerSaveBlocker } from "electron";
 import { z } from "zod";
 import { publicProcedure, router } from "..";
 
@@ -10,6 +10,7 @@ export const createDeviceRouter = () => {
 		getMachineId: publicProcedure.query((): { machineId: string } => {
 			return { machineId: getHostId() };
 		}),
+		onBattery: publicProcedure.query(() => powerMonitor.isOnBatteryPower()),
 		/** Holds off idle system sleep (the display may still sleep), like `caffeinate -i`. */
 		keepAwake: publicProcedure.input(z.boolean()).mutation(({ input }) => {
 			if (input && awakeId === null)

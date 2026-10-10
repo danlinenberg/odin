@@ -43,7 +43,7 @@ export function nightInstructions(sort: string, offHours: string): string {
  * an edit applies to the very next session.
  *
  * Odin keeps the computer from idle sleep meanwhile, so no Caffeinate is
- * needed. A closed laptop lid still sleeps it: no app can stop that.
+ * needed. It runs only on power: on battery it starts nothing and lets go. A closed laptop lid still sleeps it: no app can stop that.
  *
  * ponytail: renderer-side and only while Odin is open, same as automations.
  * Move it to main the day it has to run with the window shut.
@@ -87,8 +87,12 @@ export function useNightAgentRunner() {
 					(pane.status === "working" || !!pane.odinQueued),
 			);
 			const inWindow = inOffHours(new Date(), offHours.start, offHours.end);
-			keepAwake(offHours.enabled && (inWindow || busy));
-			if (!offHours.enabled) return;
+			if (!offHours.enabled) return keepAwake(false);
+			// Power only: on battery it starts nothing and lets the computer sleep.
+			const onBattery = await electronTrpcClient.device.onBattery
+				.query()
+				.catch(() => false);
+			keepAwake(!onBattery && (inWindow || busy));
 			if (!inWindow) {
 				if (offHoursStarted) setOffHoursStarted(0);
 				if (offHoursFromPicks) setOffHoursFromPicks(false);
@@ -96,7 +100,7 @@ export function useNightAgentRunner() {
 				night.current = null;
 				return;
 			}
-			if (offHoursStarted >= offHours.maxSessions) return;
+			if (onBattery || offHoursStarted >= offHours.maxSessions) return;
 			if (busy) return;
 			running = true;
 			try {
