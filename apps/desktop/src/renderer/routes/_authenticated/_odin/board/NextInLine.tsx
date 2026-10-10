@@ -7,7 +7,6 @@ import { cn } from "@odin/ui/utils";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
-	LuCheck,
 	LuExternalLink,
 	LuLoaderCircle,
 	LuMoon,
@@ -492,16 +491,6 @@ export function NextInLine() {
 							: undefined
 				}
 			>
-				{/* A to-do's checkbox, where a to-do's checkbox goes. */}
-				<button
-					type="button"
-					onClick={() => doneWithUndo(item)}
-					title="Mark done - take it off Next in line"
-					aria-label="Mark done"
-					className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border border-input text-transparent transition-colors hover:border-success hover:bg-success/15 hover:text-success"
-				>
-					<LuCheck className="size-2.5" strokeWidth={3} aria-hidden />
-				</button>
 				{/* Title and meta get the card's whole width; the actions only
 								    exist on hover, so they never cost a line of text. */}
 				<HoverCard openDelay={400} closeDelay={80}>
@@ -619,6 +608,15 @@ export function NextInLine() {
 							<LuExternalLink className="size-3.5" aria-hidden />
 						</button>
 					)}
+					{/* The board card's hover ✓ Done, so Done reads the same everywhere. */}
+					<button
+						type="button"
+						onClick={() => doneWithUndo(item)}
+						title="Mark done - take it off Next in line"
+						className="whitespace-nowrap rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-success/15 hover:text-success"
+					>
+						✓ Done
+					</button>
 					<button
 						type="button"
 						disabled={isLaunching}

@@ -3801,9 +3801,7 @@ function DevBoardPage() {
 																				: "rounded-[5px] px-1.5 text-[11px] text-muted-foreground opacity-0 transition-opacity hover:bg-success/15 hover:text-success group-hover:opacity-100",
 																		)}
 																	>
-																		{card.status === "review"
-																			? "✓ Done"
-																			: "✓ done"}
+																		✓ Done
 																	</button>
 																	<RemindButton
 																		onPick={(day) => remindMe(card, day)}
