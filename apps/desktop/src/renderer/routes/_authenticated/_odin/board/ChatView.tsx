@@ -1339,7 +1339,17 @@ export function ChatView({
 		pending.length === 0 &&
 		(!missing || missing.startsWith("Not on disk yet"));
 	return (
-		<div className="flex min-h-0 flex-1 flex-col">
+		// biome-ignore lint/a11y/noStaticElementInteractions: Page Up/Down from the composer jump the conversation to its top/bottom
+		<div
+			className="flex min-h-0 flex-1 flex-col"
+			onKeyDown={(event) => {
+				const el = scrollRef.current;
+				if (!el || event.altKey || event.ctrlKey || event.metaKey) return;
+				if (event.key !== "PageUp" && event.key !== "PageDown") return;
+				event.preventDefault();
+				el.scrollTop = event.key === "PageUp" ? 0 : el.scrollHeight;
+			}}
+		>
 			<div
 				ref={scrollRef}
 				onScroll={(event) => {
