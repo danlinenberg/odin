@@ -217,7 +217,7 @@ function CrowPanel({
 					width,
 					height: Math.min(CHAT_H, room),
 				}}
-				className="fixed z-[60] flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#1c1c1f] text-white shadow-2xl shadow-black/50"
+				className="fixed z-[60] flex flex-col overflow-hidden rounded-2xl border border-border bg-tertiary text-popover-foreground shadow-2xl shadow-black/30"
 			>
 				<CrowChat pane={conversation} onShowOnBoard={onShowOnBoard} />
 				{/* Over the chat's top padding, not a row of their own. */}
@@ -228,7 +228,7 @@ function CrowPanel({
 					type="button"
 					title="End this conversation and start a fresh one"
 					onClick={() => endSession(conversation.id)}
-					className="absolute right-2.5 top-1.5 rounded-md bg-[#1c1c1f] px-2 py-0.5 text-[11.5px] text-white/60 hover:bg-white/10 hover:text-white"
+					className="absolute right-2.5 top-1.5 rounded-md bg-tertiary px-2 py-0.5 text-[11.5px] text-muted-foreground hover:bg-accent hover:text-foreground"
 				>
 					New chat
 				</button>
@@ -239,13 +239,13 @@ function CrowPanel({
 		<div
 			ref={panel}
 			style={{ left: Math.max(left, 8), ...vertical, width, maxHeight: room }}
-			className="fixed z-[60] flex flex-col gap-3.5 rounded-xl border border-white/10 bg-[#1c1c1f] p-4 text-white shadow-2xl shadow-black/50"
+			className="fixed z-[60] flex flex-col gap-3.5 rounded-xl border border-border bg-tertiary p-4 text-popover-foreground shadow-2xl shadow-black/30"
 		>
 			<div className="flex items-start gap-2.5 text-[14px] leading-snug">
 				{icon}
 				<div>
 					<div className="font-semibold">Hi{name && ` ${name}`},</div>
-					<div className="text-white/85">How can I help you today?</div>
+					<div className="text-foreground/85">How can I help you today?</div>
 				</div>
 			</div>
 			<div className="flex flex-col gap-2">
@@ -255,7 +255,7 @@ function CrowPanel({
 						type="button"
 						disabled={sending}
 						onClick={() => void send(ask)}
-						className="flex items-start gap-2 text-left text-[12.5px] text-indigo-300 hover:text-indigo-200"
+						className="flex items-start gap-2 text-left text-[12.5px] text-link hover:underline"
 					>
 						<span aria-hidden="true">↳</span>
 						{ask}
@@ -270,7 +270,7 @@ function CrowPanel({
 							type="button"
 							title="Remove"
 							onClick={() => setFiles(files.filter((_, i) => i !== index))}
-							className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] text-white/70 hover:bg-white/15"
+							className="rounded-full bg-foreground/10 px-2 py-0.5 text-[11px] text-foreground/70 hover:bg-foreground/15"
 						>
 							{file.name} ✕
 						</button>
@@ -282,7 +282,7 @@ function CrowPanel({
 					e.preventDefault();
 					void send(text);
 				}}
-				className="flex items-center gap-2 rounded-full bg-white/10 py-1 pl-3.5 pr-1"
+				className="flex items-center gap-2 rounded-full bg-foreground/10 py-1 pl-3.5 pr-1"
 			>
 				<input
 					// biome-ignore lint/a11y/noAutofocus: the panel only opens on an explicit click, and typing is the next step
@@ -299,13 +299,13 @@ function CrowPanel({
 						setFiles((current) => [...current, ...read]);
 					}}
 					placeholder="Got a job for me?"
-					className="min-w-0 flex-1 bg-transparent text-[12.5px] text-white outline-none placeholder:text-white/45"
+					className="min-w-0 flex-1 bg-transparent text-[12.5px] text-foreground outline-none placeholder:text-muted-foreground"
 				/>
 				<button
 					type="submit"
 					aria-label="Send"
 					disabled={sending || (!text.trim() && files.length === 0)}
-					className="flex size-6 shrink-0 items-center justify-center rounded-full bg-white/15 text-white transition-colors hover:bg-white/25 disabled:opacity-40"
+					className="flex size-6 shrink-0 items-center justify-center rounded-full bg-foreground/15 text-foreground transition-colors hover:bg-foreground/25 disabled:opacity-40"
 				>
 					↑
 				</button>
