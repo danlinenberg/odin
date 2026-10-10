@@ -89,6 +89,9 @@ export function DiffView({
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
 			<div className="flex items-center gap-2 border-b border-border px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[.4px] text-muted-foreground">
+				<span className="rounded bg-primary/15 px-1.5 py-0.5 normal-case tracking-normal text-primary">
+					⑂ Diff
+				</span>
 				{prs.length > 0 && (
 					<select
 						value={pr ?? ""}
@@ -116,7 +119,6 @@ export function DiffView({
 					</select>
 				)}
 				<span title={data?.cwd}>
-					Diff ·{" "}
 					{data
 						? pr
 							? data.source

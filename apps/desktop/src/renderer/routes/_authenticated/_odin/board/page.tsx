@@ -4431,13 +4431,21 @@ function DevBoardPage() {
 									{isShellOpen && drawerShell ? (
 										// A shell in the same checkout, mounted like any other pane -
 										// it spawns on first mount with the session's cwd.
-										<div className="min-h-0 flex-1 bg-background p-2">
-											<Terminal
-												key={drawerShell.id}
-												paneId={drawerShell.id}
-												tabId={drawerShell.tabId}
-												workspaceId={drawerCard.workspaceId}
-											/>
+										<div className="flex min-h-0 flex-1 flex-col bg-background">
+											<div className="flex items-center gap-2 border-b border-border px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[.4px] text-muted-foreground">
+												<span className="rounded bg-primary/15 px-1.5 py-0.5 normal-case tracking-normal text-primary">
+													❯ Shell
+												</span>
+												Your terminal - ❯ Shell again goes back to the session
+											</div>
+											<div className="min-h-0 flex-1 p-2">
+												<Terminal
+													key={drawerShell.id}
+													paneId={drawerShell.id}
+													tabId={drawerShell.tabId}
+													workspaceId={drawerCard.workspaceId}
+												/>
+											</div>
 										</div>
 									) : isDiffOpen &&
 										!inCatchUp &&
