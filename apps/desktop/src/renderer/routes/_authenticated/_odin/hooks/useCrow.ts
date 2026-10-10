@@ -1,4 +1,5 @@
 import { toast } from "@odin/ui/sonner";
+import { useRouter } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 import {
 	parseDataUrl,
@@ -20,7 +21,8 @@ import { odinScreenStatus } from "shared/odin-screen-status";
 import stripAnsi from "strip-ansi";
 import { create } from "zustand";
 import { type PromptImage, sessionTitle } from "../components/OdinPromptDialog";
-import { useDone } from "./useDone";
+import { readState, writeState } from "./crow-state";
+import { endSession, useDone } from "./useDone";
 import { taskPrompt, useMyTasks } from "./useOdinTasks";
 import { useOdinWorkspace } from "./useOdinWorkspace";
 
@@ -338,15 +340,18 @@ export function useCrow() {
 	const { isDone } = useDone();
 	const { launch } = useLaunchTaskSession();
 	const odinReply = electronTrpc.notifications.odinReply.useMutation();
-	const latest = useRef({
+	const router = useRouter();
+	const deps = {
 		todos,
 		add,
 		setPane,
 		isDone,
 		launch,
 		ensureWorkspace,
-	});
-	latest.current = { todos, add, setPane, isDone, launch, ensureWorkspace };
+		router,
+	};
+	const latest = useRef(deps);
+	latest.current = deps;
 	electronTrpc.notifications.subscribe.useSubscription(undefined, {
 		onData: (event) => {
 			if (event.type !== NOTIFICATION_EVENTS.ODIN_ACTION || !event.data) return;
@@ -370,6 +375,7 @@ type CrowDeps = {
 	isDone: ReturnType<typeof useDone>["isDone"];
 	launch: ReturnType<typeof useLaunchTaskSession>["launch"];
 	ensureWorkspace: ReturnType<typeof useOdinWorkspace>["ensureWorkspace"];
+	router: ReturnType<typeof useRouter>;
 };
 
 /** One `/odin` call, answered as the text the crow reads back. */
@@ -451,5 +457,21 @@ function runOdinAction(
 			? `Night Agent is on: ${now.start} to ${now.end}, at most ${now.maxSessions} sessions, one at a time from the top of Next in line.`
 			: "Night Agent is off.";
 	}
-	return `Unknown action "${action}" - use tasks, start, add, sessions or night.`;
+	if (action === "state") return readState(args);
+	if (action === "set") return writeState(args);
+	if (action === "open") {
+		const screens = Object.keys(deps.router.routesByPath).filter(
+			(path) => !path.includes("$"),
+		);
+		if (!args.to) return `Screens: ${screens.join(", ")}`;
+		void deps.router.navigate({ to: args.to });
+		return `Opened ${args.to}.`;
+	}
+	if (action === "done") {
+		if (!args.paneId || !panes[args.paneId])
+			return "No session with that paneId - list them with action=sessions.";
+		endSession(args.paneId);
+		return `Marked ${panes[args.paneId].odinTaskTitle ?? args.paneId} done.`;
+	}
+	return `Unknown action "${action}" - use tasks, start, add, sessions, night, done, state, set, open, api or call.`;
 }
