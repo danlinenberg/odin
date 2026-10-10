@@ -7,31 +7,26 @@ const KEEP = 50;
 /**
  * What you typed in a session's reply box and haven't sent, by pane, so it is
  * still there when you leave the session and come back. Sending clears it.
+ * Oldest first: a save moves its pane to the end.
  */
 export const useChatDrafts = create<{
-	drafts: Record<string, { text: string; at: number }>;
+	drafts: [paneId: string, text: string][];
 	save: (paneId: string, text: string) => void;
 }>()(
 	persist(
 		(set) => ({
-			drafts: {},
+			drafts: [],
 			save: (paneId, text) =>
 				set(({ drafts }) => {
-					const { [paneId]: _, ...rest } = drafts;
-					if (!text) return { drafts: rest };
-					// Newest-written first, so a tie on `at` keeps the newer draft.
-					const kept = Object.entries(rest)
-						.reverse()
-						.sort(([, a], [, b]) => b.at - a.at)
-						.slice(0, KEEP - 1);
+					const rest = drafts.filter(([id]) => id !== paneId);
 					return {
-						drafts: {
-							...Object.fromEntries(kept),
-							[paneId]: { text, at: Date.now() },
-						},
+						drafts: text ? [...rest.slice(-(KEEP - 1)), [paneId, text]] : rest,
 					};
 				}),
 		}),
 		{ name: "odin-chat-drafts" },
 	),
 );
+
+export const draftFor = (paneId: string) =>
+	useChatDrafts.getState().drafts.find(([id]) => id === paneId)?.[1] ?? "";

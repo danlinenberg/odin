@@ -5,7 +5,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LuChevronRight, LuSquareTerminal } from "react-icons/lu";
 import { MarkdownRenderer } from "renderer/components/MarkdownRenderer";
 import { electronTrpc } from "renderer/lib/electron-trpc";
-import { useChatDrafts } from "renderer/stores/chat-drafts";
+import { draftFor, useChatDrafts } from "renderer/stores/chat-drafts";
 import { useCompacting } from "renderer/stores/compacting";
 import { openUrl } from "renderer/stores/in-app-browser";
 import { useSessionView } from "renderer/stores/session-view";
@@ -1573,9 +1573,7 @@ function Composer({
 	/** Ended session: sending resumes it with the text instead of typing into a PTY. */
 	onResume?: (text: string) => void;
 }) {
-	const [draft, setDraft] = useState(
-		() => useChatDrafts.getState().drafts[paneId]?.text ?? "",
-	);
+	const [draft, setDraft] = useState(() => draftFor(paneId));
 	useEffect(
 		() => useChatDrafts.getState().save(paneId, draft),
 		[paneId, draft],
