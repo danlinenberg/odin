@@ -131,7 +131,7 @@ const SUGGESTIONS = [
 	"Turn on the Night Agent tonight, 23:00 to 07:00",
 	"Start my 3 highest-priority backlog tasks",
 	"Which sessions are waiting on me, and why?",
-	'Add "Renew the SSL cert" to my backlog as high priority',
+	"What did my sessions ship this week?",
 ];
 
 /** "dan" from the OS account - Odin has no profile name of its own. */
