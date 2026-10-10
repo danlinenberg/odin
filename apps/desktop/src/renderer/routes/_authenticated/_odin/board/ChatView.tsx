@@ -1820,7 +1820,7 @@ function Composer({
 							onClick={() =>
 								onStop ? onStop() : write.mutate({ paneId, data: "\x03" })
 							}
-							className="ml-auto flex size-7 items-center justify-center rounded-full bg-foreground text-background hover:opacity-85"
+							className="ml-auto flex size-7 shrink-0 items-center justify-center rounded-full bg-foreground text-background hover:opacity-85"
 						>
 							<span className="size-[9px] rounded-[2px] bg-background" />
 						</button>
@@ -1830,7 +1830,7 @@ function Composer({
 							title="Send (Enter)"
 							disabled={!draft.trim() && previews.length === 0}
 							onClick={() => void send()}
-							className="ml-auto flex size-7 items-center justify-center rounded-full bg-primary text-[14px] font-bold text-primary-foreground hover:brightness-110 disabled:opacity-40"
+							className="ml-auto flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-[14px] font-bold text-primary-foreground hover:brightness-110 disabled:opacity-40"
 						>
 							↑
 						</button>
