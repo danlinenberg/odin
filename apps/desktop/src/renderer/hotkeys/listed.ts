@@ -36,6 +36,8 @@ export const LISTED_HOTKEYS: HotkeyId[] = [
 	"FIND_IN_TERMINAL",
 	"CLEAR_TERMINAL",
 	"SCROLL_TO_BOTTOM",
+	"CHAT_TO_TOP",
+	"CHAT_TO_BOTTOM",
 	// Menu bar
 	"OPEN_PROJECT",
 	"RELOAD_WINDOW",

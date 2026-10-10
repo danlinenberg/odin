@@ -4,6 +4,7 @@ import { cn } from "@odin/ui/utils";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LuChevronRight, LuSquareTerminal } from "react-icons/lu";
 import { MarkdownRenderer } from "renderer/components/MarkdownRenderer";
+import { isHotkey } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { draftFor, useChatDrafts } from "renderer/stores/chat-drafts";
 import { useCompacting } from "renderer/stores/compacting";
@@ -1344,10 +1345,11 @@ export function ChatView({
 			className="flex min-h-0 flex-1 flex-col"
 			onKeyDown={(event) => {
 				const el = scrollRef.current;
-				if (!el || event.altKey || event.ctrlKey || event.metaKey) return;
-				if (event.key !== "PageUp" && event.key !== "PageDown") return;
+				const top = isHotkey("CHAT_TO_TOP", event.nativeEvent);
+				if (!el || (!top && !isHotkey("CHAT_TO_BOTTOM", event.nativeEvent)))
+					return;
 				event.preventDefault();
-				el.scrollTop = event.key === "PageUp" ? 0 : el.scrollHeight;
+				el.scrollTop = top ? 0 : el.scrollHeight;
 			}}
 		>
 			<div
