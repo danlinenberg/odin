@@ -56,30 +56,46 @@ describe("resolveElectronBinary", () => {
 });
 
 describe("stageDaemonRuntime", () => {
-	it("copies the install folder outside it, renames the exe and drops other versions", async () => {
+	it("copies the daemon's files out of the install folder and drops other versions", async () => {
 		const root = mkdtempSync(join(tmpdir(), "odin-stage-"));
 		const install = join(root, "Programs", "Odin");
-		mkdirSync(join(install, "resources"), { recursive: true });
+		const asar = join(install, "resources", "app.asar");
+		const pty = join(`${asar}.unpacked`, "node_modules", "node-pty");
+		mkdirSync(join(asar, "dist", "main", "chunks"), { recursive: true });
+		mkdirSync(join(install, "locales"), { recursive: true });
+		mkdirSync(pty, { recursive: true });
 		writeFileSync(join(install, "Odin.exe"), "exe");
-		writeFileSync(join(install, "resources", "app.asar"), "asar");
+		writeFileSync(join(install, "ffmpeg.dll"), "dll");
+		writeFileSync(join(asar, "dist", "main", "chunks", "a.js"), "js");
+		writeFileSync(join(pty, "conpty.node"), "node");
 		const runtimeRoot = join(root, "runtime");
 		mkdirSync(join(runtimeRoot, "1.0.14"), { recursive: true });
 
 		const staged = await stageDaemonRuntime({
 			execPath: join(install, "Odin.exe"),
-			appPath: join(install, "resources", "app.asar"),
+			appPath: asar,
 			runtimeRoot,
 			version: "1.0.15",
 		});
 
-		expect(staged.exe).toBe(
-			join(runtimeRoot, "1.0.15", "odin-terminal-host.exe"),
-		);
-		expect(existsSync(staged.exe)).toBe(true);
-		expect(staged.appPath).toBe(
-			join(runtimeRoot, "1.0.15", "resources", "app.asar"),
-		);
-		expect(existsSync(staged.appPath)).toBe(true);
+		const dir = join(runtimeRoot, "1.0.15");
+		expect(staged).toEqual({
+			exe: join(dir, "odin-terminal-host.exe"),
+			appPath: join(dir, "resources", "app"),
+		});
+		expect(readdirSync(dir).sort()).toEqual([
+			"ffmpeg.dll",
+			"odin-terminal-host.exe",
+			"resources",
+		]);
+		expect(
+			existsSync(join(staged.appPath, "dist", "main", "chunks", "a.js")),
+		).toBe(true);
+		expect(
+			existsSync(
+				join(staged.appPath, "node_modules", "node-pty", "conpty.node"),
+			),
+		).toBe(true);
 		expect(readdirSync(runtimeRoot)).toEqual(["1.0.15"]);
 	});
 });

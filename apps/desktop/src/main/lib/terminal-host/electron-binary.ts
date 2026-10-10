@@ -14,9 +14,16 @@
  * both states.
  */
 
-import { existsSync, readdirSync, rmSync } from "node:fs";
-import { cp, rename, rm } from "node:fs/promises";
-import { basename, join, relative, resolve } from "node:path";
+import {
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
+import { copyFile, cp, rename, rm } from "node:fs/promises";
+import { basename, dirname, join, resolve } from "node:path";
 
 /**
  * The Electron binary as it exists on disk right now.
@@ -42,14 +49,18 @@ export function resolveElectronBinary(execPath = process.execPath): string {
 const STAGED_EXE = "odin-terminal-host.exe";
 
 /**
- * A copy of the Windows install folder to run the terminal-host daemon from.
+ * A copy of what the Windows terminal-host daemon runs, outside the install
+ * folder.
  *
  * Before it writes, the NSIS installer stops every process whose exe is under
  * the install folder (and, without PowerShell, every `Odin.exe`). A daemon run
  * from there dies with every session on each update. The copy sits outside the
  * folder under another exe name, as the old bundle does on macOS after a swap.
- * Copies of other versions are removed: only spawn calls this, so no live
- * daemon is using them.
+ *
+ * Only what the daemon loads: the exe with the files beside it, `dist/main`
+ * read out of the asar, and node-pty, its one native module (~330 MB of the
+ * install's 1.1 GB). Copies of other versions are removed: only spawn calls
+ * this, so no live daemon is using them.
  */
 export async function stageDaemonRuntime(options: {
 	execPath: string;
@@ -57,9 +68,10 @@ export async function stageDaemonRuntime(options: {
 	runtimeRoot: string;
 	version: string;
 }): Promise<{ exe: string; appPath: string }> {
-	const installDir = resolve(options.execPath, "..");
+	const installDir = dirname(options.execPath);
 	const dir = join(options.runtimeRoot, options.version);
 	const exe = join(dir, STAGED_EXE);
+	const appDir = join(dir, "resources", "app");
 
 	for (const name of existsSync(options.runtimeRoot)
 		? readdirSync(options.runtimeRoot)
@@ -74,11 +86,29 @@ export async function stageDaemonRuntime(options: {
 
 	if (!existsSync(exe)) {
 		const tmp = `${dir}.tmp-${process.pid}-${Date.now()}`;
+		const tmpApp = join(tmp, "resources", "app");
 		try {
-			await cp(installDir, tmp, { recursive: true });
-			await rename(
-				join(tmp, basename(options.execPath)),
-				join(tmp, STAGED_EXE),
+			mkdirSync(tmp, { recursive: true });
+			for (const entry of readdirSync(installDir, { withFileTypes: true })) {
+				if (!entry.isFile()) continue;
+				await copyFile(
+					join(installDir, entry.name),
+					join(
+						tmp,
+						entry.name === basename(options.execPath) ? STAGED_EXE : entry.name,
+					),
+				);
+			}
+			// Through Electron's asar-aware fs, file by file: fs.cp has no asar
+			// support.
+			copyTreeSync(
+				join(options.appPath, "dist", "main"),
+				join(tmpApp, "dist", "main"),
+			);
+			await cp(
+				join(`${options.appPath}.unpacked`, "node_modules", "node-pty"),
+				join(tmpApp, "node_modules", "node-pty"),
+				{ recursive: true },
 			);
 			await rm(dir, { recursive: true, force: true });
 			await rename(tmp, dir);
@@ -87,8 +117,16 @@ export async function stageDaemonRuntime(options: {
 		}
 	}
 
-	return {
-		exe,
-		appPath: join(dir, relative(installDir, options.appPath)),
-	};
+	return { exe, appPath: appDir };
+}
+
+function copyTreeSync(from: string, to: string): void {
+	mkdirSync(to, { recursive: true });
+	for (const entry of readdirSync(from, { withFileTypes: true })) {
+		if (entry.isDirectory()) {
+			copyTreeSync(join(from, entry.name), join(to, entry.name));
+		} else {
+			writeFileSync(join(to, entry.name), readFileSync(join(from, entry.name)));
+		}
+	}
 }
