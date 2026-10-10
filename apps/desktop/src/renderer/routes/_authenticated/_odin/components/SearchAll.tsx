@@ -26,7 +26,7 @@ import { useMyTasks } from "../hooks/useOdinTasks";
 import { usePaneMeta } from "../hooks/usePaneMeta";
 import { usePendingFocus } from "../hooks/usePendingFocus";
 import { PANE_STATUS } from "../pane-status";
-import { liveConversationIds } from "../sessions/live-sessions";
+import { boardConversationIds } from "../sessions/live-sessions";
 import { agoLabel, repoLabel } from "../sessions/row-labels";
 import { ROW_META } from "./FeedChrome";
 import { FEED_TABS } from "./feed-counts";
@@ -171,18 +171,10 @@ export function SearchAll({ onClose }: { onClose: () => void }) {
 			getNextPageParam: (page) => page.nextCursor ?? undefined,
 		},
 	);
-	// History is finished work - a session still running is the board's card.
-	const { data: daemonSessions } =
-		electronTrpc.terminal.listDaemonSessions.useQuery(undefined, {
-			refetchInterval: 5_000,
-		});
+	// History is finished work - a session still on the board is its card.
 	const pastSessions = useMemo(() => {
 		if (transcriptQuery.length < 2) return [];
-		const live = liveConversationIds(
-			daemonSessions?.sessions ?? [],
-			panes,
-			sessionIdByPane,
-		);
+		const live = boardConversationIds(panes, sessionIdByPane);
 		const needle = normalizeQuery(transcriptQuery);
 		const found: PastSession[] = history.data?.pages[0]?.sessions ?? [];
 		return found
@@ -192,7 +184,7 @@ export function SearchAll({ onClose }: { onClose: () => void }) {
 				tier: matchRank(needle, item.title, [item.person]) ?? TRANSCRIPT_TIER,
 			}))
 			.sort((a, b) => a.tier - b.tier);
-	}, [transcriptQuery, history.data, daemonSessions, panes, sessionIdByPane]);
+	}, [transcriptQuery, history.data, panes, sessionIdByPane]);
 	const isSearchingHistory =
 		query.trim().length >= 2 &&
 		(history.isFetching || transcriptQuery !== query.trim());
