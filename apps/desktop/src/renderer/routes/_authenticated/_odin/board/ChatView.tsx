@@ -4,6 +4,7 @@ import { cn } from "@odin/ui/utils";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LuChevronRight, LuSquareTerminal } from "react-icons/lu";
 import { MarkdownRenderer } from "renderer/components/MarkdownRenderer";
+import { isHotkey } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { draftFor, useChatDrafts } from "renderer/stores/chat-drafts";
 import { useCompacting } from "renderer/stores/compacting";
@@ -1339,7 +1340,18 @@ export function ChatView({
 		pending.length === 0 &&
 		(!missing || missing.startsWith("Not on disk yet"));
 	return (
-		<div className="flex min-h-0 flex-1 flex-col">
+		// biome-ignore lint/a11y/noStaticElementInteractions: Page Up/Down from the composer jump the conversation to its top/bottom
+		<div
+			className="flex min-h-0 flex-1 flex-col"
+			onKeyDown={(event) => {
+				const el = scrollRef.current;
+				const top = isHotkey("CHAT_TO_TOP", event.nativeEvent);
+				if (!el || (!top && !isHotkey("CHAT_TO_BOTTOM", event.nativeEvent)))
+					return;
+				event.preventDefault();
+				el.scrollTop = top ? 0 : el.scrollHeight;
+			}}
+		>
 			<div
 				ref={scrollRef}
 				onScroll={(event) => {

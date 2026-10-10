@@ -634,6 +634,18 @@ export const HOTKEYS_REGISTRY = {
 		category: "Terminal",
 		description: "Scroll the active terminal to the bottom",
 	},
+	CHAT_TO_TOP: {
+		key: { mac: "pageup", windows: "pageup", linux: "pageup" },
+		label: "Chat: Jump to Top",
+		category: "Terminal",
+		description: "Jump the session chat to its first message",
+	},
+	CHAT_TO_BOTTOM: {
+		key: { mac: "pagedown", windows: "pagedown", linux: "pagedown" },
+		label: "Chat: Jump to Bottom",
+		category: "Terminal",
+		description: "Jump the session chat to its latest message",
+	},
 	PREV_TAB_ALT: {
 		key: {
 			mac: "ctrl+shift+tab",
