@@ -14,15 +14,17 @@
  * both states.
  */
 
+import { existsSync } from "node:fs";
 import {
-	existsSync,
-	mkdirSync,
-	readdirSync,
-	readFileSync,
-	rmSync,
-	writeFileSync,
-} from "node:fs";
-import { copyFile, cp, rename, rm } from "node:fs/promises";
+	copyFile,
+	cp,
+	mkdir,
+	readdir,
+	readFile,
+	rename,
+	rm,
+	writeFile,
+} from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 
 /**
@@ -74,11 +76,14 @@ export async function stageDaemonRuntime(options: {
 	const appDir = join(dir, "resources", "app");
 
 	for (const name of existsSync(options.runtimeRoot)
-		? readdirSync(options.runtimeRoot)
+		? await readdir(options.runtimeRoot)
 		: []) {
 		if (name === options.version) continue;
 		try {
-			rmSync(join(options.runtimeRoot, name), { recursive: true, force: true });
+			await rm(join(options.runtimeRoot, name), {
+				recursive: true,
+				force: true,
+			});
 		} catch {
 			// A file still in use stays until the next spawn.
 		}
@@ -88,8 +93,8 @@ export async function stageDaemonRuntime(options: {
 		const tmp = `${dir}.tmp-${process.pid}-${Date.now()}`;
 		const tmpApp = join(tmp, "resources", "app");
 		try {
-			mkdirSync(tmp, { recursive: true });
-			for (const entry of readdirSync(installDir, { withFileTypes: true })) {
+			await mkdir(tmp, { recursive: true });
+			for (const entry of await readdir(installDir, { withFileTypes: true })) {
 				if (!entry.isFile()) continue;
 				await copyFile(
 					join(installDir, entry.name),
@@ -101,7 +106,7 @@ export async function stageDaemonRuntime(options: {
 			}
 			// Through Electron's asar-aware fs, file by file: fs.cp has no asar
 			// support.
-			copyTreeSync(
+			await copyTree(
 				join(options.appPath, "dist", "main"),
 				join(tmpApp, "dist", "main"),
 			);
@@ -120,13 +125,16 @@ export async function stageDaemonRuntime(options: {
 	return { exe, appPath: appDir };
 }
 
-function copyTreeSync(from: string, to: string): void {
-	mkdirSync(to, { recursive: true });
-	for (const entry of readdirSync(from, { withFileTypes: true })) {
+async function copyTree(from: string, to: string): Promise<void> {
+	await mkdir(to, { recursive: true });
+	for (const entry of await readdir(from, { withFileTypes: true })) {
 		if (entry.isDirectory()) {
-			copyTreeSync(join(from, entry.name), join(to, entry.name));
+			await copyTree(join(from, entry.name), join(to, entry.name));
 		} else {
-			writeFileSync(join(to, entry.name), readFileSync(join(from, entry.name)));
+			await writeFile(
+				join(to, entry.name),
+				await readFile(join(from, entry.name)),
+			);
 		}
 	}
 }

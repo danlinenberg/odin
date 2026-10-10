@@ -11,7 +11,7 @@
 <p align="center">
   <a href="LICENSE.md"><img alt="License: Elastic 2.0" src="https://img.shields.io/badge/license-Elastic%202.0-1d212c"></a>
   <a href="#install"><img alt="macOS, Apple Silicon" src="https://img.shields.io/badge/macOS-Apple%20Silicon-1d212c"></a>
-  <a href="#windows"><img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-1d212c"></a>
+  <a href="#windows-x64"><img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-1d212c"></a>
   <a href="https://github.com/danlinenberg/odin/actions/workflows/release.yml"><img alt="Release" src="https://github.com/danlinenberg/odin/actions/workflows/release.yml/badge.svg"></a>
 </p>
 
@@ -31,11 +31,13 @@ request. One queue, one board, one thing to look at.
 
 ## Install
 
+### macOS (Apple Silicon)
+
 ```sh
 brew trust --tap danlinenberg/odin && brew tap danlinenberg/odin && brew install --cask odin
 ```
 
-### Windows
+### Windows (x64)
 
 In PowerShell:
 
@@ -43,23 +45,26 @@ In PowerShell:
 irm https://github.com/danlinenberg/odin/releases/latest/download/Odin-Setup-x64.exe -OutFile $env:TEMP\Odin-Setup.exe; & $env:TEMP\Odin-Setup.exe /S
 ```
 
-It installs silently for your user, no admin needed. Or download
+It installs silently for your user, with no admin prompt. Or download
 **[Odin-Setup-x64.exe](https://github.com/danlinenberg/odin/releases/latest/download/Odin-Setup-x64.exe)**
 and run it. The installer is not code-signed, so SmartScreen warns when you
-open the download: click **More info**, then **Run anyway**. Sessions need [Git for Windows](https://git-scm.com/download/win)
-on `PATH`; a fresh Windows doesn't have it.
+open the download: click **More info**, then **Run anyway**.
+
+Sessions need [Git for Windows](https://git-scm.com/download/win) on `PATH`;
+a fresh Windows doesn't have it (`winget install Git.Git`).
 
 ### Upgrade
 
-On macOS, Odin updates itself: **Odin → Check for Updates…**, and it offers on launch when
-a release is newer than what you are running. It downloads the DMG and swaps the
-bundle in place. Open terminal sessions survive the swap, because the
-terminal-host daemon keeps running from the bundle the update parks aside.
+Odin updates itself. It checks on launch and every hour, and shows a banner when
+a newer release is out; **Check for Updates…** in the menu asks right away.
 
-On Windows it does the same from 1.0.16 on: it downloads the new installer, runs
-it silently and reopens. Sessions survive because the daemon runs from a copy of
-the app under `~/.odin/runtime/<version>`, outside the folder the installer
-replaces.
+- **macOS:** it downloads the DMG and swaps the bundle in place. Open terminal
+  sessions survive, because the terminal-host daemon keeps running from the
+  bundle the update parks aside.
+- **Windows** (1.0.15 and later): it downloads the installer, runs it silently
+  and reopens. From 1.0.16, open sessions survive too: the daemon runs from a
+  copy under `~/.odin/runtime/<version>`, outside the folder the installer
+  replaces. 1.0.14 and older have no updater - run the install command once.
 
 ### From source
 
