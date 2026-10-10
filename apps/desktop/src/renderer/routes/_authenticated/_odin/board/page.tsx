@@ -2229,17 +2229,6 @@ function DevBoardPage() {
 			return false;
 		}
 	});
-	// Night Agent sessions you haven't opened or marked Done - the badge on
-	// the toggle, so a closed column still tells you the night ran.
-	const nightStarted = useTabsStore(
-		(s) =>
-			Object.values(s.panes).filter(
-				(pane) =>
-					!pane.completed &&
-					!pane.odinPickedUp &&
-					pane.odinTags?.includes("off-hours"),
-			).length,
-	);
 	const toggleNext = () => {
 		const next = !isNextOpen;
 		setIsNextOpen(next);
@@ -2723,13 +2712,6 @@ function DevBoardPage() {
 		setRenameDraft(null); // don't reopen into a half-typed rename
 		setIsShellOpen(false); // the shell belongs to the session you came from
 		setDrawerCard(card);
-		if (card.pane.odinTags?.includes("off-hours") && !card.pane.odinPickedUp)
-			useTabsStore.setState((state) => ({
-				panes: {
-					...state.panes,
-					[card.pane.id]: { ...state.panes[card.pane.id], odinPickedUp: true },
-				},
-			}));
 	};
 
 	// A reload (⌘R, a renderer full reload) lands you back in the session you
@@ -3555,18 +3537,6 @@ function DevBoardPage() {
 						<LuEyeOff className="size-3.5" aria-hidden />
 					)}
 					Next in line
-					{nightStarted > 0 && (
-						<span
-							title={`Night Agent started ${nightStarted} session${nightStarted === 1 ? "" : "s"} you haven't opened yet`}
-							className={cn(
-								"inline-flex items-center gap-1 rounded-[5px] px-[5px] text-[11px]",
-								PILL.brand,
-							)}
-						>
-							<LuMoon className="size-3" aria-hidden />
-							{nightStarted}
-						</span>
-					)}
 				</button>
 			</div>
 

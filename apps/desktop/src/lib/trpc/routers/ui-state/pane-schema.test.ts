@@ -29,7 +29,6 @@ describe("paneSchema", () => {
 			odinSource: "jira",
 			odinTags: ["work"],
 			odinStarred: true,
-			odinPickedUp: true,
 			odinQueued: { command: "claude", reason: "busy" },
 			odinAutoTagged: true,
 			odinAutoTitled: true,

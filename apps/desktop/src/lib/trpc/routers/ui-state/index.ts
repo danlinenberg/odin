@@ -86,7 +86,6 @@ export const paneSchema = z.object({
 	odinSource: z.enum(["slack", "reactions", "jira", "pr", "notion"]).optional(),
 	odinTags: z.array(z.string()).optional(),
 	odinStarred: z.boolean().optional(),
-	odinPickedUp: z.boolean().optional(),
 	odinAutoTagged: z.boolean().optional(),
 	odinAutoTitled: z.boolean().optional(),
 	odinParked: z.boolean().optional(),
