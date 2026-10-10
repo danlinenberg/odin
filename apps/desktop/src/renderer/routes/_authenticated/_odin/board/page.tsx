@@ -4192,14 +4192,14 @@ function DevBoardPage() {
 								›
 							</button>
 						)}
-						<div className="border-b border-border px-4 py-3.5">
+						<div className="border-b border-border px-4 py-2">
 							<div className="flex items-center gap-2">
 								{renameDraft === null ? (
 									<button
 										type="button"
 										title="Click to rename this session"
 										onClick={() => setRenameDraft(cardTitle(drawerCard))}
-										className="min-w-0 flex-1 truncate text-left text-sm font-semibold hover:text-primary"
+										className="min-w-0 truncate text-left text-sm font-semibold hover:text-primary"
 									>
 										{cardTitle(drawerCard)}
 									</button>
@@ -4218,6 +4218,35 @@ function DevBoardPage() {
 										className="min-w-0 flex-1 rounded-md border border-primary bg-background px-2 py-1 text-sm font-semibold text-foreground outline-none"
 									/>
 								)}
+								<div className="mr-auto flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap">
+									{cardContact(drawerCard) && (
+										<PersonChip name={cardContact(drawerCard) as string} />
+									)}
+									{drawerLink && (
+										<button
+											type="button"
+											title={drawerLink.url}
+											onClick={() => openUrl(drawerLink.url)}
+											className={cn(
+												"rounded-[5px] px-[7px] text-[11px] font-medium hover:underline",
+												PILL.brand,
+											)}
+										>
+											{drawerLink.label} ↗
+										</button>
+									)}
+									{sessionCwd(drawerCard.pane) && (
+										<span
+											title={sessionCwd(drawerCard.pane)}
+											className="rounded-[5px] bg-secondary px-[7px] text-[11px] text-muted-foreground"
+										>
+											{sessionCwd(drawerCard.pane)?.split("/").slice(-1)[0]}
+										</span>
+									)}
+									<span className="rounded-[5px] bg-secondary px-[7px] text-[11px] text-muted-foreground">
+										{PANE_STATUS[drawerCard.status].label}
+									</span>
+								</div>
 								{drawerCard.pane.type === "terminal" && !inCatchUp && (
 									<button
 										type="button"
@@ -4305,35 +4334,6 @@ function DevBoardPage() {
 										⛶
 									</button>
 								)}
-							</div>
-							<div className="mt-1.5 flex flex-wrap gap-1.5">
-								{cardContact(drawerCard) && (
-									<PersonChip name={cardContact(drawerCard) as string} />
-								)}
-								{drawerLink && (
-									<button
-										type="button"
-										title={drawerLink.url}
-										onClick={() => openUrl(drawerLink.url)}
-										className={cn(
-											"rounded-[5px] px-[7px] text-[11px] font-medium hover:underline",
-											PILL.brand,
-										)}
-									>
-										{drawerLink.label} ↗
-									</button>
-								)}
-								{sessionCwd(drawerCard.pane) && (
-									<span
-										title={sessionCwd(drawerCard.pane)}
-										className="rounded-[5px] bg-secondary px-[7px] text-[11px] text-muted-foreground"
-									>
-										{sessionCwd(drawerCard.pane)?.split("/").slice(-1)[0]}
-									</span>
-								)}
-								<span className="rounded-[5px] bg-secondary px-[7px] text-[11px] text-muted-foreground">
-									{PANE_STATUS[drawerCard.status].label}
-								</span>
 							</div>
 						</div>
 						{catchUpLean ? (
