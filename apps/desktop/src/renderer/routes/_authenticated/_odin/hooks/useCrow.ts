@@ -11,6 +11,7 @@ import {
 	pickClaudeCommand,
 	useClaudeCommand,
 } from "renderer/stores/claude-command";
+import { useNextInLinePrompt } from "renderer/stores/next-in-line-prompt";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import type { Pane } from "renderer/stores/tabs/types";
 import { CROW_RULE, NOTIFICATION_EVENTS } from "shared/constants";
@@ -430,5 +431,25 @@ function runOdinAction(
 		})();
 		return `Starting ${tasks.length} on the board: ${tasks.map((task) => task.title).join("; ")}`;
 	}
-	return `Unknown action "${action}" - use tasks, start, add or sessions.`;
+	if (action === "night") {
+		const { setOffHours } = useNextInLinePrompt.getState();
+		const hhmm = /^([01]\d|2[0-3]):[0-5]\d$/;
+		for (const time of [args.start, args.end])
+			if (time && !hhmm.test(time)) return `"${time}" isn't HH:MM.`;
+		const max = args.max ? Number(args.max) : undefined;
+		if (max !== undefined && !(Number.isInteger(max) && max > 0))
+			return "max must be a whole number above 0.";
+		if (args.on === "true" || args.on === "false")
+			setOffHours({
+				enabled: args.on === "true",
+				...(args.start && { start: args.start }),
+				...(args.end && { end: args.end }),
+				...(max && { maxSessions: max }),
+			});
+		const now = useNextInLinePrompt.getState().offHours;
+		return now.enabled
+			? `Night Agent is on: ${now.start} to ${now.end}, at most ${now.maxSessions} sessions, one at a time from the top of Next in line.`
+			: "Night Agent is off.";
+	}
+	return `Unknown action "${action}" - use tasks, start, add, sessions or night.`;
 }
