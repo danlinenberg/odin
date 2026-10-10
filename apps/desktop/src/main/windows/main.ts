@@ -28,6 +28,7 @@ import {
 	extractWorkspaceIdFromUrl,
 	getNotificationTitle,
 } from "../lib/notifications/utils";
+import { setOdinApiRouter } from "../lib/odin-api";
 import {
 	getInitialWindowBounds,
 	loadWindowState,
@@ -175,8 +176,10 @@ export async function MainWindow() {
 	if (ipcHandler) {
 		ipcHandler.attachWindow(window);
 	} else {
+		const appRouter = createAppRouter(getWindow);
+		setOdinApiRouter(appRouter);
 		ipcHandler = createIPCHandler({
-			router: createAppRouter(getWindow),
+			router: appRouter,
 			windows: [window],
 		});
 	}
