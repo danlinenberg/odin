@@ -24,6 +24,8 @@ type TerminalExitNotification = NotificationIds & {
 	exitCode: number;
 	signal?: number;
 	reason?: "killed" | "exited" | "error";
+	/** Why it ended, for the board card - see main/lib/terminal/exit-cause. */
+	cause?: string;
 };
 
 type NotificationEvent =

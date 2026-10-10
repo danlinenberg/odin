@@ -93,6 +93,7 @@ export const paneSchema = z.object({
 	odinClosedIn: z
 		.enum(["idle", "working", "permission", "review", "failed"])
 		.optional(),
+	odinExitCause: z.string().optional(),
 	// A launch held back by the capacity gate - the command to run when it
 	// clears. Persisted so a queued task survives a restart.
 	odinQueued: z.object({ command: z.string(), reason: z.string() }).optional(),
