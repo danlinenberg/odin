@@ -387,6 +387,7 @@ const ToolRow = memo(function ToolRow({
 	item: Extract<Item, { kind: "tool" }>;
 }) {
 	const [open, setOpen] = useState(false);
+	const showAll = useSessionView((s) => s.commands);
 	const done = item.result !== undefined;
 	const oldText = item.input.old_string;
 	const newText = item.input.new_string;
@@ -408,7 +409,9 @@ const ToolRow = memo(function ToolRow({
 					{toolDescription(item)}
 				</span>
 				<span className="min-w-0 flex-1 truncate font-mono text-[11px] text-faint-foreground">
-					{item.name}
+					{showAll && typeof item.input.command === "string"
+						? item.input.command
+						: item.name}
 				</span>
 				<span className="ml-auto shrink-0 text-[10px] text-faint-foreground">
 					{open ? "▾" : "▸"}
@@ -484,7 +487,10 @@ function asking(items: Item[]): Tool | null {
 
 const ToolGroup = memo(
 	function ToolGroup({ group }: { group: Group }) {
-		const [open, setOpen] = useState(false);
+		const showAll = useSessionView((s) => s.commands);
+		const [toggled, setOpen] = useState<boolean | null>(null);
+		// Your own click wins; until then the footer's "Commands" switch decides.
+		const open = toggled ?? showAll;
 		const tools = group.filter((item): item is Tool => item.kind === "tool");
 		// A failure Claude retried past is routine; only flag a run that ended failing.
 		const failed = tools.at(-1)?.isError === true;
@@ -492,7 +498,7 @@ const ToolGroup = memo(
 			<div className="flex min-w-0 flex-col">
 				<button
 					type="button"
-					onClick={() => setOpen((value) => !value)}
+					onClick={() => setOpen(!open)}
 					className="flex min-w-0 max-w-full items-center gap-2 self-start rounded-lg border border-border bg-secondary px-2.5 py-1 text-left text-[12px] text-soft-foreground hover:bg-accent hover:text-foreground"
 				>
 					{/* Live work shows once, in the turn's own "Working..." row below. */}
@@ -1540,6 +1546,8 @@ function Composer({
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const write = electronTrpc.terminal.write.useMutation();
 	const setChat = useSessionView((s) => s.setChat);
+	const commands = useSessionView((s) => s.commands);
+	const setCommands = useSessionView((s) => s.setCommands);
 	// Type `/` and the agent's skills/commands are searchable, like the New
 	// Session dialog. Picking one fills in `/name `; Enter then sends it.
 	const { data: skills = [] } = electronTrpc.skills.list.useQuery();
@@ -1773,6 +1781,28 @@ function Composer({
 							Terminal View
 						</button>
 					)}
+					<button
+						type="button"
+						title={
+							commands
+								? "Fold the commands Claude ran"
+								: "Show every command Claude ran"
+						}
+						aria-pressed={commands}
+						onClick={() => setCommands(!commands)}
+						className={cn(
+							"flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] hover:bg-secondary hover:text-foreground",
+							commands ? "text-foreground" : "text-muted-foreground",
+						)}
+					>
+						<LuChevronRight
+							className={cn(
+								"size-3.5 transition-transform",
+								commands && "rotate-90",
+							)}
+						/>
+						Commands
+					</button>
 					{bash ? (
 						<span className="text-[11px] text-pink-500">
 							Bash mode · Backspace on empty to exit
