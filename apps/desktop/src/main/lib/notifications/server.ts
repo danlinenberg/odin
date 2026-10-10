@@ -173,7 +173,7 @@ export function replyToOdinAction(id: string, text: string): void {
 
 /**
  * The crow drives Odin: list the backlog, start tasks, add one, list the
- * board (CROW_RULE in shared/constants has the calls). The renderer owns that
+ * board (crowRule in shared/constants has the calls). The renderer owns that
  * state, so the request goes to it and the response waits for its reply.
  * Changes the board, so browsers are refused like /shell/run.
  */
