@@ -42,6 +42,9 @@ export function nightInstructions(sort: string, offHours: string): string {
  * Asked again before a start whenever the words changed or new rows came in:
  * an edit applies to the very next session.
  *
+ * Odin keeps the computer from idle sleep meanwhile, so no Caffeinate is
+ * needed. A closed laptop lid still sleeps it: no app can stop that.
+ *
  * ponytail: renderer-side and only while Odin is open, same as automations.
  * Move it to main the day it has to run with the window shut.
  */
@@ -56,6 +59,16 @@ export function useNightAgentRunner() {
 
 	useEffect(() => {
 		let running = false;
+		let awake = false;
+		// Idle sleep would stop the tick and the sessions with it, so Odin holds
+		// it off itself for the window, and past it while the last one works.
+		const keepAwake = (next: boolean) => {
+			if (next === awake) return;
+			awake = next;
+			void electronTrpcClient.device.keepAwake.mutate(next).catch(() => {
+				awake = !next;
+			});
+		};
 		const tick = async () => {
 			if (running) return;
 			const {
@@ -66,15 +79,6 @@ export function useNightAgentRunner() {
 				setOffHoursStarted,
 				setOffHoursFromPicks,
 			} = useNextInLinePrompt.getState();
-			if (!offHours.enabled) return;
-			if (!inOffHours(new Date(), offHours.start, offHours.end)) {
-				if (offHoursStarted) setOffHoursStarted(0);
-				if (offHoursFromPicks) setOffHoursFromPicks(false);
-				tried.current.clear();
-				night.current = null;
-				return;
-			}
-			if (offHoursStarted >= offHours.maxSessions) return;
 			// Still working, or held by the launch gate: the last one isn't done.
 			const busy = Object.values(useTabsStore.getState().panes).some(
 				(pane) =>
@@ -82,6 +86,17 @@ export function useNightAgentRunner() {
 					pane.odinTags?.includes("off-hours") &&
 					(pane.status === "working" || !!pane.odinQueued),
 			);
+			const inWindow = inOffHours(new Date(), offHours.start, offHours.end);
+			keepAwake(offHours.enabled && (inWindow || busy));
+			if (!offHours.enabled) return;
+			if (!inWindow) {
+				if (offHoursStarted) setOffHoursStarted(0);
+				if (offHoursFromPicks) setOffHoursFromPicks(false);
+				tried.current.clear();
+				night.current = null;
+				return;
+			}
+			if (offHoursStarted >= offHours.maxSessions) return;
 			if (busy) return;
 			running = true;
 			try {
@@ -166,6 +181,9 @@ export function useNightAgentRunner() {
 			}
 		};
 		const id = setInterval(() => void tick(), TICK_MS);
-		return () => clearInterval(id);
+		return () => {
+			clearInterval(id);
+			keepAwake(false);
+		};
 	}, []);
 }
