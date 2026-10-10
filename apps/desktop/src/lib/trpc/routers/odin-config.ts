@@ -122,6 +122,8 @@ export interface OdinFileConfig {
 
 	/** Checkout Odin rebuilds itself from. */
 	odinRepo?: string;
+	/** Remove a session worktree as soon as its PR merges. Unset = on. */
+	pruneMergedWorktrees?: boolean;
 }
 
 /** Override exists so tests can point at a temp file instead of $HOME. */
@@ -155,6 +157,7 @@ export interface OdinProfile {
 const SHARED_KEYS = [
 	"odinRepo",
 	"doubleTapModifier",
+	"pruneMergedWorktrees",
 	// The OAuth apps: which Slack/Jira/Notion app Odin *is*, and
 	// GitHub's device-flow client id. They describe the build, not an account,
 	// so every profile signs in through the same one - a profile that didn't
@@ -202,7 +205,7 @@ function readRoot(): RootConfig {
 	const shared: OdinFileConfig = {};
 	for (const key of SHARED_KEYS) {
 		const value = raw[key];
-		if (value !== undefined) shared[key] = value as string;
+		if (value !== undefined) (shared as Record<string, unknown>)[key] = value;
 	}
 
 	let profiles = Array.isArray(raw.profiles)
@@ -230,7 +233,7 @@ function readRoot(): RootConfig {
 	for (const key of SHARED_KEYS) {
 		if (shared[key] !== undefined) continue;
 		const owner = profiles.find((p) => p.config?.[key] !== undefined);
-		if (owner) shared[key] = owner.config[key];
+		if (owner) (shared as Record<string, unknown>)[key] = owner.config[key];
 	}
 
 	// Jira's old API-token trio, from before sign-in existed. Dropped on read,

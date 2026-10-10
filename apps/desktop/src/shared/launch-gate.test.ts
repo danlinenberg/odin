@@ -36,6 +36,7 @@ describe("launchBlocker", () => {
 		const limits = {
 			hostCpuPercent: 70,
 			minFreeMemoryGb: 2,
+			minFreeDiskPercent: 5,
 			maxWorkingAgents: 2,
 		};
 		const busy = [

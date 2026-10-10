@@ -61,6 +61,16 @@ function SessionsSettingsPage() {
 					unit="GB"
 				/>
 				<LaunchLimitRow
+					id="launch-limit-disk"
+					field="minFreeDiskPercent"
+					label="Hold new sessions when free disk is under"
+					description="Free space on the home disk, shown in the top bar. Each session takes a ~3 GB worktree, and a full disk also starves memory. 0 means no limit."
+					min={0}
+					max={50}
+					step={1}
+					unit="% free"
+				/>
+				<LaunchLimitRow
 					id="launch-limit-agents"
 					field="maxWorkingAgents"
 					label="Hold new sessions when this many are working"
@@ -76,6 +86,7 @@ function SessionsSettingsPage() {
 			<SettingsSection title="On the board">
 				<AutoRenameRow />
 				<IdleCloseRow />
+				<PruneMergedRow />
 			</SettingsSection>
 		</SettingsPage>
 	);
@@ -319,6 +330,31 @@ function AutoRenameRow() {
 				checked={autoRename ?? ODIN_AUTO_RENAME_SESSIONS_DEFAULT}
 				onCheckedChange={(enabled) => setAutoRename.mutate({ enabled })}
 				disabled={isLoading || setAutoRename.isPending}
+			/>
+		</SettingRow>
+	);
+}
+
+/** Remove a session's worktree once its PR merges - main's pruner reads it. */
+function PruneMergedRow() {
+	const utils = electronTrpc.useUtils();
+	const { data: enabled, isLoading } =
+		electronTrpc.repos.getPruneMerged.useQuery();
+	const setEnabled = electronTrpc.repos.setPruneMerged.useMutation({
+		onSuccess: () => void utils.repos.getPruneMerged.invalidate(),
+		onError: (error) => toast.error(error.message),
+	});
+	return (
+		<SettingRow
+			label="Delete worktrees when their PR merges"
+			htmlFor="prune-merged-worktrees"
+			description="Checked every 10 minutes in every repo with a .worktrees folder. A worktree with uncommitted files waits 7 days, then its files are saved to refs/pruned/<name> first. Off keeps every worktree."
+		>
+			<Switch
+				id="prune-merged-worktrees"
+				checked={enabled ?? true}
+				onCheckedChange={(on) => setEnabled.mutate({ enabled: on })}
+				disabled={isLoading || setEnabled.isPending}
 			/>
 		</SettingRow>
 	);
