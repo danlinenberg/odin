@@ -1,22 +1,20 @@
 import { describe, expect, it } from "bun:test";
-import { liveConversationIds } from "./live-sessions";
+import { boardConversationIds } from "./live-sessions";
 
-describe("liveConversationIds", () => {
-	it("collects only conversations whose pane still has a live PTY", () => {
-		const live = liveConversationIds(
-			[
-				{ sessionId: "pane-live", isAlive: true },
-				{ sessionId: "pane-mirrored", isAlive: true },
-				{ sessionId: "pane-dead", isAlive: false },
-				{ sessionId: "pane-hand-opened", isAlive: true },
-			],
+describe("boardConversationIds", () => {
+	it("collects every card's conversation, dead PTY included, but not Done ones", () => {
+		const ids = boardConversationIds(
 			{
 				"pane-live": { claudeSessionId: "conv-live" },
-				"pane-dead": { claudeSessionId: "conv-dead" },
+				"pane-dead-pty": { claudeSessionId: "conv-dead-pty" },
+				"pane-done": { claudeSessionId: "conv-done", completed: true },
+				"pane-mirrored": {},
 				"pane-hand-opened": {},
 			},
 			{ "pane-mirrored": "conv-mirrored" },
 		);
-		expect(live).toEqual(new Set(["conv-live", "conv-mirrored"]));
+		expect(ids).toEqual(
+			new Set(["conv-live", "conv-dead-pty", "conv-mirrored"]),
+		);
 	});
 });

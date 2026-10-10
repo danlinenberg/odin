@@ -1,21 +1,21 @@
 /**
- * Claude conversations whose PTY is still alive in the daemon. A daemon
- * session id IS a paneId; the pane carries the conversation it launched
- * (older panes only made the usePaneMeta mirror).
+ * Claude conversations that still have a card on the board - dead PTY or not.
+ * A card whose shell exited is still the session: History listing it offered
+ * a Resume that spawned a second pane on a conversation that card already
+ * holds. Done removes the pane (or marks it completed), which is what hands
+ * the conversation over to History.
  */
-export function liveConversationIds(
-	daemonSessions: { sessionId: string; isAlive: boolean }[],
-	panes: Record<string, { claudeSessionId?: string } | undefined>,
+export function boardConversationIds(
+	panes: Record<
+		string,
+		{ claudeSessionId?: string; completed?: boolean } | undefined
+	>,
 	sessionIdByPane: Record<string, string>,
 ): Set<string> {
 	return new Set(
-		daemonSessions
-			.filter((session) => session.isAlive)
-			.map(
-				(session) =>
-					panes[session.sessionId]?.claudeSessionId ??
-					sessionIdByPane[session.sessionId],
-			)
+		Object.entries(panes)
+			.filter(([, pane]) => pane && !pane.completed)
+			.map(([paneId, pane]) => pane?.claudeSessionId ?? sessionIdByPane[paneId])
 			.filter((id): id is string => Boolean(id)),
 	);
 }

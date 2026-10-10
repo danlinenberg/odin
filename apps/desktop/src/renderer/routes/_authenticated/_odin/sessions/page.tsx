@@ -12,7 +12,7 @@ import { Highlight, TranscriptView } from "../components/TranscriptView";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePaneMeta } from "../hooks/usePaneMeta";
 import { usePendingFocus } from "../hooks/usePendingFocus";
-import { liveConversationIds } from "./live-sessions";
+import { boardConversationIds } from "./live-sessions";
 import { provenanceLabel } from "./provenance";
 import { agoLabel, repoLabel } from "./row-labels";
 
@@ -111,18 +111,9 @@ function SessionsPage() {
 			),
 		[ledger],
 	);
-	const { data: daemonSessions } =
-		electronTrpc.terminal.listDaemonSessions.useQuery(undefined, {
-			refetchInterval: 5_000,
-		});
-	const liveSessionIds = useMemo(
-		() =>
-			liveConversationIds(
-				daemonSessions?.sessions ?? [],
-				panes,
-				sessionIdByPane,
-			),
-		[daemonSessions, panes, sessionIdByPane],
+	const boardSessionIds = useMemo(
+		() => boardConversationIds(panes, sessionIdByPane),
+		[panes, sessionIdByPane],
 	);
 
 	// Browsing pages back through the store as you scroll; a search is one
@@ -139,7 +130,7 @@ function SessionsPage() {
 	// History = finished work; the board owns everything still running.
 	const rows = pages
 		.flatMap((page) => page.sessions)
-		.filter((row) => !liveSessionIds.has(row.sessionId));
+		.filter((row) => !boardSessionIds.has(row.sessionId));
 	// The server decides what counts as a term, so highlighting can't drift from
 	// what was actually matched.
 	const terms = pages[0]?.terms ?? [];
