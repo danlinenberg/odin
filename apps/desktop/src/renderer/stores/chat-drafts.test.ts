@@ -8,7 +8,7 @@ test("keeps the 50 newest drafts and drops a sent one", () => {
 	expect(useChatDrafts.getState().drafts).toHaveLength(50);
 	expect(draftFor("59")).toBe("text 59");
 	expect(draftFor("12")).toBe("edited");
-	expect(draftFor("10")).toBe("");
+	expect(draftFor("9")).toBe("");
 	save("59", "");
 	expect(draftFor("59")).toBe("");
 });
