@@ -1,9 +1,11 @@
 import { describe, expect, it } from "bun:test";
+import stripAnsi from "strip-ansi";
 import {
 	agentOnScreen,
 	escIsHandledOnScreen,
 	odinScreenStatus,
 	odinScreenWrite,
+	spacesForCursorForward,
 } from "./odin-screen-status";
 
 // The screens below are trimmed from real Claude Code sessions.
@@ -313,5 +315,16 @@ describe("folder-trust dialog", () => {
 	it("reads as needing you, with Claude still in the PTY", () => {
 		expect(odinScreenStatus(TRUST)).toBe("permission");
 		expect(agentOnScreen(TRUST)).toBe(true);
+	});
+});
+
+describe("spacesForCursorForward", () => {
+	it("reads an idle prompt Claude drew with cursor-forward instead of spaces", () => {
+		const raw =
+			"\x1b[2C\x1b[38;2;255;107;128m⏵⏵\x1b[1Cbypass\x1b[1Cpermissions\x1b[1Con\x1b[0m (shift+tab\x1b[1Cto\x1b[1Ccycle)";
+		expect(odinScreenStatus(stripAnsi(raw))).toBeUndefined();
+		expect(odinScreenStatus(stripAnsi(spacesForCursorForward(raw)))).toBe(
+			"review",
+		);
 	});
 });

@@ -86,6 +86,16 @@ function footerOf(screen: string): string {
 	return lines.slice(Math.max(0, boxTop - FOOTER_LINES)).join("\n");
 }
 
+/**
+ * Claude paints a run of spaces as "cursor forward" (ESC[nC). An ANSI strip
+ * drops it and glues the words: "bypass permissions on" reads
+ * "bypasspermissionson", the idle prompt goes unseen, and the raven waited out
+ * its timeout without typing the question. Call before stripping.
+ */
+export const spacesForCursorForward = (ansi: string): string =>
+	// biome-ignore lint/suspicious/noControlCharactersInRegex: matching ESC is the point
+	ansi.replace(/\x1b\[(\d*)C/g, (_, n) => " ".repeat(Number(n) || 1));
+
 export function odinScreenStatus(screen: string): PaneStatus | undefined {
 	const footer = footerOf(screen);
 	// Order matters: a permission dialog is drawn *over* the spinner, so it has

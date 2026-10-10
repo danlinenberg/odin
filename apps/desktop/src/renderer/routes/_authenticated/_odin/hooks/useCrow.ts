@@ -17,7 +17,10 @@ import { useTabsStore } from "renderer/stores/tabs/store";
 import type { Pane } from "renderer/stores/tabs/types";
 import { CROW_RULE, NOTIFICATION_EVENTS } from "shared/constants";
 import type { OdinActionRequest } from "shared/notification-types";
-import { odinScreenStatus } from "shared/odin-screen-status";
+import {
+	odinScreenStatus,
+	spacesForCursorForward,
+} from "shared/odin-screen-status";
 import stripAnsi from "strip-ansi";
 import { create } from "zustand";
 import { type PromptImage, sessionTitle } from "../components/OdinPromptDialog";
@@ -223,7 +226,9 @@ export function useCrow() {
 					joinPending: true,
 					...(mounted && { cols: mounted.cols, rows: mounted.rows }),
 				})) as { snapshot?: { snapshotAnsi?: string } };
-				const screen = stripAnsi(result?.snapshot?.snapshotAnsi ?? "");
+				const screen = stripAnsi(
+					spacesForCursorForward(result?.snapshot?.snapshotAnsi ?? ""),
+				);
 				// Still answering the last question counts: Claude queues a
 				// follow-up typed mid-turn and takes it when the turn ends.
 				const status = odinScreenStatus(screen);
