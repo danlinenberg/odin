@@ -485,36 +485,66 @@
 	}
 }
 
-/* The raven, now and then: two wing beats and a half one, then ~11s of
-   stillness. The wing pivots at the shoulder; the body lifts with it. */
+/* The raven, now and then (Watcher): a hop, two big wing beats, then ~10s of
+   stillness. Both wings pivot at the shoulder; the far one trails a beat. */
 @keyframes raven-flap {
 	0%,
-	10%,
+	12.5%,
 	100% {
 		transform: rotate(0);
 	}
-	1.5%,
-	4.5% {
-		transform: rotate(65deg);
+	2% {
+		transform: rotate(58deg);
 	}
-	3%,
-	6% {
-		transform: rotate(15deg);
+	4.3% {
+		transform: rotate(-14deg);
 	}
-	7.5% {
-		transform: rotate(45deg);
+	6.7% {
+		transform: rotate(52deg);
+	}
+	9% {
+		transform: rotate(-10deg);
+	}
+	11% {
+		transform: rotate(3deg);
 	}
 }
 
 @keyframes raven-lift {
 	0%,
-	10%,
+	12.5%,
 	100% {
 		transform: translateY(0);
 	}
-	2%,
+	3%,
+	8% {
+		transform: translateY(-0.9px);
+	}
+}
+
+/* A feather shaken off the wingtip: it sways down past the branch and fades. */
+@keyframes raven-feather {
+	0% {
+		transform: translate(0, 0) rotate(0);
+		opacity: 0;
+	}
+	1.5% {
+		opacity: 1;
+	}
 	7% {
-		transform: translateY(-1.5px);
+		transform: translate(-1.1px, 2.6px) rotate(45deg);
+	}
+	13% {
+		transform: translate(1.1px, 5.2px) rotate(-25deg);
+	}
+	19% {
+		transform: translate(-0.7px, 7.8px) rotate(35deg);
+		opacity: 0.8;
+	}
+	25%,
+	100% {
+		transform: translate(0.4px, 10px) rotate(-10deg);
+		opacity: 0;
 	}
 }
 
