@@ -5,6 +5,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LuChevronRight, LuSquareTerminal } from "react-icons/lu";
 import { MarkdownRenderer } from "renderer/components/MarkdownRenderer";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { useChatDrafts } from "renderer/stores/chat-drafts";
 import { useCompacting } from "renderer/stores/compacting";
 import { openUrl } from "renderer/stores/in-app-browser";
 import { useSessionView } from "renderer/stores/session-view";
@@ -387,7 +388,6 @@ const ToolRow = memo(function ToolRow({
 	item: Extract<Item, { kind: "tool" }>;
 }) {
 	const [open, setOpen] = useState(false);
-	const showAll = useSessionView((s) => s.commands);
 	const done = item.result !== undefined;
 	const oldText = item.input.old_string;
 	const newText = item.input.new_string;
@@ -409,9 +409,7 @@ const ToolRow = memo(function ToolRow({
 					{toolDescription(item)}
 				</span>
 				<span className="min-w-0 flex-1 truncate font-mono text-[11px] text-faint-foreground">
-					{showAll && typeof item.input.command === "string"
-						? item.input.command
-						: item.name}
+					{item.name}
 				</span>
 				<span className="ml-auto shrink-0 text-[10px] text-faint-foreground">
 					{open ? "▾" : "▸"}
@@ -487,10 +485,7 @@ function asking(items: Item[]): Tool | null {
 
 const ToolGroup = memo(
 	function ToolGroup({ group }: { group: Group }) {
-		const showAll = useSessionView((s) => s.commands);
-		const [toggled, setOpen] = useState<boolean | null>(null);
-		// Your own click wins; until then the footer's "Commands" switch decides.
-		const open = toggled ?? showAll;
+		const [open, setOpen] = useState(false);
 		const tools = group.filter((item): item is Tool => item.kind === "tool");
 		// A failure Claude retried past is routine; only flag a run that ended failing.
 		const failed = tools.at(-1)?.isError === true;
@@ -498,7 +493,7 @@ const ToolGroup = memo(
 			<div className="flex min-w-0 flex-col">
 				<button
 					type="button"
-					onClick={() => setOpen(!open)}
+					onClick={() => setOpen((value) => !value)}
 					className="flex min-w-0 max-w-full items-center gap-2 self-start rounded-lg border border-border bg-secondary px-2.5 py-1 text-left text-[12px] text-soft-foreground hover:bg-accent hover:text-foreground"
 				>
 					{/* Live work shows once, in the turn's own "Working..." row below. */}
@@ -1164,15 +1159,19 @@ export function ChatView({
 		void screen.refetch();
 	};
 	const prompt = onShowTerminal ? asking(items) : null;
-	// The command Claude is in right now, so "Working..." says what it's doing.
-	const running = items.findLast(
-		(item): item is Tool => item.kind === "tool" && item.result === undefined,
+	// The turn began with your last message; "Working..." counts from it, and
+	// opens to every command Claude has run since.
+	const turnIndex = items.findLastIndex(
+		(item) => item.kind === "user" && item.at !== undefined,
 	);
-	// The turn began with your last message; "Working..." counts from it.
-	const turnStart = items.findLast(
-		(item): item is Extract<Item, { kind: "user" }> =>
-			item.kind === "user" && item.at !== undefined,
-	)?.at;
+	const turnStart =
+		turnIndex >= 0
+			? (items[turnIndex] as Extract<Item, { kind: "user" }>).at
+			: undefined;
+	const turnTools = items
+		.slice(turnIndex + 1)
+		.filter((item): item is Tool => item.kind === "tool");
+	const [showCommands, setShowCommands] = useState(false);
 	// Menus the transcript never sees, read off the live screen.
 	const screen = electronTrpc.terminal.readScreen.useQuery(
 		{ paneId },
@@ -1437,26 +1436,62 @@ export function ChatView({
 						</div>
 					)}
 					{working && !prompt && !screenMenu && !starting && (
-						<div className="flex min-w-0 items-center gap-3 text-[12.5px] text-working">
+						<div className="flex min-w-0 gap-3 text-[12.5px] text-working">
 							{/* Odin's icon, nodding along while Claude works. */}
 							<OdinMark className="animate-[odin-nod_1.6s_ease-in-out_infinite]" />
 							{compacting === null ? (
-								<>
-									<span className="shrink-0">Working…</span>
-									{turnStart !== undefined && <Elapsed since={turnStart} />}
-									{running && (
-										<span className="min-w-0 truncate font-mono text-[11.5px] text-muted-foreground">
-											{typeof running.input.command === "string"
-												? running.input.command
-												: toolDescription(running)}
-										</span>
+								<div className="flex min-w-0 flex-1 flex-col">
+									<button
+										type="button"
+										title={
+											showCommands
+												? "Hide the commands"
+												: "Show every command Claude ran this turn"
+										}
+										disabled={turnTools.length === 0}
+										onClick={() => setShowCommands(!showCommands)}
+										className="flex h-7 items-center gap-3 self-start rounded-md enabled:hover:text-foreground"
+									>
+										<span className="shrink-0">Working…</span>
+										{turnStart !== undefined && <Elapsed since={turnStart} />}
+										{turnTools.length > 0 && (
+											<LuChevronRight
+												className={cn(
+													"size-3.5 shrink-0 text-muted-foreground transition-transform",
+													showCommands && "rotate-90",
+												)}
+											/>
+										)}
+									</button>
+									{showCommands && turnTools.length > 0 && (
+										<div className="mt-1 max-h-[320px] select-text cursor-text space-y-1 overflow-y-auto rounded-lg border border-border bg-secondary/20 p-2 font-mono text-[11.5px] text-muted-foreground">
+											{turnTools.map((tool) => (
+												<div key={tool.id} className="flex gap-2">
+													<span
+														className={cn(
+															"mt-[5px] size-[7px] shrink-0 rounded-full",
+															tool.result === undefined
+																? "animate-pulse bg-working"
+																: tool.isError
+																	? "bg-danger"
+																	: "bg-emerald-500",
+														)}
+													/>
+													<span className="min-w-0 whitespace-pre-wrap break-words">
+														{typeof tool.input.command === "string"
+															? tool.input.command
+															: toolDescription(tool)}
+													</span>
+												</div>
+											))}
+										</div>
 									)}
-								</>
+								</div>
 							) : (
-								<>
+								<div className="flex h-7 items-center gap-3">
 									Compacting conversation…
 									<Elapsed since={compacting} />
-								</>
+								</div>
 							)}
 						</div>
 					)}
@@ -1538,7 +1573,13 @@ function Composer({
 	/** Ended session: sending resumes it with the text instead of typing into a PTY. */
 	onResume?: (text: string) => void;
 }) {
-	const [draft, setDraft] = useState("");
+	const [draft, setDraft] = useState(
+		() => useChatDrafts.getState().drafts[paneId]?.text ?? "",
+	);
+	useEffect(
+		() => useChatDrafts.getState().save(paneId, draft),
+		[paneId, draft],
+	);
 	// "!" on an empty box switches to bash mode, like the terminal's prompt.
 	const [bash, setBash] = useState(false);
 	const [previews, setPreviews] = useState<Preview[]>([]);
@@ -1546,8 +1587,6 @@ function Composer({
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const write = electronTrpc.terminal.write.useMutation();
 	const setChat = useSessionView((s) => s.setChat);
-	const commands = useSessionView((s) => s.commands);
-	const setCommands = useSessionView((s) => s.setCommands);
 	// Type `/` and the agent's skills/commands are searchable, like the New
 	// Session dialog. Picking one fills in `/name `; Enter then sends it.
 	const { data: skills = [] } = electronTrpc.skills.list.useQuery();
@@ -1781,28 +1820,6 @@ function Composer({
 							Terminal View
 						</button>
 					)}
-					<button
-						type="button"
-						title={
-							commands
-								? "Fold the commands Claude ran"
-								: "Show every command Claude ran"
-						}
-						aria-pressed={commands}
-						onClick={() => setCommands(!commands)}
-						className={cn(
-							"flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] hover:bg-secondary hover:text-foreground",
-							commands ? "text-foreground" : "text-muted-foreground",
-						)}
-					>
-						<LuChevronRight
-							className={cn(
-								"size-3.5 transition-transform",
-								commands && "rotate-90",
-							)}
-						/>
-						Commands
-					</button>
 					{bash ? (
 						<span className="text-[11px] text-pink-500">
 							Bash mode · Backspace on empty to exit
