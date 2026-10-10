@@ -43,6 +43,7 @@ import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useMyTasks } from "../hooks/useOdinTasks";
 import type { SweptRow } from "../review/verdicts";
 import { duplicateOf, type LedgerRow } from "./duplicates";
+import { useNightAgentIntro } from "./NightAgentIntro";
 
 /**
  * A feed title as something to read: Slack's *bold* and ~strike~ markers
@@ -301,6 +302,7 @@ export function NextInLine() {
 	const nightAgentOn = useNextInLinePrompt((s) => s.offHours.enabled);
 	const setOffHours = useNextInLinePrompt((s) => s.setOffHours);
 	const navigate = useNavigate();
+	const nightIntro = useNightAgentIntro();
 	// The rows your instructions hide, per the model - revealed, dimmed, on ask.
 	const [showHidden, setShowHidden] = useState(false);
 	const {
@@ -432,7 +434,9 @@ export function NextInLine() {
 						{tonight.length > 0 && !nightAgentOn && (
 							<button
 								type="button"
-								onClick={() => setOffHours({ enabled: true })}
+								onClick={() =>
+									nightIntro.gate(() => setOffHours({ enabled: true }))
+								}
 								title="Picks only start while the Night Agent is on"
 								className="mx-1 rounded-md border border-attention/40 bg-attention/10 px-2 py-1 text-left text-[11px] text-attention hover:bg-attention/20"
 							>
@@ -463,6 +467,7 @@ export function NextInLine() {
 					</>
 				)}
 			</div>
+			{nightIntro.dialog}
 		</div>
 	);
 
@@ -575,7 +580,11 @@ export function NextInLine() {
 				>
 					<button
 						type="button"
-						onClick={() => toggleNightPick(item.key)}
+						onClick={() =>
+							pickIndex >= 0
+								? toggleNightPick(item.key)
+								: nightIntro.gate(() => toggleNightPick(item.key))
+						}
 						disabled={pickFull}
 						aria-pressed={pickIndex >= 0}
 						aria-label="Pick for tonight"
