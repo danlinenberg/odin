@@ -37,10 +37,16 @@ brew trust --tap danlinenberg/odin && brew tap danlinenberg/odin && brew install
 
 ### Windows
 
-Download **[Odin-Setup-x64.exe](https://github.com/danlinenberg/odin/releases/latest/download/Odin-Setup-x64.exe)**
-and run it. The installer is not code-signed, so SmartScreen warns on first run:
-click **More info**, then **Run anyway**. Windows has no in-app update yet - run
-the newest installer to upgrade. Sessions need [Git for Windows](https://git-scm.com/download/win)
+In PowerShell:
+
+```powershell
+irm https://github.com/danlinenberg/odin/releases/latest/download/Odin-Setup-x64.exe -OutFile $env:TEMP\Odin-Setup.exe; & $env:TEMP\Odin-Setup.exe /S
+```
+
+It installs silently for your user, no admin needed. Or download
+**[Odin-Setup-x64.exe](https://github.com/danlinenberg/odin/releases/latest/download/Odin-Setup-x64.exe)**
+and run it. The installer is not code-signed, so SmartScreen warns when you
+open the download: click **More info**, then **Run anyway**. Sessions need [Git for Windows](https://git-scm.com/download/win)
 on `PATH`; a fresh Windows doesn't have it.
 
 ### Upgrade
@@ -49,6 +55,11 @@ On macOS, Odin updates itself: **Odin → Check for Updates…**, and it offers 
 a release is newer than what you are running. It downloads the DMG and swaps the
 bundle in place. Open terminal sessions survive the swap, because the
 terminal-host daemon keeps running from the bundle the update parks aside.
+
+On Windows it does the same from 1.0.16 on: it downloads the new installer, runs
+it silently and reopens. Sessions survive because the daemon runs from a copy of
+the app under `~/.odin/runtime/<version>`, outside the folder the installer
+replaces.
 
 ### From source
 

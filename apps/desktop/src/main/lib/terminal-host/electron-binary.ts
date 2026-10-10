@@ -14,8 +14,9 @@
  * both states.
  */
 
-import { existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { existsSync, readdirSync, rmSync } from "node:fs";
+import { cp, rename, rm } from "node:fs/promises";
+import { basename, join, relative, resolve } from "node:path";
 
 /**
  * The Electron binary as it exists on disk right now.
@@ -36,4 +37,58 @@ export function resolveElectronBinary(execPath = process.execPath): string {
 		"Electron",
 	);
 	return existsSync(viaSymlink) ? viaSymlink : execPath;
+}
+
+const STAGED_EXE = "odin-terminal-host.exe";
+
+/**
+ * A copy of the Windows install folder to run the terminal-host daemon from.
+ *
+ * Before it writes, the NSIS installer stops every process whose exe is under
+ * the install folder (and, without PowerShell, every `Odin.exe`). A daemon run
+ * from there dies with every session on each update. The copy sits outside the
+ * folder under another exe name, as the old bundle does on macOS after a swap.
+ * Copies of other versions are removed: only spawn calls this, so no live
+ * daemon is using them.
+ */
+export async function stageDaemonRuntime(options: {
+	execPath: string;
+	appPath: string;
+	runtimeRoot: string;
+	version: string;
+}): Promise<{ exe: string; appPath: string }> {
+	const installDir = resolve(options.execPath, "..");
+	const dir = join(options.runtimeRoot, options.version);
+	const exe = join(dir, STAGED_EXE);
+
+	for (const name of existsSync(options.runtimeRoot)
+		? readdirSync(options.runtimeRoot)
+		: []) {
+		if (name === options.version) continue;
+		try {
+			rmSync(join(options.runtimeRoot, name), { recursive: true, force: true });
+		} catch {
+			// A file still in use stays until the next spawn.
+		}
+	}
+
+	if (!existsSync(exe)) {
+		const tmp = `${dir}.tmp-${process.pid}-${Date.now()}`;
+		try {
+			await cp(installDir, tmp, { recursive: true });
+			await rename(
+				join(tmp, basename(options.execPath)),
+				join(tmp, STAGED_EXE),
+			);
+			await rm(dir, { recursive: true, force: true });
+			await rename(tmp, dir);
+		} finally {
+			await rm(tmp, { recursive: true, force: true });
+		}
+	}
+
+	return {
+		exe,
+		appPath: join(dir, relative(installDir, options.appPath)),
+	};
 }

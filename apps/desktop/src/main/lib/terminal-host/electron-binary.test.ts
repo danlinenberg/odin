@@ -1,8 +1,15 @@
 import { describe, expect, it } from "bun:test";
-import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readdirSync,
+	symlinkSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { resolveElectronBinary } from "./electron-binary";
+import { resolveElectronBinary, stageDaemonRuntime } from "./electron-binary";
 
 /** A dist dir holding one bundle, plus the Electron.app link pointing at it. */
 function makeDist(bundleName: string, link: boolean): string {
@@ -45,5 +52,34 @@ describe("resolveElectronBinary", () => {
 		const missing = "/nonexistent/dist/Whatever.app/Contents/MacOS/Electron";
 
 		expect(resolveElectronBinary(missing)).toBe(missing);
+	});
+});
+
+describe("stageDaemonRuntime", () => {
+	it("copies the install folder outside it, renames the exe and drops other versions", async () => {
+		const root = mkdtempSync(join(tmpdir(), "odin-stage-"));
+		const install = join(root, "Programs", "Odin");
+		mkdirSync(join(install, "resources"), { recursive: true });
+		writeFileSync(join(install, "Odin.exe"), "exe");
+		writeFileSync(join(install, "resources", "app.asar"), "asar");
+		const runtimeRoot = join(root, "runtime");
+		mkdirSync(join(runtimeRoot, "1.0.14"), { recursive: true });
+
+		const staged = await stageDaemonRuntime({
+			execPath: join(install, "Odin.exe"),
+			appPath: join(install, "resources", "app.asar"),
+			runtimeRoot,
+			version: "1.0.15",
+		});
+
+		expect(staged.exe).toBe(
+			join(runtimeRoot, "1.0.15", "odin-terminal-host.exe"),
+		);
+		expect(existsSync(staged.exe)).toBe(true);
+		expect(staged.appPath).toBe(
+			join(runtimeRoot, "1.0.15", "resources", "app.asar"),
+		);
+		expect(existsSync(staged.appPath)).toBe(true);
+		expect(readdirSync(runtimeRoot)).toEqual(["1.0.15"]);
 	});
 });
