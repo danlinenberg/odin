@@ -79,6 +79,7 @@ import {
 	escIsHandledOnScreen,
 	odinScreenStatus,
 	odinScreenWrite,
+	spacesForCursorForward,
 } from "shared/odin-screen-status";
 import { BOARD_TAGS, boardTags, normalizeTag } from "shared/odin-tags";
 
@@ -2142,10 +2143,8 @@ function DevBoardPage() {
 							snapshot?: { snapshotAnsi?: string };
 							scrollback?: string;
 						};
-						const screen = (
-							result?.snapshot?.snapshotAnsi ??
-							result?.scrollback ??
-							""
+						const screen = spacesForCursorForward(
+							result?.snapshot?.snapshotAnsi ?? result?.scrollback ?? "",
 						)
 							.replace(ANSI_RE, "")
 							.slice(-2500);
