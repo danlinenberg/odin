@@ -55,7 +55,7 @@ const FEATHERS = [
 ];
 
 /**
- * Odin's raven, perched on a branch, eye glowing. He has no name. Idle, he
+ * Huginn, Odin's raven, perched on a branch, eye glowing. Idle, he
  * now and then hops, beats both wings twice and sheds three feathers.
  */
 function CrowIcon({

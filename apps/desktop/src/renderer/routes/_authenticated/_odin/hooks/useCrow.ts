@@ -15,7 +15,7 @@ import {
 import { useNextInLinePrompt } from "renderer/stores/next-in-line-prompt";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import type { Pane } from "renderer/stores/tabs/types";
-import { CROW_RULE, NOTIFICATION_EVENTS } from "shared/constants";
+import { crowRule, NOTIFICATION_EVENTS } from "shared/constants";
 import type { OdinActionRequest } from "shared/notification-types";
 import {
 	odinScreenStatus,
@@ -56,7 +56,7 @@ export const crowPane = (panes: Record<string, Pane>): Pane | undefined =>
  */
 const crowCli = () => {
 	const { commands, active } = useClaudeCommand.getState();
-	return `${pickClaudeCommand(commands, active)} --dangerously-skip-permissions --model haiku --append-system-prompt ${quote(CROW_RULE)}`;
+	return `${pickClaudeCommand(commands, active)} --dangerously-skip-permissions --model haiku --append-system-prompt ${quote(crowRule(import.meta.env.DEV ? "main" : `v${window.App.appVersion}`))}`;
 };
 
 /** Long enough for a fresh spare to reach the daemon's session list. */
@@ -82,7 +82,7 @@ export const useCrowDialog = create<{
 /**
  * The crow: Odin's own agent. A Claude that's already up and sitting at its
  * prompt, so asking costs no boot, and it answers in its own panel, and that can drive Odin through `/odin`
- * (CROW_RULE) - list the backlog, start tasks, add one. Asking One spare runs hidden (no title, so it's no card);
+ * (crowRule) - list the backlog, start tasks, add one. Asking One spare runs hidden (no title, so it's no card);
  * types the ask in and opens its drawer - still no card - and a
  * fresh spare starts behind it. The conversation persists: the next question
  * follows up in it, until ✓ Done in its drawer ends it.
