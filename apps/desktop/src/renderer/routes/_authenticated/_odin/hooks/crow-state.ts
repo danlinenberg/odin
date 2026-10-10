@@ -88,9 +88,47 @@ export function readState(args: Record<string, string>): string {
 	const store = STORES[args.store];
 	if (!store) return `No store "${args.store}".`;
 	const data = dataOf(store);
+	const json =
+		JSON.stringify(args.key ? data[args.key] : data, null, 1) ?? "undefined";
 	return clip(
-		JSON.stringify(args.key ? data[args.key] : data, null, 1) ?? "undefined",
+		args.key
+			? json
+			: `${json}\nFunctions (call with action=run): ${functionsOf(store).join(", ")}`,
 	);
+}
+
+const functionsOf = (store: Store) =>
+	Object.entries(store.getState())
+		.filter(([, value]) => typeof value === "function")
+		.map(([name]) => name);
+
+/**
+ * action=run: call one of a store's functions - `setTheme`, `addTask`, the
+ * same ones its screen's controls call, side effects and all. `set` only
+ * merges data, so a change that has to apply something (the theme's colors)
+ * needs this. `args` is a JSON array of the arguments.
+ */
+export async function runAction(args: Record<string, string>): Promise<string> {
+	const store = STORES[args.store ?? ""];
+	if (!store) return `No store "${args.store}" - list them with action=state.`;
+	const fn = (store.getState() as Record<string, unknown>)[args.fn ?? ""];
+	if (typeof fn !== "function")
+		return `${args.store} has no function "${args.fn}". It has: ${functionsOf(store).join(", ")}.`;
+	let params: unknown;
+	try {
+		params = JSON.parse(args.args ?? "[]");
+	} catch {
+		return "args must be a JSON array.";
+	}
+	if (!Array.isArray(params)) return "args must be a JSON array.";
+	try {
+		const result = await fn(...params);
+		return result === undefined
+			? `Ran ${args.store}.${args.fn}.`
+			: clip(JSON.stringify(result, null, 1));
+	} catch (error) {
+		return `Failed: ${error instanceof Error ? error.message : String(error)}`;
+	}
 }
 
 /** action=set: merge `patch` (JSON) into a store - what its screen's controls do. */

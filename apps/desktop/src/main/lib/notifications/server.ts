@@ -185,7 +185,9 @@ app.post("/odin", express.urlencoded({ extended: false }), async (req, res) => {
 	if (typeof action !== "string" || !action) {
 		return res
 			.status(400)
-			.send("Need action: tasks, start, add, sessions, night, api or call.\n");
+			.send(
+				"Need action: tasks, start, add, sessions, night, state, set, run, open, done, api or call.\n",
+			);
 	}
 	// Main's own operations answer here; the board's state is the renderer's.
 	if (action === "api") return res.send(`${listProcedures(rest.q ?? "")}\n`);

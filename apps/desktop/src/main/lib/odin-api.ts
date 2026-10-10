@@ -65,6 +65,10 @@ export async function callProcedure(
 	const def = procedures().find(([name]) => name === path)?.[1]?._def;
 	if (!def) return `No procedure "${path}" - list them with action=api.`;
 	if (def.type === "subscription") return "Subscriptions can't be called.";
+	// The window holds these stores and writes them back over a change made
+	// here: the call reported success and the theme stayed dark.
+	if (path.startsWith("uiState.") && def.type === "mutation")
+		return "The window owns this state - change it with action=state / action=run (e.g. store=theme fn=setTheme), or the window writes it back.";
 	let parsed: unknown;
 	try {
 		parsed = input ? JSON.parse(input) : undefined;
