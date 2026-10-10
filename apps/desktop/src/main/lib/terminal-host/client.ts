@@ -34,7 +34,10 @@ import { app } from "electron";
 import { ODIN_DIR_NAME } from "shared/constants";
 import { throwIfAborted } from "../terminal/abort";
 import { TerminalAttachCanceledError } from "../terminal/errors";
-import { resolveElectronBinary, stageDaemonRuntime } from "./electron-binary";
+import {
+	resolveElectronBinary,
+	stageDaemonRuntimeOnce,
+} from "./electron-binary";
 import { terminalHostSocketPath } from "./socket-path";
 import {
 	type CancelCreateOrAttachRequest,
@@ -87,6 +90,19 @@ const SPAWN_LOCK_PATH = join(ODIN_HOME_DIR, "terminal-host.spawn.lock");
 const SCRIPT_HASH_PATH = join(ODIN_HOME_DIR, "terminal-host.build");
 
 // Connection timeouts
+/**
+ * The Windows daemons' copy of the app, outside the install folder: the
+ * terminal host and the host service's pty-daemon both run from it.
+ */
+export function stageWindowsRuntime() {
+	return stageDaemonRuntimeOnce({
+		execPath: resolveElectronBinary(),
+		appPath: app.getAppPath(),
+		runtimeRoot: join(ODIN_HOME_DIR, "runtime"),
+		version: app.getVersion(),
+	});
+}
+
 const CONNECT_TIMEOUT_MS = 5000;
 const SPAWN_WAIT_MS = 2000;
 const REQUEST_TIMEOUT_MS = 30000;
@@ -172,7 +188,6 @@ export class TerminalHostClient extends EventEmitter {
 	private streamParser = new NdjsonParser();
 	private pendingRequests = new Map<string, PendingRequest>();
 	private requestCounter = 0;
-	private stagedRuntime?: ReturnType<typeof stageDaemonRuntime>;
 	private controlAuthenticated = false;
 	private streamAuthenticated = false;
 	private connectionState = ConnectionState.DISCONNECTED;
@@ -1159,21 +1174,6 @@ export class TerminalHostClient extends EventEmitter {
 		}
 	}
 
-	private stageRuntime(): ReturnType<typeof stageDaemonRuntime> {
-		if (!this.stagedRuntime) {
-			this.stagedRuntime = stageDaemonRuntime({
-				execPath: resolveElectronBinary(),
-				appPath: app.getAppPath(),
-				runtimeRoot: join(ODIN_HOME_DIR, "runtime"),
-				version: app.getVersion(),
-			}).catch((error) => {
-				this.stagedRuntime = undefined;
-				throw error;
-			});
-		}
-		return this.stagedRuntime;
-	}
-
 	/**
 	 * Spawn the daemon process if not running
 	 */
@@ -1220,7 +1220,7 @@ export class TerminalHostClient extends EventEmitter {
 		// Before the lock: the first copy after an update outlasts its timeout.
 		const staged =
 			app.isPackaged && process.platform === "win32"
-				? await this.stageRuntime()
+				? await stageWindowsRuntime()
 				: undefined;
 
 		// Acquire spawn lock to prevent concurrent spawns

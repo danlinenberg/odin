@@ -34,6 +34,7 @@ import {
 } from "./host-service-utils";
 import { localDb } from "./local-db";
 import { HOOK_PROTOCOL_VERSION } from "./terminal/env";
+import { stageWindowsRuntime } from "./terminal-host/client";
 
 export type HostServiceStatus = "starting" | "running" | "stopped";
 
@@ -722,6 +723,13 @@ export class HostServiceCoordinator extends EventEmitter {
 	): Promise<Record<string, string>> {
 		const organizationDir = manifestDir(organizationId);
 		const row = localDb.select().from(settings).get();
+		// The pty-daemon outlives the app, so on Windows it runs from the copy
+		// outside the install folder: one run from Odin.exe there holds it, and
+		// the NSIS update cannot replace it ("failed to install").
+		const staged =
+			app.isPackaged && process.platform === "win32"
+				? await stageWindowsRuntime()
+				: undefined;
 
 		const childEnv = await getProcessEnvWithShellPath({
 			...(process.env as Record<string, string>),
@@ -741,6 +749,17 @@ export class HostServiceCoordinator extends EventEmitter {
 				: path.join(app.getAppPath(), "../../packages/host-service/drizzle"),
 			DESKTOP_VITE_PORT: String(sharedEnv.DESKTOP_VITE_PORT),
 			ODIN_HOME_DIR: ODIN_HOME_DIR,
+			...(staged
+				? {
+						ODIN_PTY_DAEMON_EXEC_PATH: staged.exe,
+						ODIN_PTY_DAEMON_SCRIPT_PATH: path.join(
+							staged.appPath,
+							"dist",
+							"main",
+							"pty-daemon.js",
+						),
+					}
+				: {}),
 			ODIN_LEGACY_WORKTREE_BASE_DIR: row?.worktreeBaseDir ?? "",
 			ODIN_AGENT_HOOK_PORT: String(sharedEnv.DESKTOP_NOTIFICATIONS_PORT),
 			ODIN_AGENT_HOOK_VERSION: HOOK_PROTOCOL_VERSION,
