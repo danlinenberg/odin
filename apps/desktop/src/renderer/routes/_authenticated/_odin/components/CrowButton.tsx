@@ -337,9 +337,14 @@ export function CrowButton({
 	// An answer, a question, or a failure waiting for you.
 	const waiting =
 		status === "review" || status === "permission" || status === "failed";
-	// Reading the answer is enough: a question still waits for its reply.
+	// Reading it is enough: an answer, a question or a failure, the dot goes.
 	useEffect(() => {
-		if (open && conversation && conversation.status === "review")
+		const status = conversation?.status;
+		if (
+			open &&
+			conversation &&
+			(status === "review" || status === "permission" || status === "failed")
+		)
 			useTabsStore.getState().setPaneStatus(conversation.id, "idle");
 	}, [open, conversation]);
 	const rect = open ? button.current?.getBoundingClientRect() : undefined;
