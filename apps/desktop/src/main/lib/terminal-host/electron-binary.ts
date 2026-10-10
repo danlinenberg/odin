@@ -125,6 +125,22 @@ export async function stageDaemonRuntime(options: {
 	return { exe, appPath: appDir };
 }
 
+let staged: ReturnType<typeof stageDaemonRuntime> | undefined;
+
+/**
+ * One copy per app run: the terminal host and the host service's pty-daemon
+ * both run from it, and two copies at once would race on the same folder.
+ */
+export function stageDaemonRuntimeOnce(
+	options: Parameters<typeof stageDaemonRuntime>[0],
+): ReturnType<typeof stageDaemonRuntime> {
+	staged ??= stageDaemonRuntime(options).catch((error) => {
+		staged = undefined;
+		throw error;
+	});
+	return staged;
+}
+
 async function copyTree(from: string, to: string): Promise<void> {
 	await mkdir(to, { recursive: true });
 	for (const entry of await readdir(from, { withFileTypes: true })) {

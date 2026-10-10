@@ -1062,7 +1062,9 @@ export class DaemonSupervisor {
 			// "posix_spawnp failed" (EMFILE). The raised limit is inherited by
 			// handoff successors the daemon spawns from itself.
 			const isWindows = process.platform === "win32";
-			const command = isWindows ? process.execPath : "/bin/sh";
+			const command = isWindows
+				? process.env.ODIN_PTY_DAEMON_EXEC_PATH || process.execPath
+				: "/bin/sh";
 			const commandArgs = isWindows
 				? [this.opts.scriptPath, `--socket=${socketPath}`]
 				: [
