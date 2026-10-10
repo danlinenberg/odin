@@ -14,6 +14,7 @@ import {
 	slackTextToPlain,
 	threadParentTs,
 	toTitle,
+	untilNextQueued,
 } from "./reactions";
 
 const ME = "U_ME";
@@ -288,5 +289,23 @@ describe("messageBody", () => {
 		expect(messageBody({ text: "hi", attachments: [{ title: "t" }] })).toBe(
 			"hi",
 		);
+	});
+});
+
+describe("untilNextQueued", () => {
+	const queue = new Set(["eyes", "robot_face"]);
+	// Two tasks queued in a DM to myself: the first must not read the second.
+	test("stops at the next message I queued", () => {
+		const kept = untilNextQueued(
+			[
+				{ ts: "300.1", reactions: [{ name: "robot_face", users: [ME] }] },
+				{ ts: "100.1", reactions: [{ name: "robot_face", users: [ME] }] },
+				{ ts: "200.1", reactions: [{ name: "eyes", users: ["U_OTHER"] }] },
+			],
+			"100.1",
+			ME,
+			queue,
+		);
+		expect(kept.map((m) => m.ts)).toEqual(["100.1", "200.1"]);
 	});
 });

@@ -27,6 +27,7 @@ import {
 	type SlackReactionsListItem,
 	threadParentTs,
 	toTitle,
+	untilNextQueued,
 } from "./reactions";
 
 /**
@@ -649,6 +650,7 @@ export async function slackConversation(
 		username?: string;
 		text?: string;
 		files?: { name?: string; url_private?: string }[];
+		reactions?: { name?: string; users?: string[] }[];
 	};
 	try {
 		const me = await getIdentity(token);
@@ -668,13 +670,18 @@ export async function slackConversation(
 		>("conversations.info", { channel }, token);
 		const inline =
 			info.channel?.is_im || info.channel?.is_mpim
-				? ((
-						await slackApi<SlackResponse & { messages?: Message[] }>(
-							"conversations.history",
-							{ channel, oldest: ts, inclusive: "true", limit: "30" },
-							token,
-						)
-					).messages ?? [])
+				? untilNextQueued(
+						(
+							await slackApi<SlackResponse & { messages?: Message[] }>(
+								"conversations.history",
+								{ channel, oldest: ts, inclusive: "true", limit: "30" },
+								token,
+							)
+						).messages ?? [],
+						ts,
+						me.userId,
+						new Set([queueReaction(), launchReaction()]),
+					)
 				: [];
 		const byTs = new Map<string, Message>();
 		for (const message of [...(thread.messages ?? []), ...inline])
