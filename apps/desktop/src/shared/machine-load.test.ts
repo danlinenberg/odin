@@ -95,8 +95,9 @@ describe("machineLoad", () => {
 
 	it("holds a launch when the disk is nearly full, unless the limit is 0", () => {
 		const load = machineLoad(snapshot({ disk: 3.7 }));
-		expect(load.diskFreePercent).toBe(3);
-		expect(load.reason).toBe("this Mac's disk is 3% free");
+		expect(load.diskFreePercent).toBe(3.7);
+		expect(load.reason).toBe("this Mac's disk is 3.7% free");
+		expect(machineLoad(snapshot({ disk: 42.9 })).diskFreePercent).toBe(42);
 		expect(machineLoad(snapshot({ disk: 30 })).busy).toBe(false);
 		expect(machineLoad(snapshot({})).diskFreePercent).toBeNull();
 		expect(
