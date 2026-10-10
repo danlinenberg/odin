@@ -115,7 +115,8 @@ function NightAgentRows() {
 					<>
 						Starts the top of Next in line, waits for that session to finish its
 						turn, then starts the next. Their cards wear a Night Agent pill.
-						Odin has to be open and the Mac awake.
+						Odin has to be open; it keeps the computer awake through the window.
+						On a laptop, leave the lid open: a closed lid still sleeps it.
 						{offHours.enabled && started > 0 && ` ${started} started tonight.`}
 					</>
 				}
