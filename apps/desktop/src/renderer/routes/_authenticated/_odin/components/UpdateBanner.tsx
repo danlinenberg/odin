@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { PLATFORM } from "renderer/hotkeys/registry";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import {
 	AUTO_UPDATE_STATUS,
@@ -44,10 +43,7 @@ export function UpdateBanner() {
 						? "Restarting into the new version…"
 						: update?.error
 							? `Download failed: ${update.error}`
-							: // The NSIS installer closes the terminal daemon too.
-								PLATFORM === "windows"
-								? "Running sessions end when Odin restarts."
-								: "Open terminal sessions survive the restart."}
+							: "Open terminal sessions survive the restart."}
 			</span>
 			<div className="flex-1" />
 			{!busy && (

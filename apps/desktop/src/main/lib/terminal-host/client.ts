@@ -34,7 +34,7 @@ import { app } from "electron";
 import { ODIN_DIR_NAME } from "shared/constants";
 import { throwIfAborted } from "../terminal/abort";
 import { TerminalAttachCanceledError } from "../terminal/errors";
-import { resolveElectronBinary } from "./electron-binary";
+import { resolveElectronBinary, stageDaemonRuntime } from "./electron-binary";
 import { terminalHostSocketPath } from "./socket-path";
 import {
 	type CancelCreateOrAttachRequest,
@@ -172,6 +172,7 @@ export class TerminalHostClient extends EventEmitter {
 	private streamParser = new NdjsonParser();
 	private pendingRequests = new Map<string, PendingRequest>();
 	private requestCounter = 0;
+	private stagedRuntime?: ReturnType<typeof stageDaemonRuntime>;
 	private controlAuthenticated = false;
 	private streamAuthenticated = false;
 	private connectionState = ConnectionState.DISCONNECTED;
@@ -1158,6 +1159,21 @@ export class TerminalHostClient extends EventEmitter {
 		}
 	}
 
+	private stageRuntime(): ReturnType<typeof stageDaemonRuntime> {
+		if (!this.stagedRuntime) {
+			this.stagedRuntime = stageDaemonRuntime({
+				execPath: resolveElectronBinary(),
+				appPath: app.getAppPath(),
+				runtimeRoot: join(ODIN_HOME_DIR, "runtime"),
+				version: app.getVersion(),
+			}).catch((error) => {
+				this.stagedRuntime = undefined;
+				throw error;
+			});
+		}
+		return this.stagedRuntime;
+	}
+
 	/**
 	 * Spawn the daemon process if not running
 	 */
@@ -1201,6 +1217,12 @@ export class TerminalHostClient extends EventEmitter {
 			}
 		}
 
+		// Before the lock: the first copy after an update outlasts its timeout.
+		const staged =
+			app.isPackaged && process.platform === "win32"
+				? await this.stageRuntime()
+				: undefined;
+
 		// Acquire spawn lock to prevent concurrent spawns
 		if (!this.acquireSpawnLock()) {
 			if (DEBUG_CLIENT) {
@@ -1215,7 +1237,7 @@ export class TerminalHostClient extends EventEmitter {
 
 		try {
 			// Get path to daemon script
-			const daemonScript = this.getDaemonScriptPath();
+			let daemonScript = this.getDaemonScriptPath();
 			if (DEBUG_CLIENT) {
 				console.log(`[TerminalHostClient] Daemon script path: ${daemonScript}`);
 				console.log(
@@ -1229,7 +1251,11 @@ export class TerminalHostClient extends EventEmitter {
 
 			// Not process.execPath: it is captured at launch, so a dev bundle
 			// renamed since then leaves it pointing at a path that is gone.
-			const electronPath = resolveElectronBinary();
+			let electronPath = resolveElectronBinary();
+			if (staged) {
+				electronPath = staged.exe;
+				daemonScript = join(staged.appPath, "dist", "main", "terminal-host.js");
+			}
 			if (DEBUG_CLIENT) {
 				console.log(
 					`[TerminalHostClient] Spawning daemon with execPath: ${electronPath}`,

@@ -1,8 +1,15 @@
 import { describe, expect, it } from "bun:test";
-import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readdirSync,
+	symlinkSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { resolveElectronBinary } from "./electron-binary";
+import { resolveElectronBinary, stageDaemonRuntime } from "./electron-binary";
 
 /** A dist dir holding one bundle, plus the Electron.app link pointing at it. */
 function makeDist(bundleName: string, link: boolean): string {
@@ -45,5 +52,50 @@ describe("resolveElectronBinary", () => {
 		const missing = "/nonexistent/dist/Whatever.app/Contents/MacOS/Electron";
 
 		expect(resolveElectronBinary(missing)).toBe(missing);
+	});
+});
+
+describe("stageDaemonRuntime", () => {
+	it("copies the daemon's files out of the install folder and drops other versions", async () => {
+		const root = mkdtempSync(join(tmpdir(), "odin-stage-"));
+		const install = join(root, "Programs", "Odin");
+		const asar = join(install, "resources", "app.asar");
+		const pty = join(`${asar}.unpacked`, "node_modules", "node-pty");
+		mkdirSync(join(asar, "dist", "main", "chunks"), { recursive: true });
+		mkdirSync(join(install, "locales"), { recursive: true });
+		mkdirSync(pty, { recursive: true });
+		writeFileSync(join(install, "Odin.exe"), "exe");
+		writeFileSync(join(install, "ffmpeg.dll"), "dll");
+		writeFileSync(join(asar, "dist", "main", "chunks", "a.js"), "js");
+		writeFileSync(join(pty, "conpty.node"), "node");
+		const runtimeRoot = join(root, "runtime");
+		mkdirSync(join(runtimeRoot, "1.0.14"), { recursive: true });
+
+		const staged = await stageDaemonRuntime({
+			execPath: join(install, "Odin.exe"),
+			appPath: asar,
+			runtimeRoot,
+			version: "1.0.15",
+		});
+
+		const dir = join(runtimeRoot, "1.0.15");
+		expect(staged).toEqual({
+			exe: join(dir, "odin-terminal-host.exe"),
+			appPath: join(dir, "resources", "app"),
+		});
+		expect(readdirSync(dir).sort()).toEqual([
+			"ffmpeg.dll",
+			"odin-terminal-host.exe",
+			"resources",
+		]);
+		expect(
+			existsSync(join(staged.appPath, "dist", "main", "chunks", "a.js")),
+		).toBe(true);
+		expect(
+			existsSync(
+				join(staged.appPath, "node_modules", "node-pty", "conpty.node"),
+			),
+		).toBe(true);
+		expect(readdirSync(runtimeRoot)).toEqual(["1.0.15"]);
 	});
 });
