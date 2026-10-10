@@ -142,6 +142,27 @@ export function threadParentTs(message: {
 }
 
 /**
+ * A DM's inline messages after a queued one, cut at the next message I queued
+ * myself: that one is its own task, and in a DM to myself every later message
+ * is. Reading past it handed one session the next task's request as context.
+ */
+export function untilNextQueued<
+	T extends { ts?: string; reactions?: { name?: string; users?: string[] }[] },
+>(messages: T[], queuedTs: string, myUserId: string, queue: Set<string>): T[] {
+	const sorted = [...messages].sort((a, b) => Number(a.ts) - Number(b.ts));
+	const next = sorted.findIndex(
+		(m) =>
+			Number(m.ts) > Number(queuedTs) &&
+			(m.reactions ?? []).some(
+				(r) =>
+					queue.has(normalizeReaction(r.name ?? "")) &&
+					(r.users ?? []).includes(myUserId),
+			),
+	);
+	return next === -1 ? sorted : sorted.slice(0, next);
+}
+
+/**
  * Which stored rows to ask Slack about this sync.
  *
  * A row missing from a `reactions.list` page is not evidence of anything:
