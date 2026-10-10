@@ -206,6 +206,11 @@ export interface Pane {
 	 */
 	odinClosedIn?: PaneStatus;
 	/**
+	 * Odin fork: why the session's terminal ended on its own ("crashed (exit 1)
+	 * - disk full (0.5 GB free)"), shown on its Idle card. Cleared once it works again.
+	 */
+	odinExitCause?: string;
+	/**
 	 * Odin fork: created but not started - the Mac was flat out, or another
 	 * agent was working in the same checkout. The card sits in Idle under "Queued" with the reason
 	 * on it, and the queue runner spawns `command` the moment the gate clears.

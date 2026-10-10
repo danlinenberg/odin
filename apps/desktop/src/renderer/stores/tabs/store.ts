@@ -1176,7 +1176,10 @@ export const useTabsStore = create<TabsStore>()(
 								...pane,
 								status,
 								odinStatusAt: Date.now(),
-								...(status === "working" && { odinClosedIn: undefined }),
+								...(status === "working" && {
+									odinClosedIn: undefined,
+									odinExitCause: undefined,
+								}),
 							},
 						},
 					});

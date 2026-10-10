@@ -195,6 +195,17 @@ export function useAgentHookListener() {
 				// Clear transient status for unmounted panes (mounted panes handle this via stream subscription)
 				if (!paneId) return;
 				const currentPane = state.panes[paneId];
+				if (currentPane) {
+					useTabsStore.setState((s) => ({
+						panes: {
+							...s.panes,
+							[paneId]: {
+								...s.panes[paneId],
+								odinExitCause: event.data?.cause,
+							},
+						},
+					}));
+				}
 				if (
 					currentPane?.status === "working" ||
 					currentPane?.status === "permission"

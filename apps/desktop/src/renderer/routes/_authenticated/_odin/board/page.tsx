@@ -4034,6 +4034,12 @@ function DevBoardPage() {
 																					⏸ died mid-turn
 																				</span>
 																			)}
+																			{card.pane.status !== "working" &&
+																				card.pane.odinExitCause && (
+																					<span className="select-text cursor-text truncate text-[11.5px] text-danger">
+																						✗ {card.pane.odinExitCause}
+																					</span>
+																				)}
 																			<button
 																				type="button"
 																				onClick={(event) => {

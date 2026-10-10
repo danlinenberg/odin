@@ -36,6 +36,7 @@ describe("paneSchema", () => {
 			odinParked: false,
 			odinStatusAt: 1,
 			odinClosedIn: "review",
+			odinExitCause: "crashed (exit 1)",
 			odinShellPaneId: "p3",
 			odinAgentRun: true,
 			odinCwd: "/tmp/repo",
