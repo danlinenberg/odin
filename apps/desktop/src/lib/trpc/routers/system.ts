@@ -85,9 +85,14 @@ async function detectBrew(): Promise<BrewDetectResult> {
  * `false`, so a setup we don't understand is never nagged.
  */
 async function claudeAuthStatus(): Promise<{ signedIn: boolean | null }> {
+	// Same lookup as Sign in: a bare "claude" misses Odin's fallback dir (the
+	// bundled binary, or ~\.local\bin on Windows), and no Claude Code at all
+	// still needs the strip - its button says how to install it.
+	const bin = findClaude((await getProcessEnvWithShellPath()).PATH ?? "");
+	if (!bin) return { signedIn: false };
 	try {
 		const { stdout } = await execWithShellEnv(
-			"claude",
+			bin,
 			["auth", "status", "--json"],
 			{ timeout: 15_000 },
 		);
@@ -138,7 +143,14 @@ async function claudeLogin(): Promise<{ ok: boolean; error?: string }> {
 	login?.kill();
 	const env = await getProcessEnvWithShellPath();
 	const bin = findClaude(env.PATH ?? "");
-	if (!bin) return { ok: false, error: "Claude Code was not found." };
+	if (!bin)
+		return {
+			ok: false,
+			error:
+				process.platform === "win32"
+					? "Claude Code was not found. Install it in PowerShell: irm https://claude.ai/install.ps1 | iex"
+					: "Claude Code was not found.",
+		};
 	let child: ChildProcess;
 	try {
 		child = spawn(bin, ["auth", "login", "--claudeai"], {
