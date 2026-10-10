@@ -173,6 +173,8 @@ export interface Pane {
 	odinTags?: string[];
 	/** Starred from the card's ★ button or right-click menu: pinned to the top section. */
 	odinStarred?: boolean;
+	/** A Night Agent session you've opened - it no longer counts on the moon badge. */
+	odinPickedUp?: boolean;
 	/**
 	 * The generated tags have been applied to this card once. Set so a tag you
 	 * deleted stays deleted - without it, the next brief puts it straight back.
