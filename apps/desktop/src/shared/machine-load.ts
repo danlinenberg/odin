@@ -24,6 +24,8 @@ export interface MachineLoadInput {
 		 * pages, in bytes. Zero on a snapshot collected before this existed.
 		 */
 		availableMemory: number;
+		/** Free space on the home volume, 0-100. Unset = not measured. */
+		diskFreePercent?: number;
 	};
 	/** App + every agent session, summed, where 100 = one core saturated. */
 	totalCpu: number;
@@ -53,10 +55,21 @@ export const BUSY_HOST_CPU_PERCENT = 70;
  */
 export const MIN_FREE_MEMORY_GB = 2;
 
+/**
+ * Free disk, as a share of the home volume, below which the next launch waits.
+ *
+ * A full disk starves swap, so it looks like a memory problem, and every new
+ * session adds a ~3 GB worktree. ponytail: the default - Settings → Sessions
+ * overrides it. 5% of a 460 GB disk is ~23 GB, a handful of worktrees.
+ */
+export const MIN_FREE_DISK_PERCENT = 5;
+
 /** What a launch waits on, as Settings → Sessions has it. */
 export interface LaunchLimits {
 	hostCpuPercent: number;
 	minFreeMemoryGb: number;
+	/** Free disk percent below which launches wait; 0 = never. */
+	minFreeDiskPercent: number;
 	/** Sessions working at once before the next one waits; 0 = no cap. */
 	maxWorkingAgents: number;
 	/** One agent per checkout at a time; `false` lets them share. Unset = on. */
@@ -66,6 +79,7 @@ export interface LaunchLimits {
 export const DEFAULT_LAUNCH_LIMITS: LaunchLimits = {
 	hostCpuPercent: BUSY_HOST_CPU_PERCENT,
 	minFreeMemoryGb: MIN_FREE_MEMORY_GB,
+	minFreeDiskPercent: MIN_FREE_DISK_PERCENT,
 	// ponytail: the default - Settings → Sessions overrides it. CPU and memory
 	// miss a board of agents that are mostly waiting on the network.
 	maxWorkingAgents: 5,
@@ -106,6 +120,8 @@ export interface MachineLoad {
 	 * and what the agents hold are both facts; you can read them.
 	 */
 	availableMemoryGb: number;
+	/** Free space on the home volume, whole percent. Null = not measured. */
+	diskFreePercent: number | null;
 	busy: boolean;
 	/** Why it's busy, phrased for a toast. Null when it isn't. */
 	reason: string | null;
@@ -142,19 +158,26 @@ export function machineLoad(
 	const memoryBusy =
 		snapshot.host.availableMemory > 0 &&
 		availableMemoryGb < limits.minFreeMemoryGb;
-	const busy = cpuBusy || memoryBusy;
+	const disk = snapshot.host.diskFreePercent;
+	const diskFreePercent = disk === undefined ? null : Math.floor(disk);
+	const diskBusy =
+		diskFreePercent !== null && diskFreePercent < limits.minFreeDiskPercent;
+	const busy = cpuBusy || memoryBusy || diskBusy;
 	const memoryGb = gb(snapshot.totalMemory);
 
 	const reason = cpuBusy
 		? `this Mac is at ${hostCpuPercent}% CPU`
 		: memoryBusy
 			? `this Mac has only ${availableMemoryGb} GB free`
-			: null;
+			: diskBusy
+				? `this Mac's disk is ${diskFreePercent}% free`
+				: null;
 
 	return {
 		agentCpuPercent,
 		agentMemoryGb: Math.round(memoryGb * 10) / 10,
 		availableMemoryGb,
+		diskFreePercent,
 		cpuPercent: hostCpuPercent,
 		agentCount,
 		busy,

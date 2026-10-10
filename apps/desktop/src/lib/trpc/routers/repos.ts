@@ -325,6 +325,18 @@ export const createReposRouter = (
 				return { ok: true };
 			}),
 
+		/** Settings → Sessions: remove a worktree once its PR merges. */
+		getPruneMerged: publicProcedure.query(
+			() => readOdinConfig().pruneMergedWorktrees !== false,
+		),
+
+		setPruneMerged: publicProcedure
+			.input(z.object({ enabled: z.boolean() }))
+			.mutation(({ input }) => {
+				updateOdinConfig({ pruneMergedWorktrees: input.enabled });
+				return { ok: true };
+			}),
+
 		/**
 		 * What a board card should call its repo. The pane only knows where it was
 		 * launched, which for every feed-started session is the catch-all directory

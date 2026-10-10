@@ -1,3 +1,4 @@
+import { statfsSync } from "node:fs";
 import os from "node:os";
 import { app } from "electron";
 import pidusage from "pidusage";
@@ -63,6 +64,8 @@ interface HostMetrics {
 	 * system+user, i.e. 100 minus idle.
 	 */
 	cpuUsagePercent: number;
+	/** Free space on the home volume, 0-100. Unset when statfs fails. */
+	diskFreePercent?: number;
 }
 
 export interface ResourceMetricsSnapshot {
@@ -95,6 +98,15 @@ function normalizeFiniteNumber(value: unknown): number {
 	return Math.max(0, value);
 }
 
+function readDiskFreePercent(): number | undefined {
+	try {
+		const { bavail, blocks } = statfsSync(os.homedir());
+		return blocks > 0 ? (bavail / blocks) * 100 : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
 function createHostMetrics(availableMemory?: number): HostMetrics {
 	const totalHostMemory = normalizeFiniteNumber(os.totalmem());
 	const freeHostMemory = normalizeFiniteNumber(os.freemem());
@@ -118,6 +130,7 @@ function createHostMetrics(availableMemory?: number): HostMetrics {
 		cpuCoreCount,
 		loadAverage1m,
 		cpuUsagePercent,
+		diskFreePercent: readDiskFreePercent(),
 	};
 }
 

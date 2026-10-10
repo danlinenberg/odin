@@ -20,8 +20,8 @@ import { scanRepos } from "lib/trpc/routers/repos";
  * lets the script tell a merged PR from unmerged work when main has since
  * changed the same files; repos it can't see fall back to gh's own logins.
  */
-// Hourly: landed work is removable an hour after its last commit.
-const EVERY_MS = 60 * 60 * 1000;
+// Settings → Sessions turns this off; read every pass, so no restart needed.
+const EVERY_MS = 10 * 60 * 1000;
 const FIRST_RUN_MS = 5 * 60 * 1000;
 
 const run = promisify(execFile);
@@ -34,6 +34,7 @@ async function prune(): Promise<void> {
 	const odinRepo = process.env.ODIN_REPO_DIR ?? readOdinConfig().odinRepo;
 	const script = odinRepo && path.join(odinRepo, "scripts/prune-worktrees.sh");
 	if (!script || !existsSync(script)) return;
+	if (readOdinConfig().pruneMergedWorktrees === false) return;
 	repos ??= scanRepos();
 	const token = resolveGithubToken();
 	// One repo at a time: each pass fetches and asks GitHub about every branch.
@@ -41,7 +42,12 @@ async function prune(): Promise<void> {
 		if (!existsSync(path.join(repo, ".worktrees"))) continue;
 		try {
 			const { stdout } = await run(script, [repo], {
-				env: { ...process.env, ...(token ? { GH_TOKEN: token } : {}) },
+				env: {
+					...process.env,
+					// Merged means gone at the next pass, not an hour later.
+					PRUNE_LANDED_MIN_AGE_HOURS: "0",
+					...(token ? { GH_TOKEN: token } : {}),
+				},
 				timeout: 5 * 60 * 1000,
 			});
 			const removed = stdout.split("\n").filter((l) => l.startsWith("remove"));

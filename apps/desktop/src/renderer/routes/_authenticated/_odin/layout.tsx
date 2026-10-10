@@ -167,6 +167,13 @@ function badgeTone(load: MachineLoad, limits: LaunchLimits): string {
 	return "bg-secondary text-muted-foreground";
 }
 
+// ponytail: amber 10 points above the launch limit, eyeballed like badgeTone.
+function diskTone(freePercent: number, limits: LaunchLimits): string {
+	if (freePercent < limits.minFreeDiskPercent) return PILL.danger;
+	if (freePercent < limits.minFreeDiskPercent + 10) return PILL.attention;
+	return "bg-secondary text-muted-foreground";
+}
+
 function usageTone(percent: number): string {
 	if (percent >= 90) return PILL.danger;
 	if (percent >= 75) return PILL.attention;
@@ -231,8 +238,14 @@ function OdinShell() {
 	);
 	const hostCpuPercent = useLaunchLimits((s) => s.hostCpuPercent);
 	const minFreeMemoryGb = useLaunchLimits((s) => s.minFreeMemoryGb);
+	const minFreeDiskPercent = useLaunchLimits((s) => s.minFreeDiskPercent);
 	const maxWorkingAgents = useLaunchLimits((s) => s.maxWorkingAgents);
-	const limits = { hostCpuPercent, minFreeMemoryGb, maxWorkingAgents };
+	const limits = {
+		hostCpuPercent,
+		minFreeMemoryGb,
+		minFreeDiskPercent,
+		maxWorkingAgents,
+	};
 	const load = metrics ? machineLoad(metrics, limits) : null;
 	// Claude plan usage - the 5-hour window and the week, as /usage shows them.
 	// The endpoint 429s when polled hard (every Claude Code CLI hits it too)
@@ -596,6 +609,25 @@ function OdinShell() {
 									{load.busy
 										? `${load.reason} - new sessions wait until that clears. ${load.agentCount} session(s) using ${load.agentMemoryGb} GB; this Mac is ${load.cpuPercent}% busy with ${load.availableMemoryGb} GB free.`
 										: `${load.agentCount} session(s) using ${load.agentMemoryGb} GB of memory. This Mac has ${load.availableMemoryGb} GB free. Agents are on ${load.agentCpuPercent}% of the CPU · this Mac is ${load.cpuPercent}% busy.`}
+								</TooltipContent>
+							</Tooltip>
+						)}
+						{load?.diskFreePercent != null && (
+							<Tooltip delayDuration={300}>
+								<TooltipTrigger asChild>
+									<span
+										className={cn(
+											"rounded-[6px] px-2 py-[3px] text-[11px] font-semibold tabular-nums",
+											diskTone(load.diskFreePercent, limits),
+										)}
+									>
+										{`Disk ${load.diskFreePercent}% free`}
+									</span>
+								</TooltipTrigger>
+								<TooltipContent side="bottom" className="max-w-[280px]">
+									{limits.minFreeDiskPercent > 0
+										? `Free space on the home disk. New sessions wait below ${limits.minFreeDiskPercent}% - change it in Settings → Sessions.`
+										: "Free space on the home disk. No launch limit is set - Settings → Sessions."}
 								</TooltipContent>
 							</Tooltip>
 						)}

@@ -17,10 +17,11 @@ Once the PR is merged:
 git worktree remove .worktrees/<name>
 ```
 
-If you forget, Odin runs `scripts/prune-worktrees.sh` every hour over every
-repo with a `.worktrees/` and removes worktrees whose work landed or whose PR
-closed. It never removes one with commits its default branch doesn't have, or
-touched in the last 24h (1h once its PR merged or closed). Uncommitted files
+If you forget, Odin runs `scripts/prune-worktrees.sh` every 10 minutes over
+every repo with a `.worktrees/` and removes worktrees whose work landed or whose
+PR closed (Settings → Sessions turns this off). It never removes one with
+commits its default branch doesn't have, or with no commits and touched in the
+last 24h. Uncommitted files
 keep a worktree for 7 days; after that they're committed to
 `refs/pruned/<name>` first, and `git checkout refs/pruned/<name> -- .` brings
 them back. `--dry-run` shows what it would do.

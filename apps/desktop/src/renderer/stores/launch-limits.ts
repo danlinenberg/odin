@@ -7,7 +7,7 @@ interface LaunchLimitsState extends LaunchLimits {
 }
 
 /**
- * Settings → Sessions: the launch gate's CPU, memory, session-count and
+ * Settings → Sessions: the launch gate's CPU, memory, disk, session-count and
  * one-per-checkout limits.
  *
  * ponytail: renderer localStorage, not a settings procedure - every reader
@@ -29,6 +29,7 @@ export function launchLimits(state: LaunchLimits): LaunchLimits {
 	return {
 		hostCpuPercent: state.hostCpuPercent,
 		minFreeMemoryGb: state.minFreeMemoryGb,
+		minFreeDiskPercent: state.minFreeDiskPercent,
 		maxWorkingAgents: state.maxWorkingAgents,
 		oneSessionPerCheckout: state.oneSessionPerCheckout,
 	};
