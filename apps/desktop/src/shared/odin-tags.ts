@@ -58,3 +58,10 @@ export function normalizeTag(raw: string): string {
 		.replace(/\s+/g, "-")
 		.replace(/[^a-z0-9_-]/g, "");
 }
+
+/**
+ * Marks the crow's conversation. Like the spare it has no title, so it's no
+ * card - talking to the crow isn't a task. The board opens its drawer by this
+ * tag instead. "question" since Quick question, so its open one carries over.
+ */
+export const CROW_TAG = "question";

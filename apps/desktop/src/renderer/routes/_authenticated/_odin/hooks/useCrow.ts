@@ -21,6 +21,7 @@ import {
 	odinScreenStatus,
 	spacesForCursorForward,
 } from "shared/odin-screen-status";
+import { CROW_TAG } from "shared/odin-tags";
 import stripAnsi from "strip-ansi";
 import { create } from "zustand";
 import { type PromptImage, sessionTitle } from "../components/OdinPromptDialog";
@@ -39,12 +40,8 @@ const WARM_TAG = "crow-spare";
 /** The Quick question spare this replaced - started without the crow's rules. */
 const LEGACY_WARM_TAG = "warm";
 
-/**
- * Marks the crow's conversation. Like the spare it has no title, so it's no
- * card - talking to the crow isn't a task. The board opens its drawer by this
- * tag instead. "question" since Quick question, so its open one carries over.
- */
-export const CROW_TAG = "question";
+/** Re-exported for the board, which opens the crow's drawer by it. */
+export { CROW_TAG };
 
 /** The crow's open conversation - ✓ Done removes the pane, which ends it. */
 export const crowPane = (panes: Record<string, Pane>): Pane | undefined =>

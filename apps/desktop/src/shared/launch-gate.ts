@@ -3,7 +3,7 @@ import {
 	type MachineLoadInput,
 	machineLoad,
 } from "./machine-load";
-import { isOdinCwd } from "./odin-tags";
+import { CROW_TAG, isOdinCwd } from "./odin-tags";
 import type { Pane } from "./tabs-types";
 
 /**
@@ -110,6 +110,8 @@ export function launchBlocker(
 ): string | null {
 	const load = machineLoad(snapshot, limits);
 	if (load.busy) return load.reason;
+	// Huginn isn't a session: he takes no slot and holds no checkout.
+	panes = panes.filter((pane) => !pane.odinTags?.includes(CROW_TAG));
 	// Only "working" counts: a session stopped on a permission prompt costs
 	// the Mac nothing until you answer it.
 	const cap = limits?.maxWorkingAgents ?? 0;
