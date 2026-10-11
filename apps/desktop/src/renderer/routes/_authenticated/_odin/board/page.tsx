@@ -903,6 +903,31 @@ function ShellPlaceMenu({ card, shell }: { card: BoardCard; shell: Pane }) {
 	const { data, here, inside, shellsIn } = useShellPlace(card, shell);
 	const write = electronTrpc.terminal.write.useMutation();
 	const updatePaneCwd = useTabsStore((s) => s.updatePaneCwd);
+	const openInApp = electronTrpc.external.openInApp.useMutation();
+	const copyText = electronTrpc.external.copyPath.useMutation();
+	/**
+	 * VS Code where the shell is, with the command that joins this
+	 * conversation on the clipboard for VS Code's terminal. Forked, so the two
+	 * don't both write into the live session.
+	 */
+	const openInVsCode = async (dir: string) => {
+		try {
+			await openInApp.mutateAsync({ path: dir, app: "vscode" });
+		} catch (error) {
+			return toast.error(`Couldn't open VS Code: ${String(error)}`);
+		}
+		const sessionId =
+			card.pane.claudeSessionId ??
+			usePaneMeta.getState().sessionIdByPane[card.pane.id];
+		if (!sessionId) return;
+		await copyText.mutateAsync(
+			`${claudeCli()} --resume ${sessionId} --fork-session`,
+		);
+		toast.success("Opened in VS Code", {
+			description:
+				"Paste in VS Code's terminal (⌃`) to join this session's conversation.",
+		});
+	};
 	const cd = (dir: string) => {
 		write.mutate({
 			paneId: shell.id,
@@ -980,6 +1005,22 @@ function ShellPlaceMenu({ card, shell }: { card: BoardCard; shell: Pane }) {
 						<ShellsDot {...shellsIn(target.dir)} />
 					</DropdownMenuItem>
 				))}
+				{(here ?? targets[0]?.dir) && (
+					<>
+						<DropdownMenuSeparator />
+						<DropdownMenuItem
+							title="Open this folder in VS Code, with this conversation's resume command on the clipboard"
+							onSelect={() => {
+								const dir = here ?? targets[0]?.dir;
+								if (dir) void openInVsCode(dir);
+							}}
+							className="flex items-center gap-2 text-xs"
+						>
+							<span className="w-3" />
+							Open in VS Code
+						</DropdownMenuItem>
+					</>
+				)}
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);
@@ -2316,31 +2357,6 @@ function DevBoardPage() {
 		}
 		setIsDiffOpen(false);
 		setIsShellOpen(true);
-	};
-	const openInApp = electronTrpc.external.openInApp.useMutation();
-	const copyText = electronTrpc.external.copyPath.useMutation();
-	/**
-	 * VS Code on the session's worktree, with the command that joins this
-	 * conversation on the clipboard for VS Code's terminal. Forked, so the two
-	 * don't both write into the live session.
-	 */
-	const openInVsCode = async (card: BoardCard) => {
-		const dir = await workDirOf(card);
-		if (!dir) return toast.error("This session has no folder to open");
-		try {
-			await openInApp.mutateAsync({ path: dir, app: "vscode" });
-		} catch (error) {
-			return toast.error(`Couldn't open VS Code: ${String(error)}`);
-		}
-		const sessionId = claudeSessionIdOf(card);
-		if (!sessionId) return;
-		await copyText.mutateAsync(
-			`${claudeCli()} --resume ${sessionId} --fork-session`,
-		);
-		toast.success("Opened in VS Code", {
-			description:
-				"Paste in VS Code's terminal (⌃`) to join this session's conversation.",
-		});
 	};
 	// Dev only: hold Vite's reloads while a session is open (see coalesceFullReloadPlugin).
 	const drawerOpen = !!drawerCard;
@@ -4434,16 +4450,6 @@ function DevBoardPage() {
 											<ShellPlaceMenu card={drawerCard} shell={drawerShell} />
 										)}
 									</div>
-								)}
-								{drawerCard.pane.type === "terminal" && !inCatchUp && (
-									<button
-										type="button"
-										title="Open this session's worktree in VS Code, with its conversation's resume command on the clipboard"
-										onClick={() => openInVsCode(drawerCard)}
-										className="shrink-0 rounded-md bg-secondary px-2 py-1 text-xs font-semibold text-muted-foreground hover:text-foreground"
-									>
-										VS Code
-									</button>
 								)}
 								{!catchUpLean && (
 									<button
