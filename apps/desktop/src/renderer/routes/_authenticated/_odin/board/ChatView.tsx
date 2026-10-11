@@ -1770,6 +1770,9 @@ function Composer({
 		const text = bash ? `!${body}` : body;
 		const paths = sending.map((item) => item.path);
 		setDraft("");
+		// Now, not via the effect: sending can remount this box (a resume, a
+		// menu), and the new one would read the sent text back as a draft.
+		useChatDrafts.getState().save(paneId, "");
 		setBash(false);
 		if (!bash) setAttached([]);
 		if (onResume) {
