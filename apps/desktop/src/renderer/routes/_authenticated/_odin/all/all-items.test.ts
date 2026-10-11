@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { allItems, urgencyOf } from "./all-items";
+import { allItems, matchesStatus, urgencyOf } from "./all-items";
 
 const iso = (day: number) => new Date(Date.UTC(2026, 0, day)).toISOString();
 
@@ -271,4 +271,19 @@ test("a Slack row is created when it was queued, not when it was posted", () => 
 	});
 	expect(row?.at).toBe(Date.parse(iso(5)));
 	expect(row?.createdAt).toBe(queued);
+});
+
+test("the status picker shows only one status, or hides one", () => {
+	const rows = allItems(feeds);
+	const jira = rows.filter((item) => item.source === "Jira");
+	const status = jira[0]?.status ?? "";
+	expect(rows.filter((item) => matchesStatus(item, `only:${status}`))).toEqual(
+		jira,
+	);
+	expect(
+		rows.filter((item) => matchesStatus(item, `hide:${status}`)),
+	).not.toContainEqual(jira[0]);
+	// Rows with no status are their own option, not dropped by every pick.
+	expect(rows.some((item) => matchesStatus(item, "only:No status"))).toBe(true);
+	expect(rows.every((item) => matchesStatus(item, ""))).toBe(true);
 });

@@ -13,6 +13,7 @@ import {
 	outputTokens,
 	segments,
 	splitActionItems,
+	splitEarlier,
 	tokenLabel,
 	toolDescription,
 	transcriptPath,
@@ -421,5 +422,25 @@ test("a user turn keeps when it was sent", () => {
 	expect(item).toMatchObject({
 		kind: "user",
 		at: Date.parse("2026-10-10T10:00:00Z"),
+	});
+});
+
+describe("splitEarlier", () => {
+	const bytes = (text: string) => new TextEncoder().encode(text);
+	const text = (data: Uint8Array) => new TextDecoder().decode(data);
+
+	test("joins the cut line back together, and keeps the new cut", () => {
+		// File: {"a":1}\n{"b":"é"}\n{"c":3}\n - the window began inside line two,
+		// mid "é" (two bytes), and the earlier chunk ends at the same byte.
+		const file = bytes('{"a":1}\n{"b":"é"}\n{"c":3}\n');
+		const cut = file.indexOf(0xa9); // second byte of é
+		const window = file.subarray(cut);
+		const head = window.subarray(0, window.indexOf(10));
+		const middle = splitEarlier(file.subarray(3, cut), head, false);
+		expect(middle.lines).toEqual(['{"b":"é"}']);
+		expect(text(middle.head)).toBe('":1}');
+		const first = splitEarlier(file.subarray(0, 3), middle.head, true);
+		expect(first.lines).toEqual(['{"a":1}']);
+		expect(first.head.length).toBe(0);
 	});
 });
