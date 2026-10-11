@@ -1538,8 +1538,8 @@ export function ChatView({
 										type="button"
 										title={
 											showCommands
-												? "Hide the commands"
-												: "Show every command Claude ran this turn"
+												? "Hide the steps"
+												: "Show what Claude did this turn"
 										}
 										disabled={turnTools.length === 0}
 										onClick={() => setShowCommands(!showCommands)}
@@ -1565,25 +1565,11 @@ export function ChatView({
 										)}
 									</button>
 									{showCommands && turnTools.length > 0 && (
-										<div className="mt-1 max-h-[320px] select-text cursor-text space-y-1 overflow-y-auto rounded-lg border border-border bg-secondary/20 p-2 font-mono text-[11.5px] text-muted-foreground">
+										// Same rows as a finished turn's Worked list: what each
+										// step did, opening to its command and output.
+										<div className="mt-1.5 max-h-[420px] overflow-y-auto rounded-lg border border-border bg-secondary/20 p-1.5 text-foreground">
 											{turnTools.map((tool) => (
-												<div key={tool.id} className="flex gap-2">
-													<span
-														className={cn(
-															"mt-[5px] size-[7px] shrink-0 rounded-full",
-															tool.result === undefined
-																? "animate-pulse bg-working"
-																: tool.isError
-																	? "bg-danger"
-																	: "bg-emerald-500",
-														)}
-													/>
-													<span className="min-w-0 whitespace-pre-wrap break-words">
-														{typeof tool.input.command === "string"
-															? tool.input.command
-															: toolDescription(tool)}
-													</span>
-												</div>
+												<ToolRow key={tool.id} item={tool} />
 											))}
 										</div>
 									)}
