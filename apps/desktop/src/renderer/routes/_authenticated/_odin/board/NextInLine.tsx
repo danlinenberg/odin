@@ -492,7 +492,8 @@ export function NextInLine() {
 				}
 			>
 				{/* Title and meta get the card's whole width; the actions are a
-								    row under them that only exists on hover, so they never cover text. */}
+								    row under them that is always laid out and only shown on hover, so they
+								    never cover text and hovering never pushes the cards below. */}
 				<HoverCard openDelay={400} closeDelay={80}>
 					<HoverCardTrigger asChild>
 						<div className="min-w-0 flex-1">
@@ -563,8 +564,8 @@ export function NextInLine() {
 				</HoverCard>
 				<div
 					className={cn(
-						"hidden items-center justify-end gap-0.5 group-focus-within:flex group-hover:flex",
-						launchingKey === item.launch.key && "flex",
+						"invisible flex items-center justify-end gap-0.5 group-focus-within:visible group-hover:visible",
+						launchingKey === item.launch.key && "visible",
 					)}
 				>
 					<button
