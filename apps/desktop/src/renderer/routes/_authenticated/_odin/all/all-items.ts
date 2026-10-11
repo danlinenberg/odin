@@ -205,9 +205,6 @@ export function allItems(
 	},
 	{ everything = false }: { everything?: boolean } = {},
 ): AllItem[] {
-	// Backlog is parked, not a task yet - the Jira and Notion tabs still list it.
-	const notBacklog = (item: AllItem) =>
-		everything || item.status?.toLowerCase() !== "backlog";
 	return [
 		...input.tasks.map(
 			(task): AllItem => ({
@@ -448,7 +445,17 @@ export function allItems(
 					},
 				}),
 			),
-	]
-		.filter(notBacklog)
-		.sort((a, b) => b.at - a.at);
+	].sort((a, b) => b.at - a.at);
+}
+
+/** What the status picker calls a row its source never gave a status. */
+export const NO_STATUS = "No status";
+
+/** Whether a row survives the status picker's value. */
+export function matchesStatus(item: AllItem, filter: string): boolean {
+	if (!filter) return true;
+	const status = item.status ?? NO_STATUS;
+	return filter.startsWith("hide:")
+		? status !== filter.slice(5)
+		: status === filter.slice(5);
 }

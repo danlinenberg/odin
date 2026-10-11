@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { allItems, urgencyOf } from "./all-items";
+import { allItems, matchesStatus, urgencyOf } from "./all-items";
 
 const iso = (day: number) => new Date(Date.UTC(2026, 0, day)).toISOString();
 
@@ -273,12 +273,17 @@ test("a Slack row is created when it was queued, not when it was posted", () => 
 	expect(row?.createdAt).toBe(queued);
 });
 
-test("Backlog stays off the Tasks page, but Search all still finds it", () => {
-	const backlog = { ...feeds, jira: [{ ...feeds.jira[0], status: "Backlog" }] };
-	expect(allItems(backlog).some((item) => item.source === "Jira")).toBe(false);
+test("the status picker shows only one status, or hides one", () => {
+	const rows = allItems(feeds);
+	const jira = rows.filter((item) => item.source === "Jira");
+	const status = jira[0]?.status ?? "";
+	expect(rows.filter((item) => matchesStatus(item, `only:${status}`))).toEqual(
+		jira,
+	);
 	expect(
-		allItems(backlog, { everything: true }).some(
-			(item) => item.source === "Jira",
-		),
-	).toBe(true);
+		rows.filter((item) => matchesStatus(item, `hide:${status}`)),
+	).not.toContainEqual(jira[0]);
+	// Rows with no status are their own option, not dropped by every pick.
+	expect(rows.some((item) => matchesStatus(item, "only:No status"))).toBe(true);
+	expect(rows.every((item) => matchesStatus(item, ""))).toBe(true);
 });

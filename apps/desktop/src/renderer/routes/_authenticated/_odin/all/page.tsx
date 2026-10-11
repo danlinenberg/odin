@@ -45,7 +45,12 @@ import { useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { usePendingFocus } from "../hooks/usePendingFocus";
 import { PANE_STATUS } from "../pane-status";
-import type { AllItem, Urgency } from "./all-items";
+import {
+	type AllItem,
+	matchesStatus,
+	NO_STATUS,
+	type Urgency,
+} from "./all-items";
 import { TaskDetails } from "./TaskDetails";
 import { useTitleOverrides } from "./title-overrides";
 import { useAllItems, useSearchableItems } from "./use-all-items";
@@ -157,6 +162,17 @@ const URGENCIES: { id: Exclude<Urgency, null> | "none"; label: string }[] = [
 ];
 
 const SHOW_SESSIONS_KEY = "odin.all.showSessions";
+/** Kept, unlike the other cuts: hiding Backlog is a standing choice, not a
+ * look around. "only:<status>" or "hide:<status>"; "" is every status. */
+const STATUS_FILTER_KEY = "odin.all.statusFilter";
+
+function readStatusFilter(): string {
+	try {
+		return localStorage.getItem(STATUS_FILTER_KEY) ?? "";
+	} catch {
+		return "";
+	}
+}
 
 function readShowSessions(): boolean {
 	try {
@@ -182,6 +198,13 @@ function AllFeedPage() {
 	const [source, setSource] = useState<AllItem["source"] | "">("");
 	const [urgency, setUrgency] = useState("");
 	const [context, setContext] = useState("");
+	const [statusFilter, setStatusFilterState] = useState(readStatusFilter);
+	const setStatusFilter = (value: string) => {
+		setStatusFilterState(value);
+		try {
+			localStorage.setItem(STATUS_FILTER_KEY, value);
+		} catch {}
+	};
 	// A fourth cut, but a toggle rather than a select: "what's due" has one
 	// answer, and it's the one you want on the morning something is late.
 	const [dueOnly, setDueOnly] = useState(false);
@@ -280,6 +303,23 @@ function AllFeedPage() {
 		[byUrgency, context],
 	);
 
+	/** Every status the remaining rows carry, Jira's and Notion's own words. */
+	const statuses = useMemo(() => {
+		const counts = new Map<string, number>();
+		for (const item of byContext) {
+			const status = item.status ?? NO_STATUS;
+			counts.set(status, (counts.get(status) ?? 0) + 1);
+		}
+		return [...counts.entries()].sort(
+			(a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
+		);
+	}, [byContext]);
+
+	const byStatus = useMemo(
+		() => byContext.filter((item) => matchesStatus(item, statusFilter)),
+		[byContext, statusFilter],
+	);
+
 	// Counted over everything on screen rather than the current cut: a ticket
 	// that went overdue under a filter you aren't looking through still has to
 	// be findable from here.
@@ -292,10 +332,10 @@ function AllFeedPage() {
 	);
 	const items = useMemo(() => {
 		const due = dueOnly
-			? byContext.filter((item) =>
+			? byStatus.filter((item) =>
 					isDue(effectiveDue(item.key, reminders, item.dueDate), Date.now()),
 				)
-			: byContext;
+			: byStatus;
 		const sorted =
 			sortBy === "created"
 				? [...due].sort((a, b) => b.createdAt - a.createdAt)
@@ -314,7 +354,7 @@ function AllFeedPage() {
 				.toLowerCase()
 				.includes(needle),
 		);
-	}, [byContext, dueOnly, reminders, needle, sortBy]);
+	}, [byStatus, dueOnly, reminders, needle, sortBy]);
 
 	// From every row, not the filtered ones: narrowing the list shouldn't shut
 	// the panel you're reading. Marking it done does. Search all can open a row
@@ -324,11 +364,17 @@ function AllFeedPage() {
 		everyRow.find((item) => item.key === openKey);
 
 	const isFiltered =
-		source !== "" || urgency !== "" || context !== "" || dueOnly || !!needle;
+		source !== "" ||
+		urgency !== "" ||
+		context !== "" ||
+		statusFilter !== "" ||
+		dueOnly ||
+		!!needle;
 	const clearFilters = () => {
 		setSource("");
 		setUrgency("");
 		setContext("");
+		setStatusFilter("");
 		setDueOnly(false);
 		setSearch("");
 	};
@@ -433,6 +479,37 @@ function AllFeedPage() {
 									{place} ({count})
 								</option>
 							))}
+						</FeedSelect>
+					)}
+					{(statuses.length > 1 || statusFilter) && (
+						<FeedSelect
+							value={statusFilter}
+							onChange={setStatusFilter}
+							title="Filter by status - show only one, or hide one (kept until cleared)"
+						>
+							<option value="">Any status</option>
+							{/* The kept choice may name a status nothing has right now. */}
+							{statusFilter &&
+								!statuses.some(([s]) => s === statusFilter.slice(5)) && (
+									<option value={statusFilter}>
+										{statusFilter.startsWith("hide:") ? "Hide " : ""}
+										{statusFilter.slice(5)} (0)
+									</option>
+								)}
+							<optgroup label="Show only">
+								{statuses.map(([status, count]) => (
+									<option key={status} value={`only:${status}`}>
+										{status} ({count})
+									</option>
+								))}
+							</optgroup>
+							<optgroup label="Hide">
+								{statuses.map(([status, count]) => (
+									<option key={status} value={`hide:${status}`}>
+										Hide {status} ({count})
+									</option>
+								))}
+							</optgroup>
 						</FeedSelect>
 					)}
 					<FeedSelect
