@@ -92,6 +92,20 @@ export function pullRequests(messages: BriefMessage[]): PullRequestLink[] {
 	return [...found.values()].reverse();
 }
 
+/**
+ * A PR's line in the brief: its title, once GitHub has sent it. A session that
+ * matches a dozen requests to PRs left a column of "odin #873, odin #880" that
+ * said nothing until you hovered each one.
+ */
+export function prLabel(
+	pr: Pick<PullRequestLink, "repo" | "number">,
+	title?: string | null,
+): string {
+	return title
+		? `#${pr.number} ${title}`
+		: `${pr.repo.split("/").pop()} #${pr.number}`;
+}
+
 export interface NotionPageLink {
 	url: string;
 	/** The 32-hex page id: the same page linked by slug and by /p/ is one page. */

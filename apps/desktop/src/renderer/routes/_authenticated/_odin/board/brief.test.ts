@@ -22,6 +22,7 @@ import {
 	onlyMergeLeft,
 	parseLinks,
 	postedMessage,
+	prLabel,
 	projectSlug,
 	prsDropped,
 	pullRequests,
@@ -999,5 +1000,18 @@ describe("emailLink", () => {
 	});
 	it("is null with no Gmail link", () => {
 		expect(emailLink(null, [])).toBeNull();
+	});
+});
+
+describe("prLabel", () => {
+	const pr = { repo: "danlinenberg/odin", number: 873 };
+	it("leads with the title once GitHub sent it", () => {
+		expect(prLabel(pr, "Session drawer: newest reply on top")).toBe(
+			"#873 Session drawer: newest reply on top",
+		);
+	});
+	it("falls back to repo and number", () => {
+		expect(prLabel(pr)).toBe("odin #873");
+		expect(prLabel(pr, null)).toBe("odin #873");
 	});
 });

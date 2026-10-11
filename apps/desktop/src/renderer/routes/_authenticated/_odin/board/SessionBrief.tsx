@@ -21,6 +21,7 @@ import {
 	notionPage,
 	parseLinks,
 	postedMessage,
+	prLabel,
 	pullRequests,
 	sessionBrief,
 	slackThread,
@@ -555,7 +556,7 @@ export function SessionBrief({
 		},
 		...allPrs.map((pr) => ({
 			url: pr.url,
-			label: `${pr.repo.split("/").pop()} #${pr.number}`,
+			label: prLabel(pr, prStates?.[pr.url]?.title),
 		})),
 		foundPage && {
 			url: foundPage.url,
@@ -794,7 +795,7 @@ export function SessionBrief({
 										className="flex min-w-0 items-center gap-1.5 text-left text-[12px] text-link hover:underline"
 									>
 										<span className="truncate">
-											{pr.repo.split("/").pop()} #{pr.number}
+											{prLabel(pr, prStates?.[pr.url]?.title)}
 										</span>
 										<StateChip status={prStates?.[pr.url]} />
 										<ChecksChip status={prStates?.[pr.url] ?? null} />
