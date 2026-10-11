@@ -165,7 +165,8 @@ function StateChip({
 }) {
 	// No chip while the lookup is in flight, or when gh couldn't answer.
 	// isDraft is optional: a main process older than the renderer won't send it.
-	const state = status?.isDraft ? "DRAFT" : status?.state;
+	const state =
+		status?.isDraft && status.state === "OPEN" ? "DRAFT" : status?.state;
 	const chip = state ? STATE_CHIP[state] : undefined;
 	if (!chip) return null;
 	return <Chip label={chip.label} className={chip.className} />;

@@ -89,11 +89,12 @@ function parsePullRequests(raw: unknown) {
 		prNumber: pr.number,
 		title: pr.title,
 		url: pr.url,
-		state: pr.isDraft
-			? "draft"
-			: pr.state === "OPEN"
-				? "open"
-				: pr.state.toLowerCase(),
+		state:
+			pr.state !== "OPEN"
+				? pr.state.toLowerCase()
+				: pr.isDraft
+					? "draft"
+					: "open",
 	}));
 }
 
