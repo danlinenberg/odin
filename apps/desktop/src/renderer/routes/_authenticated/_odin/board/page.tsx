@@ -137,7 +137,7 @@ import {
 } from "./brief";
 import { ChatView } from "./ChatView";
 import { DiffView } from "./DiffView";
-import { NextInLine } from "./NextInLine";
+import { BOARD_COLUMN_MIN_W, NextInLine } from "./NextInLine";
 import { HoverBrief, MyTodos, SessionBrief } from "./SessionBrief";
 import {
 	PREFIX as REMIND_PREFIX,
@@ -3645,10 +3645,8 @@ function DevBoardPage() {
 								// The column wears its status: a hairline of the hue along the
 								// top and a wash that fades out under the header. The cards
 								// stay neutral - the colour says where they are, not what.
-								// ponytail: 160px floor so zooming in (⌘+) narrows the four
-								// columns instead of pushing the last ones off screen; past
-								// that the row scrolls sideways.
-								"relative flex min-w-[160px] flex-1 flex-col overflow-hidden rounded-xl border bg-tertiary/85 bg-[linear-gradient(to_bottom,color-mix(in_oklab,var(--col)_9%,transparent),transparent_160px)]",
+								BOARD_COLUMN_MIN_W,
+								"relative flex flex-1 flex-col overflow-hidden rounded-xl border bg-tertiary/85 bg-[linear-gradient(to_bottom,color-mix(in_oklab,var(--col)_9%,transparent),transparent_160px)]",
 								isDropTarget && dragOverIdle
 									? "border-primary bg-primary/15"
 									: "border-border",

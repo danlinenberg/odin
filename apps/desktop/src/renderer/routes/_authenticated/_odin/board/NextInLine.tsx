@@ -45,6 +45,13 @@ import { duplicateOf, type LedgerRow } from "./duplicates";
 import { useNightAgentIntro } from "./NightAgentIntro";
 
 /**
+ * Every board column's floor, this one included. Low so zooming in (⌘+)
+ * narrows all five columns instead of pushing the last ones off screen;
+ * past it the row scrolls sideways.
+ */
+export const BOARD_COLUMN_MIN_W = "min-w-[120px]";
+
+/**
  * A feed title as something to read: Slack's *bold* and ~strike~ markers
  * dropped (they arrive raw), whitespace collapsed. The full original is the
  * card's tooltip.
@@ -358,7 +365,12 @@ export function NextInLine() {
 	return (
 		// Dressed like the board's columns, in Odin's own violet: it's the one
 		// column the AI fills rather than a session status.
-		<div className="relative flex min-w-[240px] flex-1 flex-col overflow-hidden rounded-xl border border-border bg-tertiary/85 bg-[linear-gradient(to_bottom,color-mix(in_oklab,var(--primary)_9%,transparent),transparent_160px)]">
+		<div
+			className={cn(
+				BOARD_COLUMN_MIN_W,
+				"relative flex flex-1 flex-col overflow-hidden rounded-xl border border-border bg-tertiary/85 bg-[linear-gradient(to_bottom,color-mix(in_oklab,var(--primary)_9%,transparent),transparent_160px)]",
+			)}
+		>
 			<span
 				aria-hidden
 				className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-primary via-primary/40 to-transparent"
