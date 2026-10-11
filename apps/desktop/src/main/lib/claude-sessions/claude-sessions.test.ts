@@ -509,6 +509,46 @@ describe("parseTranscript / readTranscript", () => {
 		]);
 	});
 
+	test("an artifact Claude published counts as Claude's, with its title and description", () => {
+		const call = (id: string, input: Record<string, unknown>) =>
+			JSON.stringify({
+				type: "assistant",
+				message: {
+					content: [{ type: "tool_use", id, name: "Artifact", input }],
+				},
+			});
+		const result = (id: string, text: string) =>
+			JSON.stringify({
+				type: "user",
+				timestamp: "2026-10-11T07:00:00.000Z",
+				message: {
+					content: [{ type: "tool_result", tool_use_id: id, content: text }],
+				},
+			});
+		const messages = parseTranscript(
+			[
+				call("a1", {
+					file_path: "/tmp/x/roles.html",
+					description: "Open FP&A roles, ranked by fit.",
+				}),
+				result(
+					"a1",
+					"Published /tmp/x/roles.html at https://claude.ai/artifact/NXJv3fNfT81pogLUJHr6kD (Version 1)",
+				),
+				// Reading someone's artifact isn't publishing one.
+				call("a2", { action: "read", url: "https://claude.ai/artifact/abc" }),
+				result("a2", "https://claude.ai/artifact/abc"),
+			].join("\n"),
+		);
+		expect(messages).toEqual([
+			{
+				role: "assistant",
+				text: "| [roles](https://claude.ai/artifact/NXJv3fNfT81pogLUJHr6kD) | Open FP&A roles, ranked by fit. |",
+				at: "2026-10-11T07:00:00.000Z",
+			},
+		]);
+	});
+
 	test("a PR `gh pr create` printed counts as Claude's, even when the reply says only #232", () => {
 		const bash = (id: string, command: string) =>
 			JSON.stringify({
