@@ -1,15 +1,7 @@
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { settings } from "@odin/local-db";
-import {
-	app,
-	BrowserWindow,
-	dialog,
-	Notification,
-	net,
-	protocol,
-	session,
-} from "electron";
+import { app, BrowserWindow, dialog, net, protocol, session } from "electron";
 import { makeAppSetup } from "lib/electron-app/factories/app/setup";
 import {
 	applyShellEnvToProcess,
@@ -18,14 +10,12 @@ import {
 import {
 	DEFAULT_CONFIRM_ON_QUIT,
 	LOCAL_ORG_ID,
-	PLATFORM,
 	PROTOCOL_SCHEME,
 } from "shared/constants";
 import { setupAgentIntegrations } from "./lib/agent-setup";
 import { bundledClaudePath } from "./lib/agent-setup/bundled-claude";
 import { ODIN_HOME_DIR } from "./lib/app-environment";
 import { flushAppStateSync, initAppState } from "./lib/app-state";
-import { requestAppleEventsAccess } from "./lib/apple-events-permission";
 import { isUpdateReadyToInstall, setupAutoUpdater } from "./lib/auto-updater";
 import { startDataBackup } from "./lib/backup-data";
 import { setWorkspaceDockIcon } from "./lib/dock-icon";
@@ -158,33 +148,6 @@ export function focusMainWindow(): void {
 		// Triggers window creation via makeAppSetup's activate handler
 		app.emit("activate");
 	}
-}
-
-function registerWithMacOSNotificationCenter() {
-	if (!PLATFORM.IS_MAC || !Notification.isSupported()) return;
-
-	const registrationNotification = new Notification({
-		title: app.name,
-		body: " ",
-		silent: true,
-	});
-
-	let handled = false;
-	const cleanup = () => {
-		if (handled) return;
-		handled = true;
-		registrationNotification.close();
-	};
-
-	registrationNotification.on("show", () => {
-		cleanup();
-		console.log("[notifications] Registered with Notification Center");
-	});
-
-	// Fallback timeout in case macOS doesn't fire events
-	setTimeout(cleanup, 1000);
-
-	registrationNotification.show();
 }
 
 // macOS open-url can fire before the window exists (cold-start via protocol link).
@@ -404,11 +367,8 @@ if (!gotTheLock) {
 		await app.whenReady();
 		// A smoke run (scripts/smoke.ts) gets no Dock icon or app switcher entry.
 		if (process.env.ODIN_SMOKE) app.dock?.hide();
-		registerWithMacOSNotificationCenter();
-		// The one permission worth asking for up front: an Automation prompt
-		// mid-session blocks the osascript an agent just ran. Everything else
-		// prompts naturally the first time something actually touches it.
-		requestAppleEventsAccess();
+		// No permission is asked for up front: each macOS prompt (notifications,
+		// Automation, folders) shows the first time something actually needs it.
 
 		// Must register on both default session and the app's custom partition
 		const iconProtocolHandler = (request: Request) => {

@@ -1,6 +1,14 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { copyFile, mkdir, readdir, rename, rm, stat } from "node:fs/promises";
+import {
+	copyFile,
+	mkdir,
+	readdir,
+	rename,
+	rm,
+	stat,
+	writeFile,
+} from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -22,6 +30,13 @@ export const BACKUP_DIR = path.join(
 	homedir(),
 	"Library/Mobile Documents/com~apple~CloudDocs/Odin Backups",
 );
+/**
+ * Touching iCloud Drive makes macOS ask "Odin would like to access files in
+ * iCloud Drive". So nothing goes near it until "Back up now" asks once, in
+ * Settings, where the prompt makes sense; that click turns the daily copy on.
+ */
+const ENABLED = path.join(ODIN_HOME_DIR, "backup-enabled");
+export const backupEnabled = () => existsSync(ENABLED);
 const KEEP_DAYS = 14;
 const isDay = (d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d);
 const DATABASES = ["local.db", "tanstack-db.sqlite"];
@@ -113,11 +128,14 @@ export async function backupStatus(dest = BACKUP_DIR): Promise<{
 	};
 }
 
-export function backupNow(): Promise<string | null> {
-	return backupOdinData(ODIN_HOME_DIR, BACKUP_DIR, undefined, true);
+export async function backupNow(): Promise<string | null> {
+	const dir = await backupOdinData(ODIN_HOME_DIR, BACKUP_DIR, undefined, true);
+	if (dir) await writeFile(ENABLED, "");
+	return dir;
 }
 
 function backup(): void {
+	if (!backupEnabled()) return;
 	backupOdinData(ODIN_HOME_DIR, BACKUP_DIR)
 		.then((dir) => dir && console.warn(`[main] backed up Odin data to ${dir}`))
 		.catch((error: unknown) =>

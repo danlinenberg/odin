@@ -241,7 +241,7 @@ function BackupRow() {
 	const reveal = electronTrpc.backup.reveal.useMutation();
 	const data = status.data;
 	const identity = !data?.lastBackupAt
-		? "No backup yet"
+		? "Off until you back up once"
 		: `Last ${new Date(data.lastBackupAt).toLocaleString([], {
 				dateStyle: "medium",
 				timeStyle: "short",
@@ -269,7 +269,9 @@ function BackupRow() {
 						<div className="text-xs text-muted-foreground mt-1 max-w-[70ch]">
 							{data?.available === false
 								? "iCloud Drive is off, so nothing is copied. Turn it on in System Settings → Apple Account → iCloud."
-								: "Keeps 14 days in iCloud Drive → Odin Backups. To restore, quit Odin and copy a day's files back into ~/.odin."}
+								: !data?.lastBackupAt
+									? "Back up now to turn on the daily copy. macOS asks once for access to iCloud Drive."
+									: "Keeps 14 days in iCloud Drive → Odin Backups. To restore, quit Odin and copy a day's files back into ~/.odin."}
 						</div>
 					</div>
 				</div>
