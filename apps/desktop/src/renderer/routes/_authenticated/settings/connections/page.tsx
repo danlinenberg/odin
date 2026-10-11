@@ -577,7 +577,7 @@ function OpenLinksInOdinRow() {
 			<SettingRow
 				label="Open links inside Odin"
 				htmlFor="open-links-in-odin"
-				description="Links from the sites below open in a panel over the page instead of another app; other links always go to your default browser. Off sends them all there."
+				description="Slack, Jira, GitHub, Notion and Gmail links open in a panel over the page instead of another app; other links always go to your default browser. Off sends them all there."
 			>
 				<Switch
 					id="open-links-in-odin"
