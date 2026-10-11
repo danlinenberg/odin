@@ -497,6 +497,30 @@ await step("the Tasks page has its own composer", async () => {
 	await waitForText(typed);
 });
 
+await step("ticking two tasks marks both done at once", async () => {
+	const pair = [`Bulk one ${Date.now()}`, `Bulk two ${Date.now()}`];
+	await rail("Tasks");
+	for (const typed of pair) {
+		await fill('input[placeholder="What needs doing?"]', typed);
+		await click("button", "Add task");
+		await waitForText(typed);
+	}
+	for (const typed of pair)
+		await page(
+			`document.querySelector(${JSON.stringify(`input[aria-label="Select ${typed}"]`)}).click()`,
+		);
+	await waitForText("2 selected");
+	// The bar's Done, not a row's: the bar is the element that says "selected".
+	await page(`(() => {
+		let bar = [...document.querySelectorAll("span")].find((e) => e.textContent.trim() === "2 selected");
+		while (bar && !bar.querySelector('button[title="Mark done"]')) bar = bar.parentElement;
+		bar.querySelector('button[title="Mark done"]').click();
+	})()`);
+	for (const typed of pair) await waitForText(typed, false);
+	await waitForText("2 selected", false);
+	await waitForText(TASK);
+});
+
 await step("A task's title opens its details beside the list", async () => {
 	await rail("Tasks");
 	await waitForText(TASK);

@@ -12,6 +12,7 @@ import {
 	verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
@@ -78,6 +79,7 @@ import {
 	NO_STATUS,
 	type Urgency,
 } from "./all-items";
+import { nextSelection, visibleSelection } from "./selection";
 import { TaskDescription } from "./TaskDescription";
 import { TaskDetails } from "./TaskDetails";
 import {
@@ -279,7 +281,14 @@ function AllFeedPage() {
 	// Reading material is the same put-away, for rows with nothing left to do
 	// but worth keeping: off every queue and the Night Agent, listed apart.
 	// Reading material stays on this list (use-all-items), as "Read later".
-	const { markDone, markReading, undo, recent, reading } = useDone();
+	const {
+		markDone,
+		markReading,
+		undo,
+		recent,
+		reading,
+		set: setDone,
+	} = useDone();
 	const [shelf, setShelf] = useState(false);
 	// Undo on the last row hides its pill too: back to the queue, not a blank.
 	const showDone = shelf && recent.length > 0;
@@ -459,6 +468,38 @@ function AllFeedPage() {
 				.includes(needle),
 		);
 	}, [byStatus, dueOnly, reminders, needle, sortBy, queue]);
+
+	// Ticked rows, for acting on many at once. Only rows still on screen count:
+	// a filter or a Done that hides a ticked row takes it out of the next action.
+	const [selected, setSelected] = useState<Set<string>>(() => new Set());
+	const [anchor, setAnchor] = useState<string | null>(null);
+	const visibleKeys = items.map((item) => item.key);
+	const picked = visibleSelection(selected, visibleKeys);
+	const tick = (key: string, shift: boolean) => {
+		setSelected(nextSelection(selected, visibleKeys, key, shift, anchor));
+		setAnchor(key);
+	};
+	const clearPicked = () => setSelected(new Set());
+	// One toast for the lot, and one Undo that brings every row back.
+	const finishPicked = () => {
+		const rows = items.filter((item) => selected.has(item.key));
+		for (const item of rows) {
+			setDone(item, true);
+			dequeue(item.key);
+		}
+		toast.success(
+			`Done - ${rows.length} ${rows.length === 1 ? "task" : "tasks"}`,
+			{
+				action: {
+					label: "Undo",
+					onClick: () => {
+						for (const item of rows) setDone(item, false);
+					},
+				},
+			},
+		);
+		clearPicked();
+	};
 
 	// From every row, not the filtered ones: narrowing the list shouldn't shut
 	// the panel you're reading. Marking it done does. Search all can open a row
@@ -652,6 +693,63 @@ function AllFeedPage() {
 
 			<div className="flex min-h-0 flex-1">
 				<div className={FEED_LIST}>
+					{!showDone && picked.length > 0 && (
+						<div className="sticky top-0 z-10 mb-1 flex items-center gap-2 rounded-md border border-primary/40 bg-secondary px-3 py-1.5 text-[12px]">
+							<span className="font-semibold text-foreground">
+								{picked.length} selected
+							</span>
+							{picked.length < visibleKeys.length && (
+								<button
+									type="button"
+									onClick={() => setSelected(new Set(visibleKeys))}
+									className={ROW_LINK_BUTTON}
+								>
+									Select all {visibleKeys.length}
+								</button>
+							)}
+							<span className="flex-1" />
+							<FeedSelect
+								value=""
+								onChange={(value) => {
+									for (const key of picked)
+										setRowStatus(
+											key,
+											value === "waiting" ? null : (value as TaskStatus),
+										);
+								}}
+								title="Set the status of every selected row"
+							>
+								<option value="" disabled>
+									Set status
+								</option>
+								<option value="waiting">Waiting on you</option>
+								{TASK_STATUSES.map(({ id, label }) => (
+									<option key={id} value={id}>
+										{label}
+									</option>
+								))}
+							</FeedSelect>
+							<button
+								type="button"
+								onClick={() => {
+									for (const key of picked) enqueue(key);
+									clearPicked();
+								}}
+								title="Line them all up - Up next, above the list"
+								className={ROW_LINK_BUTTON}
+							>
+								Up next
+							</button>
+							<DoneButton onClick={finishPicked} />
+							<button
+								type="button"
+								onClick={clearPicked}
+								className={ROW_LINK_BUTTON}
+							>
+								Clear
+							</button>
+						</div>
+					)}
 					{!showDone && queued.length > 0 && (
 						<>
 							<div className="px-1 pt-1 pb-0.5 text-[11px] font-semibold text-muted-foreground">
@@ -852,7 +950,16 @@ function AllFeedPage() {
 							    carries what its own feed would tell you: who it's from,
 							    where it stands, where it lives. A grid, not a flex row,
 							    so the mention below wraps inside the title's column. */}
-									<div className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto_auto_auto_auto_auto] items-center gap-x-3">
+									<div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto_auto_auto_auto_auto_auto] items-center gap-x-3">
+										<input
+											type="checkbox"
+											aria-label={`Select ${item.title}`}
+											title="Select - shift-click selects a range"
+											checked={selected.has(item.key)}
+											onChange={() => {}}
+											onClick={(event) => tick(item.key, event.shiftKey)}
+											className="size-3.5 cursor-pointer accent-primary"
+										/>
 										<span
 											className={cn(
 												"flex w-[68px] shrink-0 items-center justify-center gap-1 rounded-[5px] px-[7px] py-[1px] text-[11px] font-semibold",
@@ -981,9 +1088,9 @@ function AllFeedPage() {
 										/>
 										<DoneButton onClick={() => finish(item)} />
 										{/* Same preview the Jira feed shows: a mention row is there
-								    because of one comment. Column 2 keeps it under the title. */}
+								    because of one comment. Column 3 keeps it under the title. */}
 										{item.mention && (
-											<div className="col-start-2 mt-1.5 line-clamp-2 cursor-text select-text text-[11.5px] leading-relaxed text-muted-foreground">
+											<div className="col-start-3 mt-1.5 line-clamp-2 cursor-text select-text text-[11.5px] leading-relaxed text-muted-foreground">
 												<span className="font-semibold text-soft-foreground">
 													{item.mention.author ?? "Someone"}
 													{": "}
