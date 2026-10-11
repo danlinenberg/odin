@@ -39,7 +39,7 @@ describe("ChatView transcript", () => {
 		).toBe("ok\n\nwarn");
 	});
 
-	test("a message sent mid-turn shows as yours", () => {
+	test("a message sent mid-turn shows as yours, its image too", () => {
 		const items = applyLines(
 			[],
 			[
@@ -48,12 +48,30 @@ describe("ChatView transcript", () => {
 					uuid: "q1",
 					attachment: {
 						type: "queued_command",
-						prompt: [{ type: "text", text: "also this" }],
+						prompt: [
+							{ type: "text", text: "also this[Image #1]" },
+							{
+								type: "image",
+								source: {
+									type: "base64",
+									media_type: "image/png",
+									data: "AAAA",
+								},
+							},
+						],
 					},
 				},
 			],
 		);
-		expect(items).toEqual([{ kind: "user", id: "q1", text: "also this" }]);
+		expect(items).toEqual([
+			{
+				kind: "user",
+				id: "q1:0",
+				text: "also this",
+				images: ["data:image/png;base64,AAAA"],
+			},
+		]);
+		expect("at" in items[0]! && items[0].at).toBeFalsy();
 	});
 
 	test("a pasted image shows in its bubble, minus the [Image #N] tag", () => {

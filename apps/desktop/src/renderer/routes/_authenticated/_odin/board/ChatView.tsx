@@ -134,6 +134,17 @@ function blockText(content: string | Block[] | undefined): string {
 		.join("\n");
 }
 
+/** A message sent mid-turn reads as the user turn it is, its images too - with no time, it starts no turn. */
+function unqueue(line: Line): Line {
+	if (line.attachment?.type !== "queued_command") return line;
+	return {
+		...line,
+		type: "user",
+		timestamp: undefined,
+		message: { content: line.attachment.prompt },
+	};
+}
+
 /**
  * Fold new JSONL lines into the item list. Append-only, except a tool_result
  * fills in the tool row it answers - that row gets a new object, the rest keep
@@ -145,14 +156,9 @@ export function applyLines(items: Item[], lines: Line[]): Item[] {
 	next.forEach((item, index) => {
 		if (item.kind === "tool") toolIndex.set(item.id, index);
 	});
-	lines.forEach((line, lineIndex) => {
+	lines.map(unqueue).forEach((line, lineIndex) => {
 		if (line.isMeta || line.isSidechain) return;
 		const id = line.uuid ?? `${items.length}-${lineIndex}`;
-		if (line.attachment?.type === "queued_command") {
-			const text = userText(blockText(line.attachment.prompt));
-			if (text) next.push({ kind: "user", id, text });
-			return;
-		}
 		if (line.subtype === "compact_boundary") {
 			const { preTokens, postTokens, durationMs } = line.compactMetadata ?? {};
 			next.push({
@@ -521,22 +527,20 @@ const ToolGroup = memo(
 			<div className="flex min-w-0 flex-col">
 				<div className="flex min-w-0 items-end gap-2">
 					{lead && <div className="min-w-0">{lead}</div>}
+					{/* Live work shows once, in the turn's own "Working..." row below. */}
 					<button
 						type="button"
 						onClick={() => setOpen((value) => !value)}
-						className="flex min-w-0 max-w-full shrink-0 items-center gap-1.5 rounded-lg border border-border bg-secondary px-2 py-0.5 text-left text-[11.5px] text-soft-foreground hover:bg-accent hover:text-foreground"
-					>
-						{/* Live work shows once, in the turn's own "Working..." row below. */}
-						<span>Worked</span>
-						{failed && (
-							<span className="shrink-0 text-faint-foreground">· error</span>
+						title={failed ? "Worked - ended in an error" : "Worked"}
+						aria-label={failed ? "Worked, ended in an error" : "Worked"}
+						aria-expanded={open}
+						className={cn(
+							"mb-0.5 shrink-0 rounded p-0.5 text-faint-foreground hover:bg-accent hover:text-foreground",
+							open && "bg-accent text-foreground",
+							failed && "text-destructive",
 						)}
-						<LuChevronRight
-							className={cn(
-								"size-3.5 shrink-0 transition-transform",
-								open && "rotate-90",
-							)}
-						/>
+					>
+						<LuSquareTerminal className="size-3.5" />
 					</button>
 				</div>
 				{open && (
