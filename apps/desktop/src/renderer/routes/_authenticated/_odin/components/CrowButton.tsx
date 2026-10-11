@@ -217,7 +217,7 @@ function CrowPanel({
 					width,
 					height: Math.min(CHAT_H, room),
 				}}
-				className="fixed z-[60] flex flex-col overflow-hidden rounded-2xl border border-border bg-tertiary text-popover-foreground shadow-2xl shadow-black/30"
+				className="fixed z-[60] flex flex-col overflow-hidden rounded-2xl border border-violet-400/50 bg-tertiary text-popover-foreground shadow-2xl shadow-black/30"
 			>
 				<CrowChat pane={conversation} onShowOnBoard={onShowOnBoard} />
 				{/* Over the chat's top padding, not a row of their own. */}
@@ -239,7 +239,7 @@ function CrowPanel({
 		<div
 			ref={panel}
 			style={{ left: Math.max(left, 8), ...vertical, width, maxHeight: room }}
-			className="fixed z-[60] flex flex-col gap-3.5 rounded-xl border border-border bg-tertiary p-4 text-popover-foreground shadow-2xl shadow-black/30"
+			className="fixed z-[60] flex flex-col gap-3.5 rounded-xl border border-violet-400/50 bg-tertiary p-4 text-popover-foreground shadow-2xl shadow-black/30"
 		>
 			<div className="flex items-start gap-2.5 text-[14px] leading-snug">
 				{icon}
