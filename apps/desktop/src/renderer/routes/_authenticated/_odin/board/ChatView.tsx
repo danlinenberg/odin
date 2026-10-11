@@ -1,7 +1,15 @@
 import { odinIcon } from "@odin/ui/icons/preset-icons";
 import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+	memo,
+	type ReactNode,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { LuChevronRight, LuSquareTerminal } from "react-icons/lu";
 import { MarkdownRenderer } from "renderer/components/MarkdownRenderer";
 import { isHotkey } from "renderer/hotkeys";
@@ -498,29 +506,39 @@ function asking(items: Item[]): Tool | null {
 }
 
 const ToolGroup = memo(
-	function ToolGroup({ group }: { group: Group }) {
+	function ToolGroup({
+		group,
+		lead,
+	}: {
+		group: Group;
+		/** The line Claude wrote before this run - the toggle sits at its end. */
+		lead?: ReactNode;
+	}) {
 		const [open, setOpen] = useState(false);
 		// A failure Claude retried past is routine; only flag a run that ended failing.
 		const failed = group.at(-1)?.isError === true;
 		return (
 			<div className="flex min-w-0 flex-col">
-				<button
-					type="button"
-					onClick={() => setOpen((value) => !value)}
-					className="flex min-w-0 max-w-full items-center gap-2 self-start rounded-lg border border-border bg-secondary px-2.5 py-1 text-left text-[12px] text-soft-foreground hover:bg-accent hover:text-foreground"
-				>
-					{/* Live work shows once, in the turn's own "Working..." row below. */}
-					<span>Worked</span>
-					{failed && (
-						<span className="shrink-0 text-faint-foreground">· error</span>
-					)}
-					<LuChevronRight
-						className={cn(
-							"size-3.5 shrink-0 transition-transform",
-							open && "rotate-90",
+				<div className="flex min-w-0 items-end gap-2">
+					{lead && <div className="min-w-0">{lead}</div>}
+					<button
+						type="button"
+						onClick={() => setOpen((value) => !value)}
+						className="flex min-w-0 max-w-full shrink-0 items-center gap-1.5 rounded-lg border border-border bg-secondary px-2 py-0.5 text-left text-[11.5px] text-soft-foreground hover:bg-accent hover:text-foreground"
+					>
+						{/* Live work shows once, in the turn's own "Working..." row below. */}
+						<span>Worked</span>
+						{failed && (
+							<span className="shrink-0 text-faint-foreground">· error</span>
 						)}
-					/>
-				</button>
+						<LuChevronRight
+							className={cn(
+								"size-3.5 shrink-0 transition-transform",
+								open && "rotate-90",
+							)}
+						/>
+					</button>
+				</div>
 				{open && (
 					<div className="mt-1.5 rounded-lg border border-border bg-secondary/20 p-1.5">
 						{group.map((item) => (
@@ -533,6 +551,7 @@ const ToolGroup = memo(
 	},
 	// The array is rebuilt every render; its rows only change by reference.
 	(prev, next) =>
+		prev.lead === next.lead &&
 		prev.group.length === next.group.length &&
 		prev.group.every((item, i) => item === next.group[i]),
 );
@@ -1388,6 +1407,14 @@ export function ChatView({
 					)}
 					{segments(items).map((segment, index, all) => {
 						const previous = all[index - 1];
+						const following = all[index + 1];
+						// A run's toggle sits at the end of the line before it.
+						if (
+							Array.isArray(segment) &&
+							!Array.isArray(previous) &&
+							previous?.kind === "text"
+						)
+							return null;
 						// A reply starts after your message (or at the top); its first
 						// block carries Claude's mark, the rest line up beside it.
 						const opensReply =
@@ -1409,6 +1436,15 @@ export function ChatView({
 								/>
 							);
 						const key = Array.isArray(segment) ? segment[0]?.id : segment.id;
+						const itemView = !Array.isArray(segment) && (
+							<ItemView
+								item={segment}
+								refs={refs}
+								refsKey={refsKey}
+								workspaceId={workspaceId}
+								onDo={onShowTerminal || onResumeWith ? doItem : undefined}
+							/>
+						);
 						return (
 							<div
 								key={key}
@@ -1421,14 +1457,10 @@ export function ChatView({
 								<div className="min-w-0 flex-1">
 									{Array.isArray(segment) ? (
 										<ToolGroup group={segment} />
+									) : Array.isArray(following) ? (
+										<ToolGroup group={following} lead={itemView} />
 									) : (
-										<ItemView
-											item={segment}
-											refs={refs}
-											refsKey={refsKey}
-											workspaceId={workspaceId}
-											onDo={onShowTerminal || onResumeWith ? doItem : undefined}
-										/>
+										itemView
 									)}
 								</div>
 							</div>
