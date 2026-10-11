@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { collectSkills } from "./skills";
@@ -58,6 +58,28 @@ test("collectSkills finds personal, skills-dir-plugin and installed-plugin skill
 	expect(skills.find((skill) => skill.name === "gdpr")?.description).toBe(
 		"Audit tickets",
 	);
+});
+
+test("collectSkills follows symlinked skill dirs and command files", () => {
+	const home = mkdtempSync(join(tmpdir(), "odin-skills-"));
+	const claude = join(home, ".claude");
+	const shared = join(home, "repo");
+
+	write(join(shared, "aidev-jira-tickets", "SKILL.md"), skillFile("Tickets"));
+	write(join(shared, "triage.md"), skillFile("Triage"));
+	mkdirSync(join(claude, "skills"), { recursive: true });
+	mkdirSync(join(claude, "commands"), { recursive: true });
+	symlinkSync(
+		join(shared, "aidev-jira-tickets"),
+		join(claude, "skills", "aidev-jira-tickets"),
+	);
+	symlinkSync(join(shared, "triage.md"), join(claude, "commands", "triage.md"));
+	symlinkSync(join(shared, "gone"), join(claude, "skills", "broken"));
+
+	expect(collectSkills({ homeDir: home })).toEqual([
+		{ name: "aidev-jira-tickets", description: "Tickets" },
+		{ name: "triage", description: "Triage" },
+	]);
 });
 
 test("collectSkills tolerates a missing home", () => {

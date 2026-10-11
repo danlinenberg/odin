@@ -1,4 +1,11 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import {
+	type Dirent,
+	existsSync,
+	readdirSync,
+	readFileSync,
+	type Stats,
+	statSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { publicProcedure, router } from "..";
@@ -28,10 +35,20 @@ function readDescription(filePath: string): string {
 	}
 }
 
+/** Dirent types describe a symlink itself, so follow links to their target. */
+function entryStat(dir: string, entry: Dirent): Stats | Dirent | undefined {
+	if (!entry.isSymbolicLink()) return entry;
+	try {
+		return statSync(join(dir, entry.name));
+	} catch {
+		return undefined;
+	}
+}
+
 function subdirectories(path: string): string[] {
 	try {
 		return readdirSync(path, { withFileTypes: true })
-			.filter((entry) => entry.isDirectory())
+			.filter((entry) => entryStat(path, entry)?.isDirectory())
 			.map((entry) => entry.name)
 			.sort();
 	} catch {
@@ -43,7 +60,10 @@ function subdirectories(path: string): string[] {
 function markdownFiles(path: string): string[] {
 	try {
 		return readdirSync(path, { withFileTypes: true })
-			.filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+			.filter(
+				(entry) =>
+					entry.name.endsWith(".md") && entryStat(path, entry)?.isFile(),
+			)
 			.map((entry) => entry.name)
 			.sort();
 	} catch {
