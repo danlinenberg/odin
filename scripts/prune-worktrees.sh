@@ -23,12 +23,20 @@
 #     dozen merges a day, a full day's grace kept ~35GB of finished worktrees
 #     on disk and filled it.
 #
-# Usage: scripts/prune-worktrees.sh [--dry-run] [repo]     (repo defaults to this one)
+# Usage: scripts/prune-worktrees.sh [--dry-run] [--only <name>] [repo]     (repo defaults to this one)
+# --only checks just .worktrees/<name>, by the same rules (Settings -> Storage).
 # Any repo: worktrees under <repo>/.worktrees/, against its own default branch.
 set -euo pipefail
 
 dry=0
-if [ "${1:-}" = "--dry-run" ]; then dry=1; shift; fi
+only=""
+while :; do
+	case "${1:-}" in
+	--dry-run) dry=1; shift ;;
+	--only) only="$2"; shift 2 ;;
+	*) break ;;
+	esac
+done
 root="$(git -C "${1:-$(dirname "$0")}" rev-parse --show-toplevel)"
 min_age=$(( ${PRUNE_MIN_AGE_HOURS:-24} * 3600 ))
 landed_min_age=$(( ${PRUNE_LANDED_MIN_AGE_HOURS:-1} * 3600 ))
@@ -56,6 +64,7 @@ ended_at_head() { # ended_at_head <branch> <sha>
 git -C "$root" worktree list --porcelain | sed -n 's/^worktree //p' | while read -r wt; do
 	case "$wt" in "$root/.worktrees/"*) ;; *) continue ;; esac
 	name="${wt#"$root/.worktrees/"}"
+	[ -n "$only" ] && [ "$name" != "$only" ] && continue
 
 	# The newest of: last commit or checkout here, last write to its index.
 	# The reflog's own timestamp, not its mtime: gc's `reflog expire` rewrites

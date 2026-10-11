@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
+import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import {
@@ -30,26 +31,40 @@ const run = promisify(execFile);
 // since then gets its pass after a restart.
 let repos: Promise<string[]> | null = null;
 
-async function prune(): Promise<void> {
+function pruneScript(): string | null {
 	const odinRepo = process.env.ODIN_REPO_DIR ?? readOdinConfig().odinRepo;
 	const script = odinRepo && path.join(odinRepo, "scripts/prune-worktrees.sh");
-	if (!script || !existsSync(script)) return;
-	if (readOdinConfig().pruneMergedWorktrees === false) return;
+	return script && existsSync(script) ? script : null;
+}
+
+async function reposWithWorktrees(): Promise<string[]> {
 	repos ??= scanRepos();
+	return (await repos).filter((repo) =>
+		existsSync(path.join(repo, ".worktrees")),
+	);
+}
+
+function runScript(script: string, args: string[]) {
 	const token = resolveGithubToken();
+	return run(script, args, {
+		env: {
+			...process.env,
+			// Merged means gone at the next pass, not an hour later.
+			PRUNE_LANDED_MIN_AGE_HOURS: "0",
+			...(token ? { GH_TOKEN: token } : {}),
+		},
+		timeout: 5 * 60 * 1000,
+	});
+}
+
+async function prune(): Promise<void> {
+	const script = pruneScript();
+	if (!script) return;
+	if (readOdinConfig().pruneMergedWorktrees === false) return;
 	// One repo at a time: each pass fetches and asks GitHub about every branch.
-	for (const repo of await repos) {
-		if (!existsSync(path.join(repo, ".worktrees"))) continue;
+	for (const repo of await reposWithWorktrees()) {
 		try {
-			const { stdout } = await run(script, [repo], {
-				env: {
-					...process.env,
-					// Merged means gone at the next pass, not an hour later.
-					PRUNE_LANDED_MIN_AGE_HOURS: "0",
-					...(token ? { GH_TOKEN: token } : {}),
-				},
-				timeout: 5 * 60 * 1000,
-			});
+			const { stdout } = await runScript(script, [repo]);
 			const removed = stdout.split("\n").filter((l) => l.startsWith("remove"));
 			if (removed.length)
 				console.warn(`[main] prune-worktrees ${repo}:\n${removed.join("\n")}`);
@@ -65,4 +80,99 @@ export function startWorktreePruner(): void {
 		void prune();
 		setInterval(() => void prune(), EVERY_MS).unref();
 	}, FIRST_RUN_MS).unref();
+}
+
+export interface Verdict {
+	name: string;
+	/** The script would remove it: its work is on main and nothing is lost. */
+	safe: boolean;
+	reason: string;
+}
+
+/** The script's `remove <name> (...)` / `keep <name> (why)` lines. */
+export function parseVerdicts(stdout: string): Verdict[] {
+	return stdout.split("\n").flatMap((line): Verdict[] => {
+		const match = /^(remove|keep)\s+(\S+)(?: \((.*)\))?$/.exec(line.trim());
+		if (!match) return [];
+		const [, verb, name = "", why = ""] = match;
+		if (verb === "keep") return [{ name, safe: false, reason: why }];
+		const saved = /files saved to (\S+)/.exec(why)?.[1];
+		return [
+			{
+				name,
+				safe: true,
+				reason: saved
+					? `Landed - its uncommitted files are saved to ${saved} first`
+					: "Landed on main",
+			},
+		];
+	});
+}
+
+export interface WorktreeInfo extends Verdict {
+	repo: string;
+	path: string;
+	sizeBytes: number | null;
+	/** ms; the worktree's index - a commit, checkout or staging touches it. */
+	touchedAt: number | null;
+}
+
+async function sizeOf(dir: string): Promise<number | null> {
+	try {
+		const { stdout } = await run("du", ["-sk", dir], { timeout: 60_000 });
+		return Number(stdout.split("\t")[0]) * 1024;
+	} catch {
+		return null;
+	}
+}
+
+async function touchedAt(dir: string): Promise<number | null> {
+	try {
+		const gitdir = (await readFile(path.join(dir, ".git"), "utf8"))
+			.replace(/^gitdir:\s*/, "")
+			.trim();
+		return (await stat(path.join(gitdir, "index"))).mtimeMs;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Settings → Storage: every session worktree with what the pruner would do to
+ * it. The script's --dry-run decides; nothing here second-guesses its rules.
+ */
+export async function listWorktrees(): Promise<WorktreeInfo[]> {
+	const script = pruneScript();
+	if (!script) return [];
+	const perRepo = await Promise.all(
+		(await reposWithWorktrees()).map(async (repo) => {
+			const { stdout } = await runScript(script, ["--dry-run", repo]).catch(
+				(error: { stdout?: string }) => ({ stdout: error.stdout ?? "" }),
+			);
+			return Promise.all(
+				parseVerdicts(stdout).map(async (verdict) => {
+					const dir = path.join(repo, ".worktrees", verdict.name);
+					return {
+						...verdict,
+						repo,
+						path: dir,
+						sizeBytes: await sizeOf(dir),
+						touchedAt: await touchedAt(dir),
+					};
+				}),
+			);
+		}),
+	);
+	return perRepo.flat();
+}
+
+/** Remove one worktree - only if the script, run on just that one, agrees. */
+export async function removeWorktree(
+	repo: string,
+	name: string,
+): Promise<boolean> {
+	const script = pruneScript();
+	if (!script) return false;
+	const { stdout } = await runScript(script, ["--only", name, repo]);
+	return parseVerdicts(stdout).some((v) => v.name === name && v.safe);
 }

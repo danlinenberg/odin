@@ -1,5 +1,6 @@
 import {
 	LuBell,
+	LuHardDrive,
 	LuKeyboard,
 	LuListOrdered,
 	LuPalette,
@@ -24,6 +25,12 @@ export const SCREENS = [
 		label: "Sessions",
 		hint: "Default folder, limits, idle close",
 		icon: LuSquareTerminal,
+	},
+	{
+		to: "/settings/storage",
+		label: "Storage",
+		hint: "Worktrees, their size, delete old ones",
+		icon: LuHardDrive,
 	},
 	{
 		to: "/settings/backlog",
@@ -121,6 +128,12 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		to: "/settings/sessions",
 		section: "Where they start",
 		keywords: "repo repository folder checkout path directory workspace git",
+	},
+	{
+		label: "Worktrees",
+		to: "/settings/storage",
+		section: "Worktrees",
+		keywords: "disk space storage free gb delete clean prune worktree size",
 	},
 	{
 		label: "Hold new sessions when this Mac is",

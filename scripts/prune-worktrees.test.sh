@@ -55,4 +55,16 @@ check "removes landed work after the short window, not the 24h one" $?
 [ -d .worktrees/fresh ]
 check "still keeps a fresh worktree with no commits for 24h" $?
 
+# --only: one landed worktree goes, another landed one stays for the next pass.
+for wt in one two; do
+	g worktree add -q -b "$wt" ".worktrees/$wt" origin/main
+	echo "$wt" >".worktrees/$wt/$wt" && g -C ".worktrees/$wt" add "$wt" && g -C ".worktrees/$wt" commit -qm "$wt"
+	echo "$wt" >"$wt" && g add "$wt" && g commit -qm "squash $wt" && g push -q origin main
+done
+PRUNE_LANDED_MIN_AGE_HOURS=0 GH_TOKEN= "$DIR/prune-worktrees.sh" --only one "$TMP/repo" >/dev/null
+[ ! -d .worktrees/one ] && [ -d .worktrees/two ]
+check "--only removes just that worktree" $?
+! PRUNE_LANDED_MIN_AGE_HOURS=0 GH_TOKEN= "$DIR/prune-worktrees.sh" --only unique "$TMP/repo" | grep -q "^remove"
+check "--only still keeps work main doesn't have" $?
+
 exit $FAIL

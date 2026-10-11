@@ -337,6 +337,25 @@ export const createReposRouter = (
 				return { ok: true };
 			}),
 
+		/** Settings → Storage: every session worktree, its size and the pruner's verdict. */
+		worktrees: publicProcedure.query(async () => {
+			const { listWorktrees } = await import("main/lib/prune-worktrees");
+			return listWorktrees();
+		}),
+
+		/** Removes only what the pruner would; returns the names it removed. */
+		removeWorktrees: publicProcedure
+			.input(z.array(z.object({ repo: z.string(), name: z.string() })))
+			.mutation(async ({ input }) => {
+				const { removeWorktree } = await import("main/lib/prune-worktrees");
+				const removed: string[] = [];
+				// One at a time: each run fetches the repo.
+				for (const { repo, name } of input)
+					if (await removeWorktree(repo, name))
+						removed.push(`${repo}\0${name}`);
+				return removed;
+			}),
+
 		/**
 		 * What a board card should call its repo. The pane only knows where it was
 		 * launched, which for every feed-started session is the catch-all directory

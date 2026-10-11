@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { parseVerdicts } from "./prune-worktrees";
 
 const SCRIPT = path.resolve(
 	import.meta.dir,
@@ -69,4 +70,31 @@ test("a dirty worktree left a week is removed, its files saved to a ref", () => 
 test("a dirty worktree whose files were just edited stays", () => {
 	const repo = staleDirtyWorktree(10, true);
 	expect(prune(repo)).toContain("keep   w (uncommitted or untracked files)");
+});
+
+test("parseVerdicts reads the script's remove and keep lines", () => {
+	expect(
+		parseVerdicts(
+			[
+				"remove landed (dry run)",
+				"remove old-dirty (dry run, files saved to refs/pruned/old-dirty)",
+				"keep   unique (has changes not on origin/main)",
+				"From github.com:x/y",
+				"",
+			].join("\n"),
+		),
+	).toEqual([
+		{ name: "landed", safe: true, reason: "Landed on main" },
+		{
+			name: "old-dirty",
+			safe: true,
+			reason:
+				"Landed - its uncommitted files are saved to refs/pruned/old-dirty first",
+		},
+		{
+			name: "unique",
+			safe: false,
+			reason: "has changes not on origin/main",
+		},
+	]);
 });
