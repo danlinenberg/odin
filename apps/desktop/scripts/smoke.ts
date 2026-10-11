@@ -566,6 +566,11 @@ await step("Settings is exactly its six screens, and each opens", async () => {
 		if (!hash.startsWith(route)) throw new Error(`${label} opened ${hash}`);
 		await expectHealthy();
 	}
+	// Keyboard is the last screen: its search narrows the list.
+	await fill('input[aria-label="Search shortcuts"]', "undo");
+	await waitForText("next session", false);
+	await waitForText("undo the last done");
+	await fill('input[aria-label="Search shortcuts"]', "");
 	await click("a", "Back");
 	await waitForText("waiting on you");
 });

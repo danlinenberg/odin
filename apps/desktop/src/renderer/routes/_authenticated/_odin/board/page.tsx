@@ -39,6 +39,7 @@ import {
 	LuHourglass,
 	LuMessageSquare,
 	LuMoon,
+	LuPanelLeft,
 	LuPause,
 	LuPlay,
 	LuRepeat,
@@ -3397,6 +3398,19 @@ function DevBoardPage() {
 		const card = switchCards[at + step];
 		if (card) openDrawer(card);
 	};
+	// The drawer + session list without hunting for a card: needs-you first.
+	const openSessions = () => {
+		const [first] = switchCards;
+		if (!first) return void toast.info("No sessions in flight");
+		openDrawer(first);
+	};
+	const { text: openSessionsKey } = useHotkey(
+		"ODIN_OPEN_SESSIONS",
+		() => {
+			if (!drawerCard) openSessions();
+		},
+		{ enableOnFormTags: false, enableOnContentEditable: false },
+	);
 	useHotkey("PREV_SESSION", () => stepSession(-1));
 	useHotkey("NEXT_SESSION", () => stepSession(1));
 
@@ -3531,6 +3545,16 @@ function DevBoardPage() {
 					</select>
 				)}
 
+				<button
+					type="button"
+					onClick={openSessions}
+					disabled={switchCards.length === 0}
+					title={`Open the first session in flight, with the session list beside it (${openSessionsKey})`}
+					className="ml-auto flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-[12px] font-medium text-muted-foreground hover:text-foreground disabled:opacity-50"
+				>
+					<LuPanelLeft className="size-3.5" aria-hidden />
+					Open sessions
+				</button>
 				{/* A view toggle, not a filter - kept apart from search and the dropdown. */}
 				<button
 					type="button"
@@ -3542,7 +3566,7 @@ function DevBoardPage() {
 							: "Show the tasks worth starting next"
 					}
 					className={cn(
-						"ml-auto flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium",
+						"flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium",
 						isNextOpen
 							? "border-primary bg-primary/15 text-foreground"
 							: "border-border bg-card text-muted-foreground hover:text-foreground",

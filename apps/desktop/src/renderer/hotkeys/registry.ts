@@ -326,6 +326,14 @@ export const HOTKEYS_REGISTRY = {
 		category: "Navigation",
 		description: "Open the session above in the drawer's session list",
 	},
+	// A bare key, like the rail's: off in text boxes and terminals.
+	ODIN_OPEN_SESSIONS: {
+		key: { mac: L("o"), windows: L("o"), linux: L("o") },
+		label: "Open Sessions",
+		category: "Navigation",
+		description:
+			"Open the board's first session in flight, with the session list beside it",
+	},
 	NEXT_SESSION: {
 		key: {
 			mac: "meta+alt+down",

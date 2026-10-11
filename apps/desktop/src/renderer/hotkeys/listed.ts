@@ -30,6 +30,7 @@ export const LISTED_HOTKEYS: HotkeyId[] = [
 	"NAVIGATE_FORWARD",
 	// Board
 	"ODIN_BOARD_UNDO",
+	"ODIN_OPEN_SESSIONS",
 	"PREV_SESSION",
 	"NEXT_SESSION",
 	// Terminal

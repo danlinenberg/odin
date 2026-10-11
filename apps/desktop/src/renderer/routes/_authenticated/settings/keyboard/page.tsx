@@ -156,6 +156,13 @@ export const Route = createFileRoute("/_authenticated/settings/keyboard/")({
 
 function KeyboardShortcutsPage() {
 	const [recordingId, setRecordingId] = useState<HotkeyId | null>(null);
+	const [search, setSearch] = useState("");
+	const query = search.trim().toLowerCase();
+	const shownHotkeys = LISTED_HOTKEYS.filter((id) =>
+		`${HOTKEYS[id].label} ${HOTKEYS[id].description ?? ""}`
+			.toLowerCase()
+			.includes(query),
+	);
 	const [pendingConflict, setPendingConflict] = useState<{
 		targetId: HotkeyId;
 		binding: ShortcutBinding;
@@ -230,8 +237,24 @@ function KeyboardShortcutsPage() {
 				</Button>
 			}
 		>
+			<input
+				type="search"
+				value={search}
+				onChange={(e) => setSearch(e.target.value)}
+				onKeyDown={(e) => {
+					if (e.key === "Escape") setSearch("");
+				}}
+				placeholder="Search shortcuts"
+				aria-label="Search shortcuts"
+				className="mb-4 w-full rounded-md border border-border bg-card px-3 py-1.5 text-sm text-foreground outline-none placeholder:text-faint-foreground focus:border-primary"
+			/>
 			<SettingsSection title="Shortcuts">
-				{LISTED_HOTKEYS.map((id) => (
+				{shownHotkeys.length === 0 && (
+					<p className="px-4 py-3 text-sm text-muted-foreground">
+						No shortcut matches "{search.trim()}"
+					</p>
+				)}
+				{shownHotkeys.map((id) => (
 					<HotkeyRow
 						key={id}
 						id={id}
