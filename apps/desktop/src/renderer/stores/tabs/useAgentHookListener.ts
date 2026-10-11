@@ -1,10 +1,12 @@
 import { useNavigate } from "@tanstack/react-router";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
+import { useCrowDialog } from "renderer/routes/_authenticated/_odin/hooks/useCrow";
 import { usePendingFocus } from "renderer/routes/_authenticated/_odin/hooks/usePendingFocus";
 import { useCompacting } from "renderer/stores/compacting";
 import { NOTIFICATION_EVENTS } from "shared/constants";
 import { debugLog } from "shared/debug";
+import { CROW_TAG } from "shared/odin-tags";
 import type { PaneStatus } from "shared/tabs-types";
 import { useTabsStore } from "./store";
 import { resolveNotificationTarget } from "./utils/resolve-notification-target";
@@ -220,6 +222,11 @@ export function useAgentHookListener() {
 			} else if (event.type === NOTIFICATION_EVENTS.FOCUS_TAB) {
 				// A banner names a board card, so clicking it opens that card's
 				// session drawer. The board is where every session lives now.
+				// Huginn's conversation is no card: its banner opens his panel.
+				if (paneId && state.panes[paneId]?.odinTags?.includes(CROW_TAG)) {
+					useCrowDialog.getState().setOpen(true);
+					return;
+				}
 				if (paneId) {
 					usePendingFocus.getState().focus(paneId);
 				}
