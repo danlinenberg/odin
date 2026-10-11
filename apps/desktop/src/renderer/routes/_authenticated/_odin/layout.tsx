@@ -618,8 +618,9 @@ function OdinShell() {
 			<ClaudeSignInBanner />
 
 			<div className="flex min-h-0 flex-1">
-				{/* icon rail */}
-				<div className="flex w-[52px] shrink-0 flex-col items-center gap-1.5 border-r border-border bg-tertiary/70 py-2.5">
+				{/* icon rail - scrolls when zoomed in past its height, or the bottom
+				    icons (Settings, the raven) clip off with no way back to them. */}
+				<div className="hide-scrollbar flex w-[52px] shrink-0 flex-col items-center gap-1.5 overflow-y-auto border-r border-border bg-tertiary/70 py-2.5 [&>*]:shrink-0">
 					{RAIL_ITEMS.map(renderRailItem)}
 					<div className="flex-1" />
 					{renderRailItem(INSIGHTS_ITEM)}
