@@ -17,10 +17,15 @@ import {
 	HiChevronDown,
 	HiChevronUp,
 	HiKey,
+	HiLink,
 	HiXMark,
 } from "react-icons/hi2";
 import { useZoomFactor } from "renderer/hooks/useZoomFactor";
-import { getDispatchChord, matchesChord } from "renderer/hotkeys";
+import {
+	getDispatchChord,
+	matchesChord,
+	useHotkeyDisplay,
+} from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import {
 	type SlackThread,
@@ -270,6 +275,7 @@ export function InAppBrowser() {
 	const [resizing, setResizing] = useState(false);
 	const openExternal = electronTrpc.external.openUrl.useMutation();
 	const { mutate: copyText } = electronTrpc.external.copyText.useMutation();
+	const copyLinkKeys = useHotkeyDisplay("ODIN_COPY_LINK").text;
 	const onePassword = electronTrpc.browser.onePasswordLogin.useMutation();
 	const importCookies = electronTrpc.browser.importCookies.useMutation();
 	const { mutate: importOnLaunch } =
@@ -669,6 +675,21 @@ export function InAppBrowser() {
 							</button>
 						</div>
 					)}
+					<button
+						type="button"
+						title={
+							copyLinkKeys === "Unassigned"
+								? "Copy link"
+								: `Copy link (${copyLinkKeys})`
+						}
+						className={ICON_BUTTON}
+						onClick={() => {
+							const webview = view();
+							if (webview) copyLink(webview, copyText);
+						}}
+					>
+						<HiLink className="size-4" />
+					</button>
 					<div className="flex">
 						<button
 							type="button"
