@@ -57,6 +57,12 @@ export interface AllItem {
 	urgency: Urgency;
 	/** Sort key in ms. 0 when the source didn't date it. */
 	at: number;
+	/**
+	 * When it landed on your list, in ms - the "Created" sort. A Slack row is
+	 * the :eyes: (when Odin first saw it), not the message: an old message you
+	 * queue today is new work today. Sources with no such date reuse `at`.
+	 */
+	createdAt: number;
 	/** The date the source itself wants it by - Jira's Due Date. Ours overrides it. */
 	dueDate: string | null;
 	/** The comment that put it here - Jira's @-mention rows. Null elsewhere. */
@@ -137,6 +143,8 @@ export function allItems(
 			channelName: string | null;
 			authorName: string | null;
 			postedAt: string;
+			/** When Odin first saw the :eyes:. Optional: older callers predate it. */
+			firstSeenAt?: number;
 		}[];
 		jira: {
 			key: string;
@@ -211,6 +219,7 @@ export function allItems(
 				priority: PRIORITY_LABELS[priorityOf(task)],
 				urgency: urgencyOf(PRIORITY_LABELS[priorityOf(task)]),
 				at: task.createdAt,
+				createdAt: task.createdAt,
 				dueDate: null,
 				mention: null,
 				body: task.notes || null,
@@ -245,6 +254,7 @@ export function allItems(
 					urgency: "high",
 					context: row.channelName,
 					at: ms(row.postedAt),
+					createdAt: row.firstSeenAt ?? ms(row.postedAt),
 					dueDate: null,
 					mention: null,
 					body: row.text || null,
@@ -252,6 +262,7 @@ export function allItems(
 						["Channel", row.channelName],
 						["From", row.authorName],
 						["Posted", when(row.postedAt)],
+						["Queued", when(row.firstSeenAt)],
 					]),
 					launch: {
 						key: row.id,
@@ -288,6 +299,7 @@ export function allItems(
 					urgency: issue.mention ? "high" : urgencyOf(issue.priority),
 					context: issue.project,
 					at: ms(issue.updated),
+					createdAt: ms(issue.created) || ms(issue.updated),
 					dueDate: issue.dueDate ?? null,
 					mention: issue.mention ?? null,
 					body: issue.description ?? null,
@@ -333,6 +345,7 @@ export function allItems(
 					// Every repo is the same org - the column is for the repo name.
 					context: pull.repo.split("/").at(-1) ?? pull.repo,
 					at: ms(pull.updated),
+					createdAt: ms(pull.created) || ms(pull.updated),
 					dueDate: null,
 					mention: null,
 					body: pull.body ?? null,
@@ -376,6 +389,7 @@ export function allItems(
 				urgency: urgencyOf(row.priority),
 				context: row.channel ?? null,
 				at: ms(row.updatedAt ?? row.date),
+				createdAt: ms(row.updatedAt ?? row.date),
 				dueDate: null,
 				mention: null,
 				body: null,
@@ -412,6 +426,7 @@ export function allItems(
 					urgency: null,
 					context: null,
 					at: ms(email.at),
+					createdAt: ms(email.at),
 					dueDate: null,
 					mention: email.snippet
 						? { author: email.from, text: email.snippet }

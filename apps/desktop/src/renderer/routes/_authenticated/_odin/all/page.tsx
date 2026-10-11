@@ -188,6 +188,11 @@ function AllFeedPage() {
 	// And free text, matched against everything a row shows - title, who, where,
 	// status - so "terraform" or a colleague's name finds it without a picker.
 	const [search, setSearch] = useState("");
+	// "updated" is the feeds' own order (allItems); "created" is when each row
+	// landed on your list - for Slack, the :eyes:, not the message.
+	const [sortBy, setSortBy] = useState<"updated" | "created">("updated");
+	const dateOf = (item: AllItem) =>
+		sortBy === "created" ? item.createdAt : item.at;
 	const needle = search.trim().toLowerCase();
 	const reminders = useReminders((s) => s.reminders);
 	const {
@@ -291,8 +296,12 @@ function AllFeedPage() {
 					isDue(effectiveDue(item.key, reminders, item.dueDate), Date.now()),
 				)
 			: byContext;
-		if (!needle) return due;
-		return due.filter((item) =>
+		const sorted =
+			sortBy === "created"
+				? [...due].sort((a, b) => b.createdAt - a.createdAt)
+				: due;
+		if (!needle) return sorted;
+		return sorted.filter((item) =>
 			[
 				item.title,
 				item.person,
@@ -305,7 +314,7 @@ function AllFeedPage() {
 				.toLowerCase()
 				.includes(needle),
 		);
-	}, [byContext, dueOnly, reminders, needle]);
+	}, [byContext, dueOnly, reminders, needle, sortBy]);
 
 	// From every row, not the filtered ones: narrowing the list shouldn't shut
 	// the panel you're reading. Marking it done does. Search all can open a row
@@ -426,6 +435,14 @@ function AllFeedPage() {
 							))}
 						</FeedSelect>
 					)}
+					<FeedSelect
+						value={sortBy}
+						onChange={(value) => setSortBy(value as "updated" | "created")}
+						title="Sort order - Created is when a row landed on your list (Slack: when you reacted)"
+					>
+						<option value="updated">Newest activity</option>
+						<option value="created">Created at</option>
+					</FeedSelect>
 					<SyncButton isSyncing={isSyncing} onClick={() => void syncAll()} />
 				</div>
 			</FeedHeader>
@@ -650,8 +667,8 @@ function AllFeedPage() {
 											</span>
 											<span className={META_TEXT}>{item.context}</span>
 											<span className={META_DATE}>
-												{item.at > 0 &&
-													new Date(item.at).toLocaleDateString(undefined, {
+												{dateOf(item) > 0 &&
+													new Date(dateOf(item)).toLocaleDateString(undefined, {
 														month: "short",
 														day: "numeric",
 													})}

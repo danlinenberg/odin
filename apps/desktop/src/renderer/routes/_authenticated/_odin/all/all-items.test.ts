@@ -258,3 +258,17 @@ test("everything keeps what All leaves out, for Search all", () => {
 	);
 	expect(items.find((item) => item.key === "slack:s1")?.status).toBeNull();
 });
+
+test("a Slack row is created when it was queued, not when it was posted", () => {
+	const queued = Date.UTC(2026, 0, 9);
+	const [row] = allItems({
+		...feeds,
+		tasks: [],
+		jira: [],
+		pulls: [],
+		notion: [],
+		slack: [{ ...feeds.slack[0], firstSeenAt: queued }],
+	});
+	expect(row?.at).toBe(Date.parse(iso(5)));
+	expect(row?.createdAt).toBe(queued);
+});

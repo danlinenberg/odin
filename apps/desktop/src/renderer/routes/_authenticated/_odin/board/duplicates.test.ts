@@ -20,6 +20,7 @@ function item(
 		priority: null,
 		urgency: null,
 		at: 0,
+		createdAt: 0,
 		dueDate: null,
 		mention: null,
 		body: null,
