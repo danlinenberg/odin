@@ -170,6 +170,15 @@ const SECTION_ICON: Record<BoardSection, IconType> = {
 	normal: LuTerminal,
 };
 
+/** The drawer session list's sort options - value to menu label. */
+const SWITCH_SORTS = {
+	status: "Needs you first",
+	updated: "Last update",
+	oldest: "Waiting longest",
+	name: "Name",
+} as const;
+type SwitchSort = keyof typeof SWITCH_SORTS;
+
 export const Route = createFileRoute("/_authenticated/_odin/board/")({
 	component: DevBoardPage,
 });
@@ -2556,21 +2565,39 @@ function DevBoardPage() {
 		isProfileLoading,
 		customTags,
 	]);
-	// The drawer's session list: what's in flight, needs-you first. Idle is out -
-	// those are put down, not in progress. Newest agent reply on top: a turn
-	// ending or a question stamps odinStatusAt.
-	const byNewest = (cards: BoardCard[]) =>
-		cards.toSorted(
-			(a, b) => (b.pane.odinStatusAt ?? 0) - (a.pane.odinStatusAt ?? 0),
+	// The drawer's session list: what's in flight. Idle is out - those are put
+	// down, not in progress. Starred first, then the picked sort; a turn ending
+	// or a question stamps odinStatusAt.
+	const [switchSort, setSwitchSort] = useState<SwitchSort>(() => {
+		try {
+			const saved = localStorage.getItem("odin:drawer-sessions-sort");
+			return saved && saved in SWITCH_SORTS ? (saved as SwitchSort) : "status";
+		} catch {
+			return "status";
+		}
+	});
+	const pickSwitchSort = (sort: SwitchSort) => {
+		setSwitchSort(sort);
+		try {
+			localStorage.setItem("odin:drawer-sessions-sort", sort);
+		} catch {}
+	};
+	const statusRank = { permission: 0, review: 0, working: 1 } as const;
+	const switchCards = (["permission", "review", "working"] as const)
+		.flatMap((status) => cardsByStatus.get(status) ?? [])
+		.toSorted(
+			(a, b) =>
+				Number(!!b.pane.odinStarred) - Number(!!a.pane.odinStarred) ||
+				(switchSort === "status"
+					? statusRank[a.status as keyof typeof statusRank] -
+						statusRank[b.status as keyof typeof statusRank]
+					: 0) ||
+				(switchSort === "name"
+					? cardTitle(a).localeCompare(cardTitle(b))
+					: switchSort === "oldest"
+						? (a.pane.odinStatusAt ?? 0) - (b.pane.odinStatusAt ?? 0)
+						: (b.pane.odinStatusAt ?? 0) - (a.pane.odinStatusAt ?? 0)),
 		);
-	const switchCards = [
-		...byNewest(
-			(["permission", "review"] as const).flatMap(
-				(status) => cardsByStatus.get(status) ?? [],
-			),
-		),
-		...byNewest(cardsByStatus.get("working") ?? []),
-	];
 	// Minimized to a rail of status dots; remembered per machine.
 	const [isSwitchListMin, setIsSwitchListMin] = useState(() => {
 		try {
@@ -3421,8 +3448,12 @@ function DevBoardPage() {
 		},
 		{ enableOnFormTags: false, enableOnContentEditable: false },
 	);
-	useHotkey("PREV_SESSION", () => stepSession(-1));
-	useHotkey("NEXT_SESSION", () => stepSession(1));
+	const { text: prevSessionKey } = useHotkey("PREV_SESSION", () =>
+		stepSession(-1),
+	);
+	const { text: nextSessionKey } = useHotkey("NEXT_SESSION", () =>
+		stepSession(1),
+	);
 
 	/** Catch up's next card (✓ Done ends this one first), or all caught up. */
 	const catchUpNext = (done: boolean) => {
@@ -4421,6 +4452,33 @@ function DevBoardPage() {
 												<LuChevronLeft className="size-3.5" />
 											)}
 										</button>
+										{!isSwitchListMin && (
+											<div className="mb-1 flex items-center gap-1.5 px-3 text-[11px] text-muted-foreground">
+												<select
+													value={switchSort}
+													onChange={(e) =>
+														pickSwitchSort(e.target.value as SwitchSort)
+													}
+													aria-label="Sort sessions"
+													title="Sort sessions"
+													className="min-w-0 cursor-pointer rounded border border-border bg-card px-1 py-0.5 outline-none hover:text-foreground"
+												>
+													{Object.entries(SWITCH_SORTS).map(
+														([value, label]) => (
+															<option key={value} value={value}>
+																{label}
+															</option>
+														),
+													)}
+												</select>
+												<span
+													className="ml-auto shrink-0 font-mono"
+													title={`Previous session ${prevSessionKey} - next session ${nextSessionKey}`}
+												>
+													{prevSessionKey} {nextSessionKey}
+												</span>
+											</div>
+										)}
 										{switchCards.map((card) => (
 											<HoverCard key={card.pane.id} openDelay={350}>
 												<HoverCardTrigger asChild>
