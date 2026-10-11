@@ -14,6 +14,7 @@ import { LuChevronRight, LuSquareTerminal } from "react-icons/lu";
 import { MarkdownRenderer } from "renderer/components/MarkdownRenderer";
 import { isHotkey } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { shellEscapePaths } from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/utils";
 import { draftFor, useChatDrafts } from "renderer/stores/chat-drafts";
 import { useCompacting } from "renderer/stores/compacting";
 import { openUrl } from "renderer/stores/in-app-browser";
@@ -1196,6 +1197,10 @@ export function ChatView({
 			? transcriptPath(home, startCwd, sessionId)
 			: null;
 	const { items, missing, poke } = useLiveItems(path, workspaceId);
+	// The whole view takes a file drop, not just the reply box: a drop on the
+	// conversation used to do nothing. The composer owns the attachments.
+	const dropRef = useRef<(files: File[]) => void>(undefined);
+	const [dragging, setDragging] = useState(false);
 	// PR and ticket refs this session has URLs for, so "#676" can link.
 	const refs = useMemo(
 		() =>
@@ -1348,9 +1353,27 @@ export function ChatView({
 		pending.length === 0 &&
 		(!missing || missing.startsWith("Not on disk yet"));
 	return (
-		// biome-ignore lint/a11y/noStaticElementInteractions: Page Up/Down from the composer jump the conversation to its top/bottom
+		// biome-ignore lint/a11y/noStaticElementInteractions: Page Up/Down from the composer jump the conversation to its top/bottom; a file dropped anywhere on it attaches
 		<div
 			className="flex min-h-0 flex-1 flex-col"
+			onDragOver={(event) => {
+				if (!dropRef.current || !event.dataTransfer.types.includes("Files"))
+					return;
+				event.preventDefault();
+				setDragging(true);
+			}}
+			onDragLeave={(event) => {
+				if (!event.currentTarget.contains(event.relatedTarget as Node))
+					setDragging(false);
+			}}
+			onDrop={(event) => {
+				if (!dropRef.current || !event.dataTransfer.types.includes("Files"))
+					return;
+				// Stop Electron from opening a dropped file in the window.
+				event.preventDefault();
+				setDragging(false);
+				dropRef.current([...event.dataTransfer.files]);
+			}}
 			onKeyDown={(event) => {
 				const el = scrollRef.current;
 				const top = isHotkey("CHAT_TO_TOP", event.nativeEvent);
@@ -1609,6 +1632,8 @@ export function ChatView({
 							onStop={onStop}
 							noTerminal={noTerminal}
 							placeholder={placeholder}
+							dropRef={dropRef}
+							dragging={dragging}
 						/>
 					)}
 				</>
@@ -1621,6 +1646,8 @@ export function ChatView({
 					noTerminal={noTerminal}
 					onResume={onResumeWith}
 					placeholder="Reply to resume the session"
+					dropRef={dropRef}
+					dragging={dragging}
 				/>
 			) : (
 				<div className="border-t border-border px-5 py-2 text-center text-[11.5px] text-muted-foreground">
@@ -1655,7 +1682,8 @@ async function typeIntoClaude(
  * A pasted or dropped image or video is saved and held as a preview with its
  * path until you send, so its × can still drop it. Sending pastes each path
  * into Claude's prompt, where an image path turns into an [Image #N]
- * attachment and a video stays a path (Claude takes no video).
+ * attachment and a video stays a path (Claude takes no video). Any other
+ * file goes into the draft as its path, as the terminal does with a drop.
  */
 function Composer({
 	paneId,
@@ -1665,6 +1693,8 @@ function Composer({
 	noTerminal,
 	placeholder = "Reply to Claude",
 	onResume,
+	dropRef,
+	dragging,
 }: {
 	paneId: string;
 	working: boolean;
@@ -1674,6 +1704,9 @@ function Composer({
 	placeholder?: string;
 	/** Ended session: sending resumes it with the text instead of typing into a PTY. */
 	onResume?: (text: string) => void;
+	/** The view's drop zone hands dropped files here. */
+	dropRef: { current?: (files: File[]) => void };
+	dragging: boolean;
 }) {
 	const [draft, setDraft] = useState(() => draftFor(paneId));
 	useEffect(
@@ -1685,11 +1718,22 @@ function Composer({
 	const [attached, setAttached] = useState<
 		{ preview: Preview; path: string }[]
 	>([]);
-	const attach = (files: File[]) => {
+	const attach = (files: File[], cite = false) => {
 		const media = files.filter(
 			(f) => f.type.startsWith("image/") || f.type.startsWith("video/"),
 		);
-		if (media.length === 0) return false;
+		const others = cite
+			? files
+					.filter((f) => !media.includes(f))
+					.map((f) => window.webUtils.getPathForFile(f))
+					.filter(Boolean)
+			: [];
+		if (others.length > 0) {
+			const text = shellEscapePaths(others);
+			setDraft((d) => (d && !/\s$/.test(d) ? `${d} ${text}` : d + text));
+			inputRef.current?.focus();
+		}
+		if (media.length === 0) return others.length > 0;
 		void attachmentPaths(media).then(
 			(paths) =>
 				setAttached((list) => [
@@ -1705,7 +1749,7 @@ function Composer({
 		);
 		return true;
 	};
-	const [dragging, setDragging] = useState(false);
+	dropRef.current = (files) => attach(files, true);
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const write = electronTrpc.terminal.write.useMutation();
 	const setChat = useSessionView((s) => s.setChat);
@@ -1765,26 +1809,12 @@ function Composer({
 	};
 	return (
 		<div className="px-4 pb-3 pt-1">
-			{/* biome-ignore lint/a11y/noStaticElementInteractions: drop zone - dragging media onto the box attaches it, the textarea stays the input */}
 			<div
 				className={cn(
 					"relative rounded-[14px] border border-border bg-background px-3 pb-2 pt-2.5 focus-within:border-primary/60",
 					bash && "border-pink-500/60 focus-within:border-pink-500",
 					dragging && "border-primary bg-primary/10",
 				)}
-				onDragOver={(event) => {
-					if (!event.dataTransfer.types.includes("Files")) return;
-					event.preventDefault();
-					setDragging(true);
-				}}
-				onDragLeave={() => setDragging(false)}
-				onDrop={(event) => {
-					if (!event.dataTransfer.types.includes("Files")) return;
-					// Stop Electron from opening a dropped file in the window.
-					event.preventDefault();
-					setDragging(false);
-					attach([...event.dataTransfer.files]);
-				}}
 			>
 				{matches.length > 0 && (
 					<div className="absolute inset-x-0 bottom-full mb-1.5 overflow-hidden rounded-[10px] border border-border bg-popover shadow-[0_12px_40px_rgba(0,0,0,0.5)]">
