@@ -279,7 +279,7 @@ function AllFeedPage() {
 	// Reading material is the same put-away, for rows with nothing left to do
 	// but worth keeping: off every queue and the Night Agent, listed apart.
 	// Reading material stays on this list (use-all-items), as "Read later".
-	const { markDone, markReading, undo, recent, reading } = useDone();
+	const { markDone, markReading, undo, remove, recent, reading } = useDone();
 	const [shelf, setShelf] = useState(false);
 	// Undo on the last row hides its pill too: back to the queue, not a blank.
 	const showDone = shelf && recent.length > 0;
@@ -818,6 +818,7 @@ function AllFeedPage() {
 							verb="done"
 							onOpen={(url) => openUrl(url)}
 							onUndo={undo}
+							onDelete={remove}
 						/>
 					)}
 					{!showDone && items.length === 0 && (
@@ -1069,6 +1070,10 @@ function AllFeedPage() {
 								finish(openItem);
 								setOpenKey(null);
 							}}
+							onDelete={() => {
+								remove(openItem);
+								setOpenKey(null);
+							}}
 						/>
 					</DetailsPanel>
 				)}
@@ -1146,6 +1151,7 @@ function DetailsActions({
 	reading,
 	onReadLater,
 	onDone,
+	onDelete,
 }: {
 	activePaneId: string | null;
 	isLaunching: boolean;
@@ -1155,6 +1161,7 @@ function DetailsActions({
 	reading: boolean;
 	onReadLater: () => void;
 	onDone: () => void;
+	onDelete: () => void;
 }) {
 	return (
 		<div className="flex shrink-0 items-center gap-2 border-t border-border px-3.5 py-2.5">
@@ -1177,7 +1184,8 @@ function DetailsActions({
 				</button>
 			)}
 			<ReadLaterButton on={reading} onClick={onReadLater} />
-			<span className="ml-auto">
+			<span className="ml-auto flex items-center gap-2">
+				<DeleteButton onClick={onDelete} />
 				<DoneButton onClick={onDone} />
 			</span>
 		</div>
@@ -1370,11 +1378,13 @@ function DoneList({
 	verb,
 	onOpen,
 	onUndo,
+	onDelete,
 }: {
 	rows: ReturnType<typeof useDone>["recent"];
 	verb: string;
 	onOpen: (url: string) => void;
 	onUndo: (row: ReturnType<typeof useDone>["recent"][number]) => void;
+	onDelete: (row: ReturnType<typeof useDone>["recent"][number]) => void;
 }) {
 	return (
 		<>
@@ -1414,9 +1424,24 @@ function DoneList({
 						>
 							Undo
 						</button>
+						<DeleteButton onClick={() => onDelete(row)} />
 					</div>
 				</div>
 			))}
 		</>
+	);
+}
+
+/** For a duplicate or a mistake: off every list, Done included. */
+function DeleteButton({ onClick }: { onClick: () => void }) {
+	return (
+		<button
+			type="button"
+			onClick={onClick}
+			title="Delete - gone from every list, Done included"
+			className="shrink-0 rounded-[7px] px-2 py-1 text-[12px] font-semibold text-muted-foreground hover:bg-secondary hover:text-danger"
+		>
+			Delete
+		</button>
 	);
 }

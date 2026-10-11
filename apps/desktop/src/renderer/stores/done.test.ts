@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { doneChecker, migrateDone } from "./done";
+import { doneChecker, migrateDone, nextDone } from "./done";
 
 test("v0 done timestamps and hidden keys both come through as done", () => {
 	const store = new Map([
@@ -49,4 +49,15 @@ test("a mention newer than Done brings the row back", () => {
 		}),
 	).toBe(false);
 	expect(isDone({ key: "jira:SHIP-2" })).toBe(false);
+});
+
+test("a deleted row outlives the Done expiry, a plain Done does not", () => {
+	const old = { at: 0, title: "t", source: "Jira", url: null };
+	const next = nextDone(
+		{ "jira:A-1": old, "jira:A-2": { ...old, deleted: true } },
+		"jira:A-3",
+		{ title: "new", source: "Jira", url: null },
+		100 * 86_400_000,
+	);
+	expect(Object.keys(next).sort()).toEqual(["jira:A-2", "jira:A-3"]);
 });

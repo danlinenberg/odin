@@ -12,6 +12,8 @@ export interface DoneRow {
 	url: string | null;
 	/** Put away to read later, not finished - All tasks' Reading material. */
 	reading?: boolean;
+	/** Deleted: a duplicate or a mistake. Off every feed and off the Done list too. */
+	deleted?: boolean;
 }
 
 const HIDDEN_V0 = "odin-hidden-items";
@@ -69,6 +71,27 @@ export function doneChecker(done: Record<string, DoneRow>) {
 }
 
 /**
+ * The list after one key changes: rows older than KEEP_MS go, except deleted
+ * ones - a row you deleted must not come back when its Done would expire.
+ */
+// ponytail: deleted rows are kept forever; a few bytes each, cap them if the
+// list ever matters for size.
+export function nextDone(
+	done: Record<string, DoneRow>,
+	key: string,
+	row: Omit<DoneRow, "at"> | null,
+	now: number,
+): Record<string, DoneRow> {
+	const next = Object.fromEntries(
+		Object.entries(done).filter(
+			([k, d]) => k !== key && (d.deleted || now - d.at < KEEP_MS),
+		),
+	);
+	if (row) next[key] = { ...row, at: now };
+	return next;
+}
+
+/**
  * Everything marked Done - from any feed, Next in line, or a Review drop.
  * Odin-only: nothing is written upstream (a Slack row also gets slack.setDone).
  * Keyed by the All-feed key, pruned after KEEP_MS so it stays a few KB. The
@@ -83,16 +106,9 @@ export const useDoneStore = create<{
 		(set) => ({
 			done: migrateDone(null).done,
 			setDone: (key, row) => {
-				set((state) => {
-					const now = Date.now();
-					const next = Object.fromEntries(
-						Object.entries(state.done).filter(
-							([k, d]) => k !== key && now - d.at < KEEP_MS,
-						),
-					);
-					if (row) next[key] = { ...row, at: now };
-					return { done: next };
-				});
+				set((state) => ({
+					done: nextDone(state.done, key, row, Date.now()),
+				}));
 				// Written now, hidden keys and all, so the old list can go.
 				try {
 					localStorage.removeItem(HIDDEN_V0);

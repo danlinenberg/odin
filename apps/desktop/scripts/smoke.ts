@@ -568,6 +568,20 @@ await step("Done takes a task off the list", async () => {
 	await waitForText(TASK, false);
 });
 
+await step("Delete in the details panel removes a task for good", async () => {
+	const doomed = `Duplicate task ${Date.now()}`;
+	await rail("Tasks");
+	await fill('input[placeholder="What needs doing?"]', doomed);
+	await click("button", "Add task");
+	await waitForText(doomed);
+	await page(
+		`[...document.querySelectorAll("button")].find((e) => e.textContent.trim() === ${JSON.stringify(doomed)})?.click()`,
+	);
+	await waitForText("Tasks feed →");
+	await click("button", "Delete");
+	await waitForText(doomed, false);
+});
+
 // Settings is six fixed screens; each sidebar link and the route it opens.
 const SETTINGS: [string, string][] = [
 	["Connections", "#/settings/connections"],

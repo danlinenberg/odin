@@ -6,6 +6,7 @@ import { useReminders } from "../components/Reminders";
 import { useBacklogReview } from "./useBacklogReview";
 import { useSetSlackDone } from "./useOdinFeeds";
 import { useOdinProfile } from "./useOdinProfile";
+import { useOdinTasks } from "./useOdinTasks";
 import { usePaneMeta } from "./usePaneMeta";
 
 /** What Done needs off a row: its All-feed key, and enough to list it later. */
@@ -39,7 +40,12 @@ export function useDone() {
 	const slackDone = useSetSlackDone();
 	const isDone = useMemo(() => doneChecker(done), [done]);
 
-	const mark = (item: Doable, on: boolean, reading = false) => {
+	const mark = (
+		item: Doable,
+		on: boolean,
+		reading = false,
+		deleted = false,
+	) => {
 		setDone(
 			item.key,
 			on
@@ -48,6 +54,7 @@ export function useDone() {
 						source: item.source,
 						url: item.url ?? null,
 						...(reading && { reading }),
+						...(deleted && { deleted }),
 					}
 				: null,
 		);
@@ -59,10 +66,11 @@ export function useDone() {
 	};
 
 	// Newest first. Reading material is a Done that isn't finished: off every
-	// queue the same way, listed apart.
+	// queue the same way, listed apart. A deleted row is listed nowhere.
 	const rows = useMemo(
 		() =>
 			Object.entries(done)
+				.filter(([, row]) => !row.deleted)
 				.map(([key, row]): DoneRow & { key: string } => ({ key, ...row }))
 				.sort((a, b) => b.at - a.at),
 		[done],
@@ -81,6 +89,34 @@ export function useDone() {
 		markDone: (item: Doable) => {
 			mark(item, true);
 			toast.success(`Done - ${item.title.slice(0, 60)}`, {
+				action: { label: "Undo", onClick: () => mark(item, false) },
+			});
+		},
+		/**
+		 * Gone from every view, the Done list included. One of my own tasks is
+		 * removed outright; a Slack, Jira or other source row stays put away
+		 * for good. Undo on the toast brings either back.
+		 */
+		remove: (item: Doable) => {
+			const label = `Deleted - ${item.title.slice(0, 60)}`;
+			if (item.key.startsWith("task:")) {
+				const id = item.key.slice("task:".length);
+				const tasks = useOdinTasks.getState();
+				const task = tasks.tasks.find((t) => t.id === id);
+				tasks.remove(id);
+				setDone(item.key, null);
+				toast.success(label, {
+					action: {
+						label: "Undo",
+						onClick: () =>
+							task &&
+							useOdinTasks.setState((s) => ({ tasks: [task, ...s.tasks] })),
+					},
+				});
+				return;
+			}
+			mark(item, true, false, true);
+			toast.success(label, {
 				action: { label: "Undo", onClick: () => mark(item, false) },
 			});
 		},
