@@ -10,7 +10,7 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { LuChevronRight, LuSquareTerminal } from "react-icons/lu";
+import { LuChevronRight, LuSquareTerminal, LuWrench } from "react-icons/lu";
 import { MarkdownRenderer } from "renderer/components/MarkdownRenderer";
 import { isHotkey } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
@@ -548,7 +548,7 @@ const ToolGroup = memo(
 							failed && "text-destructive",
 						)}
 					>
-						<LuSquareTerminal className="size-3.5" />
+						<LuWrench className="size-3.5" />
 					</button>
 				</div>
 				{open && (
