@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { opensInOdin } from "./in-odin-links";
+import { linkSite, opensInOdin } from "./in-odin-links";
 
 describe("opensInOdin", () => {
 	it("keeps the task sources' links in Odin", () => {
@@ -27,5 +27,16 @@ describe("opensInOdin", () => {
 		]) {
 			expect(opensInOdin(url)).toBe(false);
 		}
+	});
+});
+
+describe("linkSite", () => {
+	it("names the site a link is on, so each can be sent to your browser", () => {
+		expect(linkSite("https://imagenai.slack.com/archives/C1/p1")).toBe("slack");
+		expect(linkSite("https://imagenai.atlassian.net/browse/BUGT-1")).toBe(
+			"jira",
+		);
+		expect(linkSite("https://acme.notion.site/Page")).toBe("notion");
+		expect(linkSite("https://www.google.com")).toBeNull();
 	});
 });

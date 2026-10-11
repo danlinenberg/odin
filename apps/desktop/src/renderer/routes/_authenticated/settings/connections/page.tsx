@@ -24,6 +24,7 @@ import {
 } from "renderer/components/ConnectProvider/ConnectProvider";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useInAppBrowser } from "renderer/stores/in-app-browser";
+import { LINK_SITES } from "shared/in-odin-links";
 import { PROFILE_RESTORE_MS } from "shared/odin-profile";
 import {
 	useOdinFeeds,
@@ -564,22 +565,48 @@ function Profiles({ onSwitched }: { onSwitched: () => void }) {
 	);
 }
 
-/** Undoes "Always open links in your browser" from the in-app browser. */
+/**
+ * Undoes "Always open links in your browser" from the in-app browser; while
+ * it's on, each site can still send its own links to your browser.
+ */
 function OpenLinksInOdinRow() {
 	const external = useInAppBrowser((state) => state.external);
+	const browserSites = useInAppBrowser((state) => state.browserSites);
 	return (
-		<SettingRow
-			label="Open links inside Odin"
-			htmlFor="open-links-in-odin"
-			description="Slack, Jira, GitHub, Notion and Gmail links open in a panel over the page instead of another app; other links always go to your default browser. Off sends them all there."
-		>
-			<Switch
-				id="open-links-in-odin"
-				checked={!external}
-				onCheckedChange={(inOdin) =>
-					useInAppBrowser.setState({ external: !inOdin })
-				}
-			/>
-		</SettingRow>
+		<>
+			<SettingRow
+				label="Open links inside Odin"
+				htmlFor="open-links-in-odin"
+				description="Links from the sites below open in a panel over the page instead of another app; other links always go to your default browser. Off sends them all there."
+			>
+				<Switch
+					id="open-links-in-odin"
+					checked={!external}
+					onCheckedChange={(inOdin) =>
+						useInAppBrowser.setState({ external: !inOdin })
+					}
+				/>
+			</SettingRow>
+			{!external &&
+				LINK_SITES.map(({ id, label }) => (
+					<SettingRow
+						key={id}
+						label={`${label} links`}
+						htmlFor={`open-links-in-odin-${id}`}
+					>
+						<Switch
+							id={`open-links-in-odin-${id}`}
+							checked={!browserSites.includes(id)}
+							onCheckedChange={(inOdin) =>
+								useInAppBrowser.setState({
+									browserSites: inOdin
+										? browserSites.filter((site) => site !== id)
+										: [...browserSites, id],
+								})
+							}
+						/>
+					</SettingRow>
+				))}
+		</>
 	);
 }

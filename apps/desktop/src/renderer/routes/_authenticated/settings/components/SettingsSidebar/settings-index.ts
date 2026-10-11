@@ -108,7 +108,8 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		label: "Open links inside Odin",
 		to: "/settings/connections",
 		section: "Links",
-		keywords: "in-app browser default external chrome safari always",
+		keywords:
+			"in-app browser default external chrome safari always slack jira github notion gmail per site",
 	},
 	{
 		label: "iCloud Drive",

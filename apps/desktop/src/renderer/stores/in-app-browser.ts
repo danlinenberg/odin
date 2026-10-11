@@ -1,17 +1,19 @@
 import { electronTrpcClient } from "renderer/lib/trpc-client";
-import { opensInOdin } from "shared/in-odin-links";
+import { type LinkSiteId, linkSite } from "shared/in-odin-links";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 /**
  * The page the in-app browser is showing, or null while it's closed; whether
  * links skip it for your own browser (Settings → Connections, or "Always" on
- * the browser's "Open in browser" button); and the panel's width as a share of
+ * the browser's "Open in browser" button); the sites whose links skip it
+ * (Settings → Connections); and the panel's width as a share of
  * the window, once you've dragged its edge (null = the default width).
  */
 interface InAppBrowserState {
 	url: string | null;
 	external: boolean;
+	browserSites: LinkSiteId[];
 	widthFraction: number | null;
 }
 
@@ -20,12 +22,14 @@ export const useInAppBrowser = create<InAppBrowserState>()(
 		(): InAppBrowserState => ({
 			url: null,
 			external: false,
+			browserSites: [],
 			widthFraction: null,
 		}),
 		{
 			name: "odin-in-app-browser",
-			partialize: ({ external, widthFraction }) => ({
+			partialize: ({ external, browserSites, widthFraction }) => ({
 				external,
+				browserSites,
 				widthFraction,
 			}),
 		},
@@ -70,11 +74,13 @@ export function slackThread(url: string): SlackThread | null {
 /**
  * Opens a task source's link (a Slack thread, a Jira ticket) inside Odin, in
  * the slide-over browser, so it doesn't throw you out to another app - unless
- * you chose your own browser. Any other link, and anything that isn't a web
+ * you chose your own browser, for all links or that site's. Any other link, and anything that isn't a web
  * page (mailto:, a file), goes to the system.
  */
 export function openUrl(url: string): void {
-	if (opensInOdin(url) && !useInAppBrowser.getState().external) {
+	const site = linkSite(url);
+	const { external, browserSites } = useInAppBrowser.getState();
+	if (site && !external && !browserSites.includes(site)) {
 		useInAppBrowser.setState({ url: slackWebClientUrl(url) });
 		return;
 	}
