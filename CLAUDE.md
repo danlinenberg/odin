@@ -53,6 +53,13 @@ which PR or commit has it, where the code lives (`file:line`), and how to reach
 it in the app. If only part of it exists, say which part and offer to build
 the rest. If the user insists after that, do the work as asked.
 
+## Nothing to install but Odin
+
+No feature can be added if it means the user needs to install things to make it
+work: no CLI (`op`, `gh`, `brew` packages), no helper app, no "install X first"
+message or setup guide. Bundle what the feature needs inside Odin, or use an app
+the user already has. If neither works, don't ship the feature.
+
 ## Writing
 
 No em dashes anywhere: code, comments, UI strings, docs, commit messages, PR
