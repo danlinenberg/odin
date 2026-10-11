@@ -2557,10 +2557,20 @@ function DevBoardPage() {
 		customTags,
 	]);
 	// The drawer's session list: what's in flight, needs-you first. Idle is out -
-	// those are put down, not in progress.
-	const switchCards = (["permission", "working", "review"] as const).flatMap(
-		(status) => cardsByStatus.get(status) ?? [],
-	);
+	// those are put down, not in progress. Newest agent reply on top: a turn
+	// ending or a question stamps odinStatusAt.
+	const byNewest = (cards: BoardCard[]) =>
+		cards.toSorted(
+			(a, b) => (b.pane.odinStatusAt ?? 0) - (a.pane.odinStatusAt ?? 0),
+		);
+	const switchCards = [
+		...byNewest(
+			(["permission", "review"] as const).flatMap(
+				(status) => cardsByStatus.get(status) ?? [],
+			),
+		),
+		...byNewest(cardsByStatus.get("working") ?? []),
+	];
 	// Minimized to a rail of status dots; remembered per machine.
 	const [isSwitchListMin, setIsSwitchListMin] = useState(() => {
 		try {
