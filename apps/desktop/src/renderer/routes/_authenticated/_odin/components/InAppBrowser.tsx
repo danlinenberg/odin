@@ -598,6 +598,21 @@ export function InAppBrowser() {
 								{ url: webview.getURL() },
 								{
 									onSuccess: async (login) => {
+										if (login === "no-cli") {
+											toast("Set up the 1Password CLI to fill logins", {
+												description:
+													"Install op, then turn on 1Password > Settings > Developer > Integrate with 1Password CLI.",
+												duration: 15_000,
+												action: {
+													label: "Setup guide",
+													onClick: () =>
+														openExternal.mutate(
+															"https://developer.1password.com/docs/cli/get-started/",
+														),
+												},
+											});
+											return;
+										}
 										if (!login) {
 											toast("No 1Password login for this site");
 											return;

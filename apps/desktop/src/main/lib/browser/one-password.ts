@@ -20,6 +20,8 @@ interface OpItem {
 	fields?: { purpose?: string; value?: string }[];
 }
 
+class OpNotInstalledError extends Error {}
+
 const opJson = async <T>(args: string[]): Promise<T> => {
 	try {
 		const { stdout } = await run("op", [...args, "--format", "json"], {
@@ -29,9 +31,7 @@ const opJson = async <T>(args: string[]): Promise<T> => {
 		return JSON.parse(stdout) as T;
 	} catch (error) {
 		if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-			throw new Error(
-				"1Password CLI (op) is not installed. Install it from 1password.com/downloads/command-line.",
-			);
+			throw new OpNotInstalledError();
 		}
 		throw error;
 	}
@@ -48,9 +48,19 @@ export const siteMatches = (pageHost: string, href: string): boolean => {
 	}
 };
 
+/** "no-cli" when `op` isn't installed, so the UI can offer the setup guide. */
 export async function findOnePasswordLogin(
 	pageUrl: string,
-): Promise<OnePasswordLogin | null> {
+): Promise<OnePasswordLogin | "no-cli" | null> {
+	try {
+		return await findLogin(pageUrl);
+	} catch (error) {
+		if (error instanceof OpNotInstalledError) return "no-cli";
+		throw error;
+	}
+}
+
+async function findLogin(pageUrl: string): Promise<OnePasswordLogin | null> {
 	const pageHost = new URL(pageUrl).hostname;
 	const items = await opJson<OpItemSummary[]>([
 		"item",
