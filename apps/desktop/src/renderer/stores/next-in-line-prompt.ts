@@ -44,6 +44,17 @@ export function inOffHours(now: Date, start: string, end: string): boolean {
 	return s <= e ? t >= s && t < e : t >= s || t < e;
 }
 
+/**
+ * The sources Next in line is built from - the only rows the Night Agent can
+ * start. An email or ClickUp row picked for tonight would never start.
+ */
+const NIGHT_SOURCES = new Set(["Tasks", "Slack", "Jira", "GitHub", "Notion"]);
+
+/** Whether the Night Agent can start this row. */
+export function canPickForTonight(item: { source: string }): boolean {
+	return NIGHT_SOURCES.has(item.source);
+}
+
 /** Adds or removes a row from tonight's picks. Adding is refused at the cap. */
 export function toggleNightPick(key: string): void {
 	const { offHours, setOffHours } = useNextInLinePrompt.getState();

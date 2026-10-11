@@ -62,6 +62,7 @@ import {
 	useReminders,
 } from "../components/Reminders";
 import { PriorityLabelChip, TaskBox } from "../components/TaskBox";
+import { TonightButton } from "../components/TonightButton";
 import { useActiveSessions } from "../hooks/useActiveSessions";
 import { useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
@@ -1079,6 +1080,7 @@ function AllFeedPage() {
 										>
 											Up next
 										</button>
+										<TonightButton item={item} />
 										<ReadLaterButton
 											on={readingKeys.has(item.key)}
 											onClick={() =>

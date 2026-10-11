@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import {
+	canPickForTonight,
 	inOffHours,
 	MAX_NIGHT_PICKS,
 	toggleNightPick,
@@ -29,4 +30,11 @@ test("night picks toggle, and stop at the cap", () => {
 	expect(picks()).toEqual(["b"]);
 	for (let i = 0; i < MAX_NIGHT_PICKS + 5; i++) toggleNightPick(`k${i}`);
 	expect(picks().length).toBe(MAX_NIGHT_PICKS);
+});
+
+test("only rows Next in line holds can be picked for tonight", () => {
+	for (const source of ["Tasks", "Slack", "Jira", "GitHub", "Notion"])
+		expect(canPickForTonight({ source })).toBe(true);
+	expect(canPickForTonight({ source: "Email" })).toBe(false);
+	expect(canPickForTonight({ source: "ClickUp" })).toBe(false);
 });

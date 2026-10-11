@@ -442,6 +442,12 @@ export function NextInLine() {
 								</button>
 							</div>
 						)}
+						{tonight.length === 0 && (
+							<div className="flex items-center gap-1.5 px-1 pt-0.5 text-[11px] text-muted-foreground">
+								<LuMoon className="size-3" aria-hidden />
+								Click the moon on a task to run it tonight
+							</div>
+						)}
 						{tonight.length > 0 && !nightAgentOn && (
 							<button
 								type="button"
@@ -597,11 +603,13 @@ export function NextInLine() {
 									? `Tonight's picks are full (${MAX_NIGHT_PICKS})`
 									: "Pick for tonight - the Night Agent starts picks first"
 						}
+						// Visible at rest, unlike the actions beside it: hidden behind a
+						// hover, nobody found how to queue a task for tonight.
 						className={cn(
-							"rounded-md p-1 hover:bg-accent disabled:opacity-40",
+							"visible rounded-md p-1 hover:bg-accent disabled:opacity-40",
 							pickIndex >= 0
 								? "text-primary"
-								: "text-muted-foreground hover:text-foreground",
+								: "text-muted-foreground/60 hover:text-foreground",
 						)}
 					>
 						<LuMoon className="size-3.5" aria-hidden />

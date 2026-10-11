@@ -490,6 +490,22 @@ await step(
 	},
 );
 
+await step("Tonight on a task row picks it for the Night Agent", async () => {
+	await rail("Tasks");
+	if (!(await clickOnTaskRow("Pick for tonight")))
+		throw new Error("no Tonight button on the task's row");
+	// First pick: the keeps-the-computer-awake notice comes first.
+	await waitForText("keeps your computer awake");
+	await click("button", "Got it");
+	await rail("Dev Board");
+	await waitForText("tonight · 1");
+	await rail("Tasks");
+	if (!(await clickOnTaskRow("Take off tonight's picks")))
+		throw new Error("Tonight didn't toggle back on the task's row");
+	await rail("Dev Board");
+	await waitForText("click the moon on a task to run it tonight");
+});
+
 await step("the Tasks page has its own composer", async () => {
 	const typed = `All composer task ${Date.now()}`;
 	await rail("Tasks");
