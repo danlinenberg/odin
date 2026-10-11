@@ -4262,6 +4262,20 @@ function DevBoardPage() {
 									<span className="rounded-[5px] bg-secondary px-[7px] text-[11px] text-muted-foreground">
 										{PANE_STATUS[drawerCard.status].label}
 									</span>
+									<button
+										type="button"
+										title={
+											drawerCard.pane.odinStarred
+												? "Unstar"
+												: "Star - pin to the top"
+										}
+										aria-label={drawerCard.pane.odinStarred ? "Unstar" : "Star"}
+										aria-pressed={!!drawerCard.pane.odinStarred}
+										onClick={() => toggleStar(drawerCard.pane.id)}
+										className="shrink-0 rounded-[5px] px-1 text-[13px] text-attention hover:bg-attention/15"
+									>
+										{drawerCard.pane.odinStarred ? "★" : "☆"}
+									</button>
 								</div>
 								{drawerCard.pane.type === "terminal" && !inCatchUp && (
 									<button
@@ -4404,7 +4418,7 @@ function DevBoardPage() {
 														type="button"
 														onClick={() => openDrawer(card)}
 														className={cn(
-															"flex items-center gap-2 py-1.5 text-left text-xs transition-all duration-[450ms]",
+															"group/switch flex items-center gap-2 py-1.5 text-left text-xs transition-all duration-[450ms]",
 															isSwitchListMin ? "justify-center" : "px-3",
 															card.pane.id === leavingPaneId
 																? "pointer-events-none -translate-x-6 bg-success/20 text-success-ink opacity-0"
@@ -4424,12 +4438,33 @@ function DevBoardPage() {
 																{cardTitle(card)}
 															</span>
 														)}
-														{!isSwitchListMin && card.pane.odinStarred && (
+														{!isSwitchListMin && (
+															// ponytail: a span, not a button - it sits inside the row's button.
+															// biome-ignore lint/a11y/useSemanticElements: nested in a button
 															<span
-																title="Starred"
-																className="ml-auto shrink-0 text-attention"
+																role="button"
+																tabIndex={-1}
+																title={
+																	card.pane.odinStarred
+																		? "Unstar"
+																		: "Star - pin to the top"
+																}
+																aria-label={
+																	card.pane.odinStarred ? "Unstar" : "Star"
+																}
+																aria-pressed={!!card.pane.odinStarred}
+																onClick={(event) => {
+																	event.stopPropagation();
+																	toggleStar(card.pane.id);
+																}}
+																onKeyDown={() => {}}
+																className={cn(
+																	"ml-auto shrink-0 rounded-[4px] px-0.5 text-attention hover:bg-attention/15",
+																	!card.pane.odinStarred &&
+																		"opacity-0 group-hover/switch:opacity-100",
+																)}
 															>
-																★
+																{card.pane.odinStarred ? "★" : "☆"}
 															</span>
 														)}
 													</button>
