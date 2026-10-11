@@ -480,7 +480,7 @@ export function NextInLine() {
 			<div
 				key={item.key}
 				className={cn(
-					"group relative flex items-start gap-2 rounded-[10px] border border-border bg-card px-2.5 py-2 transition-colors hover:border-input hover:bg-secondary",
+					"group relative flex flex-col gap-1 rounded-[10px] border border-border bg-card px-2.5 py-2 transition-colors hover:border-input hover:bg-secondary",
 					(isAiHidden(item) || duplicate) && "opacity-50",
 				)}
 				title={
@@ -491,8 +491,8 @@ export function NextInLine() {
 							: undefined
 				}
 			>
-				{/* Title and meta get the card's whole width; the actions only
-								    exist on hover, so they never cost a line of text. */}
+				{/* Title and meta get the card's whole width; the actions are a
+								    row under them that only exists on hover, so they never cover text. */}
 				<HoverCard openDelay={400} closeDelay={80}>
 					<HoverCardTrigger asChild>
 						<div className="min-w-0 flex-1">
@@ -563,7 +563,7 @@ export function NextInLine() {
 				</HoverCard>
 				<div
 					className={cn(
-						"absolute right-1.5 top-1.5 hidden items-center gap-0.5 rounded-lg border border-border bg-popover p-0.5 shadow-lg group-focus-within:flex group-hover:flex",
+						"hidden items-center justify-end gap-0.5 group-focus-within:flex group-hover:flex",
 						launchingKey === item.launch.key && "flex",
 					)}
 				>
