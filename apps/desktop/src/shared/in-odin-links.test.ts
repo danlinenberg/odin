@@ -37,6 +37,7 @@ describe("linkSite", () => {
 			"jira",
 		);
 		expect(linkSite("https://acme.notion.site/Page")).toBe("notion");
+		expect(linkSite("https://app.clickup.com/t/86c1ab2cd")).toBe("clickup");
 		expect(linkSite("https://www.google.com")).toBeNull();
 	});
 });
