@@ -402,6 +402,8 @@ export async function warmBriefs(
 	queued: number;
 	tags: Record<string, string[]>;
 	titles: Record<string, string>;
+	/** Each brief's STATUS line - the session list shows it under the title. */
+	statuses: Record<string, string>;
 }> {
 	let queued = 0;
 	for (const id of sessionIds) {
@@ -428,13 +430,15 @@ export async function warmBriefs(
 	const cache = await load(options.cachePath ?? defaultCachePath());
 	const tags: Record<string, string[]> = {};
 	const titles: Record<string, string> = {};
+	const statuses: Record<string, string> = {};
 	for (const id of sessionIds) {
 		const brief = cache.get(id)?.brief;
 		const cached = brief?.tags?.filter((tag) => BRIEF_TAGS.includes(tag));
 		if (cached?.length) tags[id] = cached;
 		if (brief?.title) titles[id] = brief.title;
+		if (brief?.status) statuses[id] = brief.status;
 	}
-	return { queued, tags, titles };
+	return { queued, tags, titles, statuses };
 }
 
 async function pump(): Promise<void> {

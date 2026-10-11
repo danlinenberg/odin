@@ -2705,6 +2705,15 @@ function DevBoardPage() {
 	// re-firing this is cheap.
 	const warmBriefs =
 		electronTrpc.terminal.warmClaudeSessionBriefs.useMutation();
+	// Each brief's STATUS line by session id - the drawer's session list shows
+	// it under the title. Comes back with every warm, so no call of its own.
+	const [briefStatus, setBriefStatus] = useState<Record<string, string>>({});
+	const switchStatus = (card: BoardCard) => {
+		const id =
+			card.pane.claudeSessionId ??
+			usePaneMeta.getState().sessionIdByPane[card.pane.id];
+		return id ? briefStatus[id] : undefined;
+	};
 	const { data: autoRename } =
 		electronTrpc.settings.getOdinAutoRenameSessions.useQuery();
 	// Each id carries whether its card stopped working, so a session finishing
@@ -2740,6 +2749,8 @@ function DevBoardPage() {
 				{
 					onSuccess: (r) => {
 						applyAutoTags(r.tags);
+						// Missing until main restarts onto the procedure that returns it.
+						setBriefStatus(r.statuses ?? {});
 						if (autoRename) applyAutoTitles(r.titles);
 					},
 				},
@@ -4601,8 +4612,15 @@ function DevBoardPage() {
 																}}
 															/>
 															{!isSwitchListMin && (
-																<span className="truncate">
-																	{cardTitle(card)}
+																<span className="flex min-w-0 flex-col">
+																	<span className="truncate">
+																		{cardTitle(card)}
+																	</span>
+																	{switchStatus(card) && (
+																		<span className="truncate text-[10.5px] font-normal text-faint-foreground">
+																			{switchStatus(card)}
+																		</span>
+																	)}
 																</span>
 															)}
 															{!isSwitchListMin && (

@@ -364,6 +364,18 @@ describe("warmBriefs", () => {
 		expect(titles[session]).toBe("t");
 	});
 
+	test("hands back each brief's status line for the session list", async () => {
+		const { session, root, bin, cachePath } = fixture();
+		await warmBriefs([session], { claudeBin: bin, root, cachePath });
+		await settle(cachePath);
+		const { statuses } = await warmBriefs([session], {
+			claudeBin: bin,
+			root,
+			cachePath,
+		});
+		expect(statuses[session]).toBe("s");
+	});
+
 	test("a brief cached with #automation doesn't pass it on to a card", async () => {
 		const { session, root, cachePath } = fixture();
 		writeFileSync(
