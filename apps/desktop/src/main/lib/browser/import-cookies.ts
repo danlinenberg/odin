@@ -111,8 +111,8 @@ export function toCookie(
 
 // ponytail: the most recently written cookie DB is the browser profile in use;
 // add a browser/profile picker if someone needs a different one.
-function newestCookieDb() {
-	const support = path.join(os.homedir(), "Library/Application Support");
+export function newestCookieDb(home = os.homedir()) {
+	const support = path.join(home, "Library/Application Support");
 	let newest: {
 		browser: (typeof BROWSERS)[number];
 		file: string;
@@ -122,7 +122,7 @@ function newestCookieDb() {
 	for (const browser of BROWSERS) {
 		const root = path.join(support, browser.dir);
 		if (!existsSync(root)) continue;
-		for (const profile of readdirSync(root)) {
+		for (const profile of readableDir(root)) {
 			for (const file of [
 				path.join(root, profile, "Cookies"),
 				path.join(root, profile, "Network/Cookies"),
@@ -135,6 +135,15 @@ function newestCookieDb() {
 		}
 	}
 	return newest;
+}
+
+// macOS walls off some apps' data (EPERM). Skip that browser, don't fail the import.
+function readableDir(dir: string): string[] {
+	try {
+		return readdirSync(dir);
+	} catch {
+		return [];
+	}
 }
 
 type Browser = (typeof BROWSERS)[number];

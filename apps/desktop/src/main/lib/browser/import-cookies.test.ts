@@ -1,9 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import { createCipheriv, createHash } from "node:crypto";
+import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import {
 	type CookieRow,
 	cookieKey,
 	decryptValue,
+	newestCookieDb,
 	toCookie,
 } from "./import-cookies";
 
@@ -73,4 +77,20 @@ describe("toCookie", () => {
 		expect(hostOnly.expirationDate).toBeUndefined();
 		expect(hostOnly.sameSite).toBe("unspecified");
 	});
+});
+
+test("newestCookieDb skips a browser macOS won't let Odin read", () => {
+	const home = mkdtempSync(path.join(os.tmpdir(), "odin-home-"));
+	const support = path.join(home, "Library/Application Support");
+	const arc = path.join(support, "Arc/User Data/Profile 1");
+	mkdirSync(arc, { recursive: true });
+	writeFileSync(path.join(arc, "Cookies"), "");
+	const chrome = path.join(support, "Google/Chrome");
+	mkdirSync(chrome, { recursive: true });
+	chmodSync(chrome, 0);
+	try {
+		expect(newestCookieDb(home)?.browser.name).toBe("Arc");
+	} finally {
+		chmodSync(chrome, 0o755);
+	}
 });
