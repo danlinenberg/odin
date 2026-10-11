@@ -443,9 +443,10 @@ function AllFeedPage() {
 			<FeedHeader>
 				<FeedDivider />
 				<span className="shrink-0 text-[12px] text-muted-foreground">
-					{items.length === allRows.length
+					{/* Up next rows are on screen too, just above the rest. */}
+					{items.length + queued.length === allRows.length
 						? `${allRows.length} waiting on you`
-						: `${items.length} of ${allRows.length}`}
+						: `${items.length + queued.length} of ${allRows.length}`}
 				</span>
 				{sessions.length > 0 && (
 					<span
