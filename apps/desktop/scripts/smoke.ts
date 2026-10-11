@@ -491,6 +491,11 @@ await step(
 );
 
 await step("Tonight on a task row picks it for the Night Agent", async () => {
+	// Next in line is a column you open on the board; a fresh home has it shut.
+	const openNextInLine = () =>
+		page(
+			`document.querySelector('button[title="Show the tasks worth starting next"]')?.click()`,
+		);
 	await rail("Tasks");
 	if (!(await clickOnTaskRow("Pick for tonight")))
 		throw new Error("no Tonight button on the task's row");
@@ -498,12 +503,18 @@ await step("Tonight on a task row picks it for the Night Agent", async () => {
 	await waitForText("keeps your computer awake");
 	await click("button", "Got it");
 	await rail("Dev Board");
+	await openNextInLine();
 	await waitForText("tonight · 1");
 	await rail("Tasks");
-	if (!(await clickOnTaskRow("Take off tonight's picks")))
+	if (!(await clickOnTaskRow("Take off tonight")))
 		throw new Error("Tonight didn't toggle back on the task's row");
 	await rail("Dev Board");
+	await openNextInLine();
 	await waitForText("click the moon on a task to run it tonight");
+	// Leave the board as the later steps expect it.
+	await page(
+		`document.querySelector('button[title="Hide the Next in line column"]')?.click()`,
+	);
 });
 
 await step("the Tasks page has its own composer", async () => {
