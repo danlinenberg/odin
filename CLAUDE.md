@@ -37,6 +37,22 @@ shared checkout has no owner.
 `git stash` is blocked here by a `reference-transaction` hook for that reason.
 Commit to a branch instead - a commit has an owner and survives a checkout.
 
+## Check main before you build
+
+Before writing any code, check whether the feature or fix already exists on
+`origin/main`. Many sessions work on this repo at once, and a request often
+arrives after another session already shipped it.
+
+- `git fetch origin main`, then search: `git log origin/main --oneline -i
+  --grep=<keyword>` over recent PR titles, and `git grep -i <keyword>
+  origin/main -- apps packages` for the code itself.
+- Check open PRs too: `gh pr list --state open --search <keyword>`.
+
+If it is already on main (or in an open PR), refuse and stop. Tell the user
+which PR or commit has it, where the code lives (`file:line`), and how to reach
+it in the app. If only part of it exists, say which part and offer to build
+the rest. If the user insists after that, do the work as asked.
+
 ## Writing
 
 No em dashes anywhere: code, comments, UI strings, docs, commit messages, PR
