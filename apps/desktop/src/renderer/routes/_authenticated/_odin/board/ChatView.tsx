@@ -525,7 +525,13 @@ const ToolGroup = memo(
 		const failed = group.at(-1)?.isError === true;
 		return (
 			<div className="flex min-w-0 flex-col">
-				<div className="flex min-w-0 items-end gap-2">
+				{/* Alone on its row, the toggle centres on Claude's mark beside it. */}
+				<div
+					className={cn(
+						"flex min-w-0 gap-2",
+						lead ? "items-end" : "h-7 items-center",
+					)}
+				>
 					{lead && <div className="min-w-0">{lead}</div>}
 					{/* Live work shows once, in the turn's own "Working..." row below. */}
 					<button
@@ -535,7 +541,8 @@ const ToolGroup = memo(
 						aria-label={failed ? "Worked, ended in an error" : "Worked"}
 						aria-expanded={open}
 						className={cn(
-							"mb-0.5 shrink-0 rounded p-0.5 text-faint-foreground hover:bg-accent hover:text-foreground",
+							"shrink-0 rounded p-0.5 text-faint-foreground hover:bg-accent hover:text-foreground",
+							lead && "mb-0.5",
 							open && "bg-accent text-foreground",
 							failed && "text-destructive",
 						)}
