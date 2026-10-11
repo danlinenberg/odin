@@ -205,6 +205,9 @@ export function allItems(
 	},
 	{ everything = false }: { everything?: boolean } = {},
 ): AllItem[] {
+	// Backlog is parked, not a task yet - the Jira and Notion tabs still list it.
+	const notBacklog = (item: AllItem) =>
+		everything || item.status?.toLowerCase() !== "backlog";
 	return [
 		...input.tasks.map(
 			(task): AllItem => ({
@@ -445,5 +448,7 @@ export function allItems(
 					},
 				}),
 			),
-	].sort((a, b) => b.at - a.at);
+	]
+		.filter(notBacklog)
+		.sort((a, b) => b.at - a.at);
 }

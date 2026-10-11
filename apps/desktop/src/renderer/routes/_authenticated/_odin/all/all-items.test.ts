@@ -272,3 +272,13 @@ test("a Slack row is created when it was queued, not when it was posted", () => 
 	expect(row?.at).toBe(Date.parse(iso(5)));
 	expect(row?.createdAt).toBe(queued);
 });
+
+test("Backlog stays off the Tasks page, but Search all still finds it", () => {
+	const backlog = { ...feeds, jira: [{ ...feeds.jira[0], status: "Backlog" }] };
+	expect(allItems(backlog).some((item) => item.source === "Jira")).toBe(false);
+	expect(
+		allItems(backlog, { everything: true }).some(
+			(item) => item.source === "Jira",
+		),
+	).toBe(true);
+});
