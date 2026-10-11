@@ -2616,9 +2616,9 @@ function DevBoardPage() {
 	const [switchSort, setSwitchSort] = useState<SwitchSort>(() => {
 		try {
 			const saved = localStorage.getItem("odin:drawer-sessions-sort");
-			return saved && saved in SWITCH_SORTS ? (saved as SwitchSort) : "status";
+			return saved && saved in SWITCH_SORTS ? (saved as SwitchSort) : "updated";
 		} catch {
-			return "status";
+			return "updated";
 		}
 	});
 	const pickSwitchSort = (sort: SwitchSort) => {
@@ -2630,9 +2630,9 @@ function DevBoardPage() {
 	// Grouped by status, Needs you comes first, then Final Review, then Working.
 	const [isSwitchGrouped, setIsSwitchGrouped] = useState(() => {
 		try {
-			return localStorage.getItem("odin:drawer-sessions-group") === "1";
+			return localStorage.getItem("odin:drawer-sessions-group") !== "0";
 		} catch {
-			return false;
+			return true;
 		}
 	});
 	const toggleSwitchGrouped = () => {
