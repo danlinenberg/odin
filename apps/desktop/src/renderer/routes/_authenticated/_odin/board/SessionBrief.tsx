@@ -546,6 +546,21 @@ export function SessionBrief({
 			? postedMessage(transcript?.messages ?? [], thread)?.split("\n")[0]
 			: null;
 
+	// Which of them shipped, and what CI is still chewing on. One `gh pr view`
+	// per link, so poll only while a PR is still open - a merged one never
+	// changes again, and the panel is otherwise spawning subprocesses forever.
+	const { data: prStates } = electronTrpc.terminal.pullRequestStates.useQuery(
+		{ urls: [...prs.map((pr) => pr.url), ...mine("pr").map((pr) => pr.url)] },
+		{
+			enabled: prs.length > 0 || mine("pr").length > 0,
+			retry: false,
+			staleTime: 10_000,
+			refetchInterval: (query) =>
+				Object.values(query.state.data ?? {}).some(
+					(status) => status?.state === "OPEN" && status.mine !== false,
+				) && 15_000,
+		},
+	);
 	// Only what's still on the panel - a URL the transcript stopped quoting, or
 	// a link you removed, doesn't linger in the fold.
 	const hiddenList = [
@@ -573,21 +588,6 @@ export function SessionBrief({
 			!!item && isHidden(item.url),
 	);
 
-	// Which of them shipped, and what CI is still chewing on. One `gh pr view`
-	// per link, so poll only while a PR is still open - a merged one never
-	// changes again, and the panel is otherwise spawning subprocesses forever.
-	const { data: prStates } = electronTrpc.terminal.pullRequestStates.useQuery(
-		{ urls: [...prs.map((pr) => pr.url), ...mine("pr").map((pr) => pr.url)] },
-		{
-			enabled: prs.length > 0 || mine("pr").length > 0,
-			retry: false,
-			staleTime: 10_000,
-			refetchInterval: (query) =>
-				Object.values(query.state.data ?? {}).some(
-					(status) => status?.state === "OPEN" && status.mine !== false,
-				) && 15_000,
-		},
-	);
 	// Every linked ticket's status in one search. A ticket moves slowly, so a
 	// minute between looks is plenty.
 	const jiraKeys = [
