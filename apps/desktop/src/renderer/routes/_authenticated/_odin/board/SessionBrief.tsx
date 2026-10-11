@@ -602,9 +602,18 @@ export function SessionBrief({
 		},
 	);
 	// Someone else's PR the session only linked isn't one of its PRs. Listed
-	// until its author is known, so the section doesn't flash empty.
+	// until its author is known, so the section doesn't flash empty. One you
+	// added yourself stays: `added` skips it as already surfaced.
+	const addedUrls = new Set(
+		links.map((link) =>
+			typeof link === "string" ? link : (link as BriefLink).url,
+		),
+	);
 	const ownPrs = prs.filter(
-		(pr) => pr.url === launchPr?.url || prStates?.[pr.url]?.mine !== false,
+		(pr) =>
+			pr.url === launchPr?.url ||
+			addedUrls.has(pr.url) ||
+			prStates?.[pr.url]?.mine !== false,
 	);
 
 	// Every link's hover. A PR's comes from GitHub, a Slack link's from Slack
