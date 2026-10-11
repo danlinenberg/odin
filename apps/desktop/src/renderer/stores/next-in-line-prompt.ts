@@ -30,7 +30,7 @@ export const DEFAULT_OFF_HOURS: OffHours = {
 	afterPicks: "stop",
 	introSeen: false,
 	instructions:
-		"This is a Night Agent run: I'm asleep and will read the result in the morning. Get it as far as you can on your own - investigate, find the root cause, and make and verify the change on a branch with a PR open. Don't do anything other people would see before I've looked: no Slack or email messages, no Jira or PR comments, no deploys. Leave those in ACTION ITEMS. Merging is the one exception: in the odin repo, auto-merge every PR you open (gh pr merge <n> --auto --squash --delete-branch) and don't leave it open.",
+		"This is a Night Agent run: I'm asleep and will read the result in the morning. Get it as far as you can on your own - investigate, find the root cause, and make and verify the change on a branch with a PR open. Don't do anything other people would see before I've looked: no Slack or email messages, no Jira or PR comments, no merging, no deploys. Leave those in ACTION ITEMS.",
 };
 
 /** Whether `now` falls in the window - `end` exclusive, wrapping midnight. */
@@ -105,10 +105,6 @@ export const useNextInLinePrompt = create<{
 						// Already turned on before the notice existed: it was their first time.
 						introSeen: !!persisted?.offHours?.enabled,
 						...persisted?.offHours,
-						// The old default forbade merging; a saved copy of it gets the new one.
-						...(persisted?.offHours?.instructions?.includes("no merging")
-							? { instructions: DEFAULT_OFF_HOURS.instructions }
-							: {}),
 					},
 				};
 			},
