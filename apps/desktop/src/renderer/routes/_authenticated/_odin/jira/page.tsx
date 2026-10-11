@@ -181,35 +181,54 @@ function MyJiraPage() {
 		return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
 	}, [issues]);
 
-	// Group by status category (In Progress first), then keep Jira's updated order.
+	// One section per project, one group per epic inside it ("No epic" last).
+	// Rows go In Progress first, then a live session first and parked last;
+	// Jira's updated order survives inside each band (sort is stable).
 	const groups = useMemo(() => {
 		const filtered = issues
 			.filter((issue) => !projectFilter || issue.project === projectFilter)
 			.filter(
 				(issue) =>
 					!needle ||
-					`${issue.key} ${issue.title} ${issue.reporter ?? ""} ${issue.status} ${issue.project}`
+					`${issue.key} ${issue.title} ${issue.reporter ?? ""} ${issue.status} ${issue.project} ${issue.epic?.title ?? ""}`
 						.toLowerCase()
 						.includes(needle),
 			);
-		const byCategory = new Map<string, typeof issues>();
-		for (const issue of filtered) {
-			const key = issue.statusCategory;
-			(byCategory.get(key) ?? byCategory.set(key, []).get(key))?.push(issue);
-		}
-		// Tickets with a live Odin session to the top of their group, parked ones
-		// to the bottom; Jira's updated order survives inside each band.
 		const rank = (issue: (typeof issues)[number]) =>
-			livePaneByKey.has(issue.key)
+			categoryRank(issue.statusCategory) * 3 +
+			(livePaneByKey.has(issue.key)
 				? 0
 				: statusTone(issue.status) === "parked"
 					? 2
-					: 1;
-		for (const rows of byCategory.values())
-			rows.sort((a, b) => rank(a) - rank(b));
-		return [...byCategory.entries()].sort(
-			(a, b) => categoryRank(a[0]) - categoryRank(b[0]),
-		);
+					: 1);
+		const byProject = new Map<
+			string,
+			Map<
+				string,
+				{ epic: (typeof issues)[number]["epic"]; rows: typeof issues }
+			>
+		>();
+		for (const issue of [...filtered].sort((a, b) => rank(a) - rank(b))) {
+			const epics =
+				byProject.get(issue.project) ??
+				byProject.set(issue.project, new Map()).get(issue.project);
+			const epicKey = issue.epic?.key ?? "";
+			const group =
+				epics?.get(epicKey) ??
+				epics?.set(epicKey, { epic: issue.epic, rows: [] }).get(epicKey);
+			group?.rows.push(issue);
+		}
+		return [...byProject.entries()]
+			.sort((a, b) => a[0].localeCompare(b[0]))
+			.map(([project, epics]) => ({
+				project,
+				count: [...epics.values()].reduce((n, g) => n + g.rows.length, 0),
+				epics: [...epics.values()].sort(
+					(a, b) =>
+						Number(!a.epic) - Number(!b.epic) ||
+						(a.epic?.title ?? "").localeCompare(b.epic?.title ?? ""),
+				),
+			}));
 	}, [issues, projectFilter, needle, livePaneByKey]);
 
 	const handleStart = async (issue: (typeof issues)[number]) => {
@@ -234,6 +253,169 @@ function MyJiraPage() {
 		} else {
 			toast.error(result.error);
 		}
+	};
+
+	const renderRow = (issue: (typeof issues)[number]) => {
+		const activePaneId = livePaneByKey.get(issue.key) ?? null;
+		const date = shortDate(issue.updated);
+		const tone = statusTone(issue.status);
+		const reviewPull = reviewPullByKey.get(issue.key);
+		return (
+			<div
+				key={issue.key}
+				className={cn(
+					FEED_ROW,
+					activePaneId && "border-l-2 border-l-working",
+					!activePaneId && tone === "parked" && "opacity-60",
+				)}
+			>
+				{/* One line per ticket: title takes the slack, meta rides in
+				    the space that used to be empty to its right. A grid, not a
+				    flex row, so the mention below can sit in the title's column. */}
+				<div className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-x-2.5">
+					<span className="shrink-0 font-mono text-[11px] font-semibold text-muted-foreground">
+						{issue.key}
+					</span>
+					<span className="min-w-0 truncate text-[13px] font-semibold text-foreground">
+						<OverdueMark
+							itemKey={`jira:${issue.key}`}
+							upstream={issue.dueDate}
+						/>
+						{issue.title}
+					</span>
+					<div className="flex shrink-0 items-center gap-2 text-[11px]">
+						<span className={META_PERSON}>
+							{issue.reporter && (
+								<PersonChip
+									name={issue.reporter}
+									className="max-w-full truncate"
+								/>
+							)}
+						</span>
+						{/* What the row wants from me: a review when a PR on it
+						    waits on me (click opens the PR), else why it's here. */}
+						<span className={META_TAG}>
+							{reviewPull ? (
+								<button
+									type="button"
+									onClick={() => openUrl(reviewPull.url)}
+									title={`Waiting on your review: ${reviewPull.repo}#${reviewPull.number} ${reviewPull.title}`}
+									className={cn(
+										"rounded-[5px] px-[7px] py-[1px] font-semibold",
+										PILL.attention,
+									)}
+								>
+									review
+								</button>
+							) : (
+								<span
+									className={cn(
+										"rounded-[5px] px-[7px] py-[1px]",
+										ROLE_BADGE[issue.role].className,
+									)}
+								>
+									{ROLE_BADGE[issue.role].label}
+								</span>
+							)}
+						</span>
+						<span className={META_TAG}>
+							{activePaneId && (
+								<span
+									className={cn(
+										"inline-flex items-center gap-1 rounded-[5px] px-[7px] py-[1px] font-semibold",
+										PILL.working,
+									)}
+								>
+									<span className="size-1.5 animate-pulse rounded-full bg-current" />
+									Live
+								</span>
+							)}
+						</span>
+						<span className={META_STATUS}>
+							<span
+								className={cn(
+									"truncate rounded-[5px] px-[7px] py-[1px] font-semibold",
+									TONE_CHIP[tone],
+								)}
+							>
+								{issue.status}
+							</span>
+						</span>
+						<span className={META_TAG}>
+							{/* Someone asked me directly - High, whatever the ticket says. */}
+							{(issue.mention ||
+								(issue.priority && isHotPriority(issue.priority))) && (
+								<span
+									className={cn("rounded-[5px] px-[7px] py-[1px]", PILL.danger)}
+								>
+									{issue.mention ? "High" : issue.priority}
+								</span>
+							)}
+						</span>
+						<span className={META_TEXT}>{issue.project}</span>
+						<span title={issue.updated ?? undefined} className={META_DATE}>
+							{date}
+						</span>
+						{/* Same key the All view sets a date under, so a
+						    ticket has one due date wherever you set it. */}
+						<span className={META_DUE}>
+							<DueChip
+								itemKey={`jira:${issue.key}`}
+								title={`${issue.key}: ${issue.title}`}
+								upstream={issue.dueDate}
+							/>
+						</span>
+					</div>
+					<div className="flex shrink-0 items-center gap-1.5">
+						<span className={ROW_LINK_SLOT}>
+							<button
+								type="button"
+								onClick={() => openUrl(issue.url)}
+								className={ROW_LINK_BUTTON}
+							>
+								Ticket ↗
+							</button>
+						</span>
+						<span className={ROW_PRIMARY_SLOT}>
+							{activePaneId ? (
+								<button
+									type="button"
+									onClick={() => {
+										usePendingFocus.getState().focus(activePaneId);
+										navigate({ to: "/board" });
+									}}
+									className={ROW_LIVE_BUTTON}
+								>
+									Go to session →
+								</button>
+							) : (
+								<button
+									type="button"
+									disabled={isLaunching}
+									onClick={() => void handleStart(issue)}
+									className={ROW_START_BUTTON}
+								>
+									{launchingKey === issue.key ? "Starting…" : "Start session"}
+								</button>
+							)}
+						</span>
+						<DoneButton onClick={() => markDone(doable(issue))} />
+					</div>
+					{/* A mention row exists because of one comment - so it
+					    shows that comment, not just the ticket it sits on.
+					    Column 2 keeps it under the title, not under the key. */}
+					{issue.mention && (
+						<div className="col-start-2 mt-1.5 line-clamp-2 select-text cursor-text text-[11.5px] leading-relaxed text-muted-foreground">
+							<span className="font-semibold text-soft-foreground">
+								{issue.mention.author ?? "Someone"}
+								{": "}
+							</span>
+							{issue.mention.text}
+						</div>
+					)}
+				</div>
+			</div>
+		);
 	};
 
 	return (
@@ -296,205 +478,49 @@ function MyJiraPage() {
 					</div>
 				)}
 
-				{groups.map(([category, rows]) => (
-					<div key={category} className="mb-1">
-						<div className="flex items-center gap-2 py-1 pl-1 text-[11px] font-medium uppercase tracking-[.3px] text-muted-foreground">
-							<span
-								className={cn(
-									"size-1.5 rounded-full",
-									category.toLowerCase() === "in progress"
-										? "bg-working"
-										: "bg-muted-foreground",
-								)}
-							/>
-							{category}
-							<span className="rounded-[10px] bg-secondary px-1.5 font-medium text-muted-foreground">
-								{rows.length}
+				{groups.map(({ project, count, epics }) => (
+					<div key={project} className="mb-3">
+						<div className="flex items-center gap-2 py-1 pl-1 text-[12px] font-semibold text-foreground">
+							{project}
+							<span className="rounded-[10px] bg-secondary px-1.5 text-[11px] font-medium text-muted-foreground">
+								{count}
 							</span>
-							{(() => {
-								const live = rows.filter((r) =>
-									livePaneByKey.has(r.key),
-								).length;
-								return live > 0 ? (
-									<span className="rounded-[10px] bg-working/12 px-1.5 font-medium text-working">
-										{live} live
-									</span>
-								) : null;
-							})()}
 						</div>
-						<div className="flex flex-col gap-1.5">
-							{rows.map((issue) => {
-								const activePaneId = livePaneByKey.get(issue.key) ?? null;
-								const date = shortDate(issue.updated);
-								const tone = statusTone(issue.status);
-								const reviewPull = reviewPullByKey.get(issue.key);
-								return (
-									<div
-										key={issue.key}
-										className={cn(
-											FEED_ROW,
-											activePaneId && "border-l-2 border-l-working",
-											!activePaneId && tone === "parked" && "opacity-60",
+						{epics.map(({ epic, rows }) => {
+							const live = rows.filter((r) => livePaneByKey.has(r.key)).length;
+							return (
+								<div key={epic?.key ?? ""} className="mb-1">
+									<div className="flex items-center gap-2 py-1 pl-1 text-[11px] font-medium uppercase tracking-[.3px] text-muted-foreground">
+										<span className="size-1.5 rounded-full bg-muted-foreground" />
+										{epic ? (
+											<button
+												type="button"
+												title={`Open epic ${epic.key} in Jira`}
+												onClick={() =>
+													openUrl(rows[0].url.replace(rows[0].key, epic.key))
+												}
+												className="truncate uppercase hover:text-foreground"
+											>
+												{epic.title}
+											</button>
+										) : (
+											"No epic"
 										)}
-									>
-										{/* One line per ticket: title takes the slack, meta rides in
-										    the space that used to be empty to its right. A grid, not a
-										    flex row, so the mention below can sit in the title's column. */}
-										<div className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-x-2.5">
-											<span className="shrink-0 font-mono text-[11px] font-semibold text-muted-foreground">
-												{issue.key}
+										<span className="rounded-[10px] bg-secondary px-1.5 font-medium text-muted-foreground">
+											{rows.length}
+										</span>
+										{live > 0 && (
+											<span className="rounded-[10px] bg-working/12 px-1.5 font-medium text-working">
+												{live} live
 											</span>
-											<span className="min-w-0 truncate text-[13px] font-semibold text-foreground">
-												<OverdueMark
-													itemKey={`jira:${issue.key}`}
-													upstream={issue.dueDate}
-												/>
-												{issue.title}
-											</span>
-											<div className="flex shrink-0 items-center gap-2 text-[11px]">
-												<span className={META_PERSON}>
-													{issue.reporter && (
-														<PersonChip
-															name={issue.reporter}
-															className="max-w-full truncate"
-														/>
-													)}
-												</span>
-												{/* What the row wants from me: a review when a PR on it
-												    waits on me (click opens the PR), else why it's here. */}
-												<span className={META_TAG}>
-													{reviewPull ? (
-														<button
-															type="button"
-															onClick={() => openUrl(reviewPull.url)}
-															title={`Waiting on your review: ${reviewPull.repo}#${reviewPull.number} ${reviewPull.title}`}
-															className={cn(
-																"rounded-[5px] px-[7px] py-[1px] font-semibold",
-																PILL.attention,
-															)}
-														>
-															review
-														</button>
-													) : (
-														<span
-															className={cn(
-																"rounded-[5px] px-[7px] py-[1px]",
-																ROLE_BADGE[issue.role].className,
-															)}
-														>
-															{ROLE_BADGE[issue.role].label}
-														</span>
-													)}
-												</span>
-												<span className={META_TAG}>
-													{activePaneId && (
-														<span
-															className={cn(
-																"inline-flex items-center gap-1 rounded-[5px] px-[7px] py-[1px] font-semibold",
-																PILL.working,
-															)}
-														>
-															<span className="size-1.5 animate-pulse rounded-full bg-current" />
-															Live
-														</span>
-													)}
-												</span>
-												<span className={META_STATUS}>
-													<span
-														className={cn(
-															"truncate rounded-[5px] px-[7px] py-[1px] font-semibold",
-															TONE_CHIP[tone],
-														)}
-													>
-														{issue.status}
-													</span>
-												</span>
-												<span className={META_TAG}>
-													{/* Someone asked me directly - High, whatever the ticket says. */}
-													{(issue.mention ||
-														(issue.priority &&
-															isHotPriority(issue.priority))) && (
-														<span
-															className={cn(
-																"rounded-[5px] px-[7px] py-[1px]",
-																PILL.danger,
-															)}
-														>
-															{issue.mention ? "High" : issue.priority}
-														</span>
-													)}
-												</span>
-												<span className={META_TEXT}>{issue.project}</span>
-												<span
-													title={issue.updated ?? undefined}
-													className={META_DATE}
-												>
-													{date}
-												</span>
-												{/* Same key the All view sets a date under, so a
-												    ticket has one due date wherever you set it. */}
-												<span className={META_DUE}>
-													<DueChip
-														itemKey={`jira:${issue.key}`}
-														title={`${issue.key}: ${issue.title}`}
-														upstream={issue.dueDate}
-													/>
-												</span>
-											</div>
-											<div className="flex shrink-0 items-center gap-1.5">
-												<span className={ROW_LINK_SLOT}>
-													<button
-														type="button"
-														onClick={() => openUrl(issue.url)}
-														className={ROW_LINK_BUTTON}
-													>
-														Ticket ↗
-													</button>
-												</span>
-												<span className={ROW_PRIMARY_SLOT}>
-													{activePaneId ? (
-														<button
-															type="button"
-															onClick={() => {
-																usePendingFocus.getState().focus(activePaneId);
-																navigate({ to: "/board" });
-															}}
-															className={ROW_LIVE_BUTTON}
-														>
-															Go to session →
-														</button>
-													) : (
-														<button
-															type="button"
-															disabled={isLaunching}
-															onClick={() => void handleStart(issue)}
-															className={ROW_START_BUTTON}
-														>
-															{launchingKey === issue.key
-																? "Starting…"
-																: "Start session"}
-														</button>
-													)}
-												</span>
-												<DoneButton onClick={() => markDone(doable(issue))} />
-											</div>
-											{/* A mention row exists because of one comment - so it
-											    shows that comment, not just the ticket it sits on.
-											    Column 2 keeps it under the title, not under the key. */}
-											{issue.mention && (
-												<div className="col-start-2 mt-1.5 line-clamp-2 select-text cursor-text text-[11.5px] leading-relaxed text-muted-foreground">
-													<span className="font-semibold text-soft-foreground">
-														{issue.mention.author ?? "Someone"}
-														{": "}
-													</span>
-													{issue.mention.text}
-												</div>
-											)}
-										</div>
+										)}
 									</div>
-								);
-							})}
-						</div>
+									<div className="flex flex-col gap-1.5">
+										{rows.map(renderRow)}
+									</div>
+								</div>
+							);
+						})}
 					</div>
 				))}
 			</div>

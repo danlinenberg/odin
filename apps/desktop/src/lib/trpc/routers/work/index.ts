@@ -84,6 +84,30 @@ export interface JiraIssueRow {
 	mention: JiraMention | null;
 	/** The ticket's description as plain text, capped - for the hover card. */
 	description?: string | null;
+	/** The epic it sits under. Null when it has none, or its parent is a story. */
+	epic?: { key: string; title: string } | null;
+}
+
+interface JiraParent {
+	key: string;
+	fields?: {
+		summary?: string;
+		issuetype?: { name?: string; hierarchyLevel?: number };
+	};
+}
+
+/**
+ * The parent, when it's an epic. A sub-task's parent is a story, not an epic;
+ * hierarchy level 1 is the epic level whatever the site renamed the type to.
+ */
+export function epicOf(parent: JiraParent | undefined): JiraIssueRow["epic"] {
+	const type = parent?.fields?.issuetype;
+	if (
+		!parent ||
+		!(type?.hierarchyLevel === 1 || /epic/i.test(type?.name ?? ""))
+	)
+		return null;
+	return { key: parent.key, title: parent.fields?.summary ?? parent.key };
 }
 
 interface JiraComment {
@@ -252,6 +276,7 @@ interface JiraSearchResponse {
 			duedate?: string;
 			comment?: { comments?: JiraComment[] };
 			description?: unknown;
+			parent?: JiraParent;
 		};
 	}[];
 }
@@ -444,7 +469,7 @@ export const createWorkRouter = () => {
 					const jql = `${match}${openOnly} ORDER BY updated DESC`;
 					// Comment bodies are only worth their weight on the mention rows,
 					// where they are the point.
-					const fields = `summary,status,priority,project,issuetype,reporter,assignee,updated,created,duedate,description${role === "mentioned" ? ",comment" : ""}`;
+					const fields = `summary,status,priority,project,issuetype,reporter,assignee,updated,created,duedate,description,parent${role === "mentioned" ? ",comment" : ""}`;
 					const response = await fetch(
 						`${request.base}/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&maxResults=100&fields=${fields}`,
 						{ headers },
@@ -479,6 +504,7 @@ export const createWorkRouter = () => {
 								.replace(/\n{3,}/g, "\n\n")
 								.trim()
 								.slice(0, 3000) || null,
+						epic: epicOf(issue.fields?.parent),
 						mention: accountId
 							? latestMention(issue.fields?.comment?.comments ?? [], accountId)
 							: null,
