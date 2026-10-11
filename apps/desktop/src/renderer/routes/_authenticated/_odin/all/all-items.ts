@@ -39,7 +39,14 @@ export interface AllLaunch {
 export interface AllItem {
 	/** Unique across sources - two systems can hand out the same id. */
 	key: string;
-	source: "Tasks" | "Slack" | "Jira" | "GitHub" | "Notion" | "Email";
+	source:
+		| "Tasks"
+		| "Slack"
+		| "Jira"
+		| "GitHub"
+		| "Notion"
+		| "Email"
+		| "ClickUp";
 	/** The feed this row lives in - clicking the title goes there. */
 	to: FeedPath;
 	title: string;
@@ -201,6 +208,20 @@ export function allItems(
 			fromEmail?: string | null;
 			at: string | null;
 			junk?: boolean | null;
+		}[];
+		/** Open ClickUp tasks assigned to me - optional, most callers predate it. */
+		clickup?: {
+			id: string;
+			url: string;
+			name: string;
+			status: string | null;
+			priority: string | null;
+			list: string | null;
+			creator: string | null;
+			description: string | null;
+			updated: string | null;
+			created: string | null;
+			dueDate: string | null;
 		}[];
 	},
 	{ everything = false }: { everything?: boolean } = {},
@@ -445,5 +466,39 @@ export function allItems(
 					},
 				}),
 			),
+		...(input.clickup ?? []).map(
+			(task): AllItem => ({
+				key: `clickup:${task.id}`,
+				source: "ClickUp",
+				to: "/clickup",
+				title: task.name,
+				url: task.url,
+				person: task.creator,
+				status: task.status,
+				priority: task.priority,
+				urgency: urgencyOf(task.priority),
+				context: task.list,
+				at: ms(task.updated),
+				createdAt: ms(task.created ?? task.updated),
+				dueDate: task.dueDate,
+				mention: null,
+				body: task.description,
+				details: facts([
+					["Status", task.status],
+					["List", task.list],
+					["Priority", task.priority],
+					["Created by", task.creator],
+					["Due", when(task.dueDate)],
+					["Updated", when(task.updated)],
+				]),
+				launch: {
+					key: task.id,
+					title: task.name,
+					description: `ClickUp task: ${task.name}\n${task.url}${task.description ? `\n\n${task.description}` : ""}`,
+					contact: task.creator,
+					brief: `${task.name}\n${task.url}`,
+				},
+			}),
+		),
 	].sort((a, b) => b.at - a.at);
 }

@@ -3,7 +3,8 @@ import {
 	HiOutlineInbox,
 } from "react-icons/hi2";
 import { LuGitPullRequest } from "react-icons/lu";
-import { SiGmail, SiJira, SiNotion, SiSlack } from "react-icons/si";
+import { SiClickup, SiGmail, SiJira, SiNotion, SiSlack } from "react-icons/si";
+import type { Provider } from "renderer/components/ConnectProvider/ConnectProvider";
 
 /**
  * The task feeds, in tab order. One rail entry opens them; the strip in each
@@ -13,14 +14,29 @@ import { SiGmail, SiJira, SiNotion, SiSlack } from "react-icons/si";
 export const FEED_TABS = [
 	{ to: "/all", label: "All", Icon: HiOutlineInbox },
 	{ to: "/my-tasks", label: "Tasks", Icon: HiOutlineClipboardDocumentCheck },
-	{ to: "/reactions", label: "Slack", Icon: SiSlack },
-	{ to: "/jira", label: "Jira", Icon: SiJira },
-	{ to: "/prs", label: "GitHub", Icon: LuGitPullRequest },
-	{ to: "/notion", label: "Notion", Icon: SiNotion },
-	{ to: "/email", label: "Email", Icon: SiGmail },
-] as const;
+	{ to: "/reactions", label: "Slack", Icon: SiSlack, provider: "slack" },
+	{ to: "/jira", label: "Jira", Icon: SiJira, provider: "jira" },
+	{ to: "/prs", label: "GitHub", Icon: LuGitPullRequest, provider: "github" },
+	{ to: "/notion", label: "Notion", Icon: SiNotion, provider: "notion" },
+	{ to: "/email", label: "Email", Icon: SiGmail, provider: "gmail" },
+	{ to: "/clickup", label: "ClickUp", Icon: SiClickup, provider: "clickup" },
+] as const satisfies readonly {
+	to: string;
+	label: string;
+	Icon: unknown;
+	provider?: Provider;
+}[];
 
 export type FeedPath = (typeof FEED_TABS)[number]["to"];
+
+/** Every Settings → Connections provider has its tab here: a new one fails the build until it gets one. */
+type ProviderWithoutTab = Exclude<
+	Provider,
+	Extract<(typeof FEED_TABS)[number], { provider: string }>["provider"]
+>;
+export const EVERY_PROVIDER_HAS_A_TAB: [ProviderWithoutTab] extends [never]
+	? true
+	: ProviderWithoutTab = true;
 
 /** Renovate/dependabot/CI accounts - noise in a review queue. */
 export const isBot = (author: string) =>
@@ -38,6 +54,7 @@ export function feedCounts(input: {
 	pulls: { author: string; kind?: string }[];
 	notion: unknown[];
 	emails?: unknown[];
+	clickup?: unknown[];
 }): Record<FeedPath, number> {
 	const sources = {
 		"/my-tasks": input.tasks,
@@ -47,6 +64,7 @@ export function feedCounts(input: {
 		"/prs": input.pulls.filter((pull) => !isBot(pull.author)).length,
 		"/notion": input.notion.length,
 		"/email": input.emails?.length ?? 0,
+		"/clickup": input.clickup?.length ?? 0,
 	};
 	// All is the sum of the others, not a count of its own - otherwise the strip
 	// would be disagreeing with itself. Less your own PRs, which All leaves out.

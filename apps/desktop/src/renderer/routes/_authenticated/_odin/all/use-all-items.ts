@@ -8,7 +8,7 @@ import { useTitleOverrides } from "./title-overrides";
 
 /** Every feed through allItems, under your own names, plus the Done check. */
 function useItems(everything: boolean) {
-	const { reactions, jira, pulls, notion, emails } = useOdinFeeds();
+	const { reactions, jira, pulls, notion, emails, clickup } = useOdinFeeds();
 	// todos, not tasks: automations have their own panel and run themselves -
 	// they'd sit in "what have I got on" forever without ever being yours to do.
 	const { todos } = useMyTasks();
@@ -25,6 +25,7 @@ function useItems(everything: boolean) {
 					pulls: pulls.data?.pulls ?? [],
 					notion: notion.data?.rows ?? [],
 					emails: emails.data?.emails ?? [],
+					clickup: clickup.data?.tasks ?? [],
 				},
 				{ everything },
 			).map((item) =>
@@ -39,6 +40,7 @@ function useItems(everything: boolean) {
 			pulls.data,
 			notion.data,
 			emails.data,
+			clickup.data,
 		],
 	);
 	return { items, isDone };

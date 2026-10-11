@@ -67,6 +67,14 @@ export function useOdinFeeds() {
 	);
 	const emails = { ...emailQuery, data: emailData };
 
+	const clickup = electronTrpc.work.myClickupTasks.useQuery(undefined, {
+		enabled: workConfig?.hasClickup === true,
+		refetchInterval: 120_000,
+		staleTime: 120_000,
+		refetchOnMount: false,
+		placeholderData: (prev) => prev,
+	});
+
 	// Rows of whichever Notion database is picked in the Tasks view. No pick
 	// (or no token) means no query - the view says so instead.
 	const { data: notionConfig } = electronTrpc.notion.getConfig.useQuery();
@@ -92,6 +100,7 @@ export function useOdinFeeds() {
 		pulls,
 		notion,
 		emails,
+		clickup,
 		notionConfig,
 		notionDatabaseId,
 		notionMentions,
@@ -100,7 +109,8 @@ export function useOdinFeeds() {
 			jira.isFetching ||
 			pulls.isFetching ||
 			notion.isFetching ||
-			emails.isFetching,
+			emails.isFetching ||
+			clickup.isFetching,
 		// refetch() ignores `enabled` (TanStack v5 fetches on an explicit call
 		// either way), so syncing a source that was never signed in runs it
 		// anyway and answers "Jira isn't connected" - an error raised by a feed
@@ -112,6 +122,7 @@ export function useOdinFeeds() {
 				workConfig?.hasGithub === true ? pulls.refetch() : null,
 				notionEnabled ? notion.refetch() : null,
 				workConfig?.hasGmail === true ? emails.refetch() : null,
+				workConfig?.hasClickup === true ? clickup.refetch() : null,
 			]),
 	};
 }
