@@ -13,6 +13,7 @@ import {
 	useClaudeCommand,
 } from "renderer/stores/claude-command";
 import { useNextInLinePrompt } from "renderer/stores/next-in-line-prompt";
+import { useOneByOne } from "renderer/stores/one-by-one";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import type { Pane } from "renderer/stores/tabs/types";
 import { crowRule, NOTIFICATION_EVENTS } from "shared/constants";
@@ -364,7 +365,62 @@ export function useCrow() {
 		},
 	});
 
+	// One by one: start the next task once the last one stops working.
+	useEffect(() => {
+		let running = false;
+		const tick = async () => {
+			const { ids, paneId } = useOneByOne.getState();
+			if (running || ids.length === 0) return;
+			const last = paneId && useTabsStore.getState().panes[paneId];
+			if (
+				last &&
+				!last.completed &&
+				(last.status === "working" || !!last.odinQueued)
+			)
+				return;
+			running = true;
+			try {
+				const [id, ...rest] = ids;
+				const task = backlogOf(latest.current).find((t) => t.id === id);
+				// Done or deleted since it was lined up: skip it.
+				const started = task && (await launchTask(task, latest.current));
+				useOneByOne.setState({ ids: rest, paneId: started || undefined });
+			} finally {
+				running = false;
+			}
+		};
+		const timer = setInterval(() => void tick(), 15_000);
+		return () => clearInterval(timer);
+	}, []);
+
 	return ask;
+}
+
+/** Start one backlog task on the board; its paneId, or null when it failed. */
+async function launchTask(
+	task: CrowDeps["todos"][number],
+	deps: CrowDeps,
+): Promise<string | null> {
+	const ensured = await deps.ensureWorkspace(null, { askForFolder: false });
+	if (!ensured.ok) {
+		toast.error(ensured.error);
+		return null;
+	}
+	const result = await deps.launch({
+		key: task.id,
+		workspaceId: ensured.workspace.id,
+		title: task.title,
+		description: task.notes || null,
+		brief: taskPrompt(task),
+		skill: task.skill,
+		repoPath: task.repo,
+	});
+	if (!result.ok) {
+		toast.error(`${task.title}: ${result.error}`);
+		return null;
+	}
+	deps.setPane(task.id, result.paneId);
+	return result.paneId;
 }
 
 /** The backlog: My Tasks minus automations and what's put away as Done. */
@@ -389,6 +445,9 @@ function runOdinAction(
 	const panes = useTabsStore.getState().panes;
 	const started = (paneId?: string) =>
 		!!paneId && !!panes[paneId] && !panes[paneId].completed;
+	/** Why a started task hasn't run yet - the launch gate holds it. */
+	const queued = (paneId?: string) =>
+		paneId ? panes[paneId]?.odinQueued?.reason : undefined;
 	if (action === "tasks")
 		return JSON.stringify(
 			backlogOf(deps).map((task) => ({
@@ -398,6 +457,7 @@ function runOdinAction(
 				skill: task.skill,
 				repo: task.repo,
 				started: started(task.paneId),
+				queued: queued(task.paneId),
 			})),
 		);
 	if (action === "sessions")
@@ -407,7 +467,8 @@ function runOdinAction(
 				.map((pane) => ({
 					paneId: pane.id,
 					title: pane.odinTaskTitle,
-					status: pane.status ?? "idle",
+					status: pane.odinQueued ? "queued" : (pane.status ?? "idle"),
+					queued: pane.odinQueued?.reason,
 				})),
 		);
 	if (action === "add") {
@@ -420,23 +481,17 @@ function runOdinAction(
 		const tasks = backlogOf(deps).filter((task) => ids.includes(task.id));
 		if (tasks.length === 0)
 			return "No backlog task has those ids - list them with action=tasks.";
+		if (args.one_by_one === "true") {
+			// In the order asked, not the backlog's.
+			useOneByOne.setState({
+				ids: ids.filter((id) => tasks.some((task) => task.id === id)),
+				paneId: undefined,
+			});
+			return `Running ${tasks.length} one by one - Odin starts each when the last stops working: ${tasks.map((task) => task.title).join("; ")}`;
+		}
 		// Not awaited: a launch can sit behind the machine's capacity gate.
 		void (async () => {
-			const ensured = await deps.ensureWorkspace(null, { askForFolder: false });
-			if (!ensured.ok) return toast.error(ensured.error);
-			for (const task of tasks) {
-				const result = await deps.launch({
-					key: task.id,
-					workspaceId: ensured.workspace.id,
-					title: task.title,
-					description: task.notes || null,
-					brief: taskPrompt(task),
-					skill: task.skill,
-					repoPath: task.repo,
-				});
-				if (result.ok) deps.setPane(task.id, result.paneId);
-				else toast.error(`${task.title}: ${result.error}`);
-			}
+			for (const task of tasks) await launchTask(task, deps);
 		})();
 		return `Starting ${tasks.length} on the board: ${tasks.map((task) => task.title).join("; ")}`;
 	}

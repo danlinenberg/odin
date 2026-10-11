@@ -7,6 +7,7 @@ import { useLaunchLimits } from "renderer/stores/launch-limits";
 import { useMarkdownPreferencesStore } from "renderer/stores/markdown-preferences/store";
 import { useNextInLinePrompt } from "renderer/stores/next-in-line-prompt";
 import { useOdinRules } from "renderer/stores/odin-rules";
+import { useOneByOne } from "renderer/stores/one-by-one";
 import { useSeenEmails } from "renderer/stores/seen-emails";
 import { useSessionInstructions } from "renderer/stores/session-instructions";
 import { useSessionView } from "renderer/stores/session-view";
@@ -30,6 +31,7 @@ type Store = {
 };
 const STORES: Record<string, Store> = {
 	nightAgent: useNextInLinePrompt,
+	oneByOne: useOneByOne,
 	tasks: useOdinTasks,
 	backlogReview: useBacklogReview,
 	reminders: useReminders,
