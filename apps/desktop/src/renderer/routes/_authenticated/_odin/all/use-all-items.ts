@@ -3,7 +3,7 @@ import { doneChecker, useDoneStore } from "renderer/stores/done";
 import { isClosedStatus } from "../components/search-all";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useMyTasks } from "../hooks/useOdinTasks";
-import { type AllItem, allItems } from "./all-items";
+import { type AllItem, allItems, urgencyOf } from "./all-items";
 import { useTitleOverrides } from "./title-overrides";
 
 /** Every feed through allItems, under your own names, plus the Done check. */
@@ -15,6 +15,7 @@ function useItems(everything: boolean) {
 	const done = useDoneStore((s) => s.done);
 	const isDone = useMemo(() => doneChecker(done), [done]);
 	const titles = useTitleOverrides((s) => s.titles);
+	const priorities = useTitleOverrides((s) => s.priorities);
 	const items = useMemo(
 		() =>
 			allItems(
@@ -27,12 +28,26 @@ function useItems(everything: boolean) {
 					emails: emails.data?.emails ?? [],
 				},
 				{ everything },
-			).map((item) =>
-				titles[item.key] ? { ...item, title: titles[item.key] } : item,
-			),
+			).map((item) => {
+				const title = titles[item.key];
+				const priority = priorities[item.key];
+				if (!title && !priority) return item;
+				return {
+					...item,
+					...(title ? { title } : {}),
+					...(priority
+						? {
+								priority,
+								urgency: urgencyOf(priority),
+								sourcePriority: item.priority,
+							}
+						: {}),
+				};
+			}),
 		[
 			everything,
 			titles,
+			priorities,
 			todos,
 			reactions.data,
 			jira.data,

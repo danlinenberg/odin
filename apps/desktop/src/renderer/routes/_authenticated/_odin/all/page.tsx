@@ -306,6 +306,9 @@ function AllFeedPage() {
 	const { add } = useMyTasks();
 	const tasks = useOdinTasks((s) => s.tasks);
 	const { setPriority, setNotes } = useOdinTasks.getState();
+	// Slack, Jira and the rest: your level over the source's, kept in Odin.
+	const priorityOverrides = useTitleOverrides((s) => s.priorities);
+	const setRowPriority = useTitleOverrides((s) => s.setPriority);
 	const [draft, setDraft] = useState("");
 	const [draftRepo, setDraftRepo] = useState("");
 	const { data: skills } = electronTrpc.skills.list.useQuery();
@@ -1002,7 +1005,22 @@ function AllFeedPage() {
 							<TaskFields
 								status={statuses[openItem.key] ?? ""}
 								type={typeOf(openItem, types) ?? ""}
-								priority={openTask && priorityOf(openTask)}
+								priority={
+									openTask
+										? String(priorityOf(openTask))
+										: (priorityOverrides[openItem.key] ?? "")
+								}
+								priorityOptions={
+									openTask
+										? OWN_PRIORITIES
+										: [
+												[
+													"",
+													`${(openItem.sourcePriority !== undefined ? openItem.sourcePriority : openItem.priority) ?? "No priority"} (from ${openItem.source})`,
+												],
+												...SOURCE_PRIORITIES,
+											]
+								}
 								queued={queue.includes(openItem.key)}
 								onStatus={(value) =>
 									setRowStatus(openItem.key, (value as TaskStatus) || null)
@@ -1010,8 +1028,10 @@ function AllFeedPage() {
 								onType={(value) =>
 									setRowType(openItem.key, (value as TaskType) || null)
 								}
-								onPriority={
-									openTask && ((value) => setPriority(openTask.id, value))
+								onPriority={(value) =>
+									openTask
+										? setPriority(openTask.id, Number(value))
+										: setRowPriority(openItem.key, value)
 								}
 								onQueue={() =>
 									queue.includes(openItem.key)
@@ -1213,14 +1233,24 @@ function RowStatus({
 	) : null;
 }
 
+const OWN_PRIORITIES: [string, string][] = [3, 2, 1].map((level) => [
+	String(level),
+	PRIORITY_LABELS[level],
+]);
+/** Another source's row: your level, kept in Odin - nothing goes upstream. */
+const SOURCE_PRIORITIES: [string, string][] = ["High", "Medium", "Low"].map(
+	(label) => [label, label],
+);
+
 /**
- * Status, type and Up next for any row; priority only for my own tasks -
- * every other source's priority is its system's to change.
+ * Status, type, priority and Up next for any row. Priority on another
+ * source's row is yours only - Jira and Slack keep their own.
  */
 function TaskFields({
 	status,
 	type,
 	priority,
+	priorityOptions,
 	queued,
 	onStatus,
 	onType,
@@ -1229,11 +1259,12 @@ function TaskFields({
 }: {
 	status: string;
 	type: string;
-	priority: number | undefined;
+	priority: string;
+	priorityOptions: [string, string][];
 	queued: boolean;
 	onStatus: (value: string) => void;
 	onType: (value: string) => void;
-	onPriority: ((value: number) => void) | undefined;
+	onPriority: (value: string) => void;
 	onQueue: () => void;
 }) {
 	return (
@@ -1254,19 +1285,13 @@ function TaskFields({
 					</option>
 				))}
 			</FeedSelect>
-			{onPriority && priority && (
-				<FeedSelect
-					value={String(priority)}
-					onChange={(value) => onPriority(Number(value))}
-					title="Priority"
-				>
-					{[3, 2, 1].map((level) => (
-						<option key={level} value={level}>
-							{PRIORITY_LABELS[level]}
-						</option>
-					))}
-				</FeedSelect>
-			)}
+			<FeedSelect value={priority} onChange={onPriority} title="Priority">
+				{priorityOptions.map(([value, label]) => (
+					<option key={value} value={value}>
+						{label}
+					</option>
+				))}
+			</FeedSelect>
 			<button
 				type="button"
 				onClick={onQueue}

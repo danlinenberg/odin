@@ -53,6 +53,8 @@ export interface AllItem {
 	context: string | null;
 	/** However the source names it - High, Highest, P1. Ours are PRIORITY_LABELS. */
 	priority: string | null;
+	/** What the source said, when you set your own priority over it. */
+	sourcePriority?: string | null;
 	/** The same priority in terms every source shares, so one filter fits all. */
 	urgency: Urgency;
 	/** Sort key in ms. 0 when the source didn't date it. */
