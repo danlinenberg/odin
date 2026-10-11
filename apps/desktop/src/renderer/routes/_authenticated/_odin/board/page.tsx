@@ -2582,11 +2582,39 @@ function DevBoardPage() {
 			localStorage.setItem("odin:drawer-sessions-sort", sort);
 		} catch {}
 	};
+	// Grouped by status, Needs you comes first, then Final Review, then Working.
+	const [isSwitchGrouped, setIsSwitchGrouped] = useState(() => {
+		try {
+			return localStorage.getItem("odin:drawer-sessions-group") === "1";
+		} catch {
+			return false;
+		}
+	});
+	const toggleSwitchGrouped = () => {
+		const next = !isSwitchGrouped;
+		setIsSwitchGrouped(next);
+		try {
+			localStorage.setItem("odin:drawer-sessions-group", next ? "1" : "0");
+		} catch {}
+	};
 	const statusRank = { permission: 0, review: 0, working: 1 } as const;
+	const groupRank = { permission: 0, review: 1, working: 2 } as const;
+	// Last update = the newest hook (every tool call fires one) or status change.
+	// odinStatusAt alone stays put for a whole turn, so an hour of work read as
+	// an hour stale. ponytail: hook times live in memory and reset on reload.
+	const updatedAt = (card: { pane: { id: string; odinStatusAt?: number } }) =>
+		Math.max(
+			card.pane.odinStatusAt ?? 0,
+			lastAgentHookAt.get(card.pane.id) ?? 0,
+		);
 	const switchCards = (["permission", "review", "working"] as const)
 		.flatMap((status) => cardsByStatus.get(status) ?? [])
 		.toSorted(
 			(a, b) =>
+				(isSwitchGrouped
+					? groupRank[a.status as keyof typeof groupRank] -
+						groupRank[b.status as keyof typeof groupRank]
+					: 0) ||
 				Number(!!b.pane.odinStarred) - Number(!!a.pane.odinStarred) ||
 				(switchSort === "status"
 					? statusRank[a.status as keyof typeof statusRank] -
@@ -2595,8 +2623,8 @@ function DevBoardPage() {
 				(switchSort === "name"
 					? cardTitle(a).localeCompare(cardTitle(b))
 					: switchSort === "oldest"
-						? (a.pane.odinStatusAt ?? 0) - (b.pane.odinStatusAt ?? 0)
-						: (b.pane.odinStatusAt ?? 0) - (a.pane.odinStatusAt ?? 0)),
+						? updatedAt(a) - updatedAt(b)
+						: updatedAt(b) - updatedAt(a)),
 		);
 	// Minimized to a rail of status dots; remembered per machine.
 	const [isSwitchListMin, setIsSwitchListMin] = useState(() => {
@@ -4471,6 +4499,20 @@ function DevBoardPage() {
 														),
 													)}
 												</select>
+												<button
+													type="button"
+													onClick={toggleSwitchGrouped}
+													aria-pressed={isSwitchGrouped}
+													title="Group by status"
+													className={cn(
+														"shrink-0 rounded border px-1 py-0.5 hover:text-foreground",
+														isSwitchGrouped
+															? "border-primary/50 bg-primary/15 text-foreground"
+															: "border-border bg-card",
+													)}
+												>
+													Group
+												</button>
 												<span
 													className="ml-auto shrink-0 font-mono"
 													title={`Previous session ${prevSessionKey} - next session ${nextSessionKey}`}
@@ -4479,72 +4521,88 @@ function DevBoardPage() {
 												</span>
 											</div>
 										)}
-										{switchCards.map((card) => (
-											<HoverCard key={card.pane.id} openDelay={350}>
-												<HoverCardTrigger asChild>
-													<button
-														type="button"
-														onClick={() => openDrawer(card)}
-														className={cn(
-															"group/switch flex items-center gap-2 py-1.5 text-left text-xs transition-all duration-[450ms]",
-															isSwitchListMin ? "justify-center" : "px-3",
-															card.pane.id === leavingPaneId
-																? "pointer-events-none -translate-x-6 bg-success/20 text-success-ink opacity-0"
-																: card.pane.id === drawerCard.pane.id
-																	? "bg-primary/15 font-semibold text-foreground"
-																	: "text-muted-foreground hover:bg-accent hover:text-foreground",
-														)}
-													>
-														<span
-															className="size-2 shrink-0 rounded-full"
-															style={{
-																background: PANE_STATUS[card.status].dot,
-															}}
-														/>
-														{!isSwitchListMin && (
-															<span className="truncate">
-																{cardTitle(card)}
-															</span>
-														)}
-														{!isSwitchListMin && (
-															// ponytail: a span, not a button - it sits inside the row's button.
-															// biome-ignore lint/a11y/useSemanticElements: nested in a button
+										{switchCards.map((card, index) => (
+											<Fragment key={card.pane.id}>
+												{isSwitchGrouped &&
+													card.status !== switchCards[index - 1]?.status &&
+													(isSwitchListMin ? (
+														index > 0 && (
+															<div className="mx-2 my-1 border-t border-border" />
+														)
+													) : (
+														<div className="mt-2 mb-0.5 px-3 text-[10px] font-semibold uppercase tracking-[.4px] text-muted-foreground">
+															{PANE_STATUS[card.status].label}
+														</div>
+													))}
+												<HoverCard openDelay={350}>
+													<HoverCardTrigger asChild>
+														<button
+															type="button"
+															onClick={() => openDrawer(card)}
+															className={cn(
+																"group/switch flex items-center gap-2 py-1.5 text-left text-xs transition-all duration-[450ms]",
+																isSwitchListMin ? "justify-center" : "px-3",
+																card.pane.id === leavingPaneId
+																	? "pointer-events-none -translate-x-6 bg-success/20 text-success-ink opacity-0"
+																	: card.pane.id === drawerCard.pane.id
+																		? "bg-primary/15 font-semibold text-foreground"
+																		: "text-muted-foreground hover:bg-accent hover:text-foreground",
+															)}
+														>
 															<span
-																role="button"
-																tabIndex={-1}
-																title={
-																	card.pane.odinStarred
-																		? "Unstar"
-																		: "Star - pin to the top"
-																}
-																aria-label={
-																	card.pane.odinStarred ? "Unstar" : "Star"
-																}
-																aria-pressed={!!card.pane.odinStarred}
-																onClick={(event) => {
-																	event.stopPropagation();
-																	toggleStar(card.pane.id);
+																className="size-2 shrink-0 rounded-full"
+																style={{
+																	background: PANE_STATUS[card.status].dot,
 																}}
-																onKeyDown={() => {}}
-																className={cn(
-																	"ml-auto shrink-0 rounded-[4px] px-0.5 text-attention hover:bg-attention/15",
-																	!card.pane.odinStarred &&
-																		"opacity-0 group-hover/switch:opacity-100",
-																)}
-															>
-																{card.pane.odinStarred ? "★" : "☆"}
-															</span>
-														)}
-													</button>
-												</HoverCardTrigger>
-												<HoverCardContent
-													side="right"
-													align="start"
-													className="max-h-[70vh] w-[400px] overflow-y-auto border-input bg-secondary p-3 shadow-[0_12px_40px_rgba(0,0,0,0.75)]"
-												>
-													<CardHoverContent card={card} text={cardText(card)} />
-												</HoverCardContent>
-											</HoverCard>
+															/>
+															{!isSwitchListMin && (
+																<span className="truncate">
+																	{cardTitle(card)}
+																</span>
+															)}
+															{!isSwitchListMin && (
+																// ponytail: a span, not a button - it sits inside the row's button.
+																// biome-ignore lint/a11y/useSemanticElements: nested in a button
+																<span
+																	role="button"
+																	tabIndex={-1}
+																	title={
+																		card.pane.odinStarred
+																			? "Unstar"
+																			: "Star - pin to the top"
+																	}
+																	aria-label={
+																		card.pane.odinStarred ? "Unstar" : "Star"
+																	}
+																	aria-pressed={!!card.pane.odinStarred}
+																	onClick={(event) => {
+																		event.stopPropagation();
+																		toggleStar(card.pane.id);
+																	}}
+																	onKeyDown={() => {}}
+																	className={cn(
+																		"ml-auto shrink-0 rounded-[4px] px-0.5 text-attention hover:bg-attention/15",
+																		!card.pane.odinStarred &&
+																			"opacity-0 group-hover/switch:opacity-100",
+																	)}
+																>
+																	{card.pane.odinStarred ? "★" : "☆"}
+																</span>
+															)}
+														</button>
+													</HoverCardTrigger>
+													<HoverCardContent
+														side="right"
+														align="start"
+														className="max-h-[70vh] w-[400px] overflow-y-auto border-input bg-secondary p-3 shadow-[0_12px_40px_rgba(0,0,0,0.75)]"
+													>
+														<CardHoverContent
+															card={card}
+															text={cardText(card)}
+														/>
+													</HoverCardContent>
+												</HoverCard>
+											</Fragment>
 										))}
 									</nav>
 								)}
