@@ -13,7 +13,7 @@ import {
 } from "react";
 import { LuChevronRight, LuSquareTerminal, LuWrench } from "react-icons/lu";
 import { MarkdownRenderer } from "renderer/components/MarkdownRenderer";
-import { isHotkey } from "renderer/hotkeys";
+import { isHotkey, useHotkeyDisplay } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { shellEscapePaths } from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/utils";
 import { draftFor, useChatDrafts } from "renderer/stores/chat-drafts";
@@ -1867,6 +1867,7 @@ function Composer({
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const write = electronTrpc.terminal.write.useMutation();
 	const setChat = useSessionView((s) => s.setChat);
+	const sendNowKeys = useHotkeyDisplay("CHAT_SEND_NOW").text;
 	// Type `/` and the agent's skills/commands are searchable, like the New
 	// Session dialog. Picking one fills in `/name `; Enter then sends it.
 	const { data: skills = [] } = electronTrpc.skills.list.useQuery();
@@ -2033,7 +2034,7 @@ function Composer({
 								!event.nativeEvent.isComposing
 							) {
 								event.preventDefault();
-								void send(event.ctrlKey);
+								void send(isHotkey("CHAT_SEND_NOW", event.nativeEvent));
 							}
 						}}
 						placeholder={bash ? "Run a shell command" : placeholder}
@@ -2061,7 +2062,7 @@ function Composer({
 						</span>
 					) : (
 						<span className="text-[11px] text-faint-foreground">
-							Enter to send · Ctrl+Enter to send now · Shift+Enter for a new
+							Enter to send · {sendNowKeys} to send now · Shift+Enter for a new
 							line · ! for bash · / for skills
 						</span>
 					)}

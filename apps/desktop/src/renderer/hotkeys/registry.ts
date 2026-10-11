@@ -190,6 +190,13 @@ export const HOTKEYS_REGISTRY = {
 		category: "Navigation",
 		description: "Send a task, prompt or note from its text box",
 	},
+	// Claude Code's own Ctrl+Enter: cut into the running turn instead of queueing.
+	CHAT_SEND_NOW: {
+		key: { mac: "ctrl+enter", windows: "ctrl+enter", linux: "ctrl+enter" },
+		label: "Send now",
+		category: "Navigation",
+		description: "Send a chat reply into Claude's running turn",
+	},
 	ODIN_SEARCH_ROW_MENU: {
 		key: {
 			mac: L("meta+k"),

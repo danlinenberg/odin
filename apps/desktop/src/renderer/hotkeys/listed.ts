@@ -39,6 +39,7 @@ export const LISTED_HOTKEYS: HotkeyId[] = [
 	"SCROLL_TO_BOTTOM",
 	"CHAT_TO_TOP",
 	"CHAT_TO_BOTTOM",
+	"CHAT_SEND_NOW",
 	// Menu bar
 	"OPEN_PROJECT",
 	"RELOAD_WINDOW",
