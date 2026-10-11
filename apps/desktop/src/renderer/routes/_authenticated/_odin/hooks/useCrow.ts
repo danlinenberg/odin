@@ -483,12 +483,15 @@ function runOdinAction(
 		if (tasks.length === 0)
 			return "No backlog task has those ids - list them with action=tasks.";
 		if (args.one_by_one === "true") {
-			// In the order asked, not the backlog's.
-			useOneByOne.setState({
-				ids: ids.filter((id) => tasks.some((task) => task.id === id)),
-				paneId: undefined,
-			});
-			return `Running ${tasks.length} one by one - Odin starts each when the last stops working: ${tasks.map((task) => task.title).join("; ")}`;
+			// In the order asked, after what's already lined up - a second call
+			// adds to the line, it doesn't start a second one beside it.
+			const line = useOneByOne.getState().ids;
+			const added = ids.filter(
+				(id) => !line.includes(id) && tasks.some((task) => task.id === id),
+			);
+			useOneByOne.setState({ ids: [...line, ...added] });
+			const title = (id: string) => tasks.find((task) => task.id === id)?.title;
+			return `Lined up ${added.length} to run one by one (${line.length + added.length} waiting) - Odin starts each when the last stops working: ${added.map(title).join("; ")}`;
 		}
 		// Not awaited: a launch can sit behind the machine's capacity gate.
 		void (async () => {
