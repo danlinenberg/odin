@@ -2284,19 +2284,23 @@ function DevBoardPage() {
 	 * session, so closing the drawer and coming back reattaches to that shell
 	 * (with its history) instead of leaving a new one behind every time.
 	 */
+	const claudeSessionIdOf = (card: BoardCard) =>
+		card.pane.claudeSessionId ??
+		usePaneMeta.getState().sessionIdByPane[card.pane.id];
+	/** Where the work is - the PR's worktree - not where the session launched. */
+	const workDirOf = async (card: BoardCard) => {
+		const sessionId = claudeSessionIdOf(card);
+		const repo = sessionId
+			? await utils.repos.workingRepoName
+					.fetch({ claudeSessionId: sessionId }, { staleTime: 60_000 })
+					.catch(() => null)
+			: null;
+		return repo?.worktree ?? repo?.checkout ?? sessionCwd(card.pane);
+	};
 	const openShell = async (card: BoardCard) => {
 		if (!shellPaneOf(card)) {
-			// Open where the work is - the PR's worktree - not where it launched.
-			const sessionId =
-				card.pane.claudeSessionId ??
-				usePaneMeta.getState().sessionIdByPane[card.pane.id];
-			const repo = sessionId
-				? await utils.repos.workingRepoName
-						.fetch({ claudeSessionId: sessionId }, { staleTime: 60_000 })
-						.catch(() => null)
-				: null;
 			const { paneId } = useTabsStore.getState().addTab(card.workspaceId, {
-				initialCwd: repo?.worktree ?? repo?.checkout ?? sessionCwd(card.pane),
+				initialCwd: await workDirOf(card),
 			});
 			// No odinTaskTitle: a shell you opened isn't a task, so it gets no card
 			// of its own on the board - same rule the session list uses.
@@ -2312,6 +2316,31 @@ function DevBoardPage() {
 		}
 		setIsDiffOpen(false);
 		setIsShellOpen(true);
+	};
+	const openInApp = electronTrpc.external.openInApp.useMutation();
+	const copyText = electronTrpc.external.copyPath.useMutation();
+	/**
+	 * VS Code on the session's worktree, with the command that joins this
+	 * conversation on the clipboard for VS Code's terminal. Forked, so the two
+	 * don't both write into the live session.
+	 */
+	const openInVsCode = async (card: BoardCard) => {
+		const dir = await workDirOf(card);
+		if (!dir) return toast.error("This session has no folder to open");
+		try {
+			await openInApp.mutateAsync({ path: dir, app: "vscode" });
+		} catch (error) {
+			return toast.error(`Couldn't open VS Code: ${String(error)}`);
+		}
+		const sessionId = claudeSessionIdOf(card);
+		if (!sessionId) return;
+		await copyText.mutateAsync(
+			`${claudeCli()} --resume ${sessionId} --fork-session`,
+		);
+		toast.success("Opened in VS Code", {
+			description:
+				"Paste in VS Code's terminal (⌃`) to join this session's conversation.",
+		});
 	};
 	// Dev only: hold Vite's reloads while a session is open (see coalesceFullReloadPlugin).
 	const drawerOpen = !!drawerCard;
@@ -4405,6 +4434,16 @@ function DevBoardPage() {
 											<ShellPlaceMenu card={drawerCard} shell={drawerShell} />
 										)}
 									</div>
+								)}
+								{drawerCard.pane.type === "terminal" && !inCatchUp && (
+									<button
+										type="button"
+										title="Open this session's worktree in VS Code, with its conversation's resume command on the clipboard"
+										onClick={() => openInVsCode(drawerCard)}
+										className="shrink-0 rounded-md bg-secondary px-2 py-1 text-xs font-semibold text-muted-foreground hover:text-foreground"
+									>
+										VS Code
+									</button>
 								)}
 								{!catchUpLean && (
 									<button
