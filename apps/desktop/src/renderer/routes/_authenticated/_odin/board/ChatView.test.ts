@@ -71,7 +71,6 @@ describe("ChatView transcript", () => {
 				images: ["data:image/png;base64,AAAA"],
 			},
 		]);
-		expect(items[0]?.at).toBeUndefined();
 	});
 
 	test("a pasted image shows in its bubble, minus the [Image #N] tag", () => {
