@@ -106,6 +106,20 @@ export function prLabel(
 		: `${pr.repo.split("/").pop()} #${pr.number}`;
 }
 
+/**
+ * PRs split by repo, each repo where its newest PR sits. A session that works
+ * across repos (a skill repo and the app it drives) mixed "#55" and "#893" in
+ * one list, and the title alone doesn't say which repo a PR is in.
+ */
+export function byRepo<T extends Pick<PullRequestLink, "repo">>(
+	prs: T[],
+): [repo: string, prs: T[]][] {
+	const groups = new Map<string, T[]>();
+	for (const pr of prs)
+		groups.set(pr.repo, [...(groups.get(pr.repo) ?? []), pr]);
+	return [...groups];
+}
+
 export interface NotionPageLink {
 	url: string;
 	/** The 32-hex page id: the same page linked by slug and by /p/ is one page. */

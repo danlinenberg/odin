@@ -3,6 +3,7 @@ import {
 	actionItems,
 	artifactLink,
 	type BriefMessage,
+	byRepo,
 	ciRunning,
 	elapsedLabel,
 	emailLink,
@@ -1013,5 +1014,19 @@ describe("prLabel", () => {
 	it("falls back to repo and number", () => {
 		expect(prLabel(pr)).toBe("odin #873");
 		expect(prLabel(pr, null)).toBe("odin #873");
+	});
+});
+
+describe("byRepo", () => {
+	it("groups by repo, newest repo first, order kept inside", () => {
+		const prs = [
+			{ repo: "imagenai/skills", number: 55 },
+			{ repo: "danlinenberg/odin", number: 893 },
+			{ repo: "imagenai/skills", number: 54 },
+		];
+		expect(byRepo(prs)).toEqual([
+			["imagenai/skills", [prs[0], prs[2]]],
+			["danlinenberg/odin", [prs[1]]],
+		]);
 	});
 });

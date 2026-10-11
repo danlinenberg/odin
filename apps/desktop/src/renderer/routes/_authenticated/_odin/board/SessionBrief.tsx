@@ -10,6 +10,7 @@ import { type BriefLink, usePaneMeta } from "../hooks/usePaneMeta";
 import {
 	actionItems,
 	artifactLink,
+	byRepo,
 	emailLink,
 	jiraIssue,
 	jiraKey,
@@ -786,22 +787,31 @@ export function SessionBrief({
 					}
 				>
 					<div className="flex flex-col gap-1">
-						{ownPrs.map((pr) => (
-							<div key={pr.url} className="group flex items-center gap-1.5">
-								<Hover text={hoverFor(pr.url)}>
-									<button
-										type="button"
-										onClick={() => openUrl(pr.url)}
-										className="flex min-w-0 items-center gap-1.5 text-left text-[12px] text-link hover:underline"
-									>
-										<span className="truncate">
-											{prLabel(pr, prStates?.[pr.url]?.title)}
-										</span>
-										<StateChip status={prStates?.[pr.url]} />
-										<ChecksChip status={prStates?.[pr.url] ?? null} />
-									</button>
-								</Hover>
-								<HideButton onClick={() => hide(pr.url)} />
+						{byRepo(ownPrs).map(([repo, repoPrs], _, groups) => (
+							<div key={repo} className="flex flex-col gap-1">
+								{groups.length > 1 && (
+									<div className="mt-1 text-[10.5px] font-medium text-muted-foreground">
+										{repo.split("/").pop()}
+									</div>
+								)}
+								{repoPrs.map((pr) => (
+									<div key={pr.url} className="group flex items-center gap-1.5">
+										<Hover text={hoverFor(pr.url)}>
+											<button
+												type="button"
+												onClick={() => openUrl(pr.url)}
+												className="flex min-w-0 items-center gap-1.5 text-left text-[12px] text-link hover:underline"
+											>
+												<span className="truncate">
+													{prLabel(pr, prStates?.[pr.url]?.title)}
+												</span>
+												<StateChip status={prStates?.[pr.url]} />
+												<ChecksChip status={prStates?.[pr.url] ?? null} />
+											</button>
+										</Hover>
+										<HideButton onClick={() => hide(pr.url)} />
+									</div>
+								))}
 							</div>
 						))}
 						{mine("pr").map(myLink)}
