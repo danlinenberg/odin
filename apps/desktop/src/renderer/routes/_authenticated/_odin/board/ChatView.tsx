@@ -6,6 +6,7 @@ import {
 	type ReactNode,
 	useCallback,
 	useEffect,
+	useLayoutEffect,
 	useMemo,
 	useRef,
 	useState,
@@ -252,17 +253,67 @@ export function applyLines(items: Item[], lines: Line[]): Item[] {
 	return next;
 }
 
+function parseLines(parts: string[]): Line[] {
+	return parts.flatMap((part) => {
+		try {
+			return [JSON.parse(part) as Line];
+		} catch {
+			return [];
+		}
+	});
+}
+
+function readBytes(read: { kind: string; content: unknown }): Uint8Array {
+	return read.kind === "bytes"
+		? Uint8Array.from(atob(read.content as string), (c) => c.charCodeAt(0))
+		: new TextEncoder().encode(read.content as string);
+}
+
+/**
+ * An earlier chunk of the transcript, joined to `head` - the first half of the
+ * line the loaded window starts on, cut where the window began. Returns the
+ * whole lines, and the new cut line unless the chunk reached the file's start.
+ */
+export function splitEarlier(
+	earlier: Uint8Array,
+	head: Uint8Array,
+	atFileStart: boolean,
+): { lines: string[]; head: Uint8Array } {
+	const bytes = new Uint8Array(earlier.length + head.length);
+	bytes.set(earlier);
+	bytes.set(head, earlier.length);
+	const parts: Uint8Array[] = [];
+	for (let at = 0; at <= bytes.length; ) {
+		const cut = bytes.indexOf(10, at);
+		const end = cut < 0 ? bytes.length : cut;
+		parts.push(bytes.subarray(at, end));
+		at = end + 1;
+	}
+	const cutLine = atFileStart ? undefined : parts.shift();
+	const decoder = new TextDecoder();
+	return {
+		lines: parts.map((part) => decoder.decode(part)),
+		head: cutLine ? cutLine.slice() : new Uint8Array(0),
+	};
+}
+
 /**
  * The transcript, tailed: one read of the last TAIL_BYTES, then only the bytes
  * appended since. The old full read re-parsed the whole file every poll.
+ * `loadEarlier` reads the TAIL_BYTES before what's loaded - a long session's
+ * start sits megabytes back, and a resumed one is always a long one.
  */
 function useLiveItems(path: string | null, workspaceId: string) {
 	const [items, setItems] = useState<Item[]>([]);
 	const [missing, setMissing] = useState<string | null>(null);
+	const [hasEarlier, setHasEarlier] = useState(false);
+	// Bumps once per loaded earlier chunk, in the same render as its rows.
+	const [earlierLoads, setEarlierLoads] = useState(0);
 	const utils = electronTrpc.useUtils();
 	// Read now instead of at the next poll - after a send, so Claude's echo of
 	// your message lands as soon as it's written.
 	const pokeRef = useRef(() => {});
+	const loadEarlierRef = useRef(async () => false);
 	useEffect(() => {
 		if (!path) return;
 		let cancelled = false;
@@ -270,11 +321,17 @@ function useLiveItems(path: string | null, workspaceId: string) {
 		let skipFirstLine = false;
 		let remainder = "";
 		const decoder = new TextDecoder();
+		// Where the loaded window starts, and the cut line it starts with: the
+		// earlier chunk ends with that line's first half.
+		let start = 0;
+		let head: Uint8Array = new Uint8Array(0);
+		let loadingEarlier = false;
 		let timer: ReturnType<typeof setTimeout>;
 		let running = false;
 		let again = false;
 		setItems([]);
 		setMissing(null);
+		setHasEarlier(false);
 		const tick = async () => {
 			if (running) {
 				again = true;
@@ -297,6 +354,8 @@ function useLiveItems(path: string | null, workspaceId: string) {
 					}
 					offset = Math.max(0, (meta.size ?? 0) - TAIL_BYTES);
 					skipFirstLine = offset > 0;
+					start = offset;
+					if (!cancelled) setHasEarlier(start > 0);
 				}
 				const read = await utils.client.filesystem.readFile.query({
 					workspaceId,
@@ -307,12 +366,11 @@ function useLiveItems(path: string | null, workspaceId: string) {
 				if (cancelled) return;
 				if (read.byteLength > 0) {
 					offset += read.byteLength;
-					const bytes =
-						read.kind === "bytes"
-							? Uint8Array.from(atob(read.content as string), (c) =>
-									c.charCodeAt(0),
-								)
-							: new TextEncoder().encode(read.content);
+					const bytes = readBytes(read);
+					if (skipFirstLine) {
+						const cut = bytes.indexOf(10);
+						head = bytes.slice(0, cut < 0 ? bytes.length : cut);
+					}
 					const chunk = remainder + decoder.decode(bytes, { stream: true });
 					const parts = chunk.split("\n");
 					remainder = parts.pop() ?? "";
@@ -320,13 +378,7 @@ function useLiveItems(path: string | null, workspaceId: string) {
 						parts.shift();
 						skipFirstLine = false;
 					}
-					const lines = parts.flatMap((part) => {
-						try {
-							return [JSON.parse(part) as Line];
-						} catch {
-							return [];
-						}
-					});
+					const lines = parseLines(parts);
 					if (lines.length) setItems((prev) => applyLines(prev, lines));
 				}
 				setMissing(null);
@@ -338,6 +390,38 @@ function useLiveItems(path: string | null, workspaceId: string) {
 			if (!cancelled) timer = setTimeout(tick, again ? 0 : POLL_MS);
 			again = false;
 		};
+		loadEarlierRef.current = async () => {
+			// Not before the tail's first read: it's what finds the cut line.
+			if (start === 0 || loadingEarlier || offset === null || offset === start)
+				return false;
+			loadingEarlier = true;
+			try {
+				const from = Math.max(0, start - TAIL_BYTES);
+				const read = await utils.client.filesystem.readFile.query({
+					workspaceId,
+					absolutePath: path,
+					offset: from,
+					maxBytes: start - from,
+				});
+				if (cancelled) return false;
+				const split = splitEarlier(readBytes(read), head, from === 0);
+				head = split.head;
+				start = from;
+				// ponytail: a tool row whose result sits past the cut stays without
+				// it; the tail window already dropped that result.
+				const rows = applyLines([], parseLines(split.lines));
+				setItems((prev) => [...rows, ...prev]);
+				setEarlierLoads((n) => n + 1);
+				setHasEarlier(from > 0);
+				return true;
+			} catch (error) {
+				if (!cancelled)
+					setMissing(error instanceof Error ? error.message : String(error));
+				return false;
+			} finally {
+				loadingEarlier = false;
+			}
+		};
 		pokeRef.current = () => void tick();
 		void tick();
 		return () => {
@@ -345,7 +429,14 @@ function useLiveItems(path: string | null, workspaceId: string) {
 			clearTimeout(timer);
 		};
 	}, [path, workspaceId, utils]);
-	return { items, missing, poke: () => pokeRef.current() };
+	return {
+		items,
+		missing,
+		poke: () => pokeRef.current(),
+		hasEarlier,
+		earlierLoads,
+		loadEarlier: () => loadEarlierRef.current(),
+	};
 }
 
 function toolSummary(input: Record<string, unknown>): string {
@@ -1203,7 +1294,8 @@ export function ChatView({
 		home && startCwd && sessionId
 			? transcriptPath(home, startCwd, sessionId)
 			: null;
-	const { items, missing, poke } = useLiveItems(path, workspaceId);
+	const { items, missing, poke, hasEarlier, earlierLoads, loadEarlier } =
+		useLiveItems(path, workspaceId);
 	// The whole view takes a file drop, not just the reply box: a drop on the
 	// conversation used to do nothing. The composer owns the attachments.
 	const dropRef = useRef<(files: File[]) => void>(undefined);
@@ -1328,6 +1420,31 @@ export function ChatView({
 		const el = scrollRef.current;
 		if (el && pinnedRef.current) el.scrollTop = el.scrollHeight;
 	}, [items, pending]);
+	// Earlier rows land above what you're reading: keep it where it was, and
+	// don't animate them in.
+	const fromBottomRef = useRef<number | null>(null);
+	const fetchEarlier = () => {
+		const el = scrollRef.current;
+		if (!el || !hasEarlier || fromBottomRef.current !== null) return;
+		fromBottomRef.current = el.scrollHeight - el.scrollTop;
+		void loadEarlier().then((loaded) => {
+			if (!loaded) fromBottomRef.current = null;
+		});
+	};
+	// A window too short to scroll gives no scroll to load more on.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: items is the trigger - rows change scrollHeight
+	useEffect(() => {
+		const el = scrollRef.current;
+		if (el && el.scrollHeight <= el.clientHeight) fetchEarlier();
+	}, [items, hasEarlier]);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: earlierLoads is the trigger - it bumps with the prepended rows
+	useLayoutEffect(() => {
+		const el = scrollRef.current;
+		if (!el || fromBottomRef.current === null) return;
+		el.scrollTop = el.scrollHeight - fromBottomRef.current;
+		fromBottomRef.current = null;
+		for (const item of items) firstIdsRef.current?.add(item.id);
+	}, [earlierLoads]);
 	// Rows also grow after they mount (code blocks, images, markdown), so a
 	// switched-to session would stop short of the bottom; follow that too.
 	const contentRef = useRef<HTMLDivElement>(null);
@@ -1396,6 +1513,7 @@ export function ChatView({
 					const el = event.currentTarget;
 					pinnedRef.current =
 						el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+					if (el.scrollTop < el.clientHeight) fetchEarlier();
 				}}
 				// Links open in Odin's browser, like everywhere else on the board.
 				onClickCapture={(event) => {
