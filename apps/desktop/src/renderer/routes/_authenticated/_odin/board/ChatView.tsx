@@ -469,24 +469,20 @@ const ToolRow = memo(function ToolRow({
 });
 
 type Tool = Extract<Item, { kind: "tool" }>;
-type Group = (Tool | Extract<Item, { kind: "text" }>)[];
+type Group = Tool[];
 
 /**
  * Runs of tool calls fold into one group, like the desktop app hides its
- * commands. A line of narration between two runs folds in too, so a long
- * stretch of work is one section, not a ladder of "Ran 1 command".
+ * commands. Claude's narration between runs stays visible - it is the
+ * conversation; only the commands are technical noise.
  */
 export function segments(items: Item[]): (Item | Group)[] {
 	const out: (Item | Group)[] = [];
 	for (const item of items) {
 		const last = out.at(-1);
-		const before = out.at(-2);
 		if (item.kind !== "tool") out.push(item);
 		else if (Array.isArray(last)) last.push(item);
-		else if (last?.kind === "text" && Array.isArray(before)) {
-			out.pop();
-			before.push(last, item);
-		} else out.push([item]);
+		else out.push([item]);
 	}
 	return out;
 }
@@ -504,9 +500,8 @@ function asking(items: Item[]): Tool | null {
 const ToolGroup = memo(
 	function ToolGroup({ group }: { group: Group }) {
 		const [open, setOpen] = useState(false);
-		const tools = group.filter((item): item is Tool => item.kind === "tool");
 		// A failure Claude retried past is routine; only flag a run that ended failing.
-		const failed = tools.at(-1)?.isError === true;
+		const failed = group.at(-1)?.isError === true;
 		return (
 			<div className="flex min-w-0 flex-col">
 				<button
@@ -528,19 +523,9 @@ const ToolGroup = memo(
 				</button>
 				{open && (
 					<div className="mt-1.5 rounded-lg border border-border bg-secondary/20 p-1.5">
-						{group.map((item) =>
-							item.kind === "tool" ? (
-								<ToolRow key={item.id} item={item} />
-							) : (
-								// ponytail: plain text, not markdown - it's a one-line aside
-								<div
-									key={item.id}
-									className="select-text whitespace-pre-wrap px-2 py-1 text-[12px] text-muted-foreground"
-								>
-									{item.text}
-								</div>
-							),
-						)}
+						{group.map((item) => (
+							<ToolRow key={item.id} item={item} />
+						))}
 					</div>
 				)}
 			</div>

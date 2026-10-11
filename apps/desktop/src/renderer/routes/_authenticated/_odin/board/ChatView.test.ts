@@ -175,7 +175,7 @@ describe("ChatView transcript", () => {
 		expect((out[1] as unknown[]).length).toBe(3);
 	});
 
-	test("narration between two runs folds into one group; the last reply stays", () => {
+	test("narration between two runs stays visible; only tools fold", () => {
 		const tool = (id: string, name: string) =>
 			({ kind: "tool", id, name, input: {} }) as const;
 		const out = segments([
@@ -187,9 +187,15 @@ describe("ChatView transcript", () => {
 			tool("3", "Write"),
 			{ kind: "text", id: "d", text: "done" },
 		]);
-		expect(out.length).toBe(3);
-		expect((out[1] as unknown[]).length).toBe(5);
-		expect((out[2] as { id: string }).id).toBe("d");
+		expect(out.map((s) => (Array.isArray(s) ? s.length : s.id))).toEqual([
+			"a",
+			1,
+			"b",
+			1,
+			"c",
+			1,
+			"d",
+		]);
 	});
 
 	test("action items split off in the shapes agents write them", () => {
