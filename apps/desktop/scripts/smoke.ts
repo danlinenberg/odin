@@ -451,24 +451,50 @@ await step("starting a task asks for optional context first", async () => {
 		throw new Error("Cancel still started a session");
 });
 
-await step("Read later moves a task to Reading material and back", async () => {
-	await rail("Tasks");
-	await waitForText(TASK);
-	const found = await page<boolean>(`(() => {
+/** Click the button titled `title*` on TASK's row in Tasks. */
+const clickOnTaskRow = (title: string) =>
+	page<boolean>(`(() => {
+		const sel = 'button[title^=${JSON.stringify(title)}]';
 		let row = [...document.querySelectorAll("button")].find((e) => e.textContent.trim() === ${JSON.stringify(TASK)});
-		while (row && !row.querySelector('button[title^="Nothing to do"]')) row = row.parentElement;
-		row?.querySelector('button[title^="Nothing to do"]').click();
+		while (row && !row.querySelector(sel)) row = row.parentElement;
+		row?.querySelector(sel).click();
 		return !!row;
 	})()`);
-	if (!found) throw new Error("no Read later button on the task's row");
-	await waitForText(TASK, false);
-	await click("button", "Reading material");
+
+await step("Read later marks a task and keeps it on the list", async () => {
+	await rail("Tasks");
 	await waitForText(TASK);
-	await waitForText("saved");
-	// Undo on the only row empties the shelf: back on the queue, row and all.
-	await click("button", "Put it back");
+	if (!(await clickOnTaskRow("Mark it Read later")))
+		throw new Error("no Read later button on the task's row");
+	await waitForText("↺ Read later");
 	await waitForText(TASK);
-	await waitForText("waiting on you");
+	if (!(await clickOnTaskRow("Back to Waiting on you")))
+		throw new Error("no way back from Read later on the task's row");
+	await waitForText("↺ Read later", false);
+	await waitForText(TASK);
+});
+
+await step(
+	"Up next lines a task up above the list and lets it go",
+	async () => {
+		await rail("Tasks");
+		if (!(await clickOnTaskRow("Line it up")))
+			throw new Error("no Up next button on the task's row");
+		await waitForText("drag to reorder");
+		await page(
+			`document.querySelector('button[title="Take it off Up next"]')?.click()`,
+		);
+		await waitForText("drag to reorder", false);
+		await waitForText(TASK);
+	},
+);
+
+await step("the Tasks page has its own composer", async () => {
+	const typed = `All composer task ${Date.now()}`;
+	await rail("Tasks");
+	await fill('input[placeholder="What needs doing?"]', typed);
+	await click("button", "Add task");
+	await waitForText(typed);
 });
 
 await step("A task's title opens its details beside the list", async () => {

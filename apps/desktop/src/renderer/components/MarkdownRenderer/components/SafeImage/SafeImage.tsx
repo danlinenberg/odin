@@ -6,6 +6,7 @@ import { LuImageOff } from "react-icons/lu";
  * ALLOWED:
  * - data: URLs (embedded base64 images)
  * - https:// URLs (GitHub user-attachments, avatars, etc.)
+ * - odin-attachment:// (images pasted into a task, served from ~/.odin/attachments)
  *
  * BLOCKED (everything else):
  * - http:// (cleartext / mixed-content)
@@ -28,6 +29,7 @@ function isSafeImageSrc(src: string | undefined): boolean {
 
 	if (lower.startsWith("data:")) return true;
 	if (lower.startsWith("https://")) return true;
+	if (lower.startsWith("odin-attachment://")) return true;
 	return false;
 }
 

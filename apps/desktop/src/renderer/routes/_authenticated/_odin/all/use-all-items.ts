@@ -41,13 +41,19 @@ function useItems(everything: boolean) {
 			emails.data,
 		],
 	);
-	return { items, isDone };
+	return { items, isDone, done };
 }
 
-/** The All feed's rows: every source, minus what's Done. */
+/**
+ * The All feed's rows: every source, minus what's Done. Read later stays -
+ * it's off the Night Agent and the per-source queues, but still on your list.
+ */
 export function useAllItems(): AllItem[] {
-	const { items, isDone } = useItems(false);
-	return useMemo(() => items.filter((item) => !isDone(item)), [items, isDone]);
+	const { items, isDone, done } = useItems(false);
+	return useMemo(
+		() => items.filter((item) => !isDone(item) || done[item.key]?.reading),
+		[items, isDone, done],
+	);
 }
 
 /**

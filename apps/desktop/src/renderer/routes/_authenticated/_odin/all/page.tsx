@@ -1,7 +1,28 @@
+import {
+	closestCenter,
+	DndContext,
+	type DragEndEvent,
+	MouseSensor,
+	useSensor,
+	useSensors,
+} from "@dnd-kit/core";
+import {
+	SortableContext,
+	useSortable,
+	verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@odin/ui/utils";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import {
+	type ReactNode,
+	useCallback,
+	useEffect,
+	useMemo,
+	useState,
+} from "react";
 import type { IconType } from "react-icons";
+import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { openUrl } from "renderer/stores/in-app-browser";
 import type { BoardSection } from "shared/board-section";
@@ -39,14 +60,31 @@ import {
 	OverdueMark,
 	useReminders,
 } from "../components/Reminders";
-import { PriorityLabelChip } from "../components/TaskBox";
+import { PriorityLabelChip, TaskBox } from "../components/TaskBox";
 import { useActiveSessions } from "../hooks/useActiveSessions";
 import { useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
+import {
+	PRIORITY_LABELS,
+	priorityOf,
+	useMyTasks,
+	useOdinTasks,
+} from "../hooks/useOdinTasks";
 import { usePendingFocus } from "../hooks/usePendingFocus";
 import { PANE_STATUS } from "../pane-status";
 import type { AllItem, Urgency } from "./all-items";
+import { TaskDescription } from "./TaskDescription";
 import { TaskDetails } from "./TaskDetails";
+import {
+	statusLabel,
+	TASK_STATUSES,
+	TASK_TYPES,
+	type TaskStatus,
+	type TaskType,
+	typeLabel,
+	typeOf,
+	useTaskMeta,
+} from "./task-meta";
 import { useTitleOverrides } from "./title-overrides";
 import { useAllItems, useSearchableItems } from "./use-all-items";
 import { useStartAllItem } from "./use-start-item";
@@ -156,6 +194,13 @@ const URGENCIES: { id: Exclude<Urgency, null> | "none"; label: string }[] = [
 	{ id: "none", label: "Unrated" },
 ];
 
+/** The status filter: Odin's own statuses, plus the two every row always had. */
+const STATUS_FILTERS: { id: string; label: string }[] = [
+	{ id: "waiting", label: "Waiting on you" },
+	...TASK_STATUSES,
+	{ id: "reading", label: "Read later" },
+];
+
 const SHOW_SESSIONS_KEY = "odin.all.showSessions";
 
 function readShowSessions(): boolean {
@@ -210,12 +255,42 @@ function AllFeedPage() {
 	// waiting on you. They're one click away under "Done", with Undo.
 	// Reading material is the same put-away, for rows with nothing left to do
 	// but worth keeping: off every queue and the Night Agent, listed apart.
+	// Reading material stays on this list (use-all-items), as "Read later".
 	const { markDone, markReading, undo, recent, reading } = useDone();
-	const [shelf, setShelf] = useState<"done" | "reading" | null>(null);
-	const shelfRows =
-		shelf === "reading" ? reading : shelf === "done" ? recent : [];
+	const [shelf, setShelf] = useState(false);
 	// Undo on the last row hides its pill too: back to the queue, not a blank.
-	const showDone = shelfRows.length > 0;
+	const showDone = shelf && recent.length > 0;
+	const readingKeys = useMemo(
+		() => new Set(reading.map((row) => row.key)),
+		[reading],
+	);
+	const {
+		statuses,
+		types,
+		queue,
+		setStatus: setRowStatus,
+		setType: setRowType,
+		enqueue,
+		dequeue,
+		move,
+	} = useTaskMeta();
+	const statusOf = useCallback(
+		(item: AllItem): string =>
+			readingKeys.has(item.key) ? "reading" : (statuses[item.key] ?? "waiting"),
+		[readingKeys, statuses],
+	);
+	const [status, setStatus] = useState("");
+	// The compose box, same as Mine's - a task written here lands on this list.
+	const { add } = useMyTasks();
+	const tasks = useOdinTasks((s) => s.tasks);
+	const { setPriority, setNotes } = useOdinTasks.getState();
+	const [draft, setDraft] = useState("");
+	const [draftRepo, setDraftRepo] = useState("");
+	const { data: skills } = electronTrpc.skills.list.useQuery();
+	const { data: repos } = electronTrpc.repos.list.useQuery();
+	const sensors = useSensors(
+		useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
+	);
 	// The row whose details sit in the side panel. A title click opens it here
 	// rather than jumping to the row's own feed tab, which dropped you out of
 	// this list and left you hunting for the row again.
@@ -290,12 +365,35 @@ function AllFeedPage() {
 			),
 		[allRows, reminders],
 	);
+	const statusCounts = new Map<string, number>();
+	for (const item of byContext)
+		statusCounts.set(
+			statusOf(item),
+			(statusCounts.get(statusOf(item)) ?? 0) + 1,
+		);
+	// Up next sits above the list in your order, so it isn't listed twice.
+	const queued = queue.flatMap((key) => {
+		const item = allRows.find((row) => row.key === key);
+		return item ? [item] : [];
+	});
+	// A finished row leaves Up next too, so an Undo doesn't bring it back there.
+	const finish = (item: AllItem) => {
+		markDone(item);
+		dequeue(item.key);
+	};
+	const onDragEnd = ({ active, over }: DragEndEvent) => {
+		if (over) move(String(active.id), String(over.id));
+	};
 	const items = useMemo(() => {
+		const byStatus = byContext.filter(
+			(item) =>
+				!queue.includes(item.key) && (!status || statusOf(item) === status),
+		);
 		const due = dueOnly
-			? byContext.filter((item) =>
+			? byStatus.filter((item) =>
 					isDue(effectiveDue(item.key, reminders, item.dueDate), Date.now()),
 				)
-			: byContext;
+			: byStatus;
 		const sorted =
 			sortBy === "created"
 				? [...due].sort((a, b) => b.createdAt - a.createdAt)
@@ -314,7 +412,7 @@ function AllFeedPage() {
 				.toLowerCase()
 				.includes(needle),
 		);
-	}, [byContext, dueOnly, reminders, needle, sortBy]);
+	}, [byContext, dueOnly, reminders, needle, sortBy, queue, status, statusOf]);
 
 	// From every row, not the filtered ones: narrowing the list shouldn't shut
 	// the panel you're reading. Marking it done does. Search all can open a row
@@ -322,10 +420,17 @@ function AllFeedPage() {
 	const openItem =
 		allRows.find((item) => item.key === openKey) ??
 		everyRow.find((item) => item.key === openKey);
+	const openTask = tasks.find((task) => `task:${task.id}` === openItem?.key);
 
 	const isFiltered =
-		source !== "" || urgency !== "" || context !== "" || dueOnly || !!needle;
+		source !== "" ||
+		urgency !== "" ||
+		context !== "" ||
+		status !== "" ||
+		dueOnly ||
+		!!needle;
 	const clearFilters = () => {
+		setStatus("");
 		setSource("");
 		setUrgency("");
 		setContext("");
@@ -372,24 +477,27 @@ function AllFeedPage() {
 							Due
 						</FilterPill>
 					)}
-					{reading.length > 0 && (
-						<FilterPill
-							active={shelf === "reading"}
-							count={reading.length}
-							onClick={() => setShelf(shelf === "reading" ? null : "reading")}
-						>
-							Reading material
-						</FilterPill>
-					)}
 					{recent.length > 0 && (
 						<FilterPill
-							active={shelf === "done"}
+							active={showDone}
 							count={recent.length}
-							onClick={() => setShelf(shelf === "done" ? null : "done")}
+							onClick={() => setShelf(!showDone)}
 						>
 							Done
 						</FilterPill>
 					)}
+					<FeedSelect
+						value={status}
+						onChange={setStatus}
+						title="Filter by status - Odin's own, nothing is written upstream"
+					>
+						<option value="">Any status</option>
+						{STATUS_FILTERS.map(({ id, label }) => (
+							<option key={id} value={id}>
+								{label} ({statusCounts.get(id) ?? 0})
+							</option>
+						))}
+					</FeedSelect>
 					<FeedSelect
 						value={source}
 						onChange={(value) => {
@@ -447,8 +555,61 @@ function AllFeedPage() {
 				</div>
 			</FeedHeader>
 
+			<div className="border-b border-border px-[18px] py-3">
+				<TaskBox
+					value={draft}
+					skills={skills}
+					repos={repos}
+					repo={draftRepo}
+					onRepoChange={setDraftRepo}
+					placeholder="What needs doing?"
+					onChange={setDraft}
+					onSubmit={() => {
+						add(draft, undefined, draftRepo);
+						setDraft("");
+						setDraftRepo("");
+					}}
+					onCancel={() => setDraft("")}
+					submitLabel="Add task"
+				/>
+			</div>
+
 			<div className="flex min-h-0 flex-1">
 				<div className={FEED_LIST}>
+					{!showDone && queued.length > 0 && (
+						<>
+							<div className="px-1 pt-1 pb-0.5 text-[11px] font-semibold text-muted-foreground">
+								Up next - drag to reorder, 1 goes first
+							</div>
+							<DndContext
+								sensors={sensors}
+								collisionDetection={closestCenter}
+								onDragEnd={onDragEnd}
+							>
+								<SortableContext
+									items={queued.map((item) => item.key)}
+									strategy={verticalListSortingStrategy}
+								>
+									{queued.map((item, index) => (
+										<QueuedRow
+											key={item.key}
+											item={item}
+											place={index + 1}
+											type={typeLabel(typeOf(item, types))}
+											open={item.key === openKey}
+											onOpen={() =>
+												setOpenKey(item.key === openKey ? null : item.key)
+											}
+											onRemove={() => dequeue(item.key)}
+										/>
+									))}
+								</SortableContext>
+							</DndContext>
+							<div className="px-1 pt-2 pb-0.5 text-[11px] font-semibold text-muted-foreground">
+								Everything else
+							</div>
+						</>
+					)}
 					{/* ponytail: no error banner here. A broken source already marks
 				    its own tab, and fixing it happens on that tab - the roll-up
 				    just shows the rows the other sources returned. */}
@@ -577,8 +738,8 @@ function AllFeedPage() {
 					)}
 					{showDone && (
 						<DoneList
-							rows={shelfRows}
-							verb={shelf === "reading" ? "saved" : "done"}
+							rows={recent}
+							verb="done"
 							onOpen={(url) => openUrl(url)}
 							onUndo={undo}
 						/>
@@ -615,7 +776,7 @@ function AllFeedPage() {
 							    carries what its own feed would tell you: who it's from,
 							    where it stands, where it lives. A grid, not a flex row,
 							    so the mention below wraps inside the title's column. */}
-									<div className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto_auto_auto_auto] items-center gap-x-3">
+									<div className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto_auto_auto_auto_auto] items-center gap-x-3">
 										<span
 											className={cn(
 												"flex w-[68px] shrink-0 items-center justify-center gap-1 rounded-[5px] px-[7px] py-[1px] text-[11px] font-semibold",
@@ -635,6 +796,11 @@ function AllFeedPage() {
 										>
 											<OverdueMark itemKey={item.key} upstream={item.dueDate} />
 											{emojify(item.title)}
+											{typeOf(item, types) && (
+												<span className="ml-2 text-[11px] font-normal text-muted-foreground">
+													{typeLabel(typeOf(item, types))}
+												</span>
+											)}
 										</button>
 										{/* The open row's meta is in the panel, and with the panel
 										    open the columns don't fit beside it - they squeezed the
@@ -659,11 +825,14 @@ function AllFeedPage() {
 												)}
 											</span>
 											<span className={META_STATUS}>
-												{item.status && (
-													<span className={cn(ROW_META, "truncate")}>
-														{item.status}
-													</span>
-												)}
+												<RowStatus
+													odin={
+														readingKeys.has(item.key)
+															? "Read later"
+															: statusLabel(statuses[item.key])
+													}
+													upstream={item.status}
+												/>
 											</span>
 											<span className={META_TEXT}>{item.context}</span>
 											<span className={META_DATE}>
@@ -720,13 +889,21 @@ function AllFeedPage() {
 										</span>
 										<button
 											type="button"
-											onClick={() => markReading(item)}
-											title="Nothing to do, but keep it - moves it to Reading material"
+											onClick={() => enqueue(item.key)}
+											title="Line it up - Up next, above the list"
 											className={ROW_LINK_BUTTON}
 										>
-											Read later
+											Up next
 										</button>
-										<DoneButton onClick={() => markDone(item)} />
+										<ReadLaterButton
+											on={readingKeys.has(item.key)}
+											onClick={() =>
+												readingKeys.has(item.key)
+													? undo(item)
+													: markReading(item)
+											}
+										/>
+										<DoneButton onClick={() => finish(item)} />
 										{/* Same preview the Jira feed shows: a mention row is there
 								    because of one comment. Column 2 keeps it under the title. */}
 										{item.mention && (
@@ -748,6 +925,37 @@ function AllFeedPage() {
 						item={openItem}
 						onClose={() => setOpenKey(null)}
 						onOpenFeed={() => navigate({ to: openItem.to })}
+						fields={
+							<TaskFields
+								status={statuses[openItem.key] ?? ""}
+								type={typeOf(openItem, types) ?? ""}
+								priority={openTask && priorityOf(openTask)}
+								queued={queue.includes(openItem.key)}
+								onStatus={(value) =>
+									setRowStatus(openItem.key, (value as TaskStatus) || null)
+								}
+								onType={(value) =>
+									setRowType(openItem.key, (value as TaskType) || null)
+								}
+								onPriority={
+									openTask && ((value) => setPriority(openTask.id, value))
+								}
+								onQueue={() =>
+									queue.includes(openItem.key)
+										? dequeue(openItem.key)
+										: enqueue(openItem.key)
+								}
+							/>
+						}
+						description={
+							openTask && (
+								<TaskDescription
+									key={openTask.id}
+									notes={openTask.notes}
+									onSave={(notes) => setNotes(openTask.id, notes)}
+								/>
+							)
+						}
 					>
 						<DetailsActions
 							activePaneId={livePaneFor(openItem)}
@@ -758,12 +966,14 @@ function AllFeedPage() {
 								usePendingFocus.getState().focus(paneId);
 								navigate({ to: "/board" });
 							}}
-							onReadLater={() => {
-								markReading(openItem);
-								setOpenKey(null);
-							}}
+							reading={readingKeys.has(openItem.key)}
+							onReadLater={() =>
+								readingKeys.has(openItem.key)
+									? undo(openItem)
+									: markReading(openItem)
+							}
 							onDone={() => {
-								markDone(openItem);
+								finish(openItem);
 								setOpenKey(null);
 							}}
 						/>
@@ -782,11 +992,15 @@ function DetailsPanel({
 	item,
 	onClose,
 	onOpenFeed,
+	fields,
+	description,
 	children,
 }: {
 	item: AllItem;
 	onClose: () => void;
 	onOpenFeed: () => void;
+	fields: ReactNode;
+	description: ReactNode;
 	children: ReactNode;
 }) {
 	const url = item.url;
@@ -821,7 +1035,8 @@ function DetailsPanel({
 				</button>
 			</div>
 			<div className="min-h-0 flex-1 overflow-y-auto px-3.5 pb-[18px]">
-				<TaskDetails item={item} onRename={rename} />
+				{fields}
+				<TaskDetails item={item} onRename={rename} description={description} />
 			</div>
 			{children}
 		</aside>
@@ -835,6 +1050,7 @@ function DetailsActions({
 	launching,
 	onStart,
 	onGoTo,
+	reading,
 	onReadLater,
 	onDone,
 }: {
@@ -843,6 +1059,7 @@ function DetailsActions({
 	launching: boolean;
 	onStart: () => void;
 	onGoTo: (paneId: string) => void;
+	reading: boolean;
 	onReadLater: () => void;
 	onDone: () => void;
 }) {
@@ -866,17 +1083,185 @@ function DetailsActions({
 					{launching ? "Starting…" : "Start session"}
 				</button>
 			)}
-			<button
-				type="button"
-				onClick={onReadLater}
-				title="Nothing to do, but keep it - moves it to Reading material"
-				className={ROW_LINK_BUTTON}
-			>
-				Read later
-			</button>
+			<ReadLaterButton on={reading} onClick={onReadLater} />
 			<span className="ml-auto">
 				<DoneButton onClick={onDone} />
 			</span>
+		</div>
+	);
+}
+
+/** Read later, or back from it - the row stays on the list either way. */
+function ReadLaterButton({
+	on,
+	onClick,
+}: {
+	on: boolean;
+	onClick: () => void;
+}) {
+	return (
+		<button
+			type="button"
+			onClick={onClick}
+			title={
+				on
+					? "Back to Waiting on you"
+					: "Mark it Read later - it stays here, off the Night Agent"
+			}
+			className={ROW_LINK_BUTTON}
+		>
+			{on ? "↺ Read later" : "Read later"}
+		</button>
+	);
+}
+
+/** Odin's status when there is one, the source's own otherwise. */
+function RowStatus({
+	odin,
+	upstream,
+}: {
+	odin: string | null;
+	upstream: string | null;
+}) {
+	if (odin)
+		return (
+			<span
+				title={upstream ? `${upstream} upstream` : undefined}
+				className={cn(
+					"truncate rounded-[5px] px-[7px] py-[1px] font-semibold",
+					PILL.neutral,
+				)}
+			>
+				{odin}
+			</span>
+		);
+	return upstream ? (
+		<span className={cn(ROW_META, "truncate")}>{upstream}</span>
+	) : null;
+}
+
+/**
+ * Status, type and Up next for any row; priority only for my own tasks -
+ * every other source's priority is its system's to change.
+ */
+function TaskFields({
+	status,
+	type,
+	priority,
+	queued,
+	onStatus,
+	onType,
+	onPriority,
+	onQueue,
+}: {
+	status: string;
+	type: string;
+	priority: number | undefined;
+	queued: boolean;
+	onStatus: (value: string) => void;
+	onType: (value: string) => void;
+	onPriority: ((value: number) => void) | undefined;
+	onQueue: () => void;
+}) {
+	return (
+		<div className="mb-2.5 flex flex-wrap items-center gap-1.5">
+			<FeedSelect value={status} onChange={onStatus} title="Status">
+				<option value="">Waiting on you</option>
+				{TASK_STATUSES.map(({ id, label }) => (
+					<option key={id} value={id}>
+						{label}
+					</option>
+				))}
+			</FeedSelect>
+			<FeedSelect value={type} onChange={onType} title="Task type">
+				<option value="">No type</option>
+				{TASK_TYPES.map(({ id, label }) => (
+					<option key={id} value={id}>
+						{label}
+					</option>
+				))}
+			</FeedSelect>
+			{onPriority && priority && (
+				<FeedSelect
+					value={String(priority)}
+					onChange={(value) => onPriority(Number(value))}
+					title="Priority"
+				>
+					{[3, 2, 1].map((level) => (
+						<option key={level} value={level}>
+							{PRIORITY_LABELS[level]}
+						</option>
+					))}
+				</FeedSelect>
+			)}
+			<button
+				type="button"
+				onClick={onQueue}
+				className={cn(ROW_LINK_BUTTON, queued && "text-foreground")}
+			>
+				{queued ? "✓ Up next" : "+ Up next"}
+			</button>
+		</div>
+	);
+}
+
+/** One row of Up next: its place, a handle to drag it by, and the way out. */
+function QueuedRow({
+	item,
+	place,
+	type,
+	open,
+	onOpen,
+	onRemove,
+}: {
+	item: AllItem;
+	place: number;
+	type: string | null;
+	open: boolean;
+	onOpen: () => void;
+	onRemove: () => void;
+}) {
+	const { attributes, listeners, setNodeRef, transform, transition } =
+		useSortable({ id: item.key });
+	return (
+		<div
+			ref={setNodeRef}
+			style={{ transform: CSS.Transform.toString(transform), transition }}
+			className={cn(FEED_ROW, open && "border-primary/50 bg-secondary/60")}
+		>
+			<div className="flex items-center gap-3">
+				<span
+					{...attributes}
+					{...listeners}
+					title="Drag to reorder"
+					className="flex w-[68px] shrink-0 cursor-grab items-center justify-center gap-1.5 text-[12px] font-semibold text-muted-foreground active:cursor-grabbing"
+				>
+					<span aria-hidden>⠿</span>
+					{place}
+				</span>
+				<button
+					type="button"
+					title="Show details"
+					onClick={onOpen}
+					className="min-w-0 flex-1 truncate bg-none text-left text-[13px] font-semibold text-foreground"
+				>
+					{emojify(item.title)}
+					{type && (
+						<span className="ml-2 text-[11px] font-normal text-muted-foreground">
+							{type}
+						</span>
+					)}
+				</button>
+				<span className={ROW_META}>{item.source}</span>
+				<button
+					type="button"
+					onClick={onRemove}
+					title="Take it off Up next"
+					className={ROW_LINK_BUTTON}
+				>
+					✕
+				</button>
+			</div>
 		</div>
 	);
 }

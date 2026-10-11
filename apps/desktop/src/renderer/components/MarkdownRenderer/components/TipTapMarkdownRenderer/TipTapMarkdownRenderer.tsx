@@ -20,6 +20,8 @@ export interface MarkdownEditorAdapter {
 	focus(): void;
 	getValue(): string;
 	setValue(value: string): void;
+	/** At the cursor - a pasted or dropped image. */
+	insertImage(src: string): void;
 	dispose(): void;
 }
 
@@ -54,6 +56,9 @@ function createMarkdownEditorAdapter(editor: Editor): MarkdownEditorAdapter {
 		},
 		setValue(value) {
 			editor.commands.setContent(value, { emitUpdate: false });
+		},
+		insertImage(src) {
+			editor.chain().focus().setImage({ src }).run();
 		},
 		dispose() {
 			if (disposed) return;

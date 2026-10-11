@@ -1,3 +1,4 @@
+import { homedir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { settings } from "@odin/local-db";
@@ -327,6 +328,15 @@ protocol.registerSchemesAsPrivileged([
 			supportFetchAPI: true,
 		},
 	},
+	{
+		scheme: "odin-attachment",
+		privileges: {
+			standard: true,
+			secure: true,
+			bypassCSP: true,
+			supportFetchAPI: true,
+		},
+	},
 ]);
 
 const gotTheLock = app.requestSingleInstanceLock();
@@ -384,6 +394,26 @@ if (!gotTheLock) {
 		session
 			.fromPartition("persist:odin")
 			.protocol.handle("odin-icon", iconProtocolHandler);
+
+		// Images pasted into a task's description, saved by system.saveAttachment.
+		// The basename only, so a URL can't climb out of the attachments folder.
+		const attachmentProtocolHandler = (request: Request) => {
+			const name = path.basename(
+				decodeURIComponent(new URL(request.url).pathname),
+			);
+			if (!/\.(png|jpe?g|gif|webp|heic)$/i.test(name)) {
+				return new Response("Not found", { status: 404 });
+			}
+			return net.fetch(
+				pathToFileURL(
+					path.join(homedir(), ".odin", "attachments", name),
+				).toString(),
+			);
+		};
+		protocol.handle("odin-attachment", attachmentProtocolHandler);
+		session
+			.fromPartition("persist:odin")
+			.protocol.handle("odin-attachment", attachmentProtocolHandler);
 
 		// Serve system fonts (e.g. SF Mono on macOS) via custom protocol
 		// so the renderer can use @font-face with font-src 'self' CSP

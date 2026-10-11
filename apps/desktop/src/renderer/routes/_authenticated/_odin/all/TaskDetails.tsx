@@ -50,11 +50,14 @@ export function TaskDetails({
 	item,
 	extraRows = [],
 	onRename,
+	description,
 	children,
 }: {
 	item: AllItem;
 	/** Makes the title editable - the Tasks side panel is the one place to rename. */
 	onRename?: (key: string, title: string) => void;
+	/** Drawn in place of the body - my own tasks' editable brief. */
+	description?: ReactNode;
 	/** Fields only the caller knows - Next in line's due date and AI rank. */
 	extraRows?: [string, string][];
 	/** Drawn after the fields - Next in line's Review sweep verdict. */
@@ -107,14 +110,15 @@ export function TaskDetails({
 					{shownTitle}
 				</p>
 			)}
-			{body && body !== item.title.trim() && (
-				<p
-					dir="auto"
-					className="max-h-[220px] cursor-text select-text overflow-y-auto whitespace-pre-wrap break-words text-left text-soft-foreground"
-				>
-					<Linked text={body.slice(0, 3000)} />
-				</p>
-			)}
+			{description ??
+				(body && body !== item.title.trim() && (
+					<p
+						dir="auto"
+						className="max-h-[220px] cursor-text select-text overflow-y-auto whitespace-pre-wrap break-words text-left text-soft-foreground"
+					>
+						<Linked text={body.slice(0, 3000)} />
+					</p>
+				))}
 			{item.mention && (
 				<div className="rounded-md border-l-2 border-primary bg-primary/8 px-2 py-1.5 text-soft-foreground">
 					{item.mention.author && (

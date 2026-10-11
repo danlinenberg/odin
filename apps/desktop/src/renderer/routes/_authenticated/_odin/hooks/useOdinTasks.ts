@@ -149,6 +149,10 @@ export const useOdinTasks = create<{
 	add: (text: string, profileId?: string, cron?: string, repo?: string) => void;
 	/** Run this task through a skill, or through none (empty). */
 	setSkill: (id: string, skill: string) => void;
+	/** 1-3, after the fact - the Tasks panel's picker, no retyping the "!"s. */
+	setPriority: (id: string, priority: number) => void;
+	/** The brief alone, as the Tasks panel's editor writes it. */
+	setNotes: (id: string, notes: string) => void;
 	/** `repo` undefined keeps the task's repo; "" clears it. */
 	edit: (id: string, text: string, repo?: string) => void;
 	remove: (id: string) => void;
@@ -233,6 +237,14 @@ export const useOdinTasks = create<{
 					tasks: s.tasks.map((t) =>
 						t.id === id ? { ...t, skill: skill || undefined } : t,
 					),
+				})),
+			setPriority: (id, priority) =>
+				set((s) => ({
+					tasks: s.tasks.map((t) => (t.id === id ? { ...t, priority } : t)),
+				})),
+			setNotes: (id, notes) =>
+				set((s) => ({
+					tasks: s.tasks.map((t) => (t.id === id ? { ...t, notes } : t)),
 				})),
 			setPaused: (id, paused) =>
 				set((s) => ({
@@ -360,5 +372,11 @@ export function taskText(task: OdinTask): string {
 
 /** The prompt a task launches with - what you typed, minus the "!"s. */
 export function taskPrompt(task: OdinTask): string {
-	return task.notes ? `${task.title}\n\n${task.notes}` : task.title;
+	// An image the description editor saved is shown via odin-attachment://;
+	// the session needs the file itself.
+	const notes = task.notes.replaceAll(ATTACHMENT_URL, "~/.odin/attachments/");
+	return notes ? `${task.title}\n\n${notes}` : task.title;
 }
+
+/** Where the Tasks panel's editor points an image saved to ~/.odin/attachments. */
+export const ATTACHMENT_URL = "odin-attachment://file/";
