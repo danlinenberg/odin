@@ -2797,9 +2797,11 @@ function DevBoardPage() {
 	 * What a Resume has to wait for - the same gate a launch waits on, since a
 	 * resumed agent takes a slot on the Mac like a new one. The card itself is
 	 * left out: a session that died mid-turn still reads "working" and would
-	 * otherwise hold its own checkout. A failed read lets it through.
+	 * otherwise hold its own checkout. A failed read lets it through. Huginn
+	 * never waits: he's how you free the Mac, not a session that loads it.
 	 */
 	const resumeBlocker = async (pane: Pane, cwd: string | undefined) => {
+		if (pane.odinTags?.includes(CROW_TAG)) return null;
 		try {
 			return await currentLaunchBlocker(
 				utils.client,
