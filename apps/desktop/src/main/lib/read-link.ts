@@ -358,9 +358,14 @@ async function readNotion(id: string): Promise<string> {
  * Where each connection's API lives and how Odin signs a call to it. A path is
  * only ever joined onto its own provider's base, so a token never leaves home.
  */
-async function serviceBase(
-	service: string,
-): Promise<{ base: string; headers: Record<string, string> } | string> {
+async function serviceBase(service: string): Promise<
+	| {
+			base: string;
+			headers: Record<string, string>;
+			send?: (url: string, init: RequestInit) => Promise<Response>;
+	  }
+	| string
+> {
 	const missing = `${service} isn't connected in Odin - connect it in Settings > Connections.`;
 	switch (service) {
 		case "clickup": {
@@ -377,7 +382,9 @@ async function serviceBase(
 			return token
 				? {
 						base: "https://api.github.com/",
-						headers: { Authorization: `Bearer ${token}` },
+						headers: {},
+						// Falls back to the gh CLI's token when Odin's is revoked.
+						send: (url, init) => githubApiFetch(url, init, token),
 					}
 				: missing;
 		}
@@ -437,7 +444,7 @@ export async function callService(
 	if (typeof target === "string") return target;
 	const url = serviceUrl(target.base, path);
 	if (!url) return `path must be relative to ${target.base}`;
-	const res = await fetch(url, {
+	const res = await (target.send ?? fetch)(url.href, {
 		method: method.toUpperCase(),
 		headers: {
 			...target.headers,
