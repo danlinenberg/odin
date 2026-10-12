@@ -3,7 +3,7 @@
 #
 # Builds a throwaway repo with an origin and four worktrees - one squash-landed,
 # one with a commit main doesn't have, one dirty, one fresh - and checks which
-# survive. No gh here, so this covers the content rule only.
+# survive. A fake gh at the end covers the closed-PR rule.
 #
 #   scripts/prune-worktrees.test.sh
 set -uo pipefail
@@ -66,5 +66,25 @@ PRUNE_LANDED_MIN_AGE_HOURS=0 GH_TOKEN= "$DIR/prune-worktrees.sh" --only one "$TM
 check "--only removes just that worktree" $?
 ! PRUNE_LANDED_MIN_AGE_HOURS=0 GH_TOKEN= "$DIR/prune-worktrees.sh" --only unique "$TMP/repo" | grep -q "^remove"
 check "--only still keeps work main doesn't have" $?
+
+# Closed PR at exactly the worktree's head: gone, even though main moved the
+# same file on. Closed at another commit: kept. The fake gh answers the one
+# GraphQL query with "<branch> <head sha>" lines.
+mkdir -p "$TMP/bin"
+printf '#!/bin/sh\n[ "$1" = api ] && cat "%s/closed"\n' "$TMP" >"$TMP/bin/gh" && chmod +x "$TMP/bin/gh"
+for wt in merged moved; do
+	g worktree add -q -b "$wt" ".worktrees/$wt" origin/main
+	echo "pr $wt" >".worktrees/$wt/e-$wt" && g -C ".worktrees/$wt" add "e-$wt" && g -C ".worktrees/$wt" commit -qm "$wt"
+	echo "later" >"e-$wt" && g add "e-$wt" && g commit -qm "main moves e-$wt on" && g push -q origin main
+done
+{
+	echo "merged $(git -C .worktrees/merged rev-parse HEAD)"
+	echo "moved 0000000000000000000000000000000000000000"
+} >"$TMP/closed"
+PATH="$TMP/bin:$PATH" PRUNE_LANDED_MIN_AGE_HOURS=0 "$DIR/prune-worktrees.sh" "$TMP/repo" >/dev/null
+[ ! -d .worktrees/merged ]
+check "removes a worktree whose PR closed at its head" $?
+[ -d .worktrees/moved ]
+check "keeps a worktree whose PR closed at another commit" $?
 
 exit $FAIL

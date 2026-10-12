@@ -49,16 +49,34 @@ git -C "$root" fetch --quiet origin "$main"
 repo="$(git -C "$root" remote get-url origin | sed -E 's#^(git@|https://)github.com[:/]##; s#\.git$##')"
 
 # Did this branch's PR merge or close with exactly this commit as its head?
-# Tried as $GH_TOKEN, then as each signed-in account: a work repo 404s for the
-# personal one.
+# One GraphQL query per run for every worktree branch, not one `gh pr list`
+# per worktree: a repo with 17 worktrees took 35s, and every 10 minutes the
+# calls ate the account's GraphQL limit. Tried as $GH_TOKEN, then as each
+# signed-in account: a work repo 404s for the personal one.
+closed_heads=""
+closed_heads_read=0
+read_closed_heads() {
+	local query="" i=0 branch account
+	while read -r branch; do
+		query+="b$i: pullRequests(headRefName: \"$branch\", states: [MERGED, CLOSED], first: 20) { nodes { headRefName headRefOid } } "
+		i=$((i + 1))
+	done < <(git -C "$root" worktree list --porcelain | sed -n 's#^branch refs/heads/##p')
+	[ "$i" = 0 ] && return 0
+	local args=(api graphql -f owner="${repo%%/*}" -f name="${repo#*/}" -f query="query(\$owner: String!, \$name: String!) { repository(owner: \$owner, name: \$name) { $query } }" -q '.data.repository[].nodes[] | .headRefName + " " + .headRefOid')
+	# A failed call still prints its error JSON, so only a success is echoed.
+	local out
+	out="$(gh "${args[@]}" 2>/dev/null)" && { echo "$out"; return; }
+	for account in $(gh auth status 2>&1 | sed -n 's/.*Logged in to [^ ]* account \([^ ]*\).*/\1/p'); do
+		out="$(GH_TOKEN="$(gh auth token --user "$account")" gh "${args[@]}" 2>/dev/null)" && { echo "$out"; return; }
+	done
+}
 ended_at_head() { # ended_at_head <branch> <sha>
 	command -v gh >/dev/null || return 1
-	local heads account
-	heads="$(gh pr list -R "$repo" --head "$1" --state closed --json headRefOid -q '.[].headRefOid' 2>/dev/null)" ||
-		for account in $(gh auth status 2>&1 | sed -n 's/.*Logged in to [^ ]* account \([^ ]*\).*/\1/p'); do
-			heads="$(GH_TOKEN="$(gh auth token --user "$account")" gh pr list -R "$repo" --head "$1" --state closed --json headRefOid -q '.[].headRefOid' 2>/dev/null)" && break
-		done
-	grep -qx "$2" <<<"$heads"
+	if [ "$closed_heads_read" = 0 ]; then
+		closed_heads_read=1
+		closed_heads="$(read_closed_heads)"
+	fi
+	grep -qxF "$1 $2" <<<"$closed_heads"
 }
 
 git -C "$root" worktree list --porcelain | sed -n 's/^worktree //p' | while read -r wt; do

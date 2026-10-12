@@ -100,7 +100,8 @@ function StorageSettingsPage() {
 				}
 			>
 				{isLoading ? (
-					<p className="px-4 py-3.5 text-sm text-muted-foreground">
+					<p className="flex items-center gap-2 px-4 py-3.5 text-sm text-muted-foreground">
+						<span className="inline-block size-3 shrink-0 animate-spin rounded-full border-2 border-border border-t-primary" />
 						Checking every repo's worktrees - this fetches each repo, so it
 						takes a moment…
 					</p>
