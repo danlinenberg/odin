@@ -55,6 +55,20 @@ describe("todos", () => {
 	});
 });
 
+describe("addTodos", () => {
+	it("appends the agent's items once, after yours", () => {
+		const s = usePaneMeta.getState();
+		s.addTodo("p5", "mine");
+		s.addTodos("p5", ["Merge #12", " ", "Merge #12", "mine"]);
+		s.addTodos("p5", ["Merge #12", "Reply on the thread"]);
+		expect(usePaneMeta.getState().todosByPane.p5).toEqual([
+			{ text: "mine" },
+			{ text: "Merge #12" },
+			{ text: "Reply on the thread" },
+		]);
+	});
+});
+
 describe("Done then resume", () => {
 	it("hands your notes and links to the resumed conversation's new pane", () => {
 		const s = usePaneMeta.getState();

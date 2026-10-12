@@ -86,6 +86,27 @@ export function MyTodos({ paneId }: { paneId: string }) {
 	);
 }
 
+/**
+ * The agent's action items are replaced by its next message - this copies
+ * them into My notes, where they stay until you tick or remove them.
+ */
+function AddToMyTodos({ paneId, items }: { paneId: string; items: string[] }) {
+	const todos = usePaneMeta((s) => s.todosByPane[paneId]) ?? [];
+	const addTodos = usePaneMeta((s) => s.addTodos);
+	const have = new Set(todos.map((t) => t.text));
+	const added = items.every((item) => have.has(item.trim()));
+	return (
+		<button
+			type="button"
+			disabled={added}
+			onClick={() => addTodos(paneId, items)}
+			className="mt-1 text-[11px] text-link hover:underline disabled:text-faint-foreground disabled:no-underline"
+		>
+			{added ? "In my to-dos ✓" : "+ Add to my to-dos"}
+		</button>
+	);
+}
+
 function Section({
 	label,
 	divided,
@@ -944,6 +965,7 @@ export function SessionBrief({
 												</li>
 											))}
 										</ol>
+										<AddToMyTodos paneId={paneId} items={todo} />
 									</Section>
 								) : (
 									written.next && (

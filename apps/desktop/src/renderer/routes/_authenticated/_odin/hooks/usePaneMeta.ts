@@ -66,6 +66,8 @@ export const usePaneMeta = create<{
 	setBrief: (paneId: string, brief: string) => void;
 	setNotes: (paneId: string, notes: string) => void;
 	addTodo: (paneId: string, text: string) => void;
+	/** Appends the agent's action items, skipping ones already on the list. */
+	addTodos: (paneId: string, texts: string[]) => void;
 	/** Done flips its tick; otherwise the to-do is removed. */
 	updateTodo: (paneId: string, index: number, done?: boolean) => void;
 	addLink: (paneId: string, url: string, name?: string) => void;
@@ -120,6 +122,18 @@ export const usePaneMeta = create<{
 						{ text: text.trim() },
 					];
 					return { todosByPane: { ...s.todosByPane, [paneId]: todos } };
+				}),
+			addTodos: (paneId, texts) =>
+				set((s) => {
+					const todos = s.todosByPane[paneId] ?? [];
+					const have = new Set(todos.map((t) => t.text));
+					const added = [...new Set(texts.map((t) => t.trim()))]
+						.filter((text) => text && !have.has(text))
+						.map((text) => ({ text }));
+					if (!added.length) return {};
+					return {
+						todosByPane: { ...s.todosByPane, [paneId]: [...todos, ...added] },
+					};
 				}),
 			updateTodo: (paneId, index, done) =>
 				set((s) => {
