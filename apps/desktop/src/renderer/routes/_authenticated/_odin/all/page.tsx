@@ -579,7 +579,11 @@ function AllFeedPage() {
 	const shown = items.length + queued.length;
 
 	/** One row of the list. */
-	const renderRow = (item: AllItem, band: Band) => {
+	const renderRow = (
+		item: AllItem,
+		band: Band | "next",
+		drag?: SortableBits & { place: number },
+	) => {
 		const url = item.url;
 		const SourceIcon = SOURCE_ICON[item.to];
 		const activePaneId = livePaneFor(item);
@@ -593,25 +597,45 @@ function AllFeedPage() {
 				: timed
 					? null
 					: item.priority;
+		// A preview of what the row is about, under the title: the comment that
+		// put it here, else the first line of its body.
+		const preview = item.body?.replace(/\s+/g, " ").trim();
 		return (
 			<div
 				key={item.key}
+				ref={drag?.setNodeRef}
+				style={drag?.style}
 				className={cn(
 					FEED_ROW,
 					band === "now" && "border-l-2 border-l-attention",
 					item.key === openKey && "border-primary/50 bg-secondary/60",
 				)}
 			>
-				<div className="flex items-center gap-3">
-					<input
-						type="checkbox"
-						aria-label={`Select ${item.title}`}
-						title="Select - shift-click selects a range"
-						checked={selected.has(item.key)}
-						onChange={() => {}}
-						onClick={(event) => tick(item.key, event.shiftKey)}
-						className="size-3.5 cursor-pointer accent-primary"
-					/>
+				{/* A grid, not a flex row, so the mention below wraps inside the
+				    title's column instead of running under the meta and buttons. */}
+				<div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto_auto_auto_auto] items-center gap-x-3">
+					<span className="flex items-center gap-1.5">
+						{drag && (
+							<span
+								{...drag.attributes}
+								{...drag.listeners}
+								title="Drag to reorder"
+								className="flex cursor-grab items-center gap-1 text-[12px] font-semibold text-muted-foreground active:cursor-grabbing"
+							>
+								<span aria-hidden>⠿</span>
+								{drag.place}
+							</span>
+						)}
+						<input
+							type="checkbox"
+							aria-label={`Select ${item.title}`}
+							title="Select - shift-click selects a range"
+							checked={selected.has(item.key)}
+							onChange={() => {}}
+							onClick={(event) => tick(item.key, event.shiftKey)}
+							className="size-3.5 cursor-pointer accent-primary"
+						/>
+					</span>
 					<SourceIcon
 						className="size-3.5 shrink-0 text-muted-foreground"
 						title={item.source}
@@ -634,50 +658,51 @@ function AllFeedPage() {
 					{/* The open row's meta is in the panel, and with the panel open
 					    the columns don't fit beside it. Only what the row has is
 					    drawn: an empty slot that keeps its width is a gap. */}
-					{!openItem && (
-						<div className="flex shrink-0 items-center gap-2.5 text-[11px]">
-							<DueChip
-								itemKey={item.key}
-								title={item.title}
-								upstream={item.dueDate}
-							/>
-							{timed ? (
-								<span
-									className={cn(
-										ROW_META,
-										"whitespace-nowrap",
-										band === "now" && "font-semibold text-attention",
-									)}
-								>
-									{reasonOf(item, now)}
-								</span>
-							) : (
-								rated && <PriorityLabelChip label={rated} />
-							)}
-							<RowStatus
-								odin={
-									isReading ? "Read later" : statusLabel(statuses[item.key])
-								}
-								upstream={item.status}
-							/>
-							{item.person && (
-								<PersonChip name={item.person} className="max-w-[160px]" />
-							)}
-							{item.context && (
-								<span className="max-w-[132px] truncate text-muted-foreground">
-									{item.context}
-								</span>
-							)}
-							{dateOf(item) > 0 && (
-								<span className="tabular-nums text-muted-foreground">
-									{new Date(dateOf(item)).toLocaleDateString(undefined, {
-										month: "short",
-										day: "numeric",
-									})}
-								</span>
-							)}
-						</div>
-					)}
+					<div
+						className={cn(
+							"flex shrink-0 items-center gap-2.5 text-[11px]",
+							openItem && "hidden",
+						)}
+					>
+						<DueChip
+							itemKey={item.key}
+							title={item.title}
+							upstream={item.dueDate}
+						/>
+						{timed ? (
+							<span
+								className={cn(
+									ROW_META,
+									"whitespace-nowrap",
+									band === "now" && "font-semibold text-attention",
+								)}
+							>
+								{reasonOf(item, now)}
+							</span>
+						) : (
+							rated && <PriorityLabelChip label={rated} />
+						)}
+						<RowStatus
+							odin={isReading ? "Read later" : statusLabel(statuses[item.key])}
+							upstream={item.status}
+						/>
+						{item.person && (
+							<PersonChip name={item.person} className="max-w-[160px]" />
+						)}
+						{item.context && (
+							<span className="max-w-[132px] truncate text-muted-foreground">
+								{item.context}
+							</span>
+						)}
+						{dateOf(item) > 0 && (
+							<span className="tabular-nums text-muted-foreground">
+								{new Date(dateOf(item)).toLocaleDateString(undefined, {
+									month: "short",
+									day: "numeric",
+								})}
+							</span>
+						)}
+					</div>
 					{/* The quiet four: on hover, on keyboard focus, and always in
 					    the side panel. Start session and Done are the row's two
 					    standing buttons - fifty rows of six each was a wall. */}
@@ -692,14 +717,25 @@ function AllFeedPage() {
 								Open ↗
 							</button>
 						)}
-						<button
-							type="button"
-							onClick={() => enqueue(item.key)}
-							title="Line it up - Up next, above the list"
-							className={ROW_LINK_BUTTON}
-						>
-							Up next
-						</button>
+						{drag ? (
+							<button
+								type="button"
+								onClick={() => dequeue(item.key)}
+								title="Take it off Up next"
+								className={ROW_LINK_BUTTON}
+							>
+								✕ Up next
+							</button>
+						) : (
+							<button
+								type="button"
+								onClick={() => enqueue(item.key)}
+								title="Line it up - Up next, above the list"
+								className={ROW_LINK_BUTTON}
+							>
+								Up next
+							</button>
+						)}
 						<TonightButton item={item} />
 						<ReadLaterButton
 							on={isReading}
@@ -729,18 +765,26 @@ function AllFeedPage() {
 						)}
 					</span>
 					<DoneButton onClick={() => finish(item)} />
+					{/* Same preview the Jira feed shows: a mention row is there
+					    because of one comment. Column 3 keeps it under the title. */}
+					{item.mention && (
+						<div className="col-start-3 mt-1.5 line-clamp-2 cursor-text select-text text-[11.5px] leading-relaxed text-muted-foreground">
+							<span className="font-semibold text-soft-foreground">
+								{item.mention.author ?? "Someone"}
+								{": "}
+							</span>
+							{item.mention.text}
+						</div>
+					)}
+					{!item.mention && preview && preview !== item.title.trim() && (
+						<div
+							dir="auto"
+							className="col-start-3 mt-0.5 truncate text-[11.5px] text-muted-foreground"
+						>
+							{emojify(preview.slice(0, 300))}
+						</div>
+					)}
 				</div>
-				{/* Same preview the Jira feed shows: a mention row is there because
-				    of one comment. Indented past the checkbox and the mark. */}
-				{item.mention && (
-					<div className="mt-1.5 ml-[46px] line-clamp-2 cursor-text select-text text-[11.5px] leading-relaxed text-muted-foreground">
-						<span className="font-semibold text-soft-foreground">
-							{item.mention.author ?? "Someone"}
-							{": "}
-						</span>
-						{item.mention.text}
-					</div>
-				)}
 			</div>
 		);
 	};
@@ -1000,17 +1044,11 @@ function AllFeedPage() {
 									strategy={verticalListSortingStrategy}
 								>
 									{queued.map((item, index) => (
-										<QueuedRow
-											key={item.key}
-											item={item}
-											place={index + 1}
-											type={typeLabel(typeOf(item, types))}
-											open={item.key === openKey}
-											onOpen={() =>
-												setOpenKey(item.key === openKey ? null : item.key)
+										<SortableRow key={item.key} id={item.key}>
+											{(bits) =>
+												renderRow(item, "next", { ...bits, place: index + 1 })
 											}
-											onRemove={() => dequeue(item.key)}
-										/>
+										</SortableRow>
 									))}
 								</SortableContext>
 							</DndContext>
@@ -1568,70 +1606,32 @@ function TaskFields({
 	);
 }
 
-/** One row of Up next: its place, a handle to drag it by, and the way out. */
-function QueuedRow({
-	item,
-	place,
-	type,
-	open,
-	onOpen,
-	onRemove,
+type SortableBits = {
+	setNodeRef: (node: HTMLElement | null) => void;
+	style: React.CSSProperties;
+	attributes: ReturnType<typeof useSortable>["attributes"];
+	listeners: ReturnType<typeof useSortable>["listeners"];
+};
+
+/**
+ * Up next's drag, around the same row the bands draw - an Up next row used to
+ * be a title and a source name, with nothing to read or open.
+ */
+function SortableRow({
+	id,
+	children,
 }: {
-	item: AllItem;
-	place: number;
-	type: string | null;
-	open: boolean;
-	onOpen: () => void;
-	onRemove: () => void;
+	id: string;
+	children: (bits: SortableBits) => ReactNode;
 }) {
 	const { attributes, listeners, setNodeRef, transform, transition } =
-		useSortable({ id: item.key });
-	const SourceIcon = SOURCE_ICON[item.to];
-	return (
-		<div
-			ref={setNodeRef}
-			style={{ transform: CSS.Transform.toString(transform), transition }}
-			className={cn(FEED_ROW, open && "border-primary/50 bg-secondary/60")}
-		>
-			<div className="flex items-center gap-3">
-				<span
-					{...attributes}
-					{...listeners}
-					title="Drag to reorder"
-					className="flex w-[34px] shrink-0 cursor-grab items-center gap-1.5 text-[12px] font-semibold text-muted-foreground active:cursor-grabbing"
-				>
-					<span aria-hidden>⠿</span>
-					{place}
-				</span>
-				<SourceIcon
-					className="size-3.5 shrink-0 text-muted-foreground"
-					title={item.source}
-					aria-label={item.source}
-				/>
-				<button
-					type="button"
-					title="Show details"
-					onClick={onOpen}
-					className="min-w-0 flex-1 truncate bg-none text-left text-[13px] font-semibold text-foreground"
-				>
-					{emojify(item.title)}
-					{type && (
-						<span className="ml-2 text-[11px] font-normal text-muted-foreground">
-							{type}
-						</span>
-					)}
-				</button>
-				<button
-					type="button"
-					onClick={onRemove}
-					title="Take it off Up next"
-					className={ROW_LINK_BUTTON}
-				>
-					✕
-				</button>
-			</div>
-		</div>
-	);
+		useSortable({ id });
+	return children({
+		setNodeRef,
+		style: { transform: CSS.Transform.toString(transform), transition },
+		attributes,
+		listeners,
+	});
 }
 
 /** What was put away lately, newest first, as it looked then - with the way back. */
