@@ -11,6 +11,16 @@ export interface BriefLink {
 export interface BriefTodo {
 	text: string;
 	done?: boolean;
+	/** The agent's action item it was copied from - still "added" once edited. */
+	from?: string;
+}
+
+/** An action item as plain text: My notes shows no markdown. */
+export function plainText(markdown: string): string {
+	return markdown
+		.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+		.replace(/(\*\*|__|`)(.+?)\1/g, "$2")
+		.trim();
 }
 
 export const linkUrl = (link: BriefLink | string) =>
@@ -126,10 +136,10 @@ export const usePaneMeta = create<{
 			addTodos: (paneId, texts) =>
 				set((s) => {
 					const todos = s.todosByPane[paneId] ?? [];
-					const have = new Set(todos.map((t) => t.text));
+					const have = new Set(todos.map((t) => t.from ?? t.text));
 					const added = [...new Set(texts.map((t) => t.trim()))]
-						.filter((text) => text && !have.has(text))
-						.map((text) => ({ text }));
+						.filter((from) => from && !have.has(from))
+						.map((from) => ({ text: plainText(from), from }));
 					if (!added.length) return {};
 					return {
 						todosByPane: { ...s.todosByPane, [paneId]: [...todos, ...added] },

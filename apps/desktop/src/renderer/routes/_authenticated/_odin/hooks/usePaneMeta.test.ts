@@ -63,9 +63,20 @@ describe("addTodos", () => {
 		s.addTodos("p5", ["Merge #12", "Reply on the thread"]);
 		expect(usePaneMeta.getState().todosByPane.p5).toEqual([
 			{ text: "mine" },
-			{ text: "Merge #12" },
-			{ text: "Reply on the thread" },
+			{ text: "Merge #12", from: "Merge #12" },
+			{ text: "Reply on the thread", from: "Reply on the thread" },
 		]);
+	});
+	it("copies plain text, and an edited copy still counts as added", () => {
+		const s = usePaneMeta.getState();
+		s.addTodos("p6", ["Merge **PR #12** in [repo](https://x/12) with `bun`"]);
+		const [todo] = usePaneMeta.getState().todosByPane.p6;
+		expect(todo.text).toBe("Merge PR #12 in repo with bun");
+		usePaneMeta.setState((st) => ({
+			todosByPane: { ...st.todosByPane, p6: [{ ...todo, text: "edited" }] },
+		}));
+		s.addTodos("p6", ["Merge **PR #12** in [repo](https://x/12) with `bun`"]);
+		expect(usePaneMeta.getState().todosByPane.p6).toHaveLength(1);
 	});
 });
 

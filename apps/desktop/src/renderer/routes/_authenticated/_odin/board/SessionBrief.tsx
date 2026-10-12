@@ -93,7 +93,7 @@ export function MyTodos({ paneId }: { paneId: string }) {
 function AddToMyTodos({ paneId, items }: { paneId: string; items: string[] }) {
 	const todos = usePaneMeta((s) => s.todosByPane[paneId]) ?? [];
 	const addTodos = usePaneMeta((s) => s.addTodos);
-	const have = new Set(todos.map((t) => t.text));
+	const have = new Set(todos.map((t) => t.from ?? t.text));
 	const added = items.every((item) => have.has(item.trim()));
 	return (
 		<button
