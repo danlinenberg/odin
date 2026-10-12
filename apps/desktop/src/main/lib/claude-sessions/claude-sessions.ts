@@ -3,6 +3,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { PR_RULES_HEADER } from "shared/odin-rules";
+import { type SessionUsage, transcriptUsage } from "./usage";
 
 /**
  * Search over Claude Code's own conversation transcripts.
@@ -756,6 +757,8 @@ export async function readTranscript({
 	loop: ActiveLoop | null;
 	/** Odin rules that fired in this session, and on which PRs. */
 	rules: RuleFiring[];
+	/** Tokens, context and cost so far; null before the first reply. */
+	usage: SessionUsage | null;
 }> {
 	if (!isSafeSegment(sessionId) || (project && !isSafeSegment(project))) {
 		throw new Error("Invalid transcript reference");
@@ -772,6 +775,7 @@ export async function readTranscript({
 		prompt,
 		loop: activeLoop(jsonl),
 		rules: ruleFirings(jsonl),
+		usage: transcriptUsage(jsonl),
 	};
 }
 

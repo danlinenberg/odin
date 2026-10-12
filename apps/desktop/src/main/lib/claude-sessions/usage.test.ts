@@ -1,0 +1,32 @@
+import { expect, test } from "bun:test";
+import { transcriptUsage } from "./usage";
+
+const line = (id: string, model: string, usage: object) =>
+	JSON.stringify({ type: "assistant", message: { id, model, usage } });
+
+test("transcriptUsage counts each message once and prices it", () => {
+	const jsonl = [
+		line("a", "claude-opus-5-5", { input_tokens: 1, output_tokens: 5 }),
+		// Same message, second content block: its final count wins.
+		line("a", "claude-opus-5-5", {
+			input_tokens: 1_000_000,
+			output_tokens: 1_000_000,
+		}),
+		line("b", "us.anthropic.claude-opus-5-5", {
+			input_tokens: 0,
+			output_tokens: 0,
+			cache_read_input_tokens: 1_000_000,
+			cache_creation_input_tokens: 1_000_000,
+			cache_creation: { ephemeral_1h_input_tokens: 1_000_000 },
+		}),
+	].join("\n");
+	const usage = transcriptUsage(jsonl);
+	// 4 + 20 + 0.2 read + 8 (1h write at 2x)
+	expect(usage?.usd).toBeCloseTo(32.2);
+	expect(usage?.tokens).toBe(4_000_000);
+	expect(usage?.context).toBe(2_000_000);
+	expect(transcriptUsage("")).toBeNull();
+	expect(
+		transcriptUsage(line("c", "gpt-x", { input_tokens: 1 }))?.usd,
+	).toBeNull();
+});

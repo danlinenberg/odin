@@ -1043,6 +1043,15 @@ export function SessionBrief({
 				{facts && (
 					<div className="pt-2 text-[11px] text-muted-foreground">
 						{facts.turns} turns
+						{transcript?.usage && (
+							<span
+								title={`${transcript.usage.tokens.toLocaleString()} tokens in and out, cache included. Context: what the last reply read. Cost at Anthropic API list prices - a Claude plan or Bedrock bills differently.`}
+							>
+								{` · ${compact(transcript.usage.tokens)} tokens · context ${compact(transcript.usage.context)}/${compact(transcript.usage.window)}`}
+								{transcript.usage.usd !== null &&
+									` · ~$${transcript.usage.usd.toFixed(2)}`}
+							</span>
+						)}
 						{facts.at &&
 							` · last activity ${new Date(facts.at).toLocaleString()}`}
 						{written?.writtenAt &&
@@ -1096,4 +1105,12 @@ export function SessionBrief({
 			</div>
 		</div>
 	);
+}
+
+/** 840, 64k, 1.2M. */
+function compact(n: number): string {
+	return Intl.NumberFormat("en", {
+		notation: "compact",
+		maximumFractionDigits: 1,
+	}).format(n);
 }
