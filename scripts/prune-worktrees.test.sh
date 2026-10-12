@@ -67,6 +67,14 @@ check "--only removes just that worktree" $?
 ! PRUNE_LANDED_MIN_AGE_HOURS=0 GH_TOKEN= "$DIR/prune-worktrees.sh" --only unique "$TMP/repo" | grep -q "^remove"
 check "--only still keeps work main doesn't have" $?
 
+# A deleted, uncommitted file: no mtime to read, and it must not end the run.
+g worktree add -q -b gone .worktrees/gone origin/main
+rm .worktrees/gone/a
+out="$(PRUNE_MIN_AGE_HOURS=0 PRUNE_LANDED_MIN_AGE_HOURS=0 GH_TOKEN= "$DIR/prune-worktrees.sh" --dry-run "$TMP/repo")"
+grep -q "^keep   gone (uncommitted" <<<"$out" && grep -q "^keep   unique " <<<"$out"
+check "a deleted file keeps its worktree and the rest still get a verdict" $?
+g worktree remove --force .worktrees/gone
+
 # --force: gone whatever it holds, but the branch stays and so do its files.
 ! GH_TOKEN= "$DIR/prune-worktrees.sh" --force "$TMP/repo" >/dev/null 2>&1
 check "--force without --only refuses" $?

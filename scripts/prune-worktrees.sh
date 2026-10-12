@@ -53,7 +53,15 @@ now=$(date +%s)
 
 main="$(git -C "$root" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || echo origin/main)"
 main="${main#origin/}"
-git -C "$root" fetch --quiet origin "$main"
+# As gh's credential helper's token ($GH_TOKEN), then as each signed-in
+# account: a personal private repo is "not found" to the work token.
+git -C "$root" fetch --quiet origin "$main" 2>/dev/null || {
+	fetched=0
+	for account in $(gh auth status 2>&1 | sed -n 's/.*Logged in to [^ ]* account \([^ ]*\).*/\1/p'); do
+		GH_TOKEN="$(gh auth token --user "$account")" git -C "$root" fetch --quiet origin "$main" 2>/dev/null && { fetched=1; break; }
+	done
+	[ "$fetched" = 1 ] || git -C "$root" fetch --quiet origin "$main"
+}
 repo="$(git -C "$root" remote get-url origin | sed -E 's#^(git@|https://)github.com[:/]##; s#\.git$##')"
 
 # Did this branch's PR merge or close with exactly this commit as its head?
@@ -151,8 +159,9 @@ git -C "$root" worktree list --porcelain | sed -n 's/^worktree //p' | while read
 	# Checked up front too, so --dry-run reports what a real run would do.
 	if [ -n "$(git -C "$wt" status --porcelain)" ]; then
 		# Editing a file touches no git state, so the files' own mtimes count too.
+		# A deleted file has none: stat fails on it, and pipefail must not end the run.
 		edited=$(git -C "$wt" ls-files -z --modified --others --exclude-standard |
-			(cd "$wt" && xargs -0 stat -f %m 2>/dev/null) | sort -n | tail -1)
+			(cd "$wt" && xargs -0 stat -f %m 2>/dev/null || true) | sort -n | tail -1)
 		if [ "$age" -lt "$dirty_min_age" ] || [ $(( now - ${edited:-0} )) -lt "$dirty_min_age" ]; then
 			echo "keep   $name (uncommitted or untracked files)"
 		elif [ "$dry" = 1 ]; then
