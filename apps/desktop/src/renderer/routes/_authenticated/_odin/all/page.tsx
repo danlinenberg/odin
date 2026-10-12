@@ -41,7 +41,6 @@ import {
 	ROW_META,
 	ROW_PRIMARY_SLOT,
 	ROW_START_BUTTON,
-	RowActions,
 	SECTION_HINT,
 	SECTION_LABEL,
 	SyncButton,
@@ -75,6 +74,7 @@ import {
 	bandOf,
 	matchesStatus,
 	NO_STATUS,
+	plainText,
 	reasonOf,
 	type Urgency,
 } from "./all-items";
@@ -599,7 +599,7 @@ function AllFeedPage() {
 					: item.priority;
 		// A preview of what the row is about, under the title: the comment that
 		// put it here, else the first line of its body.
-		const preview = item.body?.replace(/\s+/g, " ").trim();
+		const preview = item.body ? plainText(item.body) : "";
 		return (
 			<div
 				key={item.key}
@@ -613,7 +613,7 @@ function AllFeedPage() {
 			>
 				{/* A grid, not a flex row, so the mention below wraps inside the
 				    title's column instead of running under the meta and buttons. */}
-				<div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto_auto_auto_auto] items-center gap-x-3">
+				<div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto_auto_auto] items-center gap-x-3">
 					<span className="flex items-center gap-1.5">
 						{drag && (
 							<span
@@ -658,90 +658,96 @@ function AllFeedPage() {
 					{/* The open row's meta is in the panel, and with the panel open
 					    the columns don't fit beside it. Only what the row has is
 					    drawn: an empty slot that keeps its width is a gap. */}
-					<div
-						className={cn(
-							"flex shrink-0 items-center gap-2.5 text-[11px]",
-							openItem && "hidden",
-						)}
-					>
-						<DueChip
-							itemKey={item.key}
-							title={item.title}
-							upstream={item.dueDate}
-						/>
-						{timed ? (
-							<span
-								className={cn(
-									ROW_META,
-									"whitespace-nowrap",
-									band === "now" && "font-semibold text-attention",
-								)}
-							>
-								{reasonOf(item, now)}
-							</span>
-						) : (
-							rated && <PriorityLabelChip label={rated} />
-						)}
-						<RowStatus
-							odin={isReading ? "Read later" : statusLabel(statuses[item.key])}
-							upstream={item.status}
-						/>
-						{item.person && (
-							<PersonChip name={item.person} className="max-w-[160px]" />
-						)}
-						{item.context && (
-							<span className="max-w-[132px] truncate text-muted-foreground">
-								{item.context}
-							</span>
-						)}
-						{dateOf(item) > 0 && (
-							<span className="tabular-nums text-muted-foreground">
-								{new Date(dateOf(item)).toLocaleDateString(undefined, {
-									month: "short",
-									day: "numeric",
-								})}
-							</span>
-						)}
+					{/* Meta and the quiet four share one cell: meta at rest, the
+					    actions on hover or keyboard focus, and always in the side
+					    panel. Invisible actions that still held their width pushed
+					    every row past the window's edge. */}
+					<div className="grid justify-items-end">
+						<div
+							className={cn(
+								"flex items-center gap-2.5 text-[11px] [grid-area:1/1] group-focus-within:invisible group-hover:invisible",
+								openItem && "hidden",
+							)}
+						>
+							<DueChip
+								itemKey={item.key}
+								title={item.title}
+								upstream={item.dueDate}
+							/>
+							{timed ? (
+								<span
+									className={cn(
+										ROW_META,
+										"whitespace-nowrap",
+										band === "now" && "font-semibold text-attention",
+									)}
+								>
+									{reasonOf(item, now)}
+								</span>
+							) : (
+								rated && <PriorityLabelChip label={rated} />
+							)}
+							<RowStatus
+								odin={
+									isReading ? "Read later" : statusLabel(statuses[item.key])
+								}
+								upstream={item.status}
+							/>
+							{item.person && (
+								<PersonChip name={item.person} className="max-w-[160px]" />
+							)}
+							{item.context && (
+								<span className="max-w-[132px] truncate text-muted-foreground">
+									{item.context}
+								</span>
+							)}
+							{/* A timed ask already says how old it is. */}
+							{!timed && dateOf(item) > 0 && (
+								<span className="tabular-nums text-muted-foreground">
+									{new Date(dateOf(item)).toLocaleDateString(undefined, {
+										month: "short",
+										day: "numeric",
+									})}
+								</span>
+							)}
+						</div>
+						<span className="invisible flex items-center gap-1.5 [grid-area:1/1] group-focus-within:visible group-hover:visible">
+							{url && (
+								<button
+									type="button"
+									title={url}
+									onClick={() => openUrl(url)}
+									className={ROW_LINK_BUTTON}
+								>
+									Open ↗
+								</button>
+							)}
+							{drag ? (
+								<button
+									type="button"
+									onClick={() => dequeue(item.key)}
+									title="Take it off Up next"
+									className={ROW_LINK_BUTTON}
+								>
+									✕ Up next
+								</button>
+							) : (
+								<button
+									type="button"
+									onClick={() => enqueue(item.key)}
+									title="Line it up - Up next, above the list"
+									className={ROW_LINK_BUTTON}
+								>
+									Up next
+								</button>
+							)}
+							<TonightButton item={item} />
+							<ReadLaterButton
+								on={isReading}
+								onClick={() => (isReading ? undo(item) : markReading(item))}
+							/>
+						</span>
 					</div>
-					{/* The quiet four: on hover, on keyboard focus, and always in
-					    the side panel. Start session and Done are the row's two
-					    standing buttons - fifty rows of six each was a wall. */}
-					<RowActions>
-						{url && (
-							<button
-								type="button"
-								title={url}
-								onClick={() => openUrl(url)}
-								className={ROW_LINK_BUTTON}
-							>
-								Open ↗
-							</button>
-						)}
-						{drag ? (
-							<button
-								type="button"
-								onClick={() => dequeue(item.key)}
-								title="Take it off Up next"
-								className={ROW_LINK_BUTTON}
-							>
-								✕ Up next
-							</button>
-						) : (
-							<button
-								type="button"
-								onClick={() => enqueue(item.key)}
-								title="Line it up - Up next, above the list"
-								className={ROW_LINK_BUTTON}
-							>
-								Up next
-							</button>
-						)}
-						<TonightButton item={item} />
-						<ReadLaterButton
-							on={isReading}
-							onClick={() => (isReading ? undo(item) : markReading(item))}
-						/>
-					</RowActions>
 					<span className={ROW_PRIMARY_SLOT}>
 						{activePaneId ? (
 							<button

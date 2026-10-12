@@ -5,6 +5,7 @@ import {
 	allItems,
 	bandOf,
 	matchesStatus,
+	plainText,
 	reasonOf,
 	urgencyOf,
 } from "./all-items";
@@ -339,4 +340,12 @@ test("every source records what it asks of you", () => {
 	expect(by("GitHub")?.ask.kind).toBe("review");
 	expect(by("Jira")?.ask.kind).toBe("assigned");
 	expect(by("Tasks")?.ask.kind).toBe("own");
+});
+
+test("a body preview drops markdown marks", () => {
+	expect(
+		plainText(
+			"## What\n- **Prod import** blocks `FeatureFlag` [docs](https://x)\n```ts\ncode\n```",
+		),
+	).toBe("What Prod import blocks FeatureFlag docs");
 });

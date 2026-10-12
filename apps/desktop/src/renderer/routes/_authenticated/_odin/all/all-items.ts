@@ -600,3 +600,14 @@ export function reasonOf(item: Pick<AllItem, "ask">, now: number): string {
 			return "your task";
 	}
 }
+
+/** A body as one line of plain text - no markdown marks, code or link syntax. */
+export function plainText(body: string): string {
+	return body
+		.replace(/```[\s\S]*?```/g, " ")
+		.replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+		.replace(/^\s*(#{1,6}|[-*+>]|\d+\.)\s+/gm, "")
+		.replace(/[*_~`]+/g, "")
+		.replace(/\s+/g, " ")
+		.trim();
+}
