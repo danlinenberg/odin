@@ -1456,6 +1456,7 @@ export function ChatView({
 		},
 		[sendToClaude],
 	);
+	const lastTextId = items.findLast((item) => item.kind === "text")?.id;
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const pinnedRef = useRef(true);
 	// What was already there when the drawer opened shows still; only rows
@@ -1646,7 +1647,10 @@ export function ChatView({
 								workspaceId={workspaceId}
 								onDo={onShowTerminal || onResumeWith ? doItem : undefined}
 								onSend={
-									onShowTerminal || onResumeWith ? sendToClaude : undefined
+									// Only the latest reply: an old expired-token error is fixed.
+									(onShowTerminal || onResumeWith) && segment.id === lastTextId
+										? sendToClaude
+										: undefined
 								}
 							/>
 						);
