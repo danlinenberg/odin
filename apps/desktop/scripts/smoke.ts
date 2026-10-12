@@ -538,7 +538,15 @@ await step("Read later marks a task and keeps it on the list", async () => {
 		);
 	if (!(await clickOnTaskRow("Mark it Read later")))
 		throw new Error("no Read later button on the task's row");
-	await waitForText("read later");
+	// The row's own button turns to "Back to Waiting on you": the Status
+	// column that would print "Read later" is hidden on a narrow window.
+	for (
+		const end = Date.now() + 5_000;
+		!(await clickOnTaskRowHas("Back to Waiting on you"));
+	) {
+		if (Date.now() > end) throw new Error("Read later never took");
+		await sleep(200);
+	}
 	await waitForText(TASK);
 	const after = await taskRowButtons();
 	if (JSON.stringify(after) !== JSON.stringify(before))
@@ -582,7 +590,7 @@ await step("Tonight on a task row picks it for the Night Agent", async () => {
 	// One grid column per row item: one short and Done wraps under the checkbox.
 	const doneWraps = await page<boolean>(`(() => {
 		const title = [...document.querySelectorAll("button")].find((e) => e.textContent.trim() === ${JSON.stringify(TASK)});
-		const done = title?.parentElement.querySelector('button[title="Mark done"]');
+		const done = title?.closest("[data-task-row]")?.querySelector('button[title="Mark done"]');
 		return !done || done.getBoundingClientRect().top > title.getBoundingClientRect().bottom;
 	})()`);
 	if (doneWraps) throw new Error("Done wrapped off the task's row");
