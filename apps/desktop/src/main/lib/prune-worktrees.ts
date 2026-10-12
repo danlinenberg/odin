@@ -184,13 +184,20 @@ export async function listWorktrees(): Promise<WorktreeInfo[]> {
 	return perRepo.flat();
 }
 
-/** Remove one worktree - only if the script, run on just that one, agrees. */
+/** Remove one worktree - only if the script, run on just that one, agrees, or forced. */
 export async function removeWorktree(
 	repo: string,
 	name: string,
+	/** Whatever it holds: the branch stays, uncommitted files go to refs/pruned. */
+	force = false,
 ): Promise<boolean> {
 	const script = storageScript();
 	if (!script) return false;
-	const { stdout } = await runScript(script, ["--only", name, repo]);
+	const { stdout } = await runScript(script, [
+		"--only",
+		name,
+		...(force ? ["--force"] : []),
+		repo,
+	]);
 	return parseVerdicts(stdout).some((v) => v.name === name && v.safe);
 }

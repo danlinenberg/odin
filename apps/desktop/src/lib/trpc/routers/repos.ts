@@ -343,15 +343,23 @@ export const createReposRouter = (
 			return listWorktrees();
 		}),
 
-		/** Removes only what the pruner would; returns the names it removed. */
+		/** Removes what the pruner would, or anything when forced; returns the names it removed. */
 		removeWorktrees: publicProcedure
-			.input(z.array(z.object({ repo: z.string(), name: z.string() })))
+			.input(
+				z.array(
+					z.object({
+						repo: z.string(),
+						name: z.string(),
+						force: z.boolean().optional(),
+					}),
+				),
+			)
 			.mutation(async ({ input }) => {
 				const { removeWorktree } = await import("main/lib/prune-worktrees");
 				const removed: string[] = [];
 				// One at a time: each run fetches the repo.
-				for (const { repo, name } of input)
-					if (await removeWorktree(repo, name))
+				for (const { repo, name, force } of input)
+					if (await removeWorktree(repo, name, force))
 						removed.push(`${repo}\0${name}`);
 				return removed;
 			}),

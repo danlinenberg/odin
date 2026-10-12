@@ -25,18 +25,26 @@
 #
 # Usage: scripts/prune-worktrees.sh [--dry-run] [--only <name>] [repo]     (repo defaults to this one)
 # --only checks just .worktrees/<name>, by the same rules (Settings -> Storage).
+# --only <name> --force removes it whatever it holds (Settings -> Storage, after
+# a warning): its branch stays, and uncommitted files go to refs/pruned/<name>.
 # Any repo: worktrees under <repo>/.worktrees/, against its own default branch.
 set -euo pipefail
 
 dry=0
 only=""
+force=0
 while :; do
 	case "${1:-}" in
 	--dry-run) dry=1; shift ;;
 	--only) only="$2"; shift 2 ;;
+	--force) force=1; shift ;;
 	*) break ;;
 	esac
 done
+if [ "$force" = 1 ] && [ -z "$only" ]; then
+	echo "--force needs --only <name>: it never sweeps a whole repo" >&2
+	exit 2
+fi
 root="$(git -C "${1:-$(dirname "$0")}" rev-parse --show-toplevel)"
 min_age=$(( ${PRUNE_MIN_AGE_HOURS:-24} * 3600 ))
 landed_min_age=$(( ${PRUNE_LANDED_MIN_AGE_HOURS:-1} * 3600 ))
@@ -79,10 +87,36 @@ ended_at_head() { # ended_at_head <branch> <sha>
 	grep -qxF "$1 $2" <<<"$closed_heads"
 }
 
+# Commit a worktree's uncommitted files to refs/pruned/<name>, so removing it
+# loses nothing: `git checkout refs/pruned/<name> -- .` brings them back.
+save_files() { # save_files <worktree> <name>
+	# A throwaway index, so the worktree's own staging is left as it was.
+	# ponytail: an untracked multi-GB file lands in the repo's objects too;
+	# skip on size if that ever happens.
+	local index snapshot
+	index="$(mktemp)"
+	GIT_INDEX_FILE="$index" git -C "$1" read-tree HEAD
+	GIT_INDEX_FILE="$index" git -C "$1" add -A
+	snapshot="$(git -C "$1" -c user.name=odin -c user.email=odin@localhost commit-tree "$(GIT_INDEX_FILE="$index" git -C "$1" write-tree)" -p HEAD -m "pruned worktree $2")"
+	rm -f "$index"
+	git -C "$root" update-ref "refs/pruned/$2" "$snapshot"
+}
+
 git -C "$root" worktree list --porcelain | sed -n 's/^worktree //p' | while read -r wt; do
 	case "$wt" in "$root/.worktrees/"*) ;; *) continue ;; esac
 	name="${wt#"$root/.worktrees/"}"
 	[ -n "$only" ] && [ "$name" != "$only" ] && continue
+
+	if [ "$force" = 1 ]; then
+		if [ "$dry" = 1 ]; then
+			echo "remove $name (dry run, forced)"
+		else
+			[ -z "$(git -C "$wt" status --porcelain)" ] || save_files "$wt" "$name"
+			git -C "$root" worktree remove --force "$wt"
+			echo "remove $name (forced; branch kept)"
+		fi
+		continue
+	fi
 
 	# The newest of: last commit or checkout here, last write to its index.
 	# The reflog's own timestamp, not its mtime: gc's `reflog expire` rewrites
@@ -124,15 +158,7 @@ git -C "$root" worktree list --porcelain | sed -n 's/^worktree //p' | while read
 		elif [ "$dry" = 1 ]; then
 			echo "remove $name (dry run, files saved to refs/pruned/$name)"
 		else
-			# A throwaway index, so the worktree's own staging is left as it was.
-			# ponytail: an untracked multi-GB file lands in the repo's objects too;
-			# skip on size if that ever happens.
-			index="$(mktemp)"
-			GIT_INDEX_FILE="$index" git -C "$wt" read-tree HEAD
-			GIT_INDEX_FILE="$index" git -C "$wt" add -A
-			snapshot="$(git -C "$wt" -c user.name=odin -c user.email=odin@localhost commit-tree "$(GIT_INDEX_FILE="$index" git -C "$wt" write-tree)" -p HEAD -m "pruned worktree $name")"
-			rm -f "$index"
-			git -C "$root" update-ref "refs/pruned/$name" "$snapshot"
+			save_files "$wt" "$name"
 			git -C "$root" worktree remove --force "$wt"
 			echo "remove $name (files saved to refs/pruned/$name)"
 		fi

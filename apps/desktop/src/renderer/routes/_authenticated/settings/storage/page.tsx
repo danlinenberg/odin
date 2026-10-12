@@ -1,7 +1,6 @@
 import { Button } from "@odin/ui/button";
 import { Checkbox } from "@odin/ui/checkbox";
 import { toast } from "@odin/ui/sonner";
-import { cn } from "@odin/ui/utils";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
@@ -26,8 +25,8 @@ function ago(ms: number | null): string {
 
 /**
  * Every session worktree on the Mac, with what the 10-minute pruner would do
- * to it. Only the ones it would remove can be ticked - they start ticked - so
- * nothing with work main doesn't have can go from here.
+ * to it. The ones it would remove start ticked. Any other can be ticked too,
+ * after a warning: its branch stays and its uncommitted files are saved.
  */
 function StorageSettingsPage() {
 	const utils = electronTrpc.useUtils();
@@ -36,12 +35,14 @@ function StorageSettingsPage() {
 		isLoading,
 		error,
 	} = electronTrpc.repos.worktrees.useQuery();
-	const [unticked, setUnticked] = useState<Set<string>>(new Set());
+	// Your ticks; an untouched row is ticked when the pruner would remove it.
+	const [picks, setPicks] = useState<Map<string, boolean>>(new Map());
 	const keyOf = (wt: { repo: string; name: string }) =>
 		`${wt.repo}\0${wt.name}`;
-	const selected = (worktrees ?? []).filter(
-		(wt) => wt.safe && !unticked.has(keyOf(wt)),
-	);
+	const isPicked = (wt: { repo: string; name: string; safe: boolean }) =>
+		picks.get(keyOf(wt)) ?? wt.safe;
+	const selected = (worktrees ?? []).filter(isPicked);
+	const allPicked = !!worktrees?.length && selected.length === worktrees.length;
 	const selectedBytes = selected.reduce(
 		(sum, wt) => sum + (wt.sizeBytes ?? 0),
 		0,
@@ -65,25 +66,33 @@ function StorageSettingsPage() {
 		onError: (error) => toast.error(error.message),
 	});
 
-	const toggle = (key: string) =>
-		setUnticked((prev) => {
-			const next = new Set(prev);
-			if (next.has(key)) next.delete(key);
-			else next.add(key);
-			return next;
-		});
+	const toggle = (wt: { repo: string; name: string; safe: boolean }) =>
+		setPicks((prev) => new Map(prev).set(keyOf(wt), !isPicked(wt)));
+	const pickAll = (on: boolean) =>
+		setPicks(new Map((worktrees ?? []).map((wt) => [keyOf(wt), on])));
+	const deleteSelected = () => {
+		const unlanded = selected.filter((wt) => !wt.safe).length;
+		if (
+			unlanded > 0 &&
+			!window.confirm(
+				`${unlanded} of these ${selected.length} have work main doesn't have. Deleting keeps each branch, and uncommitted files are saved to refs/pruned/<name>. Delete them?`,
+			)
+		)
+			return;
+		remove.mutate(
+			selected.map(({ repo, name, safe }) => ({ repo, name, force: !safe })),
+		);
+	};
 
 	return (
 		<SettingsPage
 			title="Storage"
-			description="Each agent session works in its own worktree, a full install of about 3 GB. The ones whose work already landed on main are ticked. Work main doesn't have can't be deleted here."
+			description="Each agent session works in its own worktree, a full install of about 3 GB. The ones whose work already landed on main are ticked. Deleting one with other work keeps its branch, and saves uncommitted files to refs/pruned/<name>."
 			action={
 				<Button
 					size="sm"
 					disabled={selected.length === 0 || remove.isPending}
-					onClick={() =>
-						remove.mutate(selected.map(({ repo, name }) => ({ repo, name })))
-					}
+					onClick={deleteSelected}
 				>
 					{remove.isPending
 						? "Deleting…"
@@ -117,39 +126,54 @@ function StorageSettingsPage() {
 						No session worktrees on this Mac.
 					</p>
 				) : (
-					worktrees.map((wt) => {
-						const key = keyOf(wt);
-						return (
-							<label
-								key={key}
-								htmlFor={key}
-								className={cn(
-									"flex items-center gap-3 px-4 py-2.5 text-sm",
-									!wt.safe && "opacity-70",
-								)}
-							>
-								<Checkbox
-									id={key}
-									checked={wt.safe && !unticked.has(key)}
-									disabled={!wt.safe}
-									onCheckedChange={() => toggle(key)}
-								/>
-								<div className="min-w-0 flex-1">
-									<div className="truncate font-medium">{wt.name}</div>
-									<div className="truncate text-xs text-muted-foreground">
-										{wt.repo.split("/").pop()} ·{" "}
-										{wt.reason.charAt(0).toUpperCase() + wt.reason.slice(1)}
+					<>
+						<label
+							htmlFor="storage-select-all"
+							className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium"
+						>
+							<Checkbox
+								id="storage-select-all"
+								checked={allPicked}
+								onCheckedChange={() => pickAll(!allPicked)}
+							/>
+							Select all ({worktrees.length})
+						</label>
+						{worktrees.map((wt) => {
+							const key = keyOf(wt);
+							return (
+								<label
+									key={key}
+									htmlFor={key}
+									className="flex items-center gap-3 px-4 py-2.5 text-sm"
+								>
+									<Checkbox
+										id={key}
+										checked={isPicked(wt)}
+										onCheckedChange={() => toggle(wt)}
+									/>
+									<div className="min-w-0 flex-1">
+										<div className="truncate font-medium">{wt.name}</div>
+										<div className="truncate text-xs text-muted-foreground">
+											{wt.repo.split("/").pop()} ·{" "}
+											{wt.reason.charAt(0).toUpperCase() + wt.reason.slice(1)}
+										</div>
+										{!wt.safe && isPicked(wt) && (
+											<div className="truncate text-xs text-amber-500">
+												Deleting keeps its branch; uncommitted files go to
+												refs/pruned/{wt.name}
+											</div>
+										)}
 									</div>
-								</div>
-								<span className="w-16 shrink-0 text-right text-xs text-muted-foreground">
-									{ago(wt.touchedAt)}
-								</span>
-								<span className="w-16 shrink-0 text-right font-mono text-xs">
-									{wt.sizeBytes === null ? "-" : gb(wt.sizeBytes)}
-								</span>
-							</label>
-						);
-					})
+									<span className="w-16 shrink-0 text-right text-xs text-muted-foreground">
+										{ago(wt.touchedAt)}
+									</span>
+									<span className="w-16 shrink-0 text-right font-mono text-xs">
+										{wt.sizeBytes === null ? "-" : gb(wt.sizeBytes)}
+									</span>
+								</label>
+							);
+						})}
+					</>
 				)}
 			</SettingsSection>
 		</SettingsPage>
