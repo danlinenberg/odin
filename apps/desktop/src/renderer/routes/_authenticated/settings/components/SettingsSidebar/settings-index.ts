@@ -5,6 +5,7 @@ import {
 	LuListOrdered,
 	LuPalette,
 	LuPlug,
+	LuSlidersHorizontal,
 	LuSquareTerminal,
 } from "react-icons/lu";
 
@@ -55,6 +56,12 @@ export const SCREENS = [
 		label: "Keyboard",
 		hint: "Shortcuts for every screen",
 		icon: LuKeyboard,
+	},
+	{
+		to: "/settings/advanced",
+		label: "Advanced",
+		hint: "Claude command, default prompt, worktree cleanup",
+		icon: LuSlidersHorizontal,
 	},
 ] as const;
 
@@ -134,6 +141,24 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		to: "/settings/storage",
 		section: "Worktrees",
 		keywords: "disk space storage free gb delete clean prune worktree size",
+	},
+	{
+		label: "Claude command",
+		to: "/settings/advanced",
+		section: "Sessions",
+		keywords: "launch command alias binary claude code cli wrapper",
+	},
+	{
+		label: "Default prompt",
+		to: "/settings/advanced",
+		section: "Sessions",
+		keywords: "instructions system prompt action items task end",
+	},
+	{
+		label: "Delete worktrees when their PR merges",
+		to: "/settings/advanced",
+		section: "Cleanup",
+		keywords: "prune worktree merged pr disk space automatic clean",
 	},
 	{
 		label: "Hold new sessions when this Mac is",

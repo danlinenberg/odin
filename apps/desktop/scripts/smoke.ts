@@ -627,7 +627,7 @@ await step("Done takes a task off the list", async () => {
 	await waitForText(TASK, false);
 });
 
-// Settings is seven fixed screens; each sidebar link and the route it opens.
+// Settings is eight fixed screens; each sidebar link and the route it opens.
 const SETTINGS: [string, string][] = [
 	["Connections", "#/settings/connections"],
 	["Sessions", "#/settings/sessions"],
@@ -636,8 +636,9 @@ const SETTINGS: [string, string][] = [
 	["Notifications", "#/settings/ringtones"],
 	["Appearance", "#/settings/appearance"],
 	["Keyboard", "#/settings/keyboard"],
+	["Advanced", "#/settings/advanced"],
 ];
-await step("Settings: exactly its seven screens, and each opens", async () => {
+await step("Settings: exactly its eight screens, and each opens", async () => {
 	await rail("Settings");
 	await waitForText("profiles");
 	const links = await page<string[]>(
@@ -652,7 +653,8 @@ await step("Settings: exactly its seven screens, and each opens", async () => {
 		if (!hash.startsWith(route)) throw new Error(`${label} opened ${hash}`);
 		await expectHealthy();
 	}
-	// Keyboard is the last screen: its search narrows the list.
+	// Keyboard's search narrows the list.
+	await click("a", "Keyboard");
 	await fill('input[aria-label="Search shortcuts"]', "undo");
 	await waitForText("next session", false);
 	await waitForText("undo the last done");

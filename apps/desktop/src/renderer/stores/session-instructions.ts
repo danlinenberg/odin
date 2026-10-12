@@ -8,7 +8,7 @@ interface SessionInstructionsState {
 }
 
 /**
- * Settings → Sessions: the standing instructions at the end of every task
+ * Settings → Advanced: the standing instructions at the end of every task
  * prompt (work in the workspace, the Shell, ACTION ITEMS).
  *
  * ponytail: renderer localStorage, like launch-limits - the prompt is built in

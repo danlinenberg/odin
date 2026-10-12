@@ -10,7 +10,7 @@ import { useClaudeCommand } from "renderer/stores/claude-command";
  * goes away.
  *
  * Only an explicit "not signed in" shows it. An API key, Bedrock, an older CLI
- * or your own launch command (Settings → Sessions) all keep it hidden.
+ * or your own launch command (Settings → Advanced) all keep it hidden.
  */
 export function ClaudeSignInBanner() {
 	const customCommand = useClaudeCommand((s) => s.commands.length > 0);
