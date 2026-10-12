@@ -527,15 +527,20 @@ function AllFeedPage() {
 		setSearch("");
 	};
 
+	// Backlog, Read later and the rest are on the list but not waiting on you.
+	const waiting = statusCounts.get("waiting") ?? 0;
+
 	return (
 		<div className="flex h-full flex-col">
 			<FeedHeader>
 				<FeedDivider />
 				<span className="shrink-0 text-[12px] text-muted-foreground">
 					{/* Up next rows are on screen too, just above the rest. */}
-					{items.length + queued.length === allRows.length
-						? `${allRows.length} waiting on you`
-						: `${items.length + queued.length} of ${allRows.length}`}
+					{items.length + queued.length !== allRows.length
+						? `${items.length + queued.length} of ${allRows.length}`
+						: waiting === allRows.length
+							? `${waiting} waiting on you`
+							: `${allRows.length} tasks · ${waiting} waiting on you`}
 				</span>
 				{sessions.length > 0 && (
 					<span

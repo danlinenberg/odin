@@ -92,7 +92,7 @@ function StorageSettingsPage() {
 				title="Worktrees"
 				description={
 					worktrees
-						? `${worktrees.length} worktrees, ${gb(total)} in all.`
+						? `${worktrees.length} ${worktrees.length === 1 ? "worktree" : "worktrees"}, ${gb(total)} in all.`
 						: undefined
 				}
 			>
