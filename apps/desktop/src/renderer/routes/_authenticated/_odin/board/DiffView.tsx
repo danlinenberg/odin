@@ -41,6 +41,9 @@ export function DiffView({
 			return true;
 		}
 	});
+	/** Every line of each file, not only the changed hunks. Working tree only:
+	 * GitHub sends a PR's diff with three lines of context and no more. */
+	const [wholeFile, setWholeFile] = useState(false);
 	const toggleWrap = () => {
 		setWrap(!wrap);
 		try {
@@ -62,7 +65,7 @@ export function DiffView({
 	);
 
 	const { data, error, isFetching, refetch } = electronTrpc.repos.diff.useQuery(
-		{ cwd, claudeSessionId, workspaceId, pr },
+		{ cwd, claudeSessionId, workspaceId, pr, wholeFile: !pr && wholeFile },
 		{
 			refetchOnWindowFocus: false,
 			retry: false,
@@ -125,6 +128,20 @@ export function DiffView({
 							: `${data.cwd.split("/").pop()} · ${data.source}`
 						: "…"}
 				</span>
+				{!pr && (
+					<button
+						type="button"
+						onClick={() => setWholeFile(!wholeFile)}
+						title={
+							wholeFile
+								? "Showing the whole file - click to show only the changes"
+								: "Showing only the changes - click to scroll the whole file"
+						}
+						className={`ml-auto normal-case tracking-normal hover:underline ${wholeFile ? "text-primary" : "text-muted-foreground"}`}
+					>
+						{wholeFile ? "≡ whole file" : "± changes only"}
+					</button>
+				)}
 				<button
 					type="button"
 					onClick={toggleWrap}
@@ -133,7 +150,7 @@ export function DiffView({
 							? "Long lines wrap - click to keep them on one line and scroll sideways"
 							: "Long lines run on - click to wrap them"
 					}
-					className={`ml-auto normal-case tracking-normal hover:underline ${wrap ? "text-primary" : "text-muted-foreground"}`}
+					className={`${pr ? "ml-auto " : ""}normal-case tracking-normal hover:underline ${wrap ? "text-primary" : "text-muted-foreground"}`}
 				>
 					{wrap ? "↵ wrap on" : "→ wrap off"}
 				</button>

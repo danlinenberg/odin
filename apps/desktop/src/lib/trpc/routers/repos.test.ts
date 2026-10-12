@@ -123,6 +123,21 @@ test("renderDiff shows uncommitted work, and the last commit when there is none"
 	const mine = await renderDiff(repo, "edited a.txt");
 	expect(mine.files.map((file) => file.path)).toEqual(["a.txt"]);
 	expect(mine.note).toBe("1 file(s) changed by other sessions, not shown");
+
+	// Whole file: lines far from the change come along as context.
+	writeFileSync(
+		join(repo, "a.txt"),
+		`${Array.from({ length: 20 }, (_, i) => `line ${i}`).join("\n")}\n`,
+	);
+	git("commit", "-qam", "long a");
+	writeFileSync(
+		join(repo, "a.txt"),
+		`${Array.from({ length: 20 }, (_, i) => (i === 19 ? "last" : `line ${i}`)).join("\n")}\n`,
+	);
+	expect((await renderDiff(repo)).files[0].patch).not.toContain(" line 0");
+	expect((await renderDiff(repo, undefined, true)).files[0].patch).toContain(
+		" line 0",
+	);
 });
 
 test("renderPullRequestDiff reads the PR through gh, and says when nobody can", async () => {

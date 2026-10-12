@@ -207,7 +207,10 @@ function diffOf(all: DiffFile[], note: string[] = []) {
 export async function renderDiff(
 	cwd: string,
 	transcript?: string,
+	wholeFile = false,
 ): Promise<RepoDiff> {
+	// ponytail: every line as context, so the panel shows the whole file.
+	const context = wholeFile ? ["-U1000000"] : [];
 	const git = async (args: string[]) =>
 		(
 			await execWithShellEnv("git", ["--no-pager", ...args], {
@@ -224,7 +227,7 @@ export async function renderDiff(
 	};
 
 	let source = "uncommitted changes";
-	let patch = await git(["diff", "--no-color", "HEAD"]);
+	let patch = await git(["diff", "--no-color", ...context, "HEAD"]);
 	const ownsFile = (path: string) =>
 		transcript === undefined || transcript.includes(path);
 	if (!patch.trim() || !splitPatch(patch).some((file) => ownsFile(file.path))) {
@@ -238,7 +241,7 @@ export async function renderDiff(
 			return nothing;
 		}
 		source = "last commit";
-		patch = await git(["show", "--no-color", "HEAD"]);
+		patch = await git(["show", "--no-color", ...context, "HEAD"]);
 	}
 
 	const all = splitPatch(patch);
@@ -410,6 +413,8 @@ export const createReposRouter = (
 					workspaceId: z.string(),
 					/** Show this pull request's diff instead of the checkout's. */
 					pr: z.string().url().nullish(),
+					/** The whole of each file, not only the changed hunks. */
+					wholeFile: z.boolean().optional(),
 				}),
 			)
 			.query(async ({ input }) => {
@@ -440,6 +445,7 @@ export const createReposRouter = (
 				return renderDiff(
 					dir,
 					transcript ? await readFile(transcript.path, "utf-8") : undefined,
+					input.wholeFile,
 				);
 			}),
 	});
