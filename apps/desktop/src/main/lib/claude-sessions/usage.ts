@@ -18,13 +18,20 @@ const PRICES: [prefix: string, input: number, output: number, read: number][] =
 		["claude-mythos-5", 10, 50, 1],
 		["claude-opus-5-5", 4, 20, 0.2],
 		["claude-opus-5", 5, 25, 0.5],
-		["claude-opus-4", 5, 25, 0.5],
+		["claude-opus-4-8", 5, 25, 0.5],
+		["claude-opus-4-7", 5, 25, 0.5],
+		["claude-opus-4-6", 5, 25, 0.5],
 		["claude-sonnet-5", 2, 10, 0.2],
-		["claude-sonnet-4", 3, 15, 0.3],
+		["claude-sonnet-4-6", 3, 15, 0.3],
 		// ponytail: Haiku 5.5 prompts past 100K cost 5x; not split out.
 		["claude-haiku-5", 0.1, 0.5, 0.01],
-		["claude-haiku-4", 1, 5, 0.1],
+		["claude-haiku-4-5", 1, 5, 0.1],
 	];
+
+const priceOf = (model: string) =>
+	PRICES.find(([prefix]) =>
+		model.replace(/^.*?(claude-)/, "$1").startsWith(prefix),
+	);
 
 interface Usage {
 	input_tokens?: number;
@@ -58,7 +65,10 @@ export function transcriptUsage(jsonl: string): SessionUsage | null {
 	let tokens = 0;
 	let usd: number | null = 0;
 	let last: Usage = {};
+	let lastModel = "";
 	for (const { model, usage } of byMessage.values()) {
+		// Claude Code's own error rows: no tokens, and not the context size.
+		if (model === "<synthetic>") continue;
 		const input = usage.input_tokens ?? 0;
 		const output = usage.output_tokens ?? 0;
 		const read = usage.cache_read_input_tokens ?? 0;
@@ -66,10 +76,8 @@ export function transcriptUsage(jsonl: string): SessionUsage | null {
 		const hour = usage.cache_creation?.ephemeral_1h_input_tokens ?? 0;
 		tokens += input + output + read + written;
 		last = usage;
-		if (model === "<synthetic>") continue; // Claude Code's own error rows
-		const price = PRICES.find(([prefix]) =>
-			model.replace(/^.*?(claude-)/, "$1").startsWith(prefix),
-		);
+		lastModel = model;
+		const price = priceOf(model);
 		if (!price || usd === null) {
 			usd = null;
 			continue;
@@ -87,11 +95,12 @@ export function transcriptUsage(jsonl: string): SessionUsage | null {
 		(last.input_tokens ?? 0) +
 		(last.cache_read_input_tokens ?? 0) +
 		(last.cache_creation_input_tokens ?? 0);
-	// ponytail: every current model has 1M; a bigger prompt than 200K proves it on older ones.
+	// Every priced model but Haiku 4.5 has 1M; an older one 200K, unless its
+	// prompt already passed that.
 	const window =
-		[...byMessage.values()].at(-1)?.model.includes("haiku-4") &&
-		context <= 200_000
-			? 200_000
-			: 1_000_000;
+		(priceOf(lastModel) && !lastModel.includes("haiku-4-5")) ||
+		context > 200_000
+			? 1_000_000
+			: 200_000;
 	return { tokens, context, window, usd };
 }

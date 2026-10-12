@@ -1045,7 +1045,7 @@ export function SessionBrief({
 						{facts.turns} turns
 						{transcript?.usage && (
 							<span
-								title={`${transcript.usage.tokens.toLocaleString()} tokens in and out, cache included. Context: what the last reply read. Cost at Anthropic API list prices - a Claude plan or Bedrock bills differently.`}
+								title={`${transcript.usage.tokens.toLocaleString()} tokens in and out, cache included. Context: what the last reply read.${transcript.usage.usd === null ? "" : " Cost at Anthropic API list prices - a Claude plan or Bedrock bills differently."}`}
 							>
 								{` · ${compact(transcript.usage.tokens)} tokens · context ${compact(transcript.usage.context)}/${compact(transcript.usage.window)}`}
 								{transcript.usage.usd !== null &&

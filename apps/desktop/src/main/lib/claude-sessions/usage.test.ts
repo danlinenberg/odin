@@ -26,6 +26,17 @@ test("transcriptUsage counts each message once and prices it", () => {
 	expect(usage?.tokens).toBe(4_000_000);
 	expect(usage?.context).toBe(2_000_000);
 	expect(transcriptUsage("")).toBeNull();
+	// An error row at the end is not the context size.
+	const errored = transcriptUsage(
+		`${jsonl}\n${line("e", "<synthetic>", { input_tokens: 0 })}`,
+	);
+	expect(errored?.context).toBe(2_000_000);
+	// An older, unpriced model: no cost, and a 200K window.
+	const old = transcriptUsage(
+		line("o", "claude-opus-4-1", { input_tokens: 5_000 }),
+	);
+	expect(old?.usd).toBeNull();
+	expect(old?.window).toBe(200_000);
 	expect(
 		transcriptUsage(line("c", "gpt-x", { input_tokens: 1 }))?.usd,
 	).toBeNull();
