@@ -8,9 +8,10 @@ import {
 } from "@odin/local-db";
 import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
-import { app, clipboard, shell } from "electron";
+import { app, clipboard, session, shell } from "electron";
 import { localDb } from "main/lib/local-db";
 import { externalUrlLogLabel, isSafeExternalUrl } from "main/lib/safe-url";
+import { IN_APP_BROWSER_PARTITION } from "shared/constants";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
 import { getWorkspace } from "../workspaces/utils/db-helpers";
@@ -112,6 +113,18 @@ async function openPathInApp(
  */
 export const createExternalRouter = () => {
 	return router({
+		/**
+		 * Whether the in-app browser holds a Slack sign-in (Slack's `d` cookie).
+		 * Without one a Slack link there only shows Slack's login page - and on
+		 * Windows the cookie import can't bring one over.
+		 */
+		hasSlackSession: publicProcedure.query(async () => {
+			const cookies = await session
+				.fromPartition(IN_APP_BROWSER_PARTITION)
+				.cookies.get({ domain: "slack.com", name: "d" });
+			return cookies.length > 0;
+		}),
+
 		openUrl: publicProcedure.input(z.string()).mutation(async ({ input }) => {
 			if (!isSafeExternalUrl(input)) {
 				console.warn(
