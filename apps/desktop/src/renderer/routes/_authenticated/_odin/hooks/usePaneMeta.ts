@@ -68,6 +68,8 @@ export const usePaneMeta = create<{
 	addTodo: (paneId: string, text: string) => void;
 	/** Done flips its tick; otherwise the to-do is removed. */
 	updateTodo: (paneId: string, index: number, done?: boolean) => void;
+	/** Empty text keeps the to-do as it was. */
+	editTodo: (paneId: string, index: number, text: string) => void;
 	addLink: (paneId: string, url: string, name?: string) => void;
 	removeLink: (paneId: string, url: string) => void;
 	setHidden: (paneId: string, url: string, hidden: boolean) => void;
@@ -133,6 +135,19 @@ export const usePaneMeta = create<{
 					const { [paneId]: _, ...rest } = s.todosByPane;
 					return {
 						todosByPane: todos.length ? { ...rest, [paneId]: todos } : rest,
+					};
+				}),
+			editTodo: (paneId, index, text) =>
+				set((s) => {
+					const todos = s.todosByPane[paneId];
+					if (!text.trim() || !todos?.[index]) return {};
+					return {
+						todosByPane: {
+							...s.todosByPane,
+							[paneId]: todos.map((todo, i) =>
+								i === index ? { ...todo, text: text.trim() } : todo,
+							),
+						},
 					};
 				}),
 			addLink: (paneId, url, name) =>

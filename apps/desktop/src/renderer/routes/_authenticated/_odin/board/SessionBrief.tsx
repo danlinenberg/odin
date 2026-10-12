@@ -45,6 +45,8 @@ import {
 export function MyTodos({ paneId }: { paneId: string }) {
 	const todos = usePaneMeta((s) => s.todosByPane[paneId]) ?? [];
 	const updateTodo = usePaneMeta((s) => s.updateTodo);
+	const editTodo = usePaneMeta((s) => s.editTodo);
+	const [editing, setEditing] = useState<number | null>(null);
 	if (!todos.length) return null;
 	return (
 		<ul className="flex flex-col gap-1">
@@ -61,17 +63,43 @@ export function MyTodos({ paneId }: { paneId: string }) {
 						aria-label="Done"
 						className="mt-1 shrink-0 accent-primary"
 					/>
-					<span
-						dir="auto"
-						className={cn(
-							"min-w-0 flex-1 whitespace-pre-wrap break-words",
-							todo.done
-								? "text-faint-foreground line-through"
-								: "text-soft-foreground",
-						)}
-					>
-						{todo.text}
-					</span>
+					{editing === i ? (
+						<textarea
+							dir="auto"
+							// biome-ignore lint/a11y/noAutofocus: opened by clicking the item
+							autoFocus
+							defaultValue={todo.text}
+							aria-label="Edit to-do"
+							onFocus={(event) => event.currentTarget.select()}
+							onBlur={(event) => {
+								editTodo(paneId, i, event.currentTarget.value);
+								setEditing(null);
+							}}
+							onKeyDown={(event) => {
+								if (event.key === "Enter" && !event.shiftKey) {
+									event.preventDefault();
+									editTodo(paneId, i, event.currentTarget.value);
+									setEditing(null);
+								}
+							}}
+							className="min-w-0 flex-1 resize-none rounded border border-border bg-transparent px-1 text-soft-foreground outline-none [field-sizing:content]"
+						/>
+					) : (
+						<button
+							type="button"
+							dir="auto"
+							title="Click to edit"
+							onClick={() => setEditing(i)}
+							className={cn(
+								"min-w-0 flex-1 cursor-text whitespace-pre-wrap break-words text-left",
+								todo.done
+									? "text-faint-foreground line-through"
+									: "text-soft-foreground",
+							)}
+						>
+							{todo.text}
+						</button>
+					)}
 					<button
 						type="button"
 						title="Remove to-do"

@@ -49,6 +49,12 @@ describe("todos", () => {
 			{ text: "check the migration" },
 		]);
 
+		s.editTodo("p4", 1, " check the down migration ");
+		s.editTodo("p4", 1, "  ");
+		expect(usePaneMeta.getState().todosByPane.p4?.[1]).toEqual({
+			text: "check the down migration",
+		});
+
 		s.updateTodo("p4", 0);
 		s.updateTodo("p4", 0);
 		expect("p4" in usePaneMeta.getState().todosByPane).toBe(false);
