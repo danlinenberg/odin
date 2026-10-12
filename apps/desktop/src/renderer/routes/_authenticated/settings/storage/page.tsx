@@ -31,8 +31,11 @@ function ago(ms: number | null): string {
  */
 function StorageSettingsPage() {
 	const utils = electronTrpc.useUtils();
-	const { data: worktrees, isLoading } =
-		electronTrpc.repos.worktrees.useQuery();
+	const {
+		data: worktrees,
+		isLoading,
+		error,
+	} = electronTrpc.repos.worktrees.useQuery();
 	const [unticked, setUnticked] = useState<Set<string>>(new Set());
 	const keyOf = (wt: { repo: string; name: string }) =>
 		`${wt.repo}\0${wt.name}`;
@@ -100,6 +103,13 @@ function StorageSettingsPage() {
 					<p className="px-4 py-3.5 text-sm text-muted-foreground">
 						Checking every repo's worktrees - this fetches each repo, so it
 						takes a moment…
+					</p>
+				) : error ? (
+					// An older main process (a dev run started before this screen
+					// existed) has no such query - say so, not "no worktrees".
+					<p className="px-4 py-3.5 text-sm text-destructive">
+						Couldn't list the worktrees: {error.message}. Restart Odin if it was
+						running before an update.
 					</p>
 				) : !worktrees?.length ? (
 					<p className="px-4 py-3.5 text-sm text-muted-foreground">
