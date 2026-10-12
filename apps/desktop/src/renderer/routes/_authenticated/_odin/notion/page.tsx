@@ -8,6 +8,7 @@ import { electronTrpc } from "renderer/lib/electron-trpc";
 import { openUrl } from "renderer/stores/in-app-browser";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import { DoneButton } from "../components/DoneButton";
+import { SweepDrop } from "../components/DropHint";
 import {
 	FEED_LIST,
 	FEED_NOTICE_BOX,
@@ -300,6 +301,10 @@ function NotionPage() {
 												<span className={META_TEXT}>{row.channel}</span>
 												<span className={META_DATE}>{date}</span>
 											</div>
+											<SweepDrop
+												itemKey={`notion:${row.pageId}`}
+												url={row.pageUrl}
+											/>
 											<div className="flex shrink-0 items-center gap-1.5">
 												<span className={ROW_LINK_SLOT}>
 													<button

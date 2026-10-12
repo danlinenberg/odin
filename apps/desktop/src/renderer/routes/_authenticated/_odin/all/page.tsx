@@ -29,6 +29,7 @@ import { openUrl } from "renderer/stores/in-app-browser";
 import type { BoardSection } from "shared/board-section";
 import type { PaneStatus } from "shared/tabs-types";
 import { DoneButton } from "../components/DoneButton";
+import { SweepDrop } from "../components/DropHint";
 import {
 	FEED_LIST,
 	FEED_ROW,
@@ -613,7 +614,7 @@ function AllFeedPage() {
 			>
 				{/* A grid, not a flex row, so the mention below wraps inside the
 				    title's column instead of running under the meta and buttons. */}
-				<div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto_auto_auto] items-center gap-x-3">
+				<div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto_auto_auto_auto] items-center gap-x-3">
 					<span className="flex items-center gap-1.5">
 						{drag && (
 							<span
@@ -658,6 +659,10 @@ function AllFeedPage() {
 					{/* The open row's meta is in the panel, and with the panel open
 					    the columns don't fit beside it. Only what the row has is
 					    drawn: an empty slot that keeps its width is a gap. */}
+					{/* Its own column, outside the hover swap: Keep has to stay clickable. */}
+					<span className="flex">
+						<SweepDrop itemKey={item.key} url={item.url} />
+					</span>
 					{/* Meta and the quiet four share one cell: meta at rest, the
 					    actions on hover or keyboard focus, and always in the side
 					    panel. Invisible actions that still held their width pushed
@@ -1438,6 +1443,9 @@ function DetailsPanel({
 			</div>
 			<div className="min-h-0 flex-1 overflow-y-auto px-3.5 pb-[18px]">
 				{fields}
+				<div className="mb-2 empty:hidden">
+					<SweepDrop itemKey={item.key} url={item.url} inline={false} />
+				</div>
 				<TaskDetails item={item} onRename={rename} description={description} />
 			</div>
 			{children}

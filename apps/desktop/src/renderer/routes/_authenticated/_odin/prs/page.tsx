@@ -6,6 +6,7 @@ import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { openUrl } from "renderer/stores/in-app-browser";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import { DoneButton } from "../components/DoneButton";
+import { SweepDrop } from "../components/DropHint";
 import {
 	FEED_LIST,
 	FEED_ROW,
@@ -291,6 +292,7 @@ function MyPullRequestsPage() {
 										{date}
 									</span>
 								</div>
+								<SweepDrop itemKey={`pr:${pull.id}`} url={pull.url} />
 								<div className="flex shrink-0 items-center gap-1.5">
 									<span className={ROW_LINK_SLOT}>
 										<button

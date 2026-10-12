@@ -12,6 +12,7 @@ import { useDoneStore } from "renderer/stores/done";
 import { openUrl } from "renderer/stores/in-app-browser";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import { DoneButton } from "../components/DoneButton";
+import { SweepDrop } from "../components/DropHint";
 import {
 	FEED_LIST,
 	FEED_ROW,
@@ -280,6 +281,7 @@ function ReactionsPage() {
 											{relativeTime(row.postedAt)}
 										</span>
 									</div>
+									<SweepDrop itemKey={`slack:${row.id}`} url={row.permalink} />
 									<div className="flex shrink-0 items-center gap-1.5">
 										<span className={ROW_LINK_SLOT}>
 											{link && (

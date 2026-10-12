@@ -606,7 +606,7 @@ function useDropFor(pane: Pane | undefined) {
 
 function DropPill({ pane }: { pane: Pane }) {
 	const row = useDropFor(pane);
-	return row ? <DropHint evidence={row.evidence} /> : null;
+	return row ? <DropHint row={row} /> : null;
 }
 
 /** Another live card is on the same ask. The click opens it, to Done one. */

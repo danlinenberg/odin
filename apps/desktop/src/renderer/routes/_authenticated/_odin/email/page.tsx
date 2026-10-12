@@ -3,6 +3,7 @@ import { useState } from "react";
 import { ConnectNotice } from "renderer/components/ConnectProvider/ConnectProvider";
 import { openUrl } from "renderer/stores/in-app-browser";
 import { DoneButton } from "../components/DoneButton";
+import { SweepDrop } from "../components/DropHint";
 import {
 	FEED_LIST,
 	FEED_ROW,
@@ -113,6 +114,7 @@ function EmailPage() {
 										: null}
 								</span>
 							</div>
+							<SweepDrop itemKey={`email:${email.id}`} url={email.url} />
 							<div className="flex shrink-0 items-center gap-1.5">
 								<span className={ROW_LINK_SLOT}>
 									<button

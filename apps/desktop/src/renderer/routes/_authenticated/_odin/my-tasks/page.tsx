@@ -4,6 +4,7 @@ import { useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import { DoneButton } from "../components/DoneButton";
+import { SweepDrop } from "../components/DropHint";
 import {
 	FEED_LIST,
 	FEED_ROW,
@@ -183,6 +184,7 @@ function MyTasksPage() {
 										</span>
 									</span>
 								</button>
+								<SweepDrop itemKey={`task:${task.id}`} url={null} />
 								<div className="flex shrink-0 items-center gap-1.5">
 									{activePaneId ? (
 										<button

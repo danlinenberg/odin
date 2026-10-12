@@ -8,6 +8,7 @@ import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { openUrl } from "renderer/stores/in-app-browser";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import { DoneButton } from "../components/DoneButton";
+import { SweepDrop } from "../components/DropHint";
 import {
 	FEED_LIST,
 	FEED_ROW,
@@ -367,6 +368,7 @@ function MyJiraPage() {
 						</span>
 					</div>
 					<div className="flex shrink-0 items-center gap-1.5">
+						<SweepDrop itemKey={`jira:${issue.key}`} url={issue.url} />
 						<span className={ROW_LINK_SLOT}>
 							<button
 								type="button"
