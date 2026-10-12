@@ -5,6 +5,7 @@ import {
 	type BriefMessage,
 	byRepo,
 	ciRunning,
+	claimOpened,
 	elapsedLabel,
 	emailLink,
 	jiraIssue,
@@ -21,6 +22,7 @@ import {
 	notionPage,
 	onlyLookLeft,
 	onlyMergeLeft,
+	type PrStates,
 	parseLinks,
 	postedMessage,
 	prLabel,
@@ -689,6 +691,25 @@ describe("ciRunning", () => {
 
 	it("counts a PR whose author is unknown", () => {
 		expect(ciRunning({ a: pr("OPEN", ["check"], null) })).toEqual(["check"]);
+	});
+});
+
+describe("claimOpened", () => {
+	const a = "https://github.com/o/r/pull/12";
+	const b = "https://github.com/o/r/pull/13";
+	it("makes a PR the session opened yours, even when a bot's token wrote it", () => {
+		const states = claimOpened(
+			[
+				{ role: "assistant", text: a, at: null, opened: true },
+				{ role: "assistant", text: `Reviewed ${b}.`, at: null },
+			],
+			{
+				[a]: { state: "OPEN", mine: false },
+				[b]: { state: "OPEN", mine: false },
+			} as PrStates,
+		);
+		expect(states[a]?.mine).toBe(true);
+		expect(states[b]?.mine).toBe(false);
 	});
 });
 

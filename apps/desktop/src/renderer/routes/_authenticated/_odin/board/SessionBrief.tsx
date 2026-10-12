@@ -11,6 +11,7 @@ import {
 	actionItems,
 	artifactLink,
 	byRepo,
+	claimOpened,
 	emailLink,
 	jiraIssue,
 	jiraKey,
@@ -557,9 +558,11 @@ export function SessionBrief({
 			retry: false,
 			staleTime: 10_000,
 			refetchInterval: (query) =>
-				Object.values(query.state.data ?? {}).some(
-					(status) => status?.state === "OPEN" && status.mine !== false,
-				) && 15_000,
+				Object.values(
+					claimOpened(linkSource ?? [], query.state.data ?? {}),
+				).some((status) => status?.state === "OPEN" && status.mine !== false) &&
+				15_000,
+			select: (states) => claimOpened(linkSource ?? [], states),
 		},
 	);
 	// Only what's still on the panel - a URL the transcript stopped quoting, or

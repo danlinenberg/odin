@@ -118,6 +118,7 @@ import type { BriefMessage } from "./brief";
 import {
 	actionItems,
 	ciRunning,
+	claimOpened,
 	elapsedLabel,
 	jiraIssue,
 	lastMessageAt,
@@ -1912,7 +1913,14 @@ function DevBoardPage() {
 			.filter(({ brief, column }, i) => {
 				if (!anyColumn && column !== "permission") return false;
 				const messages = mergeTranscripts[i]?.data?.messages;
-				return !!messages && test(messages, mergeStateQueries[i]?.data, brief);
+				return (
+					!!messages &&
+					test(
+						messages,
+						claimOpened(messages, mergeStateQueries[i]?.data),
+						brief,
+					)
+				);
 			})
 			.map(({ paneId }) => paneId)
 			.join(",");
@@ -1947,7 +1955,10 @@ function DevBoardPage() {
 	// map only changes when a check starts or ends.
 	const ciKey = mergeCandidates
 		.map(({ paneId }, i) => {
-			const states = mergeStateQueries[i]?.data;
+			const states = claimOpened(
+				mergeTranscripts[i]?.data?.messages ?? [],
+				mergeStateQueries[i]?.data,
+			);
 			const checks = states ? ciRunning(states) : [];
 			return checks.length ? `${paneId}\t${checks.join("\t")}` : "";
 		})

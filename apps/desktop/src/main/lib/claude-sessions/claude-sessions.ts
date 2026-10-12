@@ -560,6 +560,8 @@ export interface TranscriptMessage {
 	role: "user" | "assistant";
 	text: string;
 	at: string | null;
+	/** PR urls `gh pr create` printed: this session opened them. */
+	opened?: true;
 }
 
 /** The conversation, prose only - the readable form of a session. */
@@ -633,6 +635,7 @@ export function parseTranscript(
 							role: "assistant",
 							text: urls.join("\n"),
 							at: typeof entry.timestamp === "string" ? entry.timestamp : null,
+							opened: true,
 						});
 				}
 			}

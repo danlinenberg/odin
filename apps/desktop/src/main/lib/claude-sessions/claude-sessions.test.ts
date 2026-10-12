@@ -592,16 +592,19 @@ describe("parseTranscript / readTranscript", () => {
 				role: "assistant",
 				text: "https://github.com/danlinenberg/odin/pull/232",
 				at: "2026-09-27T07:32:00.000Z",
+				opened: true,
 			},
 			{
 				role: "assistant",
 				text: "https://github.com/a/b/pull/7",
 				at: "2026-09-27T07:32:00.000Z",
+				opened: true,
 			},
 			{
 				role: "assistant",
 				text: "https://github.com/a/b/pull/11",
 				at: "2026-09-27T07:32:00.000Z",
+				opened: true,
 			},
 			{ role: "assistant", text: "Merged as #232.", at: null },
 		]);

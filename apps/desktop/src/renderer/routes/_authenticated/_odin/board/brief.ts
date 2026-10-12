@@ -9,6 +9,8 @@ export interface BriefMessage {
 	role: "user" | "assistant";
 	text: string;
 	at: string | null;
+	/** PR urls `gh pr create` printed: this session opened them. */
+	opened?: boolean;
 }
 
 export interface SessionBrief {
@@ -737,7 +739,7 @@ export function mergeCheckUrls(messages: BriefMessage[]): string[] {
  * PR, not fetched yet) is not approved, and a reply after the items means you
  * already answered them.
  */
-type PrStates = Record<
+export type PrStates = Record<
 	string,
 	{
 		state: string;
@@ -747,6 +749,25 @@ type PrStates = Record<
 		mine?: boolean | null;
 	} | null
 >;
+
+/**
+ * A PR this session opened is yours, whoever GitHub says wrote it: an agent
+ * that opens it with a bot's token (a shared GitHub key) makes the author the
+ * bot, and the brief dropped it as a teammate's PR.
+ */
+export function claimOpened<T extends PrStates | undefined>(
+	messages: BriefMessage[],
+	states: T,
+): T {
+	if (!states) return states;
+	const opened = pullRequests(messages.filter((m) => m.opened));
+	const claimed = { ...states } as PrStates;
+	for (const { url } of opened) {
+		const pr = claimed[url];
+		if (pr) claimed[url] = { ...pr, mine: true };
+	}
+	return claimed as T;
+}
 
 /**
  * The checks still running on your open PRs in these states, by name. A
