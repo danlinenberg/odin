@@ -265,16 +265,21 @@ export function applyQueue(queue: string[], lines: Line[]): string[] {
 	const next = [...queue];
 	for (const line of lines) {
 		if (line.type !== "queue-operation") continue;
-		if (line.operation === "enqueue" && line.content) {
-			if (!line.content.startsWith("<task-notification"))
-				next.push(line.content);
-		} else if (line.operation === "dequeue") next.shift();
+		if (line.operation === "enqueue" && line.content) next.push(line.content);
+		else if (line.operation === "dequeue") next.shift();
+		// Esc pulls every queued message back into Claude's input box.
+		else if (line.operation === "popAll") next.length = 0;
 		else if (line.operation === "remove") {
 			const index = next.indexOf(line.content ?? "");
 			if (index >= 0) next.splice(index, 1);
 		}
 	}
 	return next;
+}
+
+/** Your queued messages: background-task notices ride the same queue. */
+export function yourQueued(queue: string[]): string[] {
+	return queue.filter((text) => !text.startsWith("<task-notification"));
 }
 
 function parseLines(parts: string[]): Line[] {
@@ -1519,7 +1524,7 @@ export function ChatView({
 		!screenMenu &&
 		items.length === 0 &&
 		pending.length === 0 &&
-		queued.length === 0 &&
+		yourQueued(queued).length === 0 &&
 		(!missing || missing.startsWith("Not on disk yet"));
 	return (
 		// biome-ignore lint/a11y/noStaticElementInteractions: Page Up/Down from the composer jump the conversation to its top/bottom; a file dropped anywhere on it attaches
@@ -1671,7 +1676,7 @@ export function ChatView({
 							pending
 						/>
 					))}
-					{queued
+					{yourQueued(queued)
 						.filter((text) => !pending.some((sent) => text.includes(sent.text)))
 						.map((text, index) => (
 							<UserBubble

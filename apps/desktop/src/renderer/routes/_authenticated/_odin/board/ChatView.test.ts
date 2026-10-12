@@ -19,6 +19,7 @@ import {
 	toolDescription,
 	transcriptPath,
 	userText,
+	yourQueued,
 } from "./ChatView";
 
 describe("ChatView transcript", () => {
@@ -459,12 +460,17 @@ describe("applyQueue", () => {
 		expect(queue).toEqual(["second"]);
 		queue = applyQueue(queue, [op("remove", "second")]);
 		expect(queue).toEqual([]);
-		// Background-task notices ride the same queue; they are not yours.
-		expect(
-			applyQueue(
-				[],
-				[op("enqueue", "<task-notification>x</task-notification>")],
-			),
-		).toEqual([]);
+		// A task notice holds its place in the queue but is not shown as yours.
+		const withNotice = applyQueue(
+			[],
+			[
+				op("enqueue", "<task-notification>x</task-notification>"),
+				op("enqueue", "mine"),
+			],
+		);
+		expect(yourQueued(withNotice)).toEqual(["mine"]);
+		expect(applyQueue(withNotice, [op("dequeue")])).toEqual(["mine"]);
+		// Esc pulls everything back into the input.
+		expect(applyQueue(withNotice, [op("popAll", "mine")])).toEqual([]);
 	});
 });
