@@ -598,9 +598,13 @@ function AllFeedPage() {
 				: timed
 					? null
 					: item.priority;
-		// A preview of what the row is about, under the title: the comment that
-		// put it here, else the first line of its body.
-		const preview = item.body ? plainText(item.body) : "";
+		// The second line: the comment that put it here, else the body - always
+		// one line, so every row is the same height and the columns line up.
+		const preview = item.mention
+			? `${item.mention.author ?? "Someone"}: ${plainText(item.mention.text)}`
+			: item.body
+				? plainText(item.body)
+				: "";
 		return (
 			<div
 				key={item.key}
@@ -612,10 +616,8 @@ function AllFeedPage() {
 					item.key === openKey && "border-primary/50 bg-secondary/60",
 				)}
 			>
-				{/* A grid, not a flex row, so the mention below wraps inside the
-				    title's column instead of running under the meta and buttons. */}
-				<div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto_auto_auto_auto] items-center gap-x-3">
-					<span className="flex items-center gap-1.5">
+				<div className={ROW_GRID}>
+					<span className={COL.lead}>
 						{drag && (
 							<span
 								{...drag.attributes}
@@ -636,54 +638,54 @@ function AllFeedPage() {
 							onClick={(event) => tick(item.key, event.shiftKey)}
 							className="size-3.5 cursor-pointer accent-primary"
 						/>
+						<SourceIcon
+							className="size-3.5 shrink-0 text-muted-foreground"
+							title={item.source}
+							aria-label={item.source}
+						/>
 					</span>
-					<SourceIcon
-						className="size-3.5 shrink-0 text-muted-foreground"
-						title={item.source}
-						aria-label={item.source}
-					/>
-					<button
-						type="button"
-						title="Show details"
-						onClick={() => setOpenKey(item.key === openKey ? null : item.key)}
-						className="min-w-0 flex-1 truncate bg-none text-left text-[13px] font-semibold text-foreground"
-					>
-						<OverdueMark itemKey={item.key} upstream={item.dueDate} />
-						{emojify(item.title)}
-						{typeOf(item, types) && (
-							<span className="ml-2 text-[11px] font-normal text-muted-foreground">
-								{typeLabel(typeOf(item, types))}
-							</span>
+					<div className={COL.task}>
+						<button
+							type="button"
+							title="Show details"
+							onClick={() => setOpenKey(item.key === openKey ? null : item.key)}
+							className="block w-full truncate bg-none text-left text-[13px] font-semibold text-foreground"
+						>
+							<OverdueMark itemKey={item.key} upstream={item.dueDate} />
+							{emojify(item.title)}
+							{typeOf(item, types) && (
+								<span className="ml-2 text-[11px] font-normal text-muted-foreground">
+									{typeLabel(typeOf(item, types))}
+								</span>
+							)}
+						</button>
+						{preview && preview !== item.title.trim() && (
+							<div
+								dir="auto"
+								title={preview}
+								className="truncate text-[11.5px] text-muted-foreground"
+							>
+								{emojify(preview.slice(0, 300))}
+							</div>
 						)}
-					</button>
-					{/* The open row's meta is in the panel, and with the panel open
-					    the columns don't fit beside it. Only what the row has is
-					    drawn: an empty slot that keeps its width is a gap. */}
-					{/* Its own column, outside the hover swap: Keep has to stay clickable. */}
-					<span className="flex">
+					</div>
+					{/* Its own column, outside the hover swap: Keep stays clickable. */}
+					<span className={COL.drop}>
 						<SweepDrop itemKey={item.key} url={item.url} />
 					</span>
-					{/* Meta and the quiet four share one cell: meta at rest, the
-					    actions on hover or keyboard focus, and always in the side
-					    panel. Invisible actions that still held their width pushed
-					    every row past the window's edge. */}
-					<div className="grid justify-items-end">
-						<div
+					{/* The meta columns, and the quiet four over them on hover or
+					    keyboard focus (absolute, so they never widen the row). */}
+					<div className="relative flex shrink-0 items-center gap-3 text-[11px]">
+						<span
 							className={cn(
-								"flex items-center gap-2.5 text-[11px] [grid-area:1/1] group-focus-within:invisible group-hover:invisible",
-								openItem && "hidden",
+								COL.why,
+								"group-focus-within:invisible group-hover:invisible",
 							)}
 						>
-							<DueChip
-								itemKey={item.key}
-								title={item.title}
-								upstream={item.dueDate}
-							/>
 							{timed ? (
 								<span
 									className={cn(
-										ROW_META,
-										"whitespace-nowrap",
+										"truncate text-muted-foreground",
 										band === "now" && "font-semibold text-attention",
 									)}
 								>
@@ -692,31 +694,69 @@ function AllFeedPage() {
 							) : (
 								rated && <PriorityLabelChip label={rated} />
 							)}
+						</span>
+						<span
+							className={cn(
+								COL.status,
+								"group-focus-within:invisible group-hover:invisible",
+							)}
+						>
 							<RowStatus
 								odin={
 									isReading ? "Read later" : statusLabel(statuses[item.key])
 								}
 								upstream={item.status}
 							/>
+						</span>
+						<span
+							className={cn(
+								COL.person,
+								"group-focus-within:invisible group-hover:invisible",
+							)}
+						>
 							{item.person && (
-								<PersonChip name={item.person} className="max-w-[160px]" />
+								<PersonChip
+									name={item.person}
+									className="max-w-full truncate"
+								/>
 							)}
-							{item.context && (
-								<span className="max-w-[132px] truncate text-muted-foreground">
-									{item.context}
-								</span>
+						</span>
+						<span
+							className={cn(
+								COL.place,
+								"truncate text-muted-foreground group-focus-within:invisible group-hover:invisible",
 							)}
-							{/* A timed ask already says how old it is. */}
-							{!timed && dateOf(item) > 0 && (
-								<span className="tabular-nums text-muted-foreground">
-									{new Date(dateOf(item)).toLocaleDateString(undefined, {
-										month: "short",
-										day: "numeric",
-									})}
-								</span>
+							title={item.context ?? undefined}
+						>
+							{item.context}
+						</span>
+						<span
+							className={cn(
+								COL.date,
+								"group-focus-within:invisible group-hover:invisible",
 							)}
-						</div>
-						<span className="invisible flex items-center gap-1.5 [grid-area:1/1] group-focus-within:visible group-hover:visible">
+						>
+							{/* A due date wins the column; otherwise when it last moved. */}
+							{effectiveDue(item.key, reminders, item.dueDate) ? (
+								<DueChip
+									itemKey={item.key}
+									title={item.title}
+									upstream={item.dueDate}
+								/>
+							) : (
+								dateOf(item) > 0 &&
+								new Date(dateOf(item)).toLocaleDateString(undefined, {
+									month: "short",
+									day: "numeric",
+								})
+							)}
+						</span>
+						<span className="invisible absolute inset-y-0 right-0 flex items-center gap-1.5 group-focus-within:visible group-hover:visible">
+							<DueChip
+								itemKey={item.key}
+								title={item.title}
+								upstream={item.dueDate}
+							/>
 							{url && (
 								<button
 									type="button"
@@ -753,7 +793,7 @@ function AllFeedPage() {
 							/>
 						</span>
 					</div>
-					<span className={ROW_PRIMARY_SLOT}>
+					<span className={COL.start}>
 						{activePaneId ? (
 							<button
 								type="button"
@@ -775,26 +815,9 @@ function AllFeedPage() {
 							</button>
 						)}
 					</span>
-					<DoneButton onClick={() => finish(item)} />
-					{/* Same preview the Jira feed shows: a mention row is there
-					    because of one comment. Column 3 keeps it under the title. */}
-					{item.mention && (
-						<div className="col-start-3 mt-1.5 line-clamp-2 cursor-text select-text text-[11.5px] leading-relaxed text-muted-foreground">
-							<span className="font-semibold text-soft-foreground">
-								{item.mention.author ?? "Someone"}
-								{": "}
-							</span>
-							{item.mention.text}
-						</div>
-					)}
-					{!item.mention && preview && preview !== item.title.trim() && (
-						<div
-							dir="auto"
-							className="col-start-3 mt-0.5 truncate text-[11.5px] text-muted-foreground"
-						>
-							{emojify(preview.slice(0, 300))}
-						</div>
-					)}
+					<span className={COL.done}>
+						<DoneButton onClick={() => finish(item)} />
+					</span>
 				</div>
 			</div>
 		);
@@ -978,7 +1001,10 @@ function AllFeedPage() {
 			</div>
 
 			<div className="flex min-h-0 flex-1">
-				<div className={FEED_LIST}>
+				<div className={cn(FEED_LIST, "@container")}>
+					{!showDone && items.length + queued.length > 0 && (
+						<ColumnHeader date={sortBy === "created" ? "Created" : "Updated"} />
+					)}
 					{!showDone && picked.length > 0 && (
 						<div className="sticky top-0 z-10 mb-1 flex items-center gap-2 rounded-md border border-primary/40 bg-secondary px-3 py-1.5 text-[12px]">
 							<span className="font-semibold text-foreground">
@@ -1300,6 +1326,54 @@ function AllFeedPage() {
 					</DetailsPanel>
 				)}
 			</div>
+		</div>
+	);
+}
+
+/**
+ * The row's columns, fixed widths shared with the header so every row lines
+ * up like a table. Narrow lists drop whole columns - place first, then
+ * status, person and date - rather than squeezing the title to nothing.
+ */
+const ROW_GRID = "flex items-center gap-3";
+const COL = {
+	lead: "flex w-[68px] shrink-0 items-center justify-end gap-1.5",
+	task: "flex min-h-[37px] min-w-0 flex-1 flex-col justify-center",
+	drop: "flex w-[104px] shrink-0 items-center",
+	why: "flex w-[148px] shrink-0 items-center overflow-hidden",
+	status:
+		"flex w-[104px] shrink-0 items-center overflow-hidden @max-[1120px]:hidden",
+	person:
+		"flex w-[148px] shrink-0 items-center overflow-hidden @max-[980px]:hidden",
+	place: "block w-[124px] shrink-0 @max-[1240px]:hidden",
+	date: "flex w-[64px] shrink-0 items-center tabular-nums text-muted-foreground @max-[820px]:hidden",
+	start: "flex w-[128px] shrink-0 justify-end",
+	done: "flex w-[72px] shrink-0",
+};
+
+/** The table's column names, over the rows. */
+function ColumnHeader({ date }: { date: string }) {
+	const label = "text-[10.5px] font-semibold uppercase tracking-[.06em]";
+	return (
+		<div
+			className={cn(
+				ROW_GRID,
+				label,
+				"sticky top-0 z-[5] -mx-px border-b border-border bg-background px-3.5 py-1.5 text-faint-foreground",
+			)}
+		>
+			<span className={COL.lead} />
+			<span className={COL.task}>Task</span>
+			<span className={COL.drop}>Sweep</span>
+			<span className="flex shrink-0 items-center gap-3">
+				<span className={COL.why}>Why</span>
+				<span className={COL.status}>Status</span>
+				<span className={COL.person}>From</span>
+				<span className={COL.place}>Where</span>
+				<span className={COL.date}>{date}</span>
+			</span>
+			<span className={COL.start} />
+			<span className={COL.done} />
 		</div>
 	);
 }
