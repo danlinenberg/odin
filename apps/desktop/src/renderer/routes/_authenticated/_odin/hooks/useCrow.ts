@@ -51,11 +51,12 @@ export const crowPane = (panes: Record<string, Pane>): Pane | undefined =>
 /**
  * Claude, told it is the crow and how to drive Odin. On Haiku - the alias is
  * always the latest one - whatever model the board's sessions use. Without
- * Claude's own task list, so "add a task" reaches Odin's backlog.
+ * Claude's own task list, so "add a task" reaches Odin's backlog, and without
+ * its auto-memory, so "always do X" becomes an Odin rule, not a memory file.
  */
 const crowCli = () => {
 	const { commands, active } = useClaudeCommand.getState();
-	return `${pickClaudeCommand(commands, active)} --dangerously-skip-permissions --model haiku --disallowedTools TaskCreate,TaskGet,TaskList,TaskUpdate,TodoWrite --append-system-prompt ${quote(crowRule(import.meta.env.DEV ? "main" : `v${window.App.appVersion}`))}`;
+	return `${pickClaudeCommand(commands, active)} --dangerously-skip-permissions --model haiku --disallowedTools TaskCreate,TaskGet,TaskList,TaskUpdate,TodoWrite --settings ${quote(JSON.stringify({ autoMemoryEnabled: false }))} --append-system-prompt ${quote(crowRule(import.meta.env.DEV ? "main" : `v${window.App.appVersion}`))}`;
 };
 
 /** Long enough for a fresh spare to reach the daemon's session list. */
