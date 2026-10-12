@@ -47,6 +47,9 @@ import {
 	ROW_LIVE_BUTTON,
 	ROW_META,
 	ROW_PRIMARY_SLOT,
+	ROW_SLOT_READ_LATER,
+	ROW_SLOT_TONIGHT,
+	ROW_SLOT_UP_NEXT,
 	ROW_START_BUTTON,
 	SyncButton,
 } from "../components/FeedChrome";
@@ -957,7 +960,7 @@ function AllFeedPage() {
 							    carries what its own feed would tell you: who it's from,
 							    where it stands, where it lives. A grid, not a flex row,
 							    so the mention below wraps inside the title's column. */}
-									<div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto_auto_auto_auto_auto_auto_auto] items-center gap-x-3">
+									<div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto_auto_auto] items-center gap-x-3">
 										<input
 											type="checkbox"
 											aria-label={`Select ${item.title}`}
@@ -1052,49 +1055,61 @@ function AllFeedPage() {
 												</button>
 											)}
 										</span>
-										<span className={ROW_PRIMARY_SLOT}>
-											{activePaneId ? (
+										{/* One cell, fixed slots: an optional or wider button (no
+										    Tonight on Email rows, "↺ Read later") must not move
+										    the others, and Start session stays next to Done.
+										    Smoke checks both. */}
+										<div className="flex shrink-0 items-center justify-end gap-1">
+											<span className={ROW_SLOT_UP_NEXT}>
 												<button
 													type="button"
-													onClick={() => {
-														usePendingFocus.getState().focus(activePaneId);
-														navigate({ to: "/board" });
-													}}
-													className={ROW_LIVE_BUTTON}
+													onClick={() => enqueue(item.key)}
+													title="Line it up - Up next, above the list"
+													className={ROW_LINK_BUTTON}
 												>
-													Go to session →
+													Up next
 												</button>
-											) : (
-												<button
-													type="button"
-													disabled={isLaunching}
-													onClick={() => void handleStart(item)}
-													className={ROW_START_BUTTON}
-												>
-													{launchingKey === item.launch.key
-														? "Starting…"
-														: "Start session"}
-												</button>
-											)}
-										</span>
-										<button
-											type="button"
-											onClick={() => enqueue(item.key)}
-											title="Line it up - Up next, above the list"
-											className={ROW_LINK_BUTTON}
-										>
-											Up next
-										</button>
-										<TonightButton item={item} />
-										<ReadLaterButton
-											on={readingKeys.has(item.key)}
-											onClick={() =>
-												readingKeys.has(item.key)
-													? undo(item)
-													: markReading(item)
-											}
-										/>
-										<DoneButton onClick={() => finish(item)} />
+											</span>
+											<span className={ROW_SLOT_TONIGHT}>
+												<TonightButton item={item} />
+											</span>
+											<span className={ROW_SLOT_READ_LATER}>
+												<ReadLaterButton
+													on={readingKeys.has(item.key)}
+													onClick={() =>
+														readingKeys.has(item.key)
+															? undo(item)
+															: markReading(item)
+													}
+												/>
+											</span>
+											<span className={ROW_PRIMARY_SLOT}>
+												{activePaneId ? (
+													<button
+														type="button"
+														onClick={() => {
+															usePendingFocus.getState().focus(activePaneId);
+															navigate({ to: "/board" });
+														}}
+														className={ROW_LIVE_BUTTON}
+													>
+														Go to session →
+													</button>
+												) : (
+													<button
+														type="button"
+														disabled={isLaunching}
+														onClick={() => void handleStart(item)}
+														className={ROW_START_BUTTON}
+													>
+														{launchingKey === item.launch.key
+															? "Starting…"
+															: "Start session"}
+													</button>
+												)}
+											</span>
+											<DoneButton onClick={() => finish(item)} />
+										</div>
 										{/* Same preview the Jira feed shows: a mention row is there
 								    because of one comment. Column 3 keeps it under the title. */}
 										{item.mention && (

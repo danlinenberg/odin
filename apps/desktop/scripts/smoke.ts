@@ -462,13 +462,38 @@ const clickOnTaskRow = (title: string) =>
 		return !!row;
 	})()`);
 
+/**
+ * Where Start session and Done sit on TASK's row. Rows are separate grids, so a
+ * wider or missing button on one row ("↺ Read later", no Tonight) used to push
+ * its buttons out of line with every other row's.
+ */
+const taskRowButtons = () =>
+	page<{ start: number; done: number } | null>(`(() => {
+		let row = [...document.querySelectorAll("button")].find((e) => e.textContent.trim() === ${JSON.stringify(TASK)});
+		while (row && !row.querySelector('button[title="Mark done"]')) row = row.parentElement;
+		const done = row?.querySelector('button[title="Mark done"]')?.getBoundingClientRect();
+		const start = [...(row?.querySelectorAll("button") ?? [])].find((e) => /^(Start session|Go to session)/.test(e.textContent.trim()))?.getBoundingClientRect();
+		return done && start ? { start: Math.round(start.right), done: Math.round(done.left) } : null;
+	})()`);
+
 await step("Read later marks a task and keeps it on the list", async () => {
 	await rail("Tasks");
 	await waitForText(TASK);
+	const before = await taskRowButtons();
+	if (!before) throw new Error("no Start session and Done on the task's row");
+	if (before.done - before.start > 16)
+		throw new Error(
+			`Start session isn't next to Done: ${before.done - before.start}px apart`,
+		);
 	if (!(await clickOnTaskRow("Mark it Read later")))
 		throw new Error("no Read later button on the task's row");
 	await waitForText("↺ Read later");
 	await waitForText(TASK);
+	const after = await taskRowButtons();
+	if (JSON.stringify(after) !== JSON.stringify(before))
+		throw new Error(
+			`the wider "↺ Read later" moved the row's buttons: ${JSON.stringify(before)} -> ${JSON.stringify(after)}`,
+		);
 	if (!(await clickOnTaskRow("Back to Waiting on you")))
 		throw new Error("no way back from Read later on the task's row");
 	await waitForText("↺ Read later", false);

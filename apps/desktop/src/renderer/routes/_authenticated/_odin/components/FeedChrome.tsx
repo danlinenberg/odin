@@ -235,6 +235,14 @@ export const ROW_LINK_SLOT = "flex w-[84px] shrink-0 justify-end";
  * left with it.
  */
 export const ROW_PRIMARY_SLOT = "flex w-[132px] shrink-0 justify-end";
+/**
+ * The Tasks page's secondary buttons get slots too, sized to their widest
+ * label ("Tonight ✓", "↺ Read later"): a row without Tonight or with Read later
+ * on shifted Start session and Done out of line with the rows around it.
+ */
+export const ROW_SLOT_UP_NEXT = "flex w-[72px] shrink-0 justify-center";
+export const ROW_SLOT_TONIGHT = "flex w-[96px] shrink-0 justify-center";
+export const ROW_SLOT_READ_LATER = "flex w-[112px] shrink-0 justify-center";
 export const ROW_LINK_BUTTON =
 	"whitespace-nowrap rounded-[7px] px-2.5 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground";
 
