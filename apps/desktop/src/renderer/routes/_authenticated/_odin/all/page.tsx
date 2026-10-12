@@ -952,7 +952,7 @@ function AllFeedPage() {
 							    carries what its own feed would tell you: who it's from,
 							    where it stands, where it lives. A grid, not a flex row,
 							    so the mention below wraps inside the title's column. */}
-									<div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto_auto_auto_auto_auto_auto] items-center gap-x-3">
+									<div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto_auto_auto_auto_auto_auto_auto] items-center gap-x-3">
 										<input
 											type="checkbox"
 											aria-label={`Select ${item.title}`}

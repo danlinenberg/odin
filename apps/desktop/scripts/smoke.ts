@@ -497,6 +497,13 @@ await step("Tonight on a task row picks it for the Night Agent", async () => {
 			`document.querySelector('button[title="Show the tasks worth starting next"]')?.click()`,
 		);
 	await rail("Tasks");
+	// One grid column per row item: one short and Done wraps under the checkbox.
+	const doneWraps = await page<boolean>(`(() => {
+		const title = [...document.querySelectorAll("button")].find((e) => e.textContent.trim() === ${JSON.stringify(TASK)});
+		const done = title?.parentElement.querySelector('button[title="Mark done"]');
+		return !done || done.getBoundingClientRect().top > title.getBoundingClientRect().bottom;
+	})()`);
+	if (doneWraps) throw new Error("Done wrapped off the task's row");
 	if (!(await clickOnTaskRow("Pick for tonight")))
 		throw new Error("no Tonight button on the task's row");
 	// First pick: the keeps-the-computer-awake notice comes first.
