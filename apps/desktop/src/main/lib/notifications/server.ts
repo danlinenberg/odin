@@ -8,8 +8,8 @@ import type {
 	OdinActionRequest,
 	RunInShellRequest,
 } from "shared/notification-types";
-import { callProcedure, listProcedures } from "../odin-api";
-import { fetchFile, readLink } from "../read-link";
+import { callProcedure, clip, listProcedures } from "../odin-api";
+import { callService, fetchFile, readLink } from "../read-link";
 import { HOOK_PROTOCOL_VERSION } from "../terminal/env";
 import { mapEventType } from "./map-event-type";
 import { resolvePaneId } from "./resolve-pane-id";
@@ -186,7 +186,7 @@ app.post("/odin", express.urlencoded({ extended: false }), async (req, res) => {
 		return res
 			.status(400)
 			.send(
-				"Need action: tasks, start, add, sessions, night, state, set, run, open, done, api or call.\n",
+				"Need action: tasks, start, add, sessions, night, state, set, run, open, done, api, call or service.\n",
 			);
 	}
 	// Main's own operations answer here; the board's state is the renderer's.
@@ -194,6 +194,17 @@ app.post("/odin", express.urlencoded({ extended: false }), async (req, res) => {
 	if (action === "call")
 		return res.send(
 			`${await callProcedure(String(rest.path ?? ""), rest.input)}\n`,
+		);
+	if (action === "service")
+		return res.send(
+			`${clip(
+				await callService(
+					String(rest.service ?? ""),
+					String(rest.path ?? ""),
+					rest.method,
+					rest.body,
+				).catch((error) => `Failed: ${error.message ?? error}`),
+			)}\n`,
 		);
 	const args = Object.fromEntries(
 		Object.entries(rest).filter(

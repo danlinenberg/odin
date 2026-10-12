@@ -1,6 +1,7 @@
 import {
 	readOdinConfig,
 	resolveNotionToken,
+	resolveSlackToken,
 } from "lib/trpc/routers/odin-config";
 import { slackFile, slackThreadText } from "lib/trpc/routers/slack";
 import { githubAccessToken, githubApiFetch } from "./github-token";
@@ -351,4 +352,99 @@ async function readNotion(id: string): Promise<string> {
 		cursor = batch.next_cursor ?? undefined;
 	} while (cursor);
 	return lines.join("\n");
+}
+
+/**
+ * Where each connection's API lives and how Odin signs a call to it. A path is
+ * only ever joined onto its own provider's base, so a token never leaves home.
+ */
+async function serviceBase(
+	service: string,
+): Promise<{ base: string; headers: Record<string, string> } | string> {
+	const missing = `${service} isn't connected in Odin - connect it in Settings > Connections.`;
+	switch (service) {
+		case "clickup": {
+			const token = readOdinConfig().clickupToken;
+			return token
+				? {
+						base: "https://api.clickup.com/api/v2/",
+						headers: { Authorization: token },
+					}
+				: missing;
+		}
+		case "github": {
+			const token = await githubAccessToken();
+			return token
+				? {
+						base: "https://api.github.com/",
+						headers: { Authorization: `Bearer ${token}` },
+					}
+				: missing;
+		}
+		case "jira": {
+			const ctx = await jiraRequestContext();
+			return ctx
+				? {
+						base: `${ctx.base}/`,
+						headers: { Authorization: ctx.authorization },
+					}
+				: missing;
+		}
+		case "notion": {
+			const token = resolveNotionToken();
+			return token
+				? {
+						base: "https://api.notion.com/v1/",
+						headers: {
+							Authorization: `Bearer ${token}`,
+							"Notion-Version": "2022-06-28",
+						},
+					}
+				: missing;
+		}
+		case "slack": {
+			const token = resolveSlackToken();
+			return token
+				? {
+						base: "https://slack.com/api/",
+						headers: { Authorization: `Bearer ${token}` },
+					}
+				: missing;
+		}
+		default:
+			return `No service "${service}" - use clickup, github, jira, notion or slack.`;
+	}
+}
+
+/** `path` under `base`, or null when it would leave base's host. */
+export function serviceUrl(base: string, path: string): URL | null {
+	const url = new URL(path.replace(/^\/+/, ""), base);
+	return url.origin === new URL(base).origin ? url : null;
+}
+
+/**
+ * Any call to a connected service's REST API with Odin's token - the raven's
+ * `action=service`, so a connection can do everything its API can, not only
+ * what a screen shows. The answer is `HTTP <status>` and the body.
+ */
+export async function callService(
+	service: string,
+	path: string,
+	method = "GET",
+	body?: string,
+): Promise<string> {
+	const target = await serviceBase(service);
+	if (typeof target === "string") return target;
+	const url = serviceUrl(target.base, path);
+	if (!url) return `path must be relative to ${target.base}`;
+	const res = await fetch(url, {
+		method: method.toUpperCase(),
+		headers: {
+			...target.headers,
+			Accept: "application/json",
+			...(body ? { "Content-Type": "application/json; charset=utf-8" } : {}),
+		},
+		body: body || undefined,
+	});
+	return `HTTP ${res.status}\n${await res.text()}`;
 }
