@@ -31,14 +31,17 @@ function ago(ms: number | null): string {
 function StorageSettingsPage() {
 	const utils = electronTrpc.useUtils();
 	const {
-		data: worktrees,
+		data: listed,
 		isLoading,
 		error,
 	} = electronTrpc.repos.worktrees.useQuery();
-	// Your ticks; an untouched row is ticked when the pruner would remove it.
-	const [picks, setPicks] = useState<Map<string, boolean>>(new Map());
 	const keyOf = (wt: { repo: string; name: string }) =>
 		`${wt.repo}\0${wt.name}`;
+	// Deleted rows leave the list one by one, before the re-list comes back.
+	const [gone, setGone] = useState<Set<string>>(new Set());
+	const worktrees = listed?.filter((wt) => !gone.has(keyOf(wt)));
+	// Your ticks; an untouched row is ticked when the pruner would remove it.
+	const [picks, setPicks] = useState<Map<string, boolean>>(new Map());
 	const isPicked = (wt: { repo: string; name: string; safe: boolean }) =>
 		picks.get(keyOf(wt)) ?? wt.safe;
 	const selected = (worktrees ?? []).filter(isPicked);
@@ -52,25 +55,14 @@ function StorageSettingsPage() {
 		0,
 	);
 
-	const remove = electronTrpc.repos.removeWorktrees.useMutation({
-		onSuccess: (removed) => {
-			const freed = selected
-				.filter((wt) => removed.includes(keyOf(wt)))
-				.reduce((sum, wt) => sum + (wt.sizeBytes ?? 0), 0);
-			const skipped = selected.length - removed.length;
-			toast.success(
-				`Deleted ${removed.length} worktree${removed.length === 1 ? "" : "s"}, freed ${gb(freed)}${skipped ? ` - ${skipped} kept, they changed since the list loaded` : ""}`,
-			);
-			void utils.repos.worktrees.invalidate();
-		},
-		onError: (error) => toast.error(error.message),
-	});
+	const remove = electronTrpc.repos.removeWorktrees.useMutation();
+	const [progress, setProgress] = useState<{ done: number; total: number }>();
 
 	const toggle = (wt: { repo: string; name: string; safe: boolean }) =>
 		setPicks((prev) => new Map(prev).set(keyOf(wt), !isPicked(wt)));
 	const pickAll = (on: boolean) =>
 		setPicks(new Map((worktrees ?? []).map((wt) => [keyOf(wt), on])));
-	const deleteSelected = () => {
+	const deleteSelected = async () => {
 		const unlanded = selected.filter((wt) => !wt.safe).length;
 		if (
 			unlanded > 0 &&
@@ -79,9 +71,42 @@ function StorageSettingsPage() {
 			)
 		)
 			return;
-		remove.mutate(
-			selected.map(({ repo, name, safe }) => ({ repo, name, force: !safe })),
+		const batch = selected;
+		setProgress({ done: 0, total: batch.length });
+		let removed = 0;
+		let freed = 0;
+		const failures: string[] = [];
+		// Repos side by side, one worktree at a time inside each: two git runs
+		// in one repo would race for its worktree list.
+		const byRepo = Map.groupBy(batch, (wt) => wt.repo);
+		await Promise.all(
+			[...byRepo.values()].map(async (wts) => {
+				for (const wt of wts) {
+					try {
+						const done = await remove.mutateAsync([
+							{ repo: wt.repo, name: wt.name, force: !wt.safe },
+						]);
+						if (done.length > 0) {
+							removed++;
+							freed += wt.sizeBytes ?? 0;
+							setGone((prev) => new Set(prev).add(keyOf(wt)));
+						}
+					} catch (error) {
+						failures.push(`${wt.name}: ${String(error)}`);
+					}
+					setProgress((p) => p && { ...p, done: p.done + 1 });
+				}
+			}),
 		);
+		const kept = batch.length - removed - failures.length;
+		toast.success(
+			`Deleted ${removed} worktree${removed === 1 ? "" : "s"}, freed ${gb(freed)}${kept ? ` - ${kept} kept, they changed since the list loaded` : ""}`,
+		);
+		if (failures.length > 0)
+			toast.error(`Couldn't delete ${failures.length}: ${failures[0]}`);
+		await utils.repos.worktrees.invalidate();
+		setGone(new Set());
+		setProgress(undefined);
 	};
 
 	return (
@@ -91,11 +116,11 @@ function StorageSettingsPage() {
 			action={
 				<Button
 					size="sm"
-					disabled={selected.length === 0 || remove.isPending}
-					onClick={deleteSelected}
+					disabled={selected.length === 0 || !!progress}
+					onClick={() => void deleteSelected()}
 				>
-					{remove.isPending
-						? "Deleting…"
+					{progress
+						? `Deleting ${progress.done} of ${progress.total}…`
 						: `Delete ${selected.length} (${gb(selectedBytes)})`}
 				</Button>
 			}

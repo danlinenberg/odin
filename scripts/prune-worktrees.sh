@@ -11,8 +11,7 @@
 #     says "not merged" for work that did land. Content alone keeps any branch
 #     whose files main has touched since; the PR answer (needs `gh`: $GH_TOKEN,
 #     then every signed-in account; skipped without it) covers those.
-#   - nothing uncommitted: plain `git worktree remove` refuses a dirty or
-#     untracked tree, so it is the dirty check. Gitignored output (node_modules,
+#   - nothing uncommitted: `git status --porcelain` is empty. Gitignored output (node_modules,
 #     dist) doesn't count and goes with it. A landed tree left dirty for
 #     $PRUNE_DIRTY_MIN_AGE_DAYS (default 7) goes too, after its files are
 #     committed to refs/pruned/<name>: `git checkout refs/pruned/<name> -- .`
@@ -53,15 +52,19 @@ now=$(date +%s)
 
 main="$(git -C "$root" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || echo origin/main)"
 main="${main#origin/}"
-# As gh's credential helper's token ($GH_TOKEN), then as each signed-in
-# account: a personal private repo is "not found" to the work token.
-git -C "$root" fetch --quiet origin "$main" 2>/dev/null || {
-	fetched=0
-	for account in $(gh auth status 2>&1 | sed -n 's/.*Logged in to [^ ]* account \([^ ]*\).*/\1/p'); do
-		GH_TOKEN="$(gh auth token --user "$account")" git -C "$root" fetch --quiet origin "$main" 2>/dev/null && { fetched=1; break; }
-	done
-	[ "$fetched" = 1 ] || git -C "$root" fetch --quiet origin "$main"
-}
+# --only comes from Settings → Storage, whose list fetched a moment ago: one
+# fetch per deleted worktree made deleting 78 of them take minutes.
+if [ -z "$only" ]; then
+	# As gh's credential helper's token ($GH_TOKEN), then as each signed-in
+	# account: a personal private repo is "not found" to the work token.
+	git -C "$root" fetch --quiet origin "$main" 2>/dev/null || {
+		fetched=0
+		for account in $(gh auth status 2>&1 | sed -n 's/.*Logged in to [^ ]* account \([^ ]*\).*/\1/p'); do
+			GH_TOKEN="$(gh auth token --user "$account")" git -C "$root" fetch --quiet origin "$main" 2>/dev/null && { fetched=1; break; }
+		done
+		[ "$fetched" = 1 ] || git -C "$root" fetch --quiet origin "$main"
+	}
+fi
 repo="$(git -C "$root" remote get-url origin | sed -E 's#^(git@|https://)github.com[:/]##; s#\.git$##')"
 
 # Did this branch's PR merge or close with exactly this commit as its head?
@@ -110,6 +113,20 @@ save_files() { # save_files <worktree> <name>
 	git -C "$root" update-ref "refs/pruned/$2" "$snapshot"
 }
 
+# Move the worktree aside and delete it in the background: git removes a 3 GB
+# install file by file, and Storage waited on each one. Same disk, so the move
+# is instant; git forgets the worktree at once, the space frees a little later.
+fast_remove() { # fast_remove <worktree> <name>
+	local trash="$root/.worktrees/.trash-$2-$$"
+	mv "$1" "$trash"
+	git -C "$root" worktree prune
+	nohup rm -rf "$trash" >/dev/null 2>&1 &
+}
+# Leftovers from a run that was killed before its rm finished.
+for leftover in "$root"/.worktrees/.trash-*; do
+	[ -e "$leftover" ] && [ "$dry" = 0 ] && { nohup rm -rf "$leftover" >/dev/null 2>&1 & }
+done
+
 git -C "$root" worktree list --porcelain | sed -n 's/^worktree //p' | while read -r wt; do
 	case "$wt" in "$root/.worktrees/"*) ;; *) continue ;; esac
 	name="${wt#"$root/.worktrees/"}"
@@ -120,7 +137,7 @@ git -C "$root" worktree list --porcelain | sed -n 's/^worktree //p' | while read
 			echo "remove $name (dry run, forced)"
 		else
 			[ -z "$(git -C "$wt" status --porcelain)" ] || save_files "$wt" "$name"
-			git -C "$root" worktree remove --force "$wt"
+			fast_remove "$wt" "$name"
 			echo "remove $name (forced; branch kept)"
 		fi
 		continue
@@ -168,7 +185,7 @@ git -C "$root" worktree list --porcelain | sed -n 's/^worktree //p' | while read
 			echo "remove $name (dry run, files saved to refs/pruned/$name)"
 		else
 			save_files "$wt" "$name"
-			git -C "$root" worktree remove --force "$wt"
+			fast_remove "$wt" "$name"
 			echo "remove $name (files saved to refs/pruned/$name)"
 		fi
 		continue
@@ -176,7 +193,8 @@ git -C "$root" worktree list --porcelain | sed -n 's/^worktree //p' | while read
 
 	if [ "$dry" = 1 ]; then
 		echo "remove $name (dry run)"
-	elif git -C "$root" worktree remove "$wt" 2>/dev/null; then
+	elif [ -z "$(git -C "$wt" status --porcelain)" ]; then
+		fast_remove "$wt" "$name"
 		echo "remove $name"
 	else
 		echo "keep   $name (uncommitted or untracked files)"

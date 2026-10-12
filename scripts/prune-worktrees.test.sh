@@ -85,6 +85,12 @@ GH_TOKEN= "$DIR/prune-worktrees.sh" --only dirty --force "$TMP/repo" >/dev/null
 [ ! -d .worktrees/dirty ] && [ "$(git show refs/pruned/dirty:notes.txt 2>/dev/null)" = scratch ]
 check "--force saves uncommitted files to refs/pruned/<name>" $?
 
+# Removal moves the tree aside and deletes it in the background: git forgets
+# it at once, and nothing is left on disk a moment later.
+sleep 2
+! git worktree list | grep -q "/.worktrees/unique" && ! ls -d .worktrees/.trash-* >/dev/null 2>&1
+check "a removed worktree leaves no git entry and no trash behind" $?
+
 # Closed PR at exactly the worktree's head: gone, even though main moved the
 # same file on. Closed at another commit: kept. The fake gh answers the one
 # GraphQL query with "<branch> <head sha>" lines.
