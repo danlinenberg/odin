@@ -1932,6 +1932,12 @@ function Composer({
 			// A bracketed paste, not typing: only a pasted path becomes an attachment.
 			for (const path of paths)
 				await write.mutateAsync({ paneId, data: `\x1b[200~${path}\x1b[201~ ` });
+			// Claude reads a pasted image path off disk before it shows [Image #N],
+			// and an Enter that lands meanwhile is dropped: nothing sends. ~150ms
+			// was enough for a 6000x4000 JPEG; 500ms leaves room.
+			// ponytail: fixed wait, poll the screen for [Image #N] if it ever misses.
+			if (paths.length > 0)
+				await new Promise((resolve) => setTimeout(resolve, 500));
 			await typeIntoClaude(write.mutateAsync, paneId, text, now);
 		} catch (error) {
 			setDraft(body);
