@@ -243,6 +243,9 @@ export const ROW_PRIMARY_SLOT = "flex w-[132px] shrink-0 justify-end";
 export const ROW_SLOT_UP_NEXT = "flex w-[72px] shrink-0 justify-center";
 export const ROW_SLOT_TONIGHT = "flex w-[96px] shrink-0 justify-center";
 export const ROW_SLOT_READ_LATER = "flex w-[112px] shrink-0 justify-center";
+/** A row action drawn as an icon - always shown, named by its tooltip. */
+export const ROW_ICON_BUTTON =
+	"flex size-7 shrink-0 items-center justify-center rounded-[6px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground";
 export const ROW_LINK_BUTTON =
 	"whitespace-nowrap rounded-[7px] px-2.5 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground";
 

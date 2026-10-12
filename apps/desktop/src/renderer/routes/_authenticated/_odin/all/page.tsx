@@ -23,6 +23,12 @@ import {
 	useState,
 } from "react";
 import type { IconType } from "react-icons";
+import {
+	LuBookmark,
+	LuExternalLink,
+	LuListMinus,
+	LuListPlus,
+} from "react-icons/lu";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { openUrl } from "renderer/stores/in-app-browser";
@@ -37,6 +43,7 @@ import {
 	FeedHeader,
 	FeedSearch,
 	FeedSelect,
+	ROW_ICON_BUTTON,
 	ROW_LINK_BUTTON,
 	ROW_LIVE_BUTTON,
 	ROW_META,
@@ -675,13 +682,8 @@ function AllFeedPage() {
 					</span>
 					{/* The meta columns, and the quiet four over them on hover or
 					    keyboard focus (absolute, so they never widen the row). */}
-					<div className="relative flex shrink-0 items-center gap-3 text-[11px]">
-						<span
-							className={cn(
-								COL.why,
-								"group-focus-within:invisible group-hover:invisible",
-							)}
-						>
+					<div className="flex shrink-0 items-center gap-3 text-[11px]">
+						<span className={cn(COL.why)}>
 							{timed ? (
 								<span
 									className={cn(
@@ -695,12 +697,7 @@ function AllFeedPage() {
 								rated && <PriorityLabelChip label={rated} />
 							)}
 						</span>
-						<span
-							className={cn(
-								COL.status,
-								"group-focus-within:invisible group-hover:invisible",
-							)}
-						>
+						<span className={cn(COL.status)}>
 							<RowStatus
 								odin={
 									isReading ? "Read later" : statusLabel(statuses[item.key])
@@ -708,12 +705,7 @@ function AllFeedPage() {
 								upstream={item.status}
 							/>
 						</span>
-						<span
-							className={cn(
-								COL.person,
-								"group-focus-within:invisible group-hover:invisible",
-							)}
-						>
+						<span className={cn(COL.person)}>
 							{item.person && (
 								<PersonChip
 									name={item.person}
@@ -722,20 +714,12 @@ function AllFeedPage() {
 							)}
 						</span>
 						<span
-							className={cn(
-								COL.place,
-								"truncate text-muted-foreground group-focus-within:invisible group-hover:invisible",
-							)}
+							className={cn(COL.place, "truncate text-muted-foreground")}
 							title={item.context ?? undefined}
 						>
 							{item.context}
 						</span>
-						<span
-							className={cn(
-								COL.date,
-								"group-focus-within:invisible group-hover:invisible",
-							)}
-						>
+						<span className={cn(COL.date)}>
 							{/* A due date wins the column; otherwise when it last moved. */}
 							{effectiveDue(item.key, reminders, item.dueDate) ? (
 								<DueChip
@@ -751,48 +735,66 @@ function AllFeedPage() {
 								})
 							)}
 						</span>
-						<span className="invisible absolute inset-y-0 right-0 flex items-center gap-1.5 group-focus-within:visible group-hover:visible">
-							<DueChip
-								itemKey={item.key}
-								title={item.title}
-								upstream={item.dueDate}
-							/>
-							{url && (
-								<button
-									type="button"
-									title={url}
-									onClick={() => openUrl(url)}
-									className={ROW_LINK_BUTTON}
-								>
-									Open ↗
-								</button>
-							)}
-							{drag ? (
-								<button
-									type="button"
-									onClick={() => dequeue(item.key)}
-									title="Take it off Up next"
-									className={ROW_LINK_BUTTON}
-								>
-									✕ Up next
-								</button>
-							) : (
-								<button
-									type="button"
-									onClick={() => enqueue(item.key)}
-									title="Line it up - Up next, above the list"
-									className={ROW_LINK_BUTTON}
-								>
-									Up next
-								</button>
-							)}
-							<TonightButton item={item} />
-							<ReadLaterButton
-								on={isReading}
-								onClick={() => (isReading ? undo(item) : markReading(item))}
-							/>
-						</span>
 					</div>
+					{/* The quiet four, always there as icons: hiding them until hover
+					    meant the row's own data vanished under the cursor. */}
+					<span className={COL.acts}>
+						{url ? (
+							<button
+								type="button"
+								title={`Open - ${url}`}
+								aria-label="Open"
+								onClick={() => openUrl(url)}
+								className={ROW_ICON_BUTTON}
+							>
+								<LuExternalLink className="size-3.5" aria-hidden />
+							</button>
+						) : (
+							<span className="size-7 shrink-0" />
+						)}
+						<DueChip
+							iconOnly
+							itemKey={item.key}
+							title={item.title}
+							upstream={item.dueDate}
+						/>
+						{drag ? (
+							<button
+								type="button"
+								onClick={() => dequeue(item.key)}
+								title="Take it off Up next"
+								aria-label="Take it off Up next"
+								className={cn(ROW_ICON_BUTTON, "text-primary")}
+							>
+								<LuListMinus className="size-3.5" aria-hidden />
+							</button>
+						) : (
+							<button
+								type="button"
+								onClick={() => enqueue(item.key)}
+								title="Line it up - Up next, above the list"
+								aria-label="Up next"
+								className={ROW_ICON_BUTTON}
+							>
+								<LuListPlus className="size-3.5" aria-hidden />
+							</button>
+						)}
+						<TonightButton item={item} iconOnly />
+						<button
+							type="button"
+							onClick={() => (isReading ? undo(item) : markReading(item))}
+							title={
+								isReading
+									? "Back to Waiting on you"
+									: "Mark it Read later - it stays here, off the Night Agent"
+							}
+							aria-label="Read later"
+							aria-pressed={isReading}
+							className={cn(ROW_ICON_BUTTON, isReading && "text-primary")}
+						>
+							<LuBookmark className="size-3.5" aria-hidden />
+						</button>
+					</span>
 					<span className={COL.start}>
 						{activePaneId ? (
 							<button
@@ -1339,15 +1341,16 @@ const ROW_GRID = "flex items-center gap-3";
 const COL = {
 	lead: "flex w-[68px] shrink-0 items-center justify-end gap-1.5",
 	task: "flex min-h-[37px] min-w-0 flex-1 flex-col justify-center",
-	drop: "flex w-[104px] shrink-0 items-center",
-	why: "flex w-[148px] shrink-0 items-center overflow-hidden",
+	drop: "flex w-[100px] shrink-0 items-center",
+	why: "flex w-[132px] shrink-0 items-center overflow-hidden",
 	status:
-		"flex w-[104px] shrink-0 items-center overflow-hidden @max-[1120px]:hidden",
+		"flex w-[96px] shrink-0 items-center overflow-hidden @max-[1300px]:hidden",
 	person:
-		"flex w-[148px] shrink-0 items-center overflow-hidden @max-[980px]:hidden",
-	place: "block w-[124px] shrink-0 @max-[1240px]:hidden",
-	date: "flex w-[64px] shrink-0 items-center tabular-nums text-muted-foreground @max-[820px]:hidden",
-	start: "flex w-[128px] shrink-0 justify-end",
+		"flex w-[136px] shrink-0 items-center overflow-hidden @max-[1150px]:hidden",
+	place: "block w-[116px] shrink-0 truncate @max-[1500px]:hidden",
+	date: "flex w-[56px] shrink-0 items-center tabular-nums text-muted-foreground @max-[950px]:hidden",
+	acts: "flex w-[140px] shrink-0 items-center justify-end gap-0.5",
+	start: "flex w-[124px] shrink-0 justify-end",
 	done: "flex w-[72px] shrink-0",
 };
 
@@ -1372,6 +1375,7 @@ function ColumnHeader({ date }: { date: string }) {
 				<span className={COL.place}>Where</span>
 				<span className={COL.date}>{date}</span>
 			</span>
+			<span className={COL.acts} />
 			<span className={COL.start} />
 			<span className={COL.done} />
 		</div>

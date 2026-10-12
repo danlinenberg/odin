@@ -1,6 +1,6 @@
 import { cn } from "@odin/ui/utils";
 import { useEffect, useRef } from "react";
-import { LuCalendarX } from "react-icons/lu";
+import { LuCalendarPlus, LuCalendarX } from "react-icons/lu";
 import { DEFAULT_PROFILE_ID } from "shared/odin-profile";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
@@ -291,10 +291,13 @@ export function DueChip({
 	itemKey,
 	title,
 	upstream,
+	iconOnly = false,
 }: {
 	itemKey: string;
 	title: string;
 	upstream?: string | null;
+	/** A calendar icon that is always shown - a table row's action column. */
+	iconOnly?: boolean;
 }) {
 	const reminder = useReminders((s) => s.reminders[itemKey]);
 	const setDue = useReminders((s) => s.setDue);
@@ -338,10 +341,14 @@ export function DueChip({
 					input.current?.showPicker();
 				}}
 				className={cn(
-					"truncate rounded-[5px] px-[7px] py-[1px] text-[11px] transition-colors",
-					due
-						? TONE_CLASS[dueTone(due, now)]
-						: "text-muted-foreground opacity-0 hover:text-foreground group-hover:opacity-100",
+					iconOnly
+						? "flex size-7 items-center justify-center rounded-[6px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+						: "truncate rounded-[5px] px-[7px] py-[1px] text-[11px] transition-colors",
+					iconOnly
+						? ""
+						: due
+							? TONE_CLASS[dueTone(due, now)]
+							: "text-muted-foreground opacity-0 hover:text-foreground group-hover:opacity-100",
 					// An inherited date is lighter than one you chose: the ticket
 					// says so, you didn't.
 					reminder ? "font-semibold" : "font-medium",
@@ -349,9 +356,15 @@ export function DueChip({
 			>
 				{/* Spelled out: beside a card's age chip, a bare "Sep 25" could be
 				    either one. */}
-				{due ? `Due ${dueLabel(due, now)}` : "+ Due"}
+				{iconOnly ? (
+					<LuCalendarPlus className="size-3.5" aria-hidden />
+				) : due ? (
+					`Due ${dueLabel(due, now)}`
+				) : (
+					"+ Due"
+				)}
 			</button>
-			{reminder && (
+			{reminder && !iconOnly && (
 				<button
 					type="button"
 					title={

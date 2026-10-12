@@ -462,6 +462,15 @@ const clickOnTaskRow = (title: string) =>
 		return !!row;
 	})()`);
 
+/** Whether TASK's row has a button titled `title*`. */
+const clickOnTaskRowHas = (title: string) =>
+	page<boolean>(`(() => {
+		const sel = 'button[title^=${JSON.stringify(title)}]';
+		let row = [...document.querySelectorAll("button")].find((e) => e.textContent.trim() === ${JSON.stringify(TASK)});
+		while (row && !row.querySelector(sel)) row = row.parentElement;
+		return !!row?.querySelector(sel) && !!row.querySelector('button[title="Mark done"]');
+	})()`);
+
 /**
  * Where Start session and Done sit on TASK's row. Rows are separate grids, so a
  * wider or missing button on one row ("↺ Read later", no Tonight) used to push
@@ -487,7 +496,7 @@ await step("Read later marks a task and keeps it on the list", async () => {
 		);
 	if (!(await clickOnTaskRow("Mark it Read later")))
 		throw new Error("no Read later button on the task's row");
-	await waitForText("↺ Read later");
+	await waitForText("read later");
 	await waitForText(TASK);
 	const after = await taskRowButtons();
 	if (JSON.stringify(after) !== JSON.stringify(before))
@@ -496,7 +505,13 @@ await step("Read later marks a task and keeps it on the list", async () => {
 		);
 	if (!(await clickOnTaskRow("Back to Waiting on you")))
 		throw new Error("no way back from Read later on the task's row");
-	await waitForText("↺ Read later", false);
+	for (
+		const end = Date.now() + 5_000;
+		await clickOnTaskRowHas("Back to Waiting on you");
+	) {
+		if (Date.now() > end) throw new Error("Read later never cleared");
+		await sleep(200);
+	}
 	await waitForText(TASK);
 });
 
