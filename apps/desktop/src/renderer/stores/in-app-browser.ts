@@ -77,7 +77,11 @@ export function slackThread(url: string): SlackThread | null {
  * you chose your own browser, for all links or that site's. Any other link, and anything that isn't a web
  * page (mailto:, a file), goes to the system.
  */
+/** Bumps on every open, so a slow Slack check can't replace a newer link. */
+let opens = 0;
+
 export function openUrl(url: string): void {
+	const open = ++opens;
 	const site = linkSite(url);
 	const { external, browserSites } = useInAppBrowser.getState();
 	if (site && !external && !browserSites.includes(site)) {
@@ -90,11 +94,11 @@ export function openUrl(url: string): void {
 		void electronTrpcClient.external.hasSlackSession
 			.query()
 			.catch(() => true)
-			.then((signedIn) =>
-				signedIn
-					? useInAppBrowser.setState({ url: slackWebClientUrl(url) })
-					: openExternally(url),
-			);
+			.then((signedIn) => {
+				if (open !== opens) return;
+				if (signedIn) useInAppBrowser.setState({ url: slackWebClientUrl(url) });
+				else openExternally(url);
+			});
 		return;
 	}
 	openExternally(url);
