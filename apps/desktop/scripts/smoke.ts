@@ -422,6 +422,48 @@ await step("the My Tasks composer adds a task with its button", async () => {
 	await waitForText(typed);
 });
 
+/**
+ * Where TASK's columns sit, and the header's Task label: every tab draws
+ * rows with the one table, so the same task lines up the same way on All and
+ * on its own tab (task-table.test.ts checks the code; this checks the screen).
+ */
+const taskColumns = () =>
+	page<number[] | null>(`(() => {
+		const title = [...document.querySelectorAll("button")].find((e) => e.textContent.trim() === ${JSON.stringify(TASK)});
+		const row = title?.closest("[data-task-row]");
+		const header = [...document.querySelectorAll("span")].find((e) => e.textContent.trim() === "Task");
+		if (!row || !header) return null;
+		const x = (e) => Math.round(e?.getBoundingClientRect().left ?? -1);
+		return [
+			x(header),
+			x(title),
+			x(row.querySelector('button[aria-label^="Line it up"]')),
+			x(row.querySelector('button[aria-label="Start session"], button[aria-label="Go to session"]')),
+			x(row.querySelector('button[title="Mark done"]')),
+		];
+	})()`);
+
+await step(
+	"a task's columns line up the same on All and on its own tab",
+	async () => {
+		await rail("Tasks");
+		await waitForText(TASK);
+		const all = await taskColumns();
+		await page(`(() => {
+		const strip = __find("button", "Slack").parentElement;
+		__find("button", "Tasks", strip).click();
+	})()`);
+		await waitForText("my own list");
+		await waitForText(TASK);
+		const own = await taskColumns();
+		if (!all || !own) throw new Error("no table row or header for the task");
+		if (all[0] !== all[1] || own[0] !== own[1])
+			throw new Error(`the Task header isn't over the titles: ${all} / ${own}`);
+		if (JSON.stringify(all) !== JSON.stringify(own))
+			throw new Error(`columns moved between All ${all} and Tasks ${own}`);
+	},
+);
+
 await step("a new profile sees none of the first one's tasks", async () => {
 	await rail("Settings");
 	await waitForText("profiles");

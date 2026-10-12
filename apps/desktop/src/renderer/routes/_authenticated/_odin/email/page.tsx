@@ -1,19 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { ConnectNotice } from "renderer/components/ConnectProvider/ConnectProvider";
-import { openUrl } from "renderer/stores/in-app-browser";
-import { DoneButton } from "../components/DoneButton";
-import { SweepDrop } from "../components/DropHint";
 import {
-	FEED_LIST,
-	FEED_ROW,
+	TABLE_LIST,
+	TaskRow,
+	TaskTableHeader,
+	useTaskRows,
+} from "../all/TaskTable";
+import { useFeedItems } from "../all/use-all-items";
+import {
 	FeedDivider,
 	FeedHeader,
 	FilterPill,
-	META_DATE,
-	META_PERSON,
-	ROW_LINK_BUTTON,
-	ROW_LINK_SLOT,
 	SyncButton,
 } from "../components/FeedChrome";
 import { FeedError } from "../components/FeedError";
@@ -30,7 +28,7 @@ export const Route = createFileRoute("/_authenticated/_odin/email/")({
  */
 function EmailPage() {
 	const { emails, workConfig, syncAll, isSyncing } = useOdinFeeds();
-	const { isDone, markDone } = useDone();
+	const { isDone } = useDone();
 	// ponytail: local state - opens on the interesting mail every visit.
 	const [showJunk, setShowJunk] = useState(false);
 	const open = (emails.data?.emails ?? []).filter(
@@ -38,6 +36,9 @@ function EmailPage() {
 	);
 	const junkCount = open.filter((email) => email.junk === true).length;
 	const rows = showJunk ? open : open.filter((email) => email.junk !== true);
+	const items = useFeedItems({ emails: open });
+	const taskRows = useTaskRows();
+	const now = Date.now();
 
 	return (
 		<div className="flex h-full flex-col">
@@ -62,7 +63,7 @@ function EmailPage() {
 				</div>
 			</FeedHeader>
 
-			<div className={FEED_LIST}>
+			<div className={TABLE_LIST}>
 				{workConfig && !workConfig.hasGmail && (
 					<ConnectNotice
 						provider="gmail"
@@ -86,59 +87,15 @@ function EmailPage() {
 							: "No unread mail 🎉"}
 					</div>
 				)}
-				{rows.map((email) => (
-					<div key={email.id} className={FEED_ROW}>
-						<div className="flex items-center gap-3">
-							<div className="min-w-0 flex-1">
-								<div className="truncate text-[13px] font-semibold text-foreground">
-									{email.subject}
-								</div>
-								{email.snippet && (
-									<div className="truncate text-[11px] text-muted-foreground">
-										{email.snippet}
-									</div>
-								)}
-							</div>
-							<div className="flex shrink-0 items-center gap-2 text-[11px]">
-								<span
-									className={`${META_PERSON} truncate text-muted-foreground`}
-								>
-									{email.from}
-								</span>
-								<span title={email.at ?? undefined} className={META_DATE}>
-									{email.at
-										? new Date(email.at).toLocaleDateString(undefined, {
-												month: "short",
-												day: "numeric",
-											})
-										: null}
-								</span>
-							</div>
-							<SweepDrop itemKey={`email:${email.id}`} url={email.url} />
-							<div className="flex shrink-0 items-center gap-1.5">
-								<span className={ROW_LINK_SLOT}>
-									<button
-										type="button"
-										onClick={() => openUrl(email.url)}
-										className={ROW_LINK_BUTTON}
-									>
-										Open ↗
-									</button>
-								</span>
-								<DoneButton
-									onClick={() =>
-										markDone({
-											key: `email:${email.id}`,
-											title: email.subject,
-											source: "Email",
-											url: email.url,
-										})
-									}
-								/>
-							</div>
-						</div>
-					</div>
-				))}
+				{rows.length > 0 && <TaskTableHeader date="Received" />}
+				{rows.map((email) => {
+					const item = items.get(`email:${email.id}`);
+					return (
+						item && (
+							<TaskRow key={item.key} item={item} rows={taskRows} now={now} />
+						)
+					);
+				})}
 			</div>
 		</div>
 	);

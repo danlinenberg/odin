@@ -8,10 +8,8 @@ import {
 } from "@dnd-kit/core";
 import {
 	SortableContext,
-	useSortable,
 	verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
@@ -22,13 +20,6 @@ import {
 	useMemo,
 	useState,
 } from "react";
-import type { IconType } from "react-icons";
-import {
-	LuBookmark,
-	LuExternalLink,
-	LuListMinus,
-	LuListPlus,
-} from "react-icons/lu";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { openUrl } from "renderer/stores/in-app-browser";
@@ -37,14 +28,11 @@ import type { PaneStatus } from "shared/tabs-types";
 import { DoneButton } from "../components/DoneButton";
 import { SweepDrop } from "../components/DropHint";
 import {
-	FEED_LIST,
 	FEED_ROW,
 	FeedDivider,
 	FeedHeader,
 	FeedSearch,
 	FeedSelect,
-	IconTip,
-	ROW_ICON_BUTTON,
 	ROW_LINK_BUTTON,
 	ROW_LIVE_BUTTON,
 	ROW_META,
@@ -54,18 +42,10 @@ import {
 	SECTION_LABEL,
 	SyncButton,
 } from "../components/FeedChrome";
-import { FEED_TABS, type FeedPath } from "../components/feed-counts";
+import type { FeedPath } from "../components/feed-counts";
 import { PersonChip } from "../components/PersonChip";
-import { PILL } from "../components/pill";
-import {
-	DueChip,
-	effectiveDue,
-	isDue,
-	OverdueMark,
-	useReminders,
-} from "../components/Reminders";
-import { PriorityLabelChip, TaskBox } from "../components/TaskBox";
-import { TonightButton } from "../components/TonightButton";
+import { effectiveDue, isDue, useReminders } from "../components/Reminders";
+import { TaskBox } from "../components/TaskBox";
 import { useActiveSessions } from "../hooks/useActiveSessions";
 import { useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
@@ -83,26 +63,30 @@ import {
 	bandOf,
 	matchesStatus,
 	NO_STATUS,
-	plainText,
-	reasonOf,
 	type Urgency,
 } from "./all-items";
 import { nextSelection, visibleSelection } from "./selection";
 import { TaskDescription } from "./TaskDescription";
 import { TaskDetails } from "./TaskDetails";
 import {
-	statusLabel,
+	SOURCE_ICON,
+	type SortableBits,
+	SortableRow,
+	TABLE_LIST,
+	TaskRow,
+	TaskTableHeader,
+	useTaskRows,
+} from "./TaskTable";
+import {
 	TASK_STATUSES,
 	TASK_TYPES,
 	type TaskStatus,
 	type TaskType,
-	typeLabel,
 	typeOf,
 	useTaskMeta,
 } from "./task-meta";
 import { useTitleOverrides } from "./title-overrides";
 import { useAllItems, useSearchableItems } from "./use-all-items";
-import { useStartAllItem } from "./use-start-item";
 
 /** `open`: a row key whose details to open - how Search all lands on a row. */
 type AllSearch = { open?: string };
@@ -136,14 +120,6 @@ export const Route = createFileRoute("/_authenticated/_odin/all/")({
  * feed's prompt builder is shared (feed-prompts.ts, thread-prompt.ts,
  * notion/rows.ts), and the launch payload is built in all-items.ts.
  */
-
-/**
- * The tab strip's own mark for each feed, reused - a row's mark should say
- * "Slack" the same way the tab that opens Slack does.
- */
-const SOURCE_ICON = Object.fromEntries(
-	FEED_TABS.map(({ to, Icon }) => [to, Icon]),
-) as Record<FeedPath, IconType>;
 
 /**
  * A running session's source, in the same terms the rows use - the board's
@@ -214,18 +190,6 @@ const BANDS: { id: Band; label: string; hint: string }[] = [
 	{ id: "later", label: "Later", hint: "" },
 ];
 
-/**
- * The asks whose timing is the point. Their rows show the reason ("asked you
- * 2h ago") where the others show a priority chip: for these the source's
- * level is a rule (every reaction is High), and the wait is the real signal.
- */
-const TIMED_ASKS = new Set<AllItem["ask"]["kind"]>([
-	"asked",
-	"mentioned",
-	"review",
-	"unread",
-]);
-
 const SHOW_SESSIONS_KEY = "odin.all.showSessions";
 /** Kept, unlike the other cuts: hiding Backlog is a standing choice, not a
  * look around. "only:<status>" or "hide:<status>"; "" is every status. */
@@ -277,16 +241,10 @@ function AllFeedPage() {
 	// Order inside a band. "updated" is the feeds' own order (allItems);
 	// "created" is when each row landed on your list - for Slack, the :eyes:.
 	const [sortBy, setSortBy] = useState<"updated" | "created">("updated");
-	const dateOf = (item: AllItem) =>
-		sortBy === "created" ? item.createdAt : item.at;
 	const needle = search.trim().toLowerCase();
 	const reminders = useReminders((s) => s.reminders);
-	const {
-		start: handleStart,
-		livePaneFor,
-		isLaunching,
-		launchingKey,
-	} = useStartAllItem(() => void reactions.refetch());
+	const rows = useTaskRows(() => void reactions.refetch());
+	const { start: handleStart, livePaneFor, isLaunching, launchingKey } = rows;
 	const sessions = useActiveSessions();
 	const needsYou = sessions.filter(
 		(session) => session.column === "permission",
@@ -590,251 +548,23 @@ function AllFeedPage() {
 	/** One row of the list. */
 	const renderRow = (
 		item: AllItem,
-		band: Band | "next",
 		drag?: SortableBits & { place: number },
-	) => {
-		const url = item.url;
-		const SourceIcon = SOURCE_ICON[item.to];
-		const activePaneId = livePaneFor(item);
-		const isReading = readingKeys.has(item.key);
-		// The wait is the reason on a timed ask; a level the source itself set
-		// (Jira's Highest, your own High) stays a chip.
-		const timed = TIMED_ASKS.has(item.ask.kind);
-		const rated =
-			item.sourcePriority !== undefined
-				? item.priority
-				: timed
-					? null
-					: item.priority;
-		// The second line: the comment that put it here, else the body - always
-		// one line, so every row is the same height and the columns line up.
-		const preview = item.mention
-			? `${item.mention.author ?? "Someone"}: ${plainText(item.mention.text)}`
-			: item.body
-				? plainText(item.body)
-				: "";
-		return (
-			<div
-				key={item.key}
-				ref={drag?.setNodeRef}
-				style={drag?.style}
-				className={cn(
-					TABLE_ROW,
-					band === "now" && "shadow-[inset_2px_0_0_var(--attention)]",
-					item.key === openKey && "bg-primary/10 hover:bg-primary/12",
-				)}
-			>
-				<div className={ROW_GRID}>
-					<span className={COL.lead}>
-						{drag && (
-							<span
-								{...drag.attributes}
-								{...drag.listeners}
-								title="Drag to reorder"
-								className="flex cursor-grab items-center gap-1 text-[12px] font-semibold text-muted-foreground active:cursor-grabbing"
-							>
-								<span aria-hidden>⠿</span>
-								{drag.place}
-							</span>
-						)}
-						<input
-							type="checkbox"
-							aria-label={`Select ${item.title}`}
-							title="Select - shift-click selects a range"
-							checked={selected.has(item.key)}
-							onChange={() => {}}
-							onClick={(event) => tick(item.key, event.shiftKey)}
-							className="size-3.5 cursor-pointer accent-primary"
-						/>
-						<SourceIcon
-							className="size-3.5 shrink-0 text-muted-foreground"
-							title={item.source}
-							aria-label={item.source}
-						/>
-					</span>
-					<div className={COL.task}>
-						<button
-							type="button"
-							title="Show details"
-							onClick={() => setOpenKey(item.key === openKey ? null : item.key)}
-							className="block w-full truncate bg-none text-left text-[13px] font-semibold text-foreground"
-						>
-							<OverdueMark itemKey={item.key} upstream={item.dueDate} />
-							{emojify(item.title)}
-							{typeOf(item, types) && (
-								<span className="ml-2 text-[11px] font-normal text-muted-foreground">
-									{typeLabel(typeOf(item, types))}
-								</span>
-							)}
-						</button>
-						{preview && preview !== item.title.trim() && (
-							<div
-								dir="auto"
-								title={preview}
-								className="truncate text-[11.5px] text-muted-foreground"
-							>
-								{emojify(preview.slice(0, 300))}
-							</div>
-						)}
-					</div>
-					{/* Its own column, outside the hover swap: Keep stays clickable. */}
-					<span className={COL.drop}>
-						<SweepDrop itemKey={item.key} url={item.url} />
-					</span>
-					{/* The meta columns, and the quiet four over them on hover or
-					    keyboard focus (absolute, so they never widen the row). */}
-					<div className="flex shrink-0 items-center gap-3 text-[11px]">
-						<span className={cn(COL.why)}>
-							{timed ? (
-								<span
-									className={cn(
-										"truncate text-muted-foreground",
-										band === "now" && "font-semibold text-attention",
-									)}
-								>
-									{reasonOf(item, now)}
-								</span>
-							) : (
-								rated && <PriorityLabelChip label={rated} />
-							)}
-						</span>
-						<span className={cn(COL.status)}>
-							<RowStatus
-								odin={
-									isReading ? "Read later" : statusLabel(statuses[item.key])
-								}
-								upstream={item.status}
-							/>
-						</span>
-						<span className={cn(COL.person)}>
-							{item.person && (
-								<PersonChip
-									name={item.person}
-									className="max-w-full truncate"
-								/>
-							)}
-						</span>
-						<span
-							className={cn(COL.place, "truncate text-muted-foreground")}
-							title={item.context ?? undefined}
-						>
-							{item.context}
-						</span>
-						<span className={cn(COL.date)}>
-							{/* A due date wins the column; otherwise when it last moved. */}
-							{effectiveDue(item.key, reminders, item.dueDate) ? (
-								<DueChip
-									itemKey={item.key}
-									title={item.title}
-									upstream={item.dueDate}
-								/>
-							) : (
-								dateOf(item) > 0 &&
-								new Date(dateOf(item)).toLocaleDateString(undefined, {
-									month: "short",
-									day: "numeric",
-								})
-							)}
-						</span>
-					</div>
-					{/* The quiet four, always there as icons: hiding them until hover
-					    meant the row's own data vanished under the cursor. */}
-					<span className={COL.acts}>
-						{url ? (
-							<IconTip label={`Open in ${item.source}`}>
-								<button
-									type="button"
-									aria-label={`Open in ${item.source}`}
-									onClick={() => openUrl(url)}
-									className={ROW_ICON_BUTTON}
-								>
-									<LuExternalLink className="size-3.5" aria-hidden />
-								</button>
-							</IconTip>
-						) : (
-							<span className="size-6 shrink-0" />
-						)}
-						<DueChip
-							iconOnly
-							itemKey={item.key}
-							title={item.title}
-							upstream={item.dueDate}
-						/>
-						{drag ? (
-							<IconTip label="Take it off Up next">
-								<button
-									type="button"
-									onClick={() => dequeue(item.key)}
-									aria-label="Take it off Up next"
-									className={cn(ROW_ICON_BUTTON, "text-primary")}
-								>
-									<LuListMinus className="size-3.5" aria-hidden />
-								</button>
-							</IconTip>
-						) : (
-							<IconTip label="Line it up - Up next">
-								<button
-									type="button"
-									onClick={() => enqueue(item.key)}
-									aria-label="Line it up - Up next"
-									className={ROW_ICON_BUTTON}
-								>
-									<LuListPlus className="size-3.5" aria-hidden />
-								</button>
-							</IconTip>
-						)}
-						<TonightButton item={item} iconOnly />
-						<IconTip
-							label={
-								isReading
-									? "Back to Waiting on you"
-									: "Mark it Read later - off the Night Agent"
-							}
-						>
-							<button
-								type="button"
-								onClick={() => (isReading ? undo(item) : markReading(item))}
-								aria-label={
-									isReading
-										? "Back to Waiting on you"
-										: "Mark it Read later - off the Night Agent"
-								}
-								aria-pressed={isReading}
-								className={cn(ROW_ICON_BUTTON, isReading && "text-primary")}
-							>
-								<LuBookmark className="size-3.5" aria-hidden />
-							</button>
-						</IconTip>
-					</span>
-					<span className={COL.start}>
-						{activePaneId ? (
-							<button
-								type="button"
-								aria-label="Go to session"
-								onClick={() => goToPane(activePaneId)}
-								className={cn(ROW_LIVE_BUTTON, "px-2.5")}
-							>
-								Session →
-							</button>
-						) : (
-							<button
-								type="button"
-								aria-label="Start session"
-								disabled={isLaunching}
-								onClick={() => void handleStart(item)}
-								className={cn(ROW_START_BUTTON, "px-2.5")}
-							>
-								{launchingKey === item.launch.key ? "Starting…" : "Start"}
-							</button>
-						)}
-					</span>
-					<span className={COL.done}>
-						<DoneButton onClick={() => finish(item)} />
-					</span>
-				</div>
-			</div>
-		);
-	};
+	) => (
+		<TaskRow
+			key={item.key}
+			item={item}
+			rows={rows}
+			now={now}
+			created={sortBy === "created"}
+			drag={drag}
+			select={{
+				checked: selected.has(item.key),
+				onTick: (shift) => tick(item.key, shift),
+			}}
+			open={item.key === openKey}
+			onOpen={() => setOpenKey(item.key === openKey ? null : item.key)}
+		/>
+	);
 
 	return (
 		<div className="flex h-full flex-col">
@@ -1014,9 +744,11 @@ function AllFeedPage() {
 			</div>
 
 			<div className="flex min-h-0 flex-1">
-				<div className={cn(FEED_LIST, "@container gap-0")}>
+				<div className={TABLE_LIST}>
 					{!showDone && items.length + queued.length > 0 && (
-						<ColumnHeader date={sortBy === "created" ? "Created" : "Updated"} />
+						<TaskTableHeader
+							date={sortBy === "created" ? "Created" : "Updated"}
+						/>
 					)}
 					{!showDone && picked.length > 0 && (
 						<div className="sticky top-0 z-10 mb-1 flex items-center gap-2 rounded-md border border-primary/40 bg-secondary px-3 py-1.5 text-[12px]">
@@ -1095,9 +827,7 @@ function AllFeedPage() {
 								>
 									{queued.map((item, index) => (
 										<SortableRow key={item.key} id={item.key}>
-											{(bits) =>
-												renderRow(item, "next", { ...bits, place: index + 1 })
-											}
+											{(bits) => renderRow(item, { ...bits, place: index + 1 })}
 										</SortableRow>
 									))}
 								</SortableContext>
@@ -1268,7 +998,7 @@ function AllFeedPage() {
 										<Count n={bands[id].length} />
 										{hint && <span className={SECTION_HINT}>{hint}</span>}
 									</div>
-									{bands[id].map((item) => renderRow(item, id))}
+									{bands[id].map((item) => renderRow(item))}
 								</div>
 							),
 						)}
@@ -1347,63 +1077,6 @@ function AllFeedPage() {
 					</DetailsPanel>
 				)}
 			</div>
-		</div>
-	);
-}
-
-/**
- * The row's columns, fixed widths shared with the header so every row lines
- * up like a table. Narrow lists drop whole columns - place first, then
- * status, person and date - rather than squeezing the title to nothing.
- */
-const ROW_GRID = "flex items-center gap-2.5";
-const COL = {
-	lead: "flex w-[60px] shrink-0 items-center justify-end gap-1.5",
-	task: "flex min-h-[30px] min-w-0 flex-1 flex-col justify-center",
-	drop: "flex w-[92px] shrink-0 items-center",
-	why: "flex w-[96px] shrink-0 items-center overflow-hidden",
-	status:
-		"flex w-[96px] shrink-0 items-center overflow-hidden @max-[1200px]:hidden",
-	person:
-		"flex w-[132px] shrink-0 items-center overflow-hidden @max-[1050px]:hidden",
-	place: "block w-[112px] shrink-0 truncate @max-[1380px]:hidden",
-	date: "flex w-[52px] shrink-0 items-center tabular-nums text-muted-foreground @max-[860px]:hidden",
-	acts: "flex w-[128px] shrink-0 items-center justify-end gap-0.5",
-	start: "flex w-[84px] shrink-0 justify-end",
-	done: "flex w-[72px] shrink-0",
-};
-
-/**
- * A row of the table: a line with a divider, not a card - cards with their
- * own border, padding and gap spent a third of the height on chrome.
- */
-const TABLE_ROW =
-	"group border-b border-border/70 px-3.5 py-1 transition-colors hover:bg-secondary/60";
-
-/** The table's column names, over the rows. */
-function ColumnHeader({ date }: { date: string }) {
-	const label = "text-[10.5px] font-semibold uppercase tracking-[.06em]";
-	return (
-		<div
-			className={cn(
-				ROW_GRID,
-				label,
-				"sticky top-0 z-[5] border-b border-border bg-background px-3.5 py-1.5 text-faint-foreground",
-			)}
-		>
-			<span className={COL.lead} />
-			<span className={COL.task}>Task</span>
-			<span className={COL.drop}>Sweep</span>
-			<span className="flex shrink-0 items-center gap-3">
-				<span className={COL.why}>Why</span>
-				<span className={COL.status}>Status</span>
-				<span className={COL.person}>From</span>
-				<span className={COL.place}>Where</span>
-				<span className={COL.date}>{date}</span>
-			</span>
-			<span className={COL.acts} />
-			<span className={COL.start} />
-			<span className={COL.done} />
 		</div>
 	);
 }
@@ -1629,31 +1302,6 @@ function ReadLaterButton({
 	);
 }
 
-/** Odin's status when there is one, the source's own otherwise. */
-function RowStatus({
-	odin,
-	upstream,
-}: {
-	odin: string | null;
-	upstream: string | null;
-}) {
-	if (odin)
-		return (
-			<span
-				title={upstream ? `${upstream} upstream` : undefined}
-				className={cn(
-					"max-w-[116px] truncate rounded-[5px] px-[7px] py-[1px] font-semibold",
-					PILL.neutral,
-				)}
-			>
-				{odin}
-			</span>
-		);
-	return upstream ? (
-		<span className={cn(ROW_META, "max-w-[116px] truncate")}>{upstream}</span>
-	) : null;
-}
-
 const OWN_PRIORITIES: [string, string][] = [3, 2, 1].map((level) => [
 	String(level),
 	PRIORITY_LABELS[level],
@@ -1722,34 +1370,6 @@ function TaskFields({
 			</button>
 		</div>
 	);
-}
-
-type SortableBits = {
-	setNodeRef: (node: HTMLElement | null) => void;
-	style: React.CSSProperties;
-	attributes: ReturnType<typeof useSortable>["attributes"];
-	listeners: ReturnType<typeof useSortable>["listeners"];
-};
-
-/**
- * Up next's drag, around the same row the bands draw - an Up next row used to
- * be a title and a source name, with nothing to read or open.
- */
-function SortableRow({
-	id,
-	children,
-}: {
-	id: string;
-	children: (bits: SortableBits) => ReactNode;
-}) {
-	const { attributes, listeners, setNodeRef, transform, transition } =
-		useSortable({ id });
-	return children({
-		setNodeRef,
-		style: { transform: CSS.Transform.toString(transform), transition },
-		attributes,
-		listeners,
-	});
 }
 
 /** What was put away lately, newest first, as it looked then - with the way back. */

@@ -1,32 +1,17 @@
-import { cn } from "@odin/ui/utils";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
-import { useTabsStore } from "renderer/stores/tabs/store";
-import { DoneButton } from "../components/DoneButton";
-import { SweepDrop } from "../components/DropHint";
 import {
-	FEED_LIST,
-	FEED_ROW,
-	FeedDivider,
-	FeedHeader,
-	ROW_LIVE_BUTTON,
-	ROW_META,
-	ROW_START_BUTTON,
-} from "../components/FeedChrome";
-import { PILL } from "../components/pill";
-import { askSessionContext } from "../components/SessionContextDialog";
-import {
-	BuiltinChip,
-	PriorityChip,
-	RepoChip,
-	SkillChip,
-	TaskBox,
-} from "../components/TaskBox";
+	TABLE_LIST,
+	TaskRow,
+	TaskTableHeader,
+	useTaskRows,
+} from "../all/TaskTable";
+import { useFeedItems } from "../all/use-all-items";
+import { FeedDivider, FeedHeader } from "../components/FeedChrome";
+import { TaskBox } from "../components/TaskBox";
 import { useDone } from "../hooks/useDone";
-import { type OdinTask, taskText, useMyTasks } from "../hooks/useOdinTasks";
-import { usePendingFocus } from "../hooks/usePendingFocus";
-import { useStartTask } from "../hooks/useStartTask";
+import { useMyTasks } from "../hooks/useOdinTasks";
 
 export const Route = createFileRoute("/_authenticated/_odin/my-tasks/")({
 	component: MyTasksPage,
@@ -36,43 +21,27 @@ export const Route = createFileRoute("/_authenticated/_odin/my-tasks/")({
  * My Tasks - the one feed with no upstream system behind it. Jira, Slack and
  * PRs mirror other people's queues; this is where a task that isn't a ticket
  * yet gets written down, and started with an agent whenever you're ready.
+ * Rows are All's table (TaskRow); a title opens the task in All's side panel,
+ * where it's renamed and its brief edited.
  *
  * ponytail: localStorage (useOdinTasks), not the app DB - a personal todo list
  * that only this renderer reads doesn't need a migration. Move it if it ever
  * has to be visible from outside the app.
  */
-
 function MyTasksPage() {
 	// Automations live on their own page; this list is only what waits on you.
 	// Done or Reading material from All tasks is put away here too, the way
 	// the tab's badge already counts it.
-	const { todos, add, edit, remove } = useMyTasks();
+	const { todos, add } = useMyTasks();
 	const { isDone } = useDone();
 	const tasks = todos.filter((task) => !isDone({ key: `task:${task.id}` }));
+	const items = useFeedItems({ tasks });
+	const rows = useTaskRows();
+	const now = Date.now();
 	const [draft, setDraft] = useState("");
-	const [editingId, setEditingId] = useState<string | null>(null);
-	const [editDraft, setEditDraft] = useState("");
 	const [draftRepo, setDraftRepo] = useState("");
-	const [editRepo, setEditRepo] = useState("");
-	const { startTask, isLaunching, launchingKey } = useStartTask();
-	const navigate = useNavigate();
-	const panes = useTabsStore((s) => s.panes);
-	// The agent's own skills, for the compose box and every edit box below.
 	const { data: skills } = electronTrpc.skills.list.useQuery();
 	const { data: repos } = electronTrpc.repos.list.useQuery();
-
-	/** The session this task started, while it's still on the board. */
-	const livePaneId = (task: OdinTask) => {
-		if (!task.paneId) return null;
-		const pane = panes[task.paneId];
-		return pane && !pane.completed ? pane.id : null;
-	};
-
-	const handleStart = async (task: OdinTask) => {
-		const context = await askSessionContext(task.title);
-		if (!context) return;
-		await startTask(task, context);
-	};
 
 	return (
 		<div className="flex h-full flex-col">
@@ -83,8 +52,9 @@ function MyTasksPage() {
 				</span>
 			</FeedHeader>
 
-			<div className="border-b border-border px-[18px] py-3">
+			<div className="border-b border-border px-[18px] py-2">
 				<TaskBox
+					compact
 					value={draft}
 					skills={skills}
 					repos={repos}
@@ -102,115 +72,26 @@ function MyTasksPage() {
 				/>
 			</div>
 
-			<div className={FEED_LIST}>
-				{tasks.length === 0 && (
+			<div className={TABLE_LIST}>
+				{tasks.length === 0 ? (
 					<div className="px-2 py-8 text-center text-xs text-muted-foreground">
 						Nothing on your list - type it in above.
 					</div>
+				) : (
+					<TaskTableHeader date="Created" />
 				)}
 				{tasks.map((task) => {
-					const activePaneId = livePaneId(task);
-					if (editingId === task.id) {
-						return (
-							// shrink-0: the list is a flex column that scrolls, and an
-							// overflowing one squeezes the box's fields to nothing.
-							<div key={task.id} className="shrink-0">
-								<TaskBox
-									value={editDraft}
-									autoFocus
-									skills={skills}
-									repos={repos}
-									repo={editRepo}
-									onRepoChange={setEditRepo}
-									onChange={setEditDraft}
-									onSubmit={() => {
-										edit(task.id, editDraft, editRepo);
-										setEditingId(null);
-									}}
-									onCancel={() => setEditingId(null)}
-									submitLabel="Save"
-								/>
-							</div>
-						);
-					}
+					const item = items.get(`task:${task.id}`);
 					return (
-						<div
-							key={task.id}
-							className={cn(
-								FEED_ROW,
-								activePaneId && "border-l-2 border-l-working",
-							)}
-						>
-							<div className="flex items-start gap-3">
-								<button
-									type="button"
-									title="Click to edit"
-									onClick={() => {
-										setEditDraft(taskText(task));
-										setEditRepo(task.repo ?? "");
-										setEditingId(task.id);
-									}}
-									className="min-w-0 flex-1 cursor-text text-left"
-								>
-									<span className="block truncate text-[13px] font-semibold text-foreground">
-										{task.title}
-									</span>
-									{task.notes && (
-										<span className="mt-1 block truncate text-[11.5px] text-muted-foreground">
-											{task.notes.replace(/\s+/g, " ")}
-										</span>
-									)}
-									<span className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
-										<PriorityChip priority={task.priority} />
-										{task.skill && <SkillChip skill={task.skill} />}
-										{task.repo && <RepoChip repo={task.repo} />}
-										{task.builtin && <BuiltinChip />}
-										{activePaneId && (
-											<span
-												className={cn(
-													"inline-flex items-center gap-1 rounded-[5px] px-[7px] py-[1px] font-semibold",
-													PILL.working,
-												)}
-											>
-												<span className="size-1.5 animate-pulse rounded-full bg-current" />
-												Session live
-											</span>
-										)}
-										<span className={ROW_META}>
-											{new Date(task.createdAt).toLocaleDateString(undefined, {
-												month: "short",
-												day: "numeric",
-											})}
-										</span>
-									</span>
-								</button>
-								<SweepDrop itemKey={`task:${task.id}`} url={null} />
-								<div className="flex shrink-0 items-center gap-1.5">
-									{activePaneId ? (
-										<button
-											type="button"
-											onClick={() => {
-												usePendingFocus.getState().focus(activePaneId);
-												navigate({ to: "/board" });
-											}}
-											className={ROW_LIVE_BUTTON}
-										>
-											Go to session →
-										</button>
-									) : (
-										<button
-											type="button"
-											disabled={isLaunching}
-											onClick={() => void handleStart(task)}
-											className={ROW_START_BUTTON}
-										>
-											{launchingKey === task.id ? "Starting…" : "Start session"}
-										</button>
-									)}
-									<DoneButton onClick={() => remove(task.id)} />
-								</div>
-							</div>
-						</div>
+						item && (
+							<TaskRow
+								key={item.key}
+								item={item}
+								rows={rows}
+								now={now}
+								created
+							/>
+						)
 					);
 				})}
 			</div>

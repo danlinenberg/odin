@@ -1,41 +1,28 @@
 import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { ConnectNotice } from "renderer/components/ConnectProvider/ConnectProvider";
-import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { electronTrpc } from "renderer/lib/electron-trpc";
-import { openUrl } from "renderer/stores/in-app-browser";
 import { useTabsStore } from "renderer/stores/tabs/store";
-import { DoneButton } from "../components/DoneButton";
-import { SweepDrop } from "../components/DropHint";
 import {
-	FEED_LIST,
+	TABLE_LIST,
+	TaskRow,
+	TaskTableHeader,
+	useTaskRows,
+} from "../all/TaskTable";
+import { useFeedItems } from "../all/use-all-items";
+import {
 	FEED_NOTICE_BOX,
-	FEED_ROW,
 	FeedDivider,
 	FeedHeader,
 	FeedSearch,
-	META_DATE,
-	META_PERSON,
-	META_TAG,
-	META_TEXT,
-	ROW_LINK_BUTTON,
-	ROW_LINK_SLOT,
-	ROW_LIVE_BUTTON,
-	ROW_PRIMARY_SLOT,
-	ROW_START_BUTTON,
 	SyncButton,
 } from "../components/FeedChrome";
 import { FeedError } from "../components/FeedError";
-import { PersonChip } from "../components/PersonChip";
-import { PILL } from "../components/pill";
-import { askSessionContext } from "../components/SessionContextDialog";
 import { useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
-import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
-import { usePendingFocus } from "../hooks/usePendingFocus";
-import { buildRowPrompt, groupByStatus, isDoneish } from "./rows";
+import { groupByStatus, isDoneish } from "./rows";
 
 /** A row as Done wants it: its All-feed key, and enough to list it later. */
 const doable = (row: { pageId: string; title: string; pageUrl: string }) => ({
@@ -57,13 +44,6 @@ export const Route = createFileRoute("/_authenticated/_odin/notion/")({
  * The pick is remembered in ~/.config/odin.json, so it survives a restart and
  * the shell can warm the rows on boot like every other feed.
  */
-
-function shortDate(iso: string | null): string | null {
-	if (!iso) return null;
-	const d = new Date(iso);
-	if (Number.isNaN(d.getTime())) return null;
-	return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
 
 function NotionPage() {
 	const {
@@ -88,12 +68,9 @@ function NotionPage() {
 		onSuccess: () => void utils.notion.getConfig.invalidate(),
 		onError: (error) => toast.error(error.message),
 	});
-	const { ensureWorkspace } = useOdinWorkspace();
-	const { launch, isLaunching, launchingKey } = useLaunchTaskSession();
-	const navigate = useNavigate();
 	const panes = useTabsStore((s) => s.panes);
 
-	const { isDone, markDone } = useDone();
+	const { isDone } = useDone();
 	const rows = useMemo(
 		() => (rowsQuery.data?.rows ?? []).filter((row) => !isDone(doable(row))),
 		[rowsQuery.data, isDone],
@@ -128,29 +105,9 @@ function NotionPage() {
 		[shown, livePaneByPage],
 	);
 
-	const handleStart = async (row: (typeof rows)[number]) => {
-		const context = await askSessionContext(row.title);
-		if (!context) return;
-		const ensured = await ensureWorkspace();
-		if (!ensured.ok) return toast.error(ensured.error);
-		const result = await launch({
-			...context,
-			key: row.pageId,
-			workspaceId: ensured.workspace.id,
-			title: row.title,
-			description: buildRowPrompt(row),
-			contact: row.assignee,
-			brief: `${row.title}\n${row.pageUrl}`,
-			pageId: row.pageId,
-			source: "notion",
-		});
-		if (result.ok) {
-			usePendingFocus.getState().focus(result.paneId);
-			navigate({ to: "/board" });
-		} else {
-			toast.error(result.error);
-		}
-	};
+	const items = useFeedItems({ notion: rows });
+	const taskRows = useTaskRows();
+	const now = Date.now();
 
 	return (
 		<div className="flex h-full flex-col">
@@ -217,7 +174,7 @@ function NotionPage() {
 				</div>
 			</FeedHeader>
 
-			<div className={FEED_LIST}>
+			<div className={TABLE_LIST}>
 				{config && !config.hasToken && (
 					<ConnectNotice
 						provider="notion"
@@ -242,6 +199,7 @@ function NotionPage() {
 					</div>
 				)}
 
+				{groups.length > 0 && <TaskTableHeader />}
 				{groups.map(([status, group]) => (
 					<div key={status} className="mb-1">
 						<div className="flex items-center gap-2 py-1 pl-1 text-[11px] font-medium uppercase tracking-[.3px] text-muted-foreground">
@@ -256,97 +214,19 @@ function NotionPage() {
 								{group.length}
 							</span>
 						</div>
-						<div className="flex flex-col gap-1.5">
-							{group.map((row) => {
-								const activePaneId = livePaneByPage.get(row.pageId) ?? null;
-								const date = shortDate(row.updatedAt ?? row.date);
-								return (
-									<div
-										key={row.pageId}
-										className={cn(
-											FEED_ROW,
-											activePaneId && "border-l-2 border-l-working",
-											!activePaneId && isDoneish(status) && "opacity-60",
-										)}
-									>
-										<div className="flex items-center gap-3">
-											<div className="min-w-0 flex-1">
-												<div className="truncate text-[13px] font-semibold text-foreground">
-													{row.title}
-												</div>
-											</div>
-											<div className="flex shrink-0 items-center gap-2 text-[11px]">
-												<span className={META_PERSON}>
-													{row.assignee && (
-														<PersonChip
-															name={row.assignee}
-															className="max-w-full truncate"
-														/>
-													)}
-												</span>
-												<span className={META_TAG}>
-													{activePaneId && (
-														<span
-															className={cn(
-																"inline-flex items-center gap-1 rounded-[5px] px-[7px] py-[1px] font-semibold",
-																PILL.working,
-															)}
-														>
-															<span className="size-1.5 animate-pulse rounded-full bg-current" />
-															Live
-														</span>
-													)}
-												</span>
-												<span className={META_TAG}>{row.priority}</span>
-												<span className={META_TEXT}>{row.channel}</span>
-												<span className={META_DATE}>{date}</span>
-											</div>
-											<SweepDrop
-												itemKey={`notion:${row.pageId}`}
-												url={row.pageUrl}
-											/>
-											<div className="flex shrink-0 items-center gap-1.5">
-												<span className={ROW_LINK_SLOT}>
-													<button
-														type="button"
-														onClick={() => openUrl(row.pageUrl)}
-														className={ROW_LINK_BUTTON}
-													>
-														Page ↗
-													</button>
-												</span>
-												<span className={ROW_PRIMARY_SLOT}>
-													{activePaneId ? (
-														<button
-															type="button"
-															onClick={() => {
-																usePendingFocus.getState().focus(activePaneId);
-																navigate({ to: "/board" });
-															}}
-															className={ROW_LIVE_BUTTON}
-														>
-															Go to session →
-														</button>
-													) : (
-														<button
-															type="button"
-															disabled={isLaunching}
-															onClick={() => void handleStart(row)}
-															className={ROW_START_BUTTON}
-														>
-															{launchingKey === row.pageId
-																? "Starting…"
-																: "Start session"}
-														</button>
-													)}
-												</span>
-												<DoneButton onClick={() => markDone(doable(row))} />
-											</div>
-										</div>
-									</div>
-								);
-							})}
-						</div>
+						{group.map((row) => {
+							const item = items.get(`notion:${row.pageId}`);
+							return (
+								item && (
+									<TaskRow
+										key={item.key}
+										item={item}
+										rows={taskRows}
+										now={now}
+									/>
+								)
+							);
+						})}
 					</div>
 				))}
 				{config?.hasToken && mentions && (

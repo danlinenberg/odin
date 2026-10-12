@@ -1,41 +1,25 @@
-import { toast } from "@odin/ui/sonner";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { ConnectNotice } from "renderer/components/ConnectProvider/ConnectProvider";
-import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
-import { openUrl } from "renderer/stores/in-app-browser";
-import { useTabsStore } from "renderer/stores/tabs/store";
-import { DoneButton } from "../components/DoneButton";
-import { SweepDrop } from "../components/DropHint";
 import {
-	FEED_LIST,
-	FEED_ROW,
+	TABLE_LIST,
+	TaskRow,
+	TaskTableHeader,
+	useTaskRows,
+} from "../all/TaskTable";
+import { useFeedItems } from "../all/use-all-items";
+import {
 	FeedDivider,
 	FeedHeader,
 	FeedSearch,
 	FeedSelect,
 	FilterPill,
-	META_DATE,
-	META_PERSON,
-	META_TAG,
-	META_TEXT,
-	ROW_LINK_BUTTON,
-	ROW_LINK_SLOT,
-	ROW_LIVE_BUTTON,
-	ROW_META,
-	ROW_PRIMARY_SLOT,
-	ROW_START_BUTTON,
 	SyncButton,
 } from "../components/FeedChrome";
 import { FeedError } from "../components/FeedError";
 import { isBot } from "../components/feed-counts";
-import { PersonChip } from "../components/PersonChip";
-import { askSessionContext } from "../components/SessionContextDialog";
-import { buildReviewPrompt } from "../feed-prompts";
 import { useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
-import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
-import { usePendingFocus } from "../hooks/usePendingFocus";
 
 /** A row as Done wants it: its All-feed key, and enough to list it later. */
 const doable = (pull: {
@@ -67,13 +51,6 @@ const KIND_TABS = [
 ];
 type Kind = (typeof KIND_TABS)[number]["id"];
 
-function shortDate(iso: string | null): string | null {
-	if (!iso) return null;
-	const d = new Date(iso);
-	if (Number.isNaN(d.getTime())) return null;
-	return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
-
 function MyPullRequestsPage() {
 	const [kind, setKind] = useState<Kind>("review");
 	const [repoFilter, setRepoFilter] = useState("");
@@ -87,10 +64,6 @@ function MyPullRequestsPage() {
 		syncAll,
 		isSyncing,
 	} = useOdinFeeds();
-	const { ensureWorkspace } = useOdinWorkspace();
-	const { launch, isLaunching, launchingKey } = useLaunchTaskSession();
-	const navigate = useNavigate();
-	const panes = useTabsStore((s) => s.panes);
 
 	// Bot PRs (renovate, CI workflow rollouts) can be dozens of identical rows
 	// that bury the human reviews - hidden by default, one click to show.
@@ -98,7 +71,7 @@ function MyPullRequestsPage() {
 
 	// Hidden PRs drop out first, so the bot count and tab counts agree with
 	// what's on screen.
-	const { isDone, markDone } = useDone();
+	const { isDone } = useDone();
 	const allPulls = useMemo(
 		() =>
 			(pullsQuery.data?.pulls ?? []).filter((pull) => !isDone(doable(pull))),
@@ -120,16 +93,6 @@ function MyPullRequestsPage() {
 		}),
 		[pulls],
 	);
-
-	// A session already running for this PR (pane title carries "repo#number").
-	const activePaneForPull = (repo: string, number: number): string | null => {
-		const tag = `${repo}#${number}`;
-		return (
-			Object.values(panes).find(
-				(pane) => !pane.completed && pane.odinTaskTitle?.includes(tag),
-			)?.id ?? null
-		);
-	};
 
 	const repos = useMemo(() => {
 		const counts = new Map<string, number>();
@@ -153,34 +116,9 @@ function MyPullRequestsPage() {
 		[pulls, kind, repoFilter, needle],
 	);
 
-	const handleStart = async (pull: (typeof pulls)[number]) => {
-		const title = `${pull.repo}#${pull.number}: ${pull.title}`;
-		const context = await askSessionContext(title);
-		if (!context) return;
-		const ensured = await ensureWorkspace();
-		if (!ensured.ok) return toast.error(ensured.error);
-		const result = await launch({
-			...context,
-			key: pull.url,
-			workspaceId: ensured.workspace.id,
-			title,
-			description: buildReviewPrompt(
-				pull.url,
-				pull.title,
-				pull.repo,
-				pull.kind,
-			),
-			contact: pull.author,
-			brief: `${title}\n${pull.url}`,
-			source: "pr",
-		});
-		if (result.ok) {
-			usePendingFocus.getState().focus(result.paneId);
-			navigate({ to: "/board" });
-		} else {
-			toast.error(result.error);
-		}
-	};
+	const items = useFeedItems({ pulls: allPulls });
+	const taskRows = useTaskRows();
+	const now = Date.now();
 
 	return (
 		<div className="flex h-full flex-col">
@@ -232,7 +170,7 @@ function MyPullRequestsPage() {
 				</div>
 			</FeedHeader>
 
-			<div className={FEED_LIST}>
+			<div className={TABLE_LIST}>
 				{config && !config.hasGithub && (
 					<ConnectNotice
 						provider="github"
@@ -252,90 +190,13 @@ function MyPullRequestsPage() {
 					</div>
 				)}
 
+				{rows.length > 0 && <TaskTableHeader />}
 				{rows.map((pull) => {
-					const activePaneId = activePaneForPull(pull.repo, pull.number);
-					const date = shortDate(pull.updated);
+					const item = items.get(`pr:${pull.id}`);
 					return (
-						<div key={pull.id} className={FEED_ROW}>
-							<div className="flex items-center gap-3">
-								<div className="min-w-0 flex-1">
-									<div className="flex items-center gap-2">
-										<span className="font-mono text-[11px] font-semibold text-muted-foreground">
-											#{pull.number}
-										</span>
-										<span className="truncate text-[13px] font-semibold text-foreground">
-											{pull.title}
-										</span>
-										{pull.draft && (
-											<span className="shrink-0 rounded-[5px] bg-secondary px-[7px] text-[10px] font-semibold uppercase text-muted-foreground">
-												draft
-											</span>
-										)}
-									</div>
-								</div>
-								<div className="flex shrink-0 items-center gap-2 text-[11px]">
-									<span className={META_PERSON}>
-										{pull.author && (
-											<PersonChip
-												name={pull.author}
-												className="max-w-full truncate"
-											/>
-										)}
-									</span>
-									<span className={META_TAG}>
-										{pull.comments > 0 && (
-											<span className={ROW_META}>💬 {pull.comments}</span>
-										)}
-									</span>
-									<span className={META_TEXT}>{pull.repo}</span>
-									<span title={pull.updated ?? undefined} className={META_DATE}>
-										{date}
-									</span>
-								</div>
-								<SweepDrop itemKey={`pr:${pull.id}`} url={pull.url} />
-								<div className="flex shrink-0 items-center gap-1.5">
-									<span className={ROW_LINK_SLOT}>
-										<button
-											type="button"
-											onClick={() => openUrl(pull.url)}
-											className={ROW_LINK_BUTTON}
-										>
-											{kind === "mentioned" ? "Open ↗" : "PR ↗"}
-										</button>
-									</span>
-									<span className={ROW_PRIMARY_SLOT}>
-										{activePaneId ? (
-											<button
-												type="button"
-												onClick={() => {
-													usePendingFocus.getState().focus(activePaneId);
-													navigate({ to: "/board" });
-												}}
-												className={ROW_LIVE_BUTTON}
-											>
-												Go to session →
-											</button>
-										) : (
-											<button
-												type="button"
-												disabled={isLaunching}
-												onClick={() => void handleStart(pull)}
-												className={ROW_START_BUTTON}
-											>
-												{launchingKey === pull.url
-													? "Starting…"
-													: kind === "review"
-														? "Review it"
-														: kind === "mentioned"
-															? "Draft a reply"
-															: "Start session"}
-											</button>
-										)}
-									</span>
-									<DoneButton onClick={() => markDone(doable(pull))} />
-								</div>
-							</div>
-						</div>
+						item && (
+							<TaskRow key={item.key} item={item} rows={taskRows} now={now} />
+						)
 					);
 				})}
 			</div>

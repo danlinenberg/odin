@@ -1,18 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ConnectNotice } from "renderer/components/ConnectProvider/ConnectProvider";
-import { openUrl } from "renderer/stores/in-app-browser";
-import { DoneButton } from "../components/DoneButton";
-import { SweepDrop } from "../components/DropHint";
 import {
-	FEED_LIST,
-	FEED_ROW,
-	FeedHeader,
-	META_DATE,
-	META_PERSON,
-	ROW_LINK_BUTTON,
-	ROW_LINK_SLOT,
-	SyncButton,
-} from "../components/FeedChrome";
+	TABLE_LIST,
+	TaskRow,
+	TaskTableHeader,
+	useTaskRows,
+} from "../all/TaskTable";
+import { useFeedItems } from "../all/use-all-items";
+import { FeedHeader, SyncButton } from "../components/FeedChrome";
 import { FeedError } from "../components/FeedError";
 import { useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
@@ -27,10 +22,13 @@ export const Route = createFileRoute("/_authenticated/_odin/clickup/")({
  */
 function ClickupPage() {
 	const { clickup, workConfig, syncAll, isSyncing } = useOdinFeeds();
-	const { isDone, markDone } = useDone();
+	const { isDone } = useDone();
 	const rows = (clickup.data?.tasks ?? []).filter(
 		(task) => !isDone({ key: `clickup:${task.id}`, url: task.url }),
 	);
+	const items = useFeedItems({ clickup: rows });
+	const taskRows = useTaskRows();
+	const now = Date.now();
 
 	return (
 		<div className="flex h-full flex-col">
@@ -40,7 +38,7 @@ function ClickupPage() {
 				</div>
 			</FeedHeader>
 
-			<div className={FEED_LIST}>
+			<div className={TABLE_LIST}>
 				{workConfig && !workConfig.hasClickup && (
 					<ConnectNotice
 						provider="clickup"
@@ -60,61 +58,15 @@ function ClickupPage() {
 						No open ClickUp tasks 🎉
 					</div>
 				)}
-				{rows.map((task) => (
-					<div key={task.id} className={FEED_ROW}>
-						<div className="flex items-center gap-3">
-							<div className="min-w-0 flex-1">
-								<div className="truncate text-[13px] font-semibold text-foreground">
-									{task.name}
-								</div>
-								<div className="truncate text-[11px] text-muted-foreground">
-									{[task.status, task.list, task.priority]
-										.filter(Boolean)
-										.join(" · ")}
-								</div>
-							</div>
-							<div className="flex shrink-0 items-center gap-2 text-[11px]">
-								{task.creator && (
-									<span
-										className={`${META_PERSON} truncate text-muted-foreground`}
-									>
-										{task.creator}
-									</span>
-								)}
-								<span title={task.updated ?? undefined} className={META_DATE}>
-									{task.updated
-										? new Date(task.updated).toLocaleDateString(undefined, {
-												month: "short",
-												day: "numeric",
-											})
-										: null}
-								</span>
-							</div>
-							<SweepDrop itemKey={`clickup:${task.id}`} url={task.url} />
-							<div className="flex shrink-0 items-center gap-1.5">
-								<span className={ROW_LINK_SLOT}>
-									<button
-										type="button"
-										onClick={() => openUrl(task.url)}
-										className={ROW_LINK_BUTTON}
-									>
-										Open ↗
-									</button>
-								</span>
-								<DoneButton
-									onClick={() =>
-										markDone({
-											key: `clickup:${task.id}`,
-											title: task.name,
-											source: "ClickUp",
-											url: task.url,
-										})
-									}
-								/>
-							</div>
-						</div>
-					</div>
-				))}
+				{rows.length > 0 && <TaskTableHeader />}
+				{rows.map((task) => {
+					const item = items.get(`clickup:${task.id}`);
+					return (
+						item && (
+							<TaskRow key={item.key} item={item} rows={taskRows} now={now} />
+						)
+					);
+				})}
 			</div>
 		</div>
 	);

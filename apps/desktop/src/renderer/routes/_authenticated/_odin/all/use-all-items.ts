@@ -89,3 +89,50 @@ export function useSearchableItems(): (AllItem & { done: boolean })[] {
 		[items, isDone],
 	);
 }
+
+type FeedInput = Parameters<typeof allItems>[0];
+
+/**
+ * One feed's rows as table rows, keyed like All's - for a feed tab that keeps
+ * its own filters and grouping but draws every row with All's table.
+ * Everything the feed holds, under your own names and priorities.
+ */
+export function useFeedItems(input: Partial<FeedInput>): Map<string, AllItem> {
+	const titles = useTitleOverrides((s) => s.titles);
+	const priorities = useTitleOverrides((s) => s.priorities);
+	const { tasks, slack, jira, pulls, notion, emails, clickup } = input;
+	return useMemo(() => {
+		const items = allItems(
+			{
+				tasks: tasks ?? [],
+				slack: slack ?? [],
+				jira: jira ?? [],
+				pulls: pulls ?? [],
+				notion: notion ?? [],
+				emails: emails ?? [],
+				clickup: clickup ?? [],
+			},
+			{ everything: true },
+		);
+		return new Map(
+			items.map((item) => {
+				const title = titles[item.key];
+				const priority = priorities[item.key];
+				return [
+					item.key,
+					{
+						...item,
+						...(title ? { title } : {}),
+						...(priority
+							? {
+									priority,
+									urgency: urgencyOf(priority),
+									sourcePriority: item.priority,
+								}
+							: {}),
+					},
+				];
+			}),
+		);
+	}, [titles, priorities, tasks, slack, jira, pulls, notion, emails, clickup]);
+}

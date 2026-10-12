@@ -1,4 +1,3 @@
-import { cn } from "@odin/ui/utils";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
 	channelLabel,
@@ -8,38 +7,23 @@ import {
 import { useMemo, useState } from "react";
 import { ConnectNotice } from "renderer/components/ConnectProvider/ConnectProvider";
 import { emojify } from "renderer/lib/emoji";
-import { useDoneStore } from "renderer/stores/done";
-import { openUrl } from "renderer/stores/in-app-browser";
-import { useTabsStore } from "renderer/stores/tabs/store";
-import { DoneButton } from "../components/DoneButton";
-import { SweepDrop } from "../components/DropHint";
 import {
-	FEED_LIST,
-	FEED_ROW,
+	TABLE_LIST,
+	TaskRow,
+	TaskTableHeader,
+	useTaskRows,
+} from "../all/TaskTable";
+import { useFeedItems } from "../all/use-all-items";
+import {
 	FeedDivider,
 	FeedHeader,
 	FeedSearch,
 	FilterPill,
-	META_DATE,
-	META_PERSON,
-	META_TEXT,
-	ROW_LINK_BUTTON,
-	ROW_LINK_SLOT,
-	ROW_LIVE_BUTTON,
-	ROW_PRIMARY_SLOT,
-	ROW_START_BUTTON,
 	SyncButton,
 } from "../components/FeedChrome";
 import { FeedError } from "../components/FeedError";
-import { PersonChip } from "../components/PersonChip";
 import { BUTTON } from "../components/pill";
-import {
-	useOdinFeeds,
-	useSetSlackDone,
-	useSetSlackReaction,
-} from "../hooks/useOdinFeeds";
-import { usePendingFocus } from "../hooks/usePendingFocus";
-import { useStartReaction } from "../hooks/useStartReaction";
+import { useOdinFeeds, useSetSlackReaction } from "../hooks/useOdinFeeds";
 
 /** Narrow to one channel or person - how Insights' Improvements links here. */
 type ReactionsSearch = { channel?: string; person?: string };
@@ -82,33 +66,10 @@ function inArea(
  * and Done is Odin-only - nothing is written to Slack.
  */
 
-/** Compact "3m / 4h / Aug 4" label for a message's post time. */
-/** Rows are one line, so the message's own line breaks collapse to spaces. */
-const preview = (text: string) => emojify(text.replace(/\s+/g, " ").trim());
-
-function relativeTime(iso: string): string {
-	const then = new Date(iso).getTime();
-	if (Number.isNaN(then)) return "";
-	const minutes = Math.round((Date.now() - then) / 60_000);
-	if (minutes < 1) return "now";
-	if (minutes < 60) return `${minutes}m`;
-	const hours = Math.round(minutes / 60);
-	if (hours < 24) return `${hours}h`;
-	const days = Math.round(hours / 24);
-	if (days < 7) return `${days}d`;
-	return new Date(then).toLocaleDateString(undefined, {
-		month: "short",
-		day: "numeric",
-	});
-}
-
 function ReactionsPage() {
 	// One status at a time.
 	const [statusFilter, setStatusFilter] = useState<ReactionStatus | null>(null);
-	// ponytail: one row open at a time - click another and this one closes.
-	const [expandedId, setExpandedId] = useState<string | null>(null);
 	const { reactions, syncAll, isSyncing } = useOdinFeeds();
-	const { start, isLaunching, launchingKey } = useStartReaction();
 	const navigate = useNavigate();
 	const area = Route.useSearch();
 	const areaName =
@@ -116,18 +77,8 @@ function ReactionsPage() {
 		(area.channel === undefined || area.channel === "DMs"
 			? area.channel
 			: channelLabel(area.channel));
-	const recordDone = useDoneStore((s) => s.setDone);
-	const setDone = useSetSlackDone();
 
 	const setReaction = useSetSlackReaction();
-
-	// A row's live session, cross-checked against the tabs store so a killed
-	// pane falls back to "Start session".
-	const panes = useTabsStore((s) => s.panes);
-	const activePaneFor = (id: string): string | null =>
-		Object.values(panes).find(
-			(pane) => pane.odinPageId === id && !pane.completed,
-		)?.id ?? null;
 
 	// Free text matched against the author only - a name also appears in half
 	// the messages' @-mentions, so matching the text would find everything.
@@ -167,12 +118,10 @@ function ReactionsPage() {
 		[rows, activeStatus],
 	);
 
-	const handleStart = async (row: (typeof rows)[number]) => {
-		const paneId = await start(row);
-		if (!paneId) return;
-		usePendingFocus.getState().focus(paneId);
-		navigate({ to: "/board" });
-	};
+	// Every status, not only Not started: the pills below pick which to show.
+	const items = useFeedItems({ slack: data?.rows });
+	const taskRows = useTaskRows(() => void reactions.refetch());
+	const now = Date.now();
 
 	return (
 		<div className="flex h-full flex-col">
@@ -216,7 +165,7 @@ function ReactionsPage() {
 				</div>
 			</FeedHeader>
 
-			<div className={FEED_LIST}>
+			<div className={TABLE_LIST}>
 				{data && !data.connected && (
 					<ConnectNotice
 						provider="slack"
@@ -231,118 +180,21 @@ function ReactionsPage() {
 				)}
 				<FeedError error={reactions.error} />
 
-				<div className="flex flex-col gap-1.5">
-					{visible.map((row) => {
-						const activePaneId = activePaneFor(row.id);
-						const link = row.permalink;
-						const expanded = expandedId === row.id;
-						return (
-							<div
-								key={row.id}
-								className={cn(FEED_ROW, row.done && "opacity-50")}
-							>
-								{/* One line per message, like every other feed - click it to
-								    read the whole thing without leaving for Slack. */}
-								<div
-									className={cn(
-										"flex gap-3",
-										expanded ? "items-start" : "items-center",
-									)}
-								>
-									<button
-										type="button"
-										title={expanded ? "Collapse" : "Show the full message"}
-										onClick={() => setExpandedId(expanded ? null : row.id)}
-										className={cn(
-											"min-w-0 flex-1 text-left text-[13px] text-foreground",
-											expanded ? "whitespace-pre-wrap" : "truncate",
-										)}
-									>
-										{(expanded ? emojify(row.text) : preview(row.text)) ||
-											"(no text)"}
-									</button>
-									<div className="flex shrink-0 items-center gap-2 text-[11px]">
-										<span className={META_PERSON}>
-											{row.authorName && (
-												<PersonChip
-													name={row.authorName}
-													className="max-w-full truncate"
-												/>
-											)}
-										</span>
-										{/* ponytail: 1:1 DMs have no channel name (conversations.info
-										    omits it for IMs) - leave the slot empty rather than
-										    show a raw id. */}
-										<span className={META_TEXT}>{row.channelName}</span>
-										<span
-											title={new Date(row.postedAt).toLocaleString()}
-											className={META_DATE}
-										>
-											{relativeTime(row.postedAt)}
-										</span>
-									</div>
-									<SweepDrop itemKey={`slack:${row.id}`} url={row.permalink} />
-									<div className="flex shrink-0 items-center gap-1.5">
-										<span className={ROW_LINK_SLOT}>
-											{link && (
-												<button
-													type="button"
-													onClick={() => openUrl(link)}
-													className={ROW_LINK_BUTTON}
-												>
-													Thread ↗
-												</button>
-											)}
-										</span>
-										<span className={ROW_PRIMARY_SLOT}>
-											{activePaneId ? (
-												<button
-													type="button"
-													onClick={() => {
-														usePendingFocus.getState().focus(activePaneId);
-														navigate({ to: "/board" });
-													}}
-													className={ROW_LIVE_BUTTON}
-												>
-													Go to session →
-												</button>
-											) : (
-												<button
-													type="button"
-													disabled={isLaunching || !row.permalink}
-													onClick={() => void handleStart(row)}
-													className={ROW_START_BUTTON}
-												>
-													{launchingKey === row.id
-														? "Starting…"
-														: "Start session"}
-												</button>
-											)}
-										</span>
-										<DoneButton
-											done={row.done}
-											disabled={setDone.isPending}
-											onClick={() => {
-												setDone.mutate({ id: row.id, done: !row.done });
-												// Into the one Done list too, so All tasks lists it.
-												recordDone(
-													`slack:${row.id}`,
-													row.done
-														? null
-														: {
-																title: row.title,
-																source: "Slack",
-																url: row.permalink ?? null,
-															},
-												);
-											}}
-										/>
-									</div>
-								</div>
-							</div>
-						);
-					})}
-				</div>
+				{visible.length > 0 && <TaskTableHeader date="Posted" />}
+				{visible.map((row) => {
+					const item = items.get(`slack:${row.id}`);
+					return (
+						item && (
+							<TaskRow
+								key={item.key}
+								item={item}
+								rows={taskRows}
+								now={now}
+								done={row.done}
+							/>
+						)
+					);
+				})}
 
 				{data?.connected && visible.length === 0 && !reactions.isFetching && (
 					<div className="px-2 py-8 text-center text-xs text-muted-foreground">
