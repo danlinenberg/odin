@@ -358,6 +358,7 @@ export function useCrow() {
 				(error) => !String(error).includes("No transcript on this machine"),
 			);
 		if (!onDisk) {
+			useCrowChats.getState().drop(chat.sessionId);
 			toast.error("That chat is no longer on this Mac");
 			return false;
 		}

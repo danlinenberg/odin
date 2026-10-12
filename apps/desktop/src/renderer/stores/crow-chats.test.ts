@@ -12,3 +12,12 @@ test("keeps the 20 newest chats, and a resumed one moves to the top", () => {
 	expect(ids.filter((id) => id === "10")).toHaveLength(1);
 	expect(ids).not.toContain("4");
 });
+
+test("drop removes a chat whose transcript is gone", () => {
+	const { save, drop } = useCrowChats.getState();
+	save({ sessionId: "gone", title: "x", cwd: "/", at: 1 });
+	drop("gone");
+	expect(
+		useCrowChats.getState().chats.some((c) => c.sessionId === "gone"),
+	).toBe(false);
+});

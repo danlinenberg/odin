@@ -1,3 +1,4 @@
+import { toast } from "@odin/ui/sonner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@odin/ui/tooltip";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
@@ -288,8 +289,13 @@ function CrowPanel({
 								title="Pick up this conversation where it left off"
 								onClick={async () => {
 									setSending(true);
-									await onResume(chat);
-									setSending(false);
+									try {
+										await onResume(chat);
+									} catch (error) {
+										toast.error(String(error));
+									} finally {
+										setSending(false);
+									}
 								}}
 								className="flex items-baseline gap-2 rounded-md px-1.5 py-1 text-left text-[12.5px] hover:bg-accent disabled:opacity-50"
 							>

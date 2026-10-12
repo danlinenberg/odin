@@ -20,6 +20,8 @@ export interface CrowChat {
 export const useCrowChats = create<{
 	chats: CrowChat[];
 	save: (chat: CrowChat) => void;
+	/** A chat whose transcript is gone from this Mac. */
+	drop: (sessionId: string) => void;
 }>()(
 	persist(
 		(set) => ({
@@ -30,6 +32,10 @@ export const useCrowChats = create<{
 						chat,
 						...chats.filter((c) => c.sessionId !== chat.sessionId),
 					].slice(0, KEEP),
+				})),
+			drop: (sessionId) =>
+				set(({ chats }) => ({
+					chats: chats.filter((c) => c.sessionId !== sessionId),
 				})),
 		}),
 		{ name: "odin-crow-chats" },
