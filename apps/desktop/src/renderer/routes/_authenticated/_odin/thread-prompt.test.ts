@@ -23,6 +23,12 @@ describe("buildThreadPrompt", () => {
 		);
 	});
 
+	it("asks for the reply as a Slack draft in the thread, since pasted text never becomes a mention", () => {
+		const prompt = buildThreadPrompt(THREAD, "hi");
+		expect(prompt).toContain("slack_send_message_draft");
+		expect(prompt).toContain("A Slack draft is not a post");
+	});
+
 	it("keeps its own thread link first, above any link in the message", () => {
 		const pasted =
 			"https://imagenai.slack.com/archives/C0C1GB6AHCY/p1788966541529909";
