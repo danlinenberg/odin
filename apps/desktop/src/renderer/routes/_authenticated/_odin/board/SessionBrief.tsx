@@ -787,13 +787,11 @@ export function SessionBrief({
 					}
 				>
 					<div className="flex flex-col gap-1">
-						{byRepo(ownPrs).map(([repo, repoPrs], _, groups) => (
+						{byRepo(ownPrs).map(([repo, repoPrs]) => (
 							<div key={repo} className="flex flex-col gap-1">
-								{groups.length > 1 && (
-									<div className="mt-1 text-[10.5px] font-medium text-muted-foreground">
-										{repo.split("/").pop()}
-									</div>
-								)}
+								<div className="mt-1 text-[10.5px] font-medium text-muted-foreground">
+									{repo.split("/").pop()}
+								</div>
 								{repoPrs.map((pr) => (
 									<div key={pr.url} className="group flex items-center gap-1.5">
 										<Hover text={hoverFor(pr.url)}>
