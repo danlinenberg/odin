@@ -1194,11 +1194,41 @@ function ActionItems({ text, onDo }: { text: string; onDo?: DoItem }) {
 	);
 }
 
+/** Claude on Bedrock stops on an expired AWS SSO token and says to run this. */
+export function needsAwsSsoLogin(text: string): boolean {
+	return /run 'aws sso login'/i.test(text);
+}
+
+/** Runs `aws sso login` for the user, then tells Claude to try again. */
+function AwsSsoLogin({ onSend }: { onSend: (text: string) => void }) {
+	const login = electronTrpc.terminal.awsSsoLogin.useMutation({
+		onSuccess: () =>
+			onSend("I signed in to AWS again (aws sso login). Retry what failed."),
+		onError: (error) => toast.error(`aws sso login failed: ${error.message}`),
+	});
+	return (
+		<button
+			type="button"
+			disabled={login.isPending || login.isSuccess}
+			onClick={() => login.mutate()}
+			title="Run aws sso login - approve it in the browser tab that opens - then Claude retries"
+			className={cn(ACTION_BUTTON, "mt-2")}
+		>
+			{login.isSuccess
+				? "Signed in - Claude is retrying"
+				: login.isPending
+					? "Approve in your browser…"
+					: "Sign in to AWS and retry"}
+		</button>
+	);
+}
+
 const ItemView = memo(
 	function ItemView({
 		item,
 		refs,
 		onDo,
+		onSend,
 		workspaceId,
 	}: {
 		item: Item;
@@ -1207,6 +1237,8 @@ const ItemView = memo(
 		/** Changes only when a new ref appears - the memo's cue to re-link. */
 		refsKey: string;
 		onDo?: DoItem;
+		/** Types a message into the session - the AWS sign-in retries with it. */
+		onSend?: (text: string) => void;
 	}) {
 		if (item.kind === "tool") return <ToolRow item={item} />;
 		if (item.kind === "compact") return <CompactRow item={item} />;
@@ -1230,6 +1262,9 @@ const ItemView = memo(
 					/>
 				)}
 				{actions && <ActionItems text={actions} onDo={onDo} />}
+				{onSend && needsAwsSsoLogin(item.text) && (
+					<AwsSsoLogin onSend={onSend} />
+				)}
 			</div>
 		);
 	},
@@ -1237,7 +1272,8 @@ const ItemView = memo(
 		prev.item === next.item &&
 		prev.refsKey === next.refsKey &&
 		prev.workspaceId === next.workspaceId &&
-		prev.onDo === next.onDo,
+		prev.onDo === next.onDo &&
+		prev.onSend === next.onSend,
 );
 
 /**
@@ -1395,13 +1431,8 @@ export function ChatView({
 	// A ref, so a fresh arrow from the drawer doesn't re-render every message.
 	const onResumeRef = useRef(onResumeWith);
 	onResumeRef.current = onResumeWith;
-	const doItem = useCallback(
-		(item: string, number: number, approve: boolean, answer?: string) => {
-			const text = approve
-				? `Approved - go ahead with action item ${number}: ${item}`
-				: answer !== undefined
-					? `Action item ${number} (${item}): ${answer}`
-					: `Do action item ${number} for me: ${item}`;
+	const sendToClaude = useCallback(
+		(text: string) => {
 			if (onResumeRef.current) {
 				onResumeRef.current(text);
 				return;
@@ -1412,6 +1443,18 @@ export function ChatView({
 			);
 		},
 		[paneId, write.mutateAsync],
+	);
+	const doItem = useCallback(
+		(item: string, number: number, approve: boolean, answer?: string) => {
+			sendToClaude(
+				approve
+					? `Approved - go ahead with action item ${number}: ${item}`
+					: answer !== undefined
+						? `Action item ${number} (${item}): ${answer}`
+						: `Do action item ${number} for me: ${item}`,
+			);
+		},
+		[sendToClaude],
 	);
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const pinnedRef = useRef(true);
@@ -1602,6 +1645,9 @@ export function ChatView({
 								refsKey={refsKey}
 								workspaceId={workspaceId}
 								onDo={onShowTerminal || onResumeWith ? doItem : undefined}
+								onSend={
+									onShowTerminal || onResumeWith ? sendToClaude : undefined
+								}
 							/>
 						);
 						return (

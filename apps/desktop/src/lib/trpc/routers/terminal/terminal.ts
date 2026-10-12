@@ -16,6 +16,7 @@ import { getWorkspaceRuntimeRegistry } from "main/lib/workspace-runtime";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
 import { assertWorkspaceUsable } from "../workspaces/utils/usability";
+import { awsSsoLogin } from "./aws-sso";
 import { resolveTerminalThemeType } from "./theme-type";
 import { getWorkspaceTerminalContext, resolveCwd } from "./utils";
 
@@ -207,6 +208,9 @@ export const createTerminalRouter = () => {
 				terminal.cancelCreateOrAttach(input);
 				return { success: true };
 			}),
+
+		/** Refresh an expired AWS SSO token - Claude on Bedrock stops on one. */
+		awsSsoLogin: publicProcedure.mutation(() => awsSsoLogin()),
 
 		write: publicProcedure
 			.input(
