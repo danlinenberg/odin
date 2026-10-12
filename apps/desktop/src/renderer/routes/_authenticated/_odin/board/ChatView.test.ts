@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
 	actionItemList,
 	applyLines,
+	applyQueue,
 	elapsedLabel,
 	isAnswerItem,
 	isApprovalItem,
@@ -442,5 +443,28 @@ describe("splitEarlier", () => {
 		const first = splitEarlier(file.subarray(0, 3), middle.head, true);
 		expect(first.lines).toEqual(['{"a":1}']);
 		expect(first.head.length).toBe(0);
+	});
+});
+
+describe("applyQueue", () => {
+	const op = (operation: string, content?: string) =>
+		({ type: "queue-operation", operation, content }) as never;
+	test("holds what Claude queued until it takes or drops it", () => {
+		let queue = applyQueue(
+			[],
+			[op("enqueue", "first"), op("enqueue", "second")],
+		);
+		expect(queue).toEqual(["first", "second"]);
+		queue = applyQueue(queue, [op("dequeue")]);
+		expect(queue).toEqual(["second"]);
+		queue = applyQueue(queue, [op("remove", "second")]);
+		expect(queue).toEqual([]);
+		// Background-task notices ride the same queue; they are not yours.
+		expect(
+			applyQueue(
+				[],
+				[op("enqueue", "<task-notification>x</task-notification>")],
+			),
+		).toEqual([]);
 	});
 });

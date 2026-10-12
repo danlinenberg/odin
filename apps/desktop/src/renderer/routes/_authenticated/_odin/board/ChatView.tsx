@@ -102,6 +102,9 @@ type Line = {
 	};
 	/** A message you sent mid-turn rides in as a queued_command attachment. */
 	attachment?: { type?: string; prompt?: string | Block[] };
+	/** queue-operation lines: Claude holding a message until it is free. */
+	operation?: string;
+	content?: string;
 };
 
 /** First read takes the transcript's tail - a long session's JSONL runs to MBs. */
@@ -253,6 +256,27 @@ export function applyLines(items: Item[], lines: Line[]): Item[] {
 	return next;
 }
 
+/**
+ * The messages Claude holds in its queue - sent while it was busy (a turn, a
+ * `!` command) - oldest first. Claude logs each enqueue at once, so they show
+ * even when Odin thought it was idle or the drawer was switched away.
+ */
+export function applyQueue(queue: string[], lines: Line[]): string[] {
+	const next = [...queue];
+	for (const line of lines) {
+		if (line.type !== "queue-operation") continue;
+		if (line.operation === "enqueue" && line.content) {
+			if (!line.content.startsWith("<task-notification"))
+				next.push(line.content);
+		} else if (line.operation === "dequeue") next.shift();
+		else if (line.operation === "remove") {
+			const index = next.indexOf(line.content ?? "");
+			if (index >= 0) next.splice(index, 1);
+		}
+	}
+	return next;
+}
+
 function parseLines(parts: string[]): Line[] {
 	return parts.flatMap((part) => {
 		try {
@@ -305,6 +329,7 @@ export function splitEarlier(
  */
 function useLiveItems(path: string | null, workspaceId: string) {
 	const [items, setItems] = useState<Item[]>([]);
+	const [queued, setQueued] = useState<string[]>([]);
 	const [missing, setMissing] = useState<string | null>(null);
 	const [hasEarlier, setHasEarlier] = useState(false);
 	// Bumps once per loaded earlier chunk, in the same render as its rows.
@@ -330,6 +355,7 @@ function useLiveItems(path: string | null, workspaceId: string) {
 		let running = false;
 		let again = false;
 		setItems([]);
+		setQueued([]);
 		setMissing(null);
 		setHasEarlier(false);
 		const tick = async () => {
@@ -379,7 +405,10 @@ function useLiveItems(path: string | null, workspaceId: string) {
 						skipFirstLine = false;
 					}
 					const lines = parseLines(parts);
-					if (lines.length) setItems((prev) => applyLines(prev, lines));
+					if (lines.length) {
+						setItems((prev) => applyLines(prev, lines));
+						setQueued((prev) => applyQueue(prev, lines));
+					}
 				}
 				setMissing(null);
 			} catch (error) {
@@ -431,6 +460,7 @@ function useLiveItems(path: string | null, workspaceId: string) {
 	}, [path, workspaceId, utils]);
 	return {
 		items,
+		queued,
 		missing,
 		poke: () => pokeRef.current(),
 		hasEarlier,
@@ -1297,8 +1327,15 @@ export function ChatView({
 		home && startCwd && sessionId
 			? transcriptPath(home, startCwd, sessionId)
 			: null;
-	const { items, missing, poke, hasEarlier, earlierLoads, loadEarlier } =
-		useLiveItems(path, workspaceId);
+	const {
+		items,
+		queued,
+		missing,
+		poke,
+		hasEarlier,
+		earlierLoads,
+		loadEarlier,
+	} = useLiveItems(path, workspaceId);
 	// The whole view takes a file drop, not just the reply box: a drop on the
 	// conversation used to do nothing. The composer owns the attachments.
 	const dropRef = useRef<(files: File[]) => void>(undefined);
@@ -1482,6 +1519,7 @@ export function ChatView({
 		!screenMenu &&
 		items.length === 0 &&
 		pending.length === 0 &&
+		queued.length === 0 &&
 		(!missing || missing.startsWith("Not on disk yet"));
 	return (
 		// biome-ignore lint/a11y/noStaticElementInteractions: Page Up/Down from the composer jump the conversation to its top/bottom; a file dropped anywhere on it attaches
@@ -1633,6 +1671,16 @@ export function ChatView({
 							pending
 						/>
 					))}
+					{queued
+						.filter((text) => !pending.some((sent) => text.includes(sent.text)))
+						.map((text, index) => (
+							<UserBubble
+								// biome-ignore lint/suspicious/noArrayIndexKey: the same text can be queued twice
+								key={`queued-${index}`}
+								text={text}
+								pending
+							/>
+						))}
 					{prompt && (
 						<div className={cn("flex min-w-0 gap-3", ENTER)}>
 							<OdinMark />
