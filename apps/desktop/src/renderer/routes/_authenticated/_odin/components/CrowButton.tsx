@@ -219,23 +219,23 @@ function CrowPanel({
 				}}
 				className="fixed z-[60] flex flex-col overflow-hidden rounded-2xl border border-violet-400/50 bg-tertiary text-popover-foreground shadow-2xl shadow-black/30"
 			>
+				{/* A row of its own: floated over the chat, scrolled text ran under them. */}
+				<div className="flex shrink-0 items-center justify-between px-2.5 pt-2.5">
+					{icon}
+					<button
+						type="button"
+						title="End this conversation and start a fresh one"
+						onClick={() => endSession(conversation.id)}
+						className="rounded-md px-2 py-0.5 text-[11.5px] text-muted-foreground hover:bg-accent hover:text-foreground"
+					>
+						New chat
+					</button>
+				</div>
 				<CrowChat
 					pane={conversation}
 					onAsk={onAsk}
 					onShowOnBoard={onShowOnBoard}
 				/>
-				{/* Over the chat's top padding, not a row of their own. */}
-				<span className="pointer-events-none absolute left-2.5 top-2.5">
-					{icon}
-				</span>
-				<button
-					type="button"
-					title="End this conversation and start a fresh one"
-					onClick={() => endSession(conversation.id)}
-					className="absolute right-2.5 top-1.5 rounded-md bg-tertiary px-2 py-0.5 text-[11.5px] text-muted-foreground hover:bg-accent hover:text-foreground"
-				>
-					New chat
-				</button>
 			</div>
 		);
 
