@@ -54,6 +54,12 @@ describe("decryptValue", () => {
 			),
 		).toBe("plain");
 	});
+
+	test("a row with no encrypted value is empty, not an error", () => {
+		expect(decryptValue({ value: "", encrypted_value: null }, key, 24)).toBe(
+			"",
+		);
+	});
 });
 
 describe("toCookie", () => {

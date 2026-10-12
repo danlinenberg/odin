@@ -55,7 +55,7 @@ export interface CookieRow {
 	host_key: string;
 	name: string;
 	value: string;
-	encrypted_value: Buffer;
+	encrypted_value: Buffer | null;
 	path: string;
 	expires_utc: number;
 	has_expires: number;
@@ -76,7 +76,7 @@ export function decryptValue(
 	key: Buffer,
 	dbVersion: number,
 ): string {
-	if (row.value || row.encrypted_value.length === 0) return row.value;
+	if (row.value || !row.encrypted_value?.length) return row.value;
 	if (row.encrypted_value.subarray(0, 3).toString() !== "v10") return "";
 	const decipher = createDecipheriv("aes-128-cbc", key, Buffer.alloc(16, " "));
 	const plain = Buffer.concat([
@@ -219,7 +219,7 @@ export async function importBrowserCookies({ ask = true } = {}): Promise<{
 		);
 		const rows = db
 			.prepare(
-				"SELECT host_key, name, value, encrypted_value, path, expires_utc, has_expires, is_secure, is_httponly, samesite FROM cookies",
+				"SELECT host_key, name, value, CAST(encrypted_value AS BLOB) AS encrypted_value, path, expires_utc, has_expires, is_secure, is_httponly, samesite FROM cookies",
 			)
 			.all() as CookieRow[];
 		db.close();
