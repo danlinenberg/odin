@@ -145,6 +145,12 @@ const config: Configuration = {
 			to: "resources/bin",
 			filter: ["**/*"],
 		},
+		// Settings → Storage lists and deletes worktrees with it on any install.
+		{
+			from: "../../scripts",
+			to: "resources/scripts",
+			filter: ["prune-worktrees.sh"],
+		},
 	],
 
 	files: [

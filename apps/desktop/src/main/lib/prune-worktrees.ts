@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
+import { app } from "electron";
 import {
 	readOdinConfig,
 	resolveGithubToken,
@@ -16,12 +17,12 @@ import { scanRepos } from "lib/trpc/routers/repos";
  * scripts/prune-worktrees.sh, which is also runnable by hand with --dry-run.
  *
  * Every repo on the machine with a `.worktrees/` gets a pass. The script comes
- * from the Odin checkout (`odinRepo` in odin.json), so an install with no
- * checkout does nothing. GitHub's token comes from Settings → Connections: it
+ * from the Odin checkout (`odinRepo` in odin.json, or the one a dev run runs
+ * from), so an install with no checkout prunes nothing on its own. GitHub's token comes from Settings → Connections: it
  * lets the script tell a merged PR from unmerged work when main has since
  * changed the same files; repos it can't see fall back to gh's own logins.
  */
-// Settings → Sessions turns this off; read every pass, so no restart needed.
+// Settings → Advanced turns this off; read every pass, so no restart needed.
 const EVERY_MS = 10 * 60 * 1000;
 const FIRST_RUN_MS = 5 * 60 * 1000;
 
@@ -31,10 +32,26 @@ const run = promisify(execFile);
 // since then gets its pass after a restart.
 let repos: Promise<string[]> | null = null;
 
+const SCRIPT = "scripts/prune-worktrees.sh";
+
+/** The checkout's script - what the 10-minute pruner runs. */
 function pruneScript(): string | null {
-	const odinRepo = process.env.ODIN_REPO_DIR ?? readOdinConfig().odinRepo;
-	const script = odinRepo && path.join(odinRepo, "scripts/prune-worktrees.sh");
+	const odinRepo =
+		process.env.ODIN_REPO_DIR ??
+		readOdinConfig().odinRepo ??
+		// A dev run is a checkout: apps/desktop is two levels down.
+		(app.isPackaged ? undefined : path.join(app.getAppPath(), "../.."));
+	const script = odinRepo && path.join(odinRepo, SCRIPT);
 	return script && existsSync(script) ? script : null;
+}
+
+/**
+ * Settings → Storage runs only when you open it or press Delete, so an install
+ * with no checkout uses the copy shipped in the app.
+ */
+function storageScript(): string | null {
+	const shipped = path.join(process.resourcesPath, "resources", SCRIPT);
+	return pruneScript() ?? (existsSync(shipped) ? shipped : null);
 }
 
 async function reposWithWorktrees(): Promise<string[]> {
@@ -46,7 +63,8 @@ async function reposWithWorktrees(): Promise<string[]> {
 
 function runScript(script: string, args: string[]) {
 	const token = resolveGithubToken();
-	return run(script, args, {
+	// Through bash: a copied resource can lose its exec bit.
+	return run("bash", [script, ...args], {
 		env: {
 			...process.env,
 			// Merged means gone at the next pass, not an hour later.
@@ -142,7 +160,7 @@ async function touchedAt(dir: string): Promise<number | null> {
  * it. The script's --dry-run decides; nothing here second-guesses its rules.
  */
 export async function listWorktrees(): Promise<WorktreeInfo[]> {
-	const script = pruneScript();
+	const script = storageScript();
 	if (!script) return [];
 	const perRepo = await Promise.all(
 		(await reposWithWorktrees()).map(async (repo) => {
@@ -171,7 +189,7 @@ export async function removeWorktree(
 	repo: string,
 	name: string,
 ): Promise<boolean> {
-	const script = pruneScript();
+	const script = storageScript();
 	if (!script) return false;
 	const { stdout } = await runScript(script, ["--only", name, repo]);
 	return parseVerdicts(stdout).some((v) => v.name === name && v.safe);
