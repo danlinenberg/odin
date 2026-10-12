@@ -43,6 +43,7 @@ import {
 	FeedHeader,
 	FeedSearch,
 	FeedSelect,
+	IconTip,
 	ROW_ICON_BUTTON,
 	ROW_LINK_BUTTON,
 	ROW_LIVE_BUTTON,
@@ -618,9 +619,9 @@ function AllFeedPage() {
 				ref={drag?.setNodeRef}
 				style={drag?.style}
 				className={cn(
-					FEED_ROW,
-					band === "now" && "border-l-2 border-l-attention",
-					item.key === openKey && "border-primary/50 bg-secondary/60",
+					TABLE_ROW,
+					band === "now" && "shadow-[inset_2px_0_0_var(--attention)]",
+					item.key === openKey && "bg-primary/10 hover:bg-primary/12",
 				)}
 			>
 				<div className={ROW_GRID}>
@@ -740,17 +741,18 @@ function AllFeedPage() {
 					    meant the row's own data vanished under the cursor. */}
 					<span className={COL.acts}>
 						{url ? (
-							<button
-								type="button"
-								title={`Open - ${url}`}
-								aria-label="Open"
-								onClick={() => openUrl(url)}
-								className={ROW_ICON_BUTTON}
-							>
-								<LuExternalLink className="size-3.5" aria-hidden />
-							</button>
+							<IconTip label={`Open in ${item.source}`}>
+								<button
+									type="button"
+									aria-label={`Open in ${item.source}`}
+									onClick={() => openUrl(url)}
+									className={ROW_ICON_BUTTON}
+								>
+									<LuExternalLink className="size-3.5" aria-hidden />
+								</button>
+							</IconTip>
 						) : (
-							<span className="size-7 shrink-0" />
+							<span className="size-6 shrink-0" />
 						)}
 						<DueChip
 							iconOnly
@@ -759,61 +761,70 @@ function AllFeedPage() {
 							upstream={item.dueDate}
 						/>
 						{drag ? (
-							<button
-								type="button"
-								onClick={() => dequeue(item.key)}
-								title="Take it off Up next"
-								aria-label="Take it off Up next"
-								className={cn(ROW_ICON_BUTTON, "text-primary")}
-							>
-								<LuListMinus className="size-3.5" aria-hidden />
-							</button>
+							<IconTip label="Take it off Up next">
+								<button
+									type="button"
+									onClick={() => dequeue(item.key)}
+									aria-label="Take it off Up next"
+									className={cn(ROW_ICON_BUTTON, "text-primary")}
+								>
+									<LuListMinus className="size-3.5" aria-hidden />
+								</button>
+							</IconTip>
 						) : (
-							<button
-								type="button"
-								onClick={() => enqueue(item.key)}
-								title="Line it up - Up next, above the list"
-								aria-label="Up next"
-								className={ROW_ICON_BUTTON}
-							>
-								<LuListPlus className="size-3.5" aria-hidden />
-							</button>
+							<IconTip label="Line it up - Up next">
+								<button
+									type="button"
+									onClick={() => enqueue(item.key)}
+									aria-label="Line it up - Up next"
+									className={ROW_ICON_BUTTON}
+								>
+									<LuListPlus className="size-3.5" aria-hidden />
+								</button>
+							</IconTip>
 						)}
 						<TonightButton item={item} iconOnly />
-						<button
-							type="button"
-							onClick={() => (isReading ? undo(item) : markReading(item))}
-							title={
+						<IconTip
+							label={
 								isReading
 									? "Back to Waiting on you"
-									: "Mark it Read later - it stays here, off the Night Agent"
+									: "Mark it Read later - off the Night Agent"
 							}
-							aria-label="Read later"
-							aria-pressed={isReading}
-							className={cn(ROW_ICON_BUTTON, isReading && "text-primary")}
 						>
-							<LuBookmark className="size-3.5" aria-hidden />
-						</button>
+							<button
+								type="button"
+								onClick={() => (isReading ? undo(item) : markReading(item))}
+								aria-label={
+									isReading
+										? "Back to Waiting on you"
+										: "Mark it Read later - off the Night Agent"
+								}
+								aria-pressed={isReading}
+								className={cn(ROW_ICON_BUTTON, isReading && "text-primary")}
+							>
+								<LuBookmark className="size-3.5" aria-hidden />
+							</button>
+						</IconTip>
 					</span>
 					<span className={COL.start}>
 						{activePaneId ? (
 							<button
 								type="button"
+								aria-label="Go to session"
 								onClick={() => goToPane(activePaneId)}
-								className={ROW_LIVE_BUTTON}
+								className={cn(ROW_LIVE_BUTTON, "px-2.5")}
 							>
-								Go to session →
+								Session →
 							</button>
 						) : (
 							<button
 								type="button"
+								aria-label="Start session"
 								disabled={isLaunching}
 								onClick={() => void handleStart(item)}
-								className={ROW_START_BUTTON}
+								className={cn(ROW_START_BUTTON, "px-2.5")}
 							>
-								{launchingKey === item.launch.key
-									? "Starting…"
-									: "Start session"}
+								{launchingKey === item.launch.key ? "Starting…" : "Start"}
 							</button>
 						)}
 					</span>
@@ -1003,7 +1014,7 @@ function AllFeedPage() {
 			</div>
 
 			<div className="flex min-h-0 flex-1">
-				<div className={cn(FEED_LIST, "@container")}>
+				<div className={cn(FEED_LIST, "@container gap-0")}>
 					{!showDone && items.length + queued.length > 0 && (
 						<ColumnHeader date={sortBy === "created" ? "Created" : "Updated"} />
 					)}
@@ -1123,7 +1134,10 @@ function AllFeedPage() {
 									return (
 										<div
 											key={session.paneId}
-											className={cn(FEED_ROW, "border-l-2 border-l-working")}
+											className={cn(
+												FEED_ROW,
+												"mb-1 border-l-2 border-l-working",
+											)}
 										>
 											<div className="flex items-center gap-3">
 												<SourceIcon
@@ -1189,7 +1203,12 @@ function AllFeedPage() {
 									);
 								})
 							) : (
-								<div className={cn(FEED_ROW, "flex items-center gap-3 py-1.5")}>
+								<div
+									className={cn(
+										FEED_ROW,
+										"mb-1 flex items-center gap-3 py-1.5",
+									)}
+								>
 									<div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
 										{needsYou.length === 0 && (
 											<span className={ROW_META}>all working</span>
@@ -1337,22 +1356,29 @@ function AllFeedPage() {
  * up like a table. Narrow lists drop whole columns - place first, then
  * status, person and date - rather than squeezing the title to nothing.
  */
-const ROW_GRID = "flex items-center gap-3";
+const ROW_GRID = "flex items-center gap-2.5";
 const COL = {
-	lead: "flex w-[68px] shrink-0 items-center justify-end gap-1.5",
-	task: "flex min-h-[37px] min-w-0 flex-1 flex-col justify-center",
-	drop: "flex w-[100px] shrink-0 items-center",
-	why: "flex w-[132px] shrink-0 items-center overflow-hidden",
+	lead: "flex w-[60px] shrink-0 items-center justify-end gap-1.5",
+	task: "flex min-h-[30px] min-w-0 flex-1 flex-col justify-center",
+	drop: "flex w-[92px] shrink-0 items-center",
+	why: "flex w-[96px] shrink-0 items-center overflow-hidden",
 	status:
-		"flex w-[96px] shrink-0 items-center overflow-hidden @max-[1300px]:hidden",
+		"flex w-[96px] shrink-0 items-center overflow-hidden @max-[1200px]:hidden",
 	person:
-		"flex w-[136px] shrink-0 items-center overflow-hidden @max-[1150px]:hidden",
-	place: "block w-[116px] shrink-0 truncate @max-[1500px]:hidden",
-	date: "flex w-[56px] shrink-0 items-center tabular-nums text-muted-foreground @max-[950px]:hidden",
-	acts: "flex w-[140px] shrink-0 items-center justify-end gap-0.5",
-	start: "flex w-[124px] shrink-0 justify-end",
+		"flex w-[132px] shrink-0 items-center overflow-hidden @max-[1050px]:hidden",
+	place: "block w-[112px] shrink-0 truncate @max-[1380px]:hidden",
+	date: "flex w-[52px] shrink-0 items-center tabular-nums text-muted-foreground @max-[860px]:hidden",
+	acts: "flex w-[128px] shrink-0 items-center justify-end gap-0.5",
+	start: "flex w-[84px] shrink-0 justify-end",
 	done: "flex w-[72px] shrink-0",
 };
+
+/**
+ * A row of the table: a line with a divider, not a card - cards with their
+ * own border, padding and gap spent a third of the height on chrome.
+ */
+const TABLE_ROW =
+	"group border-b border-border/70 px-3.5 py-1 transition-colors hover:bg-secondary/60";
 
 /** The table's column names, over the rows. */
 function ColumnHeader({ date }: { date: string }) {
@@ -1362,7 +1388,7 @@ function ColumnHeader({ date }: { date: string }) {
 			className={cn(
 				ROW_GRID,
 				label,
-				"sticky top-0 z-[5] -mx-px border-b border-border bg-background px-3.5 py-1.5 text-faint-foreground",
+				"sticky top-0 z-[5] border-b border-border bg-background px-3.5 py-1.5 text-faint-foreground",
 			)}
 		>
 			<span className={COL.lead} />

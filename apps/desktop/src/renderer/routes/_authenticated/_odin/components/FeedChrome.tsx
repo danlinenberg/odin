@@ -1,3 +1,4 @@
+import { Tooltip, TooltipContent, TooltipTrigger } from "@odin/ui/tooltip";
 import { cn } from "@odin/ui/utils";
 import { type ReactNode, useRef } from "react";
 import { useHotkey } from "renderer/hotkeys";
@@ -245,7 +246,28 @@ export const ROW_SLOT_TONIGHT = "flex w-[96px] shrink-0 justify-center";
 export const ROW_SLOT_READ_LATER = "flex w-[112px] shrink-0 justify-center";
 /** A row action drawn as an icon - always shown, named by its tooltip. */
 export const ROW_ICON_BUTTON =
-	"flex size-7 shrink-0 items-center justify-center rounded-[6px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground";
+	"flex size-6 shrink-0 items-center justify-center rounded-[6px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground hover:ring-1 hover:ring-inset hover:ring-border";
+
+/**
+ * An icon's name, shown the moment the cursor lands on it - a row of bare
+ * icons is unreadable if their names wait a second behind a native title.
+ */
+export function IconTip({
+	label,
+	children,
+}: {
+	label: string;
+	children: ReactNode;
+}) {
+	return (
+		<Tooltip delayDuration={0}>
+			<TooltipTrigger asChild>
+				<span className="inline-flex">{children}</span>
+			</TooltipTrigger>
+			<TooltipContent side="top">{label}</TooltipContent>
+		</Tooltip>
+	);
+}
 export const ROW_LINK_BUTTON =
 	"whitespace-nowrap rounded-[7px] px-2.5 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground";
 

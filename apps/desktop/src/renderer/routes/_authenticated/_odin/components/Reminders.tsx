@@ -4,6 +4,7 @@ import { LuCalendarPlus, LuCalendarX } from "react-icons/lu";
 import { DEFAULT_PROFILE_ID } from "shared/odin-profile";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { IconTip } from "./FeedChrome";
 import { PILL } from "./pill";
 
 /**
@@ -305,6 +306,47 @@ export function DueChip({
 	const input = useRef<HTMLInputElement>(null);
 	const now = Date.now();
 	const due = reminder?.due ?? upstream ?? null;
+	const tip = reminder
+		? `Due ${reminder.due} - set in Odin`
+		: upstream
+			? `Due ${upstream} - from Jira. Setting one here overrides it in Odin only.`
+			: "Set a due date";
+	const dueButton = (
+		<button
+			type="button"
+			title={iconOnly ? undefined : tip}
+			aria-label={tip}
+			// A board card is itself a button - without this, dating a session
+			// opens its drawer.
+			onClick={(e) => {
+				e.stopPropagation();
+				input.current?.showPicker();
+			}}
+			className={cn(
+				iconOnly
+					? "flex size-7 items-center justify-center rounded-[6px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+					: "truncate rounded-[5px] px-[7px] py-[1px] text-[11px] transition-colors",
+				iconOnly
+					? ""
+					: due
+						? TONE_CLASS[dueTone(due, now)]
+						: "text-muted-foreground opacity-0 hover:text-foreground group-hover:opacity-100",
+				// An inherited date is lighter than one you chose: the ticket
+				// says so, you didn't.
+				reminder ? "font-semibold" : "font-medium",
+			)}
+		>
+			{/* Spelled out: beside a card's age chip, a bare "Sep 25" could be
+			    either one. */}
+			{iconOnly ? (
+				<LuCalendarPlus className="size-3.5" aria-hidden />
+			) : due ? (
+				`Due ${dueLabel(due, now)}`
+			) : (
+				"+ Due"
+			)}
+		</button>
+	);
 	return (
 		// Positioned, so the picker opens under the chip rather than at the
 		// corner of whatever card or row happens to be the nearest ancestor.
@@ -325,45 +367,7 @@ export function DueChip({
 				style={{ colorScheme: "dark" }}
 				className="pointer-events-none absolute inset-0 size-full opacity-0"
 			/>
-			<button
-				type="button"
-				title={
-					reminder
-						? `Due ${reminder.due} - set in Odin`
-						: upstream
-							? `Due ${upstream} - from Jira. Setting one here overrides it in Odin only.`
-							: "Set a due date"
-				}
-				// A board card is itself a button - without this, dating a session
-				// opens its drawer.
-				onClick={(e) => {
-					e.stopPropagation();
-					input.current?.showPicker();
-				}}
-				className={cn(
-					iconOnly
-						? "flex size-7 items-center justify-center rounded-[6px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-						: "truncate rounded-[5px] px-[7px] py-[1px] text-[11px] transition-colors",
-					iconOnly
-						? ""
-						: due
-							? TONE_CLASS[dueTone(due, now)]
-							: "text-muted-foreground opacity-0 hover:text-foreground group-hover:opacity-100",
-					// An inherited date is lighter than one you chose: the ticket
-					// says so, you didn't.
-					reminder ? "font-semibold" : "font-medium",
-				)}
-			>
-				{/* Spelled out: beside a card's age chip, a bare "Sep 25" could be
-				    either one. */}
-				{iconOnly ? (
-					<LuCalendarPlus className="size-3.5" aria-hidden />
-				) : due ? (
-					`Due ${dueLabel(due, now)}`
-				) : (
-					"+ Due"
-				)}
-			</button>
+			{iconOnly ? <IconTip label={tip}>{dueButton}</IconTip> : dueButton}
 			{reminder && !iconOnly && (
 				<button
 					type="button"

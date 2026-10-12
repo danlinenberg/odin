@@ -455,7 +455,7 @@ await step("starting a task asks for optional context first", async () => {
 /** Click the button titled `title*` on TASK's row in Tasks. */
 const clickOnTaskRow = (title: string) =>
 	page<boolean>(`(() => {
-		const sel = 'button[title^=${JSON.stringify(title)}]';
+		const sel = 'button[title^=${JSON.stringify(title)}], button[aria-label^=${JSON.stringify(title)}]';
 		let row = [...document.querySelectorAll("button")].find((e) => e.textContent.trim() === ${JSON.stringify(TASK)});
 		while (row && !row.querySelector(sel)) row = row.parentElement;
 		row?.querySelector(sel).click();
@@ -465,7 +465,7 @@ const clickOnTaskRow = (title: string) =>
 /** Whether TASK's row has a button titled `title*`. */
 const clickOnTaskRowHas = (title: string) =>
 	page<boolean>(`(() => {
-		const sel = 'button[title^=${JSON.stringify(title)}]';
+		const sel = 'button[title^=${JSON.stringify(title)}], button[aria-label^=${JSON.stringify(title)}]';
 		let row = [...document.querySelectorAll("button")].find((e) => e.textContent.trim() === ${JSON.stringify(TASK)});
 		while (row && !row.querySelector(sel)) row = row.parentElement;
 		return !!row?.querySelector(sel) && !!row.querySelector('button[title="Mark done"]');
@@ -481,7 +481,7 @@ const taskRowButtons = () =>
 		let row = [...document.querySelectorAll("button")].find((e) => e.textContent.trim() === ${JSON.stringify(TASK)});
 		while (row && !row.querySelector('button[title="Mark done"]')) row = row.parentElement;
 		const done = row?.querySelector('button[title="Mark done"]')?.getBoundingClientRect();
-		const start = [...(row?.querySelectorAll("button") ?? [])].find((e) => /^(Start session|Go to session)/.test(e.textContent.trim()))?.getBoundingClientRect();
+		const start = [...(row?.querySelectorAll("button") ?? [])].find((e) => /^(Start session|Go to session)/.test(e.getAttribute("aria-label") || e.textContent.trim()))?.getBoundingClientRect();
 		return done && start ? { start: Math.round(start.right), done: Math.round(done.left) } : null;
 	})()`);
 
@@ -523,7 +523,7 @@ await step(
 			throw new Error("no Up next button on the task's row");
 		await waitForText("drag to reorder");
 		await page(
-			`document.querySelector('button[title="Take it off Up next"]')?.click()`,
+			`document.querySelector('button[title="Take it off Up next"], button[aria-label="Take it off Up next"]')?.click()`,
 		);
 		await waitForText("drag to reorder", false);
 		await waitForText(TASK);
