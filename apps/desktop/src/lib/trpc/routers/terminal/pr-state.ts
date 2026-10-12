@@ -63,6 +63,24 @@ interface RollupEntry {
 	status?: string;
 	conclusion?: string;
 	state?: string;
+	workflowName?: string;
+	startedAt?: string;
+}
+
+/**
+ * The rollup keeps every run of a check, so a re-run that went green still
+ * lists the runs that failed before it. Only the newest run per check counts.
+ */
+function latestRuns(entries: RollupEntry[]): RollupEntry[] {
+	const latest = new Map<string, RollupEntry>();
+	for (const entry of entries) {
+		const key = `${entry.workflowName ?? ""}/${entry.name ?? entry.context}`;
+		const seen = latest.get(key);
+		if (!seen || (entry.startedAt ?? "") >= (seen.startedAt ?? "")) {
+			latest.set(key, entry);
+		}
+	}
+	return [...latest.values()];
 }
 
 const MANUAL_GATE = /^terrateam apply\b/;
@@ -124,7 +142,7 @@ function status(stdout: string): PullRequestStatus | null {
 		title: pr.title || null,
 		summary: firstParagraph(pr.body ?? ""),
 	};
-	for (const entry of pr.statusCheckRollup ?? []) {
+	for (const entry of latestRuns(pr.statusCheckRollup ?? [])) {
 		const name = entry.name ?? entry.context ?? "check";
 		// A CheckRun carries `status`; a StatusContext only `state`. Anything not
 		// finished is still in flight - that's the bit worth showing live.

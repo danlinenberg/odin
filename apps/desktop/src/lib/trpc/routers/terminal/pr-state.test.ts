@@ -142,6 +142,29 @@ describe("pullRequestState", () => {
 		expect(status?.passed).toBe(1);
 	});
 
+	test("a re-run that went green replaces its failed runs", async () => {
+		const run = (conclusion: string, startedAt: string) => ({
+			name: "changelog",
+			workflowName: "Changelog Enforcer",
+			status: "COMPLETED",
+			conclusion,
+			startedAt,
+		});
+		const exec: GhExec = async () => ({
+			stdout: JSON.stringify({
+				state: "OPEN",
+				statusCheckRollup: [
+					run("FAILURE", "2026-10-11T12:45:06Z"),
+					run("SUCCESS", "2026-10-11T12:45:34Z"),
+					run("FAILURE", "2026-10-11T12:45:19Z"),
+				],
+			}),
+		});
+		const status = await pullRequestState(URL, exec);
+		expect(status?.failed).toEqual([]);
+		expect(status?.passed).toBe(1);
+	});
+
 	test("falls through the logged-in accounts until one can see the repo", async () => {
 		const calls: Array<{ args: string[]; env?: Record<string, string> }> = [];
 		const exec: GhExec = async (args, env) => {
