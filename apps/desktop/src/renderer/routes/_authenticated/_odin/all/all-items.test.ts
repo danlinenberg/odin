@@ -1,5 +1,13 @@
 import { expect, test } from "bun:test";
-import { allItems, matchesStatus, urgencyOf } from "./all-items";
+import {
+	type AllItem,
+	agoLabel,
+	allItems,
+	bandOf,
+	matchesStatus,
+	reasonOf,
+	urgencyOf,
+} from "./all-items";
 
 const iso = (day: number) => new Date(Date.UTC(2026, 0, day)).toISOString();
 
@@ -286,4 +294,49 @@ test("the status picker shows only one status, or hides one", () => {
 	// Rows with no status are their own option, not dropped by every pick.
 	expect(rows.some((item) => matchesStatus(item, "only:No status"))).toBe(true);
 	expect(rows.every((item) => matchesStatus(item, ""))).toBe(true);
+});
+
+const HOUR = 3_600_000;
+
+test("bands: due wins, a fresh ask is Now, older asks and reviews Today, the rest Later", () => {
+	const now = Date.UTC(2026, 0, 10, 12);
+	const ask = (kind: AllItem["ask"]["kind"], hoursAgo: number) => ({
+		ask: { kind, at: now - hoursAgo * HOUR },
+		urgency: null,
+	});
+	expect(bandOf(ask("asked", 1), false, now)).toBe("now");
+	expect(bandOf(ask("asked", 5), false, now)).toBe("today");
+	expect(bandOf(ask("mentioned", 3), false, now)).toBe("now");
+	expect(bandOf(ask("review", 30), false, now)).toBe("today");
+	expect(bandOf(ask("assigned", 1), false, now)).toBe("later");
+	expect(bandOf({ ...ask("assigned", 1), urgency: "high" }, false, now)).toBe(
+		"today",
+	);
+	expect(bandOf(ask("assigned", 1), true, now)).toBe("now");
+	expect(bandOf(ask("asked", 1), false, now, true)).toBe("later");
+});
+
+test("a row says why it is here", () => {
+	const now = Date.UTC(2026, 0, 10, 12);
+	const at = (hoursAgo: number) => now - hoursAgo * HOUR;
+	expect(reasonOf({ ask: { kind: "asked", at: at(2) } }, now)).toBe(
+		"asked you 2h ago",
+	);
+	expect(reasonOf({ ask: { kind: "review", at: at(26) } }, now)).toBe(
+		"review requested 1d ago",
+	);
+	expect(reasonOf({ ask: { kind: "unread", at: at(48) } }, now)).toBe(
+		"unread 2d",
+	);
+	expect(reasonOf({ ask: { kind: "own", at: now } }, now)).toBe("your task");
+	expect(agoLabel(30_000)).toBe("just now");
+});
+
+test("every source records what it asks of you", () => {
+	const by = (source: string) =>
+		allItems(feeds).find((item) => item.source === source);
+	expect(by("Slack")?.ask.kind).toBe("asked");
+	expect(by("GitHub")?.ask.kind).toBe("review");
+	expect(by("Jira")?.ask.kind).toBe("assigned");
+	expect(by("Tasks")?.ask.kind).toBe("own");
 });

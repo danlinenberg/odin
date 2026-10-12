@@ -257,3 +257,14 @@ export const FEED_ROW =
 	"group rounded-[10px] border border-border bg-card px-3.5 py-2 shadow-[inset_0_1px_0_rgb(255_255_255/0.035)] transition-colors hover:border-primary/30 hover:bg-secondary/60";
 /** A full-width box in the list - not connected, nothing picked, failed. */
 export const FEED_NOTICE_BOX = "rounded-[10px] px-3.5 py-2.5 text-xs";
+
+/**
+ * A band or section label over a run of rows. Small caps with air above, so
+ * it reads as a heading: at the rows' own 11px muted weight it read as one
+ * more line of meta, and four of them in a column were a wall of grey.
+ */
+export const SECTION_LABEL =
+	"flex items-center gap-2 px-1 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-[.08em] text-soft-foreground";
+/** The aside after a label - a hint or a toggle - in the rows' own quiet voice. */
+export const SECTION_HINT =
+	"font-normal normal-case tracking-normal text-muted-foreground";

@@ -23,6 +23,7 @@ function item(
 		createdAt: 0,
 		dueDate: null,
 		mention: null,
+		ask: { kind: "own", at: 0 },
 		body: null,
 		details: [],
 		launch: { key, title, description: null, contact: null, brief: "" },

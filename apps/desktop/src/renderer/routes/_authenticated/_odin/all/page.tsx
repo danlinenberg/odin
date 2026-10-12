@@ -36,21 +36,14 @@ import {
 	FeedHeader,
 	FeedSearch,
 	FeedSelect,
-	FilterPill,
-	META_DATE,
-	META_PERSON,
-	META_STATUS,
-	META_TAG,
-	META_TEXT,
 	ROW_LINK_BUTTON,
-	ROW_LINK_SLOT,
 	ROW_LIVE_BUTTON,
 	ROW_META,
 	ROW_PRIMARY_SLOT,
-	ROW_SLOT_READ_LATER,
-	ROW_SLOT_TONIGHT,
-	ROW_SLOT_UP_NEXT,
 	ROW_START_BUTTON,
+	RowActions,
+	SECTION_HINT,
+	SECTION_LABEL,
 	SyncButton,
 } from "../components/FeedChrome";
 import { FEED_TABS, type FeedPath } from "../components/feed-counts";
@@ -60,7 +53,6 @@ import {
 	DueChip,
 	effectiveDue,
 	isDue,
-	META_DUE,
 	OverdueMark,
 	useReminders,
 } from "../components/Reminders";
@@ -79,8 +71,11 @@ import { usePendingFocus } from "../hooks/usePendingFocus";
 import { PANE_STATUS } from "../pane-status";
 import {
 	type AllItem,
+	type Band,
+	bandOf,
 	matchesStatus,
 	NO_STATUS,
+	reasonOf,
 	type Urgency,
 } from "./all-items";
 import { nextSelection, visibleSelection } from "./selection";
@@ -111,30 +106,30 @@ export const Route = createFileRoute("/_authenticated/_odin/all/")({
 });
 
 /**
- * All - every source in one list, newest first. The per-source tabs are for
- * working a queue; this is for the question they can't answer between them,
- * which is "what have I actually got on". Clicking a row goes to its feed,
- * where the Start session button lives.
+ * All - every source in one list, in the order to take it. The per-source
+ * tabs are for working a queue; this is for the question they can't answer
+ * between them, which is "what do I do now".
  *
- * Every session running right now sits above them, whichever tab started it -
- * the per-source feeds each mark only their own rows live, and a Slack row
- * leaves its queue as soon as its session starts, so this is the one place
- * that can answer "what's already going".
+ * Rows sit in three bands - Now, Today, Later (all-items.ts: bandOf) - and
+ * each says why it is where it is: "asked you 2h ago", "review requested
+ * 1d ago". That reason stands in for the High every Slack ask and @-mention
+ * used to be painted, which made High mean nothing. Up next, your own order,
+ * sits above the bands.
  *
- * Rows are filtered, not just listed: by source, by how urgent they are in
- * whatever terms their system uses, and by where they live - the channel, the
- * repo, the project. And anything that isn't yours to do can be hidden, under
- * the same key its own feed hides it with.
+ * Every session running right now folds to one strip above them, whichever
+ * tab started it - the per-source feeds each mark only their own rows live,
+ * and a Slack row leaves its queue as soon as its session starts, so this is
+ * the one place that can answer "what's already going". "show rows" opens it.
  *
- * Rows start a session here too. Each feed's prompt builder is shared rather
- * than duplicated (feed-prompts.ts, thread-prompt.ts, notion/rows.ts), so a
- * row started from All is the same session the feed itself would have given
- * you - the launch payload is built in all-items.ts, where the source's own
- * fields still exist.
+ * Rows are filtered from one menu - source, priority, place, status, due,
+ * done - and what's applied shows as chips under the header, so the list
+ * never narrows without saying so. Rows start a session here too: each
+ * feed's prompt builder is shared (feed-prompts.ts, thread-prompt.ts,
+ * notion/rows.ts), and the launch payload is built in all-items.ts.
  */
 
 /**
- * The tab strip's own mark for each feed, reused - a row's chip should say
+ * The tab strip's own mark for each feed, reused - a row's mark should say
  * "Slack" the same way the tab that opens Slack does.
  */
 const SOURCE_ICON = Object.fromEntries(
@@ -177,17 +172,7 @@ const SESSION_STATE: Partial<
 	idle: { label: "idle", dot: PANE_STATUS.idle.dot },
 };
 
-/**
- * Which system a row came from. Every source draws the same neutral chip and
- * the icon tells them apart: when each source had its own colour, a list of
- * forty rows was a rainbow that outshouted the priority and due chips - the
- * colours that actually ask something of you.
- */
-const SOURCE_CHIP = PILL.neutral;
-
-/** The source filter, in the order the tab strip lists them. ponytail: a
- * picker, not pills - the tab strip above already draws one row of sources,
- * and a second row of the same names read as two of the same control. */
+/** The source filter, in the order the tab strip lists them. */
 const SOURCES = [
 	"Tasks",
 	"Slack",
@@ -212,6 +197,25 @@ const STATUS_FILTERS: { id: string; label: string }[] = [
 	...TASK_STATUSES,
 	{ id: "reading", label: "Read later" },
 ];
+
+/** The bands, top to bottom, and what each one says it holds. */
+const BANDS: { id: Band; label: string; hint: string }[] = [
+	{ id: "now", label: "Now", hint: "due, or asked under 4h ago" },
+	{ id: "today", label: "Today", hint: "reviews and asks waiting on you" },
+	{ id: "later", label: "Later", hint: "" },
+];
+
+/**
+ * The asks whose timing is the point. Their rows show the reason ("asked you
+ * 2h ago") where the others show a priority chip: for these the source's
+ * level is a rule (every reaction is High), and the wait is the real signal.
+ */
+const TIMED_ASKS = new Set<AllItem["ask"]["kind"]>([
+	"asked",
+	"mentioned",
+	"review",
+	"unread",
+]);
 
 const SHOW_SESSIONS_KEY = "odin.all.showSessions";
 /** Kept, unlike the other cuts: hiding Backlog is a standing choice, not a
@@ -245,8 +249,8 @@ function AllFeedPage() {
 			localStorage.setItem(SHOW_SESSIONS_KEY, String(next));
 		} catch {}
 	};
-	// The three ways to cut the list. Local state too: All is the "what have I
-	// got on" view, and it should open saying everything, every time.
+	// The ways to cut the list. Local state: All is the "what now" view, and it
+	// should open saying everything, every time.
 	const [source, setSource] = useState<AllItem["source"] | "">("");
 	const [urgency, setUrgency] = useState("");
 	const [context, setContext] = useState("");
@@ -257,14 +261,12 @@ function AllFeedPage() {
 			localStorage.setItem(STATUS_FILTER_KEY, value);
 		} catch {}
 	};
-	// A fourth cut, but a toggle rather than a select: "what's due" has one
-	// answer, and it's the one you want on the morning something is late.
 	const [dueOnly, setDueOnly] = useState(false);
-	// And free text, matched against everything a row shows - title, who, where,
+	// Free text, matched against everything a row shows - title, who, where,
 	// status - so "terraform" or a colleague's name finds it without a picker.
 	const [search, setSearch] = useState("");
-	// "updated" is the feeds' own order (allItems); "created" is when each row
-	// landed on your list - for Slack, the :eyes:, not the message.
+	// Order inside a band. "updated" is the feeds' own order (allItems);
+	// "created" is when each row landed on your list - for Slack, the :eyes:.
 	const [sortBy, setSortBy] = useState<"updated" | "created">("updated");
 	const dateOf = (item: AllItem) =>
 		sortBy === "created" ? item.createdAt : item.at;
@@ -276,16 +278,19 @@ function AllFeedPage() {
 		isLaunching,
 		launchingKey,
 	} = useStartAllItem(() => void reactions.refetch());
-	// What's already running, whichever tab started it. Each feed only marks its
-	// own rows live, and a Slack row leaves its queue the moment a session
-	// starts - so this is the only place "what have I got going" is answerable.
 	const sessions = useActiveSessions();
+	const needsYou = sessions.filter(
+		(session) => session.column === "permission",
+	);
+	const goToPane = (paneId: string) => {
+		usePendingFocus.getState().focus(paneId);
+		navigate({ to: "/board" });
+	};
 
 	// Done rows - from any feed, Next in line, or a Review drop - aren't
-	// waiting on you. They're one click away under "Done", with Undo.
+	// waiting on you. They're one click away under Done, with Undo.
 	// Reading material is the same put-away, for rows with nothing left to do
-	// but worth keeping: off every queue and the Night Agent, listed apart.
-	// Reading material stays on this list (use-all-items), as "Read later".
+	// but worth keeping: off every queue and the Night Agent, listed in Later.
 	const {
 		markDone,
 		markReading,
@@ -295,7 +300,7 @@ function AllFeedPage() {
 		set: setDone,
 	} = useDone();
 	const [shelf, setShelf] = useState(false);
-	// Undo on the last row hides its pill too: back to the queue, not a blank.
+	// Undo on the last row hides its chip too: back to the queue, not a blank.
 	const showDone = shelf && recent.length > 0;
 	const readingKeys = useMemo(
 		() => new Set(reading.map((row) => row.key)),
@@ -434,7 +439,7 @@ function AllFeedPage() {
 			statusOf(item),
 			(statusCounts.get(statusOf(item)) ?? 0) + 1,
 		);
-	// Up next sits above the list in your order, so it isn't listed twice.
+	// Up next sits above the bands in your order, so it isn't listed twice.
 	const queued = queue.flatMap((key) => {
 		const item = allRows.find((row) => row.key === key);
 		return item ? [item] : [];
@@ -473,6 +478,22 @@ function AllFeedPage() {
 				.includes(needle),
 		);
 	}, [byStatus, dueOnly, reminders, needle, sortBy, queue]);
+
+	// The bands. One clock per render: a row's reason and its band must agree.
+	const now = Date.now();
+	const bands = useMemo(() => {
+		const out: Record<Band, AllItem[]> = { now: [], today: [], later: [] };
+		for (const item of items)
+			out[
+				bandOf(
+					item,
+					isDue(effectiveDue(item.key, reminders, item.dueDate), now),
+					now,
+					readingKeys.has(item.key),
+				)
+			].push(item);
+		return out;
+	}, [items, reminders, readingKeys, now]);
 
 	// Ticked rows, for acting on many at once. Only rows still on screen count:
 	// a filter or a Done that hides a ticked row takes it out of the next action.
@@ -514,166 +535,343 @@ function AllFeedPage() {
 		everyRow.find((item) => item.key === openKey);
 	const openTask = tasks.find((task) => `task:${task.id}` === openItem?.key);
 
-	const isFiltered =
-		source !== "" ||
-		urgency !== "" ||
-		context !== "" ||
-		statusFilter !== "" ||
-		dueOnly ||
-		!!needle;
+	const statusFilterLabel = statusFilter.startsWith("odin:")
+		? STATUS_FILTERS.find(({ id }) => id === statusFilter.slice(5))?.label
+		: statusFilter.startsWith("hide:")
+			? `Hide ${statusFilter.slice(5)}`
+			: statusFilter.slice(5);
+	/** What's applied, as the chips under the header say it. */
+	const applied: { label: string; clear: () => void }[] = [
+		...(source ? [{ label: source, clear: () => setSource("") }] : []),
+		...(urgency
+			? [
+					{
+						label: URGENCIES.find(({ id }) => id === urgency)?.label ?? urgency,
+						clear: () => setUrgency(""),
+					},
+				]
+			: []),
+		...(context ? [{ label: context, clear: () => setContext("") }] : []),
+		...(statusFilter
+			? [
+					{
+						label: statusFilterLabel ?? statusFilter,
+						clear: () => setStatusFilter(""),
+					},
+				]
+			: []),
+		...(dueOnly ? [{ label: "Due", clear: () => setDueOnly(false) }] : []),
+		...(showDone ? [{ label: "Done", clear: () => setShelf(false) }] : []),
+	];
+	const isFiltered = applied.length > 0 || !!needle;
 	const clearFilters = () => {
 		setSource("");
 		setUrgency("");
 		setContext("");
 		setStatusFilter("");
 		setDueOnly(false);
+		setShelf(false);
 		setSearch("");
 	};
 
 	// Backlog, Read later and the rest are on the list but not waiting on you.
 	const waiting = statusCounts.get("waiting") ?? 0;
+	const shown = items.length + queued.length;
+
+	/** One row of the list. */
+	const renderRow = (item: AllItem, band: Band) => {
+		const url = item.url;
+		const SourceIcon = SOURCE_ICON[item.to];
+		const activePaneId = livePaneFor(item);
+		const isReading = readingKeys.has(item.key);
+		// The wait is the reason on a timed ask; a level the source itself set
+		// (Jira's Highest, your own High) stays a chip.
+		const timed = TIMED_ASKS.has(item.ask.kind);
+		const rated =
+			item.sourcePriority !== undefined
+				? item.priority
+				: timed
+					? null
+					: item.priority;
+		return (
+			<div
+				key={item.key}
+				className={cn(
+					FEED_ROW,
+					band === "now" && "border-l-2 border-l-attention",
+					item.key === openKey && "border-primary/50 bg-secondary/60",
+				)}
+			>
+				<div className="flex items-center gap-3">
+					<input
+						type="checkbox"
+						aria-label={`Select ${item.title}`}
+						title="Select - shift-click selects a range"
+						checked={selected.has(item.key)}
+						onChange={() => {}}
+						onClick={(event) => tick(item.key, event.shiftKey)}
+						className="size-3.5 cursor-pointer accent-primary"
+					/>
+					<SourceIcon
+						className="size-3.5 shrink-0 text-muted-foreground"
+						title={item.source}
+						aria-label={item.source}
+					/>
+					<button
+						type="button"
+						title="Show details"
+						onClick={() => setOpenKey(item.key === openKey ? null : item.key)}
+						className="min-w-0 flex-1 truncate bg-none text-left text-[13px] font-semibold text-foreground"
+					>
+						<OverdueMark itemKey={item.key} upstream={item.dueDate} />
+						{emojify(item.title)}
+						{typeOf(item, types) && (
+							<span className="ml-2 text-[11px] font-normal text-muted-foreground">
+								{typeLabel(typeOf(item, types))}
+							</span>
+						)}
+					</button>
+					{/* The open row's meta is in the panel, and with the panel open
+					    the columns don't fit beside it. Only what the row has is
+					    drawn: an empty slot that keeps its width is a gap. */}
+					{!openItem && (
+						<div className="flex shrink-0 items-center gap-2.5 text-[11px]">
+							<DueChip
+								itemKey={item.key}
+								title={item.title}
+								upstream={item.dueDate}
+							/>
+							{timed ? (
+								<span
+									className={cn(
+										ROW_META,
+										"whitespace-nowrap",
+										band === "now" && "font-semibold text-attention",
+									)}
+								>
+									{reasonOf(item, now)}
+								</span>
+							) : (
+								rated && <PriorityLabelChip label={rated} />
+							)}
+							<RowStatus
+								odin={
+									isReading ? "Read later" : statusLabel(statuses[item.key])
+								}
+								upstream={item.status}
+							/>
+							{item.person && (
+								<PersonChip name={item.person} className="max-w-[160px]" />
+							)}
+							{item.context && (
+								<span className="max-w-[132px] truncate text-muted-foreground">
+									{item.context}
+								</span>
+							)}
+							{dateOf(item) > 0 && (
+								<span className="tabular-nums text-muted-foreground">
+									{new Date(dateOf(item)).toLocaleDateString(undefined, {
+										month: "short",
+										day: "numeric",
+									})}
+								</span>
+							)}
+						</div>
+					)}
+					{/* The quiet four: on hover, on keyboard focus, and always in
+					    the side panel. Start session and Done are the row's two
+					    standing buttons - fifty rows of six each was a wall. */}
+					<RowActions>
+						{url && (
+							<button
+								type="button"
+								title={url}
+								onClick={() => openUrl(url)}
+								className={ROW_LINK_BUTTON}
+							>
+								Open ↗
+							</button>
+						)}
+						<button
+							type="button"
+							onClick={() => enqueue(item.key)}
+							title="Line it up - Up next, above the list"
+							className={ROW_LINK_BUTTON}
+						>
+							Up next
+						</button>
+						<TonightButton item={item} />
+						<ReadLaterButton
+							on={isReading}
+							onClick={() => (isReading ? undo(item) : markReading(item))}
+						/>
+					</RowActions>
+					<span className={ROW_PRIMARY_SLOT}>
+						{activePaneId ? (
+							<button
+								type="button"
+								onClick={() => goToPane(activePaneId)}
+								className={ROW_LIVE_BUTTON}
+							>
+								Go to session →
+							</button>
+						) : (
+							<button
+								type="button"
+								disabled={isLaunching}
+								onClick={() => void handleStart(item)}
+								className={ROW_START_BUTTON}
+							>
+								{launchingKey === item.launch.key
+									? "Starting…"
+									: "Start session"}
+							</button>
+						)}
+					</span>
+					<DoneButton onClick={() => finish(item)} />
+				</div>
+				{/* Same preview the Jira feed shows: a mention row is there because
+				    of one comment. Indented past the checkbox and the mark. */}
+				{item.mention && (
+					<div className="mt-1.5 ml-[46px] line-clamp-2 cursor-text select-text text-[11.5px] leading-relaxed text-muted-foreground">
+						<span className="font-semibold text-soft-foreground">
+							{item.mention.author ?? "Someone"}
+							{": "}
+						</span>
+						{item.mention.text}
+					</div>
+				)}
+			</div>
+		);
+	};
 
 	return (
 		<div className="flex h-full flex-col">
 			<FeedHeader>
 				<FeedDivider />
 				<span className="shrink-0 text-[12px] text-muted-foreground">
-					{/* Up next rows are on screen too, just above the rest. */}
-					{items.length + queued.length !== allRows.length
-						? `${items.length + queued.length} of ${allRows.length}`
-						: waiting === allRows.length
-							? `${waiting} waiting on you`
-							: `${allRows.length} tasks · ${waiting} waiting on you`}
+					{shown !== allRows.length ? `${shown} of ${allRows.length} · ` : ""}
+					{waiting} waiting on you
+					{(bands.now.length > 0 || bands.today.length > 0) &&
+						` · ${bands.now.length} now · ${bands.today.length} today`}
 				</span>
-				{sessions.length > 0 && (
-					<span
-						className={cn(
-							"shrink-0 rounded-[10px] px-1.5 py-[1px] text-[11px] font-semibold",
-							PILL.working,
-						)}
-					>
-						{sessions.length} live
-					</span>
-				)}
 				<div className="ml-auto flex items-center gap-2.5">
-					{isFiltered && (
-						<button
-							type="button"
-							onClick={clearFilters}
-							className="shrink-0 text-[12px] text-muted-foreground transition-colors hover:text-foreground"
-						>
-							clear filters
-						</button>
-					)}
 					<FeedSearch value={search} onChange={setSearch} />
-					{dueRows.length > 0 && (
-						<FilterPill
-							active={dueOnly}
-							count={dueRows.length}
-							onClick={() => setDueOnly(!dueOnly)}
-						>
-							Due
-						</FilterPill>
-					)}
-					{recent.length > 0 && (
-						<FilterPill
-							active={showDone}
-							count={recent.length}
-							onClick={() => setShelf(!showDone)}
-						>
-							Done
-						</FilterPill>
-					)}
-					<FeedSelect
-						value={source}
-						onChange={(value) => {
-							setSource(value as AllItem["source"] | "");
-							setContext("");
-						}}
-						title="Filter by source"
-					>
-						<option value="">Any source</option>
-						{SOURCES.filter(
-							// A source with nothing in it (Notion not connected, no PRs)
-							// is an option that can only empty the list.
-							(name) => (sourceCounts.get(name) ?? 0) > 0 || source === name,
-						).map((name) => (
-							<option key={name} value={name}>
-								{name} ({sourceCounts.get(name) ?? 0})
-							</option>
-						))}
-					</FeedSelect>
-					<FeedSelect
-						value={urgency}
-						onChange={setUrgency}
-						title="Filter by priority - every source's own words, in three levels"
-					>
-						<option value="">Any priority</option>
-						{URGENCIES.map(({ id, label }) => (
-							<option key={id} value={id}>
-								{label} ({urgencyCounts.get(id) ?? 0})
-							</option>
-						))}
-					</FeedSelect>
-					{places.length > 0 && (
-						<FeedSelect
-							value={context}
-							onChange={setContext}
-							title="Filter by channel, repo or project"
-						>
-							<option value="">Everywhere</option>
-							{places.map(([place, count]) => (
-								<option key={place} value={place}>
-									{place} ({count})
-								</option>
-							))}
-						</FeedSelect>
-					)}
-					<FeedSelect
-						value={statusFilter}
-						onChange={setStatusFilter}
-						title="Filter by status - Odin's own, or the source's: show only one, or hide one (kept until cleared)"
-					>
-						<option value="">Any status</option>
-						<optgroup label="Odin">
-							{STATUS_FILTERS.map(({ id, label }) => (
-								<option key={id} value={`odin:${id}`}>
-									{label} ({statusCounts.get(id) ?? 0})
-								</option>
-							))}
-						</optgroup>
-						{/* The kept choice may name a status nothing has right now. */}
-						{statusFilter &&
-							!statusFilter.startsWith("odin:") &&
-							!upstreamStatuses.some(([s]) => s === statusFilter.slice(5)) && (
-								<option value={statusFilter}>
-									{statusFilter.startsWith("hide:") ? "Hide " : ""}
-									{statusFilter.slice(5)} (0)
-								</option>
-							)}
-						{upstreamStatuses.length > 1 && (
-							<>
-								<optgroup label="Show only">
-									{upstreamStatuses.map(([status, count]) => (
-										<option key={status} value={`only:${status}`}>
-											{status} ({count})
+					<FilterMenu active={applied.length}>
+						<Facet label="Source">
+							<FeedSelect
+								value={source}
+								onChange={(value) => {
+									setSource(value as AllItem["source"] | "");
+									setContext("");
+								}}
+								title="Filter by source"
+							>
+								<option value="">Any source</option>
+								{SOURCES.filter(
+									// A source with nothing in it (Notion not connected, no
+									// PRs) is an option that can only empty the list.
+									(name) =>
+										(sourceCounts.get(name) ?? 0) > 0 || source === name,
+								).map((name) => (
+									<option key={name} value={name}>
+										{name} ({sourceCounts.get(name) ?? 0})
+									</option>
+								))}
+							</FeedSelect>
+						</Facet>
+						<Facet label="Priority">
+							<FeedSelect
+								value={urgency}
+								onChange={setUrgency}
+								title="Filter by priority - every source's own words, in three levels"
+							>
+								<option value="">Any priority</option>
+								{URGENCIES.map(({ id, label }) => (
+									<option key={id} value={id}>
+										{label} ({urgencyCounts.get(id) ?? 0})
+									</option>
+								))}
+							</FeedSelect>
+						</Facet>
+						<Facet label="Place">
+							<FeedSelect
+								value={context}
+								onChange={setContext}
+								title="Filter by channel, repo or project"
+							>
+								<option value="">Everywhere</option>
+								{places.map(([place, count]) => (
+									<option key={place} value={place}>
+										{place} ({count})
+									</option>
+								))}
+							</FeedSelect>
+						</Facet>
+						<Facet label="Status">
+							<FeedSelect
+								value={statusFilter}
+								onChange={setStatusFilter}
+								title="Filter by status - Odin's own, or the source's: show only one, or hide one (kept until cleared)"
+							>
+								<option value="">Any status</option>
+								<optgroup label="Odin">
+									{STATUS_FILTERS.map(({ id, label }) => (
+										<option key={id} value={`odin:${id}`}>
+											{label} ({statusCounts.get(id) ?? 0})
 										</option>
 									))}
 								</optgroup>
-								<optgroup label="Hide">
-									{upstreamStatuses.map(([status, count]) => (
-										<option key={status} value={`hide:${status}`}>
-											Hide {status} ({count})
+								{/* The kept choice may name a status nothing has right now. */}
+								{statusFilter &&
+									!statusFilter.startsWith("odin:") &&
+									!upstreamStatuses.some(
+										([s]) => s === statusFilter.slice(5),
+									) && (
+										<option value={statusFilter}>
+											{statusFilter.startsWith("hide:") ? "Hide " : ""}
+											{statusFilter.slice(5)} (0)
 										</option>
-									))}
-								</optgroup>
-							</>
+									)}
+								{upstreamStatuses.length > 1 && (
+									<>
+										<optgroup label="Show only">
+											{upstreamStatuses.map(([status, count]) => (
+												<option key={status} value={`only:${status}`}>
+													{status} ({count})
+												</option>
+											))}
+										</optgroup>
+										<optgroup label="Hide">
+											{upstreamStatuses.map(([status, count]) => (
+												<option key={status} value={`hide:${status}`}>
+													Hide {status} ({count})
+												</option>
+											))}
+										</optgroup>
+									</>
+								)}
+							</FeedSelect>
+						</Facet>
+						{dueRows.length > 0 && (
+							<Toggle
+								checked={dueOnly}
+								onChange={setDueOnly}
+								label={`Due or overdue only (${dueRows.length})`}
+							/>
 						)}
-					</FeedSelect>
+						{recent.length > 0 && (
+							<Toggle
+								checked={showDone}
+								onChange={setShelf}
+								label={`Show what's Done (${recent.length})`}
+							/>
+						)}
+					</FilterMenu>
 					<FeedSelect
 						value={sortBy}
 						onChange={(value) => setSortBy(value as "updated" | "created")}
-						title="Sort order - Created is when a row landed on your list (Slack: when you reacted)"
+						title="Order inside each band - Created is when a row landed on your list (Slack: when you reacted)"
 					>
 						<option value="updated">Newest activity</option>
 						<option value="created">Created at</option>
@@ -681,9 +879,32 @@ function AllFeedPage() {
 					<SyncButton isSyncing={isSyncing} onClick={() => void syncAll()} />
 				</div>
 			</FeedHeader>
+			{applied.length > 0 && (
+				<div className="flex flex-wrap items-center gap-1.5 border-b border-border px-[18px] py-1.5 text-[11px]">
+					{applied.map(({ label, clear }) => (
+						<button
+							key={label}
+							type="button"
+							onClick={clear}
+							title="Remove this filter"
+							className="rounded-full border border-primary/40 bg-primary/15 px-2 py-[1px] font-medium text-primary-ink hover:bg-primary/25"
+						>
+							{label} ✕
+						</button>
+					))}
+					<button
+						type="button"
+						onClick={clearFilters}
+						className="ml-1 text-muted-foreground transition-colors hover:text-foreground"
+					>
+						clear all
+					</button>
+				</div>
+			)}
 
-			<div className="border-b border-border px-[18px] py-3">
+			<div className="border-b border-border px-[18px] py-2">
 				<TaskBox
+					compact
 					value={draft}
 					skills={skills}
 					repos={repos}
@@ -762,8 +983,12 @@ function AllFeedPage() {
 					)}
 					{!showDone && queued.length > 0 && (
 						<>
-							<div className="px-1 pt-1 pb-0.5 text-[11px] font-semibold text-muted-foreground">
-								Up next - drag to reorder, 1 goes first
+							<div className={SECTION_LABEL}>
+								Up next
+								<Count n={queued.length} />
+								<span className={SECTION_HINT}>
+									drag to reorder, 1 goes first
+								</span>
 							</div>
 							<DndContext
 								sensors={sensors}
@@ -789,85 +1014,66 @@ function AllFeedPage() {
 									))}
 								</SortableContext>
 							</DndContext>
-							<div className="px-1 pt-2 pb-0.5 text-[11px] font-semibold text-muted-foreground">
-								Everything else
-							</div>
 						</>
 					)}
 					{/* ponytail: no error banner here. A broken source already marks
 				    its own tab, and fixing it happens on that tab - the roll-up
 				    just shows the rows the other sources returned. */}
-					{sessions.length > 0 && (
+					{!showDone && sessions.length > 0 && (
 						<>
-							<button
-								type="button"
-								onClick={toggleSessions}
-								className="flex items-center gap-1.5 px-1 pt-1 pb-0.5 text-[11px] font-semibold text-working"
-							>
-								<span className="size-1.5 animate-pulse rounded-full bg-current" />
-								Live sessions
-								<span className="rounded-[10px] bg-working/12 px-1.5 font-medium">
-									{sessions.length}
-								</span>
-								<span className="text-muted-foreground">
-									{showSessions ? "hide" : "show"}
-								</span>
-							</button>
-							{showSessions &&
+							<div className={SECTION_LABEL}>
+								<span className="size-1.5 animate-pulse rounded-full bg-working" />
+								Live
+								<Count n={sessions.length} />
+								{needsYou.length > 0 && (
+									<span className={SECTION_HINT}>
+										{needsYou.length} need you
+									</span>
+								)}
+								<button
+									type="button"
+									onClick={toggleSessions}
+									className={cn(SECTION_HINT, "hover:text-foreground")}
+								>
+									{showSessions ? "fold" : "show rows"}
+								</button>
+							</div>
+							{showSessions ? (
 								sessions.map((session) => {
-									const { to, source } = SESSION_SOURCE[session.source];
+									const { to } = SESSION_SOURCE[session.source];
 									const SourceIcon = SOURCE_ICON[to];
 									const state = SESSION_STATE[session.column];
 									return (
-										<div key={session.paneId} className={FEED_ROW}>
+										<div
+											key={session.paneId}
+											className={cn(FEED_ROW, "border-l-2 border-l-working")}
+										>
 											<div className="flex items-center gap-3">
-												<span
-													className={cn(
-														"flex w-[68px] shrink-0 items-center justify-center gap-1 rounded-[5px] px-[7px] py-[1px] text-[11px] font-semibold",
-														SOURCE_CHIP,
-													)}
-												>
-													<SourceIcon className="size-3 shrink-0" aria-hidden />
-													{source}
-												</span>
+												<SourceIcon
+													className="size-3.5 shrink-0 text-muted-foreground"
+													aria-hidden
+												/>
 												<button
 													type="button"
 													title="Open the session on the board"
-													onClick={() => {
-														usePendingFocus.getState().focus(session.paneId);
-														navigate({ to: "/board" });
-													}}
+													onClick={() => goToPane(session.paneId)}
 													className="min-w-0 flex-1 truncate bg-none text-left text-[13px] font-semibold text-foreground"
 												>
 													{emojify(session.title)}
 												</button>
-												{/* The same columns the rows below use, so a live
-										    session says what its board card says: who it's
-										    for, its tags, which repo it's in, what it's
-										    doing. ponytail: no age column - the board's is a
-										    transcript read per card, too much for a list. */}
-												<div
-													className={cn(
-														"flex shrink-0 items-center gap-2 text-[11px]",
-														openItem && "hidden",
-													)}
-												>
-													<span className={META_TAG}>
+												{!openItem && (
+													<div className="flex shrink-0 items-center gap-2.5 text-[11px]">
 														{session.tags[0] && (
-															<span className="truncate font-mono text-[10.5px] text-faint-foreground">
+															<span className="font-mono text-[10.5px] text-faint-foreground">
 																#{session.tags[0]}
 															</span>
 														)}
-													</span>
-													<span className={META_PERSON}>
 														{session.contact && (
 															<PersonChip
 																name={session.contact}
-																className="max-w-full truncate"
+																className="max-w-[160px]"
 															/>
 														)}
-													</span>
-													<span className={META_STATUS}>
 														{state && (
 															<span
 																className={cn(
@@ -882,30 +1088,20 @@ function AllFeedPage() {
 																{state.label}
 															</span>
 														)}
-													</span>
-													<span
-														className={META_TEXT}
-														title={session.repo ?? ""}
-													>
-														{session.repo}
-													</span>
-													{/* A live session has no date of its own, but the
-												    empty slot keeps its due chip under the rows'. */}
-													<span className={META_DATE} />
-													<span className={META_DUE}>
-														<DueChip
-															itemKey={`session:${session.paneId}`}
-															title={session.title}
-														/>
-													</span>
-												</div>
+														{session.repo && (
+															<span
+																className="max-w-[132px] truncate text-muted-foreground"
+																title={session.repo}
+															>
+																{session.repo}
+															</span>
+														)}
+													</div>
+												)}
 												<span className={ROW_PRIMARY_SLOT}>
 													<button
 														type="button"
-														onClick={() => {
-															usePendingFocus.getState().focus(session.paneId);
-															navigate({ to: "/board" });
-														}}
+														onClick={() => goToPane(session.paneId)}
 														className={ROW_LIVE_BUTTON}
 													>
 														Go to session →
@@ -914,10 +1110,34 @@ function AllFeedPage() {
 											</div>
 										</div>
 									);
-								})}
-							<div className="px-1 pt-2 pb-0.5 text-[11px] font-semibold text-muted-foreground">
-								Waiting on you
-							</div>
+								})
+							) : (
+								<div className={cn(FEED_ROW, "flex items-center gap-3 py-1.5")}>
+									<div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
+										{needsYou.length === 0 && (
+											<span className={ROW_META}>all working</span>
+										)}
+										{needsYou.map((session) => (
+											<button
+												key={session.paneId}
+												type="button"
+												title="Open the session on the board"
+												onClick={() => goToPane(session.paneId)}
+												className="max-w-[220px] shrink-0 truncate rounded-full bg-secondary px-2 py-[1px] text-[11px] text-soft-foreground ring-1 ring-inset ring-attention/50 transition-colors hover:text-foreground"
+											>
+												{emojify(session.title)}
+											</button>
+										))}
+									</div>
+									<button
+										type="button"
+										onClick={() => navigate({ to: "/board" })}
+										className={ROW_LIVE_BUTTON}
+									>
+										Board →
+									</button>
+								</div>
+							)}
 						</>
 					)}
 					{showDone && (
@@ -944,187 +1164,18 @@ function AllFeedPage() {
 						</div>
 					)}
 					{!showDone &&
-						items.map((item) => {
-							const url = item.url;
-							const SourceIcon = SOURCE_ICON[item.to];
-							const activePaneId = livePaneFor(item);
-							return (
-								<div
-									key={item.key}
-									className={cn(
-										FEED_ROW,
-										item.key === openKey && "border-primary/50 bg-secondary/60",
-									)}
-								>
-									{/* The same columns the per-source feeds use, so a row here
-							    carries what its own feed would tell you: who it's from,
-							    where it stands, where it lives. A grid, not a flex row,
-							    so the mention below wraps inside the title's column. */}
-									<div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto_auto_auto] items-center gap-x-3">
-										<input
-											type="checkbox"
-											aria-label={`Select ${item.title}`}
-											title="Select - shift-click selects a range"
-											checked={selected.has(item.key)}
-											onChange={() => {}}
-											onClick={(event) => tick(item.key, event.shiftKey)}
-											className="size-3.5 cursor-pointer accent-primary"
-										/>
-										<span
-											className={cn(
-												"flex w-[68px] shrink-0 items-center justify-center gap-1 rounded-[5px] px-[7px] py-[1px] text-[11px] font-semibold",
-												SOURCE_CHIP,
-											)}
-										>
-											<SourceIcon className="size-3 shrink-0" aria-hidden />
-											{item.source}
-										</span>
-										<button
-											type="button"
-											title="Show details"
-											onClick={() =>
-												setOpenKey(item.key === openKey ? null : item.key)
-											}
-											className="min-w-0 flex-1 truncate bg-none text-left text-[13px] font-semibold text-foreground"
-										>
-											<OverdueMark itemKey={item.key} upstream={item.dueDate} />
-											{emojify(item.title)}
-											{typeOf(item, types) && (
-												<span className="ml-2 text-[11px] font-normal text-muted-foreground">
-													{typeLabel(typeOf(item, types))}
-												</span>
-											)}
-										</button>
-										{/* The open row's meta is in the panel, and with the panel
-										    open the columns don't fit beside it - they squeezed the
-										    title to nothing and pushed Done past the row's edge. */}
-										<div
-											className={cn(
-												"flex shrink-0 items-center gap-2 text-[11px]",
-												openItem && "hidden",
-											)}
-										>
-											<span className={META_TAG}>
-												{item.priority && (
-													<PriorityLabelChip label={item.priority} />
-												)}
-											</span>
-											<span className={META_PERSON}>
-												{item.person && (
-													<PersonChip
-														name={item.person}
-														className="max-w-full truncate"
-													/>
-												)}
-											</span>
-											<span className={META_STATUS}>
-												<RowStatus
-													odin={
-														readingKeys.has(item.key)
-															? "Read later"
-															: statusLabel(statuses[item.key])
-													}
-													upstream={item.status}
-												/>
-											</span>
-											<span className={META_TEXT}>{item.context}</span>
-											<span className={META_DATE}>
-												{dateOf(item) > 0 &&
-													new Date(dateOf(item)).toLocaleDateString(undefined, {
-														month: "short",
-														day: "numeric",
-													})}
-											</span>
-											<span className={META_DUE}>
-												<DueChip
-													itemKey={item.key}
-													title={item.title}
-													upstream={item.dueDate}
-												/>
-											</span>
-										</div>
-										<span className={ROW_LINK_SLOT}>
-											{url && (
-												<button
-													type="button"
-													title={url}
-													onClick={() => openUrl(url)}
-													className={ROW_LINK_BUTTON}
-												>
-													Open ↗
-												</button>
-											)}
-										</span>
-										{/* One cell, fixed slots: an optional or wider button (no
-										    Tonight on Email rows, "↺ Read later") must not move
-										    the others, and Start session stays next to Done.
-										    Smoke checks both. */}
-										<div className="flex shrink-0 items-center justify-end gap-1">
-											<span className={ROW_SLOT_UP_NEXT}>
-												<button
-													type="button"
-													onClick={() => enqueue(item.key)}
-													title="Line it up - Up next, above the list"
-													className={ROW_LINK_BUTTON}
-												>
-													Up next
-												</button>
-											</span>
-											<span className={ROW_SLOT_TONIGHT}>
-												<TonightButton item={item} />
-											</span>
-											<span className={ROW_SLOT_READ_LATER}>
-												<ReadLaterButton
-													on={readingKeys.has(item.key)}
-													onClick={() =>
-														readingKeys.has(item.key)
-															? undo(item)
-															: markReading(item)
-													}
-												/>
-											</span>
-											<span className={ROW_PRIMARY_SLOT}>
-												{activePaneId ? (
-													<button
-														type="button"
-														onClick={() => {
-															usePendingFocus.getState().focus(activePaneId);
-															navigate({ to: "/board" });
-														}}
-														className={ROW_LIVE_BUTTON}
-													>
-														Go to session →
-													</button>
-												) : (
-													<button
-														type="button"
-														disabled={isLaunching}
-														onClick={() => void handleStart(item)}
-														className={ROW_START_BUTTON}
-													>
-														{launchingKey === item.launch.key
-															? "Starting…"
-															: "Start session"}
-													</button>
-												)}
-											</span>
-											<DoneButton onClick={() => finish(item)} />
-										</div>
-										{/* Same preview the Jira feed shows: a mention row is there
-								    because of one comment. Column 3 keeps it under the title. */}
-										{item.mention && (
-											<div className="col-start-3 mt-1.5 line-clamp-2 cursor-text select-text text-[11.5px] leading-relaxed text-muted-foreground">
-												<span className="font-semibold text-soft-foreground">
-													{item.mention.author ?? "Someone"}
-													{": "}
-												</span>
-												{item.mention.text}
-											</div>
-										)}
+						BANDS.map(({ id, label, hint }) =>
+							bands[id].length === 0 ? null : (
+								<div key={id} className="contents">
+									<div className={SECTION_LABEL}>
+										{label}
+										<Count n={bands[id].length} />
+										{hint && <span className={SECTION_HINT}>{hint}</span>}
 									</div>
+									{bands[id].map((item) => renderRow(item, id))}
 								</div>
-							);
-						})}
+							),
+						)}
 				</div>
 				{openItem && (
 					<DetailsPanel
@@ -1185,10 +1236,7 @@ function AllFeedPage() {
 							isLaunching={isLaunching}
 							launching={launchingKey === openItem.launch.key}
 							onStart={() => void handleStart(openItem)}
-							onGoTo={(paneId) => {
-								usePendingFocus.getState().focus(paneId);
-								navigate({ to: "/board" });
-							}}
+							onGoTo={goToPane}
 							reading={readingKeys.has(openItem.key)}
 							onReadLater={() =>
 								readingKeys.has(openItem.key)
@@ -1204,6 +1252,93 @@ function AllFeedPage() {
 				)}
 			</div>
 		</div>
+	);
+}
+
+/** A count beside a section label. */
+function Count({ n }: { n: number }) {
+	return (
+		<span className="rounded-[10px] bg-secondary px-1.5 font-medium text-muted-foreground tabular-nums">
+			{n}
+		</span>
+	);
+}
+
+/**
+ * The one Filter button, and the menu under it. Five pickers on the header
+ * row all read "Any …" whether or not one was set; one button that says
+ * "Filter · 2" and a row of chips under the header can't hide what's on.
+ */
+function FilterMenu({
+	active,
+	children,
+}: {
+	active: number;
+	children: ReactNode;
+}) {
+	const [open, setOpen] = useState(false);
+	return (
+		<div className="relative shrink-0">
+			<button
+				type="button"
+				aria-expanded={open}
+				onClick={() => setOpen(!open)}
+				className={cn(
+					"cursor-pointer rounded-full border px-2.5 py-1 text-[12px] font-medium outline-none",
+					active
+						? "border-primary bg-primary/15 text-foreground"
+						: "border-border bg-card text-muted-foreground hover:text-foreground",
+				)}
+			>
+				{active ? `Filter · ${active}` : "Filter"} ▾
+			</button>
+			{open && (
+				<>
+					<button
+						type="button"
+						aria-label="Close filters"
+						onClick={() => setOpen(false)}
+						className="fixed inset-0 z-10 cursor-default bg-transparent"
+					/>
+					<div className="absolute top-full right-0 z-20 mt-1.5 grid w-[520px] grid-cols-2 gap-x-4 gap-y-2.5 rounded-[10px] border border-border bg-popover p-3.5 shadow-[0_12px_40px_rgba(0,0,0,0.5)]">
+						{children}
+					</div>
+				</>
+			)}
+		</div>
+	);
+}
+
+/** One labelled picker in the Filter menu. */
+function Facet({ label, children }: { label: string; children: ReactNode }) {
+	return (
+		<div className="grid gap-1 text-[11px] font-medium text-muted-foreground [&>select]:max-w-none">
+			<span>{label}</span>
+			{children}
+		</div>
+	);
+}
+
+/** One on/off cut in the Filter menu. */
+function Toggle({
+	checked,
+	onChange,
+	label,
+}: {
+	checked: boolean;
+	onChange: (checked: boolean) => void;
+	label: string;
+}) {
+	return (
+		<label className="flex cursor-pointer items-center gap-2 text-[12px] text-soft-foreground">
+			<input
+				type="checkbox"
+				checked={checked}
+				onChange={(event) => onChange(event.target.checked)}
+				className="accent-primary"
+			/>
+			{label}
+		</label>
 	);
 }
 
@@ -1351,7 +1486,7 @@ function RowStatus({
 			<span
 				title={upstream ? `${upstream} upstream` : undefined}
 				className={cn(
-					"truncate rounded-[5px] px-[7px] py-[1px] font-semibold",
+					"max-w-[116px] truncate rounded-[5px] px-[7px] py-[1px] font-semibold",
 					PILL.neutral,
 				)}
 			>
@@ -1359,7 +1494,7 @@ function RowStatus({
 			</span>
 		);
 	return upstream ? (
-		<span className={cn(ROW_META, "truncate")}>{upstream}</span>
+		<span className={cn(ROW_META, "max-w-[116px] truncate")}>{upstream}</span>
 	) : null;
 }
 
@@ -1451,6 +1586,7 @@ function QueuedRow({
 }) {
 	const { attributes, listeners, setNodeRef, transform, transition } =
 		useSortable({ id: item.key });
+	const SourceIcon = SOURCE_ICON[item.to];
 	return (
 		<div
 			ref={setNodeRef}
@@ -1462,11 +1598,16 @@ function QueuedRow({
 					{...attributes}
 					{...listeners}
 					title="Drag to reorder"
-					className="flex w-[68px] shrink-0 cursor-grab items-center justify-center gap-1.5 text-[12px] font-semibold text-muted-foreground active:cursor-grabbing"
+					className="flex w-[34px] shrink-0 cursor-grab items-center gap-1.5 text-[12px] font-semibold text-muted-foreground active:cursor-grabbing"
 				>
 					<span aria-hidden>⠿</span>
 					{place}
 				</span>
+				<SourceIcon
+					className="size-3.5 shrink-0 text-muted-foreground"
+					title={item.source}
+					aria-label={item.source}
+				/>
 				<button
 					type="button"
 					title="Show details"
@@ -1480,7 +1621,6 @@ function QueuedRow({
 						</span>
 					)}
 				</button>
-				<span className={ROW_META}>{item.source}</span>
 				<button
 					type="button"
 					onClick={onRemove}

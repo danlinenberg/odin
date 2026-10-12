@@ -73,6 +73,7 @@ export function TaskBox({
 	placeholder,
 	autoFocus,
 	hidePriority,
+	compact,
 	skills,
 	repos,
 	repo,
@@ -87,6 +88,11 @@ export function TaskBox({
 	autoFocus?: boolean;
 	/** Automations are scheduled, not ranked - the picker means nothing there. */
 	hidePriority?: boolean;
+	/**
+	 * Folded to its title line until it's focused or holds text. For a box
+	 * that sits above a list you came to read; ⌘N opens the full one anyway.
+	 */
+	compact?: boolean;
 	/**
 	 * The skills this box can offer. Passed in rather than fetched so the box
 	 * stays a plain component - nothing here needs a tRPC context. Without it
@@ -109,6 +115,8 @@ export function TaskBox({
 	submitLabel?: string;
 }) {
 	const [title, notes] = splitTask(value);
+	const [focused, setFocused] = useState(false);
+	const folded = !!compact && !focused && !value.trim();
 	// Send (⌘Enter unless rebound) submits from either field.
 	const keys = (event: React.KeyboardEvent) => {
 		if (isHotkey("SUBMIT", event.nativeEvent)) {
@@ -142,7 +150,15 @@ export function TaskBox({
 				}}
 				onDrop={(event) => attach(event.dataTransfer.files, event)}
 				onPaste={(event) => attach(event.clipboardData.files, event)}
-				className="flex min-h-0 min-w-0 grow flex-col overflow-hidden rounded-[10px] border border-border bg-card focus-within:border-primary"
+				onFocus={() => setFocused(true)}
+				onBlur={(event) => {
+					if (!event.currentTarget.contains(event.relatedTarget))
+						setFocused(false);
+				}}
+				className={cn(
+					"flex min-h-0 min-w-0 grow flex-col overflow-hidden rounded-[10px] border bg-card focus-within:border-primary",
+					folded ? "border-dashed border-border" : "border-border",
+				)}
 			>
 				<input
 					value={title}
@@ -154,16 +170,22 @@ export function TaskBox({
 					onKeyDown={keys}
 					className="w-full bg-transparent px-3 pt-2 pb-1.5 text-[13px] font-semibold text-foreground outline-none placeholder:font-normal placeholder:text-muted-foreground"
 				/>
-				<div className="mx-3 border-t border-border" />
-				<textarea
-					value={notes}
-					placeholder="The brief - what it needs, links, anything the session should know. Drop or paste photos and videos (optional)"
-					rows={2}
-					aria-label="Brief"
-					onChange={(event) => onChange(joinTask(title, event.target.value))}
-					onKeyDown={keys}
-					className="w-full min-h-0 grow resize-none bg-transparent px-3 pt-1.5 pb-2 text-[13px] text-muted-foreground outline-none placeholder:text-muted-foreground"
-				/>
+				{!folded && (
+					<>
+						<div className="mx-3 border-t border-border" />
+						<textarea
+							value={notes}
+							placeholder="The brief - what it needs, links, anything the session should know. Drop or paste photos and videos (optional)"
+							rows={2}
+							aria-label="Brief"
+							onChange={(event) =>
+								onChange(joinTask(title, event.target.value))
+							}
+							onKeyDown={keys}
+							className="w-full min-h-0 grow resize-none bg-transparent px-3 pt-1.5 pb-2 text-[13px] text-muted-foreground outline-none placeholder:text-muted-foreground"
+						/>
+					</>
+				)}
 			</fieldset>
 			{/* The picker doesn't hold a value of its own: it rewrites the "!"s in
 			    the text, which is what the store reads either way. Typing "!" and
@@ -174,49 +196,53 @@ export function TaskBox({
 			    navigable for free, and there's no popup to style. */}
 			{/* One row at the quick-add's 520px: Skill and Repo on the left,
 			    Priority pushed right. Nothing in it grows as you type. */}
-			<div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
-				{skills && skills.length > 0 && (
-					<SkillSelect skills={skills} value={value} onChange={onChange} />
-				)}
-				{repos && repos.length > 0 && onRepoChange && (
-					<RepoSelect
-						repos={repos}
-						value={repo ?? ""}
-						onChange={onRepoChange}
-					/>
-				)}
-				{!hidePriority && (
-					<div className="ml-auto flex items-center gap-1.5">
-						<span className="text-[11px] text-muted-foreground">Priority</span>
-						<select
-							aria-label="Priority"
-							title="Or lead the title with ! (Low) or !!! (High) - no ! is Medium"
-							value={parseTask(value).priority}
-							onChange={(event) =>
-								onChange(withPriority(value, Number(event.target.value)))
-							}
-							className="cursor-pointer rounded-[6px] bg-secondary px-1.5 py-[3px] text-[11px] font-semibold text-muted-foreground outline-none transition-colors hover:text-foreground"
+			{!folded && (
+				<div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+					{skills && skills.length > 0 && (
+						<SkillSelect skills={skills} value={value} onChange={onChange} />
+					)}
+					{repos && repos.length > 0 && onRepoChange && (
+						<RepoSelect
+							repos={repos}
+							value={repo ?? ""}
+							onChange={onRepoChange}
+						/>
+					)}
+					{!hidePriority && (
+						<div className="ml-auto flex items-center gap-1.5">
+							<span className="text-[11px] text-muted-foreground">
+								Priority
+							</span>
+							<select
+								aria-label="Priority"
+								title="Or lead the title with ! (Low) or !!! (High) - no ! is Medium"
+								value={parseTask(value).priority}
+								onChange={(event) =>
+									onChange(withPriority(value, Number(event.target.value)))
+								}
+								className="cursor-pointer rounded-[6px] bg-secondary px-1.5 py-[3px] text-[11px] font-semibold text-muted-foreground outline-none transition-colors hover:text-foreground"
+							>
+								{/* Levels only - slot 0 ("None") is legacy storage, not a choice. */}
+								{PRIORITY_LABELS.slice(1).map((label, index) => (
+									<option key={label} value={index + 1}>
+										{label}
+									</option>
+								))}
+							</select>
+						</div>
+					)}
+					{submitLabel && (
+						<button
+							type="button"
+							disabled={!title.trim()}
+							onClick={onSubmit}
+							className={cn(ROW_PRIMARY_BUTTON, hidePriority && "ml-auto")}
 						>
-							{/* Levels only - slot 0 ("None") is legacy storage, not a choice. */}
-							{PRIORITY_LABELS.slice(1).map((label, index) => (
-								<option key={label} value={index + 1}>
-									{label}
-								</option>
-							))}
-						</select>
-					</div>
-				)}
-				{submitLabel && (
-					<button
-						type="button"
-						disabled={!title.trim()}
-						onClick={onSubmit}
-						className={cn(ROW_PRIMARY_BUTTON, hidePriority && "ml-auto")}
-					>
-						{submitLabel}
-					</button>
-				)}
-			</div>
+							{submitLabel}
+						</button>
+					)}
+				</div>
+			)}
 		</div>
 	);
 }
