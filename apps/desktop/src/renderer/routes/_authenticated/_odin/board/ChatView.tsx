@@ -1254,6 +1254,7 @@ export function ChatView({
 	onShowTerminal,
 	onStop,
 	onResumeWith,
+	onSend,
 	noTerminal = false,
 	placeholder,
 	onOpenSession,
@@ -1269,6 +1270,8 @@ export function ChatView({
 	onStop?: () => void;
 	/** Ended session: resume it with this as the opening message. */
 	onResumeWith?: (text: string) => void;
+	/** Sends a reply in place of typing it into the PTY - the raven's, which brings a dead PTY back first. */
+	onSend?: (text: string) => void;
 	/** Hide the links to the terminal view (the crow's panel has none). */
 	noTerminal?: boolean;
 	/** The reply box's prompt, in place of "Reply to Claude". */
@@ -1377,11 +1380,15 @@ export function ChatView({
 		// Claude takes a moment to write it; look again a few times meanwhile.
 		for (const ms of [150, 500, 1000]) setTimeout(poke, ms);
 		// ponytail: an echo that never matches (Claude rewrote it) just expires.
-		setTimeout(
-			() => setPending((list) => list.filter((sent) => sent.id !== id)),
-			30_000,
-		);
+		// Not mid-turn: Claude writes a queued message only when it takes it.
+		const expire = () =>
+			workingRef.current
+				? setTimeout(expire, 30_000)
+				: setPending((list) => list.filter((sent) => sent.id !== id));
+		setTimeout(expire, 30_000);
 	};
+	const workingRef = useRef(working);
+	workingRef.current = working;
 	const onSentRef = useRef(onSent);
 	onSentRef.current = onSent;
 	// Stable, so the memoized rows don't all re-render on every poll.
@@ -1741,6 +1748,7 @@ export function ChatView({
 							working={working}
 							onSent={onSent}
 							onStop={onStop}
+							onSend={onSend}
 							noTerminal={noTerminal}
 							placeholder={placeholder}
 							dropRef={dropRef}
@@ -1807,6 +1815,7 @@ function Composer({
 	noTerminal,
 	placeholder = "Reply to Claude",
 	onResume,
+	onSend,
 	dropRef,
 	dragging,
 }: {
@@ -1818,6 +1827,8 @@ function Composer({
 	placeholder?: string;
 	/** Ended session: sending resumes it with the text instead of typing into a PTY. */
 	onResume?: (text: string) => void;
+	/** Sends in place of typing into the PTY; the sent bubble still shows. */
+	onSend?: (text: string) => void;
 	/** The view's drop zone hands dropped files here. */
 	dropRef: { current?: (files: File[]) => void };
 	dragging: boolean;
@@ -1913,6 +1924,10 @@ function Composer({
 			text,
 			sending.map((item) => item.preview),
 		);
+		if (onSend) {
+			onSend([text, ...paths].filter(Boolean).join(" "));
+			return;
+		}
 		try {
 			// A bracketed paste, not typing: only a pasted path becomes an attachment.
 			for (const path of paths)

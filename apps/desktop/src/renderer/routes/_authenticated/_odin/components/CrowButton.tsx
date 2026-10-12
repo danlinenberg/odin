@@ -219,7 +219,11 @@ function CrowPanel({
 				}}
 				className="fixed z-[60] flex flex-col overflow-hidden rounded-2xl border border-violet-400/50 bg-tertiary text-popover-foreground shadow-2xl shadow-black/30"
 			>
-				<CrowChat pane={conversation} onShowOnBoard={onShowOnBoard} />
+				<CrowChat
+					pane={conversation}
+					onAsk={onAsk}
+					onShowOnBoard={onShowOnBoard}
+				/>
 				{/* Over the chat's top padding, not a row of their own. */}
 				<span className="pointer-events-none absolute left-2.5 top-2.5">
 					{icon}
@@ -317,9 +321,11 @@ function CrowPanel({
 /** The conversation itself - the board drawer's chat view, reply box and all. */
 function CrowChat({
 	pane,
+	onAsk,
 	onShowOnBoard,
 }: {
 	pane: Pane;
+	onAsk: (text: string, files: PromptImage[]) => Promise<boolean>;
 	onShowOnBoard: (paneId: string) => void;
 }) {
 	const utils = electronTrpc.useUtils();
@@ -338,6 +344,9 @@ function CrowChat({
 				working={pane.status === "working"}
 				noTerminal
 				placeholder="What else can I do for you?"
+				// Through ask: it resumes a PTY a daemon restart killed, where
+				// typing straight in would vanish.
+				onSend={(text) => void onAsk(text, [])}
 				onShowTerminal={() => onShowOnBoard(pane.id)}
 				onOpenSession={onShowOnBoard}
 				onStop={() => {
