@@ -12,6 +12,7 @@ import {
 	pickClaudeCommand,
 	useClaudeCommand,
 } from "renderer/stores/claude-command";
+import { type CrowChat, useCrowChats } from "renderer/stores/crow-chats";
 import { useNextInLinePrompt } from "renderer/stores/next-in-line-prompt";
 import { useOneByOne } from "renderer/stores/one-by-one";
 import { useTabsStore } from "renderer/stores/tabs/store";
@@ -88,7 +89,7 @@ export const useCrowDialog = create<{
  * follows up in it, until ✓ Done in its drawer ends it.
  *
  * Mount once - the layout does: it also answers the crow's `/odin` calls.
- * Returns `ask`.
+ * Returns `ask`, and `resume` for an earlier chat.
  */
 export function useCrow() {
 	const utils = electronTrpc.useUtils();
@@ -304,6 +305,13 @@ export function useCrow() {
 		// follow-up keeps the conversation's first question as its title.
 		if (!followUp) {
 			const title = sessionTitle(question, "Raven");
+			if (pane.claudeSessionId)
+				useCrowChats.getState().save({
+					sessionId: pane.claudeSessionId,
+					title,
+					cwd: place.cwd,
+					at: Date.now(),
+				});
 			store.setTabAutoTitle(pane.tabId, title);
 			store.setPaneAutoTitle(pane.id, title);
 			useTabsStore.setState((state) => ({
@@ -336,6 +344,52 @@ export function useCrow() {
 			await sleep(50);
 			await utils.client.terminal.write.mutate({ paneId: pane.id, data: "\r" });
 		})();
+		return true;
+	};
+
+	/** An earlier chat, back as the open conversation - Claude resumes it. */
+	const resume = async (chat: CrowChat): Promise<boolean> => {
+		const ensured = await ensureWorkspace();
+		if (!ensured.ok) return false;
+		const onDisk = await utils.client.terminal.readClaudeTranscript
+			.query({ sessionId: chat.sessionId })
+			.then(
+				() => true,
+				(error) => !String(error).includes("No transcript on this machine"),
+			);
+		if (!onDisk) {
+			toast.error("That chat is no longer on this Mac");
+			return false;
+		}
+		const open = crowPane(useTabsStore.getState().panes);
+		if (open) endSession(open.id);
+		const workspaceId = ensured.workspace.id;
+		const store = useTabsStore.getState();
+		const { tabId, paneId } = store.addTab(workspaceId, {
+			initialCwd: chat.cwd,
+		});
+		store.setTabAutoTitle(tabId, chat.title);
+		store.setPaneAutoTitle(paneId, chat.title);
+		useTabsStore.setState((state) => ({
+			panes: {
+				...state.panes,
+				[paneId]: {
+					...state.panes[paneId],
+					claudeSessionId: chat.sessionId,
+					odinTags: [CROW_TAG],
+				},
+			},
+		}));
+		await utils.client.terminal.createOrAttach.mutate({
+			paneId,
+			tabId,
+			workspaceId,
+			cwd: chat.cwd,
+			command: `cd ${quote(chat.cwd)} && ${crowCli()} --resume ${chat.sessionId}`,
+		});
+		useCrowChats.getState().save({ ...chat, at: Date.now() });
+		// The panel shows a conversation once the daemon lists it alive.
+		await utils.terminal.listDaemonSessions.invalidate();
 		return true;
 	};
 
@@ -395,7 +449,7 @@ export function useCrow() {
 		return () => clearInterval(timer);
 	}, []);
 
-	return ask;
+	return { ask, resume };
 }
 
 /** Start one backlog task on the board; its paneId, or null when it failed. */

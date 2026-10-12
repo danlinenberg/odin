@@ -418,7 +418,7 @@ function OdinShell() {
 		if (hideOnQuickAddClose) hideApp.mutate();
 		setHideOnQuickAddClose(false);
 	};
-	const askCrow = useCrow();
+	const { ask: askCrow, resume: resumeCrow } = useCrow();
 	const isCrowOpen = useCrowDialog((s) => s.isOpen);
 	const setCrowOpen = useCrowDialog((s) => s.setOpen);
 	const openCrow = useTabsStore((s) => crowPane(s.panes));
@@ -631,6 +631,7 @@ function OdinShell() {
 						onOpen={() => setCrowOpen(true)}
 						onClose={() => setCrowOpen(false)}
 						onAsk={askCrow}
+						onResume={resumeCrow}
 						keys={crowKeys.text}
 						conversation={openCrow}
 						onShowOnBoard={(paneId) => {

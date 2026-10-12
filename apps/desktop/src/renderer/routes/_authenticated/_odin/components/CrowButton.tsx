@@ -1,6 +1,11 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@odin/ui/tooltip";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { formatRelativeTime } from "renderer/lib/formatRelativeTime";
+import {
+	type CrowChat as SavedChat,
+	useCrowChats,
+} from "renderer/stores/crow-chats";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import type { Pane } from "renderer/stores/tabs/types";
 import { ChatView } from "../board/ChatView";
@@ -148,6 +153,7 @@ function CrowPanel({
 	anchor,
 	conversation,
 	onAsk,
+	onResume,
 	onClose,
 	onShowOnBoard,
 }: {
@@ -155,6 +161,7 @@ function CrowPanel({
 	/** The open conversation - shown right here, with its reply box. */
 	conversation?: Pane;
 	onAsk: (text: string, files: PromptImage[]) => Promise<boolean>;
+	onResume: (chat: SavedChat) => Promise<boolean>;
 	onClose: () => void;
 	onShowOnBoard: (paneId: string) => void;
 }) {
@@ -162,6 +169,7 @@ function CrowPanel({
 	const [files, setFiles] = useState<PromptImage[]>([]);
 	const [sending, setSending] = useState(false);
 	const panel = useRef<HTMLDivElement>(null);
+	const chats = useCrowChats((s) => s.chats);
 
 	// Click anywhere else, or Escape, closes it.
 	useEffect(() => {
@@ -224,7 +232,7 @@ function CrowPanel({
 					{icon}
 					<button
 						type="button"
-						title="End this conversation and start a fresh one"
+						title="Start a fresh conversation - this one stays under Earlier chats"
 						onClick={() => endSession(conversation.id)}
 						className="rounded-md px-2 py-0.5 text-[11.5px] text-muted-foreground hover:bg-accent hover:text-foreground"
 					>
@@ -266,6 +274,36 @@ function CrowPanel({
 					</button>
 				))}
 			</div>
+			{chats.length > 0 && (
+				<div className="flex min-h-0 flex-col gap-1">
+					<div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+						Earlier chats
+					</div>
+					<div className="-mx-1.5 flex max-h-40 flex-col overflow-y-auto">
+						{chats.map((chat) => (
+							<button
+								key={chat.sessionId}
+								type="button"
+								disabled={sending}
+								title="Pick up this conversation where it left off"
+								onClick={async () => {
+									setSending(true);
+									await onResume(chat);
+									setSending(false);
+								}}
+								className="flex items-baseline gap-2 rounded-md px-1.5 py-1 text-left text-[12.5px] hover:bg-accent disabled:opacity-50"
+							>
+								<span className="min-w-0 flex-1 truncate text-foreground/85">
+									{chat.title}
+								</span>
+								<span className="shrink-0 text-[11px] text-muted-foreground">
+									{formatRelativeTime(chat.at)}
+								</span>
+							</button>
+						))}
+					</div>
+				</div>
+			)}
 			{files.length > 0 && (
 				<div className="flex flex-wrap gap-1.5">
 					{files.map((file, index) => (
@@ -372,6 +410,7 @@ export function CrowButton({
 	onOpen,
 	onClose,
 	onAsk,
+	onResume,
 	conversation,
 	onShowOnBoard,
 	keys,
@@ -380,6 +419,7 @@ export function CrowButton({
 	onOpen: () => void;
 	onClose: () => void;
 	onAsk: (text: string, files: PromptImage[]) => Promise<boolean>;
+	onResume: (chat: SavedChat) => Promise<boolean>;
 	conversation?: Pane;
 	onShowOnBoard: (paneId: string) => void;
 	/** The hotkey, for the tooltip. */
@@ -472,6 +512,7 @@ export function CrowButton({
 					anchor={{ x: rect.x, y: rect.y }}
 					conversation={liveConversation}
 					onAsk={onAsk}
+					onResume={onResume}
 					onClose={onClose}
 					onShowOnBoard={onShowOnBoard}
 				/>
