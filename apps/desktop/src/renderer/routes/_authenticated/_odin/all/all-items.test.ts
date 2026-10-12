@@ -320,17 +320,15 @@ test("bands: due wins, a fresh ask is Now, older asks and reviews Today, the res
 test("a row says why it is here", () => {
 	const now = Date.UTC(2026, 0, 10, 12);
 	const at = (hoursAgo: number) => now - hoursAgo * HOUR;
-	expect(reasonOf({ ask: { kind: "asked", at: at(2) } }, now)).toBe(
-		"asked you 2h ago",
-	);
+	expect(reasonOf({ ask: { kind: "asked", at: at(2) } }, now)).toBe("Ask 2h");
 	expect(reasonOf({ ask: { kind: "review", at: at(26) } }, now)).toBe(
-		"review requested 1d ago",
+		"Review 1d",
 	);
 	expect(reasonOf({ ask: { kind: "unread", at: at(48) } }, now)).toBe(
-		"unread 2d",
+		"Unread 2d",
 	);
-	expect(reasonOf({ ask: { kind: "own", at: now } }, now)).toBe("your task");
-	expect(agoLabel(30_000)).toBe("just now");
+	expect(reasonOf({ ask: { kind: "own", at: now } }, now)).toBe("Yours");
+	expect(agoLabel(30_000)).toBe("now");
 });
 
 test("every source records what it asks of you", () => {

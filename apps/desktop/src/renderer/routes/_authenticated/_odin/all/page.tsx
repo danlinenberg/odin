@@ -208,7 +208,7 @@ const STATUS_FILTERS: { id: string; label: string }[] = [
 
 /** The bands, top to bottom, and what each one says it holds. */
 const BANDS: { id: Band; label: string; hint: string }[] = [
-	{ id: "now", label: "Now", hint: "due, or asked under 4h ago" },
+	{ id: "now", label: "Now", hint: "due, or asked in the last 4h" },
 	{ id: "today", label: "Today", hint: "reviews and asks waiting on you" },
 	{ id: "later", label: "Later", hint: "" },
 ];

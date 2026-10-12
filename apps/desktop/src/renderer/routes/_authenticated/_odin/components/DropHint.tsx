@@ -1,5 +1,8 @@
+import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
+import { useDoneStore } from "renderer/stores/done";
 import { useBacklogReview, useReview } from "../hooks/useBacklogReview";
+import { useSetSlackDone } from "../hooks/useOdinFeeds";
 import { useOdinProfile } from "../hooks/useOdinProfile";
 import type { SweptRow } from "../review/verdicts";
 import { PILL } from "./pill";
@@ -9,6 +12,11 @@ import { PILL } from "./pill";
  * red mark on every screen that names a task (All, every feed tab, the side
  * panel, Next in line, a board card), so the sweep's call can be seen and
  * overruled wherever the task is, not only on Review.
+ *
+ * Drop does what Review's Drop does - the row is Done everywhere and listed
+ * under Review's Dropped; a Slack row gets its handled marker - with Undo on
+ * the toast. One difference: a task of yours is marked Done, not deleted, so
+ * Undo can bring it back.
  *
  * Keep is Review's own Keep: the row turns KEEP and stays KEEP through later
  * sweeps, so the mark goes away everywhere at once.
@@ -24,11 +32,56 @@ export function DropHint({
 	inline?: boolean;
 }) {
 	const { activeId } = useOdinProfile();
+	const why = `The Review sweep says drop this: ${row.evidence}`;
+	const setSlackDone = useSetSlackDone();
 	const keep = (event: React.MouseEvent) => {
 		event.stopPropagation();
 		useBacklogReview.getState().keep(activeId, row.key);
 	};
-	const why = `The Review sweep says drop this: ${row.evidence}`;
+	const drop = async (event: React.MouseEvent) => {
+		event.stopPropagation();
+		const review = useBacklogReview.getState();
+		const done = useDoneStore.getState().setDone;
+		const slackId = row.key.startsWith("slack:") ? row.key.slice(6) : null;
+		review.noteDropped(activeId, row);
+		done(row.key, {
+			title: row.title,
+			source: row.source,
+			url: row.url ?? null,
+		});
+		const undo = () => {
+			review.unnoteDropped(activeId, row.key);
+			done(row.key, null);
+			if (slackId) setSlackDone.mutate({ id: slackId, done: false });
+		};
+		if (slackId) {
+			try {
+				await setSlackDone.mutateAsync({ id: slackId, done: true });
+			} catch {
+				// useSetSlackDone already toasted why.
+				review.unnoteDropped(activeId, row.key);
+				done(row.key, null);
+				return;
+			}
+		}
+		toast.success(`Dropped - ${row.title}`, {
+			action: { label: "Undo", onClick: undo },
+		});
+	};
+	const dropButton = (label: string, className: string) => (
+		<button
+			type="button"
+			onClick={(event) => void drop(event)}
+			title={`${why} - click to drop it`}
+			className={cn(
+				"shrink-0 rounded-[5px] px-[7px] py-px text-[11px] font-semibold transition-[filter] hover:brightness-125",
+				PILL.danger,
+				className,
+			)}
+		>
+			{label}
+		</button>
+	);
 	const keepButton = (
 		<button
 			type="button"
@@ -42,15 +95,7 @@ export function DropHint({
 	if (inline)
 		return (
 			<span className="inline-flex shrink-0 items-center gap-1">
-				<span
-					title={why}
-					className={cn(
-						"rounded-[5px] px-[7px] py-px text-[11px] font-semibold",
-						PILL.danger,
-					)}
-				>
-					Drop?
-				</span>
+				{dropButton("Drop", "")}
 				{keepButton}
 			</span>
 		);
@@ -59,7 +104,10 @@ export function DropHint({
 			title={why}
 			className={`mt-1 flex w-full items-start gap-1.5 rounded-[5px] px-[7px] py-px text-[11px] font-medium ${PILL.danger}`}
 		>
-			<span className="line-clamp-2 min-w-0 flex-1">Drop? {row.evidence}</span>
+			<span className="line-clamp-2 min-w-0 flex-1">
+				The sweep says drop: {row.evidence}
+			</span>
+			{dropButton("Drop", "ring-1 ring-inset ring-danger/40")}
 			{keepButton}
 		</div>
 	);
