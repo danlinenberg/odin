@@ -66,6 +66,15 @@ const SPAWN_GRACE_MS = 30_000;
 /** How long a question waits for Claude's prompt when the spare is still booting. */
 const READY_TIMEOUT_MS = 90_000;
 
+/**
+ * A turn silent this long is stuck (a hung tool, a request that never came
+ * back): Claude never takes a message typed behind it, so a follow-up resumes
+ * the conversation in a fresh process instead.
+ * ponytail: transcript silence, not a liveness probe - a real 10-minute
+ * tool call without a word also gets restarted.
+ */
+const STUCK_MS = 10 * 60_000;
+
 const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms));
 
 /** The spare: a Claude session with no title yet, so it isn't a board card. */
@@ -187,16 +196,23 @@ export function useCrow() {
 		workspaceId: string,
 		cwd: string,
 	): Promise<boolean> => {
-		if (sessions.some((s) => s.sessionId === pane.id && s.isAlive)) return true;
+		const live = sessions.some((s) => s.sessionId === pane.id && s.isAlive);
+		if (live && pane.status !== "working") return true;
 		const id = pane.claudeSessionId;
-		const onDisk =
-			!!id &&
-			(await utils.client.terminal.readClaudeTranscript
-				.query({ sessionId: id })
-				.then(
-					() => true,
-					(error) => !String(error).includes("No transcript on this machine"),
-				));
+		const transcript = id
+			? await utils.client.terminal.readClaudeTranscript
+					.query({ sessionId: id })
+					.catch((error) =>
+						String(error).includes("No transcript on this machine")
+							? null
+							: undefined,
+					)
+			: null;
+		if (live) {
+			const at = transcript?.messages.at(-1)?.at;
+			if (!at || Date.now() - Date.parse(at) < STUCK_MS) return true;
+		}
+		const onDisk = transcript !== null;
 		if (!onDisk) return false;
 		await utils.client.terminal.kill
 			.mutate({ paneId: pane.id })
