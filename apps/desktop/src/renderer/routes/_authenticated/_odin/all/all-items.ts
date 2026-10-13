@@ -440,7 +440,11 @@ export function allItems(
 				createdAt: ms(row.updatedAt ?? row.date),
 				dueDate: null,
 				mention: null,
-				ask: { kind: "assigned", at: ms(row.updatedAt ?? row.date) },
+				// A comment that @-mentions me is an ask, like a Slack mention.
+				ask: {
+					kind: row.status === "Mentioned" ? "mentioned" : "assigned",
+					at: ms(row.updatedAt ?? row.date),
+				},
 				body: null,
 				// Every property the database has, as Notion names it.
 				details: facts([

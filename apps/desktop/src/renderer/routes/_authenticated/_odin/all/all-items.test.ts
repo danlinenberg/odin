@@ -338,6 +338,13 @@ test("every source records what it asks of you", () => {
 	expect(by("GitHub")?.ask.kind).toBe("review");
 	expect(by("Jira")?.ask.kind).toBe("assigned");
 	expect(by("Tasks")?.ask.kind).toBe("own");
+	expect(by("Notion")?.ask.kind).toBe("assigned");
+	const mention = { ...feeds.notion[0], status: "Mentioned" };
+	expect(
+		allItems({ ...feeds, notion: [mention] }).find(
+			(item) => item.source === "Notion",
+		)?.ask.kind,
+	).toBe("mentioned");
 });
 
 test("a body preview drops markdown marks", () => {
