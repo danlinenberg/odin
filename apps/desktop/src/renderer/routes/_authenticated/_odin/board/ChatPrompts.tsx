@@ -12,21 +12,42 @@ type Question = {
 	options?: { label?: string; description?: string }[];
 };
 
+const DOWN = "\x1b[B";
+
+/** A typed answer goes into a one-line field. */
+export function oneLine(text: string | undefined): string {
+	return (text ?? "").replace(/\s+/g, " ").trim();
+}
+
 /**
- * The keys Claude Code's question menu takes, as measured on 2.1.292: a lone
- * single-choice question answers on its number. Otherwise each question takes
- * its number (multi-select: each pick's number toggles it, Tab moves on), and
- * Enter submits on the review tab the last answer lands on.
+ * The keys Claude Code's question menu takes, as measured on 2.1.294. Each
+ * question lists its options, then "Type something", then "Chat about this".
+ * A single-choice question answers on an option's number, or on the number of
+ * "Type something", the typed text and Enter. A multi-select one toggles each
+ * pick by number (the cursor stays on the first row), arrows down to "Type
+ * something" for typed text, then Tab and Enter move on. Enter submits on the
+ * review tab the last answer lands on, except for a lone single-choice
+ * question, which its answer submits.
  */
-export function answerKeys(questions: Question[], picks: number[][]): string[] {
-	if (questions.length === 1 && !questions[0]?.multiSelect)
-		return [String((picks[0]?.[0] ?? 0) + 1)];
-	const keys = questions.flatMap((question, i) =>
-		question.multiSelect
-			? [...(picks[i] ?? []).map((pick) => String(pick + 1)), "\t"]
-			: [String((picks[i]?.[0] ?? 0) + 1)],
-	);
-	return [...keys, "\r"];
+export function answerKeys(
+	questions: Question[],
+	picks: number[][],
+	others: string[] = [],
+): string[] {
+	const keys = questions.flatMap((question, i) => {
+		const count = question.options?.length ?? 0;
+		const other = oneLine(others[i]);
+		if (!question.multiSelect)
+			return other
+				? [String(count + 1), other, "\r"]
+				: [String((picks[i]?.[0] ?? 0) + 1)];
+		const toggles = (picks[i] ?? []).map((pick) => String(pick + 1));
+		return other
+			? [...toggles, ...Array(count).fill(DOWN), other, "\t", "\r"]
+			: [...toggles, "\t"];
+	});
+	const lone = questions.length === 1 && !questions[0]?.multiSelect;
+	return lone ? keys : [...keys, "\r"];
 }
 
 /** The menu lists "Type something" after the options, then "Chat about this". */
@@ -46,8 +67,19 @@ export function QuestionCard({
 		Array.isArray(input.questions) ? input.questions : []
 	) as Question[];
 	const [picks, setPicks] = useState<number[][]>(() => questions.map(() => []));
+	const [others, setOthers] = useState<string[]>(() => questions.map(() => ""));
 	const [sent, setSent] = useState(false);
-	const ready = questions.every((_, i) => (picks[i]?.length ?? 0) > 0);
+	const single = questions.length === 1 && !questions[0]?.multiSelect;
+	const ready = questions.every(
+		(_, i) => (picks[i]?.length ?? 0) > 0 || !!oneLine(others[i]),
+	);
+	const send = (keys: string[]) => {
+		setSent(true);
+		onKeys(keys);
+	};
+	const submit = () => {
+		if (ready && !sent) send(answerKeys(questions, picks, others));
+	};
 	const pick = (qi: number, oi: number) => {
 		const question = questions[qi];
 		const next = picks.map((list, i) =>
@@ -60,13 +92,17 @@ export function QuestionCard({
 					: [oi],
 		);
 		setPicks(next);
+		// A single-choice answer is a pick or typed text, never both.
+		if (!question?.multiSelect)
+			setOthers(others.map((text, i) => (i === qi ? "" : text)));
 		// One single-choice question: the click is the answer, like the menu.
-		if (questions.length === 1 && !question?.multiSelect) {
-			setSent(true);
-			onKeys(answerKeys(questions, next));
-		}
+		if (single) send(answerKeys(questions, next));
 	};
-	const single = questions.length === 1 && !questions[0]?.multiSelect;
+	const type = (qi: number, text: string) => {
+		setOthers(others.map((old, i) => (i === qi ? text : old)));
+		if (!questions[qi]?.multiSelect && text)
+			setPicks(picks.map((list, i) => (i === qi ? [] : list)));
+	};
 	return (
 		<div className="rounded-xl border border-attention/35 bg-attention/[0.07] px-4 py-3">
 			<div className="mb-2 text-[11px] font-semibold uppercase tracking-[.08em] text-attention">
@@ -111,38 +147,55 @@ export function QuestionCard({
 								);
 							})}
 						</div>
+						<input
+							value={others[qi] ?? ""}
+							disabled={sent}
+							aria-label={`Other answer to: ${question.question ?? "the question"}`}
+							onChange={(event) => type(qi, event.target.value)}
+							onKeyDown={(event) => {
+								if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+									event.preventDefault();
+									submit();
+								}
+							}}
+							placeholder={
+								question.multiSelect
+									? "Something else? Type it here"
+									: "Or type your own answer"
+							}
+							className={cn(
+								"mt-2 w-full rounded-[7px] border bg-background px-2.5 py-1.5 text-[12.5px] text-foreground outline-none focus:border-primary/60 disabled:opacity-60",
+								oneLine(others[qi]) ? "border-primary" : "border-border",
+							)}
+						/>
 					</div>
 				))}
 			</div>
-			{single && (
-				<button
-					type="button"
-					disabled={sent}
-					onClick={() => {
-						setSent(true);
-						onKeys(chatAboutKeys(questions));
-					}}
-					className="mt-3 text-[11.5px] text-muted-foreground hover:text-foreground disabled:opacity-60"
-				>
-					Chat about this
-				</button>
-			)}
-			{!single && (
-				<button
-					type="button"
-					disabled={!ready || sent}
-					onClick={() => {
-						setSent(true);
-						onKeys(answerKeys(questions, picks));
-					}}
-					className={cn(
-						"mt-3 rounded-[7px] px-3 py-1.5 text-xs font-semibold disabled:opacity-50",
-						BUTTON.primary,
-					)}
-				>
-					{sent ? "Sending…" : "Submit answers"}
-				</button>
-			)}
+			<div className="mt-3 flex flex-wrap items-center gap-3">
+				{(!single || oneLine(others[0])) && (
+					<button
+						type="button"
+						disabled={!ready || sent}
+						onClick={submit}
+						className={cn(
+							"rounded-[7px] px-3 py-1.5 text-xs font-semibold disabled:opacity-50",
+							BUTTON.primary,
+						)}
+					>
+						{sent ? "Sending…" : single ? "Send answer" : "Submit answers"}
+					</button>
+				)}
+				{single && (
+					<button
+						type="button"
+						disabled={sent}
+						onClick={() => send(chatAboutKeys(questions))}
+						className="text-[11.5px] text-muted-foreground hover:text-foreground disabled:opacity-60"
+					>
+						Chat about this
+					</button>
+				)}
+			</div>
 		</div>
 	);
 }
