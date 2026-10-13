@@ -1,4 +1,6 @@
-import { rm } from "node:fs/promises";
+import { randomInt } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
+import { rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { WASocket } from "@whiskeysockets/baileys";
 import { NOTIFICATION_EVENTS } from "shared/constants";
@@ -8,35 +10,42 @@ import { askRenderer, notificationsEmitter } from "./notifications/server";
 
 /**
  * Settings → Connections → WhatsApp: drive the board from your phone. Odin
- * links as a WhatsApp Web device (a QR scan, like web.whatsapp.com), so it
- * runs on this Mac with nothing to install and no server in between. It only
- * reads your "Message yourself" chat - nobody else can reach the board.
+ * links as a WhatsApp Web device (a QR scan, like web.whatsapp.com) of a
+ * second number - its own account, so it shows as a contact named Odin with
+ * Odin's icon, and your own profile stays yours. It runs on this Mac with
+ * nothing to install and no server in between.
  *
- * Any text there becomes a backlog task, started on the board; Odin writes
- * back when that session stops and waits for you. `tasks`, `status`,
- * `start <n>` and `help` do what they say.
+ * Only the owner reaches the board: the first chat to send the pairing code
+ * Settings shows. Any text from them becomes a backlog task, started on the
+ * board; Odin writes back when that session stops and waits for them.
+ * `tasks`, `status`, `start <n>` and `help` do what they say.
  */
 
 const AUTH_DIR = join(ODIN_HOME_DIR, "whatsapp");
+const OWNER_FILE = join(AUTH_DIR, "owner.json");
 
 export type WhatsAppStatus =
 	| { state: "off" | "connecting" }
 	| { state: "qr"; qr: string }
-	| { state: "linked"; phone: string };
+	/** code: the pairing code to send, until an owner has sent it. */
+	| { state: "linked"; phone: string; code?: string };
+
+/**
+ * Who the bot answers: the jids WhatsApp gives their chat (a phone jid and
+ * its @lid), and the chat to write to. profileSet: Odin's name and icon are
+ * on the account.
+ */
+type Owner = { jids: string[]; chat: string; profileSet?: boolean };
 
 let status: WhatsAppStatus = { state: "off" };
 let sock: WASocket | null = null;
-/**
- * Starts every reply, so Odin's own messages in the self-chat aren't read back
- * as commands - they echo in before sendMessage resolves, so ids can't tell.
- */
-const MARK = "🐦‍⬛ ";
+let owner: Owner | null = null;
+let pairCode = "";
 /** Titles of the tasks submitted from WhatsApp - the sessions it reports on. */
 // ponytail: in memory, so a restart stops the reports for earlier tasks.
 const watched = new Set<string>();
 /** The last `tasks` list, so `start 2` means its second row. */
 let lastTaskIds: string[] = [];
-let selfChat: string | null = null;
 
 export const whatsAppStatus = () => status;
 
@@ -50,6 +59,42 @@ const silent = {
 	error() {},
 };
 
+function readOwner(): Owner | null {
+	try {
+		return JSON.parse(readFileSync(OWNER_FILE, "utf8")) as Owner;
+	} catch {
+		return null;
+	}
+}
+
+async function saveOwner(next: Owner): Promise<void> {
+	owner = next;
+	await writeFile(OWNER_FILE, JSON.stringify(next));
+}
+
+/**
+ * Odin's name and icon on the bot account, once per link. Baileys' own
+ * updateProfilePicture needs sharp or jimp; Electron's nativeImage makes the
+ * same 640px JPEG, so this sends the query that function wraps.
+ */
+async function setProfile(socket: WASocket): Promise<void> {
+	if (!owner || owner.profileSet) return;
+	// Lazy: both reach Electron's nativeImage, which tests can't load.
+	const { nativeImage } = await import("electron");
+	const { getIconPath } = await import("./dock-icon");
+	const img = nativeImage
+		.createFromPath(getIconPath())
+		.resize({ width: 640, height: 640 })
+		.toJPEG(80);
+	await socket.query({
+		tag: "iq",
+		attrs: { to: "s.whatsapp.net", type: "set", xmlns: "w:profile:picture" },
+		content: [{ tag: "picture", attrs: { type: "image" }, content: img }],
+	});
+	await socket.updateProfileName("Odin");
+	await saveOwner({ ...owner, profileSet: true });
+}
+
 /** Connect with the saved link, or show a QR to make one. */
 export async function linkWhatsApp(): Promise<void> {
 	if (sock) return;
@@ -59,6 +104,8 @@ export async function linkWhatsApp(): Promise<void> {
 	// Not a React hook, whatever the name says.
 	const loadAuth = baileys.useMultiFileAuthState;
 	const { state, saveCreds } = await loadAuth(AUTH_DIR);
+	owner = readOwner();
+	pairCode ||= String(randomInt(100_000, 1_000_000));
 	const socket = baileys.makeWASocket({
 		auth: state,
 		logger: silent,
@@ -68,15 +115,23 @@ export async function linkWhatsApp(): Promise<void> {
 	});
 	sock = socket;
 	const connectedAt = Math.floor(Date.now() / 1000);
+	const profile = () =>
+		setProfile(socket).catch((error) =>
+			console.warn("[whatsapp] couldn't set Odin's name and icon:", error),
+		);
 	socket.ev.on("creds.update", saveCreds);
 	socket.ev.on(
 		"connection.update",
 		async ({ connection, qr, lastDisconnect }) => {
 			if (qr) status = { state: "qr", qr: await QRCode.toDataURL(qr) };
 			if (connection === "open") {
-				const phone = baileys.jidNormalizedUser(socket.user?.id);
-				selfChat = phone;
-				status = { state: "linked", phone: phone.split("@")[0] ?? phone };
+				const jid = baileys.jidNormalizedUser(socket.user?.id);
+				status = {
+					state: "linked",
+					phone: jid.split("@")[0] ?? jid,
+					...(!owner && { code: pairCode }),
+				};
+				void profile();
 			}
 			if (connection === "close") {
 				sock = null;
@@ -86,6 +141,7 @@ export async function linkWhatsApp(): Promise<void> {
 				if (code === baileys.DisconnectReason.loggedOut) {
 					// Unlinked from the phone: forget the link so the next Link shows a QR.
 					await rm(AUTH_DIR, { recursive: true, force: true });
+					owner = null;
 					status = { state: "off" };
 					return;
 				}
@@ -95,22 +151,33 @@ export async function linkWhatsApp(): Promise<void> {
 		},
 	);
 	socket.ev.on("messages.upsert", ({ messages }) => {
-		const self = [socket.user?.id, socket.user?.lid].map((jid) =>
-			jid ? baileys.jidNormalizedUser(jid) : "",
-		);
 		for (const message of messages) {
 			const { key } = message;
-			if (!key.fromMe) continue;
-			if (!self.includes(baileys.jidNormalizedUser(key.remoteJid ?? "")))
-				continue;
+			const chat = key.remoteJid;
+			// One-to-one chats from someone else only: no groups, no echoes.
+			if (key.fromMe || !chat || chat.endsWith("@g.us")) continue;
 			// Reconnecting replays recent history; only what came after counts.
 			if (Number(message.messageTimestamp ?? 0) < connectedAt) continue;
-			const text =
+			const text = (
 				message.message?.conversation ??
-				message.message?.extendedTextMessage?.text;
-			if (!text?.trim() || text.startsWith(MARK) || !key.remoteJid) continue;
-			selfChat = key.remoteJid;
-			void handle(text.trim()).then(reply);
+				message.message?.extendedTextMessage?.text
+			)?.trim();
+			if (!text) continue;
+			const jids = [chat, key.remoteJidAlt]
+				.filter((jid): jid is string => !!jid)
+				.map((jid) => baileys.jidNormalizedUser(jid));
+			if (!owner) {
+				if (text !== pairCode) continue;
+				void saveOwner({ jids, chat }).then(async () => {
+					if (status.state === "linked")
+						status = { state: "linked", phone: status.phone };
+					await reply(`Paired. This chat drives Odin now.\n\n${HELP}`);
+					await profile();
+				});
+				continue;
+			}
+			if (!jids.some((jid) => owner?.jids.includes(jid))) continue;
+			void handle(text).then(reply);
 		}
 	});
 }
@@ -118,15 +185,15 @@ export async function linkWhatsApp(): Promise<void> {
 export async function unlinkWhatsApp(): Promise<void> {
 	await sock?.logout().catch(() => {});
 	sock = null;
+	owner = null;
+	pairCode = "";
 	await rm(AUTH_DIR, { recursive: true, force: true });
 	status = { state: "off" };
 }
 
 /** Reconnect at launch when a link was made before. */
 export function startWhatsApp(): void {
-	void import("node:fs").then(({ existsSync }) => {
-		if (existsSync(join(AUTH_DIR, "creds.json"))) void linkWhatsApp();
-	});
+	if (existsSync(join(AUTH_DIR, "creds.json"))) void linkWhatsApp();
 	notificationsEmitter.on(
 		NOTIFICATION_EVENTS.AGENT_LIFECYCLE,
 		(event: AgentLifecycleEvent) => void report(event),
@@ -134,8 +201,8 @@ export function startWhatsApp(): void {
 }
 
 async function reply(text: string): Promise<void> {
-	if (!sock || !selfChat) return;
-	await sock.sendMessage(selfChat, { text: MARK + text }).catch(() => {});
+	if (!sock || !owner) return;
+	await sock.sendMessage(owner.chat, { text }).catch(() => {});
 }
 
 type Task = { id: string; title: string; started: boolean; queued?: string };
@@ -156,7 +223,7 @@ export const HELP = [
 	"I write back when a task you sent stops and waits for you.",
 ].join("\n");
 
-/** What a self-chat message asks for. */
+/** What a message from the owner asks for. */
 export function parseCommand(
 	text: string,
 ):

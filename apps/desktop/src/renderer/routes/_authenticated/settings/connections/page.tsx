@@ -230,18 +230,22 @@ function ConnectionsSettings() {
 }
 
 /**
- * Odin as a linked WhatsApp device (main/lib/whatsapp.ts): text your own
- * "Message yourself" chat to add and start tasks and hear back when they wait.
+ * Odin as a linked WhatsApp device of a second number (main/lib/whatsapp.ts):
+ * a contact named Odin, with Odin's icon, that adds and starts tasks and
+ * writes back when they wait.
  */
 function WhatsAppRow() {
 	const status = electronTrpc.whatsapp.status.useQuery(undefined, {
-		// The QR rotates every ~20s and the link lands on its own, so poll
-		// until it's linked or off.
-		refetchInterval: (query) =>
-			query.state.data?.state === "qr" ||
-			query.state.data?.state === "connecting"
+		// The QR rotates every ~20s, and the link and the pairing land on
+		// their own, so poll until it's paired or off.
+		refetchInterval: (query) => {
+			const data = query.state.data;
+			return data?.state === "qr" ||
+				data?.state === "connecting" ||
+				(data?.state === "linked" && data.code)
 				? 2_000
-				: false,
+				: false;
+		},
 	});
 	const onError = (error: { message: string }) => toast.error(error.message);
 	const link = electronTrpc.whatsapp.link.useMutation({
@@ -275,8 +279,9 @@ function WhatsAppRow() {
 							for you.
 						</div>
 						<div className="text-xs text-muted-foreground mt-1 max-w-[70ch]">
-							Text your own "Message yourself" chat: any text starts a task, and
-							"help" lists the commands. Odin reads no other chat. It runs while
+							Link a second WhatsApp number, not your own: it becomes a contact
+							named Odin, with Odin's icon. Any text you send it starts a task,
+							and "help" lists the commands. It answers only you, and runs while
 							Odin is open on this Mac.
 						</div>
 						{data?.state === "qr" && (
@@ -287,9 +292,18 @@ function WhatsAppRow() {
 									className="size-48 rounded-md bg-white p-2"
 								/>
 								<div className="text-xs text-muted-foreground mt-2 max-w-[70ch]">
-									On your phone, open WhatsApp → Settings → Linked devices →
-									Link a device, and scan this code.
+									On the phone with Odin's number, open WhatsApp → Settings →
+									Linked devices → Link a device, and scan this code.
 								</div>
+							</div>
+						)}
+						{data?.state === "linked" && data.code && (
+							<div className="mt-3 text-xs text-muted-foreground max-w-[70ch]">
+								From your own WhatsApp, send{" "}
+								<span className="select-text cursor-text font-mono text-sm font-semibold text-foreground">
+									{data.code}
+								</span>{" "}
+								to +{data.phone}. That makes you the only one it answers.
 							</div>
 						)}
 					</div>
