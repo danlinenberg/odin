@@ -726,10 +726,14 @@ export function InAppBrowser() {
 									<HiArrowTopRightOnSquare className="size-3.5" />
 									Always open links in your browser
 								</DropdownMenuItem>
-								<DropdownMenuItem onSelect={importSignIns}>
-									<HiArrowDownTray className="size-3.5" />
-									Import sign-ins from your browser
-								</DropdownMenuItem>
+								{/* Chrome and Edge on Windows lock their cookies to themselves
+								    (app-bound encryption): the import works on macOS only. */}
+								{navigator.platform.toLowerCase().includes("mac") && (
+									<DropdownMenuItem onSelect={importSignIns}>
+										<HiArrowDownTray className="size-3.5" />
+										Import sign-ins from your browser
+									</DropdownMenuItem>
+								)}
 							</DropdownMenuContent>
 						</DropdownMenu>
 					</div>
