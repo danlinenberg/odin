@@ -2137,13 +2137,7 @@ function Composer({
 						onKeyDown={(event) => {
 							if (
 								event.key === " " &&
-								(voice.holding() ||
-									(canTalk &&
-										!draft &&
-										!bash &&
-										!event.metaKey &&
-										!event.ctrlKey &&
-										!event.altKey))
+								(voice.holding() || (canTalk && !draft && !bash))
 							) {
 								event.preventDefault();
 								if (!event.repeat) voice.press();
