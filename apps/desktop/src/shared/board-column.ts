@@ -53,3 +53,21 @@ export function boardColumn(
 	if (status === "failed" || (alive && status === "idle")) return "permission";
 	return status;
 }
+
+/**
+ * Needs you or Done, but Working while CI runs on one of its PRs: the
+ * session is waiting on CI, not on you. Otherwise Needs you, unless all it
+ * needs is merging approved PRs or a look at what shipped, or its PRs were
+ * closed - then Done.
+ */
+export function mergeStateColumn(
+	column: PaneStatus,
+	ciRunning: boolean,
+	mergeReady: boolean,
+): PaneStatus {
+	return (column === "permission" || column === "review") && ciRunning
+		? "working"
+		: column === "permission" && mergeReady
+			? "review"
+			: column;
+}

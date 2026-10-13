@@ -40,6 +40,7 @@ export const Terminal = memo(function Terminal({
 	paneId,
 	tabId,
 	workspaceId,
+	focused,
 }: TerminalProps) {
 	const pane = useTabsStore((s) => s.panes[paneId]);
 	const isWorkspaceRunPane = Boolean(pane?.workspaceRun?.workspaceId);
@@ -99,7 +100,9 @@ export const Terminal = memo(function Terminal({
 	tabIdRef.current = tabId;
 	const setFocusedPane = useTabsStore((s) => s.setFocusedPane);
 	const setPaneName = useTabsStore((s) => s.setPaneName);
-	const focusedPaneId = useTabsStore((s) => s.focusedPaneIds[tabId]);
+	const tabFocusedPaneId = useTabsStore((s) => s.focusedPaneIds[tabId]);
+	const focusedPaneId =
+		focused === undefined ? tabFocusedPaneId : focused ? paneId : undefined;
 	const terminalTheme = useTerminalTheme();
 
 	// Terminal connection state and mutations

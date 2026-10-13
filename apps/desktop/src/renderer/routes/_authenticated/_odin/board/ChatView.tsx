@@ -2,16 +2,23 @@ import { odinIcon } from "@odin/ui/icons/preset-icons";
 import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import {
+	createContext,
 	memo,
 	type ReactNode,
 	useCallback,
+	useContext,
 	useEffect,
 	useLayoutEffect,
 	useMemo,
 	useRef,
 	useState,
 } from "react";
-import { LuChevronRight, LuSquareTerminal, LuWrench } from "react-icons/lu";
+import {
+	LuArrowUp,
+	LuChevronRight,
+	LuSquareTerminal,
+	LuWrench,
+} from "react-icons/lu";
 import { MarkdownRenderer } from "renderer/components/MarkdownRenderer";
 import { isHotkey, useHotkeyDisplay } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
@@ -103,6 +110,17 @@ type Line = {
 	/** A message you sent mid-turn rides in as a queued_command attachment. */
 	attachment?: { type?: string; prompt?: string | Block[] };
 };
+
+/**
+ * Home's cards set this: a session in a sixth of the screen, so dense type,
+ * no reply marks, quiet tool rows and a one-line composer. The drawer leaves
+ * it off and looks as it always has.
+ */
+const Compact = createContext(false);
+
+/** Prose at card density - COMPACT_MARKDOWN a size down, tighter rhythm. */
+const CARD_MARKDOWN =
+	"h-auto! overflow-visible! bg-transparent! text-[12.5px] leading-normal text-soft-foreground [&_article]:p-0! [&_p]:leading-normal! [&_h1]:text-[13px]! [&_h2]:text-[13px]! [&_h3]:text-[12.5px]! [&_h1]:mb-1! [&_h2]:border-0! [&_h2]:pb-0! [&_h2]:mt-2.5! [&_h2]:mb-1! [&_h3]:mt-2! [&_h3]:mb-1! [&_p]:mb-1.5! [&_ul]:mb-1.5! [&_ol]:mb-1.5! [&_ul]:pl-4! [&_ol]:pl-4! [&_p:last-child]:mb-0! [&_ul:last-child]:mb-0! [&_ol:last-child]:mb-0! [&_code]:text-[11.5px] [&_pre]:my-1.5!";
 
 /** First read takes the transcript's tail - a long session's JSONL runs to MBs. */
 const TAIL_BYTES = 4_000_000;
@@ -512,15 +530,19 @@ const ToolRow = memo(function ToolRow({
 	item: Extract<Item, { kind: "tool" }>;
 }) {
 	const [open, setOpen] = useState(false);
+	const compact = useContext(Compact);
 	const done = item.result !== undefined;
 	const oldText = item.input.old_string;
 	const newText = item.input.new_string;
 	return (
-		<div className="text-[12.5px]">
+		<div className={compact ? "text-[11.5px]" : "text-[12.5px]"}>
 			<button
 				type="button"
 				onClick={() => setOpen((value) => !value)}
-				className="flex w-full min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-left hover:bg-secondary"
+				className={cn(
+					"flex w-full min-w-0 items-center gap-2 rounded-md text-left hover:bg-secondary",
+					compact ? "px-1 py-0.5" : "px-1.5 py-1",
+				)}
 			>
 				<span
 					className={cn(
@@ -613,6 +635,7 @@ const ToolGroup = memo(
 		lead?: ReactNode;
 	}) {
 		const [open, setOpen] = useState(false);
+		const compact = useContext(Compact);
 		// A failure Claude retried past is routine; only flag a run that ended failing.
 		const failed = group.at(-1)?.isError === true;
 		return (
@@ -643,7 +666,13 @@ const ToolGroup = memo(
 					</button>
 				</div>
 				{open && (
-					<div className="mt-1.5 rounded-lg border border-border bg-secondary/20 p-1.5">
+					<div
+						className={
+							compact
+								? "mt-0.5 ml-1.5 border-l border-border pl-1.5"
+								: "mt-1.5 rounded-lg border border-border bg-secondary/20 p-1.5"
+						}
+					>
 						{group.map((item) => (
 							<ToolRow key={item.id} item={item} />
 						))}
@@ -784,12 +813,16 @@ function UserBubble({
 	const previews = [...(images ?? []), ...attached];
 	const [open, setOpen] = useState(false);
 	const [full, setFull] = useState(false);
+	const compact = useContext(Compact);
 	const shown = full || request === null ? text : request;
 	const long = shown.length > 300 || shown.split("\n").length > 4;
 	return (
 		<div
 			className={cn(
-				"mt-5 mb-1 ml-auto max-w-[75%] select-text cursor-text break-words rounded-2xl rounded-br-md border border-primary/30 bg-primary/15 px-4 py-2.5 text-[13.5px] leading-relaxed text-foreground shadow-sm first:mt-0",
+				"ml-auto select-text cursor-text break-words text-foreground first:mt-0",
+				compact
+					? "mt-2 max-w-[85%] rounded-lg rounded-br-sm bg-primary/15 px-2.5 py-1.5 text-[12.5px] leading-normal"
+					: "mt-5 mb-1 max-w-[75%] rounded-2xl rounded-br-md border border-primary/30 bg-primary/15 px-4 py-2.5 text-[13.5px] leading-relaxed shadow-sm",
 				pending && "opacity-60",
 				pending && ENTER,
 			)}
@@ -804,13 +837,19 @@ function UserBubble({
 					style="default"
 					allowHtml={false}
 					className={cn(
-						COMPACT_MARKDOWN,
-						"text-[13.5px] text-foreground [&_li]:whitespace-pre-wrap [&_p]:whitespace-pre-wrap",
+						compact ? CARD_MARKDOWN : COMPACT_MARKDOWN,
+						compact ? "text-[12.5px]" : "text-[13.5px]",
+						"text-foreground [&_li]:whitespace-pre-wrap [&_p]:whitespace-pre-wrap",
 					)}
 				/>
 			</div>
 			{(long || request !== null) && (
-				<div className="mt-1 flex gap-3 text-[12px]">
+				<div
+					className={cn(
+						"mt-1 flex gap-3",
+						compact ? "text-[11px]" : "text-[12px]",
+					)}
+				>
 					{long && (
 						<button
 							type="button"
@@ -959,6 +998,15 @@ function OdinMark({ className }: { className?: string }) {
 	);
 }
 
+/** Odin's icon nodding along while a turn runs, or at card density a pulsing dot. */
+function ActivityMark() {
+	return useContext(Compact) ? (
+		<span className="size-1.5 shrink-0 animate-pulse rounded-full bg-working" />
+	) : (
+		<OdinMark className="animate-[odin-nod_1.6s_ease-in-out_infinite]" />
+	);
+}
+
 /**
  * Split a reply at its ACTION ITEMS line, in any of the shapes agents write it
  * ("ACTION ITEMS:", "## Action items", "**ACTION ITEMS:** none ..."). Whatever
@@ -1056,6 +1104,10 @@ type DoItem = (
 const ACTION_BUTTON =
 	"shrink-0 rounded-md border border-attention/40 px-2 py-0.5 text-[11px] font-medium text-attention hover:bg-attention/15 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent";
 
+/** A card's action buttons: text links, no box. */
+const CARD_ACTION_BUTTON =
+	"shrink-0 rounded px-1 text-left text-[11px] font-medium text-attention hover:underline disabled:cursor-default disabled:no-underline disabled:opacity-50";
+
 /** Claude marks what it can't do "(you only)"; handing it back is a dead-end turn. */
 export function isYouOnly(item: string): boolean {
 	return (
@@ -1081,6 +1133,9 @@ function ActionItemRow({
 }) {
 	const [sent, setSent] = useState(false);
 	const [answer, setAnswer] = useState("");
+	const compact = useContext(Compact);
+	const button = compact ? CARD_ACTION_BUTTON : ACTION_BUTTON;
+	const buttonWidth = compact ? "w-[52px]" : "w-[64px]";
 	const { text, options } = itemOptions(item);
 	const approve = isApprovalItem(item);
 	const done = !approve && isDoneItem(item);
@@ -1093,7 +1148,7 @@ function ActionItemRow({
 		<li className="flex items-start gap-2">
 			{/* The button leads the row - you scan for it first. */}
 			{isYouOnly(item) ? (
-				buttonColumn && <span className="w-[64px] shrink-0" />
+				buttonColumn && <span className={cn(buttonWidth, "shrink-0")} />
 			) : (
 				<button
 					type="button"
@@ -1108,12 +1163,17 @@ function ActionItemRow({
 					}
 					disabled={sent || (asks && !answer.trim())}
 					onClick={() => send(asks ? answer.trim() : done ? "Done" : undefined)}
-					className={cn(ACTION_BUTTON, "w-[64px]")}
+					className={cn(button, buttonWidth)}
 				>
 					{sent ? "Sent" : approve ? "Approve" : done ? "Done" : "Do it"}
 				</button>
 			)}
-			<span className="w-4 shrink-0 pt-px text-right text-[13px] tabular-nums text-muted-foreground">
+			<span
+				className={cn(
+					"w-4 shrink-0 pt-px text-right tabular-nums text-muted-foreground",
+					compact ? "text-[12px]" : "text-[13px]",
+				)}
+			>
 				{number}.
 			</span>
 			<div className="min-w-0 flex-1">
@@ -1121,7 +1181,7 @@ function ActionItemRow({
 					content={text}
 					style="default"
 					allowHtml={false}
-					className={COMPACT_MARKDOWN}
+					className={compact ? CARD_MARKDOWN : COMPACT_MARKDOWN}
 				/>
 				{asks && !sent && (
 					<div className="mt-1.5 flex flex-wrap items-center gap-1.5">
@@ -1131,7 +1191,7 @@ function ActionItemRow({
 								type="button"
 								title="Send this choice to Claude"
 								onClick={() => send(option)}
-								className={ACTION_BUTTON}
+								className={button}
 							>
 								{option}
 							</button>
@@ -1164,13 +1224,27 @@ function ActionItems({ text, onDo }: { text: string; onDo?: DoItem }) {
 	// text arrives linkified from ItemView.
 	const items = onDo ? actionItemList(text) : [];
 	const buttonColumn = !items.every(isYouOnly);
+	const compact = useContext(Compact);
 	return (
-		<div className="mt-2 rounded-xl border border-attention/35 bg-attention/[0.07] px-4 py-3">
-			<div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[.08em] text-attention">
+		<div
+			className={
+				compact
+					? "mt-1.5 border-t border-attention/30 pt-1.5"
+					: "mt-2 rounded-xl border border-attention/35 bg-attention/[0.07] px-4 py-3"
+			}
+		>
+			<div
+				className={cn(
+					"font-semibold text-attention",
+					compact
+						? "mb-1 text-[11px]"
+						: "mb-1.5 text-[11px] uppercase tracking-[.08em]",
+				)}
+			>
 				Action items
 			</div>
 			{onDo && items.length > 0 ? (
-				<ol className="flex flex-col gap-1">
+				<ol className={cn("flex flex-col", compact ? "gap-0.5" : "gap-1")}>
 					{items.map((item, index) => (
 						<ActionItemRow
 							// biome-ignore lint/suspicious/noArrayIndexKey: the list is fixed once written
@@ -1187,7 +1261,7 @@ function ActionItems({ text, onDo }: { text: string; onDo?: DoItem }) {
 					content={text}
 					style="default"
 					allowHtml={false}
-					className={COMPACT_MARKDOWN}
+					className={compact ? CARD_MARKDOWN : COMPACT_MARKDOWN}
 				/>
 			)}
 		</div>
@@ -1208,6 +1282,7 @@ const ItemView = memo(
 		refsKey: string;
 		onDo?: DoItem;
 	}) {
+		const compact = useContext(Compact);
 		if (item.kind === "tool") return <ToolRow item={item} />;
 		if (item.kind === "compact") return <CompactRow item={item} />;
 		if (item.kind === "user")
@@ -1226,7 +1301,7 @@ const ItemView = memo(
 						content={body}
 						style="default"
 						allowHtml={false}
-						className={COMPACT_MARKDOWN}
+						className={compact ? CARD_MARKDOWN : COMPACT_MARKDOWN}
 					/>
 				)}
 				{actions && <ActionItems text={actions} onDo={onDo} />}
@@ -1245,7 +1320,15 @@ const ItemView = memo(
  * collapsible tool rows, and a composer. Claude keeps running in its terminal
  * behind it - this types into the same PTY.
  */
-export function ChatView({
+export function ChatView(props: Parameters<typeof ChatViewBody>[0]) {
+	return (
+		<Compact.Provider value={props.density === "compact"}>
+			<ChatViewBody {...props} />
+		</Compact.Provider>
+	);
+}
+
+function ChatViewBody({
 	paneId,
 	sessionId,
 	cwd,
@@ -1258,6 +1341,7 @@ export function ChatView({
 	noTerminal = false,
 	placeholder,
 	onOpenSession,
+	focusComposer = true,
 }: {
 	paneId: string;
 	sessionId: string | null;
@@ -1278,7 +1362,12 @@ export function ChatView({
 	placeholder?: string;
 	/** Follows a `#session=<paneId>` link in a reply (the raven writes them). */
 	onOpenSession?: (paneId: string) => void;
+	/** The composer takes the keyboard when this is (or turns) true. */
+	focusComposer?: boolean;
+	/** "compact" for a card (Home); the drawer keeps the default. */
+	density?: "default" | "compact";
 }) {
+	const compact = useContext(Compact);
 	const { data: home } = electronTrpc.window.getHomeDir.useQuery();
 	// Claude files the conversation under the directory it STARTED in - the
 	// transcript's first cwd. The pane's cwd has often moved on since (a feed
@@ -1536,12 +1625,23 @@ export function ChatView({
 						openUrl(anchor.href);
 					}
 				}}
-				className="min-h-0 flex-1 overflow-y-auto px-8 py-6"
+				className={cn(
+					"min-h-0 flex-1 overflow-y-auto",
+					compact ? "px-3 py-2.5" : "px-8 py-6",
+				)}
 			>
-				<div ref={contentRef} className="flex flex-col gap-2.5">
+				<div
+					ref={contentRef}
+					className={cn("flex flex-col", compact ? "gap-1.5" : "gap-2.5")}
+				>
 					{starting ? (
-						<div className="flex items-center gap-3 text-[12.5px] text-working">
-							<OdinMark className="animate-[odin-nod_1.6s_ease-in-out_infinite]" />
+						<div
+							className={cn(
+								"flex items-center text-working",
+								compact ? "gap-2 text-[11.5px]" : "gap-3 text-[12.5px]",
+							)}
+						>
+							<ActivityMark />
 							Starting session…
 							{/* Before its first turn the CLI can stop on a terminal-only
 							    prompt (folder trust, bypass-permissions warning) that no
@@ -1612,7 +1712,12 @@ export function ChatView({
 									key && !firstIdsRef.current?.has(key) && ENTER,
 								)}
 							>
-								{opensReply ? <OdinMark /> : <span className="w-7 shrink-0" />}
+								{/* A card has no room for the reply mark's column. */}
+								{compact ? null : opensReply ? (
+									<OdinMark />
+								) : (
+									<span className="w-7 shrink-0" />
+								)}
 								<div className="min-w-0 flex-1">
 									{Array.isArray(segment) ? (
 										<ToolGroup group={segment} />
@@ -1635,7 +1740,7 @@ export function ChatView({
 					))}
 					{prompt && (
 						<div className={cn("flex min-w-0 gap-3", ENTER)}>
-							<OdinMark />
+							{!compact && <OdinMark />}
 							<div className="min-w-0 flex-1">
 								{prompt.name === "AskUserQuestion" ? (
 									<QuestionCard
@@ -1664,7 +1769,7 @@ export function ChatView({
 					)}
 					{screenMenu && (
 						<div className={cn("flex min-w-0 gap-3", ENTER)}>
-							<OdinMark />
+							{!compact && <OdinMark />}
 							<div className="min-w-0 flex-1">
 								<ScreenMenuCard
 									key={`${screenMenu.title}\n${screenMenu.options.join("\n")}`}
@@ -1684,9 +1789,15 @@ export function ChatView({
 						</div>
 					)}
 					{working && !prompt && !screenMenu && !starting && (
-						<div className="flex min-w-0 gap-3 text-[12.5px] text-working">
-							{/* Odin's icon, nodding along while Claude works. */}
-							<OdinMark className="animate-[odin-nod_1.6s_ease-in-out_infinite]" />
+						<div
+							className={cn(
+								"flex min-w-0 text-working",
+								compact
+									? "items-center gap-2 text-[11.5px]"
+									: "gap-3 text-[12.5px]",
+							)}
+						>
+							<ActivityMark />
 							{compacting === null ? (
 								<div className="flex min-w-0 flex-1 flex-col">
 									<button
@@ -1698,7 +1809,10 @@ export function ChatView({
 										}
 										disabled={turnTools.length === 0}
 										onClick={() => setShowCommands(!showCommands)}
-										className="flex h-7 items-center gap-3 self-start rounded-md enabled:hover:text-foreground"
+										className={cn(
+											"flex items-center gap-3 self-start rounded-md enabled:hover:text-foreground",
+											compact ? "h-5" : "h-7",
+										)}
 									>
 										<span className="shrink-0">Working…</span>
 										{turnStart !== undefined && <Elapsed since={turnStart} />}
@@ -1730,7 +1844,12 @@ export function ChatView({
 									)}
 								</div>
 							) : (
-								<div className="flex h-7 items-center gap-3">
+								<div
+									className={cn(
+										"flex items-center gap-3",
+										compact ? "h-5" : "h-7",
+									)}
+								>
 									Compacting conversation…
 									<Elapsed since={compacting} />
 								</div>
@@ -1753,6 +1872,7 @@ export function ChatView({
 							placeholder={placeholder}
 							dropRef={dropRef}
 							dragging={dragging}
+							autoFocus={focusComposer}
 						/>
 					)}
 				</>
@@ -1767,6 +1887,7 @@ export function ChatView({
 					placeholder="Reply to resume the session"
 					dropRef={dropRef}
 					dragging={dragging}
+					autoFocus={focusComposer}
 				/>
 			) : (
 				<div className="border-t border-border px-5 py-2 text-center text-[11.5px] text-muted-foreground">
@@ -1818,6 +1939,7 @@ function Composer({
 	onSend,
 	dropRef,
 	dragging,
+	autoFocus,
 }: {
 	paneId: string;
 	working: boolean;
@@ -1832,7 +1954,9 @@ function Composer({
 	/** The view's drop zone hands dropped files here. */
 	dropRef: { current?: (files: File[]) => void };
 	dragging: boolean;
+	autoFocus: boolean;
 }) {
+	const compact = useContext(Compact);
 	const [draft, setDraft] = useState(() => draftFor(paneId));
 	useEffect(
 		() => useChatDrafts.getState().save(paneId, draft),
@@ -1894,14 +2018,16 @@ function Composer({
 		setDraft((text) => insertSkill(text, name));
 		setSelected(0);
 	};
-	useEffect(() => inputRef.current?.focus(), []);
+	useEffect(() => {
+		if (autoFocus) inputRef.current?.focus();
+	}, [autoFocus]);
 	// Grow with the text, up to ~10 lines, like the desktop app's box.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: re-measure on every draft change
 	useEffect(() => {
 		const el = inputRef.current;
 		if (!el) return;
 		el.style.height = "auto";
-		el.style.height = `${Math.min(el.scrollHeight, 220)}px`;
+		el.style.height = `${Math.min(el.scrollHeight, compact ? 96 : 220)}px`;
 	}, [draft]);
 	const send = async (now = false) => {
 		const body = draft.trim();
@@ -1946,6 +2072,170 @@ function Composer({
 			toast.error(error instanceof Error ? error.message : String(error));
 		}
 	};
+	const skillMenu = matches.length > 0 && (
+		<div className="absolute inset-x-0 bottom-full mb-1.5 overflow-hidden rounded-[10px] border border-border bg-popover shadow-[0_12px_40px_rgba(0,0,0,0.5)]">
+			<div className="max-h-[240px] overflow-y-auto py-1">
+				{matches.map((skill, index) => (
+					<button
+						key={skill.name}
+						type="button"
+						onMouseEnter={() => setSelected(index)}
+						// The textarea keeps focus: mousedown fires before blur.
+						onMouseDown={(event) => {
+							event.preventDefault();
+							pickSkill(skill.name);
+						}}
+						className={cn(
+							"flex w-full items-baseline gap-2 px-3 py-1 text-left",
+							index === activeIndex && "bg-secondary",
+						)}
+					>
+						<span className="shrink-0 font-mono text-[12.5px] font-semibold text-foreground">
+							/{skill.name}
+						</span>
+						<span className="min-w-0 flex-1 truncate text-[11.5px] text-muted-foreground">
+							{skill.description}
+						</span>
+					</button>
+				))}
+			</div>
+		</div>
+	);
+	const previewStrip = attached.length > 0 && (
+		<PreviewStrip
+			previews={attached.map((item) => item.preview)}
+			onRemove={(index) =>
+				setAttached((list) => list.filter((_, i) => i !== index))
+			}
+			className={compact ? "mb-1.5" : "mb-2"}
+		/>
+	);
+	const input = (
+		<textarea
+			ref={inputRef}
+			value={draft}
+			rows={1}
+			onChange={(event) => {
+				const value = event.target.value;
+				if (!bash && !draft && value.startsWith("!")) {
+					setBash(true);
+					setDraft(value.slice(1));
+				} else setDraft(value);
+				setMenuClosed(false);
+			}}
+			onPaste={(event) => {
+				if (attach([...event.clipboardData.files])) event.preventDefault();
+			}}
+			onKeyDown={(event) => {
+				if (matches.length > 0 && !event.nativeEvent.isComposing) {
+					// While the skill menu is open it owns these keys.
+					if (event.key === "Escape") {
+						event.preventDefault();
+						setMenuClosed(true);
+						return;
+					}
+					if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+						event.preventDefault();
+						const step = event.key === "ArrowDown" ? 1 : matches.length - 1;
+						setSelected((index) => (index + step) % matches.length);
+						return;
+					}
+					if (
+						(event.key === "Enter" && !event.shiftKey) ||
+						event.key === "Tab"
+					) {
+						event.preventDefault();
+						const match = matches[activeIndex];
+						if (match) pickSkill(match.name);
+						return;
+					}
+				}
+				if (
+					bash &&
+					!draft &&
+					(event.key === "Backspace" || event.key === "Escape")
+				) {
+					event.preventDefault();
+					setBash(false);
+					return;
+				}
+				if (
+					event.key === "Enter" &&
+					!event.shiftKey &&
+					!event.nativeEvent.isComposing
+				) {
+					event.preventDefault();
+					void send(isHotkey("CHAT_SEND_NOW", event.nativeEvent));
+				}
+			}}
+			placeholder={bash ? "Run a shell command" : placeholder}
+			className={cn(
+				"block w-full resize-none bg-transparent text-foreground outline-none",
+				compact
+					? "max-h-24 text-[12.5px] leading-normal placeholder:text-muted-foreground"
+					: "max-h-[220px] text-[13.5px] leading-relaxed placeholder:text-faint-foreground",
+				bash && "font-mono",
+			)}
+		/>
+	);
+	const stop = () =>
+		onStop ? onStop() : write.mutate({ paneId, data: "\x03" });
+	if (compact)
+		return (
+			<div
+				className={cn(
+					"relative border-t px-3 py-1.5",
+					bash ? "border-pink-500/60" : "border-border",
+					dragging && "bg-primary/10",
+				)}
+			>
+				{skillMenu}
+				{previewStrip}
+				<div className="flex items-end gap-1.5">
+					{bash && (
+						<span className="font-mono text-[12.5px] leading-normal text-pink-500">
+							!
+						</span>
+					)}
+					<div className="min-w-0 flex-1 py-0.5">{input}</div>
+					{/* The rest only on the card you're in - unfocused ones stay a line. */}
+					{autoFocus && !noTerminal && (
+						<button
+							type="button"
+							title="Terminal View (Settings > Appearance)"
+							aria-label="Terminal View"
+							onClick={() => setChat(false)}
+							className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground"
+						>
+							<LuSquareTerminal className="size-3.5" />
+						</button>
+					)}
+					{autoFocus &&
+						(working ? (
+							<button
+								type="button"
+								title="Stop Claude"
+								aria-label="Stop Claude"
+								onClick={stop}
+								className="flex size-6 shrink-0 items-center justify-center rounded-full bg-foreground hover:opacity-85"
+							>
+								<span className="size-[7px] rounded-[1.5px] bg-background" />
+							</button>
+						) : (
+							<button
+								type="button"
+								title="Send (Enter)"
+								aria-label="Send"
+								disabled={!draft.trim() && attached.length === 0}
+								onClick={() => void send()}
+								className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground hover:brightness-110 disabled:opacity-40"
+							>
+								<LuArrowUp className="size-3.5" />
+							</button>
+						))}
+				</div>
+			</div>
+		);
 	return (
 		<div className="px-4 pb-3 pt-1">
 			<div
@@ -1955,115 +2245,15 @@ function Composer({
 					dragging && "border-primary bg-primary/10",
 				)}
 			>
-				{matches.length > 0 && (
-					<div className="absolute inset-x-0 bottom-full mb-1.5 overflow-hidden rounded-[10px] border border-border bg-popover shadow-[0_12px_40px_rgba(0,0,0,0.5)]">
-						<div className="max-h-[240px] overflow-y-auto py-1">
-							{matches.map((skill, index) => (
-								<button
-									key={skill.name}
-									type="button"
-									onMouseEnter={() => setSelected(index)}
-									// The textarea keeps focus: mousedown fires before blur.
-									onMouseDown={(event) => {
-										event.preventDefault();
-										pickSkill(skill.name);
-									}}
-									className={cn(
-										"flex w-full items-baseline gap-2 px-3 py-1 text-left",
-										index === activeIndex && "bg-secondary",
-									)}
-								>
-									<span className="shrink-0 font-mono text-[12.5px] font-semibold text-foreground">
-										/{skill.name}
-									</span>
-									<span className="min-w-0 flex-1 truncate text-[11.5px] text-muted-foreground">
-										{skill.description}
-									</span>
-								</button>
-							))}
-						</div>
-					</div>
-				)}
-				{attached.length > 0 && (
-					<PreviewStrip
-						previews={attached.map((item) => item.preview)}
-						onRemove={(index) =>
-							setAttached((list) => list.filter((_, i) => i !== index))
-						}
-						className="mb-2"
-					/>
-				)}
+				{skillMenu}
+				{previewStrip}
 				<div className="flex gap-1.5">
 					{bash && (
 						<span className="font-mono text-[13.5px] leading-relaxed text-pink-500">
 							!
 						</span>
 					)}
-					<textarea
-						ref={inputRef}
-						value={draft}
-						rows={1}
-						onChange={(event) => {
-							const value = event.target.value;
-							if (!bash && !draft && value.startsWith("!")) {
-								setBash(true);
-								setDraft(value.slice(1));
-							} else setDraft(value);
-							setMenuClosed(false);
-						}}
-						onPaste={(event) => {
-							if (attach([...event.clipboardData.files]))
-								event.preventDefault();
-						}}
-						onKeyDown={(event) => {
-							if (matches.length > 0 && !event.nativeEvent.isComposing) {
-								// While the skill menu is open it owns these keys.
-								if (event.key === "Escape") {
-									event.preventDefault();
-									setMenuClosed(true);
-									return;
-								}
-								if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-									event.preventDefault();
-									const step =
-										event.key === "ArrowDown" ? 1 : matches.length - 1;
-									setSelected((index) => (index + step) % matches.length);
-									return;
-								}
-								if (
-									(event.key === "Enter" && !event.shiftKey) ||
-									event.key === "Tab"
-								) {
-									event.preventDefault();
-									const match = matches[activeIndex];
-									if (match) pickSkill(match.name);
-									return;
-								}
-							}
-							if (
-								bash &&
-								!draft &&
-								(event.key === "Backspace" || event.key === "Escape")
-							) {
-								event.preventDefault();
-								setBash(false);
-								return;
-							}
-							if (
-								event.key === "Enter" &&
-								!event.shiftKey &&
-								!event.nativeEvent.isComposing
-							) {
-								event.preventDefault();
-								void send(isHotkey("CHAT_SEND_NOW", event.nativeEvent));
-							}
-						}}
-						placeholder={bash ? "Run a shell command" : placeholder}
-						className={cn(
-							"block max-h-[220px] w-full resize-none bg-transparent text-[13.5px] leading-relaxed text-foreground outline-none placeholder:text-faint-foreground",
-							bash && "font-mono",
-						)}
-					/>
+					{input}
 				</div>
 				<div className="mt-1.5 flex items-center gap-2">
 					{!noTerminal && (
@@ -2091,9 +2281,7 @@ function Composer({
 						<button
 							type="button"
 							title="Stop Claude"
-							onClick={() =>
-								onStop ? onStop() : write.mutate({ paneId, data: "\x03" })
-							}
+							onClick={stop}
 							className="ml-auto flex size-7 shrink-0 items-center justify-center rounded-full bg-foreground text-background hover:opacity-85"
 						>
 							<span className="size-[9px] rounded-[2px] bg-background" />
