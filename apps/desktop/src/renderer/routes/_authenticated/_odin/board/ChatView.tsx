@@ -1081,6 +1081,16 @@ export function itemOptions(item: string): { text: string; options: string[] } {
 	};
 }
 
+/**
+ * What an item's button sends: the typed answer, "Done" for a "tell me when"
+ * item, else nothing - and Claude is asked to do the item itself.
+ */
+export function itemReply(item: string, answer: string): string | undefined {
+	const typed = answer.trim();
+	if (typed) return typed;
+	return !isApprovalItem(item) && isDoneItem(item) ? "Done" : undefined;
+}
+
 type DoItem = (
 	item: string,
 	number: number,
@@ -1135,14 +1145,14 @@ function ActionItemRow({
 					title={
 						approve
 							? "Tell Claude you approve and to go ahead"
-							: asks
+							: asks && answer.trim()
 								? "Send your answer to Claude"
 								: done
 									? "Tell Claude this is done"
 									: "Ask Claude to do this for you"
 					}
-					disabled={sent || (asks && !answer.trim())}
-					onClick={() => send(asks ? answer.trim() : done ? "Done" : undefined)}
+					disabled={sent}
+					onClick={() => send(itemReply(item, answer))}
 					className={cn(ACTION_BUTTON, "w-[64px]")}
 				>
 					{sent ? "Sent" : approve ? "Approve" : done ? "Done" : "Do it"}

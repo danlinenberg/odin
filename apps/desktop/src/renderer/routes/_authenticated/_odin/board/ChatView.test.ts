@@ -9,6 +9,7 @@ import {
 	isDoneItem,
 	isYouOnly,
 	itemOptions,
+	itemReply,
 	launchAttachments,
 	launchRequest,
 	outputTokens,
@@ -354,6 +355,18 @@ describe("isYouOnly", () => {
 	test("an item Claude can do, or one asking for an answer, still gets one", () => {
 		expect(isYouOnly("Look at #740 if CI fails.")).toBe(false);
 		expect(isYouOnly("Tell me which repo to use (you only).")).toBe(false);
+	});
+});
+
+describe("itemReply", () => {
+	test("an empty answer box sends the item itself", () => {
+		expect(itemReply("Tell me commit and push to update PR #760", "  ")).toBe(
+			undefined,
+		);
+	});
+	test("a typed answer, or Done for a tell-me-when item", () => {
+		expect(itemReply("Tell me which repo to use", " odin ")).toBe("odin");
+		expect(itemReply("Tell me when you have signed in", "")).toBe("Done");
 	});
 });
 
