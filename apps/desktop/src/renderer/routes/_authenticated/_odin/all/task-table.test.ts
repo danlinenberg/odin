@@ -30,3 +30,20 @@ for (const { to, label } of FEED_TABS) {
 			expect(source).not.toContain(own);
 	});
 }
+
+test("the row's priority picker: your level over the source's, or the task's own", async () => {
+	const { priorityChoice } = await import("./TaskTable");
+	const row = { key: "jira:SHIP-1", source: "Jira", priority: "P2" };
+	const jira = priorityChoice(row as never, {});
+	expect([jira.value, jira.source]).toEqual(["", "P2"]);
+	const mine = priorityChoice(
+		{ ...row, priority: "High", sourcePriority: "P2" } as never,
+		{ "jira:SHIP-1": "High" },
+	);
+	expect([mine.value, mine.source]).toEqual(["High", "P2"]);
+	const own = priorityChoice(
+		{ key: "task:a", source: "Tasks", priority: "Low" } as never,
+		{},
+	);
+	expect([own.value, own.source]).toEqual(["1", null]);
+});

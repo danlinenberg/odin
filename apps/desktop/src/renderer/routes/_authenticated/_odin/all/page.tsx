@@ -49,12 +49,7 @@ import { TaskBox } from "../components/TaskBox";
 import { useActiveSessions } from "../hooks/useActiveSessions";
 import { useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
-import {
-	PRIORITY_LABELS,
-	priorityOf,
-	useMyTasks,
-	useOdinTasks,
-} from "../hooks/useOdinTasks";
+import { useMyTasks, useOdinTasks } from "../hooks/useOdinTasks";
 import { usePendingFocus } from "../hooks/usePendingFocus";
 import { PANE_STATUS } from "../pane-status";
 import {
@@ -69,9 +64,11 @@ import { nextSelection, visibleSelection } from "./selection";
 import { TaskDescription } from "./TaskDescription";
 import { TaskDetails } from "./TaskDetails";
 import {
+	priorityChoice,
 	SOURCE_ICON,
 	type SortableBits,
 	SortableRow,
+	setItemPriority,
 	TABLE_LIST,
 	TaskRow,
 	TaskTableHeader,
@@ -291,10 +288,9 @@ function AllFeedPage() {
 	// The compose box, same as Mine's - a task written here lands on this list.
 	const { add } = useMyTasks();
 	const tasks = useOdinTasks((s) => s.tasks);
-	const { setPriority, setNotes } = useOdinTasks.getState();
+	const { setNotes } = useOdinTasks.getState();
 	// Slack, Jira and the rest: your level over the source's, kept in Odin.
 	const priorityOverrides = useTitleOverrides((s) => s.priorities);
-	const setRowPriority = useTitleOverrides((s) => s.setPriority);
 	const [draft, setDraft] = useState("");
 	const [draftRepo, setDraftRepo] = useState("");
 	const { data: skills } = electronTrpc.skills.list.useQuery();
@@ -1012,22 +1008,8 @@ function AllFeedPage() {
 							<TaskFields
 								status={statuses[openItem.key] ?? ""}
 								type={typeOf(openItem, types) ?? ""}
-								priority={
-									openTask
-										? String(priorityOf(openTask))
-										: (priorityOverrides[openItem.key] ?? "")
-								}
-								priorityOptions={
-									openTask
-										? OWN_PRIORITIES
-										: [
-												[
-													"",
-													`${(openItem.sourcePriority !== undefined ? openItem.sourcePriority : openItem.priority) ?? "No priority"} (from ${openItem.source})`,
-												],
-												...SOURCE_PRIORITIES,
-											]
-								}
+								priority={priorityChoice(openItem, priorityOverrides)}
+								priorityFrom={openItem.source}
 								queued={queue.includes(openItem.key)}
 								onStatus={(value) =>
 									setRowStatus(openItem.key, (value as TaskStatus) || null)
@@ -1035,11 +1017,7 @@ function AllFeedPage() {
 								onType={(value) =>
 									setRowType(openItem.key, (value as TaskType) || null)
 								}
-								onPriority={(value) =>
-									openTask
-										? setPriority(openTask.id, Number(value))
-										: setRowPriority(openItem.key, value)
-								}
+								onPriority={(value) => setItemPriority(openItem, value)}
 								onQueue={() =>
 									queue.includes(openItem.key)
 										? dequeue(openItem.key)
@@ -1302,15 +1280,6 @@ function ReadLaterButton({
 	);
 }
 
-const OWN_PRIORITIES: [string, string][] = [3, 2, 1].map((level) => [
-	String(level),
-	PRIORITY_LABELS[level],
-]);
-/** Another source's row: your level, kept in Odin - nothing goes upstream. */
-const SOURCE_PRIORITIES: [string, string][] = ["High", "Medium", "Low"].map(
-	(label) => [label, label],
-);
-
 /**
  * Status, type, priority and Up next for any row. Priority on another
  * source's row is yours only - Jira and Slack keep their own.
@@ -1319,7 +1288,7 @@ function TaskFields({
 	status,
 	type,
 	priority,
-	priorityOptions,
+	priorityFrom,
 	queued,
 	onStatus,
 	onType,
@@ -1328,8 +1297,8 @@ function TaskFields({
 }: {
 	status: string;
 	type: string;
-	priority: string;
-	priorityOptions: [string, string][];
+	priority: ReturnType<typeof priorityChoice>;
+	priorityFrom: string;
 	queued: boolean;
 	onStatus: (value: string) => void;
 	onType: (value: string) => void;
@@ -1354,8 +1323,13 @@ function TaskFields({
 					</option>
 				))}
 			</FeedSelect>
-			<FeedSelect value={priority} onChange={onPriority} title="Priority">
-				{priorityOptions.map(([value, label]) => (
+			<FeedSelect value={priority.value} onChange={onPriority} title="Priority">
+				{priority.source !== null && (
+					<option value="">
+						{priority.source || "No priority"} (from {priorityFrom})
+					</option>
+				)}
+				{priority.options.map(([value, label]) => (
 					<option key={value} value={value}>
 						{label}
 					</option>

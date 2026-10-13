@@ -34,9 +34,11 @@ import {
 } from "../components/Reminders";
 import { TonightButton } from "../components/TonightButton";
 import { useDone } from "../hooks/useDone";
+import { PRIORITY_LABELS, useOdinTasks } from "../hooks/useOdinTasks";
 import { usePendingFocus } from "../hooks/usePendingFocus";
 import { type AllItem, bandOf, plainText } from "./all-items";
 import { statusLabel, typeLabel, typeOf, useTaskMeta } from "./task-meta";
+import { useTitleOverrides } from "./title-overrides";
 import { useStartAllItem } from "./use-start-item";
 
 /**
@@ -144,6 +146,91 @@ function RowStatus({
 	) : null;
 }
 
+/** My own task: its level, 3 to 1, is the task's own. */
+const OWN_PRIORITIES: [string, string][] = [3, 2, 1].map((level) => [
+	String(level),
+	PRIORITY_LABELS[level],
+]);
+/** Another source's row: your level, kept in Odin - nothing goes upstream. */
+const SOURCE_PRIORITIES: [string, string][] = ["High", "Medium", "Low"].map(
+	(label) => [label, label],
+);
+
+const ownTaskId = (item: AllItem) =>
+	item.key.startsWith("task:") ? item.key.slice("task:".length) : null;
+
+/**
+ * A row's priority picker, the same in the table and the side panel. `source`
+ * is what the source says, for the empty choice that gives it back - null on
+ * my own tasks, which have no source to fall back to.
+ */
+export function priorityChoice(
+	item: AllItem,
+	overrides: Record<string, string>,
+): { value: string; options: [string, string][]; source: string | null } {
+	if (ownTaskId(item))
+		return {
+			value: String(
+				PRIORITY_LABELS.indexOf(
+					item.priority as (typeof PRIORITY_LABELS)[number],
+				),
+			),
+			options: OWN_PRIORITIES,
+			source: null,
+		};
+	return {
+		value: overrides[item.key] ?? "",
+		options: SOURCE_PRIORITIES,
+		source:
+			(item.sourcePriority !== undefined
+				? item.sourcePriority
+				: item.priority) ?? "",
+	};
+}
+
+export function setItemPriority(item: AllItem, value: string) {
+	const id = ownTaskId(item);
+	if (id) useOdinTasks.getState().setPriority(id, Number(value));
+	else useTitleOverrides.getState().setPriority(item.key, value);
+}
+
+/** The Priority column: the level as text, a select under it to change it. */
+function RowPriority({
+	item,
+	overrides,
+}: {
+	item: AllItem;
+	overrides: Record<string, string>;
+}) {
+	const { value, options, source } = priorityChoice(item, overrides);
+	return (
+		<select
+			value={value}
+			onChange={(event) => setItemPriority(item, event.target.value)}
+			aria-label={`Priority of ${item.title}`}
+			title={
+				source === null
+					? "Priority"
+					: `Priority - ${source || "none"} in ${item.source}. Yours stays in Odin.`
+			}
+			className={cn(
+				"max-w-full cursor-pointer appearance-none truncate rounded-[5px] bg-transparent px-1 py-[1px] text-muted-foreground outline-none hover:bg-secondary focus-visible:ring-1 focus-visible:ring-ring",
+				/^high/i.test(item.priority ?? "") && "font-semibold text-danger",
+				!item.priority && "text-faint-foreground",
+			)}
+		>
+			{source !== null && (
+				<option value="">{source ? `${source} (${item.source})` : "–"}</option>
+			)}
+			{options.map(([level, label]) => (
+				<option key={level} value={level}>
+					{label}
+				</option>
+			))}
+		</select>
+	);
+}
+
 /**
  * What every row on a page shares - the launcher, Done, Read later, Up next,
  * Odin's statuses - read once per page rather than once per row.
@@ -154,6 +241,7 @@ export function useTaskRows(onSlackStarted?: () => void) {
 	const { markDone, markReading, undo, reading } = useDone();
 	const { statuses, types, enqueue, dequeue } = useTaskMeta();
 	const reminders = useReminders((s) => s.reminders);
+	const priorities = useTitleOverrides((s) => s.priorities);
 	const readingKeys = useMemo(
 		() => new Set(reading.map((row) => row.key)),
 		[reading],
@@ -163,6 +251,7 @@ export function useTaskRows(onSlackStarted?: () => void) {
 		statuses,
 		types,
 		reminders,
+		priorities,
 		readingKeys,
 		enqueue,
 		dequeue,
@@ -331,16 +420,7 @@ export function TaskRow({
 				</span>
 				<div className="flex shrink-0 items-center gap-3 text-[11px]">
 					<span className={COL.priority}>
-						{item.priority && (
-							<span
-								className={cn(
-									"truncate text-muted-foreground",
-									/^high/i.test(item.priority) && "font-semibold text-danger",
-								)}
-							>
-								{item.priority}
-							</span>
-						)}
+						<RowPriority item={item} overrides={rows.priorities} />
 					</span>
 					<span className={COL.status}>
 						<RowStatus
