@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import {
 	canPickForTonight,
 	inOffHours,
@@ -37,4 +37,18 @@ test("only rows Next in line holds can be picked for tonight", () => {
 		expect(canPickForTonight({ source })).toBe(true);
 	expect(canPickForTonight({ source: "Email" })).toBe(false);
 	expect(canPickForTonight({ source: "ClickUp" })).toBe(false);
+});
+
+describe("logNight", () => {
+	test("collapses a repeat of the last line and keeps the newest 300", () => {
+		const { logNight } = useNextInLinePrompt.getState();
+		useNextInLinePrompt.setState({ nightLog: [] });
+		logNight("On battery");
+		logNight("On battery");
+		expect(useNextInLinePrompt.getState().nightLog).toHaveLength(1);
+		for (let i = 0; i < 400; i++) logNight(`line ${i}`);
+		const log = useNextInLinePrompt.getState().nightLog;
+		expect(log).toHaveLength(300);
+		expect(log.at(-1)?.event).toBe("line 399");
+	});
 });

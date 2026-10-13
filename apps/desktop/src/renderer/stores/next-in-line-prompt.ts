@@ -18,6 +18,16 @@ export interface OffHours {
 	introSeen: boolean;
 }
 
+/** One line of what the Night Agent did or why it didn't, for Huginn and you. */
+export interface NightLogEntry {
+	/** ISO time. */
+	at: string;
+	event: string;
+}
+
+/** About a week of nights; the oldest lines drop first. */
+const MAX_NIGHT_LOG = 300;
+
 /** A cap on picks, so the saved list stays a few hundred bytes. */
 export const MAX_NIGHT_PICKS = 20;
 
@@ -88,6 +98,12 @@ export const useNextInLinePrompt = create<{
 	/** Whether this window has started a pick - reset once it closes. */
 	offHoursFromPicks: boolean;
 	setOffHoursFromPicks: (fromPicks: boolean) => void;
+	/** What each tick decided, newest last. A repeat of the last line isn't added. */
+	nightLog: NightLogEntry[];
+	logNight: (event: string) => void;
+	/** When the runner last ticked, so a gap (Odin shut, computer asleep) shows. */
+	nightLastTick: string;
+	setNightLastTick: (at: string) => void;
 }>()(
 	persist(
 		(set) => ({
@@ -102,6 +118,20 @@ export const useNextInLinePrompt = create<{
 			setOffHoursStarted: (offHoursStarted) => set({ offHoursStarted }),
 			offHoursFromPicks: false,
 			setOffHoursFromPicks: (offHoursFromPicks) => set({ offHoursFromPicks }),
+			nightLog: [],
+			logNight: (event) =>
+				set((state) =>
+					state.nightLog.at(-1)?.event === event
+						? state
+						: {
+								nightLog: [
+									...state.nightLog,
+									{ at: new Date().toISOString(), event },
+								].slice(-MAX_NIGHT_LOG),
+							},
+				),
+			nightLastTick: "",
+			setNightLastTick: (nightLastTick) => set({ nightLastTick }),
 		}),
 		{
 			name: "odin-next-in-line-prompt",

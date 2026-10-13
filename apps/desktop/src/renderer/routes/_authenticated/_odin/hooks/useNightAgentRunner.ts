@@ -8,6 +8,8 @@ import { useTabsStore } from "renderer/stores/tabs/store";
 import { useNextInLineQueue } from "../board/NextInLine";
 
 const TICK_MS = 60_000;
+/** Ticks this far apart mean the runner wasn't running in between. */
+const GAP_MS = 5 * TICK_MS;
 
 /**
  * What the night's ranking was asked with, and what it said. `seen` is every
@@ -47,6 +49,9 @@ export function nightInstructions(sort: string, offHours: string): string {
  *
  * ponytail: renderer-side and only while Odin is open, same as automations.
  * Move it to main the day it has to run with the window shut.
+ *
+ * Every decision lands in the store's `nightLog`, so Huginn (and you) can
+ * say what ran and why a night started nothing.
  */
 export function useNightAgentRunner() {
 	const queue = useNextInLineQueue(true);
@@ -78,30 +83,59 @@ export function useNightAgentRunner() {
 				setOffHours,
 				setOffHoursStarted,
 				setOffHoursFromPicks,
+				logNight,
+				nightLastTick,
+				setNightLastTick,
 			} = useNextInLinePrompt.getState();
 			// Still working, or held by the launch gate: the last one isn't done.
-			const busy = Object.values(useTabsStore.getState().panes).some(
+			const busy = Object.values(useTabsStore.getState().panes).find(
 				(pane) =>
 					!pane.completed &&
 					pane.odinTags?.includes("off-hours") &&
 					(pane.status === "working" || !!pane.odinQueued),
 			);
-			const inWindow = inOffHours(new Date(), offHours.start, offHours.end);
-			if (!offHours.enabled) return keepAwake(false);
+			const now = new Date();
+			const inWindow = inOffHours(now, offHours.start, offHours.end);
+			const span = `${offHours.start}-${offHours.end}`;
+			if (inWindow) {
+				const last = nightLastTick ? new Date(nightLastTick) : null;
+				if (last && now.getTime() - last.getTime() > GAP_MS)
+					logNight(
+						`No ticks from ${last.toLocaleString()} to ${now.toLocaleString()}: Odin was shut or the computer was asleep (lid closed or on battery).`,
+					);
+				setNightLastTick(now.toISOString());
+			}
+			if (!offHours.enabled) {
+				if (inWindow)
+					logNight(`Off in Settings, so the ${span} window starts nothing.`);
+				return keepAwake(false);
+			}
 			// Power only: on battery it starts nothing and lets the computer sleep.
 			const onBattery = await electronTrpcClient.device.onBattery
 				.query()
 				.catch(() => false);
-			keepAwake(!onBattery && (inWindow || busy));
+			keepAwake(!onBattery && (inWindow || !!busy));
 			if (!inWindow) {
+				if (night.current || offHoursStarted)
+					logNight(
+						`Window ${span} closed: ${offHoursStarted} of at most ${offHours.maxSessions} started.`,
+					);
 				if (offHoursStarted) setOffHoursStarted(0);
 				if (offHoursFromPicks) setOffHoursFromPicks(false);
 				tried.current.clear();
 				night.current = null;
 				return;
 			}
-			if (onBattery || offHoursStarted >= offHours.maxSessions) return;
-			if (busy) return;
+			if (onBattery)
+				return logNight("On battery: starting nothing until on power.");
+			if (offHoursStarted >= offHours.maxSessions)
+				return logNight(
+					`Reached tonight's cap of ${offHours.maxSessions} sessions.`,
+				);
+			if (busy)
+				return logNight(
+					`Waiting for "${busy.odinTaskTitle ?? busy.name}" to stop working.`,
+				);
 			running = true;
 			try {
 				const { waiting, rankInput, prompt, start, duplicateFor } =
@@ -121,6 +155,7 @@ export function useNightAgentRunner() {
 						);
 					if (item) {
 						tried.current.add(item.key);
+						logNight(`Started your pick "${item.title}" (${item.source}).`);
 						setOffHours({
 							picked: offHours.picked.filter((key) => key !== item.key),
 						});
@@ -135,7 +170,9 @@ export function useNightAgentRunner() {
 					(offHours.picked.length || offHoursFromPicks) &&
 					offHours.afterPicks === "stop"
 				)
-					return;
+					return logNight(
+						'Picks all started, and "after picks" is set to stop: starting nothing more.',
+					);
 				const instructions = nightInstructions(prompt, offHours.instructions);
 				const stale =
 					night.current?.instructions !== instructions ||
@@ -155,11 +192,11 @@ export function useNightAgentRunner() {
 						order: new Map(ranking.keys.map((key, i) => [key, i])),
 						hidden: new Set(ranking.hidden),
 					};
-					console.warn(
-						`[night-agent] ranked ${waiting.length}; ruled out:`,
-						waiting
-							.filter((row) => ranking.hidden.includes(row.key))
-							.map((row) => row.title),
+					const ruledOut = waiting
+						.filter((row) => ranking.hidden.includes(row.key))
+						.map((row) => `"${row.title}"`);
+					logNight(
+						`Ranked ${waiting.length} waiting rows; your instructions ruled out ${ruledOut.length}${ruledOut.length ? `: ${ruledOut.join(", ")}` : ""}.`,
 					);
 				}
 				const { order, hidden } = night.current as NightRanking;
@@ -174,12 +211,20 @@ export function useNightAgentRunner() {
 						!tried.current.has(row.key) &&
 						!duplicateFor(row),
 				);
-				if (!item) return;
+				if (!item)
+					return logNight(
+						`Nothing left to start: ${waiting.length} waiting, ${hidden.size} ruled out, ${tried.current.size} already tried, the rest marked duplicates.`,
+					);
 				tried.current.add(item.key);
+				logNight(
+					`Started "${item.title}" (${item.source}), top of the ranking.`,
+				);
 				setOffHoursStarted(offHoursStarted + 1);
 				await start(item, { instructions: offHours.instructions });
 			} catch (error) {
-				console.warn("[night-agent] ranking failed, starting nothing:", error);
+				logNight(
+					`Ranking failed, so it started nothing: ${error instanceof Error ? error.message : String(error)}`,
+				);
 			} finally {
 				running = false;
 			}

@@ -570,10 +570,16 @@ function runOdinAction(
 				...(args.end && { end: args.end }),
 				...(max && { maxSessions: max }),
 			});
-		const now = useNextInLinePrompt.getState().offHours;
-		return now.enabled
+		const { offHours: now, nightLog } = useNextInLinePrompt.getState();
+		const status = now.enabled
 			? `Night Agent is on: ${now.start} to ${now.end}, at most ${now.maxSessions} sessions, one at a time from the top of Next in line.`
 			: "Night Agent is off.";
+		const log = nightLog
+			.slice(-60)
+			.map((entry) => `${new Date(entry.at).toLocaleString()}  ${entry.event}`);
+		return log.length
+			? `${status}\n\nWhat it did, newest last:\n${log.join("\n")}`
+			: `${status}\n\nNo night has run yet.`;
 	}
 	if (action === "state") return readState(args);
 	if (action === "set") return writeState(args);
