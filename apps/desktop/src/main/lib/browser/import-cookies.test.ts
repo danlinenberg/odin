@@ -5,8 +5,10 @@ import os from "node:os";
 import path from "node:path";
 import {
 	type CookieRow,
+	cookieDomains,
 	cookieKey,
 	decryptValue,
+	isConnectionCookie,
 	newestCookieDb,
 	toCookie,
 } from "./import-cookies";
@@ -99,4 +101,30 @@ test("newestCookieDb skips a browser macOS won't let Odin read", () => {
 	} finally {
 		chmodSync(chrome, 0o755);
 	}
+});
+
+describe("cookieDomains", () => {
+	test("keeps the connections' sites, and Google only with Gmail", () => {
+		const withGmail = cookieDomains(true);
+		const without = cookieDomains(false);
+		for (const host of [
+			".slack.com",
+			"imagen.atlassian.net",
+			".id.atlassian.com",
+			"github.com",
+			"www.notion.so",
+			"app.clickup.com",
+		])
+			expect(isConnectionCookie(host, without)).toBe(true);
+		for (const host of [
+			".google.com",
+			"accounts.google.com",
+			".chase.com",
+			"notslack.com",
+			"slack.com.evil.io",
+		])
+			expect(isConnectionCookie(host, without)).toBe(false);
+		expect(isConnectionCookie(".google.com", withGmail)).toBe(true);
+		expect(isConnectionCookie("mail.google.com", withGmail)).toBe(true);
+	});
 });

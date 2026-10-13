@@ -306,14 +306,14 @@ export function InAppBrowser() {
 			onSuccess: (result) => {
 				if (!result) return;
 				toast(`Signed in like ${result.browser}`, {
-					description: `${result.imported} cookies from ${result.profile}, refreshed each launch.`,
+					description: `${result.imported} cookies for your connected sites, from ${result.profile}.`,
 				});
 				reloadAll();
 			},
 			onError: (error) => toast(error.message),
 		});
-	// Sites open signed in like your everyday browser: once you've imported,
-	// its cookies come over again the first time the panel opens each launch.
+	// The first time the panel opens each launch, Odin clears cookies of sites
+	// that are not connections, and offers the import once ever.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: importSignIns and reloadAll only read refs and a stable mutation.
 	useEffect(() => {
 		if (!url || askedToImport.current) return;
@@ -327,11 +327,6 @@ export function InAppBrowser() {
 						duration: 30_000,
 						action: { label: "Import", onClick: importSignIns },
 					});
-				} else if (result) {
-					toast(`Signed in like ${result.browser}`, {
-						description: `${result.imported} cookies from ${result.profile}, refreshed each launch.`,
-					});
-					reloadAll();
 				}
 			},
 		});

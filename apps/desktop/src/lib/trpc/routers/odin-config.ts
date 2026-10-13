@@ -50,6 +50,8 @@ export interface OdinFileConfig {
 
 	/** Set once the in-app browser has offered to import your browser's sign-ins. */
 	cookieImportOffered?: boolean;
+	/** Set once the packaged app has rewritten its cookies, so they are encrypted on disk. */
+	cookiesEncrypted?: boolean;
 	/**
 	 * Browsers' cookie keys by Keychain item, encrypted with Odin's safeStorage,
 	 * so later imports don't show macOS's Keychain prompt again.

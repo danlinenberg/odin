@@ -46,6 +46,11 @@ if (process.platform === "darwin" && existsSync(signingKeychain)) {
 }
 
 const config: Configuration = {
+	// The in-app browser's cookie store, encrypted with the OS keychain like
+	// Chrome's - plain text on disk otherwise, readable by anything running as
+	// you. One way: turning it off again leaves the store unreadable.
+	electronFuses: { enableCookieEncryption: true },
+
 	// Source maps are built for Sentry and for validate-native-runtime, both of
 	// which have already run by the time packaging starts. A negated .map entry
 	// in `files` only filters the node_modules electron-builder collects on its

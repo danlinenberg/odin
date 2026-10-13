@@ -12,8 +12,9 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import Database from "better-sqlite3";
-import { safeStorage, session } from "electron";
+import { app, safeStorage, session } from "electron";
 import { IN_APP_BROWSER_PARTITION } from "shared/constants";
+import { LINK_HOSTS, type LinkSiteId } from "shared/in-odin-links";
 import {
 	readOdinConfig,
 	updateOdinConfig,
@@ -41,6 +42,37 @@ const BROWSERS = [
 	},
 	{ name: "Chromium", dir: "Chromium", keychain: "Chromium Safe Storage" },
 ];
+
+/** Where a connection's site sends you to sign in, beside its own hosts. */
+const SIGN_IN_HOSTS: Partial<Record<LinkSiteId, readonly string[]>> = {
+	jira: ["atlassian.com"],
+	notion: ["notion.com"],
+};
+
+/**
+ * The only sites whose cookies the in-app browser keeps: the connections'.
+ * Google's sign-in covers every Google app, so it comes only while Gmail is
+ * connected. Cookies sit in the in-app browser where any process running as
+ * you can read them - none for your bank, your mail or anything else.
+ */
+export function cookieDomains(
+	gmail = !!readOdinConfig().gmailAddress,
+): string[] {
+	return (Object.keys(LINK_HOSTS) as LinkSiteId[]).flatMap((id) =>
+		id === "gmail"
+			? gmail
+				? ["google.com"]
+				: []
+			: [...LINK_HOSTS[id], ...(SIGN_IN_HOSTS[id] ?? [])],
+	);
+}
+
+export function isConnectionCookie(hostKey: string, domains: string[]) {
+	const host = hostKey.replace(/^\./, "").toLowerCase();
+	return domains.some(
+		(domain) => host === domain || host.endsWith(`.${domain}`),
+	);
+}
 
 /** Seconds between 1601-01-01 (Chromium's epoch) and 1970-01-01. */
 const WINDOWS_EPOCH_OFFSET = 11_644_473_600;
@@ -226,8 +258,10 @@ export async function importBrowserCookies({ ask = true } = {}): Promise<{
 
 		const now = Date.now() / 1000;
 		const cookies = session.fromPartition(IN_APP_BROWSER_PARTITION).cookies;
+		const domains = cookieDomains();
 		let imported = 0;
 		for (const row of rows) {
+			if (!isConnectionCookie(row.host_key, domains)) continue;
 			const cookie = toCookie(row, decryptValue(row, key, dbVersion));
 			if (cookie.expirationDate && cookie.expirationDate < now) continue;
 			// Electron refuses some cookies (partitioned, oddly scoped); skip them.
@@ -247,20 +281,77 @@ export async function importBrowserCookies({ ask = true } = {}): Promise<{
 	}
 }
 
-let importedThisLaunch = false;
+/**
+ * Removes the in-app browser's cookies for every site that is not a
+ * connection's - an import used to copy all of them.
+ */
+export async function pruneOtherCookies(
+	domains = cookieDomains(),
+): Promise<number> {
+	const cookies = session.fromPartition(IN_APP_BROWSER_PARTITION).cookies;
+	let removed = 0;
+	for (const cookie of await cookies.get({})) {
+		if (!cookie.domain || isConnectionCookie(cookie.domain, domains)) continue;
+		const host = cookie.domain.replace(/^\./, "");
+		const url = `${cookie.secure ? "https" : "http"}://${host}${cookie.path ?? "/"}`;
+		await cookies.remove(url, cookie.name).then(
+			() => removed++,
+			() => {},
+		);
+	}
+	if (removed) await cookies.flushStore();
+	return removed;
+}
 
 /**
- * The automatic import: the first time the in-app browser opens after Odin
- * starts. Silent - it runs only once you've imported by hand and Odin has the
- * cookie key saved. Before that it returns "offer", once ever, so the panel
- * can explain the import and let you start it; null otherwise.
+ * Writes every cookie again. The packaged app encrypts the cookie store, but
+ * only on write: cookies saved before that stay in plain text until rewritten.
+ */
+async function rewriteCookies(): Promise<void> {
+	const cookies = session.fromPartition(IN_APP_BROWSER_PARTITION).cookies;
+	for (const cookie of await cookies.get({})) {
+		if (!cookie.domain) continue;
+		const host = cookie.domain.replace(/^\./, "");
+		await cookies
+			.set({
+				url: `${cookie.secure ? "https" : "http"}://${host}${cookie.path ?? "/"}`,
+				name: cookie.name,
+				value: cookie.value,
+				domain: cookie.hostOnly ? undefined : cookie.domain,
+				path: cookie.path,
+				secure: cookie.secure,
+				httpOnly: cookie.httpOnly,
+				expirationDate: cookie.expirationDate,
+				sameSite: cookie.sameSite,
+			})
+			.catch(() => {});
+	}
+	await cookies.flushStore();
+}
+
+let checkedThisLaunch = false;
+
+/**
+ * The first time the in-app browser opens after Odin starts: clears cookies
+ * outside the connections, and returns "offer" once ever, so the panel can
+ * explain the import and let you start it; null otherwise. It never imports
+ * by itself - your browser's cookies come over only when you click Import.
  */
 export async function importBrowserCookiesOnLaunch() {
-	if (importedThisLaunch || process.platform !== "darwin") return null;
-	importedThisLaunch = true;
-	const result = await importBrowserCookies({ ask: false }).catch(() => null);
-	if (result || readOdinConfig().cookieImportOffered || !newestCookieDb()) {
-		return result;
+	if (checkedThisLaunch) return null;
+	checkedThisLaunch = true;
+	await pruneOtherCookies().catch(() => 0);
+	// Dev builds don't carry the encryption fuse: there a rewrite stays plain.
+	if (app.isPackaged && !readOdinConfig().cookiesEncrypted) {
+		await rewriteCookies().catch(() => {});
+		updateOdinConfig({ cookiesEncrypted: true });
+	}
+	if (
+		process.platform !== "darwin" ||
+		readOdinConfig().cookieImportOffered ||
+		!newestCookieDb()
+	) {
+		return null;
 	}
 	updateOdinConfig({ cookieImportOffered: true });
 	return "offer" as const;
