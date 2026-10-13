@@ -277,6 +277,31 @@ export function applyQueue(queue: string[], lines: Line[]): string[] {
 	return next;
 }
 
+/** A message you just sent, shown until Claude's transcript echoes it. */
+type Sent = {
+	id: number;
+	text: string;
+	previews?: Preview[];
+	seen: Set<string>;
+};
+
+/**
+ * Claude echoed the sent message: a user row that was not there at the send
+ * holds its text. Older rows don't count - a photo sent alone has no text, and
+ * every row "includes" the empty string.
+ */
+export function isEchoed(
+	items: { kind: string; id: string; text?: string }[],
+	sent: Pick<Sent, "text" | "seen">,
+): boolean {
+	return items.some(
+		(item) =>
+			item.kind === "user" &&
+			!sent.seen.has(item.id) &&
+			(item.text ?? "").includes(sent.text),
+	);
+}
+
 /** Your queued messages: background-task notices ride the same queue. */
 export function yourQueued(queue: string[]): string[] {
 	return queue.filter((text) => !text.startsWith("<task-notification"));
@@ -1438,33 +1463,36 @@ export function ChatView({
 	);
 	// What you just sent, shown at once - Claude writes it to the transcript a
 	// beat later, and that echo replaces it.
-	const [pending, setPending] = useState<
-		{ id: number; text: string; previews?: Preview[] }[]
-	>([]);
+	const [pending, setPending] = useState<Sent[]>([]);
 	useEffect(() => {
-		setPending((list) =>
-			list.filter(
-				(sent) =>
-					!items.some(
-						(item) => item.kind === "user" && item.text.includes(sent.text),
-					),
-			),
-		);
+		setPending((list) => list.filter((sent) => !isEchoed(items, sent)));
 	}, [items]);
 	const onSent = (text: string, previews?: Preview[]) => {
 		const id = Date.now();
 		pinnedRef.current = true;
-		setPending((list) => [...list, { id, text, previews }]);
+		const seen = new Set(
+			itemsRef.current.flatMap((item) =>
+				item.kind === "user" ? [item.id] : [],
+			),
+		);
+		setPending((list) => [...list, { id, text, previews, seen }]);
 		// Claude takes a moment to write it; look again a few times meanwhile.
 		for (const ms of [150, 500, 1000]) setTimeout(poke, ms);
 		// ponytail: an echo that never matches (Claude rewrote it) just expires.
-		// Not mid-turn: Claude writes a queued message only when it takes it.
+		// Not mid-turn or queued: Claude writes a queued message only when it takes it.
 		const expire = () =>
-			workingRef.current
+			workingRef.current ||
+			yourQueued(queuedRef.current).some((queuedText) =>
+				queuedText.includes(text),
+			)
 				? setTimeout(expire, 30_000)
 				: setPending((list) => list.filter((sent) => sent.id !== id));
 		setTimeout(expire, 30_000);
 	};
+	const itemsRef = useRef(items);
+	itemsRef.current = items;
+	const queuedRef = useRef(queued);
+	queuedRef.current = queued;
 	const workingRef = useRef(working);
 	workingRef.current = working;
 	const onSentRef = useRef(onSent);
