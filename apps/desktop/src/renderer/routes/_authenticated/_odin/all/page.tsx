@@ -745,95 +745,6 @@ function AllFeedPage() {
 
 			<div className="flex min-h-0 flex-1">
 				<div className={TABLE_LIST}>
-					{!showDone && items.length + queued.length > 0 && (
-						<TaskTableHeader
-							date={sortBy === "created" ? "Created" : "Updated"}
-						/>
-					)}
-					{!showDone && picked.length > 0 && (
-						<div className="sticky top-0 z-10 mb-1 flex items-center gap-2 rounded-md border border-primary/40 bg-secondary px-3 py-1.5 text-[12px]">
-							<span className="font-semibold text-foreground">
-								{picked.length} selected
-							</span>
-							{picked.length < visibleKeys.length && (
-								<button
-									type="button"
-									onClick={() => setSelected(new Set(visibleKeys))}
-									className={ROW_LINK_BUTTON}
-								>
-									Select all {visibleKeys.length}
-								</button>
-							)}
-							<span className="flex-1" />
-							<FeedSelect
-								value=""
-								onChange={(value) => {
-									for (const key of picked)
-										setRowStatus(
-											key,
-											value === "waiting" ? null : (value as TaskStatus),
-										);
-								}}
-								title="Set the status of every selected row"
-							>
-								<option value="" disabled>
-									Set status
-								</option>
-								<option value="waiting">Waiting on you</option>
-								{TASK_STATUSES.map(({ id, label }) => (
-									<option key={id} value={id}>
-										{label}
-									</option>
-								))}
-							</FeedSelect>
-							<button
-								type="button"
-								onClick={() => {
-									for (const key of picked) enqueue(key);
-									clearPicked();
-								}}
-								title="Line them all up - Up next, above the list"
-								className={ROW_LINK_BUTTON}
-							>
-								Up next
-							</button>
-							<DoneButton onClick={finishPicked} />
-							<button
-								type="button"
-								onClick={clearPicked}
-								className={ROW_LINK_BUTTON}
-							>
-								Clear
-							</button>
-						</div>
-					)}
-					{!showDone && queued.length > 0 && (
-						<>
-							<div className={SECTION_LABEL}>
-								Up next
-								<Count n={queued.length} />
-								<span className={SECTION_HINT}>
-									drag to reorder, 1 goes first
-								</span>
-							</div>
-							<DndContext
-								sensors={sensors}
-								collisionDetection={closestCenter}
-								onDragEnd={onDragEnd}
-							>
-								<SortableContext
-									items={queued.map((item) => item.key)}
-									strategy={verticalListSortingStrategy}
-								>
-									{queued.map((item, index) => (
-										<SortableRow key={item.key} id={item.key}>
-											{(bits) => renderRow(item, { ...bits, place: index + 1 })}
-										</SortableRow>
-									))}
-								</SortableContext>
-							</DndContext>
-						</>
-					)}
 					{/* ponytail: no error banner here. A broken source already marks
 				    its own tab, and fixing it happens on that tab - the roll-up
 				    just shows the rows the other sources returned. */}
@@ -964,6 +875,95 @@ function AllFeedPage() {
 									</button>
 								</div>
 							)}
+						</>
+					)}
+					{!showDone && items.length + queued.length > 0 && (
+						<TaskTableHeader
+							date={sortBy === "created" ? "Created" : "Updated"}
+						/>
+					)}
+					{!showDone && picked.length > 0 && (
+						<div className="sticky top-0 z-10 mb-1 flex items-center gap-2 rounded-md border border-primary/40 bg-secondary px-3 py-1.5 text-[12px]">
+							<span className="font-semibold text-foreground">
+								{picked.length} selected
+							</span>
+							{picked.length < visibleKeys.length && (
+								<button
+									type="button"
+									onClick={() => setSelected(new Set(visibleKeys))}
+									className={ROW_LINK_BUTTON}
+								>
+									Select all {visibleKeys.length}
+								</button>
+							)}
+							<span className="flex-1" />
+							<FeedSelect
+								value=""
+								onChange={(value) => {
+									for (const key of picked)
+										setRowStatus(
+											key,
+											value === "waiting" ? null : (value as TaskStatus),
+										);
+								}}
+								title="Set the status of every selected row"
+							>
+								<option value="" disabled>
+									Set status
+								</option>
+								<option value="waiting">Waiting on you</option>
+								{TASK_STATUSES.map(({ id, label }) => (
+									<option key={id} value={id}>
+										{label}
+									</option>
+								))}
+							</FeedSelect>
+							<button
+								type="button"
+								onClick={() => {
+									for (const key of picked) enqueue(key);
+									clearPicked();
+								}}
+								title="Line them all up - Up next, above the list"
+								className={ROW_LINK_BUTTON}
+							>
+								Up next
+							</button>
+							<DoneButton onClick={finishPicked} />
+							<button
+								type="button"
+								onClick={clearPicked}
+								className={ROW_LINK_BUTTON}
+							>
+								Clear
+							</button>
+						</div>
+					)}
+					{!showDone && queued.length > 0 && (
+						<>
+							<div className={SECTION_LABEL}>
+								Up next
+								<Count n={queued.length} />
+								<span className={SECTION_HINT}>
+									drag to reorder, 1 goes first
+								</span>
+							</div>
+							<DndContext
+								sensors={sensors}
+								collisionDetection={closestCenter}
+								onDragEnd={onDragEnd}
+							>
+								<SortableContext
+									items={queued.map((item) => item.key)}
+									strategy={verticalListSortingStrategy}
+								>
+									{queued.map((item, index) => (
+										<SortableRow key={item.key} id={item.key}>
+											{(bits) => renderRow(item, { ...bits, place: index + 1 })}
+										</SortableRow>
+									))}
+								</SortableContext>
+							</DndContext>
 						</>
 					)}
 					{showDone && (
