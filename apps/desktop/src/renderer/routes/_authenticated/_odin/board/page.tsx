@@ -140,6 +140,7 @@ import {
 import { ChatView } from "./ChatView";
 import { DiffView } from "./DiffView";
 import { BOARD_COLUMN_MIN_W, NextInLine } from "./NextInLine";
+import { NightAgentLive } from "./NightAgentLive";
 import { HoverBrief, MyTodos, SessionBrief } from "./SessionBrief";
 import {
 	PREFIX as REMIND_PREFIX,
@@ -3681,12 +3682,18 @@ function DevBoardPage() {
 					</select>
 				)}
 
+				<span className="ml-auto" aria-hidden />
+				<NightAgentLive
+					onClick={() => {
+						if (!isNextOpen) toggleNext();
+					}}
+				/>
 				<button
 					type="button"
 					onClick={openSessions}
 					disabled={switchCards.length === 0}
 					title={`Open the first session in flight, with the session list beside it (${openSessionsKey})`}
-					className="ml-auto flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-[12px] font-medium text-muted-foreground hover:text-foreground disabled:opacity-50"
+					className="flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-[12px] font-medium text-muted-foreground hover:text-foreground disabled:opacity-50"
 				>
 					<LuPanelLeft className="size-3.5" aria-hidden />
 					Open sessions
