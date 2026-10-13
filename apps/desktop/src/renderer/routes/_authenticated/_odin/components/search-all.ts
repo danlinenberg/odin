@@ -1,3 +1,4 @@
+import Fuse from "fuse.js";
 import { profileOf } from "shared/odin-profile";
 import type { Pane, PaneStatus } from "shared/tabs-types";
 import { repoLabel } from "../sessions/row-labels";
@@ -70,9 +71,9 @@ export function boardSessions(
  * How well `needle` (lowercased) names a result - lower is better, null is no
  * match. 0: the title starts with it. 1: a word in the title does. 2: it's
  * somewhere in the title. 3: every typed word turns up in the title or the
- * extra fields (who, where, source, status). TYPO_TIER: the same, but a typed
- * word may be a typo or two off a word there. Transcript hits, which only the
- * server can score, sit below all of these at TRANSCRIPT_TIER.
+ * extra fields (who, where, source, status). Rows that only match through a
+ * typo sit below these at TYPO_TIER, and transcript hits, which only the
+ * server can score, below all of them at TRANSCRIPT_TIER.
  */
 export function matchRank(
 	needle: string,
@@ -86,67 +87,16 @@ export function matchRank(
 	const haystack = [text, ...extra.map((field) => field?.toLowerCase())].join(
 		" ",
 	);
-	const words = needle.split(" ");
-	if (words.every((word) => haystack.includes(word))) return 3;
-	const haystackWords = haystack.split(/[^a-z0-9]+/);
-	return words.every(
-		(word) =>
-			haystack.includes(word) ||
-			haystackWords.some((candidate) => isTypoOf(word, candidate)),
-	)
-		? TYPO_TIER
-		: null;
+	return needle.split(" ").every((word) => haystack.includes(word)) ? 3 : null;
 }
 
 export const TYPO_TIER = 4;
 export const TRANSCRIPT_TIER = 5;
 
-/** Short words get no slack: one edit turns "fix" into "fox" or "six". */
-function typosAllowed(word: string): number {
-	if (word.length >= 8) return 2;
-	return word.length >= 5 ? 1 : 0;
-}
-
-/** `typed` is `word`, or the start of it, give or take a few typos. */
-function isTypoOf(typed: string, word: string): boolean {
-	const allowed = typosAllowed(typed);
-	if (allowed === 0) return false;
-	const asWhole =
-		Math.abs(word.length - typed.length) <= allowed &&
-		isWithinEdits(typed, word, allowed);
-	const asStart =
-		word.length > typed.length &&
-		isWithinEdits(typed, word.slice(0, typed.length), allowed);
-	return asWhole || asStart;
-}
-
-/**
- * Whether inserts, deletes, swaps and adjacent transpositions can turn `a`
- * into `b` in at most `limit` edits. Gives up as soon as a whole row is over.
- */
-function isWithinEdits(a: string, b: string, limit: number): boolean {
-	let beforeLast: number[] = [];
-	let last = Array.from({ length: b.length + 1 }, (_, j) => j);
-	for (let i = 1; i <= a.length; i++) {
-		const current = [i];
-		let best = i;
-		for (let j = 1; j <= b.length; j++) {
-			const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-			current[j] = Math.min(
-				last[j] + 1,
-				current[j - 1] + 1,
-				last[j - 1] + cost,
-			);
-			if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1])
-				current[j] = Math.min(current[j], beforeLast[j - 2] + 1);
-			best = Math.min(best, current[j]);
-		}
-		if (best > limit) return false;
-		beforeLast = last;
-		last = current;
-	}
-	return last[b.length] <= limit;
-}
+/** Fuse's score is typos per letter typed: 1 in 5, 2 in 6, 3 in 9. */
+const TYPO_THRESHOLD = 0.34;
+/** Below this a word must be exact: one edit turns "fix" into "six". */
+const MIN_TYPO_WORD = 5;
 
 /** A status that means the work is over - in any source's words. */
 export function isClosedStatus(status: string | null | undefined): boolean {
@@ -174,19 +124,46 @@ export interface Ranked<T> {
 export const normalizeQuery = (query: string) =>
 	query.trim().toLowerCase().replace(/\s+/g, " ");
 
+type Fields<T> = (
+	item: T,
+) => [title: string, extra: (string | null | undefined)[]];
+
 /** Items that match, best tier first; nothing typed matches everything at tier 0. */
-function rankBy<T>(
-	query: string,
-	items: T[],
-	fields: (item: T) => [title: string, extra: (string | null | undefined)[]],
-): Ranked<T>[] {
+function rankBy<T>(query: string, items: T[], fields: Fields<T>): Ranked<T>[] {
 	const needle = normalizeQuery(query);
-	return items
-		.flatMap((item) => {
-			const tier = needle ? matchRank(needle, ...fields(item)) : 0;
-			return tier === null ? [] : [{ item, tier }];
-		})
-		.sort((a, b) => a.tier - b.tier);
+	const exact: Ranked<T>[] = [];
+	const missed: T[] = [];
+	for (const item of items) {
+		const tier = needle ? matchRank(needle, ...fields(item)) : 0;
+		if (tier === null) missed.push(item);
+		else exact.push({ item, tier });
+	}
+	const typos = typoMatches(needle, missed, fields).map((item) => ({
+		item,
+		tier: TYPO_TIER,
+	}));
+	return [...exact, ...typos].sort((a, b) => a.tier - b.tier);
+}
+
+/** Items where every typed word turns up, give or take a typo. */
+function typoMatches<T>(needle: string, items: T[], fields: Fields<T>): T[] {
+	if (!needle || items.length === 0) return [];
+	const texts = items.map((item) => {
+		const [title, extra] = fields(item);
+		return [title, ...extra].join(" ").toLowerCase();
+	});
+	const fuse = new Fuse(texts, {
+		threshold: TYPO_THRESHOLD,
+		ignoreLocation: true,
+	});
+	const matchesPerWord = needle
+		.split(" ")
+		.map((word) =>
+			word.length < MIN_TYPO_WORD
+				? new Set(texts.flatMap((text, i) => (text.includes(word) ? [i] : [])))
+				: new Set(fuse.search(word).map((result) => result.refIndex)),
+		);
+	return items.filter((_, i) => matchesPerWord.every((hits) => hits.has(i)));
 }
 
 /**

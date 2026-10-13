@@ -61,23 +61,39 @@ test("every word has to turn up somewhere, title or extra fields", () => {
 });
 
 test("a typo still finds the row, below every exact match", () => {
-	expect(matchRank("migraton", "Run the migration", [])).toBe(TYPO_TIER);
-	expect(matchRank("lgoin", "Fix the login", [])).toBe(TYPO_TIER);
-	expect(matchRank("deplyo fix", "Fix the deploy", [])).toBe(TYPO_TIER);
-	expect(matchRank("grce", "can you look", ["Grace"])).toBeNull();
-	expect(matchRank("ada", "can you look", ["Grace", "Ida"])).toBeNull();
+	const rows = [
+		row("Run the migration"),
+		row("Fix the deploy"),
+		row("Migration notes", { person: "Ada" }),
+	];
+	expect(rankRows("migraton", rows)).toEqual([
+		{ item: rows[0], tier: TYPO_TIER },
+		{ item: rows[2], tier: TYPO_TIER },
+	]);
+	expect(titles(rankRows("deplyo fix", rows))).toEqual(["Fix the deploy"]);
+	expect(titles(rankRows("notes ada migraton", rows))).toEqual([
+		"Migration notes",
+	]);
 	expect(TYPO_TIER).toBeGreaterThan(3);
 });
 
 test("a typo while still typing finds the longer word", () => {
-	expect(matchRank("migrta", "Run the migration", [])).toBe(TYPO_TIER);
+	expect(titles(rankRows("migrta", [row("Run the migration")]))).toEqual([
+		"Run the migration",
+	]);
 });
 
-test("a long word takes two typos, a short one none", () => {
-	expect(matchRank("notfications", "Push notifications", [])).toBe(TYPO_TIER);
-	expect(matchRank("notfictions", "Push notifications", [])).toBe(TYPO_TIER);
-	expect(matchRank("fox", "Fix the login", [])).toBeNull();
-	expect(matchRank("lagan", "Fix the login", [])).toBeNull();
+test("longer words take more typos, words under five letters none", () => {
+	const rows = [row("Push notifications"), row("Fix the login")];
+	expect(titles(rankRows("notfications", rows))).toEqual([
+		"Push notifications",
+	]);
+	expect(titles(rankRows("notfictions", rows))).toEqual(["Push notifications"]);
+	expect(rankRows("fox", rows)).toEqual([]);
+	expect(rankRows("grce", [row("can you look", { person: "Grace" })])).toEqual(
+		[],
+	);
+	expect(rankRows("lagan", rows)).toEqual([]);
 });
 
 test("transcript hits rank below every field match, typos included", () => {
