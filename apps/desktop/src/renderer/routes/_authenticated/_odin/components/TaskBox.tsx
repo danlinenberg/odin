@@ -632,27 +632,6 @@ export function AutomationChip({
 	);
 }
 
-/**
- * The same chip for a source with its own names for the levels - Jira's
- * Highest, Notion's Low. A level it shares with ours is coloured like ours;
- * anything else (P1, Blocker) stays grey rather than guessing at severity.
- */
-export function PriorityLabelChip({ label }: { label: string }) {
-	const level = PRIORITY_LABELS.findIndex(
-		(known, i) => i > 0 && label.toLowerCase().startsWith(known.toLowerCase()),
-	);
-	return (
-		<span
-			className={cn(
-				"truncate rounded-[5px] px-[7px] py-[1px] font-semibold",
-				level > 0 ? PRIORITY_CHIP[level] : "bg-secondary text-muted-foreground",
-			)}
-		>
-			{label}
-		</span>
-	);
-}
-
 /** Where the dragged-out size lives between opens. */
 const SIZE_KEY = "odin.quick-add-size";
 

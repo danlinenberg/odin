@@ -32,7 +32,6 @@ import {
 	OverdueMark,
 	useReminders,
 } from "../components/Reminders";
-import { PriorityLabelChip } from "../components/TaskBox";
 import { TonightButton } from "../components/TonightButton";
 import { useDone } from "../hooks/useDone";
 import { usePendingFocus } from "../hooks/usePendingFocus";
@@ -349,7 +348,18 @@ export function TaskRow({
 								{reasonOf(item, now)}
 							</span>
 						) : (
-							rated && <PriorityLabelChip label={rated} />
+							// Plain text like the reasons above it: a pill alone in a
+							// column of words read as a stray badge.
+							rated && (
+								<span
+									className={cn(
+										"truncate text-muted-foreground",
+										/^high/i.test(rated) && "font-semibold text-danger",
+									)}
+								>
+									{rated}
+								</span>
+							)
 						)}
 					</span>
 					<span className={COL.status}>
