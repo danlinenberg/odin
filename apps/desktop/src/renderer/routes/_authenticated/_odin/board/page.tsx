@@ -4556,7 +4556,7 @@ function DevBoardPage() {
 													}
 													aria-label="Sort sessions"
 													title="Sort sessions"
-													className="min-w-0 cursor-pointer rounded border border-border bg-card px-1 py-0.5 outline-none hover:text-foreground"
+													className="shrink-0 cursor-pointer rounded border border-border bg-card px-1 py-0.5 outline-none hover:text-foreground"
 												>
 													{Object.entries(SWITCH_SORTS).map(
 														([value, label]) => (
@@ -4581,7 +4581,7 @@ function DevBoardPage() {
 													Group
 												</button>
 												<span
-													className="ml-auto shrink-0 font-mono"
+													className="ml-auto min-w-0 truncate font-mono"
 													title={`Previous session ${prevSessionKey} - next session ${nextSessionKey}`}
 												>
 													{prevSessionKey} {nextSessionKey}
