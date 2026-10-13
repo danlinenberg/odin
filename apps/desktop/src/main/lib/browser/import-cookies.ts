@@ -329,6 +329,26 @@ async function rewriteCookies(): Promise<void> {
 	await cookies.flushStore();
 }
 
+/**
+ * Whether this Electron encrypts cookies on disk. The packaged build always
+ * does; a dev bundle does once patch-dev-protocol has set the fuse. A rewrite
+ * without the fuse would stay plain text, so it waits for this.
+ */
+async function cookieFuseOn(): Promise<boolean> {
+	if (app.isPackaged) return true;
+	try {
+		const { getCurrentFuseWire, FuseV1Options } = await import(
+			"@electron/fuses"
+		);
+		// .../Odin Dev.app/Contents/MacOS/Electron -> the .app bundle.
+		const bundle = process.execPath.replace(/\/Contents\/MacOS\/[^/]+$/, "");
+		const wire = await getCurrentFuseWire(bundle);
+		return wire[FuseV1Options.EnableCookieEncryption] === 49; // FuseState.ENABLE, which the package does not re-export;
+	} catch {
+		return false;
+	}
+}
+
 let checkedThisLaunch = false;
 
 /**
@@ -341,8 +361,7 @@ export async function importBrowserCookiesOnLaunch() {
 	if (checkedThisLaunch) return null;
 	checkedThisLaunch = true;
 	await pruneOtherCookies().catch(() => 0);
-	// Dev builds don't carry the encryption fuse: there a rewrite stays plain.
-	if (app.isPackaged && !readOdinConfig().cookiesEncrypted) {
+	if (!readOdinConfig().cookiesEncrypted && (await cookieFuseOn())) {
 		await rewriteCookies().catch(() => {});
 		updateOdinConfig({ cookiesEncrypted: true });
 	}

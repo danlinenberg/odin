@@ -28,6 +28,12 @@ import {
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import {
+	FuseV1Options,
+	FuseVersion,
+	flipFuses,
+	getCurrentFuseWire,
+} from "@electron/fuses";
 import { config } from "dotenv";
 
 // override: true ensures .env values take precedence over inherited env vars
@@ -341,7 +347,22 @@ export function devProtocolScheme(workspaceName?: string): string {
 	return workspaceName ? `odin-${workspaceName}` : "odin";
 }
 
-export function main() {
+/**
+ * The dev bundle gets the packaged app's cookie encryption: without the fuse
+ * the in-app browser's cookies sit on disk in plain text. One way - so
+ * `bun install`, which restores a fuse-less Electron.app, sends the next dev
+ * start back through here before the app opens.
+ */
+async function cookieFuseOn(appPath: string): Promise<boolean> {
+	try {
+		const wire = await getCurrentFuseWire(appPath);
+		return wire[FuseV1Options.EnableCookieEncryption] === 49; // FuseState.ENABLE, which the package does not re-export;
+	} catch {
+		return false;
+	}
+}
+
+export async function main() {
 	if (process.platform !== "darwin") {
 		console.log("[patch-dev-protocol] Skipping - not macOS");
 		process.exit(0);
@@ -418,6 +439,7 @@ export function main() {
 			isRenamed &&
 			pathTxtCorrect &&
 			iconCurrent &&
+			(await cookieFuseOn(ELECTRON_APP_PATH)) &&
 			hasValidSignature(ELECTRON_APP_PATH)
 		) {
 			registerWithLaunchServices(
@@ -554,6 +576,18 @@ export function main() {
 		console.warn("[patch-dev-protocol] Failed to rename Electron.app:", err);
 	}
 
+	try {
+		if (!(await cookieFuseOn(actualAppPath))) {
+			await flipFuses(actualAppPath, {
+				version: FuseVersion.V1,
+				[FuseV1Options.EnableCookieEncryption]: true,
+			});
+			console.log("[patch-dev-protocol] Turned on cookie encryption");
+		}
+	} catch (err) {
+		console.warn("[patch-dev-protocol] Failed to set the cookie fuse:", err);
+	}
+
 	// Icon first, signature last: the seal covers Contents/Resources, so anything
 	// written afterwards invalidates it again.
 	try {
@@ -620,5 +654,5 @@ export function main() {
 }
 
 if (import.meta.main) {
-	main();
+	await main();
 }

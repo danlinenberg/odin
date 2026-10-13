@@ -186,6 +186,7 @@
 		"zustand": "5.0.12"
 	},
 	"devDependencies": {
+		"@electron/fuses": "1.8.0",
 		"@odin/typescript": "workspace:*",
 		"@sentry/vite-plugin": "5.4.0",
 		"@tailwindcss/vite": "4.2.2",
