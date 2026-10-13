@@ -102,14 +102,17 @@ function MyJiraPage() {
 	} = useOdinFeeds();
 	const panes = useTabsStore((s) => s.panes);
 
-	// Done tickets drop out before the role tabs are counted.
+	// Done tickets drop out before the role tabs are counted - except in
+	// Sprints, which is the board: a sprint's tickets stay, Done ones dimmed.
 	const { isDone } = useDone();
 	const allIssues = useMemo(
 		() =>
 			(issuesQuery.data?.issues ?? []).filter(
-				(issue) => !isDone({ ...doable(issue), mention: issue.mention }),
+				(issue) =>
+					groupBy === "sprint" ||
+					!isDone({ ...doable(issue), mention: issue.mention }),
 			),
-		[issuesQuery.data, isDone],
+		[issuesQuery.data, isDone, groupBy],
 	);
 	const roleCounts = useMemo(
 		() => ({
@@ -207,7 +210,15 @@ function MyJiraPage() {
 	const renderRow = (issue: (typeof issues)[number]) => {
 		const item = items.get(`jira:${issue.key}`);
 		return (
-			item && <TaskRow key={item.key} item={item} rows={taskRows} now={now} />
+			item && (
+				<TaskRow
+					key={item.key}
+					item={item}
+					rows={taskRows}
+					now={now}
+					done={isDone({ ...doable(issue), mention: issue.mention })}
+				/>
+			)
 		);
 	};
 

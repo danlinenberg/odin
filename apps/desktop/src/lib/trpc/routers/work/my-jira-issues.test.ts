@@ -160,12 +160,15 @@ const call = (input?: { includeDone?: boolean }) =>
 		.myJiraIssues(input);
 
 describe("myJiraIssues", () => {
-	it("asks Jira the three ways a ticket becomes mine", async () => {
+	it("asks Jira the three ways a ticket becomes mine, plus my filed tickets in a running sprint", async () => {
 		await call();
-		expect(jqls.map((jql) => jql.split(" AND ")[0]).sort()).toEqual([
+		expect(
+			jqls.map((jql) => jql.split(" AND statusCategory")[0]).sort(),
+		).toEqual([
 			"assignee = currentUser()",
 			"comment ~ currentUser()",
 			"reporter = currentUser()",
+			"reporter = currentUser() AND sprint in openSprints()",
 		]);
 	});
 

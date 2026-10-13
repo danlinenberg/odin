@@ -610,14 +610,21 @@ export const createWorkRouter = () => {
 						: rows;
 				};
 
-				const [assigned, reported, mentioned] = await Promise.all([
-					search("assigned", "assignee = currentUser()"),
-					search("reported", "reporter = currentUser()"),
-					// An @-mention embeds my account id in the comment body, and
-					// currentUser() resolves to that id - so a text match on
-					// `comment` is what finds "someone tagged me here".
-					search("mentioned", "comment ~ currentUser()"),
-				]);
+				const [assigned, reported, reportedInSprint, mentioned] =
+					await Promise.all([
+						search("assigned", "assignee = currentUser()"),
+						search("reported", "reporter = currentUser()"),
+						// The 100 cap cuts filed tickets by recency, which dropped older
+						// ones still in the running sprint off the Sprints view.
+						search(
+							"reported",
+							"reporter = currentUser() AND sprint in openSprints()",
+						),
+						// An @-mention embeds my account id in the comment body, and
+						// currentUser() resolves to that id - so a text match on
+						// `comment` is what finds "someone tagged me here".
+						search("mentioned", "comment ~ currentUser()"),
+					]);
 				// An issue can come back from several searches; the first claim
 				// wins, strongest first - assigned, then filed, then mentioned. The
 				// mention rides along on the winner: it's what brings a ticket I put
@@ -627,7 +634,12 @@ export const createWorkRouter = () => {
 				);
 				const seen = new Set<string>();
 				const issues: JiraIssueRow[] = [];
-				for (const issue of [...assigned, ...reported, ...mentioned]) {
+				for (const issue of [
+					...assigned,
+					...reported,
+					...reportedInSprint,
+					...mentioned,
+				]) {
 					if (seen.has(issue.key)) continue;
 					seen.add(issue.key);
 					issues.push({ ...issue, mention: mentions.get(issue.key) ?? null });
