@@ -89,6 +89,15 @@ export function useHoldToTalk({
 
 	const listen = async (h: Hold) => {
 		const before = promptText(await read());
+		// No input box on screen (a menu or a permission prompt): a held Space
+		// there picks options, so send nothing.
+		if (before === null) {
+			hold.current = null;
+			toast("Claude is not at its input box", {
+				description: "Answer what Claude shows first, then hold Space to talk.",
+			});
+			return;
+		}
 		setPhase("listening");
 		setHeard("");
 		h.pump = setInterval(() => void write(" "), REPEAT_MS);
