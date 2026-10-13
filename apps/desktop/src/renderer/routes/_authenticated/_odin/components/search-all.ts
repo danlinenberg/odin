@@ -70,7 +70,8 @@ export function boardSessions(
  * How well `needle` (lowercased) names a result - lower is better, null is no
  * match. 0: the title starts with it. 1: a word in the title does. 2: it's
  * somewhere in the title. 3: every typed word turns up in the title or the
- * extra fields (who, where, source, status). Transcript hits, which only the
+ * extra fields (who, where, source, status). TYPO_TIER: the same, but a typed
+ * word may be a typo or two off a word there. Transcript hits, which only the
  * server can score, sit below all of these at TRANSCRIPT_TIER.
  */
 export function matchRank(
@@ -85,10 +86,67 @@ export function matchRank(
 	const haystack = [text, ...extra.map((field) => field?.toLowerCase())].join(
 		" ",
 	);
-	return needle.split(" ").every((word) => haystack.includes(word)) ? 3 : null;
+	const words = needle.split(" ");
+	if (words.every((word) => haystack.includes(word))) return 3;
+	const haystackWords = haystack.split(/[^a-z0-9]+/);
+	return words.every(
+		(word) =>
+			haystack.includes(word) ||
+			haystackWords.some((candidate) => isTypoOf(word, candidate)),
+	)
+		? TYPO_TIER
+		: null;
 }
 
-export const TRANSCRIPT_TIER = 4;
+export const TYPO_TIER = 4;
+export const TRANSCRIPT_TIER = 5;
+
+/** Short words get no slack: one edit turns "fix" into "fox" or "six". */
+function typosAllowed(word: string): number {
+	if (word.length >= 8) return 2;
+	return word.length >= 5 ? 1 : 0;
+}
+
+/** `typed` is `word`, or the start of it, give or take a few typos. */
+function isTypoOf(typed: string, word: string): boolean {
+	const allowed = typosAllowed(typed);
+	if (allowed === 0) return false;
+	const asWhole =
+		Math.abs(word.length - typed.length) <= allowed &&
+		isWithinEdits(typed, word, allowed);
+	const asStart =
+		word.length > typed.length &&
+		isWithinEdits(typed, word.slice(0, typed.length), allowed);
+	return asWhole || asStart;
+}
+
+/**
+ * Whether inserts, deletes, swaps and adjacent transpositions can turn `a`
+ * into `b` in at most `limit` edits. Gives up as soon as a whole row is over.
+ */
+function isWithinEdits(a: string, b: string, limit: number): boolean {
+	let beforeLast: number[] = [];
+	let last = Array.from({ length: b.length + 1 }, (_, j) => j);
+	for (let i = 1; i <= a.length; i++) {
+		const current = [i];
+		let best = i;
+		for (let j = 1; j <= b.length; j++) {
+			const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+			current[j] = Math.min(
+				last[j] + 1,
+				current[j - 1] + 1,
+				last[j - 1] + cost,
+			);
+			if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1])
+				current[j] = Math.min(current[j], beforeLast[j - 2] + 1);
+			best = Math.min(best, current[j]);
+		}
+		if (best > limit) return false;
+		beforeLast = last;
+		last = current;
+	}
+	return last[b.length] <= limit;
+}
 
 /** A status that means the work is over - in any source's words. */
 export function isClosedStatus(status: string | null | undefined): boolean {
