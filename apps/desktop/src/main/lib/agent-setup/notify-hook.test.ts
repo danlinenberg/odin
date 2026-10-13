@@ -47,7 +47,7 @@ async function runNotifyHook(
 
 describe("getNotifyScriptContent", () => {
 	it("bumps the notify hook marker when hook semantics change", () => {
-		expect(NOTIFY_SCRIPT_MARKER).toBe("# Odin agent notification hook v10");
+		expect(NOTIFY_SCRIPT_MARKER).toBe("# Odin agent notification hook v11");
 	});
 
 	it("emits the v2 host-service payload with full agent identity", () => {
@@ -125,6 +125,40 @@ describe("getNotifyScriptContent", () => {
 			expect(result.exitCode).toBe(0);
 			expect(hits).toHaveLength(1);
 			expect(hits[0]).toContain("eventType=Stop");
+		} finally {
+			server.stop(true);
+		}
+	});
+
+	// `claude --resume` fires SessionStart and then waits for input. Sent as
+	// Start, it put the card in Working with a turn timer counting from the
+	// last message of the previous run.
+	it("does not report a booted session as working", async () => {
+		const home = mkdtempSync(path.join(tmpdir(), "odin-hook-port-"));
+		const hits: string[] = [];
+		const server = Bun.serve({
+			port: 0,
+			fetch(request) {
+				hits.push(new URL(request.url).search);
+				return new Response("{}");
+			},
+		});
+		try {
+			const result = await runNotifyHook(
+				{ hook_event_name: "SessionStart", session_id: "session-1" },
+				{
+					defaultPort: server.port,
+					env: {
+						ODIN_HOME_DIR: home,
+						ODIN_TAB_ID: "tab-1",
+						ODIN_PORT: "",
+						ODIN_HOST_AGENT_HOOK_URL: "",
+						ODIN_HOOK_DEBUG_LOG: path.join(home, "hooks.log"),
+					},
+				},
+			);
+			expect(result.exitCode).toBe(0);
+			expect(hits).toHaveLength(0);
 		} finally {
 			server.stop(true);
 		}

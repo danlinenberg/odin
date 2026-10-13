@@ -22,7 +22,8 @@ fi
 
 V1_EVENT_TYPE="$EVENT_TYPE"
 case "$V1_EVENT_TYPE" in
-  SessionStart) V1_EVENT_TYPE="Start" ;;
+  # Booted, waiting for input - beforeSubmitPrompt says Start.
+  SessionStart) exit 0 ;;
   SessionEnd)   V1_EVENT_TYPE="Stop" ;;
 esac
 

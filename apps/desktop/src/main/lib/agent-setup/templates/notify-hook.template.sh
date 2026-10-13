@@ -181,7 +181,13 @@ debug_log "event=$EVENT_TYPE terminalId=$ODIN_TERMINAL_ID agentId=$ODIN_AGENT_ID
 
 V1_EVENT_TYPE="$EVENT_TYPE"
 case "$V1_EVENT_TYPE" in
-  Attached|attached|SessionStart|sessionStart|session_start)
+  # A booted agent waits for input - it is not working. Mapping SessionStart
+  # to Start sent every plain `claude --resume` to Working, timing a turn from
+  # a message weeks old. The prompt submit that follows a real turn says Start.
+  SessionStart|sessionStart|session_start)
+    exit 0
+    ;;
+  Attached|attached)
     V1_EVENT_TYPE="Start"
     ;;
   Detached|detached|SessionEnd|sessionEnd|session_end)

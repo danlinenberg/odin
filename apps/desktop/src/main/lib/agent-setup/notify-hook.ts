@@ -5,7 +5,7 @@ import { env } from "shared/env.shared";
 import { HOOKS_DIR } from "./paths";
 
 export const NOTIFY_SCRIPT_NAME = "notify.sh";
-export const NOTIFY_SCRIPT_MARKER = "# Odin agent notification hook v10";
+export const NOTIFY_SCRIPT_MARKER = "# Odin agent notification hook v11";
 
 const NOTIFY_SCRIPT_TEMPLATE_PATH = path.join(
 	__dirname,

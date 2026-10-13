@@ -23,8 +23,10 @@ describe("notifications/server", () => {
 			expect(mapEventType("Start")).toBe("Start");
 		});
 
-		it("should map 'SessionStart' to 'Start'", () => {
-			expect(mapEventType("SessionStart")).toBe("Start");
+		it("ignores 'SessionStart': a resumed agent waits for input", () => {
+			expect(mapEventType("SessionStart")).toBeNull();
+			expect(mapEventType("sessionStart")).toBeNull();
+			expect(mapEventType("session_start")).toBeNull();
 		});
 
 		it("should map 'UserPromptSubmit' to 'Start'", () => {
@@ -32,7 +34,6 @@ describe("notifications/server", () => {
 		});
 
 		it("should map Codex snake_case start events to 'Start'", () => {
-			expect(mapEventType("session_start")).toBe("Start");
 			expect(mapEventType("user_prompt_submit")).toBe("Start");
 			expect(mapEventType("post_tool_use")).toBe("Start");
 			expect(mapEventType("task_started")).toBe("Start");

@@ -4,16 +4,15 @@ export function mapEventType(
 	if (!eventType) {
 		return null;
 	}
+	// SessionStart is missing on purpose: an agent that just booted (a plain
+	// `claude --resume`) waits for input. Its prompt submit says Start.
 	if (
 		eventType === "Start" ||
-		eventType === "SessionStart" ||
 		eventType === "UserPromptSubmit" ||
 		eventType === "PostToolUse" ||
 		eventType === "PostToolUseFailure" ||
 		eventType === "BeforeAgent" ||
 		eventType === "AfterTool" ||
-		eventType === "sessionStart" ||
-		eventType === "session_start" ||
 		eventType === "userPromptSubmitted" ||
 		eventType === "user_prompt_submit" ||
 		eventType === "postToolUse" ||
