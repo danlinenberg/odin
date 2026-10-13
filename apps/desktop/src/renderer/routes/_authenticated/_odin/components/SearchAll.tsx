@@ -77,7 +77,7 @@ const HISTORY = "Session History";
 /** Hits shown per source before "show more". */
 const CAP = 8;
 
-const ITEM = "gap-2.5 rounded-[7px] px-2.5 py-1.5 text-[13px]";
+const ITEM = "gap-2.5 rounded-[6px] px-2.5 py-1.5 text-[13px]";
 
 /** One line of a hit's ⌘K menu. */
 interface Action {
@@ -387,7 +387,7 @@ export function SearchAll({ onClose }: { onClose: () => void }) {
 					event.preventDefault();
 					closeMenu();
 				}}
-				className="top-[12vh] w-[680px] max-w-[92vw] translate-y-0 gap-0 overflow-hidden rounded-[10px] border-border bg-popover p-0 shadow-[0_18px_60px_rgba(0,0,0,0.6)] sm:max-w-[92vw]"
+				className="top-[12vh] w-[680px] max-w-[92vw] translate-y-0 gap-0 overflow-hidden rounded-[8px] border-border bg-popover p-0 shadow-[0_18px_60px_rgba(0,0,0,0.6)] sm:max-w-[92vw]"
 			>
 				<DialogTitle className="sr-only">Search all</DialogTitle>
 				<Command

@@ -487,7 +487,7 @@ function RuleRow({ rule }: { rule: OdinRule }) {
 						: "Pause - keep it, stop handing it out"
 				}
 				onClick={() => update(rule.id, { paused: !rule.paused })}
-				className="shrink-0 rounded-[7px] px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground"
+				className="shrink-0 rounded-[6px] px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground"
 			>
 				{rule.paused ? "Resume" : "Pause"}
 			</button>
@@ -496,7 +496,7 @@ function RuleRow({ rule }: { rule: OdinRule }) {
 					type="button"
 					title="Delete this rule"
 					onClick={() => remove(rule.id)}
-					className="rounded-[7px] px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground"
+					className="rounded-[6px] px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground"
 				>
 					✕
 				</button>
@@ -754,13 +754,13 @@ function RemindersPanel() {
 											)
 										: setDue(key, day, r.title)
 								}
-								className="rounded-[7px] px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground"
+								className="rounded-[6px] px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground"
 							/>
 							<button
 								type="button"
 								title="Drop this reminder"
 								onClick={() => clear(key)}
-								className="rounded-[7px] px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground"
+								className="rounded-[6px] px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground"
 							>
 								✕
 							</button>
@@ -998,7 +998,7 @@ function SchedulesPanel() {
 												: "Pause - keep it, stop running it"
 										}
 										onClick={() => setPaused(task.id, !task.paused)}
-										className="shrink-0 rounded-[7px] px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground"
+										className="shrink-0 rounded-[6px] px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground"
 									>
 										{task.paused ? "Resume" : "Pause"}
 									</button>
@@ -1007,7 +1007,7 @@ function SchedulesPanel() {
 											type="button"
 											title="Delete this automation"
 											onClick={() => remove(task.id)}
-											className="rounded-[7px] px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground"
+											className="rounded-[6px] px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground"
 										>
 											✕
 										</button>

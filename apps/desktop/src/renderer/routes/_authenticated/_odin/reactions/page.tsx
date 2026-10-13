@@ -173,7 +173,7 @@ function ReactionsPage() {
 					/>
 				)}
 				{data?.syncError && (
-					<div className="select-text cursor-text rounded-[10px] border border-danger/40 bg-danger/10 px-3 py-2 text-xs">
+					<div className="select-text cursor-text rounded-[8px] border border-danger/40 bg-danger/10 px-3 py-2 text-xs">
 						Slack sync failed: {data.syncError}
 						{rows.length > 0 && " - showing the last synced rows."}
 					</div>
@@ -243,14 +243,14 @@ function ReactionChip({
 				if (e.key === "Enter") save(e.currentTarget.value);
 				if (e.key === "Escape") setEditing(false);
 			}}
-			className="w-44 rounded-[7px] bg-secondary px-2 py-1 text-[12px] text-foreground outline-none"
+			className="w-44 rounded-[6px] bg-secondary px-2 py-1 text-[12px] text-foreground outline-none"
 		/>
 	) : (
 		<button
 			type="button"
 			title={`${title} Now :${value}:`}
 			onClick={() => setEditing(true)}
-			className={`shrink-0 rounded-[7px] px-2.5 py-1 text-[12px] font-medium transition-colors ${BUTTON.secondary}`}
+			className={`shrink-0 rounded-[6px] px-2.5 py-1 text-[12px] font-medium transition-colors ${BUTTON.secondary}`}
 		>
 			{emojify(`:${value}:`)} {label}
 		</button>

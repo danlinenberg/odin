@@ -254,7 +254,7 @@ function MyJiraPage() {
 					<div key={project} className="mb-3">
 						<div className="flex items-center gap-2 py-1 pl-1 text-[12px] font-semibold text-foreground">
 							{project}
-							<span className="rounded-[10px] bg-secondary px-1.5 text-[11px] font-medium text-muted-foreground">
+							<span className="rounded-[8px] bg-secondary px-1.5 text-[11px] font-medium text-muted-foreground">
 								{count}
 							</span>
 						</div>
@@ -278,11 +278,11 @@ function MyJiraPage() {
 										) : (
 											"No epic"
 										)}
-										<span className="rounded-[10px] bg-secondary px-1.5 font-medium text-muted-foreground">
+										<span className="rounded-[8px] bg-secondary px-1.5 font-medium text-muted-foreground">
 											{rows.length}
 										</span>
 										{live > 0 && (
-											<span className="rounded-[10px] bg-working/12 px-1.5 font-medium text-working">
+											<span className="rounded-[8px] bg-working/12 px-1.5 font-medium text-working">
 												{live} live
 											</span>
 										)}

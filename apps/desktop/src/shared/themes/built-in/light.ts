@@ -1,85 +1,100 @@
 import type { Theme } from "../types";
 
 /**
- * Light theme - based on the original Odin light mode colors
+ * Light theme - Paper. The Graphite theme printed: warm off-white paper,
+ * near-black ink, white cards that sit a step above the page. Same rule as
+ * the dark one - colour means state, never decoration - with the status hues
+ * deepened in globals.css so they hold contrast on paper.
  */
 export const lightTheme: Theme = {
 	id: "light",
-	name: "Light",
+	name: "Paper",
 	author: "Odin",
 	type: "light",
 	isBuiltIn: true,
 
 	ui: {
-		background: "oklch(1 0 0)",
-		foreground: "oklch(0.145 0 0)",
-		card: "oklch(0.97 0 0)",
-		cardForeground: "oklch(0.145 0 0)",
-		popover: "oklch(0.97 0 0)",
-		popoverForeground: "oklch(0.145 0 0)",
-		primary: "oklch(0.205 0 0)",
-		primaryForeground: "oklch(0.985 0 0)",
-		secondary: "oklch(0.97 0 0)",
-		secondaryForeground: "oklch(0.205 0 0)",
-		muted: "oklch(0.97 0 0)",
-		mutedForeground: "oklch(0.556 0 0)",
-		accent: "oklch(0.93 0 0)",
-		accentForeground: "oklch(0.205 0 0)",
-		tertiary: "oklch(0.95 0.003 40)",
-		tertiaryActive: "oklch(0.90 0.003 40)",
-		destructive: "oklch(0.577 0.245 27.325)",
-		destructiveForeground: "oklch(0.985 0 0)",
-		border: "oklch(0.922 0 0)",
-		input: "oklch(0.922 0 0)",
-		ring: "oklch(0.708 0 0)",
-		sidebar: "oklch(0.985 0 0)",
-		sidebarForeground: "oklch(0.145 0 0)",
-		sidebarPrimary: "oklch(0.205 0 0)",
-		sidebarPrimaryForeground: "oklch(0.985 0 0)",
-		sidebarAccent: "oklch(0.97 0 0)",
-		sidebarAccentForeground: "oklch(0.205 0 0)",
-		sidebarBorder: "oklch(0.922 0 0)",
-		sidebarRing: "oklch(0.708 0 0)",
-		chart1: "oklch(0.646 0.222 41.116)",
-		chart2: "oklch(0.6 0.118 184.704)",
-		chart3: "oklch(0.398 0.07 227.392)",
-		chart4: "oklch(0.828 0.189 84.429)",
-		chart5: "oklch(0.769 0.188 70.08)",
+		background: "#f6f5f1",
+		foreground: "#1b1b19",
+		card: "#ffffff",
+		cardForeground: "#1b1b19",
+		popover: "#ffffff",
+		popoverForeground: "#1b1b19",
 
-		// Search highlights
-		highlightMatch: "rgba(255, 211, 61, 0.35)",
-		highlightActive: "rgba(255, 150, 50, 0.55)",
+		// Primary - ink on paper
+		primary: "#1b1b19",
+		primaryForeground: "#f6f5f1",
 
-		// Brand highlight - warm chart-1 orange
-		highlight: "oklch(0.646 0.222 41.116)",
-		highlightForeground: "oklch(0.985 0 0)",
+		secondary: "#ecebe5",
+		secondaryForeground: "#1b1b19",
+		muted: "#ecebe5",
+		mutedForeground: "#64635b",
+		accent: "#e4e3dc",
+		accentForeground: "#1b1b19",
+
+		// Tertiary - rail, top bar, board columns
+		tertiary: "#eeede7",
+		tertiaryActive: "#e2e1da",
+
+		destructive: "#c3352f",
+		destructiveForeground: "#ffffff",
+
+		border: "#dedcd4",
+		input: "#cfcdc4",
+		ring: "#1b1b19",
+
+		sidebar: "#eeede7",
+		sidebarForeground: "#1b1b19",
+		sidebarPrimary: "#1b1b19",
+		sidebarPrimaryForeground: "#f6f5f1",
+		sidebarAccent: "#e4e3dc",
+		sidebarAccentForeground: "#1b1b19",
+		sidebarBorder: "#dedcd4",
+		sidebarRing: "#1b1b19",
+
+		chart1: "#3d3c37",
+		chart2: "#2261c4",
+		chart3: "#1d7d4d",
+		chart4: "#975e08",
+		chart5: "#c3352f",
+
+		// Search highlights - a highlighter pen
+		highlightMatch: "rgba(245, 196, 66, 0.4)",
+		highlightActive: "rgba(240, 160, 40, 0.6)",
+
+		highlight: "#1b1b19",
+		highlightForeground: "#f6f5f1",
 	},
 
 	terminal: {
-		background: "#ffffff",
-		foreground: "#000000",
-		cursor: "#000000",
-		cursorAccent: "#ffffff",
-		selectionBackground: "#add6ff",
+		background: "#fbfaf7",
+		foreground: "#24241f",
+		cursor: "#1b1b19",
+		cursorAccent: "#fbfaf7",
+		selectionBackground: "rgba(27, 27, 25, 0.14)",
 
-		// Standard ANSI colors (xterm defaults)
-		black: "#2e3436",
-		red: "#cc0000",
-		green: "#4e9a06",
-		yellow: "#c4a000",
-		blue: "#3465a4",
-		magenta: "#75507b",
-		cyan: "#06989a",
-		white: "#d3d7cf",
+		black: "#24241f",
+		red: "#c3352f",
+		green: "#1d7d4d",
+		yellow: "#94600a",
+		blue: "#2261c4",
+		magenta: "#8a4bb8",
+		cyan: "#11788a",
+		white: "#a9a8a0",
 
-		// Bright ANSI colors (xterm defaults)
-		brightBlack: "#555753",
-		brightRed: "#ef2929",
-		brightGreen: "#8ae234",
-		brightYellow: "#fce94f",
-		brightBlue: "#729fcf",
-		brightMagenta: "#ad7fa8",
-		brightCyan: "#34e2e2",
-		brightWhite: "#eeeeec",
+		brightBlack: "#6f6e67",
+		brightRed: "#dc4a43",
+		brightGreen: "#26935c",
+		brightYellow: "#b07812",
+		brightBlue: "#3b78d8",
+		brightMagenta: "#9f62cc",
+		brightCyan: "#1b8ea2",
+		brightWhite: "#d4d3cb",
+	},
+
+	editor: {
+		syntax: {
+			comment: "#7b7a72",
+		},
 	},
 };

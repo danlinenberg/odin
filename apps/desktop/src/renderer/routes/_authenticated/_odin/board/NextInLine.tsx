@@ -7,11 +7,11 @@ import { cn } from "@odin/ui/utils";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
+	LuArrowDownUp,
 	LuExternalLink,
 	LuLoaderCircle,
 	LuMoon,
 	LuSettings2,
-	LuSparkles,
 } from "react-icons/lu";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
@@ -352,20 +352,20 @@ export function NextInLine() {
 			byKey.get(item.key) ?? (item.url ? byUrl.get(item.url) : undefined);
 	}, [swept]);
 	return (
-		// Dressed like the board's columns, in Odin's own violet: it's the one
-		// column the AI fills rather than a session status.
+		// Dressed like the board's columns, in ink rather than a status hue:
+		// it's the one column Odin fills rather than a session status.
 		<div
 			className={cn(
 				BOARD_COLUMN_MIN_W,
-				"relative flex flex-1 flex-col overflow-hidden rounded-xl border border-border bg-tertiary/85 bg-[linear-gradient(to_bottom,color-mix(in_oklab,var(--primary)_9%,transparent),transparent_160px)]",
+				"relative flex flex-1 flex-col overflow-hidden rounded-[8px] border border-border bg-tertiary",
 			)}
 		>
 			<span
 				aria-hidden
-				className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-primary via-primary/40 to-transparent"
+				className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-foreground/70"
 			/>
-			<div className="flex items-center gap-2 px-3 py-2.5 text-xs font-semibold uppercase tracking-[.4px] text-soft-foreground">
-				<span className="size-2 rounded-full bg-primary shadow-[0_0_8px_var(--primary)]" />
+			<div className="label-caps flex items-center gap-2 border-b border-border px-3 pt-3 pb-2.5 text-soft-foreground">
+				<span className="lamp text-foreground/80" />
 				Next in line
 				<span className="ml-auto flex items-center gap-2">
 					<button
@@ -390,7 +390,7 @@ export function NextInLine() {
 						onToggle={() => setShowHidden(!showHidden)}
 						className="font-normal normal-case tracking-normal"
 					/>
-					<span className="rounded-[10px] bg-secondary px-2 font-medium">
+					<span className="rounded-[8px] bg-secondary px-2 font-medium">
 						{tonight.length + pinnedRest.length + rest.length}
 					</span>
 				</span>
@@ -487,7 +487,7 @@ export function NextInLine() {
 			<div
 				key={item.key}
 				className={cn(
-					"group relative flex flex-col gap-1 rounded-[10px] border border-border bg-card px-2.5 py-2 transition-colors hover:border-input hover:bg-secondary",
+					"group relative flex flex-col gap-1 rounded-[8px] border border-border bg-card px-2.5 py-2 transition-colors hover:border-input hover:bg-secondary",
 					(isAiHidden(item) || duplicate) && "opacity-50",
 				)}
 				title={
@@ -708,9 +708,9 @@ function RankStatus({
 
 	if (startedAt)
 		return (
-			<div className="mx-2 mb-2 flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/8 px-2.5 py-2 text-[11.5px] text-primary">
+			<div className="mx-2 mb-2 flex items-start gap-2 rounded-[6px] border border-working/25 bg-working/8 px-2.5 py-2 text-[11.5px] text-working-ink">
 				<LuLoaderCircle
-					className="mt-px size-3.5 shrink-0 animate-spin text-primary"
+					className="mt-px size-3.5 shrink-0 animate-spin text-working"
 					aria-hidden
 				/>
 				<span>
@@ -727,9 +727,9 @@ function RankStatus({
 			type="button"
 			onClick={onApply}
 			title="Rank these now, from scratch, and use the AI's order and hides"
-			className="ml-auto flex shrink-0 items-center gap-1 rounded-md bg-primary/15 px-2 py-0.5 font-medium text-primary hover:bg-primary/25"
+			className="ml-auto flex shrink-0 items-center gap-1 rounded-[4px] bg-secondary px-2 py-0.5 font-medium text-foreground ring-1 ring-inset ring-border hover:bg-accent"
 		>
-			<LuSparkles className="size-3 text-primary" aria-hidden />
+			<LuArrowDownUp className="size-3" aria-hidden />
 			{applied && ranked ? "Re-sort" : "Sort with AI"}
 		</button>
 	);
@@ -738,7 +738,7 @@ function RankStatus({
 			<div className="flex items-center gap-1.5">
 				{applied && ranked ? (
 					<>
-						<LuSparkles className="size-3 text-primary" aria-hidden />
+						<LuArrowDownUp className="size-3" aria-hidden />
 						Sorted by AI
 						<button
 							type="button"

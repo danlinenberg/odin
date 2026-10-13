@@ -550,7 +550,7 @@ function CatchUpCard({
 				onClick={onShowSession}
 				title="Leave Catch up and open this session"
 				className={cn(
-					"mt-auto self-start rounded-[7px] px-3 py-1.5 text-xs font-semibold",
+					"mt-auto self-start rounded-[6px] px-3 py-1.5 text-xs font-semibold",
 					BUTTON.secondary,
 				)}
 			>
@@ -1401,7 +1401,7 @@ function TagMenu({
 		<div
 			ref={ref}
 			style={{ left, top }}
-			className="fixed z-[60] w-[220px] rounded-[10px] border border-border bg-card p-2 shadow-[0_10px_30px_rgba(0,0,0,.5)]"
+			className="fixed z-[60] w-[220px] rounded-[8px] border border-border bg-card p-2 shadow-[0_10px_30px_rgba(0,0,0,.5)]"
 		>
 			<button
 				type="button"
@@ -3626,7 +3626,7 @@ function DevBoardPage() {
 					}}
 					placeholder={`Search sessions${searchHint}`}
 					className={cn(
-						"w-[220px] rounded-full border bg-card px-2.5 py-1 text-[12px] text-foreground outline-none placeholder:text-faint-foreground focus:border-primary",
+						"w-[220px] rounded-[6px] border bg-card px-2.5 py-1 text-[12px] text-foreground outline-none placeholder:text-faint-foreground focus:border-primary",
 						search ? "border-primary" : "border-border",
 					)}
 				/>
@@ -3641,7 +3641,7 @@ function DevBoardPage() {
 						onChange={(e) => setBoardFilter(e.target.value)}
 						title="Show only starred sessions, or those with this tag, repo or person"
 						className={cn(
-							"max-w-[220px] cursor-pointer rounded-full border px-2.5 py-1 text-[12px] font-medium outline-none",
+							"max-w-[220px] cursor-pointer rounded-[6px] border px-2.5 py-1 text-[12px] font-medium outline-none",
 							boardFilter
 								? "border-primary bg-primary/15 text-foreground"
 								: "border-border bg-card text-muted-foreground hover:text-foreground",
@@ -3702,7 +3702,7 @@ function DevBoardPage() {
 							: "Show the tasks worth starting next"
 					}
 					className={cn(
-						"flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium",
+						"flex items-center gap-1.5 rounded-[6px] border px-2.5 py-1 text-[12px] font-medium",
 						isNextOpen
 							? "border-primary bg-primary/15 text-foreground"
 							: "border-border bg-card text-muted-foreground hover:text-foreground",
@@ -3802,13 +3802,13 @@ function DevBoardPage() {
 									: undefined
 							}
 							className={cn(
-								// The column wears its status: a hairline of the hue along the
-								// top and a wash that fades out under the header. The cards
-								// stay neutral - the colour says where they are, not what.
+								// The column wears its status as a solid 2px rule along the
+								// top and a lamp in its header - nothing else. The cards stay
+								// neutral: the colour says where they are, not what.
 								BOARD_COLUMN_MIN_W,
-								"relative flex flex-1 flex-col overflow-hidden rounded-xl border bg-tertiary/85 bg-[linear-gradient(to_bottom,color-mix(in_oklab,var(--col)_9%,transparent),transparent_160px)]",
+								"relative flex flex-1 flex-col overflow-hidden rounded-[8px] border bg-tertiary",
 								isDropTarget && dragOverIdle
-									? "border-primary bg-primary/15"
+									? "border-dashed border-foreground/50 bg-accent"
 									: "border-border",
 							)}
 							style={
@@ -3817,10 +3817,13 @@ function DevBoardPage() {
 						>
 							<span
 								aria-hidden
-								className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-(--col) via-(--col)/40 to-transparent"
+								className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-(--col)"
 							/>
-							<div className="flex items-center gap-2 px-3 py-2.5 text-xs font-semibold uppercase tracking-[.4px] text-soft-foreground">
-								<span className="size-2 rounded-full bg-(--col) shadow-[0_0_8px_var(--col)]" />
+							<div className="label-caps flex items-center gap-2 border-b border-border px-3 pt-3 pb-2.5 text-soft-foreground">
+								<span
+									className="lamp text-(--col)"
+									data-live={column.status === "working" && cards.length > 0}
+								/>
 								{PANE_STATUS[column.status].label}
 								{canCatchUp && (
 									<button
@@ -3834,10 +3837,7 @@ function DevBoardPage() {
 										// Solid, with a play icon: the dim pill read as a tag beside
 										// the count, not as something to press. Wears the column's hue.
 										className={cn(
-											"ml-auto flex items-center gap-1 rounded-md bg-gradient-to-b to-(--col) px-2.5 py-1 text-[11px] font-semibold normal-case tracking-normal text-background shadow-[0_2px_10px_-3px_color-mix(in_oklab,var(--col)_75%,transparent)] hover:brightness-110",
-											column.status === "review"
-												? "from-success-ink"
-												: "from-attention-ink",
+											"ml-auto flex items-center gap-1 rounded-[4px] bg-(--col) px-2 py-[3px] font-sans text-[11px] font-semibold normal-case tracking-normal text-background hover:brightness-110",
 										)}
 									>
 										<LuPlay className="size-2.5 fill-current" />
@@ -3846,14 +3846,14 @@ function DevBoardPage() {
 								)}
 								<span
 									className={cn(
-										"rounded-[10px] bg-secondary px-2 font-medium",
+										"data text-[11px] font-medium text-muted-foreground",
 										!canCatchUp && "ml-auto",
 									)}
 								>
-									{cards.length}
+									{String(cards.length).padStart(2, "0")}
 								</span>
 							</div>
-							<div className="flex flex-col gap-2 overflow-y-auto px-2 pt-0.5 pb-2.5">
+							<div className="flex flex-col gap-1.5 overflow-y-auto px-2 pt-2 pb-2.5">
 								{cards.length === 0 ? (
 									<div className="px-2 py-6 text-center text-xs text-muted-foreground">
 										Nothing here
@@ -3864,11 +3864,13 @@ function DevBoardPage() {
 										return (
 											<Fragment key={section}>
 												{labelled && (
-													<div className="flex items-center gap-1.5 px-1 pt-1 text-[10px] font-semibold uppercase tracking-[.5px] text-muted-foreground">
+													<div className="label-caps flex items-center gap-1.5 px-1 pt-1.5 text-[9.5px] text-muted-foreground">
 														<Icon className="size-3" aria-hidden />
 														{SECTION_LABEL[section]}
-														<span className="opacity-70">{group.length}</span>
-														<span className="ml-1 h-px flex-1 bg-accent" />
+														<span className="data text-faint-foreground">
+															{group.length}
+														</span>
+														<span className="ml-1 h-px flex-1 bg-border" />
 													</div>
 												)}
 												{group.map((card) => (
@@ -3906,14 +3908,13 @@ function DevBoardPage() {
 																	});
 																}}
 																className={cn(
-																	// A lit top edge, and a lift with a violet halo under the
-																	// pointer - the board's one bit of motion you cause. The
-																	// whole hover look (fill, violet edge, halo) is an ::after
-																	// that only fades in: background, border and shadow can't
+																	// Under the pointer the card steps up a surface and its
+																	// edge sharpens - no lift, no halo. The hover look is an
+																	// ::after that only fades in: background and border can't
 																	// animate on the compositor, so they repainted every frame
 																	// and stuttered whenever the board was busy rendering.
-																	"group relative isolate cursor-pointer rounded-[10px] border bg-card px-3 py-2.5 text-left shadow-[inset_0_1px_0_rgb(255_255_255/0.04)] transition-[translate] duration-200 ease-out hover:-translate-y-px",
-																	"after:pointer-events-none after:absolute after:-inset-px after:-z-10 after:rounded-[inherit] after:border after:border-primary/40 after:bg-secondary after:opacity-0 after:shadow-[inset_0_1px_0_rgb(255_255_255/0.05),0_10px_24px_-12px_color-mix(in_oklab,var(--primary)_55%,transparent)] after:transition-opacity after:duration-200 after:ease-out hover:after:opacity-100",
+																	"group relative isolate cursor-pointer rounded-[6px] border bg-card px-3 py-2.5 text-left",
+																	"after:pointer-events-none after:absolute after:-inset-px after:-z-10 after:rounded-[inherit] after:border after:border-input after:bg-secondary after:opacity-0 after:transition-opacity after:duration-150 after:ease-out hover:after:opacity-100",
 																	// Cards are neutral - the column header already says the
 																	// status. Only a failure earns its red edge.
 																	card.pane.status === "failed"
@@ -3960,7 +3961,7 @@ function DevBoardPage() {
 																			// Final review is where a card waits for you to close it,
 																			// so Done is the always-visible green pill there.
 																			card.status === "review"
-																				? `rounded-[7px] px-2.5 py-1 text-xs font-semibold transition-colors ${BUTTON.done}`
+																				? `rounded-[6px] px-2.5 py-1 text-xs font-semibold transition-colors ${BUTTON.done}`
 																				: "rounded-[5px] px-1.5 text-[11px] text-muted-foreground opacity-0 transition-opacity hover:bg-success/15 hover:text-success group-hover:opacity-100",
 																		)}
 																	>
@@ -4169,7 +4170,7 @@ function DevBoardPage() {
 																					void resumeCard(card);
 																				}}
 																				className={cn(
-																					"ml-auto shrink-0 whitespace-nowrap rounded-[7px] px-2.5 py-1 text-xs font-semibold",
+																					"ml-auto shrink-0 whitespace-nowrap rounded-[6px] px-2.5 py-1 text-xs font-semibold",
 																					BUTTON.secondary,
 																				)}
 																			>
@@ -4210,7 +4211,7 @@ function DevBoardPage() {
 																					void resumeCard(card);
 																				}}
 																				className={cn(
-																					"rounded-[7px] px-2.5 py-1 text-xs font-semibold",
+																					"rounded-[6px] px-2.5 py-1 text-xs font-semibold",
 																					BUTTON.secondary,
 																				)}
 																			>
@@ -4285,7 +4286,7 @@ function DevBoardPage() {
 									title="Leave it on the board and go to the next one"
 									onClick={() => catchUpNext(false)}
 									className={cn(
-										"flex-1 rounded-2xl py-3.5 text-[15px] font-semibold",
+										"flex-1 rounded-[8px] py-3.5 text-[15px] font-semibold",
 										BUTTON.secondary,
 									)}
 								>
@@ -4296,7 +4297,7 @@ function DevBoardPage() {
 									title="Done - remove it from the board and go to the next one"
 									onClick={() => catchUpNext(true)}
 									className={cn(
-										"flex-1 rounded-2xl py-3.5 text-[15px] font-semibold",
+										"flex-1 rounded-[8px] py-3.5 text-[15px] font-semibold",
 										BUTTON.done,
 									)}
 								>
@@ -4313,7 +4314,7 @@ function DevBoardPage() {
 							"@container absolute z-50 flex flex-col bg-tertiary",
 							inCatchUp
 								? // Two cards peeking out underneath: the rest of the pile.
-									"bottom-[92px] left-1/2 top-12 w-[min(760px,calc(100%-32px))] -translate-x-1/2 overflow-hidden rounded-[26px] border border-border shadow-[0_8px_0_-3px_var(--card),0_16px_0_-6px_var(--tertiary)]"
+									"bottom-[92px] left-1/2 top-12 w-[min(760px,calc(100%-32px))] -translate-x-1/2 overflow-hidden rounded-[14px] border border-border shadow-[0_8px_0_-3px_var(--card),0_16px_0_-6px_var(--tertiary)]"
 								: "right-0 top-0 h-full max-w-full border-l border-border",
 						)}
 						style={
@@ -4823,7 +4824,7 @@ function DevBoardPage() {
 														: "Reopen this conversation at an idle prompt (claude --resume)"
 									}
 									className={cn(
-										"rounded-[7px] px-3 py-1.5 text-xs font-semibold",
+										"rounded-[6px] px-3 py-1.5 text-xs font-semibold",
 										BUTTON.primary,
 										// The gradient is a background-image, so it has to go before
 										// bg-secondary can show - otherwise disabled stays violet.
@@ -4862,7 +4863,7 @@ function DevBoardPage() {
 									}
 									onClick={() => interruptPane(drawerCard.pane.id)}
 									className={cn(
-										"rounded-[7px] px-3 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50",
+										"rounded-[6px] px-3 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50",
 										BUTTON.secondary,
 									)}
 								>
@@ -4880,7 +4881,7 @@ function DevBoardPage() {
 											chatView ? setTerminalPaneId(null) : setChatView(true)
 										}
 										className={cn(
-											"flex items-center gap-1.5 rounded-[7px] px-3 py-1.5 text-xs font-semibold",
+											"flex items-center gap-1.5 rounded-[6px] px-3 py-1.5 text-xs font-semibold",
 											BUTTON.secondary,
 										)}
 									>
@@ -4898,7 +4899,7 @@ function DevBoardPage() {
 									onClick={() => markDoneInDrawer(drawerCard)}
 									title="Done - end the session and remove it from the board"
 									className={cn(
-										"rounded-[7px] px-3 py-1.5 text-xs font-semibold",
+										"rounded-[6px] px-3 py-1.5 text-xs font-semibold",
 										BUTTON.done,
 									)}
 								>
@@ -4909,7 +4910,7 @@ function DevBoardPage() {
 								onPick={(day) => remindMe(drawerCard, day)}
 								label="Remind me"
 								className={cn(
-									"rounded-[7px] px-3 py-1.5 text-xs font-semibold",
+									"rounded-[6px] px-3 py-1.5 text-xs font-semibold",
 									BUTTON.remind,
 								)}
 							/>
@@ -4918,7 +4919,7 @@ function DevBoardPage() {
 									type="button"
 									onClick={() => setDrawerCard(null)}
 									className={cn(
-										"rounded-[7px] px-3 py-1.5 text-xs font-semibold",
+										"rounded-[6px] px-3 py-1.5 text-xs font-semibold",
 										BUTTON.secondary,
 									)}
 								>

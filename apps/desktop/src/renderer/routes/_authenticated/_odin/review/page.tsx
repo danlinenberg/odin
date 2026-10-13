@@ -60,7 +60,7 @@ function VerdictChip({ verdict }: { verdict: ReviewRow["verdict"] }) {
 	return (
 		<span
 			className={cn(
-				"shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide",
+				"shrink-0 rounded-[4px] px-2 py-0.5 text-[10px] font-semibold tracking-wide",
 				VERDICT_STYLE[verdict],
 			)}
 		>
@@ -336,7 +336,7 @@ function ReviewPage() {
 							}}
 							placeholder={`Search title or person${searchHotkey.hint}`}
 							className={cn(
-								"w-[200px] rounded-full border bg-card px-2.5 py-1 text-[12px] text-foreground outline-none placeholder:text-faint-foreground focus:border-primary",
+								"w-[200px] rounded-[6px] border bg-card px-2.5 py-1 text-[12px] text-foreground outline-none placeholder:text-faint-foreground focus:border-primary",
 								search ? "border-primary" : "border-border",
 							)}
 						/>

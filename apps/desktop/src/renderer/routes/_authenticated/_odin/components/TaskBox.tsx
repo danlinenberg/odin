@@ -2,7 +2,7 @@ import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import type { AgentSkill } from "lib/trpc/routers/skills";
 import { useEffect, useRef, useState } from "react";
-import { HiOutlineClock, HiOutlineSparkles } from "react-icons/hi2";
+import { HiOutlineClock } from "react-icons/hi2";
 import { isHotkey } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useClaudeCommand } from "renderer/stores/claude-command";
@@ -156,7 +156,7 @@ export function TaskBox({
 						setFocused(false);
 				}}
 				className={cn(
-					"flex min-h-0 min-w-0 grow flex-col overflow-hidden rounded-[10px] border bg-card focus-within:border-primary",
+					"flex min-h-0 min-w-0 grow flex-col overflow-hidden rounded-[8px] border bg-card focus-within:border-primary",
 					folded ? "border-dashed border-border" : "border-border",
 				)}
 			>
@@ -383,7 +383,7 @@ function SkillSelect({
 			{at && matches.length > 0 && (
 				<div
 					style={{ left: at.left, top: at.top }}
-					className="fixed z-50 w-[340px] overflow-hidden rounded-[7px] border border-border bg-card shadow-[0_12px_40px_rgba(0,0,0,0.6)]"
+					className="fixed z-50 w-[340px] overflow-hidden rounded-[6px] border border-border bg-card shadow-[0_12px_40px_rgba(0,0,0,0.6)]"
 				>
 					{matches.map((skill, index) => (
 						<button
@@ -544,7 +544,6 @@ export function BuiltinChip() {
 				PILL.brand,
 			)}
 		>
-			<HiOutlineSparkles className="size-3" />
 			Built-in
 		</span>
 	);
@@ -717,7 +716,7 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 				aria-modal="true"
 				aria-label="New task"
 				// ponytail: CSS `resize` - Chromium draws the corner grip for free.
-				className="fixed left-1/2 top-[12vh] z-50 flex h-[190px] max-h-[80vh] w-[520px] min-w-[320px] max-w-[92vw] -translate-x-1/2 resize flex-col overflow-hidden rounded-[10px] border border-border bg-popover p-3.5 shadow-[0_18px_60px_rgba(0,0,0,0.6)]"
+				className="fixed left-1/2 top-[12vh] z-50 flex h-[190px] max-h-[80vh] w-[520px] min-w-[320px] max-w-[92vw] -translate-x-1/2 resize flex-col overflow-hidden rounded-[8px] border border-border bg-popover p-3.5 shadow-[0_18px_60px_rgba(0,0,0,0.6)]"
 			>
 				{/* The button sits in the header, not under the fields: the dialog's
 				    height is fixed and the fields row is already full at 520px. */}

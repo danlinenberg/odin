@@ -136,7 +136,7 @@ export function QuestionCard({
 						onKeys(answerKeys(questions, picks));
 					}}
 					className={cn(
-						"mt-3 rounded-[7px] px-3 py-1.5 text-xs font-semibold disabled:opacity-50",
+						"mt-3 rounded-[6px] px-3 py-1.5 text-xs font-semibold disabled:opacity-50",
 						BUTTON.primary,
 					)}
 				>
@@ -185,7 +185,7 @@ export function PlanCard({
 						onKeys(["1"]);
 					}}
 					className={cn(
-						"rounded-[7px] px-3 py-1.5 text-xs font-semibold disabled:opacity-50",
+						"rounded-[6px] px-3 py-1.5 text-xs font-semibold disabled:opacity-50",
 						BUTTON.primary,
 					)}
 				>
@@ -196,7 +196,7 @@ export function PlanCard({
 					disabled={sent}
 					onChange={(event) => setFeedback(event.target.value)}
 					placeholder="Or tell Claude what to change"
-					className="min-w-[240px] flex-1 rounded-[7px] border border-border bg-background px-2.5 py-1.5 text-[12.5px] text-foreground outline-none focus:border-primary/60"
+					className="min-w-[240px] flex-1 rounded-[6px] border border-border bg-background px-2.5 py-1.5 text-[12.5px] text-foreground outline-none focus:border-primary/60"
 				/>
 				<button
 					type="button"
@@ -206,7 +206,7 @@ export function PlanCard({
 						onKeys(["3", feedback.trim(), "\r"]);
 					}}
 					className={cn(
-						"rounded-[7px] px-3 py-1.5 text-xs font-semibold disabled:opacity-50",
+						"rounded-[6px] px-3 py-1.5 text-xs font-semibold disabled:opacity-50",
 						BUTTON.secondary,
 					)}
 				>

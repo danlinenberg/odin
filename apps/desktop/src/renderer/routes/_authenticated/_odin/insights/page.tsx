@@ -81,7 +81,7 @@ function Section({
 
 function Card({ children }: { children: React.ReactNode }) {
 	return (
-		<div className="rounded-[10px] border border-border bg-card p-4">
+		<div className="rounded-[8px] border border-border bg-card p-4">
 			{children}
 		</div>
 	);
@@ -97,7 +97,7 @@ function Stat({
 	hint?: string;
 }) {
 	return (
-		<div className="flex min-w-[112px] flex-1 flex-col gap-1 rounded-[10px] border border-border bg-card px-3.5 py-3">
+		<div className="flex min-w-[112px] flex-1 flex-col gap-1 rounded-[8px] border border-border bg-card px-3.5 py-3">
 			<div className="text-[22px] font-semibold leading-none text-foreground">
 				{value}
 			</div>

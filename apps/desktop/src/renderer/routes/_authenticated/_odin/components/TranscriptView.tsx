@@ -104,7 +104,7 @@ export function TranscriptView({
 						key={`${index}-${turn.at ?? ""}`}
 						className={cn(
 							turn.role === "user" &&
-								"ml-auto max-w-[85%] rounded-[12px] border border-primary/20 bg-primary/8 px-3.5 py-2.5",
+								"ml-auto max-w-[85%] rounded-[8px] border border-primary/20 bg-primary/8 px-3.5 py-2.5",
 						)}
 					>
 						<div className="mb-1.5 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.4px]">

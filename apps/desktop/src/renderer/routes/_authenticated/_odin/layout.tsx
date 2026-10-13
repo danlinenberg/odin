@@ -35,7 +35,7 @@ import { CrowButton } from "./components/CrowButton";
 import { FEED_TABS } from "./components/feed-counts";
 import { GettingStarted } from "./components/GettingStarted";
 import { InAppBrowser } from "./components/InAppBrowser";
-import { BUTTON, PILL } from "./components/pill";
+import { PILL } from "./components/pill";
 import {
 	type UpstreamDue,
 	useDueReminders,
@@ -166,13 +166,41 @@ function badgeTone(load: MachineLoad, limits: LaunchLimits): string {
 	) {
 		return PILL.attention;
 	}
-	return "bg-secondary text-muted-foreground";
+	return "text-muted-foreground ring-1 ring-inset ring-border";
 }
 
 function usageTone(percent: number): string {
 	if (percent >= 90) return PILL.danger;
 	if (percent >= 75) return PILL.attention;
-	return "bg-secondary text-muted-foreground";
+	return "text-muted-foreground ring-1 ring-inset ring-border";
+}
+
+const GAUGE_CELLS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+/**
+ * A Claude usage window as an instrument: ten cells, one per 10% used, and
+ * the measured percentage beside it. The cells take the chip's colour, so
+ * the gauge goes amber and red at the same thresholds the chip does.
+ */
+function UsageGauge({ label, percent }: { label: string; percent: number }) {
+	const lit = Math.round((Math.min(percent, 100) / 100) * GAUGE_CELLS.length);
+	return (
+		<span className="flex items-center gap-1.5">
+			<span className="text-faint-foreground">{label}</span>
+			<span aria-hidden className="flex items-center gap-[2px]">
+				{GAUGE_CELLS.map((cell) => (
+					<span
+						key={cell}
+						className={cn(
+							"h-[9px] w-[3px] rounded-[1px] bg-current",
+							cell >= lit && "opacity-20",
+						)}
+					/>
+				))}
+			</span>
+			<span>{percent}%</span>
+		</span>
+	);
 }
 
 function resetsIn(resetsAt: string | null): string {
@@ -451,10 +479,13 @@ function OdinShell() {
 						aria-current={isActive ? "page" : undefined}
 						onClick={() => navigate({ to })}
 						className={cn(
-							"flex size-9 items-center justify-center rounded-[9px] transition-colors",
+							// The page you're on: a raised square and a 2px tick on the
+							// rail's edge, like a selector switch - position, not colour.
+							"relative flex size-9 items-center justify-center rounded-[6px] transition-colors",
+							"before:absolute before:top-1/2 before:-left-2 before:h-4 before:w-[2px] before:-translate-y-1/2 before:rounded-r-[2px] before:bg-foreground before:transition-opacity",
 							isActive
-								? BUTTON.selected
-								: "text-muted-foreground hover:text-foreground",
+								? "bg-accent text-foreground before:opacity-100"
+								: "text-muted-foreground before:opacity-0 hover:text-foreground",
 						)}
 					>
 						<Icon className="size-[17px]" />
@@ -466,16 +497,16 @@ function OdinShell() {
 	};
 
 	return (
-		// The faint violet light over the top-left of every page is the shell's
-		// - it's what keeps a dark, mostly-neutral app from reading as grey.
-		<div className="flex h-full w-full flex-col bg-background bg-[radial-gradient(1200px_420px_at_18%_-160px,color-mix(in_oklab,var(--primary)_13%,transparent),transparent_70%)] text-foreground">
+		// Flat on purpose: the chrome is graphite and stays out of the way, so
+		// the only colour in the window is a status that wants your eye.
+		<div className="flex h-full w-full flex-col bg-background text-foreground">
 			{/* top bar - left pad clears macOS traffic lights; empty areas drag.
 			    The traffic lights are native and DON'T scale with page zoom, so the
 			    bar height and their inset are counter-scaled by 1/zoomFactor to stay
 			    a constant physical size (otherwise zooming out slides the bar under
 			    the lights). Same trick the stock TopBar uses. */}
 			<div
-				className="flex shrink-0 items-center gap-3 border-b border-border bg-tertiary/70 pr-3"
+				className="flex shrink-0 items-center gap-3 border-b border-border bg-tertiary pr-3"
 				style={isMac ? { height: `${36 / zoomFactor}px` } : undefined}
 			>
 				<div
@@ -483,8 +514,15 @@ function OdinShell() {
 					style={{ width: isMac ? `${84 / zoomFactor}px` : "16px" }}
 				/>
 				<ZoomStable enabled={isMac}>
-					<span className="bg-gradient-to-r from-primary-ink to-primary bg-clip-text text-xs font-bold text-transparent">
-						{workConfig?.isDev ? "Odin Dev" : "Odin"}
+					<span className="flex items-center gap-1.5 text-foreground">
+						<span className="label-caps text-[11px] tracking-[0.22em]">
+							Odin
+						</span>
+						{workConfig?.isDev && (
+							<span className="label-caps rounded-[3px] px-1 py-px text-[9px] text-muted-foreground ring-1 ring-inset ring-border">
+								Dev
+							</span>
+						)}
 					</span>
 				</ZoomStable>
 				{/* Which set of accounts is live. Next to the app name because it
@@ -501,7 +539,7 @@ function OdinShell() {
 							value={activeProfileId}
 							disabled={isSwitchingProfile}
 							onChange={(event) => switchProfile(event.target.value)}
-							className="cursor-pointer rounded-[6px] bg-secondary px-1.5 py-[3px] text-[11px] font-semibold text-muted-foreground outline-none transition-colors hover:text-foreground disabled:opacity-50"
+							className="cursor-pointer rounded-[4px] bg-transparent px-1.5 py-[3px] text-[11px] font-medium text-soft-foreground outline-none ring-1 ring-inset ring-border transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-50"
 						>
 							{profiles.map((profile) => {
 								// A native <option> is text and nothing else - no dot, no
@@ -536,7 +574,7 @@ function OdinShell() {
 							onClick={() => switchProfile(profile.id)}
 							title={`Switch to ${profile.name}`}
 							className={cn(
-								"ml-1.5 rounded-full px-2 py-[2px] text-[11px] font-semibold tabular-nums disabled:opacity-50",
+								"data ml-1.5 rounded-[4px] px-2 py-[2px] text-[11px] font-medium disabled:opacity-50",
 								profile.needsYou > 0
 									? PILL.attention
 									: "bg-secondary text-muted-foreground",
@@ -555,7 +593,7 @@ function OdinShell() {
 								<TooltipTrigger asChild>
 									<span
 										className={cn(
-											"rounded-[6px] px-2 py-[3px] text-[11px] font-semibold tabular-nums",
+											"data flex items-center gap-2.5 rounded-[4px] px-2 py-[3px] text-[11px] font-medium",
 											usageTone(
 												Math.max(
 													usage.fiveHour?.percent ?? 0,
@@ -564,12 +602,12 @@ function OdinShell() {
 											),
 										)}
 									>
-										{[
-											usage.fiveHour && `5h ${usage.fiveHour.percent}%`,
-											usage.week && `week ${usage.week.percent}%`,
-										]
-											.filter(Boolean)
-											.join(" · ")}
+										{usage.fiveHour && (
+											<UsageGauge label="5h" percent={usage.fiveHour.percent} />
+										)}
+										{usage.week && (
+											<UsageGauge label="wk" percent={usage.week.percent} />
+										)}
 									</span>
 								</TooltipTrigger>
 								<TooltipContent side="bottom" className="max-w-[280px]">
@@ -593,7 +631,7 @@ function OdinShell() {
 								<TooltipTrigger asChild>
 									<span
 										className={cn(
-											"rounded-[6px] px-2 py-[3px] text-[11px] font-semibold tabular-nums",
+											"data rounded-[4px] px-2 py-[3px] text-[11px] font-medium",
 											badgeTone(load, limits),
 										)}
 									>
@@ -620,7 +658,7 @@ function OdinShell() {
 			<div className="flex min-h-0 flex-1">
 				{/* icon rail - scrolls when zoomed in past its height, or the bottom
 				    icons (Settings, the raven) clip off with no way back to them. */}
-				<div className="hide-scrollbar flex w-[52px] shrink-0 flex-col items-center gap-1.5 overflow-y-auto border-r border-border bg-tertiary/70 py-2.5 [&>*]:shrink-0">
+				<div className="hide-scrollbar flex w-[52px] shrink-0 flex-col items-center gap-1 overflow-y-auto border-r border-border bg-tertiary py-2.5 [&>*]:shrink-0">
 					{RAIL_ITEMS.map(renderRailItem)}
 					<div className="flex-1" />
 					{renderRailItem(INSIGHTS_ITEM)}

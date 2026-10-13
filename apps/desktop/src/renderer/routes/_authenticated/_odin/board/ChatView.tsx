@@ -789,7 +789,7 @@ function UserBubble({
 	return (
 		<div
 			className={cn(
-				"mt-5 mb-1 ml-auto max-w-[75%] select-text cursor-text break-words rounded-2xl rounded-br-md border border-primary/30 bg-primary/15 px-4 py-2.5 text-[13.5px] leading-relaxed text-foreground shadow-sm first:mt-0",
+				"mt-5 mb-1 ml-auto max-w-[75%] select-text cursor-text break-words rounded-[10px] rounded-br-[3px] border border-input bg-secondary px-4 py-2.5 text-[13.5px] leading-relaxed text-foreground first:mt-0",
 				pending && "opacity-60",
 				pending && ENTER,
 			)}
@@ -1950,13 +1950,13 @@ function Composer({
 		<div className="px-4 pb-3 pt-1">
 			<div
 				className={cn(
-					"relative rounded-[14px] border border-border bg-background px-3 pb-2 pt-2.5 focus-within:border-primary/60",
+					"relative rounded-[8px] border border-border bg-background px-3 pb-2 pt-2.5 focus-within:border-primary/60",
 					bash && "border-pink-500/60 focus-within:border-pink-500",
 					dragging && "border-primary bg-primary/10",
 				)}
 			>
 				{matches.length > 0 && (
-					<div className="absolute inset-x-0 bottom-full mb-1.5 overflow-hidden rounded-[10px] border border-border bg-popover shadow-[0_12px_40px_rgba(0,0,0,0.5)]">
+					<div className="absolute inset-x-0 bottom-full mb-1.5 overflow-hidden rounded-[8px] border border-border bg-popover shadow-[0_12px_40px_rgba(0,0,0,0.5)]">
 						<div className="max-h-[240px] overflow-y-auto py-1">
 							{matches.map((skill, index) => (
 								<button

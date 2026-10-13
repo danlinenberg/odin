@@ -15,133 +15,143 @@
  * This ensures the app looks correct during initial load before hydration.
  */
 :root {
-	/* Fallbacks = the built-in Dark theme (shared/themes/built-in/ember.ts),
+	/* Fallbacks = the built-in Graphite theme (shared/themes/built-in/ember.ts),
 	   so the first paint before the theme store hydrates already matches. */
-	--background: #0e0e11;
-	--foreground: #ececf1;
-	--card: #16161b;
-	--card-foreground: #ececf1;
-	--popover: #1a1a20;
-	--popover-foreground: #ececf1;
-	--primary: #a394ff;
-	--primary-foreground: #0e0e11;
-	--secondary: #1f1f26;
-	--secondary-foreground: #ececf1;
-	--muted: #1f1f26;
-	--muted-foreground: #9696a3;
-	--accent: #25252d;
-	--accent-foreground: #ececf1;
-	--tertiary: #121216;
-	--tertiary-active: #1f1f26;
-	--destructive: #f0647a;
-	--destructive-foreground: #fff1f3;
-	--border: #26262e;
-	--input: #2e2e37;
-	--ring: #a394ff;
-	--chart-1: #a394ff;
-	--chart-2: #5aa9ff;
-	--chart-3: #3ecf8e;
-	--chart-4: #f5b83d;
-	--chart-5: #f0647a;
-	--radius: 0.625rem;
-	--sidebar: #121216;
-	--sidebar-foreground: #ececf1;
-	--sidebar-primary: #a394ff;
-	--sidebar-primary-foreground: #0e0e11;
-	--sidebar-accent: #1f1f26;
-	--sidebar-accent-foreground: #ececf1;
-	--sidebar-border: #26262e;
-	--sidebar-ring: #a394ff;
-	--highlight-match: rgba(163, 148, 255, 0.2);
-	--highlight-active: rgba(163, 148, 255, 0.45);
-	--highlight: #a394ff;
-	--highlight-foreground: #0e0e11;
+	--background: #131312;
+	--foreground: #ecebe6;
+	--card: #1a1a18;
+	--card-foreground: #ecebe6;
+	--popover: #1e1e1c;
+	--popover-foreground: #ecebe6;
+	--primary: #ecebe6;
+	--primary-foreground: #131312;
+	--secondary: #222220;
+	--secondary-foreground: #ecebe6;
+	--muted: #222220;
+	--muted-foreground: #a09f97;
+	--accent: #2b2b28;
+	--accent-foreground: #ecebe6;
+	--tertiary: #0f0f0e;
+	--tertiary-active: #1d1d1b;
+	--destructive: #f0716a;
+	--destructive-foreground: #131312;
+	--border: #2a2a27;
+	--input: #3a3a36;
+	--ring: #ecebe6;
+	--chart-1: #c9c8c0;
+	--chart-2: #6aa6f8;
+	--chart-3: #5cc98f;
+	--chart-4: #e9b44c;
+	--chart-5: #f0716a;
+	/* One radius family, tight: 8px panels, 6px controls, 4px chips. */
+	--radius: 0.5rem;
+	--sidebar: #0f0f0e;
+	--sidebar-foreground: #ecebe6;
+	--sidebar-primary: #ecebe6;
+	--sidebar-primary-foreground: #131312;
+	--sidebar-accent: #222220;
+	--sidebar-accent-foreground: #ecebe6;
+	--sidebar-border: #2a2a27;
+	--sidebar-ring: #ecebe6;
+	--highlight-match: rgba(233, 180, 76, 0.22);
+	--highlight-active: rgba(233, 180, 76, 0.5);
+	--highlight: #ecebe6;
+	--highlight-foreground: #131312;
 	/* Sidebar row fills: low-opacity foreground washes so they track any theme */
-	--fill-hover: color-mix(in oklab, var(--foreground) 7%, transparent);
+	--fill-hover: color-mix(in oklab, var(--foreground) 6%, transparent);
 	--fill-selected: color-mix(in oklab, var(--foreground) 10%, transparent);
 
-	/* Odin's semantic palette. Not theme-store variables: a theme recolours
-	   surfaces, but a state reads the same everywhere. Each hue means one
-	   thing - never use one for decoration:
+	/* Two text steps between foreground and muted-foreground: soft (body
+	   copy) and faint (tags, separators, placeholders). Graphite's own
+	   foreground mixed into its background, at 82% and 50%. */
+	--soft-foreground: #c0bfbb;
+	--faint-foreground: #767572;
+
+	/* Odin's semantic palette - the only colour in the UI. Not theme-store
+	   variables: a theme recolours surfaces, but a state reads the same
+	   everywhere. Each hue means one thing - never use one for decoration:
 	     working   - an agent is running (blue)
 	     attention - waiting on you, a warning (amber)
 	     success   - finished, done, connected (green)
 	     danger    - failed, overdue, destructive (red)
-	   Chips tint them: bg-<hue>/12 text-<hue>. Two text steps sit between
-	   foreground and muted-foreground: soft (body copy) and faint (tags,
-	   separators, placeholders). */
-	--soft-foreground: #c9c9d3;
-	--faint-foreground: #6e6e7b;
-	--working: #5aa9ff;
-	--attention: #f5b83d;
-	--success: #3ecf8e;
-	--danger: #f0647a;
-	/* Links: cyan, so a link is never mistaken for a violet label or a blue
-	   working status. */
-	--link: #4dd0e1;
+	   Chips tint them: bg-<hue>/12 text-<hue>-ink. */
+	--working: #6aa6f8;
+	--attention: #e9b44c;
+	--success: #5cc98f;
+	--danger: #f0716a;
+	/* Links: a quiet cyan, so a link is never mistaken for a blue working
+	   status. */
+	--link: #7cc6d4;
 	/* Each hue's "ink": the hue lifted toward white, for text sitting on its
-	   own tint - the light label on a pill, the top of a glossy button. */
-	--primary-ink: color-mix(in oklab, var(--primary) 52%, white);
-	--working-ink: color-mix(in oklab, var(--working) 52%, white);
-	--attention-ink: color-mix(in oklab, var(--attention) 52%, white);
-	--success-ink: color-mix(in oklab, var(--success) 52%, white);
-	--danger-ink: color-mix(in oklab, var(--danger) 52%, white);
+	   own tint - the label on a pill. */
+	--primary-ink: var(--primary);
+	--working-ink: color-mix(in oklab, var(--working) 62%, white);
+	--attention-ink: color-mix(in oklab, var(--attention) 62%, white);
+	--success-ink: color-mix(in oklab, var(--success) 62%, white);
+	--danger-ink: color-mix(in oklab, var(--danger) 62%, white);
+
+	/* Type: the Mac's own faces. SF Pro for reading, SF Mono for anything
+	   that is a measurement - counts, durations, percentages, ids, keys. */
+	--font-ui:
+		-apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui,
+		sans-serif;
+	--font-data: "SF Mono", ui-monospace, Menlo, monospace;
 }
 
 /* Light theme fallback values - applied before hydration if user has light theme saved */
 :root.light {
-	--background: oklch(1 0 0);
-	--foreground: oklch(0.145 0 0);
-	--card: oklch(1 0 0);
-	--card-foreground: oklch(0.145 0 0);
-	--popover: oklch(1 0 0);
-	--popover-foreground: oklch(0.145 0 0);
-	--primary: oklch(0.205 0 0);
-	--primary-foreground: oklch(0.985 0 0);
-	--secondary: oklch(0.97 0 0);
-	--secondary-foreground: oklch(0.205 0 0);
-	--muted: oklch(0.97 0 0);
-	--muted-foreground: oklch(0.556 0 0);
-	--accent: oklch(0.97 0 0);
-	--accent-foreground: oklch(0.205 0 0);
-	--tertiary: oklch(0.95 0.003 40);
-	--tertiary-active: oklch(0.9 0.003 40);
-	--destructive: oklch(0.577 0.245 27.325);
-	--destructive-foreground: oklch(0.985 0 0);
-	--border: oklch(0.922 0 0);
-	--input: oklch(0.922 0 0);
-	--ring: oklch(0.708 0 0);
-	--chart-1: oklch(0.646 0.222 41.116);
-	--chart-2: oklch(0.6 0.118 184.704);
-	--chart-3: oklch(0.398 0.07 227.392);
-	--chart-4: oklch(0.828 0.189 84.429);
-	--chart-5: oklch(0.769 0.188 70.08);
-	--sidebar: oklch(0.985 0 0);
-	--sidebar-foreground: oklch(0.145 0 0);
-	--sidebar-primary: oklch(0.205 0 0);
-	--sidebar-primary-foreground: oklch(0.985 0 0);
-	--sidebar-accent: oklch(0.97 0 0);
-	--sidebar-accent-foreground: oklch(0.205 0 0);
-	--sidebar-border: oklch(0.922 0 0);
-	--sidebar-ring: oklch(0.708 0 0);
-	--highlight-match: rgba(255, 211, 61, 0.35);
-	--highlight-active: rgba(255, 150, 50, 0.55);
-	--highlight: oklch(0.646 0.222 41.116);
-	--highlight-foreground: oklch(0.985 0 0);
-	--fill-hover: color-mix(in oklab, var(--foreground) 4%, transparent);
-	--fill-selected: color-mix(in oklab, var(--foreground) 6%, transparent);
-	--soft-foreground: oklch(0.32 0 0);
-	--faint-foreground: oklch(0.62 0 0);
-	--working: #2f7fe0;
-	--attention: #b7791f;
-	--success: #1f9d63;
-	--danger: #d6334f;
-	--link: #0e7490;
-	--primary-ink: color-mix(in oklab, var(--primary) 70%, black);
-	--working-ink: color-mix(in oklab, var(--working) 70%, black);
-	--attention-ink: color-mix(in oklab, var(--attention) 70%, black);
-	--success-ink: color-mix(in oklab, var(--success) 70%, black);
-	--danger-ink: color-mix(in oklab, var(--danger) 70%, black);
+	--background: #f6f5f1;
+	--foreground: #1b1b19;
+	--card: #ffffff;
+	--card-foreground: #1b1b19;
+	--popover: #ffffff;
+	--popover-foreground: #1b1b19;
+	--primary: #1b1b19;
+	--primary-foreground: #f6f5f1;
+	--secondary: #ecebe5;
+	--secondary-foreground: #1b1b19;
+	--muted: #ecebe5;
+	--muted-foreground: #64635b;
+	--accent: #e4e3dc;
+	--accent-foreground: #1b1b19;
+	--tertiary: #eeede7;
+	--tertiary-active: #e2e1da;
+	--destructive: #c3352f;
+	--destructive-foreground: #ffffff;
+	--border: #dedcd4;
+	--input: #cfcdc4;
+	--ring: #1b1b19;
+	--chart-1: #3d3c37;
+	--chart-2: #2261c4;
+	--chart-3: #1d7d4d;
+	--chart-4: #975e08;
+	--chart-5: #c3352f;
+	--sidebar: #eeede7;
+	--sidebar-foreground: #1b1b19;
+	--sidebar-primary: #1b1b19;
+	--sidebar-primary-foreground: #f6f5f1;
+	--sidebar-accent: #e4e3dc;
+	--sidebar-accent-foreground: #1b1b19;
+	--sidebar-border: #dedcd4;
+	--sidebar-ring: #1b1b19;
+	--highlight-match: rgba(245, 196, 66, 0.4);
+	--highlight-active: rgba(240, 160, 40, 0.6);
+	--highlight: #1b1b19;
+	--highlight-foreground: #f6f5f1;
+	--fill-hover: color-mix(in oklab, var(--foreground) 5%, transparent);
+	--fill-selected: color-mix(in oklab, var(--foreground) 8%, transparent);
+	--soft-foreground: #383836;
+	--faint-foreground: #747471;
+	--working: #2261c4;
+	--attention: #975e08;
+	--success: #1d7d4d;
+	--danger: #c3352f;
+	--link: #0f6b80;
+	--primary-ink: var(--primary);
+	--working-ink: color-mix(in oklab, var(--working) 78%, black);
+	--attention-ink: color-mix(in oklab, var(--attention) 78%, black);
+	--success-ink: color-mix(in oklab, var(--success) 78%, black);
+	--danger-ink: color-mix(in oklab, var(--danger) 78%, black);
 }
 
 /* tw-animate-css's enter/exit always animate `filter: blur(…)`, even at 0, and a
@@ -239,12 +249,51 @@
 	--color-attention-ink: var(--attention-ink);
 	--color-success-ink: var(--success-ink);
 	--color-danger-ink: var(--danger-ink);
+	--font-sans: var(--font-ui);
+	--font-mono: var(--font-data);
 }
 
-/* A soft halo in a colour - glow-primary, glow-success … Pills and the
-   status dots wear one; neutrals don't, a glow on grey says nothing. */
+/* A hairline in a colour - glow-success, glow-danger … Tinted pills wear
+   one so their edge is drawn, not blurred: Graphite has no halos. Neutrals
+   don't, a coloured edge on grey says nothing. */
 @utility glow-* {
-	box-shadow: 0 0 5px color-mix(in oklab, --value(--color-*) 32%, transparent);
+	box-shadow: inset 0 0 0 1px
+		color-mix(in oklab, --value(--color-*) 30%, transparent);
+}
+
+/* Figures that get compared - counts, durations, percentages, memory - sit
+   in SF Mono with fixed-width digits, so a column of them lines up and a
+   ticking number doesn't jitter. */
+@utility data {
+	font-family: var(--font-data);
+	font-variant-numeric: tabular-nums slashed-zero;
+	letter-spacing: -0.01em;
+}
+
+/* Section labels: small caps in the data face. The console's voice for
+   "this is a heading over a list", without a kicker. */
+@utility label-caps {
+	font-family: var(--font-data);
+	font-size: 10.5px;
+	font-weight: 600;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+/* A status lamp: a small square-cornered light in its status colour. The
+   live one (data-live) breathes - the one piece of motion on the board,
+   and it only ever means "an agent is running right now". */
+@utility lamp {
+	display: inline-block;
+	flex-shrink: 0;
+	width: 7px;
+	height: 7px;
+	border-radius: 2px;
+	background: currentColor;
+	box-shadow: inset 0 0 0 1px color-mix(in oklab, white 18%, transparent);
+	&[data-live="true"] {
+		animation: odin-lamp 1.8s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+	}
 }
 
 @layer base {
@@ -274,6 +323,37 @@
 
 	body {
 		@apply bg-background text-foreground;
+		font-family: var(--font-ui);
+		font-feature-settings: "kern", "calt";
+		text-rendering: optimizeLegibility;
+	}
+
+	/* The parts nobody draws still carry the theme: selection, the caret,
+	   the keyboard focus ring, keycaps. */
+	::selection {
+		background: color-mix(in oklab, var(--foreground) 22%, transparent);
+		color: inherit;
+	}
+
+	input,
+	textarea,
+	[contenteditable="true"] {
+		caret-color: var(--foreground);
+	}
+
+	:where(button, a, [role="button"], [role="tab"], [tabindex]):focus-visible {
+		outline: 1.5px solid var(--ring);
+		outline-offset: 2px;
+	}
+
+	kbd {
+		font-family: var(--font-data);
+		font-variant-numeric: tabular-nums;
+	}
+
+	a {
+		text-underline-offset: 3px;
+		text-decoration-thickness: 1px;
 	}
 
 	/* Native controls - date pickers, <select> menus, scrollbars - follow the
@@ -582,5 +662,23 @@
 	}
 	60% {
 		transform: translateY(0) rotate(5deg);
+	}
+}
+
+/* The live status lamp: a quick rise, a long fall - the beat of something
+   working, not a notification asking to be clicked. Opacity only. */
+@keyframes odin-lamp {
+	0%,
+	100% {
+		opacity: 1;
+	}
+	55% {
+		opacity: 0.35;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	[data-live="true"] {
+		animation: none;
 	}
 }

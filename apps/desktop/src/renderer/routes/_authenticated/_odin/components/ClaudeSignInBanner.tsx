@@ -32,7 +32,7 @@ export function ClaudeSignInBanner() {
 		(login.data && !login.data.ok ? login.data.error : null);
 
 	return (
-		<div className="flex shrink-0 items-center gap-3 bg-gradient-to-r from-primary-ink to-primary px-4 py-2 text-primary-foreground shadow-[0_2px_16px_-2px_color-mix(in_oklab,var(--primary)_70%,transparent)]">
+		<div className="flex shrink-0 items-center gap-3 border-b border-border bg-primary px-4 py-2 text-primary-foreground">
 			<span className="size-2 shrink-0 animate-pulse rounded-full bg-white" />
 			<span className="text-sm font-bold">Sign in to Claude</span>
 			<span className="min-w-0 cursor-text select-text truncate text-xs opacity-85">
@@ -55,7 +55,7 @@ export function ClaudeSignInBanner() {
 						value={code}
 						onChange={(event) => setCode(event.target.value)}
 						placeholder="Paste code"
-						className="w-40 rounded-[7px] bg-white/15 px-2 py-1 text-xs placeholder:text-white/60 focus:outline-none"
+						className="w-40 rounded-[6px] bg-white/15 px-2 py-1 text-xs placeholder:text-white/60 focus:outline-none"
 					/>
 					<span className="text-xs opacity-85">Waiting…</span>
 				</form>
@@ -63,7 +63,7 @@ export function ClaudeSignInBanner() {
 				<button
 					type="button"
 					onClick={() => login.mutate()}
-					className="rounded-[7px] bg-white px-3 py-1 text-xs font-bold text-primary shadow-sm hover:brightness-95"
+					className="rounded-[4px] bg-primary-foreground px-3 py-1 text-xs font-semibold text-primary hover:opacity-90"
 				>
 					{failed ? "Try again" : "Sign in"}
 				</button>

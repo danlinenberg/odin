@@ -202,7 +202,6 @@ function CrowPanel({
 	const name = firstName();
 	const icon = (
 		<span className="relative flex size-6 shrink-0 items-center justify-center">
-			<span className="absolute inset-0 rounded-full bg-violet-500/60 blur-md" />
 			<CrowIcon className="relative size-5" />
 		</span>
 	);
@@ -217,7 +216,7 @@ function CrowPanel({
 					width,
 					height: Math.min(CHAT_H, room),
 				}}
-				className="fixed z-[60] flex flex-col overflow-hidden rounded-2xl border border-violet-400/50 bg-tertiary text-popover-foreground shadow-2xl shadow-black/30"
+				className="fixed z-[60] flex flex-col overflow-hidden rounded-[8px] border border-input bg-tertiary text-popover-foreground shadow-2xl shadow-black/30"
 			>
 				{/* A row of its own: floated over the chat, scrolled text ran under them. */}
 				<div className="flex shrink-0 items-center justify-between px-2.5 pt-2.5">
@@ -243,7 +242,7 @@ function CrowPanel({
 		<div
 			ref={panel}
 			style={{ left: Math.max(left, 8), ...vertical, width, maxHeight: room }}
-			className="fixed z-[60] flex flex-col gap-3.5 rounded-xl border border-violet-400/50 bg-tertiary p-4 text-popover-foreground shadow-2xl shadow-black/30"
+			className="fixed z-[60] flex flex-col gap-3.5 rounded-xl border border-input bg-tertiary p-4 text-popover-foreground shadow-2xl shadow-black/30"
 		>
 			<div className="flex items-start gap-2.5 text-[14px] leading-snug">
 				{icon}
@@ -433,15 +432,15 @@ export function CrowButton({
 						data-crow
 						aria-label="Ask the raven"
 						ref={button}
-						className={`relative z-[60] flex size-9 items-center justify-center rounded-[9px] transition-colors ${open ? "bg-violet-500/20 text-violet-200" : "text-muted-foreground hover:text-foreground"}`}
+						className={`relative z-[60] flex size-9 items-center justify-center rounded-[8px] transition-colors ${open ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"}`}
 						onClick={open ? onClose : onOpen}
 					>
 						<CrowIcon
-							className={`size-[19px] drop-shadow-[0_0_5px_rgba(167,139,250,0.6)] ${working ? "animate-[odin-nod_1.6s_ease-in-out_infinite]" : ""} motion-reduce:[&_*]:animate-none motion-reduce:animate-none`}
+							className={`size-[19px] ${working ? "animate-[odin-nod_1.6s_ease-in-out_infinite]" : ""} motion-reduce:[&_*]:animate-none motion-reduce:animate-none`}
 							idle={!working}
 						/>
 						{!seen && !open && (
-							<span className="pointer-events-none absolute -inset-0.5 rounded-[11px] border-2 border-violet-400 animate-[raven-ring_2.4s_ease-out_infinite] motion-reduce:animate-none" />
+							<span className="pointer-events-none absolute -inset-0.5 rounded-[8px] border-[1.5px] border-foreground/70 animate-[raven-ring_2.4s_ease-out_infinite] motion-reduce:animate-none" />
 						)}
 						{(working || waiting) && !open && (
 							<span

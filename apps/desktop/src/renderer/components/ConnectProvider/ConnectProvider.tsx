@@ -385,9 +385,9 @@ function GithubConnect({ onDone }: { onDone: () => void }) {
  * app password is Basic auth on Gmail's Atom feed. The main process checks it
  * against the feed before saving, so a wrong one fails right here.
  */
-/** Odin's own purple, filled - both steps of the form are the thing to click. */
+/** Inked, filled - both steps of the form are the thing to click. */
 const GMAIL_CTA =
-	"rounded-[7px] bg-[#a394ff] px-3 py-1.5 text-xs font-semibold text-[#131126] transition-colors hover:bg-[#b8adff] disabled:opacity-40";
+	"rounded-[6px] bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40";
 
 function GmailConnect({ onDone }: { onDone: () => void }) {
 	const [address, setAddress] = useState("");

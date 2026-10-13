@@ -86,8 +86,7 @@ export function SettingsSidebar() {
 								onMouseMove={() => setActive(i)}
 								className={cn(
 									"rounded-lg px-2.5 py-2 text-left transition-colors",
-									i === active &&
-										"bg-primary/12 shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--primary)_28%,transparent)]",
+									i === active && "bg-accent ring-1 ring-inset ring-input",
 								)}
 							>
 								<span className="block text-sm text-foreground">
@@ -111,7 +110,7 @@ export function SettingsSidebar() {
 								className={cn(
 									"group flex items-start gap-3 rounded-lg px-2.5 py-2 transition-colors",
 									isActive
-										? "bg-primary/12 shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--primary)_28%,transparent)]"
+										? "bg-accent ring-1 ring-inset ring-input"
 										: "hover:bg-accent/60",
 								)}
 							>
@@ -119,7 +118,7 @@ export function SettingsSidebar() {
 									className={cn(
 										"mt-0.5 size-4 shrink-0",
 										isActive
-											? "text-primary"
+											? "text-foreground"
 											: "text-muted-foreground group-hover:text-foreground",
 									)}
 								/>
@@ -168,7 +167,7 @@ function revealSetting(label: string, framesLeft = 60) {
 			[
 				{
 					backgroundColor:
-						"color-mix(in oklab, var(--primary) 22%, transparent)",
+						"color-mix(in oklab, var(--attention) 22%, transparent)",
 				},
 				{ backgroundColor: "transparent" },
 			],

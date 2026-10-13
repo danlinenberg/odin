@@ -103,7 +103,7 @@ export function FeedTabs() {
 								aria-current={isActive ? "page" : undefined}
 								onClick={() => navigate({ to })}
 								className={cn(
-									"relative flex items-center gap-1.5 rounded-[7px] px-2 py-1.5 text-[13px] font-semibold transition-colors",
+									"relative flex items-center gap-1.5 rounded-[6px] px-2 py-1.5 text-[12.5px] font-medium transition-colors",
 									isActive
 										? BUTTON.selected
 										: "text-muted-foreground hover:text-foreground",
@@ -112,6 +112,9 @@ export function FeedTabs() {
 								<Icon
 									className={cn("size-[15px]", issue === "off" && "opacity-40")}
 								/>
+								{/* Named, not icon-only: a strip of bare glyphs hid which
+								    one was All. Narrow windows fall back to the icons. */}
+								<span className="hidden xl:inline">{label}</span>
 								{issue && (
 									<span
 										aria-hidden
@@ -126,10 +129,10 @@ export function FeedTabs() {
 								{count > 0 && (
 									<span
 										className={cn(
-											"rounded-[10px] px-1.5 text-[11px] font-semibold tabular-nums",
+											"data text-[11px] font-medium",
 											isActive
-												? "bg-accent text-soft-foreground"
-												: "bg-secondary text-muted-foreground",
+												? "text-soft-foreground"
+												: "text-faint-foreground",
 										)}
 									>
 										{/* A 670-row Notion database shouldn't set the strip's width. */}

@@ -1192,7 +1192,7 @@ ${sanitizeText(truncatedBody)}`;
 				multiple
 				maxFiles={5}
 				maxFileSize={10 * 1024 * 1024}
-				className="[&>[data-slot=input-group]]:rounded-[13px] [&>[data-slot=input-group]]:border-[0.5px] [&>[data-slot=input-group]]:shadow-none [&>[data-slot=input-group]]:bg-foreground/[0.02]"
+				className="[&>[data-slot=input-group]]:rounded-[8px] [&>[data-slot=input-group]]:border-[0.5px] [&>[data-slot=input-group]]:shadow-none [&>[data-slot=input-group]]:bg-foreground/[0.02]"
 			>
 				{(linkedPR ||
 					linkedIssues.length > 0 ||

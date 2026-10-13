@@ -133,7 +133,7 @@ function NotionPage() {
 						onClick={() => setMentions.mutate({ enabled: !mentions })}
 						title="Also list pages assigned to you and open comment threads that @-mention you"
 						className={cn(
-							"shrink-0 cursor-pointer rounded-full border px-2.5 py-1 text-[12px] font-medium disabled:opacity-40",
+							"shrink-0 cursor-pointer rounded-[6px] border px-2.5 py-1 text-[12px] font-medium disabled:opacity-40",
 							mentions
 								? "border-primary bg-primary/15 text-foreground"
 								: "border-border bg-card text-muted-foreground hover:text-foreground",
@@ -147,7 +147,7 @@ function NotionPage() {
 						onChange={(e) => setDatabase.mutate({ databaseId: e.target.value })}
 						title="Which Notion database to read tasks from"
 						className={cn(
-							"max-w-[260px] cursor-pointer rounded-full border px-2.5 py-1 text-[12px] font-medium outline-none disabled:opacity-40",
+							"max-w-[260px] cursor-pointer rounded-[6px] border px-2.5 py-1 text-[12px] font-medium outline-none disabled:opacity-40",
 							databaseId
 								? "border-primary bg-primary/15 text-foreground"
 								: "border-border bg-card text-muted-foreground hover:text-foreground",
@@ -210,7 +210,7 @@ function NotionPage() {
 								)}
 							/>
 							{status}
-							<span className="rounded-[10px] bg-secondary px-1.5 font-medium text-muted-foreground">
+							<span className="rounded-[8px] bg-secondary px-1.5 font-medium text-muted-foreground">
 								{group.length}
 							</span>
 						</div>

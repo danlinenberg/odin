@@ -72,7 +72,7 @@ function Ask({ pending }: { pending: Pending }) {
 				onKeyDown={(event) => {
 					if (event.key === "Escape") close(null);
 				}}
-				className="fixed left-1/2 top-[12vh] z-50 flex w-[460px] max-w-[92vw] -translate-x-1/2 flex-col gap-3 rounded-[10px] border border-border bg-popover p-4 shadow-[0_18px_60px_rgba(0,0,0,0.6)]"
+				className="fixed left-1/2 top-[12vh] z-50 flex w-[460px] max-w-[92vw] -translate-x-1/2 flex-col gap-3 rounded-[8px] border border-border bg-popover p-4 shadow-[0_18px_60px_rgba(0,0,0,0.6)]"
 			>
 				<div className="text-xs font-semibold text-foreground">{heading}</div>
 				<button

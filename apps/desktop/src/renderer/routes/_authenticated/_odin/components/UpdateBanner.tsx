@@ -31,7 +31,7 @@ export function UpdateBanner() {
 
 	return (
 		// Solid violet, not a tint: it has to win against every page under it.
-		<div className="flex shrink-0 items-center gap-3 bg-gradient-to-r from-primary-ink to-primary px-4 py-2 text-primary-foreground shadow-[0_2px_16px_-2px_color-mix(in_oklab,var(--primary)_70%,transparent)]">
+		<div className="flex shrink-0 items-center gap-3 border-b border-border bg-primary px-4 py-2 text-primary-foreground">
 			<span className="size-2 shrink-0 animate-pulse rounded-full bg-white" />
 			<span className="text-sm font-bold">
 				Odin {update?.version} is available
@@ -50,7 +50,7 @@ export function UpdateBanner() {
 				<button
 					type="button"
 					onClick={() => dismiss.mutate()}
-					className="rounded-[7px] px-3 py-1 text-xs font-medium opacity-85 hover:bg-white/15 hover:opacity-100"
+					className="rounded-[6px] px-3 py-1 text-xs font-medium opacity-85 hover:bg-white/15 hover:opacity-100"
 				>
 					Later
 				</button>
@@ -59,7 +59,7 @@ export function UpdateBanner() {
 				type="button"
 				disabled={busy}
 				onClick={() => install.mutate()}
-				className="rounded-[7px] bg-white px-3 py-1 text-xs font-bold text-primary shadow-sm hover:brightness-95 disabled:opacity-60"
+				className="rounded-[4px] bg-primary-foreground px-3 py-1 text-xs font-semibold text-primary hover:opacity-90 disabled:opacity-60"
 			>
 				{busy ? "Updating…" : "Update and restart"}
 			</button>

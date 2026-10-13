@@ -1,114 +1,115 @@
 import type { Theme } from "../types";
 
 /**
- * Dark theme - Odin's own palette. Cool ink neutrals, one brand colour
- * (violet), and four status hues that live in globals.css (--working,
- * --attention, --success, --danger) so every page names a state the same way.
+ * Dark theme - Graphite. A flight deck, not a nightclub: warm graphite
+ * neutrals, bone-white ink, and no brand hue at all. Colour in Odin means
+ * state - the four status hues in globals.css (--working, --attention,
+ * --success, --danger) are the only colour on screen, so the eye lands on
+ * what is running, waiting or broken. Primary actions are inked, not tinted.
  */
 export const darkTheme: Theme = {
 	id: "dark",
-	name: "Dark",
+	name: "Graphite",
 	author: "Odin",
 	type: "dark",
 	isBuiltIn: true,
 
 	ui: {
-		// Core - cool ink neutrals, a hair of blue so the violet accent sits in
-		// the same family instead of fighting a warm brown.
-		background: "#0e0e11",
-		foreground: "#ececf1",
-		card: "#16161b",
-		cardForeground: "#ececf1",
-		popover: "#1a1a20",
-		popoverForeground: "#ececf1",
+		// Core - graphite with a hair of warmth, so long sessions read as
+		// paper-under-lamp rather than blue screen.
+		background: "#131312",
+		foreground: "#ecebe6",
+		card: "#1a1a18",
+		cardForeground: "#ecebe6",
+		popover: "#1e1e1c",
+		popoverForeground: "#ecebe6",
 
-		// Primary - Odin violet: the one brand colour. Primary buttons,
-		// switches, focus, links and "selected" all draw from it.
-		primary: "#a394ff",
-		primaryForeground: "#0e0e11",
+		// Primary - ink. The one button a view exists for is bone on graphite.
+		primary: "#ecebe6",
+		primaryForeground: "#131312",
 
 		// Secondary - the raised neutral every quiet button and chip sits on
-		secondary: "#1f1f26",
-		secondaryForeground: "#ececf1",
+		secondary: "#222220",
+		secondaryForeground: "#ecebe6",
 
 		// Muted
-		muted: "#1f1f26",
-		mutedForeground: "#9696a3",
+		muted: "#222220",
+		mutedForeground: "#a09f97",
 
-		// Accent - hover fill for menu rows
-		accent: "#25252d",
-		accentForeground: "#ececf1",
+		// Accent - hover fill for menu rows, and the "selected" surface
+		accent: "#2b2b28",
+		accentForeground: "#ecebe6",
 
-		// Tertiary - rail, top bar, board columns
-		tertiary: "#121216",
-		tertiaryActive: "#1f1f26",
+		// Tertiary - rail, top bar, board columns: the chrome sits below the work
+		tertiary: "#0f0f0e",
+		tertiaryActive: "#1d1d1b",
 
 		// Destructive - the same red as a failed session
-		destructive: "#f0647a",
-		destructiveForeground: "#fff1f3",
+		destructive: "#f0716a",
+		destructiveForeground: "#131312",
 
-		// Borders
-		border: "#26262e",
-		input: "#2e2e37",
-		ring: "#a394ff",
+		// Borders - hairlines, one step off the surface
+		border: "#2a2a27",
+		input: "#3a3a36",
+		ring: "#ecebe6",
 
 		// Sidebar
-		sidebar: "#121216",
-		sidebarForeground: "#ececf1",
-		sidebarPrimary: "#a394ff",
-		sidebarPrimaryForeground: "#0e0e11",
-		sidebarAccent: "#1f1f26",
-		sidebarAccentForeground: "#ececf1",
-		sidebarBorder: "#26262e",
-		sidebarRing: "#a394ff",
+		sidebar: "#0f0f0e",
+		sidebarForeground: "#ecebe6",
+		sidebarPrimary: "#ecebe6",
+		sidebarPrimaryForeground: "#131312",
+		sidebarAccent: "#222220",
+		sidebarAccentForeground: "#ecebe6",
+		sidebarBorder: "#2a2a27",
+		sidebarRing: "#ecebe6",
 
-		// Charts - the brand, then the four status hues
-		chart1: "#a394ff",
-		chart2: "#5aa9ff",
-		chart3: "#3ecf8e",
-		chart4: "#f5b83d",
-		chart5: "#f0647a",
+		// Charts - ink first, then the four status hues
+		chart1: "#c9c8c0",
+		chart2: "#6aa6f8",
+		chart3: "#5cc98f",
+		chart4: "#e9b44c",
+		chart5: "#f0716a",
 
-		// Search highlights
-		highlightMatch: "rgba(163, 148, 255, 0.2)",
-		highlightActive: "rgba(163, 148, 255, 0.45)",
+		// Search highlights - a marker pen, not the brand
+		highlightMatch: "rgba(233, 180, 76, 0.22)",
+		highlightActive: "rgba(233, 180, 76, 0.5)",
 
-		// Brand highlight
-		highlight: "#a394ff",
-		highlightForeground: "#0e0e11",
+		// Brand highlight (PRO badge and friends) - ink
+		highlight: "#ecebe6",
+		highlightForeground: "#131312",
 	},
 
 	terminal: {
-		background: "#0e0e11",
-		foreground: "#ececf1",
-		cursor: "#a394ff",
-		cursorAccent: "#0e0e11",
-		selectionBackground: "rgba(163, 148, 255, 0.28)",
+		background: "#131312",
+		foreground: "#ecebe6",
+		cursor: "#ecebe6",
+		cursorAccent: "#131312",
+		selectionBackground: "rgba(236, 235, 230, 0.18)",
 
 		// Standard ANSI colors
-		black: "#16161b",
-		red: "#f0647a",
-		green: "#3ecf8e",
-		yellow: "#f5b83d",
-		blue: "#5aa9ff",
-		magenta: "#c49bff",
-		cyan: "#4fd1d9",
-		white: "#ececf1",
+		black: "#1e1e1c",
+		red: "#f0716a",
+		green: "#5cc98f",
+		yellow: "#e9b44c",
+		blue: "#6aa6f8",
+		magenta: "#c79bf0",
+		cyan: "#62c6d4",
+		white: "#d6d5ce",
 
 		// Bright ANSI colors
-		brightBlack: "#6e6e7b",
-		brightRed: "#ff8a9b",
-		brightGreen: "#6ee0ab",
-		brightYellow: "#ffcd6b",
-		brightBlue: "#86c1ff",
-		brightMagenta: "#d6b8ff",
-		brightCyan: "#7fe3e9",
-		brightWhite: "#ffffff",
+		brightBlack: "#6f6e67",
+		brightRed: "#ff958e",
+		brightGreen: "#86dcac",
+		brightYellow: "#f5cb74",
+		brightBlue: "#93bffb",
+		brightMagenta: "#dbbaf7",
+		brightCyan: "#8ad8e2",
+		brightWhite: "#f6f5f0",
 	},
 
 	editor: {
 		syntax: {
-			comment: "#8b8b98",
+			comment: "#85847c",
 		},
 	},
 };

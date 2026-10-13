@@ -50,7 +50,7 @@ export function FilterPill({
 			type="button"
 			onClick={onClick}
 			className={cn(
-				"flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-medium transition-colors",
+				"flex shrink-0 items-center gap-1.5 rounded-[6px] px-2.5 py-1 text-[12px] font-medium transition-colors",
 				active
 					? BUTTON.selected
 					: "text-muted-foreground hover:text-foreground",
@@ -60,8 +60,8 @@ export function FilterPill({
 			{count !== undefined && (
 				<span
 					className={cn(
-						"rounded-[10px] px-1.5 text-[11px] tabular-nums",
-						active ? "bg-accent text-soft-foreground" : "bg-secondary",
+						"data text-[11px]",
+						active ? "text-soft-foreground" : "text-faint-foreground",
 					)}
 				>
 					{count > 99 ? "99+" : count}
@@ -93,7 +93,7 @@ export function FeedSelect({
 			onChange={(e) => onChange(e.target.value)}
 			title={title}
 			className={cn(
-				"max-w-[180px] cursor-pointer rounded-full border px-2.5 py-1 text-[12px] font-medium outline-none",
+				"max-w-[180px] cursor-pointer rounded-[6px] border px-2.5 py-1 text-[12px] font-medium outline-none",
 				value
 					? "border-primary bg-primary/15 text-foreground"
 					: "border-border bg-card text-muted-foreground hover:text-foreground",
@@ -147,7 +147,7 @@ export function FeedSearch({
 			placeholder={placeholder + hint}
 			aria-label={label}
 			className={cn(
-				"w-[180px] rounded-full border bg-card px-2.5 py-1 text-[12px] text-foreground outline-none placeholder:text-faint-foreground focus:border-primary",
+				"w-[180px] rounded-[6px] border bg-card px-2.5 py-1 text-[12px] text-foreground outline-none placeholder:text-faint-foreground focus:border-primary",
 				value ? "border-primary" : "border-border",
 			)}
 		/>
@@ -168,7 +168,7 @@ export function SyncButton({
 			onClick={onClick}
 			disabled={isSyncing}
 			title="Refresh Slack, Jira, GitHub and Notion"
-			className="shrink-0 rounded-[7px] bg-secondary px-2.5 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+			className="shrink-0 rounded-[6px] bg-secondary px-2.5 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
 		>
 			{isSyncing ? "syncing…" : "↻ Sync"}
 		</button>
@@ -195,13 +195,13 @@ export function RowActions({ children }: { children: ReactNode }) {
  * actually pointing at. Not on row hover - that lit this one up while the
  * cursor sat on the ✓ Done beside it.
  */
-export const ROW_PRIMARY_BUTTON = `shrink-0 rounded-[7px] px-3 py-1 text-xs font-semibold transition-colors disabled:opacity-40 ${BUTTON.secondary} hover:bg-primary hover:text-primary-foreground hover:ring-primary`;
+export const ROW_PRIMARY_BUTTON = `shrink-0 rounded-[6px] px-3 py-1 text-xs font-semibold transition-colors disabled:opacity-40 ${BUTTON.secondary} hover:bg-primary hover:text-primary-foreground hover:ring-primary`;
 
 /** Start session: always violet, unlike the other row primaries. */
-export const ROW_START_BUTTON = `shrink-0 rounded-[7px] px-3 py-1 text-xs font-semibold transition-[filter] disabled:opacity-40 ${BUTTON.primary}`;
+export const ROW_START_BUTTON = `shrink-0 rounded-[6px] px-3 py-1 text-xs font-semibold transition-[filter] disabled:opacity-40 ${BUTTON.primary}`;
 
 /** Same, for a row whose session is live - blue, the board's "working". */
-export const ROW_LIVE_BUTTON = `shrink-0 rounded-[7px] px-3 py-1 text-xs font-semibold transition-colors ${PILL.working} hover:bg-working/20`;
+export const ROW_LIVE_BUTTON = `shrink-0 rounded-[6px] px-3 py-1 text-xs font-semibold transition-colors ${PILL.working} hover:bg-working/20`;
 
 /** Low-signal row metadata - a date, a project key. Text, not another chip. */
 export const ROW_META = "text-[11px] text-muted-foreground";
@@ -269,7 +269,7 @@ export function IconTip({
 	);
 }
 export const ROW_LINK_BUTTON =
-	"whitespace-nowrap rounded-[7px] px-2.5 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground";
+	"whitespace-nowrap rounded-[6px] px-2.5 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground";
 
 /**
  * The scroller under a header, one row in it, and a notice in the same stack.
@@ -279,9 +279,9 @@ export const ROW_LINK_BUTTON =
 export const FEED_LIST =
 	"flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-[18px] pb-[18px] pt-2";
 export const FEED_ROW =
-	"group rounded-[10px] border border-border bg-card px-3.5 py-2 shadow-[inset_0_1px_0_rgb(255_255_255/0.035)] transition-colors hover:border-primary/30 hover:bg-secondary/60";
+	"group rounded-[8px] border border-border bg-card px-3.5 py-2 transition-colors hover:border-input hover:bg-secondary/60";
 /** A full-width box in the list - not connected, nothing picked, failed. */
-export const FEED_NOTICE_BOX = "rounded-[10px] px-3.5 py-2.5 text-xs";
+export const FEED_NOTICE_BOX = "rounded-[8px] px-3.5 py-2.5 text-xs";
 
 /**
  * A band or section label over a run of rows. Small caps with air above, so

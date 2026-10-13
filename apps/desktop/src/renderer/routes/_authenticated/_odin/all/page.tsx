@@ -708,7 +708,7 @@ function AllFeedPage() {
 							type="button"
 							onClick={clear}
 							title="Remove this filter"
-							className="rounded-full border border-primary/40 bg-primary/15 px-2 py-[1px] font-medium text-primary-ink hover:bg-primary/25"
+							className="rounded-[4px] border border-input bg-secondary px-2 py-[1px] font-medium text-foreground hover:bg-accent"
 						>
 							{label} ✕
 						</button>
@@ -1084,7 +1084,7 @@ function AllFeedPage() {
 /** A count beside a section label. */
 function Count({ n }: { n: number }) {
 	return (
-		<span className="rounded-[10px] bg-secondary px-1.5 font-medium text-muted-foreground tabular-nums">
+		<span className="rounded-[8px] bg-secondary px-1.5 font-medium text-muted-foreground tabular-nums">
 			{n}
 		</span>
 	);
@@ -1110,7 +1110,7 @@ function FilterMenu({
 				aria-expanded={open}
 				onClick={() => setOpen(!open)}
 				className={cn(
-					"cursor-pointer rounded-full border px-2.5 py-1 text-[12px] font-medium outline-none",
+					"cursor-pointer rounded-[6px] border px-2.5 py-1 text-[12px] font-medium outline-none",
 					active
 						? "border-primary bg-primary/15 text-foreground"
 						: "border-border bg-card text-muted-foreground hover:text-foreground",
@@ -1126,7 +1126,7 @@ function FilterMenu({
 						onClick={() => setOpen(false)}
 						className="fixed inset-0 z-10 cursor-default bg-transparent"
 					/>
-					<div className="absolute top-full right-0 z-20 mt-1.5 grid w-[520px] grid-cols-2 gap-x-4 gap-y-2.5 rounded-[10px] border border-border bg-popover p-3.5 shadow-[0_12px_40px_rgba(0,0,0,0.5)]">
+					<div className="absolute top-full right-0 z-20 mt-1.5 grid w-[520px] grid-cols-2 gap-x-4 gap-y-2.5 rounded-[8px] border border-border bg-popover p-3.5 shadow-[0_12px_40px_rgba(0,0,0,0.5)]">
 						{children}
 					</div>
 				</>
@@ -1213,7 +1213,7 @@ function DetailsPanel({
 					type="button"
 					onClick={onClose}
 					aria-label="Close details"
-					className="ml-auto rounded-[7px] px-2 py-0.5 text-[13px] text-muted-foreground hover:bg-secondary hover:text-foreground"
+					className="ml-auto rounded-[6px] px-2 py-0.5 text-[13px] text-muted-foreground hover:bg-secondary hover:text-foreground"
 				>
 					✕
 				</button>
@@ -1418,7 +1418,7 @@ function DoneList({
 							type="button"
 							onClick={() => onUndo(row)}
 							title="Put it back in the queue"
-							className="shrink-0 rounded-[7px] px-2 py-1 text-[12px] font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground"
+							className="shrink-0 rounded-[6px] px-2 py-1 text-[12px] font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground"
 						>
 							Undo
 						</button>
