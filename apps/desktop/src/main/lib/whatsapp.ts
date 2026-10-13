@@ -49,14 +49,17 @@ let lastTaskIds: string[] = [];
 
 export const whatsAppStatus = () => status;
 
-const silent = {
-	level: "silent",
-	child: () => silent,
+/** Baileys' own warnings and errors, in Odin's log; the rest is noise. */
+const logger = {
+	level: "warn",
+	child: () => logger,
 	trace() {},
 	debug() {},
 	info() {},
-	warn() {},
-	error() {},
+	warn: (obj: unknown, msg?: string) =>
+		console.warn("[whatsapp]", msg ?? "", obj),
+	error: (obj: unknown, msg?: string) =>
+		console.warn("[whatsapp] error", msg ?? "", obj),
 };
 
 function readOwner(): Owner | null {
@@ -106,9 +109,13 @@ export async function linkWhatsApp(): Promise<void> {
 	const { state, saveCreds } = await loadAuth(AUTH_DIR);
 	owner = readOwner();
 	pairCode ||= String(randomInt(100_000, 1_000_000));
+	// The version Baileys ships goes stale, and the phone then refuses to link
+	// ("Couldn't link device"); ask web.whatsapp.com for the current one.
+	const { version } = await baileys.fetchLatestWaWebVersion({});
 	const socket = baileys.makeWASocket({
 		auth: state,
-		logger: silent,
+		version,
+		logger,
 		browser: baileys.Browsers.macOS("Odin"),
 		syncFullHistory: false,
 		markOnlineOnConnect: false,
@@ -138,6 +145,11 @@ export async function linkWhatsApp(): Promise<void> {
 				const code = (
 					lastDisconnect?.error as { output?: { statusCode?: number } }
 				)?.output?.statusCode;
+				console.warn(
+					"[whatsapp] closed:",
+					code,
+					lastDisconnect?.error?.message,
+				);
 				if (code === baileys.DisconnectReason.loggedOut) {
 					// Unlinked from the phone: forget the link so the next Link shows a QR.
 					await rm(AUTH_DIR, { recursive: true, force: true });
