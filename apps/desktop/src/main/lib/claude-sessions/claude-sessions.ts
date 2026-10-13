@@ -421,6 +421,7 @@ export async function searchSessions({
 	maxFiles = 400,
 	root = projectsRoot(),
 	people = new Map(),
+	titles = {},
 	cursor = 0,
 }: {
 	query?: string;
@@ -431,6 +432,9 @@ export async function searchSessions({
 	root?: string;
 	/** session id → who asked, for the sessions Odin launched off a feed. */
 	people?: Map<string, SessionPerson>;
+	/** session id → the name the board gave it (a rename, the brief's title),
+	 *  which outranks anything the transcript says. */
+	titles?: Record<string, string>;
 } = {}): Promise<{
 	sessions: SessionSummary[];
 	scanned: number;
@@ -491,12 +495,14 @@ export async function searchSessions({
 				whoTerms.size === 0
 			)
 				continue;
-			const title = titleFor(
-				summary.cardTitle,
-				summary.aiTitle,
-				summary.prompt,
-				file.sessionId,
-			);
+			const title =
+				titles[file.sessionId] ||
+				titleFor(
+					summary.cardTitle,
+					summary.aiTitle,
+					summary.prompt,
+					file.sessionId,
+				);
 			scored.push({
 				// Who asked outweighs a title word: a full name matching both its
 				// terms beats a session that merely says "Ofek" a lot, which is

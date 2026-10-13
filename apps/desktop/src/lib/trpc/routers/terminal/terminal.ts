@@ -414,12 +414,22 @@ export const createTerminalRouter = () => {
 				}),
 			)
 			.query(async ({ input }) => {
-				const { searchSessions } = await import("main/lib/claude-sessions");
+				const { cachedBriefs, searchSessions } = await import(
+					"main/lib/claude-sessions"
+				);
+				const { cardTitles } = await import("main/lib/card-titles");
 				const { sessionPeople } = await import("./session-people");
+				// The name the board knew it by (a rename, kept after the card
+				// closes), else the brief's title - same order as Insights.
+				const titles: Record<string, string> = {};
+				for (const [id, brief] of await cachedBriefs())
+					if (brief.title) titles[id] = brief.title;
+				Object.assign(titles, cardTitles());
 				return searchSessions({
 					...input,
 					cursor: input.cursor ?? 0,
 					people: sessionPeople(),
+					titles,
 				});
 			}),
 
