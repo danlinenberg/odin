@@ -422,12 +422,15 @@ export const createReposRouter = (
 				// The repo the agent worked in wins: Claude Code cds between repos
 				// and worktrees without the shell ever noticing, so `input.cwd` is
 				// often just the catch-all directory the pane was launched in.
-				const { transcriptOf, workingRepoOf } = await import(
+				// The worktree before the clone: an agent runs most of its commands in
+				// the clone before it cuts a worktree, but the changes are in the worktree.
+				const { transcriptOf, workingRepoOf, workingWorktreeOf } = await import(
 					"main/lib/claude-sessions"
 				);
 				const dir =
 					(input.claudeSessionId
-						? await workingRepoOf(input.claudeSessionId)
+						? ((await workingWorktreeOf(input.claudeSessionId)) ??
+							(await workingRepoOf(input.claudeSessionId)))
 						: null) ??
 					input.cwd ??
 					getWorkspaceTerminalContext(input.workspaceId).workspacePath;
