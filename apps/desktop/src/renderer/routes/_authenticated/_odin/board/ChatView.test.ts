@@ -473,4 +473,28 @@ describe("applyQueue", () => {
 		// Esc pulls everything back into the input.
 		expect(applyQueue(withNotice, [op("popAll", "mine")])).toEqual([]);
 	});
+	test("a message that lands as a turn leaves the queue, older leftovers too", () => {
+		// A real log: a resume left a notice and "Continue" behind, so the
+		// dequeue that took "dsasda" shifted "Continue" instead.
+		let queue = applyQueue(
+			[],
+			[
+				op("enqueue", "<task-notification>x</task-notification>"),
+				op("enqueue", "Continue"),
+				op("enqueue", "dsasda"),
+				op("dequeue"),
+			],
+		);
+		expect(yourQueued(queue)).toEqual(["Continue", "dsasda"]);
+		queue = applyQueue(queue, [
+			{ type: "user", message: { content: "dsasda" } } as never,
+		]);
+		expect(queue).toEqual([]);
+		// Mid-turn, it lands as a queued_command attachment.
+		queue = applyQueue(
+			["later"],
+			[{ attachment: { type: "queued_command", prompt: "later" } } as never],
+		);
+		expect(queue).toEqual([]);
+	});
 });

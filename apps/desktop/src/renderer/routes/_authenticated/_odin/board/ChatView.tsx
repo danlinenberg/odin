@@ -263,7 +263,19 @@ export function applyLines(items: Item[], lines: Line[]): Item[] {
  */
 export function applyQueue(queue: string[], lines: Line[]): string[] {
 	const next = [...queue];
-	for (const line of lines) {
+	for (const raw of lines) {
+		const line = unqueue(raw);
+		// The log drifts (a remove that matches nothing, a resume that never
+		// logs its dequeues), so a message that lands as a turn also clears
+		// itself and everything queued before it.
+		if (line.type === "user") {
+			const text = blockText(line.message?.content).trim();
+			const index = text
+				? next.findIndex((item) => item.trim() && text.includes(item.trim()))
+				: -1;
+			if (index >= 0) next.splice(0, index + 1);
+			continue;
+		}
 		if (line.type !== "queue-operation") continue;
 		if (line.operation === "enqueue" && line.content) next.push(line.content);
 		else if (line.operation === "dequeue") next.shift();
