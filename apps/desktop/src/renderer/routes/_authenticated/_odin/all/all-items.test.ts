@@ -1,12 +1,10 @@
 import { expect, test } from "bun:test";
 import {
 	type AllItem,
-	agoLabel,
 	allItems,
 	bandOf,
 	matchesStatus,
 	plainText,
-	reasonOf,
 	urgencyOf,
 } from "./all-items";
 
@@ -315,20 +313,6 @@ test("bands: due wins, a fresh ask is Now, older asks and reviews Today, the res
 	);
 	expect(bandOf(ask("assigned", 1), true, now)).toBe("now");
 	expect(bandOf(ask("asked", 1), false, now, true)).toBe("later");
-});
-
-test("a row says why it is here", () => {
-	const now = Date.UTC(2026, 0, 10, 12);
-	const at = (hoursAgo: number) => now - hoursAgo * HOUR;
-	expect(reasonOf({ ask: { kind: "asked", at: at(2) } }, now)).toBe("Ask 2h");
-	expect(reasonOf({ ask: { kind: "review", at: at(26) } }, now)).toBe(
-		"Review 1d",
-	);
-	expect(reasonOf({ ask: { kind: "unread", at: at(48) } }, now)).toBe(
-		"Unread 2d",
-	);
-	expect(reasonOf({ ask: { kind: "own", at: now } }, now)).toBe("Yours");
-	expect(agoLabel(30_000)).toBe("now");
 });
 
 test("every source records what it asks of you", () => {

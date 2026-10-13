@@ -575,39 +575,6 @@ export function bandOf(
 	return item.urgency === "high" ? "today" : "later";
 }
 
-/** "2h", "3d" - how long a row has waited. */
-export function agoLabel(elapsed: number): string {
-	const minutes = Math.floor(elapsed / 60_000);
-	if (minutes < 1) return "now";
-	if (minutes < 60) return `${minutes}m`;
-	const hours = Math.round(minutes / 60);
-	if (hours < 24) return `${hours}h`;
-	return `${Math.round(hours / 24)}d`;
-}
-
-/**
- * Why the row is here, in two words at most - "Ask 2h", "Review 1d". It
- * stands in for a rule-made priority, so it has to be read at a glance.
- */
-export function reasonOf(item: Pick<AllItem, "ask">, now: number): string {
-	const { kind, at } = item.ask;
-	const ago = at ? ` ${agoLabel(now - at)}` : "";
-	switch (kind) {
-		case "asked":
-			return `Ask${ago}`;
-		case "mentioned":
-			return `Mention${ago}`;
-		case "review":
-			return `Review${ago}`;
-		case "unread":
-			return `Unread${ago}`;
-		case "assigned":
-			return "Assigned";
-		default:
-			return "Yours";
-	}
-}
-
 /** A body as one line of plain text - no markdown marks, code or link syntax. */
 export function plainText(body: string): string {
 	return body

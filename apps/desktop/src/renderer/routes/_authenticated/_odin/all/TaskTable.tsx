@@ -35,7 +35,7 @@ import {
 import { TonightButton } from "../components/TonightButton";
 import { useDone } from "../hooks/useDone";
 import { usePendingFocus } from "../hooks/usePendingFocus";
-import { type AllItem, bandOf, plainText, reasonOf } from "./all-items";
+import { type AllItem, bandOf, plainText } from "./all-items";
 import { statusLabel, typeLabel, typeOf, useTaskMeta } from "./task-meta";
 import { useStartAllItem } from "./use-start-item";
 
@@ -52,11 +52,8 @@ export const SOURCE_ICON = Object.fromEntries(
 	FEED_TABS.map(({ to, Icon }) => [to, Icon]),
 ) as Record<FeedPath, IconType>;
 
-/**
- * The asks whose timing is the point: their rows show the reason ("Ask 2h")
- * where the others show a priority - every reaction being High was a rule.
- */
-const TIMED_ASKS = new Set<AllItem["ask"]["kind"]>([
+/** The asks a person made of you: their date column says when they asked. */
+const ASKS = new Set<AllItem["ask"]["kind"]>([
 	"asked",
 	"mentioned",
 	"review",
@@ -73,7 +70,7 @@ export const COL = {
 	lead: "flex w-[60px] shrink-0 items-center justify-end gap-1.5",
 	task: "flex min-h-[30px] min-w-0 flex-1 flex-col justify-center",
 	drop: "flex w-[92px] shrink-0 items-center",
-	why: "flex w-[96px] shrink-0 items-center overflow-hidden",
+	priority: "flex w-[72px] shrink-0 items-center overflow-hidden",
 	status:
 		"flex w-[96px] shrink-0 items-center overflow-hidden @max-[1200px]:hidden",
 	person:
@@ -109,7 +106,7 @@ export function TaskTableHeader({ date = "Updated" }: { date?: string }) {
 			<span className={COL.task}>Task</span>
 			<span className={COL.drop}>Sweep</span>
 			<span className="flex shrink-0 items-center gap-3">
-				<span className={COL.why}>Why</span>
+				<span className={COL.priority}>Priority</span>
 				<span className={COL.status}>Status</span>
 				<span className={COL.person}>From</span>
 				<span className={COL.place}>Where</span>
@@ -246,14 +243,6 @@ export function TaskRow({
 	const isReading = rows.readingKeys.has(item.key);
 	const due = effectiveDue(item.key, rows.reminders, item.dueDate);
 	const band = bandOf(item, isDue(due, now), now, isReading);
-	const timed = TIMED_ASKS.has(item.ask.kind);
-	// A level the source itself set keeps its chip; a rule-made one doesn't.
-	const rated =
-		item.sourcePriority !== undefined
-			? item.priority
-			: timed
-				? null
-				: item.priority;
 	// The second line: the comment that put it here, else the body - always
 	// one line, so every row is the same height and the columns line up.
 	const preview = item.mention
@@ -261,7 +250,11 @@ export function TaskRow({
 		: item.body
 			? plainText(item.body)
 			: "";
-	const at = created ? item.createdAt : item.at;
+	const at = created
+		? item.createdAt
+		: ASKS.has(item.ask.kind) && item.ask.at
+			? item.ask.at
+			: item.at;
 	const type = typeOf(item, rows.types);
 	const readLabel = isReading
 		? "Back to Waiting on you"
@@ -337,29 +330,16 @@ export function TaskRow({
 					<SweepDrop itemKey={item.key} url={item.url} />
 				</span>
 				<div className="flex shrink-0 items-center gap-3 text-[11px]">
-					<span className={COL.why}>
-						{timed ? (
+					<span className={COL.priority}>
+						{item.priority && (
 							<span
 								className={cn(
 									"truncate text-muted-foreground",
-									band === "now" && "font-semibold text-attention",
+									/^high/i.test(item.priority) && "font-semibold text-danger",
 								)}
 							>
-								{reasonOf(item, now)}
+								{item.priority}
 							</span>
-						) : (
-							// Plain text like the reasons above it: a pill alone in a
-							// column of words read as a stray badge.
-							rated && (
-								<span
-									className={cn(
-										"truncate text-muted-foreground",
-										/^high/i.test(rated) && "font-semibold text-danger",
-									)}
-								>
-									{rated}
-								</span>
-							)
 						)}
 					</span>
 					<span className={COL.status}>
@@ -381,8 +361,11 @@ export function TaskRow({
 					>
 						{item.context}
 					</span>
-					<span className={COL.date}>
-						{/* A due date wins the column; otherwise when it last moved. */}
+					<span
+						className={COL.date}
+						title={at > 0 ? new Date(at).toLocaleString() : undefined}
+					>
+						{/* A due date wins the column; then when they asked; else when it last moved. */}
 						{due ? (
 							<DueChip
 								itemKey={item.key}
