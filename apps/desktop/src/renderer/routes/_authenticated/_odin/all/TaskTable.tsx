@@ -90,8 +90,12 @@ export const COL = {
 const TABLE_ROW =
 	"group border-b border-border/70 px-3.5 py-1 transition-colors hover:bg-secondary/60";
 
-/** The scroller a table sits in: rows touch, and the columns answer to its width. */
-export const TABLE_LIST = cn(FEED_LIST, "@container gap-0");
+/**
+ * The scroller a table sits in: rows touch, and the columns answer to its width.
+ * No top padding: a sticky header pins to the padding edge, so rows would show
+ * through the gap above it.
+ */
+export const TABLE_LIST = cn(FEED_LIST, "@container gap-0 pt-0");
 
 /** The column names, over the rows. */
 export function TaskTableHeader({ date = "Updated" }: { date?: string }) {
