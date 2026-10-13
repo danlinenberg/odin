@@ -11,7 +11,12 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { LuChevronRight, LuSquareTerminal, LuWrench } from "react-icons/lu";
+import {
+	LuChevronRight,
+	LuMic,
+	LuSquareTerminal,
+	LuWrench,
+} from "react-icons/lu";
 import { MarkdownRenderer } from "renderer/components/MarkdownRenderer";
 import { isHotkey, useHotkeyDisplay } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
@@ -36,6 +41,7 @@ import { actionItemLines } from "./brief";
 import { PlanCard, QuestionCard, ScreenMenuCard } from "./ChatPrompts";
 import { collectRefs, linkify } from "./chat-links";
 import { parseScreenMenu } from "./screen-menu";
+import { useHoldToTalk } from "./voice";
 
 type Item =
 	| {
@@ -1980,6 +1986,16 @@ function Composer({
 	dropRef.current = (files) => attach(files, true);
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const write = electronTrpc.terminal.write.useMutation();
+	// Hold Space on an empty box (or the mic) to talk - live sessions only.
+	const canTalk = !onResume && !onSend;
+	const voice = useHoldToTalk({
+		paneId,
+		onText: (text) => {
+			setDraft((d) => (d.trim() ? `${d.trimEnd()} ${text}` : text));
+			inputRef.current?.focus();
+		},
+		onTap: () => setDraft((d) => `${d} `),
+	});
 	const setChat = useSessionView((s) => s.setChat);
 	const sendNowKeys = useHotkeyDisplay("CHAT_SEND_NOW").text;
 	// Type `/` and the agent's skills/commands are searchable, like the New
@@ -2119,6 +2135,20 @@ function Composer({
 								event.preventDefault();
 						}}
 						onKeyDown={(event) => {
+							if (
+								event.key === " " &&
+								(voice.holding() ||
+									(canTalk &&
+										!draft &&
+										!bash &&
+										!event.metaKey &&
+										!event.ctrlKey &&
+										!event.altKey))
+							) {
+								event.preventDefault();
+								if (!event.repeat) voice.press();
+								return;
+							}
 							if (matches.length > 0 && !event.nativeEvent.isComposing) {
 								// While the skill menu is open it owns these keys.
 								if (event.key === "Escape") {
@@ -2161,7 +2191,20 @@ function Composer({
 								void send(isHotkey("CHAT_SEND_NOW", event.nativeEvent));
 							}
 						}}
-						placeholder={bash ? "Run a shell command" : placeholder}
+						onKeyUp={(event) => {
+							if (event.key === " ") voice.release();
+						}}
+						onBlur={voice.release}
+						readOnly={voice.phase !== "idle"}
+						placeholder={
+							voice.phase === "listening"
+								? voice.heard || "Listening... release Space to stop"
+								: voice.phase === "processing"
+									? voice.heard || "Transcribing..."
+									: bash
+										? "Run a shell command"
+										: placeholder
+						}
 						className={cn(
 							"block max-h-[220px] w-full resize-none bg-transparent text-[13.5px] leading-relaxed text-foreground outline-none placeholder:text-faint-foreground",
 							bash && "font-mono",
@@ -2188,7 +2231,32 @@ function Composer({
 						<span className="text-[11px] text-faint-foreground">
 							Enter to send · {sendNowKeys} to send now · Shift+Enter for a new
 							line · ! for bash · / for skills
+							{canTalk && " · hold Space to talk"}
 						</span>
+					)}
+					{canTalk && (
+						<button
+							type="button"
+							title="Hold to talk"
+							aria-label="Hold to talk"
+							onPointerDown={(event) => {
+								event.preventDefault();
+								voice.press(true);
+							}}
+							onPointerUp={voice.release}
+							onPointerLeave={voice.release}
+							className={cn(
+								"ml-auto flex size-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground",
+								voice.phase !== "idle" && "bg-primary/15 text-primary",
+							)}
+						>
+							<LuMic
+								className={cn(
+									"size-4",
+									voice.phase === "listening" && "animate-pulse",
+								)}
+							/>
+						</button>
 					)}
 					{working ? (
 						<button
@@ -2197,7 +2265,10 @@ function Composer({
 							onClick={() =>
 								onStop ? onStop() : write.mutate({ paneId, data: "\x03" })
 							}
-							className="ml-auto flex size-7 shrink-0 items-center justify-center rounded-full bg-foreground text-background hover:opacity-85"
+							className={cn(
+								"flex size-7 shrink-0 items-center justify-center rounded-full bg-foreground text-background hover:opacity-85",
+								!canTalk && "ml-auto",
+							)}
 						>
 							<span className="size-[9px] rounded-[2px] bg-background" />
 						</button>
@@ -2207,7 +2278,10 @@ function Composer({
 							title="Send (Enter)"
 							disabled={!draft.trim() && attached.length === 0}
 							onClick={() => void send()}
-							className="ml-auto flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-[14px] font-bold text-primary-foreground hover:brightness-110 disabled:opacity-40"
+							className={cn(
+								"flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-[14px] font-bold text-primary-foreground hover:brightness-110 disabled:opacity-40",
+								!canTalk && "ml-auto",
+							)}
 						>
 							↑
 						</button>
