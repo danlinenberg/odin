@@ -7,7 +7,6 @@ import {
 	jiraOwnership,
 	jiraRef,
 	mapLimit,
-	PROMISE,
 	type SweepDeps,
 	type SweepItem,
 	sweepItem,
@@ -239,6 +238,9 @@ describe("verdicts", () => {
 					lastReplyTs: null,
 					channelLastTs: recentTs(),
 					channelLastByMe: true,
+					// "Yes, it'll be handled": a promise no phrase list caught.
+					// The model that reads kept rows judges it, not a rule.
+					channelLastText: "כן, יטופל",
 					isDirect: true,
 				}),
 			}),
@@ -686,7 +688,3 @@ describe("someone else's to finish", () => {
 });
 
 // A note to myself in the thread is a reminder of work left, not an answer.
-test("a note to self is a promise, not an answer", () => {
-	expect(PROMISE.test("note to self: remaining photos")).toBe(true);
-	expect(PROMISE.test("Fixed, lmk if it works")).toBe(false);
-});

@@ -362,12 +362,10 @@ export async function sweepItem(
 				verdict: "DROP",
 				evidence: `${thread.answeredBy}, tagged with you, answered in the thread`,
 			};
+		// My own last word is never a DROP here: "Fixed" and "כן, יטופל" ("yes,
+		// it'll be handled") look alike to a rule. It stays KEEP below, and the
+		// model that reads kept conversations tells an answer from a promise.
 		const last = lastWord(thread);
-		if (last?.byMe && last.text && !PROMISE.test(last.text))
-			return {
-				verdict: "DROP",
-				evidence: `you answered last in the ${last.where}: “${clip(last.text)}”`,
-			};
 		// "Nevermind, I have it now" 👍: their last word, and I acknowledged it.
 		if (last && !last.byMe && last.acked)
 			return {
@@ -533,17 +531,6 @@ function lastWord(thread: Thread): {
 	const { at: _at, ...rest } = newest;
 	return rest;
 }
-
-/**
- * A reply that promises rather than delivers: "fixing this", "will look",
- * "not yet", "note to self: remaining photos". Anything else I say last - "Fixed", "Created", a link, an
- * answer, "lmk if it works" - hands the ball back, and nobody waits on me.
- *
- * ponytail: a phrase list, measured against 71 hand-read rows (every promise
- * caught; "note to self" / "todo" / "remaining" added after a miss). Swap for a model call if it drifts.
- */
-export const PROMISE =
-	/\b(will|i'?ll|we'?ll|fixing|looking|checking|investigating|working on|on it|not yet|soon|tomorrow|later|let me (check|look|see)|note to self|todo|to-?do|remaining|left to)\b|אבדוק|נבדוק|בודק|אעדכן|נעדכן|אסתכל|מחר|עוד מעט|בהמשך|אחזור|עובד על/i;
 
 /** "Thanks", "👍", "works!", "תודה": a short last word that closes it. */
 const CLOSING =
