@@ -46,6 +46,7 @@ import {
 	getTerminalHostClient,
 } from "./lib/terminal-host/client";
 import { disposeTray, initTray } from "./lib/tray";
+import { startWhatsApp } from "./lib/whatsapp";
 import { startNetworkLogger, stopNetworkLogger } from "./network-logger";
 import { flushWindowStateSync, MainWindow } from "./windows/main";
 
@@ -474,6 +475,7 @@ if (!gotTheLock) {
 
 		startWorktreePruner();
 		startDataBackup();
+		startWhatsApp();
 		startMemoryGuard();
 
 		try {

@@ -211,6 +211,21 @@ app.post("/odin", express.urlencoded({ extended: false }), async (req, res) => {
 			(entry): entry is [string, string] => typeof entry[1] === "string",
 		),
 	);
+	const text = await askRenderer(action, args);
+	if (text === undefined)
+		return res.status(503).send("Odin's window isn't open.\n");
+	if (text === null) return res.status(504).send("Odin didn't answer.\n");
+	res.send(`${text}\n`);
+});
+
+/**
+ * One board action answered by the renderer, which owns that state - for
+ * /odin and the WhatsApp bot. undefined: no window to ask; null: no answer.
+ */
+export async function askRenderer(
+	action: string,
+	args: Record<string, string>,
+): Promise<string | null | undefined> {
 	const request: OdinActionRequest = { id: randomUUID(), action, args };
 	const reply = new Promise<string | null>((resolve) => {
 		pendingOdinActions.set(request.id, resolve);
@@ -218,13 +233,12 @@ app.post("/odin", express.urlencoded({ extended: false }), async (req, res) => {
 	});
 	if (!notificationsEmitter.emit(NOTIFICATION_EVENTS.ODIN_ACTION, request)) {
 		pendingOdinActions.delete(request.id);
-		return res.status(503).send("Odin's window isn't open.\n");
+		return undefined;
 	}
 	const text = await reply;
 	pendingOdinActions.delete(request.id);
-	if (text === null) return res.status(504).send("Odin didn't answer.\n");
-	res.send(`${text}\n`);
-});
+	return text;
+}
 
 /**
  * A Slack, Jira, GitHub, Notion or ClickUp link as plain text, read with Odin's own

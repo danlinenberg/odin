@@ -31,6 +31,7 @@ import { createSlackRouter } from "./slack";
 import { createSystemRouter } from "./system";
 import { createTerminalRouter } from "./terminal";
 import { createUiStateRouter } from "./ui-state";
+import { createWhatsAppRouter } from "./whatsapp";
 import { createWindowRouter } from "./window";
 import { createWorkRouter } from "./work";
 import { createWorkLogRouter } from "./work-log";
@@ -66,6 +67,7 @@ export const createAppRouter = (getWindow: () => BrowserWindow | null) => {
 		menu: createMenuRouter(),
 		external: createExternalRouter(),
 		settings: createSettingsRouter(),
+		whatsapp: createWhatsAppRouter(),
 		skills: createSkillsRouter(),
 		system: createSystemRouter(),
 		config: createConfigRouter(),
