@@ -1,5 +1,5 @@
 import type { Terminal as XTerm } from "@xterm/xterm";
-import { resolveHotkeyFromEvent } from "renderer/hotkeys";
+import { isHotkey, resolveHotkeyFromEvent } from "renderer/hotkeys";
 import {
 	shouldBubbleClipboardShortcut,
 	shouldSelectAllShortcut,
@@ -45,6 +45,16 @@ export function createTerminalKeyEventHandler(
 	const isWindows = platform.includes("win");
 
 	return (event: KeyboardEvent): boolean => {
+		// Send now is an app hotkey, so the check below would swallow it. Sent
+		// as kitty's Ctrl+Enter, which Claude Code binds to chat:sendNow,
+		// directly so it never depends on the kitty handshake, like Shift+Enter.
+		if (isHotkey("CHAT_SEND_NOW", event)) {
+			if (event.type === "keydown") {
+				event.preventDefault();
+				terminal.input("\x1b[13;5u", true);
+			}
+			return false;
+		}
 		if (resolveHotkeyFromEvent(event) !== null) return false;
 
 		const translation = translateLineEditChord(event, { isMac, isWindows });

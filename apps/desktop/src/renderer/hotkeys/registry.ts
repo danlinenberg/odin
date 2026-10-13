@@ -195,7 +195,7 @@ export const HOTKEYS_REGISTRY = {
 		key: { mac: "ctrl+enter", windows: "ctrl+enter", linux: "ctrl+enter" },
 		label: "Send now",
 		category: "Navigation",
-		description: "Send a chat reply into Claude's running turn",
+		description: "Send a reply into Claude's running turn, in Chat or Terminal",
 	},
 	ODIN_SEARCH_ROW_MENU: {
 		key: {
