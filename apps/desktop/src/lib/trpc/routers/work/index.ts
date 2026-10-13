@@ -26,6 +26,43 @@ import { readOdinConfig, resolveGithubToken } from "../odin-config";
  */
 const dueOnScreen = new Map<string, Promise<boolean>>();
 
+/**
+ * The Sprint field's id on each Jira site, by base URL. It's a custom field
+ * (customfield_10020 on most sites, not all), so it's found by its type once.
+ */
+const sprintFieldBySite = new Map<string, Promise<string | null>>();
+
+interface JiraSprintValue {
+	name?: string;
+	state?: string;
+	startDate?: string;
+	endDate?: string;
+}
+
+/**
+ * The sprint a ticket sits in the way Jira's backlog shows it: the active
+ * one, else the next one coming, else none - an open ticket whose sprints
+ * have all closed is back in the Backlog.
+ */
+export function currentSprint(value: unknown): JiraIssueRow["sprint"] {
+	if (!Array.isArray(value)) return null;
+	const sprints = (value as JiraSprintValue[]).filter((s) => s?.name);
+	const pick =
+		sprints.find((s) => s.state === "active") ??
+		sprints
+			.filter((s) => s.state === "future")
+			.sort((a, b) =>
+				(a.startDate ?? "~").localeCompare(b.startDate ?? "~"),
+			)[0];
+	if (!pick?.name) return null;
+	return {
+		name: pick.name,
+		state: pick.state === "active" ? "active" : "future",
+		startDate: pick.startDate ?? null,
+		endDate: pick.endDate ?? null,
+	};
+}
+
 function odinRepo(): string | null {
 	const repo = process.env.ODIN_REPO_DIR ?? readOdinConfig().odinRepo;
 	return repo && existsSync(repo) ? repo : null;
@@ -87,6 +124,13 @@ export interface JiraIssueRow {
 	description?: string | null;
 	/** The epic it sits under. Null when it has none, or its parent is a story. */
 	epic?: { key: string; title: string } | null;
+	/** The sprint it's in on Jira's board; null = the Backlog. */
+	sprint?: {
+		name: string;
+		state: "active" | "future";
+		startDate: string | null;
+		endDate: string | null;
+	} | null;
 }
 
 interface JiraParent {
@@ -297,6 +341,7 @@ interface JiraSearchResponse {
 			comment?: { comments?: JiraComment[] };
 			description?: unknown;
 			parent?: JiraParent;
+			[custom: string]: unknown;
 		};
 	}[];
 }
@@ -483,6 +528,30 @@ export const createWorkRouter = () => {
 					)
 					.catch(() => null);
 
+				let sprintFieldRequest = sprintFieldBySite.get(request.base);
+				if (!sprintFieldRequest) {
+					sprintFieldRequest = fetch(`${request.base}/rest/api/3/field`, {
+						headers,
+					})
+						.then(async (response) => {
+							if (!response.ok) return null;
+							const fields = (await response.json()) as {
+								id: string;
+								schema?: { custom?: string };
+							}[];
+							return (
+								fields.find(
+									(field) =>
+										field.schema?.custom ===
+										"com.pyxis.greenhopper.jira:gh-sprint",
+								)?.id ?? null
+							);
+						})
+						.catch(() => null);
+					sprintFieldBySite.set(request.base, sprintFieldRequest);
+				}
+				const sprintField = await sprintFieldRequest;
+
 				const search = async (
 					role: JiraIssueRow["role"],
 					match: string,
@@ -490,7 +559,7 @@ export const createWorkRouter = () => {
 					const jql = `${match}${openOnly} ORDER BY updated DESC`;
 					// Comment bodies are only worth their weight on the mention rows,
 					// where they are the point.
-					const fields = `summary,status,priority,project,issuetype,reporter,assignee,updated,created,duedate,description,parent${role === "mentioned" ? ",comment" : ""}`;
+					const fields = `summary,status,priority,project,issuetype,reporter,assignee,updated,created,duedate,description,parent${sprintField ? `,${sprintField}` : ""}${role === "mentioned" ? ",comment" : ""}`;
 					const response = await fetch(
 						`${request.base}/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&maxResults=100&fields=${fields}`,
 						{ headers },
@@ -526,6 +595,9 @@ export const createWorkRouter = () => {
 								.trim()
 								.slice(0, 3000) || null,
 						epic: epicOf(issue.fields?.parent),
+						sprint: sprintField
+							? currentSprint(issue.fields?.[sprintField])
+							: null,
 						mention: accountId
 							? latestMention(issue.fields?.comment?.comments ?? [], accountId)
 							: null,

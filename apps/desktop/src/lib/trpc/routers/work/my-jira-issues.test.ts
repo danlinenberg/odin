@@ -125,6 +125,13 @@ beforeEach(() => {
 				headers: { "content-type": "application/json" },
 			});
 		if (url.pathname.endsWith("/myself")) return json({ accountId: ME });
+		if (url.pathname.endsWith("/field"))
+			return json([
+				{
+					id: "customfield_10020",
+					schema: { custom: "com.pyxis.greenhopper.jira:gh-sprint" },
+				},
+			]);
 
 		const jql = url.searchParams.get("jql") ?? "(no jql sent)";
 		jqls.push(jql);

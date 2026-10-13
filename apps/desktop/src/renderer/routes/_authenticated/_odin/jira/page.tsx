@@ -1,3 +1,4 @@
+import { cn } from "@odin/ui/utils";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { ConnectNotice } from "renderer/components/ConnectProvider/ConnectProvider";
@@ -21,6 +22,12 @@ import {
 import { FeedError } from "../components/FeedError";
 import { useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
+import {
+	PhaseHeading,
+	phasesOf,
+	SprintHeading,
+	sprintGroupsOf,
+} from "./sprints";
 
 /** A row as Done wants it: its All-feed key, and enough to list it later. */
 const doable = (issue: { key: string; title: string; url: string }) => ({
@@ -69,6 +76,13 @@ const ROLE_TABS = [
 
 type Role = (typeof ROLE_TABS)[number]["id"];
 
+const GROUP_BY = [
+	{ id: "sprint" as const, label: "Sprints" },
+	{ id: "project" as const, label: "Projects" },
+];
+
+type GroupBy = (typeof GROUP_BY)[number]["id"];
+
 function MyJiraPage() {
 	const [projectFilter, setProjectFilter] = useState("");
 	// Default to All: BUGT tickets are reported-not-assigned, and hiding them
@@ -76,6 +90,8 @@ function MyJiraPage() {
 	const [role, setRole] = useState<Role>("all");
 	// Free text over key, title, reporter, status and project.
 	const [search, setSearch] = useState("");
+	// Jira's board by sprint, or a section per project with its epics.
+	const [groupBy, setGroupBy] = useState<GroupBy>("sprint");
 	const needle = search.trim().toLowerCase();
 	// Same feeds the shell warms on boot - rows are usually already cached.
 	const {
@@ -128,10 +144,9 @@ function MyJiraPage() {
 		return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
 	}, [issues]);
 
-	// One section per project, one group per epic inside it ("No epic" last).
 	// Rows go In Progress first, then a live session first and parked last;
 	// Jira's updated order survives inside each band (sort is stable).
-	const groups = useMemo(() => {
+	const visible = useMemo(() => {
 		const filtered = issues
 			.filter((issue) => !projectFilter || issue.project === projectFilter)
 			.filter(
@@ -148,6 +163,13 @@ function MyJiraPage() {
 				: statusTone(issue.status) === "parked"
 					? 2
 					: 1);
+		return [...filtered].sort((a, b) => rank(a) - rank(b));
+	}, [issues, projectFilter, needle, livePaneByKey]);
+
+	const sprints = useMemo(() => sprintGroupsOf(visible), [visible]);
+
+	// One section per project, one group per epic inside it ("No epic" last).
+	const groups = useMemo(() => {
 		const byProject = new Map<
 			string,
 			Map<
@@ -155,7 +177,7 @@ function MyJiraPage() {
 				{ epic: (typeof issues)[number]["epic"]; rows: typeof issues }
 			>
 		>();
-		for (const issue of [...filtered].sort((a, b) => rank(a) - rank(b))) {
+		for (const issue of visible) {
 			const epics =
 				byProject.get(issue.project) ??
 				byProject.set(issue.project, new Map()).get(issue.project);
@@ -176,7 +198,7 @@ function MyJiraPage() {
 						(a.epic?.title ?? "").localeCompare(b.epic?.title ?? ""),
 				),
 			}));
-	}, [issues, projectFilter, needle, livePaneByKey]);
+	}, [visible]);
 
 	const items = useFeedItems({ jira: allIssues });
 	const taskRows = useTaskRows();
@@ -207,6 +229,27 @@ function MyJiraPage() {
 					</FilterPill>
 				))}
 				<div className="ml-auto flex items-center gap-2.5">
+					<fieldset
+						aria-label="Group issues by"
+						className="m-0 flex gap-0.5 rounded-full border-0 bg-tertiary p-[3px]"
+					>
+						{GROUP_BY.map((mode) => (
+							<button
+								key={mode.id}
+								type="button"
+								aria-pressed={groupBy === mode.id}
+								onClick={() => setGroupBy(mode.id)}
+								className={cn(
+									"h-[26px] rounded-md px-3 text-[12px] transition-colors",
+									groupBy === mode.id
+										? "bg-secondary font-medium text-foreground"
+										: "text-muted-foreground hover:text-foreground",
+								)}
+							>
+								{mode.label}
+							</button>
+						))}
+					</fieldset>
 					<FeedSearch
 						value={search}
 						onChange={setSearch}
@@ -243,56 +286,71 @@ function MyJiraPage() {
 						Nothing assigned to you 🎉
 					</div>
 				)}
-				{needle && issues.length > 0 && groups.length === 0 && (
+				{needle && issues.length > 0 && visible.length === 0 && (
 					<div className="px-2 py-8 text-center text-xs text-muted-foreground">
 						No issues match your search
 					</div>
 				)}
 
-				{groups.length > 0 && <TaskTableHeader />}
-				{groups.map(({ project, count, epics }) => (
-					<div key={project} className="mb-3">
-						<div className="flex items-center gap-2 py-1 pl-1 text-[12px] font-semibold text-foreground">
-							{project}
-							<span className="rounded-[10px] bg-secondary px-1.5 text-[11px] font-medium text-muted-foreground">
-								{count}
-							</span>
-						</div>
-						{epics.map(({ epic, rows }) => {
-							const live = rows.filter((r) => livePaneByKey.has(r.key)).length;
-							return (
-								<div key={epic?.key ?? ""} className="mb-1">
-									<div className="flex items-center gap-2 py-1 pl-1 text-[11px] font-medium uppercase tracking-[.3px] text-muted-foreground">
-										<span className="size-1.5 rounded-full bg-muted-foreground" />
-										{epic ? (
-											<button
-												type="button"
-												title={`Open epic ${epic.key} in Jira`}
-												onClick={() =>
-													openUrl(rows[0].url.replace(rows[0].key, epic.key))
-												}
-												className="truncate uppercase hover:text-foreground"
-											>
-												{epic.title}
-											</button>
-										) : (
-											"No epic"
-										)}
-										<span className="rounded-[10px] bg-secondary px-1.5 font-medium text-muted-foreground">
-											{rows.length}
-										</span>
-										{live > 0 && (
-											<span className="rounded-[10px] bg-working/12 px-1.5 font-medium text-working">
-												{live} live
-											</span>
-										)}
-									</div>
+				{visible.length > 0 && <TaskTableHeader />}
+				{groupBy === "sprint" &&
+					sprints.map((group) => (
+						<div key={group.id} className="mb-4">
+							<SprintHeading group={group} />
+							{phasesOf(group.rows).map(({ phase, rows }) => (
+								<div key={phase} className="mb-3">
+									<PhaseHeading phase={phase} count={rows.length} />
 									{rows.map(renderRow)}
 								</div>
-							);
-						})}
-					</div>
-				))}
+							))}
+						</div>
+					))}
+				{groupBy === "project" &&
+					groups.map(({ project, count, epics }) => (
+						<div key={project} className="mb-3">
+							<div className="flex items-center gap-2 py-1 pl-1 text-[12px] font-semibold text-foreground">
+								{project}
+								<span className="rounded-[10px] bg-secondary px-1.5 text-[11px] font-medium text-muted-foreground">
+									{count}
+								</span>
+							</div>
+							{epics.map(({ epic, rows }) => {
+								const live = rows.filter((r) =>
+									livePaneByKey.has(r.key),
+								).length;
+								return (
+									<div key={epic?.key ?? ""} className="mb-1">
+										<div className="flex items-center gap-2 py-1 pl-1 text-[11px] font-medium uppercase tracking-[.3px] text-muted-foreground">
+											<span className="size-1.5 rounded-full bg-muted-foreground" />
+											{epic ? (
+												<button
+													type="button"
+													title={`Open epic ${epic.key} in Jira`}
+													onClick={() =>
+														openUrl(rows[0].url.replace(rows[0].key, epic.key))
+													}
+													className="truncate uppercase hover:text-foreground"
+												>
+													{epic.title}
+												</button>
+											) : (
+												"No epic"
+											)}
+											<span className="rounded-[10px] bg-secondary px-1.5 font-medium text-muted-foreground">
+												{rows.length}
+											</span>
+											{live > 0 && (
+												<span className="rounded-[10px] bg-working/12 px-1.5 font-medium text-working">
+													{live} live
+												</span>
+											)}
+										</div>
+										{rows.map(renderRow)}
+									</div>
+								);
+							})}
+						</div>
+					))}
 			</div>
 		</div>
 	);
