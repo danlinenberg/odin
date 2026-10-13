@@ -581,6 +581,9 @@ export async function main() {
 			await flipFuses(actualAppPath, {
 				version: FuseVersion.V1,
 				[FuseV1Options.EnableCookieEncryption]: true,
+				// The fuse lives in Electron Framework; without this its signature
+				// breaks and macOS kills the app at launch (Code Signature Invalid).
+				resetAdHocDarwinSignature: true,
 			});
 			console.log("[patch-dev-protocol] Turned on cookie encryption");
 		}
