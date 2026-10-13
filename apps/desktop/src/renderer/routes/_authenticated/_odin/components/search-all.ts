@@ -93,10 +93,10 @@ export function matchRank(
 export const TYPO_TIER = 4;
 export const TRANSCRIPT_TIER = 5;
 
-/** Fuse's score is typos per letter typed: 1 in 5, 2 in 6, 3 in 9. */
+/** Fuse's score is typos per letter typed: 1 in 4, 2 in 6, 3 in 9. */
 const TYPO_THRESHOLD = 0.34;
 /** Below this a word must be exact: one edit turns "fix" into "six". */
-const MIN_TYPO_WORD = 5;
+const MIN_TYPO_WORD = 4;
 
 /** A status that means the work is over - in any source's words. */
 export function isClosedStatus(status: string | null | undefined): boolean {

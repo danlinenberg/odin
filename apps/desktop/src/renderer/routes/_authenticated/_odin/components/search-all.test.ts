@@ -83,16 +83,16 @@ test("a typo while still typing finds the longer word", () => {
 	]);
 });
 
-test("longer words take more typos, words under five letters none", () => {
+test("longer words take more typos, words under four letters none", () => {
 	const rows = [row("Push notifications"), row("Fix the login")];
 	expect(titles(rankRows("notfications", rows))).toEqual([
 		"Push notifications",
 	]);
 	expect(titles(rankRows("notfictions", rows))).toEqual(["Push notifications"]);
 	expect(rankRows("fox", rows)).toEqual([]);
-	expect(rankRows("grce", [row("can you look", { person: "Grace" })])).toEqual(
-		[],
-	);
+	expect(titles(rankRows("yoam", [row("Hey", { person: "Yotam" })]))).toEqual([
+		"Hey",
+	]);
 	expect(rankRows("lagan", rows)).toEqual([]);
 });
 
