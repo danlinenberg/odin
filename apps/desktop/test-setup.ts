@@ -17,6 +17,14 @@ import { z } from "zod";
 process.env.NODE_ENV = "test";
 process.env.SKIP_ENV_VALIDATION = "1";
 
+// A session running this suite inside Odin passes on its own ODIN_PANE_ID,
+// ODIN_PORT and friends, and a test that spawns the real notify hook with
+// `...process.env` then posts its fake Stops and PermissionRequests to the live
+// app as that session's hooks: the card flipped Working -> Needs you -> Done
+// for the whole run and the chat's Working row vanished mid-turn.
+for (const key of Object.keys(process.env))
+	if (key.startsWith("ODIN_")) delete process.env[key];
+
 const testTmpDir = join(tmpdir(), "odin-test");
 
 // =============================================================================
