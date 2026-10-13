@@ -548,7 +548,7 @@ function runOdinAction(
 		if (!args.text?.trim()) return "Need text.";
 		const before = useOdinTasks.getState().tasks[0];
 		deps.add(args.text);
-		// start=true (the WhatsApp bot): launch it too, and answer with what it
+		// start=true (the Telegram bot): launch it too, and answer with what it
 		// needs to watch the session. add() prepends, so the new task is first.
 		if (args.start === "true") {
 			const task = useOdinTasks.getState().tasks[0];

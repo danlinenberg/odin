@@ -15,7 +15,7 @@ import { cn } from "@odin/ui/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { FaGithub, FaSlack, FaWhatsapp } from "react-icons/fa";
+import { FaGithub, FaSlack, FaTelegram } from "react-icons/fa";
 import { LuCloudUpload, LuTrash2 } from "react-icons/lu";
 import { SiClickup, SiGmail, SiJira, SiNotion } from "react-icons/si";
 import {
@@ -215,7 +215,7 @@ function ConnectionsSettings() {
 			</SettingsSection>
 
 			<SettingsSection title="Phone">
-				<WhatsAppRow />
+				<TelegramRow />
 			</SettingsSection>
 
 			<SettingsSection title="Links">
@@ -230,105 +230,121 @@ function ConnectionsSettings() {
 }
 
 /**
- * Odin as a linked WhatsApp device of a second number (main/lib/whatsapp.ts):
- * a contact named Odin, with Odin's icon, that adds and starts tasks and
- * writes back when they wait.
+ * Odin's Telegram bot (main/lib/telegram.ts): made with @BotFather, it adds and
+ * starts tasks from your phone and writes back when they wait for you.
  */
-function WhatsAppRow() {
-	const status = electronTrpc.whatsapp.status.useQuery(undefined, {
-		// The QR rotates every ~20s, and the link and the pairing land on
-		// their own, so poll until it's paired or off.
+function TelegramRow() {
+	const status = electronTrpc.telegram.status.useQuery(undefined, {
+		// Pairing lands on its own when you tap Start in Telegram.
 		refetchInterval: (query) => {
 			const data = query.state.data;
-			return data?.state === "qr" ||
-				data?.state === "connecting" ||
-				(data?.state === "linked" && data.code)
-				? 2_000
-				: false;
+			return data?.state === "connected" && data.pairLink ? 2_000 : false;
 		},
 	});
+	const [token, setToken] = useState("");
 	const onError = (error: { message: string }) => toast.error(error.message);
-	const link = electronTrpc.whatsapp.link.useMutation({
+	const connect = electronTrpc.telegram.connect.useMutation({
+		onSuccess: () => {
+			setToken("");
+			void status.refetch();
+		},
+		onError,
+	});
+	const disconnect = electronTrpc.telegram.disconnect.useMutation({
 		onSuccess: () => void status.refetch(),
 		onError,
 	});
-	const unlink = electronTrpc.whatsapp.unlink.useMutation({
-		onSuccess: () => void status.refetch(),
-		onError,
-	});
+	const openUrl = electronTrpc.external.openUrl.useMutation();
 	const data = status.data;
+	const connected = data?.state === "connected";
 	return (
-		<div data-setting="WhatsApp" className="px-4 py-3.5">
+		<div data-setting="Telegram" className="px-4 py-3.5">
 			<div className="flex items-start justify-between gap-6">
 				<div className="flex items-start gap-3 min-w-0">
 					<div className="flex size-8 shrink-0 items-center justify-center">
-						<FaWhatsapp className="size-5" />
+						<FaTelegram className="size-5" />
 					</div>
 					<div className="min-w-0">
 						<div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
-							<span className="text-sm font-medium">WhatsApp</span>
+							<span className="text-sm font-medium">Telegram</span>
 							<StatusDot
 								loading={status.isLoading}
-								configured={data?.state === "linked"}
-								identity={data?.state === "linked" ? `+${data.phone}` : null}
-								error={null}
+								configured={connected}
+								identity={connected ? `@${data.bot}` : null}
+								error={data?.state === "error" ? data.error : null}
 							/>
 						</div>
 						<div className="text-xs text-muted-foreground mt-0.5">
 							Add and start tasks from your phone, and hear back when they wait
 							for you.
 						</div>
-						<div className="text-xs text-muted-foreground mt-1 max-w-[70ch]">
-							Link a second WhatsApp number, not your own: it becomes a contact
-							named Odin, with Odin's icon. Any text you send it starts a task,
-							and "help" lists the commands. It answers only you, and runs while
-							Odin is open on this Mac.
-						</div>
-						{data?.state === "qr" && (
-							<div className="mt-3">
-								<img
-									src={data.qr}
-									alt="WhatsApp link code"
-									className="size-48 rounded-md bg-white p-2"
-								/>
-								<div className="text-xs text-muted-foreground mt-2 max-w-[70ch]">
-									On the phone with Odin's number, open WhatsApp → Settings →
-									Linked devices → Link a device, and scan this code.
+						{!connected && (
+							<div className="mt-2 max-w-[70ch] space-y-2">
+								<div className="text-xs text-muted-foreground">
+									In Telegram, open @BotFather, send /newbot, pick any name and
+									username, and paste the token it gives you here. Odin sets the
+									bot's name and icon itself.
 								</div>
+								<form
+									className="flex items-center gap-2"
+									onSubmit={(event) => {
+										event.preventDefault();
+										if (token.trim()) connect.mutate({ token });
+									}}
+								>
+									<Input
+										type="password"
+										placeholder="123456789:AA..."
+										value={token}
+										onChange={(event) => setToken(event.target.value)}
+										className="h-8 text-xs"
+									/>
+									<Button
+										type="submit"
+										variant="outline"
+										size="sm"
+										disabled={!token.trim() || connect.isPending}
+									>
+										{connect.isPending ? "Connecting…" : "Connect"}
+									</Button>
+								</form>
 							</div>
 						)}
-						{data?.state === "linked" && data.code && (
-							<div className="mt-3 text-xs text-muted-foreground max-w-[70ch]">
-								From your own WhatsApp, send{" "}
-								<span className="select-text cursor-text font-mono text-sm font-semibold text-foreground">
-									{data.code}
-								</span>{" "}
-								to +{data.phone}. That makes you the only one it answers.
+						{connected && data.pairLink && (
+							<div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground max-w-[70ch]">
+								<span>
+									Last step: open the bot in Telegram and tap Start. That makes
+									you the only one it answers.
+								</span>
+								<Button
+									variant="outline"
+									size="sm"
+									onClick={() => openUrl.mutate(data.pairLink as string)}
+								>
+									Open in Telegram
+								</Button>
+							</div>
+						)}
+						{connected && !data.pairLink && (
+							<div className="text-xs text-muted-foreground mt-1 max-w-[70ch]">
+								Message @{data.bot}: any text starts a task, and /help lists the
+								commands. It runs while Odin is open on this Mac.
 							</div>
 						)}
 					</div>
 				</div>
-				<div className="flex items-center gap-1 shrink-0">
-					{data?.state === "linked" ? (
+				{connected && (
+					<div className="flex items-center gap-1 shrink-0">
 						<Button
 							variant="ghost"
 							size="sm"
-							disabled={unlink.isPending}
-							onClick={() => unlink.mutate()}
+							disabled={disconnect.isPending}
+							onClick={() => disconnect.mutate()}
 						>
-							Unlink
+							Disconnect
 						</Button>
-					) : (
-						<Button
-							variant="outline"
-							size="sm"
-							disabled={data?.state !== "off" || link.isPending}
-							onClick={() => link.mutate()}
-						>
-							{data?.state === "off" || !data ? "Link" : "Linking…"}
-						</Button>
-					)}
-				</div>
+					</div>
+				)}
 			</div>
 		</div>
 	);

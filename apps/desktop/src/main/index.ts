@@ -37,6 +37,7 @@ import { runQuitCleanup } from "./lib/quit-sequence";
 import { initSentry } from "./lib/sentry";
 import { acquireSingleUiLock } from "./lib/single-ui-lock";
 import { completeSlackOAuth, isSlackOAuthCallback } from "./lib/slack-oauth";
+import { startTelegram } from "./lib/telegram";
 import {
 	prewarmTerminalRuntime,
 	reconcileDaemonSessions,
@@ -46,7 +47,6 @@ import {
 	getTerminalHostClient,
 } from "./lib/terminal-host/client";
 import { disposeTray, initTray } from "./lib/tray";
-import { startWhatsApp } from "./lib/whatsapp";
 import { startNetworkLogger, stopNetworkLogger } from "./network-logger";
 import { flushWindowStateSync, MainWindow } from "./windows/main";
 
@@ -475,7 +475,7 @@ if (!gotTheLock) {
 
 		startWorktreePruner();
 		startDataBackup();
-		startWhatsApp();
+		startTelegram();
 		startMemoryGuard();
 
 		try {

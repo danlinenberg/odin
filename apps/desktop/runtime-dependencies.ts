@@ -119,10 +119,6 @@ const packagedSupportModules = [
 export const mainExternalizedDependencies = [
 	...externalizedRuntimeModules.map((module) => module.specifier),
 	"pg-native",
-	// Baileys (WhatsApp bot) loads sharp only to resize a profile photo, in a
-	// try/catch; the bot uses nativeImage instead. Bundled, sharp's loader left
-	// requires for its dev headers that the release check rejects.
-	"sharp",
 	// mastracode transitively loads @mastra/fastembed → onnxruntime-node, whose
 	// native binding is loaded via a dynamic `require` that @rollup/plugin-commonjs
 	// can't resolve at bundle time. Externalizing lets Node handle the require at
