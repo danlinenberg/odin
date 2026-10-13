@@ -145,6 +145,12 @@ export async function linkWhatsApp(): Promise<void> {
 					status = { state: "off" };
 					return;
 				}
+				// Nobody scanned the QR in time: stop, so it doesn't make new ones
+				// in the background forever. Link starts over.
+				if (code === baileys.DisconnectReason.timedOut && !state.creds.me) {
+					status = { state: "off" };
+					return;
+				}
 				// Restart-required after the QR scan, or the network dropped.
 				setTimeout(() => void linkWhatsApp(), 3_000);
 			}
