@@ -104,9 +104,10 @@ test("newestCookieDb skips a browser macOS won't let Odin read", () => {
 });
 
 describe("cookieDomains", () => {
-	test("keeps the connections' sites, and Google only with Gmail", () => {
-		const withGmail = cookieDomains(true);
-		const without = cookieDomains(false);
+	test("keeps only the connected sites, and Google only with Gmail", () => {
+		const all = ["slack", "jira", "github", "notion", "clickup"] as const;
+		const withGmail = cookieDomains([...all, "gmail"]);
+		const without = cookieDomains([...all]);
 		for (const host of [
 			".slack.com",
 			"imagen.atlassian.net",
@@ -126,5 +127,9 @@ describe("cookieDomains", () => {
 			expect(isConnectionCookie(host, without)).toBe(false);
 		expect(isConnectionCookie(".google.com", withGmail)).toBe(true);
 		expect(isConnectionCookie("mail.google.com", withGmail)).toBe(true);
+		const slackOnly = cookieDomains(["slack"]);
+		expect(isConnectionCookie(".slack.com", slackOnly)).toBe(true);
+		expect(isConnectionCookie("github.com", slackOnly)).toBe(false);
+		expect(isConnectionCookie("www.notion.so", slackOnly)).toBe(false);
 	});
 });

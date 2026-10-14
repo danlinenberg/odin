@@ -49,20 +49,30 @@ const SIGN_IN_HOSTS: Partial<Record<LinkSiteId, readonly string[]>> = {
 	notion: ["notion.com"],
 };
 
+/** The connections this profile is signed in to. */
+export function connectedSites(): LinkSiteId[] {
+	const config = readOdinConfig();
+	const signedIn: Record<LinkSiteId, unknown> = {
+		slack: config.slackToken,
+		jira: config.jiraRefreshToken ?? config.jiraAccessToken,
+		github: config.githubToken,
+		notion: config.notionToken,
+		gmail: config.gmailAddress,
+		clickup: config.clickupToken,
+	};
+	return (Object.keys(signedIn) as LinkSiteId[]).filter((id) => signedIn[id]);
+}
+
 /**
- * The only sites whose cookies the in-app browser keeps: the connections'.
- * Google's sign-in covers every Google app, so it comes only while Gmail is
- * connected. Cookies sit in the in-app browser where any process running as
+ * The only sites whose cookies the in-app browser keeps: the connections
+ * you are signed in to. Gmail's sign-in is Google's, which covers every
+ * Google app. Cookies sit in the in-app browser where any process running as
  * you can read them - none for your bank, your mail or anything else.
  */
-export function cookieDomains(
-	gmail = !!readOdinConfig().gmailAddress,
-): string[] {
-	return (Object.keys(LINK_HOSTS) as LinkSiteId[]).flatMap((id) =>
+export function cookieDomains(connected = connectedSites()): string[] {
+	return connected.flatMap((id) =>
 		id === "gmail"
-			? gmail
-				? ["google.com"]
-				: []
+			? ["google.com"]
 			: [...LINK_HOSTS[id], ...(SIGN_IN_HOSTS[id] ?? [])],
 	);
 }
