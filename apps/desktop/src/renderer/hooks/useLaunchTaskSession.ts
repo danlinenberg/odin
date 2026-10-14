@@ -2,11 +2,7 @@ import { useState } from "react";
 import { currentLaunchBlocker } from "renderer/hooks/useTaskQueue";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { usePaneMeta } from "renderer/routes/_authenticated/_odin/hooks/usePaneMeta";
-import {
-	claudeCli,
-	remoteControlEnv,
-	remoteControlFlag,
-} from "renderer/stores/claude-command";
+import { claudeLaunch } from "renderer/stores/claude-command";
 import {
 	type OdinRule,
 	rulesPrompt,
@@ -447,7 +443,7 @@ export function useLaunchTaskSession() {
 			const claudeArgs = resumeSessionId
 				? `--resume ${resumeSessionId}${settingsArg}`
 				: `--session-id ${sessionId}${settingsArg}${promptArg}`;
-			const command = `cd ${quote(sessionCwd)} && ${remoteControlEnv()}${claudeCli()}${remoteControlFlag(title)} ${claudeArgs}`;
+			const command = `cd ${quote(sessionCwd)} && ${claudeLaunch(title, claudeArgs)}`;
 			// Held back: the pane stays process-less and the command rides on it
 			// until the queue runner (useTaskQueue) finds the gate open.
 			if (!queuedReason) {

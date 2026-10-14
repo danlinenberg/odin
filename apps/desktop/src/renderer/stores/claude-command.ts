@@ -66,7 +66,7 @@ export function pickClaudeCommand(commands: string[], active: string): string {
 }
 
 /** `claude --dangerously-skip-permissions [--model x]`, through your chosen command. */
-export function claudeCli(): string {
+function claudeCli(): string {
 	const { commands, active, model } = useClaudeCommand.getState();
 	return `${pickClaudeCommand(commands, active)} --dangerously-skip-permissions${modelFlag(model)}`;
 }
@@ -104,4 +104,18 @@ export function remoteControlFlag(
 	return trimmed
 		? ` --remote-control '${trimmed.replaceAll("'", `'\\''`)}'`
 		: " --remote-control";
+}
+
+/**
+ * The one way Odin starts Claude in a session - new, resume, retry, a resume
+ * handed to VS Code. Each one built its own string, and Resume dropped
+ * Remote Control. `name` is the task's title, `args` what follows the flags
+ * (`--resume <id>`, `--session-id <id> '<prompt>'`).
+ */
+export function claudeLaunch(
+	name: string,
+	args: string,
+	remoteControl = useClaudeCommand.getState().remoteControl,
+): string {
+	return `${remoteControlEnv(remoteControl)}${claudeCli()}${remoteControlFlag(name, remoteControl)} ${args}`;
 }

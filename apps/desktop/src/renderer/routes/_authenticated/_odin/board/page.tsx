@@ -59,7 +59,7 @@ import { canClaimKeyboard } from "renderer/lib/keyboard";
 import { coldRestoreState } from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/state";
 import { Terminal } from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/Terminal";
 import * as terminalCache from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/v1-terminal-cache";
-import { claudeCli, useClaudeCommand } from "renderer/stores/claude-command";
+import { claudeLaunch, useClaudeCommand } from "renderer/stores/claude-command";
 import { useIdleClose } from "renderer/stores/idle-close";
 import { useSessionView } from "renderer/stores/session-view";
 import { useTabsStore } from "renderer/stores/tabs/store";
@@ -236,6 +236,11 @@ function visibleScreen(paneId: string): string {
 			buffer.getLine(buffer.viewportY + row)?.translateToString(true) ?? "",
 		);
 	return lines.join("\n");
+}
+
+/** What a session is called on claude.ai under Remote Control. */
+function taskName(card: BoardCard): string {
+	return card.pane.odinTaskTitle ?? card.tabName;
 }
 
 /**
@@ -2459,7 +2464,7 @@ function DevBoardPage() {
 		}
 		const cwd = sessionCwd(card.pane);
 		await copyText.mutateAsync(
-			`${cwd ? `cd '${cwd.replaceAll("'", "'\\''")}' && ` : ""}${claudeCli()} --resume ${sessionId}`,
+			`${cwd ? `cd '${cwd.replaceAll("'", "'\\''")}' && ` : ""}${claudeLaunch(taskName(card), `--resume ${sessionId}`)}`,
 		);
 		toast.success("Opened in VS Code", {
 			description:
@@ -3133,7 +3138,7 @@ function DevBoardPage() {
 				}
 				queueResume(
 					card.pane,
-					`cd '${cwd}' && ${claudeCli()} --resume ${id} ${opening}`,
+					`cd '${cwd}' && ${claudeLaunch(taskName(card), `--resume ${id} ${opening}`)}`,
 					blocker,
 				);
 				return;
@@ -3232,11 +3237,10 @@ function DevBoardPage() {
 		// agent comes back with the job half done, so "Continue" rides on the
 		// command line. Typing it in once the TUI looked up raced Claude's boot
 		// - the write was swallowed and the card needed another Resume click.
-		const resumeCmd = `${
-			sessionId
-				? `${claudeCli()} --resume ${sessionId}`
-				: `${claudeCli()} --continue`
-		}${diedWorking || prompt ? ` ${opening}` : ""}`;
+		const resumeCmd = claudeLaunch(
+			taskName(card),
+			`${sessionId ? `--resume ${sessionId}` : "--continue"}${diedWorking || prompt ? ` ${opening}` : ""}`,
+		);
 		// You resumed it to work in it - bring it up. The drawer swaps its
 		// read-only history for the live terminal once the PTY is back, and that
 		// terminal takes the keyboard. Auto-resume never steals the screen.

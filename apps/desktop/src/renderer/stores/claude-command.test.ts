@@ -1,9 +1,11 @@
 import { expect, test } from "bun:test";
 import {
+	claudeLaunch,
 	modelFlag,
 	pickClaudeCommand,
 	remoteControlEnv,
 	remoteControlFlag,
+	useClaudeCommand,
 } from "./claude-command";
 
 test("pickClaudeCommand", () => {
@@ -34,5 +36,16 @@ test("remoteControlEnv", () => {
 	expect(remoteControlEnv(false)).toBe("");
 	expect(remoteControlEnv(true)).toBe(
 		"unset CLAUDE_CODE_OAUTH_TOKEN ANTHROPIC_API_KEY && ",
+	);
+});
+
+test("claudeLaunch: a resume gets Remote Control like a new session", () => {
+	useClaudeCommand.setState({ commands: [], model: "", remoteControl: true });
+	expect(claudeLaunch("Fix it", "--resume abc")).toBe(
+		"unset CLAUDE_CODE_OAUTH_TOKEN ANTHROPIC_API_KEY && claude --dangerously-skip-permissions --remote-control 'Fix it' --resume abc",
+	);
+	useClaudeCommand.setState({ remoteControl: false });
+	expect(claudeLaunch("Fix it", "--resume abc")).toBe(
+		"claude --dangerously-skip-permissions --resume abc",
 	);
 });
