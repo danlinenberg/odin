@@ -70,6 +70,9 @@ export function automationBrief(
 			(pane) =>
 				`- ${pane.odinTaskTitle} - paneId ${pane.id}, status ${pane.status ?? "idle"}, tags ${(pane.odinTags ?? []).map((tag) => `#${tag}`).join(" ")}`,
 		),
+		"",
+		// Without this the tag stays, and every tick runs the same session again.
+		`When you finish with a session, drop ${task.tags.map((tag) => `#${tag}`).join(" / ")} from its tags so the next run skips it: curl -sf http://127.0.0.1:$ODIN_PORT/odin --data-urlencode action=set --data-urlencode store=sessions --data-urlencode 'patch={"panes":{"<paneId>":{"odinTags":[<its other tags>]}}}'`,
 	].join("\n");
 }
 

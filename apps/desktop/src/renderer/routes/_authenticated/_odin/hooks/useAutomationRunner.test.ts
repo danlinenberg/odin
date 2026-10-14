@@ -84,5 +84,6 @@ describe("automationBrief", () => {
 		const brief = automationBrief(task({ tags: ["codex-review"] }), panes);
 		expect(brief).toContain("- Ship it - paneId p1, status review");
 		expect(brief).not.toContain("Other");
+		expect(brief).toContain("drop #codex-review from its tags");
 	});
 });
