@@ -267,13 +267,25 @@ const readScreen = async (paneId: string) =>
 		await callProcedure("terminal.readScreen", JSON.stringify({ paneId })),
 	);
 
+/**
+ * The writes that type a reply into Claude and send it, as the chat view's
+ * typeIntoClaude does: multi-line text as one bracketed paste, so its first
+ * newline doesn't send it early, then Enter on its own.
+ */
+export function answerWrites(text: string): [string, string] {
+	return [text.includes("\n") ? `\x1b[200~${text}\x1b[201~` : text, "\r"];
+}
+
 /** Text typed into the session, then Enter. */
 async function answerSession(paneId: string, text: string): Promise<string> {
-	const result = await callProcedure(
-		"terminal.write",
-		JSON.stringify({ paneId, data: `${text}\r` }),
-	);
-	return result.startsWith("Failed") ? result : "Sent.";
+	const [typed, enter] = answerWrites(text);
+	const write = (data: string) =>
+		callProcedure("terminal.write", JSON.stringify({ paneId, data }));
+	const result = await write(typed);
+	if (result.startsWith("Failed")) return result;
+	await new Promise((resolve) => setTimeout(resolve, 30));
+	const sent = await write(enter);
+	return sent.startsWith("Failed") ? sent : "Sent.";
 }
 
 type Task = { id: string; title: string; started: boolean; queued?: string };

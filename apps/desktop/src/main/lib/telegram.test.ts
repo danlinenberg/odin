@@ -1,5 +1,5 @@
 import { expect, it } from "bun:test";
-import { parseCommand, screenTail } from "./telegram";
+import { answerWrites, parseCommand, screenTail } from "./telegram";
 
 it("reads a message as a command, with or without the slash, anything else as a task", () => {
 	expect(parseCommand("Tasks")).toEqual({ kind: "tasks" });
@@ -26,4 +26,12 @@ it("keeps the end of the screen, without blank lines", () => {
 	expect(tail.split("\n")).toHaveLength(20);
 	expect(tail.endsWith("line 29")).toBe(true);
 	expect(screenTail("Failed: no pane")).toBe("Failed: no pane");
+});
+
+it("types a multi-line reply as one paste, then Enter", () => {
+	expect(answerWrites("yes")).toEqual(["yes", "\r"]);
+	expect(answerWrites("use plan B\nand skip the tests")).toEqual([
+		"\x1b[200~use plan B\nand skip the tests\x1b[201~",
+		"\r",
+	]);
 });
