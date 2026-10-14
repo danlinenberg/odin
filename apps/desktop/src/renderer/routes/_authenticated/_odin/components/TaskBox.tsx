@@ -139,7 +139,17 @@ export function TaskBox({
 	};
 
 	return (
-		<div className="flex h-full min-h-0 flex-col gap-1.5">
+		// Focus is tracked here, not on the fieldset: Skill, Repo and Priority sit
+		// below it, and moving into one of them must not fold the box away.
+		// biome-ignore lint/a11y/noStaticElementInteractions: focus bubbles up from the fields, nothing here is clickable
+		<div
+			className="flex h-full min-h-0 flex-col gap-1.5"
+			onFocus={() => setFocused(true)}
+			onBlur={(event) => {
+				if (!event.currentTarget.contains(event.relatedTarget))
+					setFocused(false);
+			}}
+		>
 			{/* grow, not flex-1: the basis stays the rows=2 height, so inline use is
 			    unchanged and only a resized dialog hands it extra room. */}
 			<fieldset
@@ -150,11 +160,6 @@ export function TaskBox({
 				}}
 				onDrop={(event) => attach(event.dataTransfer.files, event)}
 				onPaste={(event) => attach(event.clipboardData.files, event)}
-				onFocus={() => setFocused(true)}
-				onBlur={(event) => {
-					if (!event.currentTarget.contains(event.relatedTarget))
-						setFocused(false);
-				}}
 				className={cn(
 					"flex min-h-0 min-w-0 grow flex-col overflow-hidden rounded-[10px] border bg-card focus-within:border-primary",
 					folded ? "border-dashed border-border" : "border-border",

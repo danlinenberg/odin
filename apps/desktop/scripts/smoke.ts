@@ -233,6 +233,26 @@ async function click(selector: string, label: string) {
 	if (!found) throw new Error(`no ${selector} labelled "${label}"`);
 	await sleep(400);
 }
+/**
+ * A real mouse click on `selector`, for focus-driven UI: `.click()` and
+ * `.focus()` from a script don't move focus the way a pointer does.
+ */
+async function mouseClick(selector: string) {
+	const at = await page<{ x: number; y: number } | null>(`(() => {
+		const r = document.querySelector(${JSON.stringify(selector)})?.getBoundingClientRect();
+		return r ? { x: r.x + r.width / 2, y: r.y + r.height / 2 } : null;
+	})()`);
+	if (!at) throw new Error(`no ${selector} to click`);
+	for (const type of ["mousePressed", "mouseReleased"])
+		await send("Input.dispatchMouseEvent", {
+			type,
+			...at,
+			button: "left",
+			buttons: type === "mousePressed" ? 1 : 0,
+			clickCount: 1,
+		});
+	await sleep(400);
+}
 /** Type into a React-controlled field the way a keystroke would. */
 async function fill(selector: string, value: string) {
 	const found = await page<boolean>(`(() => {
@@ -621,6 +641,20 @@ await step("the Tasks page has its own composer", async () => {
 	await click("button", "Add task");
 	await waitForText(typed);
 });
+
+await step(
+	"the Tasks composer stays open when you click into Repo",
+	async () => {
+		await rail("Tasks");
+		await mouseClick('input[placeholder="What needs doing?"]');
+		await mouseClick('input[aria-label="Repo"]');
+		const repoFocused = await page<boolean>(
+			`document.activeElement?.getAttribute("aria-label") === "Repo"`,
+		);
+		if (!repoFocused)
+			throw new Error("the box folded away under the Repo field");
+	},
+);
 
 await step("ticking two tasks marks both done at once", async () => {
 	const pair = [`Bulk one ${Date.now()}`, `Bulk two ${Date.now()}`];
