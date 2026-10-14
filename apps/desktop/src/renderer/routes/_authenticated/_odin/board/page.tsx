@@ -1351,6 +1351,8 @@ function TagMenu({
 	customTags,
 	starred,
 	onStar,
+	onDone,
+	onRemind,
 	onKeep,
 	onToggle,
 	onAdd,
@@ -1364,6 +1366,8 @@ function TagMenu({
 	customTags: string[];
 	starred: boolean;
 	onStar: () => void;
+	onDone: () => void;
+	onRemind: (day: string) => void;
 	/** Set when the sweep suggests dropping this session. */
 	onKeep?: () => void;
 	onToggle: (tag: string) => void;
@@ -1401,6 +1405,7 @@ function TagMenu({
 	return (
 		<div
 			ref={ref}
+			data-session-menu
 			style={{ left, top }}
 			className="fixed z-[60] w-[220px] rounded-[10px] border border-border bg-card p-2 shadow-[0_10px_30px_rgba(0,0,0,.5)]"
 		>
@@ -1415,6 +1420,27 @@ function TagMenu({
 				<span className="w-3 text-attention">★</span>
 				{starred ? "Unstar" : "Star"}
 			</button>
+			<button
+				type="button"
+				onClick={() => {
+					onDone();
+					onClose();
+				}}
+				className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-success"
+			>
+				<span className="w-3 text-success">✓</span>
+				Done
+			</button>
+			<div className="mb-1.5 border-b border-border pb-1.5">
+				<RemindButton
+					label="Remind me…"
+					onPick={(day) => {
+						onRemind(day);
+						onClose();
+					}}
+					className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-attention"
+				/>
+			</div>
 			{onKeep && (
 				<button
 					type="button"
@@ -3569,6 +3595,19 @@ function DevBoardPage() {
 		toast.success("All caught up");
 	};
 
+	// Done from wherever the card is: the open session moves the drawer on,
+	// another row in the drawer's list leaves the drawer where it is.
+	const doneAnywhere = (card: BoardCard) => {
+		if (card.pane.id === drawerCard?.pane.id) return markDoneInDrawer(card);
+		if (!drawerCard) return markDone(card);
+		toast.success("Done - removed from board", undoAction(endCard(card)));
+	};
+	const tagMenuCard = tagMenu
+		? [...cardsByStatus.values()]
+				.flat()
+				.find((c) => c.pane.id === tagMenu.paneId)
+		: undefined;
+
 	/** Done now; on `day` it pings and waits above the columns to be resumed. */
 	const remindMe = (card: BoardCard, day: string) => {
 		const sessionId =
@@ -3591,7 +3630,7 @@ function DevBoardPage() {
 			},
 			day,
 		);
-		markDone(card);
+		doneAnywhere(card);
 		toast.success(`Reminding you ${day} - ${title.slice(0, 50)}`);
 	};
 
@@ -3747,6 +3786,8 @@ function DevBoardPage() {
 							: undefined
 					}
 					onStar={() => toggleStar(tagMenu.paneId)}
+					onDone={() => tagMenuCard && doneAnywhere(tagMenuCard)}
+					onRemind={(day) => tagMenuCard && remindMe(tagMenuCard, day)}
 					onToggle={(tag) => toggleTag(tagMenu.paneId, tag)}
 					onClose={() => setTagMenu(null)}
 				/>
@@ -3904,7 +3945,7 @@ function DevBoardPage() {
 																}}
 																onClick={() => openDrawer(card)}
 																onContextMenu={(event) => {
-																	// Right-click → star or tag this session.
+																	// Right-click → done, remind, star or tag this session.
 																	event.preventDefault();
 																	setTagMenu({
 																		paneId: card.pane.id,
@@ -4613,6 +4654,15 @@ function DevBoardPage() {
 														<button
 															type="button"
 															onClick={() => openDrawer(card)}
+															onContextMenu={(event) => {
+																// Right-click → done, remind, star or tag.
+																event.preventDefault();
+																setTagMenu({
+																	paneId: card.pane.id,
+																	x: event.clientX,
+																	y: event.clientY,
+																});
+															}}
 															className={cn(
 																"group/switch flex items-center gap-2 py-1.5 text-left text-xs transition-all duration-[450ms]",
 																isSwitchListMin ? "justify-center" : "px-3",

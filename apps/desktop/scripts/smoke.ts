@@ -866,6 +866,20 @@ await step("⌘Z after Done resumes the session onto the board", async () => {
 	}
 });
 
+await step("right-click → Done takes the session off the board", async () => {
+	const opened = await page<boolean>(`(() => {
+		const card = [...document.querySelectorAll('[role="button"][draggable="true"]')]
+			.find((c) => c.textContent.includes(${JSON.stringify(SESSION)}));
+		const at = card?.getBoundingClientRect();
+		card?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: at?.x, clientY: at?.y }));
+		return !!card;
+	})()`);
+	if (!opened) throw new Error("no card for the resumed session");
+	// The menu's own Done - the card's ✓ Done would pass this step too.
+	await click("[data-session-menu] button", "✓Done");
+	await waitForText(SESSION, false);
+});
+
 await step("no uncaught errors in the renderer", async () => {
 	if (exceptions.length) throw new Error(exceptions.join("\n     "));
 });
