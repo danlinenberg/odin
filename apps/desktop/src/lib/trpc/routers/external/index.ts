@@ -23,6 +23,11 @@ import {
 	resolvePath,
 	spawnAsync,
 } from "./helpers";
+import {
+	claudeCodeSessionUrl,
+	hasClaudeCodeExtension,
+	vscodeFolderUrl,
+} from "./vscode";
 
 /**
  * Wraps a tRPC handler so a `RelativePathWithoutCwdError` (thrown by
@@ -221,6 +226,38 @@ export const createExternalRouter = () => {
 						err,
 					);
 				}
+			}),
+
+		/**
+		 * A session's folder in VS Code, and its conversation in VS Code's Claude
+		 * Code panel when that extension is there. `open -a` first; VS Code's own
+		 * `vscode://` handler when that fails (no `code` CLI, a renamed app).
+		 * Returns whether the conversation went over too.
+		 */
+		openSessionInVsCode: publicProcedure
+			.input(
+				z.object({
+					path: z.string(),
+					sessionId: z.string().uuid().optional(),
+				}),
+			)
+			.mutation(async ({ input }) => {
+				if (!nodePath.isAbsolute(input.path)) {
+					throw new TRPCError({
+						code: "BAD_REQUEST",
+						message: `VS Code needs an absolute path (got ${JSON.stringify(input.path)}).`,
+					});
+				}
+				try {
+					await openPathInApp(input.path, "vscode");
+				} catch {
+					await shell.openExternal(vscodeFolderUrl(input.path));
+				}
+				if (!input.sessionId || !hasClaudeCodeExtension()) return false;
+				// The URL goes to VS Code's focused window: let the folder's come up.
+				await new Promise((resolve) => setTimeout(resolve, 1_500));
+				await shell.openExternal(claudeCodeSessionUrl(input.sessionId));
+				return true;
 			}),
 
 		copyPath: publicProcedure.input(z.string()).mutation(async ({ input }) => {

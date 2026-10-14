@@ -901,35 +901,18 @@ function ShellDot({
  * shell opens where the session launched - for feed sessions the catch-all
  * directory - while the agent cd'd into a worktree the shell never saw.
  */
-function ShellPlaceMenu({ card, shell }: { card: BoardCard; shell: Pane }) {
+function ShellPlaceMenu({
+	card,
+	shell,
+	onOpenInVsCode,
+}: {
+	card: BoardCard;
+	shell: Pane;
+	onOpenInVsCode: (dir: string) => void;
+}) {
 	const { data, here, inside, shellsIn } = useShellPlace(card, shell);
 	const write = electronTrpc.terminal.write.useMutation();
 	const updatePaneCwd = useTabsStore((s) => s.updatePaneCwd);
-	const openInApp = electronTrpc.external.openInApp.useMutation();
-	const copyText = electronTrpc.external.copyPath.useMutation();
-	/**
-	 * VS Code where the shell is, with the command that joins this
-	 * conversation on the clipboard for VS Code's terminal. Forked, so the two
-	 * don't both write into the live session.
-	 */
-	const openInVsCode = async (dir: string) => {
-		try {
-			await openInApp.mutateAsync({ path: dir, app: "vscode" });
-		} catch (error) {
-			return toast.error(`Couldn't open VS Code: ${String(error)}`);
-		}
-		const sessionId =
-			card.pane.claudeSessionId ??
-			usePaneMeta.getState().sessionIdByPane[card.pane.id];
-		if (!sessionId) return;
-		await copyText.mutateAsync(
-			`${claudeCli()} --resume ${sessionId} --fork-session`,
-		);
-		toast.success("Opened in VS Code", {
-			description:
-				"Paste in VS Code's terminal (⌃`) to join this session's conversation.",
-		});
-	};
 	const cd = (dir: string) => {
 		write.mutate({
 			paneId: shell.id,
@@ -1011,10 +994,10 @@ function ShellPlaceMenu({ card, shell }: { card: BoardCard; shell: Pane }) {
 					<>
 						<DropdownMenuSeparator />
 						<DropdownMenuItem
-							title="Open this folder in VS Code, with this conversation's resume command on the clipboard"
+							title="Open this folder in VS Code, and continue this conversation there"
 							onSelect={() => {
 								const dir = here ?? targets[0]?.dir;
-								if (dir) void openInVsCode(dir);
+								if (dir) onOpenInVsCode(dir);
 							}}
 							className="flex items-center gap-2 text-xs"
 						>
@@ -2369,6 +2352,76 @@ function DevBoardPage() {
 		}
 		setIsDiffOpen(false);
 		setIsShellOpen(true);
+	};
+	const openSessionInVsCode =
+		electronTrpc.external.openSessionInVsCode.useMutation();
+	const copyText = electronTrpc.external.copyText.useMutation();
+	/**
+	 * The session moves to VS Code: its folder, and the same conversation in
+	 * VS Code's Claude Code panel, or its resume command on the clipboard
+	 * without that extension. Never two Claudes on one conversation: a turn
+	 * still running stays here, and an idle one is closed here first, the way
+	 * idle sessions are - Resume brings it back.
+	 */
+	const openInVsCode = async (card: BoardCard, dir?: string) => {
+		const folder = dir ?? (await workDirOf(card));
+		if (!folder) return toast.error("This session has no folder to open");
+		const sessionId = claudeSessionIdOf(card);
+		const working = isWorkingNow(card.pane.id);
+		const moving = !!sessionId && !working;
+		if (moving && agentPaneIds.has(card.pane.id)) {
+			const column = withMergeReady(
+				boardColumn(
+					card.pane.status ?? "idle",
+					true,
+					card.pane.odinParked ?? false,
+				),
+				card.pane.id,
+			);
+			useTabsStore.setState((state) => ({
+				panes: {
+					...state.panes,
+					[card.pane.id]: {
+						...state.panes[card.pane.id],
+						odinClosedIn: column,
+					},
+				},
+			}));
+			await utils.client.terminal.kill
+				.mutate({ paneId: card.pane.id })
+				.catch(() => {});
+		}
+		let inPanel = false;
+		try {
+			inPanel = await openSessionInVsCode.mutateAsync({
+				path: folder,
+				sessionId: moving ? sessionId : undefined,
+			});
+		} catch (error) {
+			return toast.error(`Couldn't open VS Code: ${String(error)}`);
+		}
+		if (working) {
+			return toast.info("Opened the folder in VS Code", {
+				description:
+					"Claude is still working here, so the conversation stays in Odin. Open it again once the turn ends to move it.",
+			});
+		}
+		if (!sessionId || inPanel) {
+			return toast.success("Opened in VS Code", {
+				description: sessionId
+					? "The conversation continues in VS Code's Claude panel. Resume here brings it back."
+					: undefined,
+			});
+		}
+		const cwd = sessionCwd(card.pane);
+		await copyText.mutateAsync(
+			`${cwd ? `cd '${cwd.replaceAll("'", "'\\''")}' && ` : ""}${claudeCli()} --resume ${sessionId}`,
+		);
+		toast.success("Opened in VS Code", {
+			description:
+				"Paste in VS Code's terminal (⌃`) to continue this conversation there.",
+			duration: 30_000,
+		});
 	};
 	// Dev only: hold Vite's reloads while a session is open (see coalesceFullReloadPlugin).
 	const drawerOpen = !!drawerCard;
@@ -4476,9 +4529,25 @@ function DevBoardPage() {
 											)}
 										</button>
 										{isShellOpen && drawerShell && (
-											<ShellPlaceMenu card={drawerCard} shell={drawerShell} />
+											<ShellPlaceMenu
+												card={drawerCard}
+												shell={drawerShell}
+												onOpenInVsCode={(dir) =>
+													void openInVsCode(drawerCard, dir)
+												}
+											/>
 										)}
 									</div>
+								)}
+								{drawerCard.pane.type === "terminal" && !inCatchUp && (
+									<button
+										type="button"
+										title="Open this session's worktree in VS Code and continue the conversation there"
+										onClick={() => void openInVsCode(drawerCard)}
+										className="shrink-0 rounded-md bg-secondary px-2 py-1 text-xs font-semibold text-muted-foreground hover:text-foreground"
+									>
+										VS Code
+									</button>
 								)}
 								{!catchUpLean && (
 									<button
