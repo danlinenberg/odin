@@ -4900,6 +4900,7 @@ function DevBoardPage() {
 																<span className="flex min-w-0 flex-col">
 																	<span className="flex min-w-0 items-center gap-1.5">
 																		<span className="truncate">
+																			<WatchMark paneId={card.pane.id} />
 																			{cardTitle(card)}
 																		</span>
 																	</span>
