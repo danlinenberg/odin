@@ -102,6 +102,14 @@ writeFileSync(
 	`#!/bin/sh\nfor a; do [ "$prev" = --session-id ] && mkdir -p "$HOME/.claude/projects/smoke" && : > "$HOME/.claude/projects/smoke/$a.jsonl"; prev=$a; done\nprintf '%s %s' "$ODIN_PORT" "$ODIN_PANE_ID" > "$HOME/pane-$$"\nprintf '%s\\n' "$@" > "$HOME/.claude-$$"\nmv "$HOME/.claude-$$" "$HOME/claude-$$.args"\necho "fake claude is working"\nexec sleep 600\n`,
 	{ mode: 0o755 },
 );
+// A Mac without the Command Line Tools: /usr/bin/git is Apple's stub, which
+// fails with xcode-select's note. $HOME/no-git turns this fake into that stub.
+writeFileSync(
+	join(home, "bin", "git"),
+	`#!/bin/sh\nif [ -e "$HOME/no-git" ]; then echo "xcode-select: note: No developer tools were found, requesting install." >&2; exit 1; fi\nexec /usr/bin/git "$@"\n`,
+	{ mode: 0o755 },
+);
+env.PATH = `${join(home, "bin")}:${env.PATH}`;
 // Sessions run in a login shell, which reads these after macOS's path_helper
 // has reordered PATH - so the fake beats a real claude in /opt/homebrew/bin.
 for (const profile of [".zprofile", ".bash_profile"])
@@ -928,6 +936,29 @@ await step("right-click → Done takes the session off the board", async () => {
 	await click("[data-session-menu] button", "✓Done");
 	await waitForText(SESSION, false);
 });
+
+await step(
+	"a Mac without Git is told to finish Apple's installer",
+	async () => {
+		writeFileSync(join(home, "no-git"), "");
+		try {
+			await rail("Dev Board");
+			await waitForText("next in line");
+			await click("button", "Describe a task and start an agent session");
+			await fill(
+				'textarea[placeholder^="What should the agent do?"]',
+				`No git ${Date.now()}`,
+			);
+			await click("button", "Start session");
+			await waitForText("macOS just opened an installer", true, 30_000);
+			await page(
+				`(document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`,
+			);
+		} finally {
+			rmSync(join(home, "no-git"), { force: true });
+		}
+	},
+);
 
 await step("no uncaught errors in the renderer", async () => {
 	if (exceptions.length) throw new Error(exceptions.join("\n     "));
