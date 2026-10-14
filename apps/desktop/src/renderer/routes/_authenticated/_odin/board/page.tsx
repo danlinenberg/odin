@@ -82,7 +82,13 @@ import {
 	odinScreenWrite,
 	spacesForCursorForward,
 } from "shared/odin-screen-status";
-import { BOARD_TAGS, boardTags, normalizeTag } from "shared/odin-tags";
+import {
+	BOARD_TAGS,
+	boardTags,
+	CUSTOM_TAGS_KEY,
+	normalizeTag,
+	readCustomTags,
+} from "shared/odin-tags";
 
 /** Tags the card shows as their own pill instead of in the #tag line. */
 const PILL_TAGS = ["automation", "auto-started", "off-hours"];
@@ -2327,17 +2333,11 @@ function DevBoardPage() {
 
 	// Tags you typed into the tag menu. Per machine, like the column above -
 	// Odin is local-only, so there's no other machine to sync them to.
-	const [customTags, setCustomTags] = useState<string[]>(() => {
-		try {
-			return JSON.parse(localStorage.getItem("odin:custom-tags") ?? "[]");
-		} catch {
-			return [];
-		}
-	});
+	const [customTags, setCustomTags] = useState<string[]>(readCustomTags);
 	const saveCustomTags = (next: string[]) => {
 		setCustomTags(next);
 		try {
-			localStorage.setItem("odin:custom-tags", JSON.stringify(next));
+			localStorage.setItem(CUSTOM_TAGS_KEY, JSON.stringify(next));
 		} catch {}
 	};
 

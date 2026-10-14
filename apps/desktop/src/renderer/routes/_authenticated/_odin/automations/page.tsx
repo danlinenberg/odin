@@ -16,6 +16,7 @@ import {
 	scheduleOf,
 	WEEKDAY_NAMES,
 } from "shared/cron";
+import { BOARD_TAGS, readCustomTags } from "shared/odin-tags";
 import {
 	RemindButton,
 	remindSession,
@@ -39,12 +40,8 @@ import {
 	SkillChip,
 	TaskBox,
 } from "../components/TaskBox";
-import {
-	type OdinTask,
-	taskPrompt,
-	taskText,
-	useMyTasks,
-} from "../hooks/useOdinTasks";
+import { automationBrief } from "../hooks/useAutomationRunner";
+import { type OdinTask, taskText, useMyTasks } from "../hooks/useOdinTasks";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePendingFocus } from "../hooks/usePendingFocus";
 
@@ -424,6 +421,60 @@ function RepoPicker({
 	);
 }
 
+function TagPicker({
+	value,
+	onChange,
+}: {
+	value: string[];
+	onChange: (tags: string[]) => void;
+}) {
+	const options = [...new Set([...BOARD_TAGS, ...readCustomTags()])].filter(
+		(tag) => !value.includes(tag),
+	);
+	return (
+		<span className="flex flex-wrap items-center gap-1">
+			{value.map((tag) => (
+				<span
+					key={tag}
+					className="flex items-center gap-1 rounded-[6px] bg-secondary px-1.5 py-[2px] text-[11px] font-semibold text-foreground"
+				>
+					#{tag}
+					<button
+						type="button"
+						aria-label={`Remove #${tag}`}
+						onClick={() => onChange(value.filter((t) => t !== tag))}
+						className="text-muted-foreground hover:text-foreground"
+					>
+						✕
+					</button>
+				</span>
+			))}
+			<select
+				aria-label="Only run when a session has this tag"
+				title="Optional. With a tag set, the automation runs only if some open session on the board has that tag."
+				value=""
+				onChange={(event) => onChange([...value, event.target.value])}
+				className={cn(RULE_INPUT, "w-auto flex-none")}
+			>
+				<option value="" disabled>
+					{value.length ? "+ tag" : "+ tag (optional)"}
+				</option>
+				{options.map((tag) => (
+					<option key={tag} value={tag}>
+						#{tag}
+					</option>
+				))}
+			</select>
+			{value.length > 0 && (
+				<span className={ROW_META}>
+					runs only if a session has{" "}
+					{value.length > 1 ? "one of these tags" : "this tag"}
+				</span>
+			)}
+		</span>
+	);
+}
+
 /**
  * One rule, edited in place. The fields hold a draft and write it back on
  * blur, so typing doesn't rewrite localStorage on every keystroke.
@@ -773,8 +824,16 @@ function RemindersPanel() {
 }
 
 function SchedulesPanel() {
-	const { automations, add, edit, remove, setCron, setPaused, setPane } =
-		useMyTasks();
+	const {
+		automations,
+		add,
+		edit,
+		remove,
+		setCron,
+		setPaused,
+		setPane,
+		setTags,
+	} = useMyTasks();
 	const [draft, setDraft] = useState("");
 	const [draftCron, setDraftCron] = useState("0 9 * * 1-5");
 	const [editingId, setEditingId] = useState<string | null>(null);
@@ -795,6 +854,11 @@ function SchedulesPanel() {
 
 	/** The same launch the scheduler makes, off a button instead of the clock. */
 	const runNow = async (task: OdinTask) => {
+		const brief = automationBrief(task, panes);
+		if (brief === null)
+			return toast.info(
+				`No open session has ${task.tags?.map((tag) => `#${tag}`).join(" or ")} - nothing to run.`,
+			);
 		const ensured = await ensureWorkspace();
 		if (!ensured.ok) return toast.error(ensured.error);
 		const result = await launch({
@@ -802,7 +866,7 @@ function SchedulesPanel() {
 			workspaceId: ensured.workspace.id,
 			title: task.title,
 			description: task.notes || null,
-			brief: taskPrompt(task),
+			brief,
 			tags: ["automation"],
 			skill: task.skill,
 		});
@@ -928,6 +992,10 @@ function SchedulesPanel() {
 										<ScheduleFields
 											cron={task.cron ?? ""}
 											onChange={(next) => setCron(task.id, next)}
+										/>
+										<TagPicker
+											value={task.tags ?? []}
+											onChange={(tags) => setTags(task.id, tags)}
 										/>
 										{task.skill && <SkillChip skill={task.skill} />}
 										{task.builtin && <BuiltinChip />}
