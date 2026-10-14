@@ -12,9 +12,25 @@ import { tufteConfig } from "./styles/tufte/config";
 /** Images saved to ~/.odin/attachments (SafeImage allows the scheme too). */
 const ATTACHMENT_SCHEME = "odin-attachment";
 
+/** An image path an agent wrote, e.g. a screenshot it saved: main serves it under the scheme. */
+const LOCAL_IMAGE = /^(?:file:\/\/)?(\/[^?#]+\.(?:png|jpe?g|gif|webp))$/i;
+
+const safeDecode = (value: string) => {
+	try {
+		return decodeURI(value);
+	} catch {
+		return value;
+	}
+};
+
 /** react-markdown and rehype-sanitize both drop unknown schemes; keep ours. */
-export const keepAttachmentUrls = (url: string) =>
-	url.startsWith(`${ATTACHMENT_SCHEME}://`) ? url : defaultUrlTransform(url);
+export const keepAttachmentUrls = (url: string, key?: string) => {
+	if (url.startsWith(`${ATTACHMENT_SCHEME}://`)) return url;
+	const localPath = key === "src" && url.match(LOCAL_IMAGE)?.[1];
+	if (localPath)
+		return `${ATTACHMENT_SCHEME}://local${encodeURI(safeDecode(localPath))}`;
+	return defaultUrlTransform(url);
+};
 
 export const sanitizeSchema = {
 	...defaultSchema,

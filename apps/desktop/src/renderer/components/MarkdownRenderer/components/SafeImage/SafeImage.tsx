@@ -6,7 +6,8 @@ import { LuImageOff } from "react-icons/lu";
  * ALLOWED:
  * - data: URLs (embedded base64 images)
  * - https:// URLs (GitHub user-attachments, avatars, etc.)
- * - odin-attachment:// (images pasted into a task, served from ~/.odin/attachments)
+ * - odin-attachment:// (images pasted into a task, or local image paths an agent
+ *   linked, which MarkdownRenderer rewrites to odin-attachment://local/...)
  *
  * BLOCKED (everything else):
  * - http:// (cleartext / mixed-content)

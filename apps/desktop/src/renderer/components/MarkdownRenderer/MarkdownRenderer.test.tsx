@@ -16,3 +16,21 @@ test("keeps an odin-attachment image and still drops javascript: links", () => {
 	expect(html).toContain('src="odin-attachment://file/a.png"');
 	expect(html).not.toContain("javascript:");
 });
+
+test("serves an agent's local image path through the attachment scheme", () => {
+	const html = renderToStaticMarkup(
+		<ReactMarkdown
+			rehypePlugins={[[rehypeSanitize, sanitizeSchema]]}
+			urlTransform={keepAttachmentUrls}
+		>
+			{
+				"![shot](/private/tmp/qa/after%20click.png) ![doc](/etc/passwd) [link](/tmp/a.png)"
+			}
+		</ReactMarkdown>,
+	);
+	expect(html).toContain(
+		'src="odin-attachment://local/private/tmp/qa/after%20click.png"',
+	);
+	expect(html).toContain('src="/etc/passwd"');
+	expect(html).toContain('href="/tmp/a.png"');
+});

@@ -396,20 +396,26 @@ if (!gotTheLock) {
 			.fromPartition("persist:odin")
 			.protocol.handle("odin-icon", iconProtocolHandler);
 
-		// Images pasted into a task's description, saved by system.saveAttachment.
-		// The basename only, so a URL can't climb out of the attachments folder.
+		// file/<name>: images pasted into a task's description, saved by
+		// system.saveAttachment; the basename only, so it can't climb out of the
+		// attachments folder. local/<absolute path>: an image an agent's reply
+		// links by path, like a screenshot. Image files only, either way.
 		const attachmentProtocolHandler = (request: Request) => {
-			const name = path.basename(
-				decodeURIComponent(new URL(request.url).pathname),
-			);
-			if (!/\.(png|jpe?g|gif|webp|heic)$/i.test(name)) {
+			const url = new URL(request.url);
+			const requested = decodeURIComponent(url.pathname);
+			if (!/\.(png|jpe?g|gif|webp|heic)$/i.test(requested)) {
 				return new Response("Not found", { status: 404 });
 			}
-			return net.fetch(
-				pathToFileURL(
-					path.join(homedir(), ".odin", "attachments", name),
-				).toString(),
-			);
+			const file =
+				url.host === "local"
+					? path.resolve(requested)
+					: path.join(
+							homedir(),
+							".odin",
+							"attachments",
+							path.basename(requested),
+						);
+			return net.fetch(pathToFileURL(file).toString());
 		};
 		protocol.handle("odin-attachment", attachmentProtocolHandler);
 		session
