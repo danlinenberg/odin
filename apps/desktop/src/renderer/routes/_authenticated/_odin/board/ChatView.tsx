@@ -1359,7 +1359,7 @@ function ActionItems({
 					<span className="mr-1.5 text-[11px] font-semibold uppercase tracking-[.08em] text-muted-foreground">
 						TL;DR
 					</span>
-					{tldr.last}
+					<TldrText text={tldr.last} />
 				</div>
 			)}
 			{onDo && items.length > 0 ? (
@@ -1502,6 +1502,21 @@ function FoldToggle({
  * The latest reply in a few lines, and whether it wants something from you.
  * A long reply opens folded on this; the button switches between the two.
  */
+/** A TL;DR line rendered as Markdown (`code`, **bold**, links) that flows after its inline label. */
+function TldrText({ text }: { text: string }) {
+	return (
+		<MarkdownRenderer
+			content={text}
+			style="default"
+			allowHtml={false}
+			className={cn(
+				COMPACT_MARKDOWN,
+				"inline! text-foreground [&_article]:inline! [&_p]:inline!",
+			)}
+		/>
+	);
+}
+
 function TldrCard({
 	tldr,
 	full,
@@ -1539,7 +1554,7 @@ function TldrCard({
 				{tldr.long && <FoldToggle full={full} onToggle={onToggle} />}
 			</div>
 			<div className="text-[13px] leading-relaxed text-foreground">
-				{tldr.last}
+				<TldrText text={tldr.last} />
 			</div>
 		</div>
 	);
