@@ -58,6 +58,9 @@ test("remoteControlOn: selected sessions only", () => {
 	expect(remoteControlOn("p1")).toBe(true);
 	expect(remoteControlOn("p2")).toBe(false);
 	expect(remoteControlOn()).toBe(false);
+	expect(claudeLaunch("Fix it", "--resume abc", "p2")).toBe(
+		"unset CLAUDE_CODE_OAUTH_TOKEN ANTHROPIC_API_KEY && claude --dangerously-skip-permissions --resume abc",
+	);
 	useClaudeCommand.getState().toggleRemotePane("p1");
 	expect(remoteControlOn("p1")).toBe(false);
 	useClaudeCommand.setState({ remoteControl: "off" });

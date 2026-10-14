@@ -150,5 +150,8 @@ export function claudeLaunch(
 	paneId?: string,
 ): string {
 	const remoteControl = remoteControlOn(paneId);
-	return `${remoteControlEnv(remoteControl)}${claudeCli()}${remoteControlFlag(name, remoteControl)} ${args}`;
+	// "selected" drops the token on every launch: a session you switch on
+	// later, mid-run, can only connect if it started on the claude.ai login.
+	const login = useClaudeCommand.getState().remoteControl !== "off";
+	return `${remoteControlEnv(login)}${claudeCli()}${remoteControlFlag(name, remoteControl)} ${args}`;
 }
