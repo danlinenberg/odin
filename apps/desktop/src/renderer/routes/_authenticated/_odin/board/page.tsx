@@ -5284,25 +5284,27 @@ function DevBoardPage() {
 							)}
 							{/* The drawer keeps Esc for itself, so a turn needs its own stop:
 							    Ctrl+C, which stops Claude mid-turn. Only while working - at
-							    an idle prompt a second Ctrl+C quits Claude. */}
-							{drawerCard.pane.type === "terminal" && (
-								<button
-									type="button"
-									disabled={!isWorkingNow(drawerCard.pane.id)}
-									title={
-										isWorkingNow(drawerCard.pane.id)
-											? "Stop the agent (sends Ctrl+C to the session)"
-											: "Nothing to interrupt - the agent isn't working"
-									}
-									onClick={() => void interruptPane(drawerCard.pane.id)}
-									className={cn(
-										"rounded-[7px] px-3 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50",
-										BUTTON.secondary,
-									)}
-								>
-									■ Interrupt
-								</button>
-							)}
+							    an idle prompt a second Ctrl+C quits Claude. The chat view's
+							    composer has this same stop, so it shows in Terminal View only. */}
+							{drawerCard.pane.type === "terminal" &&
+								(!chatView || terminalPaneId === drawerCard.pane.id) && (
+									<button
+										type="button"
+										disabled={!isWorkingNow(drawerCard.pane.id)}
+										title={
+											isWorkingNow(drawerCard.pane.id)
+												? "Stop the agent (sends Ctrl+C to the session)"
+												: "Nothing to interrupt - the agent isn't working"
+										}
+										onClick={() => void interruptPane(drawerCard.pane.id)}
+										className={cn(
+											"rounded-[7px] px-3 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50",
+											BUTTON.secondary,
+										)}
+									>
+										■ Interrupt
+									</button>
+								)}
 							{/* Back from Terminal View: out of a question peek, or the
 							    setting itself when the terminal is the choice. */}
 							{drawerCard.pane.type === "terminal" &&
