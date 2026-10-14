@@ -30,7 +30,7 @@ import {
 	getVideoMimeType,
 	isPreviewableVideoFile,
 } from "shared/file-types";
-import { freshTldr, sameReply } from "shared/latest-reply";
+import { freshTldr, sameReply, tldrPlacement } from "shared/latest-reply";
 import {
 	insertSkill,
 	matchSkills,
@@ -1276,15 +1276,42 @@ function ActionItemRow({
  * item asking you to tell Claude something gets a reply box, plus a button per
  * choice when Claude listed them.
  */
-function ActionItems({ text, onDo }: { text: string; onDo?: DoItem }) {
+function ActionItems({
+	text,
+	onDo,
+	tldr,
+	full = false,
+	onToggle,
+}: {
+	text: string;
+	onDo?: DoItem;
+	/** The latest reply's TL;DR, which leads this card instead of a box of its own. */
+	tldr?: Tldr | null;
+	full?: boolean;
+	onToggle?: () => void;
+}) {
 	// text arrives linkified from ItemView.
 	const items = onDo ? actionItemList(text) : [];
 	const buttonColumn = !items.every(isYouOnly);
 	return (
 		<div className="@container mt-2 rounded-xl border border-attention/35 bg-attention/[0.07] px-4 py-3">
-			<div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[.08em] text-attention">
+			<div className="mb-1.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[.08em] text-attention">
 				Action items
+				{tldr?.long && onToggle && (
+					<FoldToggle full={full} onToggle={onToggle} />
+				)}
 			</div>
+			{tldr && (
+				<div
+					data-testid="reply-tldr"
+					className="mb-2 text-[13px] leading-relaxed text-foreground"
+				>
+					<span className="mr-1.5 text-[11px] font-semibold uppercase tracking-[.08em] text-muted-foreground">
+						TL;DR
+					</span>
+					{tldr.last}
+				</div>
+			)}
 			{onDo && items.length > 0 ? (
 				<ol className="flex flex-col gap-1">
 					{items.map((item, index) => (
@@ -1361,6 +1388,25 @@ function FoldedReply({
 	);
 }
 
+/** Switches a long latest reply between folded on its TL;DR and shown whole. */
+function FoldToggle({
+	full,
+	onToggle,
+}: {
+	full: boolean;
+	onToggle: () => void;
+}) {
+	return (
+		<button
+			type="button"
+			onClick={onToggle}
+			className="ml-auto text-[12px] font-normal normal-case tracking-normal text-link hover:underline"
+		>
+			{full ? "Show TL;DR" : "Show full reply"}
+		</button>
+	);
+}
+
 /**
  * The latest reply in a few lines, and whether it wants something from you.
  * A long reply opens folded on this; the button switches between the two.
@@ -1399,15 +1445,7 @@ function TldrCard({
 						{needsYou ? "Needs you" : "FYI"}
 					</span>
 				)}
-				{tldr.long && (
-					<button
-						type="button"
-						onClick={onToggle}
-						className="ml-auto text-[12px] font-normal normal-case tracking-normal text-link hover:underline"
-					>
-						{full ? "Show TL;DR" : "Show full reply"}
-					</button>
-				)}
+				{tldr.long && <FoldToggle full={full} onToggle={onToggle} />}
 			</div>
 			<div className="text-[13px] leading-relaxed text-foreground">
 				{tldr.last}
@@ -1452,6 +1490,9 @@ const ItemView = memo(
 				/>
 			);
 		const { body, actions } = splitActionItems(linkify(item.text, refs));
+		const showsActions = !!actions && !hideActions;
+		const placement = tldrPlacement(tldr, showsActions);
+		const toggleFull = () => setFull((value) => !value);
 		return (
 			<div className="select-text cursor-text">
 				{body && (
@@ -1464,14 +1505,18 @@ const ItemView = memo(
 						/>
 					</FoldedReply>
 				)}
-				{tldr && (
-					<TldrCard
-						tldr={tldr}
+				{placement === "card" && tldr && (
+					<TldrCard tldr={tldr} full={full} onToggle={toggleFull} />
+				)}
+				{showsActions && (
+					<ActionItems
+						text={actions}
+						onDo={onDo}
+						tldr={placement === "action-items" ? tldr : null}
 						full={full}
-						onToggle={() => setFull((value) => !value)}
+						onToggle={toggleFull}
 					/>
 				)}
-				{actions && !hideActions && <ActionItems text={actions} onDo={onDo} />}
 				{onSend && needsAwsSsoLogin(item.text) && (
 					<AwsSsoLogin onSend={onSend} />
 				)}

@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { freshTldr, latestReply, sameReply } from "./latest-reply";
+import {
+	freshTldr,
+	latestReply,
+	sameReply,
+	tldrPlacement,
+} from "./latest-reply";
 
 const at = "2026-10-14T10:00:00.000Z";
 const brief = {
@@ -57,5 +62,19 @@ describe("freshTldr", () => {
 		expect(
 			freshTldr({ text: "x", at: Date.parse(at) }, { ...brief, last: null }),
 		).toBeNull();
+	});
+});
+
+describe("tldrPlacement", () => {
+	const tldr = { last: "x", urgency: "fyi" as const, long: true };
+	test("a reply with action items gets one box: the TL;DR leads that card", () => {
+		expect(tldrPlacement(tldr, true)).toBe("action-items");
+	});
+	test("any other reply gets its own TL;DR card", () => {
+		expect(tldrPlacement(tldr, false)).toBe("card");
+	});
+	test("no fresh TL;DR, nothing to place", () => {
+		expect(tldrPlacement(null, true)).toBeNull();
+		expect(tldrPlacement(null, false)).toBeNull();
 	});
 });

@@ -49,3 +49,16 @@ export function freshTldr(
 		long: reply.text.length > LONG_REPLY_CHARS,
 	};
 }
+
+/**
+ * Where the latest reply's TL;DR goes. A reply that ends in ACTION ITEMS gets
+ * one box: the TL;DR leads that card, whose colour already says it needs you.
+ * Any other reply gets its own TL;DR card with the Needs you / FYI mark.
+ */
+export function tldrPlacement(
+	tldr: unknown,
+	showsActionItems: boolean,
+): "action-items" | "card" | null {
+	if (!tldr) return null;
+	return showsActionItems ? "action-items" : "card";
+}
