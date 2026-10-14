@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { promptText, voiceState } from "./voice";
+import { noSpeech, promptText, voiceState } from "./voice";
 
 const RULE = "─".repeat(60);
 const screen = (prompt: string, footer: string) => `
@@ -53,5 +53,21 @@ describe("voice state reads only the input box", () => {
 		expect(promptText(screen("Try the other one", ""))).toBe(
 			"Try the other one",
 		);
+	});
+});
+
+describe("voice on a wide status line", () => {
+	it("reads recording from the level meter when the hint is off screen", () => {
+		expect(voiceState(screen("▃", "context 725k/1000k 73%  /rc"))).toBe(
+			"recording",
+		);
+		expect(voiceState(screen("", "context 725k/1000k 73%  /rc"))).toBe("idle");
+	});
+
+	it("knows when Claude heard nothing", () => {
+		expect(noSpeech(screen("", "No speech detected."))).toBe(true);
+		expect(
+			noSpeech(`⏺ "No speech detected." is what it says\n${screen("", "")}`),
+		).toBe(false);
 	});
 });

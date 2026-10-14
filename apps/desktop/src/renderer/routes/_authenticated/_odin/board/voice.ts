@@ -52,8 +52,21 @@ export function voiceState(screen: string): VoiceState {
 	if (i < 0) return "idle";
 	const box = lines.slice(i - 1).join("\n");
 	if (/Voice: processing/.test(box)) return "processing";
-	if (/keep holding|listening…|listening\.\.\./.test(box)) return "recording";
+	// The words sit at the right end of the status line, and a wide status
+	// line pushes them off screen. The level meter at the cursor doesn't move.
+	if (
+		/keep holding|listening…|listening\.\.\./.test(box) ||
+		METER_RE.test(lines[i] ?? "")
+	)
+		return "recording";
 	return "idle";
+}
+
+/** Claude heard nothing: it says so in the footer and leaves the box empty. */
+export function noSpeech(screen: string): boolean {
+	const lines = screen.split("\n");
+	const i = inputLine(lines);
+	return i >= 0 && /No speech detected/.test(lines.slice(i - 1).join("\n"));
 }
 
 const HOLD_MS = 300; // a tap types a space, a hold talks
@@ -149,14 +162,22 @@ export function useHoldToTalk({
 			return;
 		}
 		setPhase("processing");
+		// Done when the box holds new text that stopped changing - "Voice:
+		// processing" can be off screen like the other hints, so it can't be
+		// the signal on its own.
 		let text: string | null = null;
+		let last: string | null = null;
 		for (const end = Date.now() + DONE_MS; Date.now() < end; ) {
-			await sleep(200);
+			await sleep(250);
 			const screen = await read();
-			if (voiceState(screen) === "idle") {
-				text = promptText(screen);
+			if (noSpeech(screen)) break;
+			if (voiceState(screen) !== "idle") continue;
+			const now = promptText(screen);
+			if (now && now !== before && now === last) {
+				text = now;
 				break;
 			}
+			last = now;
 		}
 		if (text && text !== before) {
 			// Claude's prompt goes back to empty; the text lives in Odin's box.
