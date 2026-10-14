@@ -233,6 +233,26 @@ async function click(selector: string, label: string) {
 	if (!found) throw new Error(`no ${selector} labelled "${label}"`);
 	await sleep(400);
 }
+/**
+ * A real mouse click on `selector`, for focus-driven UI: `.click()` and
+ * `.focus()` from a script don't move focus the way a pointer does.
+ */
+async function mouseClick(selector: string) {
+	const at = await page<{ x: number; y: number } | null>(`(() => {
+		const r = document.querySelector(${JSON.stringify(selector)})?.getBoundingClientRect();
+		return r ? { x: r.x + r.width / 2, y: r.y + r.height / 2 } : null;
+	})()`);
+	if (!at) throw new Error(`no ${selector} to click`);
+	for (const type of ["mousePressed", "mouseReleased"])
+		await send("Input.dispatchMouseEvent", {
+			type,
+			...at,
+			button: "left",
+			buttons: type === "mousePressed" ? 1 : 0,
+			clickCount: 1,
+		});
+	await sleep(400);
+}
 /** Type into a React-controlled field the way a keystroke would. */
 async function fill(selector: string, value: string) {
 	const found = await page<boolean>(`(() => {
@@ -622,6 +642,20 @@ await step("the Tasks page has its own composer", async () => {
 	await waitForText(typed);
 });
 
+await step(
+	"the Tasks composer stays open when you click into Repo",
+	async () => {
+		await rail("Tasks");
+		await mouseClick('input[placeholder="What needs doing?"]');
+		await mouseClick('input[aria-label="Repo"]');
+		const repoFocused = await page<boolean>(
+			`document.activeElement?.getAttribute("aria-label") === "Repo"`,
+		);
+		if (!repoFocused)
+			throw new Error("the box folded away under the Repo field");
+	},
+);
+
 await step("ticking two tasks marks both done at once", async () => {
 	const pair = [`Bulk one ${Date.now()}`, `Bulk two ${Date.now()}`];
 	await rail("Tasks");
@@ -864,6 +898,28 @@ await step("⌘Z after Done resumes the session onto the board", async () => {
 		if (fakeClaudeRuns().some((r) => r.args.includes("--resume"))) break;
 		if (Date.now() > end) throw new Error("no claude --resume ran");
 	}
+});
+
+await step("right-click → Done takes the session off the board", async () => {
+	const opened = await page<boolean>(`(() => {
+		const card = [...document.querySelectorAll('[role="button"][draggable="true"]')]
+			.find((c) => c.textContent.includes(${JSON.stringify(SESSION)}));
+		const at = card?.getBoundingClientRect();
+		card?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: at?.x, clientY: at?.y }));
+		return !!card;
+	})()`);
+	if (!opened) throw new Error("no card for the resumed session");
+	// Tags start folded; the row opens the list.
+	const tagField = () =>
+		page<boolean>(
+			`!!document.querySelector('[data-session-menu] input[placeholder^="New tag"]')`,
+		);
+	if (await tagField()) throw new Error("the tag list starts open");
+	await click("[data-session-menu] button", "▸Tags");
+	if (!(await tagField())) throw new Error("Tags didn't open the list");
+	// The menu's own Done - the card's ✓ Done would pass this step too.
+	await click("[data-session-menu] button", "✓Done");
+	await waitForText(SESSION, false);
 });
 
 await step("no uncaught errors in the renderer", async () => {

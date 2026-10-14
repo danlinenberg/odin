@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { dueAutomations } from "./useAutomationRunner";
+import type { Pane } from "shared/tabs-types";
+import { automationBrief, dueAutomations } from "./useAutomationRunner";
 import type { OdinTask } from "./useOdinTasks";
 
 const task = (over: Partial<OdinTask>): OdinTask => ({
@@ -51,5 +52,38 @@ describe("dueAutomations", () => {
 		expect(due([task({ cron: "every morning" })], "2026-09-20T09:00")).toEqual(
 			[],
 		);
+	});
+});
+
+const pane = (over: Partial<Pane>): Pane =>
+	({
+		id: "p1",
+		odinTaskTitle: "Ship it",
+		status: "idle",
+		...over,
+	}) as Pane;
+
+describe("automationBrief", () => {
+	test("no tags: the plain prompt, whatever the board holds", () => {
+		expect(automationBrief(task({}), {})).toBe("Sweep the PR queue");
+	});
+
+	test("tags with no session carrying one: skipped", () => {
+		const panes = {
+			p1: pane({ odinTags: ["bug"] }),
+			p2: pane({ id: "p2", odinTags: ["codex-review"], completed: true }),
+		};
+		expect(automationBrief(task({ tags: ["codex-review"] }), panes)).toBe(null);
+	});
+
+	test("lists only the open sessions that carry a watched tag", () => {
+		const panes = {
+			p1: pane({ odinTags: ["codex-review"], status: "review" }),
+			p2: pane({ id: "p2", odinTaskTitle: "Other", odinTags: ["bug"] }),
+		};
+		const brief = automationBrief(task({ tags: ["codex-review"] }), panes);
+		expect(brief).toContain("- Ship it - paneId p1, status review");
+		expect(brief).not.toContain("Other");
+		expect(brief).toContain("drop #codex-review from its tags");
 	});
 });

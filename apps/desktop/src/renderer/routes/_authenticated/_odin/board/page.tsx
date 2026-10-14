@@ -83,7 +83,13 @@ import {
 	odinScreenWrite,
 	spacesForCursorForward,
 } from "shared/odin-screen-status";
-import { BOARD_TAGS, boardTags, normalizeTag } from "shared/odin-tags";
+import {
+	BOARD_TAGS,
+	boardTags,
+	CUSTOM_TAGS_KEY,
+	normalizeTag,
+	readCustomTags,
+} from "shared/odin-tags";
 
 /** Tags the card shows as their own pill instead of in the #tag line. */
 const PILL_TAGS = ["automation", "auto-started", "off-hours"];
@@ -936,35 +942,18 @@ function ShellDot({
  * shell opens where the session launched - for feed sessions the catch-all
  * directory - while the agent cd'd into a worktree the shell never saw.
  */
-function ShellPlaceMenu({ card, shell }: { card: BoardCard; shell: Pane }) {
+function ShellPlaceMenu({
+	card,
+	shell,
+	onOpenInVsCode,
+}: {
+	card: BoardCard;
+	shell: Pane;
+	onOpenInVsCode: (dir: string) => void;
+}) {
 	const { data, here, inside, shellsIn } = useShellPlace(card, shell);
 	const write = electronTrpc.terminal.write.useMutation();
 	const updatePaneCwd = useTabsStore((s) => s.updatePaneCwd);
-	const openInApp = electronTrpc.external.openInApp.useMutation();
-	const copyText = electronTrpc.external.copyPath.useMutation();
-	/**
-	 * VS Code where the shell is, with the command that joins this
-	 * conversation on the clipboard for VS Code's terminal. Forked, so the two
-	 * don't both write into the live session.
-	 */
-	const openInVsCode = async (dir: string) => {
-		try {
-			await openInApp.mutateAsync({ path: dir, app: "vscode" });
-		} catch (error) {
-			return toast.error(`Couldn't open VS Code: ${String(error)}`);
-		}
-		const sessionId =
-			card.pane.claudeSessionId ??
-			usePaneMeta.getState().sessionIdByPane[card.pane.id];
-		if (!sessionId) return;
-		await copyText.mutateAsync(
-			`${claudeCli()} --resume ${sessionId} --fork-session`,
-		);
-		toast.success("Opened in VS Code", {
-			description:
-				"Paste in VS Code's terminal (⌃`) to join this session's conversation.",
-		});
-	};
 	const cd = (dir: string) => {
 		write.mutate({
 			paneId: shell.id,
@@ -1046,10 +1035,10 @@ function ShellPlaceMenu({ card, shell }: { card: BoardCard; shell: Pane }) {
 					<>
 						<DropdownMenuSeparator />
 						<DropdownMenuItem
-							title="Open this folder in VS Code, with this conversation's resume command on the clipboard"
+							title="Open this folder in VS Code, and continue this conversation there"
 							onSelect={() => {
 								const dir = here ?? targets[0]?.dir;
-								if (dir) void openInVsCode(dir);
+								if (dir) onOpenInVsCode(dir);
 							}}
 							className="flex items-center gap-2 text-xs"
 						>
@@ -1386,6 +1375,8 @@ function TagMenu({
 	customTags,
 	starred,
 	onStar,
+	onDone,
+	onRemind,
 	onKeep,
 	onToggle,
 	onAdd,
@@ -1399,6 +1390,8 @@ function TagMenu({
 	customTags: string[];
 	starred: boolean;
 	onStar: () => void;
+	onDone: () => void;
+	onRemind: (day: string) => void;
 	/** Set when the sweep suggests dropping this session. */
 	onKeep?: () => void;
 	onToggle: (tag: string) => void;
@@ -1408,6 +1401,9 @@ function TagMenu({
 }) {
 	const ref = useRef<HTMLDivElement>(null);
 	const [draft, setDraft] = useState("");
+	// Tags fold to one row: the list is long and most right-clicks are for
+	// Done or Remind.
+	const [isTagsOpen, setIsTagsOpen] = useState(false);
 
 	useEffect(() => {
 		const onKey = (event: KeyboardEvent) => {
@@ -1436,6 +1432,7 @@ function TagMenu({
 	return (
 		<div
 			ref={ref}
+			data-session-menu
 			style={{ left, top }}
 			className="fixed z-[60] w-[220px] rounded-[10px] border border-border bg-card p-2 shadow-[0_10px_30px_rgba(0,0,0,.5)]"
 		>
@@ -1450,6 +1447,27 @@ function TagMenu({
 				<span className="w-3 text-attention">★</span>
 				{starred ? "Unstar" : "Star"}
 			</button>
+			<button
+				type="button"
+				onClick={() => {
+					onDone();
+					onClose();
+				}}
+				className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-success"
+			>
+				<span className="w-3 text-success">✓</span>
+				Done
+			</button>
+			<div className="mb-1.5 border-b border-border pb-1.5">
+				<RemindButton
+					label="Remind me…"
+					onPick={(day) => {
+						onRemind(day);
+						onClose();
+					}}
+					className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-attention"
+				/>
+			</div>
 			{onKeep && (
 				<button
 					type="button"
@@ -1464,51 +1482,66 @@ function TagMenu({
 					Keep
 				</button>
 			)}
-			<div className="mb-1.5 px-1 text-[10px] font-semibold uppercase tracking-[.4px] text-muted-foreground">
+			<button
+				type="button"
+				aria-expanded={isTagsOpen}
+				onClick={() => setIsTagsOpen(!isTagsOpen)}
+				className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-foreground"
+			>
+				<span className="w-3">{isTagsOpen ? "▾" : "▸"}</span>
 				Tags
-			</div>
-			<div className="flex max-h-[180px] flex-col overflow-y-auto">
-				{[...allTags, ...customTags].map((tag) => {
-					const on = tags.includes(tag);
-					return (
-						<div key={tag} className="group flex items-center">
-							<button
-								type="button"
-								onClick={() => onToggle(tag)}
-								className={cn(
-									"flex flex-1 items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] transition-colors",
-									on
-										? "text-primary"
-										: "text-muted-foreground hover:text-foreground",
-								)}
-							>
-								<span className="w-3">{on ? "✓" : ""}</span>#{tag}
-							</button>
-							{customTags.includes(tag) && (
-								<button
-									type="button"
-									title="Remove this tag from the list"
-									onClick={() => onForget(tag)}
-									className="px-1.5 text-[12px] text-faint-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
-								>
-									×
-								</button>
-							)}
-						</div>
-					);
-				})}
-			</div>
-			<input
-				value={draft}
-				onChange={(event) => setDraft(event.target.value)}
-				onKeyDown={(event) => {
-					if (event.key !== "Enter") return;
-					onAdd(draft);
-					setDraft("");
-				}}
-				placeholder="New tag…"
-				className="mt-1.5 w-full rounded-md border border-border bg-transparent px-1.5 py-1 text-[12px] text-foreground outline-none placeholder:text-faint-foreground focus:border-primary"
-			/>
+				{tags.length > 0 && (
+					<span className="min-w-0 flex-1 truncate text-right text-primary">
+						{tags.map((tag) => `#${tag}`).join(" ")}
+					</span>
+				)}
+			</button>
+			{isTagsOpen && (
+				<>
+					<div className="flex max-h-[180px] flex-col overflow-y-auto">
+						{[...allTags, ...customTags].map((tag) => {
+							const on = tags.includes(tag);
+							return (
+								<div key={tag} className="group flex items-center">
+									<button
+										type="button"
+										onClick={() => onToggle(tag)}
+										className={cn(
+											"flex flex-1 items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] transition-colors",
+											on
+												? "text-primary"
+												: "text-muted-foreground hover:text-foreground",
+										)}
+									>
+										<span className="w-3">{on ? "✓" : ""}</span>#{tag}
+									</button>
+									{customTags.includes(tag) && (
+										<button
+											type="button"
+											title="Remove this tag from the list"
+											onClick={() => onForget(tag)}
+											className="px-1.5 text-[12px] text-faint-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+										>
+											×
+										</button>
+									)}
+								</div>
+							);
+						})}
+					</div>
+					<input
+						value={draft}
+						onChange={(event) => setDraft(event.target.value)}
+						onKeyDown={(event) => {
+							if (event.key !== "Enter") return;
+							onAdd(draft);
+							setDraft("");
+						}}
+						placeholder="New tag…"
+						className="mt-1.5 w-full rounded-md border border-border bg-transparent px-1.5 py-1 text-[12px] text-foreground outline-none placeholder:text-faint-foreground focus:border-primary"
+					/>
+				</>
+			)}
 		</div>
 	);
 }
@@ -2389,17 +2422,11 @@ function DevBoardPage() {
 
 	// Tags you typed into the tag menu. Per machine, like the column above -
 	// Odin is local-only, so there's no other machine to sync them to.
-	const [customTags, setCustomTags] = useState<string[]>(() => {
-		try {
-			return JSON.parse(localStorage.getItem("odin:custom-tags") ?? "[]");
-		} catch {
-			return [];
-		}
-	});
+	const [customTags, setCustomTags] = useState<string[]>(readCustomTags);
 	const saveCustomTags = (next: string[]) => {
 		setCustomTags(next);
 		try {
-			localStorage.setItem("odin:custom-tags", JSON.stringify(next));
+			localStorage.setItem(CUSTOM_TAGS_KEY, JSON.stringify(next));
 		} catch {}
 	};
 
@@ -2457,6 +2484,76 @@ function DevBoardPage() {
 		}
 		setIsDiffOpen(false);
 		setIsShellOpen(true);
+	};
+	const openSessionInVsCode =
+		electronTrpc.external.openSessionInVsCode.useMutation();
+	const copyText = electronTrpc.external.copyText.useMutation();
+	/**
+	 * The session moves to VS Code: its folder, and the same conversation in
+	 * VS Code's Claude Code panel, or its resume command on the clipboard
+	 * without that extension. Never two Claudes on one conversation: a turn
+	 * still running stays here, and an idle one is closed here first, the way
+	 * idle sessions are - Resume brings it back.
+	 */
+	const openInVsCode = async (card: BoardCard, dir?: string) => {
+		const folder = dir ?? (await workDirOf(card));
+		if (!folder) return toast.error("This session has no folder to open");
+		const sessionId = claudeSessionIdOf(card);
+		const working = isWorkingNow(card.pane.id);
+		const moving = !!sessionId && !working;
+		if (moving && agentPaneIds.has(card.pane.id)) {
+			const column = withMergeReady(
+				boardColumn(
+					card.pane.status ?? "idle",
+					true,
+					card.pane.odinParked ?? false,
+				),
+				card.pane.id,
+			);
+			useTabsStore.setState((state) => ({
+				panes: {
+					...state.panes,
+					[card.pane.id]: {
+						...state.panes[card.pane.id],
+						odinClosedIn: column,
+					},
+				},
+			}));
+			await utils.client.terminal.kill
+				.mutate({ paneId: card.pane.id })
+				.catch(() => {});
+		}
+		let inPanel = false;
+		try {
+			inPanel = await openSessionInVsCode.mutateAsync({
+				path: folder,
+				sessionId: moving ? sessionId : undefined,
+			});
+		} catch (error) {
+			return toast.error(`Couldn't open VS Code: ${String(error)}`);
+		}
+		if (working) {
+			return toast.info("Opened the folder in VS Code", {
+				description:
+					"Claude is still working here, so the conversation stays in Odin. Open it again once the turn ends to move it.",
+			});
+		}
+		if (!sessionId || inPanel) {
+			return toast.success("Opened in VS Code", {
+				description: sessionId
+					? "The conversation continues in VS Code's Claude panel. Resume here brings it back."
+					: undefined,
+			});
+		}
+		const cwd = sessionCwd(card.pane);
+		await copyText.mutateAsync(
+			`${cwd ? `cd '${cwd.replaceAll("'", "'\\''")}' && ` : ""}${claudeCli()} --resume ${sessionId}`,
+		);
+		toast.success("Opened in VS Code", {
+			description:
+				"Paste in VS Code's terminal (⌃`) to continue this conversation there.",
+			duration: 30_000,
+		});
 	};
 	// Dev only: hold Vite's reloads while a session is open (see coalesceFullReloadPlugin).
 	const drawerOpen = !!drawerCard;
@@ -3658,6 +3755,19 @@ function DevBoardPage() {
 		toast.success("All caught up");
 	};
 
+	// Done from wherever the card is: the open session moves the drawer on,
+	// another row in the drawer's list leaves the drawer where it is.
+	const doneAnywhere = (card: BoardCard) => {
+		if (card.pane.id === drawerCard?.pane.id) return markDoneInDrawer(card);
+		if (!drawerCard) return markDone(card);
+		toast.success("Done - removed from board", undoAction(endCard(card)));
+	};
+	const tagMenuCard = tagMenu
+		? [...cardsByStatus.values()]
+				.flat()
+				.find((c) => c.pane.id === tagMenu.paneId)
+		: undefined;
+
 	/** Done now; on `day` it pings and waits above the columns to be resumed. */
 	const remindMe = (card: BoardCard, day: string) => {
 		const sessionId =
@@ -3680,7 +3790,7 @@ function DevBoardPage() {
 			},
 			day,
 		);
-		markDone(card);
+		doneAnywhere(card);
 		toast.success(`Reminding you ${day} - ${title.slice(0, 50)}`);
 	};
 
@@ -3836,6 +3946,8 @@ function DevBoardPage() {
 							: undefined
 					}
 					onStar={() => toggleStar(tagMenu.paneId)}
+					onDone={() => tagMenuCard && doneAnywhere(tagMenuCard)}
+					onRemind={(day) => tagMenuCard && remindMe(tagMenuCard, day)}
 					onToggle={(tag) => toggleTag(tagMenu.paneId, tag)}
 					onClose={() => setTagMenu(null)}
 				/>
@@ -3993,7 +4105,7 @@ function DevBoardPage() {
 																}}
 																onClick={() => openDrawer(card)}
 																onContextMenu={(event) => {
-																	// Right-click → star or tag this session.
+																	// Right-click → done, remind, star or tag this session.
 																	event.preventDefault();
 																	setTagMenu({
 																		paneId: card.pane.id,
@@ -4573,9 +4685,25 @@ function DevBoardPage() {
 											)}
 										</button>
 										{isShellOpen && drawerShell && (
-											<ShellPlaceMenu card={drawerCard} shell={drawerShell} />
+											<ShellPlaceMenu
+												card={drawerCard}
+												shell={drawerShell}
+												onOpenInVsCode={(dir) =>
+													void openInVsCode(drawerCard, dir)
+												}
+											/>
 										)}
 									</div>
+								)}
+								{drawerCard.pane.type === "terminal" && !inCatchUp && (
+									<button
+										type="button"
+										title="Open this session's worktree in VS Code and continue the conversation there"
+										onClick={() => void openInVsCode(drawerCard)}
+										className="shrink-0 rounded-md bg-secondary px-2 py-1 text-xs font-semibold text-muted-foreground hover:text-foreground"
+									>
+										VS Code
+									</button>
 								)}
 								{!catchUpLean && (
 									<button
@@ -4710,6 +4838,15 @@ function DevBoardPage() {
 														<button
 															type="button"
 															onClick={() => openDrawer(card)}
+															onContextMenu={(event) => {
+																// Right-click → done, remind, star or tag.
+																event.preventDefault();
+																setTagMenu({
+																	paneId: card.pane.id,
+																	x: event.clientX,
+																	y: event.clientY,
+																});
+															}}
 															className={cn(
 																"group/switch flex items-center gap-2 py-1.5 text-left text-xs transition-all duration-[450ms]",
 																isSwitchListMin ? "justify-center" : "px-3",

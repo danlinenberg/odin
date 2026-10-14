@@ -3,6 +3,7 @@ import {
 	actionItemList,
 	applyLines,
 	applyQueue,
+	bangCommands,
 	elapsedLabel,
 	isAnswerItem,
 	isApprovalItem,
@@ -43,6 +44,24 @@ describe("ChatView transcript", () => {
 		expect(
 			userText("<bash-stdout>ok</bash-stdout><bash-stderr>warn</bash-stderr>"),
 		).toBe("ok\n\nwarn");
+	});
+
+	test("a ! block becomes a command to run; other blocks don't", () => {
+		const text = [
+			"Run this:",
+			"```",
+			"! aws sso login",
+			"```",
+			"Not this:",
+			"```bash",
+			"ls -la",
+			"```",
+			"```",
+			"!echo a &&",
+			"echo b",
+			"```",
+		].join("\n");
+		expect(bangCommands(text)).toEqual(["aws sso login", "echo a &&\necho b"]);
 	});
 
 	test("a message sent mid-turn shows as yours, its image too", () => {

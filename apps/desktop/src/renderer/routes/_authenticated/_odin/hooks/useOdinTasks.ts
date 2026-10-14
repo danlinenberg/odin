@@ -53,6 +53,8 @@ export interface OdinTask {
 	 * pause it, throw it away.
 	 */
 	builtin?: string;
+	/** Set = a due run is skipped unless an open session carries one of these. */
+	tags?: string[];
 }
 
 /** Scheduled, so it runs itself - the one thing automations don't share. */
@@ -161,6 +163,8 @@ export const useOdinTasks = create<{
 	/** Put a task on a schedule, or take it off one (null). */
 	setCron: (id: string, cron: string | null) => void;
 	setPaused: (id: string, paused: boolean) => void;
+	/** The board tags an automation watches; empty clears them. */
+	setTags: (id: string, tags: string[]) => void;
 	/** Stamp the minute an automation fired. */
 	markRun: (id: string, at: number) => void;
 	/**
@@ -249,6 +253,12 @@ export const useOdinTasks = create<{
 			setPaused: (id, paused) =>
 				set((s) => ({
 					tasks: s.tasks.map((t) => (t.id === id ? { ...t, paused } : t)),
+				})),
+			setTags: (id, tags) =>
+				set((s) => ({
+					tasks: s.tasks.map((t) =>
+						t.id === id ? { ...t, tags: tags.length ? tags : undefined } : t,
+					),
 				})),
 			markRun: (id, at) =>
 				set((s) => ({

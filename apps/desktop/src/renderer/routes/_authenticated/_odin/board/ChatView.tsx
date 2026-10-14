@@ -1337,6 +1337,47 @@ function ActionItems({
 	);
 }
 
+/** The `! command` blocks Claude hands you to run in the session, without the `!`. */
+export function bangCommands(text: string): string[] {
+	return [...text.matchAll(/```[^\n]*\n\s*!([\s\S]*?)\n?```/g)]
+		.map((match) => (match[1] ?? "").trim())
+		.filter(Boolean);
+}
+
+/** Runs a `! command` in Claude's session, where its output comes back to Claude. */
+function RunCommand({
+	command,
+	onRun,
+}: {
+	command: string;
+	onRun: (command: string) => Promise<void>;
+}) {
+	const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
+	return (
+		<button
+			type="button"
+			disabled={state !== "idle"}
+			onClick={() => {
+				setState("sending");
+				onRun(command).then(
+					() => setState("sent"),
+					(error) => {
+						setState("idle");
+						toast.error(error instanceof Error ? error.message : String(error));
+					},
+				);
+			}}
+			title={`Run in this session: ! ${command}`}
+			className={cn(ACTION_BUTTON, "mt-2 flex max-w-full items-center gap-1.5")}
+		>
+			<LuSquareTerminal className="size-3.5 shrink-0" />
+			<span className="truncate font-mono">
+				{state === "sent" ? "Sent" : "Run"} ! {command.split("\n")[0]}
+			</span>
+		</button>
+	);
+}
+
 /** Claude on Bedrock stops on an expired AWS SSO token and says to run this. */
 export function needsAwsSsoLogin(text: string): boolean {
 	return /run 'aws sso login'/i.test(text);
@@ -1460,6 +1501,7 @@ const ItemView = memo(
 		refs,
 		onDo,
 		onSend,
+		onRun,
 		workspaceId,
 		hideActions = false,
 		tldr,
@@ -1472,6 +1514,8 @@ const ItemView = memo(
 		onDo?: DoItem;
 		/** Types a message into the session - the AWS sign-in retries with it. */
 		onSend?: (text: string) => void;
+		/** Runs a `! command` in the live session - set only while its PTY is up. */
+		onRun?: (command: string) => Promise<void>;
 		/** An older reply's, or one still being followed by output: only the final card shows. */
 		hideActions?: boolean;
 		/** The latest reply's TL;DR, once the brief has read this very reply. */
@@ -1520,6 +1564,10 @@ const ItemView = memo(
 				{onSend && needsAwsSsoLogin(item.text) && (
 					<AwsSsoLogin onSend={onSend} />
 				)}
+				{onRun &&
+					bangCommands(item.text).map((command) => (
+						<RunCommand key={command} command={command} onRun={onRun} />
+					))}
 			</div>
 		);
 	},
@@ -1529,6 +1577,7 @@ const ItemView = memo(
 		prev.workspaceId === next.workspaceId &&
 		prev.onDo === next.onDo &&
 		prev.onSend === next.onSend &&
+		prev.onRun === next.onRun &&
 		prev.hideActions === next.hideActions &&
 		prev.tldr?.last === next.tldr?.last &&
 		prev.tldr?.urgency === next.tldr?.urgency &&
@@ -1713,6 +1762,15 @@ export function ChatView({
 		},
 		[paneId, write.mutateAsync],
 	);
+	// "!" alone first: it switches Claude's prompt to bash mode, which a paste can't.
+	const runInClaude = useCallback(
+		async (command: string) => {
+			await write.mutateAsync({ paneId, data: "!" });
+			await new Promise((resolve) => setTimeout(resolve, 50));
+			await typeIntoClaude(write.mutateAsync, paneId, command);
+		},
+		[paneId, write.mutateAsync],
+	);
 	const doItem = useCallback(
 		(item: string, number: number, approve: boolean, answer?: string) => {
 			sendToClaude(
@@ -1745,8 +1803,8 @@ export function ChatView({
 	);
 	const tldr = working ? null : freshTldr(lastText, brief);
 	// Agents repeat their ACTION ITEMS in every reply; show one card, on the
-	// latest reply that has it, once the agent has stopped.
-	const actionsId = working ? undefined : lastActionsId(items);
+	// latest reply that has it. It stays while Claude works on your answer.
+	const actionsId = lastActionsId(items);
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const pinnedRef = useRef(true);
 	// What was already there when the drawer opened shows still; only rows
@@ -1939,6 +1997,10 @@ export function ChatView({
 								onDo={onShowTerminal || onResumeWith ? doItem : undefined}
 								hideActions={segment.id !== actionsId}
 								tldr={segment.id === lastTextId ? tldr : null}
+								onRun={
+									// Only a live PTY runs a ! command; a resume or the raven's send can't.
+									onShowTerminal && !onSend ? runInClaude : undefined
+								}
 								onSend={
 									// Only the latest reply: an old expired-token error is fixed.
 									(onShowTerminal || onResumeWith) && segment.id === lastTextId

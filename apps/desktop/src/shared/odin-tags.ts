@@ -34,6 +34,16 @@ export const TAG_VOCABULARY = [
 /** The full board set - what the tag menu offers. */
 export const BOARD_TAGS: string[] = [...TAG_VOCABULARY];
 
+export const CUSTOM_TAGS_KEY = "odin:custom-tags";
+
+export function readCustomTags(): string[] {
+	try {
+		return JSON.parse(localStorage.getItem(CUSTOM_TAGS_KEY) ?? "[]");
+	} catch {
+		return [];
+	}
+}
+
 /**
  * Drop anything off the list. Sessions tagged under the old, longer vocabulary
  * keep #perf/#ui/#api/… in app-state; this is where they stop being shown,
