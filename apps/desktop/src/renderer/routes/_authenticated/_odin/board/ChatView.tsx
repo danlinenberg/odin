@@ -1178,10 +1178,10 @@ function ActionItemRow({
 		onDo(text, number, approve, reply);
 	};
 	return (
-		<li className="flex items-start gap-2">
-			{/* The button leads the row - you scan for it first. */}
+		<li className="grid grid-cols-[64px_1rem_minmax(0,1fr)] items-start gap-2 @max-md:grid-cols-[1rem_minmax(0,1fr)]">
+			{/* The button leads the row - you scan for it first. Too narrow (zoomed in), it drops under the text so the text keeps the width. */}
 			{isYouOnly(item) ? (
-				buttonColumn && <span className="w-[64px] shrink-0" />
+				buttonColumn && <span className="@max-md:hidden" />
 			) : (
 				<button
 					type="button"
@@ -1196,15 +1196,18 @@ function ActionItemRow({
 					}
 					disabled={sent}
 					onClick={() => send(itemReply(item, answer))}
-					className={cn(ACTION_BUTTON, "w-[64px]")}
+					className={cn(
+						ACTION_BUTTON,
+						"w-[64px] @max-md:col-start-2 @max-md:row-start-2",
+					)}
 				>
 					{sent ? "Sent" : approve ? "Approve" : done ? "Done" : "Do it"}
 				</button>
 			)}
-			<span className="w-4 shrink-0 pt-px text-right text-[13px] tabular-nums text-muted-foreground">
+			<span className="pt-px text-right text-[13px] tabular-nums text-muted-foreground">
 				{number}.
 			</span>
-			<div className="min-w-0 flex-1">
+			<div className="min-w-0 [overflow-wrap:anywhere]">
 				<MarkdownRenderer
 					content={text}
 					style="default"
@@ -1219,7 +1222,7 @@ function ActionItemRow({
 								type="button"
 								title="Send this choice to Claude"
 								onClick={() => send(option)}
-								className={ACTION_BUTTON}
+								className={cn(ACTION_BUTTON, "max-w-full text-left")}
 							>
 								{option}
 							</button>
@@ -1231,7 +1234,7 @@ function ActionItemRow({
 								if (event.key === "Enter" && answer.trim()) send(answer.trim());
 							}}
 							placeholder={options.length ? "Or type your own" : "Your answer"}
-							className="min-w-[160px] flex-1 rounded-md border border-attention/30 bg-transparent px-2 py-0.5 text-[12px] outline-none placeholder:text-muted-foreground/70 focus:border-attention/60"
+							className="min-w-[min(160px,100%)] flex-1 rounded-md border border-attention/30 bg-transparent px-2 py-0.5 text-[12px] outline-none placeholder:text-muted-foreground/70 focus:border-attention/60"
 						/>
 					</div>
 				)}
@@ -1253,7 +1256,7 @@ function ActionItems({ text, onDo }: { text: string; onDo?: DoItem }) {
 	const items = onDo ? actionItemList(text) : [];
 	const buttonColumn = !items.every(isYouOnly);
 	return (
-		<div className="mt-2 rounded-xl border border-attention/35 bg-attention/[0.07] px-4 py-3">
+		<div className="@container mt-2 rounded-xl border border-attention/35 bg-attention/[0.07] px-4 py-3">
 			<div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[.08em] text-attention">
 				Action items
 			</div>
