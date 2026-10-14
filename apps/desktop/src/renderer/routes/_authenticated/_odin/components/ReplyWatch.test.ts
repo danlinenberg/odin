@@ -40,3 +40,14 @@ test("finds the thread a session is about", () => {
 	).toBe("jira:BUGT-12");
 	expect(sessionThread({ odinTaskTitle: "Fix UTF-8 parsing" })).toBeNull();
 });
+
+test("a session with no task fields finds the thread its panel shows", () => {
+	expect(
+		sessionThread({
+			links: [
+				null,
+				"https://x.slack.com/archives/C03E/p1788333752934919?thread_ts=1787569128.041959&cid=C03E",
+			],
+		}),
+	).toBe("slack:C03E:1787569128.041959");
+});

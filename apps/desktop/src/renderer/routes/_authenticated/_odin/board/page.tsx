@@ -155,6 +155,7 @@ import {
 	pullRequests,
 	reviewEnded,
 	reviewedPullRequest,
+	slackThread,
 	sourceLink,
 } from "./brief";
 import { ChatView, interruptClaude } from "./ChatView";
@@ -418,6 +419,30 @@ function ScrollbackView({ card, live }: { card: BoardCard; live: boolean }) {
 			</div>
 		</div>
 	);
+}
+
+function useSessionThread(card: BoardCard | undefined): string | null {
+	const paneId = card?.pane.id ?? "";
+	const mirrored = usePaneMeta((s) => s.sessionIdByPane[paneId]);
+	const added = usePaneMeta((s) => s.linksByPane[paneId]);
+	const brief = usePaneMeta((s) => s.briefByPane[paneId]);
+	const sessionId = card?.pane.claudeSessionId ?? mirrored ?? null;
+	const { data: transcript } =
+		electronTrpc.terminal.readClaudeTranscript.useQuery(
+			{ sessionId: sessionId ?? "" },
+			{ enabled: !!sessionId, retry: false, staleTime: 60_000 },
+		);
+	if (!card) return null;
+	return sessionThread({
+		...card.pane,
+		brief,
+		links: [
+			transcript ? slackThread(transcript.links ?? transcript.messages) : null,
+			...(added ?? []).map((link) =>
+				typeof link === "string" ? link : link.url,
+			),
+		],
+	});
 }
 
 /** The conversation behind a card, for the pills that read it. */
@@ -3875,12 +3900,7 @@ function DevBoardPage() {
 
 	/** Done now; on `day` it pings and waits above the columns to be resumed. */
 	// The thread "Ping me on replies" watches for the right-clicked session.
-	const tagMenuThread = tagMenuCard
-		? sessionThread({
-				...tagMenuCard.pane,
-				brief: usePaneMeta.getState().briefByPane[tagMenuCard.pane.id],
-			})
-		: null;
+	const tagMenuThread = useSessionThread(tagMenuCard);
 
 	const remindMe = (card: BoardCard, day: string) => {
 		const sessionId =

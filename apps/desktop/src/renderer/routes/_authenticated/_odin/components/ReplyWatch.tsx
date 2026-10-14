@@ -51,29 +51,38 @@ export const useReplyWatch = create<{
 	),
 );
 
-const SLACK_LINK = /slack\.com\/archives\/([A-Z0-9]+)\/p(\d{10})(\d{6})/;
+const SLACK_LINK =
+	/slack\.com\/archives\/([A-Z0-9]+)\/p(\d{10})(\d{6})(?:\S*?[?&]thread_ts=(\d+\.\d+))?/;
 const SLACK_ID = /^[A-Z0-9]+:\d+\.\d+$/;
 /** A browse link anywhere, or a title that opens with the key - "ABC-12: Fix x". */
 const JIRA_KEY = /\/browse\/([A-Z][A-Z0-9_]+-\d+)|^([A-Z][A-Z0-9_]+-\d+):/m;
 
 /**
  * The thread a session is about, as a watch key: the Slack message it was
- * started from, else the first Slack link or Jira ticket in its title or
- * brief. Null when it has none - the menu then has nothing to offer.
+ * started from, else the first Slack link or Jira ticket in its title, brief
+ * or the links the session panel shows. A link to a reply watches the thread
+ * it sits in. Null when it has none - the menu then has nothing to offer.
  */
 export function sessionThread(pane: {
 	odinPageId?: string;
 	odinTaskTitle?: string;
 	odinBrief?: string;
 	brief?: string;
+	links?: (string | null | undefined)[];
 }): string | null {
 	if (pane.odinPageId && SLACK_ID.test(pane.odinPageId))
 		return `slack:${pane.odinPageId}`;
-	const text = [pane.odinTaskTitle, pane.odinBrief, pane.brief]
+	const text = [
+		pane.odinTaskTitle,
+		pane.odinBrief,
+		pane.brief,
+		...(pane.links ?? []),
+	]
 		.filter(Boolean)
 		.join("\n");
 	const slack = SLACK_LINK.exec(text);
-	if (slack) return `slack:${slack[1]}:${slack[2]}.${slack[3]}`;
+	if (slack)
+		return `slack:${slack[1]}:${slack[4] ?? `${slack[2]}.${slack[3]}`}`;
 	const jira = JIRA_KEY.exec(text);
 	const key = jira?.[1] ?? jira?.[2];
 	return key ? `jira:${key}` : null;
