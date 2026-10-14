@@ -365,10 +365,31 @@ function parseLines(parts: string[]): Line[] {
 }
 
 function readBytes(read: { kind: string; content: unknown }): Uint8Array {
+	// Native decode: Uint8Array.from(atob(...), fn) took ~100ms on a 4MB tail.
 	return read.kind === "bytes"
-		? Uint8Array.from(atob(read.content as string), (c) => c.charCodeAt(0))
+		? (
+				Uint8Array as unknown as { fromBase64: (b64: string) => Uint8Array }
+			).fromBase64(read.content as string)
 		: new TextEncoder().encode(read.content as string);
 }
+
+/**
+ * Where each transcript's reader stopped, kept when its view unmounts, so
+ * switching back to a session shows it at once and reads only what's new.
+ * ponytail: the last 20 sessions, oldest out first; a file rewritten shorter
+ * than the kept offset is not detected.
+ */
+interface LiveState {
+	offset: number | null;
+	skipFirstLine: boolean;
+	remainder: string;
+	decoder: TextDecoder;
+	start: number;
+	head: Uint8Array;
+	items: Item[];
+	queued: string[];
+}
+const liveCache = new Map<string, LiveState>();
 
 /**
  * An earlier chunk of the transcript, joined to `head` - the first half of the
@@ -419,22 +440,26 @@ function useLiveItems(path: string | null, workspaceId: string) {
 	useEffect(() => {
 		if (!path) return;
 		let cancelled = false;
-		let offset: number | null = null;
-		let skipFirstLine = false;
-		let remainder = "";
-		const decoder = new TextDecoder();
+		const saved = liveCache.get(path);
+		let offset: number | null = saved?.offset ?? null;
+		let skipFirstLine = saved?.skipFirstLine ?? false;
+		let remainder = saved?.remainder ?? "";
+		const decoder = saved?.decoder ?? new TextDecoder();
 		// Where the loaded window starts, and the cut line it starts with: the
 		// earlier chunk ends with that line's first half.
-		let start = 0;
-		let head: Uint8Array = new Uint8Array(0);
+		let start = saved?.start ?? 0;
+		let head: Uint8Array = saved?.head ?? new Uint8Array(0);
 		let loadingEarlier = false;
 		let timer: ReturnType<typeof setTimeout>;
 		let running = false;
 		let again = false;
-		setItems([]);
-		setQueued([]);
+		// Mirrors of the state below, so the cleanup keeps rows that match offset.
+		let shown = saved?.items ?? [];
+		let shownQueue = saved?.queued ?? [];
+		setItems(shown);
+		setQueued(shownQueue);
 		setMissing(null);
-		setHasEarlier(false);
+		setHasEarlier(start > 0);
 		const tick = async () => {
 			if (running) {
 				again = true;
@@ -483,8 +508,10 @@ function useLiveItems(path: string | null, workspaceId: string) {
 					}
 					const lines = parseLines(parts);
 					if (lines.length) {
-						setItems((prev) => applyLines(prev, lines));
-						setQueued((prev) => applyQueue(prev, lines));
+						shown = applyLines(shown, lines);
+						shownQueue = applyQueue(shownQueue, lines);
+						setItems(shown);
+						setQueued(shownQueue);
 					}
 				}
 				setMissing(null);
@@ -516,7 +543,8 @@ function useLiveItems(path: string | null, workspaceId: string) {
 				// ponytail: a tool row whose result sits past the cut stays without
 				// it; the tail window already dropped that result.
 				const rows = applyLines([], parseLines(split.lines));
-				setItems((prev) => [...rows, ...prev]);
+				shown = [...rows, ...shown];
+				setItems(shown);
 				setEarlierLoads((n) => n + 1);
 				setHasEarlier(from > 0);
 				return true;
@@ -533,6 +561,21 @@ function useLiveItems(path: string | null, workspaceId: string) {
 		return () => {
 			cancelled = true;
 			clearTimeout(timer);
+			// A read still in flight is dropped before it moves offset or rows.
+			liveCache.delete(path);
+			if (offset === null) return;
+			liveCache.set(path, {
+				offset,
+				skipFirstLine,
+				remainder,
+				decoder,
+				start,
+				head,
+				items: shown,
+				queued: shownQueue,
+			});
+			if (liveCache.size > 20)
+				liveCache.delete(liveCache.keys().next().value as string);
 		};
 	}, [path, workspaceId, utils]);
 	return {

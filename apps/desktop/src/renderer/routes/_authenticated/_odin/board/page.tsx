@@ -4881,7 +4881,7 @@ function DevBoardPage() {
 																});
 															}}
 															className={cn(
-																"group/switch flex items-center gap-2 py-1.5 text-left text-xs transition-all duration-[450ms]",
+																"group/switch flex items-center gap-2 py-1.5 text-left text-xs transition-[translate,opacity] duration-[450ms]",
 																isSwitchListMin ? "justify-center" : "px-3",
 																card.pane.id === leavingPaneId
 																	? "pointer-events-none -translate-x-6 bg-success/20 text-success-ink opacity-0"
