@@ -4,6 +4,7 @@ import { toast } from "@odin/ui/sonner";
 import { Switch } from "@odin/ui/switch";
 import { createFileRoute } from "@tanstack/react-router";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { useClaudeCommand } from "renderer/stores/claude-command";
 import { useIdleClose } from "renderer/stores/idle-close";
 import { useLaunchLimits } from "renderer/stores/launch-limits";
 import type { LaunchLimits } from "shared/machine-load";
@@ -26,6 +27,7 @@ function SessionsSettingsPage() {
 		>
 			<SettingsSection title="Where they start">
 				<DefaultRepoRow />
+				<RemoteControlRow />
 			</SettingsSection>
 
 			<SettingsSection
@@ -139,6 +141,25 @@ function DefaultRepoRow() {
 					</Button>
 				)}
 			</div>
+		</SettingRow>
+	);
+}
+
+/** `claude --remote-control '<task title>'` on every launch and Resume. */
+function RemoteControlRow() {
+	const enabled = useClaudeCommand((s) => s.remoteControl);
+	const setRemoteControl = useClaudeCommand((s) => s.setRemoteControl);
+	return (
+		<SettingRow
+			label="Remote Control"
+			htmlFor="remote-control"
+			description="Start each session with Remote Control on, named after its task, so you can follow and answer it from claude.ai/code or the Claude app on your phone. Applies to sessions started or resumed after you switch it."
+		>
+			<Switch
+				id="remote-control"
+				checked={enabled}
+				onCheckedChange={setRemoteControl}
+			/>
 		</SettingRow>
 	);
 }

@@ -12,11 +12,14 @@ interface ClaudeCommandState {
 	toBacklog: boolean;
 	/** New task: start a session on it right away instead of just listing it. */
 	startNow: boolean;
+	/** Start every session with Remote Control on, named after its task. */
+	remoteControl: boolean;
 	setCommands: (commands: string[]) => void;
 	setActive: (command: string) => void;
 	setModel: (model: string) => void;
 	setToBacklog: (toBacklog: boolean) => void;
 	setStartNow: (startNow: boolean) => void;
+	setRemoteControl: (remoteControl: boolean) => void;
 }
 
 /** The New Session model picker: CLI aliases, so each tracks the latest. */
@@ -45,11 +48,13 @@ export const useClaudeCommand = create<ClaudeCommandState>()(
 			model: "",
 			toBacklog: false,
 			startNow: false,
+			remoteControl: false,
 			setCommands: (commands) => set({ commands }),
 			setActive: (active) => set({ active }),
 			setModel: (model) => set({ model }),
 			setToBacklog: (toBacklog) => set({ toBacklog }),
 			setStartNow: (startNow) => set({ startNow }),
+			setRemoteControl: (remoteControl) => set({ remoteControl }),
 		}),
 		{ name: "odin-claude-command" },
 	),
@@ -71,4 +76,20 @@ export function modelFlag(model: string): string {
 	return model && CLAUDE_MODELS.some((m) => m.value === model)
 		? ` --model ${model}`
 		: "";
+}
+
+/**
+ * ` --remote-control '<name>'` when Settings → Sessions has it on, so the
+ * session shows up in claude.ai/code and the Claude app under its task's name.
+ */
+export function remoteControlFlag(
+	name: string,
+	on = useClaudeCommand.getState().remoteControl,
+): string {
+	if (!on) return "";
+	// ponytail: 80 chars, the session list truncates long names anyway.
+	const trimmed = name.replace(/\s+/g, " ").trim().slice(0, 80);
+	return trimmed
+		? ` --remote-control '${trimmed.replaceAll("'", `'\\''`)}'`
+		: " --remote-control";
 }
