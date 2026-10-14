@@ -1,3 +1,4 @@
+import { toast } from "@odin/ui/sonner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@odin/ui/tooltip";
 import { cn } from "@odin/ui/utils";
 import {
@@ -244,6 +245,47 @@ function OdinShell() {
 	const load = metrics ? machineLoad(metrics, limits) : null;
 	const disk =
 		load?.diskFreePercent != null ? ` · disk ${load.diskFreePercent}%` : "";
+	const diskFull =
+		load?.diskFreePercent != null && load.diskFreePercent < minFreeDiskPercent;
+	// The disk pill offers what the 10-minute pruner would delete anyway (the
+	// "safe" rows in Settings → Storage), so a full disk is one click from free.
+	const trpcUtils = electronTrpc.useUtils();
+	const removeWorktrees = electronTrpc.repos.removeWorktrees.useMutation();
+	const [freeing, setFreeing] = useState(false);
+	const freeDisk = async () => {
+		if (freeing) return;
+		setFreeing(true);
+		try {
+			const safe = (await trpcUtils.repos.worktrees.fetch()).filter(
+				(wt) => wt.safe,
+			);
+			const bytes = safe.reduce((sum, wt) => sum + (wt.sizeBytes ?? 0), 0);
+			const size = `${(bytes / 1024 ** 3).toFixed(1)} GB`;
+			if (safe.length === 0) {
+				toast.info(
+					"No unused worktrees to delete - Settings → Storage lists the rest.",
+				);
+				return;
+			}
+			if (
+				!window.confirm(
+					`Delete ${safe.length} unused worktree${safe.length === 1 ? "" : "s"} (${size})? Their work already landed or their PR closed.`,
+				)
+			)
+				return;
+			const removed = await removeWorktrees.mutateAsync(
+				safe.map(({ repo, name }) => ({ repo, name })),
+			);
+			toast.success(
+				`Deleted ${removed.length} worktree${removed.length === 1 ? "" : "s"}`,
+			);
+			void trpcUtils.repos.worktrees.invalidate();
+		} catch (error) {
+			toast.error(`Couldn't delete worktrees: ${String(error)}`);
+		} finally {
+			setFreeing(false);
+		}
+	};
 	// Claude plan usage - the 5-hour window and the week, as /usage shows them.
 	// The endpoint 429s when polled hard (every Claude Code CLI hits it too)
 	// and a failed read comes back null - so poll gently and keep showing the
@@ -591,16 +633,21 @@ function OdinShell() {
 						{load && (
 							<Tooltip delayDuration={300}>
 								<TooltipTrigger asChild>
-									<span
+									<button
+										type="button"
+										onClick={() => diskFull && void freeDisk()}
 										className={cn(
 											"rounded-[6px] px-2 py-[3px] text-[11px] font-semibold tabular-nums",
+											diskFull ? "hover:brightness-125" : "cursor-default",
 											badgeTone(load, limits),
 										)}
 									>
-										{load.busy
-											? `${load.reason} · launches waiting`
-											: `${load.agentCount} ${load.agentCount === 1 ? "session" : "sessions"} using ${load.agentMemoryGb} GB · ${load.availableMemoryGb} GB free${disk}`}
-									</span>
+										{freeing
+											? "Freeing disk…"
+											: load.busy
+												? `${load.reason} · launches waiting`
+												: `${load.agentCount} ${load.agentCount === 1 ? "session" : "sessions"} using ${load.agentMemoryGb} GB · ${load.availableMemoryGb} GB free${disk}`}
+									</button>
 								</TooltipTrigger>
 								<TooltipContent side="bottom" className="max-w-[280px]">
 									{load.busy
@@ -608,6 +655,7 @@ function OdinShell() {
 										: `${load.agentCount} session(s) using ${load.agentMemoryGb} GB of memory. This Mac has ${load.availableMemoryGb} GB free. Agents are on ${load.agentCpuPercent}% of the CPU · this Mac is ${load.cpuPercent}% busy.`}
 									{load.diskFreePercent !== null &&
 										` Disk ${load.diskFreePercent}% free; new sessions wait below ${limits.minFreeDiskPercent}% (Settings → Sessions).`}
+									{diskFull && " Click to delete unused worktrees."}
 								</TooltipContent>
 							</Tooltip>
 						)}
