@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
+import { SafeImage } from "./components";
 import { keepAttachmentUrls, sanitizeSchema } from "./MarkdownRenderer";
 
 test("keeps an odin-attachment image and still drops javascript: links", () => {
@@ -33,4 +34,10 @@ test("serves an agent's local image path through the attachment scheme", () => {
 	);
 	expect(html).toContain('src="/etc/passwd"');
 	expect(html).toContain('href="/tmp/a.png"');
+});
+
+test("shows an image as a thumbnail that a click enlarges", () => {
+	const html = renderToStaticMarkup(<SafeImage src="https://x.test/a.png" />);
+	expect(html).toContain("cursor-zoom-in");
+	expect(html).toContain("max-h-40 max-w-60");
 });

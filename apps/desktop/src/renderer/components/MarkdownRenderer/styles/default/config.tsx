@@ -44,13 +44,7 @@ export const defaultConfig: MarkdownStyleConfig = {
 				{children}
 			</a>
 		),
-		img: ({ src, alt }) => (
-			<SafeImage
-				src={src}
-				alt={alt}
-				className="max-w-full h-auto rounded-md my-4"
-			/>
-		),
+		img: ({ src, alt }) => <SafeImage src={src} alt={alt} />,
 		hr: () => <hr className="my-8 border-border" />,
 		li: ({ children, className }) => {
 			const isTaskItem = className?.includes("task-list-item");
