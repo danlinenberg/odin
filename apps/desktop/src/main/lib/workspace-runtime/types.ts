@@ -81,6 +81,13 @@ export interface TerminalSessionOperations {
 
 	/** Write data to the terminal */
 	write(params: { paneId: string; data: string }): void;
+	/** Hold a key down (`data` every `everyMs`) until releaseKey. */
+	holdKey(params: {
+		paneId: string;
+		data: string;
+		everyMs: number;
+	}): Promise<void>;
+	releaseKey(params: { paneId: string }): Promise<void>;
 
 	/** Resize the terminal */
 	resize(params: { paneId: string; cols: number; rows: number }): void;

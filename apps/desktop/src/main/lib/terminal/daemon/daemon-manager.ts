@@ -650,6 +650,54 @@ export class DaemonTerminalManager extends EventEmitter {
 		this.client.writeNoAck({ sessionId: paneId, data });
 	}
 
+	/** Held keys timed here, for a daemon from before holdKey. */
+	private heldKeys = new Map<string, ReturnType<typeof setInterval>>();
+
+	/**
+	 * Hold a key down: `data` every `everyMs` until releaseKey. The daemon
+	 * times it next to the PTY. A daemon from an older build (UNKNOWN_REQUEST)
+	 * gets the timer here in main - still off the renderer, whose stalls
+	 * between two repeats are what Claude reads as the key let go.
+	 */
+	async holdKey(params: {
+		paneId: string;
+		data: string;
+		everyMs: number;
+	}): Promise<void> {
+		const { paneId, data, everyMs } = params;
+		this.clearHeldKey(paneId);
+		this.write({ paneId, data });
+		try {
+			await this.client.holdKey({ sessionId: paneId, data, everyMs });
+		} catch {
+			const started = Date.now();
+			const timer = setInterval(() => {
+				try {
+					if (Date.now() - started > 60_000) throw new Error("hold cap");
+					this.write({ paneId, data });
+				} catch {
+					this.clearHeldKey(paneId);
+				}
+			}, everyMs);
+			this.heldKeys.set(paneId, timer);
+		}
+	}
+
+	async releaseKey(params: { paneId: string }): Promise<void> {
+		this.clearHeldKey(params.paneId);
+		try {
+			await this.client.releaseKey({ sessionId: params.paneId });
+		} catch {
+			// An older daemon never held it.
+		}
+	}
+
+	private clearHeldKey(paneId: string): void {
+		const timer = this.heldKeys.get(paneId);
+		if (timer) clearInterval(timer);
+		this.heldKeys.delete(paneId);
+	}
+
 	ackColdRestore(paneId: string): void {
 		this.coldRestoreInfo.delete(paneId);
 	}

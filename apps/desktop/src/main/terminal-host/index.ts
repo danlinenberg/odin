@@ -33,6 +33,7 @@ import {
 	type DetachRequest,
 	type HelloRequest,
 	type HelloResponse,
+	type HoldKeyRequest,
 	type IpcErrorResponse,
 	type IpcEvent,
 	type IpcRequest,
@@ -41,6 +42,7 @@ import {
 	type KillRequest,
 	PROTOCOL_VERSION,
 	type ReadScreenRequest,
+	type ReleaseKeyRequest,
 	type ResizeRequest,
 	type ShutdownRequest,
 	type SignalRequest,
@@ -415,6 +417,39 @@ const handlers: Record<string, RequestHandler> = {
 
 			sendError(socket, id, "WRITE_FAILED", message);
 		}
+	},
+
+	holdKey: (socket, id, payload, clientState) => {
+		if (!clientState.authenticated) {
+			sendError(socket, id, "NOT_AUTHENTICATED", "Must authenticate first");
+			return;
+		}
+		if (clientState.role !== "control") {
+			sendError(socket, id, "INVALID_ROLE", "holdKey requires control");
+			return;
+		}
+		try {
+			sendSuccess(socket, id, terminalHost.holdKey(payload as HoldKeyRequest));
+		} catch (error) {
+			const message = error instanceof Error ? error.message : "holdKey failed";
+			sendError(socket, id, "HOLD_KEY_FAILED", message);
+		}
+	},
+
+	releaseKey: (socket, id, payload, clientState) => {
+		if (!clientState.authenticated) {
+			sendError(socket, id, "NOT_AUTHENTICATED", "Must authenticate first");
+			return;
+		}
+		if (clientState.role !== "control") {
+			sendError(socket, id, "INVALID_ROLE", "releaseKey requires control");
+			return;
+		}
+		sendSuccess(
+			socket,
+			id,
+			terminalHost.releaseKey(payload as ReleaseKeyRequest),
+		);
 	},
 
 	resize: (socket, id, payload, clientState) => {

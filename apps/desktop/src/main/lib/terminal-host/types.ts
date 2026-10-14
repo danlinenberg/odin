@@ -198,6 +198,23 @@ export interface WriteRequest {
 }
 
 /**
+ * Hold a key down: `data` is written every `everyMs` until releaseKey, the
+ * way a terminal repeats a held key. Odin's hold-to-talk drives Claude Code's
+ * voice mode with it. Timed in the daemon, next to the PTY: Claude reads a
+ * 100ms gap between two repeats as the key let go, and the renderer's window
+ * stalls that long while it draws a long chat.
+ */
+export interface HoldKeyRequest {
+	sessionId: string;
+	data: string;
+	everyMs: number;
+}
+
+export interface ReleaseKeyRequest {
+	sessionId: string;
+}
+
+/**
  * Resize terminal session
  */
 export interface ResizeRequest {

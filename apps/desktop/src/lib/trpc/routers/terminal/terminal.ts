@@ -212,6 +212,25 @@ export const createTerminalRouter = () => {
 		/** Refresh an expired AWS SSO token - Claude on Bedrock stops on one. */
 		awsSsoLogin: publicProcedure.mutation(() => awsSsoLogin()),
 
+		/**
+		 * Hold a key down in a session - `data` every `everyMs`, like a held
+		 * key's repeat - until releaseKey. Timed in main or the daemon, never
+		 * in the renderer: Claude's hold-to-talk lets go at a 100ms gap.
+		 */
+		holdKey: publicProcedure
+			.input(
+				z.object({
+					paneId: z.string(),
+					data: z.string().min(1).max(8),
+					everyMs: z.number().int().min(10).max(500),
+				}),
+			)
+			.mutation(({ input }) => terminal.holdKey(input)),
+
+		releaseKey: publicProcedure
+			.input(z.object({ paneId: z.string() }))
+			.mutation(({ input }) => terminal.releaseKey(input)),
+
 		write: publicProcedure
 			.input(
 				z.object({

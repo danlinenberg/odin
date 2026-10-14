@@ -77,7 +77,8 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 type Hold = {
 	timer?: ReturnType<typeof setTimeout>;
-	pump?: ReturnType<typeof setInterval>;
+	/** Lets the held Space go. */
+	pump?: () => void;
 	released: boolean;
 };
 
@@ -112,9 +113,33 @@ export function useHoldToTalk({
 				.catch(() => null)
 		)?.text ?? "";
 
+	/**
+	 * Hold Space down in Claude's terminal. The repeats are timed in the main
+	 * process or the daemon, next to the PTY: Claude lets the key go at a
+	 * 100ms gap between two of them, and this window stalls that long while
+	 * it draws a long chat - which is how a hold turned into typed spaces.
+	 */
+	const startPump = async (): Promise<() => void> => {
+		try {
+			await electronTrpcClient.terminal.holdKey.mutate({
+				paneId,
+				data: " ",
+				everyMs: REPEAT_MS,
+			});
+			return () =>
+				void electronTrpcClient.terminal.releaseKey
+					.mutate({ paneId })
+					.catch(() => undefined);
+		} catch {
+			// An Odin whose main process predates holdKey: time it here.
+			const id = setInterval(() => void write(" "), REPEAT_MS);
+			return () => clearInterval(id);
+		}
+	};
+
 	const stopPump = () => {
 		const h = hold.current;
-		if (h?.pump) clearInterval(h.pump);
+		h?.pump?.();
 		if (h) h.pump = undefined;
 	};
 
@@ -131,7 +156,9 @@ export function useHoldToTalk({
 		}
 		setPhase("listening");
 		setHeard("");
-		h.pump = setInterval(() => void write(" "), REPEAT_MS);
+		h.pump = await startPump();
+		// Let go while the pump was starting: stop it before anything else.
+		if (h.released) stopPump();
 		let seen = false;
 		const started = Date.now();
 		while (!h.released) {
@@ -183,6 +210,10 @@ export function useHoldToTalk({
 			// Claude's prompt goes back to empty; the text lives in Odin's box.
 			await write("\x15");
 			latest.current.onText(text);
+		} else if (!text) {
+			// Nothing heard: clear what the hold left in Claude's box (a
+			// dropped hold types its spaces), so the next hold starts clean.
+			await write("\x15");
 		}
 		setPhase("idle");
 		setHeard("");
@@ -220,7 +251,7 @@ export function useHoldToTalk({
 			if (!h) return;
 			h.released = true;
 			if (h.timer) clearTimeout(h.timer);
-			if (h.pump) clearInterval(h.pump);
+			h.pump?.();
 		},
 		[],
 	);

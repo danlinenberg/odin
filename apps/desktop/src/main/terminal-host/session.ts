@@ -160,6 +160,8 @@ export class Session {
 
 	private subprocess: ChildProcess | null = null;
 	private subprocessReady = false;
+	/** A key held down (holdKey): the repeat timer. */
+	private heldKey: ReturnType<typeof setInterval> | null = null;
 	private emulator: HeadlessEmulator;
 	private attachedClients: Map<Socket, AttachedClient> = new Map();
 	private clientSocketsWaitingForDrain: Set<Socket> = new Set();
@@ -929,6 +931,37 @@ export class Session {
 	}
 
 	/**
+	 * Hold a key down: write `data` now and every `everyMs` until releaseKey,
+	 * like a terminal repeating a held key. Timed here, next to the PTY, so a
+	 * busy renderer can't open a gap that reads as the key let go.
+	 */
+	holdKey(data: string, everyMs: number): void {
+		this.releaseKey();
+		if (!this.subprocess || !this.subprocessReady) {
+			throw new Error("PTY not spawned");
+		}
+		const started = Date.now();
+		this.sendWriteToSubprocess(data);
+		this.heldKey = setInterval(() => {
+			// ponytail: a 60s cap, for a release that never arrives.
+			if (
+				!this.subprocess ||
+				!this.subprocessReady ||
+				Date.now() - started > 60_000
+			) {
+				this.releaseKey();
+				return;
+			}
+			this.sendWriteToSubprocess(data);
+		}, everyMs);
+	}
+
+	releaseKey(): void {
+		if (this.heldKey) clearInterval(this.heldKey);
+		this.heldKey = null;
+	}
+
+	/**
 	 * Resize PTY and emulator
 	 */
 	resize(cols: number, rows: number): void {
@@ -995,6 +1028,7 @@ export class Session {
 	 * The actual PTY termination is async - use isTerminating to check state.
 	 */
 	kill(signal: string = "SIGHUP"): void {
+		this.releaseKey();
 		// Idempotent: if already terminating, don't send another signal
 		if (this.terminatingAt !== null) {
 			return;
@@ -1021,6 +1055,7 @@ export class Session {
 	dispose(): Promise<void> {
 		if (this.disposed) return Promise.resolve();
 		this.disposed = true;
+		this.releaseKey();
 
 		const pidsToKill = this.collectProcessPids();
 

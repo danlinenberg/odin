@@ -642,3 +642,43 @@ describe("DaemonTerminalManager kill tracking", () => {
 		expect(mockClient.killAllCalls).toBe(0);
 	});
 });
+
+describe("DaemonTerminalManager holdKey", () => {
+	beforeEach(() => {
+		mockClient = new MockTerminalHostClient();
+	});
+
+	it("times the repeat in main when the daemon has no holdKey", async () => {
+		const manager = new DaemonTerminalManager();
+		const paneId = "pane-hold-1";
+		(manager as unknown as { sessions: Map<string, SessionInfo> }).sessions.set(
+			paneId,
+			{
+				paneId,
+				workspaceId: "ws-1",
+				isAlive: true,
+				lastActive: Date.now(),
+				cwd: "",
+				pid: 123,
+				cols: 80,
+				rows: 24,
+			},
+		);
+		const writes: string[] = [];
+		(
+			mockClient as unknown as { writeNoAck: (p: { data: string }) => void }
+		).writeNoAck = (p) => {
+			writes.push(p.data);
+		};
+
+		await manager.holdKey({ paneId, data: " ", everyMs: 10 });
+		await new Promise((resolve) => setTimeout(resolve, 120));
+		const held = writes.length;
+		expect(held).toBeGreaterThanOrEqual(8);
+		expect(new Set(writes)).toEqual(new Set([" "]));
+
+		await manager.releaseKey({ paneId });
+		await new Promise((resolve) => setTimeout(resolve, 60));
+		expect(writes.length).toBe(held);
+	});
+});

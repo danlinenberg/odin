@@ -7,11 +7,13 @@ import type {
 	CreateOrAttachResponse,
 	DetachRequest,
 	EmptyResponse,
+	HoldKeyRequest,
 	KillAllRequest,
 	KillRequest,
 	ListSessionsResponse,
 	ReadScreenRequest,
 	ReadScreenResponse,
+	ReleaseKeyRequest,
 	ResizeRequest,
 	SignalRequest,
 	WriteRequest,
@@ -223,6 +225,19 @@ export class TerminalHost {
 	write(request: WriteRequest): EmptyResponse {
 		const session = this.getActiveSession(request.sessionId);
 		session.write(request.data);
+		return { success: true };
+	}
+
+	holdKey(request: HoldKeyRequest): EmptyResponse {
+		this.getActiveSession(request.sessionId).holdKey(
+			request.data,
+			request.everyMs,
+		);
+		return { success: true };
+	}
+
+	releaseKey(request: ReleaseKeyRequest): EmptyResponse {
+		this.sessions.get(request.sessionId)?.releaseKey();
 		return { success: true };
 	}
 

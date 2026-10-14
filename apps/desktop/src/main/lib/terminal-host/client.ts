@@ -47,6 +47,7 @@ import {
 	type DetachRequest,
 	type EmptyResponse,
 	type HelloResponse,
+	type HoldKeyRequest,
 	type IpcEvent,
 	type IpcResponse,
 	type KillAllRequest,
@@ -55,6 +56,7 @@ import {
 	PROTOCOL_VERSION,
 	type ReadScreenRequest,
 	type ReadScreenResponse,
+	type ReleaseKeyRequest,
 	type ResizeRequest,
 	type ShutdownRequest,
 	type SignalRequest,
@@ -1554,6 +1556,17 @@ export class TerminalHostClient extends EventEmitter {
 	async write(request: WriteRequest): Promise<EmptyResponse> {
 		await this.ensureConnected();
 		return this.sendRequest<EmptyResponse>("write", request);
+	}
+
+	/** Hold a key down in a session until releaseKey (see HoldKeyRequest). */
+	async holdKey(request: HoldKeyRequest): Promise<EmptyResponse> {
+		await this.ensureConnected();
+		return this.sendRequest<EmptyResponse>("holdKey", request);
+	}
+
+	async releaseKey(request: ReleaseKeyRequest): Promise<EmptyResponse> {
+		await this.ensureConnected();
+		return this.sendRequest<EmptyResponse>("releaseKey", request);
 	}
 
 	/**
