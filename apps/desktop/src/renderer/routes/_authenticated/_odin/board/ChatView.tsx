@@ -779,7 +779,12 @@ const ToolGroup = memo(
 						lead ? "items-end" : "h-7 items-center",
 					)}
 				>
-					{lead && <div className="min-w-0">{lead}</div>}
+					{/* A line hugs the toggle. An action-items card takes the row: as a size container it has no width of its own. */}
+					{lead && (
+						<div className="min-w-0 has-[[data-action-items]]:flex-1">
+							{lead}
+						</div>
+					)}
 					{/* Live work shows once, in the turn's own "Working..." row below. */}
 					<button
 						type="button"
@@ -1418,7 +1423,10 @@ function ActionItems({
 		.filter(({ item }) => !isDismissed(dismissed ?? [], item));
 	const buttonColumn = !items.every(({ item }) => isYouOnly(item));
 	return (
-		<div className="@container mt-2 rounded-xl border border-attention/35 bg-attention/[0.07] px-4 py-3">
+		<div
+			data-action-items
+			className="@container mt-2 rounded-xl border border-attention/35 bg-attention/[0.07] px-4 py-3"
+		>
 			<div className="mb-1.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[.08em] text-attention">
 				Action items
 				{tldr?.long && onToggle && (
