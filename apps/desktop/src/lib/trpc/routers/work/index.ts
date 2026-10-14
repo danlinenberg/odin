@@ -9,6 +9,7 @@ import { clickupFetch } from "main/lib/read-link";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
 import { readOdinConfig, resolveGithubToken } from "../odin-config";
+import { slackThreadReplies } from "../slack";
 
 /**
  * Odin fork: read-only "my work" feeds - Jira issues assigned to me and GitHub
@@ -156,7 +157,7 @@ export function epicOf(parent: JiraParent | undefined): JiraIssueRow["epic"] {
 }
 
 interface JiraComment {
-	author?: { displayName?: string };
+	author?: { displayName?: string; accountId?: string };
 	created?: string;
 	body?: unknown;
 }
@@ -344,6 +345,16 @@ interface JiraSearchResponse {
 			[custom: string]: unknown;
 		};
 	}[];
+}
+
+/** The newest reply on a watched thread. */
+export interface ThreadActivity {
+	/** Slack ts or Jira comment time - changes when someone replies. "" = no replies yet. */
+	stamp: string;
+	/** That newest reply is mine - nothing to ping about. */
+	byMe: boolean;
+	/** What it said, for the notification. */
+	text: string | null;
 }
 
 interface GithubSearchResponse {
@@ -706,6 +717,69 @@ export const createWorkRouter = () => {
 					);
 				},
 			),
+
+		/**
+		 * The newest reply on each watched thread, keyed like the task rows
+		 * (`slack:<channel>:<ts>`, `jira:<KEY>`) - what "Ping me on replies"
+		 * compares against what it saw last time. A row Slack or Jira won't
+		 * answer for is left out, which reads as "nothing new".
+		 *
+		 * ponytail: Slack thread replies only - a DM answered inline, outside a
+		 * thread, doesn't count. Add `channelLastTs` here if that's missed.
+		 */
+		threadActivity: publicProcedure
+			.input(
+				z.object({ slack: z.array(z.string()), jira: z.array(z.string()) }),
+			)
+			.query(async ({ input }): Promise<Record<string, ThreadActivity>> => {
+				const out: Record<string, ThreadActivity> = {};
+				for (const id of input.slack) {
+					const thread = await slackThreadReplies(id);
+					if (thread)
+						out[`slack:${id}`] = {
+							stamp: thread.lastReplyTs ?? "",
+							byMe: thread.lastReplyByMe,
+							text: thread.lastReplyText ?? null,
+						};
+				}
+				const keys = input.jira.filter((key) =>
+					/^[A-Z][A-Z0-9_]+-\d+$/.test(key),
+				);
+				const request = keys.length ? await jiraRequestContext() : null;
+				if (!request) return out;
+				const headers = {
+					Authorization: request.authorization,
+					Accept: "application/json",
+				};
+				const [me, search] = await Promise.all([
+					fetch(`${request.base}/rest/api/3/myself`, { headers })
+						.then(async (r) =>
+							r.ok
+								? ((await r.json()) as { accountId?: string }).accountId
+								: null,
+						)
+						.catch(() => null),
+					fetch(
+						`${request.base}/rest/api/3/search/jql?jql=${encodeURIComponent(`key in (${keys.join(",")})`)}&maxResults=100&fields=comment`,
+						{ headers },
+					)
+						.then(async (r) =>
+							r.ok ? ((await r.json()) as JiraSearchResponse) : {},
+						)
+						.catch((): JiraSearchResponse => ({})),
+				]);
+				for (const issue of search.issues ?? []) {
+					const last = issue.fields?.comment?.comments?.at(-1);
+					out[`jira:${issue.key}`] = {
+						stamp: last?.created ?? "",
+						byMe: !!me && last?.author?.accountId === me,
+						text: last
+							? `${last.author?.displayName ?? "Someone"}: ${adfToText(last.body).replace(/\s+/g, " ").trim().slice(0, 300)}`
+							: null,
+					};
+				}
+				return out;
+			}),
 
 		/**
 		 * Unread inbox mail. No OAuth: Gmail still takes Basic auth with an app

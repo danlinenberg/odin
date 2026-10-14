@@ -42,6 +42,7 @@ import {
 	useDueReminders,
 	useReminders,
 } from "./components/Reminders";
+import { useReplyWatcher } from "./components/ReplyWatch";
 import { SearchAll } from "./components/SearchAll";
 import { SessionContextDialog } from "./components/SessionContextDialog";
 import { QuickAddTask } from "./components/TaskBox";
@@ -350,6 +351,8 @@ function OdinShell() {
 		if (!isProfileLoading) setReminderProfile(activeProfileId);
 	}, [isProfileLoading, activeProfileId, setReminderProfile]);
 	useDueReminders(jiraDue);
+	// "Ping me on replies" - same reason: it pings whatever screen is open.
+	useReplyWatcher();
 
 	// The clock behind the Automations panel. Here rather than on that page:
 	// a schedule that only runs while you're looking at it isn't one.

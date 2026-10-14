@@ -17,6 +17,7 @@ import { useTabsStore } from "renderer/stores/tabs/store";
 import { useThemeStore } from "renderer/stores/theme/store";
 import { useTitleOverrides } from "../all/title-overrides";
 import { useReminders } from "../components/Reminders";
+import { useReplyWatch } from "../components/ReplyWatch";
 import { useBacklogReview } from "./useBacklogReview";
 import { useOdinTasks } from "./useOdinTasks";
 
@@ -35,6 +36,7 @@ const STORES: Record<string, Store> = {
 	tasks: useOdinTasks,
 	backlogReview: useBacklogReview,
 	reminders: useReminders,
+	replyWatch: useReplyWatch,
 	rules: useOdinRules,
 	sessionInstructions: useSessionInstructions,
 	launchLimits: useLaunchLimits,
