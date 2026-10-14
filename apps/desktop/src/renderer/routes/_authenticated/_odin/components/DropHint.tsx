@@ -104,9 +104,7 @@ export function DropHint({
 			title={why}
 			className={`mt-1 flex w-full items-start gap-1.5 rounded-[5px] px-[7px] py-px text-[11px] font-medium ${PILL.danger}`}
 		>
-			<span className="line-clamp-2 min-w-0 flex-1">
-				Drop? {row.evidence}
-			</span>
+			<span className="line-clamp-2 min-w-0 flex-1">Drop? {row.evidence}</span>
 			{dropButton("Drop", "ring-1 ring-inset ring-danger/40")}
 			{keepButton}
 		</div>
