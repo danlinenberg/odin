@@ -32,7 +32,6 @@ import {
 	OverdueMark,
 	useReminders,
 } from "../components/Reminders";
-import { canWatch, WatchButton } from "../components/ReplyWatch";
 import { TonightButton } from "../components/TonightButton";
 import { useDone } from "../hooks/useDone";
 import { usePendingFocus } from "../hooks/usePendingFocus";
@@ -78,7 +77,7 @@ export const COL = {
 		"flex w-[132px] shrink-0 items-center overflow-hidden @max-[1050px]:hidden",
 	place: "block w-[112px] shrink-0 truncate @max-[1380px]:hidden",
 	date: "flex w-[52px] shrink-0 items-center tabular-nums text-muted-foreground @max-[860px]:hidden",
-	acts: "flex w-[154px] shrink-0 items-center justify-end gap-0.5",
+	acts: "flex w-[128px] shrink-0 items-center justify-end gap-0.5",
 	start: "flex w-[84px] shrink-0 justify-end",
 	done: "flex w-[72px] shrink-0",
 };
@@ -427,16 +426,6 @@ export function TaskRow({
 								<LuListPlus className="size-3.5" aria-hidden />
 							</button>
 						</IconTip>
-					)}
-					{canWatch(item.key) ? (
-						<WatchButton
-							itemKey={item.key}
-							title={item.title}
-							url={url}
-							className={ROW_ICON_BUTTON}
-						/>
-					) : (
-						<span className="size-6 shrink-0" />
 					)}
 					<TonightButton item={item} iconOnly />
 					<IconTip label={readLabel}>

@@ -915,6 +915,13 @@ await step("right-click → Done takes the session off the board", async () => {
 			`!!document.querySelector('[data-session-menu] input[placeholder^="New tag"]')`,
 		);
 	if (await tagField()) throw new Error("the tag list starts open");
+	// Ping me on replies needs a Slack thread or Jira ticket; this one has neither.
+	if (
+		await page<boolean>(
+			`[...document.querySelectorAll("[data-session-menu] button")].some((b) => b.textContent.includes("Ping me on replies"))`,
+		)
+	)
+		throw new Error("Ping me on replies offered on a session with no thread");
 	await click("[data-session-menu] button", "▸Tags");
 	if (!(await tagField())) throw new Error("Tags didn't open the list");
 	// The menu's own Done - the card's ✓ Done would pass this step too.

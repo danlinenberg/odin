@@ -352,7 +352,11 @@ function OdinShell() {
 	}, [isProfileLoading, activeProfileId, setReminderProfile]);
 	useDueReminders(jiraDue);
 	// "Ping me on replies" - same reason: it pings whatever screen is open.
-	useReplyWatcher();
+	// Clicking the banner opens the session it was set on.
+	useReplyWatcher((paneId) => {
+		usePendingFocus.getState().focus(paneId);
+		navigate({ to: "/board" });
+	});
 
 	// The clock behind the Automations panel. Here rather than on that page:
 	// a schedule that only runs while you're looking at it isn't one.

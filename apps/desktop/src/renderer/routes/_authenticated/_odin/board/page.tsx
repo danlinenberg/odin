@@ -27,6 +27,7 @@ import {
 } from "react";
 import type { IconType } from "react-icons";
 import {
+	LuBellRing,
 	LuChevronLeft,
 	LuChevronRight,
 	LuCircleCheck,
@@ -109,6 +110,7 @@ import {
 import { PersonChip, personColor } from "../components/PersonChip";
 import { BUTTON, PILL } from "../components/pill";
 import { DueChip, OverdueMark, useReminders } from "../components/Reminders";
+import { sessionThread, useReplyWatch } from "../components/ReplyWatch";
 import { TranscriptView } from "../components/TranscriptView";
 import { useBacklogReview, useReview } from "../hooks/useBacklogReview";
 import { CROW_TAG } from "../hooks/useCrow";
@@ -1383,6 +1385,8 @@ function TagMenu({
 	onStar,
 	onDone,
 	onRemind,
+	watching,
+	onWatch,
 	onKeep,
 	onToggle,
 	onAdd,
@@ -1398,6 +1402,9 @@ function TagMenu({
 	onStar: () => void;
 	onDone: () => void;
 	onRemind: (day: string) => void;
+	/** Whether replies on the session's thread ping you; unset when it has no thread. */
+	watching?: boolean;
+	onWatch: () => void;
 	/** Set when the sweep suggests dropping this session. */
 	onKeep?: () => void;
 	onToggle: (tag: string) => void;
@@ -1473,6 +1480,23 @@ function TagMenu({
 					}}
 					className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-attention"
 				/>
+				{watching !== undefined && (
+					<button
+						type="button"
+						title="A notification whenever someone else replies in this session's Slack thread or Jira ticket"
+						onClick={() => {
+							onWatch();
+							onClose();
+						}}
+						className={cn(
+							"flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] transition-colors hover:text-primary",
+							watching ? "text-primary" : "text-muted-foreground",
+						)}
+					>
+						<LuBellRing className="size-3" aria-hidden />
+						{watching ? "Stop pinging me on replies" : "Ping me on replies"}
+					</button>
+				)}
 			</div>
 			{onKeep && (
 				<button
@@ -2401,6 +2425,8 @@ function DevBoardPage() {
 		y: number;
 	} | null>(null);
 	const tagMenuDrop = useDropFor(tagMenu ? panes[tagMenu.paneId] : undefined);
+	const watches = useReplyWatch((s) => s.watches);
+	const toggleWatch = useReplyWatch((s) => s.toggle);
 	// One filter at a time, from the header dropdown: "tag:<tag>",
 	// "repo:<name>", "person:<name>", or "" for everything.
 	const [boardFilter, setBoardFilter] = useState("");
@@ -3786,6 +3812,14 @@ function DevBoardPage() {
 		: undefined;
 
 	/** Done now; on `day` it pings and waits above the columns to be resumed. */
+	// The thread "Ping me on replies" watches for the right-clicked session.
+	const tagMenuThread = tagMenuCard
+		? sessionThread({
+				...tagMenuCard.pane,
+				brief: usePaneMeta.getState().briefByPane[tagMenuCard.pane.id],
+			})
+		: null;
+
 	const remindMe = (card: BoardCard, day: string) => {
 		const sessionId =
 			card.pane.claudeSessionId ??
@@ -3965,6 +3999,16 @@ function DevBoardPage() {
 					onStar={() => toggleStar(tagMenu.paneId)}
 					onDone={() => tagMenuCard && doneAnywhere(tagMenuCard)}
 					onRemind={(day) => tagMenuCard && remindMe(tagMenuCard, day)}
+					watching={tagMenuThread ? !!watches[tagMenuThread] : undefined}
+					onWatch={() =>
+						tagMenuCard &&
+						tagMenuThread &&
+						toggleWatch(
+							tagMenuThread,
+							cardTitle(tagMenuCard),
+							tagMenuCard.pane.id,
+						)
+					}
 					onToggle={(tag) => toggleTag(tagMenu.paneId, tag)}
 					onClose={() => setTagMenu(null)}
 				/>
