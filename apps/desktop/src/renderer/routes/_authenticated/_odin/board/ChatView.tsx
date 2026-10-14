@@ -1185,7 +1185,14 @@ function ActionItemRow({
 		onDo(text, number, approve, reply);
 	};
 	return (
-		<li className="grid grid-cols-[64px_1rem_minmax(0,1fr)] items-start gap-2 @max-md:grid-cols-[1rem_minmax(0,1fr)]">
+		<li
+			className={cn(
+				"grid grid-cols-[1rem_minmax(0,1fr)] items-start gap-2",
+				// No button column: number + text only, or the text lands in the 1rem cell.
+				buttonColumn &&
+					"grid-cols-[64px_1rem_minmax(0,1fr)] @max-md:grid-cols-[1rem_minmax(0,1fr)]",
+			)}
+		>
 			{/* The button leads the row - you scan for it first. Too narrow (zoomed in), it drops under the text so the text keeps the width. */}
 			{isYouOnly(item) ? (
 				buttonColumn && <span className="@max-md:hidden" />
