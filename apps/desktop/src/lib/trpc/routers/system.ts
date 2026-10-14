@@ -1,6 +1,6 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { accessSync, constants } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
@@ -235,11 +235,45 @@ export async function markClaudeOnboarded(
 	);
 }
 
+export interface OdinDoc {
+	title: string;
+	path: string;
+}
+
+/**
+ * Knowledge docs - what sessions saved with "Save as doc" (SAVE_DOC_PROMPT),
+ * newest first. A doc is a markdown file, titled by its first "# " line.
+ * ponytail: reads every file's head on each call - fine for a personal
+ * shelf of tens, an index if it reaches thousands.
+ */
+export async function listDocs(
+	dir = join(homedir(), ".odin", "docs"),
+): Promise<OdinDoc[]> {
+	const names = await readdir(dir).catch(() => [] as string[]);
+	const docs = await Promise.all(
+		names
+			.filter((name) => name.endsWith(".md"))
+			.map(async (name) => {
+				const path = join(dir, name);
+				const [text, info] = await Promise.all([
+					readFile(path, "utf8"),
+					stat(path),
+				]);
+				const title = /^# +(.+)$/m.exec(text)?.[1]?.trim();
+				return { title: title || name.slice(0, -3), path, at: info.mtimeMs };
+			}),
+	);
+	return docs
+		.sort((a, b) => b.at - a.at)
+		.map(({ title, path }) => ({ title, path }));
+}
+
 export const createSystemRouter = () => {
 	return router({
 		detectGhCli: publicProcedure.query(detectGhCli),
 		detectBrew: publicProcedure.query(detectBrew),
 		claudeAuthStatus: publicProcedure.query(claudeAuthStatus),
+		listDocs: publicProcedure.query(() => listDocs()),
 		claudeLogin: publicProcedure.mutation(claudeLogin),
 		claudeLoginCode: publicProcedure
 			.input(z.object({ code: z.string().trim().min(1) }))

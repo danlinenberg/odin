@@ -1,6 +1,7 @@
 import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import type { AgentSkill } from "lib/trpc/routers/skills";
+import type { OdinDoc } from "lib/trpc/routers/system";
 import { useEffect, useRef, useState } from "react";
 import { HiOutlineClock, HiOutlineSparkles } from "react-icons/hi2";
 import { isHotkey } from "renderer/hotkeys";
@@ -32,7 +33,9 @@ const splitTask = (text: string): [string, string] => {
 const joinTask = (title: string, notes: string) =>
 	notes ? `${title}\n\n${notes}` : title;
 
-const isMedia = (file: File) => /^(image|video)\//.test(file.type);
+/** What the box takes on a drop or paste: photos, videos and markdown docs. */
+const isAttachable = (file: File) =>
+	/^(image|video)\//.test(file.type) || /\.md$/i.test(file.name);
 
 /**
  * Dropped or pasted photos and videos, as paths the session can open. A task
@@ -75,6 +78,7 @@ export function TaskBox({
 	hidePriority,
 	compact,
 	skills,
+	docs,
 	repos,
 	repo,
 	onRepoChange,
@@ -99,6 +103,8 @@ export function TaskBox({
 	 * there's no Skill menu, and a skill typed into the title still works.
 	 */
 	skills?: AgentSkill[];
+	/** Saved knowledge docs (system.listDocs). Passed in like `skills`. */
+	docs?: OdinDoc[];
 	/**
 	 * The checkouts a session could run in. Passed with `onRepoChange`, the box
 	 * shows a Repo field; `repo` is the current pick ("" / absent = none). Held
@@ -129,7 +135,7 @@ export function TaskBox({
 	// Paths go on their own lines at the end of the brief, where the session's
 	// prompt picks them up like any other text.
 	const attach = (list: FileList, event: React.SyntheticEvent) => {
-		const files = [...list].filter(isMedia);
+		const files = [...list].filter(isAttachable);
 		if (files.length === 0) return;
 		event.preventDefault();
 		attachmentPaths(files)
@@ -181,7 +187,7 @@ export function TaskBox({
 						<div className="mx-3 border-t border-border" />
 						<textarea
 							value={notes}
-							placeholder="The brief - what it needs, links, anything the session should know. Drop or paste photos and videos (optional)"
+							placeholder="The brief - what it needs, links, anything the session should know. Drop or paste photos, videos and .md docs (optional)"
 							rows={2}
 							aria-label="Brief"
 							onChange={(event) =>
@@ -205,6 +211,35 @@ export function TaskBox({
 				<div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
 					{skills && skills.length > 0 && (
 						<SkillSelect skills={skills} value={value} onChange={onChange} />
+					)}
+					{docs && docs.length > 0 && (
+						// ponytail: a native <select>, like Priority. The pick is a line
+						// in the brief, so the session reads the doc like any other path.
+						<select
+							aria-label="Doc"
+							title="Add a saved doc to the brief - the session reads it for context"
+							value=""
+							onChange={(event) =>
+								onChange(
+									joinTask(
+										title,
+										[notes, `Context doc: ${event.target.value}`]
+											.filter(Boolean)
+											.join("\n"),
+									),
+								)
+							}
+							className="max-w-[160px] cursor-pointer rounded-[6px] bg-secondary px-1.5 py-[3px] text-[11px] font-semibold text-muted-foreground outline-none transition-colors hover:text-foreground"
+						>
+							<option value="" disabled>
+								Doc
+							</option>
+							{docs.map((doc) => (
+								<option key={doc.path} value={doc.path}>
+									{doc.title}
+								</option>
+							))}
+						</select>
 					)}
 					{repos && repos.length > 0 && onRepoChange && (
 						<RepoSelect
@@ -665,6 +700,7 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 	const startNow = useClaudeCommand((state) => state.startNow);
 	const setStartNow = useClaudeCommand((state) => state.setStartNow);
 	const { data: skills } = electronTrpc.skills.list.useQuery();
+	const { data: docs } = electronTrpc.system.listDocs.useQuery();
 	const { data: repos } = electronTrpc.repos.list.useQuery();
 	const [draft, setDraft] = useState("");
 	const [repo, setRepo] = useState("");
@@ -745,6 +781,7 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 					value={draft}
 					autoFocus
 					skills={skills}
+					docs={docs}
 					repos={repos}
 					repo={repo}
 					onRepoChange={setRepo}

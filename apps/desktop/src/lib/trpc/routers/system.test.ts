@@ -4,11 +4,12 @@ import {
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
+	utimesSync,
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { findClaude, markClaudeOnboarded } from "./system";
+import { findClaude, listDocs, markClaudeOnboarded } from "./system";
 
 describe("findClaude", () => {
 	test("skips a claude it can't run and takes the next one on PATH", () => {
@@ -65,5 +66,21 @@ describe("markClaudeOnboarded", () => {
 		writeFileSync(join(dir, "bad.json"), "{not json");
 		await markClaudeOnboarded(join(dir, "bad.json"));
 		expect(readFileSync(join(dir, "bad.json"), "utf8")).toBe("{not json");
+	});
+});
+
+describe("listDocs", () => {
+	test("lists markdown docs newest first, titled by their first heading", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "odin-docs-"));
+		writeFileSync(join(dir, "old.md"), "# Pricing ideas\n\nbody");
+		writeFileSync(join(dir, "new.md"), "no heading here");
+		writeFileSync(join(dir, "notes.txt"), "# not a doc");
+		utimesSync(join(dir, "old.md"), 1, 1);
+
+		expect(await listDocs(dir)).toEqual([
+			{ title: "new", path: join(dir, "new.md") },
+			{ title: "Pricing ideas", path: join(dir, "old.md") },
+		]);
+		expect(await listDocs(join(dir, "missing"))).toEqual([]);
 	});
 });

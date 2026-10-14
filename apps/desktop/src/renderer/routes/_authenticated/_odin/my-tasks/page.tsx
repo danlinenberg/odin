@@ -41,6 +41,7 @@ function MyTasksPage() {
 	const [draft, setDraft] = useState("");
 	const [draftRepo, setDraftRepo] = useState("");
 	const { data: skills } = electronTrpc.skills.list.useQuery();
+	const { data: docs } = electronTrpc.system.listDocs.useQuery();
 	const { data: repos } = electronTrpc.repos.list.useQuery();
 
 	return (
@@ -57,6 +58,7 @@ function MyTasksPage() {
 					compact
 					value={draft}
 					skills={skills}
+					docs={docs}
 					repos={repos}
 					repo={draftRepo}
 					onRepoChange={setDraftRepo}

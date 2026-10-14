@@ -68,6 +68,21 @@ describe("TaskBox", () => {
 		expect(html).toContain('value="dev/odin"');
 		expect(html).toContain('title="/dev/odin"');
 	});
+
+	it("offers saved docs by title, keyed by their path", () => {
+		const html = renderToStaticMarkup(
+			<TaskBox
+				value="Ship the fix"
+				docs={[{ title: "Pricing ideas", path: "/h/.odin/docs/pricing.md" }]}
+				onChange={() => {}}
+				onSubmit={() => {}}
+			/>,
+		);
+		expect(html).toContain('aria-label="Doc"');
+		expect(html).toContain(
+			'<option value="/h/.odin/docs/pricing.md">Pricing ideas</option>',
+		);
+	});
 });
 
 describe("PriorityChip", () => {

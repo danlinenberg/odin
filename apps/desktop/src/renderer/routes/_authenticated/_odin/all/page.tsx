@@ -298,6 +298,7 @@ function AllFeedPage() {
 	const [draft, setDraft] = useState("");
 	const [draftRepo, setDraftRepo] = useState("");
 	const { data: skills } = electronTrpc.skills.list.useQuery();
+	const { data: docs } = electronTrpc.system.listDocs.useQuery();
 	const { data: repos } = electronTrpc.repos.list.useQuery();
 	const sensors = useSensors(
 		useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
@@ -728,6 +729,7 @@ function AllFeedPage() {
 					compact
 					value={draft}
 					skills={skills}
+					docs={docs}
 					repos={repos}
 					repo={draftRepo}
 					onRepoChange={setDraftRepo}

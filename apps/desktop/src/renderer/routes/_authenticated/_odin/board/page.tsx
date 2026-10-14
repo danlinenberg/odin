@@ -37,6 +37,7 @@ import {
 	LuClock,
 	LuEye,
 	LuEyeOff,
+	LuFileText,
 	LuFlame,
 	LuGitMerge,
 	LuGitPullRequest,
@@ -83,6 +84,7 @@ import {
 	bySection,
 	SECTION_LABEL,
 } from "shared/board-section";
+import { SAVE_DOC_PROMPT } from "shared/constants";
 import { duplicateSessions } from "shared/duplicate-sessions";
 import { type BriefUrgency, latestReply, sameReply } from "shared/latest-reply";
 import { claimedCheckout } from "shared/launch-gate";
@@ -164,7 +166,7 @@ import {
 	slackThread,
 	sourceLink,
 } from "./brief";
-import { ChatView, interruptClaude } from "./ChatView";
+import { ChatView, interruptClaude, typeIntoClaude } from "./ChatView";
 import { DiffView } from "./DiffView";
 import { BOARD_COLUMN_MIN_W, NextInLine, TonightCount } from "./NextInLine";
 import { NightAgentLive } from "./NightAgentLive";
@@ -1485,6 +1487,7 @@ function TagMenu({
 	onWatch,
 	remote,
 	onRemote,
+	onSaveDoc,
 	onKeep,
 	onToggle,
 	onAdd,
@@ -1508,6 +1511,8 @@ function TagMenu({
 	/** Remote Control for this one session; unset unless Settings says "Selected sessions". */
 	remote?: boolean;
 	onRemote: () => void;
+	/** Set while the agent runs - it writes the doc, so a closed session can't. */
+	onSaveDoc?: () => void;
 	/** Set when the sweep suggests dropping this session. */
 	onKeep?: () => void;
 	onToggle: (tag: string) => void;
@@ -1615,6 +1620,20 @@ function TagMenu({
 					>
 						<LuRadioTower className="size-3" aria-hidden />
 						{remote ? "Turn off Remote Control" : "Turn on Remote Control"}
+					</button>
+				)}
+				{onSaveDoc && (
+					<button
+						type="button"
+						title="Ask the agent to save this session as a doc in ~/.odin/docs - pick it from Doc when you write a new task"
+						onClick={() => {
+							onSaveDoc();
+							onClose();
+						}}
+						className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-primary"
+					>
+						<LuFileText className="size-3" aria-hidden />
+						Save as doc
 					</button>
 				)}
 			</div>
@@ -4725,6 +4744,16 @@ function DevBoardPage() {
 							: undefined
 					}
 					onRemote={() => tagMenuCard && toggleRemote(tagMenuCard)}
+					onSaveDoc={
+						agentPaneIds.has(tagMenu.paneId)
+							? () =>
+									void typeIntoClaude(
+										terminalWrite.mutateAsync,
+										tagMenu.paneId,
+										SAVE_DOC_PROMPT,
+									).then(() => toast.success("Asked the agent to save a doc"))
+							: undefined
+					}
 					onToggle={(tag) => toggleTag(tagMenu.paneId, tag)}
 					onClose={() => setTagMenu(null)}
 				/>
