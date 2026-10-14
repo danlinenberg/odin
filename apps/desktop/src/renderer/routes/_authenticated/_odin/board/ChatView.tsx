@@ -1578,8 +1578,8 @@ export function ChatView({
 	);
 	const lastTextId = items.findLast((item) => item.kind === "text")?.id;
 	// Agents repeat their ACTION ITEMS in every reply; show one card, on the
-	// latest reply that has it, once the agent has stopped.
-	const actionsId = working ? undefined : lastActionsId(items);
+	// latest reply that has it. It stays while Claude works on your answer.
+	const actionsId = lastActionsId(items);
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const pinnedRef = useRef(true);
 	// What was already there when the drawer opened shows still; only rows
