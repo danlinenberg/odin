@@ -225,11 +225,14 @@ function StateChip({
 }
 
 // A Jira status category's colour: done like a merged PR, in progress like a
-// running agent, anything else (To Do, Backlog) a plain fact.
+// running agent, anything else (To Do, Backlog) a plain fact. A ticket closed
+// without the work (Rejected, Won't Do) is in the Done category too, so it's
+// matched by name and shown red.
 const JIRA_CHIP: Record<string, string> = {
 	Done: PILL.brand,
 	"In Progress": PILL.working,
 };
+const JIRA_DROPPED = /^(rejected|won'?t (do|fix)|declined|cancell?ed)$/i;
 
 /** A Jira ticket's status in its own words - "closed", "in review". */
 function JiraChip({
@@ -241,7 +244,11 @@ function JiraChip({
 	return (
 		<Chip
 			label={status.status.toLowerCase()}
-			className={JIRA_CHIP[status.statusCategory] ?? PILL.neutral}
+			className={
+				JIRA_DROPPED.test(status.status)
+					? PILL.danger
+					: (JIRA_CHIP[status.statusCategory] ?? PILL.neutral)
+			}
 		/>
 	);
 }
