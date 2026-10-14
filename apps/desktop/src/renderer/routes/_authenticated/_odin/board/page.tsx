@@ -43,6 +43,7 @@ import {
 	LuPanelLeft,
 	LuPause,
 	LuPlay,
+	LuPlus,
 	LuRadioTower,
 	LuRepeat,
 	LuStar,
@@ -3639,6 +3640,8 @@ function DevBoardPage() {
 		});
 		setIsComposerOpen(false);
 		if (result.ok) {
+			// Started from the drawer's session list: land in the new session.
+			if (drawerCard) usePendingFocus.getState().focus(result.paneId);
 			usePaneMeta.getState().setBrief(result.paneId, prompt || title);
 			usePaneMeta.getState().setTitle(result.paneId, title);
 			usePaneMeta.getState().setSessionId(result.paneId, result.sessionId);
@@ -4943,30 +4946,45 @@ function DevBoardPage() {
 											isSwitchListMin ? "w-8" : "w-[210px]",
 										)}
 									>
-										<button
-											type="button"
-											title={
-												isSwitchListMin
-													? "Show session list"
-													: "Minimize session list"
-											}
-											aria-label={
-												isSwitchListMin
-													? "Show session list"
-													: "Minimize session list"
-											}
-											onClick={toggleSwitchList}
-											className={cn(
-												"mb-1 flex h-6 shrink-0 items-center text-muted-foreground hover:text-foreground",
-												isSwitchListMin ? "justify-center" : "justify-end px-2",
+										<div className="mb-1 flex h-6 shrink-0 items-center">
+											{!isSwitchListMin && (
+												<button
+													type="button"
+													onClick={() => setIsComposerOpen(true)}
+													title="New session - describe a task and start an agent session, then open it here"
+													className="ml-3 flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+												>
+													<LuPlus className="size-3" />
+													New session
+												</button>
 											)}
-										>
-											{isSwitchListMin ? (
-												<LuChevronRight className="size-3.5" />
-											) : (
-												<LuChevronLeft className="size-3.5" />
-											)}
-										</button>
+											<button
+												type="button"
+												title={
+													isSwitchListMin
+														? "Show session list"
+														: "Minimize session list"
+												}
+												aria-label={
+													isSwitchListMin
+														? "Show session list"
+														: "Minimize session list"
+												}
+												onClick={toggleSwitchList}
+												className={cn(
+													"flex h-6 min-w-0 flex-1 items-center text-muted-foreground hover:text-foreground",
+													isSwitchListMin
+														? "justify-center"
+														: "justify-end px-2",
+												)}
+											>
+												{isSwitchListMin ? (
+													<LuChevronRight className="size-3.5" />
+												) : (
+													<LuChevronLeft className="size-3.5" />
+												)}
+											</button>
+										</div>
 										{!isSwitchListMin && (
 											<div className="mb-1 flex items-center gap-1.5 px-3 text-[11px] text-muted-foreground">
 												<select

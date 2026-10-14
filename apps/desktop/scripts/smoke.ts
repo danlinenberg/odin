@@ -941,6 +941,58 @@ await step("right-click → Done takes the session off the board", async () => {
 });
 
 await step(
+	"New session in the drawer's session list opens the new session there",
+	async () => {
+		const stamp = Date.now();
+		const start = async (prompt: string) => {
+			await fill('textarea[placeholder^="What should the agent do?"]', prompt);
+			await click("button", "Start session");
+			await waitForText(prompt, true, 30_000);
+		};
+		// The list shows with two sessions in flight; a queued one isn't.
+		for (const name of ["first", "second"]) {
+			await page(
+				`(document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`,
+			);
+			await rail("Dev Board");
+			await waitForText("next in line");
+			await click("button", "Describe a task and start an agent session");
+			await start(`Drawer list ${name} ${stamp}`);
+			await sleep(2000);
+			await page(
+				`document.querySelector('button[title="Start this session now, gate or no gate"]')?.click()`,
+			);
+		}
+		await page(`(() => {
+			if (document.querySelector('nav[aria-label="Sessions"]')) return;
+			[...document.querySelectorAll('[role="button"][draggable="true"]')]
+				.find((c) => c.textContent.includes(${JSON.stringify(`Drawer list second ${stamp}`)}))
+				?.click();
+		})()`);
+		await click('nav[aria-label="Sessions"] button', "New session");
+		const third = `Drawer list third ${stamp}`;
+		await start(third);
+		const drawerTitle = () =>
+			page<string>(
+				`document.querySelector('button[title="Click to rename this session"]')?.textContent ?? ""`,
+			);
+		for (
+			const end = Date.now() + 30_000;
+			(await drawerTitle()) !== third;
+			await sleep(250)
+		) {
+			if (Date.now() > end)
+				throw new Error(
+					`the drawer shows "${await drawerTitle()}", not the new session`,
+				);
+		}
+		await page(
+			`(document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`,
+		);
+	},
+);
+
+await step(
 	"a Mac without Git is told to finish Apple's installer",
 	async () => {
 		writeFileSync(join(home, "no-git"), "");
