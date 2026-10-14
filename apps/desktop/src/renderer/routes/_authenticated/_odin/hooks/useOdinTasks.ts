@@ -382,10 +382,15 @@ export function taskText(task: OdinTask): string {
 
 /** The prompt a task launches with - what you typed, minus the "!"s. */
 export function taskPrompt(task: OdinTask): string {
+	const notes = taskNotes(task);
+	return notes ? `${task.title}\n\n${notes}` : task.title;
+}
+
+/** The notes as the session reads them. */
+export function taskNotes(task: OdinTask): string {
 	// An image the description editor saved is shown via odin-attachment://;
 	// the session needs the file itself.
-	const notes = task.notes.replaceAll(ATTACHMENT_URL, "~/.odin/attachments/");
-	return notes ? `${task.title}\n\n${notes}` : task.title;
+	return task.notes.replaceAll(ATTACHMENT_URL, "~/.odin/attachments/");
 }
 
 /** Where the Tasks panel's editor points an image saved to ~/.odin/attachments. */

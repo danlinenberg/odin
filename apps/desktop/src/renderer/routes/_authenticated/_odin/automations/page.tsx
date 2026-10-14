@@ -40,7 +40,7 @@ import {
 	SkillChip,
 	TaskBox,
 } from "../components/TaskBox";
-import { automationBrief } from "../hooks/useAutomationRunner";
+import { automationRun } from "../hooks/useAutomationRunner";
 import { type OdinTask, taskText, useMyTasks } from "../hooks/useOdinTasks";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePendingFocus } from "../hooks/usePendingFocus";
@@ -854,8 +854,8 @@ function SchedulesPanel() {
 
 	/** The same launch the scheduler makes, off a button instead of the clock. */
 	const runNow = async (task: OdinTask) => {
-		const brief = automationBrief(task, panes);
-		if (brief === null)
+		const run = automationRun(task, panes);
+		if (run === null)
 			return toast.info(
 				`No open session has ${task.tags?.map((tag) => `#${tag}`).join(" or ")} - nothing to run.`,
 			);
@@ -865,8 +865,7 @@ function SchedulesPanel() {
 			key: task.id,
 			workspaceId: ensured.workspace.id,
 			title: task.title,
-			description: task.notes || null,
-			brief,
+			...run,
 			tags: ["automation"],
 			skill: task.skill,
 		});

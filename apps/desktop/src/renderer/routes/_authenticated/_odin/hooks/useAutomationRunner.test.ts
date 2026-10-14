@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import { buildPrompt } from "renderer/hooks/useLaunchTaskSession";
 import type { Pane } from "shared/tabs-types";
-import { automationBrief, dueAutomations } from "./useAutomationRunner";
+import { automationRun, dueAutomations } from "./useAutomationRunner";
 import type { OdinTask } from "./useOdinTasks";
 
 const task = (over: Partial<OdinTask>): OdinTask => ({
@@ -63,9 +64,12 @@ const pane = (over: Partial<Pane>): Pane =>
 		...over,
 	}) as Pane;
 
-describe("automationBrief", () => {
+describe("automationRun", () => {
 	test("no tags: the plain prompt, whatever the board holds", () => {
-		expect(automationBrief(task({}), {})).toBe("Sweep the PR queue");
+		expect(automationRun(task({}), {})).toEqual({
+			description: null,
+			brief: "Sweep the PR queue",
+		});
 	});
 
 	test("tags with no session carrying one: skipped", () => {
@@ -73,7 +77,7 @@ describe("automationBrief", () => {
 			p1: pane({ odinTags: ["bug"] }),
 			p2: pane({ id: "p2", odinTags: ["codex-review"], completed: true }),
 		};
-		expect(automationBrief(task({ tags: ["codex-review"] }), panes)).toBe(null);
+		expect(automationRun(task({ tags: ["codex-review"] }), panes)).toBe(null);
 	});
 
 	test("lists only the open sessions that carry a watched tag", () => {
@@ -81,9 +85,16 @@ describe("automationBrief", () => {
 			p1: pane({ odinTags: ["codex-review"], status: "review" }),
 			p2: pane({ id: "p2", odinTaskTitle: "Other", odinTags: ["bug"] }),
 		};
-		const brief = automationBrief(task({ tags: ["codex-review"] }), panes);
-		expect(brief).toContain("- Ship it - paneId p1, status review");
-		expect(brief).not.toContain("Other");
-		expect(brief).toContain("drop #codex-review from its tags");
+		const run = automationRun(
+			task({ tags: ["codex-review"], notes: "Review them" }),
+			panes,
+		);
+		// The description is what the agent's prompt is built from.
+		const prompt = buildPrompt("Sweep the PR queue", run?.description ?? null);
+		expect(prompt).toContain("Review them");
+		expect(prompt).toContain("- Ship it - paneId p1, status review");
+		expect(prompt).not.toContain("Other");
+		expect(prompt).toContain("drop #codex-review from its tags");
+		expect(run?.brief).toContain("- Ship it - paneId p1");
 	});
 });
