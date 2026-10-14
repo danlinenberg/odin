@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { appendFile, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { Notification } from "electron";
+import { BrowserWindow, Notification } from "electron";
 import { ODIN_HOME_DIR } from "./app-environment";
 import {
 	captureProcessSnapshot,
@@ -22,6 +22,13 @@ const EVERY_MS = 60_000;
 const GB = 1024 ** 3;
 export const WARN_BYTES = 4 * GB;
 export const KILL_BYTES = 16 * GB;
+/**
+ * A window renderer leaks over a long unattended run (Night Agent: 4 to 9 GB
+ * overnight) until it draws a blank window; a reload frees all of it and
+ * sessions live on in the daemon.
+ * ponytail: reload is the cure, not the fix - find the leak if this logs often.
+ */
+const RELOAD_BYTES = 6 * GB;
 const LOG_PATH = join(ODIN_HOME_DIR, "memory-guard.log");
 const DAEMON_PID_PATH = join(ODIN_HOME_DIR, "terminal-host.pid");
 
@@ -52,6 +59,17 @@ async function check(): Promise<void> {
 	const snapshot = await captureProcessSnapshot();
 	const pids = roots.flatMap((root) => getSubtreePids(snapshot, root));
 	enrichWithPhysFootprint(snapshot, pids);
+
+	for (const win of BrowserWindow.getAllWindows()) {
+		if (win.isDestroyed() || win.isFocused()) continue;
+		const pid = win.webContents.getOSProcessId();
+		const memory = snapshot.byPid.get(pid)?.memory ?? 0;
+		if (memory <= RELOAD_BYTES) continue;
+		const line = `${new Date().toISOString()} pid=${pid} renderer ${(memory / GB).toFixed(1)}GB RELOADED`;
+		console.warn(`[main] memory-guard: ${line}`);
+		await appendFile(LOG_PATH, `${line}\n`).catch(() => {});
+		win.webContents.reload();
+	}
 
 	for (const { pid, memory, kill } of findOffenders(
 		snapshot,
