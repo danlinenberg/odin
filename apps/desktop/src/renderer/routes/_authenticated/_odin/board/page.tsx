@@ -1377,6 +1377,9 @@ function TagMenu({
 }) {
 	const ref = useRef<HTMLDivElement>(null);
 	const [draft, setDraft] = useState("");
+	// Tags fold to one row: the list is long and most right-clicks are for
+	// Done or Remind.
+	const [isTagsOpen, setIsTagsOpen] = useState(false);
 
 	useEffect(() => {
 		const onKey = (event: KeyboardEvent) => {
@@ -1455,51 +1458,66 @@ function TagMenu({
 					Keep
 				</button>
 			)}
-			<div className="mb-1.5 px-1 text-[10px] font-semibold uppercase tracking-[.4px] text-muted-foreground">
+			<button
+				type="button"
+				aria-expanded={isTagsOpen}
+				onClick={() => setIsTagsOpen(!isTagsOpen)}
+				className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-foreground"
+			>
+				<span className="w-3">{isTagsOpen ? "▾" : "▸"}</span>
 				Tags
-			</div>
-			<div className="flex max-h-[180px] flex-col overflow-y-auto">
-				{[...allTags, ...customTags].map((tag) => {
-					const on = tags.includes(tag);
-					return (
-						<div key={tag} className="group flex items-center">
-							<button
-								type="button"
-								onClick={() => onToggle(tag)}
-								className={cn(
-									"flex flex-1 items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] transition-colors",
-									on
-										? "text-primary"
-										: "text-muted-foreground hover:text-foreground",
-								)}
-							>
-								<span className="w-3">{on ? "✓" : ""}</span>#{tag}
-							</button>
-							{customTags.includes(tag) && (
-								<button
-									type="button"
-									title="Remove this tag from the list"
-									onClick={() => onForget(tag)}
-									className="px-1.5 text-[12px] text-faint-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
-								>
-									×
-								</button>
-							)}
-						</div>
-					);
-				})}
-			</div>
-			<input
-				value={draft}
-				onChange={(event) => setDraft(event.target.value)}
-				onKeyDown={(event) => {
-					if (event.key !== "Enter") return;
-					onAdd(draft);
-					setDraft("");
-				}}
-				placeholder="New tag…"
-				className="mt-1.5 w-full rounded-md border border-border bg-transparent px-1.5 py-1 text-[12px] text-foreground outline-none placeholder:text-faint-foreground focus:border-primary"
-			/>
+				{tags.length > 0 && (
+					<span className="min-w-0 flex-1 truncate text-right text-primary">
+						{tags.map((tag) => `#${tag}`).join(" ")}
+					</span>
+				)}
+			</button>
+			{isTagsOpen && (
+				<>
+					<div className="flex max-h-[180px] flex-col overflow-y-auto">
+						{[...allTags, ...customTags].map((tag) => {
+							const on = tags.includes(tag);
+							return (
+								<div key={tag} className="group flex items-center">
+									<button
+										type="button"
+										onClick={() => onToggle(tag)}
+										className={cn(
+											"flex flex-1 items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] transition-colors",
+											on
+												? "text-primary"
+												: "text-muted-foreground hover:text-foreground",
+										)}
+									>
+										<span className="w-3">{on ? "✓" : ""}</span>#{tag}
+									</button>
+									{customTags.includes(tag) && (
+										<button
+											type="button"
+											title="Remove this tag from the list"
+											onClick={() => onForget(tag)}
+											className="px-1.5 text-[12px] text-faint-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+										>
+											×
+										</button>
+									)}
+								</div>
+							);
+						})}
+					</div>
+					<input
+						value={draft}
+						onChange={(event) => setDraft(event.target.value)}
+						onKeyDown={(event) => {
+							if (event.key !== "Enter") return;
+							onAdd(draft);
+							setDraft("");
+						}}
+						placeholder="New tag…"
+						className="mt-1.5 w-full rounded-md border border-border bg-transparent px-1.5 py-1 text-[12px] text-foreground outline-none placeholder:text-faint-foreground focus:border-primary"
+					/>
+				</>
+			)}
 		</div>
 	);
 }

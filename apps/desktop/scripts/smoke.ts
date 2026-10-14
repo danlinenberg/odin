@@ -875,6 +875,12 @@ await step("right-click → Done takes the session off the board", async () => {
 		return !!card;
 	})()`);
 	if (!opened) throw new Error("no card for the resumed session");
+	// Tags start folded; the row opens the list.
+	const tagField = () =>
+		page<boolean>(`!!document.querySelector('[data-session-menu] input')`);
+	if (await tagField()) throw new Error("the tag list starts open");
+	await click("[data-session-menu] button", "▸Tags");
+	if (!(await tagField())) throw new Error("Tags didn't open the list");
 	// The menu's own Done - the card's ✓ Done would pass this step too.
 	await click("[data-session-menu] button", "✓Done");
 	await waitForText(SESSION, false);
