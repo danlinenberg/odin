@@ -24,7 +24,7 @@ export const SCREENS = [
 	{
 		to: "/settings/sessions",
 		label: "Sessions",
-		hint: "Default folder, limits, idle close",
+		hint: "Default folder, disk access, limits, idle close",
 		icon: LuSquareTerminal,
 	},
 	{
@@ -135,6 +135,12 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		to: "/settings/sessions",
 		section: "Where they start",
 		keywords: "repo repository folder checkout path directory workspace git",
+	},
+	{
+		label: "Full Disk Access",
+		to: "/settings/sessions",
+		section: "Where they start",
+		keywords: "permission privacy prompt music photos macos tcc allow",
 	},
 	{
 		label: "Worktrees",

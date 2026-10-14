@@ -28,6 +28,7 @@ function SessionsSettingsPage() {
 			<SettingsSection title="Where they start">
 				<DefaultRepoRow />
 				<RemoteControlRow />
+				<FullDiskAccessRow />
 			</SettingsSection>
 
 			<SettingsSection
@@ -160,6 +161,40 @@ function RemoteControlRow() {
 				checked={enabled}
 				onCheckedChange={setRemoteControl}
 			/>
+		</SettingRow>
+	);
+}
+
+/**
+ * macOS charges everything a session runs to Odin, so one `find ~` in a
+ * session pops "Odin wants your music / photo library". Full Disk Access
+ * covers those folders up front. Odin can't grant itself it - this opens the
+ * pane where you switch it on.
+ */
+function FullDiskAccessRow() {
+	const { data: status } = electronTrpc.permissions.getStatus.useQuery(
+		undefined,
+		{ refetchInterval: 2000 },
+	);
+	const open = electronTrpc.permissions.requestFullDiskAccess.useMutation();
+	const granted = status?.fullDiskAccess === true;
+	return (
+		<SettingRow
+			label="Full Disk Access"
+			description="Without it, macOS asks again each time a session reads a protected folder (Music, Photos, Desktop, Documents) and names Odin in the prompt. Turn Odin on in the list that opens."
+		>
+			{granted ? (
+				<span className="text-xs text-muted-foreground">On</span>
+			) : (
+				<Button
+					variant="outline"
+					size="sm"
+					className="h-8"
+					onClick={() => open.mutate()}
+				>
+					Open System Settings
+				</Button>
+			)}
 		</SettingRow>
 	);
 }
