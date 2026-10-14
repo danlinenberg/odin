@@ -6,6 +6,7 @@ import { NOTIFICATION_EVENTS } from "shared/constants";
 import type { AgentLifecycleEvent } from "shared/notification-types";
 import { ODIN_HOME_DIR } from "./app-environment";
 import { askRenderer, notificationsEmitter } from "./notifications/server";
+import { callProcedure } from "./odin-api";
 
 /**
  * Settings → Connections → Telegram: drive the board from your phone. You make
@@ -16,7 +17,9 @@ import { askRenderer, notificationsEmitter } from "./notifications/server";
  * Only the owner reaches the board: the first chat to open the bot through the
  * pairing link Settings shows. Any text from them becomes a backlog task,
  * started on the board; Odin writes back when that session stops and waits for
- * them. /tasks, /status, /start <n> and /help do what they say.
+ * them, with the end of its screen; reply to that message to answer the
+ * session. /tasks, /status, start <n>, screen <n>, done <n> and /help do what
+ * they say.
  */
 
 const CONFIG_FILE = join(ODIN_HOME_DIR, "telegram.json");
@@ -44,6 +47,11 @@ let pairCode = "";
 const watched = new Set<string>();
 /** The last /tasks list, so `start 2` means its second row. */
 let lastTaskIds: string[] = [];
+/** The last /status list, so `screen 2` means its second row. */
+let lastPaneIds: string[] = [];
+/** "Waiting for you" message id -> its session, so a reply reaches the pane. */
+// ponytail: in memory and never pruned; a restart forgets old alerts.
+const alertPanes = new Map<number, string>();
 
 export const telegramStatus = () => status;
 
@@ -124,13 +132,18 @@ async function setProfile(current: Config): Promise<void> {
 		commands: [
 			{ command: "tasks", description: "The backlog, numbered" },
 			{ command: "status", description: "The sessions on the board" },
+			{ command: "screen", description: "screen 2: what session 2 shows" },
 			{ command: "help", description: "What I can do" },
 		],
 	});
 	await save({ ...current, profileSet: true });
 }
 
-type Message = { chat: { id: number; type: string }; text?: string };
+type Message = {
+	chat: { id: number; type: string };
+	text?: string;
+	reply_to_message?: { message_id: number };
+};
 
 async function poll(token: string, signal: AbortSignal): Promise<void> {
 	let offset = 0;
@@ -175,7 +188,8 @@ async function onMessage(message: Message): Promise<void> {
 		return;
 	}
 	if (message.chat.id !== config.owner) return;
-	await reply(await handle(text));
+	const paneId = alertPanes.get(message.reply_to_message?.message_id ?? 0);
+	await reply(paneId ? await answerSession(paneId, text) : await handle(text));
 }
 
 function start(next: Config): void {
@@ -226,11 +240,40 @@ export function startTelegram(): void {
 	);
 }
 
-async function reply(text: string): Promise<void> {
+/** The sent message's id, or undefined when it didn't go. */
+async function reply(text: string): Promise<number | undefined> {
 	if (!config?.owner) return;
-	await api(config.token, "sendMessage", { chat_id: config.owner, text }).catch(
-		(error) => console.warn("[telegram] send:", error),
+	const sent = await api<{ message_id: number }>(config.token, "sendMessage", {
+		chat_id: config.owner,
+		text,
+	}).catch((error) => console.warn("[telegram] send:", error));
+	return sent?.message_id;
+}
+
+/** The end of a session's screen, short enough for one Telegram message. */
+export function screenTail(raw: string): string {
+	let text = raw;
+	try {
+		text = (JSON.parse(raw) as { text: string }).text;
+	} catch {
+		// callProcedure's own error text: show it as is.
+	}
+	const lines = text.split("\n").filter((line) => line.trim());
+	return lines.slice(-20).join("\n").slice(-3500);
+}
+
+const readScreen = async (paneId: string) =>
+	screenTail(
+		await callProcedure("terminal.readScreen", JSON.stringify({ paneId })),
 	);
+
+/** Text typed into the session, then Enter. */
+async function answerSession(paneId: string, text: string): Promise<string> {
+	const result = await callProcedure(
+		"terminal.write",
+		JSON.stringify({ paneId, data: `${text}\r` }),
+	);
+	return result.startsWith("Failed") ? result : "Sent.";
 }
 
 type Task = { id: string; title: string; started: boolean; queued?: string };
@@ -247,8 +290,10 @@ export const HELP = [
 	"- Any text: a new task, started on the board. A leading !!! makes it high priority.",
 	"- /tasks: the backlog, numbered",
 	"- start 2: start task 2 of that list (start 1,3 for more)",
-	"- /status: the sessions on the board",
-	"I write back when a task you sent stops and waits for you.",
+	"- /status: the sessions on the board, numbered",
+	"- screen 2: the end of session 2's screen",
+	"- done 2: mark session 2 done",
+	"I write back when a task you sent stops and waits for you. Reply to that message to answer the session.",
 ].join("\n");
 
 /** What a message from the owner asks for. Commands work with or without the "/". */
@@ -259,13 +304,23 @@ export function parseCommand(
 	| { kind: "tasks" }
 	| { kind: "status" }
 	| { kind: "start"; rows: number[] }
+	| { kind: "screen"; row: number }
+	| { kind: "done"; row: number }
 	| { kind: "add"; text: string } {
 	// "/tasks@OdinBot" is what a tap in a command menu sends.
 	const word = text.replace(/^\/(\w+)(@\w+)?$/, "$1").toLowerCase();
 	if (word === "help" || word === "?" || word === "start")
 		return { kind: "help" };
 	if (word === "tasks" || word === "backlog") return { kind: "tasks" };
-	if (word === "status" || word === "sessions") return { kind: "status" };
+	// A bare "/screen" from the command menu: the numbered list to pick from.
+	if (["status", "sessions", "screen", "done"].includes(word))
+		return { kind: "status" };
+	const session = /^\/?(screen|done)\s+(\d+)$/i.exec(text);
+	if (session?.[1] && session[2])
+		return {
+			kind: session[1].toLowerCase() as "screen" | "done",
+			row: Number(session[2]),
+		};
 	const start = /^\/?start\s+([\d,\s]+)$/i.exec(text);
 	if (start?.[1])
 		return {
@@ -295,10 +350,18 @@ async function handle(text: string): Promise<string> {
 		}
 		if (command.kind === "status") {
 			const sessions = await board<Session[]>("sessions");
+			lastPaneIds = sessions.map((session) => session.paneId);
 			if (sessions.length === 0) return "No sessions on the board.";
 			return sessions
-				.map((session) => `- ${session.title}: ${session.status}`)
+				.map((session, i) => `${i + 1}. ${session.title}: ${session.status}`)
 				.join("\n");
+		}
+		if (command.kind === "screen" || command.kind === "done") {
+			const paneId = lastPaneIds[command.row - 1];
+			if (!paneId) return `Send /status first, then ${command.kind} <number>.`;
+			if (command.kind === "screen")
+				return (await readScreen(paneId)) || "The screen is empty.";
+			return (await askRenderer("done", { paneId })) ?? "Odin didn't answer.";
 		}
 		if (command.kind === "start") {
 			const ids = command.rows
@@ -329,9 +392,12 @@ async function report(event: AgentLifecycleEvent): Promise<void> {
 	const sessions = await board<Session[]>("sessions").catch(() => []);
 	const session = sessions.find((s) => s.paneId === event.paneId);
 	if (!session || !watched.has(session.title)) return;
-	await reply(
-		event.eventType === "Failed"
-			? `"${session.title}" failed. Open it in Odin.`
-			: `"${session.title}" is waiting for you.`,
+	if (event.eventType === "Failed") {
+		await reply(`"${session.title}" failed. Open it in Odin.`);
+		return;
+	}
+	const sent = await reply(
+		`"${session.title}" is waiting for you. Reply to this message to answer it.\n\n${await readScreen(session.paneId)}`,
 	);
+	if (sent) alertPanes.set(sent, session.paneId);
 }
