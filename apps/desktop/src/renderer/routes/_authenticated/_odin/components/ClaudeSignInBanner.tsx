@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { LuCheck } from "react-icons/lu";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useClaudeCommand } from "renderer/stores/claude-command";
 
@@ -14,22 +15,25 @@ import { useClaudeCommand } from "renderer/stores/claude-command";
  */
 export function ClaudeSignInBanner() {
 	const customCommand = useClaudeCommand((s) => s.commands.length > 0);
-	const status = electronTrpc.system.claudeAuthStatus.useQuery(undefined, {
-		enabled: !customCommand,
-		refetchOnWindowFocus: true,
-	});
-	const login = electronTrpc.system.claudeLogin.useMutation({
-		onSettled: () => status.refetch(),
-	});
-	const sendCode = electronTrpc.system.claudeLoginCode.useMutation();
+	const { status, login, failed, signedInAs } = useClaudeSignIn(!customCommand);
 	const [code, setCode] = useState("");
+	const sendCode = electronTrpc.system.claudeLoginCode.useMutation();
 
+	// A successful sign in turns the strip green for a few seconds instead of
+	// just vanishing, so you know it worked.
+	if (signedInAs !== null)
+		return (
+			<div className="flex shrink-0 items-center gap-3 bg-success px-4 py-2 text-white">
+				<LuCheck className="size-4 shrink-0" />
+				<span className="text-sm font-bold">Signed in to Claude</span>
+				<span className="min-w-0 select-text truncate text-xs opacity-85">
+					{signedInAs
+						? `as ${signedInAs}. Sessions are ready to start.`
+						: "Sessions are ready to start."}
+				</span>
+			</div>
+		);
 	if (customCommand || status.data?.signedIn !== false) return null;
-	// A thrown error (tRPC) and a failed login (data) both have to show: a
-	// silent strip reads as a dead button.
-	const failed =
-		login.error?.message ??
-		(login.data && !login.data.ok ? login.data.error : null);
 
 	return (
 		<div className="flex shrink-0 items-center gap-3 bg-gradient-to-r from-primary-ink to-primary px-4 py-2 text-primary-foreground shadow-[0_2px_16px_-2px_color-mix(in_oklab,var(--primary)_70%,transparent)]">
@@ -70,4 +74,35 @@ export function ClaudeSignInBanner() {
 			)}
 		</div>
 	);
+}
+
+/**
+ * `claude auth login` from anywhere in Odin - the banner and Settings →
+ * Connections share it, so a sign in from either updates both. `signedInAs`
+ * is the account for a few seconds after a sign in succeeds (empty when
+ * Claude doesn't name one), then null again.
+ */
+export function useClaudeSignIn(enabled = true) {
+	const status = electronTrpc.system.claudeAuthStatus.useQuery(undefined, {
+		enabled,
+		refetchOnWindowFocus: true,
+	});
+	const [signedInAs, setSignedInAs] = useState<string | null>(null);
+	const login = electronTrpc.system.claudeLogin.useMutation({
+		onSettled: async (data) => {
+			const fresh = await status.refetch();
+			if (data?.ok) setSignedInAs(fresh.data?.identity ?? "");
+		},
+	});
+	useEffect(() => {
+		if (signedInAs === null) return;
+		const timer = setTimeout(() => setSignedInAs(null), 6_000);
+		return () => clearTimeout(timer);
+	}, [signedInAs]);
+	// A thrown error (tRPC) and a failed login (data) both have to show: a
+	// silent strip reads as a dead button.
+	const failed =
+		login.error?.message ??
+		(login.data && !login.data.ok ? (login.data.error ?? null) : null);
+	return { status, login, failed, signedInAs };
 }

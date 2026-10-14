@@ -84,7 +84,10 @@ async function detectBrew(): Promise<BrewDetectResult> {
  * setup, a timeout) - the sign-in banner only ever shows on an explicit
  * `false`, so a setup we don't understand is never nagged.
  */
-async function claudeAuthStatus(): Promise<{ signedIn: boolean | null }> {
+async function claudeAuthStatus(): Promise<{
+	signedIn: boolean | null;
+	identity?: string;
+}> {
 	// Same lookup as Sign in: a bare "claude" misses Odin's fallback dir (the
 	// bundled binary, or ~\.local\bin on Windows), and no Claude Code at all
 	// still needs the strip - its button says how to install it.
@@ -96,9 +99,21 @@ async function claudeAuthStatus(): Promise<{ signedIn: boolean | null }> {
 			["auth", "status", "--json"],
 			{ timeout: 15_000 },
 		);
-		const status = JSON.parse(stdout) as { loggedIn?: unknown };
+		const status = JSON.parse(stdout) as {
+			loggedIn?: unknown;
+			email?: unknown;
+			orgName?: unknown;
+			authMethod?: unknown;
+		};
+		// A claude.ai login names its account; an API key only says it's one.
+		const who = [status.email, status.orgName].filter(
+			(part): part is string => typeof part === "string" && part !== "",
+		);
 		return {
 			signedIn: typeof status.loggedIn === "boolean" ? status.loggedIn : null,
+			identity:
+				who.join(" · ") ||
+				(status.authMethod === "api_key" ? "API key" : undefined),
 		};
 	} catch (error) {
 		// Not signed in exits 1 with the same JSON on stdout.

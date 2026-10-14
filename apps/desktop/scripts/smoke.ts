@@ -777,6 +777,9 @@ await step("Settings: exactly its eight screens, and each opens", async () => {
 		if (!hash.startsWith(route)) throw new Error(`${label} opened ${hash}`);
 		await expectHealthy();
 	}
+	// Connections lists the Claude account sessions run on, with Reconnect.
+	await click("a", "Connections");
+	await waitForText("the account your sessions run on");
 	// Keyboard's search narrows the list.
 	await click("a", "Keyboard");
 	await fill('input[aria-label="Search shortcuts"]', "undo");
