@@ -144,7 +144,7 @@ import {
 	reviewedPullRequest,
 	sourceLink,
 } from "./brief";
-import { ChatView } from "./ChatView";
+import { ChatView, interruptClaude } from "./ChatView";
 import { DiffView } from "./DiffView";
 import { BOARD_COLUMN_MIN_W, NextInLine } from "./NextInLine";
 import { NightAgentLive } from "./NightAgentLive";
@@ -3174,15 +3174,20 @@ function DevBoardPage() {
 	};
 
 	/** Ctrl+C the turn. Shared by the drawer's Interrupt and the chat's stop. */
-	const interruptPane = (paneId: string) => {
-		utils.client.terminal.write.mutate({ paneId, data: "\x03" });
+	const interruptPane = async (paneId: string) => {
+		const sent = await interruptClaude(
+			utils.client.terminal.write.mutate,
+			utils.client.terminal.readScreen.query,
+			paneId,
+		);
 		// Claude fires no Stop hook on an interrupt, so the card would read
 		// Working until the scan - and a second click would land Ctrl+C at the
-		// idle prompt and start quitting it. Same as Park.
+		// idle prompt and start quitting it. Same as Park. Not sent: Claude was
+		// already at its prompt, so the turn had ended.
 		useTabsStore.setState((state) => ({
 			panes: {
 				...state.panes,
-				[paneId]: { ...state.panes[paneId], status: "idle" },
+				[paneId]: { ...state.panes[paneId], status: sent ? "idle" : "review" },
 			},
 		}));
 	};
@@ -3582,7 +3587,7 @@ function DevBoardPage() {
 	/**
 	 * Park a card by dragging it to Idle. Idle is the only drop target: the other
 	 * columns describe what the agent is actually doing, and dragging a card
-	 * can't make that true. A running turn is interrupted first (Esc) - a card
+	 * can't make that true. A running turn is interrupted first (Ctrl+C) - a card
 	 * sitting in Idle while its agent works would be a lie.
 	 */
 	const parkCard = async (card: BoardCard) => {
@@ -3604,9 +3609,11 @@ function DevBoardPage() {
 			),
 		);
 		if (card.pane.status === "working") {
-			await terminalWrite
-				.mutateAsync({ paneId: card.pane.id, data: "\x1b" })
-				.catch(() => {});
+			await interruptClaude(
+				terminalWrite.mutateAsync,
+				utils.client.terminal.readScreen.query,
+				card.pane.id,
+			).catch(() => {});
 		}
 		useTabsStore.setState((state) => ({
 			panes: {
@@ -5005,7 +5012,7 @@ function DevBoardPage() {
 											onShowTerminal={() =>
 												setTerminalPaneId(drawerCard.pane.id)
 											}
-											onStop={() => interruptPane(drawerCard.pane.id)}
+											onStop={() => void interruptPane(drawerCard.pane.id)}
 										/>
 									) : agentPaneIds.has(drawerCard.pane.id) ? (
 										// Claude running - the real PTY, attached read/write. xterm is the
@@ -5128,7 +5135,7 @@ function DevBoardPage() {
 											? "Stop the agent (sends Ctrl+C to the session)"
 											: "Nothing to interrupt - the agent isn't working"
 									}
-									onClick={() => interruptPane(drawerCard.pane.id)}
+									onClick={() => void interruptPane(drawerCard.pane.id)}
 									className={cn(
 										"rounded-[7px] px-3 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50",
 										BUTTON.secondary,

@@ -9,7 +9,7 @@ import {
 } from "renderer/stores/crow-chats";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import type { Pane } from "renderer/stores/tabs/types";
-import { ChatView } from "../board/ChatView";
+import { ChatView, interruptClaude } from "../board/ChatView";
 import { endSession } from "../hooks/useDone";
 import { type PromptImage, readFile } from "./OdinPromptDialog";
 
@@ -393,14 +393,17 @@ function CrowChat({
 				onSend={(text) => void onAsk(text, [])}
 				onShowTerminal={() => onShowOnBoard(pane.id)}
 				onOpenSession={onShowOnBoard}
-				onStop={() => {
+				onStop={async () => {
 					// The drawer's Interrupt: Ctrl+C, and out of Working now - Claude
 					// fires no Stop hook on an interrupt.
-					void utils.client.terminal.write.mutate({
-						paneId: pane.id,
-						data: "\x03",
-					});
-					useTabsStore.getState().setPaneStatus(pane.id, "idle");
+					const sent = await interruptClaude(
+						utils.client.terminal.write.mutate,
+						utils.client.terminal.readScreen.query,
+						pane.id,
+					);
+					useTabsStore
+						.getState()
+						.setPaneStatus(pane.id, sent ? "idle" : "review");
 				}}
 			/>
 		</div>

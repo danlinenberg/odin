@@ -31,6 +31,7 @@ import {
 	isPreviewableVideoFile,
 } from "shared/file-types";
 import { freshTldr, sameReply, tldrPlacement } from "shared/latest-reply";
+import { odinScreenStatus } from "shared/odin-screen-status";
 import {
 	insertSkill,
 	matchSkills,
@@ -311,7 +312,25 @@ type Sent = {
 	text: string;
 	previews?: Preview[];
 	seen: Set<string>;
+	/** Claude never took it: no turn, nothing queued. */
+	lost?: boolean;
 };
+
+/**
+ * Claude took something since the send: a user row that wasn't there, or the
+ * message waiting in its queue. Any new row counts - Claude rewrites some
+ * messages (a slash command echoes as its name), so the text can't decide.
+ */
+export function arrived(
+	items: { kind: string; id: string }[],
+	queue: string[],
+	sent: Pick<Sent, "text" | "seen">,
+): boolean {
+	return (
+		items.some((item) => item.kind === "user" && !sent.seen.has(item.id)) ||
+		queue.some((text) => text.includes(sent.text))
+	);
+}
 
 /**
  * Claude echoed the sent message: a user row that was not there at the send
@@ -855,11 +874,18 @@ function UserBubble({
 	text,
 	images,
 	pending,
+	lost,
+	onShowTerminal,
+	onDismiss,
 	workspaceId,
 }: {
 	text: string;
 	images?: Preview[];
 	pending?: boolean;
+	/** Never reached Claude - say so, with a way to see why. */
+	lost?: boolean;
+	onShowTerminal?: () => void;
+	onDismiss?: () => void;
 	workspaceId?: string;
 }) {
 	// A launch prompt (task + standing rules + reply format) fills the screen;
@@ -878,8 +904,9 @@ function UserBubble({
 		<div
 			className={cn(
 				"mt-5 mb-1 ml-auto max-w-[75%] select-text cursor-text break-words rounded-2xl rounded-br-md border border-primary/30 bg-primary/15 px-4 py-2.5 text-[13.5px] leading-relaxed text-foreground shadow-sm first:mt-0",
-				pending && "opacity-60",
+				pending && !lost && "opacity-60",
 				pending && ENTER,
+				lost && "border-danger/50",
 			)}
 		>
 			{previews.length > 0 && (
@@ -917,6 +944,29 @@ function UserBubble({
 							{full ? "Hide Odin's prompt" : "Show Odin's prompt"}
 						</button>
 					)}
+				</div>
+			)}
+			{lost && (
+				<div className="mt-1.5 flex flex-wrap gap-x-3 text-[12px]">
+					<span className="text-danger">
+						Not delivered - Claude never took it
+					</span>
+					{onShowTerminal && (
+						<button
+							type="button"
+							onClick={onShowTerminal}
+							className="text-link hover:underline"
+						>
+							Show terminal
+						</button>
+					)}
+					<button
+						type="button"
+						onClick={onDismiss}
+						className="text-muted-foreground hover:text-foreground"
+					>
+						Dismiss
+					</button>
 				</div>
 			)}
 		</div>
@@ -1726,6 +1776,22 @@ export function ChatView({
 		setPending((list) => [...list, { id, text, previews, seen }]);
 		// Claude takes a moment to write it; look again a few times meanwhile.
 		for (const ms of [150, 500, 1000]) setTimeout(poke, ms);
+		// Claude logs a message the moment it takes it, as a turn or queued
+		// mid-turn. Nothing by now: it never got there, and the bubble says so
+		// instead of waiting on a turn that isn't coming. Not for `onSend`,
+		// which may bring a dead PTY back first, or before a transcript loaded.
+		if (!onSend)
+			setTimeout(() => {
+				if (itemsRef.current.length === 0) return;
+				setPending((list) =>
+					list.map((sent) =>
+						sent.id === id &&
+						!arrived(itemsRef.current, queuedRef.current, sent)
+							? { ...sent, lost: true }
+							: sent,
+					),
+				);
+			}, 10_000);
 		// ponytail: an echo that never matches (Claude rewrote it) just expires.
 		// Not mid-turn or queued: Claude writes a queued message only when it takes it.
 		const expire = () =>
@@ -1734,7 +1800,9 @@ export function ChatView({
 				queuedText.includes(text),
 			)
 				? setTimeout(expire, 30_000)
-				: setPending((list) => list.filter((sent) => sent.id !== id));
+				: setPending((list) =>
+						list.filter((sent) => sent.id !== id || sent.lost),
+					);
 		setTimeout(expire, 30_000);
 	};
 	const itemsRef = useRef(items);
@@ -2036,6 +2104,13 @@ export function ChatView({
 							text={sent.text}
 							images={sent.previews}
 							pending
+							lost={sent.lost}
+							onShowTerminal={onShowTerminal}
+							onDismiss={() =>
+								setPending((list) =>
+									list.filter((other) => other.id !== sent.id),
+								)
+							}
 						/>
 					))}
 					{yourQueued(queued)
@@ -2215,6 +2290,33 @@ export async function typeIntoClaude(
 }
 
 /**
+ * Stops Claude's turn with Ctrl+C. Not Esc: with a message queued, Esc only
+ * pulls the queue back into Claude's input box and the turn runs on. And not
+ * when Claude already sits at its prompt - a hook can leave the card on
+ * Working - because there Ctrl+C stops every background agent the session
+ * runs, and a second one quits Claude. Two reads must agree it's idle: a
+ * snapshot caught mid-repaint can lack the spinner. Returns whether it sent it.
+ */
+export async function interruptClaude(
+	write: (input: { paneId: string; data: string }) => Promise<unknown>,
+	readScreen: (input: { paneId: string }) => Promise<{ text: string | null }>,
+	paneId: string,
+): Promise<boolean> {
+	const atPrompt = async () => {
+		const { text } = await readScreen({ paneId }).catch(() => ({
+			text: null,
+		}));
+		return !!text && odinScreenStatus(text) === "review";
+	};
+	if (await atPrompt()) {
+		await new Promise((resolve) => setTimeout(resolve, 300));
+		if (await atPrompt()) return false;
+	}
+	await write({ paneId, data: "\x03" });
+	return true;
+}
+
+/**
  * Its own component so a keystroke re-renders the box, not the conversation.
  * A pasted or dropped image or video is saved and held as a preview with its
  * path until you send, so its × can still drop it. Sending pastes each path
@@ -2292,6 +2394,7 @@ function Composer({
 	dropRef.current = (files) => attach(files, true);
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const write = electronTrpc.terminal.write.useMutation();
+	const utils = electronTrpc.useUtils();
 	// Hold Space on an empty box (or the mic) to talk - live sessions only.
 	const canTalk = !onResume && !onSend;
 	const voice = useHoldToTalk({
@@ -2563,7 +2666,13 @@ function Composer({
 							type="button"
 							title="Stop Claude"
 							onClick={() =>
-								onStop ? onStop() : write.mutate({ paneId, data: "\x03" })
+								onStop
+									? onStop()
+									: void interruptClaude(
+											write.mutateAsync,
+											utils.client.terminal.readScreen.query,
+											paneId,
+										)
 							}
 							className={cn(
 								"flex size-7 shrink-0 items-center justify-center rounded-full bg-foreground text-background hover:opacity-85",

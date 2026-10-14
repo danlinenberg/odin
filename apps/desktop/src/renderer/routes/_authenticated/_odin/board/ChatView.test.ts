@@ -3,8 +3,10 @@ import {
 	actionItemList,
 	applyLines,
 	applyQueue,
+	arrived,
 	bangCommands,
 	elapsedLabel,
+	interruptClaude,
 	isAnswerItem,
 	isApprovalItem,
 	isDoneItem,
@@ -567,5 +569,42 @@ describe("ChatView sent bubble", () => {
 	test("an older row with the same words is not the echo", () => {
 		const sent = { text: "ok", seen: new Set(["a"]) };
 		expect(isEchoed([{ ...old, text: "ok then" }], sent)).toBe(false);
+	});
+});
+
+describe("arrived - Claude took the sent message", () => {
+	const sent = { text: "fix it", seen: new Set(["a"]) };
+	const old = { kind: "user", id: "a" };
+	test("nothing new and nothing queued: never got there", () => {
+		expect(arrived([old], [], sent)).toBe(false);
+	});
+	test("queued mid-turn counts", () => {
+		expect(arrived([old], ["fix it"], sent)).toBe(true);
+	});
+	test("any new user row counts - Claude rewrites some messages", () => {
+		expect(arrived([old, { kind: "user", id: "b" }], [], sent)).toBe(true);
+	});
+});
+
+describe("interruptClaude", () => {
+	const idle = `❯ \n${"─".repeat(20)}\n  ⏵⏵ bypass permissions on (shift+tab to cycle)`;
+	const busy = `✻ Cogitating… (5m 0s · ↓ 1k tokens)\n${"─".repeat(20)}\n❯ \n${"─".repeat(20)}\n  ⏵⏵ bypass permissions on`;
+	const run = async (screens: (string | null)[]) => {
+		const writes: string[] = [];
+		const sent = await interruptClaude(
+			async ({ data }) => writes.push(data),
+			async () => ({ text: screens.shift() ?? null }),
+			"pane",
+		);
+		return { sent, writes };
+	};
+	test("mid-turn: Ctrl+C, never Esc", async () => {
+		expect(await run([busy])).toEqual({ sent: true, writes: ["\x03"] });
+	});
+	test("at the prompt: no Ctrl+C - it would stop the background agents", async () => {
+		expect(await run([idle, idle])).toEqual({ sent: false, writes: [] });
+	});
+	test("an unreadable screen still interrupts", async () => {
+		expect(await run([null])).toEqual({ sent: true, writes: ["\x03"] });
 	});
 });
