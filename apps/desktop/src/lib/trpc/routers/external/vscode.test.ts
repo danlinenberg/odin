@@ -6,6 +6,7 @@ import {
 	claudeCodeSessionUrl,
 	hasClaudeCodeExtension,
 	vscodeFolderUrl,
+	vscodeWindowReady,
 } from "./vscode";
 
 describe("vscodeFolderUrl", () => {
@@ -40,5 +41,30 @@ describe("hasClaudeCodeExtension", () => {
 
 	test("no VS Code extensions folder", () => {
 		expect(hasClaudeCodeExtension("/nonexistent/extensions")).toBe(false);
+	});
+});
+
+describe("vscodeWindowReady", () => {
+	test("true once a VS Code lock file lists the folder", () => {
+		const ide = fs.mkdtempSync(nodePath.join(os.tmpdir(), "ide-"));
+		const folder = fs.mkdtempSync(nodePath.join(os.tmpdir(), "repo-"));
+		expect(vscodeWindowReady(folder, ide)).toBe(false);
+		fs.writeFileSync(
+			nodePath.join(ide, "1.lock"),
+			JSON.stringify({ ideName: "Neovim", workspaceFolders: [folder] }),
+		);
+		expect(vscodeWindowReady(folder, ide)).toBe(false);
+		fs.writeFileSync(
+			nodePath.join(ide, "2.lock"),
+			JSON.stringify({
+				ideName: "Visual Studio Code",
+				workspaceFolders: [fs.realpathSync(folder)],
+			}),
+		);
+		expect(vscodeWindowReady(folder, ide)).toBe(true);
+	});
+
+	test("no ide folder", () => {
+		expect(vscodeWindowReady("/x", "/nonexistent/ide")).toBe(false);
 	});
 });

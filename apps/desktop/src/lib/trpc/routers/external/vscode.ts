@@ -21,6 +21,48 @@ export function claudeCodeSessionUrl(sessionId: string): string {
 }
 
 /**
+ * Whether a VS Code window on `dir` has the Claude Code extension running.
+ * The extension writes a lock file per window under ~/.claude/ide/ once it is
+ * active, with that window's folders. Before then a session URL is dropped:
+ * a cold VS Code takes about 5s to get there.
+ */
+export function vscodeWindowReady(
+	dir: string,
+	ideDir = nodePath.join(os.homedir(), ".claude", "ide"),
+): boolean {
+	const real = (path: string) => {
+		try {
+			return fs.realpathSync(path);
+		} catch {
+			return path;
+		}
+	};
+	const want = real(dir);
+	try {
+		return fs
+			.readdirSync(ideDir)
+			.filter((name) => name.endsWith(".lock"))
+			.some((name) => {
+				try {
+					const lock = JSON.parse(
+						fs.readFileSync(nodePath.join(ideDir, name), "utf8"),
+					) as { ideName?: string; workspaceFolders?: string[] };
+					return (
+						/visual studio code/i.test(lock.ideName ?? "") &&
+						(lock.workspaceFolders ?? []).some(
+							(folder) => real(folder) === want,
+						)
+					);
+				} catch {
+					return false;
+				}
+			});
+	} catch {
+		return false;
+	}
+}
+
+/**
  * Whether VS Code has the Claude Code extension - `claude` installs it the
  * first time it runs in VS Code's terminal.
  */

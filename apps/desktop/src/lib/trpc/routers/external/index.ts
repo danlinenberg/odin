@@ -27,6 +27,7 @@ import {
 	claudeCodeSessionUrl,
 	hasClaudeCodeExtension,
 	vscodeFolderUrl,
+	vscodeWindowReady,
 } from "./vscode";
 
 /**
@@ -254,8 +255,14 @@ export const createExternalRouter = () => {
 					await shell.openExternal(vscodeFolderUrl(input.path));
 				}
 				if (!input.sessionId || !hasClaudeCodeExtension()) return false;
-				// The URL goes to VS Code's focused window: let the folder's come up.
-				await new Promise((resolve) => setTimeout(resolve, 1_500));
+				// The URL goes to VS Code's focused window, and is dropped until that
+				// window's Claude extension runs: wait for it (a cold start ~5s).
+				// ponytail: polled, 20s cap - then sent anyway.
+				for (let waited = 0; waited < 20_000; waited += 250) {
+					if (vscodeWindowReady(input.path)) break;
+					await new Promise((resolve) => setTimeout(resolve, 250));
+				}
+				await new Promise((resolve) => setTimeout(resolve, 500));
 				await shell.openExternal(claudeCodeSessionUrl(input.sessionId));
 				return true;
 			}),
