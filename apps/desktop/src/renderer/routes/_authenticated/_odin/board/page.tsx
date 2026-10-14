@@ -154,6 +154,7 @@ import {
 	remindSession,
 	SessionReminders,
 } from "./SessionReminders";
+import { moveToVsCode } from "./vscode-move";
 
 /**
  * The same marks the feed tabs use, so a section header reads as its source at
@@ -2397,14 +2398,17 @@ function DevBoardPage() {
 		setIsDiffOpen(false);
 		setIsShellOpen(true);
 	};
-	const openSessionInVsCode =
-		electronTrpc.external.openSessionInVsCode.useMutation();
+	const openFolderInVsCode =
+		electronTrpc.external.openFolderInVsCode.useMutation();
+	const sendSessionToVsCode =
+		electronTrpc.external.sendSessionToVsCode.useMutation();
 	const copyText = electronTrpc.external.copyText.useMutation();
 	/**
 	 * The session moves to VS Code: its folder, and the same conversation in
 	 * VS Code's Claude Code panel, or its resume command on the clipboard
 	 * without that extension. Never two Claudes on one conversation: a turn
-	 * still running stays here, and an idle one is closed here first, the way
+	 * still running stays here, and an idle one is closed here once VS Code has
+	 * opened the folder (never before, so a failed open loses nothing), the way
 	 * idle sessions are - Resume brings it back.
 	 */
 	const openInVsCode = async (card: BoardCard, dir?: string) => {
@@ -2413,7 +2417,8 @@ function DevBoardPage() {
 		const sessionId = claudeSessionIdOf(card);
 		const working = isWorkingNow(card.pane.id);
 		const moving = !!sessionId && !working;
-		if (moving && agentPaneIds.has(card.pane.id)) {
+		const closeHere = async () => {
+			if (!agentPaneIds.has(card.pane.id)) return;
 			const column = withMergeReady(
 				boardColumn(
 					card.pane.status ?? "idle",
@@ -2434,16 +2439,24 @@ function DevBoardPage() {
 			await utils.client.terminal.kill
 				.mutate({ paneId: card.pane.id })
 				.catch(() => {});
-		}
-		let inPanel = false;
-		try {
-			inPanel = await openSessionInVsCode.mutateAsync({
-				path: folder,
-				sessionId: moving ? sessionId : undefined,
+		};
+		const result = await moveToVsCode({
+			openFolder: () => openFolderInVsCode.mutateAsync({ path: folder }),
+			move:
+				moving && sessionId
+					? {
+							closeHere,
+							sendSession: () =>
+								sendSessionToVsCode.mutateAsync({ path: folder, sessionId }),
+						}
+					: undefined,
+		});
+		if (!result.opened) {
+			return toast.error("Couldn't open VS Code", {
+				description: `${String(result.error)}. The session is still running here.`,
 			});
-		} catch (error) {
-			return toast.error(`Couldn't open VS Code: ${String(error)}`);
 		}
+		const { inPanel } = result;
 		if (working) {
 			return toast.info("Opened the folder in VS Code", {
 				description:

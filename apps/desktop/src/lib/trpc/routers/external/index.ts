@@ -230,18 +230,12 @@ export const createExternalRouter = () => {
 			}),
 
 		/**
-		 * A session's folder in VS Code, and its conversation in VS Code's Claude
-		 * Code panel when that extension is there. `open -a` first; VS Code's own
+		 * A session's folder in VS Code. `open -a` first; VS Code's own
 		 * `vscode://` handler when that fails (no `code` CLI, a renamed app).
-		 * Returns whether the conversation went over too.
+		 * Throws when neither opened it.
 		 */
-		openSessionInVsCode: publicProcedure
-			.input(
-				z.object({
-					path: z.string(),
-					sessionId: z.string().uuid().optional(),
-				}),
-			)
+		openFolderInVsCode: publicProcedure
+			.input(z.object({ path: z.string() }))
 			.mutation(async ({ input }) => {
 				if (!nodePath.isAbsolute(input.path)) {
 					throw new TRPCError({
@@ -254,7 +248,16 @@ export const createExternalRouter = () => {
 				} catch {
 					await shell.openExternal(vscodeFolderUrl(input.path));
 				}
-				if (!input.sessionId || !hasClaudeCodeExtension()) return false;
+			}),
+
+		/**
+		 * A conversation in VS Code's Claude Code panel, in the window already
+		 * open on `path`. Returns false without that extension.
+		 */
+		sendSessionToVsCode: publicProcedure
+			.input(z.object({ path: z.string(), sessionId: z.string().uuid() }))
+			.mutation(async ({ input }) => {
+				if (!hasClaudeCodeExtension()) return false;
 				// The URL goes to VS Code's focused window, and is dropped until that
 				// window's Claude extension runs: wait for it (a cold start ~5s).
 				// ponytail: polled, 20s cap - then sent anyway.
