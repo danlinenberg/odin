@@ -443,7 +443,7 @@ export function useLaunchTaskSession() {
 			const claudeArgs = resumeSessionId
 				? `--resume ${resumeSessionId}${settingsArg}`
 				: `--session-id ${sessionId}${settingsArg}${promptArg}`;
-			const command = `cd ${quote(sessionCwd)} && ${claudeLaunch(title, claudeArgs)}`;
+			const command = `cd ${quote(sessionCwd)} && ${claudeLaunch(title, claudeArgs, paneId)}`;
 			// Held back: the pane stays process-less and the command rides on it
 			// until the queue runner (useTaskQueue) finds the gate open.
 			if (!queuedReason) {

@@ -12,15 +12,20 @@ interface ClaudeCommandState {
 	toBacklog: boolean;
 	/** New task: start a session on it right away instead of just listing it. */
 	startNow: boolean;
-	/** Start every session with Remote Control on, named after its task. */
-	remoteControl: boolean;
+	/** Remote Control: on for no session, every session, or the ones you pick. */
+	remoteControl: RemoteControlMode;
+	/** "selected": the panes you turned it on for, newest last. */
+	remotePanes: string[];
 	setCommands: (commands: string[]) => void;
 	setActive: (command: string) => void;
 	setModel: (model: string) => void;
 	setToBacklog: (toBacklog: boolean) => void;
 	setStartNow: (startNow: boolean) => void;
-	setRemoteControl: (remoteControl: boolean) => void;
+	setRemoteControl: (remoteControl: RemoteControlMode) => void;
+	toggleRemotePane: (paneId: string) => void;
 }
+
+export type RemoteControlMode = "off" | "all" | "selected";
 
 /** The New Session model picker: CLI aliases, so each tracks the latest. */
 export const CLAUDE_MODELS = [
@@ -48,15 +53,35 @@ export const useClaudeCommand = create<ClaudeCommandState>()(
 			model: "",
 			toBacklog: false,
 			startNow: false,
-			remoteControl: false,
+			remoteControl: "off",
+			remotePanes: [],
 			setCommands: (commands) => set({ commands }),
 			setActive: (active) => set({ active }),
 			setModel: (model) => set({ model }),
 			setToBacklog: (toBacklog) => set({ toBacklog }),
 			setStartNow: (startNow) => set({ startNow }),
 			setRemoteControl: (remoteControl) => set({ remoteControl }),
+			// ponytail: capped at 100, oldest out; a pane id outlives its card harmlessly.
+			toggleRemotePane: (paneId) =>
+				set((s) => ({
+					remotePanes: s.remotePanes.includes(paneId)
+						? s.remotePanes.filter((id) => id !== paneId)
+						: [...s.remotePanes, paneId].slice(-100),
+				})),
 		}),
-		{ name: "odin-claude-command" },
+		{
+			name: "odin-claude-command",
+			version: 1,
+			// v0 stored Remote Control as a boolean: true meant every session.
+			migrate: (state, version) => {
+				const s = state as Omit<ClaudeCommandState, "remoteControl"> & {
+					remoteControl: unknown;
+				};
+				if (version < 1)
+					s.remoteControl = s.remoteControl === true ? "all" : "off";
+				return s;
+			},
+		},
 	),
 );
 
@@ -78,44 +103,52 @@ export function modelFlag(model: string): string {
 		: "";
 }
 
-/**
- * ` --remote-control '<name>'` when Settings → Sessions has it on, so the
- * session shows up in claude.ai/code and the Claude app under its task's name.
- */
+/** Whether this pane's session runs with Remote Control, per Settings → Sessions. */
+export function remoteControlOn(paneId?: string): boolean {
+	const { remoteControl, remotePanes } = useClaudeCommand.getState();
+	return (
+		remoteControl === "all" ||
+		(remoteControl === "selected" && !!paneId && remotePanes.includes(paneId))
+	);
+}
+
+/** The session's name on claude.ai: always `[Odin] <task>`, so they stand out there. */
+export function remoteControlName(name: string): string {
+	// ponytail: 80 chars, the session list truncates long names anyway.
+	return `[Odin] ${name.replace(/\s+/g, " ").trim()}`.trim().slice(0, 80);
+}
+
 /**
  * Remote Control needs your claude.ai login. A `claude setup-token` token or an
  * API key in the environment (often exported from ~/.zshenv) wins over it, and
  * then Claude starts as "Claude API" with Remote Control silently off. Drop
  * both for this one session's shell.
  */
-export function remoteControlEnv(
-	on = useClaudeCommand.getState().remoteControl,
-): string {
+export function remoteControlEnv(on: boolean): string {
 	return on ? "unset CLAUDE_CODE_OAUTH_TOKEN ANTHROPIC_API_KEY && " : "";
 }
 
-export function remoteControlFlag(
-	name: string,
-	on = useClaudeCommand.getState().remoteControl,
-): string {
+/**
+ * ` --remote-control '[Odin] <name>'` when it's on for this session, so it
+ * shows up in claude.ai/code and the Claude app under its task's name.
+ */
+export function remoteControlFlag(name: string, on: boolean): string {
 	if (!on) return "";
-	// ponytail: 80 chars, the session list truncates long names anyway.
-	const trimmed = name.replace(/\s+/g, " ").trim().slice(0, 80);
-	return trimmed
-		? ` --remote-control '${trimmed.replaceAll("'", `'\\''`)}'`
-		: " --remote-control";
+	return ` --remote-control '${remoteControlName(name).replaceAll("'", `'\\''`)}'`;
 }
 
 /**
  * The one way Odin starts Claude in a session - new, resume, retry, a resume
  * handed to VS Code. Each one built its own string, and Resume dropped
  * Remote Control. `name` is the task's title, `args` what follows the flags
- * (`--resume <id>`, `--session-id <id> '<prompt>'`).
+ * (`--resume <id>`, `--session-id <id> '<prompt>'`), `paneId` the session's
+ * pane once it has one - it decides Remote Control under "selected".
  */
 export function claudeLaunch(
 	name: string,
 	args: string,
-	remoteControl = useClaudeCommand.getState().remoteControl,
+	paneId?: string,
 ): string {
+	const remoteControl = remoteControlOn(paneId);
 	return `${remoteControlEnv(remoteControl)}${claudeCli()}${remoteControlFlag(name, remoteControl)} ${args}`;
 }

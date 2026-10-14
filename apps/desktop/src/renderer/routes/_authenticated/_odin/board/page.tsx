@@ -43,6 +43,7 @@ import {
 	LuPanelLeft,
 	LuPause,
 	LuPlay,
+	LuRadioTower,
 	LuRepeat,
 	LuStar,
 	LuTerminal,
@@ -60,7 +61,12 @@ import { canClaimKeyboard } from "renderer/lib/keyboard";
 import { coldRestoreState } from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/state";
 import { Terminal } from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/Terminal";
 import * as terminalCache from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/v1-terminal-cache";
-import { claudeLaunch, useClaudeCommand } from "renderer/stores/claude-command";
+import {
+	claudeLaunch,
+	remoteControlName,
+	remoteControlOn,
+	useClaudeCommand,
+} from "renderer/stores/claude-command";
 import { useIdleClose } from "renderer/stores/idle-close";
 import { useSessionView } from "renderer/stores/session-view";
 import { useTabsStore } from "renderer/stores/tabs/store";
@@ -1358,6 +1364,8 @@ function TagMenu({
 	onRemind,
 	watching,
 	onWatch,
+	remote,
+	onRemote,
 	onKeep,
 	onToggle,
 	onAdd,
@@ -1376,6 +1384,9 @@ function TagMenu({
 	/** Whether replies on the session's thread ping you; unset when it has no thread. */
 	watching?: boolean;
 	onWatch: () => void;
+	/** Remote Control for this one session; unset unless Settings says "Selected sessions". */
+	remote?: boolean;
+	onRemote: () => void;
 	/** Set when the sweep suggests dropping this session. */
 	onKeep?: () => void;
 	onToggle: (tag: string) => void;
@@ -1466,6 +1477,23 @@ function TagMenu({
 					>
 						<LuBellRing className="size-3" aria-hidden />
 						{watching ? "Stop pinging me on replies" : "Ping me on replies"}
+					</button>
+				)}
+				{remote !== undefined && (
+					<button
+						type="button"
+						title="Follow and answer this session from claude.ai/code or the Claude app"
+						onClick={() => {
+							onRemote();
+							onClose();
+						}}
+						className={cn(
+							"flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] transition-colors hover:text-primary",
+							remote ? "text-primary" : "text-muted-foreground",
+						)}
+					>
+						<LuRadioTower className="size-3" aria-hidden />
+						{remote ? "Turn off Remote Control" : "Turn on Remote Control"}
 					</button>
 				)}
 			</div>
@@ -2397,6 +2425,8 @@ function DevBoardPage() {
 	} | null>(null);
 	const tagMenuDrop = useDropFor(tagMenu ? panes[tagMenu.paneId] : undefined);
 	const watches = useReplyWatch((s) => s.watches);
+	const remoteMode = useClaudeCommand((s) => s.remoteControl);
+	const remotePanes = useClaudeCommand((s) => s.remotePanes);
 	const toggleWatch = useReplyWatch((s) => s.toggle);
 	// One filter at a time, from the header dropdown: "tag:<tag>",
 	// "repo:<name>", "person:<name>", or "" for everything.
@@ -2562,7 +2592,7 @@ function DevBoardPage() {
 		}
 		const cwd = sessionCwd(card.pane);
 		await copyText.mutateAsync(
-			`${cwd ? `cd '${cwd.replaceAll("'", "'\\''")}' && ` : ""}${claudeLaunch(taskName(card), `--resume ${sessionId}`)}`,
+			`${cwd ? `cd '${cwd.replaceAll("'", "'\\''")}' && ` : ""}${claudeLaunch(taskName(card), `--resume ${sessionId}`, card.pane.id)}`,
 		);
 		toast.success("Opened in VS Code", {
 			description:
@@ -3118,6 +3148,28 @@ function DevBoardPage() {
 	};
 
 	/**
+	 * Remote Control for one session (Settings → Sessions → Selected sessions).
+	 * A live agent gets `/remote-control [Odin] <task>` typed at its prompt; a
+	 * closed one picks it up on its next Resume.
+	 */
+	const toggleRemote = (card: BoardCard) => {
+		const paneId = card.pane.id;
+		const wasOn = remoteControlOn(paneId);
+		useClaudeCommand.getState().toggleRemotePane(paneId);
+		const live = agentPaneIds.has(paneId);
+		if (wasOn)
+			return toast.info("Remote Control off from its next Resume", {
+				description: live
+					? "To disconnect now, type /remote-control in the session."
+					: undefined,
+			});
+		if (!live) return toast.success("Remote Control on from its next Resume");
+		const name = remoteControlName(taskName(card));
+		void sendContinue(paneId, `/remote-control ${name}`);
+		toast.success(`Remote Control on - "${name}"`);
+	};
+
+	/**
 	 * Pick a session back up. On a live PTY that's literally writing "Continue"
 	 * into the open prompt - nothing to reopen.
 	 *
@@ -3242,7 +3294,11 @@ function DevBoardPage() {
 				}
 				queueResume(
 					card.pane,
-					`cd '${cwd}' && ${claudeLaunch(taskName(card), `--resume ${id} ${opening}`)}`,
+					`cd '${cwd}' && ${claudeLaunch(
+						taskName(card),
+						`--resume ${id} ${opening}`,
+						card.pane.id,
+					)}`,
 					blocker,
 				);
 				return;
@@ -3344,6 +3400,7 @@ function DevBoardPage() {
 		const resumeCmd = claudeLaunch(
 			taskName(card),
 			`${sessionId ? `--resume ${sessionId}` : "--continue"}${diedWorking || prompt ? ` ${opening}` : ""}`,
+			card.pane.id,
 		);
 		// You resumed it to work in it - bring it up. The drawer swaps its
 		// read-only history for the live terminal once the PTY is back, and that
@@ -3987,6 +4044,12 @@ function DevBoardPage() {
 							tagMenuCard.pane.id,
 						)
 					}
+					remote={
+						remoteMode === "selected"
+							? remotePanes.includes(tagMenu.paneId)
+							: undefined
+					}
+					onRemote={() => tagMenuCard && toggleRemote(tagMenuCard)}
 					onToggle={(tag) => toggleTag(tagMenu.paneId, tag)}
 					onClose={() => setTagMenu(null)}
 				/>
@@ -4636,6 +4699,23 @@ function DevBoardPage() {
 										</button>
 									)}
 									<WatchPill paneId={drawerCard.pane.id} />
+									{remoteMode === "selected" && (
+										<button
+											type="button"
+											title="Follow and answer this session from claude.ai/code or the Claude app. Click to switch."
+											onClick={() => toggleRemote(drawerCard)}
+											className={cn(
+												"flex items-center gap-1 rounded-[5px] px-[7px] text-[11px] font-medium",
+												remotePanes.includes(drawerCard.pane.id)
+													? PILL.brand
+													: "bg-secondary text-muted-foreground hover:text-foreground",
+											)}
+										>
+											<LuRadioTower className="size-3" aria-hidden />
+											Remote Control
+											{remotePanes.includes(drawerCard.pane.id) ? " on" : ""}
+										</button>
+									)}
 									{sessionCwd(drawerCard.pane) && (
 										<span
 											title={sessionCwd(drawerCard.pane)}
