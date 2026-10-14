@@ -969,6 +969,16 @@ await step(
 				.find((c) => c.textContent.includes(${JSON.stringify(`Drawer list second ${stamp}`)}))
 				?.click();
 		})()`);
+		// The second one counts once it is past "starting…".
+		for (
+			const end = Date.now() + 30_000;
+			!(await page<boolean>(
+				`!!document.querySelector('nav[aria-label="Sessions"]')`,
+			));
+			await sleep(250)
+		) {
+			if (Date.now() > end) throw new Error("the drawer has no session list");
+		}
 		await click('nav[aria-label="Sessions"] button', "New session");
 		const third = `Drawer list third ${stamp}`;
 		await start(third);
