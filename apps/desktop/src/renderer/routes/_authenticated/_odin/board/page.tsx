@@ -72,6 +72,7 @@ import {
 	SECTION_LABEL,
 } from "shared/board-section";
 import { duplicateSessions } from "shared/duplicate-sessions";
+import { type BriefUrgency, latestReply, sameReply } from "shared/latest-reply";
 import { claimedCheckout } from "shared/launch-gate";
 import { sessionUsageLabel } from "shared/machine-load";
 import { profileOf } from "shared/odin-profile";
@@ -420,6 +421,40 @@ function withCode(
 			// biome-ignore lint/suspicious/noArrayIndexKey: a fixed split, never reordered
 			<Fragment key={i}>{prose(part)}</Fragment>
 		),
+	);
+}
+
+/**
+ * What the session's latest reply wants from you, as its brief judged it:
+ * "Needs you" when it asks you to decide, answer, approve, run or check
+ * something, "FYI" when it only reports.
+ */
+function UrgencyMark({
+	urgency,
+	className,
+}: {
+	urgency: BriefUrgency | undefined;
+	className?: string;
+}) {
+	if (!urgency) return null;
+	const needsYou = urgency === "needs-you";
+	return (
+		<span
+			title={
+				needsYou
+					? "The latest reply asks something of you"
+					: "The latest reply is for your information"
+			}
+			className={cn(
+				"inline-block shrink-0 rounded-full px-1.5 py-px text-[9.5px] font-semibold uppercase leading-[14px] tracking-[.04em]",
+				needsYou
+					? "bg-attention/15 text-attention"
+					: "bg-secondary text-muted-foreground",
+				className,
+			)}
+		>
+			{needsYou ? "Needs you" : "FYI"}
+		</span>
 	);
 }
 
@@ -1843,6 +1878,11 @@ function DevBoardPage() {
 	// Working. Closed ones count - the approval usually lands after the session
 	// went quiet, and a card closed for idling keeps its column. The
 	// transcripts are the ones the cards' own pills already fetch.
+	// Each brief's URGENCY and the reply it judged, by session id - comes back
+	// with every brief warm (below), so no call of its own.
+	const [briefUrgency, setBriefUrgency] = useState<
+		Record<string, { urgency: BriefUrgency; replyAt: string }>
+	>({});
 	const mergeCandidates = Object.values(panes).flatMap((pane) => {
 		const sessionId = pane.claudeSessionId ?? sessionIdByPane[pane.id];
 		if (
@@ -1907,31 +1947,77 @@ function DevBoardPage() {
 			messages: BriefMessage[],
 			states: Parameters<typeof mergeReady>[1] | undefined,
 			brief: string | null | undefined,
+			candidate: (typeof mergeCandidates)[number],
 		) => boolean,
 		anyColumn = false,
 	) =>
 		mergeCandidates
-			.filter(({ brief, column }, i) => {
-				if (!anyColumn && column !== "permission") return false;
+			.filter((candidate, i) => {
+				if (!anyColumn && candidate.column !== "permission") return false;
 				const messages = mergeTranscripts[i]?.data?.messages;
 				return (
 					!!messages &&
 					test(
 						messages,
 						claimOpened(messages, mergeStateQueries[i]?.data),
-						brief,
+						candidate.brief,
+						candidate,
 					)
 				);
 			})
 			.map(({ paneId }) => paneId)
 			.join(",");
-	const mergeReadyKey = candidateKey(
-		(messages, states, brief) =>
-			onlyLookLeft(messages) ||
-			(!!states &&
-				(mergeReady(messages, states) ||
-					prsDropped(messages, states) ||
-					!!reviewEnded(reviewedPullRequest(brief, messages), states))),
+	/** All that's left is a click on what shipped: Done, whatever the column says. */
+	const finishedBarAClick = (
+		messages: BriefMessage[],
+		states: Parameters<typeof mergeReady>[1] | undefined,
+		brief: string | null | undefined,
+	) =>
+		onlyLookLeft(messages) ||
+		(!!states &&
+			(mergeReady(messages, states) ||
+				prsDropped(messages, states) ||
+				!!reviewEnded(reviewedPullRequest(brief, messages), states)));
+	const mergeReadyKey = candidateKey(finishedBarAClick);
+	// The brief's URGENCY per pane, while it judged the reply that's still the
+	// latest - a stale one says nothing about what the session wants now.
+	const urgencyKey = mergeCandidates
+		.map(({ paneId, sessionId }, i) => {
+			const judged = briefUrgency[sessionId];
+			const messages = mergeTranscripts[i]?.data?.messages;
+			return judged &&
+				messages &&
+				sameReply(latestReply(messages)?.at, judged.replyAt)
+				? `${paneId}:${judged.urgency}`
+				: "";
+		})
+		.filter(Boolean)
+		.join(",");
+	const urgencyByPane = useMemo(
+		() =>
+			new Map(
+				urgencyKey
+					? urgencyKey.split(",").map((entry) => {
+							const [paneId = "", urgency] = entry.split(":");
+							return [paneId, urgency as BriefUrgency];
+						})
+					: [],
+			),
+		[urgencyKey],
+	);
+	// Done cards whose latest reply asks you something: the Stop hook calls
+	// every unwatched turn end Done, so a question at the end of one landed
+	// there. Not when all that's left is a click - that stays Done.
+	const briefAsksKey = candidateKey(
+		(messages, states, brief, { paneId, column }) =>
+			column === "review" &&
+			urgencyByPane.get(paneId) === "needs-you" &&
+			!finishedBarAClick(messages, states, brief),
+		true,
+	);
+	const briefAsksPaneIds = useMemo(
+		() => new Set(briefAsksKey ? briefAsksKey.split(",") : []),
+		[briefAsksKey],
 	);
 	const droppedKey = candidateKey(
 		(messages, states, brief) =>
@@ -1994,8 +2080,10 @@ function DevBoardPage() {
 				? "working"
 				: column === "permission" && mergeReadyPaneIds.has(paneId)
 					? "review"
-					: column,
-		[mergeReadyPaneIds, ciChecksByPane],
+					: column === "review" && briefAsksPaneIds.has(paneId)
+						? "permission"
+						: column,
+		[mergeReadyPaneIds, ciChecksByPane, briefAsksPaneIds],
 	);
 	/**
 	 * Live Claude that's been up a while. Continue is for nudging a session
@@ -2763,6 +2851,7 @@ function DevBoardPage() {
 						applyAutoTags(r.tags);
 						// Missing until main restarts onto the procedure that returns it.
 						setBriefStatus(r.statuses ?? {});
+						setBriefUrgency(r.urgencies ?? {});
 						if (autoRename) applyAutoTitles(r.titles);
 					},
 				},
@@ -3934,6 +4023,14 @@ function DevBoardPage() {
 																			itemKey={`session:${card.pane.id}`}
 																		/>
 																		{cardTitle(card)}
+																		{card.status !== "working" && (
+																			<UrgencyMark
+																				urgency={urgencyByPane.get(
+																					card.pane.id,
+																				)}
+																				className="ml-1.5 align-[1px]"
+																			/>
+																		)}
 																	</div>
 																	<button
 																		type="button"
@@ -4631,8 +4728,17 @@ function DevBoardPage() {
 															/>
 															{!isSwitchListMin && (
 																<span className="flex min-w-0 flex-col">
-																	<span className="truncate">
-																		{cardTitle(card)}
+																	<span className="flex min-w-0 items-center gap-1.5">
+																		<span className="truncate">
+																			{cardTitle(card)}
+																		</span>
+																		{card.status !== "working" && (
+																			<UrgencyMark
+																				urgency={urgencyByPane.get(
+																					card.pane.id,
+																				)}
+																			/>
+																		)}
 																	</span>
 																	{switchStatus(card) && (
 																		<span className="truncate text-[10.5px] font-normal text-faint-foreground">

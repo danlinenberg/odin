@@ -3,6 +3,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { execWithShellEnv } from "lib/trpc/routers/workspaces/utils/shell-env";
+import { type BriefUrgency, latestReply } from "shared/latest-reply";
 import { TAG_VOCABULARY } from "shared/odin-tags";
 import {
 	parseTranscript,
@@ -36,6 +37,16 @@ export interface WrittenBrief {
 	next: string | null;
 	/** Board tags, always from TAG_VOCABULARY. Empty when the model offered none. */
 	tags: string[];
+	/** A TL;DR of the agent's latest reply - the chat view's short version of it. */
+	last: string | null;
+	/** Whether that reply wants something from you. Null when the model didn't say. */
+	urgency: BriefUrgency | null;
+	/**
+	 * When the reply LAST describes was written - its transcript timestamp. A
+	 * newer reply makes LAST stale, and a stale TL;DR is a wrong one. Set by
+	 * writeBrief, not the model.
+	 */
+	replyAt?: string | null;
 	/** Set when the model ran but didn't answer in the shape we asked for. */
 	raw: string | null;
 }
@@ -64,6 +75,8 @@ const TURN_CAP = 1200;
 const RECENT_TURNS = 14;
 /** The human's first replies - where the opening request gets pinned down. */
 const EARLY_ASKS = 4;
+/** The latest reply goes in whole, so LAST can sum up its middle too. */
+const LATEST_CAP = 5000;
 
 /**
  * The conversation, compressed to what a brief needs: the ask, then the recent
@@ -96,11 +109,15 @@ export function digest({
 		.slice(0, EARLY_ASKS)
 		.map((m) => `- ${m.text.slice(0, 300)}`)
 		.join("\n");
+	const latest = latestReply(messages);
 	return [
 		title ? `TITLE: ${title}` : null,
 		prompt ? `OPENING REQUEST:\n${prompt.slice(0, 1500)}` : null,
 		early ? `HUMAN'S FIRST FOLLOW-UPS:\n${early}` : null,
 		`RECENT TURNS (oldest first):\n${recent}`,
+		latest && latest.text.length > TURN_CAP
+			? `LATEST AGENT REPLY (in full):\n${latest.text.slice(0, LATEST_CAP)}`
+			: null,
 	]
 		.filter(Boolean)
 		.join("\n\n");
@@ -108,18 +125,20 @@ export function digest({
 
 const INSTRUCTIONS = `You are briefing an engineer who is about to open an in-progress agent session and needs to understand it in ten seconds.
 
-Reply with EXACTLY six lines and nothing else. No markdown, no code fences, no preamble:
+Reply with EXACTLY eight lines and nothing else. No markdown, no code fences, no preamble:
 TITLE: <under 60 characters - a name for this session, as a human would title the task. No trailing period.>
 GOAL: <one sentence - the main objective of this whole session: the outcome the human wants, read from the OPENING REQUEST and the HUMAN'S FIRST FOLLOW-UPS. Never the latest step or the current blocker - that is STATUS.>
 DONE: <one or two sentences - what this session actually did about it: what it found, changed, shipped. Name the files, PRs, numbers.>
 STATUS: <one short sentence, under 120 characters - where it stands right now: what's shipped, what's blocked, what's waiting. The latest state, not the history.>
 NEXT: <one sentence addressed to the engineer - never to the agent - starting with a verb: the one thing they have to do now (answer the prompt on screen, review a diff, decide X, merge the PR). If nothing is needed from them, say "Nothing -" and why.>
 TAGS: <1-3 comma-separated tags describing the work, chosen ONLY from this list: ${BRIEF_TAGS.join(", ")}>
+LAST: <a TL;DR of the AGENT's LATEST reply only (the last AGENT turn), not the whole session: one to three short sentences on this one line. What it did and what it wants from the engineer. Keep the names, numbers, PR numbers and file names.>
+URGENCY: <needs-you if that latest reply asks the engineer to decide, answer, approve, run or check something; otherwise fyi>
 
 Rules:
 - Always answer in English, even when the conversation is in another language.
 - Be concrete: name the files, numbers, PRs, decisions. No filler, no "the user asked".
-- Under 200 characters per line.
+- Under 200 characters per line, LAST under 320.
 - TITLE names the subject - the user, bug, feature or PR - never the medium. If the session hasn't yet said what it's about (the request is only a link or an image), leave TITLE empty rather than write "Slack thread investigation" or "Review PR": the card keeps the first title it gets.
 - TAGS: never invent a tag outside the list. Pick the fewest that fit; if none fit, leave the line empty.`;
 
@@ -162,11 +181,19 @@ export function parseBrief(text: string): WrittenBrief {
 		status,
 		next,
 		tags,
+		last: field("LAST"),
+		urgency: urgencyOf(field("URGENCY")),
 		raw:
 			title || goal || status || next
 				? null
 				: text.trim().slice(0, 600) || null,
 	};
+}
+
+/** "needs-you", "Needs you", "NEEDS_YOU" - and anything else is no answer. */
+function urgencyOf(value: string | null): BriefUrgency | null {
+	const word = value?.toLowerCase().replace(/[^a-z]/g, "");
+	return word === "needsyou" ? "needs-you" : word === "fyi" ? "fyi" : null;
 }
 
 /**
@@ -205,7 +232,7 @@ interface CacheEntry {
  * instead of served forever - a title-less brief on an idle session would
  * otherwise never be asked for its title.
  */
-const BRIEF_VERSION = 5;
+const BRIEF_VERSION = 6;
 
 /** Survives restarts, so reopening the app doesn't re-summarise everything. */
 export function defaultCachePath(): string {
@@ -317,11 +344,8 @@ export async function writeBrief({
 	const work = (async () => {
 		const jsonl = await readFile(file.path, "utf-8");
 		const { aiTitle, prompt } = summarizeTranscript(jsonl);
-		const body = digest({
-			title: aiTitle,
-			prompt,
-			messages: parseTranscript(jsonl),
-		});
+		const messages = parseTranscript(jsonl);
+		const body = digest({ title: aiTitle, prompt, messages });
 		// `claude -p` files a transcript of its own for every run, and this one runs
 		// on every card, forever - Session History filled up with thousands of
 		// one-message "sessions" nobody started. Name the session so its transcript
@@ -353,7 +377,10 @@ export async function writeBrief({
 			const litter = await transcriptOf(briefSessionId, root);
 			if (litter) await rm(litter.path, { force: true });
 		}
-		const brief = parseBrief(stdout);
+		const brief = {
+			...parseBrief(stdout),
+			replyAt: latestReply(messages)?.at ?? null,
+		};
 		if (cache.size >= CACHE_MAX) cache.clear(); // ponytail: cheaper than an LRU
 		cache.set(sessionId, {
 			mtimeMs: file.mtimeMs,
@@ -404,6 +431,8 @@ export async function warmBriefs(
 	titles: Record<string, string>;
 	/** Each brief's STATUS line - the session list shows it under the title. */
 	statuses: Record<string, string>;
+	/** Each brief's URGENCY, with the reply it judged - only good while that's the latest. */
+	urgencies: Record<string, { urgency: BriefUrgency; replyAt: string }>;
 }> {
 	let queued = 0;
 	for (const id of sessionIds) {
@@ -431,14 +460,18 @@ export async function warmBriefs(
 	const tags: Record<string, string[]> = {};
 	const titles: Record<string, string> = {};
 	const statuses: Record<string, string> = {};
+	const urgencies: Record<string, { urgency: BriefUrgency; replyAt: string }> =
+		{};
 	for (const id of sessionIds) {
 		const brief = cache.get(id)?.brief;
 		const cached = brief?.tags?.filter((tag) => BRIEF_TAGS.includes(tag));
 		if (cached?.length) tags[id] = cached;
 		if (brief?.title) titles[id] = brief.title;
 		if (brief?.status) statuses[id] = brief.status;
+		if (brief?.urgency && brief.replyAt)
+			urgencies[id] = { urgency: brief.urgency, replyAt: brief.replyAt };
 	}
-	return { queued, tags, titles, statuses };
+	return { queued, tags, titles, statuses, urgencies };
 }
 
 async function pump(): Promise<void> {

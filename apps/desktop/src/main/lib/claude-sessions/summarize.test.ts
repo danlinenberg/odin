@@ -42,6 +42,7 @@ function fixture(session: string = nextSession()) {
 			}),
 			JSON.stringify({
 				type: "assistant",
+				timestamp: "2026-10-14T10:00:00.000Z",
 				message: {
 					role: "assistant",
 					content: [{ type: "text", text: "did" }],
@@ -67,6 +68,8 @@ function fixture(session: string = nextSession()) {
 			'echo "GOAL: g"',
 			'echo "STATUS: s"',
 			'echo "NEXT: n"',
+			'echo "LAST: l"',
+			'echo "URGENCY: needs-you"',
 			"",
 		].join("\n"),
 	);
@@ -106,6 +109,30 @@ describe("writeBrief", () => {
 		expect(runCount()).toBe(1);
 	});
 
+	test("stamps the brief with the reply its LAST describes", async () => {
+		const { session, root, bin, cachePath } = fixture();
+		const brief = await writeBrief({
+			sessionId: session,
+			claudeBin: bin,
+			root,
+			cachePath,
+		});
+		expect(brief).toMatchObject({
+			last: "l",
+			urgency: "needs-you",
+			replyAt: "2026-10-14T10:00:00.000Z",
+		});
+		const { urgencies } = await warmBriefs([session], {
+			claudeBin: bin,
+			root,
+			cachePath,
+		});
+		expect(urgencies[session]).toEqual({
+			urgency: "needs-you",
+			replyAt: "2026-10-14T10:00:00.000Z",
+		});
+	});
+
 	test("the brief survives a restart - it is read back off disk", async () => {
 		const { session, root, bin, cachePath, runCount } = fixture();
 		await writeBrief({ sessionId: session, claudeBin: bin, root, cachePath });
@@ -117,6 +144,9 @@ describe("writeBrief", () => {
 				status: "s",
 				next: "n",
 				tags: [],
+				last: "l",
+				urgency: "needs-you",
+				replyAt: "2026-10-14T10:00:00.000Z",
 				raw: null,
 			},
 		);
@@ -524,8 +554,43 @@ describe("parseBrief", () => {
 			status: null,
 			next: null,
 			tags: [],
+			last: null,
+			urgency: null,
 			raw: null,
 		});
+	});
+
+	test("reads the latest reply's TL;DR and how urgent it is", () => {
+		const brief = parseBrief(
+			[
+				"GOAL: Ship the TL;DR card.",
+				"STATUS: PR #991 open, CI green.",
+				"NEXT: Review PR #991.",
+				"TAGS: feature",
+				"LAST: Opened PR #991 (ChatView.tsx); wants you to pick FYI or Needs you for the default.",
+				"**URGENCY**: Needs you",
+			].join("\n"),
+		);
+		expect(brief.last).toBe(
+			"Opened PR #991 (ChatView.tsx); wants you to pick FYI or Needs you for the default.",
+		);
+		expect(brief.urgency).toBe("needs-you");
+		expect(
+			parseBrief("LAST: Reported the numbers.\nURGENCY: fyi").urgency,
+		).toBe("fyi");
+		// Anything else is no answer, not a guess.
+		expect(parseBrief("LAST: x\nURGENCY: maybe").urgency).toBeNull();
+	});
+
+	test("a brief written before LAST and URGENCY still parses", () => {
+		const brief = parseBrief(
+			"TITLE: Old card\nGOAL: x\nSTATUS: y\nNEXT: z\nTAGS: bug",
+		);
+		expect(brief.title).toBe("Old card");
+		expect(brief.tags).toEqual(["bug"]);
+		expect(brief.last).toBeNull();
+		expect(brief.urgency).toBeNull();
+		expect(brief.raw).toBeNull();
 	});
 });
 
@@ -534,6 +599,22 @@ describe("digest", () => {
 		role,
 		text,
 		at: null,
+	});
+
+	test("a long latest reply goes in whole, so LAST can read its middle", () => {
+		const long = `start ${"x".repeat(2000)} MIDDLE ${"y".repeat(2000)} end`;
+		const text = digest({
+			title: null,
+			prompt: "p",
+			messages: [turn("user", "go"), turn("assistant", long)],
+		});
+		expect(text).toContain(`LATEST AGENT REPLY (in full):\n${long}`);
+		const short = digest({
+			title: null,
+			prompt: "p",
+			messages: [turn("user", "go"), turn("assistant", "done")],
+		});
+		expect(short).not.toContain("LATEST AGENT REPLY");
 	});
 
 	test("labels the speakers and keeps the recent tail", () => {
@@ -569,7 +650,11 @@ describe("digest", () => {
 		const text = digest({
 			title: null,
 			prompt: null,
-			messages: [turn("assistant", `START${"x".repeat(4000)}CONCLUSION`)],
+			// Not the latest reply - that one goes in whole.
+			messages: [
+				turn("assistant", `START${"x".repeat(4000)}CONCLUSION`),
+				turn("assistant", "ok"),
+			],
 		});
 		expect(text).toContain("START");
 		expect(text).toContain("CONCLUSION");

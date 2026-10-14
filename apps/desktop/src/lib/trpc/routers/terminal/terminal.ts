@@ -457,7 +457,10 @@ export const createTerminalRouter = () => {
 		 * mtime in the main process, so polling an idle session is a stat.
 		 */
 		summarizeClaudeSession: publicProcedure
-			.input(z.object({ sessionId: z.string() }))
+			// `settled`: the session stopped, so its final brief is written now.
+			.input(
+				z.object({ sessionId: z.string(), settled: z.boolean().optional() }),
+			)
 			.query(async ({ input }) => {
 				const { writeBrief } = await import("main/lib/claude-sessions");
 				return writeBrief(input);
