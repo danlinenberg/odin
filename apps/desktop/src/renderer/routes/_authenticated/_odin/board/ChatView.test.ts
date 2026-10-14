@@ -300,6 +300,12 @@ describe("ChatView transcript", () => {
 			options: ["yes", "after #826 merges"],
 		});
 		expect(itemOptions("Tell me the seniority.").options).toEqual([]);
+		expect(
+			itemOptions("Pick a fix [extension | write around it] (you only)"),
+		).toEqual({
+			text: "Pick a fix",
+			options: ["extension", "write around it"],
+		});
 	});
 });
 

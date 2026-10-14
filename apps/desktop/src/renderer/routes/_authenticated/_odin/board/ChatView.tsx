@@ -1118,8 +1118,9 @@ export function isDoneItem(item: string): boolean {
  */
 export function itemOptions(item: string): { text: string; options: string[] } {
 	// An option may hold a link ("after [#826](url) merges"); a button shows its words.
+	// A trailing "(you only)" still counts: you pick, so the choices are buttons.
 	const match = item.match(
-		/\s*\[((?:[^[\]]|\[[^\]]*\]\([^)]*\))*\|(?:[^[\]]|\[[^\]]*\]\([^)]*\))*)\](?!\()\W*$/,
+		/\s*\[((?:[^[\]]|\[[^\]]*\]\([^)]*\))*\|(?:[^[\]]|\[[^\]]*\]\([^)]*\))*)\](?!\()\s*(?:\(you only\))?\W*$/i,
 	);
 	if (match?.index === undefined) return { text: item, options: [] };
 	return {
