@@ -136,12 +136,16 @@ export function OdinPromptDialog({
 			await onSubmit(prompt, files, repo);
 		} catch (error) {
 			// A rejected launch used to be an unhandled rejection: the dialog just
-			// sat there. Most often it's a fresh Windows without Git.
+			// sat there. Most often it's a machine without Git: a fresh Windows, or
+			// a Mac without the Command Line Tools, where /usr/bin/git is a stub
+			// that opens Apple's installer and fails with xcode-select's note.
 			const message = error instanceof Error ? error.message : String(error);
 			toast.error(
 				/spawn git ENOENT/.test(message)
 					? "Odin needs Git to start a session. Install it from git-scm.com, then restart Odin."
-					: `Couldn't start the session: ${message}`,
+					: /xcode-select|No developer tools were found/.test(message)
+						? "Odin needs Git to start a session. macOS just opened an installer for it - click Install, wait for it to finish, then try again."
+						: `Couldn't start the session: ${message}`,
 			);
 		} finally {
 			setIsStarting(false);
