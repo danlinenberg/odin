@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import {
 	modelFlag,
 	pickClaudeCommand,
+	remoteControlEnv,
 	remoteControlFlag,
 } from "./claude-command";
 
@@ -27,4 +28,11 @@ test("remoteControlFlag", () => {
 		` --remote-control 'Fix dan'\\''s bug'`,
 	);
 	expect(remoteControlFlag("  ", true)).toBe(" --remote-control");
+});
+
+test("remoteControlEnv", () => {
+	expect(remoteControlEnv(false)).toBe("");
+	expect(remoteControlEnv(true)).toBe(
+		"unset CLAUDE_CODE_OAUTH_TOKEN ANTHROPIC_API_KEY && ",
+	);
 });

@@ -154,7 +154,7 @@ function RemoteControlRow() {
 		<SettingRow
 			label="Remote Control"
 			htmlFor="remote-control"
-			description="Start each session with Remote Control on, named after its task, so you can follow and answer it from claude.ai/code or the Claude app on your phone. Applies to sessions started or resumed after you switch it."
+			description="Start each session with Remote Control on, named after its task, so you can follow and answer it from claude.ai/code or the Claude app on your phone. Uses your claude.ai login, not a setup-token or API key from your shell. Applies to sessions started or resumed after you switch it."
 		>
 			<Switch
 				id="remote-control"

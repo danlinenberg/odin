@@ -82,6 +82,18 @@ export function modelFlag(model: string): string {
  * ` --remote-control '<name>'` when Settings → Sessions has it on, so the
  * session shows up in claude.ai/code and the Claude app under its task's name.
  */
+/**
+ * Remote Control needs your claude.ai login. A `claude setup-token` token or an
+ * API key in the environment (often exported from ~/.zshenv) wins over it, and
+ * then Claude starts as "Claude API" with Remote Control silently off. Drop
+ * both for this one session's shell.
+ */
+export function remoteControlEnv(
+	on = useClaudeCommand.getState().remoteControl,
+): string {
+	return on ? "unset CLAUDE_CODE_OAUTH_TOKEN ANTHROPIC_API_KEY && " : "";
+}
+
 export function remoteControlFlag(
 	name: string,
 	on = useClaudeCommand.getState().remoteControl,
