@@ -165,6 +165,18 @@ describe("pickSavedMessages", () => {
 		]);
 	});
 
+	test("a todos.list item with channel and message_ts is a queue item", () => {
+		const items = [
+			{ channel: "C2", message_ts: "200.2" },
+			{ channel_id: "C3", message: { ts: "300.3" } },
+			{ channel: "C4", message_ts: "400.4", is_completed: true },
+		];
+		expect(pickSavedMessages(items)).toEqual([
+			{ id: "C2:200.2", channelId: "C2", messageTs: "200.2" },
+			{ id: "C3:300.3", channelId: "C3", messageTs: "300.3" },
+		]);
+	});
+
 	test("saved files and channels are not", () => {
 		const items = [
 			saved({ item_type: "file", item_id: "F1" }),

@@ -133,17 +133,22 @@ export function toEyedMessage(
 }
 
 /**
- * One entry of `saved.list`, the undocumented web-client method behind
- * Slack's Later tab. It carries where the item is, not the message itself.
+ * One entry of `todos.list` (or `saved.list`, the web client's twin behind
+ * Slack's Later tab). It carries where the item is, not the message itself.
  */
 export interface SlackSavedItem {
-	/** The channel, for a message. */
+	/** The channel, for a message (`saved.list`). */
 	item_id?: unknown;
 	item_type?: unknown;
+	channel?: unknown;
+	channel_id?: unknown;
 	ts?: unknown;
+	message_ts?: unknown;
+	message?: { channel?: unknown; ts?: unknown };
 	state?: unknown;
 	todo_state?: unknown;
 	is_archived?: unknown;
+	is_completed?: unknown;
 	date_completed?: unknown;
 }
 
@@ -153,24 +158,38 @@ export interface SavedMessageRef {
 	messageTs: string;
 }
 
+/** The first non-empty string among `values`. */
+function firstString(...values: unknown[]): string | null {
+	for (const value of values)
+		if (typeof value === "string" && value) return value;
+	return null;
+}
+
 /**
- * The messages still open in my Later list. Saved files and channels are not
- * queue items, and neither is anything completed or archived. The response is
- * undocumented, so every field is checked rather than trusted.
+ * The messages still open in my Slack to-dos ("Add to-do", the Later list).
+ * Files and channels are not queue items, and neither is anything completed
+ * or archived. `todos.list` is undocumented, so every field is checked rather
+ * than trusted, and the field names `saved.list` uses are accepted too.
  */
 export function pickSavedMessages(items: unknown[]): SavedMessageRef[] {
 	const picked = new Map<string, SavedMessageRef>();
 	for (const raw of items) {
 		if (!raw || typeof raw !== "object") continue;
 		const item = raw as SlackSavedItem;
-		const { item_id: channelId, ts: messageTs } = item;
-		if (item.item_type !== "message") continue;
-		if (typeof channelId !== "string" || !channelId) continue;
-		if (typeof messageTs !== "string" || !messageTs) continue;
+		if (item.item_type !== undefined && item.item_type !== "message") continue;
+		const channelId = firstString(
+			item.channel,
+			item.channel_id,
+			item.message?.channel,
+			item.item_id,
+		);
+		const messageTs = firstString(item.ts, item.message_ts, item.message?.ts);
+		if (!channelId || !messageTs) continue;
 		const closed =
 			item.state === "completed" ||
 			item.todo_state === "completed" ||
 			item.is_archived === true ||
+			item.is_completed === true ||
 			(typeof item.date_completed === "number" && item.date_completed > 0);
 		if (closed) continue;
 		const id = reactionId(channelId, messageTs);

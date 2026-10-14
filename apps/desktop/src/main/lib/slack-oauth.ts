@@ -40,6 +40,8 @@ const USER_SCOPES = [
 	"mpim:history",
 	// Screenshots and files in a thread a session reads (see /file).
 	"files:read",
+	// Messages I "Add to-do" on in Slack join the queue (todos.list).
+	"todos:read",
 ];
 
 /** A consent screen the person abandons shouldn't be resumable forever. */

@@ -44,9 +44,9 @@ import {
  * (`xoxp-…`, scope `reactions:read`) - a bot token only sees the bot's own
  * reactions. Set it in Settings → Connections.
  *
- * Messages in my Slack Later list ("Save for later") join the same queue,
- * read from `saved.list`: an undocumented web-client method that may refuse
- * this token or vanish. Any failure there just leaves saved items out of
+ * Messages I give a Slack to-do ("Add to-do" on a message) join the same
+ * queue, read from `todos.list` under `todos:read`: an undocumented method
+ * that may change or vanish. Any failure there just leaves to-dos out of
  * that sync.
  *
  * Slack is the source of the feed, not of the state: rows persist locally, so
@@ -469,7 +469,7 @@ const VERIFY_PER_SYNC = 8;
 
 /** New saved messages fetched per sync - each is one `reactions.get`. */
 const SAVED_LOOKUPS_PER_SYNC = 8;
-/** `saved.list` pages read per sync, at the web client's own page size. */
+/** `todos.list` pages read per sync. */
 const SAVED_PAGE_SIZE = 15;
 const SAVED_MAX_PAGES = 20;
 
@@ -478,11 +478,12 @@ const SAVED_MAX_PAGES = 20;
  * left. Skipped until restart so they can't starve the per-sync budget.
  */
 const savedLookupFailed = new Set<string>();
-/** The last `saved.list` failure, so a poll that repeats it stays quiet. */
+/** The last `todos.list` failure, so a poll that repeats it stays quiet. */
 let savedListProblem: string | null = null;
+let loggedTodoShape = false;
 
 /**
- * My open Later items, or null when `saved.list` won't answer this token.
+ * My open Slack to-dos, or null when `todos.list` won't answer this token.
  * `complete` is false when the list ran past the page cap - then a missing
  * row says nothing, and the caller must not retire on it.
  */
@@ -495,21 +496,29 @@ async function fetchSavedMessages(
 		for (let page = 0; page < SAVED_MAX_PAGES; page++) {
 			const res = await slackApi<
 				SlackResponse & {
+					todos?: unknown;
+					items?: unknown;
 					saved_items?: unknown;
 					response_metadata?: { next_cursor?: unknown };
 				}
 			>(
-				"saved.list",
-				{
-					filter: "saved",
-					limit: String(SAVED_PAGE_SIZE),
-					...(cursor ? { cursor } : {}),
-				},
+				"todos.list",
+				{ limit: String(SAVED_PAGE_SIZE), ...(cursor ? { cursor } : {}) },
 				token,
 			);
-			if (!Array.isArray(res.saved_items))
-				throw new Error("Slack saved.list: no saved_items in the response");
-			items.push(...res.saved_items);
+			// ponytail: the response is undocumented, so take whichever list it
+			// has and log its first item once; tighten the parser once seen.
+			const list = [res.todos, res.items, res.saved_items].find(Array.isArray);
+			if (!list)
+				throw new Error("Slack todos.list: no item list in the response");
+			if (!loggedTodoShape && list.length) {
+				loggedTodoShape = true;
+				console.warn(
+					"[slack] todos.list item:",
+					JSON.stringify(list[0]).slice(0, 500),
+				);
+			}
+			items.push(...list);
 			const next = res.response_metadata?.next_cursor;
 			cursor = typeof next === "string" ? next : "";
 			if (!cursor) {
@@ -521,13 +530,13 @@ async function fetchSavedMessages(
 	} catch (error) {
 		const problem = error instanceof Error ? error.message : String(error);
 		if (problem !== savedListProblem)
-			console.warn("[slack] saved items unavailable:", problem);
+			console.warn("[slack] to-dos unavailable:", problem);
 		savedListProblem = problem;
 		return null;
 	}
 }
 
-/** The saved message itself - `saved.list` only says where it is. */
+/** The to-do's message itself - `todos.list` only says where it is. */
 async function savedMessage(
 	ref: SavedMessageRef,
 	token: string,

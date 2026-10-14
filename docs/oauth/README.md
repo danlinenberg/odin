@@ -52,7 +52,8 @@ manifest*, then paste:
         "groups:history",
         "im:history",
         "mpim:history",
-        "files:read"
+        "files:read",
+        "todos:read"
       ]
     }
   },
