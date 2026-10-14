@@ -1080,6 +1080,13 @@ export function isApprovalItem(item: string): boolean {
 	return /^\W*approve\b/i.test(item);
 }
 
+/** The latest reply that has an ACTION ITEMS block - the only one whose card shows. */
+export function lastActionsId(items: Item[]): string | undefined {
+	return items.findLast(
+		(item) => item.kind === "text" && !!splitActionItems(item.text).actions,
+	)?.id;
+}
+
 /** The numbered or bulleted lines of an ACTION ITEMS block; [] for "none". */
 export const actionItemList = actionItemLines;
 
@@ -1318,6 +1325,7 @@ const ItemView = memo(
 		onDo,
 		onSend,
 		workspaceId,
+		hideActions = false,
 	}: {
 		item: Item;
 		refs: Map<string, string>;
@@ -1327,6 +1335,8 @@ const ItemView = memo(
 		onDo?: DoItem;
 		/** Types a message into the session - the AWS sign-in retries with it. */
 		onSend?: (text: string) => void;
+		/** An older reply's, or one still being followed by output: only the final card shows. */
+		hideActions?: boolean;
 	}) {
 		if (item.kind === "tool") return <ToolRow item={item} />;
 		if (item.kind === "compact") return <CompactRow item={item} />;
@@ -1349,7 +1359,7 @@ const ItemView = memo(
 						className={COMPACT_MARKDOWN}
 					/>
 				)}
-				{actions && <ActionItems text={actions} onDo={onDo} />}
+				{actions && !hideActions && <ActionItems text={actions} onDo={onDo} />}
 				{onSend && needsAwsSsoLogin(item.text) && (
 					<AwsSsoLogin onSend={onSend} />
 				)}
@@ -1361,7 +1371,8 @@ const ItemView = memo(
 		prev.refsKey === next.refsKey &&
 		prev.workspaceId === next.workspaceId &&
 		prev.onDo === next.onDo &&
-		prev.onSend === next.onSend,
+		prev.onSend === next.onSend &&
+		prev.hideActions === next.hideActions,
 );
 
 /**
@@ -1555,6 +1566,9 @@ export function ChatView({
 		[sendToClaude],
 	);
 	const lastTextId = items.findLast((item) => item.kind === "text")?.id;
+	// Agents repeat their ACTION ITEMS in every reply; show one card, on the
+	// latest reply that has it, once the agent has stopped.
+	const actionsId = working ? undefined : lastActionsId(items);
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const pinnedRef = useRef(true);
 	// What was already there when the drawer opened shows still; only rows
@@ -1745,6 +1759,7 @@ export function ChatView({
 								refsKey={refsKey}
 								workspaceId={workspaceId}
 								onDo={onShowTerminal || onResumeWith ? doItem : undefined}
+								hideActions={segment.id !== actionsId}
 								onSend={
 									// Only the latest reply: an old expired-token error is fixed.
 									(onShowTerminal || onResumeWith) && segment.id === lastTextId

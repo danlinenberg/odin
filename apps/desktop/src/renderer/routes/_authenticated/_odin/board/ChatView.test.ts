@@ -11,6 +11,7 @@ import {
 	isYouOnly,
 	itemOptions,
 	itemReply,
+	lastActionsId,
 	launchAttachments,
 	launchRequest,
 	outputTokens,
@@ -233,6 +234,22 @@ describe("ChatView transcript", () => {
 		);
 		expect(splitActionItems("## Action items\n- a").actions).toBe("- a");
 		expect(splitActionItems("no list here").actions).toBeNull();
+	});
+
+	test("only the latest reply with action items shows its card", () => {
+		const text = (id: string, t: string) => ({
+			kind: "text" as const,
+			id,
+			text: t,
+		});
+		expect(
+			lastActionsId([
+				text("a", "x\nACTION ITEMS:\n1. Merge it"),
+				text("b", "y\nACTION ITEMS:\n1. Merge it"),
+				text("c", "no list here"),
+			]),
+		).toBe("b");
+		expect(lastActionsId([text("a", "no list")])).toBeUndefined();
 	});
 
 	test("action items list one entry per numbered or bulleted line", () => {
