@@ -305,9 +305,13 @@ export async function MainWindow() {
 			if (initialBounds.isMaximized) {
 				window.maximize();
 			}
-			// Smoke runs (scripts/smoke.ts) must not steal focus from the user.
-			if (process.env.ODIN_SMOKE) window.showInactive();
-			else window.show();
+			// Smoke and screenshot runs drive the page over CDP while the user works:
+			// shown (so it paints) but see-through, click-through and unfocused.
+			if (process.env.ODIN_SMOKE) {
+				window.setOpacity(0);
+				window.setIgnoreMouseEvents(true);
+				window.showInactive();
+			} else window.show();
 			initialized = true;
 			hasCompletedFirstLoad = true;
 		}

@@ -138,6 +138,8 @@ function findDeepLinkInArgv(argv: string[]): string | undefined {
 }
 
 export function focusMainWindow(): void {
+	// A smoke or screenshot run never takes focus from the user (windows/main.ts).
+	if (process.env.ODIN_SMOKE) return;
 	const windows = BrowserWindow.getAllWindows();
 	if (windows.length > 0) {
 		const mainWindow = windows[0];
