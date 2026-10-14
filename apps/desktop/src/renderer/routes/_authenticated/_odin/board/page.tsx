@@ -439,40 +439,6 @@ function withCode(
 }
 
 /**
- * What the session's latest reply wants from you, as its brief judged it:
- * "Needs you" when it asks you to decide, answer, approve, run or check
- * something, "FYI" when it only reports.
- */
-function UrgencyMark({
-	urgency,
-	className,
-}: {
-	urgency: BriefUrgency | undefined;
-	className?: string;
-}) {
-	if (!urgency) return null;
-	const needsYou = urgency === "needs-you";
-	return (
-		<span
-			title={
-				needsYou
-					? "The latest reply asks something of you"
-					: "The latest reply is for your information"
-			}
-			className={cn(
-				"inline-block shrink-0 rounded-full px-1.5 py-px text-[9.5px] font-semibold uppercase leading-[14px] tracking-[.04em]",
-				needsYou
-					? "bg-attention/15 text-attention"
-					: "bg-secondary text-muted-foreground",
-				className,
-			)}
-		>
-			{needsYou ? "Needs you" : "FYI"}
-		</span>
-	);
-}
-
-/**
  * Catch up's card: what the issue was, what's yours to do, where it stands
  * and what we did, and the PRs, tickets and threads it's about - nothing else.
  * The conversation and the brief panel are one click away, not on screen:
@@ -4196,14 +4162,6 @@ function DevBoardPage() {
 																			itemKey={`session:${card.pane.id}`}
 																		/>
 																		{cardTitle(card)}
-																		{card.status !== "working" && (
-																			<UrgencyMark
-																				urgency={urgencyByPane.get(
-																					card.pane.id,
-																				)}
-																				className="ml-1.5 align-[1px]"
-																			/>
-																		)}
 																	</div>
 																	<button
 																		type="button"
@@ -4930,13 +4888,6 @@ function DevBoardPage() {
 																		<span className="truncate">
 																			{cardTitle(card)}
 																		</span>
-																		{card.status !== "working" && (
-																			<UrgencyMark
-																				urgency={urgencyByPane.get(
-																					card.pane.id,
-																				)}
-																			/>
-																		)}
 																	</span>
 																	{switchStatus(card) && (
 																		<span className="truncate text-[10.5px] font-normal text-faint-foreground">
