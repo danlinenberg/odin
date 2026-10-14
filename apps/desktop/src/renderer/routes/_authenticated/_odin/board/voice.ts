@@ -14,27 +14,45 @@ const RULE_RE = /^\s*[─━═]{3,}\s*$/;
 // The level meter Claude draws after the cursor while it records.
 const METER_RE = /[▁▂▃▄▅▆▇█]+\s*$/;
 
+// Claude's grey hint in an empty input box: `Try "fix lint errors"`.
+const HINT_RE = /^Try ".*"$/;
+
+/** Where Claude's input box starts: its `❯` line, below a rule. */
+function inputLine(lines: string[]): number {
+	for (let i = lines.length - 1; i > 0; i--)
+		if (
+			(lines[i] ?? "").trimStart().startsWith("❯") &&
+			RULE_RE.test(lines[i - 1] ?? "")
+		)
+			return i;
+	return -1;
+}
+
 /** The text in Claude's input box (the `❯` line between the two rules). */
 export function promptText(screen: string): string | null {
 	const lines = screen.split("\n");
-	for (let i = lines.length - 1; i > 0; i--) {
-		const line = lines[i] ?? "";
-		if (!line.trimStart().startsWith("❯") || !RULE_RE.test(lines[i - 1] ?? ""))
-			continue;
-		const parts = [line.trimStart().slice(1).trim()];
-		for (let j = i + 1; j < lines.length && !RULE_RE.test(lines[j] ?? ""); j++)
-			parts.push((lines[j] ?? "").trim());
-		return parts.join(" ").replace(METER_RE, "").trim();
-	}
-	return null;
+	const i = inputLine(lines);
+	if (i < 0) return null;
+	const parts = [(lines[i] ?? "").trimStart().slice(1).trim()];
+	for (let j = i + 1; j < lines.length && !RULE_RE.test(lines[j] ?? ""); j++)
+		parts.push((lines[j] ?? "").trim());
+	const text = parts.join(" ").replace(METER_RE, "").trim();
+	return HINT_RE.test(text) ? "" : text;
 }
 
 export type VoiceState = "recording" | "processing" | "idle";
 
+/**
+ * Claude's voice state, read from its input box and the footer under it only:
+ * the conversation above can quote "Voice: processing" or "listening…" too.
+ */
 export function voiceState(screen: string): VoiceState {
-	if (/Voice: processing/.test(screen)) return "processing";
-	if (/keep holding|listening…|listening\.\.\./.test(screen))
-		return "recording";
+	const lines = screen.split("\n");
+	const i = inputLine(lines);
+	if (i < 0) return "idle";
+	const box = lines.slice(i - 1).join("\n");
+	if (/Voice: processing/.test(box)) return "processing";
+	if (/keep holding|listening…|listening\.\.\./.test(box)) return "recording";
 	return "idle";
 }
 

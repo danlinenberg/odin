@@ -23,6 +23,11 @@ import { electronTrpc } from "renderer/lib/electron-trpc";
 import { shellEscapePaths } from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/utils";
 import { draftFor, useChatDrafts } from "renderer/stores/chat-drafts";
 import { useCompacting } from "renderer/stores/compacting";
+import {
+	isDismissed,
+	useDismissedActions,
+	withDismissals,
+} from "renderer/stores/dismissed-actions";
 import { openUrl } from "renderer/stores/in-app-browser";
 import { useSessionView } from "renderer/stores/session-view";
 import {
@@ -1270,11 +1275,14 @@ function ActionItemRow({
 	item,
 	number,
 	onDo,
+	onDismiss,
 	buttonColumn,
 }: {
 	item: string;
 	number: number;
 	onDo: DoItem;
+	/** Hides the item now and in later replies; set when the session has a pane. */
+	onDismiss?: () => void;
 	/** Some item in the list has a button - line this one's number up with it. */
 	buttonColumn: boolean;
 }) {
@@ -1291,10 +1299,10 @@ function ActionItemRow({
 	return (
 		<li
 			className={cn(
-				"grid grid-cols-[1rem_minmax(0,1fr)] items-start gap-2",
+				"group grid grid-cols-[1rem_minmax(0,1fr)_auto] items-start gap-2",
 				// No button column: number + text only, or the text lands in the 1rem cell.
 				buttonColumn &&
-					"grid-cols-[64px_1rem_minmax(0,1fr)] @max-md:grid-cols-[1rem_minmax(0,1fr)]",
+					"grid-cols-[64px_1rem_minmax(0,1fr)_auto] @max-md:grid-cols-[1rem_minmax(0,1fr)_auto]",
 			)}
 		>
 			{/* The button leads the row - you scan for it first. Too narrow (zoomed in), it drops under the text so the text keeps the width. */}
@@ -1357,6 +1365,19 @@ function ActionItemRow({
 					</div>
 				)}
 			</div>
+			{onDismiss ? (
+				<button
+					type="button"
+					title="Remove this item - Claude stops listing it"
+					aria-label="Remove this item"
+					onClick={onDismiss}
+					className="px-1 text-[13px] leading-none text-muted-foreground/50 opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+				>
+					×
+				</button>
+			) : (
+				<span />
+			)}
 		</li>
 	);
 }
@@ -1372,20 +1393,30 @@ function ActionItemRow({
 function ActionItems({
 	text,
 	onDo,
+	paneId,
 	tldr,
 	full = false,
 	onToggle,
 }: {
 	text: string;
 	onDo?: DoItem;
+	/** Where dismissed items are kept; no X without it. */
+	paneId?: string;
 	/** The latest reply's TL;DR, which leads this card instead of a box of its own. */
 	tldr?: Tldr | null;
 	full?: boolean;
 	onToggle?: () => void;
 }) {
 	// text arrives linkified from ItemView.
-	const items = onDo ? actionItemList(text) : [];
-	const buttonColumn = !items.every(isYouOnly);
+	const dismissed = useDismissedActions(
+		(s) => s.panes.find((pane) => pane.paneId === paneId)?.items,
+	);
+	const dismiss = useDismissedActions((s) => s.dismiss);
+	// Numbered as Claude wrote them, so "action item 3" still means its 3.
+	const items = (onDo ? actionItemList(text) : [])
+		.map((item, index) => ({ item, number: index + 1 }))
+		.filter(({ item }) => !isDismissed(dismissed ?? [], item));
+	const buttonColumn = !items.every(({ item }) => isYouOnly(item));
 	return (
 		<div className="@container mt-2 rounded-xl border border-attention/35 bg-attention/[0.07] px-4 py-3">
 			<div className="mb-1.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[.08em] text-attention">
@@ -1405,15 +1436,17 @@ function ActionItems({
 					<TldrText text={tldr.last} />
 				</div>
 			)}
-			{onDo && items.length > 0 ? (
+			{onDo && items.length === 0 && dismissed?.length ? (
+				<div className="text-[13px] text-muted-foreground">None left.</div>
+			) : onDo && items.length > 0 ? (
 				<ol className="flex flex-col gap-1">
-					{items.map((item, index) => (
+					{items.map(({ item, number }) => (
 						<ActionItemRow
-							// biome-ignore lint/suspicious/noArrayIndexKey: the list is fixed once written
-							key={index}
+							key={number}
 							item={item}
-							number={index + 1}
+							number={number}
 							onDo={onDo}
+							onDismiss={paneId ? () => dismiss(paneId, item) : undefined}
 							buttonColumn={buttonColumn}
 						/>
 					))}
@@ -1611,12 +1644,14 @@ const ItemView = memo(
 		onSend,
 		onRun,
 		workspaceId,
+		paneId,
 		hideActions = false,
 		tldr,
 	}: {
 		item: Item;
 		refs: Map<string, string>;
 		workspaceId: string;
+		paneId?: string;
 		/** Changes only when a new ref appears - the memo's cue to re-link. */
 		refsKey: string;
 		onDo?: DoItem;
@@ -1664,6 +1699,7 @@ const ItemView = memo(
 					<ActionItems
 						text={actions}
 						onDo={onDo}
+						paneId={paneId}
 						tldr={placement === "action-items" ? tldr : null}
 						full={full}
 						onToggle={toggleFull}
@@ -1683,6 +1719,7 @@ const ItemView = memo(
 		prev.item === next.item &&
 		prev.refsKey === next.refsKey &&
 		prev.workspaceId === next.workspaceId &&
+		prev.paneId === next.paneId &&
 		prev.onDo === next.onDo &&
 		prev.onSend === next.onSend &&
 		prev.onRun === next.onRun &&
@@ -1876,7 +1913,8 @@ export function ChatView({
 	const onResumeRef = useRef(onResumeWith);
 	onResumeRef.current = onResumeWith;
 	const sendToClaude = useCallback(
-		(text: string) => {
+		(message: string) => {
+			const text = withDismissals(paneId, message);
 			if (onResumeRef.current) {
 				pinnedRef.current = true;
 				onResumeRef.current(text);
@@ -2128,6 +2166,7 @@ export function ChatView({
 								refs={refs}
 								refsKey={refsKey}
 								workspaceId={workspaceId}
+								paneId={paneId}
 								onDo={onShowTerminal || onResumeWith ? doItem : undefined}
 								hideActions={segment.id !== actionsId}
 								tldr={segment.id === lastTextId ? tldr : null}
@@ -2511,7 +2550,8 @@ function Composer({
 		const body = draft.trim();
 		const sending = bash ? [] : attached;
 		if (!body && sending.length === 0) return;
-		const text = bash ? `!${body}` : body;
+		// Not in bash mode: the note would run as part of the command.
+		const text = bash ? `!${body}` : withDismissals(paneId, body);
 		const paths = sending.map((item) => item.path);
 		setDraft("");
 		// Now, not via the effect: sending can remount this box (a resume, a

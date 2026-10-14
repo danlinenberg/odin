@@ -38,3 +38,20 @@ describe("voiceState", () => {
 		);
 	});
 });
+
+describe("voice state reads only the input box", () => {
+	it("ignores voice words quoted in the conversation above", () => {
+		const talk = `⏺ It shows "Voice: processing…" and then "keep holding…".\n${screen("", "? for shortcuts")}`;
+		expect(voiceState(talk)).toBe("idle");
+		expect(
+			voiceState(`⏺ listening… is quoted\n${screen("", "listening…")}`),
+		).toBe("recording");
+	});
+
+	it("reads Claude's grey hint as an empty box", () => {
+		expect(promptText(screen('Try "fix lint errors"', ""))).toBe("");
+		expect(promptText(screen("Try the other one", ""))).toBe(
+			"Try the other one",
+		);
+	});
+});
