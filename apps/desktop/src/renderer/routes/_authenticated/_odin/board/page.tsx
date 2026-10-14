@@ -2174,6 +2174,26 @@ function DevBoardPage() {
 						: column,
 		[mergeReadyPaneIds, ciChecksByPane, briefAsksPaneIds],
 	);
+	// A reload paints cards before the daemon poll, transcripts and PR states
+	// answer, so they hop columns for a second. Hold a spinner until those
+	// first answers land, then never again. A disabled query (no PR urls)
+	// counts as answered. ponytail: 4s cap so a hung GitHub call can't blank
+	// the board.
+	const isAnswered = (query: { isFetched: boolean; fetchStatus: string }) =>
+		query.isFetched || query.fetchStatus === "idle";
+	const firstAnswersIn =
+		!isProfileLoading &&
+		daemonSessions !== undefined &&
+		[...loopQueries, ...mergeTranscripts, ...mergeStateQueries].every(
+			isAnswered,
+		);
+	const [isBoardSettled, setIsBoardSettled] = useState(false);
+	useEffect(() => {
+		if (isBoardSettled) return;
+		if (firstAnswersIn) return setIsBoardSettled(true);
+		const timer = setTimeout(() => setIsBoardSettled(true), 4_000);
+		return () => clearTimeout(timer);
+	}, [firstAnswersIn, isBoardSettled]);
 	/**
 	 * Live Claude that's been up a while. Continue is for nudging a session
 	 * that just came back (Resume, app/daemon restart) and is sitting idle;
@@ -4187,11 +4207,18 @@ function DevBoardPage() {
 										!canCatchUp && "ml-auto",
 									)}
 								>
-									{cards.length}
+									{isBoardSettled ? cards.length : "-"}
 								</span>
 							</div>
 							<div className="flex flex-col gap-2 overflow-y-auto px-2 pt-0.5 pb-2.5">
-								{cards.length === 0 ? (
+								{!isBoardSettled ? (
+									<div className="flex justify-center py-6">
+										<output
+											aria-label="Loading sessions"
+											className="size-[14px] animate-spin rounded-full border-2 border-muted-foreground border-t-transparent"
+										/>
+									</div>
+								) : cards.length === 0 ? (
 									<div className="px-2 py-6 text-center text-xs text-muted-foreground">
 										Nothing here
 									</div>
