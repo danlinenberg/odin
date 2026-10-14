@@ -4119,7 +4119,7 @@ function DevBoardPage() {
 													</div>
 												)}
 												{group.map((card) => (
-													<HoverCard key={card.pane.id} openDelay={350}>
+													<HoverCard key={card.pane.id} openDelay={1350}>
 														<HoverCardTrigger asChild>
 															{/* biome-ignore lint/a11y/useSemanticElements: a real <button> can't nest the reply <input>, so the card is a div with button semantics */}
 															<div
@@ -4866,7 +4866,7 @@ function DevBoardPage() {
 															{PANE_STATUS[card.status].label}
 														</div>
 													))}
-												<HoverCard openDelay={350}>
+												<HoverCard openDelay={1350}>
 													<HoverCardTrigger asChild>
 														<button
 															type="button"
