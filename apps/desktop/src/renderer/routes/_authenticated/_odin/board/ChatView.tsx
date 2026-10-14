@@ -1300,6 +1300,47 @@ function ActionItems({ text, onDo }: { text: string; onDo?: DoItem }) {
 	);
 }
 
+/** The `! command` blocks Claude hands you to run in the session, without the `!`. */
+export function bangCommands(text: string): string[] {
+	return [...text.matchAll(/```[^\n]*\n\s*!([\s\S]*?)\n?```/g)]
+		.map((match) => (match[1] ?? "").trim())
+		.filter(Boolean);
+}
+
+/** Runs a `! command` in Claude's session, where its output comes back to Claude. */
+function RunCommand({
+	command,
+	onRun,
+}: {
+	command: string;
+	onRun: (command: string) => Promise<void>;
+}) {
+	const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
+	return (
+		<button
+			type="button"
+			disabled={state !== "idle"}
+			onClick={() => {
+				setState("sending");
+				onRun(command).then(
+					() => setState("sent"),
+					(error) => {
+						setState("idle");
+						toast.error(error instanceof Error ? error.message : String(error));
+					},
+				);
+			}}
+			title={`Run in this session: ! ${command}`}
+			className={cn(ACTION_BUTTON, "mt-2 flex max-w-full items-center gap-1.5")}
+		>
+			<LuSquareTerminal className="size-3.5 shrink-0" />
+			<span className="truncate font-mono">
+				{state === "sent" ? "Sent" : "Run"} ! {command.split("\n")[0]}
+			</span>
+		</button>
+	);
+}
+
 /** Claude on Bedrock stops on an expired AWS SSO token and says to run this. */
 export function needsAwsSsoLogin(text: string): boolean {
 	return /run 'aws sso login'/i.test(text);
@@ -1335,6 +1376,7 @@ const ItemView = memo(
 		refs,
 		onDo,
 		onSend,
+		onRun,
 		workspaceId,
 		hideActions = false,
 	}: {
@@ -1346,6 +1388,8 @@ const ItemView = memo(
 		onDo?: DoItem;
 		/** Types a message into the session - the AWS sign-in retries with it. */
 		onSend?: (text: string) => void;
+		/** Runs a `! command` in the live session - set only while its PTY is up. */
+		onRun?: (command: string) => Promise<void>;
 		/** An older reply's, or one still being followed by output: only the final card shows. */
 		hideActions?: boolean;
 	}) {
@@ -1374,6 +1418,10 @@ const ItemView = memo(
 				{onSend && needsAwsSsoLogin(item.text) && (
 					<AwsSsoLogin onSend={onSend} />
 				)}
+				{onRun &&
+					bangCommands(item.text).map((command) => (
+						<RunCommand key={command} command={command} onRun={onRun} />
+					))}
 			</div>
 		);
 	},
@@ -1383,6 +1431,7 @@ const ItemView = memo(
 		prev.workspaceId === next.workspaceId &&
 		prev.onDo === next.onDo &&
 		prev.onSend === next.onSend &&
+		prev.onRun === next.onRun &&
 		prev.hideActions === next.hideActions,
 );
 
@@ -1561,6 +1610,15 @@ export function ChatView({
 			void typeIntoClaude(write.mutateAsync, paneId, text).catch((error) =>
 				toast.error(error instanceof Error ? error.message : String(error)),
 			);
+		},
+		[paneId, write.mutateAsync],
+	);
+	// "!" alone first: it switches Claude's prompt to bash mode, which a paste can't.
+	const runInClaude = useCallback(
+		async (command: string) => {
+			await write.mutateAsync({ paneId, data: "!" });
+			await new Promise((resolve) => setTimeout(resolve, 50));
+			await typeIntoClaude(write.mutateAsync, paneId, command);
 		},
 		[paneId, write.mutateAsync],
 	);
@@ -1771,6 +1829,10 @@ export function ChatView({
 								workspaceId={workspaceId}
 								onDo={onShowTerminal || onResumeWith ? doItem : undefined}
 								hideActions={segment.id !== actionsId}
+								onRun={
+									// Only a live PTY runs a ! command; a resume or the raven's send can't.
+									onShowTerminal && !onSend ? runInClaude : undefined
+								}
 								onSend={
 									// Only the latest reply: an old expired-token error is fixed.
 									(onShowTerminal || onResumeWith) && segment.id === lastTextId
