@@ -99,6 +99,7 @@ const EMULATOR_WRITE_QUEUE_LOW_WATERMARK_BYTES = 250_000;
  * buffered writes flush immediately (same behavior as before this feature).
  */
 const SHELL_READY_TIMEOUT_MS = 15_000;
+const BRACKETED_PASTE_START = "\x1b[200~";
 
 /**
  * Shell readiness lifecycle:
@@ -902,6 +903,12 @@ export class Session {
 	 * prompt. The headless emulator answers those queries directly (see
 	 * constructor), so dropping the renderer's duplicate is safe.
 	 *
+	 * A bracketed paste (`\x1b[200~`) also starts with ESC but is input, not a
+	 * reply: Odin sends every multi-line message to Claude that way (a diff
+	 * review, a chat message), and an agent session's shell can sit "pending"
+	 * for the whole 15s timeout. Dropping it there lost the message while the
+	 * Enter after it still went through.
+	 *
 	 * All other data - user keystrokes and preset commands alike - passes
 	 * through immediately. Buffering here previously froze workspaces when
 	 * shell init commands (e.g. fnm's `use-on-cd` hook) opened an interactive
@@ -911,7 +918,11 @@ export class Session {
 		if (!this.subprocess || !this.subprocessReady) {
 			throw new Error("PTY not spawned");
 		}
-		if (this.shellReadyState === "pending" && data.startsWith("\x1b")) {
+		if (
+			this.shellReadyState === "pending" &&
+			data.startsWith("\x1b") &&
+			!data.startsWith(BRACKETED_PASTE_START)
+		) {
 			return;
 		}
 		this.sendWriteToSubprocess(data);

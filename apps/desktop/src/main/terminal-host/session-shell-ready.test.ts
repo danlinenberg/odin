@@ -178,6 +178,19 @@ describe("Session shell-ready: write pass-through", () => {
 		expect(getWrittenData(proc)).toEqual(["claude\n"]);
 	});
 
+	it("passes a bracketed paste through during pending state", () => {
+		const { session, proc } = createTestSession("/bin/zsh");
+		spawnAndReady(session, proc);
+
+		// A multi-line message (a diff review) sent in the session's first
+		// seconds: the paste and the Enter after it must both arrive.
+		const paste = "\x1b[200~Review comments\n\n1. a.ts:3\x1b[201~";
+		session.write(paste);
+		session.write("\r");
+
+		expect(getWrittenData(proc)).toEqual([paste, "\r"]);
+	});
+
 	it("forwards escape sequences once shell is ready", () => {
 		const { session, proc } = createTestSession("/bin/zsh");
 		spawnAndReady(session, proc);
