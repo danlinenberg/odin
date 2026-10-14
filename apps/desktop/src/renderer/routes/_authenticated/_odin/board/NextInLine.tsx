@@ -210,6 +210,27 @@ function useNextInLineRows() {
 }
 
 /**
+ * Tonight's picks still waiting, as a moon and a count on the board's Next in
+ * line toggle - so a shut column still says the Night Agent has work queued.
+ * Stale picks (started, done, gone) don't count, same as the column.
+ */
+export function TonightCount() {
+	const picked = useNextInLinePrompt((s) => s.offHours.picked);
+	const { waiting } = useNextInLineQueue(true);
+	const count = waiting.filter((item) => picked.includes(item.key)).length;
+	if (!count) return null;
+	return (
+		<span
+			title={`${count} picked for tonight - the Night Agent starts them first`}
+			className="flex items-center gap-0.5 text-primary"
+		>
+			<LuMoon className="size-3" aria-hidden />
+			{count}
+		</span>
+	);
+}
+
+/**
  * Next in line as the column shows it: waiting rows in the model's order (or
  * All tasks order), due ones pinned on top. Shared by the column and the
  * Night Agent runner, so the night works through exactly the list you see.

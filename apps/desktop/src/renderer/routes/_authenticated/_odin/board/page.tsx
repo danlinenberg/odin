@@ -160,7 +160,7 @@ import {
 } from "./brief";
 import { ChatView, interruptClaude } from "./ChatView";
 import { DiffView } from "./DiffView";
-import { BOARD_COLUMN_MIN_W, NextInLine } from "./NextInLine";
+import { BOARD_COLUMN_MIN_W, NextInLine, TonightCount } from "./NextInLine";
 import { NightAgentLive } from "./NightAgentLive";
 import { HoverBrief, MyTodos, SessionBrief } from "./SessionBrief";
 import {
@@ -4073,6 +4073,7 @@ function DevBoardPage() {
 						<LuEyeOff className="size-3.5" aria-hidden />
 					)}
 					Next in line
+					<TonightCount />
 				</button>
 			</div>
 
