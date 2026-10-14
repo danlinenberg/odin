@@ -1868,6 +1868,19 @@ function DevBoardPage() {
 			),
 		[daemonSessions],
 	);
+	// A just-launched session turns "working" before the next 5s poll lists its
+	// PTY, and "working" with no PTY is exactly what "⏸ died mid-turn" means.
+	// Ask the daemon again the moment one shows up instead of waiting it out.
+	const unlistedWorking = Object.values(panes)
+		.filter((pane) => pane.status === "working" && !alivePaneIds.has(pane.id))
+		.map((pane) => pane.id)
+		.sort()
+		.join(",");
+	// biome-ignore lint/correctness/useExhaustiveDependencies: the id list is the trigger
+	useEffect(() => {
+		if (unlistedWorking && daemonSessions)
+			void utils.terminal.listDaemonSessions.invalidate();
+	}, [unlistedWorking]);
 	// Panes whose PTY is alive but has no agent in it - Ctrl+C out of Claude and
 	// the shell outlives the conversation. Filled in by the screen scan below.
 	const [agentGonePaneIds, setAgentGonePaneIds] = useState<string[]>([]);
