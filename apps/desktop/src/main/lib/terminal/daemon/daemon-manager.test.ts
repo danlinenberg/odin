@@ -256,7 +256,9 @@ mock.module("./history-manager", () => ({
 	},
 }));
 
-const { DaemonTerminalManager } = await import("./daemon-manager");
+const { DaemonTerminalManager, holdKeyWorker } = await import(
+	"./daemon-manager"
+);
 
 describe("DaemonTerminalManager kill tracking", () => {
 	beforeEach(() => {
@@ -648,7 +650,7 @@ describe("DaemonTerminalManager holdKey", () => {
 		mockClient = new MockTerminalHostClient();
 	});
 
-	it("times the repeat in main when the daemon has no holdKey", async () => {
+	it("hands the hold to the worker when the daemon has no holdKey", async () => {
 		const manager = new DaemonTerminalManager();
 		const paneId = "pane-hold-1";
 		(manager as unknown as { sessions: Map<string, SessionInfo> }).sessions.set(
@@ -664,21 +666,29 @@ describe("DaemonTerminalManager holdKey", () => {
 				rows: 24,
 			},
 		);
-		const writes: string[] = [];
-		(
-			mockClient as unknown as { writeNoAck: (p: { data: string }) => void }
-		).writeNoAck = (p) => {
-			writes.push(p.data);
-		};
+		const messages: unknown[] = [];
+		const create = holdKeyWorker.create;
+		holdKeyWorker.create = () => ({
+			postMessage: (message: unknown) => {
+				messages.push(message);
+			},
+		});
+		try {
+			await manager.holdKey({ paneId, data: " ", everyMs: 30 });
+			await manager.releaseKey({ paneId });
+		} finally {
+			holdKeyWorker.create = create;
+		}
+		expect(messages).toEqual([
+			{ type: "hold", sessionId: paneId, data: " ", everyMs: 30 },
+			{ type: "release", sessionId: paneId },
+		]);
+	});
 
-		await manager.holdKey({ paneId, data: " ", everyMs: 10 });
-		await new Promise((resolve) => setTimeout(resolve, 120));
-		const held = writes.length;
-		expect(held).toBeGreaterThanOrEqual(8);
-		expect(new Set(writes)).toEqual(new Set([" "]));
-
-		await manager.releaseKey({ paneId });
-		await new Promise((resolve) => setTimeout(resolve, 60));
-		expect(writes.length).toBe(held);
+	it("refuses a hold on a session that is not alive", async () => {
+		const manager = new DaemonTerminalManager();
+		await expect(
+			manager.holdKey({ paneId: "pane-gone", data: " ", everyMs: 30 }),
+		).rejects.toThrow("not found or not alive");
 	});
 });

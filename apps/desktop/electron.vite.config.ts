@@ -146,6 +146,9 @@ export default defineConfig({
 					"pty-subprocess": resolve("src/main/terminal-host/pty-subprocess.ts"),
 					// Worker-thread entrypoint for heavy git/status computations
 					"git-task-worker": resolve("src/main/git-task-worker.ts"),
+					// Worker thread that holds a key down in a session when the
+					// daemon predates holdKey - its own clock, its own daemon socket
+					"hold-key-worker": resolve("src/main/hold-key-worker.ts"),
 					// Workspace service - local HTTP/tRPC server per org
 					"host-service": resolve("src/main/host-service/index.ts"),
 					// pty-daemon - long-lived per-org Unix-socket server that owns PTYs.

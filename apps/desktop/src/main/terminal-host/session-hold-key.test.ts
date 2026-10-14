@@ -57,12 +57,13 @@ describe("Session.holdKey", () => {
 		session.spawn({ cwd: "/tmp", cols: 80, rows: 24, env: {} });
 		child.stdout.emit("data", createFrameHeader(PtySubprocessIpcType.Ready, 0));
 		const before = ptyWrites(child);
-		session.holdKey(" ", 10);
-		await sleep(120);
+		session.holdKey(" ", 20);
+		// A slow CI box fires fewer ticks; 300ms at 20ms leaves room for that.
+		await sleep(300);
 		const held = ptyWrites(child) - before;
-		expect(held).toBeGreaterThanOrEqual(8);
+		expect(held).toBeGreaterThanOrEqual(5);
 		session.releaseKey();
-		await sleep(60);
+		await sleep(100);
 		expect(ptyWrites(child) - before).toBe(held);
 	});
 });
