@@ -1,5 +1,6 @@
 import { toast } from "@odin/ui/sonner";
 import { useMemo } from "react";
+import { useClaudeCommand } from "renderer/stores/claude-command";
 import { type DoneRow, doneChecker, useDoneStore } from "renderer/stores/done";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import { useReminders } from "../components/Reminders";
@@ -18,13 +19,17 @@ export interface Doable {
 
 /**
  * A session's Done: kill its PTY and take it off the board. Session History
- * resumes it from Claude's transcript on disk.
+ * resumes it from Claude's transcript on disk. Remote Control ends with the
+ * PTY, and the pane leaves the Selected sessions list.
  */
 export function endSession(paneId: string) {
 	const pane = useTabsStore.getState().panes[paneId];
 	useTabsStore.getState().removePane(paneId);
 	usePaneMeta.getState().forgetPane(paneId, pane?.claudeSessionId);
 	useReminders.getState().clear(`session:${paneId}`);
+	useClaudeCommand.setState((s) => ({
+		remotePanes: s.remotePanes.filter((id) => id !== paneId),
+	}));
 }
 
 /**

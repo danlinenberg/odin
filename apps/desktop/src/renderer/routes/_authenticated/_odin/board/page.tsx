@@ -1352,6 +1352,20 @@ function CardHoverContent({
  * The built-in list is closed (shared/odin-tags); the field at the bottom adds
  * your own, and × forgets one - its cards keep it in app-state, just unshown.
  */
+/** The tower a session wears beside its title while Remote Control is on for it. */
+function RemoteMark({ paneId }: { paneId: string }) {
+	const on = useClaudeCommand(
+		(s) => s.remoteControl === "selected" && s.remotePanes.includes(paneId),
+	);
+	if (!on) return null;
+	return (
+		<LuRadioTower
+			title="Remote Control on - follow it in claude.ai/code or the Claude app"
+			className="mr-1 inline size-3.5 align-[-2px] text-primary"
+		/>
+	);
+}
+
 function TagMenu({
 	x,
 	y,
@@ -4250,6 +4264,7 @@ function DevBoardPage() {
 																			itemKey={`session:${card.pane.id}`}
 																		/>
 																		<WatchMark paneId={card.pane.id} />
+																		<RemoteMark paneId={card.pane.id} />
 																		{cardTitle(card)}
 																	</div>
 																	<button
@@ -4994,6 +5009,7 @@ function DevBoardPage() {
 																	<span className="flex min-w-0 items-center gap-1.5">
 																		<span className="truncate">
 																			<WatchMark paneId={card.pane.id} />
+																			<RemoteMark paneId={card.pane.id} />
 																			{cardTitle(card)}
 																		</span>
 																	</span>
