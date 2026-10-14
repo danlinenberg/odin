@@ -110,7 +110,12 @@ import {
 import { PersonChip, personColor } from "../components/PersonChip";
 import { BUTTON, PILL } from "../components/pill";
 import { DueChip, OverdueMark, useReminders } from "../components/Reminders";
-import { sessionThread, useReplyWatch } from "../components/ReplyWatch";
+import {
+	sessionThread,
+	useReplyWatch,
+	WatchMark,
+	WatchPill,
+} from "../components/ReplyWatch";
 import { TranscriptView } from "../components/TranscriptView";
 import { useBacklogReview, useReview } from "../hooks/useBacklogReview";
 import { CROW_TAG } from "../hooks/useCrow";
@@ -4168,6 +4173,7 @@ function DevBoardPage() {
 																		<OverdueMark
 																			itemKey={`session:${card.pane.id}`}
 																		/>
+																		<WatchMark paneId={card.pane.id} />
 																		{cardTitle(card)}
 																	</div>
 																	<button
@@ -4629,6 +4635,7 @@ function DevBoardPage() {
 											{drawerLink.label} ↗
 										</button>
 									)}
+									<WatchPill paneId={drawerCard.pane.id} />
 									{sessionCwd(drawerCard.pane) && (
 										<span
 											title={sessionCwd(drawerCard.pane)}

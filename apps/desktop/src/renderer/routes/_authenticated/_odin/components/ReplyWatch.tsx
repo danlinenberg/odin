@@ -1,8 +1,11 @@
+import { cn } from "@odin/ui/utils";
 import type { ThreadActivity } from "lib/trpc/routers/work";
 import { useEffect, useRef } from "react";
+import { LuBellRing } from "react-icons/lu";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { PILL } from "./pill";
 
 /** A thread you asked to hear about, and the session it belongs to. */
 export interface Watch {
@@ -135,4 +138,45 @@ export function useReplyWatcher(openSession: (paneId: string) => void): void {
 		const id = setInterval(() => void tick(), 5 * 60_000);
 		return () => clearInterval(id);
 	}, []);
+}
+
+/** The thread key this session is watched under, or null. */
+function useWatchedThread(paneId: string): string | null {
+	return useReplyWatch(
+		(s) =>
+			Object.keys(s.watches).find((key) => s.watches[key]?.paneId === paneId) ??
+			null,
+	);
+}
+
+/** The bell a watched session wears beside its title, like ★ on a starred one. */
+export function WatchMark({ paneId }: { paneId: string }) {
+	if (!useWatchedThread(paneId)) return null;
+	return (
+		<LuBellRing
+			title="Pinging you on replies - right-click to stop"
+			className="mr-1 inline size-3.5 align-[-2px] text-primary"
+		/>
+	);
+}
+
+/** The drawer's pill for a watched session; clicking it stops the pings. */
+export function WatchPill({ paneId }: { paneId: string }) {
+	const thread = useWatchedThread(paneId);
+	const toggle = useReplyWatch((s) => s.toggle);
+	if (!thread) return null;
+	return (
+		<button
+			type="button"
+			title="Odin pings you when someone else replies in this thread. Click to stop."
+			onClick={() => toggle(thread, "", paneId)}
+			className={cn(
+				"flex items-center gap-1 rounded-[5px] px-[7px] text-[11px] font-medium",
+				PILL.brand,
+			)}
+		>
+			<LuBellRing className="size-3" aria-hidden />
+			Pinging on replies
+		</button>
+	);
 }
