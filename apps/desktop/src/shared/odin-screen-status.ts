@@ -189,3 +189,16 @@ export function escIsHandledOnScreen(screen: string): boolean {
 		footerOf(screen),
 	);
 }
+
+/**
+ * How many rows of text sit in Claude's input box: the rows between its last
+ * pair of rules, less the "❯" prompt mark. 0 when there's no box on screen.
+ */
+export function inputBoxRows(screen: string): number {
+	const lines = screen.split(/\r\n|\n|\r/);
+	const rules = lines.flatMap((line, i) => (RULE.test(line) ? [i] : []));
+	if (rules.length < 2) return 0;
+	return lines
+		.slice((rules.at(-2) ?? 0) + 1, rules.at(-1))
+		.filter((line) => line.replace(/^\s*❯/, "").trim()).length;
+}

@@ -31,7 +31,7 @@ import {
 	isPreviewableVideoFile,
 } from "shared/file-types";
 import { freshTldr, sameReply, tldrPlacement } from "shared/latest-reply";
-import { odinScreenStatus } from "shared/odin-screen-status";
+import { inputBoxRows, odinScreenStatus } from "shared/odin-screen-status";
 import {
 	insertSkill,
 	matchSkills,
@@ -2313,6 +2313,14 @@ export async function interruptClaude(
 		if (await atPrompt()) return false;
 	}
 	await write({ paneId, data: "\x03" });
+	// Stopped before it answered, Claude puts your message back in its input
+	// box, and the next one sent from here would land after it: "test" then
+	// "test" went in as "testtest". Clear it: Ctrl+U empties a row, Backspace
+	// joins the row above.
+	await new Promise((resolve) => setTimeout(resolve, 500));
+	const { text } = await readScreen({ paneId }).catch(() => ({ text: null }));
+	const rows = text ? inputBoxRows(text) : 0;
+	if (rows > 0) await write({ paneId, data: `${"\x15\x7f".repeat(rows)}\x15` });
 	return true;
 }
 

@@ -604,6 +604,13 @@ describe("interruptClaude", () => {
 	test("at the prompt: no Ctrl+C - it would stop the background agents", async () => {
 		expect(await run([idle, idle])).toEqual({ sent: false, writes: [] });
 	});
+	test("the message Claude put back in its box is cleared", async () => {
+		const restored = `${"─".repeat(20)}\n❯ line one\n  line two\n${"─".repeat(20)}\n  ⏵⏵ bypass permissions on`;
+		expect(await run([busy, restored])).toEqual({
+			sent: true,
+			writes: ["\x03", "\x15\x7f\x15\x7f\x15"],
+		});
+	});
 	test("an unreadable screen still interrupts", async () => {
 		expect(await run([null])).toEqual({ sent: true, writes: ["\x03"] });
 	});
