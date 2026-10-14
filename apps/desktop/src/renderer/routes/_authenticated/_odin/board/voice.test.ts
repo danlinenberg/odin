@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { noSpeech, promptText, voiceState } from "./voice";
+import { noSpeech, promptText, settled, voiceState } from "./voice";
 
 const RULE = "─".repeat(60);
 const screen = (prompt: string, footer: string) => `
@@ -69,5 +69,15 @@ describe("voice on a wide status line", () => {
 		expect(
 			noSpeech(`⏺ "No speech detected." is what it says\n${screen("", "")}`),
 		).toBe(false);
+	});
+});
+
+describe("settled", () => {
+	it("ends on an empty box after Claude heard nothing", () => {
+		expect(settled(true, "", 250)).toBe(true);
+		expect(settled(false, "", 1000)).toBe(false);
+		expect(settled(false, "", 3000)).toBe(true);
+		expect(settled(false, "Please add a test", 500)).toBe(false);
+		expect(settled(false, "Please add a test", 1000)).toBe(true);
 	});
 });

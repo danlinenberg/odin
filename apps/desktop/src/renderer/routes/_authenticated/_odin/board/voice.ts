@@ -73,6 +73,17 @@ const HOLD_MS = 300; // a tap types a space, a hold talks
 const REPEAT_MS = 30; // a held key's repeat rate
 const NO_VOICE_MS = 1500; // no "keep holding" by now: voice is off in Claude
 const DONE_MS = 20_000;
+
+/**
+ * After the release, the box holds Claude's final text once it sat still
+ * `stillMs`. Claude shows "Voice: processing" until it is done, so after that
+ * one quiet read is enough. A wide status line can hide that hint: then wait
+ * longer, and longest for an empty box - when Claude hears nothing it clears
+ * the box and says nothing.
+ */
+export function settled(sawProcessing: boolean, text: string, stillMs: number) {
+	return stillMs >= (sawProcessing ? 0 : text ? 1000 : 3000);
+}
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 type Hold = {
@@ -189,22 +200,24 @@ export function useHoldToTalk({
 			return;
 		}
 		setPhase("processing");
-		// Done when the box holds new text that stopped changing - "Voice:
-		// processing" can be off screen like the other hints, so it can't be
-		// the signal on its own.
 		let text: string | null = null;
 		let last: string | null = null;
+		let since = Date.now();
+		let sawProcessing = false;
 		for (const end = Date.now() + DONE_MS; Date.now() < end; ) {
 			await sleep(250);
 			const screen = await read();
 			if (noSpeech(screen)) break;
-			if (voiceState(screen) !== "idle") continue;
-			const now = promptText(screen);
-			if (now && now !== before && now === last) {
+			const state = voiceState(screen);
+			if (state === "processing") sawProcessing = true;
+			const now = state === "idle" ? promptText(screen) : null;
+			if (now === null || now !== last) {
+				last = now;
+				since = Date.now();
+			} else if (settled(sawProcessing, now, Date.now() - since)) {
 				text = now;
 				break;
 			}
-			last = now;
 		}
 		if (text && text !== before) {
 			// Claude's prompt goes back to empty; the text lives in Odin's box.
@@ -214,6 +227,10 @@ export function useHoldToTalk({
 			// Nothing heard: clear what the hold left in Claude's box (a
 			// dropped hold types its spaces), so the next hold starts clean.
 			await write("\x15");
+			toast("Claude heard nothing", {
+				description:
+					"It records from the Mac's default input. Check System Settings > Sound > Input (a closed MacBook lid mutes its microphone).",
+			});
 		}
 		setPhase("idle");
 		setHeard("");
