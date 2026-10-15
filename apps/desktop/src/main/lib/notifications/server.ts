@@ -143,11 +143,14 @@ app.get("/hook/complete", (req, res) => {
  * it takes POST only and refuses anything a browser sent: browsers stamp an
  * Origin on every cross-site POST, curl never does.
  */
+/** A named Shell's tab label: short and plain. */
+const SHELL_NAME = /^[\w.-]{1,32}$/;
+
 app.post("/shell/run", express.urlencoded({ extended: false }), (req, res) => {
 	if (req.headers.origin) {
 		return res.status(403).send("Not from a browser.\n");
 	}
-	const { paneId, command } = req.body ?? {};
+	const { paneId, command, name } = req.body ?? {};
 	if (
 		typeof paneId !== "string" ||
 		!paneId ||
@@ -156,7 +159,14 @@ app.post("/shell/run", express.urlencoded({ extended: false }), (req, res) => {
 	) {
 		return res.status(400).send("Need paneId and command.\n");
 	}
-	const request: RunInShellRequest = { paneId, command };
+	if (name !== undefined && !SHELL_NAME.test(String(name))) {
+		return res
+			.status(400)
+			.send("A name is 1-32 letters, digits, dots, dashes or underscores.\n");
+	}
+	const request: RunInShellRequest = name
+		? { paneId, command, name: String(name) }
+		: { paneId, command };
 	if (!notificationsEmitter.emit(NOTIFICATION_EVENTS.RUN_IN_SHELL, request)) {
 		return res.status(503).send("Odin's window isn't open.\n");
 	}

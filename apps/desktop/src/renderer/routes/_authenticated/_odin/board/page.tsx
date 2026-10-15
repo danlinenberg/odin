@@ -968,7 +968,9 @@ function useShellPlace(card: BoardCard, shell: Pane) {
 				const pane = panes[session.paneId];
 				if (pane?.odinTaskTitle) return `agent session: ${pane.odinTaskTitle}`;
 				const owner = Object.values(panes).find(
-					(p) => p.odinShellPaneId === session.paneId,
+					(p) =>
+						p.odinShellPaneId === session.paneId ||
+						Object.values(p.odinNamedShells ?? {}).includes(session.paneId),
 				);
 				if (owner?.odinTaskTitle) return `shell of: ${owner.odinTaskTitle}`;
 				return session.busy
@@ -2256,6 +2258,8 @@ function DevBoardPage() {
 	// A plain shell in the session's checkout. Takes the terminal's place for the
 	// same reason the diff does - you go to the shell instead of the session.
 	const [isShellOpen, setIsShellOpen] = useState(false);
+	/** Which of the session's Shells the drawer shows: a name, or null for the main one. */
+	const [shellName, setShellName] = useState<string | null>(null);
 	const chatView = useSessionView((s) => s.chat);
 	const setChatView = useSessionView((s) => s.setChat);
 	// The chat can't answer a TUI menu; this pane's drawer shows the terminal
@@ -2771,8 +2775,16 @@ function DevBoardPage() {
 				.map((session) => session.paneId),
 		);
 		for (const pane of stale) {
-			const shell = pane.odinShellPaneId;
-			if (shell && alivePaneIds.has(shell) && busyShells.has(shell)) continue;
+			const shells = [
+				pane.odinShellPaneId,
+				...Object.values(pane.odinNamedShells ?? {}),
+			];
+			if (
+				shells.some(
+					(shell) => shell && alivePaneIds.has(shell) && busyShells.has(shell),
+				)
+			)
+				continue;
 			const column = withMergeReady(
 				boardColumn(pane.status ?? "idle", true, pane.odinParked ?? false),
 				pane.id,
@@ -3048,6 +3060,11 @@ function DevBoardPage() {
 		const id = panes[card.pane.id]?.odinShellPaneId;
 		return id ? panes[id] : undefined;
 	};
+	/** The session's named Shells that still exist, by name. */
+	const namedShellsOf = (card: BoardCard): [string, Pane][] =>
+		Object.entries(panes[card.pane.id]?.odinNamedShells ?? {}).flatMap(
+			([name, id]) => (panes[id] ? [[name, panes[id]] as [string, Pane]] : []),
+		);
 	/**
 	 * Open a shell where this session is working. The pane is remembered on the
 	 * session, so closing the drawer and coming back reattaches to that shell
@@ -3077,6 +3094,15 @@ function DevBoardPage() {
 			.catch(() => {});
 	};
 	const openShell = async (card: BoardCard) => {
+		// Only named Shells so far: show the first rather than opening an empty one.
+		const named = namedShellsOf(card);
+		if (!shellPaneOf(card) && named.length) {
+			setShellName(named[0][0]);
+			setIsDiffOpen(false);
+			setIsShellOpen(true);
+			return;
+		}
+		setShellName(null);
 		if (!shellPaneOf(card)) {
 			const { paneId } = useTabsStore.getState().addTab(card.workspaceId, {
 				initialCwd: await workDirOf(card),
@@ -3189,7 +3215,13 @@ function DevBoardPage() {
 		return () => import.meta.hot?.send("odin:session-pane", false);
 	}, [drawerOpen]);
 	/** The shell the drawer is currently showing, if any. */
-	const drawerShell = drawerCard ? shellPaneOf(drawerCard) : undefined;
+	const drawerNamedShells = drawerCard ? namedShellsOf(drawerCard) : [];
+	const drawerShell = drawerCard
+		? (shellName &&
+				drawerNamedShells.find(([name]) => name === shellName)?.[1]) ||
+			shellPaneOf(drawerCard) ||
+			drawerNamedShells[0]?.[1]
+		: undefined;
 	/**
 	 * This session's shell is already running. A shell that exists but whose PTY
 	 * died reads as no shell here - you'd be restarting it, not walking into one
@@ -5376,9 +5408,33 @@ function DevBoardPage() {
 										// it spawns on first mount with the session's cwd.
 										<div className="flex min-h-0 flex-1 flex-col bg-background">
 											<div className="flex items-center gap-2 border-b border-border px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[.4px] text-muted-foreground">
-												<span className="rounded bg-primary/15 px-1.5 py-0.5 normal-case tracking-normal text-primary">
-													❯ Shell
-												</span>
+												{drawerNamedShells.length ? (
+													// One tab per Shell: the main one, then each named one an agent ran.
+													[
+														...(shellPaneOf(drawerCard)
+															? [["", shellPaneOf(drawerCard) as Pane] as const]
+															: []),
+														...drawerNamedShells,
+													].map(([name, pane]) => (
+														<button
+															key={pane.id}
+															type="button"
+															onClick={() => setShellName(name || null)}
+															className={cn(
+																"rounded px-1.5 py-0.5 normal-case tracking-normal",
+																pane.id === drawerShell.id
+																	? "bg-primary/15 text-primary"
+																	: "hover:text-foreground",
+															)}
+														>
+															❯ {name || "Shell"}
+														</button>
+													))
+												) : (
+													<span className="rounded bg-primary/15 px-1.5 py-0.5 normal-case tracking-normal text-primary">
+														❯ Shell
+													</span>
+												)}
 												Your terminal - ❯ Shell again goes back to the session
 											</div>
 											<div className="min-h-0 flex-1 p-2">
