@@ -2,6 +2,7 @@ import { odinIcon } from "@odin/ui/icons/preset-icons";
 import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import {
+	isValidElement,
 	memo,
 	type ReactNode,
 	useCallback,
@@ -821,10 +822,56 @@ const ToolGroup = memo(
 	},
 	// The array is rebuilt every render; its rows only change by reference.
 	(prev, next) =>
-		prev.lead === next.lead &&
+		sameLead(prev.lead, next.lead) &&
 		prev.group.length === next.group.length &&
 		prev.group.every((item, i) => item === next.group[i]),
 );
+
+interface ItemViewProps {
+	item: Item;
+	refs: Map<string, string>;
+	workspaceId: string;
+	paneId?: string;
+	/** Changes only when a new ref appears - the memo's cue to re-link. */
+	refsKey: string;
+	onDo?: DoItem;
+	/** Types a message into the session - the AWS sign-in retries with it. */
+	onSend?: (text: string) => void;
+	/** Runs a `! command` in the live session - set only while its PTY is up. */
+	onRun?: (command: string) => Promise<void>;
+	/** An older reply's, or one still being followed by output: only the final card shows. */
+	hideActions?: boolean;
+	/** The latest reply's TL;DR, once the brief has read this very reply. */
+	tldr?: Tldr | null;
+}
+
+function sameItemView(prev: ItemViewProps, next: ItemViewProps): boolean {
+	return (
+		prev.item === next.item &&
+		prev.refsKey === next.refsKey &&
+		prev.workspaceId === next.workspaceId &&
+		prev.paneId === next.paneId &&
+		prev.onDo === next.onDo &&
+		prev.onSend === next.onSend &&
+		prev.onRun === next.onRun &&
+		prev.hideActions === next.hideActions &&
+		prev.tldr?.last === next.tldr?.last &&
+		prev.tldr?.urgency === next.tldr?.urgency &&
+		prev.tldr?.long === next.tldr?.long
+	);
+}
+
+/** A lead is a fresh <ItemView> each render; compare it the way ItemView does. */
+function sameLead(prev: ReactNode, next: ReactNode): boolean {
+	return (
+		prev === next ||
+		(isValidElement(prev) &&
+			isValidElement(next) &&
+			prev.type === ItemView &&
+			next.type === ItemView &&
+			sameItemView(prev.props as ItemViewProps, next.props as ItemViewProps))
+	);
+}
 
 const kTokens = (n: number) => `${Math.round(n / 1000)}k`;
 
@@ -1651,98 +1698,66 @@ function TldrCard({
 	);
 }
 
-const ItemView = memo(
-	function ItemView({
-		item,
-		refs,
-		onDo,
-		onSend,
-		onRun,
-		workspaceId,
-		paneId,
-		hideActions = false,
-		tldr,
-	}: {
-		item: Item;
-		refs: Map<string, string>;
-		workspaceId: string;
-		paneId?: string;
-		/** Changes only when a new ref appears - the memo's cue to re-link. */
-		refsKey: string;
-		onDo?: DoItem;
-		/** Types a message into the session - the AWS sign-in retries with it. */
-		onSend?: (text: string) => void;
-		/** Runs a `! command` in the live session - set only while its PTY is up. */
-		onRun?: (command: string) => Promise<void>;
-		/** An older reply's, or one still being followed by output: only the final card shows. */
-		hideActions?: boolean;
-		/** The latest reply's TL;DR, once the brief has read this very reply. */
-		tldr?: Tldr | null;
-	}) {
-		// A long latest reply opens on its TL;DR; this shows it whole.
-		const [full, setFull] = useState(false);
-		if (item.kind === "tool") return <ToolRow item={item} />;
-		if (item.kind === "compact") return <CompactRow item={item} />;
-		if (item.kind === "user")
-			return (
-				<UserBubble
-					text={item.text}
-					images={item.images}
-					workspaceId={workspaceId}
-				/>
-			);
-		const { body, actions } = splitActionItems(linkify(item.text, refs));
-		const showsActions = !!actions && !hideActions;
-		const placement = tldrPlacement(tldr, showsActions);
-		const toggleFull = () => setFull((value) => !value);
+const ItemView = memo(function ItemView({
+	item,
+	refs,
+	onDo,
+	onSend,
+	onRun,
+	workspaceId,
+	paneId,
+	hideActions = false,
+	tldr,
+}: ItemViewProps) {
+	// A long latest reply opens on its TL;DR; this shows it whole.
+	const [full, setFull] = useState(false);
+	if (item.kind === "tool") return <ToolRow item={item} />;
+	if (item.kind === "compact") return <CompactRow item={item} />;
+	if (item.kind === "user")
 		return (
-			<div className="select-text cursor-text">
-				{body && (
-					<FoldedReply folded={!!tldr?.long && !full}>
-						<MarkdownRenderer
-							content={body}
-							style="default"
-							allowHtml={false}
-							className={COMPACT_MARKDOWN}
-						/>
-					</FoldedReply>
-				)}
-				{placement === "card" && tldr && (
-					<TldrCard tldr={tldr} full={full} onToggle={toggleFull} />
-				)}
-				{showsActions && (
-					<ActionItems
-						text={actions}
-						onDo={onDo}
-						paneId={paneId}
-						tldr={placement === "action-items" ? tldr : null}
-						full={full}
-						onToggle={toggleFull}
-					/>
-				)}
-				{onSend && needsAwsSsoLogin(item.text) && (
-					<AwsSsoLogin onSend={onSend} />
-				)}
-				{onRun &&
-					bangCommands(item.text).map((command) => (
-						<RunCommand key={command} command={command} onRun={onRun} />
-					))}
-			</div>
+			<UserBubble
+				text={item.text}
+				images={item.images}
+				workspaceId={workspaceId}
+			/>
 		);
-	},
-	(prev, next) =>
-		prev.item === next.item &&
-		prev.refsKey === next.refsKey &&
-		prev.workspaceId === next.workspaceId &&
-		prev.paneId === next.paneId &&
-		prev.onDo === next.onDo &&
-		prev.onSend === next.onSend &&
-		prev.onRun === next.onRun &&
-		prev.hideActions === next.hideActions &&
-		prev.tldr?.last === next.tldr?.last &&
-		prev.tldr?.urgency === next.tldr?.urgency &&
-		prev.tldr?.long === next.tldr?.long,
-);
+	const { body, actions } = splitActionItems(linkify(item.text, refs));
+	const showsActions = !!actions && !hideActions;
+	const placement = tldrPlacement(tldr, showsActions);
+	const toggleFull = () => setFull((value) => !value);
+	return (
+		<div className="select-text cursor-text">
+			{body && (
+				<FoldedReply folded={!!tldr?.long && !full}>
+					<MarkdownRenderer
+						content={body}
+						style="default"
+						allowHtml={false}
+						className={COMPACT_MARKDOWN}
+					/>
+				</FoldedReply>
+			)}
+			{placement === "card" && tldr && (
+				<TldrCard tldr={tldr} full={full} onToggle={toggleFull} />
+			)}
+			{showsActions && (
+				<ActionItems
+					text={actions}
+					onDo={onDo}
+					paneId={paneId}
+					tldr={placement === "action-items" ? tldr : null}
+					full={full}
+					onToggle={toggleFull}
+				/>
+			)}
+			{onSend && needsAwsSsoLogin(item.text) && <AwsSsoLogin onSend={onSend} />}
+			{onRun &&
+				bangCommands(item.text).map((command) => (
+					<RunCommand key={command} command={command} onRun={onRun} />
+				))}
+		</div>
+	);
+}, sameItemView);
 
 /**
  * A live session as Claude Code looks in the Claude desktop app: prose,

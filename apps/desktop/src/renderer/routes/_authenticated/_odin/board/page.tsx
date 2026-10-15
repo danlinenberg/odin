@@ -19,6 +19,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import {
 	type CSSProperties,
 	Fragment,
+	memo,
 	useCallback,
 	useEffect,
 	useMemo,
@@ -1682,6 +1683,386 @@ const applyAutoTitles = (titlesBySession: Record<string, string>) => {
 	});
 };
 
+interface CardActions {
+	openDrawer: (card: BoardCard) => void;
+	setDragOverIdle: (over: boolean) => void;
+	setTagMenu: (at: { paneId: string; x: number; y: number }) => void;
+	toggleStar: (paneId: string) => void;
+	markDone: (card: BoardCard) => void;
+	remindMe: (card: BoardCard, day: string) => void;
+	resumeCard: (card: BoardCard) => Promise<void>;
+	cardTitle: (card: BoardCard) => string;
+}
+
+interface BoardCardTileProps {
+	card: BoardCard;
+	actions: CardActions;
+	title: string;
+	hoverText: string | null;
+	contact: string | null;
+	dropped: boolean;
+	merged: boolean;
+	ciChecks: string | undefined;
+	duplicate: BoardCard | undefined;
+	since: number | undefined;
+	focusedAt: number;
+	customTags: string[];
+	launchEmoji: string;
+	isAgent: boolean;
+	resuming: boolean;
+	shellPane: Pane | undefined;
+	shellAlive: boolean;
+	hasDaemon: boolean;
+}
+
+/**
+ * One board card. Memoized: the board re-renders on every poll, and redrawing
+ * every card's pills and hover card each time kept the renderer busy while idle.
+ * `card` is rebuilt whenever any pane changes, so it compares field by field.
+ */
+const BoardCardTile = memo(
+	function BoardCardTile({
+		card,
+		actions,
+		title,
+		hoverText,
+		contact,
+		dropped,
+		merged,
+		ciChecks,
+		duplicate,
+		since,
+		focusedAt,
+		customTags,
+		launchEmoji,
+		isAgent,
+		resuming,
+		shellPane,
+		shellAlive,
+		hasDaemon,
+	}: BoardCardTileProps) {
+		return (
+			<HoverCard openDelay={1350}>
+				<HoverCardTrigger asChild>
+					{/* biome-ignore lint/a11y/useSemanticElements: a real <button> can't nest the reply <input>, so the card is a div with button semantics */}
+					<div
+						role="button"
+						tabIndex={0}
+						draggable
+						onDragStart={(event) => {
+							event.dataTransfer.setData("text/plain", card.pane.id);
+							event.dataTransfer.effectAllowed = "move";
+						}}
+						onDragEnd={() => actions.setDragOverIdle(false)}
+						onKeyDown={(event) => {
+							if (event.key === "Enter" || event.key === " ") {
+								actions.openDrawer(card);
+							}
+						}}
+						onClick={() => actions.openDrawer(card)}
+						onContextMenu={(event) => {
+							// Right-click → done, remind, star or tag this session.
+							event.preventDefault();
+							actions.setTagMenu({
+								paneId: card.pane.id,
+								x: event.clientX,
+								y: event.clientY,
+							});
+						}}
+						className={cn(
+							// A lit top edge, and a lift with a violet halo under the
+							// pointer - the board's one bit of motion you cause. The
+							// whole hover look (fill, violet edge, halo) is an ::after
+							// that only fades in: background, border and shadow can't
+							// animate on the compositor, so they repainted every frame
+							// and stuttered whenever the board was busy rendering.
+							"group relative isolate cursor-pointer rounded-[10px] border bg-card px-3 py-2.5 text-left shadow-[inset_0_1px_0_rgb(255_255_255/0.04)] transition-[translate] duration-200 ease-out hover:-translate-y-px",
+							"after:pointer-events-none after:absolute after:-inset-px after:-z-10 after:rounded-[inherit] after:border after:border-primary/40 after:bg-secondary after:opacity-0 after:shadow-[inset_0_1px_0_rgb(255_255_255/0.05),0_10px_24px_-12px_color-mix(in_oklab,var(--primary)_55%,transparent)] after:transition-opacity after:duration-200 after:ease-out hover:after:opacity-100",
+							// Cards are neutral - the column header already says the
+							// status. Only a failure earns its red edge.
+							card.pane.status === "failed"
+								? "border-danger/40"
+								: "border-border",
+						)}
+					>
+						<div className="flex items-start gap-2">
+							<div className="min-w-0 flex-1 break-words text-[12.5px] font-semibold">
+								<OverdueMark itemKey={`session:${card.pane.id}`} />
+								<WatchMark paneId={card.pane.id} />
+								<RemoteMark paneId={card.pane.id} />
+								{title}
+							</div>
+							<button
+								type="button"
+								title={
+									card.pane.odinStarred ? "Unstar" : "Star - pin to the top"
+								}
+								aria-pressed={!!card.pane.odinStarred}
+								onClick={(event) => {
+									event.stopPropagation();
+									actions.toggleStar(card.pane.id);
+								}}
+								className={cn(
+									"shrink-0 rounded-[5px] px-1 text-[12px] text-attention transition-opacity hover:bg-attention/15",
+									!card.pane.odinStarred && "opacity-0 group-hover:opacity-100",
+								)}
+							>
+								{card.pane.odinStarred ? "★" : "☆"}
+							</button>
+							<button
+								type="button"
+								title="Done - remove from the board"
+								onClick={(event) => {
+									event.stopPropagation();
+									actions.markDone(card);
+								}}
+								className={cn(
+									"shrink-0 whitespace-nowrap",
+									// Final review is where a card waits for you to close it,
+									// so Done is the always-visible green pill there.
+									card.status === "review"
+										? `rounded-[7px] px-2.5 py-1 text-xs font-semibold transition-colors ${BUTTON.done}`
+										: "rounded-[5px] px-1.5 text-[11px] text-muted-foreground opacity-0 transition-opacity hover:bg-success/15 hover:text-success group-hover:opacity-100",
+								)}
+							>
+								✓ Done
+							</button>
+							<RemindButton
+								onPick={(day) => actions.remindMe(card, day)}
+								className="rounded-[5px] px-1.5 text-[11px] text-muted-foreground opacity-0 transition-opacity hover:bg-attention/15 hover:text-attention group-hover:opacity-100"
+							/>
+						</div>
+						<WatchReply paneId={card.pane.id} />
+						{/* Facts are one grey text line; chips are left only for flags that ask
+    something of you. A pill that renders nothing drops out, so the dots
+    between the rest stay right. */}
+						<div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 text-[11.5px] text-muted-foreground [&>*+*]:before:inline-block [&>*+*]:before:mr-1.5 [&>*+*]:before:text-faint-foreground [&>*+*]:before:content-['·']">
+							{(dropped || merged) && (
+								<span className="font-medium text-danger">
+									{merged ? "Dropped: PR merged" : "Dropped: PR closed"}
+								</span>
+							)}
+							{contact && (
+								<span className="inline-flex min-w-0 items-center gap-1 font-medium text-soft-foreground">
+									<span
+										className="size-1.5 shrink-0 rounded-full"
+										style={{
+											backgroundColor: personColor(contact as string).fg,
+										}}
+									/>
+									<span className="truncate">{contact}</span>
+								</span>
+							)}
+							<RepoPill card={card} />
+							<PrPill card={card} live={card.status === "working"} />
+							{!!ciChecks && (
+								<span
+									title={`CI running: ${ciChecks}`}
+									className="inline-flex items-center gap-1 font-medium text-working"
+								>
+									<span className="size-1.5 shrink-0 animate-pulse rounded-full bg-working" />
+									CI running
+								</span>
+							)}
+							<NotionPill card={card} live={card.status === "working"} />
+							<AgePill
+								card={card}
+								live={card.status === "working"}
+								fallback={since}
+							/>
+						</div>
+						<DropPill pane={card.pane} />
+						<DuplicateHint other={duplicate} titleOf={actions.cardTitle} />
+						<div className="mt-1 flex flex-wrap items-center gap-1.5">
+							<ReviewPill card={card} />
+							<MergeOnlyPill card={card} />
+							{(card.status === "review" || card.status === "permission") && (
+								<JustDonePill focusedAt={focusedAt} since={since} />
+							)}
+							{boardTags(card.pane.odinTags, customTags).some(
+								(tag) => !PILL_TAGS.includes(tag),
+							) && (
+								<span className="font-mono text-[10.5px] text-faint-foreground">
+									{boardTags(card.pane.odinTags, customTags)
+										.filter((tag) => !PILL_TAGS.includes(tag))
+										.map((tag) => `#${tag}`)
+										.join(" ")}
+								</span>
+							)}
+							{boardTags(card.pane.odinTags, customTags).includes(
+								"automation",
+							) && (
+								// Violet and a clock, the pair the Tasks list gives a scheduled row:
+								// the one tag that answers "who started this?" on a board you
+								// otherwise started yourself.
+								<span
+									title="Started by a schedule, not by you"
+									className={cn(
+										"inline-flex items-center gap-1 rounded-[5px] px-[7px] text-[11px] font-medium",
+										PILL.brand,
+									)}
+								>
+									<LuClock className="size-3" />
+									Automation
+								</span>
+							)}
+							{card.pane.odinTags?.includes("off-hours") && (
+								// Violet and a moon: the overnight run's work,
+								// picked out from a board you otherwise started yourself.
+								<span
+									title="Started overnight by Night Agent, while you were away"
+									className={cn(
+										"inline-flex items-center gap-1 rounded-[5px] px-[7px] text-[11px] font-medium",
+										PILL.brand,
+									)}
+								>
+									<LuMoon className="size-3" />
+									Night Agent
+								</span>
+							)}
+							{card.pane.odinTags?.includes("auto-started") && (
+								<span
+									title="Started by your Slack reaction, not a click"
+									className={cn(
+										"inline-flex items-center gap-1 rounded-[5px] px-[7px] text-[11px] font-medium",
+										PILL.brand,
+									)}
+								>
+									{launchEmoji} Auto-started
+								</span>
+							)}
+							{isAgent && <LoopPill card={card} />}
+							<LoadPill card={card} />
+							{shellPane && hasDaemon && (
+								<ShellChip
+									shellPaneId={shellPane?.id ?? ""}
+									alive={shellAlive}
+								/>
+							)}
+							{/* Last, and blank until you set one: a deadline is yours, not
+	    something the session reports about itself. */}
+							<DueChip itemKey={`session:${card.pane.id}`} title={title} />
+						</div>
+						{card.status === "working" && (
+							<div className="mt-1.5 flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
+								<span
+									className="size-[9px] animate-spin rounded-full border"
+									style={{
+										borderColor: PANE_STATUS.working.dot,
+										borderTopColor: "transparent",
+									}}
+								/>
+								agent running
+							</div>
+						)}
+						{/* ponytail: the "Needs you"/"Final Review" headers already say
+				    the rest - only a failure adds anything. pane.status is
+				    the raw one; the column merges prompts and failures. */}
+						{card.status === "permission" && card.pane.status === "failed" && (
+							<div className="mt-1.5 text-xs text-danger">
+								✗ failed - click to see what broke
+							</div>
+						)}
+						{card.status === "idle" && !isAgent && resuming && (
+							<div className="mt-1.5 flex items-center gap-1.5 text-[11.5px] text-working">
+								<span className="size-[9px] animate-spin rounded-full border border-working border-t-transparent" />
+								{card.pane.odinQueued ? "starting…" : "resuming…"}
+							</div>
+						)}
+						{/* Never started - it's waiting on the machine, not
+					    on you. Says what for, and lets you overrule it. */}
+						{card.pane.odinQueued && !resuming && (
+							<div className="mt-1.5 flex items-center gap-2">
+								<span className="text-[11.5px] text-attention">
+									⏳ {card.pane.odinQueued.reason}
+								</span>
+								<button
+									type="button"
+									title="Start this session now, gate or no gate"
+									onClick={(event) => {
+										event.stopPropagation();
+										void actions.resumeCard(card);
+									}}
+									className={cn(
+										"ml-auto shrink-0 whitespace-nowrap rounded-[7px] px-2.5 py-1 text-xs font-semibold",
+										BUTTON.secondary,
+									)}
+								>
+									Start now
+								</button>
+							</div>
+						)}
+						{card.status === "idle" &&
+							!card.pane.odinQueued &&
+							!isAgent &&
+							!resuming && (
+								<div className="mt-1.5 flex items-center gap-2">
+									{/* ponytail: the button says "resume" - only a
+							    failure is worth spelling out. */}
+									{card.pane.status === "failed" && (
+										<span className="text-[11.5px] text-danger">✗ failed</span>
+									)}
+									{/* Resume does more here than on the other
+							    cards - it puts the agent back to work
+							    instead of handing you a prompt. */}
+									{card.pane.status === "working" && (
+										<span className="text-[11.5px] text-attention">
+											⏸ died mid-turn
+										</span>
+									)}
+									{card.pane.status !== "working" &&
+										card.pane.odinExitCause && (
+											<span className="select-text cursor-text truncate text-[11.5px] text-danger">
+												✗ {card.pane.odinExitCause}
+											</span>
+										)}
+									<button
+										type="button"
+										onClick={(event) => {
+											event.stopPropagation();
+											void actions.resumeCard(card);
+										}}
+										className={cn(
+											"rounded-[7px] px-2.5 py-1 text-xs font-semibold",
+											BUTTON.secondary,
+										)}
+									>
+										Resume
+									</button>
+								</div>
+							)}
+					</div>
+				</HoverCardTrigger>
+				<HoverCardContent
+					side="right"
+					align="start"
+					className="max-h-[70vh] w-[400px] overflow-y-auto border-input bg-secondary p-3 shadow-[0_12px_40px_rgba(0,0,0,0.75)]"
+				>
+					<CardHoverContent card={card} text={hoverText} />
+				</HoverCardContent>
+			</HoverCard>
+		);
+	},
+	(prev, next) =>
+		(Object.keys(next) as (keyof BoardCardTileProps)[]).every((key) =>
+			key === "card"
+				? shallowEqual(prev.card, next.card)
+				: prev[key] === next[key],
+		),
+);
+
+function shallowEqual<T extends object>(a: T, b: T): boolean {
+	return (Object.keys(b) as (keyof T)[]).every((key) => a[key] === b[key]);
+}
+
+/**
+ * Re-render on an answer, not on every poll starting and stopping. The settle
+ * check reads `fetchStatus`, which subscribes the board to it: with ~30 of these
+ * queries on 60s timers, that alone re-rendered the whole board about once a
+ * second.
+ */
+const QUIET_POLL: ("data" | "error")[] = ["data", "error"];
+
 function DevBoardPage() {
 	// The Auto-started pill wears whichever emoji you set to auto-start.
 	const launchEmoji = emojify(
@@ -1991,7 +2372,12 @@ function DevBoardPage() {
 		loopCandidates.map(({ sessionId }) =>
 			t.terminal.readClaudeTranscript(
 				{ sessionId },
-				{ retry: false, staleTime: 60_000, refetchInterval: 60_000 },
+				{
+					retry: false,
+					staleTime: 60_000,
+					refetchInterval: 60_000,
+					notifyOnChangeProps: QUIET_POLL,
+				},
 			),
 		),
 	);
@@ -2051,6 +2437,7 @@ function DevBoardPage() {
 					retry: false,
 					staleTime: 60_000,
 					refetchInterval: live ? 60_000 : false,
+					notifyOnChangeProps: QUIET_POLL,
 				},
 			),
 		),
@@ -2068,6 +2455,7 @@ function DevBoardPage() {
 					retry: false,
 					staleTime: 30_000,
 					refetchInterval: 60_000,
+					notifyOnChangeProps: QUIET_POLL,
 				},
 			);
 		}),
@@ -4019,6 +4407,19 @@ function DevBoardPage() {
 	// The thread "Ping me on replies" watches for the right-clicked session.
 	const tagMenuThread = useSessionThread(tagMenuCard);
 
+	// Cards are memoized, so they get one stable set of handlers that always
+	// call this render's versions.
+	const cardActionsRef = useRef<CardActions | null>(null);
+	const [cardActions] = useState<CardActions>(() => ({
+		openDrawer: (card) => cardActionsRef.current?.openDrawer(card),
+		setDragOverIdle: (over) => cardActionsRef.current?.setDragOverIdle(over),
+		setTagMenu: (at) => cardActionsRef.current?.setTagMenu(at),
+		toggleStar: (paneId) => cardActionsRef.current?.toggleStar(paneId),
+		markDone: (card) => cardActionsRef.current?.markDone(card),
+		remindMe: (card, day) => cardActionsRef.current?.remindMe(card, day),
+		resumeCard: async (card) => cardActionsRef.current?.resumeCard(card),
+		cardTitle: (card) => cardActionsRef.current?.cardTitle(card) ?? "",
+	}));
 	const remindMe = (card: BoardCard, day: string) => {
 		const sessionId =
 			card.pane.claudeSessionId ??
@@ -4042,6 +4443,18 @@ function DevBoardPage() {
 		);
 		doneAnywhere(card);
 		toast.success(`Reminding you ${day} - ${title.slice(0, 50)}`);
+	};
+	cardActionsRef.current = {
+		openDrawer,
+		setDragOverIdle,
+		setTagMenu,
+		toggleStar,
+		markDone,
+		remindMe,
+		resumeCard: async (card) => {
+			await resumeCard(card);
+		},
+		cardTitle,
 	};
 
 	return (
@@ -4354,368 +4767,31 @@ function DevBoardPage() {
 													</div>
 												)}
 												{group.map((card) => (
-													<HoverCard key={card.pane.id} openDelay={1350}>
-														<HoverCardTrigger asChild>
-															{/* biome-ignore lint/a11y/useSemanticElements: a real <button> can't nest the reply <input>, so the card is a div with button semantics */}
-															<div
-																role="button"
-																tabIndex={0}
-																draggable
-																onDragStart={(event) => {
-																	event.dataTransfer.setData(
-																		"text/plain",
-																		card.pane.id,
-																	);
-																	event.dataTransfer.effectAllowed = "move";
-																}}
-																onDragEnd={() => setDragOverIdle(false)}
-																onKeyDown={(event) => {
-																	if (
-																		event.key === "Enter" ||
-																		event.key === " "
-																	) {
-																		openDrawer(card);
-																	}
-																}}
-																onClick={() => openDrawer(card)}
-																onContextMenu={(event) => {
-																	// Right-click → done, remind, star or tag this session.
-																	event.preventDefault();
-																	setTagMenu({
-																		paneId: card.pane.id,
-																		x: event.clientX,
-																		y: event.clientY,
-																	});
-																}}
-																className={cn(
-																	// A lit top edge, and a lift with a violet halo under the
-																	// pointer - the board's one bit of motion you cause. The
-																	// whole hover look (fill, violet edge, halo) is an ::after
-																	// that only fades in: background, border and shadow can't
-																	// animate on the compositor, so they repainted every frame
-																	// and stuttered whenever the board was busy rendering.
-																	"group relative isolate cursor-pointer rounded-[10px] border bg-card px-3 py-2.5 text-left shadow-[inset_0_1px_0_rgb(255_255_255/0.04)] transition-[translate] duration-200 ease-out hover:-translate-y-px",
-																	"after:pointer-events-none after:absolute after:-inset-px after:-z-10 after:rounded-[inherit] after:border after:border-primary/40 after:bg-secondary after:opacity-0 after:shadow-[inset_0_1px_0_rgb(255_255_255/0.05),0_10px_24px_-12px_color-mix(in_oklab,var(--primary)_55%,transparent)] after:transition-opacity after:duration-200 after:ease-out hover:after:opacity-100",
-																	// Cards are neutral - the column header already says the
-																	// status. Only a failure earns its red edge.
-																	card.pane.status === "failed"
-																		? "border-danger/40"
-																		: "border-border",
-																)}
-															>
-																<div className="flex items-start gap-2">
-																	<div className="min-w-0 flex-1 break-words text-[12.5px] font-semibold">
-																		<OverdueMark
-																			itemKey={`session:${card.pane.id}`}
-																		/>
-																		<WatchMark paneId={card.pane.id} />
-																		<RemoteMark paneId={card.pane.id} />
-																		{cardTitle(card)}
-																	</div>
-																	<button
-																		type="button"
-																		title={
-																			card.pane.odinStarred
-																				? "Unstar"
-																				: "Star - pin to the top"
-																		}
-																		aria-pressed={!!card.pane.odinStarred}
-																		onClick={(event) => {
-																			event.stopPropagation();
-																			toggleStar(card.pane.id);
-																		}}
-																		className={cn(
-																			"shrink-0 rounded-[5px] px-1 text-[12px] text-attention transition-opacity hover:bg-attention/15",
-																			!card.pane.odinStarred &&
-																				"opacity-0 group-hover:opacity-100",
-																		)}
-																	>
-																		{card.pane.odinStarred ? "★" : "☆"}
-																	</button>
-																	<button
-																		type="button"
-																		title="Done - remove from the board"
-																		onClick={(event) => {
-																			event.stopPropagation();
-																			markDone(card);
-																		}}
-																		className={cn(
-																			"shrink-0 whitespace-nowrap",
-																			// Final review is where a card waits for you to close it,
-																			// so Done is the always-visible green pill there.
-																			card.status === "review"
-																				? `rounded-[7px] px-2.5 py-1 text-xs font-semibold transition-colors ${BUTTON.done}`
-																				: "rounded-[5px] px-1.5 text-[11px] text-muted-foreground opacity-0 transition-opacity hover:bg-success/15 hover:text-success group-hover:opacity-100",
-																		)}
-																	>
-																		✓ Done
-																	</button>
-																	<RemindButton
-																		onPick={(day) => remindMe(card, day)}
-																		className="rounded-[5px] px-1.5 text-[11px] text-muted-foreground opacity-0 transition-opacity hover:bg-attention/15 hover:text-attention group-hover:opacity-100"
-																	/>
-																</div>
-																<WatchReply paneId={card.pane.id} />
-																{/* Facts are one grey text line; chips are left only for flags that ask
-    something of you. A pill that renders nothing drops out, so the dots
-    between the rest stay right. */}
-																<div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 text-[11.5px] text-muted-foreground [&>*+*]:before:inline-block [&>*+*]:before:mr-1.5 [&>*+*]:before:text-faint-foreground [&>*+*]:before:content-['·']">
-																	{(droppedPaneIds.has(card.pane.id) ||
-																		reviewMergedPaneIds.has(card.pane.id)) && (
-																		<span className="font-medium text-danger">
-																			{reviewMergedPaneIds.has(card.pane.id)
-																				? "Dropped: PR merged"
-																				: "Dropped: PR closed"}
-																		</span>
-																	)}
-																	{cardContact(card) && (
-																		<span className="inline-flex min-w-0 items-center gap-1 font-medium text-soft-foreground">
-																			<span
-																				className="size-1.5 shrink-0 rounded-full"
-																				style={{
-																					backgroundColor: personColor(
-																						cardContact(card) as string,
-																					).fg,
-																				}}
-																			/>
-																			<span className="truncate">
-																				{cardContact(card)}
-																			</span>
-																		</span>
-																	)}
-																	<RepoPill card={card} />
-																	<PrPill
-																		card={card}
-																		live={card.status === "working"}
-																	/>
-																	{ciChecksByPane.has(card.pane.id) && (
-																		<span
-																			title={`CI running: ${ciChecksByPane.get(card.pane.id)?.join(", ")}`}
-																			className="inline-flex items-center gap-1 font-medium text-working"
-																		>
-																			<span className="size-1.5 shrink-0 animate-pulse rounded-full bg-working" />
-																			CI running
-																		</span>
-																	)}
-																	<NotionPill
-																		card={card}
-																		live={card.status === "working"}
-																	/>
-																	<AgePill
-																		card={card}
-																		live={card.status === "working"}
-																		fallback={
-																			statusSinceRef.current.get(card.pane.id)
-																				?.at
-																		}
-																	/>
-																</div>
-																<DropPill pane={card.pane} />
-																<DuplicateHint
-																	other={duplicateOf.get(card.pane.id)}
-																	titleOf={cardTitle}
-																/>
-																<div className="mt-1 flex flex-wrap items-center gap-1.5">
-																	<ReviewPill card={card} />
-																	<MergeOnlyPill card={card} />
-																	{(card.status === "review" ||
-																		card.status === "permission") && (
-																		<JustDonePill
-																			focusedAt={focusedAt}
-																			since={
-																				statusSinceRef.current.get(card.pane.id)
-																					?.at
-																			}
-																		/>
-																	)}
-																	{boardTags(
-																		card.pane.odinTags,
-																		customTags,
-																	).some((tag) => !PILL_TAGS.includes(tag)) && (
-																		<span className="font-mono text-[10.5px] text-faint-foreground">
-																			{boardTags(card.pane.odinTags, customTags)
-																				.filter(
-																					(tag) => !PILL_TAGS.includes(tag),
-																				)
-																				.map((tag) => `#${tag}`)
-																				.join(" ")}
-																		</span>
-																	)}
-																	{boardTags(
-																		card.pane.odinTags,
-																		customTags,
-																	).includes("automation") && (
-																		// Violet and a clock, the pair the Tasks list gives a scheduled row:
-																		// the one tag that answers "who started this?" on a board you
-																		// otherwise started yourself.
-																		<span
-																			title="Started by a schedule, not by you"
-																			className={cn(
-																				"inline-flex items-center gap-1 rounded-[5px] px-[7px] text-[11px] font-medium",
-																				PILL.brand,
-																			)}
-																		>
-																			<LuClock className="size-3" />
-																			Automation
-																		</span>
-																	)}
-																	{card.pane.odinTags?.includes(
-																		"off-hours",
-																	) && (
-																		// Violet and a moon: the overnight run's work,
-																		// picked out from a board you otherwise started yourself.
-																		<span
-																			title="Started overnight by Night Agent, while you were away"
-																			className={cn(
-																				"inline-flex items-center gap-1 rounded-[5px] px-[7px] text-[11px] font-medium",
-																				PILL.brand,
-																			)}
-																		>
-																			<LuMoon className="size-3" />
-																			Night Agent
-																		</span>
-																	)}
-																	{card.pane.odinTags?.includes(
-																		"auto-started",
-																	) && (
-																		<span
-																			title="Started by your Slack reaction, not a click"
-																			className={cn(
-																				"inline-flex items-center gap-1 rounded-[5px] px-[7px] text-[11px] font-medium",
-																				PILL.brand,
-																			)}
-																		>
-																			{launchEmoji} Auto-started
-																		</span>
-																	)}
-																	{agentPaneIds.has(card.pane.id) && (
-																		<LoopPill card={card} />
-																	)}
-																	<LoadPill card={card} />
-																	{shellPaneOf(card) && daemonSessions && (
-																		<ShellChip
-																			shellPaneId={shellPaneOf(card)?.id ?? ""}
-																			alive={alivePaneIds.has(
-																				shellPaneOf(card)?.id ?? "",
-																			)}
-																		/>
-																	)}
-																	{/* Last, and blank until you set one: a deadline is yours, not
-	    something the session reports about itself. */}
-																	<DueChip
-																		itemKey={`session:${card.pane.id}`}
-																		title={cardTitle(card)}
-																	/>
-																</div>
-																{card.status === "working" && (
-																	<div className="mt-1.5 flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
-																		<span
-																			className="size-[9px] animate-spin rounded-full border"
-																			style={{
-																				borderColor: PANE_STATUS.working.dot,
-																				borderTopColor: "transparent",
-																			}}
-																		/>
-																		agent running
-																	</div>
-																)}
-																{/* ponytail: the "Needs you"/"Final Review" headers already say
-															    the rest - only a failure adds anything. pane.status is
-															    the raw one; the column merges prompts and failures. */}
-																{card.status === "permission" &&
-																	card.pane.status === "failed" && (
-																		<div className="mt-1.5 text-xs text-danger">
-																			✗ failed - click to see what broke
-																		</div>
-																	)}
-																{card.status === "idle" &&
-																	!agentPaneIds.has(card.pane.id) &&
-																	resumingPaneIds.includes(card.pane.id) && (
-																		<div className="mt-1.5 flex items-center gap-1.5 text-[11.5px] text-working">
-																			<span className="size-[9px] animate-spin rounded-full border border-working border-t-transparent" />
-																			{card.pane.odinQueued
-																				? "starting…"
-																				: "resuming…"}
-																		</div>
-																	)}
-																{/* Never started - it's waiting on the machine, not
-																    on you. Says what for, and lets you overrule it. */}
-																{card.pane.odinQueued &&
-																	!resumingPaneIds.includes(card.pane.id) && (
-																		<div className="mt-1.5 flex items-center gap-2">
-																			<span className="text-[11.5px] text-attention">
-																				⏳ {card.pane.odinQueued.reason}
-																			</span>
-																			<button
-																				type="button"
-																				title="Start this session now, gate or no gate"
-																				onClick={(event) => {
-																					event.stopPropagation();
-																					void resumeCard(card);
-																				}}
-																				className={cn(
-																					"ml-auto shrink-0 whitespace-nowrap rounded-[7px] px-2.5 py-1 text-xs font-semibold",
-																					BUTTON.secondary,
-																				)}
-																			>
-																				Start now
-																			</button>
-																		</div>
-																	)}
-																{card.status === "idle" &&
-																	!card.pane.odinQueued &&
-																	!agentPaneIds.has(card.pane.id) &&
-																	!resumingPaneIds.includes(card.pane.id) && (
-																		<div className="mt-1.5 flex items-center gap-2">
-																			{/* ponytail: the button says "resume" - only a
-																		    failure is worth spelling out. */}
-																			{card.pane.status === "failed" && (
-																				<span className="text-[11.5px] text-danger">
-																					✗ failed
-																				</span>
-																			)}
-																			{/* Resume does more here than on the other
-																		    cards - it puts the agent back to work
-																		    instead of handing you a prompt. */}
-																			{card.pane.status === "working" && (
-																				<span className="text-[11.5px] text-attention">
-																					⏸ died mid-turn
-																				</span>
-																			)}
-																			{card.pane.status !== "working" &&
-																				card.pane.odinExitCause && (
-																					<span className="select-text cursor-text truncate text-[11.5px] text-danger">
-																						✗ {card.pane.odinExitCause}
-																					</span>
-																				)}
-																			<button
-																				type="button"
-																				onClick={(event) => {
-																					event.stopPropagation();
-																					void resumeCard(card);
-																				}}
-																				className={cn(
-																					"rounded-[7px] px-2.5 py-1 text-xs font-semibold",
-																					BUTTON.secondary,
-																				)}
-																			>
-																				Resume
-																			</button>
-																		</div>
-																	)}
-															</div>
-														</HoverCardTrigger>
-														<HoverCardContent
-															side="right"
-															align="start"
-															className="max-h-[70vh] w-[400px] overflow-y-auto border-input bg-secondary p-3 shadow-[0_12px_40px_rgba(0,0,0,0.75)]"
-														>
-															<CardHoverContent
-																card={card}
-																text={cardText(card)}
-															/>
-														</HoverCardContent>
-													</HoverCard>
+													<BoardCardTile
+														key={card.pane.id}
+														card={card}
+														actions={cardActions}
+														title={cardTitle(card)}
+														hoverText={cardText(card)}
+														contact={cardContact(card)}
+														dropped={droppedPaneIds.has(card.pane.id)}
+														merged={reviewMergedPaneIds.has(card.pane.id)}
+														ciChecks={ciChecksByPane
+															.get(card.pane.id)
+															?.join(", ")}
+														duplicate={duplicateOf.get(card.pane.id)}
+														since={statusSinceRef.current.get(card.pane.id)?.at}
+														focusedAt={focusedAt}
+														customTags={customTags}
+														launchEmoji={launchEmoji}
+														isAgent={agentPaneIds.has(card.pane.id)}
+														resuming={resumingPaneIds.includes(card.pane.id)}
+														shellPane={shellPaneOf(card)}
+														shellAlive={alivePaneIds.has(
+															shellPaneOf(card)?.id ?? "",
+														)}
+														hasDaemon={!!daemonSessions}
+													/>
 												))}
 											</Fragment>
 										);

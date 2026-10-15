@@ -104,13 +104,18 @@ export function useOdinFeeds() {
 		notionConfig,
 		notionDatabaseId,
 		notionMentions,
-		isSyncing:
-			reactions.isFetching ||
-			jira.isFetching ||
-			pulls.isFetching ||
-			notion.isFetching ||
-			emails.isFetching ||
-			clickup.isFetching,
+		// A getter, so only the callers that show the sync spinner subscribe to
+		// every feed's fetch start and stop - the board reads this hook too.
+		get isSyncing() {
+			return (
+				reactions.isFetching ||
+				jira.isFetching ||
+				pulls.isFetching ||
+				notion.isFetching ||
+				emails.isFetching ||
+				clickup.isFetching
+			);
+		},
 		// refetch() ignores `enabled` (TanStack v5 fetches on an explicit call
 		// either way), so syncing a source that was never signed in runs it
 		// anyway and answers "Jira isn't connected" - an error raised by a feed
