@@ -1,3 +1,10 @@
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuShortcut,
+	DropdownMenuTrigger,
+} from "@odin/ui/dropdown-menu";
 import { toast } from "@odin/ui/sonner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@odin/ui/tooltip";
 import { cn } from "@odin/ui/utils";
@@ -15,6 +22,7 @@ import {
 	HiOutlineClipboardDocumentCheck,
 	HiOutlineClock,
 	HiOutlineCog6Tooth,
+	HiOutlineEllipsisVertical,
 	HiOutlineScale,
 	HiOutlineViewColumns,
 } from "react-icons/hi2";
@@ -90,24 +98,6 @@ const RAIL_ITEMS = [
 		label: "Tasks",
 		Icon: HiOutlineClipboardDocumentCheck,
 	},
-	// Also its own entry rather than a feed tab. The strip answers "what's
-	// waiting on me" from a source; this answers "what can go", and its rows
-	// are verdicts about the other tabs rather than a seventh queue.
-	{
-		to: "/review" as const,
-		hotkey: "ODIN_REVIEW" as const,
-		label: "Review",
-		Icon: HiOutlineScale,
-	},
-	// Its own rail entry, not a seventh feed tab: every tab in that strip
-	// answers "what's waiting on me", and an automation is the one thing that
-	// isn't - it runs itself.
-	{
-		to: "/automations" as const,
-		hotkey: "ODIN_AUTOMATIONS" as const,
-		label: "Automations",
-		Icon: HiOutlineBolt,
-	},
 ];
 
 /**
@@ -122,21 +112,40 @@ const SETTINGS_ITEM = {
 	Icon: HiOutlineCog6Tooth,
 };
 
-/** Insights reads the logs rather than being one - it sits with History. */
-const INSIGHTS_ITEM = {
-	to: "/insights" as const,
-	hotkey: "ODIN_INSIGHTS" as const,
-	label: "Insights",
-	Icon: HiOutlineChartBar,
-};
-
-/** History is a log, not a feed - it sits alone at the foot of the rail. */
-const HISTORY_ITEM = {
-	to: "/sessions" as const,
-	hotkey: "ODIN_SESSIONS" as const,
-	label: "Session History",
-	Icon: HiOutlineClock,
-};
+/**
+ * The views you visit, not live in - one "More" button at the foot of the
+ * rail instead of four icons. Their single-key hotkeys still jump straight
+ * to each.
+ */
+const MORE_ITEMS = [
+	// Its own page rather than a feed tab: the strip answers "what's waiting
+	// on me" from a source; this answers "what can go".
+	{
+		to: "/review" as const,
+		hotkey: "ODIN_REVIEW" as const,
+		label: "Review",
+		Icon: HiOutlineScale,
+	},
+	// Not a feed tab either: an automation isn't waiting on you, it runs itself.
+	{
+		to: "/automations" as const,
+		hotkey: "ODIN_AUTOMATIONS" as const,
+		label: "Automations",
+		Icon: HiOutlineBolt,
+	},
+	{
+		to: "/insights" as const,
+		hotkey: "ODIN_INSIGHTS" as const,
+		label: "Insights",
+		Icon: HiOutlineChartBar,
+	},
+	{
+		to: "/sessions" as const,
+		hotkey: "ODIN_SESSIONS" as const,
+		label: "Session History",
+		Icon: HiOutlineClock,
+	},
+];
 
 /**
  * Single-key nav: bare keys, so they must not fire while you're typing.
@@ -475,16 +484,16 @@ function OdinShell() {
 	const [isSearchAllOpen, setIsSearchAllOpen] = useState(false);
 	useHotkey("ODIN_SEARCH_ALL", () => setIsSearchAllOpen(true));
 
+	const isMoreActive = MORE_ITEMS.some(
+		({ to }) => !!matchRoute({ to, fuzzy: true }),
+	);
+
 	const renderRailItem = ({
 		to,
 		label,
 		hotkey,
 		Icon,
-	}:
-		| (typeof RAIL_ITEMS)[number]
-		| typeof INSIGHTS_ITEM
-		| typeof HISTORY_ITEM
-		| typeof SETTINGS_ITEM) => {
+	}: (typeof RAIL_ITEMS)[number] | typeof SETTINGS_ITEM) => {
 		// Tasks stands for every feed: lit on any of them, and always opening on
 		// All - every source at once is the answer to "what's waiting on me".
 		const isFeeds = to === "/all";
@@ -688,8 +697,38 @@ function OdinShell() {
 				<div className="hide-scrollbar flex w-[52px] shrink-0 flex-col items-center gap-1.5 overflow-y-auto border-r border-border bg-tertiary/70 py-2.5 [&>*]:shrink-0">
 					{RAIL_ITEMS.map(renderRailItem)}
 					<div className="flex-1" />
-					{renderRailItem(INSIGHTS_ITEM)}
-					{renderRailItem(HISTORY_ITEM)}
+					<DropdownMenu>
+						<Tooltip delayDuration={300}>
+							<TooltipTrigger asChild>
+								<DropdownMenuTrigger asChild>
+									<button
+										type="button"
+										aria-label="More"
+										className={cn(
+											"flex size-9 items-center justify-center rounded-[9px] transition-colors",
+											isMoreActive
+												? BUTTON.selected
+												: "text-muted-foreground hover:text-foreground",
+										)}
+									>
+										<HiOutlineEllipsisVertical className="size-[17px]" />
+									</button>
+								</DropdownMenuTrigger>
+							</TooltipTrigger>
+							<TooltipContent side="right">More</TooltipContent>
+						</Tooltip>
+						<DropdownMenuContent side="right" align="end" className="w-52">
+							{MORE_ITEMS.map(({ to, hotkey, label, Icon }) => (
+								<DropdownMenuItem key={to} onSelect={() => navigate({ to })}>
+									<Icon className="size-4" />
+									{label}
+									<DropdownMenuShortcut>
+										{railHotkeys[hotkey].text}
+									</DropdownMenuShortcut>
+								</DropdownMenuItem>
+							))}
+						</DropdownMenuContent>
+					</DropdownMenu>
 					{renderRailItem(SETTINGS_ITEM)}
 					<CrowButton
 						open={isCrowOpen}

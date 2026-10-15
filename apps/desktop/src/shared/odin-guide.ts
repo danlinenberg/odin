@@ -10,7 +10,7 @@ export const ODIN_GUIDE = `# Odin
 "Store:" names are for your own action=state calls. Never show them, or any other code, to the user.
 
 ## Left rail
-Top to bottom: Dev Board, Tasks, Review, Automations. At the foot: Insights, Session History, Settings, and the raven button (Huginn, ⌘⇧I). Each has a one-key hotkey (rebind in Settings → Keyboard); the keys do nothing while you type, also inside agent terminals.
+Top to bottom: Dev Board, Tasks. At the foot: More (the ⋮ button: Review, Automations, Insights, Session History), Settings, and the raven button (Huginn, ⌘⇧I). Each has a one-key hotkey (rebind in Settings → Keyboard); the keys do nothing while you type, also inside agent terminals.
 
 ## Tasks screen and its feeds
 Tabs: All, Tasks, Slack, Jira, GitHub, Notion, Email, ClickUp.
@@ -61,7 +61,7 @@ Gmail inbox mail that was unread when Odin first saw it; it stays after you open
 ## ClickUp feed
 Open ClickUp tasks assigned to you. Read-only, no filters.
 
-## Review (rail)
+## Review (rail, More menu)
 "Sweep now" checks every backlog item (your tasks plus Slack, Jira, GitHub and Notion rows) against its source. It also sweeps on its own, every hour by default ("Sweep the backlog every" in Settings → Backlog; 0 turns it off).
 - Verdicts: DROP, KEEP or UNKNOWN. DROP needs evidence: a merged or closed PR, a Jira ticket in a done status, the :eyes: removed in Slack, a thread someone else answered, or 21 days without activity. What it couldn't reach is UNKNOWN.
 - Pills: Drop, Keep & unknown, Dropped. Keep and Drop per row, "Drop all N" for the rows on screen.
@@ -119,7 +119,7 @@ The first line is the title. Paste or drop images and video; "/" opens skills. "
 ## Notifications
 A macOS banner "<task> needs you" ("Waiting for your reply" or "Finished its turn") with a sound when a session moves into Needs you. Not for parked sessions, or when it is on screen in the focused window. Clicking it opens the session.
 
-## Session History (rail)
+## Session History (rail, More menu)
 Search the transcripts of every finished session Odin launched, by word or by who asked (person chips). Resume reopens one in its folder on the board. Claude Code deletes transcripts after 30 days.
 
 ## All (Tasks → All)

@@ -289,7 +289,16 @@ async function expectHealthy() {
 			throw new Error(`"${crash}": ${body.slice(0, 400)}`);
 	}
 }
-const rail = (label: string) => click("button", label);
+/**
+ * A rail entry, or one behind its "More" menu. Radix opens that menu on
+ * pointerdown, so it takes a real mouse click rather than `.click()`.
+ */
+const MORE_MENU = ["Review", "Automations", "Insights", "Session History"];
+async function rail(label: string) {
+	if (!MORE_MENU.includes(label)) return click("button", label);
+	await mouseClick('button[aria-label="More"]');
+	await click('[role="menuitem"]', label);
+}
 /** Every time the fake claude ran: its pid and the argv it was given. */
 function fakeClaudeRuns() {
 	return readdirSync(home)
