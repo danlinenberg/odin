@@ -7,6 +7,8 @@
  */
 export const ODIN_GUIDE = `# Odin
 
+"Store:" names are for your own action=state calls. Never show them, or any other code, to the user.
+
 ## Left rail
 Top to bottom: Dev Board, Tasks, Review, Automations. At the foot: Insights, Session History, Settings, and the raven button (Huginn, ⌘⇧I). Each has a one-key hotkey (rebind in Settings → Keyboard); the keys do nothing while you type, also inside agent terminals.
 
