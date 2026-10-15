@@ -180,12 +180,18 @@ function CrowPanel({
 			if (!panel.current?.contains(target) && !target.closest("[data-crow]"))
 				onClose();
 		};
-		const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+		// Captured, so a focused terminal can't swallow it first, and stopped,
+		// so the session drawer under the panel stays open.
+		const onKey = (e: KeyboardEvent) => {
+			if (e.key !== "Escape") return;
+			e.stopPropagation();
+			onClose();
+		};
 		document.addEventListener("pointerdown", onDown);
-		document.addEventListener("keydown", onKey);
+		document.addEventListener("keydown", onKey, { capture: true });
 		return () => {
 			document.removeEventListener("pointerdown", onDown);
-			document.removeEventListener("keydown", onKey);
+			document.removeEventListener("keydown", onKey, { capture: true });
 		};
 	}, [onClose]);
 
@@ -221,6 +227,7 @@ function CrowPanel({
 		return (
 			<div
 				ref={panel}
+				data-crow-panel
 				style={{
 					left: Math.max(left, 8),
 					...vertical,
@@ -252,6 +259,7 @@ function CrowPanel({
 	return (
 		<div
 			ref={panel}
+			data-crow-panel
 			style={{ left: Math.max(left, 8), ...vertical, width, maxHeight: room }}
 			className="fixed z-[60] flex flex-col gap-3.5 rounded-xl border border-violet-400/50 bg-tertiary p-4 text-popover-foreground shadow-2xl shadow-black/30"
 		>

@@ -2328,6 +2328,8 @@ function DevBoardPage() {
 			if (event.key !== "Escape") return;
 			// A link open over the drawer takes this Esc and closes alone.
 			if (useInAppBrowser.getState().url) return;
+			// Huginn open over the drawer closes first, on its own listener.
+			if (document.querySelector("[data-crow-panel]")) return;
 			// A box opened over the pane cancels itself on Esc. Captured this
 			// early we'd swallow that keypress and close the drawer out from
 			// under it instead, so hand the key back and leave the drawer alone.
