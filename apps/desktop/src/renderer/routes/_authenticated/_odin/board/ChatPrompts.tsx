@@ -3,7 +3,7 @@ import { useState } from "react";
 import { MarkdownRenderer } from "renderer/components/MarkdownRenderer";
 import { BUTTON } from "../components/pill";
 import { COMPACT_MARKDOWN } from "../components/TranscriptView";
-import { menuKeys, type ScreenMenu } from "./screen-menu";
+import { menuKeys, type ScreenAside, type ScreenMenu } from "./screen-menu";
 
 type Question = {
 	question?: string;
@@ -314,6 +314,33 @@ export function ScreenMenuCard({
 					</button>
 				))}
 			</div>
+		</div>
+	);
+}
+
+/** A `/btw` answer, mirrored from the screen; Close sends the Esc it waits for. */
+export function ScreenAsideCard({
+	aside,
+	onClose,
+}: {
+	aside: ScreenAside;
+	onClose: () => void;
+}) {
+	return (
+		<div className="rounded-xl border border-border bg-secondary/40 px-4 py-3">
+			<div className="mb-2 text-[11px] font-semibold uppercase tracking-[.08em] text-muted-foreground">
+				{aside.question}
+			</div>
+			<div className="mb-3 max-h-[320px] select-text cursor-text overflow-y-auto whitespace-pre-wrap text-[13px] text-foreground">
+				{aside.answer ?? "Answering..."}
+			</div>
+			<button
+				type="button"
+				onClick={onClose}
+				className="rounded-lg border border-border bg-secondary px-3 py-1.5 text-[12.5px] font-medium text-soft-foreground hover:bg-accent hover:text-foreground"
+			>
+				Close
+			</button>
 		</div>
 	);
 }

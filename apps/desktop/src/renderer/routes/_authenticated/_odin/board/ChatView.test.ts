@@ -41,6 +41,20 @@ describe("ChatView transcript", () => {
 		expect(userText("hi <system-reminder>x</system-reminder>")).toBe("hi");
 	});
 
+	test("a built-in command's output shows; its caveat doesn't", () => {
+		expect(
+			userText(
+				"<local-command-stdout>\x1b[1mTotal cost:\x1b[22m $0.12</local-command-stdout>",
+			),
+		).toBe("Total cost: $0.12");
+		expect(
+			userText("<local-command-stdout></local-command-stdout>"),
+		).toBeNull();
+		expect(
+			userText("<local-command-caveat>Caveat: ...</local-command-caveat>"),
+		).toBeNull();
+	});
+
 	test("a ! command shows as typed, then its output", () => {
 		expect(userText("<bash-input>df -h</bash-input>")).toBe("!df -h");
 		expect(

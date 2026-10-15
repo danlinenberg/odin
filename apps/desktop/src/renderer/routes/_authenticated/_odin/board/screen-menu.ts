@@ -120,3 +120,40 @@ export function menuKeys(menu: ScreenMenu, target: number): string[] {
 		"\r",
 	];
 }
+
+/** A `/btw` side answer: the TUI draws it over the prompt, never in the transcript. */
+export type ScreenAside = {
+	question: string;
+	/** null while Claude is still answering. */
+	answer: string | null;
+};
+
+const ASIDE_RE = /^\s*\/btw\s/;
+
+/**
+ * Finds a `/btw` overlay: its question line (no `❯` - that one is the input
+ * box's echo), the answer under it, and an "Esc to close" footer.
+ * ponytail: a question that wraps leaks its tail into the answer.
+ */
+export function parseScreenAside(screen: string): ScreenAside | null {
+	const lines = screen.split("\n").map((line) => line.trimEnd());
+	const footer = lines.findLastIndex((line) => /esc to close/i.test(line));
+	if (footer < 0) return null;
+	const answering = /^\s*(\/btw\s.*?)\s+·\s+Answering/.exec(
+		lines[footer] ?? "",
+	);
+	if (answering) return { question: answering[1] ?? "", answer: null };
+	const start = lines.findLastIndex(
+		(line, index) => index < footer && ASIDE_RE.test(line),
+	);
+	if (start < 0) return null;
+	const body = lines.slice(start + 1, footer);
+	const margin = Math.min(...body.filter((line) => line.trim()).map(indent));
+	return {
+		question: (lines[start] ?? "").trim(),
+		answer: body
+			.map((line) => line.slice(Number.isFinite(margin) ? margin : 0))
+			.join("\n")
+			.trim(),
+	};
+}

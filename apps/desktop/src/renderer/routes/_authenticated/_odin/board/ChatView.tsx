@@ -37,6 +37,7 @@ import {
 } from "shared/file-types";
 import { freshTldr, sameReply, tldrPlacement } from "shared/latest-reply";
 import { inputBoxRows, odinScreenStatus } from "shared/odin-screen-status";
+import stripAnsi from "strip-ansi";
 import {
 	insertSkill,
 	matchSkills,
@@ -45,9 +46,14 @@ import {
 import { attachmentPaths } from "../components/TaskBox";
 import { COMPACT_MARKDOWN } from "../components/TranscriptView";
 import { actionItemLines } from "./brief";
-import { PlanCard, QuestionCard, ScreenMenuCard } from "./ChatPrompts";
+import {
+	PlanCard,
+	QuestionCard,
+	ScreenAsideCard,
+	ScreenMenuCard,
+} from "./ChatPrompts";
 import { collectRefs, linkify } from "./chat-links";
-import { parseScreenMenu } from "./screen-menu";
+import { parseScreenAside, parseScreenMenu } from "./screen-menu";
 import { useHoldToTalk } from "./voice";
 
 type Item =
@@ -145,6 +151,13 @@ export function userText(text: string): string | null {
 	if (bash) return `!${bash[1]}`;
 	if (/^\s*<bash-stdout>/.test(text))
 		return text.replace(/<\/?bash-(stdout|stderr)>/g, "\n").trim() || null;
+	// A built-in command's reply (/cost, /context, /model): its output, plain.
+	if (/^\s*<local-command-std(out|err)>/.test(text))
+		return (
+			stripAnsi(
+				text.replace(/<\/?local-command-std(out|err)>/g, "\n"),
+			).trim() || null
+		);
 	if (/^\s*<(local-command|task-notification)/.test(text)) return null;
 	if (text.startsWith("Caveat:")) return null;
 	const stripped = text
@@ -1872,6 +1885,10 @@ export function ChatView({
 		() => (screenText ? parseScreenMenu(screenText) : null),
 		[screenText],
 	);
+	const screenAside = useMemo(
+		() => (screenText ? parseScreenAside(screenText) : null),
+		[screenText],
+	);
 	// What you just sent, shown at once - Claude writes it to the transcript a
 	// beat later, and that echo replaces it.
 	const [pending, setPending] = useState<Sent[]>(
@@ -2311,7 +2328,18 @@ export function ChatView({
 							</div>
 						</div>
 					)}
-					{working && !prompt && !screenMenu && !starting && (
+					{screenAside && (
+						<div className={cn("flex min-w-0 gap-3", ENTER)}>
+							<OdinMark />
+							<div className="min-w-0 flex-1">
+								<ScreenAsideCard
+									aside={screenAside}
+									onClose={() => void sendKeys(["\x1b"])}
+								/>
+							</div>
+						</div>
+					)}
+					{working && !prompt && !screenMenu && !screenAside && !starting && (
 						<div className="flex min-w-0 gap-3 text-[12.5px] text-working">
 							{/* Odin's icon, nodding along while Claude works. */}
 							<OdinMark className="animate-[odin-nod_1.6s_ease-in-out_infinite]" />
@@ -2369,8 +2397,8 @@ export function ChatView({
 			</div>
 			{onShowTerminal ? (
 				<>
-					{/* While a menu waits, typed text would land in it - the card answers. */}
-					{!prompt && !screenMenu && (
+					{/* While a menu or /btw waits, typed text would land in it - the card answers. */}
+					{!prompt && !screenMenu && !screenAside && (
 						<Composer
 							paneId={paneId}
 							working={working}

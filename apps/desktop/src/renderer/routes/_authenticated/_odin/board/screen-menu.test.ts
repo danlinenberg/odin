@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { menuKeys, parseScreenMenu } from "./screen-menu";
+import { menuKeys, parseScreenAside, parseScreenMenu } from "./screen-menu";
 
 const BYPASS = `
  ──────────────────────────────────────────
@@ -69,5 +69,40 @@ describe("parseScreenMenu", () => {
 		if (!menu) throw new Error("no menu");
 		expect(menuKeys(menu, 1)).toEqual(["\x1b[B", "\r"]);
 		expect(menuKeys(menu, 0)).toEqual(["\r"]);
+	});
+});
+
+const ASIDE = `
+❯ /btw name three primary colors, one per line
+
+  /btw name three primary colors, one per line
+
+    Red: the color of fire.
+      Yellow: the sun.
+    Blue: the sky.
+
+  ↑/↓ to scroll · c to copy · f to fork · Esc to close
+`;
+
+describe("parseScreenAside", () => {
+	it("reads a /btw answer off the overlay", () => {
+		expect(parseScreenAside(ASIDE)).toEqual({
+			question: "/btw name three primary colors, one per line",
+			answer: "Red: the color of fire.\n  Yellow: the sun.\nBlue: the sky.",
+		});
+		expect(parseScreenMenu(ASIDE)).toBeNull();
+	});
+
+	it("shows the question while Claude is answering", () => {
+		expect(
+			parseScreenAside(
+				"❯ /btw what is 2+2\n\n  /btw what is 2+2    · Answering…  Esc to close\n",
+			),
+		).toEqual({ question: "/btw what is 2+2", answer: null });
+	});
+
+	it("ignores a screen with no overlay", () => {
+		expect(parseScreenAside("❯ /btw what is 2+2\n")).toBeNull();
+		expect(parseScreenAside(BYPASS)).toBeNull();
 	});
 });
