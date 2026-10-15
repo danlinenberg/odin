@@ -378,7 +378,7 @@ const SCREENS: [string, string][] = [
 	["Review", "sweep now"],
 	["Automations", "add automation"],
 	["Insights", "who asks"],
-	["Night Agent", "work the backlog overnight"],
+	["Night Agent", "after the picks"],
 	["Session History", "every session odin launched"],
 	["Dev Board", "next in line"],
 ];
