@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { newReplies, sessionThread } from "./ReplyWatch";
+import { newReplies, sessionThread, useReplyWatch } from "./ReplyWatch";
 
 const reply = (stamp: string, byMe = false) => ({ stamp, byMe, text: null });
 
@@ -50,4 +50,18 @@ test("a session with no task fields finds the thread its panel shows", () => {
 			],
 		}),
 	).toBe("slack:C03E:1787569128.041959");
+});
+
+test("a new reply stays on the card until the session is opened", () => {
+	const { toggle, setStamps, seen } = useReplyWatch.getState();
+	toggle("slack:C1:1.1", "t", "pane-1");
+	setStamps({ "slack:C1:1.1": "2.2" }, { "slack:C1:1.1": "Sounds good" });
+	setStamps({ "slack:C1:1.1": "2.2" });
+	expect(useReplyWatch.getState().watches["slack:C1:1.1"]?.reply).toBe(
+		"Sounds good",
+	);
+	seen("pane-1");
+	expect(
+		useReplyWatch.getState().watches["slack:C1:1.1"]?.reply,
+	).toBeUndefined();
 });

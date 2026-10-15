@@ -123,6 +123,7 @@ import {
 	useReplyWatch,
 	WatchMark,
 	WatchPill,
+	WatchReply,
 } from "../components/ReplyWatch";
 import { TranscriptView } from "../components/TranscriptView";
 import { useBacklogReview, useReview } from "../hooks/useBacklogReview";
@@ -4477,6 +4478,7 @@ function DevBoardPage() {
 																		className="rounded-[5px] px-1.5 text-[11px] text-muted-foreground opacity-0 transition-opacity hover:bg-attention/15 hover:text-attention group-hover:opacity-100"
 																	/>
 																</div>
+																<WatchReply paneId={card.pane.id} />
 																{/* Facts are one grey text line; chips are left only for flags that ask
     something of you. A pill that renders nothing drops out, so the dots
     between the rest stay right. */}
