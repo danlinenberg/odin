@@ -119,7 +119,8 @@ export function OdinPromptDialog({
 	const sendKeys = useHotkeyDisplay("SUBMIT").text;
 	const [prompt, setPrompt] = useState(defaultPrompt);
 	const [files, setFiles] = useState<PromptImage[]>([]);
-	const [repoQuery, setRepoQuery] = useState(defaultRepo);
+	// null until you type or click: the default may arrive after the dialog opens.
+	const [typedRepo, setTypedRepo] = useState<string | null>(null);
 	const recentRepos = useClaudeCommand((state) => state.recentRepos);
 	const [isDropping, setIsDropping] = useState(false);
 	const [isStarting, setIsStarting] = useState(false);
@@ -164,6 +165,9 @@ export function OdinPromptDialog({
 	const { data: repos = [] } = electronTrpc.repos.list.useQuery(undefined, {
 		enabled: repoPicker,
 	});
+	// A repo Odin doesn't list would only read "no match" - leave the pick to the agent.
+	const repoQuery =
+		typedRepo ?? (repos.includes(defaultRepo) ? defaultRepo : "");
 	const repoHits = matchRepos(repos, repoQuery);
 	// One hit is a pick; none or several means the session falls back to the
 	// workspace, so the dialog has to say which it is.
@@ -386,7 +390,7 @@ export function OdinPromptDialog({
 								list="odin-repos"
 								aria-label="Repository"
 								value={repoQuery}
-								onChange={(event) => setRepoQuery(event.target.value)}
+								onChange={(event) => setTypedRepo(event.target.value)}
 								placeholder="Repo: agent picks"
 								title={repo || "Search your git checkouts"}
 								// Picking a <datalist> option marks the field :autofill, and
@@ -428,7 +432,7 @@ export function OdinPromptDialog({
 										type="button"
 										title={path}
 										aria-pressed={repo === path}
-										onClick={() => setRepoQuery(repo === path ? "" : path)}
+										onClick={() => setTypedRepo(repo === path ? "" : path)}
 										className={`h-7 max-w-[120px] shrink-0 truncate rounded-[6px] px-2.5 text-[11.5px] font-semibold transition-colors ${
 											repo === path
 												? "bg-primary text-primary-foreground"

@@ -3025,15 +3025,15 @@ function DevBoardPage() {
 			: null;
 		return repo?.worktree ?? repo?.checkout ?? sessionCwd(card.pane);
 	};
-	const openComposerOnCurrentRepo = async () => {
-		const sessionId = drawerCard && claudeSessionIdOf(drawerCard);
-		const repo = sessionId
-			? await utils.repos.workingRepoName
-					.fetch({ claudeSessionId: sessionId }, { staleTime: 60_000 })
-					.catch(() => null)
-			: null;
-		setComposerRepo(repo?.owningClone ?? "");
+	const openComposerOnCurrentRepo = () => {
+		setComposerRepo("");
 		setIsComposerOpen(true);
+		const sessionId = drawerCard && claudeSessionIdOf(drawerCard);
+		if (!sessionId) return;
+		void utils.repos.workingRepoName
+			.fetch({ claudeSessionId: sessionId }, { staleTime: 60_000 })
+			.then((repo) => setComposerRepo(repo?.owningClone ?? ""))
+			.catch(() => {});
 	};
 	const openShell = async (card: BoardCard) => {
 		if (!shellPaneOf(card)) {
@@ -4527,7 +4527,7 @@ function DevBoardPage() {
 				<button
 					type="button"
 					title="Describe a task and start an agent session"
-					onClick={() => void openComposerOnCurrentRepo()}
+					onClick={openComposerOnCurrentRepo}
 					className={cn(
 						"rounded-lg px-2.5 py-1 text-[12px] font-semibold transition-colors",
 						BUTTON.primary,
@@ -5180,7 +5180,7 @@ function DevBoardPage() {
 												{!isSwitchListMin && (
 													<button
 														type="button"
-														onClick={() => void openComposerOnCurrentRepo()}
+														onClick={openComposerOnCurrentRepo}
 														title="New session - describe a task and start an agent session, then open it here"
 														className="ml-3 flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
 													>
