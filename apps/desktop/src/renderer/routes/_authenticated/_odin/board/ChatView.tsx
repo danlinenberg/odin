@@ -1791,6 +1791,7 @@ export function ChatView({
 	placeholder,
 	onOpenSession,
 	resuming = false,
+	tldrOnly = false,
 }: {
 	paneId: string;
 	sessionId: string | null;
@@ -1813,6 +1814,8 @@ export function ChatView({
 	onOpenSession?: (paneId: string) => void;
 	/** Ended session on its way back: the footer says so in place of the composer. */
 	resuming?: boolean;
+	/** Every reply folds on its TL;DR, with no Needs you / FYI mark - the raven's panel. */
+	tldrOnly?: boolean;
 }) {
 	const { data: home } = electronTrpc.window.getHomeDir.useQuery();
 	// Claude files the conversation under the directory it STARTED in - the
@@ -2034,7 +2037,9 @@ export function ChatView({
 				sameReply(lastText?.at, query.state.data?.replyAt) ? false : 15_000,
 		},
 	);
-	const tldr = working ? null : freshTldr(lastText, brief);
+	const fresh = working ? null : freshTldr(lastText, brief);
+	const tldr =
+		fresh && tldrOnly ? { ...fresh, urgency: null, long: true } : fresh;
 	// Agents repeat their ACTION ITEMS in every reply; show one card, on the
 	// latest reply that has it. It stays while Claude works on your answer.
 	const actionsId = lastActionsId(items);

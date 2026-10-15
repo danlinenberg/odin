@@ -401,6 +401,7 @@ function CrowChat({
 				workspaceId={workspaceId}
 				working={pane.status === "working"}
 				noTerminal
+				tldrOnly
 				placeholder="What else can I do for you?"
 				// Through ask: it resumes a PTY a daemon restart killed, where
 				// typing straight in would vanish.
