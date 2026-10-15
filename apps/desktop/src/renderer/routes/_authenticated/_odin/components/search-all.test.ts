@@ -170,6 +170,9 @@ test("groups: best hit's source first, capped, expandable, empty ones dropped", 
 		{ id: "Jira", items: ["2.0", "3.1"], more: 1 },
 		{ id: "History", items: ["4.0", "4.1"], more: 2 },
 	]);
+	expect(
+		groupResults(groups, 2, new Set(), ["History"]).map((g) => g.id),
+	).toEqual(["History", "Slack", "Jira"]);
 	expect(groupResults(groups, 2, new Set(["History"]))[2]).toEqual({
 		id: "History",
 		items: ["4.0", "4.1", "4.2", "4.3"],

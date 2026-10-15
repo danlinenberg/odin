@@ -202,18 +202,28 @@ export interface ResultGroup<T> {
 }
 
 /**
- * One header per source. The group holding the best hit comes first (ties keep
- * the order given), and each shows `cap` hits unless it's been expanded - so
- * forty transcript hits can't bury the one feed row you meant.
+ * One header per source. Groups named in `first` lead in that order; the rest
+ * follow, the group holding the best hit first (ties keep the order given).
+ * Each shows `cap` hits unless it's been expanded - so forty transcript hits
+ * can't bury the one feed row you meant.
  */
 export function groupResults<T>(
 	groups: { id: string; hits: Ranked<T>[] }[],
 	cap: number,
 	expanded: ReadonlySet<string>,
+	first: readonly string[] = [],
 ): ResultGroup<T>[] {
+	const pin = (id: string) => {
+		const at = first.indexOf(id);
+		return at === -1 ? first.length : at;
+	};
 	return groups
 		.filter((group) => group.hits.length > 0)
-		.sort((a, b) => (a.hits[0]?.tier ?? 0) - (b.hits[0]?.tier ?? 0))
+		.sort(
+			(a, b) =>
+				pin(a.id) - pin(b.id) ||
+				(a.hits[0]?.tier ?? 0) - (b.hits[0]?.tier ?? 0),
+		)
 		.map(({ id, hits }) => {
 			const shown = expanded.has(id) ? hits.length : cap;
 			return {

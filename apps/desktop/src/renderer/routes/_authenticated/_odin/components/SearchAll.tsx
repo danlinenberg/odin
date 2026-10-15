@@ -215,6 +215,7 @@ export function SearchAll({ onClose }: { onClose: () => void }) {
 			],
 			CAP,
 			expanded,
+			[BOARD, HISTORY],
 		);
 	}, [query, rows, sessions, pastSessions, expanded]);
 
