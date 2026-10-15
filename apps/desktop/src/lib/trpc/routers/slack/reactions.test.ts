@@ -171,6 +171,19 @@ describe("mentions", () => {
 			replaceMentions(text, new Map([["U08EJ28KM0V", "Tamir Davidov"]])),
 		).toBe("@Tamir Davidov ping @U040V0M09C6 @here");
 	});
+
+	test("raw <@U...> markup leaves no brackets around the name", () => {
+		const text = slackTextToPlain("<@U040V0M09C6> <@U03BZTX7ABC> done");
+		expect(
+			replaceMentions(
+				text,
+				new Map([
+					["U040V0M09C6", "Ann"],
+					["U03BZTX7ABC", "Bob"],
+				]),
+			),
+		).toBe("@Ann @Bob done");
+	});
 });
 
 describe("toTitle", () => {

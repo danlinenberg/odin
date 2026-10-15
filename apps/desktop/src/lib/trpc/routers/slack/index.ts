@@ -25,6 +25,7 @@ import {
 	rowsToVerify,
 	type SlackAttachment,
 	type SlackReactionsListItem,
+	slackTextToPlain,
 	threadParentTs,
 	toTitle,
 	untilNextQueued,
@@ -264,8 +265,12 @@ async function lookupUserName(
 	}
 }
 
-/** Mentions read as names, not ids. Lookups are cached, so re-syncs are free. */
-async function resolveMentions(text: string, token: string): Promise<string> {
+/**
+ * Mentions read as names, not ids: raw `<@U123>` markup is flattened first so
+ * no brackets are left around the name. Lookups are cached, so re-syncs are free.
+ */
+async function resolveMentions(raw: string, token: string): Promise<string> {
+	const text = slackTextToPlain(raw);
 	const ids = mentionedUserIds(text);
 	if (ids.length === 0) return text;
 	const names = new Map<string, string>();
