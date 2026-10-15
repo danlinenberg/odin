@@ -40,15 +40,15 @@ import {
 	LuGitMerge,
 	LuGitPullRequest,
 	LuHourglass,
-	LuKanban,
+	LuLayoutGrid,
 	LuMessageSquare,
 	LuMoon,
-	LuPanelLeft,
 	LuPause,
 	LuPlay,
 	LuPlus,
 	LuRadioTower,
 	LuRepeat,
+	LuSquareTerminal,
 	LuStar,
 	LuTerminal,
 } from "react-icons/lu";
@@ -279,7 +279,7 @@ function ViewToggle({
 				onClick={onSessions}
 				className={segment(sessionsOpen)}
 			>
-				<LuPanelLeft className="size-4" aria-hidden />
+				<LuSquareTerminal className="size-4" aria-hidden />
 			</button>
 			<button
 				type="button"
@@ -289,7 +289,7 @@ function ViewToggle({
 				onClick={onBoard}
 				className={segment(!sessionsOpen)}
 			>
-				<LuKanban className="size-4" aria-hidden />
+				<LuLayoutGrid className="size-4" aria-hidden />
 			</button>
 		</div>
 	);
