@@ -1,12 +1,16 @@
-import { statSync } from "node:fs";
+import { execFile } from "node:child_process";
+import { existsSync, statSync } from "node:fs";
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
+import { promisify } from "node:util";
 import {
 	createWorktree,
 	fetchDefaultBranch,
 	getDefaultBranch,
 	hasOriginRemote,
 } from "lib/trpc/routers/workspaces/utils/git";
+
+const run = promisify(execFile);
 
 export interface SessionWorktree {
 	path: string;
@@ -42,22 +46,29 @@ async function excludeWorktrees(repo: string): Promise<void> {
 	);
 }
 
-// Null when `repo` isn't a main checkout: a worktree already is one, a plain folder has nothing to branch.
+// Null when `repo` isn't a main checkout with an origin: the pruner can only judge work against origin.
 export async function createSessionWorktree(
 	repo: string,
 	title: string,
 ): Promise<SessionWorktree | null> {
-	if (!isMainCheckout(repo)) return null;
+	if (!isMainCheckout(repo) || !(await hasOriginRemote(repo))) return null;
 	const base = await getDefaultBranch(repo);
-	let startPoint = base;
-	if (await hasOriginRemote(repo)) {
-		// Offline: the last fetched one is still a better base than a stale local branch.
-		await fetchDefaultBranch(repo, base).catch(() => {});
-		startPoint = `origin/${base}`;
-	}
+	// Offline: the last fetched one is still a better base than a stale local branch.
+	await fetchDefaultBranch(repo, base).catch(() => {});
 	const branch = worktreeName(title);
 	const dir = path.join(repo, ".worktrees", branch);
 	await excludeWorktrees(repo);
-	await createWorktree(repo, branch, dir, startPoint);
+	await createWorktree(repo, branch, dir, `origin/${base}`);
 	return { path: dir, branch };
+}
+
+// The pruner keeps the branch, and `claude --resume` only finds a conversation from its own directory.
+export async function reviveSessionWorktree(dir: string): Promise<void> {
+	if (existsSync(dir)) return;
+	const match = /^(.+)\/\.worktrees\/([^/]+)$/.exec(dir);
+	if (!match) return;
+	const [, repo = "", branch = ""] = match;
+	if (!isMainCheckout(repo)) return;
+	await run("git", ["-C", repo, "worktree", "prune"]);
+	await run("git", ["-C", repo, "worktree", "add", dir, branch]);
 }

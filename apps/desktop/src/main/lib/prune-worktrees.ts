@@ -68,7 +68,10 @@ export const worktreePath = (repo: string, name: string) =>
 
 // Must match pruned_ref in scripts/prune-worktrees.sh.
 export const prunedRef = (name: string) =>
-	`refs/pruned/${name.replace(/[^A-Za-z0-9._-]/g, "-")}`;
+	`refs/pruned/${name
+		.replace(/^\/+/, "")
+		.replace(/[^A-Za-z0-9._/-]/g, "-")
+		.replace(/(^|\/)\./g, "$1_.")}`;
 
 function runScript(script: string, args: string[]) {
 	const token = resolveGithubToken();
@@ -119,7 +122,8 @@ export interface Verdict {
 /** The script's `remove <name> (...)` / `keep <name> (why)` lines. */
 export function parseVerdicts(stdout: string): Verdict[] {
 	return stdout.split("\n").flatMap((line): Verdict[] => {
-		const match = /^(remove|keep)\s+(.+?)(?: \((.*)\))?$/.exec(line.trim());
+		// The reason never holds a paren, so a "(" in a path stays in the name.
+		const match = /^(remove|keep)\s+(.+?)(?: \(([^()]*)\))?$/.exec(line.trim());
 		if (!match) return [];
 		const [, verb, name = "", why = ""] = match;
 		if (verb === "keep") return [{ name, safe: false, reason: why }];

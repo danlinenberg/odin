@@ -28,7 +28,8 @@
 # --only checks just that one, by the same rules (Settings -> Storage).
 # --only <name> --force removes it whatever it holds (Settings -> Storage, after
 # a warning): its branch stays, and uncommitted files go to refs/pruned/<ref>,
-# <ref> being the name with anything but letters, digits, . _ - made a dash.
+# <ref> being the name with its leading / dropped, other characters git refuses
+# made a dash, and a "." that starts a folder name written "_.".
 # Any repo: every linked worktree, against the repo's own default branch.
 # Locked ones are left alone.
 set -euo pipefail
@@ -104,8 +105,8 @@ ended_at_head() { # ended_at_head <branch> <sha>
 
 # Commit a worktree's uncommitted files to refs/pruned/<name>, so removing it
 # loses nothing: `git checkout refs/pruned/<name> -- .` brings them back.
-pruned_ref() { # pruned_ref <name> - a path isn't a valid ref name
-	echo "refs/pruned/${1//[^A-Za-z0-9._-]/-}"
+pruned_ref() { # pruned_ref <name> - a path keeps its slashes, so two paths never share a ref
+	echo "refs/pruned/$(sed -E 's#^/+##; s#[^A-Za-z0-9._/-]#-#g; s#(^|/)\.#\1_.#g' <<<"$1")"
 }
 save_files() { # save_files <worktree> <name>
 	# A throwaway index, so the worktree's own staging is left as it was.

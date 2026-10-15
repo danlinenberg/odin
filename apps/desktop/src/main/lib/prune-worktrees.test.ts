@@ -93,16 +93,31 @@ test("a worktree outside .worktrees/ goes by its path, and a locked one stays", 
 	expect(out).toContain("remove w (dry run, files saved to refs/pruned/w)");
 });
 
-test("a pruned path's files go to a valid ref", () => {
-	expect(prunedRef("/Users/me/.superset/worktrees/x")).toBe(
-		"refs/pruned/-Users-me-.superset-worktrees-x",
-	);
+test("a pruned path's files go to a valid ref, one per path", () => {
+	const ref = prunedRef("/Users/me/.superset/worktrees/x");
+	expect(ref).toBe("refs/pruned/Users/me/_.superset/worktrees/x");
 	expect(prunedRef("w")).toBe("refs/pruned/w");
+	expect(prunedRef("/Users/me/a-b/c")).not.toBe(prunedRef("/Users/me/a/b-c"));
+	const bash = execFileSync(
+		"bash",
+		[
+			"-c",
+			`eval "$(sed -n '/^pruned_ref()/,/^}/p' "$0")"; pruned_ref "$1"`,
+			SCRIPT,
+			"/Users/me/.superset/worktrees/x",
+		],
+		{ encoding: "utf8" },
+	).trim();
+	expect(bash).toBe(ref);
+	execFileSync("git", ["check-ref-format", ref]);
 });
 
-test("parseVerdicts reads a name that is a path with spaces", () => {
+test("parseVerdicts reads a name that is a path with spaces or parens", () => {
 	expect(parseVerdicts("keep   /Users/me/My Repos/wt (locked)")).toEqual([
 		{ name: "/Users/me/My Repos/wt", safe: false, reason: "locked" },
+	]);
+	expect(parseVerdicts("keep   /Users/me/repo (copy)/wt (locked)")).toEqual([
+		{ name: "/Users/me/repo (copy)/wt", safe: false, reason: "locked" },
 	]);
 });
 

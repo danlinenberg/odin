@@ -8,6 +8,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useRef } from "react";
 import { LuBellRing } from "react-icons/lu";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
+import { electronTrpcClient } from "renderer/lib/trpc-client";
 import { openUrl } from "renderer/stores/in-app-browser";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import { allItems } from "../all/all-items";
@@ -37,6 +38,9 @@ export function useResumeReminder() {
 	const resume = async (key: string) => {
 		const r = useReminders.getState().reminders[key];
 		if (!r?.resume) return;
+		await electronTrpcClient.repos.reviveSessionWorktree.mutate({
+			path: r.resume.cwd,
+		});
 		const ensured = await ensureWorkspace(r.resume.cwd);
 		if (!ensured.ok) return void toast.error(ensured.error);
 		const result = await launch({

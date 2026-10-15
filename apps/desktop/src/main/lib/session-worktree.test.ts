@@ -1,9 +1,13 @@
 import { expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { createSessionWorktree, worktreeName } from "./session-worktree";
+import {
+	createSessionWorktree,
+	reviveSessionWorktree,
+	worktreeName,
+} from "./session-worktree";
 
 const git = (cwd: string, ...args: string[]) =>
 	execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
@@ -57,6 +61,22 @@ test("a worktree or a plain folder gets no second one", async () => {
 	const made = await createSessionWorktree(repo, "first");
 	expect(await createSessionWorktree(made?.path ?? "", "second")).toBeNull();
 	expect(await createSessionWorktree(tmpdir(), "plain")).toBeNull();
+});
+
+test("a repo with no origin gets none - the pruner could never judge it", async () => {
+	const dir = mkdtempSync(path.join(tmpdir(), "session-wt-"));
+	git(dir, "init", "-q", "-b", "main");
+	expect(await createSessionWorktree(dir, "local")).toBeNull();
+});
+
+test("a pruned session worktree comes back on its branch for a resume", async () => {
+	const repo = clone();
+	const made = await createSessionWorktree(repo, "resume me");
+	if (!made) throw new Error("no worktree");
+	rmSync(made.path, { recursive: true, force: true });
+	await reviveSessionWorktree(made.path);
+	expect(git(made.path, "branch", "--show-current")).toBe(made.branch);
+	await reviveSessionWorktree(made.path);
 });
 
 test("a title with no letters still names a worktree", () => {

@@ -417,6 +417,17 @@ export const createReposRouter = (
 				return createSessionWorktree(input.repo, input.title);
 			}),
 
+		reviveSessionWorktree: publicProcedure
+			.input(z.object({ path: z.string() }))
+			.mutation(async ({ input }) => {
+				const { reviveSessionWorktree } = await import(
+					"main/lib/session-worktree"
+				);
+				await reviveSessionWorktree(input.path).catch((error) =>
+					console.warn("[repos] could not bring back", input.path, error),
+				);
+			}),
+
 		/** Settings → Storage: every session worktree, its size and the pruner's verdict. */
 		worktrees: publicProcedure.query(async () => {
 			const { listWorktrees } = await import("main/lib/prune-worktrees");
