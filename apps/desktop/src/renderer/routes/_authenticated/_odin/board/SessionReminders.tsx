@@ -8,6 +8,8 @@ import { useNavigate } from "@tanstack/react-router";
 import { useRef } from "react";
 import { LuBellRing } from "react-icons/lu";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
+import { openUrl } from "renderer/stores/in-app-browser";
+import { useTabsStore } from "renderer/stores/tabs/store";
 import { allItems } from "../all/all-items";
 import { useStartAllItem } from "../all/use-start-item";
 import { BUTTON } from "../components/pill";
@@ -202,7 +204,15 @@ export function SessionReminders() {
 					</span>
 					<button
 						type="button"
-						onClick={() => usePendingFocus.getState().focus(w.paneId ?? "")}
+						onClick={() => {
+							const paneId = w.paneId ?? "";
+							if (useTabsStore.getState().panes[paneId])
+								return usePendingFocus.getState().focus(paneId);
+							// Its session is closed: the thread is what's left to open.
+							seen(paneId);
+							if (w.url) openUrl(w.url);
+							else toast.info("That session is closed.");
+						}}
 						className={`rounded-md px-2 py-0.5 text-[11px] font-semibold ${BUTTON.secondary}`}
 					>
 						Open

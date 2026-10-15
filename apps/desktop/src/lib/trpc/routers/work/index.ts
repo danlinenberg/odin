@@ -9,7 +9,7 @@ import { clickupFetch } from "main/lib/read-link";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
 import { readOdinConfig, resolveGithubToken } from "../odin-config";
-import { slackThreadReplies } from "../slack";
+import { slackThreadReplies, slackWatchedThread } from "../slack";
 
 /**
  * Odin fork: read-only "my work" feeds - Jira issues assigned to me and GitHub
@@ -355,6 +355,8 @@ export interface ThreadActivity {
 	byMe: boolean;
 	/** What it said, for the notification. */
 	text: string | null;
+	/** The thread itself, for Open when its session is gone. */
+	url: string | null;
 }
 
 interface GithubSearchResponse {
@@ -739,7 +741,7 @@ export const createWorkRouter = () => {
 						out[`slack:${id}`] = {
 							stamp: thread.lastReplyTs ?? "",
 							byMe: thread.lastReplyByMe,
-							text: thread.lastReplyText ?? null,
+							...(await slackWatchedThread(id, thread.lastReplyText ?? null)),
 						};
 				}
 				const keys = input.jira.filter((key) =>
@@ -776,6 +778,7 @@ export const createWorkRouter = () => {
 						text: last
 							? `${last.author?.displayName ?? "Someone"}: ${adfToText(last.body).replace(/\s+/g, " ").trim().slice(0, 300)}`
 							: null,
+						url: `${request.base}/browse/${issue.key}`,
 					};
 				}
 				return out;

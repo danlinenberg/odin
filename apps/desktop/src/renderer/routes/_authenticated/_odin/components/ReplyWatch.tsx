@@ -16,6 +16,8 @@ export interface Watch {
 	stamp?: string;
 	/** A reply from someone else you haven't opened the session for yet. */
 	reply?: string;
+	/** The thread itself, for Open once the session is closed. */
+	url?: string;
 }
 
 /**
@@ -30,6 +32,7 @@ export const useReplyWatch = create<{
 	setStamps: (
 		stamps: Record<string, string>,
 		replies?: Record<string, string>,
+		urls?: Record<string, string | null>,
 	) => void;
 	/** The session was opened: its reply is read. */
 	seen: (paneId: string) => void;
@@ -44,7 +47,7 @@ export const useReplyWatch = create<{
 						watches: on ? rest : { ...rest, [key]: { title, paneId } },
 					};
 				}),
-			setStamps: (stamps, replies = {}) =>
+			setStamps: (stamps, replies = {}, urls = {}) =>
 				set((s) => ({
 					watches: Object.fromEntries(
 						Object.entries(s.watches).map(([key, watch]) => [
@@ -54,6 +57,7 @@ export const useReplyWatch = create<{
 										...watch,
 										stamp: stamps[key],
 										reply: replies[key] ?? watch.reply,
+										url: urls[key] ?? watch.url,
 									}
 								: watch,
 						]),
@@ -172,6 +176,9 @@ export function useReplyWatcher(openSession: (paneId: string) => void): void {
 					Object.entries(activity).map(([key, a]) => [key, a.stamp]),
 				),
 				replies,
+				Object.fromEntries(
+					Object.entries(activity).map(([key, a]) => [key, a.url]),
+				),
 			);
 		};
 		void tick();

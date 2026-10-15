@@ -630,6 +630,31 @@ export async function slackThreadReplies(
 }
 
 /**
+ * A watched thread as "Ping me on replies" shows it: its link, for when the
+ * session it was set on is gone, and the reply with names for mentions.
+ */
+export async function slackWatchedThread(
+	id: string,
+	text: string | null,
+): Promise<{ url: string | null; text: string | null }> {
+	const token = slackToken();
+	const [channelId = "", messageTs = ""] = id.split(":");
+	if (!token) return { url: null, text };
+	const me = await getIdentity(token).catch(() => null);
+	return {
+		url: me?.teamUrl
+			? buildPermalink({
+					teamUrl: me.teamUrl,
+					channelId,
+					messageTs,
+					threadTs: null,
+				})
+			: null,
+		text: text && (await resolveMentions(text, token)),
+	};
+}
+
+/**
  * The conversation around a queued message, as plain lines a model can read:
  * the thread it sits in, and in a DM or group DM whatever was said inline
  * after it - most DM answers never touch a thread. "ME" is me; the queued

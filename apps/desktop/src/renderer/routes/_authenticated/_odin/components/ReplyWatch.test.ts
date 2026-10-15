@@ -1,7 +1,12 @@
 import { expect, test } from "bun:test";
 import { newReplies, sessionThread, useReplyWatch } from "./ReplyWatch";
 
-const reply = (stamp: string, byMe = false) => ({ stamp, byMe, text: null });
+const reply = (stamp: string, byMe = false) => ({
+	stamp,
+	byMe,
+	text: null,
+	url: null,
+});
 
 test("pings only on a new reply from someone else, after the first check", () => {
 	const watches = {
@@ -55,11 +60,16 @@ test("a session with no task fields finds the thread its panel shows", () => {
 test("a new reply stays on the card until the session is opened", () => {
 	const { toggle, setStamps, seen } = useReplyWatch.getState();
 	toggle("slack:C1:1.1", "t", "pane-1");
-	setStamps({ "slack:C1:1.1": "2.2" }, { "slack:C1:1.1": "Sounds good" });
-	setStamps({ "slack:C1:1.1": "2.2" });
-	expect(useReplyWatch.getState().watches["slack:C1:1.1"]?.reply).toBe(
-		"Sounds good",
+	setStamps(
+		{ "slack:C1:1.1": "2.2" },
+		{ "slack:C1:1.1": "Sounds good" },
+		{ "slack:C1:1.1": "https://x.slack.com/archives/C1/p1000001" },
 	);
+	setStamps({ "slack:C1:1.1": "2.2" });
+	const watch = useReplyWatch.getState().watches["slack:C1:1.1"];
+	expect(watch?.reply).toBe("Sounds good");
+	// Kept for Open once the session is closed.
+	expect(watch?.url).toBe("https://x.slack.com/archives/C1/p1000001");
 	seen("pane-1");
 	expect(
 		useReplyWatch.getState().watches["slack:C1:1.1"]?.reply,
