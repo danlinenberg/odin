@@ -23,3 +23,12 @@ test("an opened (now read) mail stays until Done or a month passes", () => {
 	).toEqual(["a", "b"]);
 	expect(rememberEmails(seen, [], 31 * 86_400_000)).toEqual({});
 });
+
+test("a remembered calendar mail is junk, whatever its old verdict", () => {
+	const invite = {
+		...mail("Accepted: Dan/Ayelet @ Sun", "2026-01-01"),
+		junk: false,
+	};
+	const seen = rememberEmails({}, [invite], 0);
+	expect(withSeenEmails([], seen)[0]?.junk).toBe(true);
+});

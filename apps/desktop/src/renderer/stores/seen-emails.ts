@@ -1,4 +1,5 @@
 import type { EmailRow } from "lib/trpc/routers/work";
+import { isCalendarMail } from "shared/calendar-mail";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -47,7 +48,11 @@ export function withSeenEmails(
 	const ids = new Set(live.map((email) => email.id));
 	const gone = Object.values(seen)
 		.filter((email) => !ids.has(email.id))
-		.map(({ seenAt: _, ...email }) => email);
+		// A remembered mail keeps the verdict it had then - re-check calendar mail
+		// so one remembered before the rule (or before triage answered) stays out.
+		.map(({ seenAt: _, ...email }) =>
+			isCalendarMail(email.subject) ? { ...email, junk: true } : email,
+		);
 	return [...live, ...gone].sort((a, b) =>
 		(b.at ?? "").localeCompare(a.at ?? ""),
 	);

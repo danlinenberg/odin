@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
-import { isCalendarMail, parseTriage } from "./email-triage";
+import { isCalendarMail } from "shared/calendar-mail";
+import { parseTriage } from "./email-triage";
 
 test("invites, RSVPs and cancellations are calendar mail; replies about them aren't", () => {
 	for (const subject of [

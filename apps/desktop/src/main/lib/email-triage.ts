@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { execWithShellEnv } from "lib/trpc/routers/workspaces/utils/shell-env";
+import { isCalendarMail } from "shared/calendar-mail";
 import { transcriptOf } from "./claude-sessions/claude-sessions";
 
 /**
@@ -17,15 +18,9 @@ export interface TriageEmail {
 	fromEmail: string | null;
 }
 
-/** Invites, RSVPs and cancellations are never a row - the calendar has them. */
-export const isCalendarMail = (subject: string) =>
-	/^(updated |new event: |canceled event: |cancelled event: )?(invitation|accepted|declined|tentatively accepted|canceled|cancelled)( event)?:/i.test(
-		subject.trim(),
-	);
-
 const INSTRUCTIONS = `You triage my unread email. Say which ones are worth my attention.
 Interesting: a person writing to me or asking something of me, anything I'd want to read or answer.
-Junk: automated mail - alerts, notifications, receipts, product updates, newsletters, marketing, event platforms, "your X is ready".
+Junk: automated mail - alerts, notifications, receipts, product updates, newsletters, marketing, event platforms, "your X is ready", and a service telling me what someone did ("X has joined", "X shared", "X invited you").
 Each line is: number | sender name <address> | subject | preview.
 Answer with ONLY a JSON object, no prose: {"interesting": [line numbers]}.`;
 
