@@ -5,6 +5,7 @@ Edit the master, then run `python3 apps/desktop/scripts/render-icons.py`
 (macOS, needs Pillow: `pip3 install pillow`). Never hand-edit the outputs:
 
   build/icons/icon.icns             app bundle icon (electron-builder, dev launcher)
+  build/icons/icon.ico              Windows exe, installer and window icon
   odin/icon.png                     dock icon set at startup
   tray/iconTemplate{,@2x}.png       menu-bar template (black + alpha)
   packages/ui/.../preset-icons/odin.png   preset icon in the renderer
@@ -41,6 +42,12 @@ def icns(src: Image.Image) -> None:
         )
 
 
+def ico(src: Image.Image) -> None:
+    # One frame per size Windows asks for, so it never shrinks a 1024px PNG itself.
+    sizes = [(px, px) for px in (16, 20, 24, 32, 40, 48, 64, 96, 128, 256)]
+    src.save(RES / "build/icons/icon.ico", sizes=sizes)
+
+
 def tray(src: Image.Image) -> None:
     # A template image is black with the shape in alpha; macOS tints it per theme.
     lum = src.convert("L").crop(FACE_BOX)
@@ -56,6 +63,7 @@ def tray(src: Image.Image) -> None:
 def main() -> None:
     src = Image.open(MASTER).convert("RGBA")
     icns(src)
+    ico(src)
     shutil.copyfile(MASTER, RES / "odin/icon.png")
     tray(src)
     src.resize((128, 128), Image.LANCZOS).save(PRESET)

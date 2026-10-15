@@ -54,7 +54,7 @@ same `node_modules`, so a path match closes real sessions. Kill the UI by pid.
 
 ## One app icon
 
-`src/resources/build/icons/icon.png` is the only icon source. Every other copy - `icon.icns`,
+`src/resources/build/icons/icon.png` is the only icon source. Every other copy - `icon.icns`, `icon.ico`,
 `resources/odin/icon.png`, the tray `iconTemplate` PNGs and the `odin` preset icon in
 `packages/ui` - is rendered from it by `python3 scripts/render-icons.py`. Edit the master and
 rerun the script; never hand-edit an output or add a per-channel (canary) variant.

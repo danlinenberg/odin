@@ -69,9 +69,15 @@ function getIconsDir(): string {
 	return join(__dirname, "../resources/build/icons");
 }
 
-/** Every build, canary included, uses the one Odin icon. */
+/**
+ * Every build, canary included, uses the one Odin icon. Windows gets the
+ * multi-size .ico so the title bar and taskbar don't shrink a 1024px PNG.
+ */
 export function getIconPath(): string {
-	return join(getIconsDir(), "icon.png");
+	return join(
+		getIconsDir(),
+		process.platform === "win32" ? "icon.ico" : "icon.png",
+	);
 }
 
 /**

@@ -284,7 +284,7 @@ const config: Configuration = {
 	// Windows: an unsigned x64 NSIS installer. No auto-update there - the
 	// in-app updater swaps a macOS bundle, so Windows users rerun the installer.
 	win: {
-		icon: join(pkg.resources, "build/icons/icon.png"),
+		icon: join(pkg.resources, "build/icons/icon.ico"),
 		target: [{ target: "nsis", arch: ["x64"] }],
 		artifactName: "Odin-Setup-x64.exe",
 	},
