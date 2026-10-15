@@ -20,7 +20,7 @@ export interface CrowChat {
 export const useCrowChats = create<{
 	chats: CrowChat[];
 	save: (chat: CrowChat) => void;
-	/** A chat whose transcript is gone from this Mac. */
+	/** A chat you deleted, or whose transcript is gone from this Mac. */
 	drop: (sessionId: string) => void;
 }>()(
 	persist(
