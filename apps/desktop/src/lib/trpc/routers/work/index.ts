@@ -734,7 +734,7 @@ export const createWorkRouter = () => {
 			.query(async ({ input }): Promise<Record<string, ThreadActivity>> => {
 				const out: Record<string, ThreadActivity> = {};
 				for (const id of input.slack) {
-					const thread = await slackThreadReplies(id);
+					const thread = await slackThreadReplies(id, { fresh: true });
 					if (thread)
 						out[`slack:${id}`] = {
 							stamp: thread.lastReplyTs ?? "",
