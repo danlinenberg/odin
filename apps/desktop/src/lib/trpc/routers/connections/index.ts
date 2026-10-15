@@ -1,6 +1,11 @@
 import { TRPCError } from "@trpc/server";
 import { shell } from "electron";
 import {
+	isClickupOAuthConfigured,
+	readClickupOAuthResult,
+	startClickupOAuth,
+} from "main/lib/clickup-oauth";
+import {
 	githubAccessToken,
 	githubApiFetch,
 	rememberGithubLogin,
@@ -56,9 +61,9 @@ import { fetchGmailFeed, gmailCredentials } from "../work";
  * environment and nothing takes a pasted token: a shell variable is ambient
  * and would sign every profile into the same account, and a pasted token is a
  * chore that OAuth exists to remove - Gmail is the exception: its OAuth needs a
- * Google Cloud app and review, so it takes an app password, and ClickUp's
- * needs an app registered per workspace, so it takes a personal API token.
- * Slack, Jira and Notion run the browser consent flow; GitHub runs the device flow (no client secret, no
+ * Google Cloud app and review, so it takes an app password. ClickUp signs in
+ * through OAuth too, but a build without its app takes a personal API token.
+ * Slack, Jira, Notion and ClickUp run the browser consent flow; GitHub runs the device flow (no client secret, no
  * redirect URL, the flow GitHub built for desktop apps).
  */
 
@@ -270,7 +275,7 @@ export function probeError(status: number): string {
 // procedures serves all of them, so a fifth provider is three lines of switch.
 // (GitHub is the odd one out - device flow, below.)
 
-const OAUTH_PROVIDERS = ["slack", "jira", "notion"] as const;
+const OAUTH_PROVIDERS = ["slack", "jira", "notion", "clickup"] as const;
 type OAuthProvider = (typeof OAUTH_PROVIDERS)[number];
 
 const oauthInput = z.object({ provider: z.enum(OAUTH_PROVIDERS) });
@@ -283,6 +288,8 @@ function oauthConfigured(provider: OAuthProvider): boolean {
 			return isJiraOAuthConfigured();
 		case "notion":
 			return isNotionOAuthConfigured();
+		case "clickup":
+			return isClickupOAuthConfigured();
 	}
 }
 
@@ -296,6 +303,8 @@ function startOAuth(
 			return startJiraOAuth();
 		case "notion":
 			return startNotionOAuth();
+		case "clickup":
+			return startClickupOAuth();
 	}
 }
 
@@ -307,6 +316,8 @@ function readOAuthResult(provider: OAuthProvider, state: string) {
 			return readJiraOAuthResult(state);
 		case "notion":
 			return readNotionOAuthResult(state);
+		case "clickup":
+			return readClickupOAuthResult(state);
 	}
 }
 

@@ -19,6 +19,10 @@ import { ODIN_HOME_DIR } from "./lib/app-environment";
 import { flushAppStateSync, initAppState } from "./lib/app-state";
 import { isUpdateReadyToInstall, setupAutoUpdater } from "./lib/auto-updater";
 import { startDataBackup } from "./lib/backup-data";
+import {
+	completeClickupOAuth,
+	isClickupOAuthCallback,
+} from "./lib/clickup-oauth";
 import { setWorkspaceDockIcon } from "./lib/dock-icon";
 import { startDoubleTap } from "./lib/double-tap";
 import { loadWebviewBrowserExtension } from "./lib/extensions";
@@ -109,6 +113,13 @@ async function processDeepLink(url: string): Promise<void> {
 	if (isNotionOAuthCallback(url)) {
 		console.log("[main] Processing Notion OAuth callback");
 		await completeNotionOAuth(url);
+		focusMainWindow();
+		return;
+	}
+
+	if (isClickupOAuthCallback(url)) {
+		console.log("[main] Processing ClickUp OAuth callback");
+		await completeClickupOAuth(url);
 		focusMainWindow();
 		return;
 	}

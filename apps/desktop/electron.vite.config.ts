@@ -121,6 +121,18 @@ export default defineConfig({
 				process.env.ODIN_NOTION_REDIRECT_URL,
 				"",
 			),
+			"process.env.ODIN_CLICKUP_CLIENT_ID_BAKED": defineEnv(
+				process.env.ODIN_CLICKUP_CLIENT_ID,
+				"",
+			),
+			"process.env.ODIN_CLICKUP_CLIENT_SECRET_BAKED": defineEnv(
+				process.env.ODIN_CLICKUP_CLIENT_SECRET,
+				"",
+			),
+			"process.env.ODIN_CLICKUP_REDIRECT_URL_BAKED": defineEnv(
+				process.env.ODIN_CLICKUP_REDIRECT_URL,
+				"",
+			),
 			"process.env.ODIN_JIRA_CLIENT_ID_BAKED": defineEnv(
 				process.env.ODIN_JIRA_CLIENT_ID,
 				"",

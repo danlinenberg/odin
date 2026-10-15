@@ -3,7 +3,7 @@ import { Input } from "@odin/ui/input";
 import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { FEED_NOTICE_BOX } from "renderer/routes/_authenticated/_odin/components/FeedChrome";
 import { resetOdinFeeds } from "renderer/routes/_authenticated/_odin/hooks/useOdinProfile";
@@ -49,7 +49,7 @@ const SCOPE_BLURB: Record<Provider, string> = {
 	notion: "Opens Notion in your browser, where you choose what it can see.",
 	gmail: "An app password - read-only access to your unread mail.",
 	clickup:
-		"A personal API token - lets sessions read the ClickUp tasks they're given.",
+		"Opens ClickUp in your browser, where you pick the workspaces Odin can read.",
 };
 
 export function ConnectProvider({
@@ -74,7 +74,12 @@ export function ConnectProvider({
 	) : provider === "gmail" ? (
 		<GmailConnect onDone={done} />
 	) : provider === "clickup" ? (
-		<ClickupConnect onDone={done} />
+		// A build without the ClickUp app still connects, with a pasted token.
+		<OAuthConnect
+			provider={provider}
+			onDone={done}
+			fallback={<ClickupConnect onDone={done} />}
+		/>
 	) : (
 		<OAuthConnect provider={provider} onDone={done} />
 	);
@@ -107,9 +112,12 @@ export function ConnectNotice({
 function OAuthConnect({
 	provider,
 	onDone,
+	fallback,
 }: {
-	provider: Exclude<Provider, "github" | "gmail" | "clickup">;
+	provider: Exclude<Provider, "github" | "gmail">;
 	onDone: () => void;
+	/** Shown in place of the app form when the build has no app. */
+	fallback?: ReactNode;
 }) {
 	const name = PROVIDER_NAME[provider];
 	const configured = electronTrpc.connections.oauthConfigured.useQuery({
@@ -147,6 +155,7 @@ function OAuthConnect({
 	// No app, no button: a dead one would fail at the exchange, after someone
 	// already approved a consent screen.
 	if (!configured.data?.configured) {
+		if (fallback) return fallback;
 		return (
 			<OAuthAppForm
 				provider={provider}
@@ -190,7 +199,7 @@ function OAuthAppForm({
 	provider,
 	onSaved,
 }: {
-	provider: Exclude<Provider, "github" | "gmail" | "clickup">;
+	provider: Exclude<Provider, "github" | "gmail">;
 	onSaved: () => void;
 }) {
 	const name = PROVIDER_NAME[provider];

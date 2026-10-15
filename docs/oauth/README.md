@@ -17,6 +17,7 @@ Each provider needs a different shape of setup:
 | Notion | OAuth, page picker | yes - `notion.html` |
 | GitHub | Device flow | no - code + browser, no secret |
 | Jira | OAuth 2.0 3LO | yes - `jira.html` |
+| ClickUp | OAuth | yes - `clickup.html` |
 
 Slack allows neither PKCE nor a non-HTTPS redirect URL, so a desktop app can't
 receive the callback directly. `slack.html` in this folder is the whole
@@ -169,6 +170,23 @@ Unlike Slack, Notion's access tokens expire. The refresh token is stored
 alongside them and spent on demand (`src/main/lib/notion-token.ts`), which is
 also why that module is kept free of electron - the Notion tRPC router imports
 it, and a static electron import there breaks every consumer.
+
+## ClickUp
+
+A workspace owner or admin creates the app in ClickUp: Settings → Apps →
+Create new app. Set its redirect URL to your published `clickup.html`, and pass
+all three values:
+
+```bash
+ODIN_CLICKUP_CLIENT_ID=... \
+ODIN_CLICKUP_CLIENT_SECRET=... \
+ODIN_CLICKUP_REDIRECT_URL=https://REPLACE-ME/clickup.html \
+  bun run build
+```
+
+The consent screen lets the person pick which workspaces Odin can read.
+ClickUp's tokens don't expire, so there is no refresh path. A build without
+the app still connects: the ClickUp row then takes a pasted personal API token.
 
 ## Jira
 

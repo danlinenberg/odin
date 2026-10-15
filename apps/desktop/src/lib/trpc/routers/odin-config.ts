@@ -82,10 +82,13 @@ export interface OdinFileConfig {
 	gmailAppPassword?: string;
 
 	/**
-	 * ClickUp personal API token (`pk_…`), pasted like Gmail's app password:
-	 * ClickUp's OAuth needs a registered app per workspace. Read by /read only.
+	 * ClickUp token: from the OAuth sign-in, or a pasted personal API token
+	 * (`pk_…`) when the build has no ClickUp app.
 	 */
 	clickupToken?: string;
+	clickupClientId?: string;
+	clickupClientSecret?: string;
+	clickupRedirectUrl?: string;
 
 	/** Slack **user** token (`xoxp-…`) - bot tokens can't read my reactions. */
 	slackToken?: string;
@@ -173,6 +176,9 @@ const SHARED_KEYS = [
 	"notionClientId",
 	"notionClientSecret",
 	"notionRedirectUrl",
+	"clickupClientId",
+	"clickupClientSecret",
+	"clickupRedirectUrl",
 	"githubClientId",
 ] as const;
 
@@ -558,6 +564,22 @@ export function resolveNotionOAuthApp(): NotionOAuthApp | null {
 	const redirectUrl =
 		appValue(["ODIN_NOTION_REDIRECT_URL"], file.notionRedirectUrl) ||
 		process.env.ODIN_NOTION_REDIRECT_URL_BAKED;
+	if (!clientId || !clientSecret || !redirectUrl) return null;
+	return { clientId, clientSecret, redirectUrl };
+}
+
+/** The ClickUp OAuth app, if one is configured - same precedence as Notion's. */
+export function resolveClickupOAuthApp(): NotionOAuthApp | null {
+	const file = readOdinConfig();
+	const clientId =
+		appValue(["ODIN_CLICKUP_CLIENT_ID"], file.clickupClientId) ||
+		process.env.ODIN_CLICKUP_CLIENT_ID_BAKED;
+	const clientSecret =
+		appValue(["ODIN_CLICKUP_CLIENT_SECRET"], file.clickupClientSecret) ||
+		process.env.ODIN_CLICKUP_CLIENT_SECRET_BAKED;
+	const redirectUrl =
+		appValue(["ODIN_CLICKUP_REDIRECT_URL"], file.clickupRedirectUrl) ||
+		process.env.ODIN_CLICKUP_REDIRECT_URL_BAKED;
 	if (!clientId || !clientSecret || !redirectUrl) return null;
 	return { clientId, clientSecret, redirectUrl };
 }
