@@ -395,6 +395,7 @@ await step("Tasks: every feed tab opens", async () => {
 	for (const tab of [
 		"All",
 		"Tasks",
+		"Docs",
 		"Slack",
 		"Jira",
 		"GitHub",

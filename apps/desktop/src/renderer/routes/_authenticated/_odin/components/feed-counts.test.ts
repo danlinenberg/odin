@@ -36,6 +36,7 @@ test("counts say what's waiting, not how many rows", () => {
 		"/notion": 0,
 		"/email": 1,
 		"/clickup": 2,
+		"/docs": 0,
 	});
 });
 

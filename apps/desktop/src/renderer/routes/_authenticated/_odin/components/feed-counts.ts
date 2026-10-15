@@ -1,5 +1,6 @@
 import {
 	HiOutlineClipboardDocumentCheck,
+	HiOutlineDocumentText,
 	HiOutlineInbox,
 } from "react-icons/hi2";
 import { LuGitPullRequest } from "react-icons/lu";
@@ -14,6 +15,7 @@ import type { Provider } from "renderer/components/ConnectProvider/ConnectProvid
 export const FEED_TABS = [
 	{ to: "/all", label: "All", Icon: HiOutlineInbox },
 	{ to: "/my-tasks", label: "Tasks", Icon: HiOutlineClipboardDocumentCheck },
+	{ to: "/docs", label: "Docs", Icon: HiOutlineDocumentText },
 	{ to: "/reactions", label: "Slack", Icon: SiSlack, provider: "slack" },
 	{ to: "/jira", label: "Jira", Icon: SiJira, provider: "jira" },
 	{ to: "/prs", label: "GitHub", Icon: LuGitPullRequest, provider: "github" },
@@ -74,6 +76,8 @@ export function feedCounts(input: {
 	return {
 		...sources,
 		"/all": Object.values(sources).reduce((total, n) => total + n, 0) - mine,
+		// A doc is reading, not work - it never waits on you.
+		"/docs": 0,
 	};
 }
 
