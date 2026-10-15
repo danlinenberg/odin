@@ -3,6 +3,7 @@ import { Button } from "@odin/ui/button";
 import { mermaid } from "@streamdown/mermaid";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { type ReactNode, useState } from "react";
+import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useTheme } from "renderer/stores";
 import { Streamdown } from "streamdown";
 
@@ -31,17 +32,20 @@ const SLACK_MARKUP =
 /**
  * The text as Slack's composer delta ("slack/texty"), the clipboard format
  * Slack itself writes on copy and reads on paste. It is the only way a pasted
- * <@U123> lands as a real mention: plain text stays literal. Slack sends the
- * id, so the label only shows in the composer until the message is sent.
+ * <@U123> lands as a real mention: plain text stays literal. `names` gives
+ * the mention its "@Name" label; without one it reads as the bare id.
  */
-export function toSlackTexty(text: string): string {
+export function toSlackTexty(
+	text: string,
+	names: Record<string, string> = {},
+): string {
 	const ops: TextyOp[] = [];
 	let last = 0;
 	for (const match of text.matchAll(SLACK_MARKUP)) {
 		const [whole, userId, label, bold, code] = match;
 		if (match.index > last) ops.push({ insert: text.slice(last, match.index) });
 		if (userId) {
-			const name = `@${label ?? userId}`;
+			const name = `@${label ?? names[userId] ?? userId}`;
 			ops.push({
 				insert: name,
 				attributes: {
@@ -62,10 +66,13 @@ export function toSlackTexty(text: string): string {
 }
 
 /** A copy event can carry custom types that another Chromium app (Slack) reads. */
-function copyWithSlackTexty(text: string): boolean {
+function copyWithSlackTexty(
+	text: string,
+	names: Record<string, string> | undefined,
+): boolean {
 	const onCopy = (event: ClipboardEvent) => {
 		event.clipboardData?.setData("text/plain", text);
-		event.clipboardData?.setData("slack/texty", toSlackTexty(text));
+		event.clipboardData?.setData("slack/texty", toSlackTexty(text, names));
 		event.preventDefault();
 	};
 	document.addEventListener("copy", onCopy);
@@ -78,9 +85,18 @@ function copyWithSlackTexty(text: string): boolean {
 
 function PasteBlock({ text }: { text: string }) {
 	const [isCopied, setIsCopied] = useState(false);
+	// Looked up on render, not on click: the copy has to run inside the click.
+	const ids = [
+		...new Set(Array.from(text.matchAll(/<@([UW][A-Z0-9]+)>/g), (m) => m[1])),
+	];
+	const { data: names } = electronTrpc.slack.userNames.useQuery(
+		{ ids },
+		{ enabled: ids.length > 0, staleTime: Number.POSITIVE_INFINITY },
+	);
 	const copy = async () => {
 		try {
-			if (!copyWithSlackTexty(text)) await navigator.clipboard.writeText(text);
+			if (!copyWithSlackTexty(text, names))
+				await navigator.clipboard.writeText(text);
 			setIsCopied(true);
 			setTimeout(() => setIsCopied(false), 2000);
 		} catch {

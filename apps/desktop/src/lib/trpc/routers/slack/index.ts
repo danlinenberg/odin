@@ -914,6 +914,22 @@ export const createSlackRouter = () => {
 			};
 		}),
 
+		/** Names for Slack user ids, so a copied <@U123> pastes as "@Name". */
+		userNames: publicProcedure
+			.input(z.object({ ids: z.array(z.string()) }))
+			.query(async ({ input }) => {
+				const token = slackToken();
+				if (!token) return {};
+				const pairs = await Promise.all(
+					input.ids.map(
+						async (id) => [id, await lookupUserName(id, token)] as const,
+					),
+				);
+				return Object.fromEntries(
+					pairs.filter((pair): pair is readonly [string, string] => !!pair[1]),
+				);
+			}),
+
 		/** Channel, author and opening line for each Slack link, keyed by url. */
 		previews: publicProcedure
 			.input(z.object({ urls: z.array(z.string()) }))

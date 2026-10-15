@@ -35,3 +35,11 @@ test("a Slack mention copies as a real mention, markup as formatting", () => {
 		],
 	});
 });
+
+test("a known name labels the mention", () => {
+	const [mention] = JSON.parse(
+		toSlackTexty("<@U0C62025C31> hi", { U0C62025C31: "Ayelet Holtzman Ravid" }),
+	).ops;
+	expect(mention.insert).toBe("@Ayelet Holtzman Ravid");
+	expect(mention.attributes.slackmention.id).toBe("U0C62025C31");
+});
