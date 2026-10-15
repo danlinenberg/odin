@@ -466,10 +466,9 @@ export const createReposRouter = (
 				const worktree =
 					pullRequests[0]?.worktree ??
 					(await workingWorktreeOf(input.claudeSessionId));
-				// The clone that owns `checkout` - the repo picker lists clones only.
 				return {
 					checkout,
-					repo: ownerRepoOf(checkout),
+					owningClone: ownerRepoOf(checkout),
 					name,
 					worktree,
 					pullRequests,
