@@ -12,7 +12,8 @@ import { FEED_TABS } from "../components/feed-counts";
 const page = (to: string) =>
 	Bun.file(`${import.meta.dir}/..${to}/page.tsx`).text();
 
-for (const { to, label } of FEED_TABS) {
+// Docs lists files, not tasks - there is no task row to share.
+for (const { to, label } of FEED_TABS.filter(({ to }) => to !== "/docs")) {
 	test(`${label} draws its rows with the shared task table`, async () => {
 		const source = await page(to);
 		expect(source).toContain("<TaskRow");
