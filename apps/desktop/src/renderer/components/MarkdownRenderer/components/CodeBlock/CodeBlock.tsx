@@ -23,11 +23,64 @@ export function looksLikeProse(code: string): boolean {
 		);
 }
 
+type TextyOp = { insert: string; attributes?: Record<string, unknown> };
+
+const SLACK_MARKUP =
+	/<@([UW][A-Z0-9]+)(?:\|([^>]+))?>|\*([^*\n]+)\*|`([^`\n]+)`/g;
+
+/**
+ * The text as Slack's composer delta ("slack/texty"), the clipboard format
+ * Slack itself writes on copy and reads on paste. It is the only way a pasted
+ * <@U123> lands as a real mention: plain text stays literal. Slack sends the
+ * id, so the label only shows in the composer until the message is sent.
+ */
+export function toSlackTexty(text: string): string {
+	const ops: TextyOp[] = [];
+	let last = 0;
+	for (const match of text.matchAll(SLACK_MARKUP)) {
+		const [whole, userId, label, bold, code] = match;
+		if (match.index > last) ops.push({ insert: text.slice(last, match.index) });
+		if (userId) {
+			const name = `@${label ?? userId}`;
+			ops.push({
+				insert: name,
+				attributes: {
+					slackmention: {
+						id: userId,
+						label: name,
+						mention: false,
+						unverified: false,
+					},
+				},
+			});
+		} else if (bold) ops.push({ insert: bold, attributes: { bold: true } });
+		else ops.push({ insert: code, attributes: { code: true } });
+		last = match.index + whole.length;
+	}
+	ops.push({ insert: `${text.slice(last)}\n` });
+	return JSON.stringify({ ops });
+}
+
+/** A copy event can carry custom types that another Chromium app (Slack) reads. */
+function copyWithSlackTexty(text: string): boolean {
+	const onCopy = (event: ClipboardEvent) => {
+		event.clipboardData?.setData("text/plain", text);
+		event.clipboardData?.setData("slack/texty", toSlackTexty(text));
+		event.preventDefault();
+	};
+	document.addEventListener("copy", onCopy);
+	try {
+		return document.execCommand("copy");
+	} finally {
+		document.removeEventListener("copy", onCopy);
+	}
+}
+
 function PasteBlock({ text }: { text: string }) {
 	const [isCopied, setIsCopied] = useState(false);
 	const copy = async () => {
 		try {
-			await navigator.clipboard.writeText(text);
+			if (!copyWithSlackTexty(text)) await navigator.clipboard.writeText(text);
 			setIsCopied(true);
 			setTimeout(() => setIsCopied(false), 2000);
 		} catch {

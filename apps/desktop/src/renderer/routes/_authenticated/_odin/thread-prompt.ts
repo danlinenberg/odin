@@ -56,11 +56,10 @@ export function buildThreadPrompt(
 		`- Work from ${briefPath} as your instructions.`,
 		"- Identify the relevant repo/code, investigate, and do the work.",
 		"- Verify your changes when practical.",
-		// Slack's drafts API is the one path that yields real mentions, and the
-		// session has it as an MCP tool. The fenced copy is for pasting by hand:
-		// a pasted <@U0C62025C31> stays literal text, while a typed-out @handle
-		// is one Slack's composer turns into a mention on send.
-		"- If you end with a reply for me to post in that thread, create it as a Slack draft reply in the thread with your Slack draft tool (slack_send_message_draft, thread_ts of the first message, mentions as <@USERID>) and give me the channel link. Never send it. Keep the text in your reply too, in a fenced block, for when the tool is missing. In that fenced block write each mention as @ plus the person's Slack display name (look it up with your Slack user tool), never <@USERID>: I paste that block into Slack, where the <@...> form stays literal text.",
+		// Slack's drafts API yields real mentions, and the session has it as an
+		// MCP tool. The fenced copy is the fallback: Odin's Copy button turns its
+		// <@USERID> into real mentions when pasted into Slack (CodeBlock.tsx).
+		"- If you end with a reply for me to post in that thread, create it as a Slack draft reply in the thread with your Slack draft tool (slack_send_message_draft, thread_ts of the first message, mentions as <@USERID>) and give me the channel link. Never send it. Keep the text in your reply too, in a fenced block with the same <@USERID> mentions, for when the tool is missing.",
 		"",
 		"Rules: do NOT post to Slack or Notion; everything stays in this session for review. A Slack draft is not a post: I review and send it myself.",
 	].join("\n");
