@@ -439,25 +439,6 @@ await step("a task written down lands in Tasks", async () => {
 	await waitForText(TASK);
 });
 
-await step(
-	"⌘Enter adds the task from the fields under the box too",
-	async () => {
-		const typed = `Send task ${Date.now()}`;
-		await rail("Dev Board");
-		await click("button", "Add task");
-		await fill('input[placeholder="What needs doing?"]', typed);
-		// From Priority, not the title: Skill, Repo and Priority used to swallow it.
-		await page(`(() => {
-		const mac = navigator.platform.startsWith("Mac");
-		const field = document.querySelector('[role=dialog] select[aria-label="Priority"]');
-		field.focus();
-		field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", metaKey: mac, ctrlKey: !mac, bubbles: true }));
-	})()`);
-		await rail("Tasks");
-		await waitForText(typed);
-	},
-);
-
 await step("the My Tasks composer adds a task with its button", async () => {
 	const typed = `Button task ${Date.now()}`;
 	await page(`(() => {
@@ -468,6 +449,27 @@ await step("the My Tasks composer adds a task with its button", async () => {
 	await click("button", "Add task");
 	await waitForText(typed);
 });
+
+await step(
+	"⌘Enter adds the task from the fields under the box too",
+	async () => {
+		const typed = `Send task ${Date.now()}`;
+		await fill('input[placeholder="What needs doing?"]', typed);
+		// From Priority, not the title: Skill, Repo and Priority used to swallow it.
+		await page(`(() => {
+		const mac = navigator.platform.startsWith("Mac");
+		const title = document.querySelector('input[placeholder="What needs doing?"]');
+		const field = title.closest("fieldset").parentElement.querySelector('select[aria-label="Priority"]');
+		field.focus();
+		field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", metaKey: mac, ctrlKey: !mac, bubbles: true }));
+	})()`);
+		await waitForText(typed);
+		const left = await page<string>(
+			`document.querySelector('input[placeholder="What needs doing?"]').value`,
+		);
+		if (left) throw new Error(`the box still holds "${left}"`);
+	},
+);
 
 /**
  * Where TASK's columns sit, and the header's Task label: every tab draws
