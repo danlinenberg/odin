@@ -13,6 +13,7 @@ import {
 } from "main/lib/terminal/errors";
 import { getTerminalHostClient } from "main/lib/terminal-host/client";
 import { getWorkspaceRuntimeRegistry } from "main/lib/workspace-runtime";
+import { isRemoteSessionMode } from "main/lib/workspace-runtime/routing";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
 import { assertWorkspaceUsable } from "../workspaces/utils/usability";
@@ -95,10 +96,16 @@ export const createTerminalRouter = () => {
 
 				const { workspace, workspacePath, rootPath } =
 					getWorkspaceTerminalContext(workspaceId);
-				if (workspace?.type === "worktree") {
+				// Remote sessions run on the server: their paths are server
+				// paths, which the laptop's disk can't confirm. The server
+				// resolves them instead.
+				const remote = isRemoteSessionMode();
+				if (!remote && workspace?.type === "worktree") {
 					assertWorkspaceUsable(workspaceId, workspacePath);
 				}
-				const cwd = resolveCwd(cwdOverride, workspacePath);
+				const cwd = remote
+					? (cwdOverride ?? workspacePath)
+					: resolveCwd(cwdOverride, workspacePath);
 
 				if (DEBUG_TERMINAL) {
 					console.log("[Terminal Router] createOrAttach called:", {

@@ -162,6 +162,20 @@ function revealSetting(label: string, framesLeft = 60) {
 			requestAnimationFrame(() => revealSetting(label, framesLeft - 1));
 		return;
 	}
+	// A row on a closed tab (Settings > Advanced): open that tab first. Radix
+	// tabs select on a left-button mousedown - focus() alone does nothing
+	// while the window is in the background.
+	const panel = row.closest<HTMLElement>(
+		'[role="tabpanel"][data-state="inactive"]',
+	);
+	if (panel)
+		document
+			.querySelector<HTMLElement>(
+				`[role="tab"][aria-controls="${CSS.escape(panel.id)}"]`,
+			)
+			?.dispatchEvent(
+				new MouseEvent("mousedown", { bubbles: true, button: 0 }),
+			);
 	setTimeout(() => {
 		row.scrollIntoView({ block: "center", behavior: "smooth" });
 		row.animate(

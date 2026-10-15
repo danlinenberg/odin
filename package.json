@@ -44,6 +44,7 @@
 	"overrides": {
 		"@types/hast": "3.0.5",
 		"axios": "1.14.0",
+		"cpu-features": "npm:@favware/skip-dependency@1.2.2",
 		"hono": "4.12.34",
 		"kysely": "0.28.17",
 		"rollup": "4.62.3",

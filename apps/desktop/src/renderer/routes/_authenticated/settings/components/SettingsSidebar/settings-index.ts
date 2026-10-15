@@ -60,7 +60,7 @@ export const SCREENS = [
 	{
 		to: "/settings/advanced",
 		label: "Advanced",
-		hint: "Claude command, default prompt, worktree cleanup",
+		hint: "Claude command, default prompt, cleanup, remote server",
 		icon: LuSlidersHorizontal,
 	},
 ] as const;
@@ -292,6 +292,25 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		section: "From any app",
 		keywords:
 			"double tap global hotkey open hide odin anywhere key mapping button synergy",
+	},
+	{
+		label: "Remote server",
+		to: "/settings/advanced",
+		section: "Remote server",
+		keywords:
+			"ssh remote backend host run agents offload tunnel machine server",
+	},
+	{
+		label: "Server address",
+		to: "/settings/advanced",
+		section: "Add a connection",
+		keywords: "ip hostname host address ssh remote",
+	},
+	{
+		label: "Odin folder",
+		to: "/settings/advanced",
+		section: "Add a connection",
+		keywords: "odin home dir folder path remote logs database worktrees",
 	},
 ];
 

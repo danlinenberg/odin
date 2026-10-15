@@ -1,5 +1,10 @@
 import { useEffect, useRef } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import {
+	isRemoteCoreMode,
+	remoteCoreClient,
+	runsLocalSchedulers,
+} from "renderer/lib/remote-core-link";
 import { launchLimits, useLaunchLimits } from "renderer/stores/launch-limits";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import type { Pane } from "renderer/stores/tabs/types";
@@ -55,6 +60,11 @@ export async function currentLaunchBlocker(
 	odinRepoPath: string | null | undefined,
 	except?: string,
 ): Promise<string | null> {
+	// On a server the gate is the server's load, not this laptop's.
+	if (isRemoteCoreMode()) {
+		const api = remoteCoreClient();
+		return api ? api.launcher.blocker.query({ checkout, except }) : null;
+	}
 	const [snapshot, { sessions }] = await Promise.all([
 		client.resourceMetrics.getSnapshot.query(),
 		client.terminal.listDaemonSessions.query(),
@@ -173,6 +183,9 @@ export function useTaskQueue(): void {
 	const starting = useRef(false);
 
 	useEffect(() => {
+		// Sessions run on a server: its queue starts them (useServerBoard hands
+		// this window's queued tasks over), against the server's own load.
+		if (!runsLocalSchedulers()) return;
 		if (!metrics || !daemonSessions || starting.current) return;
 		const panes = useTabsStore.getState().panes;
 		const queue = queuedPanes(panes);

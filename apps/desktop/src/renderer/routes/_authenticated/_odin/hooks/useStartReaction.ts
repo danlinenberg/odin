@@ -3,6 +3,7 @@ import type { ReactionRow } from "lib/trpc/routers/slack";
 import { useEffect, useRef } from "react";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { runsLocalSchedulers } from "renderer/lib/remote-core-link";
 import { askSessionContext } from "../components/SessionContextDialog";
 import { buildThreadPrompt } from "../thread-prompt";
 import { useOdinFeeds } from "./useOdinFeeds";
@@ -79,6 +80,8 @@ export function useSlackAutoLaunch(): void {
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: start is rebuilt every render; rows is the trigger
 	useEffect(() => {
+		// Sessions run on a server: its scheduler starts these, laptop or not.
+		if (!runsLocalSchedulers()) return;
 		void (async () => {
 			for (const row of rows ?? []) {
 				// Older main process (pre-restart) doesn't send the flag at all.

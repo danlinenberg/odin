@@ -135,6 +135,13 @@ async function claudeAuthStatus(): Promise<{
 let login: ChildProcess | null = null;
 
 /**
+ * On a remote server (sessions run there) no browser opens: the CLI prints the
+ * sign-in link instead, and the laptop opens it (claudeLoginUrl).
+ */
+let loginUrl: string | null = null;
+const LOGIN_URL = /https:\/\/\S+\/oauth\/authorize\S*/;
+
+/**
  * The first runnable `claude` on PATH. Node's own lookup stops at the first
  * entry it can't run (EPERM) instead of trying the next folder, so an
  * unreadable copy early on PATH would hide Odin's bundled one at the end.
@@ -176,13 +183,15 @@ async function claudeLogin(): Promise<{ ok: boolean; error?: string }> {
 		return { ok: false, error: (error as Error).message };
 	}
 	login = child;
+	loginUrl = null;
 	let output = "";
-	child.stdout?.on("data", (chunk) => {
+	const collect = (chunk: Buffer | string) => {
 		output += chunk;
-	});
-	child.stderr?.on("data", (chunk) => {
-		output += chunk;
-	});
+		if (!loginUrl && process.env.ODIN_REMOTE_CORE === "1")
+			loginUrl = LOGIN_URL.exec(output)?.[0] ?? null;
+	};
+	child.stdout?.on("data", collect);
+	child.stderr?.on("data", collect);
 	// ponytail: abandoned logins die after 10 minutes, not on a Cancel button.
 	const timer = setTimeout(() => child.kill(), 10 * 60_000);
 	return new Promise((resolve) => {
@@ -192,7 +201,10 @@ async function claudeLogin(): Promise<{ ok: boolean; error?: string }> {
 		});
 		child.on("exit", async (code) => {
 			clearTimeout(timer);
-			if (login === child) login = null;
+			if (login === child) {
+				login = null;
+				loginUrl = null;
+			}
 			if (code === 0) await markClaudeOnboarded().catch(() => {});
 			resolve(
 				code === 0
@@ -235,19 +247,30 @@ export async function markClaudeOnboarded(
 	);
 }
 
+/**
+ * Claude's sign-in, wherever sessions run: this machine's `system` router, and
+ * on a remote server the Odin core's (shared/remote-core REMOTE_CORE_PROCEDURES
+ * sends these four there).
+ */
+export const claudeAuthProcedures = {
+	claudeAuthStatus: publicProcedure.query(claudeAuthStatus),
+	claudeLogin: publicProcedure.mutation(claudeLogin),
+	claudeLoginCode: publicProcedure
+		.input(z.object({ code: z.string().trim().min(1) }))
+		.mutation(({ input }) => {
+			if (!login?.stdin?.writable) return { sent: false };
+			login.stdin.write(`${input.code}\n`);
+			return { sent: true };
+		}),
+	/** The link a server's sign-in printed, for the laptop to open; null locally. */
+	claudeLoginUrl: publicProcedure.query(() => loginUrl),
+};
+
 export const createSystemRouter = () => {
 	return router({
 		detectGhCli: publicProcedure.query(detectGhCli),
 		detectBrew: publicProcedure.query(detectBrew),
-		claudeAuthStatus: publicProcedure.query(claudeAuthStatus),
-		claudeLogin: publicProcedure.mutation(claudeLogin),
-		claudeLoginCode: publicProcedure
-			.input(z.object({ code: z.string().trim().min(1) }))
-			.mutation(({ input }) => {
-				if (!login?.stdin?.writable) return { sent: false };
-				login.stdin.write(`${input.code}\n`);
-				return { sent: true };
-			}),
+		...claudeAuthProcedures,
 		/**
 		 * A pasted screenshot has no file behind it, and a task is one string in
 		 * localStorage - so the bytes land in ~/.odin/attachments and the task

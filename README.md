@@ -116,6 +116,29 @@ there under emulation.
 Terminal daemons listen on named pipes (`\\.\pipe\odin-*`) instead of socket
 files.
 
+### Run the backend on your own server
+
+Odin can run its workspace backend (workspaces, their terminals, agent and
+git settings) on a Linux server you can SSH into, and the app talks to it
+through the SSH connection. Any server works - a cloud VM, a box under a desk.
+Dev Board sessions still run on your Mac for now.
+
+- **What the server needs:** Linux on x86_64 or arm64, SSH access (a key, your
+  SSH agent, or a password), and internet on the first connect. Nothing to
+  install: Odin downloads its own Node into the folder you pick.
+- **Set it up:** Settings > Advanced > Remote server > Add a connection. Fill in the host,
+  user and a folder (for example `~/odin`), then **Test connection**. It checks
+  the server and the folder before anything is copied.
+- **Connect:** Odin copies the backend, installs it, starts it and opens the
+  tunnel. The first connect takes a few minutes; later ones reuse what is there.
+- **Disconnect** closes only the laptop's side. The backend keeps
+  running on the server, and the next connect picks it up.
+- **Security:** the server's SSH host key is remembered on the first connect, and
+  a changed key is refused (`~/.odin/remote-known-hosts.json` - remove the line
+  if you rebuilt the server). The backend listens only on the server's
+  localhost, behind the tunnel.
+
+
 ## The idea
 
 Most people run two systems and hold both in their head at once.

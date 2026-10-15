@@ -14,6 +14,8 @@
  */
 
 import { LocalWorkspaceRuntime } from "./local";
+import type { RemoteTerminalRuntime } from "./remote";
+import { RoutingWorkspaceRuntime } from "./routing";
 import type { WorkspaceRuntime, WorkspaceRuntimeRegistry } from "./types";
 
 // =============================================================================
@@ -23,35 +25,28 @@ import type { WorkspaceRuntime, WorkspaceRuntimeRegistry } from "./types";
 /**
  * Default registry implementation.
  *
- * Currently returns the same LocalWorkspaceRuntime for all workspaces.
- * The interface supports per-workspace selection for future cloud work.
+ * Returns one RoutingWorkspaceRuntime for all workspaces: it runs sessions on
+ * the laptop, or on the connected remote server (see routing.ts).
  */
 class DefaultWorkspaceRuntimeRegistry implements WorkspaceRuntimeRegistry {
-	private localRuntime: LocalWorkspaceRuntime | null = null;
+	private runtime: RoutingWorkspaceRuntime | null = null;
 
-	/**
-	 * Get the runtime for a specific workspace.
-	 *
-	 * Currently always returns the local runtime.
-	 * Future: will check workspace metadata to select local vs cloud.
-	 */
+	/** Every workspace shares the routing runtime; it picks per pane. */
 	getForWorkspaceId(_workspaceId: string): WorkspaceRuntime {
-		// Currently all workspaces use the local runtime
-		// Future: check workspace metadata for cloudWorkspaceId to select cloud runtime
 		return this.getDefault();
 	}
 
 	/**
 	 * Get the default runtime (for global/legacy endpoints).
 	 *
-	 * Returns the local runtime, lazily initialized.
-	 * The runtime instance is cached for the lifetime of the process.
+	 * Lazily initialized and cached for the lifetime of the process, so event
+	 * wiring stays on one instance.
 	 */
-	getDefault(): WorkspaceRuntime {
-		if (!this.localRuntime) {
-			this.localRuntime = new LocalWorkspaceRuntime();
+	getDefault(): RoutingWorkspaceRuntime {
+		if (!this.runtime) {
+			this.runtime = new RoutingWorkspaceRuntime(new LocalWorkspaceRuntime());
 		}
-		return this.localRuntime;
+		return this.runtime;
 	}
 }
 
@@ -59,7 +54,7 @@ class DefaultWorkspaceRuntimeRegistry implements WorkspaceRuntimeRegistry {
 // Singleton Instance
 // =============================================================================
 
-let registryInstance: WorkspaceRuntimeRegistry | null = null;
+let registryInstance: DefaultWorkspaceRuntimeRegistry | null = null;
 
 /**
  * Get the workspace runtime registry.
@@ -77,6 +72,14 @@ export function getWorkspaceRuntimeRegistry(): WorkspaceRuntimeRegistry {
 		registryInstance = new DefaultWorkspaceRuntimeRegistry();
 	}
 	return registryInstance;
+}
+
+/** The remote half of the default runtime: sessions run on the connected server. */
+export function getRemoteTerminalRuntime(): RemoteTerminalRuntime {
+	if (!registryInstance) {
+		registryInstance = new DefaultWorkspaceRuntimeRegistry();
+	}
+	return registryInstance.getDefault().terminal.remote;
 }
 
 /**

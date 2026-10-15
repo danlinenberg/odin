@@ -5,6 +5,8 @@ import { homedir, tmpdir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import { TRPCError } from "@trpc/server";
+import { getRemoteConnectionManager } from "main/lib/remote-connection/remote-connection-manager";
+import { remotePathInfo } from "main/lib/remote-connection/remote-paths";
 import { z } from "zod";
 import { publicProcedure, router } from "..";
 import { readOdinConfig, updateOdinConfig } from "./odin-config";
@@ -373,16 +375,35 @@ export const createReposRouter = (
 		 * picked in the UI is never shadowed by a stale shell export. Neither set:
 		 * the folder the repos live in, detected.
 		 */
-		getDefault: publicProcedure.query(
-			async () =>
+		getDefault: publicProcedure.query(async () => {
+			// Sessions on a server start in a server folder; laptop folders
+			// don't exist there, so nothing is guessed from this machine.
+			if (getRemoteConnectionManager().isRemoteMode()) {
+				return readOdinConfig().remoteDefaultRepo ?? null;
+			}
+			return (
 				readOdinConfig().defaultRepo ??
 				process.env.DAN_DEFAULT_REPO ??
-				detectReposFolder(await repos),
-		),
+				detectReposFolder(await repos)
+			);
+		}),
 
 		setDefault: publicProcedure
 			.input(z.object({ path: z.string().nullable() }))
-			.mutation(({ input }) => {
+			.mutation(async ({ input }) => {
+				if (getRemoteConnectionManager().isRemoteMode()) {
+					if (input.path) {
+						const info = await remotePathInfo(input.path);
+						if (!info.exists || !info.isDirectory) {
+							throw new TRPCError({
+								code: "BAD_REQUEST",
+								message: `No such folder on the server: ${input.path}`,
+							});
+						}
+					}
+					updateOdinConfig({ remoteDefaultRepo: input.path ?? undefined });
+					return { ok: true };
+				}
 				// Any folder will do - git or not. Checked here rather than at
 				// launch, where a missing path only fails much later.
 				if (input.path && !existsSync(input.path)) {

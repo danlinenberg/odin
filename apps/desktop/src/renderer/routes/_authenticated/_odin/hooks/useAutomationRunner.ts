@@ -1,96 +1,28 @@
 import { useEffect, useRef } from "react";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
+import { runsLocalSchedulers } from "renderer/lib/remote-core-link";
 import { useTabsStore } from "renderer/stores/tabs/store";
-import { cronMatches, parseCron } from "shared/cron";
-import type { Pane } from "shared/tabs-types";
+import { automationRun, dueAutomations } from "shared/odin-tasks";
 import { BUILTIN_AUTOMATIONS } from "./builtin-automations";
 import { useOdinProfile } from "./useOdinProfile";
-import {
-	type OdinTask,
-	taskNotes,
-	taskPrompt,
-	useMyTasks,
-	useOdinTasks,
-} from "./useOdinTasks";
+import { useMyTasks, useOdinTasks } from "./useOdinTasks";
 import { useOdinWorkspace } from "./useOdinWorkspace";
+
+export {
+	automationRun,
+	dueAutomations,
+	taggedSessions,
+} from "shared/odin-tasks";
 
 /** How often the clock is read. Twice a minute, so no minute is missed. */
 const TICK_MS = 30_000;
 
 /**
- * Which automations are due right now.
- *
- * `lastRunAt` is the whole dedupe: a minute gets visited by two ticks, and
- * this is what stops the second one starting the job again. Split out from
- * the hook so the rule is testable without a renderer.
- *
- * The schedule is the only say in it - a due run starts even if the last
- * one's session is still open on the board. Pause is how you stop it; the
- * machine-capacity gate in `launch` is what keeps a fast cron from flattening
- * the Mac.
- *
- * ponytail: no catch-up. An automation that came due while the app was shut
- * is skipped, not run at launch - opening Odin on Monday morning should not
- * fire the weekend's three missed runs at once.
- */
-export function dueAutomations(tasks: OdinTask[], now: Date): OdinTask[] {
-	const minute = new Date(now).setSeconds(0, 0);
-	return tasks.filter((task) => {
-		if (!task.cron || task.paused) return false;
-		if ((task.lastRunAt ?? 0) >= minute) return false;
-		const cron = parseCron(task.cron);
-		return !!cron && cronMatches(cron, now);
-	});
-}
-
-export function taggedSessions(
-	panes: Record<string, Pane>,
-	tags: readonly string[],
-): Pane[] {
-	return Object.values(panes).filter(
-		(pane) =>
-			pane.odinTaskTitle &&
-			!pane.completed &&
-			pane.odinTags?.some((tag) => tags.includes(tag)),
-	);
-}
-
-/**
- * What a run launches with. Null = skip it: it watches tags and no open
- * session carries one. The tagged sessions ride in `description`, the text
- * the agent's prompt is built from - `brief` is only kept on the card.
- */
-export function automationRun(
-	task: OdinTask,
-	panes: Record<string, Pane>,
-): { description: string | null; brief: string } | null {
-	const notes = taskNotes(task);
-	if (!task.tags?.length)
-		return { description: notes || null, brief: taskPrompt(task) };
-	const sessions = taggedSessions(panes, task.tags);
-	if (sessions.length === 0) return null;
-	const description = [
-		...(notes ? [notes, ""] : []),
-		`Sessions on the board tagged ${task.tags.map((tag) => `#${tag}`).join(" or ")} (paneId is what Odin's local API takes):`,
-		...sessions.map(
-			(pane) =>
-				`- ${pane.odinTaskTitle} - paneId ${pane.id}, status ${pane.status ?? "idle"}, tags ${(pane.odinTags ?? []).map((tag) => `#${tag}`).join(" ")}`,
-		),
-		"",
-		// Without this the tag stays, and every tick runs the same session again.
-		`When you finish with a session, drop ${task.tags.map((tag) => `#${tag}`).join(" / ")} from its tags so the next run skips it: curl -sf http://127.0.0.1:$ODIN_PORT/odin --data-urlencode action=set --data-urlencode store=sessions --data-urlencode 'patch={"panes":{"<paneId>":{"odinTags":[<its other tags>]}}}'`,
-	].join("\n");
-	return { description, brief: `${task.title}\n\n${description}` };
-}
-
-/**
  * The clock behind the Automations panel. Mounted once in the Odin shell, so
  * it ticks on whichever view you're looking at.
  *
- * ponytail: the renderer, not the main process. Launching a session is a
- * renderer call (workspace, prompt file, pane, tab) and a schedule that only
- * runs while Odin is open is the honest description of a desktop app anyway.
- * Move it to main the day automations have to fire with the window shut.
+ * On a remote server the server fires them instead (main/odin-core/scheduler.ts),
+ * so they run with the laptop shut; this one stands down.
  */
 export function useAutomationRunner() {
 	const { automations, markRun, setPane } = useMyTasks();
@@ -130,6 +62,8 @@ export function useAutomationRunner() {
 			// One launch at a time: `launch` waits on machine capacity, and two
 			// overlapping ticks would both be holding for the same free memory.
 			if (running) return;
+			// Sessions run on a server: its scheduler fires these, laptop or not.
+			if (!runsLocalSchedulers()) return;
 			const now = new Date();
 			const due = dueAutomations(latest.current.automations, now);
 			if (due.length === 0) return;

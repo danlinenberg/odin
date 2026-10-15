@@ -54,7 +54,45 @@ export function useOdinWorkspace() {
 				? ({ ok: true, workspace: launchWorkspace } as const)
 				: ({ ok: false, error } as const);
 
-		let repoPath = repoOverride ?? defaultRepo;
+		// Fresh, not the cached query: connecting to or leaving a remote server
+		// swaps the default between a laptop folder and a server one.
+		const remoteMode = await utils.remoteConnections.isRemoteMode
+			.fetch(undefined, { staleTime: 0 })
+			.catch(() => false);
+		const currentDefault = await utils.repos.getDefault
+			.fetch(undefined, { staleTime: 0 })
+			.catch(() => defaultRepo);
+		let repoPath = repoOverride ?? currentDefault;
+		// Sessions on a server start in a server folder, which no Finder window
+		// can show: ask for its path instead, checked on the server.
+		if (!repoPath && remoteMode) {
+			if (!askForFolder) {
+				return {
+					ok: false,
+					error:
+						"No server folder set - set one in Settings → Sessions while connected.",
+				};
+			}
+			const typed = window.prompt(
+				"Sessions run on your remote server. Which folder there should they start in? (an absolute path, e.g. /home/me/repo)",
+			);
+			if (!typed?.trim()) {
+				return {
+					ok: false,
+					error: "No server folder given - sessions need one to start in.",
+				};
+			}
+			const setResult = await setDefault
+				.mutateAsync({ path: typed.trim() })
+				.catch((error: unknown) =>
+					error instanceof Error ? error : new Error(String(error)),
+				);
+			if (setResult instanceof Error) {
+				return { ok: false, error: setResult.message };
+			}
+			repoPath = typed.trim();
+			void utils.repos.getDefault.invalidate();
+		}
 		// Nowhere to start: ask for a folder now and keep it as the default,
 		// rather than send the user off to Settings. Only on a user's own launch,
 		// and only after saying why a Finder window is about to open.

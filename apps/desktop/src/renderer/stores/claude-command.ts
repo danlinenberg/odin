@@ -1,5 +1,20 @@
+import {
+	claudeLaunchWith,
+	type RemoteControlMode,
+	remoteControlOnWith,
+} from "shared/claude-launch";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+
+export {
+	CLAUDE_MODELS,
+	modelFlag,
+	pickClaudeCommand,
+	type RemoteControlMode,
+	remoteControlEnv,
+	remoteControlFlag,
+	remoteControlName,
+} from "shared/claude-launch";
 
 interface ClaudeCommandState {
 	/** Your own ways to start Claude - an alias, a function, a full path. */
@@ -24,17 +39,6 @@ interface ClaudeCommandState {
 	setRemoteControl: (remoteControl: RemoteControlMode) => void;
 	toggleRemotePane: (paneId: string) => void;
 }
-
-export type RemoteControlMode = "off" | "all" | "selected";
-
-/** The New Session model picker: CLI aliases, so each tracks the latest. */
-export const CLAUDE_MODELS = [
-	{ value: "", label: "Default model" },
-	{ value: "fable", label: "Fable" },
-	{ value: "opus", label: "Opus" },
-	{ value: "sonnet", label: "Sonnet" },
-	{ value: "haiku", label: "Haiku" },
-];
 
 /**
  * Settings → Advanced: what Odin types instead of `claude` when it starts or
@@ -85,56 +89,9 @@ export const useClaudeCommand = create<ClaudeCommandState>()(
 	),
 );
 
-/** The command to run Claude with: the picked one, else the first, else `claude`. */
-export function pickClaudeCommand(commands: string[], active: string): string {
-	return commands.includes(active) ? active : (commands[0] ?? "claude");
-}
-
-/** `claude --dangerously-skip-permissions [--model x]`, through your chosen command. */
-function claudeCli(): string {
-	const { commands, active, model } = useClaudeCommand.getState();
-	return `${pickClaudeCommand(commands, active)} --dangerously-skip-permissions${modelFlag(model)}`;
-}
-
-/** Only a known alias reaches the shell - the stored value is user-editable. */
-export function modelFlag(model: string): string {
-	return model && CLAUDE_MODELS.some((m) => m.value === model)
-		? ` --model ${model}`
-		: "";
-}
-
 /** Whether this pane's session runs with Remote Control, per Settings → Sessions. */
 export function remoteControlOn(paneId?: string): boolean {
-	const { remoteControl, remotePanes } = useClaudeCommand.getState();
-	return (
-		remoteControl === "all" ||
-		(remoteControl === "selected" && !!paneId && remotePanes.includes(paneId))
-	);
-}
-
-/** The session's name on claude.ai: always `[Odin] <task>`, so they stand out there. */
-export function remoteControlName(name: string): string {
-	// ponytail: 80 chars, the session list truncates long names anyway.
-	return `[Odin] ${name.replace(/\s+/g, " ").trim()}`.trim().slice(0, 80);
-}
-
-/**
- * Remote Control needs your claude.ai login. A `claude setup-token` token or an
- * API key in the environment (often exported from ~/.zshenv) wins over it, and
- * then Claude starts as "Claude API" with Remote Control silently off. Drop
- * both for this one session's shell.
- */
-export function remoteControlEnv(on: boolean): string {
-	return on ? "unset CLAUDE_CODE_OAUTH_TOKEN ANTHROPIC_API_KEY && " : "";
-}
-
-/**
- * ` --remote-control '[Odin] <name>'` when it's on for this session, so it
- * shows up in claude.ai/code and the Claude app under its task's name.
- */
-export function remoteControlFlag(name: string, on: boolean): string {
-	if (!on) return "";
-	return ` --remote-control '${remoteControlName(name).replaceAll("'", `'\\''`)}'`;
+	return remoteControlOnWith(useClaudeCommand.getState(), paneId);
 }
 
 /**
@@ -149,9 +106,5 @@ export function claudeLaunch(
 	args: string,
 	paneId?: string,
 ): string {
-	const remoteControl = remoteControlOn(paneId);
-	// "selected" drops the token on every launch: a session you switch on
-	// later, mid-run, can only connect if it started on the claude.ai login.
-	const login = useClaudeCommand.getState().remoteControl !== "off";
-	return `${remoteControlEnv(login)}${claudeCli()}${remoteControlFlag(name, remoteControl)} ${args}`;
+	return claudeLaunchWith(useClaudeCommand.getState(), name, args, paneId);
 }

@@ -124,19 +124,38 @@ fi
 # a card's claude always runs in its PTY, and a helper a hook detached with
 # setsid has no claude above it left to find.
 spawned_by_another_claude() {
-  local pid=$PPID seen=0 line ppid tty args first i
+  local pid=$PPID seen=0 child_claude=0 child_args="" line ppid tty args first rest i
   for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
-    line=$(ps -o ppid=,tty=,args= -p "$pid" 2>/dev/null) || return 1
+    # -ww: in a session's PTY ps cuts each line at the terminal width, which
+    # truncates a long binary path's arguments shorter than a shim's.
+    line=$(ps -ww -o ppid=,tty=,args= -p "$pid" 2>/dev/null) || return 1
     read -r ppid tty args <<< "$line"
     first=${args%% *}
+    case "$args" in *" "*) rest=${args#* } ;; *) rest="" ;; esac
     case "$args" in *.app/Contents/MacOS/*) return 1 ;; esac
     case "${first##*/}:$args" in
       claude:*|node:*claude-code/cli*)
+        # The direct parent of the claude we passed, run with the very same
+        # arguments, is its launcher - a Volta/asdf shim that spawns the real
+        # binary instead of exec'ing it - not a second session. A helper runs
+        # with arguments of its own (`claude -p ...`).
+        if [ "$child_claude" = 1 ] && [ "$rest" = "$child_args" ]; then
+          child_claude=0
+          [ -n "$ppid" ] && [ "$ppid" -gt 1 ] 2>/dev/null || return 1
+          pid=$ppid
+          continue
+        fi
         [ "$seen" = 1 ] && return 0
         case "$tty" in ""|"?"|"??") return 0 ;; esac
         seen=1
+        child_claude=1
+        child_args=$rest
+        [ -n "$ppid" ] && [ "$ppid" -gt 1 ] 2>/dev/null || return 1
+        pid=$ppid
+        continue
         ;;
     esac
+    child_claude=0
     [ -n "$ppid" ] && [ "$ppid" -gt 1 ] 2>/dev/null || return 1
     pid=$ppid
   done

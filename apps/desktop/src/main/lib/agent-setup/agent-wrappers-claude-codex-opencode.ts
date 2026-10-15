@@ -68,7 +68,7 @@ interface ClaudeHookDefinition {
 	[key: string]: unknown;
 }
 
-interface ClaudeSettingsJson {
+export interface ClaudeSettingsJson {
 	hooks?: Record<string, ClaudeHookDefinition[]>;
 	[key: string]: unknown;
 }
@@ -172,6 +172,38 @@ export function getClaudeGlobalSettingsJsonContent(
 	const globalPath = getClaudeGlobalSettingsJsonPath();
 	const existing = readExistingClaudeSettings(globalPath);
 	if (!existing) return null;
+	return JSON.stringify(
+		mergeClaudeManagedSettings(existing, notifyScriptPath),
+		null,
+		2,
+	);
+}
+
+/**
+ * Parse a settings.json body for {@link mergeClaudeManagedSettings}: empty
+ * means a fresh file, and anything but a JSON object is left alone (null).
+ */
+export function parseClaudeSettingsJson(
+	text: string,
+): ClaudeSettingsJson | null {
+	if (!text.trim()) return {};
+	try {
+		const parsed = JSON.parse(text);
+		return isPlainObject(parsed) ? parsed : null;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Odin's hooks merged into a Claude settings object, in place: managed
+ * entries are replaced, the user's own hooks and settings kept. Shared by the
+ * laptop's ~/.claude and a remote server's (remote sessions).
+ */
+export function mergeClaudeManagedSettings(
+	existing: ClaudeSettingsJson,
+	notifyScriptPath: string,
+): ClaudeSettingsJson {
 	const managedHookCommand = getClaudeManagedHookCommand();
 
 	if (!existing.hooks || typeof existing.hooks !== "object") {
@@ -301,7 +333,7 @@ export function getClaudeGlobalSettingsJsonContent(
 	// defaults to "No, exit" and leaves a task session stuck on it.
 	existing.skipDangerousModePermissionPrompt = true;
 
-	return JSON.stringify(existing, null, 2);
+	return existing;
 }
 
 /**

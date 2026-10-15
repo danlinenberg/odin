@@ -531,6 +531,40 @@ await step("a new profile sees none of the first one's tasks", async () => {
 	await waitForText(TASK);
 });
 
+await step(
+	"the backend connection indicator and settings are reachable",
+	async () => {
+		// The top-bar indicator always renders; its dropdown says where the backend
+		// runs. No remote is configured in the throwaway home, so it reads "Local".
+		await rail("Dev Board");
+		// A Radix menu trigger opens on pointerdown; a bare click() never fires it.
+		const opened = await page<boolean>(`(() => {
+			const e = __find("button", "Backend running locally");
+			e?.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0, pointerType: "mouse" }));
+			return !!e;
+		})()`);
+		if (!opened)
+			throw new Error('no button labelled "Backend running locally"');
+		await waitForText("Run the backend on");
+		await page(
+			`(document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`,
+		);
+		await waitForText("Run the backend on", false);
+		// Remote server is a section of Settings > Advanced.
+		await rail("Settings");
+		await click("a", "Advanced");
+		// Advanced is tabbed; a Radix tab switches on mousedown, not click().
+		const tabbed = await page<boolean>(`(() => {
+			const e = __find('[role="tab"]', "Remote server");
+			e?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0 }));
+			return !!e;
+		})()`);
+		if (!tabbed) throw new Error('no tab labelled "Remote server"');
+		await waitForText("Add a connection");
+		await click("a", "Back");
+	},
+);
+
 await step("starting a task asks for optional context first", async () => {
 	await rail("Tasks");
 	await waitForText(TASK);

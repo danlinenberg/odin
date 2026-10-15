@@ -29,6 +29,11 @@ ensureOdinHomeDirExists();
  * - Test environment: Use monorepo path relative to __dirname
  */
 function getMigrationsDirectory(): string {
+	// A remote server's host-service ships them beside its bundle.
+	if (process.env.ODIN_LOCAL_DB_MIGRATIONS) {
+		return process.env.ODIN_LOCAL_DB_MIGRATIONS;
+	}
+
 	// Check if running in Electron (app.getAppPath exists)
 	const isElectron =
 		typeof app?.getAppPath === "function" &&

@@ -5,6 +5,7 @@ import { cn } from "@odin/ui/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { routesToRemoteCore } from "renderer/lib/remote-core-link";
 import { FEED_NOTICE_BOX } from "renderer/routes/_authenticated/_odin/components/FeedChrome";
 import { resetOdinFeeds } from "renderer/routes/_authenticated/_odin/hooks/useOdinProfile";
 
@@ -116,9 +117,17 @@ function OAuthConnect({
 		provider,
 	});
 	const [state, setState] = useState<string | null>(null);
+	const openSignInPage = electronTrpc.external.openUrl.useMutation();
 
 	const start = electronTrpc.connections.oauthStart.useMutation({
-		onSuccess: (data) => setState(data.state),
+		onSuccess: (data) => {
+			setState(data.state);
+			// Started on the remote server, which has no browser to open the
+			// consent page in: open it here.
+			if (routesToRemoteCore("connections.oauthStart")) {
+				openSignInPage.mutate(data.authorizeUrl);
+			}
+		},
 		onError: (error) => toast.error(error.message),
 	});
 	// Poll only while a consent screen is open. It's a browser round trip, so a
@@ -260,7 +269,13 @@ function GithubConnect({ onDone }: { onDone: () => void }) {
 		onError: (error) => toast.error(error.message),
 	});
 	const start = electronTrpc.connections.githubDeviceStart.useMutation({
-		onSuccess: (data) => setCode(data),
+		onSuccess: (data) => {
+			setCode(data);
+			// The remote server can't open a browser here; this window can.
+			if (routesToRemoteCore("connections.githubDeviceStart")) {
+				openUrl.mutate(data.verificationUri);
+			}
+		},
 		onError: (error) => toast.error(error.message),
 	});
 	const poll = electronTrpc.connections.githubDevicePoll.useMutation();

@@ -30,6 +30,7 @@ import {
 } from "./daemon-client-singleton.ts";
 import {
 	buildV2TerminalEnv,
+	getOdinShellPaths,
 	getShellLaunchArgs,
 	getTerminalBaseEnv,
 	resolveLaunchShell,
@@ -1149,6 +1150,14 @@ interface CreateTerminalSessionOptions {
 	db: HostDb;
 	eventBus?: EventBus;
 	initialCommand?: string;
+	/**
+	 * Run this as `$SHELL -lc <command>` instead of an interactive shell: the
+	 * PTY ends when the command does. The desktop's own terminal host launches
+	 * sessions this way, and remote sessions keep that contract.
+	 */
+	command?: string;
+	/** Desktop tab owning the pane; exported as ODIN_TAB_ID for the hooks. */
+	tabId?: string;
 	cwd?: string;
 	/** Hidden sessions are process-internal and should not appear in user pickers. */
 	listed?: boolean;
@@ -1169,6 +1178,25 @@ interface CreateTerminalSessionOptions {
 	 * above a brand-new shell.
 	 */
 	restoredNotice?: boolean;
+}
+
+/**
+ * Args for a session that runs one command. Odin's bin dir goes first on PATH
+ * after the login profile runs, so its `claude` wrapper (hook identity, the
+ * no-system-claude fallback) wins over whatever the profile puts there.
+ */
+export function buildCommandShellArgs(
+	command: string,
+	odinHomeDir: string,
+): string[] {
+	const prelude = odinHomeDir
+		? `export PATH=${shellSingleQuote(getOdinShellPaths(odinHomeDir).BIN_DIR)}:"$PATH"\n`
+		: "";
+	return ["-lc", `${prelude}${command}`];
+}
+
+function shellSingleQuote(value: string): string {
+	return `'${value.replaceAll("'", "'\\''")}'`;
 }
 
 function resolveTerminalCwd(
@@ -1210,6 +1238,8 @@ export async function createTerminalSessionInternal({
 	db,
 	eventBus,
 	initialCommand,
+	command,
+	tabId,
 	cwd: cwdOverride,
 	listed = true,
 	cols: requestedCols,
@@ -1283,7 +1313,9 @@ export async function createTerminalSessionInternal({
 	const baseEnv = getTerminalBaseEnv();
 	const odinHomeDir = process.env.ODIN_HOME_DIR || "";
 	const shell = resolveLaunchShell(baseEnv);
-	const shellArgs = getShellLaunchArgs({ shell, odinHomeDir });
+	const shellArgs = command
+		? buildCommandShellArgs(command, odinHomeDir)
+		: getShellLaunchArgs({ shell, odinHomeDir });
 	const ptyEnv = buildV2TerminalEnv({
 		baseEnv,
 		shell,
@@ -1291,6 +1323,7 @@ export async function createTerminalSessionInternal({
 		themeType,
 		cwd,
 		terminalId,
+		tabId,
 		workspaceId,
 		workspacePath: workspace.worktreePath,
 		rootPath,
@@ -1299,6 +1332,7 @@ export async function createTerminalSessionInternal({
 		agentHookPort: process.env.ODIN_AGENT_HOOK_PORT || "",
 		agentHookVersion: process.env.ODIN_AGENT_HOOK_VERSION || "",
 		hostAgentHookUrl: getHostAgentHookUrl(),
+		sessionToolsPort: process.env.ODIN_SESSION_TOOLS_PORT,
 	});
 
 	let daemon: DaemonClient;
@@ -1382,8 +1416,11 @@ export async function createTerminalSessionInternal({
 	// Determine shell readiness support. Adopted sessions are already past
 	// shell startup, so treat them as immediately ready - the OSC 133;A
 	// marker has already flown by and we don't want to gate writes on it.
+	// A command session never shows a prompt, so there is nothing to wait for.
 	const shellSupportsReady =
-		!isAdopted && shellLaunchExpectsReadyMarker({ shell, odinHomeDir });
+		!isAdopted &&
+		!command &&
+		shellLaunchExpectsReadyMarker({ shell, odinHomeDir });
 
 	let shellReadyResolve: (() => void) | null = null;
 	const shellReadyPromise = shellSupportsReady

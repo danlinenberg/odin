@@ -29,6 +29,11 @@ export interface OdinFileConfig {
 	/** Legacy name for the same thing - still read, only ever cleared. */
 	slackQueueDbId?: string;
 	defaultRepo?: string;
+	/**
+	 * Where sessions start while they run on a remote server - a path on that
+	 * server. Kept apart from defaultRepo so switching back and forth keeps both.
+	 */
+	remoteDefaultRepo?: string;
 	/** Double-tap this modifier to show or hide Odin (main/lib/double-tap). */
 	doubleTapModifier?: string;
 
@@ -128,8 +133,11 @@ export interface OdinFileConfig {
 	pruneMergedWorktrees?: boolean;
 }
 
-/** Override exists so tests can point at a temp file instead of $HOME. */
-function configPath(): string {
+/**
+ * Override exists so tests can point at a temp file instead of $HOME, and so
+ * a remote server keeps its copy in the odin folder.
+ */
+export function configPath(): string {
 	return process.env.ODIN_CONFIG_PATH ?? join(homedir(), ".config/odin.json");
 }
 

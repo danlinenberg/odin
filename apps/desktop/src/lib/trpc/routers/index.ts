@@ -23,6 +23,7 @@ import { createNotionRouter } from "./notion";
 import { createPermissionsRouter } from "./permissions";
 import { createPortsRouter } from "./ports";
 import { createProjectsRouter } from "./projects";
+import { createRemoteConnectionsRouter } from "./remote-connections";
 import { createReposRouter } from "./repos";
 import { createResourceMetricsRouter } from "./resource-metrics";
 import { createSettingsRouter } from "./settings";
@@ -75,6 +76,7 @@ export const createAppRouter = (getWindow: () => BrowserWindow | null) => {
 		uiState: createUiStateRouter(),
 		hostServiceCoordinator: createHostServiceCoordinatorRouter(),
 		migration: createMigrationRouter(),
+		remoteConnections: createRemoteConnectionsRouter(),
 	});
 };
 

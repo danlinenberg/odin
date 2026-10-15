@@ -263,6 +263,50 @@ export const settings = sqliteTable("settings", {
 export type InsertSettings = typeof settings.$inferInsert;
 export type SelectSettings = typeof settings.$inferSelect;
 
+/**
+ * Remote connections table - SSH-reachable machines that can host the Odin
+ * backend (host-service + pty-daemon). Config is per-device and never leaves
+ * this machine; only the path to the SSH key is stored, never key material.
+ */
+export const remoteConnections = sqliteTable(
+	"remote_connections",
+	{
+		id: text("id")
+			.primaryKey()
+			.$defaultFn(() => uuidv4()),
+		name: text("name").notNull(),
+		host: text("host").notNull(),
+		sshPort: integer("ssh_port").notNull().default(22),
+		username: text("username").notNull(),
+		// "key" uses sshKeyPath (or the default identity); "password" uses the
+		// encrypted password below.
+		authMethod: text("auth_method").notNull().default("key"),
+		// Null means rely on the local ssh agent / default identity.
+		sshKeyPath: text("ssh_key_path"),
+		// Encrypted at rest with Electron safeStorage; never stored in plaintext.
+		passwordEncrypted: text("password_encrypted"),
+		// Remote ODIN_HOME_DIR - holds the backend's logs, db, sockets and worktrees.
+		odinFolder: text("odin_folder").notNull(),
+		// Port the remote host-service listens on, forwarded to a local port.
+		remoteHostServicePort: integer("remote_host_service_port")
+			.notNull()
+			.default(48000),
+		isActive: integer("is_active", { mode: "boolean" })
+			.notNull()
+			.default(false),
+		createdAt: integer("created_at")
+			.notNull()
+			.$defaultFn(() => Date.now()),
+		updatedAt: integer("updated_at")
+			.notNull()
+			.$defaultFn(() => Date.now()),
+	},
+	(table) => [index("remote_connections_name_idx").on(table.name)],
+);
+
+export type InsertRemoteConnection = typeof remoteConnections.$inferInsert;
+export type SelectRemoteConnection = typeof remoteConnections.$inferSelect;
+
 export type V1MigrationKind =
 	| "project"
 	| "workspace"

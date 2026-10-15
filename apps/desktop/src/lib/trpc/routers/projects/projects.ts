@@ -21,6 +21,10 @@ import {
 	deleteProjectIcon,
 	saveProjectIconFromDataUrl,
 } from "main/lib/project-icons";
+import {
+	isServerPath,
+	remotePathInfo,
+} from "main/lib/remote-connection/remote-paths";
 import { getWorkspaceRuntimeRegistry } from "main/lib/workspace-runtime";
 import { PROJECT_COLOR_VALUES } from "shared/constants/project-colors";
 import { z } from "zod";
@@ -1140,6 +1144,31 @@ export const createProjectsRouter = (getWindow: () => BrowserWindow | null) => {
 			.input(z.object({ path: z.string() }))
 			.mutation(async ({ input }): Promise<OpenNewResult> => {
 				const selectedPath = input.path;
+
+				// Running on a server: a folder the laptop can't see is a server
+				// folder. Check it there; sessions in it run there.
+				if (isServerPath(selectedPath)) {
+					const info = await remotePathInfo(selectedPath);
+					if (!info.exists) {
+						return {
+							canceled: false,
+							error: `No such folder on the server: ${selectedPath}`,
+						};
+					}
+					if (!info.isDirectory) {
+						return {
+							canceled: false,
+							error: "Please pick a folder, not a file",
+						};
+					}
+					const project = upsertProject(info.gitRoot ?? selectedPath, "main");
+					await ensureMainWorkspace(project);
+					track("project_opened", {
+						project_id: project.id,
+						method: "remote",
+					});
+					return { canceled: false, project };
+				}
 
 				if (!existsSync(selectedPath)) {
 					return { canceled: false, error: "Path does not exist" };

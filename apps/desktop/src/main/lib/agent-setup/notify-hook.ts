@@ -5,7 +5,7 @@ import { env } from "shared/env.shared";
 import { HOOKS_DIR } from "./paths";
 
 export const NOTIFY_SCRIPT_NAME = "notify.sh";
-export const NOTIFY_SCRIPT_MARKER = "# Odin agent notification hook v11";
+export const NOTIFY_SCRIPT_MARKER = "# Odin agent notification hook v12";
 
 const NOTIFY_SCRIPT_TEMPLATE_PATH = path.join(
 	__dirname,
@@ -70,22 +70,25 @@ export function getNotifyScriptContent(): string {
 		.replaceAll("{{DEFAULT_PORT}}", String(env.DESKTOP_NOTIFICATIONS_PORT));
 }
 
-export function createNotifyScript(): void {
-	const notifyPath = getNotifyScriptPath();
-	const script = getNotifyScriptContent();
-	const changed = writeFileIfChanged(notifyPath, script, 0o755);
-	console.log(`[agent-setup] ${changed ? "Updated" : "Verified"} notify hook`);
-
-	const capScript = fs
+export function getSubagentCapScriptContent(): string {
+	return fs
 		.readFileSync(
 			path.join(__dirname, "templates", "subagent-cap.template.sh"),
 			"utf-8",
 		)
 		.replaceAll("{{MARKER}}", SUBAGENT_CAP_SCRIPT_MARKER)
 		.replaceAll("{{DEFAULT_CAP}}", String(DEFAULT_SUBAGENT_CAP));
+}
+
+export function createNotifyScript(): void {
+	const notifyPath = getNotifyScriptPath();
+	const script = getNotifyScriptContent();
+	const changed = writeFileIfChanged(notifyPath, script, 0o755);
+	console.log(`[agent-setup] ${changed ? "Updated" : "Verified"} notify hook`);
+
 	writeFileIfChanged(
 		path.join(HOOKS_DIR, SUBAGENT_CAP_SCRIPT_NAME),
-		capScript,
+		getSubagentCapScriptContent(),
 		0o755,
 	);
 	writeFileIfChanged(
