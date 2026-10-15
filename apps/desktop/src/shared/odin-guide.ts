@@ -10,7 +10,7 @@ export const ODIN_GUIDE = `# Odin
 "Store:" names are for your own action=state calls. Never show them, or any other code, to the user.
 
 ## Left rail
-Top to bottom: Dev Board, Tasks, More (the ⋮ button: Review, Automations, Insights, Session History). At the foot: Settings, and the raven button (Huginn, ⌘⇧I). Each has a one-key hotkey (rebind in Settings → Keyboard); the keys do nothing while you type, also inside agent terminals.
+Top to bottom: Dev Board, Tasks, Automations, More (the ⋮ button: Review, Insights, Night Agent). At the foot: Session History, Settings, and the raven button (Huginn, ⌘⇧I). Each has a one-key hotkey (rebind in Settings → Keyboard); the keys do nothing while you type, also inside agent terminals.
 
 ## Tasks screen and its feeds
 Tabs: All, Tasks, Slack, Jira, GitHub, Notion, Email, ClickUp.
@@ -119,7 +119,7 @@ The first line is the title. Paste or drop images and video; "/" opens skills. "
 ## Notifications
 A macOS banner "<task> needs you" ("Waiting for your reply" or "Finished its turn") with a sound when a session moves into Needs you. Not for parked sessions, or when it is on screen in the focused window. Clicking it opens the session.
 
-## Session History (rail, More menu)
+## Session History (rail)
 Search the transcripts of every finished session Odin launched, by word or by who asked (person chips). Resume reopens one in its folder on the board. Claude Code deletes transcripts after 30 days.
 
 ## All (Tasks → All)

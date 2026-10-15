@@ -23,6 +23,7 @@ import {
 	HiOutlineClock,
 	HiOutlineCog6Tooth,
 	HiOutlineEllipsisVertical,
+	HiOutlineMoon,
 	HiOutlineScale,
 	HiOutlineViewColumns,
 } from "react-icons/hi2";
@@ -98,7 +99,22 @@ const RAIL_ITEMS = [
 		label: "Tasks",
 		Icon: HiOutlineClipboardDocumentCheck,
 	},
+	// Its own entry, not a feed tab: an automation isn't waiting on you, it runs itself.
+	{
+		to: "/automations" as const,
+		hotkey: "ODIN_AUTOMATIONS" as const,
+		label: "Automations",
+		Icon: HiOutlineBolt,
+	},
 ];
+
+/** History is a log, not a feed - it sits at the foot of the rail. */
+const HISTORY_ITEM = {
+	to: "/sessions" as const,
+	hotkey: "ODIN_SESSIONS" as const,
+	label: "Session History",
+	Icon: HiOutlineClock,
+};
 
 /**
  * Settings is app chrome, not a feed - foot of the rail. The stock entry point
@@ -113,11 +129,15 @@ const SETTINGS_ITEM = {
 };
 
 /**
- * The views you visit, not live in - one "More" button under Tasks instead
- * of four icons. Their single-key hotkeys still jump straight
- * to each.
+ * The views you visit now and then - one "More" button, always the last of
+ * the top group. Review and Insights keep their single-key hotkeys.
  */
-const MORE_ITEMS = [
+const MORE_ITEMS: {
+	to: "/review" | "/insights" | "/settings/backlog";
+	hotkey?: "ODIN_REVIEW" | "ODIN_INSIGHTS";
+	label: string;
+	Icon: typeof HiOutlineScale;
+}[] = [
 	// Its own page rather than a feed tab: the strip answers "what's waiting
 	// on me" from a source; this answers "what can go".
 	{
@@ -126,24 +146,17 @@ const MORE_ITEMS = [
 		label: "Review",
 		Icon: HiOutlineScale,
 	},
-	// Not a feed tab either: an automation isn't waiting on you, it runs itself.
-	{
-		to: "/automations" as const,
-		hotkey: "ODIN_AUTOMATIONS" as const,
-		label: "Automations",
-		Icon: HiOutlineBolt,
-	},
 	{
 		to: "/insights" as const,
 		hotkey: "ODIN_INSIGHTS" as const,
 		label: "Insights",
 		Icon: HiOutlineChartBar,
 	},
+	// ponytail: no Night Agent page yet - its settings are the closest thing.
 	{
-		to: "/sessions" as const,
-		hotkey: "ODIN_SESSIONS" as const,
-		label: "Session History",
-		Icon: HiOutlineClock,
+		to: "/settings/backlog",
+		label: "Night Agent",
+		Icon: HiOutlineMoon,
 	},
 ];
 
@@ -493,7 +506,10 @@ function OdinShell() {
 		label,
 		hotkey,
 		Icon,
-	}: (typeof RAIL_ITEMS)[number] | typeof SETTINGS_ITEM) => {
+	}:
+		| (typeof RAIL_ITEMS)[number]
+		| typeof HISTORY_ITEM
+		| typeof SETTINGS_ITEM) => {
 		// Tasks stands for every feed: lit on any of them, and always opening on
 		// All - every source at once is the answer to "what's waiting on me".
 		const isFeeds = to === "/all";
@@ -721,14 +737,17 @@ function OdinShell() {
 								<DropdownMenuItem key={to} onSelect={() => navigate({ to })}>
 									<Icon className="size-4" />
 									{label}
-									<DropdownMenuShortcut>
-										{railHotkeys[hotkey].text}
-									</DropdownMenuShortcut>
+									{hotkey && (
+										<DropdownMenuShortcut>
+											{railHotkeys[hotkey].text}
+										</DropdownMenuShortcut>
+									)}
 								</DropdownMenuItem>
 							))}
 						</DropdownMenuContent>
 					</DropdownMenu>
 					<div className="flex-1" />
+					{renderRailItem(HISTORY_ITEM)}
 					{renderRailItem(SETTINGS_ITEM)}
 					<CrowButton
 						open={isCrowOpen}
