@@ -2176,6 +2176,7 @@ function DevBoardPage() {
 		card.pane.odinContact ?? contactByPane[card.pane.id] ?? null;
 
 	const [isComposerOpen, setIsComposerOpen] = useState(false);
+	const [composerRepo, setComposerRepo] = useState("");
 	// A card whose conversation Claude no longer has. Resume stops and puts this
 	// here; the dialog it opens asks whether to start over from the card's brief.
 	const [lostCard, setLostCard] = useState<BoardCard | null>(null);
@@ -3023,6 +3024,17 @@ function DevBoardPage() {
 					.catch(() => null)
 			: null;
 		return repo?.worktree ?? repo?.checkout ?? sessionCwd(card.pane);
+	};
+	/** New Session starts on the repo of the session you're in, not Odin's pick. */
+	const openComposer = async () => {
+		const sessionId = drawerCard && claudeSessionIdOf(drawerCard);
+		const repo = sessionId
+			? await utils.repos.workingRepoName
+					.fetch({ claudeSessionId: sessionId }, { staleTime: 60_000 })
+					.catch(() => null)
+			: null;
+		setComposerRepo(repo?.checkout ?? "");
+		setIsComposerOpen(true);
 	};
 	const openShell = async (card: BoardCard) => {
 		if (!shellPaneOf(card)) {
@@ -4514,7 +4526,7 @@ function DevBoardPage() {
 				<button
 					type="button"
 					title="Describe a task and start an agent session"
-					onClick={() => setIsComposerOpen(true)}
+					onClick={() => void openComposer()}
 					className={cn(
 						"rounded-lg px-2.5 py-1 text-[12px] font-semibold transition-colors",
 						BUTTON.primary,
@@ -5167,7 +5179,7 @@ function DevBoardPage() {
 												{!isSwitchListMin && (
 													<button
 														type="button"
-														onClick={() => setIsComposerOpen(true)}
+														onClick={() => void openComposer()}
 														title="New session - describe a task and start an agent session, then open it here"
 														className="ml-3 flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
 													>
@@ -5564,6 +5576,7 @@ function DevBoardPage() {
 					heading="New Session"
 					placeholder="What should the agent do? (it picks the repo)"
 					repoPicker
+					defaultRepo={composerRepo}
 					modelPicker
 					backlogToggle
 					onCancel={() => setIsComposerOpen(false)}

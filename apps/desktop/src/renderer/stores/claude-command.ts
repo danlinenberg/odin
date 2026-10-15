@@ -16,6 +16,9 @@ interface ClaudeCommandState {
 	remoteControl: RemoteControlMode;
 	/** "selected": the panes you turned it on for, newest last. */
 	remotePanes: string[];
+	/** New Session's one-click repos: the last ones started in, newest first. */
+	recentRepos: string[];
+	addRecentRepo: (repo: string) => void;
 	setCommands: (commands: string[]) => void;
 	setActive: (command: string) => void;
 	setModel: (model: string) => void;
@@ -26,6 +29,8 @@ interface ClaudeCommandState {
 }
 
 export type RemoteControlMode = "off" | "all" | "selected";
+
+export const RECENT_REPOS = 5;
 
 /** The New Session model picker: CLI aliases, so each tracks the latest. */
 export const CLAUDE_MODELS = [
@@ -55,6 +60,14 @@ export const useClaudeCommand = create<ClaudeCommandState>()(
 			startNow: false,
 			remoteControl: "off",
 			remotePanes: [],
+			recentRepos: [],
+			addRecentRepo: (repo) =>
+				set((s) => ({
+					recentRepos: [repo, ...s.recentRepos.filter((r) => r !== repo)].slice(
+						0,
+						RECENT_REPOS,
+					),
+				})),
 			setCommands: (commands) => set({ commands }),
 			setActive: (active) => set({ active }),
 			setModel: (model) => set({ model }),

@@ -83,6 +83,7 @@ export function OdinPromptDialog({
 	placeholder = "What should the agent do in Odin?",
 	defaultPrompt = "",
 	repoPicker = false,
+	defaultRepo = "",
 	modelPicker = false,
 	backlogToggle = false,
 	submitLabel = "Start session",
@@ -100,6 +101,8 @@ export function OdinPromptDialog({
 	defaultPrompt?: string;
 	/** Offer the machine's git checkouts as the session's directory. */
 	repoPicker?: boolean;
+	/** The picker's starting repo - the session you were in when you opened it. */
+	defaultRepo?: string;
 	/** Pick the session's model; the pick sticks for every later launch. */
 	modelPicker?: boolean;
 	/** Offer "Backlog": park the prompt on My Tasks instead of starting it. */
@@ -116,7 +119,9 @@ export function OdinPromptDialog({
 	const sendKeys = useHotkeyDisplay("SUBMIT").text;
 	const [prompt, setPrompt] = useState(defaultPrompt);
 	const [files, setFiles] = useState<PromptImage[]>([]);
-	const [repoQuery, setRepoQuery] = useState("");
+	const [repoQuery, setRepoQuery] = useState(defaultRepo);
+	const recentRepos = useClaudeCommand((state) => state.recentRepos);
+	const addRecentRepo = useClaudeCommand((state) => state.addRecentRepo);
 	const [isDropping, setIsDropping] = useState(false);
 	const [isStarting, setIsStarting] = useState(false);
 	const model = useClaudeCommand((state) => state.model);
@@ -134,6 +139,7 @@ export function OdinPromptDialog({
 		setIsStarting(true);
 		try {
 			await onSubmit(prompt, files, repo);
+			if (repo) addRecentRepo(repo);
 		} catch (error) {
 			// A rejected launch used to be an unhandled rejection: the dialog just
 			// sat there. Most often it's a machine without Git: a fresh Windows, or
@@ -354,7 +360,7 @@ export function OdinPromptDialog({
 						))}
 					</div>
 				)}
-				<div className="mt-3 flex items-center gap-1.5">
+				<div className="mt-3 flex flex-wrap items-center gap-1.5">
 					<input
 						ref={fileInput}
 						type="file"
@@ -416,6 +422,24 @@ export function OdinPromptDialog({
 											: "no match"}
 								</span>
 							)}
+							{recentRepos
+								.filter((path) => repos.includes(path))
+								.map((path) => (
+									<button
+										key={path}
+										type="button"
+										title={path}
+										aria-pressed={repo === path}
+										onClick={() => setRepoQuery(repo === path ? "" : path)}
+										className={`h-7 max-w-[120px] shrink-0 truncate rounded-[6px] px-2.5 text-[11.5px] font-semibold transition-colors ${
+											repo === path
+												? "bg-primary text-primary-foreground"
+												: "bg-secondary text-muted-foreground hover:text-foreground"
+										}`}
+									>
+										{path.split("/").pop()}
+									</button>
+								))}
 						</>
 					)}
 					{modelPicker && (
