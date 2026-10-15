@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
+import { githubAccountTokens } from "main/lib/github-token";
 import { execWithShellEnv } from "../workspaces/utils/shell-env";
 
 /**
@@ -168,18 +169,31 @@ function status(stdout: string): PullRequestStatus | null {
  * logged-in account can see 404s - a work org while the personal account is
  * active, or the reverse. The owner in the url doesn't name the account that
  * can read it (`imagenai/...` is read by `dan-linenberg-imagenai`), so on a
- * miss just try each logged-in account's token in turn. Null when none of them
- * can (no gh, no access, deleted repo).
+ * miss try each of Odin's own GitHub connections (Settings > Connections can
+ * hold a work and a personal account), then each logged-in gh account's token
+ * in turn. The connections matter when gh's keyring token for the right
+ * account has gone bad. Null when none of them can (no gh, no access, deleted
+ * repo).
  */
 export async function ghAsAnyAccount<T>(
 	args: string[],
 	parse: (stdout: string) => T,
 	exec: GhExec = gh,
+	connections: () => Promise<string[]> = exec === gh
+		? async () => (await githubAccountTokens()).map((a) => a.token)
+		: async () => [],
 ): Promise<T | null> {
 	try {
 		return parse((await exec(args)).stdout);
 	} catch {
-		// Fall through to the other accounts.
+		// Fall through to the connections and the other accounts.
+	}
+	for (const token of await connections().catch(() => [])) {
+		try {
+			return parse((await exec(args, { GH_TOKEN: token })).stdout);
+		} catch {
+			// Not this connection's repo either.
+		}
 	}
 	let authStatus: string;
 	try {

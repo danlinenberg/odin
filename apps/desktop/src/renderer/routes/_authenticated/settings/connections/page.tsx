@@ -107,6 +107,7 @@ function ConnectionsSettings() {
 		refetchOnWindowFocus: false,
 	});
 	const [openRow, setOpenRow] = useState<Provider | null>(null);
+	const [addingGithub, setAddingGithub] = useState(false);
 
 	// Same drop a profile switch does: the rows already on screen came from the
 	// account just signed out of, and `work.getConfig` still says it's
@@ -172,6 +173,15 @@ function ConnectionsSettings() {
 									</div>
 								</div>
 								<div className="flex items-center gap-1 shrink-0">
+									{provider === "github" && row?.configured && (
+										<Button
+											variant="outline"
+											size="sm"
+											onClick={() => setAddingGithub(!addingGithub)}
+										>
+											{addingGithub ? "Cancel" : "Add account"}
+										</Button>
+									)}
 									<Button
 										variant="outline"
 										size="sm"
@@ -198,6 +208,54 @@ function ConnectionsSettings() {
 
 							{provider === "slack" && row?.configured && !isOpen && (
 								<SlackReactions />
+							)}
+
+							{provider === "github" && !!row?.accounts?.length && (
+								<div className="mt-2 ml-11 space-y-1">
+									{row.accounts.map((account) => (
+										<div
+											key={account.login}
+											className="flex items-center gap-2 text-xs"
+										>
+											<span
+												className={cn(
+													"size-1.5 rounded-full",
+													account.ok ? "bg-emerald-500" : "bg-red-500",
+												)}
+											/>
+											<span>{account.login}</span>
+											{!account.ok && (
+												<span className="text-muted-foreground">
+													token rejected - remove and add it again
+												</span>
+											)}
+											<Button
+												variant="ghost"
+												size="sm"
+												className="h-6 px-2 text-xs"
+												disabled={disconnect.isPending}
+												onClick={() =>
+													disconnect.mutate({ provider, login: account.login })
+												}
+											>
+												Remove
+											</Button>
+										</div>
+									))}
+								</div>
+							)}
+
+							{provider === "github" && addingGithub && (
+								<div className="mt-3 ml-11 rounded-lg border bg-muted/30 p-3">
+									<ConnectProvider
+										provider="github"
+										addAccount
+										onConnected={() => {
+											setAddingGithub(false);
+											void status.refetch();
+										}}
+									/>
+								</div>
 							)}
 
 							{isOpen && (

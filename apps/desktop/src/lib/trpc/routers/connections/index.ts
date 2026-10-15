@@ -1,10 +1,11 @@
 import { TRPCError } from "@trpc/server";
 import { shell } from "electron";
 import {
+	connectGithubAccount,
+	disconnectGithubAccount,
+	extraGithubAccounts,
 	githubAccessToken,
 	githubApiFetch,
-	rememberGithubLogin,
-	storeGithubTokens,
 } from "main/lib/github-token";
 import {
 	isJiraOAuthConfigured,
@@ -78,6 +79,8 @@ export interface ConnectionStatus {
 	/** Who the token authenticates as, when the probe succeeded. */
 	identity: string | null;
 	error: string | null;
+	/** GitHub only: the accounts connected beside the main one. */
+	accounts?: { login: string; ok: boolean }[];
 }
 
 /** Probes are best-effort: a network blip is an error string, not a throw. */
@@ -140,11 +143,23 @@ async function probeGithub(): Promise<ConnectionStatus> {
 		);
 		if (!res.ok) return failed("github", probeError(res.status));
 		const json = (await res.json()) as { login?: string };
+		const accounts = await Promise.all(
+			extraGithubAccounts().map(async ({ login, token: extra }) => {
+				const probe = await fetch("https://api.github.com/user", {
+					headers: {
+						Authorization: `Bearer ${extra}`,
+						Accept: "application/vnd.github+json",
+					},
+				}).catch(() => null);
+				return { login, ok: probe?.ok ?? false };
+			}),
+		);
 		return {
 			provider: "github",
 			configured: true,
 			identity: json.login ?? null,
 			error: null,
+			accounts,
 		};
 	} catch (error) {
 		return failed("github", message(error));
@@ -470,7 +485,13 @@ export const createConnectionsRouter = () => {
 
 		/** Forget a stored credential: sign-in is the only way one gets there. */
 		disconnect: publicProcedure
-			.input(z.object({ provider: z.enum(PROVIDERS) }))
+			.input(
+				z.object({
+					provider: z.enum(PROVIDERS),
+					/** GitHub only: which of the connected accounts to forget. */
+					login: z.string().optional(),
+				}),
+			)
 			.mutation(({ input }) => {
 				switch (input.provider) {
 					case "slack":
@@ -482,12 +503,7 @@ export const createConnectionsRouter = () => {
 						clearSlackQueue();
 						break;
 					case "github":
-						updateOdinConfig({
-							githubToken: undefined,
-							githubRefreshToken: undefined,
-							githubTokenExpiresAt: undefined,
-							githubLogin: undefined,
-						});
+						disconnectGithubAccount(input.login);
 						break;
 					case "notion":
 						updateOdinConfig({
@@ -620,7 +636,13 @@ export const createConnectionsRouter = () => {
 		 * GitHub asked for until it stops returning "pending".
 		 */
 		githubDevicePoll: publicProcedure
-			.input(z.object({ deviceCode: z.string().min(1) }))
+			.input(
+				z.object({
+					deviceCode: z.string().min(1),
+					/** Keep the current account and connect this one beside it. */
+					add: z.boolean().optional(),
+				}),
+			)
 			.mutation(async ({ input }) => {
 				const clientId = resolveGithubClientId();
 				if (!clientId) {
@@ -652,8 +674,7 @@ export const createConnectionsRouter = () => {
 				if (json.access_token) {
 					// Keeps the refresh token when the app issues one: without it
 					// the connection dies eight hours later, for good.
-					storeGithubTokens(json);
-					await rememberGithubLogin(json.access_token);
+					await connectGithubAccount(json, input.add ?? false);
 					return { state: "connected" as const };
 				}
 				if (

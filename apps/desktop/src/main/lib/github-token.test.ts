@@ -12,7 +12,15 @@ import {
 	readOdinConfig,
 	updateOdinConfig,
 } from "../../lib/trpc/routers/odin-config";
-import { githubAccessToken, githubApiFetch } from "./github-token";
+import {
+	connectGithubAccount,
+	disconnectGithubAccount,
+	githubAccessToken,
+	githubAccountTokens,
+	githubApiFetch,
+	githubOwner,
+	tokenOrder,
+} from "./github-token";
 
 const dir = mkdtempSync(join(tmpdir(), "github-token-"));
 process.env.ODIN_CONFIG_PATH = join(dir, "odin.json");
@@ -25,6 +33,8 @@ beforeEach(() => {
 		githubToken: undefined,
 		githubRefreshToken: undefined,
 		githubTokenExpiresAt: undefined,
+		githubLogin: undefined,
+		githubAccounts: undefined,
 	});
 });
 
@@ -170,6 +180,104 @@ describe("githubApiFetch", () => {
 			async () => new Response("{}", { status: 401 }),
 		) as unknown as typeof fetch;
 		expect((await githubApiFetch("https://x.test", {}, "t")).status).toBe(401);
+	});
+});
+
+describe("more than one GitHub account", () => {
+	const WORK = { login: "dan-work", token: "gho_work" };
+	const auth = (init?: RequestInit) =>
+		String((init?.headers as Record<string, string>)?.Authorization);
+
+	test("the owner comes from an API or a web URL", () => {
+		expect(githubOwner("https://api.github.com/repos/ImagenAI/x/pulls/1")).toBe(
+			"imagenai",
+		);
+		expect(githubOwner("https://github.com/danlinenberg/odin/pull/2")).toBe(
+			"danlinenberg",
+		);
+		expect(githubOwner("https://api.github.com/user")).toBeNull();
+	});
+
+	test("the account that last worked for an owner goes first, the caller's token next", () => {
+		const accounts = [
+			{ login: "me", token: "gho_me" },
+			{ login: "dan-work", token: "gho_work" },
+		];
+		const order = tokenOrder(
+			"https://api.github.com/repos/imagenai/x/pulls/1",
+			"gho_me",
+			accounts,
+			new Map([["imagenai", "dan-work"]]),
+		);
+		expect(order.map((a) => a.token)).toEqual(["gho_work", "gho_me"]);
+	});
+
+	test("an old config with one connection still reads as one account", async () => {
+		updateOdinConfig({ githubToken: "gho_me", githubLogin: "me" });
+		expect(await githubAccountTokens()).toEqual([
+			{ login: "me", token: "gho_me" },
+		]);
+	});
+
+	test("a repo the main account can't see is read with the other account", async () => {
+		updateOdinConfig({
+			githubToken: "gho_me",
+			githubLogin: "me",
+			githubAccounts: [WORK],
+		});
+		const seen: string[] = [];
+		globalThis.fetch = mock(async (_url: string, init?: RequestInit) => {
+			seen.push(auth(init));
+			return new Response("{}", {
+				status: auth(init).endsWith("work") ? 200 : 404,
+			});
+		}) as unknown as typeof fetch;
+		const url = "https://api.github.com/repos/imagenai/app/pulls/7";
+		expect((await githubApiFetch(url, {}, "gho_me")).status).toBe(200);
+		expect((await githubApiFetch(url, {}, "gho_me")).status).toBe(200);
+		// The second call goes straight to the account that worked.
+		expect(seen).toEqual([
+			"Bearer gho_me",
+			"Bearer gho_work",
+			"Bearer gho_work",
+		]);
+	});
+
+	test("adding an account keeps the main one; signing in as the same login replaces it", async () => {
+		updateOdinConfig({ githubToken: "gho_me", githubLogin: "me" });
+		globalThis.fetch = mock(
+			async (_url: string, init?: RequestInit) =>
+				new Response(
+					JSON.stringify({
+						login: auth(init).endsWith("work") ? "dan-work" : "me",
+					}),
+				),
+		) as unknown as typeof fetch;
+		await connectGithubAccount({ access_token: "gho_work" }, true);
+		expect(readOdinConfig().githubToken).toBe("gho_me");
+		expect(readOdinConfig().githubAccounts).toEqual([
+			{
+				login: "dan-work",
+				token: "gho_work",
+				refreshToken: undefined,
+				expiresAt: undefined,
+			},
+		]);
+		await connectGithubAccount({ access_token: "gho_me2" }, true);
+		expect(readOdinConfig().githubToken).toBe("gho_me2");
+		expect(readOdinConfig().githubAccounts).toHaveLength(1);
+	});
+
+	test("removing the main account promotes the next one", () => {
+		updateOdinConfig({
+			githubToken: "gho_me",
+			githubLogin: "me",
+			githubAccounts: [WORK],
+		});
+		disconnectGithubAccount("me");
+		expect(readOdinConfig().githubToken).toBe("gho_work");
+		expect(readOdinConfig().githubLogin).toBe("dan-work");
+		expect(readOdinConfig().githubAccounts).toBeUndefined();
 	});
 });
 

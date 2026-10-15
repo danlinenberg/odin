@@ -19,6 +19,14 @@ import { DEFAULT_PROFILE_ID, PROFILE_RESTORE_MS } from "shared/odin-profile";
  * Main process only: the tokens must never reach the renderer.
  */
 
+/** One extra GitHub connection, signed in through the same device flow. */
+export interface GithubAccount {
+	login: string;
+	token: string;
+	refreshToken?: string;
+	expiresAt?: number;
+}
+
 export interface OdinFileConfig {
 	/** Notion OAuth access token. */
 	notionToken?: string;
@@ -71,6 +79,11 @@ export interface OdinFileConfig {
 	 * CLI fallback in `main/lib/github-token` can ask for that same account.
 	 */
 	githubLogin?: string;
+	/**
+	 * More GitHub accounts beside the one above - a work and a personal one, say.
+	 * Each is used for the repos it can read; see `main/lib/github-token`.
+	 */
+	githubAccounts?: GithubAccount[];
 	/** OAuth app client id used for GitHub's device flow (not a secret). */
 	githubClientId?: string;
 

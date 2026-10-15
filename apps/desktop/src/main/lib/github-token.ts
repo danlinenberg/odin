@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import {
+	type GithubAccount,
 	readOdinConfig,
 	resolveGithubClientId,
 	updateOdinConfig,
@@ -64,9 +65,11 @@ export function storeGithubTokens(json: GithubTokenResponse): string | null {
 	return access;
 }
 
-async function refreshGithubAccessToken(): Promise<string | null> {
+/** One refresh-token exchange; null when GitHub hands back no token. */
+async function exchangeRefreshToken(
+	refreshToken: string | undefined,
+): Promise<GithubTokenResponse | null> {
 	const clientId = resolveGithubClientId();
-	const refreshToken = readOdinConfig().githubRefreshToken;
 	if (!clientId || !refreshToken) return null;
 	try {
 		const res = await fetch(TOKEN_URL, {
@@ -87,11 +90,20 @@ async function refreshGithubAccessToken(): Promise<string | null> {
 			console.error("[github-oauth] Refresh failed:", json.error);
 			return null;
 		}
-		return storeGithubTokens(json);
+		return json;
 	} catch (error) {
 		console.error("[github-oauth] Refresh failed:", error);
 		return null;
 	}
+}
+
+async function refreshGithubAccessToken(): Promise<string | null> {
+	const json = await exchangeRefreshToken(readOdinConfig().githubRefreshToken);
+	return json ? storeGithubTokens(json) : null;
+}
+
+function needsRefresh(expiresAt: number | undefined): boolean {
+	return !!expiresAt && expiresAt - REFRESH_MARGIN_MS <= Date.now();
 }
 
 /**
@@ -105,13 +117,120 @@ async function refreshGithubAccessToken(): Promise<string | null> {
 export async function githubAccessToken(): Promise<string | null> {
 	const { githubToken, githubTokenExpiresAt } = readOdinConfig();
 	if (!githubToken) return null;
-	if (
-		!githubTokenExpiresAt ||
-		githubTokenExpiresAt - REFRESH_MARGIN_MS > Date.now()
-	) {
-		return githubToken;
-	}
+	if (!needsRefresh(githubTokenExpiresAt)) return githubToken;
 	return (await refreshGithubAccessToken()) ?? githubToken;
+}
+
+/** The connections beside the main one, by login. */
+export function extraGithubAccounts(): GithubAccount[] {
+	return readOdinConfig().githubAccounts ?? [];
+}
+
+function saveExtraAccount(account: GithubAccount): void {
+	const others = extraGithubAccounts().filter((a) => a.login !== account.login);
+	updateOdinConfig({ githubAccounts: [...others, account] });
+}
+
+/** An extra account's token, refreshed (and saved) the same way as the main one's. */
+async function extraAccountToken(account: GithubAccount): Promise<string> {
+	if (!needsRefresh(account.expiresAt)) return account.token;
+	const json = await exchangeRefreshToken(account.refreshToken);
+	if (!json?.access_token) return account.token;
+	saveExtraAccount({
+		login: account.login,
+		token: json.access_token,
+		refreshToken: json.refresh_token ?? account.refreshToken,
+		expiresAt: json.expires_in
+			? Date.now() + json.expires_in * 1000
+			: undefined,
+	});
+	return json.access_token;
+}
+
+export interface GithubAccountToken {
+	/** Null for a main connection made before the login was cached. */
+	login: string | null;
+	token: string;
+}
+
+/** Every connected account's usable token, the main connection first. */
+export async function githubAccountTokens(): Promise<GithubAccountToken[]> {
+	const out: GithubAccountToken[] = [];
+	const main = await githubAccessToken();
+	if (main)
+		out.push({ login: readOdinConfig().githubLogin ?? null, token: main });
+	for (const account of extraGithubAccounts()) {
+		out.push({ login: account.login, token: await extraAccountToken(account) });
+	}
+	return out;
+}
+
+/** Who a token signs in as, or null when GitHub won't say. */
+async function loginOf(token: string): Promise<string | null> {
+	try {
+		const res = await fetch("https://api.github.com/user", {
+			headers: {
+				Authorization: `Bearer ${token}`,
+				Accept: "application/vnd.github+json",
+			},
+		});
+		if (!res.ok) return null;
+		return ((await res.json()) as { login?: string }).login ?? null;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Save a finished device flow. `add` keeps the existing connection and adds
+ * this one beside it; signing in again as an account already connected just
+ * replaces its token. With no main connection yet, this becomes the main one.
+ */
+export async function connectGithubAccount(
+	json: GithubTokenResponse,
+	add: boolean,
+): Promise<void> {
+	const token = json.access_token;
+	if (!token) return;
+	const login = await loginOf(token);
+	const { githubToken, githubLogin } = readOdinConfig();
+	if (!add || !githubToken || (login && login === githubLogin)) {
+		storeGithubTokens(json);
+		if (login) updateOdinConfig({ githubLogin: login });
+		return;
+	}
+	if (!login)
+		throw new Error("GitHub didn't say which account this is - try again.");
+	saveExtraAccount({
+		login,
+		token,
+		refreshToken: json.refresh_token,
+		expiresAt: json.expires_in
+			? Date.now() + json.expires_in * 1000
+			: undefined,
+	});
+}
+
+/**
+ * Forget one account. Removing the main connection promotes the next account,
+ * so the other connections keep working.
+ */
+export function disconnectGithubAccount(login?: string): void {
+	const extras = extraGithubAccounts();
+	if (login && login !== readOdinConfig().githubLogin) {
+		updateOdinConfig({
+			githubAccounts: extras.filter((a) => a.login !== login),
+		});
+		return;
+	}
+	const [next, ...rest] = extras;
+	updateOdinConfig({
+		githubToken: next?.token,
+		githubRefreshToken: next?.refreshToken,
+		githubTokenExpiresAt: next?.expiresAt,
+		githubLogin: next?.login,
+		githubAccounts: rest.length ? rest : undefined,
+	});
 }
 
 /**
@@ -135,10 +254,51 @@ export async function githubCliToken(): Promise<string | null> {
 
 let revokedToken: string | null = null;
 
+/** The repo owner a GitHub URL is about - `api.github.com/repos/<owner>/…` or `github.com/<owner>/…`. */
+export function githubOwner(url: string): string | null {
+	const m =
+		/^https:\/\/(?:api\.github\.com\/repos|github\.com)\/([\w.-]+)\//i.exec(
+			url,
+		);
+	return m ? m[1].toLowerCase() : null;
+}
+
+/** Which account last worked for each repo owner, so it goes first next time. */
+const accountByOwner = new Map<string, string>();
+
 /**
- * Call GitHub with `token`, retrying once with the `gh` CLI's token when
- * GitHub rejects it. 401 only: a 403 is a rate limit or a scope problem, and
- * the CLI token would hit exactly the same wall.
+ * The order to try tokens in for `url`: the account that last worked for its
+ * owner, then the caller's token, then every other connected account. A
+ * private repo another account can't see answers 404, not 403, so 404 moves on
+ * to the next account too.
+ */
+export function tokenOrder(
+	url: string,
+	token: string,
+	accounts: GithubAccountToken[],
+	remembered: ReadonlyMap<string, string> = accountByOwner,
+): GithubAccountToken[] {
+	const owner = githubOwner(url);
+	const first = owner ? remembered.get(owner) : undefined;
+	const caller = accounts.find((a) => a.token === token) ?? {
+		login: null,
+		token,
+	};
+	const ordered = [
+		...accounts.filter((a) => first && a.login === first),
+		caller,
+		...accounts,
+	];
+	return ordered.filter(
+		(a, i) => ordered.findIndex((b) => b.token === a.token) === i,
+	);
+}
+
+/**
+ * Call GitHub with `token`, then with the other connected accounts when it is
+ * rejected (401) or can't see the repo (404), then once with the `gh` CLI's
+ * token. A 403 is a rate limit or a scope problem: another token would hit
+ * the same wall, so it is returned as is.
  */
 export async function githubApiFetch(
 	url: string,
@@ -150,33 +310,19 @@ export async function githubApiFetch(
 			...init,
 			headers: { ...init.headers, Authorization: `Bearer ${bearer}` },
 		});
-	const res = token === revokedToken ? null : await send(token);
+	const owner = githubOwner(url);
+	let res: Response | null = null;
+	for (const account of tokenOrder(url, token, await githubAccountTokens())) {
+		if (account.token === revokedToken) continue;
+		res = await send(account.token);
+		if (res.status !== 401 && res.status !== 404) {
+			if (owner && account.login) accountByOwner.set(owner, account.login);
+			return res;
+		}
+		if (res.status === 401 && account.token === token) revokedToken = token;
+	}
 	if (res && res.status !== 401) return res;
 	const cli = await githubCliToken();
-	if (cli && cli !== token) {
-		revokedToken = token;
-		return await send(cli);
-	}
+	if (cli && cli !== token) return await send(cli);
 	return res ?? (await send(token));
-}
-
-/**
- * Cache who the token belongs to, so the CLI fallback can ask for that same
- * account later. Called once per sign-in; a failure is not fatal, it only
- * costs the fallback.
- */
-export async function rememberGithubLogin(token: string): Promise<void> {
-	try {
-		const res = await fetch("https://api.github.com/user", {
-			headers: {
-				Authorization: `Bearer ${token}`,
-				Accept: "application/vnd.github+json",
-			},
-		});
-		if (!res.ok) return;
-		const { login } = (await res.json()) as { login?: string };
-		if (login) updateOdinConfig({ githubLogin: login });
-	} catch (error) {
-		console.error("[github-oauth] Could not read the account login:", error);
-	}
 }

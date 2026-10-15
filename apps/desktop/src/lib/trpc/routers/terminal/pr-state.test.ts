@@ -6,6 +6,7 @@ import { join } from "node:path";
 import {
 	firstParagraph,
 	type GhExec,
+	ghAsAnyAccount,
 	mergedPullRequests,
 	pullRequestState,
 	pullRequestWorktrees,
@@ -407,5 +408,24 @@ describe("pullRequestWorktrees picks the PR repo's own clone", () => {
 				isMain: false,
 			},
 		]);
+	});
+});
+
+describe("ghAsAnyAccount", () => {
+	test("tries each of Odin's GitHub connections before gh's accounts", async () => {
+		const tokens: (string | undefined)[] = [];
+		const exec: GhExec = async (_args, env) => {
+			tokens.push(env?.GH_TOKEN);
+			if (env?.GH_TOKEN === "work") return { stdout: "ok" };
+			throw new Error("Could not resolve to a Repository");
+		};
+		const out = await ghAsAnyAccount(
+			["pr", "view", URL],
+			(s) => s,
+			exec,
+			async () => ["personal", "work"],
+		);
+		expect(out).toBe("ok");
+		expect(tokens).toEqual([undefined, "personal", "work"]);
 	});
 });
