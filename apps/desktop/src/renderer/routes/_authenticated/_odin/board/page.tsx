@@ -337,11 +337,14 @@ function HistoryView({
 	card,
 	live,
 	onDo,
+	resuming = false,
 }: {
 	card: BoardCard;
 	live: boolean;
 	/** Resume the session with this as its opening message. */
 	onDo?: (text: string) => void;
+	/** Resume clicked, PTY not up yet: keep the conversation (and what you sent) on screen. */
+	resuming?: boolean;
 }) {
 	const sessionId = useCardSessionId(card);
 	// Same query the card's pills run, so this is a cache hit. Claude prunes old
@@ -355,7 +358,8 @@ function HistoryView({
 				sessionId={sessionId}
 				cwd={sessionCwd(card.pane) ?? card.repoPath}
 				workspaceId={card.workspaceId}
-				onResumeWith={onDo}
+				onResumeWith={resuming ? undefined : onDo}
+				resuming={resuming}
 			/>
 		);
 	}
@@ -5236,6 +5240,12 @@ function DevBoardPage() {
 												workspaceId={drawerCard.workspaceId}
 											/>
 										</div>
+									) : resumingPaneIds.includes(drawerCard.pane.id) &&
+										!panes[drawerCard.pane.id]?.odinQueued &&
+										chatView ? (
+										// Same slot and type as the ended view below, so its
+										// ChatView stays mounted and your message stays on screen.
+										<HistoryView card={drawerCard} live={false} resuming />
 									) : resumingPaneIds.includes(drawerCard.pane.id) ||
 										panes[drawerCard.pane.id]?.odinQueued ? (
 										// Between the click and the PTY coming up, "Session ended"

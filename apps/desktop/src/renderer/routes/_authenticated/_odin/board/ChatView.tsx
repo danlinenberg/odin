@@ -322,6 +322,13 @@ type Sent = {
 };
 
 /**
+ * Sends still waiting on their echo, per pane. A resume swaps the ended
+ * session's view for the live one; the bubble rides along instead of
+ * vanishing until Claude has booted and written the message.
+ */
+const carried = new Map<string, Sent[]>();
+
+/**
  * Claude took something since the send: a user row that wasn't there, or the
  * message waiting in its queue. Any new row counts - Claude rewrites some
  * messages (a slash command echoes as its name), so the text can't decide.
@@ -1755,6 +1762,7 @@ export function ChatView({
 	noTerminal = false,
 	placeholder,
 	onOpenSession,
+	resuming = false,
 }: {
 	paneId: string;
 	sessionId: string | null;
@@ -1775,6 +1783,8 @@ export function ChatView({
 	placeholder?: string;
 	/** Follows a `#session=<paneId>` link in a reply (the raven writes them). */
 	onOpenSession?: (paneId: string) => void;
+	/** Ended session on its way back: the footer says so in place of the composer. */
+	resuming?: boolean;
 }) {
 	const { data: home } = electronTrpc.window.getHomeDir.useQuery();
 	// Claude files the conversation under the directory it STARTED in - the
@@ -1864,10 +1874,36 @@ export function ChatView({
 	);
 	// What you just sent, shown at once - Claude writes it to the transcript a
 	// beat later, and that echo replaces it.
-	const [pending, setPending] = useState<Sent[]>([]);
+	const [pending, setPending] = useState<Sent[]>(
+		() => carried.get(paneId) ?? [],
+	);
+	useEffect(() => {
+		if (pending.length) carried.set(paneId, pending);
+		else carried.delete(paneId);
+	}, [paneId, pending]);
 	useEffect(() => {
 		setPending((list) => list.filter((sent) => !isEchoed(items, sent)));
 	}, [items]);
+	// ponytail: an echo that never matches (Claude rewrote it) just expires.
+	// Not mid-turn or queued: Claude writes a queued message only when it takes it.
+	const expireLater = (id: number, text: string) => {
+		const expire = () =>
+			workingRef.current ||
+			yourQueued(queuedRef.current).some((queuedText) =>
+				queuedText.includes(text),
+			)
+				? setTimeout(expire, 30_000)
+				: setPending((list) =>
+						list.filter((sent) => sent.id !== id || sent.lost),
+					);
+		setTimeout(expire, 30_000);
+	};
+	// Carried in from the view that sent them: its timers died with it.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: once, on mount
+	useEffect(() => {
+		for (const sent of carried.get(paneId) ?? [])
+			expireLater(sent.id, sent.text);
+	}, []);
 	const onSent = (text: string, previews?: Preview[]) => {
 		const id = Date.now();
 		pinnedRef.current = true;
@@ -1881,9 +1917,9 @@ export function ChatView({
 		for (const ms of [150, 500, 1000]) setTimeout(poke, ms);
 		// Claude logs a message the moment it takes it, as a turn or queued
 		// mid-turn. Nothing by now: it never got there, and the bubble says so
-		// instead of waiting on a turn that isn't coming. Not for `onSend`,
-		// which may bring a dead PTY back first, or before a transcript loaded.
-		if (!onSend)
+		// instead of waiting on a turn that isn't coming. Not for `onSend` or a
+		// resume, which bring a dead PTY back first, or before a transcript loaded.
+		if (!onSend && !onResumeRef.current)
 			setTimeout(() => {
 				if (itemsRef.current.length === 0) return;
 				setPending((list) =>
@@ -1895,18 +1931,7 @@ export function ChatView({
 					),
 				);
 			}, 10_000);
-		// ponytail: an echo that never matches (Claude rewrote it) just expires.
-		// Not mid-turn or queued: Claude writes a queued message only when it takes it.
-		const expire = () =>
-			workingRef.current ||
-			yourQueued(queuedRef.current).some((queuedText) =>
-				queuedText.includes(text),
-			)
-				? setTimeout(expire, 30_000)
-				: setPending((list) =>
-						list.filter((sent) => sent.id !== id || sent.lost),
-					);
-		setTimeout(expire, 30_000);
+		expireLater(id, text);
 	};
 	const itemsRef = useRef(items);
 	itemsRef.current = items;
@@ -1924,7 +1949,7 @@ export function ChatView({
 		(message: string) => {
 			const text = withDismissals(paneId, message);
 			if (onResumeRef.current) {
-				pinnedRef.current = true;
+				onSentRef.current(text);
 				onResumeRef.current(text);
 				return;
 			}
@@ -2364,9 +2389,7 @@ export function ChatView({
 				<Composer
 					paneId={paneId}
 					working={false}
-					onSent={() => {
-						pinnedRef.current = true;
-					}}
+					onSent={onSent}
 					noTerminal={noTerminal}
 					onResume={onResumeWith}
 					placeholder="Reply to resume the session"
@@ -2375,7 +2398,7 @@ export function ChatView({
 				/>
 			) : (
 				<div className="border-t border-border px-5 py-2 text-center text-[11.5px] text-muted-foreground">
-					Session ended - Resume to reply
+					{resuming ? "Resuming session…" : "Session ended - Resume to reply"}
 				</div>
 			)}
 		</div>
