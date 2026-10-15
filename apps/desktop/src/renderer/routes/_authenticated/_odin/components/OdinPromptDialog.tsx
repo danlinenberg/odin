@@ -169,6 +169,7 @@ export function OdinPromptDialog({
 	const repoQuery =
 		typedRepo ?? (repos.includes(defaultRepo) ? defaultRepo : "");
 	const repoHits = matchRepos(repos, repoQuery);
+	const shownRecent = recentRepos.filter((path) => repos.includes(path));
 	// One hit is a pick; none or several means the session falls back to the
 	// workspace, so the dialog has to say which it is.
 	const repo = repoHits.length === 1 ? (repoHits[0] as string) : "";
@@ -362,7 +363,30 @@ export function OdinPromptDialog({
 						))}
 					</div>
 				)}
-				<div className="mt-3 flex flex-wrap items-center gap-1.5">
+				{repoPicker && shownRecent.length > 0 && (
+					<div className="mt-3 flex flex-wrap items-center gap-1.5">
+						<span className="text-[11px] font-semibold text-muted-foreground">
+							Recent
+						</span>
+						{shownRecent.map((path) => (
+							<button
+								key={path}
+								type="button"
+								title={path}
+								aria-pressed={repo === path}
+								onClick={() => setTypedRepo(repo === path ? "" : path)}
+								className={`h-6 max-w-[160px] truncate rounded-[6px] px-2 text-[11px] font-semibold transition-colors ${
+									repo === path
+										? "bg-primary text-primary-foreground"
+										: "bg-secondary text-muted-foreground hover:text-foreground"
+								}`}
+							>
+								{path.split("/").pop()}
+							</button>
+						))}
+					</div>
+				)}
+				<div className="mt-3 flex items-center gap-1.5">
 					<input
 						ref={fileInput}
 						type="file"
@@ -424,24 +448,6 @@ export function OdinPromptDialog({
 											: "no match"}
 								</span>
 							)}
-							{recentRepos
-								.filter((path) => repos.includes(path))
-								.map((path) => (
-									<button
-										key={path}
-										type="button"
-										title={path}
-										aria-pressed={repo === path}
-										onClick={() => setTypedRepo(repo === path ? "" : path)}
-										className={`h-7 max-w-[120px] shrink-0 truncate rounded-[6px] px-2.5 text-[11.5px] font-semibold transition-colors ${
-											repo === path
-												? "bg-primary text-primary-foreground"
-												: "bg-secondary text-muted-foreground hover:text-foreground"
-										}`}
-									>
-										{path.split("/").pop()}
-									</button>
-								))}
 						</>
 					)}
 					{modelPicker && (
