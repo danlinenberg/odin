@@ -367,7 +367,10 @@ function SkillSelect({
 						setSelected((index) => (index + step) % matches.length);
 						return;
 					}
-					if (event.key === "Enter" || event.key === "Tab") {
+					// Tab only completes a search you typed: tabbing past the box
+					// must not fill in the top of the list.
+					const searched = query !== null && query !== current;
+					if (event.key === "Enter" || (event.key === "Tab" && searched)) {
 						event.preventDefault();
 						// Enter here picks a skill; it must not also submit the task.
 						event.stopPropagation();
