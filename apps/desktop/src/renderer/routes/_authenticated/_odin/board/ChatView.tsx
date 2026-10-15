@@ -1939,6 +1939,9 @@ export function ChatView({
 	const onSent = (text: string, previews?: Preview[]) => {
 		const id = Date.now();
 		pinnedRef.current = true;
+		// A /btw never reaches the transcript - its answer card shows it instead,
+		// and a bubble waiting on an echo would read "Not delivered".
+		if (/^\/btw\s/.test(text)) return;
 		const seen = new Set(
 			itemsRef.current.flatMap((item) =>
 				item.kind === "user" ? [item.id] : [],
