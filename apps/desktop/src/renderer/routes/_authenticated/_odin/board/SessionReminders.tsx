@@ -14,7 +14,7 @@ import { allItems } from "../all/all-items";
 import { useStartAllItem } from "../all/use-start-item";
 import { BUTTON } from "../components/pill";
 import { dayOf, dueLabel, isDue, useReminders } from "../components/Reminders";
-import { useReplyWatch } from "../components/ReplyWatch";
+import { useReplyWatch, watchEvent } from "../components/ReplyWatch";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePendingFocus } from "../hooks/usePendingFocus";
@@ -162,7 +162,7 @@ export function RemindButton({
 /**
  * Every reminder whose day has come, above the columns. A snoozed session gets
  * Resume - the same `claude --resume` into a fresh pane Session History does;
- * a dated card or feed row gets Open. An unread "Ping me on replies" reply
+ * a dated card or feed row gets Open. An unread "Ping me" reply or approval
  * shows here too, until its session is opened.
  */
 export function SessionReminders() {
@@ -175,7 +175,9 @@ export function SessionReminders() {
 	const due = Object.entries(reminders).filter(([, r]) => isDue(r.due, now));
 	const watches = useReplyWatch((s) => s.watches);
 	const seen = useReplyWatch((s) => s.seen);
-	const replies = Object.values(watches).filter((w) => w.reply && w.paneId);
+	const replies = Object.entries(watches)
+		.filter(([, w]) => w.reply && w.paneId)
+		.map(([key, w]) => ({ ...w, key, event: watchEvent(key) }));
 	if (!due.length && !replies.length) return null;
 
 	return (
@@ -186,7 +188,7 @@ export function SessionReminders() {
 			</span>
 			{replies.map((w) => (
 				<span
-					key={w.paneId}
+					key={w.key}
 					title={w.reply}
 					className="flex min-w-0 items-center gap-1.5 rounded-lg border border-attention/30 bg-card py-0.5 pl-2.5 pr-1"
 				>
@@ -200,7 +202,7 @@ export function SessionReminders() {
 						dir="auto"
 						className="max-w-[260px] truncate text-[11px] text-attention"
 					>
-						New reply: {w.reply}
+						{w.event}: {w.reply}
 					</span>
 					<button
 						type="button"

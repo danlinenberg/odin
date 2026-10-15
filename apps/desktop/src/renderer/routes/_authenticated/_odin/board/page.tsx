@@ -482,7 +482,11 @@ function ScrollbackView({ card, live }: { card: BoardCard; live: boolean }) {
 	);
 }
 
-function useSessionThread(card: BoardCard | undefined): string | null {
+/**
+ * What "Ping me" watches for a session: its Slack thread or Jira ticket, and
+ * its PR (the one it launched on, else the newest it opened) for approval.
+ */
+function useSessionWatchKeys(card: BoardCard | undefined): string[] {
 	const paneId = card?.pane.id ?? "";
 	const mirrored = usePaneMeta((s) => s.sessionIdByPane[paneId]);
 	const added = usePaneMeta((s) => s.linksByPane[paneId]);
@@ -493,8 +497,8 @@ function useSessionThread(card: BoardCard | undefined): string | null {
 			{ sessionId: sessionId ?? "" },
 			{ enabled: !!sessionId, retry: false, staleTime: 60_000 },
 		);
-	if (!card) return null;
-	return sessionThread({
+	if (!card) return [];
+	const thread = sessionThread({
 		...card.pane,
 		brief,
 		links: [
@@ -504,6 +508,10 @@ function useSessionThread(card: BoardCard | undefined): string | null {
 			),
 		],
 	});
+	const pr =
+		launchPullRequest(card.pane.odinBrief) ??
+		(transcript ? pullRequests(transcript.messages)[0] : undefined);
+	return [thread, pr && `pr:${pr.url}`].filter((k): k is string => !!k);
 }
 
 /** The conversation behind a card, for the pills that read it. */
@@ -1473,6 +1481,7 @@ function TagMenu({
 	onDone,
 	onRemind,
 	watching,
+	watchWhat,
 	onWatch,
 	remote,
 	onRemote,
@@ -1491,8 +1500,10 @@ function TagMenu({
 	onStar: () => void;
 	onDone: () => void;
 	onRemind: (day: string) => void;
-	/** Whether replies on the session's thread ping you; unset when it has no thread. */
+	/** Whether the session's thread or PR pings you; unset when it has neither. */
 	watching?: boolean;
+	/** What it watches, for the label: "replies", "approval" or both. */
+	watchWhat?: string;
 	onWatch: () => void;
 	/** Remote Control for this one session; unset unless Settings says "Selected sessions". */
 	remote?: boolean;
@@ -1575,7 +1586,7 @@ function TagMenu({
 				{watching !== undefined && (
 					<button
 						type="button"
-						title="A notification whenever someone else replies in this session's Slack thread or Jira ticket"
+						title="A notification whenever someone else replies in this session's Slack thread or Jira ticket, or its PR gets approved"
 						onClick={() => {
 							onWatch();
 							onClose();
@@ -1586,7 +1597,7 @@ function TagMenu({
 						)}
 					>
 						<LuBellRing className="size-3" aria-hidden />
-						{watching ? "Stop pinging me on replies" : "Ping me on replies"}
+						{watching ? "Stop pinging me" : `Ping me on ${watchWhat}`}
 					</button>
 				)}
 				{remote !== undefined && (
@@ -4464,8 +4475,8 @@ function DevBoardPage() {
 		: undefined;
 
 	/** Done now; on `day` it pings and waits above the columns to be resumed. */
-	// The thread "Ping me on replies" watches for the right-clicked session.
-	const tagMenuThread = useSessionThread(tagMenuCard);
+	// What "Ping me" watches for the right-clicked session.
+	const tagMenuWatchKeys = useSessionWatchKeys(tagMenuCard);
 
 	// Cards are memoized, so they get one stable set of handlers that always
 	// call this render's versions.
@@ -4679,12 +4690,18 @@ function DevBoardPage() {
 					onStar={() => toggleStar(tagMenu.paneId)}
 					onDone={() => tagMenuCard && doneAnywhere(tagMenuCard)}
 					onRemind={(day) => tagMenuCard && remindMe(tagMenuCard, day)}
-					watching={tagMenuThread ? !!watches[tagMenuThread] : undefined}
+					watching={
+						tagMenuWatchKeys.length
+							? Object.values(watches).some((w) => w.paneId === tagMenu.paneId)
+							: undefined
+					}
+					watchWhat={tagMenuWatchKeys
+						.map((k) => (k.startsWith("pr:") ? "approval" : "replies"))
+						.join(" and ")}
 					onWatch={() =>
 						tagMenuCard &&
-						tagMenuThread &&
 						toggleWatch(
-							tagMenuThread,
+							tagMenuWatchKeys,
 							cardTitle(tagMenuCard),
 							tagMenuCard.pane.id,
 						)

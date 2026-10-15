@@ -1,5 +1,10 @@
 import { expect, test } from "bun:test";
-import { newReplies, sessionThread, useReplyWatch } from "./ReplyWatch";
+import {
+	newReplies,
+	sessionThread,
+	useReplyWatch,
+	watchEvent,
+} from "./ReplyWatch";
 
 const reply = (stamp: string, byMe = false) => ({
 	stamp,
@@ -25,6 +30,21 @@ test("pings only on a new reply from someone else, after the first check", () =>
 			"jira:E-1": reply("2", true),
 		}).sort(),
 	).toEqual(["jira:D-1", "slack:b"]);
+});
+
+test("one toggle watches a session's thread and PR, the next stops both", () => {
+	const { toggle } = useReplyWatch.getState();
+	const pr = "pr:https://github.com/o/r/pull/1";
+	toggle(["jira:A-1", pr], "t", "pane-2");
+	expect(useReplyWatch.getState().watches[pr]?.paneId).toBe("pane-2");
+	expect(watchEvent(pr)).toBe("Approved");
+	expect(watchEvent("jira:A-1")).toBe("New reply");
+	toggle([], "", "pane-2");
+	expect(
+		Object.values(useReplyWatch.getState().watches).some(
+			(w) => w.paneId === "pane-2",
+		),
+	).toBe(false);
 });
 
 test("finds the thread a session is about", () => {
@@ -59,7 +79,7 @@ test("a session with no task fields finds the thread its panel shows", () => {
 
 test("a new reply stays on the card until the session is opened", () => {
 	const { toggle, setStamps, seen } = useReplyWatch.getState();
-	toggle("slack:C1:1.1", "t", "pane-1");
+	toggle(["slack:C1:1.1"], "t", "pane-1");
 	setStamps(
 		{ "slack:C1:1.1": "2.2" },
 		{ "slack:C1:1.1": "Sounds good" },

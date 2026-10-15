@@ -86,7 +86,7 @@ Four columns: **Working** (blue), **Needs you** (amber), **Final Review** (green
 
 ## Cards
 - Hover: ☆ Star (pins to top), ✓ Done (always visible in Final Review), the bell Remind me (tomorrow at the earliest).
-- Right-click: Star, Done, Remind me…, "Ping me on replies" (when the session has a Slack or Jira thread), "Turn on Remote Control" (when Settings is on "Selected sessions"), Keep (overrides a sweep's Drop), Tags (add your own).
+- Right-click: Star, Done, Remind me…, "Ping me" (pings on new replies when the session has a Slack or Jira thread, and when its PR gets approved), "Turn on Remote Control" (when Settings is on "Selected sessions"), Keep (overrides a sweep's Drop), Tags (add your own).
 - Pills: PR #N, "CI running", "Just merge #N", "Review #N", "Dropped: PR merged/closed", "Duplicate? Same ask as…", Loop (a /loop session, with a countdown), a flame for a heavy session, Shell / Shell stopped / Shell exited, Automation, Night Agent, Auto-started.
 - Idle cards have **Resume**, with "⏸ died mid-turn" or the exit cause. A session that died mid-turn is resumed on its own, once per run of the app.
 - **Done** ends the session: stops the process, removes the card and marks its feed row done. Its Undo resumes the same conversation.
