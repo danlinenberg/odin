@@ -4989,16 +4989,6 @@ function DevBoardPage() {
 										)}
 									</div>
 								)}
-								{drawerCard.pane.type === "terminal" && !inCatchUp && (
-									<button
-										type="button"
-										title="Open this session's worktree in VS Code and continue the conversation there"
-										onClick={() => void openInVsCode(drawerCard)}
-										className="shrink-0 rounded-md bg-secondary px-2 py-1 text-xs font-semibold text-muted-foreground hover:text-foreground"
-									>
-										VS Code
-									</button>
-								)}
 								{!catchUpLean && (
 									<button
 										type="button"
