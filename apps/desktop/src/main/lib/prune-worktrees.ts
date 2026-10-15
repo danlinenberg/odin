@@ -66,7 +66,6 @@ async function reposWithWorktrees(): Promise<string[]> {
 export const worktreePath = (repo: string, name: string) =>
 	path.isAbsolute(name) ? name : path.join(repo, ".worktrees", name);
 
-// Must match pruned_ref in scripts/prune-worktrees.sh.
 export const prunedRef = (name: string) =>
 	`refs/pruned/${name
 		.replace(/^\/+/, "")
