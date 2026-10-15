@@ -125,15 +125,17 @@ save_files() { # save_files <worktree> <name>
 # install file by file, and Storage waited on each one. Same disk, so the move
 # is instant; git forgets the worktree at once, the space frees a little later.
 fast_remove() { # fast_remove <worktree> <name>
-	# Beside the worktree, so the move stays on its disk.
-	local trash
-	trash="$(dirname "$1")/.trash-$(basename "$1")-$$"
+	# In .git/, where the leftover sweep below looks and git status never does,
+	# unless that is another disk: there mv would copy, so it goes beside the worktree.
+	local trash="$root/.git/odin-trash-$(basename "$1")-$$"
+	[ "$(stat -f %d "$1")" = "$(stat -f %d "$root/.git")" ] ||
+		trash="$(dirname "$1")/.trash-$(basename "$1")-$$"
 	mv "$1" "$trash"
 	git -C "$root" worktree prune
 	nohup rm -rf "$trash" >/dev/null 2>&1 &
 }
 # Leftovers from a run that was killed before its rm finished.
-for leftover in "$root"/.worktrees/.trash-*; do
+for leftover in "$root"/.git/odin-trash-* "$root"/.worktrees/.trash-*; do
 	[ -e "$leftover" ] && [ "$dry" = 0 ] && { nohup rm -rf "$leftover" >/dev/null 2>&1 & }
 done
 

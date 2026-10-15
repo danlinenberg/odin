@@ -46,6 +46,9 @@ async function excludeWorktrees(repo: string): Promise<void> {
 	);
 }
 
+// A launch waits this long for the fetch; a hung network must not hold the session.
+const FETCH_WAIT_MS = 10_000;
+
 // Null when `repo` isn't a main checkout with an origin: the pruner can only judge work against origin.
 export async function createSessionWorktree(
 	repo: string,
@@ -53,8 +56,11 @@ export async function createSessionWorktree(
 ): Promise<SessionWorktree | null> {
 	if (!isMainCheckout(repo) || !(await hasOriginRemote(repo))) return null;
 	const base = await getDefaultBranch(repo);
-	// Offline: the last fetched one is still a better base than a stale local branch.
-	await fetchDefaultBranch(repo, base).catch(() => {});
+	// Offline or slow: the last fetched one is still a better base than a stale local branch.
+	await Promise.race([
+		fetchDefaultBranch(repo, base).catch(() => {}),
+		new Promise((done) => setTimeout(done, FETCH_WAIT_MS)),
+	]);
 	const branch = worktreeName(title);
 	const dir = path.join(repo, ".worktrees", branch);
 	await excludeWorktrees(repo);
