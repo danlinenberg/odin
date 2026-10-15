@@ -598,6 +598,10 @@ function OdinShell() {
 				<div className="h-full min-w-0 flex-1 [-webkit-app-region:drag]" />
 				<ZoomStable enabled={isMac}>
 					<div className="flex items-center gap-1.5">
+						{/* The board's Sessions / Board view toggle portals in here, so it
+						    never moves when the session drawer opens. z-50: above the
+						    drawer's full-window backdrop (z-40), or a click closes it. */}
+						<div id="odin-view-toggle" className="relative z-50 empty:hidden" />
 						<ClaudeCommandPicker />
 						{usage && (usage.fiveHour || usage.week) && (
 							<Tooltip delayDuration={300}>

@@ -26,6 +26,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { createPortal } from "react-dom";
 import type { IconType } from "react-icons";
 import {
 	LuBellRing,
@@ -247,7 +248,10 @@ interface BoardCard {
  * keypress can't wait for that, and the xterm in the drawer already holds the
  * same rows.
  */
-/** Sessions View / Board View: icon-only, shown on the board and in the drawer. */
+/** The top bar's empty slot (layout.tsx) the board fills with ViewToggle. */
+const VIEW_TOGGLE_SLOT_ID = "odin-view-toggle";
+
+/** Sessions View / Board View: icon-only, in the top bar's slot. */
 function ViewToggle({
 	sessionsOpen,
 	sessionsDisabled,
@@ -263,7 +267,7 @@ function ViewToggle({
 }) {
 	const segment = (active: boolean) =>
 		cn(
-			"flex items-center px-2.5 py-1 disabled:opacity-40",
+			"flex items-center px-2 py-[3px] disabled:opacity-40",
 			active
 				? "bg-primary text-primary-foreground"
 				: "text-foreground/80 hover:bg-accent hover:text-foreground",
@@ -279,7 +283,7 @@ function ViewToggle({
 				onClick={onSessions}
 				className={segment(sessionsOpen)}
 			>
-				<LuSquareTerminal className="size-4" aria-hidden />
+				<LuSquareTerminal className="size-3.5" aria-hidden />
 			</button>
 			<button
 				type="button"
@@ -289,7 +293,7 @@ function ViewToggle({
 				onClick={onBoard}
 				className={segment(!sessionsOpen)}
 			>
-				<LuLayoutGrid className="size-4" aria-hidden />
+				<LuLayoutGrid className="size-3.5" aria-hidden />
 			</button>
 		</div>
 	);
@@ -4401,6 +4405,13 @@ function DevBoardPage() {
 		const card = switchCards[at + step];
 		if (card) openDrawer(card);
 	};
+	// The top bar (layout.tsx) owns the slot; it mounts before this page.
+	const [viewToggleSlot, setViewToggleSlot] = useState<HTMLElement | null>(
+		null,
+	);
+	useEffect(() => {
+		setViewToggleSlot(document.getElementById(VIEW_TOGGLE_SLOT_ID));
+	}, []);
 	// The drawer + session list without hunting for a card: needs-you first.
 	const openSessions = () => {
 		const [first] = switchCards;
@@ -4599,13 +4610,23 @@ function DevBoardPage() {
 						if (!isNextOpen) toggleNext();
 					}}
 				/>
-				<ViewToggle
-					sessionsOpen={false}
-					sessionsDisabled={switchCards.length === 0}
-					sessionsKey={openSessionsKey}
-					onSessions={openSessions}
-					onBoard={() => {}}
-				/>
+				{/* One toggle in the top bar, in the same spot whether the drawer is
+				    open or not - a copy in the toolbar and one in the drawer jumped
+				    across the screen on every click. */}
+				{viewToggleSlot &&
+					!inCatchUp &&
+					createPortal(
+						<ViewToggle
+							sessionsOpen={!!drawerCard}
+							sessionsDisabled={switchCards.length === 0}
+							sessionsKey={openSessionsKey}
+							onSessions={() => {
+								if (!drawerCard) openSessions();
+							}}
+							onBoard={() => setDrawerCard(null)}
+						/>,
+						viewToggleSlot,
+					)}
 				{/* A view toggle, not a filter - kept apart from search and the dropdown. */}
 				<button
 					type="button"
@@ -5038,14 +5059,6 @@ function DevBoardPage() {
 										{drawerCard.pane.odinStarred ? "★" : "☆"}
 									</button>
 								</div>
-								{!inCatchUp && (
-									<ViewToggle
-										sessionsOpen
-										sessionsKey={openSessionsKey}
-										onSessions={() => {}}
-										onBoard={() => setDrawerCard(null)}
-									/>
-								)}
 								{drawerCard.pane.type === "terminal" && !inCatchUp && (
 									<button
 										type="button"
