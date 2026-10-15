@@ -67,6 +67,12 @@ const PERSIST_KEY_PREFIXES = new Set([
 	"dashboard-sidebar", // sidebar per-workspace PR state (badges/checks)
 ]);
 
+// tRPC procedures persisted the same way. Their keys start with the path as an
+// array. PR states come from GitHub (~0.5s a call, uncached), and the board holds
+// its loading spinner until they answer - so after a reload it starts from the
+// last known states and refreshes them behind the scenes.
+const PERSIST_TRPC_PATHS = new Set(["terminal.pullRequestStates"]);
+
 export function ElectronTRPCProvider({
 	children,
 }: {
@@ -87,6 +93,8 @@ export function ElectronTRPCProvider({
 						shouldDehydrateQuery: (query) => {
 							if (!defaultShouldDehydrateQuery(query)) return false;
 							const head = query.queryKey[0];
+							if (Array.isArray(head))
+								return PERSIST_TRPC_PATHS.has(head.join("."));
 							return typeof head === "string" && PERSIST_KEY_PREFIXES.has(head);
 						},
 					},
