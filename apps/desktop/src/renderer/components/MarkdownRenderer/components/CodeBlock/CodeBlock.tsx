@@ -119,7 +119,17 @@ function PasteBlock({ text }: { text: string }) {
 				{isCopied ? "Copied" : "Copy"}
 			</Button>
 			<div className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
-				{text}
+				{text.split(/<@([UW][A-Z0-9]+)>/).map((part, i) =>
+					i % 2 ? (
+						// A mention reads as the person it tags, like Slack shows it.
+						// biome-ignore lint/suspicious/noArrayIndexKey: parts of one fixed string, never reordered
+						<span className="rounded bg-primary/15 px-0.5 text-primary" key={i}>
+							@{names?.[part] ?? part}
+						</span>
+					) : (
+						part
+					),
+				)}
 			</div>
 		</div>
 	);
