@@ -4413,6 +4413,26 @@ function DevBoardPage() {
 																	</div>
 																	<button
 																		type="button"
+																		title={
+																			card.pane.odinStarred
+																				? "Unstar"
+																				: "Star - pin to the top"
+																		}
+																		aria-pressed={!!card.pane.odinStarred}
+																		onClick={(event) => {
+																			event.stopPropagation();
+																			toggleStar(card.pane.id);
+																		}}
+																		className={cn(
+																			"shrink-0 rounded-[5px] px-1 text-[12px] text-attention transition-opacity hover:bg-attention/15",
+																			!card.pane.odinStarred &&
+																				"opacity-0 group-hover:opacity-100",
+																		)}
+																	>
+																		{card.pane.odinStarred ? "★" : "☆"}
+																	</button>
+																	<button
+																		type="button"
 																		title="Done - remove from the board"
 																		onClick={(event) => {
 																			event.stopPropagation();
@@ -4879,6 +4899,20 @@ function DevBoardPage() {
 									<span className="rounded-[5px] bg-secondary px-[7px] text-[11px] text-muted-foreground">
 										{PANE_STATUS[drawerCard.status].label}
 									</span>
+									<button
+										type="button"
+										title={
+											drawerCard.pane.odinStarred
+												? "Unstar"
+												: "Star - pin to the top"
+										}
+										aria-label={drawerCard.pane.odinStarred ? "Unstar" : "Star"}
+										aria-pressed={!!drawerCard.pane.odinStarred}
+										onClick={() => toggleStar(drawerCard.pane.id)}
+										className="shrink-0 rounded-[5px] px-1 text-[13px] text-attention hover:bg-attention/15"
+									>
+										{drawerCard.pane.odinStarred ? "★" : "☆"}
+									</button>
 								</div>
 								{drawerCard.pane.type === "terminal" && !inCatchUp && (
 									<button
