@@ -59,5 +59,8 @@
 		"sharp",
 		"utf-8-validate",
 		"workerd"
-	]
+	],
+	"patchedDependencies": {
+		"mermaid@11.16.0": "patches/mermaid@11.16.0.patch"
+	}
 }

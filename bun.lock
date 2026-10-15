@@ -503,6 +503,9 @@
     "bufferutil",
     "koffi",
   ],
+  "patchedDependencies": {
+    "mermaid@11.16.0": "patches/mermaid@11.16.0.patch",
+  },
   "overrides": {
     "@types/hast": "3.0.5",
     "axios": "1.14.0",
