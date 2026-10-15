@@ -1,8 +1,10 @@
 import { describe, expect, test } from "bun:test";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import nodePath from "node:path";
 import {
+	changedFiles,
 	claudeCodeSessionUrl,
 	hasClaudeCodeExtension,
 	vscodeFolderUrl,
@@ -66,5 +68,40 @@ describe("vscodeWindowReady", () => {
 
 	test("no ide folder", () => {
 		expect(vscodeWindowReady("/x", "/nonexistent/ide")).toBe(false);
+	});
+});
+
+describe("changedFiles", () => {
+	test("branch commits and untracked files, not deleted or base files", async () => {
+		const dir = fs.realpathSync(
+			fs.mkdtempSync(nodePath.join(os.tmpdir(), "cf-")),
+		);
+		const git = (...args: string[]) =>
+			execFileSync("git", [
+				"-C",
+				dir,
+				"-c",
+				"user.name=t",
+				"-c",
+				"user.email=t@t",
+				...args,
+			]);
+		git("init", "-q", "-b", "main");
+		fs.writeFileSync(nodePath.join(dir, "base.ts"), "");
+		fs.writeFileSync(nodePath.join(dir, "gone.ts"), "");
+		git("add", ".");
+		git("commit", "-qm", "base");
+		git("update-ref", "refs/remotes/origin/main", "HEAD");
+		git("checkout", "-qb", "feature");
+		fs.mkdirSync(nodePath.join(dir, "src"));
+		fs.writeFileSync(nodePath.join(dir, "src/new.ts"), "");
+		fs.rmSync(nodePath.join(dir, "gone.ts"));
+		git("add", ".");
+		git("commit", "-qm", "work");
+		fs.writeFileSync(nodePath.join(dir, "draft.ts"), "");
+		expect((await changedFiles(nodePath.join(dir, "src"))).sort()).toEqual([
+			nodePath.join(dir, "draft.ts"),
+			nodePath.join(dir, "src/new.ts"),
+		]);
 	});
 });

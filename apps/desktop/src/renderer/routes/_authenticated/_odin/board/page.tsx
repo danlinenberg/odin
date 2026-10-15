@@ -995,8 +995,9 @@ function ShellPlaceMenu({
 	}
 	const current = targets.find((target) => inside(here, target.dir));
 	const where = here?.replace(/^\/Users\/[^/]+/, "~");
+	const [open, setOpen] = useState(false);
 	return (
-		<DropdownMenu>
+		<DropdownMenu open={open} onOpenChange={setOpen}>
 			<DropdownMenuTrigger asChild>
 				<button
 					type="button"
@@ -1041,17 +1042,26 @@ function ShellPlaceMenu({
 							</span>
 						</span>
 						<ShellsDot {...shellsIn(target.dir)} />
+						<button
+							type="button"
+							title={`Open ${target.dir} in VS Code, and continue this conversation there`}
+							onClick={(event) => {
+								event.stopPropagation();
+								setOpen(false);
+								onOpenInVsCode(target.dir);
+							}}
+							className="shrink-0 rounded bg-secondary px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground hover:text-foreground"
+						>
+							VS Code
+						</button>
 					</DropdownMenuItem>
 				))}
-				{(here ?? targets[0]?.dir) && (
+				{targets.length === 0 && here && (
 					<>
 						<DropdownMenuSeparator />
 						<DropdownMenuItem
 							title="Open this folder in VS Code, and continue this conversation there"
-							onSelect={() => {
-								const dir = here ?? targets[0]?.dir;
-								if (dir) onOpenInVsCode(dir);
-							}}
+							onSelect={() => onOpenInVsCode(here)}
 							className="flex items-center gap-2 text-xs"
 						>
 							<span className="w-3" />
@@ -2647,7 +2657,7 @@ function DevBoardPage() {
 		});
 		if (!result.opened) {
 			return toast.error("Couldn't open VS Code", {
-				description: `${String(result.error)}. The session is still running here.`,
+				description: `${result.error instanceof Error ? result.error.message : String(result.error)}. The session is still running here.`,
 			});
 		}
 		const { inPanel } = result;

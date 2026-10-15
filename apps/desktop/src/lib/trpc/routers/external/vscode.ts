@@ -1,6 +1,10 @@
+import { execFile } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import nodePath from "node:path";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
 
 /**
  * VS Code's own URL handler. It is registered by the app itself, so it opens
@@ -76,4 +80,34 @@ export function hasClaudeCodeExtension(
 	} catch {
 		return false;
 	}
+}
+
+/**
+ * The files this worktree's branch changed against its base branch, committed
+ * or not - what a review in VS Code opens. On the base branch itself, only the
+ * uncommitted ones. Absolute paths; deleted files left out.
+ */
+export async function changedFiles(dir: string): Promise<string[]> {
+	const git = (...args: string[]) =>
+		execFileAsync("git", ["-C", dir, ...args]).then(({ stdout }) =>
+			stdout.trim(),
+		);
+	let base = "HEAD";
+	for (const ref of ["origin/HEAD", "origin/main", "origin/master"]) {
+		const found = await git("merge-base", "HEAD", ref).catch(() => "");
+		if (found) {
+			base = found;
+			break;
+		}
+	}
+	const [root, diff, untracked] = await Promise.all([
+		git("rev-parse", "--show-toplevel"),
+		git("diff", "--name-only", "--diff-filter=d", base),
+		git("ls-files", "--others", "--exclude-standard", "--full-name", ":/"),
+	]);
+	// ponytail: first 30 files, a page of editor tabs; a bigger PR is reviewed in the diff view
+	return [...new Set(`${diff}\n${untracked}`.split("\n"))]
+		.filter(Boolean)
+		.slice(0, 30)
+		.map((file) => nodePath.join(root, file));
 }

@@ -24,6 +24,7 @@ import {
 	spawnAsync,
 } from "./helpers";
 import {
+	changedFiles,
 	claudeCodeSessionUrl,
 	hasClaudeCodeExtension,
 	vscodeFolderUrl,
@@ -230,9 +231,10 @@ export const createExternalRouter = () => {
 			}),
 
 		/**
-		 * A session's folder in VS Code. `open -a` first; VS Code's own
-		 * `vscode://` handler when that fails (no `code` CLI, a renamed app).
-		 * Throws when neither opened it.
+		 * A session's folder in VS Code, with the files its branch changed open
+		 * for review. On macOS through the `code` CLI inside VS Code.app, so
+		 * nothing is installed on PATH; `open -a` next, then VS Code's own
+		 * `vscode://` handler (folder only). Throws when VS Code isn't installed.
 		 */
 		openFolderInVsCode: publicProcedure
 			.input(z.object({ path: z.string() }))
@@ -243,10 +245,33 @@ export const createExternalRouter = () => {
 						message: `VS Code needs an absolute path (got ${JSON.stringify(input.path)}).`,
 					});
 				}
-				try {
-					await openPathInApp(input.path, "vscode");
-				} catch {
-					await shell.openExternal(vscodeFolderUrl(input.path));
+				const vscode = await app
+					.getApplicationInfoForProtocol("vscode://")
+					.catch(() => null);
+				if (!vscode && process.platform !== "linux") {
+					throw new TRPCError({
+						code: "PRECONDITION_FAILED",
+						message:
+							"VS Code isn't installed - get it from code.visualstudio.com",
+					});
+				}
+				const files = await changedFiles(input.path).catch(() => []);
+				const cli =
+					process.platform === "darwin" && vscode
+						? nodePath.join(vscode.path, "Contents/Resources/app/bin/code")
+						: null;
+				const opened =
+					!!cli &&
+					(await spawnAsync(cli, [input.path, ...files]).then(
+						() => true,
+						() => false,
+					));
+				if (!opened) {
+					try {
+						await openPathInApp(input.path, "vscode");
+					} catch {
+						await shell.openExternal(vscodeFolderUrl(input.path));
+					}
 				}
 			}),
 
