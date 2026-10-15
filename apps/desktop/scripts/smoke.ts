@@ -439,6 +439,25 @@ await step("a task written down lands in Tasks", async () => {
 	await waitForText(TASK);
 });
 
+await step(
+	"⌘Enter adds the task from the fields under the box too",
+	async () => {
+		const typed = `Send task ${Date.now()}`;
+		await rail("Dev Board");
+		await click("button", "Add task");
+		await fill('input[placeholder="What needs doing?"]', typed);
+		// From Priority, not the title: Skill, Repo and Priority used to swallow it.
+		await page(`(() => {
+		const mac = navigator.platform.startsWith("Mac");
+		const field = document.querySelector('[role=dialog] select[aria-label="Priority"]');
+		field.focus();
+		field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", metaKey: mac, ctrlKey: !mac, bubbles: true }));
+	})()`);
+		await rail("Tasks");
+		await waitForText(typed);
+	},
+);
+
 await step("the My Tasks composer adds a task with its button", async () => {
 	const typed = `Button task ${Date.now()}`;
 	await page(`(() => {

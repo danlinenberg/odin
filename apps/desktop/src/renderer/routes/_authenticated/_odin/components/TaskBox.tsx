@@ -117,7 +117,8 @@ export function TaskBox({
 	const [title, notes] = splitTask(value);
 	const [focused, setFocused] = useState(false);
 	const folded = !!compact && !focused && !value.trim();
-	// Send (⌘Enter unless rebound) submits from either field.
+	// Send (⌘Enter unless rebound) submits from anywhere in the box - Skill,
+	// Repo and Priority too, since they are where you finish a task.
 	const keys = (event: React.KeyboardEvent) => {
 		if (isHotkey("SUBMIT", event.nativeEvent)) {
 			event.preventDefault();
@@ -141,10 +142,11 @@ export function TaskBox({
 	return (
 		// Focus is tracked here, not on the fieldset: Skill, Repo and Priority sit
 		// below it, and moving into one of them must not fold the box away.
-		// biome-ignore lint/a11y/noStaticElementInteractions: focus bubbles up from the fields, nothing here is clickable
+		// biome-ignore lint/a11y/noStaticElementInteractions: focus and keys bubble up from the fields, nothing here is clickable
 		<div
 			className="flex h-full min-h-0 flex-col gap-1.5"
 			onFocus={() => setFocused(true)}
+			onKeyDown={keys}
 			onBlur={(event) => {
 				if (!event.currentTarget.contains(event.relatedTarget))
 					setFocused(false);
@@ -172,7 +174,6 @@ export function TaskBox({
 					autoFocus={autoFocus}
 					aria-label="Title"
 					onChange={(event) => onChange(joinTask(event.target.value, notes))}
-					onKeyDown={keys}
 					className="w-full bg-transparent px-3 pt-2 pb-1.5 text-[13px] font-semibold text-foreground outline-none placeholder:font-normal placeholder:text-muted-foreground"
 				/>
 				{!folded && (
@@ -186,7 +187,6 @@ export function TaskBox({
 							onChange={(event) =>
 								onChange(joinTask(title, event.target.value))
 							}
-							onKeyDown={keys}
 							className="w-full min-h-0 grow resize-none bg-transparent px-3 pt-1.5 pb-2 text-[13px] text-muted-foreground outline-none placeholder:text-muted-foreground"
 						/>
 					</>
@@ -370,7 +370,11 @@ function SkillSelect({
 					// Tab only completes a search you typed: tabbing past the box
 					// must not fill in the top of the list.
 					const searched = query !== null && query !== current;
-					if (event.key === "Enter" || (event.key === "Tab" && searched)) {
+					// ⌘Enter is Send, so it carries on up to the box.
+					const pick =
+						(event.key === "Enter" && !isHotkey("SUBMIT", event.nativeEvent)) ||
+						(event.key === "Tab" && searched);
+					if (pick) {
 						event.preventDefault();
 						// Enter here picks a skill; it must not also submit the task.
 						event.stopPropagation();
