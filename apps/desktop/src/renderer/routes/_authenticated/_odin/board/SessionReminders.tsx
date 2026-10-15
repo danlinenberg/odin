@@ -12,6 +12,7 @@ import { allItems } from "../all/all-items";
 import { useStartAllItem } from "../all/use-start-item";
 import { BUTTON } from "../components/pill";
 import { dayOf, dueLabel, isDue, useReminders } from "../components/Reminders";
+import { useReplyWatch } from "../components/ReplyWatch";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePendingFocus } from "../hooks/usePendingFocus";
@@ -159,7 +160,8 @@ export function RemindButton({
 /**
  * Every reminder whose day has come, above the columns. A snoozed session gets
  * Resume - the same `claude --resume` into a fresh pane Session History does;
- * a dated card or feed row gets Open.
+ * a dated card or feed row gets Open. An unread "Ping me on replies" reply
+ * shows here too, until its session is opened.
  */
 export function SessionReminders() {
 	const reminders = useReminders((s) => s.reminders);
@@ -169,14 +171,52 @@ export function SessionReminders() {
 	const open = useOpenReminder();
 	const now = Date.now();
 	const due = Object.entries(reminders).filter(([, r]) => isDue(r.due, now));
-	if (!due.length) return null;
+	const watches = useReplyWatch((s) => s.watches);
+	const seen = useReplyWatch((s) => s.seen);
+	const replies = Object.values(watches).filter((w) => w.reply && w.paneId);
+	if (!due.length && !replies.length) return null;
 
 	return (
 		<div className="mx-[18px] mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-attention/25 bg-attention/8 px-3 py-2 text-[12px]">
 			<span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[.4px] text-attention">
 				<LuBellRing className="size-3.5" aria-hidden />
-				Reminders · {due.length}
+				Reminders · {due.length + replies.length}
 			</span>
+			{replies.map((w) => (
+				<span
+					key={w.paneId}
+					title={w.reply}
+					className="flex min-w-0 items-center gap-1.5 rounded-lg border border-attention/30 bg-card py-0.5 pl-2.5 pr-1"
+				>
+					<span
+						dir="auto"
+						className="max-w-[320px] truncate font-medium text-foreground"
+					>
+						{w.title}
+					</span>
+					<span
+						dir="auto"
+						className="max-w-[260px] truncate text-[11px] text-attention"
+					>
+						New reply: {w.reply}
+					</span>
+					<button
+						type="button"
+						onClick={() => usePendingFocus.getState().focus(w.paneId ?? "")}
+						className={`rounded-md px-2 py-0.5 text-[11px] font-semibold ${BUTTON.secondary}`}
+					>
+						Open
+					</button>
+					<button
+						type="button"
+						title="Mark the reply read"
+						onClick={() => seen(w.paneId ?? "")}
+						className="rounded-md px-1 text-[11px] text-muted-foreground hover:text-foreground"
+					>
+						✕
+					</button>
+				</span>
+			))}
 			{due.map(([key, r]) => (
 				<span
 					key={key}
