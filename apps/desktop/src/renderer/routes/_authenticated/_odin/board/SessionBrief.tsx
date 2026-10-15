@@ -162,25 +162,47 @@ function Section({
 
 /** The model writes markdown: show `code` and **bold** as such, not as raw
  *  backticks and asterisks. Anything else stays plain text. */
+// `code`, **bold**, [text](url) and bare URLs - the markdown the brief's model
+// and the agent's ACTION ITEMS actually write.
+const INLINE =
+	/(`[^`]+`|\*\*[^*]+\*\*|\[[^\]]+\]\(https?:\/\/[^)\s]+\)|https?:\/\/[^\s<>()[\]]*[^\s<>()[\].,;:!?'"])/;
+
 function Inline({ text }: { text: string }) {
-	return text.split(/(`[^`]+`|\*\*[^*]+\*\*)/).map((part, i) =>
-		part.startsWith("`") && part.length > 2 ? (
-			<code
+	return text.split(INLINE).map((part, i) => {
+		const md = part.match(/^\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)$/);
+		const url = md?.[2] ?? (/^https?:\/\//.test(part) ? part : null);
+		if (url)
+			return (
+				<button
+					// biome-ignore lint/suspicious/noArrayIndexKey: parts never reorder
+					key={i}
+					type="button"
+					title={url}
+					onClick={() => openUrl(url)}
+					className="text-link hover:underline"
+				>
+					{md?.[1] ?? linkLabel(url)}
+				</button>
+			);
+		if (part.startsWith("`") && part.length > 2)
+			return (
+				<code
+					// biome-ignore lint/suspicious/noArrayIndexKey: parts never reorder
+					key={i}
+					className="rounded bg-secondary px-1 py-px font-mono text-[11.5px] text-foreground"
+				>
+					{part.slice(1, -1)}
+				</code>
+			);
+		if (part.startsWith("**") && part.length > 4)
+			return (
 				// biome-ignore lint/suspicious/noArrayIndexKey: parts never reorder
-				key={i}
-				className="rounded bg-secondary px-1 py-px font-mono text-[11.5px] text-foreground"
-			>
-				{part.slice(1, -1)}
-			</code>
-		) : part.startsWith("**") && part.length > 4 ? (
-			// biome-ignore lint/suspicious/noArrayIndexKey: parts never reorder
-			<strong key={i} className="font-semibold text-foreground">
-				{part.slice(2, -2)}
-			</strong>
-		) : (
-			part
-		),
-	);
+				<strong key={i} className="font-semibold text-foreground">
+					{part.slice(2, -2)}
+				</strong>
+			);
+		return part;
+	});
 }
 
 /** GitHub's own colours, so merged/open/closed read without a legend. */
