@@ -19,6 +19,7 @@ import { useTabsStore } from "renderer/stores/tabs/store";
 import type { Pane } from "renderer/stores/tabs/types";
 import { crowRule, NOTIFICATION_EVENTS } from "shared/constants";
 import type { OdinActionRequest } from "shared/notification-types";
+import { odinGuide } from "shared/odin-guide";
 import {
 	odinScreenStatus,
 	spacesForCursorForward,
@@ -57,7 +58,7 @@ export const crowPane = (panes: Record<string, Pane>): Pane | undefined =>
  */
 const crowCli = () => {
 	const { commands, active } = useClaudeCommand.getState();
-	return `${pickClaudeCommand(commands, active)} --dangerously-skip-permissions --model haiku --disallowedTools TaskCreate,TaskGet,TaskList,TaskUpdate,TodoWrite --settings ${quote(JSON.stringify({ autoMemoryEnabled: false }))} --append-system-prompt ${quote(crowRule(import.meta.env.DEV ? "main" : `v${window.App.appVersion}`))}`;
+	return `${pickClaudeCommand(commands, active)} --dangerously-skip-permissions --model haiku --disallowedTools TaskCreate,TaskGet,TaskList,TaskUpdate,TodoWrite --settings ${quote(JSON.stringify({ autoMemoryEnabled: false }))} --append-system-prompt ${quote(crowRule)}`;
 };
 
 /** Long enough for a fresh spare to reach the daemon's session list. */
@@ -606,6 +607,7 @@ function runOdinAction(
 			? `${status}\n\nWhat it did, newest last:\n${log.join("\n")}`
 			: `${status}\n\nNo night has run yet.`;
 	}
+	if (action === "guide") return odinGuide(args.q);
 	if (action === "state") return readState(args);
 	if (action === "set") return writeState(args);
 	if (action === "run") return runAction(args);
@@ -623,5 +625,5 @@ function runOdinAction(
 		endSession(args.paneId);
 		return `Marked ${panes[args.paneId].odinTaskTitle ?? args.paneId} done.`;
 	}
-	return `Unknown action "${action}" - use tasks, start, add, sessions, night, done, state, set, open, api or call.`;
+	return `Unknown action "${action}" - use guide, tasks, start, add, sessions, night, done, state, set, open, api or call.`;
 }
