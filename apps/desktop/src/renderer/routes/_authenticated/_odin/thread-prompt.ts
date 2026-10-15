@@ -59,7 +59,8 @@ export function buildThreadPrompt(
 		// Text pasted into Slack never turns into a mention, so a reply shown only
 		// in the chat has to be retyped by hand. Slack's own drafts API is the one
 		// path that yields real mentions, and the session has it as an MCP tool.
-		"- If you end with a reply for me to post in that thread, create it as a Slack draft reply in the thread with your Slack draft tool (slack_send_message_draft, thread_ts of the first message, mentions as <@USERID>) and give me the channel link. Never send it. Keep the text in your reply too, in a fenced block, for when the tool is missing.",
+		// The draft tool's channel_link opens the bare channel, not the thread.
+		`- If you end with a reply for me to post in that thread, create it as a Slack draft reply in the thread with your Slack draft tool (slack_send_message_draft, thread_ts of the first message, mentions as <@USERID>) and link me to the thread, ${slackUrl} - not the tool's channel_link. Never send it. Keep the text in your reply too, in a fenced block, for when the tool is missing.`,
 		"",
 		"Rules: do NOT post to Slack or Notion; everything stays in this session for review. A Slack draft is not a post: I review and send it myself.",
 	].join("\n");
