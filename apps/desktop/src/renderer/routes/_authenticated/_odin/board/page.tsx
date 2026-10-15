@@ -486,7 +486,9 @@ function ScrollbackView({ card, live }: { card: BoardCard; live: boolean }) {
 
 /**
  * What "Ping me" watches for a session: its Slack thread or Jira ticket, and
- * its PR (the one it launched on, else the newest it opened) for approval.
+ * its PRs for approval: the one it launched on and the newest it opened. Not
+ * just the newest - a session often opens the PR you wait on, then a later one
+ * that auto-merges with no review and would never ping.
  */
 function useSessionWatchKeys(card: BoardCard | undefined): string[] {
 	const paneId = card?.pane.id ?? "";
@@ -510,10 +512,15 @@ function useSessionWatchKeys(card: BoardCard | undefined): string[] {
 			),
 		],
 	});
-	const pr =
-		launchPullRequest(card.pane.odinBrief) ??
-		(transcript ? pullRequests(transcript.messages)[0] : undefined);
-	return [thread, pr && `pr:${pr.url}`].filter((k): k is string => !!k);
+	// ponytail: newest 5, one GitHub call each a minute; a merged one keeps
+	// costing its call until you stop pinging.
+	const prs = new Set(
+		[
+			launchPullRequest(card.pane.odinBrief),
+			...(transcript ? pullRequests(transcript.messages) : []),
+		].flatMap((pr) => (pr ? [`pr:${pr.url}`] : [])),
+	);
+	return [thread, ...[...prs].slice(0, 5)].filter((k): k is string => !!k);
 }
 
 /** The conversation behind a card, for the pills that read it. */
@@ -4727,9 +4734,13 @@ function DevBoardPage() {
 							? Object.values(watches).some((w) => w.paneId === tagMenu.paneId)
 							: undefined
 					}
-					watchWhat={tagMenuWatchKeys
-						.map((k) => (k.startsWith("pr:") ? "approval" : "replies"))
-						.join(" and ")}
+					watchWhat={[
+						...new Set(
+							tagMenuWatchKeys.map((k) =>
+								k.startsWith("pr:") ? "approval" : "replies",
+							),
+						),
+					].join(" and ")}
 					onWatch={() =>
 						tagMenuCard &&
 						toggleWatch(
