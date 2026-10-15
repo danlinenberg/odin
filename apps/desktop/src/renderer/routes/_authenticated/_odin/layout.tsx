@@ -106,15 +106,12 @@ const RAIL_ITEMS = [
 		label: "Automations",
 		Icon: HiOutlineBolt,
 	},
+	{
+		to: "/night-agent" as const,
+		label: "Night Agent",
+		Icon: HiOutlineMoon,
+	},
 ];
-
-/** History is a log, not a feed - it sits at the foot of the rail. */
-const HISTORY_ITEM = {
-	to: "/sessions" as const,
-	hotkey: "ODIN_SESSIONS" as const,
-	label: "Session History",
-	Icon: HiOutlineClock,
-};
 
 /**
  * Settings is app chrome, not a feed - foot of the rail. The stock entry point
@@ -130,14 +127,9 @@ const SETTINGS_ITEM = {
 
 /**
  * The views you visit now and then - one "More" button, always the last of
- * the top group. Review and Insights keep their single-key hotkeys.
+ * the top group. Each keeps its single-key hotkey.
  */
-const MORE_ITEMS: {
-	to: "/review" | "/insights" | "/settings/backlog";
-	hotkey?: "ODIN_REVIEW" | "ODIN_INSIGHTS";
-	label: string;
-	Icon: typeof HiOutlineScale;
-}[] = [
+const MORE_ITEMS = [
 	// Its own page rather than a feed tab: the strip answers "what's waiting
 	// on me" from a source; this answers "what can go".
 	{
@@ -152,11 +144,11 @@ const MORE_ITEMS: {
 		label: "Insights",
 		Icon: HiOutlineChartBar,
 	},
-	// ponytail: no Night Agent page yet - its settings are the closest thing.
 	{
-		to: "/settings/backlog",
-		label: "Night Agent",
-		Icon: HiOutlineMoon,
+		to: "/sessions" as const,
+		hotkey: "ODIN_SESSIONS" as const,
+		label: "Session History",
+		Icon: HiOutlineClock,
 	},
 ];
 
@@ -506,15 +498,12 @@ function OdinShell() {
 		label,
 		hotkey,
 		Icon,
-	}:
-		| (typeof RAIL_ITEMS)[number]
-		| typeof HISTORY_ITEM
-		| typeof SETTINGS_ITEM) => {
+	}: (typeof RAIL_ITEMS)[number] | typeof SETTINGS_ITEM) => {
 		// Tasks stands for every feed: lit on any of them, and always opening on
 		// All - every source at once is the answer to "what's waiting on me".
 		const isFeeds = to === "/all";
 		const isActive = isFeeds ? isFeedRoute : !!matchRoute({ to, fuzzy: true });
-		const keys = railHotkeys[hotkey].text;
+		const keys = hotkey ? railHotkeys[hotkey].text : "";
 		const hint = keys ? `${label} (${keys})` : label;
 		return (
 			<Tooltip key={to} delayDuration={300}>
@@ -737,17 +726,14 @@ function OdinShell() {
 								<DropdownMenuItem key={to} onSelect={() => navigate({ to })}>
 									<Icon className="size-4" />
 									{label}
-									{hotkey && (
-										<DropdownMenuShortcut>
-											{railHotkeys[hotkey].text}
-										</DropdownMenuShortcut>
-									)}
+									<DropdownMenuShortcut>
+										{railHotkeys[hotkey].text}
+									</DropdownMenuShortcut>
 								</DropdownMenuItem>
 							))}
 						</DropdownMenuContent>
 					</DropdownMenu>
 					<div className="flex-1" />
-					{renderRailItem(HISTORY_ITEM)}
 					{renderRailItem(SETTINGS_ITEM)}
 					<CrowButton
 						open={isCrowOpen}
