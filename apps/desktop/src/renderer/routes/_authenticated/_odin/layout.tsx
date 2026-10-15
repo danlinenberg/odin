@@ -524,7 +524,7 @@ function OdinShell() {
 			    a constant physical size (otherwise zooming out slides the bar under
 			    the lights). Same trick the stock TopBar uses. */}
 			<div
-				className="flex shrink-0 items-center gap-3 border-b border-border bg-tertiary/70 pr-3"
+				className="relative flex shrink-0 items-center gap-3 border-b border-border bg-tertiary/70 pr-3"
 				style={isMac ? { height: `${36 / zoomFactor}px` } : undefined}
 			>
 				<div
@@ -596,12 +596,18 @@ function OdinShell() {
 					</ZoomStable>
 				))}
 				<div className="h-full min-w-0 flex-1 [-webkit-app-region:drag]" />
+				{/* The board's Sessions / Board view toggle portals in here: dead
+				    centre of the bar, apart from the status badges, and it never
+				    moves when the session drawer opens. no-drag: it sits over the
+				    drag filler. z-50: above the drawer's full-window backdrop
+				    (z-40), or a click closes the drawer. */}
+				<div className="absolute left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 [-webkit-app-region:no-drag]">
+					<ZoomStable enabled={isMac}>
+						<div id="odin-view-toggle" />
+					</ZoomStable>
+				</div>
 				<ZoomStable enabled={isMac}>
 					<div className="flex items-center gap-1.5">
-						{/* The board's Sessions / Board view toggle portals in here, so it
-						    never moves when the session drawer opens. z-50: above the
-						    drawer's full-window backdrop (z-40), or a click closes it. */}
-						<div id="odin-view-toggle" className="relative z-50 empty:hidden" />
 						<ClaudeCommandPicker />
 						{usage && (usage.fiveHour || usage.week) && (
 							<Tooltip delayDuration={300}>
