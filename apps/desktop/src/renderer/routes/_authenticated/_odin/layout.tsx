@@ -113,8 +113,8 @@ const SETTINGS_ITEM = {
 };
 
 /**
- * The views you visit, not live in - one "More" button at the foot of the
- * rail instead of four icons. Their single-key hotkeys still jump straight
+ * The views you visit, not live in - one "More" button under Tasks instead
+ * of four icons. Their single-key hotkeys still jump straight
  * to each.
  */
 const MORE_ITEMS = [
@@ -696,7 +696,6 @@ function OdinShell() {
 				    icons (Settings, the raven) clip off with no way back to them. */}
 				<div className="hide-scrollbar flex w-[52px] shrink-0 flex-col items-center gap-1.5 overflow-y-auto border-r border-border bg-tertiary/70 py-2.5 [&>*]:shrink-0">
 					{RAIL_ITEMS.map(renderRailItem)}
-					<div className="flex-1" />
 					<DropdownMenu>
 						<Tooltip delayDuration={300}>
 							<TooltipTrigger asChild>
@@ -717,7 +716,7 @@ function OdinShell() {
 							</TooltipTrigger>
 							<TooltipContent side="right">More</TooltipContent>
 						</Tooltip>
-						<DropdownMenuContent side="right" align="end" className="w-52">
+						<DropdownMenuContent side="right" align="start" className="w-52">
 							{MORE_ITEMS.map(({ to, hotkey, label, Icon }) => (
 								<DropdownMenuItem key={to} onSelect={() => navigate({ to })}>
 									<Icon className="size-4" />
@@ -729,6 +728,7 @@ function OdinShell() {
 							))}
 						</DropdownMenuContent>
 					</DropdownMenu>
+					<div className="flex-1" />
 					{renderRailItem(SETTINGS_ITEM)}
 					<CrowButton
 						open={isCrowOpen}

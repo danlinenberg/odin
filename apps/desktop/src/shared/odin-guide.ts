@@ -10,7 +10,7 @@ export const ODIN_GUIDE = `# Odin
 "Store:" names are for your own action=state calls. Never show them, or any other code, to the user.
 
 ## Left rail
-Top to bottom: Dev Board, Tasks. At the foot: More (the ⋮ button: Review, Automations, Insights, Session History), Settings, and the raven button (Huginn, ⌘⇧I). Each has a one-key hotkey (rebind in Settings → Keyboard); the keys do nothing while you type, also inside agent terminals.
+Top to bottom: Dev Board, Tasks, More (the ⋮ button: Review, Automations, Insights, Session History). At the foot: Settings, and the raven button (Huginn, ⌘⇧I). Each has a one-key hotkey (rebind in Settings → Keyboard); the keys do nothing while you type, also inside agent terminals.
 
 ## Tasks screen and its feeds
 Tabs: All, Tasks, Slack, Jira, GitHub, Notion, Email, ClickUp.
