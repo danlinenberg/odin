@@ -12,6 +12,7 @@ import {
 	isDoneItem,
 	isEchoed,
 	isYouOnly,
+	itemDetail,
 	itemOptions,
 	itemReply,
 	lastActionsId,
@@ -285,6 +286,24 @@ describe("ChatView transcript", () => {
 			]),
 		).toBe("b");
 		expect(lastActionsId([text("a", "no list")])).toBeUndefined();
+	});
+
+	test("an item's tooltip is the reply paragraph that explains it", () => {
+		const body =
+			"Pushed the docs.\n\n`training-profiles.md` lists profiles that no longer exist.\n\nThe notifications bug and the Pic-Time auth bug both 500 on retry.";
+		expect(
+			itemDetail(
+				"Tell me what to do with `training-profiles.md` [delete | keep]",
+				body,
+			),
+		).toBe("`training-profiles.md` lists profiles that no longer exist.");
+		expect(
+			itemDetail(
+				"Tell me whether to ticket the notifications and Pic-Time auth bugs",
+				body,
+			),
+		).toStartWith("The notifications bug");
+		expect(itemDetail("Restart Odin dev", body)).toBeNull();
 	});
 
 	test("action items list one entry per numbered or bulleted line", () => {

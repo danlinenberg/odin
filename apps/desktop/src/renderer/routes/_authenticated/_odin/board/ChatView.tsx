@@ -1,9 +1,11 @@
 import { odinIcon } from "@odin/ui/icons/preset-icons";
 import { toast } from "@odin/ui/sonner";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@odin/ui/tooltip";
 import { cn } from "@odin/ui/utils";
 import {
 	isValidElement,
 	memo,
+	type ReactElement,
 	type ReactNode,
 	useCallback,
 	useEffect,
@@ -1312,6 +1314,50 @@ export function itemOptions(item: string): { text: string; options: string[] } {
 	};
 }
 
+// Words every item uses; sharing one says nothing about which paragraph it means.
+const DETAIL_FILLER = new Set(
+	"tell what with whether also your this that them they then when have will should about from into once after before merge check open review approve decide choose pick confirm".split(
+		" ",
+	),
+);
+
+/** An item's or paragraph's telling words; a name with `.`, `-`, `_`, `/` or digits counts twice. */
+function detailWords(text: string): Map<string, number> {
+	const words = new Map<string, number>();
+	const prose = text
+		.toLowerCase()
+		.replace(/\]\([^)]*\)/g, "]")
+		.replace(/https?:\/\/\S+/g, " ");
+	for (const word of prose.match(
+		/[\p{L}\p{N}][\p{L}\p{N}._/-]*[\p{L}\p{N}]/gu,
+	) ?? []) {
+		const name = /[._/\d-]/.test(word);
+		if ((word.length >= 4 || /^\d{2,}$/.test(word)) && !DETAIL_FILLER.has(word))
+			words.set(word, name ? 2 : 1);
+	}
+	return words;
+}
+
+/**
+ * The paragraph of the reply that explains an item - the one sharing the most
+ * of its words, and at least one name or two words. null when none does.
+ */
+export function itemDetail(item: string, body: string): string | null {
+	const words = detailWords(itemOptions(item).text);
+	let best: string | null = null;
+	let top = 1;
+	for (const block of body.split(/\n\s*\n/)) {
+		let score = 0;
+		for (const [word, weight] of detailWords(block))
+			if (words.has(word)) score += weight;
+		if (score > top) {
+			best = block.trim();
+			top = score;
+		}
+	}
+	return best;
+}
+
 /**
  * What an item's button sends: the typed answer, "Done" for a "tell me when"
  * item, else nothing - and Claude is asked to do the item itself.
@@ -1345,12 +1391,15 @@ export function isYouOnly(item: string): boolean {
 /** One action item: its button, number, text, and - for a question - the reply box and choices. */
 function ActionItemRow({
 	item,
+	detail,
 	number,
 	onDo,
 	onDismiss,
 	buttonColumn,
 }: {
 	item: string;
+	/** The reply's paragraph about this item, shown on hover. */
+	detail: string | null;
 	number: number;
 	onDo: DoItem;
 	/** Hides the item now and in later replies; set when the session has a pane. */
@@ -1406,12 +1455,16 @@ function ActionItemRow({
 				{number}.
 			</span>
 			<div className="min-w-0 [overflow-wrap:anywhere]">
-				<MarkdownRenderer
-					content={text}
-					style="default"
-					allowHtml={false}
-					className={COMPACT_MARKDOWN}
-				/>
+				<ItemDetail detail={detail}>
+					<div className={cn(detail && "cursor-help")}>
+						<MarkdownRenderer
+							content={text}
+							style="default"
+							allowHtml={false}
+							className={COMPACT_MARKDOWN}
+						/>
+					</div>
+				</ItemDetail>
 				{asks && !sent && (
 					<div className="mt-1.5 flex flex-wrap items-center gap-1.5">
 						{options.map((option) => (
@@ -1454,6 +1507,34 @@ function ActionItemRow({
 	);
 }
 
+/** Hovering an item shows the reply's longer word on it; no detail, no tooltip. */
+function ItemDetail({
+	detail,
+	children,
+}: {
+	detail: string | null;
+	children: ReactElement;
+}) {
+	if (!detail) return children;
+	return (
+		<Tooltip delayDuration={300}>
+			<TooltipTrigger asChild>{children}</TooltipTrigger>
+			<TooltipContent
+				side="bottom"
+				align="start"
+				className="max-h-[50vh] max-w-[420px] cursor-text select-text overflow-y-auto text-left"
+			>
+				<MarkdownRenderer
+					content={detail}
+					style="default"
+					allowHtml={false}
+					className={COMPACT_MARKDOWN}
+				/>
+			</TooltipContent>
+		</Tooltip>
+	);
+}
+
 /**
  * What's on you, set apart in the board's Needs-you colour. Each item gets a
  * "Do it" button that hands it back to Claude (resuming an ended session
@@ -1464,6 +1545,7 @@ function ActionItemRow({
  */
 function ActionItems({
 	text,
+	body = "",
 	onDo,
 	paneId,
 	tldr,
@@ -1471,6 +1553,8 @@ function ActionItems({
 	onToggle,
 }: {
 	text: string;
+	/** The reply above the items, where each one's explanation is looked up. */
+	body?: string;
 	onDo?: DoItem;
 	/** Where dismissed items are kept; no X without it. */
 	paneId?: string;
@@ -1519,6 +1603,7 @@ function ActionItems({
 						<ActionItemRow
 							key={number}
 							item={item}
+							detail={itemDetail(item, body)}
 							number={number}
 							onDo={onDo}
 							onDismiss={paneId ? () => dismiss(paneId, item) : undefined}
@@ -1756,6 +1841,7 @@ const ItemView = memo(function ItemView({
 			{showsActions && (
 				<ActionItems
 					text={actions}
+					body={body}
 					onDo={onDo}
 					paneId={paneId}
 					tldr={placement === "action-items" ? tldr : null}
