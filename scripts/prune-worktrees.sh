@@ -23,10 +23,14 @@
 #     on disk and filled it.
 #
 # Usage: scripts/prune-worktrees.sh [--dry-run] [--only <name>] [repo]     (repo defaults to this one)
-# --only checks just .worktrees/<name>, by the same rules (Settings -> Storage).
+# A worktree's name is its folder under <repo>/.worktrees/, or its absolute
+# path when it lives anywhere else (.wt/, a sibling folder, ~/.superset/...).
+# --only checks just that one, by the same rules (Settings -> Storage).
 # --only <name> --force removes it whatever it holds (Settings -> Storage, after
-# a warning): its branch stays, and uncommitted files go to refs/pruned/<name>.
-# Any repo: worktrees under <repo>/.worktrees/, against its own default branch.
+# a warning): its branch stays, and uncommitted files go to refs/pruned/<ref>,
+# <ref> being the name with anything but letters, digits, . _ - made a dash.
+# Any repo: every linked worktree, against the repo's own default branch.
+# Locked ones are left alone.
 set -euo pipefail
 
 dry=0
@@ -100,6 +104,9 @@ ended_at_head() { # ended_at_head <branch> <sha>
 
 # Commit a worktree's uncommitted files to refs/pruned/<name>, so removing it
 # loses nothing: `git checkout refs/pruned/<name> -- .` brings them back.
+pruned_ref() { # pruned_ref <name> - a path isn't a valid ref name
+	echo "refs/pruned/${1//[^A-Za-z0-9._-]/-}"
+}
 save_files() { # save_files <worktree> <name>
 	# A throwaway index, so the worktree's own staging is left as it was.
 	# ponytail: an untracked multi-GB file lands in the repo's objects too;
@@ -110,14 +117,16 @@ save_files() { # save_files <worktree> <name>
 	GIT_INDEX_FILE="$index" git -C "$1" add -A
 	snapshot="$(git -C "$1" -c user.name=odin -c user.email=odin@localhost commit-tree "$(GIT_INDEX_FILE="$index" git -C "$1" write-tree)" -p HEAD -m "pruned worktree $2")"
 	rm -f "$index"
-	git -C "$root" update-ref "refs/pruned/$2" "$snapshot"
+	git -C "$root" update-ref "$(pruned_ref "$2")" "$snapshot"
 }
 
 # Move the worktree aside and delete it in the background: git removes a 3 GB
 # install file by file, and Storage waited on each one. Same disk, so the move
 # is instant; git forgets the worktree at once, the space frees a little later.
 fast_remove() { # fast_remove <worktree> <name>
-	local trash="$root/.worktrees/.trash-$2-$$"
+	# Beside the worktree, so the move stays on its disk.
+	local trash
+	trash="$(dirname "$1")/.trash-$(basename "$1")-$$"
 	mv "$1" "$trash"
 	git -C "$root" worktree prune
 	nohup rm -rf "$trash" >/dev/null 2>&1 &
@@ -127,10 +136,17 @@ for leftover in "$root"/.worktrees/.trash-*; do
 	[ -e "$leftover" ] && [ "$dry" = 0 ] && { nohup rm -rf "$leftover" >/dev/null 2>&1 & }
 done
 
-git -C "$root" worktree list --porcelain | sed -n 's/^worktree //p' | while read -r wt; do
-	case "$wt" in "$root/.worktrees/"*) ;; *) continue ;; esac
-	name="${wt#"$root/.worktrees/"}"
+# "<path>\t<locked>" per linked worktree; the first entry is the repo itself.
+git -C "$root" worktree list --porcelain |
+	awk '/^worktree /{if (p) print p "\t" l; p = substr($0, 10); l = 0} /^locked/{l = 1} END{if (p) print p "\t" l}' |
+	tail -n +2 | while IFS=$'\t' read -r wt locked; do
+	[ -d "$wt" ] || continue
+	case "$wt" in "$root/.worktrees/"*) name="${wt#"$root/.worktrees/"}" ;; *) name="$wt" ;; esac
 	[ -n "$only" ] && [ "$name" != "$only" ] && continue
+	if [ "$locked" = 1 ]; then
+		echo "keep   $name (locked)"
+		continue
+	fi
 
 	if [ "$force" = 1 ]; then
 		if [ "$dry" = 1 ]; then
@@ -182,11 +198,11 @@ git -C "$root" worktree list --porcelain | sed -n 's/^worktree //p' | while read
 		if [ "$age" -lt "$dirty_min_age" ] || [ $(( now - ${edited:-0} )) -lt "$dirty_min_age" ]; then
 			echo "keep   $name (uncommitted or untracked files)"
 		elif [ "$dry" = 1 ]; then
-			echo "remove $name (dry run, files saved to refs/pruned/$name)"
+			echo "remove $name (dry run, files saved to $(pruned_ref "$name"))"
 		else
 			save_files "$wt" "$name"
 			fast_remove "$wt" "$name"
-			echo "remove $name (files saved to refs/pruned/$name)"
+			echo "remove $name (files saved to $(pruned_ref "$name"))"
 		fi
 		continue
 	fi

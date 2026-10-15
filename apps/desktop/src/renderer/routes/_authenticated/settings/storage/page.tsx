@@ -177,7 +177,11 @@ function StorageSettingsPage() {
 										onCheckedChange={() => toggle(wt)}
 									/>
 									<div className="min-w-0 flex-1">
-										<div className="truncate font-medium">{wt.name}</div>
+										<div className="truncate font-medium" title={wt.path}>
+											{wt.name.startsWith("/")
+												? wt.name.split("/").slice(-2).join("/")
+												: wt.name}
+										</div>
 										<div className="truncate text-xs text-muted-foreground">
 											{wt.repo.split("/").pop()} ·{" "}
 											{wt.reason.charAt(0).toUpperCase() + wt.reason.slice(1)}
@@ -185,7 +189,7 @@ function StorageSettingsPage() {
 										{!wt.safe && isPicked(wt) && (
 											<div className="truncate text-xs text-amber-500">
 												Deleting keeps its branch; uncommitted files go to
-												refs/pruned/{wt.name}
+												{wt.prunedRef}
 											</div>
 										)}
 									</div>

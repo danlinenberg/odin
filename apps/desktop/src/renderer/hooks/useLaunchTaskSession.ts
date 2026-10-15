@@ -64,6 +64,7 @@ export function buildPrompt(
 	checkout = "",
 	guidelines = "",
 	instructions = DEFAULT_SESSION_INSTRUCTIONS,
+	worktree: { path: string; branch: string } | null = null,
 ): string {
 	return [
 		// A skill leads the prompt, on its own line, with the title as its
@@ -95,9 +96,21 @@ export function buildPrompt(
 				]
 			: []),
 		...rulesPrompt(rules, checkout),
+		...(worktree
+			? ["", worktreeMadeLine(worktree)]
+			: checkout
+				? []
+				: ["", WORKTREE_ASK_LINE]),
 		...(instructions.trim() ? ["", instructions.trim()] : []),
 	].join("\n");
 }
+
+const worktreeMadeLine = ({ path, branch }: { path: string; branch: string }) =>
+	`Odin made this session its own git worktree: ${path} (branch ${branch}, cut from the repo's default branch). Work only there and don't make another worktree. Install dependencies first if the repo needs them.`;
+
+/** A launch into the repos folder: Odin can't know the repo until the agent picks it. */
+export const WORKTREE_ASK_LINE =
+	"Before you change files in a git repo, get your own worktree from Odin: `curl -sf http://127.0.0.1:$ODIN_PORT/odin --data-urlencode action=worktree --data-urlencode repo=<the repo's main checkout> --data-urlencode name=<short task name>` prints its path (a new branch from the default branch). cd there and work only there. Skip this if you're already in a worktree, or only read code.";
 
 /** Mime subtypes whose obvious extension isn't the subtype itself. */
 const EXTENSIONS: Record<string, string> = {
@@ -277,11 +290,24 @@ export function useLaunchTaskSession() {
 					error: "Workspace has no path - cannot launch a session",
 				};
 			}
-			const sessionCwd = repoPath || worktreePath;
+			// A resume passes its old cwd back as repoPath, so it never gets a second one.
+			const ownWorktree =
+				repoPath && repoPath !== worktreePath && !resumeSessionId
+					? await utils.client.repos.createSessionWorktree
+							.mutate({ repo: repoPath, title })
+							.catch((error) => {
+								console.warn(
+									"[launch] no worktree, using the checkout:",
+									error,
+								);
+								return null;
+							})
+					: null;
+			const sessionCwd = ownWorktree?.path || repoPath || worktreePath;
 			// The checkout this session claims - "" for a feed launch into the
 			// workspace folder, which is where agents start, not what they edit.
 			const checkout = claimedCheckout(
-				repoPath,
+				ownWorktree?.path ?? repoPath,
 				worktreePath,
 				workConfig?.odinRepoPath,
 			);
@@ -383,6 +409,7 @@ export function useLaunchTaskSession() {
 						guidelines,
 						useSessionInstructions.getState().instructions ??
 							DEFAULT_SESSION_INSTRUCTIONS,
+						ownWorktree,
 					),
 					encoding: "utf-8",
 				});

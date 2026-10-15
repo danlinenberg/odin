@@ -18,7 +18,7 @@ git worktree remove .worktrees/<name>
 ```
 
 If you forget, Odin runs `scripts/prune-worktrees.sh` every 10 minutes over
-every repo with a `.worktrees/` and removes worktrees whose work landed or whose
+every repo's linked worktrees, wherever they live, and removes worktrees whose work landed or whose
 PR closed (Settings → Sessions turns this off). It never removes one with
 commits its default branch doesn't have, or with no commits and touched in the
 last 24h. Uncommitted files

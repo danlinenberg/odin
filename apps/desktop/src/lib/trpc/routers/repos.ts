@@ -92,7 +92,7 @@ export async function scanRepos(home: string = homedir()): Promise<string[]> {
  * never offers it. Read per call, so a folder added a moment ago shows up.
  * Imported lazily: local-db pulls in Electron, which the tests don't have.
  */
-async function projectRepos(): Promise<string[]> {
+export async function projectRepos(): Promise<string[]> {
 	const { projects } = await import("@odin/local-db");
 	const { localDb } = await import("main/lib/local-db");
 	return localDb
@@ -406,6 +406,15 @@ export const createReposRouter = (
 			.mutation(({ input }) => {
 				updateOdinConfig({ pruneMergedWorktrees: input.enabled });
 				return { ok: true };
+			}),
+
+		createSessionWorktree: publicProcedure
+			.input(z.object({ repo: z.string(), title: z.string() }))
+			.mutation(async ({ input }) => {
+				const { createSessionWorktree } = await import(
+					"main/lib/session-worktree"
+				);
+				return createSessionWorktree(input.repo, input.title);
 			}),
 
 		/** Settings → Storage: every session worktree, its size and the pruner's verdict. */

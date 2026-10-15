@@ -8,7 +8,7 @@ import {
 	readOdinConfig,
 	resolveGithubToken,
 } from "lib/trpc/routers/odin-config";
-import { scanRepos } from "lib/trpc/routers/repos";
+import { projectRepos, scanRepos } from "lib/trpc/routers/repos";
 
 /**
  * Remove session worktrees whose PR already merged or closed - each one is a
@@ -16,7 +16,7 @@ import { scanRepos } from "lib/trpc/routers/repos";
  * ones across a dozen repos filled the disk. The rules live in
  * scripts/prune-worktrees.sh, which is also runnable by hand with --dry-run.
  *
- * Every repo on the machine with a `.worktrees/` gets a pass. The script comes
+ * Every repo on the machine with a linked worktree gets a pass. The script comes
  * from the Odin checkout (`odinRepo` in odin.json, or the one a dev run runs
  * from), so an install with no checkout prunes nothing on its own. GitHub's token comes from Settings → Connections: it
  * lets the script tell a merged PR from unmerged work when main has since
@@ -54,12 +54,21 @@ function storageScript(): string | null {
 	return pruneScript() ?? (existsSync(shipped) ? shipped : null);
 }
 
+// The scan skips ~/Documents, so a ~/Documents/GitHub clone is only known as a project.
 async function reposWithWorktrees(): Promise<string[]> {
 	repos ??= scanRepos();
-	return (await repos).filter((repo) =>
-		existsSync(path.join(repo, ".worktrees")),
+	const all = new Set([...(await repos), ...(await projectRepos())]);
+	return [...all].filter((repo) =>
+		existsSync(path.join(repo, ".git", "worktrees")),
 	);
 }
+
+export const worktreePath = (repo: string, name: string) =>
+	path.isAbsolute(name) ? name : path.join(repo, ".worktrees", name);
+
+// Must match pruned_ref in scripts/prune-worktrees.sh.
+export const prunedRef = (name: string) =>
+	`refs/pruned/${name.replace(/[^A-Za-z0-9._-]/g, "-")}`;
 
 function runScript(script: string, args: string[]) {
 	const token = resolveGithubToken();
@@ -110,7 +119,7 @@ export interface Verdict {
 /** The script's `remove <name> (...)` / `keep <name> (why)` lines. */
 export function parseVerdicts(stdout: string): Verdict[] {
 	return stdout.split("\n").flatMap((line): Verdict[] => {
-		const match = /^(remove|keep)\s+(\S+)(?: \((.*)\))?$/.exec(line.trim());
+		const match = /^(remove|keep)\s+(.+?)(?: \((.*)\))?$/.exec(line.trim());
 		if (!match) return [];
 		const [, verb, name = "", why = ""] = match;
 		if (verb === "keep") return [{ name, safe: false, reason: why }];
@@ -130,6 +139,7 @@ export function parseVerdicts(stdout: string): Verdict[] {
 export interface WorktreeInfo extends Verdict {
 	repo: string;
 	path: string;
+	prunedRef: string;
 	sizeBytes: number | null;
 	/** ms; the worktree's index - a commit, checkout or staging touches it. */
 	touchedAt: number | null;
@@ -169,11 +179,12 @@ export async function listWorktrees(): Promise<WorktreeInfo[]> {
 			);
 			return Promise.all(
 				parseVerdicts(stdout).map(async (verdict) => {
-					const dir = path.join(repo, ".worktrees", verdict.name);
+					const dir = worktreePath(repo, verdict.name);
 					return {
 						...verdict,
 						repo,
 						path: dir,
+						prunedRef: prunedRef(verdict.name),
 						sizeBytes: await sizeOf(dir),
 						touchedAt: await touchedAt(dir),
 					};
