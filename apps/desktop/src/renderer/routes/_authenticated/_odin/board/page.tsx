@@ -39,6 +39,7 @@ import {
 	LuGitMerge,
 	LuGitPullRequest,
 	LuHourglass,
+	LuKanban,
 	LuMessageSquare,
 	LuMoon,
 	LuPanelLeft,
@@ -245,6 +246,54 @@ interface BoardCard {
  * keypress can't wait for that, and the xterm in the drawer already holds the
  * same rows.
  */
+/** Sessions View / Board View: icon-only, shown on the board and in the drawer. */
+function ViewToggle({
+	sessionsOpen,
+	sessionsDisabled,
+	sessionsKey,
+	onSessions,
+	onBoard,
+}: {
+	sessionsOpen: boolean;
+	sessionsDisabled?: boolean;
+	sessionsKey: string;
+	onSessions: () => void;
+	onBoard: () => void;
+}) {
+	const segment = (active: boolean) =>
+		cn(
+			"flex items-center px-2.5 py-1 disabled:opacity-40",
+			active
+				? "bg-primary text-primary-foreground"
+				: "text-foreground/80 hover:bg-accent hover:text-foreground",
+		);
+	return (
+		<div className="flex shrink-0 overflow-hidden rounded-full border border-primary/60 bg-card shadow-sm">
+			<button
+				type="button"
+				aria-label="Sessions view"
+				aria-pressed={sessionsOpen}
+				title={`Sessions view - the first session in flight, with the session list beside it (${sessionsKey})`}
+				disabled={sessionsDisabled}
+				onClick={onSessions}
+				className={segment(sessionsOpen)}
+			>
+				<LuPanelLeft className="size-4" aria-hidden />
+			</button>
+			<button
+				type="button"
+				aria-label="Board view"
+				aria-pressed={!sessionsOpen}
+				title="Board view (the sessions keep running)"
+				onClick={onBoard}
+				className={segment(!sessionsOpen)}
+			>
+				<LuKanban className="size-4" aria-hidden />
+			</button>
+		</div>
+	);
+}
+
 function visibleScreen(paneId: string): string {
 	const xterm = terminalCache.get(paneId)?.xterm;
 	if (!xterm) return "";
@@ -4137,16 +4186,13 @@ function DevBoardPage() {
 						if (!isNextOpen) toggleNext();
 					}}
 				/>
-				<button
-					type="button"
-					onClick={openSessions}
-					disabled={switchCards.length === 0}
-					title={`Open the first session in flight, with the session list beside it (${openSessionsKey})`}
-					className="flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-[12px] font-medium text-muted-foreground hover:text-foreground disabled:opacity-50"
-				>
-					<LuPanelLeft className="size-3.5" aria-hidden />
-					Open sessions
-				</button>
+				<ViewToggle
+					sessionsOpen={false}
+					sessionsDisabled={switchCards.length === 0}
+					sessionsKey={openSessionsKey}
+					onSessions={openSessions}
+					onBoard={() => {}}
+				/>
 				{/* A view toggle, not a filter - kept apart from search and the dropdown. */}
 				<button
 					type="button"
@@ -4916,6 +4962,14 @@ function DevBoardPage() {
 										{drawerCard.pane.odinStarred ? "★" : "☆"}
 									</button>
 								</div>
+								{!inCatchUp && (
+									<ViewToggle
+										sessionsOpen
+										sessionsKey={openSessionsKey}
+										onSessions={() => {}}
+										onBoard={() => setDrawerCard(null)}
+									/>
+								)}
 								{drawerCard.pane.type === "terminal" && !inCatchUp && (
 									<button
 										type="button"
