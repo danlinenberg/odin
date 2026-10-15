@@ -59,7 +59,9 @@ export function buildThreadPrompt(
 		// Slack's drafts API yields real mentions, and the session has it as an
 		// MCP tool. The fenced copy is the fallback: Odin's Copy button turns its
 		// <@USERID> into real mentions when pasted into Slack (CodeBlock.tsx).
-		"- If you end with a reply for me to post in that thread, create it as a Slack draft reply in the thread with your Slack draft tool (slack_send_message_draft, thread_ts of the first message, mentions as <@USERID>) and give me the channel link. Never send it. Keep the text in your reply too, in a fenced block with the same <@USERID> mentions, for when the tool is missing.",
+		// The draft tool returns a bare channel link, which lands on the channel
+		// and not on the thread the draft sits in.
+		`- If you end with a reply for me to post in that thread, create it as a Slack draft reply in the thread with your Slack draft tool (slack_send_message_draft, thread_ts of the first message, mentions as <@USERID>) and give me this thread link: ${slackUrl} - not the channel link the tool returns. Never send it. Keep the text in your reply too, in a fenced block with the same <@USERID> mentions, for when the tool is missing.`,
 		"",
 		"Rules: do NOT post to Slack or Notion; everything stays in this session for review. A Slack draft is not a post: I review and send it myself.",
 	].join("\n");

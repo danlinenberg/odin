@@ -87,6 +87,12 @@ describe("buildPrompt", () => {
 		expect(buildPrompt("Fix the board", null)).toContain("ACTION ITEMS");
 	});
 
+	it("asks for the exact commands when I have to run a write myself", () => {
+		expect(buildPrompt("Fix the board", null)).toContain(
+			"exact copy-pasteable commands",
+		);
+	});
+
 	// "Run the worktree" went to a subagent nobody could watch.
 	it("sends things to run into the session's Shell, not a subagent", () => {
 		const prompt = buildPrompt("Fix the board", null);
