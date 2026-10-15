@@ -121,7 +121,6 @@ export function OdinPromptDialog({
 	const [files, setFiles] = useState<PromptImage[]>([]);
 	const [repoQuery, setRepoQuery] = useState(defaultRepo);
 	const recentRepos = useClaudeCommand((state) => state.recentRepos);
-	const addRecentRepo = useClaudeCommand((state) => state.addRecentRepo);
 	const [isDropping, setIsDropping] = useState(false);
 	const [isStarting, setIsStarting] = useState(false);
 	const model = useClaudeCommand((state) => state.model);
@@ -139,7 +138,6 @@ export function OdinPromptDialog({
 		setIsStarting(true);
 		try {
 			await onSubmit(prompt, files, repo);
-			if (repo) addRecentRepo(repo);
 		} catch (error) {
 			// A rejected launch used to be an unhandled rejection: the dialog just
 			// sat there. Most often it's a machine without Git: a fresh Windows, or

@@ -1004,7 +1004,7 @@ function repoRootOf(dir: string): string | null {
  * and counting them separately splits the vote - that is how a session with
  * 259 entries in app-web-server came out labelled `dev`.
  */
-function ownerRepoOf(checkout: string): string {
+export function ownerRepoOf(checkout: string): string {
 	const dotGit = join(checkout, ".git");
 	try {
 		if (statSync(dotGit).isFile()) {

@@ -3033,7 +3033,7 @@ function DevBoardPage() {
 					.fetch({ claudeSessionId: sessionId }, { staleTime: 60_000 })
 					.catch(() => null)
 			: null;
-		setComposerRepo(repo?.checkout ?? "");
+		setComposerRepo(repo?.repo ?? "");
 		setIsComposerOpen(true);
 	};
 	const openShell = async (card: BoardCard) => {
@@ -4103,6 +4103,7 @@ function DevBoardPage() {
 				);
 			if (!prompt) return;
 			addTask(prompt, undefined, repoPath);
+			if (repoPath) useClaudeCommand.getState().addRecentRepo(repoPath);
 			setIsComposerOpen(false);
 			toast.success("Added to My Tasks");
 			return;
@@ -4124,6 +4125,7 @@ function DevBoardPage() {
 		});
 		setIsComposerOpen(false);
 		if (result.ok) {
+			if (repoPath) useClaudeCommand.getState().addRecentRepo(repoPath);
 			// Started from the drawer's session list: land in the new session.
 			if (drawerCard) usePendingFocus.getState().focus(result.paneId);
 			usePaneMeta.getState().setBrief(result.paneId, prompt || title);

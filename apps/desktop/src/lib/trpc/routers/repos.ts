@@ -444,8 +444,13 @@ export const createReposRouter = (
 		workingRepoName: publicProcedure
 			.input(z.object({ claudeSessionId: z.string() }))
 			.query(async ({ input }) => {
-				const { repoNameOf, transcriptOf, workingRepoOf, workingWorktreeOf } =
-					await import("main/lib/claude-sessions");
+				const {
+					ownerRepoOf,
+					repoNameOf,
+					transcriptOf,
+					workingRepoOf,
+					workingWorktreeOf,
+				} = await import("main/lib/claude-sessions");
 				const checkout = await workingRepoOf(input.claudeSessionId);
 				if (!checkout) return null;
 				const name = repoNameOf(checkout);
@@ -461,7 +466,14 @@ export const createReposRouter = (
 				const worktree =
 					pullRequests[0]?.worktree ??
 					(await workingWorktreeOf(input.claudeSessionId));
-				return { checkout, name, worktree, pullRequests };
+				// The clone that owns `checkout` - the repo picker lists clones only.
+				return {
+					checkout,
+					repo: ownerRepoOf(checkout),
+					name,
+					worktree,
+					pullRequests,
+				};
 			}),
 
 		diff: publicProcedure
