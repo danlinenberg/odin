@@ -20,6 +20,8 @@ test("pings only on a new reply from someone else, after the first check", () =>
 		"slack:c": { title: "c", paneId: "p", stamp: "1" }, // nothing new
 		"jira:D-1": { title: "d", paneId: "p", stamp: "" }, // first reply ever
 		"jira:E-1": { title: "e", paneId: "p", stamp: "1" }, // my own reply
+		"pr:u1": { title: "f", paneId: "p" }, // approved before the first check
+		"pr:u2": { title: "g", paneId: "p" }, // not approved yet
 	};
 	expect(
 		newReplies(watches, {
@@ -28,8 +30,10 @@ test("pings only on a new reply from someone else, after the first check", () =>
 			"slack:c": reply("1"),
 			"jira:D-1": reply("x"),
 			"jira:E-1": reply("2", true),
+			"pr:u1": reply("approved"),
+			"pr:u2": reply("", true),
 		}).sort(),
-	).toEqual(["jira:D-1", "slack:b"]);
+	).toEqual(["jira:D-1", "pr:u1", "slack:b"]);
 });
 
 test("one toggle watches a session's thread and PR, the next stops both", () => {

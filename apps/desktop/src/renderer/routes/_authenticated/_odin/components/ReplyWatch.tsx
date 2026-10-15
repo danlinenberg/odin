@@ -138,9 +138,10 @@ export function watchEvent(key: string): string {
 }
 
 /**
- * The watches with a new reply from someone else. A watch's first check only
- * records where the thread stands: the replies already there are why you
- * watched it, not news.
+ * The watches with a new reply from someone else. A thread's first check only
+ * records where it stands: the replies already there are why you watched it,
+ * not news. A PR already approved by its first check is news - approval is
+ * what you asked to hear about.
  */
 export function newReplies(
 	watches: Record<string, Watch>,
@@ -149,7 +150,13 @@ export function newReplies(
 	return Object.keys(activity).filter((key) => {
 		const seen = watches[key]?.stamp;
 		const now = activity[key];
-		return seen !== undefined && !!now && now.stamp !== seen && !now.byMe;
+		const first = seen === undefined;
+		return (
+			!!now &&
+			!now.byMe &&
+			now.stamp !== seen &&
+			(!first || key.startsWith("pr:"))
+		);
 	});
 }
 
