@@ -2123,9 +2123,20 @@ export function ChatView({
 				sameReply(lastText?.at, query.state.data?.replyAt) ? false : 15_000,
 		},
 	);
-	const fresh = working ? null : freshTldr(lastText, brief);
+	// Measured without its ACTION ITEMS: those show in their own card.
+	const fresh = working
+		? null
+		: freshTldr(
+				lastText && { ...lastText, text: splitActionItems(lastText.text).body },
+				brief,
+			);
+	// A short reply reads faster than its TL;DR, so it gets none.
 	const tldr =
-		fresh && tldrOnly ? { ...fresh, urgency: null, long: true } : fresh;
+		fresh && tldrOnly
+			? { ...fresh, urgency: null, long: true }
+			: fresh?.long
+				? fresh
+				: null;
 	// Agents repeat their ACTION ITEMS in every reply; show one card, on the
 	// latest reply that has it. It stays while Claude works on your answer.
 	const actionsId = lastActionsId(items);
