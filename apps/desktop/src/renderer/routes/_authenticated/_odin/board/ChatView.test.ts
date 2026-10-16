@@ -318,6 +318,15 @@ describe("ChatView transcript", () => {
 		expect(itemDetail("Restart Odin dev", body)).toBeNull();
 	});
 
+	test("a paragraph that names the item by number explains it", () => {
+		const body =
+			"Built the picker.\n\n**Limit:** SSM-only access is still waiting on your answer (item 3 below).";
+		expect(itemDetail("Choose access for the box", body, 3)).toStartWith(
+			"**Limit:**",
+		);
+		expect(itemDetail("Choose access for the box", body, 13)).toBeNull();
+	});
+
 	test("action items list one entry per numbered or bulleted line", () => {
 		expect(actionItemList("1. Merge it\n2) Check `x` works")).toEqual([
 			"Merge it",

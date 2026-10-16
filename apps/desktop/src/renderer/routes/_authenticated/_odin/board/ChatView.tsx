@@ -1342,14 +1342,24 @@ function detailWords(text: string): Map<string, number> {
 }
 
 /**
- * The paragraph of the reply that explains an item - the one sharing the most
- * of its words, and at least one name or two words. null when none does.
+ * The paragraph of the reply that explains an item - one that names it ("item
+ * 3 below"), else the one sharing the most of its words, and at least one name
+ * or two words. null when none does.
  */
-export function itemDetail(item: string, body: string): string | null {
+export function itemDetail(
+	item: string,
+	body: string,
+	number?: number,
+): string | null {
+	const blocks = body.split(/\n\s*\n/);
+	const named =
+		number !== undefined &&
+		blocks.find((block) => new RegExp(`\\bitem ${number}\\b`, "i").test(block));
+	if (named) return named.trim();
 	const words = detailWords(itemOptions(item).text);
 	let best: string | null = null;
 	let top = 1;
-	for (const block of body.split(/\n\s*\n/)) {
+	for (const block of blocks) {
 		let score = 0;
 		for (const [word, weight] of detailWords(block))
 			if (words.has(word)) score += weight;
@@ -1618,7 +1628,7 @@ function ActionItems({
 						<ActionItemRow
 							key={number}
 							item={item}
-							detail={itemDetail(item, body)}
+							detail={itemDetail(item, body, number)}
 							number={number}
 							onDo={onDo}
 							onDismiss={paneId ? () => dismiss(paneId, item) : undefined}
