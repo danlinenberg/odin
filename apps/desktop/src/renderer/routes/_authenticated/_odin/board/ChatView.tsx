@@ -56,7 +56,7 @@ import {
 	ScreenAsideCard,
 	ScreenMenuCard,
 } from "./ChatPrompts";
-import { collectRefs, linkify } from "./chat-links";
+import { collectRefs, linkify, withSchemes } from "./chat-links";
 import { parseScreenAside, parseScreenMenu } from "./screen-menu";
 import { useHoldToTalk } from "./voice";
 
@@ -1781,7 +1781,7 @@ function FoldToggle({
 function TldrText({ text }: { text: string }) {
 	return (
 		<MarkdownRenderer
-			content={text}
+			content={withSchemes(text)}
 			style="default"
 			allowHtml={false}
 			className={cn(

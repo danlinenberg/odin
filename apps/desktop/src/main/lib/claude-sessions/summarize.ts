@@ -132,7 +132,7 @@ DONE: <one or two sentences - what this session actually did about it: what it f
 STATUS: <one short sentence, under 120 characters - where it stands right now: what's shipped, what's blocked, what's waiting. The latest state, not the history.>
 NEXT: <one sentence addressed to the engineer - never to the agent - starting with a verb: the one thing they have to do now (answer the prompt on screen, review a diff, decide X, merge the PR). If nothing is needed from them, say "Nothing -" and why.>
 TAGS: <1-3 comma-separated tags describing the work, chosen ONLY from this list: ${BRIEF_TAGS.join(", ")}>
-LAST: <a TL;DR of the AGENT's LATEST reply only (the last AGENT turn), not the whole session: one to three short sentences on this one line. Only what the agent did or found. Never repeat its asks, action items or next steps - the app shows those on their own. Keep the names, numbers, PR numbers and file names.>
+LAST: <a TL;DR of the AGENT's LATEST reply only (the last AGENT turn), not the whole session: one to three short sentences on this one line. Only what the agent did or found. Never repeat its asks, action items or next steps - the app shows those on their own. Keep the names, numbers, PR numbers and file names. Copy any URL whole, with its https://.>
 URGENCY: <needs-you if that latest reply asks the engineer to decide, answer, approve, run or check something; otherwise fyi>
 
 Rules:
