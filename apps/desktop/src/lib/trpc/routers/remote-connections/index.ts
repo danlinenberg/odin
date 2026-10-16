@@ -26,11 +26,14 @@ const connectionInput = z.object({
 	host: z.string().min(1),
 	sshPort: z.number().int().positive().max(65_535).default(22),
 	username: z.string().min(1),
-	authMethod: z.enum(["key", "password"]).default("key"),
+	authMethod: z.enum(["key", "password", "ssm"]).default("key"),
 	sshKeyPath: z.string().nullable().default(null),
 	// Plaintext here; encrypted with safeStorage before it touches the DB.
 	password: z.string().nullable().default(null),
 	odinFolder: z.string().min(1),
+	// "ssm": host is the EC2 instance id, reached with this profile and region.
+	awsProfile: z.string().nullable().default(null),
+	awsRegion: z.string().nullable().default(null),
 	remoteHostServicePort: z
 		.number()
 		.int()
@@ -191,9 +194,7 @@ export const createRemoteConnectionsRouter = () => {
 			.mutation(({ input }) => {
 				updateOdinConfig({ awsInstances: input });
 			}),
-		awsProfiles: publicProcedure.query(() =>
-			listAwsProfiles().catch(() => [] as string[]),
-		),
+		awsProfiles: publicProcedure.query(() => listAwsProfiles()),
 		awsTags: publicProcedure
 			.input(awsTarget)
 			.query(({ input }) => listTagChoices(input)),

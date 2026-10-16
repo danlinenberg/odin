@@ -18,11 +18,13 @@ interface TagPair {
 	value: string;
 }
 
-/** What "Use" puts into the Add a connection form. */
+/** What "Use" saves: an SSM connection to this instance, as this user. */
 export interface PickedInstance {
 	name: string;
-	host: string;
+	instanceId: string;
 	username: string;
+	profile: string | null;
+	region: string | null;
 }
 
 const DEFAULT_REGION = "us-east-1";
@@ -133,7 +135,7 @@ export function AwsInstancesSection({
 	return (
 		<SettingsSection
 			title="AWS instances"
-			description="Pick a server from your AWS account instead of typing it. Only instances that carry every tag you pick are listed, and only one with Claude found on it can be used. Odin uses your own AWS sign-in."
+			description="Pick a server from your AWS account instead of typing it. Only instances that carry every tag you pick are listed, and only one with Claude found on it can be used. Odin connects through AWS Systems Manager with your own AWS sign-in: the instance needs no open port, public IP or SSH key."
 		>
 			<SettingRow
 				label="AWS profile"
@@ -331,14 +333,20 @@ export function AwsInstancesSection({
 						</Button>
 						<Button
 							size="sm"
-							disabled={!found || !host}
+							disabled={!found}
 							title={
 								found
 									? undefined
 									: "Check Claude first - only an instance with Claude on it can be used"
 							}
 							onClick={() =>
-								host && onUse({ name: instance.name, host, username: user })
+								onUse({
+									name: instance.name,
+									instanceId: instance.id,
+									username: user,
+									profile: profile || null,
+									region: region || null,
+								})
 							}
 						>
 							Use

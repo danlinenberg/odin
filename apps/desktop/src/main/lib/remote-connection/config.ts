@@ -27,6 +27,8 @@ export function toConfig(row: RemoteConnectionRow): RemoteConnectionConfig {
 		password: decryptPassword(row.passwordEncrypted),
 		odinFolder: row.odinFolder,
 		remoteHostServicePort: row.remoteHostServicePort,
+		awsProfile: row.awsProfile,
+		awsRegion: row.awsRegion,
 	};
 }
 

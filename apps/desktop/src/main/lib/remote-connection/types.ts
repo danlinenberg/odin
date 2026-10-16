@@ -9,7 +9,7 @@ export type RemoteConnectionStatus =
  * The subset of a `remote_connections` row the manager needs to reach a host.
  * Credentials never live here beyond the path to an SSH key.
  */
-export type RemoteAuthMethod = "key" | "password";
+export type RemoteAuthMethod = "key" | "password" | "ssm";
 
 export interface RemoteConnectionConfig {
 	id: string;
@@ -23,6 +23,9 @@ export interface RemoteConnectionConfig {
 	password: string | null;
 	odinFolder: string;
 	remoteHostServicePort: number;
+	/** "ssm" only: `host` is the EC2 instance id, reached with this AWS profile and region. */
+	awsProfile?: string | null;
+	awsRegion?: string | null;
 }
 
 /** Structured result of a Test-connection probe, surfaced in Settings. */

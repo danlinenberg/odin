@@ -139,7 +139,11 @@ export function RemoteServerSection() {
 							<SettingRow
 								key={connection.id}
 								label={connection.name}
-								description={`${connection.username}@${connection.host}:${connection.sshPort} - ${connection.odinFolder}`}
+								description={
+									connection.authMethod === "ssm"
+										? `${connection.username}@${connection.host} through AWS Systems Manager - ${connection.odinFolder}`
+										: `${connection.username}@${connection.host}:${connection.sshPort} - ${connection.odinFolder}`
+								}
 							>
 								<StatusDot
 									loading={isConnecting}
@@ -197,18 +201,21 @@ export function RemoteServerSection() {
 
 			<AwsInstancesSection
 				odinFolder={form.odinFolder}
-				onUse={(picked) => {
-					setForm((prev) => ({
-						...prev,
+				onUse={(picked) =>
+					create.mutate({
 						name: picked.name,
-						host: picked.host,
+						host: picked.instanceId,
+						sshPort: 22,
 						username: picked.username,
-						authMethod: "key",
-					}));
-					toast.success(
-						`${picked.name} is filled in under Add a connection. Save it, then Connect.`,
-					);
-				}}
+						authMethod: "ssm",
+						sshKeyPath: null,
+						password: null,
+						odinFolder: form.odinFolder.trim() || EMPTY_FORM.odinFolder,
+						awsProfile: picked.profile,
+						awsRegion: picked.region,
+						remoteHostServicePort: 48000,
+					})
+				}
 			/>
 
 			<SettingsSection

@@ -279,12 +279,16 @@ export const remoteConnections = sqliteTable(
 		sshPort: integer("ssh_port").notNull().default(22),
 		username: text("username").notNull(),
 		// "key" uses sshKeyPath (or the default identity); "password" uses the
-		// encrypted password below.
+		// encrypted password below; "ssm" reaches the EC2 instance in `host`
+		// through AWS Systems Manager with a one-time key.
 		authMethod: text("auth_method").notNull().default("key"),
 		// Null means rely on the local ssh agent / default identity.
 		sshKeyPath: text("ssh_key_path"),
 		// Encrypted at rest with Electron safeStorage; never stored in plaintext.
 		passwordEncrypted: text("password_encrypted"),
+		// "ssm" only: the AWS profile and region the instance is reached with.
+		awsProfile: text("aws_profile"),
+		awsRegion: text("aws_region"),
 		// Remote ODIN_HOME_DIR - holds the backend's logs, db, sockets and worktrees.
 		odinFolder: text("odin_folder").notNull(),
 		// Port the remote host-service listens on, forwarded to a local port.

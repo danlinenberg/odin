@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
 	claudeCheckScript,
 	instanceFilters,
+	profileNames,
 	tagChoices,
 	toInstances,
 } from "./aws-instances";
@@ -28,9 +29,21 @@ describe("aws-instances", () => {
 		expect(
 			instanceFilters([{ key: "Component", value: "odin-remote" }]),
 		).toEqual([
-			"Name=instance-state-name,Values=pending,running,stopping,stopped",
-			"Name=tag:Component,Values=odin-remote",
+			{
+				Name: "instance-state-name",
+				Values: ["pending", "running", "stopping", "stopped"],
+			},
+			{ Name: "tag:Component", Values: ["odin-remote"] },
 		]);
+	});
+
+	test("profiles come from both AWS files, without the config file's prefix", () => {
+		expect(
+			profileNames(
+				"[default]\nregion=us-east-1\n[profile dev]\n[sso-session x]\n",
+				"[default]\n[ci-keys]\n",
+			),
+		).toEqual(["ci-keys", "default", "dev"]);
 	});
 
 	test("instances carry their Name tag and whether SSM sees them", () => {

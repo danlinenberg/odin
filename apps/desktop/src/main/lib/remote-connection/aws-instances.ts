@@ -1,12 +1,26 @@
-import { execWithShellEnv } from "lib/trpc/routers/workspaces/utils/shell-env";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import {
+	DescribeInstancesCommand,
+	DescribeTagsCommand,
+	EC2Client,
+	type Filter,
+	StartInstancesCommand,
+} from "@aws-sdk/client-ec2";
+import {
+	DescribeInstanceInformationCommand,
+	GetCommandInvocationCommand,
+	SendCommandCommand,
+	SSMClient,
+} from "@aws-sdk/client-ssm";
 import { remoteClaudeFallbackPath } from "./remote-agent-setup";
+import { awsClientConfig } from "./ssm";
 
 /**
  * Settings > Remote server > AWS instances: the EC2 hosts that match the tags
- * you picked, and whether Claude is on them. Runs the `aws` CLI with your own
- * sign-in, as the AWS sign-in button already does (terminal/aws-sso.ts).
- * ponytail: the CLI over the SDK - no new dependency, and SSO tokens are the
- * CLI's anyway. Move to the SDK if Odin ever signs in to AWS itself.
+ * you picked, and whether Claude is on them. AWS's SDK with the user's own
+ * profile (SSO included), so nothing beyond Odin needs installing.
  */
 
 export interface AwsTarget {
@@ -35,31 +49,35 @@ export interface AwsInstance {
 	ssmOnline: boolean;
 }
 
-async function aws(target: AwsTarget, args: string[]): Promise<unknown> {
-	const { stdout } = await execWithShellEnv(
-		"aws",
-		[
-			...args,
-			"--output",
-			"json",
-			...(target.profile ? ["--profile", target.profile] : []),
-			...(target.region ? ["--region", target.region] : []),
-		],
-		{ timeout: 60_000, maxBuffer: 16 * 1024 * 1024 },
-	);
-	return stdout.trim() ? JSON.parse(stdout) : null;
+/** Profile names in the AWS config and credentials files - section names, nothing more. */
+export function profileNames(config: string, credentials: string): string[] {
+	const names = new Set<string>();
+	for (const [text, prefixed] of [
+		[config, true],
+		[credentials, false],
+	] as const)
+		for (const match of text.matchAll(/^\s*\[([^\]]+)\]\s*$/gm)) {
+			const section = (match[1] ?? "").trim();
+			if (section === "default") names.add("default");
+			else if (!prefixed) names.add(section);
+			else if (section.startsWith("profile "))
+				names.add(section.slice(8).trim());
+		}
+	return [...names].sort();
 }
 
-export async function listAwsProfiles(): Promise<string[]> {
-	const { stdout } = await execWithShellEnv(
-		"aws",
-		["configure", "list-profiles"],
-		{ timeout: 15_000 },
+export function listAwsProfiles(home = os.homedir()): string[] {
+	const read = (file: string | undefined, fallback: string) => {
+		try {
+			return fs.readFileSync(file || path.join(home, ".aws", fallback), "utf8");
+		} catch {
+			return "";
+		}
+	};
+	return profileNames(
+		read(process.env.AWS_CONFIG_FILE, "config"),
+		read(process.env.AWS_SHARED_CREDENTIALS_FILE, "credentials"),
 	);
-	return stdout
-		.split("\n")
-		.map((line) => line.trim())
-		.filter(Boolean);
 }
 
 /** Every key with its values across the account's instances; AWS's own `aws:` tags left out. */
@@ -80,21 +98,31 @@ export function tagChoices(describeTags: unknown): TagChoice[] {
 }
 
 export async function listTagChoices(target: AwsTarget): Promise<TagChoice[]> {
-	return tagChoices(
-		await aws(target, [
-			"ec2",
-			"describe-tags",
-			"--filters",
-			"Name=resource-type,Values=instance",
-		]),
-	);
+	const ec2 = new EC2Client(awsClientConfig(target));
+	const tags: { Key?: string; Value?: string }[] = [];
+	let NextToken: string | undefined;
+	do {
+		const page = await ec2.send(
+			new DescribeTagsCommand({
+				Filters: [{ Name: "resource-type", Values: ["instance"] }],
+				MaxResults: 1000,
+				NextToken,
+			}),
+		);
+		tags.push(...(page.Tags ?? []));
+		NextToken = page.NextToken;
+	} while (NextToken);
+	return tagChoices({ Tags: tags });
 }
 
-/** One `tag:<key>=<value>` filter per pair: an instance must carry all of them. Terminated ones never show. */
-export function instanceFilters(tags: TagPair[]): string[] {
+/** One filter per picked tag: an instance must carry all of them. Terminated ones never show. */
+export function instanceFilters(tags: TagPair[]): Filter[] {
 	return [
-		"Name=instance-state-name,Values=pending,running,stopping,stopped",
-		...tags.map(({ key, value }) => `Name=tag:${key},Values=${value}`),
+		{
+			Name: "instance-state-name",
+			Values: ["pending", "running", "stopping", "stopped"],
+		},
+		...tags.map(({ key, value }) => ({ Name: `tag:${key}`, Values: [value] })),
 	];
 }
 
@@ -139,37 +167,47 @@ export async function listInstances(
 ): Promise<AwsInstance[]> {
 	// No tags picked means "show nothing", not "show every instance in the account".
 	if (tags.length === 0) return [];
-	const [instances, ssm] = await Promise.all([
-		aws(target, [
-			"ec2",
-			"describe-instances",
-			"--filters",
-			...instanceFilters(tags),
-		]),
-		aws(target, ["ssm", "describe-instance-information"]).catch(() => null),
-	]);
-	const online = new Set(
-		(
-			(
-				ssm as {
-					InstanceInformationList?: {
-						InstanceId?: string;
-						PingStatus?: string;
-					}[];
-				} | null
-			)?.InstanceInformationList ?? []
+	const ec2 = new EC2Client(awsClientConfig(target));
+	const reservations: unknown[] = [];
+	let NextToken: string | undefined;
+	do {
+		const page = await ec2.send(
+			new DescribeInstancesCommand({
+				Filters: instanceFilters(tags),
+				NextToken,
+			}),
+		);
+		reservations.push(...(page.Reservations ?? []));
+		NextToken = page.NextToken;
+	} while (NextToken);
+	const instances = toInstances({ Reservations: reservations }, new Set());
+	const ids = instances.map((instance) => instance.id);
+	if (ids.length === 0) return instances;
+	const info = await new SSMClient(awsClientConfig(target))
+		.send(
+			new DescribeInstanceInformationCommand({
+				Filters: [{ Key: "InstanceIds", Values: ids }],
+			}),
 		)
-			.filter((info) => info.PingStatus === "Online" && info.InstanceId)
-			.map((info) => info.InstanceId as string),
+		.catch(() => null);
+	const online = new Set(
+		(info?.InstanceInformationList ?? [])
+			.filter((item) => item.PingStatus === "Online" && item.InstanceId)
+			.map((item) => item.InstanceId as string),
 	);
-	return toInstances(instances, online);
+	return instances.map((instance) => ({
+		...instance,
+		ssmOnline: online.has(instance.id),
+	}));
 }
 
 export async function startInstance(
 	target: AwsTarget,
 	id: string,
 ): Promise<void> {
-	await aws(target, ["ec2", "start-instances", "--instance-ids", id]);
+	await new EC2Client(awsClientConfig(target)).send(
+		new StartInstancesCommand({ InstanceIds: [id] }),
+	);
 }
 
 /** Single-quote for the remote shell. */
@@ -195,34 +233,28 @@ export async function findClaude(
 	user: string,
 	odinFolder: string,
 ): Promise<string | null> {
-	const sent = (await aws(target, [
-		"ssm",
-		"send-command",
-		"--instance-ids",
-		id,
-		"--document-name",
-		"AWS-RunShellScript",
-		"--comment",
-		"Odin: is Claude installed",
-		"--parameters",
-		JSON.stringify({ commands: [claudeCheckScript(user, odinFolder)] }),
-	])) as { Command?: { CommandId?: string } };
+	const ssm = new SSMClient(awsClientConfig(target));
+	const sent = await ssm.send(
+		new SendCommandCommand({
+			InstanceIds: [id],
+			DocumentName: "AWS-RunShellScript",
+			Comment: "Odin: is Claude installed",
+			Parameters: { commands: [claudeCheckScript(user, odinFolder)] },
+		}),
+	);
 	const commandId = sent.Command?.CommandId;
 	if (!commandId) throw new Error("SSM did not accept the check.");
 	// ponytail: 1s polls for 30s; the check itself is one `command -v`.
 	for (let attempt = 0; attempt < 30; attempt++) {
 		await new Promise((resolve) => setTimeout(resolve, 1_000));
-		const result = (await aws(target, [
-			"ssm",
-			"get-command-invocation",
-			"--command-id",
-			commandId,
-			"--instance-id",
-			id,
-		]).catch(() => null)) as {
-			Status?: string;
-			StandardOutputContent?: string;
-		} | null;
+		const result = await ssm
+			.send(
+				new GetCommandInvocationCommand({
+					CommandId: commandId,
+					InstanceId: id,
+				}),
+			)
+			.catch(() => null);
 		if (
 			!result ||
 			["Pending", "InProgress", "Delayed"].includes(result.Status ?? "")

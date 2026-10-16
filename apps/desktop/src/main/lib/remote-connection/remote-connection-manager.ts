@@ -42,6 +42,7 @@ import {
 	shellQuote,
 	startCommandStdin,
 } from "./ssh";
+import { openSsmStream, pushOneTimeKey } from "./ssm";
 import type {
 	ActiveRemote,
 	RemoteConnectionConfig,
@@ -319,7 +320,24 @@ export class RemoteConnectionManager {
 
 	// ── SSH orchestration ─────────────────────────────────────────────
 
-	private openClient(config: RemoteConnectionConfig): Promise<Client> {
+	private async openClient(config: RemoteConnectionConfig): Promise<Client> {
+		// SSM: a fresh key for this login, pushed for 60 seconds, and the session as the socket.
+		const ssm =
+			config.authMethod === "ssm"
+				? await (async () => {
+						const target = {
+							instanceId: config.host,
+							profile: config.awsProfile,
+							region: config.awsRegion,
+						};
+						const key = utils.generateKeyPairSync("ed25519");
+						await pushOneTimeKey(target, config.username, key.public);
+						return {
+							privateKey: key.private,
+							sock: await openSsmStream(target),
+						};
+					})()
+				: null;
 		return new Promise((resolve, reject) => {
 			const client = new Client();
 			let settled = false;
@@ -334,7 +352,9 @@ export class RemoteConnectionManager {
 				settled = true;
 				reject(hostKeyProblem ? new Error(hostKeyProblem) : error);
 			});
-			const hostId = `${config.host}:${config.sshPort}`;
+			const hostId = ssm
+				? `ssm:${config.host}`
+				: `${config.host}:${config.sshPort}`;
 			const hostVerifier = (key: Buffer): boolean => {
 				const fingerprint = hostKeyFingerprint(key);
 				const known = readKnownHosts();
@@ -356,12 +376,14 @@ export class RemoteConnectionManager {
 			let connectConfig: ConnectConfig;
 			try {
 				connectConfig = {
-					host: config.host,
-					port: config.sshPort,
 					username: config.username,
 					readyTimeout: SSH_READY_TIMEOUT_MS,
 					hostVerifier,
-					...this.buildAuth(config),
+					...(ssm ?? {
+						host: config.host,
+						port: config.sshPort,
+						...this.buildAuth(config),
+					}),
 				};
 			} catch (error) {
 				reject(error);
