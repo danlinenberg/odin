@@ -291,12 +291,19 @@ async function expectHealthy() {
 }
 /**
  * A rail entry, or one behind its "More" menu. Radix opens that menu on
- * pointerdown, so it takes a real mouse click rather than `.click()`.
+ * pointerdown, so it takes a real mouse click rather than `.click()`. On a
+ * slow CI runner the menu can miss the 400ms after the click, or the press
+ * lands while the last page still settles - so wait for it, and press again.
  */
 const MORE_MENU = ["Review", "Insights", "Session History"];
 async function rail(label: string) {
 	if (!MORE_MENU.includes(label)) return click("button", label);
-	await mouseClick('button[aria-label="More"]');
+	const item = `!!__find('[role="menuitem"]', ${JSON.stringify(label)})`;
+	for (let press = 0; press < 3 && !(await page<boolean>(item)); press++) {
+		await mouseClick('button[aria-label="More"]');
+		for (let t = 0; t < 10 && !(await page<boolean>(item)); t++)
+			await sleep(200);
+	}
 	await click('[role="menuitem"]', label);
 }
 /** Every time the fake claude ran: its pid and the argv it was given. */

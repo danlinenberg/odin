@@ -886,38 +886,6 @@ function RepoPill({ card }: { card: BoardCard }) {
 	);
 }
 
-/** Whether a worktree has a shell in it: live (named), left there and gone, or none. */
-function ShellsDot({ live, dead }: { live: string[]; dead: number }) {
-	const others = live.filter((what) => what !== "this shell").length;
-	const mine = live.length > others;
-	const [title, label, dot] = live.length
-		? [
-				live.join("\n"),
-				mine
-					? others
-						? `this shell + ${others}`
-						: "this shell"
-					: `${others} live`,
-				"bg-working",
-			]
-		: dead
-			? [
-					`${dead} Odin shell${dead === 1 ? "" : "s"} left here whose process has died`,
-					"disconnected",
-					"bg-danger",
-				]
-			: ["No terminal is in this worktree", "no shell", "ring-1 ring-input"];
-	return (
-		<span
-			title={title}
-			className="ml-auto flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground"
-		>
-			<span className={cn("inline-block size-[6px] rounded-full", dot)} />
-			{label}
-		</span>
-	);
-}
-
 /**
  * Where a session's shell really is, next to where the session's work is: its
  * PRs' worktrees and the checkout it worked in.
@@ -928,7 +896,6 @@ function useShellPlace(card: BoardCard, shell: Pane) {
 		{ claudeSessionId: sessionId ?? "" },
 		{ enabled: !!sessionId, retry: false, staleTime: 60_000 },
 	);
-	const panes = useTabsStore((s) => s.panes);
 	// Live PTYs and where each one really is. zsh here sends no OSC-7, so a
 	// pane's `cwd` only knows where Odin opened it; the process table knows more.
 	const { data: metrics } = electronTrpc.resourceMetrics.getSnapshot.useQuery(
@@ -947,7 +914,6 @@ function useShellPlace(card: BoardCard, shell: Pane) {
 	const here = cwdOfPane(shell.id) ?? shell.cwd ?? shell.initialCwd;
 	const inside = (dir: string | null | undefined, root: string) =>
 		!!dir && (dir === root || dir.startsWith(`${root}/`));
-	/** Live shells sitting in `root`, and Odin panes left there whose PTY is gone. */
 	/**
 	 * In `root` itself - a worktree checked out under it (`.worktrees/x`) is its
 	 * own checkout, not the clone's.
@@ -959,40 +925,13 @@ function useShellPlace(card: BoardCard, shell: Pane) {
 		!/^\/(?:\.claude\/)?\.?worktrees\//.test(
 			(dir as string).slice(root.length),
 		);
-	/** Live terminals sitting in `root`, each named, and Odin panes left there whose PTY is gone. */
-	const shellsIn = (root: string) => {
-		const liveHere = live
-			.filter((session) => inCheckout(cwds?.[session.pid], root))
-			.map((session) => {
-				if (session.paneId === shell.id) return "this shell";
-				const pane = panes[session.paneId];
-				if (pane?.odinTaskTitle) return `agent session: ${pane.odinTaskTitle}`;
-				const owner = Object.values(panes).find(
-					(p) =>
-						p.odinShellPaneId === session.paneId ||
-						Object.values(p.odinNamedShells ?? {}).includes(session.paneId),
-				);
-				if (owner?.odinTaskTitle) return `shell of: ${owner.odinTaskTitle}`;
-				return session.busy
-					? "terminal, running something"
-					: "terminal, idle at its prompt";
-			});
-		const livePanes = new Set(live.map((session) => session.paneId));
-		const dead = Object.values(panes).filter(
-			(pane) =>
-				pane.type === "terminal" &&
-				!livePanes.has(pane.id) &&
-				inCheckout(pane.cwd ?? pane.initialCwd, root),
-		);
-		return { live: liveHere, dead: dead.length };
-	};
 	const workplaces = [
 		...(data?.pullRequests ?? []).map((pr) => pr.worktree),
 		data?.worktree,
 		data?.checkout,
 	].filter((dir): dir is string => !!dir);
 	const atWork = workplaces.some((root) => inCheckout(here, root));
-	return { data, here, inside: inCheckout, shellsIn, atWork };
+	return { here, atWork };
 }
 
 /**
@@ -1028,113 +967,59 @@ function ShellDot({
 }
 
 /**
- * Where the shell is, and a menu to move it into the session's work. The
- * shell opens where the session launched - for feed sessions the catch-all
- * directory - while the agent cd'd into a worktree the shell never saw.
+ * The session's Shells - the main one and each named one an agent ran - and
+ * the folder the shown one is in. Picking a Shell switches the drawer to it.
  */
 function ShellPlaceMenu({
 	card,
 	shell,
+	shells,
+	onSelectShell,
 	onOpenInVsCode,
 }: {
 	card: BoardCard;
 	shell: Pane;
+	/** Every Shell of the session, by name ("" is the main one). */
+	shells: (readonly [string, Pane])[];
+	onSelectShell: (name: string) => void;
 	onOpenInVsCode: (dir: string) => void;
 }) {
-	const { data, here, inside, shellsIn } = useShellPlace(card, shell);
-	const write = electronTrpc.terminal.write.useMutation();
-	const updatePaneCwd = useTabsStore((s) => s.updatePaneCwd);
-	const cd = (dir: string) => {
-		write.mutate({
-			paneId: shell.id,
-			data: `cd '${dir.replaceAll("'", "'\\''")}'\r`,
-		});
-		updatePaneCwd(shell.id, dir, false);
-	};
+	const { here } = useShellPlace(card, shell);
 	const basename = (dir: string) => dir.split("/").pop() || dir;
-	// Every place this session's work lives: its PRs' worktrees, then the
-	// checkout it worked in when no PR already covers it.
-	const targets = (data?.pullRequests ?? []).map((pr) => ({
-		key: pr.url,
-		dir: pr.worktree,
-		badge: `#${pr.number}`,
-		name: pr.isMain ? "main checkout" : basename(pr.worktree),
-		repo: pr.repo,
-	}));
-	const checkout = data?.worktree ?? data?.checkout;
-	if (checkout && !targets.some((target) => target.dir === checkout)) {
-		targets.push({
-			key: checkout,
-			dir: checkout,
-			badge: "",
-			name: basename(checkout),
-			repo: data?.name ?? "",
-		});
-	}
-	const current = targets.find((target) => inside(here, target.dir));
 	const where = here?.replace(/^\/Users\/[^/]+/, "~");
 	const [open, setOpen] = useState(false);
+	const shownName = shells.find(([, pane]) => pane.id === shell.id)?.[0];
 	return (
 		<DropdownMenu open={open} onOpenChange={setOpen}>
 			<DropdownMenuTrigger asChild>
 				<button
 					type="button"
-					title={where ? `Shell is in ${where} - move it` : "Move this shell"}
+					title={where ? `Shell is in ${where}` : "This session's Shells"}
 					className="flex min-w-0 max-w-[200px] items-center gap-1 rounded-r-md border-l border-background bg-secondary px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground"
 				>
 					<span className="truncate">
-						{current ? current.name : here ? basename(here) : "…"}
+						{shownName || (here ? basename(here) : "…")}
 					</span>
 					<span className="text-[9px] opacity-70">▾</span>
 				</button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end" className="w-80">
-				<DropdownMenuLabel className="truncate text-[10px] font-normal text-muted-foreground">
-					{where
-						? `Shell is in ${where}${current ? "" : " - outside this session's work"}`
-						: "This shell's location is unknown"}
+				<DropdownMenuLabel className="text-[10px] font-normal text-muted-foreground">
+					This session's Shells
 				</DropdownMenuLabel>
-				<DropdownMenuSeparator />
-				{targets.length === 0 && (
-					<div className="px-2 py-1.5 text-xs text-muted-foreground">
-						No worktree known for this session yet
-					</div>
-				)}
-				{targets.map((target) => (
+				{shells.map(([name, pane]) => (
 					<DropdownMenuItem
-						key={target.key}
-						title={target.dir}
-						onSelect={() => cd(target.dir)}
+						key={pane.id}
+						onSelect={() => onSelectShell(name)}
 						className="flex items-center gap-2 text-xs"
 					>
 						<span className="w-3 text-primary">
-							{target === current ? "✓" : ""}
+							{pane.id === shell.id ? "✓" : ""}
 						</span>
-						<span className="w-12 shrink-0 font-semibold tabular-nums">
-							{target.badge}
-						</span>
-						<span className="flex min-w-0 flex-col">
-							<span className="truncate">{target.name}</span>
-							<span className="truncate text-[10px] text-muted-foreground">
-								{target.repo}
-							</span>
-						</span>
-						<ShellsDot {...shellsIn(target.dir)} />
-						<button
-							type="button"
-							title={`Open ${target.dir} in VS Code, and continue this conversation there`}
-							onClick={(event) => {
-								event.stopPropagation();
-								setOpen(false);
-								onOpenInVsCode(target.dir);
-							}}
-							className="shrink-0 rounded bg-secondary px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground hover:text-foreground"
-						>
-							VS Code
-						</button>
+						<span className="font-semibold">❯ {name || "Shell"}</span>
 					</DropdownMenuItem>
 				))}
-				{targets.length === 0 && here && (
+				{here && (
 					<>
 						<DropdownMenuSeparator />
 						<DropdownMenuItem
@@ -1143,7 +1028,12 @@ function ShellPlaceMenu({
 							className="flex items-center gap-2 text-xs"
 						>
 							<span className="w-3" />
-							Open in VS Code
+							<span className="min-w-0 flex-1 truncate text-muted-foreground">
+								{where}
+							</span>
+							<span className="shrink-0 rounded bg-secondary px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+								VS Code
+							</span>
 						</DropdownMenuItem>
 					</>
 				)}
@@ -5212,6 +5102,13 @@ function DevBoardPage() {
 											<ShellPlaceMenu
 												card={drawerCard}
 												shell={drawerShell}
+												shells={[
+													...(shellPaneOf(drawerCard)
+														? [["", shellPaneOf(drawerCard) as Pane] as const]
+														: []),
+													...drawerNamedShells,
+												]}
+												onSelectShell={(name) => setShellName(name || null)}
 												onOpenInVsCode={(dir) =>
 													void openInVsCode(drawerCard, dir)
 												}
