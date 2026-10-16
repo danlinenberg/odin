@@ -1737,20 +1737,33 @@ type Tldr = NonNullable<ReturnType<typeof freshTldr>>;
 /** A long reply cut to its first lines, fading out, until you ask for all of it. */
 function FoldedReply({
 	folded,
+	onExpand,
 	children,
 }: {
 	folded: boolean;
+	onExpand: () => void;
 	children: ReactNode;
 }) {
 	return (
-		<div
-			className={cn(
-				folded &&
-					"max-h-[6.5rem] overflow-hidden [mask-image:linear-gradient(to_bottom,black_55%,transparent)]",
+		<>
+			<div
+				className={cn(
+					folded &&
+						"max-h-[6.5rem] overflow-hidden [mask-image:linear-gradient(to_bottom,black_55%,transparent)]",
+				)}
+			>
+				{children}
+			</div>
+			{folded && (
+				<button
+					type="button"
+					onClick={onExpand}
+					className="mt-1 text-[12px] text-link hover:underline"
+				>
+					… Reply shortened - show the rest
+				</button>
 			)}
-		>
-			{children}
-		</div>
+		</>
 	);
 }
 
@@ -1866,7 +1879,7 @@ const ItemView = memo(function ItemView({
 	return (
 		<div className="select-text cursor-text">
 			{body && (
-				<FoldedReply folded={!!tldr?.long && !full}>
+				<FoldedReply folded={!!tldr?.long && !full} onExpand={toggleFull}>
 					<MarkdownRenderer
 						content={body}
 						style="default"
