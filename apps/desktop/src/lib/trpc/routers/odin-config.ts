@@ -42,6 +42,12 @@ export interface OdinFileConfig {
 	 * server. Kept apart from defaultRepo so switching back and forth keeps both.
 	 */
 	remoteDefaultRepo?: string;
+	/** Settings > Remote server > AWS instances: where to look and the tags a host must carry. */
+	awsInstances?: {
+		profile?: string;
+		region?: string;
+		tags?: { key: string; value: string }[];
+	};
 	/** Double-tap this modifier to show or hide Odin (main/lib/double-tap). */
 	doubleTapModifier?: string;
 

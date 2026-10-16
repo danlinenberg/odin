@@ -10,6 +10,7 @@ import {
 	SettingsSection,
 	StatusDot,
 } from "../../components/SettingsPage";
+import { AwsInstancesSection } from "./AwsInstancesSection";
 
 type AuthMethod = "key" | "password";
 
@@ -193,6 +194,22 @@ export function RemoteServerSection() {
 					})
 				)}
 			</SettingsSection>
+
+			<AwsInstancesSection
+				odinFolder={form.odinFolder}
+				onUse={(picked) => {
+					setForm((prev) => ({
+						...prev,
+						name: picked.name,
+						host: picked.host,
+						username: picked.username,
+						authMethod: "key",
+					}));
+					toast.success(
+						`${picked.name} is filled in under Add a connection. Save it, then Connect.`,
+					);
+				}}
+			/>
 
 			<SettingsSection
 				title="Add a connection"

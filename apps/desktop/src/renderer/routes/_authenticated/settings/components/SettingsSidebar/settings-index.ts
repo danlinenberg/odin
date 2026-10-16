@@ -301,6 +301,12 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 			"ssh remote backend host run agents offload tunnel machine server",
 	},
 	{
+		label: "Tags",
+		to: "/settings/advanced",
+		section: "AWS instances",
+		keywords: "aws ec2 instance tag pick select remote server ssm claude",
+	},
+	{
 		label: "Server address",
 		to: "/settings/advanced",
 		section: "Add a connection",

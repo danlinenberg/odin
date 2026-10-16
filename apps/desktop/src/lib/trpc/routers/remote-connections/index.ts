@@ -8,9 +8,18 @@ import {
 	getRemoteConnectionManager,
 	type RemoteConnectionStatusEvent,
 } from "main/lib/remote-connection";
+import {
+	findClaude,
+	listAwsProfiles,
+	listInstances,
+	listTagChoices,
+	startInstance,
+} from "main/lib/remote-connection/aws-instances";
 import { toConfig } from "main/lib/remote-connection/config";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
+import { readOdinConfig, updateOdinConfig } from "../odin-config";
+import { execWithShellEnv } from "../workspaces/utils/shell-env";
 
 const connectionInput = z.object({
 	name: z.string().min(1),
@@ -31,6 +40,12 @@ const connectionInput = z.object({
 });
 
 const idInput = z.object({ id: z.string().min(1) });
+
+const awsTarget = z.object({
+	profile: z.string().optional(),
+	region: z.string().optional(),
+});
+const tagPairs = z.array(z.object({ key: z.string(), value: z.string() }));
 
 /**
  * Encrypt a password for storage. `undefined` means "leave unchanged" on an
@@ -165,6 +180,51 @@ export const createRemoteConnectionsRouter = () => {
 				.where(eq(remoteConnections.isActive, true))
 				.run();
 			return { success: true };
+		}),
+
+		/** AWS instances: the profile, region and tags you picked, kept in odin.json. */
+		awsSettings: publicProcedure.query(
+			() => readOdinConfig().awsInstances ?? {},
+		),
+		setAwsSettings: publicProcedure
+			.input(awsTarget.extend({ tags: tagPairs }))
+			.mutation(({ input }) => {
+				updateOdinConfig({ awsInstances: input });
+			}),
+		awsProfiles: publicProcedure.query(() =>
+			listAwsProfiles().catch(() => [] as string[]),
+		),
+		awsTags: publicProcedure
+			.input(awsTarget)
+			.query(({ input }) => listTagChoices(input)),
+		awsInstances: publicProcedure
+			.input(awsTarget.extend({ tags: tagPairs }))
+			.query(({ input }) => listInstances(input, input.tags)),
+		awsStart: publicProcedure
+			.input(awsTarget.extend({ id: z.string().min(1) }))
+			.mutation(({ input }) => startInstance(input, input.id)),
+		awsFindClaude: publicProcedure
+			.input(
+				awsTarget.extend({
+					id: z.string().min(1),
+					user: z.string().min(1),
+					odinFolder: z.string().min(1),
+				}),
+			)
+			.mutation(async ({ input }) => ({
+				path: await findClaude(input, input.id, input.user, input.odinFolder),
+			})),
+		/** `aws sso login` for the picked profile; it opens the browser and waits for approval. */
+		awsSignIn: publicProcedure.input(awsTarget).mutation(async ({ input }) => {
+			await execWithShellEnv(
+				"aws",
+				[
+					"sso",
+					"login",
+					...(input.profile ? ["--profile", input.profile] : []),
+				],
+				{ timeout: 5 * 60_000 },
+			);
 		}),
 
 		onStatusChange: publicProcedure.subscription(() => {
