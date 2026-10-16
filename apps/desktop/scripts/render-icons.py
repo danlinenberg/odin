@@ -9,6 +9,8 @@ Edit the master, then run `python3 apps/desktop/scripts/render-icons.py`
   odin/icon.png                     dock icon set at startup
   tray/iconTemplate{,@2x}.png       menu-bar template (black + alpha)
   packages/ui/.../preset-icons/odin.png   preset icon in the renderer
+  apps/mobile/.../AppIcon-512@2x.png      iOS app icon (opaque, full bleed)
+  apps/mobile/.../splash-2732x2732*.png   iOS launch screen
 """
 
 import shutil
@@ -22,6 +24,9 @@ DESKTOP = Path(__file__).resolve().parents[1]
 RES = DESKTOP / "src/resources"
 MASTER = RES / "build/icons/icon.png"
 PRESET = DESKTOP.parents[1] / "packages/ui/src/assets/icons/preset-icons/odin.png"
+IOS_ASSETS = DESKTOP.parents[1] / "apps/mobile/ios/App/App/Assets.xcassets"
+# The app background (--background in globals.css).
+IOS_BACKGROUND = (14, 14, 17)
 
 # Square box around the mark (horns to beard tip), inside the rounded square.
 FACE_BOX = (96, 96, 928, 928)
@@ -60,6 +65,23 @@ def tray(src: Image.Image) -> None:
         out.save(RES / "tray" / name)
 
 
+def ios(src: Image.Image) -> None:
+    """iOS masks its own corners and refuses alpha: the rounded square, nearly
+    filling the canvas, on its own background colour. The margin keeps the horn
+    tips clear of the corner mask."""
+    square = src.crop((40, 40, 984, 984)).resize((1024, 1024), Image.LANCZOS)
+    out = Image.new("RGB", square.size, src.getpixel((140, 512))[:3])
+    out.paste(square, mask=square)
+    out.save(IOS_ASSETS / "AppIcon.appiconset/AppIcon-512@2x.png")
+    # Launch screen: the icon at the middle of Odin's background. Xcode's
+    # template lists the same image three times, one per scale.
+    splash = Image.new("RGB", (2732, 2732), IOS_BACKGROUND)
+    mark = src.resize((480, 480), Image.LANCZOS)
+    splash.paste(mark, (1126, 1126), mask=mark)
+    for suffix in ("", "-1", "-2"):
+        splash.save(IOS_ASSETS / f"Splash.imageset/splash-2732x2732{suffix}.png")
+
+
 def main() -> None:
     src = Image.open(MASTER).convert("RGBA")
     icns(src)
@@ -67,6 +89,7 @@ def main() -> None:
     shutil.copyfile(MASTER, RES / "odin/icon.png")
     tray(src)
     src.resize((128, 128), Image.LANCZOS).save(PRESET)
+    ios(src)
 
 
 if __name__ == "__main__":

@@ -6,29 +6,78 @@ import { useEffect, useRef, useState } from "react";
 import ReactDom from "react-dom/client";
 import type { PaneStatus } from "shared/tabs-types";
 import superjson from "superjson";
+import { type Pairing, parsePairLink } from "./pair-link";
 import "../globals.css";
 import "./mobile.css";
 
 /**
  * Odin on the phone (main/lib/phone): the board as one list, and a session as
- * a chat. Served by the Mac over the LAN; the token rides in the URL, so the
- * Home Screen icon keeps it.
+ * a chat. Two ways in, same screens:
+ *  - Safari: the Mac serves this page; the token rides in the URL, so the
+ *    Home Screen icon keeps it.
+ *  - The iOS app (apps/mobile): bundled, so it needs the Mac's address. An
+ *    odin://pair?u=<that same URL> link (Settings' second QR code) saves it.
  */
 
-const token = new URLSearchParams(location.search).get("t") ?? "";
+/** The Capacitor bridge, when this runs inside the iOS app. */
+type AppPlugin = {
+	addListener: (
+		event: "appUrlOpen",
+		listener: (data: { url: string }) => void,
+	) => unknown;
+	getLaunchUrl: () => Promise<{ url?: string } | undefined>;
+};
+const native = (window as { Capacitor?: { Plugins?: { App?: AppPlugin } } })
+	.Capacitor;
+
+const PAIRING_KEY = "odin-phone-pairing";
+
+function savedPairing(): Pairing | null {
+	if (!native) {
+		const token = new URLSearchParams(location.search).get("t");
+		return token ? { base: "", token } : null;
+	}
+	try {
+		return JSON.parse(localStorage.getItem(PAIRING_KEY) ?? "null");
+	} catch {
+		return null;
+	}
+}
+
+// ponytail: pairing reloads the page, so the client below is built once.
+function pairWith(link: string): boolean {
+	const pairing = parsePairLink(link);
+	if (!pairing) return false;
+	localStorage.setItem(PAIRING_KEY, JSON.stringify(pairing));
+	location.reload();
+	return true;
+}
+
+const pairing = savedPairing();
 const phone = createTRPCReact<PhoneRouter>();
 const client = phone.createClient({
 	links: [
 		httpBatchLink({
-			url: "/trpc",
+			url: `${pairing?.base ?? ""}/trpc`,
 			transformer: superjson,
-			headers: { authorization: `Bearer ${token}` },
+			headers: { authorization: `Bearer ${pairing?.token ?? ""}` },
 		}),
 	],
 });
 const queryClient = new QueryClient({
 	defaultOptions: { queries: { retry: 1 } },
 });
+
+if (native?.Plugins?.App) {
+	const app = native.Plugins.App;
+	app.addListener("appUrlOpen", ({ url }) => pairWith(url));
+	void app.getLaunchUrl().then((launch) => {
+		const link = launch?.url;
+		const next = link && parsePairLink(link);
+		// Opened by a pair link: save it unless it's the one already saved.
+		if (next && next.token !== pairing?.token) pairWith(link);
+	});
+}
 
 // ponytail: polling every 3s; a subscription when the board needs to feel instant.
 const POLL = 3_000;
@@ -63,13 +112,34 @@ function Dot({ status }: { status: PaneStatus }) {
 	);
 }
 
+/** The server answers a missing or old token with a bare 401. */
+const unpaired = (error: unknown) =>
+	(error as { meta?: { response?: { status?: number } } }).meta?.response
+		?.status === 401;
+
 function ErrorLine({ error }: { error: { message: string } | null }) {
 	if (!error) return null;
 	return (
 		<div className="mx-3 my-2 rounded-lg bg-secondary px-3 py-2 text-sm text-danger select-text">
-			{error.message === "Unauthorized" || error.message.includes("401")
-				? "This link is no longer paired. Scan the QR code in Odin again."
-				: error.message}
+			{unpaired(error) ? (
+				<>
+					This phone is no longer paired. Scan the QR code in Odin again.
+					{native && (
+						<button
+							type="button"
+							onClick={() => {
+								localStorage.removeItem(PAIRING_KEY);
+								location.reload();
+							}}
+							className="ml-2 font-semibold text-primary"
+						>
+							Pair again
+						</button>
+					)}
+				</>
+			) : (
+				error.message
+			)}
 		</div>
 	);
 }
@@ -320,10 +390,54 @@ function Session({ paneId }: { paneId: string }) {
 	);
 }
 
+function Pair() {
+	const [link, setLink] = useState("");
+	const [bad, setBad] = useState(false);
+	return (
+		<div className="flex min-h-dvh flex-col gap-3 p-6 pt-[calc(env(safe-area-inset-top)+24px)]">
+			<h1 className="text-2xl font-bold">Pair with Odin</h1>
+			<p className="text-sm text-muted-foreground">
+				On your Mac, open Odin, Settings, Connections, Phone, and turn on Phone
+				access. Scan the "iPhone app" QR code with the Camera, or paste the link
+				shown under it.
+			</p>
+			<form
+				className="flex gap-2"
+				onSubmit={(event) => {
+					event.preventDefault();
+					setBad(!pairWith(link));
+				}}
+			>
+				<input
+					value={link}
+					onChange={(event) => setLink(event.target.value)}
+					placeholder="http://your-mac.local:4747/?t=…"
+					autoCapitalize="off"
+					autoCorrect="off"
+					className="min-w-0 flex-1 rounded-[10px] border border-input bg-secondary px-3 py-2 text-base outline-none"
+				/>
+				<button
+					type="submit"
+					className="rounded-[10px] bg-primary px-4 font-semibold text-primary-foreground"
+				>
+					Pair
+				</button>
+			</form>
+			{bad && (
+				<div className="text-sm text-danger select-text">
+					That isn't an Odin pairing link.
+				</div>
+			)}
+		</div>
+	);
+}
+
 function App() {
 	const paneId = usePaneFromHash();
-	if (!token)
-		return (
+	if (!pairing)
+		return native ? (
+			<Pair />
+		) : (
 			<div className="p-6 text-sm text-muted-foreground">
 				Open this from the QR code in Odin: Settings, Connections, Phone.
 			</div>
