@@ -629,17 +629,19 @@ export function SessionBrief({
 	// Which of them shipped, and what CI is still chewing on. One `gh pr view`
 	// per link, so poll only while a PR is still open - a merged one never
 	// changes again, and the panel is otherwise spawning subprocesses forever.
+	// Once a minute: every open panel polls every open PR, and the calls share
+	// one hourly GitHub quota per account with every other tool on it.
 	const { data: prStates } = electronTrpc.terminal.pullRequestStates.useQuery(
 		{ urls: [...prs.map((pr) => pr.url), ...mine("pr").map((pr) => pr.url)] },
 		{
 			enabled: prs.length > 0 || mine("pr").length > 0,
 			retry: false,
-			staleTime: 10_000,
+			staleTime: 30_000,
 			refetchInterval: (query) =>
 				Object.values(
 					claimOpened(linkSource ?? [], query.state.data ?? {}),
 				).some((status) => status?.state === "OPEN" && status.mine !== false) &&
-				15_000,
+				60_000,
 			select: (states) => claimOpened(linkSource ?? [], states),
 		},
 	);
