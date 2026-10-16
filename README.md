@@ -4,7 +4,7 @@
 <h1 align="center">Odin</h1>
 
 <p align="center">
-  <b>A personal work console for delegating to coding agents.</b>
+  <b>Parallelize agents at the speed of thought.</b>
   <br><sub><b>O</b>rchestrator for <b>D</b>elegating <b>I</b>nbound <b>N</b>oise</sub>
 </p>
 
@@ -25,9 +25,14 @@
 
 ---
 
+Running six agents at once is easy now. Keeping track of six agents is not.
+The only blocker left to parallel agents is **your attention span**, and Odin
+exists to spend as little of it as possible.
+
 Odin runs many CLI agents in parallel on your own machine and keeps them in the
 same place as the work that drives them - a Slack thread, a Jira issue, a review
-request. One queue, one board, one thing to look at.
+request. One queue, one board, one thing to look at. You think of the next job,
+hand it over in a click, and turn your head back only when an agent needs you.
 
 ## Install
 
@@ -133,7 +138,11 @@ That split is a tax on the only thing that's actually scarce.
 Running agents is no longer the hard part; you can have six working at once on a
 laptop. What runs out is **your attention** - deciding what to hand over,
 noticing which one is stuck, remembering what a session was even about when you
-come back to it an hour later.
+come back to it an hour later. Every agent you add costs you a little more of it,
+so your attention, not the machine, sets how many agents you can really run.
+
+Odin's job is to make each agent cost less attention. Then you can run more of
+them, at the pace you think of the work.
 
 **Odin is one system.** Your queue and your agents are the same screen: a row in
 the queue becomes a running session, the session remembers the row it came from,
@@ -148,6 +157,9 @@ Every part of it buys back a piece of that same scarce thing:
 | A board by agent state | "which of these needs me" |
 | Written briefs | "what was happening here" |
 | Session provenance | "why did I start this" |
+| Ping me and action items | "is it my turn yet" |
+| Huginn | "how do I do that in Odin" |
+| Night Agent | "when will I get to that" |
 | Insights | "what's piling up" |
 
 ## The loop
@@ -159,13 +171,15 @@ That's the whole product. Everything below is one of those four steps.
 
 ### See what's on you
 
-Five sources land in one queue:
+Seven sources land in one queue:
 
 - **Slack** - react `:eyes:` to a message and it becomes a row. The gesture you
   already make is the capture.
 - **Jira** - issues assigned to or reported by you.
 - **GitHub** - pull requests waiting on your review, bots filtered out.
 - **Notion** - rows from a database you pick.
+- **Email** - mail that asks something of you; calendar and service noise stay out.
+- **ClickUp** - tasks assigned to you.
 - **Tasks** - things you type in yourself.
 
 The **All** tab is every source at once. Tab badges count what is genuinely
@@ -185,6 +199,10 @@ while it waits.
 Odin drives whichever agent CLI you use, with your own subscription. Nothing is
 proxied and nothing leaves the machine.
 
+Work you won't get to today can wait for the **Night Agent**. It runs your queued
+tasks overnight, on power, while the computer stays awake, so the morning starts
+with finished sessions instead of a backlog.
+
 ### Notice when it needs you
 
 The **Dev Board** is a kanban over live agent state, not ticket state:
@@ -197,6 +215,14 @@ Cards group by where the work came from, so nine cards read as "four Slack
 threads, two Jira, three of mine" rather than an undifferentiated list. Statuses
 come from agent lifecycle hooks, with the session's own screen read as a fallback
 so a card stranded by a lost hook still corrects itself.
+
+You don't have to watch the board to know when to look:
+
+- **Action items** - every agent reply ends with a short list of what you have to
+  do next. A choice is a row of buttons, and a command for you gets a **Run**
+  button, so most answers cost one click.
+- **Ping me** - Odin watches a session's Slack thread and pull requests and pings
+  you when someone replies or a PR is approved. The reply also shows on the card.
 
 ### Pick it back up
 
@@ -212,6 +238,8 @@ Re-entry is where the time actually goes, so it gets real machinery:
   a named person asked for it.
 - **Insights** - how much lands on you, how much you hand over, how long things
   sit before you get to them, and who asks most.
+- **Huginn** - Odin's raven. Ask him in plain words to do anything Odin can do,
+  and he does it, so you never stop to look for the right screen.
 
 Terminal sessions are owned by a background daemon, so they survive the window
 closing, the app restarting, and the app being rebuilt under them.
