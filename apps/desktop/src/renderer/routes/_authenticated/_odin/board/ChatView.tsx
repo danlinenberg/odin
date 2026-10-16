@@ -1396,6 +1396,8 @@ function ActionItemRow({
 	onDo,
 	onDismiss,
 	buttonColumn,
+	commands = [],
+	onRun,
 }: {
 	item: string;
 	/** The reply's paragraph about this item, shown on hover. */
@@ -1406,6 +1408,9 @@ function ActionItemRow({
 	onDismiss?: () => void;
 	/** Some item in the list has a button - line this one's number up with it. */
 	buttonColumn: boolean;
+	/** The reply's `!` commands, when this is the item that says to run them. */
+	commands?: string[];
+	onRun?: (command: string) => Promise<void>;
 }) {
 	const [sent, setSent] = useState(false);
 	const [answer, setAnswer] = useState("");
@@ -1489,6 +1494,7 @@ function ActionItemRow({
 						/>
 					</div>
 				)}
+				{onRun && <RunCommands commands={commands} onRun={onRun} />}
 			</div>
 			{onDismiss ? (
 				<button
@@ -1551,8 +1557,13 @@ function ActionItems({
 	tldr,
 	full = false,
 	onToggle,
+	commands = [],
+	onRun,
 }: {
 	text: string;
+	/** The reply's `!` commands: under the item that says to run them, else at the card's foot. */
+	commands?: string[];
+	onRun?: (command: string) => Promise<void>;
 	/** The reply above the items, where each one's explanation is looked up. */
 	body?: string;
 	onDo?: DoItem;
@@ -1573,6 +1584,7 @@ function ActionItems({
 		.map((item, index) => ({ item, number: index + 1 }))
 		.filter(({ item }) => !isDismissed(dismissed ?? [], item));
 	const buttonColumn = !items.every(({ item }) => isYouOnly(item));
+	const runner = runItemIndex(items.map(({ item }) => item));
 	return (
 		<div
 			data-action-items
@@ -1599,7 +1611,7 @@ function ActionItems({
 				<div className="text-[13px] text-muted-foreground">None left.</div>
 			) : onDo && items.length > 0 ? (
 				<ol className="flex flex-col gap-1">
-					{items.map(({ item, number }) => (
+					{items.map(({ item, number }, index) => (
 						<ActionItemRow
 							key={number}
 							item={item}
@@ -1608,6 +1620,8 @@ function ActionItems({
 							onDo={onDo}
 							onDismiss={paneId ? () => dismiss(paneId, item) : undefined}
 							buttonColumn={buttonColumn}
+							commands={commands}
+							onRun={index === runner ? onRun : undefined}
 						/>
 					))}
 				</ol>
@@ -1619,8 +1633,30 @@ function ActionItems({
 					className={COMPACT_MARKDOWN}
 				/>
 			)}
+			{onRun && runner < 0 && <RunCommands commands={commands} onRun={onRun} />}
 		</div>
 	);
+}
+
+/**
+ * The item a reply's `!` commands belong under: the first one that says to run
+ * something ("Press Run on the blocks above"). -1 when none does.
+ * ponytail: one word match; tie each block to its own item if replies mix several.
+ */
+export function runItemIndex(items: string[]): number {
+	return items.findIndex((item) => /\brun\b/i.test(item));
+}
+
+function RunCommands({
+	commands,
+	onRun,
+}: {
+	commands: string[];
+	onRun: (command: string) => Promise<void>;
+}) {
+	return commands.map((command) => (
+		<RunCommand key={command} command={command} onRun={onRun} />
+	));
 }
 
 /** The `! command` blocks Claude hands you to run in the session, without the `!`. */
@@ -1821,6 +1857,7 @@ const ItemView = memo(function ItemView({
 		);
 	const { body, actions } = splitActionItems(linkify(item.text, refs));
 	const showsActions = !!actions && !hideActions;
+	const commands = onRun ? bangCommands(item.text) : [];
 	const placement = tldrPlacement(tldr, showsActions);
 	const toggleFull = () => setFull((value) => !value);
 	return (
@@ -1847,13 +1884,14 @@ const ItemView = memo(function ItemView({
 					tldr={placement === "action-items" ? tldr : null}
 					full={full}
 					onToggle={toggleFull}
+					commands={commands}
+					onRun={onRun}
 				/>
 			)}
 			{onSend && needsAwsSsoLogin(item.text) && <AwsSsoLogin onSend={onSend} />}
-			{onRun &&
-				bangCommands(item.text).map((command) => (
-					<RunCommand key={command} command={command} onRun={onRun} />
-				))}
+			{onRun && !showsActions && (
+				<RunCommands commands={commands} onRun={onRun} />
+			)}
 		</div>
 	);
 }, sameItemView);

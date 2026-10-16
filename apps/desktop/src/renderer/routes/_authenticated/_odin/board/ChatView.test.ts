@@ -19,6 +19,7 @@ import {
 	launchAttachments,
 	launchRequest,
 	outputTokens,
+	runItemIndex,
 	segments,
 	splitActionItems,
 	splitEarlier,
@@ -79,6 +80,17 @@ describe("ChatView transcript", () => {
 			"```",
 		].join("\n");
 		expect(bangCommands(text)).toEqual(["aws sso login", "echo a &&\necho b"]);
+	});
+
+	test("! commands sit under the first item that says to run them", () => {
+		expect(
+			runItemIndex([
+				"Decide the branch",
+				"Press Run on the blocks above",
+				"Run it again",
+			]),
+		).toBe(1);
+		expect(runItemIndex(["Merge #12", "Pruned the runner"])).toBe(-1);
 	});
 
 	test("a message sent mid-turn shows as yours, its image too", () => {
