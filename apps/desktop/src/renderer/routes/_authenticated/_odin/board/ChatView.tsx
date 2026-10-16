@@ -1744,6 +1744,38 @@ function AwsSsoLogin({ onSend }: { onSend: (text: string) => void }) {
 
 type Tldr = NonNullable<ReturnType<typeof freshTldr>>;
 
+/**
+ * The reply and its action items card together are taller than the chat's
+ * visible area, so its start would scroll out of sight. Measured, not counted:
+ * the same reply fits a tall window and overflows a short one.
+ */
+function useTallerThanView(
+	rootRef: React.RefObject<HTMLDivElement | null>,
+	bodyRef: React.RefObject<HTMLDivElement | null>,
+	watch: boolean,
+): boolean {
+	const [taller, setTaller] = useState(false);
+	useLayoutEffect(() => {
+		const root = rootRef.current;
+		const body = bodyRef.current;
+		const view = root?.closest<HTMLElement>("[data-chat-scroll]");
+		if (!watch || !root || !body || !view) return setTaller(false);
+		const measure = () => {
+			// The body's own height is its full height even while the fold clips it.
+			const card = root.querySelector<HTMLElement>("[data-action-items]");
+			setTaller(
+				body.offsetHeight + (card?.offsetHeight ?? 0) > view.clientHeight,
+			);
+		};
+		measure();
+		const observer = new ResizeObserver(measure);
+		observer.observe(body);
+		observer.observe(view);
+		return () => observer.disconnect();
+	}, [rootRef, bodyRef, watch]);
+	return taller;
+}
+
 /** A long reply cut to its first lines, fading out, until you ask for all of it. */
 function FoldedReply({
 	folded,
@@ -1871,6 +1903,9 @@ const ItemView = memo(function ItemView({
 }: ItemViewProps) {
 	// A long latest reply opens on its TL;DR; this shows it whole.
 	const [full, setFull] = useState(false);
+	const rootRef = useRef<HTMLDivElement>(null);
+	const bodyRef = useRef<HTMLDivElement>(null);
+	const taller = useTallerThanView(rootRef, bodyRef, !!tldr);
 	if (item.kind === "tool") return <ToolRow item={item} />;
 	if (item.kind === "compact") return <CompactRow item={item} />;
 	if (item.kind === "user")
@@ -1884,22 +1919,26 @@ const ItemView = memo(function ItemView({
 	const { body, actions } = splitActionItems(linkify(item.text, refs));
 	const showsActions = !!actions && !hideActions;
 	const commands = onRun ? bangCommands(item.text) : [];
-	const placement = tldrPlacement(tldr, showsActions);
+	// A reply you can see whole, its action items included, is never cut and needs no TL;DR.
+	const shown = tldr && taller ? { ...tldr, long: true } : null;
+	const placement = tldrPlacement(shown, showsActions);
 	const toggleFull = () => setFull((value) => !value);
 	return (
-		<div className="select-text cursor-text">
+		<div ref={rootRef} className="select-text cursor-text">
 			{body && (
-				<FoldedReply folded={!!tldr?.long && !full} onExpand={toggleFull}>
-					<MarkdownRenderer
-						content={body}
-						style="default"
-						allowHtml={false}
-						className={COMPACT_MARKDOWN}
-					/>
+				<FoldedReply folded={!!shown && !full} onExpand={toggleFull}>
+					<div ref={bodyRef}>
+						<MarkdownRenderer
+							content={body}
+							style="default"
+							allowHtml={false}
+							className={COMPACT_MARKDOWN}
+						/>
+					</div>
 				</FoldedReply>
 			)}
-			{placement === "card" && tldr && (
-				<TldrCard tldr={tldr} full={full} onToggle={toggleFull} />
+			{placement === "card" && shown && (
+				<TldrCard tldr={shown} full={full} onToggle={toggleFull} />
 			)}
 			{showsActions && (
 				<ActionItems
@@ -1907,7 +1946,7 @@ const ItemView = memo(function ItemView({
 					body={body}
 					onDo={onDo}
 					paneId={paneId}
-					tldr={placement === "action-items" ? tldr : null}
+					tldr={placement === "action-items" ? shown : null}
 					full={full}
 					onToggle={toggleFull}
 					commands={commands}
@@ -2194,13 +2233,8 @@ export function ChatView({
 				lastText && { ...lastText, text: splitActionItems(lastText.text).body },
 				brief,
 			);
-	// A short reply reads faster than its TL;DR, so it gets none.
-	const tldr =
-		fresh && tldrOnly
-			? { ...fresh, urgency: null, long: true }
-			: fresh?.long
-				? fresh
-				: null;
+	// Whether it is shown is ItemView's call: only a reply taller than the view gets one.
+	const tldr = fresh && tldrOnly ? { ...fresh, urgency: null } : fresh;
 	// Agents repeat their ACTION ITEMS in every reply; show one card, on the
 	// latest reply that has it. It stays while Claude works on your answer.
 	const actionsId = lastActionsId(items);
@@ -2309,6 +2343,7 @@ export function ChatView({
 		>
 			<div
 				ref={scrollRef}
+				data-chat-scroll
 				onScroll={(event) => {
 					const el = event.currentTarget;
 					// Only scrolling up lets go of the bottom. Rows that grow, shrink
