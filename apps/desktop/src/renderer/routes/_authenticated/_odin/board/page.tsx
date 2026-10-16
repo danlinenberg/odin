@@ -1805,6 +1805,8 @@ interface BoardCardTileProps {
 	shellPane: Pane | undefined;
 	shellAlive: boolean;
 	hasDaemon: boolean;
+	/** False while a session is open: the list beside it is for switching, and a card popping over the session is noise. */
+	peek: boolean;
 }
 
 /**
@@ -1832,9 +1834,10 @@ const BoardCardTile = memo(
 		shellPane,
 		shellAlive,
 		hasDaemon,
+		peek,
 	}: BoardCardTileProps) {
 		return (
-			<HoverCard openDelay={1350}>
+			<HoverCard openDelay={1350} open={peek ? undefined : false}>
 				<HoverCardTrigger asChild>
 					{/* biome-ignore lint/a11y/useSemanticElements: a real <button> can't nest the reply <input>, so the card is a div with button semantics */}
 					<div
@@ -4962,6 +4965,7 @@ function DevBoardPage() {
 															shellPaneOf(card)?.id ?? "",
 														)}
 														hasDaemon={!!daemonSessions}
+														peek={!drawerOpen}
 													/>
 												))}
 											</Fragment>
