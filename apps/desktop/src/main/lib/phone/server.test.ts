@@ -6,16 +6,18 @@ import { join } from "node:path";
 import { initTRPC } from "@trpc/server";
 import superjson from "superjson";
 
-// Mocked, not ODIN_HOME_DIR: in the full suite another test has already
-// loaded app-environment with the real ~/.odin.
-const home = mkdtempSync(join(tmpdir(), "odin-phone-"));
-mock.module("../app-environment", () => ({ ODIN_HOME_DIR: home }));
 // The gate is under test, not the board: a stand-in router.
 const t = initTRPC.create({ transformer: superjson });
 mock.module("./router", () => ({
 	phoneRouter: t.router({ board: t.procedure.query(() => "ok") }),
 }));
-const { setPhoneEnabled } = await import("./server");
+const { phoneConfig, setPhoneEnabled } = await import("./server");
+// Not ~/.odin, and not by mocking app-environment: a module mock leaks into
+// every later test file in the run.
+phoneConfig.file = join(
+	mkdtempSync(join(tmpdir(), "odin-phone-")),
+	"phone.json",
+);
 
 afterAll(() => setPhoneEnabled(false));
 

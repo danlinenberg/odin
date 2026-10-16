@@ -20,7 +20,8 @@ import { phoneRouter } from "./router";
 // ponytail: plain HTTP on the LAN - anyone on the Wi-Fi can read the traffic.
 // HTTPS comes with a relay or tunnel.
 
-const CONFIG_FILE = join(ODIN_HOME_DIR, "phone.json");
+/** Where the switch and the token live; a test points it at a temp file. */
+export const phoneConfig = { file: join(ODIN_HOME_DIR, "phone.json") };
 const PREFERRED_PORT = 4747;
 
 type Config = { enabled: boolean; token: string };
@@ -35,7 +36,7 @@ let status: PhoneStatus = { state: "off" };
 
 function readConfig(): Config {
 	try {
-		return JSON.parse(readFileSync(CONFIG_FILE, "utf8")) as Config;
+		return JSON.parse(readFileSync(phoneConfig.file, "utf8")) as Config;
 	} catch {
 		return { enabled: false, token: "" };
 	}
@@ -43,7 +44,7 @@ function readConfig(): Config {
 
 // ponytail: the token sits in plain text in ~/.odin (0700), like the old bot token.
 const writeConfig = (config: Config) =>
-	writeFileSync(CONFIG_FILE, JSON.stringify(config), { mode: 0o600 });
+	writeFileSync(phoneConfig.file, JSON.stringify(config), { mode: 0o600 });
 
 const newToken = () => randomBytes(24).toString("base64url");
 
