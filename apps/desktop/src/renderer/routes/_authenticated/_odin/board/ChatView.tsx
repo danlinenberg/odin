@@ -23,6 +23,7 @@ import {
 import { MarkdownRenderer } from "renderer/components/MarkdownRenderer";
 import { isHotkey, useHotkeyDisplay } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { electronTrpcClient } from "renderer/lib/trpc-client";
 import { shellEscapePaths } from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/utils";
 import { draftFor, useChatDrafts } from "renderer/stores/chat-drafts";
 import { useCompacting } from "renderer/stores/compacting";
@@ -2597,6 +2598,10 @@ export function ChatView({
  * then Enter in its own write. `now` submits with Claude's send-now chord
  * (Ctrl+X Ctrl+S) instead: mid-turn it lands right away, not after the turn.
  * Ctrl+Enter itself can't cross a PTY - it arrives as a plain Enter.
+ *
+ * Enter waits until Claude has drawn the text. A long session reads its
+ * input slowly, and text plus Enter caught in one read is taken as a paste:
+ * the text sits in the input box and nothing is sent.
  */
 export async function typeIntoClaude(
 	write: (input: { paneId: string; data: string }) => Promise<unknown>,
@@ -2604,13 +2609,30 @@ export async function typeIntoClaude(
 	text: string,
 	now = false,
 ) {
-	if (text)
+	if (text) {
+		const drawn = await drawCount(paneId, text);
 		await write({
 			paneId,
 			data: text.includes("\n") ? `\x1b[200~${text}\x1b[201~` : text,
 		});
+		// ponytail: 2s cap, then Enter anyway - a collapsed paste never shows the text.
+		for (let waited = 0; waited < 2000; waited += 50) {
+			if ((await drawCount(paneId, text)) > drawn) break;
+			await new Promise((resolve) => setTimeout(resolve, 50));
+		}
+	}
 	await new Promise((resolve) => setTimeout(resolve, 30));
 	await write({ paneId, data: now ? "\x18\x13" : "\r" });
+}
+
+/** How often the text's last characters show on Claude's screen. Wrapping is ignored. */
+async function drawCount(paneId: string, text: string): Promise<number> {
+	const squash = (value: string) => value.replace(/\s+/g, "");
+	const tail = squash(text).slice(-24);
+	const screen = await electronTrpcClient.terminal.readScreen
+		.query({ paneId })
+		.catch(() => null);
+	return tail ? squash(screen?.text ?? "").split(tail).length - 1 : 0;
 }
 
 /**
