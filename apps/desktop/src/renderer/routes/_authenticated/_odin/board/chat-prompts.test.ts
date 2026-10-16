@@ -7,6 +7,15 @@ describe("chatAboutKeys - Claude Code's question menu", () => {
 		expect(chatAboutKeys([{ options: [{}, {}] }])).toEqual(["4"]);
 		expect(chatAboutKeys([{ options: [{}, {}, {}] }])).toEqual(["5"]);
 	});
+
+	test("with previews it has no number: arrow down past the options, Enter", () => {
+		const down = "\x1b[B";
+		expect(chatAboutKeys([{ options: [{ preview: "a" }, {}] }])).toEqual([
+			down,
+			down,
+			"\r",
+		]);
+	});
 });
 
 describe("answerKeys - Claude Code's question menu", () => {
@@ -24,6 +33,25 @@ describe("answerKeys - Claude Code's question menu", () => {
 		]);
 		expect(answerKeys([{ multiSelect: true }], [[0]])).toEqual([
 			"1",
+			"\t",
+			"\r",
+		]);
+	});
+});
+
+describe("answerKeys - options with previews", () => {
+	const tag = { options: [{ preview: "a" }, { preview: "b" }, {}] };
+
+	test("a number only moves the cursor there, so Enter picks", () => {
+		expect(answerKeys([tag], [[2]])).toEqual(["3", "\r"]);
+	});
+
+	test("then the next question, as replayed on Claude Code 2.1.294", () => {
+		expect(answerKeys([tag, { multiSelect: true }], [[1], [0, 2]])).toEqual([
+			"2",
+			"\r",
+			"1",
+			"3",
 			"\t",
 			"\r",
 		]);

@@ -9,10 +9,19 @@ type Question = {
 	question?: string;
 	header?: string;
 	multiSelect?: boolean;
-	options?: { label?: string; description?: string }[];
+	options?: { label?: string; description?: string; preview?: string }[];
 };
 
 const DOWN = "\x1b[B";
+
+/**
+ * Single-choice options with a preview draw beside it, and there a number only
+ * moves the cursor: Enter picks. That layout has no "Type something" row, and
+ * "Chat about this" has no number - the arrows reach it.
+ */
+export function hasPreview(question: Question): boolean {
+	return !question.multiSelect && !!question.options?.some((o) => o.preview);
+}
 
 /** A typed answer goes into a one-line field. */
 export function oneLine(text: string | undefined): string {
@@ -27,7 +36,8 @@ export function oneLine(text: string | undefined): string {
  * pick by number (the cursor stays on the first row), arrows down to "Type
  * something" for typed text, then Tab and Enter move on. Enter submits on the
  * review tab the last answer lands on, except for a lone single-choice
- * question, which its answer submits.
+ * question, which its answer submits. A question with previews takes its
+ * number and Enter.
  */
 export function answerKeys(
 	questions: Question[],
@@ -37,6 +47,7 @@ export function answerKeys(
 	const keys = questions.flatMap((question, i) => {
 		const count = question.options?.length ?? 0;
 		const other = oneLine(others[i]);
+		if (hasPreview(question)) return [String((picks[i]?.[0] ?? 0) + 1), "\r"];
 		if (!question.multiSelect)
 			return other
 				? [String(count + 1), other, "\r"]
@@ -52,7 +63,10 @@ export function answerKeys(
 
 /** The menu lists "Type something" after the options, then "Chat about this". */
 export function chatAboutKeys(questions: Question[]): string[] {
-	return [String((questions[0]?.options?.length ?? 0) + 2)];
+	const count = questions[0]?.options?.length ?? 0;
+	return questions[0] && hasPreview(questions[0])
+		? [...Array(count).fill(DOWN), "\r"]
+		: [String(count + 2)];
 }
 
 /** AskUserQuestion, answered in the chat - its menu only draws in the TUI. */
@@ -147,27 +161,29 @@ export function QuestionCard({
 								);
 							})}
 						</div>
-						<input
-							value={others[qi] ?? ""}
-							disabled={sent}
-							aria-label={`Other answer to: ${question.question ?? "the question"}`}
-							onChange={(event) => type(qi, event.target.value)}
-							onKeyDown={(event) => {
-								if (event.key === "Enter" && !event.nativeEvent.isComposing) {
-									event.preventDefault();
-									submit();
+						{!hasPreview(question) && (
+							<input
+								value={others[qi] ?? ""}
+								disabled={sent}
+								aria-label={`Other answer to: ${question.question ?? "the question"}`}
+								onChange={(event) => type(qi, event.target.value)}
+								onKeyDown={(event) => {
+									if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+										event.preventDefault();
+										submit();
+									}
+								}}
+								placeholder={
+									question.multiSelect
+										? "Something else? Type it here"
+										: "Or type your own answer"
 								}
-							}}
-							placeholder={
-								question.multiSelect
-									? "Something else? Type it here"
-									: "Or type your own answer"
-							}
-							className={cn(
-								"mt-2 w-full rounded-[7px] border bg-background px-2.5 py-1.5 text-[12.5px] text-foreground outline-none focus:border-primary/60 disabled:opacity-60",
-								oneLine(others[qi]) ? "border-primary" : "border-border",
-							)}
-						/>
+								className={cn(
+									"mt-2 w-full rounded-[7px] border bg-background px-2.5 py-1.5 text-[12.5px] text-foreground outline-none focus:border-primary/60 disabled:opacity-60",
+									oneLine(others[qi]) ? "border-primary" : "border-border",
+								)}
+							/>
+						)}
 					</div>
 				))}
 			</div>
