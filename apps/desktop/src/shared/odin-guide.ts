@@ -13,7 +13,7 @@ export const ODIN_GUIDE = `# Odin
 Top to bottom: Dev Board, Tasks, Automations, Night Agent (status, the next run's picks - add, reorder, remove, and what to do after them - its schedule and a log of each night), More (the ⋮ button: Review, Insights, Session History). At the foot: Settings, and the raven button (Huginn, ⌘⇧I). Each but Night Agent has a one-key hotkey (rebind in Settings → Keyboard); the keys do nothing while you type, also inside agent terminals.
 
 ## Tasks screen and its feeds
-Tabs: All, Tasks, Slack, Jira, GitHub, Notion, Email, ClickUp.
+Tabs, in two groups split by a hairline: Odin's own (All, Tasks, Docs), then the connections (Slack, Jira, GitHub, Notion, Email, ClickUp).
 - **Badges** count only what waits on you: Slack counts only "Not started" rows, GitHub leaves out bot PRs, Email leaves out junk, Done rows never count. All is the sum of the others, minus your own PRs.
 - **Amber dot** on a tab: that source is not connected. **Red dot**: connected but failing.
 - Feeds reload every 2 minutes. **Sync** refreshes the connected sources.
