@@ -5,6 +5,7 @@ import {
 	bandOf,
 	matchesStatus,
 	plainText,
+	previewPastTitle,
 	urgencyOf,
 } from "./all-items";
 
@@ -337,4 +338,17 @@ test("a body preview drops markdown marks", () => {
 			"## What\n- **Prod import** blocks `FeatureFlag` [docs](https://x)\n```ts\ncode\n```",
 		),
 	).toBe("What Prod import blocks FeatureFlag docs");
+});
+
+test("previewPastTitle drops the title the body opens with", () => {
+	expect(
+		previewPastTitle("Can you update?", "Can you update? The doc is stale"),
+	).toBe("The doc is stale");
+	expect(previewPastTitle("_Heads up_", "Heads up")).toBe("");
+	expect(
+		previewPastTitle("a long first li…", "a long first line goes on"),
+	).toBe("…ne goes on");
+	expect(previewPastTitle("Bug in export", "Someone: fix it")).toBe(
+		"Someone: fix it",
+	);
 });

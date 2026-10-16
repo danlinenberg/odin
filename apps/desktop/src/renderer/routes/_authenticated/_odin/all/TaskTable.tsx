@@ -35,7 +35,7 @@ import {
 import { TonightButton } from "../components/TonightButton";
 import { useDone } from "../hooks/useDone";
 import { usePendingFocus } from "../hooks/usePendingFocus";
-import { type AllItem, bandOf, plainText } from "./all-items";
+import { type AllItem, bandOf, plainText, previewPastTitle } from "./all-items";
 import { statusLabel, typeLabel, typeOf, useTaskMeta } from "./task-meta";
 import { useStartAllItem } from "./use-start-item";
 
@@ -248,7 +248,7 @@ export function TaskRow({
 	const preview = item.mention
 		? `${item.mention.author ?? "Someone"}: ${plainText(item.mention.text)}`
 		: item.body
-			? plainText(item.body)
+			? previewPastTitle(item.title, plainText(item.body))
 			: "";
 	const at = created
 		? item.createdAt
@@ -305,6 +305,7 @@ export function TaskRow({
 					<button
 						type="button"
 						title="Show details"
+						dir="auto"
 						onClick={onOpen ?? (() => rows.openInAll(item.key))}
 						className="block w-full truncate bg-none text-left text-[13px] font-semibold text-foreground"
 					>

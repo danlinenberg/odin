@@ -585,3 +585,16 @@ export function plainText(body: string): string {
 		.replace(/\s+/g, " ")
 		.trim();
 }
+
+/**
+ * The row's second line: what the body says past its title. A Slack title is
+ * the message's first line, so the whole body repeated it word for word.
+ */
+export function previewPastTitle(title: string, preview: string): string {
+	const cut = title.endsWith("…");
+	const head = plainText(title).replace(/…$/, "");
+	if (!head || !preview.startsWith(head)) return preview;
+	const rest = preview.slice(head.length).trim();
+	// A title cut mid-line: the preview picks up where it stopped.
+	return cut && rest ? `…${rest}` : rest;
+}
