@@ -88,9 +88,10 @@ describe("buildPrompt", () => {
 	});
 
 	it("asks for the exact commands when I have to run a write myself", () => {
-		expect(buildPrompt("Fix the board", null)).toContain(
-			"exact copy-pasteable commands",
-		);
+		const prompt = buildPrompt("Fix the board", null);
+		expect(prompt).toContain("exact copy-pasteable commands");
+		// The `!` block is what gets a Run button (ChatView bangCommands).
+		expect(prompt).toContain("first line starts with `!`");
 	});
 
 	// "Run the worktree" went to a subagent nobody could watch.

@@ -50,7 +50,7 @@ export const DEFAULT_SESSION_INSTRUCTIONS = [
 	// you read the whole transcript to answer it.
 	"",
 	// "Update the contract to 0" makes me write the SQL myself.
-	"When I have to run something you may not run yourself - a database write, a production change - give me the exact copy-pasteable commands above ACTION ITEMS: a read-only preview, the change, and a check that it worked. Never only describe it.",
+	"When I have to run something you may not run yourself - a database write, a production change - give me the exact copy-pasteable commands above ACTION ITEMS: a read-only preview, the change, and a check that it worked. Never only describe it. Put each command in its own fenced block whose first line starts with `!`, e.g. `! aws sso login --profile dev`: Odin shows a Run button for those.",
 	"",
 	// Items that carry their own background and options turn the list
 	// back into a transcript; the reasoning already lives above it.
