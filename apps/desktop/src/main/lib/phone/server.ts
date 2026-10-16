@@ -29,7 +29,8 @@ type Config = { enabled: boolean; token: string };
 export type PhoneStatus =
 	| { state: "off" }
 	| { state: "error"; error: string }
-	| { state: "on"; url: string; qr: string };
+	/** qr opens the page in Safari; appQr opens the iOS app (apps/mobile) to pair. */
+	| { state: "on"; url: string; qr: string; appQr: string };
 
 let server: Server | null = null;
 let status: PhoneStatus = { state: "off" };
@@ -129,6 +130,10 @@ async function listen(token: string): Promise<void> {
 		state: "on",
 		url,
 		qr: await QRCode.toDataURL(url, { margin: 1, width: 220 }),
+		appQr: await QRCode.toDataURL(`odin://pair?u=${encodeURIComponent(url)}`, {
+			margin: 1,
+			width: 220,
+		}),
 	};
 }
 

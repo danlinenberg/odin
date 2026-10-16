@@ -1,0 +1,22 @@
+{
+	"name": "@odin/mobile",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"build": "vite build",
+		"ios": "vite build && cap sync ios && cap open ios"
+	},
+	"dependencies": {
+		"@capacitor/app": "8.1.1",
+		"@capacitor/core": "8.5.2",
+		"@capacitor/ios": "8.5.2"
+	},
+	"devDependencies": {
+		"@capacitor/cli": "8.5.2",
+		"@tailwindcss/vite": "4.2.2",
+		"@vitejs/plugin-react": "5.2.0",
+		"vite": "7.3.5",
+		"vite-tsconfig-paths": "5.1.4"
+	}
+}
