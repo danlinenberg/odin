@@ -365,6 +365,16 @@ describe("ChatView transcript", () => {
 			text: "Update main now.",
 			options: ["yes", "after #826 merges"],
 		});
+		expect(
+			itemOptions("Decide #903 [merge | close] [https://x/903](https://x/903)"),
+		).toEqual({
+			text: "Decide #903 [https://x/903](https://x/903)",
+			options: ["merge", "close"],
+		});
+		expect(itemOptions("Decide [merge | close] https://x/903")).toEqual({
+			text: "Decide https://x/903",
+			options: ["merge", "close"],
+		});
 		expect(itemOptions("Tell me the seniority.").options).toEqual([]);
 		expect(
 			itemOptions("Pick a fix [extension | write around it] (you only)"),

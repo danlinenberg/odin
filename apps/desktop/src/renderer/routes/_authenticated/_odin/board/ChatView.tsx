@@ -1301,12 +1301,14 @@ export function isDoneItem(item: string): boolean {
 export function itemOptions(item: string): { text: string; options: string[] } {
 	// An option may hold a link ("after [#826](url) merges"); a button shows its words.
 	// A trailing "(you only)" still counts: you pick, so the choices are buttons.
+	// So does the item's link after them - "Decide #903 [merge | close] <url>" - which stays in the text.
 	const match = item.match(
-		/\s*\[((?:[^[\]]|\[[^\]]*\]\([^)]*\))*\|(?:[^[\]]|\[[^\]]*\]\([^)]*\))*)\](?!\()\s*(?:\(you only\))?\W*$/i,
+		/\s*\[((?:[^[\]]|\[[^\]]*\]\([^)]*\))*\|(?:[^[\]]|\[[^\]]*\]\([^)]*\))*)\](?!\()\s*(?:\(you only\))?(\s*(?:https?:\/\/\S+|\[[^\]]*\]\([^)]*\)))?\W*$/i,
 	);
 	if (match?.index === undefined) return { text: item, options: [] };
+	const link = match[2]?.trim();
 	return {
-		text: item.slice(0, match.index),
+		text: item.slice(0, match.index) + (link ? ` ${link}` : ""),
 		options: (match[1] ?? "")
 			.split("|")
 			.map((option) => option.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1").trim())
