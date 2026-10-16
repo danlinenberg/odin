@@ -2685,6 +2685,42 @@ export async function typeIntoClaude(
 	await write({ paneId, data: now ? "\x18\x13" : "\r" });
 }
 
+/**
+ * Pastes file paths into Claude's input box, then waits until Claude drew
+ * each one: an image as [Image #N] (after it read the file off disk), any
+ * other file as its path. Without text after them, Enter comes next, and a
+ * long session that reads the paste and Enter together keeps the files in
+ * the input box: nothing sends.
+ */
+async function pasteAttachments(
+	write: (input: { paneId: string; data: string }) => Promise<unknown>,
+	paneId: string,
+	paths: string[],
+) {
+	if (paths.length === 0) return;
+	const marks = [
+		...new Set(
+			paths.map((path) =>
+				/\.(png|jpe?g|gif|webp)$/i.test(path) ? "[Image #" : path,
+			),
+		),
+	];
+	const drawn = async () => {
+		let count = 0;
+		for (const mark of marks) count += await drawCount(paneId, mark);
+		return count;
+	};
+	const before = await drawn();
+	// A bracketed paste, not typing: only a pasted path becomes an attachment.
+	for (const path of paths)
+		await write({ paneId, data: `\x1b[200~${path}\x1b[201~ ` });
+	// ponytail: 3s cap, then on anyway - a path Claude collapses never shows.
+	for (let waited = 0; waited < 3000; waited += 50) {
+		if ((await drawn()) >= before + paths.length) break;
+		await new Promise((resolve) => setTimeout(resolve, 50));
+	}
+}
+
 /** How often the text's last characters show on Claude's screen. Wrapping is ignored. */
 async function drawCount(paneId: string, text: string): Promise<number> {
 	const squash = (value: string) => value.replace(/\s+/g, "");
@@ -2872,15 +2908,7 @@ function Composer({
 			return;
 		}
 		try {
-			// A bracketed paste, not typing: only a pasted path becomes an attachment.
-			for (const path of paths)
-				await write.mutateAsync({ paneId, data: `\x1b[200~${path}\x1b[201~ ` });
-			// Claude reads a pasted image path off disk before it shows [Image #N],
-			// and an Enter that lands meanwhile is dropped: nothing sends. ~150ms
-			// was enough for a 6000x4000 JPEG; 500ms leaves room.
-			// ponytail: fixed wait, poll the screen for [Image #N] if it ever misses.
-			if (paths.length > 0)
-				await new Promise((resolve) => setTimeout(resolve, 500));
+			await pasteAttachments(write.mutateAsync, paneId, paths);
 			await typeIntoClaude(write.mutateAsync, paneId, text, now);
 		} catch (error) {
 			setDraft(body);
