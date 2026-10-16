@@ -30,7 +30,7 @@ import { create } from "zustand";
 import { type PromptImage, sessionTitle } from "../components/OdinPromptDialog";
 import { readState, runAction, writeState } from "./crow-state";
 import { endSession, useDone } from "./useDone";
-import { taskPrompt, useMyTasks, useOdinTasks } from "./useOdinTasks";
+import { taskPrompt, useMyTasks } from "./useOdinTasks";
 import { useOdinWorkspace } from "./useOdinWorkspace";
 
 /**
@@ -547,16 +547,7 @@ function runOdinAction(
 		);
 	if (action === "add") {
 		if (!args.text?.trim()) return "Need text.";
-		const before = useOdinTasks.getState().tasks[0];
 		deps.add(args.text);
-		// start=true (the Telegram bot): launch it too, and answer with what it
-		// needs to watch the session. add() prepends, so the new task is first.
-		if (args.start === "true") {
-			const task = useOdinTasks.getState().tasks[0];
-			if (!task || task === before) return "Need text.";
-			void launchTask(task, deps);
-			return JSON.stringify({ id: task.id, title: task.title });
-		}
 		return `Added "${args.text.trim().split("\n")[0]}" to the backlog.`;
 	}
 	if (action === "start") {

@@ -15,7 +15,7 @@ import { cn } from "@odin/ui/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { FaGithub, FaSlack, FaTelegram } from "react-icons/fa";
+import { FaGithub, FaSlack } from "react-icons/fa";
 import { LuCheck, LuCloudUpload, LuTrash2 } from "react-icons/lu";
 import { SiClaude, SiClickup, SiGmail, SiJira, SiNotion } from "react-icons/si";
 import {
@@ -274,10 +274,6 @@ function ConnectionsSettings() {
 				})}
 			</SettingsSection>
 
-			<SettingsSection title="Phone">
-				<TelegramRow />
-			</SettingsSection>
-
 			<SettingsSection title="Links">
 				<OpenLinksInOdinRow />
 			</SettingsSection>
@@ -365,127 +361,6 @@ function ClaudeRow() {
 							? "Sign in"
 							: "Reconnect"}
 				</Button>
-			</div>
-		</div>
-	);
-}
-
-/**
- * Odin's Telegram bot (main/lib/telegram.ts): made with @BotFather, it adds and
- * starts tasks from your phone and writes back when they wait for you.
- */
-function TelegramRow() {
-	const status = electronTrpc.telegram.status.useQuery(undefined, {
-		// Pairing lands on its own when you tap Start in Telegram.
-		refetchInterval: (query) => {
-			const data = query.state.data;
-			return data?.state === "connected" && data.pairLink ? 2_000 : false;
-		},
-	});
-	const [token, setToken] = useState("");
-	const onError = (error: { message: string }) => toast.error(error.message);
-	const connect = electronTrpc.telegram.connect.useMutation({
-		onSuccess: () => {
-			setToken("");
-			void status.refetch();
-		},
-		onError,
-	});
-	const disconnect = electronTrpc.telegram.disconnect.useMutation({
-		onSuccess: () => void status.refetch(),
-		onError,
-	});
-	const openUrl = electronTrpc.external.openUrl.useMutation();
-	const data = status.data;
-	const connected = data?.state === "connected";
-	return (
-		<div data-setting="Telegram" className="px-4 py-3.5">
-			<div className="flex items-start justify-between gap-6">
-				<div className="flex items-start gap-3 min-w-0">
-					<div className="flex size-8 shrink-0 items-center justify-center">
-						<FaTelegram className="size-5" />
-					</div>
-					<div className="min-w-0">
-						<div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
-							<span className="text-sm font-medium">Telegram</span>
-							<StatusDot
-								loading={status.isLoading}
-								configured={connected}
-								identity={connected ? `@${data.bot}` : null}
-								error={data?.state === "error" ? data.error : null}
-							/>
-						</div>
-						<div className="text-xs text-muted-foreground mt-0.5">
-							Add and start tasks from your phone, and hear back when they wait
-							for you.
-						</div>
-						{!connected && (
-							<div className="mt-2 max-w-[70ch] space-y-2">
-								<div className="text-xs text-muted-foreground">
-									In Telegram, open @BotFather, send /newbot, pick any name and
-									username, and paste the token it gives you here. Odin sets the
-									bot's name and icon itself.
-								</div>
-								<form
-									className="flex items-center gap-2"
-									onSubmit={(event) => {
-										event.preventDefault();
-										if (token.trim()) connect.mutate({ token });
-									}}
-								>
-									<Input
-										type="password"
-										placeholder="123456789:AA..."
-										value={token}
-										onChange={(event) => setToken(event.target.value)}
-										className="h-8 text-xs"
-									/>
-									<Button
-										type="submit"
-										variant="outline"
-										size="sm"
-										disabled={!token.trim() || connect.isPending}
-									>
-										{connect.isPending ? "Connecting…" : "Connect"}
-									</Button>
-								</form>
-							</div>
-						)}
-						{connected && data.pairLink && (
-							<div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground max-w-[70ch]">
-								<span>
-									Last step: open the bot in Telegram and tap Start. That makes
-									you the only one it answers.
-								</span>
-								<Button
-									variant="outline"
-									size="sm"
-									onClick={() => openUrl.mutate(data.pairLink as string)}
-								>
-									Open in Telegram
-								</Button>
-							</div>
-						)}
-						{connected && !data.pairLink && (
-							<div className="text-xs text-muted-foreground mt-1 max-w-[70ch]">
-								Message @{data.bot}: any text starts a task, and /help lists the
-								commands. It runs while Odin is open on this Mac.
-							</div>
-						)}
-					</div>
-				</div>
-				{connected && (
-					<div className="flex items-center gap-1 shrink-0">
-						<Button
-							variant="ghost"
-							size="sm"
-							disabled={disconnect.isPending}
-							onClick={() => disconnect.mutate()}
-						>
-							Disconnect
-						</Button>
-					</div>
-				)}
 			</div>
 		</div>
 	);

@@ -138,7 +138,6 @@ The sidebar shows: Connections, Sessions, Storage, Backlog & Night Agent, Notifi
 - **Notion**: a database's rows in the Notion feed. Odin sees only pages shared with it and their subpages; to add a teamspace, on its top page use ••• → Connections → Odin.
 - **Gmail**: unread mail in the Email feed, by app password (needs 2-Step Verification), not OAuth.
 - **ClickUp**: a personal API token (pk_…); sessions can read the ClickUp tasks they get.
-- **Phone → Telegram**: add and start tasks from your phone and hear back when they wait for you. In @BotFather send /newbot, paste the token, then open the bot and tap Start; whoever taps Start is the only person it answers. Any text starts a task, /help lists commands. Works only while Odin is open.
 - **Links → Open links inside Odin**: links from the listed sites open in a panel over the page; each site has a switch; other links go to your default browser. Store: inAppBrowser.
 - **Backup → iCloud Drive**: your board, briefs and scrollback, copied daily, kept 14 days in iCloud Drive → Odin Backups. Off until you click Back up now once. To restore, quit Odin and copy a day's files back into ~/.odin.
 

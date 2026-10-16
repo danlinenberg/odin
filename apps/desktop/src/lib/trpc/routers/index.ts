@@ -29,7 +29,6 @@ import { createSettingsRouter } from "./settings";
 import { createSkillsRouter } from "./skills";
 import { createSlackRouter } from "./slack";
 import { createSystemRouter } from "./system";
-import { createTelegramRouter } from "./telegram";
 import { createTerminalRouter } from "./terminal";
 import { createUiStateRouter } from "./ui-state";
 import { createWindowRouter } from "./window";
@@ -67,7 +66,6 @@ export const createAppRouter = (getWindow: () => BrowserWindow | null) => {
 		menu: createMenuRouter(),
 		external: createExternalRouter(),
 		settings: createSettingsRouter(),
-		telegram: createTelegramRouter(),
 		skills: createSkillsRouter(),
 		system: createSystemRouter(),
 		config: createConfigRouter(),

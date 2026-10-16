@@ -37,7 +37,6 @@ import { runQuitCleanup } from "./lib/quit-sequence";
 import { initSentry } from "./lib/sentry";
 import { acquireSingleUiLock } from "./lib/single-ui-lock";
 import { completeSlackOAuth, isSlackOAuthCallback } from "./lib/slack-oauth";
-import { startTelegram } from "./lib/telegram";
 import {
 	prewarmTerminalRuntime,
 	reconcileDaemonSessions,
@@ -483,7 +482,6 @@ if (!gotTheLock) {
 
 		startWorktreePruner();
 		startDataBackup();
-		startTelegram();
 		startMemoryGuard();
 
 		try {

@@ -247,7 +247,7 @@ app.post("/odin", express.urlencoded({ extended: false }), async (req, res) => {
 
 /**
  * One board action answered by the renderer, which owns that state - for
- * /odin and the Telegram bot. undefined: no window to ask; null: no answer.
+ * /odin. undefined: no window to ask; null: no answer.
  */
 export async function askRenderer(
 	action: string,
