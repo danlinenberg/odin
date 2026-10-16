@@ -301,7 +301,8 @@ export function TaskRow({
 						aria-label={item.source}
 					/>
 				</span>
-				<div className={COL.task}>
+				{/* Two lines tall even with no preview, so rows keep one height. */}
+				<div className={cn(COL.task, "min-h-[37px]")}>
 					<button
 						type="button"
 						title="Show details"
