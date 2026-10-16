@@ -1805,8 +1805,6 @@ interface BoardCardTileProps {
 	shellPane: Pane | undefined;
 	shellAlive: boolean;
 	hasDaemon: boolean;
-	/** False while a session is open: the list beside it is for switching, and a card popping over the session is noise. */
-	peek: boolean;
 }
 
 /**
@@ -1834,10 +1832,9 @@ const BoardCardTile = memo(
 		shellPane,
 		shellAlive,
 		hasDaemon,
-		peek,
 	}: BoardCardTileProps) {
 		return (
-			<HoverCard openDelay={1350} open={peek ? undefined : false}>
+			<HoverCard openDelay={1350}>
 				<HoverCardTrigger asChild>
 					{/* biome-ignore lint/a11y/useSemanticElements: a real <button> can't nest the reply <input>, so the card is a div with button semantics */}
 					<div
@@ -4350,63 +4347,53 @@ function DevBoardPage() {
 	// finished row fades out of the side list before it ends.
 	const [leavingPaneId, setLeavingPaneId] = useState<string | null>(null);
 	// One row of the drawer's session list.
+	// No hover card here: it opened over the session you're reading.
 	const switchRow = (card: BoardCard) => (
-		<HoverCard openDelay={1350}>
-			<HoverCardTrigger asChild>
-				<button
-					type="button"
-					onClick={() => openDrawer(card)}
-					onContextMenu={(event) => {
-						// Right-click → done, remind, star or tag.
-						event.preventDefault();
-						setTagMenu({
-							paneId: card.pane.id,
-							x: event.clientX,
-							y: event.clientY,
-						});
-					}}
-					className={cn(
-						"group/switch flex items-center gap-2 py-1.5 text-left text-xs transition-[translate,opacity] duration-[450ms]",
-						isSwitchListMin ? "justify-center" : "px-3",
-						card.pane.id === leavingPaneId
-							? "pointer-events-none -translate-x-6 bg-success/20 text-success-ink opacity-0"
-							: card.pane.id === drawerCard?.pane.id
-								? "bg-primary/15 font-semibold text-foreground"
-								: "text-muted-foreground hover:bg-accent hover:text-foreground",
-					)}
-				>
-					<span
-						className="size-2 shrink-0 rounded-full"
-						style={{
-							background: PANE_STATUS[card.status].dot,
-						}}
-					/>
-					{!isSwitchListMin && (
-						<span className="flex min-w-0 flex-col">
-							<span className="flex min-w-0 items-center gap-1.5">
-								<span className="truncate">
-									<WatchMark paneId={card.pane.id} />
-									<RemoteMark paneId={card.pane.id} />
-									{cardTitle(card)}
-								</span>
-							</span>
-							{switchStatus(card) && (
-								<span className="truncate text-[10.5px] font-normal text-faint-foreground">
-									{switchStatus(card)}
-								</span>
-							)}
+		<button
+			type="button"
+			onClick={() => openDrawer(card)}
+			onContextMenu={(event) => {
+				// Right-click → done, remind, star or tag.
+				event.preventDefault();
+				setTagMenu({
+					paneId: card.pane.id,
+					x: event.clientX,
+					y: event.clientY,
+				});
+			}}
+			className={cn(
+				"group/switch flex items-center gap-2 py-1.5 text-left text-xs transition-[translate,opacity] duration-[450ms]",
+				isSwitchListMin ? "justify-center" : "px-3",
+				card.pane.id === leavingPaneId
+					? "pointer-events-none -translate-x-6 bg-success/20 text-success-ink opacity-0"
+					: card.pane.id === drawerCard?.pane.id
+						? "bg-primary/15 font-semibold text-foreground"
+						: "text-muted-foreground hover:bg-accent hover:text-foreground",
+			)}
+		>
+			<span
+				className="size-2 shrink-0 rounded-full"
+				style={{
+					background: PANE_STATUS[card.status].dot,
+				}}
+			/>
+			{!isSwitchListMin && (
+				<span className="flex min-w-0 flex-col">
+					<span className="flex min-w-0 items-center gap-1.5">
+						<span className="truncate">
+							<WatchMark paneId={card.pane.id} />
+							<RemoteMark paneId={card.pane.id} />
+							{cardTitle(card)}
+						</span>
+					</span>
+					{switchStatus(card) && (
+						<span className="truncate text-[10.5px] font-normal text-faint-foreground">
+							{switchStatus(card)}
 						</span>
 					)}
-				</button>
-			</HoverCardTrigger>
-			<HoverCardContent
-				side="right"
-				align="start"
-				className="max-h-[70vh] w-[400px] overflow-y-auto border-input bg-secondary p-3 shadow-[0_12px_40px_rgba(0,0,0,0.75)]"
-			>
-				<CardHoverContent card={card} text={cardText(card)} />
-			</HoverCardContent>
-		</HoverCard>
+				</span>
+			)}
+		</button>
 	);
 	const markDoneInDrawer = (card: BoardCard) => {
 		const at = switchCards.findIndex((c) => c.pane.id === card.pane.id);
@@ -4965,7 +4952,6 @@ function DevBoardPage() {
 															shellPaneOf(card)?.id ?? "",
 														)}
 														hasDaemon={!!daemonSessions}
-														peek={!drawerOpen}
 													/>
 												))}
 											</Fragment>
