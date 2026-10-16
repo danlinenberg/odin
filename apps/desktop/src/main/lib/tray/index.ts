@@ -133,7 +133,7 @@ const SECTIONS: { column: PaneStatus; label: string }[] = [
 ];
 
 /** Same rule as the All page: the daemon says who's alive, the pane says where it sits. */
-async function loadSessions(): Promise<ActiveSession[]> {
+export async function loadSessions(): Promise<ActiveSession[]> {
 	try {
 		const { sessions } = await getWorkspaceRuntimeRegistry()
 			.getDefault()

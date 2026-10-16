@@ -21,6 +21,7 @@ import { createMigrationRouter } from "./migration";
 import { createNotificationsRouter } from "./notifications";
 import { createNotionRouter } from "./notion";
 import { createPermissionsRouter } from "./permissions";
+import { createPhoneRouter } from "./phone";
 import { createPortsRouter } from "./ports";
 import { createProjectsRouter } from "./projects";
 import { createReposRouter } from "./repos";
@@ -66,6 +67,7 @@ export const createAppRouter = (getWindow: () => BrowserWindow | null) => {
 		menu: createMenuRouter(),
 		external: createExternalRouter(),
 		settings: createSettingsRouter(),
+		phone: createPhoneRouter(),
 		skills: createSkillsRouter(),
 		system: createSystemRouter(),
 		config: createConfigRouter(),

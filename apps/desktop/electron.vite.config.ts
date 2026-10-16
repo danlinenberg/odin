@@ -297,6 +297,8 @@ export default defineConfig({
 
 				input: {
 					index: resolve("src/renderer/index.html"),
+					// The phone app, served over the LAN by main/lib/phone.
+					mobile: resolve("src/renderer/mobile/index.html"),
 				},
 			},
 		},

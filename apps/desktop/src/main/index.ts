@@ -31,6 +31,7 @@ import {
 	initTanstackDbPersistence,
 	shutdownTanstackDbPersistence,
 } from "./lib/persistence/persistence";
+import { startPhone } from "./lib/phone/server";
 import { ensureProjectIconsDir, getProjectIconPath } from "./lib/project-icons";
 import { startWorktreePruner } from "./lib/prune-worktrees";
 import { runQuitCleanup } from "./lib/quit-sequence";
@@ -483,6 +484,7 @@ if (!gotTheLock) {
 		startWorktreePruner();
 		startDataBackup();
 		startMemoryGuard();
+		startPhone();
 
 		try {
 			setupAgentIntegrations();

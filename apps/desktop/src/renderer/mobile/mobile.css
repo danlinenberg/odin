@@ -1,0 +1,10 @@
+/* globals.css pins html/body to the desktop window (100vh, no scroll, no
+   selection). Unlayered, so it wins over that @layer base rule. */
+html,
+body {
+	width: auto;
+	height: auto;
+	overflow: visible;
+	-webkit-text-size-adjust: 100%;
+	overscroll-behavior-y: none;
+}
