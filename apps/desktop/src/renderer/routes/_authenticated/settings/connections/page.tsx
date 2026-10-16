@@ -384,6 +384,10 @@ function BackupRow() {
 		},
 		onError: (error) => toast.error(error.message),
 	});
+	const disconnect = electronTrpc.backup.disconnect.useMutation({
+		onSuccess: () => void status.refetch(),
+		onError: (error) => toast.error(error.message),
+	});
 	const reveal = electronTrpc.backup.reveal.useMutation();
 	const data = status.data;
 	const identity = !data?.lastBackupAt
@@ -433,6 +437,16 @@ function BackupRow() {
 					{data?.lastBackupAt && (
 						<Button variant="ghost" size="sm" onClick={() => reveal.mutate()}>
 							Show
+						</Button>
+					)}
+					{data?.lastBackupAt && (
+						<Button
+							variant="ghost"
+							size="sm"
+							disabled={disconnect.isPending}
+							onClick={() => disconnect.mutate()}
+						>
+							Disconnect
 						</Button>
 					)}
 				</div>

@@ -139,7 +139,7 @@ The sidebar shows: Connections, Sessions, Storage, Backlog & Night Agent, Notifi
 - **Gmail**: unread mail in the Email feed, by app password (needs 2-Step Verification), not OAuth.
 - **ClickUp**: a personal API token (pk_…); sessions can read the ClickUp tasks they get.
 - **Links → Open links inside Odin**: links from the listed sites open in a panel over the page; each site has a switch; other links go to your default browser. Store: inAppBrowser.
-- **Backup → iCloud Drive**: your board, briefs and scrollback, copied daily, kept 14 days in iCloud Drive → Odin Backups. Off until you click Back up now once. To restore, quit Odin and copy a day's files back into ~/.odin.
+- **Backup → iCloud Drive**: your board, briefs and scrollback, copied daily, kept 14 days in iCloud Drive → Odin Backups. Off until you click Back up now once; Disconnect turns it off again and keeps the saved days. To restore, quit Odin and copy a day's files back into ~/.odin.
 
 ## Sessions settings (Settings → Sessions)
 Besides the launch gate limits:
