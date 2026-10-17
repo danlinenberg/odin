@@ -309,7 +309,7 @@ function NewTask({ onClose }: { onClose: () => void }) {
 				autoFocus
 				value={text}
 				onChange={(event) => setText(event.target.value)}
-				placeholder="What should Claude do? First line is the title."
+				placeholder="What should Odin do? First line is the title."
 				className="min-h-48 flex-1 resize-none rounded-[10px] border border-input bg-secondary p-3 text-base outline-none"
 			/>
 			<UploadChips uploads={uploads} />
@@ -488,7 +488,7 @@ function Session({ paneId }: { paneId: string }) {
 							</div>
 						)}
 						<div className="mt-1 text-right text-[11px] text-muted-foreground">
-							Sent · Claude reads it when it's free
+							Sent · Odin reads it when it's free
 						</div>
 					</div>
 				))}
@@ -566,7 +566,7 @@ function Session({ paneId }: { paneId: string }) {
 				<GrowingTextarea
 					value={text}
 					onChange={(event) => setText(event.target.value)}
-					placeholder="Reply to Claude…"
+					placeholder="Reply to Odin…"
 					className="max-h-[40dvh] min-h-10 flex-1 resize-none overflow-y-auto rounded-[18px] border border-input bg-secondary px-3 py-2 text-base outline-none"
 				/>
 				<MicButton speech={speech} />
