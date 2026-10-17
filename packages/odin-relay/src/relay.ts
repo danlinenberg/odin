@@ -42,7 +42,9 @@ const BUFFER_MAX = 4;
 const ID = /^[A-Za-z0-9_-]{22}$/;
 const SID = /^[0-9a-f]{32}$/;
 
-export function startRelay(options: RelayOptions = {}): Bun.Server<Socket["data"]> {
+export function startRelay(
+	options: RelayOptions = {},
+): Bun.Server<Socket["data"]> {
 	const perIp = options.perIp ?? 32;
 	const bytesPerMinute = options.bytesPerMinute ?? 100 * 1024 * 1024;
 	const hosts = new Map<string, Socket>();
