@@ -1380,6 +1380,7 @@ function TagMenu({
 	starred,
 	onStar,
 	onDone,
+	onPark,
 	onRemind,
 	watching,
 	watchWhat,
@@ -1401,6 +1402,8 @@ function TagMenu({
 	starred: boolean;
 	onStar: () => void;
 	onDone: () => void;
+	/** Set unless it already sits in Idle. */
+	onPark?: () => void;
 	onRemind: (day: string) => void;
 	/** Whether the session's thread or PR pings you; unset when it has neither. */
 	watching?: boolean;
@@ -1478,6 +1481,20 @@ function TagMenu({
 				<span className="w-3 text-success">✓</span>
 				Done
 			</button>
+			{onPark && (
+				<button
+					type="button"
+					title="Park it in Idle - the session stays open, a running turn is stopped"
+					onClick={() => {
+						onPark();
+						onClose();
+					}}
+					className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-foreground"
+				>
+					<LuPause className="size-3" aria-hidden />
+					Move to Idle
+				</button>
+			)}
 			<div className="mb-1.5 border-b border-border pb-1.5">
 				<RemindButton
 					label="Remind me…"
@@ -4421,11 +4438,13 @@ function DevBoardPage() {
 		if (!drawerCard) return markDone(card);
 		toast.success("Done - removed from board", undoAction(endCard(card)));
 	};
-	const tagMenuCard = tagMenu
-		? [...cardsByStatus.values()]
-				.flat()
-				.find((c) => c.pane.id === tagMenu.paneId)
-		: undefined;
+	const liveCard = (paneId: string | undefined) =>
+		paneId
+			? [...cardsByStatus.values()].flat().find((c) => c.pane.id === paneId)
+			: undefined;
+	const tagMenuCard = liveCard(tagMenu?.paneId);
+	// drawerCard is the card as it was opened; its column is the board's now.
+	const drawerLiveCard = liveCard(drawerCard?.pane.id);
 
 	/** Done now; on `day` it pings and waits above the columns to be resumed. */
 	// What "Ping me" watches for the right-clicked session.
@@ -4642,6 +4661,11 @@ function DevBoardPage() {
 					}
 					onStar={() => toggleStar(tagMenu.paneId)}
 					onDone={() => tagMenuCard && doneAnywhere(tagMenuCard)}
+					onPark={
+						tagMenuCard && tagMenuCard.status !== "idle"
+							? () => void parkCard(tagMenuCard)
+							: undefined
+					}
 					onRemind={(day) => tagMenuCard && remindMe(tagMenuCard, day)}
 					watching={
 						tagMenuWatchKeys.length
@@ -5549,6 +5573,22 @@ function DevBoardPage() {
 									✓ Done
 								</button>
 							)}
+							{!inCatchUp &&
+								drawerLiveCard &&
+								drawerLiveCard.status !== "idle" && (
+									<button
+										type="button"
+										onClick={() => void parkCard(drawerLiveCard)}
+										title="Park it in Idle - the session stays open, a running turn is stopped"
+										className={cn(
+											"flex items-center gap-1.5 rounded-[7px] px-3 py-1.5 text-xs font-semibold",
+											BUTTON.secondary,
+										)}
+									>
+										<LuPause className="size-3" aria-hidden />
+										Idle
+									</button>
+								)}
 							<RemindButton
 								onPick={(day) => remindMe(drawerCard, day)}
 								label="Remind me"
@@ -5569,6 +5609,26 @@ function DevBoardPage() {
 									Minimize Session
 								</button>
 							)}
+							<button
+								type="button"
+								aria-label="More session actions"
+								title="Everything the board card's right-click menu has: star, ping me, Remote Control, save as doc, tags"
+								onClick={(event) => {
+									const box = event.currentTarget.getBoundingClientRect();
+									setTagMenu({
+										paneId: drawerCard.pane.id,
+										x: box.right - 220,
+										// TagMenu keeps itself on screen, so it opens above the footer.
+										y: box.top,
+									});
+								}}
+								className={cn(
+									"rounded-[7px] px-2.5 py-1.5 text-xs font-semibold",
+									BUTTON.secondary,
+								)}
+							>
+								⋯
+							</button>
 						</div>
 					</div>
 				</>

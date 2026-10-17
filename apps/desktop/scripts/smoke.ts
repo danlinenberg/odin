@@ -1013,6 +1013,10 @@ await step(
 					`the drawer shows "${await drawerTitle()}", not the new session`,
 				);
 		}
+		// The session screen carries the board card's menu, Move to Idle included.
+		await click("button", "More session actions");
+		await click("[data-session-menu] button", "Park it in Idle");
+		await waitForText("Parked in Idle");
 		await page(
 			`(document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`,
 		);
