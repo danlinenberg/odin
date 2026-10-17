@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { LuMic, LuPaperclip, LuSquare, LuX } from "react-icons/lu";
 import type { Pairing } from "./pair-link";
 import { speechAvailable, type useSpeech } from "./speech";
 
@@ -110,7 +111,7 @@ export function UploadChips({
 						onClick={() => uploads.remove(file.id)}
 						className="absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full bg-background/80 text-[11px]"
 					>
-						✕
+						<LuX className="size-3" />
 					</button>
 				</div>
 			))}
@@ -133,7 +134,7 @@ export function AttachButton({
 				onClick={() => input.current?.click()}
 				className="flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-secondary text-lg"
 			>
-				📎
+				<LuPaperclip className="size-5" />
 			</button>
 			<input
 				ref={input}
@@ -167,7 +168,11 @@ export function MicButton({
 					: "border-border bg-secondary"
 			}`}
 		>
-			{speech.listening ? "■" : "🎤"}
+			{speech.listening ? (
+				<LuSquare className="size-4 fill-current" />
+			) : (
+				<LuMic className="size-5" />
+			)}
 		</button>
 	);
 }

@@ -4,6 +4,14 @@ import { createTRPCReact } from "@trpc/react-query";
 import type { PhoneRouter } from "main/lib/phone/router";
 import { useEffect, useRef, useState } from "react";
 import ReactDom from "react-dom/client";
+import {
+	LuArrowDown,
+	LuCheck,
+	LuChevronLeft,
+	LuCornerDownLeft,
+	LuPaperclip,
+	LuPlus,
+} from "react-icons/lu";
 import type { PaneStatus } from "shared/tabs-types";
 import superjson from "superjson";
 import {
@@ -246,10 +254,10 @@ function Home() {
 				type="button"
 				aria-label="New task"
 				onClick={() => setAdding(true)}
-				className="fixed right-5 size-14 rounded-full bg-primary text-3xl text-primary-foreground shadow-lg"
+				className="fixed right-5 flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg"
 				style={{ bottom: "calc(env(safe-area-inset-bottom) + 20px)" }}
 			>
-				+
+				<LuPlus className="size-7" />
 			</button>
 			{adding && (
 				<NewTask
@@ -309,7 +317,7 @@ function NewTask({ onClose }: { onClose: () => void }) {
 }
 
 /** A reply sent from here that Claude hasn't put in its transcript yet. */
-type Sent = { text: string; at: number };
+type Sent = { text: string; files: number; at: number };
 
 /**
  * Claude writes a message to its transcript when it reads it, so a reply sent
@@ -331,7 +339,7 @@ function stillWaiting(
 		.map((message) => squash(message.text));
 	// ponytail: a files-only reply can't be matched on text; it goes after 2 min.
 	return sent.filter((item) =>
-		item.text.startsWith("📎")
+		!item.text
 			? Date.now() - item.at < 120_000
 			: !said.some((text) => text.includes(squash(item.text).slice(0, 60))),
 	);
@@ -380,26 +388,32 @@ function Session({ paneId }: { paneId: string }) {
 		<div className="relative flex h-dvh flex-col">
 			<header className="border-b border-border bg-card px-3.5 pt-[calc(env(safe-area-inset-top)+10px)] pb-2">
 				<div className="flex items-center justify-between">
-					<a href="#/" className="-ml-1 px-1 py-1.5 text-[15px] text-primary">
-						‹ Odin
+					<a
+						href="#/"
+						className="-ml-1.5 flex items-center px-1 py-1.5 text-[15px] text-primary"
+					>
+						<LuChevronLeft className="size-5" />
+						Odin
 					</a>
 					<button
 						type="button"
 						disabled={done.isPending}
 						onClick={() => done.mutate({ paneId })}
-						className="-mr-1 px-1 py-1.5 text-[15px] text-muted-foreground"
+						className="-mr-1 flex items-center gap-1 px-1 py-1.5 text-[15px] text-muted-foreground"
 					>
-						✓ Done
+						<LuCheck className="size-4" />
+						Done
 					</button>
 				</div>
 				<div className="mt-1 truncate text-[17px] font-semibold">
 					{data?.title ?? "…"}
 				</div>
 				<div
-					className="text-[11px] font-semibold uppercase"
+					className="flex items-center gap-1.5 text-[11px] font-semibold uppercase"
 					style={{ color: STATUS[status].color }}
 				>
-					● {STATUS[status].label}
+					<Dot status={status} />
+					{STATUS[status].label}
 				</div>
 			</header>
 			<main
@@ -443,6 +457,12 @@ function Session({ paneId }: { paneId: string }) {
 						className="my-2 ml-10 select-text whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-accent/60 px-3 py-2 text-[15px] leading-snug"
 					>
 						{item.text}
+						{item.files > 0 && (
+							<div className="flex items-center gap-1 text-sm text-soft-foreground">
+								<LuPaperclip className="size-3.5" />
+								{item.files} file{item.files === 1 ? "" : "s"}
+							</div>
+						)}
 						<div className="mt-1 text-right text-[11px] text-muted-foreground">
 							Sent · Claude reads it when it's free
 						</div>
@@ -463,7 +483,7 @@ function Session({ paneId }: { paneId: string }) {
 					className="absolute right-4 z-10 flex size-10 items-center justify-center rounded-full border border-border bg-card text-lg shadow-lg"
 					style={{ bottom: "calc(env(safe-area-inset-bottom) + 76px)" }}
 				>
-					↓
+					<LuArrowDown className="size-5" />
 				</button>
 			)}
 			{status === "permission" && (
@@ -480,7 +500,13 @@ function Session({ paneId }: { paneId: string }) {
 									: "h-9 min-w-11 rounded-full border border-border bg-secondary px-3 text-sm font-semibold"
 							}
 						>
-							{{ enter: "⏎", esc: "Esc" }[k as "enter" | "esc"] ?? k}
+							{k === "enter" ? (
+								<LuCornerDownLeft className="mx-auto size-4" />
+							) : k === "esc" ? (
+								"Esc"
+							) : (
+								k
+							)}
 						</button>
 					))}
 				</div>
@@ -498,9 +524,8 @@ function Session({ paneId }: { paneId: string }) {
 						{
 							onSuccess: () => {
 								const item = {
-									text:
-										text.trim() ||
-										`📎 ${uploads.paths.length} file${uploads.paths.length === 1 ? "" : "s"}`,
+									text: text.trim(),
+									files: uploads.paths.length,
 									at: Date.now(),
 								};
 								setSent((all) => [...all, item]);
