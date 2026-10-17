@@ -16,6 +16,12 @@ export type RelayOptions = {
 	tls?: { cert: string; key: string };
 	/** Concurrent sockets from one IP address. */
 	perIp?: number;
+	/**
+	 * Behind a TLS proxy (Caddy, a load balancer) every socket comes from the
+	 * proxy: take the client's address from the last X-Forwarded-For entry,
+	 * the one the proxy itself added. Only set it when a proxy is in front.
+	 */
+	trustProxy?: boolean;
 	/** Bytes a session may forward in a minute, each way together. */
 	bytesPerMinute?: number;
 	/** Tests watch every forwarded message here - what any relay could log. */
@@ -93,7 +99,10 @@ export function startRelay(
 					: role === "accept" && SID.test(key)) &&
 				req.headers.get("upgrade")?.toLowerCase() === "websocket";
 			if (!valid) return new Response("Not found", { status: 404 });
-			const ip = server.requestIP(req)?.address ?? "?";
+			const forwarded = options.trustProxy
+				? req.headers.get("x-forwarded-for")?.split(",").at(-1)?.trim()
+				: undefined;
+			const ip = forwarded || server.requestIP(req)?.address || "?";
 			if ((perIpCount.get(ip) ?? 0) >= perIp)
 				return new Response("Too many connections", { status: 429 });
 			const upgraded = server.upgrade(req, {

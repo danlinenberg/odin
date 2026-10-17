@@ -116,6 +116,28 @@ test("one address can't hold more than its share of connections", async () => {
 	for (const s of sockets) if (s.status === "fulfilled") s.value.close();
 });
 
+test("behind a proxy, the limit counts each client, not the proxy", async () => {
+	const proxied = startRelay({
+		port: 0,
+		hostname: "127.0.0.1",
+		perIp: 1,
+		trustProxy: true,
+	});
+	const open = (client: string) =>
+		new Promise<boolean>((resolve) => {
+			const socket = new WebSocket(
+				`ws://127.0.0.1:${proxied.port}/host/${relayId(generateKeyPair().publicKey)}`,
+				{ headers: { "x-forwarded-for": `9.9.9.9, ${client}` } },
+			);
+			socket.addEventListener("open", () => resolve(true));
+			socket.addEventListener("error", () => resolve(false));
+		});
+	expect(await open("1.1.1.1")).toBe(true);
+	expect(await open("2.2.2.2")).toBe(true);
+	expect(await open("1.1.1.1")).toBe(false);
+	void proxied.stop(true);
+});
+
 test("anything but the three routes is a 404", async () => {
 	const response = await fetch(
 		`http://127.0.0.1:${relay.port}/connect/not-an-id`,

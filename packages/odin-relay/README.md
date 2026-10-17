@@ -22,7 +22,7 @@ WebSockets to port 8443:
 
 ```sh
 docker build -f packages/odin-relay/Dockerfile -t odin-relay .
-docker run -d --restart=always -p 127.0.0.1:8443:8443 odin-relay
+docker run -d --restart=always -p 127.0.0.1:8443:8443 -e TRUST_PROXY=1 odin-relay
 ```
 
 Or let the relay serve TLS itself with your certificate:
@@ -35,7 +35,8 @@ docker run -d --restart=always -p 443:8443 \
 ```
 
 Then give Odin the relay's address, `wss://relay.example.com`, in
-Settings > Phone.
+Settings > Phone > Relay. Without one, Odin uses the default relay
+(`DEFAULT_RELAY` in `apps/desktop/src/main/lib/phone/server.ts`).
 
 ## Limits
 

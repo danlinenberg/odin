@@ -103,7 +103,7 @@ cannot pretend to be your Odin or your phone.
    `odin://pair?k=<host public key>&c=<pairing code>&r=<relay URL>&l=<LAN URL>`
    - `k`: the host's public key, base64url, 32 bytes.
    - `c`: a one-time pairing code, 128 random bits, valid for 10 minutes.
-   - `r`: the relay, `wss://…`, when one is set.
+   - `r`: the relay, `wss://…`: yours, or Odin's default.
    - `l`: the address on the local network, `ws://…`.
 3. The phone makes its own X25519 key pair on first launch.
 4. The first connection carries the pairing code inside the encrypted
@@ -195,14 +195,17 @@ prove ownership of its ID.
 
 ### Which relay
 
-There is no default relay. You run your own - one `docker run` on any server,
-an EC2 included - and give Odin its address in Settings > Phone. The relay's
-server needs a public HTTPS address (an inbound 443 port and a TLS name), so
-a private, SSM-only server with no inbound access cannot be the relay; it can
-still reach one, since a host dials the relay outbound on 443. Run the relay
-on a separate small public host or container. A public relay
-may come later; until then, nobody's traffic goes through a server they didn't
-choose. Even then, a relay cannot read it.
+Odin uses its own relay by default (`relayDefaults` in
+`apps/desktop/src/main/lib/phone/server.ts`), so the phone works away from
+the Wi-Fi with nothing to set up. It is the same program as
+`packages/odin-relay`, so it sees only what any relay sees: IP addresses,
+times, sizes and relay IDs, never content.
+
+To use your own, run it - one `docker run` on any server, an EC2 included -
+and give Odin its address in Settings > Phone. The relay's server needs a
+public HTTPS address (an inbound 443 port and a TLS name), so a private,
+SSM-only server with no inbound access cannot be the relay; it can still
+reach one, since a host dials the relay outbound on 443.
 
 ## Storage of keys
 

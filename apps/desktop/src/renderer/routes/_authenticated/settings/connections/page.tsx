@@ -16,7 +16,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { FaGithub, FaSlack } from "react-icons/fa";
-import { LuCheck, LuCloudUpload, LuTrash2 } from "react-icons/lu";
+import { LuCheck, LuCloudUpload, LuLock, LuTrash2 } from "react-icons/lu";
 import { SiClaude, SiClickup, SiGmail, SiJira, SiNotion } from "react-icons/si";
 import {
 	ConnectProvider,
@@ -809,7 +809,7 @@ function PhoneRow() {
 			<SettingRow
 				label="Phone access"
 				htmlFor="phone-access"
-				description="Open the board and answer sessions from the Odin iPhone app. End to end encrypted: on this Wi-Fi, or from anywhere through a relay you run."
+				description="Open the board and answer sessions from the Odin iPhone app, on this Wi-Fi or from anywhere."
 			>
 				<Switch
 					id="phone-access"
@@ -823,6 +823,14 @@ function PhoneRow() {
 					{data.error}
 				</div>
 			)}
+			<div className="flex items-start gap-2 px-4 pb-3 text-xs text-muted-foreground">
+				<LuLock className="mt-0.5 size-3.5 shrink-0" />
+				<span>
+					End to end encrypted. Only this Mac and your paired phones can read
+					what passes between them. The relay in between, Odin's included, sees
+					encrypted bytes and nothing else.
+				</span>
+			</div>
 			{data?.state === "on" && (
 				<div className="flex items-start gap-4 px-4 pb-4">
 					<img
@@ -843,14 +851,12 @@ function PhoneRow() {
 				</div>
 			)}
 			<SettingRow
-				label="Relay"
+				label="Your own relay (optional)"
 				htmlFor="phone-relay"
 				description={
-					data?.state === "on" && data.relay
-						? data.relayState === "connected"
-							? "Connected. The relay forwards encrypted bytes only."
-							: "Connecting to the relay..."
-						: "Reach Odin away from this Wi-Fi: the wss:// address of a relay you run (packages/odin-relay). It can't read what it forwards."
+					data?.state === "on" && data.relayInUse
+						? `${data.relayState === "connected" ? "Connected to" : "Connecting to"} ${data.relay ? "your relay" : "Odin's relay"}. Leave empty to use Odin's; set one only to run your own (packages/odin-relay).`
+						: "Leave empty to use Odin's relay. Set one only to run your own (packages/odin-relay)."
 				}
 			>
 				<form
@@ -864,7 +870,7 @@ function PhoneRow() {
 						id="phone-relay"
 						value={relay ?? savedRelay}
 						onChange={(event) => setRelayInput(event.target.value)}
-						placeholder="wss://relay.example.com"
+						placeholder="Odin's relay"
 						className="w-64"
 					/>
 					<Button

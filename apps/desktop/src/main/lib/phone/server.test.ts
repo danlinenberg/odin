@@ -21,10 +21,13 @@ mock.module("./router", () => ({
 const {
 	phoneConfig,
 	phoneStatus,
+	relayDefaults,
 	removePhone,
 	setPhoneEnabled,
 	setPhoneRelay,
 } = await import("./server");
+// No dialing the public relay from a test.
+relayDefaults.url = "";
 const { attachments } = await import("./attachments");
 const { trustFiles } = await import("./trust");
 // Not ~/.odin, and not by mocking app-environment: a module mock leaks into

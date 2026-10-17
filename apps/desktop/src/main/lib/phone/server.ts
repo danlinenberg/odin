@@ -44,7 +44,16 @@ import {
 export const phoneConfig = { file: join(ODIN_HOME_DIR, "phone.json") };
 const PREFERRED_PORT = 4747;
 
+/** `relay` is the user's own relay; without one, Odin's default. */
 type Config = { enabled: boolean; relay?: string };
+
+/**
+ * The relay phones use away from the Wi-Fi when the user set none. It only
+ * forwards encrypted bytes (packages/odin-relay). A test clears it.
+ */
+export const relayDefaults = { url: "wss://3-76-62-130.sslip.io" };
+
+const relayInUse = (config: Config) => config.relay || relayDefaults.url;
 
 export type RelayState = "connecting" | "connected";
 
@@ -58,7 +67,10 @@ export type PhoneStatus =
 			qr: string;
 			/** The channel's address on this Wi-Fi. */
 			lan: string;
+			/** The user's own relay, when set. */
 			relay?: string;
+			/** The relay in the QR code: the user's, or the default. */
+			relayInUse?: string;
 			relayState?: RelayState;
 			devices: Device[];
 	  };
@@ -283,7 +295,9 @@ async function start(config: Config): Promise<void> {
 		lan,
 		loopback,
 		lanUrl: `ws://${localName()}:${portOf(lan)}/channel`,
-		stopRelay: config.relay ? dialRelay(config.relay, handle) : () => {},
+		stopRelay: relayInUse(config)
+			? dialRelay(relayInUse(config), handle)
+			: () => {},
 	};
 }
 
@@ -303,7 +317,9 @@ async function stop(): Promise<void> {
 }
 
 export async function phoneStatus(): Promise<PhoneStatus> {
-	const { relay } = readConfig();
+	const config = readConfig();
+	const { relay } = config;
+	const inUse = relayInUse(config);
 	const list = devices();
 	if (failure) return { state: "error", error: failure, relay, devices: list };
 	if (!running) return { state: "off", relay, devices: list };
@@ -312,7 +328,7 @@ export async function phoneStatus(): Promise<PhoneStatus> {
 		c: pairingCode(),
 		l: running.lanUrl,
 	});
-	if (relay) params.set("r", relay);
+	if (inUse) params.set("r", inUse);
 	const link = `odin://pair?${params}`;
 	return {
 		state: "on",
@@ -320,7 +336,8 @@ export async function phoneStatus(): Promise<PhoneStatus> {
 		qr: await QRCode.toDataURL(link, { margin: 1, width: 220 }),
 		lan: running.lanUrl,
 		relay,
-		relayState: relay ? relayState : undefined,
+		relayInUse: inUse || undefined,
+		relayState: inUse ? relayState : undefined,
 		devices: list,
 	};
 }
@@ -339,7 +356,7 @@ async function restart(config: Config): Promise<PhoneStatus> {
 export const setPhoneEnabled = (enabled: boolean) =>
 	restart({ ...readConfig(), enabled });
 
-/** The relay's address, or "" for none. Throws on one that isn't wss://. */
+/** The user's own relay, or "" for Odin's default. Throws on one that isn't wss://. */
 export async function setPhoneRelay(input: string): Promise<PhoneStatus> {
 	const relay = input.trim() ? relayUrl(input) : undefined;
 	if (relay === null)
