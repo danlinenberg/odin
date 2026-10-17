@@ -777,28 +777,39 @@ function OpenLinksInOdinRow() {
 }
 
 /**
- * Odin on your iPhone (main/lib/phone): a LAN server for the mobile app. The
- * QR code carries the token, so scanning it is the whole pairing.
+ * Odin on your iPhone (main/lib/phone, docs/phone-encryption.md): an end to
+ * end encrypted channel, on this Wi-Fi or through a relay. The QR code
+ * carries Odin's public key and a one-time code: scanning it is the pairing.
  */
 function PhoneRow() {
-	const status = electronTrpc.phone.status.useQuery();
+	// Polled: a phone that pairs appears, and the spent code is replaced.
+	const status = electronTrpc.phone.status.useQuery(undefined, {
+		refetchInterval: 5_000,
+	});
 	const onError = (error: { message: string }) => toast.error(error.message);
 	const onSuccess = () => void status.refetch();
 	const setEnabled = electronTrpc.phone.setEnabled.useMutation({
 		onSuccess,
 		onError,
 	});
-	const resetToken = electronTrpc.phone.resetToken.useMutation({
+	const setRelay = electronTrpc.phone.setRelay.useMutation({
 		onSuccess,
 		onError,
 	});
+	const remove = electronTrpc.phone.remove.useMutation({ onSuccess, onError });
+	const unpairAll = electronTrpc.phone.unpairAll.useMutation({
+		onSuccess,
+		onError,
+	});
+	const [relay, setRelayInput] = useState<string | null>(null);
 	const data = status.data;
+	const savedRelay = data?.relay ?? "";
 	return (
 		<>
 			<SettingRow
 				label="Phone access"
 				htmlFor="phone-access"
-				description="Open the board and answer sessions from the Odin iPhone app on this Wi-Fi. Use on trusted networks only: the connection isn't encrypted."
+				description="Open the board and answer sessions from the Odin iPhone app. End to end encrypted: on this Wi-Fi, or from anywhere through a relay you run."
 			>
 				<Switch
 					id="phone-access"
@@ -822,21 +833,79 @@ function PhoneRow() {
 					<div className="min-w-0 space-y-2 text-xs text-muted-foreground">
 						<div>
 							Scan with the iPhone camera: it opens the Odin app and pairs it.
-							Or paste this link into the app. The phone must be on the same
-							Wi-Fi as this Mac.
+							Or paste this link into the app. The code in it works once, for 10
+							minutes.
 						</div>
 						<div className="break-all font-mono select-text cursor-text">
-							{data.url}
+							{data.link}
 						</div>
-						<Button
-							variant="outline"
-							size="sm"
-							disabled={resetToken.isPending}
-							onClick={() => resetToken.mutate()}
-						>
-							New link (unpairs every phone)
-						</Button>
 					</div>
+				</div>
+			)}
+			<SettingRow
+				label="Relay"
+				htmlFor="phone-relay"
+				description={
+					data?.state === "on" && data.relay
+						? data.relayState === "connected"
+							? "Connected. The relay forwards encrypted bytes only."
+							: "Connecting to the relay..."
+						: "Reach Odin away from this Wi-Fi: the wss:// address of a relay you run (packages/odin-relay). It can't read what it forwards."
+				}
+			>
+				<form
+					className="flex gap-2"
+					onSubmit={(event) => {
+						event.preventDefault();
+						setRelay.mutate({ relay: relay ?? savedRelay });
+					}}
+				>
+					<Input
+						id="phone-relay"
+						value={relay ?? savedRelay}
+						onChange={(event) => setRelayInput(event.target.value)}
+						placeholder="wss://relay.example.com"
+						className="w-64"
+					/>
+					<Button
+						type="submit"
+						variant="outline"
+						size="sm"
+						disabled={
+							setRelay.isPending || relay === null || relay === savedRelay
+						}
+					>
+						Save
+					</Button>
+				</form>
+			</SettingRow>
+			{data?.devices.map((device) => (
+				<SettingRow
+					key={device.key}
+					label={device.name}
+					description={`Paired ${new Date(device.added).toLocaleDateString()}`}
+				>
+					<Button
+						variant="ghost"
+						size="sm"
+						disabled={remove.isPending}
+						onClick={() => remove.mutate({ key: device.key })}
+					>
+						<LuTrash2 className="size-4" />
+						Remove
+					</Button>
+				</SettingRow>
+			))}
+			{!!data?.devices.length && (
+				<div className="px-4 pb-4">
+					<Button
+						variant="outline"
+						size="sm"
+						disabled={unpairAll.isPending}
+						onClick={() => unpairAll.mutate()}
+					>
+						Unpair all phones
+					</Button>
 				</div>
 			)}
 		</>

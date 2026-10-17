@@ -6,7 +6,7 @@ import {
 	LuSquare,
 	LuX,
 } from "react-icons/lu";
-import type { Pairing } from "./pair-link";
+import type { OdinFetch } from "./odin-fetch";
 import { speechAvailable, type useSpeech } from "./speech";
 
 /**
@@ -33,21 +33,19 @@ const extensionOf = (file: File) =>
 		"bin"
 	).toLowerCase();
 
-export function useUploads(pairing: Pairing | null) {
+/** `send` is the app's fetch to Odin (main.tsx). */
+export function useUploads(send: OdinFetch) {
 	const [files, setFiles] = useState<Upload[]>([]);
 	const update = (id: number, patch: Partial<Upload>) =>
 		setFiles((all) => all.map((f) => (f.id === id ? { ...f, ...patch } : f)));
 
 	async function upload(file: File, id: number) {
 		try {
-			const reply = await fetch(
-				`${pairing?.base ?? ""}/upload?ext=${extensionOf(file)}`,
-				{
-					method: "POST",
-					headers: { authorization: `Bearer ${pairing?.token ?? ""}` },
-					body: file,
-				},
-			);
+			const reply = await send(`/upload?ext=${extensionOf(file)}`, {
+				method: "POST",
+				headers: { "content-type": file.type || "application/octet-stream" },
+				body: file,
+			});
 			if (!reply.ok) throw new Error(`Upload failed (${reply.status})`);
 			const { path } = (await reply.json()) as { path: string };
 			update(id, { path });

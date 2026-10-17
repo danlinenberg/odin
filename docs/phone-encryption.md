@@ -1,9 +1,11 @@
 # The phone and Odin: end-to-end encrypted, through a blind relay
 
-> **Status: design, not built yet.** Today the iPhone app talks to Odin on the
-> same Wi-Fi over plain HTTP with a shared token. This document is the design
-> that replaces it. It is here so it can be read and checked before the code
-> lands, and so the code can be checked against it after.
+> **Status: built.** The channel is `packages/odin-channel`, the relay
+> `packages/odin-relay`, Odin's side `apps/desktop/src/main/lib/phone`
+> (`server.ts`, `trust.ts`), and the app's side
+> `apps/desktop/src/renderer/mobile/odin-fetch.ts` with
+> `apps/mobile/ios/App/App/OdinKeychain.swift`. Check the code against this
+> document.
 
 The Odin iPhone app reaches an Odin host - the desktop app on a Mac today, an
 Odin server on your own EC2 later - from anywhere, through a relay that anyone

@@ -32,6 +32,7 @@ import {
 } from "./attach";
 import { BriefCard } from "./brief-card";
 import { boardSections, DoneShelf, Dot, SessionCard, STATUS } from "./cards";
+import { channelFetch, type OdinFetch } from "./odin-fetch";
 import { type Pairing, parsePairLink } from "./pair-link";
 import { useSpeech } from "./speech";
 import { Transcript } from "./transcript";
@@ -41,7 +42,8 @@ import "./mobile.css";
 /**
  * The iPhone app's screens (apps/mobile; the Mac side is main/lib/phone): the
  * board as one list, and a session as a chat. Bundled into the app, so it
- * needs the Mac's address: Settings' QR code, odin://pair?u=<link>, saves it.
+ * needs Odin's key and addresses: Settings' QR code, odin://pair?k=..., saves
+ * them, and every call goes through the encrypted channel (odin-fetch.ts).
  */
 
 /** The Capacitor bridge, when this runs inside the iOS app. */
@@ -57,36 +59,37 @@ const native = (window as { Capacitor?: { Plugins?: { App?: AppPlugin } } })
 
 const PAIRING_KEY = "odin-phone-pairing";
 
-function savedPairing(): Pairing | null {
-	// The token in the page's URL: a browser on `bun run dev`, or the app in
-	// live mode (apps/mobile/scripts/sim.sh --live). Talk to that origin.
-	const token = new URLSearchParams(location.search).get("t");
-	if (token) return { base: location.origin, token };
-	if (!native) return null;
-	try {
-		return JSON.parse(localStorage.getItem(PAIRING_KEY) ?? "null");
-	} catch {
-		return null;
-	}
-}
+/**
+ * Dev only: a token in the page's URL (`bun run dev`, or sim.sh --live) talks
+ * plain HTTP to `bun run fake-odin` through the dev server.
+ */
+const devToken = new URLSearchParams(location.search).get("t");
+
+/** The saved link, read again: a pairing from an older app is no pairing. */
+const savedPairing = (): Pairing | null =>
+	parsePairLink(localStorage.getItem(PAIRING_KEY) ?? "");
 
 function pairWith(link: string): boolean {
 	const pairing = parsePairLink(link);
 	if (!pairing) return false;
-	localStorage.setItem(PAIRING_KEY, JSON.stringify(pairing));
+	localStorage.setItem(PAIRING_KEY, pairing.link);
 	location.reload();
 	return true;
 }
 
-const pairing = savedPairing();
+const pairing = devToken ? null : savedPairing();
+/** Odin's API: through the channel, or to fake-odin in dev. */
+const odinFetch: OdinFetch = pairing
+	? channelFetch(pairing)
+	: (input, init) =>
+			fetch(input, {
+				...init,
+				headers: { ...init?.headers, authorization: `Bearer ${devToken}` },
+			});
 const phone = createTRPCReact<PhoneRouter>();
 const client = phone.createClient({
 	links: [
-		httpBatchLink({
-			url: `${pairing?.base ?? ""}/trpc`,
-			transformer: superjson,
-			headers: { authorization: `Bearer ${pairing?.token ?? ""}` },
-		}),
+		httpBatchLink({ url: "/trpc", transformer: superjson, fetch: odinFetch }),
 	],
 });
 const queryClient = new QueryClient({
@@ -115,7 +118,7 @@ if (native?.Plugins?.App) {
 		const link = launch?.url;
 		const next = link && parsePairLink(link);
 		// Opened by a pair link: save it unless it's the one already saved.
-		if (next && next.token !== pairing?.token) pairWith(link);
+		if (next && next.link !== pairing?.link) pairWith(link);
 	});
 }
 
@@ -327,7 +330,7 @@ function NewTask({ onClose }: { onClose: () => void }) {
 	const add = phone.add.useMutation({ onSuccess: onClose });
 	// An older Odin on the Mac has no repo list: the picker just doesn't show.
 	const repos = phone.repos.useQuery(undefined, { retry: false });
-	const uploads = useUploads(pairing);
+	const uploads = useUploads(odinFetch);
 	const speech = useSpeech((words) =>
 		setText((typed) => appendWords(typed, words)),
 	);
@@ -537,7 +540,7 @@ function Session({ paneId }: { paneId: string }) {
 		},
 	});
 	const [text, setText] = useState("");
-	const uploads = useUploads(pairing);
+	const uploads = useUploads(odinFetch);
 	const speech = useSpeech((words) =>
 		setText((typed) => appendWords(typed, words)),
 	);
@@ -759,8 +762,8 @@ function Pair() {
 			<h1 className="text-2xl font-bold">Pair with Odin</h1>
 			<p className="text-sm text-muted-foreground">
 				On your Mac, open Odin, Settings, Connections, Phone, and turn on Phone
-				access. Scan the "iPhone app" QR code with the Camera, or paste the link
-				shown under it.
+				access. Scan the QR code with the Camera, or paste the link shown next
+				to it.
 			</p>
 			<form
 				className="flex gap-2"
@@ -772,7 +775,7 @@ function Pair() {
 				<input
 					value={link}
 					onChange={(event) => setLink(event.target.value)}
-					placeholder="http://your-mac.local:4747/?t=…"
+					placeholder="odin://pair?k=…"
 					autoCapitalize="off"
 					autoCorrect="off"
 					className="min-w-0 flex-1 rounded-[10px] border border-input bg-secondary px-3 py-2 text-base outline-none"
@@ -795,7 +798,7 @@ function Pair() {
 
 function App() {
 	const paneId = usePaneFromHash();
-	if (!pairing)
+	if (!pairing && !devToken)
 		return native ? (
 			<Pair />
 		) : (
