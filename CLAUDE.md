@@ -66,6 +66,10 @@ No em dashes anywhere: code, comments, UI strings, docs, commit messages, PR
 descriptions. Use a plain hyphen `-`. `scripts/lint.sh` (CI's lint step) fails
 on one.
 
+No ponytail comments (the "ponytail" prefix on a note about a shortcut) in
+anything committed. Say what the code does in a plain comment, or leave it out.
+`scripts/lint.sh` fails on one.
+
 ## Committing
 
 - Cut branches from `origin/main`, never from the branch the repo happens to be
