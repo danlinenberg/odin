@@ -78,7 +78,7 @@ import { useSessionView } from "renderer/stores/session-view";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import type { Pane, PaneStatus } from "renderer/stores/tabs/types";
 import { lastAgentHookAt } from "renderer/stores/tabs/useAgentHookListener";
-import { boardColumn } from "shared/board-column";
+import { boardColumn, withWaiting } from "shared/board-column";
 import {
 	type BoardSection,
 	bySection,
@@ -191,6 +191,8 @@ const SECTION_ICON: Record<BoardSection, IconType> = {
 	recent: LuCircleCheck,
 	// Not a source - a task that exists but hasn't started.
 	queued: LuHourglass,
+	// Not a source - "Ping me" is on and nobody has answered yet.
+	waiting: LuBellRing,
 	// Not a source - a session you put down on purpose.
 	parked: LuPause,
 	slack: SiSlack,
@@ -1490,7 +1492,7 @@ function TagMenu({
 				{watching !== undefined && (
 					<button
 						type="button"
-						title="A notification whenever someone else replies in this session's Slack thread or Jira ticket, or its PR gets approved"
+						title="A notification whenever someone else replies in this session's Slack thread or Jira ticket, or its PR gets approved. Until then the card waits in Idle under Waiting on others"
 						onClick={() => {
 							onWatch();
 							onClose();
@@ -2579,6 +2581,28 @@ function DevBoardPage() {
 	 * needs is merging approved PRs or a look at what shipped, or its PRs were
 	 * closed - then Done.
 	 */
+	// "Ping me" sessions, as "<paneId>\t<1 if a reply is unread>" lines - a
+	// string, so the cards below only regroup when one actually changes.
+	const watchKey = useReplyWatch((s) =>
+		[
+			...new Set(
+				Object.values(s.watches).flatMap((w) =>
+					w.paneId ? [`${w.paneId}\t${w.reply ? 1 : 0}`] : [],
+				),
+			),
+		]
+			.sort()
+			.join("\n"),
+	);
+	const watchByPane = useMemo(() => {
+		const byPane = new Map<string, "waiting" | "replied">();
+		for (const line of watchKey ? watchKey.split("\n") : []) {
+			const [paneId = "", unread] = line.split("\t");
+			if (unread === "1" || !byPane.has(paneId))
+				byPane.set(paneId, unread === "1" ? "replied" : "waiting");
+		}
+		return byPane;
+	}, [watchKey]);
 	const withMergeReady = useCallback(
 		(column: PaneStatus, paneId: string): PaneStatus =>
 			(column === "permission" || column === "review") &&
@@ -3273,16 +3297,20 @@ function DevBoardPage() {
 					completed.push(card);
 					continue;
 				}
-				const column = withMergeReady(
-					boardColumn(
-						status,
-						// `undefined` = the poll hasn't answered yet, which is not "dead".
-						daemonSessions === undefined ? undefined : alive,
-						pane.odinParked ?? false,
-						loopingPaneIds.has(pane.id),
-						pane.odinClosedIn,
+				const column = withWaiting(
+					withMergeReady(
+						boardColumn(
+							status,
+							// `undefined` = the poll hasn't answered yet, which is not "dead".
+							daemonSessions === undefined ? undefined : alive,
+							pane.odinParked ?? false,
+							loopingPaneIds.has(pane.id),
+							pane.odinClosedIn,
+						),
+						pane.id,
 					),
-					pane.id,
+					status,
+					watchByPane.get(pane.id) ?? "none",
 				);
 				for (const tag of boardTags(pane.odinTags, customTags))
 					tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
@@ -3342,6 +3370,7 @@ function DevBoardPage() {
 		agentPaneIds,
 		loopingPaneIds,
 		withMergeReady,
+		watchByPane,
 		daemonSessions,
 		boardFilter,
 		search,
@@ -4697,6 +4726,9 @@ function DevBoardPage() {
 								statusSinceRef.current.get(card.pane.id)?.at,
 								focusedAt,
 							) > 0,
+						(card) =>
+							column.status === "idle" &&
+							watchByPane.get(card.pane.id) === "waiting",
 					);
 					// One section is just the column - don't label it, unless it says
 					// something on its own (Starred, Parked: "you put these down").
@@ -4705,7 +4737,8 @@ function DevBoardPage() {
 						sections[0]?.[0] === "starred" ||
 						sections[0]?.[0] === "recent" ||
 						sections[0]?.[0] === "parked" ||
-						sections[0]?.[0] === "queued";
+						sections[0]?.[0] === "queued" ||
+						sections[0]?.[0] === "waiting";
 					const isDropTarget = column.status === "idle";
 					// Needs you and Done are the two columns you clear: walk either one
 					// card at a time - once there are more than five, fewer you just scan.

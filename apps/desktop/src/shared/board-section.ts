@@ -9,6 +9,7 @@ export type BoardSection =
 	| "starred"
 	| "recent"
 	| "queued"
+	| "waiting"
 	| "parked"
 	| "slack"
 	| "reactions"
@@ -21,6 +22,7 @@ export const SECTION_LABEL: Record<BoardSection, string> = {
 	starred: "Starred",
 	recent: "Recently finished",
 	queued: "Queued",
+	waiting: "Waiting on others",
 	parked: "Parked",
 	slack: "Slack",
 	reactions: "Slack",
@@ -62,28 +64,40 @@ function isParked(pane: Pane): boolean {
  * marked them as the ones that matter.
  * Recently finished cards (`isRecent`) come next: the one that just landed is
  * the one you came to look at.
- * Queued and Parked come next and cut across the source sections: one hasn't
- * started yet and the other you put down on purpose, so neither is an Idle
- * card asking to be resumed, whichever feed started it.
+ * Queued, Waiting and Parked come next and cut across the source sections:
+ * one hasn't started yet, one waits on someone else (`isWaiting`), and the
+ * other you put down on purpose, so none is an Idle card asking to be
+ * resumed, whichever feed started it.
  */
 export function bySection<T extends { pane: Pane }>(
 	all: T[],
 	isRecent: (card: T) => boolean = () => false,
+	isWaiting: (card: T) => boolean = () => false,
 ): [BoardSection, T[]][] {
 	const starred = all.filter((card) => card.pane.odinStarred);
 	const unstarred = all.filter((card) => !card.pane.odinStarred);
 	const cards = unstarred.filter((card) => !isRecent(card));
+	const waiting = cards.filter(
+		(card) => !isQueued(card.pane) && isWaiting(card),
+	);
 	const rest = cards.filter(
-		(card) => !isParked(card.pane) && !isQueued(card.pane),
+		(card) =>
+			!isParked(card.pane) && !isQueued(card.pane) && !waiting.includes(card),
 	);
 	return (
 		[
 			["starred", starred],
 			["recent", unstarred.filter(isRecent)],
 			["queued", cards.filter((card) => isQueued(card.pane))],
+			["waiting", waiting],
 			[
 				"parked",
-				cards.filter((card) => isParked(card.pane) && !isQueued(card.pane)),
+				cards.filter(
+					(card) =>
+						isParked(card.pane) &&
+						!isQueued(card.pane) &&
+						!waiting.includes(card),
+				),
 			],
 			...ORDER.map((section) => [
 				section,
