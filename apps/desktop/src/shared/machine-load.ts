@@ -76,7 +76,8 @@ export const DEFAULT_LAUNCH_LIMITS: LaunchLimits = {
 	minFreeMemoryGb: MIN_FREE_MEMORY_GB,
 	minFreeDiskPercent: MIN_FREE_DISK_PERCENT,
 	maxWorkingAgents: 5,
-	oneSessionPerCheckout: true,
+	// Every session gets its own worktree, so two in one repo don't collide.
+	oneSessionPerCheckout: false,
 };
 
 export interface MachineLoad {

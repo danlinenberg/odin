@@ -16,6 +16,8 @@ export const useLaunchLimits = create<LaunchLimitsState>()(
 			...DEFAULT_LAUNCH_LIMITS,
 			setLimits: (limits) => set(limits),
 		}),
+		// A saved choice wins over the default, so only new installs start with
+		// one-session-per-repo off.
 		{ name: "odin-launch-limits" },
 	),
 );

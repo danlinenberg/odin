@@ -262,7 +262,7 @@ function OneSessionPerCheckoutRow() {
 		<SettingRow
 			label="One session per repo at a time"
 			htmlFor="one-session-per-checkout"
-			description="A session started in a repo another one is working in waits in Queued until that one stops. Off lets them run side by side - they share one working tree, so each sees the other's edits."
+			description="A session started in a repo another one is working in waits in Queued until that one stops. Off (the default) lets them run side by side - each session works in its own worktree."
 		>
 			<Switch
 				id="one-session-per-checkout"

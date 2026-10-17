@@ -193,7 +193,7 @@ A started session waits in Idle under "Queued", with a reason, until all limits 
 - **Hold new sessions when free memory is under** (default 2 GB).
 - **Hold new sessions when free disk is under** (default 5%). Each session takes a worktree of about 3 GB. 0 means no limit.
 - **Hold new sessions when this many are working** (default 5). Sessions waiting on you don't count. 0 means no limit.
-- **One session per repo at a time** (default on): a session in a repo another one is working in waits until that one stops. Off lets them share one working tree.
+- **One session per repo at a time** (default off): on, a session in a repo another one is working in waits until that one stops. Off lets them run side by side, each in its own worktree.
 - Huginn takes no slot and holds no checkout.
 - Store: launchLimits (hostCpuPercent, minFreeMemoryGb, minFreeDiskPercent, maxWorkingAgents, oneSessionPerCheckout; fn setLimits).
 
