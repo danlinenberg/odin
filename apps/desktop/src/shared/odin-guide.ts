@@ -75,7 +75,7 @@ Four columns: **Working** (blue), **Needs you** (amber), **Final Review** (green
 - Final Review: cards whose turn ended without asking anything.
 - A dead session goes to Idle, except one the board closed for being idle: it keeps its column.
 - PR state moves cards: while CI runs on a card's PR it shows in Working with "CI running". It moves from Needs you to Final Review when all that's left is merging approved PRs, a look, or its PRs were closed. It moves back to Needs you when the brief judges the latest reply asks you something.
-- Sections in a column, in order: Starred, Recently finished (turn ended in the last 10 minutes while Odin was focused), Queued, Parked, then Slack / Jira / GitHub / Notion / Normal.
+- Sections in a column, in order: Starred, Recently finished (turn ended in the last 10 minutes while Odin was focused), Queued, Waiting on others, Parked, then Slack / Jira / GitHub / Notion / Normal.
 - **Catch up** shows on Needs you and Final Review with more than 5 cards: one card at a time, "N Left", Next and ✓ Done.
 - Drag a card to Idle to park it (a running turn gets Ctrl+C first). The session stays open.
 - Undo is ⌘Z or the toast's Undo, for actions in the current board visit only.
@@ -87,7 +87,7 @@ Four columns: **Working** (blue), **Needs you** (amber), **Final Review** (green
 
 ## Cards
 - Hover: ☆ Star (pins to top), ✓ Done (always visible in Final Review), the bell Remind me (tomorrow at the earliest).
-- Right-click: Star, Done, Remind me…, "Ping me" (pings on new replies when the session has a Slack or Jira thread, and when its PR gets approved), "Turn on Remote Control" (when Settings is on "Selected sessions"), Keep (overrides a sweep's Drop), Tags (add your own).
+- Right-click: Star, Done, Remind me…, "Ping me" (pings on new replies when the session has a Slack or Jira thread, and when its PR gets approved; while nothing new came in, its Needs you or Done card waits in Idle under "Waiting on others", and a reply or approval brings it back to Needs you), "Turn on Remote Control" (when Settings is on "Selected sessions"), Keep (overrides a sweep's Drop), Tags (add your own).
 - Pills: PR #N, "CI running", "Just merge #N", "Review #N", "Dropped: PR merged/closed", "Duplicate? Same ask as…", Loop (a /loop session, with a countdown), a flame for a heavy session, Shell / Shell stopped / Shell exited, Automation, Night Agent, Auto-started.
 - Idle cards have **Resume**, with "⏸ died mid-turn" or the exit cause. A session that died mid-turn is resumed on its own, once per run of the app.
 - **Done** ends the session: stops the process, removes the card and marks its feed row done. Its Undo resumes the same conversation.

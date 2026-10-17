@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { boardColumn } from "./board-column";
+import { boardColumn, withWaiting } from "./board-column";
 
 describe("boardColumn", () => {
 	// Done, not Needs you: the turn ended and nothing is asking for you.
@@ -77,5 +77,28 @@ describe("boardColumn", () => {
 			"permission",
 		);
 		expect(boardColumn("review", false, false)).toBe("idle");
+	});
+});
+
+describe("withWaiting", () => {
+	it("moves a pinged Done or Needs you card to Idle while nothing new came in", () => {
+		expect(withWaiting("review", "review", "waiting")).toBe("idle");
+		expect(withWaiting("permission", "idle", "waiting")).toBe("idle");
+	});
+
+	it("brings it back to Needs you when a reply or approval comes in", () => {
+		expect(withWaiting("review", "review", "replied")).toBe("permission");
+	});
+
+	it("keeps a prompt on screen or a failure in Needs you", () => {
+		expect(withWaiting("permission", "permission", "waiting")).toBe(
+			"permission",
+		);
+		expect(withWaiting("permission", "failed", "waiting")).toBe("permission");
+	});
+
+	it("leaves working cards and unpinged ones alone", () => {
+		expect(withWaiting("working", "working", "waiting")).toBe("working");
+		expect(withWaiting("review", "review", "none")).toBe("review");
 	});
 });

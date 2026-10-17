@@ -53,3 +53,25 @@ export function boardColumn(
 	if (status === "failed" || (alive && status === "idle")) return "permission";
 	return status;
 }
+
+/**
+ * A session you asked Odin to ping you about ("Ping me" on its Slack thread,
+ * Jira ticket or PR) is waiting on someone else, not on you: while nothing new
+ * came in, its Needs you or Done card waits in Idle. A reply or an approval
+ * brings it back to Needs you. A prompt on screen or a failure still needs you,
+ * whatever you are waiting for.
+ *
+ * `watch`: "none" = not pinging; "waiting" = pinging, nothing new;
+ * "replied" = a reply or approval you haven't opened yet.
+ */
+export function withWaiting(
+	column: PaneStatus,
+	status: PaneStatus,
+	watch: "none" | "waiting" | "replied",
+): PaneStatus {
+	if (watch === "none" || (column !== "permission" && column !== "review"))
+		return column;
+	if (watch === "replied") return "permission";
+	if (status === "permission" || status === "failed") return column;
+	return "idle";
+}

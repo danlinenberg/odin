@@ -144,6 +144,7 @@ const SESSION_SOURCE: Record<
 	parked: { to: "/my-tasks", source: "Tasks" },
 	// Same for these board-only states.
 	queued: { to: "/my-tasks", source: "Tasks" },
+	waiting: { to: "/my-tasks", source: "Tasks" },
 	recent: { to: "/my-tasks", source: "Tasks" },
 	starred: { to: "/my-tasks", source: "Tasks" },
 };
