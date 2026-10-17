@@ -169,13 +169,64 @@ function ErrorLine({ error }: { error: { message: string } | null }) {
 	);
 }
 
+/**
+ * Stars tapped in the last 10 seconds, by session. The window saves a star
+ * to main a beat after it sets it, so a poll in between would flip it back;
+ * until then the tap wins over what the Mac reports.
+ */
+const pendingStars = new Map<string, { starred: boolean; at: number }>();
+const STAR_HOLD_MS = 10_000;
+
+function holdStar(paneId: string, starred: boolean) {
+	pendingStars.set(paneId, { starred, at: Date.now() });
+}
+
+function withHeldStars<T extends { paneId: string; starred?: boolean }>(
+	sessions: T[],
+): T[] {
+	const now = Date.now();
+	return sessions.map((session) => {
+		const held = pendingStars.get(session.paneId);
+		if (!held) return session;
+		if (now - held.at > STAR_HOLD_MS || held.starred === session.starred) {
+			pendingStars.delete(session.paneId);
+			return session;
+		}
+		return { ...session, starred: held.starred };
+	});
+}
+
 function Home() {
-	const board = phone.board.useQuery(undefined, { refetchInterval: POLL });
+	const board = phone.board.useQuery(undefined, {
+		refetchInterval: POLL,
+		select: (data) => ({ ...data, sessions: withHeldStars(data.sessions) }),
+	});
 	const start = phone.start.useMutation({
 		onSuccess: () => void board.refetch(),
 	});
+	const utils = phone.useUtils();
+	// The star moves on tap; the Mac's answer only confirms it (or undoes it).
 	const star = phone.star.useMutation({
-		onSuccess: () => void board.refetch(),
+		onMutate: async ({ paneId, starred }) => {
+			holdStar(paneId, starred);
+			await utils.board.cancel();
+			const before = utils.board.getData();
+			utils.board.setData(undefined, (data) =>
+				data
+					? {
+							...data,
+							sessions: data.sessions.map((session) =>
+								session.paneId === paneId ? { ...session, starred } : session,
+							),
+						}
+					: data,
+			);
+			return { before };
+		},
+		onError: (_error, input, context) => {
+			pendingStars.delete(input.paneId);
+			utils.board.setData(undefined, context?.before);
+		},
 	});
 	const [adding, setAdding] = useState(false);
 	const sessions = board.data?.sessions ?? [];
@@ -453,7 +504,35 @@ function Session({ paneId }: { paneId: string }) {
 			{ onSuccess: () => remember(text, 0) },
 		);
 	const key = phone.key.useMutation({ onSuccess: refetch });
-	const star = phone.star.useMutation({ onSuccess: refetch });
+	const utils = phone.useUtils();
+	// The star moves on tap; the Mac's answer only confirms it (or undoes it).
+	const star = phone.star.useMutation({
+		onMutate: async ({ starred }) => {
+			holdStar(paneId, starred);
+			await utils.session.cancel({ paneId });
+			const before = utils.session.getData({ paneId });
+			utils.session.setData({ paneId }, (data) =>
+				data ? { ...data, starred } : data,
+			);
+			// The board shows it too when you go back.
+			utils.board.setData(undefined, (data) =>
+				data
+					? {
+							...data,
+							sessions: data.sessions.map((session) =>
+								session.paneId === paneId ? { ...session, starred } : session,
+							),
+						}
+					: data,
+			);
+			return { before };
+		},
+		onError: (_error, _input, context) => {
+			pendingStars.delete(paneId);
+			utils.session.setData({ paneId }, context?.before);
+			void utils.board.invalidate();
+		},
+	});
 	const done = phone.done.useMutation({
 		onSuccess: () => {
 			location.hash = "";
@@ -483,7 +562,11 @@ function Session({ paneId }: { paneId: string }) {
 	const data = session.data;
 	const status = (data?.status ?? "idle") as PaneStatus;
 	// An older Odin on the Mac doesn't send it: no star until it does.
-	const starred = !!(data as { starred?: boolean } | undefined)?.starred;
+	const held = pendingStars.get(paneId);
+	const starred =
+		held && Date.now() - held.at < STAR_HOLD_MS
+			? held.starred
+			: !!(data as { starred?: boolean } | undefined)?.starred;
 	const waiting = stillWaiting(sent, data?.messages ?? []);
 	// biome-ignore lint/correctness/useExhaustiveDependencies: forget what the transcript shows now
 	useEffect(() => {
