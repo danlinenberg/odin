@@ -762,8 +762,7 @@ function Pair() {
 			<h1 className="text-2xl font-bold">Pair with Odin</h1>
 			<p className="text-sm text-muted-foreground">
 				On your Mac, open Odin, Settings, Connections, Phone, and turn on Phone
-				access. Scan the QR code with the Camera, or paste the link shown next
-				to it.
+				access. Scan the QR code there with the iPhone Camera.
 			</p>
 			<form
 				className="flex gap-2"

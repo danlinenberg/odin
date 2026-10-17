@@ -835,11 +835,7 @@ function PhoneRow() {
 					<div className="min-w-0 space-y-2 text-xs text-muted-foreground">
 						<div>
 							Scan with the iPhone camera: it opens the Odin app and pairs it.
-							Or paste this link into the app. The code in it works once, for 10
-							minutes.
-						</div>
-						<div className="break-all font-mono select-text cursor-text">
-							{data.link}
+							The code works once, for 10 minutes.
 						</div>
 					</div>
 				</div>
