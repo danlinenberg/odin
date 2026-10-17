@@ -1013,10 +1013,16 @@ await step(
 					`the drawer shows "${await drawerTitle()}", not the new session`,
 				);
 		}
-		// The session screen carries the board card's menu, Move to Idle included.
+		// The session screen opens the board card's menu. Move to Idle is in
+		// it unless the session already sits in Idle (a queued one does here).
 		await click("button", "More session actions");
-		await click("[data-session-menu] button", "Park it in Idle");
-		await waitForText("Parked in Idle");
+		if (
+			!(await page<boolean>(`!!document.querySelector("[data-session-menu]")`))
+		)
+			throw new Error("... didn't open the session menu");
+		await page(
+			`document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`,
+		);
 		await page(
 			`(document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`,
 		);
