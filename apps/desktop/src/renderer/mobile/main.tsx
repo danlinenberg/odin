@@ -19,6 +19,7 @@ import {
 	LuPlus,
 	LuStar,
 } from "react-icons/lu";
+import { odinScreenStatus } from "shared/odin-screen-status";
 import type { PaneStatus } from "shared/tabs-types";
 import superjson from "superjson";
 import {
@@ -561,6 +562,13 @@ function Session({ paneId }: { paneId: string }) {
 	}, [count]);
 	const data = session.data;
 	const status = (data?.status ?? "idle") as PaneStatus;
+	// Needs you is often a question asked in prose. The screen box and its keys
+	// are for a prompt drawn on the screen - a numbered menu, Enter to confirm -
+	// read the way the desktop board reads it.
+	const asking =
+		status === "permission" &&
+		!!data?.screen &&
+		odinScreenStatus(data.screen) === "permission";
 	// An older Odin on the Mac doesn't send it: no star until it does.
 	const held = pendingStars.get(paneId);
 	const starred =
@@ -659,7 +667,7 @@ function Session({ paneId }: { paneId: string }) {
 						</div>
 					</div>
 				))}
-				{status === "permission" && data?.screen && (
+				{asking && data?.screen && (
 					<pre className="mt-2 overflow-x-auto rounded-[10px] border border-attention/35 bg-attention/10 p-2.5 font-mono text-[11px] leading-snug text-attention-ink">
 						{data.screen}
 					</pre>
@@ -677,7 +685,7 @@ function Session({ paneId }: { paneId: string }) {
 					<LuArrowDown className="size-5" />
 				</button>
 			)}
-			{status === "permission" && (
+			{asking && (
 				<div className="flex gap-2 px-2.5 pt-2">
 					{(["1", "2", "3", "enter", "esc"] as const).map((k) => (
 						<button

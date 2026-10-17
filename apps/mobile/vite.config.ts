@@ -63,11 +63,12 @@ export default defineConfig({
 		tailwindcss(),
 		react(),
 	],
-	// `bun run dev` in a browser talks to `bun run fake-odin`, same origin.
+	// `bun run dev` talks to `bun run fake-odin`, same origin - or to a real
+	// Odin's phone server with ODIN_API=http://127.0.0.1:4747.
 	server: {
 		proxy: {
-			"/trpc": "http://localhost:4799",
-			"/upload": "http://localhost:4799",
+			"/trpc": process.env.ODIN_API ?? "http://localhost:4799",
+			"/upload": process.env.ODIN_API ?? "http://localhost:4799",
 		},
 	},
 	build: {
