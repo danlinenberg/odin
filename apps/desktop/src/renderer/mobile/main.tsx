@@ -2,7 +2,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink } from "@trpc/client";
 import { createTRPCReact } from "@trpc/react-query";
 import type { PhoneRouter } from "main/lib/phone/router";
-import { useEffect, useRef, useState } from "react";
+import {
+	type TextareaHTMLAttributes,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 import ReactDom from "react-dom/client";
 import {
 	LuArrowDown,
@@ -187,7 +193,7 @@ function Home() {
 	return (
 		<div className="min-h-dvh pb-24">
 			<header className="sticky top-0 z-10 border-b border-border bg-background/95 px-4 pt-[calc(env(safe-area-inset-top)+12px)] pb-2 backdrop-blur">
-				<h1 className="text-2xl font-bold">Odin</h1>
+				<h1 className="text-2xl font-bold">Board</h1>
 			</header>
 			<ErrorLine error={board.error} />
 			{board.isLoading && (
@@ -316,6 +322,24 @@ function NewTask({ onClose }: { onClose: () => void }) {
 	);
 }
 
+/**
+ * A text box that grows with what's in it - typed or dictated - up to its
+ * max-height, then scrolls. Safari has no `field-sizing: content` yet.
+ */
+function GrowingTextarea(
+	props: TextareaHTMLAttributes<HTMLTextAreaElement> & { value: string },
+) {
+	const box = useRef<HTMLTextAreaElement>(null);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: measure when the text changes
+	useLayoutEffect(() => {
+		const el = box.current;
+		if (!el) return;
+		el.style.height = "auto";
+		el.style.height = `${el.scrollHeight + 2}px`;
+	}, [props.value]);
+	return <textarea ref={box} rows={1} {...props} />;
+}
+
 /** A reply sent from here that Claude hasn't put in its transcript yet. */
 type Sent = { text: string; files: number; at: number };
 
@@ -393,7 +417,7 @@ function Session({ paneId }: { paneId: string }) {
 						className="-ml-1.5 flex items-center px-1 py-1.5 text-[15px] text-primary"
 					>
 						<LuChevronLeft className="size-5" />
-						Odin
+						Board
 					</a>
 					<button
 						type="button"
@@ -539,12 +563,11 @@ function Session({ paneId }: { paneId: string }) {
 				}}
 			>
 				<AttachButton uploads={uploads} />
-				<textarea
-					rows={1}
+				<GrowingTextarea
 					value={text}
 					onChange={(event) => setText(event.target.value)}
 					placeholder="Reply to Claude…"
-					className="max-h-32 min-h-10 flex-1 resize-none rounded-[18px] border border-input bg-secondary px-3 py-2 text-base outline-none"
+					className="max-h-[40dvh] min-h-10 flex-1 resize-none overflow-y-auto rounded-[18px] border border-input bg-secondary px-3 py-2 text-base outline-none"
 				/>
 				<MicButton speech={speech} />
 				<button
