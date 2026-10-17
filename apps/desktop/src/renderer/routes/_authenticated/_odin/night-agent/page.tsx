@@ -44,7 +44,10 @@ function NightAgentPage() {
 						<NextRunSection />
 					</div>
 					<div className="space-y-8">
-						<SettingsSection title="Schedule">
+						<SettingsSection
+							title="Schedule"
+							description="When it runs, how much, and what every session is told."
+						>
 							<NightAgentRows />
 						</SettingsSection>
 						<LogSection />
@@ -194,7 +197,7 @@ function NextRunSection() {
 				description={`Started first, top to bottom, one at a time. Up to ${MAX_NIGHT_PICKS}.`}
 			>
 				{picked.length === 0 ? (
-					<div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
+					<div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
 						<div className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
 							<LuMoon className="size-5" aria-hidden />
 						</div>
@@ -312,10 +315,10 @@ function AddPicks({ rows, full }: { rows: AllItem[]; full: boolean }) {
 			)
 		: rows;
 	return (
-		<div className="px-4 py-3">
+		<div>
 			{nightIntro.dialog}
-			<div className="relative">
-				<LuSearch className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+			<div className="relative border-b border-border px-4 py-3">
+				<LuSearch className="pointer-events-none absolute top-1/2 left-6.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
 				<Input
 					value={query}
 					onChange={(e) => setQuery(e.target.value)}
@@ -324,33 +327,31 @@ function AddPicks({ rows, full }: { rows: AllItem[]; full: boolean }) {
 					className="h-9 pl-8 text-sm"
 				/>
 			</div>
-			<div className="-mx-1 mt-2 max-h-[28rem] overflow-y-auto">
+			<div className="max-h-[28rem] divide-y divide-border/50 overflow-y-auto">
 				{shown.length === 0 ? (
-					<p className="py-3 text-center text-xs text-muted-foreground">
+					<p className="px-4 py-4 text-center text-xs text-muted-foreground">
 						{rows.length ? "No task matches." : "Nothing waiting to add."}
 					</p>
 				) : (
 					shown.map((row) => (
-						<div
+						// Same grid as a pick row: a 24px lead (here +, there the number), then the title.
+						<button
 							key={row.key}
-							className="group flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-muted/40"
+							type="button"
+							disabled={full}
+							title={
+								full
+									? `The next run is full (${MAX_NIGHT_PICKS})`
+									: "Add to the next run"
+							}
+							onClick={() => nightIntro.gate(() => toggleNightPick(row.key))}
+							className="group flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-muted/30 disabled:opacity-40 disabled:hover:bg-transparent"
 						>
+							<span className="flex size-6 shrink-0 items-center justify-center rounded-full border border-border text-muted-foreground group-hover:border-primary/50 group-hover:bg-primary/15 group-hover:text-primary">
+								<LuPlus className="size-3.5" aria-hidden />
+							</span>
 							<RowTitle row={row} />
-							<button
-								type="button"
-								disabled={full}
-								title={
-									full
-										? `The next run is full (${MAX_NIGHT_PICKS})`
-										: "Add to the next run"
-								}
-								onClick={() => nightIntro.gate(() => toggleNightPick(row.key))}
-								className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground group-hover:border-primary/40 group-hover:text-primary hover:bg-primary/15 disabled:opacity-40"
-							>
-								<LuPlus className="size-3" aria-hidden />
-								Add
-							</button>
-						</div>
+						</button>
 					))
 				)}
 			</div>
