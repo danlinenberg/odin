@@ -46,14 +46,14 @@ test("an expired code pairs nobody", () => {
 	expect(accept(key(), { v: 1, code }, Date.now() + CODE_MS + 1)).toBe(false);
 });
 
-test("a removed phone is out, and unpairing all changes Odin's key", () => {
+test("a removed phone is out, and unpairing all changes Odin's key", async () => {
 	const phone = key();
 	expect(accept(phone, { v: 1, code: pairingCode() })).toBe(true);
 	removeDevice(b64(phone));
 	expect(accept(phone, { v: 1 })).toBe(false);
 
 	const before = hostKey();
-	resetTrust();
+	await resetTrust();
 	expect(hostKey()).not.toBe(before);
 	expect(devices()).toEqual([]);
 });

@@ -1,5 +1,6 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
-import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import {
 	generateKeyPair,
@@ -112,9 +113,9 @@ export function accept(
 }
 
 /** Unpair every phone: a new key for Odin, an empty list. */
-export function resetTrust(): void {
-	rmSync(trustFiles.identity, { force: true });
-	rmSync(trustFiles.devices, { force: true });
+export async function resetTrust(): Promise<void> {
+	await rm(trustFiles.identity, { force: true });
+	await rm(trustFiles.devices, { force: true });
 	me = null;
 	code = null;
 }

@@ -358,7 +358,7 @@ export async function removePhone(key: string): Promise<PhoneStatus> {
 /** Unpairs every phone: a new key for Odin, so old QR codes are useless too. */
 export async function unpairAllPhones(): Promise<PhoneStatus> {
 	await stop();
-	resetTrust();
+	await resetTrust();
 	return restart(readConfig());
 }
 
