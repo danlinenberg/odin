@@ -35,6 +35,7 @@ import {
 	LuChevronRight,
 	LuCircleCheck,
 	LuClock,
+	LuCopy,
 	LuEye,
 	LuEyeOff,
 	LuFileText,
@@ -53,6 +54,7 @@ import {
 	LuSquareTerminal,
 	LuStar,
 	LuTerminal,
+	LuUser,
 } from "react-icons/lu";
 import { SiJira, SiNotion, SiSlack } from "react-icons/si";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
@@ -141,7 +143,7 @@ import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePaneMeta } from "../hooks/usePaneMeta";
 import { usePendingFocus } from "../hooks/usePendingFocus";
 import { PANE_STATUS } from "../pane-status";
-import { sessionFor } from "../review/verdicts";
+import { type SweptRow, sessionFor } from "../review/verdicts";
 import type { BriefMessage } from "./brief";
 import {
 	actionItems,
@@ -167,6 +169,11 @@ import {
 	sourceLink,
 } from "./brief";
 import { ChatView, interruptClaude, typeIntoClaude } from "./ChatView";
+import {
+	type CatchUpSuggestion,
+	catchUpOrder,
+	catchUpSuggestion,
+} from "./catch-up";
 import { DiffView } from "./DiffView";
 import { BOARD_COLUMN_MIN_W, NextInLine, TonightCount } from "./NextInLine";
 import { NightAgentLive } from "./NightAgentLive";
@@ -561,11 +568,13 @@ function withCode(
 function CatchUpCard({
 	card,
 	title,
+	suggestion,
 	onShowSession,
 }: {
 	card: BoardCard;
 	/** The board's title for it - finds the transcript of a session with no id. */
 	title: string;
+	suggestion: CatchUpSuggestion;
 	onShowSession: () => void;
 }) {
 	const { data: transcript } = useCardTranscript(card, false);
@@ -611,6 +620,7 @@ function CatchUpCard({
 	const label = "mb-1.5 text-[11px] font-semibold uppercase tracking-[.4px]";
 	return (
 		<div className="flex min-h-0 flex-1 select-text cursor-text flex-col gap-6 overflow-y-auto px-8 py-7">
+			<SuggestionBox suggestion={suggestion} text={text} />
 			{/* What it's about first, at the size of the action items: you can't
 			    decide Next or Done on a session you don't recognise. Its label is
 			    grey: amber is the one label that means something - yours to do. */}
@@ -690,6 +700,76 @@ function CatchUpCard({
 	);
 }
 
+const SUGGESTION = {
+	done: {
+		icon: LuCircleCheck,
+		what: "Suggested: Done",
+		box: "border-success/40 bg-success/10",
+		ink: "text-success-ink",
+		button: "✓ Done",
+		style: BUTTON.done,
+	},
+	duplicate: {
+		icon: LuCopy,
+		what: "Suggested: Close as duplicate",
+		box: "border-border bg-secondary",
+		ink: "text-muted-foreground",
+		button: "Close as duplicate",
+		style: BUTTON.done,
+	},
+	merge: {
+		icon: LuGitMerge,
+		what: "Suggested: Merge",
+		box: "border-primary/40 bg-primary/10",
+		ink: "text-primary-ink",
+		button: "Open PR to merge",
+		style: BUTTON.primary,
+	},
+	yours: {
+		icon: LuUser,
+		what: "Yours to do",
+		box: "border-attention/40 bg-attention/10",
+		ink: "text-attention-ink",
+		button: "Open session",
+		style: BUTTON.remind,
+	},
+} as const;
+
+/** Catch up's call on this card and why - the reason you can press Enter on. */
+function SuggestionBox({
+	suggestion,
+	text,
+}: {
+	suggestion: CatchUpSuggestion;
+	text: (value: string) => React.ReactNode;
+}) {
+	const look = SUGGESTION[suggestion.kind];
+	const Icon = look.icon;
+	return (
+		<div
+			className={cn("-mx-2 flex gap-3 rounded-xl border px-3.5 py-3", look.box)}
+		>
+			<Icon className={cn("mt-0.5 size-[18px] shrink-0", look.ink)} />
+			<div className="min-w-0">
+				<div
+					className={cn(
+						"text-[11px] font-bold uppercase tracking-[.4px]",
+						look.ink,
+					)}
+				>
+					{look.what}
+				</div>
+				<div className="mt-0.5 break-words text-[14.5px] leading-snug text-foreground">
+					{text(suggestion.why)}
+				</div>
+				<div className="mt-1 text-[11.5px] text-muted-foreground">
+					{suggestion.from}
+				</div>
+			</div>
+		</div>
+	);
+}
+
 /**
  * "This one shipped a PR" - the fact you scan the board for, on the card
  * instead of behind a click. Read from the same transcript the drawer reads, so
@@ -724,15 +804,16 @@ function useCardTranscript(card: BoardCard, live: boolean) {
  * task map if a renamed task card ever misses its verdict.
  */
 function useDropFor(pane: Pane | undefined) {
-	return useReview((review) =>
-		pane && !pane.odinTags?.includes("auto-started")
-			? review.swept.find(
-					(r) =>
-						r.verdict === "DROP" &&
-						sessionFor(r, [pane], new Map()) === pane.id,
-				)
-			: undefined,
-	);
+	return useReview((review) => dropRowFor(review.swept, pane));
+}
+
+function dropRowFor(swept: SweptRow[], pane: Pane | undefined) {
+	return pane && !pane.odinTags?.includes("auto-started")
+		? swept.find(
+				(r) =>
+					r.verdict === "DROP" && sessionFor(r, [pane], new Map()) === pane.id,
+			)
+		: undefined;
 }
 
 function DropPill({ pane }: { pane: Pane }) {
@@ -3461,6 +3542,22 @@ function DevBoardPage() {
 			}),
 		);
 	}, [cardsByStatus]);
+	// Catch up's call per card, from what the board already read: the sweep,
+	// PR states, duplicates and the transcript's ACTION ITEMS.
+	const swept = useReview((review) => review.swept);
+	const catchUpSuggestionOf = (card: BoardCard): CatchUpSuggestion => {
+		const id = card.pane.id;
+		const at = mergeCandidates.findIndex((c) => c.paneId === id);
+		const other = duplicateOf.get(id);
+		return catchUpSuggestion({
+			sweptDrop: dropRowFor(swept, card.pane)?.evidence,
+			prMerged: reviewMergedPaneIds.has(id),
+			prsClosed: droppedPaneIds.has(id),
+			duplicateOf: other && cardTitle(other),
+			messages: at < 0 ? undefined : mergeTranscripts[at]?.data?.messages,
+			urgency: urgencyByPane.get(id),
+		});
+	};
 
 	// Write the session briefs in the background, so opening a card shows one
 	// straight away rather than starting a 15s model call while you wait. The
@@ -4414,6 +4511,45 @@ function DevBoardPage() {
 		toast.success("All caught up");
 	};
 
+	const catchUpCall =
+		inCatchUp && drawerCard ? catchUpSuggestionOf(drawerCard) : null;
+	/** Do what Catch up suggests: Done, or open the PR, or open the session. */
+	const acceptCatchUp = (suggestion: CatchUpSuggestion) => {
+		if (suggestion.kind === "yours") return setCatchUp(null);
+		if (suggestion.kind === "merge") {
+			if (suggestion.url) openUrl(suggestion.url);
+			return catchUpNext(false);
+		}
+		catchUpNext(true);
+	};
+	// One key per card: Enter takes the suggestion, → skips, D is Done.
+	useEffect(() => {
+		if (!catchUpCall) return;
+		const onKey = (event: KeyboardEvent) => {
+			const target = event.target as HTMLElement | null;
+			if (
+				event.metaKey ||
+				event.ctrlKey ||
+				event.altKey ||
+				target?.closest("input, textarea, [contenteditable='true']")
+			)
+				return;
+			const act =
+				event.key === "Enter"
+					? () => acceptCatchUp(catchUpCall)
+					: event.key === "ArrowRight"
+						? () => catchUpNext(false)
+						: event.key.toLowerCase() === "d"
+							? () => catchUpNext(true)
+							: null;
+			if (!act) return;
+			event.preventDefault();
+			act();
+		};
+		window.addEventListener("keydown", onKey);
+		return () => window.removeEventListener("keydown", onKey);
+	});
+
 	// Done from wherever the card is: the open session moves the drawer on,
 	// another row in the drawer's list leaves the drawer where it is.
 	const doneAnywhere = (card: BoardCard) => {
@@ -4766,7 +4902,10 @@ function DevBoardPage() {
 										type="button"
 										title="Catch up - go through these one at a time"
 										onClick={() => {
-											const queue = sections.flatMap(([, group]) => group);
+											const queue = catchUpOrder(
+												sections.flatMap(([, group]) => group),
+												catchUpSuggestionOf,
+											);
 											setCatchUp(queue.map((card) => card.pane.id));
 											openDrawer(queue[0]);
 										}}
@@ -4873,7 +5012,7 @@ function DevBoardPage() {
 					/>
 					{/* Catch up (Slack mobile's): the drawer becomes the top card of a
 					    stack, with how many are left above it and Next / Done below. */}
-					{inCatchUp && catchUp && (
+					{inCatchUp && catchUp && catchUpCall && (
 						<>
 							<div className="absolute left-1/2 top-3 z-50 flex w-[min(760px,calc(100%-32px))] -translate-x-1/2 items-center justify-center">
 								<button
@@ -4894,26 +5033,39 @@ function DevBoardPage() {
 							<div className="absolute bottom-5 left-1/2 z-50 flex w-[min(760px,calc(100%-32px))] -translate-x-1/2 gap-4">
 								<button
 									type="button"
-									title="Leave it on the board and go to the next one"
+									title="Leave it on the board and go to the next one (→)"
 									onClick={() => catchUpNext(false)}
 									className={cn(
 										"flex-1 rounded-2xl py-3.5 text-[15px] font-semibold",
 										BUTTON.secondary,
 									)}
 								>
-									Next
+									Skip
 								</button>
 								<button
 									type="button"
-									title="Done - remove it from the board and go to the next one"
-									onClick={() => catchUpNext(true)}
+									title={`${catchUpCall.why} (Enter)`}
+									onClick={() => acceptCatchUp(catchUpCall)}
 									className={cn(
-										"flex-1 rounded-2xl py-3.5 text-[15px] font-semibold",
-										BUTTON.done,
+										"flex-[1.6] rounded-2xl py-3.5 text-[15px] font-semibold",
+										SUGGESTION[catchUpCall.kind].style,
 									)}
 								>
-									✓ Done
+									{SUGGESTION[catchUpCall.kind].button}
 								</button>
+								{catchUpCall.kind !== "done" && (
+									<button
+										type="button"
+										title="Done anyway - remove it from the board and go to the next one (D)"
+										onClick={() => catchUpNext(true)}
+										className={cn(
+											"rounded-2xl px-5 py-3.5 text-[15px] font-semibold",
+											BUTTON.done,
+										)}
+									>
+										✓ Done
+									</button>
+								)}
 							</div>
 						</>
 					)}
@@ -5149,6 +5301,7 @@ function DevBoardPage() {
 							<CatchUpCard
 								card={drawerCard}
 								title={cardTitle(drawerCard)}
+								suggestion={catchUpSuggestionOf(drawerCard)}
 								// Out of Catch up, onto this card's normal drawer.
 								onShowSession={() => setCatchUp(null)}
 							/>
