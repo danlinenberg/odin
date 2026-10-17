@@ -1,11 +1,20 @@
 import { basename, resolve, sep } from "node:path";
 import { initTRPC, TRPCError } from "@trpc/server";
+import type { PullRequestStatus } from "lib/trpc/routers/terminal/pr-state";
 import { appState } from "main/lib/app-state";
 import { readTranscript, writeBrief } from "main/lib/claude-sessions";
 import { askRenderer } from "main/lib/notifications/server";
 import { appCaller } from "main/lib/odin-api";
 import { loadSessions } from "main/lib/tray";
 import { getWorkspaceRuntimeRegistry } from "main/lib/workspace-runtime";
+import {
+	claimOpened,
+	jiraIssue,
+	notionPage,
+	prLabel,
+	pullRequests,
+	slackThread,
+} from "renderer/routes/_authenticated/_odin/board/brief";
 import stripAnsi from "strip-ansi";
 import superjson from "superjson";
 import { z } from "zod";
@@ -181,6 +190,65 @@ export const phoneRouter = t.router({
 			last,
 			urgency,
 			replyAt: replyAt ?? null,
+		};
+	}),
+
+	/**
+	 * What the session's brief links to, live: its PRs with their state and
+	 * CI, its Jira ticket's status, its Slack thread and Notion page - found
+	 * in the transcript the way the desktop's session brief finds them.
+	 */
+	links: t.procedure.input(paneInput).query(async ({ input }) => {
+		const sessionId = sessionOf(input.paneId);
+		const transcript = sessionId
+			? await readTranscript({ sessionId }).catch(() => null)
+			: null;
+		const source = transcript ? (transcript.links ?? transcript.messages) : [];
+		// ponytail: the last 8 PRs; each one is a `gh pr view`.
+		const prs = pullRequests(source).slice(-8);
+		const issue = jiraIssue(source);
+		// The app router is untyped from here; these are its answers' shapes.
+		const caller = appCaller() as
+			| {
+					terminal: {
+						pullRequestStates: (input: {
+							urls: string[];
+						}) => Promise<Record<string, PullRequestStatus | null>>;
+					};
+					work: {
+						jiraIssueStates: (input: {
+							keys: string[];
+						}) => Promise<Record<string, { status: string }>>;
+					};
+			  }
+			| undefined;
+		const [states, jira] = await Promise.all([
+			prs.length && caller
+				? caller.terminal
+						.pullRequestStates({ urls: prs.map((pr) => pr.url) })
+						.then((found) => claimOpened(source, found))
+						.catch(() => ({}))
+				: {},
+			issue && caller
+				? caller.work.jiraIssueStates({ keys: [issue.key] }).catch(() => ({}))
+				: {},
+		]);
+		const state = (url: string) =>
+			(states as Record<string, PullRequestStatus | null>)[url] ?? null;
+		return {
+			prs: prs.map((pr) => ({
+				url: pr.url,
+				label: prLabel(pr, state(pr.url)?.title),
+				status: state(pr.url),
+			})),
+			jira: issue && {
+				...issue,
+				status:
+					(jira as Record<string, { status: string }>)[issue.key]?.status ??
+					null,
+			},
+			slack: slackThread(source),
+			notion: notionPage(source),
 		};
 	}),
 

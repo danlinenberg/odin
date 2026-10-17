@@ -281,17 +281,23 @@ function NewTask({ onClose }: { onClose: () => void }) {
 	const speech = useSpeech((words) =>
 		setText((typed) => appendWords(typed, words)),
 	);
+	// Recording counts as text: Save or Start mid-dictation takes the words too.
 	const ready =
-		(text.trim() || uploads.paths.length) &&
+		(text.trim() || uploads.paths.length || speech.listening) &&
 		!uploads.uploading &&
+		!speech.transcribing &&
 		!add.isPending;
-	const save = (start: boolean) =>
+	const save = async (start: boolean) => {
+		const words = await speech.finish();
+		const full = words ? appendWords(text, words) : text;
+		if (!full.trim() && !uploads.paths.length) return;
 		add.mutate({
-			text: withPriority(text, mark),
+			text: withPriority(full, mark),
 			paths: uploads.paths,
 			...(repo && { repo }),
 			start,
 		});
+	};
 	return (
 		<div className="fixed inset-0 z-10 flex flex-col gap-2.5 bg-background p-4 pt-[calc(env(safe-area-inset-top)+12px)] pb-[calc(env(safe-area-inset-bottom)+12px)]">
 			<div className="flex items-center justify-between">
@@ -351,7 +357,7 @@ function NewTask({ onClose }: { onClose: () => void }) {
 				<button
 					type="button"
 					disabled={!ready}
-					onClick={() => save(false)}
+					onClick={() => void save(false)}
 					className="ml-auto h-10 rounded-full border border-border bg-secondary px-4 text-sm font-semibold disabled:opacity-40"
 				>
 					Save
@@ -359,7 +365,7 @@ function NewTask({ onClose }: { onClose: () => void }) {
 				<button
 					type="button"
 					disabled={!ready}
-					onClick={() => save(true)}
+					onClick={() => void save(true)}
 					className="h-10 rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-40"
 				>
 					Start now
@@ -419,6 +425,17 @@ function stillWaiting(
 function Session({ paneId }: { paneId: string }) {
 	const session = phone.session.useQuery({ paneId }, { refetchInterval: POLL });
 	const brief = phone.brief.useQuery({ paneId }, { staleTime: 60_000 });
+	const [briefOpen, setBriefOpen] = useState(false);
+	// Only while the brief is open: every PR is a `gh pr view` on the Mac.
+	const links = phone.links.useQuery(
+		{ paneId },
+		{
+			enabled: briefOpen,
+			retry: false,
+			staleTime: 30_000,
+			refetchInterval: briefOpen ? 60_000 : false,
+		},
+	);
 	const refetch = () => void session.refetch();
 	const reply = phone.reply.useMutation({ onSuccess: refetch });
 	const [sent, setSent] = useState<Sent[]>(() => sentByPane.get(paneId) ?? []);
@@ -447,9 +464,11 @@ function Session({ paneId }: { paneId: string }) {
 	const speech = useSpeech((words) =>
 		setText((typed) => appendWords(typed, words)),
 	);
+	// Recording counts as text: Send mid-dictation stops it and sends the words.
 	const ready =
-		(text.trim() || uploads.paths.length) &&
+		(text.trim() || uploads.paths.length || speech.listening) &&
 		!uploads.uploading &&
+		!speech.transcribing &&
 		!reply.isPending;
 	const bottom = useRef<HTMLDivElement>(null);
 	// Follow new messages only while you're at the bottom; reading further up,
@@ -482,7 +501,7 @@ function Session({ paneId }: { paneId: string }) {
 						<LuChevronLeft className="size-5" />
 						Board
 					</a>
-					<div className="flex items-center gap-1">
+					<div className="flex items-center gap-5">
 						<button
 							type="button"
 							aria-label={starred ? "Unstar" : "Star"}
@@ -525,7 +544,14 @@ function Session({ paneId }: { paneId: string }) {
 				}}
 			>
 				<ErrorLine error={session.error ?? done.error} />
-				<BriefCard brief={brief.data} loading={brief.isLoading} />
+				<BriefCard
+					brief={brief.data}
+					loading={brief.isLoading}
+					open={briefOpen}
+					onToggle={() => setBriefOpen((shown) => !shown)}
+					links={links.data}
+					linksLoading={links.isLoading && briefOpen}
+				/>
 				<Transcript
 					messages={data?.messages ?? []}
 					brief={
@@ -599,14 +625,17 @@ function Session({ paneId }: { paneId: string }) {
 			<UploadChips uploads={uploads} />
 			<form
 				className="flex items-end gap-2 px-2.5 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+10px)]"
-				onSubmit={(event) => {
+				onSubmit={async (event) => {
 					event.preventDefault();
 					if (!ready) return;
+					const words = await speech.finish();
+					const full = words ? appendWords(text, words) : text;
+					if (!full.trim() && !uploads.paths.length) return;
 					reply.mutate(
-						{ paneId, text, paths: uploads.paths },
+						{ paneId, text: full, paths: uploads.paths },
 						{
 							onSuccess: () => {
-								remember(text.trim(), uploads.paths.length);
+								remember(full.trim(), uploads.paths.length);
 								setText("");
 								uploads.clear();
 							},

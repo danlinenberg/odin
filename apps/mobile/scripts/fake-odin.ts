@@ -137,6 +137,33 @@ function answer(path: string, input: Record<string, string> | undefined) {
 				urgency: "needs-you",
 				replyAt: REPLY_AT,
 			};
+		case "links":
+			return {
+				prs: [
+					{
+						url: "https://github.com/danlinenberg/odin/pull/1120",
+						label: "#1120 Phone: attach photos and files",
+						status: { state: "MERGED", passed: 4 },
+					},
+					{
+						url: "https://github.com/danlinenberg/odin/pull/1127",
+						label: "#1127 HDR: sort brackets by capture time",
+						status: {
+							state: "OPEN",
+							pending: ["test", "app"],
+							failed: [],
+							passed: 1,
+						},
+					},
+				],
+				jira: {
+					url: "https://imagen.atlassian.net/browse/BUGT-3101",
+					key: "BUGT-3101",
+					status: "In Review",
+				},
+				slack: "https://imagen.slack.com/archives/C1/p1",
+				notion: null,
+			};
 		case "repos":
 			return [
 				"/Users/dan/dev/odin",

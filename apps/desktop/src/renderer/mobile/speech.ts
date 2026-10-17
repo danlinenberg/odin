@@ -43,10 +43,17 @@ export function useSpeech(onText: (text: string) => void) {
 	const [transcribing, setTranscribing] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const web = useRef<Recognition | null>(null);
+	// Set by finish(): the words go to its caller, not into the box.
+	const finishing = useRef<((text: string) => void) | null>(null);
 
 	const heard = (text: string) => {
 		setListening(false);
 		setTranscribing(false);
+		if (finishing.current) {
+			finishing.current(text.trim());
+			finishing.current = null;
+			return;
+		}
 		if (text.trim()) onText(text.trim());
 	};
 
@@ -97,5 +104,30 @@ export function useSpeech(onText: (text: string) => void) {
 		setListening(true);
 	}
 
-	return { listening, transcribing, error, toggle };
+	/**
+	 * Stop and hand back what was heard, for Send pressed mid-dictation: one
+	 * tap sends it, no stop first. "" when nothing was recording.
+	 */
+	async function finish(): Promise<string> {
+		if (!listening) return "";
+		setTranscribing(true);
+		if (native) {
+			try {
+				const result = await native("OdinSpeech", "stop");
+				return result?.text?.trim() ?? "";
+			} catch {
+				return "";
+			} finally {
+				setListening(false);
+				setTranscribing(false);
+			}
+		}
+		return new Promise((resolve) => {
+			if (!web.current) return resolve("");
+			finishing.current = resolve;
+			web.current.stop();
+		});
+	}
+
+	return { listening, transcribing, error, toggle, finish };
 }
