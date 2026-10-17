@@ -13,6 +13,7 @@ import {
 	getTerminalHostClient,
 	type TerminalHostClient,
 } from "../../terminal-host/client";
+import { daemonParkedBundle } from "../../terminal-host/parked-bundle";
 import { terminalHostSocketPath } from "../../terminal-host/socket-path";
 import type { ListSessionsResponse } from "../../terminal-host/types";
 import { raceWithAbort, throwIfAborted } from "../abort";
@@ -89,6 +90,11 @@ export class DaemonTerminalManager extends EventEmitter {
 
 	private coldRestoreInfo = new Map<string, ColdRestoreInfo>();
 	private cleanupTimeouts = new Map<string, NodeJS.Timeout>();
+	private retiringParkedDaemon = false;
+
+	/** The parked bundle the daemon runs from, or null (see parked-bundle.ts). */
+	parkedBundle = () =>
+		daemonParkedBundle(join(ODIN_HOME_DIR, "terminal-host.pid"));
 
 	constructor() {
 		super();
@@ -200,6 +206,38 @@ export class DaemonTerminalManager extends EventEmitter {
 		}
 	}
 
+	/**
+	 * A daemon still running from a bundle an update parked makes macOS charge
+	 * every session to that bundle, so privacy prompts name "Odin-<epoch>" and
+	 * may never stick. Once nothing runs on it, shut it down: the next session
+	 * spawns a daemon from the installed Odin. Never touches a live session.
+	 */
+	async retireParkedDaemonIfIdle(): Promise<boolean> {
+		if (this.retiringParkedDaemon || this.pendingSessions.size) return false;
+		this.retiringParkedDaemon = true;
+		try {
+			const parked = await this.parkedBundle();
+			if (!parked) return false;
+			const running = await this.client.listSessionsIfRunning();
+			if (!running || running.sessions.some((s) => s.isAlive)) return false;
+			if (this.pendingSessions.size) return false;
+			console.log(
+				`[DaemonTerminalManager] Daemon runs from ${parked} with no sessions - restarting it from the installed Odin`,
+			);
+			await this.client.shutdownIfRunning({ killSessions: true });
+			this.reset();
+			return true;
+		} catch (error) {
+			console.warn(
+				"[DaemonTerminalManager] Failed to retire the parked daemon:",
+				error,
+			);
+			return false;
+		} finally {
+			this.retiringParkedDaemon = false;
+		}
+	}
+
 	private async ensureDaemonSessionIdsHydrated(): Promise<void> {
 		if (this.daemonSessionIdsHydrated) return;
 
@@ -261,6 +299,8 @@ export class DaemonTerminalManager extends EventEmitter {
 				}
 				this.emit(`exit:${paneId}`, exitCode, signal, reason);
 				this.emit("terminalExit", { paneId, exitCode, signal, reason });
+				if (this.daemonSessionIdsHydrated && !this.daemonAliveSessionIds.size)
+					void this.retireParkedDaemonIfIdle();
 
 				const timeoutId = setTimeout(() => {
 					this.sessions.delete(paneId);

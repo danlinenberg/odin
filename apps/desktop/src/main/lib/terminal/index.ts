@@ -24,6 +24,7 @@ export async function reconcileDaemonSessions(): Promise<void> {
 	try {
 		const manager = getDaemonTerminalManager();
 		await manager.reconcileOnStartup();
+		await manager.retireParkedDaemonIfIdle();
 	} catch (error) {
 		console.warn(
 			"[TerminalManager] Failed to reconcile daemon sessions:",
