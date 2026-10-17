@@ -81,7 +81,9 @@ cannot pretend to be your Odin or your phone.
 
 - **Host**: Odin's phone server (`apps/desktop/src/main/lib/phone`), and later
   the same code in host-service on an EC2. Holds a long-term identity key and
-  the list of trusted phones.
+  the list of trusted phones. The EC2 case needs Odin's backend to run on the
+  server, which is set aside for now: until it lands, the phone reaches Odin
+  only while the Mac is on, even when Claude sessions run on an EC2.
 - **Phone**: the iPhone app (`apps/desktop/src/renderer/mobile`, built by
   `apps/mobile`). Holds its own long-term key and the host's public key.
 - **Relay**: `packages/odin-relay` - a WebSocket forwarder of about 150 lines,
@@ -192,7 +194,11 @@ prove ownership of its ID.
 ### Which relay
 
 There is no default relay. You run your own - one `docker run` on any server,
-an EC2 included - and give Odin its address in Settings > Phone. A public relay
+an EC2 included - and give Odin its address in Settings > Phone. The relay's
+server needs a public HTTPS address (an inbound 443 port and a TLS name), so
+a private, SSM-only server with no inbound access cannot be the relay; it can
+still reach one, since a host dials the relay outbound on 443. Run the relay
+on a separate small public host or container. A public relay
 may come later; until then, nobody's traffic goes through a server they didn't
 choose. Even then, a relay cannot read it.
 
