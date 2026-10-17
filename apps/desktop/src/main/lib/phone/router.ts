@@ -3,6 +3,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import { appState } from "main/lib/app-state";
 import { readTranscript, writeBrief } from "main/lib/claude-sessions";
 import { askRenderer } from "main/lib/notifications/server";
+import { appCaller } from "main/lib/odin-api";
 import { loadSessions } from "main/lib/tray";
 import { getWorkspaceRuntimeRegistry } from "main/lib/workspace-runtime";
 import stripAnsi from "strip-ansi";
@@ -135,18 +136,44 @@ export const phoneRouter = t.router({
 		return {
 			title: pane.odinTaskTitle ?? "Session",
 			status: pane.status ?? "idle",
+			starred: !!pane.odinStarred,
 			messages: transcript?.messages.slice(-60) ?? [],
 			screen,
 		};
 	}),
 
-	/** Separate from `session`: a brief that isn't cached runs `claude -p`. */
+	/**
+	 * The session's written brief: the TL;DR line and, for the card opened in
+	 * full, its goal, what it did, where it stands and what's next. Separate
+	 * from `session`: a brief that isn't cached runs `claude -p`.
+	 */
 	brief: t.procedure.input(paneInput).query(async ({ input }) => {
 		const sessionId = sessionOf(input.paneId);
 		if (!sessionId) return null;
 		const brief = await writeBrief({ sessionId }).catch(() => null);
-		return brief ? (brief.done ?? brief.status ?? brief.goal) : null;
+		if (!brief) return null;
+		const { goal, done, status, next } = brief;
+		return { tldr: done ?? status ?? goal, goal, done, status, next };
 	}),
+
+	/** The checkouts a new task can run in - New task's repo picker. */
+	repos: t.procedure.query(async () => {
+		// The app router is untyped from here; repos.list answers sorted paths.
+		const caller = appCaller() as
+			| { repos: { list: () => Promise<string[]> } }
+			| undefined;
+		return (await caller?.repos.list()) ?? [];
+	}),
+
+	/** Star or unstar a session; the window owns pane state, so it goes there. */
+	star: t.procedure
+		.input(paneInput.extend({ starred: z.boolean() }))
+		.mutation(({ input }) =>
+			board("star", {
+				paneId: input.paneId,
+				starred: String(input.starred),
+			}),
+		),
 
 	reply: t.procedure
 		.input(
@@ -175,11 +202,19 @@ export const phoneRouter = t.router({
 				.object({
 					text: z.string().max(20_000),
 					paths: z.array(attachment).max(10).default([]),
+					/** A checkout from `repos`; none = the default the window picks. */
+					repo: z.string().optional(),
+					/** Start it on the board now, not just save it to the backlog. */
+					start: z.boolean().default(false),
 				})
 				.refine((input) => input.text.trim() || input.paths.length),
 		)
 		.mutation(({ input }) =>
-			board("add", { text: taskWithFiles(input.text, input.paths) }),
+			board("add", {
+				text: taskWithFiles(input.text, input.paths),
+				...(input.repo && { repo: input.repo }),
+				...(input.start && { start: "true" }),
+			}),
 		),
 
 	start: t.procedure

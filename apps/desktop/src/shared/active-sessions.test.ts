@@ -45,6 +45,8 @@ describe("activeSessions", () => {
 				contact: null,
 				tags: [],
 				repo: null,
+				starred: false,
+				statusAt: null,
 			},
 			{
 				paneId: "working",
@@ -54,6 +56,8 @@ describe("activeSessions", () => {
 				contact: "Ladis",
 				tags: ["infra"],
 				repo: "odin",
+				starred: false,
+				statusAt: null,
 			},
 		]);
 	});

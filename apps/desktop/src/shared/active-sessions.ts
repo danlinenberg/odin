@@ -25,6 +25,10 @@ export interface ActiveSession {
 	tags: string[];
 	/** Which repo it's running in - the cwd's last segment. */
 	repo: string | null;
+	/** Starred on the board (★): starred cards come first. */
+	starred: boolean;
+	/** When its status last changed - a turn that just ended reads as just done. */
+	statusAt: number | null;
 }
 
 /** Needs-you first - the whole point of looking. */
@@ -61,6 +65,8 @@ export function activeSessions(
 			// confirmed cwd, same fallback the board's cards use.
 			repo:
 				(pane.cwd ?? pane.initialCwd)?.split("/").filter(Boolean).pop() ?? null,
+			starred: !!pane.odinStarred,
+			statusAt: pane.odinStatusAt ?? null,
 		}))
 		.sort(
 			(a, b) =>

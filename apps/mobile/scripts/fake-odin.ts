@@ -19,7 +19,7 @@ const sessions = [
 	["p3", "Mobile iOS app", "working", "odin", null],
 	["p4", "Voice transcribe bug", "working", "odin", null],
 	["p5", "Board hover card", "review", "odin", null],
-].map(([paneId, title, column, repo, contact]) => ({
+].map(([paneId, title, column, repo, contact], i) => ({
 	paneId,
 	title,
 	column,
@@ -27,6 +27,9 @@ const sessions = [
 	contact,
 	tags: [],
 	source: "tasks",
+	starred: paneId === "p4",
+	// p5 ended its turn 3 minutes ago: a Just done card.
+	statusAt: Date.now() - [40, 8, 2, 95, 3][i] * 60_000,
 }));
 
 const messages: Record<string, Message[]> = {
@@ -34,6 +37,12 @@ const messages: Record<string, Message[]> = {
 		{
 			role: "user",
 			text: "The HDR grouping test fails about 1 in 5 runs. Find out why.",
+			at: null,
+		},
+		{ role: "assistant", text: "Reading the grouper and its tests.", at: null },
+		{
+			role: "assistant",
+			text: "Ran the test 50 times: it fails when a bracket crosses IMG_9999.",
 			at: null,
 		},
 		{
@@ -52,6 +61,11 @@ const messages: Record<string, Message[]> = {
 				"| Before | After |",
 				"| --- | --- |",
 				"| 1 in 5 fail | 0 in 50 |",
+				"",
+				"ACTION ITEMS",
+				"1. Approve running the migration on dev",
+				"2. Tell me which branch to push to [main | release]",
+				"3. Check the PR https://github.com/x/y/pull/1 (you only)",
 			].join("\n"),
 			at: null,
 		},
@@ -94,7 +108,29 @@ function answer(path: string, input: Record<string, string> | undefined) {
 				screen: session?.column === "permission" ? screen : "",
 			};
 		case "brief":
-			return "Flaky test: brackets sorted by file name. Fixed the sort, added a test. 14 pass.";
+			return {
+				tldr: "Flaky test: brackets sorted by file name. Fixed the sort, added a test. 14 pass.",
+				goal: "Find why the HDR grouping test fails about 1 in 5 runs.",
+				done: "Sorted brackets by capture time and added a rollover test. 14 pass.",
+				status: "Waiting for approval to run the migration on dev.",
+				next: "Push the fix and open a PR.",
+			};
+		case "repos":
+			return [
+				"/Users/dan/dev/odin",
+				"/Users/dan/dev/imagen",
+				"/Users/dan/dev/imagen/internal-claude",
+			];
+		case "star": {
+			if (session)
+				(session as { starred: boolean }).starred = (
+					input as unknown as { starred: boolean }
+				).starred;
+			return "ok";
+		}
+		case "add":
+			console.log("  add", JSON.stringify(input));
+			return "ok";
 		case "reply":
 			messages[paneId] ??= [];
 			messages[paneId].push({

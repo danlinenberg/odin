@@ -30,7 +30,7 @@ import { create } from "zustand";
 import { type PromptImage, sessionTitle } from "../components/OdinPromptDialog";
 import { readState, runAction, writeState } from "./crow-state";
 import { endSession, useDone } from "./useDone";
-import { taskPrompt, useMyTasks } from "./useOdinTasks";
+import { taskPrompt, useMyTasks, useOdinTasks } from "./useOdinTasks";
 import { useOdinWorkspace } from "./useOdinWorkspace";
 
 /**
@@ -547,8 +547,29 @@ function runOdinAction(
 		);
 	if (action === "add") {
 		if (!args.text?.trim()) return "Need text.";
-		deps.add(args.text);
-		return `Added "${args.text.trim().split("\n")[0]}" to the backlog.`;
+		deps.add(args.text, undefined, args.repo || undefined);
+		const title = args.text.trim().split("\n")[0];
+		// The store puts a new task first: the one just added, as TaskBox's Start now reads it.
+		const task =
+			args.start === "true" ? useOdinTasks.getState().tasks[0] : undefined;
+		if (!task) return `Added "${title}" to the backlog.`;
+		// Not awaited: a launch can sit behind the machine's capacity gate.
+		void launchTask(task, deps);
+		return `Added "${title}" and started it on the board.`;
+	}
+	if (action === "star") {
+		const pane = args.paneId ? panes[args.paneId] : undefined;
+		if (!pane)
+			return "No session with that paneId - list them with action=sessions.";
+		// Set, not flipped: a retried call can't undo itself.
+		const starred = args.starred === "true";
+		useTabsStore.setState((state) => ({
+			panes: {
+				...state.panes,
+				[pane.id]: { ...state.panes[pane.id], odinStarred: starred },
+			},
+		}));
+		return `${starred ? "Starred" : "Unstarred"} ${pane.odinTaskTitle ?? pane.id}.`;
 	}
 	if (action === "start") {
 		const ids = (args.ids ?? "").split(",").map((id) => id.trim());
@@ -616,5 +637,5 @@ function runOdinAction(
 		endSession(args.paneId);
 		return `Marked ${panes[args.paneId].odinTaskTitle ?? args.paneId} done.`;
 	}
-	return `Unknown action "${action}" - use guide, tasks, start, add, sessions, night, done, state, set, open, api or call.`;
+	return `Unknown action "${action}" - use guide, tasks, start, add, star, sessions, night, done, state, set, open, api or call.`;
 }
