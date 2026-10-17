@@ -19,10 +19,7 @@ import {
 	useNextInLinePrompt,
 } from "renderer/stores/next-in-line-prompt";
 import { NightAgentRows } from "../../settings/backlog/page";
-import {
-	SettingsPage,
-	SettingsSection,
-} from "../../settings/components/SettingsPage";
+import { SettingsSection } from "../../settings/components/SettingsPage";
 import type { AllItem } from "../all/all-items";
 import { SOURCE_ICON } from "../all/TaskTable";
 import { useNextInLineQueue } from "../board/NextInLine";
@@ -39,23 +36,28 @@ const LOG_PREVIEW = 30;
 function NightAgentPage() {
 	return (
 		<div className="h-full overflow-y-auto">
-			<SettingsPage
-				title="Night Agent"
-				description="Works through your picks, then Next in line, one session at a time while you're away."
-			>
-				<StatusCard />
-				<NextRunSection />
-				<SettingsSection title="Schedule">
-					<NightAgentRows />
-				</SettingsSection>
-				<LogSection />
-			</SettingsPage>
+			<div className="mx-auto w-full max-w-[1600px] space-y-8 px-8 py-8">
+				<StatusHero />
+				{/* ponytail: one column under xl, the queue on the left from there. */}
+				<div className="grid items-start gap-8 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+					<div className="space-y-8">
+						<NextRunSection />
+						<AddSection />
+					</div>
+					<div className="space-y-8">
+						<SettingsSection title="Schedule">
+							<NightAgentRows />
+						</SettingsSection>
+						<LogSection />
+					</div>
+				</div>
+			</div>
 		</div>
 	);
 }
 
 /** On or off, whether it's running now, and how far tonight has got. */
-function StatusCard() {
+function StatusHero() {
 	const offHours = useNextInLinePrompt((s) => s.offHours);
 	const started = useNextInLinePrompt((s) => s.offHoursStarted);
 	const lastEntry = useNextInLinePrompt((s) => s.nightLog.at(-1));
@@ -67,48 +69,108 @@ function StatusCard() {
 			? `Running until ${offHours.end}`
 			: `Next run at ${offHours.start}`;
 	return (
-		<div className="flex items-center gap-4 rounded-xl border border-border bg-card/60 px-5 py-4">
-			<div
-				className={cn(
-					"flex size-11 shrink-0 items-center justify-center rounded-full",
-					offHours.enabled
-						? "bg-primary/15 text-primary"
-						: "bg-muted text-muted-foreground",
-				)}
-			>
-				<LuMoon className="size-5" aria-hidden />
-			</div>
-			<div className="min-w-0 flex-1">
-				<div className="flex items-center gap-2">
-					<span className="text-base font-semibold">{headline}</span>
-					{running && (
-						<span className="rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-medium text-primary">
-							Live
-						</span>
-					)}
-				</div>
-				<div className="mt-0.5 text-[13px] text-muted-foreground">
-					{offHours.enabled
-						? `${offHours.start} - ${offHours.end} · ${started} of at most ${offHours.maxSessions} started tonight · ${offHours.picked.length} picked`
-						: "Turn it on under Schedule below."}
-				</div>
-				{lastEntry && (
+		<section className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-primary/15 via-card/80 to-card/40 p-6">
+			<LuMoon
+				className="pointer-events-none absolute -top-10 -right-6 size-56 text-primary/[.06]"
+				aria-hidden
+			/>
+			<div className="relative flex flex-wrap items-center gap-x-10 gap-y-6">
+				<div className="flex min-w-0 flex-1 items-center gap-5">
 					<div
-						className="mt-1 truncate text-xs text-soft-foreground"
-						title={lastEntry.event}
+						className={cn(
+							"flex size-14 shrink-0 items-center justify-center rounded-2xl",
+							offHours.enabled
+								? "bg-primary/20 text-primary glow-primary"
+								: "bg-muted text-muted-foreground",
+						)}
 					>
-						Last: {lastEntry.event}
+						<LuMoon className="size-7" aria-hidden />
+					</div>
+					<div className="min-w-0">
+						<div className="text-xs font-semibold uppercase tracking-[.08em] text-soft-foreground">
+							Night Agent
+						</div>
+						<div className="mt-0.5 flex items-center gap-2">
+							<h2 className="text-2xl font-semibold tracking-tight">
+								{headline}
+							</h2>
+							{running && (
+								<span className="flex items-center gap-1.5 rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-medium text-primary">
+									<span className="size-1.5 animate-pulse rounded-full bg-primary" />
+									Live
+								</span>
+							)}
+						</div>
+						<p className="mt-1 text-sm text-muted-foreground">
+							{offHours.enabled
+								? "Works through your picks, then Next in line, one session at a time while you're away."
+								: "Turn it on under Schedule."}
+						</p>
+					</div>
+				</div>
+				{offHours.enabled && (
+					<div className="flex gap-3">
+						<Stat
+							label="Window"
+							value={`${offHours.start} - ${offHours.end}`}
+						/>
+						<Stat
+							label="Started tonight"
+							value={`${started} / ${offHours.maxSessions}`}
+							progress={started / offHours.maxSessions}
+						/>
+						<Stat
+							label="Picked"
+							value={`${offHours.picked.length} / ${MAX_NIGHT_PICKS}`}
+							progress={offHours.picked.length / MAX_NIGHT_PICKS}
+						/>
 					</div>
 				)}
 			</div>
+			{lastEntry && (
+				<div
+					className="relative mt-5 truncate border-t border-border/60 pt-3 text-xs text-muted-foreground"
+					title={lastEntry.event}
+				>
+					<span className="font-medium text-soft-foreground">Last night</span>{" "}
+					{lastEntry.event}
+				</div>
+			)}
+		</section>
+	);
+}
+
+function Stat({
+	label,
+	value,
+	progress,
+}: {
+	label: string;
+	value: string;
+	progress?: number;
+}) {
+	return (
+		<div className="w-36 rounded-xl border border-border/70 bg-background/40 px-4 py-3">
+			<div className="text-[11px] font-medium uppercase tracking-[.06em] text-muted-foreground">
+				{label}
+			</div>
+			<div className="mt-1 text-lg font-semibold tabular-nums">{value}</div>
+			{progress !== undefined && (
+				<div className="mt-2 h-1 overflow-hidden rounded-full bg-muted">
+					<div
+						className="h-full rounded-full bg-primary"
+						style={{ width: `${Math.min(1, progress) * 100}%` }}
+					/>
+				</div>
+			)}
 		</div>
 	);
 }
 
 /**
- * Your picks for the next run, in start order, and the waiting rows to add
- * from. The runner starts picks first, so this list is exactly what it does
- * next - then stops, or goes on down Next in line.
+ * Your picks for the next run, in start order. The runner starts picks first,
+ * so this list is exactly what it does next - then stops, or goes on down
+ * Next in line.
  */
 function NextRunSection() {
 	const offHours = useNextInLinePrompt((s) => s.offHours);
@@ -129,15 +191,24 @@ function NextRunSection() {
 			description={`Started first, top to bottom, one at a time. Up to ${MAX_NIGHT_PICKS}.`}
 		>
 			{picked.length === 0 ? (
-				<p className="px-4 py-4 text-sm text-muted-foreground">
-					No picks yet. Add tasks below, or click the moon on any task.
-				</p>
+				<div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
+					<div className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+						<LuMoon className="size-5" aria-hidden />
+					</div>
+					<p className="text-sm font-medium">No picks yet</p>
+					<p className="text-[13px] text-muted-foreground">
+						Add tasks from Waiting, or click the moon on any task.
+					</p>
+				</div>
 			) : (
 				picked.map((key, i) => {
 					const row = byKey.get(key);
 					return (
-						<div key={key} className="flex items-center gap-3 px-4 py-2.5">
-							<span className="w-5 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+						<div
+							key={key}
+							className="group flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30"
+						>
+							<span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold tabular-nums text-primary">
 								{i + 1}
 							</span>
 							{row ? (
@@ -147,26 +218,28 @@ function NextRunSection() {
 									No longer waiting - it was started, done or removed
 								</span>
 							)}
-							<IconButton
-								label="Move up"
-								disabled={i === 0}
-								onClick={() => move(i, i - 1)}
-							>
-								<LuArrowUp className="size-3.5" />
-							</IconButton>
-							<IconButton
-								label="Move down"
-								disabled={i === picked.length - 1}
-								onClick={() => move(i, i + 1)}
-							>
-								<LuArrowDown className="size-3.5" />
-							</IconButton>
-							<IconButton
-								label="Remove from the next run"
-								onClick={() => toggleNightPick(key)}
-							>
-								<LuX className="size-3.5" />
-							</IconButton>
+							<div className="flex opacity-40 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+								<IconButton
+									label="Move up"
+									disabled={i === 0}
+									onClick={() => move(i, i - 1)}
+								>
+									<LuArrowUp className="size-3.5" />
+								</IconButton>
+								<IconButton
+									label="Move down"
+									disabled={i === picked.length - 1}
+									onClick={() => move(i, i + 1)}
+								>
+									<LuArrowDown className="size-3.5" />
+								</IconButton>
+								<IconButton
+									label="Remove from the next run"
+									onClick={() => toggleNightPick(key)}
+								>
+									<LuX className="size-3.5" />
+								</IconButton>
+							</div>
 						</div>
 					);
 				})
@@ -175,12 +248,23 @@ function NextRunSection() {
 				value={offHours.afterPicks}
 				onChange={(afterPicks) => setOffHours({ afterPicks })}
 			/>
-			<AddPicks
-				rows={waiting.filter(
-					(row) => canPickForTonight(row) && !picked.includes(row.key),
-				)}
-				full={picked.length >= MAX_NIGHT_PICKS}
-			/>
+		</SettingsSection>
+	);
+}
+
+/** The waiting rows the Night Agent can start, to add to the next run. */
+function AddSection() {
+	const picked = useNextInLinePrompt((s) => s.offHours.picked);
+	const { waiting } = useNextInLineQueue(true);
+	const rows = waiting.filter(
+		(row) => canPickForTonight(row) && !picked.includes(row.key),
+	);
+	return (
+		<SettingsSection
+			title="Waiting"
+			description={`${rows.length} tasks the Night Agent can start.`}
+		>
+			<AddPicks rows={rows} full={picked.length >= MAX_NIGHT_PICKS} />
 		</SettingsSection>
 	);
 }
@@ -242,12 +326,12 @@ function AddPicks({ rows, full }: { rows: AllItem[]; full: boolean }) {
 				<Input
 					value={query}
 					onChange={(e) => setQuery(e.target.value)}
-					placeholder={`Add from ${rows.length} waiting tasks`}
+					placeholder="Search waiting tasks"
 					aria-label="Search waiting tasks"
-					className="h-8 pl-8 text-sm"
+					className="h-9 pl-8 text-sm"
 				/>
 			</div>
-			<div className="mt-2 max-h-72 overflow-y-auto">
+			<div className="-mx-1 mt-2 max-h-[28rem] overflow-y-auto">
 				{shown.length === 0 ? (
 					<p className="py-3 text-center text-xs text-muted-foreground">
 						{rows.length ? "No task matches." : "Nothing waiting to add."}
@@ -256,7 +340,7 @@ function AddPicks({ rows, full }: { rows: AllItem[]; full: boolean }) {
 					shown.map((row) => (
 						<div
 							key={row.key}
-							className="flex items-center gap-3 rounded-md px-1 py-1.5 hover:bg-muted/40"
+							className="group flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-muted/40"
 						>
 							<RowTitle row={row} />
 							<button
@@ -268,7 +352,7 @@ function AddPicks({ rows, full }: { rows: AllItem[]; full: boolean }) {
 										: "Add to the next run"
 								}
 								onClick={() => nightIntro.gate(() => toggleNightPick(row.key))}
-								className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-primary/15 hover:text-primary disabled:opacity-40"
+								className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground group-hover:border-primary/40 group-hover:text-primary hover:bg-primary/15 disabled:opacity-40"
 							>
 								<LuPlus className="size-3" aria-hidden />
 								Add
@@ -347,9 +431,9 @@ function LogSection() {
 				shown.map((entry) => (
 					<div
 						key={`${entry.at}-${entry.event}`}
-						className="flex gap-4 px-4 py-2 text-sm"
+						className="flex gap-4 px-4 py-2 text-[13px] leading-relaxed"
 					>
-						<span className="w-28 shrink-0 tabular-nums text-muted-foreground">
+						<span className="w-24 shrink-0 tabular-nums text-xs leading-[1.6rem] text-muted-foreground">
 							{new Date(entry.at).toLocaleString([], {
 								month: "short",
 								day: "numeric",
