@@ -9,6 +9,7 @@ describe("opensInOdin", () => {
 			"https://imagenai.atlassian.net/browse/BUGT-1",
 			"https://github.com/danlinenberg/odin/pull/595",
 			"https://www.notion.so/imagen/Page-abc123",
+			"https://app.notion.com/p/3fc9a1b573ff8151895afe27ced0854b",
 			"https://mail.google.com/mail/u/0/#inbox/abc",
 		]) {
 			expect(opensInOdin(url)).toBe(true);
