@@ -4,6 +4,7 @@ import {
 	applyLines,
 	applyQueue,
 	arrived,
+	autoSsoLogin,
 	bangCommands,
 	elapsedLabel,
 	interruptClaude,
@@ -678,4 +679,15 @@ describe("interruptClaude", () => {
 	test("an unreadable screen still interrupts", async () => {
 		expect(await run([null])).toEqual({ sent: true, writes: ["\x03"] });
 	});
+});
+
+test("autoSsoLogin signs in on its own only for a fresh expired-token reply", () => {
+	const text = "Token expired. Run 'aws sso login' to refresh.";
+	const now = 1_800_000_000_000;
+	expect(autoSsoLogin({ id: "a", text, at: now - 60_000 }, now)).toBe(true);
+	expect(autoSsoLogin({ id: "b", text, at: now - 11 * 60_000 }, now)).toBe(
+		false,
+	);
+	expect(autoSsoLogin({ id: "c", text }, now)).toBe(false);
+	expect(autoSsoLogin({ id: "d", text: "all good", at: now }, now)).toBe(false);
 });

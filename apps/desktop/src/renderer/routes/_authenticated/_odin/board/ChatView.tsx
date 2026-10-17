@@ -1718,13 +1718,48 @@ export function needsAwsSsoLogin(text: string): boolean {
 	return /run 'aws sso login'/i.test(text);
 }
 
-/** Runs `aws sso login` for the user, then tells Claude to try again. */
-function AwsSsoLogin({ onSend }: { onSend: (text: string) => void }) {
+/** Replies whose sign-in already ran on its own, so a remount doesn't open another tab. */
+const autoSsoTried = new Set<string>();
+
+/**
+ * Signs in without a click only for a reply written in the last 10 minutes:
+ * an old error still sitting last in a session must not open a browser tab
+ * every time Odin starts.
+ */
+export function autoSsoLogin(
+	item: { id: string; text: string; at?: number },
+	now = Date.now(),
+): boolean {
+	return (
+		needsAwsSsoLogin(item.text) &&
+		item.at !== undefined &&
+		now - item.at < 10 * 60_000 &&
+		!autoSsoTried.has(item.id)
+	);
+}
+
+/**
+ * Runs `aws sso login` for the user, then tells Claude to try again. A fresh
+ * error starts it on its own; the button stays for a retry or an old error.
+ */
+function AwsSsoLogin({
+	item,
+	onSend,
+}: {
+	item: { id: string; text: string; at?: number };
+	onSend: (text: string) => void;
+}) {
 	const login = electronTrpc.terminal.awsSsoLogin.useMutation({
 		onSuccess: () =>
 			onSend("I signed in to AWS again (aws sso login). Retry what failed."),
 		onError: (error) => toast.error(`aws sso login failed: ${error.message}`),
 	});
+	const { mutate } = login;
+	useEffect(() => {
+		if (!autoSsoLogin(item)) return;
+		autoSsoTried.add(item.id);
+		mutate();
+	}, [item, mutate]);
 	return (
 		<button
 			type="button"
@@ -1953,7 +1988,9 @@ const ItemView = memo(function ItemView({
 					onRun={onRun}
 				/>
 			)}
-			{onSend && needsAwsSsoLogin(item.text) && <AwsSsoLogin onSend={onSend} />}
+			{onSend && needsAwsSsoLogin(item.text) && (
+				<AwsSsoLogin item={item} onSend={onSend} />
+			)}
 			{onRun && !showsActions && (
 				<RunCommands commands={commands} onRun={onRun} />
 			)}
