@@ -1021,7 +1021,7 @@ await step(
 		)
 			throw new Error("... didn't open the session menu");
 		await page(
-			`document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`,
+			`document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`,
 		);
 		await page(
 			`(document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`,
