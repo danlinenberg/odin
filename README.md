@@ -223,6 +223,10 @@ You don't have to watch the board to know when to look:
   button, so most answers cost one click.
 - **Ping me** - Odin watches a session's Slack thread and pull requests and pings
   you when someone replies or a PR is approved. The reply also shows on the card.
+- **On your phone** - the Odin iPhone app shows the board and lets you answer
+  sessions, attach photos and dictate. It is being moved to end-to-end
+  encryption through a relay that can't read your traffic:
+  [the phone and Odin: end-to-end encrypted](docs/phone-encryption.md).
 
 ### Pick it back up
 
