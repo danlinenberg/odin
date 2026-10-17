@@ -39,6 +39,8 @@ export interface OdinFileConfig {
 	defaultRepo?: string;
 	/** Double-tap this modifier to show or hide Odin (main/lib/double-tap). */
 	doubleTapModifier?: string;
+	/** Settings → Appearance → Text size (shared/text-size). */
+	textSize?: number;
 
 	/**
 	 * Jira OAuth (Atlassian 3LO). These tokens expire and the refresh token
@@ -173,6 +175,7 @@ const SHARED_KEYS = [
 	"odinRepo",
 	"doubleTapModifier",
 	"pruneMergedWorktrees",
+	"textSize",
 	// The OAuth apps: which Slack/Jira/Notion app Odin *is*, and
 	// GitHub's device-flow client id. They describe the build, not an account,
 	// so every profile signs in through the same one - a profile that didn't

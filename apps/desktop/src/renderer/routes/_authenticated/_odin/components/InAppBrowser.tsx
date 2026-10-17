@@ -34,6 +34,7 @@ import {
 	useInAppBrowser,
 } from "renderer/stores/in-app-browser";
 import { IN_APP_BROWSER_PARTITION } from "shared/constants";
+import { browserZoomFor } from "shared/text-size";
 import { BUTTON } from "./pill";
 
 const CHROME_MAJOR = navigator.userAgent.match(/Chrome\/(\d+)/)?.[1];
@@ -334,7 +335,11 @@ export function InAppBrowser() {
 	const [pages, setPages] = useState<
 		Partial<Record<Site, { title: string; url: string }>>
 	>({});
-	const zoomFactor = useZoomFactor();
+	// The window's zoom without Settings → Appearance → Text size: that one
+	// is for Odin's own text, not the pages in here.
+	const windowZoom = useZoomFactor();
+	const { data: textSize = 1 } = electronTrpc.window.getTextSize.useQuery();
+	const zoomFactor = browserZoomFor(windowZoom, textSize);
 	const site = url ? siteOf(url) : null;
 	const page = (site && pages[site]) || { title: "", url: "" };
 	// The find bar's text; null while it's hidden.

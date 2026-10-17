@@ -3,8 +3,10 @@ import { homedir } from "node:os";
 import type { BrowserWindow } from "electron";
 import { dialog } from "electron";
 import { getImageMimeType } from "shared/file-types";
+import { TEXT_SIZES, textSizeOf, windowZoomFor } from "shared/text-size";
 import { z } from "zod";
 import { publicProcedure, router } from "..";
+import { readOdinConfig, updateOdinConfig } from "./odin-config";
 
 export const createWindowRouter = (getWindow: () => BrowserWindow | null) => {
 	return router({
@@ -49,6 +51,32 @@ export const createWindowRouter = (getWindow: () => BrowserWindow | null) => {
 			if (!window) return 1;
 			return window.webContents.getZoomFactor();
 		}),
+
+		/** Settings → Appearance → Text size; see shared/text-size. */
+		getTextSize: publicProcedure.query(() =>
+			textSizeOf(readOdinConfig().textSize),
+		),
+
+		setTextSize: publicProcedure
+			.input(
+				z.object({
+					size: z
+						.number()
+						.refine((size) => (TEXT_SIZES as readonly number[]).includes(size)),
+				}),
+			)
+			.mutation(async ({ input }) => {
+				const from = textSizeOf(readOdinConfig().textSize);
+				const contents = getWindow()?.webContents;
+				contents?.setZoomFactor(
+					windowZoomFor(contents.getZoomFactor(), from, input.size),
+				);
+				updateOdinConfig({ textSize: input.size });
+				// The window's zoom is saved with its bounds; save both together.
+				const { flushWindowStateSync } = await import("main/windows/main");
+				flushWindowStateSync();
+				return input.size;
+			}),
 
 		getHomeDir: publicProcedure.query(() => {
 			return homedir();
