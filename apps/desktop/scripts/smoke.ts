@@ -571,15 +571,6 @@ const clickOnTaskRow = (title: string) =>
 		return !!row;
 	})()`);
 
-/** Whether TASK's row has a button titled `title*`. */
-const clickOnTaskRowHas = (title: string) =>
-	page<boolean>(`(() => {
-		const sel = 'button[title^=${JSON.stringify(title)}], button[aria-label^=${JSON.stringify(title)}]';
-		let row = [...document.querySelectorAll("button")].find((e) => e.textContent.trim() === ${JSON.stringify(TASK)});
-		while (row && !row.querySelector(sel)) row = row.parentElement;
-		return !!row?.querySelector(sel) && !!row.querySelector('button[title="Mark done"]');
-	})()`);
-
 /**
  * Where Start session and Done sit on TASK's row. Rows are separate grids, so a
  * wider or missing button on one row ("↺ Read later", no Tonight) used to push
@@ -594,41 +585,28 @@ const taskRowButtons = () =>
 		return done && start ? { start: Math.round(start.right), done: Math.round(done.left) } : null;
 	})()`);
 
-await step("Read later marks a task and keeps it on the list", async () => {
+await step("Read later moves a task to Docs and back", async () => {
 	await rail("Tasks");
 	await waitForText(TASK);
-	const before = await taskRowButtons();
-	if (!before) throw new Error("no Start session and Done on the task's row");
-	if (before.done - before.start > 16)
+	const buttons = await taskRowButtons();
+	if (!buttons) throw new Error("no Start session and Done on the task's row");
+	if (buttons.done - buttons.start > 16)
 		throw new Error(
-			`Start session isn't next to Done: ${before.done - before.start}px apart`,
+			`Start session isn't next to Done: ${buttons.done - buttons.start}px apart`,
 		);
 	if (!(await clickOnTaskRow("Mark it Read later")))
 		throw new Error("no Read later button on the task's row");
-	// The row's own button turns to "Back to Waiting on you": the Status
-	// column that would print "Read later" is hidden on a narrow window.
-	for (
-		const end = Date.now() + 5_000;
-		!(await clickOnTaskRowHas("Back to Waiting on you"));
-	) {
-		if (Date.now() > end) throw new Error("Read later never took");
-		await sleep(200);
-	}
+	await waitForText(TASK, false);
+	const docs = await page<boolean>(`(() => {
+		const e = __find("button", "Docs", __find("button", "Slack").parentElement);
+		e?.click();
+		return !!e;
+	})()`);
+	if (!docs) throw new Error('no "Docs" tab');
 	await waitForText(TASK);
-	const after = await taskRowButtons();
-	if (JSON.stringify(after) !== JSON.stringify(before))
-		throw new Error(
-			`the wider "↺ Read later" moved the row's buttons: ${JSON.stringify(before)} -> ${JSON.stringify(after)}`,
-		);
-	if (!(await clickOnTaskRow("Back to Waiting on you")))
-		throw new Error("no way back from Read later on the task's row");
-	for (
-		const end = Date.now() + 5_000;
-		await clickOnTaskRowHas("Back to Waiting on you");
-	) {
-		if (Date.now() > end) throw new Error("Read later never cleared");
-		await sleep(200);
-	}
+	await click("button", "Back to Tasks");
+	await waitForText(TASK, false);
+	await rail("Tasks");
 	await waitForText(TASK);
 });
 

@@ -1,7 +1,9 @@
 import { toast } from "@odin/ui/sonner";
 import { createFileRoute } from "@tanstack/react-router";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { openUrl } from "renderer/stores/in-app-browser";
 import { FeedDivider, FeedHeader } from "../components/FeedChrome";
+import { useDone } from "../hooks/useDone";
 
 export const Route = createFileRoute("/_authenticated/_odin/docs/")({
 	component: DocsPage,
@@ -11,6 +13,7 @@ export const Route = createFileRoute("/_authenticated/_odin/docs/")({
  * Docs - what you worked out in a session, kept to read later or hand to a
  * new task (the task box's Doc picker). Not a task: no status, no due date.
  * The files in ~/.odin/docs are the store; a title opens one in your editor.
+ * Read later rows from Tasks list here too: off the list, kept to read.
  */
 function DocsPage() {
 	const { data: docs = [] } = electronTrpc.system.listDocs.useQuery();
@@ -18,6 +21,7 @@ function DocsPage() {
 		onError: (error) => toast.error(`Couldn't open the doc: ${error.message}`),
 	});
 	const reveal = electronTrpc.external.openInFinder.useMutation();
+	const { reading, undo } = useDone();
 
 	return (
 		<div className="flex h-full flex-col">
@@ -27,40 +31,77 @@ function DocsPage() {
 					saved from sessions · right-click a session → Save as doc
 				</span>
 			</FeedHeader>
-			{docs.length === 0 ? (
-				<div className="px-[18px] py-10 text-center text-[13px] text-muted-foreground">
-					No docs yet. Brainstorm in a session, then right-click its card → Save
-					as doc.
-				</div>
-			) : (
-				<ul className="min-h-0 flex-1 overflow-y-auto px-[18px] py-2">
-					{docs.map((doc) => (
-						<li
-							key={doc.path}
-							className="flex items-center gap-3 border-b border-border py-2"
-						>
-							<button
-								type="button"
-								title={doc.path}
-								onClick={() => open.mutate({ path: doc.path })}
-								className="min-w-0 truncate text-left text-[13px] font-semibold text-foreground hover:text-primary"
+			<div className="min-h-0 flex-1 overflow-y-auto">
+				{docs.length === 0 ? (
+					<div className="px-[18px] py-10 text-center text-[13px] text-muted-foreground">
+						No docs yet. Brainstorm in a session, then right-click its card →
+						Save as doc.
+					</div>
+				) : (
+					<ul className="px-[18px] py-2">
+						{docs.map((doc) => (
+							<li
+								key={doc.path}
+								className="flex items-center gap-3 border-b border-border py-2"
 							>
-								{doc.title}
-							</button>
-							<span className="min-w-0 truncate text-[12px] text-muted-foreground">
-								{doc.path.split("/").pop()}
-							</span>
-							<button
-								type="button"
-								onClick={() => reveal.mutate(doc.path)}
-								className="ml-auto shrink-0 text-[11px] text-muted-foreground hover:text-foreground"
-							>
-								Show in Finder
-							</button>
-						</li>
-					))}
-				</ul>
-			)}
+								<button
+									type="button"
+									title={doc.path}
+									onClick={() => open.mutate({ path: doc.path })}
+									className="min-w-0 truncate text-left text-[13px] font-semibold text-foreground hover:text-primary"
+								>
+									{doc.title}
+								</button>
+								<span className="min-w-0 truncate text-[12px] text-muted-foreground">
+									{doc.path.split("/").pop()}
+								</span>
+								<button
+									type="button"
+									onClick={() => reveal.mutate(doc.path)}
+									className="ml-auto shrink-0 text-[11px] text-muted-foreground hover:text-foreground"
+								>
+									Show in Finder
+								</button>
+							</li>
+						))}
+					</ul>
+				)}
+				{reading.length > 0 && (
+					<>
+						<h2 className="px-[18px] pt-4 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+							Read later
+						</h2>
+						<ul className="px-[18px] py-2">
+							{reading.map((row) => (
+								<li
+									key={row.key}
+									className="flex items-center gap-3 border-b border-border py-2"
+								>
+									<button
+										type="button"
+										title={row.url ?? undefined}
+										disabled={!row.url}
+										onClick={() => row.url && openUrl(row.url)}
+										className="min-w-0 truncate text-left text-[13px] font-semibold text-foreground hover:text-primary disabled:hover:text-foreground"
+									>
+										{row.title}
+									</button>
+									<span className="shrink-0 text-[12px] text-muted-foreground">
+										{row.source}
+									</span>
+									<button
+										type="button"
+										onClick={() => undo(row)}
+										className="ml-auto shrink-0 text-[11px] text-muted-foreground hover:text-foreground"
+									>
+										Back to Tasks
+									</button>
+								</li>
+							))}
+						</ul>
+					</>
+				)}
+			</div>
 		</div>
 	);
 }

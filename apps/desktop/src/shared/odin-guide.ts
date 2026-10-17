@@ -18,7 +18,7 @@ Tabs, in two groups split by a hairline: Odin's own (All, Tasks, Docs), then the
 - **Amber dot** on a tab: that source is not connected. **Red dot**: connected but failing.
 - Feeds reload every 2 minutes. **Sync** refreshes the connected sources.
 - **Columns**: Task, Sweep, Priority, Status, From, Where, a date.
-- **Row actions**: Open in <source>, due date, "Line it up - Up next" / "Take it off Up next", Tonight (moon, picks it for the Night Agent), "Mark it Read later - off the Night Agent", **Start** ("Session →" when a session already runs on it), **Done**.
+- **Row actions**: Open in <source>, due date, "Line it up - Up next" / "Take it off Up next", Tonight (moon, picks it for the Night Agent), "Mark it Read later - it moves to Docs", **Start** ("Session →" when a session already runs on it), **Done**.
 - **Done** is Odin only: nothing is written back to the source, and Undo is offered. A row done in one place leaves every feed. Store: done.
 - **Start** opens "Start: <title>": click Start session, or "+ Add context" for guidelines or images first. The session opens on the Dev Board.
 - **Status** is Odin's own if you set one (Backlog, Prioritised, In progress, In review, On hold), else the source's. Odin's status stays in Odin.

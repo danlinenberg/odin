@@ -258,7 +258,7 @@ export function TaskRow({
 	const type = typeOf(item, rows.types);
 	const readLabel = isReading
 		? "Back to Waiting on you"
-		: "Mark it Read later - off the Night Agent";
+		: "Mark it Read later - it moves to Docs";
 	return (
 		<div
 			ref={drag?.setNodeRef}

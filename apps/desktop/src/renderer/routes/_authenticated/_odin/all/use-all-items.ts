@@ -62,15 +62,12 @@ function useItems(everything: boolean) {
 }
 
 /**
- * The All feed's rows: every source, minus what's Done. Read later stays -
- * it's off the Night Agent and the per-source queues, but still on your list.
+ * The All feed's rows: every source, minus what's Done. Read later is a
+ * Done too - it lists under Docs.
  */
 export function useAllItems(): AllItem[] {
-	const { items, isDone, done } = useItems(false);
-	return useMemo(
-		() => items.filter((item) => !isDone(item) || done[item.key]?.reading),
-		[items, isDone, done],
-	);
+	const { items, isDone } = useItems(false);
+	return useMemo(() => items.filter((item) => !isDone(item)), [items, isDone]);
 }
 
 /**
