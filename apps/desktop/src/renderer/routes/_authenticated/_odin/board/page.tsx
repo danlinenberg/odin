@@ -4379,7 +4379,7 @@ function DevBoardPage() {
 						{card.pane.odinStarred && (
 							<LuStar
 								title="Starred - right-click to unstar"
-								className="ml-auto size-[11px] shrink-0 text-faint-foreground"
+								className="ml-auto size-[11px] shrink-0 fill-current text-attention"
 							/>
 						)}
 					</span>
