@@ -41,10 +41,6 @@ function sharesAny<T>(a: Set<T>, b: Set<T>, atLeast = 1): boolean {
  * thread about it - is two rows, and the overnight runner starts both. What
  * gives it away: the same Slack/Notion item, the same ticket key, or the same
  * person asking with two title words in common.
- *
- * ponytail: title words, not the PRs the sessions opened - two agents doing the
- * same job open different PRs. An LLM pass over the briefs is the upgrade if
- * titles start missing real pairs.
  */
 export function duplicateSessions(panes: Pane[]): Map<string, string> {
 	const found = new Map<string, string>();

@@ -15,11 +15,6 @@ import type { PaneStatus } from "./tabs-types";
  * spinner fell off the top of a window measured from the end. That read a
  * mid-turn session as Needs you, the Start hooks read it back as Working, and
  * cards flipped every few seconds all turn.
- *
- * ponytail: still a line count, just anchored. Its ceiling: a dialog taller
- * than this many lines above the box loses its first line, which is the one
- * that says "Do you want". Parse the box's own rule lines as a delimiter pair
- * if that ever bites.
  */
 const FOOTER_LINES = 10;
 
@@ -178,12 +173,6 @@ export function agentOnScreen(screen: string): boolean {
  *
  * "esc to interrupt" is deliberately not matched: mid-turn the drawer closing
  * is the wanted behaviour, and an Esc into the PTY there cancels the turn.
- *
- * ponytail: shares the status classifier's footer window, and its ceiling - a
- * transcript line within FOOTER_LINES of the input box that happens to say
- * "esc to go back" costs the drawer its Esc until the screen scrolls. Minimize
- * and click-outside still close it. Parse the box rules as a delimiter pair if
- * that ever bites.
  */
 export function escIsHandledOnScreen(screen: string): boolean {
 	return /esc(?:ape)? to (?:go back|back|cancel|exit|close|dismiss)|\(esc\)/i.test(

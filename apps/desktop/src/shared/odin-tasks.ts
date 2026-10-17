@@ -86,10 +86,6 @@ export function taskNotes(task: OdinTask): string {
  * one's session is still open on the board. Pause is how you stop it; the
  * machine-capacity gate in `launch` is what keeps a fast cron from flattening
  * the Mac.
- *
- * ponytail: no catch-up. An automation that came due while the app was shut
- * is skipped, not run at launch - opening Odin on Monday morning should not
- * fire the weekend's three missed runs at once.
  */
 export function dueAutomations(tasks: OdinTask[], now: Date): OdinTask[] {
 	const minute = new Date(now).setSeconds(0, 0);

@@ -13,8 +13,6 @@ const mermaidPlugins = { mermaid };
 // (Slack, email, a PR), so it reads as wrapped prose, not numbered code.
 const PROSE_LANGUAGES = new Set(["text", "txt", "plaintext"]);
 
-// ponytail: an unlabelled fence counts as prose when some line is a long
-// sentence; a smarter classifier only if commands start landing here.
 export function looksLikeProse(code: string): boolean {
 	return code
 		.split("\n")

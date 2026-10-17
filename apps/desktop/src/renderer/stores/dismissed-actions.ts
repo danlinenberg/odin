@@ -68,8 +68,6 @@ const words = (item: string) =>
 
 /**
  * Whether `item` is one you dismissed, in the same or new words.
- * ponytail: word overlap (Jaccard >= 0.6) - a rewrite that shares few words
- * comes back; ask the brief to match them if that bites.
  */
 export function isDismissed(dismissed: string[], item: string): boolean {
 	const a = words(item);

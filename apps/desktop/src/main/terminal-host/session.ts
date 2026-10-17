@@ -943,7 +943,6 @@ export class Session {
 		const started = Date.now();
 		this.sendWriteToSubprocess(data);
 		this.heldKey = setInterval(() => {
-			// ponytail: a 60s cap, for a release that never arrives.
 			if (
 				!this.subprocess ||
 				!this.subprocessReady ||

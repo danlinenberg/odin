@@ -192,10 +192,6 @@ export function adfToText(node: unknown, br = " "): string {
  * The last thing someone said to me on a ticket - newest first, because that
  * is the one waiting on an answer. A mention stores my account id in the body,
  * so containing it anywhere is the whole test.
- *
- * ponytail: reads the comments the search already returned, which is the most
- * recent 20. A mention older than that on a busier ticket shows no preview;
- * fetch /issue/{key}/comment per row if that starts mattering.
  */
 export function latestMention(
 	comments: JiraComment[],
@@ -299,9 +295,7 @@ const unescapeXml = (text: string) =>
 		.replace(/&amp;/g, "&");
 
 /**
- * Gmail's Atom feed → rows. ponytail: regex, not an XML parser - the feed is
- * a fixed, flat shape Gmail has served unchanged for 15 years. It holds the
- * 20 newest unread inbox threads; that's the ceiling, IMAP is the upgrade.
+ * Gmail's Atom feed → rows.
  */
 export function parseGmailAtom(xml: string): EmailRow[] {
 	return [...xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)].map(([, entry]) => {
@@ -643,8 +637,6 @@ export const createWorkRouter = () => {
 						created: issue.fields?.created ?? null,
 						dueDate: issue.fields?.duedate ?? null,
 						role,
-						// ponytail: capped at 3000 chars so a few hundred tickets stay a
-						// small payload; the hover only shows that much anyway.
 						description:
 							adfToText(issue.fields?.description, "\n")
 								.replace(/\n{3,}/g, "\n\n")
@@ -769,9 +761,6 @@ export const createWorkRouter = () => {
 		 * against what it saw last time. A watched PR (`pr:<url>`) reports its
 		 * approval the same way, so the same check pings once it's approved. A row Slack or Jira won't
 		 * answer for is left out, which reads as "nothing new".
-		 *
-		 * ponytail: Slack thread replies only - a DM answered inline, outside a
-		 * thread, doesn't count. Add `channelLastTs` here if that's missed.
 		 */
 		threadActivity: publicProcedure
 			.input(
@@ -911,7 +900,6 @@ export const createWorkRouter = () => {
 					date_created?: string | null;
 					due_date?: string | null;
 				};
-				// ponytail: first page (100 tasks) per workspace - page on when someone has more.
 				const pages = await Promise.all(
 					teams.map((team) =>
 						get<{ tasks: Task[] }>(

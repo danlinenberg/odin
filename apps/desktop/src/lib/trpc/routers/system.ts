@@ -192,7 +192,6 @@ async function claudeLogin(): Promise<{ ok: boolean; error?: string }> {
 	};
 	child.stdout?.on("data", collect);
 	child.stderr?.on("data", collect);
-	// ponytail: abandoned logins die after 10 minutes, not on a Cancel button.
 	const timer = setTimeout(() => child.kill(), 10 * 60_000);
 	return new Promise((resolve) => {
 		child.on("error", (error) => {
@@ -274,8 +273,6 @@ export interface OdinDoc {
 /**
  * Knowledge docs - what sessions saved with "Save as doc" (SAVE_DOC_PROMPT),
  * newest first. A doc is a markdown file, titled by its first "# " line.
- * ponytail: reads every file's head on each call - fine for a personal
- * shelf of tens, an index if it reaches thousands.
  */
 export async function listDocs(
 	dir = join(homedir(), ".odin", "docs"),
@@ -308,7 +305,7 @@ export const createSystemRouter = () => {
 		/**
 		 * A pasted screenshot has no file behind it, and a task is one string in
 		 * localStorage - so the bytes land in ~/.odin/attachments and the task
-		 * keeps the path. ponytail: never cleaned up, prune by age if it grows.
+		 * keeps the path.
 		 */
 		saveAttachment: publicProcedure
 			.input(

@@ -747,9 +747,6 @@ function AllFeedPage() {
 
 			<div className="flex min-h-0 flex-1">
 				<div className={TABLE_LIST}>
-					{/* ponytail: no error banner here. A broken source already marks
-				    its own tab, and fixing it happens on that tab - the roll-up
-				    just shows the rows the other sources returned. */}
 					{!showDone && sessions.length > 0 && (
 						<>
 							<div className={SECTION_LABEL}>

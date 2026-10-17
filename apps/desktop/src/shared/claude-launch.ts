@@ -64,7 +64,6 @@ export function remoteControlOnWith(
 
 /** The session's name on claude.ai: always `[Odin] <task>`, so they stand out there. */
 export function remoteControlName(name: string): string {
-	// ponytail: 80 chars, the session list truncates long names anyway.
 	return `[Odin] ${name.replace(/\s+/g, " ").trim()}`.trim().slice(0, 80);
 }
 

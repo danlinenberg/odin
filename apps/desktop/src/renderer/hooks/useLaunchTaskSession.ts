@@ -392,8 +392,6 @@ export function useLaunchTaskSession() {
 			// after the feed drops it. Sourceless launches (New Session, my own
 			// tasks) aren't external work and get no row. Failing to log must
 			// never cost you the session, so this is fire-and-forget.
-			// ponytail: no externalUrl - source+externalId reconstructs it per
-			// feed. Pass one through if a consumer ever needs it without the join.
 			// Resuming re-records too, which re-points the ledger row at this
 			// conversation - so the next resume finds it as well.
 			if (card.source && card.key)

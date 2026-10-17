@@ -244,7 +244,6 @@ export async function findClaude(
 	);
 	const commandId = sent.Command?.CommandId;
 	if (!commandId) throw new Error("SSM did not accept the check.");
-	// ponytail: 1s polls for 30s; the check itself is one `command -v`.
 	for (let attempt = 0; attempt < 30; attempt++) {
 		await new Promise((resolve) => setTimeout(resolve, 1_000));
 		const result = await ssm

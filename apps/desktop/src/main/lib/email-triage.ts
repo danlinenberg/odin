@@ -44,8 +44,6 @@ export function parseTriage(text: string, ids: string[]): Set<string> | null {
 	}
 }
 
-// ponytail: in-memory verdict per email id - each email is asked about once,
-// so a poll with nothing new costs nothing. A restart re-asks about ≤20.
 const verdicts = new Map<string, boolean>();
 let inFlight: Promise<void> | null = null;
 

@@ -275,7 +275,6 @@ type RichText = { plain_text?: string }[];
 const plain = (rich: RichText | undefined) =>
 	(rich ?? []).map((t) => t.plain_text ?? "").join("");
 
-/** ponytail: top-level blocks only; nested toggles/columns read as their first line. Recurse if pages need it. */
 async function readNotion(id: string): Promise<string> {
 	const token = resolveNotionToken();
 	if (!token) throw new Error("Notion isn't connected in Odin.");

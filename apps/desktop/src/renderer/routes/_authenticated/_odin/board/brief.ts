@@ -364,8 +364,6 @@ export function elapsedLabel(
  * When a 5-field cron expression (local time, the way CronCreate books it)
  * next fires after `from`, or null if it doesn't within the 7 days a
  * recurring job lives. Handles `*`, `a`, `a-b`, `a,b` and `/n` steps.
- *
- * ponytail: minute-by-minute scan, ~10k steps worst case. Fine for a pill.
  */
 export function nextCronFire(expr: string, from = Date.now()): number | null {
 	const fields = expr.trim().split(/\s+/);
@@ -720,8 +718,7 @@ export function mergeTargets(messages: BriefMessage[]): PullRequestLink[] {
 }
 
 /**
- * The PRs mergeReady judges a session on. ponytail: the 20 newest -
- * pullRequestStates' cap; a session that linked more is judged on those.
+ * The PRs mergeReady judges a session on.
  */
 export function mergeCheckUrls(messages: BriefMessage[]): string[] {
 	return pullRequests(messages)

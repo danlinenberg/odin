@@ -201,10 +201,7 @@ export function TaskBox({
 			{/* The picker doesn't hold a value of its own: it rewrites the "!"s in
 			    the text, which is what the store reads either way. Typing "!" and
 			    picking Low are the same edit, so neither can go stale. Medium is
-			    the no-"!"s case, so the box you just typed into already reads as it.
-
-			    ponytail: a native <select> - it opens as a real menu, it's keyboard
-			    navigable for free, and there's no popup to style. */}
+			    the no-"!"s case, so the box you just typed into already reads as it. */}
 			{/* One row at the quick-add's 520px: Skill and Repo on the left,
 			    Priority pushed right. Nothing in it grows as you type. */}
 			{!folded && (
@@ -213,8 +210,6 @@ export function TaskBox({
 						<SkillSelect skills={skills} value={value} onChange={onChange} />
 					)}
 					{docs && docs.length > 0 && (
-						// ponytail: a native <select>, like Priority. The pick is a line
-						// in the brief, so the session reads the doc like any other path.
 						<select
 							aria-label="Doc"
 							title="Add a saved doc to the brief - the session reads it for context"
@@ -295,10 +290,6 @@ export function TaskBox({
  * own, exactly like the priority picker writes "!"s: typing `/gdpr` and
  * picking it from here are the same edit, so the menu and the box can't
  * disagree, and the edit box round-trips through one string.
- *
- * ponytail: a native `<select>`. Long list, but it's the platform's own menu -
- * scrolling, type-to-search and keyboard nav for free. A search field if it
- * ever outgrows a menu.
  */
 /**
  * Which skill the session opens with - the agent's own list, read off disk in
@@ -309,11 +300,6 @@ export function TaskBox({
  * into the title and choosing it here are the same edit, so the two can't
  * disagree and the edit box round-trips through one string.
  *
- * ponytail: the menu is drawn here rather than by a native `<datalist>`. Eighty
- * skills need search either way, and `matchSkills` - the composer's own
- * ranking, name matches before description matches - already exists and is
- * tested. A native popup also can't show a description, can't be styled to
- * match, and is the one widget that can't be verified from the outside.
  *
  * It's `fixed` and measured on open because the rows it appears in live in a
  * scroll container, which would clip an absolutely-positioned menu.
@@ -470,9 +456,6 @@ function SkillSelect({
  * box shows which repo it landed on instead of the head of a long path. The
  * state is the text colour - green picked, red not - with the why in the
  * tooltip, so the row never grows a note and wraps.
- *
- * ponytail: native `<datalist>` - Chromium does search-as-you-type over the
- * paths for free.
  */
 function RepoSelect({
 	repos,
@@ -708,8 +691,7 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 
 	// The size you last dragged it to. Chromium writes the drag straight into the
 	// element's inline style, so the element is the only source worth reading:
-	// restore it on open, write it back on close. ponytail: localStorage - a
-	// remembered box size isn't state worth a migration.
+	// restore it on open, write it back on close.
 	useEffect(() => {
 		const box = dialog.current;
 		if (!box) return;
@@ -743,7 +725,6 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 				role="dialog"
 				aria-modal="true"
 				aria-label="New task"
-				// ponytail: CSS `resize` - Chromium draws the corner grip for free.
 				className="fixed left-1/2 top-[12vh] z-50 flex h-[190px] max-h-[80vh] w-[520px] min-w-[320px] max-w-[92vw] -translate-x-1/2 resize flex-col overflow-hidden rounded-[10px] border border-border bg-popover p-3.5 shadow-[0_18px_60px_rgba(0,0,0,0.6)]"
 			>
 				{/* The button sits in the header, not under the fields: the dialog's

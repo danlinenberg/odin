@@ -117,8 +117,6 @@ export function useOdinWorkspace() {
 		if (!repoPath) {
 			return fallback("No default folder - set one in Settings → Sessions.");
 		}
-		// ponytail: unconditional - openFromPath upserts the project and its main
-		// workspace, so this resolves an already-open repo instead of duplicating it.
 		const result = await openFromPath.mutateAsync({ path: repoPath });
 		if ("error" in result && result.error) {
 			return fallback(result.error);

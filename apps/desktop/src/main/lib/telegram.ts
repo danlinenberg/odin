@@ -43,14 +43,12 @@ let status: TelegramStatus = { state: "off" };
 let polling: AbortController | null = null;
 let pairCode = "";
 /** Titles of the tasks submitted from Telegram - the sessions it reports on. */
-// ponytail: in memory, so a restart stops the reports for earlier tasks.
 const watched = new Set<string>();
 /** The last /tasks list, so `start 2` means its second row. */
 let lastTaskIds: string[] = [];
 /** The last /status list, so `screen 2` means its second row. */
 let lastPaneIds: string[] = [];
 /** "Waiting for you" message id -> its session, so a reply reaches the pane. */
-// ponytail: in memory and never pruned; a restart forgets old alerts.
 const alertPanes = new Map<number, string>();
 
 export const telegramStatus = () => status;

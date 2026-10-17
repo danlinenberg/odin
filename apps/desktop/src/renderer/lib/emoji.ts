@@ -5,8 +5,7 @@ import shortcodes from "emojibase-data/en/shortcodes/iamcal.json";
  * card that reads "can you help? :point_up::pray:" makes you decode it.
  *
  * iamcal is the shortcode set Slack itself uses; GitHub's overlaps almost
- * entirely. ponytail: no second map for GitHub's handful of extras, and a
- * shortcode we don't know stays as typed - which is what Slack does too.
+ * entirely.
  */
 const BY_SHORTCODE = new Map<string, string>(
 	Object.entries(shortcodes as Record<string, string | string[]>).flatMap(

@@ -404,8 +404,6 @@ function readBytes(read: { kind: string; content: unknown }): Uint8Array {
 /**
  * Where each transcript's reader stopped, kept when its view unmounts, so
  * switching back to a session shows it at once and reads only what's new.
- * ponytail: the last 20 sessions, oldest out first; a file rewritten shorter
- * than the kept offset is not detected.
  */
 interface LiveState {
 	offset: number | null;
@@ -568,8 +566,6 @@ function useLiveItems(path: string | null, workspaceId: string) {
 				const split = splitEarlier(readBytes(read), head, from === 0);
 				head = split.head;
 				start = from;
-				// ponytail: a tool row whose result sits past the cut stays without
-				// it; the tail window already dropped that result.
 				const rows = applyLines([], parseLines(split.lines));
 				shown = [...rows, ...shown];
 				setItems(shown);
@@ -742,7 +738,6 @@ const ToolRow = memo(function ToolRow({
 								item.isError ? "text-danger" : "text-muted-foreground",
 							)}
 						>
-							{/* ponytail: capped - a 2MB tool output in a <pre> stalls the drawer */}
 							<DiffColored text={item.result.slice(0, 20_000)} />
 						</pre>
 					)}
@@ -2005,7 +2000,6 @@ export function ChatView({
 	useEffect(() => {
 		setPending((list) => list.filter((sent) => !isEchoed(items, sent)));
 	}, [items]);
-	// ponytail: an echo that never matches (Claude rewrote it) just expires.
 	// Not mid-turn or queued: Claude writes a queued message only when it takes it.
 	const expireLater = (id: number, text: string) => {
 		const expire = () =>
@@ -2738,7 +2732,6 @@ function Composer({
 		useChatDrafts.getState().save(paneId, "");
 		setBash(false);
 		if (!bash) setAttached([]);
-		// ponytail: blob URLs are never revoked - a few per session.
 		onSent(
 			text,
 			sending.map((item) => item.preview),
@@ -2758,7 +2751,6 @@ function Composer({
 			// Claude reads a pasted image path off disk before it shows [Image #N],
 			// and an Enter that lands meanwhile is dropped: nothing sends. ~150ms
 			// was enough for a 6000x4000 JPEG; 500ms leaves room.
-			// ponytail: fixed wait, poll the screen for [Image #N] if it ever misses.
 			if (paths.length > 0)
 				await new Promise((resolve) => setTimeout(resolve, 500));
 			await typeIntoClaude(write.mutateAsync, paneId, text, now);

@@ -21,10 +21,6 @@ export interface AgentSkill {
 	description: string;
 }
 
-/**
- * ponytail: first line of the frontmatter `description:` only - a folded
- * multi-line YAML description gets truncated. Enough for a picker row.
- */
 function readDescription(filePath: string): string {
 	try {
 		const head = readFileSync(filePath, "utf-8").slice(0, 4000);
@@ -56,7 +52,6 @@ function subdirectories(path: string): string[] {
 	}
 }
 
-/** ponytail: top-level *.md only - nested command namespaces aren't used here. */
 function markdownFiles(path: string): string[] {
 	try {
 		return readdirSync(path, { withFileTypes: true })

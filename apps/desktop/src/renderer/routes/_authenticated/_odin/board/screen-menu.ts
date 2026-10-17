@@ -30,10 +30,6 @@ function indent(line: string): number {
  * input box draws one too, so when the last one sits under a rule the TUI
  * is waiting for typed text, not a pick, and older `❯` lines above it are
  * history.
- *
- * ponytail: text heuristics against Claude Code's Select layout (numbered
- * options, or plain ones with an "Enter to confirm" footer). A TUI layout
- * change means a missed menu - the terminal still answers it.
  */
 export function parseScreenMenu(screen: string): ScreenMenu | null {
 	const lines = screen.split("\n").map(unbox);
@@ -133,7 +129,6 @@ const ASIDE_RE = /^\s*\/btw\s/;
 /**
  * Finds a `/btw` overlay: its question line (no `❯` - that one is the input
  * box's echo), the answer under it, and an "Esc to close" footer.
- * ponytail: a question that wraps leaks its tail into the answer.
  */
 export function parseScreenAside(screen: string): ScreenAside | null {
 	const lines = screen.split("\n").map((line) => line.trimEnd());

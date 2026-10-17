@@ -266,7 +266,6 @@ export function initTray(): void {
 			void updateTrayMenu();
 		});
 
-		// ponytail: same 5s poll the board runs; push from the status writers if it lags.
 		refreshTimer = setInterval(() => void updateTrayMenu(), 5_000);
 
 		console.log("[Tray] Initialized successfully");

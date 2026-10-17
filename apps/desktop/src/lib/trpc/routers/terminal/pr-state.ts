@@ -399,9 +399,6 @@ const mainCheckout = (porcelain: string) =>
  * found through that repo's clone: a sibling of `checkout`'s clone (~/dev/imagen/*
  * sit together), else a path the transcript mentions. Newest first; a PR with
  * no checkout (worktree removed, repo not cloned) drops out.
- *
- * ponytail: 8 newest PRs, one gh call each. Batch through GraphQL if sessions
- * start opening more than that.
  */
 /**
  * A checkout named like the PR's repo isn't necessarily its clone: a worktree

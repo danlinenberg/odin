@@ -95,9 +95,6 @@ gh pr merge "$BRANCH" --repo "$SLUG" --squash --delete-branch
 cd "$REPO"
 echo "==> building $TAG (about 10 minutes)"
 gh workflow run Release --repo "$SLUG"
-# ponytail: the dispatched run takes a moment to exist, so wait for one that
-# started after we asked rather than watching whatever ran last. Give up after a
-# minute - if it never appears, the dispatch is the thing that went wrong.
 for _ in $(seq 30); do
 	RUN=$(gh run list --repo "$SLUG" --workflow Release --limit 1 \
 		--json databaseId,status -q '.[] | select(.status != "completed") | .databaseId')

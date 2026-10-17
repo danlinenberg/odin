@@ -49,10 +49,6 @@ export const RECENT_REPOS = 5;
  * Settings → Advanced: what Odin types instead of `claude` when it starts or
  * resumes a session. One machine can carry several Claude setups (a Bedrock
  * one, a personal account), and plain `claude` may resolve to the wrong one.
- *
- * ponytail: renderer localStorage, like launch-limits - every launch site is
- * in the renderer. The main process's own `claude -p` calls (briefs, sweeps)
- * still use plain `claude`.
  */
 export const useClaudeCommand = create<ClaudeCommandState>()(
 	persist(
@@ -78,7 +74,6 @@ export const useClaudeCommand = create<ClaudeCommandState>()(
 			setToBacklog: (toBacklog) => set({ toBacklog }),
 			setStartNow: (startNow) => set({ startNow }),
 			setRemoteControl: (remoteControl) => set({ remoteControl }),
-			// ponytail: capped at 100, oldest out; a pane id outlives its card harmlessly.
 			toggleRemotePane: (paneId) =>
 				set((s) => ({
 					remotePanes: s.remotePanes.includes(paneId)

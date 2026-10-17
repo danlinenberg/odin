@@ -325,7 +325,6 @@ export async function writeBrief({
 		(hit.mtimeMs === file.mtimeMs ||
 			// A brief with no title was written too early to say anything (a launch
 			// with only an image); don't make the card wait five minutes for another.
-			// ponytail: a live session haiku keeps leaving untitled re-runs per warm.
 			(!settled && !!hit.brief.title && now - hit.writtenAt < REFRESH_AFTER_MS))
 	) {
 		return { ...hit.brief, cached: true, writtenAt: hit.writtenAt };
@@ -381,7 +380,7 @@ export async function writeBrief({
 			...parseBrief(stdout),
 			replyAt: latestReply(messages)?.at ?? null,
 		};
-		if (cache.size >= CACHE_MAX) cache.clear(); // ponytail: cheaper than an LRU
+		if (cache.size >= CACHE_MAX) cache.clear();
 		cache.set(sessionId, {
 			mtimeMs: file.mtimeMs,
 			writtenAt: now,
@@ -404,9 +403,6 @@ export async function writeBrief({
  * Write briefs for sessions nobody has opened yet, one at a time in the
  * background - so the panel is already filled in when you click a card instead
  * of starting a 15s model call at the moment you want to read it.
- *
- * ponytail: serial, not parallel. Ten cards would otherwise fork ten `claude`
- * processes at once, and there's nobody waiting on any of them.
  */
 type WarmOptions = Omit<Parameters<typeof writeBrief>[0], "sessionId">;
 

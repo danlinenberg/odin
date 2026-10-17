@@ -37,7 +37,6 @@ const opJson = async <T>(args: string[]): Promise<T> => {
 	}
 };
 
-// ponytail: host or parent-domain match only; no picker when several logins match.
 export const siteMatches = (pageHost: string, href: string): boolean => {
 	try {
 		const host = new URL(href.includes("://") ? href : `https://${href}`)

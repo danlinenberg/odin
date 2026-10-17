@@ -221,8 +221,6 @@ export const Route = createFileRoute("/_authenticated/_odin/board/")({
  * pane; the input launches a new agent session into the selected workspace.
  */
 
-// ponytail: "permission" (blocked on a prompt) and "failed" are the same call
-// to action - one column. "review" is not: it finished and wants nothing.
 const COLUMNS: { status: PaneStatus }[] = [
 	{ status: "working" },
 	{ status: "permission" },
@@ -512,8 +510,6 @@ function useSessionWatchKeys(card: BoardCard | undefined): string[] {
 			),
 		],
 	});
-	// ponytail: newest 5, one GitHub call each a minute; a merged one keeps
-	// costing its call until you stop pinging.
 	const prs = new Set(
 		[
 			launchPullRequest(card.pane.odinBrief),
@@ -526,8 +522,6 @@ function useSessionWatchKeys(card: BoardCard | undefined): string[] {
 /** The conversation behind a card, for the pills that read it. */
 function useCardSessionId(card: BoardCard): string | null {
 	const mirrored = usePaneMeta((s) => s.sessionIdByPane[card.pane.id]);
-	// ponytail: no findClaudeSession fallback - that's an extra query per card to
-	// serve only pre-claudeSessionId panes. They get no pill; open the card.
 	return card.pane.claudeSessionId ?? mirrored ?? null;
 }
 
@@ -719,9 +713,6 @@ function useCardTranscript(card: BoardCard, live: boolean) {
  *
  * Never on an auto-started card: your launch reaction is the ask, so "nobody
  * asked" is wrong by construction.
- *
- * ponytail: tasks match by title here, not by the task's pane id; pass the
- * task map if a renamed task card ever misses its verdict.
  */
 function useDropFor(pane: Pane | undefined) {
 	return useReview((review) =>
@@ -951,8 +942,6 @@ function useShellPlace(card: BoardCard, shell: Pane) {
 	/**
 	 * In `root` itself - a worktree checked out under it (`.worktrees/x`) is its
 	 * own checkout, not the clone's.
-	 * ponytail: the two worktree folders Odin and Claude Code use; anything else
-	 * nested counts as the clone until this reads each cwd's `.git`.
 	 */
 	const inCheckout = (dir: string | null | undefined, root: string) =>
 		inside(dir, root) &&
@@ -2045,9 +2034,6 @@ const BoardCardTile = memo(
 								agent running
 							</div>
 						)}
-						{/* ponytail: the "Needs you"/"Final Review" headers already say
-				    the rest - only a failure adds anything. pane.status is
-				    the raw one; the column merges prompts and failures. */}
 						{card.status === "permission" && card.pane.status === "failed" && (
 							<div className="mt-1.5 text-xs text-danger">
 								✗ failed - click to see what broke
@@ -2087,8 +2073,6 @@ const BoardCardTile = memo(
 							!isAgent &&
 							!resuming && (
 								<div className="mt-1.5 flex items-center gap-2">
-									{/* ponytail: the button says "resume" - only a
-							    failure is worth spelling out. */}
 									{card.pane.status === "failed" && (
 										<span className="text-[11.5px] text-danger">✗ failed</span>
 									)}
@@ -2357,7 +2341,6 @@ function DevBoardPage() {
 	}, [drawerCard, renameDraft]);
 
 	const focusedAt = useFocusedAt();
-	// ponytail: in-memory "in this status since" per pane; resets on reload
 	const statusSinceRef = useRef(
 		new Map<string, { status: PaneStatus; at: number }>(),
 	);
@@ -2700,8 +2683,7 @@ function DevBoardPage() {
 	// A reload paints cards before the daemon poll, transcripts and PR states
 	// answer, so they hop columns for a second. Hold a spinner until those
 	// first answers land, then never again. A disabled query (no PR urls)
-	// counts as answered. ponytail: 4s cap so a hung GitHub call can't blank
-	// the board.
+	// counts as answered.
 	const isAnswered = (query: { isFetched: boolean; fetchStatus: string }) =>
 		query.isFetched || query.fetchStatus === "idle";
 	const firstAnswersIn =
@@ -2736,8 +2718,6 @@ function DevBoardPage() {
 	// memory and a checkout for a conversation Resume can reopen any time. The
 	// card stays in its column (odinClosedIn) - closing it answered nothing.
 	// A session whose shell is still running something (a dev server) is in use.
-	// ponytail: a pane with no odinStatusAt (launched before it existed) starts
-	// its clock when this board first sees it.
 	const firstSeenRef = useRef(new Map<string, number>());
 	// Re-assigned every render so the one-minute timer below reads current
 	// state - an effect keyed on `panes` restarts on every status write and
@@ -2813,7 +2793,6 @@ function DevBoardPage() {
 	// already holds the screen - read it directly, with the same two-reads rule.
 	// While a session's pane is open, tell Insights you're looking at it. The
 	// main process decides whether it counts (focused window, not idle).
-	// ponytail: a pane without a claudeSessionId isn't tracked.
 	const attend = electronTrpc.insights.attend.useMutation();
 	const attendRef = useRef(attend.mutate);
 	attendRef.current = attend.mutate;
@@ -3468,7 +3447,7 @@ function DevBoardPage() {
 	const groupRank = { permission: 0, review: 1, working: 2 } as const;
 	// Last update = the newest hook (every tool call fires one) or status change.
 	// odinStatusAt alone stays put for a whole turn, so an hour of work read as
-	// an hour stale. ponytail: hook times live in memory and reset on reload.
+	// an hour stale.
 	const updatedAt = (card: { pane: { id: string; odinStatusAt?: number } }) =>
 		Math.max(
 			card.pane.odinStatusAt ?? 0,
@@ -4056,8 +4035,6 @@ function DevBoardPage() {
 			}));
 			// Stay in the drawer: it swaps the read-only history for the live
 			// terminal as soon as the daemon poll (invalidated below) sees the PTY.
-			// ponytail: no toast on the happy path - the card renders its own
-			// "resuming…" spinner, and a toast over the board hides other cards.
 			// Only the ambiguous --continue fallback is worth interrupting for.
 			if (!sessionId) {
 				toast.info(
@@ -4067,9 +4044,6 @@ function DevBoardPage() {
 			// Don't sit on the stale poll for up to 5s - ask now so the card leaves
 			// Idle as soon as the PTY exists.
 			void utils.terminal.listDaemonSessions.invalidate();
-			// ponytail: fixed timeout, not a retry loop - if the respawned claude
-			// dies on startup the pane never goes alive, and a stuck spinner would
-			// cost the card its Resume button for good.
 			setTimeout(
 				() =>
 					setResumingPaneIds((ids) => ids.filter((id) => id !== card.pane.id)),
@@ -4088,8 +4062,6 @@ function DevBoardPage() {
 	 * with a bare shell is you Ctrl+C'ing out, and that's yours to decide.
 	 * One card at a time so each launch-gate check sees the last one's slot.
 	 */
-	// ponytail: once per pane per app run - a session that dies again on
-	// startup keeps its Resume button instead of looping.
 	const autoResumedRef = useRef(new Set<string>());
 	const resumeCardRef = useRef(resumeCard);
 	resumeCardRef.current = resumeCard;
@@ -4137,8 +4109,6 @@ function DevBoardPage() {
 		const prompt = rawPrompt.trim();
 		if (!prompt && images.length === 0) return;
 		if (useClaudeCommand.getState().toBacklog) {
-			// ponytail: a My Tasks row is plain text, so attachments have nowhere
-			// to live yet - say so rather than drop them.
 			if (images.length > 0)
 				return void toast.error(
 					"Backlog tasks can't keep images or videos yet. Remove them or start the session now.",
@@ -4423,7 +4393,6 @@ function DevBoardPage() {
 		});
 	};
 
-	// ponytail: in-memory, this board mount only - a reload forgets it.
 	const undoStack = useRef<(() => void)[]>([]);
 	/** Stack `revert` for ⌘Z; returns the one-shot undo for this action's toast. */
 	const pushUndo = (revert: () => unknown) => {
@@ -4775,8 +4744,6 @@ function DevBoardPage() {
 			<div className="flex min-h-0 flex-1 gap-3 overflow-x-auto px-[18px] pb-[18px] pt-1">
 				{COLUMNS.map((column) => {
 					const cards = cardsByStatus.get(column.status) ?? [];
-					// ponytail: re-sorted on the board's next render, not on the
-					// minute the 10m runs out - the pane polls re-render it often.
 					const sections = bySection(
 						cards,
 						(card) =>

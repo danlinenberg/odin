@@ -71,8 +71,6 @@ const READY_TIMEOUT_MS = 90_000;
  * A turn silent this long is stuck (a hung tool, a request that never came
  * back): Claude never takes a message typed behind it, so a follow-up resumes
  * the conversation in a fresh process instead.
- * ponytail: transcript silence, not a liveness probe - a real 10-minute
- * tool call without a word also gets restarted.
  */
 const STUCK_MS = 10 * 60_000;
 
