@@ -13,7 +13,8 @@
 	"dependencies": {
 		"@capacitor/app": "8.1.1",
 		"@capacitor/core": "8.5.2",
-		"@capacitor/ios": "8.5.2"
+		"@capacitor/ios": "8.5.2",
+		"@capacitor/keyboard": "8.0.6"
 	},
 	"devDependencies": {
 		"@capacitor/cli": "8.5.2",

@@ -13,6 +13,7 @@ import {
 	UploadChips,
 	useUploads,
 } from "./attach";
+import { Markdown } from "./markdown";
 import { type Pairing, parsePairLink } from "./pair-link";
 import { useSpeech } from "./speech";
 import "../globals.css";
@@ -73,6 +74,21 @@ const client = phone.createClient({
 const queryClient = new QueryClient({
 	defaultOptions: { queries: { retry: 1 } },
 });
+
+// No ^ v ✓ bar over the keyboard: one box per screen, nothing to step through.
+void (
+	window as {
+		Capacitor?: {
+			nativePromise?: (
+				plugin: string,
+				method: string,
+				options: object,
+			) => Promise<unknown>;
+		};
+	}
+).Capacitor?.nativePromise?.("Keyboard", "setAccessoryBarVisible", {
+	isVisible: false,
+})?.catch(() => {});
 
 if (native?.Plugins?.App) {
 	const app = native.Plugins.App;
@@ -162,9 +178,9 @@ function Home() {
 	const sessions = board.data?.sessions ?? [];
 	return (
 		<div className="min-h-dvh pb-24">
-			<h1 className="px-4 pt-[calc(env(safe-area-inset-top)+12px)] pb-1 text-2xl font-bold">
-				Odin
-			</h1>
+			<header className="sticky top-0 z-10 border-b border-border bg-background/95 px-4 pt-[calc(env(safe-area-inset-top)+12px)] pb-2 backdrop-blur">
+				<h1 className="text-2xl font-bold">Odin</h1>
+			</header>
 			<ErrorLine error={board.error} />
 			{board.isLoading && (
 				<div className="px-4 py-6 text-sm text-muted-foreground">Loading…</div>
@@ -218,7 +234,7 @@ function Home() {
 								type="button"
 								disabled={start.isPending}
 								onClick={() => start.mutate({ id: task.id })}
-								className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-primary"
+								className="h-9 shrink-0 rounded-full bg-secondary px-4 text-sm font-semibold text-primary"
 							>
 								Start
 							</button>
@@ -292,11 +308,41 @@ function NewTask({ onClose }: { onClose: () => void }) {
 	);
 }
 
+/** A reply sent from here that Claude hasn't put in its transcript yet. */
+type Sent = { text: string; at: number };
+
+/**
+ * Claude writes a message to its transcript when it reads it, so a reply sent
+ * while it works stays out of the chat for minutes. These show it until then;
+ * kept per session across screens.
+ */
+const sentByPane = new Map<string, Sent[]>();
+
+const squash = (text: string) => text.replace(/\s+/g, " ").trim();
+
+/** Drops the replies the transcript shows now - matched on their text. */
+function stillWaiting(
+	sent: Sent[],
+	messages: { role: string; text: string }[],
+): Sent[] {
+	const said = messages
+		.filter((message) => message.role === "user")
+		.slice(-20)
+		.map((message) => squash(message.text));
+	// ponytail: a files-only reply can't be matched on text; it goes after 2 min.
+	return sent.filter((item) =>
+		item.text.startsWith("📎")
+			? Date.now() - item.at < 120_000
+			: !said.some((text) => text.includes(squash(item.text).slice(0, 60))),
+	);
+}
+
 function Session({ paneId }: { paneId: string }) {
 	const session = phone.session.useQuery({ paneId }, { refetchInterval: POLL });
 	const brief = phone.brief.useQuery({ paneId }, { staleTime: 60_000 });
 	const refetch = () => void session.refetch();
 	const reply = phone.reply.useMutation({ onSuccess: refetch });
+	const [sent, setSent] = useState<Sent[]>(() => sentByPane.get(paneId) ?? []);
 	const key = phone.key.useMutation({ onSuccess: refetch });
 	const done = phone.done.useMutation({
 		onSuccess: () => {
@@ -324,23 +370,29 @@ function Session({ paneId }: { paneId: string }) {
 	}, [count]);
 	const data = session.data;
 	const status = (data?.status ?? "idle") as PaneStatus;
+	const waiting = stillWaiting(sent, data?.messages ?? []);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: forget what the transcript shows now
+	useEffect(() => {
+		sentByPane.set(paneId, waiting);
+		if (waiting.length !== sent.length) setSent(waiting);
+	}, [data?.messages]);
 	return (
 		<div className="relative flex h-dvh flex-col">
 			<header className="border-b border-border bg-card px-3.5 pt-[calc(env(safe-area-inset-top)+10px)] pb-2">
 				<div className="flex items-center justify-between">
-					<a href="#/" className="text-sm text-primary">
+					<a href="#/" className="-ml-1 px-1 py-1.5 text-[15px] text-primary">
 						‹ Odin
 					</a>
 					<button
 						type="button"
 						disabled={done.isPending}
 						onClick={() => done.mutate({ paneId })}
-						className="text-sm text-muted-foreground"
+						className="-mr-1 px-1 py-1.5 text-[15px] text-muted-foreground"
 					>
 						✓ Done
 					</button>
 				</div>
-				<div className="mt-1 truncate text-base font-semibold">
+				<div className="mt-1 truncate text-[17px] font-semibold">
 					{data?.title ?? "…"}
 				</div>
 				<div
@@ -374,11 +426,26 @@ function Session({ paneId }: { paneId: string }) {
 						key={index}
 						className={
 							message.role === "user"
-								? "my-1.5 ml-12 select-text whitespace-pre-wrap break-words rounded-[14px] rounded-br-sm bg-accent px-2.5 py-2 text-sm"
-								: "my-1.5 mr-10 select-text whitespace-pre-wrap break-words rounded-[14px] rounded-bl-sm border border-border bg-card px-2.5 py-2 text-sm leading-snug text-soft-foreground"
+								? "my-2 ml-10 select-text whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-accent px-3 py-2 text-[15px] leading-snug"
+								: "my-2 mr-6 rounded-2xl rounded-bl-md border border-border bg-card px-3 py-2 text-[15px] leading-snug text-soft-foreground"
 						}
 					>
-						{message.text}
+						{message.role === "user" ? (
+							message.text
+						) : (
+							<Markdown text={message.text} />
+						)}
+					</div>
+				))}
+				{waiting.map((item) => (
+					<div
+						key={item.at}
+						className="my-2 ml-10 select-text whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-accent/60 px-3 py-2 text-[15px] leading-snug"
+					>
+						{item.text}
+						<div className="mt-1 text-right text-[11px] text-muted-foreground">
+							Sent · Claude reads it when it's free
+						</div>
 					</div>
 				))}
 				{status === "permission" && data?.screen && (
@@ -400,7 +467,7 @@ function Session({ paneId }: { paneId: string }) {
 				</button>
 			)}
 			{status === "permission" && (
-				<div className="flex gap-1.5 px-2.5 pt-1.5">
+				<div className="flex gap-2 px-2.5 pt-2">
 					{(["1", "2", "3", "enter", "esc"] as const).map((k) => (
 						<button
 							key={k}
@@ -409,8 +476,8 @@ function Session({ paneId }: { paneId: string }) {
 							onClick={() => key.mutate({ paneId, key: k })}
 							className={
 								k === "1"
-									? "rounded-full bg-primary px-3.5 py-1 text-xs font-semibold text-primary-foreground"
-									: "rounded-full border border-border bg-secondary px-3.5 py-1 text-xs font-semibold"
+									? "h-9 min-w-11 rounded-full bg-primary px-3 text-sm font-semibold text-primary-foreground"
+									: "h-9 min-w-11 rounded-full border border-border bg-secondary px-3 text-sm font-semibold"
 							}
 						>
 							{{ enter: "⏎", esc: "Esc" }[k as "enter" | "esc"] ?? k}
@@ -430,6 +497,14 @@ function Session({ paneId }: { paneId: string }) {
 						{ paneId, text, paths: uploads.paths },
 						{
 							onSuccess: () => {
+								const item = {
+									text:
+										text.trim() ||
+										`📎 ${uploads.paths.length} file${uploads.paths.length === 1 ? "" : "s"}`,
+									at: Date.now(),
+								};
+								setSent((all) => [...all, item]);
+								sentByPane.set(paneId, [...sent, item]);
 								setText("");
 								uploads.clear();
 								following.current = true;
@@ -513,6 +588,23 @@ function App() {
 		);
 	return paneId ? <Session key={paneId} paneId={paneId} /> : <Home />;
 }
+
+// Dev only (apps/mobile/vite.config.ts, remote): run what the dev server
+// sends and answer with the result, so the Simulator can be driven headless.
+if (import.meta.hot)
+	import.meta.hot.on("odin:eval", async ({ id, code }) => {
+		let value: unknown;
+		try {
+			// biome-ignore lint/security/noGlobalEval: dev-only remote control
+			value = await globalThis.eval(code);
+		} catch (error) {
+			value = `Error: ${error}`;
+		}
+		import.meta.hot?.send("odin:result", {
+			id,
+			value: JSON.parse(JSON.stringify(value ?? null)),
+		});
+	});
 
 ReactDom.createRoot(document.getElementById("root") as HTMLElement).render(
 	<phone.Provider client={client} queryClient={queryClient}>
