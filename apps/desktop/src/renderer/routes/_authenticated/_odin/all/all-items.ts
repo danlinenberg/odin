@@ -85,6 +85,8 @@ export interface AllItem {
 	details: [string, string][];
 	/** What to hand `launch` when Start session is clicked on this row. */
 	launch: AllLaunch;
+	/** The same task in other feeds, folded into this row (merge-duplicates). */
+	also?: AllItem[];
 }
 
 /** Priority, in the three levels every source can be read as. */

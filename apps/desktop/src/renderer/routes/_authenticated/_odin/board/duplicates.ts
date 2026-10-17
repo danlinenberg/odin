@@ -13,12 +13,12 @@ const KEY_PREFIX = /^[A-Z][A-Z0-9]+-\d+:\s*/;
 // Shorter than this and unrelated asks share a title ("report issue").
 const MIN_TITLE_WORDS = 4;
 
-function refs(...texts: (string | null | undefined)[]): string[] {
+export function refs(...texts: (string | null | undefined)[]): string[] {
 	return texts.flatMap((text) => text?.match(REF) ?? []);
 }
 
 /** The title minus its Jira key, case and punctuation - or "" if too short to trust. */
-function titleKey(title: string): string {
+export function titleKey(title: string): string {
 	const words = title
 		.replace(KEY_PREFIX, "")
 		.toLowerCase()
