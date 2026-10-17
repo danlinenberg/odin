@@ -553,6 +553,16 @@ function OdinShell() {
 						{workConfig?.isDev ? "Odin Dev" : "Odin"}
 					</span>
 				</ZoomStable>
+				{workConfig?.devBranch && (
+					<ZoomStable enabled={isMac}>
+						<span
+							title="The branch this dev build runs from"
+							className="max-w-[260px] truncate rounded-[6px] bg-secondary px-1.5 py-[3px] font-mono text-[11px] text-muted-foreground"
+						>
+							{workConfig.devBranch}
+						</span>
+					</ZoomStable>
+				)}
 				{/* Which set of accounts is live. Next to the app name because it
 				    changes what every view below is showing, not just one feed.
 				    A plain <select> - it opens as a native menu, it's keyboard
