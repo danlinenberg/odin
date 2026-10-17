@@ -1498,8 +1498,6 @@ function ActionItems({
 	onDo,
 	paneId,
 	tldr,
-	full = false,
-	onToggle,
 	commands = [],
 	onRun,
 }: {
@@ -1514,9 +1512,8 @@ function ActionItems({
 	paneId?: string;
 	/** The latest reply's TL;DR, which leads this card instead of a box of its own. */
 	tldr?: Tldr | null;
-	full?: boolean;
-	onToggle?: () => void;
 }) {
+	const [folded, setFolded] = useState(false);
 	// text arrives linkified from ItemView.
 	const dismissed = useDismissedActions(
 		(s) => s.panes.find((pane) => pane.paneId === paneId)?.items,
@@ -1528,6 +1525,7 @@ function ActionItems({
 		.filter(({ item }) => !isDismissed(dismissed ?? [], item));
 	const buttonColumn = !items.every(({ item }) => isYouOnly(item));
 	const runner = runItemIndex(items.map(({ item }) => item));
+	const count = onDo ? items.length : actionItemList(text).length;
 	return (
 		<div
 			data-action-items
@@ -1535,8 +1533,15 @@ function ActionItems({
 		>
 			<div className="mb-1.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[.08em] text-attention">
 				Action items
-				{tldr?.long && onToggle && (
-					<FoldToggle full={full} onToggle={onToggle} />
+				{count > 0 && (
+					<button
+						type="button"
+						onClick={() => setFolded((value) => !value)}
+						aria-expanded={!folded}
+						className="ml-auto text-[12px] font-normal normal-case tracking-normal text-link hover:underline"
+					>
+						{itemsFoldLabel(folded, count)}
+					</button>
 				)}
 			</div>
 			{tldr && (
@@ -1550,7 +1555,7 @@ function ActionItems({
 					<TldrText text={tldr.last} />
 				</div>
 			)}
-			{onDo && items.length === 0 && dismissed?.length ? (
+			{folded ? null : onDo && items.length === 0 && dismissed?.length ? (
 				<div className="text-[13px] text-muted-foreground">None left.</div>
 			) : onDo && items.length > 0 ? (
 				<ol className="flex flex-col gap-1">
@@ -1576,9 +1581,17 @@ function ActionItems({
 					className={COMPACT_MARKDOWN}
 				/>
 			)}
-			{onRun && runner < 0 && <RunCommands commands={commands} onRun={onRun} />}
+			{!folded && onRun && runner < 0 && (
+				<RunCommands commands={commands} onRun={onRun} />
+			)}
 		</div>
 	);
+}
+
+/** The action items card's own fold button: it folds the items, never the reply above. */
+export function itemsFoldLabel(folded: boolean, count: number): string {
+	if (!folded) return "Hide items";
+	return count === 1 ? "Show 1 item" : `Show ${count} items`;
 }
 
 /**
@@ -1708,12 +1721,15 @@ function useTallerThanView(
 
 /** A long reply cut to its first lines, fading out, until you ask for all of it. */
 function FoldedReply({
+	foldable,
 	folded,
-	onExpand,
+	onToggle,
 	children,
 }: {
+	/** Shown whole, it gets a link to fold it back. */
+	foldable: boolean;
 	folded: boolean;
-	onExpand: () => void;
+	onToggle: () => void;
 	children: ReactNode;
 }) {
 	return (
@@ -1726,13 +1742,13 @@ function FoldedReply({
 			>
 				{children}
 			</div>
-			{folded && (
+			{(folded || foldable) && (
 				<button
 					type="button"
-					onClick={onExpand}
+					onClick={onToggle}
 					className="mt-1 text-[12px] text-link hover:underline"
 				>
-					… Reply shortened - show the rest
+					{folded ? "… Reply shortened - show the rest" : "Shorten the reply"}
 				</button>
 			)}
 		</>
@@ -1856,7 +1872,11 @@ const ItemView = memo(function ItemView({
 	return (
 		<div ref={rootRef} className="select-text cursor-text">
 			{body && (
-				<FoldedReply folded={!!shown && !full} onExpand={toggleFull}>
+				<FoldedReply
+					foldable={placement === "action-items"}
+					folded={!!shown && !full}
+					onToggle={toggleFull}
+				>
 					<div ref={bodyRef}>
 						<MarkdownRenderer
 							content={body}
@@ -1877,8 +1897,6 @@ const ItemView = memo(function ItemView({
 					onDo={onDo}
 					paneId={paneId}
 					tldr={placement === "action-items" ? shown : null}
-					full={full}
-					onToggle={toggleFull}
 					commands={commands}
 					onRun={onRun}
 				/>
