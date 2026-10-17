@@ -13,6 +13,7 @@ import {
 	useClaudeCommand,
 } from "renderer/stores/claude-command";
 import { type CrowChat, useCrowChats } from "renderer/stores/crow-chats";
+import { useDoneStore } from "renderer/stores/done";
 import { useNextInLinePrompt } from "renderer/stores/next-in-line-prompt";
 import { useOneByOne } from "renderer/stores/one-by-one";
 import { useTabsStore } from "renderer/stores/tabs/store";
@@ -556,6 +557,15 @@ function runOdinAction(
 		// Not awaited: a launch can sit behind the machine's capacity gate.
 		void launchTask(task, deps);
 		return `Added "${title}" and started it on the board.`;
+	}
+	if (action === "done-list") {
+		// The All page's Done shelf, newest first: what you put away as Done.
+		const rows = Object.entries(useDoneStore.getState().done)
+			.filter(([, row]) => !row.reading)
+			.sort(([, a], [, b]) => b.at - a.at)
+			.slice(0, 40)
+			.map(([key, row]) => ({ key, ...row }));
+		return JSON.stringify(rows);
 	}
 	if (action === "star") {
 		const pane = args.paneId ? panes[args.paneId] : undefined;

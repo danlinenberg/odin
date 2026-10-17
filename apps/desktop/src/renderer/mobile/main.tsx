@@ -30,7 +30,7 @@ import {
 	useUploads,
 } from "./attach";
 import { BriefCard } from "./brief-card";
-import { boardSections, Dot, SessionCard, STATUS } from "./cards";
+import { boardSections, DoneShelf, Dot, SessionCard, STATUS } from "./cards";
 import { type Pairing, parsePairLink } from "./pair-link";
 import { useSpeech } from "./speech";
 import { Transcript } from "./transcript";
@@ -193,6 +193,11 @@ function Home() {
 					<h2 className="px-4 pt-4 pb-1 text-[11px] font-semibold uppercase tracking-wide text-faint-foreground">
 						{section.label} · {section.rows.length}
 					</h2>
+					{section.rows.length === 0 && (
+						<div className="mx-3 my-1.5 rounded-[10px] border border-dashed border-border px-3 py-2 text-sm text-muted-foreground">
+							{section.empty}
+						</div>
+					)}
 					{section.rows.map((session) => (
 						<SessionCard
 							key={session.paneId}
@@ -204,11 +209,6 @@ function Home() {
 					))}
 				</section>
 			))}
-			{board.data && sessions.length === 0 && (
-				<div className="px-4 py-6 text-sm text-muted-foreground">
-					Nothing running.
-				</div>
-			)}
 			{!!board.data?.backlog.length && (
 				<section>
 					<h2 className="px-4 pt-4 pb-1 text-[11px] font-semibold uppercase tracking-wide text-faint-foreground">
@@ -234,6 +234,7 @@ function Home() {
 					))}
 				</section>
 			)}
+			<DoneShelf rows={board.data?.done ?? []} />
 			<button
 				type="button"
 				aria-label="New task"

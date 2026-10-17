@@ -33,6 +33,23 @@ async function board(action: string, args: Record<string, string> = {}) {
 	return text;
 }
 
+/** The window's Done shelf; [] from a window that doesn't know the action. */
+async function doneShelf(): Promise<
+	{
+		key: string;
+		title: string;
+		source: string;
+		url: string | null;
+		at: number;
+	}[]
+> {
+	try {
+		return JSON.parse(await board("done-list"));
+	} catch {
+		return [];
+	}
+}
+
 const paneInput = z.object({ paneId: z.string().min(1) });
 
 const sessionOf = (paneId: string) =>
@@ -103,7 +120,7 @@ const taskWithFiles = (text: string, paths: string[]) =>
 export const phoneRouter = t.router({
 	/** Running sessions (Needs you first) and the backlog not started yet. */
 	board: t.procedure.query(async () => {
-		const sessions = await loadSessions();
+		const sessions = await loadSessions(true);
 		const backlog = (
 			JSON.parse(await board("tasks").catch(() => "[]")) as {
 				id: string;
@@ -112,7 +129,7 @@ export const phoneRouter = t.router({
 				repo?: string;
 			}[]
 		).filter((task) => !task.started);
-		return { sessions, backlog };
+		return { sessions, backlog, done: await doneShelf() };
 	}),
 
 	/** The conversation, prose only, plus the brief's TL;DR when one is cached or quick. */

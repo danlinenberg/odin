@@ -1,4 +1,5 @@
-import { LuStar } from "react-icons/lu";
+import { useState } from "react";
+import { LuCheck, LuChevronDown, LuChevronRight, LuStar } from "react-icons/lu";
 import type { ActiveSession } from "shared/active-sessions";
 import type { PaneStatus } from "shared/tabs-types";
 
@@ -18,17 +19,95 @@ const ORDER: PaneStatus[] = ["permission", "working", "review", "idle"];
 /** The board's "just done" window: a turn that ended this recently is news. */
 const JUST_DONE_MS = 10 * 60_000;
 
-/** The board's sections: Starred first, as the desktop board puts them, then by column. */
+/** What an empty column says - every column shows, as the desktop board's do. */
+const EMPTY: Record<PaneStatus, string> = {
+	permission: "Nothing needs you.",
+	working: "Nothing running.",
+	review: "Nothing waiting for a final look.",
+	idle: "No idle sessions.",
+	failed: "",
+};
+
+/**
+ * The board's sections: Starred first when anything is, as the desktop board
+ * puts it, then every column - Needs you, Working, Final Review, Idle -
+ * empty or not.
+ */
 export function boardSections(sessions: Session[]) {
 	const starred = sessions.filter((s) => s.starred);
 	return [
-		{ key: "starred", label: "Starred", rows: starred },
+		...(starred.length
+			? [{ key: "starred", label: "Starred", rows: starred, empty: "" }]
+			: []),
 		...ORDER.map((column) => ({
 			key: column,
 			label: STATUS[column].label,
 			rows: sessions.filter((s) => !s.starred && s.column === column),
+			empty: EMPTY[column],
 		})),
-	].filter((section) => section.rows.length > 0);
+	];
+}
+
+type DoneRow = {
+	key: string;
+	title: string;
+	source: string;
+	url: string | null;
+	at: number;
+};
+
+/**
+ * The All page's Done shelf: what you put away as Done, newest first. Folded
+ * until you open it - it's history, not work.
+ */
+export function DoneShelf({ rows }: { rows: DoneRow[] }) {
+	const [open, setOpen] = useState(false);
+	if (rows.length === 0) return null;
+	const Chevron = open ? LuChevronDown : LuChevronRight;
+	return (
+		<section>
+			<button
+				type="button"
+				onClick={() => setOpen((shown) => !shown)}
+				className="flex w-full items-center gap-1 px-4 pt-4 pb-1 text-[11px] font-semibold uppercase tracking-wide text-faint-foreground"
+			>
+				<Chevron className="size-3.5" />
+				Done · {rows.length}
+			</button>
+			{open &&
+				rows.map((row) => {
+					const body = (
+						<>
+							<div className="line-clamp-2 text-[15px] text-soft-foreground">
+								{row.title}
+							</div>
+							<div className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+								<LuCheck className="size-3.5 text-success" />
+								<span className="truncate">{row.source}</span>
+								<span className="ml-auto shrink-0">{ago(row.at)}</span>
+							</div>
+						</>
+					);
+					const style =
+						"mx-3 my-1.5 block rounded-[10px] border border-border bg-card/60 px-3 py-2.5";
+					return row.url ? (
+						<a
+							key={row.key}
+							href={row.url}
+							target="_blank"
+							rel="noreferrer"
+							className={`${style} active:bg-accent`}
+						>
+							{body}
+						</a>
+					) : (
+						<div key={row.key} className={style}>
+							{body}
+						</div>
+					);
+				})}
+		</section>
+	);
 }
 
 /** "now", "5m", "2h", "3d" since a time. */

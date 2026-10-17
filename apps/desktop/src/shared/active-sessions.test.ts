@@ -61,4 +61,20 @@ describe("activeSessions", () => {
 			},
 		]);
 	});
+
+	it("with ended sessions, lists them in Idle - not the ones put away as Done", () => {
+		const panes = Object.fromEntries(
+			[
+				pane({ id: "live", status: "working" }),
+				pane({ id: "ended", status: "working" }),
+				pane({ id: "done", status: "review", completed: true }),
+			].map((p) => [p.id, p]),
+		);
+		const columns = (withEnded: boolean) =>
+			activeSessions(panes, new Set(["live"]), null, withEnded).map(
+				(s) => `${s.paneId}:${s.column}`,
+			);
+		expect(columns(false)).toEqual(["live:working"]);
+		expect(columns(true)).toEqual(["live:working", "ended:idle"]);
+	});
 });

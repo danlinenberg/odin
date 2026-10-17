@@ -26,6 +26,7 @@ const sessions = [
 	["p3", "Mobile iOS app", "working", "odin", null],
 	["p4", "Voice transcribe bug", "working", "odin", null],
 	["p5", "Board hover card", "review", "odin", null],
+	["p6", "Old flaky CI run", "idle", "imagen", null],
 ].map(([paneId, title, column, repo, contact], i) => ({
 	paneId,
 	title,
@@ -36,7 +37,7 @@ const sessions = [
 	source: "tasks",
 	starred: paneId === "p4",
 	// p5 ended its turn 3 minutes ago: a Just done card.
-	statusAt: Date.now() - [40, 8, 2, 95, 3][i] * 60_000,
+	statusAt: Date.now() - [40, 8, 2, 95, 3, 300][i] * 60_000,
 }));
 
 const messages: Record<string, Message[]> = {
@@ -106,6 +107,17 @@ function answer(path: string, input: Record<string, string> | undefined) {
 			return {
 				sessions,
 				backlog: [{ id: "t1", title: "Release notes for 1.4", started: false }],
+				done: [
+					["Remove the Telegram bot", "task", 50],
+					["BUGT-3101 export stuck", "jira", 180],
+					["Reply to Yuval about the HDR model", "slack", 1500],
+				].map(([title, source, minutes]) => ({
+					key: `${source}:${title}`,
+					title,
+					source,
+					url: null,
+					at: Date.now() - Number(minutes) * 60_000,
+				})),
 			};
 		case "session":
 			return {

@@ -133,7 +133,10 @@ const SECTIONS: { column: PaneStatus; label: string }[] = [
 ];
 
 /** Same rule as the All page: the daemon says who's alive, the pane says where it sits. */
-export async function loadSessions(): Promise<ActiveSession[]> {
+/** `withEnded`: the phone's board, which lists ended sessions in Idle too. */
+export async function loadSessions(
+	withEnded = false,
+): Promise<ActiveSession[]> {
 	try {
 		const { sessions } = await getWorkspaceRuntimeRegistry()
 			.getDefault()
@@ -141,7 +144,12 @@ export async function loadSessions(): Promise<ActiveSession[]> {
 		const alive = new Set(
 			sessions.filter((s) => s.isAlive).map((s) => s.sessionId),
 		);
-		return activeSessions(appState.data.tabsState.panes ?? {}, alive, null);
+		return activeSessions(
+			appState.data.tabsState.panes ?? {},
+			alive,
+			null,
+			withEnded,
+		);
 	} catch (error) {
 		console.warn("[Tray] Failed to list sessions:", error);
 		return [];

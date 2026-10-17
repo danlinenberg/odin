@@ -39,6 +39,11 @@ export function activeSessions(
 	alive: Set<string>,
 	/** null = every profile (the menu-bar tray has no profile picker). */
 	profileId: string | null,
+	/**
+	 * The phone's board: sessions whose PTY ended too (not ones put away as
+	 * Done), in Idle where the desktop board keeps them to resume.
+	 */
+	withEnded = false,
 ): ActiveSession[] {
 	return Object.values(panes)
 		.filter(
@@ -47,16 +52,16 @@ export function activeSessions(
 				// Same rule as the board: a terminal you opened yourself isn't a task.
 				!!pane.odinTaskTitle &&
 				(profileId === null || profileOf(pane.odinProfile) === profileId) &&
-				alive.has(pane.id),
+				(alive.has(pane.id) || (withEnded && !pane.completed)),
 		)
 		.map((pane) => ({
 			paneId: pane.id,
 			title: pane.odinTaskTitle ?? "",
 			source: boardSection(pane),
-			// Alive by definition here, so the column only turns on status + parked.
+			// An ended session can't be working or waiting on you: boardColumn says Idle.
 			column: boardColumn(
 				pane.status ?? "idle",
-				true,
+				alive.has(pane.id),
 				pane.odinParked ?? false,
 			),
 			contact: pane.odinContact ?? null,
