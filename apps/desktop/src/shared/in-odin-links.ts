@@ -9,7 +9,7 @@ export const LINK_HOSTS = {
 	slack: ["slack.com"],
 	jira: ["atlassian.net"],
 	github: ["github.com"],
-	notion: ["notion.so", "notion.site"],
+	notion: ["notion.so", "notion.site", "notion.com"],
 	gmail: ["mail.google.com"],
 	clickup: ["clickup.com"],
 } as const satisfies Record<string, readonly string[]>;
