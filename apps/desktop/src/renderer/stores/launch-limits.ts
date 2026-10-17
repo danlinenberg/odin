@@ -20,30 +20,11 @@ export const useLaunchLimits = create<LaunchLimitsState>()(
 			...DEFAULT_LAUNCH_LIMITS,
 			setLimits: (limits) => set(limits),
 		}),
-		{
-			name: "odin-launch-limits",
-			// v0 saved one-session-per-repo on by default.
-			version: 1,
-			migrate: (persisted, version) =>
-				migrateLaunchLimits(persisted, version) as LaunchLimitsState,
-		},
+		// A saved choice wins over the default, so only new installs start with
+		// one-session-per-repo off.
+		{ name: "odin-launch-limits" },
 	),
 );
-
-/**
- * Persisted state from an older version, brought up to today's shape. v0
- * wrote `oneSessionPerCheckout: true` for everyone who never touched it, so
- * it can't tell them from someone who turned it on: all get the new default.
- */
-export function migrateLaunchLimits(
-	persisted: unknown,
-	version: number,
-): unknown {
-	const state = persisted as Partial<LaunchLimits> | undefined;
-	if (version < 1 && state)
-		state.oneSessionPerCheckout = DEFAULT_LAUNCH_LIMITS.oneSessionPerCheckout;
-	return state;
-}
 
 /** The limits alone, for the pure gate functions. */
 export function launchLimits(state: LaunchLimits): LaunchLimits {
