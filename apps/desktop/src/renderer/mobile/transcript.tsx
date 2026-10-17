@@ -1,10 +1,15 @@
 import { useState } from "react";
 import { LuChevronDown, LuChevronRight } from "react-icons/lu";
+import { type BriefUrgency, freshTldr, latestReply } from "shared/latest-reply";
 import { splitActionItems } from "../routes/_authenticated/_odin/board/action-items";
 import { ActionCard } from "./action-card";
 import { Markdown } from "./markdown";
 
-type Message = { role: "user" | "assistant"; text: string };
+type Message = {
+	role: "user" | "assistant";
+	text: string;
+	at?: string | null;
+};
 
 type Segment =
 	| { kind: "message"; message: Message; index: number }
@@ -40,15 +45,56 @@ export function segments(messages: Message[]): Segment[] {
 	return out;
 }
 
+export type ReplyBrief =
+	| {
+			last?: string | null;
+			urgency?: BriefUrgency | null;
+			replyAt?: string | null;
+	  }
+	| null
+	| undefined;
+
+/** The latest reply's TL;DR, marked Needs you or FYI as the brief judged it. */
+function TldrCard({
+	tldr,
+	urgency,
+}: {
+	tldr: string;
+	urgency: BriefUrgency | null;
+}) {
+	const needsYou = urgency === "needs-you";
+	return (
+		<div
+			className={`my-2 mr-6 rounded-xl border px-3 py-2 text-[15px] leading-snug ${needsYou ? "border-attention/35 bg-attention/[0.07]" : "border-border bg-card"}`}
+		>
+			<div
+				className={`mb-0.5 text-[11px] font-semibold uppercase tracking-wide ${needsYou ? "text-attention" : "text-faint-foreground"}`}
+			>
+				TL;DR{urgency ? ` · ${needsYou ? "Needs you" : "FYI"}` : ""}
+			</div>
+			<div className="select-text text-foreground">
+				<Markdown text={tldr} />
+			</div>
+		</div>
+	);
+}
+
 /** The conversation: your messages, Odin's answers, folds, and the action items. */
 export function Transcript({
 	messages,
+	brief,
 	send,
 }: {
 	messages: Message[];
+	/** The brief's TL;DR of the latest reply, and which reply it describes. */
+	brief: ReplyBrief;
 	send: (text: string) => void;
 }) {
 	const [open, setOpen] = useState<Set<number>>(() => new Set());
+	const [fullReply, setFullReply] = useState(false);
+	const replyAt = messages.findLastIndex((m) => m.role === "assistant");
+	// Never a TL;DR of an older reply on a newer one: freshTldr checks which.
+	const tldr = freshTldr(latestReply(messages), brief);
 	// Only the latest reply's items are still asked; older ones were answered.
 	const actionsAt = messages.findLastIndex(
 		(message) =>
@@ -65,11 +111,37 @@ export function Transcript({
 				</div>
 			);
 		const { body, actions } = splitActionItems(message.text);
+		const latest = index === replyAt && tldr;
+		// The board's chat: a long latest reply folds under its TL;DR.
+		const folded = latest && tldr.long && !fullReply;
 		return (
 			<div key={index}>
+				{latest && <TldrCard tldr={tldr.last} urgency={tldr.urgency} />}
 				{body && (
 					<div className="my-2 mr-6 rounded-2xl rounded-bl-md border border-border bg-card px-3 py-2 text-[15px] leading-snug text-soft-foreground">
-						<Markdown text={body} />
+						<div
+							className={
+								folded
+									? "max-h-[6.5rem] overflow-hidden [mask-image:linear-gradient(to_bottom,black_60%,transparent)]"
+									: undefined
+							}
+						>
+							<Markdown text={body} />
+						</div>
+						{latest && tldr.long && (
+							<button
+								type="button"
+								onClick={() => setFullReply((shown) => !shown)}
+								className="mt-1 flex items-center gap-1 text-[13px] font-medium text-primary"
+							>
+								{fullReply ? (
+									<LuChevronDown className="size-4" />
+								) : (
+									<LuChevronRight className="size-4" />
+								)}
+								{fullReply ? "Show TL;DR" : "Show full reply"}
+							</button>
+						)}
 					</div>
 				)}
 				{index === actionsAt && actions && (

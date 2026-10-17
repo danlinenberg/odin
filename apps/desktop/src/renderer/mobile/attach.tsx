@@ -1,5 +1,11 @@
 import { useRef, useState } from "react";
-import { LuMic, LuPaperclip, LuSquare, LuX } from "react-icons/lu";
+import {
+	LuLoaderCircle,
+	LuMic,
+	LuPaperclip,
+	LuSquare,
+	LuX,
+} from "react-icons/lu";
 import type { Pairing } from "./pair-link";
 import { speechAvailable, type useSpeech } from "./speech";
 
@@ -150,7 +156,7 @@ export function AttachButton({
 	);
 }
 
-/** 🎤: tap to talk, tap again - the words land in the box. */
+/** The mic: tap to talk, tap again - the words land in the box. */
 export function MicButton({
 	speech,
 }: {
@@ -161,19 +167,62 @@ export function MicButton({
 		<button
 			type="button"
 			aria-label={speech.listening ? "Stop dictation" : "Dictate"}
+			disabled={speech.transcribing}
 			onClick={() => void speech.toggle()}
-			className={`flex size-10 shrink-0 items-center justify-center rounded-full border text-lg ${
+			className={`relative flex size-10 shrink-0 items-center justify-center rounded-full border ${
 				speech.listening
-					? "animate-pulse border-danger bg-danger/20"
+					? "border-danger bg-danger/20 text-danger"
 					: "border-border bg-secondary"
 			}`}
 		>
-			{speech.listening ? (
+			{speech.listening && (
+				<span className="absolute inset-0 animate-ping rounded-full border-2 border-danger/60" />
+			)}
+			{speech.transcribing ? (
+				<LuLoaderCircle className="size-5 animate-spin" />
+			) : speech.listening ? (
 				<LuSquare className="size-4 fill-current" />
 			) : (
 				<LuMic className="size-5" />
 			)}
 		</button>
+	);
+}
+
+/**
+ * Over the text box while you dictate: moving level bars and "Listening",
+ * then "Transcribing" until the words land.
+ */
+export function SpeechStatus({
+	speech,
+}: {
+	speech: ReturnType<typeof useSpeech>;
+}) {
+	if (!speech.listening && !speech.transcribing) return null;
+	return (
+		<div className="mx-2.5 mt-2 flex items-center gap-2.5 rounded-xl border border-border bg-card px-3 py-2 text-sm">
+			{speech.transcribing ? (
+				<>
+					<LuLoaderCircle className="size-4 animate-spin text-primary" />
+					<span className="text-soft-foreground">Transcribing…</span>
+				</>
+			) : (
+				<>
+					<span className="flex h-5 items-center gap-[3px]" aria-hidden>
+						{[0, 1, 2, 3, 4].map((bar) => (
+							<span
+								key={bar}
+								className="speech-bar w-[3px] rounded-full bg-danger"
+								style={{ animationDelay: `${bar * 0.12}s` }}
+							/>
+						))}
+					</span>
+					<span className="text-soft-foreground">
+						Listening… tap the mic to stop
+					</span>
+				</>
+			)}
+		</div>
 	);
 }
 

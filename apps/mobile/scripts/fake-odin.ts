@@ -11,7 +11,14 @@
  */
 const PORT = 4799;
 
-type Message = { role: "user" | "assistant"; text: string; at: null };
+type Message = {
+	role: "user" | "assistant";
+	text: string;
+	at: string | null;
+};
+
+/** When p1's latest reply was written: its brief describes this one. */
+const REPLY_AT = "2026-10-17T09:00:00.000Z";
 
 const sessions = [
 	["p1", "Fix HDR grouping test", "permission", "odin", null],
@@ -48,7 +55,7 @@ const messages: Record<string, Message[]> = {
 		{
 			role: "assistant",
 			text: [
-				"**Found it.** The sort uses file names, so `IMG_9999` comes before `IMG_0001` at a rollover.",
+				"**Found it.** The sort uses file names, so `IMG_9999` comes before `IMG_0001` at a rollover. The camera restarts its counter at 9999, so a bracket shot across the rollover gets split in two, and the grouper then sees two brackets of two frames each instead of one bracket of four. The test only hit it when the random fixture happened to cross the rollover, about 1 in 5 runs.",
 				"",
 				"- Sorted by capture time instead",
 				"- Added a test for the rollover",
@@ -67,7 +74,7 @@ const messages: Record<string, Message[]> = {
 				"2. Tell me which branch to push to [main | release]",
 				"3. Check the PR https://github.com/x/y/pull/1 (you only)",
 			].join("\n"),
-			at: null,
+			at: REPLY_AT,
 		},
 	],
 };
@@ -114,6 +121,9 @@ function answer(path: string, input: Record<string, string> | undefined) {
 				done: "Sorted brackets by capture time and added a rollover test. 14 pass.",
 				status: "Waiting for approval to run the migration on dev.",
 				next: "Push the fix and open a PR.",
+				last: "Found it: brackets were sorted by file name. Now sorted by capture time, with a rollover test.",
+				urgency: "needs-you",
+				replyAt: REPLY_AT,
 			};
 		case "repos":
 			return [

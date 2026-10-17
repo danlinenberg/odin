@@ -144,7 +144,8 @@ export const phoneRouter = t.router({
 
 	/**
 	 * The session's written brief: the TL;DR line and, for the card opened in
-	 * full, its goal, what it did, where it stands and what's next. Separate
+	 * full, its goal, what it did, where it stands and what's next; plus the
+	 * latest reply's TL;DR (`last`), as the board's chat leads it. Separate
 	 * from `session`: a brief that isn't cached runs `claude -p`.
 	 */
 	brief: t.procedure.input(paneInput).query(async ({ input }) => {
@@ -152,8 +153,18 @@ export const phoneRouter = t.router({
 		if (!sessionId) return null;
 		const brief = await writeBrief({ sessionId }).catch(() => null);
 		if (!brief) return null;
-		const { goal, done, status, next } = brief;
-		return { tldr: done ?? status ?? goal, goal, done, status, next };
+		const { goal, done, status, next, last, urgency, replyAt } = brief;
+		return {
+			tldr: done ?? status ?? goal,
+			goal,
+			done,
+			status,
+			next,
+			// The latest reply's own TL;DR, and which reply it describes.
+			last,
+			urgency,
+			replyAt: replyAt ?? null,
+		};
 	}),
 
 	/** The checkouts a new task can run in - New task's repo picker. */

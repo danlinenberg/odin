@@ -25,6 +25,7 @@ import {
 	AttachButton,
 	appendWords,
 	MicButton,
+	SpeechStatus,
 	UploadChips,
 	useUploads,
 } from "./attach";
@@ -311,6 +312,7 @@ function NewTask({ onClose }: { onClose: () => void }) {
 				placeholder="What should Odin do? First line is the title."
 				className="min-h-40 flex-1 resize-none rounded-[10px] border border-input bg-secondary p-3 text-base outline-none"
 			/>
+			<SpeechStatus speech={speech} />
 			<UploadChips uploads={uploads} />
 			{!!repos.data?.length && (
 				<select
@@ -523,7 +525,13 @@ function Session({ paneId }: { paneId: string }) {
 			>
 				<ErrorLine error={session.error ?? done.error} />
 				<BriefCard brief={brief.data} loading={brief.isLoading} />
-				<Transcript messages={data?.messages ?? []} send={sendText} />
+				<Transcript
+					messages={data?.messages ?? []}
+					brief={
+						brief.data && typeof brief.data === "object" ? brief.data : null
+					}
+					send={sendText}
+				/>
 				{waiting.map((item) => (
 					<div
 						key={item.at}
@@ -586,6 +594,7 @@ function Session({ paneId }: { paneId: string }) {
 			)}
 			{/* By the box: you tap 🎤 or Send down here, not at the top. */}
 			<ErrorLine error={reply.error ?? textError(speech.error)} />
+			<SpeechStatus speech={speech} />
 			<UploadChips uploads={uploads} />
 			<form
 				className="flex items-end gap-2 px-2.5 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+10px)]"

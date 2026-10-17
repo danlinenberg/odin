@@ -39,11 +39,14 @@ export const speechAvailable = !!native || !!WebSpeech;
 
 export function useSpeech(onText: (text: string) => void) {
 	const [listening, setListening] = useState(false);
+	// Between tapping stop and the words arriving: iOS finishes the last phrase.
+	const [transcribing, setTranscribing] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const web = useRef<Recognition | null>(null);
 
 	const heard = (text: string) => {
 		setListening(false);
+		setTranscribing(false);
 		if (text.trim()) onText(text.trim());
 	};
 
@@ -52,6 +55,7 @@ export function useSpeech(onText: (text: string) => void) {
 		if (native) {
 			try {
 				if (listening) {
+					setTranscribing(true);
 					const result = await native("OdinSpeech", "stop");
 					heard(result?.text ?? "");
 				} else {
@@ -60,6 +64,7 @@ export function useSpeech(onText: (text: string) => void) {
 				}
 			} catch (failure) {
 				setListening(false);
+				setTranscribing(false);
 				// The bridge rejects with the plugin's { message, code }, not an Error.
 				setError(
 					(failure as { message?: string } | null)?.message ?? String(failure),
@@ -68,7 +73,10 @@ export function useSpeech(onText: (text: string) => void) {
 			return;
 		}
 		if (!WebSpeech) return;
-		if (listening) return web.current?.stop();
+		if (listening) {
+			setTranscribing(true);
+			return web.current?.stop();
+		}
 		const recognition = new WebSpeech();
 		recognition.continuous = true;
 		recognition.interimResults = false;
@@ -89,5 +97,5 @@ export function useSpeech(onText: (text: string) => void) {
 		setListening(true);
 	}
 
-	return { listening, error, toggle };
+	return { listening, transcribing, error, toggle };
 }
