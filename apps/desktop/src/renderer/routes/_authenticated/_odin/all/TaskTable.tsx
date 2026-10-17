@@ -36,6 +36,7 @@ import { TonightButton } from "../components/TonightButton";
 import { useDone } from "../hooks/useDone";
 import { usePendingFocus } from "../hooks/usePendingFocus";
 import { type AllItem, bandOf, plainText, previewPastTitle } from "./all-items";
+import { DropRuleMenu } from "./DropRuleMenu";
 import { statusLabel, typeLabel, typeOf, useTaskMeta } from "./task-meta";
 import { useStartAllItem } from "./use-start-item";
 
@@ -260,219 +261,226 @@ export function TaskRow({
 		? "Back to Waiting on you"
 		: "Mark it Read later - off the Night Agent";
 	return (
-		<div
-			ref={drag?.setNodeRef}
-			style={drag?.style}
-			data-task-row={item.key}
-			className={cn(
-				TABLE_ROW,
-				band === "now" && "shadow-[inset_2px_0_0_var(--attention)]",
-				open && "bg-primary/10 hover:bg-primary/12",
-				done && "opacity-60",
-			)}
-		>
-			<div className={ROW_GRID}>
-				<span className={COL.lead}>
-					{drag && (
-						<span
-							{...drag.attributes}
-							{...drag.listeners}
-							title="Drag to reorder"
-							className="flex cursor-grab items-center gap-1 text-[12px] font-semibold text-muted-foreground active:cursor-grabbing"
-						>
-							<span aria-hidden>⠿</span>
-							{drag.place}
-						</span>
-					)}
-					{select && (
-						<input
-							type="checkbox"
-							aria-label={`Select ${item.title}`}
-							title="Select - shift-click selects a range"
-							checked={select.checked}
-							onChange={() => {}}
-							onClick={(event) => select.onTick(event.shiftKey)}
-							className="size-3.5 cursor-pointer accent-primary"
-						/>
-					)}
-					<SourceIcon
-						className="size-3.5 shrink-0 text-muted-foreground"
-						title={item.source}
-						aria-label={item.source}
-					/>
-				</span>
-				{/* Two lines tall even with no preview, so rows keep one height. */}
-				<div className={cn(COL.task, "min-h-[37px]")}>
-					<button
-						type="button"
-						title="Show details"
-						dir="auto"
-						onClick={onOpen ?? (() => rows.openInAll(item.key))}
-						className="block w-full truncate bg-none text-left text-[13px] font-semibold text-foreground"
-					>
-						<OverdueMark itemKey={item.key} upstream={item.dueDate} />
-						{emojify(item.title)}
-						{type && (
-							<span className="ml-2 text-[11px] font-normal text-muted-foreground">
-								{typeLabel(type)}
-							</span>
-						)}
-					</button>
-					{preview && preview !== item.title.trim() && (
-						<div
-							dir="auto"
-							title={preview}
-							className="truncate text-[11.5px] text-muted-foreground"
-						>
-							{emojify(preview.slice(0, 300))}
-						</div>
-					)}
-				</div>
-				<span className={COL.drop}>
-					<SweepDrop itemKey={item.key} url={item.url} />
-				</span>
-				<div className="flex shrink-0 items-center gap-3 text-[11px]">
-					<span className={COL.priority}>
-						{item.priority && (
+		<DropRuleMenu item={item}>
+			<div
+				ref={drag?.setNodeRef}
+				style={drag?.style}
+				data-task-row={item.key}
+				className={cn(
+					TABLE_ROW,
+					band === "now" && "shadow-[inset_2px_0_0_var(--attention)]",
+					open && "bg-primary/10 hover:bg-primary/12",
+					done && "opacity-60",
+				)}
+			>
+				<div className={ROW_GRID}>
+					<span className={COL.lead}>
+						{drag && (
 							<span
-								className={cn(
-									"truncate text-muted-foreground",
-									/^high/i.test(item.priority) && "font-semibold text-danger",
-								)}
+								{...drag.attributes}
+								{...drag.listeners}
+								title="Drag to reorder"
+								className="flex cursor-grab items-center gap-1 text-[12px] font-semibold text-muted-foreground active:cursor-grabbing"
 							>
-								{item.priority}
+								<span aria-hidden>⠿</span>
+								{drag.place}
 							</span>
 						)}
-					</span>
-					<span className={COL.status}>
-						<RowStatus
-							odin={
-								isReading ? "Read later" : statusLabel(rows.statuses[item.key])
-							}
-							upstream={item.status}
+						{select && (
+							<input
+								type="checkbox"
+								aria-label={`Select ${item.title}`}
+								title="Select - shift-click selects a range"
+								checked={select.checked}
+								onChange={() => {}}
+								onClick={(event) => select.onTick(event.shiftKey)}
+								className="size-3.5 cursor-pointer accent-primary"
+							/>
+						)}
+						<SourceIcon
+							className="size-3.5 shrink-0 text-muted-foreground"
+							title={item.source}
+							aria-label={item.source}
 						/>
 					</span>
-					<span className={COL.person}>
-						{item.person && (
-							<PersonChip name={item.person} className="max-w-full truncate" />
+					{/* Two lines tall even with no preview, so rows keep one height. */}
+					<div className={cn(COL.task, "min-h-[37px]")}>
+						<button
+							type="button"
+							title="Show details"
+							dir="auto"
+							onClick={onOpen ?? (() => rows.openInAll(item.key))}
+							className="block w-full truncate bg-none text-left text-[13px] font-semibold text-foreground"
+						>
+							<OverdueMark itemKey={item.key} upstream={item.dueDate} />
+							{emojify(item.title)}
+							{type && (
+								<span className="ml-2 text-[11px] font-normal text-muted-foreground">
+									{typeLabel(type)}
+								</span>
+							)}
+						</button>
+						{preview && preview !== item.title.trim() && (
+							<div
+								dir="auto"
+								title={preview}
+								className="truncate text-[11.5px] text-muted-foreground"
+							>
+								{emojify(preview.slice(0, 300))}
+							</div>
 						)}
+					</div>
+					<span className={COL.drop}>
+						<SweepDrop itemKey={item.key} url={item.url} />
 					</span>
-					<span
-						className={cn(COL.place, "text-muted-foreground")}
-						title={item.context ?? undefined}
-					>
-						{item.context}
-					</span>
-					<span
-						className={COL.date}
-						title={at > 0 ? new Date(at).toLocaleString() : undefined}
-					>
-						{/* A due date wins the column; then when they asked; else when it last moved. */}
-						{due ? (
-							<DueChip
-								itemKey={item.key}
-								title={item.title}
-								upstream={item.dueDate}
+					<div className="flex shrink-0 items-center gap-3 text-[11px]">
+						<span className={COL.priority}>
+							{item.priority && (
+								<span
+									className={cn(
+										"truncate text-muted-foreground",
+										/^high/i.test(item.priority) && "font-semibold text-danger",
+									)}
+								>
+									{item.priority}
+								</span>
+							)}
+						</span>
+						<span className={COL.status}>
+							<RowStatus
+								odin={
+									isReading
+										? "Read later"
+										: statusLabel(rows.statuses[item.key])
+								}
+								upstream={item.status}
 							/>
+						</span>
+						<span className={COL.person}>
+							{item.person && (
+								<PersonChip
+									name={item.person}
+									className="max-w-full truncate"
+								/>
+							)}
+						</span>
+						<span
+							className={cn(COL.place, "text-muted-foreground")}
+							title={item.context ?? undefined}
+						>
+							{item.context}
+						</span>
+						<span
+							className={COL.date}
+							title={at > 0 ? new Date(at).toLocaleString() : undefined}
+						>
+							{/* A due date wins the column; then when they asked; else when it last moved. */}
+							{due ? (
+								<DueChip
+									itemKey={item.key}
+									title={item.title}
+									upstream={item.dueDate}
+								/>
+							) : (
+								at > 0 &&
+								new Date(at).toLocaleDateString(undefined, {
+									month: "short",
+									day: "numeric",
+								})
+							)}
+						</span>
+					</div>
+					{/* The quiet actions, always there as icons with an instant name:
+				    hiding them until hover made the row's own data vanish. */}
+					<span className={COL.acts}>
+						{url ? (
+							<IconTip label={`Open in ${item.source}`}>
+								<button
+									type="button"
+									aria-label={`Open in ${item.source}`}
+									onClick={() => openUrl(url)}
+									className={ROW_ICON_BUTTON}
+								>
+									<LuExternalLink className="size-3.5" aria-hidden />
+								</button>
+							</IconTip>
 						) : (
-							at > 0 &&
-							new Date(at).toLocaleDateString(undefined, {
-								month: "short",
-								day: "numeric",
-							})
+							<span className="size-6 shrink-0" />
 						)}
+						<DueChip
+							iconOnly
+							itemKey={item.key}
+							title={item.title}
+							upstream={item.dueDate}
+						/>
+						{drag ? (
+							<IconTip label="Take it off Up next">
+								<button
+									type="button"
+									onClick={() => rows.dequeue(item.key)}
+									aria-label="Take it off Up next"
+									className={cn(ROW_ICON_BUTTON, "text-primary")}
+								>
+									<LuListMinus className="size-3.5" aria-hidden />
+								</button>
+							</IconTip>
+						) : (
+							<IconTip label="Line it up - Up next">
+								<button
+									type="button"
+									onClick={() => rows.enqueue(item.key)}
+									aria-label="Line it up - Up next"
+									className={ROW_ICON_BUTTON}
+								>
+									<LuListPlus className="size-3.5" aria-hidden />
+								</button>
+							</IconTip>
+						)}
+						<TonightButton item={item} iconOnly />
+						<IconTip label={readLabel}>
+							<button
+								type="button"
+								onClick={() =>
+									isReading ? rows.undo(item) : rows.markReading(item)
+								}
+								aria-label={readLabel}
+								aria-pressed={isReading}
+								className={cn(ROW_ICON_BUTTON, isReading && "text-primary")}
+							>
+								<LuBookmark className="size-3.5" aria-hidden />
+							</button>
+						</IconTip>
+					</span>
+					<span className={COL.start}>
+						{activePaneId ? (
+							<button
+								type="button"
+								aria-label="Go to session"
+								onClick={() => rows.goToPane(activePaneId)}
+								className={cn(ROW_LIVE_BUTTON, "px-2.5")}
+							>
+								Session →
+							</button>
+						) : (
+							<button
+								type="button"
+								aria-label="Start session"
+								disabled={rows.isLaunching}
+								onClick={() => void rows.start(item)}
+								className={cn(ROW_START_BUTTON, "px-2.5")}
+							>
+								{rows.launchingKey === item.launch.key ? "Starting…" : "Start"}
+							</button>
+						)}
+					</span>
+					<span className={COL.done}>
+						<DoneButton
+							done={done}
+							onClick={() => (done ? rows.undo(item) : rows.finish(item))}
+						/>
 					</span>
 				</div>
-				{/* The quiet actions, always there as icons with an instant name:
-				    hiding them until hover made the row's own data vanish. */}
-				<span className={COL.acts}>
-					{url ? (
-						<IconTip label={`Open in ${item.source}`}>
-							<button
-								type="button"
-								aria-label={`Open in ${item.source}`}
-								onClick={() => openUrl(url)}
-								className={ROW_ICON_BUTTON}
-							>
-								<LuExternalLink className="size-3.5" aria-hidden />
-							</button>
-						</IconTip>
-					) : (
-						<span className="size-6 shrink-0" />
-					)}
-					<DueChip
-						iconOnly
-						itemKey={item.key}
-						title={item.title}
-						upstream={item.dueDate}
-					/>
-					{drag ? (
-						<IconTip label="Take it off Up next">
-							<button
-								type="button"
-								onClick={() => rows.dequeue(item.key)}
-								aria-label="Take it off Up next"
-								className={cn(ROW_ICON_BUTTON, "text-primary")}
-							>
-								<LuListMinus className="size-3.5" aria-hidden />
-							</button>
-						</IconTip>
-					) : (
-						<IconTip label="Line it up - Up next">
-							<button
-								type="button"
-								onClick={() => rows.enqueue(item.key)}
-								aria-label="Line it up - Up next"
-								className={ROW_ICON_BUTTON}
-							>
-								<LuListPlus className="size-3.5" aria-hidden />
-							</button>
-						</IconTip>
-					)}
-					<TonightButton item={item} iconOnly />
-					<IconTip label={readLabel}>
-						<button
-							type="button"
-							onClick={() =>
-								isReading ? rows.undo(item) : rows.markReading(item)
-							}
-							aria-label={readLabel}
-							aria-pressed={isReading}
-							className={cn(ROW_ICON_BUTTON, isReading && "text-primary")}
-						>
-							<LuBookmark className="size-3.5" aria-hidden />
-						</button>
-					</IconTip>
-				</span>
-				<span className={COL.start}>
-					{activePaneId ? (
-						<button
-							type="button"
-							aria-label="Go to session"
-							onClick={() => rows.goToPane(activePaneId)}
-							className={cn(ROW_LIVE_BUTTON, "px-2.5")}
-						>
-							Session →
-						</button>
-					) : (
-						<button
-							type="button"
-							aria-label="Start session"
-							disabled={rows.isLaunching}
-							onClick={() => void rows.start(item)}
-							className={cn(ROW_START_BUTTON, "px-2.5")}
-						>
-							{rows.launchingKey === item.launch.key ? "Starting…" : "Start"}
-						</button>
-					)}
-				</span>
-				<span className={COL.done}>
-					<DoneButton
-						done={done}
-						onClick={() => (done ? rows.undo(item) : rows.finish(item))}
-					/>
-				</span>
 			</div>
-		</div>
+		</DropRuleMenu>
 	);
 }

@@ -40,6 +40,7 @@ import {
 	type MachineLoad,
 	machineLoad,
 } from "shared/machine-load";
+import { useApplyDropRules } from "./all/drop-rules";
 import { ClaudeSignInBanner } from "./components/ClaudeSignInBanner";
 import { CrowButton } from "./components/CrowButton";
 import { FEED_TABS } from "./components/feed-counts";
@@ -344,6 +345,8 @@ function OdinShell() {
 	// shell mounts on boot and on reload - so switching views shows rows
 	// instead of an empty "syncing…".
 	const { jira } = useOdinFeeds();
+	// "Drop tasks like this" rules put new matching rows away as they arrive.
+	useApplyDropRules();
 	// Due dates ping from the shell, not from the feed that set them: the feed
 	// you set it on is the one you're least likely to have open on the day.
 	// Jira's own Due Date rides along, so a deadline nobody retyped into Odin

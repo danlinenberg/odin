@@ -65,6 +65,7 @@ import {
 	NO_STATUS,
 	type Urgency,
 } from "./all-items";
+import { ruleLabel, useDropRules } from "./drop-rules";
 import { nextSelection, visibleSelection } from "./selection";
 import { TaskDescription } from "./TaskDescription";
 import { TaskDetails } from "./TaskDetails";
@@ -689,6 +690,7 @@ function AllFeedPage() {
 								label={`Show what's Done (${recent.length})`}
 							/>
 						)}
+						<DropRules />
 					</FilterMenu>
 					<FeedSelect
 						value={sortBy}
@@ -1133,6 +1135,41 @@ function FilterMenu({
 					</div>
 				</>
 			)}
+		</div>
+	);
+}
+
+/**
+ * The "drop tasks like this" rules made by right-clicking a row. Removing one
+ * brings back the rows it dropped.
+ */
+function DropRules() {
+	const rules = useDropRules((s) => s.rules);
+	const remove = useDropRules((s) => s.remove);
+	if (rules.length === 0) return null;
+	return (
+		<div className="col-span-2 grid gap-1 text-[11px] font-medium text-muted-foreground">
+			<span>Dropped automatically</span>
+			<div className="flex max-h-[140px] flex-col overflow-y-auto">
+				{rules.map((rule) => (
+					<div
+						key={`${rule.source}|${rule.field}|${rule.value}`}
+						className="group flex items-center gap-2 text-[12px] text-soft-foreground"
+					>
+						<span className="min-w-0 flex-1 truncate">
+							{rule.source} · {ruleLabel(rule)}
+						</span>
+						<button
+							type="button"
+							title="Stop dropping these, and bring back the ones it dropped"
+							onClick={() => remove(rule)}
+							className="px-1.5 text-faint-foreground hover:text-foreground"
+						>
+							×
+						</button>
+					</div>
+				))}
+			</div>
 		</div>
 	);
 }

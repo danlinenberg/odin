@@ -5,6 +5,8 @@ import { useMemo, useState } from "react";
 import { LuOctagonX } from "react-icons/lu";
 import { useDoneStore } from "renderer/stores/done";
 import { useTabsStore } from "renderer/stores/tabs/store";
+import { DropRuleMenu } from "../all/DropRuleMenu";
+import { useSearchableItems } from "../all/use-all-items";
 import {
 	FEED_LIST,
 	FEED_ROW,
@@ -209,6 +211,19 @@ function ReviewPage() {
 	const pending = rows.filter((row) => !keptKeys.has(row.key));
 	// Who a row is from lives on the live backlog, not the swept snapshot - a
 	// row that has since left the backlog searches without a person.
+	// The feed row behind each review row, by key or (PRs) by link - what a
+	// right-click "drop tasks like this" reads its person and place off.
+	const everyItem = useSearchableItems();
+	const itemByKey = useMemo(
+		() =>
+			new Map(
+				everyItem.flatMap((item) => [
+					[item.key, item] as const,
+					...(item.url ? [[item.url, item] as const] : []),
+				]),
+			),
+		[everyItem],
+	);
 	const personByKey = useMemo(
 		() => new Map(backlog.map((item) => [item.key, item.person])),
 		[backlog],
@@ -401,81 +416,88 @@ function ReviewPage() {
 
 				{(needle || view !== "dropped") &&
 					shown.map((row) => (
-						<div
+						<DropRuleMenu
 							key={row.key}
-							className={cn(FEED_ROW, "flex items-start gap-3", {
-								"opacity-50": row.stale,
-							})}
+							item={
+								itemByKey.get(row.key) ??
+								(row.url ? itemByKey.get(row.url) : undefined)
+							}
 						>
-							<span className={cn(ROW_META, "w-[28px] shrink-0 pt-0.5")}>
-								{row.n}
-							</span>
-							<div className="min-w-0 flex-1">
-								<div className="flex items-center gap-2">
-									<VerdictChip verdict={row.verdict} />
-									{hasSession(row) && (
-										<LuOctagonX
-											className="size-3.5 shrink-0 text-danger"
-											title="A session is still working on this - close it to drop"
-											aria-label="A session is still working on this - close it to drop"
-										/>
-									)}
-									<span className="truncate text-[13px] text-foreground">
-										{row.title}
-									</span>
+							<div
+								className={cn(FEED_ROW, "flex items-start gap-3", {
+									"opacity-50": row.stale,
+								})}
+							>
+								<span className={cn(ROW_META, "w-[28px] shrink-0 pt-0.5")}>
+									{row.n}
+								</span>
+								<div className="min-w-0 flex-1">
+									<div className="flex items-center gap-2">
+										<VerdictChip verdict={row.verdict} />
+										{hasSession(row) && (
+											<LuOctagonX
+												className="size-3.5 shrink-0 text-danger"
+												title="A session is still working on this - close it to drop"
+												aria-label="A session is still working on this - close it to drop"
+											/>
+										)}
+										<span className="truncate text-[13px] text-foreground">
+											{row.title}
+										</span>
+									</div>
+									<div className={cn(ROW_META, "mt-1")}>
+										<span className="text-soft-foreground">{row.source}</span>
+										{personByKey.get(row.key) && (
+											<> · {personByKey.get(row.key)}</>
+										)}
+										{createdByKey.get(row.key) && (
+											<> · from {fromDate(createdByKey.get(row.key) ?? 0)}</>
+										)}
+										{row.evidence && <> · {row.evidence}</>}
+										{row.repeats && (
+											<> · +{row.repeats.length} more from this DM</>
+										)}
+										{row.stale && <> · already gone from the backlog</>}
+									</div>
 								</div>
-								<div className={cn(ROW_META, "mt-1")}>
-									<span className="text-soft-foreground">{row.source}</span>
-									{personByKey.get(row.key) && (
-										<> · {personByKey.get(row.key)}</>
-									)}
-									{createdByKey.get(row.key) && (
-										<> · from {fromDate(createdByKey.get(row.key) ?? 0)}</>
-									)}
-									{row.evidence && <> · {row.evidence}</>}
-									{row.repeats && (
-										<> · +{row.repeats.length} more from this DM</>
-									)}
-									{row.stale && <> · already gone from the backlog</>}
-								</div>
-							</div>
-							{row.url && (
-								<a
-									href={row.url}
-									target="_blank"
-									rel="noreferrer"
+								{row.url && (
+									<a
+										href={row.url}
+										target="_blank"
+										rel="noreferrer"
+										className={ROW_LINK_BUTTON}
+									>
+										Open
+									</a>
+								)}
+								<button
+									type="button"
+									onClick={() => {
+										const keys = [
+											row.key,
+											...(row.repeats ?? []).map((r) => r.key),
+										];
+										for (const key of keys) keep(key);
+									}}
 									className={ROW_LINK_BUTTON}
 								>
-									Open
-								</a>
-							)}
-							<button
-								type="button"
-								onClick={() => {
-									const keys = [
-										row.key,
-										...(row.repeats ?? []).map((r) => r.key),
-									];
-									for (const key of keys) keep(key);
-								}}
-								className={ROW_LINK_BUTTON}
-							>
-								Keep
-							</button>
-							<button
-								type="button"
-								onClick={() => void drop(row)}
-								disabled={row.stale || hasSession(row)}
-								title={
-									hasSession(row)
-										? "A session is still working on this - close it to drop"
-										: undefined
-								}
-								className={ROW_PRIMARY_BUTTON}
-							>
-								Drop
-							</button>
-						</div>
+									Keep
+								</button>
+								<button
+									type="button"
+									onClick={() => void drop(row)}
+									disabled={row.stale || hasSession(row)}
+									title={
+										hasSession(row)
+											? "A session is still working on this - close it to drop"
+											: undefined
+									}
+									className={ROW_PRIMARY_BUTTON}
+								>
+									Drop
+								</button>
+							</div>
+						</DropRuleMenu>
 					))}
 
 				{(needle || view === "drop") && shown.some(droppable) && (
