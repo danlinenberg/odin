@@ -196,7 +196,9 @@ const STATUS_FILTER_KEY = "odin.all.statusFilter";
 
 function readStatusFilter(): string {
 	try {
-		return localStorage.getItem(STATUS_FILTER_KEY) ?? "";
+		const saved = localStorage.getItem(STATUS_FILTER_KEY) ?? "";
+		// Read later rows live under Docs now: a saved "reading" cut would show nothing.
+		return saved.endsWith(":reading") ? "" : saved;
 	} catch {
 		return "";
 	}
