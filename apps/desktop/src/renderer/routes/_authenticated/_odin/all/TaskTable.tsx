@@ -53,6 +53,27 @@ export const SOURCE_ICON = Object.fromEntries(
 	FEED_TABS.map(({ to, Icon }) => [to, Icon]),
 ) as Record<FeedPath, IconType>;
 
+/**
+ * The same task in another feed, folded into this row (merge-duplicates):
+ * its feed's mark, and a click opens it there.
+ */
+function AlsoIn({ copy }: { copy: AllItem }) {
+	const Icon = SOURCE_ICON[copy.to];
+	const url = copy.url;
+	return (
+		<button
+			type="button"
+			title={`Also in ${copy.source}: ${copy.title}${url ? " - click to open it" : ""}`}
+			disabled={!url}
+			onClick={() => url && openUrl(url)}
+			className="flex shrink-0 items-center gap-1 rounded-[4px] border border-border px-1 py-px text-[10.5px] text-muted-foreground hover:bg-secondary hover:text-foreground"
+		>
+			{Icon && <Icon className="size-3" aria-hidden />}
+			{copy.source}
+		</button>
+	);
+}
+
 /** The asks a person made of you: their date column says when they asked. */
 const ASKS = new Set<AllItem["ask"]["kind"]>([
 	"asked",
@@ -305,21 +326,26 @@ export function TaskRow({
 					</span>
 					{/* Two lines tall even with no preview, so rows keep one height. */}
 					<div className={cn(COL.task, "min-h-[37px]")}>
-						<button
-							type="button"
-							title="Show details"
-							dir="auto"
-							onClick={onOpen ?? (() => rows.openInAll(item.key))}
-							className="block w-full truncate bg-none text-left text-[13px] font-semibold text-foreground"
-						>
-							<OverdueMark itemKey={item.key} upstream={item.dueDate} />
-							{emojify(item.title)}
-							{type && (
-								<span className="ml-2 text-[11px] font-normal text-muted-foreground">
-									{typeLabel(type)}
-								</span>
-							)}
-						</button>
+						<div className="flex min-w-0 items-center gap-1.5">
+							<button
+								type="button"
+								title="Show details"
+								dir="auto"
+								onClick={onOpen ?? (() => rows.openInAll(item.key))}
+								className="block min-w-0 truncate bg-none text-left text-[13px] font-semibold text-foreground"
+							>
+								<OverdueMark itemKey={item.key} upstream={item.dueDate} />
+								{emojify(item.title)}
+								{type && (
+									<span className="ml-2 text-[11px] font-normal text-muted-foreground">
+										{typeLabel(type)}
+									</span>
+								)}
+							</button>
+							{item.also?.map((copy) => (
+								<AlsoIn key={copy.key} copy={copy} />
+							))}
+						</div>
 						{preview && preview !== item.title.trim() && (
 							<div
 								dir="auto"

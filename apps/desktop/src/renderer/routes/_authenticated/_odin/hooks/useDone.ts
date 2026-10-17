@@ -15,6 +15,8 @@ export interface Doable {
 	title: string;
 	source: string;
 	url?: string | null;
+	/** The same task in other feeds, merged into this row: Done goes to all. */
+	also?: Doable[];
 }
 
 /**
@@ -61,6 +63,7 @@ export function useDone() {
 			slackDone.mutate({ id: item.key.slice("slack:".length), done: on });
 		// A Review drop undone goes back among the rows still to decide.
 		if (!on) useBacklogReview.getState().unnoteDropped(activeId, item.key);
+		for (const copy of item.also ?? []) mark(copy, on, reading);
 	};
 
 	// Newest first. Reading material is a Done that isn't finished: off every
