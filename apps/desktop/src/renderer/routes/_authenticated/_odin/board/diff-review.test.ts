@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import {
+	BRANCH,
 	commentTarget,
 	patchRows,
 	type ReviewComment,
@@ -98,6 +99,12 @@ describe("reviewMessage", () => {
 			reviewMessage([comment], "https://github.com/o/r/pull/7").split("\n")[0],
 		).toBe(
 			"Review comments on the diff of https://github.com/o/r/pull/7. Fix each one, or tell me why not:",
+		);
+	});
+
+	it("names the branch diff", () => {
+		expect(reviewMessage([comment], BRANCH).split("\n")[0]).toBe(
+			"Review comments on this branch's diff against its base branch. Fix each one, or tell me why not:",
 		);
 	});
 });
