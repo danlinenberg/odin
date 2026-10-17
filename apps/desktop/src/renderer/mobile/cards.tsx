@@ -29,23 +29,19 @@ const EMPTY: Record<PaneStatus, string> = {
 };
 
 /**
- * The board's sections: Starred first when anything is, as the desktop board
- * puts it, then every column - Needs you, Working, Final Review, Idle -
- * empty or not.
+ * The board's sections: every column - Needs you, Working, Final Review,
+ * Idle - empty or not, with starred sessions at the top of their own column.
  */
 export function boardSections(sessions: Session[]) {
-	const starred = sessions.filter((s) => s.starred);
-	return [
-		...(starred.length
-			? [{ key: "starred", label: "Starred", rows: starred, empty: "" }]
-			: []),
-		...ORDER.map((column) => ({
-			key: column,
-			label: STATUS[column].label,
-			rows: sessions.filter((s) => !s.starred && s.column === column),
-			empty: EMPTY[column],
-		})),
-	];
+	return ORDER.map((column) => ({
+		key: column,
+		label: STATUS[column].label,
+		rows: sessions
+			.filter((s) => s.column === column)
+			// Stable: within starred and unstarred, the Mac's order stays.
+			.sort((a, b) => Number(!!b.starred) - Number(!!a.starred)),
+		empty: EMPTY[column],
+	}));
 }
 
 type DoneRow = {
