@@ -1,5 +1,6 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
 import type { Server } from "node:http";
 import { connect } from "node:net";
 import { hostname } from "node:os";
@@ -9,6 +10,7 @@ import express from "express";
 import QRCode from "qrcode";
 import { env } from "shared/env.shared";
 import { ODIN_HOME_DIR } from "../app-environment";
+import { attachments } from "./attachments";
 import { phoneRouter } from "./router";
 
 /**
@@ -60,12 +62,33 @@ const vite = `127.0.0.1:${env.DESKTOP_VITE_PORT}`;
 
 function createApp(token: string) {
 	const app = express();
-	app.use("/trpc", (req, res, next) => {
+	const authorized: express.RequestHandler = (req, res, next) => {
 		const given = req.headers.authorization?.replace(/^Bearer /, "") ?? "";
 		if (!sameToken(given, token)) return res.status(401).end();
 		next();
-	});
-	app.use("/trpc", createExpressMiddleware({ router: phoneRouter }));
+	};
+	app.use(
+		"/trpc",
+		authorized,
+		createExpressMiddleware({ router: phoneRouter }),
+	);
+	// A photo or video from the phone: the raw bytes, saved where the desktop
+	// composer saves its own. The reply that follows pastes the returned path.
+	app.post(
+		"/upload",
+		authorized,
+		express.raw({ type: () => true, limit: "200mb" }),
+		async (req, res) => {
+			const ext = String(req.query.ext ?? "").toLowerCase();
+			if (!/^[a-z0-9]{1,8}$/.test(ext) || !req.body?.length)
+				return res.status(400).end();
+			await mkdir(attachments.dir, { recursive: true });
+			const name = `${Date.now()}-${randomBytes(3).toString("hex")}.${ext}`;
+			const path = join(attachments.dir, name);
+			await writeFile(path, req.body);
+			res.json({ path });
+		},
+	);
 	app.get("/", (req, res) => {
 		const query = req.originalUrl.slice(1);
 		res.redirect(`/mobile/index.html${query}`);

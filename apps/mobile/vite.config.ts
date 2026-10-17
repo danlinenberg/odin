@@ -19,6 +19,13 @@ export default defineConfig({
 		tailwindcss(),
 		react(),
 	],
+	// `bun run dev` in a browser talks to `bun run fake-odin`, same origin.
+	server: {
+		proxy: {
+			"/trpc": "http://localhost:4799",
+			"/upload": "http://localhost:4799",
+		},
+	},
 	build: {
 		outDir: resolve(import.meta.dirname, "dist"),
 		emptyOutDir: true,

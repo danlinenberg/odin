@@ -1,3 +1,4 @@
+import { basename, resolve, sep } from "node:path";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { appState } from "main/lib/app-state";
 import { readTranscript, writeBrief } from "main/lib/claude-sessions";
@@ -7,6 +8,7 @@ import { getWorkspaceRuntimeRegistry } from "main/lib/workspace-runtime";
 import stripAnsi from "strip-ansi";
 import superjson from "superjson";
 import { z } from "zod";
+import { attachments } from "./attachments";
 
 /**
  * Everything the phone can do, and nothing else: the LAN never reaches the
@@ -35,26 +37,67 @@ const paneInput = z.object({ paneId: z.string().min(1) });
 const sessionOf = (paneId: string) =>
 	appState.data.tabsState.panes?.[paneId]?.claudeSessionId;
 
-/** Same as the board's typeIntoClaude: Enter only once Claude drew the text. */
-async function typeIntoClaude(paneId: string, text: string) {
+const IMAGE_RE = /\.(png|jpe?g|gif|webp|heic)$/i;
+
+/** An uploaded file's path, and only that: the phone can't paste any path. */
+const attachment = z
+	.string()
+	.refine((path) => resolve(path).startsWith(`${attachments.dir}${sep}`));
+
+const pause = (ms: number) => new Promise((done) => setTimeout(done, ms));
+
+/** How often the text's last characters show on Claude's screen. */
+async function drawCount(paneId: string, text: string): Promise<number> {
 	const squash = (value: string) => value.replace(/\s+/g, "");
 	const tail = squash(text).slice(-24);
-	const drawn = async () =>
-		squash((await terminal().readScreen({ paneId })) ?? "").split(tail).length -
-		1;
-	const before = await drawn();
-	terminal().write({
-		paneId,
-		data: text.includes("\n") ? `\x1b[200~${text}\x1b[201~` : text,
-	});
-	// ponytail: 2s cap, then Enter anyway - same as the desktop reply box.
-	for (let waited = 0; waited < 2000; waited += 50) {
-		if ((await drawn()) > before) break;
-		await new Promise((resolve) => setTimeout(resolve, 50));
-	}
-	await new Promise((resolve) => setTimeout(resolve, 30));
-	terminal().write({ paneId, data: "\r" });
+	const screen = (await terminal().readScreen({ paneId })) ?? "";
+	return tail ? squash(screen).split(tail).length - 1 : 0;
 }
+
+async function until(done: () => Promise<boolean>, capMs: number) {
+	for (let waited = 0; waited < capMs && !(await done()); waited += 50)
+		await pause(50);
+}
+
+/**
+ * The board's composer, from the phone: files first (a bracketed paste of
+ * each path, which Claude turns into [Image #N]), then the text, and Enter
+ * only once Claude drew them - text and Enter in one read is taken as a paste
+ * and sits in the input box.
+ */
+async function typeIntoClaude(paneId: string, text: string, paths: string[]) {
+	const write = (data: string) => terminal().write({ paneId, data });
+	const marks = [
+		...new Set(paths.map((path) => (IMAGE_RE.test(path) ? "[Image #" : path))),
+		...(text ? [text] : []),
+	];
+	const drawn = async () => {
+		let count = 0;
+		for (const mark of marks) count += await drawCount(paneId, mark);
+		return count;
+	};
+	const before = await drawn();
+	for (const path of paths) write(`\x1b[200~${path}\x1b[201~ `);
+	if (text) write(text.includes("\n") ? `\x1b[200~${text}\x1b[201~` : text);
+	// ponytail: 3s cap, then Enter anyway - a path Claude collapses never shows.
+	const expected = paths.length + (text ? 1 : 0);
+	await until(async () => (await drawn()) >= before + expected, 3000);
+	await pause(30);
+	write("\r");
+}
+
+/** A task's notes point at its files the way the desktop Tasks editor does. */
+const ATTACHMENT_URL = "odin-attachment://file/";
+const taskWithFiles = (text: string, paths: string[]) =>
+	[
+		text.trim() || "From my phone",
+		...paths.map((path) => {
+			const name = basename(path);
+			return IMAGE_RE.test(path)
+				? `![](${ATTACHMENT_URL}${name})`
+				: `[${name}](${ATTACHMENT_URL}${name})`;
+		}),
+	].join("\n\n");
 
 export const phoneRouter = t.router({
 	/** Running sessions (Needs you first) and the backlog not started yet. */
@@ -106,8 +149,17 @@ export const phoneRouter = t.router({
 	}),
 
 	reply: t.procedure
-		.input(paneInput.extend({ text: z.string().min(1).max(20_000) }))
-		.mutation(({ input }) => typeIntoClaude(input.paneId, input.text)),
+		.input(
+			paneInput
+				.extend({
+					text: z.string().max(20_000),
+					paths: z.array(attachment).max(10).default([]),
+				})
+				.refine((input) => input.text.trim() || input.paths.length),
+		)
+		.mutation(({ input }) =>
+			typeIntoClaude(input.paneId, input.text.trim(), input.paths),
+		),
 
 	/** One raw key for a prompt Claude draws as a menu: Enter, Esc, a digit. */
 	key: t.procedure
@@ -118,8 +170,17 @@ export const phoneRouter = t.router({
 		}),
 
 	add: t.procedure
-		.input(z.object({ text: z.string().min(1).max(20_000) }))
-		.mutation(({ input }) => board("add", { text: input.text })),
+		.input(
+			z
+				.object({
+					text: z.string().max(20_000),
+					paths: z.array(attachment).max(10).default([]),
+				})
+				.refine((input) => input.text.trim() || input.paths.length),
+		)
+		.mutation(({ input }) =>
+			board("add", { text: taskWithFiles(input.text, input.paths) }),
+		),
 
 	start: t.procedure
 		.input(z.object({ id: z.string().min(1) }))

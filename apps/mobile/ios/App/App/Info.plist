@@ -40,8 +40,14 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Odin attaches the photo or video you take to your reply.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Odin connects to Odin on your Mac over this Wi-Fi.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Odin turns what you say into a reply.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Odin turns what you say into a reply, on this iPhone.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

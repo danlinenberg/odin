@@ -1,5 +1,5 @@
 import { afterAll, expect, mock, test } from "bun:test";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -12,6 +12,8 @@ mock.module("./router", () => ({
 	phoneRouter: t.router({ board: t.procedure.query(() => "ok") }),
 }));
 const { phoneConfig, setPhoneEnabled } = await import("./server");
+const { attachments } = await import("./attachments");
+attachments.dir = mkdtempSync(join(tmpdir(), "odin-phone-files-"));
 // Not ~/.odin, and not by mocking app-environment: a module mock leaks into
 // every later test file in the run.
 phoneConfig.file = join(
@@ -41,4 +43,25 @@ test("off closes the port", async () => {
 	const port = new URL(status.url).port;
 	await setPhoneEnabled(false);
 	expect(fetch(`http://127.0.0.1:${port}/trpc/board`)).rejects.toThrow();
+});
+
+test("an upload needs the token and lands in the attachments folder", async () => {
+	const status = await setPhoneEnabled(true);
+	if (status.state !== "on") throw new Error(JSON.stringify(status));
+	const url = new URL(status.url);
+	const upload = (ext: string, headers: Record<string, string> = {}) =>
+		fetch(`http://127.0.0.1:${url.port}/upload?ext=${ext}`, {
+			method: "POST",
+			headers,
+			body: new Uint8Array([1, 2, 3]),
+		});
+	const auth = { authorization: `Bearer ${url.searchParams.get("t")}` };
+
+	expect((await upload("jpg")).status).toBe(401);
+	expect((await upload("../x", auth)).status).toBe(400);
+	const saved = await upload("JPG", auth);
+	const { path } = (await saved.json()) as { path: string };
+	expect(path.startsWith(attachments.dir)).toBe(true);
+	expect(path.endsWith(".jpg")).toBe(true);
+	expect([...readFileSync(path)]).toEqual([1, 2, 3]);
 });

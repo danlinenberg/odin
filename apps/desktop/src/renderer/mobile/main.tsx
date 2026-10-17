@@ -6,7 +6,15 @@ import { useEffect, useRef, useState } from "react";
 import ReactDom from "react-dom/client";
 import type { PaneStatus } from "shared/tabs-types";
 import superjson from "superjson";
+import {
+	AttachButton,
+	appendWords,
+	MicButton,
+	UploadChips,
+	useUploads,
+} from "./attach";
 import { type Pairing, parsePairLink } from "./pair-link";
+import { useSpeech } from "./speech";
 import "../globals.css";
 import "./mobile.css";
 
@@ -111,6 +119,9 @@ function Dot({ status }: { status: PaneStatus }) {
 		/>
 	);
 }
+
+/** A plain message as the error line's input. */
+const textError = (message: string | null) => (message ? { message } : null);
 
 /** The server answers a missing or old token with a bare 401. */
 const unpaired = (error: unknown) =>
@@ -239,6 +250,14 @@ function Home() {
 function NewTask({ onClose }: { onClose: () => void }) {
 	const [text, setText] = useState("");
 	const add = phone.add.useMutation({ onSuccess: onClose });
+	const uploads = useUploads(pairing);
+	const speech = useSpeech((words) =>
+		setText((typed) => appendWords(typed, words)),
+	);
+	const ready =
+		(text.trim() || uploads.paths.length) &&
+		!uploads.uploading &&
+		!add.isPending;
 	return (
 		<div className="fixed inset-0 z-10 flex flex-col bg-background/95 p-4 pt-[calc(env(safe-area-inset-top)+12px)]">
 			<div className="mb-3 flex items-center justify-between">
@@ -248,8 +267,8 @@ function NewTask({ onClose }: { onClose: () => void }) {
 				<span className="font-semibold">New task</span>
 				<button
 					type="button"
-					disabled={!text.trim() || add.isPending}
-					onClick={() => add.mutate({ text })}
+					disabled={!ready}
+					onClick={() => add.mutate({ text, paths: uploads.paths })}
 					className="font-semibold text-primary disabled:opacity-40"
 				>
 					Add
@@ -263,7 +282,12 @@ function NewTask({ onClose }: { onClose: () => void }) {
 				placeholder="What should Claude do? First line is the title."
 				className="min-h-48 flex-1 resize-none rounded-[10px] border border-input bg-secondary p-3 text-base outline-none"
 			/>
-			<ErrorLine error={add.error} />
+			<UploadChips uploads={uploads} />
+			<div className="flex gap-2 pt-2 pb-[env(safe-area-inset-bottom)]">
+				<AttachButton uploads={uploads} />
+				<MicButton speech={speech} />
+			</div>
+			<ErrorLine error={add.error ?? textError(speech.error)} />
 		</div>
 	);
 }
@@ -280,16 +304,28 @@ function Session({ paneId }: { paneId: string }) {
 		},
 	});
 	const [text, setText] = useState("");
+	const uploads = useUploads(pairing);
+	const speech = useSpeech((words) =>
+		setText((typed) => appendWords(typed, words)),
+	);
+	const ready =
+		(text.trim() || uploads.paths.length) &&
+		!uploads.uploading &&
+		!reply.isPending;
 	const bottom = useRef<HTMLDivElement>(null);
+	// Follow new messages only while you're at the bottom; reading further up,
+	// the ↓ button brings you back.
+	const [atBottom, setAtBottom] = useState(true);
+	const following = useRef(true);
 	const count = session.data?.messages.length ?? 0;
 	// biome-ignore lint/correctness/useExhaustiveDependencies: scroll when a message lands
 	useEffect(() => {
-		bottom.current?.scrollIntoView();
+		if (following.current) bottom.current?.scrollIntoView();
 	}, [count]);
 	const data = session.data;
 	const status = (data?.status ?? "idle") as PaneStatus;
 	return (
-		<div className="flex h-dvh flex-col">
+		<div className="relative flex h-dvh flex-col">
 			<header className="border-b border-border bg-card px-3.5 pt-[calc(env(safe-area-inset-top)+10px)] pb-2">
 				<div className="flex items-center justify-between">
 					<a href="#/" className="text-sm text-primary">
@@ -314,8 +350,23 @@ function Session({ paneId }: { paneId: string }) {
 					● {STATUS[status].label}
 				</div>
 			</header>
-			<main className="flex-1 overflow-y-auto px-2.5 py-2">
-				<ErrorLine error={session.error ?? done.error} />
+			<main
+				className="relative flex-1 overflow-y-auto px-2.5 py-2"
+				onScroll={(event) => {
+					const el = event.currentTarget;
+					const near = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+					following.current = near;
+					setAtBottom(near);
+				}}
+			>
+				<ErrorLine
+					error={
+						session.error ??
+						done.error ??
+						reply.error ??
+						textError(speech.error)
+					}
+				/>
 				<div className="mb-2 rounded-[10px] border border-border border-l-[3px] border-l-primary bg-card p-2.5 text-sm leading-snug text-soft-foreground">
 					<div className="text-[10px] font-semibold text-faint-foreground">
 						TL;DR
@@ -344,6 +395,17 @@ function Session({ paneId }: { paneId: string }) {
 				)}
 				<div ref={bottom} />
 			</main>
+			{!atBottom && (
+				<button
+					type="button"
+					aria-label="Scroll to the latest message"
+					onClick={() => bottom.current?.scrollIntoView({ behavior: "smooth" })}
+					className="absolute right-4 z-10 flex size-10 items-center justify-center rounded-full border border-border bg-card text-lg shadow-lg"
+					style={{ bottom: "calc(env(safe-area-inset-bottom) + 76px)" }}
+				>
+					↓
+				</button>
+			)}
 			{status === "permission" && (
 				<div className="flex gap-1.5 px-2.5 pt-1.5">
 					{(["1", "2", "3", "enter", "esc"] as const).map((k) => (
@@ -363,14 +425,25 @@ function Session({ paneId }: { paneId: string }) {
 					))}
 				</div>
 			)}
+			<UploadChips uploads={uploads} />
 			<form
 				className="flex items-end gap-2 px-2.5 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+10px)]"
 				onSubmit={(event) => {
 					event.preventDefault();
-					if (!text.trim()) return;
-					reply.mutate({ paneId, text }, { onSuccess: () => setText("") });
+					if (!ready) return;
+					reply.mutate(
+						{ paneId, text, paths: uploads.paths },
+						{
+							onSuccess: () => {
+								setText("");
+								uploads.clear();
+								following.current = true;
+							},
+						},
+					);
 				}}
 			>
+				<AttachButton uploads={uploads} />
 				<textarea
 					rows={1}
 					value={text}
@@ -378,9 +451,10 @@ function Session({ paneId }: { paneId: string }) {
 					placeholder="Reply to Claude…"
 					className="max-h-32 min-h-10 flex-1 resize-none rounded-[18px] border border-input bg-secondary px-3 py-2 text-base outline-none"
 				/>
+				<MicButton speech={speech} />
 				<button
 					type="submit"
-					disabled={!text.trim() || reply.isPending}
+					disabled={!ready}
 					className="h-10 rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-40"
 				>
 					Send

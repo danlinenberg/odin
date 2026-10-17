@@ -5,7 +5,10 @@
 	"type": "module",
 	"scripts": {
 		"build": "vite build",
-		"ios": "vite build && cap sync ios && cap open ios"
+		"dev": "vite --port 5175 --strictPort",
+		"fake-odin": "bun scripts/fake-odin.ts",
+		"ios": "vite build && cap sync ios && cap open ios",
+		"sim": "bash scripts/sim.sh"
 	},
 	"dependencies": {
 		"@capacitor/app": "8.1.1",
