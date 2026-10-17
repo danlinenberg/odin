@@ -42,7 +42,6 @@ function NightAgentPage() {
 				<div className="grid items-start gap-8 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
 					<div className="space-y-8">
 						<NextRunSection />
-						<AddSection />
 					</div>
 					<div className="space-y-8">
 						<SettingsSection title="Schedule">
@@ -132,7 +131,7 @@ function StatusHero() {
 					className="relative mt-5 truncate border-t border-border/60 pt-3 text-xs text-muted-foreground"
 					title={lastEntry.event}
 				>
-					<span className="font-medium text-soft-foreground">Last night</span>{" "}
+					<span className="font-medium text-soft-foreground">Latest</span>{" "}
 					{lastEntry.event}
 				</div>
 			)}
@@ -168,9 +167,9 @@ function Stat({
 }
 
 /**
- * Your picks for the next run, in start order. The runner starts picks first,
- * so this list is exactly what it does next - then stops, or goes on down
- * Next in line.
+ * Your picks for the next run, in start order, and the waiting rows to add
+ * from. The runner starts picks first, so this list is exactly what it does
+ * next - then stops, or goes on down Next in line.
  */
 function NextRunSection() {
 	const offHours = useNextInLinePrompt((s) => s.offHours);
@@ -185,87 +184,81 @@ function NextRunSection() {
 		next.splice(to, 0, key);
 		setOffHours({ picked: next });
 	};
-	return (
-		<SettingsSection
-			title="Next run"
-			description={`Started first, top to bottom, one at a time. Up to ${MAX_NIGHT_PICKS}.`}
-		>
-			{picked.length === 0 ? (
-				<div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
-					<div className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
-						<LuMoon className="size-5" aria-hidden />
-					</div>
-					<p className="text-sm font-medium">No picks yet</p>
-					<p className="text-[13px] text-muted-foreground">
-						Add tasks from Waiting, or click the moon on any task.
-					</p>
-				</div>
-			) : (
-				picked.map((key, i) => {
-					const row = byKey.get(key);
-					return (
-						<div
-							key={key}
-							className="group flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30"
-						>
-							<span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold tabular-nums text-primary">
-								{i + 1}
-							</span>
-							{row ? (
-								<RowTitle row={row} />
-							) : (
-								<span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
-									No longer waiting - it was started, done or removed
-								</span>
-							)}
-							<div className="flex opacity-40 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-								<IconButton
-									label="Move up"
-									disabled={i === 0}
-									onClick={() => move(i, i - 1)}
-								>
-									<LuArrowUp className="size-3.5" />
-								</IconButton>
-								<IconButton
-									label="Move down"
-									disabled={i === picked.length - 1}
-									onClick={() => move(i, i + 1)}
-								>
-									<LuArrowDown className="size-3.5" />
-								</IconButton>
-								<IconButton
-									label="Remove from the next run"
-									onClick={() => toggleNightPick(key)}
-								>
-									<LuX className="size-3.5" />
-								</IconButton>
-							</div>
-						</div>
-					);
-				})
-			)}
-			<AfterPicksRow
-				value={offHours.afterPicks}
-				onChange={(afterPicks) => setOffHours({ afterPicks })}
-			/>
-		</SettingsSection>
-	);
-}
-
-/** The waiting rows the Night Agent can start, to add to the next run. */
-function AddSection() {
-	const picked = useNextInLinePrompt((s) => s.offHours.picked);
-	const { waiting } = useNextInLineQueue(true);
-	const rows = waiting.filter(
+	const addable = waiting.filter(
 		(row) => canPickForTonight(row) && !picked.includes(row.key),
 	);
 	return (
-		<SettingsSection
-			title="Waiting"
-			description={`${rows.length} tasks the Night Agent can start.`}
-		>
-			<AddPicks rows={rows} full={picked.length >= MAX_NIGHT_PICKS} />
-		</SettingsSection>
+		<>
+			<SettingsSection
+				title="Next run"
+				description={`Started first, top to bottom, one at a time. Up to ${MAX_NIGHT_PICKS}.`}
+			>
+				{picked.length === 0 ? (
+					<div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
+						<div className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+							<LuMoon className="size-5" aria-hidden />
+						</div>
+						<p className="text-sm font-medium">No picks yet</p>
+						<p className="text-[13px] text-muted-foreground">
+							Add tasks from Waiting, or click the moon on any task.
+						</p>
+					</div>
+				) : (
+					picked.map((key, i) => {
+						const row = byKey.get(key);
+						return (
+							<div
+								key={key}
+								className="group flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30"
+							>
+								<span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold tabular-nums text-primary">
+									{i + 1}
+								</span>
+								{row ? (
+									<RowTitle row={row} />
+								) : (
+									<span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+										No longer waiting - it was started, done or removed
+									</span>
+								)}
+								<div className="flex opacity-40 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+									<IconButton
+										label="Move up"
+										disabled={i === 0}
+										onClick={() => move(i, i - 1)}
+									>
+										<LuArrowUp className="size-3.5" />
+									</IconButton>
+									<IconButton
+										label="Move down"
+										disabled={i === picked.length - 1}
+										onClick={() => move(i, i + 1)}
+									>
+										<LuArrowDown className="size-3.5" />
+									</IconButton>
+									<IconButton
+										label="Remove from the next run"
+										onClick={() => toggleNightPick(key)}
+									>
+										<LuX className="size-3.5" />
+									</IconButton>
+								</div>
+							</div>
+						);
+					})
+				)}
+				<AfterPicksRow
+					value={offHours.afterPicks}
+					onChange={(afterPicks) => setOffHours({ afterPicks })}
+				/>
+			</SettingsSection>
+			<SettingsSection
+				title="Waiting"
+				description={`${addable.length} tasks the Night Agent can start.`}
+			>
+				<AddPicks rows={addable} full={picked.length >= MAX_NIGHT_PICKS} />
+			</SettingsSection>
+		</>
 	);
 }
 
