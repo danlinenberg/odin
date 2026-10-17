@@ -4268,19 +4268,19 @@ function DevBoardPage() {
 				}}
 			/>
 			{!isSwitchListMin && (
-				<span className="flex min-w-0 flex-col">
+				<span className="flex min-w-0 flex-1 flex-col">
 					<span className="flex min-w-0 items-center gap-1.5">
 						<span className="truncate">
-							{card.pane.odinStarred && (
-								<LuStar
-									title="Starred - right-click to unstar"
-									className="mr-1 inline size-3 fill-current align-[-1px] text-attention"
-								/>
-							)}
 							<WatchMark paneId={card.pane.id} />
 							<RemoteMark paneId={card.pane.id} />
 							{cardTitle(card)}
 						</span>
+						{card.pane.odinStarred && (
+							<LuStar
+								title="Starred - right-click to unstar"
+								className="ml-auto size-[11px] shrink-0 text-faint-foreground"
+							/>
+						)}
 					</span>
 					{switchStatus(card) && (
 						<span className="truncate text-[10.5px] font-normal text-faint-foreground">
