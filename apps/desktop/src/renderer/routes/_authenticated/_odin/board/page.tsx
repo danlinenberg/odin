@@ -4009,6 +4009,10 @@ function DevBoardPage() {
 				// fall back to --continue below
 			}
 		}
+		// The pruner removes a worktree an hour after its PR lands. Without it,
+		// `cd` fails and the resume exits at once: a reply that never gets one.
+		if (cwd)
+			await utils.client.repos.reviveSessionWorktree.mutate({ path: cwd });
 		// No opening prompt: Resume reopens the conversation at an idle prompt,
 		// it doesn't put the agent back to work. Deciding what happens next is
 		// the whole reason you came back to the session. Except mid-turn: that
