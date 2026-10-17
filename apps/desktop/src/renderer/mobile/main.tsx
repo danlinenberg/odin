@@ -362,14 +362,7 @@ function Session({ paneId }: { paneId: string }) {
 					setAtBottom(near);
 				}}
 			>
-				<ErrorLine
-					error={
-						session.error ??
-						done.error ??
-						reply.error ??
-						textError(speech.error)
-					}
-				/>
+				<ErrorLine error={session.error ?? done.error} />
 				<div className="mb-2 rounded-[10px] border border-border border-l-[3px] border-l-primary bg-card p-2.5 text-sm leading-snug text-soft-foreground">
 					<div className="text-[10px] font-semibold text-faint-foreground">
 						TL;DR
@@ -428,6 +421,8 @@ function Session({ paneId }: { paneId: string }) {
 					))}
 				</div>
 			)}
+			{/* By the box: you tap 🎤 or Send down here, not at the top. */}
+			<ErrorLine error={reply.error ?? textError(speech.error)} />
 			<UploadChips uploads={uploads} />
 			<form
 				className="flex items-end gap-2 px-2.5 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+10px)]"

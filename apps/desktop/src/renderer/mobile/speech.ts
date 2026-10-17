@@ -60,7 +60,10 @@ export function useSpeech(onText: (text: string) => void) {
 				}
 			} catch (failure) {
 				setListening(false);
-				setError(failure instanceof Error ? failure.message : String(failure));
+				// The bridge rejects with the plugin's { message, code }, not an Error.
+				setError(
+					(failure as { message?: string } | null)?.message ?? String(failure),
+				);
 			}
 			return;
 		}

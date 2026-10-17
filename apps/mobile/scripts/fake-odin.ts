@@ -108,13 +108,15 @@ async function inputs(
 
 Bun.serve({
 	port: PORT,
-	async fetch(req) {
+	async fetch(req, server) {
+		// Who's asking: the Simulator (127.0.0.1) or a phone on the Wi-Fi.
+		const from = server.requestIP(req)?.address ?? "?";
 		const url = new URL(req.url);
 		if (req.headers.get("authorization") !== "Bearer fake")
 			return new Response(null, { status: 401 });
 		if (url.pathname === "/upload") {
 			const bytes = (await req.arrayBuffer()).byteLength;
-			console.log("upload", url.searchParams.get("ext"), bytes, "bytes");
+			console.log(from, "upload", url.searchParams.get("ext"), bytes, "bytes");
 			return Response.json({
 				path: `/fake/attachments/${Date.now()}.${url.searchParams.get("ext")}`,
 			});
@@ -126,7 +128,7 @@ Bun.serve({
 		return Response.json(
 			paths.map((path, i) => {
 				const input = (batch[i] as { json?: Record<string, string> })?.json;
-				console.log(path, input ? JSON.stringify(input) : "");
+				console.log(from, path, input ? JSON.stringify(input) : "");
 				return { result: { data: { json: answer(path, input) } } };
 			}),
 		);
