@@ -19,12 +19,9 @@ import "../globals.css";
 import "./mobile.css";
 
 /**
- * Odin on the phone (main/lib/phone): the board as one list, and a session as
- * a chat. Two ways in, same screens:
- *  - Safari: the Mac serves this page; the token rides in the URL, so the
- *    Home Screen icon keeps it.
- *  - The iOS app (apps/mobile): bundled, so it needs the Mac's address. An
- *    odin://pair?u=<that same URL> link (Settings' second QR code) saves it.
+ * The iPhone app's screens (apps/mobile; the Mac side is main/lib/phone): the
+ * board as one list, and a session as a chat. Bundled into the app, so it
+ * needs the Mac's address: Settings' QR code, odin://pair?u=<link>, saves it.
  */
 
 /** The Capacitor bridge, when this runs inside the iOS app. */
@@ -41,8 +38,8 @@ const native = (window as { Capacitor?: { Plugins?: { App?: AppPlugin } } })
 const PAIRING_KEY = "odin-phone-pairing";
 
 function savedPairing(): Pairing | null {
-	// Served by an Odin with the token in the URL: Safari's page, or the app
-	// in live mode (apps/mobile/scripts/sim.sh --live). Talk to that origin.
+	// The token in the page's URL: a browser on `bun run dev`, or the app in
+	// live mode (apps/mobile/scripts/sim.sh --live). Talk to that origin.
 	const token = new URLSearchParams(location.search).get("t");
 	if (token) return { base: location.origin, token };
 	if (!native) return null;

@@ -798,7 +798,7 @@ function PhoneRow() {
 			<SettingRow
 				label="Phone access"
 				htmlFor="phone-access"
-				description="Open the board and answer sessions from your iPhone on this Wi-Fi. Use on trusted networks only: the connection isn't encrypted."
+				description="Open the board and answer sessions from the Odin iPhone app on this Wi-Fi. Use on trusted networks only: the connection isn't encrypted."
 			>
 				<Switch
 					id="phone-access"
@@ -814,28 +814,16 @@ function PhoneRow() {
 			)}
 			{data?.state === "on" && (
 				<div className="flex items-start gap-4 px-4 pb-4">
-					{(
-						[
-							["Safari", data.qr],
-							["iPhone app", data.appQr],
-						] as const
-					).map(([label, qr]) => (
-						<figure key={label} className="shrink-0 text-center">
-							<img
-								src={qr}
-								alt={`QR code for Odin in ${label}`}
-								className="size-36 rounded-md"
-							/>
-							<figcaption className="mt-1 text-xs text-muted-foreground">
-								{label}
-							</figcaption>
-						</figure>
-					))}
+					<img
+						src={data.qr}
+						alt="QR code that pairs the Odin iPhone app"
+						className="size-36 shrink-0 rounded-md"
+					/>
 					<div className="min-w-0 space-y-2 text-xs text-muted-foreground">
 						<div>
-							Scan with the iPhone camera. Safari: then Share, Add to Home
-							Screen. iPhone app: it opens Odin and pairs. The phone must be on
-							the same Wi-Fi as this Mac.
+							Scan with the iPhone camera: it opens the Odin app and pairs it.
+							Or paste this link into the app. The phone must be on the same
+							Wi-Fi as this Mac.
 						</div>
 						<div className="break-all font-mono select-text cursor-text">
 							{data.url}

@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 /**
  * Speech to text for the phone's text boxes, on the phone itself: in the iOS
  * app the OdinSpeech plugin (apps/mobile/ios/App/App/OdinSpeech.swift, iOS
- * speech recognition); in Safari, the browser's own SpeechRecognition. Tap to
+ * speech recognition); in a browser (`bun run dev`), its own SpeechRecognition. Tap to
  * start, tap to stop; the words go into the box to edit before sending.
  */
 

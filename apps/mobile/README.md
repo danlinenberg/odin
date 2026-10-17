@@ -1,8 +1,7 @@
 # Odin for iPhone
 
 A Capacitor app around the phone screens in
-`apps/desktop/src/renderer/mobile` - the same screens Odin serves to Safari
-over Wi-Fi, bundled into a real app. It talks to Odin on your Mac over the
+`apps/desktop/src/renderer/mobile`. It talks to Odin on your Mac over the
 same Wi-Fi (Settings > Connections > Phone).
 
 ## Run it on your iPhone
