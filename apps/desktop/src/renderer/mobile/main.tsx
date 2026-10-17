@@ -41,10 +41,11 @@ const native = (window as { Capacitor?: { Plugins?: { App?: AppPlugin } } })
 const PAIRING_KEY = "odin-phone-pairing";
 
 function savedPairing(): Pairing | null {
-	if (!native) {
-		const token = new URLSearchParams(location.search).get("t");
-		return token ? { base: "", token } : null;
-	}
+	// Served by an Odin with the token in the URL: Safari's page, or the app
+	// in live mode (apps/mobile/scripts/sim.sh --live). Talk to that origin.
+	const token = new URLSearchParams(location.search).get("t");
+	if (token) return { base: location.origin, token };
+	if (!native) return null;
 	try {
 		return JSON.parse(localStorage.getItem(PAIRING_KEY) ?? "null");
 	} catch {
@@ -164,7 +165,9 @@ function Home() {
 	const sessions = board.data?.sessions ?? [];
 	return (
 		<div className="min-h-dvh pb-24">
-			<h1 className="px-4 pt-3 pb-1 text-2xl font-bold">Odin</h1>
+			<h1 className="px-4 pt-[calc(env(safe-area-inset-top)+12px)] pb-1 text-2xl font-bold">
+				Odin
+			</h1>
 			<ErrorLine error={board.error} />
 			{board.isLoading && (
 				<div className="px-4 py-6 text-sm text-muted-foreground">Loading…</div>

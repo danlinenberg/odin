@@ -44,6 +44,16 @@ const messages: Record<string, Message[]> = {
 	],
 };
 
+// A long one, to scroll.
+messages.p3 = Array.from({ length: 24 }, (_, i) => ({
+	role: i % 2 ? "assistant" : "user",
+	text:
+		i % 2
+			? `Step ${(i + 1) / 2}: built the screen, checked it in the Simulator, fixed what looked off.`
+			: `Next: part ${i / 2 + 1}.`,
+	at: null,
+}));
+
 const screen = [
 	" Bash command",
 	"   alembic upgrade head",

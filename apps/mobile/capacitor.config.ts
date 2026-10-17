@@ -7,8 +7,10 @@ const config: CapacitorConfig = {
 	backgroundColor: "#0e0e11",
 	plugins: {
 		// Native requests: the bundled page (capacitor://localhost) can't fetch
-		// the Mac's http:// server itself - mixed content, and CORS.
-		CapacitorHttp: { enabled: true },
+		// the Mac's http:// server itself - mixed content, and CORS. Not in live
+		// mode: the page and the API share the dev server's origin there, and
+		// CapacitorHttp's capacitor:// detour would be the cross-origin call.
+		CapacitorHttp: { enabled: !process.env.ODIN_LIVE_URL },
 	},
 	// scripts/sim.sh --live: load the screens from `bun run dev`, so an edit
 	// shows in the Simulator without a rebuild. A plain sync drops it again.
