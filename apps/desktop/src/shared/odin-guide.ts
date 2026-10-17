@@ -154,7 +154,7 @@ Besides the launch gate limits:
 Desktop banners (macOS controls them; the button opens System Settings), Sound on or off and Volume, and Reminders → Notify at: the time "Remind me" sessions and due dates notify on their day, one notification per day.
 
 ## Appearance (Settings → Appearance)
-Theme: pick one, or follow the system with a Light theme and a Dark theme; custom theme files can be imported (256 KB at most). Show sessions as a chat (default on). Store: theme (fn setTheme).
+Theme: pick one, or follow the system with a Light theme and a Dark theme; custom theme files can be imported (256 KB at most). Show sessions as a chat (default on). Text size (90% to 150%) makes Odin's own text bigger or smaller; the in-app browser keeps its size, while ⌘+/⌘- zoom everything. Store: theme (fn setTheme).
 
 ## Keyboard (Settings → Keyboard)
 Search and re-record any shortcut; a key already in use offers Reassign; Reset all. From any app → "Double-tap to show or hide Odin": Record, then tap a modifier twice.

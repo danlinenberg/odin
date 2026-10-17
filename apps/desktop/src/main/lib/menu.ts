@@ -1,8 +1,10 @@
 import { COMPANY } from "@odin/shared/constants";
 import { app, BrowserWindow, Menu, shell } from "electron";
+import { readOdinConfig } from "lib/trpc/routers/odin-config";
 import { env } from "main/env.main";
 import { resetTerminalStateDev } from "main/lib/terminal/dev-reset";
 import { chordToAccelerator } from "shared/chord-accelerator";
+import { textSizeOf } from "shared/text-size";
 import { checkForUpdatesInteractive } from "./auto-updater";
 import { menuEmitter } from "./menu-events";
 import { confirmAndQuitCompletely } from "./quit-completely";
@@ -89,7 +91,11 @@ export function createApplicationMenu() {
 				{
 					label: "Actual Size",
 					accelerator: accelerator("ZOOM_RESET"),
-					click: () => zoomFocusedWindow(() => 0),
+					// Actual size keeps the text size picked in Settings → Appearance.
+					click: () =>
+						BrowserWindow.getFocusedWindow()?.webContents.setZoomFactor(
+							textSizeOf(readOdinConfig().textSize),
+						),
 				},
 				{
 					label: "Zoom In",
