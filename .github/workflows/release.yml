@@ -8,9 +8,6 @@
 # branch other than main, only the windows job runs, and the installer lands
 # as a workflow artifact instead of a release - that is how to test it.
 #
-# ponytail: arm64 only, no matrix. The machine that builds it and the machines
-# that run it are the same shape; add an x64 leg when someone on an Intel Mac
-# asks for one.
 name: Release
 
 on:
@@ -50,8 +47,6 @@ jobs:
       # A manual run on a main whose version is already released builds the
       # next patch instead: the checked-out package.json files are bumped in
       # place (not committed), so the app reports the version it ships under.
-      # ponytail: main's package.json then lags the latest release; the next
-      # run bumps past the latest tag, so nothing collides.
       - name: Pick version
         id: pick
         env:
@@ -151,8 +146,6 @@ jobs:
           done
 
       # Not `bun run build`: its prebuild mints a macOS signing identity.
-      # ponytail: unsigned, so SmartScreen warns on first run ("More info" ->
-      # "Run anyway"); buy a code-signing cert if that stops being acceptable.
       - working-directory: apps/desktop
         run: |
           bun run generate:icons

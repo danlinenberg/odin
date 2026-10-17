@@ -23,7 +23,6 @@ export function exitCause(
 	try {
 		const { bavail, bsize } = statfsSync(homedir());
 		const freeGb = (bavail * bsize) / 1024 ** 3;
-		// ponytail: under 2 GB reads as the cause - a guess, not a proof.
 		if (freeGb < 2) return `${how} - disk full (${freeGb.toFixed(1)} GB free)`;
 	} catch {}
 	return how;

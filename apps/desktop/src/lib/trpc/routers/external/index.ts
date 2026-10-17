@@ -285,7 +285,6 @@ export const createExternalRouter = () => {
 				if (!hasClaudeCodeExtension()) return false;
 				// The URL goes to VS Code's focused window, and is dropped until that
 				// window's Claude extension runs: wait for it (a cold start ~5s).
-				// ponytail: polled, 20s cap - then sent anyway.
 				for (let waited = 0; waited < 20_000; waited += 250) {
 					if (vscodeWindowReady(input.path)) break;
 					await new Promise((resolve) => setTimeout(resolve, 250));

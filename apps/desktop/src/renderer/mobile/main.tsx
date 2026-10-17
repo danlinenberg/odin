@@ -70,7 +70,6 @@ function savedPairing(): Pairing | null {
 	}
 }
 
-// ponytail: pairing reloads the page, so the client below is built once.
 function pairWith(link: string): boolean {
 	const pairing = parsePairLink(link);
 	if (!pairing) return false;
@@ -120,7 +119,6 @@ if (native?.Plugins?.App) {
 	});
 }
 
-// ponytail: polling every 3s; a subscription when the board needs to feel instant.
 const POLL = 3_000;
 
 const paneInHash = () => location.hash.match(/^#\/s\/(.+)$/)?.[1] ?? null;
@@ -466,7 +464,6 @@ function stillWaiting(
 		.filter((message) => message.role === "user")
 		.slice(-20)
 		.map((message) => squash(message.text));
-	// ponytail: a files-only reply can't be matched on text; it goes after 2 min.
 	return sent.filter((item) =>
 		!item.text
 			? Date.now() - item.at < 120_000

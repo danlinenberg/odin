@@ -106,7 +106,6 @@ async function typeIntoClaude(paneId: string, text: string, paths: string[]) {
 	const before = await drawn();
 	for (const path of paths) write(`\x1b[200~${path}\x1b[201~ `);
 	if (text) write(text.includes("\n") ? `\x1b[200~${text}\x1b[201~` : text);
-	// ponytail: 3s cap, then Enter anyway - a path Claude collapses never shows.
 	const expected = paths.length + (text ? 1 : 0);
 	await until(async () => (await drawn()) >= before + expected, 3000);
 	await pause(30);
@@ -204,7 +203,6 @@ export const phoneRouter = t.router({
 			? await readTranscript({ sessionId }).catch(() => null)
 			: null;
 		const source = transcript ? (transcript.links ?? transcript.messages) : [];
-		// ponytail: the last 8 PRs; each one is a `gh pr view`.
 		const prs = pullRequests(source).slice(-8);
 		const issue = jiraIssue(source);
 		// The app router is untyped from here; these are its answers' shapes.

@@ -401,9 +401,6 @@ type KeptSession = TranscriptScan & {
  * Claude Code deletes a transcript after 30 days (`cleanupPeriodDays`), and
  * Insights' history went with it. Every scan is kept here instead, so a
  * session outlives its transcript.
- *
- * ponytail: one JSON file, ~1 MB a month of sessions, rewritten whole on any
- * change; move it into local.db if that ever gets slow.
  */
 export function archivePath(): string {
 	return join(ODIN_HOME_DIR, "session-scans.json");
@@ -683,9 +680,6 @@ function tallyHours(
  * that week's bursts and the PRs it opened then. A session left running across
  * the weekend is work in both weeks - filing all of it under the week it
  * started put a live task's hours in a week you'd stopped looking at.
- *
- * ponytail: a single burst straddling Saturday midnight counts in the week it
- * began; split the interval if that ever matters.
  */
 export function byWeek(session: SessionWork): SessionWork[] {
 	const weeks = new Map<
@@ -835,8 +829,6 @@ export function computeWorkload(
 		.map((session) => {
 			// A hidden repo's PRs go too, whichever session opened them: an odin
 			// PR shipped from an app-web-server session still counted with odin hidden.
-			// ponytail: `only` stays per session - a renamed repo's old PRs
-			// (odin-private) would drop out of their own repo otherwise.
 			const shown = session.prs.map(
 				(url) => !hide.includes(url.split("/")[4] ?? ""),
 			);

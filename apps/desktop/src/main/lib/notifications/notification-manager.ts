@@ -50,8 +50,6 @@ export class NotificationManager {
 	private active = new Map<string, TrackedEntry>();
 	// Sessions currently sitting in Needs you, so a move into it can be told apart
 	// from another event once it's there.
-	// ponytail: one id per session seen since launch; give it the sweep's TTL
-	// treatment if that ever adds up.
 	private waiting = new Set<string>();
 	private counter = 0;
 	private sweepTimer: ReturnType<typeof setInterval> | null = null;

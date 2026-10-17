@@ -9,10 +9,6 @@ interface LaunchLimitsState extends LaunchLimits {
 /**
  * Settings → Sessions: the launch gate's CPU, memory, disk, session-count and
  * one-per-checkout limits.
- *
- * ponytail: renderer localStorage, not a settings procedure - every reader
- * (launch, queue, header chip) lives in the renderer, and a new main-process
- * procedure only goes live after a restart that kills every session.
  */
 export const useLaunchLimits = create<LaunchLimitsState>()(
 	persist(

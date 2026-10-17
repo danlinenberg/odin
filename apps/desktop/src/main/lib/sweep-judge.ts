@@ -108,8 +108,6 @@ export interface KeptRow {
 	stamp: string;
 }
 
-// ponytail: in memory. A restart re-reads every kept thread once, in the
-// background; bound it with a persisted cache if that ever hurts.
 const known = new Map<string, { stamp: string; why: string | null }>();
 const queue = new Map<string, KeptRow>();
 let worker: Promise<void> | null = null;

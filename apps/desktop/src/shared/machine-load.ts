@@ -40,9 +40,6 @@ export interface MachineLoadInput {
  *
  * One number, not two: the agents' CPU is part of the Mac's, so a separate
  * agent limit could only ever trip while the Mac still had room.
- *
- * ponytail: the default - Settings → Sessions overrides it. 85 let launches land
- * on a Mac that was already suffocating; 50 held them on one that was fine.
  */
 export const BUSY_HOST_CPU_PERCENT = 70;
 
@@ -50,8 +47,7 @@ export const BUSY_HOST_CPU_PERCENT = 70;
  * Free memory (free + reclaimable) below which the next launch waits.
  *
  * CPU alone misses a Mac that's out of memory: it swaps, and crawls while the
- * CPU looks idle. ponytail: the default - Settings → Sessions overrides it. 2 GB
- * is one session mid-build.
+ * CPU looks idle.
  */
 export const MIN_FREE_MEMORY_GB = 2;
 
@@ -59,8 +55,7 @@ export const MIN_FREE_MEMORY_GB = 2;
  * Free disk, as a share of the home volume, below which the next launch waits.
  *
  * A full disk starves swap, so it looks like a memory problem, and every new
- * session adds a ~3 GB worktree. ponytail: the default - Settings → Sessions
- * overrides it. 5% of a 460 GB disk is ~23 GB, a handful of worktrees.
+ * session adds a ~3 GB worktree.
  */
 export const MIN_FREE_DISK_PERCENT = 5;
 
@@ -80,8 +75,6 @@ export const DEFAULT_LAUNCH_LIMITS: LaunchLimits = {
 	hostCpuPercent: BUSY_HOST_CPU_PERCENT,
 	minFreeMemoryGb: MIN_FREE_MEMORY_GB,
 	minFreeDiskPercent: MIN_FREE_DISK_PERCENT,
-	// ponytail: the default - Settings → Sessions overrides it. CPU and memory
-	// miss a board of agents that are mostly waiting on the network.
 	maxWorkingAgents: 5,
 	oneSessionPerCheckout: true,
 };
@@ -193,10 +186,6 @@ export function machineLoad(
 
 /**
  * Enough of this Mac for one session's badge to turn loud.
- *
- * ponytail: two fixed numbers, same knob as BUSY_HOST_CPU_PERCENT. 2 GB is
- * roughly double what a parked session holds; 80% is most of one core held
- * down. Move them if a bigger Mac argues.
  */
 export const HEAVY_MEMORY_GB = 2;
 export const HEAVY_CPU_PERCENT = 80;

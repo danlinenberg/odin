@@ -2,8 +2,6 @@
  * What every Odin feature does, in the user's terms: the raven's map of Odin,
  * served by `/odin` action=guide. He answers from this and the live state,
  * never from Odin's source. A feature you add or change belongs here too.
- *
- * ponytail: one hand-written text, `## ` sections, a word filter - no index.
  */
 export const ODIN_GUIDE = `# Odin
 

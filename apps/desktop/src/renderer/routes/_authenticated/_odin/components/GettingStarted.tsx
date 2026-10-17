@@ -34,10 +34,6 @@ interface ProfileProgress {
 	done: StepId[];
 }
 
-/**
- * ponytail: one small entry per profile ever seen, never deleted - a deleted
- * profile leaves ~50 bytes behind. Bounded by how many profiles you make.
- */
 const useGettingStarted = create<{
 	profiles: Record<string, ProfileProgress | undefined>;
 	update: (profileId: string, patch: Partial<ProfileProgress>) => void;

@@ -17,7 +17,6 @@ import { phoneRouter } from "./router";
  * takes its uploads; every call needs the token the QR code carries. Off
  * until you turn it on.
  */
-// ponytail: plain HTTP on the LAN - anyone on the Wi-Fi can read the traffic.
 // HTTPS comes with a relay or tunnel.
 
 /** Where the switch and the token live; a test points it at a temp file. */
@@ -43,7 +42,6 @@ function readConfig(): Config {
 	}
 }
 
-// ponytail: the token sits in plain text in ~/.odin (0700), like the old bot token.
 const writeConfig = (config: Config) =>
 	writeFileSync(phoneConfig.file, JSON.stringify(config), { mode: 0o600 });
 

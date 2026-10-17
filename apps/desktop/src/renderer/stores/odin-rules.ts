@@ -43,9 +43,6 @@ interface OdinRulesState {
  * whose checkout rules it out never hears it; one whose checkout isn't known
  * yet (a feed launch, where the agent picks the repo) gets it with the repos
  * named, and applies it - or skips it - there.
- *
- * ponytail: one global list, not per profile - add `profileId` the day a rule
- * should only apply to work or personal sessions.
  */
 export const useOdinRules = create<OdinRulesState>()(
 	persist(
@@ -138,10 +135,6 @@ const sh = (s: string) => `'${s.replaceAll("'", `'\\''`)}'`;
  * `claude --settings` JSON that fires the PR rules after every Bash call that
  * opens or pushes to a PR - every time the PR changes, not just the first.
  * Null when no live rule is about PRs.
- *
- * ponytail: a grep over the hook payload, not a parse of tool_input - a
- * command that merely prints "git push" fires it too, which costs one
- * redundant reminder.
  */
 export function rulesSettings(rules: OdinRule[], checkout = ""): string | null {
 	const live = liveRules(rules, checkout).filter((r) => PR_RULE.test(r.when));

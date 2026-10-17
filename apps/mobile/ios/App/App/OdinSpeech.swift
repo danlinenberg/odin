@@ -89,7 +89,6 @@ public class OdinSpeechPlugin: CAPPlugin, CAPBridgedPlugin {
             self.engine.inputNode.removeTap(onBus: 0)
             self.request?.endAudio()
             try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-            // ponytail: 2s for the final result, then whatever was heard so far.
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) { self.finish() }
         }
     }

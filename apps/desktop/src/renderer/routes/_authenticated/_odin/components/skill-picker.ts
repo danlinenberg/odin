@@ -1,7 +1,5 @@
 /**
  * Pure bits of the session composer's skill picker (see OdinPromptDialog).
- * ponytail: the menu only opens on a slash token at the END of the text -
- * mid-text insertion isn't supported, nobody composes that way.
  */
 
 /** A slash token being typed at the end of the prompt. */

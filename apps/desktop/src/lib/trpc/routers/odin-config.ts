@@ -243,8 +243,7 @@ function readRoot(): RootConfig {
 
 	// Files written before the apps became shared keep them inside a profile;
 	// hoist them, or every other profile comes up with nothing to sign in
-	// with. ponytail: the copy is left in the profile - harmless, since the
-	// values are identical and the active profile's copy wins either way.
+	// with.
 	for (const key of SHARED_KEYS) {
 		if (shared[key] !== undefined) continue;
 		const owner = profiles.find((p) => p.config?.[key] !== undefined);
@@ -253,8 +252,7 @@ function readRoot(): RootConfig {
 
 	// Jira's old API-token trio, from before sign-in existed. Dropped on read,
 	// so a live token stops being handed out now and leaves the file on the
-	// next write. ponytail: no migration step - there is nothing to migrate to,
-	// Jira reconnects through OAuth.
+	// next write.
 	for (const profile of profiles) {
 		for (const key of ["jiraBaseUrl", "jiraEmail", "jiraToken"]) {
 			delete (profile.config as Record<string, unknown>)?.[key];
@@ -402,11 +400,6 @@ export function renameProfile(id: string, name: string): void {
  * days; after that the next read drops it and its credentials. Returns the
  * profile that is active afterwards. The last profile can't go: Odin always has exactly one set of
  * accounts in play, and "none" has no meaning anywhere downstream.
- *
- * ponytail: the rows the profile owned (Slack queue, sessions, tasks) are left
- * where they are - filtered out of every view, back on restore, and gone for
- * good the next time their table is swept. Delete them eagerly if that ever shows up as
- * real disk.
  */
 export function deleteProfile(id: string): string {
 	const root = readRoot();

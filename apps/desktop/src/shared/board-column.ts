@@ -42,9 +42,6 @@ export function boardColumn(
 	// asked for nothing" is a claim about the turn, and the only writer that
 	// knows it is the hook that saw the turn end.
 	if (status === "review") return "review";
-	// ponytail: a Failed column was one more place to look for the same call to
-	// action ("this session needs you"), so failures land in Needs you too - the
-	// card still says it failed.
 	//
 	// Alive-but-idle joins them, and NOT Done: its status was cleared rather
 	// than earned - acknowledging a pane turns "review" into idle, an Esc in

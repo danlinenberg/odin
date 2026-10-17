@@ -229,9 +229,6 @@ async function listProcessesWindows(): Promise<ProcessInfo[]> {
  * reads "full" forever. `vm_stat`'s inactive + speculative + purgeable pages
  * are the ones the kernel reclaims on demand, which is what "available"
  * means everywhere else.
- *
- * ponytail: one more exec next to the `ps` this module already runs. Falls
- * back to `os.freemem()` off macOS and whenever the parse comes up empty.
  */
 export async function readAvailableMemory(): Promise<number> {
 	if (os.platform() !== "darwin") return os.freemem();
@@ -269,10 +266,6 @@ let lastCpuUsagePercent = 0;
  * `loadAverage1m` can't do this job: macOS counts threads blocked in I/O, so
  * it reads high on a Mac doing nothing and low-ish on one that's choking.
  * Idle ticks don't lie.
- *
- * ponytail: the first call has nothing to subtract and reports 0 - the gate
- * fails open for one poll, then has real numbers. Sampling on a timer to fill
- * that in is a background job for a 5-second problem.
  */
 export function readCpuUsagePercent(cpus: os.CpuInfo[]): number {
 	let idle = 0;

@@ -81,9 +81,6 @@ has_open_action_items() {
 # completion re-invokes the session, which Stops again when it's done. The
 # transcript logs a launch as "status":"async_launched","agentId":"<id>" and
 # its end as <task-id><id></task-id>.
-# ponytail: an agent whose own transcript sat untouched for 10 min counts as
-# gone - a killed session never writes its notification. A subagent parked
-# in one Bash call that long lets the card drop to Done/Needs you early.
 has_running_background_agents() {
   local transcript=$1 id out
   [ -f "$transcript" ] || return 1

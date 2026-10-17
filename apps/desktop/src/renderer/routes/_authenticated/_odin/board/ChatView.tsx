@@ -414,8 +414,6 @@ function readBytes(read: { kind: string; content: unknown }): Uint8Array {
 /**
  * Where each transcript's reader stopped, kept when its view unmounts, so
  * switching back to a session shows it at once and reads only what's new.
- * ponytail: the last 20 sessions, oldest out first; a file rewritten shorter
- * than the kept offset is not detected.
  */
 interface LiveState {
 	offset: number | null;
@@ -578,8 +576,6 @@ function useLiveItems(path: string | null, workspaceId: string) {
 				const split = splitEarlier(readBytes(read), head, from === 0);
 				head = split.head;
 				start = from;
-				// ponytail: a tool row whose result sits past the cut stays without
-				// it; the tail window already dropped that result.
 				const rows = applyLines([], parseLines(split.lines));
 				shown = [...rows, ...shown];
 				setItems(shown);
@@ -752,7 +748,6 @@ const ToolRow = memo(function ToolRow({
 								item.isError ? "text-danger" : "text-muted-foreground",
 							)}
 						>
-							{/* ponytail: capped - a 2MB tool output in a <pre> stalls the drawer */}
 							<DiffColored text={item.result.slice(0, 20_000)} />
 						</pre>
 					)}
@@ -1584,7 +1579,6 @@ function ActionItems({
 /**
  * The item a reply's `!` commands belong under: the first one that says to run
  * something ("Press Run on the blocks above"). -1 when none does.
- * ponytail: one word match; tie each block to its own item if replies mix several.
  */
 export function runItemIndex(items: string[]): number {
 	return items.findIndex((item) => /\brun\b/i.test(item));
@@ -2038,7 +2032,6 @@ export function ChatView({
 	useEffect(() => {
 		setPending((list) => list.filter((sent) => !isEchoed(items, sent)));
 	}, [items]);
-	// ponytail: an echo that never matches (Claude rewrote it) just expires.
 	// Not mid-turn or queued: Claude writes a queued message only when it takes it.
 	const expireLater = (id: number, text: string) => {
 		const expire = () =>
@@ -2605,7 +2598,6 @@ export async function typeIntoClaude(
 			paneId,
 			data: text.includes("\n") ? `\x1b[200~${text}\x1b[201~` : text,
 		});
-		// ponytail: 2s cap, then Enter anyway - a collapsed paste never shows the text.
 		for (let waited = 0; waited < 2000; waited += 50) {
 			if ((await drawCount(paneId, text)) > drawn) break;
 			await new Promise((resolve) => setTimeout(resolve, 50));
@@ -2644,7 +2636,6 @@ async function pasteAttachments(
 	// A bracketed paste, not typing: only a pasted path becomes an attachment.
 	for (const path of paths)
 		await write({ paneId, data: `\x1b[200~${path}\x1b[201~ ` });
-	// ponytail: 3s cap, then on anyway - a path Claude collapses never shows.
 	for (let waited = 0; waited < 3000; waited += 50) {
 		if ((await drawn()) >= before + paths.length) break;
 		await new Promise((resolve) => setTimeout(resolve, 50));
@@ -2824,7 +2815,6 @@ function Composer({
 		useChatDrafts.getState().save(paneId, "");
 		setBash(false);
 		if (!bash) setAttached([]);
-		// ponytail: blob URLs are never revoked - a few per session.
 		onSent(
 			text,
 			sending.map((item) => item.preview),

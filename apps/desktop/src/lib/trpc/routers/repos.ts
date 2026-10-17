@@ -19,10 +19,6 @@ import { execWithShellEnv } from "./workspaces/utils/shell-env";
 /**
  * Odin fork: the git checkouts on this machine, so the session composer can
  * point a session at a repo instead of the default workspace.
- *
- * ponytail: one depth-capped `find` under $HOME, scanned once at launch and
- * cached for the app's lifetime - a new clone shows up after a restart. Swap
- * for a watcher only if that ever bites.
  */
 const run = promisify(execFile);
 
@@ -193,23 +189,18 @@ function diffOf(all: DiffFile[], note: string[] = []) {
 /**
  * What changed in a checkout, file by file.
  *
- * ponytail: `git diff HEAD` (staged + unstaged), falling back to the last
- * commit - an agent that already committed its turn would otherwise show an
- * empty panel. Untracked files are named, not diffed.
  *
  * @param transcript The session's transcript. Checkouts are shared, so the
  * tree holds other sessions' edits and HEAD is often a stranger's commit -
  * made before this session, or by another one while it ran. The session owns
  * a commit whose sha its transcript printed (`git commit` does), and a file
- * whose path it named. ponytail: a file the session changed without naming it
- * (a lockfile from an install) is hidden too - the note counts it.
+ * whose path it named.
  */
 export async function renderDiff(
 	cwd: string,
 	transcript?: string,
 	wholeFile = false,
 ): Promise<RepoDiff> {
-	// ponytail: every line as context, so the panel shows the whole file.
 	const context = wholeFile ? ["-U1000000"] : [];
 	const git = async (args: string[]) =>
 		(

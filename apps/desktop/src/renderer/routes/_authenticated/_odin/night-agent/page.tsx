@@ -38,7 +38,6 @@ function NightAgentPage() {
 		<div className="h-full overflow-y-auto">
 			<div className="mx-auto w-full max-w-[1600px] space-y-8 px-8 py-8">
 				<StatusHero />
-				{/* ponytail: one column under xl, the queue on the left from there. */}
 				<div className="grid items-start gap-8 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
 					<div className="space-y-8">
 						<NextRunSection />

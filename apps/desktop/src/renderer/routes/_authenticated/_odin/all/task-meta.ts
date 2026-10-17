@@ -61,8 +61,7 @@ export function moveKey(list: string[], from: string, to: string): string[] {
  * Per-row status and type, and Up next - the rows you've lined up, in the
  * order you'll take them. Keyed by the All-feed key, like Done.
  * Bounded by KEEP: setting a row moves it to the end, and the oldest fall
- * off. ponytail: no reconciliation against the feeds - a row that left its
- * feed holds its slot until KEEP newer ones push it out.
+ * off.
  */
 export const useTaskMeta = create<{
 	statuses: Record<string, TaskStatus>;

@@ -15,7 +15,6 @@ import { profileOf } from "shared/odin-profile";
  * carried `odinContact` for far longer. The ledger wins where they overlap:
  * it's the one that outlives the pane.
  *
- * ponytail: rebuilt per search (a few hundred rows, no I/O beyond a SELECT).
  * Cache it on work_log's newest startedAt if the scan ever shows up.
  */
 export function sessionPeople(): Map<string, SessionPerson> {

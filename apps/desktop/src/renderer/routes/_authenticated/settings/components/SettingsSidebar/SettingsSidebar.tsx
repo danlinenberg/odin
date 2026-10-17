@@ -150,8 +150,6 @@ export function SettingsSidebar() {
 /**
  * Scroll a setting's row into view and flash it. Polls while its screen mounts,
  * then waits out the layout's scroll-to-top on a screen change.
- * ponytail: a fixed 80ms wait; hand the target to useScrollReset if it ever
- * loses that race.
  */
 function revealSetting(label: string, framesLeft = 60) {
 	const row = document.querySelector<HTMLElement>(

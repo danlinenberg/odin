@@ -35,9 +35,6 @@ function titleKey(title: string): string {
  *
  * Only a Slack row's body counts: a message linking a ticket is about it,
  * while a ticket or PR description cites other tickets in passing.
- *
- * ponytail: exact refs and exact normalized titles. A reworded ask slips
- * through; hand the ledger to the ranking model if those start to.
  */
 export function duplicateOf(
 	item: AllItem,
