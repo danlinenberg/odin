@@ -338,6 +338,16 @@
         "typescript": "6.0.3",
       },
     },
+    "packages/odin-relay": {
+      "name": "@odin/relay",
+      "version": "0.0.1",
+      "devDependencies": {
+        "@odin/channel": "workspace:*",
+        "@odin/typescript": "workspace:*",
+        "@types/bun": "1.3.14",
+        "typescript": "6.0.3",
+      },
+    },
     "packages/panes": {
       "name": "@odin/panes",
       "version": "0.1.0",
@@ -1088,6 +1098,8 @@
     "@odin/port-scanner": ["@odin/port-scanner@workspace:packages/port-scanner"],
 
     "@odin/pty-daemon": ["@odin/pty-daemon@workspace:packages/pty-daemon"],
+
+    "@odin/relay": ["@odin/relay@workspace:packages/odin-relay"],
 
     "@odin/session-protocol": ["@odin/session-protocol@workspace:packages/session-protocol"],
 
