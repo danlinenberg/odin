@@ -4522,33 +4522,19 @@ function DevBoardPage() {
 		}
 		catchUpNext(true);
 	};
-	// One key per card: Enter takes the suggestion, → skips, D is Done.
-	useEffect(() => {
-		if (!catchUpCall) return;
-		const onKey = (event: KeyboardEvent) => {
-			const target = event.target as HTMLElement | null;
-			if (
-				event.metaKey ||
-				event.ctrlKey ||
-				event.altKey ||
-				target?.closest("input, textarea, [contenteditable='true']")
-			)
-				return;
-			const act =
-				event.key === "Enter"
-					? () => acceptCatchUp(catchUpCall)
-					: event.key === "ArrowRight"
-						? () => catchUpNext(false)
-						: event.key.toLowerCase() === "d"
-							? () => catchUpNext(true)
-							: null;
-			if (!act) return;
-			event.preventDefault();
-			act();
-		};
-		window.addEventListener("keydown", onKey);
-		return () => window.removeEventListener("keydown", onKey);
-	});
+	// One key per card: Enter takes the suggestion, → skips, E is Done.
+	const catchUpKeys = {
+		enabled: !!catchUpCall,
+		enableOnFormTags: false,
+		enableOnContentEditable: false,
+	};
+	useHotkey(
+		"CATCH_UP_ACCEPT",
+		() => catchUpCall && acceptCatchUp(catchUpCall),
+		catchUpKeys,
+	);
+	useHotkey("CATCH_UP_SKIP", () => catchUpNext(false), catchUpKeys);
+	useHotkey("CATCH_UP_DONE", () => catchUpNext(true), catchUpKeys);
 
 	// Done from wherever the card is: the open session moves the drawer on,
 	// another row in the drawer's list leaves the drawer where it is.
@@ -5056,7 +5042,7 @@ function DevBoardPage() {
 								{catchUpCall.kind !== "done" && (
 									<button
 										type="button"
-										title="Done anyway - remove it from the board and go to the next one (D)"
+										title="Done anyway - remove it from the board and go to the next one (E)"
 										onClick={() => catchUpNext(true)}
 										className={cn(
 											"rounded-2xl px-5 py-3.5 text-[15px] font-semibold",
