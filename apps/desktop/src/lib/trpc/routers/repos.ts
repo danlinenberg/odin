@@ -331,6 +331,81 @@ export async function renderSinceDiff(
 }
 
 /**
+ * Everything the branch changed since it left its base - its commits and any
+ * edits not committed yet - with no PR needed. The base is the remote's
+ * default branch (`origin/HEAD`), else `main` or `master`, remote first.
+ */
+export async function renderBranchDiff(
+	cwd: string,
+	wholeFile = false,
+): Promise<RepoDiff> {
+	const git = async (args: string[]) =>
+		(
+			await execWithShellEnv("git", ["--no-pager", ...args], {
+				cwd,
+				maxBuffer: 64 * 1024 * 1024,
+				timeout: 30_000,
+			})
+		).stdout.trim();
+	const tryGit = (args: string[]) => git(args).catch(() => "");
+
+	const branch =
+		(await tryGit(["rev-parse", "--abbrev-ref", "HEAD"])) || "HEAD";
+	const remoteDefault = await tryGit([
+		"rev-parse",
+		"--abbrev-ref",
+		"origin/HEAD",
+	]);
+	const candidates = [
+		remoteDefault,
+		"origin/main",
+		"origin/master",
+		"main",
+		"master",
+	].filter((ref) => ref && ref !== "origin/HEAD" && ref !== branch);
+	let base = "";
+	let forkPoint = "";
+	for (const ref of candidates) {
+		forkPoint = await tryGit(["merge-base", "HEAD", ref]);
+		if (forkPoint) {
+			base = ref;
+			break;
+		}
+	}
+	if (!base) {
+		return {
+			source: `${branch} - no main or master branch to compare with`,
+			cwd,
+			files: [],
+			note: "",
+		};
+	}
+
+	const commits = Number(
+		(await tryGit(["rev-list", "--count", `${forkPoint}..HEAD`])) || 0,
+	);
+	const patch = await git([
+		"diff",
+		"--no-color",
+		...(wholeFile ? ["-U1000000"] : []),
+		forkPoint,
+	]);
+	const untracked = (await git(["ls-files", "--others", "--exclude-standard"]))
+		.split("\n")
+		.filter(Boolean);
+	const note = untracked.length
+		? [
+				`${untracked.length} untracked file(s), not shown: ${untracked.slice(0, 3).join(", ")}${untracked.length > 3 ? ", …" : ""}`,
+			]
+		: [];
+	return {
+		...diffOf(splitPatch(patch), note),
+		source: `${branch} vs ${base} · ${commits} ${commits === 1 ? "commit" : "commits"}`,
+		cwd,
+	};
+}
+
+/**
  * A pull request's diff, straight from GitHub - the PR may live in a repo (or
  * a worktree since deleted) that no checkout here still holds.
  */
@@ -500,6 +575,8 @@ export const createReposRouter = (
 				sessionCheckoutInput.extend({
 					/** Show this pull request's diff instead of the checkout's. */
 					pr: z.string().url().nullish(),
+					/** The branch's commits and edits since its base, no PR needed. */
+					branch: z.boolean().optional(),
 					/** The whole of each file, not only the changed hunks. */
 					wholeFile: z.boolean().optional(),
 					/** Only what changed since this `reviewSnapshot` tree. */
@@ -512,6 +589,7 @@ export const createReposRouter = (
 			.query(async ({ input }) => {
 				if (input.pr) return renderPullRequestDiff(input.pr);
 				const { dir, transcript } = await sessionCheckout(input);
+				if (input.branch) return renderBranchDiff(dir, input.wholeFile);
 				return input.since
 					? renderSinceDiff(dir, input.since, transcript, input.wholeFile)
 					: renderDiff(dir, transcript, input.wholeFile);

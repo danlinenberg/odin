@@ -99,7 +99,7 @@ Four columns: **Working** (blue), **Needs you** (amber), **Final Review** (green
 - Drawer header: click the title to rename; source link and Remote Control pills; ★, ⑂ Diff, ❯ Shell, ⓘ Brief (open by default), ⛶ full width.
 - Drawer footer: ↻ Resume / Continue / ▶ Start now, ■ Interrupt (Ctrl+C, terminal view only), Chat View, ✓ Done, Remind me, Minimize Session. Esc closes the drawer unless Claude's own menu is open.
 - Continue types "Continue" into a live session (off while it works). Resume on a dead session reopens the same conversation at an idle prompt. If the transcript is gone: "That conversation is gone".
-- **Diff**: the working tree or any PR the session opened. Comment on lines, then "➤ send N comments to agent".
+- **Diff**: the working tree, the branch's commits since it left main (no PR needed), or any PR the session opened. Comment on lines, then "➤ send N comments to agent".
 - **Brief**: Goal, Your action items (from the reply's ACTION ITEMS), Where it stands, links, token and cost figures, My notes (⌘Enter adds a note to your to-dos).
 
 ## Chat view and terminal view
