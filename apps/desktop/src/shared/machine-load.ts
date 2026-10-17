@@ -83,7 +83,8 @@ export const DEFAULT_LAUNCH_LIMITS: LaunchLimits = {
 	// ponytail: the default - Settings → Sessions overrides it. CPU and memory
 	// miss a board of agents that are mostly waiting on the network.
 	maxWorkingAgents: 5,
-	oneSessionPerCheckout: true,
+	// Every session gets its own worktree, so two in one repo don't collide.
+	oneSessionPerCheckout: false,
 };
 
 export interface MachineLoad {
