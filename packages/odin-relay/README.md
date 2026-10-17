@@ -34,8 +34,8 @@ docker run -d --restart=always -p 443:8443 \
   odin-relay
 ```
 
-Then give Odin the relay's address, `wss://relay.example.com`, in
-Settings > Phone > Relay. Without one, Odin uses the default relay
+Then give Odin the relay's address: `"relay": "wss://relay.example.com"` in
+`~/.odin/phone.json`, and restart Odin. Without one, Odin uses the default relay
 (`DEFAULT_RELAY` in `apps/desktop/src/main/lib/phone/server.ts`).
 
 ## Limits

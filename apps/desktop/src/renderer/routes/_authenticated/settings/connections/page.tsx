@@ -792,18 +792,12 @@ function PhoneRow() {
 		onSuccess,
 		onError,
 	});
-	const setRelay = electronTrpc.phone.setRelay.useMutation({
-		onSuccess,
-		onError,
-	});
 	const remove = electronTrpc.phone.remove.useMutation({ onSuccess, onError });
 	const unpairAll = electronTrpc.phone.unpairAll.useMutation({
 		onSuccess,
 		onError,
 	});
-	const [relay, setRelayInput] = useState<string | null>(null);
 	const data = status.data;
-	const savedRelay = data?.relay ?? "";
 	return (
 		<>
 			<SettingRow
@@ -850,41 +844,6 @@ function PhoneRow() {
 					</div>
 				</div>
 			)}
-			<SettingRow
-				label="Your own relay (optional)"
-				htmlFor="phone-relay"
-				description={
-					data?.state === "on" && data.relayInUse
-						? `${data.relayState === "connected" ? "Connected to" : "Connecting to"} ${data.relay ? "your relay" : "Odin's relay"}. Leave empty to use Odin's; set one only to run your own (packages/odin-relay).`
-						: "Leave empty to use Odin's relay. Set one only to run your own (packages/odin-relay)."
-				}
-			>
-				<form
-					className="flex gap-2"
-					onSubmit={(event) => {
-						event.preventDefault();
-						setRelay.mutate({ relay: relay ?? savedRelay });
-					}}
-				>
-					<Input
-						id="phone-relay"
-						value={relay ?? savedRelay}
-						onChange={(event) => setRelayInput(event.target.value)}
-						placeholder="Odin's relay"
-						className="w-64"
-					/>
-					<Button
-						type="submit"
-						variant="outline"
-						size="sm"
-						disabled={
-							setRelay.isPending || relay === null || relay === savedRelay
-						}
-					>
-						Save
-					</Button>
-				</form>
-			</SettingRow>
 			{data?.devices.map((device) => (
 				<SettingRow
 					key={device.key}

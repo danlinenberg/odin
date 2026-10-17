@@ -202,7 +202,8 @@ the Wi-Fi with nothing to set up. It is the same program as
 times, sizes and relay IDs, never content.
 
 To use your own, run it - one `docker run` on any server, an EC2 included -
-and give Odin its address in Settings > Phone. The relay's server needs a
+and put its address in `~/.odin/phone.json` as `"relay": "wss://..."`.
+Settings shows no relay field: most people never need one. The relay's server needs a
 public HTTPS address (an inbound 443 port and a TLS name), so a private,
 SSM-only server with no inbound access cannot be the relay; it can still
 reach one, since a host dials the relay outbound on 443.
