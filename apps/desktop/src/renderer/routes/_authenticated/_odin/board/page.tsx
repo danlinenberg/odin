@@ -4271,6 +4271,12 @@ function DevBoardPage() {
 				<span className="flex min-w-0 flex-col">
 					<span className="flex min-w-0 items-center gap-1.5">
 						<span className="truncate">
+							{card.pane.odinStarred && (
+								<LuStar
+									title="Starred - right-click to unstar"
+									className="mr-1 inline size-3 fill-current align-[-1px] text-attention"
+								/>
+							)}
 							<WatchMark paneId={card.pane.id} />
 							<RemoteMark paneId={card.pane.id} />
 							{cardTitle(card)}
