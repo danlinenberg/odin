@@ -42,6 +42,7 @@ import { boardSections, DoneShelf, Dot, SessionCard, STATUS } from "./cards";
 import { demoAnswer } from "./demo";
 import { channelFetch, type OdinFetch } from "./odin-fetch";
 import { type Pairing, parsePairLink } from "./pair-link";
+import { NEW_TASK_EVENT, SharePicker, useSharedFiles } from "./share";
 import { boardWords, setVocabulary, useSpeech } from "./speech";
 import { Transcript } from "./transcript";
 import "../globals.css";
@@ -323,6 +324,11 @@ function Home() {
 		},
 	});
 	const [adding, setAdding] = useState(false);
+	useEffect(() => {
+		const open = () => setAdding(true);
+		addEventListener(NEW_TASK_EVENT, open);
+		return () => removeEventListener(NEW_TASK_EVENT, open);
+	}, []);
 	const sessions = board.data?.sessions ?? [];
 	return (
 		<div className="min-h-dvh pb-24">
@@ -445,6 +451,7 @@ function NewTask({ onClose }: { onClose: () => void }) {
 	// An older Odin on the Mac has no repo list: the picker just doesn't show.
 	const repos = phone.repos.useQuery(undefined, { retry: false });
 	const uploads = useUploads(odinFetch);
+	useSharedFiles(uploads.add);
 	const speech = useSpeech((words) =>
 		setText((typed) => appendWords(typed, words)),
 	);
@@ -665,6 +672,7 @@ function Session({ paneId }: { paneId: string }) {
 	});
 	const [text, setText] = useState("");
 	const uploads = useUploads(odinFetch);
+	useSharedFiles(uploads.add);
 	const speech = useSpeech((words) =>
 		setText((typed) => appendWords(typed, words)),
 	);
@@ -946,7 +954,18 @@ function App() {
 				Open this from the QR code in Odin: Settings, Connections, Phone.
 			</div>
 		);
-	return paneId ? <Session key={paneId} paneId={paneId} /> : <Home />;
+	return (
+		<>
+			{paneId ? <Session key={paneId} paneId={paneId} /> : <Home />}
+			<ShareTargets />
+		</>
+	);
+}
+
+/** Screenshots shared to Odin: the sheet that asks which session they're for. */
+function ShareTargets() {
+	const board = phone.board.useQuery();
+	return <SharePicker sessions={board.data?.sessions ?? []} />;
 }
 
 // Dev only (apps/mobile/vite.config.ts, remote): run what the dev server

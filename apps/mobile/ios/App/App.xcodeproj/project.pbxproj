@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0B37612803228485565E2DB6 /* OdinShare.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D05DDED98F111692ED23698 /* OdinShare.swift */; };
 		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
 		4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */ = {isa = PBXBuildFile; productRef = 4D22ABE82AF431CB00220026 /* CapApp-SPM */; };
 		50379B232058CBB4000EE86E /* capacitor.config.json in Resources */ = {isa = PBXBuildFile; fileRef = 50379B222058CBB4000EE86E /* capacitor.config.json */; };
@@ -15,11 +16,38 @@
 		504EC30F1FED79650016851F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30E1FED79650016851F /* Assets.xcassets */; };
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
+		9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9582B6822FE993A50072D4E8 /* SceneDelegate.swift */; };
 		A0D1E0000000000000000001 /* OdinSpeech.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0D1E0000000000000000002 /* OdinSpeech.swift */; };
 		A0D1E0000000000000000003 /* OdinKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0D1E0000000000000000004 /* OdinKeychain.swift */; };
 		A0D1E0000000000000000005 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A0D1E0000000000000000006 /* PrivacyInfo.xcprivacy */; };
-		9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9582B6822FE993A50072D4E8 /* SceneDelegate.swift */; };
+		B01519CE7E4899696E69E697 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC9187546438511A3DD5740 /* ShareViewController.swift */; };
+		DB39B6281DDD995DA2455CB0 /* OdinShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 6D4C9DC0A535F07BF39BF544 /* OdinShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		FDEA2CEF517036C8D2C0FE34 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EC7CE1971CBACBB6822358CC /* Foundation.framework */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		D3F01E1A68B617CE5C94CECC /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AF50C7D0D454AF7B9A477C3E;
+			remoteInfo = OdinShareExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		45796330513C064D5A9E9BFA /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				DB39B6281DDD995DA2455CB0 /* OdinShareExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
@@ -31,11 +59,16 @@
 		504EC3111FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		504EC3131FED79650016851F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		50B271D01FEDC1A000F3C39B /* public */ = {isa = PBXFileReference; lastKnownFileType = folder; path = public; sourceTree = "<group>"; };
+		6D4C9DC0A535F07BF39BF544 /* OdinShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = OdinShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		8D05DDED98F111692ED23698 /* OdinShare.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OdinShare.swift; sourceTree = "<group>"; };
+		9582B6822FE993A50072D4E8 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
+		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
 		A0D1E0000000000000000002 /* OdinSpeech.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OdinSpeech.swift; sourceTree = "<group>"; };
 		A0D1E0000000000000000004 /* OdinKeychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OdinKeychain.swift; sourceTree = "<group>"; };
 		A0D1E0000000000000000006 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		9582B6822FE993A50072D4E8 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
-		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
+		AEC9187546438511A3DD5740 /* ShareViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
+		D88AF6C5C6B8BCAEABFD503F /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		EC7CE1971CBACBB6822358CC /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -44,6 +77,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F1A8456B1555FE0015668483 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FDEA2CEF517036C8D2C0FE34 /* Foundation.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -56,6 +97,8 @@
 				958DCC722DB07C7200EA8C5F /* debug.xcconfig */,
 				504EC3061FED79650016851F /* App */,
 				504EC3051FED79650016851F /* Products */,
+				9C71B5C12AEE14D486548852 /* Frameworks */,
+				DDDAE7D96778276CD15759E8 /* OdinShareExtension */,
 			);
 			sourceTree = "<group>";
 		};
@@ -63,6 +106,7 @@
 			isa = PBXGroup;
 			children = (
 				504EC3041FED79650016851F /* App.app */,
+				6D4C9DC0A535F07BF39BF544 /* OdinShareExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -82,8 +126,35 @@
 				504EC3131FED79650016851F /* Info.plist */,
 				2FAD9762203C412B000D30F8 /* config.xml */,
 				50B271D01FEDC1A000F3C39B /* public */,
+				8D05DDED98F111692ED23698 /* OdinShare.swift */,
 			);
 			path = App;
+			sourceTree = "<group>";
+		};
+		5211ECE7CFD886209F5CD05F /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				EC7CE1971CBACBB6822358CC /* Foundation.framework */,
+			);
+			name = iOS;
+			sourceTree = "<group>";
+		};
+		9C71B5C12AEE14D486548852 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				5211ECE7CFD886209F5CD05F /* iOS */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		DDDAE7D96778276CD15759E8 /* OdinShareExtension */ = {
+			isa = PBXGroup;
+			children = (
+				AEC9187546438511A3DD5740 /* ShareViewController.swift */,
+				D88AF6C5C6B8BCAEABFD503F /* Info.plist */,
+			);
+			name = OdinShareExtension;
+			path = OdinShareExtension;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -96,10 +167,12 @@
 				504EC3001FED79650016851F /* Sources */,
 				504EC3011FED79650016851F /* Frameworks */,
 				504EC3021FED79650016851F /* Resources */,
+				45796330513C064D5A9E9BFA /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				C8CC36EF06742060A1B5A5EE /* PBXTargetDependency */,
 			);
 			name = App;
 			packageProductDependencies = (
@@ -108,6 +181,23 @@
 			productName = App;
 			productReference = 504EC3041FED79650016851F /* App.app */;
 			productType = "com.apple.product-type.application";
+		};
+		AF50C7D0D454AF7B9A477C3E /* OdinShareExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = EDDFE5B4B68C260462829072 /* Build configuration list for PBXNativeTarget "OdinShareExtension" */;
+			buildPhases = (
+				AA8A2D4DF18464165262EF0E /* Sources */,
+				F1A8456B1555FE0015668483 /* Frameworks */,
+				88FE09B2F2F384AFDB474EF5 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = OdinShareExtension;
+			productName = OdinShareExtension;
+			productReference = 6D4C9DC0A535F07BF39BF544 /* OdinShareExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -142,6 +232,7 @@
 			projectRoot = "";
 			targets = (
 				504EC3031FED79650016851F /* App */,
+				AF50C7D0D454AF7B9A477C3E /* OdinShareExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -161,6 +252,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		88FE09B2F2F384AFDB474EF5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -172,10 +270,28 @@
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
 				A0D1E0000000000000000001 /* OdinSpeech.swift in Sources */,
 				A0D1E0000000000000000003 /* OdinKeychain.swift in Sources */,
+				0B37612803228485565E2DB6 /* OdinShare.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AA8A2D4DF18464165262EF0E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B01519CE7E4899696E69E697 /* ShareViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		C8CC36EF06742060A1B5A5EE /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = OdinShareExtension;
+			target = AF50C7D0D454AF7B9A477C3E /* OdinShareExtension */;
+			targetProxy = D3F01E1A68B617CE5C94CECC /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin PBXVariantGroup section */
 		504EC30B1FED79650016851F /* Main.storyboard */ = {
@@ -248,6 +364,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				MTL_ENABLE_DEBUG_INFO = YES;
+				ODIN_BUNDLE_ID = com.danlinenberg.odin;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
@@ -299,6 +416,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
+				ODIN_BUNDLE_ID = com.danlinenberg.odin;
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
@@ -321,7 +439,7 @@
 				);
 				MARKETING_VERSION = 1.0;
 				OTHER_SWIFT_FLAGS = "$(inherited) \"-D\" \"COCOAPODS\" \"-DDEBUG\"";
-				PRODUCT_BUNDLE_IDENTIFIER = com.danlinenberg.odin;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(ODIN_BUNDLE_ID)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_VERSION = 5.0;
@@ -342,13 +460,62 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.danlinenberg.odin;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(ODIN_BUNDLE_ID)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
+		};
+		77A8AE66D8A63C86FF5F6B55 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = OdinShareExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(ODIN_BUNDLE_ID).share";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		9D917AEB4E3CF8BFDECFA3F1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = OdinShareExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(ODIN_BUNDLE_ID).share";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
 		};
 /* End XCBuildConfiguration section */
 
@@ -367,6 +534,15 @@
 			buildConfigurations = (
 				504EC3171FED79650016851F /* Debug */,
 				504EC3181FED79650016851F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		EDDFE5B4B68C260462829072 /* Build configuration list for PBXNativeTarget "OdinShareExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				77A8AE66D8A63C86FF5F6B55 /* Release */,
+				9D917AEB4E3CF8BFDECFA3F1 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

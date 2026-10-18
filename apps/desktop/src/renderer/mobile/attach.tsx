@@ -56,7 +56,7 @@ export function useUploads(send: OdinFetch) {
 		}
 	}
 
-	function add(list: FileList | null) {
+	function add(list: FileList | File[] | null) {
 		for (const file of Array.from(list ?? [])) {
 			const id = nextId++;
 			setFiles((all) => [

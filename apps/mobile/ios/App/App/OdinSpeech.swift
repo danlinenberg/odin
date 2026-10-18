@@ -7,6 +7,7 @@ class OdinViewController: CAPBridgeViewController {
     override open func capacitorDidLoad() {
         bridge?.registerPluginInstance(OdinSpeechPlugin())
         bridge?.registerPluginInstance(OdinKeychainPlugin())
+        bridge?.registerPluginInstance(OdinSharePlugin())
     }
 }
 
