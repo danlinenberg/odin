@@ -12,11 +12,16 @@ import {
 import ReactDom from "react-dom/client";
 import {
 	LuArrowDown,
+	LuCamera,
 	LuCheck,
 	LuChevronLeft,
 	LuCornerDownLeft,
+	LuLoaderCircle,
+	LuMonitor,
 	LuPaperclip,
 	LuPlus,
+	LuQrCode,
+	LuScanQrCode,
 	LuStar,
 } from "react-icons/lu";
 import { odinScreenStatus } from "shared/odin-screen-status";
@@ -239,9 +244,14 @@ function Home() {
 			</header>
 			<ErrorLine error={board.error} />
 			{board.isLoading && (
-				<div className="px-4 py-6 text-sm text-muted-foreground">Loading…</div>
+				<div className="pointer-events-none fixed inset-0 flex flex-col items-center justify-center gap-4">
+					<LuLoaderCircle className="size-14 animate-spin text-primary" />
+					<span className="text-sm text-muted-foreground">
+						Loading your board
+					</span>
+				</div>
 			)}
-			{boardSections(sessions).map((section) => (
+			{(board.data ? boardSections(sessions) : []).map((section) => (
 				<section key={section.key}>
 					<h2 className="px-4 pt-4 pb-1 text-[11px] font-semibold uppercase tracking-wide text-faint-foreground">
 						{section.label} · {section.rows.length}
@@ -754,43 +764,38 @@ function Session({ paneId }: { paneId: string }) {
 	);
 }
 
+const PAIR_STEPS = [
+	{
+		icon: LuMonitor,
+		text: "On your Mac, open Odin, then Settings, Connections, Phone.",
+	},
+	{ icon: LuQrCode, text: "Turn on Phone access. A QR code appears." },
+	{
+		icon: LuCamera,
+		text: "Open the iPhone Camera and point it at the QR code.",
+	},
+	{
+		icon: LuScanQrCode,
+		text: "Tap the Open in Odin banner. The app pairs and shows your board.",
+	},
+];
+
 function Pair() {
-	const [link, setLink] = useState("");
-	const [bad, setBad] = useState(false);
 	return (
-		<div className="flex min-h-dvh flex-col gap-3 p-6 pt-[calc(env(safe-area-inset-top)+24px)]">
+		<div className="flex min-h-dvh flex-col gap-6 p-6 pt-[calc(env(safe-area-inset-top)+24px)]">
 			<h1 className="text-2xl font-bold">Pair with Odin</h1>
-			<p className="text-sm text-muted-foreground">
-				On your Mac, open Odin, Settings, Connections, Phone, and turn on Phone
-				access. Scan the QR code there with the iPhone Camera.
-			</p>
-			<form
-				className="flex gap-2"
-				onSubmit={(event) => {
-					event.preventDefault();
-					setBad(!pairWith(link));
-				}}
-			>
-				<input
-					value={link}
-					onChange={(event) => setLink(event.target.value)}
-					placeholder="odin://pair?k=…"
-					autoCapitalize="off"
-					autoCorrect="off"
-					className="min-w-0 flex-1 rounded-[10px] border border-input bg-secondary px-3 py-2 text-base outline-none"
-				/>
-				<button
-					type="submit"
-					className="rounded-[10px] bg-primary px-4 font-semibold text-primary-foreground"
-				>
-					Pair
-				</button>
-			</form>
-			{bad && (
-				<div className="text-sm text-danger select-text">
-					That isn't an Odin pairing link.
-				</div>
-			)}
+			<ol className="flex flex-col gap-4">
+				{PAIR_STEPS.map(({ icon: Icon, text }, index) => (
+					<li key={text} className="flex items-start gap-3">
+						<span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary text-primary">
+							<Icon className="size-[18px]" />
+						</span>
+						<span className="pt-1.5 text-[15px] leading-snug">
+							<span className="font-semibold">{index + 1}.</span> {text}
+						</span>
+					</li>
+				))}
+			</ol>
 		</div>
 	);
 }
