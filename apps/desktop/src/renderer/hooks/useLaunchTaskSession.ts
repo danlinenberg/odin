@@ -293,9 +293,14 @@ export function useLaunchTaskSession() {
 					error: "Workspace has no path - cannot launch a session",
 				};
 			}
+			// Settings > Sessions can start sessions on a remote host: there the
+			// host keeps its own clone, so no worktree, trust or local files.
+			const remote = (
+				await utils.client.remoteHost?.get.query().catch(() => null)
+			)?.host?.on;
 			// A resume passes its old cwd back as repoPath, so it never gets a second one.
 			const ownWorktree =
-				repoPath && repoPath !== worktreePath && !resumeSessionId
+				!remote && repoPath && repoPath !== worktreePath && !resumeSessionId
 					? await utils.client.repos.createSessionWorktree
 							.mutate({ repo: repoPath, title })
 							.catch((error) => {
@@ -307,9 +312,10 @@ export function useLaunchTaskSession() {
 							})
 					: null;
 			const sessionCwd = ownWorktree?.path || repoPath || worktreePath;
-			await utils.client.repos.trustForClaude
-				.mutate({ path: sessionCwd })
-				.catch(() => {});
+			if (!remote)
+				await utils.client.repos.trustForClaude
+					.mutate({ path: sessionCwd })
+					.catch(() => {});
 			// The checkout this session claims - "" for a feed launch into the
 			// workspace folder, which is where agents start, not what they edit.
 			const checkout = claimedCheckout(
@@ -324,7 +330,7 @@ export function useLaunchTaskSession() {
 			// and exits - a fresh pane whose whole history is that line. The board's
 			// Resume asks first; Remind me's Resume and Done's undo come through
 			// here, so ask here too.
-			if (resumeSessionId) {
+			if (resumeSessionId && !remote) {
 				try {
 					await utils.client.terminal.readClaudeTranscript.query({
 						sessionId: resumeSessionId,
@@ -351,7 +357,7 @@ export function useLaunchTaskSession() {
 			// Idle takes no working slot and holds no checkout; queuing it only
 			// left you on the board behind every task in line.
 			let queuedReason: string | null = null;
-			if (now !== true && !noPrompt && !resumeSessionId) {
+			if (now !== true && !noPrompt && !resumeSessionId && !remote) {
 				try {
 					queuedReason = await currentLaunchBlocker(
 						utils.client,
@@ -365,7 +371,23 @@ export function useLaunchTaskSession() {
 
 			// 1. Prompt file in the workspace (survives quoting, keeps history)
 			let promptArg = "";
-			if (!noPrompt && !resumeSessionId) {
+			let remotePrompt: string | null = null;
+			if (remote && !noPrompt && !resumeSessionId) {
+				// Attachments live on this computer, so the host gets the text only.
+				remotePrompt = buildPrompt(
+					title,
+					description,
+					[],
+					skill,
+					tags?.some((tag) => tag === "automation" || tag === "off-hours"),
+					useOdinRules.getState().rules,
+					checkout,
+					guidelines,
+					useSessionInstructions.getState().instructions ??
+						DEFAULT_SESSION_INSTRUCTIONS,
+					null,
+				);
+			} else if (!noPrompt && !resumeSessionId) {
 				const slug = slugify(title);
 				const promptDir = `${worktreePath}/.odin`;
 				const promptPath = `${promptDir}/task-${slug}.md`;
@@ -451,7 +473,7 @@ export function useLaunchTaskSession() {
 			// has to be handed them again - with today's rules, not the old ones.
 			let settingsArg = "";
 			const settings = rulesSettings(useOdinRules.getState().rules, checkout);
-			if (settings) {
+			if (settings && !remote) {
 				const settingsDir = `${worktreePath}/.odin`;
 				const settingsPath = `${settingsDir}/rules-${sessionId}.json`;
 				// Best-effort: a session without its rule hook still beats a
@@ -476,7 +498,18 @@ export function useLaunchTaskSession() {
 			const claudeArgs = resumeSessionId
 				? `--resume ${resumeSessionId}${settingsArg}`
 				: `--session-id ${sessionId}${settingsArg}${promptArg}`;
-			const command = `cd ${quote(sessionCwd)} && ${claudeLaunch(title, claudeArgs, paneId)}`;
+			// A remote session's tmux session is named after its conversation, so
+			// Resume reattaches to it, or resumes it there if tmux is gone.
+			const command = remote
+				? await utils.client.remoteHost.sessionCommand.mutate({
+						pane: sessionId,
+						repoPath: repoPath ?? null,
+						claudeArgs: resumeSessionId
+							? `--resume ${resumeSessionId}`
+							: `--session-id ${sessionId}`,
+						prompt: remotePrompt,
+					})
+				: `cd ${quote(sessionCwd)} && ${claudeLaunch(title, claudeArgs, paneId)}`;
 			// Held back: the pane stays process-less and the command rides on it
 			// until the queue runner (useTaskQueue) finds the gate open.
 			if (!queuedReason) {

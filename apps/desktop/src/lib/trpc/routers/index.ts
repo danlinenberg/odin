@@ -24,6 +24,7 @@ import { createPermissionsRouter } from "./permissions";
 import { createPhoneRouter } from "./phone";
 import { createPortsRouter } from "./ports";
 import { createProjectsRouter } from "./projects";
+import { createRemoteHostRouter } from "./remote-host";
 import { createReposRouter } from "./repos";
 import { createResourceMetricsRouter } from "./resource-metrics";
 import { createSettingsRouter } from "./settings";
@@ -57,6 +58,7 @@ export const createAppRouter = (getWindow: () => BrowserWindow | null) => {
 		backlogReview: createBacklogReviewRouter(),
 		connections: createConnectionsRouter(),
 		work: createWorkRouter(),
+		remoteHost: createRemoteHostRouter(),
 		insights: createInsightsRouter(),
 		workLog: createWorkLogRouter(),
 		permissions: createPermissionsRouter(),

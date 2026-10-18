@@ -37,6 +37,25 @@ export interface OdinFileConfig {
 	/** Legacy name for the same thing - still read, only ever cleared. */
 	slackQueueDbId?: string;
 	defaultRepo?: string;
+	/** Settings > Sessions > Remote server: where to look for AWS hosts and the tags they carry. */
+	awsInstances?: {
+		profile?: string;
+		region?: string;
+		tags?: { key: string; value: string }[];
+	};
+	/** The EC2 host new sessions run on, reached through SSM, while `on` is true. */
+	remoteHost?: {
+		on: boolean;
+		instanceId: string;
+		name: string;
+		profile?: string;
+		region?: string;
+		user: string;
+		/** Where the host keeps its clones, e.g. ~/repos. */
+		reposRoot: string;
+	};
+	/** `claude setup-token`'s token for remote sessions, encrypted with safeStorage. */
+	claudeToken?: string;
 	/** Double-tap this modifier to show or hide Odin (main/lib/double-tap). */
 	doubleTapModifier?: string;
 	/** Settings → Appearance → Text size (shared/text-size). */

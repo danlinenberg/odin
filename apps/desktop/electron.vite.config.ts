@@ -157,6 +157,8 @@ export default defineConfig({
 					// host-service worker thread - emitted side-by-side with
 					// host-service.js so the pool's script resolution finds it.
 					"host-worker": resolve("src/main/host-worker/index.ts"),
+					// A remote session's pane: SSH over SSM to the host's tmux session.
+					"remote-shell": resolve("src/main/remote-shell/index.ts"),
 				},
 				output: {
 					dir: resolve(devPath, "main"),

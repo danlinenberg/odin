@@ -24,6 +24,7 @@ import {
 	SettingsPage,
 	SettingsSection,
 } from "../components/SettingsPage";
+import { RemoteHostSection } from "./components/RemoteHostSection";
 
 export const Route = createFileRoute("/_authenticated/settings/sessions/")({
 	component: SessionsSettingsPage,
@@ -40,6 +41,8 @@ function SessionsSettingsPage() {
 				<RemoteControlRow />
 				<FullDiskAccessRow />
 			</SettingsSection>
+
+			<RemoteHostSection />
 
 			<SettingsSection
 				title="When they start"
