@@ -552,18 +552,28 @@ function Session({ paneId }: { paneId: string }) {
 	const reply = phone.reply.useMutation({ onSuccess: refetch });
 	const [sent, setSent] = useState<Sent[]>(() => sentByPane.get(paneId) ?? []);
 	/** Shows a reply as Sent until the transcript has it, and follows it down. */
+	// Shown on tap, not when Odin answers: Odin answers only once the text is
+	// typed into the session and drawn, a few seconds later.
 	const remember = (text: string, files: number) => {
 		const item = { text, files, at: Date.now() };
 		setSent((all) => [...all, item]);
 		sentByPane.set(paneId, [...sent, item]);
 		following.current = true;
+		return item;
+	};
+	/** Takes back a reply Odin couldn't type in; the error line says why. */
+	const forget = (item: Sent) => {
+		setSent((all) => all.filter((each) => each !== item));
+		sentByPane.set(
+			paneId,
+			(sentByPane.get(paneId) ?? []).filter((each) => each !== item),
+		);
 	};
 	/** A reply with no files - what an action item's button sends. */
-	const sendText = (text: string) =>
-		reply.mutate(
-			{ paneId, text, paths: [] },
-			{ onSuccess: () => remember(text, 0) },
-		);
+	const sendText = (text: string) => {
+		const item = remember(text, 0);
+		reply.mutate({ paneId, text, paths: [] }, { onError: () => forget(item) });
+	};
 	const key = phone.key.useMutation({ onSuccess: refetch });
 	const utils = phone.useUtils();
 	// The star moves on tap; the Mac's answer only confirms it (or undoes it).
@@ -782,13 +792,15 @@ function Session({ paneId }: { paneId: string }) {
 					const words = await speech.finish();
 					const full = words ? appendWords(text, words) : text;
 					if (!full.trim() && !uploads.paths.length) return;
+					const item = remember(full.trim(), uploads.paths.length);
+					setText("");
 					reply.mutate(
 						{ paneId, text: full, paths: uploads.paths },
 						{
-							onSuccess: () => {
-								remember(full.trim(), uploads.paths.length);
-								setText("");
-								uploads.clear();
+							onSuccess: () => uploads.clear(),
+							onError: () => {
+								forget(item);
+								setText(full);
 							},
 						},
 					);
