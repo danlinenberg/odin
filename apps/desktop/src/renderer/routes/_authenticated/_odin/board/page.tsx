@@ -4318,6 +4318,9 @@ function DevBoardPage() {
 		usePaneMeta.getState().setBrief(result.paneId, prompt || title);
 		usePaneMeta.getState().setTitle(result.paneId, title);
 		usePaneMeta.getState().setSessionId(result.paneId, result.sessionId);
+		// The new card replaces the lost one: left behind, every start-over
+		// added a card and the board filled with copies of one task.
+		useTabsStore.getState().removePane(card.pane.id);
 		setDrawerCard(null);
 		// The title is the prompt's whole first line - often a paragraph - and a
 		// toast that long covers the cards under it.

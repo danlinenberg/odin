@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
-import { appendFile, mkdir, readFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import {
@@ -66,6 +67,44 @@ export async function createSessionWorktree(
 	await excludeWorktrees(repo);
 	await createWorktree(repo, branch, dir, `origin/${base}`);
 	return { path: dir, branch };
+}
+
+/**
+ * Claude asks "Is this a project you trust?" in a folder it hasn't seen, and a
+ * new worktree is one. The task Odin hands it lands on that dialog, whose
+ * default is "No, exit": Claude quit before saving a conversation, and the card
+ * had nothing to resume. The user picked the repo, so mark it trusted. Claude
+ * looks up a worktree by its own path or by its main checkout's, depending on
+ * the repo, so pass both. Leaves a config it can't parse alone.
+ */
+export async function trustForClaude(
+	dirs: string[],
+	file = path.join(homedir(), ".claude.json"),
+): Promise<void> {
+	let config: { projects?: Record<string, Record<string, unknown>> } = {};
+	try {
+		config = JSON.parse(await readFile(file, "utf8"));
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code !== "ENOENT") return;
+	}
+	const projects = config.projects ?? {};
+	if (dirs.every((dir) => projects[dir]?.hasTrustDialogAccepted === true))
+		return;
+	for (const dir of dirs)
+		projects[dir] = { ...projects[dir], hasTrustDialogAccepted: true };
+	await writeFile(file, JSON.stringify({ ...config, projects }, null, 2));
+}
+
+// Null outside a git repo.
+export async function mainCheckoutOf(dir: string): Promise<string | null> {
+	const { stdout } = await run("git", [
+		"-C",
+		dir,
+		"rev-parse",
+		"--path-format=absolute",
+		"--git-common-dir",
+	]).catch(() => ({ stdout: "" }));
+	return stdout.trim() ? path.dirname(stdout.trim()) : null;
 }
 
 // The pruner keeps the branch, and `claude --resume` only finds a conversation from its own directory.

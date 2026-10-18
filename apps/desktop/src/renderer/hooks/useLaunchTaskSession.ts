@@ -307,6 +307,9 @@ export function useLaunchTaskSession() {
 							})
 					: null;
 			const sessionCwd = ownWorktree?.path || repoPath || worktreePath;
+			await utils.client.repos.trustForClaude
+				.mutate({ path: sessionCwd })
+				.catch(() => {});
 			// The checkout this session claims - "" for a feed launch into the
 			// workspace folder, which is where agents start, not what they edit.
 			const checkout = claimedCheckout(

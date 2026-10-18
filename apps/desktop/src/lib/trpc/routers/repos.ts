@@ -483,6 +483,21 @@ export const createReposRouter = (
 				return createSessionWorktree(input.repo, input.title);
 			}),
 
+		/** Skip Claude's folder-trust dialog in the folder a session runs in. */
+		trustForClaude: publicProcedure
+			.input(z.object({ path: z.string() }))
+			.mutation(async ({ input }) => {
+				const { trustForClaude, mainCheckoutOf } = await import(
+					"main/lib/session-worktree"
+				);
+				const main = await mainCheckoutOf(input.path);
+				await trustForClaude(
+					main && main !== input.path ? [input.path, main] : [input.path],
+				).catch((error) =>
+					console.warn("[repos] could not trust", input.path, error),
+				);
+			}),
+
 		reviveSessionWorktree: publicProcedure
 			.input(z.object({ path: z.string() }))
 			.mutation(async ({ input }) => {

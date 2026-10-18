@@ -5,7 +5,9 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import {
 	createSessionWorktree,
+	mainCheckoutOf,
 	reviveSessionWorktree,
+	trustForClaude,
 	worktreeName,
 } from "./session-worktree";
 
@@ -81,4 +83,37 @@ test("a pruned session worktree comes back on its branch for a resume", async ()
 
 test("a title with no letters still names a worktree", () => {
 	expect(worktreeName("!!!")).toMatch(/^session-[a-z0-9]{4}$/);
+});
+
+test("trustForClaude marks folders trusted and keeps the rest of the config", async () => {
+	const file = path.join(mkdtempSync(path.join(tmpdir(), "trust-")), "c.json");
+	writeFileSync(
+		file,
+		JSON.stringify({
+			theme: "dark",
+			projects: {
+				"/r": { hasTrustDialogAccepted: false, allowedTools: ["x"] },
+			},
+		}),
+	);
+	await trustForClaude(["/r/.worktrees/w", "/r"], file);
+	expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({
+		theme: "dark",
+		projects: {
+			"/r": { hasTrustDialogAccepted: true, allowedTools: ["x"] },
+			"/r/.worktrees/w": { hasTrustDialogAccepted: true },
+		},
+	});
+	writeFileSync(file, "{not json");
+	await trustForClaude(["/r"], file);
+	expect(readFileSync(file, "utf8")).toBe("{not json");
+});
+
+test("mainCheckoutOf finds a worktree's main checkout", async () => {
+	const repo = clone();
+	const made = await createSessionWorktree(repo, "x");
+	if (!made) throw new Error("no worktree");
+	const real = execFileSync("realpath", [repo], { encoding: "utf8" }).trim();
+	expect(await mainCheckoutOf(made.path)).toBe(real);
+	expect(await mainCheckoutOf(tmpdir())).toBeNull();
 });
