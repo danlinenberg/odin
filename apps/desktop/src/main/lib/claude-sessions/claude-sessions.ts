@@ -957,6 +957,35 @@ export function activeLoop(
 	return wakeup && now < wakeup.at + WAKEUP_GRACE_MS ? wakeup.loop : null;
 }
 
+const loopCache = new Map<
+	string,
+	{ mtimeMs: number; checkedAt: number; loop: ActiveLoop | null }
+>();
+/** A cron loop can expire with its transcript untouched, so a cached answer is re-read after this. */
+const LOOP_RECHECK_MS = 60 * 60_000;
+
+/**
+ * `activeLoop` for a session found by id. An ended session's transcript stops
+ * changing, so the file is read again only when it did, or after an hour.
+ */
+export async function sessionLoop(
+	sessionId: string,
+	root: string = projectsRoot(),
+	now: number = Date.now(),
+): Promise<ActiveLoop | null> {
+	const file = await transcriptOf(sessionId, root);
+	if (!file) return null;
+	const cached = loopCache.get(file.path);
+	if (
+		cached?.mtimeMs === file.mtimeMs &&
+		now - cached.checkedAt < LOOP_RECHECK_MS
+	)
+		return cached.loop;
+	const loop = activeLoop(await readFile(file.path, "utf-8"), now);
+	loopCache.set(file.path, { mtimeMs: file.mtimeMs, checkedAt: now, loop });
+	return loop;
+}
+
 /** The checkout containing `dir`, or null outside a repo. */
 function repoRootOf(dir: string): string | null {
 	let current = dir;

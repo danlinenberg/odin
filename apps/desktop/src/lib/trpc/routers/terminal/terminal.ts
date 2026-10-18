@@ -470,6 +470,14 @@ export const createTerminalRouter = () => {
 				return readTranscript(input);
 			}),
 
+		/** The `/loop` still armed in a conversation, if any - see `sessionLoop`. */
+		claudeLoop: publicProcedure
+			.input(z.object({ sessionId: z.string() }))
+			.query(async ({ input }) => {
+				const { sessionLoop } = await import("main/lib/claude-sessions");
+				return sessionLoop(input.sessionId);
+			}),
+
 		/**
 		 * A written brief of a session - goal, status, what it wants from you -
 		 * produced by `claude -p` over the transcript. Cached on the transcript's

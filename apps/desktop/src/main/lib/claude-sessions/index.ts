@@ -13,6 +13,7 @@ export {
 	type SessionSnippet,
 	type SessionSummary,
 	searchSessions,
+	sessionLoop,
 	summarizeTranscript,
 	type TranscriptFile,
 	type TranscriptMessage,

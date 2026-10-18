@@ -11,6 +11,7 @@ import {
 	repoNameOf,
 	ruleFirings,
 	searchSessions,
+	sessionLoop,
 	summarizeTranscript,
 	transcriptLinks,
 	transcriptOf,
@@ -982,6 +983,28 @@ describe("activeLoop", () => {
 
 	test("no schedule, no loop", () => {
 		expect(activeLoop(user("/loop 5m check CI"), now)).toBeNull();
+	});
+});
+
+describe("sessionLoop", () => {
+	test("reads the loop by session id and sees it deleted", async () => {
+		const root = mkdtempSync(join(tmpdir(), "odin-loop-"));
+		mkdirSync(join(root, "-proj"));
+		const id = "5e1a4ef8-2bac-4d85-8185-cb095809e14d";
+		const file = join(root, "-proj", `${id}.jsonl`);
+		const call = (name: string, input: object) =>
+			JSON.stringify({
+				type: "assistant",
+				timestamp: "2026-10-12T12:00:00.000Z",
+				message: { content: [{ type: "tool_use", id: "t", name, input }] },
+			});
+		const created = call("CronCreate", { cron: "7 */12 * * *", prompt: "p" });
+		writeFileSync(file, created);
+		const now = Date.parse("2026-10-14T12:00:00.000Z");
+		expect((await sessionLoop(id, root, now))?.schedule).toBe("7 */12 * * *");
+		writeFileSync(file, `${created}\n${call("CronDelete", { id: "x" })}`);
+		expect(await sessionLoop(id, root, now + 2 * 60 * 60_000)).toBeNull();
+		expect(await sessionLoop("nope", root, now)).toBeNull();
 	});
 });
 

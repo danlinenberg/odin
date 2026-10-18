@@ -2459,6 +2459,41 @@ function DevBoardPage() {
 		() => new Set(loopingKey ? loopingKey.split(",") : []),
 		[loopingKey],
 	);
+	// Sessions whose Claude ended with a `/loop` still armed. The loop lived in
+	// that process (gone with a daemon or app restart, or a crash); `--resume`
+	// books it again, so reopening the session keeps the schedule running.
+	const deadLoopCandidates = Object.values(panes).flatMap((pane) => {
+		if (
+			agentPaneIds.has(pane.id) ||
+			pane.completed ||
+			pane.odinQueued ||
+			!pane.odinTaskTitle
+		)
+			return [];
+		const sessionId = pane.claudeSessionId ?? sessionIdByPane[pane.id];
+		return sessionId ? [{ paneId: pane.id, sessionId }] : [];
+	});
+	const deadLoopQueries = electronTrpc.useQueries((t) =>
+		deadLoopCandidates.map(({ sessionId }) =>
+			t.terminal.claudeLoop(
+				{ sessionId },
+				{
+					retry: false,
+					staleTime: 5 * 60_000,
+					refetchInterval: 5 * 60_000,
+					notifyOnChangeProps: QUIET_POLL,
+				},
+			),
+		),
+	);
+	const deadLoopKey = deadLoopCandidates
+		.filter((_, i) => deadLoopQueries[i]?.data?.kind === "cron")
+		.map(({ paneId }) => paneId)
+		.join(",");
+	const deadLoopPaneIds = useMemo(
+		() => new Set(deadLoopKey ? deadLoopKey.split(",") : []),
+		[deadLoopKey],
+	);
 	// Needs-you and Done sessions, open or closed, and the state of every PR
 	// they linked. Once each is approved a Needs you card is Done: what's left is
 	// a click, not a decision. While CI still runs on one, either card is
@@ -4129,6 +4164,8 @@ function DevBoardPage() {
 	 * back on its own - the same Resume the "⏸ died mid-turn" button runs, which
 	 * reopens the conversation and types Continue. Only a dead PTY: a live one
 	 * with a bare shell is you Ctrl+C'ing out, and that's yours to decide.
+	 * A session whose Claude ended with a `/loop` still armed comes back too,
+	 * at an idle prompt: the resume books the loop again. Once per app run each.
 	 * One card at a time so each launch-gate check sees the last one's slot.
 	 */
 	const autoResumedRef = useRef(new Set<string>());
@@ -4147,13 +4184,22 @@ function DevBoardPage() {
 			autoResumingRef.current
 		)
 			return;
-		const card = (cardsByStatus.get("idle") ?? []).find(
-			(c) =>
-				c.pane.status === "working" &&
-				!c.pane.odinQueued &&
-				!alivePaneIds.has(c.pane.id) &&
-				!autoResumedRef.current.has(c.pane.id),
-		);
+		const card =
+			(cardsByStatus.get("idle") ?? []).find(
+				(c) =>
+					c.pane.status === "working" &&
+					!c.pane.odinQueued &&
+					!alivePaneIds.has(c.pane.id) &&
+					!autoResumedRef.current.has(c.pane.id),
+			) ??
+			[...cardsByStatus.values()]
+				.flat()
+				.find(
+					(c) =>
+						deadLoopPaneIds.has(c.pane.id) &&
+						!agentPaneIds.has(c.pane.id) &&
+						!autoResumedRef.current.has(c.pane.id),
+				);
 		if (!card) return;
 		autoResumedRef.current.add(card.pane.id);
 		autoResumingRef.current = true;
@@ -4164,7 +4210,9 @@ function DevBoardPage() {
 	}, [
 		daemonSessions,
 		alivePaneIds,
+		agentPaneIds,
 		cardsByStatus,
+		deadLoopPaneIds,
 		resumingPaneIds,
 		autoResumeTick,
 	]);
