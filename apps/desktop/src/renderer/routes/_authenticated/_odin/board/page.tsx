@@ -3116,7 +3116,9 @@ function DevBoardPage() {
 		setComposerRepo("");
 		setIsComposerOpen(true);
 		// Recent reads these; one asked before the agent picked its repo still says none.
-		void utils.repos.workingRepoName.invalidate();
+		void utils.repos.workingRepoName.invalidate(undefined, {
+			predicate: (query) => query.state.data == null,
+		});
 		const sessionId = drawerCard && claudeSessionIdOf(drawerCard);
 		if (!sessionId) return;
 		void utils.repos.workingRepoName
