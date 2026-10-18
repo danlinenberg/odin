@@ -295,9 +295,10 @@ export function useLaunchTaskSession() {
 			}
 			// Settings > Sessions can start sessions on a remote host: there the
 			// host keeps its own clone, so no worktree, trust or local files.
-			const remote = (
+			const host = (
 				await utils.client.remoteHost?.get.query().catch(() => null)
-			)?.host?.on;
+			)?.host;
+			const remote = host?.on ? host.name || host.instanceId : null;
 			// A resume passes its old cwd back as repoPath, so it never gets a second one.
 			const ownWorktree =
 				!remote && repoPath && repoPath !== worktreePath && !resumeSessionId
@@ -572,6 +573,7 @@ export function useLaunchTaskSession() {
 						...(card.pageId ? { odinPageId: card.pageId } : {}),
 						...(card.source ? { odinSource: card.source } : {}),
 						...(odinTags?.length ? { odinTags } : {}),
+						...(remote ? { odinRemote: remote } : {}),
 						...(queuedReason
 							? { odinQueued: { command, reason: queuedReason } }
 							: {}),

@@ -1,3 +1,5 @@
+import stripAnsi from "strip-ansi";
+
 /**
  * The scripts a session on a remote host runs. A pane on the laptop runs the
  * remote-shell helper, which opens two SSH channels over SSM:
@@ -55,6 +57,22 @@ export function secretsFile(env: Record<string, string | undefined>): string {
 export const stashScript =
 	'umask 077; d=$(mktemp -d -p /dev/shm odin.XXXXXX) && cat > "$d/env" && echo "$d"';
 
+/**
+ * A host's first Claude stops at the theme picker and then the folder-trust
+ * question, with nobody watching. Mark both answered in ~/.claude.json, for
+ * the folder the session starts in (argv[1]).
+ */
+const SKIP_FIRST_RUN = `import json, os, sys
+p = os.path.expanduser("~/.claude.json")
+try:
+    c = json.load(open(p))
+except Exception:
+    c = {}
+c.setdefault("hasCompletedOnboarding", True)
+c.setdefault("theme", "dark")
+c.setdefault("projects", {}).setdefault(sys.argv[1], {})["hasTrustDialogAccepted"] = True
+json.dump(c, open(p, "w"), indent=2)`;
+
 /** What runs inside tmux: tokens in, file gone, repo ready, Claude on. */
 export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 	const root = homePath(spec.reposRoot);
@@ -73,6 +91,7 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 			: "",
 		spec.repoName ? `git -C ${cwd} fetch --quiet origin || true` : "",
 		`cd ${cwd}`,
+		`python3 -c ${sh(SKIP_FIRST_RUN)} "$PWD" 2>/dev/null || true`,
 		'command -v claude >/dev/null || PATH="$HOME/.local/bin:$PATH"',
 		`exec claude ${spec.claudeArgs}${prompt}`,
 	]
@@ -117,4 +136,10 @@ export function httpsCloneUrl(origin: string): string | null {
 	const scp = url.match(/^(?:ssh:\/\/)?git@([^:/]+)[:/](.+)$/);
 	if (scp) return `https://${scp[1]}/${scp[2]}`;
 	return /^https:\/\//.test(url) ? url : null;
+}
+
+/** The token `claude setup-token` prints, out of its screen output. */
+export function parseSetupToken(output: string): string | null {
+	const text = stripAnsi(output);
+	return text.match(/sk-ant-oat01-[\w-]+/g)?.pop() ?? null;
 }

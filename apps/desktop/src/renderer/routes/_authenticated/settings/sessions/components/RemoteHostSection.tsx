@@ -34,15 +34,24 @@ export function RemoteHostSection() {
 	const utils = electronTrpc.useUtils();
 	const { data: current } = electronTrpc.remoteHost.get.useQuery();
 	const refresh = () => utils.remoteHost.get.invalidate();
-	const use = electronTrpc.remoteHost.set.useMutation({ onSuccess: refresh });
+	// Turning the host on runs `claude setup-token` first when no token is saved.
+	const onError = (error: { message: string }) => toast.error(error.message);
+	const use = electronTrpc.remoteHost.set.useMutation({
+		onSuccess: refresh,
+		onError,
+	});
 	const setOn = electronTrpc.remoteHost.setOn.useMutation({
 		onSuccess: refresh,
+		onError,
 	});
-	const setToken = electronTrpc.remoteHost.setClaudeToken.useMutation({
+	const renew = electronTrpc.remoteHost.renewClaudeToken.useMutation({
 		onSuccess: refresh,
-		onError: (error) => toast.error(error.message),
+		onError,
 	});
-	const [token, setTokenText] = useState("");
+	const signingIn =
+		renew.isPending ||
+		(setOn.isPending && setOn.variables === true && !current?.hasClaudeToken) ||
+		(use.isPending && !current?.hasClaudeToken);
 
 	const { data: saved } = electronTrpc.remoteHost.awsSettings.useQuery();
 	const { data: profiles = [] } =
@@ -124,7 +133,7 @@ export function RemoteHostSection() {
 	return (
 		<SettingsSection
 			title="Remote host"
-			description="Run new sessions on an EC2 instance you created, so they keep going with this computer shut. Odin connects through AWS Systems Manager with your own AWS sign-in: the instance needs no open port, public IP or SSH key. Sessions there use your Claude plan through the token below."
+			description="Run new sessions on an EC2 instance you created, so they keep going with this computer shut. Odin connects through AWS Systems Manager with your own AWS sign-in: the instance needs no open port, public IP or SSH key. Sessions there use your own Claude plan."
 		>
 			{current?.host && (
 				<SettingRow
@@ -139,40 +148,31 @@ export function RemoteHostSection() {
 					<Switch
 						id="remote-host-on"
 						checked={current.host.on}
-						disabled={!current.host.on && !current.hasClaudeToken}
+						disabled={setOn.isPending}
 						onCheckedChange={(on) => setOn.mutate(on)}
 					/>
 				</SettingRow>
 			)}
 			<SettingRow
-				label="Claude token"
-				htmlFor="remote-host-token"
+				label="Claude sign-in"
 				description={
-					current?.hasClaudeToken
-						? "Saved, encrypted on this computer. Each session hands it to the host in memory, never on its disk."
-						: "Run claude setup-token in a terminal and paste the token it prints. It bills your Claude plan, so the host needs no sign-in."
+					signingIn
+						? "Approve Claude in the browser window that opened."
+						: current?.hasClaudeToken
+							? "Signed in with your Claude plan. The token stays encrypted on this computer; each session hands it to the host in memory, never on its disk."
+							: "Turning the host on opens your browser once to approve Claude. Sessions there then bill your Claude plan, with no sign-in on the host."
 				}
 			>
-				<Input
-					id="remote-host-token"
-					type="password"
-					className="w-56"
-					placeholder={
-						current?.hasClaudeToken ? "Replace token" : "sk-ant-oat..."
-					}
-					value={token}
-					onChange={(event) => setTokenText(event.target.value)}
-				/>
-				<Button
-					size="sm"
-					variant="outline"
-					disabled={!token.trim() || setToken.isPending}
-					onClick={() =>
-						setToken.mutate(token, { onSuccess: () => setTokenText("") })
-					}
-				>
-					Save
-				</Button>
+				{current?.hasClaudeToken && (
+					<Button
+						size="sm"
+						variant="outline"
+						disabled={signingIn}
+						onClick={() => renew.mutate()}
+					>
+						Sign in again
+					</Button>
+				)}
 			</SettingRow>
 			<SettingRow
 				label="AWS profile"
@@ -368,7 +368,7 @@ export function RemoteHostSection() {
 							onClick={() =>
 								use.mutate({
 									...target,
-									on: Boolean(current?.hasClaudeToken),
+									on: true,
 									name: instance.name,
 									instanceId: instance.id,
 									user,

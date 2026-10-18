@@ -52,6 +52,7 @@ import {
 	LuRadioTower,
 	LuRepeat,
 	LuRotateCw,
+	LuServer,
 	LuSquareTerminal,
 	LuStar,
 	LuTerminal,
@@ -1444,6 +1445,18 @@ function RemoteMark({ paneId }: { paneId: string }) {
 	);
 }
 
+/** The server a session wears beside its title while it runs on a remote host. */
+function HostMark({ paneId }: { paneId: string }) {
+	const host = useTabsStore((s) => s.panes[paneId]?.odinRemote);
+	if (!host) return null;
+	return (
+		<LuServer
+			title={`Runs on ${host}, in tmux - it keeps going with this computer shut`}
+			className="mr-1 inline size-3.5 align-[-2px] text-primary"
+		/>
+	);
+}
+
 function TagMenu({
 	x,
 	y,
@@ -1879,6 +1892,7 @@ const BoardCardTile = memo(
 								<OverdueMark itemKey={`session:${card.pane.id}`} />
 								<WatchMark paneId={card.pane.id} />
 								<RemoteMark paneId={card.pane.id} />
+								<HostMark paneId={card.pane.id} />
 								{title}
 							</div>
 							<button
@@ -4465,6 +4479,7 @@ function DevBoardPage() {
 						<span className="truncate">
 							<WatchMark paneId={card.pane.id} />
 							<RemoteMark paneId={card.pane.id} />
+							<HostMark paneId={card.pane.id} />
 							{cardTitle(card)}
 						</span>
 						{card.pane.odinStarred && (

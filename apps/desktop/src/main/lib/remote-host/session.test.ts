@@ -3,6 +3,7 @@ import {
 	attachScript,
 	httpsCloneUrl,
 	issueTicket,
+	parseSetupToken,
 	type RemoteSessionSpec,
 	redeemTicket,
 	runScript,
@@ -72,4 +73,13 @@ test("ssh and https origins become https clone URLs", () => {
 		"https://github.com/o/r",
 	);
 	expect(httpsCloneUrl("/local/path")).toBeNull();
+});
+
+test("the token comes out of setup-token's screen, colors and all", () => {
+	expect(
+		parseSetupToken(
+			"\x1b[32mYour token:\x1b[0m\r\n\x1b[1msk-ant-oat01-Ab_c-9\x1b[0m\r\nStore it",
+		),
+	).toBe("sk-ant-oat01-Ab_c-9");
+	expect(parseSetupToken("cancelled")).toBeNull();
 });

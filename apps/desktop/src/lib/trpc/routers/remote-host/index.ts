@@ -10,6 +10,7 @@ import {
 	listTagChoices,
 	startInstance,
 } from "main/lib/remote-host/aws-instances";
+import { runSetupToken } from "main/lib/remote-host/claude-token";
 import {
 	httpsCloneUrl,
 	issueTicket,
@@ -35,6 +36,22 @@ function claudeToken(): string | null {
 	} catch {
 		return null;
 	}
+}
+
+/**
+ * The token sessions on the host run Claude with: `claude setup-token`, run
+ * by Odin, so turning the host on asks only for an approval in the browser.
+ * It bills the user's own plan, and is kept encrypted with safeStorage.
+ */
+async function ensureClaudeToken(renew = false): Promise<void> {
+	if (!renew && claudeToken()) return;
+	if (!safeStorage.isEncryptionAvailable()) {
+		throw new Error("This computer can't encrypt the Claude token.");
+	}
+	const token = await runSetupToken();
+	updateOdinConfig({
+		claudeToken: safeStorage.encryptString(token).toString("base64"),
+	});
 }
 
 /**
@@ -78,6 +95,7 @@ export const createRemoteHostRouter = () =>
 			host: readOdinConfig().remoteHost ?? null,
 			hasClaudeToken: Boolean(claudeToken()),
 		})),
+		/** Picks the host. Turning it on gets a Claude token first if none is saved. */
 		set: publicProcedure
 			.input(
 				awsTarget.extend({
@@ -88,26 +106,18 @@ export const createRemoteHostRouter = () =>
 					reposRoot: z.string().min(1),
 				}),
 			)
-			.mutation(({ input }) => {
+			.mutation(async ({ input }) => {
+				if (input.on) await ensureClaudeToken();
 				updateOdinConfig({ remoteHost: input });
 			}),
-		setOn: publicProcedure.input(z.boolean()).mutation(({ input }) => {
+		setOn: publicProcedure.input(z.boolean()).mutation(async ({ input }) => {
 			const host = readOdinConfig().remoteHost;
-			if (host) updateOdinConfig({ remoteHost: { ...host, on: input } });
+			if (!host) return;
+			if (input) await ensureClaudeToken();
+			updateOdinConfig({ remoteHost: { ...host, on: input } });
 		}),
-		/** Paste of `claude setup-token`'s output; empty clears it. */
-		setClaudeToken: publicProcedure
-			.input(z.string().trim())
-			.mutation(({ input }) => {
-				if (input && !safeStorage.isEncryptionAvailable()) {
-					throw new Error("This computer can't encrypt the token.");
-				}
-				updateOdinConfig({
-					claudeToken: input
-						? safeStorage.encryptString(input).toString("base64")
-						: undefined,
-				});
-			}),
+		/** A fresh token from `claude setup-token`, replacing the saved one. */
+		renewClaudeToken: publicProcedure.mutation(() => ensureClaudeToken(true)),
 
 		/** The command a remote session's pane runs. */
 		sessionCommand: publicProcedure
