@@ -29,7 +29,31 @@ export interface RemoteSessionSpec {
 	claudeArgs: string;
 	/** The opening prompt, sent as base64 so no quoting can break it. */
 	prompt: string | null;
+	/** Odin's pane on the laptop, so the session's calls to Odin name it. */
+	odinPane?: string | null;
+	/** Laptop files the prompt names, copied to the host before Claude starts. */
+	files?: RemoteFile[];
 }
+
+export interface RemoteFile {
+	local: string;
+	/** Relative to the host user's home, where SFTP starts. */
+	remote: string;
+}
+
+/**
+ * The host's port for Odin's local server: the helper forwards it back to
+ * the laptop, so `curl 127.0.0.1:$ODIN_PORT` on the host reaches Odin.
+ */
+export const REMOTE_ODIN_PORT = 47187;
+
+/** The host user's home, for absolute paths Claude's file tools accept. */
+export const hostHome = (user: string) =>
+	user === "root" ? "/root" : `/home/${user}`;
+
+/** The session's own worktree and branch, named after its conversation. */
+export const sessionBranch = (pane: string) => `odin/${pane.slice(0, 8)}`;
+const worktreeDir = (pane: string) => `odin-${pane.slice(0, 8)}`;
 
 /** Single-quote for a POSIX shell. */
 export const sh = (text: string) => `'${text.replaceAll("'", `'\\''`)}'`;
@@ -76,21 +100,28 @@ json.dump(c, open(p, "w"), indent=2)`;
 /** What runs inside tmux: tokens in, file gone, repo ready, Claude on. */
 export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 	const root = homePath(spec.reposRoot);
-	const cwd = spec.repoName ? `${root}/${sh(spec.repoName)}` : root;
+	const repo = spec.repoName ? `${root}/${sh(spec.repoName)}` : root;
+	// Every session gets its own worktree, so two on one repo never collide;
+	// a resume finds the same one by name.
+	const worktree = `${repo}/.worktrees/${sh(worktreeDir(spec.pane))}`;
 	const prompt = spec.prompt
 		? ` "$(printf %s ${sh(Buffer.from(spec.prompt).toString("base64"))} | base64 -d)"`
 		: "";
 	return [
 		`if [ -f ${sh(secretsDir)}/env ]; then set -a; . ${sh(secretsDir)}/env; set +a; fi`,
 		`rm -rf ${sh(secretsDir)}`,
+		`export ODIN_PORT=${REMOTE_ODIN_PORT}${spec.odinPane ? ` ODIN_PANE_ID=${sh(spec.odinPane)}` : ""}`,
 		// git reads GH_TOKEN from the environment, never from a file or argv.
 		`git config --global credential.https://github.com.helper '!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f'`,
 		`mkdir -p ${root}`,
 		spec.repoName && spec.cloneUrl
-			? `[ -d ${cwd}/.git ] || git clone ${sh(spec.cloneUrl)} ${cwd} || echo "Odin: could not clone ${spec.cloneUrl.replaceAll('"', "")}"`
+			? `[ -d ${repo}/.git ] || git clone ${sh(spec.cloneUrl)} ${repo} || echo "Odin: could not clone ${spec.cloneUrl.replaceAll('"', "")}"`
 			: "",
-		spec.repoName ? `git -C ${cwd} fetch --quiet origin || true` : "",
-		`cd ${cwd}`,
+		spec.repoName ? `git -C ${repo} fetch --quiet origin || true` : "",
+		spec.repoName
+			? `[ -d ${worktree} ] || git -C ${repo} worktree add -q -b ${sh(sessionBranch(spec.pane))} ${worktree} origin/HEAD 2>/dev/null || git -C ${repo} worktree add -q -b ${sh(sessionBranch(spec.pane))} ${worktree} 2>/dev/null || true`
+			: "",
+		spec.repoName ? `cd ${worktree} 2>/dev/null || cd ${repo}` : `cd ${repo}`,
 		`python3 -c ${sh(SKIP_FIRST_RUN)} "$PWD" 2>/dev/null || true`,
 		'command -v claude >/dev/null || PATH="$HOME/.local/bin:$PATH"',
 		`exec claude ${spec.claudeArgs}${prompt}`,
@@ -142,4 +173,46 @@ export function httpsCloneUrl(origin: string): string | null {
 export function parseSetupToken(output: string): string | null {
 	const text = stripAnsi(output);
 	return text.match(/sk-ant-oat01-[\w-]+/g)?.pop() ?? null;
+}
+
+/**
+ * Laptop files the prompt names (a screenshot, an attachment) don't exist on
+ * the host. Each one that exists here is copied to ~/.odin/files there, and
+ * the prompt names the copy instead.
+ */
+export function hostFiles(
+	prompt: string,
+	user: string,
+	isFile: (path: string) => boolean,
+): { prompt: string; files: RemoteFile[] } {
+	const files: RemoteFile[] = [];
+	const paths = new Set(
+		prompt.match(/\/(?:Users|home|private|tmp|var)\/[^\s"'`)\]>]+/g),
+	);
+	let out = prompt;
+	for (const local of paths) {
+		const clean = local.replace(/[.,;:]+$/, "");
+		if (!isFile(clean)) continue;
+		const remote = `.odin/files/${files.length}-${clean.split("/").pop()}`;
+		files.push({ local: clean, remote });
+		out = out.replaceAll(clean, `${hostHome(user)}/${remote}`);
+	}
+	return { prompt: out, files };
+}
+
+/** What the agent on the host needs to know that its prompt assumes otherwise. */
+export function hostNote(spec: {
+	user: string;
+	name: string;
+	repoName: string | null;
+	pane: string;
+}): string {
+	const repos = `${hostHome(spec.user)}/repos`;
+	return [
+		"",
+		`You run on ${spec.name}, a Linux server, not on my computer. Odin answers at http://127.0.0.1:$ODIN_PORT as usual, but its worktree action and its Shell work on my computer, so don't use them from here.`,
+		spec.repoName
+			? `Your worktree of ${spec.repoName} is the folder you start in, on branch ${sessionBranch(spec.pane)}. Push it and open the PR from here.`
+			: `To work on a repo, clone it into ${repos} with git clone https://github.com/<owner>/<repo> (GitHub access is set up), make your own worktree there with git worktree add, and work in it.`,
+	].join("\n");
 }

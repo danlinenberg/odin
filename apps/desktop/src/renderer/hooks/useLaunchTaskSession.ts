@@ -373,22 +373,7 @@ export function useLaunchTaskSession() {
 			// 1. Prompt file in the workspace (survives quoting, keeps history)
 			let promptArg = "";
 			let remotePrompt: string | null = null;
-			if (remote && !noPrompt && !resumeSessionId) {
-				// Attachments live on this computer, so the host gets the text only.
-				remotePrompt = buildPrompt(
-					title,
-					description,
-					[],
-					skill,
-					tags?.some((tag) => tag === "automation" || tag === "off-hours"),
-					useOdinRules.getState().rules,
-					checkout,
-					guidelines,
-					useSessionInstructions.getState().instructions ??
-						DEFAULT_SESSION_INSTRUCTIONS,
-					null,
-				);
-			} else if (!noPrompt && !resumeSessionId) {
+			if (!noPrompt && !resumeSessionId) {
 				const slug = slugify(title);
 				const promptDir = `${worktreePath}/.odin`;
 				const promptPath = `${promptDir}/task-${slug}.md`;
@@ -424,25 +409,31 @@ export function useLaunchTaskSession() {
 					});
 					attachmentPaths.push(filePath);
 				}
-				await utils.client.filesystem.writeFile.mutate({
-					workspaceId,
-					absolutePath: promptPath,
-					content: buildPrompt(
-						title,
-						description,
-						attachmentPaths,
-						skill,
-						tags?.some((tag) => tag === "automation" || tag === "off-hours"),
-						useOdinRules.getState().rules,
-						checkout,
-						guidelines,
-						useSessionInstructions.getState().instructions ??
-							DEFAULT_SESSION_INSTRUCTIONS,
-						ownWorktree,
-					),
-					encoding: "utf-8",
-				});
-				promptArg = ` "$(cat '${promptPath}')"`;
+				const text = buildPrompt(
+					title,
+					description,
+					attachmentPaths,
+					skill,
+					tags?.some((tag) => tag === "automation" || tag === "off-hours"),
+					useOdinRules.getState().rules,
+					checkout,
+					guidelines,
+					useSessionInstructions.getState().instructions ??
+						DEFAULT_SESSION_INSTRUCTIONS,
+					ownWorktree,
+				);
+				// A remote session gets the text; the files it names are copied
+				// to the host with it.
+				if (remote) remotePrompt = text;
+				else {
+					await utils.client.filesystem.writeFile.mutate({
+						workspaceId,
+						absolutePath: promptPath,
+						content: text,
+						encoding: "utf-8",
+					});
+					promptArg = ` "$(cat '${promptPath}')"`;
+				}
 			}
 
 			// 2. Tab + pane for the session
@@ -504,6 +495,7 @@ export function useLaunchTaskSession() {
 			const command = remote
 				? await utils.client.remoteHost.sessionCommand.mutate({
 						pane: sessionId,
+						odinPane: paneId,
 						repoPath: repoPath ?? null,
 						claudeArgs: resumeSessionId
 							? `--resume ${resumeSessionId}`

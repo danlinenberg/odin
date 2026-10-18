@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
 	attachScript,
+	hostFiles,
 	httpsCloneUrl,
 	issueTicket,
 	parseSetupToken,
@@ -82,4 +83,32 @@ test("the token comes out of setup-token's screen, colors and all", () => {
 		),
 	).toBe("sk-ant-oat01-Ab_c-9");
 	expect(parseSetupToken("cancelled")).toBeNull();
+});
+
+test("laptop files in the prompt are copied, and the prompt names the copies", () => {
+	const { prompt, files } = hostFiles(
+		"See /Users/dan/.odin/attachments/a.png. Not /Users/dan/gone.txt",
+		"ubuntu",
+		(path) => path.endsWith("a.png"),
+	);
+	expect(files).toEqual([
+		{
+			local: "/Users/dan/.odin/attachments/a.png",
+			remote: ".odin/files/0-a.png",
+		},
+	]);
+	expect(prompt).toBe(
+		"See /home/ubuntu/.odin/files/0-a.png. Not /Users/dan/gone.txt",
+	);
+});
+
+test("a session with a repo starts in its own worktree, with Odin's port", () => {
+	const run = runScript(
+		{ ...spec, pane: "abcdef1234", odinPane: "pane-9" },
+		"/d",
+	);
+	expect(run).toContain("export ODIN_PORT=47187 ODIN_PANE_ID='pane-9'");
+	expect(run).toContain(
+		`git -C "$HOME"/'repos'/'odin' worktree add -q -b 'odin/abcdef12' "$HOME"/'repos'/'odin'/.worktrees/'odin-abcdef12' origin/HEAD`,
+	);
 });

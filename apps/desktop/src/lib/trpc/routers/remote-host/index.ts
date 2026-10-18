@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { statSync } from "node:fs";
 import { basename, join } from "node:path";
 import { promisify } from "node:util";
 import { app, safeStorage } from "electron";
@@ -12,6 +13,8 @@ import {
 } from "main/lib/remote-host/aws-instances";
 import { runSetupToken } from "main/lib/remote-host/claude-token";
 import {
+	hostFiles,
+	hostNote,
 	httpsCloneUrl,
 	issueTicket,
 	secretsFile,
@@ -21,6 +24,16 @@ import { resolveElectronBinary } from "main/lib/terminal-host/electron-binary";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
 import { readOdinConfig, updateOdinConfig } from "../odin-config";
+
+/** A file small enough to copy to the host with the prompt. */
+function isSmallFile(path: string): boolean {
+	try {
+		const st = statSync(path);
+		return st.isFile() && st.size < 50 * 1024 * 1024;
+	} catch {
+		return false;
+	}
+}
 
 const awsTarget = z.object({
 	profile: z.string().optional(),
@@ -128,6 +141,8 @@ export const createRemoteHostRouter = () =>
 					repoPath: z.string().nullable(),
 					claudeArgs: z.string(),
 					prompt: z.string().nullable(),
+					/** Odin's pane, for the session's calls back to Odin. */
+					odinPane: z.string().nullable().optional(),
 				}),
 			)
 			.mutation(async ({ input }) => {
@@ -145,11 +160,26 @@ export const createRemoteHostRouter = () =>
 							.then(({ stdout }) => httpsCloneUrl(stdout))
 							.catch(() => null)
 					: null;
+				const repoName = repoPath ? basename(repoPath) : null;
+				const { prompt, files } = rest.prompt
+					? hostFiles(rest.prompt, host.user, isSmallFile)
+					: { prompt: null, files: [] };
 				const spec = Buffer.from(
 					JSON.stringify({
 						...host,
 						...rest,
-						repoName: repoPath ? basename(repoPath) : null,
+						prompt:
+							prompt === null
+								? null
+								: prompt +
+									hostNote({
+										user: host.user,
+										name: host.name || host.instanceId,
+										repoName,
+										pane: rest.pane,
+									}),
+						files,
+						repoName,
 						cloneUrl: origin,
 					}),
 				).toString("base64");
