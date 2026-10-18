@@ -308,6 +308,7 @@ function ViewToggle({
 	);
 }
 
+// baseY, not viewportY: a scrolled-up viewport read as "Claude is gone".
 function visibleScreen(paneId: string): string {
 	const xterm = terminalCache.get(paneId)?.xterm;
 	if (!xterm) return "";
@@ -315,7 +316,7 @@ function visibleScreen(paneId: string): string {
 	const lines: string[] = [];
 	for (let row = 0; row < xterm.rows; row++)
 		lines.push(
-			buffer.getLine(buffer.viewportY + row)?.translateToString(true) ?? "",
+			buffer.getLine(buffer.baseY + row)?.translateToString(true) ?? "",
 		);
 	return lines.join("\n");
 }
@@ -3330,6 +3331,14 @@ function DevBoardPage() {
 		if (name) workingRepoByPane[paneId] = name;
 	});
 	const workingRepoKey = JSON.stringify(workingRepoByPane);
+	const sessionRepos = sessionCandidates
+		.map(({ paneId }, i) => ({
+			at: panes[paneId]?.odinStatusAt ?? 0,
+			repo: repoQueries[i]?.data?.owningClone,
+		}))
+		.filter((entry): entry is { at: number; repo: string } => !!entry.repo)
+		.sort((a, b) => b.at - a.at)
+		.map((entry) => entry.repo);
 	const workTextByPane: Record<string, string> = {};
 	searchCandidates.forEach(({ paneId }, i) => {
 		const messages = transcriptQueries[i]?.data?.messages;
@@ -5853,6 +5862,7 @@ function DevBoardPage() {
 					placeholder="What should the agent do? (it picks the repo)"
 					repoPicker
 					defaultRepo={composerRepo}
+					sessionRepos={sessionRepos}
 					modelPicker
 					backlogToggle
 					onCancel={() => setIsComposerOpen(false)}

@@ -3,6 +3,7 @@ import {
 	claudeLaunch,
 	modelFlag,
 	pickClaudeCommand,
+	recentRepoChoices,
 	remoteControlEnv,
 	remoteControlFlag,
 	remoteControlOn,
@@ -78,4 +79,15 @@ test("recent repos: newest first, no repeats, at most five", () => {
 		"/d",
 		"/c",
 	]);
+});
+
+test("recent repos: picks first, then the sessions' repos, only known ones", () => {
+	expect(
+		recentRepoChoices(
+			["/b", "/gone"],
+			["/a", "/b", "/c", "/d", "/e", "/f"],
+			["/a", "/b", "/c", "/d", "/e", "/f"],
+		),
+	).toEqual(["/b", "/a", "/c", "/d", "/e"]);
+	expect(recentRepoChoices([], ["/a"], ["/a"])).toEqual(["/a"]);
 });
