@@ -2017,9 +2017,10 @@ export function ChatView({
 	// transcript to ask (not written yet, or unreadable).
 	const startCwd = transcript ? (transcript.cwd ?? cwd) : isError ? cwd : null;
 	const path =
-		home && startCwd && sessionId
+		transcript?.path ??
+		(home && startCwd && sessionId
 			? transcriptPath(home, startCwd, sessionId)
-			: null;
+			: null);
 	const {
 		items,
 		queued,

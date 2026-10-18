@@ -9,7 +9,7 @@
 import { appendFile, mkdir, stat, writeFile } from "node:fs/promises";
 import { connect } from "node:net";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { Client, type SFTPWrapper, utils } from "ssh2";
 import {
 	attachScript,
@@ -101,13 +101,9 @@ function mirrorTranscript(
 	sftp: SFTPWrapper,
 	spec: RemoteSessionSpec,
 ): void {
-	const local = join(
-		homedir(),
-		".claude",
-		"projects",
-		`odin-remote-${spec.instanceId}`,
-		`${spec.pane}.jsonl`,
-	);
+	// Claude files a conversation under its start folder's name; the chat view
+	// looks it up by that name, so the copy goes in the same-named folder here.
+	let local = "";
 	let remote: string | null = null;
 	const tick = async () => {
 		remote ??=
@@ -117,6 +113,13 @@ function mirrorTranscript(
 				"",
 			).catch(() => "")) || null;
 		if (!remote) return;
+		local ||= join(
+			homedir(),
+			".claude",
+			"projects",
+			basename(dirname(remote)),
+			`${spec.pane}.jsonl`,
+		);
 		const size = await new Promise<number>((resolve) =>
 			sftp.stat(remote as string, (err, st) => resolve(err ? 0 : st.size)),
 		);

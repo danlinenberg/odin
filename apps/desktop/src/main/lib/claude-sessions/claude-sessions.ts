@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { readdir, readFile, stat } from "node:fs/promises";
+import { readdir, readFile, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { PR_RULES_HEADER } from "shared/odin-rules";
@@ -737,6 +737,7 @@ export async function readTranscript({
 	sessionId: string;
 	root?: string;
 }): Promise<{
+	path: string;
 	messages: TranscriptMessage[];
 	/** Every URL-quoting turn of the whole session - see `transcriptLinks`. */
 	links: TranscriptMessage[];
@@ -757,9 +758,16 @@ export async function readTranscript({
 	}
 	const dir = project ?? (await projectOf(sessionId, root));
 	if (!dir) throw new Error("No transcript on this machine for that session");
-	const jsonl = await readFile(join(root, dir, `${sessionId}.jsonl`), "utf-8");
+	const file = join(root, dir, `${sessionId}.jsonl`);
+	const jsonl = await readFile(file, "utf-8");
 	const { cwd, aiTitle, prompt } = summarizeTranscript(jsonl);
 	return {
+		/**
+		 * The file itself. Usually <cwd's slug>/<id>.jsonl, but a remote
+		 * session's copy sits under the host's paths, so the chat view reads
+		 * this rather than rebuilding it from cwd.
+		 */
+		path: await realpath(file).catch(() => file),
 		messages: parseTranscript(jsonl),
 		links: transcriptLinks(jsonl),
 		cwd,

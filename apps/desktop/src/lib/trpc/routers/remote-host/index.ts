@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
-import { statSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { app, safeStorage } from "electron";
@@ -11,6 +12,7 @@ import {
 	listTagChoices,
 	startInstance,
 } from "main/lib/remote-host/aws-instances";
+import { bringSessionHome } from "main/lib/remote-host/bring-home";
 import { runSetupToken } from "main/lib/remote-host/claude-token";
 import {
 	hostFiles,
@@ -152,6 +154,25 @@ export const createRemoteHostRouter = () =>
 		}),
 		/** A fresh token from `claude setup-token`, replacing the saved one. */
 		renewClaudeToken: publicProcedure.mutation(() => ensureClaudeToken(true)),
+
+		/**
+		 * A remote session's conversation, copied here so it resumes on this
+		 * computer; its tmux session on the host ends. The folder it resumes
+		 * in: the one asked for if it exists, else the repo a gone session
+		 * worktree belonged to, else home.
+		 */
+		bringHome: publicProcedure
+			.input(z.object({ sessionId: z.string().min(1), cwd: z.string() }))
+			.mutation(async ({ input }) => {
+				const host = readOdinConfig().remoteHost;
+				if (!host) throw new Error("No remote host is set up.");
+				const cwd =
+					[input.cwd, mainCheckoutOf(input.cwd)].find(
+						(path) => path && existsSync(path),
+					) ?? homedir();
+				await bringSessionHome(host, input.sessionId, cwd);
+				return { cwd };
+			}),
 
 		/** The command a remote session's pane runs. */
 		sessionCommand: publicProcedure

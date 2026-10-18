@@ -43,6 +43,7 @@ import {
 	LuGitMerge,
 	LuGitPullRequest,
 	LuHourglass,
+	LuLaptop,
 	LuLayoutGrid,
 	LuMessageSquare,
 	LuMoon,
@@ -1468,6 +1469,7 @@ function TagMenu({
 	onDone,
 	onPark,
 	onRestart,
+	onRunHere,
 	onRemind,
 	watching,
 	watchWhat,
@@ -1493,6 +1495,8 @@ function TagMenu({
 	onPark?: () => void;
 	/** Set while the session has a conversation to reopen. */
 	onRestart?: () => void;
+	/** A remote session, moved to this computer. */
+	onRunHere?: () => void;
 	onRemind: (day: string) => void;
 	/** Whether the session's thread or PR pings you; unset when it has neither. */
 	watching?: boolean;
@@ -1596,6 +1600,20 @@ function TagMenu({
 				>
 					<LuRotateCw className="size-3" aria-hidden />
 					Restart session
+				</button>
+			)}
+			{onRunHere && (
+				<button
+					type="button"
+					title="Copy this conversation from the remote host and continue it on this computer"
+					onClick={() => {
+						onRunHere();
+						onClose();
+					}}
+					className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-foreground"
+				>
+					<LuLaptop className="size-3" aria-hidden />
+					Run on this computer
 				</button>
 			)}
 			<div className="mb-1.5 border-b border-border pb-1.5">
@@ -3066,6 +3084,10 @@ function DevBoardPage() {
 	const tagMenuDrop = useDropFor(tagMenu ? panes[tagMenu.paneId] : undefined);
 	const watches = useReplyWatch((s) => s.watches);
 	const remoteMode = useClaudeCommand((s) => s.remoteControl);
+	// A remote host is set up: any card may be a session on it.
+	const remoteHostSet = Boolean(
+		electronTrpc.remoteHost.get.useQuery().data?.host,
+	);
 	const remotePanes = useClaudeCommand((s) => s.remotePanes);
 	const toggleWatch = useReplyWatch((s) => s.toggle);
 	// One filter at a time, from the header dropdown: "tag:<tag>",
@@ -4153,12 +4175,26 @@ function DevBoardPage() {
 				terminalCache.dispose(card.pane.id);
 			}
 			await new Promise((resolve) => setTimeout(resolve, 300));
+			// A session on the remote host resumes there: its tmux session if it
+			// is still up, else `claude --resume` in its worktree on the host.
+			const command =
+				card.pane.odinRemote && sessionId
+					? await utils.client.remoteHost.sessionCommand.mutate({
+							pane: sessionId,
+							odinPane: card.pane.id,
+							repoPath: cwd ?? null,
+							claudeArgs: `--resume ${sessionId}`,
+							prompt: null,
+						})
+					: cwd
+						? `cd '${cwd}' && ${resumeCmd}`
+						: resumeCmd;
 			await utils.client.terminal.createOrAttach.mutate({
 				paneId: card.pane.id,
 				tabId: card.tabId,
 				workspaceId: card.workspaceId,
 				cwd,
-				command: cwd ? `cd '${cwd}' && ${resumeCmd}` : resumeCmd,
+				command,
 				allowKilled: true,
 			});
 			useTabsStore.setState((state) => ({
@@ -4207,6 +4243,45 @@ function DevBoardPage() {
 	 * One card at a time so each launch-gate check sees the last one's slot.
 	 */
 	const autoResumedRef = useRef(new Set<string>());
+	/**
+	 * A session on the remote host, moved here: its conversation is copied from
+	 * the host, its tmux session there ends, and it resumes in this computer's
+	 * checkout. The way out for a session stuck on the host.
+	 */
+	const runHere = async (card: BoardCard) => {
+		const sessionId =
+			card.pane.claudeSessionId ??
+			usePaneMeta.getState().sessionIdByPane[card.pane.id];
+		if (!sessionId) {
+			toast.error("This session has no conversation to move.");
+			return;
+		}
+		// The pane's own cwd is the host's once a remote terminal reports it.
+		const wanted =
+			card.pane.odinCwd || card.pane.initialCwd || card.repoPath || "";
+		const loading = toast.loading("Moving the session to this computer...");
+		try {
+			const { cwd } = await utils.client.remoteHost.bringHome.mutate({
+				sessionId,
+				cwd: wanted,
+			});
+			const pane = {
+				...card.pane,
+				odinRemote: undefined,
+				cwd: undefined,
+				initialCwd: cwd,
+			};
+			useTabsStore.setState((state) => ({
+				panes: { ...state.panes, [card.pane.id]: pane },
+			}));
+			toast.dismiss(loading);
+			await resumeCard({ ...card, pane }, false, undefined, true);
+		} catch (error) {
+			toast.dismiss(loading);
+			toast.error(error instanceof Error ? error.message : String(error));
+		}
+	};
+
 	const resumeCardRef = useRef(resumeCard);
 	resumeCardRef.current = resumeCard;
 	// Covers the transcript check before resumeCard marks the card resuming.
@@ -4889,6 +4964,11 @@ function DevBoardPage() {
 					onRestart={
 						tagMenuCard && !tagMenuCard.pane.odinQueued
 							? () => void resumeCard(tagMenuCard, false, undefined, true)
+							: undefined
+					}
+					onRunHere={
+						tagMenuCard && remoteHostSet && !tagMenuCard.pane.odinQueued
+							? () => void runHere(tagMenuCard)
 							: undefined
 					}
 					onRemind={(day) => tagMenuCard && remindMe(tagMenuCard, day)}
