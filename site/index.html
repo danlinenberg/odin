@@ -20,6 +20,7 @@
 		<a class="brand" href="./"><img src="icon.png" alt="">Odin</a>
 		<nav aria-label="Main">
 			<a href="#loop">How it works</a>
+			<a href="#features">Features</a>
 			<a href="#phone">iPhone</a>
 			<a href="#private">Privacy</a>
 			<a class="btn small" href="https://github.com/danlinenberg/odin">
@@ -50,40 +51,7 @@
 		<div class="stage">
 			<div class="window" aria-label="Odin's board, with sessions grouped by what each agent is doing">
 				<div class="chrome"><i></i><i></i><i></i><span>Odin · Dev Board</span></div>
-				<div class="app">
-					<div class="side">
-						<div class="label">Queue</div>
-						<a class="on" href="#loop">All <em>7</em></a>
-						<a href="#loop">Slack <em>3</em></a>
-						<a href="#loop">Jira <em>2</em></a>
-						<a href="#loop">GitHub <em>1</em></a>
-						<a href="#loop">Notion <em>0</em></a>
-						<a href="#loop">Email <em>1</em></a>
-						<a href="#loop">ClickUp <em>0</em></a>
-						<a href="#loop">Tasks <em>4</em></a>
-					</div>
-					<div class="board">
-						<div class="col" style="--c: var(--attention)">
-							<div class="col-head"><i class="dot"></i>Needs you<em>2</em></div>
-							<div class="card"><b>Fix flaky upload test</b><span>api · approve migration</span></div>
-							<div class="card"><b>Settings menu cleanup</b><span>web · Maya asked</span></div>
-						</div>
-						<div class="col working" style="--c: var(--working)">
-							<div class="col-head"><i class="dot"></i>Working<em>3</em></div>
-							<div class="card"><b>Search ranking bug</b><span>api · 12m</span></div>
-							<div class="card"><b>PAY-212 export stuck</b><span>jira · 4m</span></div>
-							<div class="card"><b>Review #1142</b><span>github · 1m</span></div>
-						</div>
-						<div class="col" style="--c: var(--success)">
-							<div class="col-head"><i class="dot"></i>Final review<em>1</em></div>
-							<div class="card"><i class="chip" style="--c: var(--success)">Just done</i><b>Pricing page copy</b><span>web · PR open</span></div>
-						</div>
-						<div class="col" style="--c: var(--faint)">
-							<div class="col-head"><i class="dot"></i>Idle<em>1</em></div>
-							<div class="card"><b>Old flaky CI run</b><span>infra · 5h</span></div>
-						</div>
-					</div>
-				</div>
+				<img class="shot fade" src="shots/board.png" width="2200" height="760" alt="Odin's Dev Board: sessions under Working, Needs you, Final review and Idle, with starred sessions first and a Just done chip">
 			</div>
 		</div>
 
@@ -118,6 +86,113 @@
 			<div class="sources" aria-label="Sources">
 				<span>Slack</span><span>Jira</span><span>GitHub</span><span>Notion</span><span>Email</span><span>ClickUp</span><span>Your own tasks</span>
 			</div>
+			<figure class="window session-shot">
+				<div class="chrome"><i></i><i></i><i></i><span>Odin · Fix flaky upload test</span></div>
+				<img class="shot" src="shots/session.png" width="1575" height="1082" alt="A session in Odin: the session list grouped by state, the agent's reply, and its action items with Approve and Do it buttons">
+			</figure>
+		</section>
+
+		<section id="features">
+			<div class="head">
+				<div class="label">Everything in Odin</div>
+				<h2>Every part buys back <span class="dim">a little of your attention.</span></h2>
+			</div>
+			<div class="grid three features">
+				<div>
+					<i data-lucide="inbox" aria-hidden="true"></i>
+					<h3>One queue</h3>
+					<p>Slack, Jira, GitHub, Notion, Email, ClickUp and your own tasks in one list. Badges count what waits on you, not every row.</p>
+				</div>
+				<div>
+					<i data-lucide="kanban" aria-hidden="true"></i>
+					<h3>A board by agent state</h3>
+					<p>Working, Needs you, Final review, Idle. Cards move by what the agent is doing, read from its own hooks.</p>
+				</div>
+				<div>
+					<i data-lucide="bell-ring" aria-hidden="true"></i>
+					<h3>Ping me</h3>
+					<p>Odin watches a session's Slack thread and pull requests, and pings you when someone replies or a PR is approved.</p>
+				</div>
+				<div>
+					<i data-lucide="list-checks" aria-hidden="true"></i>
+					<h3>Action items</h3>
+					<p>Every reply ends with what you have to do next. A choice is a row of buttons, a command gets a Run button.</p>
+				</div>
+				<div>
+					<i data-lucide="file-text" aria-hidden="true"></i>
+					<h3>Briefs</h3>
+					<p>A written answer to “what did I walk into?” for every session, so coming back takes seconds, not a reread.</p>
+				</div>
+				<div>
+					<i data-lucide="bird" aria-hidden="true"></i>
+					<h3>Huginn</h3>
+					<p>Odin's raven. Ask in plain words for anything Odin can do, and he does it. No hunting for the right screen.</p>
+				</div>
+				<div>
+					<i data-lucide="moon" aria-hidden="true"></i>
+					<h3>Night Agent</h3>
+					<p>Queue tonight's work. It runs in parallel while the computer stays awake, and waits for review in the morning.</p>
+				</div>
+				<div>
+					<i data-lucide="history" aria-hidden="true"></i>
+					<h3>Session History</h3>
+					<p>Search every agent conversation on the machine by what was said in it. Read it, resume it.</p>
+				</div>
+				<div>
+					<i data-lucide="activity" aria-hidden="true"></i>
+					<h3>Insights</h3>
+					<p>How much lands on you, how much you hand over, how long things wait, and who asks most.</p>
+				</div>
+				<div>
+					<i data-lucide="gauge" aria-hidden="true"></i>
+					<h3>Paced launches</h3>
+					<p>A new session waits for room when the machine is loaded, instead of starting a sixth agent into a swap storm.</p>
+				</div>
+				<div>
+					<i data-lucide="infinity" aria-hidden="true"></i>
+					<h3>Sessions that survive</h3>
+					<p>A background daemon owns every terminal, so sessions live through a closed window, a restart and an update.</p>
+				</div>
+				<div>
+					<i data-lucide="users" aria-hidden="true"></i>
+					<h3>Profiles</h3>
+					<p>Work and personal accounts kept apart, one click to switch, on the Mac and on the phone.</p>
+				</div>
+			</div>
+		</section>
+
+		<section id="sources">
+			<div class="split">
+				<div class="head">
+					<div class="label">Sources, first class</div>
+					<h2>Where the work comes from <span class="dim">stays part of the work.</span></h2>
+					<p>A Slack thread, a Jira issue or a pull request is not a link you paste into a prompt. In Odin it is the session's origin: the agent starts from it, the session keeps it attached, and the board shows where every agent's job came from.</p>
+				</div>
+				<ul class="facts">
+					<li><b>Slack</b><span>React :eyes: to a message. The thread, and what was said in it, becomes the prompt.</span></li>
+					<li><b>Jira and ClickUp</b><span>Issues assigned to you, with the key and the description.</span></li>
+					<li><b>GitHub</b><span>Pull requests waiting on your review, with what they change. Bots filtered out.</span></li>
+					<li><b>Notion and Email</b><span>Rows from a database you pick, and mail that asks something of you.</span></li>
+				</ul>
+			</div>
+		</section>
+
+		<section id="night">
+			<div class="split">
+				<div class="head">
+					<div class="label">Night Agent</div>
+					<h2>Your agents keep going <span class="dim">after you stop.</span></h2>
+					<p>Queue the work you won't get to today. The Night Agent runs those tasks in parallel overnight, on power, while the computer stays awake. The morning starts with finished sessions waiting for review, not a backlog.</p>
+				</div>
+				<div class="night" aria-label="A night's run">
+					<div class="night-row"><span class="time">23:10</span><b>Queued 4 tasks for tonight</b></div>
+					<div class="night-row" style="--c: var(--working)"><span class="time">23:12</span><i class="dot"></i>PAY-212 export stuck</div>
+					<div class="night-row" style="--c: var(--working)"><span class="time">23:12</span><i class="dot"></i>Search ranking bug</div>
+					<div class="night-row" style="--c: var(--working)"><span class="time">00:41</span><i class="dot"></i>Upgrade the test runner</div>
+					<div class="night-row" style="--c: var(--working)"><span class="time">02:05</span><i class="dot"></i>Release notes for 1.4</div>
+					<div class="night-row done"><span class="time">08:00</span><b>4 sessions ready for review</b></div>
+				</div>
+			</div>
 		</section>
 
 		<section id="phone">
@@ -133,18 +208,9 @@
 						<li><b>Every profile</b><span>Work and personal, one tap apart.</span></li>
 					</ul>
 				</div>
-				<div class="handset" aria-label="The Odin iPhone app showing the board">
-					<div class="screen">
-						<div class="title">Board <small>Work</small></div>
-						<div class="col-head" style="--c: var(--attention)"><i class="dot"></i>Needs you<em>2</em></div>
-						<div class="card"><b>Fix flaky upload test</b><span>api · 40m</span></div>
-						<div class="card"><b>Settings menu cleanup</b><span>web · Maya</span></div>
-						<div class="col-head working" style="--c: var(--working)"><i class="dot"></i>Working<em>2</em></div>
-						<div class="card"><b>Search ranking bug</b><span>api · 12m</span></div>
-						<div class="card"><b>PAY-212 export stuck</b><span>jira · 4m</span></div>
-						<div class="col-head" style="--c: var(--success)"><i class="dot"></i>Final review<em>1</em></div>
-						<div class="card"><i class="chip" style="--c: var(--success)">Just done</i><b>Pricing page copy</b></div>
-					</div>
+				<div class="phones">
+					<img src="shots/phone-board.png" width="598" height="1300" alt="The Odin iPhone app: the board, with sessions under Needs you, Working and Final review">
+					<img src="shots/phone-session.png" width="598" height="1300" alt="A session in the Odin iPhone app: its TL;DR, the agent's reply and its action items with Approve buttons">
 				</div>
 			</div>
 		</section>
@@ -192,7 +258,9 @@
 		</nav>
 	</footer>
 </div>
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
 <script>
+	lucide.createIcons();
 	document.getElementById("copy").addEventListener("click", async (event) => {
 		const button = event.currentTarget;
 		const code = document.getElementById("brew");
