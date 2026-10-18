@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 import { settings } from "@odin/local-db";
 import { app, BrowserWindow, dialog, net, protocol, session } from "electron";
 import { makeAppSetup } from "lib/electron-app/factories/app/setup";
+import { slackFile } from "lib/trpc/routers/slack";
 import {
 	applyShellEnvToProcess,
 	setFallbackBinDir,
@@ -402,9 +403,19 @@ if (!gotTheLock) {
 		// system.saveAttachment; the basename only, so it can't climb out of the
 		// attachments folder. local/<absolute path>: an image an agent's reply
 		// links by path, like a screenshot. Image files only, either way.
-		const attachmentProtocolHandler = (request: Request) => {
+		// slack/<files.slack.com link>: a Slack screenshot, fetched with Odin's
+		// Slack token (slackFile only ever sends it to files.slack.com).
+		const attachmentProtocolHandler = async (request: Request) => {
 			const url = new URL(request.url);
 			const requested = decodeURIComponent(url.pathname);
+			if (url.host === "slack") {
+				const res = await slackFile(requested.replace(/^\//, "")).catch(
+					() => null,
+				);
+				return res?.headers.get("content-type")?.startsWith("image/")
+					? res
+					: new Response("Not found", { status: 404 });
+			}
 			if (!/\.(png|jpe?g|gif|webp|heic)$/i.test(requested)) {
 				return new Response("Not found", { status: 404 });
 			}

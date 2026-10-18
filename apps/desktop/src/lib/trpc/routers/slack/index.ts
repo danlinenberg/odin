@@ -17,6 +17,7 @@ import {
 	mentionedUserIds,
 	messageBody,
 	normalizeReaction,
+	onlyImage,
 	pickEyedMessages,
 	QUEUE_REACTION,
 	type ReactionStatus,
@@ -877,6 +878,8 @@ export interface ReactionRow {
 	status: ReactionStatus;
 	/** Carries my launch reaction and hasn't been started: start it now. */
 	autoLaunch: boolean;
+	/** The message is only this image (a files.slack.com link). */
+	image: string | null;
 }
 
 function readRows(): ReactionRow[] {
@@ -889,7 +892,7 @@ function readRows(): ReactionRow[] {
 		.all()
 		.map((row) => ({
 			id: row.id,
-			title: toTitle(row.text),
+			title: onlyImage(row.text) ? "Image" : toTitle(row.text),
 			text: row.text,
 			channelId: row.channelId,
 			channelName: channelLabel(row.channelName),
@@ -902,6 +905,7 @@ function readRows(): ReactionRow[] {
 			status: reactionStatus(row),
 			autoLaunch:
 				launchRequested.has(row.id) && reactionStatus(row) === "Not started",
+			image: onlyImage(row.text),
 		}));
 }
 

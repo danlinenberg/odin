@@ -6,6 +6,7 @@ import {
 	mentionedUserIds,
 	messageBody,
 	normalizeReaction,
+	onlyImage,
 	pickEyedMessages,
 	reactionStatus,
 	replaceMentions,
@@ -183,6 +184,19 @@ describe("mentions", () => {
 				]),
 			),
 		).toBe("@Ann @Bob done");
+	});
+});
+
+describe("onlyImage", () => {
+	test("a message with no text but a screenshot is that screenshot", () => {
+		const url = "https://files.slack.com/files-pri/T1-F1/image.png";
+		const body = messageBody({
+			text: "",
+			files: [{ url_private: url, mimetype: "image/png" }],
+		});
+		expect(onlyImage(body)).toBe(url);
+		expect(onlyImage(messageBody({ text: "see this", files: [] }))).toBeNull();
+		expect(onlyImage("")).toBeNull();
 	});
 });
 

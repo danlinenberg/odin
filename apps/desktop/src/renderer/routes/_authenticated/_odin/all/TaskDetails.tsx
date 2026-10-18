@@ -109,6 +109,13 @@ export function TaskDetails({
 					{shownTitle}
 				</p>
 			)}
+			{item.image && (
+				<img
+					src={item.image}
+					alt={item.title}
+					className="max-h-[320px] max-w-full rounded-[6px] object-contain"
+				/>
+			)}
 			{description ??
 				(body && body !== item.title.trim() && (
 					<p

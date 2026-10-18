@@ -335,7 +335,15 @@ export function TaskRow({
 								className="block min-w-0 truncate bg-none text-left text-[13px] font-semibold text-foreground"
 							>
 								<OverdueMark itemKey={item.key} upstream={item.dueDate} />
-								{emojify(item.title)}
+								{item.image ? (
+									<img
+										src={item.image}
+										alt={item.title}
+										className="inline-block h-8 max-w-[160px] rounded-[4px] object-cover align-middle"
+									/>
+								) : (
+									emojify(item.title)
+								)}
 								{type && (
 									<span className="ml-2 text-[11px] font-normal text-muted-foreground">
 										{typeLabel(type)}

@@ -34,6 +34,7 @@ export interface SlackReactionsListItem {
 		bot_id?: string;
 		text?: string;
 		attachments?: SlackAttachment[];
+		files?: SlackFile[];
 		ts?: string;
 		thread_ts?: string;
 		permalink?: string;
@@ -48,15 +49,26 @@ export interface SlackAttachment {
 	fallback?: string;
 }
 
+export interface SlackFile {
+	url_private?: string;
+	mimetype?: string;
+}
+
 /**
  * A message's readable body. Bots (Datadog, Sentry) post an empty `text` and
- * put the alert in `attachments`, so fall back to those.
+ * put the alert in `attachments`, so fall back to those. A message that is
+ * only a screenshot falls back to the image's link, one per line.
  */
 export function messageBody(message: {
 	text?: string;
 	attachments?: SlackAttachment[];
+	files?: SlackFile[];
 }): string {
 	if (message.text?.trim()) return message.text;
+	const images = (message.files ?? [])
+		.filter((f) => f.mimetype?.startsWith("image/") && f.url_private)
+		.map((f) => f.url_private);
+	if (!message.attachments?.length && images.length) return images.join("\n");
 	return (message.attachments ?? [])
 		.map(
 			(a) =>
@@ -250,6 +262,14 @@ export function isGreeting(line: string): boolean {
 			// never the message either.
 			.replace(/[^\p{L}\p{N}]+/gu, "") === ""
 	);
+}
+
+/** The image a message is nothing but, or null: see `messageBody`. */
+export function onlyImage(text: string): string | null {
+	const lines = text.trim().split("\n");
+	return lines.every((l) => l.startsWith("https://files.slack.com/"))
+		? lines[0]
+		: null;
 }
 
 /** A one-line label for a message - first line that says something, capped. */

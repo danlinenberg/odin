@@ -52,6 +52,8 @@ export interface AllItem {
 	title: string;
 	/** Upstream link. My own tasks have none: they only exist in Odin. */
 	url: string | null;
+	/** A message that is only a screenshot: its src, shown in place of text. */
+	image?: string;
 	/** Who it's from - the reporter, the author, the person who asked. */
 	person: string | null;
 	/** Where it stands upstream. My own tasks have no status but done. */
@@ -164,6 +166,7 @@ export function allItems(
 			postedAt: string;
 			/** When Odin first saw the :eyes:. Optional: older callers predate it. */
 			firstSeenAt?: number;
+			image?: string | null;
 		}[];
 		jira: {
 			key: string;
@@ -292,7 +295,13 @@ export function allItems(
 					dueDate: null,
 					mention: null,
 					ask: { kind: "asked", at: row.firstSeenAt ?? ms(row.postedAt) },
-					body: row.text || null,
+					// Read through Odin, which holds the Slack token (main/index.ts).
+					...(row.image
+						? {
+								image: `odin-attachment://slack/${encodeURIComponent(row.image)}`,
+							}
+						: {}),
+					body: row.image ? null : row.text || null,
 					details: facts([
 						["Channel", row.channelName],
 						["From", row.authorName],
