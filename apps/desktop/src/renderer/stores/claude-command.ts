@@ -32,7 +32,6 @@ export type RemoteControlMode = "off" | "all" | "selected";
 
 export const RECENT_REPOS = 5;
 
-/** Dialog picks alone left Recent empty: most sessions start elsewhere or let the agent pick. */
 export function recentRepoChoices(
 	picked: string[],
 	sessionRepos: string[],
