@@ -386,26 +386,77 @@ async function pullRequestApproval(
 		},
 		token,
 	).catch(() => null);
-	if (!response?.ok) return null;
-	const payload = (await response.json().catch(() => null)) as {
-		data?: {
-			repository?: {
-				pullRequest?: {
-					reviewDecision?: string | null;
-					title?: string;
-					state?: string;
+	const payload = response?.ok
+		? ((await response.json().catch(() => null)) as {
+				data?: {
+					repository?: {
+						pullRequest?: {
+							reviewDecision?: string | null;
+							title?: string;
+							state?: string;
+						};
+					} | null;
 				};
-			} | null;
-		};
-	} | null;
-	const pr = payload?.data?.repository?.pullRequest;
-	return pr
-		? {
-				approved: pr.reviewDecision === "APPROVED",
-				title: pr.title ?? null,
-				open: pr.state === "OPEN",
-			}
+			} | null)
 		: null;
+	const pr = payload?.data?.repository?.pullRequest;
+	if (pr)
+		return {
+			approved: pr.reviewDecision === "APPROVED",
+			title: pr.title ?? null,
+			open: pr.state === "OPEN",
+		};
+	// GraphQL's hourly quota is shared by every tool on the account; REST has its own.
+	return restPullRequestApproval(owner, name, number, token);
+}
+
+/**
+ * The same answer from REST: the PR, then its reviews. Approved when someone's
+ * latest review approves and nobody's latest asks for changes - GraphQL's
+ * reviewDecision also weighs required reviewers and code owners, which REST
+ * doesn't expose in one call.
+ */
+async function restPullRequestApproval(
+	owner: string,
+	name: string,
+	number: string,
+	token: string,
+): Promise<{ approved: boolean; title: string | null; open: boolean } | null> {
+	const base = `https://api.github.com/repos/${owner}/${name}/pulls/${number}`;
+	const read = async <T>(url: string): Promise<T | null> => {
+		const response = await githubApiFetch(url, {}, token).catch(() => null);
+		return response?.ok
+			? ((await response.json().catch(() => null)) as T | null)
+			: null;
+	};
+	const pull = await read<{ title?: string; state?: string }>(base);
+	if (!pull) return null;
+	const reviews =
+		(await read<{ user?: { login?: string } | null; state?: string }[]>(
+			`${base}/reviews?per_page=100`,
+		)) ?? [];
+	return {
+		approved: reviewsApprove(reviews),
+		title: pull.title ?? null,
+		open: pull.state === "open",
+	};
+}
+
+/** Each reviewer's latest approve or request-changes counts; comments don't change it. */
+export function reviewsApprove(
+	reviews: { user?: { login?: string } | null; state?: string }[],
+): boolean {
+	const latest = new Map<string, string>();
+	for (const review of reviews) {
+		const login = review.user?.login;
+		if (
+			login &&
+			(review.state === "APPROVED" || review.state === "CHANGES_REQUESTED")
+		)
+			latest.set(login, review.state);
+	}
+	const states = [...latest.values()];
+	return states.includes("APPROVED") && !states.includes("CHANGES_REQUESTED");
 }
 
 /** Watched PRs that merged or closed: no approval left to wait for, so no more calls. */
