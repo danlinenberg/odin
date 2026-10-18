@@ -51,6 +51,7 @@ import {
 	LuPlus,
 	LuRadioTower,
 	LuRepeat,
+	LuRotateCw,
 	LuSquareTerminal,
 	LuStar,
 	LuTerminal,
@@ -1453,6 +1454,7 @@ function TagMenu({
 	onStar,
 	onDone,
 	onPark,
+	onRestart,
 	onRemind,
 	watching,
 	watchWhat,
@@ -1476,6 +1478,8 @@ function TagMenu({
 	onDone: () => void;
 	/** Set unless it already sits in Idle. */
 	onPark?: () => void;
+	/** Set while the session has a conversation to reopen. */
+	onRestart?: () => void;
 	onRemind: (day: string) => void;
 	/** Whether the session's thread or PR pings you; unset when it has neither. */
 	watching?: boolean;
@@ -1565,6 +1569,20 @@ function TagMenu({
 				>
 					<LuPause className="size-3" aria-hidden />
 					Move to Idle
+				</button>
+			)}
+			{onRestart && (
+				<button
+					type="button"
+					title="Quit Claude and reopen this conversation - picks up a new login or API key"
+					onClick={() => {
+						onRestart();
+						onClose();
+					}}
+					className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-foreground"
+				>
+					<LuRotateCw className="size-3" aria-hidden />
+					Restart session
 				</button>
 			)}
 			<div className="mb-1.5 border-b border-border pb-1.5">
@@ -3921,9 +3939,15 @@ function DevBoardPage() {
 
 	/**
 	 * `prompt` replaces the opening "Continue" (or the idle prompt): a "Do it"
-	 * on an ended session reopens it already working on that item.
+	 * on an ended session reopens it already working on that item. `restart`
+	 * respawns a live session too, so Claude picks up a new login or API key.
 	 */
-	const resumeCard = async (card: BoardCard, auto = false, prompt?: string) => {
+	const resumeCard = async (
+		card: BoardCard,
+		auto = false,
+		prompt?: string,
+		restart = false,
+	) => {
 		if (resumingPaneIds.includes(card.pane.id)) return;
 		// Never started: there's no conversation to resume, only the launch that
 		// was held back. Run it now - that's what "Start now" meant on the toast
@@ -3944,7 +3968,7 @@ function DevBoardPage() {
 		// Resume kills the PTY first, so on a session that's mid-turn it's an
 		// interrupt wearing a Resume label - it throws away the running turn.
 		// Live pane + live status (not the drawer's stale snapshot card).
-		if (isWorkingNow(card.pane.id)) {
+		if (!restart && isWorkingNow(card.pane.id)) {
 			toast.error("Session is still working - nothing to resume");
 			return;
 		}
@@ -3958,7 +3982,7 @@ function DevBoardPage() {
 		const opening = prompt
 			? `'${prompt.replaceAll("'", "'\\''")}'`
 			: "Continue";
-		if (agentPaneIds.has(card.pane.id) && !shellOnScreen) {
+		if (!restart && agentPaneIds.has(card.pane.id) && !shellOnScreen) {
 			if (!auto) openDrawer(card);
 			const blocker = await resumeBlocker(card.pane, sessionCwd(card.pane));
 			if (blocker) {
@@ -4845,6 +4869,11 @@ function DevBoardPage() {
 					onPark={
 						tagMenuCard && tagMenuCard.status !== "idle"
 							? () => void parkCard(tagMenuCard)
+							: undefined
+					}
+					onRestart={
+						tagMenuCard && !tagMenuCard.pane.odinQueued
+							? () => void resumeCard(tagMenuCard, false, undefined, true)
 							: undefined
 					}
 					onRemind={(day) => tagMenuCard && remindMe(tagMenuCard, day)}
@@ -5812,7 +5841,7 @@ function DevBoardPage() {
 							<button
 								type="button"
 								aria-label="More session actions"
-								title="Everything the board card's right-click menu has: star, ping me, Remote Control, save as doc, tags"
+								title="Everything the board card's right-click menu has: star, restart, ping me, Remote Control, save as doc, tags"
 								onClick={(event) => {
 									const box = event.currentTarget.getBoundingClientRect();
 									setTagMenu({
