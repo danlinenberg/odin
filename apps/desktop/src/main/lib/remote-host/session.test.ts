@@ -2,8 +2,10 @@ import { describe, expect, test } from "bun:test";
 import {
 	attachScript,
 	hostFiles,
+	hostNote,
 	httpsCloneUrl,
 	issueTicket,
+	mainCheckoutOf,
 	parseSetupToken,
 	type RemoteSessionSpec,
 	redeemTicket,
@@ -117,4 +119,25 @@ test("a session with a repo starts in its own worktree, with Odin's port", () =>
 test("a clone URL names its repo", () => {
 	expect(repoNameOf("https://github.com/o/odin.git")).toBe("odin");
 	expect(repoNameOf("https://github.com/o/odin/")).toBe("odin");
+});
+
+test("a gone session worktree still names its repo", () => {
+	expect(mainCheckoutOf("/Users/d/dev/x/.worktrees/so-we-have-i4cj")).toBe(
+		"/Users/d/dev/x",
+	);
+	expect(mainCheckoutOf("/Users/d/dev/x")).toBe("/Users/d/dev/x");
+});
+
+test("a task with no repo gets the known repos and the commands for its worktree", () => {
+	const note = hostNote({
+		user: "ubuntu",
+		name: "odin-remote",
+		repoName: null,
+		pane: "0d202ff3aa",
+		known: ["https://github.com/o/a.git"],
+	});
+	expect(note).toContain("- https://github.com/o/a.git");
+	expect(note).toContain(
+		"worktree add -b odin/0d202ff3 /home/ubuntu/repos/<name>/.worktrees/odin-0d202ff3",
+	);
 });

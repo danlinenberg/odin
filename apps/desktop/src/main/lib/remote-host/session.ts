@@ -228,14 +228,24 @@ export function hostNote(spec: {
 	name: string;
 	repoName: string | null;
 	pane: string;
+	/** Clone URLs of the repos Odin knows, for a task with no repo. */
+	known?: string[];
 }): string {
 	const repos = `${hostHome(spec.user)}/repos`;
 	return [
 		"",
-		`You run on ${spec.name}, a Linux server, not on my computer. Odin answers at http://127.0.0.1:$ODIN_PORT as usual, but its worktree action and its Shell work on my computer, so don't use them from here.`,
+		`You run on ${spec.name}, a Linux server, not on my computer. Odin answers at http://127.0.0.1:$ODIN_PORT as usual, but its worktree action and its Shell work on my computer, so don't use them from here: make worktrees yourself, as below.`,
 		spec.repoName
 			? `Your worktree of ${spec.repoName} is the folder you start in, on branch ${sessionBranch(spec.pane)}. Push it and open the PR from here with gh. If that folder is not a git repository, clone the repo into ${repos} yourself.`
-			: `No repo was picked for this task. To work on one, clone it into ${repos} with git clone https://github.com/<owner>/<repo>, make your own worktree there with git worktree add, and work in it.`,
+			: [
+					`No repo was picked for this task: pick the one it is about. Clone it with git clone <url> ${repos}/<name> (skip that if it is already there), then git -C ${repos}/<name> worktree add -b ${sessionBranch(spec.pane)} ${repos}/<name>/.worktrees/${worktreeDir(spec.pane)} origin/HEAD, and work there.`,
+					...(spec.known?.length
+						? [
+								"The repos on my computer:",
+								...spec.known.map((url) => `- ${url}`),
+							]
+						: []),
+				].join("\n"),
 		"git and gh are signed in to GitHub with my account.",
 	].join("\n");
 }
@@ -247,3 +257,7 @@ export const repoNameOf = (url: string) =>
 		.split("/")
 		.pop()
 		?.replace(/\.git$/, "") || null;
+
+/** The main checkout a session worktree path belongs to: <repo>/.worktrees/<name>. */
+export const mainCheckoutOf = (path: string) =>
+	path.replace(/\/\.worktrees\/[^/]+\/?$/, "");

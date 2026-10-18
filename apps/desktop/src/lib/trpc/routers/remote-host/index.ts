@@ -17,6 +17,7 @@ import {
 	hostNote,
 	httpsCloneUrl,
 	issueTicket,
+	mainCheckoutOf,
 	repoNameOf,
 	secretsFile,
 	sh,
@@ -25,6 +26,25 @@ import { resolveElectronBinary } from "main/lib/terminal-host/electron-binary";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
 import { readOdinConfig, updateOdinConfig } from "../odin-config";
+import { scanRepos } from "../repos";
+
+const run = promisify(execFile);
+
+/** A checkout's origin as an https clone URL, or null. */
+const originOf = (path: string) =>
+	run("git", ["-C", path, "remote", "get-url", "origin"])
+		.then(({ stdout }) => httpsCloneUrl(stdout))
+		.catch(() => null);
+
+/**
+ * Every repo Odin knows on this computer, by clone URL, so an agent on the
+ * host can pick the one its task is about the way a local agent picks a
+ * folder.
+ */
+async function knownRepos(): Promise<string[]> {
+	const urls = await Promise.all((await scanRepos()).map(originOf));
+	return [...new Set(urls.filter((url): url is string => Boolean(url)))].sort();
+}
 
 /** A file small enough to copy to the host with the prompt. */
 function isSmallFile(path: string): boolean {
@@ -150,18 +170,11 @@ export const createRemoteHostRouter = () =>
 				const host = readOdinConfig().remoteHost;
 				if (!host?.on) throw new Error("No remote host is on.");
 				const { repoPath, ...rest } = input;
-				// The repo is its origin: a session worktree's folder name, or a
-				// folder that is gone, says nothing the host can clone.
+				// The repo is its origin. A session worktree that is gone still
+				// names its repo: it lived at <repo>/.worktrees/<name>.
 				const origin = repoPath
-					? await promisify(execFile)("git", [
-							"-C",
-							repoPath,
-							"remote",
-							"get-url",
-							"origin",
-						])
-							.then(({ stdout }) => httpsCloneUrl(stdout))
-							.catch(() => null)
+					? ((await originOf(repoPath)) ??
+						(await originOf(mainCheckoutOf(repoPath))))
 					: null;
 				const repoName = origin ? repoNameOf(origin) : null;
 				const { prompt, files } = rest.prompt
@@ -180,6 +193,7 @@ export const createRemoteHostRouter = () =>
 										name: host.name || host.instanceId,
 										repoName,
 										pane: rest.pane,
+										known: repoName ? [] : await knownRepos(),
 									}),
 						files,
 						repoName,
