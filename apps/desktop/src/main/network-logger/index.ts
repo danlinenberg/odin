@@ -92,8 +92,6 @@ export async function startNetworkLogger(): Promise<void> {
 	if (started) return;
 	archivePreviousSession();
 	pruneOldSessions();
-	// ponytail: opt-in only. Always-on cost 1 GiB/session on disk plus continuous
-	// writes; nothing in this repo reads the logs. Set ODIN_NETLOG=1 to record.
 	if (process.env.ODIN_NETLOG !== "1") {
 		removeAllSessions();
 		return;

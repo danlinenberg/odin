@@ -14,8 +14,7 @@ export const LAUNCH_REACTION = "robot_face";
 
 /**
  * `:eyes:`, `eyes`, ` Eyes ` → `eyes`. Slack names reactions, so a pasted
- * glyph (👀) is not accepted - ponytail: add a unicode→name table if typing
- * the name ever grates.
+ * glyph (👀) is not accepted.
  */
 export function normalizeReaction(name: string): string {
 	return (
@@ -171,9 +170,6 @@ export function untilNextQueued<
  * message is newer than half of what is on it. The only honest answer for a
  * missing row is a `reactions.get` about that one message.
  *
- * ponytail: a few per sync, least-recently-confirmed first, and the caller
- * bumps `lastSeenAt` on every answer - so the queue rotates through in a
- * handful of polls instead of costing one call per row every two minutes.
  * Raise the budget if a queue ever grows faster than it rotates.
  */
 export function rowsToVerify<
@@ -239,9 +235,6 @@ export function replaceMentions(
  * "@Dan Linenberg 🙏". Slack messages open with one routinely, and titling a
  * message by its first line then puts the greeting on the board card and
  * leaves the actual ask off it - and out of every search over titles.
- *
- * ponytail: a word list, not language detection. A greeting it doesn't know
- * costs one mistitled card, which is exactly what happens today anyway.
  */
 export function isGreeting(line: string): boolean {
 	return (
@@ -314,9 +307,6 @@ export function reactionStatus(row: {
  * The stored channel name as something worth reading. Group DMs come back from
  * Slack under their internal name - `mpdm-dan.l--netanel--shahar-1` - which is
  * not a channel and should not wear a `#`.
- *
- * ponytail: the member list keeps you in it, because the label is built where
- * the identity isn't known. Drop self here if it ever reads as noise.
  */
 export function channelLabel(name: string | null): string | null {
 	if (!name) return null;

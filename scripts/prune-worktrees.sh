@@ -110,8 +110,6 @@ pruned_ref() { # pruned_ref <name> - a path keeps its slashes, so two paths neve
 }
 save_files() { # save_files <worktree> <name>
 	# A throwaway index, so the worktree's own staging is left as it was.
-	# ponytail: an untracked multi-GB file lands in the repo's objects too;
-	# skip on size if that ever happens.
 	local index snapshot
 	index="$(mktemp)"
 	GIT_INDEX_FILE="$index" git -C "$1" read-tree HEAD

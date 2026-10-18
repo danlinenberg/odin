@@ -167,9 +167,6 @@ const NAV_HOTKEY_OPTIONS = {
  * The load badge's colour: the app's own status palette, walked up as the Mac
  * gets tighter - grey while there's slack, amber when it's filling up, red
  * when agents are queueing or the memory is gone.
- *
- * ponytail: amber is 15% CPU / 1 GB / 10 disk points short of the limits that
- * gate a launch, eyeballed - it only picks a colour.
  */
 function badgeTone(load: MachineLoad, limits: LaunchLimits): string {
 	if (load.busy) {

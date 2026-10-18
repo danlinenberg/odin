@@ -22,7 +22,17 @@ export function awsProfile(
  * until the user approves there. The aws CLI is already on a Mac whose Claude
  * runs on Bedrock SSO - that is what printed the error.
  */
-export async function awsSsoLogin(): Promise<{ profile: string | null }> {
+export function awsSsoLogin(): Promise<{ profile: string | null }> {
+	// Sessions that hit the expired token together share one sign-in, not a tab each.
+	pending ??= runSsoLogin().finally(() => {
+		pending = null;
+	});
+	return pending;
+}
+
+let pending: Promise<{ profile: string | null }> | null = null;
+
+async function runSsoLogin(): Promise<{ profile: string | null }> {
 	const profile = awsProfile();
 	await execWithShellEnv(
 		"aws",

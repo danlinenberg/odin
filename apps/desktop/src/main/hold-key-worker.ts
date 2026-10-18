@@ -114,7 +114,6 @@ async function hold(
 	held.set(
 		sessionId,
 		setInterval(() => {
-			// ponytail: a 60s cap, for a release that never arrives.
 			if (s.destroyed || Date.now() - started > 60_000) {
 				release(sessionId);
 				return;

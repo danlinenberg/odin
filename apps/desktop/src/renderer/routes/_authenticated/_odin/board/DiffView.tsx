@@ -7,6 +7,7 @@ import { DIFF_POOL_RENDER_OPTIONS } from "renderer/screens/main/components/Works
 import { pullRequests } from "./brief";
 import { typeIntoClaude } from "./ChatView";
 import {
+	BRANCH,
 	commentTarget,
 	type ReviewComment,
 	reviewMessage,
@@ -20,9 +21,9 @@ type Draft = Omit<ReviewComment, "id" | "text">;
  * runs in, one file at a time, rendered by @pierre/diffs (the app's own diff
  * engine, themed by the worker pool) - nothing to install on the machine.
  *
- * The header picks which diff: the working tree or any PR the session opened -
- * a session that shipped five PRs is five diffs, and the working tree is
- * usually none of them.
+ * The header picks which diff: the working tree, the branch's commits since
+ * it left main (no PR needed), or any PR the session opened - a session that
+ * shipped five PRs is five diffs, and the working tree is usually none of them.
  *
  * It is also a review: drag the gutter's + over lines to comment on them, then
  * send every comment on the diff to the session as one message - the agent gets
@@ -45,8 +46,11 @@ export function DiffView({
 	claudeSessionId: string | null;
 	workspaceId: string;
 }) {
-	/** The PR on screen; null is the checkout's own diff. */
-	const [pr, setPr] = useState<string | null>(null);
+	/** The diff on screen: null is the checkout's uncommitted work, BRANCH
+	 * everything its branch did since it left main, else a PR's url. */
+	const [choice, setChoice] = useState<string | null>(null);
+	const branch = choice === BRANCH;
+	const pr = branch ? null : choice;
 	/** The file on screen. One at a time, so scrolling stops at its end
 	 * instead of running on into the next file. */
 	const [selected, setSelected] = useState(0);
@@ -94,7 +98,7 @@ export function DiffView({
 	});
 	/** Only what the agent changed after the review, not the whole change. */
 	const [showSince, setShowSince] = useState(false);
-	const sinceReview = !pr && showSince ? since : null;
+	const sinceReview = !choice && showSince ? since : null;
 
 	const { data, error, isFetching, refetch } = electronTrpc.repos.diff.useQuery(
 		{
@@ -102,6 +106,7 @@ export function DiffView({
 			claudeSessionId,
 			workspaceId,
 			pr,
+			branch,
 			wholeFile: !pr && wholeFile,
 			since: sinceReview,
 		},
@@ -138,7 +143,7 @@ export function DiffView({
 	const files = data?.files ?? [];
 	const current = files[Math.min(selected, files.length - 1)];
 
-	const review = comments.filter((comment) => comment.pr === pr);
+	const review = comments.filter((comment) => comment.pr === choice);
 	const unsent = review.filter((comment) => !comment.sent);
 	const annotations: DiffLineAnnotation<{ id: string | null }>[] = current
 		? [
@@ -149,7 +154,7 @@ export function DiffView({
 						lineNumber: comment.lineNumber,
 						metadata: { id: comment.id },
 					})),
-				...(draft?.pr === pr && draft.path === current.path
+				...(draft?.pr === choice && draft.path === current.path
 					? [
 							{
 								side: draft.side,
@@ -165,7 +170,7 @@ export function DiffView({
 		setSendError(null);
 		try {
 			// Before the message, so the snapshot is the code the review is about.
-			if (!pr) {
+			if (!choice) {
 				const { tree } = await snapshot.mutateAsync({
 					cwd,
 					claudeSessionId,
@@ -179,11 +184,11 @@ export function DiffView({
 			await typeIntoClaude(
 				write.mutateAsync,
 				paneId,
-				reviewMessage(unsent, pr),
+				reviewMessage(unsent, choice),
 			);
 			saveComments(
 				comments.map((comment) =>
-					comment.pr === pr ? { ...comment, sent: true } : comment,
+					comment.pr === choice ? { ...comment, sent: true } : comment,
 				),
 			);
 		} catch (sendFailure) {
@@ -213,32 +218,31 @@ export function DiffView({
 				<span className="rounded bg-primary/15 px-1.5 py-0.5 normal-case tracking-normal text-primary">
 					⑂ Diff
 				</span>
-				{prs.length > 0 && (
-					<select
-						value={pr ?? ""}
-						onChange={(event) => {
-							setPr(event.target.value || null);
-							setSelected(0);
-						}}
-						title="Which diff to show"
-						className="rounded-[5px] border border-border bg-card px-1.5 py-0.5 text-[11px] normal-case tracking-normal text-soft-foreground outline-none hover:border-input"
-					>
-						<option value="">Working tree</option>
-						{[...byRepo].map(([repo, links]) => (
-							<optgroup key={repo} label={repo}>
-								{links.map((link) => {
-									const state = prStates?.[link.url]?.state;
-									return (
-										<option key={link.url} value={link.url}>
-											#{link.number}
-											{state ? ` · ${state.toLowerCase()}` : ""}
-										</option>
-									);
-								})}
-							</optgroup>
-						))}
-					</select>
-				)}
+				<select
+					value={choice ?? ""}
+					onChange={(event) => {
+						setChoice(event.target.value || null);
+						setSelected(0);
+					}}
+					title="Which diff to show"
+					className="rounded-[5px] border border-border bg-card px-1.5 py-0.5 text-[11px] normal-case tracking-normal text-soft-foreground outline-none hover:border-input"
+				>
+					<option value="">Working tree</option>
+					<option value={BRANCH}>Branch commits</option>
+					{[...byRepo].map(([repo, links]) => (
+						<optgroup key={repo} label={repo}>
+							{links.map((link) => {
+								const state = prStates?.[link.url]?.state;
+								return (
+									<option key={link.url} value={link.url}>
+										#{link.number}
+										{state ? ` · ${state.toLowerCase()}` : ""}
+									</option>
+								);
+							})}
+						</optgroup>
+					))}
+				</select>
 				<span title={data?.cwd}>
 					{data
 						? pr
@@ -246,7 +250,7 @@ export function DiffView({
 							: `${data.cwd.split("/").pop()} · ${data.source}`
 						: "…"}
 				</span>
-				{!pr && since && (
+				{!choice && since && (
 					<button
 						type="button"
 						onClick={() => {
@@ -272,7 +276,7 @@ export function DiffView({
 								? "Showing the whole file - click to show only the changes"
 								: "Showing only the changes - click to scroll the whole file"
 						}
-						className={`${since ? "" : "ml-auto "}normal-case tracking-normal hover:underline ${wholeFile ? "text-primary" : "text-muted-foreground"}`}
+						className={`${!choice && since ? "" : "ml-auto "}normal-case tracking-normal hover:underline ${wholeFile ? "text-primary" : "text-muted-foreground"}`}
 					>
 						{wholeFile ? "≡ whole file" : "± changes only"}
 					</button>
@@ -313,7 +317,9 @@ export function DiffView({
 						<button
 							type="button"
 							onClick={() =>
-								saveComments(comments.filter((comment) => comment.pr !== pr))
+								saveComments(
+									comments.filter((comment) => comment.pr !== choice),
+								)
 							}
 							title="Drop every comment on this diff, sent or not"
 							className="normal-case tracking-normal text-muted-foreground hover:underline"
@@ -407,7 +413,7 @@ export function DiffView({
 					)}
 					{current ? (
 						<PatchDiff
-							key={`${pr}:${current.path}`}
+							key={`${choice}:${current.path}`}
 							patch={current.patch}
 							options={{
 								...DIFF_POOL_RENDER_OPTIONS,
@@ -422,7 +428,7 @@ export function DiffView({
 								enableGutterUtility: true,
 								onGutterUtilityClick: (range) =>
 									setDraft({
-										pr,
+										pr: choice,
 										path: current.path,
 										...commentTarget(current.patch, current.path, range),
 									}),
@@ -462,9 +468,11 @@ export function DiffView({
 							<div className="px-4 py-3 text-[12px] text-muted-foreground">
 								{pr
 									? "This PR has no changes."
-									: sinceReview
-										? "No changes since the last review was sent."
-										: "Nothing from this session - no changes of its own here, and the last commit is not its."}
+									: branch
+										? "No commits or edits on this branch since it left its base branch."
+										: sinceReview
+											? "No changes since the last review was sent."
+											: "Nothing from this session - no changes of its own here, and the last commit is not its."}
 							</div>
 						)
 					)}

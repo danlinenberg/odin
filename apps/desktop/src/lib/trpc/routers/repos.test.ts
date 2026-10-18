@@ -6,6 +6,7 @@ import { join } from "node:path";
 import {
 	createReposRouter,
 	detectReposFolder,
+	renderBranchDiff,
 	renderDiff,
 	renderPullRequestDiff,
 	renderSinceDiff,
@@ -140,6 +141,42 @@ test("renderDiff shows uncommitted work, and the last commit when there is none"
 	expect((await renderDiff(repo, undefined, true)).files[0].patch).toContain(
 		" line 0",
 	);
+});
+
+test("renderBranchDiff shows a branch's commits and edits since main, with no PR", async () => {
+	const repo = mkdtempSync(join(tmpdir(), "odin-branch-diff-"));
+	const git = (...args: string[]) =>
+		execFileSync("git", args, { cwd: repo, encoding: "utf8" });
+	git("init", "-q", "-b", "main");
+	git("config", "user.email", "test@example.com");
+	git("config", "user.name", "test");
+	writeFileSync(join(repo, "base.txt"), "base\n");
+	git("add", "base.txt");
+	git("commit", "-qm", "base");
+
+	// On main itself there is no base to compare with.
+	expect((await renderBranchDiff(repo)).files).toEqual([]);
+
+	git("checkout", "-qb", "feature");
+	writeFileSync(join(repo, "a.txt"), "one\n");
+	git("add", "a.txt");
+	git("commit", "-qm", "a");
+	writeFileSync(join(repo, "b.txt"), "two\n");
+	git("add", "b.txt");
+	git("commit", "-qm", "b");
+	// main moves on after the branch left it: not part of the branch's diff.
+	git("checkout", "-q", "main");
+	writeFileSync(join(repo, "later.txt"), "later\n");
+	git("add", "later.txt");
+	git("commit", "-qm", "later");
+	git("checkout", "-q", "feature");
+	// An edit not committed yet rides along.
+	writeFileSync(join(repo, "a.txt"), "one\nmore\n");
+
+	const diff = await renderBranchDiff(repo);
+	expect(diff.source).toBe("feature vs main · 2 commits");
+	expect(diff.files.map((file) => file.path)).toEqual(["a.txt", "b.txt"]);
+	expect(diff.files[0].patch).toContain("+more");
 });
 
 test("renderPullRequestDiff reads the PR through gh, and says when nobody can", async () => {

@@ -105,7 +105,6 @@ export async function changedFiles(dir: string): Promise<string[]> {
 		git("diff", "--name-only", "--diff-filter=d", base),
 		git("ls-files", "--others", "--exclude-standard", "--full-name", ":/"),
 	]);
-	// ponytail: first 30 files, a page of editor tabs; a bigger PR is reviewed in the diff view
 	return [...new Set(`${diff}\n${untracked}`.split("\n"))]
 		.filter(Boolean)
 		.slice(0, 30)

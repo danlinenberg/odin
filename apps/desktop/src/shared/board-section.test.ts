@@ -119,3 +119,25 @@ describe("bySection with recently finished cards", () => {
 		]);
 	});
 });
+
+describe("bySection waiting", () => {
+	it("lifts waiting cards into their own section, after Queued", () => {
+		const grouped = bySection(
+			[
+				card({ id: "a", odinSource: "jira" }),
+				card({ id: "b", odinSource: "jira" }),
+				card({ id: "c", odinQueued: { command: "claude", reason: "busy" } }),
+				card({ id: "d", odinParked: true }),
+			],
+			() => false,
+			(c) => c.pane.id === "b" || c.pane.id === "d",
+		);
+		expect(
+			grouped.map(([section, group]) => [section, group.map((c) => c.pane.id)]),
+		).toEqual([
+			["queued", ["c"]],
+			["waiting", ["b", "d"]],
+			["jira", ["a"]],
+		]);
+	});
+});

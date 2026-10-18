@@ -394,10 +394,6 @@ export function DueChip({
  * Thursday says so on Thursday whether or not the feed that set it is open.
  * Once a day per row, and again each day it stays overdue, which is the whole
  * point of having written the date down.
- *
- * ponytail: a reminder on a row that's since been closed upstream keeps
- * pinging until it's cleared - join against the live feeds here if that turns
- * into a nuisance.
  */
 export function useDueReminders(upstream: UpstreamDue[]): void {
 	// Read through a ref: the ping runs on a timer, not on a render, and

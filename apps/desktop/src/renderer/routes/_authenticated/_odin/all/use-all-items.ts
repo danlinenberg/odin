@@ -4,6 +4,7 @@ import { isClosedStatus } from "../components/search-all";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useMyTasks } from "../hooks/useOdinTasks";
 import { type AllItem, allItems, urgencyOf } from "./all-items";
+import { mergeDuplicates } from "./merge-duplicates";
 import { useTitleOverrides } from "./title-overrides";
 
 /** Every feed through allItems, under your own names, plus the Done check. */
@@ -63,11 +64,14 @@ function useItems(everything: boolean) {
 
 /**
  * The All feed's rows: every source, minus what's Done. Read later is a
- * Done too - it lists under Docs.
+ * Done too - it lists under Docs. The same task from several feeds is one row.
  */
 export function useAllItems(): AllItem[] {
 	const { items, isDone } = useItems(false);
-	return useMemo(() => items.filter((item) => !isDone(item)), [items, isDone]);
+	return useMemo(
+		() => mergeDuplicates(items.filter((item) => !isDone(item))),
+		[items, isDone],
+	);
 }
 
 /**

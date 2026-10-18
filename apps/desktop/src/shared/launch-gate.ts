@@ -17,9 +17,6 @@ const OWNS_ITS_CHECKOUT = new Set(["working", "permission"]);
 /**
  * One path inside the other - the same checkout. Odin's `.worktrees/` lives
  * inside it, and a launch into `repo/apps/x` still edits `repo`.
- * ponytail: nesting by path, not by git root - a repo launch aimed at a parent
- * folder holds every repo under it. Feed launches claim nothing (see
- * claimedCheckout), so only an explicit pick of that folder hits this.
  */
 function sameCheckout(a: string, b: string): boolean {
 	return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);

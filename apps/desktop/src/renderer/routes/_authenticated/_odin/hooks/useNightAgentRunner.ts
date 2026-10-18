@@ -47,7 +47,6 @@ export function nightInstructions(sort: string, offHours: string): string {
  * Odin keeps the computer from idle sleep meanwhile, so no Caffeinate is
  * needed. It runs only on power: on battery it starts nothing and lets go. A closed laptop lid still sleeps it: no app can stop that.
  *
- * ponytail: renderer-side and only while Odin is open, same as automations.
  * Move it to main the day it has to run with the window shut.
  *
  * Every decision lands in the store's `nightLog`, so Huginn (and you) can

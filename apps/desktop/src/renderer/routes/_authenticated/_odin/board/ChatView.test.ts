@@ -4,6 +4,7 @@ import {
 	applyLines,
 	applyQueue,
 	arrived,
+	autoSsoLogin,
 	bangCommands,
 	elapsedLabel,
 	interruptClaude,
@@ -689,4 +690,15 @@ describe("itemsFoldLabel - the action items card folds its own items", () => {
 		expect(itemsFoldLabel(true, 5)).toBe("Show 5 items");
 		expect(itemsFoldLabel(true, 1)).toBe("Show 1 item");
 	});
+});
+
+test("autoSsoLogin signs in on its own only for a fresh expired-token reply", () => {
+	const text = "Token expired. Run 'aws sso login' to refresh.";
+	const now = 1_800_000_000_000;
+	expect(autoSsoLogin({ id: "a", text, at: now - 60_000 }, now)).toBe(true);
+	expect(autoSsoLogin({ id: "b", text, at: now - 11 * 60_000 }, now)).toBe(
+		false,
+	);
+	expect(autoSsoLogin({ id: "c", text }, now)).toBe(false);
+	expect(autoSsoLogin({ id: "d", text: "all good", at: now }, now)).toBe(false);
 });

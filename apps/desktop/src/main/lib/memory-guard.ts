@@ -26,7 +26,6 @@ export const KILL_BYTES = 16 * GB;
  * A window renderer leaks over a long unattended run (Night Agent: 4 to 9 GB
  * overnight) until it draws a blank window; a reload frees all of it and
  * sessions live on in the daemon.
- * ponytail: reload is the cure, not the fix - find the leak if this logs often.
  */
 const RELOAD_BYTES = 6 * GB;
 const LOG_PATH = join(ODIN_HOME_DIR, "memory-guard.log");

@@ -159,8 +159,6 @@ export function OdinPromptDialog({
 
 	// Skill picker: type `/` and the agent's own skills/commands are searchable.
 	// Picking one drops its `/name` into the prompt - the agent invokes it.
-	// ponytail: only a slash token at the END of the text opens the menu;
-	// mid-text insertion isn't supported (nobody composes that way).
 	const { data: skills = [] } = electronTrpc.skills.list.useQuery();
 	const { data: repos = [] } = electronTrpc.repos.list.useQuery(undefined, {
 		enabled: repoPicker,
@@ -194,8 +192,6 @@ export function OdinPromptDialog({
 		if (accepted.length === 0) return;
 		const read = await Promise.all(
 			accepted.map(async (file) => {
-				// ponytail: a video that's already on disk is cited by path, never
-				// base64'd - a screen recording through IPC wedges the renderer.
 				// Pasted video (no path) still falls back to bytes.
 				const path = file.type.startsWith("video/")
 					? window.webUtils.getPathForFile(file)
@@ -407,8 +403,6 @@ export function OdinPromptDialog({
 						+ Attach
 					</button>
 					{repoPicker && (
-						// ponytail: native <datalist> - Chromium does the search-as-you-type
-						// popup over ~100 paths for free. Blank = the agent picks.
 						<>
 							<input
 								list="odin-repos"

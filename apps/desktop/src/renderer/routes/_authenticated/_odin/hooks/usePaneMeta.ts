@@ -230,8 +230,6 @@ export const usePaneMeta = create<{
 						const { [paneId]: _, ...rest } = map;
 						return rest;
 					};
-					// ponytail: kept entries are never pruned - a few strings per
-					// finished session; prune by age if localStorage ever complains.
 					const sid = sessionId ?? s.sessionIdByPane[paneId];
 					const kept: KeptBrief = {
 						notes: s.notesByPane[paneId],

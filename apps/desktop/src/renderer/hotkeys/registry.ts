@@ -351,6 +351,27 @@ export const HOTKEYS_REGISTRY = {
 		category: "Navigation",
 		description: "Open the session below in the drawer's session list",
 	},
+	// Catch up: one key per card. Only while Catch up is open, and never in a
+	// text box, so Enter and E still type. E is Done, as in Gmail: D is the
+	// Dev Board's rail key.
+	CATCH_UP_ACCEPT: {
+		key: { mac: "enter", windows: "enter", linux: "enter" },
+		label: "Catch up: Take Suggestion",
+		category: "Navigation",
+		description: "Do what Catch up suggests for this card",
+	},
+	CATCH_UP_SKIP: {
+		key: { mac: "right", windows: "right", linux: "right" },
+		label: "Catch up: Skip",
+		category: "Navigation",
+		description: "Leave this card on the board and go to the next one",
+	},
+	CATCH_UP_DONE: {
+		key: { mac: L("e"), windows: L("e"), linux: L("e") },
+		label: "Catch up: Done",
+		category: "Navigation",
+		description: "Mark this card Done and go to the next one",
+	},
 	CLOSE_WORKSPACE: {
 		key: {
 			mac: "meta+shift+backspace",

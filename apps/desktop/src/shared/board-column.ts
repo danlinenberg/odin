@@ -42,9 +42,6 @@ export function boardColumn(
 	// asked for nothing" is a claim about the turn, and the only writer that
 	// knows it is the hook that saw the turn end.
 	if (status === "review") return "review";
-	// ponytail: a Failed column was one more place to look for the same call to
-	// action ("this session needs you"), so failures land in Needs you too - the
-	// card still says it failed.
 	//
 	// Alive-but-idle joins them, and NOT Done: its status was cleared rather
 	// than earned - acknowledging a pane turns "review" into idle, an Esc in
@@ -52,4 +49,26 @@ export function boardColumn(
 	// not working". That's worth a look, not a claim that it finished clean.
 	if (status === "failed" || (alive && status === "idle")) return "permission";
 	return status;
+}
+
+/**
+ * A session you asked Odin to ping you about ("Ping me" on its Slack thread,
+ * Jira ticket or PR) is waiting on someone else, not on you: while nothing new
+ * came in, its Needs you or Done card waits in Idle. A reply or an approval
+ * brings it back to Needs you. A prompt on screen or a failure still needs you,
+ * whatever you are waiting for.
+ *
+ * `watch`: "none" = not pinging; "waiting" = pinging, nothing new;
+ * "replied" = a reply or approval you haven't opened yet.
+ */
+export function withWaiting(
+	column: PaneStatus,
+	status: PaneStatus,
+	watch: "none" | "waiting" | "replied",
+): PaneStatus {
+	if (watch === "none" || (column !== "permission" && column !== "review"))
+		return column;
+	if (watch === "replied") return "permission";
+	if (status === "permission" || status === "failed") return column;
+	return "idle";
 }

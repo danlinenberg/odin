@@ -28,8 +28,6 @@ const FIRST_RUN_MS = 5 * 60 * 1000;
 
 const run = promisify(execFile);
 
-// ponytail: scanned once per launch, like the session picker - a repo cloned
-// since then gets its pass after a restart.
 let repos: Promise<string[]> | null = null;
 
 const SCRIPT = "scripts/prune-worktrees.sh";

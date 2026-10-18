@@ -164,9 +164,6 @@ export function newReplies(
  * Check every watched session's thread on launch and every minute after, and ping
  * for each one someone replied in. Mounted in the shell, so it runs whatever
  * screen is open.
- *
- * ponytail: one 1-minute poll, sequential Slack lookups (Slack's own gate
- * throttles them). Fine for a handful of watches; batch if it grows to dozens.
  */
 export function useReplyWatcher(openSession: (paneId: string) => void): void {
 	const open = useRef(openSession);

@@ -16,7 +16,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { FaGithub, FaSlack } from "react-icons/fa";
-import { LuCheck, LuCloudUpload, LuTrash2 } from "react-icons/lu";
+import { LuCheck, LuCloudUpload, LuLock, LuTrash2 } from "react-icons/lu";
 import { SiClaude, SiClickup, SiGmail, SiJira, SiNotion } from "react-icons/si";
 import {
 	ConnectProvider,
@@ -777,18 +777,23 @@ function OpenLinksInOdinRow() {
 }
 
 /**
- * Odin on your iPhone (main/lib/phone): a LAN server for the mobile app. The
- * QR code carries the token, so scanning it is the whole pairing.
+ * Odin on your iPhone (main/lib/phone, docs/phone-encryption.md): an end to
+ * end encrypted channel, on this Wi-Fi or through a relay. The QR code
+ * carries Odin's public key and a one-time code: scanning it is the pairing.
  */
 function PhoneRow() {
-	const status = electronTrpc.phone.status.useQuery();
+	// Polled: a phone that pairs appears, and the spent code is replaced.
+	const status = electronTrpc.phone.status.useQuery(undefined, {
+		refetchInterval: 5_000,
+	});
 	const onError = (error: { message: string }) => toast.error(error.message);
 	const onSuccess = () => void status.refetch();
 	const setEnabled = electronTrpc.phone.setEnabled.useMutation({
 		onSuccess,
 		onError,
 	});
-	const resetToken = electronTrpc.phone.resetToken.useMutation({
+	const remove = electronTrpc.phone.remove.useMutation({ onSuccess, onError });
+	const unpairAll = electronTrpc.phone.unpairAll.useMutation({
 		onSuccess,
 		onError,
 	});
@@ -798,7 +803,7 @@ function PhoneRow() {
 			<SettingRow
 				label="Phone access"
 				htmlFor="phone-access"
-				description="Open the board and answer sessions from your iPhone on this Wi-Fi. Use on trusted networks only: the connection isn't encrypted."
+				description="Open the board and answer sessions from the Odin iPhone app, on this Wi-Fi or from anywhere."
 			>
 				<Switch
 					id="phone-access"
@@ -812,43 +817,56 @@ function PhoneRow() {
 					{data.error}
 				</div>
 			)}
+			<div className="flex items-start gap-2 px-4 pb-3 text-xs text-muted-foreground">
+				<LuLock className="mt-0.5 size-3.5 shrink-0" />
+				<span>
+					End to end encrypted. Only this Mac and your paired phones can read
+					what passes between them. The relay in between, Odin's included, sees
+					encrypted bytes and nothing else.
+				</span>
+			</div>
 			{data?.state === "on" && (
 				<div className="flex items-start gap-4 px-4 pb-4">
-					{(
-						[
-							["Safari", data.qr],
-							["iPhone app", data.appQr],
-						] as const
-					).map(([label, qr]) => (
-						<figure key={label} className="shrink-0 text-center">
-							<img
-								src={qr}
-								alt={`QR code for Odin in ${label}`}
-								className="size-36 rounded-md"
-							/>
-							<figcaption className="mt-1 text-xs text-muted-foreground">
-								{label}
-							</figcaption>
-						</figure>
-					))}
+					<img
+						src={data.qr}
+						alt="QR code that pairs the Odin iPhone app"
+						className="size-36 shrink-0 rounded-md"
+					/>
 					<div className="min-w-0 space-y-2 text-xs text-muted-foreground">
 						<div>
-							Scan with the iPhone camera. Safari: then Share, Add to Home
-							Screen. iPhone app: it opens Odin and pairs. The phone must be on
-							the same Wi-Fi as this Mac.
+							Scan with the iPhone camera: it opens the Odin app and pairs it.
+							The code works once, for 10 minutes.
 						</div>
-						<div className="break-all font-mono select-text cursor-text">
-							{data.url}
-						</div>
-						<Button
-							variant="outline"
-							size="sm"
-							disabled={resetToken.isPending}
-							onClick={() => resetToken.mutate()}
-						>
-							New link (unpairs every phone)
-						</Button>
 					</div>
+				</div>
+			)}
+			{data?.devices.map((device) => (
+				<SettingRow
+					key={device.key}
+					label={device.name}
+					description={`Paired ${new Date(device.added).toLocaleDateString()}`}
+				>
+					<Button
+						variant="ghost"
+						size="sm"
+						disabled={remove.isPending}
+						onClick={() => remove.mutate({ key: device.key })}
+					>
+						<LuTrash2 className="size-4" />
+						Remove
+					</Button>
+				</SettingRow>
+			))}
+			{!!data?.devices.length && (
+				<div className="px-4 pb-4">
+					<Button
+						variant="outline"
+						size="sm"
+						disabled={unpairAll.isPending}
+						onClick={() => unpairAll.mutate()}
+					>
+						Unpair all phones
+					</Button>
 				</div>
 			)}
 		</>

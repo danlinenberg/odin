@@ -155,8 +155,6 @@ async function lookups(): Promise<SweepDeps> {
 
 /**
  * A PR's reviews, or null when GitHub won't say.
- *
- * ponytail: first 100 reviews only; page if a PR ever collects more.
  */
 async function reviewsOf(
 	ref: Extract<Reference, { kind: "github" }>,

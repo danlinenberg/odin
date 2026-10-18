@@ -22,7 +22,6 @@ export function TonightButton({
 	iconOnly?: boolean;
 }) {
 	const picked = useNextInLinePrompt((s) => s.offHours.picked);
-	// ponytail: one closed dialog per row - cheap at a few hundred rows.
 	const nightIntro = useNightAgentIntro();
 	if (!canPickForTonight(item)) return null;
 	const on = picked.includes(item.key);

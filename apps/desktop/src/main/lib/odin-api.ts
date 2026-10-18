@@ -12,6 +12,9 @@ export const setOdinApiRouter = (router: AnyRouter) => {
 	appRouter = router;
 };
 
+/** The app router called in-process, for main's own callers (the phone). */
+export const appCaller = () => appRouter?.createCaller({});
+
 /** Long answers (a whole settings blob, a transcript) are cut here. */
 const MAX_REPLY = 30_000;
 

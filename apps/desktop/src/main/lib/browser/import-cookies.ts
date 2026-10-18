@@ -151,8 +151,6 @@ export function toCookie(
 	};
 }
 
-// ponytail: the most recently written cookie DB is the browser profile in use;
-// add a browser/profile picker if someone needs a different one.
 export function newestCookieDb(home = os.homedir()) {
 	const support = path.join(home, "Library/Application Support");
 	let newest: {

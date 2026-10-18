@@ -200,8 +200,6 @@ export const settings = sqliteTable("settings", {
 	agentPresetPermissionsMigratedAt: integer(
 		"agent_preset_permissions_migrated_at",
 	),
-	// ponytail: dead since the ringtone picker was removed; kept to avoid a
-	// SQLite table rebuild. Drop it if the settings table is ever migrated.
 	selectedRingtoneId: text("selected_ringtone_id"),
 	activeOrganizationId: text("active_organization_id"),
 	confirmOnQuit: integer("confirm_on_quit", { mode: "boolean" }),
@@ -544,9 +542,6 @@ export const workLog = sqliteTable(
 		cwd: text("cwd"),
 		/** The agent session, for pulling the transcript back up. */
 		sessionId: text("session_id"),
-		// ponytail: outcome columns are written by nothing yet - derive them
-		// from `cwd` on read when something needs them. Capture is what can't
-		// be backfilled; derivation always can.
 		branch: text("branch"),
 		prUrl: text("pr_url"),
 		completedAt: integer("completed_at"),

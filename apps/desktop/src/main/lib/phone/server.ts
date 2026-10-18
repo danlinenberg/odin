@@ -1,53 +1,116 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
-import type { Server } from "node:http";
-import { connect } from "node:net";
+import { mkdir, writeFile } from "node:fs/promises";
+import { createServer, type Server } from "node:http";
 import { hostname } from "node:os";
 import { join } from "node:path";
+import {
+	acceptChannel,
+	type ChannelRequest,
+	type ChannelResponse,
+	connectSocket,
+	type Pipe,
+	relayId,
+	websocketPipe,
+} from "@odin/channel";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import express from "express";
 import QRCode from "qrcode";
-import { env } from "shared/env.shared";
+import { WebSocketServer } from "ws";
 import { ODIN_HOME_DIR } from "../app-environment";
+import { attachments } from "./attachments";
 import { phoneRouter } from "./router";
+import {
+	accept,
+	type Device,
+	devices,
+	hostKey,
+	identity,
+	pairingCode,
+	removeDevice,
+	resetTrust,
+} from "./trust";
 
 /**
- * Settings → Connections → Phone: Odin on your iPhone, over this Wi-Fi. A
- * server on the LAN serves the mobile app (renderer/mobile) and the phone's
- * own router; every call needs the token the QR code carries. Off until you
- * turn it on.
+ * Settings → Connections → Phone: the iPhone app talks to Odin over an
+ * end-to-end encrypted channel (docs/phone-encryption.md, packages/odin-channel):
+ * on the Wi-Fi at ws://<mac>.local:<port>/channel, and from anywhere through
+ * a relay Odin dials out to. Each request that comes out of the channel goes
+ * to the phone's HTTP app, which listens on loopback only. Off until you turn
+ * it on.
  */
-// ponytail: plain HTTP on the LAN - anyone on the Wi-Fi can read the traffic.
-// HTTPS comes with a relay or tunnel.
 
-/** Where the switch and the token live; a test points it at a temp file. */
+/** Where the switch and the relay address live; a test points it at a temp file. */
 export const phoneConfig = { file: join(ODIN_HOME_DIR, "phone.json") };
 const PREFERRED_PORT = 4747;
 
-type Config = { enabled: boolean; token: string };
+/** `relay` is the user's own relay; without one, Odin's default. */
+type Config = { enabled: boolean; relay?: string };
+
+/**
+ * The relay phones use away from the Wi-Fi when the user set none. It only
+ * forwards encrypted bytes (packages/odin-relay). A test clears it.
+ */
+export const relayDefaults = { url: "wss://3-76-62-130.sslip.io" };
+
+const relayInUse = (config: Config) => config.relay || relayDefaults.url;
+
+export type RelayState = "connecting" | "connected";
 
 export type PhoneStatus =
-	| { state: "off" }
-	| { state: "error"; error: string }
-	/** qr opens the page in Safari; appQr opens the iOS app (apps/mobile) to pair. */
-	| { state: "on"; url: string; qr: string; appQr: string };
+	| { state: "off"; relay?: string; devices: Device[] }
+	| { state: "error"; error: string; relay?: string; devices: Device[] }
+	| {
+			state: "on";
+			/** Opens the iPhone app and pairs it; the QR code is the same link. */
+			link: string;
+			qr: string;
+			/** The channel's address on this Wi-Fi. */
+			lan: string;
+			/** The user's own relay, when set. */
+			relay?: string;
+			/** The relay in the QR code: the user's, or the default. */
+			relayInUse?: string;
+			relayState?: RelayState;
+			devices: Device[];
+	  };
 
-let server: Server | null = null;
-let status: PhoneStatus = { state: "off" };
+type Running = {
+	lan: Server;
+	loopback: Server;
+	lanUrl: string;
+	stopRelay: () => void;
+};
+
+let running: Running | null = null;
+let failure: string | null = null;
+let relayState: RelayState = "connecting";
+/** Open channels by phone key, so removing a phone cuts it off at once. */
+const live = new Map<string, Set<Pipe>>();
 
 function readConfig(): Config {
 	try {
 		return JSON.parse(readFileSync(phoneConfig.file, "utf8")) as Config;
 	} catch {
-		return { enabled: false, token: "" };
+		return { enabled: false };
 	}
 }
 
-// ponytail: the token sits in plain text in ~/.odin (0700), like the old bot token.
 const writeConfig = (config: Config) =>
 	writeFileSync(phoneConfig.file, JSON.stringify(config), { mode: 0o600 });
 
-const newToken = () => randomBytes(24).toString("base64url");
+/** A relay address: wss:// anywhere, or ws:// on this machine for testing. */
+export function relayUrl(input: string): string | null {
+	try {
+		const url = new URL(input.trim());
+		const local = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+		if (url.protocol !== "wss:" && !(url.protocol === "ws:" && local))
+			return null;
+		return `${url.protocol}//${url.host}${url.pathname.replace(/\/+$/, "")}`;
+	} catch {
+		return null;
+	}
+}
 
 function sameToken(given: string, token: string): boolean {
 	const a = Buffer.from(given);
@@ -55,55 +118,37 @@ function sameToken(given: string, token: string): boolean {
 	return a.length === b.length && timingSafeEqual(a, b);
 }
 
-const isDev = env.NODE_ENV === "development";
-const vite = `127.0.0.1:${env.DESKTOP_VITE_PORT}`;
-
+/** The phone's API. Only the channel reaches it, with a token made per run. */
 function createApp(token: string) {
 	const app = express();
-	app.use("/trpc", (req, res, next) => {
+	const authorized: express.RequestHandler = (req, res, next) => {
 		const given = req.headers.authorization?.replace(/^Bearer /, "") ?? "";
 		if (!sameToken(given, token)) return res.status(401).end();
 		next();
-	});
-	app.use("/trpc", createExpressMiddleware({ router: phoneRouter }));
-	app.get("/", (req, res) => {
-		const query = req.originalUrl.slice(1);
-		res.redirect(`/mobile/index.html${query}`);
-	});
-	if (isDev) {
-		// The renderer's Vite server only listens on localhost; this forwards to
-		// it, with Host rewritten so Vite's host check lets it through.
-		app.use(async (req, res) => {
-			try {
-				const reply = await fetch(`http://${vite}${req.originalUrl}`);
-				res.status(reply.status);
-				const type = reply.headers.get("content-type");
-				if (type) res.type(type);
-				res.send(Buffer.from(await reply.arrayBuffer()));
-			} catch {
-				res.status(502).send("Odin's dev server isn't up.");
-			}
-		});
-	} else {
-		app.use(express.static(join(__dirname, "../renderer")));
-	}
+	};
+	app.use(
+		"/trpc",
+		authorized,
+		createExpressMiddleware({ router: phoneRouter }),
+	);
+	// A photo or video from the phone: the raw bytes, saved where the desktop
+	// composer saves its own. The reply that follows pastes the returned path.
+	app.post(
+		"/upload",
+		authorized,
+		express.raw({ type: () => true, limit: "200mb" }),
+		async (req, res) => {
+			const ext = String(req.query.ext ?? "").toLowerCase();
+			if (!/^[a-z0-9]{1,8}$/.test(ext) || !req.body?.length)
+				return res.status(400).end();
+			await mkdir(attachments.dir, { recursive: true });
+			const name = `${Date.now()}-${randomBytes(3).toString("hex")}.${ext}`;
+			const path = join(attachments.dir, name);
+			await writeFile(path, req.body);
+			res.json({ path });
+		},
+	);
 	return app;
-}
-
-/** Vite's HMR socket, piped through as raw TCP with Host pointed at Vite. */
-function forwardUpgrades(http: Server) {
-	http.on("upgrade", (req, socket, head) => {
-		const upstream = connect(Number(env.DESKTOP_VITE_PORT), "127.0.0.1", () => {
-			const headers = Object.entries({ ...req.headers, host: vite })
-				.map(([key, value]) => `${key}: ${value}`)
-				.join("\r\n");
-			upstream.write(`${req.method} ${req.url} HTTP/1.1\r\n${headers}\r\n\r\n`);
-			upstream.write(head);
-			socket.pipe(upstream).pipe(socket);
-		});
-		upstream.on("error", () => socket.destroy());
-		socket.on("error", () => upstream.destroy());
-	});
 }
 
 const localName = () => {
@@ -111,57 +156,227 @@ const localName = () => {
 	return name.endsWith(".local") ? name : `${name}.local`;
 };
 
-async function listen(token: string): Promise<void> {
-	const app = createApp(token);
-	const bind = (port: number) =>
-		new Promise<Server>((resolve, reject) => {
-			const http = app.listen(port, "0.0.0.0");
-			http.once("listening", () => resolve(http));
-			http.once("error", reject);
+const portOf = (server: Server) => {
+	const address = server.address();
+	return typeof address === "object" && address ? address.port : 0;
+};
+
+const listenOn = (server: Server, port: number, host: string) =>
+	new Promise<void>((resolve, reject) => {
+		server.once("error", reject);
+		server.listen(port, host, () => resolve());
+	});
+
+const empty = new Uint8Array(0);
+const status = (code: number): ChannelResponse => ({
+	status: code,
+	headers: {},
+	body: empty,
+});
+
+/** One request out of the channel, to the loopback app. Only its two routes. */
+function forward(loopbackPort: number, token: string) {
+	return async (request: ChannelRequest): Promise<ChannelResponse> => {
+		if (!/^\/(trpc\/|upload\?)/.test(request.path)) return status(404);
+		const method = request.method.toUpperCase();
+		const response = await fetch(
+			`http://127.0.0.1:${loopbackPort}${request.path}`,
+			{
+				method,
+				// Only the content type comes from the phone; the token is ours.
+				headers: {
+					...(request.headers["content-type"] && {
+						"content-type": request.headers["content-type"],
+					}),
+					authorization: `Bearer ${token}`,
+				},
+				body:
+					method === "GET" || method === "HEAD"
+						? undefined
+						: request.body.slice(),
+			},
+		);
+		return {
+			status: response.status,
+			headers: {
+				"content-type": response.headers.get("content-type") ?? "",
+			},
+			body: new Uint8Array(await response.arrayBuffer()),
+		};
+	};
+}
+
+function serve(
+	pipe: Pipe,
+	handle: (r: ChannelRequest) => Promise<ChannelResponse>,
+) {
+	acceptChannel(pipe, {
+		me: identity(),
+		accept: (phone, hello) => {
+			if (!accept(phone, hello)) return false;
+			const key = Buffer.from(phone).toString("base64url");
+			const set = live.get(key) ?? new Set();
+			set.add(pipe);
+			live.set(key, set);
+			pipe.onClose(() => set.delete(pipe));
+			return true;
+		},
+		handle,
+	});
+}
+
+/** Keeps a control connection open to the relay and answers each phone it announces. */
+function dialRelay(
+	url: string,
+	handle: (r: ChannelRequest) => Promise<ChannelResponse>,
+): () => void {
+	let stopped = false;
+	let control: WebSocket | null = null;
+	let delay = 1000;
+	const id = relayId(identity().publicKey);
+	const connect = () => {
+		if (stopped) return;
+		relayState = "connecting";
+		const socket = new WebSocket(`${url}/host/${id}`);
+		control = socket;
+		socket.addEventListener("open", () => {
+			relayState = "connected";
+			delay = 1000;
 		});
+		socket.addEventListener("message", async (event) => {
+			let incoming: unknown;
+			try {
+				incoming = JSON.parse(String(event.data)).incoming;
+			} catch {
+				return;
+			}
+			if (typeof incoming !== "string" || !/^[0-9a-f]{32}$/.test(incoming))
+				return;
+			const session = await connectSocket(`${url}/accept/${incoming}`).catch(
+				() => null,
+			);
+			if (session) serve(websocketPipe(session), handle);
+		});
+		socket.addEventListener("close", () => {
+			relayState = "connecting";
+			if (stopped) return;
+			// After sleep or a dropped network: back off, then dial again.
+			setTimeout(connect, delay);
+			delay = Math.min(delay * 2, 60_000);
+		});
+	};
+	connect();
+	return () => {
+		stopped = true;
+		control?.close();
+	};
+}
+
+async function start(config: Config): Promise<void> {
+	const token = randomBytes(24).toString("base64url");
+	const loopback = createServer(createApp(token));
+	await listenOn(loopback, 0, "127.0.0.1");
+	const handle = forward(portOf(loopback), token);
+
+	// The Wi-Fi side answers one thing: the channel's WebSocket.
+	const lan = createServer((_req, res) => res.writeHead(404).end());
+	const sockets = new WebSocketServer({ noServer: true, maxPayload: 70_000 });
+	lan.on("upgrade", (req, socket, head) => {
+		if (req.url !== "/channel") return socket.destroy();
+		sockets.handleUpgrade(req, socket, head, (ws) =>
+			serve(websocketPipe(ws as unknown as WebSocket), handle),
+		);
+	});
 	// Another Odin (dev beside packaged) may hold the port: take any free one.
-	const http = await bind(PREFERRED_PORT).catch(() => bind(0));
-	if (isDev) forwardUpgrades(http);
-	server = http;
-	const address = http.address();
-	const port = typeof address === "object" && address ? address.port : 0;
-	const url = `http://${localName()}:${port}/?t=${token}`;
-	status = {
-		state: "on",
-		url,
-		qr: await QRCode.toDataURL(url, { margin: 1, width: 220 }),
-		appQr: await QRCode.toDataURL(`odin://pair?u=${encodeURIComponent(url)}`, {
-			margin: 1,
-			width: 220,
-		}),
+	await listenOn(lan, PREFERRED_PORT, "0.0.0.0").catch(() =>
+		listenOn(lan, 0, "0.0.0.0"),
+	);
+	running = {
+		lan,
+		loopback,
+		lanUrl: `ws://${localName()}:${portOf(lan)}/channel`,
+		stopRelay: relayInUse(config)
+			? dialRelay(relayInUse(config), handle)
+			: () => {},
 	};
 }
 
 async function stop(): Promise<void> {
-	const http = server;
-	server = null;
-	status = { state: "off" };
-	if (http) await new Promise((resolve) => http.close(resolve));
+	const was = running;
+	running = null;
+	if (!was) return;
+	was.stopRelay();
+	for (const set of live.values()) for (const pipe of set) pipe.close();
+	live.clear();
+	was.lan.closeAllConnections();
+	await Promise.all(
+		[was.lan, was.loopback].map(
+			(server) => new Promise((resolve) => server.close(resolve)),
+		),
+	);
 }
 
-export const phoneStatus = () => status;
-
-export async function setPhoneEnabled(enabled: boolean): Promise<PhoneStatus> {
+export async function phoneStatus(): Promise<PhoneStatus> {
 	const config = readConfig();
-	const token = config.token || newToken();
-	writeConfig({ enabled, token });
-	await stop();
-	if (enabled)
-		await listen(token).catch((error: Error) => {
-			status = { state: "error", error: error.message };
-		});
-	return status;
+	const { relay } = config;
+	const inUse = relayInUse(config);
+	const list = devices();
+	if (failure) return { state: "error", error: failure, relay, devices: list };
+	if (!running) return { state: "off", relay, devices: list };
+	const params = new URLSearchParams({
+		k: hostKey(),
+		c: pairingCode(),
+		l: running.lanUrl,
+	});
+	if (inUse) params.set("r", inUse);
+	const link = `odin://pair?${params}`;
+	return {
+		state: "on",
+		link,
+		qr: await QRCode.toDataURL(link, { margin: 1, width: 220 }),
+		lan: running.lanUrl,
+		relay,
+		relayInUse: inUse || undefined,
+		relayState: inUse ? relayState : undefined,
+		devices: list,
+	};
 }
 
-/** A new token: every paired phone has to scan again. */
-export async function resetPhoneToken(): Promise<PhoneStatus> {
-	writeConfig({ enabled: readConfig().enabled, token: newToken() });
-	return setPhoneEnabled(readConfig().enabled);
+async function restart(config: Config): Promise<PhoneStatus> {
+	writeConfig(config);
+	await stop();
+	failure = null;
+	if (config.enabled)
+		await start(config).catch((error: Error) => {
+			failure = error.message;
+		});
+	return phoneStatus();
+}
+
+export const setPhoneEnabled = (enabled: boolean) =>
+	restart({ ...readConfig(), enabled });
+
+/** The user's own relay, or "" for Odin's default. Throws on one that isn't wss://. */
+export async function setPhoneRelay(input: string): Promise<PhoneStatus> {
+	const relay = input.trim() ? relayUrl(input) : undefined;
+	if (relay === null)
+		throw new Error("The relay address must start with wss://");
+	return restart({ ...readConfig(), relay });
+}
+
+/** Cuts a phone off: off the list, and its open channels closed. */
+export async function removePhone(key: string): Promise<PhoneStatus> {
+	removeDevice(key);
+	for (const pipe of live.get(key) ?? []) pipe.close();
+	live.delete(key);
+	return phoneStatus();
+}
+
+/** Unpairs every phone: a new key for Odin, so old QR codes are useless too. */
+export async function unpairAllPhones(): Promise<PhoneStatus> {
+	await stop();
+	await resetTrust();
+	return restart(readConfig());
 }
 
 export function startPhone(): void {

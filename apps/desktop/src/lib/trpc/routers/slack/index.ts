@@ -80,10 +80,6 @@ function ackedByMe(
 
 /**
  * Rows whose message carried my launch reaction on the last sync.
- *
- * ponytail: in memory, not a column. The first sync after a restart refills
- * it from Slack, and `startedAt` is what stops a second launch - so nothing
- * here needs to survive a restart.
  */
 const launchRequested = new Set<string>();
 
@@ -92,8 +88,6 @@ interface SlackResponse {
 	error?: string;
 }
 
-// ponytail: one global gate, 4 Slack calls in flight. A burst past that just
-// buys 429s and their Retry-After sleeps.
 let slackInFlight = 0;
 const slackWaiting: (() => void)[] = [];
 
@@ -286,9 +280,6 @@ async function resolveMentions(raw: string, token: string): Promise<string> {
 /**
  * Pull the current queue reactions into the local table.
  *
- * ponytail: one page of `reactions.list` (100 items). Because rows persist, a
- * poll that misses older reactions still accumulates them over time; paginate
- * here if a burst of other reactions ever pushes them off the first page.
  *
  * That page finds new rows. It cannot retire old ones - Slack orders it by
  * when I reacted, so falling off the end says nothing about the message - so
@@ -667,9 +658,6 @@ export async function slackWatchedThread(
  *
  * Needs the `*:history` scopes. Without them, or when Slack won't say, null -
  * and the sweep keeps its rule verdict.
- *
- * ponytail: the parent plus the newest 15 messages, 300 chars each. Enough to
- * see who had the last word and what it was; widen if judgements need more.
  */
 export async function slackConversation(
 	id: string,

@@ -195,12 +195,6 @@ function cleanPrompt(text: string): string {
  * in the opening prompt is the only durable mark of "Odin launched this" - and
  * Session History wants nothing else: sessions typed into a plain terminal
  * aren't work this app is tracking.
- *
- * ponytail: a prompt fingerprint, not a registry of launched ids. It misses
- * empty-prompt panes (nothing was typed at launch to fingerprint) and sessions
- * resumed out of a non-Odin transcript. Keep a `~/.odin/launched-sessions`
- * ledger if those ever matter - but it would start empty, hiding every session
- * to date, which this doesn't.
  */
 const ODIN_LAUNCH_MARKER = /\n\s*Work in the current workspace\./i;
 
@@ -409,12 +403,6 @@ function scoreOf(
  * transcript (the prompt is the ticket, not the reporter). So it's matched and
  * ranked alongside the prose: "ofek" finds the sessions Ofek asked for, even
  * though nobody ever typed his name into one.
- *
- * ponytail: no index, whole files read (searching adds a cheap all-terms reject
- * before parsing). Measured at ~1s for a full 194-transcript / ~1GB store, which
- * a 250ms input debounce covers. If it ever drags: memoise {path,mtime} →
- * summary. Reading only each file's head would be faster, but then the message
- * count is a lie for long sessions.
  */
 export async function searchSessions({
 	query = "",
@@ -679,8 +667,6 @@ export function transcriptLinks(jsonl: string): TranscriptMessage[] {
 		Number.POSITIVE_INFINITY,
 		Number.POSITIVE_INFINITY,
 	).flatMap((message) => {
-		// ponytail: a line past 600 chars is a paragraph, not a label - keep its
-		// urls only, so one wall of prose can't bloat every transcript read.
 		const lines = message.text
 			.split("\n")
 			.flatMap((line) =>
@@ -830,9 +816,6 @@ const RULE_SCOPE = / \((only|except) in the repos? at ([^)]+)\):/;
  * Whether a repo-pinned rule covers this PR. A feed session's checkout isn't
  * known at launch, so the hook hands it every pinned rule and the agent skips
  * the ones for other repos - those didn't fire.
- *
- * ponytail: matches the PR's GitHub repo name against the pinned folder's
- * name; a checkout folder renamed away from its repo would need a remote lookup.
  */
 function coversPr(rule: string, pr: string): boolean {
 	const scope = rule.match(RULE_SCOPE);
@@ -848,9 +831,6 @@ function coversPr(rule: string, pr: string): boolean {
  * The PR-rule hook's firings, each pinned to the PR it fired on: the PR url
  * in that Bash call's output (`gh pr create` prints it), else the session's
  * latest PR so far - a later `git push` prints only the branch.
- *
- * ponytail: prompt-only rules (not about PRs) have no firing to find, so
- * they never show - the transcript can't say whether the agent followed them.
  */
 export function ruleFirings(jsonl: string): RuleFiring[] {
 	const commands = new Map<string, string>();
@@ -931,9 +911,6 @@ const WAKEUP_GRACE_MS = 15 * 60_000;
  * ScheduleWakeup whose fire time (plus a turn's grace) hasn't passed and that
  * wasn't a `stop`. Both only live inside the running claude process - the
  * caller has to check the session is still up.
- *
- * ponytail: crons are counted, not matched by id - the id is only in the
- * tool_result text. Match ids if sessions ever juggle several jobs.
  */
 export function activeLoop(
 	jsonl: string,
@@ -1086,10 +1063,6 @@ export function repoNameOf(checkout: string): string {
  * what makes a worktree count as its repo rather than as a rival to it; the
  * winner is still a checkout, because the caller diffs it. Ties go to the most
  * recent, which keeps the answer stable rather than dependent on Map ordering.
- *
- * ponytail: entry counts, not edited-file counts - the transcript records where
- * commands ran, and reading it is one file read. Weigh actual writes if a
- * chatty read-only detour in another repo ever outvotes the real work.
  */
 export async function workingRepoOf(
 	sessionId: string,

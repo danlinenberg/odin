@@ -263,8 +263,6 @@ interface RestCheckRun {
  * GraphQL, whose hourly quota is shared with every tool on the account, and
  * GitHub answers "API rate limit already exceeded" until it resets; REST has a
  * quota of its own. Two calls: the PR, then its head's check runs.
- * ponytail: REST has no review decision, so `approved` reads false here, and
- * only check runs count (not the older commit statuses).
  */
 async function restPullRequest(
 	url: string,
@@ -471,9 +469,6 @@ const mainCheckout = (porcelain: string) =>
  * found through that repo's clone: a sibling of `checkout`'s clone (~/dev/imagen/*
  * sit together), else a path the transcript mentions. Newest first; a PR with
  * no checkout (worktree removed, repo not cloned) drops out.
- *
- * ponytail: 8 newest PRs, one gh call each. Batch through GraphQL if sessions
- * start opening more than that.
  */
 /**
  * A checkout named like the PR's repo isn't necessarily its clone: a worktree

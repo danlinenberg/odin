@@ -11,9 +11,6 @@ import { useOdinProfile } from "./useOdinProfile";
 /** A row dropped from Review, as it was swept, and when. */
 export type DroppedRow = SweptRow & { droppedAt: number };
 
-// ponytail: fixed cap on drops the sweep no longer lists - 500, since one
-// sweep can auto-drop 200+ and a 100 cap hid most of them from Undo. Ones it still lists
-// are always kept (see keepDropped), or a reload would put them back.
 const DROPPED_KEPT = 500;
 
 /** Your Keep beats the sweep's DROP - on Review and on every card's pill. */
@@ -76,7 +73,6 @@ export function migrateReview(persisted: unknown, version: number): unknown {
  * Small and fixed-size per profile: one row per backlog item, replaced whole
  * by the next sweep.
  *
- * ponytail: a deleted profile's slice stays behind - one backlog's worth.
  * Drop it alongside deleteProfile if that ever adds up.
  */
 export const useBacklogReview = create<{
@@ -133,7 +129,6 @@ export const useBacklogReview = create<{
 					})),
 				record: (profileId, fresh) =>
 					update(profileId, ({ dropped, kept }) => {
-						// ponytail: kept is bounded by pruning to what the sweep still lists.
 						const listed = new Set(fresh.map((row) => row.key));
 						const stillKept = kept.filter((key) => listed.has(key));
 						const swept = keptAsKeep(fresh, stillKept);

@@ -27,6 +27,7 @@
         "@dnd-kit/utilities": "3.2.2",
         "@hono/node-server": "2.0.10",
         "@lezer/highlight": "1.2.3",
+        "@odin/channel": "workspace:*",
         "@odin/chat-legacy": "workspace:*",
         "@odin/host-service": "workspace:*",
         "@odin/local-db": "workspace:*",
@@ -161,11 +162,13 @@
         "unified": "11.0.5",
         "utf-8-validate": "6.0.6",
         "uuid": "14.0.0",
+        "ws": "8.21.1",
         "zod": "4.4.3",
         "zustand": "5.0.12",
       },
       "devDependencies": {
         "@electron/fuses": "1.8.0",
+        "@odin/relay": "workspace:*",
         "@odin/typescript": "workspace:*",
         "@sentry/vite-plugin": "5.4.0",
         "@tailwindcss/vite": "4.2.2",
@@ -185,6 +188,7 @@
         "@types/react-syntax-highlighter": "15.5.13",
         "@types/semver": "7.7.1",
         "@types/shell-quote": "1.7.5",
+        "@types/ws": "8.18.1",
         "@vitejs/plugin-react": "5.2.0",
         "code-inspector-plugin": "1.4.5",
         "cross-env": "10.1.0",
@@ -208,9 +212,11 @@
         "@capacitor/app": "8.1.1",
         "@capacitor/core": "8.5.2",
         "@capacitor/ios": "8.5.2",
+        "@capacitor/keyboard": "8.0.6",
       },
       "devDependencies": {
         "@capacitor/cli": "8.5.2",
+        "@odin/channel": "workspace:*",
         "@tailwindcss/vite": "4.2.2",
         "@vitejs/plugin-react": "5.2.0",
         "vite": "7.3.5",
@@ -320,6 +326,32 @@
       "version": "0.0.1",
       "dependencies": {
         "node-addon-api": "7.1.1",
+      },
+    },
+    "packages/odin-channel": {
+      "name": "@odin/channel",
+      "version": "0.0.1",
+      "dependencies": {
+        "@noble/ciphers": "2.4.0",
+        "@noble/curves": "2.4.0",
+        "@noble/hashes": "2.4.0",
+      },
+      "devDependencies": {
+        "@odin/typescript": "workspace:*",
+        "@types/bun": "1.3.14",
+        "@types/node": "24.12.0",
+        "typescript": "6.0.3",
+      },
+    },
+    "packages/odin-relay": {
+      "name": "@odin/relay",
+      "version": "0.0.1",
+      "devDependencies": {
+        "@odin/channel": "workspace:*",
+        "@odin/typescript": "workspace:*",
+        "@types/bun": "1.3.14",
+        "@types/node": "24.12.0",
+        "typescript": "6.0.3",
       },
     },
     "packages/panes": {
@@ -723,6 +755,8 @@
 
     "@capacitor/ios": ["@capacitor/ios@8.5.2", "", { "peerDependencies": { "@capacitor/core": "^8.5.0" } }, "sha512-eOT2S67AfTFG7KN0T3oxwAajrJz4rSye+ODfvChiwrk0F/+kWufFM1qU6cDjGJUOfwdAoeuEpZyWHSwZlu4GFg=="],
 
+    "@capacitor/keyboard": ["@capacitor/keyboard@8.0.6", "", { "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, "sha512-Bbe+9V0qaT6dzEFJEK7BUWR01l2+vZE8FM5ITF/WgKtx+G6eGZ6d5+YiSMRJBAK0VGjdO59v8yiQ10Doa5KyvQ=="],
+
     "@chevrotain/types": ["@chevrotain/types@11.1.2", "", {}, "sha512-U+HFai5+zmJCkK86QsaJtoITlboZHBqrVketcO2ROv865xfCMSFpELQoz1GkX5GzME8pTa+3kbKrZHQtI0gdbw=="],
 
     "@cloudflare/workers-types": ["@cloudflare/workers-types@4.20260329.1", "", {}, "sha512-LxBHrYYI/AZ6OCbUzRqRgg6Rt1qev2KxN2NNd3saye41AO2g52cYvHV+ohts5oPnrIUD7YRjbgN/J3NU7e7m5A=="],
@@ -1013,6 +1047,12 @@
 
     "@neondatabase/serverless": ["@neondatabase/serverless@1.0.2", "", { "dependencies": { "@types/node": "^22.15.30", "@types/pg": "^8.8.0" } }, "sha512-I5sbpSIAHiB+b6UttofhrN/UJXII+4tZPAq1qugzwCwLIL8EZLV7F/JyHUrEIiGgQpEXzpnjlJ+zwcEhheGvCw=="],
 
+    "@noble/ciphers": ["@noble/ciphers@2.4.0", "", {}, "sha512-AnjFn0Jv92laAkvMrghlFZq4qQCIN/4DxFV/eooqtC2YTjB7kBeLMS2T9KJX4Dn+ZVXLOwK0lSgqDtx9gvxtiw=="],
+
+    "@noble/curves": ["@noble/curves@2.4.0", "", { "dependencies": { "@noble/hashes": "2.4.0" } }, "sha512-P4/62zrgfH33CneE3Dn4WhJVA22YUU0eR51wKIan4NVRvwsA0YnPTwWGpNbpuacSujmSFLvyzpyuR30+fbq2Ew=="],
+
+    "@noble/hashes": ["@noble/hashes@2.4.0", "", {}, "sha512-X5XaVWZIBCT7HHZGm5I7ZQXDwLG+bGXuSrMQAW+7Zvl87h1kmc1ZB1VSRJcpUfoUrGQp4Fkoxm5kZ+Ms+aW+eA=="],
+
     "@nodable/entities": ["@nodable/entities@3.0.0", "", {}, "sha512-8L9xFeTYKhm49xfIypoe2W5wV1m/3Z58kT+7kR9A8OyFxcPduI4VmxaUMQyKYrRjUoLLSXv6EKKID5Tvj9cUVw=="],
 
     "@nodelib/fs.scandir": ["@nodelib/fs.scandir@2.1.5", "", { "dependencies": { "@nodelib/fs.stat": "2.0.5", "run-parallel": "^1.1.9" } }, "sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g=="],
@@ -1045,6 +1085,8 @@
 
     "@octokit/types": ["@octokit/types@16.0.0", "", { "dependencies": { "@octokit/openapi-types": "^27.0.0" } }, "sha512-sKq+9r1Mm4efXW1FCk7hFSeJo4QKreL/tTbR0rz/qx/r1Oa2VV83LTA/H/MuCOX7uCIJmQVRKBcbmWoySjAnSg=="],
 
+    "@odin/channel": ["@odin/channel@workspace:packages/odin-channel"],
+
     "@odin/chat-legacy": ["@odin/chat-legacy@workspace:packages/chat-legacy"],
 
     "@odin/desktop": ["@odin/desktop@workspace:apps/desktop"],
@@ -1062,6 +1104,8 @@
     "@odin/port-scanner": ["@odin/port-scanner@workspace:packages/port-scanner"],
 
     "@odin/pty-daemon": ["@odin/pty-daemon@workspace:packages/pty-daemon"],
+
+    "@odin/relay": ["@odin/relay@workspace:packages/odin-relay"],
 
     "@odin/session-protocol": ["@odin/session-protocol@workspace:packages/session-protocol"],
 

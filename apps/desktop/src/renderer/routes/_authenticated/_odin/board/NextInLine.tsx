@@ -263,7 +263,6 @@ export function useNextInLineQueue(showHidden = false) {
 			]),
 		[ledger, todos],
 	);
-	// ponytail: every row rendered - a few hundred plain cards scroll fine.
 	// Window it (render on scroll) if the feeds ever reach thousands.
 	// The model's order, nothing else. Until it answers (or if it fails) the
 	// column stays in feed order and says so - no rule of ours stands in.
@@ -294,8 +293,6 @@ export function useNextInLineQueue(showHidden = false) {
 	// soonest first - a deadline outranks whatever the model thinks. Older
 	// than that it's a stale ticket's leftover, not a deadline: it stays put.
 	// A rolling window, not the calendar year, so January keeps December's.
-	// ponytail: every future date pins, however far out; add a horizon if a
-	// month-away date starts crowding the top.
 	const cutoff = dayOf(Date.now() - pinOverdueDays * 86_400_000);
 	const dueOf = (item: AllItem) => {
 		const due = effectiveDue(item.key, reminders, item.dueDate);
