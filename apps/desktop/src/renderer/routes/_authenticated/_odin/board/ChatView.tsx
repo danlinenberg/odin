@@ -17,6 +17,7 @@ import {
 import {
 	LuChevronRight,
 	LuMic,
+	LuSmartphone,
 	LuSquareTerminal,
 	LuWrench,
 } from "react-icons/lu";
@@ -39,6 +40,7 @@ import {
 	getVideoMimeType,
 	isPreviewableVideoFile,
 } from "shared/file-types";
+import { cameFromPhone } from "shared/from-phone";
 import { freshTldr, sameReply, tldrPlacement } from "shared/latest-reply";
 import { inputBoxRows, odinScreenStatus } from "shared/odin-screen-status";
 import stripAnsi from "strip-ansi";
@@ -1005,10 +1007,13 @@ function UserBubble({
 	onShowTerminal,
 	onDismiss,
 	workspaceId,
+	fromPhone,
 }: {
 	text: string;
 	images?: Preview[];
 	pending?: boolean;
+	/** Sent from the Odin iPhone app (main/lib/phone/sent.ts). */
+	fromPhone?: boolean;
 	/** Never reached Claude - say so, with a way to see why. */
 	lost?: boolean;
 	onShowTerminal?: () => void;
@@ -1071,6 +1076,12 @@ function UserBubble({
 							{full ? "Hide Odin's prompt" : "Show Odin's prompt"}
 						</button>
 					)}
+				</div>
+			)}
+			{fromPhone && (
+				<div className="mt-1 flex items-center justify-end gap-1 text-[11px] text-muted-foreground">
+					<LuSmartphone className="size-3" />
+					from iPhone
 				</div>
 			)}
 			{lost && (
@@ -1878,6 +1889,11 @@ const ItemView = memo(function ItemView({
 }: ItemViewProps) {
 	// A long latest reply opens on its TL;DR; this shows it whole.
 	const [full, setFull] = useState(false);
+	// One query per session, shared by its items; a phone reply shows up within seconds.
+	const fromPhone = electronTrpc.phone.fromPhone.useQuery(
+		{ paneId: paneId ?? "" },
+		{ enabled: !!paneId && item.kind === "user", refetchInterval: 5_000 },
+	);
 	const rootRef = useRef<HTMLDivElement>(null);
 	const bodyRef = useRef<HTMLDivElement>(null);
 	const taller = useTallerThanView(rootRef, bodyRef, !!tldr);
@@ -1889,6 +1905,7 @@ const ItemView = memo(function ItemView({
 				text={item.text}
 				images={item.images}
 				workspaceId={workspaceId}
+				fromPhone={cameFromPhone(item.text, fromPhone.data ?? [])}
 			/>
 		);
 	const { body, actions } = splitActionItems(linkify(item.text, refs));

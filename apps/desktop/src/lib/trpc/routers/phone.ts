@@ -1,3 +1,4 @@
+import { sentFromPhone } from "main/lib/phone/sent";
 import {
 	phoneStatus,
 	removePhone,
@@ -18,4 +19,8 @@ export const createPhoneRouter = () =>
 			.input(z.object({ key: z.string() }))
 			.mutation(({ input }) => removePhone(input.key)),
 		unpairAll: publicProcedure.mutation(() => unpairAllPhones()),
+		/** What this session got from the phone: the chat marks those messages. */
+		fromPhone: publicProcedure
+			.input(z.object({ paneId: z.string() }))
+			.query(({ input }) => sentFromPhone(input.paneId)),
 	});

@@ -20,6 +20,7 @@ import stripAnsi from "strip-ansi";
 import superjson from "superjson";
 import { z } from "zod";
 import { attachments } from "./attachments";
+import { rememberFromPhone } from "./sent";
 
 /**
  * Everything the phone can do, and nothing else: the LAN never reaches the
@@ -280,9 +281,10 @@ export const phoneRouter = t.router({
 				})
 				.refine((input) => input.text.trim() || input.paths.length),
 		)
-		.mutation(({ input }) =>
-			typeIntoClaude(input.paneId, input.text.trim(), input.paths),
-		),
+		.mutation(async ({ input }) => {
+			await typeIntoClaude(input.paneId, input.text.trim(), input.paths);
+			rememberFromPhone(input.paneId, input.text);
+		}),
 
 	/** One raw key for a prompt Claude draws as a menu: Enter, Esc, a digit. */
 	key: t.procedure
