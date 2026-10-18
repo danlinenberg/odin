@@ -776,6 +776,32 @@ await step("Done takes a task off the list", async () => {
 	await waitForText(TASK, false);
 });
 
+await step("Search all opens a Done task's details from Tasks", async () => {
+	await rail("Tasks");
+	await page(`document.activeElement?.blur()`);
+	await page(
+		`document.dispatchEvent(new KeyboardEvent("keydown", { key: "f", code: "KeyF", metaKey: true, shiftKey: true, bubbles: true }))`,
+	);
+	await sleep(300);
+	await fill(
+		'input[placeholder="Search feeds, the board and every past session"]',
+		TASK,
+	);
+	const row = `[...document.querySelectorAll('[cmdk-item]')].find((e) => e.getAttribute("data-value")?.startsWith("task:") && e.textContent.includes(${JSON.stringify(TASK)}))`;
+	for (const end = Date.now() + 5_000; !(await page<boolean>(`!!${row}`)); ) {
+		if (Date.now() > end) throw new Error("the Done task never came up");
+		await sleep(200);
+	}
+	await page(`${row}.click()`);
+	await waitForText("Tasks feed →");
+	const shown = await page<boolean>(
+		`!!document.querySelector("aside")?.textContent.includes(${JSON.stringify(TASK)})`,
+	);
+	if (!shown) throw new Error("the details panel shows another task");
+	await click("button", "Close details");
+	await waitForText("Tasks feed →", false);
+});
+
 // Settings is eight fixed screens; each sidebar link and the route it opens.
 const SETTINGS: [string, string][] = [
 	["Connections", "#/settings/connections"],
