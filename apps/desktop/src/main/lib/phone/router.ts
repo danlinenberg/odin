@@ -1,5 +1,6 @@
 import { basename, resolve, sep } from "node:path";
 import { initTRPC, TRPCError } from "@trpc/server";
+import { activeProfileId, listProfiles } from "lib/trpc/routers/odin-config";
 import type { PullRequestStatus } from "lib/trpc/routers/terminal/pr-state";
 import { appState } from "main/lib/app-state";
 import { readTranscript, writeBrief } from "main/lib/claude-sessions";
@@ -128,7 +129,8 @@ const taskWithFiles = (text: string, paths: string[]) =>
 export const phoneRouter = t.router({
 	/** Running sessions (Needs you first) and the backlog not started yet. */
 	board: t.procedure.query(async () => {
-		const sessions = await loadSessions(true);
+		// The profile Odin is in, as the desktop board shows it.
+		const sessions = await loadSessions(true, activeProfileId());
 		const backlog = (
 			JSON.parse(await board("tasks").catch(() => "[]")) as {
 				id: string;
@@ -310,6 +312,24 @@ export const phoneRouter = t.router({
 				...(input.start && { start: "true" }),
 			}),
 		),
+
+	/** Odin's profiles, and the one it's in. */
+	profiles: t.procedure.query(() => ({
+		activeId: activeProfileId(),
+		profiles: listProfiles().map(({ id, name }) => ({ id, name })),
+	})),
+
+	/** Switches Odin's profile, as the desktop's profile menu does. */
+	setProfile: t.procedure
+		.input(z.object({ id: z.string().min(1) }))
+		.mutation(async ({ input }) => {
+			if (!listProfiles().some((profile) => profile.id === input.id))
+				throw new Error("No such profile");
+			await board("profile", { id: input.id });
+			// The window's switch is a round trip of its own: answer once it landed.
+			for (let i = 0; i < 40 && activeProfileId() !== input.id; i++)
+				await new Promise((resolve) => setTimeout(resolve, 50));
+		}),
 
 	start: t.procedure
 		.input(z.object({ id: z.string().min(1) }))

@@ -102,13 +102,27 @@ const screen = [
 	"   3. No, and tell Claude what to do differently (esc)",
 ].join("\n");
 
+/** Two profiles: Personal shows only the imagen session. */
+const profiles = [
+	{ id: "default", name: "Work" },
+	{ id: "personal", name: "Personal" },
+];
+let activeProfile = "default";
+
 function answer(path: string, input: Record<string, string> | undefined) {
 	const paneId = input?.paneId ?? "";
 	const session = sessions.find((s) => s.paneId === paneId);
 	switch (path) {
+		case "profiles":
+			return { activeId: activeProfile, profiles };
+		case "setProfile":
+			activeProfile = input?.id ?? activeProfile;
+			return null;
 		case "board":
 			return {
-				sessions,
+				sessions: sessions.filter(
+					(s) => (s.repo === "imagen") === (activeProfile === "personal"),
+				),
 				backlog: [{ id: "t1", title: "Release notes for 1.4", started: false }],
 				done: [
 					["Remove the Telegram bot", "task", 50],

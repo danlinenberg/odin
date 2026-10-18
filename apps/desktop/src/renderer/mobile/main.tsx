@@ -14,6 +14,7 @@ import {
 	LuArrowDown,
 	LuCamera,
 	LuCheck,
+	LuChevronDown,
 	LuChevronLeft,
 	LuCornerDownLeft,
 	LuLoaderCircle,
@@ -23,6 +24,7 @@ import {
 	LuQrCode,
 	LuScanQrCode,
 	LuStar,
+	LuUser,
 } from "react-icons/lu";
 import { odinScreenStatus } from "shared/odin-screen-status";
 import type { PaneStatus } from "shared/tabs-types";
@@ -203,6 +205,51 @@ function withHeldStars<T extends { paneId: string; starred?: boolean }>(
 	});
 }
 
+/**
+ * Odin's profile, and a switch to another: the iPhone's own picker over a
+ * pill. Hidden with one profile. Switching moves the Mac's Odin too, as its
+ * profile menu does - one Odin, one profile at a time.
+ */
+function ProfilePicker() {
+	const utils = phone.useUtils();
+	const profiles = phone.profiles.useQuery();
+	const switchTo = phone.setProfile.useMutation({
+		onSuccess: async () => {
+			await profiles.refetch();
+			// Spinner, not the old profile's board, until the new one lands.
+			await utils.board.reset();
+		},
+	});
+	const list = profiles.data?.profiles ?? [];
+	if (list.length < 2) return null;
+	const activeId = switchTo.variables?.id ?? profiles.data?.activeId;
+	const name = list.find((p) => p.id === activeId)?.name ?? "Profile";
+	return (
+		<label className="relative flex max-w-[55%] items-center gap-1.5 rounded-full bg-secondary px-3 py-1.5 text-sm font-medium">
+			{switchTo.isPending ? (
+				<LuLoaderCircle className="size-4 shrink-0 animate-spin text-primary" />
+			) : (
+				<LuUser className="size-4 shrink-0 text-primary" />
+			)}
+			<span className="truncate">{name}</span>
+			<LuChevronDown className="size-4 shrink-0 text-muted-foreground" />
+			<select
+				aria-label="Profile"
+				value={activeId}
+				disabled={switchTo.isPending}
+				onChange={(event) => switchTo.mutate({ id: event.target.value })}
+				className="absolute inset-0 opacity-0"
+			>
+				{list.map((profile) => (
+					<option key={profile.id} value={profile.id}>
+						{profile.name}
+					</option>
+				))}
+			</select>
+		</label>
+	);
+}
+
 function Home() {
 	const board = phone.board.useQuery(undefined, {
 		refetchInterval: POLL,
@@ -240,7 +287,10 @@ function Home() {
 	return (
 		<div className="min-h-dvh pb-24">
 			<header className="sticky top-0 z-10 border-b border-border bg-background/95 px-4 pt-[calc(env(safe-area-inset-top)+12px)] pb-2 backdrop-blur">
-				<h1 className="text-2xl font-bold">Board</h1>
+				<div className="flex items-center justify-between gap-3">
+					<h1 className="text-2xl font-bold">Board</h1>
+					<ProfilePicker />
+				</div>
 			</header>
 			<ErrorLine error={board.error} />
 			{board.isLoading && (
