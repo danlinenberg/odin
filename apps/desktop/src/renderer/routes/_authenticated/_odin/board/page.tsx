@@ -493,9 +493,9 @@ function ScrollbackView({ card, live }: { card: BoardCard; live: boolean }) {
 
 /**
  * What "Ping me" watches for a session: its Slack thread or Jira ticket, and
- * its PRs for approval: the one it launched on and the newest it opened. Not
- * just the newest - a session often opens the PR you wait on, then a later one
- * that auto-merges with no review and would never ping.
+ * every PR it launched on or opened, for approval. Not just the newest few - a
+ * session often opens the PR you wait on, then a dozen that auto-merge with no
+ * review. Merged ones cost one check, then the watcher skips them.
  */
 function useSessionWatchKeys(card: BoardCard | undefined): string[] {
 	const paneId = card?.pane.id ?? "";
@@ -525,7 +525,7 @@ function useSessionWatchKeys(card: BoardCard | undefined): string[] {
 			...(transcript ? pullRequests(transcript.messages) : []),
 		].flatMap((pr) => (pr ? [`pr:${pr.url}`] : [])),
 	);
-	return [thread, ...[...prs].slice(0, 5)].filter((k): k is string => !!k);
+	return [thread, ...prs].filter((k): k is string => !!k);
 }
 
 /** The conversation behind a card, for the pills that read it. */
