@@ -97,6 +97,27 @@ c.setdefault("theme", "dark")
 c.setdefault("projects", {}).setdefault(sys.argv[1], {})["hasTrustDialogAccepted"] = True
 json.dump(c, open(p, "w"), indent=2)`;
 
+/**
+ * The GitHub CLI, so the agent can open PRs from the host. Installed into the
+ * user's ~/.local/bin when missing, pinned by SHA-256; GH_TOKEN signs it in.
+ */
+const GH_VERSION = "2.60.1";
+const GH_SHA256: Record<string, string> = {
+	amd64: "dfcd9926de38a797e88e604c3111ecf9ddf13c524706712b2b0d2e2fc4a6ed7f",
+	arm64: "a2842ed6d1f9e260043305749383bb1eb77d817bb57e22cf8c01da0a48caff66",
+};
+export const ghInstallScript = [
+	"if ! command -v gh >/dev/null; then",
+	'  case "$(uname -m)" in aarch64|arm64) a=arm64;; *) a=amd64;; esac',
+	`  [ "$a" = arm64 ] && sum=${GH_SHA256.arm64} || sum=${GH_SHA256.amd64}`,
+	`  f=gh_${GH_VERSION}_linux_$a; t=$(mktemp -d)`,
+	`  curl -fsSL -o "$t/gh.tgz" "https://github.com/cli/cli/releases/download/v${GH_VERSION}/$f.tar.gz" &&`,
+	'  echo "$sum  $t/gh.tgz" | sha256sum -c --quiet &&',
+	'  tar -xzf "$t/gh.tgz" -C "$t" && mkdir -p "$HOME/.local/bin" && mv "$t/$f/bin/gh" "$HOME/.local/bin/gh"',
+	'  rm -rf "$t"',
+	"fi",
+].join("\n");
+
 /** What runs inside tmux: tokens in, file gone, repo ready, Claude on. */
 export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 	const root = homePath(spec.reposRoot);
@@ -123,7 +144,8 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 			: "",
 		spec.repoName ? `cd ${worktree} 2>/dev/null || cd ${repo}` : `cd ${repo}`,
 		`python3 -c ${sh(SKIP_FIRST_RUN)} "$PWD" 2>/dev/null || true`,
-		'command -v claude >/dev/null || PATH="$HOME/.local/bin:$PATH"',
+		'export PATH="$HOME/.local/bin:$PATH"',
+		ghInstallScript,
 		`exec claude ${spec.claudeArgs}${prompt}`,
 	]
 		.filter(Boolean)
@@ -212,7 +234,16 @@ export function hostNote(spec: {
 		"",
 		`You run on ${spec.name}, a Linux server, not on my computer. Odin answers at http://127.0.0.1:$ODIN_PORT as usual, but its worktree action and its Shell work on my computer, so don't use them from here.`,
 		spec.repoName
-			? `Your worktree of ${spec.repoName} is the folder you start in, on branch ${sessionBranch(spec.pane)}. Push it and open the PR from here.`
-			: `To work on a repo, clone it into ${repos} with git clone https://github.com/<owner>/<repo> (GitHub access is set up), make your own worktree there with git worktree add, and work in it.`,
+			? `Your worktree of ${spec.repoName} is the folder you start in, on branch ${sessionBranch(spec.pane)}. Push it and open the PR from here with gh. If that folder is not a git repository, clone the repo into ${repos} yourself.`
+			: `No repo was picked for this task. To work on one, clone it into ${repos} with git clone https://github.com/<owner>/<repo>, make your own worktree there with git worktree add, and work in it.`,
+		"git and gh are signed in to GitHub with my account.",
 	].join("\n");
 }
+
+/** A clone URL's repo name: https://github.com/o/odin.git -> odin. */
+export const repoNameOf = (url: string) =>
+	url
+		.replace(/\/+$/, "")
+		.split("/")
+		.pop()
+		?.replace(/\.git$/, "") || null;

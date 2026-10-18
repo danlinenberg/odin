@@ -7,6 +7,7 @@ import {
 	parseSetupToken,
 	type RemoteSessionSpec,
 	redeemTicket,
+	repoNameOf,
 	runScript,
 	secretsFile,
 	tmuxSession,
@@ -111,4 +112,9 @@ test("a session with a repo starts in its own worktree, with Odin's port", () =>
 	expect(run).toContain(
 		`git -C "$HOME"/'repos'/'odin' worktree add -q -b 'odin/abcdef12' "$HOME"/'repos'/'odin'/.worktrees/'odin-abcdef12' origin/HEAD`,
 	);
+});
+
+test("a clone URL names its repo", () => {
+	expect(repoNameOf("https://github.com/o/odin.git")).toBe("odin");
+	expect(repoNameOf("https://github.com/o/odin/")).toBe("odin");
 });

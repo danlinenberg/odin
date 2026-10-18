@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { statSync } from "node:fs";
-import { basename, join } from "node:path";
+import { join } from "node:path";
 import { promisify } from "node:util";
 import { app, safeStorage } from "electron";
 import { githubAccessToken } from "main/lib/github-token";
@@ -17,6 +17,7 @@ import {
 	hostNote,
 	httpsCloneUrl,
 	issueTicket,
+	repoNameOf,
 	secretsFile,
 	sh,
 } from "main/lib/remote-host/session";
@@ -149,6 +150,8 @@ export const createRemoteHostRouter = () =>
 				const host = readOdinConfig().remoteHost;
 				if (!host?.on) throw new Error("No remote host is on.");
 				const { repoPath, ...rest } = input;
+				// The repo is its origin: a session worktree's folder name, or a
+				// folder that is gone, says nothing the host can clone.
 				const origin = repoPath
 					? await promisify(execFile)("git", [
 							"-C",
@@ -160,7 +163,7 @@ export const createRemoteHostRouter = () =>
 							.then(({ stdout }) => httpsCloneUrl(stdout))
 							.catch(() => null)
 					: null;
-				const repoName = repoPath ? basename(repoPath) : null;
+				const repoName = origin ? repoNameOf(origin) : null;
 				const { prompt, files } = rest.prompt
 					? hostFiles(rest.prompt, host.user, isSmallFile)
 					: { prompt: null, files: [] };
