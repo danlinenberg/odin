@@ -138,14 +138,28 @@ async function probeGithub(): Promise<ConnectionStatus> {
 	// under the other account's login.
 	const accounts = await Promise.all(
 		tokens.map(async ({ login, token }) => {
-			const res = await fetch("https://api.github.com/user", {
-				headers: {
-					Authorization: `Bearer ${token}`,
-					Accept: "application/vnd.github+json",
-				},
-			}).catch(() => null);
-			const json = res?.ok ? ((await res.json()) as { login?: string }) : null;
-			return { login: json?.login ?? login ?? "GitHub", ok: !!json };
+			try {
+				const res = await fetch("https://api.github.com/user", {
+					headers: {
+						Authorization: `Bearer ${token}`,
+						Accept: "application/vnd.github+json",
+					},
+				});
+				if (!res.ok)
+					return {
+						login: login ?? "GitHub",
+						ok: false,
+						error: probeError(res.status),
+					};
+				const json = (await res.json()) as { login?: string };
+				return {
+					login: json.login ?? login ?? "GitHub",
+					ok: true,
+					error: null,
+				};
+			} catch (error) {
+				return { login: login ?? "GitHub", ok: false, error: message(error) };
+			}
 		}),
 	);
 	const [main] = accounts;
@@ -153,8 +167,8 @@ async function probeGithub(): Promise<ConnectionStatus> {
 		provider: "github",
 		configured: true,
 		identity: main.ok ? main.login : null,
-		error: main.ok ? null : "token rejected - reconnect",
-		accounts,
+		error: main.error,
+		accounts: accounts.map(({ login, ok }) => ({ login, ok })),
 	};
 }
 
