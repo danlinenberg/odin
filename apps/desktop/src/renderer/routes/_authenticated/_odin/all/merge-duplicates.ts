@@ -50,7 +50,7 @@ function signals(item: AllItem): string[] {
  * prefix, case and punctuation are dropped (four words or more). Two rows from
  * one source never merge: a feed already lists each of its tasks once.
  *
- * ponytail: exact refs and titles, like Next in line's duplicate check. A
+ * Exact refs and titles, like Next in line's duplicate check. A
  * reworded copy stays its own row.
  */
 export function mergeDuplicates(items: AllItem[]): AllItem[] {
