@@ -18,7 +18,7 @@ git worktree remove .worktrees/<name>
 ```
 
 If you forget, Odin runs `scripts/prune-worktrees.sh` every 10 minutes over
-every repo with a `.worktrees/` and removes worktrees whose work landed or whose
+every repo's linked worktrees, wherever they live, and removes worktrees whose work landed or whose
 PR closed (Settings → Sessions turns this off). It never removes one with
 commits its default branch doesn't have, or with no commits and touched in the
 last 24h. Uncommitted files
@@ -65,6 +65,10 @@ the user already has. If neither works, don't ship the feature.
 No em dashes anywhere: code, comments, UI strings, docs, commit messages, PR
 descriptions. Use a plain hyphen `-`. `scripts/lint.sh` (CI's lint step) fails
 on one.
+
+No ponytail comments (the "ponytail" prefix on a note about a shortcut) in
+anything committed. Say what the code does in a plain comment, or leave it out.
+`scripts/lint.sh` fails on one.
 
 ## Committing
 

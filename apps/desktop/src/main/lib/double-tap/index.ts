@@ -21,9 +21,6 @@ import {
  *
  * Synergy sends modifier changes with key code 0 and may remap them, so the
  * setting is whichever modifier arrived when you recorded it, either side.
- *
- * ponytail: compiled with swiftc on first use (Xcode command line tools);
- * ship a prebuilt binary if Odin ever runs on a machine without them.
  */
 const SOURCE = String.raw`
 import Cocoa

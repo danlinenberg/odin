@@ -16,20 +16,25 @@ export interface Watch {
 	stamp?: string;
 	/** A reply from someone else you haven't opened the session for yet. */
 	reply?: string;
+	/** The thread itself, for Open once the session is closed. */
+	url?: string;
 }
 
 /**
- * "Ping me on replies": the sessions whose Slack thread or Jira ticket you
- * want a banner for whenever someone answers in it, keyed by the thread
- * (`slack:<channel>:<ts>`, `jira:<KEY>`). Bounded by hand - a watch only
- * exists because you turned it on in the session's menu.
+ * "Ping me": the sessions whose Slack thread or Jira ticket you want a banner
+ * for whenever someone answers in it, or whose PR you want one for once it's
+ * approved. Keyed by what's watched (`slack:<channel>:<ts>`, `jira:<KEY>`,
+ * `pr:<url>`); one session can hold a thread and a PR. Bounded by hand - a
+ * watch only exists because you turned it on in the session's menu.
  */
 export const useReplyWatch = create<{
 	watches: Record<string, Watch>;
-	toggle: (key: string, title: string, paneId: string) => void;
+	/** Watch all of `keys` for the session, or stop every watch it has. */
+	toggle: (keys: string[], title: string, paneId: string) => void;
 	setStamps: (
 		stamps: Record<string, string>,
 		replies?: Record<string, string>,
+		urls?: Record<string, string | null>,
 	) => void;
 	/** The session was opened: its reply is read. */
 	seen: (paneId: string) => void;
@@ -37,14 +42,24 @@ export const useReplyWatch = create<{
 	persist(
 		(set) => ({
 			watches: {},
-			toggle: (key, title, paneId) =>
+			toggle: (keys, title, paneId) =>
 				set((s) => {
-					const { [key]: on, ...rest } = s.watches;
+					const rest = Object.fromEntries(
+						Object.entries(s.watches).filter(([, w]) => w.paneId !== paneId),
+					);
+					const on = Object.keys(rest).length < Object.keys(s.watches).length;
 					return {
-						watches: on ? rest : { ...rest, [key]: { title, paneId } },
+						watches: on
+							? rest
+							: {
+									...rest,
+									...Object.fromEntries(
+										keys.map((k) => [k, { title, paneId }]),
+									),
+								},
 					};
 				}),
-			setStamps: (stamps, replies = {}) =>
+			setStamps: (stamps, replies = {}, urls = {}) =>
 				set((s) => ({
 					watches: Object.fromEntries(
 						Object.entries(s.watches).map(([key, watch]) => [
@@ -54,6 +69,7 @@ export const useReplyWatch = create<{
 										...watch,
 										stamp: stamps[key],
 										reply: replies[key] ?? watch.reply,
+										url: urls[key] ?? watch.url,
 									}
 								: watch,
 						]),
@@ -116,10 +132,16 @@ export function sessionThread(pane: {
 	return key ? `jira:${key}` : null;
 }
 
+/** What a watch's ping says happened: a PR gets approved, a thread gets a reply. */
+export function watchEvent(key: string): string {
+	return key.startsWith("pr:") ? "Approved" : "New reply";
+}
+
 /**
- * The watches with a new reply from someone else. A watch's first check only
- * records where the thread stands: the replies already there are why you
- * watched it, not news.
+ * The watches with a new reply from someone else. A thread's first check only
+ * records where it stands: the replies already there are why you watched it,
+ * not news. A PR already approved by its first check is news - approval is
+ * what you asked to hear about.
  */
 export function newReplies(
 	watches: Record<string, Watch>,
@@ -128,7 +150,13 @@ export function newReplies(
 	return Object.keys(activity).filter((key) => {
 		const seen = watches[key]?.stamp;
 		const now = activity[key];
-		return seen !== undefined && !!now && now.stamp !== seen && !now.byMe;
+		const first = seen === undefined;
+		return (
+			!!now &&
+			!now.byMe &&
+			now.stamp !== seen &&
+			(!first || key.startsWith("pr:"))
+		);
 	});
 }
 
@@ -136,9 +164,6 @@ export function newReplies(
  * Check every watched session's thread on launch and every minute after, and ping
  * for each one someone replied in. Mounted in the shell, so it runs whatever
  * screen is open.
- *
- * ponytail: one 1-minute poll, sequential Slack lookups (Slack's own gate
- * throttles them). Fine for a handful of watches; batch if it grows to dozens.
  */
 export function useReplyWatcher(openSession: (paneId: string) => void): void {
 	const open = useRef(openSession);
@@ -153,15 +178,22 @@ export function useReplyWatcher(openSession: (paneId: string) => void): void {
 					.filter((k) => k.startsWith(prefix))
 					.map((k) => k.slice(prefix.length));
 			const activity = await electronTrpcClient.work.threadActivity
-				.query({ slack: after("slack:"), jira: after("jira:") })
+				.query({
+					slack: after("slack:"),
+					jira: after("jira:"),
+					prs: after("pr:"),
+				})
 				.catch(() => ({}) as Record<string, ThreadActivity>);
 			const replies: Record<string, string> = {};
 			for (const key of newReplies(watches, activity)) {
 				const watch = watches[key];
 				replies[key] = activity[key]?.text ?? "Someone replied in the thread.";
-				const note = new Notification(`New reply: ${watch?.title ?? key}`, {
-					body: replies[key],
-				});
+				const note = new Notification(
+					`${watchEvent(key)}: ${watch?.title ?? key}`,
+					{
+						body: replies[key],
+					},
+				);
 				note.onclick = () => {
 					window.focus();
 					if (watch?.paneId) open.current(watch.paneId);
@@ -172,6 +204,9 @@ export function useReplyWatcher(openSession: (paneId: string) => void): void {
 					Object.entries(activity).map(([key, a]) => [key, a.stamp]),
 				),
 				replies,
+				Object.fromEntries(
+					Object.entries(activity).map(([key, a]) => [key, a.url]),
+				),
 			);
 		};
 		void tick();
@@ -180,21 +215,19 @@ export function useReplyWatcher(openSession: (paneId: string) => void): void {
 	}, []);
 }
 
-/** The thread key this session is watched under, or null. */
-function useWatchedThread(paneId: string): string | null {
-	return useReplyWatch(
-		(s) =>
-			Object.keys(s.watches).find((key) => s.watches[key]?.paneId === paneId) ??
-			null,
+/** Whether anything of this session's is watched. */
+function useWatched(paneId: string): boolean {
+	return useReplyWatch((s) =>
+		Object.values(s.watches).some((w) => w.paneId === paneId),
 	);
 }
 
 /** The bell a watched session wears beside its title, like ★ on a starred one. */
 export function WatchMark({ paneId }: { paneId: string }) {
-	if (!useWatchedThread(paneId)) return null;
+	if (!useWatched(paneId)) return null;
 	return (
 		<LuBellRing
-			title="Pinging you on replies - right-click to stop"
+			title="Pinging you - right-click to stop"
 			className="mr-1 inline size-3.5 align-[-2px] text-primary"
 		/>
 	);
@@ -205,41 +238,44 @@ export function WatchMark({ paneId }: { paneId: string }) {
  * Opening the session clears it.
  */
 export function WatchReply({ paneId }: { paneId: string }) {
-	const reply = useReplyWatch(
-		(s) => Object.values(s.watches).find((w) => w.paneId === paneId)?.reply,
+	const key = useReplyWatch((s) =>
+		Object.keys(s.watches).find(
+			(k) => s.watches[k]?.paneId === paneId && s.watches[k]?.reply,
+		),
 	);
-	if (!reply) return null;
+	const reply = useReplyWatch((s) => (key ? s.watches[key]?.reply : undefined));
+	if (!key || !reply) return null;
 	return (
 		<div
 			title={reply}
 			className="mt-1 truncate text-[11.5px] font-medium text-attention"
 		>
 			<LuBellRing className="mr-1 inline size-3 align-[-2px]" aria-hidden />
-			New reply: {reply}
+			{watchEvent(key)}: {reply}
 		</div>
 	);
 }
 
 /** The drawer's pill for a watched session; clicking it stops the pings. */
 export function WatchPill({ paneId }: { paneId: string }) {
-	const thread = useWatchedThread(paneId);
+	const watched = useWatched(paneId);
 	const toggle = useReplyWatch((s) => s.toggle);
 	const seen = useReplyWatch((s) => s.seen);
 	// The drawer shows this session, so its reply is read.
 	useEffect(() => seen(paneId), [seen, paneId]);
-	if (!thread) return null;
+	if (!watched) return null;
 	return (
 		<button
 			type="button"
-			title="Odin pings you when someone else replies in this thread. Click to stop."
-			onClick={() => toggle(thread, "", paneId)}
+			title="Odin pings you when someone else replies in this session's thread, or its PR is approved. Click to stop."
+			onClick={() => toggle([], "", paneId)}
 			className={cn(
 				"flex items-center gap-1 rounded-[5px] px-[7px] text-[11px] font-medium",
 				PILL.brand,
 			)}
 		>
 			<LuBellRing className="size-3" aria-hidden />
-			Pinging on replies
+			Pinging you
 		</button>
 	);
 }

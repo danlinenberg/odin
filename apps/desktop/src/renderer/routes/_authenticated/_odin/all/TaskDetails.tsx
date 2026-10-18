@@ -8,7 +8,6 @@ export function cleanTitle(title: string): string {
 	return title.replace(/[*~]/g, "").replace(/\s+/g, " ").trim();
 }
 
-// ponytail: bare URLs only - Slack's <url|label> is already unwrapped upstream.
 const URL_RE = /https?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)\]]/g;
 
 /** Text with every URL in it a link that opens where links open in Odin. */
@@ -109,6 +108,13 @@ export function TaskDetails({
 				>
 					{shownTitle}
 				</p>
+			)}
+			{item.image && (
+				<img
+					src={item.image}
+					alt={item.title}
+					className="max-h-[320px] max-w-full rounded-[6px] object-contain"
+				/>
 			)}
 			{description ??
 				(body && body !== item.title.trim() && (

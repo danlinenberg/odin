@@ -27,6 +27,7 @@ describe("buildThreadPrompt", () => {
 		const prompt = buildThreadPrompt(THREAD, "hi");
 		expect(prompt).toContain("slack_send_message_draft");
 		expect(prompt).toContain("A Slack draft is not a post");
+		expect(prompt).toContain(`give me this thread link: ${THREAD}`);
 	});
 
 	it("keeps its own thread link first, above any link in the message", () => {

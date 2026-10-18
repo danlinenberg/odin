@@ -10,10 +10,13 @@ type PatchRow = {
 	text: string;
 };
 
+/** The diff of everything the branch did since it left main, picked in the header. */
+export const BRANCH = "branch";
+
 /** A comment on lines of the diff, kept until the review goes to the agent. */
 export type ReviewComment = {
 	id: string;
-	/** The PR the diff came from; null is the working tree. */
+	/** The PR the diff came from; null is the working tree, BRANCH the branch. */
 	pr: string | null;
 	path: string;
 	/** Where the comment shows - under the last line of the range. */
@@ -99,7 +102,12 @@ export function reviewMessage(
 	comments: ReviewComment[],
 	pr: string | null,
 ): string {
-	const where = pr ? `the diff of ${pr}` : "the working tree diff";
+	const where =
+		pr === BRANCH
+			? "this branch's diff against its base branch"
+			: pr
+				? `the diff of ${pr}`
+				: "the working tree diff";
 	const items = comments.map((comment, index) => {
 		const code = comment.code.map((line) => `   | ${line}`);
 		const text = comment.text.split("\n").map((line) => `   ${line}`);

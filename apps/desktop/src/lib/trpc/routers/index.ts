@@ -21,6 +21,7 @@ import { createMigrationRouter } from "./migration";
 import { createNotificationsRouter } from "./notifications";
 import { createNotionRouter } from "./notion";
 import { createPermissionsRouter } from "./permissions";
+import { createPhoneRouter } from "./phone";
 import { createPortsRouter } from "./ports";
 import { createProjectsRouter } from "./projects";
 import { createRemoteConnectionsRouter } from "./remote-connections";
@@ -30,7 +31,6 @@ import { createSettingsRouter } from "./settings";
 import { createSkillsRouter } from "./skills";
 import { createSlackRouter } from "./slack";
 import { createSystemRouter } from "./system";
-import { createTelegramRouter } from "./telegram";
 import { createTerminalRouter } from "./terminal";
 import { createUiStateRouter } from "./ui-state";
 import { createWindowRouter } from "./window";
@@ -68,7 +68,7 @@ export const createAppRouter = (getWindow: () => BrowserWindow | null) => {
 		menu: createMenuRouter(),
 		external: createExternalRouter(),
 		settings: createSettingsRouter(),
-		telegram: createTelegramRouter(),
+		phone: createPhoneRouter(),
 		skills: createSkillsRouter(),
 		system: createSystemRouter(),
 		config: createConfigRouter(),

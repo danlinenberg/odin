@@ -10,6 +10,7 @@ import type {
 } from "shared/notification-types";
 import { callProcedure, clip, listProcedures } from "../odin-api";
 import { callService, fetchFile, readLink } from "../read-link";
+import { createSessionWorktree } from "../session-worktree";
 import { HOOK_PROTOCOL_VERSION } from "../terminal/env";
 import { mapEventType } from "./map-event-type";
 import { resolvePaneId } from "./resolve-pane-id";
@@ -142,11 +143,14 @@ app.get("/hook/complete", (req, res) => {
  * it takes POST only and refuses anything a browser sent: browsers stamp an
  * Origin on every cross-site POST, curl never does.
  */
+/** A named Shell's tab label: short and plain. */
+const SHELL_NAME = /^[\w.-]{1,32}$/;
+
 app.post("/shell/run", express.urlencoded({ extended: false }), (req, res) => {
 	if (req.headers.origin) {
 		return res.status(403).send("Not from a browser.\n");
 	}
-	const { paneId, command } = req.body ?? {};
+	const { paneId, command, name } = req.body ?? {};
 	if (
 		typeof paneId !== "string" ||
 		!paneId ||
@@ -155,7 +159,14 @@ app.post("/shell/run", express.urlencoded({ extended: false }), (req, res) => {
 	) {
 		return res.status(400).send("Need paneId and command.\n");
 	}
-	const request: RunInShellRequest = { paneId, command };
+	if (name !== undefined && !SHELL_NAME.test(String(name))) {
+		return res
+			.status(400)
+			.send("A name is 1-32 letters, digits, dots, dashes or underscores.\n");
+	}
+	const request: RunInShellRequest = name
+		? { paneId, command, name: String(name) }
+		: { paneId, command };
 	if (!notificationsEmitter.emit(NOTIFICATION_EVENTS.RUN_IN_SHELL, request)) {
 		return res.status(503).send("Odin's window isn't open.\n");
 	}
@@ -186,7 +197,7 @@ app.post("/odin", express.urlencoded({ extended: false }), async (req, res) => {
 		return res
 			.status(400)
 			.send(
-				"Need action: guide, tasks, start, add, sessions, night, state, set, run, open, done, api, call or service.\n",
+				"Need action: guide, tasks, start, add, sessions, night, state, set, run, open, done, api, call, service or worktree.\n",
 			);
 	}
 	// Main's own operations answer here; the board's state is the renderer's.
@@ -206,6 +217,22 @@ app.post("/odin", express.urlencoded({ extended: false }), async (req, res) => {
 				).catch((error) => `Failed: ${error.message ?? error}`),
 			)}\n`,
 		);
+	if (action === "worktree") {
+		if (typeof rest.repo !== "string" || !rest.repo)
+			return res.status(400).send("Need repo: the main checkout's path.\n");
+		const made = await createSessionWorktree(
+			rest.repo,
+			String(rest.name ?? ""),
+		).catch((error) => `Failed: ${error.message ?? error}`);
+		if (typeof made === "string") return res.status(500).send(`${made}\n`);
+		if (!made)
+			return res
+				.status(400)
+				.send(
+					`Not a main git checkout: ${rest.repo}. Already in a worktree? Work there.\n`,
+				);
+		return res.send(`${made.path}\n`);
+	}
 	const args = Object.fromEntries(
 		Object.entries(rest).filter(
 			(entry): entry is [string, string] => typeof entry[1] === "string",
@@ -220,7 +247,7 @@ app.post("/odin", express.urlencoded({ extended: false }), async (req, res) => {
 
 /**
  * One board action answered by the renderer, which owns that state - for
- * /odin and the Telegram bot. undefined: no window to ask; null: no answer.
+ * /odin. undefined: no window to ask; null: no answer.
  */
 export async function askRenderer(
 	action: string,

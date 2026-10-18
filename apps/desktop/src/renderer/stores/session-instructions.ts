@@ -10,10 +10,6 @@ interface SessionInstructionsState {
 /**
  * Settings → Advanced: the standing instructions at the end of every task
  * prompt (work in the workspace, the Shell, ACTION ITEMS).
- *
- * ponytail: renderer localStorage, like launch-limits - the prompt is built in
- * the renderer. null rather than a copy of the default, so a default that
- * changes in a later build reaches everyone who never edited it.
  */
 export const useSessionInstructions = create<SessionInstructionsState>()(
 	persist(

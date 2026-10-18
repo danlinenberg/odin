@@ -4,6 +4,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { electronTrpcClient } from "renderer/lib/trpc-client";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import { ROW_PRIMARY_BUTTON, useSearchHotkey } from "../components/FeedChrome";
 import { PersonChip } from "../components/PersonChip";
@@ -176,6 +177,9 @@ function SessionsPage() {
 			);
 			return;
 		}
+		await electronTrpcClient.repos.reviveSessionWorktree.mutate({
+			path: row.cwd,
+		});
 		const ensured = await ensureWorkspace(row.cwd);
 		if (!ensured.ok) {
 			toast.error(ensured.error);

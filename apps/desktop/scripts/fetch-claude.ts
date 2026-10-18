@@ -20,7 +20,6 @@ import {
 import { join } from "node:path";
 
 const BASE = "https://downloads.claude.ai/claude-code-releases";
-// ponytail: macOS arm64 only, like the mac build target and the cask.
 const PLATFORM = "darwin-arm64";
 
 if (process.platform !== "darwin") {

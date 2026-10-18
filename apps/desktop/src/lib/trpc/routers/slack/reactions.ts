@@ -14,8 +14,7 @@ export const LAUNCH_REACTION = "robot_face";
 
 /**
  * `:eyes:`, `eyes`, ` Eyes ` → `eyes`. Slack names reactions, so a pasted
- * glyph (👀) is not accepted - ponytail: add a unicode→name table if typing
- * the name ever grates.
+ * glyph (👀) is not accepted.
  */
 export function normalizeReaction(name: string): string {
 	return (
@@ -35,6 +34,7 @@ export interface SlackReactionsListItem {
 		bot_id?: string;
 		text?: string;
 		attachments?: SlackAttachment[];
+		files?: SlackFile[];
 		ts?: string;
 		thread_ts?: string;
 		permalink?: string;
@@ -49,15 +49,26 @@ export interface SlackAttachment {
 	fallback?: string;
 }
 
+export interface SlackFile {
+	url_private?: string;
+	mimetype?: string;
+}
+
 /**
  * A message's readable body. Bots (Datadog, Sentry) post an empty `text` and
- * put the alert in `attachments`, so fall back to those.
+ * put the alert in `attachments`, so fall back to those. A message that is
+ * only a screenshot falls back to the image's link, one per line.
  */
 export function messageBody(message: {
 	text?: string;
 	attachments?: SlackAttachment[];
+	files?: SlackFile[];
 }): string {
 	if (message.text?.trim()) return message.text;
+	const images = (message.files ?? [])
+		.filter((f) => f.mimetype?.startsWith("image/") && f.url_private)
+		.map((f) => f.url_private);
+	if (!message.attachments?.length && images.length) return images.join("\n");
 	return (message.attachments ?? [])
 		.map(
 			(a) =>
@@ -171,9 +182,6 @@ export function untilNextQueued<
  * message is newer than half of what is on it. The only honest answer for a
  * missing row is a `reactions.get` about that one message.
  *
- * ponytail: a few per sync, least-recently-confirmed first, and the caller
- * bumps `lastSeenAt` on every answer - so the queue rotates through in a
- * handful of polls instead of costing one call per row every two minutes.
  * Raise the budget if a queue ever grows faster than it rotates.
  */
 export function rowsToVerify<
@@ -239,9 +247,6 @@ export function replaceMentions(
  * "@Dan Linenberg 🙏". Slack messages open with one routinely, and titling a
  * message by its first line then puts the greeting on the board card and
  * leaves the actual ask off it - and out of every search over titles.
- *
- * ponytail: a word list, not language detection. A greeting it doesn't know
- * costs one mistitled card, which is exactly what happens today anyway.
  */
 export function isGreeting(line: string): boolean {
 	return (
@@ -257,6 +262,14 @@ export function isGreeting(line: string): boolean {
 			// never the message either.
 			.replace(/[^\p{L}\p{N}]+/gu, "") === ""
 	);
+}
+
+/** The image a message is nothing but, or null: see `messageBody`. */
+export function onlyImage(text: string): string | null {
+	const lines = text.trim().split("\n");
+	return lines.every((l) => l.startsWith("https://files.slack.com/"))
+		? lines[0]
+		: null;
 }
 
 /** A one-line label for a message - first line that says something, capped. */
@@ -314,9 +327,6 @@ export function reactionStatus(row: {
  * The stored channel name as something worth reading. Group DMs come back from
  * Slack under their internal name - `mpdm-dan.l--netanel--shahar-1` - which is
  * not a channel and should not wear a `#`.
- *
- * ponytail: the member list keeps you in it, because the label is built where
- * the identity isn't known. Drop self here if it ever reads as noise.
  */
 export function channelLabel(name: string | null): string | null {
 	if (!name) return null;

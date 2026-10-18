@@ -17,6 +17,7 @@ import {
 	mentionedUserIds,
 	messageBody,
 	normalizeReaction,
+	onlyImage,
 	pickEyedMessages,
 	QUEUE_REACTION,
 	type ReactionStatus,
@@ -25,6 +26,7 @@ import {
 	rowsToVerify,
 	type SlackAttachment,
 	type SlackReactionsListItem,
+	slackTextToPlain,
 	threadParentTs,
 	toTitle,
 	untilNextQueued,
@@ -79,10 +81,6 @@ function ackedByMe(
 
 /**
  * Rows whose message carried my launch reaction on the last sync.
- *
- * ponytail: in memory, not a column. The first sync after a restart refills
- * it from Slack, and `startedAt` is what stops a second launch - so nothing
- * here needs to survive a restart.
  */
 const launchRequested = new Set<string>();
 
@@ -91,8 +89,6 @@ interface SlackResponse {
 	error?: string;
 }
 
-// ponytail: one global gate, 4 Slack calls in flight. A burst past that just
-// buys 429s and their Retry-After sleeps.
 let slackInFlight = 0;
 const slackWaiting: (() => void)[] = [];
 
@@ -264,8 +260,12 @@ async function lookupUserName(
 	}
 }
 
-/** Mentions read as names, not ids. Lookups are cached, so re-syncs are free. */
-async function resolveMentions(text: string, token: string): Promise<string> {
+/**
+ * Mentions read as names, not ids: raw `<@U123>` markup is flattened first so
+ * no brackets are left around the name. Lookups are cached, so re-syncs are free.
+ */
+async function resolveMentions(raw: string, token: string): Promise<string> {
+	const text = slackTextToPlain(raw);
 	const ids = mentionedUserIds(text);
 	if (ids.length === 0) return text;
 	const names = new Map<string, string>();
@@ -281,9 +281,6 @@ async function resolveMentions(text: string, token: string): Promise<string> {
 /**
  * Pull the current queue reactions into the local table.
  *
- * ponytail: one page of `reactions.list` (100 items). Because rows persist, a
- * poll that misses older reactions still accumulates them over time; paginate
- * here if a burst of other reactions ever pushes them off the first page.
  *
  * That page finds new rows. It cannot retire old ones - Slack orders it by
  * when I reacted, so falling off the end says nothing about the message - so
@@ -630,6 +627,31 @@ export async function slackThreadReplies(
 }
 
 /**
+ * A watched thread as "Ping me on replies" shows it: its link, for when the
+ * session it was set on is gone, and the reply with names for mentions.
+ */
+export async function slackWatchedThread(
+	id: string,
+	text: string | null,
+): Promise<{ url: string | null; text: string | null }> {
+	const token = slackToken();
+	const [channelId = "", messageTs = ""] = id.split(":");
+	if (!token) return { url: null, text };
+	const me = await getIdentity(token).catch(() => null);
+	return {
+		url: me?.teamUrl
+			? buildPermalink({
+					teamUrl: me.teamUrl,
+					channelId,
+					messageTs,
+					threadTs: null,
+				})
+			: null,
+		text: text && (await resolveMentions(text, token)),
+	};
+}
+
+/**
  * The conversation around a queued message, as plain lines a model can read:
  * the thread it sits in, and in a DM or group DM whatever was said inline
  * after it - most DM answers never touch a thread. "ME" is me; the queued
@@ -637,9 +659,6 @@ export async function slackThreadReplies(
  *
  * Needs the `*:history` scopes. Without them, or when Slack won't say, null -
  * and the sweep keeps its rule verdict.
- *
- * ponytail: the parent plus the newest 15 messages, 300 chars each. Enough to
- * see who had the last word and what it was; widen if judgements need more.
  */
 export async function slackConversation(
 	id: string,
@@ -859,6 +878,8 @@ export interface ReactionRow {
 	status: ReactionStatus;
 	/** Carries my launch reaction and hasn't been started: start it now. */
 	autoLaunch: boolean;
+	/** The message is only this image (a files.slack.com link). */
+	image: string | null;
 }
 
 function readRows(): ReactionRow[] {
@@ -871,7 +892,7 @@ function readRows(): ReactionRow[] {
 		.all()
 		.map((row) => ({
 			id: row.id,
-			title: toTitle(row.text),
+			title: onlyImage(row.text) ? "Image" : toTitle(row.text),
 			text: row.text,
 			channelId: row.channelId,
 			channelName: channelLabel(row.channelName),
@@ -884,6 +905,7 @@ function readRows(): ReactionRow[] {
 			status: reactionStatus(row),
 			autoLaunch:
 				launchRequested.has(row.id) && reactionStatus(row) === "Not started",
+			image: onlyImage(row.text),
 		}));
 }
 

@@ -39,3 +39,20 @@ export function linkify(text: string, refs: Map<string, string>): string {
 		)
 		.join("");
 }
+
+/** A host with a path and no scheme ("claude.ai/artifact/x"); not a file path ("src/a.ts"), whose first segment has no dot. */
+const BARE_URL =
+	/(?<![\w./@:-])((?:[a-z0-9-]+\.)+[a-z]{2,6}\/[^\s)\]]*[^\s)\].,;:!?])/g;
+
+/**
+ * Give scheme-less URLs an https:// so Markdown links them. Summaries often
+ * shorten "https://claude.ai/..." to "claude.ai/...", which renders as plain text.
+ */
+export function withSchemes(text: string): string {
+	return text
+		.split(KEEP)
+		.map((part, index) =>
+			index % 2 === 1 ? part : part.replace(BARE_URL, "https://$1"),
+		)
+		.join("");
+}

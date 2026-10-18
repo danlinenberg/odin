@@ -13,6 +13,7 @@ import {
 	useClaudeCommand,
 } from "renderer/stores/claude-command";
 import { type CrowChat, useCrowChats } from "renderer/stores/crow-chats";
+import { useDoneStore } from "renderer/stores/done";
 import { useNextInLinePrompt } from "renderer/stores/next-in-line-prompt";
 import { useOneByOne } from "renderer/stores/one-by-one";
 import { useTabsStore } from "renderer/stores/tabs/store";
@@ -71,8 +72,6 @@ const READY_TIMEOUT_MS = 90_000;
  * A turn silent this long is stuck (a hung tool, a request that never came
  * back): Claude never takes a message typed behind it, so a follow-up resumes
  * the conversation in a fresh process instead.
- * ponytail: transcript silence, not a liveness probe - a real 10-minute
- * tool call without a word also gets restarted.
  */
 const STUCK_MS = 10 * 60_000;
 
@@ -547,17 +546,38 @@ function runOdinAction(
 		);
 	if (action === "add") {
 		if (!args.text?.trim()) return "Need text.";
-		const before = useOdinTasks.getState().tasks[0];
-		deps.add(args.text);
-		// start=true (the Telegram bot): launch it too, and answer with what it
-		// needs to watch the session. add() prepends, so the new task is first.
-		if (args.start === "true") {
-			const task = useOdinTasks.getState().tasks[0];
-			if (!task || task === before) return "Need text.";
-			void launchTask(task, deps);
-			return JSON.stringify({ id: task.id, title: task.title });
-		}
-		return `Added "${args.text.trim().split("\n")[0]}" to the backlog.`;
+		deps.add(args.text, undefined, args.repo || undefined);
+		const title = args.text.trim().split("\n")[0];
+		// The store puts a new task first: the one just added, as TaskBox's Start now reads it.
+		const task =
+			args.start === "true" ? useOdinTasks.getState().tasks[0] : undefined;
+		if (!task) return `Added "${title}" to the backlog.`;
+		// Not awaited: a launch can sit behind the machine's capacity gate.
+		void launchTask(task, deps);
+		return `Added "${title}" and started it on the board.`;
+	}
+	if (action === "done-list") {
+		// The All page's Done shelf, newest first: what you put away as Done.
+		const rows = Object.entries(useDoneStore.getState().done)
+			.filter(([, row]) => !row.reading)
+			.sort(([, a], [, b]) => b.at - a.at)
+			.slice(0, 40)
+			.map(([key, row]) => ({ key, ...row }));
+		return JSON.stringify(rows);
+	}
+	if (action === "star") {
+		const pane = args.paneId ? panes[args.paneId] : undefined;
+		if (!pane)
+			return "No session with that paneId - list them with action=sessions.";
+		// Set, not flipped: a retried call can't undo itself.
+		const starred = args.starred === "true";
+		useTabsStore.setState((state) => ({
+			panes: {
+				...state.panes,
+				[pane.id]: { ...state.panes[pane.id], odinStarred: starred },
+			},
+		}));
+		return `${starred ? "Starred" : "Unstarred"} ${pane.odinTaskTitle ?? pane.id}.`;
 	}
 	if (action === "start") {
 		const ids = (args.ids ?? "").split(",").map((id) => id.trim());
@@ -625,5 +645,5 @@ function runOdinAction(
 		endSession(args.paneId);
 		return `Marked ${panes[args.paneId].odinTaskTitle ?? args.paneId} done.`;
 	}
-	return `Unknown action "${action}" - use guide, tasks, start, add, sessions, night, done, state, set, open, api or call.`;
+	return `Unknown action "${action}" - use guide, tasks, start, add, star, sessions, night, done, state, set, open, api or call.`;
 }

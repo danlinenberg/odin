@@ -42,6 +42,9 @@ export const DEFAULT_SESSION_INSTRUCTIONS = [
 	// about this one?". A turn that stops at "here's what I found" makes
 	// you read the whole transcript to answer it.
 	"",
+	// "Update the contract to 0" makes me write the SQL myself.
+	"When I have to run something you may not run yourself - a database write, a production change - give me the exact copy-pasteable commands above ACTION ITEMS: a read-only preview, the change, and a check that it worked. Never only describe it. Put each command in its own fenced block whose first line starts with `!`, e.g. `! aws sso login --profile dev`: Odin shows a Run button for those.",
+	"",
 	// Items that carry their own background and options turn the list
 	// back into a transcript; the reasoning already lives above it.
 	'Finish every reply with a section headed "ACTION ITEMS": a short numbered list of what I - the human reviewing this - have to do next (decide something, run or check something, unblock you). Anything you left open is an item: a PR not merged, a change not live yet, a question you are asking me. Shipped work is not: no "review this" for something already merged. One line per item, an imperative of about 12 words or fewer - no background, reasons or option lists (those belong above the section). When an item asks me to choose, end it with the choices in brackets, like "Tell me the export format [CSV | shareable page]". When an item tells me to open, check or watch something - a page, PR, file or app - put its link in the item. End an item with "(you only)" when you cannot do it yourself - no access, or the rules forbid it. If there is nothing for me to do, write "ACTION ITEMS: none" and say why in a few words.',
@@ -57,6 +60,7 @@ export function buildPrompt(
 	checkout = "",
 	guidelines = "",
 	instructions = DEFAULT_SESSION_INSTRUCTIONS,
+	worktree: { path: string; branch: string } | null = null,
 ): string {
 	return [
 		// A skill leads the prompt, on its own line, with the title as its
@@ -88,9 +92,21 @@ export function buildPrompt(
 				]
 			: []),
 		...rulesPrompt(rules, checkout),
+		...(worktree
+			? ["", worktreeMadeLine(worktree)]
+			: checkout
+				? []
+				: ["", WORKTREE_ASK_LINE]),
 		...(instructions.trim() ? ["", instructions.trim()] : []),
 	].join("\n");
 }
+
+const worktreeMadeLine = ({ path, branch }: { path: string; branch: string }) =>
+	`Odin made this session its own git worktree: ${path} (branch ${branch}, cut from the repo's default branch). Work only there and don't make another worktree. Install dependencies first if the repo needs them.`;
+
+/** A launch into the repos folder: Odin can't know the repo until the agent picks it. */
+export const WORKTREE_ASK_LINE =
+	"Before you change files in a git repo, get your own worktree from Odin: `curl -sf http://127.0.0.1:$ODIN_PORT/odin --data-urlencode action=worktree --data-urlencode repo=<the repo's main checkout> --data-urlencode name=<short task name>` prints its path (a new branch from the default branch). cd there and work only there. Skip this if you're already in a worktree, or only read code.";
 
 /** Mime subtypes whose obvious extension isn't the subtype itself. */
 const EXTENSIONS: Record<string, string> = {

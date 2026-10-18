@@ -98,11 +98,6 @@ function tryCreateLock(homeDir: string, appId: string): UiLockResult | null {
  * user out of their own app. A lock held by a *live* pid is never stolen, and
  * never times out: an instance the user has had open for a week is still the
  * legitimate owner.
- *
- * ponytail: pid liveness only. A recycled pid could in principle make a dead
- * holder look alive, costing one spurious "already running" dialog; the fix
- * would be to also match process start time, which is not worth the platform
- * -specific code until someone actually hits it.
  */
 export function acquireSingleUiLock(
 	appId: string,

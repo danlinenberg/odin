@@ -26,6 +26,12 @@ export interface RunInShellRequest {
 	/** The agent's own pane - `$ODIN_PANE_ID` in its environment. */
 	paneId: string;
 	command: string;
+	/**
+	 * A Shell of its own, by name - `ngrok`, `server` - so two long runs sit side
+	 * by side. Running again under a name replaces only that Shell. No name is
+	 * the session's main Shell, as before.
+	 */
+	name?: string;
 }
 
 /** An agent asking Odin itself to do something - the crow's `/odin` API. */

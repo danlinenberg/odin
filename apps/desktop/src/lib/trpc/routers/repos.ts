@@ -21,10 +21,6 @@ import { execWithShellEnv } from "./workspaces/utils/shell-env";
 /**
  * Odin fork: the git checkouts on this machine, so the session composer can
  * point a session at a repo instead of the default workspace.
- *
- * ponytail: one depth-capped `find` under $HOME, scanned once at launch and
- * cached for the app's lifetime - a new clone shows up after a restart. Swap
- * for a watcher only if that ever bites.
  */
 const run = promisify(execFile);
 
@@ -94,7 +90,7 @@ export async function scanRepos(home: string = homedir()): Promise<string[]> {
  * never offers it. Read per call, so a folder added a moment ago shows up.
  * Imported lazily: local-db pulls in Electron, which the tests don't have.
  */
-async function projectRepos(): Promise<string[]> {
+export async function projectRepos(): Promise<string[]> {
 	const { projects } = await import("@odin/local-db");
 	const { localDb } = await import("main/lib/local-db");
 	return localDb
@@ -195,23 +191,18 @@ function diffOf(all: DiffFile[], note: string[] = []) {
 /**
  * What changed in a checkout, file by file.
  *
- * ponytail: `git diff HEAD` (staged + unstaged), falling back to the last
- * commit - an agent that already committed its turn would otherwise show an
- * empty panel. Untracked files are named, not diffed.
  *
  * @param transcript The session's transcript. Checkouts are shared, so the
  * tree holds other sessions' edits and HEAD is often a stranger's commit -
  * made before this session, or by another one while it ran. The session owns
  * a commit whose sha its transcript printed (`git commit` does), and a file
- * whose path it named. ponytail: a file the session changed without naming it
- * (a lockfile from an install) is hidden too - the note counts it.
+ * whose path it named.
  */
 export async function renderDiff(
 	cwd: string,
 	transcript?: string,
 	wholeFile = false,
 ): Promise<RepoDiff> {
-	// ponytail: every line as context, so the panel shows the whole file.
 	const context = wholeFile ? ["-U1000000"] : [];
 	const git = async (args: string[]) =>
 		(
@@ -333,6 +324,81 @@ export async function renderSinceDiff(
 }
 
 /**
+ * Everything the branch changed since it left its base - its commits and any
+ * edits not committed yet - with no PR needed. The base is the remote's
+ * default branch (`origin/HEAD`), else `main` or `master`, remote first.
+ */
+export async function renderBranchDiff(
+	cwd: string,
+	wholeFile = false,
+): Promise<RepoDiff> {
+	const git = async (args: string[]) =>
+		(
+			await execWithShellEnv("git", ["--no-pager", ...args], {
+				cwd,
+				maxBuffer: 64 * 1024 * 1024,
+				timeout: 30_000,
+			})
+		).stdout.trim();
+	const tryGit = (args: string[]) => git(args).catch(() => "");
+
+	const branch =
+		(await tryGit(["rev-parse", "--abbrev-ref", "HEAD"])) || "HEAD";
+	const remoteDefault = await tryGit([
+		"rev-parse",
+		"--abbrev-ref",
+		"origin/HEAD",
+	]);
+	const candidates = [
+		remoteDefault,
+		"origin/main",
+		"origin/master",
+		"main",
+		"master",
+	].filter((ref) => ref && ref !== "origin/HEAD" && ref !== branch);
+	let base = "";
+	let forkPoint = "";
+	for (const ref of candidates) {
+		forkPoint = await tryGit(["merge-base", "HEAD", ref]);
+		if (forkPoint) {
+			base = ref;
+			break;
+		}
+	}
+	if (!base) {
+		return {
+			source: `${branch} - no main or master branch to compare with`,
+			cwd,
+			files: [],
+			note: "",
+		};
+	}
+
+	const commits = Number(
+		(await tryGit(["rev-list", "--count", `${forkPoint}..HEAD`])) || 0,
+	);
+	const patch = await git([
+		"diff",
+		"--no-color",
+		...(wholeFile ? ["-U1000000"] : []),
+		forkPoint,
+	]);
+	const untracked = (await git(["ls-files", "--others", "--exclude-standard"]))
+		.split("\n")
+		.filter(Boolean);
+	const note = untracked.length
+		? [
+				`${untracked.length} untracked file(s), not shown: ${untracked.slice(0, 3).join(", ")}${untracked.length > 3 ? ", …" : ""}`,
+			]
+		: [];
+	return {
+		...diffOf(splitPatch(patch), note),
+		source: `${branch} vs ${base} · ${commits} ${commits === 1 ? "commit" : "commits"}`,
+		cwd,
+	};
+}
+
+/**
  * A pull request's diff, straight from GitHub - the PR may live in a repo (or
  * a worktree since deleted) that no checkout here still holds.
  */
@@ -429,6 +495,41 @@ export const createReposRouter = (
 				return { ok: true };
 			}),
 
+		createSessionWorktree: publicProcedure
+			.input(z.object({ repo: z.string(), title: z.string() }))
+			.mutation(async ({ input }) => {
+				const { createSessionWorktree } = await import(
+					"main/lib/session-worktree"
+				);
+				return createSessionWorktree(input.repo, input.title);
+			}),
+
+		/** Skip Claude's folder-trust dialog in the folder a session runs in. */
+		trustForClaude: publicProcedure
+			.input(z.object({ path: z.string() }))
+			.mutation(async ({ input }) => {
+				const { trustForClaude, mainCheckoutOf } = await import(
+					"main/lib/session-worktree"
+				);
+				const main = await mainCheckoutOf(input.path);
+				await trustForClaude(
+					main && main !== input.path ? [input.path, main] : [input.path],
+				).catch((error) =>
+					console.warn("[repos] could not trust", input.path, error),
+				);
+			}),
+
+		reviveSessionWorktree: publicProcedure
+			.input(z.object({ path: z.string() }))
+			.mutation(async ({ input }) => {
+				const { reviveSessionWorktree } = await import(
+					"main/lib/session-worktree"
+				);
+				await reviveSessionWorktree(input.path).catch((error) =>
+					console.warn("[repos] could not bring back", input.path, error),
+				);
+			}),
+
 		/** Settings → Storage: every session worktree, its size and the pruner's verdict. */
 		worktrees: publicProcedure.query(async () => {
 			const { listWorktrees } = await import("main/lib/prune-worktrees");
@@ -465,8 +566,13 @@ export const createReposRouter = (
 		workingRepoName: publicProcedure
 			.input(z.object({ claudeSessionId: z.string() }))
 			.query(async ({ input }) => {
-				const { repoNameOf, transcriptOf, workingRepoOf, workingWorktreeOf } =
-					await import("main/lib/claude-sessions");
+				const {
+					ownerRepoOf,
+					repoNameOf,
+					transcriptOf,
+					workingRepoOf,
+					workingWorktreeOf,
+				} = await import("main/lib/claude-sessions");
 				const checkout = await workingRepoOf(input.claudeSessionId);
 				if (!checkout) return null;
 				const name = repoNameOf(checkout);
@@ -482,7 +588,13 @@ export const createReposRouter = (
 				const worktree =
 					pullRequests[0]?.worktree ??
 					(await workingWorktreeOf(input.claudeSessionId));
-				return { checkout, name, worktree, pullRequests };
+				return {
+					checkout,
+					owningClone: ownerRepoOf(checkout),
+					name,
+					worktree,
+					pullRequests,
+				};
 			}),
 
 		diff: publicProcedure
@@ -490,6 +602,8 @@ export const createReposRouter = (
 				sessionCheckoutInput.extend({
 					/** Show this pull request's diff instead of the checkout's. */
 					pr: z.string().url().nullish(),
+					/** The branch's commits and edits since its base, no PR needed. */
+					branch: z.boolean().optional(),
 					/** The whole of each file, not only the changed hunks. */
 					wholeFile: z.boolean().optional(),
 					/** Only what changed since this `reviewSnapshot` tree. */
@@ -502,6 +616,7 @@ export const createReposRouter = (
 			.query(async ({ input }) => {
 				if (input.pr) return renderPullRequestDiff(input.pr);
 				const { dir, transcript } = await sessionCheckout(input);
+				if (input.branch) return renderBranchDiff(dir, input.wholeFile);
 				return input.since
 					? renderSinceDiff(dir, input.since, transcript, input.wholeFile)
 					: renderDiff(dir, transcript, input.wholeFile);

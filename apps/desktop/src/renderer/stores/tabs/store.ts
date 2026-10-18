@@ -63,7 +63,10 @@ import { killTerminalForPane } from "./utils/terminal-cleanup";
  */
 function ownedShells(panes: Record<string, Pane>, closing: string[]): string[] {
 	return closing
-		.map((id) => panes[id]?.odinShellPaneId)
+		.flatMap((id) => [
+			panes[id]?.odinShellPaneId,
+			...Object.values(panes[id]?.odinNamedShells ?? {}),
+		])
 		.filter((id): id is string => !!id && !closing.includes(id) && !!panes[id]);
 }
 

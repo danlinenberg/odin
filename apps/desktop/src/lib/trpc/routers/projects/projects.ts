@@ -188,7 +188,6 @@ async function ensureMainWorkspace(project: Project): Promise<void> {
 		return;
 	}
 
-	// ponytail: a non-git folder has no branch, so it gets the default's name.
 	const branch =
 		(await getCurrentBranch(project.mainRepoPath)) ??
 		(existsSync(join(project.mainRepoPath, ".git"))

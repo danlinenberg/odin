@@ -38,9 +38,6 @@ interface OdinRulesState {
  * whose checkout rules it out never hears it; one whose checkout isn't known
  * yet (a feed launch, where the agent picks the repo) gets it with the repos
  * named, and applies it - or skips it - there.
- *
- * ponytail: one global list, not per profile - add `profileId` the day a rule
- * should only apply to work or personal sessions.
  */
 export const useOdinRules = create<OdinRulesState>()(
 	persist(

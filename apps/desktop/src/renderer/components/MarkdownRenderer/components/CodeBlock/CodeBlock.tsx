@@ -13,8 +13,6 @@ const mermaidPlugins = { mermaid };
 // (Slack, email, a PR), so it reads as wrapped prose, not numbered code.
 const PROSE_LANGUAGES = new Set(["text", "txt", "plaintext"]);
 
-// ponytail: an unlabelled fence counts as prose when some line is a long
-// sentence; a smarter classifier only if commands start landing here.
 export function looksLikeProse(code: string): boolean {
 	return code
 		.split("\n")
@@ -119,7 +117,17 @@ function PasteBlock({ text }: { text: string }) {
 				{isCopied ? "Copied" : "Copy"}
 			</Button>
 			<div className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
-				{text}
+				{text.split(/<@([UW][A-Z0-9]+)>/).map((part, i) =>
+					i % 2 ? (
+						// A mention reads as the person it tags, like Slack shows it.
+						// biome-ignore lint/suspicious/noArrayIndexKey: parts of one fixed string, never reordered
+						<span className="rounded bg-primary/15 px-0.5 text-primary" key={i}>
+							@{names?.[part] ?? part}
+						</span>
+					) : (
+						part
+					),
+				)}
 			</div>
 		</div>
 	);

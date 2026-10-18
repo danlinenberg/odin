@@ -148,6 +148,12 @@ class MockTerminalHostClient extends EventEmitter {
 		return { sessions: [] };
 	}
 
+	shutdownCalls: Array<{ killSessions?: boolean }> = [];
+	async shutdownIfRunning(params: { killSessions?: boolean }) {
+		this.shutdownCalls.push(params);
+		return { wasRunning: true };
+	}
+
 	async listSessionsIfRunning() {
 		if (this.listSessionsIfRunningError) {
 			throw this.listSessionsIfRunningError;
@@ -642,6 +648,59 @@ describe("DaemonTerminalManager kill tracking", () => {
 
 		await expect(manager.forceKillAll()).rejects.toThrow("probe failed");
 		expect(mockClient.killAllCalls).toBe(0);
+	});
+});
+
+describe("DaemonTerminalManager parked daemon", () => {
+	const PARKED = "/Users/u/.odin/stale/Odin-1791635534.app";
+	beforeEach(() => {
+		mockClient = new MockTerminalHostClient();
+	});
+
+	it("restarts an idle daemon that runs from a parked bundle", async () => {
+		const manager = new DaemonTerminalManager();
+		manager.parkedBundle = async () => PARKED;
+		mockClient.listSessionsIfRunningResult = {
+			sessions: [{ sessionId: "old", isAlive: false }],
+		};
+		const shutdownOn = mockClient;
+		expect(await manager.retireParkedDaemonIfIdle()).toBe(true);
+		expect(shutdownOn.shutdownCalls).toEqual([{ killSessions: true }]);
+	});
+
+	it("keeps a parked daemon that still runs a session", async () => {
+		const manager = new DaemonTerminalManager();
+		manager.parkedBundle = async () => PARKED;
+		mockClient.listSessionsIfRunningResult = {
+			sessions: [{ sessionId: "live", isAlive: true }],
+		};
+		expect(await manager.retireParkedDaemonIfIdle()).toBe(false);
+		expect(mockClient.shutdownCalls).toEqual([]);
+	});
+
+	it("keeps an idle daemon on the installed Odin", async () => {
+		const manager = new DaemonTerminalManager();
+		manager.parkedBundle = async () => null;
+		expect(await manager.retireParkedDaemonIfIdle()).toBe(false);
+		expect(mockClient.shutdownCalls).toEqual([]);
+	});
+
+	it("checks again when the last session exits", async () => {
+		const manager = new DaemonTerminalManager();
+		let asked = 0;
+		manager.parkedBundle = async () => {
+			asked++;
+			return null;
+		};
+		mockClient.listSessionsIfRunningResult = {
+			sessions: [{ sessionId: "pane-1", isAlive: true }],
+		};
+		await (
+			manager as unknown as { ensureDaemonSessionIdsHydrated(): Promise<void> }
+		).ensureDaemonSessionIdsHydrated();
+		expect(asked).toBe(0);
+		mockClient.emit("exit", "pane-1", 0);
+		expect(asked).toBe(1);
 	});
 });
 

@@ -171,6 +171,7 @@ function CrowPanel({
 	const [sending, setSending] = useState(false);
 	const panel = useRef<HTMLDivElement>(null);
 	const chats = useCrowChats((s) => s.chats);
+	const dropChat = useCrowChats((s) => s.drop);
 
 	// Click anywhere else, or Escape, closes it.
 	useEffect(() => {
@@ -179,12 +180,18 @@ function CrowPanel({
 			if (!panel.current?.contains(target) && !target.closest("[data-crow]"))
 				onClose();
 		};
-		const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+		// Captured, so a focused terminal can't swallow it first, and stopped,
+		// so the session drawer under the panel stays open.
+		const onKey = (e: KeyboardEvent) => {
+			if (e.key !== "Escape") return;
+			e.stopPropagation();
+			onClose();
+		};
 		document.addEventListener("pointerdown", onDown);
-		document.addEventListener("keydown", onKey);
+		document.addEventListener("keydown", onKey, { capture: true });
 		return () => {
 			document.removeEventListener("pointerdown", onDown);
-			document.removeEventListener("keydown", onKey);
+			document.removeEventListener("keydown", onKey, { capture: true });
 		};
 	}, [onClose]);
 
@@ -220,6 +227,7 @@ function CrowPanel({
 		return (
 			<div
 				ref={panel}
+				data-crow-panel
 				style={{
 					left: Math.max(left, 8),
 					...vertical,
@@ -251,6 +259,7 @@ function CrowPanel({
 	return (
 		<div
 			ref={panel}
+			data-crow-panel
 			style={{ left: Math.max(left, 8), ...vertical, width, maxHeight: room }}
 			className="fixed z-[60] flex flex-col gap-3.5 rounded-xl border border-violet-400/50 bg-tertiary p-4 text-popover-foreground shadow-2xl shadow-black/30"
 		>
@@ -282,30 +291,43 @@ function CrowPanel({
 					</div>
 					<div className="-mx-1.5 flex max-h-40 flex-col overflow-y-auto">
 						{chats.map((chat) => (
-							<button
+							<div
 								key={chat.sessionId}
-								type="button"
-								disabled={sending}
-								title="Pick up this conversation where it left off"
-								onClick={async () => {
-									setSending(true);
-									try {
-										await onResume(chat);
-									} catch (error) {
-										toast.error(String(error));
-									} finally {
-										setSending(false);
-									}
-								}}
-								className="flex items-baseline gap-2 rounded-md px-1.5 py-1 text-left text-[12.5px] hover:bg-accent disabled:opacity-50"
+								className="group flex items-center rounded-md hover:bg-accent"
 							>
-								<span className="min-w-0 flex-1 truncate text-foreground/85">
-									{chat.title}
-								</span>
-								<span className="shrink-0 text-[11px] text-muted-foreground">
-									{formatRelativeTime(chat.at)}
-								</span>
-							</button>
+								<button
+									type="button"
+									disabled={sending}
+									title="Pick up this conversation where it left off"
+									onClick={async () => {
+										setSending(true);
+										try {
+											await onResume(chat);
+										} catch (error) {
+											toast.error(String(error));
+										} finally {
+											setSending(false);
+										}
+									}}
+									className="flex min-w-0 flex-1 items-baseline gap-2 px-1.5 py-1 text-left text-[12.5px] disabled:opacity-50"
+								>
+									<span className="min-w-0 flex-1 truncate text-foreground/85">
+										{chat.title}
+									</span>
+									<span className="shrink-0 text-[11px] text-muted-foreground">
+										{formatRelativeTime(chat.at)}
+									</span>
+								</button>
+								<button
+									type="button"
+									aria-label={`Delete "${chat.title}"`}
+									title="Delete this chat"
+									onClick={() => dropChat(chat.sessionId)}
+									className="mr-1 shrink-0 rounded px-1 text-[12px] text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+								>
+									✕
+								</button>
+							</div>
 						))}
 					</div>
 				</div>
@@ -387,6 +409,7 @@ function CrowChat({
 				workspaceId={workspaceId}
 				working={pane.status === "working"}
 				noTerminal
+				tldrOnly
 				placeholder="What else can I do for you?"
 				// Through ask: it resumes a PTY a daemon restart killed, where
 				// typing straight in would vanish.

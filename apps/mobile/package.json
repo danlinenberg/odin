@@ -1,0 +1,27 @@
+{
+	"name": "@odin/mobile",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"build": "vite build",
+		"dev": "vite --port 5175 --strictPort",
+		"fake-odin": "bun scripts/fake-odin.ts",
+		"ios": "vite build && cap sync ios && cap open ios",
+		"sim": "bash scripts/sim.sh"
+	},
+	"dependencies": {
+		"@capacitor/app": "8.1.1",
+		"@capacitor/core": "8.5.2",
+		"@capacitor/ios": "8.5.2",
+		"@capacitor/keyboard": "8.0.6"
+	},
+	"devDependencies": {
+		"@capacitor/cli": "8.5.2",
+		"@odin/channel": "workspace:*",
+		"@tailwindcss/vite": "4.2.2",
+		"@vitejs/plugin-react": "5.2.0",
+		"vite": "7.3.5",
+		"vite-tsconfig-paths": "5.1.4"
+	}
+}

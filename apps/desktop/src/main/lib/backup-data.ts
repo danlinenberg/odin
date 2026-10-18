@@ -134,6 +134,9 @@ export async function backupNow(): Promise<string | null> {
 	return dir;
 }
 
+/** Stops the daily copy. The days already in iCloud Drive stay there. */
+export const backupOff = () => rm(ENABLED, { force: true });
+
 function backup(): void {
 	if (!backupEnabled()) return;
 	backupOdinData(ODIN_HOME_DIR, BACKUP_DIR)

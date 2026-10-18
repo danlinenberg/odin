@@ -40,7 +40,6 @@ mkdir -p "$(dirname "$LOG")"
 # Keep the run that just died. `tee` truncates, so the restart that follows a
 # crash wiped the only copy of its stack trace - every crash here was diagnosed
 # from a log the restart had already deleted. The dying run lands in dev.log.prev.
-# ponytail: one generation; rotate to .1/.2 if comparing several crashes matters.
 [[ -s "$LOG" ]] && mv -f "$LOG" "$LOG.prev"
 
 # Say who asked for this start. A window that vanishes and comes back is only
@@ -86,7 +85,6 @@ pkill -f "$REPO.*turbo run dev" 2>/dev/null
 # Electron binary with no app path - Electron's own welcome screen ("Electron
 # path-to-app"), not Odin. So the entry only lives as long as the dev stack;
 # predev re-registers on the next start.
-# ponytail: EXIT trap only - a SIGKILL leaves the entry behind until next start.
 DEV_BUNDLE="$REPO/apps/desktop/node_modules/electron/dist/Odin Dev.app"
 LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 trap '"$LSREGISTER" -u "$DEV_BUNDLE" >/dev/null 2>&1' EXIT

@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
+import { githubAccountTokens } from "main/lib/github-token";
 import { execWithShellEnv } from "../workspaces/utils/shell-env";
 
 /**
@@ -116,16 +117,22 @@ export function firstParagraph(body: string): string | null {
 	return null;
 }
 
+/** `gh pr view --json` shape; the REST fallback is mapped onto it. */
+interface PrJson {
+	state?: string;
+	isDraft?: boolean;
+	reviewDecision?: string | null;
+	statusCheckRollup?: RollupEntry[] | null;
+	author?: { login?: string } | null;
+	title?: string;
+	body?: string;
+}
+
 function status(stdout: string): PullRequestStatus | null {
-	const pr = JSON.parse(stdout) as {
-		state?: string;
-		isDraft?: boolean;
-		reviewDecision?: string | null;
-		statusCheckRollup?: RollupEntry[] | null;
-		author?: { login?: string } | null;
-		title?: string;
-		body?: string;
-	};
+	return statusOf(JSON.parse(stdout) as PrJson);
+}
+
+function statusOf(pr: PrJson): PullRequestStatus | null {
 	if (pr.state !== "OPEN" && pr.state !== "MERGED" && pr.state !== "CLOSED") {
 		return null;
 	}
@@ -168,18 +175,31 @@ function status(stdout: string): PullRequestStatus | null {
  * logged-in account can see 404s - a work org while the personal account is
  * active, or the reverse. The owner in the url doesn't name the account that
  * can read it (`imagenai/...` is read by `dan-linenberg-imagenai`), so on a
- * miss just try each logged-in account's token in turn. Null when none of them
- * can (no gh, no access, deleted repo).
+ * miss try each of Odin's own GitHub connections (Settings > Connections can
+ * hold a work and a personal account), then each logged-in gh account's token
+ * in turn. The connections matter when gh's keyring token for the right
+ * account has gone bad. Null when none of them can (no gh, no access, deleted
+ * repo).
  */
 export async function ghAsAnyAccount<T>(
 	args: string[],
 	parse: (stdout: string) => T,
 	exec: GhExec = gh,
+	connections: () => Promise<string[]> = exec === gh
+		? async () => (await githubAccountTokens()).map((a) => a.token)
+		: async () => [],
 ): Promise<T | null> {
 	try {
 		return parse((await exec(args)).stdout);
 	} catch {
-		// Fall through to the other accounts.
+		// Fall through to the connections and the other accounts.
+	}
+	for (const token of await connections().catch(() => [])) {
+		try {
+			return parse((await exec(args, { GH_TOKEN: token })).stdout);
+		} catch {
+			// Not this connection's repo either.
+		}
 	}
 	let authStatus: string;
 	try {
@@ -221,22 +241,86 @@ function loggedInAccounts(exec: GhExec): Promise<Set<string>> {
 	return accounts;
 }
 
+interface RestPull {
+	state?: string;
+	merged_at?: string | null;
+	draft?: boolean;
+	title?: string;
+	body?: string | null;
+	user?: { login?: string } | null;
+	head?: { sha?: string };
+}
+
+interface RestCheckRun {
+	name?: string;
+	status?: string;
+	conclusion?: string | null;
+	started_at?: string | null;
+}
+
+/**
+ * The same status from the REST API, when `gh pr view` fails. That one is
+ * GraphQL, whose hourly quota is shared with every tool on the account, and
+ * GitHub answers "API rate limit already exceeded" until it resets; REST has a
+ * quota of its own. Two calls: the PR, then its head's check runs.
+ */
+async function restPullRequest(
+	url: string,
+	exec: GhExec,
+): Promise<PullRequestStatus | null> {
+	const [, owner, name, number] = PR_PARTS.exec(url) ?? [];
+	if (!number) return null;
+	const pull = await ghAsAnyAccount(
+		["api", `repos/${owner}/${name}/pulls/${number}`],
+		(stdout) => JSON.parse(stdout) as RestPull,
+		exec,
+	);
+	if (!pull) return null;
+	const runs = pull.head?.sha
+		? await ghAsAnyAccount(
+				[
+					"api",
+					`repos/${owner}/${name}/commits/${pull.head.sha}/check-runs?per_page=100`,
+				],
+				(stdout) =>
+					(JSON.parse(stdout) as { check_runs?: RestCheckRun[] }).check_runs ??
+					[],
+				exec,
+			)
+		: [];
+	return statusOf({
+		state: pull.merged_at ? "MERGED" : pull.state?.toUpperCase(),
+		isDraft: pull.draft,
+		reviewDecision: null,
+		statusCheckRollup: (runs ?? []).map((run) => ({
+			name: run.name,
+			status: run.status?.toUpperCase(),
+			conclusion: run.conclusion?.toUpperCase(),
+			startedAt: run.started_at ?? undefined,
+		})),
+		author: { login: pull.user?.login },
+		title: pull.title,
+		body: pull.body ?? "",
+	});
+}
+
 /** Null when no logged-in account can see the PR; the panel shows no label. */
 export async function pullRequestState(
 	url: string,
 	exec: GhExec = gh,
 ): Promise<PullRequestStatus | null> {
-	const pr = await ghAsAnyAccount(
-		[
-			"pr",
-			"view",
-			url,
-			"--json",
-			"state,isDraft,reviewDecision,statusCheckRollup,author,title,body",
-		],
-		status,
-		exec,
-	);
+	const pr =
+		(await ghAsAnyAccount(
+			[
+				"pr",
+				"view",
+				url,
+				"--json",
+				"state,isDraft,reviewDecision,statusCheckRollup,author,title,body",
+			],
+			status,
+			exec,
+		)) ?? (await restPullRequest(url, exec));
 	if (!pr?.author) return pr;
 	const accounts = await loggedInAccounts(exec);
 	return { ...pr, mine: accounts.size ? accounts.has(pr.author) : null };
@@ -385,9 +469,6 @@ const mainCheckout = (porcelain: string) =>
  * found through that repo's clone: a sibling of `checkout`'s clone (~/dev/imagen/*
  * sit together), else a path the transcript mentions. Newest first; a PR with
  * no checkout (worktree removed, repo not cloned) drops out.
- *
- * ponytail: 8 newest PRs, one gh call each. Batch through GraphQL if sessions
- * start opening more than that.
  */
 /**
  * A checkout named like the PR's repo isn't necessarily its clone: a worktree

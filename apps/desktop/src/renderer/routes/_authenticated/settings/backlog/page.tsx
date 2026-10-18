@@ -102,7 +102,7 @@ function PinOverdueDaysRow() {
 }
 
 /** Every control saves as you change it; the runner reads them each minute. */
-function NightAgentRows() {
+export function NightAgentRows() {
 	const offHours = useNextInLinePrompt((s) => s.offHours);
 	const setOffHours = useNextInLinePrompt((s) => s.setOffHours);
 	const started = useNextInLinePrompt((s) => s.offHoursStarted);

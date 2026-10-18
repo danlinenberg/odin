@@ -260,7 +260,6 @@ export function SearchAll({ onClose }: { onClose: () => void }) {
 	/** What ⌘K offers on a hit: the row buttons All shows, in its order. */
 	const actionsFor = (hit: Hit): Action[] => {
 		if (hit.kind === "board")
-			// ponytail: no Done here - the board's Done carries undo + resume; add when asked.
 			return [
 				{ label: "Go to session", run: () => goToPane(hit.session.paneId) },
 			];

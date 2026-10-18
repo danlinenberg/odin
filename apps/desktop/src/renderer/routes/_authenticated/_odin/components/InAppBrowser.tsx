@@ -34,6 +34,7 @@ import {
 	useInAppBrowser,
 } from "renderer/stores/in-app-browser";
 import { IN_APP_BROWSER_PARTITION } from "shared/constants";
+import { browserZoomFor } from "shared/text-size";
 import { BUTTON } from "./pill";
 
 const CHROME_MAJOR = navigator.userAgent.match(/Chrome\/(\d+)/)?.[1];
@@ -118,8 +119,6 @@ const isFind = (event: KeyboardEvent) => {
  * every modifier chord too, and Odin matches it against the Copy Link and
  * Search shortcuts, so a rebind applies to a page that's already open.
  */
-// ponytail: only react-modal (Slack's previews) gets the Esc passed on; add
-// another site's modal class when one turns up with the same focus gap.
 const REPORT_KEYS = `addEventListener("keydown", (event) => {
 	if (event.metaKey || event.ctrlKey || event.altKey) {
 		const { code, metaKey, ctrlKey, altKey, shiftKey } = event;
@@ -334,7 +333,11 @@ export function InAppBrowser() {
 	const [pages, setPages] = useState<
 		Partial<Record<Site, { title: string; url: string }>>
 	>({});
-	const zoomFactor = useZoomFactor();
+	// The window's zoom without Settings → Appearance → Text size: that one
+	// is for Odin's own text, not the pages in here.
+	const windowZoom = useZoomFactor();
+	const { data: textSize = 1 } = electronTrpc.window.getTextSize.useQuery();
+	const zoomFactor = browserZoomFor(windowZoom, textSize);
 	const site = url ? siteOf(url) : null;
 	const page = (site && pages[site]) || { title: "", url: "" };
 	// The find bar's text; null while it's hidden.

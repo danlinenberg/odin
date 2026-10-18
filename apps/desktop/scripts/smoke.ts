@@ -289,7 +289,23 @@ async function expectHealthy() {
 			throw new Error(`"${crash}": ${body.slice(0, 400)}`);
 	}
 }
-const rail = (label: string) => click("button", label);
+/**
+ * A rail entry, or one behind its "More" menu. Radix opens that menu on
+ * pointerdown, so it takes a real mouse click rather than `.click()`. On a
+ * slow CI runner the menu can miss the 400ms after the click, or the press
+ * lands while the last page still settles - so wait for it, and press again.
+ */
+const MORE_MENU = ["Review", "Insights", "Session History"];
+async function rail(label: string) {
+	if (!MORE_MENU.includes(label)) return click("button", label);
+	const item = `!!__find('[role="menuitem"]', ${JSON.stringify(label)})`;
+	for (let press = 0; press < 3 && !(await page<boolean>(item)); press++) {
+		await mouseClick('button[aria-label="More"]');
+		for (let t = 0; t < 10 && !(await page<boolean>(item)); t++)
+			await sleep(200);
+	}
+	await click('[role="menuitem"]', label);
+}
 /** Every time the fake claude ran: its pid and the argv it was given. */
 function fakeClaudeRuns() {
 	return readdirSync(home)
@@ -369,6 +385,7 @@ const SCREENS: [string, string][] = [
 	["Review", "sweep now"],
 	["Automations", "add automation"],
 	["Insights", "who asks"],
+	["Night Agent", "after the picks"],
 	["Session History", "every session odin launched"],
 	["Dev Board", "next in line"],
 ];
@@ -386,6 +403,7 @@ await step("Tasks: every feed tab opens", async () => {
 	for (const tab of [
 		"All",
 		"Tasks",
+		"Docs",
 		"Slack",
 		"Jira",
 		"GitHub",
@@ -587,15 +605,6 @@ const clickOnTaskRow = (title: string) =>
 		return !!row;
 	})()`);
 
-/** Whether TASK's row has a button titled `title*`. */
-const clickOnTaskRowHas = (title: string) =>
-	page<boolean>(`(() => {
-		const sel = 'button[title^=${JSON.stringify(title)}], button[aria-label^=${JSON.stringify(title)}]';
-		let row = [...document.querySelectorAll("button")].find((e) => e.textContent.trim() === ${JSON.stringify(TASK)});
-		while (row && !row.querySelector(sel)) row = row.parentElement;
-		return !!row?.querySelector(sel) && !!row.querySelector('button[title="Mark done"]');
-	})()`);
-
 /**
  * Where Start session and Done sit on TASK's row. Rows are separate grids, so a
  * wider or missing button on one row ("↺ Read later", no Tonight) used to push
@@ -610,41 +619,28 @@ const taskRowButtons = () =>
 		return done && start ? { start: Math.round(start.right), done: Math.round(done.left) } : null;
 	})()`);
 
-await step("Read later marks a task and keeps it on the list", async () => {
+await step("Read later moves a task to Docs and back", async () => {
 	await rail("Tasks");
 	await waitForText(TASK);
-	const before = await taskRowButtons();
-	if (!before) throw new Error("no Start session and Done on the task's row");
-	if (before.done - before.start > 16)
+	const buttons = await taskRowButtons();
+	if (!buttons) throw new Error("no Start session and Done on the task's row");
+	if (buttons.done - buttons.start > 16)
 		throw new Error(
-			`Start session isn't next to Done: ${before.done - before.start}px apart`,
+			`Start session isn't next to Done: ${buttons.done - buttons.start}px apart`,
 		);
 	if (!(await clickOnTaskRow("Mark it Read later")))
 		throw new Error("no Read later button on the task's row");
-	// The row's own button turns to "Back to Waiting on you": the Status
-	// column that would print "Read later" is hidden on a narrow window.
-	for (
-		const end = Date.now() + 5_000;
-		!(await clickOnTaskRowHas("Back to Waiting on you"));
-	) {
-		if (Date.now() > end) throw new Error("Read later never took");
-		await sleep(200);
-	}
+	await waitForText(TASK, false);
+	const docs = await page<boolean>(`(() => {
+		const e = __find("button", "Docs", __find("button", "Slack").parentElement);
+		e?.click();
+		return !!e;
+	})()`);
+	if (!docs) throw new Error('no "Docs" tab');
 	await waitForText(TASK);
-	const after = await taskRowButtons();
-	if (JSON.stringify(after) !== JSON.stringify(before))
-		throw new Error(
-			`the wider "↺ Read later" moved the row's buttons: ${JSON.stringify(before)} -> ${JSON.stringify(after)}`,
-		);
-	if (!(await clickOnTaskRow("Back to Waiting on you")))
-		throw new Error("no way back from Read later on the task's row");
-	for (
-		const end = Date.now() + 5_000;
-		await clickOnTaskRowHas("Back to Waiting on you");
-	) {
-		if (Date.now() > end) throw new Error("Read later never cleared");
-		await sleep(200);
-	}
+	await click("button", "Back to Tasks");
+	await waitForText(TASK, false);
+	await rail("Tasks");
 	await waitForText(TASK);
 });
 
@@ -981,13 +977,13 @@ await step("right-click → Done takes the session off the board", async () => {
 			`!!document.querySelector('[data-session-menu] input[placeholder^="New tag"]')`,
 		);
 	if (await tagField()) throw new Error("the tag list starts open");
-	// Ping me on replies needs a Slack thread or Jira ticket; this one has neither.
+	// Ping me needs a Slack thread, Jira ticket or PR; this one has none.
 	if (
 		await page<boolean>(
-			`[...document.querySelectorAll("[data-session-menu] button")].some((b) => b.textContent.includes("Ping me on replies"))`,
+			`[...document.querySelectorAll("[data-session-menu] button")].some((b) => b.textContent.includes("Ping me on"))`,
 		)
 	)
-		throw new Error("Ping me on replies offered on a session with no thread");
+		throw new Error("Ping me offered on a session with no thread or PR");
 	await click("[data-session-menu] button", "▸Tags");
 	if (!(await tagField())) throw new Error("Tags didn't open the list");
 	// The menu's own Done - the card's ✓ Done would pass this step too.
@@ -1051,6 +1047,16 @@ await step(
 					`the drawer shows "${await drawerTitle()}", not the new session`,
 				);
 		}
+		// The session screen opens the board card's menu. Move to Idle is in
+		// it unless the session already sits in Idle (a queued one does here).
+		await click("button", "More session actions");
+		if (
+			!(await page<boolean>(`!!document.querySelector("[data-session-menu]")`))
+		)
+			throw new Error("... didn't open the session menu");
+		await page(
+			`document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`,
+		);
 		await page(
 			`(document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`,
 		);

@@ -81,9 +81,6 @@ function line(item: RankItem, index: number): string {
 	].join(" | ");
 }
 
-// ponytail: in-memory, one entry per exact input. Feeds refetch with the same
-// rows most of the time, so that's the hit that matters; persist it if a
-// restart's re-rank ever costs enough to notice.
 const cache = new Map<string, Ranking>();
 const inFlight = new Map<string, Promise<Ranking>>();
 

@@ -107,6 +107,11 @@ describe("odinScreenStatus", () => {
 		expect(odinScreenStatus(screen)).toBe("working");
 	});
 
+	it("reads an answer that ends in a question as the idle prompt", () => {
+		const screen = `  I did not change anything. Do you want me to turn it on for tonight?\n${TURN_DONE}${BOX()}`;
+		expect(odinScreenStatus(screen)).toBe("review");
+	});
+
 	it("does not read a truncated transcript line as a spinner", () => {
 		const screen = `grep -n "ODINDBG…\n(that line was cut off)\n${IDLE_PROMPT}`;
 		expect(odinScreenStatus(screen)).toBe("review");

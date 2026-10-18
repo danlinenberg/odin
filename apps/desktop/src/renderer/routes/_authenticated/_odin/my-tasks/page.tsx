@@ -23,10 +23,6 @@ export const Route = createFileRoute("/_authenticated/_odin/my-tasks/")({
  * yet gets written down, and started with an agent whenever you're ready.
  * Rows are All's table (TaskRow); a title opens the task in All's side panel,
  * where it's renamed and its brief edited.
- *
- * ponytail: localStorage (useOdinTasks), not the app DB - a personal todo list
- * that only this renderer reads doesn't need a migration. Move it if it ever
- * has to be visible from outside the app.
  */
 function MyTasksPage() {
 	// Automations live on their own page; this list is only what waits on you.
@@ -41,6 +37,7 @@ function MyTasksPage() {
 	const [draft, setDraft] = useState("");
 	const [draftRepo, setDraftRepo] = useState("");
 	const { data: skills } = electronTrpc.skills.list.useQuery();
+	const { data: docs } = electronTrpc.system.listDocs.useQuery();
 	const { data: repos } = electronTrpc.repos.list.useQuery();
 
 	return (
@@ -57,6 +54,7 @@ function MyTasksPage() {
 					compact
 					value={draft}
 					skills={skills}
+					docs={docs}
 					repos={repos}
 					repo={draftRepo}
 					onRepoChange={setDraftRepo}

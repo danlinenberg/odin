@@ -73,11 +73,6 @@ const HOURS = Array.from({ length: 24 }, (_, hour) =>
 	String(hour).padStart(2, "0"),
 );
 
-/**
- * ponytail: five-minute steps - twelve entries you can see at once instead of
- * sixty you scroll. A schedule already on an odd minute keeps it (below), and
- * Custom cron is the way to set a new one.
- */
 const MINUTES = Array.from({ length: 12 }, (_, i) =>
 	String(i * 5).padStart(2, "0"),
 );
@@ -137,9 +132,6 @@ function TimeFields({
  * When a job runs, said in the terms people think in - a repeat, a day, a
  * time. Cron is still what's stored and matched; nobody has to write one.
  *
- * ponytail: plain `<select>`s throughout. The fields hold no state of their
- * own - they read the cron and write a new one, so what's shown and what runs
- * can't drift apart.
  *
  * Anything the menu can't express (`0 9 * * 1,3,5`) stays a cron: the Custom
  * entry shows it verbatim in a text field rather than rounding it to the
@@ -345,7 +337,6 @@ function RepoModeToggle({
  * session. Type any part of a path to search the checkouts; picking from the
  * list adds it at once, typed text resolves on Enter or blur, the same way the
  * new-session dialog's repo field does (`matchRepos`).
- * ponytail: native <datalist> - Chromium does the search-as-you-type popup.
  */
 function RepoPicker({
 	value,
@@ -630,9 +621,6 @@ function RulesPanel() {
  * answers "what's waiting on me", and an automation is the opposite of that.
  * They still show up in My Tasks, marked amber with their schedule, so the
  * list you scan doesn't hide a job that's about to run on its own.
- *
- * ponytail: same localStorage store as My Tasks (an automation IS a task with
- * a cron), so nothing here needed a table, a migration or a sync path.
  */
 function AutomationsPage() {
 	const [view, setView] = useState<"schedules" | "rules" | "reminders">(

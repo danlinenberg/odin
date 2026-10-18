@@ -3,6 +3,7 @@ import {
 	boardIdentity,
 	buildPrompt,
 	parseDataUrl,
+	WORKTREE_ASK_LINE,
 } from "./useLaunchTaskSession";
 
 describe("boardIdentity", () => {
@@ -86,6 +87,13 @@ describe("buildPrompt", () => {
 		expect(buildPrompt("Fix the board", null)).toContain("ACTION ITEMS");
 	});
 
+	it("asks for the exact commands when I have to run a write myself", () => {
+		const prompt = buildPrompt("Fix the board", null);
+		expect(prompt).toContain("exact copy-pasteable commands");
+		// The `!` block is what gets a Run button (ChatView bangCommands).
+		expect(prompt).toContain("first line starts with `!`");
+	});
+
 	// "Run the worktree" went to a subagent nobody could watch.
 	it("sends things to run into the session's Shell, not a subagent", () => {
 		const prompt = buildPrompt("Fix the board", null);
@@ -123,6 +131,43 @@ describe("buildPrompt", () => {
 		expect(buildPrompt("Sweep the backlog", null)).not.toContain(
 			"started by a schedule",
 		);
+	});
+});
+
+describe("buildPrompt and worktrees", () => {
+	const build = (
+		checkout: string,
+		worktree: { path: string; branch: string } | null = null,
+	) =>
+		buildPrompt(
+			"Fix",
+			null,
+			[],
+			undefined,
+			false,
+			[],
+			checkout,
+			"",
+			"End.",
+			worktree,
+		);
+
+	it("names the worktree Odin made, and asks for none", () => {
+		const prompt = build("/r/.worktrees/fix-ab12", {
+			path: "/r/.worktrees/fix-ab12",
+			branch: "fix-ab12",
+		});
+		expect(prompt).toContain("own git worktree: /r/.worktrees/fix-ab12");
+		expect(prompt).not.toContain(WORKTREE_ASK_LINE);
+	});
+
+	it("tells a session in the repos folder how to get one", () => {
+		expect(build("")).toContain(WORKTREE_ASK_LINE);
+	});
+
+	it("says nothing in a checkout Odin couldn't branch", () => {
+		const prompt = build("/r");
+		expect(prompt).not.toContain("worktree");
 	});
 });
 

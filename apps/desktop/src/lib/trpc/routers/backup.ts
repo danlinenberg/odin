@@ -3,6 +3,7 @@ import {
 	BACKUP_DIR,
 	backupEnabled,
 	backupNow,
+	backupOff,
 	backupStatus,
 } from "main/lib/backup-data";
 import { publicProcedure, router } from "..";
@@ -23,6 +24,7 @@ export const createBackupRouter = () =>
 					"iCloud Drive is off - turn it on in System Settings → Apple Account → iCloud.",
 				);
 		}),
+		disconnect: publicProcedure.mutation(() => backupOff()),
 		reveal: publicProcedure.mutation(async () => {
 			const { path, available } = await backupStatus();
 			if (available) await shell.openPath(path);

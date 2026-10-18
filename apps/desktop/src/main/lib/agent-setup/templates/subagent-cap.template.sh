@@ -28,9 +28,6 @@ done
 mkdir "$PENDING/.lock" 2>/dev/null
 trap 'rmdir "$PENDING/.lock" 2>/dev/null' EXIT
 
-# ponytail: "active" = wrote in the last 3 min. A subagent sitting in one Bash
-# call longer than that (a long test run) drops out of the count until it
-# writes again.
 ACTIVE=$(find "$PROJECTS"/*/*/subagents -name 'agent-*.jsonl' -mtime -3m 2>/dev/null | wc -l | tr -d ' ')
 # A just-approved spawn has no transcript yet; hold its slot for 30s so a
 # burst of parallel Agent calls can't all slip under the cap.

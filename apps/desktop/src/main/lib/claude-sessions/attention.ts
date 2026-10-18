@@ -6,9 +6,6 @@
  * The board heartbeats every BEAT_MS while a pane is open; each beat that
  * passes the focus and idle checks is one line here, crediting the BEAT_MS
  * before it. Beats back to back weld into one span when merged.
- *
- * ponytail: append-only JSONL, ~50 bytes a beat (~2 MB a year of full days);
- * compact to spans if it ever matters.
  */
 
 import { appendFile, readFile } from "node:fs/promises";

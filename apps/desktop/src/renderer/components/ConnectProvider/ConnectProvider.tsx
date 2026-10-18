@@ -56,10 +56,13 @@ const SCOPE_BLURB: Record<Provider, string> = {
 export function ConnectProvider({
 	provider,
 	onConnected,
+	addAccount = false,
 }: {
 	provider: Provider;
 	/** Runs after the feeds have been reset, for closing a panel and the like. */
 	onConnected?: () => void;
+	/** GitHub only: connect another account beside the current one. */
+	addAccount?: boolean;
 }) {
 	const queryClient = useQueryClient();
 	const done = () => {
@@ -71,7 +74,7 @@ export function ConnectProvider({
 
 	// Remounted per provider, so the branch below never reorders hooks.
 	return provider === "github" ? (
-		<GithubConnect onDone={done} />
+		<GithubConnect onDone={done} add={addAccount} />
 	) : provider === "gmail" ? (
 		<GmailConnect onDone={done} />
 	) : provider === "clickup" ? (
@@ -253,7 +256,7 @@ function OAuthAppForm({
  * until it's approved. No client secret, no redirect URL - the flow GitHub
  * designed for apps like this one.
  */
-function GithubConnect({ onDone }: { onDone: () => void }) {
+function GithubConnect({ onDone, add }: { onDone: () => void; add: boolean }) {
 	const clientIdQuery = electronTrpc.connections.githubClientId.useQuery();
 	const [clientIdInput, setClientIdInput] = useState("");
 	const [code, setCode] = useState<{
@@ -299,6 +302,7 @@ function GithubConnect({ onDone }: { onDone: () => void }) {
 				try {
 					const result = await pollRef.current.mutateAsync({
 						deviceCode: code.deviceCode,
+						add,
 					});
 					if (cancelled) return;
 					if (result.state === "connected") {
@@ -320,7 +324,7 @@ function GithubConnect({ onDone }: { onDone: () => void }) {
 			cancelled = true;
 			clearTimeout(timer);
 		};
-	}, [code]);
+	}, [code, add]);
 
 	if (clientIdQuery.isLoading) return null;
 
@@ -388,9 +392,17 @@ function GithubConnect({ onDone }: { onDone: () => void }) {
 				disabled={start.isPending}
 				onClick={() => start.mutate()}
 			>
-				{start.isPending ? "Starting…" : "Sign in with GitHub"}
+				{start.isPending
+					? "Starting…"
+					: add
+						? "Sign in with another GitHub account"
+						: "Sign in with GitHub"}
 			</Button>
-			<p className="text-xs text-muted-foreground">{SCOPE_BLURB.github}</p>
+			<p className="text-xs text-muted-foreground">
+				{add
+					? "GitHub approves the account signed in on github.com - switch to the other account there first."
+					: SCOPE_BLURB.github}
+			</p>
 		</div>
 	);
 }

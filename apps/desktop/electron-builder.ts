@@ -188,6 +188,7 @@ const config: Configuration = {
 					"!**/node_modules/onnxruntime-node/bin/napi-v3/darwin/x64/**",
 					"!**/node_modules/koffi/build/koffi/{darwin_x64,freebsd_*,linux_*,netbsd_*,openbsd_*,win32_*}/**",
 					"!**/node_modules/**/prebuilds/{android-*,darwin-x64,freebsd-*,linux-*,win32-*}/**",
+					"!**/node_modules/agent-browser/bin/agent-browser-{darwin-x64,linux-*,win32-*}",
 				]),
 		"!**/node_modules/node-pty/third_party/**",
 

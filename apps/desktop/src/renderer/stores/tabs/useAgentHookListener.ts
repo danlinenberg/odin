@@ -94,27 +94,39 @@ const thenShell = (command: string) =>
  * Always a fresh pane whose process is the command: typed into a cold shell
  * it gets swallowed, and typed into a busy one it goes to whatever is running.
  * Asking to run something there again means replacing what's there, so the
- * session's previous shell goes.
+ * session's previous shell goes - or, with a `name`, only that named Shell, so
+ * a tunnel and the server behind it can run side by side.
  */
 async function runInSessionShell(
 	sessionPaneId: string,
 	workspaceId: string,
 	command: string,
+	name?: string,
 ) {
 	const state = useTabsStore.getState();
 	const session = state.panes[sessionPaneId];
 	if (!session) return;
-	const previous = session.odinShellPaneId;
+	const previous = name
+		? session.odinNamedShells?.[name]
+		: session.odinShellPaneId;
 	if (previous && state.panes[previous]) state.removePane(previous);
 	const cwd = session.cwd ?? session.initialCwd ?? undefined;
 	const { tabId, paneId } = state.addTab(workspaceId, { initialCwd: cwd });
-	useTabsStore.setState((s) => ({
-		panes: {
-			...s.panes,
-			[sessionPaneId]: { ...s.panes[sessionPaneId], odinShellPaneId: paneId },
-			[paneId]: { ...s.panes[paneId], odinAgentRun: true },
-		},
-	}));
+	useTabsStore.setState((s) => {
+		const owner = s.panes[sessionPaneId];
+		return {
+			panes: {
+				...s.panes,
+				[sessionPaneId]: name
+					? {
+							...owner,
+							odinNamedShells: { ...owner.odinNamedShells, [name]: paneId },
+						}
+					: { ...owner, odinShellPaneId: paneId },
+				[paneId]: { ...s.panes[paneId], odinAgentRun: true },
+			},
+		};
+	});
 	await electronTrpcClient.terminal.createOrAttach.mutate({
 		paneId,
 		tabId,
@@ -216,9 +228,12 @@ export function useAgentHookListener() {
 				}
 			} else if (event.type === NOTIFICATION_EVENTS.RUN_IN_SHELL) {
 				if (paneId)
-					runInSessionShell(paneId, workspaceId, event.data.command).catch(
-						(error) => console.warn("[run-in-shell] failed:", error),
-					);
+					runInSessionShell(
+						paneId,
+						workspaceId,
+						event.data.command,
+						event.data.name,
+					).catch((error) => console.warn("[run-in-shell] failed:", error));
 			} else if (event.type === NOTIFICATION_EVENTS.FOCUS_TAB) {
 				// A banner names a board card, so clicking it opens that card's
 				// session drawer. The board is where every session lives now.

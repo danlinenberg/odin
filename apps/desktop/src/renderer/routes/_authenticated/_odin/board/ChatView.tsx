@@ -1,9 +1,11 @@
 import { odinIcon } from "@odin/ui/icons/preset-icons";
 import { toast } from "@odin/ui/sonner";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@odin/ui/tooltip";
 import { cn } from "@odin/ui/utils";
 import {
 	isValidElement,
 	memo,
+	type ReactElement,
 	type ReactNode,
 	useCallback,
 	useEffect,
@@ -21,6 +23,7 @@ import {
 import { MarkdownRenderer } from "renderer/components/MarkdownRenderer";
 import { isHotkey, useHotkeyDisplay } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { electronTrpcClient } from "renderer/lib/trpc-client";
 import { shellEscapePaths } from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/utils";
 import { draftFor, useChatDrafts } from "renderer/stores/chat-drafts";
 import { useCompacting } from "renderer/stores/compacting";
@@ -46,14 +49,23 @@ import {
 } from "../components/skill-picker";
 import { attachmentPaths } from "../components/TaskBox";
 import { COMPACT_MARKDOWN } from "../components/TranscriptView";
-import { actionItemLines } from "./brief";
+import {
+	actionItemList,
+	isAnswerItem,
+	isApprovalItem,
+	isDoneItem,
+	isYouOnly,
+	itemOptions,
+	itemReply,
+	splitActionItems,
+} from "./action-items";
 import {
 	PlanCard,
 	QuestionCard,
 	ScreenAsideCard,
 	ScreenMenuCard,
 } from "./ChatPrompts";
-import { collectRefs, linkify } from "./chat-links";
+import { collectRefs, linkify, withSchemes } from "./chat-links";
 import { parseScreenAside, parseScreenMenu } from "./screen-menu";
 import { useHoldToTalk } from "./voice";
 
@@ -402,8 +414,6 @@ function readBytes(read: { kind: string; content: unknown }): Uint8Array {
 /**
  * Where each transcript's reader stopped, kept when its view unmounts, so
  * switching back to a session shows it at once and reads only what's new.
- * ponytail: the last 20 sessions, oldest out first; a file rewritten shorter
- * than the kept offset is not detected.
  */
 interface LiveState {
 	offset: number | null;
@@ -566,8 +576,6 @@ function useLiveItems(path: string | null, workspaceId: string) {
 				const split = splitEarlier(readBytes(read), head, from === 0);
 				head = split.head;
 				start = from;
-				// ponytail: a tool row whose result sits past the cut stays without
-				// it; the tail window already dropped that result.
 				const rows = applyLines([], parseLines(split.lines));
 				shown = [...rows, ...shown];
 				setItems(shown);
@@ -740,7 +748,6 @@ const ToolRow = memo(function ToolRow({
 								item.isError ? "text-danger" : "text-muted-foreground",
 							)}
 						>
-							{/* ponytail: capped - a 2MB tool output in a <pre> stalls the drawer */}
 							<DiffColored text={item.result.slice(0, 20_000)} />
 						</pre>
 					)}
@@ -1217,23 +1224,16 @@ function OdinMark({ className }: { className?: string }) {
 	);
 }
 
-/**
- * Split a reply at its ACTION ITEMS line, in any of the shapes agents write it
- * ("ACTION ITEMS:", "## Action items", "**ACTION ITEMS:** none ..."). Whatever
- * follows on that line stays with the items.
- */
-export function splitActionItems(text: string): {
-	body: string;
-	actions: string | null;
-} {
-	const match = text.match(/^[#>*_\s]*ACTION ITEMS\b[*_:\s]*(.*)$/im);
-	if (match?.index === undefined) return { body: text, actions: null };
-	const rest = text.slice(match.index + match[0].length);
-	return {
-		body: text.slice(0, match.index).trim(),
-		actions: `${match[1] ?? ""}${rest}`.trim() || null,
-	};
-}
+export {
+	actionItemList,
+	isAnswerItem,
+	isApprovalItem,
+	isDoneItem,
+	isYouOnly,
+	itemOptions,
+	itemReply,
+	splitActionItems,
+};
 
 /**
  * The block heads useLaunchTaskSession and the rules store put after a task's
@@ -1255,11 +1255,6 @@ export function launchRequest(text: string): string | null {
 	return at < 0 ? null : blocks.slice(0, at).join("\n\n");
 }
 
-/** An item that asks you to sign off - it gets an Approve button, "(you only)" or not. */
-export function isApprovalItem(item: string): boolean {
-	return /^\W*approve\b/i.test(item);
-}
-
 /** The latest reply that has an ACTION ITEMS block - the only one whose card shows. */
 export function lastActionsId(items: Item[]): string | undefined {
 	return items.findLast(
@@ -1267,59 +1262,58 @@ export function lastActionsId(items: Item[]): string | undefined {
 	)?.id;
 }
 
-/** The numbered or bulleted lines of an ACTION ITEMS block; [] for "none". */
-export const actionItemList = actionItemLines;
+// Words every item uses; sharing one says nothing about which paragraph it means.
+const DETAIL_FILLER = new Set(
+	"tell what with whether also your this that them they then when have will should about from into once after before merge check open review approve decide choose pick confirm".split(
+		" ",
+	),
+);
 
-/**
- * An item that asks you to tell Claude something - a choice, a value, a
- * preference. It gets a reply box instead of a bare "Do it".
- */
-export function isAnswerItem(item: string): boolean {
-	return (
-		!isDoneItem(item) &&
-		/^\W*(tell|answer|decide|choose|pick|confirm|let me know|say)\b/i.test(item)
-	);
+/** An item's or paragraph's telling words; a name with `.`, `-`, `_`, `/` or digits counts twice. */
+function detailWords(text: string): Map<string, number> {
+	const words = new Map<string, number>();
+	const prose = text
+		.toLowerCase()
+		.replace(/\]\([^)]*\)/g, "]")
+		.replace(/https?:\/\/\S+/g, " ");
+	for (const word of prose.match(
+		/[\p{L}\p{N}][\p{L}\p{N}._/-]*[\p{L}\p{N}]/gu,
+	) ?? []) {
+		const name = /[._/\d-]/.test(word);
+		if ((word.length >= 4 || /^\d{2,}$/.test(word)) && !DETAIL_FILLER.has(word))
+			words.set(word, name ? 2 : 1);
+	}
+	return words;
 }
 
 /**
- * "Tell me when you have authorized X" - the only reply is "done", so it gets
- * a Done button and no reply box.
+ * The paragraph of the reply that explains an item - one that names it ("item
+ * 3 below"), else the one sharing the most of its words, and at least one name
+ * or two words. null when none does.
  */
-export function isDoneItem(item: string): boolean {
-	return (
-		/^\W*(tell me|let me know)\s+(when|once|after)\b/i.test(item) &&
-		itemOptions(item).options.length === 0
-	);
-}
-
-/**
- * The choices Claude offered as a trailing "[A | B | C]", and the item without
- * them. The launch prompt asks for that shape; no brackets means no choices.
- */
-export function itemOptions(item: string): { text: string; options: string[] } {
-	// An option may hold a link ("after [#826](url) merges"); a button shows its words.
-	// A trailing "(you only)" still counts: you pick, so the choices are buttons.
-	const match = item.match(
-		/\s*\[((?:[^[\]]|\[[^\]]*\]\([^)]*\))*\|(?:[^[\]]|\[[^\]]*\]\([^)]*\))*)\](?!\()\s*(?:\(you only\))?\W*$/i,
-	);
-	if (match?.index === undefined) return { text: item, options: [] };
-	return {
-		text: item.slice(0, match.index),
-		options: (match[1] ?? "")
-			.split("|")
-			.map((option) => option.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1").trim())
-			.filter(Boolean),
-	};
-}
-
-/**
- * What an item's button sends: the typed answer, "Done" for a "tell me when"
- * item, else nothing - and Claude is asked to do the item itself.
- */
-export function itemReply(item: string, answer: string): string | undefined {
-	const typed = answer.trim();
-	if (typed) return typed;
-	return !isApprovalItem(item) && isDoneItem(item) ? "Done" : undefined;
+export function itemDetail(
+	item: string,
+	body: string,
+	number?: number,
+): string | null {
+	const blocks = body.split(/\n\s*\n/);
+	const named =
+		number !== undefined &&
+		blocks.find((block) => new RegExp(`\\bitem ${number}\\b`, "i").test(block));
+	if (named) return named.trim();
+	const words = detailWords(itemOptions(item).text);
+	let best: string | null = null;
+	let top = 1;
+	for (const block of blocks) {
+		let score = 0;
+		for (const [word, weight] of detailWords(block))
+			if (words.has(word)) score += weight;
+		if (score > top) {
+			best = block.trim();
+			top = score;
+		}
+	}
+	return best;
 }
 
 type DoItem = (
@@ -1332,31 +1326,29 @@ type DoItem = (
 const ACTION_BUTTON =
 	"shrink-0 rounded-md border border-attention/40 px-2 py-0.5 text-[11px] font-medium text-attention hover:bg-attention/15 disabled:cursor-default disabled:opacity-50 disabled:hover:bg-transparent";
 
-/** Claude marks what it can't do "(you only)"; handing it back is a dead-end turn. */
-export function isYouOnly(item: string): boolean {
-	return (
-		/\(you only\)\W*$/i.test(item) &&
-		!isApprovalItem(item) &&
-		!isAnswerItem(item) &&
-		itemOptions(item).options.length === 0
-	);
-}
-
 /** One action item: its button, number, text, and - for a question - the reply box and choices. */
 function ActionItemRow({
 	item,
+	detail,
 	number,
 	onDo,
 	onDismiss,
 	buttonColumn,
+	commands = [],
+	onRun,
 }: {
 	item: string;
+	/** The reply's paragraph about this item, shown on hover. */
+	detail: string | null;
 	number: number;
 	onDo: DoItem;
 	/** Hides the item now and in later replies; set when the session has a pane. */
 	onDismiss?: () => void;
 	/** Some item in the list has a button - line this one's number up with it. */
 	buttonColumn: boolean;
+	/** The reply's `!` commands, when this is the item that says to run them. */
+	commands?: string[];
+	onRun?: (command: string) => Promise<void>;
 }) {
 	const [sent, setSent] = useState(false);
 	const [answer, setAnswer] = useState("");
@@ -1406,12 +1398,16 @@ function ActionItemRow({
 				{number}.
 			</span>
 			<div className="min-w-0 [overflow-wrap:anywhere]">
-				<MarkdownRenderer
-					content={text}
-					style="default"
-					allowHtml={false}
-					className={COMPACT_MARKDOWN}
-				/>
+				<ItemDetail detail={detail}>
+					<div className={cn(detail && "cursor-help")}>
+						<MarkdownRenderer
+							content={text}
+							style="default"
+							allowHtml={false}
+							className={COMPACT_MARKDOWN}
+						/>
+					</div>
+				</ItemDetail>
 				{asks && !sent && (
 					<div className="mt-1.5 flex flex-wrap items-center gap-1.5">
 						{options.map((option) => (
@@ -1436,6 +1432,7 @@ function ActionItemRow({
 						/>
 					</div>
 				)}
+				{onRun && <RunCommands commands={commands} onRun={onRun} />}
 			</div>
 			{onDismiss ? (
 				<button
@@ -1454,6 +1451,34 @@ function ActionItemRow({
 	);
 }
 
+/** Hovering an item shows the reply's longer word on it; no detail, no tooltip. */
+function ItemDetail({
+	detail,
+	children,
+}: {
+	detail: string | null;
+	children: ReactElement;
+}) {
+	if (!detail) return children;
+	return (
+		<Tooltip delayDuration={300}>
+			<TooltipTrigger asChild>{children}</TooltipTrigger>
+			<TooltipContent
+				side="bottom"
+				align="start"
+				className="max-h-[50vh] max-w-[420px] cursor-text select-text overflow-y-auto text-left"
+			>
+				<MarkdownRenderer
+					content={detail}
+					style="default"
+					allowHtml={false}
+					className={COMPACT_MARKDOWN}
+				/>
+			</TooltipContent>
+		</Tooltip>
+	);
+}
+
 /**
  * What's on you, set apart in the board's Needs-you colour. Each item gets a
  * "Do it" button that hands it back to Claude (resuming an ended session
@@ -1464,21 +1489,26 @@ function ActionItemRow({
  */
 function ActionItems({
 	text,
+	body = "",
 	onDo,
 	paneId,
 	tldr,
-	full = false,
-	onToggle,
+	commands = [],
+	onRun,
 }: {
 	text: string;
+	/** The reply's `!` commands: under the item that says to run them, else at the card's foot. */
+	commands?: string[];
+	onRun?: (command: string) => Promise<void>;
+	/** The reply above the items, where each one's explanation is looked up. */
+	body?: string;
 	onDo?: DoItem;
 	/** Where dismissed items are kept; no X without it. */
 	paneId?: string;
 	/** The latest reply's TL;DR, which leads this card instead of a box of its own. */
 	tldr?: Tldr | null;
-	full?: boolean;
-	onToggle?: () => void;
 }) {
+	const [folded, setFolded] = useState(false);
 	// text arrives linkified from ItemView.
 	const dismissed = useDismissedActions(
 		(s) => s.panes.find((pane) => pane.paneId === paneId)?.items,
@@ -1489,6 +1519,8 @@ function ActionItems({
 		.map((item, index) => ({ item, number: index + 1 }))
 		.filter(({ item }) => !isDismissed(dismissed ?? [], item));
 	const buttonColumn = !items.every(({ item }) => isYouOnly(item));
+	const runner = runItemIndex(items.map(({ item }) => item));
+	const count = onDo ? items.length : actionItemList(text).length;
 	return (
 		<div
 			data-action-items
@@ -1496,8 +1528,15 @@ function ActionItems({
 		>
 			<div className="mb-1.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[.08em] text-attention">
 				Action items
-				{tldr?.long && onToggle && (
-					<FoldToggle full={full} onToggle={onToggle} />
+				{count > 0 && (
+					<button
+						type="button"
+						onClick={() => setFolded((value) => !value)}
+						aria-expanded={!folded}
+						className="ml-auto text-[12px] font-normal normal-case tracking-normal text-link hover:underline"
+					>
+						{itemsFoldLabel(folded, count)}
+					</button>
 				)}
 			</div>
 			{tldr && (
@@ -1511,18 +1550,21 @@ function ActionItems({
 					<TldrText text={tldr.last} />
 				</div>
 			)}
-			{onDo && items.length === 0 && dismissed?.length ? (
+			{folded ? null : onDo && items.length === 0 && dismissed?.length ? (
 				<div className="text-[13px] text-muted-foreground">None left.</div>
 			) : onDo && items.length > 0 ? (
 				<ol className="flex flex-col gap-1">
-					{items.map(({ item, number }) => (
+					{items.map(({ item, number }, index) => (
 						<ActionItemRow
 							key={number}
 							item={item}
+							detail={itemDetail(item, body, number)}
 							number={number}
 							onDo={onDo}
 							onDismiss={paneId ? () => dismiss(paneId, item) : undefined}
 							buttonColumn={buttonColumn}
+							commands={commands}
+							onRun={index === runner ? onRun : undefined}
 						/>
 					))}
 				</ol>
@@ -1534,8 +1576,37 @@ function ActionItems({
 					className={COMPACT_MARKDOWN}
 				/>
 			)}
+			{!folded && onRun && runner < 0 && (
+				<RunCommands commands={commands} onRun={onRun} />
+			)}
 		</div>
 	);
+}
+
+/** The action items card's own fold button: it folds the items, never the reply above. */
+export function itemsFoldLabel(folded: boolean, count: number): string {
+	if (!folded) return "Hide items";
+	return count === 1 ? "Show 1 item" : `Show ${count} items`;
+}
+
+/**
+ * The item a reply's `!` commands belong under: the first one that says to run
+ * something ("Press Run on the blocks above"). -1 when none does.
+ */
+export function runItemIndex(items: string[]): number {
+	return items.findIndex((item) => /\brun\b/i.test(item));
+}
+
+function RunCommands({
+	commands,
+	onRun,
+}: {
+	commands: string[];
+	onRun: (command: string) => Promise<void>;
+}) {
+	return commands.map((command) => (
+		<RunCommand key={command} command={command} onRun={onRun} />
+	));
 }
 
 /** The `! command` blocks Claude hands you to run in the session, without the `!`. */
@@ -1584,13 +1655,48 @@ export function needsAwsSsoLogin(text: string): boolean {
 	return /run 'aws sso login'/i.test(text);
 }
 
-/** Runs `aws sso login` for the user, then tells Claude to try again. */
-function AwsSsoLogin({ onSend }: { onSend: (text: string) => void }) {
+/** Replies whose sign-in already ran on its own, so a remount doesn't open another tab. */
+const autoSsoTried = new Set<string>();
+
+/**
+ * Signs in without a click only for a reply written in the last 10 minutes:
+ * an old error still sitting last in a session must not open a browser tab
+ * every time Odin starts.
+ */
+export function autoSsoLogin(
+	item: { id: string; text: string; at?: number },
+	now = Date.now(),
+): boolean {
+	return (
+		needsAwsSsoLogin(item.text) &&
+		item.at !== undefined &&
+		now - item.at < 10 * 60_000 &&
+		!autoSsoTried.has(item.id)
+	);
+}
+
+/**
+ * Runs `aws sso login` for the user, then tells Claude to try again. A fresh
+ * error starts it on its own; the button stays for a retry or an old error.
+ */
+function AwsSsoLogin({
+	item,
+	onSend,
+}: {
+	item: { id: string; text: string; at?: number };
+	onSend: (text: string) => void;
+}) {
 	const login = electronTrpc.terminal.awsSsoLogin.useMutation({
 		onSuccess: () =>
 			onSend("I signed in to AWS again (aws sso login). Retry what failed."),
 		onError: (error) => toast.error(`aws sso login failed: ${error.message}`),
 	});
+	const { mutate } = login;
+	useEffect(() => {
+		if (!autoSsoLogin(item)) return;
+		autoSsoTried.add(item.id);
+		mutate();
+	}, [item, mutate]);
 	return (
 		<button
 			type="button"
@@ -1610,23 +1716,71 @@ function AwsSsoLogin({ onSend }: { onSend: (text: string) => void }) {
 
 type Tldr = NonNullable<ReturnType<typeof freshTldr>>;
 
+/**
+ * The reply and its action items card together are taller than the chat's
+ * visible area, so its start would scroll out of sight. Measured, not counted:
+ * the same reply fits a tall window and overflows a short one.
+ */
+function useTallerThanView(
+	rootRef: React.RefObject<HTMLDivElement | null>,
+	bodyRef: React.RefObject<HTMLDivElement | null>,
+	watch: boolean,
+): boolean {
+	const [taller, setTaller] = useState(false);
+	useLayoutEffect(() => {
+		const root = rootRef.current;
+		const body = bodyRef.current;
+		const view = root?.closest<HTMLElement>("[data-chat-scroll]");
+		if (!watch || !root || !body || !view) return setTaller(false);
+		const measure = () => {
+			// The body's own height is its full height even while the fold clips it.
+			const card = root.querySelector<HTMLElement>("[data-action-items]");
+			setTaller(
+				body.offsetHeight + (card?.offsetHeight ?? 0) > view.clientHeight,
+			);
+		};
+		measure();
+		const observer = new ResizeObserver(measure);
+		observer.observe(body);
+		observer.observe(view);
+		return () => observer.disconnect();
+	}, [rootRef, bodyRef, watch]);
+	return taller;
+}
+
 /** A long reply cut to its first lines, fading out, until you ask for all of it. */
 function FoldedReply({
+	foldable,
 	folded,
+	onToggle,
 	children,
 }: {
+	/** Shown whole, it gets a link to fold it back. */
+	foldable: boolean;
 	folded: boolean;
+	onToggle: () => void;
 	children: ReactNode;
 }) {
 	return (
-		<div
-			className={cn(
-				folded &&
-					"max-h-[6.5rem] overflow-hidden [mask-image:linear-gradient(to_bottom,black_55%,transparent)]",
+		<>
+			<div
+				className={cn(
+					folded &&
+						"max-h-[6.5rem] overflow-hidden [mask-image:linear-gradient(to_bottom,black_55%,transparent)]",
+				)}
+			>
+				{children}
+			</div>
+			{(folded || foldable) && (
+				<button
+					type="button"
+					onClick={onToggle}
+					className="mt-1 text-[12px] text-link hover:underline"
+				>
+					{folded ? "… Reply shortened - show the rest" : "Shorten the reply"}
+				</button>
 			)}
-		>
-			{children}
-		</div>
+		</>
 	);
 }
 
@@ -1657,7 +1811,7 @@ function FoldToggle({
 function TldrText({ text }: { text: string }) {
 	return (
 		<MarkdownRenderer
-			content={text}
+			content={withSchemes(text)}
 			style="default"
 			allowHtml={false}
 			className={cn(
@@ -1724,6 +1878,9 @@ const ItemView = memo(function ItemView({
 }: ItemViewProps) {
 	// A long latest reply opens on its TL;DR; this shows it whole.
 	const [full, setFull] = useState(false);
+	const rootRef = useRef<HTMLDivElement>(null);
+	const bodyRef = useRef<HTMLDivElement>(null);
+	const taller = useTallerThanView(rootRef, bodyRef, !!tldr);
 	if (item.kind === "tool") return <ToolRow item={item} />;
 	if (item.kind === "compact") return <CompactRow item={item} />;
 	if (item.kind === "user")
@@ -1736,38 +1893,49 @@ const ItemView = memo(function ItemView({
 		);
 	const { body, actions } = splitActionItems(linkify(item.text, refs));
 	const showsActions = !!actions && !hideActions;
-	const placement = tldrPlacement(tldr, showsActions);
+	const commands = onRun ? bangCommands(item.text) : [];
+	// A reply you can see whole, its action items included, is never cut and needs no TL;DR.
+	const shown = tldr && taller ? { ...tldr, long: true } : null;
+	const placement = tldrPlacement(shown, showsActions);
 	const toggleFull = () => setFull((value) => !value);
 	return (
-		<div className="select-text cursor-text">
+		<div ref={rootRef} className="select-text cursor-text">
 			{body && (
-				<FoldedReply folded={!!tldr?.long && !full}>
-					<MarkdownRenderer
-						content={body}
-						style="default"
-						allowHtml={false}
-						className={COMPACT_MARKDOWN}
-					/>
+				<FoldedReply
+					foldable={placement === "action-items"}
+					folded={!!shown && !full}
+					onToggle={toggleFull}
+				>
+					<div ref={bodyRef}>
+						<MarkdownRenderer
+							content={body}
+							style="default"
+							allowHtml={false}
+							className={COMPACT_MARKDOWN}
+						/>
+					</div>
 				</FoldedReply>
 			)}
-			{placement === "card" && tldr && (
-				<TldrCard tldr={tldr} full={full} onToggle={toggleFull} />
+			{placement === "card" && shown && (
+				<TldrCard tldr={shown} full={full} onToggle={toggleFull} />
 			)}
 			{showsActions && (
 				<ActionItems
 					text={actions}
+					body={body}
 					onDo={onDo}
 					paneId={paneId}
-					tldr={placement === "action-items" ? tldr : null}
-					full={full}
-					onToggle={toggleFull}
+					tldr={placement === "action-items" ? shown : null}
+					commands={commands}
+					onRun={onRun}
 				/>
 			)}
-			{onSend && needsAwsSsoLogin(item.text) && <AwsSsoLogin onSend={onSend} />}
-			{onRun &&
-				bangCommands(item.text).map((command) => (
-					<RunCommand key={command} command={command} onRun={onRun} />
-				))}
+			{onSend && needsAwsSsoLogin(item.text) && (
+				<AwsSsoLogin item={item} onSend={onSend} />
+			)}
+			{onRun && !showsActions && (
+				<RunCommands commands={commands} onRun={onRun} />
+			)}
 		</div>
 	);
 }, sameItemView);
@@ -1791,6 +1959,7 @@ export function ChatView({
 	placeholder,
 	onOpenSession,
 	resuming = false,
+	tldrOnly = false,
 }: {
 	paneId: string;
 	sessionId: string | null;
@@ -1813,6 +1982,8 @@ export function ChatView({
 	onOpenSession?: (paneId: string) => void;
 	/** Ended session on its way back: the footer says so in place of the composer. */
 	resuming?: boolean;
+	/** Every reply folds on its TL;DR, with no Needs you / FYI mark - the raven's panel. */
+	tldrOnly?: boolean;
 }) {
 	const { data: home } = electronTrpc.window.getHomeDir.useQuery();
 	// Claude files the conversation under the directory it STARTED in - the
@@ -1916,7 +2087,6 @@ export function ChatView({
 	useEffect(() => {
 		setPending((list) => list.filter((sent) => !isEchoed(items, sent)));
 	}, [items]);
-	// ponytail: an echo that never matches (Claude rewrote it) just expires.
 	// Not mid-turn or queued: Claude writes a queued message only when it takes it.
 	const expireLater = (id: number, text: string) => {
 		const expire = () =>
@@ -2034,7 +2204,15 @@ export function ChatView({
 				sameReply(lastText?.at, query.state.data?.replyAt) ? false : 15_000,
 		},
 	);
-	const tldr = working ? null : freshTldr(lastText, brief);
+	// Measured without its ACTION ITEMS: those show in their own card.
+	const fresh = working
+		? null
+		: freshTldr(
+				lastText && { ...lastText, text: splitActionItems(lastText.text).body },
+				brief,
+			);
+	// Whether it is shown is ItemView's call: only a reply taller than the view gets one.
+	const tldr = fresh && tldrOnly ? { ...fresh, urgency: null } : fresh;
 	// Agents repeat their ACTION ITEMS in every reply; show one card, on the
 	// latest reply that has it. It stays while Claude works on your answer.
 	const actionsId = lastActionsId(items);
@@ -2143,6 +2321,7 @@ export function ChatView({
 		>
 			<div
 				ref={scrollRef}
+				data-chat-scroll
 				onScroll={(event) => {
 					const el = event.currentTarget;
 					// Only scrolling up lets go of the bottom. Rows that grow, shrink
@@ -2457,6 +2636,10 @@ export function ChatView({
  * then Enter in its own write. `now` submits with Claude's send-now chord
  * (Ctrl+X Ctrl+S) instead: mid-turn it lands right away, not after the turn.
  * Ctrl+Enter itself can't cross a PTY - it arrives as a plain Enter.
+ *
+ * Enter waits until Claude has drawn the text. A long session reads its
+ * input slowly, and text plus Enter caught in one read is taken as a paste:
+ * the text sits in the input box and nothing is sent.
  */
 export async function typeIntoClaude(
 	write: (input: { paneId: string; data: string }) => Promise<unknown>,
@@ -2464,13 +2647,64 @@ export async function typeIntoClaude(
 	text: string,
 	now = false,
 ) {
-	if (text)
+	if (text) {
+		const drawn = await drawCount(paneId, text);
 		await write({
 			paneId,
 			data: text.includes("\n") ? `\x1b[200~${text}\x1b[201~` : text,
 		});
+		for (let waited = 0; waited < 2000; waited += 50) {
+			if ((await drawCount(paneId, text)) > drawn) break;
+			await new Promise((resolve) => setTimeout(resolve, 50));
+		}
+	}
 	await new Promise((resolve) => setTimeout(resolve, 30));
 	await write({ paneId, data: now ? "\x18\x13" : "\r" });
+}
+
+/**
+ * Pastes file paths into Claude's input box, then waits until Claude drew
+ * each one: an image as [Image #N] (after it read the file off disk), any
+ * other file as its path. Without text after them, Enter comes next, and a
+ * long session that reads the paste and Enter together keeps the files in
+ * the input box: nothing sends.
+ */
+async function pasteAttachments(
+	write: (input: { paneId: string; data: string }) => Promise<unknown>,
+	paneId: string,
+	paths: string[],
+) {
+	if (paths.length === 0) return;
+	const marks = [
+		...new Set(
+			paths.map((path) =>
+				/\.(png|jpe?g|gif|webp)$/i.test(path) ? "[Image #" : path,
+			),
+		),
+	];
+	const drawn = async () => {
+		let count = 0;
+		for (const mark of marks) count += await drawCount(paneId, mark);
+		return count;
+	};
+	const before = await drawn();
+	// A bracketed paste, not typing: only a pasted path becomes an attachment.
+	for (const path of paths)
+		await write({ paneId, data: `\x1b[200~${path}\x1b[201~ ` });
+	for (let waited = 0; waited < 3000; waited += 50) {
+		if ((await drawn()) >= before + paths.length) break;
+		await new Promise((resolve) => setTimeout(resolve, 50));
+	}
+}
+
+/** How often the text's last characters show on Claude's screen. Wrapping is ignored. */
+async function drawCount(paneId: string, text: string): Promise<number> {
+	const squash = (value: string) => value.replace(/\s+/g, "");
+	const tail = squash(text).slice(-24);
+	const screen = await electronTrpcClient.terminal.readScreen
+		.query({ paneId })
+		.catch(() => null);
+	return tail ? squash(screen?.text ?? "").split(tail).length - 1 : 0;
 }
 
 /**
@@ -2636,7 +2870,6 @@ function Composer({
 		useChatDrafts.getState().save(paneId, "");
 		setBash(false);
 		if (!bash) setAttached([]);
-		// ponytail: blob URLs are never revoked - a few per session.
 		onSent(
 			text,
 			sending.map((item) => item.preview),
@@ -2650,15 +2883,7 @@ function Composer({
 			return;
 		}
 		try {
-			// A bracketed paste, not typing: only a pasted path becomes an attachment.
-			for (const path of paths)
-				await write.mutateAsync({ paneId, data: `\x1b[200~${path}\x1b[201~ ` });
-			// Claude reads a pasted image path off disk before it shows [Image #N],
-			// and an Enter that lands meanwhile is dropped: nothing sends. ~150ms
-			// was enough for a 6000x4000 JPEG; 500ms leaves room.
-			// ponytail: fixed wait, poll the screen for [Image #N] if it ever misses.
-			if (paths.length > 0)
-				await new Promise((resolve) => setTimeout(resolve, 500));
+			await pasteAttachments(write.mutateAsync, paneId, paths);
 			await typeIntoClaude(write.mutateAsync, paneId, text, now);
 		} catch (error) {
 			setDraft(body);

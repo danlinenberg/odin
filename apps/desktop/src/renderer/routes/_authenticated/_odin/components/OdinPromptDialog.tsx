@@ -83,6 +83,7 @@ export function OdinPromptDialog({
 	placeholder = "What should the agent do in Odin?",
 	defaultPrompt = "",
 	repoPicker = false,
+	defaultRepo = "",
 	modelPicker = false,
 	backlogToggle = false,
 	submitLabel = "Start session",
@@ -100,6 +101,8 @@ export function OdinPromptDialog({
 	defaultPrompt?: string;
 	/** Offer the machine's git checkouts as the session's directory. */
 	repoPicker?: boolean;
+	/** The picker's starting repo - the session you were in when you opened it. */
+	defaultRepo?: string;
 	/** Pick the session's model; the pick sticks for every later launch. */
 	modelPicker?: boolean;
 	/** Offer "Backlog": park the prompt on My Tasks instead of starting it. */
@@ -116,7 +119,9 @@ export function OdinPromptDialog({
 	const sendKeys = useHotkeyDisplay("SUBMIT").text;
 	const [prompt, setPrompt] = useState(defaultPrompt);
 	const [files, setFiles] = useState<PromptImage[]>([]);
-	const [repoQuery, setRepoQuery] = useState("");
+	// null until you type or click: the default may arrive after the dialog opens.
+	const [typedRepo, setTypedRepo] = useState<string | null>(null);
+	const recentRepos = useClaudeCommand((state) => state.recentRepos);
 	const [isDropping, setIsDropping] = useState(false);
 	const [isStarting, setIsStarting] = useState(false);
 	const model = useClaudeCommand((state) => state.model);
@@ -154,13 +159,15 @@ export function OdinPromptDialog({
 
 	// Skill picker: type `/` and the agent's own skills/commands are searchable.
 	// Picking one drops its `/name` into the prompt - the agent invokes it.
-	// ponytail: only a slash token at the END of the text opens the menu;
-	// mid-text insertion isn't supported (nobody composes that way).
 	const { data: skills = [] } = electronTrpc.skills.list.useQuery();
 	const { data: repos = [] } = electronTrpc.repos.list.useQuery(undefined, {
 		enabled: repoPicker,
 	});
+	// A repo Odin doesn't list would only read "no match" - leave the pick to the agent.
+	const repoQuery =
+		typedRepo ?? (repos.includes(defaultRepo) ? defaultRepo : "");
 	const repoHits = matchRepos(repos, repoQuery);
+	const shownRecent = recentRepos.filter((path) => repos.includes(path));
 	// One hit is a pick; none or several means the session falls back to the
 	// workspace, so the dialog has to say which it is.
 	const repo = repoHits.length === 1 ? (repoHits[0] as string) : "";
@@ -185,8 +192,6 @@ export function OdinPromptDialog({
 		if (accepted.length === 0) return;
 		const read = await Promise.all(
 			accepted.map(async (file) => {
-				// ponytail: a video that's already on disk is cited by path, never
-				// base64'd - a screen recording through IPC wedges the renderer.
 				// Pasted video (no path) still falls back to bytes.
 				const path = file.type.startsWith("video/")
 					? window.webUtils.getPathForFile(file)
@@ -354,6 +359,29 @@ export function OdinPromptDialog({
 						))}
 					</div>
 				)}
+				{repoPicker && shownRecent.length > 0 && (
+					<div className="mt-3 flex flex-wrap items-center gap-1.5">
+						<span className="text-[11px] font-semibold text-muted-foreground">
+							Recent
+						</span>
+						{shownRecent.map((path) => (
+							<button
+								key={path}
+								type="button"
+								title={path}
+								aria-pressed={repo === path}
+								onClick={() => setTypedRepo(repo === path ? "" : path)}
+								className={`h-6 max-w-[160px] truncate rounded-[6px] px-2 text-[11px] font-semibold transition-colors ${
+									repo === path
+										? "bg-primary text-primary-foreground"
+										: "bg-secondary text-muted-foreground hover:text-foreground"
+								}`}
+							>
+								{path.split("/").pop()}
+							</button>
+						))}
+					</div>
+				)}
 				<div className="mt-3 flex items-center gap-1.5">
 					<input
 						ref={fileInput}
@@ -375,14 +403,12 @@ export function OdinPromptDialog({
 						+ Attach
 					</button>
 					{repoPicker && (
-						// ponytail: native <datalist> - Chromium does the search-as-you-type
-						// popup over ~100 paths for free. Blank = the agent picks.
 						<>
 							<input
 								list="odin-repos"
 								aria-label="Repository"
 								value={repoQuery}
-								onChange={(event) => setRepoQuery(event.target.value)}
+								onChange={(event) => setTypedRepo(event.target.value)}
 								placeholder="Repo: agent picks"
 								title={repo || "Search your git checkouts"}
 								// Picking a <datalist> option marks the field :autofill, and

@@ -23,7 +23,6 @@ const PRICES: [prefix: string, input: number, output: number, read: number][] =
 		["claude-opus-4-6", 5, 25, 0.5],
 		["claude-sonnet-5", 2, 10, 0.2],
 		["claude-sonnet-4-6", 3, 15, 0.3],
-		// ponytail: Haiku 5.5 prompts past 100K cost 5x; not split out.
 		["claude-haiku-5", 0.1, 0.5, 0.01],
 		["claude-haiku-4-5", 1, 5, 0.1],
 	];

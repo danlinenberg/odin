@@ -44,12 +44,14 @@ const externalizedRuntimeModules: ExternalizedRuntimeModule[] = [
 		// electron-builder.ts never reach it - node-pty's Windows prebuilds
 		// (24 MB of .pdb debug symbols, OpenConsole.exe and conpty.dll) have to
 		// be filtered out right here, except in the Windows build that runs them.
+		// Its darwin-x64 prebuild too: macOS flags any Intel-only binary in the
+		// bundle with "Support Ending for Intel-based Apps".
 		packagedCopies: [
 			copyModuleSubtree("node-pty", [
 				"**/*",
 				process.platform === "win32"
 					? "!prebuilds/{android,darwin,freebsd,linux}-*/**"
-					: "!prebuilds/{android,freebsd,linux,win32}-*/**",
+					: "!prebuilds/{android-*,darwin-x64,freebsd-*,linux-*,win32-*}/**",
 				"!third_party/**",
 			]),
 		],

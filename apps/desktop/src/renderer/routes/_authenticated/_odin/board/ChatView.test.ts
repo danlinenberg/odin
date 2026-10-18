@@ -4,6 +4,7 @@ import {
 	applyLines,
 	applyQueue,
 	arrived,
+	autoSsoLogin,
 	bangCommands,
 	elapsedLabel,
 	interruptClaude,
@@ -12,12 +13,15 @@ import {
 	isDoneItem,
 	isEchoed,
 	isYouOnly,
+	itemDetail,
 	itemOptions,
 	itemReply,
+	itemsFoldLabel,
 	lastActionsId,
 	launchAttachments,
 	launchRequest,
 	outputTokens,
+	runItemIndex,
 	segments,
 	splitActionItems,
 	splitEarlier,
@@ -78,6 +82,17 @@ describe("ChatView transcript", () => {
 			"```",
 		].join("\n");
 		expect(bangCommands(text)).toEqual(["aws sso login", "echo a &&\necho b"]);
+	});
+
+	test("! commands sit under the first item that says to run them", () => {
+		expect(
+			runItemIndex([
+				"Decide the branch",
+				"Press Run on the blocks above",
+				"Run it again",
+			]),
+		).toBe(1);
+		expect(runItemIndex(["Merge #12", "Pruned the runner"])).toBe(-1);
 	});
 
 	test("a message sent mid-turn shows as yours, its image too", () => {
@@ -287,6 +302,33 @@ describe("ChatView transcript", () => {
 		expect(lastActionsId([text("a", "no list")])).toBeUndefined();
 	});
 
+	test("an item's tooltip is the reply paragraph that explains it", () => {
+		const body =
+			"Pushed the docs.\n\n`training-profiles.md` lists profiles that no longer exist.\n\nThe notifications bug and the Pic-Time auth bug both 500 on retry.";
+		expect(
+			itemDetail(
+				"Tell me what to do with `training-profiles.md` [delete | keep]",
+				body,
+			),
+		).toBe("`training-profiles.md` lists profiles that no longer exist.");
+		expect(
+			itemDetail(
+				"Tell me whether to ticket the notifications and Pic-Time auth bugs",
+				body,
+			),
+		).toStartWith("The notifications bug");
+		expect(itemDetail("Restart Odin dev", body)).toBeNull();
+	});
+
+	test("a paragraph that names the item by number explains it", () => {
+		const body =
+			"Built the picker.\n\n**Limit:** SSM-only access is still waiting on your answer (item 3 below).";
+		expect(itemDetail("Choose access for the box", body, 3)).toStartWith(
+			"**Limit:**",
+		);
+		expect(itemDetail("Choose access for the box", body, 13)).toBeNull();
+	});
+
 	test("action items list one entry per numbered or bulleted line", () => {
 		expect(actionItemList("1. Merge it\n2) Check `x` works")).toEqual([
 			"Merge it",
@@ -333,6 +375,16 @@ describe("ChatView transcript", () => {
 		).toEqual({
 			text: "Update main now.",
 			options: ["yes", "after #826 merges"],
+		});
+		expect(
+			itemOptions("Decide #903 [merge | close] [https://x/903](https://x/903)"),
+		).toEqual({
+			text: "Decide #903 [https://x/903](https://x/903)",
+			options: ["merge", "close"],
+		});
+		expect(itemOptions("Decide [merge | close] https://x/903")).toEqual({
+			text: "Decide https://x/903",
+			options: ["merge", "close"],
 		});
 		expect(itemOptions("Tell me the seniority.").options).toEqual([]);
 		expect(
@@ -628,4 +680,25 @@ describe("interruptClaude", () => {
 	test("an unreadable screen still interrupts", async () => {
 		expect(await run([null])).toEqual({ sent: true, writes: ["\x03"] });
 	});
+});
+
+describe("itemsFoldLabel - the action items card folds its own items", () => {
+	test("open card offers to hide the items", () => {
+		expect(itemsFoldLabel(false, 5)).toBe("Hide items");
+	});
+	test("folded card counts what it hides", () => {
+		expect(itemsFoldLabel(true, 5)).toBe("Show 5 items");
+		expect(itemsFoldLabel(true, 1)).toBe("Show 1 item");
+	});
+});
+
+test("autoSsoLogin signs in on its own only for a fresh expired-token reply", () => {
+	const text = "Token expired. Run 'aws sso login' to refresh.";
+	const now = 1_800_000_000_000;
+	expect(autoSsoLogin({ id: "a", text, at: now - 60_000 }, now)).toBe(true);
+	expect(autoSsoLogin({ id: "b", text, at: now - 11 * 60_000 }, now)).toBe(
+		false,
+	);
+	expect(autoSsoLogin({ id: "c", text }, now)).toBe(false);
+	expect(autoSsoLogin({ id: "d", text: "all good", at: now }, now)).toBe(false);
 });

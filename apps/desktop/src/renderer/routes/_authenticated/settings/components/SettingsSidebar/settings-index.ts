@@ -275,6 +275,12 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		keywords: "light dark bright mode color colour system appearance",
 	},
 	{
+		label: "Text size",
+		to: "/settings/appearance",
+		section: "Text",
+		keywords: "font size bigger smaller larger zoom scale readable",
+	},
+	{
 		label: "Show sessions as a chat",
 		to: "/settings/appearance",
 		section: "Sessions",

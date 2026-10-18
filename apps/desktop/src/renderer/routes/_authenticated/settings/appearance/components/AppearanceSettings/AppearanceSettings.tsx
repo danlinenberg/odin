@@ -1,6 +1,8 @@
 import { Switch } from "@odin/ui/switch";
 import type { ReactNode } from "react";
+import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useSessionView } from "renderer/stores/session-view";
+import { TEXT_SIZES } from "shared/text-size";
 import { SettingRow, SettingsSection } from "../../../components/SettingsPage";
 import {
 	isItemVisible,
@@ -51,6 +53,7 @@ export function AppearanceSettings({ visibleItems }: AppearanceSettingsProps) {
 
 			<SectionList>
 				{showThemeSection && <ThemeSection key="theme" />}
+				<TextSizeSection key="text-size" />
 				<SessionDisplaySection key="sessions" />
 			</SectionList>
 		</div>
@@ -73,6 +76,43 @@ function SessionDisplaySection() {
 					checked={chat}
 					onCheckedChange={setChat}
 				/>
+			</SettingRow>
+		</SettingsSection>
+	);
+}
+
+/** Odin's own text bigger or smaller, without zooming the in-app browser. */
+function TextSizeSection() {
+	const utils = electronTrpc.useUtils();
+	const { data: textSize } = electronTrpc.window.getTextSize.useQuery();
+	const setTextSize = electronTrpc.window.setTextSize.useMutation({
+		onSuccess: (size) => utils.window.getTextSize.setData(undefined, size),
+	});
+	return (
+		<SettingsSection title="Text">
+			<SettingRow
+				label="Text size"
+				description="How big Odin draws its own text and controls. Pages in the in-app browser (GitHub, Jira, Notion) keep their size. ⌘+ and ⌘- still zoom everything."
+			>
+				<div className="flex overflow-hidden rounded-md border border-border">
+					{TEXT_SIZES.map((size) => (
+						<button
+							key={size}
+							type="button"
+							aria-pressed={textSize === size}
+							title={`Text size ${Math.round(size * 100)}%`}
+							disabled={setTextSize.isPending}
+							onClick={() => setTextSize.mutate({ size })}
+							className={`px-2.5 py-1 text-xs tabular-nums ${
+								textSize === size
+									? "bg-primary text-primary-foreground"
+									: "text-muted-foreground hover:bg-card"
+							}`}
+						>
+							{Math.round(size * 100)}%
+						</button>
+					))}
+				</div>
 			</SettingRow>
 		</SettingsSection>
 	);

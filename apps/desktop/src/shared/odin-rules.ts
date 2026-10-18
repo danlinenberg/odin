@@ -64,10 +64,6 @@ const sh = (s: string) => `'${s.replaceAll("'", `'\\''`)}'`;
  * `claude --settings` JSON that fires the PR rules after every Bash call that
  * opens or pushes to a PR - every time the PR changes, not just the first.
  * Null when no live rule is about PRs.
- *
- * ponytail: a grep over the hook payload, not a parse of tool_input - a
- * command that merely prints "git push" fires it too, which costs one
- * redundant reminder.
  */
 export function rulesSettings(rules: OdinRule[], checkout = ""): string | null {
 	const live = liveRules(rules, checkout).filter((r) => PR_RULE.test(r.when));

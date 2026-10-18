@@ -6,6 +6,7 @@ import { join } from "node:path";
 import {
 	firstParagraph,
 	type GhExec,
+	ghAsAnyAccount,
 	mergedPullRequests,
 	pullRequestState,
 	pullRequestWorktrees,
@@ -186,6 +187,57 @@ describe("pullRequestState", () => {
 			"auth token --user dan-linenberg-imagenai",
 			`pr view ${URL} --json`,
 		]);
+	});
+
+	test("falls back to REST when GraphQL is rate limited", async () => {
+		const exec: GhExec = async (args) => {
+			if (args[0] === "pr" || args[0] === "auth")
+				throw new Error(
+					"GraphQL: API rate limit already exceeded for user ID 1.",
+				);
+			if (args[1] === "repos/imagenai/app-web-server/pulls/6409")
+				return {
+					stdout: JSON.stringify({
+						state: "open",
+						merged_at: null,
+						draft: false,
+						title: "Fix the thing",
+						body: "Does the fix.",
+						user: { login: "someone" },
+						head: { sha: "abc" },
+					}),
+				};
+			return {
+				stdout: JSON.stringify({
+					check_runs: [
+						{ name: "test", status: "completed", conclusion: "success" },
+						{ name: "lint", status: "in_progress", conclusion: null },
+					],
+				}),
+			};
+		};
+		const status = await pullRequestState(URL, exec);
+		expect(status).toMatchObject({
+			state: "OPEN",
+			title: "Fix the thing",
+			author: "someone",
+			passed: 1,
+			pending: ["lint"],
+		});
+	});
+
+	test("a merged PR reads MERGED over REST", async () => {
+		const exec: GhExec = async (args) => {
+			if (args[0] !== "api") throw new Error("rate limited");
+			return {
+				stdout: JSON.stringify(
+					args[1].includes("/pulls/")
+						? { state: "closed", merged_at: "2026-10-16T10:00:00Z", head: {} }
+						: { check_runs: [] },
+				),
+			};
+		};
+		expect((await pullRequestState(URL, exec))?.state).toBe("MERGED");
 	});
 
 	test("no state rather than a throw when gh can't answer", async () => {
@@ -407,5 +459,24 @@ describe("pullRequestWorktrees picks the PR repo's own clone", () => {
 				isMain: false,
 			},
 		]);
+	});
+});
+
+describe("ghAsAnyAccount", () => {
+	test("tries each of Odin's GitHub connections before gh's accounts", async () => {
+		const tokens: (string | undefined)[] = [];
+		const exec: GhExec = async (_args, env) => {
+			tokens.push(env?.GH_TOKEN);
+			if (env?.GH_TOKEN === "work") return { stdout: "ok" };
+			throw new Error("Could not resolve to a Repository");
+		};
+		const out = await ghAsAnyAccount(
+			["pr", "view", URL],
+			(s) => s,
+			exec,
+			async () => ["personal", "work"],
+		);
+		expect(out).toBe("ok");
+		expect(tokens).toEqual([undefined, "personal", "work"]);
 	});
 });

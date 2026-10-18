@@ -21,5 +21,10 @@ if git grep -nI $'\xe2\x80\x94'; then
 	echo "[em-dash] use a plain hyphen (-) instead of an em dash" >&2
 	exit_code=1
 fi
+# No ponytail notes in committed code. Split so this file doesn't match itself.
+if git grep -nIi 'pony''tail:'; then
+	echo "[ponytail] remove ponytail comments before committing" >&2
+	exit_code=1
+fi
 
 exit $exit_code

@@ -31,6 +31,9 @@ interface ClaudeCommandState {
 	remoteControl: RemoteControlMode;
 	/** "selected": the panes you turned it on for, newest last. */
 	remotePanes: string[];
+	/** New Session's one-click repos: the last ones started in, newest first. */
+	recentRepos: string[];
+	addRecentRepo: (repo: string) => void;
 	setCommands: (commands: string[]) => void;
 	setActive: (command: string) => void;
 	setModel: (model: string) => void;
@@ -40,14 +43,12 @@ interface ClaudeCommandState {
 	toggleRemotePane: (paneId: string) => void;
 }
 
+export const RECENT_REPOS = 5;
+
 /**
  * Settings → Advanced: what Odin types instead of `claude` when it starts or
  * resumes a session. One machine can carry several Claude setups (a Bedrock
  * one, a personal account), and plain `claude` may resolve to the wrong one.
- *
- * ponytail: renderer localStorage, like launch-limits - every launch site is
- * in the renderer. The main process's own `claude -p` calls (briefs, sweeps)
- * still use plain `claude`.
  */
 export const useClaudeCommand = create<ClaudeCommandState>()(
 	persist(
@@ -59,13 +60,20 @@ export const useClaudeCommand = create<ClaudeCommandState>()(
 			startNow: false,
 			remoteControl: "off",
 			remotePanes: [],
+			recentRepos: [],
+			addRecentRepo: (repo) =>
+				set((s) => ({
+					recentRepos: [repo, ...s.recentRepos.filter((r) => r !== repo)].slice(
+						0,
+						RECENT_REPOS,
+					),
+				})),
 			setCommands: (commands) => set({ commands }),
 			setActive: (active) => set({ active }),
 			setModel: (model) => set({ model }),
 			setToBacklog: (toBacklog) => set({ toBacklog }),
 			setStartNow: (startNow) => set({ startNow }),
 			setRemoteControl: (remoteControl) => set({ remoteControl }),
-			// ponytail: capped at 100, oldest out; a pane id outlives its card harmlessly.
 			toggleRemotePane: (paneId) =>
 				set((s) => ({
 					remotePanes: s.remotePanes.includes(paneId)

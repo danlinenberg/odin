@@ -1,3 +1,10 @@
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuShortcut,
+	DropdownMenuTrigger,
+} from "@odin/ui/dropdown-menu";
 import { toast } from "@odin/ui/sonner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@odin/ui/tooltip";
 import { cn } from "@odin/ui/utils";
@@ -15,6 +22,8 @@ import {
 	HiOutlineClipboardDocumentCheck,
 	HiOutlineClock,
 	HiOutlineCog6Tooth,
+	HiOutlineEllipsisVertical,
+	HiOutlineMoon,
 	HiOutlineScale,
 	HiOutlineViewColumns,
 } from "react-icons/hi2";
@@ -31,6 +40,7 @@ import {
 	type MachineLoad,
 	machineLoad,
 } from "shared/machine-load";
+import { useApplyDropRules } from "./all/drop-rules";
 import { ClaudeSignInBanner } from "./components/ClaudeSignInBanner";
 import { CrowButton } from "./components/CrowButton";
 import { FEED_TABS } from "./components/feed-counts";
@@ -93,23 +103,17 @@ const RAIL_ITEMS = [
 		label: "Tasks",
 		Icon: HiOutlineClipboardDocumentCheck,
 	},
-	// Also its own entry rather than a feed tab. The strip answers "what's
-	// waiting on me" from a source; this answers "what can go", and its rows
-	// are verdicts about the other tabs rather than a seventh queue.
-	{
-		to: "/review" as const,
-		hotkey: "ODIN_REVIEW" as const,
-		label: "Review",
-		Icon: HiOutlineScale,
-	},
-	// Its own rail entry, not a seventh feed tab: every tab in that strip
-	// answers "what's waiting on me", and an automation is the one thing that
-	// isn't - it runs itself.
+	// Its own entry, not a feed tab: an automation isn't waiting on you, it runs itself.
 	{
 		to: "/automations" as const,
 		hotkey: "ODIN_AUTOMATIONS" as const,
 		label: "Automations",
 		Icon: HiOutlineBolt,
+	},
+	{
+		to: "/night-agent" as const,
+		label: "Night Agent",
+		Icon: HiOutlineMoon,
 	},
 ];
 
@@ -125,21 +129,32 @@ const SETTINGS_ITEM = {
 	Icon: HiOutlineCog6Tooth,
 };
 
-/** Insights reads the logs rather than being one - it sits with History. */
-const INSIGHTS_ITEM = {
-	to: "/insights" as const,
-	hotkey: "ODIN_INSIGHTS" as const,
-	label: "Insights",
-	Icon: HiOutlineChartBar,
-};
-
-/** History is a log, not a feed - it sits alone at the foot of the rail. */
-const HISTORY_ITEM = {
-	to: "/sessions" as const,
-	hotkey: "ODIN_SESSIONS" as const,
-	label: "Session History",
-	Icon: HiOutlineClock,
-};
+/**
+ * The views you visit now and then - one "More" button, always the last of
+ * the top group. Each keeps its single-key hotkey.
+ */
+const MORE_ITEMS = [
+	// Its own page rather than a feed tab: the strip answers "what's waiting
+	// on me" from a source; this answers "what can go".
+	{
+		to: "/review" as const,
+		hotkey: "ODIN_REVIEW" as const,
+		label: "Review",
+		Icon: HiOutlineScale,
+	},
+	{
+		to: "/insights" as const,
+		hotkey: "ODIN_INSIGHTS" as const,
+		label: "Insights",
+		Icon: HiOutlineChartBar,
+	},
+	{
+		to: "/sessions" as const,
+		hotkey: "ODIN_SESSIONS" as const,
+		label: "Session History",
+		Icon: HiOutlineClock,
+	},
+];
 
 /**
  * Single-key nav: bare keys, so they must not fire while you're typing.
@@ -155,9 +170,6 @@ const NAV_HOTKEY_OPTIONS = {
  * The load badge's colour: the app's own status palette, walked up as the Mac
  * gets tighter - grey while there's slack, amber when it's filling up, red
  * when agents are queueing or the memory is gone.
- *
- * ponytail: amber is 15% CPU / 1 GB / 10 disk points short of the limits that
- * gate a launch, eyeballed - it only picks a colour.
  */
 function badgeTone(load: MachineLoad, limits: LaunchLimits): string {
 	if (load.busy) {
@@ -333,6 +345,8 @@ function OdinShell() {
 	// shell mounts on boot and on reload - so switching views shows rows
 	// instead of an empty "syncing…".
 	const { jira } = useOdinFeeds();
+	// "Drop tasks like this" rules put new matching rows away as they arrive.
+	useApplyDropRules();
 	// Due dates ping from the shell, not from the feed that set them: the feed
 	// you set it on is the one you're least likely to have open on the day.
 	// Jira's own Due Date rides along, so a deadline nobody retyped into Odin
@@ -482,21 +496,21 @@ function OdinShell() {
 	const [isSearchAllOpen, setIsSearchAllOpen] = useState(false);
 	useHotkey("ODIN_SEARCH_ALL", () => setIsSearchAllOpen(true));
 
+	const isMoreActive = MORE_ITEMS.some(
+		({ to }) => !!matchRoute({ to, fuzzy: true }),
+	);
+
 	const renderRailItem = ({
 		to,
 		label,
 		hotkey,
 		Icon,
-	}:
-		| (typeof RAIL_ITEMS)[number]
-		| typeof INSIGHTS_ITEM
-		| typeof HISTORY_ITEM
-		| typeof SETTINGS_ITEM) => {
+	}: (typeof RAIL_ITEMS)[number] | typeof SETTINGS_ITEM) => {
 		// Tasks stands for every feed: lit on any of them, and always opening on
 		// All - every source at once is the answer to "what's waiting on me".
 		const isFeeds = to === "/all";
 		const isActive = isFeeds ? isFeedRoute : !!matchRoute({ to, fuzzy: true });
-		const keys = railHotkeys[hotkey].text;
+		const keys = hotkey ? railHotkeys[hotkey].text : "";
 		const hint = keys ? `${label} (${keys})` : label;
 		return (
 			<Tooltip key={to} delayDuration={300}>
@@ -531,7 +545,7 @@ function OdinShell() {
 			    a constant physical size (otherwise zooming out slides the bar under
 			    the lights). Same trick the stock TopBar uses. */}
 			<div
-				className="flex shrink-0 items-center gap-3 border-b border-border bg-tertiary/70 pr-3"
+				className="relative flex shrink-0 items-center gap-3 border-b border-border bg-tertiary/70 pr-3"
 				style={isMac ? { height: `${36 / zoomFactor}px` } : undefined}
 			>
 				<div
@@ -603,6 +617,16 @@ function OdinShell() {
 					</ZoomStable>
 				))}
 				<div className="h-full min-w-0 flex-1 [-webkit-app-region:drag]" />
+				{/* The board's Sessions / Board view toggle portals in here: dead
+				    centre of the bar, apart from the status badges, and it never
+				    moves when the session drawer opens. no-drag: it sits over the
+				    drag filler. z-50: above the drawer's full-window backdrop
+				    (z-40), or a click closes the drawer. */}
+				<div className="absolute left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 [-webkit-app-region:no-drag]">
+					<ZoomStable enabled={isMac}>
+						<div id="odin-view-toggle" />
+					</ZoomStable>
+				</div>
 				<ZoomStable enabled={isMac}>
 					<div className="flex items-center gap-1.5">
 						<RemoteConnectionIndicator />
@@ -685,9 +709,39 @@ function OdinShell() {
 				    icons (Settings, the raven) clip off with no way back to them. */}
 				<div className="hide-scrollbar flex w-[52px] shrink-0 flex-col items-center gap-1.5 overflow-y-auto border-r border-border bg-tertiary/70 py-2.5 [&>*]:shrink-0">
 					{RAIL_ITEMS.map(renderRailItem)}
+					<DropdownMenu>
+						<Tooltip delayDuration={300}>
+							<TooltipTrigger asChild>
+								<DropdownMenuTrigger asChild>
+									<button
+										type="button"
+										aria-label="More"
+										className={cn(
+											"flex size-9 items-center justify-center rounded-[9px] transition-colors",
+											isMoreActive
+												? BUTTON.selected
+												: "text-muted-foreground hover:text-foreground",
+										)}
+									>
+										<HiOutlineEllipsisVertical className="size-[17px]" />
+									</button>
+								</DropdownMenuTrigger>
+							</TooltipTrigger>
+							<TooltipContent side="right">More</TooltipContent>
+						</Tooltip>
+						<DropdownMenuContent side="right" align="start" className="w-52">
+							{MORE_ITEMS.map(({ to, hotkey, label, Icon }) => (
+								<DropdownMenuItem key={to} onSelect={() => navigate({ to })}>
+									<Icon className="size-4" />
+									{label}
+									<DropdownMenuShortcut>
+										{railHotkeys[hotkey].text}
+									</DropdownMenuShortcut>
+								</DropdownMenuItem>
+							))}
+						</DropdownMenuContent>
+					</DropdownMenu>
 					<div className="flex-1" />
-					{renderRailItem(INSIGHTS_ITEM)}
-					{renderRailItem(HISTORY_ITEM)}
 					{renderRailItem(SETTINGS_ITEM)}
 					<CrowButton
 						open={isCrowOpen}

@@ -91,11 +91,6 @@ export function copyResourcesPlugin(): Plugin {
  * payload - hot updates too - is held until it closes, so nothing remounts the
  * terminal you're typing into. Closing it replays them; a held full reload
  * supersedes the updates and lands right away.
- *
- * ponytail: coalescing, not a boundary fix - whatever module dead-ends the
- * board's HMR chain still dead-ends it, and Vite still logs `page reload
- * <file>` naming it. Chase that if a held reload ever costs more than a calm
- * app does.
  */
 export function coalesceFullReloadPlugin({
 	quietMs = 10_000,

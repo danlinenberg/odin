@@ -25,6 +25,10 @@ export interface ActiveSession {
 	tags: string[];
 	/** Which repo it's running in - the cwd's last segment. */
 	repo: string | null;
+	/** Starred on the board (★): starred cards come first. */
+	starred: boolean;
+	/** When its status last changed - a turn that just ended reads as just done. */
+	statusAt: number | null;
 }
 
 /** Needs-you first - the whole point of looking. */
@@ -35,6 +39,11 @@ export function activeSessions(
 	alive: Set<string>,
 	/** null = every profile (the menu-bar tray has no profile picker). */
 	profileId: string | null,
+	/**
+	 * The phone's board: sessions whose PTY ended too (not ones put away as
+	 * Done), in Idle where the desktop board keeps them to resume.
+	 */
+	withEnded = false,
 ): ActiveSession[] {
 	return Object.values(panes)
 		.filter(
@@ -43,16 +52,16 @@ export function activeSessions(
 				// Same rule as the board: a terminal you opened yourself isn't a task.
 				!!pane.odinTaskTitle &&
 				(profileId === null || profileOf(pane.odinProfile) === profileId) &&
-				alive.has(pane.id),
+				(alive.has(pane.id) || (withEnded && !pane.completed)),
 		)
 		.map((pane) => ({
 			paneId: pane.id,
 			title: pane.odinTaskTitle ?? "",
 			source: boardSection(pane),
-			// Alive by definition here, so the column only turns on status + parked.
+			// An ended session can't be working or waiting on you: boardColumn says Idle.
 			column: boardColumn(
 				pane.status ?? "idle",
-				true,
+				alive.has(pane.id),
 				pane.odinParked ?? false,
 			),
 			contact: pane.odinContact ?? null,
@@ -61,6 +70,8 @@ export function activeSessions(
 			// confirmed cwd, same fallback the board's cards use.
 			repo:
 				(pane.cwd ?? pane.initialCwd)?.split("/").filter(Boolean).pop() ?? null,
+			starred: !!pane.odinStarred,
+			statusAt: pane.odinStatusAt ?? null,
 		}))
 		.sort(
 			(a, b) =>

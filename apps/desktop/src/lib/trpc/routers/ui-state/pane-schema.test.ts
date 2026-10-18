@@ -38,6 +38,7 @@ describe("paneSchema", () => {
 			odinClosedIn: "review",
 			odinExitCause: "crashed (exit 1)",
 			odinShellPaneId: "p3",
+			odinNamedShells: { ngrok: "p4" },
 			odinAgentRun: true,
 			odinCwd: "/tmp/repo",
 			initialCwd: "/tmp",

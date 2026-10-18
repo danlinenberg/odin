@@ -52,6 +52,8 @@ export interface AllItem {
 	title: string;
 	/** Upstream link. My own tasks have none: they only exist in Odin. */
 	url: string | null;
+	/** A message that is only a screenshot: its src, shown in place of text. */
+	image?: string;
 	/** Who it's from - the reporter, the author, the person who asked. */
 	person: string | null;
 	/** Where it stands upstream. My own tasks have no status but done. */
@@ -85,6 +87,8 @@ export interface AllItem {
 	details: [string, string][];
 	/** What to hand `launch` when Start session is clicked on this row. */
 	launch: AllLaunch;
+	/** The same task in other feeds, folded into this row (merge-duplicates). */
+	also?: AllItem[];
 }
 
 /** Priority, in the three levels every source can be read as. */
@@ -162,6 +166,7 @@ export function allItems(
 			postedAt: string;
 			/** When Odin first saw the :eyes:. Optional: older callers predate it. */
 			firstSeenAt?: number;
+			image?: string | null;
 		}[];
 		jira: {
 			key: string;
@@ -290,7 +295,13 @@ export function allItems(
 					dueDate: null,
 					mention: null,
 					ask: { kind: "asked", at: row.firstSeenAt ?? ms(row.postedAt) },
-					body: row.text || null,
+					// Read through Odin, which holds the Slack token (main/index.ts).
+					...(row.image
+						? {
+								image: `odin-attachment://slack/${encodeURIComponent(row.image)}`,
+							}
+						: {}),
+					body: row.image ? null : row.text || null,
 					details: facts([
 						["Channel", row.channelName],
 						["From", row.authorName],
@@ -584,4 +595,17 @@ export function plainText(body: string): string {
 		.replace(/[*_~`]+/g, "")
 		.replace(/\s+/g, " ")
 		.trim();
+}
+
+/**
+ * The row's second line: what the body says past its title. A Slack title is
+ * the message's first line, so the whole body repeated it word for word.
+ */
+export function previewPastTitle(title: string, preview: string): string {
+	const cut = title.endsWith("…");
+	const head = plainText(title).replace(/…$/, "");
+	if (!head || !preview.startsWith(head)) return preview;
+	const rest = preview.slice(head.length).trim();
+	// A title cut mid-line: the preview picks up where it stopped.
+	return cut && rest ? `…${rest}` : rest;
 }

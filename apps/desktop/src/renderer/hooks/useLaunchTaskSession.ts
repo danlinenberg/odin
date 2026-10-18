@@ -27,6 +27,7 @@ export {
 	type OdinSource,
 	parseDataUrl,
 	quote,
+	WORKTREE_ASK_LINE,
 } from "shared/session-launch";
 
 /**
@@ -134,11 +135,27 @@ export function useLaunchTaskSession() {
 					error: "Workspace has no path - cannot launch a session",
 				};
 			}
-			const sessionCwd = repoPath || worktreePath;
+			// A resume passes its old cwd back as repoPath, so it never gets a second one.
+			const ownWorktree =
+				repoPath && repoPath !== worktreePath && !resumeSessionId
+					? await utils.client.repos.createSessionWorktree
+							.mutate({ repo: repoPath, title })
+							.catch((error) => {
+								console.warn(
+									"[launch] no worktree, using the checkout:",
+									error,
+								);
+								return null;
+							})
+					: null;
+			const sessionCwd = ownWorktree?.path || repoPath || worktreePath;
+			await utils.client.repos.trustForClaude
+				.mutate({ path: sessionCwd })
+				.catch(() => {});
 			// The checkout this session claims - "" for a feed launch into the
 			// workspace folder, which is where agents start, not what they edit.
 			const checkout = claimedCheckout(
-				repoPath,
+				ownWorktree?.path ?? repoPath,
 				worktreePath,
 				workConfig?.odinRepoPath,
 			);
@@ -240,6 +257,7 @@ export function useLaunchTaskSession() {
 						guidelines,
 						useSessionInstructions.getState().instructions ??
 							DEFAULT_SESSION_INSTRUCTIONS,
+						ownWorktree,
 					),
 					encoding: "utf-8",
 				});
@@ -377,8 +395,6 @@ export function useLaunchTaskSession() {
 			// after the feed drops it. Sourceless launches (New Session, my own
 			// tasks) aren't external work and get no row. Failing to log must
 			// never cost you the session, so this is fire-and-forget.
-			// ponytail: no externalUrl - source+externalId reconstructs it per
-			// feed. Pass one through if a consumer ever needs it without the join.
 			// Resuming re-records too, which re-points the ledger row at this
 			// conversation - so the next resume finds it as well.
 			if (card.source && card.key)

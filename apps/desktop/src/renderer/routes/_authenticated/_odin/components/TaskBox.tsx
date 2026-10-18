@@ -1,6 +1,7 @@
 import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import type { AgentSkill } from "lib/trpc/routers/skills";
+import type { OdinDoc } from "lib/trpc/routers/system";
 import { useEffect, useRef, useState } from "react";
 import { HiOutlineClock, HiOutlineSparkles } from "react-icons/hi2";
 import { isHotkey } from "renderer/hotkeys";
@@ -32,7 +33,9 @@ const splitTask = (text: string): [string, string] => {
 const joinTask = (title: string, notes: string) =>
 	notes ? `${title}\n\n${notes}` : title;
 
-const isMedia = (file: File) => /^(image|video)\//.test(file.type);
+/** What the box takes on a drop or paste: photos, videos and markdown docs. */
+const isAttachable = (file: File) =>
+	/^(image|video)\//.test(file.type) || /\.md$/i.test(file.name);
 
 /**
  * Dropped or pasted photos and videos, as paths the session can open. A task
@@ -75,6 +78,7 @@ export function TaskBox({
 	hidePriority,
 	compact,
 	skills,
+	docs,
 	repos,
 	repo,
 	onRepoChange,
@@ -99,6 +103,8 @@ export function TaskBox({
 	 * there's no Skill menu, and a skill typed into the title still works.
 	 */
 	skills?: AgentSkill[];
+	/** Saved knowledge docs (system.listDocs). Passed in like `skills`. */
+	docs?: OdinDoc[];
 	/**
 	 * The checkouts a session could run in. Passed with `onRepoChange`, the box
 	 * shows a Repo field; `repo` is the current pick ("" / absent = none). Held
@@ -129,7 +135,7 @@ export function TaskBox({
 	// Paths go on their own lines at the end of the brief, where the session's
 	// prompt picks them up like any other text.
 	const attach = (list: FileList, event: React.SyntheticEvent) => {
-		const files = [...list].filter(isMedia);
+		const files = [...list].filter(isAttachable);
 		if (files.length === 0) return;
 		event.preventDefault();
 		attachmentPaths(files)
@@ -181,7 +187,7 @@ export function TaskBox({
 						<div className="mx-3 border-t border-border" />
 						<textarea
 							value={notes}
-							placeholder="The brief - what it needs, links, anything the session should know. Drop or paste photos and videos (optional)"
+							placeholder="The brief - what it needs, links, anything the session should know. Drop or paste photos, videos and .md docs (optional)"
 							rows={2}
 							aria-label="Brief"
 							onChange={(event) =>
@@ -195,16 +201,40 @@ export function TaskBox({
 			{/* The picker doesn't hold a value of its own: it rewrites the "!"s in
 			    the text, which is what the store reads either way. Typing "!" and
 			    picking Low are the same edit, so neither can go stale. Medium is
-			    the no-"!"s case, so the box you just typed into already reads as it.
-
-			    ponytail: a native <select> - it opens as a real menu, it's keyboard
-			    navigable for free, and there's no popup to style. */}
+			    the no-"!"s case, so the box you just typed into already reads as it. */}
 			{/* One row at the quick-add's 520px: Skill and Repo on the left,
 			    Priority pushed right. Nothing in it grows as you type. */}
 			{!folded && (
 				<div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
 					{skills && skills.length > 0 && (
 						<SkillSelect skills={skills} value={value} onChange={onChange} />
+					)}
+					{docs && docs.length > 0 && (
+						<select
+							aria-label="Doc"
+							title="Add a saved doc to the brief - the session reads it for context"
+							value=""
+							onChange={(event) =>
+								onChange(
+									joinTask(
+										title,
+										[notes, `Context doc: ${event.target.value}`]
+											.filter(Boolean)
+											.join("\n"),
+									),
+								)
+							}
+							className="max-w-[160px] cursor-pointer rounded-[6px] bg-secondary px-1.5 py-[3px] text-[11px] font-semibold text-muted-foreground outline-none transition-colors hover:text-foreground"
+						>
+							<option value="" disabled>
+								Doc
+							</option>
+							{docs.map((doc) => (
+								<option key={doc.path} value={doc.path}>
+									{doc.title}
+								</option>
+							))}
+						</select>
 					)}
 					{repos && repos.length > 0 && onRepoChange && (
 						<RepoSelect
@@ -260,10 +290,6 @@ export function TaskBox({
  * own, exactly like the priority picker writes "!"s: typing `/gdpr` and
  * picking it from here are the same edit, so the menu and the box can't
  * disagree, and the edit box round-trips through one string.
- *
- * ponytail: a native `<select>`. Long list, but it's the platform's own menu -
- * scrolling, type-to-search and keyboard nav for free. A search field if it
- * ever outgrows a menu.
  */
 /**
  * Which skill the session opens with - the agent's own list, read off disk in
@@ -274,11 +300,6 @@ export function TaskBox({
  * into the title and choosing it here are the same edit, so the two can't
  * disagree and the edit box round-trips through one string.
  *
- * ponytail: the menu is drawn here rather than by a native `<datalist>`. Eighty
- * skills need search either way, and `matchSkills` - the composer's own
- * ranking, name matches before description matches - already exists and is
- * tested. A native popup also can't show a description, can't be styled to
- * match, and is the one widget that can't be verified from the outside.
  *
  * It's `fixed` and measured on open because the rows it appears in live in a
  * scroll container, which would clip an absolutely-positioned menu.
@@ -435,9 +456,6 @@ function SkillSelect({
  * box shows which repo it landed on instead of the head of a long path. The
  * state is the text colour - green picked, red not - with the why in the
  * tooltip, so the row never grows a note and wraps.
- *
- * ponytail: native `<datalist>` - Chromium does search-as-you-type over the
- * paths for free.
  */
 function RepoSelect({
 	repos,
@@ -665,6 +683,7 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 	const startNow = useClaudeCommand((state) => state.startNow);
 	const setStartNow = useClaudeCommand((state) => state.setStartNow);
 	const { data: skills } = electronTrpc.skills.list.useQuery();
+	const { data: docs } = electronTrpc.system.listDocs.useQuery();
 	const { data: repos } = electronTrpc.repos.list.useQuery();
 	const [draft, setDraft] = useState("");
 	const [repo, setRepo] = useState("");
@@ -672,8 +691,7 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 
 	// The size you last dragged it to. Chromium writes the drag straight into the
 	// element's inline style, so the element is the only source worth reading:
-	// restore it on open, write it back on close. ponytail: localStorage - a
-	// remembered box size isn't state worth a migration.
+	// restore it on open, write it back on close.
 	useEffect(() => {
 		const box = dialog.current;
 		if (!box) return;
@@ -707,7 +725,6 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 				role="dialog"
 				aria-modal="true"
 				aria-label="New task"
-				// ponytail: CSS `resize` - Chromium draws the corner grip for free.
 				className="fixed left-1/2 top-[12vh] z-50 flex h-[190px] max-h-[80vh] w-[520px] min-w-[320px] max-w-[92vw] -translate-x-1/2 resize flex-col overflow-hidden rounded-[10px] border border-border bg-popover p-3.5 shadow-[0_18px_60px_rgba(0,0,0,0.6)]"
 			>
 				{/* The button sits in the header, not under the fields: the dialog's
@@ -745,6 +762,7 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 					value={draft}
 					autoFocus
 					skills={skills}
+					docs={docs}
 					repos={repos}
 					repo={repo}
 					onRepoChange={setRepo}

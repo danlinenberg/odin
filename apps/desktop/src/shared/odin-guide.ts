@@ -2,22 +2,24 @@
  * What every Odin feature does, in the user's terms: the raven's map of Odin,
  * served by `/odin` action=guide. He answers from this and the live state,
  * never from Odin's source. A feature you add or change belongs here too.
- *
- * ponytail: one hand-written text, `## ` sections, a word filter - no index.
  */
 export const ODIN_GUIDE = `# Odin
 
+"Store:" names are for your own action=state calls. Never show them, or any other code, to the user.
+
 ## Left rail
-Top to bottom: Dev Board, Tasks, Review, Automations. At the foot: Insights, Session History, Settings, and the raven button (Huginn, ⌘⇧I). Each has a one-key hotkey (rebind in Settings → Keyboard); the keys do nothing while you type, also inside agent terminals.
+Top to bottom: Dev Board, Tasks, Automations, Night Agent (status, the next run's picks - add, reorder, remove, and what to do after them - its schedule and a log of each night), More (the ⋮ button: Review, Insights, Session History). At the foot: Settings, and the raven button (Huginn, ⌘⇧I). Each but Night Agent has a one-key hotkey (rebind in Settings → Keyboard); the keys do nothing while you type, also inside agent terminals.
 
 ## Tasks screen and its feeds
-Tabs: All, Tasks, Slack, Jira, GitHub, Notion, Email, ClickUp.
+Tabs, in two groups split by a hairline: Odin's own (All, Tasks, Docs), then the connections (Slack, Jira, GitHub, Notion, Email, ClickUp).
 - **Badges** count only what waits on you: Slack counts only "Not started" rows, GitHub leaves out bot PRs, Email leaves out junk, Done rows never count. All is the sum of the others, minus your own PRs.
 - **Amber dot** on a tab: that source is not connected. **Red dot**: connected but failing.
 - Feeds reload every 2 minutes. **Sync** refreshes the connected sources.
 - **Columns**: Task, Sweep, Priority, Status, From, Where, a date.
-- **Row actions**: Open in <source>, due date, "Line it up - Up next" / "Take it off Up next", Tonight (moon, picks it for the Night Agent), "Mark it Read later - off the Night Agent", **Start** ("Session →" when a session already runs on it), **Done**.
+- **Row actions**: Open in <source>, due date, "Line it up - Up next" / "Take it off Up next", Tonight (moon, picks it for the Night Agent), "Mark it Read later - it moves to Docs", **Start** ("Session →" when a session already runs on it), **Done**.
 - **Done** is Odin only: nothing is written back to the source, and Undo is offered. A row done in one place leaves every feed. Store: done.
+- **Same task, several feeds**: on All, a Jira ticket, the Notion page that copied it and the Slack message asking about it are one row when they share a Jira key or PR link, or the same title (four words or more). The owner's row stays (Jira, GitHub, ClickUp, Notion, Tasks, Slack, Email, in that order) with a chip per other source that opens it there; Done puts them all away. A reworded copy stays its own row.
+- **Right-click a row** (any feed tab, or Review): "Drop <source> tasks like this from now on" - From <person>, In <repo/channel/project>, or Titled <exact title>. Matching rows are marked Done now and as they arrive. The rules list under All's Filter, "Dropped automatically"; × removes one and brings its rows back. Store: odin.all.dropRules.
 - **Start** opens "Start: <title>": click Start session, or "+ Add context" for guidelines or images first. The session opens on the Dev Board.
 - **Status** is Odin's own if you set one (Backlog, Prioritised, In progress, In review, On hold), else the source's. Odin's status stays in Odin.
 - **Priority** maps to high, medium or low. A Slack reaction and a Jira @-mention always count as High.
@@ -59,7 +61,7 @@ Gmail inbox mail that was unread when Odin first saw it; it stays after you open
 ## ClickUp feed
 Open ClickUp tasks assigned to you. Read-only, no filters.
 
-## Review (rail)
+## Review (rail, More menu)
 "Sweep now" checks every backlog item (your tasks plus Slack, Jira, GitHub and Notion rows) against its source. It also sweeps on its own, every hour by default ("Sweep the backlog every" in Settings → Backlog; 0 turns it off).
 - Verdicts: DROP, KEEP or UNKNOWN. DROP needs evidence: a merged or closed PR, a Jira ticket in a done status, the :eyes: removed in Slack, a thread someone else answered, or 21 days without activity. What it couldn't reach is UNKNOWN.
 - Pills: Drop, Keep & unknown, Dropped. Keep and Drop per row, "Drop all N" for the rows on screen.
@@ -72,7 +74,7 @@ Four columns: **Working** (blue), **Needs you** (amber), **Final Review** (green
 - Final Review: cards whose turn ended without asking anything.
 - A dead session goes to Idle, except one the board closed for being idle: it keeps its column.
 - PR state moves cards: while CI runs on a card's PR it shows in Working with "CI running". It moves from Needs you to Final Review when all that's left is merging approved PRs, a look, or its PRs were closed. It moves back to Needs you when the brief judges the latest reply asks you something.
-- Sections in a column, in order: Starred, Recently finished (turn ended in the last 10 minutes while Odin was focused), Queued, Parked, then Slack / Jira / GitHub / Notion / Normal.
+- Sections in a column, in order: Starred, Recently finished (turn ended in the last 10 minutes while Odin was focused), Queued, Waiting on others, Parked, then Slack / Jira / GitHub / Notion / Normal.
 - **Catch up** shows on Needs you and Final Review with more than 5 cards: one card at a time, "N Left", Next and ✓ Done.
 - Drag a card to Idle to park it (a running turn gets Ctrl+C first). The session stays open.
 - Undo is ⌘Z or the toast's Undo, for actions in the current board visit only.
@@ -84,9 +86,9 @@ Four columns: **Working** (blue), **Needs you** (amber), **Final Review** (green
 
 ## Cards
 - Hover: ☆ Star (pins to top), ✓ Done (always visible in Final Review), the bell Remind me (tomorrow at the earliest).
-- Right-click: Star, Done, Remind me…, "Ping me on replies" (when the session has a Slack or Jira thread), "Turn on Remote Control" (when Settings is on "Selected sessions"), Keep (overrides a sweep's Drop), Tags (add your own).
+- Right-click: Star, Done, Remind me…, "Ping me" (pings on new replies when the session has a Slack or Jira thread, and when its PR gets approved; while nothing new came in, its Needs you or Done card waits in Idle under "Waiting on others", and a reply or approval brings it back to Needs you), "Turn on Remote Control" (when Settings is on "Selected sessions"), Keep (overrides a sweep's Drop), Tags (add your own).
 - Pills: PR #N, "CI running", "Just merge #N", "Review #N", "Dropped: PR merged/closed", "Duplicate? Same ask as…", Loop (a /loop session, with a countdown), a flame for a heavy session, Shell / Shell stopped / Shell exited, Automation, Night Agent, Auto-started.
-- Idle cards have **Resume**, with "⏸ died mid-turn" or the exit cause. A session that died mid-turn is resumed on its own, once per run of the app.
+- Idle cards have **Resume**, with "⏸ died mid-turn" or the exit cause. A session that died mid-turn is resumed on its own, once per run of the app. So is one whose Claude ended with a /loop still armed: it reopens at an idle prompt and the loop runs again.
 - **Done** ends the session: stops the process, removes the card and marks its feed row done. Its Undo resumes the same conversation.
 - **Idle close**: a session idle longer than 3 hours (Settings → Sessions, "Close idle sessions after", 0 = never) is closed; Resume reopens it. Never closed: working, queued, looping, waiting on CI, or a busy shell. Store: idleClose.
 - Queued cards show "⏳ <reason>" and **Start now**, which ignores the gate. Cards further back read "#N in line, after "X"". The queue starts the longest-waiting launch that can go. A Resume that opens at an idle prompt is never held.
@@ -96,7 +98,7 @@ Four columns: **Working** (blue), **Needs you** (amber), **Final Review** (green
 - Drawer header: click the title to rename; source link and Remote Control pills; ★, ⑂ Diff, ❯ Shell, ⓘ Brief (open by default), ⛶ full width.
 - Drawer footer: ↻ Resume / Continue / ▶ Start now, ■ Interrupt (Ctrl+C, terminal view only), Chat View, ✓ Done, Remind me, Minimize Session. Esc closes the drawer unless Claude's own menu is open.
 - Continue types "Continue" into a live session (off while it works). Resume on a dead session reopens the same conversation at an idle prompt. If the transcript is gone: "That conversation is gone".
-- **Diff**: the working tree or any PR the session opened. Comment on lines, then "➤ send N comments to agent".
+- **Diff**: the working tree, the branch's commits since it left main (no PR needed), or any PR the session opened. Comment on lines, then "➤ send N comments to agent".
 - **Brief**: Goal, Your action items (from the reply's ACTION ITEMS), Where it stands, links, token and cost figures, My notes (⌘Enter adds a note to your to-dos).
 
 ## Chat view and terminal view
@@ -117,7 +119,7 @@ The first line is the title. Paste or drop images and video; "/" opens skills. "
 ## Notifications
 A macOS banner "<task> needs you" ("Waiting for your reply" or "Finished its turn") with a sound when a session moves into Needs you. Not for parked sessions, or when it is on screen in the focused window. Clicking it opens the session.
 
-## Session History (rail)
+## Session History (rail, More menu)
 Search the transcripts of every finished session Odin launched, by word or by who asked (person chips). Resume reopens one in its folder on the board. Claude Code deletes transcripts after 30 days.
 
 ## All (Tasks → All)
@@ -136,9 +138,8 @@ The sidebar shows: Connections, Sessions, Storage, Backlog & Night Agent, Notifi
 - **Notion**: a database's rows in the Notion feed. Odin sees only pages shared with it and their subpages; to add a teamspace, on its top page use ••• → Connections → Odin.
 - **Gmail**: unread mail in the Email feed, by app password (needs 2-Step Verification), not OAuth.
 - **ClickUp**: a personal API token (pk_…); sessions can read the ClickUp tasks they get.
-- **Phone → Telegram**: add and start tasks from your phone and hear back when they wait for you. In @BotFather send /newbot, paste the token, then open the bot and tap Start; whoever taps Start is the only person it answers. Any text starts a task, /help lists commands. Works only while Odin is open.
 - **Links → Open links inside Odin**: links from the listed sites open in a panel over the page; each site has a switch; other links go to your default browser. Store: inAppBrowser.
-- **Backup → iCloud Drive**: your board, briefs and scrollback, copied daily, kept 14 days in iCloud Drive → Odin Backups. Off until you click Back up now once. To restore, quit Odin and copy a day's files back into ~/.odin.
+- **Backup → iCloud Drive**: your board, briefs and scrollback, copied daily, kept 14 days in iCloud Drive → Odin Backups. Off until you click Back up now once; Disconnect turns it off again and keeps the saved days. To restore, quit Odin and copy a day's files back into ~/.odin.
 
 ## Sessions settings (Settings → Sessions)
 Besides the launch gate limits:
@@ -152,7 +153,7 @@ Besides the launch gate limits:
 Desktop banners (macOS controls them; the button opens System Settings), Sound on or off and Volume, and Reminders → Notify at: the time "Remind me" sessions and due dates notify on their day, one notification per day.
 
 ## Appearance (Settings → Appearance)
-Theme: pick one, or follow the system with a Light theme and a Dark theme; custom theme files can be imported (256 KB at most). Show sessions as a chat (default on). Store: theme (fn setTheme).
+Theme: pick one, or follow the system with a Light theme and a Dark theme; custom theme files can be imported (256 KB at most). Show sessions as a chat (default on). Text size (90% to 150%) makes Odin's own text bigger or smaller; the in-app browser keeps its size, while ⌘+/⌘- zoom everything. Store: theme (fn setTheme).
 
 ## Keyboard (Settings → Keyboard)
 Search and re-record any shortcut; a key already in use offers Reassign; Reset all. From any app → "Double-tap to show or hide Odin": Record, then tap a modifier twice.
@@ -166,7 +167,7 @@ Search and re-record any shortcut; a key already in use offers Reassign; Reset a
 The top bar shows the machine load chip (session count, memory, CPU, free disk; click it when the disk is full to delete unused worktrees). Odin checks for a release every hour; a violet strip says "Odin X is available". Update and restart downloads it, quits and swaps in the new app; open terminal sessions survive the restart. Later hides it until the next check. Nothing installs on its own.
 
 ## Huginn (the raven)
-The raven button at the bottom of the rail, or ⌘⇧I. Until first opened it has a pulsing violet ring. The panel shows sample asks and a "Got a job for me?" box (images can be pasted); earlier chats can be resumed and a button starts a fresh one. He runs on Haiku with your Claude command, without Claude's task list or auto-memory, so a task goes to Odin's backlog and "always do X" becomes a rule. The conversation persists until ✓ Done. A turn silent too long counts as stuck and the next message resumes it in a fresh process. He is never a board card and takes no launch slot. A dot on the button means an answer, question or failure waits; it pulses while he works; his banner opens his panel.
+The raven button at the bottom of the rail, or ⌘⇧I. Until first opened it has a pulsing violet ring. The panel shows sample asks and a "Got a job for me?" box (images can be pasted); earlier chats can be resumed (a click) or deleted (the ✕ on hover), and New chat starts a fresh one. He runs on Haiku with your Claude command, without Claude's task list or auto-memory, so a task goes to Odin's backlog and "always do X" becomes a rule. The conversation persists until ✓ Done. A turn silent too long counts as stuck and the next message resumes it in a fresh process. He is never a board card and takes no launch slot. A dot on the button means an answer, question or failure waits; it pulses while he works; his banner opens his panel.
 
 ## Automations (screen: Automations)
 Three tabs: Schedules, Rules, Reminders.
@@ -193,7 +194,7 @@ A started session waits in Idle under "Queued", with a reason, until all limits 
 - **Hold new sessions when free memory is under** (default 2 GB).
 - **Hold new sessions when free disk is under** (default 5%). Each session takes a worktree of about 3 GB. 0 means no limit.
 - **Hold new sessions when this many are working** (default 5). Sessions waiting on you don't count. 0 means no limit.
-- **One session per repo at a time** (default on): a session in a repo another one is working in waits until that one stops. Off lets them share one working tree.
+- **One session per repo at a time** (default off): on, a session in a repo another one is working in waits until that one stops. Off lets them run side by side, each in its own worktree.
 - Huginn takes no slot and holds no checkout.
 - Store: launchLimits (hostCpuPercent, minFreeMemoryGb, minFreeDiskPercent, maxWorkingAgents, oneSessionPerCheckout; fn setLimits).
 

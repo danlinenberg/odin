@@ -273,7 +273,6 @@ async function listAllDatabases<T>(): Promise<T[]> {
 		return databaseCache.databases as T[];
 	const databases: T[] = [];
 	let cursor: string | undefined;
-	// ponytail: first 1,000 databases the integration can see.
 	for (let page = 0; page < 10; page++) {
 		const result = await notionJson<{
 			results?: T[];
@@ -308,7 +307,6 @@ async function databasesWithRecentRows<T>(known: Set<string>): Promise<T[]> {
 	const parents = new Set<string>();
 	recentWalk = { pages: 0, oldest: "" };
 	let cursor: string | undefined;
-	// ponytail: the 500 most recently edited pages.
 	for (let page = 0; page < 5; page++) {
 		const result = await notionJson<{
 			results?: NotionPage[];
@@ -475,10 +473,6 @@ async function fetchMentionRows(
 		sameId(id, skipDatabaseId),
 	);
 
-	// ponytail: page-level comments on the 30 most recently edited pages from
-	// the last 14 days. Inline (block) comments, body @-mentions and older
-	// pages are missed - reading those means walking every block, which
-	// Notion's 3 req/s won't carry on a 2-minute poll.
 	const since = Date.now() - 14 * 24 * 60 * 60_000;
 	const search = await notionJson<{ results?: NotionPage[] }>(
 		"https://api.notion.com/v1/search",
@@ -643,8 +637,6 @@ export const createNotionRouter = () => {
 					message: `Notion search failed (${response.status}): ${body.slice(0, 300)}`,
 				});
 			}
-			// ponytail: first 100 databases, no paging - a workspace with more
-			// than that needs a search box, not a longer dropdown.
 			const payload = (await response.json()) as {
 				results?: {
 					id: string;

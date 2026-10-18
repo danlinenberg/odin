@@ -132,7 +132,7 @@ DONE: <one or two sentences - what this session actually did about it: what it f
 STATUS: <one short sentence, under 120 characters - where it stands right now: what's shipped, what's blocked, what's waiting. The latest state, not the history.>
 NEXT: <one sentence addressed to the engineer - never to the agent - starting with a verb: the one thing they have to do now (answer the prompt on screen, review a diff, decide X, merge the PR). If nothing is needed from them, say "Nothing -" and why.>
 TAGS: <1-3 comma-separated tags describing the work, chosen ONLY from this list: ${BRIEF_TAGS.join(", ")}>
-LAST: <a TL;DR of the AGENT's LATEST reply only (the last AGENT turn), not the whole session: one to three short sentences on this one line. Only what the agent did or found. Never repeat its asks, action items or next steps - the app shows those on their own. Keep the names, numbers, PR numbers and file names.>
+LAST: <a TL;DR of the AGENT's LATEST reply only (the last AGENT turn), not the whole session: one to three short sentences on this one line. Only what the agent did or found. Never repeat its asks, action items or next steps - the app shows those on their own. Keep the names, numbers, PR numbers and file names. Copy any URL whole, with its https://.>
 URGENCY: <needs-you if that latest reply asks the engineer to decide, answer, approve, run or check something; otherwise fyi>
 
 Rules:
@@ -325,7 +325,6 @@ export async function writeBrief({
 		(hit.mtimeMs === file.mtimeMs ||
 			// A brief with no title was written too early to say anything (a launch
 			// with only an image); don't make the card wait five minutes for another.
-			// ponytail: a live session haiku keeps leaving untitled re-runs per warm.
 			(!settled && !!hit.brief.title && now - hit.writtenAt < REFRESH_AFTER_MS))
 	) {
 		return { ...hit.brief, cached: true, writtenAt: hit.writtenAt };
@@ -381,7 +380,7 @@ export async function writeBrief({
 			...parseBrief(stdout),
 			replyAt: latestReply(messages)?.at ?? null,
 		};
-		if (cache.size >= CACHE_MAX) cache.clear(); // ponytail: cheaper than an LRU
+		if (cache.size >= CACHE_MAX) cache.clear();
 		cache.set(sessionId, {
 			mtimeMs: file.mtimeMs,
 			writtenAt: now,
@@ -404,9 +403,6 @@ export async function writeBrief({
  * Write briefs for sessions nobody has opened yet, one at a time in the
  * background - so the panel is already filled in when you click a card instead
  * of starting a 15s model call at the moment you want to read it.
- *
- * ponytail: serial, not parallel. Ten cards would otherwise fork ten `claude`
- * processes at once, and there's nobody waiting on any of them.
  */
 type WarmOptions = Omit<Parameters<typeof writeBrief>[0], "sessionId">;
 

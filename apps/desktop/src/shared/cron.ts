@@ -1,11 +1,6 @@
 /**
  * The five-field cron an automation runs on - minute, hour, day-of-month,
  * month, day-of-week - plus the `@daily` shorthands people actually type.
- *
- * ponytail: ~60 lines instead of a dependency. It covers wildcards, single
- * values, ranges, steps (`a-b/n`) and comma lists, which is every schedule
- * the panel offers and every one anyone writes by hand. Reach for a library
- * the day someone needs `L`, `W`, `#` or a timezone other than this Mac's.
  */
 
 /** [lo, hi] per field, in order. */
@@ -101,11 +96,6 @@ export function cronMatches(cron: Cron, date: Date): boolean {
 
 /**
  * The next minute this fires, searching forward from `from` (exclusive).
- *
- * ponytail: it steps a minute at a time over a year - half a million set
- * lookups in the worst case, and the worst case is a schedule that never
- * fires (February 30th). A real one lands within a day. Walk the fields
- * instead if this ever shows up in a profile.
  */
 export function nextRun(expr: string, from: Date = new Date()): Date | null {
 	const cron = parseCron(expr);

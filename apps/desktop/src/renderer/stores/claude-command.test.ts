@@ -65,3 +65,17 @@ test("remoteControlOn: selected sessions only", () => {
 	expect(remoteControlOn("p1")).toBe(false);
 	useClaudeCommand.setState({ remoteControl: "off" });
 });
+
+test("recent repos: newest first, no repeats, at most five", () => {
+	const { addRecentRepo } = useClaudeCommand.getState();
+	useClaudeCommand.setState({ recentRepos: [] });
+	for (const repo of ["/a", "/b", "/c", "/d", "/e", "/f", "/b"])
+		addRecentRepo(repo);
+	expect(useClaudeCommand.getState().recentRepos).toEqual([
+		"/b",
+		"/f",
+		"/e",
+		"/d",
+		"/c",
+	]);
+});

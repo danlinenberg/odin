@@ -29,7 +29,6 @@ export const Route = createFileRoute("/_authenticated/_odin/email/")({
 function EmailPage() {
 	const { emails, workConfig, syncAll, isSyncing } = useOdinFeeds();
 	const { isDone } = useDone();
-	// ponytail: local state - opens on the interesting mail every visit.
 	const [showJunk, setShowJunk] = useState(false);
 	const open = (emails.data?.emails ?? []).filter(
 		(email) => !isDone({ key: `email:${email.id}`, url: email.url }),

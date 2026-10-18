@@ -107,7 +107,10 @@ describe("notifications/server", () => {
 
 	// It runs commands on a port any web page can reach, so a browser is refused.
 	describe("POST /shell/run", () => {
-		const post = async (headers: Record<string, string> = {}) => {
+		const post = async (
+			headers: Record<string, string> = {},
+			body = "paneId=pane-1&command=cd+%2Ftmp+%26%26+bun+run+dev",
+		) => {
 			const server = notificationsApp.listen(0, "127.0.0.1");
 			await new Promise((resolve) => server.once("listening", resolve));
 			const seen: unknown[] = [];
@@ -121,7 +124,7 @@ describe("notifications/server", () => {
 						"content-type": "application/x-www-form-urlencoded",
 						...headers,
 					},
-					body: "paneId=pane-1&command=cd+%2Ftmp+%26%26+bun+run+dev",
+					body,
 				});
 				return { status: response.status, seen };
 			} finally {
@@ -136,6 +139,19 @@ describe("notifications/server", () => {
 			expect(seen).toEqual([
 				{ paneId: "pane-1", command: "cd /tmp && bun run dev" },
 			]);
+		});
+
+		it("passes a Shell's name on, and refuses a name that isn't a plain label", async () => {
+			const named = await post(
+				{},
+				"paneId=pane-1&command=ngrok+http+8001&name=ngrok",
+			);
+			expect(named.seen).toEqual([
+				{ paneId: "pane-1", command: "ngrok http 8001", name: "ngrok" },
+			]);
+			const bad = await post({}, "paneId=pane-1&command=ls&name=a%20b%3B");
+			expect(bad.status).toBe(400);
+			expect(bad.seen).toEqual([]);
 		});
 
 		it("refuses anything a browser sent", async () => {

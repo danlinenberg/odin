@@ -15,8 +15,6 @@ const NOTIFY_SCRIPT_TEMPLATE_PATH = path.join(
 
 export const SUBAGENT_CAP_SCRIPT_NAME = "subagent-cap.sh";
 const SUBAGENT_CAP_SCRIPT_MARKER = "# Odin subagent cap hook v1";
-// ponytail: 4 subagents machine-wide, not per session. Raise it with
-// ODIN_MAX_SUBAGENTS if the machine can take more.
 const DEFAULT_SUBAGENT_CAP = 4;
 
 export const SHELL_RULE_SCRIPT_NAME = "shell-rule.sh";

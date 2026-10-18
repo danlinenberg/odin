@@ -2,6 +2,7 @@ export { BEAT_MS, readAttention, recordBeat } from "./attention";
 export {
 	firstPrompt,
 	listTranscripts,
+	ownerRepoOf,
 	parseTranscript,
 	projectsRoot,
 	queryTerms,
@@ -12,6 +13,7 @@ export {
 	type SessionSnippet,
 	type SessionSummary,
 	searchSessions,
+	sessionLoop,
 	summarizeTranscript,
 	type TranscriptFile,
 	type TranscriptMessage,

@@ -223,6 +223,11 @@ export interface Pane {
 	 */
 	odinShellPaneId?: string;
 	/**
+	 * Odin fork: this session's named Shells, by name - the ones an agent ran
+	 * through /shell/run with a `name`, each beside the main one.
+	 */
+	odinNamedShells?: Record<string, string>;
+	/**
 	 * Odin fork: this Shell is running something an agent launched through
 	 * /shell/run. The agent picked its directory on purpose, so its dot is green
 	 * wherever it sits.

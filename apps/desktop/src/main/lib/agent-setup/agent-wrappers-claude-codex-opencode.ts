@@ -281,8 +281,6 @@ export function mergeClaudeManagedSettings(
 			// fires, and a turn that ends by asking a question in prose is a Stop
 			// like any other. Every card landed in Done and Needs you sat at zero.
 			//
-			// ponytail: a tool-name matcher, not a PreToolUse firehose. Anything
-			// else here would report "needs you" on every Bash call.
 			eventName: "PreToolUse",
 			definition: {
 				matcher: "AskUserQuestion|ExitPlanMode",

@@ -32,7 +32,6 @@ export const useTitleOverrides = create<{
 				set((s) => {
 					const { [key]: _old, ...rest } = s.titles;
 					const titles = title ? { ...rest, [key]: title } : rest;
-					// ponytail: keep the newest 500 names - done rows never clear theirs.
 					return {
 						titles: Object.fromEntries(Object.entries(titles).slice(-500)),
 					};

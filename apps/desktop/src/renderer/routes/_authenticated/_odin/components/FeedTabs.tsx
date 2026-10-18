@@ -82,68 +82,75 @@ export function FeedTabs() {
 
 	const active = FEED_TABS.find((tab) => !!matchRoute({ to: tab.to }))?.to;
 
-	return (
-		<div className="flex items-center gap-0.5">
-			{FEED_TABS.map(({ to, label, Icon }) => {
-				const isActive = active === to;
-				const count = counts[to];
-				const issue = issues[to];
-				const note =
-					issue === "off"
-						? "not connected"
-						: issue === "error"
-							? "not working"
-							: null;
-				return (
-					<Tooltip key={to} delayDuration={300}>
-						<TooltipTrigger asChild>
-							<button
-								type="button"
-								aria-label={note ? `${label} - ${note}` : label}
-								aria-current={isActive ? "page" : undefined}
-								onClick={() => navigate({ to })}
+	const renderTab = ({ to, label, Icon }: (typeof FEED_TABS)[number]) => {
+		const isActive = active === to;
+		const count = counts[to];
+		const issue = issues[to];
+		const note =
+			issue === "off"
+				? "not connected"
+				: issue === "error"
+					? "not working"
+					: null;
+		return (
+			<Tooltip key={to} delayDuration={300}>
+				<TooltipTrigger asChild>
+					<button
+						type="button"
+						aria-label={note ? `${label} - ${note}` : label}
+						aria-current={isActive ? "page" : undefined}
+						onClick={() => navigate({ to })}
+						className={cn(
+							"relative flex items-center gap-1.5 rounded-[7px] px-2 py-1.5 text-[13px] font-semibold transition-colors",
+							isActive
+								? BUTTON.selected
+								: "text-muted-foreground hover:text-foreground",
+						)}
+					>
+						<Icon
+							className={cn("size-[15px]", issue === "off" && "opacity-40")}
+						/>
+						{issue && (
+							<span
+								aria-hidden
 								className={cn(
-									"relative flex items-center gap-1.5 rounded-[7px] px-2 py-1.5 text-[13px] font-semibold transition-colors",
+									"absolute right-1 top-1 size-[5px] rounded-full",
+									// Amber: nothing signed in. Red: signed in, but the feed
+									// is failing - the tab itself carries the reason.
+									issue === "off" ? "bg-attention" : "bg-danger",
+								)}
+							/>
+						)}
+						{count > 0 && (
+							<span
+								className={cn(
+									"rounded-[10px] px-1.5 text-[11px] font-semibold tabular-nums",
 									isActive
-										? BUTTON.selected
-										: "text-muted-foreground hover:text-foreground",
+										? "bg-accent text-soft-foreground"
+										: "bg-secondary text-muted-foreground",
 								)}
 							>
-								<Icon
-									className={cn("size-[15px]", issue === "off" && "opacity-40")}
-								/>
-								{issue && (
-									<span
-										aria-hidden
-										className={cn(
-											"absolute right-1 top-1 size-[5px] rounded-full",
-											// Amber: nothing signed in. Red: signed in, but the feed
-											// is failing - the tab itself carries the reason.
-											issue === "off" ? "bg-attention" : "bg-danger",
-										)}
-									/>
-								)}
-								{count > 0 && (
-									<span
-										className={cn(
-											"rounded-[10px] px-1.5 text-[11px] font-semibold tabular-nums",
-											isActive
-												? "bg-accent text-soft-foreground"
-												: "bg-secondary text-muted-foreground",
-										)}
-									>
-										{/* A 670-row Notion database shouldn't set the strip's width. */}
-										{count > 99 ? "99+" : count}
-									</span>
-								)}
-							</button>
-						</TooltipTrigger>
-						<TooltipContent side="bottom">
-							{note ? `${label} - ${note}` : label}
-						</TooltipContent>
-					</Tooltip>
-				);
-			})}
+								{/* A 670-row Notion database shouldn't set the strip's width. */}
+								{count > 99 ? "99+" : count}
+							</span>
+						)}
+					</button>
+				</TooltipTrigger>
+				<TooltipContent side="bottom">
+					{note ? `${label} - ${note}` : label}
+				</TooltipContent>
+			</Tooltip>
+		);
+	};
+
+	// Two groups: Odin's own lists (All, Tasks, Docs), then the connected
+	// accounts - so "mine" and "from a connection" read apart at a glance.
+	// The hairline is shorter than FeedDivider, which ends the whole strip.
+	return (
+		<div className="flex items-center gap-0.5">
+			{FEED_TABS.filter((tab) => !("provider" in tab)).map(renderTab)}
+			<span aria-hidden className="mx-1 h-3.5 w-px shrink-0 bg-accent" />
+			{FEED_TABS.filter((tab) => "provider" in tab).map(renderTab)}
 		</div>
 	);
 }

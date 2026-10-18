@@ -1,6 +1,6 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { accessSync, constants } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
@@ -210,7 +210,6 @@ async function claudeLogin(): Promise<{ ok: boolean; error?: string }> {
 	};
 	child.stdout?.on("data", collect);
 	child.stderr?.on("data", collect);
-	// ponytail: abandoned logins die after 10 minutes, not on a Cancel button.
 	const timer = setTimeout(() => stopLogin(child), 10 * 60_000);
 	return new Promise((resolve) => {
 		child.on("error", (error) => {
@@ -265,6 +264,37 @@ export async function markClaudeOnboarded(
 	);
 }
 
+export interface OdinDoc {
+	title: string;
+	path: string;
+}
+
+/**
+ * Knowledge docs - what sessions saved with "Save as doc" (SAVE_DOC_PROMPT),
+ * newest first. A doc is a markdown file, titled by its first "# " line.
+ */
+export async function listDocs(
+	dir = join(homedir(), ".odin", "docs"),
+): Promise<OdinDoc[]> {
+	const names = await readdir(dir).catch(() => [] as string[]);
+	const docs = await Promise.all(
+		names
+			.filter((name) => name.endsWith(".md"))
+			.map(async (name) => {
+				const path = join(dir, name);
+				const [text, info] = await Promise.all([
+					readFile(path, "utf8"),
+					stat(path),
+				]);
+				const title = /^# +(.+)$/m.exec(text)?.[1]?.trim();
+				return { title: title || name.slice(0, -3), path, at: info.mtimeMs };
+			}),
+	);
+	return docs
+		.sort((a, b) => b.at - a.at)
+		.map(({ title, path }) => ({ title, path }));
+}
+
 /**
  * Claude's sign-in, wherever sessions run: this machine's `system` router, and
  * on a remote server the Odin core's (shared/remote-core REMOTE_CORE_PROCEDURES
@@ -289,10 +319,11 @@ export const createSystemRouter = () => {
 		detectGhCli: publicProcedure.query(detectGhCli),
 		detectBrew: publicProcedure.query(detectBrew),
 		...claudeAuthProcedures,
+		listDocs: publicProcedure.query(() => listDocs()),
 		/**
 		 * A pasted screenshot has no file behind it, and a task is one string in
 		 * localStorage - so the bytes land in ~/.odin/attachments and the task
-		 * keeps the path. ponytail: never cleaned up, prune by age if it grows.
+		 * keeps the path.
 		 */
 		saveAttachment: publicProcedure
 			.input(
