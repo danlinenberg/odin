@@ -39,6 +39,7 @@ import {
 } from "./attach";
 import { BriefCard } from "./brief-card";
 import { boardSections, DoneShelf, Dot, SessionCard, STATUS } from "./cards";
+import { demoAnswer } from "./demo";
 import { channelFetch, type OdinFetch } from "./odin-fetch";
 import { type Pairing, parsePairLink } from "./pair-link";
 import { useSpeech } from "./speech";
@@ -84,15 +85,40 @@ function pairWith(link: string): boolean {
 	return true;
 }
 
-const pairing = devToken ? null : savedPairing();
-/** Odin's API: through the channel, or to fake-odin in dev. */
+/** "Try the demo": sample sessions inside the app, no Odin behind it. */
+const DEMO = "demo";
+const demo = !devToken && localStorage.getItem(PAIRING_KEY) === DEMO;
+const startDemo = () => {
+	localStorage.setItem(PAIRING_KEY, DEMO);
+	location.reload();
+};
+const leaveDemo = () => {
+	localStorage.removeItem(PAIRING_KEY);
+	location.reload();
+};
+const demoFetch: OdinFetch = async (input, init) => {
+	const url = new URL(
+		input instanceof Request ? input.url : String(input),
+		"http://demo",
+	);
+	return demoAnswer(
+		url.pathname,
+		url.search,
+		typeof init?.body === "string" ? init.body : "",
+	);
+};
+
+const pairing = devToken || demo ? null : savedPairing();
+/** Odin's API: through the channel, the demo's samples, or fake-odin in dev. */
 const odinFetch: OdinFetch = pairing
 	? channelFetch(pairing)
-	: (input, init) =>
-			fetch(input, {
-				...init,
-				headers: { ...init?.headers, authorization: `Bearer ${devToken}` },
-			});
+	: demo
+		? demoFetch
+		: (input, init) =>
+				fetch(input, {
+					...init,
+					headers: { ...init?.headers, authorization: `Bearer ${devToken}` },
+				});
 const phone = createTRPCReact<PhoneRouter>();
 const client = phone.createClient({
 	links: [
@@ -292,6 +318,20 @@ function Home() {
 					<ProfilePicker />
 				</div>
 			</header>
+			{demo && (
+				<div className="mx-3 mt-3 flex items-center gap-3 rounded-[10px] border border-primary/40 bg-primary/10 px-3 py-2 text-sm">
+					<span className="min-w-0 flex-1">
+						Demo: sample sessions, no Odin connected.
+					</span>
+					<button
+						type="button"
+						onClick={leaveDemo}
+						className="shrink-0 font-semibold text-primary"
+					>
+						Pair with Odin
+					</button>
+				</div>
+			)}
 			<ErrorLine error={board.error} />
 			{board.isLoading && (
 				<div className="pointer-events-none fixed inset-0 flex flex-col items-center justify-center gap-4">
@@ -858,13 +898,25 @@ function Pair() {
 					</li>
 				))}
 			</ol>
+			<div className="mt-2 flex flex-col gap-2 border-t border-border pt-6">
+				<span className="text-sm text-muted-foreground">
+					No Odin on a Mac yet?
+				</span>
+				<button
+					type="button"
+					onClick={startDemo}
+					className="self-start rounded-[10px] bg-secondary px-4 py-2.5 font-semibold text-primary"
+				>
+					Try the demo
+				</button>
+			</div>
 		</div>
 	);
 }
 
 function App() {
 	const paneId = usePaneFromHash();
-	if (!pairing && !devToken)
+	if (!pairing && !devToken && !demo)
 		return native ? (
 			<Pair />
 		) : (

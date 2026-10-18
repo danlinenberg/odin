@@ -7,18 +7,19 @@ each answer. The app is `apps/mobile` (screens in
 
 ## Which path: TestFlight inside the team, or the App Store
 
-The app is a client for Odin. On its own it shows a Pair screen and nothing
-else, so an Apple reviewer cannot use it without an Odin to pair with.
+The app is a client for Odin. Without one to pair with, it offers "Try the
+demo" on its Pair screen: a sample board inside the app (the same samples as
+`apps/mobile/scripts/fake-odin.ts`, in `apps/desktop/src/renderer/mobile/demo.ts`),
+so a reviewer can use every screen.
 
 | Path | Review | Who can install | What it needs |
 |---|---|---|---|
 | (a) Internal TestFlight | None | Up to 100 people who are users on the App Store Connect team | A paid developer account, the app record, an upload |
-| (b) External TestFlight or the App Store | Beta App Review or App Review | Anyone with the link, or everyone | (a), plus a way for a reviewer to see the app work: a built-in demo mode with sample data |
+| (b) External TestFlight or the App Store | Beta App Review or App Review | Anyone with the link, or everyone | (a), plus the review notes below |
 
 Recommendation: (a) now, for colleagues. Add each colleague in App Store
 Connect > Users and Access (role: Developer or Marketing is enough), then add
-them to the internal TestFlight group. (b) waits for a demo mode, which does
-not exist yet.
+them to the internal TestFlight group. (b) is ready whenever you want it.
 
 ## App information
 
@@ -150,17 +151,16 @@ that the app is mass-market software using standard cryptography.
   asks about it when France is among the territories.
 - Internal TestFlight builds still ask the encryption question on upload.
 
-## App Review notes (pending: needs a demo mode)
-
-Draft for path (b), to use once a demo mode exists:
+## App Review notes
 
 > Odin for iPhone is a companion to Odin, an open-source app that runs coding agents on the user's own Mac. The app pairs with that Mac by scanning a QR code and has no account system.
 >
-> To review it without a Mac: on the Pair screen, tap "Try a demo". The app then shows a sample board with sessions that need attention, are working and are ready for review. Open "Fix HDR grouping test" to see a session as a chat, its action items (tap Approve), and its brief. Replies and new tasks in the demo stay on the device.
+> To review it without a Mac: on the Pair screen, tap "Try the demo". The app then shows a sample board with sessions that need attention, are working and are ready for review. Open "Fix HDR grouping test" to see a session as a chat, its action items (tap Approve), and its brief. Replies and new tasks in the demo stay on the device. "Pair with Odin" in the banner at the top leaves the demo.
 >
 > Everything between the phone and a real Odin is end to end encrypted (Noise protocol). Source code: https://github.com/danlinenberg/odin
 
-The "Try a demo" button does not exist yet.
+Sign-in required: No (the app has no accounts). Contact: Dan's name, email
+and phone, filled in App Store Connect.
 
 ## TestFlight: What to Test
 
@@ -169,6 +169,20 @@ The "Try a demo" button does not exist yet.
 > Try: open a session that needs you and answer it with a button or a reply; send a reply by voice; attach a photo; open the brief and its links; start a new task; star a session; switch profiles. Then turn off Wi-Fi and check that the board still loads over mobile data.
 >
 > Tell us about anything slow, confusing or broken, with a screenshot.
+
+## The build
+
+- Version 1.0, build 1 (`MARKETING_VERSION`, `CURRENT_PROJECT_VERSION` in
+  the Xcode project). Raise the build number for every upload.
+- iPhone only (`TARGETED_DEVICE_FAMILY = 1`), so no iPad screenshots are
+  needed. On an iPad it runs as an iPhone app.
+- `App/PrivacyInfo.xcprivacy`: no tracking, no data collected, no
+  required-reason APIs in the app's own code. Capacitor's frameworks carry
+  their own manifests.
+- `Info.plist`: `ITSAppUsesNonExemptEncryption` true, and a usage text for
+  the camera, microphone, speech recognition and local network.
+- The icon is 1024 x 1024 with no transparency, as the App Store requires.
+- A Release archive builds and contains all of the above.
 
 ## Screenshots
 
@@ -180,7 +194,7 @@ them down for smaller iPhones. Files in
 2. `02-session.png` - a session as a chat, with its TL;DR and action items
 3. `03-brief.png` - the brief: goal, progress, next step, PRs with CI, Jira, Slack
 4. `04-new-task.png` - a new task with repository and priority
-5. `05-pair.png` - pairing in four steps
+5. `05-pair.png` - pairing in four steps, and "Try the demo"
 
 The data is fake-odin's sample sessions (`apps/mobile/scripts/fake-odin.ts`).
 Regenerate with `bun run screenshots` in `apps/mobile` (about 3 minutes; it
@@ -202,5 +216,5 @@ shuts down other booted simulators).
 7. TestFlight > Internal Testing: create a group, add colleagues (they must
    first be users on the team), and add the build. They get an email and
    install through the TestFlight app.
-8. For the App Store later: build the demo mode, add the screenshots and
+8. For external TestFlight or the App Store: add the screenshots and the
    review notes, and submit for review.
