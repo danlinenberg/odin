@@ -109,6 +109,10 @@ export function LocalHostServiceProvider({
 				void utils.notion.invalidate();
 				void utils.backlogReview.invalidate();
 				void utils.workLog.invalidate();
+				// Claude's sign-in is the server's in remote mode (REMOTE_CORE_PROCEDURES):
+				// a status read before the mode was known asked this laptop.
+				void utils.system.claudeAuthStatus.invalidate();
+				void utils.system.claudeLoginUrl.invalidate();
 			}),
 		[utils],
 	);

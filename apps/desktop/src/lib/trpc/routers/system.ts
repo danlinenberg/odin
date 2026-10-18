@@ -161,8 +161,24 @@ export function findClaude(
 	return null;
 }
 
+/**
+ * Stop a sign-in and everything it started. `claude` is often a launcher (Volta,
+ * a version manager) that runs the real CLI as a child; killing only the
+ * launcher left the CLI waiting for a code forever. On POSIX it runs in its own
+ * process group, so the group goes.
+ */
+function stopLogin(child: ChildProcess | null): void {
+	if (!child?.pid) return;
+	try {
+		if (process.platform === "win32") child.kill();
+		else process.kill(-child.pid, "SIGTERM");
+	} catch {
+		child.kill();
+	}
+}
+
 async function claudeLogin(): Promise<{ ok: boolean; error?: string }> {
-	login?.kill();
+	stopLogin(login);
 	const env = await getProcessEnvWithShellPath();
 	const bin = findClaude(env.PATH ?? "");
 	if (!bin)
@@ -178,6 +194,8 @@ async function claudeLogin(): Promise<{ ok: boolean; error?: string }> {
 		child = spawn(bin, ["auth", "login", "--claudeai"], {
 			env,
 			stdio: ["pipe", "pipe", "pipe"],
+			// Its own process group, so stopLogin takes the real CLI too.
+			detached: process.platform !== "win32",
 		});
 	} catch (error) {
 		return { ok: false, error: (error as Error).message };
@@ -193,7 +211,7 @@ async function claudeLogin(): Promise<{ ok: boolean; error?: string }> {
 	child.stdout?.on("data", collect);
 	child.stderr?.on("data", collect);
 	// ponytail: abandoned logins die after 10 minutes, not on a Cancel button.
-	const timer = setTimeout(() => child.kill(), 10 * 60_000);
+	const timer = setTimeout(() => stopLogin(child), 10 * 60_000);
 	return new Promise((resolve) => {
 		child.on("error", (error) => {
 			clearTimeout(timer);
