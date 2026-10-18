@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Odin</title>
+<meta name="description" content="Odin runs many coding agents in parallel on your own machine, next to the work that drives them. One queue, one board, and a ping when an agent needs you.">
+<meta property="og:title" content="Odin: parallelize agents at the speed of thought">
+<meta property="og:description" content="One queue across Slack, Jira, GitHub, Notion, Email and ClickUp, a board over live agent state, and a ping when an agent needs you.">
+<meta property="og:image" content="https://danlinenberg.github.io/odin/icon.png">
+<link rel="icon" href="favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+	<header class="top">
+		<a class="brand" href="./"><img src="icon.png" alt="">Odin</a>
+		<nav aria-label="Main">
+			<a href="#loop">How it works</a>
+			<a href="#phone">iPhone</a>
+			<a href="#private">Privacy</a>
+			<a class="btn small" href="https://github.com/danlinenberg/odin">
+				<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.4c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.41-2.69 5.38-5.25 5.67.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>
+				GitHub
+			</a>
+		</nav>
+	</header>
+
+	<main>
+		<div class="hero">
+			<a class="pill" href="#phone"><b>New</b>Odin for iPhone, end to end encrypted</a>
+			<h1>Parallelize agents<br><span class="dim">at the speed of thought.</span></h1>
+			<p class="lede">Running six agents at once is easy now. Keeping track of six is not. Odin keeps your agents next to the work that drives them, and tells you when one needs you.</p>
+			<div class="ctas">
+				<a class="btn primary" href="https://github.com/danlinenberg/odin/releases/latest/download/Odin-arm64.dmg">
+					<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.37 12.6c-.02-2.3 1.88-3.4 1.96-3.46-1.07-1.56-2.73-1.77-3.32-1.8-1.41-.14-2.76.84-3.47.84-.72 0-1.82-.82-3-.8-1.54.02-2.96.9-3.76 2.27-1.6 2.78-.41 6.9 1.15 9.15.76 1.1 1.67 2.34 2.86 2.3 1.15-.05 1.58-.74 2.97-.74 1.38 0 1.77.74 2.98.72 1.23-.02 2.01-1.12 2.77-2.23.87-1.28 1.23-2.52 1.25-2.58-.03-.01-2.4-.92-2.42-3.66ZM14.1 5.84c.63-.77 1.06-1.83.94-2.89-.91.04-2.01.6-2.66 1.37-.58.67-1.09 1.75-.96 2.79 1.02.08 2.05-.52 2.68-1.27Z"/></svg>
+					Download for macOS
+				</a>
+				<a class="btn" href="https://github.com/danlinenberg/odin#windows-x64">Windows</a>
+			</div>
+			<div class="cmd">
+				<code id="brew">brew trust --tap danlinenberg/odin &amp;&amp; brew tap danlinenberg/odin &amp;&amp; brew install --cask odin</code>
+				<button type="button" id="copy" aria-describedby="brew">Copy</button>
+			</div>
+		</div>
+
+		<div class="stage">
+			<div class="window" aria-label="Odin's board, with sessions grouped by what each agent is doing">
+				<div class="chrome"><i></i><i></i><i></i><span>Odin · Dev Board</span></div>
+				<div class="app">
+					<div class="side">
+						<div class="label">Queue</div>
+						<a class="on" href="#loop">All <em>7</em></a>
+						<a href="#loop">Slack <em>3</em></a>
+						<a href="#loop">Jira <em>2</em></a>
+						<a href="#loop">GitHub <em>1</em></a>
+						<a href="#loop">Notion <em>0</em></a>
+						<a href="#loop">Email <em>1</em></a>
+						<a href="#loop">ClickUp <em>0</em></a>
+						<a href="#loop">Tasks <em>4</em></a>
+					</div>
+					<div class="board">
+						<div class="col" style="--c: var(--attention)">
+							<div class="col-head"><i class="dot"></i>Needs you<em>2</em></div>
+							<div class="card"><b>Fix flaky upload test</b><span>api · approve migration</span></div>
+							<div class="card"><b>Settings menu cleanup</b><span>web · Maya asked</span></div>
+						</div>
+						<div class="col working" style="--c: var(--working)">
+							<div class="col-head"><i class="dot"></i>Working<em>3</em></div>
+							<div class="card"><b>Search ranking bug</b><span>api · 12m</span></div>
+							<div class="card"><b>PAY-212 export stuck</b><span>jira · 4m</span></div>
+							<div class="card"><b>Review #1142</b><span>github · 1m</span></div>
+						</div>
+						<div class="col" style="--c: var(--success)">
+							<div class="col-head"><i class="dot"></i>Final review<em>1</em></div>
+							<div class="card"><i class="chip" style="--c: var(--success)">Just done</i><b>Pricing page copy</b><span>web · PR open</span></div>
+						</div>
+						<div class="col" style="--c: var(--faint)">
+							<div class="col-head"><i class="dot"></i>Idle<em>1</em></div>
+							<div class="card"><b>Old flaky CI run</b><span>infra · 5h</span></div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<section id="loop">
+			<div class="head">
+				<div class="label">The loop</div>
+				<h2>Your queue and your agents, <span class="dim">on one screen.</span></h2>
+				<p>A row in the queue becomes a running session. The session remembers the row it came from. Each step costs you as little attention as Odin can manage.</p>
+			</div>
+			<div class="grid">
+				<div>
+					<span class="step">01</span>
+					<h3>See what's on you</h3>
+					<p>Every source lands in one queue. React :eyes: to a Slack message and it becomes a row. Badges count what waits on you, not every row.</p>
+				</div>
+				<div>
+					<span class="step">02</span>
+					<h3>Hand it to an agent</h3>
+					<p>One click starts a real terminal agent in its own git worktree, with a prompt built from the thread, the issue or the PR.</p>
+				</div>
+				<div>
+					<span class="step">03</span>
+					<h3>Notice when it needs you</h3>
+					<p>The board sorts sessions by live agent state. Odin pings you when one asks a question, and lists its action items.</p>
+				</div>
+				<div>
+					<span class="step">04</span>
+					<h3>Pick it back up</h3>
+					<p>Each session keeps a written brief and the row it came from, so an hour later you know what happened and why.</p>
+				</div>
+			</div>
+			<div class="sources" aria-label="Sources">
+				<span>Slack</span><span>Jira</span><span>GitHub</span><span>Notion</span><span>Email</span><span>ClickUp</span><span>Your own tasks</span>
+			</div>
+		</section>
+
+		<section id="phone">
+			<div class="phone">
+				<div class="head">
+					<div class="label">Odin for iPhone</div>
+					<h2>Your board, <span class="dim">in your pocket.</span></h2>
+					<p>Pair once by scanning a QR code on your Mac. Then answer an agent from the train, or start a task from a meeting, on Wi-Fi or mobile data.</p>
+					<ul class="points">
+						<li><b>The whole board</b><span>Every column, with stars and briefs.</span></li>
+						<li><b>Reply in the chat</b><span>Type, dictate, or attach photos.</span></li>
+						<li><b>New tasks</b><span>Pick the repo and start an agent.</span></li>
+						<li><b>Every profile</b><span>Work and personal, one tap apart.</span></li>
+					</ul>
+				</div>
+				<div class="handset" aria-label="The Odin iPhone app showing the board">
+					<div class="screen">
+						<div class="title">Board <small>Work</small></div>
+						<div class="col-head" style="--c: var(--attention)"><i class="dot"></i>Needs you<em>2</em></div>
+						<div class="card"><b>Fix flaky upload test</b><span>api · 40m</span></div>
+						<div class="card"><b>Settings menu cleanup</b><span>web · Maya</span></div>
+						<div class="col-head working" style="--c: var(--working)"><i class="dot"></i>Working<em>2</em></div>
+						<div class="card"><b>Search ranking bug</b><span>api · 12m</span></div>
+						<div class="card"><b>PAY-212 export stuck</b><span>jira · 4m</span></div>
+						<div class="col-head" style="--c: var(--success)"><i class="dot"></i>Final review<em>1</em></div>
+						<div class="card"><i class="chip" style="--c: var(--success)">Just done</i><b>Pricing page copy</b></div>
+					</div>
+				</div>
+			</div>
+		</section>
+
+		<section id="private">
+			<div class="head">
+				<div class="label">Private by design</div>
+				<h2>Your machine. Your agents. <span class="dim">Your keys.</span></h2>
+			</div>
+			<div class="grid three">
+				<div>
+					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+					<h3>Runs on your machine</h3>
+					<p>Your queue, sessions and briefs stay in your home folder. Released builds send no analytics and no crash reports.</p>
+				</div>
+				<div>
+					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 17 6-6-6-6M12 19h8"/></svg>
+					<h3>Your agents, your accounts</h3>
+					<p>Odin drives the agent CLI you already use, with your own subscription. Nothing is proxied.</p>
+				</div>
+				<div>
+					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+					<h3>End to end encrypted phone</h3>
+					<p>Only your Mac and your paired phones can read what passes between them. The relay sees encrypted bytes. <a href="https://github.com/danlinenberg/odin/blob/main/docs/phone-encryption.md">Read the design</a>.</p>
+				</div>
+			</div>
+		</section>
+
+		<div class="closing">
+			<h2>Hand over the next job.</h2>
+			<p class="lede">Free and open source, for macOS on Apple Silicon and Windows.</p>
+			<div class="ctas">
+				<a class="btn primary" href="https://github.com/danlinenberg/odin/releases/latest/download/Odin-arm64.dmg">Download for macOS</a>
+				<a class="btn" href="https://github.com/danlinenberg/odin">View on GitHub</a>
+			</div>
+		</div>
+	</main>
+
+	<footer>
+		<span>Odin is open source under the Elastic License 2.0.</span>
+		<nav aria-label="Footer">
+			<a href="https://github.com/danlinenberg/odin">GitHub</a>
+			<a href="support.html">Support</a>
+			<a href="privacy.html">Privacy</a>
+		</nav>
+	</footer>
+</div>
+<script>
+	document.getElementById("copy").addEventListener("click", async (event) => {
+		const button = event.currentTarget;
+		const code = document.getElementById("brew");
+		try {
+			await navigator.clipboard.writeText(code.textContent);
+			button.textContent = "Copied";
+		} catch {
+			const range = document.createRange();
+			range.selectNodeContents(code);
+			getSelection().removeAllRanges();
+			getSelection().addRange(range);
+			button.textContent = "Selected";
+		}
+		setTimeout(() => (button.textContent = "Copy"), 1600);
+	});
+</script>
+</body>
+</html>

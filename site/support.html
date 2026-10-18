@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Odin Support</title>
+<meta name="description" content="Help with Odin and the Odin iPhone app.">
+<link rel="icon" href="favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+	<header class="top">
+		<a class="brand" href="./"><img src="icon.png" alt="">Odin</a>
+		<nav aria-label="Main">
+			<a href="./">Home</a>
+			<a href="privacy.html">Privacy</a>
+		</nav>
+	</header>
+
+	<main class="doc">
+		<h1>Support</h1>
+		<p>Something not working, or an idea? <a href="https://github.com/danlinenberg/odin/issues/new">Open an issue on GitHub</a>. Say what you did, what you expected and what happened. A screenshot helps.</p>
+
+		<h2>Pair the iPhone app</h2>
+		<ul>
+			<li>On your Mac, open Odin, then Settings, Connections, Phone, and turn on Phone access. A QR code appears.</li>
+			<li>Open the Camera on your iPhone and point it at the code. Tap Open in Odin.</li>
+			<li>The code works once, for 10 minutes. If it has expired, close Settings and open it again for a new one.</li>
+		</ul>
+
+		<h2>The app says "This phone is no longer paired"</h2>
+		<p>The phone was removed in Settings, or Odin was unpaired from all phones. Scan a new QR code to pair again.</p>
+
+		<h2>The board doesn't load away from home</h2>
+		<ul>
+			<li>Odin must be running on your Mac, and the Mac must be awake and online.</li>
+			<li>Close the app fully and open it again. It tries your home network first, then the relay, which can take a few seconds.</li>
+		</ul>
+
+		<h2>Remove a phone</h2>
+		<p>In Odin, open Settings, Connections, Phone, and remove the phone from Paired phones. It is cut off at once. Use this if a phone is lost.</p>
+
+		<h2>Install or update Odin</h2>
+		<p>See <a href="https://github.com/danlinenberg/odin#install">Install</a> in the README. Odin updates itself and shows a banner when a new release is out.</p>
+	</main>
+
+	<footer>
+		<span>Odin is open source under the Elastic License 2.0.</span>
+		<nav aria-label="Footer">
+			<a href="https://github.com/danlinenberg/odin">GitHub</a>
+			<a href="support.html">Support</a>
+			<a href="privacy.html">Privacy</a>
+		</nav>
+	</footer>
+</div>
+</body>
+</html>

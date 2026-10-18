@@ -47,7 +47,9 @@
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Odin turns what you say into a reply.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Odin turns what you say into a reply.</string>
+	<string>Odin turns what you say into a reply, using Apple's speech recognition.</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<true/>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

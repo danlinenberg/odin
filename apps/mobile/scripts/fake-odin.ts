@@ -30,6 +30,7 @@ const sessions = [
 	["p4", "Voice transcribe bug", "working", "odin", null],
 	["p5", "Board hover card", "review", "odin", null],
 	["p6", "Old flaky CI run", "idle", "imagen", null],
+	["p7", "Relay README for self-hosting", "idle", "odin", null],
 ].map(([paneId, title, column, repo, contact], i) => ({
 	paneId,
 	title,
@@ -40,7 +41,7 @@ const sessions = [
 	source: "tasks",
 	starred: paneId === "p4",
 	// p5 ended its turn 3 minutes ago: a Just done card.
-	statusAt: Date.now() - [40, 8, 2, 95, 3, 300][i] * 60_000,
+	statusAt: Date.now() - [40, 8, 2, 95, 3, 300, 140][i] * 60_000,
 }));
 
 const messages: Record<string, Message[]> = {
@@ -76,7 +77,7 @@ const messages: Record<string, Message[]> = {
 				"ACTION ITEMS",
 				"1. Approve running the migration on dev",
 				"2. Tell me which branch to push to [main | release]",
-				"3. Check the PR https://github.com/x/y/pull/1 (you only)",
+				"3. Check the PR https://github.com/danlinenberg/odin/pull/1120 (you only)",
 			].join("\n"),
 			at: REPLY_AT,
 		},
@@ -99,7 +100,7 @@ const screen = [
 	" Do you want to proceed?",
 	" ❯ 1. Yes",
 	"   2. Yes, and don't ask again",
-	"   3. No, and tell Claude what to do differently (esc)",
+	"   3. No, and say what to do differently (esc)",
 ].join("\n");
 
 /** Two profiles: Personal shows only the imagen session. */
@@ -159,7 +160,7 @@ function answer(path: string, input: Record<string, string> | undefined) {
 				prs: [
 					{
 						url: "https://github.com/danlinenberg/odin/pull/1120",
-						label: "#1120 Phone: attach photos and files",
+						label: "#1120 HDR: test for the counter rollover",
 						status: { state: "MERGED", passed: 4 },
 					},
 					{
