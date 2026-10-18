@@ -3,6 +3,7 @@ import stripAnsi from "strip-ansi";
 import {
 	agentOnScreen,
 	escIsHandledOnScreen,
+	odinActivity,
 	odinScreenStatus,
 	odinScreenWrite,
 	spacesForCursorForward,
@@ -331,5 +332,17 @@ describe("spacesForCursorForward", () => {
 		expect(odinScreenStatus(stripAnsi(spacesForCursorForward(raw)))).toBe(
 			"review",
 		);
+	});
+});
+
+describe("odinActivity", () => {
+	const box = "─".repeat(40);
+	it("reads the spinner's verb and elapsed time", () => {
+		const screen = `⏺ Bash(bun test)\n  ⎿ 14 pass\n\n✻ Cogitating… (5m 0s · ↑ 12.1k tokens · esc to interrupt)\n${box}\n> \n${box}`;
+		expect(odinActivity(screen)).toBe("Cogitating… 5m 0s");
+	});
+	it("is undefined when the turn is over", () => {
+		const screen = `✻ Cooked for 1m 30s\n${box}\n> \n${box}`;
+		expect(odinActivity(screen)).toBeUndefined();
 	});
 });

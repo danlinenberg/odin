@@ -26,7 +26,7 @@ import {
 	LuStar,
 	LuUser,
 } from "react-icons/lu";
-import { odinScreenStatus } from "shared/odin-screen-status";
+import { odinActivity, odinScreenStatus } from "shared/odin-screen-status";
 import type { PaneStatus } from "shared/tabs-types";
 import superjson from "superjson";
 import {
@@ -737,6 +737,14 @@ function Session({ paneId }: { paneId: string }) {
 						</div>
 					</div>
 				))}
+				{status === "working" && (
+					<div className="my-3 flex items-center gap-2 text-sm text-working-ink">
+						<LuLoaderCircle className="size-4 shrink-0 animate-spin" />
+						<span className="truncate">
+							{odinActivity(data?.screen ?? "") ?? "Working…"}
+						</span>
+					</div>
+				)}
 				{asking && data?.screen && (
 					<pre className="mt-2 overflow-x-auto rounded-[10px] border border-attention/35 bg-attention/10 p-2.5 font-mono text-[11px] leading-snug text-attention-ink">
 						{data.screen}
