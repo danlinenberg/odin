@@ -777,16 +777,16 @@ function Session({ paneId }: { paneId: string }) {
 				{waiting.map((item) => (
 					<div
 						key={item.at}
-						className="my-2 ml-10 select-text whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-accent/60 px-3 py-2 text-[15px] leading-snug"
+						className="my-2 ml-10 select-text whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-primary/70 px-3 py-2 text-[15px] leading-snug text-primary-foreground"
 					>
 						{item.text}
 						{item.files > 0 && (
-							<div className="flex items-center gap-1 text-sm text-soft-foreground">
+							<div className="flex items-center gap-1 text-sm">
 								<LuPaperclip className="size-3.5" />
 								{item.files} file{item.files === 1 ? "" : "s"}
 							</div>
 						)}
-						<div className="mt-1 text-right text-[11px] text-muted-foreground">
+						<div className="mt-1 text-right text-[11px] opacity-70">
 							Sent · Odin reads it when it's free
 						</div>
 					</div>

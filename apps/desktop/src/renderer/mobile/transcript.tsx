@@ -108,7 +108,7 @@ export function Transcript({
 			return (
 				<div
 					key={index}
-					className="my-2 ml-10 select-text whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-accent px-3 py-2 text-[15px] leading-snug"
+					className="my-2 ml-10 select-text whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-primary px-3 py-2 text-[15px] leading-snug text-primary-foreground"
 				>
 					{message.text}
 				</div>
@@ -120,6 +120,11 @@ export function Transcript({
 		const needsYou = latest && tldr.urgency === "needs-you";
 		return (
 			<div key={index}>
+				{(body || latest) && (
+					<div className="mt-3 -mb-1 ml-1 text-[11px] font-semibold uppercase tracking-wide text-faint-foreground">
+						Odin
+					</div>
+				)}
 				{(body || latest) && (
 					<div
 						className={`my-2 mr-6 overflow-hidden rounded-2xl rounded-bl-md border bg-card text-[15px] leading-snug text-soft-foreground ${needsYou ? "border-attention/35" : "border-border"}`}
