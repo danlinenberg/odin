@@ -8,6 +8,7 @@ import {
 	setOdinApiRouter,
 } from "main/lib/odin-api";
 import { callService, fetchFile, readLink } from "main/lib/read-link";
+import { createSessionWorktree } from "main/lib/session-worktree";
 import { patchPaneTags } from "./launcher";
 
 /**
@@ -117,6 +118,26 @@ async function handle(
 					`Failed: ${error instanceof Error ? error.message : String(error)}`,
 			);
 			return send(res, 200, `${clip(result)}\n`);
+		}
+		// A session's own git worktree (the launch prompt's WORKTREE_ASK_LINE):
+		// plain git on this server's checkout, like the laptop's hook server.
+		if (action === "worktree") {
+			const repo = form.get("repo");
+			if (!repo)
+				return send(res, 400, "Need repo: the main checkout's path.\n");
+			const made = await createSessionWorktree(
+				repo,
+				form.get("name") ?? "",
+			).catch((error: Error) => `Failed: ${error.message ?? String(error)}`);
+			if (typeof made === "string") return send(res, 500, `${made}\n`);
+			if (!made) {
+				return send(
+					res,
+					400,
+					`Not a main git checkout: ${repo}. Already in a worktree? Work there.\n`,
+				);
+			}
+			return send(res, 200, `${made.path}\n`);
 		}
 		// Card tags: what an automation drops once it's done with a session.
 		if (action === "set" && form.get("store") === "sessions") {

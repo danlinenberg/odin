@@ -44,7 +44,11 @@ import { swapScript } from "./update-swap-script";
  * silently with the flags electron-updater uses, which reopen Odin after.
  */
 
-const REPO_SLUG = "danlinenberg/odin";
+/**
+ * Baked at build time (ODIN_UPDATE_REPO). "none" turns updates off - a build
+ * from a fork would otherwise replace itself with the official release.
+ */
+const REPO_SLUG = process.env.ODIN_UPDATE_REPO_BAKED || "danlinenberg/odin";
 const LATEST_RELEASE_API = `https://api.github.com/repos/${REPO_SLUG}/releases/latest`;
 // release.yml keeps these asset names stable (the cask resolves the DMG's).
 const ASSET_NAME = PLATFORM.IS_WINDOWS
@@ -61,7 +65,11 @@ function appBundlePath(): string {
 
 /** Updates only make sense for a packaged build; `bun dev` has git. */
 function canUpdate(): boolean {
-	return app.isPackaged && (PLATFORM.IS_MAC || PLATFORM.IS_WINDOWS);
+	return (
+		app.isPackaged &&
+		REPO_SLUG !== "none" &&
+		(PLATFORM.IS_MAC || PLATFORM.IS_WINDOWS)
+	);
 }
 
 export type { AutoUpdateStatusEvent } from "shared/auto-update";

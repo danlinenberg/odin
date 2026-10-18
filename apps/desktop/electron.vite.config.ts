@@ -81,6 +81,12 @@ export default defineConfig({
 				process.env.DESKTOP_NOTIFICATIONS_PORT,
 			),
 			"process.env.ELECTRIC_PORT": defineEnv(process.env.ELECTRIC_PORT),
+			// Where Odin looks for updates: owner/repo with GitHub releases, or "none"
+			// for a build that must not replace itself with the official release.
+			"process.env.ODIN_UPDATE_REPO_BAKED": defineEnv(
+				process.env.ODIN_UPDATE_REPO,
+				"danlinenberg/odin",
+			),
 			"process.env.ODIN_WORKSPACE_NAME": defineEnv(
 				// Odin fork: never bake the dev-worktree identity into packaged builds
 				process.env.ODIN_PACKAGE ? undefined : process.env.ODIN_WORKSPACE_NAME,
