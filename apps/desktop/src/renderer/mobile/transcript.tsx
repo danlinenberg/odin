@@ -54,8 +54,11 @@ export type ReplyBrief =
 	| null
 	| undefined;
 
-/** The latest reply's TL;DR, marked Needs you or FYI as the brief judged it. */
-function TldrCard({
+/**
+ * The latest reply's TL;DR, marked Needs you or FYI as the brief judged it:
+ * the top strip of that reply's own card, so it reads as its summary.
+ */
+function TldrStrip({
 	tldr,
 	urgency,
 }: {
@@ -65,7 +68,7 @@ function TldrCard({
 	const needsYou = urgency === "needs-you";
 	return (
 		<div
-			className={`my-2 mr-6 rounded-xl border px-3 py-2 text-[15px] leading-snug ${needsYou ? "border-attention/35 bg-attention/[0.07]" : "border-border bg-card"}`}
+			className={`px-3 py-2 ${needsYou ? "bg-attention/[0.07]" : "bg-secondary/60"}`}
 		>
 			<div
 				className={`mb-0.5 text-[11px] font-semibold uppercase tracking-wide ${needsYou ? "text-attention" : "text-faint-foreground"}`}
@@ -114,33 +117,47 @@ export function Transcript({
 		const latest = index === replyAt && tldr;
 		// The board's chat: a long latest reply folds under its TL;DR.
 		const folded = latest && tldr.long && !fullReply;
+		const needsYou = latest && tldr.urgency === "needs-you";
 		return (
 			<div key={index}>
-				{latest && <TldrCard tldr={tldr.last} urgency={tldr.urgency} />}
-				{body && (
-					<div className="my-2 mr-6 rounded-2xl rounded-bl-md border border-border bg-card px-3 py-2 text-[15px] leading-snug text-soft-foreground">
-						<div
-							className={
-								folded
-									? "max-h-[6.5rem] overflow-hidden [mask-image:linear-gradient(to_bottom,black_60%,transparent)]"
-									: undefined
-							}
-						>
-							<Markdown text={body} />
-						</div>
-						{latest && tldr.long && (
-							<button
-								type="button"
-								onClick={() => setFullReply((shown) => !shown)}
-								className="mt-1 flex items-center gap-1 text-[13px] font-medium text-primary"
+				{(body || latest) && (
+					<div
+						className={`my-2 mr-6 overflow-hidden rounded-2xl rounded-bl-md border bg-card text-[15px] leading-snug text-soft-foreground ${needsYou ? "border-attention/35" : "border-border"}`}
+					>
+						{latest && <TldrStrip tldr={tldr.last} urgency={tldr.urgency} />}
+						{body && (
+							<div
+								className={`px-3 py-2 ${latest ? "border-t border-border" : ""}`}
 							>
-								{fullReply ? (
-									<LuChevronDown className="size-4" />
-								) : (
-									<LuChevronRight className="size-4" />
+								{latest && (
+									<div className="mb-0.5 text-[11px] font-semibold uppercase tracking-wide text-faint-foreground">
+										Full reply
+									</div>
 								)}
-								{fullReply ? "Show TL;DR" : "Show full reply"}
-							</button>
+								<div
+									className={
+										folded
+											? "max-h-[6.5rem] overflow-hidden [mask-image:linear-gradient(to_bottom,black_60%,transparent)]"
+											: undefined
+									}
+								>
+									<Markdown text={body} />
+								</div>
+								{latest && tldr.long && (
+									<button
+										type="button"
+										onClick={() => setFullReply((shown) => !shown)}
+										className="mt-1 flex items-center gap-1 text-[13px] font-medium text-primary"
+									>
+										{fullReply ? (
+											<LuChevronDown className="size-4" />
+										) : (
+											<LuChevronRight className="size-4" />
+										)}
+										{fullReply ? "Show less" : "Show full reply"}
+									</button>
+								)}
+							</div>
 						)}
 					</div>
 				)}

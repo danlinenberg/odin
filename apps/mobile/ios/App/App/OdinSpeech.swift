@@ -38,7 +38,7 @@ public class OdinSpeechPlugin: CAPPlugin, CAPBridgedPlugin {
                 }
                 DispatchQueue.main.async {
                     do {
-                        try self.record()
+                        try self.record(words: call.getArray("words", String.self) ?? [])
                         call.resolve()
                     } catch {
                         call.reject(error.localizedDescription)
@@ -48,7 +48,16 @@ public class OdinSpeechPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
-    private func record() throws {
+    /// Words the recognizer gets wrong without a hint: names and tech terms.
+    /// The app adds the ones on the board (titles, repos, people).
+    private static let vocabulary = [
+        "Odin", "Claude", "Claude Code", "Huginn", "EC2", "GraphQL", "PR",
+        "pull request", "Terraform", "SSM", "AWS", "S3", "Jira", "Slack",
+        "Notion", "GitHub", "CI", "API", "repo", "worktree", "TypeScript",
+        "TestFlight", "relay", "brief", "TL;DR",
+    ]
+
+    private func record(words: [String]) throws {
         guard let recognizer = SFSpeechRecognizer(), recognizer.isAvailable else {
             throw NSError(domain: "OdinSpeech", code: 1, userInfo: [
                 NSLocalizedDescriptionKey: "Speech recognition isn't available right now.",
@@ -61,6 +70,10 @@ public class OdinSpeechPlugin: CAPPlugin, CAPBridgedPlugin {
         try session.setActive(true, options: .notifyOthersOnDeactivation)
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
+        request.taskHint = .dictation
+        // Apple caps how many hints help; the board's own words come first.
+        request.contextualStrings = Array((words + Self.vocabulary).prefix(100))
+        if #available(iOS 16, *) { request.addsPunctuation = true }
         self.request = request
         let input = engine.inputNode
         input.removeTap(onBus: 0)

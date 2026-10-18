@@ -41,7 +41,7 @@ import { BriefCard } from "./brief-card";
 import { boardSections, DoneShelf, Dot, SessionCard, STATUS } from "./cards";
 import { channelFetch, type OdinFetch } from "./odin-fetch";
 import { type Pairing, parsePairLink } from "./pair-link";
-import { useSpeech } from "./speech";
+import { boardWords, setVocabulary, useSpeech } from "./speech";
 import { Transcript } from "./transcript";
 import "../globals.css";
 import "./mobile.css";
@@ -255,6 +255,20 @@ function Home() {
 		refetchInterval: POLL,
 		select: (data) => ({ ...data, sessions: withHeldStars(data.sessions) }),
 	});
+	// Dictation hears the board's names and terms right (speech.ts).
+	useEffect(() => {
+		if (!board.data) return;
+		const { sessions, backlog } = board.data;
+		setVocabulary(
+			boardWords(
+				[...sessions, ...backlog].map((row) => row.title),
+				[
+					...sessions.flatMap((s) => [s.repo ?? "", s.contact ?? ""]),
+					...backlog.map((task) => task.repo ?? ""),
+				],
+			),
+		);
+	}, [board.data]);
 	const start = phone.start.useMutation({
 		onSuccess: () => void board.refetch(),
 	});

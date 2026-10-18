@@ -37,6 +37,30 @@ const WebSpeech =
 
 export const speechAvailable = !!native || !!WebSpeech;
 
+/** Words to favor when listening: the board's titles, repos and people. */
+let vocabulary: string[] = [];
+export const setVocabulary = (words: string[]) => {
+	vocabulary = words;
+};
+
+/**
+ * What a recognizer gets wrong on the board: names (repos, people) whole, and
+ * from titles the words that are not plain English - a capital or a digit
+ * after the first letter (GraphQL, EC2, PAY-212), or a capital after the
+ * first word (Maya, Odin). "Fix" opening a title is plain English.
+ */
+export function boardWords(titles: string[], names: string[]): string[] {
+	const words = new Set(names.filter(Boolean));
+	for (const title of titles)
+		title.split(/\s+/).forEach((raw, index) => {
+			const word = raw.replace(/^[^\w]+|[^\w]+$/g, "").replace(/'s$/, "");
+			if (word.length < 2) return;
+			if (/[A-Z0-9]/.test(word.slice(1)) || (index > 0 && /^[A-Z]/.test(word)))
+				words.add(word);
+		});
+	return [...words].slice(0, 75);
+}
+
 export function useSpeech(onText: (text: string) => void) {
 	const [listening, setListening] = useState(false);
 	// Between tapping stop and the words arriving: iOS finishes the last phrase.
@@ -66,7 +90,7 @@ export function useSpeech(onText: (text: string) => void) {
 					const result = await native("OdinSpeech", "stop");
 					heard(result?.text ?? "");
 				} else {
-					await native("OdinSpeech", "start");
+					await native("OdinSpeech", "start", { words: vocabulary });
 					setListening(true);
 				}
 			} catch (failure) {
