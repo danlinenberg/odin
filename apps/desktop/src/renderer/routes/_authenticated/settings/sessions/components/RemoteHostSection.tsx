@@ -56,7 +56,10 @@ export function RemoteHostSection() {
 	// Turning the host on runs `claude setup-token` first when no token is saved.
 	const onError = (error: { message: string }) => toast.error(error.message);
 	const use = electronTrpc.remoteHost.set.useMutation({
-		onSuccess: refresh,
+		onSuccess: () => {
+			setChangingHost(false);
+			return refresh();
+		},
 		onError,
 	});
 	const setOn = electronTrpc.remoteHost.setOn.useMutation({
@@ -125,6 +128,9 @@ export function RemoteHostSection() {
 	const [tags, setTags] = useState<TagPair[]>([]);
 	const [user, setUser] = useState("ubuntu");
 	const [loaded, setLoaded] = useState(false);
+	// With a host in use, the picker (profile, region, user, tags, instances)
+	// folds behind Change host - it only matters when choosing one.
+	const [changingHost, setChangingHost] = useState(false);
 	useEffect(() => {
 		if (!saved || loaded) return;
 		setProfile(saved.profile ?? "");
@@ -371,225 +377,246 @@ export function RemoteHostSection() {
 					</div>
 				</SettingRow>
 			)}
-			<SettingRow
-				label="AWS profile"
-				description="From your AWS config. Leave on Default to use the default profile."
-			>
-				<Select
-					value={profile || "__default"}
-					onValueChange={(value) => {
-						const next = value === "__default" ? "" : value;
-						setProfile(next);
-						persist({ profile: next });
-					}}
+			{current?.host && !changingHost ? (
+				<SettingRow
+					label="Host"
+					description={`${current.host.name || current.host.instanceId} (${current.host.instanceId}), as ${current.host.user}${current.host.profile ? `, AWS profile ${current.host.profile}` : ""}.`}
 				>
-					<SelectTrigger className="w-64">
-						<SelectValue />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="__default">Default</SelectItem>
-						{profiles.map((name) => (
-							<SelectItem key={name} value={name}>
-								{name}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-			</SettingRow>
-			<SettingRow label="Region" htmlFor="aws-region">
-				<Input
-					id="aws-region"
-					className="w-40"
-					value={region}
-					onChange={(event) => setRegion(event.target.value.trim())}
-					onBlur={() => persist({ region })}
-				/>
-			</SettingRow>
-			<SettingRow
-				label="SSH username"
-				htmlFor="aws-user"
-				description="The user sessions run as, and the one the Claude check runs as."
-			>
-				<Input
-					id="aws-user"
-					className="w-40"
-					value={user}
-					onChange={(event) => setUser(event.target.value.trim())}
-				/>
-			</SettingRow>
-			<SettingRow
-				label="Tags"
-				stacked
-				description="A host must carry all of these, for example Owner = your name."
-			>
-				<div className="flex flex-wrap items-center gap-1.5">
-					{tags.map((tag) => (
-						<span
-							key={`${tag.key}=${tag.value}`}
-							className="flex items-center gap-1 rounded-md bg-secondary px-2 py-0.5 font-mono text-xs"
-						>
-							{tag.key} = {tag.value || '""'}
-							<button
-								type="button"
-								aria-label={`Remove tag ${tag.key}`}
-								onClick={() => removeTag(tag)}
-								className="text-muted-foreground hover:text-foreground"
-							>
-								<LuX className="size-3" />
-							</button>
-						</span>
-					))}
-					<Select
-						value={newKey}
-						onValueChange={(key) => {
-							setNewKey(key);
-							setNewValue("");
-						}}
-					>
-						<SelectTrigger className="w-44">
-							<SelectValue
-								placeholder={tagChoices.isLoading ? "Loading tags" : "Tag"}
-							/>
-						</SelectTrigger>
-						<SelectContent>
-							{(tagChoices.data ?? []).map((choice) => (
-								<SelectItem key={choice.key} value={choice.key}>
-									{choice.key}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-					<Select
-						value={newValue === "" ? EMPTY : newValue}
-						onValueChange={(value) => setNewValue(value === EMPTY ? "" : value)}
-						disabled={!newKey}
-					>
-						<SelectTrigger className="w-44">
-							<SelectValue placeholder="Value" />
-						</SelectTrigger>
-						<SelectContent>
-							{values.map((value) => (
-								<SelectItem key={value} value={value || EMPTY}>
-									{value || '""'}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
 					<Button
 						size="sm"
 						variant="outline"
-						disabled={!newKey}
-						onClick={addTag}
+						onClick={() => setChangingHost(true)}
 					>
-						Add
+						Change host
 					</Button>
-				</div>
-			</SettingRow>
-			{error && (
-				<SettingRow
-					label="AWS did not answer"
-					description={
-						<span className="select-text cursor-text">{error.message}</span>
-					}
-				/>
-			)}
-			{tags.length > 0 && !error && instances.data?.length === 0 && (
-				<SettingRow
-					label="No matching instances"
-					description="No instance in this account and region carries all of these tags."
-				/>
-			)}
-			{(instances.data ?? []).map((instance) => {
-				const host = instance.privateIp ?? instance.publicIp;
-				const state = setups[instance.id];
-				const found =
-					state && state !== "running" && "claude" in state
-						? state.claude
-						: null;
-				return (
+				</SettingRow>
+			) : (
+				<>
 					<SettingRow
-						key={instance.id}
-						label={instance.name}
-						description={
-							<span className="select-text cursor-text">
-								{[
-									instance.id,
-									instance.type,
-									instance.state,
-									host,
-									instance.ssmOnline ? "SSM online" : "SSM offline",
-									state === "running"
-										? "setting up - Claude, gh, tmux and git, a minute or two"
-										: state && "error" in state
-											? `Setup failed: ${state.error}`
-											: state && "claude" in state
-												? state.claude
-													? "set up for sessions"
-													: "setup could not install Claude"
-												: null,
-								]
-									.filter(Boolean)
-									.join(" - ")}
-							</span>
-						}
+						label="AWS profile"
+						description="From your AWS config. Leave on Default to use the default profile."
 					>
-						{instance.state === "stopped" && (
-							<Button
-								size="sm"
-								variant="outline"
-								disabled={start.isPending}
-								onClick={() => start.mutate({ ...target, id: instance.id })}
+						<Select
+							value={profile || "__default"}
+							onValueChange={(value) => {
+								const next = value === "__default" ? "" : value;
+								setProfile(next);
+								persist({ profile: next });
+							}}
+						>
+							<SelectTrigger className="w-64">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="__default">Default</SelectItem>
+								{profiles.map((name) => (
+									<SelectItem key={name} value={name}>
+										{name}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</SettingRow>
+					<SettingRow label="Region" htmlFor="aws-region">
+						<Input
+							id="aws-region"
+							className="w-40"
+							value={region}
+							onChange={(event) => setRegion(event.target.value.trim())}
+							onBlur={() => persist({ region })}
+						/>
+					</SettingRow>
+					<SettingRow
+						label="SSH username"
+						htmlFor="aws-user"
+						description="The user sessions run as, and the one the Claude check runs as."
+					>
+						<Input
+							id="aws-user"
+							className="w-40"
+							value={user}
+							onChange={(event) => setUser(event.target.value.trim())}
+						/>
+					</SettingRow>
+					<SettingRow
+						label="Tags"
+						stacked
+						description="A host must carry all of these, for example Owner = your name."
+					>
+						<div className="flex flex-wrap items-center gap-1.5">
+							{tags.map((tag) => (
+								<span
+									key={`${tag.key}=${tag.value}`}
+									className="flex items-center gap-1 rounded-md bg-secondary px-2 py-0.5 font-mono text-xs"
+								>
+									{tag.key} = {tag.value || '""'}
+									<button
+										type="button"
+										aria-label={`Remove tag ${tag.key}`}
+										onClick={() => removeTag(tag)}
+										className="text-muted-foreground hover:text-foreground"
+									>
+										<LuX className="size-3" />
+									</button>
+								</span>
+							))}
+							<Select
+								value={newKey}
+								onValueChange={(key) => {
+									setNewKey(key);
+									setNewValue("");
+								}}
 							>
-								Start
-							</Button>
-						)}
-						{instance.ssmOnline ? (
-							<Button
-								size="sm"
-								variant="outline"
-								disabled={state === "running"}
-								title="Installs what sessions need here - Claude, gh, tmux, git - when missing"
-								onClick={() => runSetUp(instance.id)}
+								<SelectTrigger className="w-44">
+									<SelectValue
+										placeholder={tagChoices.isLoading ? "Loading tags" : "Tag"}
+									/>
+								</SelectTrigger>
+								<SelectContent>
+									{(tagChoices.data ?? []).map((choice) => (
+										<SelectItem key={choice.key} value={choice.key}>
+											{choice.key}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+							<Select
+								value={newValue === "" ? EMPTY : newValue}
+								onValueChange={(value) =>
+									setNewValue(value === EMPTY ? "" : value)
+								}
+								disabled={!newKey}
 							>
-								Set up
-							</Button>
-						) : (
+								<SelectTrigger className="w-44">
+									<SelectValue placeholder="Value" />
+								</SelectTrigger>
+								<SelectContent>
+									{values.map((value) => (
+										<SelectItem key={value} value={value || EMPTY}>
+											{value || '""'}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
 							<Button
 								size="sm"
 								variant="outline"
-								disabled={giveAccess.isPending || instance.state !== "running"}
-								title="Gives AWS Systems Manager access to this instance through its IAM role, with your AWS sign-in"
-								onClick={() =>
-									giveAccess.mutate({ ...target, id: instance.id })
+								disabled={!newKey}
+								onClick={addTag}
+							>
+								Add
+							</Button>
+						</div>
+					</SettingRow>
+					{error && (
+						<SettingRow
+							label="AWS did not answer"
+							description={
+								<span className="select-text cursor-text">{error.message}</span>
+							}
+						/>
+					)}
+					{tags.length > 0 && !error && instances.data?.length === 0 && (
+						<SettingRow
+							label="No matching instances"
+							description="No instance in this account and region carries all of these tags."
+						/>
+					)}
+					{(instances.data ?? []).map((instance) => {
+						const host = instance.privateIp ?? instance.publicIp;
+						const state = setups[instance.id];
+						const found =
+							state && state !== "running" && "claude" in state
+								? state.claude
+								: null;
+						return (
+							<SettingRow
+								key={instance.id}
+								label={instance.name}
+								description={
+									<span className="select-text cursor-text">
+										{[
+											instance.id,
+											instance.type,
+											instance.state,
+											host,
+											instance.ssmOnline ? "SSM online" : "SSM offline",
+											state === "running"
+												? "setting up - Claude, gh, tmux and git, a minute or two"
+												: state && "error" in state
+													? `Setup failed: ${state.error}`
+													: state && "claude" in state
+														? state.claude
+															? "set up for sessions"
+															: "setup could not install Claude"
+														: null,
+										]
+											.filter(Boolean)
+											.join(" - ")}
+									</span>
 								}
 							>
-								Set up access
-							</Button>
-						)}
-						<Button
-							size="sm"
-							disabled={!found}
-							title={
-								found
-									? undefined
-									: "Set it up first - sessions need Claude on it"
-							}
-							onClick={() =>
-								use.mutate({
-									...target,
-									on: true,
-									name: instance.name,
-									instanceId: instance.id,
-									user,
-									reposRoot: "~/repos",
-								})
-							}
-						>
-							{current?.host?.instanceId === instance.id ? "In use" : "Use"}
-						</Button>
-					</SettingRow>
-				);
-			})}
+								{instance.state === "stopped" && (
+									<Button
+										size="sm"
+										variant="outline"
+										disabled={start.isPending}
+										onClick={() => start.mutate({ ...target, id: instance.id })}
+									>
+										Start
+									</Button>
+								)}
+								{instance.ssmOnline ? (
+									<Button
+										size="sm"
+										variant="outline"
+										disabled={state === "running"}
+										title="Installs what sessions need here - Claude, gh, tmux, git - when missing"
+										onClick={() => runSetUp(instance.id)}
+									>
+										Set up
+									</Button>
+								) : (
+									<Button
+										size="sm"
+										variant="outline"
+										disabled={
+											giveAccess.isPending || instance.state !== "running"
+										}
+										title="Gives AWS Systems Manager access to this instance through its IAM role, with your AWS sign-in"
+										onClick={() =>
+											giveAccess.mutate({ ...target, id: instance.id })
+										}
+									>
+										Set up access
+									</Button>
+								)}
+								<Button
+									size="sm"
+									disabled={!found}
+									title={
+										found
+											? undefined
+											: "Set it up first - sessions need Claude on it"
+									}
+									onClick={() =>
+										use.mutate({
+											...target,
+											on: true,
+											name: instance.name,
+											instanceId: instance.id,
+											user,
+											reposRoot: "~/repos",
+										})
+									}
+								>
+									{current?.host?.instanceId === instance.id ? "In use" : "Use"}
+								</Button>
+							</SettingRow>
+						);
+					})}
+				</>
+			)}
 		</SettingsSection>
 	);
 }
