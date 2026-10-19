@@ -327,6 +327,47 @@ function ShippedChart({
 	);
 }
 
+/**
+ * Sessions running side by side, per week: the column is the average while
+ * any ran, the hover adds the most at one moment.
+ */
+function ParallelChart({
+	weeks: all,
+}: {
+	weeks: { start: number; parallel: number | null; peakParallel: number }[];
+}) {
+	const weeks = all.filter((week) => week.parallel !== null);
+	if (weeks.length === 0) return <Empty>No sessions yet.</Empty>;
+	const max = Math.max(1, ...weeks.map((week) => week.parallel ?? 0));
+	return (
+		<Card>
+			<div className="flex items-end gap-3">
+				{weeks.map((week) => (
+					<div
+						key={week.start}
+						className="flex min-w-0 flex-1 flex-col items-center gap-2"
+						title={`Week of ${DATE.format(week.start)}: ${week.parallel} at once on average while working, ${week.peakParallel} at most`}
+					>
+						<div className="flex h-[132px] w-full flex-col items-center justify-end">
+							<div className="mb-1 text-[11px] font-medium tabular-nums text-soft-foreground">
+								{week.parallel}x
+							</div>
+							<Column
+								value={week.parallel ?? 0}
+								max={max}
+								color={AGENT_COLOR}
+							/>
+						</div>
+						<div className="truncate text-[10.5px] text-faint-foreground">
+							{DATE.format(week.start)}
+						</div>
+					</div>
+				))}
+			</div>
+		</Card>
+	);
+}
+
 function Column({
 	value,
 	max,
@@ -1004,6 +1045,16 @@ function Workload() {
 						note="your PRs from sessions, by the week they merged; a week still going shows its pace"
 					>
 						<ShippedChart weeks={data.weeks} since={data.since} />
+					</Section>
+				)}
+
+				{/* `parallel` is absent until the main process restarts onto this build. */}
+				{data.weeks[0]?.parallel !== undefined && (
+					<Section
+						title="Agents at once"
+						note="sessions running side by side while any ran, per week"
+					>
+						<ParallelChart weeks={data.weeks} />
 					</Section>
 				)}
 
