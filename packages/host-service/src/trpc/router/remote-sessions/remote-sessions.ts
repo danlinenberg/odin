@@ -1,9 +1,10 @@
+import { randomUUID } from "node:crypto";
 import { mkdir, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, isAbsolute } from "node:path";
 import { TRPCError } from "@trpc/server";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
-import { projects, terminalSessions } from "../../../db/schema";
+import { projects, terminalSessions, workspaces } from "../../../db/schema";
 import { getDaemonClient } from "../../../terminal/daemon-client-singleton";
 import {
 	createTerminalSessionInternal,
@@ -34,18 +35,55 @@ const absolutePath = z
 	.min(1)
 	.refine((value) => isAbsolute(value), { message: "Path must be absolute" });
 
-/** Find or create the project + main workspace for the repo holding `cwd`. */
-async function workspaceForFolder(
+/**
+ * A folder that isn't a repo - typically the one the repos live in, where a
+ * feed launch starts and the agent picks the repo to work in. The laptop starts
+ * sessions in any folder; this host's terminals need a workspace, so the
+ * folder gets a plain one (no branch, nothing to sync).
+ */
+function plainFolderWorkspace(ctx: HostServiceContext, folder: string): string {
+	const existing = ctx.db.query.projects
+		.findFirst({ where: eq(projects.repoPath, folder) })
+		.sync();
+	const projectId = existing?.id ?? randomUUID();
+	const now = Date.now();
+	if (!existing) {
+		ctx.db
+			.insert(projects)
+			.values({
+				id: projectId,
+				repoPath: folder,
+				name: basename(folder),
+				updatedAt: now,
+			})
+			.run();
+	}
+	const workspace = ctx.db.query.workspaces
+		.findFirst({ where: eq(workspaces.projectId, projectId) })
+		.sync();
+	if (workspace) return workspace.id;
+	const id = randomUUID();
+	ctx.db
+		.insert(workspaces)
+		.values({
+			id,
+			projectId,
+			worktreePath: folder,
+			branch: "",
+			name: basename(folder),
+			type: "main",
+			updatedAt: now,
+		})
+		.run();
+	return id;
+}
+
+/** Find or create the project + main workspace for the repo holding `cwd`. */ async function workspaceForFolder(
 	ctx: HostServiceContext,
 	cwd: string,
 ): Promise<string> {
 	const gitRoot = await tryRevParseGitRoot(cwd);
-	if (gitRoot === null) {
-		throw new TRPCError({
-			code: "PRECONDITION_FAILED",
-			message: `${cwd} is not a git repository on the server. Sessions run in a repo there.`,
-		});
-	}
+	if (gitRoot === null) return plainFolderWorkspace(ctx, cwd);
 	const existing = ctx.db.query.projects
 		.findFirst({ where: eq(projects.repoPath, gitRoot) })
 		.sync();

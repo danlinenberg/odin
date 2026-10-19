@@ -68,7 +68,7 @@ function Ask({ pending }: { pending: Pending }) {
 				</div>
 				<div className="text-xs text-muted-foreground">
 					Sessions run on your remote server. Which folder there should they
-					start in? A git repository, as an absolute path.
+					start in? Usually the one your repos live in, as an absolute path.
 				</div>
 				<input
 					// biome-ignore lint/a11y/noAutofocus: the dialog is only this field.
