@@ -3084,10 +3084,6 @@ function DevBoardPage() {
 	const tagMenuDrop = useDropFor(tagMenu ? panes[tagMenu.paneId] : undefined);
 	const watches = useReplyWatch((s) => s.watches);
 	const remoteMode = useClaudeCommand((s) => s.remoteControl);
-	// A remote host is set up: any card may be a session on it.
-	const remoteHostSet = Boolean(
-		electronTrpc.remoteHost.get.useQuery().data?.host,
-	);
 	const remotePanes = useClaudeCommand((s) => s.remotePanes);
 	const toggleWatch = useReplyWatch((s) => s.toggle);
 	// One filter at a time, from the header dropdown: "tag:<tag>",
@@ -4967,7 +4963,7 @@ function DevBoardPage() {
 							: undefined
 					}
 					onRunHere={
-						tagMenuCard && remoteHostSet && !tagMenuCard.pane.odinQueued
+						tagMenuCard?.pane.odinRemote && !tagMenuCard.pane.odinQueued
 							? () => void runHere(tagMenuCard)
 							: undefined
 					}
