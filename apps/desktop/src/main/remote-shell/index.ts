@@ -150,17 +150,22 @@ function mirrorTranscript(
 	loop();
 }
 
-async function main(): Promise<void> {
-	const spec = JSON.parse(
-		Buffer.from(process.argv[2] ?? "", "base64").toString(),
-	) as RemoteSessionSpec;
-	const env = await tokens(process.argv[3]);
-	const target = {
-		instanceId: spec.instanceId,
-		profile: spec.profile,
-		region: spec.region,
-	};
-	say(`connecting to ${spec.instanceId}...`);
+const ssoExpired = (err: unknown) =>
+	/SSO session|token (has expired|is expired)|ExpiredToken/i.test(String(err));
+
+/** `aws sso login` through Odin, which signs in once for every pane waiting on it. */
+async function ssoLogin(profile: string | null | undefined): Promise<void> {
+	const res = await fetch(
+		`http://127.0.0.1:${process.env.ODIN_PORT}/remote-host/sso-login?profile=${encodeURIComponent(profile ?? "")}`,
+		{ method: "POST" },
+	);
+	if (!res.ok) throw new Error(`AWS sign-in failed: ${await res.text()}`);
+}
+
+async function login(
+	spec: RemoteSessionSpec,
+	target: Parameters<typeof openSsmStream>[0],
+): Promise<Client> {
 	const key = utils.generateKeyPairSync("ed25519");
 	await pushOneTimeKey(target, spec.user, key.public);
 	const sock = await openSsmStream(target);
@@ -173,6 +178,26 @@ async function main(): Promise<void> {
 			privateKey: key.private,
 			readyTimeout: 30_000,
 		});
+	});
+	return client;
+}
+
+async function main(): Promise<void> {
+	const spec = JSON.parse(
+		Buffer.from(process.argv[2] ?? "", "base64").toString(),
+	) as RemoteSessionSpec;
+	const env = await tokens(process.argv[3]);
+	const target = {
+		instanceId: spec.instanceId,
+		profile: spec.profile,
+		region: spec.region,
+	};
+	say(`connecting to ${spec.instanceId}...`);
+	const client = await login(spec, target).catch(async (err: unknown) => {
+		if (!ssoExpired(err)) throw err;
+		say("your AWS sign-in expired - approve the new one in your browser...");
+		await ssoLogin(spec.profile);
+		return login(spec, target);
 	});
 
 	const dir = await exec(client, stashScript, env);

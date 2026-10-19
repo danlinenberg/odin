@@ -18,26 +18,32 @@ export function awsProfile(
 }
 
 /**
- * `aws sso login` for the profile Claude uses. It opens the browser and waits
- * until the user approves there. The aws CLI is already on a Mac whose Claude
- * runs on Bedrock SSO - that is what printed the error.
+ * `aws sso login` for a profile, by default the one Claude uses; null is the
+ * default profile. It opens the browser and waits until the user approves
+ * there. The aws CLI is already on a Mac whose AWS sign-in is SSO - that is
+ * what printed the error.
  */
-export function awsSsoLogin(): Promise<{ profile: string | null }> {
+export function awsSsoLogin(
+	profile: string | null = awsProfile() ?? null,
+): Promise<{ profile: string | null }> {
 	// Sessions that hit the expired token together share one sign-in, not a tab each.
-	pending ??= runSsoLogin().finally(() => {
-		pending = null;
-	});
-	return pending;
+	let login = pending.get(profile);
+	if (!login) {
+		login = runSsoLogin(profile).finally(() => pending.delete(profile));
+		pending.set(profile, login);
+	}
+	return login;
 }
 
-let pending: Promise<{ profile: string | null }> | null = null;
+const pending = new Map<string | null, Promise<{ profile: string | null }>>();
 
-async function runSsoLogin(): Promise<{ profile: string | null }> {
-	const profile = awsProfile();
+async function runSsoLogin(
+	profile: string | null,
+): Promise<{ profile: string | null }> {
 	await execWithShellEnv(
 		"aws",
 		["sso", "login", ...(profile ? ["--profile", profile] : [])],
 		{ timeout: 5 * 60_000 },
 	);
-	return { profile: profile ?? null };
+	return { profile };
 }

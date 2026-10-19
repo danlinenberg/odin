@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import express from "express";
+import { awsSsoLogin } from "lib/trpc/routers/terminal/aws-sso";
 import { NOTIFICATION_EVENTS } from "shared/constants";
 import { env } from "shared/env.shared";
 import type {
@@ -318,6 +319,17 @@ app.get("/remote-host/env", (req, res) => {
 			: null;
 	if (secrets === null) return res.status(404).send("");
 	res.type("text/plain").send(secrets);
+});
+
+/** A remote session's helper hit an expired AWS SSO token: sign in again for its profile. */
+app.post("/remote-host/sso-login", (req, res) => {
+	if (req.headers.origin) return res.status(403).send("");
+	const profile =
+		typeof req.query.profile === "string" ? req.query.profile : "";
+	awsSsoLogin(profile || null).then(
+		() => res.send(""),
+		(err: unknown) => res.status(500).send(String(err)),
+	);
 });
 
 // Health check
