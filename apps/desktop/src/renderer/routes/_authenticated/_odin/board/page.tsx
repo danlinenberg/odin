@@ -4739,7 +4739,6 @@ function DevBoardPage() {
 			: undefined;
 	const tagMenuCard = liveCard(tagMenu?.paneId);
 	// drawerCard is the card as it was opened; its column is the board's now.
-	const drawerLiveCard = liveCard(drawerCard?.pane.id);
 
 	/** Done now; on `day` it pings and waits above the columns to be resumed. */
 	// What "Ping me" watches for the right-clicked session.
@@ -5897,22 +5896,6 @@ function DevBoardPage() {
 									✓ Done
 								</button>
 							)}
-							{!inCatchUp &&
-								drawerLiveCard &&
-								drawerLiveCard.status !== "idle" && (
-									<button
-										type="button"
-										onClick={() => void parkCard(drawerLiveCard)}
-										title="Park it in Idle - the session stays open, a running turn is stopped"
-										className={cn(
-											"flex items-center gap-1.5 rounded-[7px] px-3 py-1.5 text-xs font-semibold",
-											BUTTON.secondary,
-										)}
-									>
-										<LuPause className="size-3" aria-hidden />
-										Idle
-									</button>
-								)}
 							<RemindButton
 								onPick={(day) => remindMe(drawerCard, day)}
 								label="Remind me"
