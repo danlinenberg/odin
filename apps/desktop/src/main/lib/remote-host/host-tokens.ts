@@ -5,7 +5,12 @@ import {
 } from "lib/trpc/routers/odin-config";
 import { githubAccessToken } from "../github-token";
 import { jiraRequestContext } from "../jira-token";
-import { HOST_TOKENS_FILE, type HostConnector } from "./host-service";
+import {
+	HOST_TOKENS_FILE,
+	type HostConnector,
+	hostServiceInstallScript,
+} from "./host-service";
+import { sh } from "./session";
 import { connectHost, type HostLogin, runOnHost } from "./ssh";
 
 /** The tokens of the connectors the user keeps on the host, as the host service reads them. */
@@ -51,10 +56,15 @@ export async function pushHostTokens(
 	const tokens = await hostTokens(connectors);
 	const client = await connectHost(host);
 	try {
+		// The first switch installs the service too, so no Set up is needed first.
+		await runOnHost(
+			client,
+			`[ -d /var/lib/odin ] || sudo -n bash -c ${sh(hostServiceInstallScript)}`,
+		);
 		await runOnHost(client, writeTokensScript, JSON.stringify(tokens));
 	} catch (error) {
 		throw new Error(
-			`Couldn't write the tokens on the host: ${error instanceof Error ? error.message : String(error)}. Run Set up first; ${host.user} needs passwordless sudo, as the default user on EC2 has.`,
+			`Couldn't write the tokens on the host: ${error instanceof Error ? error.message : String(error)}. ${host.user} needs passwordless sudo, as the default user on EC2 has, and the host needs systemd.`,
 		);
 	} finally {
 		client.end();

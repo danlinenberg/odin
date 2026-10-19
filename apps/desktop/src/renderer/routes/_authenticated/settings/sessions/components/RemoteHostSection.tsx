@@ -221,6 +221,17 @@ export function RemoteHostSection() {
 							account can still read them, so keep a connector here only if that
 							is only you. Gmail never goes to the host; turning the host off
 							removes them all.
+							{setConnectors.isPending && (
+								<span className="mt-1 block">
+									Writing them on the host - the first time also installs Odin's
+									service there, which takes a few seconds.
+								</span>
+							)}
+							{setConnectors.error && (
+								<span className="mt-1 block text-destructive">
+									{setConnectors.error.message}
+								</span>
+							)}
 						</span>
 					}
 				>
