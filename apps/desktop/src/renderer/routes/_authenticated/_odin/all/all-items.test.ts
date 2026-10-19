@@ -303,6 +303,7 @@ test("bands: due wins, a fresh ask is Now, older asks and reviews Today, the res
 	const ask = (kind: AllItem["ask"]["kind"], hoursAgo: number) => ({
 		ask: { kind, at: now - hoursAgo * HOUR },
 		urgency: null,
+		source: "Slack" as const,
 	});
 	expect(bandOf(ask("asked", 1), false, now)).toBe("now");
 	expect(bandOf(ask("asked", 5), false, now)).toBe("today");
@@ -314,6 +315,18 @@ test("bands: due wins, a fresh ask is Now, older asks and reviews Today, the res
 	);
 	expect(bandOf(ask("assigned", 1), true, now)).toBe("now");
 	expect(bandOf(ask("asked", 1), false, now, true)).toBe("later");
+	// A task you just wrote shows at the top, not under every feed's rows.
+	const mine = (hoursAgo: number, urgency: "medium" | "low") => ({
+		...ask("own", hoursAgo),
+		source: "Tasks" as const,
+		urgency,
+	});
+	expect(bandOf(mine(0, "medium"), false, now)).toBe("now");
+	expect(bandOf(mine(5, "medium"), false, now)).toBe("today");
+	expect(bandOf(mine(0, "low"), false, now)).toBe("later");
+	expect(bandOf({ ...mine(0, "medium"), source: "GitHub" }, false, now)).toBe(
+		"later",
+	);
 });
 
 test("every source records what it asks of you", () => {

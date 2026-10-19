@@ -567,12 +567,13 @@ const FRESH_ASK_MS = 4 * 3_600_000;
 
 /**
  * A due date wins. A direct ask (a reaction, an @-mention) is Now for its
- * first four hours and Today after; a review request is Today; a row its
- * source rated high is Today; everything else is Later, Read later included.
+ * first four hours and Today after - a task you wrote yourself too, unless
+ * you rated it Low; a review request is Today; a row its source rated high is
+ * Today; everything else is Later, Read later included.
  * The rule is the order, not a score: a row can always say why it is where it is.
  */
 export function bandOf(
-	item: Pick<AllItem, "ask" | "urgency">,
+	item: Pick<AllItem, "ask" | "urgency" | "source">,
 	dueNow: boolean,
 	now: number,
 	reading = false,
@@ -580,8 +581,11 @@ export function bandOf(
 	if (reading) return "later";
 	if (dueNow) return "now";
 	const { kind, at } = item.ask;
-	if (kind === "asked" || kind === "mentioned")
-		return now - at < FRESH_ASK_MS ? "now" : "today";
+	const fresh =
+		kind === "asked" ||
+		kind === "mentioned" ||
+		(item.source === "Tasks" && item.urgency !== "low");
+	if (fresh) return now - at < FRESH_ASK_MS ? "now" : "today";
 	if (kind === "review") return "today";
 	return item.urgency === "high" ? "today" : "later";
 }

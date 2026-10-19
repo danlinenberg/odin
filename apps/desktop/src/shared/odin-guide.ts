@@ -123,7 +123,7 @@ A macOS banner "<task> needs you" ("Waiting for your reply" or "Finished its tur
 Search the transcripts of every finished session Odin launched, by word or by who asked (person chips). Resume reopens one in its folder on the board. Claude Code deletes transcripts after 30 days.
 
 ## All (Tasks → All)
-One list across every source in bands: **Now** (due, or asked in the last 4 hours), **Today** (reviews and asks waiting on you), **Later**. **Up next** sits on top; drag to reorder. A Live strip shows running sessions ("Go to session →"). Filters: Source, Priority, Place, Status, "Due or overdue only", "Show what's Done". Tick rows to Set status / Up next / Done together.
+One list across every source in bands: **Now** (due, or asked in the last 4 hours), **Today** (reviews and asks waiting on you), **Later**. A task you add here is Now for 4 hours, then Today; a Low one goes to Later. **Up next** sits on top; drag to reorder. A Live strip shows running sessions ("Go to session →"). Filters: Source, Priority, Place, Status, "Due or overdue only", "Show what's Done". Tick rows to Set status / Up next / Done together.
 
 ## Settings
 The sidebar shows: Connections, Sessions, Storage, Backlog & Night Agent, Notifications, Appearance, Keyboard, Advanced. Store settingsScreen holds which one is open.
