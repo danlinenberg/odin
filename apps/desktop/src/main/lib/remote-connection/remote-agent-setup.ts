@@ -85,6 +85,8 @@ export function mergeRemoteClaudeSettings(
 	const merged = mergeClaudeManagedSettings(
 		existing,
 		`${odinFolder}/hooks/${NOTIFY_SCRIPT_NAME}`,
+		// The server's Claude runs bash hooks, whichever OS this laptop is.
+		"linux",
 	);
 	return `${JSON.stringify(merged, null, 2)}\n`;
 }

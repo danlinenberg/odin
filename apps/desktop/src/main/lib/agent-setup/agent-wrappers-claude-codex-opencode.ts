@@ -84,6 +84,28 @@ export function getClaudeManagedHookCommand(): string {
 	return getManagedNotifyHookCommand("claude");
 }
 
+/**
+ * The same hook on Windows, where Claude Code may have no bash: a hook whose
+ * bash can't start fails, and a failed hook blocks the tool it guards - in
+ * every Claude session on the machine, Odin's or not. PowerShell runs the
+ * script only inside an Odin session and only with Git Bash - the one Claude
+ * Code itself uses (CLAUDE_CODE_GIT_BASH_PATH, else next to git); a `bash` on
+ * PATH may be WSL's, which can't run a Windows path. It always exits 0, as the
+ * bash form's `|| true` does.
+ */
+export function windowsHookCommand(script: string, agentId?: string): string {
+	return [
+		"$b = $env:CLAUDE_CODE_GIT_BASH_PATH;",
+		"if (-not $b) { $g = Get-Command git -ErrorAction SilentlyContinue; if ($g) { $b = Join-Path (Split-Path (Split-Path $g.Source)) 'bin\\bash.exe' } };",
+		// No double quotes anywhere: a caller that quotes the command for
+		// powershell.exe may strip them.
+		`$h = $env:ODIN_HOME_DIR + '/hooks/${script}';`,
+		"if ($env:ODIN_HOME_DIR -and $b -and (Test-Path -LiteralPath $b) -and (Test-Path -LiteralPath $h)) {",
+		...(agentId ? [`$env:ODIN_AGENT_ID = '${agentId}';`] : []),
+		"$input | & $b ($h -replace '\\\\', '/') }; exit 0",
+	].join(" ");
+}
+
 function isManagedClaudeHookCommand(
 	command: string | undefined,
 	notifyScriptPath: string,
@@ -91,6 +113,8 @@ function isManagedClaudeHookCommand(
 	return (
 		command?.includes(notifyScriptPath) ||
 		command?.includes(CLAUDE_DYNAMIC_NOTIFY_PATH_MARKER) ||
+		// The Windows (PowerShell) form of any of them.
+		!!command?.includes("$env:ODIN_HOME_DIR + '/hooks/") ||
 		isOdinManagedHookCommand(command, NOTIFY_SCRIPT_NAME) ||
 		!!command?.includes(`/hooks/${SUBAGENT_CAP_SCRIPT_NAME}`) ||
 		!!command?.includes(`/hooks/${SHELL_RULE_SCRIPT_NAME}`)
@@ -203,8 +227,32 @@ export function parseClaudeSettingsJson(
 export function mergeClaudeManagedSettings(
 	existing: ClaudeSettingsJson,
 	notifyScriptPath: string,
+	/** The machine whose Claude reads this file - a server's is not this one's. */
+	platform: NodeJS.Platform = process.platform,
 ): ClaudeSettingsJson {
-	const managedHookCommand = getClaudeManagedHookCommand();
+	const windows = platform === "win32";
+	const hook = (
+		bashCommand: string,
+		script: string,
+		agentId?: string,
+	): ClaudeHookConfig =>
+		windows
+			? {
+					type: "command",
+					command: windowsHookCommand(script, agentId),
+					shell: "powershell",
+				}
+			: { type: "command", command: bashCommand };
+	const notifyHook = hook(
+		getClaudeManagedHookCommand(),
+		NOTIFY_SCRIPT_NAME,
+		"claude",
+	);
+	const shellRuleHook = hook(SHELL_RULE_HOOK_COMMAND, SHELL_RULE_SCRIPT_NAME);
+	const subagentCapHook = hook(
+		SUBAGENT_CAP_HOOK_COMMAND,
+		SUBAGENT_CAP_SCRIPT_NAME,
+	);
 
 	if (!existing.hooks || typeof existing.hooks !== "object") {
 		existing.hooks = {};
@@ -226,52 +274,52 @@ export function mergeClaudeManagedSettings(
 	}> = [
 		{
 			eventName: "SessionStart",
-			definition: { hooks: [{ type: "command", command: managedHookCommand }] },
+			definition: { hooks: [notifyHook] },
 		},
 		// Every session, not only task launches, runs what you'll watch in its
 		// Shell (templates/shell-rule.template.sh).
 		{
 			eventName: "SessionStart",
 			definition: {
-				hooks: [{ type: "command", command: SHELL_RULE_HOOK_COMMAND }],
+				hooks: [shellRuleHook],
 			},
 		},
 		{
 			eventName: "SessionEnd",
-			definition: { hooks: [{ type: "command", command: managedHookCommand }] },
+			definition: { hooks: [notifyHook] },
 		},
 		{
 			eventName: "UserPromptSubmit",
-			definition: { hooks: [{ type: "command", command: managedHookCommand }] },
+			definition: { hooks: [notifyHook] },
 		},
 		{
 			eventName: "Stop",
-			definition: { hooks: [{ type: "command", command: managedHookCommand }] },
+			definition: { hooks: [notifyHook] },
 		},
 		{
 			// API-error hook; fires while the session stays alive, unlike Stop.
 			eventName: "StopFailure",
-			definition: { hooks: [{ type: "command", command: managedHookCommand }] },
+			definition: { hooks: [notifyHook] },
 		},
 		{
 			eventName: "PostToolUse",
 			definition: {
 				matcher: "*",
-				hooks: [{ type: "command", command: managedHookCommand }],
+				hooks: [notifyHook],
 			},
 		},
 		{
 			eventName: "PostToolUseFailure",
 			definition: {
 				matcher: "*",
-				hooks: [{ type: "command", command: managedHookCommand }],
+				hooks: [notifyHook],
 			},
 		},
 		{
 			eventName: "PermissionRequest",
 			definition: {
 				matcher: "*",
-				hooks: [{ type: "command", command: managedHookCommand }],
+				hooks: [notifyHook],
 			},
 		},
 		{
@@ -284,21 +332,21 @@ export function mergeClaudeManagedSettings(
 			eventName: "PreToolUse",
 			definition: {
 				matcher: "AskUserQuestion|ExitPlanMode",
-				hooks: [{ type: "command", command: managedHookCommand }],
+				hooks: [notifyHook],
 			},
 		},
 		{
 			// The chat view says "Compacting" while it runs - the transcript stays
 			// silent until the summary lands.
 			eventName: "PreCompact",
-			definition: { hooks: [{ type: "command", command: managedHookCommand }] },
+			definition: { hooks: [notifyHook] },
 		},
 		// Machine-wide cap on concurrent subagents (templates/subagent-cap.template.sh).
 		{
 			eventName: "PreToolUse",
 			definition: {
 				matcher: "Agent|Task",
-				hooks: [{ type: "command", command: SUBAGENT_CAP_HOOK_COMMAND }],
+				hooks: [subagentCapHook],
 			},
 		},
 	];
