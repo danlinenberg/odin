@@ -281,15 +281,16 @@ export const createRemoteHostRouter = () =>
 			.mutation(async ({ input }) => {
 				const host = readOdinConfig().remoteHost;
 				if (!host) throw new Error("No remote host is set up.");
-				const bytes = await syncClaudeSetup(host, input);
+				const { bytes, dropped } = await syncClaudeSetup(host, input);
 				updateOdinConfig({
 					remoteHost: {
 						...host,
 						claudeSetup: input,
 						claudeSetupSyncedAt: Date.now(),
+						claudeSetupDropped: dropped,
 					},
 				});
-				return { bytes };
+				return { bytes, dropped };
 			}),
 		/** Whether host sessions move to ANTHROPIC_API_KEY at the plan limit. */
 		setApiKeyFallback: publicProcedure

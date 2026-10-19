@@ -359,6 +359,12 @@ export function RemoteHostSection() {
 									{new Date(current.host.claudeSetupSyncedAt).toLocaleString()}.
 								</span>
 							)}
+							{!!current.host.claudeSetupDropped?.length && (
+								<span className="mt-1 block">
+									Left out on the host, because they need files it doesn't have:{" "}
+									{current.host.claudeSetupDropped.join("; ")}.
+								</span>
+							)}
 							{syncSetup.error && (
 								<span className="mt-1 block text-destructive">
 									{syncSetup.error.message}

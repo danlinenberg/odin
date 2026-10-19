@@ -59,6 +59,8 @@ export interface OdinFileConfig {
 		claudeSetup?: string[];
 		/** When they were last copied, epoch ms. */
 		claudeSetupSyncedAt?: number;
+		/** Hooks the last sync left out on the host: they name files it doesn't have. */
+		claudeSetupDropped?: string[];
 		/** true: sessions there move to ANTHROPIC_API_KEY at the plan limit. Off by default. */
 		apiKeyFallback?: boolean;
 	};
