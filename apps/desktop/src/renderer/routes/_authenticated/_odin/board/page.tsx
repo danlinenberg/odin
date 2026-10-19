@@ -22,6 +22,7 @@ import {
 	memo,
 	useCallback,
 	useEffect,
+	useLayoutEffect,
 	useMemo,
 	useRef,
 	useState,
@@ -178,6 +179,7 @@ import {
 	catchUpSuggestion,
 } from "./catch-up";
 import { DiffView } from "./DiffView";
+import { menuTop } from "./menu-fit";
 import { BOARD_COLUMN_MIN_W, NextInLine, TonightCount } from "./NextInLine";
 import { NightAgentLive } from "./NightAgentLive";
 import { HoverBrief, MyTodos, SessionBrief } from "./SessionBrief";
@@ -1544,16 +1546,28 @@ function TagMenu({
 		};
 	}, [onClose]);
 
-	// Keep the menu on screen near the edges.
+	// Keep the menu on screen near the edges. Its height is measured, not
+	// guessed: Tags opening adds the list and the New tag field, and the menu
+	// moves up so they stay above the window's bottom. A fixed allowance left
+	// them below it with nothing to scroll.
 	const left = Math.min(x, window.innerWidth - 240);
-	const top = Math.min(y, window.innerHeight - 320);
+	const [top, setTop] = useState(y);
+	useLayoutEffect(() => {
+		const el = ref.current;
+		if (!el) return;
+		const fit = () => setTop(menuTop(y, el.offsetHeight, window.innerHeight));
+		fit();
+		const observer = new ResizeObserver(fit);
+		observer.observe(el);
+		return () => observer.disconnect();
+	}, [y]);
 
 	return (
 		<div
 			ref={ref}
 			data-session-menu
 			style={{ left, top }}
-			className="fixed z-[60] w-[220px] rounded-[10px] border border-border bg-card p-2 shadow-[0_10px_30px_rgba(0,0,0,.5)]"
+			className="fixed z-[60] max-h-[calc(100vh-16px)] w-[220px] overflow-y-auto rounded-[10px] border border-border bg-card p-2 shadow-[0_10px_30px_rgba(0,0,0,.5)]"
 		>
 			<button
 				type="button"

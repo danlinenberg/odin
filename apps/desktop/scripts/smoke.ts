@@ -933,7 +933,9 @@ await step("right-click → Done takes the session off the board", async () => {
 		const card = [...document.querySelectorAll('[role="button"][draggable="true"]')]
 			.find((c) => c.textContent.includes(${JSON.stringify(SESSION)}));
 		const at = card?.getBoundingClientRect();
-		card?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: at?.x, clientY: at?.y }));
+		// Low on the screen: the menu grows when Tags opens and must move up,
+		// not run off the bottom.
+		card?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: at?.x, clientY: window.innerHeight - 20 }));
 		return !!card;
 	})()`);
 	if (!opened) throw new Error("no card for the resumed session");
@@ -952,6 +954,13 @@ await step("right-click → Done takes the session off the board", async () => {
 		throw new Error("Ping me offered on a session with no thread or PR");
 	await click("[data-session-menu] button", "▸Tags");
 	if (!(await tagField())) throw new Error("Tags didn't open the list");
+	// Opened low with Tags out, the whole menu still ends inside the window -
+	// the New tag field sat below it, out of reach.
+	const onScreen = await page<boolean>(`(() => {
+		const r = document.querySelector("[data-session-menu]").getBoundingClientRect();
+		return r.top >= 0 && r.bottom <= window.innerHeight;
+	})()`);
+	if (!onScreen) throw new Error("the card menu runs off the window");
 	// The menu's own Done - the card's ✓ Done would pass this step too.
 	await click("[data-session-menu] button", "✓Done");
 	await waitForText(SESSION, false);
