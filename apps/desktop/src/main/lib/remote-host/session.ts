@@ -118,6 +118,46 @@ export const ghInstallScript = [
 	"fi",
 ].join("\n");
 
+/**
+ * The plan-limit switch, as claude-auto does it on the laptop. Claude's
+ * StopFailure hook runs PLAN_LIMIT_HOOK when a turn fails on a usage or spend
+ * limit; it records five hours in ~/.claude/plan-limit.json (a weekly limit
+ * just records again). Until then, sessions start on the user's API key.
+ */
+const PLAN_LIMIT_HOOK = `import json, os, sys, time
+event = sys.stdin.read().lower()
+if "limit" in event:
+    json.dump({"until": time.time() + 5 * 3600}, open(os.path.expanduser("~/.claude/plan-limit.json"), "w"))`;
+
+/** On the API key while the plan is limited, with the key pre-approved. */
+const USE_API_KEY_IF_LIMITED = `import json, os, sys, time
+try:
+    limited = json.load(open(os.path.expanduser("~/.claude/plan-limit.json"))).get("until", 0) > time.time()
+except Exception:
+    limited = False
+if not limited:
+    sys.exit(1)
+p = os.path.expanduser("~/.claude.json")
+try:
+    c = json.load(open(p))
+except Exception:
+    c = {}
+r = c.setdefault("customApiKeyResponses", {"approved": [], "rejected": []})
+k = os.environ["ODIN_FALLBACK_API_KEY"][-20:]
+if k not in r.setdefault("approved", []):
+    r["approved"].append(k)
+json.dump(c, open(p, "w"), indent=2)`;
+
+export const planLimitSettings = JSON.stringify({
+	hooks: {
+		StopFailure: [
+			{
+				hooks: [{ type: "command", command: "python3 ~/.odin/plan-limit.py" }],
+			},
+		],
+	},
+});
+
 /** What runs inside tmux: tokens in, file gone, repo ready, Claude on. */
 export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 	const root = homePath(spec.reposRoot);
@@ -146,7 +186,10 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 		`python3 -c ${sh(SKIP_FIRST_RUN)} "$PWD" 2>/dev/null || true`,
 		'export PATH="$HOME/.local/bin:$PATH"',
 		ghInstallScript,
-		`exec claude ${spec.claudeArgs}${prompt}`,
+		`mkdir -p "$HOME/.odin" && printf %s ${sh(Buffer.from(PLAN_LIMIT_HOOK).toString("base64"))} | base64 -d > "$HOME/.odin/plan-limit.py"`,
+		`if [ -n "$ODIN_FALLBACK_API_KEY" ] && python3 -c ${sh(USE_API_KEY_IF_LIMITED)}; then export ANTHROPIC_API_KEY="$ODIN_FALLBACK_API_KEY"; else unset ANTHROPIC_API_KEY; fi`,
+		"unset ODIN_FALLBACK_API_KEY",
+		`exec claude --settings ${sh(planLimitSettings)} ${spec.claudeArgs}${prompt}`,
 	]
 		.filter(Boolean)
 		.join("\n");

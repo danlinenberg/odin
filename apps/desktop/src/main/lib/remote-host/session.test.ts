@@ -7,11 +7,13 @@ import {
 	issueTicket,
 	mainCheckoutOf,
 	parseSetupToken,
+	planLimitSettings,
 	type RemoteSessionSpec,
 	redeemTicket,
 	repoNameOf,
 	runScript,
 	secretsFile,
+	sh,
 	tmuxSession,
 } from "./session";
 
@@ -43,7 +45,7 @@ describe("remote session scripts", () => {
 			`git clone 'https://github.com/danlinenberg/odin.git' "$HOME"/'repos'/'odin'`,
 		);
 		expect(run).toContain(
-			`exec claude --session-id abc "$(printf %s '${Buffer.from("Fix it's bug").toString("base64")}' | base64 -d)"`,
+			`exec claude --settings ${sh(planLimitSettings)} --session-id abc "$(printf %s '${Buffer.from("Fix it's bug").toString("base64")}' | base64 -d)"`,
 		);
 	});
 
@@ -140,4 +142,17 @@ test("a task with no repo gets the known repos and the commands for its worktree
 	expect(note).toContain(
 		"worktree add -b odin/0d202ff3 /home/ubuntu/repos/<name>/.worktrees/odin-0d202ff3",
 	);
+});
+
+test("the host falls back to the API key only while the plan is limited", () => {
+	const run = runScript(spec, "/d");
+	expect(run).toContain(
+		'then export ANTHROPIC_API_KEY="$ODIN_FALLBACK_API_KEY"; else unset ANTHROPIC_API_KEY; fi',
+	);
+	expect(run.indexOf("unset ODIN_FALLBACK_API_KEY")).toBeLessThan(
+		run.indexOf("exec claude"),
+	);
+	expect(
+		JSON.parse(planLimitSettings).hooks.StopFailure[0].hooks[0].command,
+	).toBe("python3 ~/.odin/plan-limit.py");
 });

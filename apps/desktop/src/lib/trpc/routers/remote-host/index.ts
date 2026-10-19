@@ -29,6 +29,7 @@ import { z } from "zod";
 import { publicProcedure, router } from "../..";
 import { readOdinConfig, updateOdinConfig } from "../odin-config";
 import { scanRepos } from "../repos";
+import { getProcessEnvWithShellEnv } from "../workspaces/utils/shell-env";
 
 const run = promisify(execFile);
 
@@ -57,6 +58,9 @@ function isSmallFile(path: string): boolean {
 		return false;
 	}
 }
+
+/** Board sources whose tasks need the user's connectors. */
+const FEED_SOURCES = new Set(["slack", "reactions", "notion", "jira"]);
 
 const awsTarget = z.object({
 	profile: z.string().optional(),
@@ -174,6 +178,29 @@ export const createRemoteHostRouter = () =>
 				return { cwd };
 			}),
 
+		/**
+		 * Where a new session runs: the remote host's name, or null for this
+		 * computer. Only code work goes to the host - a task with a repo that
+		 * has a GitHub origin. Slack, reactions, Notion and Jira tasks stay
+		 * here, where the user's connectors are; the host has none.
+		 */
+		launchTarget: publicProcedure
+			.input(
+				z.object({
+					repoPath: z.string().nullable(),
+					source: z.string().nullable(),
+				}),
+			)
+			.query(async ({ input }) => {
+				const host = readOdinConfig().remoteHost;
+				if (!host?.on || !input.repoPath) return null;
+				if (input.source && FEED_SOURCES.has(input.source)) return null;
+				const origin =
+					(await originOf(input.repoPath)) ??
+					(await originOf(mainCheckoutOf(input.repoPath)));
+				return origin ? host.name || host.instanceId : null;
+			}),
+
 		/** The command a remote session's pane runs. */
 		sessionCommand: publicProcedure
 			.input(
@@ -224,6 +251,9 @@ export const createRemoteHostRouter = () =>
 				const ticket = issueTicket(
 					secretsFile({
 						CLAUDE_CODE_OAUTH_TOKEN: claudeToken() ?? undefined,
+						// The API key claude-auto falls back to here, for the same switch on the host.
+						ODIN_FALLBACK_API_KEY: (await getProcessEnvWithShellEnv())
+							.ANTHROPIC_API_KEY,
 						GH_TOKEN: (await githubAccessToken()) ?? undefined,
 					}),
 				);
