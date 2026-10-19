@@ -11,7 +11,7 @@ import {
 } from "./host-service";
 
 // The real service, on spare ports, with a token file of its own.
-const PORT = 57_287;
+const PORT = 40_000 + Math.floor(Math.random() * 10_000);
 const dir = mkdtempSync(join(tmpdir(), "odin-host-service-"));
 let proc: ReturnType<typeof Bun.spawn> | undefined;
 const url = `http://127.0.0.1:${PORT}`;
@@ -35,12 +35,12 @@ beforeAll(async () => {
 		join(dir, "tokens.json"),
 	)
 		.replace(String(HOST_SERVICE_PORT), String(PORT))
-		.replace(String(LAPTOP_TUNNEL_PORT), "57289");
+		.replace(String(LAPTOP_TUNNEL_PORT), String(PORT + 1));
 	writeFileSync(join(dir, "svc.py"), script);
 	proc = Bun.spawn(["python3", join(dir, "svc.py")]);
 	for (let i = 0; i < 50; i++) {
 		if (
-			await fetch(`${url}/health`).then(
+			await fetch(`${url}/health`, { signal: AbortSignal.timeout(500) }).then(
 				(r) => r.ok,
 				() => false,
 			)
@@ -48,7 +48,8 @@ beforeAll(async () => {
 			return;
 		await Bun.sleep(100);
 	}
-});
+	throw new Error("Odin's host service didn't start (python3 on PATH?)");
+}, 20_000);
 afterAll(() => proc?.kill());
 
 describe("Odin's host service", () => {
