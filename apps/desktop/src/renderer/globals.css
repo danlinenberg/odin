@@ -575,6 +575,23 @@
 	}
 }
 
+/* A watched session's bell while a reply waits: a short ring, then a rest. */
+@keyframes bell-jiggle {
+	0%,
+	50%,
+	100% {
+		transform: rotate(0);
+	}
+	10%,
+	30% {
+		transform: rotate(-14deg);
+	}
+	20%,
+	40% {
+		transform: rotate(14deg);
+	}
+}
+
 /* The chat view's Working mark: Odin's icon nodding along. Transform only. */
 @keyframes odin-nod {
 	0%,

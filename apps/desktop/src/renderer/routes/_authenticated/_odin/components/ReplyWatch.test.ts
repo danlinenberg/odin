@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import {
 	newReplies,
 	sessionThread,
+	startedWorking,
 	useReplyWatch,
 	watchEvent,
 } from "./ReplyWatch";
@@ -98,4 +99,22 @@ test("a new reply stays on the card until the session is opened", () => {
 	expect(
 		useReplyWatch.getState().watches["slack:C1:1.1"]?.reply,
 	).toBeUndefined();
+});
+
+// The bell keeps jiggling until you write in the session, not until you look.
+test("a session turning to Working answers its reply; staying Working does not", () => {
+	expect(
+		startedWorking(
+			{
+				a: { status: "review" },
+				b: { status: "working" },
+				c: { status: "idle" },
+			},
+			{
+				a: { status: "working" },
+				b: { status: "working" },
+				c: { status: "review" },
+			},
+		),
+	).toEqual(["a"]);
 });
