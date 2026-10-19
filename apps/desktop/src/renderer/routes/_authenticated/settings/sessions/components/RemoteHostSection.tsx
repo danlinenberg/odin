@@ -157,7 +157,7 @@ export function RemoteHostSection() {
 	});
 	const instances = electronTrpc.remoteHost.awsInstances.useQuery(
 		{ ...target, tags },
-		{ enabled: loaded && tags.length > 0, retry: false },
+		{ enabled: loaded, retry: false },
 	);
 	const start = electronTrpc.remoteHost.awsStart.useMutation({
 		onSuccess: () => {
@@ -206,6 +206,16 @@ export function RemoteHostSection() {
 	};
 
 	const error = tagChoices.error ?? instances.error;
+	// Every instance in the account and region, narrowed by the optional tags
+	// (server side) and the search (here).
+	const [search, setSearch] = useState("");
+	const needle = search.trim().toLowerCase();
+	const shownInstances = (instances.data ?? []).filter(
+		(instance) =>
+			!needle ||
+			instance.name.toLowerCase().includes(needle) ||
+			instance.id.toLowerCase().includes(needle),
+	);
 
 	return (
 		<SettingsSection
@@ -439,9 +449,9 @@ export function RemoteHostSection() {
 						/>
 					</SettingRow>
 					<SettingRow
-						label="Tags"
+						label="Tags (optional)"
 						stacked
-						description="A host must carry all of these, for example Owner = your name."
+						description="Optional: list only instances that carry all of these, for example Owner = your name."
 					>
 						<div className="flex flex-wrap items-center gap-1.5">
 							{tags.map((tag) => (
@@ -516,13 +526,32 @@ export function RemoteHostSection() {
 							}
 						/>
 					)}
-					{tags.length > 0 && !error && instances.data?.length === 0 && (
+					{instances.data && !error && shownInstances.length === 0 && (
 						<SettingRow
 							label="No matching instances"
-							description="No instance in this account and region carries all of these tags."
+							description={
+								search.trim()
+									? "No instance matches the search."
+									: tags.length
+										? "No instance in this account and region carries all of these tags."
+										: "No instance in this account and region."
+							}
 						/>
 					)}
-					{(instances.data ?? []).map((instance) => {
+					<SettingRow
+						label="Search"
+						htmlFor="aws-search"
+						description="By name or instance id."
+					>
+						<Input
+							id="aws-search"
+							className="w-64"
+							placeholder="odin-remote, i-0a95..."
+							value={search}
+							onChange={(event) => setSearch(event.target.value)}
+						/>
+					</SettingRow>
+					{shownInstances.map((instance) => {
 						const host = instance.privateIp ?? instance.publicIp;
 						const state = setups[instance.id];
 						const found =
