@@ -116,6 +116,60 @@ export async function startQueuedPane(
 }
 
 /**
+ * With sessions on the remote host, a new task held back on this Mac starts
+ * there instead: the host has its own room and gives each session its own
+ * worktree, so neither gate applies. A Resume stays: it runs where its
+ * conversation is saved. False when the task can't go (a Resume, or a feed
+ * whose connector isn't on the host).
+ */
+export async function moveQueuedToHost(
+	client: TrpcClient,
+	pane: Pane,
+): Promise<boolean> {
+	const queued = pane.odinQueued;
+	const sessionId = queued?.command.match(/--session-id ([\w-]+)/)?.[1];
+	const promptPath = queued?.command.match(/"\$\(cat '([^']+)'\)"/)?.[1];
+	const tab = useTabsStore.getState().tabs.find((tab) => tab.id === pane.tabId);
+	if (!queued || !sessionId || !promptPath || !tab) return false;
+	const host = await client.remoteHost.launchTarget.query({
+		repoPath: pane.odinCwd ?? null,
+		source: pane.odinSource ?? null,
+	});
+	if (!host) return false;
+	const read = await client.filesystem.readFile.query({
+		workspaceId: tab.workspaceId,
+		absolutePath: promptPath,
+		encoding: "utf-8",
+	});
+	if (read.kind !== "text") return false;
+	// The host makes its own worktree; the one made on this Mac isn't there.
+	const prompt = read.content
+		.split("\n")
+		.filter(
+			(line) =>
+				!line.startsWith("Odin made this session its own git worktree:"),
+		)
+		.join("\n");
+	const command = await client.remoteHost.sessionCommand.mutate({
+		pane: sessionId,
+		odinPane: pane.id,
+		repoPath: pane.odinCwd ?? null,
+		claudeArgs: `--session-id ${sessionId}`,
+		prompt,
+	});
+	const moved = {
+		...pane,
+		odinRemote: host,
+		odinQueued: { ...queued, command },
+	};
+	useTabsStore.setState((state) => ({
+		panes: { ...state.panes, [pane.id]: { ...state.panes[pane.id], ...moved } },
+	}));
+	await startQueuedPane(client, moved);
+	return true;
+}
+
+/**
  * Rewrite each waiting card's "why" to what's holding it now. The reason is
  * stamped at queue time, so without this a card kept naming a session that had
  * long since stopped.
@@ -156,6 +210,11 @@ function refreshQueuedReasons(
 export function useTaskQueue(): void {
 	const utils = electronTrpc.useUtils();
 	const { data: workConfig } = electronTrpc.work.getConfig.useQuery();
+	const { data: remoteHost } = electronTrpc.remoteHost.get.useQuery(undefined, {
+		refetchInterval: 30_000,
+	});
+	// Cards that can't go to the host, so the queue doesn't retry them forever.
+	const stayHere = useRef(new Set<string>());
 	// The same 5s snapshot the header chip reads - one shared query.
 	const { data: metrics } = electronTrpc.resourceMetrics.getSnapshot.useQuery(
 		undefined,
@@ -177,6 +236,23 @@ export function useTaskQueue(): void {
 		const panes = useTabsStore.getState().panes;
 		const queue = queuedPanes(panes);
 		if (!queue.length) return;
+		const toHost = remoteHost?.host?.on
+			? queue.find((pane) => !stayHere.current.has(pane.id))
+			: undefined;
+		if (toHost) {
+			starting.current = true;
+			void moveQueuedToHost(utils.client, toHost)
+				.then((moved) => {
+					if (!moved) stayHere.current.add(toHost.id);
+				})
+				.catch(() => {
+					// Left queued - the next tick tries again.
+				})
+				.finally(() => {
+					starting.current = false;
+				});
+			return;
+		}
 		const live = livePanes(panes, daemonSessions.sessions);
 		const blockerFor = (pane: Pane) =>
 			launchBlocker(
@@ -209,5 +285,5 @@ export function useTaskQueue(): void {
 			.finally(() => {
 				starting.current = false;
 			});
-	}, [metrics, daemonSessions, workConfig, utils]);
+	}, [metrics, daemonSessions, workConfig, remoteHost, utils]);
 }

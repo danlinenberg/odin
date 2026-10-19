@@ -107,8 +107,12 @@ export function launchBlocker(
 ): string | null {
 	const load = machineLoad(snapshot, limits);
 	if (load.busy) return load.reason;
-	// Huginn isn't a session: he takes no slot and holds no checkout.
-	panes = panes.filter((pane) => !pane.odinTags?.includes(CROW_TAG));
+	// Huginn isn't a session: he takes no slot and holds no checkout. Neither
+	// does a session on the remote host: it runs on the host's CPU, in its
+	// own worktree there.
+	panes = panes.filter(
+		(pane) => !pane.odinTags?.includes(CROW_TAG) && !pane.odinRemote,
+	);
 	// Only "working" counts: a session stopped on a permission prompt costs
 	// the Mac nothing until you answer it.
 	const cap = limits?.maxWorkingAgents ?? 0;

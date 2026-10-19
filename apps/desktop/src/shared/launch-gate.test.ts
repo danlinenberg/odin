@@ -52,6 +52,11 @@ describe("launchBlocker", () => {
 		expect(
 			launchBlocker(snapshot(10), [huginn, ...busy.slice(1)], "", ODIN, limits),
 		).toBeNull();
+		// Nor is a session on the remote host: it runs on the host's CPU.
+		const remote = pane({ id: "r", status: "working", odinRemote: "host" });
+		expect(
+			launchBlocker(snapshot(10), [remote, ...busy.slice(1)], "", ODIN, limits),
+		).toBeNull();
 		// Waiting on you doesn't count, and 0 turns the cap off.
 		expect(
 			launchBlocker(snapshot(10), busy.slice(1), "", ODIN, limits),
