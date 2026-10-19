@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { insertSkill, matchSkills, skillToken } from "./skill-picker";
+import {
+	BUILT_IN_COMMANDS,
+	enterPicks,
+	insertSkill,
+	matchSkills,
+	skillToken,
+} from "./skill-picker";
 
 const SKILLS = [
 	{ name: "gdpr", description: "Audit deletion tickets" },
@@ -52,4 +58,15 @@ test("insertSkill replaces the typed token", () => {
 	expect(insertSkill("audit tickets /imagen", "imagen-core:data")).toBe(
 		"audit tickets /imagen-core:data ",
 	);
+});
+
+test("/compact is Claude's command, not a skill that mentions compacting", () => {
+	const recall = {
+		name: "recall",
+		description: "Resume with a compact digest",
+	};
+	const [first] = matchSkills([...BUILT_IN_COMMANDS, recall], "compact");
+	expect(first?.name).toBe("compact");
+	expect(enterPicks("compact", "compact")).toBe(true);
+	expect(enterPicks("recall", "compact")).toBe(false);
 });

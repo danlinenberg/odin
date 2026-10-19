@@ -45,6 +45,8 @@ import { freshTldr, sameReply, tldrPlacement } from "shared/latest-reply";
 import { inputBoxRows, odinScreenStatus } from "shared/odin-screen-status";
 import stripAnsi from "strip-ansi";
 import {
+	BUILT_IN_COMMANDS,
+	enterPicks,
 	insertSkill,
 	matchSkills,
 	skillToken,
@@ -2878,7 +2880,11 @@ function Composer({
 	const sendNowKeys = useHotkeyDisplay("CHAT_SEND_NOW").text;
 	// Type `/` and the agent's skills/commands are searchable, like the New
 	// Session dialog. Picking one fills in `/name `; Enter then sends it.
-	const { data: skills = [] } = electronTrpc.skills.list.useQuery();
+	const { data: skillList = [] } = electronTrpc.skills.list.useQuery();
+	const skills = useMemo(
+		() => [...BUILT_IN_COMMANDS, ...skillList],
+		[skillList],
+	);
 	const [menuClosed, setMenuClosed] = useState(false);
 	const [selected, setSelected] = useState(0);
 	const token = bash ? undefined : skillToken(draft);
@@ -3031,10 +3037,16 @@ function Composer({
 									(event.key === "Enter" && !event.shiftKey) ||
 									event.key === "Tab"
 								) {
-									event.preventDefault();
 									const match = matches[activeIndex];
-									if (match) pickSkill(match.name);
-									return;
+									// Tab always picks; Enter only a name you were typing.
+									if (
+										match &&
+										(event.key === "Tab" || enterPicks(match.name, token ?? ""))
+									) {
+										event.preventDefault();
+										pickSkill(match.name);
+										return;
+									}
 								}
 							}
 							if (
