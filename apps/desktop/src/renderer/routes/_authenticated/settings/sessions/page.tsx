@@ -1,4 +1,7 @@
-import { ODIN_AUTO_RENAME_SESSIONS_DEFAULT } from "@odin/shared/constants";
+import {
+	ODIN_AUTO_RENAME_SESSIONS_DEFAULT,
+	ODIN_REPLY_TLDR_DEFAULT,
+} from "@odin/shared/constants";
 import { Button } from "@odin/ui/button";
 import {
 	Select,
@@ -93,6 +96,7 @@ function SessionsSettingsPage() {
 
 			<SettingsSection title="On the board">
 				<AutoRenameRow />
+				<ReplyTldrRow />
 				<IdleCloseRow />
 			</SettingsSection>
 		</SettingsPage>
@@ -311,6 +315,42 @@ function AutoRenameRow() {
 				checked={autoRename ?? ODIN_AUTO_RENAME_SESSIONS_DEFAULT}
 				onCheckedChange={(enabled) => setAutoRename.mutate({ enabled })}
 				disabled={isLoading || setAutoRename.isPending}
+			/>
+		</SettingRow>
+	);
+}
+
+/** The chat view's TL;DR card on the latest reply, and the phone's. */
+function ReplyTldrRow() {
+	const utils = electronTrpc.useUtils();
+	const { data: enabled, isLoading } =
+		electronTrpc.settings.getOdinReplyTldr.useQuery();
+	const setEnabled = electronTrpc.settings.setOdinReplyTldr.useMutation({
+		onMutate: async ({ enabled }) => {
+			await utils.settings.getOdinReplyTldr.cancel();
+			const previous = utils.settings.getOdinReplyTldr.getData();
+			utils.settings.getOdinReplyTldr.setData(undefined, enabled);
+			return { previous };
+		},
+		onError: (_err, _vars, context) => {
+			if (context?.previous !== undefined) {
+				utils.settings.getOdinReplyTldr.setData(undefined, context.previous);
+			}
+		},
+		onSettled: () => utils.settings.getOdinReplyTldr.invalidate(),
+	});
+
+	return (
+		<SettingRow
+			label="Sum up the latest reply"
+			htmlFor="reply-tldr"
+			description="After each turn, a TL;DR card on the reply says what the agent did, and a reply too long for the window folds under it with a Show full reply link. Off shows every reply whole; the brief for the card's hover and Catch up is still written."
+		>
+			<Switch
+				id="reply-tldr"
+				checked={enabled ?? ODIN_REPLY_TLDR_DEFAULT}
+				onCheckedChange={(enabled) => setEnabled.mutate({ enabled })}
+				disabled={isLoading || setEnabled.isPending}
 			/>
 		</SettingRow>
 	);

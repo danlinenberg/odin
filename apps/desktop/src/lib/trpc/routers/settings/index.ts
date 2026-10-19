@@ -32,7 +32,10 @@ import {
 	resolveAgentConfigs,
 	upsertCustomAgentDefinition,
 } from "@odin/shared/agent-settings";
-import { ODIN_AUTO_RENAME_SESSIONS_DEFAULT } from "@odin/shared/constants";
+import {
+	ODIN_AUTO_RENAME_SESSIONS_DEFAULT,
+	ODIN_REPLY_TLDR_DEFAULT,
+} from "@odin/shared/constants";
 import { TRPCError } from "@trpc/server";
 import { app } from "electron";
 import { exitImmediately } from "main/index";
@@ -921,6 +924,30 @@ export const createSettingsRouter = () => {
 					.onConflictDoUpdate({
 						target: settings.id,
 						set: { odinAutoRenameSessions: input.enabled },
+					})
+					.run();
+
+				return { success: true };
+			}),
+
+		/**
+		 * Odin fork: the chat view's TL;DR of the latest reply - the card a long
+		 * reply folds under once its turn is over - and the phone's copy of it.
+		 * On by default; off shows every reply whole and asks for no brief.
+		 */
+		getOdinReplyTldr: publicProcedure.query(() => {
+			return getSettings().odinReplyTldr ?? ODIN_REPLY_TLDR_DEFAULT;
+		}),
+
+		setOdinReplyTldr: publicProcedure
+			.input(z.object({ enabled: z.boolean() }))
+			.mutation(({ input }) => {
+				localDb
+					.insert(settings)
+					.values({ id: 1, odinReplyTldr: input.enabled })
+					.onConflictDoUpdate({
+						target: settings.id,
+						set: { odinReplyTldr: input.enabled },
 					})
 					.run();
 

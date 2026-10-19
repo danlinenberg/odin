@@ -20,6 +20,8 @@ export const COMPANY = {
 // settings switch (what to show before that query resolves). Two copies of
 // this disagreed: the switch rendered off while the feature was on.
 export const ODIN_AUTO_RENAME_SESSIONS_DEFAULT = true;
+// The chat view's TL;DR of the latest reply, and the phone's. Same two readers.
+export const ODIN_REPLY_TLDR_DEFAULT = true;
 
 // Theme
 export const THEME_STORAGE_KEY = "odin-theme";

@@ -1,9 +1,12 @@
 import { basename, resolve, sep } from "node:path";
+import { settings } from "@odin/local-db";
+import { ODIN_REPLY_TLDR_DEFAULT } from "@odin/shared/constants";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { activeProfileId, listProfiles } from "lib/trpc/routers/odin-config";
 import type { PullRequestStatus } from "lib/trpc/routers/terminal/pr-state";
 import { appState } from "main/lib/app-state";
 import { readTranscript, writeBrief } from "main/lib/claude-sessions";
+import { localDb } from "main/lib/local-db";
 import { askRenderer } from "main/lib/notifications/server";
 import { appCaller } from "main/lib/odin-api";
 import { loadSessions } from "main/lib/tray";
@@ -42,6 +45,18 @@ async function board(action: string, args: Record<string, string> = {}) {
 	if (text === null)
 		throw new TRPCError({ code: "TIMEOUT", message: "Odin didn't answer." });
 	return text;
+}
+
+/** Whether the latest reply gets a TL;DR - the same switch the chat view reads. */
+function replyTldrOn(): boolean {
+	try {
+		return (
+			localDb.select().from(settings).get()?.odinReplyTldr ??
+			ODIN_REPLY_TLDR_DEFAULT
+		);
+	} catch {
+		return ODIN_REPLY_TLDR_DEFAULT;
+	}
 }
 
 /** The window's Done shelf; [] from a window that doesn't know the action. */
@@ -208,6 +223,9 @@ export const phoneRouter = t.router({
 		const brief = await writeBrief({ sessionId }).catch(() => null);
 		if (!brief) return null;
 		const { goal, done, status, next, last, urgency, replyAt } = brief;
+		// Settings → Sessions → "Sum up the latest reply", the Mac's chat view
+		// and the phone alike: off, the reply shows whole with no TL;DR strip.
+		const tldrOn = replyTldrOn();
 		return {
 			tldr: done ?? status ?? goal,
 			goal,
@@ -215,8 +233,8 @@ export const phoneRouter = t.router({
 			status,
 			next,
 			// The latest reply's own TL;DR, and which reply it describes.
-			last,
-			urgency,
+			last: tldrOn ? last : null,
+			urgency: tldrOn ? urgency : null,
 			replyAt: replyAt ?? null,
 		};
 	}),

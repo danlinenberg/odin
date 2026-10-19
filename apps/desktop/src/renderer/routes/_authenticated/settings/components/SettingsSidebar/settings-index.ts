@@ -197,6 +197,12 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		keywords: "auto rename card title name",
 	},
 	{
+		label: "Sum up the latest reply",
+		to: "/settings/sessions",
+		section: "On the board",
+		keywords: "tldr tl;dr summary summarize fold reply chat automatic",
+	},
+	{
 		label: "Close idle sessions after",
 		to: "/settings/sessions",
 		section: "On the board",

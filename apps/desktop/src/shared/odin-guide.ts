@@ -147,6 +147,7 @@ Besides the launch gate limits:
 - **Remote Control**: Off (default), Every session or Selected sessions. A session then shows in claude.ai/code and the Claude app as "[Odin] <task>". With Selected, turn it on per session from the card's right-click menu or the drawer.
 - **Full Disk Access**: without it, macOS asks each time a session reads Music, Photos, Desktop or Documents.
 - **Rename sessions automatically** (default on): renames each card once, after what it turned out to be about. Names you set are kept.
+- **Sum up the latest reply** (default on): the chat view's TL;DR card on the latest reply, and the phone's; a reply too long for the window folds under it. Off shows every reply whole.
 - **Close idle sessions after** (default 3 hours, 0 = never).
 
 ## Notifications settings (Settings → Notifications)

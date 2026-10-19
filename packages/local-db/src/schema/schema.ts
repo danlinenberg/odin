@@ -256,6 +256,8 @@ export const settings = sqliteTable("settings", {
 	odinAutoRenameSessions: integer("odin_auto_rename_sessions", {
 		mode: "boolean",
 	}),
+	/** Odin fork: sum up the latest reply in the chat view and on the phone. */
+	odinReplyTldr: integer("odin_reply_tldr", { mode: "boolean" }),
 });
 
 export type InsertSettings = typeof settings.$inferInsert;

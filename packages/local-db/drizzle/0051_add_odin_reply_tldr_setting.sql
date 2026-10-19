@@ -1,0 +1,1 @@
+ALTER TABLE `settings` ADD `odin_reply_tldr` integer;

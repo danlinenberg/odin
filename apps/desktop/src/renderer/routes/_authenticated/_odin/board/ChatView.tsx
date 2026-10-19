@@ -1,3 +1,4 @@
+import { ODIN_REPLY_TLDR_DEFAULT } from "@odin/shared/constants";
 import { odinIcon } from "@odin/ui/icons/preset-icons";
 import { toast } from "@odin/ui/sonner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@odin/ui/tooltip";
@@ -2236,6 +2237,11 @@ export function ChatView({
 		(item): item is Extract<Item, { kind: "text" }> => item.kind === "text",
 	);
 	const lastTextId = lastText?.id;
+	// Settings → Sessions → "Sum up the latest reply". Off: no TL;DR card, no
+	// fold, and no brief asked for from here - the board still warms its cards'.
+	const { data: tldrSetting } =
+		electronTrpc.settings.getOdinReplyTldr.useQuery();
+	const tldrOn = tldrSetting ?? ODIN_REPLY_TLDR_DEFAULT;
 	// The brief's TL;DR of the latest reply. Asked for once the turn is over -
 	// mid-turn the latest reply is a moving target - and shown only while the
 	// brief read this very reply: a newer one makes it a wrong TL;DR, so the
@@ -2243,7 +2249,7 @@ export function ChatView({
 	const { data: brief } = electronTrpc.terminal.summarizeClaudeSession.useQuery(
 		{ sessionId: sessionId ?? "", settled: true },
 		{
-			enabled: !!sessionId && !!lastText && !working,
+			enabled: !!sessionId && !!lastText && !working && tldrOn,
 			retry: false,
 			staleTime: 30_000,
 			refetchInterval: (query) =>
@@ -2251,12 +2257,16 @@ export function ChatView({
 		},
 	);
 	// Measured without its ACTION ITEMS: those show in their own card.
-	const fresh = working
-		? null
-		: freshTldr(
-				lastText && { ...lastText, text: splitActionItems(lastText.text).body },
-				brief,
-			);
+	const fresh =
+		working || !tldrOn
+			? null
+			: freshTldr(
+					lastText && {
+						...lastText,
+						text: splitActionItems(lastText.text).body,
+					},
+					brief,
+				);
 	// Whether it is shown is ItemView's call: only a reply taller than the view gets one.
 	const tldr = fresh && tldrOnly ? { ...fresh, urgency: null } : fresh;
 	// Agents repeat their ACTION ITEMS in every reply; show one card, on the
