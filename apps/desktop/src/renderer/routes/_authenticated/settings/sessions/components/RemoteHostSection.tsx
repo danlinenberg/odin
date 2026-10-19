@@ -9,7 +9,7 @@ import {
 } from "@odin/ui/select";
 import { toast } from "@odin/ui/sonner";
 import { Switch } from "@odin/ui/switch";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LuX } from "react-icons/lu";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { SettingRow, SettingsSection } from "../../components/SettingsPage";
@@ -28,6 +28,7 @@ const CONNECTORS = [
 	["github", "GitHub"],
 	["clickup", "ClickUp"],
 ] as const;
+type HostConnectorId = (typeof CONNECTORS)[number][0];
 // Radix Select can't hold "", and a tag's value can be empty.
 const EMPTY = "__empty";
 
@@ -57,21 +58,30 @@ export function RemoteHostSection() {
 		onSuccess: refresh,
 		onError,
 	});
+	// A switch flips at once; writing on the host (an SSM connection, about
+	// 8 seconds) happens behind it. Flips made meanwhile go out as one write
+	// when it lands; a failed write puts the switches back and says why.
+	const [wanted, setWanted] = useState<string[] | null>(null);
+	const wantedRef = useRef<string[] | null>(null);
+	wantedRef.current = wanted;
 	const setConnectors = electronTrpc.remoteHost.setConnectors.useMutation({
-		onSuccess: refresh,
-		onError,
+		onSettled: async (_data, error, sent) => {
+			await refresh();
+			const latest = wantedRef.current;
+			if (error) setWanted(null);
+			else if (latest && latest.join() !== sent.join())
+				setConnectors.mutate(latest as HostConnectorId[]);
+			else setWanted(null);
+		},
 	});
-	const onHost = new Set(current?.host?.connectors ?? []);
-	const toggleConnector = (
-		name: (typeof CONNECTORS)[number][0],
-		on: boolean,
-	) => {
+	const onHost = new Set(wanted ?? current?.host?.connectors ?? []);
+	const toggleConnector = (name: HostConnectorId, on: boolean) => {
 		const next = new Set(onHost);
 		if (on) next.add(name);
 		else next.delete(name);
-		setConnectors.mutate(
-			CONNECTORS.map(([id]) => id).filter((id) => next.has(id)),
-		);
+		const list = CONNECTORS.map(([id]) => id).filter((id) => next.has(id));
+		setWanted(list);
+		if (!setConnectors.isPending) setConnectors.mutate(list);
 	};
 	const signingIn =
 		renew.isPending ||
@@ -223,8 +233,8 @@ export function RemoteHostSection() {
 							removes them all.
 							{setConnectors.isPending && (
 								<span className="mt-1 block">
-									Writing them on the host - the first time also installs Odin's
-									service there, which takes a few seconds.
+									Saving on the host - the first time also installs Odin's
+									service there.
 								</span>
 							)}
 							{setConnectors.error && (
@@ -245,7 +255,6 @@ export function RemoteHostSection() {
 								<Switch
 									id={`host-connector-${id}`}
 									checked={onHost.has(id)}
-									disabled={setConnectors.isPending}
 									onCheckedChange={(on) => toggleConnector(id, on)}
 								/>
 								{label}
