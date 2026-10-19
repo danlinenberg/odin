@@ -57,6 +57,7 @@ export function feedCounts(input: {
 	notion: unknown[];
 	emails?: unknown[];
 	clickup?: unknown[];
+	docs?: number;
 }): Record<FeedPath, number> {
 	const sources = {
 		"/my-tasks": input.tasks,
@@ -76,8 +77,8 @@ export function feedCounts(input: {
 	return {
 		...sources,
 		"/all": Object.values(sources).reduce((total, n) => total + n, 0) - mine,
-		// A doc is reading, not work - it never waits on you.
-		"/docs": 0,
+		// Shown on its tab, but kept out of All: a doc is reading, not work.
+		"/docs": input.docs ?? 0,
 	};
 }
 

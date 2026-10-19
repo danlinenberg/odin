@@ -1,6 +1,7 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@odin/ui/tooltip";
 import { cn } from "@odin/ui/utils";
 import { useMatchRoute, useNavigate } from "@tanstack/react-router";
+import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useMyTasks } from "../hooks/useOdinTasks";
@@ -33,7 +34,8 @@ export function FeedTabs() {
 	const { todos } = useMyTasks();
 	// A row put away with Done is gone from its feed, so it's gone from the
 	// badge too - same keys each feed page filters on.
-	const { isDone } = useDone();
+	const { isDone, reading } = useDone();
+	const { data: docs = [] } = electronTrpc.system.listDocs.useQuery();
 	const counts = feedCounts({
 		tasks: todos.filter((task) => !isDone({ key: `task:${task.id}` })).length,
 		// Filtered here too, not left to the row's status: that only reads "Done"
@@ -63,6 +65,8 @@ export function FeedTabs() {
 		clickup: (clickup.data?.tasks ?? []).filter(
 			(task) => !isDone({ key: `clickup:${task.id}`, url: task.url }),
 		),
+		// Same rows the Docs page lists: saved docs plus Read later.
+		docs: docs.length + reading.length,
 	});
 
 	// A tab that's empty because its account is signed out - or because its
