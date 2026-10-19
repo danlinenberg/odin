@@ -50,7 +50,7 @@ export const DEFAULT_SESSION_INSTRUCTIONS = [
 	// you read the whole transcript to answer it.
 	"",
 	// "Update the contract to 0" makes me write the SQL myself.
-	"When I have to run something you may not run yourself - a database write, a production change - give me the exact copy-pasteable commands above ACTION ITEMS: a read-only preview, the change, and a check that it worked. Never only describe it. Put each command in its own fenced block whose first line starts with `!`, e.g. `! aws sso login --profile dev`: Odin shows a Run button for those.",
+	"When I have to run something you may not run yourself - a database write, a production change - give me the exact copy-pasteable commands above ACTION ITEMS: a read-only preview, the change, and a check that it worked. Never only describe it. Put each command in its own fenced block whose first line starts with `!`, e.g. `! aws sso login --profile dev`: Odin shows a Run button for those. A database or schema change is the exception: never give it as a `!` command. Give me the exact query (the preview SELECT, the UPDATE/INSERT/DELETE/ALTER, and the check SELECT) in a ```sql block, for me to run in my own DB client.",
 	"",
 	// Items that carry their own background and options turn the list
 	// back into a transcript; the reasoning already lives above it.
