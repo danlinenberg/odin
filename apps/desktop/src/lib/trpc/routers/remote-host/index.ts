@@ -102,7 +102,7 @@ async function sessionSecrets(): Promise<string> {
 		CLAUDE_CODE_OAUTH_TOKEN: claudeToken() ?? undefined,
 		// The API key claude-auto falls back to here, for the same switch on the host.
 		ODIN_FALLBACK_API_KEY:
-			readOdinConfig().remoteHost?.apiKeyFallback === false
+			readOdinConfig().remoteHost?.apiKeyFallback !== true
 				? undefined
 				: (await getProcessEnvWithShellEnv()).ANTHROPIC_API_KEY,
 		GH_TOKEN: (await githubAccessToken()) ?? undefined,

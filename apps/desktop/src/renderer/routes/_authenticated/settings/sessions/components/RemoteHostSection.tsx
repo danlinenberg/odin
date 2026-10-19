@@ -250,14 +250,14 @@ export function RemoteHostSection() {
 					label="API key at the plan limit"
 					htmlFor="remote-host-api-key"
 					description={
-						current.host.apiKeyFallback !== false
+						current.host.apiKeyFallback === true
 							? "When a session there hits your plan's limit, it continues on your ANTHROPIC_API_KEY, billed per token, until the limit resets."
 							: "Off: a session there that hits your plan's limit waits for it to reset."
 					}
 				>
 					<Switch
 						id="remote-host-api-key"
-						checked={current.host.apiKeyFallback !== false}
+						checked={current.host.apiKeyFallback === true}
 						disabled={setApiKeyFallback.isPending}
 						onCheckedChange={(on) => setApiKeyFallback.mutate(on)}
 					/>
