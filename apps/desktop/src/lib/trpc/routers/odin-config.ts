@@ -55,6 +55,10 @@ export interface OdinFileConfig {
 		reposRoot: string;
 		/** Connectors whose tokens are kept on the host, for sessions there with this computer asleep. */
 		connectors?: string[];
+		/** Parts of ~/.claude copied to the host (main/lib/remote-host/claude-sync). */
+		claudeSetup?: string[];
+		/** When they were last copied, epoch ms. */
+		claudeSetupSyncedAt?: number;
 	};
 	/** `claude setup-token`'s token for remote sessions, encrypted with safeStorage. */
 	claudeToken?: string;

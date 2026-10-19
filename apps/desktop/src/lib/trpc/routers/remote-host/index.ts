@@ -14,6 +14,10 @@ import {
 	startInstance,
 } from "main/lib/remote-host/aws-instances";
 import { bringSessionHome } from "main/lib/remote-host/bring-home";
+import {
+	CLAUDE_SETUP_PARTS,
+	syncClaudeSetup,
+} from "main/lib/remote-host/claude-sync";
 import { runSetupToken } from "main/lib/remote-host/claude-token";
 import {
 	HOST_CONNECTORS,
@@ -259,6 +263,25 @@ export const createRemoteHostRouter = () =>
 				const kept = await pushHostTokens(host, input);
 				updateOdinConfig({ remoteHost: { ...host, connectors: input } });
 				return { kept };
+			}),
+		/**
+		 * Copies the chosen parts of ~/.claude (instructions, skills, commands,
+		 * plugins, settings) to the host, so sessions there work as here.
+		 */
+		syncClaudeSetup: publicProcedure
+			.input(z.array(z.enum(CLAUDE_SETUP_PARTS)))
+			.mutation(async ({ input }) => {
+				const host = readOdinConfig().remoteHost;
+				if (!host) throw new Error("No remote host is set up.");
+				const bytes = await syncClaudeSetup(host, input);
+				updateOdinConfig({
+					remoteHost: {
+						...host,
+						claudeSetup: input,
+						claudeSetupSyncedAt: Date.now(),
+					},
+				});
+				return { bytes };
 			}),
 		/** A fresh token from `claude setup-token`, replacing the saved one. */
 		renewClaudeToken: publicProcedure.mutation(() => ensureClaudeToken(true)),

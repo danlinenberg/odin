@@ -29,6 +29,15 @@ const CONNECTORS = [
 	["clickup", "ClickUp"],
 ] as const;
 type HostConnectorId = (typeof CONNECTORS)[number][0];
+/** Parts of ~/.claude the host can get (main/lib/remote-host/claude-sync). */
+const SETUP_PARTS = [
+	["instructions", "Instructions (CLAUDE.md)"],
+	["skills", "Skills"],
+	["commands", "Commands and agents"],
+	["plugins", "Plugins"],
+	["settings", "Settings and hooks"],
+] as const;
+type SetupPartId = (typeof SETUP_PARTS)[number][0];
 // Radix Select can't hold "", and a tag's value can be empty.
 const EMPTY = "__empty";
 
@@ -75,6 +84,19 @@ export function RemoteHostSection() {
 		},
 	});
 	const onHost = new Set(wanted ?? current?.host?.connectors ?? []);
+	const [setupParts, setSetupParts] = useState<Set<SetupPartId>>(
+		new Set(["instructions", "skills", "commands"]),
+	);
+	useEffect(() => {
+		const saved = current?.host?.claudeSetup;
+		if (saved?.length) setSetupParts(new Set(saved as SetupPartId[]));
+	}, [current?.host?.claudeSetup]);
+	const syncSetup = electronTrpc.remoteHost.syncClaudeSetup.useMutation({
+		onSuccess: ({ bytes }) => {
+			toast.success(`Synced to the host (${Math.round(bytes / 1024)} KB).`);
+			void refresh();
+		},
+	});
 	const toggleConnector = (name: HostConnectorId, on: boolean) => {
 		const next = new Set(onHost);
 		if (on) next.add(name);
@@ -260,6 +282,69 @@ export function RemoteHostSection() {
 								{label}
 							</label>
 						))}
+					</div>
+				</SettingRow>
+			)}
+			{current?.host && (
+				<SettingRow
+					label="Claude setup on the host"
+					stacked
+					description={
+						<span className="select-text cursor-text">
+							Copies the parts you pick from this computer's ~/.claude, so
+							sessions on the host follow the same instructions and have the
+							same skills and plugins. Never your login or accounts, your
+							conversations or history. Sync again after you change them.
+							{current.host.claudeSetupSyncedAt && (
+								<span className="mt-1 block">
+									Last synced{" "}
+									{new Date(current.host.claudeSetupSyncedAt).toLocaleString()}.
+								</span>
+							)}
+							{syncSetup.error && (
+								<span className="mt-1 block text-destructive">
+									{syncSetup.error.message}
+								</span>
+							)}
+						</span>
+					}
+				>
+					<div className="flex flex-wrap items-center gap-4">
+						{SETUP_PARTS.map(([id, label]) => (
+							<label
+								key={id}
+								htmlFor={`host-setup-${id}`}
+								className="flex items-center gap-2 text-sm"
+							>
+								<Switch
+									id={`host-setup-${id}`}
+									checked={setupParts.has(id)}
+									onCheckedChange={(on) =>
+										setSetupParts((prev) => {
+											const next = new Set(prev);
+											if (on) next.add(id);
+											else next.delete(id);
+											return next;
+										})
+									}
+								/>
+								{label}
+							</label>
+						))}
+						<Button
+							size="sm"
+							variant="outline"
+							disabled={!setupParts.size || syncSetup.isPending}
+							onClick={() =>
+								syncSetup.mutate(
+									SETUP_PARTS.map(([id]) => id).filter((id) =>
+										setupParts.has(id),
+									),
+								)
+							}
+						>
+							{syncSetup.isPending ? "Syncing..." : "Sync now"}
+						</Button>
 					</div>
 				</SettingRow>
 			)}
