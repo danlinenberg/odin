@@ -11,9 +11,9 @@ import { connect } from "node:net";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { Client, type SFTPWrapper, utils } from "ssh2";
+import { LAPTOP_TUNNEL_PORT } from "../lib/remote-host/host-service";
 import {
 	attachScript,
-	REMOTE_ODIN_PORT,
 	type RemoteFile,
 	type RemoteSessionSpec,
 	sh,
@@ -69,7 +69,7 @@ async function upload(sftp: SFTPWrapper, files: RemoteFile[]): Promise<void> {
 }
 
 /**
- * The host's 127.0.0.1:REMOTE_ODIN_PORT, to Odin's server on this computer.
+ * The host's 127.0.0.1:LAPTOP_TUNNEL_PORT, to Odin's server on this computer.
  * Every pane on the host forwards the same port to the same Odin, so one
  * holding it is enough; the others try again in case that one closes.
  */
@@ -77,7 +77,7 @@ function forwardOdin(client: Client): void {
 	const local = Number(process.env.ODIN_PORT);
 	if (!local) return;
 	client.on("tcp connection", (info, accept, reject) => {
-		if (info.destPort !== REMOTE_ODIN_PORT) return reject();
+		if (info.destPort !== LAPTOP_TUNNEL_PORT) return reject();
 		const remote = accept();
 		const odin = connect(local, "127.0.0.1");
 		remote.pipe(odin).pipe(remote);
@@ -85,7 +85,7 @@ function forwardOdin(client: Client): void {
 		remote.on("error", () => odin.destroy());
 	});
 	const bind = () =>
-		client.forwardIn("127.0.0.1", REMOTE_ODIN_PORT, (err) => {
+		client.forwardIn("127.0.0.1", LAPTOP_TUNNEL_PORT, (err) => {
 			if (err) setTimeout(bind, 15_000).unref();
 		});
 	bind();

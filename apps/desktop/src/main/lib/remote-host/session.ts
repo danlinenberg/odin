@@ -1,4 +1,5 @@
 import stripAnsi from "strip-ansi";
+import { HOST_SERVICE_PORT, LAPTOP_TUNNEL_PORT } from "./host-service";
 
 /**
  * The scripts a session on a remote host runs. A pane on the laptop runs the
@@ -40,12 +41,6 @@ export interface RemoteFile {
 	/** Relative to the host user's home, where SFTP starts. */
 	remote: string;
 }
-
-/**
- * The host's port for Odin's local server: the helper forwards it back to
- * the laptop, so `curl 127.0.0.1:$ODIN_PORT` on the host reaches Odin.
- */
-export const REMOTE_ODIN_PORT = 47187;
 
 /** The host user's home, for absolute paths Claude's file tools accept. */
 export const hostHome = (user: string) =>
@@ -171,7 +166,10 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 	return [
 		`if [ -f ${sh(secretsDir)}/env ]; then set -a; . ${sh(secretsDir)}/env; set +a; fi`,
 		`rm -rf ${sh(secretsDir)}`,
-		`export ODIN_PORT=${REMOTE_ODIN_PORT}${spec.odinPane ? ` ODIN_PANE_ID=${sh(spec.odinPane)}` : ""}`,
+		// Odin's host service when setup installed it (connector calls answered
+		// there, the rest passed on); else the helper's tunnel to the laptop.
+		`curl -sf -m 2 http://127.0.0.1:${HOST_SERVICE_PORT}/health >/dev/null && ODIN_PORT=${HOST_SERVICE_PORT} || ODIN_PORT=${LAPTOP_TUNNEL_PORT}`,
+		`export ODIN_PORT${spec.odinPane ? ` ODIN_PANE_ID=${sh(spec.odinPane)}` : ""}`,
 		// git reads GH_TOKEN from the environment, never from a file or argv.
 		`git config --global credential.https://github.com.helper '!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f'`,
 		`mkdir -p ${root}`,

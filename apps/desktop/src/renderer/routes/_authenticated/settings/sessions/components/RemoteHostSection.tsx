@@ -20,6 +20,14 @@ interface TagPair {
 }
 
 const DEFAULT_REGION = "us-east-1";
+/** What can be kept on the host (main/lib/remote-host/host-service HOST_CONNECTORS). */
+const CONNECTORS = [
+	["slack", "Slack"],
+	["notion", "Notion"],
+	["jira", "Jira"],
+	["github", "GitHub"],
+	["clickup", "ClickUp"],
+] as const;
 // Radix Select can't hold "", and a tag's value can be empty.
 const EMPTY = "__empty";
 
@@ -49,6 +57,22 @@ export function RemoteHostSection() {
 		onSuccess: refresh,
 		onError,
 	});
+	const setConnectors = electronTrpc.remoteHost.setConnectors.useMutation({
+		onSuccess: refresh,
+		onError,
+	});
+	const onHost = new Set(current?.host?.connectors ?? []);
+	const toggleConnector = (
+		name: (typeof CONNECTORS)[number][0],
+		on: boolean,
+	) => {
+		const next = new Set(onHost);
+		if (on) next.add(name);
+		else next.delete(name);
+		setConnectors.mutate(
+			CONNECTORS.map(([id]) => id).filter((id) => next.has(id)),
+		);
+	};
 	const signingIn =
 		renew.isPending ||
 		(setOn.isPending && setOn.variables === true && !current?.hasClaudeToken) ||
@@ -184,6 +208,41 @@ export function RemoteHostSection() {
 					</Button>
 				)}
 			</SettingRow>
+			{current?.host && (
+				<SettingRow
+					label="Connectors on the host"
+					stacked
+					description={
+						<span className="select-text cursor-text">
+							Sessions on the host can use these with this computer asleep or
+							closed. Their tokens are kept on the host, readable only by Odin's
+							own service there - sessions use a connector but never see its
+							token. Anyone who can open a shell on the instance in your AWS
+							account can still read them, so keep a connector here only if that
+							is only you. Gmail never goes to the host; turning the host off
+							removes them all.
+						</span>
+					}
+				>
+					<div className="flex flex-wrap items-center gap-4">
+						{CONNECTORS.map(([id, label]) => (
+							<label
+								key={id}
+								htmlFor={`host-connector-${id}`}
+								className="flex items-center gap-2 text-sm"
+							>
+								<Switch
+									id={`host-connector-${id}`}
+									checked={onHost.has(id)}
+									disabled={setConnectors.isPending}
+									onCheckedChange={(on) => toggleConnector(id, on)}
+								/>
+								{label}
+							</label>
+						))}
+					</div>
+				</SettingRow>
+			)}
 			<SettingRow
 				label="AWS profile"
 				description="From your AWS config. Leave on Default to use the default profile."

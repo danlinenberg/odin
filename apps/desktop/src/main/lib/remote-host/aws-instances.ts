@@ -23,6 +23,7 @@ import {
 	SendCommandCommand,
 	SSMClient,
 } from "@aws-sdk/client-ssm";
+import { hostServiceInstallScript } from "./host-service";
 import { ghInstallScript } from "./session";
 import { awsClientConfig } from "./ssm";
 
@@ -239,6 +240,7 @@ export function setUpScript(user: string): string {
 		"export DEBIAN_FRONTEND=noninteractive",
 		'pkg() { if command -v apt-get >/dev/null; then apt-get install -y -q "$@" || { apt-get update -q && apt-get install -y -q "$@"; }; elif command -v dnf >/dev/null; then dnf install -y -q "$@"; elif command -v yum >/dev/null; then yum install -y -q "$@"; fi; } >/dev/null 2>&1',
 		"for p in tmux git curl python3; do command -v $p >/dev/null || pkg $p; done",
+		hostServiceInstallScript,
 		`sudo -iu ${sh(user)} bash -lc ${sh(asUser)}`,
 	].join("\n");
 }

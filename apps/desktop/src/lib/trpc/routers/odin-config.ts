@@ -53,6 +53,8 @@ export interface OdinFileConfig {
 		user: string;
 		/** Where the host keeps its clones, e.g. ~/repos. */
 		reposRoot: string;
+		/** Connectors whose tokens are kept on the host, for sessions there with this computer asleep. */
+		connectors?: string[];
 	};
 	/** `claude setup-token`'s token for remote sessions, encrypted with safeStorage. */
 	claudeToken?: string;

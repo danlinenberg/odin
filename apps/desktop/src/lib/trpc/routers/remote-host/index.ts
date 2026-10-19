@@ -16,6 +16,11 @@ import {
 import { bringSessionHome } from "main/lib/remote-host/bring-home";
 import { runSetupToken } from "main/lib/remote-host/claude-token";
 import {
+	HOST_CONNECTORS,
+	type HostConnector,
+} from "main/lib/remote-host/host-service";
+import { pushHostTokens } from "main/lib/remote-host/host-tokens";
+import {
 	hostFiles,
 	hostNote,
 	httpsCloneUrl,
@@ -99,6 +104,20 @@ async function ensureClaudeToken(renew = false): Promise<void> {
  * Sessions on an EC2 instance the user created: pick it by tags, and the
  * board's sessions run there in tmux, on the user's own Claude plan.
  */
+/**
+ * GitHub and Jira tokens expire (8 hours, 1 hour), and the host only gets
+ * access tokens - two sides refreshing one rotating refresh token would sign
+ * one of them out. So while this computer is awake, Odin sends fresh ones.
+ */
+async function refreshHostTokens(): Promise<void> {
+	const host = readOdinConfig().remoteHost;
+	if (!host?.on || !host.connectors?.length) return;
+	await pushHostTokens(host, host.connectors as HostConnector[]).catch(
+		(error) => console.warn("[remote-host] token refresh:", error),
+	);
+}
+setInterval(() => void refreshHostTokens(), 30 * 60_000).unref();
+
 export const createRemoteHostRouter = () =>
 	router({
 		/** The profile, region and tags you picked, kept in odin.json. */
@@ -159,7 +178,24 @@ export const createRemoteHostRouter = () =>
 			if (!host) return;
 			if (input) await ensureClaudeToken();
 			updateOdinConfig({ remoteHost: { ...host, on: input } });
+			// Off: no connector tokens stay behind on the host.
+			if (!input && host.connectors?.length)
+				await pushHostTokens(host, []).catch(() => {});
+			else if (input) void refreshHostTokens();
 		}),
+		/**
+		 * The connectors whose tokens live on the host, so sessions there can
+		 * use them with this computer asleep. Written at once; Gmail never.
+		 */
+		setConnectors: publicProcedure
+			.input(z.array(z.enum(HOST_CONNECTORS)))
+			.mutation(async ({ input }) => {
+				const host = readOdinConfig().remoteHost;
+				if (!host) throw new Error("No remote host is set up.");
+				const kept = await pushHostTokens(host, input);
+				updateOdinConfig({ remoteHost: { ...host, connectors: input } });
+				return { kept };
+			}),
 		/** A fresh token from `claude setup-token`, replacing the saved one. */
 		renewClaudeToken: publicProcedure.mutation(() => ensureClaudeToken(true)),
 

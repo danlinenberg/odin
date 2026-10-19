@@ -112,7 +112,10 @@ test("a session with a repo starts in its own worktree, with Odin's port", () =>
 		{ ...spec, pane: "abcdef1234", odinPane: "pane-9" },
 		"/d",
 	);
-	expect(run).toContain("export ODIN_PORT=47187 ODIN_PANE_ID='pane-9'");
+	expect(run).toContain(
+		"curl -sf -m 2 http://127.0.0.1:47187/health >/dev/null && ODIN_PORT=47187 || ODIN_PORT=47189",
+	);
+	expect(run).toContain("export ODIN_PORT ODIN_PANE_ID='pane-9'");
 	expect(run).toContain(
 		`git -C "$HOME"/'repos'/'odin' worktree add -q -b 'odin/abcdef12' "$HOME"/'repos'/'odin'/.worktrees/'odin-abcdef12' origin/HEAD`,
 	);
