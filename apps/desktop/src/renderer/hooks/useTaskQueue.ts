@@ -126,6 +126,11 @@ export async function moveQueuedToHost(
 	client: TrpcClient,
 	pane: Pane,
 ): Promise<boolean> {
+	// Moved already, and its start failed: start it again, still on the host.
+	if (pane.odinQueued && pane.odinRemote) {
+		await startQueuedPane(client, pane);
+		return true;
+	}
 	const queued = pane.odinQueued;
 	const sessionId = queued?.command.match(/--session-id ([\w-]+)/)?.[1];
 	const promptPath = queued?.command.match(/"\$\(cat '([^']+)'\)"/)?.[1];
@@ -236,9 +241,13 @@ export function useTaskQueue(): void {
 		const panes = useTabsStore.getState().panes;
 		const queue = queuedPanes(panes);
 		if (!queue.length) return;
-		const toHost = remoteHost?.host?.on
-			? queue.find((pane) => !stayHere.current.has(pane.id))
-			: undefined;
+		// One already moved to the host starts there whether or not the host is
+		// still on for new sessions.
+		const toHost =
+			queue.find((pane) => pane.odinRemote) ??
+			(remoteHost?.host?.on
+				? queue.find((pane) => !stayHere.current.has(pane.id))
+				: undefined);
 		if (toHost) {
 			starting.current = true;
 			void moveQueuedToHost(utils.client, toHost)
