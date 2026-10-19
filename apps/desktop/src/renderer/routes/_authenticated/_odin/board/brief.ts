@@ -655,7 +655,10 @@ export function actionItemLines(block: string): string[] {
 		parent.heading = true;
 		items.push({ text: `${parent.text} ${text}`, heading: false, child: true });
 	}
-	return items.filter((i) => !i.heading).map((i) => i.text);
+	// "1. None for you" is a numbered "none": nothing to do, so no button.
+	return items
+		.filter((i) => !i.heading && !/^\W*none\b/i.test(i.text))
+		.map((i) => i.text);
 }
 
 // "Merge PR #12", "Review and merge #12", "Get repo#12 merged" - a merge is the

@@ -589,6 +589,11 @@ describe("actionItems", () => {
 			actionItems([turn("Done.\n\nACTION ITEMS: none - shipped.")]),
 		).toEqual([]);
 		expect(
+			actionItems([
+				turn("Done.\n\nACTION ITEMS\n1. None for you. I will report."),
+			]),
+		).toEqual([]);
+		expect(
 			actionItems([turn("ACTION ITEMS\n1. x"), turn("Just chatting.")]),
 		).toEqual([]);
 	});
