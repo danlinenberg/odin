@@ -188,8 +188,10 @@ export const createRemoteHostRouter = () =>
 				}),
 			)
 			.mutation(async ({ input }) => {
+				// Not gated on `on`: that switch picks where new sessions start,
+				// and a session already on the host resumes there either way.
 				const host = readOdinConfig().remoteHost;
-				if (!host?.on) throw new Error("No remote host is on.");
+				if (!host) throw new Error("No remote host is set up.");
 				const { repoPath, ...rest } = input;
 				// The repo is its origin. A session worktree that is gone still
 				// names its repo: it lived at <repo>/.worktrees/<name>.
