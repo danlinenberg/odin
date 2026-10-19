@@ -135,8 +135,13 @@ function isSmallFile(path: string): boolean {
 	}
 }
 
-/** Board sources whose tasks need the user's connectors. */
-const FEED_SOURCES = new Set(["slack", "reactions", "notion", "jira"]);
+/** The connector a board source's tasks need on the host. */
+const CONNECTOR_OF: Record<string, HostConnector> = {
+	slack: "slack",
+	reactions: "slack",
+	notion: "notion",
+	jira: "jira",
+};
 
 const awsTarget = z.object({
 	profile: z.string().optional(),
@@ -317,9 +322,10 @@ export const createRemoteHostRouter = () =>
 
 		/**
 		 * Where a new session runs: the remote host's name, or null for this
-		 * computer. Only code work goes to the host - a task with a repo that
-		 * has a GitHub origin. Slack, reactions, Notion and Jira tasks stay
-		 * here, where the user's connectors are; the host has none.
+		 * computer. With the host on, everything goes there - a task without a
+		 * repo picks one from the list the host note gives it. Except a Slack,
+		 * reactions, Notion or Jira task whose connector isn't on the host: it
+		 * would fail there, so it stays here.
 		 */
 		launchTarget: publicProcedure
 			.input(
@@ -328,14 +334,12 @@ export const createRemoteHostRouter = () =>
 					source: z.string().nullable(),
 				}),
 			)
-			.query(async ({ input }) => {
+			.query(({ input }) => {
 				const host = readOdinConfig().remoteHost;
-				if (!host?.on || !input.repoPath) return null;
-				if (input.source && FEED_SOURCES.has(input.source)) return null;
-				const origin =
-					(await originOf(input.repoPath)) ??
-					(await originOf(mainCheckoutOf(input.repoPath)));
-				return origin ? host.name || host.instanceId : null;
+				if (!host?.on) return null;
+				const needs = input.source ? CONNECTOR_OF[input.source] : undefined;
+				if (needs && !host.connectors?.includes(needs)) return null;
+				return host.name || host.instanceId;
 			}),
 
 		/** The command a remote session's pane runs. */

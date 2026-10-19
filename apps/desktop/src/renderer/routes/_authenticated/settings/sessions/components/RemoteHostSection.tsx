@@ -204,7 +204,7 @@ export function RemoteHostSection() {
 	return (
 		<SettingsSection
 			title="Remote host"
-			description="Run new sessions on an EC2 instance you created, so they keep going with this computer shut. Odin connects through AWS Systems Manager with your own AWS sign-in: the instance needs no open port, public IP or SSH key. Only code tasks go there - ones with a GitHub repo; Slack, Notion and Jira tasks stay on this computer, where your connectors are. Sessions there use your Claude plan."
+			description="Run new sessions on an EC2 instance you created, so they keep going with this computer shut. Odin connects through AWS Systems Manager with your own AWS sign-in: the instance needs no open port, public IP or SSH key. With it on, new sessions start there - except a Slack, Notion or Jira task whose connector isn't on the host (below), which stays here. Sessions there use your Claude plan."
 		>
 			{current?.host && (
 				<SettingRow
