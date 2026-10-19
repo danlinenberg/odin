@@ -319,9 +319,20 @@ export function useLaunchTaskSession() {
 			const remote =
 				(planOnly || onHost) && host
 					? host.name || host.instanceId
-					: await utils.client.remoteHost?.launchTarget
-							.query({ repoPath: repoPath ?? null, source: source ?? null })
-							.catch(() => null);
+					: // A resume runs where its conversation is: one saved on this
+						// computer stays here, whatever new sessions do.
+						resumeSessionId &&
+							(await utils.client.terminal.readClaudeTranscript
+								.query({ sessionId: resumeSessionId })
+								.then(
+									() => true,
+									(error) =>
+										!String(error).includes("No transcript on this machine"),
+								))
+						? null
+						: await utils.client.remoteHost?.launchTarget
+								.query({ repoPath: repoPath ?? null, source: source ?? null })
+								.catch(() => null);
 			// A resume passes its old cwd back as repoPath, so it never gets a second one.
 			const ownWorktree =
 				!remote && repoPath && repoPath !== worktreePath && !resumeSessionId
