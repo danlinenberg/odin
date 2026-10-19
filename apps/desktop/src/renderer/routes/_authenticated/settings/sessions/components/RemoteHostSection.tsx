@@ -63,6 +63,11 @@ export function RemoteHostSection() {
 		onSuccess: refresh,
 		onError,
 	});
+	const setApiKeyFallback =
+		electronTrpc.remoteHost.setApiKeyFallback.useMutation({
+			onSuccess: refresh,
+			onError,
+		});
 	const renew = electronTrpc.remoteHost.renewClaudeToken.useMutation({
 		onSuccess: refresh,
 		onError,
@@ -199,7 +204,7 @@ export function RemoteHostSection() {
 	return (
 		<SettingsSection
 			title="Remote host"
-			description="Run new sessions on an EC2 instance you created, so they keep going with this computer shut. Odin connects through AWS Systems Manager with your own AWS sign-in: the instance needs no open port, public IP or SSH key. Only code tasks go there - ones with a GitHub repo; Slack, Notion and Jira tasks stay on this computer, where your connectors are. Sessions there use your Claude plan, and your ANTHROPIC_API_KEY once the plan hits its limit."
+			description="Run new sessions on an EC2 instance you created, so they keep going with this computer shut. Odin connects through AWS Systems Manager with your own AWS sign-in: the instance needs no open port, public IP or SSH key. Only code tasks go there - ones with a GitHub repo; Slack, Notion and Jira tasks stay on this computer, where your connectors are. Sessions there use your Claude plan."
 		>
 			{current?.host && (
 				<SettingRow
@@ -240,6 +245,24 @@ export function RemoteHostSection() {
 					</Button>
 				)}
 			</SettingRow>
+			{current?.host && (
+				<SettingRow
+					label="API key at the plan limit"
+					htmlFor="remote-host-api-key"
+					description={
+						current.host.apiKeyFallback !== false
+							? "When a session there hits your plan's limit, it continues on your ANTHROPIC_API_KEY, billed per token, until the limit resets."
+							: "Off: a session there that hits your plan's limit waits for it to reset."
+					}
+				>
+					<Switch
+						id="remote-host-api-key"
+						checked={current.host.apiKeyFallback !== false}
+						disabled={setApiKeyFallback.isPending}
+						onCheckedChange={(on) => setApiKeyFallback.mutate(on)}
+					/>
+				</SettingRow>
+			)}
 			{current?.host && (
 				<SettingRow
 					label="Connectors on the host"

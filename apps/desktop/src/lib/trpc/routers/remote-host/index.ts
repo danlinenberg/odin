@@ -101,8 +101,10 @@ async function sessionSecrets(): Promise<string> {
 	return secretsFile({
 		CLAUDE_CODE_OAUTH_TOKEN: claudeToken() ?? undefined,
 		// The API key claude-auto falls back to here, for the same switch on the host.
-		ODIN_FALLBACK_API_KEY: (await getProcessEnvWithShellEnv())
-			.ANTHROPIC_API_KEY,
+		ODIN_FALLBACK_API_KEY:
+			readOdinConfig().remoteHost?.apiKeyFallback === false
+				? undefined
+				: (await getProcessEnvWithShellEnv()).ANTHROPIC_API_KEY,
 		GH_TOKEN: (await githubAccessToken()) ?? undefined,
 	});
 }
@@ -282,6 +284,14 @@ export const createRemoteHostRouter = () =>
 					},
 				});
 				return { bytes };
+			}),
+		/** Whether host sessions move to ANTHROPIC_API_KEY at the plan limit. */
+		setApiKeyFallback: publicProcedure
+			.input(z.boolean())
+			.mutation(({ input }) => {
+				const host = readOdinConfig().remoteHost;
+				if (!host) throw new Error("No remote host is set up.");
+				updateOdinConfig({ remoteHost: { ...host, apiKeyFallback: input } });
 			}),
 		/** A fresh token from `claude setup-token`, replacing the saved one. */
 		renewClaudeToken: publicProcedure.mutation(() => ensureClaudeToken(true)),
