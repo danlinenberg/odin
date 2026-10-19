@@ -14,8 +14,10 @@ import {
 	LuArrowDown,
 	LuCamera,
 	LuCheck,
+	LuChevronDown,
 	LuChevronLeft,
 	LuCornerDownLeft,
+	LuFileText,
 	LuLoaderCircle,
 	LuMonitor,
 	LuPaperclip,
@@ -23,24 +25,33 @@ import {
 	LuQrCode,
 	LuScanQrCode,
 	LuStar,
+	LuUser,
 } from "react-icons/lu";
-import { odinScreenStatus } from "shared/odin-screen-status";
+import { odinActivity, odinScreenStatus } from "shared/odin-screen-status";
 import type { PaneStatus } from "shared/tabs-types";
 import superjson from "superjson";
 import {
 	AttachButton,
 	appendWords,
 	MicButton,
+	SendButton,
 	SpeechStatus,
 	UploadChips,
 	useUploads,
 } from "./attach";
 import { BriefCard } from "./brief-card";
 import { boardSections, DoneShelf, Dot, SessionCard, STATUS } from "./cards";
+import { demoAnswer } from "./demo";
 import { channelFetch, type OdinFetch } from "./odin-fetch";
 import { type Pairing, parsePairLink } from "./pair-link";
-import { useSpeech } from "./speech";
-import { Transcript } from "./transcript";
+import { NEW_TASK_EVENT, SharePicker, useSharedFiles } from "./share";
+import {
+	boardWords,
+	setVocabulary,
+	speechAvailable,
+	useSpeech,
+} from "./speech";
+import { Thumbnails, Transcript } from "./transcript";
 import "../globals.css";
 import "./mobile.css";
 
@@ -82,15 +93,40 @@ function pairWith(link: string): boolean {
 	return true;
 }
 
-const pairing = devToken ? null : savedPairing();
-/** Odin's API: through the channel, or to fake-odin in dev. */
+/** "Try the demo": sample sessions inside the app, no Odin behind it. */
+const DEMO = "demo";
+const demo = !devToken && localStorage.getItem(PAIRING_KEY) === DEMO;
+const startDemo = () => {
+	localStorage.setItem(PAIRING_KEY, DEMO);
+	location.reload();
+};
+const leaveDemo = () => {
+	localStorage.removeItem(PAIRING_KEY);
+	location.reload();
+};
+const demoFetch: OdinFetch = async (input, init) => {
+	const url = new URL(
+		input instanceof Request ? input.url : String(input),
+		"http://demo",
+	);
+	return demoAnswer(
+		url.pathname,
+		url.search,
+		typeof init?.body === "string" ? init.body : "",
+	);
+};
+
+const pairing = devToken || demo ? null : savedPairing();
+/** Odin's API: through the channel, the demo's samples, or fake-odin in dev. */
 const odinFetch: OdinFetch = pairing
 	? channelFetch(pairing)
-	: (input, init) =>
-			fetch(input, {
-				...init,
-				headers: { ...init?.headers, authorization: `Bearer ${devToken}` },
-			});
+	: demo
+		? demoFetch
+		: (input, init) =>
+				fetch(input, {
+					...init,
+					headers: { ...init?.headers, authorization: `Bearer ${devToken}` },
+				});
 const phone = createTRPCReact<PhoneRouter>();
 const client = phone.createClient({
 	links: [
@@ -203,11 +239,70 @@ function withHeldStars<T extends { paneId: string; starred?: boolean }>(
 	});
 }
 
+/**
+ * Odin's profile, and a switch to another: the iPhone's own picker over a
+ * pill. Hidden with one profile. Switching moves the Mac's Odin too, as its
+ * profile menu does - one Odin, one profile at a time.
+ */
+function ProfilePicker() {
+	const utils = phone.useUtils();
+	const profiles = phone.profiles.useQuery();
+	const switchTo = phone.setProfile.useMutation({
+		onSuccess: async () => {
+			await profiles.refetch();
+			// Spinner, not the old profile's board, until the new one lands.
+			await utils.board.reset();
+		},
+	});
+	const list = profiles.data?.profiles ?? [];
+	if (list.length < 2) return null;
+	const activeId = switchTo.variables?.id ?? profiles.data?.activeId;
+	const name = list.find((p) => p.id === activeId)?.name ?? "Profile";
+	return (
+		<label className="relative flex max-w-[55%] items-center gap-1.5 rounded-full bg-secondary px-3 py-1.5 text-sm font-medium">
+			{switchTo.isPending ? (
+				<LuLoaderCircle className="size-4 shrink-0 animate-spin text-primary" />
+			) : (
+				<LuUser className="size-4 shrink-0 text-primary" />
+			)}
+			<span className="truncate">{name}</span>
+			<LuChevronDown className="size-4 shrink-0 text-muted-foreground" />
+			<select
+				aria-label="Profile"
+				value={activeId}
+				disabled={switchTo.isPending}
+				onChange={(event) => switchTo.mutate({ id: event.target.value })}
+				className="absolute inset-0 opacity-0"
+			>
+				{list.map((profile) => (
+					<option key={profile.id} value={profile.id}>
+						{profile.name}
+					</option>
+				))}
+			</select>
+		</label>
+	);
+}
+
 function Home() {
 	const board = phone.board.useQuery(undefined, {
 		refetchInterval: POLL,
 		select: (data) => ({ ...data, sessions: withHeldStars(data.sessions) }),
 	});
+	// Dictation hears the board's names and terms right (speech.ts).
+	useEffect(() => {
+		if (!board.data) return;
+		const { sessions, backlog } = board.data;
+		setVocabulary(
+			boardWords(
+				[...sessions, ...backlog].map((row) => row.title),
+				[
+					...sessions.flatMap((s) => [s.repo ?? "", s.contact ?? ""]),
+					...backlog.map((task) => task.repo ?? ""),
+				],
+			),
+		);
+	}, [board.data]);
 	const start = phone.start.useMutation({
 		onSuccess: () => void board.refetch(),
 	});
@@ -236,12 +331,34 @@ function Home() {
 		},
 	});
 	const [adding, setAdding] = useState(false);
+	useEffect(() => {
+		const open = () => setAdding(true);
+		addEventListener(NEW_TASK_EVENT, open);
+		return () => removeEventListener(NEW_TASK_EVENT, open);
+	}, []);
 	const sessions = board.data?.sessions ?? [];
 	return (
 		<div className="min-h-dvh pb-24">
 			<header className="sticky top-0 z-10 border-b border-border bg-background/95 px-4 pt-[calc(env(safe-area-inset-top)+12px)] pb-2 backdrop-blur">
-				<h1 className="text-2xl font-bold">Board</h1>
+				<div className="flex items-center justify-between gap-3">
+					<h1 className="text-2xl font-bold">Board</h1>
+					<ProfilePicker />
+				</div>
 			</header>
+			{demo && (
+				<div className="mx-3 mt-3 flex items-center gap-3 rounded-[10px] border border-primary/40 bg-primary/10 px-3 py-2 text-sm">
+					<span className="min-w-0 flex-1">
+						Demo: sample sessions, no Odin connected.
+					</span>
+					<button
+						type="button"
+						onClick={leaveDemo}
+						className="shrink-0 font-semibold text-primary"
+					>
+						Pair with Odin
+					</button>
+				</div>
+			)}
 			<ErrorLine error={board.error} />
 			{board.isLoading && (
 				<div className="pointer-events-none fixed inset-0 flex flex-col items-center justify-center gap-4">
@@ -341,6 +458,7 @@ function NewTask({ onClose }: { onClose: () => void }) {
 	// An older Odin on the Mac has no repo list: the picker just doesn't show.
 	const repos = phone.repos.useQuery(undefined, { retry: false });
 	const uploads = useUploads(odinFetch);
+	useSharedFiles(uploads.add);
 	const speech = useSpeech((words) =>
 		setText((typed) => appendWords(typed, words)),
 	);
@@ -457,7 +575,7 @@ function GrowingTextarea(
 }
 
 /** A reply sent from here that Claude hasn't put in its transcript yet. */
-type Sent = { text: string; files: number; at: number };
+type Sent = { text: string; files: number; at: number; previews?: string[] };
 
 /**
  * Claude writes a message to its transcript when it reads it, so a reply sent
@@ -502,18 +620,28 @@ function Session({ paneId }: { paneId: string }) {
 	const reply = phone.reply.useMutation({ onSuccess: refetch });
 	const [sent, setSent] = useState<Sent[]>(() => sentByPane.get(paneId) ?? []);
 	/** Shows a reply as Sent until the transcript has it, and follows it down. */
-	const remember = (text: string, files: number) => {
-		const item = { text, files, at: Date.now() };
+	// Shown on tap, not when Odin answers: Odin answers only once the text is
+	// typed into the session and drawn, a few seconds later.
+	const remember = (text: string, files: number, previews?: string[]) => {
+		const item = { text, files, at: Date.now(), previews };
 		setSent((all) => [...all, item]);
 		sentByPane.set(paneId, [...sent, item]);
 		following.current = true;
+		return item;
+	};
+	/** Takes back a reply Odin couldn't type in; the error line says why. */
+	const forget = (item: Sent) => {
+		setSent((all) => all.filter((each) => each !== item));
+		sentByPane.set(
+			paneId,
+			(sentByPane.get(paneId) ?? []).filter((each) => each !== item),
+		);
 	};
 	/** A reply with no files - what an action item's button sends. */
-	const sendText = (text: string) =>
-		reply.mutate(
-			{ paneId, text, paths: [] },
-			{ onSuccess: () => remember(text, 0) },
-		);
+	const sendText = (text: string) => {
+		const item = remember(text, 0);
+		reply.mutate({ paneId, text, paths: [] }, { onError: () => forget(item) });
+	};
 	const key = phone.key.useMutation({ onSuccess: refetch });
 	const utils = phone.useUtils();
 	// The star moves on tap; the Mac's answer only confirms it (or undoes it).
@@ -551,6 +679,7 @@ function Session({ paneId }: { paneId: string }) {
 	});
 	const [text, setText] = useState("");
 	const uploads = useUploads(odinFetch);
+	useSharedFiles(uploads.add);
 	const speech = useSpeech((words) =>
 		setText((typed) => appendWords(typed, words)),
 	);
@@ -561,6 +690,7 @@ function Session({ paneId }: { paneId: string }) {
 		!speech.transcribing &&
 		!reply.isPending;
 	const bottom = useRef<HTMLDivElement>(null);
+	const scroller = useRef<HTMLElement>(null);
 	// Follow new messages only while you're at the bottom; reading further up,
 	// the ↓ button brings you back.
 	const [atBottom, setAtBottom] = useState(true);
@@ -605,6 +735,18 @@ function Session({ paneId }: { paneId: string }) {
 					<div className="flex items-center gap-5">
 						<button
 							type="button"
+							aria-label={briefOpen ? "Close the brief" : "Open the brief"}
+							onClick={() => {
+								setBriefOpen((shown) => !shown);
+								scroller.current?.scrollTo({ top: 0, behavior: "smooth" });
+							}}
+							className={`flex items-center gap-1 py-1.5 text-[15px] ${briefOpen ? "text-primary" : "text-muted-foreground"}`}
+						>
+							<LuFileText className="size-4" />
+							Brief
+						</button>
+						<button
+							type="button"
 							aria-label={starred ? "Unstar" : "Star"}
 							onClick={() => star.mutate({ paneId, starred: !starred })}
 							className={`flex size-9 items-center justify-center ${starred ? "text-attention" : "text-muted-foreground"}`}
@@ -636,6 +778,7 @@ function Session({ paneId }: { paneId: string }) {
 				</div>
 			</header>
 			<main
+				ref={scroller}
 				className="relative flex-1 overflow-y-auto px-2.5 py-2"
 				onScroll={(event) => {
 					const el = event.currentTarget;
@@ -663,20 +806,29 @@ function Session({ paneId }: { paneId: string }) {
 				{waiting.map((item) => (
 					<div
 						key={item.at}
-						className="my-2 ml-10 select-text whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-accent/60 px-3 py-2 text-[15px] leading-snug"
+						className="my-2 ml-10 select-text whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-primary/70 px-3 py-2 text-[15px] leading-snug text-primary-foreground"
 					>
+						<Thumbnails images={item.previews} />
 						{item.text}
-						{item.files > 0 && (
-							<div className="flex items-center gap-1 text-sm text-soft-foreground">
+						{item.files > (item.previews?.length ?? 0) && (
+							<div className="flex items-center gap-1 text-sm">
 								<LuPaperclip className="size-3.5" />
 								{item.files} file{item.files === 1 ? "" : "s"}
 							</div>
 						)}
-						<div className="mt-1 text-right text-[11px] text-muted-foreground">
+						<div className="mt-1 text-right text-[11px] opacity-70">
 							Sent · Odin reads it when it's free
 						</div>
 					</div>
 				))}
+				{status === "working" && (
+					<div className="my-3 flex items-center gap-2 text-sm text-working-ink">
+						<LuLoaderCircle className="size-4 shrink-0 animate-spin" />
+						<span className="truncate">
+							{odinActivity(data?.screen ?? "") ?? "Working…"}
+						</span>
+					</div>
+				)}
 				{asking && data?.screen && (
 					<pre className="mt-2 overflow-x-auto rounded-[10px] border border-attention/35 bg-attention/10 p-2.5 font-mono text-[11px] leading-snug text-attention-ink">
 						{data.screen}
@@ -732,13 +884,21 @@ function Session({ paneId }: { paneId: string }) {
 					const words = await speech.finish();
 					const full = words ? appendWords(text, words) : text;
 					if (!full.trim() && !uploads.paths.length) return;
+					const item = remember(
+						full.trim(),
+						uploads.paths.length,
+						uploads.files.flatMap((f) =>
+							f.path && f.preview ? [f.preview] : [],
+						),
+					);
+					setText("");
 					reply.mutate(
 						{ paneId, text: full, paths: uploads.paths },
 						{
-							onSuccess: () => {
-								remember(full.trim(), uploads.paths.length);
-								setText("");
-								uploads.clear();
+							onSuccess: () => uploads.clear(),
+							onError: () => {
+								forget(item);
+								setText(full);
 							},
 						},
 					);
@@ -749,16 +909,21 @@ function Session({ paneId }: { paneId: string }) {
 					value={text}
 					onChange={(event) => setText(event.target.value)}
 					placeholder="Reply to Odin…"
-					className="max-h-[40dvh] min-h-10 flex-1 resize-none overflow-y-auto rounded-[18px] border border-input bg-secondary px-3 py-2 text-base outline-none"
+					className="max-h-[40dvh] min-h-10 flex-1 resize-none overflow-y-auto rounded-[20px] border border-input bg-secondary px-4 py-2 text-base outline-none"
 				/>
-				<MicButton speech={speech} />
-				<button
-					type="submit"
-					disabled={!ready}
-					className="h-10 rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-40"
-				>
-					Send
-				</button>
+				{/* As in Messages apps: camera and mic while empty, Send once typed. */}
+				{text.trim() || uploads.files.length ? (
+					<SendButton disabled={!ready} />
+				) : (
+					<>
+						<AttachButton uploads={uploads} camera />
+						{speechAvailable ? (
+							<MicButton speech={speech} />
+						) : (
+							<SendButton disabled />
+						)}
+					</>
+				)}
 			</form>
 		</div>
 	);
@@ -796,13 +961,25 @@ function Pair() {
 					</li>
 				))}
 			</ol>
+			<div className="mt-2 flex flex-col gap-2 border-t border-border pt-6">
+				<span className="text-sm text-muted-foreground">
+					No Odin on a Mac yet?
+				</span>
+				<button
+					type="button"
+					onClick={startDemo}
+					className="self-start rounded-[10px] bg-secondary px-4 py-2.5 font-semibold text-primary"
+				>
+					Try the demo
+				</button>
+			</div>
 		</div>
 	);
 }
 
 function App() {
 	const paneId = usePaneFromHash();
-	if (!pairing && !devToken)
+	if (!pairing && !devToken && !demo)
 		return native ? (
 			<Pair />
 		) : (
@@ -810,7 +987,18 @@ function App() {
 				Open this from the QR code in Odin: Settings, Connections, Phone.
 			</div>
 		);
-	return paneId ? <Session key={paneId} paneId={paneId} /> : <Home />;
+	return (
+		<>
+			{paneId ? <Session key={paneId} paneId={paneId} /> : <Home />}
+			<ShareTargets />
+		</>
+	);
+}
+
+/** Screenshots shared to Odin: the sheet that asks which session they're for. */
+function ShareTargets() {
+	const board = phone.board.useQuery();
+	return <SharePicker sessions={board.data?.sessions ?? []} />;
 }
 
 // Dev only (apps/mobile/vite.config.ts, remote): run what the dev server

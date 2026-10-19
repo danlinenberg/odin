@@ -42,7 +42,8 @@ test("scanRepos finds checkouts, skips pruned dirs and nested worktrees", async 
 		join(home, "dev/odin"),
 		join(home, "dev/work/api"),
 	]);
-});
+	// The walk is slow on a cold CI runner: it passed 5s there once.
+}, 20_000);
 
 test("list adds the folders added as projects, which the scan can't see", async () => {
 	const added = join(

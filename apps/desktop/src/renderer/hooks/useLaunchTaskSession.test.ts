@@ -94,6 +94,13 @@ describe("buildPrompt", () => {
 		expect(prompt).toContain("first line starts with `!`");
 	});
 
+	// A `!` Run button on an UPDATE is one click from a prod write.
+	it("gives a database write as a query, not a `!` command", () => {
+		expect(buildPrompt("Fix the board", null)).toContain(
+			"never give it as a `!` command",
+		);
+	});
+
 	// "Run the worktree" went to a subagent nobody could watch.
 	it("sends things to run into the session's Shell, not a subagent", () => {
 		const prompt = buildPrompt("Fix the board", null);

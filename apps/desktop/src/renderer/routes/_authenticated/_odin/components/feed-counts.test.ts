@@ -24,6 +24,7 @@ test("counts say what's waiting, not how many rows", () => {
 		notion: [],
 		emails: [{}],
 		clickup: [{}, {}],
+		docs: 4,
 	});
 	expect(counts).toEqual({
 		// All is what the others add up to, so the strip agrees with itself.
@@ -36,7 +37,7 @@ test("counts say what's waiting, not how many rows", () => {
 		"/notion": 0,
 		"/email": 1,
 		"/clickup": 2,
-		"/docs": 0,
+		"/docs": 4,
 	});
 });
 

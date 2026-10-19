@@ -243,6 +243,7 @@ function loggedInAccounts(exec: GhExec): Promise<Set<string>> {
 
 interface RestPull {
 	state?: string;
+	merged?: boolean;
 	merged_at?: string | null;
 	draft?: boolean;
 	title?: string;
@@ -383,7 +384,9 @@ export async function mergedPullRequests(
 							}
 						).data.repository,
 					exec,
-				).then((found) => {
+				).then(async (graphqlFound) => {
+					const found =
+						graphqlFound ?? (await restMerges(owner, name, chunk, exec));
 					for (const n of chunk) {
 						const url = prs.get(n) as string;
 						const pr = found?.[`p${n}`];
@@ -411,6 +414,62 @@ export async function mergedPullRequests(
 			mine.set(url, merge.at);
 	}
 	return mine;
+}
+
+/**
+ * The merge facts mergedPullRequests asks GraphQL for, from REST instead, when
+ * GraphQL fails - most often its hourly quota, which every tool on the account
+ * shares; REST has its own. One call per PR, ten at a time, only on that path.
+ */
+async function restMerges(
+	owner: string,
+	name: string,
+	numbers: number[],
+	exec: GhExec,
+): Promise<Record<
+	string,
+	{
+		merged?: boolean;
+		mergedAt?: string | null;
+		author?: { login?: string } | null;
+	}
+> | null> {
+	const found: Record<
+		string,
+		{
+			merged?: boolean;
+			mergedAt?: string | null;
+			author?: { login?: string } | null;
+		}
+	> = {};
+	for (let at = 0; at < numbers.length; at += 10) {
+		await Promise.all(
+			numbers.slice(at, at + 10).map(async (n) => {
+				const pull = await ghAsAnyAccount(
+					["api", `repos/${owner}/${name}/pulls/${n}`],
+					(stdout) => JSON.parse(stdout) as RestPull,
+					exec,
+				);
+				if (pull)
+					found[`p${n}`] = {
+						merged: pull.merged ?? Boolean(pull.merged_at),
+						mergedAt: pull.merged_at ?? null,
+						author: pull.user ?? null,
+					};
+			}),
+		);
+	}
+	return Object.keys(found).length ? found : null;
+}
+
+async function restHeadRef(url: string, exec: GhExec): Promise<string | null> {
+	const [, owner, name, number] = PR_PARTS.exec(url) ?? [];
+	if (!number) return null;
+	return ghAsAnyAccount(
+		["api", `repos/${owner}/${name}/pulls/${number}`, "--jq", ".head.ref"],
+		(stdout) => stdout.trim(),
+		exec,
+	);
 }
 
 /** The checkout in `git worktree list --porcelain` that has `branch` checked out. */
@@ -539,11 +598,14 @@ export async function pullRequestWorktrees(
 		urls.map(async ([url, { repo, number }]) => {
 			const clone = await cloneOf(repo);
 			if (!clone) return null;
-			const branch = await ghAsAnyAccount(
-				["pr", "view", url, "--json", "headRefName", "-q", ".headRefName"],
-				(stdout) => stdout.trim(),
-				exec,
-			);
+			const branch =
+				(await ghAsAnyAccount(
+					["pr", "view", url, "--json", "headRefName", "-q", ".headRefName"],
+					(stdout) => stdout.trim(),
+					exec,
+				)) ||
+				// `gh pr view` is GraphQL; REST has its own quota.
+				(await restHeadRef(url, exec));
 			if (!branch) return null;
 			const list = await listOf(clone);
 			const worktree = worktreeHolding(list, branch);

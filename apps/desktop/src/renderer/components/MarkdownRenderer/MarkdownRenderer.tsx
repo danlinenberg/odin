@@ -40,6 +40,40 @@ export const sanitizeSchema = {
 	},
 };
 
+/** Text blocks that read right-to-left when their first letter is Hebrew. */
+const TEXT_BLOCKS = new Set([
+	"p",
+	"li",
+	"ul",
+	"ol",
+	"blockquote",
+	"h1",
+	"h2",
+	"h3",
+	"h4",
+	"h5",
+	"h6",
+	"th",
+	"td",
+]);
+
+type HastNode = {
+	type: string;
+	tagName?: string;
+	properties?: Record<string, unknown>;
+	children?: HastNode[];
+};
+
+/** dir="auto" on each text block, so a Hebrew reply reads right-to-left, paragraph by paragraph. */
+export const rehypeAutoDir = () => (tree: HastNode) => {
+	const walk = (node: HastNode) => {
+		if (node.type === "element" && TEXT_BLOCKS.has(node.tagName ?? ""))
+			node.properties = { ...node.properties, dir: "auto" };
+		node.children?.forEach(walk);
+	};
+	walk(tree);
+};
+
 const styleConfigs = {
 	default: defaultConfig,
 	tufte: tufteConfig,
@@ -78,8 +112,8 @@ export function MarkdownRenderer({
 						remarkPlugins={[remarkGfm]}
 						rehypePlugins={
 							allowHtml
-								? [rehypeRaw, [rehypeSanitize, sanitizeSchema]]
-								: [[rehypeSanitize, sanitizeSchema]]
+								? [rehypeRaw, [rehypeSanitize, sanitizeSchema], rehypeAutoDir]
+								: [[rehypeSanitize, sanitizeSchema], rehypeAutoDir]
 						}
 						urlTransform={keepAttachmentUrls}
 						components={config.components}

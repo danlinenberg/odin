@@ -43,6 +43,7 @@ import {
 	LuGitMerge,
 	LuGitPullRequest,
 	LuHourglass,
+	LuLaptop,
 	LuLayoutGrid,
 	LuMessageSquare,
 	LuMoon,
@@ -51,6 +52,8 @@ import {
 	LuPlus,
 	LuRadioTower,
 	LuRepeat,
+	LuRotateCw,
+	LuServer,
 	LuSquareTerminal,
 	LuStar,
 	LuTerminal,
@@ -418,6 +421,9 @@ function HistoryView({
 	if (sessionId && !live && !error && chatView) {
 		return (
 			<ChatView
+				// Its sent bubbles are per pane: reused for another card, they
+				// were saved under that card and showed in its chat.
+				key={card.pane.id}
 				paneId={card.pane.id}
 				sessionId={sessionId}
 				cwd={sessionCwd(card.pane) ?? card.repoPath}
@@ -493,9 +499,9 @@ function ScrollbackView({ card, live }: { card: BoardCard; live: boolean }) {
 
 /**
  * What "Ping me" watches for a session: its Slack thread or Jira ticket, and
- * its PRs for approval: the one it launched on and the newest it opened. Not
- * just the newest - a session often opens the PR you wait on, then a later one
- * that auto-merges with no review and would never ping.
+ * every PR it launched on or opened, for approval. Not just the newest few - a
+ * session often opens the PR you wait on, then a dozen that auto-merge with no
+ * review. Merged ones cost one check, then the watcher skips them.
  */
 function useSessionWatchKeys(card: BoardCard | undefined): string[] {
 	const paneId = card?.pane.id ?? "";
@@ -525,7 +531,7 @@ function useSessionWatchKeys(card: BoardCard | undefined): string[] {
 			...(transcript ? pullRequests(transcript.messages) : []),
 		].flatMap((pr) => (pr ? [`pr:${pr.url}`] : [])),
 	);
-	return [thread, ...[...prs].slice(0, 5)].filter((k): k is string => !!k);
+	return [thread, ...prs].filter((k): k is string => !!k);
 }
 
 /** The conversation behind a card, for the pills that read it. */
@@ -1443,6 +1449,18 @@ function RemoteMark({ paneId }: { paneId: string }) {
 	);
 }
 
+/** The server a session wears beside its title while it runs on a remote host. */
+function HostMark({ paneId }: { paneId: string }) {
+	const host = useTabsStore((s) => s.panes[paneId]?.odinRemote);
+	if (!host) return null;
+	return (
+		<LuServer
+			title={`Runs on ${host}, in tmux - it keeps going with this computer shut`}
+			className="mr-1 inline size-3.5 align-[-2px] text-primary"
+		/>
+	);
+}
+
 function TagMenu({
 	x,
 	y,
@@ -1453,6 +1471,8 @@ function TagMenu({
 	onStar,
 	onDone,
 	onPark,
+	onRestart,
+	onRunHere,
 	onRemind,
 	watching,
 	watchWhat,
@@ -1476,6 +1496,10 @@ function TagMenu({
 	onDone: () => void;
 	/** Set unless it already sits in Idle. */
 	onPark?: () => void;
+	/** Set while the session has a conversation to reopen. */
+	onRestart?: () => void;
+	/** A remote session, moved to this computer. */
+	onRunHere?: () => void;
 	onRemind: (day: string) => void;
 	/** Whether the session's thread or PR pings you; unset when it has neither. */
 	watching?: boolean;
@@ -1565,6 +1589,34 @@ function TagMenu({
 				>
 					<LuPause className="size-3" aria-hidden />
 					Move to Idle
+				</button>
+			)}
+			{onRestart && (
+				<button
+					type="button"
+					title="Quit Claude and reopen this conversation - picks up a new login or API key"
+					onClick={() => {
+						onRestart();
+						onClose();
+					}}
+					className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-foreground"
+				>
+					<LuRotateCw className="size-3" aria-hidden />
+					Restart session
+				</button>
+			)}
+			{onRunHere && (
+				<button
+					type="button"
+					title="Copy this conversation from the remote host and continue it on this computer"
+					onClick={() => {
+						onRunHere();
+						onClose();
+					}}
+					className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-foreground"
+				>
+					<LuLaptop className="size-3" aria-hidden />
+					Run on this computer
 				</button>
 			)}
 			<div className="mb-1.5 border-b border-border pb-1.5">
@@ -1861,6 +1913,7 @@ const BoardCardTile = memo(
 								<OverdueMark itemKey={`session:${card.pane.id}`} />
 								<WatchMark paneId={card.pane.id} />
 								<RemoteMark paneId={card.pane.id} />
+								<HostMark paneId={card.pane.id} />
 								{title}
 							</div>
 							<button
@@ -3921,9 +3974,15 @@ function DevBoardPage() {
 
 	/**
 	 * `prompt` replaces the opening "Continue" (or the idle prompt): a "Do it"
-	 * on an ended session reopens it already working on that item.
+	 * on an ended session reopens it already working on that item. `restart`
+	 * respawns a live session too, so Claude picks up a new login or API key.
 	 */
-	const resumeCard = async (card: BoardCard, auto = false, prompt?: string) => {
+	const resumeCard = async (
+		card: BoardCard,
+		auto = false,
+		prompt?: string,
+		restart = false,
+	) => {
 		if (resumingPaneIds.includes(card.pane.id)) return;
 		// Never started: there's no conversation to resume, only the launch that
 		// was held back. Run it now - that's what "Start now" meant on the toast
@@ -3944,7 +4003,7 @@ function DevBoardPage() {
 		// Resume kills the PTY first, so on a session that's mid-turn it's an
 		// interrupt wearing a Resume label - it throws away the running turn.
 		// Live pane + live status (not the drawer's stale snapshot card).
-		if (isWorkingNow(card.pane.id)) {
+		if (!restart && isWorkingNow(card.pane.id)) {
 			toast.error("Session is still working - nothing to resume");
 			return;
 		}
@@ -3958,7 +4017,7 @@ function DevBoardPage() {
 		const opening = prompt
 			? `'${prompt.replaceAll("'", "'\\''")}'`
 			: "Continue";
-		if (agentPaneIds.has(card.pane.id) && !shellOnScreen) {
+		if (!restart && agentPaneIds.has(card.pane.id) && !shellOnScreen) {
 			if (!auto) openDrawer(card);
 			const blocker = await resumeBlocker(card.pane, sessionCwd(card.pane));
 			if (blocker) {
@@ -4115,12 +4174,26 @@ function DevBoardPage() {
 				terminalCache.dispose(card.pane.id);
 			}
 			await new Promise((resolve) => setTimeout(resolve, 300));
+			// A session on the remote host resumes there: its tmux session if it
+			// is still up, else `claude --resume` in its worktree on the host.
+			const command =
+				card.pane.odinRemote && sessionId
+					? await utils.client.remoteHost.sessionCommand.mutate({
+							pane: sessionId,
+							odinPane: card.pane.id,
+							repoPath: cwd ?? null,
+							claudeArgs: `--resume ${sessionId}`,
+							prompt: null,
+						})
+					: cwd
+						? `cd '${cwd}' && ${resumeCmd}`
+						: resumeCmd;
 			await utils.client.terminal.createOrAttach.mutate({
 				paneId: card.pane.id,
 				tabId: card.tabId,
 				workspaceId: card.workspaceId,
 				cwd,
-				command: cwd ? `cd '${cwd}' && ${resumeCmd}` : resumeCmd,
+				command,
 				allowKilled: true,
 			});
 			useTabsStore.setState((state) => ({
@@ -4169,6 +4242,45 @@ function DevBoardPage() {
 	 * One card at a time so each launch-gate check sees the last one's slot.
 	 */
 	const autoResumedRef = useRef(new Set<string>());
+	/**
+	 * A session on the remote host, moved here: its conversation is copied from
+	 * the host, its tmux session there ends, and it resumes in this computer's
+	 * checkout. The way out for a session stuck on the host.
+	 */
+	const runHere = async (card: BoardCard) => {
+		const sessionId =
+			card.pane.claudeSessionId ??
+			usePaneMeta.getState().sessionIdByPane[card.pane.id];
+		if (!sessionId) {
+			toast.error("This session has no conversation to move.");
+			return;
+		}
+		// The pane's own cwd is the host's once a remote terminal reports it.
+		const wanted =
+			card.pane.odinCwd || card.pane.initialCwd || card.repoPath || "";
+		const loading = toast.loading("Moving the session to this computer...");
+		try {
+			const { cwd } = await utils.client.remoteHost.bringHome.mutate({
+				sessionId,
+				cwd: wanted,
+			});
+			const pane = {
+				...card.pane,
+				odinRemote: undefined,
+				cwd: undefined,
+				initialCwd: cwd,
+			};
+			useTabsStore.setState((state) => ({
+				panes: { ...state.panes, [card.pane.id]: pane },
+			}));
+			toast.dismiss(loading);
+			await resumeCard({ ...card, pane }, false, undefined, true);
+		} catch (error) {
+			toast.dismiss(loading);
+			toast.error(error instanceof Error ? error.message : String(error));
+		}
+	};
+
 	const resumeCardRef = useRef(resumeCard);
 	resumeCardRef.current = resumeCard;
 	// Covers the transcript check before resumeCard marks the card resuming.
@@ -4441,6 +4553,7 @@ function DevBoardPage() {
 						<span className="truncate">
 							<WatchMark paneId={card.pane.id} />
 							<RemoteMark paneId={card.pane.id} />
+							<HostMark paneId={card.pane.id} />
 							{cardTitle(card)}
 						</span>
 						{card.pane.odinStarred && (
@@ -4625,7 +4738,6 @@ function DevBoardPage() {
 			: undefined;
 	const tagMenuCard = liveCard(tagMenu?.paneId);
 	// drawerCard is the card as it was opened; its column is the board's now.
-	const drawerLiveCard = liveCard(drawerCard?.pane.id);
 
 	/** Done now; on `day` it pings and waits above the columns to be resumed. */
 	// What "Ping me" watches for the right-clicked session.
@@ -4845,6 +4957,16 @@ function DevBoardPage() {
 					onPark={
 						tagMenuCard && tagMenuCard.status !== "idle"
 							? () => void parkCard(tagMenuCard)
+							: undefined
+					}
+					onRestart={
+						tagMenuCard && !tagMenuCard.pane.odinQueued
+							? () => void resumeCard(tagMenuCard, false, undefined, true)
+							: undefined
+					}
+					onRunHere={
+						tagMenuCard?.pane.odinRemote && !tagMenuCard.pane.odinQueued
+							? () => void runHere(tagMenuCard)
 							: undefined
 					}
 					onRemind={(day) => tagMenuCard && remindMe(tagMenuCard, day)}
@@ -5773,22 +5895,6 @@ function DevBoardPage() {
 									✓ Done
 								</button>
 							)}
-							{!inCatchUp &&
-								drawerLiveCard &&
-								drawerLiveCard.status !== "idle" && (
-									<button
-										type="button"
-										onClick={() => void parkCard(drawerLiveCard)}
-										title="Park it in Idle - the session stays open, a running turn is stopped"
-										className={cn(
-											"flex items-center gap-1.5 rounded-[7px] px-3 py-1.5 text-xs font-semibold",
-											BUTTON.secondary,
-										)}
-									>
-										<LuPause className="size-3" aria-hidden />
-										Idle
-									</button>
-								)}
 							<RemindButton
 								onPick={(day) => remindMe(drawerCard, day)}
 								label="Remind me"
@@ -5812,7 +5918,7 @@ function DevBoardPage() {
 							<button
 								type="button"
 								aria-label="More session actions"
-								title="Everything the board card's right-click menu has: star, ping me, Remote Control, save as doc, tags"
+								title="Everything the board card's right-click menu has: star, restart, ping me, Remote Control, save as doc, tags"
 								onClick={(event) => {
 									const box = event.currentTarget.getBoundingClientRect();
 									setTagMenu({

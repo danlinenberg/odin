@@ -68,6 +68,8 @@ export function useLaunchTaskSession() {
 		key,
 		now,
 		guidelines,
+		planOnly,
+		onHost,
 	}: {
 		workspaceId: string;
 		/** Caller's row id - echoed back as `launchingKey` while this runs. */
@@ -109,6 +111,14 @@ export function useLaunchTaskSession() {
 		now?: boolean;
 		/** Context the person added at start (`askSessionContext`). */
 		guidelines?: string;
+		/**
+		 * Build the session's prompt as a launch on the remote host would, and
+		 * stop there: no card, nothing started. The Night Agent sends these to
+		 * the host's runner.
+		 */
+		planOnly?: boolean;
+		/** On the remote host whatever launchTarget says: a session the host already runs. */
+		onHost?: boolean;
 	}): Promise<
 		| {
 				ok: true;
@@ -120,10 +130,18 @@ export function useLaunchTaskSession() {
 				/** Created, but held in Idle until the gate clears. */
 				queued: boolean;
 		  }
-		| { ok: false; error: string }
+		| {
+				ok: false;
+				error: string;
+				/** planOnly's answer - see planForHost. */
+				plan?: { prompt: string; sessionId: string };
+		  }
 	> => {
-		setIsLaunching(true);
-		setLaunchingKey(key ?? null);
+		// Planning starts nothing, so no row says "Starting...".
+		if (!planOnly) {
+			setIsLaunching(true);
+			setLaunchingKey(key ?? null);
+		}
 		try {
 			const workspace = await utils.client.workspaces.get.query({
 				id: workspaceId,
@@ -135,9 +153,31 @@ export function useLaunchTaskSession() {
 					error: "Workspace has no path - cannot launch a session",
 				};
 			}
+			// Settings > Sessions can start sessions on a remote host: there the
+			// host keeps its own clone, so no worktree, trust or local files.
+			const host = (
+				await utils.client.remoteHost?.get.query().catch(() => null)
+			)?.host;
+			const remote =
+				(planOnly || onHost) && host
+					? host.name || host.instanceId
+					: // A resume runs where its conversation is: one saved on this
+						// computer stays here, whatever new sessions do.
+						resumeSessionId &&
+							(await utils.client.terminal.readClaudeTranscript
+								.query({ sessionId: resumeSessionId })
+								.then(
+									() => true,
+									(error) =>
+										!String(error).includes("No transcript on this machine"),
+								))
+						? null
+						: await utils.client.remoteHost?.launchTarget
+								.query({ repoPath: repoPath ?? null, source: source ?? null })
+								.catch(() => null);
 			// A resume passes its old cwd back as repoPath, so it never gets a second one.
 			const ownWorktree =
-				repoPath && repoPath !== worktreePath && !resumeSessionId
+				!remote && repoPath && repoPath !== worktreePath && !resumeSessionId
 					? await utils.client.repos.createSessionWorktree
 							.mutate({ repo: repoPath, title })
 							.catch((error) => {
@@ -149,9 +189,10 @@ export function useLaunchTaskSession() {
 							})
 					: null;
 			const sessionCwd = ownWorktree?.path || repoPath || worktreePath;
-			await utils.client.repos.trustForClaude
-				.mutate({ path: sessionCwd })
-				.catch(() => {});
+			if (!remote)
+				await utils.client.repos.trustForClaude
+					.mutate({ path: sessionCwd })
+					.catch(() => {});
 			// The checkout this session claims - "" for a feed launch into the
 			// workspace folder, which is where agents start, not what they edit.
 			const checkout = claimedCheckout(
@@ -166,7 +207,7 @@ export function useLaunchTaskSession() {
 			// and exits - a fresh pane whose whole history is that line. The board's
 			// Resume asks first; Remind me's Resume and Done's undo come through
 			// here, so ask here too.
-			if (resumeSessionId) {
+			if (resumeSessionId && !remote) {
 				try {
 					await utils.client.terminal.readClaudeTranscript.query({
 						sessionId: resumeSessionId,
@@ -193,7 +234,7 @@ export function useLaunchTaskSession() {
 			// Idle takes no working slot and holds no checkout; queuing it only
 			// left you on the board behind every task in line.
 			let queuedReason: string | null = null;
-			if (now !== true && !noPrompt && !resumeSessionId) {
+			if (now !== true && !noPrompt && !resumeSessionId && !remote) {
 				try {
 					queuedReason = await currentLaunchBlocker(
 						utils.client,
@@ -207,6 +248,7 @@ export function useLaunchTaskSession() {
 
 			// 1. Prompt file in the workspace (survives quoting, keeps history)
 			let promptArg = "";
+			let remotePrompt: string | null = null;
 			if (!noPrompt && !resumeSessionId) {
 				const slug = slugify(title);
 				const promptDir = `${worktreePath}/.odin`;
@@ -243,25 +285,37 @@ export function useLaunchTaskSession() {
 					});
 					attachmentPaths.push(filePath);
 				}
-				await utils.client.filesystem.writeFile.mutate({
-					workspaceId,
-					absolutePath: promptPath,
-					content: buildPrompt(
-						title,
-						description,
-						attachmentPaths,
-						skill,
-						tags?.some((tag) => tag === "automation" || tag === "off-hours"),
-						useOdinRules.getState().rules,
-						checkout,
-						guidelines,
-						useSessionInstructions.getState().instructions ??
-							DEFAULT_SESSION_INSTRUCTIONS,
-						ownWorktree,
-					),
-					encoding: "utf-8",
-				});
-				promptArg = ` "$(cat '${promptPath}')"`;
+				const text = buildPrompt(
+					title,
+					description,
+					attachmentPaths,
+					skill,
+					tags?.some((tag) => tag === "automation" || tag === "off-hours"),
+					useOdinRules.getState().rules,
+					checkout,
+					guidelines,
+					useSessionInstructions.getState().instructions ??
+						DEFAULT_SESSION_INSTRUCTIONS,
+					ownWorktree,
+				);
+				// A remote session gets the text; the files it names are copied
+				// to the host with it.
+				if (planOnly)
+					return {
+						ok: false,
+						error: "",
+						plan: { prompt: text, sessionId: crypto.randomUUID() },
+					};
+				if (remote) remotePrompt = text;
+				else {
+					await utils.client.filesystem.writeFile.mutate({
+						workspaceId,
+						absolutePath: promptPath,
+						content: text,
+						encoding: "utf-8",
+					});
+					promptArg = ` "$(cat '${promptPath}')"`;
+				}
 			}
 
 			// 2. Tab + pane for the session
@@ -293,7 +347,7 @@ export function useLaunchTaskSession() {
 			// has to be handed them again - with today's rules, not the old ones.
 			let settingsArg = "";
 			const settings = rulesSettings(useOdinRules.getState().rules, checkout);
-			if (settings) {
+			if (settings && !remote) {
 				const settingsDir = `${worktreePath}/.odin`;
 				const settingsPath = `${settingsDir}/rules-${sessionId}.json`;
 				// Best-effort: a session without its rule hook still beats a
@@ -318,7 +372,19 @@ export function useLaunchTaskSession() {
 			const claudeArgs = resumeSessionId
 				? `--resume ${resumeSessionId}${settingsArg}`
 				: `--session-id ${sessionId}${settingsArg}${promptArg}`;
-			const command = `cd ${quote(sessionCwd)} && ${claudeLaunch(title, claudeArgs, paneId)}`;
+			// A remote session's tmux session is named after its conversation, so
+			// Resume reattaches to it, or resumes it there if tmux is gone.
+			const command = remote
+				? await utils.client.remoteHost.sessionCommand.mutate({
+						pane: sessionId,
+						odinPane: paneId,
+						repoPath: repoPath ?? null,
+						claudeArgs: resumeSessionId
+							? `--resume ${resumeSessionId}`
+							: `--session-id ${sessionId}`,
+						prompt: remotePrompt,
+					})
+				: `cd ${quote(sessionCwd)} && ${claudeLaunch(title, claudeArgs, paneId)}`;
 			// Held back: the pane stays process-less and the command rides on it
 			// until the queue runner (useTaskQueue) finds the gate open.
 			if (!queuedReason) {
@@ -381,6 +447,7 @@ export function useLaunchTaskSession() {
 						...(card.pageId ? { odinPageId: card.pageId } : {}),
 						...(card.source ? { odinSource: card.source } : {}),
 						...(odinTags?.length ? { odinTags } : {}),
+						...(remote ? { odinRemote: remote } : {}),
 						...(queuedReason
 							? { odinQueued: { command, reason: queuedReason } }
 							: {}),
@@ -425,10 +492,24 @@ export function useLaunchTaskSession() {
 				error: error instanceof Error ? error.message : String(error),
 			};
 		} finally {
-			setIsLaunching(false);
-			setLaunchingKey(null);
+			if (!planOnly) {
+				setIsLaunching(false);
+				setLaunchingKey(null);
+			}
 		}
 	};
 
-	return { launch, isLaunching, launchingKey };
+	/**
+	 * A session's prompt as a launch on the remote host would build it, with
+	 * nothing started - for the Night Agent's plan on the host.
+	 */
+	const planForHost = async (
+		params: Omit<Parameters<typeof launch>[0], "planOnly" | "onHost">,
+	) => {
+		const result = await launch({ ...params, planOnly: true });
+		if (!result.ok && result.plan) return result.plan;
+		throw new Error(result.ok ? "Launched instead of planning" : result.error);
+	};
+
+	return { launch, planForHost, isLaunching, launchingKey };
 }

@@ -91,6 +91,21 @@ export const spacesForCursorForward = (ansi: string): string =>
 	// biome-ignore lint/suspicious/noControlCharactersInRegex: matching ESC is the point
 	ansi.replace(/\x1b\[(\d*)C/g, (_, n) => " ".repeat(Number(n) || 1));
 
+/**
+ * What the agent is doing right now, from its spinner line, for the phone's
+ * session view: "✻ Cogitating… (5m 0s · ↑ 12.1k tokens · esc to interrupt)"
+ * reads "Cogitating… 5m 0s". Undefined when no spinner is on screen.
+ */
+export function odinActivity(screen: string): string | undefined {
+	const line = footerOf(screen)
+		.split("\n")
+		.findLast((each) => SPINNER.test(each));
+	const match = line?.match(/([A-Za-z][\w ]*…)[ \t]*\(([^·)]*)/);
+	if (!match?.[1]) return undefined;
+	const elapsed = match[2]?.trim();
+	return elapsed ? `${match[1]} ${elapsed}` : match[1];
+}
+
 export function odinScreenStatus(screen: string): PaneStatus | undefined {
 	const footer = footerOf(screen);
 	// Order matters: a permission dialog is drawn *over* the spinner, so it has

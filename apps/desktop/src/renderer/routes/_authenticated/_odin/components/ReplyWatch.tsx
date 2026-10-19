@@ -3,6 +3,8 @@ import type { ThreadActivity } from "lib/trpc/routers/work";
 import { useEffect, useRef } from "react";
 import { LuBellRing } from "react-icons/lu";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
+import { useTabsStore } from "renderer/stores/tabs/store";
+import type { PaneStatus } from "shared/tabs-types";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { PILL } from "./pill";
@@ -14,7 +16,7 @@ export interface Watch {
 	paneId?: string;
 	/** The newest reply seen so far ("" = none yet). Unset until the first check. */
 	stamp?: string;
-	/** A reply from someone else you haven't opened the session for yet. */
+	/** A reply from someone else you haven't written in the session since. */
 	reply?: string;
 	/** The thread itself, for Open once the session is closed. */
 	url?: string;
@@ -36,7 +38,7 @@ export const useReplyWatch = create<{
 		replies?: Record<string, string>,
 		urls?: Record<string, string | null>,
 	) => void;
-	/** The session was opened: its reply is read. */
+	/** You wrote in the session: its reply is answered. */
 	seen: (paneId: string) => void;
 }>()(
 	persist(
@@ -213,6 +215,26 @@ export function useReplyWatcher(openSession: (paneId: string) => void): void {
 		const id = setInterval(() => void tick(), 60_000);
 		return () => clearInterval(id);
 	}, []);
+	// A prompt you send turns the session to Working: that answers its reply.
+	useEffect(
+		() =>
+			useTabsStore.subscribe((now, before) => {
+				for (const paneId of startedWorking(before.panes, now.panes))
+					useReplyWatch.getState().seen(paneId);
+			}),
+		[],
+	);
+}
+
+/** The panes that just turned to Working - someone sent them a prompt. */
+export function startedWorking(
+	before: Record<string, { status?: PaneStatus }>,
+	now: Record<string, { status?: PaneStatus }>,
+): string[] {
+	if (before === now) return [];
+	return Object.keys(now).filter(
+		(id) => now[id]?.status === "working" && before[id]?.status !== "working",
+	);
 }
 
 /** Whether anything of this session's is watched. */
@@ -222,20 +244,42 @@ function useWatched(paneId: string): boolean {
 	);
 }
 
-/** The bell a watched session wears beside its title, like ★ on a starred one. */
+/** Whether a reply waits in the session that you haven't written back to. */
+function useUnanswered(paneId: string): boolean {
+	return useReplyWatch((s) =>
+		Object.values(s.watches).some((w) => w.paneId === paneId && w.reply),
+	);
+}
+
+const JIGGLE =
+	"origin-top motion-safe:animate-[bell-jiggle_1.4s_ease-in-out_infinite]";
+
+/**
+ * The bell a watched session wears beside its title, like ★ on a starred one.
+ * It jiggles while a reply waits and nobody has written in the session since.
+ */
 export function WatchMark({ paneId }: { paneId: string }) {
-	if (!useWatched(paneId)) return null;
+	const watched = useWatched(paneId);
+	const unanswered = useUnanswered(paneId);
+	if (!watched) return null;
 	return (
 		<LuBellRing
-			title="Pinging you - right-click to stop"
-			className="mr-1 inline size-3.5 align-[-2px] text-primary"
+			title={
+				unanswered
+					? "Someone replied - write in the session to stop the bell"
+					: "Pinging you - right-click to stop"
+			}
+			className={cn(
+				"mr-1 inline size-3.5 align-[-2px]",
+				unanswered ? cn("text-attention", JIGGLE) : "text-primary",
+			)}
 		/>
 	);
 }
 
 /**
  * The unread reply on a watched session's card, so a missed ping still shows.
- * Opening the session clears it.
+ * Writing in the session clears it.
  */
 export function WatchReply({ paneId }: { paneId: string }) {
 	const key = useReplyWatch((s) =>
@@ -259,10 +303,8 @@ export function WatchReply({ paneId }: { paneId: string }) {
 /** The drawer's pill for a watched session; clicking it stops the pings. */
 export function WatchPill({ paneId }: { paneId: string }) {
 	const watched = useWatched(paneId);
+	const unanswered = useUnanswered(paneId);
 	const toggle = useReplyWatch((s) => s.toggle);
-	const seen = useReplyWatch((s) => s.seen);
-	// The drawer shows this session, so its reply is read.
-	useEffect(() => seen(paneId), [seen, paneId]);
 	if (!watched) return null;
 	return (
 		<button
@@ -274,7 +316,7 @@ export function WatchPill({ paneId }: { paneId: string }) {
 				PILL.brand,
 			)}
 		>
-			<LuBellRing className="size-3" aria-hidden />
+			<LuBellRing className={cn("size-3", unanswered && JIGGLE)} aria-hidden />
 			Pinging you
 		</button>
 	);

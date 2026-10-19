@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Odin Privacy Policy</title>
+<meta name="description" content="What Odin and the Odin iPhone app do with your data.">
+<link rel="icon" href="favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+	<header class="top">
+		<a class="brand" href="./"><img src="icon.png" alt="">Odin</a>
+		<nav aria-label="Main">
+			<a href="./">Home</a>
+			<a href="support.html">Support</a>
+		</nav>
+	</header>
+
+	<main class="doc">
+		<h1>Privacy Policy</h1>
+		<p class="updated">Last updated: October 18, 2026</p>
+
+		<p><strong>In short: Odin keeps your data on your own computer. The Odin iPhone app talks only to your own Odin, end to end encrypted. Nobody else, including the people who make Odin, can read it.</strong></p>
+
+		<h2>Who this covers</h2>
+		<p>This policy covers the Odin desktop app (macOS and Windows), the Odin iPhone app, and the Odin relay that connects them. Odin is open source, so you can check every statement here in the <a href="https://github.com/danlinenberg/odin">source code</a>.</p>
+
+		<h2>The desktop app</h2>
+		<ul>
+			<li><strong>Your data stays on your computer.</strong> Your queue, sessions, briefs, settings and files are stored in your home folder (<code>~/.odin</code> and <code>~/.config/odin.json</code>).</li>
+			<li><strong>Your accounts connect directly.</strong> When you connect Slack, Jira, GitHub, Notion, email or ClickUp, Odin talks to those services directly from your computer, with your own credentials. Your use of them is covered by their own privacy policies.</li>
+			<li><strong>Your agents run with your own subscription.</strong> The coding agents Odin starts (for example Claude Code) send their work to their own providers under your account and those providers' terms. Odin does not proxy this traffic.</li>
+			<li><strong>No analytics and no crash reports.</strong> Released builds of Odin send no usage analytics and no crash reports.</li>
+			<li><strong>Updates.</strong> Odin checks GitHub for new releases on launch and every hour. GitHub sees that request like any download.</li>
+		</ul>
+
+		<h2>The iPhone app</h2>
+		<ul>
+			<li><strong>It talks only to your Odin.</strong> The app has no account and no server of its own. Every request goes to the Odin you paired it with, inside an end-to-end encrypted channel (the Noise protocol). Only your computer and your paired phones hold the keys.</li>
+			<li><strong>Keys stay on your devices.</strong> The phone's private key is kept in the iOS Keychain, on that phone only, and is not included in backups. Your computer's key stays on your computer.</li>
+			<li><strong>Photos and files</strong> you attach go to your Odin through that channel and are saved there. The app does not keep a copy elsewhere.</li>
+			<li><strong>Dictation</strong> uses Apple's speech recognition. Apple may process the audio under <a href="https://www.apple.com/legal/privacy/">Apple's privacy policy</a>. The app only uses the text it gets back.</li>
+			<li><strong>No analytics, no tracking, no ads.</strong> The app contains no analytics or advertising code and does not track you.</li>
+		</ul>
+
+		<h2>The relay</h2>
+		<p>When your phone is away from your computer's network, the two connect through a relay: a small server that passes encrypted bytes between them. The relay cannot read or change them. Like any internet server, it handles IP addresses, connection times and the amount of data passed; it does not store them. You can run your own relay instead, and its full source code is public.</p>
+
+		<h2>Children</h2>
+		<p>Odin is a tool for software developers and is not directed at children.</p>
+
+		<h2>Changes</h2>
+		<p>If this policy changes, the new version appears on this page with a new date. The history of every change is public in the repository.</p>
+
+		<h2>Contact</h2>
+		<p>Questions about privacy: open an issue on <a href="https://github.com/danlinenberg/odin/issues">GitHub</a>.</p>
+	</main>
+
+	<footer>
+		<span>Odin is open source under the Elastic License 2.0.</span>
+		<nav aria-label="Footer">
+			<a href="https://github.com/danlinenberg/odin">GitHub</a>
+			<a href="support.html">Support</a>
+			<a href="privacy.html">Privacy</a>
+		</nav>
+	</footer>
+</div>
+</body>
+</html>

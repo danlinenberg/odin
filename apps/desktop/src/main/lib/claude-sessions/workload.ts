@@ -143,6 +143,35 @@ export function totalMs(intervals: Interval[]): number {
 	return intervals.reduce((sum, [start, end]) => sum + (end - start), 0);
 }
 
+/**
+ * How many sessions ran side by side, from each session's own spans:
+ * `average` is session-time over the time any ran (2 = two at once on
+ * average while working), `peak` the most running at one moment.
+ */
+export function concurrency(spans: Interval[]): {
+	average: number | null;
+	peak: number;
+} {
+	const busy = totalMs(mergeIntervals(spans));
+	// Ends sort before starts at the same instant: back to back isn't at once.
+	const edges = spans
+		.flatMap(([start, end]): [number, number][] => [
+			[start, 1],
+			[end, -1],
+		])
+		.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+	let running = 0;
+	let peak = 0;
+	for (const [, step] of edges) {
+		running += step;
+		peak = Math.max(peak, running);
+	}
+	return {
+		average: busy > 0 ? Math.round((totalMs(spans) / busy) * 10) / 10 : null,
+		peak,
+	};
+}
+
 const PR_URL = /https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/g;
 
 /**
@@ -535,6 +564,9 @@ export interface WeekRow {
 	sessions: number;
 	/** PRs shipped this week - Insights passes merge times, so merged. */
 	shipped: number;
+	/** Sessions running at once while any ran, see `concurrency`. */
+	parallel: number | null;
+	peakParallel: number;
 }
 
 export interface TaskRow {
@@ -848,12 +880,24 @@ export function computeWorkload(
 	const firstWeek = weekStart(now) - (weeks - 1) * 7 * DAY_MS;
 	const buckets = new Map<
 		number,
-		{ agentMs: number; yours: Interval[]; sessions: number; shipped: number }
+		{
+			agentMs: number;
+			yours: Interval[];
+			spans: Interval[];
+			sessions: number;
+			shipped: number;
+		}
 	>();
 	for (let index = 0; index < weeks; index++) {
 		// Rebuilt from a date each step so DST can't drift the boundary.
 		const start = weekStart(firstWeek + index * 7 * DAY_MS + DAY_MS / 2);
-		buckets.set(start, { agentMs: 0, yours: [], sessions: 0, shipped: 0 });
+		buckets.set(start, {
+			agentMs: 0,
+			yours: [],
+			spans: [],
+			sessions: 0,
+			shipped: 0,
+		});
 	}
 	const pieces = all.flatMap(byWeek);
 	for (const session of pieces) {
@@ -864,6 +908,8 @@ export function computeWorkload(
 		// session that week.
 		if (session.intervals.length) bucket.sessions += 1;
 		bucket.yours.push(...yourSpans(session));
+		// One session's own spans merged first, so it never overlaps itself.
+		bucket.spans.push(...mergeIntervals(session.intervals));
 	}
 	// Every PR ships in the week of its `prAt`. Insights passes merge times
 	// and drops unmerged PRs, so a fix redone after a closed PR counts once.
@@ -909,13 +955,18 @@ export function computeWorkload(
 		weeks: [...buckets]
 			.sort((a, b) => a[0] - b[0])
 			.filter(([start]) => firstRecorded === null || start >= firstRecorded)
-			.map(([start, bucket]) => ({
-				start,
-				agentHours: hours(bucket.agentMs),
-				yourHours: hours(totalMs(mergeIntervals(bucket.yours))),
-				sessions: bucket.sessions,
-				shipped: bucket.shipped,
-			})),
+			.map(([start, bucket]) => {
+				const { average, peak } = concurrency(bucket.spans);
+				return {
+					start,
+					agentHours: hours(bucket.agentMs),
+					yourHours: hours(totalMs(mergeIntervals(bucket.yours))),
+					sessions: bucket.sessions,
+					shipped: bucket.shipped,
+					parallel: average,
+					peakParallel: peak,
+				};
+			}),
 		recap: recap(pieces),
 		byRepo: tallyHours(all, (session) => session.repo, top).map(
 			({ name, hours: h, sessions: count }) => ({

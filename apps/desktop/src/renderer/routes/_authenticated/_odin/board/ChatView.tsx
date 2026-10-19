@@ -17,6 +17,7 @@ import {
 import {
 	LuChevronRight,
 	LuMic,
+	LuSmartphone,
 	LuSquareTerminal,
 	LuWrench,
 } from "react-icons/lu";
@@ -34,15 +35,19 @@ import {
 } from "renderer/stores/dismissed-actions";
 import { openUrl } from "renderer/stores/in-app-browser";
 import { useSessionView } from "renderer/stores/session-view";
+import { useTabsStore } from "renderer/stores/tabs/store";
 import {
 	getImageMimeType,
 	getVideoMimeType,
 	isPreviewableVideoFile,
 } from "shared/file-types";
+import { cameFromPhone } from "shared/from-phone";
 import { freshTldr, sameReply, tldrPlacement } from "shared/latest-reply";
 import { inputBoxRows, odinScreenStatus } from "shared/odin-screen-status";
 import stripAnsi from "strip-ansi";
 import {
+	BUILT_IN_COMMANDS,
+	enterPicks,
 	insertSkill,
 	matchSkills,
 	skillToken,
@@ -993,6 +998,25 @@ export function elapsedLabel(ms: number): string {
 /** A row arriving while you watch: a short fade and rise, compositor-only. */
 const ENTER = "animate-in fade-in slide-in-from-bottom-2 duration-300 ease-out";
 
+/** When a message was sent, date and hour: "Oct 19, 23:29". */
+function MessageTime({ at, className }: { at?: number; className?: string }) {
+	if (!at) return null;
+	const date = new Date(at);
+	return (
+		<time
+			dateTime={date.toISOString()}
+			className={cn("block text-[11px] text-muted-foreground", className)}
+		>
+			{date.toLocaleString(undefined, {
+				month: "short",
+				day: "numeric",
+				hour: "2-digit",
+				minute: "2-digit",
+			})}
+		</time>
+	);
+}
+
 /**
  * Your message: a violet bubble on the right with room above it, so a reply
  * opens a new turn instead of reading as a line in Claude's text.
@@ -1005,10 +1029,16 @@ function UserBubble({
 	onShowTerminal,
 	onDismiss,
 	workspaceId,
+	fromPhone,
+	at,
 }: {
 	text: string;
+	/** When you sent it (ms). */
+	at?: number;
 	images?: Preview[];
 	pending?: boolean;
+	/** Sent from the Odin iPhone app (main/lib/phone/sent.ts). */
+	fromPhone?: boolean;
 	/** Never reached Claude - say so, with a way to see why. */
 	lost?: boolean;
 	onShowTerminal?: () => void;
@@ -1073,6 +1103,13 @@ function UserBubble({
 					)}
 				</div>
 			)}
+			{fromPhone && (
+				<div className="mt-1 flex items-center justify-end gap-1 text-[11px] text-muted-foreground">
+					<LuSmartphone className="size-3" />
+					from iPhone
+				</div>
+			)}
+			<MessageTime at={at} className="mt-1 text-right" />
 			{lost && (
 				<div className="mt-1.5 flex flex-wrap gap-x-3 text-[12px]">
 					<span className="text-danger">
@@ -1878,6 +1915,11 @@ const ItemView = memo(function ItemView({
 }: ItemViewProps) {
 	// A long latest reply opens on its TL;DR; this shows it whole.
 	const [full, setFull] = useState(false);
+	// One query per session, shared by its items; a phone reply shows up within seconds.
+	const fromPhone = electronTrpc.phone.fromPhone.useQuery(
+		{ paneId: paneId ?? "" },
+		{ enabled: !!paneId && item.kind === "user", refetchInterval: 5_000 },
+	);
 	const rootRef = useRef<HTMLDivElement>(null);
 	const bodyRef = useRef<HTMLDivElement>(null);
 	const taller = useTallerThanView(rootRef, bodyRef, !!tldr);
@@ -1889,6 +1931,8 @@ const ItemView = memo(function ItemView({
 				text={item.text}
 				images={item.images}
 				workspaceId={workspaceId}
+				fromPhone={cameFromPhone(item.text, fromPhone.data ?? [])}
+				at={item.at}
 			/>
 		);
 	const { body, actions } = splitActionItems(linkify(item.text, refs));
@@ -1916,6 +1960,7 @@ const ItemView = memo(function ItemView({
 					</div>
 				</FoldedReply>
 			)}
+			<MessageTime at={item.at} className="mt-0.5" />
 			{placement === "card" && shown && (
 				<TldrCard tldr={shown} full={full} onToggle={toggleFull} />
 			)}
@@ -2000,9 +2045,10 @@ export function ChatView({
 	// transcript to ask (not written yet, or unreadable).
 	const startCwd = transcript ? (transcript.cwd ?? cwd) : isError ? cwd : null;
 	const path =
-		home && startCwd && sessionId
+		transcript?.path ??
+		(home && startCwd && sessionId
 			? transcriptPath(home, startCwd, sessionId)
-			: null;
+			: null);
 	const {
 		items,
 		queued,
@@ -2404,6 +2450,7 @@ export function ChatView({
 									refs={refs}
 									refsKey={refsKey}
 									workspaceId={workspaceId}
+									paneId={paneId}
 								/>
 							);
 						const key = Array.isArray(segment) ? segment[0]?.id : segment.id;
@@ -2835,7 +2882,11 @@ function Composer({
 	const sendNowKeys = useHotkeyDisplay("CHAT_SEND_NOW").text;
 	// Type `/` and the agent's skills/commands are searchable, like the New
 	// Session dialog. Picking one fills in `/name `; Enter then sends it.
-	const { data: skills = [] } = electronTrpc.skills.list.useQuery();
+	const { data: skillList = [] } = electronTrpc.skills.list.useQuery();
+	const skills = useMemo(
+		() => [...BUILT_IN_COMMANDS, ...skillList],
+		[skillList],
+	);
 	const [menuClosed, setMenuClosed] = useState(false);
 	const [selected, setSelected] = useState(0);
 	const token = bash ? undefined : skillToken(draft);
@@ -2883,8 +2934,17 @@ function Composer({
 			return;
 		}
 		try {
-			await pasteAttachments(write.mutateAsync, paneId, paths);
-			await typeIntoClaude(write.mutateAsync, paneId, text, now);
+			// A session on the remote host can't read this computer's files:
+			// they go there first, and it gets the copies' paths.
+			const onHost = !!useTabsStore.getState().panes[paneId]?.odinRemote;
+			const sent = onHost
+				? await electronTrpcClient.remoteHost.filesToHost.mutate({
+						text,
+						paths,
+					})
+				: { text, paths };
+			await pasteAttachments(write.mutateAsync, paneId, sent.paths);
+			await typeIntoClaude(write.mutateAsync, paneId, sent.text, now);
 		} catch (error) {
 			setDraft(body);
 			setBash(bash);
@@ -2988,10 +3048,16 @@ function Composer({
 									(event.key === "Enter" && !event.shiftKey) ||
 									event.key === "Tab"
 								) {
-									event.preventDefault();
 									const match = matches[activeIndex];
-									if (match) pickSkill(match.name);
-									return;
+									// Tab always picks; Enter only a name you were typing.
+									if (
+										match &&
+										(event.key === "Tab" || enterPicks(match.name, token ?? ""))
+									) {
+										event.preventDefault();
+										pickSkill(match.name);
+										return;
+									}
 								}
 							}
 							if (

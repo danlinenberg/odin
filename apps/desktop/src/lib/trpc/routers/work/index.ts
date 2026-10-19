@@ -365,7 +365,11 @@ export interface ThreadActivity {
 async function pullRequestApproval(
 	url: string,
 	token: string,
-): Promise<{ approved: boolean; title: string | null } | null> {
+): Promise<{
+	approved: boolean;
+	title: string | null;
+	open: boolean;
+} | null> {
 	const [, owner, name, number] =
 		/github\.com\/([\w.-]+)\/([\w.-]+)\/pull\/(\d+)/.exec(url) ?? [];
 	if (!number) return null;
@@ -376,25 +380,87 @@ async function pullRequestApproval(
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({
 				query:
-					"query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){reviewDecision title}}}",
+					"query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){reviewDecision title state}}}",
 				variables: { o: owner, r: name, n: Number(number) },
 			}),
 		},
 		token,
 	).catch(() => null);
-	if (!response?.ok) return null;
-	const payload = (await response.json().catch(() => null)) as {
-		data?: {
-			repository?: {
-				pullRequest?: { reviewDecision?: string | null; title?: string };
-			} | null;
-		};
-	} | null;
-	const pr = payload?.data?.repository?.pullRequest;
-	return pr
-		? { approved: pr.reviewDecision === "APPROVED", title: pr.title ?? null }
+	const payload = response?.ok
+		? ((await response.json().catch(() => null)) as {
+				data?: {
+					repository?: {
+						pullRequest?: {
+							reviewDecision?: string | null;
+							title?: string;
+							state?: string;
+						};
+					} | null;
+				};
+			} | null)
 		: null;
+	const pr = payload?.data?.repository?.pullRequest;
+	if (pr)
+		return {
+			approved: pr.reviewDecision === "APPROVED",
+			title: pr.title ?? null,
+			open: pr.state === "OPEN",
+		};
+	// GraphQL's hourly quota is shared by every tool on the account; REST has its own.
+	return restPullRequestApproval(owner, name, number, token);
 }
+
+/**
+ * The same answer from REST: the PR, then its reviews. Approved when someone's
+ * latest review approves and nobody's latest asks for changes - GraphQL's
+ * reviewDecision also weighs required reviewers and code owners, which REST
+ * doesn't expose in one call.
+ */
+async function restPullRequestApproval(
+	owner: string,
+	name: string,
+	number: string,
+	token: string,
+): Promise<{ approved: boolean; title: string | null; open: boolean } | null> {
+	const base = `https://api.github.com/repos/${owner}/${name}/pulls/${number}`;
+	const read = async <T>(url: string): Promise<T | null> => {
+		const response = await githubApiFetch(url, {}, token).catch(() => null);
+		return response?.ok
+			? ((await response.json().catch(() => null)) as T | null)
+			: null;
+	};
+	const pull = await read<{ title?: string; state?: string }>(base);
+	if (!pull) return null;
+	const reviews =
+		(await read<{ user?: { login?: string } | null; state?: string }[]>(
+			`${base}/reviews?per_page=100`,
+		)) ?? [];
+	return {
+		approved: reviewsApprove(reviews),
+		title: pull.title ?? null,
+		open: pull.state === "open",
+	};
+}
+
+/** Each reviewer's latest approve or request-changes counts; comments don't change it. */
+export function reviewsApprove(
+	reviews: { user?: { login?: string } | null; state?: string }[],
+): boolean {
+	const latest = new Map<string, string>();
+	for (const review of reviews) {
+		const login = review.user?.login;
+		if (
+			login &&
+			(review.state === "APPROVED" || review.state === "CHANGES_REQUESTED")
+		)
+			latest.set(login, review.state);
+	}
+	const states = [...latest.values()];
+	return states.includes("APPROVED") && !states.includes("CHANGES_REQUESTED");
+}
+
+/** Watched PRs that merged or closed: no approval left to wait for, so no more calls. */
+const settledPullRequests = new Set<string>();
 
 interface GithubSearchResponse {
 	items?: {
@@ -783,10 +849,14 @@ export const createWorkRouter = () => {
 				}
 				const token = input.prs.length ? await githubAccessToken() : null;
 				for (const url of input.prs) {
-					const pr =
-						(token && (await pullRequestApproval(url, token))) ||
-						(await pullRequestState(url));
-					if (pr)
+					if (settledPullRequests.has(url)) continue;
+					const approval = token && (await pullRequestApproval(url, token));
+					const state = approval ? null : await pullRequestState(url);
+					const pr = approval || state;
+					if (approval ? !approval.open : state && state.state !== "OPEN")
+						settledPullRequests.add(url);
+					// A merged PR's old approval isn't news.
+					if (pr && !settledPullRequests.has(url))
 						out[`pr:${url}`] = {
 							stamp: pr.approved ? "approved" : "",
 							// Only the turn to approved is news; a push that dismisses it isn't.

@@ -171,6 +171,8 @@ export interface Pane {
 	odinSource?: "slack" | "reactions" | "jira" | "pr" | "notion";
 	/** Free-form labels for filtering the board (right-click a card). */
 	odinTags?: string[];
+	/** The remote host (Settings → Sessions → Remote host) this session runs on. */
+	odinRemote?: string;
 	/** Starred from the card's ★ button or right-click menu: pinned to the top section. */
 	odinStarred?: boolean;
 	/**

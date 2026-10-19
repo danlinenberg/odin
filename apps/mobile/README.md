@@ -12,7 +12,8 @@ Needs Xcode (Mac App Store) and the iPhone plugged in or on the same Wi-Fi.
 1. `bun run ios` here. It builds the screens, copies them into the Xcode
    project, and opens it in Xcode.
 2. In Xcode: the App target > Signing & Capabilities > Team: pick your Apple
-   ID. A free Apple ID works, but the app stops opening after 7 days; a paid
+   ID. Do the same for the OdinShareExtension target (Odin in the share
+   sheet): Xcode makes its signing profile the first time. A free Apple ID works, but the app stops opening after 7 days; a paid
    developer account (and TestFlight, for other people's phones) doesn't expire.
 3. Pick your iPhone at the top, press Run. The first time, the iPhone asks
    you to trust the developer: Settings > General > VPN & Device Management.
@@ -32,3 +33,6 @@ Needs Xcode (Mac App Store) and the iPhone plugged in or on the same Wi-Fi.
   to a relay. The phone's private key is in the Keychain, this device only.
 - `bun run fake-odin` prints a pair link for the Simulator: the same channel,
   with sample sessions.
+- The bundle ID is one setting, `ODIN_BUNDLE_ID` (the share extension is
+  `$(ODIN_BUNDLE_ID).share`). A build under another team overrides that, not
+  `PRODUCT_BUNDLE_IDENTIFIER`, so the app and its extension move together.

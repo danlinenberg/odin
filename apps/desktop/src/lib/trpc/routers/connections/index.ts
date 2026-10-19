@@ -3,9 +3,7 @@ import { shell } from "electron";
 import {
 	connectGithubAccount,
 	disconnectGithubAccount,
-	extraGithubAccounts,
-	githubAccessToken,
-	githubApiFetch,
+	githubAccountTokens,
 } from "main/lib/github-token";
 import {
 	isJiraOAuthConfigured,
@@ -79,7 +77,7 @@ export interface ConnectionStatus {
 	/** Who the token authenticates as, when the probe succeeded. */
 	identity: string | null;
 	error: string | null;
-	/** GitHub only: the accounts connected beside the main one. */
+	/** GitHub only: every connected account, the main one first. */
 	accounts?: { login: string; ok: boolean }[];
 }
 
@@ -133,37 +131,45 @@ async function probeJira(): Promise<ConnectionStatus> {
 }
 
 async function probeGithub(): Promise<ConnectionStatus> {
-	const token = await githubAccessToken();
-	if (!token) return unconfigured("github");
-	try {
-		const res = await githubApiFetch(
-			"https://api.github.com/user",
-			{ headers: { Accept: "application/vnd.github+json" } },
-			token,
-		);
-		if (!res.ok) return failed("github", probeError(res.status));
-		const json = (await res.json()) as { login?: string };
-		const accounts = await Promise.all(
-			extraGithubAccounts().map(async ({ login, token: extra }) => {
-				const probe = await fetch("https://api.github.com/user", {
+	const tokens = await githubAccountTokens();
+	if (!tokens.length) return unconfigured("github");
+	// Each account is asked with its own token. githubApiFetch would fall back
+	// to the next account, and a rejected main account would then show up
+	// under the other account's login.
+	const accounts = await Promise.all(
+		tokens.map(async ({ login, token }) => {
+			try {
+				const res = await fetch("https://api.github.com/user", {
 					headers: {
-						Authorization: `Bearer ${extra}`,
+						Authorization: `Bearer ${token}`,
 						Accept: "application/vnd.github+json",
 					},
-				}).catch(() => null);
-				return { login, ok: probe?.ok ?? false };
-			}),
-		);
-		return {
-			provider: "github",
-			configured: true,
-			identity: json.login ?? null,
-			error: null,
-			accounts,
-		};
-	} catch (error) {
-		return failed("github", message(error));
-	}
+				});
+				if (!res.ok)
+					return {
+						login: login ?? "GitHub",
+						ok: false,
+						error: probeError(res.status),
+					};
+				const json = (await res.json()) as { login?: string };
+				return {
+					login: json.login ?? login ?? "GitHub",
+					ok: true,
+					error: null,
+				};
+			} catch (error) {
+				return { login: login ?? "GitHub", ok: false, error: message(error) };
+			}
+		}),
+	);
+	const [main] = accounts;
+	return {
+		provider: "github",
+		configured: true,
+		identity: main.ok ? main.login : null,
+		error: main.error,
+		accounts: accounts.map(({ login, ok }) => ({ login, ok })),
+	};
 }
 
 async function probeNotion(): Promise<ConnectionStatus> {

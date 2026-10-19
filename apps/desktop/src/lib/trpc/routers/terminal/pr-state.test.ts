@@ -393,6 +393,30 @@ describe("mergedPullRequests", () => {
 		expect(calls).toHaveLength(2);
 	});
 
+	test("GraphQL used up: the merge facts come from REST", async () => {
+		const exec: GhExec = async (args) => {
+			if (args[0] === "auth") return { stdout: STATUS };
+			if (args[1] === "graphql")
+				throw new Error("API rate limit already exceeded");
+			const pulls: Record<string, object> = {
+				"repos/me/rest/pulls/5": {
+					merged: true,
+					merged_at: "2026-10-04T10:00:00Z",
+					user: { login: "danlinenberg" },
+				},
+				"repos/me/rest/pulls/6": { merged: false, merged_at: null },
+			};
+			return { stdout: JSON.stringify(pulls[args[1] as string]) };
+		};
+		const urls = [
+			"https://github.com/me/rest/pull/5",
+			"https://github.com/me/rest/pull/6",
+		];
+		expect(await mergedPullRequests(urls, exec)).toEqual(
+			new Map([[urls[0], Date.parse("2026-10-04T10:00:00Z")]]),
+		);
+	});
+
 	test("a repo no account can read counts as unmerged", async () => {
 		const exec: GhExec = async () => {
 			throw new Error("Could not resolve to a Repository");

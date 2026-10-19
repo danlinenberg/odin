@@ -45,7 +45,14 @@ import { type OdinTask, taskText, useMyTasks } from "../hooks/useOdinTasks";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePendingFocus } from "../hooks/usePendingFocus";
 
+type View = "schedules" | "rules" | "reminders";
+
 export const Route = createFileRoute("/_authenticated/_odin/automations/")({
+	// The board's Reminders bar links straight to the Reminders tab.
+	validateSearch: (search: Record<string, unknown>): { view?: View } =>
+		search.view === "rules" || search.view === "reminders"
+			? { view: search.view }
+			: {},
 	component: AutomationsPage,
 });
 
@@ -623,9 +630,7 @@ function RulesPanel() {
  * list you scan doesn't hide a job that's about to run on its own.
  */
 function AutomationsPage() {
-	const [view, setView] = useState<"schedules" | "rules" | "reminders">(
-		"schedules",
-	);
+	const [view, setView] = useState<View>(Route.useSearch().view ?? "schedules");
 	return (
 		<div className="flex h-full flex-col">
 			<div className="flex items-center gap-2.5 border-b border-border px-[18px] py-2.5">

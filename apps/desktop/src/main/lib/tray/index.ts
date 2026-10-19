@@ -136,6 +136,8 @@ const SECTIONS: { column: PaneStatus; label: string }[] = [
 /** `withEnded`: the phone's board, which lists ended sessions in Idle too. */
 export async function loadSessions(
 	withEnded = false,
+	/** null = every profile. */
+	profileId: string | null = null,
 ): Promise<ActiveSession[]> {
 	try {
 		const { sessions } = await getWorkspaceRuntimeRegistry()
@@ -147,7 +149,7 @@ export async function loadSessions(
 		return activeSessions(
 			appState.data.tabsState.panes ?? {},
 			alive,
-			null,
+			profileId,
 			withEnded,
 		);
 	} catch (error) {

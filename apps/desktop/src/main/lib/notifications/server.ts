@@ -10,6 +10,7 @@ import type {
 } from "shared/notification-types";
 import { callProcedure, clip, listProcedures } from "../odin-api";
 import { callService, fetchFile, readLink } from "../read-link";
+import { redeemTicket } from "../remote-host/session";
 import { createSessionWorktree } from "../session-worktree";
 import { HOOK_PROTOCOL_VERSION } from "../terminal/env";
 import { mapEventType } from "./map-event-type";
@@ -307,6 +308,16 @@ app.get("/file", async (req, res) => {
 	}
 	res.type(file.headers.get("content-type") ?? "application/octet-stream");
 	res.send(Buffer.from(await file.arrayBuffer()));
+});
+
+/** A remote session's tokens, for its pane's helper. Single use; never to a browser. */
+app.get("/remote-host/env", (req, res) => {
+	const secrets =
+		!req.headers.origin && typeof req.query.ticket === "string"
+			? redeemTicket(req.query.ticket)
+			: null;
+	if (secrets === null) return res.status(404).send("");
+	res.type("text/plain").send(secrets);
 });
 
 // Health check

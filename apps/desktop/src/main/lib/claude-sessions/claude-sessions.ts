@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { readdir, readFile, stat } from "node:fs/promises";
+import { readdir, readFile, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { PR_RULES_HEADER } from "shared/odin-rules";
@@ -557,6 +557,8 @@ export interface TranscriptMessage {
 	at: string | null;
 	/** PR urls `gh pr create` printed: this session opened them. */
 	opened?: true;
+	/** Pasted images as data URLs, only when asked for (`withImages`). */
+	images?: string[];
 }
 
 /** The conversation, prose only - the readable form of a session. */
@@ -564,6 +566,7 @@ export function parseTranscript(
 	jsonl: string,
 	maxMessages = 500,
 	maxChars = 6000,
+	withImages = false,
 ): TranscriptMessage[] {
 	const messages: TranscriptMessage[] = [];
 	const prCreates = new Set<string>();
@@ -638,7 +641,16 @@ export function parseTranscript(
 		const text = messageText(message?.content).trim();
 		if (!text) continue;
 		if (entry.type === "user" && !isTypedByUser(entry, text)) continue;
+		const images =
+			withImages && entry.type === "user" && Array.isArray(message?.content)
+				? message.content.flatMap((block) =>
+						block?.type === "image" && block.source?.type === "base64"
+							? [`data:${block.source.media_type};base64,${block.source.data}`]
+							: [],
+					)
+				: [];
 		messages.push({
+			...(images.length ? { images } : {}),
 			role: entry.type as "user" | "assistant",
 			text:
 				text.length > maxChars
@@ -731,12 +743,16 @@ export async function readTranscript({
 	project,
 	sessionId,
 	root = projectsRoot(),
+	withImages = false,
 }: {
 	/** Omit to locate the session by id across every project. */
 	project?: string;
 	sessionId: string;
 	root?: string;
+	/** Pasted images on the user's messages (see TranscriptMessage.images). */
+	withImages?: boolean;
 }): Promise<{
+	path: string;
 	messages: TranscriptMessage[];
 	/** Every URL-quoting turn of the whole session - see `transcriptLinks`. */
 	links: TranscriptMessage[];
@@ -757,10 +773,17 @@ export async function readTranscript({
 	}
 	const dir = project ?? (await projectOf(sessionId, root));
 	if (!dir) throw new Error("No transcript on this machine for that session");
-	const jsonl = await readFile(join(root, dir, `${sessionId}.jsonl`), "utf-8");
+	const file = join(root, dir, `${sessionId}.jsonl`);
+	const jsonl = await readFile(file, "utf-8");
 	const { cwd, aiTitle, prompt } = summarizeTranscript(jsonl);
 	return {
-		messages: parseTranscript(jsonl),
+		/**
+		 * The file itself. Usually <cwd's slug>/<id>.jsonl, but a remote
+		 * session's copy sits under the host's paths, so the chat view reads
+		 * this rather than rebuilding it from cwd.
+		 */
+		path: await realpath(file).catch(() => file),
+		messages: parseTranscript(jsonl, 500, 6000, withImages),
 		links: transcriptLinks(jsonl),
 		cwd,
 		title: aiTitle,

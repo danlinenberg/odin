@@ -12,6 +12,7 @@ import { firstPrompt, repoOfDir } from "./claude-sessions";
 import {
 	activeIntervals,
 	computeWorkload,
+	concurrency,
 	humanIntervals,
 	mergeIntervals,
 	openingLine,
@@ -681,4 +682,22 @@ describe("humanIntervals", () => {
 		const sorted = [0, 1, 3, 4, 64, 65].map((m) => Date.parse(at(m)));
 		expect(totalMs(humanIntervals(jsonl, sorted))).toBe(7 * MINUTE);
 	});
+});
+
+test("concurrency: side by side, back to back, and idle", () => {
+	// Two at once for 10, then one alone for 10: 30 of session time over 20.
+	expect(
+		concurrency([
+			[0, 20],
+			[0, 10],
+		]),
+	).toEqual({ average: 1.5, peak: 2 });
+	// One ending as the next starts is never two at once.
+	expect(
+		concurrency([
+			[0, 10],
+			[10, 20],
+		]),
+	).toEqual({ average: 1, peak: 1 });
+	expect(concurrency([])).toEqual({ average: null, peak: 0 });
 });

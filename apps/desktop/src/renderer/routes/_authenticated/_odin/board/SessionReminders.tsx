@@ -164,7 +164,8 @@ export function RemindButton({
 }
 
 /**
- * Every reminder whose day has come, above the columns. A snoozed session gets
+ * Every reminder whose day has come, above the columns, and a link to the
+ * rest in Automations → Reminders. A snoozed session gets
  * Resume - the same `claude --resume` into a fresh pane Session History does;
  * a dated card or feed row gets Open. An unread "Ping me" reply or approval
  * shows here too, until its session is opened.
@@ -175,14 +176,17 @@ export function SessionReminders() {
 	const setReminder = useReminders((s) => s.setReminder);
 	const { resume, isLaunching } = useResumeReminder();
 	const open = useOpenReminder();
+	const navigate = useNavigate();
 	const now = Date.now();
 	const due = Object.entries(reminders).filter(([, r]) => isDue(r.due, now));
+	// Reminders not due yet live only in Automations -> Reminders: say so here.
+	const upcoming = Object.keys(reminders).length - due.length;
 	const watches = useReplyWatch((s) => s.watches);
 	const seen = useReplyWatch((s) => s.seen);
 	const replies = Object.entries(watches)
 		.filter(([, w]) => w.reply && w.paneId)
 		.map(([key, w]) => ({ ...w, key, event: watchEvent(key) }));
-	if (!due.length && !replies.length) return null;
+	if (!due.length && !replies.length && !upcoming) return null;
 
 	return (
 		<div className="mx-[18px] mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-attention/25 bg-attention/8 px-3 py-2 text-[12px]">
@@ -190,6 +194,18 @@ export function SessionReminders() {
 				<LuBellRing className="size-3.5" aria-hidden />
 				Reminders · {due.length + replies.length}
 			</span>
+			{upcoming > 0 && (
+				<button
+					type="button"
+					title="Every reminder, with Resume now - Automations → Reminders"
+					onClick={() =>
+						navigate({ to: "/automations", search: { view: "reminders" } })
+					}
+					className={`order-last ml-auto rounded-md px-2 py-0.5 text-[11px] font-semibold ${BUTTON.secondary}`}
+				>
+					{upcoming} upcoming - see all
+				</button>
+			)}
 			{replies.map((w) => (
 				<span
 					key={w.key}

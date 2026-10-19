@@ -216,40 +216,45 @@ function ConnectionsSettings() {
 								<SlackReactions />
 							)}
 
-							{provider === "github" && !!row?.accounts?.length && (
-								<div className="mt-2 ml-11 space-y-1">
-									{row.accounts.map((account) => (
-										<div
-											key={account.login}
-											className="flex items-center gap-2 text-xs"
-										>
-											<span
-												className={cn(
-													"size-1.5 rounded-full",
-													account.ok ? "bg-emerald-500" : "bg-red-500",
-												)}
-											/>
-											<span>{account.login}</span>
-											{!account.ok && (
-												<span className="text-muted-foreground">
-													token rejected - remove and add it again
-												</span>
-											)}
-											<Button
-												variant="ghost"
-												size="sm"
-												className="h-6 px-2 text-xs"
-												disabled={disconnect.isPending}
-												onClick={() =>
-													disconnect.mutate({ provider, login: account.login })
-												}
+							{provider === "github" &&
+								row?.accounts &&
+								row.accounts.length > 1 && (
+									<div className="mt-2 ml-11 space-y-1">
+										{row.accounts.map((account) => (
+											<div
+												key={account.login}
+												className="flex items-center gap-2 text-xs"
 											>
-												Remove
-											</Button>
-										</div>
-									))}
-								</div>
-							)}
+												<span
+													className={cn(
+														"size-1.5 rounded-full",
+														account.ok ? "bg-emerald-500" : "bg-red-500",
+													)}
+												/>
+												<span>{account.login}</span>
+												{!account.ok && (
+													<span className="text-muted-foreground">
+														token rejected - remove and add it again
+													</span>
+												)}
+												<Button
+													variant="ghost"
+													size="sm"
+													className="h-6 px-2 text-xs"
+													disabled={disconnect.isPending}
+													onClick={() =>
+														disconnect.mutate({
+															provider,
+															login: account.login,
+														})
+													}
+												>
+													Remove
+												</Button>
+											</div>
+										))}
+									</div>
+								)}
 
 							{provider === "github" && addingGithub && (
 								<div className="mt-3 ml-11 rounded-lg border bg-muted/30 p-3">

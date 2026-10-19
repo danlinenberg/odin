@@ -116,7 +116,11 @@ function PasteBlock({ text }: { text: string }) {
 				)}
 				{isCopied ? "Copied" : "Copy"}
 			</Button>
-			<div className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
+			{/* A Hebrew draft reads right-to-left, like the reply around it. */}
+			<div
+				className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground"
+				dir="auto"
+			>
 				{text.split(/<@([UW][A-Z0-9]+)>/).map((part, i) =>
 					i % 2 ? (
 						// A mention reads as the person it tags, like Slack shows it.

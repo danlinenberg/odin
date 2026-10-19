@@ -1,5 +1,6 @@
 import { basename, resolve, sep } from "node:path";
 import { initTRPC, TRPCError } from "@trpc/server";
+import { activeProfileId, listProfiles } from "lib/trpc/routers/odin-config";
 import type { PullRequestStatus } from "lib/trpc/routers/terminal/pr-state";
 import { appState } from "main/lib/app-state";
 import { readTranscript, writeBrief } from "main/lib/claude-sessions";
@@ -19,6 +20,7 @@ import stripAnsi from "strip-ansi";
 import superjson from "superjson";
 import { z } from "zod";
 import { attachments } from "./attachments";
+import { rememberFromPhone } from "./sent";
 
 /**
  * Everything the phone can do, and nothing else: the LAN never reaches the
@@ -70,6 +72,22 @@ const IMAGE_RE = /\.(png|jpe?g|gif|webp|heic)$/i;
 const attachment = z
 	.string()
 	.refine((path) => resolve(path).startsWith(`${attachments.dir}${sep}`));
+
+/** Small JPEGs of pasted images, by the original's data URL: the phone polls. */
+const thumbs = new Map<string, string>();
+async function thumbnail(dataUrl: string): Promise<string> {
+	const hit = thumbs.get(dataUrl);
+	if (hit) return hit;
+	const { nativeImage } = await import("electron");
+	const image = nativeImage.createFromDataURL(dataUrl);
+	const small =
+		image.getSize().width > 480 ? image.resize({ width: 480 }) : image;
+	const thumb = `data:image/jpeg;base64,${small.toJPEG(70).toString("base64")}`;
+	// Cleared at 200: a session rarely shows that many.
+	if (thumbs.size > 200) thumbs.clear();
+	thumbs.set(dataUrl, thumb);
+	return thumb;
+}
 
 const pause = (ms: number) => new Promise((done) => setTimeout(done, ms));
 
@@ -128,7 +146,8 @@ const taskWithFiles = (text: string, paths: string[]) =>
 export const phoneRouter = t.router({
 	/** Running sessions (Needs you first) and the backlog not started yet. */
 	board: t.procedure.query(async () => {
-		const sessions = await loadSessions(true);
+		// The profile Odin is in, as the desktop board shows it.
+		const sessions = await loadSessions(true, activeProfileId());
 		const backlog = (
 			JSON.parse(await board("tasks").catch(() => "[]")) as {
 				id: string;
@@ -146,8 +165,18 @@ export const phoneRouter = t.router({
 		if (!pane) throw new TRPCError({ code: "NOT_FOUND" });
 		const sessionId = sessionOf(input.paneId);
 		const transcript = sessionId
-			? await readTranscript({ sessionId }).catch(() => null)
+			? await readTranscript({ sessionId, withImages: true }).catch(() => null)
 			: null;
+		const messages = await Promise.all(
+			(transcript?.messages.slice(-60) ?? []).map(async (message) =>
+				message.images
+					? {
+							...message,
+							images: await Promise.all(message.images.map(thumbnail)),
+						}
+					: message,
+			),
+		);
 		const screen = stripAnsi(
 			(await terminal()
 				.readScreen(input)
@@ -162,7 +191,7 @@ export const phoneRouter = t.router({
 			title: pane.odinTaskTitle ?? "Session",
 			status: pane.status ?? "idle",
 			starred: !!pane.odinStarred,
-			messages: transcript?.messages.slice(-60) ?? [],
+			messages,
 			screen,
 		};
 	}),
@@ -278,9 +307,10 @@ export const phoneRouter = t.router({
 				})
 				.refine((input) => input.text.trim() || input.paths.length),
 		)
-		.mutation(({ input }) =>
-			typeIntoClaude(input.paneId, input.text.trim(), input.paths),
-		),
+		.mutation(async ({ input }) => {
+			await typeIntoClaude(input.paneId, input.text.trim(), input.paths);
+			rememberFromPhone(input.paneId, input.text);
+		}),
 
 	/** One raw key for a prompt Claude draws as a menu: Enter, Esc, a digit. */
 	key: t.procedure
@@ -310,6 +340,24 @@ export const phoneRouter = t.router({
 				...(input.start && { start: "true" }),
 			}),
 		),
+
+	/** Odin's profiles, and the one it's in. */
+	profiles: t.procedure.query(() => ({
+		activeId: activeProfileId(),
+		profiles: listProfiles().map(({ id, name }) => ({ id, name })),
+	})),
+
+	/** Switches Odin's profile, as the desktop's profile menu does. */
+	setProfile: t.procedure
+		.input(z.object({ id: z.string().min(1) }))
+		.mutation(async ({ input }) => {
+			if (!listProfiles().some((profile) => profile.id === input.id))
+				throw new Error("No such profile");
+			await board("profile", { id: input.id });
+			// The window's switch is a round trip of its own: answer once it landed.
+			for (let i = 0; i < 40 && activeProfileId() !== input.id; i++)
+				await new Promise((resolve) => setTimeout(resolve, 50));
+		}),
 
 	start: t.procedure
 		.input(z.object({ id: z.string().min(1) }))

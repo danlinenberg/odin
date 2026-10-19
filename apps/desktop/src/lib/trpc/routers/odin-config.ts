@@ -42,6 +42,35 @@ export interface OdinFileConfig {
 	 * server. Kept apart from defaultRepo so switching back and forth keeps both.
 	 */
 	remoteDefaultRepo?: string;
+	/** Settings > Sessions > Remote server: where to look for AWS hosts and the tags they carry. */
+	awsInstances?: {
+		profile?: string;
+		region?: string;
+		tags?: { key: string; value: string }[];
+	};
+	/** The EC2 host new sessions run on, reached through SSM, while `on` is true. */
+	remoteHost?: {
+		on: boolean;
+		instanceId: string;
+		name: string;
+		profile?: string;
+		region?: string;
+		user: string;
+		/** Where the host keeps its clones, e.g. ~/repos. */
+		reposRoot: string;
+		/** Connectors whose tokens are kept on the host, for sessions there with this computer asleep. */
+		connectors?: string[];
+		/** Parts of ~/.claude copied to the host (main/lib/remote-host/claude-sync). */
+		claudeSetup?: string[];
+		/** When they were last copied, epoch ms. */
+		claudeSetupSyncedAt?: number;
+		/** Hooks the last sync left out on the host: they name files it doesn't have. */
+		claudeSetupDropped?: string[];
+		/** true: sessions there move to ANTHROPIC_API_KEY at the plan limit. Off by default. */
+		apiKeyFallback?: boolean;
+	};
+	/** `claude setup-token`'s token for remote sessions, encrypted with safeStorage. */
+	claudeToken?: string;
 	/** Double-tap this modifier to show or hide Odin (main/lib/double-tap). */
 	doubleTapModifier?: string;
 	/** Settings → Appearance → Text size (shared/text-size). */

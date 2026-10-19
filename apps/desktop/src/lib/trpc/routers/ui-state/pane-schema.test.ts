@@ -28,6 +28,7 @@ describe("paneSchema", () => {
 			odinPageId: "page-1",
 			odinSource: "jira",
 			odinTags: ["work"],
+			odinRemote: "odin-remote",
 			odinStarred: true,
 			odinQueued: { command: "claude", reason: "busy" },
 			odinAutoTagged: true,

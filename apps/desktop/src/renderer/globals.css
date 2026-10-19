@@ -256,6 +256,10 @@
 	[dir="auto"] {
 		text-align: left;
 	}
+	/* A reply is paragraphs, not a one-line title: a Hebrew paragraph sits on the right. */
+	.markdown-renderer [dir="auto"] {
+		text-align: start;
+	}
 
 	button,
 	[role="button"] {
@@ -568,6 +572,23 @@
 	100% {
 		transform: scale(1.5);
 		opacity: 0;
+	}
+}
+
+/* A watched session's bell while a reply waits: a short ring, then a rest. */
+@keyframes bell-jiggle {
+	0%,
+	50%,
+	100% {
+		transform: rotate(0);
+	}
+	10%,
+	30% {
+		transform: rotate(-14deg);
+	}
+	20%,
+	40% {
+		transform: rotate(14deg);
 	}
 }
 

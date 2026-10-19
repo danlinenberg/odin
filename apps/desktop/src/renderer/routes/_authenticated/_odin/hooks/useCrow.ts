@@ -31,6 +31,7 @@ import { create } from "zustand";
 import { type PromptImage, sessionTitle } from "../components/OdinPromptDialog";
 import { readState, runAction, writeState } from "./crow-state";
 import { endSession, useDone } from "./useDone";
+import { useOdinProfile } from "./useOdinProfile";
 import { taskPrompt, useMyTasks, useOdinTasks } from "./useOdinTasks";
 import { useOdinWorkspace } from "./useOdinWorkspace";
 
@@ -417,7 +418,9 @@ export function useCrow() {
 	const { launch } = useLaunchTaskSession();
 	const odinReply = electronTrpc.notifications.odinReply.useMutation();
 	const router = useRouter();
+	const { switchTo: switchProfile } = useOdinProfile();
 	const deps = {
+		switchProfile,
 		todos,
 		add,
 		setPane,
@@ -501,6 +504,7 @@ const backlogOf = (deps: CrowDeps) =>
 	deps.todos.filter((task) => !deps.isDone({ key: `task:${task.id}` }));
 
 type CrowDeps = {
+	switchProfile: ReturnType<typeof useOdinProfile>["switchTo"];
 	todos: ReturnType<typeof useMyTasks>["todos"];
 	add: ReturnType<typeof useMyTasks>["add"];
 	setPane: ReturnType<typeof useMyTasks>["setPane"];
@@ -555,6 +559,12 @@ function runOdinAction(
 		// Not awaited: a launch can sit behind the machine's capacity gate.
 		void launchTask(task, deps);
 		return `Added "${title}" and started it on the board.`;
+	}
+	if (action === "profile") {
+		// The same switch as the profile menu: the window follows, feeds reload.
+		if (!args.id) return "Need id.";
+		deps.switchProfile(args.id);
+		return `Switched to profile ${args.id}.`;
 	}
 	if (action === "done-list") {
 		// The All page's Done shelf, newest first: what you put away as Done.
