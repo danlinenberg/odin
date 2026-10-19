@@ -47,12 +47,23 @@ export function transcriptUsage(jsonl: string): SessionUsage | null {
 	// Claude Code writes one line per content block, each repeating its
 	// message's usage - the last line of a message has its final count.
 	const byMessage = new Map<string, { model: string; usage: Usage }>();
+	// A /compact since the last reply: the context is the summary's size.
+	let compacted: number | undefined;
 	for (const line of jsonl.split("\n")) {
-		if (!line.includes('"usage"')) continue;
+		if (!line.includes('"usage"') && !line.includes('"compact_boundary"'))
+			continue;
 		try {
-			const { message } = JSON.parse(line) as {
+			const { message, subtype, compactMetadata } = JSON.parse(line) as {
 				message?: { id?: string; model?: string; usage?: Usage };
+				subtype?: string;
+				compactMetadata?: { postTokens?: number };
 			};
+			if (subtype === "compact_boundary") {
+				compacted = compactMetadata?.postTokens ?? 0;
+				continue;
+			}
+			if (message?.id && message.usage && message.model !== "<synthetic>")
+				compacted = undefined;
 			if (message?.id && message.usage)
 				byMessage.set(message.id, {
 					model: message.model ?? "",
@@ -91,9 +102,10 @@ export function transcriptUsage(jsonl: string): SessionUsage | null {
 			1e6;
 	}
 	const context =
+		compacted ??
 		(last.input_tokens ?? 0) +
-		(last.cache_read_input_tokens ?? 0) +
-		(last.cache_creation_input_tokens ?? 0);
+			(last.cache_read_input_tokens ?? 0) +
+			(last.cache_creation_input_tokens ?? 0);
 	// Every priced model but Haiku 4.5 has 1M; an older one 200K, unless its
 	// prompt already passed that.
 	const window =

@@ -41,3 +41,17 @@ test("transcriptUsage counts each message once and prices it", () => {
 		transcriptUsage(line("c", "gpt-x", { input_tokens: 1 }))?.usd,
 	).toBeNull();
 });
+
+test("transcriptUsage: after /compact the context is the summary's size", () => {
+	const reply = line("a", "claude-opus-5-5", { input_tokens: 720_000 });
+	const boundary = JSON.stringify({
+		type: "system",
+		subtype: "compact_boundary",
+		compactMetadata: { preTokens: 720_000, postTokens: 13_000 },
+	});
+	expect(transcriptUsage([reply, boundary].join("\n"))?.context).toBe(13_000);
+	const next = line("b", "claude-opus-5-5", { input_tokens: 15_000 });
+	expect(transcriptUsage([reply, boundary, next].join("\n"))?.context).toBe(
+		15_000,
+	);
+});
