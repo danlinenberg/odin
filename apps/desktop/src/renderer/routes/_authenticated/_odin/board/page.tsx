@@ -421,6 +421,9 @@ function HistoryView({
 	if (sessionId && !live && !error && chatView) {
 		return (
 			<ChatView
+				// Its sent bubbles are per pane: reused for another card, they
+				// were saved under that card and showed in its chat.
+				key={card.pane.id}
 				paneId={card.pane.id}
 				sessionId={sessionId}
 				cwd={sessionCwd(card.pane) ?? card.repoPath}
