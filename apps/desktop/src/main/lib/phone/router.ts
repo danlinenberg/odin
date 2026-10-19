@@ -73,6 +73,22 @@ const attachment = z
 	.string()
 	.refine((path) => resolve(path).startsWith(`${attachments.dir}${sep}`));
 
+/** Small JPEGs of pasted images, by the original's data URL: the phone polls. */
+const thumbs = new Map<string, string>();
+async function thumbnail(dataUrl: string): Promise<string> {
+	const hit = thumbs.get(dataUrl);
+	if (hit) return hit;
+	const { nativeImage } = await import("electron");
+	const image = nativeImage.createFromDataURL(dataUrl);
+	const small =
+		image.getSize().width > 480 ? image.resize({ width: 480 }) : image;
+	const thumb = `data:image/jpeg;base64,${small.toJPEG(70).toString("base64")}`;
+	// Cleared at 200: a session rarely shows that many.
+	if (thumbs.size > 200) thumbs.clear();
+	thumbs.set(dataUrl, thumb);
+	return thumb;
+}
+
 const pause = (ms: number) => new Promise((done) => setTimeout(done, ms));
 
 /** How often the text's last characters show on Claude's screen. */
@@ -149,8 +165,18 @@ export const phoneRouter = t.router({
 		if (!pane) throw new TRPCError({ code: "NOT_FOUND" });
 		const sessionId = sessionOf(input.paneId);
 		const transcript = sessionId
-			? await readTranscript({ sessionId }).catch(() => null)
+			? await readTranscript({ sessionId, withImages: true }).catch(() => null)
 			: null;
+		const messages = await Promise.all(
+			(transcript?.messages.slice(-60) ?? []).map(async (message) =>
+				message.images
+					? {
+							...message,
+							images: await Promise.all(message.images.map(thumbnail)),
+						}
+					: message,
+			),
+		);
 		const screen = stripAnsi(
 			(await terminal()
 				.readScreen(input)
@@ -165,7 +191,7 @@ export const phoneRouter = t.router({
 			title: pane.odinTaskTitle ?? "Session",
 			status: pane.status ?? "idle",
 			starred: !!pane.odinStarred,
-			messages: transcript?.messages.slice(-60) ?? [],
+			messages,
 			screen,
 		};
 	}),

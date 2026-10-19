@@ -557,6 +557,8 @@ export interface TranscriptMessage {
 	at: string | null;
 	/** PR urls `gh pr create` printed: this session opened them. */
 	opened?: true;
+	/** Pasted images as data URLs, only when asked for (`withImages`). */
+	images?: string[];
 }
 
 /** The conversation, prose only - the readable form of a session. */
@@ -564,6 +566,7 @@ export function parseTranscript(
 	jsonl: string,
 	maxMessages = 500,
 	maxChars = 6000,
+	withImages = false,
 ): TranscriptMessage[] {
 	const messages: TranscriptMessage[] = [];
 	const prCreates = new Set<string>();
@@ -638,7 +641,16 @@ export function parseTranscript(
 		const text = messageText(message?.content).trim();
 		if (!text) continue;
 		if (entry.type === "user" && !isTypedByUser(entry, text)) continue;
+		const images =
+			withImages && entry.type === "user" && Array.isArray(message?.content)
+				? message.content.flatMap((block) =>
+						block?.type === "image" && block.source?.type === "base64"
+							? [`data:${block.source.media_type};base64,${block.source.data}`]
+							: [],
+					)
+				: [];
 		messages.push({
+			...(images.length ? { images } : {}),
 			role: entry.type as "user" | "assistant",
 			text:
 				text.length > maxChars
@@ -731,11 +743,14 @@ export async function readTranscript({
 	project,
 	sessionId,
 	root = projectsRoot(),
+	withImages = false,
 }: {
 	/** Omit to locate the session by id across every project. */
 	project?: string;
 	sessionId: string;
 	root?: string;
+	/** Pasted images on the user's messages (see TranscriptMessage.images). */
+	withImages?: boolean;
 }): Promise<{
 	path: string;
 	messages: TranscriptMessage[];
@@ -768,7 +783,7 @@ export async function readTranscript({
 		 * this rather than rebuilding it from cwd.
 		 */
 		path: await realpath(file).catch(() => file),
-		messages: parseTranscript(jsonl),
+		messages: parseTranscript(jsonl, 500, 6000, withImages),
 		links: transcriptLinks(jsonl),
 		cwd,
 		title: aiTitle,

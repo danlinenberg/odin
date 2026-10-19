@@ -1,8 +1,10 @@
 import { useRef, useState } from "react";
 import {
+	LuArrowUp,
+	LuCamera,
 	LuLoaderCircle,
 	LuMic,
-	LuPaperclip,
+	LuPlus,
 	LuSquare,
 	LuX,
 } from "react-icons/lu";
@@ -123,27 +125,35 @@ export function UploadChips({
 	);
 }
 
-/** 📎: iOS offers Photo Library, Take Photo or Video, and Choose File. */
+/**
+ * +: iOS offers Photo Library, Take Photo or Video, and Choose File.
+ * `camera` opens the camera straight away instead.
+ */
 export function AttachButton({
 	uploads,
+	camera,
 }: {
 	uploads: ReturnType<typeof useUploads>;
+	camera?: boolean;
 }) {
 	const input = useRef<HTMLInputElement>(null);
+	const Icon = camera ? LuCamera : LuPlus;
 	return (
 		<>
 			<button
 				type="button"
-				aria-label="Attach photos or files"
+				aria-label={camera ? "Take a photo" : "Attach photos or files"}
 				onClick={() => input.current?.click()}
-				className="flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-secondary text-lg"
+				className="flex size-10 shrink-0 items-center justify-center text-foreground"
 			>
-				<LuPaperclip className="size-5" />
+				<Icon className={camera ? "size-6" : "size-7"} />
 			</button>
 			<input
 				ref={input}
 				type="file"
-				multiple
+				{...(camera
+					? { accept: "image/*", capture: "environment" as const }
+					: { multiple: true })}
 				className="hidden"
 				onChange={(event) => {
 					uploads.add(event.target.files);
@@ -167,10 +177,10 @@ export function MicButton({
 			aria-label={speech.listening ? "Stop dictation" : "Dictate"}
 			disabled={speech.transcribing}
 			onClick={() => void speech.toggle()}
-			className={`relative flex size-10 shrink-0 items-center justify-center rounded-full border ${
+			className={`relative flex size-10 shrink-0 items-center justify-center rounded-full ${
 				speech.listening
-					? "border-danger bg-danger/20 text-danger"
-					: "border-border bg-secondary"
+					? "bg-danger text-white"
+					: "bg-primary text-primary-foreground"
 			}`}
 		>
 			{speech.listening && (
@@ -183,6 +193,20 @@ export function MicButton({
 			) : (
 				<LuMic className="size-5" />
 			)}
+		</button>
+	);
+}
+
+/** The round button once there's something to send. */
+export function SendButton({ disabled }: { disabled: boolean }) {
+	return (
+		<button
+			type="submit"
+			aria-label="Send"
+			disabled={disabled}
+			className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground disabled:opacity-40"
+		>
+			<LuArrowUp className="size-5" />
 		</button>
 	);
 }

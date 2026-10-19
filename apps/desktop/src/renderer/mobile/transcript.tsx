@@ -9,7 +9,48 @@ type Message = {
 	role: "user" | "assistant";
 	text: string;
 	at?: string | null;
+	/** Thumbnails of the images pasted with it. */
+	images?: string[];
 };
+
+/** Images in a bubble: thumbnails, and one tapped opens over the screen. */
+export function Thumbnails({ images }: { images?: string[] }) {
+	const [open, setOpen] = useState<string | null>(null);
+	if (!images?.length) return null;
+	return (
+		<div className="mb-1.5 flex flex-wrap gap-1.5">
+			{images.map((src, i) => (
+				<button
+					// biome-ignore lint/suspicious/noArrayIndexKey: the same image can be pasted twice
+					key={i}
+					type="button"
+					aria-label="Open the image"
+					onClick={() => setOpen(src)}
+				>
+					<img
+						src={src}
+						alt=""
+						className="max-h-40 max-w-[200px] rounded-xl object-cover"
+					/>
+				</button>
+			))}
+			{open && (
+				<button
+					type="button"
+					aria-label="Close the image"
+					onClick={() => setOpen(null)}
+					className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
+				>
+					<img
+						src={open}
+						alt=""
+						className="max-h-full max-w-full object-contain"
+					/>
+				</button>
+			)}
+		</div>
+	);
+}
 
 type Segment =
 	| { kind: "message"; message: Message; index: number }
@@ -110,7 +151,10 @@ export function Transcript({
 					key={index}
 					className="my-2 ml-10 select-text whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-primary px-3 py-2 text-[15px] leading-snug text-primary-foreground"
 				>
-					{message.text}
+					<Thumbnails images={message.images} />
+					{message.images
+						? message.text.replace(/\[Image #\d+\]\s*/g, "").trim()
+						: message.text}
 				</div>
 			);
 		const { body, actions } = splitActionItems(message.text);

@@ -2450,6 +2450,7 @@ export function ChatView({
 									refs={refs}
 									refsKey={refsKey}
 									workspaceId={workspaceId}
+									paneId={paneId}
 								/>
 							);
 						const key = Array.isArray(segment) ? segment[0]?.id : segment.id;

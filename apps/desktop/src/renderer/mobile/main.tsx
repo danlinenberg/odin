@@ -17,6 +17,7 @@ import {
 	LuChevronDown,
 	LuChevronLeft,
 	LuCornerDownLeft,
+	LuFileText,
 	LuLoaderCircle,
 	LuMonitor,
 	LuPaperclip,
@@ -33,6 +34,7 @@ import {
 	AttachButton,
 	appendWords,
 	MicButton,
+	SendButton,
 	SpeechStatus,
 	UploadChips,
 	useUploads,
@@ -43,8 +45,13 @@ import { demoAnswer } from "./demo";
 import { channelFetch, type OdinFetch } from "./odin-fetch";
 import { type Pairing, parsePairLink } from "./pair-link";
 import { NEW_TASK_EVENT, SharePicker, useSharedFiles } from "./share";
-import { boardWords, setVocabulary, useSpeech } from "./speech";
-import { Transcript } from "./transcript";
+import {
+	boardWords,
+	setVocabulary,
+	speechAvailable,
+	useSpeech,
+} from "./speech";
+import { Thumbnails, Transcript } from "./transcript";
 import "../globals.css";
 import "./mobile.css";
 
@@ -568,7 +575,7 @@ function GrowingTextarea(
 }
 
 /** A reply sent from here that Claude hasn't put in its transcript yet. */
-type Sent = { text: string; files: number; at: number };
+type Sent = { text: string; files: number; at: number; previews?: string[] };
 
 /**
  * Claude writes a message to its transcript when it reads it, so a reply sent
@@ -615,8 +622,8 @@ function Session({ paneId }: { paneId: string }) {
 	/** Shows a reply as Sent until the transcript has it, and follows it down. */
 	// Shown on tap, not when Odin answers: Odin answers only once the text is
 	// typed into the session and drawn, a few seconds later.
-	const remember = (text: string, files: number) => {
-		const item = { text, files, at: Date.now() };
+	const remember = (text: string, files: number, previews?: string[]) => {
+		const item = { text, files, at: Date.now(), previews };
 		setSent((all) => [...all, item]);
 		sentByPane.set(paneId, [...sent, item]);
 		following.current = true;
@@ -683,6 +690,7 @@ function Session({ paneId }: { paneId: string }) {
 		!speech.transcribing &&
 		!reply.isPending;
 	const bottom = useRef<HTMLDivElement>(null);
+	const scroller = useRef<HTMLElement>(null);
 	// Follow new messages only while you're at the bottom; reading further up,
 	// the ↓ button brings you back.
 	const [atBottom, setAtBottom] = useState(true);
@@ -727,6 +735,18 @@ function Session({ paneId }: { paneId: string }) {
 					<div className="flex items-center gap-5">
 						<button
 							type="button"
+							aria-label={briefOpen ? "Close the brief" : "Open the brief"}
+							onClick={() => {
+								setBriefOpen((shown) => !shown);
+								scroller.current?.scrollTo({ top: 0, behavior: "smooth" });
+							}}
+							className={`flex items-center gap-1 py-1.5 text-[15px] ${briefOpen ? "text-primary" : "text-muted-foreground"}`}
+						>
+							<LuFileText className="size-4" />
+							Brief
+						</button>
+						<button
+							type="button"
 							aria-label={starred ? "Unstar" : "Star"}
 							onClick={() => star.mutate({ paneId, starred: !starred })}
 							className={`flex size-9 items-center justify-center ${starred ? "text-attention" : "text-muted-foreground"}`}
@@ -758,6 +778,7 @@ function Session({ paneId }: { paneId: string }) {
 				</div>
 			</header>
 			<main
+				ref={scroller}
 				className="relative flex-1 overflow-y-auto px-2.5 py-2"
 				onScroll={(event) => {
 					const el = event.currentTarget;
@@ -787,8 +808,9 @@ function Session({ paneId }: { paneId: string }) {
 						key={item.at}
 						className="my-2 ml-10 select-text whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-primary/70 px-3 py-2 text-[15px] leading-snug text-primary-foreground"
 					>
+						<Thumbnails images={item.previews} />
 						{item.text}
-						{item.files > 0 && (
+						{item.files > (item.previews?.length ?? 0) && (
 							<div className="flex items-center gap-1 text-sm">
 								<LuPaperclip className="size-3.5" />
 								{item.files} file{item.files === 1 ? "" : "s"}
@@ -862,7 +884,13 @@ function Session({ paneId }: { paneId: string }) {
 					const words = await speech.finish();
 					const full = words ? appendWords(text, words) : text;
 					if (!full.trim() && !uploads.paths.length) return;
-					const item = remember(full.trim(), uploads.paths.length);
+					const item = remember(
+						full.trim(),
+						uploads.paths.length,
+						uploads.files.flatMap((f) =>
+							f.path && f.preview ? [f.preview] : [],
+						),
+					);
 					setText("");
 					reply.mutate(
 						{ paneId, text: full, paths: uploads.paths },
@@ -881,16 +909,21 @@ function Session({ paneId }: { paneId: string }) {
 					value={text}
 					onChange={(event) => setText(event.target.value)}
 					placeholder="Reply to Odin…"
-					className="max-h-[40dvh] min-h-10 flex-1 resize-none overflow-y-auto rounded-[18px] border border-input bg-secondary px-3 py-2 text-base outline-none"
+					className="max-h-[40dvh] min-h-10 flex-1 resize-none overflow-y-auto rounded-[20px] border border-input bg-secondary px-4 py-2 text-base outline-none"
 				/>
-				<MicButton speech={speech} />
-				<button
-					type="submit"
-					disabled={!ready}
-					className="h-10 rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-40"
-				>
-					Send
-				</button>
+				{/* As in Messages apps: camera and mic while empty, Send once typed. */}
+				{text.trim() || uploads.files.length ? (
+					<SendButton disabled={!ready} />
+				) : (
+					<>
+						<AttachButton uploads={uploads} camera />
+						{speechAvailable ? (
+							<MicButton speech={speech} />
+						) : (
+							<SendButton disabled />
+						)}
+					</>
+				)}
 			</form>
 		</div>
 	);
