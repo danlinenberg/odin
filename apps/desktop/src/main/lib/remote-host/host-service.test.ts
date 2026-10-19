@@ -26,6 +26,7 @@ const post = (
 	});
 
 beforeAll(async () => {
+	if (!live) return;
 	writeFileSync(
 		join(dir, "tokens.json"),
 		JSON.stringify({ slack: "xoxp-test" }),
@@ -54,7 +55,11 @@ beforeAll(async () => {
 }, 20_000);
 afterAll(() => proc?.kill());
 
-describe("Odin's host service", () => {
+// The service is for Linux hosts. CI's macOS runners start python3 but never
+// let it answer on a local port, so the live checks run everywhere else.
+const live = !(process.env.CI && process.platform === "darwin");
+
+describe.skipIf(!live)("Odin's host service", () => {
 	test("refuses browsers, and keeps calls inside the service's API", async () => {
 		expect(
 			(await post({ action: "service" }, { Origin: "https://x.example" }))
@@ -80,11 +85,11 @@ describe("Odin's host service", () => {
 		const asleep = await post({ action: "sessions" });
 		expect(asleep.status).toBe(503);
 	});
+});
 
-	test("setup runs it as its own user, which alone can read the tokens", () => {
-		expect(hostServiceInstallScript).toContain("'User=odin'");
-		expect(hostServiceInstallScript).toContain(
-			"install -d -m 700 -o odin -g odin /var/lib/odin",
-		);
-	});
+test("setup runs it as its own user, which alone can read the tokens", () => {
+	expect(hostServiceInstallScript).toContain("'User=odin'");
+	expect(hostServiceInstallScript).toContain(
+		"install -d -m 700 -o odin -g odin /var/lib/odin",
+	);
 });
