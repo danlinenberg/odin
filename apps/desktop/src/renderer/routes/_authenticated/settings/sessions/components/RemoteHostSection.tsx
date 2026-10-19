@@ -92,19 +92,34 @@ export function RemoteHostSection() {
 		},
 	});
 	const onHost = new Set(wanted ?? current?.host?.connectors ?? []);
-	const [setupParts, setSetupParts] = useState<Set<SetupPartId>>(
-		new Set(["instructions", "skills", "commands"]),
-	);
-	useEffect(() => {
-		const saved = current?.host?.claudeSetup;
-		if (saved?.length) setSetupParts(new Set(saved as SetupPartId[]));
-	}, [current?.host?.claudeSetup]);
+	// Like the connectors: a switch flips at once and its part is copied to
+	// the host behind it; flips made meanwhile go out as one sync.
+	const [wantedSetup, setWantedSetup] = useState<SetupPartId[] | null>(null);
+	const wantedSetupRef = useRef<SetupPartId[] | null>(null);
+	wantedSetupRef.current = wantedSetup;
 	const syncSetup = electronTrpc.remoteHost.syncClaudeSetup.useMutation({
-		onSuccess: ({ bytes }) => {
-			toast.success(`Synced to the host (${Math.round(bytes / 1024)} KB).`);
-			void refresh();
+		onSettled: async (_data, error, sent) => {
+			await refresh();
+			const latest = wantedSetupRef.current;
+			if (error) setWantedSetup(null);
+			else if (latest && latest.join() !== sent.join())
+				syncSetup.mutate(latest);
+			else setWantedSetup(null);
 		},
 	});
+	const setupParts = new Set(
+		wantedSetup ?? (current?.host?.claudeSetup as SetupPartId[]) ?? [],
+	);
+	const toggleSetupPart = (id: SetupPartId, on: boolean) => {
+		const next = new Set(setupParts);
+		if (on) next.add(id);
+		else next.delete(id);
+		const list = SETUP_PARTS.map(([part]) => part).filter((part) =>
+			next.has(part),
+		);
+		setWantedSetup(list);
+		if (!syncSetup.isPending) syncSetup.mutate(list);
+	};
 	const toggleConnector = (name: HostConnectorId, on: boolean) => {
 		const next = new Set(onHost);
 		if (on) next.add(name);
@@ -320,10 +335,14 @@ export function RemoteHostSection() {
 					stacked
 					description={
 						<span className="select-text cursor-text">
-							Copies the parts you pick from this computer's ~/.claude, so
-							sessions on the host follow the same instructions and have the
-							same skills and plugins. Never your login or accounts, your
-							conversations or history. Sync again after you change them.
+							Turning a part on copies it from this computer's ~/.claude to the
+							host, so sessions there follow the same instructions and have the
+							same skills and plugins. Turning one off stops copying it; what is
+							on the host stays. Never your login or accounts, your
+							conversations or history. Sync again after you change them here.
+							{syncSetup.isPending && (
+								<span className="mt-1 block">Copying to the host...</span>
+							)}
 							{current.host.claudeSetupSyncedAt && (
 								<span className="mt-1 block">
 									Last synced{" "}
@@ -348,14 +367,7 @@ export function RemoteHostSection() {
 								<Switch
 									id={`host-setup-${id}`}
 									checked={setupParts.has(id)}
-									onCheckedChange={(on) =>
-										setSetupParts((prev) => {
-											const next = new Set(prev);
-											if (on) next.add(id);
-											else next.delete(id);
-											return next;
-										})
-									}
+									onCheckedChange={(on) => toggleSetupPart(id, on)}
 								/>
 								{label}
 							</label>
@@ -364,6 +376,7 @@ export function RemoteHostSection() {
 							size="sm"
 							variant="outline"
 							disabled={!setupParts.size || syncSetup.isPending}
+							title="Copy them again, after you change them on this computer"
 							onClick={() =>
 								syncSetup.mutate(
 									SETUP_PARTS.map(([id]) => id).filter((id) =>
@@ -372,7 +385,7 @@ export function RemoteHostSection() {
 								)
 							}
 						>
-							{syncSetup.isPending ? "Syncing..." : "Sync now"}
+							{syncSetup.isPending ? "Syncing..." : "Sync again"}
 						</Button>
 					</div>
 				</SettingRow>
