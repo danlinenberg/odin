@@ -231,6 +231,7 @@ const sh = (text: string) => `'${text.replaceAll("'", `'\\''`)}'`;
  */
 export function setUpScript(user: string): string {
 	const asUser = [
+		'cd "$HOME"',
 		'export PATH="$HOME/.local/bin:$PATH"',
 		"command -v claude >/dev/null || curl -fsSL https://claude.ai/install.sh | bash >/dev/null 2>&1",
 		ghInstallScript,
@@ -241,7 +242,9 @@ export function setUpScript(user: string): string {
 		'pkg() { if command -v apt-get >/dev/null; then apt-get install -y -q "$@" || { apt-get update -q && apt-get install -y -q "$@"; }; elif command -v dnf >/dev/null; then dnf install -y -q "$@"; elif command -v yum >/dev/null; then yum install -y -q "$@"; fi; } >/dev/null 2>&1',
 		"for p in tmux git curl python3; do command -v $p >/dev/null || pkg $p; done",
 		hostServiceInstallScript,
-		`sudo -iu ${sh(user)} bash -lc ${sh(asUser)}`,
+		// Not sudo -i: it escapes each newline into a line continuation, which
+		// glued the script's lines together (fifor ...).
+		`sudo -u ${sh(user)} -H bash -lc ${sh(asUser)}`,
 	].join("\n");
 }
 

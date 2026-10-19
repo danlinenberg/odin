@@ -99,7 +99,7 @@ describe("aws-instances", () => {
 		expect(script).toContain(
 			"for p in tmux git curl python3; do command -v $p >/dev/null || pkg $p; done",
 		);
-		expect(script).toContain("sudo -iu 'ubuntu' bash -lc ");
+		expect(script).toContain("sudo -u 'ubuntu' -H bash -lc ");
 		expect(script).toContain("https://claude.ai/install.sh");
 	});
 
