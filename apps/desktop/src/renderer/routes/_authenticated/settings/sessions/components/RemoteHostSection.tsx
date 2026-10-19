@@ -23,12 +23,13 @@ const DEFAULT_REGION = "us-east-1";
 // Radix Select can't hold "", and a tag's value can be empty.
 const EMPTY = "__empty";
 
-type ClaudeState = "checking" | { path: string | null } | { error: string };
+/** An instance's setup: running, what it found, or why it failed. */
+type SetupState = "running" | { claude: string | null } | { error: string };
 
 /**
  * Settings > Sessions > Remote host: pick the tags a host must carry, then
- * pick a host. Only instances that match every tag are listed, and only one
- * with Claude found on it can be used. Its sessions run there in tmux.
+ * pick a host. Only instances that match every tag are listed; Set up installs
+ * what sessions need on one, and its sessions then run there in tmux.
  */
 export function RemoteHostSection() {
 	const utils = electronTrpc.useUtils();
@@ -98,16 +99,25 @@ export function RemoteHostSection() {
 		},
 		onError: (error) => toast.error(error.message),
 	});
-	const findClaude = electronTrpc.remoteHost.awsFindClaude.useMutation();
-	const [claude, setClaude] = useState<Record<string, ClaudeState>>({});
-	const check = async (id: string) => {
-		setClaude((prev) => ({ ...prev, [id]: "checking" }));
-		const result = await findClaude
+	const setUp = electronTrpc.remoteHost.awsSetUp.useMutation();
+	const [setups, setSetups] = useState<Record<string, SetupState>>({});
+	const runSetUp = async (id: string) => {
+		setSetups((prev) => ({ ...prev, [id]: "running" }));
+		const result = await setUp
 			.mutateAsync({ ...target, id, user })
-			.then((r) => ({ path: r.path }))
+			.then((tools) => ({ claude: tools.claude }))
 			.catch((error: Error) => ({ error: error.message }));
-		setClaude((prev) => ({ ...prev, [id]: result }));
+		setSetups((prev) => ({ ...prev, [id]: result }));
 	};
+	const giveAccess = electronTrpc.remoteHost.awsGiveSsmAccess.useMutation({
+		onSuccess: (done) => {
+			toast.success(
+				`${done} SSM usually reaches it within a few minutes; restarting the instance makes it quicker.`,
+			);
+			instances.refetch();
+		},
+		onError: (error) => toast.error(error.message),
+	});
 
 	const [newKey, setNewKey] = useState("");
 	const [newValue, setNewValue] = useState("");
@@ -304,9 +314,11 @@ export function RemoteHostSection() {
 			)}
 			{(instances.data ?? []).map((instance) => {
 				const host = instance.privateIp ?? instance.publicIp;
-				const state = claude[instance.id];
+				const state = setups[instance.id];
 				const found =
-					state && state !== "checking" && "path" in state ? state.path : null;
+					state && state !== "running" && "claude" in state
+						? state.claude
+						: null;
 				return (
 					<SettingRow
 						key={instance.id}
@@ -319,14 +331,14 @@ export function RemoteHostSection() {
 									instance.state,
 									host,
 									instance.ssmOnline ? "SSM online" : "SSM offline",
-									state === "checking"
-										? "checking for Claude"
+									state === "running"
+										? "setting up - Claude, gh, tmux and git, a minute or two"
 										: state && "error" in state
-											? `Claude check failed: ${state.error}`
-											: state && "path" in state
-												? state.path
-													? `Claude: ${state.path}`
-													: "Claude not found"
+											? `Setup failed: ${state.error}`
+											: state && "claude" in state
+												? state.claude
+													? "set up for sessions"
+													: "setup could not install Claude"
 												: null,
 								]
 									.filter(Boolean)
@@ -344,26 +356,36 @@ export function RemoteHostSection() {
 								Start
 							</Button>
 						)}
-						<Button
-							size="sm"
-							variant="outline"
-							disabled={!instance.ssmOnline || state === "checking"}
-							title={
-								instance.ssmOnline
-									? undefined
-									: "SSM can't reach it - it must be running with the SSM agent online"
-							}
-							onClick={() => check(instance.id)}
-						>
-							Check Claude
-						</Button>
+						{instance.ssmOnline ? (
+							<Button
+								size="sm"
+								variant="outline"
+								disabled={state === "running"}
+								title="Installs what sessions need here - Claude, gh, tmux, git - when missing"
+								onClick={() => runSetUp(instance.id)}
+							>
+								Set up
+							</Button>
+						) : (
+							<Button
+								size="sm"
+								variant="outline"
+								disabled={giveAccess.isPending || instance.state !== "running"}
+								title="Gives AWS Systems Manager access to this instance through its IAM role, with your AWS sign-in"
+								onClick={() =>
+									giveAccess.mutate({ ...target, id: instance.id })
+								}
+							>
+								Set up access
+							</Button>
+						)}
 						<Button
 							size="sm"
 							disabled={!found}
 							title={
 								found
 									? undefined
-									: "Check Claude first - only an instance with Claude on it can be used"
+									: "Set it up first - sessions need Claude on it"
 							}
 							onClick={() =>
 								use.mutate({

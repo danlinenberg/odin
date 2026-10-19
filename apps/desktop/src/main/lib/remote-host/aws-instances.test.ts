@@ -1,8 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import {
-	claudeCheckScript,
 	instanceFilters,
+	parseTools,
 	profileNames,
+	setUpScript,
 	tagChoices,
 	toInstances,
 } from "./aws-instances";
@@ -93,9 +94,25 @@ describe("aws-instances", () => {
 		]);
 	});
 
-	test("the Claude check runs as the SSH user and finds the standard install", () => {
-		expect(claudeCheckScript("ubuntu")).toBe(
-			`sudo -iu 'ubuntu' bash -lc 'command -v claude || { [ -x "$HOME/.local/bin/claude" ] && echo "$HOME/.local/bin/claude"; } || true'`,
+	test("setup installs what is missing as root, and Claude and gh as the user", () => {
+		const script = setUpScript("ubuntu");
+		expect(script).toContain(
+			"for p in tmux git curl python3; do command -v $p >/dev/null || pkg $p; done",
 		);
+		expect(script).toContain("sudo -iu 'ubuntu' bash -lc ");
+		expect(script).toContain("https://claude.ai/install.sh");
+	});
+
+	test("setup's report becomes paths, missing ones null", () => {
+		expect(
+			parseTools(
+				"claude=/home/u/.local/bin/claude\ngh=missing\ntmux=/usr/bin/tmux\ngit=/usr/bin/git\n",
+			),
+		).toEqual({
+			claude: "/home/u/.local/bin/claude",
+			gh: null,
+			tmux: "/usr/bin/tmux",
+			git: "/usr/bin/git",
+		});
 	});
 });

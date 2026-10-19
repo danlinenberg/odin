@@ -43,6 +43,7 @@
 		"@ast-grep/napi": "0.41.1",
 		"@aws-sdk/client-ec2": "3.1145.0",
 		"@aws-sdk/client-ec2-instance-connect": "3.1145.0",
+		"@aws-sdk/client-iam": "3.1145.0",
 		"@aws-sdk/client-ssm": "3.1145.0",
 		"@aws-sdk/credential-providers": "3.1145.0",
 		"@codemirror/language": "6.12.3",

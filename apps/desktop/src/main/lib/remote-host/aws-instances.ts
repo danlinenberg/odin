@@ -2,6 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
+	AssociateIamInstanceProfileCommand,
 	DescribeInstancesCommand,
 	DescribeTagsCommand,
 	EC2Client,
@@ -9,11 +10,20 @@ import {
 	StartInstancesCommand,
 } from "@aws-sdk/client-ec2";
 import {
+	AddRoleToInstanceProfileCommand,
+	AttachRolePolicyCommand,
+	CreateInstanceProfileCommand,
+	CreateRoleCommand,
+	GetInstanceProfileCommand,
+	IAMClient,
+} from "@aws-sdk/client-iam";
+import {
 	DescribeInstanceInformationCommand,
 	GetCommandInvocationCommand,
 	SendCommandCommand,
 	SSMClient,
 } from "@aws-sdk/client-ssm";
+import { ghInstallScript } from "./session";
 import { awsClientConfig } from "./ssm";
 
 /**
@@ -213,34 +223,70 @@ export async function startInstance(
 const sh = (text: string) => `'${text.replaceAll("'", `'\\''`)}'`;
 
 /**
- * The shell line SSM runs as root: Claude as `user` sees it - on their PATH,
- * or the copy Odin installs into its own folder on the first connect.
+ * What a host needs for Odin's sessions, installed when missing - run by SSM
+ * as root, so it needs no sudo: tmux, git, curl and python3 from the
+ * system's package manager; Claude Code and the GitHub CLI into the user's
+ * own ~/.local/bin. Safe to run again. Ends with what it found.
  */
-export function claudeCheckScript(user: string): string {
-	return `sudo -iu ${sh(user)} bash -lc ${sh(
-		'command -v claude || { [ -x "$HOME/.local/bin/claude" ] && echo "$HOME/.local/bin/claude"; } || true',
-	)}`;
+export function setUpScript(user: string): string {
+	const asUser = [
+		'export PATH="$HOME/.local/bin:$PATH"',
+		"command -v claude >/dev/null || curl -fsSL https://claude.ai/install.sh | bash >/dev/null 2>&1",
+		ghInstallScript,
+		'for t in claude gh tmux git; do echo "$t=$(command -v $t || echo missing)"; done',
+	].join("\n");
+	return [
+		"export DEBIAN_FRONTEND=noninteractive",
+		'pkg() { if command -v apt-get >/dev/null; then apt-get install -y -q "$@" || { apt-get update -q && apt-get install -y -q "$@"; }; elif command -v dnf >/dev/null; then dnf install -y -q "$@"; elif command -v yum >/dev/null; then yum install -y -q "$@"; fi; } >/dev/null 2>&1',
+		"for p in tmux git curl python3; do command -v $p >/dev/null || pkg $p; done",
+		`sudo -iu ${sh(user)} bash -lc ${sh(asUser)}`,
+	].join("\n");
 }
 
-/** The path to `claude` on the instance, or null when it is not there. Needs SSM online. */
-export async function findClaude(
+export interface HostTools {
+	claude: string | null;
+	gh: string | null;
+	tmux: string | null;
+	git: string | null;
+}
+
+/** `name=path` lines into paths, null for "missing". */
+export function parseTools(output: string): HostTools {
+	const found = Object.fromEntries(
+		output
+			.split("\n")
+			.map((line) => line.trim().split("="))
+			.filter((pair) => pair.length === 2)
+			.map(([name, path]) => [name, path === "missing" ? null : path]),
+	);
+	return {
+		claude: found.claude ?? null,
+		gh: found.gh ?? null,
+		tmux: found.tmux ?? null,
+		git: found.git ?? null,
+	};
+}
+
+/** Sets the instance up for Odin's sessions (see setUpScript). Needs SSM online. */
+export async function setUpHost(
 	target: AwsTarget,
 	id: string,
 	user: string,
-): Promise<string | null> {
+): Promise<HostTools> {
 	const ssm = new SSMClient(awsClientConfig(target));
 	const sent = await ssm.send(
 		new SendCommandCommand({
 			InstanceIds: [id],
 			DocumentName: "AWS-RunShellScript",
-			Comment: "Odin: is Claude installed",
-			Parameters: { commands: [claudeCheckScript(user)] },
+			Comment: "Odin: set up for sessions",
+			TimeoutSeconds: 600,
+			Parameters: { commands: [setUpScript(user)] },
 		}),
 	);
 	const commandId = sent.Command?.CommandId;
-	if (!commandId) throw new Error("SSM did not accept the check.");
-	for (let attempt = 0; attempt < 30; attempt++) {
-		await new Promise((resolve) => setTimeout(resolve, 1_000));
+	if (!commandId) throw new Error("SSM did not accept the setup.");
+	for (let attempt = 0; attempt < 300; attempt++) {
+		await new Promise((resolve) => setTimeout(resolve, 2_000));
 		const result = await ssm
 			.send(
 				new GetCommandInvocationCommand({
@@ -255,8 +301,98 @@ export async function findClaude(
 		)
 			continue;
 		if (result.Status !== "Success")
-			throw new Error(`The check ended as ${result.Status}.`);
-		return result.StandardOutputContent?.trim().split("\n")[0] || null;
+			throw new Error(
+				`Setup ended as ${result.Status}: ${(result.StandardErrorContent ?? "").slice(-300)}`,
+			);
+		return parseTools(result.StandardOutputContent ?? "");
 	}
-	throw new Error("The check did not finish in 30 seconds.");
+	throw new Error("Setup did not finish in 10 minutes.");
+}
+
+const SSM_POLICY = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore";
+/** The role Odin makes for an instance that has none. */
+const ODIN_ROLE = "OdinSsmHost";
+
+const ignore = (name: string) => (error: unknown) => {
+	if ((error as { name?: string }).name !== name) throw error;
+};
+
+/**
+ * Lets SSM reach an instance, with the user's own AWS sign-in: the SSM policy
+ * on the instance's role, or - with no role - an OdinSsmHost role and instance
+ * profile attached to it. The instance's SSM agent then registers on its own,
+ * usually within minutes. Returns what it did.
+ */
+export async function giveSsmAccess(
+	target: AwsTarget,
+	id: string,
+): Promise<string> {
+	const config = awsClientConfig(target);
+	const ec2 = new EC2Client(config);
+	const iam = new IAMClient(config);
+	const instance = (
+		await ec2.send(new DescribeInstancesCommand({ InstanceIds: [id] }))
+	).Reservations?.[0]?.Instances?.[0];
+	const profileArn = instance?.IamInstanceProfile?.Arn;
+	if (profileArn) {
+		const profile = await iam.send(
+			new GetInstanceProfileCommand({
+				InstanceProfileName: profileArn.split("/").pop(),
+			}),
+		);
+		const role = profile.InstanceProfile?.Roles?.[0]?.RoleName;
+		if (!role) throw new Error("The instance's profile has no role.");
+		await iam.send(
+			new AttachRolePolicyCommand({ RoleName: role, PolicyArn: SSM_POLICY }),
+		);
+		return `Added SSM access to the instance's role, ${role}.`;
+	}
+	await iam
+		.send(
+			new CreateRoleCommand({
+				RoleName: ODIN_ROLE,
+				Description:
+					"Lets AWS Systems Manager reach instances Odin runs sessions on",
+				AssumeRolePolicyDocument: JSON.stringify({
+					Version: "2012-10-17",
+					Statement: [
+						{
+							Effect: "Allow",
+							Principal: { Service: "ec2.amazonaws.com" },
+							Action: "sts:AssumeRole",
+						},
+					],
+				}),
+			}),
+		)
+		.catch(ignore("EntityAlreadyExistsException"));
+	await iam.send(
+		new AttachRolePolicyCommand({ RoleName: ODIN_ROLE, PolicyArn: SSM_POLICY }),
+	);
+	await iam
+		.send(new CreateInstanceProfileCommand({ InstanceProfileName: ODIN_ROLE }))
+		.catch(ignore("EntityAlreadyExistsException"));
+	await iam
+		.send(
+			new AddRoleToInstanceProfileCommand({
+				InstanceProfileName: ODIN_ROLE,
+				RoleName: ODIN_ROLE,
+			}),
+		)
+		.catch(ignore("LimitExceededException"));
+	// A new instance profile takes a few seconds to be usable in EC2.
+	for (let attempt = 0; ; attempt++) {
+		try {
+			await ec2.send(
+				new AssociateIamInstanceProfileCommand({
+					InstanceId: id,
+					IamInstanceProfile: { Name: ODIN_ROLE },
+				}),
+			);
+			return `Attached the ${ODIN_ROLE} role, with SSM access, to the instance.`;
+		} catch (error) {
+			if (attempt >= 11) throw error;
+			await new Promise((resolve) => setTimeout(resolve, 5_000));
+		}
+	}
 }

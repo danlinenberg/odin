@@ -6,10 +6,11 @@ import { promisify } from "node:util";
 import { app, safeStorage } from "electron";
 import { githubAccessToken } from "main/lib/github-token";
 import {
-	findClaude,
+	giveSsmAccess,
 	listAwsProfiles,
 	listInstances,
 	listTagChoices,
+	setUpHost,
 	startInstance,
 } from "main/lib/remote-host/aws-instances";
 import { bringSessionHome } from "main/lib/remote-host/bring-home";
@@ -119,16 +120,19 @@ export const createRemoteHostRouter = () =>
 		awsStart: publicProcedure
 			.input(awsTarget.extend({ id: z.string().min(1) }))
 			.mutation(({ input }) => startInstance(input, input.id)),
-		awsFindClaude: publicProcedure
+		/** Installs what sessions need on the instance (Claude, gh, tmux, git); reports what is there. */
+		awsSetUp: publicProcedure
 			.input(
 				awsTarget.extend({
 					id: z.string().min(1),
 					user: z.string().min(1),
 				}),
 			)
-			.mutation(async ({ input }) => ({
-				path: await findClaude(input, input.id, input.user),
-			})),
+			.mutation(({ input }) => setUpHost(input, input.id, input.user)),
+		/** Lets SSM reach an instance it can't yet - see giveSsmAccess. */
+		awsGiveSsmAccess: publicProcedure
+			.input(awsTarget.extend({ id: z.string().min(1) }))
+			.mutation(({ input }) => giveSsmAccess(input, input.id)),
 
 		/** The host sessions start on; `on: false` keeps them on this computer. */
 		get: publicProcedure.query(() => ({
