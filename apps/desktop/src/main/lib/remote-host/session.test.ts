@@ -155,7 +155,9 @@ test("the host falls back to the API key only while the plan is limited", () => 
 	expect(run.indexOf("unset ODIN_FALLBACK_API_KEY")).toBeLessThan(
 		run.indexOf("exec claude"),
 	);
-	expect(
-		JSON.parse(planLimitSettings).hooks.StopFailure[0].hooks[0].command,
-	).toBe("python3 ~/.odin/plan-limit.py");
+	const hooks = JSON.parse(planLimitSettings).hooks;
+	expect(hooks.Stop[0].hooks[0].command).toBe("python3 ~/.odin/turn-end.py");
+	expect(hooks.StopFailure[0].hooks[0].command).toBe(
+		"ODIN_TURN=failed python3 ~/.odin/turn-end.py",
+	);
 });

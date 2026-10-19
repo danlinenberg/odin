@@ -114,14 +114,24 @@ export const ghInstallScript = [
 ].join("\n");
 
 /**
- * The plan-limit switch, as claude-auto does it on the laptop. Claude's
- * StopFailure hook runs PLAN_LIMIT_HOOK when a turn fails on a usage or spend
- * limit; it records five hours in ~/.claude/plan-limit.json (a weekly limit
- * just records again). Until then, sessions start on the user's API key.
+ * Claude's Stop and StopFailure hooks on the host. Every turn's end is marked
+ * in ~/.odin/night/stopped/<session>, which is how the night runner knows
+ * the last session stopped working. A turn that failed on a usage or spend
+ * limit also flips the plan-limit switch, as claude-auto does on the laptop:
+ * five hours in ~/.claude/plan-limit.json (a weekly limit just records
+ * again), during which sessions start on the user's API key.
  */
-const PLAN_LIMIT_HOOK = `import json, os, sys, time
-event = sys.stdin.read().lower()
-if "limit" in event:
+const TURN_END_HOOK = `import json, os, sys, time
+raw = sys.stdin.read()
+try:
+    session = json.loads(raw).get("session_id") or ""
+except Exception:
+    session = ""
+stopped = os.path.expanduser("~/.odin/night/stopped")
+os.makedirs(stopped, exist_ok=True)
+if session and "/" not in session:
+    open(os.path.join(stopped, session), "w").close()
+if os.environ.get("ODIN_TURN") == "failed" and "limit" in raw.lower():
     json.dump({"until": time.time() + 5 * 3600}, open(os.path.expanduser("~/.claude/plan-limit.json"), "w"))`;
 
 /** On the API key while the plan is limited, with the key pre-approved. */
@@ -145,9 +155,17 @@ json.dump(c, open(p, "w"), indent=2)`;
 
 export const planLimitSettings = JSON.stringify({
 	hooks: {
+		Stop: [
+			{ hooks: [{ type: "command", command: "python3 ~/.odin/turn-end.py" }] },
+		],
 		StopFailure: [
 			{
-				hooks: [{ type: "command", command: "python3 ~/.odin/plan-limit.py" }],
+				hooks: [
+					{
+						type: "command",
+						command: "ODIN_TURN=failed python3 ~/.odin/turn-end.py",
+					},
+				],
 			},
 		],
 	},
@@ -184,7 +202,7 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 		`python3 -c ${sh(SKIP_FIRST_RUN)} "$PWD" 2>/dev/null || true`,
 		'export PATH="$HOME/.local/bin:$PATH"',
 		ghInstallScript,
-		`mkdir -p "$HOME/.odin" && printf %s ${sh(Buffer.from(PLAN_LIMIT_HOOK).toString("base64"))} | base64 -d > "$HOME/.odin/plan-limit.py"`,
+		`mkdir -p "$HOME/.odin" && printf %s ${sh(Buffer.from(TURN_END_HOOK).toString("base64"))} | base64 -d > "$HOME/.odin/turn-end.py"`,
 		`if [ -n "$ODIN_FALLBACK_API_KEY" ] && python3 -c ${sh(USE_API_KEY_IF_LIMITED)}; then export ANTHROPIC_API_KEY="$ODIN_FALLBACK_API_KEY"; else unset ANTHROPIC_API_KEY; fi`,
 		"unset ODIN_FALLBACK_API_KEY",
 		`exec claude --settings ${sh(planLimitSettings)} ${spec.claudeArgs}${prompt}`,

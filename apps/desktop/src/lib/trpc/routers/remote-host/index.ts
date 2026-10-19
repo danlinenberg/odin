@@ -21,12 +21,19 @@ import {
 } from "main/lib/remote-host/host-service";
 import { pushHostTokens } from "main/lib/remote-host/host-tokens";
 import {
+	pushNightPlan,
+	readNightStarted,
+	SECRETS_DIR_PLACEHOLDER,
+} from "main/lib/remote-host/night";
+import {
 	hostFiles,
 	hostNote,
 	httpsCloneUrl,
 	issueTicket,
 	mainCheckoutOf,
+	type RemoteSessionSpec,
 	repoNameOf,
+	runScript,
 	secretsFile,
 	sh,
 } from "main/lib/remote-host/session";
@@ -38,6 +45,63 @@ import { scanRepos } from "../repos";
 import { getProcessEnvWithShellEnv } from "../workspaces/utils/shell-env";
 
 const run = promisify(execFile);
+
+type RemoteHost = NonNullable<ReturnType<typeof readOdinConfig>["remoteHost"]>;
+
+/**
+ * A session's spec for the host: the repo from the local checkout's origin, the
+ * prompt with laptop files swapped for their copies and the host note added.
+ */
+async function buildSessionSpec(
+	host: RemoteHost,
+	input: {
+		pane: string;
+		repoPath: string | null;
+		claudeArgs: string;
+		prompt: string | null;
+		odinPane?: string | null;
+	},
+): Promise<RemoteSessionSpec> {
+	const { repoPath, ...rest } = input;
+	// The repo is its origin. A session worktree that is gone still
+	// names its repo: it lived at <repo>/.worktrees/<name>.
+	const origin = repoPath
+		? ((await originOf(repoPath)) ?? (await originOf(mainCheckoutOf(repoPath))))
+		: null;
+	const repoName = origin ? repoNameOf(origin) : null;
+	const { prompt, files } = rest.prompt
+		? hostFiles(rest.prompt, host.user, isSmallFile)
+		: { prompt: null, files: [] };
+	return {
+		...host,
+		...rest,
+		prompt:
+			prompt === null
+				? null
+				: prompt +
+					hostNote({
+						user: host.user,
+						name: host.name || host.instanceId,
+						repoName,
+						pane: rest.pane,
+						known: repoName ? [] : await knownRepos(),
+					}),
+		files,
+		repoName,
+		cloneUrl: origin,
+	};
+}
+
+/** What a session on the host starts with, as KEY='value' lines. */
+async function sessionSecrets(): Promise<string> {
+	return secretsFile({
+		CLAUDE_CODE_OAUTH_TOKEN: claudeToken() ?? undefined,
+		// The API key claude-auto falls back to here, for the same switch on the host.
+		ODIN_FALLBACK_API_KEY: (await getProcessEnvWithShellEnv())
+			.ANTHROPIC_API_KEY,
+		GH_TOKEN: (await githubAccessToken()) ?? undefined,
+	});
+}
 
 /** A checkout's origin as an https clone URL, or null. */
 const originOf = (path: string) =>
@@ -259,46 +323,10 @@ export const createRemoteHostRouter = () =>
 				// and a session already on the host resumes there either way.
 				const host = readOdinConfig().remoteHost;
 				if (!host) throw new Error("No remote host is set up.");
-				const { repoPath, ...rest } = input;
-				// The repo is its origin. A session worktree that is gone still
-				// names its repo: it lived at <repo>/.worktrees/<name>.
-				const origin = repoPath
-					? ((await originOf(repoPath)) ??
-						(await originOf(mainCheckoutOf(repoPath))))
-					: null;
-				const repoName = origin ? repoNameOf(origin) : null;
-				const { prompt, files } = rest.prompt
-					? hostFiles(rest.prompt, host.user, isSmallFile)
-					: { prompt: null, files: [] };
 				const spec = Buffer.from(
-					JSON.stringify({
-						...host,
-						...rest,
-						prompt:
-							prompt === null
-								? null
-								: prompt +
-									hostNote({
-										user: host.user,
-										name: host.name || host.instanceId,
-										repoName,
-										pane: rest.pane,
-										known: repoName ? [] : await knownRepos(),
-									}),
-						files,
-						repoName,
-						cloneUrl: origin,
-					}),
+					JSON.stringify(await buildSessionSpec(host, input)),
 				).toString("base64");
-				const ticket = issueTicket(
-					secretsFile({
-						CLAUDE_CODE_OAUTH_TOKEN: claudeToken() ?? undefined,
-						// The API key claude-auto falls back to here, for the same switch on the host.
-						ODIN_FALLBACK_API_KEY: (await getProcessEnvWithShellEnv())
-							.ANTHROPIC_API_KEY,
-						GH_TOKEN: (await githubAccessToken()) ?? undefined,
-					}),
-				);
+				const ticket = issueTicket(await sessionSecrets());
 				const script = join(
 					app.getAppPath(),
 					"dist",
@@ -307,4 +335,67 @@ export const createRemoteHostRouter = () =>
 				);
 				return `ELECTRON_RUN_AS_NODE=1 ${sh(resolveElectronBinary())} ${sh(script)} ${spec} ${ticket}`;
 			}),
+
+		/**
+		 * Tonight's Night Agent plan, sent to the host's runner: each task as a
+		 * ready session script (its prompt built here, as a launch would), the
+		 * window as epoch seconds, the cap. See main/lib/remote-host/night.
+		 */
+		nightPush: publicProcedure
+			.input(
+				z.object({
+					from: z.number(),
+					to: z.number(),
+					cap: z.number().int().min(0),
+					tasks: z.array(
+						z.object({
+							key: z.string(),
+							title: z.string(),
+							sessionId: z.string().min(1),
+							repoPath: z.string().nullable(),
+							prompt: z.string(),
+						}),
+					),
+				}),
+			)
+			.mutation(async ({ input }) => {
+				const host = readOdinConfig().remoteHost;
+				if (!host?.on) throw new Error("The remote host is off.");
+				const files: { local: string; remote: string }[] = [];
+				const tasks = [];
+				for (const task of input.tasks) {
+					const spec = await buildSessionSpec(host, {
+						pane: task.sessionId,
+						repoPath: task.repoPath,
+						claudeArgs: `--session-id ${task.sessionId}`,
+						prompt: task.prompt,
+					});
+					files.push(...(spec.files ?? []));
+					tasks.push({
+						key: task.key,
+						title: task.title,
+						sessionId: task.sessionId,
+						script: runScript(spec, SECRETS_DIR_PLACEHOLDER),
+					});
+				}
+				await pushNightPlan(
+					host,
+					{
+						id: crypto.randomUUID(),
+						from: input.from,
+						to: input.to,
+						cap: input.cap,
+						tasks,
+					},
+					await sessionSecrets(),
+					files,
+				);
+				return { sent: tasks.length };
+			}),
+		/** What the host's runner started tonight, for the board to adopt. */
+		nightStarted: publicProcedure.query(async () => {
+			const host = readOdinConfig().remoteHost;
+			if (!host?.on) return [];
+			return readNightStarted(host);
+		}),
 	});

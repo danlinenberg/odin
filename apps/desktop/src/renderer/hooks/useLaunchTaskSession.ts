@@ -226,6 +226,8 @@ export function useLaunchTaskSession() {
 		key,
 		now,
 		guidelines,
+		planOnly,
+		onHost,
 	}: {
 		workspaceId: string;
 		/** Caller's row id - echoed back as `launchingKey` while this runs. */
@@ -267,6 +269,14 @@ export function useLaunchTaskSession() {
 		now?: boolean;
 		/** Context the person added at start (`askSessionContext`). */
 		guidelines?: string;
+		/**
+		 * Build the session's prompt as a launch on the remote host would, and
+		 * stop there: no card, nothing started. The Night Agent sends these to
+		 * the host's runner.
+		 */
+		planOnly?: boolean;
+		/** On the remote host whatever launchTarget says: a session the host already runs. */
+		onHost?: boolean;
 	}): Promise<
 		| {
 				ok: true;
@@ -278,10 +288,18 @@ export function useLaunchTaskSession() {
 				/** Created, but held in Idle until the gate clears. */
 				queued: boolean;
 		  }
-		| { ok: false; error: string }
+		| {
+				ok: false;
+				error: string;
+				/** planOnly's answer - see planForHost. */
+				plan?: { prompt: string; sessionId: string };
+		  }
 	> => {
-		setIsLaunching(true);
-		setLaunchingKey(key ?? null);
+		// Planning starts nothing, so no row says "Starting...".
+		if (!planOnly) {
+			setIsLaunching(true);
+			setLaunchingKey(key ?? null);
+		}
 		try {
 			const workspace = await utils.client.workspaces.get.query({
 				id: workspaceId,
@@ -295,9 +313,15 @@ export function useLaunchTaskSession() {
 			}
 			// Settings > Sessions can start sessions on a remote host: there the
 			// host keeps its own clone, so no worktree, trust or local files.
-			const remote = await utils.client.remoteHost?.launchTarget
-				.query({ repoPath: repoPath ?? null, source: source ?? null })
-				.catch(() => null);
+			const host = (
+				await utils.client.remoteHost?.get.query().catch(() => null)
+			)?.host;
+			const remote =
+				(planOnly || onHost) && host
+					? host.name || host.instanceId
+					: await utils.client.remoteHost?.launchTarget
+							.query({ repoPath: repoPath ?? null, source: source ?? null })
+							.catch(() => null);
 			// A resume passes its old cwd back as repoPath, so it never gets a second one.
 			const ownWorktree =
 				!remote && repoPath && repoPath !== worktreePath && !resumeSessionId
@@ -423,6 +447,12 @@ export function useLaunchTaskSession() {
 				);
 				// A remote session gets the text; the files it names are copied
 				// to the host with it.
+				if (planOnly)
+					return {
+						ok: false,
+						error: "",
+						plan: { prompt: text, sessionId: crypto.randomUUID() },
+					};
 				if (remote) remotePrompt = text;
 				else {
 					await utils.client.filesystem.writeFile.mutate({
@@ -609,10 +639,24 @@ export function useLaunchTaskSession() {
 				error: error instanceof Error ? error.message : String(error),
 			};
 		} finally {
-			setIsLaunching(false);
-			setLaunchingKey(null);
+			if (!planOnly) {
+				setIsLaunching(false);
+				setLaunchingKey(null);
+			}
 		}
 	};
 
-	return { launch, isLaunching, launchingKey };
+	/**
+	 * A session's prompt as a launch on the remote host would build it, with
+	 * nothing started - for the Night Agent's plan on the host.
+	 */
+	const planForHost = async (
+		params: Omit<Parameters<typeof launch>[0], "planOnly" | "onHost">,
+	) => {
+		const result = await launch({ ...params, planOnly: true });
+		if (!result.ok && result.plan) return result.plan;
+		throw new Error(result.ok ? "Launched instead of planning" : result.error);
+	};
+
+	return { launch, planForHost, isLaunching, launchingKey };
 }

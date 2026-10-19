@@ -30,7 +30,8 @@ export function paneWorksOn(
 export function useStartAllItem(onSlackStarted?: () => void) {
 	const navigate = useNavigate();
 	const { ensureWorkspace } = useOdinWorkspace();
-	const { launch, isLaunching, launchingKey } = useLaunchTaskSession();
+	const { launch, planForHost, isLaunching, launchingKey } =
+		useLaunchTaskSession();
 	const { setPane } = useMyTasks();
 	const panes = useTabsStore((s) => s.panes);
 	// Starting a Slack row is what takes it out of the queue - the same call
@@ -55,9 +56,14 @@ export function useStartAllItem(onSlackStarted?: () => void) {
 	/**
 	 * `offHours` is the overnight runner's launch: tagged, told nobody is
 	 * watching, handed the night's instructions - and it stays where you are
-	 * instead of pulling the board into view.
+	 * instead of pulling the board into view. With `hostSession`, the session
+	 * already runs on the remote host (the Night Agent started it there): the
+	 * card attaches to it rather than starting one.
 	 */
-	const start = async (item: AllItem, offHours?: { instructions: string }) => {
+	const start = async (
+		item: AllItem,
+		offHours?: { instructions: string; hostSession?: string },
+	) => {
 		// Nobody is there to answer at night.
 		const context = offHours ? {} : await askSessionContext(item.launch.title);
 		if (!context) return;
@@ -72,6 +78,9 @@ export function useStartAllItem(onSlackStarted?: () => void) {
 			description: description || null,
 			workspaceId: ensured.workspace.id,
 			...(offHours ? { tags: ["off-hours"] } : {}),
+			...(offHours?.hostSession
+				? { resumeSessionId: offHours.hostSession, onHost: true }
+				: {}),
 		});
 		if (!result.ok) return toast.error(result.error);
 		if (item.source === "Slack") {
@@ -87,5 +96,21 @@ export function useStartAllItem(onSlackStarted?: () => void) {
 		navigate({ to: "/board" });
 	};
 
-	return { start, livePaneFor, isLaunching, launchingKey };
+	/** The Night Agent's launch of this row, built for the remote host and not started. */
+	const planOnHost = async (item: AllItem, instructions: string) => {
+		const ensured = await ensureWorkspace();
+		if (!ensured.ok) throw new Error(ensured.error);
+		const plan = await planForHost({
+			...item.launch,
+			description:
+				[item.launch.description, instructions].filter(Boolean).join("\n\n") ||
+				null,
+			workspaceId: ensured.workspace.id,
+			tags: ["off-hours"],
+		});
+		// Feed rows name no repo: on the host the agent picks one from the list.
+		return { ...plan, repoPath: null };
+	};
+
+	return { start, planOnHost, livePaneFor, isLaunching, launchingKey };
 }
