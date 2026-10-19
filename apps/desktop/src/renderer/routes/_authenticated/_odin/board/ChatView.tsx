@@ -995,6 +995,25 @@ export function elapsedLabel(ms: number): string {
 /** A row arriving while you watch: a short fade and rise, compositor-only. */
 const ENTER = "animate-in fade-in slide-in-from-bottom-2 duration-300 ease-out";
 
+/** When a message was sent, date and hour: "Oct 19, 23:29". */
+function MessageTime({ at, className }: { at?: number; className?: string }) {
+	if (!at) return null;
+	const date = new Date(at);
+	return (
+		<time
+			dateTime={date.toISOString()}
+			className={cn("block text-[11px] text-muted-foreground", className)}
+		>
+			{date.toLocaleString(undefined, {
+				month: "short",
+				day: "numeric",
+				hour: "2-digit",
+				minute: "2-digit",
+			})}
+		</time>
+	);
+}
+
 /**
  * Your message: a violet bubble on the right with room above it, so a reply
  * opens a new turn instead of reading as a line in Claude's text.
@@ -1008,8 +1027,11 @@ function UserBubble({
 	onDismiss,
 	workspaceId,
 	fromPhone,
+	at,
 }: {
 	text: string;
+	/** When you sent it (ms). */
+	at?: number;
 	images?: Preview[];
 	pending?: boolean;
 	/** Sent from the Odin iPhone app (main/lib/phone/sent.ts). */
@@ -1084,6 +1106,7 @@ function UserBubble({
 					from iPhone
 				</div>
 			)}
+			<MessageTime at={at} className="mt-1 text-right" />
 			{lost && (
 				<div className="mt-1.5 flex flex-wrap gap-x-3 text-[12px]">
 					<span className="text-danger">
@@ -1906,6 +1929,7 @@ const ItemView = memo(function ItemView({
 				images={item.images}
 				workspaceId={workspaceId}
 				fromPhone={cameFromPhone(item.text, fromPhone.data ?? [])}
+				at={item.at}
 			/>
 		);
 	const { body, actions } = splitActionItems(linkify(item.text, refs));
@@ -1933,6 +1957,7 @@ const ItemView = memo(function ItemView({
 					</div>
 				</FoldedReply>
 			)}
+			<MessageTime at={item.at} className="mt-0.5" />
 			{placement === "card" && shown && (
 				<TldrCard tldr={shown} full={full} onToggle={toggleFull} />
 			)}
