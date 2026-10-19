@@ -58,3 +58,26 @@ export function runOnHost(
 		}),
 	);
 }
+
+/** Copies laptop files to the host over SFTP (paths relative to the login user's home). */
+export async function copyFilesToHost(
+	host: HostLogin,
+	files: { local: string; remote: string }[],
+): Promise<void> {
+	const client = await connectHost(host);
+	try {
+		await runOnHost(client, "mkdir -p ~/.odin/files");
+		const sftp = await new Promise<import("ssh2").SFTPWrapper>(
+			(resolve, reject) =>
+				client.sftp((err, s) => (err ? reject(err) : resolve(s))),
+		);
+		for (const file of files)
+			await new Promise<void>((resolve, reject) =>
+				sftp.fastPut(file.local, file.remote, (err) =>
+					err ? reject(err) : resolve(),
+				),
+			);
+	} finally {
+		client.end();
+	}
+}

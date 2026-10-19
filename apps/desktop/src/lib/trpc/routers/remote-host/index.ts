@@ -41,6 +41,7 @@ import {
 	secretsFile,
 	sh,
 } from "main/lib/remote-host/session";
+import { copyFilesToHost } from "main/lib/remote-host/ssh";
 import { resolveElectronBinary } from "main/lib/terminal-host/electron-binary";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
@@ -340,6 +341,29 @@ export const createRemoteHostRouter = () =>
 				const needs = input.source ? CONNECTOR_OF[input.source] : undefined;
 				if (needs && !host.connectors?.includes(needs)) return null;
 				return host.name || host.instanceId;
+			}),
+
+		/**
+		 * A message to a session on the host: the laptop files it names or
+		 * attaches, copied to ~/.odin/files there, and the text and paths
+		 * rewritten to the copies. Unchanged when nothing is a laptop file.
+		 */
+		filesToHost: publicProcedure
+			.input(z.object({ text: z.string(), paths: z.array(z.string()) }))
+			.mutation(async ({ input }) => {
+				const host = readOdinConfig().remoteHost;
+				if (!host) return input;
+				const marker = "\u0000ODIN-PATH\u0000";
+				const { prompt, files } = hostFiles(
+					[input.text, ...input.paths].join(marker),
+					host.user,
+					isSmallFile,
+					`${Date.now()}-`,
+				);
+				if (!files.length) return input;
+				await copyFilesToHost(host, files);
+				const [text = "", ...paths] = prompt.split(marker);
+				return { text, paths };
 			}),
 
 		/** The command a remote session's pane runs. */

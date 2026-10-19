@@ -35,6 +35,7 @@ import {
 } from "renderer/stores/dismissed-actions";
 import { openUrl } from "renderer/stores/in-app-browser";
 import { useSessionView } from "renderer/stores/session-view";
+import { useTabsStore } from "renderer/stores/tabs/store";
 import {
 	getImageMimeType,
 	getVideoMimeType,
@@ -2926,8 +2927,17 @@ function Composer({
 			return;
 		}
 		try {
-			await pasteAttachments(write.mutateAsync, paneId, paths);
-			await typeIntoClaude(write.mutateAsync, paneId, text, now);
+			// A session on the remote host can't read this computer's files:
+			// they go there first, and it gets the copies' paths.
+			const onHost = !!useTabsStore.getState().panes[paneId]?.odinRemote;
+			const sent = onHost
+				? await electronTrpcClient.remoteHost.filesToHost.mutate({
+						text,
+						paths,
+					})
+				: { text, paths };
+			await pasteAttachments(write.mutateAsync, paneId, sent.paths);
+			await typeIntoClaude(write.mutateAsync, paneId, sent.text, now);
 		} catch (error) {
 			setDraft(body);
 			setBash(bash);

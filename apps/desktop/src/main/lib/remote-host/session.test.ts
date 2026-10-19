@@ -162,3 +162,9 @@ test("the host falls back to the API key only while the plan is limited", () => 
 		"ODIN_TURN=failed python3 ~/.odin/turn-end.py",
 	);
 });
+
+test("files sent later get a prefix, so they never overwrite earlier copies", () => {
+	expect(
+		hostFiles("/Users/d/a.png", "ubuntu", () => true, "1700-").files[0]?.remote,
+	).toBe(".odin/files/1700-0-a.png");
+});

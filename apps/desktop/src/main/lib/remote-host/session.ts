@@ -283,6 +283,7 @@ export function hostFiles(
 	prompt: string,
 	user: string,
 	isFile: (path: string) => boolean,
+	prefix = "",
 ): { prompt: string; files: RemoteFile[] } {
 	const files: RemoteFile[] = [];
 	const paths = new Set(
@@ -292,7 +293,7 @@ export function hostFiles(
 	for (const local of paths) {
 		const clean = local.replace(/[.,;:]+$/, "");
 		if (!isFile(clean)) continue;
-		const remote = `.odin/files/${files.length}-${clean.split("/").pop()}`;
+		const remote = `.odin/files/${prefix}${files.length}-${clean.split("/").pop()}`;
 		files.push({ local: clean, remote });
 		out = out.replaceAll(clean, `${hostHome(user)}/${remote}`);
 	}
