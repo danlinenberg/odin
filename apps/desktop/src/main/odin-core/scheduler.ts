@@ -25,6 +25,7 @@ import { buildThreadPrompt } from "shared/thread-prompt";
 import {
 	boardView,
 	drainQueue,
+	noticeLaunchFailure,
 	readCards,
 	type ServerLaunchInput,
 	serverLaunch,
@@ -126,7 +127,10 @@ export async function automationTick(now = new Date()): Promise<void> {
 			repoPath: task.repo,
 			origin: "automation",
 			taskId: task.id,
-		}).catch((error) => log(`automation "${task.title}" failed:`, error));
+		}).catch((error) => {
+			log(`automation "${task.title}" failed:`, error);
+			noticeLaunchFailure(`Automation "${task.title}"`, error);
+		});
 	}
 }
 
@@ -179,6 +183,7 @@ export async function slackTick(core: SchedulerCore): Promise<void> {
 			await core.markSlackStarted(row.id);
 		} catch (error) {
 			log(`Slack auto-launch "${row.title}" failed:`, error);
+			noticeLaunchFailure(`Slack message "${row.title}"`, error);
 		}
 	}
 }

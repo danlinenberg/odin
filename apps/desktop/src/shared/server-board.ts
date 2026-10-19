@@ -26,6 +26,8 @@ export const SERVER_NIGHT_KEY = "server:night";
  * action=set store=sessions) - an automation dropping the tag it acted on.
  */
 export const SERVER_PANE_PATCHES_KEY = "server:pane-patches";
+/** Server → laptop: what a scheduler couldn't start, and why, for the window to say. */
+export const SERVER_NOTICES_KEY = "server:notices";
 /** Server only: when each automation last fired. */
 export const SERVER_RUNS_KEY = "server:automation-runs";
 /** Server only: Slack messages the auto-launcher already tried. */
@@ -51,7 +53,16 @@ export interface BoardPane {
 	odinQueued?: boolean;
 }
 
-/** Card tag changes made on the server, by pane id. t is when, in ms. */
+/** Something a server scheduler couldn't do, for the window to show once. */
+export interface ServerNotice {
+	/** ms epoch. */
+	at: number;
+	message: string;
+	/** "no-folder": no folder for sessions - the window offers to set one. */
+	kind?: "no-folder";
+}
+
+/** Card tag changes made on the server, by pane id; `at` is when, in ms. */
 export type PanePatches = Record<string, { odinTags: string[]; at: number }>;
 
 /** A session a server scheduler started (or a queued one it was handed). */

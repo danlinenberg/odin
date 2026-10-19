@@ -431,9 +431,15 @@ export const createReposRouter = (
 ) => {
 	const repos = scanRepos();
 	return router({
-		list: publicProcedure.query(async () =>
-			[...new Set([...(await repos), ...(await added())])].sort(),
-		),
+		list: publicProcedure.query(async () => {
+			// Sessions on a server can't start in this laptop's checkouts: offer
+			// the server folder Settings → Sessions names, not a scan of this disk.
+			if (getRemoteConnectionManager().isRemoteMode()) {
+				const folder = readOdinConfig().remoteDefaultRepo;
+				return folder ? [folder] : [];
+			}
+			return [...new Set([...(await repos), ...(await added())])].sort();
+		}),
 
 		/**
 		 * The checkout a session starts in when nothing else names one. Set in

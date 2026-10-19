@@ -16,8 +16,10 @@ import {
 	type LaunchContext,
 	type PanePatches,
 	SERVER_CARDS_KEY,
+	SERVER_NOTICES_KEY,
 	SERVER_PANE_PATCHES_KEY,
 	type ServerCard,
+	type ServerNotice,
 	statusFromAgentEvent,
 } from "shared/server-board";
 import {
@@ -50,6 +52,8 @@ import {
 const MAX_CARDS = 300;
 /** A started agent that hasn't reported yet still counts as working this long. */
 const STARTING_GRACE_MS = 3 * 60_000;
+/** The window shows notices once each; this many is plenty of history. */
+const MAX_NOTICES = 30;
 
 /** The ledger and Slack calls a launch makes - the Odin core router's caller. */
 export interface LaunchEffects {
@@ -67,6 +71,38 @@ let effects: LaunchEffects | null = null;
 
 export function configureLauncher(next: LaunchEffects): void {
 	effects = next;
+}
+
+/** No folder to start a session in: none set in Settings, none on the task. */
+export class NoSessionFolderError extends Error {
+	constructor() {
+		super(
+			"no folder for sessions on the server. Set one in Settings → Sessions → Default folder.",
+		);
+		this.name = "NoSessionFolderError";
+	}
+}
+
+/** Tell the window what a scheduler couldn't start (useServerBoard shows it). */
+export function addNotice(message: string, kind?: ServerNotice["kind"]): void {
+	const notices = readJsonState<ServerNotice[]>(SERVER_NOTICES_KEY, []);
+	writeJsonState(
+		SERVER_NOTICES_KEY,
+		[...notices, { at: Date.now(), message, ...(kind ? { kind } : {}) }].slice(
+			-MAX_NOTICES,
+		),
+	);
+}
+
+/** Say why a scheduled launch failed, in words the window can show. */
+export function noticeLaunchFailure(what: string, error: unknown): void {
+	if (error instanceof NoSessionFolderError) {
+		addNotice(`${what} didn't start: ${error.message}`, "no-folder");
+	} else {
+		addNotice(
+			`${what} didn't start: ${error instanceof Error ? error.message : String(error)}`,
+		);
+	}
 }
 
 export function launchContext(): LaunchContext | null {
@@ -193,17 +229,14 @@ export async function serverLaunch(
 	input: ServerLaunchInput,
 ): Promise<ServerCard> {
 	const context = launchContext();
-	if (!context) {
-		throw new Error(
-			"No session folder on the server yet - open Odin on the laptop once while connected.",
-		);
-	}
-	const worktreePath = context.workspacePath;
+	// A task that names its own repo needs no default folder.
+	const worktreePath = context?.workspacePath || input.repoPath;
+	if (!worktreePath) throw new NoSessionFolderError();
 	const sessionCwd = input.repoPath || worktreePath;
 	const checkout = claimedCheckout(
 		input.repoPath,
 		worktreePath,
-		context.odinRepoPath,
+		context?.odinRepoPath,
 	);
 	// A broken gauge must not be the reason a session doesn't start.
 	const queuedReason = await serverLaunchBlocker(checkout).catch(() => null);

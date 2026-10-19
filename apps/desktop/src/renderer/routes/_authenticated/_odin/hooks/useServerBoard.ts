@@ -1,3 +1,4 @@
+import { toast } from "@odin/ui/sonner";
 import { useEffect, useRef } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import {
@@ -5,6 +6,7 @@ import {
 	onRemoteCoreTargetChange,
 	remoteCoreClient,
 } from "renderer/lib/remote-core-link";
+import { askServerFolder } from "renderer/routes/_authenticated/components/ServerFolderDialog";
 import { useNextInLinePrompt } from "renderer/stores/next-in-line-prompt";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import type { Pane } from "renderer/stores/tabs/types";
@@ -16,9 +18,11 @@ import {
 	type PanePatches,
 	SERVER_CARDS_KEY,
 	SERVER_NIGHT_KEY,
+	SERVER_NOTICES_KEY,
 	SERVER_PANE_PATCHES_KEY,
 	type ServerCard,
 	type ServerNight,
+	type ServerNotice,
 } from "shared/server-board";
 import { mirrorJson, readServerState } from "./state-mirror";
 import { useOdinTasks } from "./useOdinTasks";
@@ -39,7 +43,9 @@ import { usePaneMeta } from "./usePaneMeta";
  */
 
 const SYNC_EVERY_MS = 20_000;
-const CONTEXT_EVERY_MS = 10 * 60_000;
+/** The newest server notice this window has shown, in ms. */
+const NOTICES_AT_KEY = "odin-server-notices-at";
+const NOTICE_FRESH_MS = 24 * 3_600_000;
 const BOARD_PUSH_DELAY_MS = 3_000;
 /** Cards the server started longer ago than this aren't put back on a fresh board. */
 const ADOPT_WITHIN_MS = 7 * 86_400_000;
@@ -254,6 +260,58 @@ function applyPatches(patches: PanePatches): void {
 	}
 }
 
+type Utils = ReturnType<typeof electronTrpc.useUtils>;
+
+/** Ask for the server folder sessions start in, and keep it as the default. */
+async function setServerFolder(utils: Utils): Promise<void> {
+	const current = await utils.client.repos.getDefault.query().catch(() => null);
+	const path = await askServerFolder(current);
+	if (!path) return;
+	try {
+		await utils.client.repos.setDefault.mutate({ path });
+		void utils.repos.getDefault.invalidate();
+		toast.success(`Sessions on the server start in ${path}`);
+	} catch (error) {
+		toast.error(error instanceof Error ? error.message : String(error));
+	}
+}
+
+/**
+ * Why a server scheduler couldn't start something - an automation with no
+ * folder to run in - said here, once each. A first sync on this machine only
+ * shows the last day's, not a week of the same failure.
+ */
+function showNotices(notices: ServerNotice[], utils: Utils): void {
+	let since = 0;
+	try {
+		since = Number(localStorage.getItem(NOTICES_AT_KEY) ?? 0);
+	} catch {}
+	since ||= Date.now() - NOTICE_FRESH_MS;
+	const fresh = notices.filter((notice) => notice.at > since);
+	if (!fresh.length) return;
+	// The same failure every 15 minutes is one message.
+	const unique = new Map(fresh.map((notice) => [notice.message, notice]));
+	for (const notice of unique.values()) {
+		if (notice.kind === "no-folder") {
+			toast.error(notice.message, {
+				duration: Number.POSITIVE_INFINITY,
+				action: {
+					label: "Set folder",
+					onClick: () => void setServerFolder(utils),
+				},
+			});
+		} else {
+			toast.error(notice.message, { duration: 15_000 });
+		}
+	}
+	try {
+		localStorage.setItem(
+			NOTICES_AT_KEY,
+			String(Math.max(...fresh.map((notice) => notice.at))),
+		);
+	} catch {}
+}
+
 /** Mount once (the Odin shell). Does nothing unless sessions run on a server. */
 export function useServerBoard(): void {
 	const utils = electronTrpc.useUtils();
@@ -265,30 +323,25 @@ export function useServerBoard(): void {
 	useEffect(() => {
 		const handedOff = new Set<string>();
 		let syncing = false;
-		let contextAt = 0;
 
+		// Where sessions start: the server folder from Settings → Sessions
+		// (repos.getDefault answers with the server's in remote mode) - set there,
+		// or by the folder dialog on a first launch. Unchanged values aren't re-sent.
 		const pushContext = async () => {
-			const ensured = await latest.current.ensureWorkspace(null, {
-				askForFolder: false,
-			});
-			if (!ensured.ok) return;
-			const workspace = await latest.current.utils.client.workspaces.get.query({
-				id: ensured.workspace.id,
-			});
-			if (!workspace?.worktreePath) return;
+			const folder = await latest.current.utils.client.repos.getDefault.query();
+			if (!folder) return;
 			const context: LaunchContext = {
-				workspacePath: workspace.worktreePath,
+				workspacePath: folder,
 				odinRepoPath: latest.current.workConfig?.odinRepoPath ?? null,
 			};
 			await mirrorJson(LAUNCH_CONTEXT_KEY, context);
-			contextAt = Date.now();
 		};
 
 		const sync = async () => {
 			if (!isRemoteCoreMode() || syncing) return;
 			syncing = true;
 			try {
-				if (Date.now() - contextAt > CONTEXT_EVERY_MS) await pushContext();
+				await pushContext();
 				await mirrorJson(
 					BOARD_PANES_KEY,
 					boardPanesOf(useTabsStore.getState().panes),
@@ -297,7 +350,12 @@ export function useServerBoard(): void {
 					SERVER_CARDS_KEY,
 					SERVER_NIGHT_KEY,
 					SERVER_PANE_PATCHES_KEY,
+					SERVER_NOTICES_KEY,
 				]);
+				showNotices(
+					(state[SERVER_NOTICES_KEY] as ServerNotice[]) ?? [],
+					latest.current.utils,
+				);
 				const cards = (state[SERVER_CARDS_KEY] as ServerCard[]) ?? [];
 				const adopted = new Set(readAdopted());
 				const panes = useTabsStore.getState().panes;
@@ -348,7 +406,6 @@ export function useServerBoard(): void {
 			}, BOARD_PUSH_DELAY_MS);
 		});
 		const stopTarget = onRemoteCoreTargetChange(() => {
-			contextAt = 0;
 			handedOff.clear();
 			run();
 		});
