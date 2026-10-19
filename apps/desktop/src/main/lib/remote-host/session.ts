@@ -119,9 +119,11 @@ export const ghInstallScript = [
  * the last session stopped working. A turn that failed on a usage or spend
  * limit also flips the plan-limit switch, as claude-auto does on the laptop:
  * five hours in ~/.claude/plan-limit.json (a weekly limit just records
- * again), during which sessions start on the user's API key.
+ * again), during which sessions start on the user's API key. A session on
+ * the plan that has a key to fall back to is stopped and named in
+ * ~/.odin/resume-<run script pid>, so the run script resumes it on the key.
  */
-const TURN_END_HOOK = `import json, os, sys, time
+const TURN_END_HOOK = `import json, os, subprocess, sys, time
 raw = sys.stdin.read()
 try:
     session = json.loads(raw).get("session_id") or ""
@@ -132,7 +134,19 @@ os.makedirs(stopped, exist_ok=True)
 if session and "/" not in session:
     open(os.path.join(stopped, session), "w").close()
 if os.environ.get("ODIN_TURN") == "failed" and "limit" in raw.lower():
-    json.dump({"until": time.time() + 5 * 3600}, open(os.path.expanduser("~/.claude/plan-limit.json"), "w"))`;
+    json.dump({"until": time.time() + 5 * 3600}, open(os.path.expanduser("~/.claude/plan-limit.json"), "w"))
+    run = os.environ.get("ODIN_RUN_PID", "")
+    if run and session and os.environ.get("ODIN_HAS_FALLBACK_KEY") and not os.environ.get("ANTHROPIC_API_KEY"):
+        pid = os.getppid()
+        while pid > 1:
+            parent = open(f"/proc/{pid}/stat").read().rsplit(")", 1)[1].split()[1]
+            if parent == run:
+                break
+            pid = int(parent)
+        if pid > 1:
+            open(os.path.expanduser(f"~/.odin/resume-{run}"), "w").write(session)
+            # Claude waits for this hook; stop it once the hook has returned.
+            subprocess.Popen(["sh", "-c", f"sleep 2; kill {pid}"], start_new_session=True)`;
 
 /** On the API key while the plan is limited, with the key pre-approved. */
 const USE_API_KEY_IF_LIMITED = `import json, os, sys, time
@@ -204,8 +218,12 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 		ghInstallScript,
 		`mkdir -p "$HOME/.odin" && printf %s ${sh(Buffer.from(TURN_END_HOOK).toString("base64"))} | base64 -d > "$HOME/.odin/turn-end.py"`,
 		`if [ -n "$ODIN_FALLBACK_API_KEY" ] && python3 -c ${sh(USE_API_KEY_IF_LIMITED)}; then export ANTHROPIC_API_KEY="$ODIN_FALLBACK_API_KEY"; else unset ANTHROPIC_API_KEY; fi`,
+		// Kept unexported, for resuming on the key when the plan runs out mid-session.
+		'fallback="$ODIN_FALLBACK_API_KEY"',
 		"unset ODIN_FALLBACK_API_KEY",
-		`exec claude --settings ${sh(planLimitSettings)} ${spec.claudeArgs}${prompt}`,
+		'export ODIN_RUN_PID=$$; [ -n "$fallback" ] && export ODIN_HAS_FALLBACK_KEY=1',
+		`claude --settings ${sh(planLimitSettings)} ${spec.claudeArgs}${prompt}`,
+		`if [ -s "$HOME/.odin/resume-$$" ]; then s=$(cat "$HOME/.odin/resume-$$"); rm -f "$HOME/.odin/resume-$$"; ODIN_FALLBACK_API_KEY="$fallback" python3 -c ${sh(USE_API_KEY_IF_LIMITED)}; ANTHROPIC_API_KEY="$fallback" exec claude --settings ${sh(planLimitSettings)} --resume "$s" "Continue where you left off."; fi`,
 	]
 		.filter(Boolean)
 		.join("\n");

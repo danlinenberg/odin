@@ -39,13 +39,13 @@ describe("remote session scripts", () => {
 		const run = runScript(spec, "/dev/shm/odin.X");
 		expect(run).not.toContain("sk-");
 		expect(run.indexOf("rm -rf '/dev/shm/odin.X'")).toBeLessThan(
-			run.indexOf("exec claude"),
+			run.indexOf("claude --settings"),
 		);
 		expect(run).toContain(
 			`git clone 'https://github.com/danlinenberg/odin.git' "$HOME"/'repos'/'odin'`,
 		);
 		expect(run).toContain(
-			`exec claude --settings ${sh(planLimitSettings)} --session-id abc "$(printf %s '${Buffer.from("Fix it's bug").toString("base64")}' | base64 -d)"`,
+			`\nclaude --settings ${sh(planLimitSettings)} --session-id abc "$(printf %s '${Buffer.from("Fix it's bug").toString("base64")}' | base64 -d)"`,
 		);
 	});
 
@@ -153,8 +153,9 @@ test("the host falls back to the API key only while the plan is limited", () => 
 		'then export ANTHROPIC_API_KEY="$ODIN_FALLBACK_API_KEY"; else unset ANTHROPIC_API_KEY; fi',
 	);
 	expect(run.indexOf("unset ODIN_FALLBACK_API_KEY")).toBeLessThan(
-		run.indexOf("exec claude"),
+		run.indexOf("claude --settings"),
 	);
+	expect(run).toContain('ANTHROPIC_API_KEY="$fallback" exec claude --settings');
 	const hooks = JSON.parse(planLimitSettings).hooks;
 	expect(hooks.Stop[0].hooks[0].command).toBe("python3 ~/.odin/turn-end.py");
 	expect(hooks.StopFailure[0].hooks[0].command).toBe(
