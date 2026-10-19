@@ -37,8 +37,8 @@ beforeAll(async () => {
 		.replace(String(HOST_SERVICE_PORT), String(PORT))
 		.replace(String(LAPTOP_TUNNEL_PORT), String(PORT + 1));
 	writeFileSync(join(dir, "svc.py"), script);
-	proc = Bun.spawn(["python3", join(dir, "svc.py")]);
-	for (let i = 0; i < 50; i++) {
+	proc = Bun.spawn(["python3", join(dir, "svc.py")], { stderr: "pipe" });
+	for (let i = 0; i < 30; i++) {
 		if (
 			await fetch(`${url}/health`, { signal: AbortSignal.timeout(500) }).then(
 				(r) => r.ok,
@@ -48,7 +48,9 @@ beforeAll(async () => {
 			return;
 		await Bun.sleep(100);
 	}
-	throw new Error("Odin's host service didn't start (python3 on PATH?)");
+	proc.kill();
+	const why = await new Response(proc.stderr as ReadableStream).text();
+	throw new Error(`Odin's host service didn't start: ${why.slice(-500)}`);
 }, 20_000);
 afterAll(() => proc?.kill());
 
