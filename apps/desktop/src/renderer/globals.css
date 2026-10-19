@@ -256,6 +256,10 @@
 	[dir="auto"] {
 		text-align: left;
 	}
+	/* A reply is paragraphs, not a one-line title: a Hebrew paragraph sits on the right. */
+	.markdown-renderer [dir="auto"] {
+		text-align: start;
+	}
 
 	button,
 	[role="button"] {
