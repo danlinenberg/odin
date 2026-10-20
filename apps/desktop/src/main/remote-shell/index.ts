@@ -86,21 +86,25 @@ function forwardOdin(client: Client): void {
 	});
 	const bind = () =>
 		client.forwardIn("127.0.0.1", LAPTOP_TUNNEL_PORT, (err) => {
-			if (err) setTimeout(bind, 15_000).unref();
+			if (err && !closed) setTimeout(bind, 15_000).unref();
 		});
+	let closed = false;
+	client.once("close", () => {
+		closed = true;
+	});
 	bind();
 }
 
 /**
  * Claude's transcript on the host, appended into ~/.claude/projects here as
  * it grows, so the chat view, Resume and Session History read it like any
- * local session's.
+ * local session's. Returns what stops it.
  */
 function mirrorTranscript(
 	client: Client,
 	sftp: SFTPWrapper,
 	spec: RemoteSessionSpec,
-): void {
+): () => void {
 	// Claude files a conversation under its start folder's name; the chat view
 	// looks it up by that name, so the copy goes in the same-named folder here.
 	let local = "";
@@ -143,11 +147,17 @@ function mirrorTranscript(
 		if (start === 0) await writeFile(local, data);
 		else await appendFile(local, data);
 	};
+	let stopped = false;
 	const loop = () =>
 		tick()
 			.catch(() => {})
-			.finally(() => setTimeout(loop, 2000).unref());
+			.finally(() => {
+				if (!stopped) setTimeout(loop, 2000).unref();
+			});
 	loop();
+	return () => {
+		stopped = true;
+	};
 }
 
 const ssoExpired = (err: unknown) =>
@@ -232,9 +242,83 @@ async function login(
 			username: spec.user,
 			privateKey: key.private,
 			readyTimeout: 30_000,
+			// A connection that died quietly (Wi-Fi changed, the Mac slept) ends
+			// within 30s, so the pane reconnects instead of hanging on it.
+			keepaliveInterval: 10_000,
+			keepaliveCountMax: 3,
 		});
 	});
 	return client;
+}
+
+async function connectOnce(
+	spec: RemoteSessionSpec,
+	target: Parameters<typeof openSsmStream>[0],
+): Promise<Client> {
+	return login(spec, target).catch(async (err: unknown) => {
+		if (!ssoExpired(err)) throw err;
+		await signInAgain(spec);
+		return login(spec, target);
+	});
+}
+
+/**
+ * Attaches this terminal to the session's tmux on the host. Resolves true
+ * when the connection dropped, false when the session there ended or you
+ * detached from it.
+ */
+async function attach(
+	client: Client,
+	spec: RemoteSessionSpec,
+	env: string,
+	first: boolean,
+): Promise<boolean> {
+	const dir = await exec(client, stashScript, env);
+	const sftp = await sftpOf(client);
+	if (first && spec.files?.length) await upload(sftp, spec.files);
+	forwardOdin(client);
+	const stopMirror = mirrorTranscript(client, sftp, spec);
+	const { stdin, stdout } = process;
+	return new Promise((resolve, reject) =>
+		client.exec(
+			`bash -lc ${sh(attachScript(spec, dir))}`,
+			{
+				pty: {
+					term: process.env.TERM ?? "xterm-256color",
+					cols: stdout.columns ?? 120,
+					rows: stdout.rows ?? 40,
+				},
+			},
+			(err, stream) => {
+				if (err) return reject(err);
+				// Only a command that finished sends an exit status; a dropped connection doesn't.
+				let exited = false;
+				const resize = () =>
+					stream.setWindow(stdout.rows ?? 40, stdout.columns ?? 120, 0, 0);
+				stdin.setRawMode?.(true);
+				stdin.pipe(stream);
+				stream.pipe(stdout, { end: false });
+				stream.stderr.pipe(process.stderr, { end: false });
+				stdout.on("resize", resize);
+				stream.on("exit", () => {
+					exited = true;
+				});
+				// A connection that drops closes the client but not this stream.
+				let done = false;
+				const end = () => {
+					if (done) return;
+					done = true;
+					stdin.unpipe(stream);
+					stdout.off("resize", resize);
+					stopMirror();
+					client.end();
+					resolve(!exited);
+				};
+				stream.on("close", end);
+				client.once("close", end);
+			},
+		),
+	);
 }
 
 async function main(): Promise<void> {
@@ -248,42 +332,25 @@ async function main(): Promise<void> {
 		region: spec.region,
 	};
 	say(`connecting to ${spec.instanceId}...`);
-	const client = await login(spec, target).catch(async (err: unknown) => {
-		if (!ssoExpired(err)) throw err;
-		await signInAgain(spec);
-		return login(spec, target);
-	});
-
-	const dir = await exec(client, stashScript, env);
-	const sftp = await sftpOf(client);
-	if (spec.files?.length) await upload(sftp, spec.files);
-	forwardOdin(client);
-	mirrorTranscript(client, sftp, spec);
-	const { stdin, stdout } = process;
-	client.exec(
-		`bash -lc ${sh(attachScript(spec, dir))}`,
-		{
-			pty: {
-				term: process.env.TERM ?? "xterm-256color",
-				cols: stdout.columns ?? 120,
-				rows: stdout.rows ?? 40,
-			},
-		},
-		(err, stream) => {
-			if (err) throw err;
-			stdin.setRawMode?.(true);
-			stdin.pipe(stream);
-			stream.pipe(stdout);
-			stream.stderr.pipe(process.stderr);
-			stdout.on("resize", () =>
-				stream.setWindow(stdout.rows ?? 40, stdout.columns ?? 120, 0, 0),
-			);
-			stream.on("close", () => {
-				client.end();
-				process.exit(0);
-			});
-		},
-	);
+	let client = await connectOnce(spec, target);
+	// Claude keeps working in tmux on the host while the connection is down.
+	for (let first = true; ; first = false) {
+		const dropped = await attach(client, spec, env, first).catch(() => true);
+		if (!dropped) break;
+		say(`connection lost - reconnecting to ${spec.instanceId}...`);
+		for (;;) {
+			try {
+				client = await connectOnce(spec, target);
+				break;
+			} catch (err) {
+				say(
+					`could not reconnect: ${err instanceof Error ? err.message : String(err)} - trying again in 10s`,
+				);
+				await new Promise((resolve) => setTimeout(resolve, 10_000));
+			}
+		}
+	}
+	process.exit(0);
 }
 
 main().catch((err: unknown) => {
