@@ -63,6 +63,13 @@ export interface OdinFileConfig {
 		claudeSetupDropped?: string[];
 		/** true: sessions there move to ANTHROPIC_API_KEY at the plan limit. Off by default. */
 		apiKeyFallback?: boolean;
+		/**
+		 * Logins of the connected GitHub accounts whose token may go to the
+		 * host - with a session, and as the GitHub connector. Unset: the main
+		 * connection alone, as before the switches existed
+		 * (main/lib/remote-host/github-on-host).
+		 */
+		githubOnHost?: string[];
 	};
 	/** `claude setup-token`'s token for remote sessions, encrypted with safeStorage. */
 	claudeToken?: string;

@@ -149,6 +149,7 @@ Besides the launch gate limits:
 - **Rename sessions automatically** (default on): renames each card once, after what it turned out to be about. Names you set are kept.
 - **Fold long replies** (default on): a latest reply too long for the window folds under its TL;DR card. Off shows the reply whole; the TL;DR card still shows.
 - **Close idle sessions after** (default 3 hours, 0 = never).
+- **Remote host → GitHub accounts on the host**: one switch per connected GitHub account - whether its token goes to the host with a session (and as the GitHub connector there). A session gets the account that owns its repo when that one may go, else the main one. A task on a repo owned by an account kept off the host starts on this computer. Default: the main connection only.
 
 ## Notifications settings (Settings → Notifications)
 Desktop banners (macOS controls them; the button opens System Settings), Sound on or off and Volume, and Reminders → Notify at: the time "Remind me" sessions and due dates notify on their day, one notification per day.

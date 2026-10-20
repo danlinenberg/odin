@@ -147,6 +147,22 @@ async function extraAccountToken(account: GithubAccount): Promise<string> {
 	return json.access_token;
 }
 
+/**
+ * One connected account's usable token, by login: the main connection's or an
+ * extra one's, refreshed the same way. Null for a login that isn't connected.
+ */
+export async function githubTokenForLogin(
+	login: string,
+): Promise<string | null> {
+	const main = readOdinConfig().githubLogin;
+	if (main && main.toLowerCase() === login.toLowerCase())
+		return githubAccessToken();
+	const account = extraGithubAccounts().find(
+		(a) => a.login.toLowerCase() === login.toLowerCase(),
+	);
+	return account ? extraAccountToken(account) : null;
+}
+
 export interface GithubAccountToken {
 	/** Null for a main connection made before the login was cached. */
 	login: string | null;

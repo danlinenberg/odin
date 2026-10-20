@@ -3,8 +3,8 @@ import {
 	resolveNotionToken,
 	resolveSlackToken,
 } from "lib/trpc/routers/odin-config";
-import { githubAccessToken } from "../github-token";
 import { jiraRequestContext } from "../jira-token";
+import { hostGithubToken } from "./github-on-host";
 import {
 	HOST_TOKENS_FILE,
 	type HostConnector,
@@ -29,7 +29,8 @@ export async function hostTokens(
 			const token = readOdinConfig().clickupToken;
 			if (token) tokens.clickup = token;
 		} else if (name === "github") {
-			const token = await githubAccessToken();
+			// The account allowed on the host, not whichever is main.
+			const token = await hostGithubToken(readOdinConfig());
 			if (token) tokens.github = token;
 		} else if (name === "jira") {
 			const ctx = await jiraRequestContext();

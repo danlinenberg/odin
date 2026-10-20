@@ -71,6 +71,17 @@ export function RemoteHostSection() {
 			onSuccess: refresh,
 			onError,
 		});
+	const setGithubOnHost = electronTrpc.remoteHost.setGithubOnHost.useMutation({
+		onSuccess: refresh,
+		onError,
+	});
+	const githubAccounts = current?.githubAccounts ?? [];
+	const toggleGithubAccount = (login: string, on: boolean) =>
+		setGithubOnHost.mutate(
+			githubAccounts
+				.filter((account) => (account.login === login ? on : account.onHost))
+				.map((account) => account.login),
+		);
 	const renew = electronTrpc.remoteHost.renewClaudeToken.useMutation({
 		onSuccess: refresh,
 		onError,
@@ -292,6 +303,46 @@ export function RemoteHostSection() {
 						disabled={setApiKeyFallback.isPending}
 						onCheckedChange={(on) => setApiKeyFallback.mutate(on)}
 					/>
+				</SettingRow>
+			)}
+			{current?.host && githubAccounts.length > 0 && (
+				<SettingRow
+					label="GitHub accounts on the host"
+					stacked
+					description={
+						<span className="select-text cursor-text">
+							A session on the host signs in to GitHub as one of these: the
+							account that owns the repo it works on when that account may go,
+							else the main one. The GitHub connector there uses the same
+							account. Its token reaches every repo the account can, and anyone
+							with a shell on the instance can read a session's environment, so
+							keep a personal account off a work host. A task on a repo owned by
+							an account kept off the host starts on this computer instead.
+						</span>
+					}
+				>
+					<div className="flex flex-wrap items-center gap-4">
+						{githubAccounts.map((account) => (
+							<label
+								key={account.login}
+								htmlFor={`host-github-${account.login}`}
+								className="flex items-center gap-2 text-sm"
+							>
+								<Switch
+									id={`host-github-${account.login}`}
+									checked={account.onHost}
+									disabled={setGithubOnHost.isPending}
+									onCheckedChange={(on) =>
+										toggleGithubAccount(account.login, on)
+									}
+								/>
+								{account.login}
+								{account.main && (
+									<span className="text-muted-foreground">(main)</span>
+								)}
+							</label>
+						))}
+					</div>
 				</SettingRow>
 			)}
 			{current?.host && (

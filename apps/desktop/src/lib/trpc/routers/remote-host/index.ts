@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { app, safeStorage } from "electron";
 import { getNotifyScriptPath } from "main/lib/agent-setup/notify-hook";
-import { githubAccessToken } from "main/lib/github-token";
+import { githubOwner } from "main/lib/github-token";
 import {
 	giveSsmAccess,
 	listAwsProfiles,
@@ -23,6 +23,11 @@ import {
 	syncClaudeSetup,
 } from "main/lib/remote-host/claude-sync";
 import { runClaudeLogin } from "main/lib/remote-host/claude-token";
+import {
+	hostGithubAccounts,
+	hostGithubToken,
+	repoStaysLocal,
+} from "main/lib/remote-host/github-on-host";
 import {
 	HOST_CONNECTORS,
 	type HostConnector,
@@ -128,7 +133,7 @@ async function buildSessionSpec(
 }
 
 /** What a session on the host starts with, as KEY='value' lines. */
-async function sessionSecrets(): Promise<string> {
+async function sessionSecrets(owner: string | null = null): Promise<string> {
 	return secretsFile({
 		...claudeSecrets(),
 		// The API key claude-auto falls back to here, for the same switch on the host.
@@ -136,7 +141,8 @@ async function sessionSecrets(): Promise<string> {
 			readOdinConfig().remoteHost?.apiKeyFallback !== true
 				? undefined
 				: (await getProcessEnvWithShellEnv()).ANTHROPIC_API_KEY,
-		GH_TOKEN: (await githubAccessToken()) ?? undefined,
+		// The repo owner's account when it may go to the host (github-on-host).
+		GH_TOKEN: await hostGithubToken(readOdinConfig(), owner),
 	});
 }
 
@@ -281,6 +287,8 @@ export const createRemoteHostRouter = () =>
 		get: publicProcedure.query(() => ({
 			host: readOdinConfig().remoteHost ?? null,
 			hasClaudeToken: Boolean(claudeToken()),
+			/** The connected GitHub accounts and which may go to the host. */
+			githubAccounts: hostGithubAccounts(readOdinConfig()),
 		})),
 		/** Picks the host. Turning it on gets a Claude token first if none is saved. */
 		set: publicProcedure
@@ -352,6 +360,19 @@ export const createRemoteHostRouter = () =>
 				if (!host) throw new Error("No remote host is set up.");
 				updateOdinConfig({ remoteHost: { ...host, apiKeyFallback: input } });
 			}),
+		/**
+		 * Which connected GitHub accounts may go to the host, by login. The
+		 * GitHub connector there, when kept, is rewritten to follow the choice.
+		 */
+		setGithubOnHost: publicProcedure
+			.input(z.array(z.string()))
+			.mutation(async ({ input }) => {
+				const host = readOdinConfig().remoteHost;
+				if (!host) throw new Error("No remote host is set up.");
+				updateOdinConfig({ remoteHost: { ...host, githubOnHost: input } });
+				if (host.connectors?.includes("github"))
+					await pushHostTokens(host, host.connectors as HostConnector[]);
+			}),
 		/** A fresh token from `claude setup-token`, replacing the saved one. */
 		renewClaudeToken: publicProcedure.mutation(() => ensureClaudeToken(true)),
 
@@ -397,11 +418,19 @@ export const createRemoteHostRouter = () =>
 					source: z.string().nullable(),
 				}),
 			)
-			.query(({ input }) => {
-				const host = readOdinConfig().remoteHost;
+			.query(async ({ input }) => {
+				const config = readOdinConfig();
+				const host = config.remoteHost;
 				if (!host?.on) return null;
 				const needs = input.source ? CONNECTOR_OF[input.source] : undefined;
 				if (needs && !host.connectors?.includes(needs)) return null;
+				// A repo owned by a GitHub account kept off the host stays here.
+				if (input.repoPath) {
+					const origin =
+						(await originOf(input.repoPath)) ??
+						(await originOf(mainCheckoutOf(input.repoPath)));
+					if (repoStaysLocal(config, githubOwner(origin ?? ""))) return null;
+				}
 				return host.name || host.instanceId;
 			}),
 
@@ -448,10 +477,11 @@ export const createRemoteHostRouter = () =>
 				// and a session already on the host resumes there either way.
 				const host = readOdinConfig().remoteHost;
 				if (!host) throw new Error("No remote host is set up.");
-				const spec = Buffer.from(
-					JSON.stringify(await buildSessionSpec(host, input)),
-				).toString("base64");
-				const ticket = issueTicket(await sessionSecrets());
+				const session = await buildSessionSpec(host, input);
+				const spec = Buffer.from(JSON.stringify(session)).toString("base64");
+				const ticket = issueTicket(
+					await sessionSecrets(githubOwner(session.cloneUrl ?? "")),
+				);
 				const script = join(
 					app.getAppPath(),
 					"dist",
