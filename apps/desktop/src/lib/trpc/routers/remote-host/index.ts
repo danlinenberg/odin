@@ -17,6 +17,8 @@ import {
 import {
 	bringSessionHome,
 	endHostSession,
+	movedNote,
+	unpackWork,
 } from "main/lib/remote-host/bring-home";
 import {
 	CLAUDE_SETUP_PARTS,
@@ -154,6 +156,13 @@ const originOf = (path: string) =>
 async function knownRepos(): Promise<string[]> {
 	const urls = await Promise.all((await scanRepos()).map(originOf));
 	return [...new Set(urls.filter((url): url is string => Boolean(url)))].sort();
+}
+
+/** This computer's checkout of the repo cloned from `url`, if it has one. */
+async function localCheckoutOf(url: string): Promise<string | null> {
+	for (const repo of await scanRepos())
+		if ((await originOf(repo)) === url) return repo;
+	return null;
 }
 
 /** A file small enough to copy to the host with the prompt. */
@@ -356,22 +365,45 @@ export const createRemoteHostRouter = () =>
 		renewClaudeToken: publicProcedure.mutation(() => ensureClaudeToken(true)),
 
 		/**
-		 * A remote session's conversation, copied here so it resumes on this
-		 * computer; its tmux session on the host ends. The folder it resumes
-		 * in: the one asked for if it exists, else the repo a gone session
-		 * worktree belonged to, else home.
+		 * A remote session, moved to this computer with its code: the host
+		 * branch, its commits and its uncommitted work land in a worktree of
+		 * this computer's checkout of the same repo, and the conversation
+		 * resumes there; its tmux session on the host ends. With no such
+		 * checkout: the folder asked for if it exists, else the repo a gone
+		 * session worktree belonged to, else home. `note` is what the resumed
+		 * Claude is told first.
 		 */
 		bringHome: publicProcedure
 			.input(z.object({ sessionId: z.string().min(1), cwd: z.string() }))
 			.mutation(async ({ input }) => {
 				const host = readOdinConfig().remoteHost;
 				if (!host) throw new Error("No remote host is set up.");
-				const cwd =
-					[input.cwd, mainCheckoutOf(input.cwd)].find(
-						(path) => path && existsSync(path),
-					) ?? homedir();
-				await bringSessionHome(host, input.sessionId, cwd);
-				return { cwd };
+				let branch: string | null = null;
+				const { cwd, work } = await withAwsSignIn(host, () =>
+					bringSessionHome(host, input.sessionId, async (work) => {
+						const origin = work?.origin ? httpsCloneUrl(work.origin) : null;
+						const repo = origin ? await localCheckoutOf(origin) : null;
+						if (repo && work?.bundle && work.branch) {
+							const unpacked = await unpackWork(repo, {
+								...work,
+								bundle: work.bundle,
+								branch: work.branch,
+							});
+							branch = unpacked.branch;
+							return join(unpacked.dir, work.sub);
+						}
+						if (repo) {
+							const sub = join(repo, work?.sub ?? "");
+							return existsSync(sub) ? sub : repo;
+						}
+						return (
+							[input.cwd, mainCheckoutOf(input.cwd)].find(
+								(path) => path && existsSync(path),
+							) ?? homedir()
+						);
+					}),
+				);
+				return { cwd, note: movedNote(cwd, work, branch) };
 			}),
 
 		/** Done on a remote session: its tmux session on the host ends too. */

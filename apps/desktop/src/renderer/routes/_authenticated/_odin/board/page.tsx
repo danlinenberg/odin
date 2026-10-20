@@ -4378,9 +4378,10 @@ function DevBoardPage() {
 	 */
 	const autoResumedRef = useRef(new Set<string>());
 	/**
-	 * A session on the remote host, moved here: its conversation is copied from
-	 * the host, its tmux session there ends, and it resumes in this computer's
-	 * checkout. The way out for a session stuck on the host.
+	 * A session on the remote host, moved here: its branch and uncommitted work
+	 * land in a worktree of this computer's checkout, its conversation is
+	 * copied from the host, its tmux session there ends, and it resumes told
+	 * where it is now. The way out for a session stuck on the host.
 	 */
 	const runHere = async (card: BoardCard) => {
 		const sessionId =
@@ -4395,7 +4396,7 @@ function DevBoardPage() {
 			card.pane.odinCwd || card.pane.initialCwd || card.repoPath || "";
 		const loading = toast.loading("Moving the session to this computer...");
 		try {
-			const { cwd } = await utils.client.remoteHost.bringHome.mutate({
+			const { cwd, note } = await utils.client.remoteHost.bringHome.mutate({
 				sessionId,
 				cwd: wanted,
 			});
@@ -4409,7 +4410,7 @@ function DevBoardPage() {
 				panes: { ...state.panes, [card.pane.id]: pane },
 			}));
 			toast.dismiss(loading);
-			await resumeCard({ ...card, pane }, false, undefined, true);
+			await resumeCard({ ...card, pane }, false, note, true);
 		} catch (error) {
 			toast.dismiss(loading);
 			toast.error(error instanceof Error ? error.message : String(error));
