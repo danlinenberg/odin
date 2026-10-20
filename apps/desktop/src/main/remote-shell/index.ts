@@ -153,17 +153,68 @@ function mirrorTranscript(
 const ssoExpired = (err: unknown) =>
 	/SSO session|token (has expired|is expired)|ExpiredToken/i.test(String(err));
 
+const bold = (text: string) => `\x1b[1m${text}\x1b[0m`;
+
 /** `aws sso login` through Odin, which signs in once for every pane waiting on it. */
 async function ssoLogin(profile: string | null | undefined): Promise<void> {
 	const res = await fetch(
 		`http://127.0.0.1:${process.env.ODIN_PORT}/remote-host/sso-login?profile=${encodeURIComponent(profile ?? "")}`,
 		{ method: "POST" },
 	);
-	if (!res.ok || !res.body)
-		throw new Error(`AWS sign-in failed: ${await res.text()}`);
+	if (!res.ok || !res.body) throw new Error(await res.text());
 	// The body is the approval link, then it ends once the user approved.
 	for await (const chunk of res.body)
-		say(`no tab opened? Approve here: ${Buffer.from(chunk).toString().trim()}`);
+		process.stderr.write(
+			`  2. No tab? Open this link and approve: ${Buffer.from(chunk).toString().trim()}\r\n`,
+		);
+}
+
+const enter = () =>
+	new Promise<void>((resolve) => {
+		process.stdin.setRawMode?.(true);
+		process.stdin.resume();
+		const onData = (key: Buffer) => {
+			if (key[0] === 3) process.exit(1);
+			if (key[0] !== 13 && key[0] !== 10) return;
+			process.stdin.off("data", onData);
+			process.stdin.pause();
+			resolve();
+		};
+		process.stdin.on("data", onData);
+	});
+
+/** Asks the user to approve a new AWS sign-in until they do; the session can't connect before. */
+async function signInAgain(spec: RemoteSessionSpec): Promise<void> {
+	for (;;) {
+		say(
+			bold(
+				`Blocked: your AWS sign-in expired, so this session can't reach ${spec.instanceId}.`,
+			),
+		);
+		process.stderr.write(
+			"  To fix it:\r\n  1. Approve the AWS sign-in in the browser tab Odin just opened.\r\n",
+		);
+		try {
+			await ssoLogin(spec.profile);
+			say("AWS sign-in approved - connecting...");
+			return;
+		} catch (err) {
+			say(
+				bold(
+					"Still blocked: the AWS sign-in was not approved, so this session is not connected.",
+				),
+			);
+			// A sign-in that fails after the link was sent cuts the connection: fetch says only "terminated".
+			const reason =
+				err instanceof TypeError
+					? ""
+					: (err instanceof Error ? err.message : String(err)).split("\n")[0];
+			process.stderr.write(
+				`  ${reason || "It timed out or was cancelled."}\r\n  To fix it:\r\n  1. Press Enter for a new sign-in link.\r\n`,
+			);
+			await enter();
+		}
+	}
 }
 
 async function login(
@@ -199,8 +250,7 @@ async function main(): Promise<void> {
 	say(`connecting to ${spec.instanceId}...`);
 	const client = await login(spec, target).catch(async (err: unknown) => {
 		if (!ssoExpired(err)) throw err;
-		say("your AWS sign-in expired - approve the new one in your browser...");
-		await ssoLogin(spec.profile);
+		await signInAgain(spec);
 		return login(spec, target);
 	});
 
