@@ -6,6 +6,7 @@ import {
 	odinActivity,
 	odinScreenStatus,
 	odinScreenWrite,
+	remoteConnectLine,
 	spacesForCursorForward,
 } from "./odin-screen-status";
 
@@ -318,6 +319,21 @@ Type to search · Space to toggle · f to favorite · Enter to view · Esc to go
 describe("remote session connecting", () => {
 	it("keeps Claude in the PTY while the pane reaches the host", () => {
 		expect(agentOnScreen("\nOdin: connecting to i-0abc123...\n")).toBe(true);
+	});
+
+	it("shows the latest connect line in the chat view until Claude is drawn", () => {
+		const connecting = "\nOdin: connecting to i-0abc123...\n";
+		expect(remoteConnectLine(connecting)).toBe("Connecting to i-0abc123...");
+		expect(
+			remoteConnectLine(
+				`${connecting}\nOdin: AWS sign-in approved - connecting...\n`,
+			),
+		).toBe("AWS sign-in approved - connecting...");
+		const rule = "─".repeat(40);
+		expect(
+			remoteConnectLine(`${connecting}${rule}\n❯\n${rule}\n`),
+		).toBeUndefined();
+		expect(remoteConnectLine("$ ls\n")).toBeUndefined();
 	});
 });
 

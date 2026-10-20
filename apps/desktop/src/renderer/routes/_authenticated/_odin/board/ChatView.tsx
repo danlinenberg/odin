@@ -44,7 +44,11 @@ import {
 } from "shared/file-types";
 import { cameFromPhone } from "shared/from-phone";
 import { freshTldr, sameReply, tldrPlacement } from "shared/latest-reply";
-import { inputBoxRows, odinScreenStatus } from "shared/odin-screen-status";
+import {
+	inputBoxRows,
+	odinScreenStatus,
+	remoteConnectLine,
+} from "shared/odin-screen-status";
 import stripAnsi from "strip-ansi";
 import {
 	BUILT_IN_COMMANDS,
@@ -2117,6 +2121,8 @@ export function ChatView({
 		{ enabled: !!onShowTerminal && !prompt, refetchInterval: POLL_MS },
 	);
 	const screenText = onShowTerminal && !prompt ? screen.data?.text : null;
+	// A remote session reaching the host: the transcript says nothing until it's there.
+	const connecting = screenText ? remoteConnectLine(screenText) : undefined;
 	const screenMenu = useMemo(
 		() => (screenText ? parseScreenMenu(screenText) : null),
 		[screenText],
@@ -2424,7 +2430,7 @@ export function ChatView({
 					{starting ? (
 						<div className="flex items-center gap-3 text-[12.5px] text-working">
 							<OdinMark className="animate-[odin-nod_1.6s_ease-in-out_infinite]" />
-							Starting session…
+							{connecting ?? "Starting session…"}
 							{/* Before its first turn the CLI can stop on a terminal-only
 							    prompt (folder trust, bypass-permissions warning) that no
 							    transcript ever shows. */}
@@ -2620,60 +2626,81 @@ export function ChatView({
 							</button>
 						</div>
 					)}
-					{working && !prompt && !screenMenu && !screenAside && !starting && (
-						<div className="flex min-w-0 gap-3 text-[12.5px] text-working">
-							{/* Odin's icon, nodding along while Claude works. */}
+					{connecting && !starting && (
+						// A resumed remote session: its old turns are above, the host isn't reached yet.
+						<div className="flex h-7 items-center gap-3 text-[12.5px] text-working">
 							<OdinMark className="animate-[odin-nod_1.6s_ease-in-out_infinite]" />
-							{compacting === null ? (
-								<div className="flex min-w-0 flex-1 flex-col">
-									<button
-										type="button"
-										title={
-											showCommands
-												? "Hide the steps"
-												: "Show what Claude did this turn"
-										}
-										disabled={turnTools.length === 0}
-										onClick={() => setShowCommands(!showCommands)}
-										className="flex h-7 items-center gap-3 self-start rounded-md enabled:hover:text-foreground"
-									>
-										<span className="shrink-0">Working…</span>
-										{turnStart !== undefined && <Elapsed since={turnStart} />}
-										{turnTokens > 0 && (
-											<span
-												title="Tokens Claude has written this turn"
-												className="shrink-0 tabular-nums text-muted-foreground"
-											>
-												↓ {tokenLabel(turnTokens)} tokens
-											</span>
-										)}
-										{turnTools.length > 0 && (
-											<LuChevronRight
-												className={cn(
-													"size-3.5 shrink-0 text-muted-foreground transition-transform",
-													showCommands && "rotate-90",
-												)}
-											/>
-										)}
-									</button>
-									{showCommands && turnTools.length > 0 && (
-										// Same rows as a finished turn's Worked list: what each
-										// step did, opening to its command and output.
-										<div className="mt-1.5 max-h-[420px] overflow-y-auto rounded-lg border border-border bg-secondary/20 p-1.5 text-foreground">
-											{turnTools.map((tool) => (
-												<ToolRow key={tool.id} item={tool} />
-											))}
-										</div>
-									)}
-								</div>
-							) : (
-								<div className="flex h-7 items-center gap-3">
-									Compacting conversation…
-									<Elapsed since={compacting} />
-								</div>
+							<span className="select-text cursor-text">{connecting}</span>
+							{!noTerminal && (
+								<button
+									type="button"
+									onClick={onShowTerminal}
+									className="text-[11.5px] text-muted-foreground hover:text-foreground"
+								>
+									Show terminal
+								</button>
 							)}
 						</div>
 					)}
+					{working &&
+						!connecting &&
+						!prompt &&
+						!screenMenu &&
+						!screenAside &&
+						!starting && (
+							<div className="flex min-w-0 gap-3 text-[12.5px] text-working">
+								{/* Odin's icon, nodding along while Claude works. */}
+								<OdinMark className="animate-[odin-nod_1.6s_ease-in-out_infinite]" />
+								{compacting === null ? (
+									<div className="flex min-w-0 flex-1 flex-col">
+										<button
+											type="button"
+											title={
+												showCommands
+													? "Hide the steps"
+													: "Show what Claude did this turn"
+											}
+											disabled={turnTools.length === 0}
+											onClick={() => setShowCommands(!showCommands)}
+											className="flex h-7 items-center gap-3 self-start rounded-md enabled:hover:text-foreground"
+										>
+											<span className="shrink-0">Working…</span>
+											{turnStart !== undefined && <Elapsed since={turnStart} />}
+											{turnTokens > 0 && (
+												<span
+													title="Tokens Claude has written this turn"
+													className="shrink-0 tabular-nums text-muted-foreground"
+												>
+													↓ {tokenLabel(turnTokens)} tokens
+												</span>
+											)}
+											{turnTools.length > 0 && (
+												<LuChevronRight
+													className={cn(
+														"size-3.5 shrink-0 text-muted-foreground transition-transform",
+														showCommands && "rotate-90",
+													)}
+												/>
+											)}
+										</button>
+										{showCommands && turnTools.length > 0 && (
+											// Same rows as a finished turn's Worked list: what each
+											// step did, opening to its command and output.
+											<div className="mt-1.5 max-h-[420px] overflow-y-auto rounded-lg border border-border bg-secondary/20 p-1.5 text-foreground">
+												{turnTools.map((tool) => (
+													<ToolRow key={tool.id} item={tool} />
+												))}
+											</div>
+										)}
+									</div>
+								) : (
+									<div className="flex h-7 items-center gap-3">
+										Compacting conversation…
+										<Elapsed since={compacting} />
+									</div>
+								)}
+							</div>
+						)}
 				</div>
 			</div>
 			{onShowTerminal ? (

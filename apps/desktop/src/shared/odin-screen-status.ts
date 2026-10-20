@@ -184,6 +184,23 @@ export function agentOnScreen(screen: string): boolean {
 }
 
 /**
+ * What a remote session's pane says while it reaches the host - "Connecting to
+ * i-0abc...", the expired AWS sign-in it waits on, or why it could not connect.
+ * Undefined once Claude is drawn, or for a pane that never went remote.
+ */
+export function remoteConnectLine(screen: string): string | undefined {
+	if (!REMOTE_CONNECTING.test(screen) || odinScreenStatus(screen) !== undefined)
+		return undefined;
+	const lines = screen.split(/\r\n|\n|\r/);
+	if (lines.filter((line) => RULE.test(line)).length >= 2) return undefined;
+	const text = lines
+		.findLast((line) => line.startsWith("Odin: "))
+		?.slice(6)
+		.trim();
+	return text && text[0].toUpperCase() + text.slice(1);
+}
+
+/**
  * Does Esc mean something *inside* Claude right now?
  *
  * Claude prints the affordance whenever it is - "Esc to go back" (or "Esc to
