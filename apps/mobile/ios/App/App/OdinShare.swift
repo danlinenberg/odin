@@ -32,14 +32,16 @@ public class OdinSharePlugin: CAPPlugin, CAPBridgedPlugin {
     /// by the reply box attaches it with no picker.
     @objc func latestScreenshot(_ call: CAPPluginCall) {
         PHPhotoLibrary.requestAuthorization(for: .readWrite) { status in
-            guard status == .authorized || status == .limited else {
-                return call.reject("Odin can't see your photos. Allow it in Settings, Odin, Photos.")
+            // Limited access shows only the photos you picked, so the newest
+            // screenshot there is an old one: ask for full access instead.
+            guard status == .authorized else {
+                return call.reject(
+                    "Odin needs to see your newest screenshot. In Settings, Odin, Photos, choose Full Access.")
             }
             let options = PHFetchOptions()
             options.predicate = NSPredicate(
                 format: "(mediaSubtypes & %d) != 0", PHAssetMediaSubtype.photoScreenshot.rawValue)
             options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-            options.fetchLimit = 1
             guard let asset = PHAsset.fetchAssets(with: .image, options: options).firstObject else {
                 return call.reject("No screenshots yet. Take one, then tap the camera.")
             }
