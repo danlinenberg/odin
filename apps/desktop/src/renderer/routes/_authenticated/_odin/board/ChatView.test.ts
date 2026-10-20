@@ -10,6 +10,7 @@ import {
 	bangCommands,
 	bashCommandOf,
 	commandItem,
+	currentTurn,
 	elapsedLabel,
 	interruptClaude,
 	isAnswerItem,
@@ -827,5 +828,65 @@ describe("nextHostStep - a remote pane's connect step, read off its screen", () 
 		expect(step("connected", undefined, claude)).toBeUndefined();
 		expect(step("connected", undefined, null)).toBeUndefined();
 		expect(step("disconnected", undefined, shell)).toBeUndefined();
+	});
+});
+
+describe("currentTurn - the turn the Working row shows", () => {
+	const tool = (uuid: string, msg: string, out: number, id: string) => ({
+		type: "assistant",
+		uuid,
+		message: {
+			id: msg,
+			usage: { output_tokens: out },
+			content: [{ type: "tool_use", id, name: "Bash", input: {} }],
+		},
+	});
+	const items = applyLines(
+		[],
+		[
+			{
+				type: "user",
+				uuid: "u1",
+				timestamp: "2026-10-10T10:00:00Z",
+				message: { content: "first" },
+			},
+			tool("a1", "m1", 50, "t1"),
+			{
+				type: "user",
+				uuid: "u2",
+				timestamp: "2026-10-10T10:05:00Z",
+				message: { content: "second" },
+			},
+			tool("a2", "m2", 120, "t2"),
+			tool("a3", "m3", 30, "t3"),
+		],
+	);
+
+	test("began with your last message and holds the steps since", () => {
+		const turn = currentTurn(items, true);
+		expect(turn.id).toBe("u2");
+		expect(turn.start).toBe(Date.parse("2026-10-10T10:05:00Z"));
+		expect(turn.items.map((item) => item.id)).toEqual(["t2", "t3"]);
+		expect(turn.tools.map((item) => item.id)).toEqual(["t2", "t3"]);
+		expect(turn.tokens).toBe(150);
+	});
+
+	test("a message still on its way shows none of the last turn's steps", () => {
+		const turn = currentTurn(items, false);
+		expect(turn.items).toEqual([]);
+		expect(turn.tools).toEqual([]);
+		expect(turn.start).toBeUndefined();
+		expect(turn.tokens).toBe(0);
+		expect(turn.id).not.toBe("u2");
+	});
+
+	test("with no message of yours, the whole transcript is the turn", () => {
+		const turn = currentTurn(
+			items.filter((item) => item.kind !== "user"),
+			true,
+		);
+		expect(turn.tools.map((item) => item.id)).toEqual(["t1", "t2", "t3"]);
+		expect(turn.start).toBeUndefined();
+		expect(turn.id).toBe("");
 	});
 });

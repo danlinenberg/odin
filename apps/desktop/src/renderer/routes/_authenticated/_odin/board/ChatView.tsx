@@ -84,7 +84,7 @@ import {
 } from "./ChatPrompts";
 import { collectRefs, linkify, withSchemes } from "./chat-links";
 import { parseScreenAside, parseScreenMenu } from "./screen-menu";
-import { screenSteps, unrecordedSteps } from "./screen-steps";
+import { type ScreenStep, screenSteps, unrecordedSteps } from "./screen-steps";
 import { parseShell, type Shell } from "./shell-output";
 import { useHoldToTalk } from "./voice";
 
@@ -759,11 +759,17 @@ function DiffColored({ text }: { text: string }) {
 
 const ToolRow = memo(function ToolRow({
 	item,
+	live = false,
 }: {
 	item: Extract<Item, { kind: "tool" }>;
+	/** In the Working row's list, where the step still running pulses. */
+	live?: boolean;
 }) {
 	const [open, setOpen] = useState(false);
 	const done = item.result !== undefined;
+	// The step Claude is on now: the whole row pulses, and reads in the
+	// working colour so reduced motion still tells it apart.
+	const running = live && !done;
 	const oldText = item.input.old_string;
 	const newText = item.input.new_string;
 	return (
@@ -771,16 +777,26 @@ const ToolRow = memo(function ToolRow({
 			<button
 				type="button"
 				onClick={() => setOpen((value) => !value)}
-				className="flex w-full min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-left hover:bg-secondary"
+				className={cn(
+					"flex w-full min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-left hover:bg-secondary",
+					running && "animate-pulse motion-reduce:animate-none",
+				)}
 			>
 				<span
 					className={cn(
 						"size-[7px] shrink-0 rounded-full",
-						!done && "animate-pulse bg-working",
+						!done && "bg-working",
+						// Not on top of the row's own pulse.
+						!done && !running && "animate-pulse",
 						done && (item.isError ? "bg-danger" : "bg-emerald-500"),
 					)}
 				/>
-				<span className="min-w-0 truncate text-foreground">
+				<span
+					className={cn(
+						"min-w-0 truncate",
+						running ? "text-working" : "text-foreground",
+					)}
+				>
 					{toolDescription(item)}
 				</span>
 				<span className="min-w-0 flex-1 truncate font-mono text-[11px] text-faint-foreground">
@@ -826,6 +842,70 @@ const ToolRow = memo(function ToolRow({
 
 type Tool = Extract<Item, { kind: "tool" }>;
 type Group = Tool[];
+
+/**
+ * The steps of the turn under way, in the Working row: the rows a finished
+ * turn's Worked list shows, the one still running pulsing. The list keeps
+ * its end in view as steps land, unless you scrolled up to read an earlier
+ * one.
+ */
+function TurnSteps({
+	tools,
+	running,
+}: {
+	tools: Tool[];
+	/** The command running now that the transcript has not recorded yet. */
+	running?: ScreenStep;
+}) {
+	const ref = useRef<HTMLDivElement>(null);
+	const pinnedRef = useRef(true);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: a new step is the trigger - it changes scrollHeight
+	useLayoutEffect(() => {
+		const el = ref.current;
+		if (el && pinnedRef.current) el.scrollTop = el.scrollHeight;
+	}, [tools.length, running?.text]);
+	return (
+		<div
+			ref={ref}
+			onScroll={(event) => {
+				const el = event.currentTarget;
+				pinnedRef.current =
+					el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+			}}
+			className="mt-1.5 max-h-[420px] overflow-y-auto rounded-lg border border-border bg-secondary/20 p-1.5 text-foreground"
+		>
+			{tools.map((tool) => (
+				<ToolRow key={tool.id} item={tool} live />
+			))}
+			{running && <LiveCommandRow text={running.text} className="px-1.5" />}
+		</div>
+	);
+}
+
+/**
+ * The command running now, read off the screen before the transcript has it
+ * (see screen-steps.ts): drawn as the running step it is about to become.
+ */
+function LiveCommandRow({
+	text,
+	className,
+}: {
+	text: string;
+	className?: string;
+}) {
+	return (
+		<div
+			className={cn(
+				"flex h-7 min-w-0 animate-pulse items-center gap-2 text-working motion-reduce:animate-none",
+				className,
+			)}
+			title="Running - read off the terminal"
+		>
+			<span className="size-[7px] shrink-0 rounded-full bg-working" />
+			<span className="min-w-0 truncate">{text}</span>
+		</div>
+	);
+}
 
 /**
  * Runs of tool calls fold into one group, like the desktop app hides its
@@ -1030,6 +1110,31 @@ export function outputTokens(items: Item[]): number {
 	let total = 0;
 	for (const out of byMessage.values()) total += out;
 	return total;
+}
+
+/**
+ * The turn under way: it began with your last message, and holds every step
+ * Claude ran since. A message still on its way to the transcript (`landed`
+ * false) is the turn too, with nothing under it yet - not the last turn's
+ * steps.
+ */
+export function currentTurn(items: Item[], landed: boolean) {
+	const index = landed
+		? items.findLastIndex(
+				(item) => item.kind === "user" && item.at !== undefined,
+			)
+		: items.length;
+	const user: Item | undefined = items[index];
+	const rest = items.slice(index + 1);
+	return {
+		/** The message's row id: what "Hide the steps" is remembered by. */
+		id: user?.id ?? "",
+		start: user?.kind === "user" ? user.at : undefined,
+		/** Everything Claude wrote and ran since. */
+		items: rest,
+		tools: rest.filter((item): item is Tool => item.kind === "tool"),
+		tokens: outputTokens(rest),
+	};
 }
 
 /** "840", "2.1k", "12k". */
@@ -2434,20 +2539,6 @@ export function ChatView({
 		void screen.refetch();
 	};
 	const prompt = onShowTerminal ? asking(items) : null;
-	// The turn began with your last message; "Working..." counts from it, and
-	// opens to every command Claude has run since.
-	const turnIndex = items.findLastIndex(
-		(item) => item.kind === "user" && item.at !== undefined,
-	);
-	const turnStart =
-		turnIndex >= 0
-			? (items[turnIndex] as Extract<Item, { kind: "user" }>).at
-			: undefined;
-	const turnTools = items
-		.slice(turnIndex + 1)
-		.filter((item): item is Tool => item.kind === "tool");
-	const turnTokens = outputTokens(items.slice(turnIndex + 1));
-	const [showCommands, setShowCommands] = useState(false);
 	// Menus the transcript never sees, read off the live screen.
 	const screen = electronTrpc.terminal.readScreen.useQuery(
 		{ paneId },
@@ -2487,25 +2578,6 @@ export function ChatView({
 		() => (screenText ? parseScreenAside(screenText) : null),
 		[screenText],
 	);
-	// What Claude drew for this turn that the transcript hasn't recorded yet:
-	// Claude Code commits a message's lines seconds after it streams them, and
-	// minutes when a permission check waits, so the lines it writes before a
-	// command, and the command, are on the screen long before they're in the
-	// file. The terminal shows them at once; this shows the same.
-	const liveSteps = useMemo(
-		() =>
-			working && screenText
-				? unrecordedSteps(screenSteps(screenText), items.slice(turnIndex + 1))
-				: [],
-		[working, screenText, items, turnIndex],
-	);
-	// Each line once: the same words twice on screen would share a row key.
-	const liveLines = [
-		...new Set(
-			liveSteps.flatMap((step) => (step.kind === "text" ? [step.text] : [])),
-		),
-	];
-	const liveCommand = liveSteps.findLast((step) => step.kind === "tool");
 	// Claude draws its limit menu only when the turn hits the limit. A session
 	// reopened after that (a night run the board picked up in the morning)
 	// shows the message with no menu on screen, so offer to open it.
@@ -2529,6 +2601,38 @@ export function ChatView({
 	useEffect(() => {
 		setPending((list) => list.filter((sent) => !isEchoed(items, sent)));
 	}, [items]);
+	// The turn began with your last message; "Working..." counts from it and
+	// shows every step Claude has run since. The steps are open while Claude
+	// works, so you watch them land; "Hide the steps" folds them for this turn,
+	// and the next turn opens them again.
+	const turn = useMemo(
+		() => currentTurn(items, !pending.some((sent) => !sent.lost)),
+		[items, pending],
+	);
+	const [hiddenTurn, setHiddenTurn] = useState<string | null>(null);
+	const showSteps = hiddenTurn !== turn.id;
+	// What Claude drew for this turn that the transcript hasn't recorded yet:
+	// Claude Code commits a message's lines seconds after it streams them, and
+	// minutes when a permission check waits, so the lines it writes before a
+	// command, and the command, are on the screen long before they're in the
+	// file. The terminal shows them at once; this shows the same.
+	const liveSteps = useMemo(
+		() =>
+			working && screenText
+				? unrecordedSteps(screenSteps(screenText), turn.items)
+				: [],
+		[working, screenText, turn.items],
+	);
+	// Each line once: the same words twice on screen would share a row key.
+	const liveLines = [
+		...new Set(
+			liveSteps.flatMap((step) => (step.kind === "text" ? [step.text] : [])),
+		),
+	];
+	const liveCommand = liveSteps.findLast((step) => step.kind === "tool");
+	// The turn's steps: its recorded commands, and the one running now.
+	const hasSteps = turn.tools.length > 0 || liveCommand !== undefined;
+	const stepsShown = showSteps && hasSteps;
 	// Not mid-turn or queued: Claude writes a queued message only when it takes it.
 	const expireLater = (id: number, text: string) => {
 		const expire = () =>
@@ -3085,58 +3189,48 @@ export function ChatView({
 									<WorkingMark />
 									{compacting === null ? (
 										<div className="flex min-w-0 flex-1 flex-col">
-											{liveCommand && (
-												// The command running now, before the transcript has it.
-												<div
-													className="flex h-7 min-w-0 items-center gap-2 text-foreground"
-													title="Running - read off the terminal"
-												>
-													<span className="size-[7px] shrink-0 animate-pulse rounded-full bg-working" />
-													<span className="min-w-0 truncate">
-														{liveCommand.text}
-													</span>
-												</div>
+											{liveCommand && !stepsShown && (
+												// The command running now, before the transcript has it: the
+												// last row of the steps when they show, alone here while they
+												// are folded.
+												<LiveCommandRow text={liveCommand.text} />
 											)}
 											<button
 												type="button"
 												title={
-													showCommands
+													showSteps
 														? "Hide the steps"
 														: "Show what Claude did this turn"
 												}
-												disabled={turnTools.length === 0}
-												onClick={() => setShowCommands(!showCommands)}
+												disabled={!hasSteps}
+												onClick={() =>
+													setHiddenTurn(showSteps ? turn.id : null)
+												}
 												className="flex h-7 items-center gap-3 self-start rounded-md enabled:hover:text-foreground"
 											>
 												<span className="shrink-0">Working…</span>
-												{turnStart !== undefined && (
-													<Elapsed since={turnStart} />
+												{turn.start !== undefined && (
+													<Elapsed since={turn.start} />
 												)}
-												{turnTokens > 0 && (
+												{turn.tokens > 0 && (
 													<span
 														title="Tokens Claude has written this turn"
 														className="shrink-0 tabular-nums text-muted-foreground"
 													>
-														↓ {tokenLabel(turnTokens)} tokens
+														↓ {tokenLabel(turn.tokens)} tokens
 													</span>
 												)}
-												{turnTools.length > 0 && (
+												{hasSteps && (
 													<LuChevronRight
 														className={cn(
 															"size-3.5 shrink-0 text-muted-foreground transition-transform",
-															showCommands && "rotate-90",
+															showSteps && "rotate-90",
 														)}
 													/>
 												)}
 											</button>
-											{showCommands && turnTools.length > 0 && (
-												// Same rows as a finished turn's Worked list: what each
-												// step did, opening to its command and output.
-												<div className="mt-1.5 max-h-[420px] overflow-y-auto rounded-lg border border-border bg-secondary/20 p-1.5 text-foreground">
-													{turnTools.map((tool) => (
-														<ToolRow key={tool.id} item={tool} />
-													))}
-												</div>
+											{stepsShown && (
+												<TurnSteps tools={turn.tools} running={liveCommand} />
 											)}
 										</div>
 									) : (
