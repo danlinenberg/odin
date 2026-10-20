@@ -320,7 +320,7 @@ function AutoRenameRow() {
 	);
 }
 
-/** The chat view's TL;DR card on the latest reply, and the phone's. */
+/** Whether a long latest reply folds under its TL;DR in the chat view. */
 function ReplyTldrRow() {
 	const utils = electronTrpc.useUtils();
 	const { data: enabled, isLoading } =
@@ -342,9 +342,9 @@ function ReplyTldrRow() {
 
 	return (
 		<SettingRow
-			label="Sum up the latest reply"
+			label="Fold long replies"
 			htmlFor="reply-tldr"
-			description="After each turn, a TL;DR card on the reply says what the agent did, and a reply too long for the window folds under it with a Show full reply link. Off shows every reply whole; the brief for the card's hover and Catch up is still written."
+			description="A latest reply too long for the window folds under its TL;DR card, with a Show full reply link. Off shows the reply whole above the TL;DR."
 		>
 			<Switch
 				id="reply-tldr"

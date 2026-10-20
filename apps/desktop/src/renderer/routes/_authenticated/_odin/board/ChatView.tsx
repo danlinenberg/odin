@@ -1927,6 +1927,11 @@ const ItemView = memo(function ItemView({
 	const rootRef = useRef<HTMLDivElement>(null);
 	const bodyRef = useRef<HTMLDivElement>(null);
 	const taller = useTallerThanView(rootRef, bodyRef, !!tldr);
+	// Settings > Sessions > "Fold long replies": off, the TL;DR still shows but
+	// the reply above it stays whole.
+	const { data: foldSetting } =
+		electronTrpc.settings.getOdinReplyTldr.useQuery();
+	const fold = foldSetting ?? ODIN_REPLY_TLDR_DEFAULT;
 	if (item.kind === "tool") return <ToolRow item={item} />;
 	if (item.kind === "compact") return <CompactRow item={item} />;
 	if (item.kind === "user")
@@ -1943,15 +1948,15 @@ const ItemView = memo(function ItemView({
 	const showsActions = !!actions && !hideActions;
 	const commands = onRun ? bangCommands(item.text) : [];
 	// A reply you can see whole, its action items included, is never cut and needs no TL;DR.
-	const shown = tldr && taller ? { ...tldr, long: true } : null;
+	const shown = tldr && taller ? { ...tldr, long: fold } : null;
 	const placement = tldrPlacement(shown, showsActions);
 	const toggleFull = () => setFull((value) => !value);
 	return (
 		<div ref={rootRef} className="select-text cursor-text">
 			{body && (
 				<FoldedReply
-					foldable={placement === "action-items"}
-					folded={!!shown && !full}
+					foldable={fold && placement === "action-items"}
+					folded={fold && !!shown && !full}
 					onToggle={toggleFull}
 				>
 					<div ref={bodyRef}>
@@ -2251,11 +2256,6 @@ export function ChatView({
 		(item): item is Extract<Item, { kind: "text" }> => item.kind === "text",
 	);
 	const lastTextId = lastText?.id;
-	// Settings → Sessions → "Sum up the latest reply". Off: no TL;DR card, no
-	// fold, and no brief asked for from here - the board still warms its cards'.
-	const { data: tldrSetting } =
-		electronTrpc.settings.getOdinReplyTldr.useQuery();
-	const tldrOn = tldrSetting ?? ODIN_REPLY_TLDR_DEFAULT;
 	// The brief's TL;DR of the latest reply. Asked for once the turn is over -
 	// mid-turn the latest reply is a moving target - and shown only while the
 	// brief read this very reply: a newer one makes it a wrong TL;DR, so the
@@ -2263,7 +2263,7 @@ export function ChatView({
 	const { data: brief } = electronTrpc.terminal.summarizeClaudeSession.useQuery(
 		{ sessionId: sessionId ?? "", settled: true },
 		{
-			enabled: !!sessionId && !!lastText && !working && tldrOn,
+			enabled: !!sessionId && !!lastText && !working,
 			retry: false,
 			staleTime: 30_000,
 			refetchInterval: (query) =>
@@ -2271,16 +2271,12 @@ export function ChatView({
 		},
 	);
 	// Measured without its ACTION ITEMS: those show in their own card.
-	const fresh =
-		working || !tldrOn
-			? null
-			: freshTldr(
-					lastText && {
-						...lastText,
-						text: splitActionItems(lastText.text).body,
-					},
-					brief,
-				);
+	const fresh = working
+		? null
+		: freshTldr(
+				lastText && { ...lastText, text: splitActionItems(lastText.text).body },
+				brief,
+			);
 	// Whether it is shown is ItemView's call: only a reply taller than the view gets one.
 	const tldr = fresh && tldrOnly ? { ...fresh, urgency: null } : fresh;
 	// Agents repeat their ACTION ITEMS in every reply; show one card, on the
