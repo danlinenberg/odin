@@ -3,6 +3,7 @@ import { readdir, readFile, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { PR_RULES_HEADER } from "shared/odin-rules";
+import { type SessionCredential, transcriptCredential } from "./credential";
 import { type SessionUsage, transcriptUsage } from "./usage";
 
 /**
@@ -767,6 +768,8 @@ export async function readTranscript({
 	rules: RuleFiring[];
 	/** Tokens, context and cost so far; null before the first reply. */
 	usage: SessionUsage | null;
+	/** The Claude plan or an API key, per the latest request; null before it. */
+	credential: SessionCredential | null;
 	/** Where the session left Slack drafts - see `slackDrafts`. */
 	slackDrafts: string[];
 }> {
@@ -793,6 +796,7 @@ export async function readTranscript({
 		loop: activeLoop(jsonl),
 		rules: ruleFirings(jsonl),
 		usage: transcriptUsage(jsonl),
+		credential: transcriptCredential(jsonl),
 		slackDrafts: slackDrafts(jsonl),
 	};
 }

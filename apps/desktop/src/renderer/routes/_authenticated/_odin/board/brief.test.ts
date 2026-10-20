@@ -6,6 +6,7 @@ import {
 	byRepo,
 	ciRunning,
 	claimOpened,
+	credentialFacts,
 	elapsedLabel,
 	emailLink,
 	jiraIssue,
@@ -1070,5 +1071,19 @@ describe("nothingLeft", () => {
 			false,
 		);
 		expect(nothingLeft([claude("Shipped.")])).toBe(false);
+	});
+});
+
+describe("credentialFacts", () => {
+	it("names the plan or the key, and dates a move between them", () => {
+		const plan = credentialFacts({ now: "plan", since: null });
+		expect(plan.label).toBe("on the Claude plan");
+		expect(plan.title).not.toContain("since");
+		const moved = credentialFacts({
+			now: "key",
+			since: "2026-10-19T10:15:00Z",
+		});
+		expect(moved.label).toBe("on the API key");
+		expect(moved.title).toContain("On the key since");
 	});
 });

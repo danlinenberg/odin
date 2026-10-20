@@ -850,3 +850,25 @@ export function reviewEnded(
 	const pr = reviewed && states[reviewed.url];
 	return pr && pr.state !== "OPEN" ? pr.state : null;
 }
+
+/**
+ * The facts line's credential: what the session's requests run on, and the
+ * hover that says what that means for the bill and the limits.
+ */
+export function credentialFacts(credential: {
+	now: "plan" | "key";
+	since: string | null;
+}): { label: string; title: string } {
+	const when = credential.since
+		? new Date(credential.since).toLocaleString()
+		: null;
+	return credential.now === "plan"
+		? {
+				label: "on the Claude plan",
+				title: `Requests go through your claude.ai login and count against the plan's limits.${when ? ` On the plan since ${when}; before that, the API key.` : ""}`,
+			}
+		: {
+				label: "on the API key",
+				title: `Requests carry your API key and are billed per token.${when ? ` On the key since ${when}; before that, the Claude plan.` : ""}`,
+			};
+}

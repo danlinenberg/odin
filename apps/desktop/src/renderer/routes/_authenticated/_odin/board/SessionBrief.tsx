@@ -12,6 +12,7 @@ import {
 	artifactLink,
 	byRepo,
 	claimOpened,
+	credentialFacts,
 	emailLink,
 	jiraIssue,
 	jiraKey,
@@ -538,6 +539,10 @@ export function SessionBrief({
 			},
 		);
 	const facts = transcript ? sessionBrief(transcript.messages) : null;
+	// `credential` is missing until main restarts onto it.
+	const credential = transcript?.credential
+		? credentialFacts(transcript.credential)
+		: null;
 	// The agent's own ACTION ITEMS list, verbatim - the model paraphrasing it
 	// came out as "execute the six action items", which tells you nothing.
 	const todo = transcript ? actionItems(transcript.messages) : [];
@@ -1132,6 +1137,9 @@ export function SessionBrief({
 								{transcript.usage.usd !== null &&
 									` · ~$${transcript.usage.usd.toFixed(2)}`}
 							</span>
+						)}
+						{credential && (
+							<span title={credential.title}>{` · ${credential.label}`}</span>
 						)}
 						{facts.at &&
 							` · last activity ${new Date(facts.at).toLocaleString()}`}
