@@ -101,6 +101,7 @@ import {
 	escIsHandledOnScreen,
 	odinScreenStatus,
 	odinScreenWrite,
+	remoteConnectLine,
 	spacesForCursorForward,
 } from "shared/odin-screen-status";
 import {
@@ -1480,24 +1481,49 @@ function RemoteMark({ paneId }: { paneId: string }) {
 	);
 }
 
+type HostState = "live" | "connecting" | "off";
+
+/**
+ * A remote pane still reaching its host is "connecting" (the expired AWS
+ * sign-in it waits on included), one whose connect failed is "off". Undefined
+ * when no connect is on screen: Claude is drawn, or the pane never went remote.
+ */
+function connectStateOf(screen: string): HostState | undefined {
+	const line = remoteConnectLine(screen);
+	if (!line) return undefined;
+	return line.startsWith("Could not connect") ? "off" : "connecting";
+}
+
+const HOST_MARK: Record<
+	HostState,
+	{ ink: string; title: (host: string) => string }
+> = {
+	live: {
+		ink: "text-success",
+		title: (host) =>
+			`Connected to ${host}, in tmux - it keeps going with this computer shut`,
+	},
+	connecting: {
+		ink: "text-attention",
+		title: (host) => `Connecting to ${host}...`,
+	},
+	off: {
+		ink: "text-danger",
+		title: (host) => `Not connected to ${host} - Resume connects again`,
+	},
+};
+
 /**
  * The server a session wears beside its title while it runs on a remote host:
- * green while this computer is connected to Claude there, grey while it isn't.
+ * green while connected to Claude there, yellow while connecting, red while not.
  */
-function HostMark({ paneId, live }: { paneId: string; live: boolean }) {
+function HostMark({ paneId, state }: { paneId: string; state: HostState }) {
 	const host = useTabsStore((s) => s.panes[paneId]?.odinRemote);
 	if (!host) return null;
 	return (
 		<LuServer
-			title={
-				live
-					? `Connected to ${host}, in tmux - it keeps going with this computer shut`
-					: `Not connected to ${host} - Resume connects again`
-			}
-			className={cn(
-				"mr-1 inline size-3.5 align-[-2px]",
-				live ? "text-success" : "text-muted-foreground",
-			)}
+			title={HOST_MARK[state].title(host)}
+			className={cn("mr-1 inline size-3.5 align-[-2px]", HOST_MARK[state].ink)}
 		/>
 	);
 }
@@ -1873,6 +1899,7 @@ interface BoardCardTileProps {
 	customTags: string[];
 	launchEmoji: string;
 	isAgent: boolean;
+	hostState: HostState;
 	resuming: boolean;
 	shellPane: Pane | undefined;
 	shellAlive: boolean;
@@ -1900,6 +1927,7 @@ const BoardCardTile = memo(
 		customTags,
 		launchEmoji,
 		isAgent,
+		hostState,
 		resuming,
 		shellPane,
 		shellAlive,
@@ -1954,7 +1982,7 @@ const BoardCardTile = memo(
 								<OverdueMark itemKey={`session:${card.pane.id}`} />
 								<WatchMark paneId={card.pane.id} />
 								<RemoteMark paneId={card.pane.id} />
-								<HostMark paneId={card.pane.id} live={isAgent} />
+								<HostMark paneId={card.pane.id} state={hostState} />
 								{title}
 							</div>
 							<button
@@ -2524,6 +2552,52 @@ function DevBoardPage() {
 			new Set([...alivePaneIds].filter((id) => !agentGonePaneIds.includes(id))),
 		[alivePaneIds, agentGonePaneIds],
 	);
+	// Remote panes still reaching their host, or whose connect failed, read off
+	// their screens. Not left to the status scan below: it waits SETTLED_MS
+	// after a change, and a connect is over in 10-30s.
+	const [connectStates, setConnectStates] = useState<Record<string, HostState>>(
+		{},
+	);
+	const remotePaneIds = Object.values(panes)
+		.filter((pane) => pane.odinRemote && alivePaneIds.has(pane.id))
+		.map((pane) => pane.id)
+		.sort()
+		.join(",");
+	useEffect(() => {
+		if (!remotePaneIds) return setConnectStates({});
+		let stopped = false;
+		const check = async () => {
+			const states = await Promise.all(
+				remotePaneIds.split(",").map(async (paneId) => {
+					const screen =
+						visibleScreen(paneId) ||
+						((await electronTrpcClient.terminal.readScreen
+							.query({ paneId })
+							.then((result) => result.text)
+							.catch(() => null)) ??
+							"");
+					return [paneId, connectStateOf(screen)] as const;
+				}),
+			);
+			if (stopped) return;
+			const next = Object.fromEntries(
+				states.filter(([, state]) => state),
+			) as Record<string, HostState>;
+			setConnectStates((prev) =>
+				JSON.stringify(prev) === JSON.stringify(next) ? prev : next,
+			);
+		};
+		void check();
+		const id = setInterval(() => void check(), 2_000);
+		return () => {
+			stopped = true;
+			clearInterval(id);
+		};
+	}, [remotePaneIds]);
+	// Yellow, not red, until the daemon's first answer says which panes are alive.
+	const hostStateOf = (paneId: string): HostState =>
+		connectStates[paneId] ??
+		(agentPaneIds.has(paneId) ? "live" : daemonSessions ? "off" : "connecting");
 	// Sessions under `/loop`, read from the same transcript query the loop pill
 	// uses, so it's one fetch per session. Between ticks they belong in Idle -
 	// every turn ends clean, but they aren't done.
@@ -4617,7 +4691,7 @@ function DevBoardPage() {
 							<RemoteMark paneId={card.pane.id} />
 							<HostMark
 								paneId={card.pane.id}
-								live={agentPaneIds.has(card.pane.id)}
+								state={hostStateOf(card.pane.id)}
 							/>
 							{cardTitle(card)}
 						</span>
@@ -5234,6 +5308,7 @@ function DevBoardPage() {
 														customTags={customTags}
 														launchEmoji={launchEmoji}
 														isAgent={agentPaneIds.has(card.pane.id)}
+														hostState={hostStateOf(card.pane.id)}
 														resuming={resumingPaneIds.includes(card.pane.id)}
 														shellPane={shellPaneOf(card)}
 														shellAlive={alivePaneIds.has(

@@ -335,6 +335,14 @@ describe("remote session connecting", () => {
 		).toBeUndefined();
 		expect(remoteConnectLine("$ ls\n")).toBeUndefined();
 	});
+
+	it("reads a failed connect as Could not connect, which turns the board's host icon red", () => {
+		expect(
+			remoteConnectLine(
+				"\nOdin: connecting to i-0abc123...\n\nOdin: could not connect: TargetNotConnected\n",
+			),
+		).toBe("Could not connect: TargetNotConnected");
+	});
 });
 
 describe("folder-trust dialog", () => {
