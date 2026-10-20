@@ -9,6 +9,7 @@ import {
 
 import { matchRepos, repoLabel } from "./repo-picker";
 import { insertSkill, matchSkills, skillToken } from "./skill-picker";
+import { WherePicker } from "./WherePicker";
 
 /**
  * An attachment (image or video): either bytes to copy in (`dataUrl`) or a
@@ -86,6 +87,8 @@ export function OdinPromptDialog({
 	defaultRepo = "",
 	modelPicker = false,
 	backlogToggle = false,
+	wherePicker = false,
+	defaultOnHost,
 	submitLabel = "Start session",
 	onCancel,
 	onSubmit,
@@ -107,6 +110,10 @@ export function OdinPromptDialog({
 	modelPicker?: boolean;
 	/** Offer "Backlog": park the prompt on My Tasks instead of starting it. */
 	backlogToggle?: boolean;
+	/** This computer or the remote host, when one is set up. */
+	wherePicker?: boolean;
+	/** The picker's starting pick - one made before the dialog opened. */
+	defaultOnHost?: boolean;
 	submitLabel?: string;
 	onCancel: () => void;
 	onSubmit: (
@@ -114,6 +121,8 @@ export function OdinPromptDialog({
 		files: PromptImage[],
 		/** Absolute repo path, or "" for the workspace default. */
 		repo: string,
+		/** The WherePicker pick; undefined leaves it to Settings. */
+		onHost?: boolean,
 	) => void | Promise<void>;
 }) {
 	const sendKeys = useHotkeyDisplay("SUBMIT").text;
@@ -130,6 +139,7 @@ export function OdinPromptDialog({
 	const setToBacklog = useClaudeCommand((state) => state.setToBacklog);
 	const toBacklog = backlogToggle && storedToBacklog;
 	const fileInput = useRef<HTMLInputElement>(null);
+	const [onHost, setOnHost] = useState(defaultOnHost);
 
 	// Launching takes a couple of seconds (workspace + PTY), so wait on the
 	// caller's promise and keep the button busy until it settles. If it rejects
@@ -138,7 +148,7 @@ export function OdinPromptDialog({
 		if (isStarting) return;
 		setIsStarting(true);
 		try {
-			await onSubmit(prompt, files, repo);
+			await onSubmit(prompt, files, repo, onHost);
 		} catch (error) {
 			// A rejected launch used to be an unhandled rejection: the dialog just
 			// sat there. Most often it's a machine without Git: a fresh Windows, or
@@ -459,6 +469,9 @@ export function OdinPromptDialog({
 								</option>
 							))}
 						</select>
+					)}
+					{wherePicker && !toBacklog && (
+						<WherePicker value={onHost} onChange={setOnHost} />
 					)}
 					{backlogToggle && (
 						<label
