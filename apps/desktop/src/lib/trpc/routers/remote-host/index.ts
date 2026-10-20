@@ -6,6 +6,7 @@ import { promisify } from "node:util";
 import { app, safeStorage } from "electron";
 import { getNotifyScriptPath } from "main/lib/agent-setup/notify-hook";
 import { githubOwner } from "main/lib/github-token";
+import { apiKeyFallbackOn } from "main/lib/remote-host/api-key-fallback";
 import {
 	giveSsmAccess,
 	listAwsProfiles,
@@ -142,10 +143,11 @@ async function sessionSecrets(owner: string | null = null): Promise<string> {
 	return secretsFile({
 		...claudeSecrets(),
 		// The API key claude-auto falls back to here, for the same switch on the host.
-		ODIN_FALLBACK_API_KEY:
-			readOdinConfig().remoteHost?.apiKeyFallback !== true
-				? undefined
-				: (await getProcessEnvWithShellEnv()).ANTHROPIC_API_KEY,
+		ODIN_FALLBACK_API_KEY: apiKeyFallbackOn(
+			readOdinConfig().remoteHost?.apiKeyFallback,
+		)
+			? (await getProcessEnvWithShellEnv()).ANTHROPIC_API_KEY
+			: undefined,
 		// The repo owner's account when it may go to the host (github-on-host).
 		GH_TOKEN: await hostGithubToken(readOdinConfig(), owner),
 	});
@@ -299,6 +301,10 @@ export const createRemoteHostRouter = () =>
 		get: publicProcedure.query(() => ({
 			host: readOdinConfig().remoteHost ?? null,
 			hasClaudeToken: Boolean(claudeToken()),
+			/** Whether sessions there move to the API key at the plan limit. */
+			apiKeyFallback: apiKeyFallbackOn(
+				readOdinConfig().remoteHost?.apiKeyFallback,
+			),
 			/** The connected GitHub accounts and which may go to the host. */
 			githubAccounts: hostGithubAccounts(readOdinConfig()),
 		})),

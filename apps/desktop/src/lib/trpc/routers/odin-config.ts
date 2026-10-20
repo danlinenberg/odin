@@ -61,7 +61,7 @@ export interface OdinFileConfig {
 		claudeSetupSyncedAt?: number;
 		/** Hooks the last sync left out on the host: they name files it doesn't have. */
 		claudeSetupDropped?: string[];
-		/** true: sessions there move to ANTHROPIC_API_KEY at the plan limit. Off by default. */
+		/** true: sessions there move to ANTHROPIC_API_KEY at the plan limit. Unset: as claude-auto does on this computer (api-key-fallback). */
 		apiKeyFallback?: boolean;
 		/**
 		 * Logins of the connected GitHub accounts whose token may go to the
