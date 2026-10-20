@@ -31,6 +31,11 @@ import {
 	toTitle,
 	untilNextQueued,
 } from "./reactions";
+import {
+	createSlackClient,
+	type SlackCallOptions,
+	type SlackResponse,
+} from "./slack-call";
 
 /**
  * Odin's :eyes: queue - the Slack messages I reacted to, straight from Slack.
@@ -44,8 +49,6 @@ import {
  * un-reacting marks a row instead of losing it, and Done is Odin-only. Nothing
  * is ever written back to Slack.
  */
-
-const SLACK_API = "https://slack.com/api";
 
 function slackToken(): string | null {
 	return resolveSlackToken();
@@ -84,29 +87,18 @@ function ackedByMe(
  */
 const launchRequested = new Set<string>();
 
-interface SlackResponse {
-	ok?: boolean;
-	error?: string;
-}
+const slack = createSlackClient({
+	fetch: (url, init) => fetch(url, init),
+	sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+});
 
-let slackInFlight = 0;
-const slackWaiting: (() => void)[] = [];
-
-async function slackApi<T extends SlackResponse>(
+function slackApi<T extends SlackResponse>(
 	method: string,
 	params: Record<string, string>,
 	token: string,
+	options?: SlackCallOptions,
 ): Promise<T> {
-	if (slackInFlight >= 4)
-		await new Promise<void>((resolve) => slackWaiting.push(resolve));
-	else slackInFlight++;
-	try {
-		return await slackCall<T>(method, params, token);
-	} finally {
-		const next = slackWaiting.shift();
-		if (next) next();
-		else slackInFlight--;
-	}
+	return slack.call<T>(method, params, token, options);
 }
 
 /**
@@ -127,31 +119,6 @@ function slackRead<T extends SlackResponse>(
 	slackReads.set(key, { at: Date.now(), value });
 	value.catch(() => slackReads.delete(key));
 	return value;
-}
-
-async function slackCall<T extends SlackResponse>(
-	method: string,
-	params: Record<string, string>,
-	token: string,
-): Promise<T> {
-	const url = `${SLACK_API}/${method}?${new URLSearchParams(params)}`;
-	// A rate limit is "not yet", not an answer: wait what Slack says and ask
-	// again. Giving up here is what made each sweep read a different random
-	// slice of the backlog as UNKNOWN.
-	let res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-	for (let attempt = 0; res.status === 429 && attempt < 5; attempt++) {
-		const wait = Number(res.headers.get("retry-after")) || 2 ** attempt;
-		await new Promise((resolve) => setTimeout(resolve, wait * 1000));
-		res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-	}
-	const json = (await res.json()) as T;
-	if (!json.ok) {
-		throw new TRPCError({
-			code: json.error === "invalid_auth" ? "UNAUTHORIZED" : "BAD_REQUEST",
-			message: `Slack ${method}: ${json.error ?? `HTTP ${res.status}`}`,
-		});
-	}
-	return json;
 }
 
 interface Identity {
@@ -672,11 +639,15 @@ export async function slackInlineAfter(id: string): Promise<{
 			SlackResponse & { channel?: { is_im?: boolean; is_mpim?: boolean } }
 		>("conversations.info", { channel }, token);
 		if (!info.channel?.is_im && !info.channel?.is_mpim) return null;
+		// Slack allows this method once a minute, and the watch is back in a
+		// minute anyway: a refusal is "nothing new this time", not a wait.
 		const history = await slackApi<
 			SlackResponse & {
 				messages?: { ts?: string; user?: string; text?: string }[];
 			}
-		>("conversations.history", { channel, oldest: ts, limit: "1" }, token);
+		>("conversations.history", { channel, oldest: ts, limit: "1" }, token, {
+			retry: false,
+		});
 		const newest = history.messages?.[0];
 		if (!newest?.ts) return null;
 		const me = await getIdentity(token);
