@@ -125,9 +125,34 @@ export function UploadChips({
 	);
 }
 
+type Native = {
+	nativePromise?: (
+		plugin: string,
+		method: string,
+	) => Promise<{ image?: string }>;
+};
+const native = (window as { Capacitor?: Native }).Capacitor?.nativePromise;
+
+/** The newest screenshot in Photos (OdinShare.swift), as a file to upload. */
+async function latestScreenshot(): Promise<File | null> {
+	if (!native) return null;
+	try {
+		const { image } = await native("OdinShare", "latestScreenshot");
+		if (!image) return null;
+		const bytes = Uint8Array.from(atob(image), (c) => c.charCodeAt(0));
+		return new File([bytes], `screenshot-${Date.now()}.jpg`, {
+			type: "image/jpeg",
+		});
+	} catch (failure) {
+		alert(failure instanceof Error ? failure.message : String(failure));
+		return null;
+	}
+}
+
 /**
  * +: iOS offers Photo Library, Take Photo or Video, and Choose File.
- * `camera` opens the camera straight away instead.
+ * `camera` attaches your newest screenshot in the app; in a browser it opens
+ * the camera.
  */
 export function AttachButton({
 	uploads,
@@ -142,8 +167,15 @@ export function AttachButton({
 		<>
 			<button
 				type="button"
-				aria-label={camera ? "Take a photo" : "Attach photos or files"}
-				onClick={() => input.current?.click()}
+				aria-label={
+					camera ? "Attach the latest screenshot" : "Attach photos or files"
+				}
+				onClick={async () => {
+					if (camera && native) {
+						const shot = await latestScreenshot();
+						if (shot) uploads.add([shot]);
+					} else input.current?.click();
+				}}
 				className="flex size-10 shrink-0 items-center justify-center text-foreground"
 			>
 				<Icon className={camera ? "size-6" : "size-7"} />

@@ -44,6 +44,8 @@
 	<string>Odin attaches the photo or video you take to your reply.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Odin connects to Odin on your Mac over this Wi-Fi.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>The camera button attaches your latest screenshot to a reply.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Odin turns what you say into a reply.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
