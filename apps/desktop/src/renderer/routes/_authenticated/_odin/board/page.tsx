@@ -4434,6 +4434,8 @@ function DevBoardPage() {
 		// added a card and the board filled with copies of one task.
 		useTabsStore.getState().removePane(card.pane.id);
 		setDrawerCard(null);
+		// You asked to carry on: land in the new session, not on the board.
+		usePendingFocus.getState().focus(result.paneId);
 		// The title is the prompt's whole first line - often a paragraph - and a
 		// toast that long covers the cards under it.
 		toast.success(
