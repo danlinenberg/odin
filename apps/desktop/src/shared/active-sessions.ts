@@ -58,7 +58,7 @@ export function activeSessions(
 			paneId: pane.id,
 			title: pane.odinTaskTitle ?? "",
 			source: boardSection(pane),
-			// An ended session can't be working or waiting on you: boardColumn says Idle.
+			// An ended session can't be working: boardColumn says Idle, or Needs you if it asked you something.
 			column: boardColumn(
 				pane.status ?? "idle",
 				alive.has(pane.id),

@@ -7,9 +7,11 @@ import type { PaneStatus } from "./tabs-types";
  *  - an ALIVE agent in "idle" only has a status nobody set, which is not the
  *    same claim, so it wants a look (Needs you) rather than Done;
  *  - a session you dragged to Idle stays parked there until it moves again;
- *  - a DEAD session can't be working or waiting on you, whatever its status says
- *    - unless the board closed it for sitting idle (`closedIn`): that one keeps
- *    the column it was closed from, since closing it changed nothing you owe it;
+ *  - a DEAD session can't be working, whatever its status says - but one that
+ *    ended asking you something (open ACTION ITEMS, an unanswered question)
+ *    still owes you that answer, so it stays in Needs you. So does one the
+ *    board closed for sitting idle (`closedIn`): it keeps the column it was
+ *    closed from, since closing it changed nothing you owe it;
  *  - a live "failed" session is just another thing that needs you;
  *  - a live session under `/loop` that's between turns is Idle, not Done or
  *    Needs you - it will wake itself up, so there's nothing to finish or answer.
@@ -30,11 +32,12 @@ export function boardColumn(
 	// terminals, so a background agent that died leaves its status frozen at
 	// whatever it was - and `merge` in the tabs store deliberately carries
 	// "permission"/"review"/"failed" across restarts, where every PTY is gone.
-	// The daemon poll is the truth: a dead session can't be working on it, and
-	// can't be waiting on you either - there's no prompt left to answer and no
-	// turn left to reply to. Its only move is Resume, which lives on the Idle
-	// card ("session ended - resume to pick it up").
-	if (alive === false) return closedIn ?? "idle";
+	// The daemon poll is the truth: a dead session can't be working on it. A
+	// "permission" one still waits on you - the turn ended asking you something,
+	// and answering it resumes the session. Anything else goes to Idle, whose
+	// card offers Resume ("session ended - resume to pick it up").
+	if (alive === false)
+		return closedIn ?? (status === "permission" ? "permission" : "idle");
 	// A prompt on screen or a failure still needs you, loop or not - the next
 	// tick can't fire past it.
 	if (looping && (status === "review" || status === "idle")) return "idle";

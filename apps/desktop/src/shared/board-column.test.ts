@@ -32,13 +32,13 @@ describe("boardColumn", () => {
 		expect(boardColumn("failed", true, true)).toBe("permission");
 	});
 
-	// The bug this guards: statuses survive restart (tabs store `merge` keeps
-	// "permission"/"review"/"failed") but PTYs don't, so every old session piled
-	// into Needs you as a card with nothing to answer.
-	it("never leaves a dead session in Needs you", () => {
+	// Statuses survive restart (tabs store `merge` keeps them) but PTYs don't. A
+	// dead session that ended asking you something still owes you the answer;
+	// any other dead session goes to Idle to resume.
+	it("keeps a dead session that asked you something in Needs you", () => {
+		expect(boardColumn("permission", false, false)).toBe("permission");
 		expect(boardColumn("review", false, false)).toBe("idle");
 		expect(boardColumn("failed", false, false)).toBe("idle");
-		expect(boardColumn("permission", false, false)).toBe("idle");
 		expect(boardColumn("working", false, false)).toBe("idle");
 	});
 
@@ -46,9 +46,8 @@ describe("boardColumn", () => {
 		expect(boardColumn("idle", false, false)).toBe("idle");
 	});
 
-	it("stops calling a dead session working or waiting on you", () => {
+	it("stops calling a dead session working", () => {
 		expect(boardColumn("working", false, false)).toBe("idle");
-		expect(boardColumn("permission", false, false)).toBe("idle");
 	});
 
 	it("does not call a session dead before the daemon poll answers", () => {
