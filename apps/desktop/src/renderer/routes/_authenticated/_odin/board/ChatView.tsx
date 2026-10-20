@@ -782,6 +782,9 @@ export function segments(items: Item[]): (Item | Group)[] {
 }
 
 /** A question or plan approval Claude is still waiting on - a menu only the TUI draws. */
+/** Claude's line when a usage or spend limit stops the turn. */
+export const LIMIT_HIT_RE = /^You[’']ve hit your .*\blimit\b/;
+
 function asking(items: Item[]): Tool | null {
 	const last = items.at(-1);
 	return last?.kind === "tool" &&
@@ -2121,6 +2124,17 @@ export function ChatView({
 		() => (screenText ? parseScreenAside(screenText) : null),
 		[screenText],
 	);
+	// Claude draws its limit menu only when the turn hits the limit. A session
+	// reopened after that (a night run the board picked up in the morning)
+	// shows the message with no menu on screen, so offer to open it.
+	const lastItem = items.at(-1);
+	const limitHit =
+		!!onShowTerminal &&
+		!working &&
+		!screenMenu &&
+		!screenAside &&
+		lastItem?.kind === "text" &&
+		LIMIT_HIT_RE.test(lastItem.text);
 	// What you just sent, shown at once - Claude writes it to the transcript a
 	// beat later, and that echo replaces it.
 	const [pending, setPending] = useState<Sent[]>(
@@ -2581,6 +2595,19 @@ export function ChatView({
 									onClose={() => void sendKeys(["\x1b"])}
 								/>
 							</div>
+						</div>
+					)}
+					{limitHit && (
+						<div className={cn("flex min-w-0 gap-3", ENTER)}>
+							<OdinMark />
+							<button
+								type="button"
+								title="Open the usage limit menu: wait for the reset, or keep going on extra usage"
+								onClick={() => void sendKeys(["/rate-limit-options", "\r"])}
+								className="h-7 rounded-lg border border-attention/35 bg-attention/[0.07] px-3 text-[12.5px] font-medium text-attention hover:bg-attention/15"
+							>
+								Show usage limit options
+							</button>
 						</div>
 					)}
 					{working && !prompt && !screenMenu && !screenAside && !starting && (

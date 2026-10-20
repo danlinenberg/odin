@@ -8,7 +8,8 @@ export type ScreenMenu = {
 };
 
 const CURSOR = "❯";
-const RULE_RE = /^[\s─━═╭╮╰╯┌┐└┘├┤-]*[─━═]{3,}[\s─━═╭╮╰╯┌┐└┘├┤-]*$/;
+// ▔ is the top edge of a dialog drawn over the conversation (the usage limit menu).
+const RULE_RE = /^[\s─━═▔╭╮╰╯┌┐└┘├┤-]*[─━═▔]{3,}[\s─━═▔╭╮╰╯┌┐└┘├┤-]*$/;
 const NUMBERED_RE = /^\s*(?:❯\s*)?(\d+)\.\s+(.+)$/;
 const FOOTER_RE =
 	/enter to (?:confirm|select)|esc to (?:cancel|exit|go back)|↑\/↓/i;

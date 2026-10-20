@@ -17,6 +17,7 @@ import {
 	itemOptions,
 	itemReply,
 	itemsFoldLabel,
+	LIMIT_HIT_RE,
 	lastActionsId,
 	launchAttachments,
 	launchRequest,
@@ -701,4 +702,18 @@ test("autoSsoLogin signs in on its own only for a fresh expired-token reply", ()
 	);
 	expect(autoSsoLogin({ id: "c", text }, now)).toBe(false);
 	expect(autoSsoLogin({ id: "d", text: "all good", at: now }, now)).toBe(false);
+});
+
+test("LIMIT_HIT_RE matches Claude's usage and spend limit lines", () => {
+	expect(
+		LIMIT_HIT_RE.test(
+			"You've hit your weekly limit · resets Oct 21, 4am (UTC)",
+		),
+	).toBe(true);
+	expect(
+		LIMIT_HIT_RE.test(
+			"You’ve hit your individual spend limit · ask your admin",
+		),
+	).toBe(true);
+	expect(LIMIT_HIT_RE.test("We hit the rate limit on the API.")).toBe(false);
 });

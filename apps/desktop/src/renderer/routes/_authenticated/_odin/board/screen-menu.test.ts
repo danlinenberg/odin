@@ -84,6 +84,33 @@ const ASIDE = `
   ↑/↓ to scroll · c to copy · f to fork · Esc to close
 `;
 
+// Read off a remote session's tmux pane: the dialog's top edge is ▔, and the
+// conversation above it is no part of the question.
+const LIMIT = `
+  ⎿  You've hit your individual spend limit · your weekly limit resets Oct 21,
+     4am (UTC)
+✻ Baked for 0s · done 8:36 PM
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   What do you want to do?
+   ❯ 1. Stop and wait for limit to reset
+     2. Wait here, then continue automatically at Oct 21, 4am
+   Enter to confirm · Esc to cancel
+[odin-a1d90:claude*                              "✳ Claude Code" 23:39 18-Oct-26
+`;
+
+describe("usage limit menu", () => {
+	it("stops the question at the dialog's edge", () => {
+		expect(parseScreenMenu(LIMIT)).toEqual({
+			title: "What do you want to do?",
+			options: [
+				"Stop and wait for limit to reset",
+				"Wait here, then continue automatically at Oct 21, 4am",
+			],
+			selected: 0,
+		});
+	});
+});
+
 describe("parseScreenAside", () => {
 	it("reads a /btw answer off the overlay", () => {
 		expect(parseScreenAside(ASIDE)).toEqual({
