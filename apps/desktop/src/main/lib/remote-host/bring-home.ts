@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { promisify } from "node:util";
@@ -130,6 +130,30 @@ export async function bringSessionHome(
 	}
 }
 
+/**
+ * The session's transcript mirror here (a remote terminal keeps one in
+ * ~/.claude/projects), copied to the folder `placeIn` picks, for a host that
+ * can't be reached. Null without a mirror. The code and the tmux session stay
+ * on the host.
+ */
+export async function bringMirrorHome(
+	sessionId: string,
+	placeIn: (work: HostWork | null) => Promise<string>,
+	projects = join(homedir(), ".claude", "projects"),
+): Promise<string | null> {
+	const file = `${sessionId}.jsonl`;
+	const dirs = await readdir(projects).catch(() => []);
+	const mirror = dirs
+		.map((dir) => join(projects, dir, file))
+		.find((path) => existsSync(path));
+	if (!mirror) return null;
+	const cwd = await placeIn(null);
+	const dir = join(projects, claudeProjectDir(cwd));
+	await mkdir(dir, { recursive: true });
+	if (join(dir, file) !== mirror) await copyFile(mirror, join(dir, file));
+	return cwd;
+}
+
 /** `path`, or `path-2`, `path-3`... whichever `taken` says is free. */
 async function free(
 	path: string,
@@ -193,6 +217,10 @@ export function movedNote(
 		return `${here}. Your work is NOT here: it stays on the host in ${work.top}, branch ${work.branch}, because this computer has no checkout of ${work.origin ?? "that repo"}. Say so before you continue.`;
 	return `${here}. Paths from the host do not exist here. Continue the task.`;
 }
+
+/** movedNote for a session moved from its mirror: the host was unreachable. */
+export const unreachableNote = (cwd: string) =>
+	`You were moved from the remote host to this computer, which could not reach the host. You now run in ${cwd}. Your code and uncommitted work stay on the host, and paths from it do not exist here. Say so before you continue.`;
 
 const killTmux = (sessionId: string) =>
 	`tmux kill-session -t ${sh(tmuxSession(sessionId))} 2>/dev/null; true`;

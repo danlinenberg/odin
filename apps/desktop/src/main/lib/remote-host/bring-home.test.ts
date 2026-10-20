@@ -1,9 +1,17 @@
 import { describe, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+	bringMirrorHome,
+	claudeProjectDir,
 	lastCwd,
 	movedNote,
 	packScript,
@@ -81,4 +89,23 @@ test("a host branch with commits and uncommitted work lands in a local worktree"
 test("outside a git checkout the script prints nothing", () => {
 	const dir = mkdtempSync(join(tmpdir(), "bring-home-plain-"));
 	expect(sh(dir, packScript(dir, join(dir, "x.bundle"))).trim()).toBe("");
+});
+
+describe("bringMirrorHome", () => {
+	test("copies the transcript mirror to the folder it lands in", async () => {
+		const projects = mkdtempSync(join(tmpdir(), "mirror-"));
+		mkdirSync(join(projects, "-home-ubuntu-repos"));
+		writeFileSync(join(projects, "-home-ubuntu-repos", "s1.jsonl"), "chat");
+		const cwd = await bringMirrorHome(
+			"s1",
+			async () => "/Users/me/dev",
+			projects,
+		);
+		expect(cwd).toBe("/Users/me/dev");
+		const copy = join(projects, claudeProjectDir("/Users/me/dev"), "s1.jsonl");
+		expect(readFileSync(copy, "utf8")).toBe("chat");
+		expect(
+			await bringMirrorHome("none", async () => "/x", projects),
+		).toBeNull();
+	});
 });

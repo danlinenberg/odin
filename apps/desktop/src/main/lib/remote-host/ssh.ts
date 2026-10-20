@@ -20,7 +20,11 @@ export async function connectHost(host: HostLogin): Promise<Client> {
 	const sock = await openSsmStream(target);
 	const client = new Client();
 	await new Promise<void>((resolve, reject) => {
-		client.once("ready", resolve).once("error", reject);
+		client.once("ready", resolve).once("error", (err) => {
+			// A failed handshake leaves the SSM plugin running otherwise.
+			sock.destroy();
+			reject(err);
+		});
 		client.connect({
 			sock,
 			username: host.user,

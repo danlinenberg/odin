@@ -15,10 +15,13 @@ import {
 	startInstance,
 } from "main/lib/remote-host/aws-instances";
 import {
+	bringMirrorHome,
 	bringSessionHome,
 	endHostSession,
+	type HostWork,
 	movedNote,
 	unpackWork,
+	unreachableNote,
 } from "main/lib/remote-host/bring-home";
 import {
 	CLAUDE_SETUP_PARTS,
@@ -400,31 +403,39 @@ export const createRemoteHostRouter = () =>
 				const host = readOdinConfig().remoteHost;
 				if (!host) throw new Error("No remote host is set up.");
 				let branch: string | null = null;
-				const { cwd, work } = await withAwsSignIn(host, () =>
-					bringSessionHome(host, input.sessionId, async (work) => {
-						const origin = work?.origin ? httpsCloneUrl(work.origin) : null;
-						const repo = origin ? await localCheckoutOf(origin) : null;
-						if (repo && work?.bundle && work.branch) {
-							const unpacked = await unpackWork(repo, {
-								...work,
-								bundle: work.bundle,
-								branch: work.branch,
-							});
-							branch = unpacked.branch;
-							return join(unpacked.dir, work.sub);
-						}
-						if (repo) {
-							const sub = join(repo, work?.sub ?? "");
-							return existsSync(sub) ? sub : repo;
-						}
-						return (
-							[input.cwd, mainCheckoutOf(input.cwd)].find(
-								(path) => path && existsSync(path),
-							) ?? homedir()
-						);
-					}),
-				);
-				return { cwd, note: movedNote(cwd, work, branch) };
+				const placeIn = async (work: HostWork | null) => {
+					const origin = work?.origin ? httpsCloneUrl(work.origin) : null;
+					const repo = origin ? await localCheckoutOf(origin) : null;
+					if (repo && work?.bundle && work.branch) {
+						const unpacked = await unpackWork(repo, {
+							...work,
+							bundle: work.bundle,
+							branch: work.branch,
+						});
+						branch = unpacked.branch;
+						return join(unpacked.dir, work.sub);
+					}
+					if (repo) {
+						const sub = join(repo, work?.sub ?? "");
+						return existsSync(sub) ? sub : repo;
+					}
+					return (
+						[input.cwd, mainCheckoutOf(input.cwd)].find(
+							(path) => path && existsSync(path),
+						) ?? homedir()
+					);
+				};
+				try {
+					const { cwd, work } = await withAwsSignIn(host, () =>
+						bringSessionHome(host, input.sessionId, placeIn),
+					);
+					return { cwd, note: movedNote(cwd, work, branch), offline: false };
+				} catch (err) {
+					// The way out for a stuck host can't need the host: move the mirror.
+					const cwd = await bringMirrorHome(input.sessionId, placeIn);
+					if (!cwd) throw err;
+					return { cwd, note: unreachableNote(cwd), offline: true };
+				}
 			}),
 
 		/** Done on a remote session: its tmux session on the host ends too. */

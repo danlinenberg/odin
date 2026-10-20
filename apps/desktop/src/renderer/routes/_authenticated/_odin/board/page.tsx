@@ -4538,10 +4538,11 @@ function DevBoardPage() {
 			card.pane.odinCwd || card.pane.initialCwd || card.repoPath || "";
 		const loading = toast.loading("Moving the session to this computer...");
 		try {
-			const { cwd, note } = await utils.client.remoteHost.bringHome.mutate({
-				sessionId,
-				cwd: wanted,
-			});
+			const { cwd, note, offline } =
+				await utils.client.remoteHost.bringHome.mutate({
+					sessionId,
+					cwd: wanted,
+				});
 			const pane = {
 				...card.pane,
 				odinRemote: undefined,
@@ -4552,6 +4553,10 @@ function DevBoardPage() {
 				panes: { ...state.panes, [card.pane.id]: pane },
 			}));
 			toast.dismiss(loading);
+			if (offline)
+				toast.warning(
+					"The host did not answer, so the conversation moved without its code. The session may still run on the host.",
+				);
 			await resumeCard({ ...card, pane }, false, note, true);
 		} catch (error) {
 			toast.dismiss(loading);
