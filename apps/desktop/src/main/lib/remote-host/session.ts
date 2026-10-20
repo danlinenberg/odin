@@ -265,9 +265,15 @@ export function attachScript(
 ): string {
 	const session = sh(tmuxSession(spec.pane));
 	const run = runScript(spec, secretsDir);
+	// A reply that resumes a session still up in tmux: pasted into its Claude,
+	// which the run script's prompt never reaches.
+	const reply =
+		spec.prompt && /--resume\b/.test(spec.claudeArgs)
+			? `printf %s ${sh(Buffer.from(spec.prompt).toString("base64"))} | base64 -d | tmux load-buffer -b odin-reply - && tmux paste-buffer -p -d -b odin-reply -t ${session} && sleep 0.5 && tmux send-keys -t ${session} Enter; `
+			: "";
 	return [
 		spec.fresh ? `tmux kill-session -t ${session} 2>/dev/null` : "",
-		`if tmux has-session -t ${session} 2>/dev/null; then rm -rf ${sh(secretsDir)}; exec tmux attach -t ${session}; fi`,
+		`if tmux has-session -t ${session} 2>/dev/null; then rm -rf ${sh(secretsDir)}; ${reply}exec tmux attach -t ${session}; fi`,
 		`cat > ${sh(secretsDir)}/run.sh <<'ODIN_RUN'`,
 		run,
 		"ODIN_RUN",

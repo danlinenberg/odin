@@ -106,9 +106,10 @@ async function buildSessionSpec(
 	return {
 		...host,
 		...rest,
+		// A resumed conversation already has the host note.
 		prompt:
-			prompt === null
-				? null
+			prompt === null || /--resume\b/.test(rest.claudeArgs)
+				? prompt
 				: prompt +
 					hostNote({
 						user: host.user,

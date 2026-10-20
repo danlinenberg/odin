@@ -4245,7 +4245,7 @@ function DevBoardPage() {
 							odinPane: card.pane.id,
 							repoPath: cwd ?? null,
 							claudeArgs: `--resume ${sessionId}`,
-							prompt: null,
+							prompt: prompt ?? null,
 							fresh: restart,
 						})
 					: cwd

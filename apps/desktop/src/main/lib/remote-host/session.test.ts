@@ -65,6 +65,17 @@ describe("remote session scripts", () => {
 			"tmux kill-session -t 'odin-pane-1-x' 2>/dev/null\nif tmux has-session",
 		);
 	});
+
+	test("a reply that resumes a live tmux session is pasted into it", () => {
+		const attach = attachScript(
+			{ ...spec, claudeArgs: "--resume abc", prompt: "go on" },
+			"/d",
+		);
+		expect(attach).toContain(
+			`printf %s '${Buffer.from("go on").toString("base64")}' | base64 -d | tmux load-buffer`,
+		);
+		expect(attachScript(spec, "/d")).not.toContain("load-buffer");
+	});
 });
 
 test("a ticket gives its tokens once, and not after two minutes", () => {
