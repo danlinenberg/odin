@@ -12,11 +12,30 @@ export interface DoneRow {
 	url: string | null;
 	/** Put away to read later, not finished - All tasks' Reading material. */
 	reading?: boolean;
+	/**
+	 * A session moved to Docs off the board: where it ran, so Docs' Back to
+	 * board can resume it there without reading its transcript first.
+	 */
+	cwd?: string;
 	/** Put away by a "drop tasks like this" rule - removing the rule brings it back. */
 	rule?: string;
 }
 
 const HIDDEN_V0 = "odin-hidden-items";
+
+const SESSION_KEY = "session:";
+
+/**
+ * The Docs row of a session moved there off the board. Keyed by the
+ * conversation, not the pane: the pane dies with the move, and Back to board
+ * resumes the conversation into a new one.
+ */
+export const sessionDocKey = (sessionId: string) =>
+	`${SESSION_KEY}${sessionId}`;
+
+/** The session behind a Docs row, or null for a feed row put away to read. */
+export const sessionIdOfDocKey = (key: string): string | null =>
+	key.startsWith(SESSION_KEY) ? key.slice(SESSION_KEY.length) : null;
 
 /**
  * v0 → v1: timestamps become rows, and the old hidden keys become done. Also

@@ -1,5 +1,10 @@
 import { expect, test } from "bun:test";
-import { doneChecker, migrateDone } from "./done";
+import {
+	doneChecker,
+	migrateDone,
+	sessionDocKey,
+	sessionIdOfDocKey,
+} from "./done";
 
 test("v0 done timestamps and hidden keys both come through as done", () => {
 	const store = new Map([
@@ -49,4 +54,16 @@ test("a mention newer than Done brings the row back", () => {
 		}),
 	).toBe(false);
 	expect(isDone({ key: "jira:SHIP-2" })).toBe(false);
+});
+
+test("a session's Docs row is keyed by its conversation, apart from feed rows", () => {
+	const key = sessionDocKey("4f2c-abc");
+	expect(sessionIdOfDocKey(key)).toBe("4f2c-abc");
+	expect(sessionIdOfDocKey("jira:SHIP-1")).toBeNull();
+	expect(sessionIdOfDocKey("task:session:1")).toBeNull();
+	// Never mistaken for a feed row's Done: the checker goes by key or link.
+	const isDone = doneChecker({
+		[key]: { at: 1, title: "Brainstorm", source: "session", url: null },
+	});
+	expect(isDone({ key: "jira:SHIP-1" })).toBe(false);
 });

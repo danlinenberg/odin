@@ -31,6 +31,7 @@ import { createPortal } from "react-dom";
 import type { IconType } from "react-icons";
 import {
 	LuBellRing,
+	LuBookOpen,
 	LuChevronDown,
 	LuChevronLeft,
 	LuChevronRight,
@@ -81,6 +82,7 @@ import {
 	remoteControlOn,
 	useClaudeCommand,
 } from "renderer/stores/claude-command";
+import { sessionDocKey, useDoneStore } from "renderer/stores/done";
 import { useIdleClose } from "renderer/stores/idle-close";
 import { useSessionView } from "renderer/stores/session-view";
 import { useTabsStore } from "renderer/stores/tabs/store";
@@ -1548,6 +1550,7 @@ function TagMenu({
 	onStar,
 	onDone,
 	onPark,
+	onDocs,
 	onRestart,
 	onRunHere,
 	onRemind,
@@ -1573,6 +1576,8 @@ function TagMenu({
 	onDone: () => void;
 	/** Set unless it already sits in Idle. */
 	onPark?: () => void;
+	/** Set once the session has a conversation to keep under Docs. */
+	onDocs?: () => void;
 	/** Set while the session has a conversation to reopen. */
 	onRestart?: () => void;
 	/** A remote session, moved to this computer. */
@@ -1678,6 +1683,20 @@ function TagMenu({
 				>
 					<LuPause className="size-3" aria-hidden />
 					Move to Idle
+				</button>
+			)}
+			{onDocs && (
+				<button
+					type="button"
+					title="Off the board like Done, kept under Docs - read it there, or bring it back with Back to board"
+					onClick={() => {
+						onDocs();
+						onClose();
+					}}
+					className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-foreground"
+				>
+					<LuBookOpen className="size-3" aria-hidden />
+					Move to Docs
 				</button>
 			)}
 			{onRestart && (
@@ -4646,10 +4665,10 @@ function DevBoardPage() {
 	 * keeping the dead pane bought nothing. To stop an agent without ending the
 	 * session, drag the card to Idle (Park) instead.
 	 */
-	const markDone = (card: BoardCard) => {
-		const undo = endCard(card);
+	const markDone = (card: BoardCard, put: PutAway = toDone) => {
+		const undo = put.end(card);
 		setDrawerCard(null);
-		toast.success("Done - removed from board", undoAction(undo));
+		toast.success(put.message, undoAction(undo));
 	};
 
 	// The drawer's Done stays in the drawer: the next session opens and the
@@ -4714,16 +4733,16 @@ function DevBoardPage() {
 			)}
 		</button>
 	);
-	const markDoneInDrawer = (card: BoardCard) => {
+	const markDoneInDrawer = (card: BoardCard, put: PutAway = toDone) => {
 		const at = switchCards.findIndex((c) => c.pane.id === card.pane.id);
 		const next = switchCards[at + 1] ?? switchCards[at - 1];
-		if (!next) return markDone(card);
+		if (!next) return markDone(card, put);
 		setLeavingPaneId(card.pane.id);
 		openDrawer(next);
 		setTimeout(() => {
-			const undo = endCard(card);
+			const undo = put.end(card);
 			setLeavingPaneId(null);
-			toast.success("Done - removed from board", undoAction(undo));
+			toast.success(put.message, undoAction(undo));
 		}, 450);
 	};
 
@@ -4763,6 +4782,45 @@ function DevBoardPage() {
 			toast.success(`Back on the board - ${title.slice(0, 50)}`);
 		});
 	};
+
+	/**
+	 * Move to Docs: off the board like Done - the task it was started on is
+	 * finished with it - but kept under Docs, where its title reads the
+	 * transcript and Back to board resumes it. Undo brings the card back and
+	 * takes it off Docs.
+	 */
+	const endCardToDocs = (card: BoardCard) => {
+		const sessionId = claudeSessionIdOf(card);
+		if (!sessionId) {
+			toast.error("This session has no conversation yet - nothing to keep");
+			return;
+		}
+		const key = sessionDocKey(sessionId);
+		const row = {
+			title: cardTitle(card),
+			source: "session",
+			url: null,
+			reading: true,
+			cwd: sessionCwd(card.pane) ?? card.repoPath,
+		};
+		const undo = endCard(card);
+		useDoneStore.getState().setDone(key, row);
+		// Stacked over endCard's own revert, so one ⌘Z does both.
+		return pushUndo(() => {
+			useDoneStore.getState().setDone(key, null);
+			undo?.();
+		});
+	};
+	/** How a card leaves the board: Done, or Move to Docs. */
+	type PutAway = {
+		end: (card: BoardCard) => (() => void) | undefined;
+		message: string;
+	};
+	const toDone: PutAway = {
+		end: endCard,
+		message: "Done - removed from board",
+	};
+	const toDocs: PutAway = { end: endCardToDocs, message: "Moved to Docs" };
 
 	const undoStack = useRef<(() => void)[]>([]);
 	/** Stack `revert` for ⌘Z; returns the one-shot undo for this action's toast. */
@@ -4869,10 +4927,11 @@ function DevBoardPage() {
 
 	// Done from wherever the card is: the open session moves the drawer on,
 	// another row in the drawer's list leaves the drawer where it is.
-	const doneAnywhere = (card: BoardCard) => {
-		if (card.pane.id === drawerCard?.pane.id) return markDoneInDrawer(card);
-		if (!drawerCard) return markDone(card);
-		toast.success("Done - removed from board", undoAction(endCard(card)));
+	const doneAnywhere = (card: BoardCard, put: PutAway = toDone) => {
+		if (card.pane.id === drawerCard?.pane.id)
+			return markDoneInDrawer(card, put);
+		if (!drawerCard) return markDone(card, put);
+		toast.success(put.message, undoAction(put.end(card)));
 	};
 	const liveCard = (paneId: string | undefined) =>
 		paneId
@@ -5100,6 +5159,13 @@ function DevBoardPage() {
 					onPark={
 						tagMenuCard && tagMenuCard.status !== "idle"
 							? () => void parkCard(tagMenuCard)
+							: undefined
+					}
+					onDocs={
+						tagMenuCard &&
+						!tagMenuCard.pane.odinQueued &&
+						claudeSessionIdOf(tagMenuCard)
+							? () => doneAnywhere(tagMenuCard, toDocs)
 							: undefined
 					}
 					onRestart={

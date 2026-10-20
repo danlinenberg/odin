@@ -928,6 +928,48 @@ await step("⌘Z after Done resumes the session onto the board", async () => {
 	}
 });
 
+await step(
+	"right-click → Move to Docs keeps the session under Docs, Back to board resumes it",
+	async () => {
+		const opened = await page<boolean>(`(() => {
+		const card = [...document.querySelectorAll('[role="button"][draggable="true"]')]
+			.find((c) => c.textContent.includes(${JSON.stringify(SESSION)}));
+		const at = card?.getBoundingClientRect();
+		card?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: at?.x, clientY: at?.y }));
+		return !!card;
+	})()`);
+		if (!opened) throw new Error("no card for the resumed session");
+		await click("[data-session-menu] button", "Move to Docs");
+		await waitForText(SESSION, false);
+		await rail("Tasks");
+		const docs = await page<boolean>(`(() => {
+		const e = __find("button", "Docs", __find("button", "Slack").parentElement);
+		e?.click();
+		return !!e;
+	})()`);
+		if (!docs) throw new Error('no "Docs" tab');
+		await waitForText(SESSION);
+		const resumes = fakeClaudeRuns().filter((r) =>
+			r.args.includes("--resume"),
+		).length;
+		await click("button", "Back to board");
+		await waitForText(SESSION, true, 30_000);
+		for (const end = Date.now() + 30_000; ; await sleep(500)) {
+			if (
+				fakeClaudeRuns().filter((r) => r.args.includes("--resume")).length >
+				resumes
+			)
+				break;
+			if (Date.now() > end) throw new Error("no claude --resume ran");
+		}
+		// Back on the board with its drawer open; the next step wants the card.
+		for (let i = 0; i < 2; i++)
+			await page(
+				`(document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`,
+			);
+	},
+);
+
 await step("right-click → Done takes the session off the board", async () => {
 	const opened = await page<boolean>(`(() => {
 		const card = [...document.querySelectorAll('[role="button"][draggable="true"]')]
