@@ -87,6 +87,7 @@ async function buildSessionSpec(
 		claudeArgs: string;
 		prompt: string | null;
 		odinPane?: string | null;
+		fresh?: boolean;
 	},
 ): Promise<RemoteSessionSpec> {
 	const { repoPath, ...rest } = input;
@@ -406,6 +407,8 @@ export const createRemoteHostRouter = () =>
 					prompt: z.string().nullable(),
 					/** Odin's pane, for the session's calls back to Odin. */
 					odinPane: z.string().nullable().optional(),
+					/** Quit the host's Claude and start it again, not reattach. */
+					fresh: z.boolean().optional(),
 				}),
 			)
 			.mutation(async ({ input }) => {

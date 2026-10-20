@@ -59,6 +59,11 @@ describe("remote session scripts", () => {
 		expect(attach).toEndWith(
 			`exec tmux new-session -s 'odin-pane-1-x' "bash '/dev/shm/odin.X'/run.sh"`,
 		);
+		expect(
+			attachScript({ ...spec, fresh: true }, "/dev/shm/odin.X"),
+		).toStartWith(
+			"tmux kill-session -t 'odin-pane-1-x' 2>/dev/null\nif tmux has-session",
+		);
 	});
 });
 

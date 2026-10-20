@@ -4221,6 +4221,8 @@ function DevBoardPage() {
 			await new Promise((resolve) => setTimeout(resolve, 300));
 			// A session on the remote host resumes there: its tmux session if it
 			// is still up, else `claude --resume` in its worktree on the host.
+			// Restart ends that tmux session first - reattaching would keep the
+			// old Claude, with its old login.
 			const command =
 				card.pane.odinRemote && sessionId
 					? await utils.client.remoteHost.sessionCommand.mutate({
@@ -4229,6 +4231,7 @@ function DevBoardPage() {
 							repoPath: cwd ?? null,
 							claudeArgs: `--resume ${sessionId}`,
 							prompt: null,
+							fresh: restart,
 						})
 					: cwd
 						? `cd '${cwd}' && ${resumeCmd}`

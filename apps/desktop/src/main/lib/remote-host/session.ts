@@ -34,6 +34,8 @@ export interface RemoteSessionSpec {
 	odinPane?: string | null;
 	/** Laptop files the prompt names, copied to the host before Claude starts. */
 	files?: RemoteFile[];
+	/** End the session's tmux session first, so Claude starts over (Restart). */
+	fresh?: boolean;
 }
 
 export interface RemoteFile {
@@ -264,12 +266,15 @@ export function attachScript(
 	const session = sh(tmuxSession(spec.pane));
 	const run = runScript(spec, secretsDir);
 	return [
+		spec.fresh ? `tmux kill-session -t ${session} 2>/dev/null` : "",
 		`if tmux has-session -t ${session} 2>/dev/null; then rm -rf ${sh(secretsDir)}; exec tmux attach -t ${session}; fi`,
 		`cat > ${sh(secretsDir)}/run.sh <<'ODIN_RUN'`,
 		run,
 		"ODIN_RUN",
 		`exec tmux new-session -s ${session} "bash ${sh(secretsDir)}/run.sh"`,
-	].join("\n");
+	]
+		.filter(Boolean)
+		.join("\n");
 }
 
 /** Tokens waiting for their pane's helper: single use, two minutes. */
