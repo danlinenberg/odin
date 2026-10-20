@@ -69,6 +69,7 @@ import { useHotkey } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { emojify } from "renderer/lib/emoji";
 import { canClaimKeyboard } from "renderer/lib/keyboard";
+import { electronTrpcClient } from "renderer/lib/trpc-client";
 import { coldRestoreState } from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/state";
 import { Terminal } from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/Terminal";
 import * as terminalCache from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/v1-terminal-cache";
@@ -2952,9 +2953,20 @@ function DevBoardPage() {
 	const drawerPaneId = drawerCard?.pane.id;
 	useEffect(() => {
 		if (!drawerPaneId || !alivePaneIds.has(drawerPaneId)) return;
-		const check = () => {
-			const screen = visibleScreen(drawerPaneId);
-			if (!screen.trim()) return; // not mounted yet - nothing to judge
+		let stopped = false;
+		const check = async () => {
+			// The chat view mounts no xterm, so ask the daemon for the screen.
+			// Without it a parked session whose Claude had quit (the board scan
+			// skips parked cards) kept the chat view's "Reply to Claude", and
+			// what you sent went to the shell instead of resuming it.
+			const screen =
+				visibleScreen(drawerPaneId) ||
+				((await electronTrpcClient.terminal.readScreen
+					.query({ paneId: drawerPaneId })
+					.then((result) => result.text)
+					.catch(() => null)) ??
+					"");
+			if (stopped || !screen.trim()) return; // nothing to judge yet
 			const gone = !agentOnScreen(screen);
 			const goneTwice = gone && sawNoAgentRef.current.has(drawerPaneId);
 			if (gone) sawNoAgentRef.current.add(drawerPaneId);
@@ -2968,9 +2980,12 @@ function DevBoardPage() {
 				return next.length === ids.length ? ids : next;
 			});
 		};
-		check();
-		const id = setInterval(check, 1_500);
-		return () => clearInterval(id);
+		void check();
+		const id = setInterval(() => void check(), 1_500);
+		return () => {
+			stopped = true;
+			clearInterval(id);
+		};
 	}, [drawerPaneId, alivePaneIds]);
 
 	// Screen-reading keeps the columns honest. Agent hooks are the fast path,
