@@ -1688,7 +1688,7 @@ function TagMenu({
 			{onDocs && (
 				<button
 					type="button"
-					title="Off the board like Done, kept under Docs - read it there, or bring it back with Back to board"
+					title="Move to Docs - off the board like Done, kept under Docs to read or bring back"
 					onClick={() => {
 						onDocs();
 						onClose();
