@@ -47,9 +47,29 @@ import { z } from "zod";
 import { publicProcedure, router } from "../..";
 import { readOdinConfig, updateOdinConfig } from "../odin-config";
 import { scanRepos } from "../repos";
+import { awsSsoLogin } from "../terminal/aws-sso";
 import { getProcessEnvWithShellEnv } from "../workspaces/utils/shell-env";
 
 const run = promisify(execFile);
+
+/**
+ * Runs an SSM call to the host; on an expired AWS SSO session it signs in
+ * again (the browser approval) and tries once more, as host sessions do.
+ */
+async function withAwsSignIn<T>(host: RemoteHost, call: () => Promise<T>) {
+	try {
+		return await call();
+	} catch (err) {
+		if (
+			!/SSO session|token (has expired|is expired)|ExpiredToken/i.test(
+				String(err),
+			)
+		)
+			throw err;
+		await awsSsoLogin(host.profile ?? null);
+		return call();
+	}
+}
 
 type RemoteHost = NonNullable<ReturnType<typeof readOdinConfig>["remoteHost"]>;
 
@@ -268,7 +288,9 @@ export const createRemoteHostRouter = () =>
 			.mutation(async ({ input }) => {
 				const host = readOdinConfig().remoteHost;
 				if (!host) throw new Error("No remote host is set up.");
-				const kept = await pushHostTokens(host, input);
+				const kept = await withAwsSignIn(host, () =>
+					pushHostTokens(host, input),
+				);
 				updateOdinConfig({ remoteHost: { ...host, connectors: input } });
 				return { kept };
 			}),
@@ -281,7 +303,9 @@ export const createRemoteHostRouter = () =>
 			.mutation(async ({ input }) => {
 				const host = readOdinConfig().remoteHost;
 				if (!host) throw new Error("No remote host is set up.");
-				const { bytes, dropped } = await syncClaudeSetup(host, input);
+				const { bytes, dropped } = await withAwsSignIn(host, () =>
+					syncClaudeSetup(host, input),
+				);
 				updateOdinConfig({
 					remoteHost: {
 						...host,
