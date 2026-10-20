@@ -9,7 +9,11 @@ import { clickupFetch } from "main/lib/read-link";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
 import { readOdinConfig, resolveGithubToken } from "../odin-config";
-import { slackThreadReplies, slackWatchedThread } from "../slack";
+import {
+	slackInlineAfter,
+	slackThreadReplies,
+	slackWatchedThread,
+} from "../slack";
 import { pullRequestState } from "../terminal/pr-state";
 
 /**
@@ -840,7 +844,17 @@ export const createWorkRouter = () => {
 				const out: Record<string, ThreadActivity> = {};
 				for (const id of input.slack) {
 					const thread = await slackThreadReplies(id, { fresh: true });
-					if (thread)
+					const inline = await slackInlineAfter(id);
+					// In a DM the answer often comes inline rather than in the
+					// thread: whichever is newer is the latest word.
+					if (inline && Number(inline.ts) > Number(thread?.lastReplyTs ?? 0))
+						out[`slack:${id}`] = {
+							stamp: inline.ts,
+							byMe: inline.byMe,
+							text: inline.text,
+							url: inline.url,
+						};
+					else if (thread)
 						out[`slack:${id}`] = {
 							stamp: thread.lastReplyTs ?? "",
 							byMe: thread.lastReplyByMe,

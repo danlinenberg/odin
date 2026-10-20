@@ -652,6 +652,53 @@ export async function slackWatchedThread(
 }
 
 /**
+ * The newest message after `ts` in a DM or group DM, for "Ping me": there an
+ * answer usually comes inline, not in a thread. Null in a channel, where
+ * whatever comes next is unrelated chatter, and when Slack won't say. Reads
+ * history, not my read cursor: the reply worth a ping is the one I haven't
+ * read yet.
+ */
+export async function slackInlineAfter(id: string): Promise<{
+	ts: string;
+	byMe: boolean;
+	text: string | null;
+	url: string | null;
+} | null> {
+	const token = slackToken();
+	const [channel = "", ts = ""] = id.split(":");
+	if (!token || !channel || !ts) return null;
+	try {
+		const info = await slackRead<
+			SlackResponse & { channel?: { is_im?: boolean; is_mpim?: boolean } }
+		>("conversations.info", { channel }, token);
+		if (!info.channel?.is_im && !info.channel?.is_mpim) return null;
+		const history = await slackApi<
+			SlackResponse & {
+				messages?: { ts?: string; user?: string; text?: string }[];
+			}
+		>("conversations.history", { channel, oldest: ts, limit: "1" }, token);
+		const newest = history.messages?.[0];
+		if (!newest?.ts) return null;
+		const me = await getIdentity(token);
+		return {
+			ts: newest.ts,
+			byMe: newest.user === me.userId,
+			text: newest.text ? await resolveMentions(newest.text, token) : null,
+			url: me.teamUrl
+				? buildPermalink({
+						teamUrl: me.teamUrl,
+						channelId: channel,
+						messageTs: newest.ts,
+						threadTs: null,
+					})
+				: null,
+		};
+	} catch {
+		return null;
+	}
+}
+
+/**
  * The conversation around a queued message, as plain lines a model can read:
  * the thread it sits in, and in a DM or group DM whatever was said inline
  * after it - most DM answers never touch a thread. "ME" is me; the queued

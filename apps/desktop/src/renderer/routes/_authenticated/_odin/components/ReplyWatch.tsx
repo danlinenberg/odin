@@ -33,6 +33,8 @@ export const useReplyWatch = create<{
 	watches: Record<string, Watch>;
 	/** Watch all of `keys` for the session, or stop every watch it has. */
 	toggle: (keys: string[], title: string, paneId: string) => void;
+	/** A watched session found more to watch - a draft it left since. */
+	add: (keys: string[], paneId: string) => void;
 	setStamps: (
 		stamps: Record<string, string>,
 		replies?: Record<string, string>,
@@ -59,6 +61,20 @@ export const useReplyWatch = create<{
 										keys.map((k) => [k, { title, paneId }]),
 									),
 								},
+					};
+				}),
+			add: (keys, paneId) =>
+				set((s) => {
+					const title = Object.values(s.watches).find(
+						(w) => w.paneId === paneId,
+					)?.title;
+					const fresh = keys.filter((k) => !s.watches[k]);
+					if (title === undefined || !fresh.length) return s;
+					return {
+						watches: {
+							...s.watches,
+							...Object.fromEntries(fresh.map((k) => [k, { title, paneId }])),
+						},
 					};
 				}),
 			setStamps: (stamps, replies = {}, urls = {}) =>

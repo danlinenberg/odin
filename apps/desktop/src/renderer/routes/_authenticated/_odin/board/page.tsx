@@ -525,13 +525,43 @@ function useSessionWatchKeys(card: BoardCard | undefined): string[] {
 			),
 		],
 	});
+	// The conversations it left a draft in: once you send it, you wait there.
+	const drafts = (transcript?.slackDrafts ?? []).map((id) => `slack:${id}`);
 	const prs = new Set(
 		[
 			launchPullRequest(card.pane.odinBrief),
 			...(transcript ? pullRequests(transcript.messages) : []),
 		].flatMap((pr) => (pr ? [`pr:${pr.url}`] : [])),
 	);
-	return [thread, ...prs].filter((k): k is string => !!k);
+	return [...new Set([thread, ...drafts, ...prs])].filter(
+		(k): k is string => !!k,
+	);
+}
+
+/**
+ * Keeps each watched session's watch list current: a draft or PR it makes
+ * after you turned Ping me on is watched too.
+ */
+function WatchKeySyncs({ cards }: { cards: BoardCard[] }) {
+	// A string, so the board only re-renders this when the watched set changes.
+	const watched = useReplyWatch((s) =>
+		[...new Set(Object.values(s.watches).flatMap((w) => w.paneId ?? []))]
+			.sort()
+			.join("\n"),
+	).split("\n");
+	return cards
+		.filter((card) => watched.includes(card.pane.id))
+		.map((card) => <WatchKeySync key={card.pane.id} card={card} />);
+}
+
+function WatchKeySync({ card }: { card: BoardCard }) {
+	const keys = useSessionWatchKeys(card);
+	const joined = keys.join("\n");
+	const paneId = card.pane.id;
+	useEffect(() => {
+		if (joined) useReplyWatch.getState().add(joined.split("\n"), paneId);
+	}, [joined, paneId]);
+	return null;
 }
 
 /** The conversation behind a card, for the pills that read it. */
@@ -4931,6 +4961,7 @@ function DevBoardPage() {
 			</div>
 
 			<SessionReminders />
+			<WatchKeySyncs cards={[...cardsByStatus.values()].flat()} />
 
 			{tagMenu && (
 				<TagMenu

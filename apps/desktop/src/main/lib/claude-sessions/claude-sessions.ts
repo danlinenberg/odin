@@ -767,6 +767,8 @@ export async function readTranscript({
 	rules: RuleFiring[];
 	/** Tokens, context and cost so far; null before the first reply. */
 	usage: SessionUsage | null;
+	/** Where the session left Slack drafts - see `slackDrafts`. */
+	slackDrafts: string[];
 }> {
 	if (!isSafeSegment(sessionId) || (project && !isSafeSegment(project))) {
 		throw new Error("Invalid transcript reference");
@@ -791,7 +793,50 @@ export async function readTranscript({
 		loop: activeLoop(jsonl),
 		rules: ruleFirings(jsonl),
 		usage: transcriptUsage(jsonl),
+		slackDrafts: slackDrafts(jsonl),
 	};
+}
+
+/**
+ * The Slack conversations this session drafted a reply into, as
+ * "<channel>:<ts>" - the thread it replied in, or for a draft outside a
+ * thread the moment it was written, so "a reply" is whatever comes after it.
+ * Those are the places you wait on an answer once you send the draft.
+ */
+export function slackDrafts(jsonl: string): string[] {
+	const ids = new Set<string>();
+	for (const line of jsonl.split("\n")) {
+		if (!line.includes("slack_send_message_draft")) continue;
+		let entry: {
+			isSidechain?: boolean;
+			timestamp?: string;
+			message?: { content?: unknown };
+		};
+		try {
+			entry = JSON.parse(line);
+		} catch {
+			continue;
+		}
+		const content = entry.message?.content;
+		if (entry.isSidechain || !Array.isArray(content)) continue;
+		for (const block of content) {
+			if (
+				block?.type !== "tool_use" ||
+				!String(block.name).endsWith("slack_send_message_draft")
+			)
+				continue;
+			const channel = String(block.input?.channel_id ?? "");
+			const thread = String(block.input?.thread_ts ?? "");
+			const at = Date.parse(entry.timestamp ?? "");
+			const ts = /^\d+\.\d+$/.test(thread)
+				? thread
+				: Number.isFinite(at)
+					? (at / 1000).toFixed(6)
+					: "";
+			if (/^[A-Z0-9]+$/.test(channel) && ts) ids.add(`${channel}:${ts}`);
+		}
+	}
+	return [...ids];
 }
 
 export interface RuleFiring {

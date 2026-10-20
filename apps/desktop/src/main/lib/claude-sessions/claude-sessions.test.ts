@@ -12,6 +12,7 @@ import {
 	ruleFirings,
 	searchSessions,
 	sessionLoop,
+	slackDrafts,
 	summarizeTranscript,
 	transcriptLinks,
 	transcriptOf,
@@ -1101,4 +1102,36 @@ describe("ruleFirings", () => {
 			},
 		]);
 	});
+});
+
+// Ping me watches where the session left a draft: you wait for the answer there.
+test("slackDrafts: a thread draft keeps its thread, a DM draft its moment", () => {
+	const draft = (input: Record<string, string>, timestamp: string) =>
+		JSON.stringify({
+			timestamp,
+			message: {
+				content: [
+					{
+						type: "tool_use",
+						name: "mcp__plugin_slack_slack__slack_send_message_draft",
+						input,
+					},
+				],
+			},
+		});
+	const jsonl = [
+		draft(
+			{ channel_id: "C1", thread_ts: "1792056367.166909", message: "a" },
+			"2026-10-19T12:00:00.000Z",
+		),
+		draft({ channel_id: "C2", message: "b" }, "2026-10-19T12:00:05.000Z"),
+		draft(
+			{ channel_id: "C1", thread_ts: "1792056367.166909", message: "c" },
+			"2026-10-19T13:00:00.000Z",
+		),
+	].join("\n");
+	expect(slackDrafts(jsonl)).toEqual([
+		"C1:1792056367.166909",
+		"C2:1792411205.000000",
+	]);
 });
