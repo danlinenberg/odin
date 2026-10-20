@@ -18,6 +18,7 @@ import {
 import {
 	LuChevronRight,
 	LuMic,
+	LuServer,
 	LuSmartphone,
 	LuSquareTerminal,
 	LuWrench,
@@ -34,6 +35,7 @@ import {
 	useDismissedActions,
 	withDismissals,
 } from "renderer/stores/dismissed-actions";
+import { useHostEvents } from "renderer/stores/host-connection";
 import { openUrl } from "renderer/stores/in-app-browser";
 import { useSessionView } from "renderer/stores/session-view";
 import { useTabsStore } from "renderer/stores/tabs/store";
@@ -45,6 +47,7 @@ import {
 import { cameFromPhone } from "shared/from-phone";
 import { freshTldr, sameReply, tldrPlacement } from "shared/latest-reply";
 import {
+	agentOnScreen,
 	inputBoxRows,
 	odinScreenStatus,
 	remoteConnectLine,
@@ -2128,6 +2131,34 @@ export function ChatView({
 	const screenText = onShowTerminal && !prompt ? screen.data?.text : null;
 	// A remote session reaching the host: the transcript says nothing until it's there.
 	const connecting = screenText ? remoteConnectLine(screenText) : undefined;
+	// Its connect steps, read off the screen: Claude drawn after the connect
+	// line is connected; the pane ending, or Claude gone from it, after that is
+	// disconnected.
+	const host = useTabsStore((state) => state.panes[paneId]?.odinRemote);
+	const hostEvent = useHostEvents((state) => state.byPane[paneId]);
+	useEffect(() => {
+		if (!host) return;
+		const { mark } = useHostEvents.getState();
+		const last = hostEvent?.kind;
+		const ended =
+			!onShowTerminal || (!!screenText && !agentOnScreen(screenText));
+		if (connecting && !connecting.startsWith("Could not connect"))
+			mark(paneId, "connecting", items.length);
+		else if (last === "connecting" && screenText && !connecting)
+			mark(paneId, "connected", items.length);
+		else if (last === "connecting" && ended)
+			mark(paneId, "failed", items.length);
+		else if (last === "connected" && ended)
+			mark(paneId, "disconnected", items.length);
+	}, [
+		host,
+		hostEvent?.kind,
+		connecting,
+		screenText,
+		onShowTerminal,
+		paneId,
+		items.length,
+	]);
 	const screenMenu = useMemo(
 		() => (screenText ? parseScreenMenu(screenText) : null),
 		[screenText],
@@ -2638,6 +2669,37 @@ export function ChatView({
 							)}
 						</div>
 					)}
+					{host &&
+						!connecting &&
+						hostEvent &&
+						hostEvent.kind !== "connecting" &&
+						(hostEvent.kind !== "connected" ||
+							items.length <= hostEvent.items) && (
+							<div
+								className={cn(
+									"flex h-7 items-center gap-3 text-[12.5px]",
+									hostEvent.kind === "connected"
+										? "text-success"
+										: "text-danger",
+								)}
+							>
+								<LuServer className="size-3.5 shrink-0" />
+								<span className="select-text cursor-text">
+									{hostEvent.kind === "connected"
+										? "Connected to"
+										: hostEvent.kind === "failed"
+											? "Could not connect to"
+											: "Disconnected from"}{" "}
+									{host}
+								</span>
+								<span className="text-muted-foreground">
+									{new Date(hostEvent.at).toLocaleTimeString([], {
+										hour: "2-digit",
+										minute: "2-digit",
+									})}
+								</span>
+							</div>
+						)}
 					{working &&
 						!connecting &&
 						!prompt &&
