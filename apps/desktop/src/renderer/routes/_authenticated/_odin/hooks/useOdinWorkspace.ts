@@ -117,7 +117,13 @@ export function useOdinWorkspace() {
 		if (!repoPath) {
 			return fallback("No default folder - set one in Settings → Sessions.");
 		}
-		const result = await openFromPath.mutateAsync({ path: repoPath });
+		// A throw here must still reach the caller as an error it can show:
+		// Start would otherwise do nothing at all.
+		const result = await openFromPath
+			.mutateAsync({ path: repoPath })
+			.catch((error: unknown) => ({
+				error: error instanceof Error ? error.message : String(error),
+			}));
 		if ("error" in result && result.error) {
 			return fallback(result.error);
 		}

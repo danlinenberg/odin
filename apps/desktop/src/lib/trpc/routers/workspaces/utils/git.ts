@@ -1498,7 +1498,14 @@ export async function listBranches(
 export async function getCurrentBranch(
 	repoPath: string,
 ): Promise<string | null> {
-	const git = await getSimpleGitWithShellPath(repoPath);
+	// A folder this machine doesn't have - a remote server's, while sessions
+	// run there - has no branch to read here; simple-git throws on it.
+	let git: Awaited<ReturnType<typeof getSimpleGitWithShellPath>>;
+	try {
+		git = await getSimpleGitWithShellPath(repoPath);
+	} catch {
+		return null;
+	}
 	try {
 		const branch = await git.revparse(["--abbrev-ref", "HEAD"]);
 		const trimmed = branch.trim();

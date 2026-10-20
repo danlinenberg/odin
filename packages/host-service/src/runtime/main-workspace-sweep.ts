@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { projects } from "../db/schema";
 import {
 	type EnsureMainWorkspaceContext,
@@ -28,6 +29,9 @@ export async function runMainWorkspaceSweep(
 			);
 			continue;
 		}
+		// A plain folder (remote sessions' default folder, not a repo) has its
+		// workspace already and no branch to check out.
+		if (!existsSync(join(row.repoPath, ".git"))) continue;
 		await ensureMainWorkspace(ctx, row.id, row.repoPath);
 	}
 }
