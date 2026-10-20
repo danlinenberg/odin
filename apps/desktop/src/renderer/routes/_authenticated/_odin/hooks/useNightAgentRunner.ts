@@ -1,15 +1,24 @@
 import { useEffect, useRef } from "react";
+import {
+	isRemoteCoreMode,
+	runsLocalSchedulers,
+} from "renderer/lib/remote-core-link";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
 import {
 	inOffHours,
 	useNextInLinePrompt,
 } from "renderer/stores/next-in-line-prompt";
 import { useTabsStore } from "renderer/stores/tabs/store";
+import { nightInstructions } from "shared/night-agent";
+import { NIGHT_QUEUE_KEY, type NightQueue } from "shared/server-board";
 import { useNextInLineQueue } from "../board/NextInLine";
+import { mirrorJson } from "./state-mirror";
 
 const TICK_MS = 60_000;
 /** Ticks this far apart mean the runner wasn't running in between. */
 const GAP_MS = 5 * TICK_MS;
+/** How often the queue goes up to a remote server's Night Agent. */
+const QUEUE_PUSH_MS = 30_000;
 
 /**
  * What the night's ranking was asked with, and what it said. `seen` is every
@@ -56,15 +65,33 @@ const RESEND_MS = 30 * 60_000;
 /** How often the board checks what the host started. */
 const ADOPT_EVERY_TICKS = 5;
 
-/** Your sort words plus the Night Agent ones - what the night ranking obeys. */
-export function nightInstructions(sort: string, offHours: string): string {
-	return [
-		sort,
-		offHours &&
-			`For the overnight run, which starts these one by one while I'm away:\n${offHours}`,
-	]
-		.filter(Boolean)
-		.join("\n\n");
+export { nightInstructions } from "shared/night-agent";
+
+/**
+ * Next in line as the server's Night Agent reads it (main/odin-core/scheduler):
+ * every waiting row, due-pinned first, with what starting it takes.
+ */
+export function nightQueueOf(
+	queue: ReturnType<typeof useNextInLineQueue>,
+): NightQueue {
+	const pinned = new Set(queue.pinned.map((item) => item.key));
+	const rows = [
+		...queue.pinned,
+		...queue.waiting.filter((item) => !pinned.has(item.key)),
+	];
+	const ranked = queue.rankInput(rows).items;
+	return {
+		prompt: queue.prompt,
+		rows: rows.map((item, index) => ({
+			key: item.key,
+			title: item.title,
+			source: item.source,
+			launch: item.launch,
+			pinned: pinned.has(item.key),
+			duplicate: !!queue.duplicateFor(item),
+			rank: ranked[index] as NightQueue["rows"][number]["rank"],
+		})),
+	};
 }
 
 /**
@@ -81,7 +108,8 @@ export function nightInstructions(sort: string, offHours: string): string {
  * Odin keeps the computer from idle sleep meanwhile, so no Caffeinate is
  * needed. It runs only on power: on battery it starts nothing and lets go. A closed laptop lid still sleeps it: no app can stop that.
  *
- * Move it to main the day it has to run with the window shut.
+ * On a remote server it runs there instead (main/odin-core/scheduler.ts), so it
+ * works with the laptop shut: this only sends it the queue.
  *
  * Every decision lands in the store's `nightLog`, so Huginn (and you) can
  * say what ran and why a night started nothing.
@@ -224,6 +252,7 @@ export function useNightAgentRunner() {
 
 		const tick = async () => {
 			if (running) return;
+			if (!runsLocalSchedulers()) return keepAwake(false);
 			const {
 				offHours,
 				offHoursStarted,
@@ -399,8 +428,17 @@ export function useNightAgentRunner() {
 			}
 		};
 		const id = setInterval(() => void tick(), TICK_MS);
+		// Remote mode: the server's Night Agent works from the queue as this
+		// window last built it.
+		const push = setInterval(() => {
+			if (!isRemoteCoreMode()) return;
+			mirrorJson(NIGHT_QUEUE_KEY, nightQueueOf(latest.current)).catch((error) =>
+				console.warn("[night] queue push failed:", error),
+			);
+		}, QUEUE_PUSH_MS);
 		return () => {
 			clearInterval(id);
+			clearInterval(push);
 			keepAwake(false);
 		};
 	}, []);

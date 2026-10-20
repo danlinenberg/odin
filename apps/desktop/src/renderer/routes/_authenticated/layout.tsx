@@ -25,6 +25,7 @@ import { NOTIFICATION_EVENTS } from "shared/constants";
 import { AgentHooks } from "./components/AgentHooks";
 import { DockBadgeController } from "./components/DockBadgeController";
 import { FileMenuListener } from "./components/FileMenuListener";
+import { ServerFolderDialog } from "./components/ServerFolderDialog";
 import { TeardownLogsDialog } from "./components/TeardownLogsDialog";
 import { createPierreWorker } from "./lib/pierreWorker";
 import { LocalHostServiceProvider } from "./providers/LocalHostServiceProvider";
@@ -135,6 +136,7 @@ function AuthenticatedLayout() {
 					<NewWorkspaceModal />
 					<InitGitDialog />
 					<TeardownLogsDialog />
+					<ServerFolderDialog />
 				</WorkerPoolContextProvider>
 			</LocalHostServiceProvider>
 		</DndProvider>

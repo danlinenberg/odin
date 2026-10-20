@@ -94,6 +94,13 @@ async function main(): Promise<void> {
 		},
 	});
 
+	// On a remote server the connections run here too (main/odin-core). Loaded
+	// only there: the laptop's own host-service never touches them.
+	if (process.env.ODIN_REMOTE_CORE === "1") {
+		const { mountOdinCore } = await import("main/odin-core/mount");
+		await mountOdinCore(app, env.HOST_SERVICE_SECRET);
+	}
+
 	const startedAt = Date.now();
 	const server = serve(
 		{ fetch: app.fetch, port: env.HOST_SERVICE_PORT, hostname: "127.0.0.1" },

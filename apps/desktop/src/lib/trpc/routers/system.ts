@@ -135,6 +135,13 @@ async function claudeAuthStatus(): Promise<{
 let login: ChildProcess | null = null;
 
 /**
+ * On a remote server (sessions run there) no browser opens: the CLI prints the
+ * sign-in link instead, and the laptop opens it (claudeLoginUrl).
+ */
+let loginUrl: string | null = null;
+const LOGIN_URL = /https:\/\/\S+\/oauth\/authorize\S*/;
+
+/**
  * The first runnable `claude` on PATH. Node's own lookup stops at the first
  * entry it can't run (EPERM) instead of trying the next folder, so an
  * unreadable copy early on PATH would hide Odin's bundled one at the end.
@@ -154,8 +161,24 @@ export function findClaude(
 	return null;
 }
 
+/**
+ * Stop a sign-in and everything it started. `claude` is often a launcher (Volta,
+ * a version manager) that runs the real CLI as a child; killing only the
+ * launcher left the CLI waiting for a code forever. On POSIX it runs in its own
+ * process group, so the group goes.
+ */
+function stopLogin(child: ChildProcess | null): void {
+	if (!child?.pid) return;
+	try {
+		if (process.platform === "win32") child.kill();
+		else process.kill(-child.pid, "SIGTERM");
+	} catch {
+		child.kill();
+	}
+}
+
 async function claudeLogin(): Promise<{ ok: boolean; error?: string }> {
-	login?.kill();
+	stopLogin(login);
 	const env = await getProcessEnvWithShellPath();
 	const bin = findClaude(env.PATH ?? "");
 	if (!bin)
@@ -171,19 +194,23 @@ async function claudeLogin(): Promise<{ ok: boolean; error?: string }> {
 		child = spawn(bin, ["auth", "login", "--claudeai"], {
 			env,
 			stdio: ["pipe", "pipe", "pipe"],
+			// Its own process group, so stopLogin takes the real CLI too.
+			detached: process.platform !== "win32",
 		});
 	} catch (error) {
 		return { ok: false, error: (error as Error).message };
 	}
 	login = child;
+	loginUrl = null;
 	let output = "";
-	child.stdout?.on("data", (chunk) => {
+	const collect = (chunk: Buffer | string) => {
 		output += chunk;
-	});
-	child.stderr?.on("data", (chunk) => {
-		output += chunk;
-	});
-	const timer = setTimeout(() => child.kill(), 10 * 60_000);
+		if (!loginUrl && process.env.ODIN_REMOTE_CORE === "1")
+			loginUrl = LOGIN_URL.exec(output)?.[0] ?? null;
+	};
+	child.stdout?.on("data", collect);
+	child.stderr?.on("data", collect);
+	const timer = setTimeout(() => stopLogin(child), 10 * 60_000);
 	return new Promise((resolve) => {
 		child.on("error", (error) => {
 			clearTimeout(timer);
@@ -191,7 +218,10 @@ async function claudeLogin(): Promise<{ ok: boolean; error?: string }> {
 		});
 		child.on("exit", async (code) => {
 			clearTimeout(timer);
-			if (login === child) login = null;
+			if (login === child) {
+				login = null;
+				loginUrl = null;
+			}
 			if (code === 0) await markClaudeOnboarded().catch(() => {});
 			resolve(
 				code === 0
@@ -265,20 +295,31 @@ export async function listDocs(
 		.map(({ title, path }) => ({ title, path }));
 }
 
+/**
+ * Claude's sign-in, wherever sessions run: this machine's `system` router, and
+ * on a remote server the Odin core's (shared/remote-core REMOTE_CORE_PROCEDURES
+ * sends these four there).
+ */
+export const claudeAuthProcedures = {
+	claudeAuthStatus: publicProcedure.query(claudeAuthStatus),
+	claudeLogin: publicProcedure.mutation(claudeLogin),
+	claudeLoginCode: publicProcedure
+		.input(z.object({ code: z.string().trim().min(1) }))
+		.mutation(({ input }) => {
+			if (!login?.stdin?.writable) return { sent: false };
+			login.stdin.write(`${input.code}\n`);
+			return { sent: true };
+		}),
+	/** The link a server's sign-in printed, for the laptop to open; null locally. */
+	claudeLoginUrl: publicProcedure.query(() => loginUrl),
+};
+
 export const createSystemRouter = () => {
 	return router({
 		detectGhCli: publicProcedure.query(detectGhCli),
 		detectBrew: publicProcedure.query(detectBrew),
-		claudeAuthStatus: publicProcedure.query(claudeAuthStatus),
+		...claudeAuthProcedures,
 		listDocs: publicProcedure.query(() => listDocs()),
-		claudeLogin: publicProcedure.mutation(claudeLogin),
-		claudeLoginCode: publicProcedure
-			.input(z.object({ code: z.string().trim().min(1) }))
-			.mutation(({ input }) => {
-				if (!login?.stdin?.writable) return { sent: false };
-				login.stdin.write(`${input.code}\n`);
-				return { sent: true };
-			}),
 		/**
 		 * A pasted screenshot has no file behind it, and a task is one string in
 		 * localStorage - so the bytes land in ~/.odin/attachments and the task

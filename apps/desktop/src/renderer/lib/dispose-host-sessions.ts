@@ -29,6 +29,25 @@ export interface DisposeHostSessionsResult {
  * (a real failure that would otherwise masquerade as success).
  */
 async function localHostClients(utils: ElectronTrpcUtils) {
+	// A connected remote backend owns the workspaces, so disposal must target the
+	// remote host-service over its tunnel rather than the local coordinator's
+	// loopback hosts (which no-op for remote workspaces and would leak them).
+	// Window-close/app-quit never reaches here - only an explicit delete/close of
+	// a specific workspace does - so remote agents are not killed by closing the
+	// window.
+	try {
+		const remote = await utils.remoteConnections.getActive.fetch(undefined, {
+			staleTime: 0,
+		});
+		if (remote?.status === "connected") {
+			const url = `http://127.0.0.1:${remote.localPort}`;
+			if (remote.secret) setHostServiceSecret(url, remote.secret);
+			return [getHostServiceClientByUrl(url)];
+		}
+	} catch {
+		return null;
+	}
+
 	let connections: { port: number; secret: string }[];
 	try {
 		connections = await utils.hostServiceCoordinator.getConnections.fetch(

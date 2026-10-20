@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LuCheck } from "react-icons/lu";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useClaudeCommand } from "renderer/stores/claude-command";
@@ -94,6 +94,20 @@ export function useClaudeSignIn(enabled = true) {
 			if (data?.ok) setSignedInAs(fresh.data?.identity ?? "");
 		},
 	});
+	// On a remote server the CLI can't open a browser: it prints the link,
+	// which opens here. claude.ai then shows a code for the banner's box.
+	const loginUrl = electronTrpc.system.claudeLoginUrl.useQuery(undefined, {
+		enabled: login.isPending,
+		refetchInterval: login.isPending ? 1_000 : false,
+	});
+	const openUrl = electronTrpc.external.openUrl.useMutation();
+	const opened = useRef<string | null>(null);
+	useEffect(() => {
+		const url = loginUrl.data;
+		if (!url || opened.current === url) return;
+		opened.current = url;
+		openUrl.mutate(url);
+	}, [loginUrl.data, openUrl.mutate]);
 	useEffect(() => {
 		if (signedInAs === null) return;
 		const timer = setTimeout(() => setSignedInAs(null), 6_000);

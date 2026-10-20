@@ -17,7 +17,12 @@ export function useStartTask() {
 	const navigate = useNavigate();
 
 	const startTask = async (task: OdinTask, context?: SessionContext) => {
-		const ensured = await ensureWorkspace();
+		// A throw here (the folder can't be opened) used to end the click with
+		// nothing on screen; say it, as the board's New Session dialog does.
+		const ensured = await ensureWorkspace().catch((error: unknown) => ({
+			ok: false as const,
+			error: `Couldn't start the session: ${error instanceof Error ? error.message : String(error)}`,
+		}));
 		if (!ensured.ok) return toast.error(ensured.error);
 		const result = await launch({
 			...context,

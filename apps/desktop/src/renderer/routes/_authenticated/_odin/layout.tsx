@@ -52,11 +52,13 @@ import {
 	useDueReminders,
 	useReminders,
 } from "./components/Reminders";
+import { RemoteConnectionIndicator } from "./components/RemoteConnectionIndicator";
 import { useReplyWatcher } from "./components/ReplyWatch";
 import { SearchAll } from "./components/SearchAll";
 import { SessionContextDialog } from "./components/SessionContextDialog";
 import { QuickAddTask } from "./components/TaskBox";
 import { UpdateBanner } from "./components/UpdateBanner";
+import { useStateMirror } from "./hooks/state-mirror";
 import { useAutomationRunner } from "./hooks/useAutomationRunner";
 import { usePeriodicSweep } from "./hooks/useBacklogReview";
 import {
@@ -68,6 +70,7 @@ import { useNightAgentRunner } from "./hooks/useNightAgentRunner";
 import { useOdinFeeds } from "./hooks/useOdinFeeds";
 import { useOdinProfile } from "./hooks/useOdinProfile";
 import { usePendingFocus } from "./hooks/usePendingFocus";
+import { useServerBoard } from "./hooks/useServerBoard";
 import { useSlackAutoLaunch } from "./hooks/useStartReaction";
 
 /**
@@ -374,6 +377,10 @@ function OdinShell() {
 
 	// The clock behind the Automations panel. Here rather than on that page:
 	// a schedule that only runs while you're looking at it isn't one.
+	// Remote mode: the server's schedulers read this state (state-mirror.ts),
+	// and the sessions they start land on the board from here.
+	useStateMirror();
+	useServerBoard();
 	useAutomationRunner();
 	useNightAgentRunner();
 	// And the backlog sweep, on its interval, so Review is already filled in.
@@ -622,6 +629,7 @@ function OdinShell() {
 				</div>
 				<ZoomStable enabled={isMac}>
 					<div className="flex items-center gap-1.5">
+						<RemoteConnectionIndicator />
 						<ClaudeCommandPicker />
 						{usage && (usage.fiveHour || usage.week) && (
 							<Tooltip delayDuration={300}>

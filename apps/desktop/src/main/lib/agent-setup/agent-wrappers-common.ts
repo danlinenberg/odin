@@ -96,7 +96,7 @@ export function reconcileManagedEntries<T>({
 	return { entries, replacedManagedEntries };
 }
 
-function buildRealBinaryResolver(): string {
+function buildRealBinaryResolver(binDir: string): string {
 	return `find_real_binary() {
   local name="$1"
   local IFS=:
@@ -104,7 +104,7 @@ function buildRealBinaryResolver(): string {
     [ -z "$dir" ] && continue
     dir="\${dir%/}"
     case "$dir" in
-      "${BIN_DIR}"|"$HOME"/.odin/bin|"$HOME"/.odin-*/bin) continue ;;
+      "${binDir}"|"$HOME"/.odin/bin|"$HOME"/.odin-*/bin) continue ;;
     esac
     if [ -x "$dir/$name" ] && [ ! -d "$dir/$name" ]; then
       printf "%s\\n" "$dir/$name"
@@ -137,6 +137,11 @@ export interface BuildWrapperScriptOptions {
 	 * Never consulted while one of yours resolves, so existing setups are untouched.
 	 */
 	fallbackBin?: string | null;
+	/**
+	 * The wrapper's own directory, skipped when resolving the real binary.
+	 * Defaults to this machine's Odin bin dir; a remote server's differs.
+	 */
+	binDir?: string;
 }
 
 const quote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
@@ -161,7 +166,7 @@ fi
 ${WRAPPER_MARKER}
 # Odin wrapper for ${binaryName}
 
-${buildRealBinaryResolver()}
+${buildRealBinaryResolver(options.binDir ?? BIN_DIR)}
 REAL_BIN="$(find_real_binary "${binaryName}")"
 ${fallback}if [ -z "$REAL_BIN" ]; then
   echo "${getMissingBinaryMessage(binaryName)}" >&2

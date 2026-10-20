@@ -1,6 +1,6 @@
 import { execFile, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { statSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { mkdir, rename } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -1498,6 +1498,10 @@ export async function listBranches(
 export async function getCurrentBranch(
 	repoPath: string,
 ): Promise<string | null> {
+	// A folder this machine doesn't have - a remote server's, while sessions
+	// run there - has no branch to read here, and simple-git throws on it.
+	// Only that: a missing git binary still throws, for the install prompt.
+	if (!existsSync(repoPath)) return null;
 	const git = await getSimpleGitWithShellPath(repoPath);
 	try {
 		const branch = await git.revparse(["--abbrev-ref", "HEAD"]);

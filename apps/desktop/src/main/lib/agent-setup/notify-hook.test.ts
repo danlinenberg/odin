@@ -47,7 +47,7 @@ async function runNotifyHook(
 
 describe("getNotifyScriptContent", () => {
 	it("bumps the notify hook marker when hook semantics change", () => {
-		expect(NOTIFY_SCRIPT_MARKER).toBe("# Odin agent notification hook v11");
+		expect(NOTIFY_SCRIPT_MARKER).toBe("# Odin agent notification hook v12");
 	});
 
 	it("emits the v2 host-service payload with full agent identity", () => {
@@ -372,6 +372,48 @@ describe("getNotifyScriptContent", () => {
 		});
 		const output = await new Response(child.stdout).text();
 		expect(output.includes("[notify-hook] event=Stop ")).toBe(reported);
+	});
+
+	// The bug: with claude installed through Volta, `claude` is a shim that
+	// spawns the real binary as its child, so every hook saw two claudes and
+	// dropped itself as a helper - a remote server's cards never moved.
+	it("keeps a claude whose launcher is a shim with the same arguments", async () => {
+		const hook = readNotifyHookTemplate()
+			.replaceAll("{{MARKER}}", NOTIFY_SCRIPT_MARKER)
+			.replaceAll("{{DEFAULT_PORT}}", "48763");
+		const detach = ["perl", "-e", "fork and exit; exec @ARGV"];
+		// Outer `claude` (the shim) spawns `/opt/volta/claude` with the same
+		// arguments; that one, on a terminal, fires the hook.
+		const S =
+			'if [ -z "$INNER" ]; then INNER=1 bash -c "exec -a /opt/volta/claude bash -c \\"\\$S\\""; true; else printf %s "$IN" | bash -c "$HOOK" 2>&1; fi';
+		const child = Bun.spawn({
+			cmd: [
+				...detach,
+				"script",
+				"-q",
+				"/dev/null",
+				"bash",
+				"-c",
+				'exec -a claude bash -c "$S"',
+			],
+			env: {
+				...process.env,
+				LC_ALL: "C",
+				ODIN_HOME_DIR: tmpdir(),
+				ODIN_PORT: "48763",
+				ODIN_HOST_AGENT_HOOK_URL: "",
+				ODIN_AGENT_ID: "claude",
+				ODIN_DEBUG_HOOKS: "1",
+				ODIN_HOOK_DEBUG_LOG: "/dev/null",
+				HOOK: hook,
+				S,
+				IN: JSON.stringify({ hook_event_name: "Stop", session_id: "s-1" }),
+			},
+			stdin: "ignore",
+			stdout: "pipe",
+		});
+		const output = await new Response(child.stdout).text();
+		expect(output).toContain("[notify-hook] event=Stop ");
 	});
 
 	it("drops a claude event that carries no session_id", async () => {

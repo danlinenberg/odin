@@ -1,6 +1,12 @@
 import { toErrorMessage, WorkspaceFsPathError } from "@odin/workspace-fs/host";
 import { TRPCError } from "@trpc/server";
 import { observable } from "@trpc/server/observable";
+import {
+	isRemoteWorkspace,
+	isServerPath,
+	remoteMkdir,
+	remoteWriteFile,
+} from "main/lib/remote-connection/remote-paths";
 import type { FsErrnoCause, FsErrnoCode } from "shared/fs-error-types";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
@@ -163,11 +169,20 @@ export const createFilesystemRouter = () => {
 				}),
 			)
 			.mutation(async ({ input }) => {
-				const service = getServiceForWorkspace(input.workspaceId);
 				const content =
 					typeof input.content === "string"
 						? input.content
 						: new Uint8Array(Buffer.from(input.content.data, "base64"));
+				// A remote session's files (task prompt, rule hook, attachments)
+				// belong next to it on the server.
+				if (
+					isRemoteWorkspace(input.workspaceId) &&
+					isServerPath(input.absolutePath)
+				) {
+					await remoteWriteFile(input.absolutePath, content);
+					return { ok: true as const };
+				}
+				const service = getServiceForWorkspace(input.workspaceId);
 
 				return await withFsErrorTranslation(() =>
 					service.writeFile({
@@ -189,6 +204,13 @@ export const createFilesystemRouter = () => {
 				}),
 			)
 			.mutation(async ({ input }) => {
+				if (
+					isRemoteWorkspace(input.workspaceId) &&
+					isServerPath(input.absolutePath)
+				) {
+					await remoteMkdir(input.absolutePath);
+					return { ok: true as const };
+				}
 				const service = getServiceForWorkspace(input.workspaceId);
 				return await withFsErrorTranslation(() =>
 					service.createDirectory({

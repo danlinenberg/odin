@@ -24,6 +24,7 @@ import { createPermissionsRouter } from "./permissions";
 import { createPhoneRouter } from "./phone";
 import { createPortsRouter } from "./ports";
 import { createProjectsRouter } from "./projects";
+import { createRemoteConnectionsRouter } from "./remote-connections";
 import { createRemoteHostRouter } from "./remote-host";
 import { createReposRouter } from "./repos";
 import { createResourceMetricsRouter } from "./resource-metrics";
@@ -77,6 +78,7 @@ export const createAppRouter = (getWindow: () => BrowserWindow | null) => {
 		uiState: createUiStateRouter(),
 		hostServiceCoordinator: createHostServiceCoordinatorRouter(),
 		migration: createMigrationRouter(),
+		remoteConnections: createRemoteConnectionsRouter(),
 	});
 };
 

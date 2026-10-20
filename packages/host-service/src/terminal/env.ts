@@ -171,6 +171,8 @@ interface BuildV2TerminalEnvParams {
 	themeType?: "dark" | "light";
 	cwd: string;
 	terminalId: string;
+	/** Desktop tab of a remote session's pane; the terminal id is its pane id. */
+	tabId?: string;
 	workspaceId: string;
 	workspacePath: string;
 	rootPath: string;
@@ -183,6 +185,8 @@ interface BuildV2TerminalEnvParams {
 	 * no state change. See the router for rationale.
 	 */
 	hostAgentHookUrl?: string;
+	/** Port of the session tools a remote server serves (main/odin-core). */
+	sessionToolsPort?: string;
 }
 
 /**
@@ -199,6 +203,7 @@ export function buildV2TerminalEnv(
 		themeType,
 		cwd,
 		terminalId,
+		tabId,
 		workspaceId,
 		workspacePath,
 		rootPath,
@@ -206,6 +211,7 @@ export function buildV2TerminalEnv(
 		agentHookPort,
 		agentHookVersion,
 		hostAgentHookUrl,
+		sessionToolsPort,
 	} = params;
 
 	// Defense in depth - baseEnv is pre-stripped at init, but strip again
@@ -240,6 +246,12 @@ export function buildV2TerminalEnv(
 	env.PWD = cwd;
 
 	env.ODIN_TERMINAL_ID = terminalId;
+	// A remote session's terminal id is the desktop pane id; the agent hooks and
+	// the subagent cap key on ODIN_PANE_ID / ODIN_TAB_ID like local sessions do.
+	if (tabId) {
+		env.ODIN_PANE_ID = terminalId;
+		env.ODIN_TAB_ID = tabId;
+	}
 	env.ODIN_WORKSPACE_ID = workspaceId;
 	env.ODIN_WORKSPACE_PATH = workspacePath;
 	env.ODIN_ROOT_PATH = rootPath;
@@ -252,6 +264,11 @@ export function buildV2TerminalEnv(
 	// the electron endpoint when this URL isn't set.
 	if (hostAgentHookUrl) {
 		env.ODIN_HOST_AGENT_HOOK_URL = hostAgentHookUrl;
+	}
+	// On a remote server Odin serves the session tools (/read, /file, /odin)
+	// itself; sessions reach them the way they do on a laptop.
+	if (sessionToolsPort) {
+		env.ODIN_PORT = sessionToolsPort;
 	}
 
 	if (odinHomeDir) {
