@@ -1,5 +1,6 @@
 import { toast } from "@odin/ui/sonner";
 import { useMemo } from "react";
+import { electronTrpcClient } from "renderer/lib/trpc-client";
 import { useClaudeCommand } from "renderer/stores/claude-command";
 import { type DoneRow, doneChecker, useDoneStore } from "renderer/stores/done";
 import { useTabsStore } from "renderer/stores/tabs/store";
@@ -22,10 +23,17 @@ export interface Doable {
 /**
  * A session's Done: kill its PTY and take it off the board. Session History
  * resumes it from Claude's transcript on disk. Remote Control ends with the
- * PTY, and the pane leaves the Selected sessions list.
+ * PTY, and the pane leaves the Selected sessions list. A session on the
+ * remote host ends there too: killing the PTY only detaches from its tmux.
  */
 export function endSession(paneId: string) {
 	const pane = useTabsStore.getState().panes[paneId];
+	const sessionId =
+		pane?.claudeSessionId ?? usePaneMeta.getState().sessionIdByPane[paneId];
+	if (pane?.odinRemote && sessionId)
+		electronTrpcClient.remoteHost.endSession
+			.mutate({ sessionId })
+			.catch((error) => console.warn("[remote] could not end:", error));
 	useTabsStore.getState().removePane(paneId);
 	usePaneMeta.getState().forgetPane(paneId, pane?.claudeSessionId);
 	useReminders.getState().clear(`session:${paneId}`);

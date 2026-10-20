@@ -14,7 +14,10 @@ import {
 	setUpHost,
 	startInstance,
 } from "main/lib/remote-host/aws-instances";
-import { bringSessionHome } from "main/lib/remote-host/bring-home";
+import {
+	bringSessionHome,
+	endHostSession,
+} from "main/lib/remote-host/bring-home";
 import {
 	CLAUDE_SETUP_PARTS,
 	syncClaudeSetup,
@@ -348,6 +351,15 @@ export const createRemoteHostRouter = () =>
 					) ?? homedir();
 				await bringSessionHome(host, input.sessionId, cwd);
 				return { cwd };
+			}),
+
+		/** Done on a remote session: its tmux session on the host ends too. */
+		endSession: publicProcedure
+			.input(z.object({ sessionId: z.string().min(1) }))
+			.mutation(async ({ input }) => {
+				const host = readOdinConfig().remoteHost;
+				if (!host) return;
+				await withAwsSignIn(host, () => endHostSession(host, input.sessionId));
 			}),
 
 		/**

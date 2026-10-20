@@ -37,10 +37,23 @@ export async function bringSessionHome(
 		const dir = join(homedir(), ".claude", "projects", claudeProjectDir(cwd));
 		await mkdir(dir, { recursive: true });
 		await writeFile(join(dir, `${sessionId}.jsonl`), data);
-		await runOnHost(
-			client,
-			`tmux kill-session -t ${sh(tmuxSession(sessionId))} 2>/dev/null; true`,
-		);
+		await runOnHost(client, killTmux(sessionId));
+	} finally {
+		client.end();
+	}
+}
+
+const killTmux = (sessionId: string) =>
+	`tmux kill-session -t ${sh(tmuxSession(sessionId))} 2>/dev/null; true`;
+
+/** Ends a remote session's tmux session on the host: Claude there stops. */
+export async function endHostSession(
+	host: HostLogin,
+	sessionId: string,
+): Promise<void> {
+	const client = await connectHost(host);
+	try {
+		await runOnHost(client, killTmux(sessionId));
 	} finally {
 		client.end();
 	}
