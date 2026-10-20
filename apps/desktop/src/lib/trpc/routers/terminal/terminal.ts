@@ -210,7 +210,7 @@ export const createTerminalRouter = () => {
 			}),
 
 		/** Refresh an expired AWS SSO token - Claude on Bedrock stops on one. */
-		awsSsoLogin: publicProcedure.mutation(() => awsSsoLogin()),
+		awsSsoLogin: publicProcedure.mutation(() => awsSsoLogin().done),
 
 		/**
 		 * Hold a key down in a session - `data` every `everyMs`, like a held

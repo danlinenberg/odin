@@ -326,9 +326,14 @@ app.post("/remote-host/sso-login", (req, res) => {
 	if (req.headers.origin) return res.status(403).send("");
 	const profile =
 		typeof req.query.profile === "string" ? req.query.profile : "";
-	awsSsoLogin(profile || null).then(
-		() => res.send(""),
-		(err: unknown) => res.status(500).send(String(err)),
+	// The approval link goes out as soon as it is known and the body ends when
+	// the sign-in does; a failure after the link cuts the connection instead.
+	const { link, done } = awsSsoLogin(profile || null);
+	link.then((url) => res.write(`${url}\n`));
+	done.then(
+		() => res.end(),
+		(err: unknown) =>
+			res.headersSent ? res.destroy() : res.status(500).send(String(err)),
 	);
 });
 

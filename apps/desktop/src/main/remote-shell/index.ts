@@ -159,7 +159,11 @@ async function ssoLogin(profile: string | null | undefined): Promise<void> {
 		`http://127.0.0.1:${process.env.ODIN_PORT}/remote-host/sso-login?profile=${encodeURIComponent(profile ?? "")}`,
 		{ method: "POST" },
 	);
-	if (!res.ok) throw new Error(`AWS sign-in failed: ${await res.text()}`);
+	if (!res.ok || !res.body)
+		throw new Error(`AWS sign-in failed: ${await res.text()}`);
+	// The body is the approval link, then it ends once the user approved.
+	for await (const chunk of res.body)
+		say(`no tab opened? Approve here: ${Buffer.from(chunk).toString().trim()}`);
 }
 
 async function login(
