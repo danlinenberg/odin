@@ -122,7 +122,7 @@ test("the host signs in once per new sign-in, then drops the setup token", () =>
 	mkdirSync(join(home, "bin"));
 	writeFileSync(
 		join(home, "bin", "claude"),
-		'#!/bin/sh\necho "$CLAUDE_CODE_OAUTH_REFRESH_TOKEN $CLAUDE_CODE_OAUTH_SCOPES ${CLAUDE_CODE_OAUTH_TOKEN:-none}" >> "$HOME/calls"\n',
+		`#!/bin/sh\necho "$CLAUDE_CODE_OAUTH_REFRESH_TOKEN $CLAUDE_CODE_OAUTH_SCOPES \${CLAUDE_CODE_OAUTH_TOKEN:-none}" >> "$HOME/calls"\n`,
 		{ mode: 0o755 },
 	);
 	const run = (id: string) =>

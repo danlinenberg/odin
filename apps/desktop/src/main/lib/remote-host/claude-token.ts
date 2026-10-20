@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync } from "node:fs";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir, userInfo } from "node:os";
 import { delimiter, join } from "node:path";
 import { promisify } from "node:util";
@@ -30,7 +31,7 @@ export async function runClaudeLogin(): Promise<ClaudeLogin> {
 			.map((dir) => join(dir, "claude"))
 			.find(existsSync) ?? bundledClaudePath();
 	if (!claude) throw new Error("Claude Code is not on this computer.");
-	const dir = mkdtempSync(join(tmpdir(), "odin-claude-login-"));
+	const dir = await mkdtemp(join(tmpdir(), "odin-claude-login-"));
 	// Claude names its keychain item after the config folder it signed in for.
 	const service = `Claude Code-credentials-${createHash("sha256").update(dir.normalize("NFC")).digest("hex").slice(0, 8)}`;
 	try {
@@ -60,7 +61,7 @@ export async function runClaudeLogin(): Promise<ClaudeLogin> {
 			.then(({ stdout }) => stdout)
 			.catch(() => {
 				const file = join(dir, ".credentials.json");
-				return existsSync(file) ? readFileSync(file, "utf8") : "";
+				return readFile(file, "utf8").catch(() => "");
 			});
 		const login = parseClaudeLogin(saved, randomUUID());
 		if (!login) throw new Error("claude auth login ended without a sign-in.");
@@ -69,6 +70,6 @@ export async function runClaudeLogin(): Promise<ClaudeLogin> {
 		await run("security", ["delete-generic-password", "-s", service]).catch(
 			() => {},
 		);
-		rmSync(dir, { recursive: true, force: true });
+		await rm(dir, { recursive: true, force: true });
 	}
 }
