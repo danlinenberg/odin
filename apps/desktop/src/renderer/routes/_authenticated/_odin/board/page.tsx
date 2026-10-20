@@ -1480,14 +1480,24 @@ function RemoteMark({ paneId }: { paneId: string }) {
 	);
 }
 
-/** The server a session wears beside its title while it runs on a remote host. */
-function HostMark({ paneId }: { paneId: string }) {
+/**
+ * The server a session wears beside its title while it runs on a remote host:
+ * green while this computer is connected to Claude there, grey while it isn't.
+ */
+function HostMark({ paneId, live }: { paneId: string; live: boolean }) {
 	const host = useTabsStore((s) => s.panes[paneId]?.odinRemote);
 	if (!host) return null;
 	return (
 		<LuServer
-			title={`Runs on ${host}, in tmux - it keeps going with this computer shut`}
-			className="mr-1 inline size-3.5 align-[-2px] text-primary"
+			title={
+				live
+					? `Connected to ${host}, in tmux - it keeps going with this computer shut`
+					: `Not connected to ${host} - Resume connects again`
+			}
+			className={cn(
+				"mr-1 inline size-3.5 align-[-2px]",
+				live ? "text-success" : "text-muted-foreground",
+			)}
 		/>
 	);
 }
@@ -1944,7 +1954,7 @@ const BoardCardTile = memo(
 								<OverdueMark itemKey={`session:${card.pane.id}`} />
 								<WatchMark paneId={card.pane.id} />
 								<RemoteMark paneId={card.pane.id} />
-								<HostMark paneId={card.pane.id} />
+								<HostMark paneId={card.pane.id} live={isAgent} />
 								{title}
 							</div>
 							<button
@@ -4603,7 +4613,10 @@ function DevBoardPage() {
 						<span className="truncate">
 							<WatchMark paneId={card.pane.id} />
 							<RemoteMark paneId={card.pane.id} />
-							<HostMark paneId={card.pane.id} />
+							<HostMark
+								paneId={card.pane.id}
+								live={agentPaneIds.has(card.pane.id)}
+							/>
 							{cardTitle(card)}
 						</span>
 						{card.pane.odinStarred && (
