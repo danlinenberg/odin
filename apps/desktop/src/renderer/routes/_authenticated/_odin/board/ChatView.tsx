@@ -1252,6 +1252,14 @@ function PreviewStrip({
 }
 
 /**
+ * The mark while Claude works: a slow breath, so the row reads as busy without
+ * anything moving across it. One string, so the starting, connecting and
+ * working rows always move the same way.
+ */
+const WORKING_MARK =
+	"animate-[odin-breathe_2.4s_ease-in-out_infinite] motion-reduce:animate-none";
+
+/**
  * Odin's icon, on the first block of each reply - who's talking, at a glance.
  * Its own dark tile, brightened and ringed so the lines read on the drawer;
  * a violet screen-blend washed it out.
@@ -2425,7 +2433,7 @@ export function ChatView({
 				<div ref={contentRef} className="flex flex-col gap-2.5">
 					{starting ? (
 						<div className="flex items-center gap-3 text-[12.5px] text-working">
-							<OdinMark className="animate-[odin-nod_1.6s_ease-in-out_infinite]" />
+							<OdinMark className={WORKING_MARK} />
 							{connecting ?? "Starting session…"}
 							{/* Before its first turn the CLI can stop on a terminal-only
 							    prompt (folder trust, bypass-permissions warning) that no
@@ -2625,7 +2633,7 @@ export function ChatView({
 					{connecting && !starting && (
 						// A resumed remote session: its old turns are above, the host isn't reached yet.
 						<div className="flex h-7 items-center gap-3 text-[12.5px] text-working">
-							<OdinMark className="animate-[odin-nod_1.6s_ease-in-out_infinite]" />
+							<OdinMark className={WORKING_MARK} />
 							<span className="select-text cursor-text">{connecting}</span>
 							{!noTerminal && (
 								<button
@@ -2645,8 +2653,8 @@ export function ChatView({
 						!screenAside &&
 						!starting && (
 							<div className="flex min-w-0 gap-3 text-[12.5px] text-working">
-								{/* Odin's icon, nodding along while Claude works. */}
-								<OdinMark className="animate-[odin-nod_1.6s_ease-in-out_infinite]" />
+								{/* Odin's icon, breathing while Claude works. */}
+								<OdinMark className={WORKING_MARK} />
 								{compacting === null ? (
 									<div className="flex min-w-0 flex-1 flex-col">
 										<button

@@ -592,7 +592,7 @@
 	}
 }
 
-/* The chat view's Working mark: Odin's icon nodding along. Transform only. */
+/* The raven button while it works: the crow nodding along. Transform only. */
 @keyframes odin-nod {
 	0%,
 	100% {
@@ -603,5 +603,19 @@
 	}
 	60% {
 		transform: translateY(0) rotate(5deg);
+	}
+}
+
+/* The chat view's Working mark: Odin's icon breathing, a slow fade with a
+   hair of scale. Opacity and transform only, so it costs no layout. */
+@keyframes odin-breathe {
+	0%,
+	100% {
+		opacity: 0.55;
+		transform: scale(0.96);
+	}
+	50% {
+		opacity: 1;
+		transform: scale(1);
 	}
 }
