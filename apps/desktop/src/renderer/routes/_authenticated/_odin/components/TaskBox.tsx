@@ -826,6 +826,8 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 						type="button"
 						onClick={save}
 						disabled={!parseTask(draft).title}
+						// The name without the shortcut glyphs beside it.
+						aria-label={startNow ? "Start session" : "Add task"}
 						className={cn(
 							"flex h-7 items-center gap-2 rounded-[7px] px-3 text-xs font-semibold disabled:cursor-default disabled:opacity-40 disabled:shadow-none",
 							BUTTON.primary,
