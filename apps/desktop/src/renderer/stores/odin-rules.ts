@@ -50,6 +50,7 @@ export const useOdinRules = create<OdinRulesState>()(
 			rules: [],
 			add: (when, action, repos, exclude) => {
 				if (!when.trim() || !action.trim()) return;
+				const pinned = reposOf(repos);
 				set((s) => ({
 					rules: [
 						...s.rules,
@@ -57,8 +58,8 @@ export const useOdinRules = create<OdinRulesState>()(
 							id: crypto.randomUUID(),
 							when: when.trim(),
 							action: action.trim(),
-							...(repos?.length
-								? { repos, ...(exclude ? { exclude } : {}) }
+							...(pinned
+								? { repos: pinned, ...(exclude ? { exclude } : {}) }
 								: {}),
 						},
 					],
@@ -66,28 +67,53 @@ export const useOdinRules = create<OdinRulesState>()(
 			},
 			update: (id, patch) =>
 				set((s) => ({
-					rules: s.rules.map((r) => (r.id === id ? { ...r, ...patch } : r)),
+					rules: s.rules.map((r) =>
+						r.id === id ? withRepos({ ...r, ...patch }) : r,
+					),
 				})),
 			remove: (id) =>
 				set((s) => ({ rules: s.rules.filter((r) => r.id !== id) })),
 		}),
 		{
 			name: "odin-rules",
-			// v0 held one `repo` per rule.
-			version: 1,
+			// v0 held one `repo` per rule; v1 took `repos` as written.
+			version: 2,
 			migrate: (persisted, version) =>
 				migrateRules(persisted, version) as OdinRulesState,
 		},
 	),
 );
 
+/**
+ * A rule's repos as the store keeps them: a list of paths, or none. Rules
+ * also arrive from agents, through the raven API (action=run store=rules
+ * fn=add / fn=update) with whatever JSON they sent - one path as a bare
+ * string, at times. Kept as sent, that string passed `repos?.length` and
+ * then threw at `repos.join`, which blocked every new session.
+ */
+export function reposOf(value: unknown): string[] | undefined {
+	const repos = (Array.isArray(value) ? value : [value]).filter(
+		(repo): repo is string => typeof repo === "string" && repo !== "",
+	);
+	return repos.length ? repos : undefined;
+}
+
+/** The rule with its repos as `reposOf` reads them, or without the field. */
+function withRepos<R extends OdinRule>(rule: R): R {
+	const { repos, ...rest } = rule;
+	const list = reposOf(repos);
+	return (list ? { ...rest, repos: list } : rest) as R;
+}
+
 /** Persisted state from an older version, brought up to today's shape. */
 export function migrateRules(persisted: unknown, version: number): unknown {
 	const state = persisted as { rules?: (OdinRule & { repo?: string })[] };
-	if (version < 1 && state?.rules)
+	if (!state?.rules) return state;
+	if (version < 1)
 		state.rules = state.rules.map(({ repo, ...r }) =>
 			repo ? { ...r, repos: [repo] } : r,
 		);
+	if (version < 2) state.rules = state.rules.map(withRepos);
 	return state;
 }
 
@@ -96,15 +122,18 @@ export function migrateRules(persisted: unknown, version: number): unknown {
  * checkout isn't known, which keeps the repo-pinned ones (see `ruleLine`).
  */
 function liveRules(rules: OdinRule[], checkout: string): OdinRule[] {
-	return rules.filter(
-		(r) =>
-			!r.paused &&
-			r.when &&
-			r.action &&
-			(!r.repos?.length ||
-				!checkout ||
-				r.repos.some((repo) => inRepo(checkout, repo)) !== !!r.exclude),
-	);
+	// action=set merges raw JSON into the store, so read the repos leniently too.
+	return rules
+		.map(withRepos)
+		.filter(
+			(r) =>
+				!r.paused &&
+				r.when &&
+				r.action &&
+				(!r.repos?.length ||
+					!checkout ||
+					r.repos.some((repo) => inRepo(checkout, repo)) !== !!r.exclude),
+		);
 }
 
 const inRepo = (checkout: string, repo: string) =>

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "bun:test";
-import { migrateRules, rulesPrompt, rulesSettings } from "./odin-rules";
+import {
+	migrateRules,
+	rulesPrompt,
+	rulesSettings,
+	useOdinRules,
+} from "./odin-rules";
 
 const rule = {
 	id: "1",
@@ -103,5 +108,49 @@ it("migrates a v0 rule's single repo into repos", () => {
 	const v0 = { rules: [{ ...rule, repo: "/src/odin", exclude: true }, rule] };
 	expect(migrateRules(v0, 0)).toEqual({
 		rules: [{ ...rule, repos: ["/src/odin"], exclude: true }, rule],
+	});
+});
+
+describe("a rule whose repos an agent wrote as one string", () => {
+	// action=run store=rules fn=update args=["<id>",{"repos":"/src/odin"}]
+	const loose = { ...rule, repos: "/src/odin" as unknown as string[] };
+
+	it("still reaches its repo, named, instead of blocking every session", () => {
+		expect(rulesPrompt([loose], "/src/odin").join("\n")).toContain(
+			"only in the repo at /src/odin",
+		);
+		expect(rulesPrompt([loose], "/src/other")).toEqual([]);
+		expect(rulesSettings([loose], "/src/odin")).not.toBeNull();
+	});
+
+	it("is stored as a list, and junk repos are dropped", () => {
+		const v1 = {
+			rules: [
+				loose,
+				{ ...rule, id: "2", repos: 7 as unknown as string[] },
+				{ ...rule, id: "3", repos: ["/src/app", 3, ""] as string[] },
+			],
+		};
+		expect(migrateRules(v1, 1)).toEqual({
+			rules: [
+				{ ...rule, repos: ["/src/odin"] },
+				{ ...rule, id: "2" },
+				{ ...rule, id: "3", repos: ["/src/app"] },
+			],
+		});
+	});
+});
+
+describe("the store takes an agent's lone repo string", () => {
+	it("as a list, on add and on update", () => {
+		const { add, update } = useOdinRules.getState();
+		add("a test fails", "fix it", "/src/odin" as unknown as string[]);
+		const added = useOdinRules.getState().rules.at(-1);
+		expect(added?.repos).toEqual(["/src/odin"]);
+		const id = added?.id ?? "";
+		update(id, { repos: "/src/app" as unknown as string[] });
+		expect(useOdinRules.getState().rules.at(-1)?.repos).toEqual(["/src/app"]);
+		update(id, { repos: undefined });
+		expect(useOdinRules.getState().rules.at(-1)).not.toHaveProperty("repos");
 	});
 });

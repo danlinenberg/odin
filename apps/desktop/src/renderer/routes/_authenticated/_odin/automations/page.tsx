@@ -4,7 +4,11 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useId, useState } from "react";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import { electronTrpc } from "renderer/lib/electron-trpc";
-import { type OdinRule, useOdinRules } from "renderer/stores/odin-rules";
+import {
+	type OdinRule,
+	reposOf,
+	useOdinRules,
+} from "renderer/stores/odin-rules";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import {
 	cronOf,
@@ -523,7 +527,7 @@ function RuleRow({ rule }: { rule: OdinRule }) {
 				}
 			/>
 			<RepoPicker
-				value={rule.repos ?? []}
+				value={reposOf(rule.repos) ?? []}
 				onChange={(repos) =>
 					update(rule.id, { repos: repos.length ? repos : undefined })
 				}
