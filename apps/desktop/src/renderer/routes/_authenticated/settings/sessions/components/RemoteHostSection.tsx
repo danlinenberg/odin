@@ -261,8 +261,8 @@ export function RemoteHostSection() {
 					signingIn
 						? "Approve Claude in the browser window that opened."
 						: current?.hasClaudeToken
-							? "Signed in with your Claude plan. The token stays encrypted on this computer; each session hands it to the host in memory, never on its disk."
-							: "Turning the host on opens your browser once to approve Claude. Sessions there then bill your Claude plan, with no sign-in on the host."
+							? "Signed in with your Claude plan. The host gets its own sign-in, so it offers extra usage at a usage limit. Sign in again if a host session asks you to log in."
+							: "Turning the host on opens your browser once to approve Claude. The host then signs in to your Claude plan on its own."
 				}
 			>
 				{current?.hasClaudeToken && (

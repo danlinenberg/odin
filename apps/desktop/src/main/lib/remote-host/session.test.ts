@@ -1,6 +1,17 @@
 import { describe, expect, test } from "bun:test";
+import { execFileSync } from "node:child_process";
+import {
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
 	attachScript,
+	CLAUDE_LOGIN_SCRIPT,
 	HOST_NOTIFY_HOOK,
 	hostFiles,
 	hostNote,
@@ -8,7 +19,7 @@ import {
 	httpsCloneUrl,
 	issueTicket,
 	mainCheckoutOf,
-	parseSetupToken,
+	parseClaudeLogin,
 	type RemoteSessionSpec,
 	redeemTicket,
 	repoNameOf,
@@ -87,13 +98,58 @@ test("ssh and https origins become https clone URLs", () => {
 	expect(httpsCloneUrl("/local/path")).toBeNull();
 });
 
-test("the token comes out of setup-token's screen, colors and all", () => {
+test("the sign-in comes out of Claude's saved credentials", () => {
 	expect(
-		parseSetupToken(
-			"\x1b[32mYour token:\x1b[0m\r\n\x1b[1msk-ant-oat01-Ab_c-9\x1b[0m\r\nStore it",
+		parseClaudeLogin(
+			JSON.stringify({
+				claudeAiOauth: {
+					refreshToken: "rt",
+					scopes: ["user:profile", "user:inference"],
+				},
+			}),
+			"id1",
 		),
-	).toBe("sk-ant-oat01-Ab_c-9");
-	expect(parseSetupToken("cancelled")).toBeNull();
+	).toEqual({
+		refreshToken: "rt",
+		scopes: "user:profile user:inference",
+		id: "id1",
+	});
+	expect(parseClaudeLogin("", "id1")).toBeNull();
+});
+
+test("the host signs in once per new sign-in, then drops the setup token", () => {
+	const home = mkdtempSync(join(tmpdir(), "odin-login-"));
+	mkdirSync(join(home, "bin"));
+	writeFileSync(
+		join(home, "bin", "claude"),
+		'#!/bin/sh\necho "$CLAUDE_CODE_OAUTH_REFRESH_TOKEN $CLAUDE_CODE_OAUTH_SCOPES ${CLAUDE_CODE_OAUTH_TOKEN:-none}" >> "$HOME/calls"\n',
+		{ mode: 0o755 },
+	);
+	const run = (id: string) =>
+		execFileSync(
+			"bash",
+			[
+				"-c",
+				`${CLAUDE_LOGIN_SCRIPT}\necho "token=\${CLAUDE_CODE_OAUTH_TOKEN:-none}"`,
+			],
+			{
+				env: {
+					HOME: home,
+					PATH: `${home}/bin:/usr/bin:/bin`,
+					CLAUDE_CODE_OAUTH_TOKEN: "old",
+					ODIN_CLAUDE_REFRESH_TOKEN: "rt",
+					ODIN_CLAUDE_SCOPES: "user:profile",
+					ODIN_CLAUDE_LOGIN_ID: id,
+				},
+			},
+		).toString();
+	expect(run("a")).toBe("token=none\n");
+	expect(run("a")).toBe("token=none\n");
+	run("b");
+	expect(readFileSync(join(home, "calls"), "utf8")).toBe(
+		"rt user:profile none\nrt user:profile none\n",
+	);
+	rmSync(home, { recursive: true, force: true });
 });
 
 test("laptop files in the prompt are copied, and the prompt names the copies", () => {

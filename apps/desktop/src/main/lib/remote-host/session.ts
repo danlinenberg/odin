@@ -1,4 +1,3 @@
-import stripAnsi from "strip-ansi";
 import { HOST_SERVICE_PORT, LAPTOP_TUNNEL_PORT } from "./host-service";
 
 /**
@@ -214,6 +213,21 @@ export const hostSettings = JSON.stringify({
 	},
 });
 
+/**
+ * The host's own Claude sign-in. A new one from the laptop (ODIN_CLAUDE_LOGIN_ID
+ * not seen before) signs Claude in with its refresh token once; after that the
+ * host refreshes its own. A host signed in that way drops the inference-only
+ * setup token, which hides extra usage at a usage limit.
+ */
+export const CLAUDE_LOGIN_SCRIPT = [
+	'if [ -n "$ODIN_CLAUDE_REFRESH_TOKEN" ] && [ "$(cat "$HOME/.odin/claude-login-id" 2>/dev/null)" != "$ODIN_CLAUDE_LOGIN_ID" ]; then',
+	'  CLAUDE_CODE_OAUTH_REFRESH_TOKEN="$ODIN_CLAUDE_REFRESH_TOKEN" CLAUDE_CODE_OAUTH_SCOPES="$ODIN_CLAUDE_SCOPES" env -u CLAUDE_CODE_OAUTH_TOKEN -u ANTHROPIC_API_KEY claude auth login >/dev/null 2>&1 &&',
+	'  mkdir -p "$HOME/.odin" && printf %s "$ODIN_CLAUDE_LOGIN_ID" > "$HOME/.odin/claude-login-id"',
+	"fi",
+	"unset ODIN_CLAUDE_REFRESH_TOKEN ODIN_CLAUDE_SCOPES ODIN_CLAUDE_LOGIN_ID",
+	'[ -s "$HOME/.odin/claude-login-id" ] && unset CLAUDE_CODE_OAUTH_TOKEN',
+].join("\n");
+
 /** What runs inside tmux: tokens in, file gone, repo ready, Claude on. */
 export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 	const root = homePath(spec.reposRoot);
@@ -244,6 +258,7 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 		spec.repoName ? `cd ${worktree} 2>/dev/null || cd ${repo}` : `cd ${repo}`,
 		`python3 -c ${sh(SKIP_FIRST_RUN)} "$PWD" 2>/dev/null || true`,
 		'export PATH="$HOME/.local/bin:$PATH"',
+		CLAUDE_LOGIN_SCRIPT,
 		ghInstallScript,
 		`mkdir -p "$HOME/.odin" && printf %s ${sh(Buffer.from(TURN_END_HOOK).toString("base64"))} | base64 -d > "$HOME/.odin/turn-end.py"`,
 		`if [ -n "$ODIN_FALLBACK_API_KEY" ] && python3 -c ${sh(USE_API_KEY_IF_LIMITED)}; then export ANTHROPIC_API_KEY="$ODIN_FALLBACK_API_KEY"; else unset ANTHROPIC_API_KEY; fi`,
@@ -300,10 +315,29 @@ export function httpsCloneUrl(origin: string): string | null {
 	return /^https:\/\//.test(url) ? url : null;
 }
 
-/** The token `claude setup-token` prints, out of its screen output. */
-export function parseSetupToken(output: string): string | null {
-	const text = stripAnsi(output);
-	return text.match(/sk-ant-oat01-[\w-]+/g)?.pop() ?? null;
+/** A Claude sign-in for the host; `id` tells the host a new one arrived. */
+export interface ClaudeLogin {
+	refreshToken: string;
+	scopes: string;
+	id: string;
+}
+
+/** The sign-in out of Claude's saved credentials JSON, or null. */
+export function parseClaudeLogin(
+	saved: string,
+	id: string,
+): ClaudeLogin | null {
+	try {
+		const oauth = JSON.parse(saved).claudeAiOauth;
+		if (typeof oauth?.refreshToken !== "string") return null;
+		return {
+			refreshToken: oauth.refreshToken,
+			scopes: (oauth.scopes ?? []).join(" "),
+			id,
+		};
+	} catch {
+		return null;
+	}
 }
 
 /**

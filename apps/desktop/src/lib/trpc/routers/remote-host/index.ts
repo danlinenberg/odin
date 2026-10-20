@@ -22,7 +22,7 @@ import {
 	CLAUDE_SETUP_PARTS,
 	syncClaudeSetup,
 } from "main/lib/remote-host/claude-sync";
-import { runSetupToken } from "main/lib/remote-host/claude-token";
+import { runClaudeLogin } from "main/lib/remote-host/claude-token";
 import {
 	HOST_CONNECTORS,
 	type HostConnector,
@@ -34,6 +34,7 @@ import {
 	SECRETS_DIR_PLACEHOLDER,
 } from "main/lib/remote-host/night";
 import {
+	type ClaudeLogin,
 	HOST_NOTIFY_HOOK,
 	hostFiles,
 	hostNote,
@@ -128,7 +129,7 @@ async function buildSessionSpec(
 /** What a session on the host starts with, as KEY='value' lines. */
 async function sessionSecrets(): Promise<string> {
 	return secretsFile({
-		CLAUDE_CODE_OAUTH_TOKEN: claudeToken() ?? undefined,
+		...claudeSecrets(),
 		// The API key claude-auto falls back to here, for the same switch on the host.
 		ODIN_FALLBACK_API_KEY:
 			readOdinConfig().remoteHost?.apiKeyFallback !== true
@@ -178,6 +179,22 @@ const awsTarget = z.object({
 });
 const tagPairs = z.array(z.object({ key: z.string(), value: z.string() }));
 
+/**
+ * A saved sign-in (JSON, from `claude auth login`) goes to the host to sign in
+ * with; an older `claude setup-token` token is used as it is until renewed.
+ */
+function claudeSecrets(): Record<string, string | undefined> {
+	const saved = claudeToken();
+	if (!saved?.startsWith("{"))
+		return { CLAUDE_CODE_OAUTH_TOKEN: saved ?? undefined };
+	const login = JSON.parse(saved) as ClaudeLogin;
+	return {
+		ODIN_CLAUDE_REFRESH_TOKEN: login.refreshToken,
+		ODIN_CLAUDE_SCOPES: login.scopes,
+		ODIN_CLAUDE_LOGIN_ID: login.id,
+	};
+}
+
 function claudeToken(): string | null {
 	const saved = readOdinConfig().claudeToken;
 	if (!saved || !safeStorage.isEncryptionAvailable()) return null;
@@ -189,7 +206,7 @@ function claudeToken(): string | null {
 }
 
 /**
- * The token sessions on the host run Claude with: `claude setup-token`, run
+ * The sign-in sessions on the host run Claude with: `claude auth login`, run
  * by Odin, so turning the host on asks only for an approval in the browser.
  * It bills the user's own plan, and is kept encrypted with safeStorage.
  */
@@ -198,9 +215,11 @@ async function ensureClaudeToken(renew = false): Promise<void> {
 	if (!safeStorage.isEncryptionAvailable()) {
 		throw new Error("This computer can't encrypt the Claude token.");
 	}
-	const token = await runSetupToken();
+	const login = await runClaudeLogin();
 	updateOdinConfig({
-		claudeToken: safeStorage.encryptString(token).toString("base64"),
+		claudeToken: safeStorage
+			.encryptString(JSON.stringify(login))
+			.toString("base64"),
 	});
 }
 
