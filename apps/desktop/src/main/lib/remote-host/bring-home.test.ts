@@ -53,7 +53,7 @@ test("a host branch with commits and uncommitted work lands in a local worktree"
 	sh(top, "mkdir -p sub && echo new > sub/c.txt");
 	const bundlePath = join(root, "x.bundle");
 	const out = sh(root, packScript(join(top, "sub"), bundlePath)).trim();
-	const { bundlePath: path, ...packed } = parsePacked(out, join(top, "sub"));
+	const { bundlePath: path, ...packed } = parsePacked(out);
 	expect(packed).toMatchObject({ branch: "odin/abc", sub: "sub" });
 	expect(path).toBe(bundlePath);
 

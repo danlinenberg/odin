@@ -45,12 +45,14 @@ export const WIP_MESSAGE = "Odin: uncommitted work moved from the host";
 /**
  * Run in the session's folder on the host: commits what isn't committed,
  * bundles the branch's commits no remote has into `bundle`, and prints the
- * checkout's top, origin, branch and the bundle path.
+ * checkout's top, the session's folder inside it, origin, branch and the
+ * bundle path.
  * Prints nothing outside a git checkout.
  */
 export const packScript = (cwd: string, bundle: string) =>
 	`cd ${sh(cwd)} 2>/dev/null || exit 0
 top=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+sub=$(git rev-parse --show-prefix)
 cd "$top"
 branch=$(git symbolic-ref --short -q HEAD)
 if [ -n "$branch" ] && [ -n "$(git status --porcelain)" ]; then
@@ -60,17 +62,16 @@ rm -f ${sh(bundle)}
 if [ -n "$branch" ] && [ -n "$(git rev-list -1 HEAD --not --remotes)" ]; then
 	git bundle create ${sh(bundle)} "$branch" --not --remotes >/dev/null 2>&1 || true
 fi
-printf '%s\\n' "$top" "$(git remote get-url origin 2>/dev/null)" "$branch" "$([ -f ${sh(bundle)} ] && echo ${sh(bundle)})"`;
+printf '%s\\n' "$top" "\${sub%/}" "$(git remote get-url origin 2>/dev/null)" "$branch" "$([ -f ${sh(bundle)} ] && echo ${sh(bundle)})"`;
 
-/** packScript's output, with the session's folder relative to the top. */
+/** packScript's output. */
 export function parsePacked(
 	out: string,
-	cwd: string,
 ): Omit<HostWork, "bundle"> & { bundlePath: string | null } {
-	const [top = "", origin, branch, bundlePath] = out.split("\n");
+	const [top = "", sub = "", origin, branch, bundlePath] = out.split("\n");
 	return {
 		top,
-		sub: cwd.startsWith(`${top}/`) ? cwd.slice(top.length + 1) : "",
+		sub,
 		origin: origin || null,
 		branch: branch || null,
 		bundlePath: bundlePath || null,
@@ -113,7 +114,7 @@ export async function bringSessionHome(
 				packScript(hostCwd, `/tmp/odin-bring-home-${sessionId}.bundle`),
 			);
 			if (out) {
-				const { bundlePath, ...packed } = parsePacked(out, hostCwd);
+				const { bundlePath, ...packed } = parsePacked(out);
 				const bundle = bundlePath ? await read(bundlePath) : null;
 				work = { ...packed, bundle };
 			}
