@@ -167,10 +167,31 @@ if k not in r.setdefault("approved", []):
     r["approved"].append(k)
 json.dump(c, open(p, "w"), indent=2)`;
 
-export const planLimitSettings = JSON.stringify({
+/**
+ * Odin's status hook, as on the laptop: it tells the card the session is
+ * Working, needs you, or is done, through the host's ODIN_PORT. The laptop's
+ * notify.sh goes over with the session's files (HOST_NOTIFY_HOOK). The
+ * laptop's own entries in a synced settings.json need ODIN_HOME_DIR, unset
+ * here, so they stay quiet and nothing reports twice.
+ */
+export const HOST_NOTIFY_HOOK = ".odin/notify.sh";
+const notify = (matcher?: string) => ({
+	...(matcher ? { matcher } : {}),
+	hooks: [
+		{
+			type: "command",
+			command:
+				'[ ! -f "$HOME/.odin/notify.sh" ] || ODIN_AGENT_ID=claude bash "$HOME/.odin/notify.sh"',
+		},
+	],
+});
+
+export const hostSettings = JSON.stringify({
 	hooks: {
+		UserPromptSubmit: [notify()],
 		Stop: [
 			{ hooks: [{ type: "command", command: "python3 ~/.odin/turn-end.py" }] },
+			notify(),
 		],
 		StopFailure: [
 			{
@@ -181,7 +202,13 @@ export const planLimitSettings = JSON.stringify({
 					},
 				],
 			},
+			notify(),
 		],
+		PostToolUse: [notify("*")],
+		PostToolUseFailure: [notify("*")],
+		PreToolUse: [notify("AskUserQuestion|ExitPlanMode")],
+		PreCompact: [notify()],
+		SessionEnd: [notify()],
 	},
 });
 
@@ -222,8 +249,8 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 		'fallback="$ODIN_FALLBACK_API_KEY"',
 		"unset ODIN_FALLBACK_API_KEY",
 		'export ODIN_RUN_PID=$$; [ -n "$fallback" ] && export ODIN_HAS_FALLBACK_KEY=1',
-		`claude --settings ${sh(planLimitSettings)} ${spec.claudeArgs}${prompt}`,
-		`if [ -s "$HOME/.odin/resume-$$" ]; then s=$(cat "$HOME/.odin/resume-$$"); rm -f "$HOME/.odin/resume-$$"; ODIN_FALLBACK_API_KEY="$fallback" python3 -c ${sh(USE_API_KEY_IF_LIMITED)}; ANTHROPIC_API_KEY="$fallback" exec claude --settings ${sh(planLimitSettings)} --resume "$s" "Continue where you left off."; fi`,
+		`claude --settings ${sh(hostSettings)} ${spec.claudeArgs}${prompt}`,
+		`if [ -s "$HOME/.odin/resume-$$" ]; then s=$(cat "$HOME/.odin/resume-$$"); rm -f "$HOME/.odin/resume-$$"; ODIN_FALLBACK_API_KEY="$fallback" python3 -c ${sh(USE_API_KEY_IF_LIMITED)}; ANTHROPIC_API_KEY="$fallback" exec claude --settings ${sh(hostSettings)} --resume "$s" "Continue where you left off."; fi`,
 	]
 		.filter(Boolean)
 		.join("\n");

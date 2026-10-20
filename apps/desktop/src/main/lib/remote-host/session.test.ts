@@ -1,13 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import {
 	attachScript,
+	HOST_NOTIFY_HOOK,
 	hostFiles,
 	hostNote,
+	hostSettings,
 	httpsCloneUrl,
 	issueTicket,
 	mainCheckoutOf,
 	parseSetupToken,
-	planLimitSettings,
 	type RemoteSessionSpec,
 	redeemTicket,
 	repoNameOf,
@@ -45,7 +46,7 @@ describe("remote session scripts", () => {
 			`git clone 'https://github.com/danlinenberg/odin.git' "$HOME"/'repos'/'odin'`,
 		);
 		expect(run).toContain(
-			`\nclaude --settings ${sh(planLimitSettings)} --session-id abc "$(printf %s '${Buffer.from("Fix it's bug").toString("base64")}' | base64 -d)"`,
+			`\nclaude --settings ${sh(hostSettings)} --session-id abc "$(printf %s '${Buffer.from("Fix it's bug").toString("base64")}' | base64 -d)"`,
 		);
 	});
 
@@ -156,11 +157,19 @@ test("the host falls back to the API key only while the plan is limited", () => 
 		run.indexOf("claude --settings"),
 	);
 	expect(run).toContain('ANTHROPIC_API_KEY="$fallback" exec claude --settings');
-	const hooks = JSON.parse(planLimitSettings).hooks;
+	const hooks = JSON.parse(hostSettings).hooks;
 	expect(hooks.Stop[0].hooks[0].command).toBe("python3 ~/.odin/turn-end.py");
 	expect(hooks.StopFailure[0].hooks[0].command).toBe(
 		"ODIN_TURN=failed python3 ~/.odin/turn-end.py",
 	);
+});
+
+test("the host reports Working and Done to the card through Odin's notify hook", () => {
+	const hooks = JSON.parse(hostSettings).hooks;
+	expect(hooks.UserPromptSubmit[0].hooks[0].command).toContain(
+		`$HOME/${HOST_NOTIFY_HOOK}`,
+	);
+	expect(hooks.Stop[1].hooks[0].command).toContain(`$HOME/${HOST_NOTIFY_HOOK}`);
 });
 
 test("files sent later get a prefix, so they never overwrite earlier copies", () => {

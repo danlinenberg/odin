@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { app, safeStorage } from "electron";
+import { getNotifyScriptPath } from "main/lib/agent-setup/notify-hook";
 import { githubAccessToken } from "main/lib/github-token";
 import {
 	giveSsmAccess,
@@ -30,6 +31,7 @@ import {
 	SECRETS_DIR_PLACEHOLDER,
 } from "main/lib/remote-host/night";
 import {
+	HOST_NOTIFY_HOOK,
 	hostFiles,
 	hostNote,
 	httpsCloneUrl,
@@ -91,7 +93,9 @@ async function buildSessionSpec(
 						pane: rest.pane,
 						known: repoName ? [] : await knownRepos(),
 					}),
-		files,
+		files: existsSync(getNotifyScriptPath())
+			? [...files, { local: getNotifyScriptPath(), remote: HOST_NOTIFY_HOOK }]
+			: files,
 		repoName,
 		cloneUrl: origin,
 	};
