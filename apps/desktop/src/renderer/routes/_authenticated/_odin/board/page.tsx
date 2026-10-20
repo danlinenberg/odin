@@ -3885,7 +3885,7 @@ function DevBoardPage() {
 		.flatMap((status) => cardsByStatus.get(status) ?? [])
 		.toSorted(sessionOrder(switchSort, isSwitchGrouped, cardTitle));
 	// Idle sits under the list, folded until opened; remembered per machine.
-	// Not in switchCards, so the next/prev keys still walk only what's in flight.
+	// Not in switchCards: the next/prev keys reach it only while it's open.
 	const idleSwitchCards = (cardsByStatus.get("idle") ?? []).toSorted(
 		(a, b) => statusAt(b) - statusAt(a),
 	);
@@ -4975,13 +4975,15 @@ function DevBoardPage() {
 		enableOnFormTags: false,
 		enableOnContentEditable: false,
 	});
-	// ⌘⌥↑/↓ walk the drawer's session list; stops at either end.
+	// ⌘⌥↑/↓ walk the drawer's session list as shown, Idle rows included once
+	// the group is open; stops at either end.
 	const stepSession = (step: 1 | -1) => {
 		if (!drawerCard || inCatchUp) return;
-		const at = switchCards.findIndex(
-			(card) => card.pane.id === drawerCard.pane.id,
-		);
-		const card = switchCards[at + step];
+		const rows = isIdleSwitchOpen
+			? [...switchCards, ...idleSwitchCards]
+			: switchCards;
+		const at = rows.findIndex((card) => card.pane.id === drawerCard.pane.id);
+		const card = rows[at + step];
 		if (card) openDrawer(card);
 	};
 	// The top bar (layout.tsx) owns the slot; it mounts before this page.
