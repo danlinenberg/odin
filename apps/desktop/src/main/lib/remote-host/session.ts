@@ -135,7 +135,13 @@ os.makedirs(stopped, exist_ok=True)
 if session and "/" not in session:
     open(os.path.join(stopped, session), "w").close()
 if os.environ.get("ODIN_TURN") == "failed" and "limit" in raw.lower():
-    json.dump({"until": time.time() + 5 * 3600}, open(os.path.expanduser("~/.claude/plan-limit.json"), "w"))
+    # Written whole, then moved into place: the laptop's own plan-limit hook,
+    # synced here, writes this file at the same moment, and two open-and-write
+    # calls interleave into a file neither side can read afterwards.
+    state = os.path.expanduser("~/.claude/plan-limit.json")
+    with open(f"{state}.{os.getpid()}", "w") as f:
+        json.dump({"until": time.time() + 5 * 3600}, f)
+    os.replace(f"{state}.{os.getpid()}", state)
     run = os.environ.get("ODIN_RUN_PID", "")
     if run and session and os.environ.get("ODIN_HAS_FALLBACK_KEY") and not os.environ.get("ANTHROPIC_API_KEY"):
         pid = os.getppid()

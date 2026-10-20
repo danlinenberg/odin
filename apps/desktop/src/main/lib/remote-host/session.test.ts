@@ -229,6 +229,14 @@ test("the host falls back to the API key only while the plan is limited", () => 
 		run.indexOf("claude --settings"),
 	);
 	expect(run).toContain('ANTHROPIC_API_KEY="$fallback" exec claude --settings');
+	// The limit note lands whole: the laptop's plan-limit hook, synced to the
+	// host, writes the same file at the same moment.
+	const hook = run.match(
+		/printf %s '([^']+)' \| base64 -d > "\$HOME\/\.odin\/turn-end\.py"/,
+	);
+	const turnEnd = Buffer.from(hook?.[1] ?? "", "base64").toString();
+	expect(turnEnd).toContain("os.replace(");
+	expect(turnEnd).not.toContain('plan-limit.json"), "w")');
 	const hooks = JSON.parse(hostSettings).hooks;
 	expect(hooks.Stop[0].hooks[0].command).toBe("python3 ~/.odin/turn-end.py");
 	expect(hooks.StopFailure[0].hooks[0].command).toBe(
