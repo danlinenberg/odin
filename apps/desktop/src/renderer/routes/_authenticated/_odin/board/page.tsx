@@ -162,6 +162,7 @@ import {
 	mergeReady,
 	mergeTargets,
 	nextCronFire,
+	nothingLeft,
 	notionPage,
 	onlyLookLeft,
 	onlyMergeLeft,
@@ -2675,12 +2676,16 @@ function DevBoardPage() {
 			})
 			.map(({ paneId }) => paneId)
 			.join(",");
-	/** All that's left is a click on what shipped: Done, whatever the column says. */
+	/**
+	 * Nothing left, or all that's left is a click on what shipped: Done,
+	 * whatever the column says.
+	 */
 	const finishedBarAClick = (
 		messages: BriefMessage[],
 		states: Parameters<typeof mergeReady>[1] | undefined,
 		brief: string | null | undefined,
 	) =>
+		nothingLeft(messages) ||
 		onlyLookLeft(messages) ||
 		(!!states &&
 			(mergeReady(messages, states) ||

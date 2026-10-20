@@ -19,6 +19,7 @@ import {
 	mergeReady,
 	mergeTargets,
 	nextCronFire,
+	nothingLeft,
 	notionPage,
 	onlyLookLeft,
 	onlyMergeLeft,
@@ -1054,5 +1055,20 @@ describe("byRepo", () => {
 			["imagenai/skills", [prs[0], prs[2]]],
 			["danlinenberg/odin", [prs[1]]],
 		]);
+	});
+});
+
+describe("nothingLeft", () => {
+	it("is a reply whose ACTION ITEMS say none", () => {
+		expect(nothingLeft([claude("Shipped.\n\nACTION ITEMS: none")])).toBe(true);
+		expect(
+			nothingLeft([claude("Shipped.\n\nACTION ITEMS\nNone right now.")]),
+		).toBe(true);
+		expect(nothingLeft([claude("ACTION ITEMS\n1. None for you")])).toBe(true);
+		expect(nothingLeft([claude("ACTION ITEMS\n1. Merge #12")])).toBe(false);
+		expect(nothingLeft([claude("ACTION ITEMS\nMerge #12 when you can.")])).toBe(
+			false,
+		);
+		expect(nothingLeft([claude("Shipped.")])).toBe(false);
 	});
 });

@@ -661,6 +661,22 @@ export function actionItemLines(block: string): string[] {
 		.map((i) => i.text);
 }
 
+/**
+ * The session's newest reply ends its turn with ACTION ITEMS and none of them
+ * open ("ACTION ITEMS: none", "1. None right now"). It told you nothing is
+ * left, so the card is Done, whatever the brief guessed.
+ */
+export function nothingLeft(messages: BriefMessage[]): boolean {
+	const last = messages[messages.length - 1];
+	if (last?.role !== "assistant") return false;
+	const at = last.text.toUpperCase().lastIndexOf("ACTION ITEMS");
+	return (
+		at >= 0 &&
+		/^[\W\d]*none\b/im.test(last.text.slice(at + "ACTION ITEMS".length)) &&
+		actionItems(messages).length === 0
+	);
+}
+
 // "Merge PR #12", "Review and merge #12", "Get repo#12 merged" - a merge is the
 // whole item.
 const MERGE_ITEM =
