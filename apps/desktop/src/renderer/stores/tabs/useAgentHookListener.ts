@@ -6,6 +6,7 @@ import { usePendingFocus } from "renderer/routes/_authenticated/_odin/hooks/useP
 import { useCompacting } from "renderer/stores/compacting";
 import { NOTIFICATION_EVENTS } from "shared/constants";
 import { debugLog } from "shared/debug";
+import type { AgentLifecycleEvent } from "shared/notification-types";
 import { CROW_TAG } from "shared/odin-tags";
 import type { PaneStatus } from "shared/tabs-types";
 import { useTabsStore } from "./store";
@@ -77,6 +78,23 @@ export function stopStatus(
 ): PaneStatus {
 	if (paneStatus === "permission") return "idle";
 	return watched ? "idle" : "review";
+}
+
+/**
+ * The pane's `odinCompactedAt` after an agent event: PreCompact stamps it,
+ * whoever asked for the compaction, and the next Start - a prompt or a tool
+ * call, which is where the context starts growing again - drops it. The
+ * board's idle compaction reads it so a conversation is compacted once per
+ * turn, never a summary of a summary.
+ */
+export function compactedAtAfter(
+	eventType: AgentLifecycleEvent["eventType"],
+	current: number | undefined,
+	now: number,
+): number | undefined {
+	if (eventType === "Compacting") return now;
+	if (eventType === "Start") return undefined;
+	return current;
 }
 
 /**
@@ -167,6 +185,26 @@ export function useAgentHookListener() {
 				useCompacting
 					.getState()
 					.mark(paneId, eventType === "Compacting" ? Date.now() : null);
+				const compactedAt = compactedAtAfter(
+					eventType,
+					state.panes[paneId]?.odinCompactedAt,
+					Date.now(),
+				);
+				if (compactedAt !== state.panes[paneId]?.odinCompactedAt) {
+					useTabsStore.setState((s) =>
+						s.panes[paneId]
+							? {
+									panes: {
+										...s.panes,
+										[paneId]: {
+											...s.panes[paneId],
+											odinCompactedAt: compactedAt,
+										},
+									},
+								}
+							: s,
+					);
+				}
 
 				if (eventType === "Start" || eventType === "Compacting") {
 					state.setPaneStatus(paneId, "working");

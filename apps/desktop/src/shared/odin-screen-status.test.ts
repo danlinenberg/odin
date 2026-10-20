@@ -3,6 +3,8 @@ import stripAnsi from "strip-ansi";
 import {
 	agentOnScreen,
 	escIsHandledOnScreen,
+	inputBoxEmpty,
+	inputBoxRows,
 	odinActivity,
 	odinScreenStatus,
 	odinScreenWrite,
@@ -374,5 +376,28 @@ describe("odinActivity", () => {
 	it("is undefined when the turn is over", () => {
 		const screen = `✻ Cooked for 1m 30s\n${box}\n> \n${box}`;
 		expect(odinActivity(screen)).toBeUndefined();
+	});
+});
+
+describe("inputBoxEmpty", () => {
+	it("an empty box", () => {
+		expect(inputBoxEmpty(BOX())).toBe(true);
+		expect(inputBoxRows(BOX())).toBe(0);
+	});
+
+	it("the placeholder Claude draws in an empty box is not a draft", () => {
+		const screen = BOX('Try "edit <filepath> to..."');
+		expect(inputBoxEmpty(screen)).toBe(true);
+		expect(inputBoxRows(screen)).toBe(1);
+	});
+
+	it("a half-written message is", () => {
+		expect(inputBoxEmpty(BOX("fix the failing test"))).toBe(false);
+		expect(inputBoxEmpty(BOX("Try the other branch"))).toBe(false);
+		expect(inputBoxEmpty(BOX("first row\nsecond row"))).toBe(false);
+	});
+
+	it("no box on screen reads as nothing typed", () => {
+		expect(inputBoxEmpty(IDLE_PROMPT)).toBe(true);
 	});
 });

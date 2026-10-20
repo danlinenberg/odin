@@ -36,6 +36,7 @@ describe("paneSchema", () => {
 			odinProfile: "1d14929a-66cb-4664-b2b1-a655fd00677f",
 			odinParked: false,
 			odinStatusAt: 1,
+			odinCompactedAt: 2,
 			odinClosedIn: "review",
 			odinExitCause: "crashed (exit 1)",
 			odinShellPaneId: "p3",

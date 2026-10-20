@@ -224,10 +224,29 @@ export function escIsHandledOnScreen(screen: string): boolean {
  * pair of rules, less the "❯" prompt mark. 0 when there's no box on screen.
  */
 export function inputBoxRows(screen: string): number {
+	return inputBoxLines(screen).length;
+}
+
+/**
+ * Nothing typed in Claude's input box. An empty box shows a placeholder -
+ * `Try "edit <filepath> to..."` - which is not a draft. Read before typing a
+ * command into a session nobody is looking at: under a half-written message
+ * the command would send the message, with itself stuck on the end.
+ */
+export function inputBoxEmpty(screen: string): boolean {
+	const rows = inputBoxLines(screen);
+	return (
+		rows.length === 0 || (rows.length === 1 && /^Try "/.test(rows[0] ?? ""))
+	);
+}
+
+/** The non-empty rows of the input box, without the "❯" prompt mark. */
+function inputBoxLines(screen: string): string[] {
 	const lines = screen.split(/\r\n|\n|\r/);
 	const rules = lines.flatMap((line, i) => (RULE.test(line) ? [i] : []));
-	if (rules.length < 2) return 0;
+	if (rules.length < 2) return [];
 	return lines
 		.slice((rules.at(-2) ?? 0) + 1, rules.at(-1))
-		.filter((line) => line.replace(/^\s*❯/, "").trim()).length;
+		.map((line) => line.replace(/^\s*❯/, "").trim())
+		.filter(Boolean);
 }

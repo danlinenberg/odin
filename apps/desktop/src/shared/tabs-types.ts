@@ -202,6 +202,14 @@ export interface Pane {
 	/** Odin fork: when `status` last changed - how long a session has sat idle. */
 	odinStatusAt?: number;
 	/**
+	 * Odin fork: the conversation was compacted (the PreCompact hook, whoever
+	 * asked - you, Claude at its context limit, or the board's idle compaction)
+	 * and nothing has run in it since. Dropped by the next Start: a prompt or a
+	 * tool call grows the context again. Keeps the board from compacting a
+	 * summary.
+	 */
+	odinCompactedAt?: number;
+	/**
 	 * Odin fork: the column a session was in when the board closed it for
 	 * sitting idle (see IDLE_CLOSE_MS). A dead session normally drops to Idle;
 	 * one Odin closed itself stays where you left it. Cleared once it works again.

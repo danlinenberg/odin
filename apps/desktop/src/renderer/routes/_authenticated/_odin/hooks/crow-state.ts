@@ -2,6 +2,7 @@ import { useChatPreferencesStore } from "renderer/stores/chat-preferences/store"
 import { useClaudeCommand } from "renderer/stores/claude-command";
 import { useDoneStore } from "renderer/stores/done";
 import { useIdleClose } from "renderer/stores/idle-close";
+import { useIdleCompact } from "renderer/stores/idle-compact";
 import { useInAppBrowser } from "renderer/stores/in-app-browser";
 import { useLaunchLimits } from "renderer/stores/launch-limits";
 import { useMarkdownPreferencesStore } from "renderer/stores/markdown-preferences/store";
@@ -43,6 +44,7 @@ const STORES: Record<string, Store> = {
 	claudeCommand: useClaudeCommand,
 	done: useDoneStore,
 	idleClose: useIdleClose,
+	idleCompact: useIdleCompact,
 	seenEmails: useSeenEmails,
 	titleOverrides: useTitleOverrides,
 	sessionView: useSessionView,

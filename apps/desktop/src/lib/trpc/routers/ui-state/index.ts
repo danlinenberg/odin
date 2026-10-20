@@ -91,6 +91,7 @@ export const paneSchema = z.object({
 	odinAutoTitled: z.boolean().optional(),
 	odinParked: z.boolean().optional(),
 	odinStatusAt: z.number().optional(),
+	odinCompactedAt: z.number().optional(),
 	odinClosedIn: z
 		.enum(["idle", "working", "permission", "review", "failed"])
 		.optional(),

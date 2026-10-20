@@ -91,6 +91,7 @@ Four columns: **Working** (blue), **Needs you** (amber), **Final Review** (green
 - Idle cards have **Resume**, with "⏸ died mid-turn" or the exit cause. A session that died mid-turn is resumed on its own, once per run of the app. So is one whose Claude ended with a /loop still armed: it reopens at an idle prompt and the loop runs again.
 - **Done** ends the session: stops the process, removes the card and marks its feed row done. Its Undo resumes the same conversation.
 - **Idle close**: a session idle longer than 3 hours (Settings → Sessions, "Close idle sessions after", 0 = never) is closed; Resume reopens it. Never closed: working, queued, looping, waiting on CI, or a busy shell. Store: idleClose.
+- **Idle compact**: a Done or parked session sitting at an empty prompt longer than Settings → Sessions, "Compact idle conversations after" (0 = never, off by default) gets /compact typed into it, so its next reply starts from the summary while Claude's cache is still warm. Once per turn, never while its drawer is open, never a looping or queued session. The card shows Compacting in Working and comes back where it was. Store: idleCompact.
 - Queued cards show "⏳ <reason>" and **Start now**, which ignores the gate. Cards further back read "#N in line, after "X"". The queue starts the longest-waiting launch that can go. A Resume that opens at an idle prompt is never held.
 
 ## Sessions view and the session drawer
@@ -148,6 +149,7 @@ Besides the launch gate limits:
 - **Full Disk Access**: without it, macOS asks each time a session reads Music, Photos, Desktop or Documents.
 - **Rename sessions automatically** (default on): renames each card once, after what it turned out to be about. Names you set are kept.
 - **Fold long replies** (default on): a latest reply too long for the window folds under its TL;DR card. Off shows the reply whole; the TL;DR card still shows.
+- **Compact idle conversations after** (default 0 = never; 45 minutes keeps it inside Claude's one-hour cache).
 - **Close idle sessions after** (default 3 hours, 0 = never).
 
 ## Notifications settings (Settings → Notifications)

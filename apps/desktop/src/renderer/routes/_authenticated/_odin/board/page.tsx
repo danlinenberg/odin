@@ -82,6 +82,7 @@ import {
 	useClaudeCommand,
 } from "renderer/stores/claude-command";
 import { useIdleClose } from "renderer/stores/idle-close";
+import { useIdleCompact } from "renderer/stores/idle-compact";
 import { useSessionView } from "renderer/stores/session-view";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import type { Pane, PaneStatus } from "renderer/stores/tabs/types";
@@ -101,6 +102,7 @@ import { profileOf } from "shared/odin-profile";
 import {
 	agentOnScreen,
 	escIsHandledOnScreen,
+	inputBoxEmpty,
 	odinScreenStatus,
 	odinScreenWrite,
 	remoteConnectLine,
@@ -183,6 +185,7 @@ import {
 	catchUpSuggestion,
 } from "./catch-up";
 import { DiffView } from "./DiffView";
+import { dueForCompact, restoreAfterCompact } from "./idle-compact";
 import { menuTop } from "./menu-fit";
 import { BOARD_COLUMN_MIN_W, NextInLine, TonightCount } from "./NextInLine";
 import { NightAgentLive } from "./NightAgentLive";
@@ -386,6 +389,12 @@ function slugify(title: string): string {
 const SETTLED_MS = 120_000;
 /** How long after a (re)start Continue stays clickable on a live session. */
 const RECENT_RESTART_MS = 5 * 60_000;
+/**
+ * How long the board watches a compaction it started for Claude's prompt to
+ * come back, and how often it looks. A long conversation summarizes slowly.
+ */
+const COMPACT_WATCH_MS = 10 * 60_000;
+const COMPACT_POLL_MS = 2_500;
 
 /** The pane whose drawer was open, so a reload reopens it. */
 const OPEN_DRAWER_KEY = "odin-open-drawer";
@@ -3100,6 +3109,120 @@ function DevBoardPage() {
 			clearInterval(id);
 		};
 	}, [drawerPaneId, alivePaneIds]);
+
+	// Compact a conversation that has sat at a free prompt past Settings →
+	// Sessions' compact delay, while Claude's cache of it is still warm: the
+	// next reply, whenever it comes, starts from the summary instead of
+	// re-reading the whole conversation cold. The rule is dueForCompact; the
+	// screen is read first, twice, for Claude at its prompt with nothing typed,
+	// or the command would land under a half-written message. The PreCompact
+	// hook moves the card to Working ("Compacting" in the chat view) and the
+	// card comes back where it was once the prompt is drawn again.
+	const compactingRef = useRef(new Set<string>());
+	const compactIdleSession = async (paneId: string) => {
+		const readScreen = () =>
+			utils.client.terminal.readScreen
+				.query({ paneId })
+				.catch(() => ({ text: null as string | null }));
+		const atFreePrompt = async () => {
+			const { text } = await readScreen();
+			return (
+				!!text && odinScreenStatus(text) === "review" && inputBoxEmpty(text)
+			);
+		};
+		if (!(await atFreePrompt())) return;
+		await new Promise((resolve) => setTimeout(resolve, 300));
+		if (!(await atFreePrompt())) return;
+		const pane = useTabsStore.getState().panes[paneId];
+		if (!pane) return;
+		const before = {
+			status: pane.status,
+			odinParked: pane.odinParked,
+			odinStatusAt: pane.odinStatusAt,
+		};
+		// Claimed now, ahead of the PreCompact hook: the next sweep must not
+		// type it again, and a compaction Claude declines stays declined until
+		// a real turn runs.
+		useTabsStore.setState((state) =>
+			state.panes[paneId]
+				? {
+						panes: {
+							...state.panes,
+							[paneId]: {
+								...state.panes[paneId],
+								odinCompactedAt: Date.now(),
+							},
+						},
+					}
+				: state,
+		);
+		console.warn(`[board] compacting idle session ${paneId}`);
+		await typeIntoClaude(
+			utils.client.terminal.write.mutate,
+			paneId,
+			"/compact",
+		);
+		// Back where it was once Claude sits at its prompt again - two reads
+		// must agree, as the repair scan wants - unless a real turn ran in the
+		// meantime (its Start dropped the mark) or a dialog came up.
+		const started = Date.now();
+		let seenPrompt = 0;
+		while (Date.now() - started < COMPACT_WATCH_MS) {
+			await new Promise((resolve) => setTimeout(resolve, COMPACT_POLL_MS));
+			const current = useTabsStore.getState().panes[paneId];
+			if (!current || current.odinCompactedAt === undefined) return;
+			const { text } = await readScreen();
+			const read = text ? odinScreenStatus(text) : undefined;
+			if (read === "permission") return;
+			seenPrompt = read === "review" ? seenPrompt + 1 : 0;
+			if (seenPrompt < 2) continue;
+			const restored = restoreAfterCompact(before, current);
+			if (restored)
+				useTabsStore.setState((state) =>
+					state.panes[paneId]
+						? {
+								panes: {
+									...state.panes,
+									[paneId]: { ...state.panes[paneId], ...restored },
+								},
+							}
+						: state,
+				);
+			return;
+		}
+	};
+	const sweepCompactRef = useRef<() => void>(() => {});
+	sweepCompactRef.current = () => {
+		const afterMs = useIdleCompact.getState().minutes * 60_000;
+		if (afterMs <= 0) return;
+		const now = Date.now();
+		for (const pane of Object.values(panes)) {
+			if (!pane.odinTaskTitle && !titleByPane[pane.id]) continue;
+			if (compactingRef.current.has(pane.id)) continue;
+			if (!firstSeenRef.current.has(pane.id))
+				firstSeenRef.current.set(pane.id, now);
+			const due = dueForCompact(pane, {
+				now,
+				afterMs,
+				isAgent: agentPaneIds.has(pane.id),
+				alive: alivePaneIds.has(pane.id),
+				looping: loopingPaneIds.has(pane.id),
+				open: pane.id === drawerPaneId,
+				firstSeen: firstSeenRef.current.get(pane.id) ?? now,
+			});
+			if (!due) continue;
+			compactingRef.current.add(pane.id);
+			compactIdleSession(pane.id)
+				.catch((error) =>
+					console.warn(`[board] compacting ${pane.id} failed:`, error),
+				)
+				.finally(() => compactingRef.current.delete(pane.id));
+		}
+	};
+	useEffect(() => {
+		const id = setInterval(() => sweepCompactRef.current(), 60_000);
+		return () => clearInterval(id);
+	}, []);
 
 	// Screen-reading keeps the columns honest. Agent hooks are the fast path,
 	// but they go missing - Stop doesn't fire on Ctrl+C, a notification can miss

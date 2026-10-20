@@ -19,6 +19,7 @@ import {
 	useClaudeCommand,
 } from "renderer/stores/claude-command";
 import { useIdleClose } from "renderer/stores/idle-close";
+import { useIdleCompact } from "renderer/stores/idle-compact";
 import { useLaunchLimits } from "renderer/stores/launch-limits";
 import type { LaunchLimits } from "shared/machine-load";
 import {
@@ -97,6 +98,7 @@ function SessionsSettingsPage() {
 			<SettingsSection title="On the board">
 				<AutoRenameRow />
 				<ReplyTldrRow />
+				<IdleCompactRow />
 				<IdleCloseRow />
 			</SettingsSection>
 		</SettingsPage>
@@ -374,6 +376,33 @@ function IdleCloseRow() {
 				step={0.5}
 				unit="hours"
 				onChange={setHours}
+			/>
+		</SettingRow>
+	);
+}
+
+/**
+ * When the board types /compact into a session that's sat at a free prompt,
+ * so the conversation is summarized while Claude's cache of it is still warm.
+ * Next minute's sweep.
+ */
+function IdleCompactRow() {
+	const minutes = useIdleCompact((s) => s.minutes);
+	const setMinutes = useIdleCompact((s) => s.setMinutes);
+	return (
+		<SettingRow
+			label="Compact idle conversations after"
+			htmlFor="idle-compact-minutes"
+			description="A session out of Working this long, sitting at an empty prompt, gets /compact: its next reply starts from the summary instead of re-reading the whole conversation. Claude's cache of a conversation goes cold after an hour, so 45 minutes catches it while reading it back is still cheap. Not while its drawer is open, and once per turn. 0 never compacts."
+		>
+			<NumberSetting
+				id="idle-compact-minutes"
+				value={minutes}
+				min={0}
+				max={1440}
+				step={5}
+				unit="minutes"
+				onChange={setMinutes}
 			/>
 		</SettingRow>
 	);

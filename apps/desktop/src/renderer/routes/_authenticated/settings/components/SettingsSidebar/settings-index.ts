@@ -203,6 +203,12 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		keywords: "fold collapse shorten long reply tldr tl;dr chat",
 	},
 	{
+		label: "Compact idle conversations after",
+		to: "/settings/sessions",
+		section: "On the board",
+		keywords: "compact context summary cache idle minutes",
+	},
+	{
 		label: "Close idle sessions after",
 		to: "/settings/sessions",
 		section: "On the board",
