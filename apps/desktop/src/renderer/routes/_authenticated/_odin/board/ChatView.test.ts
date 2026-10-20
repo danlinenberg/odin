@@ -415,6 +415,14 @@ describe("launchAttachments - the images and videos a launch prompt attached", (
 		]);
 		expect(launchAttachments("Task: no files")).toEqual([]);
 	});
+
+	test("includes a path on its own line in the request", () => {
+		const prompt =
+			"Task: stuck\n\n/Users/dan/.odin/attachments/shot.png\n\nWork in the current workspace.";
+		expect(launchAttachments(prompt)).toEqual([
+			"/Users/dan/.odin/attachments/shot.png",
+		]);
+	});
 });
 
 describe("launchRequest - the request you typed, without the launcher's scaffolding", () => {

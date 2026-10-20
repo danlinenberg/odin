@@ -1068,7 +1068,7 @@ function UserBubble({
 	const previews = [...(images ?? []), ...attached];
 	const [open, setOpen] = useState(false);
 	const [full, setFull] = useState(false);
-	const shown = full || request === null ? text : request;
+	const shown = full || request === null ? text : withoutMediaPaths(request);
 	const long = shown.length > 300 || shown.split("\n").length > 4;
 	return (
 		<div
@@ -1178,15 +1178,30 @@ function useAttachedPreviews(
 	});
 }
 
-/** The image and video paths under a launch prompt's "Attached files" head. */
+const isMediaPath = (line: string) =>
+	line.startsWith("/") &&
+	(!!getImageMimeType(line) || isPreviewableVideoFile(line));
+
+/**
+ * A launch prompt's image and video paths: under its "Attached files" head,
+ * and on lines of their own in the request (a path pasted into the task).
+ */
 export function launchAttachments(text: string): string[] {
-	const block = text
-		.split(/\n\n+/)
-		.find((part) => part.startsWith("Attached files"));
-	return (block?.split("\n").slice(1) ?? [])
+	const blocks = text.split(/\n\n+/);
+	const block = blocks.find((part) => part.startsWith("Attached files"));
+	const inRequest = (launchRequest(text) ?? "").split("\n");
+	return [...inRequest, ...(block?.split("\n").slice(1) ?? [])]
 		.map((line) => line.trim())
-		.filter((path) => getImageMimeType(path) || isPreviewableVideoFile(path));
+		.filter(isMediaPath);
 }
+
+/** The request without the media path lines its previews already show. */
+const withoutMediaPaths = (request: string) =>
+	request
+		.split("\n")
+		.filter((line) => !isMediaPath(line.trim()))
+		.join("\n")
+		.trim();
 
 /** A pasted image or video: an image's URL alone, or a video with its file. */
 type Preview = string | { url: string; video: true };
