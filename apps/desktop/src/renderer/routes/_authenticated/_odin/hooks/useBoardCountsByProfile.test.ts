@@ -22,7 +22,7 @@ describe("boardCountsByProfile", () => {
 				pane({ id: "e", status: "permission" }),
 				// Not a board session: no task title.
 				pane({ id: "f", status: "permission", odinTaskTitle: undefined }),
-				// Dead: nothing left to answer, and nothing working.
+				// Dead: still owes you its answer, but nothing is working.
 				pane({ id: "g", status: "permission", odinProfile: "private" }),
 				pane({ id: "h", status: "working", odinProfile: "private" }),
 				// Done is neither.
@@ -34,7 +34,7 @@ describe("boardCountsByProfile", () => {
 			new Set(["a", "b", "c", "d", "e", "f", "i"]),
 		);
 		expect(counts.get("work")).toEqual({ needsYou: 2, working: 1 });
-		expect(counts.get("private")).toEqual({ needsYou: 1, working: 0 });
+		expect(counts.get("private")).toEqual({ needsYou: 2, working: 0 });
 		expect(counts.get("default")).toEqual({ needsYou: 1, working: 0 });
 	});
 });
