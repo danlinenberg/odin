@@ -94,6 +94,15 @@ describe("buildPrompt", () => {
 		expect(prompt).toContain("first line starts with `!`");
 	});
 
+	// Every `!` block is a Run button in the reply; a merge I could do from
+	// the PR page came as one and sat in the way of reading the rest.
+	it("hands me a `!` command only when I must run it and no page does it", () => {
+		const prompt = buildPrompt("Fix the board", null);
+		expect(prompt).toContain("only when I must run it myself");
+		expect(prompt).toContain("to merge a PR, link the PR");
+		expect(prompt).toContain("never goes in a `!` block");
+	});
+
 	// A `!` Run button on an UPDATE is one click from a prod write.
 	it("gives a database write as a query, not a `!` command", () => {
 		expect(buildPrompt("Fix the board", null)).toContain(
