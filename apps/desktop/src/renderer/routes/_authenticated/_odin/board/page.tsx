@@ -54,6 +54,7 @@ import {
 	LuRepeat,
 	LuRotateCw,
 	LuServer,
+	LuServerOff,
 	LuSquareTerminal,
 	LuStar,
 	LuTerminal,
@@ -1495,20 +1496,27 @@ function connectStateOf(screen: string): HostState | undefined {
 	return line.startsWith("Could not connect") ? "off" : "connecting";
 }
 
+/**
+ * The shape says the state, not only the color: the session list's status dots
+ * use the same green, yellow and red for Final Review, Needs you and Failed.
+ */
 const HOST_MARK: Record<
 	HostState,
-	{ ink: string; title: (host: string) => string }
+	{ Icon: IconType; ink: string; title: (host: string) => string }
 > = {
 	live: {
+		Icon: LuServer,
 		ink: "text-success",
 		title: (host) =>
 			`Connected to ${host}, in tmux - it keeps going with this computer shut`,
 	},
 	connecting: {
-		ink: "text-attention",
+		Icon: LuServer,
+		ink: "animate-pulse text-attention",
 		title: (host) => `Connecting to ${host}...`,
 	},
 	off: {
+		Icon: LuServerOff,
 		ink: "text-danger",
 		title: (host) => `Not connected to ${host} - Resume connects again`,
 	},
@@ -1516,15 +1524,17 @@ const HOST_MARK: Record<
 
 /**
  * The server a session wears beside its title while it runs on a remote host:
- * green while connected to Claude there, yellow while connecting, red while not.
+ * green while connected to Claude there, yellow and pulsing while connecting,
+ * red and struck through while not.
  */
 function HostMark({ paneId, state }: { paneId: string; state: HostState }) {
 	const host = useTabsStore((s) => s.panes[paneId]?.odinRemote);
 	if (!host) return null;
+	const { Icon, ink, title } = HOST_MARK[state];
 	return (
-		<LuServer
-			title={HOST_MARK[state].title(host)}
-			className={cn("mr-1 inline size-3.5 align-[-2px]", HOST_MARK[state].ink)}
+		<Icon
+			title={title(host)}
+			className={cn("mr-1 inline size-3.5 align-[-2px]", ink)}
 		/>
 	);
 }
