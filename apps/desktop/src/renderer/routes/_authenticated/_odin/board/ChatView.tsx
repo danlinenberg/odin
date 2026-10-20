@@ -17,6 +17,7 @@ import {
 } from "react";
 import {
 	LuChevronRight,
+	LuLoaderCircle,
 	LuMic,
 	LuSmartphone,
 	LuSquareTerminal,
@@ -1252,12 +1253,17 @@ function PreviewStrip({
 }
 
 /**
- * The mark while Claude works: a slow breath, so the row reads as busy without
- * anything moving across it. One string, so the starting, connecting and
- * working rows always move the same way.
+ * The mark while Claude works: a spinner in the avatar's 28px slot, so the
+ * row lines up with the replies above it. Odin's icon is too fine to read at
+ * this size, so the starting, connecting and working rows don't use it.
  */
-const WORKING_MARK =
-	"animate-[odin-breathe_2.4s_ease-in-out_infinite] motion-reduce:animate-none";
+function WorkingMark() {
+	return (
+		<span className="flex size-7 shrink-0 items-center justify-center">
+			<LuLoaderCircle className="size-[18px] animate-spin motion-reduce:animate-none" />
+		</span>
+	);
+}
 
 /**
  * Odin's icon, on the first block of each reply - who's talking, at a glance.
@@ -2433,7 +2439,7 @@ export function ChatView({
 				<div ref={contentRef} className="flex flex-col gap-2.5">
 					{starting ? (
 						<div className="flex items-center gap-3 text-[12.5px] text-working">
-							<OdinMark className={WORKING_MARK} />
+							<WorkingMark />
 							{connecting ?? "Starting session…"}
 							{/* Before its first turn the CLI can stop on a terminal-only
 							    prompt (folder trust, bypass-permissions warning) that no
@@ -2633,7 +2639,7 @@ export function ChatView({
 					{connecting && !starting && (
 						// A resumed remote session: its old turns are above, the host isn't reached yet.
 						<div className="flex h-7 items-center gap-3 text-[12.5px] text-working">
-							<OdinMark className={WORKING_MARK} />
+							<WorkingMark />
 							<span className="select-text cursor-text">{connecting}</span>
 							{!noTerminal && (
 								<button
@@ -2653,8 +2659,7 @@ export function ChatView({
 						!screenAside &&
 						!starting && (
 							<div className="flex min-w-0 gap-3 text-[12.5px] text-working">
-								{/* Odin's icon, breathing while Claude works. */}
-								<OdinMark className={WORKING_MARK} />
+								<WorkingMark />
 								{compacting === null ? (
 									<div className="flex min-w-0 flex-1 flex-col">
 										<button
