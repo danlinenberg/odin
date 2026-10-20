@@ -392,7 +392,10 @@ export function OdinPromptDialog({
 						))}
 					</div>
 				)}
-				<div className="mt-3 flex items-center gap-1.5">
+				{/* The row wraps: with every picker on (repo, model, where, Backlog) it
+				    outgrows the dialog, and a row that can't wrap pushed Cancel and
+				    Start out past the edge. */}
+				<div className="mt-3 flex flex-wrap items-center gap-1.5">
 					<input
 						ref={fileInput}
 						type="file"
@@ -494,29 +497,32 @@ export function OdinPromptDialog({
 							Backlog
 						</label>
 					)}
-					<div className="flex-1" />
-					<button
-						type="button"
-						onClick={onCancel}
-						className="h-7 shrink-0 whitespace-nowrap rounded-[6px] px-2.5 text-[11.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
-					>
-						Cancel
-					</button>
-					<button
-						type="button"
-						disabled={isStarting}
-						onClick={() => void start()}
-						className="flex h-7 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[6px] bg-primary px-3 text-[11.5px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-default disabled:opacity-70"
-					>
-						{isStarting && (
-							<span className="size-[9px] animate-spin rounded-full border border-current border-t-transparent" />
-						)}
-						{isStarting
-							? "Starting…"
-							: toBacklog
-								? "Add to backlog"
-								: submitLabel}
-					</button>
+					{/* One group, so a wrap moves Cancel and Start together to the
+					    next line's right edge instead of splitting them. */}
+					<div className="ml-auto flex shrink-0 items-center gap-1.5">
+						<button
+							type="button"
+							onClick={onCancel}
+							className="h-7 shrink-0 whitespace-nowrap rounded-[6px] px-2.5 text-[11.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
+						>
+							Cancel
+						</button>
+						<button
+							type="button"
+							disabled={isStarting}
+							onClick={() => void start()}
+							className="flex h-7 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[6px] bg-primary px-3 text-[11.5px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-default disabled:opacity-70"
+						>
+							{isStarting && (
+								<span className="size-[9px] animate-spin rounded-full border border-current border-t-transparent" />
+							)}
+							{isStarting
+								? "Starting…"
+								: toBacklog
+									? "Add to backlog"
+									: submitLabel}
+						</button>
+					</div>
 				</div>
 			</div>
 		</>
