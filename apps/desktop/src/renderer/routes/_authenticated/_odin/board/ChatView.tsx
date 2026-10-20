@@ -1,5 +1,4 @@
 import { ODIN_REPLY_TLDR_DEFAULT } from "@odin/shared/constants";
-import { odinIcon } from "@odin/ui/icons/preset-icons";
 import { toast } from "@odin/ui/sonner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@odin/ui/tooltip";
 import { cn } from "@odin/ui/utils";
@@ -21,6 +20,7 @@ import {
 	LuMic,
 	LuServer,
 	LuSmartphone,
+	LuSparkles,
 	LuSquareTerminal,
 	LuWrench,
 	LuX,
@@ -1270,20 +1270,21 @@ function WorkingMark() {
 }
 
 /**
- * Odin's icon, on the first block of each reply - who's talking, at a glance.
- * Its own dark tile, brightened and ringed so the lines read on the drawer;
- * a violet screen-blend washed it out.
+ * The mark on the first block of each reply - who's talking, at a glance.
+ * Odin's icon is too fine to read at 28px on the drawer, so the mark is the
+ * sparkles the board already uses for the AI, centered in the avatar's slot
+ * like the Working spinner.
  */
-function OdinMark({ className }: { className?: string }) {
+function ReplyMark({ className }: { className?: string }) {
 	return (
-		<img
-			src={odinIcon}
-			alt=""
+		<span
 			className={cn(
-				"size-7 shrink-0 rounded-lg ring-1 ring-white/20 brightness-150 contrast-[1.15]",
+				"flex size-7 shrink-0 items-center justify-center text-primary",
 				className,
 			)}
-		/>
+		>
+			<LuSparkles className="size-[18px]" aria-hidden />
+		</span>
 	);
 }
 
@@ -2556,7 +2557,7 @@ export function ChatView({
 									key && !firstIdsRef.current?.has(key) && ENTER,
 								)}
 							>
-								{opensReply ? <OdinMark /> : <span className="w-7 shrink-0" />}
+								{opensReply ? <ReplyMark /> : <span className="w-7 shrink-0" />}
 								<div className="min-w-0 flex-1">
 									{Array.isArray(segment) ? (
 										<ToolGroup group={segment} />
@@ -2596,7 +2597,7 @@ export function ChatView({
 						))}
 					{prompt && (
 						<div className={cn("flex min-w-0 gap-3", ENTER)}>
-							<OdinMark />
+							<ReplyMark />
 							<div className="min-w-0 flex-1">
 								{prompt.name === "AskUserQuestion" ? (
 									<QuestionCard
@@ -2625,7 +2626,7 @@ export function ChatView({
 					)}
 					{screenMenu && (
 						<div className={cn("flex min-w-0 gap-3", ENTER)}>
-							<OdinMark />
+							<ReplyMark />
 							<div className="min-w-0 flex-1">
 								<ScreenMenuCard
 									key={`${screenMenu.title}\n${screenMenu.options.join("\n")}`}
@@ -2646,7 +2647,7 @@ export function ChatView({
 					)}
 					{screenAside && (
 						<div className={cn("flex min-w-0 gap-3", ENTER)}>
-							<OdinMark />
+							<ReplyMark />
 							<div className="min-w-0 flex-1">
 								<ScreenAsideCard
 									aside={screenAside}
@@ -2657,7 +2658,7 @@ export function ChatView({
 					)}
 					{limitHit && (
 						<div className={cn("flex min-w-0 gap-3", ENTER)}>
-							<OdinMark />
+							<ReplyMark />
 							<button
 								type="button"
 								title="Open the usage limit menu: wait for the reset, or keep going on extra usage"
