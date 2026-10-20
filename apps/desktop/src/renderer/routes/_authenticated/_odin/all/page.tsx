@@ -66,6 +66,7 @@ import {
 	type Urgency,
 } from "./all-items";
 import { ruleLabel, useDropRules } from "./drop-rules";
+import { revealRow, rowPlace } from "./reveal-row";
 import { nextSelection, visibleSelection } from "./selection";
 import { TaskDescription } from "./TaskDescription";
 import { TaskDetails } from "./TaskDetails";
@@ -310,11 +311,15 @@ function AllFeedPage() {
 	// rather than jumping to the row's own feed tab, which dropped you out of
 	// this list and left you hunting for the row again.
 	const [openKey, setOpenKey] = useState<string | null>(null);
+	// A row to scroll to and flash once it's on screen: Search all's pick, and
+	// the panel's "Show it" after the filters that hid the row are cleared.
+	const [reveal, setReveal] = useState<string | null>(null);
 	// Taken off the URL once read, so picking the same row again reopens it.
 	const { open } = Route.useSearch();
 	useEffect(() => {
 		if (!open) return;
 		setOpenKey(open);
+		setReveal(open);
 		void navigate({ to: "/all", search: {}, replace: true });
 	}, [open, navigate]);
 	const allRows = useAllItems();
@@ -411,10 +416,14 @@ function AllFeedPage() {
 			(statusCounts.get(statusOf(item)) ?? 0) + 1,
 		);
 	// Up next sits above the bands in your order, so it isn't listed twice.
-	const queued = queue.flatMap((key) => {
-		const item = allRows.find((row) => row.key === key);
-		return item ? [item] : [];
-	});
+	const queued = useMemo(
+		() =>
+			queue.flatMap((key) => {
+				const item = allRows.find((row) => row.key === key);
+				return item ? [item] : [];
+			}),
+		[queue, allRows],
+	);
 	// A finished row leaves Up next too, so an Undo doesn't bring it back there.
 	const finish = (item: AllItem) => {
 		markDone(item);
@@ -505,6 +514,33 @@ function AllFeedPage() {
 		allRows.find((item) => item.key === openKey) ??
 		everyRow.find((item) => item.key === openKey);
 	const openTask = tasks.find((task) => `task:${task.id}` === openItem?.key);
+	// Where the open row is, so the panel can say when it isn't beside it.
+	const listedKeys = useMemo(
+		() => new Set([...items, ...queued].map((item) => item.key)),
+		[items, queued],
+	);
+	const allKeys = useMemo(
+		() => new Set(allRows.map((item) => item.key)),
+		[allRows],
+	);
+	const openPlace = openItem
+		? rowPlace(openItem.key, {
+				listed: showDone ? new Set() : listedKeys,
+				all: allKeys,
+				done: everyRow.find((item) => item.key === openKey)?.done ?? false,
+			})
+		: "listed";
+	// After the row's data is in, so the list has drawn it if it's going to.
+	useEffect(() => {
+		if (!reveal) return;
+		if (reveal !== openKey) {
+			setReveal(null);
+			return;
+		}
+		if (!openItem) return;
+		revealRow(reveal);
+		setReveal(null);
+	}, [reveal, openKey, openItem]);
 
 	const statusFilterLabel = statusFilter.startsWith("odin:")
 		? STATUS_FILTERS.find(({ id }) => id === statusFilter.slice(5))?.label
@@ -1011,6 +1047,27 @@ function AllFeedPage() {
 						item={openItem}
 						onClose={() => setOpenKey(null)}
 						onOpenFeed={() => navigate({ to: openItem.to })}
+						notice={
+							openPlace === "filtered" ? (
+								<>
+									Not in the list - the filters hide it.{" "}
+									<button
+										type="button"
+										onClick={() => {
+											clearFilters();
+											setReveal(openItem.key);
+										}}
+										className="font-semibold text-soft-foreground hover:text-foreground"
+									>
+										Show it
+									</button>
+								</>
+							) : openPlace === "done" ? (
+								"Not in the list - it's Done."
+							) : openPlace === "elsewhere" ? (
+								`Not in the list - it lives on the ${openItem.source} tab.`
+							) : null
+						}
 						fields={
 							<TaskFields
 								status={statuses[openItem.key] ?? ""}
@@ -1214,6 +1271,7 @@ function DetailsPanel({
 	item,
 	onClose,
 	onOpenFeed,
+	notice,
 	fields,
 	description,
 	children,
@@ -1221,6 +1279,8 @@ function DetailsPanel({
 	item: AllItem;
 	onClose: () => void;
 	onOpenFeed: () => void;
+	/** Why the row isn't in the list beside the panel, when it isn't. */
+	notice?: ReactNode;
 	fields: ReactNode;
 	description: ReactNode;
 	children: ReactNode;
@@ -1228,7 +1288,10 @@ function DetailsPanel({
 	const url = item.url;
 	const rename = useTitleOverrides((s) => s.rename);
 	return (
-		<aside className="flex w-[380px] shrink-0 flex-col border-l border-border">
+		<aside
+			data-task-panel
+			className="flex w-[380px] shrink-0 flex-col border-l border-border"
+		>
 			<div className="flex shrink-0 items-center gap-2 px-3.5 pt-2 pb-1.5">
 				<button
 					type="button"
@@ -1256,6 +1319,11 @@ function DetailsPanel({
 					✕
 				</button>
 			</div>
+			{notice && (
+				<div className="px-3.5 pb-1.5 text-[11px] text-muted-foreground">
+					{notice}
+				</div>
+			)}
 			<div className="min-h-0 flex-1 overflow-y-auto px-3.5 pb-[18px]">
 				{fields}
 				<div className="mb-2 empty:hidden">

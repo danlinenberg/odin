@@ -758,6 +758,13 @@ await step("⌘⇧F Search all finds a task and opens its details", async () => 
 	await waitForText("Tasks feed →");
 	const hash = await page<string>("location.hash");
 	if (!hash.startsWith("#/all")) throw new Error(`Search all opened ${hash}`);
+	// The row the panel shows is marked in the list, so the panel reads as its
+	// details and not as a page that happened to open.
+	const marked = `document.querySelector('[data-task-row][data-open="true"]')?.textContent.includes(${JSON.stringify(TASK)})`;
+	for (const end = Date.now() + 5_000; !(await page<boolean>(marked)); ) {
+		if (Date.now() > end) throw new Error("the opened task's row isn't marked");
+		await sleep(200);
+	}
 	await click("button", "Close details");
 	await waitForText("Tasks feed →", false);
 });

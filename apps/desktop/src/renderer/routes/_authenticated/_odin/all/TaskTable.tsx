@@ -287,10 +287,14 @@ export function TaskRow({
 				ref={drag?.setNodeRef}
 				style={drag?.style}
 				data-task-row={item.key}
+				data-open={open || undefined}
 				className={cn(
 					TABLE_ROW,
-					band === "now" && "shadow-[inset_2px_0_0_var(--attention)]",
-					open && "bg-primary/10 hover:bg-primary/12",
+					// Open beside the list: a bar and a tint say which row the panel
+					// is. The bar takes the attention bar's place while it's open.
+					open
+						? "bg-primary/12 shadow-[inset_3px_0_0_var(--primary)] hover:bg-primary/15"
+						: band === "now" && "shadow-[inset_2px_0_0_var(--attention)]",
 					done && "opacity-60",
 				)}
 			>
