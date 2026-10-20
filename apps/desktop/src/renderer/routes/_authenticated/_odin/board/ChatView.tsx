@@ -21,6 +21,7 @@ import {
 	LuSmartphone,
 	LuSquareTerminal,
 	LuWrench,
+	LuX,
 } from "react-icons/lu";
 import { MarkdownRenderer } from "renderer/components/MarkdownRenderer";
 import { isHotkey, useHotkeyDisplay } from "renderer/hotkeys";
@@ -1485,9 +1486,9 @@ function ActionItemRow({
 					title="Remove this item - Claude stops listing it"
 					aria-label="Remove this item"
 					onClick={onDismiss}
-					className="px-1 text-[13px] leading-none text-muted-foreground/50 opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+					className="-my-0.5 -mr-1 flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
 				>
-					×
+					<LuX className="size-4" />
 				</button>
 			) : (
 				<span />
