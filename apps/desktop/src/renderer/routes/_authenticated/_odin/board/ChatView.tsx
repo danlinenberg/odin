@@ -1427,6 +1427,8 @@ function ActionItemRow({
 		<li
 			className={cn(
 				"group grid grid-cols-[1rem_minmax(0,1fr)_auto] items-start gap-2",
+				// Hovering the X tints the whole row, so you see what it removes. The row pads out under the tint and pulls back in by as much, so nothing moves.
+				"-mx-2 -my-0.5 rounded-md px-2 py-0.5 has-[[data-dismiss]:hover]:bg-attention/15 has-[[data-dismiss]:focus-visible]:bg-attention/15",
 				// No button column: number + text only, or the text lands in the 1rem cell.
 				buttonColumn &&
 					"grid-cols-[64px_1rem_minmax(0,1fr)_auto] @max-md:grid-cols-[1rem_minmax(0,1fr)_auto]",
@@ -1502,6 +1504,7 @@ function ActionItemRow({
 					type="button"
 					title="Remove this item - Claude stops listing it"
 					aria-label="Remove this item"
+					data-dismiss
 					onClick={onDismiss}
 					className="-my-0.5 -mr-1 flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
 				>
