@@ -164,6 +164,21 @@ export function RemindButton({
 }
 
 /**
+ * Whether the bar has anything for now: a reminder whose day has come, or an
+ * unread reply. Reminders for a later day alone don't raise it - they wait in
+ * Automations → Reminders until their day.
+ */
+export function showsBar(
+	reminders: Record<string, { due: string }>,
+	unreadReplies: number,
+	now: number,
+): boolean {
+	return (
+		unreadReplies > 0 || Object.values(reminders).some((r) => isDue(r.due, now))
+	);
+}
+
+/**
  * Every reminder whose day has come, above the columns, and a link to the
  * rest in Automations → Reminders. A snoozed session gets
  * Resume - the same `claude --resume` into a fresh pane Session History does;
@@ -186,7 +201,7 @@ export function SessionReminders() {
 	const replies = Object.entries(watches)
 		.filter(([, w]) => w.reply && w.paneId)
 		.map(([key, w]) => ({ ...w, key, event: watchEvent(key) }));
-	if (!due.length && !replies.length && !upcoming) return null;
+	if (!showsBar(reminders, replies.length, now)) return null;
 
 	return (
 		<div className="mx-[18px] mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-attention/25 bg-attention/8 px-3 py-2 text-[12px]">
