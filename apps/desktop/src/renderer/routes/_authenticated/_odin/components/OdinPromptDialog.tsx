@@ -43,6 +43,20 @@ export function sessionTitle(prompt: string, fallback: string): string {
 }
 
 /**
+ * The prompt that restarts a lost card: its title, then whatever its brief adds.
+ * A brief from an earlier restart already starts with the title (once per
+ * restart), so every leading copy is dropped before the title goes back on top.
+ */
+export function restartPrompt(title: string, brief: string | null): string {
+	const lines = (brief ?? "").trim().split("\n");
+	while (lines.length && [title, ""].includes(lines[0]?.trim() ?? "")) {
+		lines.shift();
+	}
+	const rest = lines.join("\n").trim();
+	return rest ? `${title}\n\n${rest}` : title;
+}
+
+/**
  * A title cut to "…" (the old 60-char session cap, Slack's 120-char row title)
  * gets the rest of its line back from the text it was cut from - wherever in
  * that text the line sits, since a Slack title skips the greeting line.

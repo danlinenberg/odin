@@ -130,6 +130,7 @@ import {
 	cardBody,
 	OdinPromptDialog,
 	type PromptImage,
+	restartPrompt,
 	sessionTitle,
 	untruncatedTitle,
 } from "../components/OdinPromptDialog";
@@ -4672,11 +4673,10 @@ function DevBoardPage() {
 	 * what makes starting over feel like carrying on.
 	 */
 	const lostCardPrompt = (card: BoardCard): string => {
-		const title = cardTitle(card);
-		const brief = card.pane.odinBrief ?? briefByPane[card.pane.id] ?? null;
-		return brief?.trim() && brief.trim() !== title
-			? `${title}\n\n${brief.trim()}`
-			: title;
+		return restartPrompt(
+			cardTitle(card),
+			card.pane.odinBrief ?? briefByPane[card.pane.id] ?? null,
+		);
 	};
 
 	/**

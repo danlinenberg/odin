@@ -1,5 +1,10 @@
 import { expect, test } from "bun:test";
-import { cardBody, sessionTitle, untruncatedTitle } from "./OdinPromptDialog";
+import {
+	cardBody,
+	restartPrompt,
+	sessionTitle,
+	untruncatedTitle,
+} from "./OdinPromptDialog";
 
 const line =
 	"In claude code, I want to text under the cursor to be better contrasted";
@@ -26,4 +31,15 @@ test("the card body is the brief minus the title and bare links", () => {
 	expect(cardBody(line, `${line}\nmore detail`)).toBe("more detail");
 	expect(cardBody("CRR-1: x", "CRR-1: x\nhttps://jira/CRR-1")).toBeNull();
 	expect(cardBody("x", null)).toBeNull();
+});
+
+test("a restart prompt carries the title once, however often it restarted", () => {
+	const img = "/Users/dan/.odin/attachments/x.png";
+	expect(restartPrompt(line, `${line}\n\n${line}\n\n${img}`)).toBe(
+		`${line}\n\n${img}`,
+	);
+	expect(restartPrompt(line, `${line}\nmore`)).toBe(`${line}\n\nmore`);
+	expect(restartPrompt(line, "other ask")).toBe(`${line}\n\nother ask`);
+	expect(restartPrompt(line, line)).toBe(line);
+	expect(restartPrompt(line, null)).toBe(line);
 });
