@@ -149,6 +149,8 @@ export async function syncClaudeSetup(
 				stream.stderr.on("data", (chunk: Buffer) => {
 					errors += chunk;
 				});
+				// ssh2 fires "close" only after stdout ends, and an unread stdout never ends.
+				stream.resume();
 				stream.on("close", (code: number) =>
 					code === 0
 						? resolve(bytes)
