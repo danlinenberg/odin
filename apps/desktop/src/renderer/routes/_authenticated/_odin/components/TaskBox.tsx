@@ -1,10 +1,12 @@
+import { Kbd, KbdGroup } from "@odin/ui/kbd";
 import { toast } from "@odin/ui/sonner";
+import { Switch } from "@odin/ui/switch";
 import { cn } from "@odin/ui/utils";
 import type { AgentSkill } from "lib/trpc/routers/skills";
 import type { OdinDoc } from "lib/trpc/routers/system";
 import { useEffect, useRef, useState } from "react";
 import { HiOutlineClock, HiOutlineSparkles } from "react-icons/hi2";
-import { isHotkey } from "renderer/hotkeys";
+import { isHotkey, useHotkeyDisplay } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useClaudeCommand } from "renderer/stores/claude-command";
 import { describeCron, nextRun } from "shared/cron";
@@ -18,9 +20,9 @@ import {
 	withSkill,
 } from "../hooks/useOdinTasks";
 import { useStartTask } from "../hooks/useStartTask";
-import { ROW_PRIMARY_BUTTON } from "./FeedChrome";
+import { ROW_PRIMARY_BUTTON, ROW_START_BUTTON } from "./FeedChrome";
 import { readFile } from "./OdinPromptDialog";
-import { PILL } from "./pill";
+import { BUTTON, PILL } from "./pill";
 import { matchRepos, repoLabel } from "./repo-picker";
 import { matchSkills } from "./skill-picker";
 
@@ -32,6 +34,21 @@ const splitTask = (text: string): [string, string] => {
 };
 const joinTask = (title: string, notes: string) =>
 	notes ? `${title}\n\n${notes}` : title;
+
+/**
+ * A field in the row under the box. Label and control share one pill, so the
+ * row wraps in whole fields and never between a label and its input, and
+ * every field stands the same height as the row's button. Focus moves the
+ * ring to violet, the same tell as the box above.
+ */
+const FIELD =
+	"inline-flex h-6 shrink-0 items-center overflow-hidden rounded-[7px] bg-secondary ring-1 ring-inset ring-border transition-shadow focus-within:ring-primary/60";
+const FIELD_LABEL = "shrink-0 pl-2 pr-1 text-[11px] text-muted-foreground";
+const FIELD_CONTROL =
+	"h-full bg-transparent pr-2 text-[11px] font-semibold outline-none placeholder:font-normal placeholder:text-muted-foreground";
+/** A one-click chip under the fields: a recent repo, pressed or not. */
+const CHIP =
+	"h-6 max-w-[160px] truncate rounded-[7px] px-2 text-[11px] font-semibold transition-colors";
 
 /** What the box takes on a drop or paste: photos, videos and markdown docs. */
 const isAttachable = (file: File) =>
@@ -172,7 +189,7 @@ export function TaskBox({
 				onDrop={(event) => attach(event.dataTransfer.files, event)}
 				onPaste={(event) => attach(event.clipboardData.files, event)}
 				className={cn(
-					"flex min-h-0 min-w-0 grow flex-col overflow-hidden rounded-[10px] border bg-card focus-within:border-primary",
+					"flex min-h-0 min-w-0 grow flex-col overflow-hidden rounded-[10px] border bg-card transition-[border-color,box-shadow] focus-within:border-primary focus-within:shadow-[0_0_0_3px_color-mix(in_oklab,var(--primary)_14%,transparent)]",
 					folded ? "border-dashed border-border" : "border-border",
 				)}
 			>
@@ -196,7 +213,9 @@ export function TaskBox({
 							onChange={(event) =>
 								onChange(joinTask(title, event.target.value))
 							}
-							className="w-full min-h-0 grow resize-none bg-transparent px-3 pt-1.5 pb-2 text-[13px] text-muted-foreground outline-none placeholder:text-muted-foreground"
+							// Soft, not muted: what you typed must read apart from the
+							// placeholder it replaced, while staying quieter than the title.
+							className="w-full min-h-0 grow resize-none bg-transparent px-3 pt-1.5 pb-2 text-[13px] leading-[1.5] text-soft-foreground outline-none placeholder:text-muted-foreground"
 						/>
 					</>
 				)}
@@ -205,39 +224,48 @@ export function TaskBox({
 			    the text, which is what the store reads either way. Typing "!" and
 			    picking Low are the same edit, so neither can go stale. Medium is
 			    the no-"!"s case, so the box you just typed into already reads as it. */}
-			{/* One row at the quick-add's 520px: Skill and Repo on the left,
-			    Priority pushed right. Nothing in it grows as you type. */}
+			{/* The fields flow left in reading order, Skill to Priority, and the
+			    row's button (inline rows only) sits right. Nothing in it grows as
+			    you type; when the row is narrower than its fields, whole pills
+			    wrap, never a label from its input. */}
 			{!folded && (
-				<div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+				<div className="flex flex-wrap items-center gap-1.5">
 					{skills && skills.length > 0 && (
 						<SkillSelect skills={skills} value={value} onChange={onChange} />
 					)}
 					{docs && docs.length > 0 && (
-						<select
-							aria-label="Doc"
-							title="Add a saved doc to the brief - the session reads it for context"
-							value=""
-							onChange={(event) =>
-								onChange(
-									joinTask(
-										title,
-										[notes, `Context doc: ${event.target.value}`]
-											.filter(Boolean)
-											.join("\n"),
-									),
-								)
-							}
-							className="max-w-[160px] cursor-pointer rounded-[6px] bg-secondary px-1.5 py-[3px] text-[11px] font-semibold text-muted-foreground outline-none transition-colors hover:text-foreground"
-						>
-							<option value="" disabled>
-								Doc
-							</option>
-							{docs.map((doc) => (
-								<option key={doc.path} value={doc.path}>
-									{doc.title}
+						// No label of its own: it isn't a field with a value, it's a
+						// menu that drops a doc line into the brief and resets.
+						<div className={FIELD}>
+							<select
+								aria-label="Doc"
+								title="Add a saved doc to the brief - the session reads it for context"
+								value=""
+								onChange={(event) =>
+									onChange(
+										joinTask(
+											title,
+											[notes, `Context doc: ${event.target.value}`]
+												.filter(Boolean)
+												.join("\n"),
+										),
+									)
+								}
+								className={cn(
+									FIELD_CONTROL,
+									"max-w-[160px] cursor-pointer pl-2 text-muted-foreground transition-colors [color-scheme:inherit] hover:text-foreground",
+								)}
+							>
+								<option value="" disabled>
+									Doc
 								</option>
-							))}
-						</select>
+								{docs.map((doc) => (
+									<option key={doc.path} value={doc.path}>
+										{doc.title}
+									</option>
+								))}
+							</select>
+						</div>
 					)}
 					{repos && repos.length > 0 && onRepoChange && (
 						<RepoSelect
@@ -247,10 +275,8 @@ export function TaskBox({
 						/>
 					)}
 					{!hidePriority && (
-						<div className="ml-auto flex items-center gap-1.5">
-							<span className="text-[11px] text-muted-foreground">
-								Priority
-							</span>
+						<div className={FIELD}>
+							<span className={FIELD_LABEL}>Priority</span>
 							<select
 								aria-label="Priority"
 								title="Or lead the title with ! (Low) or !!! (High) - no ! is Medium"
@@ -258,7 +284,10 @@ export function TaskBox({
 								onChange={(event) =>
 									onChange(withPriority(value, Number(event.target.value)))
 								}
-								className="cursor-pointer rounded-[6px] bg-secondary px-1.5 py-[3px] text-[11px] font-semibold text-muted-foreground outline-none transition-colors hover:text-foreground"
+								className={cn(
+									FIELD_CONTROL,
+									"cursor-pointer text-foreground [color-scheme:inherit]",
+								)}
 							>
 								{/* Levels only - slot 0 ("None") is legacy storage, not a choice. */}
 								{PRIORITY_LABELS.slice(1).map((label, index) => (
@@ -274,7 +303,7 @@ export function TaskBox({
 							type="button"
 							disabled={!title.trim()}
 							onClick={onSubmit}
-							className={cn(ROW_PRIMARY_BUTTON, hidePriority && "ml-auto")}
+							className={cn(ROW_PRIMARY_BUTTON, "ml-auto")}
 						>
 							{submitLabel}
 						</button>
@@ -283,7 +312,9 @@ export function TaskBox({
 			)}
 			{!folded && onRepoChange && recentRepos && recentRepos.length > 0 && (
 				<div className="flex flex-wrap items-center gap-1.5">
-					<span className="text-[11px] text-muted-foreground">Recent</span>
+					<span className="pr-0.5 text-[11px] text-muted-foreground">
+						Recent
+					</span>
 					{recentRepos.map((path) => (
 						<button
 							key={path}
@@ -292,10 +323,10 @@ export function TaskBox({
 							aria-pressed={repo === path}
 							onClick={() => onRepoChange(repo === path ? "" : path)}
 							className={cn(
-								"max-w-[160px] truncate rounded-[6px] px-1.5 py-[3px] text-[11px] font-semibold transition-colors",
+								CHIP,
 								repo === path
-									? "bg-primary text-primary-foreground"
-									: "bg-secondary text-muted-foreground hover:text-foreground",
+									? BUTTON.selected
+									: "bg-secondary text-muted-foreground ring-1 ring-inset ring-border hover:text-foreground",
 							)}
 						>
 							{repoLabel(path)}
@@ -345,6 +376,9 @@ function SkillSelect({
 	const [selected, setSelected] = useState(0);
 	const [at, setAt] = useState<{ left: number; top: number } | null>(null);
 	const box = useRef<HTMLInputElement>(null);
+	// The menu hangs off the pill's left edge, not the input's: the label sits
+	// before the input, and a menu that starts mid-pill looks unanchored.
+	const pill = useRef<HTMLDivElement>(null);
 	// Escape has to abandon the search, but blurring the box is what dismisses
 	// it - and the blur handler would then commit the half-typed query. A ref,
 	// not state: it is read inside the blur that Escape itself triggers, before
@@ -355,7 +389,7 @@ function SkillSelect({
 	const active = Math.min(selected, Math.max(matches.length - 1, 0));
 
 	const open = () => {
-		const rect = box.current?.getBoundingClientRect();
+		const rect = (pill.current ?? box.current)?.getBoundingClientRect();
 		if (rect) setAt({ left: rect.left, top: rect.bottom + 4 });
 		setQuery(current);
 		setSelected(0);
@@ -374,8 +408,8 @@ function SkillSelect({
 	};
 
 	return (
-		<div className="flex items-center gap-1.5">
-			<span className="text-[11px] text-muted-foreground">Skill</span>
+		<div ref={pill} className={FIELD}>
+			<span className={FIELD_LABEL}>Skill</span>
 			<input
 				ref={box}
 				aria-label="Skill"
@@ -429,14 +463,17 @@ function SkillSelect({
 					}
 				}}
 				className={cn(
-					"w-[130px] rounded-[6px] bg-secondary px-1.5 py-[3px] text-[11px] font-semibold outline-none transition-colors placeholder:font-normal placeholder:text-muted-foreground",
+					FIELD_CONTROL,
+					"w-[120px] transition-colors",
 					// Amber, not red: a name the list doesn't know is usually a skill
 					// installed on another machine, not a typo.
 					current && !known ? "text-attention" : "text-foreground",
 				)}
 			/>
 			{current && !known && query === null && (
-				<span className="text-[11px] text-muted-foreground">not installed</span>
+				<span className="shrink-0 pr-2 text-[10.5px] text-attention/80">
+					not installed
+				</span>
 			)}
 			{at && matches.length > 0 && (
 				<div
@@ -509,8 +546,8 @@ function RepoSelect({
 	if (resolve(query).repo !== value) setQuery(value ? repoLabel(value) : "");
 	const unresolved = query.trim() !== "" && !value;
 	return (
-		<div className="flex items-center gap-1.5">
-			<span className="text-[11px] text-muted-foreground">Repo</span>
+		<div className={FIELD}>
+			<span className={FIELD_LABEL}>Repo</span>
 			<input
 				list="odin-task-repos"
 				aria-label="Repo"
@@ -535,7 +572,8 @@ function RepoSelect({
 				// Same :autofill override as the New Session dialog - a picked option
 				// otherwise paints white-on-black over any bg-*.
 				className={cn(
-					"w-[140px] rounded-[6px] bg-secondary px-1.5 py-[3px] text-[11px] font-semibold outline-none [color-scheme:inherit] placeholder:font-normal placeholder:text-muted-foreground autofill:shadow-[inset_0_0_0_1000px_var(--secondary)] autofill:[-webkit-text-fill-color:var(--foreground)]",
+					FIELD_CONTROL,
+					"w-[130px] [color-scheme:inherit] autofill:shadow-[inset_0_0_0_1000px_var(--secondary)] autofill:[-webkit-text-fill-color:var(--foreground)]",
 					value
 						? "text-foreground"
 						: unresolved
@@ -690,6 +728,9 @@ export function AutomationChip({
 /** Where the dragged-out size lives between opens. */
 const SIZE_KEY = "odin.quick-add-size";
 
+/** A key chip in the dialog's header hint, a size down from Settings' Kbd. */
+const KEY = "h-[18px] min-w-[18px] px-1 text-[10.5px]";
+
 /** A stored "620px,300px" back into the two inline styles, or null for the
     class defaults - an unset, half-written or hand-edited entry is not a size. */
 export function parseSize(stored: string | null): [string, string] | null {
@@ -715,6 +756,7 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 	const [draft, setDraft] = useState("");
 	const [repo, setRepo] = useState("");
 	const dialog = useRef<HTMLDivElement>(null);
+	const sendKeys = useHotkeyDisplay("SUBMIT").keys;
 
 	// The size you last dragged it to. Chromium writes the drag straight into the
 	// element's inline style, so the element is the only source worth reading:
@@ -748,58 +790,111 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 				className="fixed inset-0 z-40 cursor-default bg-black/50 bg-none"
 				onClick={onClose}
 			/>
+			{/* Centred by auto margins, not a translate: a transformed box becomes
+			    the containing block of every `fixed` descendant, which put the
+			    Skill menu (placed in viewport coordinates) off target and under
+			    this box's overflow clip.
+			    min-h: a size dragged small before the footer existed, read back
+			    from localStorage, must not squeeze the brief to nothing. */}
 			<div
 				ref={dialog}
 				role="dialog"
 				aria-modal="true"
 				aria-label="New task"
-				className="fixed left-1/2 top-[12vh] z-50 flex h-[220px] max-h-[80vh] w-[520px] min-w-[320px] max-w-[92vw] -translate-x-1/2 resize flex-col overflow-hidden rounded-[10px] border border-border bg-popover p-3.5 shadow-[0_18px_60px_rgba(0,0,0,0.6)]"
+				className="fixed inset-x-0 top-[12vh] z-50 mx-auto flex h-[320px] max-h-[80vh] min-h-[280px] w-[560px] min-w-[360px] max-w-[92vw] resize flex-col overflow-hidden rounded-[12px] border border-border bg-popover shadow-[inset_0_1px_0_rgb(255_255_255/0.05),0_18px_60px_rgba(0,0,0,0.6)]"
 			>
-				{/* The button sits in the header, not under the fields: the dialog's
-				    height is fixed and the fields row is already full at 520px. */}
-				<div className="mb-2 flex shrink-0 items-center text-xs font-semibold text-foreground">
-					New task
-					<span className="ml-1.5 font-normal text-muted-foreground">
-						⌘⏎ add · esc cancel
+				<div className="flex shrink-0 items-center justify-between gap-3 px-4 pt-3.5 pb-2.5">
+					<span className="text-[13px] font-semibold text-foreground">
+						New task
 					</span>
+					{/* The keys as chips, read from the binding - a rebound Send
+					    shows what it is, not a hard-coded ⌘⏎. */}
+					<span className="flex items-center gap-1.5 text-[11px] text-muted-foreground/80">
+						{sendKeys[0] !== "Unassigned" && (
+							<>
+								<KbdGroup>
+									{sendKeys.map((key) => (
+										<Kbd key={key} className={KEY}>
+											{key}
+										</Kbd>
+									))}
+								</KbdGroup>
+								{startNow ? "start" : "add"}
+								<span className="text-muted-foreground/40">·</span>
+							</>
+						)}
+						<Kbd className={KEY}>esc</Kbd>
+						cancel
+					</span>
+				</div>
+				<div className="flex min-h-0 flex-1 flex-col px-4">
+					<TaskBox
+						value={draft}
+						autoFocus
+						skills={skills}
+						docs={docs}
+						repos={repos}
+						repo={repo}
+						onRepoChange={setRepo}
+						recentRepos={recentRepos.filter((path) => repos.includes(path))}
+						placeholder="What needs doing?"
+						onChange={setDraft}
+						onSubmit={save}
+						onCancel={onClose}
+					/>
+				</div>
+				{/* Its own key handler, not the dialog's: the box above already
+				    sends and cancels for its fields, and a handler on the dialog
+				    would run save and close a second time for the same press. */}
+				{/* biome-ignore lint/a11y/noStaticElementInteractions: keys bubble up from the switch and buttons, nothing here is clickable */}
+				<div
+					className="mt-3 flex shrink-0 items-center gap-2 border-t border-border px-4 py-3"
+					onKeyDown={(event) => {
+						if (event.key === "Escape") onClose();
+						else if (isHotkey("SUBMIT", event.nativeEvent)) {
+							event.preventDefault();
+							save();
+						}
+					}}
+				>
+					<Switch
+						id="odin-quick-add-start-now"
+						checked={startNow}
+						onCheckedChange={setStartNow}
+						aria-label="Start now"
+					/>
 					<label
+						htmlFor="odin-quick-add-start-now"
 						title="Start a session on it right away, not just add it to My Tasks"
 						className={cn(
-							"ml-auto flex cursor-pointer items-center gap-1 rounded-[6px] bg-secondary px-2 py-[3px] text-[11px] font-semibold",
+							"cursor-pointer text-[11.5px] font-semibold transition-colors",
 							startNow ? "text-foreground" : "text-muted-foreground",
 						)}
 					>
-						<input
-							type="checkbox"
-							checked={startNow}
-							onChange={(event) => setStartNow(event.target.checked)}
-							className="accent-primary"
-						/>
 						Start now
 					</label>
+					<span className="min-w-0 truncate text-[11px] text-muted-foreground/70">
+						{startNow
+							? "a session opens on it right away"
+							: "it waits on My Tasks"}
+					</span>
+					<div className="flex-1" />
+					<button
+						type="button"
+						onClick={onClose}
+						className="shrink-0 rounded-[7px] px-2.5 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground"
+					>
+						Cancel
+					</button>
 					<button
 						type="button"
 						onClick={save}
 						disabled={!parseTask(draft).title}
-						className="ml-1.5 rounded-[6px] bg-primary px-2.5 py-[3px] text-[11px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-default disabled:opacity-40"
+						className={cn(ROW_START_BUTTON, "disabled:cursor-default")}
 					>
 						{startNow ? "Start session" : "Add task"}
 					</button>
 				</div>
-				<TaskBox
-					value={draft}
-					autoFocus
-					skills={skills}
-					docs={docs}
-					repos={repos}
-					repo={repo}
-					onRepoChange={setRepo}
-					recentRepos={recentRepos.filter((path) => repos.includes(path))}
-					placeholder="What needs doing?"
-					onChange={setDraft}
-					onSubmit={save}
-					onCancel={onClose}
-				/>
 			</div>
 		</>
 	);
