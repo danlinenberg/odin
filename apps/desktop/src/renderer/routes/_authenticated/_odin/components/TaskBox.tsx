@@ -82,6 +82,7 @@ export function TaskBox({
 	repos,
 	repo,
 	onRepoChange,
+	recentRepos,
 	onChange,
 	onSubmit,
 	onCancel,
@@ -114,6 +115,8 @@ export function TaskBox({
 	repos?: string[];
 	repo?: string;
 	onRepoChange?: (repo: string) => void;
+	/** One-click picks under the fields, newest first - like New Session's Recent row. */
+	recentRepos?: string[];
 	onChange: (text: string) => void;
 	onSubmit: () => void;
 	onCancel?: () => void;
@@ -276,6 +279,28 @@ export function TaskBox({
 							{submitLabel}
 						</button>
 					)}
+				</div>
+			)}
+			{!folded && onRepoChange && recentRepos && recentRepos.length > 0 && (
+				<div className="flex flex-wrap items-center gap-1.5">
+					<span className="text-[11px] text-muted-foreground">Recent</span>
+					{recentRepos.map((path) => (
+						<button
+							key={path}
+							type="button"
+							title={path}
+							aria-pressed={repo === path}
+							onClick={() => onRepoChange(repo === path ? "" : path)}
+							className={cn(
+								"max-w-[160px] truncate rounded-[6px] px-1.5 py-[3px] text-[11px] font-semibold transition-colors",
+								repo === path
+									? "bg-primary text-primary-foreground"
+									: "bg-secondary text-muted-foreground hover:text-foreground",
+							)}
+						>
+							{repoLabel(path)}
+						</button>
+					))}
 				</div>
 			)}
 		</div>
@@ -684,7 +709,9 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 	const setStartNow = useClaudeCommand((state) => state.setStartNow);
 	const { data: skills } = electronTrpc.skills.list.useQuery();
 	const { data: docs } = electronTrpc.system.listDocs.useQuery();
-	const { data: repos } = electronTrpc.repos.list.useQuery();
+	const { data: repos = [] } = electronTrpc.repos.list.useQuery();
+	const recentRepos = useClaudeCommand((state) => state.recentRepos);
+	const addRecentRepo = useClaudeCommand((state) => state.addRecentRepo);
 	const [draft, setDraft] = useState("");
 	const [repo, setRepo] = useState("");
 	const dialog = useRef<HTMLDivElement>(null);
@@ -705,6 +732,7 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 		// Same rule the store uses - no title, no task, so don't claim one.
 		if (!parseTask(draft).title) return onClose();
 		add(draft, undefined, repo);
+		if (repo) addRecentRepo(repo);
 		onClose();
 		if (!startNow) return void toast.success("Added to My Tasks");
 		// The store puts a new task first, so that's the one just added.
@@ -725,7 +753,7 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 				role="dialog"
 				aria-modal="true"
 				aria-label="New task"
-				className="fixed left-1/2 top-[12vh] z-50 flex h-[190px] max-h-[80vh] w-[520px] min-w-[320px] max-w-[92vw] -translate-x-1/2 resize flex-col overflow-hidden rounded-[10px] border border-border bg-popover p-3.5 shadow-[0_18px_60px_rgba(0,0,0,0.6)]"
+				className="fixed left-1/2 top-[12vh] z-50 flex h-[220px] max-h-[80vh] w-[520px] min-w-[320px] max-w-[92vw] -translate-x-1/2 resize flex-col overflow-hidden rounded-[10px] border border-border bg-popover p-3.5 shadow-[0_18px_60px_rgba(0,0,0,0.6)]"
 			>
 				{/* The button sits in the header, not under the fields: the dialog's
 				    height is fixed and the fields row is already full at 520px. */}
@@ -766,6 +794,7 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 					repos={repos}
 					repo={repo}
 					onRepoChange={setRepo}
+					recentRepos={recentRepos.filter((path) => repos.includes(path))}
 					placeholder="What needs doing?"
 					onChange={setDraft}
 					onSubmit={save}

@@ -69,6 +69,23 @@ describe("TaskBox", () => {
 		expect(html).toContain('title="/dev/odin"');
 	});
 
+	it("shows recent repos as one-click picks, the picked one pressed", () => {
+		const html = renderToStaticMarkup(
+			<TaskBox
+				value="Ship the fix"
+				repos={["/dev/odin", "/dev/imagen"]}
+				repo="/dev/odin"
+				onRepoChange={() => {}}
+				recentRepos={["/dev/odin", "/dev/imagen"]}
+				onChange={() => {}}
+				onSubmit={() => {}}
+			/>,
+		);
+		expect(html).toContain("Recent");
+		expect(html).toMatch(/aria-pressed="true"[^>]*>dev\/odin<\/button>/);
+		expect(html).toMatch(/aria-pressed="false"[^>]*>dev\/imagen<\/button>/);
+	});
+
 	it("offers saved docs by title, keyed by their path", () => {
 		const html = renderToStaticMarkup(
 			<TaskBox
