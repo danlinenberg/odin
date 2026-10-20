@@ -3,8 +3,8 @@ import { cn } from "@odin/ui/utils";
 import type { AgentSkill } from "lib/trpc/routers/skills";
 import type { OdinDoc } from "lib/trpc/routers/system";
 import { useEffect, useRef, useState } from "react";
-import { HiOutlineClock, HiOutlineSparkles } from "react-icons/hi2";
-import { isHotkey } from "renderer/hotkeys";
+import { HiOutlineClock, HiOutlineSparkles, HiXMark } from "react-icons/hi2";
+import { isHotkey, useHotkeyDisplay } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useClaudeCommand } from "renderer/stores/claude-command";
 import { describeCron, nextRun } from "shared/cron";
@@ -20,7 +20,7 @@ import {
 import { useStartTask } from "../hooks/useStartTask";
 import { ROW_PRIMARY_BUTTON } from "./FeedChrome";
 import { readFile } from "./OdinPromptDialog";
-import { PILL } from "./pill";
+import { BUTTON, PILL } from "./pill";
 import { matchRepos, repoLabel } from "./repo-picker";
 import { matchSkills } from "./skill-picker";
 
@@ -32,6 +32,11 @@ const splitTask = (text: string): [string, string] => {
 };
 const joinTask = (title: string, notes: string) =>
 	notes ? `${title}\n\n${notes}` : title;
+
+/** Skill, Doc, Repo and Priority: one height and one outline, so the row
+    reads as a set of fields rather than four differently-sized blobs. */
+const FIELD =
+	"h-6 rounded-[6px] bg-secondary px-2 text-[11px] font-semibold outline-none ring-1 ring-inset ring-border transition-[color,box-shadow] focus:ring-primary/60";
 
 /** What the box takes on a drop or paste: photos, videos and markdown docs. */
 const isAttachable = (file: File) =>
@@ -153,7 +158,7 @@ export function TaskBox({
 		// below it, and moving into one of them must not fold the box away.
 		// biome-ignore lint/a11y/noStaticElementInteractions: focus and keys bubble up from the fields, nothing here is clickable
 		<div
-			className="flex h-full min-h-0 flex-col gap-1.5"
+			className="flex h-full min-h-0 flex-col gap-2"
 			onFocus={() => setFocused(true)}
 			onKeyDown={keys}
 			onBlur={(event) => {
@@ -172,7 +177,7 @@ export function TaskBox({
 				onDrop={(event) => attach(event.dataTransfer.files, event)}
 				onPaste={(event) => attach(event.clipboardData.files, event)}
 				className={cn(
-					"flex min-h-0 min-w-0 grow flex-col overflow-hidden rounded-[10px] border bg-card focus-within:border-primary",
+					"flex min-h-0 min-w-0 grow flex-col overflow-hidden rounded-[10px] border bg-card transition-[border-color,box-shadow] focus-within:border-primary/70 focus-within:shadow-[0_0_0_3px_color-mix(in_oklab,var(--primary)_18%,transparent)]",
 					folded ? "border-dashed border-border" : "border-border",
 				)}
 			>
@@ -205,7 +210,7 @@ export function TaskBox({
 			    the text, which is what the store reads either way. Typing "!" and
 			    picking Low are the same edit, so neither can go stale. Medium is
 			    the no-"!"s case, so the box you just typed into already reads as it. */}
-			{/* One row at the quick-add's 520px: Skill and Repo on the left,
+			{/* One row at the quick-add's 600px: Skill and Repo on the left,
 			    Priority pushed right. Nothing in it grows as you type. */}
 			{!folded && (
 				<div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
@@ -227,7 +232,12 @@ export function TaskBox({
 									),
 								)
 							}
-							className="max-w-[160px] cursor-pointer rounded-[6px] bg-secondary px-1.5 py-[3px] text-[11px] font-semibold text-muted-foreground outline-none transition-colors hover:text-foreground"
+							// Fixed width: it always shows "Doc", so sizing it to the longest
+							// title only pushed Repo onto the next line.
+							className={cn(
+								FIELD,
+								"w-[72px] cursor-pointer text-muted-foreground hover:text-foreground",
+							)}
 						>
 							<option value="" disabled>
 								Doc
@@ -258,7 +268,10 @@ export function TaskBox({
 								onChange={(event) =>
 									onChange(withPriority(value, Number(event.target.value)))
 								}
-								className="cursor-pointer rounded-[6px] bg-secondary px-1.5 py-[3px] text-[11px] font-semibold text-muted-foreground outline-none transition-colors hover:text-foreground"
+								className={cn(
+									FIELD,
+									"cursor-pointer text-muted-foreground hover:text-foreground",
+								)}
 							>
 								{/* Levels only - slot 0 ("None") is legacy storage, not a choice. */}
 								{PRIORITY_LABELS.slice(1).map((label, index) => (
@@ -292,10 +305,8 @@ export function TaskBox({
 							aria-pressed={repo === path}
 							onClick={() => onRepoChange(repo === path ? "" : path)}
 							className={cn(
-								"max-w-[160px] truncate rounded-[6px] px-1.5 py-[3px] text-[11px] font-semibold transition-colors",
-								repo === path
-									? "bg-primary text-primary-foreground"
-									: "bg-secondary text-muted-foreground hover:text-foreground",
+								"h-6 max-w-[160px] truncate rounded-[6px] px-2 text-[11px] font-semibold transition-colors",
+								repo === path ? BUTTON.selected : BUTTON.secondary,
 							)}
 						>
 							{repoLabel(path)}
@@ -429,7 +440,8 @@ function SkillSelect({
 					}
 				}}
 				className={cn(
-					"w-[130px] rounded-[6px] bg-secondary px-1.5 py-[3px] text-[11px] font-semibold outline-none transition-colors placeholder:font-normal placeholder:text-muted-foreground",
+					FIELD,
+					"w-[130px] placeholder:font-normal placeholder:text-muted-foreground",
 					// Amber, not red: a name the list doesn't know is usually a skill
 					// installed on another machine, not a typo.
 					current && !known ? "text-attention" : "text-foreground",
@@ -535,7 +547,8 @@ function RepoSelect({
 				// Same :autofill override as the New Session dialog - a picked option
 				// otherwise paints white-on-black over any bg-*.
 				className={cn(
-					"w-[140px] rounded-[6px] bg-secondary px-1.5 py-[3px] text-[11px] font-semibold outline-none [color-scheme:inherit] placeholder:font-normal placeholder:text-muted-foreground autofill:shadow-[inset_0_0_0_1000px_var(--secondary)] autofill:[-webkit-text-fill-color:var(--foreground)]",
+					FIELD,
+					"w-[140px] [color-scheme:inherit] placeholder:font-normal placeholder:text-muted-foreground autofill:shadow-[inset_0_0_0_1000px_var(--secondary)] autofill:[-webkit-text-fill-color:var(--foreground)]",
 					value
 						? "text-foreground"
 						: unresolved
@@ -715,6 +728,7 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 	const [draft, setDraft] = useState("");
 	const [repo, setRepo] = useState("");
 	const dialog = useRef<HTMLDivElement>(null);
+	const { keys: submitKeys } = useHotkeyDisplay("SUBMIT");
 
 	// The size you last dragged it to. Chromium writes the drag straight into the
 	// element's inline style, so the element is the only source worth reading:
@@ -753,53 +767,78 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 				role="dialog"
 				aria-modal="true"
 				aria-label="New task"
-				className="fixed left-1/2 top-[12vh] z-50 flex h-[220px] max-h-[80vh] w-[520px] min-w-[320px] max-w-[92vw] -translate-x-1/2 resize flex-col overflow-hidden rounded-[10px] border border-border bg-popover p-3.5 shadow-[0_18px_60px_rgba(0,0,0,0.6)]"
+				className="fixed left-1/2 top-[12vh] z-50 flex h-[300px] max-h-[80vh] w-[600px] min-w-[320px] max-w-[92vw] -translate-x-1/2 resize flex-col overflow-hidden rounded-[14px] border border-border bg-popover shadow-[0_24px_80px_rgba(0,0,0,0.6),inset_0_1px_0_rgb(255_255_255/0.04)]"
 			>
-				{/* The button sits in the header, not under the fields: the dialog's
-				    height is fixed and the fields row is already full at 520px. */}
-				<div className="mb-2 flex shrink-0 items-center text-xs font-semibold text-foreground">
-					New task
-					<span className="ml-1.5 font-normal text-muted-foreground">
-						⌘⏎ add · esc cancel
+				<div className="flex shrink-0 items-center px-4 pt-3 pb-2.5">
+					<span className="text-[13px] font-semibold text-foreground">
+						New task
 					</span>
+					<button
+						type="button"
+						aria-label="Close"
+						onClick={onClose}
+						className="-mr-1 ml-auto rounded-[6px] p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+					>
+						<HiXMark className="size-4" />
+					</button>
+				</div>
+				<div className="flex min-h-0 grow flex-col px-4">
+					<TaskBox
+						value={draft}
+						autoFocus
+						skills={skills}
+						docs={docs}
+						repos={repos}
+						repo={repo}
+						onRepoChange={setRepo}
+						recentRepos={recentRepos.filter((path) => repos.includes(path))}
+						placeholder="What needs doing?"
+						onChange={setDraft}
+						onSubmit={save}
+						onCancel={onClose}
+					/>
+				</div>
+				{/* The footer is what a resize can't squeeze: TaskBox's brief takes
+				    the slack, so the button never slides out of view. */}
+				<div className="mt-3 flex shrink-0 items-center gap-3 border-t border-border bg-card/50 px-4 py-2.5">
 					<label
 						title="Start a session on it right away, not just add it to My Tasks"
-						className={cn(
-							"ml-auto flex cursor-pointer items-center gap-1 rounded-[6px] bg-secondary px-2 py-[3px] text-[11px] font-semibold",
-							startNow ? "text-foreground" : "text-muted-foreground",
-						)}
+						className="flex cursor-pointer select-none items-center gap-2 text-[11px] font-semibold text-soft-foreground"
 					>
 						<input
 							type="checkbox"
 							checked={startNow}
 							onChange={(event) => setStartNow(event.target.checked)}
-							className="accent-primary"
+							className="peer sr-only"
+						/>
+						{/* A switch, not a checkbox: it's a mode the dialog remembers,
+						    and the button below says what it does. */}
+						<span
+							aria-hidden
+							className="relative h-4 w-7 rounded-full bg-secondary ring-1 ring-inset ring-border transition-colors after:absolute after:top-0.5 after:left-0.5 after:size-3 after:rounded-full after:bg-soft-foreground after:transition-transform peer-checked:bg-primary peer-checked:ring-primary peer-checked:after:translate-x-3 peer-checked:after:bg-white peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary"
 						/>
 						Start now
 					</label>
+					<span className="ml-auto text-[11px] text-faint-foreground">
+						esc to cancel
+					</span>
 					<button
 						type="button"
 						onClick={save}
 						disabled={!parseTask(draft).title}
-						className="ml-1.5 rounded-[6px] bg-primary px-2.5 py-[3px] text-[11px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-default disabled:opacity-40"
+						className={cn(
+							"flex h-7 items-center gap-2 rounded-[7px] px-3 text-xs font-semibold disabled:cursor-default disabled:opacity-40 disabled:shadow-none",
+							BUTTON.primary,
+						)}
 					>
 						{startNow ? "Start session" : "Add task"}
+						{submitKeys[0] !== "Unassigned" && (
+							<span className="font-medium opacity-70">
+								{submitKeys.join("")}
+							</span>
+						)}
 					</button>
 				</div>
-				<TaskBox
-					value={draft}
-					autoFocus
-					skills={skills}
-					docs={docs}
-					repos={repos}
-					repo={repo}
-					onRepoChange={setRepo}
-					recentRepos={recentRepos.filter((path) => repos.includes(path))}
-					placeholder="What needs doing?"
-					onChange={setDraft}
-					onSubmit={save}
-					onCancel={onClose}
-				/>
 			</div>
 		</>
 	);
