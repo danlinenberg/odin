@@ -21,6 +21,7 @@
 	},
 	"scripts": {
 		"clean": "git clean -xdf .cache .turbo dist node_modules",
+		"test": "bun test",
 		"typecheck": "tsc --noEmit --emitDeclarationOnly false",
 		"ui-add": "bunx shadcn@latest add",
 		"storybook": "storybook dev -p 6006",

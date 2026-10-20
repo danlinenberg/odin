@@ -1,8 +1,15 @@
+import { Slider } from "@odin/ui/slider";
 import { Switch } from "@odin/ui/switch";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useSessionView } from "renderer/stores/session-view";
-import { TEXT_SIZES } from "shared/text-size";
+import {
+	DEFAULT_TEXT_SIZE,
+	TEXT_SIZE_MAX,
+	TEXT_SIZE_MIN,
+	TEXT_SIZE_STEP,
+	textSizePercent,
+} from "shared/text-size";
 import { SettingRow, SettingsSection } from "../../../components/SettingsPage";
 import {
 	isItemVisible,
@@ -85,34 +92,33 @@ function SessionDisplaySection() {
 function TextSizeSection() {
 	const utils = electronTrpc.useUtils();
 	const { data: textSize } = electronTrpc.window.getTextSize.useQuery();
+	// Where the thumb is while it is being dragged. The zoom only applies once
+	// it is let go: zooming mid-drag would move the slider under the cursor.
+	const [dragged, setDragged] = useState<number | null>(null);
 	const setTextSize = electronTrpc.window.setTextSize.useMutation({
 		onSuccess: (size) => utils.window.getTextSize.setData(undefined, size),
+		onSettled: () => setDragged(null),
 	});
+	const percent = textSizePercent(dragged ?? textSize ?? DEFAULT_TEXT_SIZE);
 	return (
 		<SettingsSection title="Text">
 			<SettingRow
 				label="Text size"
 				description="How big Odin draws its own text and controls. Pages in the in-app browser (GitHub, Jira, Notion) keep their size. ⌘+ and ⌘- still zoom everything."
 			>
-				<div className="flex overflow-hidden rounded-md border border-border">
-					{TEXT_SIZES.map((size) => (
-						<button
-							key={size}
-							type="button"
-							aria-pressed={textSize === size}
-							title={`Text size ${Math.round(size * 100)}%`}
-							disabled={setTextSize.isPending}
-							onClick={() => setTextSize.mutate({ size })}
-							className={`px-2.5 py-1 text-xs tabular-nums ${
-								textSize === size
-									? "bg-primary text-primary-foreground"
-									: "text-muted-foreground hover:bg-card"
-							}`}
-						>
-							{Math.round(size * 100)}%
-						</button>
-					))}
-				</div>
+				<Slider
+					aria-label="Text size"
+					className="w-40"
+					min={textSizePercent(TEXT_SIZE_MIN)}
+					max={textSizePercent(TEXT_SIZE_MAX)}
+					step={textSizePercent(TEXT_SIZE_STEP)}
+					value={[percent]}
+					onValueChange={([value]) => setDragged(value / 100)}
+					onValueCommit={([value]) => setTextSize.mutate({ size: value / 100 })}
+				/>
+				<span className="w-10 text-right text-xs tabular-nums text-muted-foreground">
+					{percent}%
+				</span>
 			</SettingRow>
 		</SettingsSection>
 	);

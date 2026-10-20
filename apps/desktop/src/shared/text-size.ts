@@ -5,16 +5,37 @@
  * the rest stay at the zoom ⌘+/⌘- gave them.
  *
  * The window's zoom = ⌘+/⌘- zoom × text size.
+ *
+ * The setting is a slider from TEXT_SIZE_MIN to TEXT_SIZE_MAX in steps of
+ * TEXT_SIZE_STEP (90% to 150%, 5% apart).
  */
-export const TEXT_SIZES = [0.9, 1, 1.1, 1.25, 1.5] as const;
+export const TEXT_SIZE_MIN = 0.9;
+export const TEXT_SIZE_MAX = 1.5;
+export const TEXT_SIZE_STEP = 0.05;
 
 export const DEFAULT_TEXT_SIZE = 1;
 
-/** A stored value that is not one of the choices reads as the default. */
+/** A text size in whole percent: 1.05 is 105. The slider works in these, and
+ * so does the snapping, so a step reads back as 1.05 and not 1.0500000000000003. */
+export function textSizePercent(size: number): number {
+	return Math.round(size * 100);
+}
+
+/** A stored value snapped to the slider's steps; one off the slider reads as
+ * the default. */
 export function textSizeOf(stored: unknown): number {
-	return TEXT_SIZES.includes(stored as (typeof TEXT_SIZES)[number])
-		? (stored as number)
-		: DEFAULT_TEXT_SIZE;
+	if (typeof stored !== "number" || !Number.isFinite(stored)) {
+		return DEFAULT_TEXT_SIZE;
+	}
+	const step = textSizePercent(TEXT_SIZE_STEP);
+	const percent = Math.round(textSizePercent(stored) / step) * step;
+	if (
+		percent < textSizePercent(TEXT_SIZE_MIN) ||
+		percent > textSizePercent(TEXT_SIZE_MAX)
+	) {
+		return DEFAULT_TEXT_SIZE;
+	}
+	return percent / 100;
 }
 
 /** The window's zoom once the text size goes from `from` to `to`. Electron
