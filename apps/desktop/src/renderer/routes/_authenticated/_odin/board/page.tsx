@@ -195,7 +195,7 @@ import {
 } from "./catch-up";
 import { DiffView } from "./DiffView";
 import { hostStartDelay } from "./host-start-gap";
-import { dueForCompact, restoreAfterCompact } from "./idle-compact";
+import { onIdleArrival, restoreAfterCompact } from "./idle-compact";
 import { menuTop } from "./menu-fit";
 import { BOARD_COLUMN_MIN_W, NextInLine, TonightCount } from "./NextInLine";
 import { NightAgentLive } from "./NightAgentLive";
@@ -3225,14 +3225,15 @@ function DevBoardPage() {
 		};
 	}, [drawerPaneId, alivePaneIds]);
 
-	// Compact a conversation that has sat at a free prompt past Settings →
-	// Sessions' compact delay, while Claude's cache of it is still warm: the
-	// next reply, whenever it comes, starts from the summary instead of
-	// re-reading the whole conversation cold. The rule is dueForCompact; the
-	// screen is read first, twice, for Claude at its prompt with nothing typed,
-	// or the command would land under a half-written message. The PreCompact
-	// hook moves the card to Working ("Compacting" in the chat view) and the
-	// card comes back where it was once the prompt is drawn again.
+	// Compact a conversation the moment its card moves into Idle, while
+	// Claude's cache of it is still warm: the next reply, whenever it comes,
+	// starts from the summary instead of re-reading the whole conversation
+	// cold. The trigger is the arrival effect under cardsByStatus (its rule is
+	// onIdleArrival); this is the compaction itself. The screen is read first,
+	// twice, for Claude at its prompt with nothing typed, or the command would
+	// land under a half-written message. The PreCompact hook moves the card to
+	// Working ("Compacting" in the chat view) and the card comes back where it
+	// was once the prompt is drawn again.
 	const compactingRef = useRef(new Set<string>());
 	const compactIdleSession = async (paneId: string) => {
 		const readScreen = () =>
@@ -3306,39 +3307,6 @@ function DevBoardPage() {
 			return;
 		}
 	};
-	const sweepCompactRef = useRef<() => void>(() => {});
-	sweepCompactRef.current = () => {
-		const afterMs = useIdleCompact.getState().minutes * 60_000;
-		if (afterMs <= 0) return;
-		const now = Date.now();
-		for (const pane of Object.values(panes)) {
-			if (!pane.odinTaskTitle && !titleByPane[pane.id]) continue;
-			if (compactingRef.current.has(pane.id)) continue;
-			if (!firstSeenRef.current.has(pane.id))
-				firstSeenRef.current.set(pane.id, now);
-			const due = dueForCompact(pane, {
-				now,
-				afterMs,
-				isAgent: agentPaneIds.has(pane.id),
-				alive: alivePaneIds.has(pane.id),
-				looping: loopingPaneIds.has(pane.id),
-				open: pane.id === drawerPaneId,
-				firstSeen: firstSeenRef.current.get(pane.id) ?? now,
-			});
-			if (!due) continue;
-			compactingRef.current.add(pane.id);
-			compactIdleSession(pane.id)
-				.catch((error) =>
-					console.warn(`[board] compacting ${pane.id} failed:`, error),
-				)
-				.finally(() => compactingRef.current.delete(pane.id));
-		}
-	};
-	useEffect(() => {
-		const id = setInterval(() => sweepCompactRef.current(), 60_000);
-		return () => clearInterval(id);
-	}, []);
-
 	// Screen-reading keeps the columns honest. Agent hooks are the fast path,
 	// but they go missing - Stop doesn't fire on Ctrl+C, a notification can miss
 	// a pane that wasn't in the store yet, and statuses reset to idle on reload
@@ -3943,6 +3911,53 @@ function DevBoardPage() {
 		activeProfileId,
 		isProfileLoading,
 		customTags,
+	]);
+	// A card is armed for compaction by being seen in any column but Idle, and
+	// fires once it turns up in Idle - so a session already parked when the
+	// board loads is left alone, and one that comes back to Idle after its own
+	// compaction is let go by onIdleArrival (its compaction mark is set). An
+	// arrival held for an open drawer stays armed and fires when the drawer
+	// closes, which is why drawerPaneId is a dependency.
+	const armedForCompactRef = useRef(new Set<string>());
+	const compactOnIdle = useIdleCompact((s) => s.enabled);
+	const compactIdleSessionRef = useRef(compactIdleSession);
+	compactIdleSessionRef.current = compactIdleSession;
+	useEffect(() => {
+		const armed = armedForCompactRef.current;
+		for (const [column, cards] of cardsByStatus) {
+			for (const card of cards) {
+				const paneId = card.pane.id;
+				if (column !== "idle") {
+					armed.add(paneId);
+					continue;
+				}
+				if (!armed.has(paneId) || compactingRef.current.has(paneId)) continue;
+				const arrival = onIdleArrival(card.pane, {
+					enabled: compactOnIdle,
+					isAgent: agentPaneIds.has(paneId),
+					alive: alivePaneIds.has(paneId),
+					looping: loopingPaneIds.has(paneId),
+					open: paneId === drawerPaneId,
+				});
+				if (arrival === "hold") continue;
+				armed.delete(paneId);
+				if (arrival !== "compact") continue;
+				compactingRef.current.add(paneId);
+				compactIdleSessionRef
+					.current(paneId)
+					.catch((error) =>
+						console.warn(`[board] compacting ${paneId} failed:`, error),
+					)
+					.finally(() => compactingRef.current.delete(paneId));
+			}
+		}
+	}, [
+		cardsByStatus,
+		compactOnIdle,
+		drawerPaneId,
+		agentPaneIds,
+		alivePaneIds,
+		loopingPaneIds,
 	]);
 	// The drawer's session list: what's in flight. Idle is out - those are put
 	// down, not in progress. Starred first, then the picked sort; a turn ending

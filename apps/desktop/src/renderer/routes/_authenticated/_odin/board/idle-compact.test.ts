@@ -1,108 +1,81 @@
 import { describe, expect, test } from "bun:test";
 import {
-	type CompactSweepInput,
-	dueForCompact,
+	type IdleArrivalInput,
+	onIdleArrival,
 	restoreAfterCompact,
 } from "./idle-compact";
 
 const HOUR = 60 * 60_000;
 const NOW = 10 * HOUR;
-const input = (overrides: Partial<CompactSweepInput> = {}) => ({
-	now: NOW,
-	afterMs: 45 * 60_000,
+const input = (overrides: Partial<IdleArrivalInput> = {}) => ({
+	enabled: true,
 	isAgent: true,
 	alive: true,
 	looping: false,
 	open: false,
-	firstSeen: NOW - 2 * HOUR,
 	...overrides,
 });
 
-describe("dueForCompact", () => {
-	test("a Done session that sat past the delay is due", () => {
+describe("onIdleArrival", () => {
+	test("a session parked in Idle is compacted on arrival", () => {
 		expect(
-			dueForCompact({ status: "review", odinStatusAt: NOW - HOUR }, input()),
-		).toBe(true);
-	});
-
-	test("a parked session is due too", () => {
-		expect(
-			dueForCompact(
-				{ status: "idle", odinParked: true, odinStatusAt: NOW - HOUR },
+			onIdleArrival(
+				{ status: "idle", odinParked: true, odinStatusAt: NOW },
 				input(),
 			),
-		).toBe(true);
+		).toBe("compact");
 	});
 
-	test("not before the delay", () => {
+	test("a Done session put under Waiting on others is compacted too", () => {
 		expect(
-			dueForCompact(
-				{ status: "review", odinStatusAt: NOW - 10 * 60_000 },
-				input(),
+			onIdleArrival({ status: "review", odinStatusAt: NOW }, input()),
+		).toBe("compact");
+	});
+
+	test("off in Settings lets the arrival go", () => {
+		expect(
+			onIdleArrival(
+				{ status: "idle", odinParked: true },
+				input({ enabled: false }),
 			),
-		).toBe(false);
+		).toBe("skip");
 	});
 
-	test("0 minutes turns it off", () => {
+	test("an open drawer holds the arrival for when it closes", () => {
 		expect(
-			dueForCompact(
-				{ status: "review", odinStatusAt: NOW - HOUR },
-				input({ afterMs: 0 }),
+			onIdleArrival(
+				{ status: "idle", odinParked: true },
+				input({ open: true }),
 			),
-		).toBe(false);
-	});
-
-	test("a prompt someone is standing in is not free", () => {
-		for (const status of ["permission", "failed", "working"] as const) {
-			expect(dueForCompact({ status, odinStatusAt: NOW - HOUR }, input())).toBe(
-				false,
-			);
-		}
-	});
-
-	test("alive-but-idle without a park may be mid-turn after a reload", () => {
-		expect(
-			dueForCompact({ status: "idle", odinStatusAt: NOW - HOUR }, input()),
-		).toBe(false);
+		).toBe("hold");
 	});
 
 	test("once per turn - compacted already and nothing ran since", () => {
-		expect(
-			dueForCompact(
-				{
-					status: "review",
-					odinStatusAt: NOW - HOUR,
-					odinCompactedAt: NOW - 50 * 60_000,
-				},
-				input(),
-			),
-		).toBe(false);
+		const pane = {
+			status: "idle" as const,
+			odinParked: true,
+			odinCompactedAt: NOW - 60_000,
+		};
+		expect(onIdleArrival(pane, input())).toBe("skip");
+		// Not held either: the drawer closing would change nothing.
+		expect(onIdleArrival(pane, input({ open: true }))).toBe("skip");
 	});
 
-	test("the drawer being open, a loop, a queue, a dead or foreign pane all wait", () => {
-		const pane = { status: "review" as const, odinStatusAt: NOW - HOUR };
-		expect(dueForCompact(pane, input({ open: true }))).toBe(false);
-		expect(dueForCompact(pane, input({ looping: true }))).toBe(false);
-		expect(dueForCompact(pane, input({ alive: false }))).toBe(false);
-		expect(dueForCompact(pane, input({ isAgent: false }))).toBe(false);
+	test("a loop, a queue, a dead or foreign pane all let it go", () => {
+		const pane = { status: "idle" as const, odinParked: true };
+		expect(onIdleArrival(pane, input({ looping: true }))).toBe("skip");
+		expect(onIdleArrival(pane, input({ alive: false }))).toBe("skip");
+		expect(onIdleArrival(pane, input({ isAgent: false }))).toBe("skip");
 		expect(
-			dueForCompact(
+			onIdleArrival(
 				{ ...pane, odinQueued: { command: "claude", reason: "busy" } },
 				input(),
 			),
-		).toBe(false);
-	});
-
-	test("no status stamp: the clock runs from when the board first saw it", () => {
-		expect(
-			dueForCompact({ status: "review" }, input({ firstSeen: NOW - HOUR })),
-		).toBe(true);
-		expect(
-			dueForCompact(
-				{ status: "review" },
-				input({ firstSeen: NOW - 10 * 60_000 }),
-			),
-		).toBe(false);
+		).toBe("skip");
+		// A dead session with its drawer open is still dead - nothing to wait for.
+		expect(onIdleArrival(pane, input({ alive: false, open: true }))).toBe(
+			"skip",
+		);
 	});
 });
 

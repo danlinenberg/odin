@@ -1,6 +1,6 @@
 import type { PaneStatus } from "shared/tabs-types";
 
-/** The slice of a board session the compaction sweep reads. */
+/** The slice of a board session the compaction trigger reads. */
 export type CompactablePane = {
 	status?: PaneStatus;
 	odinParked?: boolean;
@@ -9,10 +9,9 @@ export type CompactablePane = {
 	odinCompactedAt?: number;
 };
 
-export type CompactSweepInput = {
-	now: number;
-	/** Settings → Sessions, in ms. 0 or less turns the sweep off. */
-	afterMs: number;
+export type IdleArrivalInput = {
+	/** Settings → Sessions, "Compact conversations moved to Idle". */
+	enabled: boolean;
 	/** One of the board's own Claude sessions. */
 	isAgent: boolean;
 	alive: boolean;
@@ -20,39 +19,43 @@ export type CompactSweepInput = {
 	looping: boolean;
 	/** Its drawer is open: you may be reading it or typing into it. */
 	open: boolean;
-	/** When the board first saw the pane, for one with no status stamp. */
-	firstSeen: number;
 };
 
 /**
- * Whether a session has sat at a free prompt long enough for the board to
- * type /compact into it (Settings → Sessions, "Compact idle conversations
- * after"). The point is the prompt cache: Claude's cache of a conversation
- * goes cold after an hour, and the next reply then re-reads the whole thing
- * at full price. Compacted while the cache is warm, the summary is cheap to
- * write, and whatever comes next starts from the summary.
- *
- * Only a prompt nobody is standing in takes a command: Done (the Stop hook
- * saw the turn end with nothing asked) or parked by hand. Needs you has a
- * dialog or a question on screen, and an alive session whose status nobody
- * set may be mid-turn after a reload. One compaction per turn: a summary of
- * a summary loses detail for nothing, so a session compacted since its last
- * Start (`odinCompactedAt`) waits for a real turn.
+ * What the board does with a card that just moved into Idle: "compact" types
+ * /compact into it now, "hold" keeps the arrival for a later pass, "skip" lets
+ * it go.
  */
-export function dueForCompact(
+export type IdleArrival = "compact" | "hold" | "skip";
+
+/**
+ * A live card moves into Idle when you drag it there to park it, or when Ping
+ * me puts it under "Waiting on others". Either way you have put it down, and
+ * that is the moment to compact: Claude's cache of a conversation goes cold
+ * after an hour of silence, and the next reply then re-reads the whole thing
+ * at full price. Compacted while the cache is warm, the summary is cheap to
+ * write, and whatever comes next starts from the summary. A Done or Needs you
+ * card is never touched - you may be about to answer it, and a summary would
+ * lose the detail that answer needs.
+ *
+ * "hold" is for an open drawer only: you may be reading it or typing into it,
+ * and the command would land under a half-written message, so the arrival
+ * waits for the drawer to close. Everything else lets the arrival go: a dead
+ * session has no prompt to type into, a looping one wakes itself up, a queued
+ * one has no process yet, and one compacted since its last Start
+ * (`odinCompactedAt`) waits for a real turn - a summary of a summary loses
+ * detail for nothing. A card that only comes back to Idle after its own
+ * compaction is that last case.
+ */
+export function onIdleArrival(
 	pane: CompactablePane,
-	input: CompactSweepInput,
-): boolean {
-	if (input.afterMs <= 0) return false;
-	if (!input.isAgent || !input.alive || input.looping || input.open)
-		return false;
-	if (pane.odinQueued) return false;
-	const free =
-		pane.status === "review" || (pane.status === "idle" && !!pane.odinParked);
-	if (!free) return false;
-	if (pane.odinCompactedAt !== undefined) return false;
-	const since = pane.odinStatusAt ?? input.firstSeen;
-	return input.now - since > input.afterMs;
+	input: IdleArrivalInput,
+): IdleArrival {
+	if (!input.enabled) return "skip";
+	if (!input.isAgent || !input.alive || input.looping) return "skip";
+	if (pane.odinQueued) return "skip";
+	if (pane.odinCompactedAt !== undefined) return "skip";
+	return input.open ? "hold" : "compact";
 }
 
 /** Where the card was when the board typed /compact. */

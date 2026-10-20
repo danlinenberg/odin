@@ -382,27 +382,23 @@ function IdleCloseRow() {
 }
 
 /**
- * When the board types /compact into a session that's sat at a free prompt,
- * so the conversation is summarized while Claude's cache of it is still warm.
- * Next minute's sweep.
+ * Whether the board types /compact into a session the moment its card moves
+ * into Idle, so the conversation is summarized while Claude's cache of it is
+ * still warm.
  */
 function IdleCompactRow() {
-	const minutes = useIdleCompact((s) => s.minutes);
-	const setMinutes = useIdleCompact((s) => s.setMinutes);
+	const enabled = useIdleCompact((s) => s.enabled);
+	const setEnabled = useIdleCompact((s) => s.setEnabled);
 	return (
 		<SettingRow
-			label="Compact idle conversations after"
-			htmlFor="idle-compact-minutes"
-			description="A session out of Working this long, sitting at an empty prompt, gets /compact: its next reply starts from the summary instead of re-reading the whole conversation. Claude's cache of a conversation goes cold after an hour, so 45 minutes catches it while reading it back is still cheap. Not while its drawer is open, and once per turn. 0 never compacts."
+			label="Compact conversations moved to Idle"
+			htmlFor="idle-compact"
+			description="A session that moves to Idle - parked there, or waiting on others after Ping me - gets /compact right away: its next reply starts from the summary instead of re-reading the whole conversation. Claude's cache of a conversation goes cold after an hour, and the move is when you stop answering it, so the summary is written while reading it back is still cheap. Once per turn. A session whose drawer is open waits until you close it; Done and Needs you cards are left alone."
 		>
-			<NumberSetting
-				id="idle-compact-minutes"
-				value={minutes}
-				min={0}
-				max={1440}
-				step={5}
-				unit="minutes"
-				onChange={setMinutes}
+			<Switch
+				id="idle-compact"
+				checked={enabled}
+				onCheckedChange={(checked) => setEnabled(checked)}
 			/>
 		</SettingRow>
 	);
