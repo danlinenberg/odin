@@ -43,6 +43,13 @@ const SETUP =
 	/Welcome to Claude Code|Choose the text style|Do you trust the files in this folder|Is this a project you created or one you trust|Bypass Permissions mode/;
 
 /**
+ * A remote session's pane before it reaches the host: SSM and ssh take 10s or
+ * more, and an expired AWS sign-in waits on you. Read as Claude gone, the drawer
+ * offered Resume again, and the next click killed the connect in progress.
+ */
+const REMOTE_CONNECTING = /^Odin: connecting to /m;
+
+/**
  * The spinner line, which is the only thing on screen that says "mid-turn":
  *
  *   ✳ Calculating… (11m 48s · ↓ 40.9k tokens · thought for 1s)
@@ -166,7 +173,7 @@ export function odinScreenWrite(
  */
 export function agentOnScreen(screen: string): boolean {
 	if (odinScreenStatus(screen) !== undefined) return true;
-	if (SETUP.test(screen)) return true;
+	if (SETUP.test(screen) || REMOTE_CONNECTING.test(screen)) return true;
 	// The box on its own - Claude drawn, but caught between repaints of the
 	// status line under it.
 	const lines = screen.split(/\r\n|\n|\r/);

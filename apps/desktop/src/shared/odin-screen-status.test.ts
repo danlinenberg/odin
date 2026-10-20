@@ -315,6 +315,12 @@ Type to search · Space to toggle · f to favorite · Enter to view · Esc to go
 	});
 });
 
+describe("remote session connecting", () => {
+	it("keeps Claude in the PTY while the pane reaches the host", () => {
+		expect(agentOnScreen("\nOdin: connecting to i-0abc123...\n")).toBe(true);
+	});
+});
+
 describe("folder-trust dialog", () => {
 	// As Claude draws it at launch in an untrusted folder: one rule, no numbers.
 	const TRUST = `${"─".repeat(60)}\n Accessing workspace:\n\n /Users/dan/dev/x\n\n Quick safety check: Is this a project you created or one you trust?\n\n Claude Code'll be able to read, edit, and execute files here.\n\n Security guide\n\n ❯ No, exit\n   Yes, I trust this folder\n\n Enter to confirm · Esc to cancel\n`;
