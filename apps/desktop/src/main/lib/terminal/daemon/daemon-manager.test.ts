@@ -161,7 +161,10 @@ class MockTerminalHostClient extends EventEmitter {
 		return this.listSessionsIfRunningResult;
 	}
 
-	writeNoAck() {}
+	writes: { sessionId: string; data: string }[] = [];
+	writeNoAck(params: { sessionId: string; data: string }) {
+		this.writes.push(params);
+	}
 
 	resize() {
 		return Promise.resolve();
@@ -742,6 +745,18 @@ describe("DaemonTerminalManager holdKey", () => {
 			{ type: "hold", sessionId: paneId, data: " ", everyMs: 30 },
 			{ type: "release", sessionId: paneId },
 		]);
+	});
+
+	it("writes to a daemon session no view attached since a restart", () => {
+		const manager = new DaemonTerminalManager();
+		(
+			manager as unknown as { daemonAliveSessionIds: Set<string> }
+		).daemonAliveSessionIds = new Set(["pane-live"]);
+		manager.write({ paneId: "pane-live", data: "hi" });
+		expect(mockClient.writes).toEqual([{ sessionId: "pane-live", data: "hi" }]);
+		expect(() => manager.write({ paneId: "pane-gone", data: "hi" })).toThrow(
+			"not found or not alive",
+		);
 	});
 
 	it("refuses a hold on a session that is not alive", async () => {

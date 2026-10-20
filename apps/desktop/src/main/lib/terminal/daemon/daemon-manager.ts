@@ -718,8 +718,13 @@ export class DaemonTerminalManager extends EventEmitter {
 	write(params: { paneId: string; data: string }): void {
 		const { paneId, data } = params;
 
+		// After an app restart a session lives on in the daemon but is in
+		// `sessions` only once a terminal view attaches; the chat view never does.
 		const session = this.sessions.get(paneId);
-		if (!session || !session.isAlive) {
+		const alive = session
+			? session.isAlive
+			: this.daemonAliveSessionIds.has(paneId);
+		if (!alive) {
 			throw new Error(`Terminal session ${paneId} not found or not alive`);
 		}
 
