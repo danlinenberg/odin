@@ -32,6 +32,7 @@ import {
 	foldRepeats,
 	type ReviewRow,
 	reviewRows,
+	reviewSections,
 	type SweptRow,
 	sessionFor,
 } from "./verdicts";
@@ -326,6 +327,12 @@ function ReviewPage() {
 	};
 
 	const swept_ago = sweptAt ? shortWhen(sweptAt) : null;
+	const sections = reviewSections({
+		swept: swept.length,
+		dropped: allDropped.length,
+		view,
+		searching: Boolean(needle),
+	});
 
 	return (
 		<div className="flex h-full flex-col">
@@ -337,7 +344,7 @@ function ReviewPage() {
 					what the sweep wants gone, checked against the system it came from
 				</span>
 				<div className="flex-1" />
-				{swept.length > 0 && (
+				{sections.pills && (
 					<>
 						<input
 							ref={searchHotkey.ref}
@@ -391,7 +398,7 @@ function ReviewPage() {
 			</div>
 
 			<div className={FEED_LIST}>
-				{swept.length === 0 && (
+				{sections.nothingSwept && (
 					<div className="px-2 py-8 text-center text-xs text-muted-foreground">
 						Nothing swept yet. "Sweep now" takes every open task and queued
 						Slack message and asks the system it came from where it stands - the
@@ -400,7 +407,7 @@ function ReviewPage() {
 						<div>{sweepButton("mt-3")}</div>
 					</div>
 				)}
-				{!needle && view === "dropped" && <DroppedList rows={allDropped} />}
+				{sections.droppedList && <DroppedList rows={allDropped} />}
 				{swept.length > 0 &&
 					shown.length === 0 &&
 					(needle || view !== "dropped") && (

@@ -5,6 +5,7 @@ import {
 	foldRepeats,
 	keepDropped,
 	reviewRows,
+	reviewSections,
 	type SweptRow,
 	sessionFor,
 } from "./verdicts";
@@ -134,5 +135,42 @@ describe("foldRepeats", () => {
 			"slack:D1:2",
 			"slack:D1:1",
 		]);
+	});
+});
+
+describe("reviewSections", () => {
+	test("a drop by hand before any sweep still shows Dropped", () => {
+		const fresh = {
+			swept: 0,
+			dropped: 1,
+			view: "drop",
+			searching: false,
+		} as const;
+		expect(reviewSections(fresh)).toEqual({
+			pills: true,
+			nothingSwept: true,
+			droppedList: false,
+		});
+		expect(reviewSections({ ...fresh, view: "dropped" })).toEqual({
+			pills: true,
+			nothingSwept: false,
+			droppedList: true,
+		});
+	});
+	test("nothing swept and nothing dropped: only the empty state", () => {
+		expect(
+			reviewSections({ swept: 0, dropped: 0, view: "drop", searching: false }),
+		).toEqual({ pills: false, nothingSwept: true, droppedList: false });
+	});
+	test("after a sweep the pills show even with nothing dropped", () => {
+		expect(
+			reviewSections({ swept: 3, dropped: 0, view: "drop", searching: false }),
+		).toEqual({ pills: true, nothingSwept: false, droppedList: false });
+	});
+	test("a search shows rows, not the Dropped list", () => {
+		expect(
+			reviewSections({ swept: 3, dropped: 2, view: "dropped", searching: true })
+				.droppedList,
+		).toBe(false);
 	});
 });

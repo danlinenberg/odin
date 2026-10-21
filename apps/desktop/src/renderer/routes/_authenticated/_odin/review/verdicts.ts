@@ -157,3 +157,19 @@ export function keepDropped<T extends { key: string }>(
 	let others = 0;
 	return dropped.filter((row) => listed.has(row.key) || others++ < cap);
 }
+
+/** What Review's page shows. The Dropped pill and list show as soon as
+ * anything is dropped, by a sweep or by hand: a drop by hand needs no sweep. */
+export function reviewSections(state: {
+	swept: number;
+	dropped: number;
+	view: "drop" | "rest" | "dropped";
+	searching: boolean;
+}): { pills: boolean; nothingSwept: boolean; droppedList: boolean } {
+	const droppedList = !state.searching && state.view === "dropped";
+	return {
+		pills: state.swept > 0 || state.dropped > 0,
+		nothingSwept: state.swept === 0 && !droppedList,
+		droppedList,
+	};
+}
