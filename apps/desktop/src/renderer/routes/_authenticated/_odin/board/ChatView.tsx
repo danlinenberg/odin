@@ -984,19 +984,15 @@ const ToolGroup = memo(
 		const failed = group.at(-1)?.isError === true;
 		return (
 			<div className="flex min-w-0 flex-col">
-				{/* Alone on its row, the toggle centres on Claude's mark beside it. */}
+				{/* The toggle opens the line Claude wrote, on its first row, so it
+				    stays put as the line grows. Alone on its row it centres on
+				    Claude's mark beside it. */}
 				<div
 					className={cn(
 						"flex min-w-0 gap-2",
-						lead ? "items-end" : "h-7 items-center",
+						lead ? "items-start" : "h-7 items-center",
 					)}
 				>
-					{/* A line hugs the toggle. An action-items card takes the row: as a size container it has no width of its own. */}
-					{lead && (
-						<div className="min-w-0 has-[[data-action-items]]:flex-1">
-							{lead}
-						</div>
-					)}
 					{/* Live work shows once, in the turn's own "Working..." row below. */}
 					<button
 						type="button"
@@ -1006,13 +1002,16 @@ const ToolGroup = memo(
 						aria-expanded={open}
 						className={cn(
 							"shrink-0 rounded p-0.5 text-faint-foreground hover:bg-accent hover:text-foreground",
-							lead && "mb-0.5",
+							// Centred on the line's first row: 13px text at leading-relaxed is 21px, the toggle 18px.
+							lead && "mt-0.5",
 							open && "bg-accent text-foreground",
 							failed && "text-destructive",
 						)}
 					>
 						<LuWrench className="size-3.5" />
 					</button>
+					{/* The line takes the rest of the row: an action-items card is a size container with no width of its own. */}
+					{lead && <div className="min-w-0 flex-1">{lead}</div>}
 				</div>
 				{open && (
 					<div className="mt-1.5 rounded-lg border border-border bg-secondary/20 p-1.5">
@@ -1613,6 +1612,7 @@ export {
 	itemOptions,
 	itemReply,
 	splitActionItems,
+	ToolGroup,
 };
 
 /**

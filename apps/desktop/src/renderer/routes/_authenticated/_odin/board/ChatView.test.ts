@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { remoteConnectLine } from "shared/odin-screen-status";
 import {
 	actionItemEntries,
@@ -31,6 +33,7 @@ import {
 	segments,
 	splitActionItems,
 	splitEarlier,
+	ToolGroup,
 	tokenLabel,
 	toolDescription,
 	transcriptPath,
@@ -898,5 +901,33 @@ describe("currentTurn - the turn the Working row shows", () => {
 		expect(turn.tools.map((item) => item.id)).toEqual(["t1", "t2", "t3"]);
 		expect(turn.start).toBeUndefined();
 		expect(turn.id).toBe("");
+	});
+});
+
+describe("ToolGroup", () => {
+	const group = [
+		{ kind: "tool", id: "t1", name: "Bash", input: {}, result: "ok" } as const,
+	];
+
+	test("the Worked toggle opens the line, before its first words", () => {
+		const html = renderToStaticMarkup(
+			createElement(ToolGroup, {
+				group,
+				lead: createElement("p", null, "Three new findings are confirmed."),
+			}),
+		);
+		const toggle = html.indexOf('aria-label="Worked"');
+		const line = html.indexOf("Three new findings");
+		expect(toggle).toBeGreaterThan(-1);
+		expect(line).toBeGreaterThan(toggle);
+		// The line fills the row; the toggle sits on its first row.
+		expect(html).toContain('<div class="min-w-0 flex-1"><p>Three new');
+		expect(html).toContain("items-start");
+	});
+
+	test("alone on its row, the toggle keeps the mark's height", () => {
+		const html = renderToStaticMarkup(createElement(ToolGroup, { group }));
+		expect(html).toContain("h-7 items-center");
+		expect(html).not.toContain("flex-1");
 	});
 });
