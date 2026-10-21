@@ -458,7 +458,7 @@ export function watchedPullRequests(
 		| { messages: BriefMessage[]; links?: BriefMessage[] }
 		| null
 		| undefined,
-	attached: (string | { url: string })[] = [],
+	attached: (string | { url: string; name?: string })[] = [],
 ): PullRequestLink[] {
 	const printed = transcript
 		? pullRequests(transcript.links ?? transcript.messages)
