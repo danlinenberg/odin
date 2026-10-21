@@ -28,7 +28,7 @@ const el = (attrs: Record<string, string>, parent?: Fake) => {
 			return null;
 		},
 	};
-	return node;
+	return node as unknown as EventTarget & Fake;
 };
 
 describe("escStaysWithTarget", () => {
