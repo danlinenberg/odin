@@ -37,11 +37,15 @@ export interface OdinFileConfig {
 	/** Legacy name for the same thing - still read, only ever cleared. */
 	slackQueueDbId?: string;
 	defaultRepo?: string;
-	/** Settings > Remote: where to look for AWS hosts and the tags they carry. */
+	/** Settings > Remote: where to look for AWS hosts and the tags they carry, and what every host gets at setup. */
 	awsInstances?: {
 		profile?: string;
 		region?: string;
 		tags?: { key: string; value: string }[];
+		/** An IAM policy Set up access puts on the host's role beside SSM's: what a plugin there needs, e.g. reads on your secrets (shared/host-setup). */
+		hostPolicyArn?: string;
+		/** OS packages Set up installs on the host, space-separated: the tools those plugins and their skills run. */
+		hostPackages?: string;
 	};
 	/** The EC2 host new sessions run on, reached through SSM, while `on` is true. */
 	remoteHost?: {

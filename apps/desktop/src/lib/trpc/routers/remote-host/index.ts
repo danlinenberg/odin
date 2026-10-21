@@ -70,6 +70,7 @@ import {
 	runOnHost,
 } from "main/lib/remote-host/ssh";
 import { resolveElectronBinary } from "main/lib/terminal-host/electron-binary";
+import { hostPackagesProblem, hostPolicyArnProblem } from "shared/host-setup";
 import { remoteFrozenReason, remoteLaunchBlocker } from "shared/launch-gate";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
@@ -223,6 +224,25 @@ const awsTarget = z.object({
 	region: z.string().optional(),
 });
 const tagPairs = z.array(z.object({ key: z.string(), value: z.string() }));
+/** What every host gets at setup, from Settings (shared/host-setup); empty clears. */
+const hostSetup = {
+	hostPolicyArn: z
+		.string()
+		.trim()
+		.refine((arn) => !hostPolicyArnProblem(arn), {
+			message:
+				"Not an IAM policy ARN: arn:aws:iam::<account id>:policy/<name>.",
+		})
+		.optional(),
+	hostPackages: z
+		.string()
+		.trim()
+		.refine((text) => !hostPackagesProblem(text), {
+			message:
+				"Package names: letters, digits and . + - _ only, separated by spaces.",
+		})
+		.optional(),
+};
 
 /**
  * A saved sign-in (JSON, from `claude auth login`) goes to the host to sign in
@@ -288,12 +308,12 @@ setInterval(() => void refreshHostTokens(), 30 * 60_000).unref();
 
 export const createRemoteHostRouter = () =>
 	router({
-		/** The profile, region and tags you picked, kept in odin.json. */
+		/** The profile, region and tags you picked, and what every host gets at setup, kept in odin.json. */
 		awsSettings: publicProcedure.query(
 			() => readOdinConfig().awsInstances ?? {},
 		),
 		setAwsSettings: publicProcedure
-			.input(awsTarget.extend({ tags: tagPairs }))
+			.input(awsTarget.extend({ tags: tagPairs, ...hostSetup }))
 			.mutation(({ input }) => {
 				updateOdinConfig({ awsInstances: input });
 			}),
@@ -307,14 +327,27 @@ export const createRemoteHostRouter = () =>
 		awsStart: publicProcedure
 			.input(awsTarget.extend({ id: z.string().min(1) }))
 			.mutation(({ input }) => startInstance(input, input.id)),
-		/** Installs what sessions need on the instance (Claude, gh, tmux, git, this user's Linux user); reports what is there. */
+		/** Installs what sessions need on the instance (Claude, gh, tmux, git, this user's Linux user) and the packages from Settings; reports what is there. */
 		awsSetUp: publicProcedure
 			.input(awsTarget.extend({ id: z.string().min(1) }))
-			.mutation(({ input }) => setUpHost(input, input.id, hostUser())),
-		/** Lets SSM reach an instance it can't yet - see giveSsmAccess. */
+			.mutation(({ input }) =>
+				setUpHost(
+					input,
+					input.id,
+					hostUser(),
+					readOdinConfig().awsInstances?.hostPackages,
+				),
+			),
+		/** Lets SSM reach an instance it can't yet, with the host policy from Settings beside it - see giveSsmAccess. */
 		awsGiveSsmAccess: publicProcedure
 			.input(awsTarget.extend({ id: z.string().min(1) }))
-			.mutation(({ input }) => giveSsmAccess(input, input.id)),
+			.mutation(({ input }) =>
+				giveSsmAccess(
+					input,
+					input.id,
+					readOdinConfig().awsInstances?.hostPolicyArn,
+				),
+			),
 
 		/** The host sessions start on; `on: false` keeps them on this computer. */
 		get: publicProcedure.query(() => ({

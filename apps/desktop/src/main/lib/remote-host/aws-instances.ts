@@ -23,6 +23,7 @@ import {
 	SendCommandCommand,
 	SSMClient,
 } from "@aws-sdk/client-ssm";
+import { hostPolicyArnProblem, packageNames } from "shared/host-setup";
 import { hostServiceInstallScript } from "./host-service";
 import { ghInstallScript } from "./session";
 import { awsClientConfig } from "./ssm";
@@ -226,11 +227,14 @@ const sh = (text: string) => `'${text.replaceAll("'", `'\\''`)}'`;
 /**
  * What a host needs for Odin's sessions, installed when missing - run by SSM
  * as root, so it needs no sudo: tmux, git, curl and python3 from the
- * system's package manager; the Odin user's own Linux user, without sudo;
- * Claude Code and the GitHub CLI into that user's own ~/.local/bin. Safe to
- * run again. Ends with what it found.
+ * system's package manager, then the packages from Settings (`packages`,
+ * space-separated, see shared/host-setup - one install each, so one the
+ * manager doesn't have costs only itself); the Odin user's own Linux user,
+ * without sudo; Claude Code and the GitHub CLI into that user's own
+ * ~/.local/bin. Safe to run again. Ends with what it found.
  */
-export function setUpScript(user: string): string {
+export function setUpScript(user: string, packages = ""): string {
+	const extra = packageNames(packages);
 	const asUser = [
 		'cd "$HOME"',
 		'export PATH="$HOME/.local/bin:$PATH"',
@@ -242,6 +246,9 @@ export function setUpScript(user: string): string {
 		"export DEBIAN_FRONTEND=noninteractive",
 		'pkg() { if command -v apt-get >/dev/null; then apt-get install -y -q "$@" || { apt-get update -q && apt-get install -y -q "$@"; }; elif command -v dnf >/dev/null; then dnf install -y -q "$@"; elif command -v yum >/dev/null; then yum install -y -q "$@"; fi; } >/dev/null 2>&1',
 		"for p in tmux git curl python3; do command -v $p >/dev/null || pkg $p; done",
+		...(extra.length
+			? [`for p in ${extra.map(sh).join(" ")}; do pkg "$p"; done`]
+			: []),
 		`id ${sh(user)} >/dev/null 2>&1 || useradd --create-home --shell /bin/bash ${sh(user)}`,
 		hostServiceInstallScript(user),
 		// Not sudo -i: it escapes each newline into a line continuation, which
@@ -279,6 +286,7 @@ export async function setUpHost(
 	target: AwsTarget,
 	id: string,
 	user: string,
+	packages = "",
 ): Promise<HostTools> {
 	const ssm = new SSMClient(awsClientConfig(target));
 	const sent = await ssm.send(
@@ -287,7 +295,7 @@ export async function setUpHost(
 			DocumentName: "AWS-RunShellScript",
 			Comment: "Odin: set up for sessions",
 			TimeoutSeconds: 600,
-			Parameters: { commands: [setUpScript(user)] },
+			Parameters: { commands: [setUpScript(user, packages)] },
 		}),
 	);
 	const commandId = sent.Command?.CommandId;
@@ -327,16 +335,32 @@ const ignore = (name: string) => (error: unknown) => {
 /**
  * Lets SSM reach an instance, with the user's own AWS sign-in: the SSM policy
  * on the instance's role, or - with no role - an OdinSsmHost role and instance
- * profile attached to it. The instance's SSM agent then registers on its own,
- * usually within minutes. Returns what it did.
+ * profile attached to it. The host policy from Settings (`hostPolicyArn`,
+ * see shared/host-setup), when there is one, goes on the same role beside
+ * it. The instance's SSM agent then registers on its own, usually within
+ * minutes. Returns what it did.
  */
 export async function giveSsmAccess(
 	target: AwsTarget,
 	id: string,
+	hostPolicyArn = "",
 ): Promise<string> {
+	const problem = hostPolicyArnProblem(hostPolicyArn);
+	if (problem) throw new Error(problem);
+	const policies = [SSM_POLICY];
+	if (hostPolicyArn.trim()) policies.push(hostPolicyArn.trim());
+	const what =
+		policies.length > 1 ? "SSM access and the host policy" : "SSM access";
 	const config = awsClientConfig(target);
 	const ec2 = new EC2Client(config);
 	const iam = new IAMClient(config);
+	// Attaching a policy a role already has changes nothing, so this is safe to run again.
+	const attach = async (role: string) => {
+		for (const PolicyArn of policies)
+			await iam.send(
+				new AttachRolePolicyCommand({ RoleName: role, PolicyArn }),
+			);
+	};
 	const instance = (
 		await ec2.send(new DescribeInstancesCommand({ InstanceIds: [id] }))
 	).Reservations?.[0]?.Instances?.[0];
@@ -349,10 +373,8 @@ export async function giveSsmAccess(
 		);
 		const role = profile.InstanceProfile?.Roles?.[0]?.RoleName;
 		if (!role) throw new Error("The instance's profile has no role.");
-		await iam.send(
-			new AttachRolePolicyCommand({ RoleName: role, PolicyArn: SSM_POLICY }),
-		);
-		return `Added SSM access to the instance's role, ${role}.`;
+		await attach(role);
+		return `Added ${what} to the instance's role, ${role}.`;
 	}
 	await iam
 		.send(
@@ -373,9 +395,7 @@ export async function giveSsmAccess(
 			}),
 		)
 		.catch(ignore("EntityAlreadyExistsException"));
-	await iam.send(
-		new AttachRolePolicyCommand({ RoleName: ODIN_ROLE, PolicyArn: SSM_POLICY }),
-	);
+	await attach(ODIN_ROLE);
 	await iam
 		.send(new CreateInstanceProfileCommand({ InstanceProfileName: ODIN_ROLE }))
 		.catch(ignore("EntityAlreadyExistsException"));
@@ -396,7 +416,7 @@ export async function giveSsmAccess(
 					IamInstanceProfile: { Name: ODIN_ROLE },
 				}),
 			);
-			return `Attached the ${ODIN_ROLE} role, with SSM access, to the instance.`;
+			return `Attached the ${ODIN_ROLE} role, with ${what}, to the instance.`;
 		} catch (error) {
 			if (attempt >= 11) throw error;
 			await new Promise((resolve) => setTimeout(resolve, 5_000));

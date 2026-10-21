@@ -12,6 +12,7 @@ import { Switch } from "@odin/ui/switch";
 import { useEffect, useRef, useState } from "react";
 import { LuX } from "react-icons/lu";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { hostPackagesProblem, hostPolicyArnProblem } from "shared/host-setup";
 import { SettingRow, SettingsSection } from "../../components/SettingsPage";
 
 interface TagPair {
@@ -147,12 +148,18 @@ export function RemoteHostSection() {
 	const { data: saved } = electronTrpc.remoteHost.awsSettings.useQuery();
 	const { data: profiles = [] } =
 		electronTrpc.remoteHost.awsProfiles.useQuery();
-	const save = electronTrpc.remoteHost.setAwsSettings.useMutation();
+	const save = electronTrpc.remoteHost.setAwsSettings.useMutation({
+		onSuccess: () => utils.remoteHost.awsSettings.invalidate(),
+		onError,
+	});
 
 	const [profile, setProfile] = useState("");
 	const [region, setRegion] = useState(DEFAULT_REGION);
 	const [tags, setTags] = useState<TagPair[]>([]);
 	const [user, setUser] = useState("ubuntu");
+	// What every host gets at setup (shared/host-setup), saved with the picker's settings.
+	const [hostPolicyArn, setHostPolicyArn] = useState("");
+	const [hostPackages, setHostPackages] = useState("");
 	const [loaded, setLoaded] = useState(false);
 	// With a host in use, the picker (profile, region, user, tags, instances)
 	// folds behind Change host - it only matters when choosing one.
@@ -162,6 +169,8 @@ export function RemoteHostSection() {
 		setProfile(saved.profile ?? "");
 		setRegion(saved.region ?? DEFAULT_REGION);
 		setTags(saved.tags ?? []);
+		setHostPolicyArn(saved.hostPolicyArn ?? "");
+		setHostPackages(saved.hostPackages ?? "");
 		setLoaded(true);
 	}, [saved, loaded]);
 
@@ -170,12 +179,36 @@ export function RemoteHostSection() {
 		profile?: string;
 		region?: string;
 		tags?: TagPair[];
-	}) =>
+		hostPolicyArn?: string;
+		hostPackages?: string;
+	}) => {
+		const policy = (next.hostPolicyArn ?? hostPolicyArn).trim();
+		const packages = (next.hostPackages ?? hostPackages).trim();
 		save.mutate({
 			profile: (next.profile ?? profile) || undefined,
 			region: (next.region ?? region) || undefined,
 			tags: next.tags ?? tags,
+			// A field still holding a typo keeps what was saved until it is fixed.
+			hostPolicyArn:
+				(hostPolicyArnProblem(policy) ? saved?.hostPolicyArn : policy) ||
+				undefined,
+			hostPackages:
+				(hostPackagesProblem(packages) ? saved?.hostPackages : packages) ||
+				undefined,
 		});
+	};
+	/** A host setup field on blur: a typo reads as one line and is not saved. */
+	const saveHostSetup = (
+		field: "hostPolicyArn" | "hostPackages",
+		value: string,
+	) => {
+		const problem =
+			field === "hostPolicyArn"
+				? hostPolicyArnProblem(value)
+				: hostPackagesProblem(value);
+		if (problem) toast.error(problem);
+		else persist({ [field]: value });
+	};
 
 	const tagChoices = electronTrpc.remoteHost.awsTags.useQuery(target, {
 		enabled: loaded,
@@ -519,6 +552,34 @@ export function RemoteHostSection() {
 						/>
 					</SettingRow>
 					<SettingRow
+						label="Host policy (optional)"
+						htmlFor="aws-host-policy"
+						description="An IAM policy Set up access attaches to the host's role beside SSM's: what a plugin on the host needs, such as reading your secrets with the instance role."
+					>
+						<Input
+							id="aws-host-policy"
+							className="w-80 font-mono text-xs"
+							placeholder="arn:aws:iam::123456789012:policy/odin-host"
+							value={hostPolicyArn}
+							onChange={(event) => setHostPolicyArn(event.target.value.trim())}
+							onBlur={() => saveHostSetup("hostPolicyArn", hostPolicyArn)}
+						/>
+					</SettingRow>
+					<SettingRow
+						label="Packages (optional)"
+						htmlFor="aws-host-packages"
+						description="Installed on the host by Set up, from its package manager, separated by spaces: the tools your plugins and skills run."
+					>
+						<Input
+							id="aws-host-packages"
+							className="w-80"
+							placeholder="awscli jq mysql-client"
+							value={hostPackages}
+							onChange={(event) => setHostPackages(event.target.value)}
+							onBlur={() => saveHostSetup("hostPackages", hostPackages)}
+						/>
+					</SettingRow>
+					<SettingRow
 						label="Tags (optional)"
 						stacked
 						description="Optional: list only instances that carry all of these, for example Owner = your name."
@@ -670,7 +731,7 @@ export function RemoteHostSection() {
 										size="sm"
 										variant="outline"
 										disabled={state === "running"}
-										title="Installs what sessions need here - Claude, gh, tmux, git - when missing"
+										title="Installs what sessions need here - Claude, gh, tmux, git - and the packages above, when missing"
 										onClick={() => runSetUp(instance.id)}
 									>
 										Set up
