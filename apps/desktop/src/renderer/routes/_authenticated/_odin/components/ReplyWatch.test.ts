@@ -1,5 +1,7 @@
 import { expect, test } from "bun:test";
 import {
+	conditionOutcome,
+	conditionPrompt,
 	newReplies,
 	sessionThread,
 	startedWorking,
@@ -117,4 +119,70 @@ test("a session turning to Working answers its reply; staying Working does not",
 			},
 		),
 	).toEqual(["a"]);
+});
+
+const said = (text: string, at = "2026-10-21T10:05:00Z", role = "assistant") =>
+	({ role, text, at }) as const;
+const SINCE = Date.parse("2026-10-21T10:00:00Z");
+
+test("a condition happened when Claude says so on a line of its own", () => {
+	expect(
+		conditionOutcome(
+			[
+				said("Checking the deploy now."),
+				said("Deploy finished.\n**ODIN PING: HAPPENED** - app-web-server is live"),
+			],
+			SINCE,
+		),
+	).toEqual({ event: "Happened", detail: "app-web-server is live" });
+	expect(
+		conditionOutcome([said("ODIN PING: GAVE UP - no access to Datadog")], SINCE),
+	).toEqual({ event: "Gave up", detail: "no access to Datadog" });
+});
+
+test("a condition is not met by the prompt, an old line or a promise", () => {
+	const prompt = conditionPrompt("the deploy is done");
+	expect(prompt).toContain("the deploy is done");
+	expect(prompt).toContain("ODIN PING: HAPPENED");
+	expect(
+		conditionOutcome(
+			[
+				said(prompt, "2026-10-21T10:01:00Z", "user"),
+				said("ODIN PING: HAPPENED - from an earlier watch", "2026-10-21T09:00:00Z"),
+				said("I will reply `ODIN PING: HAPPENED - <what I saw>` when it lands."),
+				said("ODIN PING: HAPPENED - <what you saw>"),
+				said("Still deploying, next check in 5 minutes."),
+			],
+			SINCE,
+		),
+	).toBeNull();
+});
+
+test("Ping me when... keeps the session's other watches and fires once", () => {
+	const s = () => useReplyWatch.getState();
+	s().toggle(["jira:W-1"], "Deploy", "pane-w");
+	s().watchFor("the deploy is done", "Deploy", "pane-w");
+	const key = Object.keys(s().watches).find((k) => k.startsWith("when:"));
+	expect(key).toBeDefined();
+	expect(s().watches["jira:W-1"]?.paneId).toBe("pane-w");
+	expect(watchEvent(key ?? "", s().watches[key ?? ""])).toBe("Happened");
+	s().fire(key ?? "", "Happened");
+	expect(s().watches[key ?? ""]?.reply).toBe("the deploy is done");
+	expect(s().watches[key ?? ""]?.stamp).toBe("fired");
+	// Writing in the session reads it, and a condition that fired is done.
+	s().seen("pane-w");
+	expect(s().watches[key ?? ""]).toBeUndefined();
+	expect(s().watches["jira:W-1"]?.paneId).toBe("pane-w");
+	s().toggle([], "", "pane-w");
+});
+
+test("a condition Claude gave up on says so", () => {
+	const s = () => useReplyWatch.getState();
+	s().watchFor("the edit is done", "Edit", "pane-g");
+	const key = Object.keys(s().watches).find(
+		(k) => s().watches[k]?.paneId === "pane-g",
+	);
+	s().fire(key ?? "", "Gave up");
+	expect(watchEvent(key ?? "", s().watches[key ?? ""])).toBe("Gave up");
+	s().toggle([], "", "pane-g");
 });
