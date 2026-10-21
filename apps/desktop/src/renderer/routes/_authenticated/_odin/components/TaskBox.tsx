@@ -734,12 +734,19 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 				className="fixed inset-0 z-40 cursor-default bg-black/50 bg-none"
 				onClick={onClose}
 			/>
+			{/* Centred by auto margins, not a translate: a transformed box is the
+			    containing block of every `fixed` descendant, and the Skill menu
+			    places itself in viewport coordinates - inside a translated dialog
+			    it landed off to the side and under this overflow clip, so it
+			    never showed. min-h: a size dragged small before the footer
+			    existed, read back from localStorage, must not squeeze the box
+			    under three lines. */}
 			<div
 				ref={dialog}
 				role="dialog"
 				aria-modal="true"
 				aria-label="New task"
-				className="fixed left-1/2 top-[12vh] z-50 flex h-[300px] max-h-[80vh] w-[600px] min-w-[320px] max-w-[92vw] -translate-x-1/2 resize flex-col overflow-hidden rounded-[14px] border border-border bg-popover shadow-[0_24px_80px_rgba(0,0,0,0.6),inset_0_1px_0_rgb(255_255_255/0.04)]"
+				className="fixed inset-x-0 top-[12vh] z-50 mx-auto flex h-[300px] max-h-[80vh] min-h-[260px] w-[600px] min-w-[320px] max-w-[92vw] resize flex-col overflow-hidden rounded-[14px] border border-border bg-popover shadow-[0_24px_80px_rgba(0,0,0,0.6),inset_0_1px_0_rgb(255_255_255/0.04)]"
 			>
 				<div className="flex shrink-0 items-center px-4 pt-3 pb-2.5">
 					<span className="text-[13px] font-semibold text-foreground">
