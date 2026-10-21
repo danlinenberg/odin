@@ -5,8 +5,17 @@ export interface HostLogin {
 	instanceId: string;
 	profile?: string | null;
 	region?: string | null;
+	/** The Linux user sessions run as: this Odin user's own on the host. */
 	user: string;
+	/** The instance's own login, with sudo (ubuntu), for root's work. Unset: `user`, from when users shared one login. */
+	adminUser?: string | null;
 }
+
+/** The same host, logged in as its admin login. */
+export const adminLogin = (host: HostLogin): HostLogin => ({
+	...host,
+	user: host.adminUser || host.user,
+});
 
 /** An SSH connection to the host over SSM, with a one-time key. */
 export async function connectHost(host: HostLogin): Promise<Client> {

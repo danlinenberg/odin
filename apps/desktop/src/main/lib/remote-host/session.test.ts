@@ -18,6 +18,7 @@ import {
 	hostSettings,
 	httpsCloneUrl,
 	issueTicket,
+	linuxUserName,
 	mainCheckoutOf,
 	parseClaudeLogin,
 	type RemoteSessionSpec,
@@ -186,7 +187,7 @@ test("a session with a repo starts in its own worktree, with Odin's port", () =>
 		"/d",
 	);
 	expect(run).toContain(
-		"curl -sf -m 2 http://127.0.0.1:47187/health >/dev/null && ODIN_PORT=47187 || ODIN_PORT=47189",
+		"p=$((40000 + $(id -u) % 10000 * 2)); curl -sf -m 2 http://127.0.0.1:$p/health >/dev/null && ODIN_PORT=$p || ODIN_PORT=$((p + 1))",
 	);
 	expect(run).toContain("export ODIN_PORT ODIN_PANE_ID='pane-9'");
 	expect(run).toContain(
@@ -256,4 +257,11 @@ test("files sent later get a prefix, so they never overwrite earlier copies", ()
 	expect(
 		hostFiles("/Users/d/a.png", "ubuntu", () => true, "1700-").files[0]?.remote,
 	).toBe(".odin/files/1700-0-a.png");
+});
+
+test("each Odin user gets a Linux user name of their own", () => {
+	expect(linuxUserName("DanLinenberg")).toBe("odin-danlinenberg");
+	expect(linuxUserName("dan.l@x")).toBe("odin-dan-l-x");
+	expect(linuxUserName("")).toBe("odin-user");
+	expect(linuxUserName("a".repeat(40))).toHaveLength(32);
 });

@@ -11,7 +11,7 @@ import { connect } from "node:net";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { Client, type SFTPWrapper, utils } from "ssh2";
-import { LAPTOP_TUNNEL_PORT } from "../lib/remote-host/host-service";
+import { hostPorts } from "../lib/remote-host/host-service";
 import {
 	attachScript,
 	type RemoteFile,
@@ -69,15 +69,20 @@ async function upload(sftp: SFTPWrapper, files: RemoteFile[]): Promise<void> {
 }
 
 /**
- * The host's 127.0.0.1:LAPTOP_TUNNEL_PORT, to Odin's server on this computer.
- * Every pane on the host forwards the same port to the same Odin, so one
+ * The host user's tunnel port (hostPorts), to Odin's server on this computer.
+ * Every pane of this user forwards the same port to the same Odin, so one
  * holding it is enough; the others try again in case that one closes.
  */
-function forwardOdin(client: Client): void {
+async function forwardOdin(client: Client): Promise<void> {
 	const local = Number(process.env.ODIN_PORT);
-	if (!local) return;
+	const uid = Number.parseInt(
+		await exec(client, "id -u", "").catch(() => ""),
+		10,
+	);
+	if (!local || Number.isNaN(uid)) return;
+	const { tunnel } = hostPorts(uid);
 	client.on("tcp connection", (info, accept, reject) => {
-		if (info.destPort !== LAPTOP_TUNNEL_PORT) return reject();
+		if (info.destPort !== tunnel) return reject();
 		const remote = accept();
 		const odin = connect(local, "127.0.0.1");
 		remote.pipe(odin).pipe(remote);
@@ -85,7 +90,7 @@ function forwardOdin(client: Client): void {
 		remote.on("error", () => odin.destroy());
 	});
 	const bind = () =>
-		client.forwardIn("127.0.0.1", LAPTOP_TUNNEL_PORT, (err) => {
+		client.forwardIn("127.0.0.1", tunnel, (err) => {
 			if (err && !closed) setTimeout(bind, 15_000).unref();
 		});
 	let closed = false;
@@ -282,7 +287,7 @@ async function attach(
 	const dir = await exec(client, stashScript, env);
 	const sftp = await sftpOf(client);
 	if (first && spec.files?.length) await upload(sftp, spec.files);
-	forwardOdin(client);
+	await forwardOdin(client);
 	const stopMirror = mirrorTranscript(client, sftp, spec);
 	const { stdin, stdout } = process;
 	return new Promise((resolve, reject) =>

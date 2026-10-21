@@ -226,8 +226,9 @@ const sh = (text: string) => `'${text.replaceAll("'", `'\\''`)}'`;
 /**
  * What a host needs for Odin's sessions, installed when missing - run by SSM
  * as root, so it needs no sudo: tmux, git, curl and python3 from the
- * system's package manager; Claude Code and the GitHub CLI into the user's
- * own ~/.local/bin. Safe to run again. Ends with what it found.
+ * system's package manager; the Odin user's own Linux user, without sudo;
+ * Claude Code and the GitHub CLI into that user's own ~/.local/bin. Safe to
+ * run again. Ends with what it found.
  */
 export function setUpScript(user: string): string {
 	const asUser = [
@@ -241,7 +242,8 @@ export function setUpScript(user: string): string {
 		"export DEBIAN_FRONTEND=noninteractive",
 		'pkg() { if command -v apt-get >/dev/null; then apt-get install -y -q "$@" || { apt-get update -q && apt-get install -y -q "$@"; }; elif command -v dnf >/dev/null; then dnf install -y -q "$@"; elif command -v yum >/dev/null; then yum install -y -q "$@"; fi; } >/dev/null 2>&1',
 		"for p in tmux git curl python3; do command -v $p >/dev/null || pkg $p; done",
-		hostServiceInstallScript,
+		`id ${sh(user)} >/dev/null 2>&1 || useradd --create-home --shell /bin/bash ${sh(user)}`,
+		hostServiceInstallScript(user),
 		// Not sudo -i: it escapes each newline into a line continuation, which
 		// glued the script's lines together (fifor ...).
 		`sudo -u ${sh(user)} -H bash -lc ${sh(asUser)}`,

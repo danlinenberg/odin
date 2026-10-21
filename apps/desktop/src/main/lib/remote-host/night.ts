@@ -4,13 +4,13 @@
  * While the laptop is awake, Odin ranks tonight's tasks as it always has and
  * sends the host a plan: the window as absolute times, the cap, and each task
  * as a ready-to-run session script. A runner on the host (a systemd timer,
- * every minute, as the login user) starts them one at a time in tmux, each
+ * every minute, as the user's own Linux user) starts them one at a time in tmux, each
  * once the last one's turn ended (the turn-end hook's marker). When the
  * laptop wakes, Odin reads what the host started and puts those sessions on
  * the board.
  */
 import { sh } from "./session";
-import { connectHost, type HostLogin, runOnHost } from "./ssh";
+import { adminLogin, connectHost, type HostLogin, runOnHost } from "./ssh";
 
 /** The placeholder a task's run script names its secrets dir by. */
 export const SECRETS_DIR_PLACEHOLDER = "__ODIN_SECRETS_DIR__";
@@ -93,9 +93,13 @@ with open(STATE + ".new", "w") as f:
 os.replace(STATE + ".new", STATE)
 `;
 
+/** A host user's runner unit, without .service or .timer. */
+const nightUnit = (user: string) => `/etc/systemd/system/odin-night-${user}`;
+
 /**
- * Root's part: the runner and its timer, as the login user. KillMode=process
- * keeps the tmux server it starts alive after the run ends.
+ * Root's part: a host user's runner and its timer, as that user. KillMode=process
+ * keeps the tmux server it starts alive after the run ends. Replaces the one
+ * runner from when users shared a login, when it ran as this user.
  */
 export function nightInstallScript(user: string): string {
 	const unit = [
@@ -119,11 +123,12 @@ export function nightInstallScript(user: string): string {
 	];
 	return [
 		"command -v systemctl >/dev/null || exit 0",
+		`if grep -qx ${sh(`User=${user}`)} /etc/systemd/system/odin-night.service 2>/dev/null; then systemctl disable --now odin-night.timer >/dev/null 2>&1; rm -f /etc/systemd/system/odin-night.service /etc/systemd/system/odin-night.timer; fi`,
 		"install -d -m 755 /usr/local/lib/odin",
 		`printf %s '${Buffer.from(NIGHT_RUNNER_PY).toString("base64")}' | base64 -d > /usr/local/lib/odin/night-runner.py`,
-		`printf '%s\\n' ${unit.map(sh).join(" ")} > /etc/systemd/system/odin-night.service`,
-		`printf '%s\\n' ${timer.map(sh).join(" ")} > /etc/systemd/system/odin-night.timer`,
-		"systemctl daemon-reload && systemctl enable --now odin-night.timer >/dev/null 2>&1",
+		`printf '%s\\n' ${unit.map(sh).join(" ")} > ${nightUnit(user)}.service`,
+		`printf '%s\\n' ${timer.map(sh).join(" ")} > ${nightUnit(user)}.timer`,
+		`systemctl daemon-reload && systemctl enable --now odin-night-${user}.timer >/dev/null 2>&1`,
 	].join("\n");
 }
 
@@ -140,11 +145,18 @@ export async function pushNightPlan(
 ): Promise<void> {
 	const client = await connectHost(host);
 	try {
-		await runOnHost(
+		const installed = await runOnHost(
 			client,
-			`[ -f /etc/systemd/system/odin-night.timer ] && cmp -s /usr/local/lib/odin/night-runner.py - || sudo -n bash -c ${sh(nightInstallScript(host.user))}`,
+			`[ -f ${nightUnit(host.user)}.timer ] && cmp -s /usr/local/lib/odin/night-runner.py - && echo yes; true`,
 			NIGHT_RUNNER_PY,
 		);
+		if (installed !== "yes") {
+			const admin = await connectHost(adminLogin(host));
+			await runOnHost(
+				admin,
+				`sudo -n bash -c ${sh(nightInstallScript(host.user))}`,
+			).finally(() => admin.end());
+		}
 		const write = (path: string) =>
 			`umask 077; mkdir -p ~/.odin/night/stopped && cat > ~/.odin/night/${path}.new && mv ~/.odin/night/${path}.new ~/.odin/night/${path}`;
 		await runOnHost(client, write("env"), secrets);

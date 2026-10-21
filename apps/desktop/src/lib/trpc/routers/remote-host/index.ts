@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
-import { homedir } from "node:os";
+import { homedir, userInfo } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { app, safeStorage } from "electron";
@@ -51,6 +51,7 @@ import {
 	hostNote,
 	httpsCloneUrl,
 	issueTicket,
+	linuxUserName,
 	mainCheckoutOf,
 	type RemoteSessionSpec,
 	repoNameOf,
@@ -68,6 +69,16 @@ import { awsSsoLogin } from "../terminal/aws-sso";
 import { getProcessEnvWithShellEnv } from "../workspaces/utils/shell-env";
 
 const run = promisify(execFile);
+
+/**
+ * This Odin user's Linux user on the host: the one already chosen, so a
+ * changed GitHub login never strands a home full of repos; else a new one.
+ */
+function hostUser(): string {
+	const config = readOdinConfig();
+	if (config.remoteHost?.adminUser) return config.remoteHost.user;
+	return linuxUserName(config.githubLogin || userInfo().username);
+}
 
 /**
  * Runs an SSM call to the host; on an expired AWS SSO session it signs in
@@ -283,15 +294,10 @@ export const createRemoteHostRouter = () =>
 		awsStart: publicProcedure
 			.input(awsTarget.extend({ id: z.string().min(1) }))
 			.mutation(({ input }) => startInstance(input, input.id)),
-		/** Installs what sessions need on the instance (Claude, gh, tmux, git); reports what is there. */
+		/** Installs what sessions need on the instance (Claude, gh, tmux, git, this user's Linux user); reports what is there. */
 		awsSetUp: publicProcedure
-			.input(
-				awsTarget.extend({
-					id: z.string().min(1),
-					user: z.string().min(1),
-				}),
-			)
-			.mutation(({ input }) => setUpHost(input, input.id, input.user)),
+			.input(awsTarget.extend({ id: z.string().min(1) }))
+			.mutation(({ input }) => setUpHost(input, input.id, hostUser())),
 		/** Lets SSM reach an instance it can't yet - see giveSsmAccess. */
 		awsGiveSsmAccess: publicProcedure
 			.input(awsTarget.extend({ id: z.string().min(1) }))
@@ -300,6 +306,8 @@ export const createRemoteHostRouter = () =>
 		/** The host sessions start on; `on: false` keeps them on this computer. */
 		get: publicProcedure.query(() => ({
 			host: readOdinConfig().remoteHost ?? null,
+			/** The Linux user this computer's sessions run as on a host. */
+			hostUser: hostUser(),
 			hasClaudeToken: Boolean(claudeToken()),
 			/** Whether sessions there move to the API key at the plan limit. */
 			apiKeyFallback: apiKeyFallbackOn(
@@ -321,7 +329,10 @@ export const createRemoteHostRouter = () =>
 			)
 			.mutation(async ({ input }) => {
 				if (input.on) await ensureClaudeToken();
-				updateOdinConfig({ remoteHost: input });
+				// `user` from the picker is the instance's login; sessions run as this user's own.
+				updateOdinConfig({
+					remoteHost: { ...input, user: hostUser(), adminUser: input.user },
+				});
 			}),
 		setOn: publicProcedure.input(z.boolean()).mutation(async ({ input }) => {
 			const host = readOdinConfig().remoteHost;

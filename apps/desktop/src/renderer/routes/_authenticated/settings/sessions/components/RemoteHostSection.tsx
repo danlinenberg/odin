@@ -197,7 +197,7 @@ export function RemoteHostSection() {
 	const runSetUp = async (id: string) => {
 		setSetups((prev) => ({ ...prev, [id]: "running" }));
 		const result = await setUp
-			.mutateAsync({ ...target, id, user })
+			.mutateAsync({ ...target, id })
 			.then((tools) => ({ claude: tools.claude }))
 			.catch((error: Error) => ({ error: error.message }));
 		setSetups((prev) => ({ ...prev, [id]: result }));
@@ -254,7 +254,7 @@ export function RemoteHostSection() {
 					htmlFor="remote-host-on"
 					description={
 						current.host.on
-							? `New sessions run on ${current.host.instanceId} as ${current.host.user}, in tmux, with repos cloned under ${current.host.reposRoot}.`
+							? `New sessions run on ${current.host.instanceId} as ${current.host.user}, in tmux, with repos cloned under ${current.host.reposRoot}.${current.host.adminUser ? "" : " Everyone on this instance shares that login: pick it again under Change host (Set up, then Use) to get your own user."}`
 							: "Off: new sessions start on this computer."
 					}
 				>
@@ -507,9 +507,9 @@ export function RemoteHostSection() {
 						/>
 					</SettingRow>
 					<SettingRow
-						label="SSH username"
+						label="Instance login"
 						htmlFor="aws-user"
-						description="The user sessions run as, and the one the Claude check runs as."
+						description={`The instance's own login with sudo: ubuntu on Ubuntu, ec2-user on Amazon Linux. Odin uses it only to set up and to keep your tokens. Your sessions run as your own user, ${current?.hostUser ?? "odin-<you>"}, so others on the same instance never share your files, Claude sign-in or tokens.`}
 					>
 						<Input
 							id="aws-user"

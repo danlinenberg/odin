@@ -94,12 +94,15 @@ describe("aws-instances", () => {
 		]);
 	});
 
-	test("setup installs what is missing as root, and Claude and gh as the user", () => {
-		const script = setUpScript("ubuntu");
+	test("setup installs what is missing as root, makes the user's own Linux user, and Claude and gh as that user", () => {
+		const script = setUpScript("odin-dan");
 		expect(script).toContain(
 			"for p in tmux git curl python3; do command -v $p >/dev/null || pkg $p; done",
 		);
-		expect(script).toContain("sudo -u 'ubuntu' -H bash -lc ");
+		expect(script).toContain(
+			"id 'odin-dan' >/dev/null 2>&1 || useradd --create-home --shell /bin/bash 'odin-dan'",
+		);
+		expect(script).toContain("sudo -u 'odin-dan' -H bash -lc ");
 		expect(script).toContain("https://claude.ai/install.sh");
 	});
 

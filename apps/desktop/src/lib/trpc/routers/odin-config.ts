@@ -50,7 +50,10 @@ export interface OdinFileConfig {
 		name: string;
 		profile?: string;
 		region?: string;
+		/** The Linux user sessions run as: this Odin user's own (linuxUserName). */
 		user: string;
+		/** The instance's own login with sudo (ubuntu), for root's work. Unset: from when users shared `user`. */
+		adminUser?: string;
 		/** Where the host keeps its clones, e.g. ~/repos. */
 		reposRoot: string;
 		/** Connectors whose tokens are kept on the host, for sessions there with this computer asleep. */

@@ -1,13 +1,11 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { tmpdir, userInfo } from "node:os";
 import { join } from "node:path";
 import {
-	HOST_SERVICE_PORT,
 	HOST_SERVICE_PY,
-	HOST_TOKENS_FILE,
+	hostPorts,
 	hostServiceInstallScript,
-	LAPTOP_TUNNEL_PORT,
 } from "./host-service";
 
 // The real service, on spare ports, with a token file of its own.
@@ -31,14 +29,17 @@ beforeAll(async () => {
 		join(dir, "tokens.json"),
 		JSON.stringify({ slack: "xoxp-test" }),
 	);
-	const script = HOST_SERVICE_PY.replace(
-		HOST_TOKENS_FILE,
-		join(dir, "tokens.json"),
-	)
-		.replace(String(HOST_SERVICE_PORT), String(PORT))
-		.replace(String(LAPTOP_TUNNEL_PORT), String(PORT + 1));
-	writeFileSync(join(dir, "svc.py"), script);
-	proc = Bun.spawn(["python3", join(dir, "svc.py")], { stderr: "pipe" });
+	writeFileSync(join(dir, "svc.py"), HOST_SERVICE_PY);
+	proc = Bun.spawn(
+		[
+			"python3",
+			join(dir, "svc.py"),
+			userInfo().username,
+			join(dir, "tokens.json"),
+			String(PORT),
+		],
+		{ stderr: "pipe" },
+	);
 	for (let i = 0; i < 30; i++) {
 		if (
 			await fetch(`${url}/health`, { signal: AbortSignal.timeout(500) }).then(
@@ -87,9 +88,20 @@ describe.skipIf(!live)("Odin's host service", () => {
 	});
 });
 
-test("setup runs it as its own user, which alone can read the tokens", () => {
-	expect(hostServiceInstallScript).toContain("'User=odin'");
-	expect(hostServiceInstallScript).toContain(
-		"install -d -m 700 -o odin -g odin /var/lib/odin",
+test("setup gives each host user a service of their own, run by odin, which alone can read the tokens", () => {
+	const script = hostServiceInstallScript("odin-dan");
+	expect(script).toContain("'User=odin'");
+	expect(script).toContain(
+		"install -d -m 700 -o odin -g odin /var/lib/odin /var/lib/odin/odin-dan",
 	);
+	expect(script).toContain(
+		"host-service.py odin-dan /var/lib/odin/odin-dan/tokens.json $((40000 + $(id -u odin-dan) % 10000 * 2))",
+	);
+	expect(script).toContain("/etc/systemd/system/odin-host-odin-dan.service");
+	expect(() => hostServiceInstallScript("x; rm -rf /")).toThrow();
+});
+
+test("each uid has its own pair of ports", () => {
+	expect(hostPorts(1000)).toEqual({ service: 42000, tunnel: 42001 });
+	expect(hostPorts(1001).service).toBe(42002);
 });
