@@ -185,13 +185,7 @@ export function Transcript({
 										Full reply
 									</div>
 								)}
-								<div
-									className={
-										folded
-											? "max-h-[6.5rem] overflow-hidden [mask-image:linear-gradient(to_bottom,black_60%,transparent)]"
-											: undefined
-									}
-								>
+								<div className={folded ? "line-clamp-5" : undefined}>
 									<Markdown text={body} />
 								</div>
 								{latest && (

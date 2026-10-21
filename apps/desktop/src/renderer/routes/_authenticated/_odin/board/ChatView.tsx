@@ -2394,7 +2394,11 @@ function useTallerThanView(
 	return taller;
 }
 
-/** A long reply cut to its first lines, fading out, until you ask for all of it. */
+/**
+ * A long reply cut to its first lines until you ask for all of it. The cut
+ * lands after a whole line, which ends in an ellipsis: a pixel-height clip
+ * sliced a line in two and faded the rest to a ghost of the text.
+ */
 function FoldedReply({
 	foldable,
 	folded,
@@ -2409,21 +2413,14 @@ function FoldedReply({
 }) {
 	return (
 		<>
-			<div
-				className={cn(
-					folded &&
-						"max-h-[6.5rem] overflow-hidden [mask-image:linear-gradient(to_bottom,black_55%,transparent)]",
-				)}
-			>
-				{children}
-			</div>
+			<div className={cn(folded && "line-clamp-5")}>{children}</div>
 			{(folded || foldable) && (
 				<button
 					type="button"
 					onClick={onToggle}
 					className="mt-1 text-[12px] text-link hover:underline"
 				>
-					{folded ? "… Reply shortened - show the rest" : "Shorten the reply"}
+					{folded ? "Reply shortened - show the rest" : "Shorten the reply"}
 				</button>
 			)}
 		</>
