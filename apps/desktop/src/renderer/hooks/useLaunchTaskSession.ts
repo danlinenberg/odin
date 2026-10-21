@@ -151,6 +151,21 @@ export function parseDataUrl(dataUrl: string): {
 	};
 }
 
+/** How the Tasks editor and the phone link an image in ~/.odin/attachments (useOdinTasks's ATTACHMENT_URL). */
+const ATTACHMENT_FILE_URL = "odin-attachment://file/";
+
+/**
+ * A task's images as files the session can open. The Tasks panel's editor and
+ * the phone link an image as odin-attachment://file/<name>, and taskNotes as
+ * ~/.odin/attachments/<name>; both mean a file in that folder, so they become
+ * its absolute path: what the agent's file tools take, what the chat bubble
+ * previews, and what a remote launch copies to the host.
+ */
+export const attachmentsOnDisk = (text: string, home: string): string =>
+	text
+		.replaceAll(ATTACHMENT_FILE_URL, `${home}/.odin/attachments/`)
+		.replaceAll("~/.odin/attachments/", `${home}/.odin/attachments/`);
+
 /** Which Odin view launched a session - "slack" is the retired reactions alias. */
 export type OdinSource = "slack" | "reactions" | "jira" | "pr" | "notion";
 
@@ -460,9 +475,12 @@ export function useLaunchTaskSession() {
 					});
 					attachmentPaths.push(filePath);
 				}
+				// An image the Tasks editor or the phone linked by URL: the session
+				// needs the file.
+				const home = await utils.client.window.getHomeDir.query();
 				const text = buildPrompt(
 					title,
-					description,
+					description && attachmentsOnDisk(description, home),
 					attachmentPaths,
 					skill,
 					tags?.some((tag) => tag === "automation" || tag === "off-hours"),

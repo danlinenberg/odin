@@ -1,10 +1,25 @@
 import { describe, expect, it } from "bun:test";
 import {
+	attachmentsOnDisk,
 	boardIdentity,
 	buildPrompt,
 	parseDataUrl,
 	WORKTREE_ASK_LINE,
 } from "./useLaunchTaskSession";
+
+describe("attachmentsOnDisk", () => {
+	it("turns an editor's or the phone's image link, and a ~ path, into the file's absolute path", () => {
+		expect(
+			attachmentsOnDisk(
+				"See ![](odin-attachment://file/1-a.png) and [b.pdf](odin-attachment://file/b.pdf)\n~/.odin/attachments/c.png",
+				"/Users/dan",
+			),
+		).toBe(
+			"See ![](/Users/dan/.odin/attachments/1-a.png) and [b.pdf](/Users/dan/.odin/attachments/b.pdf)\n/Users/dan/.odin/attachments/c.png",
+		);
+		expect(attachmentsOnDisk("plain text", "/Users/dan")).toBe("plain text");
+	});
+});
 
 describe("boardIdentity", () => {
 	const ledger = {

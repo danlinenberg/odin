@@ -36,6 +36,7 @@ import { startPhone } from "./lib/phone/server";
 import { ensureProjectIconsDir, getProjectIconPath } from "./lib/project-icons";
 import { startWorktreePruner } from "./lib/prune-worktrees";
 import { runQuitCleanup } from "./lib/quit-sequence";
+import { hostFileSources } from "./lib/remote-host/host-files";
 import { initSentry } from "./lib/sentry";
 import { acquireSingleUiLock } from "./lib/single-ui-lock";
 import { completeSlackOAuth, isSlackOAuthCallback } from "./lib/slack-oauth";
@@ -419,9 +420,12 @@ if (!gotTheLock) {
 			if (!/\.(png|jpe?g|gif|webp|heic)$/i.test(requested)) {
 				return new Response("Not found", { status: 404 });
 			}
+			// A copy on the remote host, as a remote session's prompt names it, is
+			// served from the file here it was copied from.
+			const resolved = path.resolve(requested);
 			const file =
 				url.host === "local"
-					? path.resolve(requested)
+					? ((await hostFileSources())[resolved] ?? resolved)
 					: path.join(
 							homedir(),
 							".odin",
