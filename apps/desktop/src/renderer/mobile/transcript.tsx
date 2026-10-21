@@ -114,6 +114,18 @@ function TldrStrip({ tldr }: { tldr: string }) {
 	);
 }
 
+/**
+ * The TL;DR that leads the latest reply: only one too long to read whole,
+ * which folds under it. A short reply is its own summary, and a strip over it
+ * said the same thing twice. The board's chat does the same, by the reply's
+ * height on screen.
+ */
+export function leadingTldr<T extends { long: boolean }>(
+	tldr: T | null,
+): T | null {
+	return tldr?.long ? tldr : null;
+}
+
 /** The conversation: your messages, Odin's answers, folds, and the action items. */
 export function Transcript({
 	messages,
@@ -149,9 +161,9 @@ export function Transcript({
 				</div>
 			);
 		const { body, actions } = splitActionItems(message.text);
-		const latest = index === replyAt && tldr;
+		const latest = index === replyAt ? leadingTldr(tldr) : null;
 		// The board's chat: a long latest reply folds under its TL;DR.
-		const folded = latest && tldr.long && !fullReply;
+		const folded = !!latest && !fullReply;
 		return (
 			<div key={index}>
 				{(body || latest) && (
@@ -163,7 +175,7 @@ export function Transcript({
 					<div
 						className={`my-2 mr-6 overflow-hidden rounded-2xl rounded-bl-md border bg-card text-[15px] leading-snug text-soft-foreground border-border`}
 					>
-						{latest && <TldrStrip tldr={tldr.last} />}
+						{latest && <TldrStrip tldr={latest.last} />}
 						{body && (
 							<div
 								className={`px-3 py-2 ${latest ? "border-t border-border" : ""}`}
@@ -182,7 +194,7 @@ export function Transcript({
 								>
 									<Markdown text={body} />
 								</div>
-								{latest && tldr.long && (
+								{latest && (
 									<button
 										type="button"
 										onClick={() => setFullReply((shown) => !shown)}

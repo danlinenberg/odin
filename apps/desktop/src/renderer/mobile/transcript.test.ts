@@ -1,9 +1,19 @@
 import { expect, test } from "bun:test";
 import { ago } from "./cards";
-import { segments } from "./transcript";
+import { leadingTldr, segments } from "./transcript";
 
 const user = (text: string) => ({ role: "user" as const, text });
 const odin = (text: string) => ({ role: "assistant" as const, text });
+
+test("a TL;DR leads only a reply too long to read whole", () => {
+	const short = { last: "Fixed the sort.", urgency: null, long: false };
+	expect(leadingTldr(short)).toBeNull();
+	expect(leadingTldr({ ...short, long: true })).toEqual({
+		...short,
+		long: true,
+	});
+	expect(leadingTldr(null)).toBeNull();
+});
 
 test("a turn's in-between messages fold; its last answer stays open", () => {
 	const shape = segments([
