@@ -2553,9 +2553,15 @@ const ItemView = memo(function ItemView({
 	// A long latest reply opens on its TL;DR; this shows it whole.
 	const [full, setFull] = useState(false);
 	// One query per session, shared by its items; a phone reply shows up within seconds.
+	// Only user rows read it. A query result nothing reads re-renders on every
+	// fetch, so without notifyOnChangeProps each 5s poll re-rendered every reply.
 	const fromPhone = electronTrpc.phone.fromPhone.useQuery(
 		{ paneId: paneId ?? "" },
-		{ enabled: !!paneId && item.kind === "user", refetchInterval: 5_000 },
+		{
+			enabled: !!paneId && item.kind === "user",
+			refetchInterval: 5_000,
+			notifyOnChangeProps: ["data"],
+		},
 	);
 	const rootRef = useRef<HTMLDivElement>(null);
 	const bodyRef = useRef<HTMLDivElement>(null);

@@ -241,6 +241,8 @@ function OdinShell() {
 
 	// What the agents are costing this Mac - the same reading that decides
 	// whether a new session starts now or waits (see useLaunchTaskSession).
+	// The one poller of this snapshot: the board's pills and chips read it
+	// without their own interval.
 	const { data: metrics } = electronTrpc.resourceMetrics.getSnapshot.useQuery(
 		undefined,
 		{ refetchInterval: 5_000 },

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 
 /** The raven's wing, drawn from the shoulder. */
 const WING =
@@ -33,6 +33,35 @@ const FEATHERS = [
 	{ x: 3.4, y: 13.1, scale: 0.7, delay: "0.85s" },
 ];
 
+/** The raven's cycle, and the part of it he moves in (the last feather lands by 3.9s). */
+const CYCLE_MS = 12_000;
+const BEAT_MS = 4_000;
+
+/**
+ * True for the first BEAT_MS of every CYCLE_MS while `on`. The animations run
+ * only then: an infinite SVG animation repaints the header every frame, even
+ * through the ~8s he sits still.
+ */
+function useBeat(on: boolean): boolean {
+	const [beat, setBeat] = useState(false);
+	useEffect(() => {
+		if (!on) return;
+		let rest: ReturnType<typeof setTimeout> | undefined;
+		const start = () => {
+			setBeat(true);
+			rest = setTimeout(() => setBeat(false), BEAT_MS);
+		};
+		start();
+		const cycle = setInterval(start, CYCLE_MS);
+		return () => {
+			clearInterval(cycle);
+			clearTimeout(rest);
+			setBeat(false);
+		};
+	}, [on]);
+	return beat;
+}
+
 /**
  * Huginn, Odin's raven, perched on a branch, eye glowing. Idle, he
  * now and then hops, beats both wings twice and sheds three feathers.
@@ -45,7 +74,8 @@ export function CrowIcon({
 	/** Now and then he flaps his wings. */
 	idle?: boolean;
 }) {
-	const flap = idle ? "animate-[raven-flap_12s_ease-in-out_infinite]" : "";
+	const beat = useBeat(idle);
+	const flap = beat ? "animate-[raven-flap_12s_ease-in-out]" : "";
 	return (
 		<svg viewBox="0 0 24 24" className={className} aria-hidden="true">
 			<path
@@ -56,9 +86,7 @@ export function CrowIcon({
 				opacity="0.7"
 				d="M3 20.6h18M17.5 20.6l2.6-2.4"
 			/>
-			<g
-				className={idle ? "animate-[raven-lift_12s_ease-in-out_infinite]" : ""}
-			>
+			<g className={beat ? "animate-[raven-lift_12s_ease-in-out]" : ""}>
 				<Shoulder className={`${flap} [animation-delay:60ms]`}>
 					<path
 						fill="currentColor"
@@ -78,11 +106,11 @@ export function CrowIcon({
 					cx="17.2"
 					cy="6.9"
 					r="1.4"
-					className="fill-amber-300 blur-[0.9px] animate-[raven-eye_3s_ease-in-out_infinite]"
+					className={`fill-amber-300 blur-[0.9px] ${beat ? "animate-[raven-eye_3s_ease-in-out]" : "opacity-[0.45]"}`}
 				/>
 				<circle cx="17.2" cy="6.9" r="0.85" className="fill-amber-200" />
 			</g>
-			{idle &&
+			{beat &&
 				FEATHERS.map((feather) => (
 					<g
 						key={feather.delay}
@@ -91,7 +119,7 @@ export function CrowIcon({
 						<path
 							fill="currentColor"
 							style={{ animationDelay: feather.delay }}
-							className="opacity-0 [transform-box:view-box] [transform-origin:0_0] animate-[raven-feather_12s_ease-in_infinite] [animation-fill-mode:both]"
+							className="opacity-0 [transform-box:view-box] [transform-origin:0_0] animate-[raven-feather_12s_ease-in] [animation-fill-mode:both]"
 							d="M-1.5 0C-.75-.56.45-.64 1.5 0 .45.64-.75.56-1.5 0Z"
 						/>
 					</g>
