@@ -73,6 +73,10 @@ const ALLOWED: Record<string, { lines: number; why: string }> = {
 			lines: 3,
 			why: "forwards a web page's chords to the registry check",
 		},
+	"apps/desktop/src/renderer/routes/_authenticated/_odin/board/page.tsx": {
+		lines: 2,
+		why: "⌘-click on a session-list row ticks it, a mouse gesture",
+	},
 	"apps/desktop/src/renderer/routes/_authenticated/settings/layout.tsx": {
 		lines: 1,
 		why: "plain Esc leaves Settings, like closing a dialog",
