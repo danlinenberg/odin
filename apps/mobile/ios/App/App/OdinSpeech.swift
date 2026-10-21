@@ -28,6 +28,8 @@ public class OdinSpeechPlugin: CAPPlugin, CAPBridgedPlugin {
     private var heard = ""
     /// What earlier recognitions in this recording heard.
     private var said = ""
+    /// The current recognition's text so far.
+    private var part = ""
     private var hints: [String] = []
     private var recognizer: SFSpeechRecognizer?
     /// Recognitions started in this recording: a cap, so one that fails at
@@ -74,6 +76,7 @@ public class OdinSpeechPlugin: CAPPlugin, CAPBridgedPlugin {
         task?.cancel()
         heard = ""
         said = ""
+        part = ""
         rounds = 0
         hints = Array((words + Self.vocabulary).prefix(100))
         self.recognizer = recognizer
@@ -109,18 +112,32 @@ public class OdinSpeechPlugin: CAPPlugin, CAPBridgedPlugin {
             DispatchQueue.main.async {
                 if let result {
                     let part = result.bestTranscription.formattedString
+                    // After a pause, iOS can start the text over in the same
+                    // recognition: keep what came before it.
+                    if Self.startedOver(part, after: self.part) {
+                        self.said = [self.said, self.part].filter { !$0.isEmpty }.joined(separator: " ")
+                    }
+                    self.part = part
                     self.heard = [self.said, part].filter { !$0.isEmpty }.joined(separator: " ")
                     self.notifyListeners("partial", data: ["text": self.heard])
                 }
                 guard error != nil || result?.isFinal == true else { return }
                 if self.engine.isRunning && self.finished == nil {
                     self.said = self.heard
+                    self.part = ""
                     self.listen()
                 } else {
                     self.finish()
                 }
             }
         }
+    }
+
+    /// A new text that doesn't continue the last one: shorter, and not how it began.
+    static func startedOver(_ text: String, after last: String) -> Bool {
+        guard !text.isEmpty, text.count < last.count else { return false }
+        let head = { (s: String) in String(s.lowercased().prefix(6)) }
+        return !last.lowercased().hasPrefix(head(text))
     }
 
     private func finish() {
