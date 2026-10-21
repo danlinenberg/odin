@@ -24,14 +24,9 @@ import { BUTTON, PILL } from "./pill";
 import { matchRepos, repoLabel } from "./repo-picker";
 import { matchSkills } from "./skill-picker";
 
-/** Title is the first line, the brief is the rest - the two fields the box
-    shows are the two halves of the one string the store reads. */
-const splitTask = (text: string): [string, string] => {
-	const [title = "", ...rest] = text.split("\n");
-	return [title, rest.join("\n").replace(/^\n+/, "")];
-};
-const joinTask = (title: string, notes: string) =>
-	notes ? `${title}\n\n${notes}` : title;
+/** Adds lines under the task, as their own paragraph when it has only a title. */
+const appendLines = (text: string, lines: string[]) =>
+	[text.includes("\n") ? text : `${text}\n`, ...lines].join("\n");
 
 /** Skill, Doc, Repo and Priority: one height and one outline, so the row
     reads as a set of fields rather than four differently-sized blobs. */
@@ -69,11 +64,9 @@ export async function attachmentPaths(files: File[]): Promise<string[]> {
  * The box you write a task in - compose row, edit row and the hotkey's quick
  * capture all use this one, so priority works the same in all three.
  *
- * Two fields rather than one: which half names the card and which half is the
- * brief was a sentence of placeholder text you had to read and believe. A
- * labelled line and a labelled box say it without the sentence.
+ * One textbox: the first line names the card, the rest is the brief.
  *
- * Ctrl/⌘+Enter adds/saves, plain Enter in the brief is a newline, Escape
+ * Ctrl/⌘+Enter adds/saves, plain Enter is a newline, Escape
  * cancels. Plain Enter never submits - it fired half-written tasks.
  */
 export function TaskBox({
@@ -128,7 +121,7 @@ export function TaskBox({
 	/** Shows a button that does what Ctrl/⌘+Enter does. */
 	submitLabel?: string;
 }) {
-	const [title, notes] = splitTask(value);
+	const title = parseTask(value).title;
 	const [focused, setFocused] = useState(false);
 	const folded = !!compact && !focused && !value.trim();
 	// Send (⌘Enter unless rebound) submits from anywhere in the box - Skill,
@@ -147,9 +140,7 @@ export function TaskBox({
 		if (files.length === 0) return;
 		event.preventDefault();
 		attachmentPaths(files)
-			.then((paths) =>
-				onChange(joinTask(title, [notes, ...paths].filter(Boolean).join("\n"))),
-			)
+			.then((paths) => onChange(appendLines(value, paths)))
 			.catch(() => toast.error("Couldn't attach that file"));
 	};
 
@@ -181,30 +172,16 @@ export function TaskBox({
 					folded ? "border-dashed border-border" : "border-border",
 				)}
 			>
-				<input
-					value={title}
-					placeholder={placeholder ?? "Name it"}
+				<textarea
+					value={value}
+					placeholder={placeholder ?? "What needs doing?"}
 					// biome-ignore lint/a11y/noAutofocus: the edit box replaces the row you clicked
 					autoFocus={autoFocus}
-					aria-label="Title"
-					onChange={(event) => onChange(joinTask(event.target.value, notes))}
-					className="w-full bg-transparent px-3 pt-2 pb-1.5 text-[13px] font-semibold text-foreground outline-none placeholder:font-normal placeholder:text-muted-foreground"
+					rows={folded ? 1 : 3}
+					aria-label="Task"
+					onChange={(event) => onChange(event.target.value)}
+					className="w-full min-h-0 grow resize-none bg-transparent px-3 py-2 text-[13px] text-foreground outline-none placeholder:text-muted-foreground"
 				/>
-				{!folded && (
-					<>
-						<div className="mx-3 border-t border-border" />
-						<textarea
-							value={notes}
-							placeholder="The brief - what it needs, links, anything the session should know. Drop or paste photos, videos and .md docs (optional)"
-							rows={2}
-							aria-label="Brief"
-							onChange={(event) =>
-								onChange(joinTask(title, event.target.value))
-							}
-							className="w-full min-h-0 grow resize-none bg-transparent px-3 pt-1.5 pb-2 text-[13px] text-muted-foreground outline-none placeholder:text-muted-foreground"
-						/>
-					</>
-				)}
 			</fieldset>
 			{/* The picker doesn't hold a value of its own: it rewrites the "!"s in
 			    the text, which is what the store reads either way. Typing "!" and
@@ -224,12 +201,7 @@ export function TaskBox({
 							value=""
 							onChange={(event) =>
 								onChange(
-									joinTask(
-										title,
-										[notes, `Context doc: ${event.target.value}`]
-											.filter(Boolean)
-											.join("\n"),
-									),
+									appendLines(value, [`Context doc: ${event.target.value}`]),
 								)
 							}
 							// Fixed width: it always shows "Doc", so sizing it to the longest

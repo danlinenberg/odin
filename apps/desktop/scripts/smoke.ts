@@ -448,7 +448,7 @@ const TASK = `Smoke task ${Date.now()}`;
 await step("a task written down lands in Tasks", async () => {
 	await rail("Dev Board");
 	await click("button", "Add task");
-	await fill('input[placeholder="What needs doing?"]', TASK);
+	await fill('textarea[placeholder="What needs doing?"]', TASK);
 	// The dialog's submit is the last "Add task" - the checklist has one too.
 	await page(
 		`[...document.querySelectorAll("button")].filter((e) => __label(e) === "Add task").at(-1).click()`,
@@ -463,7 +463,7 @@ await step("the My Tasks composer adds a task with its button", async () => {
 		const strip = __find("button", "Slack").parentElement;
 		__find("button", "Tasks", strip).click();
 	})()`);
-	await fill('input[placeholder="What needs doing?"]', typed);
+	await fill('textarea[placeholder="What needs doing?"]', typed);
 	await click("button", "Add task");
 	await waitForText(typed);
 });
@@ -472,18 +472,18 @@ await step(
 	"⌘Enter adds the task from the fields under the box too",
 	async () => {
 		const typed = `Send task ${Date.now()}`;
-		await fill('input[placeholder="What needs doing?"]', typed);
+		await fill('textarea[placeholder="What needs doing?"]', typed);
 		// From Priority, not the title: Skill, Repo and Priority used to swallow it.
 		await page(`(() => {
 		const mac = navigator.platform.startsWith("Mac");
-		const title = document.querySelector('input[placeholder="What needs doing?"]');
+		const title = document.querySelector('textarea[placeholder="What needs doing?"]');
 		const field = title.closest("fieldset").parentElement.querySelector('select[aria-label="Priority"]');
 		field.focus();
 		field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", metaKey: mac, ctrlKey: !mac, bubbles: true }));
 	})()`);
 		await waitForText(typed);
 		const left = await page<string>(
-			`document.querySelector('input[placeholder="What needs doing?"]').value`,
+			`document.querySelector('textarea[placeholder="What needs doing?"]').value`,
 		);
 		if (left) throw new Error(`the box still holds "${left}"`);
 	},
@@ -662,7 +662,7 @@ await step("Tonight on a task row picks it for the Night Agent", async () => {
 await step("the Tasks page has its own composer", async () => {
 	const typed = `All composer task ${Date.now()}`;
 	await rail("Tasks");
-	await fill('input[placeholder="What needs doing?"]', typed);
+	await fill('textarea[placeholder="What needs doing?"]', typed);
 	await click("button", "Add task");
 	await waitForText(typed);
 });
@@ -671,7 +671,7 @@ await step(
 	"the Tasks composer stays open when you click into Repo",
 	async () => {
 		await rail("Tasks");
-		await mouseClick('input[placeholder="What needs doing?"]');
+		await mouseClick('textarea[placeholder="What needs doing?"]');
 		await mouseClick('input[aria-label="Repo"]');
 		const repoFocused = await page<boolean>(
 			`document.activeElement?.getAttribute("aria-label") === "Repo"`,
@@ -685,7 +685,7 @@ await step("ticking two tasks marks both done at once", async () => {
 	const pair = [`Bulk one ${Date.now()}`, `Bulk two ${Date.now()}`];
 	await rail("Tasks");
 	for (const typed of pair) {
-		await fill('input[placeholder="What needs doing?"]', typed);
+		await fill('textarea[placeholder="What needs doing?"]', typed);
 		await click("button", "Add task");
 		await waitForText(typed);
 	}
