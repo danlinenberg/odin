@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { deliverOnHost, type HostDeps, type HostMessage } from "./host-delivery";
+import {
+	deliverOnHost,
+	type HostDeps,
+	type HostMessage,
+} from "./host-delivery";
 
 const RULE = "─".repeat(40);
 const CLAUDE = `${RULE}\n❯\n${RULE}\n`;

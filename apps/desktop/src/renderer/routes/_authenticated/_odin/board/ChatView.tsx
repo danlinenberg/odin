@@ -51,7 +51,6 @@ import { cameFromPhone } from "shared/from-phone";
 import { freshTldr, sameReply, tldrPlacement } from "shared/latest-reply";
 import {
 	agentOnScreen,
-	claudeDrawn,
 	inputBoxRows,
 	odinScreenStatus,
 	remoteConnectLine,
@@ -86,6 +85,11 @@ import {
 	ScreenMenuCard,
 } from "./ChatPrompts";
 import { collectRefs, linkify, withSchemes } from "./chat-links";
+import {
+	deliverOnHost,
+	type HostDeps,
+	type HostMessage,
+} from "./host-delivery";
 import {
 	canSpeak,
 	speak,
@@ -413,6 +417,17 @@ type Sent = {
 	seen: Set<string>;
 	/** Claude never took it: no turn, nothing queued. */
 	lost?: boolean;
+	/** A remote session's reply held until Claude is back on the host. */
+	waiting?: boolean;
+};
+
+/** What a sender tells the bubble about a reply on its way to the host. */
+type SentHandle = Omit<HostMessage, "type">;
+
+const NO_HANDLE: SentHandle = {
+	arrived: () => true,
+	waiting: () => {},
+	lost: () => {},
 };
 
 /**
@@ -1284,6 +1299,7 @@ function UserBubble({
 	images,
 	pending,
 	lost,
+	waitingFor,
 	onShowTerminal,
 	onDismiss,
 	workspaceId,
@@ -1299,6 +1315,8 @@ function UserBubble({
 	fromPhone?: boolean;
 	/** Never reached Claude - say so, with a way to see why. */
 	lost?: boolean;
+	/** Held until Claude is back on this host. */
+	waitingFor?: string;
 	onShowTerminal?: () => void;
 	onDismiss?: () => void;
 	workspaceId?: string;
@@ -1369,6 +1387,12 @@ function UserBubble({
 				</div>
 			)}
 			<MessageTime at={at} className="mt-1 text-right" />
+			{waitingFor && !lost && (
+				<div className="mt-1.5 flex items-center justify-end gap-1.5 text-[12px] text-muted-foreground">
+					<LuServer className="size-3 shrink-0" />
+					Waiting for {waitingFor} - goes to Claude once it is back
+				</div>
+			)}
 			{lost && (
 				<div className="mt-1.5 flex flex-wrap gap-x-3 text-[12px]">
 					<span className="text-danger">
@@ -2702,9 +2726,12 @@ export function ChatView({
 	const hasSteps = turn.tools.length > 0 || liveCommand !== undefined;
 	const stepsShown = showSteps && hasSteps;
 	// Not mid-turn or queued: Claude writes a queued message only when it takes it.
+	// Not while it waits for the host either: it hasn't been typed yet.
+	const waitingIds = useRef(new Set<number>());
 	const expireLater = (id: number, text: string) => {
 		const expire = () =>
 			workingRef.current ||
+			waitingIds.current.has(id) ||
 			yourQueued(queuedRef.current).some((queuedText) =>
 				queuedText.includes(text),
 			)
@@ -2720,12 +2747,16 @@ export function ChatView({
 		for (const sent of carried.get(paneId) ?? [])
 			expireLater(sent.id, sent.text);
 	}, []);
-	const onSent = (text: string, previews?: Preview[]) => {
+	const onSent = (
+		text: string,
+		previews?: Preview[],
+		onHost = false,
+	): SentHandle => {
 		const id = Date.now();
 		pinnedRef.current = true;
 		// A /btw never reaches the transcript - its answer card shows it instead,
 		// and a bubble waiting on an echo would read "Not delivered".
-		if (/^\/btw\s/.test(text)) return;
+		if (/^\/btw\s/.test(text)) return NO_HANDLE;
 		const seen = new Set(
 			itemsRef.current.flatMap((item) =>
 				item.kind === "user" ? [item.id] : [],
@@ -2738,7 +2769,8 @@ export function ChatView({
 		// mid-turn. Nothing by now: it never got there, and the bubble says so
 		// instead of waiting on a turn that isn't coming. Not for `onSend` or a
 		// resume, which bring a dead PTY back first, or before a transcript loaded.
-		if (!onSend && !onResumeRef.current)
+		// A remote session's reply: `deliverOnHost` says, once it's typed.
+		if (!onHost && !onSend && !onResumeRef.current)
 			setTimeout(() => {
 				if (itemsRef.current.length === 0) return;
 				setPending((list) =>
@@ -2751,6 +2783,24 @@ export function ChatView({
 				);
 			}, 10_000);
 		expireLater(id, text);
+		const mark = (change: Partial<Sent>) =>
+			setPending((list) =>
+				list.map((sent) => (sent.id === id ? { ...sent, ...change } : sent)),
+			);
+		return {
+			arrived: () =>
+				arrived(itemsRef.current, queuedRef.current, { text, seen }),
+			waiting: (on) => {
+				if (on) waitingIds.current.add(id);
+				else waitingIds.current.delete(id);
+				mark({ waiting: on, lost: false });
+				if (!on) for (const ms of [500, 1500, 3000]) setTimeout(poke, ms);
+			},
+			lost: () => {
+				waitingIds.current.delete(id);
+				if (itemsRef.current.length > 0) mark({ lost: true, waiting: false });
+			},
+		};
 	};
 	const itemsRef = useRef(items);
 	itemsRef.current = items;
@@ -2772,10 +2822,25 @@ export function ChatView({
 				onResumeRef.current(text);
 				return;
 			}
+			const fail = (error: unknown) =>
+				toast.error(error instanceof Error ? error.message : String(error));
+			if (useTabsStore.getState().panes[paneId]?.odinRemote) {
+				const handle = onSentRef.current(text, undefined, true);
+				void deliverOnHost(
+					paneId,
+					{
+						...handle,
+						type: () => typeIntoClaude(write.mutateAsync, paneId, text),
+					},
+					hostDeps(paneId),
+				).catch((error) => {
+					handle.lost();
+					fail(error);
+				});
+				return;
+			}
 			onSentRef.current(text);
-			void typeIntoClaude(write.mutateAsync, paneId, text).catch((error) =>
-				toast.error(error instanceof Error ? error.message : String(error)),
-			);
+			void typeIntoClaude(write.mutateAsync, paneId, text).catch(fail);
 		},
 		[paneId, write.mutateAsync],
 	);
@@ -3114,6 +3179,7 @@ export function ChatView({
 								images={sent.previews}
 								pending
 								lost={sent.lost}
+								waitingFor={sent.waiting ? (host ?? "the host") : undefined}
 								onShowTerminal={onShowTerminal}
 								onDismiss={() =>
 									setPending((list) =>
@@ -3432,20 +3498,16 @@ export async function typeIntoClaude(
 	await write({ paneId, data: now ? "\x18\x13" : "\r" });
 }
 
-/**
- * A remote session reaching its host (a Resume, a dropped connection) has no
- * Claude to type into yet: what goes into the PTY meanwhile lands in the
- * connect step and is lost. Waits until Claude is drawn, up to two minutes.
- */
-async function untilClaudeOnHost(paneId: string) {
-	for (let waited = 0; waited < 120_000; waited += 500) {
-		const screen = await electronTrpcClient.terminal.readScreen
-			.query({ paneId })
-			.then((result) => result.text ?? "")
-			.catch(() => "");
-		if (claudeDrawn(screen) && !remoteConnectLine(screen)) return;
-		await new Promise((resolve) => setTimeout(resolve, 500));
-	}
+/** The live pane `deliverOnHost` reads and waits on. */
+function hostDeps(paneId: string): HostDeps {
+	return {
+		readScreen: () =>
+			electronTrpcClient.terminal.readScreen
+				.query({ paneId })
+				.then((result) => result.text ?? ""),
+		sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+		alive: () => !!useTabsStore.getState().panes[paneId],
+	};
 }
 
 /**
@@ -3551,7 +3613,7 @@ function Composer({
 }: {
 	paneId: string;
 	working: boolean;
-	onSent: (text: string, previews?: Preview[]) => void;
+	onSent: (text: string, previews?: Preview[], onHost?: boolean) => SentHandle;
 	onStop?: () => void;
 	noTerminal: boolean;
 	placeholder?: string;
@@ -3693,9 +3755,16 @@ function Composer({
 		useChatDrafts.getState().save(paneId, "");
 		setBash(false);
 		if (!bash) setAttached([]);
-		onSent(
+		// A session on the remote host can't read this computer's files:
+		// they go there first, and it gets the copies' paths.
+		const onHost =
+			!onResume &&
+			!onSend &&
+			!!useTabsStore.getState().panes[paneId]?.odinRemote;
+		const handle = onSent(
 			text,
 			sending.map((item) => item.preview),
+			onHost,
 		);
 		if (onResume) {
 			onResume([text, ...paths].filter(Boolean).join(" "));
@@ -3706,18 +3775,30 @@ function Composer({
 			return;
 		}
 		try {
-			// A session on the remote host can't read this computer's files:
-			// they go there first, and it gets the copies' paths.
-			const onHost = !!useTabsStore.getState().panes[paneId]?.odinRemote;
-			const sent = onHost
-				? await electronTrpcClient.remoteHost.filesToHost.mutate({
-						text,
-						paths,
-					})
-				: { text, paths };
-			if (onHost) await untilClaudeOnHost(paneId);
-			await pasteAttachments(write.mutateAsync, paneId, sent.paths);
-			await typeIntoClaude(write.mutateAsync, paneId, sent.text, now);
+			if (onHost) {
+				const sent = await electronTrpcClient.remoteHost.filesToHost.mutate({
+					text,
+					paths,
+				});
+				// Queued, not typed: the host may be down or Claude restarting.
+				void deliverOnHost(
+					paneId,
+					{
+						...handle,
+						type: async () => {
+							await pasteAttachments(write.mutateAsync, paneId, sent.paths);
+							await typeIntoClaude(write.mutateAsync, paneId, sent.text, now);
+						},
+					},
+					hostDeps(paneId),
+				).catch((error) => {
+					handle.lost();
+					toast.error(error instanceof Error ? error.message : String(error));
+				});
+				return;
+			}
+			await pasteAttachments(write.mutateAsync, paneId, paths);
+			await typeIntoClaude(write.mutateAsync, paneId, text, now);
 		} catch (error) {
 			setDraft(body);
 			setBash(bash);
