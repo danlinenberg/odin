@@ -26,6 +26,7 @@ import {
 	lastActionsId,
 	launchAttachments,
 	launchRequest,
+	messageAttachments,
 	nextHostStep,
 	outputTokens,
 	segments,
@@ -35,6 +36,7 @@ import {
 	toolDescription,
 	transcriptPath,
 	userText,
+	withoutAttachments,
 	withoutMediaPaths,
 	yourQueued,
 } from "./ChatView";
@@ -464,6 +466,58 @@ describe("withoutMediaPaths - the folded request minus the paths its previews sh
 			"See also\n/a/clip.mp4",
 		);
 		expect(withoutMediaPaths(request, new Set())).toBe(request);
+	});
+});
+
+describe("messageAttachments - the images and videos a typed message names", () => {
+	test("a follow-up's screenshot path after the words, the host's copy included", () => {
+		expect(
+			messageAttachments(
+				"why? /home/ubuntu/.odin/files/0-1792585952956-7y4nec.png",
+			),
+		).toEqual(["/home/ubuntu/.odin/files/0-1792585952956-7y4nec.png"]);
+		expect(messageAttachments("look /Users/dan/shot.png please")).toEqual([
+			"/Users/dan/shot.png",
+		]);
+	});
+
+	test("a path with spaces and dots in it, up to its own extension", () => {
+		expect(
+			messageAttachments(
+				"see /Users/dan/v1.2 notes/Screenshot 2026-10-21 at 15.32.11.png.",
+			),
+		).toEqual(["/Users/dan/v1.2 notes/Screenshot 2026-10-21 at 15.32.11.png"]);
+	});
+
+	test("two paths on a line, a video, and a file that is neither", () => {
+		expect(
+			messageAttachments(
+				"/Users/dan/notes.txt and /Users/dan/a.png /home/u/.odin/files/1-clip.mov\nnothing here",
+			),
+		).toEqual(["/Users/dan/a.png", "/home/u/.odin/files/1-clip.mov"]);
+		expect(messageAttachments("run ./build.png now")).toEqual([]);
+	});
+});
+
+describe("withoutAttachments - a typed message minus the paths its previews show", () => {
+	const copy = "/home/ubuntu/.odin/files/0-shot.png";
+
+	test("a path at the end or start of a line goes, one mid-sentence stays", () => {
+		expect(withoutAttachments(`why? ${copy}`, new Set([copy]))).toBe("why?");
+		expect(withoutAttachments(`${copy} why?`, new Set([copy]))).toBe("why?");
+		expect(withoutAttachments(`see ${copy} here`, new Set([copy]))).toBe(
+			`see ${copy} here`,
+		);
+	});
+
+	test("a line that was only paths goes; a path not yet shown stays", () => {
+		expect(
+			withoutAttachments(
+				`look\n${copy} /a/b.png\nok`,
+				new Set([copy, "/a/b.png"]),
+			),
+		).toBe("look\nok");
+		expect(withoutAttachments(`why? ${copy}`, new Set())).toBe(`why? ${copy}`);
 	});
 });
 

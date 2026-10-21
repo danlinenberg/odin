@@ -1325,15 +1325,21 @@ function UserBubble({
 	// A launch prompt (task + standing rules + reply format) fills the screen;
 	// show just the request you typed, and Odin's part only on its own button.
 	const request = launchRequest(text);
+	// A follow-up names its screenshot by path after the words (on the host,
+	// the copy's path): the file shows and the path goes, as in a launch.
 	const { previews: attached, hidden } = useAttachedPreviews(
-		request === null ? [] : launchAttachments(text),
+		request === null ? messageAttachments(text) : launchAttachments(text),
 		workspaceId,
 	);
 	const previews = [...(images ?? []), ...attached];
 	const [open, setOpen] = useState(false);
 	const [full, setFull] = useState(false);
 	const shown =
-		full || request === null ? text : withoutMediaPaths(request, hidden);
+		request === null
+			? withoutAttachments(text, hidden)
+			: full
+				? text
+				: withoutMediaPaths(request, hidden);
 	const long = shown.length > 300 || shown.split("\n").length > 4;
 	return (
 		<div
@@ -1500,6 +1506,72 @@ export const withoutMediaPaths = (request: string, hidden: Set<string>) =>
 		})
 		.join("\n")
 		.trim();
+
+/** Where a file this computer or the host holds starts, as a message names it. */
+const PATH_START = /\/(?:Users|home|private|tmp|var)\//;
+
+/**
+ * The image and video paths a message you typed names, wherever they fall in
+ * it: a follow-up with a screenshot carries the file's path after the words
+ * (on the host, the copy's), and a path can hold spaces. A line's next path
+ * ends the one before it.
+ */
+export function messageAttachments(text: string): string[] {
+	const out: string[] = [];
+	for (const line of text.split("\n")) {
+		let rest = line;
+		for (;;) {
+			const start = rest.search(PATH_START);
+			if (start < 0) break;
+			rest = rest.slice(start);
+			const next = rest.slice(1).search(PATH_START);
+			const found = mediaPrefix(next < 0 ? rest : rest.slice(0, next + 1));
+			if (found) out.push(found);
+			rest = rest.slice(found ? found.length : 1);
+		}
+	}
+	return out;
+}
+
+/** The shortest start of `scope` that is a media path ending at a word's end. */
+function mediaPrefix(scope: string): string | null {
+	for (const match of scope.matchAll(/\.\w{1,5}(?=[\s"'`)\]>.,;:!?]|$)/g)) {
+		const candidate = scope.slice(0, (match.index ?? 0) + match[0].length);
+		if (getImageMimeType(candidate) || isPreviewableVideoFile(candidate))
+			return candidate;
+	}
+	return null;
+}
+
+/**
+ * The message without the `hidden` paths its previews show, taken off the
+ * ends of their lines (where a send puts them); one in mid-sentence stays,
+ * the sentence would not read without it. A line that was only paths goes.
+ */
+export function withoutAttachments(text: string, hidden: Set<string>): string {
+	if (hidden.size === 0) return text;
+	return text
+		.split("\n")
+		.flatMap((line) => {
+			let out = line.trim();
+			for (let again = true; again; ) {
+				again = false;
+				for (const path of hidden) {
+					if (out.startsWith(path)) {
+						out = out.slice(path.length).trim();
+						again = true;
+					}
+					if (out.endsWith(path)) {
+						out = out.slice(0, -path.length).trim();
+						again = true;
+					}
+				}
+			}
+			if (out === line.trim()) return [line];
+			return out ? [out] : [];
+		})
+		.join("\n");
+}
 
 /** A pasted image or video: an image's URL alone, or a video with its file. */
 type Preview = string | { url: string; video: true };
