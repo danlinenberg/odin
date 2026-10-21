@@ -22,6 +22,7 @@ export {
 	workingRepoOf,
 	workingWorktreeOf,
 } from "./claude-sessions";
+export { readSubagents } from "./subagents";
 export {
 	cachedBriefs,
 	type WrittenBrief,

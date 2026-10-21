@@ -167,6 +167,7 @@ import { usePaneMeta } from "../hooks/usePaneMeta";
 import { usePendingFocus } from "../hooks/usePendingFocus";
 import { PANE_STATUS } from "../pane-status";
 import { type SweptRow, sessionFor } from "../review/verdicts";
+import { AgentsView, SubagentsButton, SubagentsPill } from "./AgentsView";
 import type { BriefMessage } from "./brief";
 import {
 	actionItems,
@@ -1020,6 +1021,28 @@ function PrPill({ card, live }: { card: BoardCard; live: boolean }) {
 			{prs.length > 1 ? ` +${prs.length - 1}` : ""}
 		</span>
 	);
+}
+
+/** "⋔ 2 agents" while this card's session has subagents out - see AgentsView. */
+function AgentsPill({ card }: { card: BoardCard }) {
+	const sessionId = useCardSessionId(card);
+	return (
+		<SubagentsPill sessionId={sessionId} live={card.status === "working"} />
+	);
+}
+
+/** The drawer's "⋔ Agents" button, for the session the drawer shows. */
+function DrawerAgentsButton({
+	card,
+	...rest
+}: {
+	card: BoardCard;
+	alive: boolean;
+	open: boolean;
+	onClick: () => void;
+}) {
+	const sessionId = useCardSessionId(card);
+	return <SubagentsButton sessionId={sessionId} {...rest} />;
 }
 
 function NotionPill({ card, live }: { card: BoardCard; live: boolean }) {
@@ -2256,6 +2279,7 @@ const BoardCardTile = memo(
 							)}
 							<RepoPill card={card} />
 							<PrPill card={card} live={card.status === "working"} />
+							<AgentsPill card={card} />
 							{!!ciChecks && (
 								<span
 									title={`CI running: ${ciChecks}`}
@@ -2596,6 +2620,9 @@ function DevBoardPage() {
 	// A plain shell in the session's checkout. Takes the terminal's place for the
 	// same reason the diff does - you go to the shell instead of the session.
 	const [isShellOpen, setIsShellOpen] = useState(false);
+	// The session's subagents, in the terminal's place too: a list you read,
+	// not something you watch beside the session.
+	const [isAgentsOpen, setIsAgentsOpen] = useState(false);
 	/** Which of the session's Shells the drawer shows: a name, or null for the main one. */
 	const [shellName, setShellName] = useState<string | null>(null);
 	const chatView = useSessionView((s) => s.chat);
@@ -3692,6 +3719,7 @@ function DevBoardPage() {
 		if (!shellPaneOf(card) && named.length) {
 			setShellName(named[0][0]);
 			setIsDiffOpen(false);
+			setIsAgentsOpen(false);
 			setIsShellOpen(true);
 			return;
 		}
@@ -3713,6 +3741,7 @@ function DevBoardPage() {
 			}));
 		}
 		setIsDiffOpen(false);
+		setIsAgentsOpen(false);
 		setIsShellOpen(true);
 	};
 	const openFolderInVsCode =
@@ -5945,6 +5974,7 @@ function DevBoardPage() {
 						title="Show what this session changed (git diff)"
 						onClick={() => {
 							setIsShellOpen(false);
+							setIsAgentsOpen(false);
 							setIsDiffOpen((open) => !open);
 						}}
 						className={cn(
@@ -5956,6 +5986,18 @@ function DevBoardPage() {
 					>
 						⑂ Diff
 					</button>
+				)}
+				{drawerCard.pane.type === "terminal" && !inCatchUp && (
+					<DrawerAgentsButton
+						card={drawerCard}
+						alive={agentPaneIds.has(drawerCard.pane.id)}
+						open={isAgentsOpen}
+						onClick={() => {
+							setIsShellOpen(false);
+							setIsDiffOpen(false);
+							setIsAgentsOpen((open) => !open);
+						}}
+					/>
 				)}
 				{/* Not in Catch up (nor Diff): you're deciding Next or Done. */}
 				{drawerCard.pane.type === "terminal" && !inCatchUp && (
@@ -6908,6 +6950,20 @@ function DevBoardPage() {
 											cwd={sessionCwd(drawerCard.pane) ?? null}
 											claudeSessionId={drawerCard.pane.claudeSessionId ?? null}
 											workspaceId={drawerCard.workspaceId}
+										/>
+									) : isAgentsOpen &&
+										!inCatchUp &&
+										drawerCard.pane.type === "terminal" ? (
+										<AgentsView
+											key={drawerCard.pane.id}
+											sessionId={
+												drawerCard.pane.claudeSessionId ??
+												usePaneMeta.getState().sessionIdByPane[
+													drawerCard.pane.id
+												] ??
+												null
+											}
+											alive={agentPaneIds.has(drawerCard.pane.id)}
 										/>
 									) : drawerCard.pane.type !== "terminal" ? (
 										<div className="flex-1 select-text cursor-text overflow-y-auto px-4 py-3 text-[12.5px] text-muted-foreground">
