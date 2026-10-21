@@ -308,6 +308,14 @@ export function attachScript(
 			? `printf %s ${sh(Buffer.from(spec.prompt).toString("base64"))} | base64 -d | tmux load-buffer -b odin-reply - && tmux paste-buffer -p -d -b odin-reply -t ${session} && sleep 0.5 && tmux send-keys -t ${session} Enter; `
 			: "";
 	return [
+		// tmux sizes a window to one attached client. Its default, `latest`, is
+		// whichever client attached most recently - and a dropped connection,
+		// a remounted pane or a Resume leaves the previous SSH client attached
+		// at the spawn default (80x24), so that stale client, not the live
+		// viewer, pins Claude's TUI to 80 columns the moment it becomes the
+		// latest. `largest` sizes the window to the biggest attached client, so
+		// the real wide viewer wins over a leftover 80x24 one.
+		"tmux set-option -g window-size largest 2>/dev/null",
 		spec.fresh ? `tmux kill-session -t ${session} 2>/dev/null` : "",
 		`if tmux has-session -t ${session} 2>/dev/null; then rm -rf ${sh(secretsDir)}; ${reply}exec tmux attach -t ${session}; fi`,
 		`cat > ${sh(secretsDir)}/run.sh <<'ODIN_RUN'`,

@@ -65,15 +65,17 @@ describe("remote session scripts", () => {
 	test("an existing tmux session is reattached; a new one runs the script", () => {
 		const attach = attachScript(spec, "/dev/shm/odin.X");
 		expect(tmuxSession(spec.pane)).toBe("odin-pane-1-x");
+		// The window follows the largest attached client, not a stale small one.
 		expect(attach).toStartWith(
+			"tmux set-option -g window-size largest 2>/dev/null\n",
+		);
+		expect(attach).toContain(
 			"if tmux has-session -t 'odin-pane-1-x' 2>/dev/null; then",
 		);
 		expect(attach).toEndWith(
 			`exec tmux new-session -s 'odin-pane-1-x' "bash '/dev/shm/odin.X'/run.sh"`,
 		);
-		expect(
-			attachScript({ ...spec, fresh: true }, "/dev/shm/odin.X"),
-		).toStartWith(
+		expect(attachScript({ ...spec, fresh: true }, "/dev/shm/odin.X")).toContain(
 			"tmux kill-session -t 'odin-pane-1-x' 2>/dev/null\nif tmux has-session",
 		);
 	});

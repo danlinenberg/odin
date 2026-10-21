@@ -2438,7 +2438,12 @@ function DevBoardPage() {
 	// gated refit can miss), clipping the bottom of the screen - where Claude
 	// renders its pickers. Nudge it: refit, sync the PTY size (SIGWINCH makes
 	// Claude repaint at the new size), and pin the view to the bottom.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: isBriefOpen is a trigger - the brief resizes the terminal
+	// Switching from chat view to the terminal is the worst case: a remote
+	// session is driven over chat, so its PTY sat at the 80x24 spawn default
+	// the whole time, and the terminal first mounts (stale) only on this
+	// switch - so terminalPaneId and chatView are triggers too, without them
+	// the terminal opens at 80 columns and Claude's TUI wraps.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: isBriefOpen, terminalPaneId and chatView are triggers - each changes the terminal's size
 	useEffect(() => {
 		if (!drawerCard || drawerCard.pane.type !== "terminal") return;
 		const paneId = drawerCard.pane.id;
@@ -2468,7 +2473,7 @@ function DevBoardPage() {
 		return () => {
 			for (const timer of timers) clearTimeout(timer);
 		};
-	}, [drawerCard, utils, isBriefOpen]);
+	}, [drawerCard, utils, isBriefOpen, terminalPaneId, chatView]);
 
 	// Esc closes the drawer. Captured at the window so it doesn't reach the
 	// terminal by default - an Esc in the PTY cancels Claude's pending menu and
