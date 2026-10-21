@@ -447,6 +447,36 @@ export function launchPullRequest(
 }
 
 /**
+ * The PRs "Ping me" waits on for approval: every PR the session's brief
+ * lists. That is the one it launched on, every one it printed across the
+ * whole session (`links`; `messages` is only the tail), and the ones you
+ * attached to the brief yourself.
+ */
+export function watchedPullRequests(
+	launch: string | null | undefined,
+	transcript:
+		| { messages: BriefMessage[]; links?: BriefMessage[] }
+		| null
+		| undefined,
+	attached: (string | { url: string })[] = [],
+): PullRequestLink[] {
+	const printed = transcript
+		? pullRequests(transcript.links ?? transcript.messages)
+		: [];
+	const yours = pullRequests(
+		attached.map((link) => ({
+			role: "assistant",
+			text: typeof link === "string" ? link : link.url,
+			at: null,
+		})),
+	);
+	const all = [launchPullRequest(launch), ...printed, ...yours].flatMap((pr) =>
+		pr ? [pr] : [],
+	);
+	return [...new Map(all.map((pr) => [pr.url, pr])).values()];
+}
+
+/**
  * The PR a session was launched to review - buildReviewPrompt's opener - not
  * one of mine. Null for any other session.
  */

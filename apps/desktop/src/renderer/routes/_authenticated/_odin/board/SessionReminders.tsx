@@ -21,7 +21,7 @@ import {
 	isNote,
 	useReminders,
 } from "../components/Reminders";
-import { useReplyWatch, watchEvent } from "../components/ReplyWatch";
+import { unreadPings, useReplyWatch } from "../components/ReplyWatch";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
 import { usePendingFocus } from "../hooks/usePendingFocus";
@@ -207,9 +207,7 @@ export function SessionReminders() {
 	const upcoming = Object.keys(reminders).length - due.length;
 	const watches = useReplyWatch((s) => s.watches);
 	const seen = useReplyWatch((s) => s.seen);
-	const replies = Object.entries(watches)
-		.filter(([, w]) => w.reply && w.paneId)
-		.map(([key, w]) => ({ ...w, key, event: watchEvent(key, w) }));
+	const replies = unreadPings(watches);
 	if (!showsBar(reminders, replies.length, now)) return null;
 
 	return (

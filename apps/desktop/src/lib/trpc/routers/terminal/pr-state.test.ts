@@ -4,6 +4,7 @@ import { mkdtempSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+	approvedBy,
 	firstParagraph,
 	type GhExec,
 	ghAsAnyAccount,
@@ -43,6 +44,21 @@ describe("pullRequestState", () => {
 			title: null,
 			summary: null,
 		});
+	});
+
+	test("approved by a bot or app review when the repo requires no review", async () => {
+		// No review rule on the branch: GitHub gives no reviewDecision at all.
+		const exec: GhExec = async () => ({
+			stdout: JSON.stringify({
+				state: "OPEN",
+				reviewDecision: "",
+				latestReviews: [
+					{ author: { login: "cursor" }, state: "APPROVED" },
+					{ author: { login: "a" }, state: "COMMENTED" },
+				],
+			}),
+		});
+		expect((await pullRequestState(URL, exec))?.approved).toBe(true);
 	});
 
 	test("carries the title and the description's opening paragraph", async () => {
@@ -517,5 +533,20 @@ describe("ghAsAnyAccount", () => {
 		);
 		expect(out).toBe("ok");
 		expect(tokens).toEqual([undefined, "personal", "work"]);
+	});
+});
+
+describe("approvedBy", () => {
+	const approve = { login: "bot", state: "APPROVED" };
+	test("GitHub's decision wins when the repo requires a review", () => {
+		expect(approvedBy("APPROVED", [])).toBe(true);
+		expect(approvedBy("REVIEW_REQUIRED", [approve])).toBe(false);
+	});
+	test("no decision: a reviewer's latest approval counts", () => {
+		expect(approvedBy(null, [approve])).toBe(true);
+		expect(approvedBy(undefined, [])).toBe(false);
+		expect(
+			approvedBy(null, [approve, { login: "b", state: "CHANGES_REQUESTED" }]),
+		).toBe(false);
 	});
 });

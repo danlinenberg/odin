@@ -124,11 +124,31 @@ export function firstParagraph(body: string): string | null {
 	return null;
 }
 
+/**
+ * Whether a PR is approved. GitHub's review decision says so when the repo
+ * requires a review. A repo that requires none has no decision (null) even
+ * after someone approves: then a reviewer's latest approval counts, a bot's or
+ * an app's too, as long as nobody's latest review asks for changes.
+ */
+export function approvedBy(
+	decision: string | null | undefined,
+	reviews: { login?: string; state?: string }[],
+): boolean {
+	if (decision) return decision === "APPROVED";
+	const latest = new Map<string, string>();
+	for (const { login, state } of reviews)
+		if (login && (state === "APPROVED" || state === "CHANGES_REQUESTED"))
+			latest.set(login, state);
+	const states = [...latest.values()];
+	return states.includes("APPROVED") && !states.includes("CHANGES_REQUESTED");
+}
+
 /** `gh pr view --json` shape; the REST fallback is mapped onto it. */
 interface PrJson {
 	state?: string;
 	isDraft?: boolean;
 	reviewDecision?: string | null;
+	latestReviews?: { author?: { login?: string } | null; state?: string }[];
 	statusCheckRollup?: RollupEntry[] | null;
 	mergeable?: string | null;
 	mergeStateStatus?: string | null;
@@ -149,7 +169,13 @@ function statusOf(pr: PrJson): PullRequestStatus | null {
 	const out: PullRequestStatus = {
 		state: pr.state,
 		isDraft: pr.isDraft === true,
-		approved: pr.reviewDecision === "APPROVED",
+		approved: approvedBy(
+			pr.reviewDecision,
+			(pr.latestReviews ?? []).map((r) => ({
+				login: r.author?.login,
+				state: r.state,
+			})),
+		),
 		pending: [],
 		awaiting: [],
 		failed: [],
@@ -334,7 +360,7 @@ export async function pullRequestState(
 				"view",
 				url,
 				"--json",
-				"state,isDraft,reviewDecision,statusCheckRollup,mergeable,mergeStateStatus,baseRefName,author,title,body",
+				"state,isDraft,reviewDecision,latestReviews,statusCheckRollup,mergeable,mergeStateStatus,baseRefName,author,title,body",
 			],
 			status,
 			exec,

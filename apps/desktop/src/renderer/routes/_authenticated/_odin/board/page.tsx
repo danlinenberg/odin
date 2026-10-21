@@ -188,6 +188,7 @@ import {
 	reviewedPullRequest,
 	slackThread,
 	sourceLink,
+	watchedPullRequests,
 } from "./brief";
 import { ChatView, interruptClaude, typeIntoClaude } from "./ChatView";
 import {
@@ -580,12 +581,11 @@ function useSessionWatchKeys(card: BoardCard | undefined): string[] {
 	});
 	// The conversations it left a draft in: once you send it, you wait there.
 	const drafts = (transcript?.slackDrafts ?? []).map((id) => `slack:${id}`);
-	const prs = new Set(
-		[
-			launchPullRequest(card.pane.odinBrief),
-			...(transcript ? pullRequests(transcript.messages) : []),
-		].flatMap((pr) => (pr ? [`pr:${pr.url}`] : [])),
-	);
+	const prs = watchedPullRequests(
+		card.pane.odinBrief,
+		transcript,
+		added ?? [],
+	).map((pr) => `pr:${pr.url}`);
 	return [...new Set([thread, ...drafts, ...prs])].filter(
 		(k): k is string => !!k,
 	);

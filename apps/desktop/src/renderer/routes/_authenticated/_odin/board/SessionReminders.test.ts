@@ -1,5 +1,10 @@
 import { expect, test } from "bun:test";
 import { dayOf } from "../components/Reminders";
+import {
+	newReplies,
+	unreadPings,
+	useReplyWatch,
+} from "../components/ReplyWatch";
 import { showsBar, ticketKey } from "./SessionReminders";
 
 test("ticketKey reads the leading Jira key", () => {
@@ -35,4 +40,22 @@ test("a standalone reminder raises the bar once its time has come", () => {
 	const note = { "note:x": { due: dayOf(now), title: "x", at: "15:00" } };
 	expect(showsBar(note, 0, now)).toBe(false);
 	expect(showsBar(note, 0, new Date(2026, 9, 20, 15).getTime())).toBe(true);
+});
+
+test("an approval the watcher pings for raises the Reminders bar", () => {
+	const pr = "pr:https://github.com/o/r/pull/9";
+	useReplyWatch.getState().toggle([pr], "Fix login", "pane-9");
+	const activity = {
+		[pr]: { stamp: "approved", byMe: false, text: "Fix login", url: null },
+	};
+	// One watcher tick: the ping, then the stamp and the unread reply.
+	const { watches, setStamps } = useReplyWatch.getState();
+	const pinged = newReplies(watches, activity);
+	expect(pinged).toEqual([pr]);
+	setStamps({ [pr]: "approved" }, { [pr]: "Fix login" });
+	const pings = unreadPings(useReplyWatch.getState().watches);
+	expect(pings.map((p) => [p.key, p.event])).toEqual([[pr, "Approved"]]);
+	// No reminders at all: the unread approval alone shows the bar.
+	expect(showsBar({}, pings.length, Date.now())).toBe(true);
+	useReplyWatch.getState().toggle([], "", "pane-9");
 });

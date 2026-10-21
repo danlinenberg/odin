@@ -254,6 +254,18 @@ export function conditionOutcome(
 }
 
 /**
+ * The pings you haven't answered, as the board's Reminders bar lists them:
+ * a reply or approval on a watch that still knows its session.
+ */
+export function unreadPings(
+	watches: Record<string, Watch>,
+): (Watch & { key: string; event: string })[] {
+	return Object.entries(watches)
+		.filter(([, w]) => w.reply && w.paneId)
+		.map(([key, w]) => ({ ...w, key, event: watchEvent(key, w) }));
+}
+
+/**
  * The watches with a new reply from someone else. A thread's first check only
  * records where it stands: the replies already there are why you watched it,
  * not news. A PR already approved by its first check is news - approval is
@@ -304,7 +316,11 @@ export function useReplyWatcher(openSession: (paneId: string) => void): void {
 			const replies: Record<string, string> = {};
 			for (const key of newReplies(watches, activity)) {
 				const watch = watches[key];
-				replies[key] = activity[key]?.text ?? "Someone replied in the thread.";
+				replies[key] =
+					activity[key]?.text ??
+					(key.startsWith("pr:")
+						? "Your PR was approved."
+						: "Someone replied in the thread.");
 				const note = new Notification(
 					`${watchEvent(key)}: ${watch?.title ?? key}`,
 					{

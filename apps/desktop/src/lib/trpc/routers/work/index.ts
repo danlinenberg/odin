@@ -14,7 +14,7 @@ import {
 	slackThreadReplies,
 	slackWatchedThread,
 } from "../slack";
-import { pullRequestState } from "../terminal/pr-state";
+import { approvedBy, pullRequestState } from "../terminal/pr-state";
 
 /**
  * Odin fork: read-only "my work" feeds - Jira issues assigned to me and GitHub
@@ -384,7 +384,7 @@ async function pullRequestApproval(
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({
 				query:
-					"query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){reviewDecision title state}}}",
+					"query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){reviewDecision title state latestOpinionatedReviews(first:50){nodes{state author{login}}}}}}",
 				variables: { o: owner, r: name, n: Number(number) },
 			}),
 		},
@@ -398,6 +398,12 @@ async function pullRequestApproval(
 							reviewDecision?: string | null;
 							title?: string;
 							state?: string;
+							latestOpinionatedReviews?: {
+								nodes?: {
+									state?: string;
+									author?: { login?: string } | null;
+								}[];
+							} | null;
 						};
 					} | null;
 				};
@@ -406,7 +412,13 @@ async function pullRequestApproval(
 	const pr = payload?.data?.repository?.pullRequest;
 	if (pr)
 		return {
-			approved: pr.reviewDecision === "APPROVED",
+			approved: approvedBy(
+				pr.reviewDecision,
+				(pr.latestOpinionatedReviews?.nodes ?? []).map((r) => ({
+					login: r.author?.login,
+					state: r.state,
+				})),
+			),
 			title: pr.title ?? null,
 			open: pr.state === "OPEN",
 		};
@@ -450,17 +462,10 @@ async function restPullRequestApproval(
 export function reviewsApprove(
 	reviews: { user?: { login?: string } | null; state?: string }[],
 ): boolean {
-	const latest = new Map<string, string>();
-	for (const review of reviews) {
-		const login = review.user?.login;
-		if (
-			login &&
-			(review.state === "APPROVED" || review.state === "CHANGES_REQUESTED")
-		)
-			latest.set(login, review.state);
-	}
-	const states = [...latest.values()];
-	return states.includes("APPROVED") && !states.includes("CHANGES_REQUESTED");
+	return approvedBy(
+		null,
+		reviews.map((r) => ({ login: r.user?.login, state: r.state })),
+	);
 }
 
 /** Watched PRs that merged or closed: no approval left to wait for, so no more calls. */

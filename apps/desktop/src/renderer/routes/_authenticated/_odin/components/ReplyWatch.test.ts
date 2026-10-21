@@ -199,3 +199,17 @@ test("a condition Claude gave up on says so", () => {
 	expect(watchEvent(key ?? "", s().watches[key ?? ""])).toBe("Gave up");
 	s().toggle([], "", "pane-g");
 });
+
+test("a PR approved before its first check pings once, then not again", () => {
+	const pr = "pr:https://github.com/o/r/pull/12";
+	const { toggle, add } = useReplyWatch.getState();
+	toggle(["jira:A-2"], "t", "pane-12");
+	// A PR the session made after Ping me was on joins with no stamp.
+	add([pr], "pane-12");
+	expect(useReplyWatch.getState().watches[pr]?.stamp).toBeUndefined();
+	const activity = { [pr]: reply("approved") };
+	expect(newReplies(useReplyWatch.getState().watches, activity)).toEqual([pr]);
+	useReplyWatch.getState().setStamps({ [pr]: "approved" });
+	expect(newReplies(useReplyWatch.getState().watches, activity)).toEqual([]);
+	toggle([], "", "pane-12");
+});
