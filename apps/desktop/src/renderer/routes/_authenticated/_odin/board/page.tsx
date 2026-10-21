@@ -1068,8 +1068,7 @@ function useShellPlace(card: BoardCard, shell: Pane) {
 	);
 	// Live PTYs and where each one really is. zsh here sends no OSC-7, so a
 	// pane's `cwd` only knows where Odin opened it; the process table knows more.
-	// No refetchInterval: the shell header polls this query for everyone. One
-	// timer per card meant one fetch, and a re-render of every card, per card.
+	// Polled by the shell header (OdinShell): an interval here would add a timer per card.
 	const { data: metrics } = electronTrpc.resourceMetrics.getSnapshot.useQuery();
 	const live = metrics?.workspaces.flatMap((w) => w.sessions) ?? [];
 	const { data: cwds } = electronTrpc.terminal.shellCwds.useQuery(
