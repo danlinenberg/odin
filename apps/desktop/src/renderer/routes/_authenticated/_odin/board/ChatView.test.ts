@@ -288,6 +288,16 @@ describe("ChatView transcript", () => {
 		expect(lastActionsId([text("a", "no list")])).toBeUndefined();
 	});
 
+	test("no action items card while Claude works", () => {
+		const reply = {
+			kind: "text" as const,
+			id: "a",
+			text: "x\nACTION ITEMS:\n1. Merge it",
+		};
+		expect(lastActionsId([reply], true)).toBeUndefined();
+		expect(lastActionsId([reply], false)).toBe("a");
+	});
+
 	test("an item's tooltip is the reply paragraph that explains it", () => {
 		const body =
 			"Pushed the docs.\n\n`training-profiles.md` lists profiles that no longer exist.\n\nThe notifications bug and the Pic-Time auth bug both 500 on retry.";

@@ -1419,8 +1419,16 @@ export function launchRequest(text: string): string | null {
 	return at < 0 ? null : blocks.slice(0, at).join("\n\n");
 }
 
-/** The latest reply that has an ACTION ITEMS block - the only one whose card shows. */
-export function lastActionsId(items: Item[]): string | undefined {
+/**
+ * The latest reply that has an ACTION ITEMS block - the only one whose card
+ * shows. None while Claude works: the items belong to a reply that is being
+ * superseded, and the card would sit between you and the status line.
+ */
+export function lastActionsId(
+	items: Item[],
+	working = false,
+): string | undefined {
+	if (working) return undefined;
 	return items.findLast(
 		(item) => item.kind === "text" && !!splitActionItems(item.text).actions,
 	)?.id;
@@ -2435,8 +2443,8 @@ export function ChatView({
 	// Whether it is shown is ItemView's call: only a reply taller than the view gets one.
 	const tldr = fresh && tldrOnly ? { ...fresh, urgency: null } : fresh;
 	// Agents repeat their ACTION ITEMS in every reply; show one card, on the
-	// latest reply that has it. It stays while Claude works on your answer.
-	const actionsId = lastActionsId(items);
+	// latest reply that has it, and none while Claude works on the next one.
+	const actionsId = lastActionsId(items, working);
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const pinnedRef = useRef(true);
 	const lastScrollTopRef = useRef(0);
