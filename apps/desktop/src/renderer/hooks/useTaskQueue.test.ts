@@ -5,7 +5,13 @@ import {
 	DEFAULT_LAUNCH_LIMITS,
 	type MachineLoadInput,
 } from "shared/machine-load";
-import { livePanes } from "./useTaskQueue";
+import {
+	hostReadSinceStart,
+	livePanes,
+	MAC_START_GAP_MS,
+	macPaceBlocker,
+	markStarted,
+} from "./useTaskQueue";
 
 const odin = "/Users/me/odin";
 const pane = (id: string, extra: Partial<Pane> = {}) =>
@@ -35,5 +41,22 @@ describe("livePanes", () => {
 		).not.toBeNull();
 		const live = livePanes(panes, [{ sessionId: "ghost", isAlive: false }]);
 		expect(launchBlocker(idle, live, odin, odin, limits)).toBeNull();
+	});
+});
+
+describe("start pacing", () => {
+	test("a burst on the Mac starts one, then waits for it to show up", () => {
+		const t = 1_000_000;
+		expect(macPaceBlocker(t)).toBeNull();
+		expect(macPaceBlocker(t + 300)).not.toBeNull();
+		expect(macPaceBlocker(t + MAC_START_GAP_MS)).toBeNull();
+	});
+
+	test("a host start waits for a reading taken after the last one", () => {
+		markStarted("host", 5_000);
+		expect(hostReadSinceStart(4_000)).toBe(false);
+		expect(hostReadSinceStart(6_000)).toBe(true);
+		// No reading to be had lets it through, as a failed read does.
+		expect(hostReadSinceStart(null)).toBe(true);
 	});
 });

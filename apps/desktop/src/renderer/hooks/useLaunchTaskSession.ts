@@ -1,5 +1,9 @@
 import { useState } from "react";
-import { currentLaunchBlocker } from "renderer/hooks/useTaskQueue";
+import {
+	currentHostBlocker,
+	currentLaunchBlocker,
+	macPaceBlocker,
+} from "renderer/hooks/useTaskQueue";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { usePaneMeta } from "renderer/routes/_authenticated/_odin/hooks/usePaneMeta";
 import { claudeLaunch } from "renderer/stores/claude-command";
@@ -406,16 +410,18 @@ export function useLaunchTaskSession() {
 			// left you on the board behind every task in line.
 			// A launch to the remote host waits on the host's memory and load
 			// instead: too many sessions there take every one of them down.
+			// Either way a launch right behind another one waits for it to show
+			// up in the reading, so a burst (Huginn starting five) is paced.
 			let queuedReason: string | null = null;
 			if (now !== true && !noPrompt && !resumeSessionId) {
 				try {
 					queuedReason = remote
-						? (await utils.client.remoteHost.launchGate.query()).reason
-						: await currentLaunchBlocker(
+						? await currentHostBlocker(utils.client)
+						: ((await currentLaunchBlocker(
 								utils.client,
 								checkout,
 								workConfig?.odinRepoPath,
-							);
+							)) ?? macPaceBlocker());
 				} catch {
 					queuedReason = null;
 				}

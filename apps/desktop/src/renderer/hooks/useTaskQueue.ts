@@ -47,6 +47,54 @@ export function livePanes(
 type TrpcClient = ReturnType<typeof electronTrpc.useUtils>["client"];
 
 /**
+ * When a session last started on this Mac and on the remote host, from any
+ * path: a launch, a Resume, the queue. The gates read the machine's load, and
+ * a reading lags a start, so a burst - a bulk Resume, Huginn starting five
+ * tasks - would pass them all at once. Each start waits for the one before it
+ * to show up.
+ */
+const lastStart = { mac: 0, host: 0 };
+
+/** The Mac's metrics poll: a start this recent isn't in the reading yet. */
+export const MAC_START_GAP_MS = 5_000;
+
+export function markStarted(where: "mac" | "host", at = Date.now()): void {
+	lastStart[where] = at;
+}
+
+/** Whether a host reading taken at `at` was taken after the last host start. */
+export function hostReadSinceStart(at: number | null | undefined): boolean {
+	return (at ?? Number.POSITIVE_INFINITY) > lastStart.host;
+}
+
+/**
+ * Too soon after the last start on the Mac, or null - and then the start is
+ * this caller's, so the next one waits for it.
+ */
+export function macPaceBlocker(now = Date.now()): string | null {
+	if (now - lastStart.mac < MAC_START_GAP_MS)
+		return "waiting for the session started a moment ago to show up";
+	markStarted("mac", now);
+	return null;
+}
+
+/**
+ * `remoteLaunchBlocker` read now, for a one-off launch or Resume on the host.
+ * It also waits for a reading taken after the last start there, as the queue
+ * does. A pass takes the start. A failed read lets it through.
+ */
+export async function currentHostBlocker(
+	client: TrpcClient,
+): Promise<string | null> {
+	const gate = await client.remoteHost.launchGate.query().catch(() => null);
+	if (gate?.reason) return gate.reason;
+	if (gate && !hostReadSinceStart(gate.at))
+		return "waiting for the host's next reading after the last start";
+	markStarted("host");
+	return null;
+}
+
+/**
  * `launchBlocker` against the live Mac and the live PTYs, read now - for a
  * one-off decision (a launch, a Resume) rather than the queue's poll.
  * `except` leaves a pane out: a Resume's own card can't block itself.
@@ -113,12 +161,17 @@ export async function startQueuedPane(
 			[pane.id]: {
 				...state.panes[pane.id],
 				// A Resume reopens at an idle prompt - nothing was asked of it -
-				// unless it was queued with "Continue" on the end.
-				status:
-					/ --(resume|continue)\b/.test(command) &&
-					!command.endsWith(" Continue")
-						? "idle"
-						: "working",
+				// unless it was queued with "Continue" on the end. A host
+				// command hides its args, so a host Resume reads its own.
+				status: (
+					queued.remote
+						? queued.remote.claudeArgs.startsWith("--resume") &&
+							!queued.remote.prompt
+						: / --(resume|continue)\b/.test(command) &&
+							!command.endsWith(" Continue")
+				)
+					? "idle"
+					: "working",
 				odinQueued: undefined,
 			},
 		},
@@ -315,9 +368,6 @@ export function useTaskQueue(): void {
 		enabled: waitingForHost && !!remoteHost?.host,
 		refetchInterval: 5_000,
 	});
-	// When the queue last started a session on the host. The next one waits
-	// for a reading taken after it, so a burst can't outrun the readings.
-	const lastHostStart = useRef(0);
 	// A spawn takes a second or two; without this the next poll starts the same
 	// card again while the first attach is still in flight.
 	const starting = useRef(false);
@@ -337,14 +387,15 @@ export function useTaskQueue(): void {
 		// One already moved to the host starts first.
 		const toHost = hostBound.find((pane) => pane.odinRemote) ?? hostBound[0];
 		const hostWait = hostGate.data?.reason ?? null;
-		const hostReadSinceStart =
-			hostGate.isFetched &&
-			(hostGate.data?.at ?? Number.POSITIVE_INFINITY) > lastHostStart.current;
-		if (toHost && !hostWait && hostReadSinceStart) {
+		// The next host start waits for a reading taken after the last one,
+		// so a burst can't outrun the readings.
+		const readSinceStart =
+			hostGate.isFetched && hostReadSinceStart(hostGate.data?.at);
+		if (toHost && !hostWait && readSinceStart) {
 			starting.current = true;
 			void moveQueuedToHost(utils.client, toHost)
 				.then((moved) => {
-					if (moved) lastHostStart.current = Date.now();
+					if (moved) markStarted("host");
 					else stayHere.current.add(toHost.id);
 				})
 				.catch(() => {
@@ -374,6 +425,7 @@ export function useTaskQueue(): void {
 			refreshQueuedReasons(local, inLine(local, blockerFor(local[0]) ?? ""));
 			return;
 		}
+		if (macPaceBlocker()) return;
 		starting.current = true;
 		void startQueuedPane(utils.client, next)
 			.catch(() => {

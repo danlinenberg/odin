@@ -65,7 +65,9 @@ import {
 import { SiJira, SiNotion, SiSlack } from "react-icons/si";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import {
+	currentHostBlocker,
 	currentLaunchBlocker,
+	macPaceBlocker,
 	moveQueuedToMac,
 	startQueuedPane,
 } from "renderer/hooks/useTaskQueue";
@@ -4308,16 +4310,20 @@ function DevBoardPage() {
 	 * left out: a session that died mid-turn still reads "working" and would
 	 * otherwise hold its own checkout. A failed read lets it through. Huginn
 	 * never waits: he's how you free the Mac, not a session that loads it.
+	 * A session on the remote host waits on the host's gate instead.
 	 */
 	const resumeBlocker = async (pane: Pane, cwd: string | undefined) => {
 		if (pane.odinTags?.includes(CROW_TAG)) return null;
+		if (pane.odinRemote) return currentHostBlocker(utils.client);
 		try {
-			return await currentLaunchBlocker(
-				utils.client,
-				pane.odinCwd ??
-					claimedCheckout(undefined, cwd ?? "", workConfig?.odinRepoPath),
-				workConfig?.odinRepoPath,
-				pane.id,
+			return (
+				(await currentLaunchBlocker(
+					utils.client,
+					pane.odinCwd ??
+						claimedCheckout(undefined, cwd ?? "", workConfig?.odinRepoPath),
+					workConfig?.odinRepoPath,
+					pane.id,
+				)) ?? macPaceBlocker()
 			);
 		} catch {
 			return null;
@@ -4328,7 +4334,12 @@ function DevBoardPage() {
 	 * Park a Resume in Queued; useTaskQueue runs `command` when the gate clears.
 	 * The drawer stays put: it shows the wait and its ▶ Start now.
 	 */
-	const queueResume = (pane: Pane, command: string, reason: string) => {
+	const queueResume = (
+		pane: Pane,
+		command: string,
+		reason: string,
+		remote?: NonNullable<Pane["odinQueued"]>["remote"],
+	) => {
 		useTabsStore.setState((state) => ({
 			panes: {
 				...state.panes,
@@ -4338,7 +4349,7 @@ function DevBoardPage() {
 					odinParked: false,
 					interrupted: false,
 					completed: false,
-					odinQueued: { command, reason },
+					odinQueued: { command, reason, ...(remote ? { remote } : {}) },
 				},
 			},
 		}));
@@ -4375,6 +4386,9 @@ function DevBoardPage() {
 		restart = false,
 	) => {
 		if (resumingPaneIds.includes(card.pane.id)) return;
+		// A bulk Resume leaves a queued card in line: starting it now is the
+		// "Start now" that skips the gate.
+		if (auto && card.pane.odinQueued) return;
 		// Never started: there's no conversation to resume, only the launch that
 		// was held back. Run it now - that's what "Start now" meant on the toast
 		// this queue replaced.
@@ -4415,7 +4429,11 @@ function DevBoardPage() {
 			: "Continue";
 		if (!restart && agentPaneIds.has(card.pane.id) && !shellOnScreen) {
 			if (!auto) openDrawer(card);
-			const blocker = await resumeBlocker(card.pane, sessionCwd(card.pane));
+			// On the host its Claude is already running: Continue costs the host
+			// nothing new, and a queued local `claude --resume` would run here.
+			const blocker = card.pane.odinRemote
+				? null
+				: await resumeBlocker(card.pane, sessionCwd(card.pane));
 			if (blocker) {
 				const id =
 					card.pane.claudeSessionId ??
@@ -4545,14 +4563,27 @@ function DevBoardPage() {
 		if (!auto) openDrawer(card);
 		// Only a Resume that goes back to work waits on the gate. One reopening
 		// at an idle prompt takes no working slot and holds no checkout - queuing
-		// it parked you behind every task in line, looking at the board.
+		// it parked you behind every task in line, looking at the board. A bulk
+		// Resume always waits: a dozen Claudes spawning at once stall the Mac.
+		// So does one on the host, where even an idle Claude takes memory.
 		const blocker =
-			diedWorking || prompt ? await resumeBlocker(card.pane, cwd) : null;
+			diedWorking || prompt || auto || card.pane.odinRemote
+				? await resumeBlocker(card.pane, cwd)
+				: null;
 		if (blocker) {
 			queueResume(
 				card.pane,
 				cwd ? `cd '${cwd}' && ${resumeCmd}` : resumeCmd,
 				blocker,
+				// The queue builds the host command when it starts it.
+				card.pane.odinRemote && sessionId
+					? {
+							pane: sessionId,
+							repoPath: cwd ?? null,
+							claudeArgs: `--resume ${sessionId}`,
+							prompt: prompt ?? null,
+						}
+					: undefined,
 			);
 			setResumingPaneIds((ids) => ids.filter((id) => id !== card.pane.id));
 			return;
@@ -5327,6 +5358,8 @@ function DevBoardPage() {
 	const resumePicked = () => {
 		// A beat apart, not all at once: each Resume spawns a Claude, and a
 		// dozen spawning in the same instant stalls the Mac and the daemon.
+		// Each one passes the launch gate too, so past the first few they wait
+		// in Queued and the queue starts them as there's room.
 		resumablePicked.forEach((card, i) => {
 			setTimeout(() => void resumeCard(card, true), i * 300);
 		});
