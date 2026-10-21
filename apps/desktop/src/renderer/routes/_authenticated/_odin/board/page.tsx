@@ -2988,7 +2988,7 @@ function DevBoardPage() {
 			!!createdAt && Date.now() - Date.parse(createdAt) > RECENT_RESTART_MS
 		);
 	};
-	// Close sessions that have sat idle past Settings → Sessions' idle timeout: an open Claude holds
+	// Close local sessions that have sat idle past Settings → Sessions' idle timeout: an open Claude holds
 	// memory and a checkout for a conversation Resume can reopen any time. The
 	// card stays in its column (odinClosedIn) - closing it answered nothing.
 	// A session whose shell is still running something (a dev server) is in use.
@@ -3003,6 +3003,9 @@ function DevBoardPage() {
 		const now = Date.now();
 		const stale = Object.values(panes).filter((pane) => {
 			if (!pane.odinTaskTitle && !titleByPane[pane.id]) return false;
+			// Local only: a remote session holds nothing on this computer, and
+			// closing its pane only drops the connection to Claude on the host.
+			if (pane.odinRemote) return false;
 			if (!agentPaneIds.has(pane.id) || loopingPaneIds.has(pane.id))
 				return false;
 			if (pane.status === "working" || pane.odinQueued) return false;
@@ -3011,8 +3014,16 @@ function DevBoardPage() {
 			if (ciChecksByPane.has(pane.id)) return false;
 			if (!firstSeenRef.current.has(pane.id))
 				firstSeenRef.current.set(pane.id, now);
-			const since =
-				pane.odinStatusAt ?? firstSeenRef.current.get(pane.id) ?? now;
+			// Idle since the later of its last status and its PTY's start: a
+			// Resume respawns the PTY without a status, so a session last active
+			// hours ago was closed within a minute of being resumed.
+			const createdAt = daemonSessions?.sessions.find(
+				(session) => session.sessionId === pane.id,
+			)?.createdAt;
+			const since = Math.max(
+				pane.odinStatusAt ?? firstSeenRef.current.get(pane.id) ?? now,
+				createdAt ? Date.parse(createdAt) : 0,
+			);
 			return now - since > closeAfterMs;
 		});
 		if (stale.length === 0) return;
