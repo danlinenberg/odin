@@ -343,11 +343,8 @@ export function useTaskQueue(): void {
 	});
 	// Cards that can't go to the host, so the queue doesn't retry them forever.
 	const stayHere = useRef(new Set<string>());
-	// The same 5s snapshot the header chip reads - one shared query.
-	const { data: metrics } = electronTrpc.resourceMetrics.getSnapshot.useQuery(
-		undefined,
-		{ refetchInterval: 5_000 },
-	);
+	// The same 5s snapshot the header chip reads and polls - one shared query.
+	const { data: metrics } = electronTrpc.resourceMetrics.getSnapshot.useQuery();
 	// Which PTYs are actually running. A restart kills every PTY but keeps each
 	// pane's "working" status, so without this a dead card counted toward the
 	// cap - and held its checkout - for good, and the queue never drained.

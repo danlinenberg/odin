@@ -1,5 +1,5 @@
 import { cn } from "@odin/ui/utils";
-import { useRef } from "react";
+import { memo, useRef } from "react";
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
@@ -87,7 +87,11 @@ interface MarkdownRendererProps {
 	allowHtml?: boolean;
 }
 
-export function MarkdownRenderer({
+/**
+ * Memoized: parsing is the expensive part, and a chat re-renders its replies
+ * on every poll with the same text.
+ */
+export const MarkdownRenderer = memo(function MarkdownRenderer({
 	content,
 	style: styleProp,
 	className,
@@ -124,4 +128,4 @@ export function MarkdownRenderer({
 			</div>
 		</SelectionContextMenu>
 	);
-}
+});

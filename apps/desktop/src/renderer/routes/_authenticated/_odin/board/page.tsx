@@ -1068,10 +1068,9 @@ function useShellPlace(card: BoardCard, shell: Pane) {
 	);
 	// Live PTYs and where each one really is. zsh here sends no OSC-7, so a
 	// pane's `cwd` only knows where Odin opened it; the process table knows more.
-	const { data: metrics } = electronTrpc.resourceMetrics.getSnapshot.useQuery(
-		undefined,
-		{ refetchInterval: 5_000 },
-	);
+	// No refetchInterval: the shell header polls this query for everyone. One
+	// timer per card meant one fetch, and a re-render of every card, per card.
+	const { data: metrics } = electronTrpc.resourceMetrics.getSnapshot.useQuery();
 	const live = metrics?.workspaces.flatMap((w) => w.sessions) ?? [];
 	const { data: cwds } = electronTrpc.terminal.shellCwds.useQuery(
 		{ pids: live.map((session) => session.pid) },
@@ -1377,13 +1376,17 @@ function LoopPill({ card }: { card: BoardCard }) {
  * hundred MB is noise on the card.
  */
 function LoadPill({ card }: { card: BoardCard }) {
-	const { data } = electronTrpc.resourceMetrics.getSnapshot.useQuery(
+	// The shell header polls the snapshot; `select` re-renders this pill only
+	// when its own session's reading changes.
+	const { data: usage } = electronTrpc.resourceMetrics.getSnapshot.useQuery(
 		undefined,
-		{ refetchInterval: 5_000 },
+		{
+			select: (data) =>
+				data.workspaces
+					.flatMap((workspace) => workspace.sessions)
+					.find((session) => session.paneId === card.pane.id),
+		},
 	);
-	const usage = data?.workspaces
-		.flatMap((workspace) => workspace.sessions)
-		.find((session) => session.paneId === card.pane.id);
 	if (!usage) return null;
 	const { label, heavy } = sessionUsageLabel(usage);
 	if (!heavy) return null;
@@ -1414,13 +1417,16 @@ function ShellChip({
 	shellPaneId: string;
 	alive: boolean;
 }) {
-	const { data } = electronTrpc.resourceMetrics.getSnapshot.useQuery(
+	// Polled by the shell header, like LoadPill.
+	const { data: busy } = electronTrpc.resourceMetrics.getSnapshot.useQuery(
 		undefined,
-		{ refetchInterval: 5_000 },
+		{
+			select: (data) =>
+				data.workspaces
+					.flatMap((workspace) => workspace.sessions)
+					.find((session) => session.paneId === shellPaneId)?.busy,
+		},
 	);
-	const busy = data?.workspaces
-		.flatMap((workspace) => workspace.sessions)
-		.find((session) => session.paneId === shellPaneId)?.busy;
 	const [title, label, className] = !alive
 		? [
 				"This session's shell has exited - open it to start a new one",
