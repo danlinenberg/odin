@@ -207,6 +207,12 @@ import {
 	SessionReminders,
 } from "./SessionReminders";
 import {
+	clampSessionListWidth,
+	DEFAULT_SESSION_LIST_W,
+	loadSessionListWidth,
+	saveSessionListWidth,
+} from "./session-list-width";
+import {
 	SWITCH_SORTS,
 	type SwitchSort,
 	sessionOrder,
@@ -4091,6 +4097,31 @@ function DevBoardPage() {
 			localStorage.setItem("odin:drawer-sessions-min", next ? "1" : "0");
 		} catch {}
 	};
+	// Drag the list's right edge to widen it; remembered per machine.
+	const [switchListWidth, setSwitchListWidth] = useState(() =>
+		loadSessionListWidth(localStorage),
+	);
+	const startSwitchListResize = (event: React.PointerEvent<HTMLDivElement>) => {
+		event.preventDefault();
+		const startX = event.clientX;
+		const startWidth = switchListWidth;
+		let width = startWidth;
+		const onMove = (move: PointerEvent) => {
+			width = clampSessionListWidth(startWidth + move.clientX - startX);
+			setSwitchListWidth(width);
+		};
+		const onUp = () => {
+			window.removeEventListener("pointermove", onMove);
+			window.removeEventListener("pointerup", onUp);
+			saveSessionListWidth(localStorage, width);
+		};
+		window.addEventListener("pointermove", onMove);
+		window.addEventListener("pointerup", onUp);
+	};
+	const resetSwitchListWidth = () => {
+		setSwitchListWidth(DEFAULT_SESSION_LIST_W);
+		saveSessionListWidth(localStorage, DEFAULT_SESSION_LIST_W);
+	};
 	// Two cards on this board working the same ask: each names the other.
 	const duplicateOf = useMemo(() => {
 		const cards = [...cardsByStatus.values()].flat();
@@ -6249,217 +6280,239 @@ function DevBoardPage() {
 								    drawer, where the chat needs the room. */}
 								{!inCatchUp &&
 									switchCards.length + idleSwitchCards.length > 1 && (
-										<nav
-											aria-label="Sessions"
-											className={cn(
-												"hidden shrink-0 flex-col overflow-y-auto border-r border-border py-1.5 @3xl:flex",
-												isSwitchListMin ? "w-8" : "w-[210px]",
-											)}
-										>
-											<div className="mb-1 flex h-6 shrink-0 items-center">
-												{!isSwitchListMin && (
-													<button
-														type="button"
-														onClick={openComposerOnCurrentRepo}
-														title="New session - describe a task and start an agent session, then open it here"
-														className="ml-3 flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
-													>
-														<LuPlus className="size-3" />
-														New session
-													</button>
+										<>
+											<nav
+												aria-label="Sessions"
+												className={cn(
+													"hidden shrink-0 flex-col overflow-y-auto border-r border-border py-1.5 @3xl:flex",
+													isSwitchListMin && "w-8",
 												)}
-												<button
-													type="button"
-													title={
-														isSwitchListMin
-															? "Show session list"
-															: "Minimize session list"
-													}
-													aria-label={
-														isSwitchListMin
-															? "Show session list"
-															: "Minimize session list"
-													}
-													onClick={toggleSwitchList}
-													className={cn(
-														"flex h-6 min-w-0 flex-1 items-center text-muted-foreground hover:text-foreground",
-														isSwitchListMin
-															? "justify-center"
-															: "justify-end px-2",
-													)}
-												>
-													{isSwitchListMin ? (
-														<LuChevronRight className="size-3.5" />
-													) : (
-														<LuChevronLeft className="size-3.5" />
-													)}
-												</button>
-											</div>
-											{!isSwitchListMin && (
-												<div className="mb-1 flex items-center gap-1.5 px-3 text-[11px] text-muted-foreground">
-													<select
-														value={switchSort}
-														onChange={(e) =>
-															pickSwitchSort(e.target.value as SwitchSort)
-														}
-														aria-label="Sort sessions"
-														title="Sort sessions"
-														className="shrink-0 cursor-pointer rounded border border-border bg-card px-1 py-0.5 outline-none hover:text-foreground"
-													>
-														{Object.entries(SWITCH_SORTS).map(
-															([value, label]) => (
-																<option key={value} value={value}>
-																	{label}
-																</option>
-															),
-														)}
-													</select>
-													<button
-														type="button"
-														onClick={toggleSwitchGrouped}
-														aria-pressed={isSwitchGrouped}
-														title="Group by status"
-														className={cn(
-															"shrink-0 rounded border px-1 py-0.5 hover:text-foreground",
-															isSwitchGrouped
-																? "border-primary/50 bg-primary/15 text-foreground"
-																: "border-border bg-card",
-														)}
-													>
-														Group
-													</button>
-													<button
-														type="button"
-														onClick={() =>
-															showTicks ? clearPicked() : setSelecting(true)
-														}
-														aria-pressed={showTicks}
-														title="Select several sessions to resume, finish or park together (Esc to stop)"
-														className={cn(
-															"shrink-0 rounded border px-1 py-0.5 hover:text-foreground",
-															showTicks
-																? "border-primary/50 bg-primary/15 text-foreground"
-																: "border-border bg-card",
-														)}
-													>
-														Select
-													</button>
-													<span
-														className="ml-auto min-w-0 truncate font-mono"
-														title={`Previous session ${prevSessionKey} - next session ${nextSessionKey}`}
-													>
-														{prevSessionKey} {nextSessionKey}
-													</span>
-												</div>
-											)}
-											{!isSwitchListMin && pickedRowIds.length > 0 && (
-												<div className="sticky top-0 z-10 mx-2 mb-1 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-primary/40 bg-secondary px-2 py-1 text-[11px] text-muted-foreground">
-													<span className="font-semibold text-foreground">
-														{pickedRowIds.length} selected
-													</span>
-													{pickedRowIds.length < switchRows.length && (
+												style={
+													isSwitchListMin
+														? undefined
+														: { width: switchListWidth }
+												}
+											>
+												<div className="mb-1 flex h-6 shrink-0 items-center">
+													{!isSwitchListMin && (
 														<button
 															type="button"
-															title="Select every row shown"
-															onClick={() =>
-																setPickedIds(new Set(switchRowIds))
-															}
-															className="hover:text-foreground"
+															onClick={openComposerOnCurrentRepo}
+															title="New session - describe a task and start an agent session, then open it here"
+															className="ml-3 flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
 														>
-															All {switchRows.length}
+															<LuPlus className="size-3" />
+															New session
 														</button>
 													)}
 													<button
 														type="button"
-														title="Clear the selection (Esc)"
-														onClick={clearPicked}
-														className="ml-auto hover:text-foreground"
-													>
-														Clear
-													</button>
-													<span className="basis-full" />
-													<button
-														type="button"
-														disabled={resumablePicked.length === 0}
 														title={
-															resumablePicked.length
-																? "Resume the closed and queued sessions selected - live ones are left alone"
-																: "Nothing selected is closed or queued - live sessions are left alone"
+															isSwitchListMin
+																? "Show session list"
+																: "Minimize session list"
 														}
-														onClick={resumePicked}
-														className="flex items-center gap-1 hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground"
-													>
-														<LuPlay className="size-3" aria-hidden />
-														Resume
-													</button>
-													<button
-														type="button"
-														title="Done - remove the selected sessions from the board"
-														onClick={finishPicked}
-														className="flex items-center gap-1 hover:text-success"
-													>
-														<span className="text-success">✓</span>
-														Done
-													</button>
-													<button
-														type="button"
-														disabled={parkablePicked.length === 0}
-														title={
-															parkablePicked.length
-																? "Park the selected sessions in Idle - they stay open, a running turn is stopped"
-																: "Everything selected is already in Idle"
+														aria-label={
+															isSwitchListMin
+																? "Show session list"
+																: "Minimize session list"
 														}
-														onClick={() => void parkPicked()}
-														className="flex items-center gap-1 hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground"
+														onClick={toggleSwitchList}
+														className={cn(
+															"flex h-6 min-w-0 flex-1 items-center text-muted-foreground hover:text-foreground",
+															isSwitchListMin
+																? "justify-center"
+																: "justify-end px-2",
+														)}
 													>
-														<LuPause className="size-3" aria-hidden />
-														Idle
+														{isSwitchListMin ? (
+															<LuChevronRight className="size-3.5" />
+														) : (
+															<LuChevronLeft className="size-3.5" />
+														)}
 													</button>
 												</div>
-											)}
-											{switchCards.map((card, index) => (
-												<Fragment key={card.pane.id}>
-													{isSwitchGrouped &&
-														card.status !== switchCards[index - 1]?.status &&
-														(isSwitchListMin ? (
-															index > 0 && (
-																<div className="mx-2 my-1 border-t border-border" />
-															)
-														) : (
-															<div className="mt-2 mb-0.5 px-3 text-[10px] font-semibold uppercase tracking-[.4px] text-muted-foreground">
-																{PANE_STATUS[card.status].label}
-															</div>
-														))}
-													{switchRow(card)}
-												</Fragment>
-											))}
-											{idleSwitchCards.length > 0 &&
-												(isSwitchListMin ? (
-													isIdleSwitchOpen && (
-														<div className="mx-2 my-1 border-t border-border" />
-													)
-												) : (
-													<button
-														type="button"
-														onClick={toggleIdleSwitch}
-														aria-expanded={isIdleSwitchOpen}
-														className="mt-2 mb-0.5 flex items-center gap-1 px-3 text-left text-[10px] font-semibold uppercase tracking-[.4px] text-muted-foreground hover:text-foreground"
-													>
-														{isIdleSwitchOpen ? (
-															<LuChevronDown className="size-3" />
-														) : (
-															<LuChevronRight className="size-3" />
+												{!isSwitchListMin && (
+													<div className="mb-1 flex items-center gap-1.5 px-3 text-[11px] text-muted-foreground">
+														<select
+															value={switchSort}
+															onChange={(e) =>
+																pickSwitchSort(e.target.value as SwitchSort)
+															}
+															aria-label="Sort sessions"
+															title="Sort sessions"
+															className="shrink-0 cursor-pointer rounded border border-border bg-card px-1 py-0.5 outline-none hover:text-foreground"
+														>
+															{Object.entries(SWITCH_SORTS).map(
+																([value, label]) => (
+																	<option key={value} value={value}>
+																		{label}
+																	</option>
+																),
+															)}
+														</select>
+														<button
+															type="button"
+															onClick={toggleSwitchGrouped}
+															aria-pressed={isSwitchGrouped}
+															title="Group by status"
+															className={cn(
+																"shrink-0 rounded border px-1 py-0.5 hover:text-foreground",
+																isSwitchGrouped
+																	? "border-primary/50 bg-primary/15 text-foreground"
+																	: "border-border bg-card",
+															)}
+														>
+															Group
+														</button>
+														<button
+															type="button"
+															onClick={() =>
+																showTicks ? clearPicked() : setSelecting(true)
+															}
+															aria-pressed={showTicks}
+															title="Select several sessions to resume, finish or park together (Esc to stop)"
+															className={cn(
+																"shrink-0 rounded border px-1 py-0.5 hover:text-foreground",
+																showTicks
+																	? "border-primary/50 bg-primary/15 text-foreground"
+																	: "border-border bg-card",
+															)}
+														>
+															Select
+														</button>
+														<span
+															className="ml-auto min-w-0 truncate font-mono"
+															title={`Previous session ${prevSessionKey} - next session ${nextSessionKey}`}
+														>
+															{prevSessionKey} {nextSessionKey}
+														</span>
+													</div>
+												)}
+												{!isSwitchListMin && pickedRowIds.length > 0 && (
+													<div className="sticky top-0 z-10 mx-2 mb-1 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-primary/40 bg-secondary px-2 py-1 text-[11px] text-muted-foreground">
+														<span className="font-semibold text-foreground">
+															{pickedRowIds.length} selected
+														</span>
+														{pickedRowIds.length < switchRows.length && (
+															<button
+																type="button"
+																title="Select every row shown"
+																onClick={() =>
+																	setPickedIds(new Set(switchRowIds))
+																}
+																className="hover:text-foreground"
+															>
+																All {switchRows.length}
+															</button>
 														)}
-														{PANE_STATUS.idle.label} ({idleSwitchCards.length})
-													</button>
-												))}
-											{isIdleSwitchOpen &&
-												idleSwitchCards.map((card) => (
+														<button
+															type="button"
+															title="Clear the selection (Esc)"
+															onClick={clearPicked}
+															className="ml-auto hover:text-foreground"
+														>
+															Clear
+														</button>
+														<span className="basis-full" />
+														<button
+															type="button"
+															disabled={resumablePicked.length === 0}
+															title={
+																resumablePicked.length
+																	? "Resume the closed and queued sessions selected - live ones are left alone"
+																	: "Nothing selected is closed or queued - live sessions are left alone"
+															}
+															onClick={resumePicked}
+															className="flex items-center gap-1 hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground"
+														>
+															<LuPlay className="size-3" aria-hidden />
+															Resume
+														</button>
+														<button
+															type="button"
+															title="Done - remove the selected sessions from the board"
+															onClick={finishPicked}
+															className="flex items-center gap-1 hover:text-success"
+														>
+															<span className="text-success">✓</span>
+															Done
+														</button>
+														<button
+															type="button"
+															disabled={parkablePicked.length === 0}
+															title={
+																parkablePicked.length
+																	? "Park the selected sessions in Idle - they stay open, a running turn is stopped"
+																	: "Everything selected is already in Idle"
+															}
+															onClick={() => void parkPicked()}
+															className="flex items-center gap-1 hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground"
+														>
+															<LuPause className="size-3" aria-hidden />
+															Idle
+														</button>
+													</div>
+												)}
+												{switchCards.map((card, index) => (
 													<Fragment key={card.pane.id}>
+														{isSwitchGrouped &&
+															card.status !== switchCards[index - 1]?.status &&
+															(isSwitchListMin ? (
+																index > 0 && (
+																	<div className="mx-2 my-1 border-t border-border" />
+																)
+															) : (
+																<div className="mt-2 mb-0.5 px-3 text-[10px] font-semibold uppercase tracking-[.4px] text-muted-foreground">
+																	{PANE_STATUS[card.status].label}
+																</div>
+															))}
 														{switchRow(card)}
 													</Fragment>
 												))}
-										</nav>
+												{idleSwitchCards.length > 0 &&
+													(isSwitchListMin ? (
+														isIdleSwitchOpen && (
+															<div className="mx-2 my-1 border-t border-border" />
+														)
+													) : (
+														<button
+															type="button"
+															onClick={toggleIdleSwitch}
+															aria-expanded={isIdleSwitchOpen}
+															className="mt-2 mb-0.5 flex items-center gap-1 px-3 text-left text-[10px] font-semibold uppercase tracking-[.4px] text-muted-foreground hover:text-foreground"
+														>
+															{isIdleSwitchOpen ? (
+																<LuChevronDown className="size-3" />
+															) : (
+																<LuChevronRight className="size-3" />
+															)}
+															{PANE_STATUS.idle.label} ({idleSwitchCards.length}
+															)
+														</button>
+													))}
+												{isIdleSwitchOpen &&
+													idleSwitchCards.map((card) => (
+														<Fragment key={card.pane.id}>
+															{switchRow(card)}
+														</Fragment>
+													))}
+											</nav>
+											{/* Drag the list's right edge to widen it, double-click
+											    for the default width. Outside the nav: inside, it
+											    would scroll away with the rows. */}
+											{!isSwitchListMin && (
+												<div className="relative hidden w-0 shrink-0 @3xl:block">
+													{/* biome-ignore lint/a11y/noStaticElementInteractions: a mouse-only resize edge, like the drawer's own */}
+													<div
+														title="Drag to resize the session list, double-click to reset"
+														onPointerDown={startSwitchListResize}
+														onDoubleClick={resetSwitchListWidth}
+														className="absolute -left-1 top-0 z-10 h-full w-1.5 cursor-col-resize hover:bg-primary/40"
+													/>
+												</div>
+											)}
+										</>
 									)}
 								<div className="flex min-h-0 min-w-0 flex-1 flex-col">
 									<HostFrozenNotice
