@@ -4,9 +4,9 @@ import { activeProfileId, listProfiles } from "lib/trpc/routers/odin-config";
 import type { PullRequestStatus } from "lib/trpc/routers/terminal/pr-state";
 import { appState } from "main/lib/app-state";
 import {
+	cachedBriefs,
 	readTranscript,
 	transcriptTail,
-	writeBrief,
 } from "main/lib/claude-sessions";
 import { askRenderer } from "main/lib/notifications/server";
 import { appCaller } from "main/lib/odin-api";
@@ -211,7 +211,9 @@ export const phoneRouter = t.router({
 	brief: t.procedure.input(paneInput).query(async ({ input }) => {
 		const sessionId = sessionOf(input.paneId);
 		if (!sessionId) return null;
-		const brief = await writeBrief({ sessionId }).catch(() => null);
+		// Only the one already written: writing one runs `claude -p` for
+		// seconds, and Odin on the Mac writes them as the board shows them.
+		const brief = (await cachedBriefs().catch(() => null))?.get(sessionId);
 		if (!brief) return null;
 		const { goal, done, status, next, last, urgency, replyAt } = brief;
 		return {

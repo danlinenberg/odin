@@ -603,8 +603,13 @@ function stillWaiting(
 }
 
 function Session({ paneId }: { paneId: string }) {
-	const session = phone.session.useQuery({ paneId }, { refetchInterval: POLL });
-	const brief = phone.brief.useQuery({ paneId }, { staleTime: 60_000 });
+	// Faster than the board: this is the session you're watching.
+	const session = phone.session.useQuery(
+		{ paneId },
+		{ refetchInterval: 1_500 },
+	);
+	// The brief Odin on the Mac already wrote: it keeps it current.
+	const brief = phone.brief.useQuery({ paneId }, { refetchInterval: 15_000 });
 	const [briefOpen, setBriefOpen] = useState(false);
 	// Only while the brief is open: every PR is a `gh pr view` on the Mac.
 	const links = phone.links.useQuery(
@@ -695,11 +700,14 @@ function Session({ paneId }: { paneId: string }) {
 	// the ↓ button brings you back.
 	const [atBottom, setAtBottom] = useState(true);
 	const following = useRef(true);
-	const count = session.data?.messages.length ?? 0;
+	// The phone gets the last 60 messages, so their count stops changing:
+	// the newest one, and what you sent, say something landed.
+	const newest = session.data?.messages.at(-1);
+	const landed = `${newest?.at}:${newest?.text.length}:${sent.length}`;
 	// biome-ignore lint/correctness/useExhaustiveDependencies: scroll when a message lands
 	useEffect(() => {
 		if (following.current) bottom.current?.scrollIntoView();
-	}, [count]);
+	}, [landed]);
 	const data = session.data;
 	const status = (data?.status ?? "idle") as PaneStatus;
 	// Needs you is often a question asked in prose. The screen box and its keys
