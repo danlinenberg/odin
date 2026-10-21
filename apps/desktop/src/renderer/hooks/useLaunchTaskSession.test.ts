@@ -94,6 +94,14 @@ describe("buildPrompt", () => {
 		expect(prompt).toContain("first line starts with `!`");
 	});
 
+	// An item saying "run the command from my earlier message" left me
+	// scrolling back for it; the Run button only shows in the same reply.
+	it("repeats the command in every reply that asks me to run it", () => {
+		expect(buildPrompt("Fix the board", null)).toContain(
+			"again, even if an earlier reply already gave it",
+		);
+	});
+
 	// Every `!` block is a Run button in the reply; a merge I could do from
 	// the PR page came as one and sat in the way of reading the rest.
 	it("hands me a `!` command only when I must run it and no page does it", () => {
