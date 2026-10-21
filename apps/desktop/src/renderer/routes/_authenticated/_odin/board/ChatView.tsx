@@ -20,7 +20,6 @@ import {
 	LuMic,
 	LuServer,
 	LuSmartphone,
-	LuSparkles,
 	LuSquareTerminal,
 	LuWrench,
 	LuX,
@@ -54,6 +53,7 @@ import {
 	odinScreenStatus,
 	remoteConnectLine,
 } from "shared/odin-screen-status";
+import { CrowIcon } from "../components/CrowIcon";
 import {
 	BUILT_IN_COMMANDS,
 	enterPicks,
@@ -1372,9 +1372,11 @@ function WorkingMark() {
 
 /**
  * The mark on the first block of each reply - who's talking, at a glance.
- * Odin's icon is too fine to read at 28px on the drawer, so the mark is the
- * sparkles the board already uses for the AI, centered in the avatar's slot
- * like the Working spinner.
+ * Odin's icon is too fine to read at 28px on the drawer, and a sparkles glyph
+ * is every AI's. So the mark is Huginn, the raven from the rail: a solid
+ * silhouette that reads at this size, held still (no flap, no pulsing eye),
+ * in the primary violet, centered in the avatar's slot like the Working
+ * spinner. 20px, not the glyphs' 18: the raven fills its box edge to edge.
  */
 function ReplyMark({ className }: { className?: string }) {
 	return (
@@ -1384,7 +1386,7 @@ function ReplyMark({ className }: { className?: string }) {
 				className,
 			)}
 		>
-			<LuSparkles className="size-[18px]" aria-hidden />
+			<CrowIcon className="size-5 [&_*]:animate-none" />
 		</span>
 	);
 }
