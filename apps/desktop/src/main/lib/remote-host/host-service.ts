@@ -87,7 +87,7 @@ def call_service(form):
     name = form.get("service", "")
     base, headers = service_base(name, tokens())
     if not base:
-        return 200, name + " isn't on this host. Turn it on in Odin: Settings > Sessions > Remote host > Connectors on the host.\\n"
+        return 200, name + " isn't on this host. Turn it on in Odin: Settings > Remote > Connectors on the host.\\n"
     url = urllib.parse.urljoin(base, form.get("path", "").lstrip("/"))
     if urllib.parse.urlsplit(url).netloc != urllib.parse.urlsplit(base).netloc:
         return 200, "path must be relative to " + base + "\\n"

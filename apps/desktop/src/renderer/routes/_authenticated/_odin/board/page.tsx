@@ -4288,7 +4288,7 @@ function DevBoardPage() {
 	};
 
 	/**
-	 * Remote Control for one session (Settings → Sessions → Selected sessions).
+	 * Remote Control for one session (Settings → Remote → Selected sessions).
 	 * A live agent gets `/remote-control [Odin] <task>` typed at its prompt; a
 	 * closed one picks it up on its next Resume.
 	 */

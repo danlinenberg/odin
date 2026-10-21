@@ -42,7 +42,7 @@ export const CLAUDE_MODELS = [
 ];
 
 /**
- * Settings → Advanced: what Odin types instead of `claude` when it starts or
+ * Settings → Sessions: what Odin types instead of `claude` when it starts or
  * resumes a session. One machine can carry several Claude setups (a Bedrock
  * one, a personal account), and plain `claude` may resolve to the wrong one.
  */
@@ -111,7 +111,7 @@ export function modelFlag(model: string): string {
 		: "";
 }
 
-/** Whether this pane's session runs with Remote Control, per Settings → Sessions. */
+/** Whether this pane's session runs with Remote Control, per Settings → Remote. */
 export function remoteControlOn(paneId?: string): boolean {
 	const { remoteControl, remotePanes } = useClaudeCommand.getState();
 	return (

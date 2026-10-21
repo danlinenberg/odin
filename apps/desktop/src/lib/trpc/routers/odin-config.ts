@@ -37,7 +37,7 @@ export interface OdinFileConfig {
 	/** Legacy name for the same thing - still read, only ever cleared. */
 	slackQueueDbId?: string;
 	defaultRepo?: string;
-	/** Settings > Sessions > Remote server: where to look for AWS hosts and the tags they carry. */
+	/** Settings > Remote: where to look for AWS hosts and the tags they carry. */
 	awsInstances?: {
 		profile?: string;
 		region?: string;

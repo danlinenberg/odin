@@ -8,7 +8,7 @@ import {
 import { z } from "zod";
 import { publicProcedure, router } from "..";
 
-/** Settings → Connections → Phone: Odin on your iPhone, end to end encrypted. */
+/** Settings → Remote → Phone: Odin on your iPhone, end to end encrypted. */
 export const createPhoneRouter = () =>
 	router({
 		status: publicProcedure.query(() => phoneStatus()),

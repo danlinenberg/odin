@@ -2220,7 +2220,7 @@ const ItemView = memo(function ItemView({
 	const rootRef = useRef<HTMLDivElement>(null);
 	const bodyRef = useRef<HTMLDivElement>(null);
 	const taller = useTallerThanView(rootRef, bodyRef, !!tldr);
-	// Settings > Sessions > "Fold long replies": off, the TL;DR still shows but
+	// Settings > Appearance > "Fold long replies": off, the TL;DR still shows but
 	// the reply above it stays whole.
 	const { data: foldSetting } =
 		electronTrpc.settings.getOdinReplyTldr.useQuery();

@@ -341,7 +341,7 @@ export function useLaunchTaskSession() {
 					error: "Workspace has no path - cannot launch a session",
 				};
 			}
-			// Settings > Sessions can start sessions on a remote host: there the
+			// Settings > Remote can start sessions on a remote host: there the
 			// host keeps its own clone, so no worktree, trust or local files.
 			const host = (
 				await utils.client.remoteHost?.get.query().catch(() => null)

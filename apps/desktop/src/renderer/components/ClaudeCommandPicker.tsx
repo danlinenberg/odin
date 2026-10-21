@@ -13,7 +13,7 @@ import {
 
 /**
  * Which of your Claude commands the next session starts with. Shows only when
- * there is a choice to make - two or more set in Settings → Advanced.
+ * there is a choice to make - two or more set in Settings → Sessions.
  */
 export function ClaudeCommandPicker({ className }: { className?: string }) {
 	const commands = useClaudeCommand((s) => s.commands);

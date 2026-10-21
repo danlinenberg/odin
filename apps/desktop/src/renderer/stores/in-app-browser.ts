@@ -5,9 +5,9 @@ import { persist } from "zustand/middleware";
 
 /**
  * The page the in-app browser is showing, or null while it's closed; whether
- * links skip it for your own browser (Settings → Connections, or "Always" on
+ * links skip it for your own browser (Settings → Appearance, or "Always" on
  * the browser's "Open in browser" button); the sites whose links skip it
- * (Settings → Connections); and the panel's width as a share of
+ * (Settings → Appearance); and the panel's width as a share of
  * the window, once you've dragged its edge (null = the default width).
  */
 interface InAppBrowserState {

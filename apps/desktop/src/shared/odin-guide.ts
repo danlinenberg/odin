@@ -114,7 +114,7 @@ Chat view is the default (Settings → Appearance, "Show sessions as a chat"; st
 ❯ Shell opens a terminal in the session's work folder (its PR worktree if it has one, else the checkout), the same shell each time. Dot: green = live in the session's work, amber = live elsewhere, red = disconnected. The ▾ menu moves the shell into any PR worktree or the checkout, shows which other shells sit there, and has VS Code (moves an idle conversation to VS Code). Agents run things you watch here (the /shell/run call).
 
 ## Worktrees
-Odin doesn't make worktrees; agents do. The board reads where each session really worked, for the repo pill and the shell menu. "Delete worktrees when their PR merges" (Settings → Advanced, on by default) prunes every 10 minutes in repos with a .worktrees folder: uncommitted files wait 7 days and are then saved to refs/pruned/<name>; a worktree with no commits touched in the last 24 hours is never removed. Settings → Storage lists each worktree (about 3 GB each), ticks the ones already on main, and deletes them.
+Odin doesn't make worktrees; agents do. The board reads where each session really worked, for the repo pill and the shell menu. "Delete worktrees when their PR merges" (Settings → Storage → Cleanup, on by default) prunes every 10 minutes in repos with a .worktrees folder: uncommitted files wait 7 days and are then saved to refs/pruned/<name>; a worktree with no commits touched in the last 24 hours is never removed. Settings → Storage lists each worktree (about 3 GB each), ticks the ones already on main, and deletes them.
 
 ## New Session dialog
 The first line is the title. Paste or drop images and video; "/" opens skills. "Repo: agent picks" takes a repo only when exactly one checkout matches what you typed, else the default folder. Model: Default / Fable / Opus / Sonnet / Haiku, kept for later launches. The Backlog toggle turns the button into "Add to backlog" and sends it to Tasks instead (no images). Store: claudeCommand (model, toBacklog).
@@ -129,7 +129,7 @@ Search the transcripts of every finished session Odin launched, by word or by wh
 One list across every source in bands: **Now** (due, or asked in the last 4 hours), **Today** (reviews and asks waiting on you), **Later**. A task you add here is Now for 4 hours, then Today; a Low one goes to Later. **Up next** sits on top; drag to reorder. A Live strip shows running sessions ("Go to session →"). Filters: Source, Priority, Place, Status, "Due or overdue only", "Show what's Done". Tick rows to Set status / Up next / Done together.
 
 ## Settings
-The sidebar shows: Connections, Sessions, Storage, Backlog & Night Agent, Notifications, Appearance, Keyboard, Advanced. Store settingsScreen holds which one is open.
+The sidebar shows: Connections, Sessions, Remote, Storage, Backlog & Night Agent, Notifications, Appearance, Keyboard - one topic each, with what's on it written under its name. The search box above the list finds any setting by its label, its section or what it does, and scrolls to it. Store settingsScreen holds which one is open.
 
 ## Connections (Settings → Connections)
 "The accounts Odin reads your work from." Sign-ins stay on this Mac. Each row has Connect, Reconnect and Disconnect; disconnecting takes that source's items out of every tab. Slack, Jira and Notion first ask for a Client ID and Secret when no OAuth app is set up. Huginn reaches every connected service's full API with action=service.
@@ -141,33 +141,37 @@ The sidebar shows: Connections, Sessions, Storage, Backlog & Night Agent, Notifi
 - **Notion**: a database's rows in the Notion feed. Odin sees only pages shared with it and their subpages; to add a teamspace, on its top page use ••• → Connections → Odin.
 - **Gmail**: unread mail in the Email feed, by app password (needs 2-Step Verification), not OAuth.
 - **ClickUp**: a personal API token (pk_…); sessions can read the ClickUp tasks they get.
-- **Links → Open links inside Odin**: links from the listed sites open in a panel over the page; each site has a switch; other links go to your default browser. Store: inAppBrowser.
-- **Backup → iCloud Drive**: your board, briefs and scrollback, copied daily, kept 14 days in iCloud Drive → Odin Backups. Off until you click Back up now once; Disconnect turns it off again and keeps the saved days. To restore, quit Odin and copy a day's files back into ~/.odin.
 
 ## Sessions settings (Settings → Sessions)
-Besides the launch gate limits:
-- **Default folder**: where a session starts when no repo is picked. Unset: the folder your repos live in.
-- **Remote Control**: Off (default), Every session or Selected sessions. A session then shows in claude.ai/code and the Claude app as "[Odin] <task>". With Selected, turn it on per session from the card's right-click menu or the drawer.
-- **Full Disk Access**: without it, macOS asks each time a session reads Music, Photos, Desktop or Documents.
-- **Rename sessions automatically** (default on): renames each card once, after what it turned out to be about. Names you set are kept.
-- **Fold long replies** (default on): a latest reply too long for the window folds under its TL;DR card. Off shows the reply whole; the TL;DR card still shows.
-- **Compact conversations moved to Idle** (default off): /compact the moment a card is parked in Idle or waits there on others, while Claude's cache of it is still warm.
-- **Close idle sessions after** (default 3 hours, 0 = never).
+A session's life on this Mac, top to bottom. Besides the launch gate limits ("When they start", below):
+- **Where they start → Default folder**: where a session starts when no repo is picked. Unset: the folder your repos live in.
+- **Where they start → Full Disk Access**: without it, macOS asks each time a session reads Music, Photos, Desktop or Documents.
+- **What they run → Claude command**: what starts Claude, e.g. an alias for another account. One per line; with two or more, pick one in the top bar. Empty: claude. Store: claudeCommand.
+- **What they run → Default prompt**: added to the end of every task prompt (how to work, the Shell, ACTION ITEMS), with Reset to default. The board reads ACTION ITEMS from each reply. Store: sessionInstructions.
+- **On the board → Rename sessions automatically** (default on): renames each card once, after what it turned out to be about. Names you set are kept.
+- **On the board → Compact conversations moved to Idle** (default off): /compact the moment a card is parked in Idle or waits there on others, while Claude's cache of it is still warm.
+- **On the board → Close idle sessions after** (default 3 hours, 0 = never).
+
+## Remote (Settings → Remote)
+Your sessions when you're not at this Mac.
+- **Remote host**: run new sessions on an EC2 instance of yours over AWS Systems Manager, so they keep going with the Mac shut. Pick the AWS profile, region and instance (Set up installs Claude, gh, tmux and git there; Use picks it), then the switch "Sessions start on <host>". Claude sign-in (the host gets its own), "API key at the plan limit", "Connectors on the host" (Slack, Notion, Jira, GitHub, ClickUp tokens kept on the host; Gmail never goes) and "Claude setup on the host" (copies parts of ~/.claude there; Sync again after you change them).
 - **Remote host → GitHub accounts on the host**: one switch per connected GitHub account - whether its token goes to the host with a session (and as the GitHub connector there). A session gets the account that owns its repo when that one may go, else the main one. A task on a repo owned by an account kept off the host starts on this computer. Default: the main connection only.
+- **Phone → Phone access**: the Odin iPhone app shows the board and answers sessions, on this Wi-Fi or through a relay, end to end encrypted. With it on, a QR code pairs a phone (once, for 10 minutes); paired phones are listed with Remove and Unpair all.
+- **Claude app → Remote Control**: Off (default), Every session or Selected sessions. A session then shows in claude.ai/code and the Claude app as "[Odin] <task>". With Selected, turn it on per session from the card's right-click menu or the drawer.
+
+## Storage (Settings → Storage)
+- **Worktrees**: every session worktree (about 3 GB each), ticked when its work already landed on main; Delete removes the ticked ones. See Worktrees above.
+- **Cleanup → Delete worktrees when their PR merges** (default on), see Worktrees.
+- **Backup → iCloud Drive**: your board, briefs and scrollback, copied daily, kept 14 days in iCloud Drive → Odin Backups. Off until you click Back up now once; Disconnect turns it off again and keeps the saved days. To restore, quit Odin and copy a day's files back into ~/.odin.
 
 ## Notifications settings (Settings → Notifications)
 Desktop banners (macOS controls them; the button opens System Settings), Sound on or off and Volume, and Reminders → Notify at: the time "Remind me" sessions and due dates notify on their day, one notification per day.
 
 ## Appearance (Settings → Appearance)
-Theme: pick one, or follow the system with a Light theme and a Dark theme; custom theme files can be imported (256 KB at most). Show sessions as a chat (default on). Text size (90% to 150%) makes Odin's own text bigger or smaller; the in-app browser keeps its size, while ⌘+/⌘- zoom everything. Store: theme (fn setTheme).
+Theme: pick one, or follow the system with a Light theme and a Dark theme; custom theme files can be imported (256 KB at most). Text size (90% to 150%) makes Odin's own text bigger or smaller; the in-app browser keeps its size, while ⌘+/⌘- zoom everything. Sessions → Show sessions as a chat (default on), and Fold long replies (default on): a latest reply too long for the window folds under its TL;DR card; off shows the reply whole and the TL;DR card still shows. Links → Open links inside Odin: links from the listed sites open in a panel over the page; each site has a switch; other links go to your default browser. Stores: theme (fn setTheme), inAppBrowser.
 
 ## Keyboard (Settings → Keyboard)
 Search and re-record any shortcut; a key already in use offers Reassign; Reset all. From any app → "Double-tap to show or hide Odin": Record, then tap a modifier twice.
-
-## Advanced (Settings → Advanced)
-- **Claude command**: what starts Claude, e.g. an alias for another account. One per line; with two or more, pick one in the top bar. Empty: claude. Store: claudeCommand.
-- **Default prompt**: added to the end of every task prompt (how to work, the Shell, ACTION ITEMS), with Reset to default. The board reads ACTION ITEMS from each reply. Store: sessionInstructions.
-- **Delete worktrees when their PR merges** (default on), see Worktrees.
 
 ## Top bar and updates
 The top bar shows the machine load chip (session count, memory, CPU, free disk; click it when the disk is full to delete unused worktrees). Odin checks for a release every hour; a violet strip says "Odin X is available". Update and restart downloads it, quits and swaps in the new app; open terminal sessions survive the restart. Later hides it until the next check. Nothing installs on its own.

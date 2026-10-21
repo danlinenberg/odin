@@ -3,7 +3,7 @@
 A Capacitor app around the phone screens in
 `apps/desktop/src/renderer/mobile`. It talks to Odin over an end-to-end
 encrypted channel, on the same Wi-Fi or through a relay you run
-(Settings > Connections > Phone, and `docs/phone-encryption.md`).
+(Settings > Remote > Phone, and `docs/phone-encryption.md`).
 
 ## Run it on your iPhone
 
@@ -17,7 +17,7 @@ Needs Xcode (Mac App Store) and the iPhone plugged in or on the same Wi-Fi.
    developer account (and TestFlight, for other people's phones) doesn't expire.
 3. Pick your iPhone at the top, press Run. The first time, the iPhone asks
    you to trust the developer: Settings > General > VPN & Device Management.
-4. On the Mac, Odin > Settings > Connections > Phone > turn on Phone access.
+4. On the Mac, Odin > Settings > Remote > Phone > turn on Phone access.
    Scan the QR code with the iPhone Camera: it opens the app and pairs. Allow
    "find devices on your local network" when iOS asks. To reach Odin away
    from the Wi-Fi, set a relay in the same place before you scan.

@@ -462,7 +462,7 @@ export const createReposRouter = (
 				return { ok: true };
 			}),
 
-		/** Settings → Sessions: remove a worktree once its PR merges. */
+		/** Settings → Storage: remove a worktree once its PR merges. */
 		getPruneMerged: publicProcedure.query(
 			() => readOdinConfig().pruneMergedWorktrees !== false,
 		),

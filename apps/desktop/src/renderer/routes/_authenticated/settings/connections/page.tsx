@@ -10,27 +10,18 @@ import {
 import { Button } from "@odin/ui/button";
 import { Input } from "@odin/ui/input";
 import { toast } from "@odin/ui/sonner";
-import { Switch } from "@odin/ui/switch";
 import { cn } from "@odin/ui/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { FaGithub, FaSlack } from "react-icons/fa";
-import {
-	LuCheck,
-	LuCloudUpload,
-	LuLock,
-	LuSmartphone,
-	LuTrash2,
-} from "react-icons/lu";
+import { LuCheck, LuTrash2 } from "react-icons/lu";
 import { SiClaude, SiClickup, SiGmail, SiJira, SiNotion } from "react-icons/si";
 import {
 	ConnectProvider,
 	type Provider,
 } from "renderer/components/ConnectProvider/ConnectProvider";
 import { electronTrpc } from "renderer/lib/electron-trpc";
-import { useInAppBrowser } from "renderer/stores/in-app-browser";
-import { LINK_HOSTS } from "shared/in-odin-links";
 import { PROFILE_RESTORE_MS } from "shared/odin-profile";
 import { useClaudeSignIn } from "../../_odin/components/ClaudeSignInBanner";
 import {
@@ -39,7 +30,6 @@ import {
 } from "../../_odin/hooks/useOdinFeeds";
 import { resetOdinFeeds } from "../../_odin/hooks/useOdinProfile";
 import {
-	SettingRow,
 	SettingsPage,
 	SettingsSection,
 	StatusDot,
@@ -284,18 +274,6 @@ function ConnectionsSettings() {
 					);
 				})}
 			</SettingsSection>
-
-			<SettingsSection title="Phone">
-				<PhoneRow />
-			</SettingsSection>
-
-			<SettingsSection title="Links">
-				<OpenLinksInOdinRow />
-			</SettingsSection>
-
-			<SettingsSection title="Backup">
-				<BackupRow />
-			</SettingsSection>
 		</SettingsPage>
 	);
 }
@@ -376,91 +354,6 @@ function ClaudeRow() {
 							? "Sign in"
 							: "Reconnect"}
 				</Button>
-			</div>
-		</div>
-	);
-}
-
-/**
- * Not an account, but the same shape as one: a place Odin's data goes. The
- * daily copy itself runs in main (main/lib/backup-data.ts); this row only
- * shows where it landed and lets you force one.
- */
-function BackupRow() {
-	const status = electronTrpc.backup.status.useQuery();
-	const run = electronTrpc.backup.run.useMutation({
-		onSuccess: () => {
-			void status.refetch();
-			toast.success("Backed up to iCloud Drive");
-		},
-		onError: (error) => toast.error(error.message),
-	});
-	const disconnect = electronTrpc.backup.disconnect.useMutation({
-		onSuccess: () => void status.refetch(),
-		onError: (error) => toast.error(error.message),
-	});
-	const reveal = electronTrpc.backup.reveal.useMutation();
-	const data = status.data;
-	const identity = !data?.lastBackupAt
-		? "Off until you back up once"
-		: `Last ${new Date(data.lastBackupAt).toLocaleString([], {
-				dateStyle: "medium",
-				timeStyle: "short",
-			})} · ${data.days} ${data.days === 1 ? "day" : "days"} kept`;
-	return (
-		<div data-setting="iCloud Drive" className="px-4 py-3.5">
-			<div className="flex items-start justify-between gap-6">
-				<div className="flex items-start gap-3 min-w-0">
-					<div className="flex size-8 shrink-0 items-center justify-center">
-						<LuCloudUpload className="size-5" />
-					</div>
-					<div className="min-w-0">
-						<div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
-							<span className="text-sm font-medium">iCloud Drive</span>
-							<StatusDot
-								loading={status.isLoading}
-								configured={data?.available ?? false}
-								identity={identity}
-								error={null}
-							/>
-						</div>
-						<div className="text-xs text-muted-foreground mt-0.5">
-							Your board, briefs and scrollback, copied daily.
-						</div>
-						<div className="text-xs text-muted-foreground mt-1 max-w-[70ch]">
-							{data?.available === false
-								? "iCloud Drive is off, so nothing is copied. Turn it on in System Settings → Apple Account → iCloud."
-								: !data?.lastBackupAt
-									? "Back up now to turn on the daily copy. macOS asks once for access to iCloud Drive."
-									: "Keeps 14 days in iCloud Drive → Odin Backups. To restore, quit Odin and copy a day's files back into ~/.odin."}
-						</div>
-					</div>
-				</div>
-				<div className="flex items-center gap-1 shrink-0">
-					<Button
-						variant="outline"
-						size="sm"
-						disabled={!data?.available || run.isPending}
-						onClick={() => run.mutate()}
-					>
-						{run.isPending ? "Backing up…" : "Back up now"}
-					</Button>
-					{data?.lastBackupAt && (
-						<Button variant="ghost" size="sm" onClick={() => reveal.mutate()}>
-							Show
-						</Button>
-					)}
-					{data?.lastBackupAt && (
-						<Button
-							variant="ghost"
-							size="sm"
-							disabled={disconnect.isPending}
-							onClick={() => disconnect.mutate()}
-						>
-							Disconnect
-						</Button>
-					)}
-				</div>
 			</div>
 		</div>
 	);
@@ -731,169 +624,6 @@ function Profiles({ onSwitched }: { onSwitched: () => void }) {
 					</AlertDialogFooter>
 				</EnterEnabledAlertDialogContent>
 			</AlertDialog>
-		</>
-	);
-}
-
-/** Every provider names its link hosts, so a new one gets its switch below. */
-const PROVIDER_LINK_HOSTS: Record<Provider, readonly string[]> = LINK_HOSTS;
-const LINK_PROVIDERS = ORDER.filter((p) => PROVIDER_LINK_HOSTS[p].length > 0);
-const linkSiteNames = LINK_PROVIDERS.map((p) => META[p].name);
-const LINK_SITE_LIST = `${linkSiteNames.slice(0, -1).join(", ")} and ${linkSiteNames.at(-1)}`;
-
-/**
- * Undoes "Always open links in your browser" from the in-app browser; while
- * it's on, each site can still send its own links to your browser.
- */
-function OpenLinksInOdinRow() {
-	const external = useInAppBrowser((state) => state.external);
-	const browserSites = useInAppBrowser((state) => state.browserSites);
-	return (
-		<>
-			<SettingRow
-				label="Open links inside Odin"
-				htmlFor="open-links-in-odin"
-				description={`${LINK_SITE_LIST} links open in a panel over the page instead of another app; other links always go to your default browser. Off sends them all there.`}
-			>
-				<Switch
-					id="open-links-in-odin"
-					checked={!external}
-					onCheckedChange={(inOdin) =>
-						useInAppBrowser.setState({ external: !inOdin })
-					}
-				/>
-			</SettingRow>
-			{!external &&
-				LINK_PROVIDERS.map((id) => (
-					<SettingRow
-						key={id}
-						label={`${META[id].name} links`}
-						htmlFor={`open-links-in-odin-${id}`}
-					>
-						<Switch
-							id={`open-links-in-odin-${id}`}
-							checked={!browserSites.includes(id)}
-							onCheckedChange={(inOdin) =>
-								useInAppBrowser.setState({
-									browserSites: inOdin
-										? browserSites.filter((site) => site !== id)
-										: [...browserSites, id],
-								})
-							}
-						/>
-					</SettingRow>
-				))}
-		</>
-	);
-}
-
-/**
- * Odin on your iPhone (main/lib/phone, docs/phone-encryption.md): an end to
- * end encrypted channel, on this Wi-Fi or through a relay. The QR code
- * carries Odin's public key and a one-time code: scanning it is the pairing.
- */
-function PhoneRow() {
-	// Polled: a phone that pairs appears, and the spent code is replaced.
-	const status = electronTrpc.phone.status.useQuery(undefined, {
-		refetchInterval: 5_000,
-	});
-	const onError = (error: { message: string }) => toast.error(error.message);
-	const onSuccess = () => void status.refetch();
-	const setEnabled = electronTrpc.phone.setEnabled.useMutation({
-		onSuccess,
-		onError,
-	});
-	const remove = electronTrpc.phone.remove.useMutation({ onSuccess, onError });
-	const unpairAll = electronTrpc.phone.unpairAll.useMutation({
-		onSuccess,
-		onError,
-	});
-	const data = status.data;
-	const devices = data?.devices ?? [];
-	return (
-		<>
-			<SettingRow
-				label="Phone access"
-				htmlFor="phone-access"
-				description="See the board and answer sessions from the Odin iPhone app, on this Wi-Fi or away from it."
-			>
-				<Switch
-					id="phone-access"
-					checked={data?.state === "on"}
-					disabled={setEnabled.isPending}
-					onCheckedChange={(enabled) => setEnabled.mutate({ enabled })}
-				/>
-			</SettingRow>
-			{data?.state === "error" && (
-				<div className="px-4 py-3 text-xs text-danger select-text cursor-text">
-					{data.error}
-				</div>
-			)}
-			{data?.state === "on" && (
-				<div className="flex gap-5 px-4 py-4">
-					<img
-						src={data.qr}
-						alt="QR code that pairs the Odin iPhone app"
-						className="size-32 shrink-0 rounded-lg bg-white p-1.5"
-					/>
-					<div className="flex min-w-0 flex-col gap-2">
-						<div className="text-sm font-medium">Pair a phone</div>
-						<ol className="list-decimal space-y-1 pl-4 text-[13px] leading-relaxed text-muted-foreground">
-							<li>Open the Camera on your iPhone.</li>
-							<li>Point it at this code.</li>
-							<li>Tap Open in Odin. The code works once, for 10 minutes.</li>
-						</ol>
-						<div className="mt-auto flex items-center gap-1.5 text-xs text-muted-foreground">
-							<LuLock className="size-3.5 shrink-0" />
-							End to end encrypted. Not even Odin's relay can read it.
-						</div>
-					</div>
-				</div>
-			)}
-			{devices.length > 0 && (
-				<div className="px-4 py-3">
-					<div className="mb-1 flex items-center justify-between">
-						<span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-							Paired phones
-						</span>
-						<button
-							type="button"
-							disabled={unpairAll.isPending}
-							onClick={() => unpairAll.mutate()}
-							className="text-xs text-muted-foreground hover:text-danger"
-						>
-							Unpair all
-						</button>
-					</div>
-					{devices.map((device) => (
-						<div key={device.key} className="flex items-center gap-3 py-1.5">
-							<span className="flex size-8 items-center justify-center rounded-md bg-secondary">
-								<LuSmartphone className="size-4" />
-							</span>
-							<div className="min-w-0 flex-1">
-								<div className="truncate text-sm">{device.name}</div>
-								<div className="text-xs text-muted-foreground">
-									Paired{" "}
-									{new Date(device.added).toLocaleDateString(undefined, {
-										month: "short",
-										day: "numeric",
-									})}
-								</div>
-							</div>
-							<Button
-								variant="ghost"
-								size="icon"
-								aria-label={`Remove ${device.name}`}
-								title="Remove"
-								disabled={remove.isPending}
-								onClick={() => remove.mutate({ key: device.key })}
-							>
-								<LuTrash2 className="size-4" />
-							</Button>
-						</div>
-					))}
-				</div>
-			)}
 		</>
 	);
 }

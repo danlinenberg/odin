@@ -8,7 +8,7 @@ interface SessionInstructionsState {
 }
 
 /**
- * Settings → Advanced: the standing instructions at the end of every task
+ * Settings → Sessions: the standing instructions at the end of every task
  * prompt (work in the workspace, the Shell, ACTION ITEMS).
  */
 export const useSessionInstructions = create<SessionInstructionsState>()(

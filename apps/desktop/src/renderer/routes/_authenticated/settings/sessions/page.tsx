@@ -1,26 +1,18 @@
-import {
-	ODIN_AUTO_RENAME_SESSIONS_DEFAULT,
-	ODIN_REPLY_TLDR_DEFAULT,
-} from "@odin/shared/constants";
+import { ODIN_AUTO_RENAME_SESSIONS_DEFAULT } from "@odin/shared/constants";
 import { Button } from "@odin/ui/button";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@odin/ui/select";
 import { toast } from "@odin/ui/sonner";
 import { Switch } from "@odin/ui/switch";
+import { Textarea } from "@odin/ui/textarea";
 import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
+import { ClaudeCommandPicker } from "renderer/components/ClaudeCommandPicker";
+import { DEFAULT_SESSION_INSTRUCTIONS } from "renderer/hooks/useLaunchTaskSession";
 import { electronTrpc } from "renderer/lib/electron-trpc";
-import {
-	type RemoteControlMode,
-	useClaudeCommand,
-} from "renderer/stores/claude-command";
+import { useClaudeCommand } from "renderer/stores/claude-command";
 import { useIdleClose } from "renderer/stores/idle-close";
 import { useIdleCompact } from "renderer/stores/idle-compact";
 import { useLaunchLimits } from "renderer/stores/launch-limits";
+import { useSessionInstructions } from "renderer/stores/session-instructions";
 import type { LaunchLimits } from "shared/machine-load";
 import {
 	NumberSetting,
@@ -28,25 +20,34 @@ import {
 	SettingsPage,
 	SettingsSection,
 } from "../components/SettingsPage";
-import { RemoteHostSection } from "./components/RemoteHostSection";
 
 export const Route = createFileRoute("/_authenticated/settings/sessions/")({
 	component: SessionsSettingsPage,
 });
 
+/**
+ * Settings > Sessions: a session's life on this Mac, top to bottom - the
+ * folder it starts in, what it runs, when it has to wait, and what the board
+ * does with it afterwards. Running one elsewhere is Settings > Remote.
+ */
 function SessionsSettingsPage() {
 	return (
 		<SettingsPage
 			title="Sessions"
-			description="Where a new agent session starts, when it has to wait its turn, and what the board does with it afterwards."
+			description="Where a new agent session starts, what it runs, when it has to wait its turn, and what the board does with it afterwards."
 		>
 			<SettingsSection title="Where they start">
 				<DefaultRepoRow />
-				<RemoteControlRow />
 				<FullDiskAccessRow />
 			</SettingsSection>
 
-			<RemoteHostSection />
+			<SettingsSection
+				title="What they run"
+				description="The command that starts Claude, and the instructions every task ends with."
+			>
+				<ClaudeCommandRow />
+				<SessionInstructionsRow />
+			</SettingsSection>
 
 			<SettingsSection
 				title="When they start"
@@ -95,9 +96,11 @@ function SessionsSettingsPage() {
 				<OneSessionPerCheckoutRow />
 			</SettingsSection>
 
-			<SettingsSection title="On the board">
+			<SettingsSection
+				title="On the board"
+				description="What the board does with a session once it is running."
+			>
 				<AutoRenameRow />
-				<ReplyTldrRow />
 				<IdleCompactRow />
 				<IdleCloseRow />
 			</SettingsSection>
@@ -165,39 +168,6 @@ function DefaultRepoRow() {
 	);
 }
 
-/** `claude --remote-control '[Odin] <task title>'` on launch and Resume. */
-function RemoteControlRow() {
-	const mode = useClaudeCommand((s) => s.remoteControl);
-	const setRemoteControl = useClaudeCommand((s) => s.setRemoteControl);
-	return (
-		<SettingRow
-			label="Remote Control"
-			htmlFor="remote-control"
-			description={
-				mode === "all"
-					? "Every session shows up in claude.ai/code and the Claude app as [Odin] <task>. That is a lot of sessions in your Claude app - pick Selected sessions to choose them one by one."
-					: mode === "selected"
-						? "Turn it on for one session from its right-click menu or the Remote Control button in its drawer. It shows up in claude.ai/code and the Claude app as [Odin] <task>."
-						: "Follow and answer sessions from claude.ai/code or the Claude app on your phone. Uses your claude.ai login, not a setup-token or API key from your shell."
-			}
-		>
-			<Select
-				value={mode}
-				onValueChange={(value) => setRemoteControl(value as RemoteControlMode)}
-			>
-				<SelectTrigger id="remote-control" className="w-[180px]">
-					<SelectValue />
-				</SelectTrigger>
-				<SelectContent>
-					<SelectItem value="off">Off</SelectItem>
-					<SelectItem value="all">Every session</SelectItem>
-					<SelectItem value="selected">Selected sessions</SelectItem>
-				</SelectContent>
-			</Select>
-		</SettingRow>
-	);
-}
-
 /**
  * macOS charges everything a session runs to Odin, so one `find ~` in a
  * session pops "Odin wants your music / photo library". Full Disk Access
@@ -228,6 +198,99 @@ function FullDiskAccessRow() {
 					Open System Settings
 				</Button>
 			)}
+		</SettingRow>
+	);
+}
+
+/**
+ * What Odin runs instead of `claude` - an alias or function from your shell
+ * rc works, the session shell sources it. One per line; two or more puts a
+ * picker in the top bar.
+ */
+function ClaudeCommandRow() {
+	const commands = useClaudeCommand((s) => s.commands);
+	const setCommands = useClaudeCommand((s) => s.setCommands);
+	const [draft, setDraft] = useState(commands.join("\n"));
+	const save = () =>
+		setCommands([
+			...new Set(
+				draft
+					.split("\n")
+					.map((line) => line.trim())
+					.filter(Boolean),
+			),
+		]);
+	return (
+		<SettingRow
+			label="Claude command"
+			htmlFor="claude-command"
+			description="What starts Claude in a new or resumed session, e.g. an alias for another account. One per line - with two or more, pick one in the top bar. Empty: claude."
+			stacked
+		>
+			<Textarea
+				id="claude-command"
+				value={draft}
+				placeholder="claude"
+				rows={3}
+				spellCheck={false}
+				className="font-mono text-xs"
+				onChange={(event) => setDraft(event.target.value)}
+				onBlur={save}
+			/>
+			<ClaudeCommandPicker className="mt-2" />
+		</SettingRow>
+	);
+}
+
+/**
+ * The standing instructions every task prompt ends with. Saved on blur; text
+ * equal to the default is stored as "no override", so later default changes
+ * still reach it.
+ */
+function SessionInstructionsRow() {
+	const instructions = useSessionInstructions((s) => s.instructions);
+	const setInstructions = useSessionInstructions((s) => s.setInstructions);
+	const [draft, setDraft] = useState(
+		instructions ?? DEFAULT_SESSION_INSTRUCTIONS,
+	);
+	const save = () =>
+		setInstructions(draft === DEFAULT_SESSION_INSTRUCTIONS ? null : draft);
+	const reset = () => {
+		setInstructions(null);
+		setDraft(DEFAULT_SESSION_INSTRUCTIONS);
+	};
+	return (
+		<SettingRow
+			label="Default prompt"
+			htmlFor="session-instructions"
+			description="Added to the end of every task a session starts with: how to work, where to run things, the ACTION ITEMS section. The board reads ACTION ITEMS from each reply, so keep that part if you want it there."
+			stacked
+		>
+			<Textarea
+				id="session-instructions"
+				value={draft}
+				rows={10}
+				spellCheck={false}
+				className="font-mono text-xs"
+				onChange={(event) => setDraft(event.target.value)}
+				onBlur={save}
+			/>
+			<div className="mt-2 flex items-center gap-2">
+				<Button
+					variant="outline"
+					size="sm"
+					className="h-8"
+					disabled={
+						instructions === null && draft === DEFAULT_SESSION_INSTRUCTIONS
+					}
+					onClick={reset}
+				>
+					Reset to default
+				</Button>
+				{instructions !== null && (
+					<span className="text-xs text-muted-foreground">Edited</span>
+				)}
+			</div>
 		</SettingRow>
 	);
 }
@@ -317,42 +380,6 @@ function AutoRenameRow() {
 				checked={autoRename ?? ODIN_AUTO_RENAME_SESSIONS_DEFAULT}
 				onCheckedChange={(enabled) => setAutoRename.mutate({ enabled })}
 				disabled={isLoading || setAutoRename.isPending}
-			/>
-		</SettingRow>
-	);
-}
-
-/** Whether a long latest reply folds under its TL;DR in the chat view. */
-function ReplyTldrRow() {
-	const utils = electronTrpc.useUtils();
-	const { data: enabled, isLoading } =
-		electronTrpc.settings.getOdinReplyTldr.useQuery();
-	const setEnabled = electronTrpc.settings.setOdinReplyTldr.useMutation({
-		onMutate: async ({ enabled }) => {
-			await utils.settings.getOdinReplyTldr.cancel();
-			const previous = utils.settings.getOdinReplyTldr.getData();
-			utils.settings.getOdinReplyTldr.setData(undefined, enabled);
-			return { previous };
-		},
-		onError: (_err, _vars, context) => {
-			if (context?.previous !== undefined) {
-				utils.settings.getOdinReplyTldr.setData(undefined, context.previous);
-			}
-		},
-		onSettled: () => utils.settings.getOdinReplyTldr.invalidate(),
-	});
-
-	return (
-		<SettingRow
-			label="Fold long replies"
-			htmlFor="reply-tldr"
-			description="A latest reply too long for the window folds under its TL;DR card, with a Show full reply link. Off shows the reply whole above the TL;DR."
-		>
-			<Switch
-				id="reply-tldr"
-				checked={enabled ?? ODIN_REPLY_TLDR_DEFAULT}
-				onCheckedChange={(enabled) => setEnabled.mutate({ enabled })}
-				disabled={isLoading || setEnabled.isPending}
 			/>
 		</SettingRow>
 	);

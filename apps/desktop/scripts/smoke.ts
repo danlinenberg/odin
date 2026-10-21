@@ -787,12 +787,12 @@ await step("Done takes a task off the list", async () => {
 const SETTINGS: [string, string][] = [
 	["Connections", "#/settings/connections"],
 	["Sessions", "#/settings/sessions"],
+	["Remote", "#/settings/remote"],
 	["Storage", "#/settings/storage"],
 	["Backlog & Night Agent", "#/settings/backlog"],
 	["Notifications", "#/settings/ringtones"],
 	["Appearance", "#/settings/appearance"],
 	["Keyboard", "#/settings/keyboard"],
-	["Advanced", "#/settings/advanced"],
 ];
 await step("Settings: exactly its eight screens, and each opens", async () => {
 	await rail("Settings");

@@ -1,10 +1,17 @@
 import { Button } from "@odin/ui/button";
 import { Checkbox } from "@odin/ui/checkbox";
 import { toast } from "@odin/ui/sonner";
+import { Switch } from "@odin/ui/switch";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { LuCloudUpload } from "react-icons/lu";
 import { electronTrpc } from "renderer/lib/electron-trpc";
-import { SettingsPage, SettingsSection } from "../components/SettingsPage";
+import {
+	SettingRow,
+	SettingsPage,
+	SettingsSection,
+	StatusDot,
+} from "../components/SettingsPage";
 
 export const Route = createFileRoute("/_authenticated/settings/storage/")({
 	component: StorageSettingsPage,
@@ -24,9 +31,11 @@ function ago(ms: number | null): string {
 }
 
 /**
- * Every session worktree on the Mac, with what the 10-minute pruner would do
- * to it. The ones it would remove start ticked. Any other can be ticked too,
- * after a warning: its branch stays and its uncommitted files are saved.
+ * Settings > Storage: what Odin keeps on this Mac's disk and in iCloud. Every
+ * session worktree, with what the 10-minute pruner would do to it (the ones
+ * it would remove start ticked; any other can be ticked too, after a warning:
+ * its branch stays and its uncommitted files are saved), the pruner's switch,
+ * and the daily iCloud Drive copy of Odin's own data.
  */
 function StorageSettingsPage() {
 	const utils = electronTrpc.useUtils();
@@ -112,7 +121,7 @@ function StorageSettingsPage() {
 	return (
 		<SettingsPage
 			title="Storage"
-			description="Each agent session works in its own worktree, a full install of about 3 GB. The ones whose work already landed on main are ticked. Deleting one with other work keeps its branch, and saves uncommitted files to refs/pruned/<name>."
+			description="What Odin keeps on this Mac: a worktree per session, about 3 GB each, and a daily copy of its own data in iCloud Drive."
 			action={
 				<Button
 					size="sm"
@@ -128,9 +137,14 @@ function StorageSettingsPage() {
 			<SettingsSection
 				title="Worktrees"
 				description={
-					worktrees
-						? `${worktrees.length} ${worktrees.length === 1 ? "worktree" : "worktrees"}, ${gb(total)} in all.`
-						: undefined
+					<>
+						Each agent session works in its own worktree. The ones whose work
+						already landed on main are ticked. Deleting one with other work
+						keeps its branch, and saves uncommitted files to refs/pruned/
+						&lt;name&gt;.
+						{worktrees &&
+							` ${worktrees.length} ${worktrees.length === 1 ? "worktree" : "worktrees"}, ${gb(total)} in all.`}
+					</>
 				}
 			>
 				{isLoading ? (
@@ -205,6 +219,124 @@ function StorageSettingsPage() {
 					</>
 				)}
 			</SettingsSection>
+
+			<SettingsSection title="Cleanup">
+				<PruneMergedRow />
+			</SettingsSection>
+
+			<SettingsSection title="Backup">
+				<BackupRow />
+			</SettingsSection>
 		</SettingsPage>
+	);
+}
+
+/** Remove a session's worktree once its PR merges - main's pruner reads it. */
+function PruneMergedRow() {
+	const utils = electronTrpc.useUtils();
+	const { data: enabled, isLoading } =
+		electronTrpc.repos.getPruneMerged.useQuery();
+	const setEnabled = electronTrpc.repos.setPruneMerged.useMutation({
+		onSuccess: () => void utils.repos.getPruneMerged.invalidate(),
+		onError: (error) => toast.error(error.message),
+	});
+	return (
+		<SettingRow
+			label="Delete worktrees when their PR merges"
+			htmlFor="prune-merged-worktrees"
+			description="Checked every 10 minutes in every repo with a .worktrees folder. A worktree with uncommitted files waits 7 days, then its files are saved to refs/pruned/<name> first. Off keeps every worktree."
+		>
+			<Switch
+				id="prune-merged-worktrees"
+				checked={enabled ?? true}
+				onCheckedChange={(on) => setEnabled.mutate({ enabled: on })}
+				disabled={isLoading || setEnabled.isPending}
+			/>
+		</SettingRow>
+	);
+}
+
+/**
+ * A place Odin's data goes, in the shape of an account row. The daily copy
+ * itself runs in main (main/lib/backup-data.ts); this row only shows where it
+ * landed and lets you force one.
+ */
+function BackupRow() {
+	const status = electronTrpc.backup.status.useQuery();
+	const run = electronTrpc.backup.run.useMutation({
+		onSuccess: () => {
+			void status.refetch();
+			toast.success("Backed up to iCloud Drive");
+		},
+		onError: (error) => toast.error(error.message),
+	});
+	const disconnect = electronTrpc.backup.disconnect.useMutation({
+		onSuccess: () => void status.refetch(),
+		onError: (error) => toast.error(error.message),
+	});
+	const reveal = electronTrpc.backup.reveal.useMutation();
+	const data = status.data;
+	const identity = !data?.lastBackupAt
+		? "Off until you back up once"
+		: `Last ${new Date(data.lastBackupAt).toLocaleString([], {
+				dateStyle: "medium",
+				timeStyle: "short",
+			})} · ${data.days} ${data.days === 1 ? "day" : "days"} kept`;
+	return (
+		<div data-setting="iCloud Drive" className="px-4 py-3.5">
+			<div className="flex items-start justify-between gap-6">
+				<div className="flex items-start gap-3 min-w-0">
+					<div className="flex size-8 shrink-0 items-center justify-center">
+						<LuCloudUpload className="size-5" />
+					</div>
+					<div className="min-w-0">
+						<div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+							<span className="text-sm font-medium">iCloud Drive</span>
+							<StatusDot
+								loading={status.isLoading}
+								configured={data?.available ?? false}
+								identity={identity}
+								error={null}
+							/>
+						</div>
+						<div className="text-xs text-muted-foreground mt-0.5">
+							Your board, briefs and scrollback, copied daily.
+						</div>
+						<div className="text-xs text-muted-foreground mt-1 max-w-[70ch]">
+							{data?.available === false
+								? "iCloud Drive is off, so nothing is copied. Turn it on in System Settings → Apple Account → iCloud."
+								: !data?.lastBackupAt
+									? "Back up now to turn on the daily copy. macOS asks once for access to iCloud Drive."
+									: "Keeps 14 days in iCloud Drive → Odin Backups. To restore, quit Odin and copy a day's files back into ~/.odin."}
+						</div>
+					</div>
+				</div>
+				<div className="flex items-center gap-1 shrink-0">
+					<Button
+						variant="outline"
+						size="sm"
+						disabled={!data?.available || run.isPending}
+						onClick={() => run.mutate()}
+					>
+						{run.isPending ? "Backing up…" : "Back up now"}
+					</Button>
+					{data?.lastBackupAt && (
+						<Button variant="ghost" size="sm" onClick={() => reveal.mutate()}>
+							Show
+						</Button>
+					)}
+					{data?.lastBackupAt && (
+						<Button
+							variant="ghost"
+							size="sm"
+							disabled={disconnect.isPending}
+							onClick={() => disconnect.mutate()}
+						>
+							Disconnect
+						</Button>
+					)}
+				</div>
+			</div>
+		</div>
 	);
 }

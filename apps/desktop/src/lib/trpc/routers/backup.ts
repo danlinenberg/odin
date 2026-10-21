@@ -8,7 +8,7 @@ import {
 } from "main/lib/backup-data";
 import { publicProcedure, router } from "..";
 
-/** Settings → Connections → Backup: the daily iCloud Drive copy of ~/.odin. */
+/** Settings → Storage → Backup: the daily iCloud Drive copy of ~/.odin. */
 export const createBackupRouter = () =>
 	router({
 		// Not turned on yet: report nothing rather than look in iCloud Drive,

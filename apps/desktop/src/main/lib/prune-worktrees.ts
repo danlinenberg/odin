@@ -22,7 +22,7 @@ import { projectRepos, scanRepos } from "lib/trpc/routers/repos";
  * lets the script tell a merged PR from unmerged work when main has since
  * changed the same files; repos it can't see fall back to gh's own logins.
  */
-// Settings → Advanced turns this off; read every pass, so no restart needed.
+// Settings → Storage turns this off; read every pass, so no restart needed.
 const EVERY_MS = 10 * 60 * 1000;
 const FIRST_RUN_MS = 5 * 60 * 1000;
 

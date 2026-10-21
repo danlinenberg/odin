@@ -32,7 +32,7 @@ import {
 } from "./trust";
 
 /**
- * Settings → Connections → Phone: the iPhone app talks to Odin over an
+ * Settings → Remote → Phone: the iPhone app talks to Odin over an
  * end-to-end encrypted channel (docs/phone-encryption.md, packages/odin-channel):
  * on the Wi-Fi at ws://<mac>.local:<port>/channel, and from anywhere through
  * a relay Odin dials out to. Each request that comes out of the channel goes

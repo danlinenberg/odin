@@ -47,11 +47,11 @@ const USER_AGENT = `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/
 
 const close = () => useInAppBrowser.setState({ url: null });
 
-/** From now on links skip this panel; Undo, or Settings → Connections, brings it back. */
+/** From now on links skip this panel; Undo, or Settings → Appearance, brings it back. */
 const alwaysExternal = () => {
 	useInAppBrowser.setState({ external: true });
 	toast("Links now open in your browser", {
-		description: "Switch back in Settings → Connections.",
+		description: "Switch back in Settings → Appearance.",
 		action: {
 			label: "Undo",
 			onClick: () => useInAppBrowser.setState({ external: false }),

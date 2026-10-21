@@ -108,7 +108,7 @@ export async function backupOdinData(
 	return dir;
 }
 
-/** What Settings → Connections shows: is iCloud there, and when did we last copy. */
+/** What Settings → Storage shows: is iCloud there, and when did we last copy. */
 export async function backupStatus(dest = BACKUP_DIR): Promise<{
 	path: string;
 	available: boolean;

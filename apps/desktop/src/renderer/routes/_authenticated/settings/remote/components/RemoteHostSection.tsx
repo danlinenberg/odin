@@ -45,7 +45,7 @@ const EMPTY = "__empty";
 type SetupState = "running" | { claude: string | null } | { error: string };
 
 /**
- * Settings > Sessions > Remote host: pick the tags a host must carry, then
+ * Settings > Remote > Remote host: pick the tags a host must carry, then
  * pick a host. Only instances that match every tag are listed; Set up installs
  * what sessions need on one, and its sessions then run there in tmux.
  */

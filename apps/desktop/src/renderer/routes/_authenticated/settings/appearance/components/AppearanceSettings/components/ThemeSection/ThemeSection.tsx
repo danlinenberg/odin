@@ -279,8 +279,9 @@ export function ThemeSection() {
 		URL.revokeObjectURL(url);
 	};
 
+	// Rows only: the Appearance page puts them in its Theme card.
 	return (
-		<div className="rounded-lg border border-border overflow-hidden divide-y divide-border">
+		<>
 			<LightModeIntervention
 				open={pendingLightThemeId !== null}
 				onConfirm={() => {
@@ -325,7 +326,10 @@ export function ThemeSection() {
 					/>
 				</>
 			)}
-			<div className="flex items-center justify-between gap-6 p-4">
+			<div
+				data-setting="Custom themes"
+				className="flex items-center justify-between gap-6 p-4"
+			>
 				<div className="min-w-0 flex-1">
 					<div className="text-sm font-medium">Custom themes</div>
 					<div className="text-xs text-muted-foreground">
@@ -361,6 +365,6 @@ export function ThemeSection() {
 					</Button>
 				</div>
 			</div>
-		</div>
+		</>
 	);
 }

@@ -164,7 +164,7 @@ and phone, filled in App Store Connect.
 
 ## TestFlight: What to Test
 
-> Pair: on your Mac, open Odin > Settings > Connections > Phone, turn on Phone access, and scan the QR code with the iPhone Camera.
+> Pair: on your Mac, open Odin > Settings > Remote > Phone, turn on Phone access, and scan the QR code with the iPhone Camera.
 >
 > Try: open a session that needs you and answer it with a button or a reply; send a reply by voice; attach a photo; open the brief and its links; start a new task; star a session; switch profiles. Then turn off Wi-Fi and check that the board still loads over mobile data.
 >

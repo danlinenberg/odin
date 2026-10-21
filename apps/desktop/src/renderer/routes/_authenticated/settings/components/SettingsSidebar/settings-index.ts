@@ -5,32 +5,40 @@ import {
 	LuListOrdered,
 	LuPalette,
 	LuPlug,
-	LuSlidersHorizontal,
+	LuServer,
 	LuSquareTerminal,
 } from "react-icons/lu";
 
 /**
  * Odin's settings screens, each with the things on it spelled out underneath,
- * so you can tell where a setting lives without opening every screen. The
+ * so you can tell where a setting lives without opening every screen. One
+ * topic per screen: who you are (Connections), a session's life here
+ * (Sessions), away from here (Remote), the disk (Storage), and so on. The
  * inherited workspace sections keep their routes but have no entry here.
  */
 export const SCREENS = [
 	{
 		to: "/settings/connections",
 		label: "Connections",
-		hint: "Profiles, accounts, links, iCloud backup",
+		hint: "Profiles, Claude, Slack, GitHub, Jira, Notion, Gmail",
 		icon: LuPlug,
 	},
 	{
 		to: "/settings/sessions",
 		label: "Sessions",
-		hint: "Default folder, disk access, limits, idle close",
+		hint: "Default folder, Claude command, prompt, limits, idle close",
 		icon: LuSquareTerminal,
+	},
+	{
+		to: "/settings/remote",
+		label: "Remote",
+		hint: "EC2 host, iPhone app, Remote Control",
+		icon: LuServer,
 	},
 	{
 		to: "/settings/storage",
 		label: "Storage",
-		hint: "Worktrees, their size, delete old ones",
+		hint: "Worktrees, cleanup, iCloud backup",
 		icon: LuHardDrive,
 	},
 	{
@@ -48,7 +56,7 @@ export const SCREENS = [
 	{
 		to: "/settings/appearance",
 		label: "Appearance",
-		hint: "Theme, fonts, sessions as a chat",
+		hint: "Theme, text size, chat view, links",
 		icon: LuPalette,
 	},
 	{
@@ -56,12 +64,6 @@ export const SCREENS = [
 		label: "Keyboard",
 		hint: "Shortcuts for every screen",
 		icon: LuKeyboard,
-	},
-	{
-		to: "/settings/advanced",
-		label: "Advanced",
-		hint: "Claude command, default prompt, worktree cleanup",
-		icon: LuSlidersHorizontal,
 	},
 ] as const;
 
@@ -87,6 +89,12 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		to: "/settings/connections",
 		section: "Profiles",
 		keywords: "profile switch add delete rename work private",
+	},
+	{
+		label: "Claude",
+		to: "/settings/connections",
+		section: "Accounts",
+		keywords: "account sign in login plan claude.ai code reconnect",
 	},
 	{
 		label: "Slack",
@@ -119,16 +127,10 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		keywords: "account sign in connect email mail unread",
 	},
 	{
-		label: "Open links inside Odin",
+		label: "ClickUp",
 		to: "/settings/connections",
-		section: "Links",
-		keywords: "in-app browser default external chrome safari always per site",
-	},
-	{
-		label: "iCloud Drive",
-		to: "/settings/connections",
-		section: "Backup",
-		keywords: "backup restore copy daily",
+		section: "Accounts",
+		keywords: "account sign in connect tasks token",
 	},
 	{
 		label: "Default folder",
@@ -143,28 +145,16 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		keywords: "permission privacy prompt music photos macos tcc allow",
 	},
 	{
-		label: "Worktrees",
-		to: "/settings/storage",
-		section: "Worktrees",
-		keywords: "disk space storage free gb delete clean prune worktree size",
-	},
-	{
 		label: "Claude command",
-		to: "/settings/advanced",
-		section: "Sessions",
+		to: "/settings/sessions",
+		section: "What they run",
 		keywords: "launch command alias binary claude code cli wrapper",
 	},
 	{
 		label: "Default prompt",
-		to: "/settings/advanced",
-		section: "Sessions",
+		to: "/settings/sessions",
+		section: "What they run",
 		keywords: "instructions system prompt action items task end",
-	},
-	{
-		label: "Delete worktrees when their PR merges",
-		to: "/settings/advanced",
-		section: "Cleanup",
-		keywords: "prune worktree merged pr disk space automatic clean",
 	},
 	{
 		label: "Hold new sessions when this Mac is",
@@ -177,6 +167,12 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		to: "/settings/sessions",
 		section: "When they start",
 		keywords: "memory ram gb launch limit queue",
+	},
+	{
+		label: "Hold new sessions when free disk is under",
+		to: "/settings/sessions",
+		section: "When they start",
+		keywords: "disk space full free percent launch limit queue",
 	},
 	{
 		label: "Hold new sessions when this many are working",
@@ -197,12 +193,6 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		keywords: "auto rename card title name",
 	},
 	{
-		label: "Fold long replies",
-		to: "/settings/sessions",
-		section: "On the board",
-		keywords: "fold collapse shorten long reply tldr tl;dr chat",
-	},
-	{
 		label: "Compact conversations moved to Idle",
 		to: "/settings/sessions",
 		section: "On the board",
@@ -213,6 +203,43 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		to: "/settings/sessions",
 		section: "On the board",
 		keywords: "idle timeout hours close card",
+	},
+	{
+		label: "Remote host",
+		to: "/settings/remote",
+		section: "Remote host",
+		keywords:
+			"ec2 aws instance ssm server host tmux lid shut connectors on the host github accounts on the host claude setup api key plan limit",
+	},
+	{
+		label: "Phone access",
+		to: "/settings/remote",
+		section: "Phone",
+		keywords: "iphone ios app pair qr code mobile relay",
+	},
+	{
+		label: "Remote Control",
+		to: "/settings/remote",
+		section: "Claude app",
+		keywords: "claude.ai code claude app phone follow selected sessions",
+	},
+	{
+		label: "Worktrees",
+		to: "/settings/storage",
+		section: "Worktrees",
+		keywords: "disk space storage free gb delete clean prune worktree size",
+	},
+	{
+		label: "Delete worktrees when their PR merges",
+		to: "/settings/storage",
+		section: "Cleanup",
+		keywords: "prune worktree merged pr disk space automatic clean",
+	},
+	{
+		label: "iCloud Drive",
+		to: "/settings/storage",
+		section: "Backup",
+		keywords: "backup restore copy daily",
 	},
 	{
 		label: "How to sort it",
@@ -287,6 +314,12 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		keywords: "light dark bright mode color colour system appearance",
 	},
 	{
+		label: "Custom themes",
+		to: "/settings/appearance",
+		section: "Theme",
+		keywords: "import theme file json starter export",
+	},
+	{
 		label: "Text size",
 		to: "/settings/appearance",
 		section: "Text",
@@ -297,6 +330,18 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		to: "/settings/appearance",
 		section: "Sessions",
 		keywords: "chat terminal claude desktop ui display view messages",
+	},
+	{
+		label: "Fold long replies",
+		to: "/settings/appearance",
+		section: "Sessions",
+		keywords: "fold collapse shorten long reply tldr tl;dr chat",
+	},
+	{
+		label: "Open links inside Odin",
+		to: "/settings/appearance",
+		section: "Links",
+		keywords: "in-app browser default external chrome safari always per site",
 	},
 	{
 		label: "Shortcuts",
