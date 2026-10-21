@@ -9,11 +9,14 @@ import { githubOwner } from "main/lib/github-token";
 import { apiKeyFallbackOn } from "main/lib/remote-host/api-key-fallback";
 import {
 	giveSsmAccess,
+	launchHost,
 	listAwsProfiles,
 	listInstances,
+	listLaunchTemplates,
 	listTagChoices,
 	setUpHost,
 	startInstance,
+	waitForHost,
 } from "main/lib/remote-host/aws-instances";
 import {
 	bringMirrorHome,
@@ -72,7 +75,11 @@ import {
 	runOnHost,
 } from "main/lib/remote-host/ssh";
 import { resolveElectronBinary } from "main/lib/terminal-host/electron-binary";
-import { hostPackagesProblem, hostPolicyArnProblem } from "shared/host-setup";
+import {
+	hostNameProblem,
+	hostPackagesProblem,
+	hostPolicyArnProblem,
+} from "shared/host-setup";
 import { remoteFrozenReason, remoteLaunchBlocker } from "shared/launch-gate";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
@@ -246,6 +253,10 @@ const hostSetup = {
 		.optional(),
 };
 
+/** The step a New host is on, for Settings to show; null when none is under way. */
+export type NewHostStep = "launching" | "waiting" | "setting-up";
+let newHostStep: NewHostStep | null = null;
+
 /**
  * A saved sign-in (JSON, from `claude auth login`) goes to the host to sign in
  * with; an older `claude setup-token` token is used as it is until renewed.
@@ -340,6 +351,54 @@ export const createRemoteHostRouter = () =>
 					readOdinConfig().awsInstances?.hostPackages,
 				),
 			),
+		/** The launch templates New host can use: the account's ones tagged Odin = host. */
+		awsLaunchTemplates: publicProcedure
+			.input(awsTarget)
+			.query(({ input }) => listLaunchTemplates(input)),
+		/**
+		 * A new host from a launch template: launched with the name and the
+		 * picker's tags, waited for until SSM sees it, then set up as awsSetUp
+		 * does. One at a time; awsNewHostStep says how far it is.
+		 */
+		awsNewHost: publicProcedure
+			.input(
+				awsTarget.extend({
+					templateId: z.string().min(1),
+					name: z
+						.string()
+						.trim()
+						.refine((name) => !hostNameProblem(name), {
+							message:
+								"A host name: 1 to 64 characters, no control characters.",
+						}),
+					tags: tagPairs,
+				}),
+			)
+			.mutation(async ({ input }) => {
+				if (newHostStep) throw new Error("A new host is already on its way.");
+				newHostStep = "launching";
+				try {
+					const id = await launchHost(
+						input,
+						input.templateId,
+						input.name,
+						input.tags,
+					);
+					newHostStep = "waiting";
+					await waitForHost(input, id);
+					newHostStep = "setting-up";
+					const tools = await setUpHost(
+						input,
+						id,
+						hostUser(),
+						readOdinConfig().awsInstances?.hostPackages,
+					);
+					return { id, tools };
+				} finally {
+					newHostStep = null;
+				}
+			}),
+		awsNewHostStep: publicProcedure.query(() => newHostStep),
 		/** Lets SSM reach an instance it can't yet, with the host policy from Settings beside it - see giveSsmAccess. */
 		awsGiveSsmAccess: publicProcedure
 			.input(awsTarget.extend({ id: z.string().min(1) }))

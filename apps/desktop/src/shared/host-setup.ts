@@ -14,6 +14,9 @@ const POLICY_ARN = /^arn:aws:iam::(\d{12}|aws):policy\/[\w+=,.@/-]+$/;
 /** A name a system package manager takes: letters, digits, . + - _, and never an option. */
 const PACKAGE_NAME = /^[A-Za-z0-9][A-Za-z0-9._+-]*$/;
 
+/** The most an EC2 Name tag gets here; AWS allows 256, the picker's rows do not. */
+const HOST_NAME_MAX = 64;
+
 /** Why `text` is not an IAM policy ARN, or null. Empty means no policy. */
 export function hostPolicyArnProblem(text: string): string | null {
 	const arn = text.trim();
@@ -36,4 +39,14 @@ export function packageNames(text: string): string[] {
 	const problem = hostPackagesProblem(text);
 	if (problem) throw new Error(problem);
 	return [...new Set(text.split(/\s+/).filter(Boolean))];
+}
+
+/** Why `text` is not a name for a new host (its Name tag), or null. */
+export function hostNameProblem(text: string): string | null {
+	const name = text.trim();
+	if (!name) return "Give the host a name.";
+	if (name.length > HOST_NAME_MAX)
+		return `A host name is at most ${HOST_NAME_MAX} characters.`;
+	if (/\p{Cc}/u.test(name)) return "A host name has no control characters.";
+	return null;
 }

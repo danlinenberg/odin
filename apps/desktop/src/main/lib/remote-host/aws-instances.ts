@@ -4,9 +4,11 @@ import path from "node:path";
 import {
 	AssociateIamInstanceProfileCommand,
 	DescribeInstancesCommand,
+	DescribeLaunchTemplatesCommand,
 	DescribeTagsCommand,
 	EC2Client,
 	type Filter,
+	RunInstancesCommand,
 	StartInstancesCommand,
 } from "@aws-sdk/client-ec2";
 import {
@@ -23,7 +25,11 @@ import {
 	SendCommandCommand,
 	SSMClient,
 } from "@aws-sdk/client-ssm";
-import { hostPolicyArnProblem, packageNames } from "shared/host-setup";
+import {
+	hostNameProblem,
+	hostPolicyArnProblem,
+	packageNames,
+} from "shared/host-setup";
 import { hostServiceInstallScript } from "./host-service";
 import { ghInstallScript } from "./session";
 import { awsClientConfig } from "./ssm";
@@ -218,6 +224,144 @@ export async function startInstance(
 ): Promise<void> {
 	await new EC2Client(awsClientConfig(target)).send(
 		new StartInstancesCommand({ InstanceIds: [id] }),
+	);
+}
+
+const delay = (ms: number) =>
+	new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+export interface LaunchTemplate {
+	id: string;
+	name: string;
+}
+
+/**
+ * The account's launch templates for Odin hosts: the ones tagged Odin = host.
+ * The account side (terraform) keeps one, odin-host, with the AMI, the
+ * OdinSsmHost instance profile, the subnet, security group, disk and the
+ * first-boot install of system tools - so New host needs nothing per instance.
+ */
+export async function listLaunchTemplates(
+	target: AwsTarget,
+): Promise<LaunchTemplate[]> {
+	const ec2 = new EC2Client(awsClientConfig(target));
+	const templates: LaunchTemplate[] = [];
+	let NextToken: string | undefined;
+	do {
+		const page = await ec2.send(
+			new DescribeLaunchTemplatesCommand({
+				Filters: [{ Name: "tag:Odin", Values: ["host"] }],
+				NextToken,
+			}),
+		);
+		for (const template of page.LaunchTemplates ?? [])
+			if (template.LaunchTemplateId)
+				templates.push({
+					id: template.LaunchTemplateId,
+					name: template.LaunchTemplateName ?? template.LaunchTemplateId,
+				});
+		NextToken = page.NextToken;
+	} while (NextToken);
+	return templates.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * Launches one instance from the template's default version, named, and
+ * tagged with the picker's tags so the list above shows it (the name wins
+ * over a Name tag among them). The disk gets the same tags. Returns its id;
+ * it is still pending - see waitForHost.
+ */
+export async function launchHost(
+	target: AwsTarget,
+	templateId: string,
+	name: string,
+	tags: TagPair[],
+): Promise<string> {
+	const problem = hostNameProblem(name);
+	if (problem) throw new Error(problem);
+	const Tags = [
+		{ Key: "Name", Value: name.trim() },
+		...tags
+			.filter(({ key }) => key !== "Name")
+			.map(({ key, value }) => ({ Key: key, Value: value })),
+	];
+	const launched = await new EC2Client(awsClientConfig(target)).send(
+		new RunInstancesCommand({
+			LaunchTemplate: { LaunchTemplateId: templateId, Version: "$Default" },
+			MinCount: 1,
+			MaxCount: 1,
+			TagSpecifications: [
+				{ ResourceType: "instance", Tags },
+				{ ResourceType: "volume", Tags },
+			],
+		}),
+	);
+	const id = launched.Instances?.[0]?.InstanceId;
+	if (!id) throw new Error("EC2 did not say which instance it launched.");
+	return id;
+}
+
+/** How long waitForHost waits, and how; tests make it instant. */
+export interface WaitOptions {
+	/** Between two looks, ms. */
+	every?: number;
+	/** In all, ms. */
+	limit?: number;
+	sleep?: (ms: number) => Promise<void>;
+}
+
+/**
+ * Waits for a launched instance to be running and then for its SSM agent to
+ * report in (a minute or two after boot), when Set up can reach it. Looks
+ * every 10 seconds for 10 minutes, then gives up saying how far it got. An
+ * instance that stops or terminates meanwhile fails at once.
+ */
+export async function waitForHost(
+	target: AwsTarget,
+	id: string,
+	options: WaitOptions = {},
+): Promise<void> {
+	const every = options.every ?? 10_000;
+	const limit = options.limit ?? 600_000;
+	const sleep = options.sleep ?? delay;
+	const config = awsClientConfig(target);
+	const ec2 = new EC2Client(config);
+	const ssm = new SSMClient(config);
+	let state = "pending";
+	for (let waited = 0; waited < limit; waited += every) {
+		if (waited > 0) await sleep(every);
+		if (state !== "running") {
+			// A just-launched id is unknown to DescribeInstances for a few seconds.
+			const described = await ec2
+				.send(new DescribeInstancesCommand({ InstanceIds: [id] }))
+				.catch(() => null);
+			state =
+				described?.Reservations?.[0]?.Instances?.[0]?.State?.Name ?? state;
+			if (
+				["shutting-down", "terminated", "stopping", "stopped"].includes(state)
+			)
+				throw new Error(`The new host is ${state}.`);
+			if (state !== "running") continue;
+		}
+		const info = await ssm
+			.send(
+				new DescribeInstanceInformationCommand({
+					Filters: [{ Key: "InstanceIds", Values: [id] }],
+				}),
+			)
+			.catch(() => null);
+		if (
+			info?.InstanceInformationList?.some(
+				(item) => item.InstanceId === id && item.PingStatus === "Online",
+			)
+		)
+			return;
+	}
+	const minutes = Math.round(limit / 60_000);
+	throw new Error(
+		state === "running"
+			? `The host is running, but SSM did not see it in ${minutes} minutes. Its role needs SSM access and its subnet a route to SSM; Set up access on it, then Set up.`
+			: `The host did not start in ${minutes} minutes; it is ${state}.`,
 	);
 }
 

@@ -12,7 +12,11 @@ import { Switch } from "@odin/ui/switch";
 import { useEffect, useRef, useState } from "react";
 import { LuX } from "react-icons/lu";
 import { electronTrpc } from "renderer/lib/electron-trpc";
-import { hostPackagesProblem, hostPolicyArnProblem } from "shared/host-setup";
+import {
+	hostNameProblem,
+	hostPackagesProblem,
+	hostPolicyArnProblem,
+} from "shared/host-setup";
 import { SettingRow, SettingsSection } from "../../components/SettingsPage";
 
 interface TagPair {
@@ -44,6 +48,12 @@ const EMPTY = "__empty";
 
 /** An instance's setup: running, what it found, or why it failed. */
 type SetupState = "running" | { claude: string | null } | { error: string };
+/** What a New host under way is doing (the remote-host router's NewHostStep). */
+const NEW_HOST_STEPS = {
+	launching: "Launching...",
+	waiting: "Waiting for the host...",
+	"setting-up": "Setting up...",
+} as const;
 
 /**
  * Settings > Remote > Remote host: pick the tags a host must carry, then
@@ -246,6 +256,56 @@ export function RemoteHostSection() {
 		},
 		onError: (error) => toast.error(error.message),
 	});
+
+	// New host: an instance from the account's odin-host launch template,
+	// launched, waited for and set up by one call to the main process (up to
+	// twenty minutes), which says which step it is on while that runs - so
+	// the step shows again when this page is opened again meanwhile.
+	const templates = electronTrpc.remoteHost.awsLaunchTemplates.useQuery(
+		target,
+		{ enabled: loaded, retry: false },
+	);
+	const [templateId, setTemplateId] = useState("");
+	const template =
+		templates.data?.find((candidate) => candidate.id === templateId) ??
+		(templates.data?.length === 1 ? templates.data[0] : undefined);
+	const [newName, setNewName] = useState<string | null>(null);
+	const hostName = newName ?? current?.hostUser ?? "odin-host";
+	const nameProblem = hostNameProblem(hostName);
+	const newHost = electronTrpc.remoteHost.awsNewHost.useMutation({
+		onSuccess: ({ id, tools }, sent) => {
+			setSetups((prev) => ({ ...prev, [id]: { claude: tools.claude } }));
+			instances.refetch();
+			if (!tools.claude) {
+				toast.error(
+					"The host is up, but setup could not install Claude on it.",
+				);
+				return;
+			}
+			use.mutate({
+				...target,
+				on: true,
+				name: sent.name,
+				instanceId: id,
+				user,
+				reposRoot: "~/repos",
+			});
+		},
+		onError: (error) => {
+			// A host that launched but failed later is in the list, to set up by hand.
+			instances.refetch();
+			toast.error(error.message);
+		},
+	});
+	const newHostStep = electronTrpc.remoteHost.awsNewHostStep.useQuery(
+		undefined,
+		{
+			enabled: loaded,
+			refetchInterval: (query) =>
+				newHost.isPending || query.state.data ? 1000 : false,
+		},
+	);
+	const launching = newHost.isPending || !!newHostStep.data;
 
 	const [newKey, setNewKey] = useState("");
 	const [newValue, setNewValue] = useState("");
@@ -777,6 +837,69 @@ export function RemoteHostSection() {
 							</SettingRow>
 						);
 					})}
+					<SettingRow
+						label="New host"
+						htmlFor="aws-new-host-name"
+						description={
+							templates.error ? (
+								<span className="select-text cursor-text">
+									{templates.error.message}
+								</span>
+							) : templates.data?.length === 0 ? (
+								"No odin-host launch template in this account."
+							) : (
+								"An instance from the account's odin-host launch template, which fixes its image, role, network and disk: named, tagged like the list above, started, set up and picked as the host. About five minutes."
+							)
+						}
+					>
+						{!!templates.data?.length && (
+							<>
+								{templates.data.length > 1 && (
+									<Select
+										value={template?.id ?? ""}
+										onValueChange={setTemplateId}
+										disabled={launching}
+									>
+										<SelectTrigger className="w-44">
+											<SelectValue placeholder="Template" />
+										</SelectTrigger>
+										<SelectContent>
+											{templates.data.map((candidate) => (
+												<SelectItem key={candidate.id} value={candidate.id}>
+													{candidate.name}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								)}
+								<Input
+									id="aws-new-host-name"
+									className="w-44"
+									value={hostName}
+									disabled={launching}
+									onChange={(event) => setNewName(event.target.value)}
+								/>
+								<Button
+									size="sm"
+									disabled={launching || !template || !!nameProblem}
+									title={nameProblem ?? undefined}
+									onClick={() =>
+										template &&
+										newHost.mutate({
+											...target,
+											templateId: template.id,
+											name: hostName.trim(),
+											tags,
+										})
+									}
+								>
+									{launching
+										? NEW_HOST_STEPS[newHostStep.data ?? "launching"]
+										: "New host"}
+								</Button>
+							</>
+						)}
+					</SettingRow>
 				</>
 			)}
 		</SettingsSection>

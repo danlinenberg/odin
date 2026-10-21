@@ -1,16 +1,20 @@
-import { describe, expect, mock, test } from "bun:test";
+import { beforeEach, describe, expect, mock, test } from "bun:test";
 
 /**
- * The EC2 and IAM clients, recording: every command sent, by name and input,
- * and the one answer giveSsmAccess reads from each - whether the instance
- * has a profile, and that profile's role.
+ * The EC2, IAM and SSM clients, recording: every command sent, by name and
+ * input, and the one answer giveSsmAccess reads from each - whether the
+ * instance has a profile, and that profile's role. A test scripts other
+ * answers through `answer`; undefined falls through to those.
  */
 const sent: { name: string; input: unknown }[] = [];
 let instanceProfileArn: string | undefined;
+let answer: (name: string, input: unknown) => unknown = () => undefined;
 class FakeClient {
 	async send(command: { input: unknown }) {
 		const name = command.constructor.name;
 		sent.push({ name, input: command.input });
+		const scripted = answer(name, command.input);
+		if (scripted !== undefined) return scripted;
 		if (name === "DescribeInstancesCommand")
 			return {
 				Reservations: [
@@ -41,16 +45,25 @@ mock.module("@aws-sdk/client-iam", () => ({
 	...realIam,
 	IAMClient: FakeClient,
 }));
+const realSsm = await import("@aws-sdk/client-ssm");
+mock.module("@aws-sdk/client-ssm", () => ({
+	...realSsm,
+	SSMClient: FakeClient,
+}));
 
 const {
 	giveSsmAccess,
 	instanceFilters,
+	launchHost,
+	listLaunchTemplates,
 	parseTools,
 	profileNames,
 	setUpScript,
 	tagChoices,
 	toInstances,
+	waitForHost,
 } = await import("./aws-instances");
+const { hostNameProblem } = await import("shared/host-setup");
 
 const SSM_POLICY = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore";
 const HOST_POLICY = "arn:aws:iam::123456789012:policy/odin-host";
@@ -60,6 +73,11 @@ const attached = () =>
 		.map((call) => call.input);
 
 describe("aws-instances", () => {
+	beforeEach(() => {
+		sent.length = 0;
+		answer = () => undefined;
+	});
+
 	test("tag choices group values by key and drop AWS's own tags", () => {
 		expect(
 			tagChoices({
@@ -244,5 +262,152 @@ describe("aws-instances", () => {
 			"Not an IAM policy ARN",
 		);
 		expect(sent).toEqual([]);
+	});
+
+	test("New host offers the launch templates tagged Odin = host, by name", async () => {
+		answer = (name) =>
+			name === "DescribeLaunchTemplatesCommand"
+				? {
+						LaunchTemplates: [
+							{ LaunchTemplateId: "lt-2", LaunchTemplateName: "odin-host-gpu" },
+							{ LaunchTemplateId: "lt-1", LaunchTemplateName: "odin-host" },
+						],
+					}
+				: undefined;
+		expect(await listLaunchTemplates({})).toEqual([
+			{ id: "lt-1", name: "odin-host" },
+			{ id: "lt-2", name: "odin-host-gpu" },
+		]);
+		expect(sent).toEqual([
+			{
+				name: "DescribeLaunchTemplatesCommand",
+				input: { Filters: [{ Name: "tag:Odin", Values: ["host"] }] },
+			},
+		]);
+	});
+
+	test("it launches the template's default version, named and with the picker's tags on the instance and its disk", async () => {
+		answer = (name) =>
+			name === "RunInstancesCommand"
+				? { Instances: [{ InstanceId: "i-new" }] }
+				: undefined;
+		expect(
+			await launchHost({}, "lt-1", " odin-dan ", [
+				{ key: "Owner", value: "dan" },
+				{ key: "Name", value: "odin-remote" },
+			]),
+		).toBe("i-new");
+		const tags = [
+			{ Key: "Name", Value: "odin-dan" },
+			{ Key: "Owner", Value: "dan" },
+		];
+		expect(sent).toEqual([
+			{
+				name: "RunInstancesCommand",
+				input: {
+					LaunchTemplate: { LaunchTemplateId: "lt-1", Version: "$Default" },
+					MinCount: 1,
+					MaxCount: 1,
+					TagSpecifications: [
+						{ ResourceType: "instance", Tags: tags },
+						{ ResourceType: "volume", Tags: tags },
+					],
+				},
+			},
+		]);
+	});
+
+	test("a name that is empty, too long or has control characters stops before AWS is asked", async () => {
+		expect(hostNameProblem("odin-dan")).toBeNull();
+		await expect(launchHost({}, "lt-1", "  ", [])).rejects.toThrow(
+			"Give the host a name.",
+		);
+		await expect(launchHost({}, "lt-1", "x".repeat(65), [])).rejects.toThrow(
+			"at most 64 characters",
+		);
+		await expect(launchHost({}, "lt-1", "odin\tdan", [])).rejects.toThrow(
+			"no control characters",
+		);
+		expect(sent).toEqual([]);
+	});
+
+	test("waiting for the host: running first, then SSM seeing it, a look every 10 seconds", async () => {
+		const states = ["pending", "running"];
+		const pings = ["ConnectionLost", "Online"];
+		answer = (name) => {
+			if (name === "DescribeInstancesCommand")
+				return {
+					Reservations: [
+						{
+							Instances: [
+								{ InstanceId: "i-new", State: { Name: states.shift() } },
+							],
+						},
+					],
+				};
+			if (name === "DescribeInstanceInformationCommand")
+				return {
+					InstanceInformationList: [
+						{ InstanceId: "i-new", PingStatus: pings.shift() },
+					],
+				};
+			return undefined;
+		};
+		const slept: number[] = [];
+		await waitForHost({}, "i-new", {
+			sleep: async (ms) => {
+				slept.push(ms);
+			},
+		});
+		expect(sent.map((call) => call.name)).toEqual([
+			"DescribeInstancesCommand",
+			"DescribeInstancesCommand",
+			"DescribeInstanceInformationCommand",
+			"DescribeInstanceInformationCommand",
+		]);
+		expect(slept).toEqual([10_000, 10_000]);
+	});
+
+	test("it gives up after the limit, saying how far it got", async () => {
+		answer = (name) =>
+			name === "DescribeInstancesCommand"
+				? {
+						Reservations: [
+							{
+								Instances: [
+									{ InstanceId: "i-new", State: { Name: "running" } },
+								],
+							},
+						],
+					}
+				: { InstanceInformationList: [] };
+		const sleep = async () => {};
+		await expect(
+			waitForHost({}, "i-new", { every: 60_000, limit: 120_000, sleep }),
+		).rejects.toThrow(
+			"The host is running, but SSM did not see it in 2 minutes.",
+		);
+		// Two looks: the instance and SSM, then SSM alone.
+		expect(sent).toHaveLength(3);
+		answer = () => ({
+			Reservations: [
+				{ Instances: [{ InstanceId: "i-new", State: { Name: "pending" } }] },
+			],
+		});
+		await expect(
+			waitForHost({}, "i-new", { every: 10_000, limit: 600_000, sleep }),
+		).rejects.toThrow("The host did not start in 10 minutes; it is pending.");
+	});
+
+	test("a host that stops or terminates while waited for fails at once", async () => {
+		answer = () => ({
+			Reservations: [
+				{ Instances: [{ InstanceId: "i-new", State: { Name: "terminated" } }] },
+			],
+		});
+		await expect(
+			waitForHost({}, "i-new", { sleep: async () => {} }),
+		).rejects.toThrow("The new host is terminated.");
+		expect(sent).toHaveLength(1);
 	});
 });

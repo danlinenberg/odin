@@ -222,7 +222,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		to: "/settings/remote",
 		section: "Remote host",
 		keywords:
-			"ec2 aws instance ssm server host tmux lid shut connectors on the host github accounts on the host claude setup api key plan limit",
+			"ec2 aws instance ssm server host tmux lid shut connectors on the host github accounts on the host claude setup api key plan limit new host launch template",
 	},
 	{
 		label: "Phone access",
