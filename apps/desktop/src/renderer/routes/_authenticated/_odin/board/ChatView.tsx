@@ -84,7 +84,14 @@ import {
 } from "./ChatPrompts";
 import { collectRefs, linkify, withSchemes } from "./chat-links";
 import { parseScreenAside, parseScreenMenu } from "./screen-menu";
-import { type ScreenStep, screenSteps, unrecordedSteps } from "./screen-steps";
+import {
+	type ScreenStep,
+	type Settled,
+	screenSteps,
+	settleSteps,
+	UNSETTLED,
+	unrecordedSteps,
+} from "./screen-steps";
 import { parseShell, type Shell } from "./shell-output";
 import { useHoldToTalk } from "./voice";
 
@@ -2615,20 +2622,28 @@ export function ChatView({
 	// Claude Code commits a message's lines seconds after it streams them, and
 	// minutes when a permission check waits, so the lines it writes before a
 	// command, and the command, are on the screen long before they're in the
-	// file. The terminal shows them at once; this shows the same.
-	const liveSteps = useMemo(
-		() =>
+	// file. The terminal shows them at once; this shows the same. Each read
+	// settles first (see settleSteps): a frame caught mid-paint must not show.
+	const screenAt = screen.dataUpdatedAt;
+	const [settled, setSettled] = useState<Settled>(UNSETTLED);
+	useEffect(() => {
+		setSettled((state) =>
 			working && screenText
-				? unrecordedSteps(screenSteps(screenText), turn.items)
-				: [],
-		[working, screenText, turn.items],
+				? settleSteps(state, screenSteps(screenText), screenAt)
+				: UNSETTLED,
+		);
+	}, [working, screenText, screenAt]);
+	const liveSteps = useMemo(
+		() => unrecordedSteps(settled.shown, turn.items),
+		[settled.shown, turn.items],
 	);
-	// Each line once: the same words twice on screen would share a row key.
-	const liveLines = [
-		...new Set(
-			liveSteps.flatMap((step) => (step.kind === "text" ? [step.text] : [])),
-		),
-	];
+	// The lines as one reply, each paragraph once: the same words twice on
+	// screen are one line scrolled.
+	const liveLines = liveSteps.filter((step) => step.kind === "text");
+	const liveText = [...new Set(liveLines.map((step) => step.text))].join(
+		"\n\n",
+	);
+	const liveAt = liveLines[0]?.at;
 	const liveCommand = liveSteps.findLast((step) => step.kind === "tool");
 	// The turn's steps: its recorded commands, and the one running now.
 	const hasSteps = turn.tools.length > 0 || liveCommand !== undefined;
@@ -3172,19 +3187,35 @@ export function ChatView({
 						!starting && (
 							<>
 								{/* Lines Claude wrote this turn, read off the screen until the
-								    transcript records them - then their own rows take over. */}
-								{liveLines.map((text) => (
+								    transcript records them - then their own rows take over. Drawn
+								    like those rows: Claude's mark where they open the reply, the
+								    same Markdown, the time the line showed. */}
+								{liveText && (
 									<div
-										key={text}
 										className={cn("flex min-w-0 gap-3", ENTER)}
 										title="Read off the terminal: the transcript hasn't recorded it yet"
 									>
-										<ReplyMark />
-										<div className="min-w-0 flex-1 select-text cursor-text text-[13px] leading-relaxed text-soft-foreground">
-											{text}
+										{lastItem?.kind === "user" ||
+										lastItem?.kind === "compact" ? (
+											<ReplyMark />
+										) : (
+											<span className="w-7 shrink-0" />
+										)}
+										<div className="min-w-0 flex-1 select-text cursor-text">
+											{/* Screen line breaks stay: a line of code, a list item. */}
+											<MarkdownRenderer
+												content={liveText}
+												style="default"
+												allowHtml={false}
+												className={cn(
+													COMPACT_MARKDOWN,
+													"[&_li]:whitespace-pre-wrap [&_p]:whitespace-pre-wrap",
+												)}
+											/>
+											<MessageTime at={liveAt} className="mt-0.5" />
 										</div>
 									</div>
-								))}
+								)}
 								<div className="flex min-w-0 gap-3 text-[12.5px] text-working">
 									<WorkingMark />
 									{compacting === null ? (
