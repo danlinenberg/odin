@@ -206,6 +206,7 @@ import {
 	remindSession,
 	SessionReminders,
 } from "./SessionReminders";
+import { scanScreen } from "./scan-screen";
 import {
 	SWITCH_SORTS,
 	type SwitchSort,
@@ -3358,6 +3359,8 @@ function DevBoardPage() {
 	const sawIdlePromptRef = useRef(new Set<string>());
 	/** Panes whose last scan found no Claude on screen - same doubt, same fix. */
 	const sawNoAgentRef = useRef(new Set<string>());
+	/** Panes attached once this run - see scanScreen. */
+	const attachedRef = useRef(new Set<string>());
 	const lastScanRef = useRef(0);
 	useEffect(() => {
 		const scan = () => {
@@ -3404,27 +3407,39 @@ function DevBoardPage() {
 				const mounted = terminalCache.get(pane.id)?.xterm;
 				(async () => {
 					try {
-						const result = (await utils.client.terminal.createOrAttach.mutate({
-							paneId: pane.id,
-							tabId: pane.tabId,
-							workspaceId: tab.workspaceId,
-							skipColdRestore: true,
-							// A read joins an attach already in flight instead of
-							// superseding it. Main keeps one pending attach per pane and
-							// aborts the older one; when that was the drawer's, its
-							// Terminal drops the cancel silently and never starts its
-							// stream - a blank drawer until you close and reopen it.
-							joinPending: true,
-							...(mounted && { cols: mounted.cols, rows: mounted.rows }),
-						})) as {
-							snapshot?: { snapshotAnsi?: string };
-							scrollback?: string;
-						};
-						const screen = spacesForCursorForward(
-							result?.snapshot?.snapshotAnsi ?? result?.scrollback ?? "",
-						)
-							.replace(ANSI_RE, "")
-							.slice(-2500);
+						// The first read attaches (see scanScreen); the rest read the
+						// visible screen, which is all the classifiers below look at.
+						const screen = await scanScreen(pane.id, attachedRef.current, {
+							visible: visibleScreen(pane.id),
+							screen: () =>
+								utils.client.terminal.readScreen
+									.query({ paneId: pane.id })
+									.then((result) => result.text),
+							attach: async () => {
+								const result =
+									(await utils.client.terminal.createOrAttach.mutate({
+										paneId: pane.id,
+										tabId: pane.tabId,
+										workspaceId: tab.workspaceId,
+										skipColdRestore: true,
+										// A read joins an attach already in flight instead of
+										// superseding it. Main keeps one pending attach per pane
+										// and aborts the older one; when that was the drawer's,
+										// its Terminal drops the cancel silently and never starts
+										// its stream - a blank drawer until you close and reopen it.
+										joinPending: true,
+										...(mounted && { cols: mounted.cols, rows: mounted.rows }),
+									})) as {
+										snapshot?: { snapshotAnsi?: string };
+										scrollback?: string;
+									};
+								return spacesForCursorForward(
+									result?.snapshot?.snapshotAnsi ?? result?.scrollback ?? "",
+								)
+									.replace(ANSI_RE, "")
+									.slice(-2500);
+							},
+						});
 						// The PTY outliving the agent is its own state: Ctrl+C out of
 						// Claude and the shell is still there, alive to the daemon
 						// with no conversation in it. Two reads have to agree -
