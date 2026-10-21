@@ -51,6 +51,7 @@ import { cameFromPhone } from "shared/from-phone";
 import { freshTldr, sameReply, tldrPlacement } from "shared/latest-reply";
 import {
 	agentOnScreen,
+	claudeDrawn,
 	inputBoxRows,
 	odinScreenStatus,
 	remoteConnectLine,
