@@ -43,6 +43,7 @@ import {
 	hostGithubLogin,
 	repoStaysLocal,
 } from "main/lib/remote-host/github-on-host";
+import { hostHasConversation } from "main/lib/remote-host/host-conversations";
 import {
 	hostFileSources,
 	rememberHostFiles,
@@ -849,6 +850,21 @@ export const createRemoteHostRouter = () =>
 					console.warn("[remote-host] tmux sessions:", error);
 					return null;
 				}
+			}),
+
+		/**
+		 * Whether the host has Claude's conversation for a session. A host
+		 * session's transcript here is only a mirror, kept while its pane is
+		 * connected, so Resume asks here before it calls a remote session's
+		 * conversation gone. Throws when the host can't be reached: no answer
+		 * is not a no.
+		 */
+		hasConversation: publicProcedure
+			.input(z.object({ sessionId: z.string().regex(/^[\w-]+$/) }))
+			.query(async ({ input }) => {
+				const host = readOdinConfig().remoteHost;
+				if (!host) throw new Error("No remote host is set up.");
+				return hostHasConversation(host, input.sessionId);
 			}),
 
 		/**

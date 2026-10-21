@@ -4591,10 +4591,14 @@ function DevBoardPage() {
 	 * `prompt` replaces the opening "Continue" (or the idle prompt): a "Do it"
 	 * on an ended session reopens it already working on that item. `restart`
 	 * respawns a live session too, so Claude picks up a new login or API key.
+	 * `auto` is the board's own Resume (a session that died working, a remote
+	 * reconnect): no drawer, no dialog. "bulk" is a Resume over ticked rows:
+	 * no dialog either, but someone pressed it, so a conversation that is gone
+	 * starts over from its brief - what the dialog would have offered.
 	 */
 	const resumeCard = async (
 		card: BoardCard,
-		auto = false,
+		auto: boolean | "bulk" = false,
 		prompt?: string,
 		restart = false,
 	) => {
@@ -4746,11 +4750,42 @@ function DevBoardPage() {
 				// Only "Claude has no such conversation" is lost. An unreadable or
 				// half-written transcript still belongs to this card - resume it.
 				if (String(error).includes("No transcript on this machine")) {
-					setResumingPaneIds((ids) => ids.filter((id) => id !== card.pane.id));
-					// Nobody asked - don't pop a dialog at them; the card keeps
-					// its Resume button for when they do.
-					if (!auto) setLostCard(card);
-					return;
+					// A host session's transcript here is a mirror, written while its
+					// pane is connected: one whose connect failed (the red server) has
+					// none here and its conversation may well be on the host. Ask there
+					// before calling it gone - resumed there, the mirror fills in. A
+					// host that doesn't answer is not a no.
+					const onHost = card.pane.odinRemote
+						? await utils.client.remoteHost.hasConversation
+								.query({ sessionId })
+								.catch((hostError) => {
+									toast.error(
+										`${card.pane.odinRemote} did not answer, so Odin can't tell whether this conversation is still there - try Resume again`,
+										{
+											description:
+												hostError instanceof Error
+													? hostError.message
+													: String(hostError),
+										},
+									);
+									return null;
+								})
+						: false;
+					if (!onHost) {
+						setResumingPaneIds((ids) =>
+							ids.filter((id) => id !== card.pane.id),
+						);
+						if (onHost === null) return;
+						// The board's own Resume asks nobody - don't pop a dialog at
+						// them; the card keeps its Resume button for when they do. A
+						// bulk Resume was pressed, and the only way back for a lost
+						// conversation is a new session from its brief - the dialog's
+						// offer, taken for each row rather than asked a dozen times.
+						if (auto === "bulk")
+							await startOverFromLost(card, lostCardPrompt(card), [], true);
+						else if (!auto) setLostCard(card);
+						return;
+					}
 				}
 			}
 		}
@@ -5195,11 +5230,15 @@ function DevBoardPage() {
 	 *
 	 * The dead card is left alone - its scrollback is the only record of what
 	 * happened, and Done'ing it for you would throw that away.
+	 *
+	 * `bulk`: one of many from a bulk Resume - you stay where you are, and the
+	 * toast says why this one started over.
 	 */
 	const startOverFromLost = async (
 		card: BoardCard,
 		rawPrompt: string,
 		images: PromptImage[],
+		bulk = false,
 	) => {
 		const prompt = rawPrompt.trim();
 		if (!prompt && images.length === 0) return;
@@ -5229,13 +5268,18 @@ function DevBoardPage() {
 		// The new card replaces the lost one: left behind, every start-over
 		// added a card and the board filled with copies of one task.
 		useTabsStore.getState().removePane(card.pane.id);
-		setDrawerCard(null);
+		// A bulk Resume leaves you where you are: the drawer closes only when
+		// it showed the card that just went.
+		if (!bulk || drawerCard?.pane.id === card.pane.id) setDrawerCard(null);
 		// You asked to carry on: land in the new session, not on the board.
-		usePendingFocus.getState().focus(result.paneId);
+		if (!bulk) usePendingFocus.getState().focus(result.paneId);
 		// The title is the prompt's whole first line - often a paragraph - and a
 		// toast that long covers the cards under it.
+		const shown = title.length > 60 ? `${title.slice(0, 59)}…` : title;
 		toast.success(
-			`Started over on "${title.length > 60 ? `${title.slice(0, 59)}…` : title}"`,
+			bulk
+				? `Started over on "${shown}" - Claude kept no transcript to resume`
+				: `Started over on "${shown}"`,
 		);
 	};
 
@@ -5683,12 +5727,14 @@ function DevBoardPage() {
 		// in Queued and the queue starts them as there's room. A row already
 		// in line goes the same way rather than being skipped: resumeCard
 		// leaves queued cards alone, which made a bulk Resume over them do
-		// nothing while its toast said otherwise.
+		// nothing while its toast said otherwise. So did a row whose
+		// conversation is gone: "bulk" has resumeCard start it over from its
+		// brief instead of waiting for a dialog nobody sees.
 		resumablePicked.forEach((card, i) => {
 			setTimeout(() => {
 				void (card.pane.odinQueued
 					? startPickedQueued(card)
-					: resumeCard(card, true));
+					: resumeCard(card, "bulk"));
 			}, i * 300);
 		});
 		const inLine = resumablePicked.filter((card) => card.pane.odinQueued);

@@ -13,6 +13,24 @@ test("the title is the prompt's whole first line", () => {
 	expect(sessionTitle(`${line}\nmore`, "x")).toBe(line);
 });
 
+test("an attachment on a line of its own is not the title - the words after it are", () => {
+	const img = "/Users/dan/.odin/attachments/1792565097715-nty207.png";
+	expect(sessionTitle(`${img}\n\nbeautify`, "x")).toBe("beautify");
+	expect(sessionTitle(`${img}\nbeautify the login page\nmore`, "x")).toBe(
+		"beautify the login page",
+	);
+	expect(sessionTitle("![](odin-attachment://file/a.png)\n\nfix it", "x")).toBe(
+		"fix it",
+	);
+	// Nothing but the file: the path still names the session.
+	expect(sessionTitle(img, "x")).toBe(img);
+	expect(sessionTitle("", "x")).toBe("x");
+	// A line that starts with a path but says more is the ask.
+	expect(sessionTitle("/Users/dan/dev is slow", "x")).toBe(
+		"/Users/dan/dev is slow",
+	);
+});
+
 test("an old 60-char title gets the rest back from its brief", () => {
 	expect(untruncatedTitle(`${line.slice(0, 59)}…`, line)).toBe(line);
 	expect(untruncatedTitle("Wait…", "something else")).toBe("Wait…");
@@ -42,4 +60,8 @@ test("a restart prompt carries the title once, however often it restarted", () =
 	expect(restartPrompt(line, "other ask")).toBe(`${line}\n\nother ask`);
 	expect(restartPrompt(line, line)).toBe(line);
 	expect(restartPrompt(line, null)).toBe(line);
+	// The attachment that came before the words goes under the title.
+	expect(restartPrompt("beautify", `${img}\n\nbeautify`)).toBe(
+		`beautify\n\n${img}`,
+	);
 });

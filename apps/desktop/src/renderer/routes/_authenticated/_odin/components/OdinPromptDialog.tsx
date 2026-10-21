@@ -35,24 +35,40 @@ export function readFile(file: File): Promise<PromptImage> {
 }
 
 /**
+ * A line that only names a file: the chat box and the phone put a reply's
+ * attachments on lines of their own before the words.
+ */
+const FILE_LINE = /^(?:\/|~\/)\S+$|^!?\[[^\]]*\]\(\S+\)$/;
+
+/**
  * Board/tab name for a session: the prompt's first line, whole. The board card
- * wraps it; tabs and the drawer header truncate it in CSS.
+ * wraps it; tabs and the drawer header truncate it in CSS. An attachment on a
+ * line of its own is not the ask, so the first line of words after it is the
+ * name - unless the file is all there is.
  */
 export function sessionTitle(prompt: string, fallback: string): string {
-	return prompt.trim().split("\n")[0]?.trim() || fallback;
+	const lines = prompt
+		.trim()
+		.split("\n")
+		.map((line) => line.trim());
+	return (
+		(lines.find((line) => line && !FILE_LINE.test(line)) ?? lines[0]) ||
+		fallback
+	);
 }
 
 /**
  * The prompt that restarts a lost card: its title, then whatever its brief adds.
- * A brief from an earlier restart already starts with the title (once per
- * restart), so every leading copy is dropped before the title goes back on top.
+ * A brief from an earlier restart already holds the title (once per restart),
+ * and a reply's attachment lines may sit above it, so every copy is dropped
+ * before the title goes back on top.
  */
 export function restartPrompt(title: string, brief: string | null): string {
-	const lines = (brief ?? "").trim().split("\n");
-	while (lines.length && [title, ""].includes(lines[0]?.trim() ?? "")) {
-		lines.shift();
-	}
-	const rest = lines.join("\n").trim();
+	const rest = (brief ?? "")
+		.split("\n")
+		.filter((line) => line.trim() !== title.trim())
+		.join("\n")
+		.trim();
 	return rest ? `${title}\n\n${rest}` : title;
 }
 
