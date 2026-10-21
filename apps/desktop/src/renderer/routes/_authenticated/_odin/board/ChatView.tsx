@@ -2798,7 +2798,8 @@ export function ChatView({
 			},
 			lost: () => {
 				waitingIds.current.delete(id);
-				if (itemsRef.current.length > 0) mark({ lost: true, waiting: false });
+				// No transcript yet: nothing to tell a lost message from a slow one.
+				mark({ lost: itemsRef.current.length > 0, waiting: false });
 			},
 		};
 	};
