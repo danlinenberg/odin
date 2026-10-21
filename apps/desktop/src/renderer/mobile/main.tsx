@@ -40,7 +40,15 @@ import {
 	useUploads,
 } from "./attach";
 import { BriefCard } from "./brief-card";
-import { boardSections, DoneShelf, Dot, SessionCard, STATUS } from "./cards";
+import {
+	boardSections,
+	Chips,
+	type Details,
+	DoneShelf,
+	Dot,
+	SessionCard,
+	STATUS,
+} from "./cards";
 import { demoAnswer } from "./demo";
 import { channelFetch, type OdinFetch } from "./odin-fetch";
 import { type Pairing, parsePairLink } from "./pair-link";
@@ -784,6 +792,11 @@ function Session({ paneId }: { paneId: string }) {
 					<Dot status={status} />
 					{STATUS[status].label}
 				</div>
+				{data && "details" in data && (
+					<div className="mt-1.5">
+						<Chips details={data.details as Details} />
+					</div>
+				)}
 			</header>
 			<main
 				ref={scroller}

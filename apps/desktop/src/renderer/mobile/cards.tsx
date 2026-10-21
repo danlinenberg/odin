@@ -1,5 +1,19 @@
 import { useState } from "react";
-import { LuCheck, LuChevronDown, LuChevronRight, LuStar } from "react-icons/lu";
+import type { IconType } from "react-icons";
+import {
+	LuCheck,
+	LuChevronDown,
+	LuChevronRight,
+	LuCloud,
+	LuFileText,
+	LuFolderGit2,
+	LuGitPullRequest,
+	LuHash,
+	LuStar,
+	LuTag,
+	LuTicket,
+	LuUser,
+} from "react-icons/lu";
 import type { ActiveSession } from "shared/active-sessions";
 import type { PaneStatus } from "shared/tabs-types";
 
@@ -126,6 +140,52 @@ export function Dot({ status }: { status: PaneStatus }) {
 
 export { STATUS };
 
+/** A source the card names: the feed it came from. */
+const SOURCES: Partial<Record<string, { icon: IconType; label: string }>> = {
+	slack: { icon: LuHash, label: "Slack" },
+	reactions: { icon: LuHash, label: "Slack" },
+	jira: { icon: LuTicket, label: "Jira" },
+	pr: { icon: LuGitPullRequest, label: "PR" },
+	notion: { icon: LuFileText, label: "Notion" },
+};
+
+export type Details = {
+	contact?: string | null;
+	source?: string;
+	remote?: string | null;
+	tags?: string[];
+	repo?: string | null;
+};
+
+/**
+ * What the desktop card shows beside its title: who it's for, the feed it
+ * came from, the remote host it runs on, the repo and its tags.
+ */
+export function Chips({ details }: { details: Details }) {
+	const source = details.source ? SOURCES[details.source] : undefined;
+	const chips = [
+		details.contact && { icon: LuUser, label: details.contact },
+		source,
+		details.remote && { icon: LuCloud, label: details.remote },
+		details.repo && { icon: LuFolderGit2, label: details.repo },
+		...(details.tags ?? []).map((tag) => ({ icon: LuTag, label: tag })),
+	].filter((chip): chip is { icon: IconType; label: string } => !!chip);
+	if (!chips.length) return null;
+	return (
+		<span className="flex min-w-0 flex-wrap items-center gap-1">
+			{chips.map(({ icon: Icon, label }) => (
+				<span
+					key={label}
+					className="flex max-w-[12rem] items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[11px] text-soft-foreground"
+				>
+					<Icon className="size-3 shrink-0" />
+					<span className="truncate">{label}</span>
+				</span>
+			))}
+		</span>
+	);
+}
+
 /**
  * One session on the board: its column's dot, the title (two lines), where
  * it runs and how long since its status changed, a Just done pill for a turn
@@ -142,7 +202,6 @@ export function SessionCard({
 	const at = session.statusAt ?? null;
 	const justDone =
 		column === "review" && at !== null && Date.now() - at < JUST_DONE_MS;
-	const where = [session.repo, session.contact].filter(Boolean).join(" · ");
 	return (
 		<div className="mx-3 my-1.5 flex rounded-[10px] border border-border bg-card">
 			<a
@@ -161,7 +220,7 @@ export function SessionCard({
 							Just done
 						</span>
 					)}
-					<span className="truncate">{where || STATUS[column].label}</span>
+					<Chips details={session} />
 					{at !== null && <span className="ml-auto shrink-0">{ago(at)}</span>}
 				</div>
 			</a>

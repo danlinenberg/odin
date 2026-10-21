@@ -23,6 +23,8 @@ export interface ActiveSession {
 	contact: string | null;
 	/** The board card's tags, same list. */
 	tags: string[];
+	/** The remote host it runs on; null on this computer. */
+	remote?: string | null;
 	/** Which repo it's running in - the cwd's last segment. */
 	repo: string | null;
 	/** Starred on the board (★): starred cards come first. */
@@ -66,6 +68,7 @@ export function activeSessions(
 			),
 			contact: pane.odinContact ?? null,
 			tags: boardTags(pane.odinTags),
+			remote: pane.odinRemote ?? null,
 			// initialCwd too: a session whose terminal was never opened has no
 			// confirmed cwd, same fallback the board's cards use.
 			repo:

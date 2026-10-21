@@ -20,6 +20,8 @@ import {
 	pullRequests,
 	slackThread,
 } from "renderer/routes/_authenticated/_odin/board/brief";
+import { boardSection } from "shared/board-section";
+import { boardTags } from "shared/odin-tags";
 import stripAnsi from "strip-ansi";
 import superjson from "superjson";
 import { z } from "zod";
@@ -197,6 +199,16 @@ export const phoneRouter = t.router({
 			title: pane.odinTaskTitle ?? "Session",
 			status: pane.status ?? "idle",
 			starred: !!pane.odinStarred,
+			// What the board card shows: who it's for, where it runs, its tags.
+			details: {
+				contact: pane.odinContact ?? null,
+				source: boardSection(pane),
+				remote: pane.odinRemote ?? null,
+				tags: boardTags(pane.odinTags),
+				repo:
+					(pane.cwd ?? pane.initialCwd)?.split("/").filter(Boolean).pop() ??
+					null,
+			},
 			messages,
 			screen,
 		};
