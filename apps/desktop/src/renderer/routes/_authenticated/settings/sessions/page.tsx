@@ -1,5 +1,12 @@
 import { ODIN_AUTO_RENAME_SESSIONS_DEFAULT } from "@odin/shared/constants";
 import { Button } from "@odin/ui/button";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@odin/ui/select";
 import { toast } from "@odin/ui/sonner";
 import { Switch } from "@odin/ui/switch";
 import { Textarea } from "@odin/ui/textarea";
