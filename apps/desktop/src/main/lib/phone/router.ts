@@ -3,7 +3,11 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import { activeProfileId, listProfiles } from "lib/trpc/routers/odin-config";
 import type { PullRequestStatus } from "lib/trpc/routers/terminal/pr-state";
 import { appState } from "main/lib/app-state";
-import { readTranscript, writeBrief } from "main/lib/claude-sessions";
+import {
+	readTranscript,
+	transcriptTail,
+	writeBrief,
+} from "main/lib/claude-sessions";
 import { askRenderer } from "main/lib/notifications/server";
 import { appCaller } from "main/lib/odin-api";
 import { loadSessions } from "main/lib/tray";
@@ -165,11 +169,12 @@ export const phoneRouter = t.router({
 		const pane = appState.data.tabsState.panes?.[input.paneId];
 		if (!pane) throw new TRPCError({ code: "NOT_FOUND" });
 		const sessionId = sessionOf(input.paneId);
-		const transcript = sessionId
-			? await readTranscript({ sessionId, withImages: true }).catch(() => null)
-			: null;
+		// The log's end only: a long session's log runs to tens of MB.
+		const tail = sessionId
+			? await transcriptTail({ sessionId }).catch(() => [])
+			: [];
 		const messages = await Promise.all(
-			(transcript?.messages.slice(-60) ?? []).map(async (message) =>
+			tail.map(async (message) =>
 				message.images
 					? {
 							...message,

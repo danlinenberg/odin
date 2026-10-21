@@ -17,6 +17,7 @@ import {
 	summarizeTranscript,
 	transcriptLinks,
 	transcriptOf,
+	transcriptTail,
 	workingRepoOf,
 	workingWorktreeOf,
 } from "./claude-sessions";
@@ -1152,4 +1153,21 @@ describe("ranHere", () => {
 		expect(ranHere(tmpdir())).toBe(true);
 		expect(ranHere(null)).toBe(true);
 	});
+});
+
+test("transcriptTail reads only the log's end, from a whole line", async () => {
+	const root = mkdtempSync(join(tmpdir(), "claude-tail-"));
+	mkdirSync(join(root, "proj"));
+	const line = (role: "user" | "assistant", text: string) =>
+		JSON.stringify({ type: role, message: { role, content: text } });
+	const lines = [
+		line("assistant", "x".repeat(500)),
+		line("assistant", "second"),
+		line("assistant", "third"),
+	];
+	writeFileSync(join(root, "proj", "tail-1.jsonl"), `${lines.join("\n")}\n`);
+	// Starts inside the first line: it's dropped, the rest parse.
+	const bytes = lines[1].length + lines[2].length + 20;
+	const messages = await transcriptTail({ sessionId: "tail-1", bytes, root });
+	expect(messages.map((m) => m.text)).toEqual(["second", "third"]);
 });

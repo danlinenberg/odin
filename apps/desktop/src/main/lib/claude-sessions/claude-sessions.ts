@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { readdir, readFile, realpath, stat } from "node:fs/promises";
+import { open, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { PR_RULES_HEADER } from "shared/odin-rules";
@@ -855,6 +855,43 @@ export function slackDrafts(jsonl: string): string[] {
 		}
 	}
 	return [...ids];
+}
+
+/** The last messages, from the file's end only: what the phone polls. */
+const tails = new Map<string, { key: string; messages: TranscriptMessage[] }>();
+export async function transcriptTail({
+	sessionId,
+	bytes = 8_000_000,
+	root = projectsRoot(),
+}: {
+	sessionId: string;
+	bytes?: number;
+	root?: string;
+}): Promise<TranscriptMessage[]> {
+	if (!isSafeSegment(sessionId))
+		throw new Error("Invalid transcript reference");
+	const dir = await projectOf(sessionId, root);
+	if (!dir) throw new Error("No transcript on this machine for that session");
+	const file = join(root, dir, `${sessionId}.jsonl`);
+	const { size, mtimeMs } = await stat(file);
+	// A session's log only grows: same size and time, same messages.
+	const key = `${size}:${mtimeMs}`;
+	const hit = tails.get(sessionId);
+	if (hit?.key === key) return hit.messages;
+	const start = Math.max(0, size - bytes);
+	const handle = await open(file, "r");
+	const buffer = Buffer.alloc(size - start);
+	try {
+		await handle.read(buffer, 0, buffer.length, start);
+	} finally {
+		await handle.close();
+	}
+	let text = buffer.toString("utf-8");
+	// Cut in the middle of a line: start at the next whole one.
+	if (start > 0) text = text.slice(text.indexOf("\n") + 1);
+	const messages = parseTranscript(text, 60, 6000, true);
+	tails.set(sessionId, { key, messages });
+	return messages;
 }
 
 export interface RuleFiring {

@@ -18,6 +18,7 @@ export {
 	type TranscriptFile,
 	type TranscriptMessage,
 	transcriptOf,
+	transcriptTail,
 	workingRepoOf,
 	workingWorktreeOf,
 } from "./claude-sessions";
