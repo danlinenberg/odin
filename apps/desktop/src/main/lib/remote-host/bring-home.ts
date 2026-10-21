@@ -5,8 +5,11 @@ import { homedir, tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { promisify } from "node:util";
 import type { SFTPWrapper } from "ssh2";
+import { lastCwd } from "../claude-sessions/claude-sessions";
 import { homePath, sh, tmuxSession, worktreeDir } from "./session";
 import { connectHost, type HostLogin, runOnHost } from "./ssh";
+
+export { lastCwd };
 
 const run = promisify(execFile);
 const git = (dir: string, ...args: string[]) =>
@@ -15,18 +18,6 @@ const git = (dir: string, ...args: string[]) =>
 /** Claude's folder name for a cwd under ~/.claude/projects. */
 export const claudeProjectDir = (cwd: string) =>
 	cwd.replace(/[^A-Za-z0-9]/g, "-");
-
-/** The folder a transcript's last turn ran in. */
-export function lastCwd(transcript: string): string | null {
-	const lines = transcript.trimEnd().split("\n");
-	for (let i = lines.length - 1; i >= 0; i--) {
-		try {
-			const cwd = JSON.parse(lines[i] ?? "")?.cwd;
-			if (typeof cwd === "string" && cwd) return cwd;
-		} catch {}
-	}
-	return null;
-}
 
 /** What a session left in its git checkout on the host. */
 export interface HostWork {

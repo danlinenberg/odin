@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, utimesSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { PR_RULES_HEADER } from "shared/odin-rules";
@@ -938,6 +938,67 @@ describe("transcriptOf", () => {
 	test("a path pretending to be an id gets no filesystem walk", async () => {
 		const root = fixtureRoot();
 		expect(await transcriptOf("../../../etc/passwd", root)).toBeNull();
+	});
+
+	test("with a copy in more than one folder, the one written last wins, whichever is listed first", async () => {
+		const root = mkdtempSync(join(tmpdir(), "claude-copies-"));
+		const id = "cccc1111-2222-3333-4444-555566667777";
+		const row = JSON.stringify({
+			type: "user",
+			cwd: "/home/ubuntu",
+			message: { role: "user", content: "Task: x" },
+		});
+		for (const project of ["-Users-dan-dev-app", "-home-ubuntu"]) {
+			mkdirSync(join(root, project));
+			writeFileSync(join(root, project, `${id}.jsonl`), `${row}\n`);
+		}
+		const wrote = (project: string, at: string) =>
+			utimesSync(
+				join(root, project, `${id}.jsonl`),
+				new Date(at),
+				new Date(at),
+			);
+		// Run on this computer left a copy under the local checkout; the session
+		// then went back to the host, whose mirror is the one still growing.
+		wrote("-Users-dan-dev-app", "2026-10-21T14:33:00Z");
+		wrote("-home-ubuntu", "2026-10-21T17:06:00Z");
+		expect((await transcriptOf(id, root))?.path).toContain("/-home-ubuntu/");
+		// Moved here again and went on here.
+		wrote("-Users-dan-dev-app", "2026-10-21T18:00:00Z");
+		expect((await transcriptOf(id, root))?.path).toContain(
+			"/-Users-dan-dev-app/",
+		);
+	});
+});
+
+describe("readTranscript's local", () => {
+	const row = (cwd: string, text: string) =>
+		JSON.stringify({
+			type: "user",
+			cwd,
+			timestamp: "2026-10-21T16:00:00.000Z",
+			message: { role: "user", content: text },
+		});
+	const id = "dddd1111-2222-3333-4444-555566667777";
+
+	test("a session moved here from the host that went on here is local", async () => {
+		const root = mkdtempSync(join(tmpdir(), "claude-moved-"));
+		mkdirSync(join(root, "-Users-dan-dev-app"));
+		writeFileSync(
+			join(root, "-Users-dan-dev-app", `${id}.jsonl`),
+			`${row("/home/odin-host", "Task: x")}\n${row(`${homedir()}/dev/app`, "go on")}\n`,
+		);
+		expect((await readTranscript({ sessionId: id, root })).local).toBe(true);
+	});
+
+	test("a session whose every turn ran on the host is not", async () => {
+		const root = mkdtempSync(join(tmpdir(), "claude-hosted-"));
+		mkdirSync(join(root, "-home-odin-host"));
+		writeFileSync(
+			join(root, "-home-odin-host", `${id}.jsonl`),
+			`${row("/home/odin-host", "Task: x")}\n${row("/home/odin-host/repos/app", "go on")}\n`,
+		);
+		expect((await readTranscript({ sessionId: id, root })).local).toBe(false);
 	});
 });
 

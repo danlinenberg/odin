@@ -715,6 +715,15 @@ function isSafeSegment(value: string): boolean {
  * records the conversation id it launched with but not the directory it ran in,
  * and Claude names the directory after a cwd we'd only be guessing at - so look
  * for the file instead. One stat per project, no reads.
+ *
+ * A session can have a copy in more than one folder: a remote session's
+ * mirror under the host's folder name, the copy Run on this computer filed
+ * under the checkout it landed in, a mirror an older Odin filed under the
+ * host's name. Only one of them is still being written, and that is the one
+ * to read: taking the first folder listed left the chat view tailing a copy
+ * nobody wrote to any more, while your replies and Claude's landed in the
+ * other. The last written wins; written at the same moment (a symlinked
+ * twin), the larger.
  */
 async function projectOf(
 	sessionId: string,
@@ -728,13 +737,33 @@ async function projectOf(
 	} catch {
 		return null;
 	}
+	let newest: { project: string; mtimeMs: number; size: number } | null = null;
 	for (const project of entries) {
 		try {
-			await stat(join(root, project, `${sessionId}.jsonl`));
-			return project;
+			const { mtimeMs, size } = await stat(
+				join(root, project, `${sessionId}.jsonl`),
+			);
+			if (
+				!newest ||
+				mtimeMs > newest.mtimeMs ||
+				(mtimeMs === newest.mtimeMs && size > newest.size)
+			)
+				newest = { project, mtimeMs, size };
 		} catch {
 			// not this one
 		}
+	}
+	return newest?.project ?? null;
+}
+
+/** The folder a transcript's last turn ran in. */
+export function lastCwd(transcript: string): string | null {
+	const lines = transcript.trimEnd().split("\n");
+	for (let i = lines.length - 1; i >= 0; i--) {
+		try {
+			const cwd = JSON.parse(lines[i] ?? "")?.cwd;
+			if (typeof cwd === "string" && cwd) return cwd;
+		} catch {}
 	}
 	return null;
 }
@@ -811,7 +840,11 @@ export async function readTranscript({
 		messages: parseTranscript(jsonl, 500, 6000, withImages),
 		links: transcriptLinks(jsonl),
 		cwd,
-		local: ranHere(cwd),
+		// Where its last turn ran, not its first: a session moved here with Run
+		// on this computer keeps the host's cwd on its opening rows, and judged
+		// by those, Resume sent it back to the host, where Claude picked up the
+		// host's copy without anything it had done here since.
+		local: ranHere(lastCwd(jsonl) ?? cwd),
 		title: aiTitle,
 		prompt,
 		loop: activeLoop(jsonl),
