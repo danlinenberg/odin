@@ -764,6 +764,8 @@ describe("bashCommandOf", () => {
 		);
 		expect(bashCommandOf("!ls -la", ran)).toBe("ls -la");
 		expect(bashCommandOf("why is this slow?", ran)).toBeNull();
+	});
+});
 
 describe("commandItem fallback", () => {
 	test("gives the button to the item that says to run it, not one that says apply", () => {
