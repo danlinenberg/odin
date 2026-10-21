@@ -204,6 +204,13 @@ export const phoneRouter = t.router({
 				contact: pane.odinContact ?? null,
 				source: boardSection(pane),
 				remote: pane.odinRemote ?? null,
+				// The ssh session to the host is this pane's terminal.
+				connected: await terminal()
+					.management.listSessions()
+					.then(({ sessions }) =>
+						sessions.some((s) => s.sessionId === input.paneId && s.isAlive),
+					)
+					.catch(() => undefined),
 				tags: boardTags(pane.odinTags),
 				repo:
 					(pane.cwd ?? pane.initialCwd)?.split("/").filter(Boolean).pop() ??

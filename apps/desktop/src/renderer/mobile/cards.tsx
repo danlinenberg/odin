@@ -5,10 +5,12 @@ import {
 	LuChevronDown,
 	LuChevronRight,
 	LuCloud,
+	LuCloudOff,
 	LuFileText,
 	LuFolderGit2,
 	LuGitPullRequest,
 	LuHash,
+	LuLaptop,
 	LuStar,
 	LuTag,
 	LuTicket,
@@ -149,10 +151,13 @@ const SOURCES: Partial<Record<string, { icon: IconType; label: string }>> = {
 	notion: { icon: LuFileText, label: "Notion" },
 };
 
+type Chip = { icon: IconType; label: string; on?: boolean; off?: boolean };
+
 export type Details = {
 	contact?: string | null;
 	source?: string;
 	remote?: string | null;
+	connected?: boolean;
 	tags?: string[];
 	repo?: string | null;
 };
@@ -166,20 +171,32 @@ export function Chips({ details }: { details: Details }) {
 	const chips = [
 		details.contact && { icon: LuUser, label: details.contact },
 		source,
-		details.remote && { icon: LuCloud, label: details.remote },
+		// Where it runs; a remote one says whether it's connected to the host.
+		details.remote
+			? details.connected === false
+				? { icon: LuCloudOff, label: "Remote · offline", off: true }
+				: { icon: LuCloud, label: "Remote", on: details.connected === true }
+			: { icon: LuLaptop, label: "Local" },
 		details.repo && { icon: LuFolderGit2, label: details.repo },
 		...(details.tags ?? []).map((tag) => ({ icon: LuTag, label: tag })),
-	].filter((chip): chip is { icon: IconType; label: string } => !!chip);
+	].filter((chip): chip is Chip => !!chip);
 	if (!chips.length) return null;
 	return (
 		<span className="flex min-w-0 flex-wrap items-center gap-1">
-			{chips.map(({ icon: Icon, label }) => (
+			{chips.map(({ icon: Icon, label, on, off }) => (
 				<span
 					key={label}
-					className="flex max-w-[12rem] items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[11px] text-soft-foreground"
+					className={`flex max-w-[12rem] items-center gap-1 rounded-full px-2 py-0.5 text-[11px] ${off ? "bg-danger/15 text-danger-ink" : "bg-secondary text-soft-foreground"}`}
 				>
 					<Icon className="size-3 shrink-0" />
 					<span className="truncate">{label}</span>
+					{on && (
+						<span
+							role="img"
+							aria-label="connected"
+							className="size-1.5 shrink-0 rounded-full bg-success"
+						/>
+					)}
 				</span>
 			))}
 		</span>
