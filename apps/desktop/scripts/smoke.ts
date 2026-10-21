@@ -1141,7 +1141,14 @@ await step(
 				?.click();
 		})()`);
 		await waitForText("⋔ agents", true, 30_000);
-		await click("button", "⋔ Agents");
+		// By its text: the button's title says how many agents are out, and
+		// `click` reads a title before the text.
+		const opened = await page<boolean>(`(() => {
+			const e = [...document.querySelectorAll("button")].find((b) => b.textContent.startsWith("⋔ Agents"));
+			e?.click();
+			return !!e;
+		})()`);
+		if (!opened) throw new Error('no "⋔ Agents" button in the drawer');
 		await waitForText("smoke subagent");
 		// A row opens to what the agent was asked.
 		await click("button", "●Smoke subagent");
