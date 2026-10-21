@@ -52,10 +52,10 @@ ID.
 > Odin runs many coding agents in parallel on your own Mac, and keeps them on one board: what needs you, what is working, what is ready for a final review. The iPhone app puts that board in your pocket.
 >
 > See the board
-> Every session from your Odin, in the same columns as on the Mac: Needs you, Working, Final review and Idle, with your backlog and the work you finished. Starred sessions stay at the top. Sessions that just finished are marked.
+> Every session from your Odin, in the same columns as on the Mac: Needs you, Working, Final review and Idle, with your backlog and the work you finished. Each card says which repository it is in, who it is for, and whether it runs on your Mac or on a remote host. Starred sessions stay at the top. Sessions that just finished are marked.
 >
 > Answer from anywhere
-> Open a session to read it as a chat. Odin folds the steps in between and shows a short TL;DR first. When an agent asks a question, its action items appear as buttons: tap to approve, pick an option, or type your own answer. Reply in text or by voice, and attach photos or screenshots.
+> Open a session to read it as a chat, and watch it move while the agent works. Odin folds the steps in between and shows a short TL;DR first. When an agent asks a question, its action items appear as buttons: tap to approve, pick an option, or type your own answer. Reply in text or by voice. Attach a photo, a file or a screenshot of Odin itself from the + menu, or send a screenshot to Odin from any app's share sheet.
 >
 > Pick work back up
 > Each session has a brief: the goal, what was done, where it stands and what comes next, with its pull requests, CI status, Jira issue and Slack thread.
@@ -112,6 +112,10 @@ Why that is true:
   in `Info.plist` says so: "Odin turns what you say into a reply, using
   Apple's speech recognition."
 - The phone's private key is stored in the iOS Keychain on the device only.
+- Odin in the share sheet (the OdinShareExtension target) puts the shared
+  images on a named pasteboard that only apps from the same team can read, on
+  the device. Nothing leaves the phone until the user picks a session in the
+  app, and then it goes through the encrypted channel like any attachment.
 
 If the relay ever starts storing logs, this answer changes.
 
@@ -157,6 +161,8 @@ that the app is mass-market software using standard cryptography.
 >
 > To review it without a Mac: on the Pair screen, tap "Try the demo". The app then shows a sample board with sessions that need attention, are working and are ready for review. Open "Fix HDR grouping test" to see a session as a chat, its action items (tap Approve), and its brief. Replies and new tasks in the demo stay on the device. "Pair with Odin" in the banner at the top leaves the demo.
 >
+> Odin is also in the iOS share sheet. Share a screenshot from Photos to Odin, then open Odin: it asks which session the image is for and puts it in that session's reply box. In the demo it stays on the device.
+>
 > Everything between the phone and a real Odin is end to end encrypted (Noise protocol). Source code: https://github.com/danlinenberg/odin
 
 Sign-in required: No (the app has no accounts). Contact: Dan's name, email
@@ -166,14 +172,24 @@ and phone, filled in App Store Connect.
 
 > Pair: on your Mac, open Odin > Settings > Remote > Phone, turn on Phone access, and scan the QR code with the iPhone Camera.
 >
-> Try: open a session that needs you and answer it with a button or a reply; send a reply by voice; attach a photo; open the brief and its links; start a new task; star a session; switch profiles. Then turn off Wi-Fi and check that the board still loads over mobile data.
+> Try: open a session that needs you and answer it with a button or a reply; send a reply by voice; attach a photo, and a screenshot of Odin from the + menu; share a screenshot to Odin from Photos; open the brief and its links; start a new task; star a session; switch profiles; open a session that runs on a remote host. Then turn off Wi-Fi and check that the board still loads over mobile data.
 >
 > Tell us about anything slow, confusing or broken, with a screenshot.
 
 ## The build
 
-- Version 1.0, build 1 (`MARKETING_VERSION`, `CURRENT_PROJECT_VERSION` in
-  the Xcode project). Raise the build number for every upload.
+- Version 1.0, build 1: `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`,
+  set once at the project level of the Xcode project, so the app and its
+  share extension always carry the same numbers (App Store Connect refuses
+  an upload where they differ). Raise the build number for every upload
+  there, in the project's Build Settings under Versioning, not in a target's
+  General tab, which writes a number for that one target only.
+- Two targets go into the archive: App and OdinShareExtension
+  (`com.danlinenberg.odin.share`, Odin in the share sheet). Both need the
+  team set under Signing & Capabilities; with automatic signing Xcode
+  registers the extension's App ID itself. The extension has no privacy
+  manifest of its own because it calls none of the APIs that need a reason:
+  it only writes to a named pasteboard.
 - iPhone only (`TARGETED_DEVICE_FAMILY = 1`), so no iPad screenshots are
   needed. On an iPad it runs as an iPhone app.
 - `App/PrivacyInfo.xcprivacy`: no tracking, no data collected, no
@@ -198,20 +214,30 @@ them down for smaller iPhones. Files in
 
 The data is fake-odin's sample sessions (`apps/mobile/scripts/fake-odin.ts`).
 Regenerate with `bun run screenshots` in `apps/mobile` (about 3 minutes; it
-shuts down other booted simulators).
+shuts down other booted simulators), and again after any change to the phone
+screens: a screenshot has to show the app as it is (Guideline 2.3.3).
+
+The files must have no alpha channel. App Store Connect refuses a PNG that
+has one, even when every pixel is opaque, and `xcrun simctl io screenshot`
+always writes one. `bun run screenshots` strips it at the end
+(`scripts/strip-alpha.py`, standard library Python). After making a
+screenshot any other way, run `python3 scripts/strip-alpha.py
+store/screenshots/iphone-6.9/*.png` in `apps/mobile`; `sips -g hasAlpha
+file.png` shows the state.
 
 ## What Dan does in App Store Connect, in order
 
 1. Confirm the paid Apple Developer membership is active, and note the Team
    ID.
 2. In Certificates, Identifiers and Profiles: register the bundle ID
-   `com.danlinenberg.odin`.
+   `com.danlinenberg.odin`. The extension's `com.danlinenberg.odin.share` can
+   be registered here too, or left to Xcode's automatic signing.
 3. In App Store Connect > Apps > New App: platform iOS, name, language
    English (U.S.), the bundle ID, SKU `odin-ios`, full access.
 4. Fill App Information, Pricing (Free) and App Privacy from this page.
-5. In Xcode (`bun run ios` in `apps/mobile`): set the team, select "Any iOS
-   Device", then Product > Archive, then Distribute App > App Store Connect >
-   Upload.
+5. In Xcode (`bun run ios` in `apps/mobile`): set the team on the App and
+   OdinShareExtension targets, select "Any iOS Device", then Product >
+   Archive, then Distribute App > App Store Connect > Upload.
 6. Answer the encryption question for the build (see above).
 7. TestFlight > Internal Testing: create a group, add colleagues (they must
    first be users on the team), and add the build. They get an email and

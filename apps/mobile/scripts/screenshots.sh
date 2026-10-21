@@ -5,9 +5,10 @@
 # Makes a throwaway "Odin Store" simulator (a fresh one has no leftover
 # system prompts), sets a clean status bar, runs the app in live mode against
 # fake-odin, drives each screen through the dev server's eval bridge, and
-# saves store/screenshots/iphone-6.9/*.png. Stops what it started and deletes
-# the simulator at the end. Other booted simulators are shut down, so the
-# eval bridge talks to one page only.
+# saves store/screenshots/iphone-6.9/*.png without an alpha channel (App Store
+# Connect refuses one). Stops what it started and deletes the simulator at the
+# end. Other booted simulators are shut down, so the eval bridge talks to one
+# page only.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -99,6 +100,9 @@ JS
 run "$TMP/task.js"
 shot 04-new-task 2
 
+# simctl writes RGBA; App Store Connect refuses a screenshot with an alpha channel.
+python3 scripts/strip-alpha.py "$OUT"/*.png
+
 for f in "$OUT"/*.png; do
-  echo "$f $(sips -g pixelWidth -g pixelHeight "$f" | awk '/pixel/{printf $2" "}')"
+  echo "$f $(sips -g pixelWidth -g pixelHeight -g hasAlpha "$f" | awk '/pixel|hasAlpha/{printf $2" "}')"
 done

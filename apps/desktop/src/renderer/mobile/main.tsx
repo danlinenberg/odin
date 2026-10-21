@@ -946,7 +946,7 @@ function Session({ paneId }: { paneId: string }) {
 const PAIR_STEPS = [
 	{
 		icon: LuMonitor,
-		text: "On your Mac, open Odin, then Settings, Connections, Phone.",
+		text: "On your Mac, open Odin, then Settings, Remote, Phone.",
 	},
 	{ icon: LuQrCode, text: "Turn on Phone access. A QR code appears." },
 	{
@@ -998,7 +998,7 @@ function App() {
 			<Pair />
 		) : (
 			<div className="p-6 text-sm text-muted-foreground">
-				Open this from the QR code in Odin: Settings, Connections, Phone.
+				Open this from the QR code in Odin: Settings, Remote, Phone.
 			</div>
 		);
 	return (
