@@ -86,6 +86,45 @@ test("a host branch with commits and uncommitted work lands in a local worktree"
 	expect(movedNote(dir, null, branch)).toContain("on branch odin/abc-2");
 });
 
+test("a session on the shared checkout's default branch moves nothing and leaves it untouched", () => {
+	const root = mkdtempSync(join(tmpdir(), "bring-home-main-"));
+	const origin = join(root, "origin.git");
+	sh(root, `git init -q --bare -b main ${origin}`);
+	const seed = join(root, "seed");
+	sh(root, `git clone -q ${origin} seed`);
+	writeFileSync(join(seed, "a.txt"), "base\n");
+	git(seed, "add a.txt");
+	git(seed, "commit -q -m base");
+	git(seed, "push -q origin main");
+
+	// The host's main checkout, on main: another session's brief file lies in
+	// it. A review task that never branched has nothing of its own to move.
+	const hostRepo = join(root, "host-repo");
+	sh(root, `git clone -q ${origin} host-repo`);
+	sh(hostRepo, "mkdir -p .odin && echo brief > .odin/brief-other-task.md");
+	const bundlePath = join(root, "x.bundle");
+	const pack = () =>
+		parsePacked(sh(root, packScript(hostRepo, bundlePath)).trim());
+	const { bundlePath: path, ...packed } = pack();
+	expect(packed).toMatchObject({ sub: "", origin, branch: "main", left: true });
+	expect(path).toBeNull();
+	expect(existsSync(bundlePath)).toBe(false);
+	// No commit on the shared branch, and the stray file stays untracked.
+	expect(git(hostRepo, "log -1 --format=%s").trim()).toBe("base");
+	expect(git(hostRepo, "status --porcelain").trim()).toBe("?? .odin/");
+	const note = movedNote("/Users/me/repo", { ...packed, bundle: null }, null);
+	expect(note).toContain("Nothing moved from the host");
+	expect(note).toContain("on its default branch main");
+
+	// Clean, nothing left behind: the plain note.
+	sh(hostRepo, "rm -r .odin");
+	const clean = pack();
+	expect(clean.left).toBe(false);
+	expect(
+		movedNote("/Users/me/repo", { ...clean, bundle: null }, null),
+	).toContain("Paths from the host do not exist here");
+});
+
 test("outside a git checkout the script prints nothing", () => {
 	const dir = mkdtempSync(join(tmpdir(), "bring-home-plain-"));
 	expect(sh(dir, packScript(dir, join(dir, "x.bundle"))).trim()).toBe("");

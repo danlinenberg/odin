@@ -38,15 +38,26 @@ export interface HostWork {
 	branch: string | null;
 	/** The branch's commits that no remote has, as a git bundle. */
 	bundle: Buffer | null;
+	/**
+	 * On the checkout's default branch (or no branch) with uncommitted changes
+	 * or local commits: not the session's own work, so it stays on the host.
+	 */
+	left: boolean;
 }
 
 export const WIP_MESSAGE = "Odin: uncommitted work moved from the host";
 
 /**
- * Run in the session's folder on the host: commits what isn't committed,
- * bundles the branch's commits no remote has into `bundle`, and prints the
- * checkout's top, the session's folder inside it, origin, branch and the
- * bundle path.
+ * Run in the session's folder on the host: on the session's own branch,
+ * commits what isn't committed and bundles the branch's commits no remote
+ * has into `bundle`. Prints the checkout's top, the session's folder inside
+ * it, origin, branch, the bundle path, and "left" when work stayed behind.
+ *
+ * The default branch (origin/HEAD, else main or master) is never the
+ * session's own: a session there is in the shared checkout, where `git add
+ * -A` would sweep up other sessions' files and a commit would land on the
+ * branch every session starts from. Whatever is there stays there, and
+ * `left` says so.
  * Prints nothing outside a git checkout.
  */
 export const packScript = (cwd: string, bundle: string) =>
@@ -55,26 +66,32 @@ top=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
 sub=$(git rev-parse --show-prefix)
 cd "$top"
 branch=$(git symbolic-ref --short -q HEAD)
-if [ -n "$branch" ] && [ -n "$(git status --porcelain)" ]; then
+main=$(git symbolic-ref --short -q refs/remotes/origin/HEAD); main=\${main#origin/}
+case "$branch" in main|master) [ -n "$main" ] || main=$branch;; esac
+own=; [ -n "$branch" ] && [ "$branch" != "$main" ] && own=1
+if [ -n "$own" ] && [ -n "$(git status --porcelain)" ]; then
 	git add -A && git -c user.name=Odin -c user.email=odin@localhost commit -q --no-verify -m ${sh(WIP_MESSAGE)}
 fi
 rm -f ${sh(bundle)}
-if [ -n "$branch" ] && [ -n "$(git rev-list -1 HEAD --not --remotes)" ]; then
+if [ -n "$own" ] && [ -n "$(git rev-list -1 HEAD --not --remotes)" ]; then
 	git bundle create ${sh(bundle)} "$branch" --not --remotes >/dev/null 2>&1 || true
 fi
-printf '%s\\n' "$top" "\${sub%/}" "$(git remote get-url origin 2>/dev/null)" "$branch" "$([ -f ${sh(bundle)} ] && echo ${sh(bundle)})"`;
+left=; [ -z "$own" ] && [ -n "$(git status --porcelain)$(git rev-list -1 HEAD --not --remotes)" ] && left=left
+printf '%s\\n' "$top" "\${sub%/}" "$(git remote get-url origin 2>/dev/null)" "$branch" "$([ -f ${sh(bundle)} ] && echo ${sh(bundle)})" "$left"`;
 
 /** packScript's output. */
 export function parsePacked(
 	out: string,
 ): Omit<HostWork, "bundle"> & { bundlePath: string | null } {
-	const [top = "", sub = "", origin, branch, bundlePath] = out.split("\n");
+	const [top = "", sub = "", origin, branch, bundlePath, left] =
+		out.split("\n");
 	return {
 		top,
 		sub,
 		origin: origin || null,
 		branch: branch || null,
 		bundlePath: bundlePath || null,
+		left: left === "left",
 	};
 }
 
@@ -215,6 +232,8 @@ export function movedNote(
 		return `${here}, on branch ${branch}. Your commits and uncommitted work from the host are here. Continue the task.`;
 	if (work?.bundle)
 		return `${here}. Your work is NOT here: it stays on the host in ${work.top}, branch ${work.branch}, because this computer has no checkout of ${work.origin ?? "that repo"}. Say so before you continue.`;
+	if (work?.left)
+		return `${here}. Nothing moved from the host: that checkout, ${work.top}, was ${work.branch ? `on its default branch ${work.branch}` : "not on a branch"}, so its uncommitted changes and local commits stay there. Say so before you continue.`;
 	return `${here}. Paths from the host do not exist here. Continue the task.`;
 }
 

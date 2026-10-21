@@ -4712,11 +4712,14 @@ function DevBoardPage() {
 					sessionId,
 					cwd: wanted,
 				});
+			// The checkout it holds is the one here now: the launch gate keeps a
+			// second agent out of it, not out of the host path it came from.
 			const pane = {
 				...card.pane,
 				odinRemote: undefined,
 				cwd: undefined,
 				initialCwd: cwd,
+				odinCwd: cwd,
 			};
 			useTabsStore.setState((state) => ({
 				panes: { ...state.panes, [card.pane.id]: pane },

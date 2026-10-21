@@ -442,10 +442,12 @@ export const createRemoteHostRouter = () =>
 		 * A remote session, moved to this computer with its code: the host
 		 * branch, its commits and its uncommitted work land in a worktree of
 		 * this computer's checkout of the same repo, and the conversation
-		 * resumes there; its tmux session on the host ends. With no such
-		 * checkout: the folder asked for if it exists, else the repo a gone
-		 * session worktree belonged to, else home. `note` is what the resumed
-		 * Claude is told first.
+		 * resumes there; its tmux session on the host ends. A session on the
+		 * host's default branch (the shared checkout) brings no code and lands
+		 * in this computer's checkout itself. With no such checkout: the folder
+		 * asked for if it exists, else the repo a gone session worktree
+		 * belonged to, else home. `note` is what the resumed Claude is told
+		 * first.
 		 */
 		bringHome: publicProcedure
 			.input(z.object({ sessionId: z.string().min(1), cwd: z.string() }))
