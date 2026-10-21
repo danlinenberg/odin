@@ -1,7 +1,8 @@
 /** The session list beside an open session: how wide you dragged it, per machine. */
 export const SESSION_LIST_WIDTH_KEY = "odin:drawer-sessions-width";
-/** The narrowest the header still fits once it is down to icons and short sort labels. */
-export const MIN_SESSION_LIST_W = 160;
+/** The narrowest the header still fits once it is down to icons and short sort
+ * labels: 166px measured in the built app, plus the list's border. */
+export const MIN_SESSION_LIST_W = 168;
 export const DEFAULT_SESSION_LIST_W = 210;
 /** The list never takes more than this share of the panel it sits in:
  * wider and it eats the room the chat and brief need. */
@@ -9,9 +10,11 @@ export const MAX_SESSION_LIST_SHARE = 0.5;
 
 /** How the list header's sort select, Group and Select draw at a width. */
 export type SessionListControls = "full" | "icons" | "tight";
-/** Narrower and the worded Group and Select stop fitting beside the widest sort label. */
+/** Narrower and the worded Group and Select stop fitting beside the widest
+ * sort label (234px measured). */
 export const FULL_CONTROLS_MIN_W = 240;
-/** Narrower and the long sort labels stop fitting beside the icon buttons. */
+/** Narrower and the long sort labels stop fitting beside the icon buttons
+ * (192px measured). */
 export const ICON_CONTROLS_MIN_W = 200;
 
 export function sessionListControls(width: number): SessionListControls {
