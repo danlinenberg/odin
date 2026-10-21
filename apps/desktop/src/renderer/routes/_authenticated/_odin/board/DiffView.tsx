@@ -12,6 +12,15 @@ import {
 	type ReviewComment,
 	reviewMessage,
 } from "./diff-review";
+import {
+	isReviewed,
+	loadMarks,
+	nextUnreviewed,
+	pruneMarks,
+	reviewedCount,
+	saveMarks,
+	toggleReviewed,
+} from "./reviewed-files";
 
 /** A comment being written: placed on the lines, no text or id yet. */
 type Draft = Omit<ReviewComment, "id" | "text">;
@@ -142,6 +151,25 @@ export function DiffView({
 
 	const files = data?.files ?? [];
 	const current = files[Math.min(selected, files.length - 1)];
+	/** Files ticked as reviewed, like GitHub's Viewed box. Kept per session
+	 * beside the comments; a push that changes a file clears its tick. */
+	const [marks, setMarks] = useState(() => loadMarks(paneId));
+	const reviewed = reviewedCount(marks, choice, files);
+	const toggleMark = (file: (typeof files)[number]) => {
+		const next = pruneMarks(toggleReviewed(marks, choice, file), choice, files);
+		setMarks(next);
+		saveMarks(paneId, next);
+		// Ticking the file on screen moves on to the next one still to read.
+		if (file === current && isReviewed(next, choice, file)) {
+			const index = nextUnreviewed(
+				next,
+				choice,
+				files,
+				Math.min(selected, files.length - 1),
+			);
+			if (index >= 0) setSelected(index);
+		}
+	};
 
 	const review = comments.filter((comment) => comment.pr === choice);
 	const unsent = review.filter((comment) => !comment.sent);
@@ -342,6 +370,14 @@ export function DiffView({
 							{files.length} {files.length === 1 ? "file" : "files"}{" "}
 							<span className="text-success">+{total.added}</span>{" "}
 							<span className="text-danger">−{total.removed}</span>
+							{reviewed > 0 && (
+								<span
+									className="ml-1 text-faint-foreground"
+									title="Ticked as reviewed. A push that changes a file clears its tick."
+								>
+									{reviewed} of {files.length} reviewed
+								</span>
+							)}
 						</div>
 						<div className="min-h-0 flex-1 overflow-y-auto py-1">
 							{files.map((file, index) => {
@@ -350,56 +386,73 @@ export function DiffView({
 								const commented = review.filter(
 									(comment) => comment.path === file.path,
 								).length;
+								const ticked = isReviewed(marks, choice, file);
 								return (
-									<button
+									<div
 										key={file.path}
-										type="button"
-										title={
-											binary
-												? `${file.path}\nBinary file - no text diff to show`
-												: file.path
-										}
-										onClick={() => setSelected(index)}
-										className={`flex w-full items-baseline gap-2 px-3 py-[3px] text-left text-[12px] ${
-											file === current
-												? "bg-secondary text-soft-foreground"
-												: "text-soft-foreground hover:bg-card"
+										className={`flex items-center ${
+											file === current ? "bg-secondary" : "hover:bg-card"
 										}`}
 									>
-										<span className="min-w-0 flex-1">
-											<span
-												className={`block truncate ${binary ? "text-faint-foreground" : ""}`}
-											>
-												{file.path.slice(slash + 1)}
-											</span>
-											{slash > 0 && (
-												<span className="block truncate text-[10.5px] text-faint-foreground">
-													{file.path.slice(0, slash)}
-												</span>
-											)}
-										</span>
-										<span className="shrink-0 text-[10.5px] tabular-nums">
-											{binary && (
-												<span className="rounded-[4px] border border-border px-1 text-muted-foreground">
-													binary
-												</span>
-											)}
-											{file.added > 0 && (
-												<span className="text-success">+{file.added}</span>
-											)}{" "}
-											{file.removed > 0 && (
-												<span className="text-danger">−{file.removed}</span>
-											)}
-											{commented > 0 && (
+										<input
+											type="checkbox"
+											checked={ticked}
+											onChange={() => toggleMark(file)}
+											title={
+												ticked
+													? "Reviewed. Untick to read it again."
+													: "Mark as reviewed"
+											}
+											aria-label={`Mark ${file.path} as reviewed`}
+											className="ml-2 size-3 shrink-0 cursor-pointer accent-primary"
+										/>
+										<button
+											type="button"
+											title={
+												binary
+													? `${file.path}\nBinary file - no text diff to show`
+													: file.path
+											}
+											onClick={() => setSelected(index)}
+											className={`flex min-w-0 flex-1 items-baseline gap-2 py-[3px] pr-3 pl-2 text-left text-[12px] text-soft-foreground ${
+												ticked ? "opacity-60" : ""
+											}`}
+										>
+											<span className="min-w-0 flex-1">
 												<span
-													title={`${commented} review ${commented === 1 ? "comment" : "comments"} not sent yet`}
-													className="ml-1 text-primary"
+													className={`block truncate ${binary ? "text-faint-foreground" : ""}`}
 												>
-													✎{commented}
+													{file.path.slice(slash + 1)}
 												</span>
-											)}
-										</span>
-									</button>
+												{slash > 0 && (
+													<span className="block truncate text-[10.5px] text-faint-foreground">
+														{file.path.slice(0, slash)}
+													</span>
+												)}
+											</span>
+											<span className="shrink-0 text-[10.5px] tabular-nums">
+												{binary && (
+													<span className="rounded-[4px] border border-border px-1 text-muted-foreground">
+														binary
+													</span>
+												)}
+												{file.added > 0 && (
+													<span className="text-success">+{file.added}</span>
+												)}{" "}
+												{file.removed > 0 && (
+													<span className="text-danger">−{file.removed}</span>
+												)}
+												{commented > 0 && (
+													<span
+														title={`${commented} review ${commented === 1 ? "comment" : "comments"} not sent yet`}
+														className="ml-1 text-primary"
+													>
+														✎{commented}
+													</span>
+												)}
+											</span>
+										</button>
+									</div>
 								);
 							})}
 						</div>
