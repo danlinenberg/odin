@@ -16,9 +16,9 @@ import {
 } from "react";
 import {
 	LuChevronRight,
+	LuCloud,
 	LuLoaderCircle,
 	LuMic,
-	LuServer,
 	LuSmartphone,
 	LuSquare,
 	LuSquareTerminal,
@@ -1459,7 +1459,7 @@ function UserBubble({
 			<MessageTime at={at} className="mt-1 text-right" />
 			{waitingFor && !lost && (
 				<div className="mt-1.5 flex items-center justify-end gap-1.5 text-[12px] text-muted-foreground">
-					<LuServer className="size-3 shrink-0" />
+					<LuCloud className="size-3 shrink-0" />
 					Waiting for {waitingFor} - goes to Claude once it is back
 				</div>
 			)}
@@ -3498,7 +3498,7 @@ export function ChatView({
 										: "text-danger",
 								)}
 							>
-								<LuServer className="size-3.5 shrink-0" />
+								<LuCloud className="size-3.5 shrink-0" />
 								<span className="select-text cursor-text">
 									{hostEvent.kind === "connected"
 										? "Connected to"

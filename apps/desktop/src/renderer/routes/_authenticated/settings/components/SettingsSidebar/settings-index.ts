@@ -1,11 +1,11 @@
 import {
 	LuBell,
+	LuCloud,
 	LuHardDrive,
 	LuKeyboard,
 	LuListOrdered,
 	LuPalette,
 	LuPlug,
-	LuServer,
 	LuSquareTerminal,
 } from "react-icons/lu";
 
@@ -33,7 +33,7 @@ export const SCREENS = [
 		to: "/settings/remote",
 		label: "Remote",
 		hint: "EC2 host, iPhone app, Remote Control",
-		icon: LuServer,
+		icon: LuCloud,
 	},
 	{
 		to: "/settings/storage",
