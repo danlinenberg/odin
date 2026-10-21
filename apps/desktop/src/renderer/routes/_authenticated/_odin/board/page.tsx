@@ -5663,6 +5663,193 @@ function DevBoardPage() {
 		cardTitle,
 	};
 
+	// The drawer's title row: name, chips, status, star and the Diff, Shell
+	// and Brief toggles. It sits inside the session column, not across the
+	// whole drawer, so the Sessions list runs the drawer's full height.
+	const drawerHeader = drawerCard && (
+		<div className="shrink-0 border-b border-border px-4 py-2">
+			<div className="flex items-center gap-2">
+				{renameDraft === null ? (
+					<button
+						type="button"
+						title="Click to rename this session"
+						onClick={() => setRenameDraft(cardTitle(drawerCard))}
+						className="min-w-0 truncate text-left text-sm font-semibold hover:text-primary"
+					>
+						{cardTitle(drawerCard)}
+					</button>
+				) : (
+					<input
+						// Focus on mount without the autoFocus attribute the a11y
+						// lint flags - same trick as TagMenu's input.
+						ref={(element) => element?.focus()}
+						value={renameDraft}
+						onChange={(event) => setRenameDraft(event.target.value)}
+						onBlur={() => renamePane(drawerCard.pane.id, renameDraft)}
+						onKeyDown={(event) => {
+							if (event.key === "Enter")
+								renamePane(drawerCard.pane.id, renameDraft);
+						}}
+						className="min-w-0 flex-1 rounded-md border border-primary bg-background px-2 py-1 text-sm font-semibold text-foreground outline-none"
+					/>
+				)}
+				<div className="mr-auto flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap">
+					{cardContact(drawerCard) && (
+						<PersonChip name={cardContact(drawerCard) as string} />
+					)}
+					{drawerLink && (
+						<button
+							type="button"
+							title={drawerLink.url}
+							onClick={() => openUrl(drawerLink.url)}
+							className={cn(
+								"rounded-[5px] px-[7px] text-[11px] font-medium hover:underline",
+								PILL.brand,
+							)}
+						>
+							{drawerLink.label} ↗
+						</button>
+					)}
+					<WatchPill paneId={drawerCard.pane.id} />
+					{remoteMode === "selected" && (
+						<button
+							type="button"
+							title="Follow and answer this session from claude.ai/code or the Claude app. Click to switch."
+							onClick={() => toggleRemote(drawerCard)}
+							className={cn(
+								"flex items-center gap-1 rounded-[5px] px-[7px] text-[11px] font-medium",
+								remotePanes.includes(drawerCard.pane.id)
+									? PILL.brand
+									: "bg-secondary text-muted-foreground hover:text-foreground",
+							)}
+						>
+							<LuRadioTower className="size-3" aria-hidden />
+							Remote Control
+							{remotePanes.includes(drawerCard.pane.id) ? " on" : ""}
+						</button>
+					)}
+					{sessionCwd(drawerCard.pane) && (
+						<span
+							title={sessionCwd(drawerCard.pane)}
+							className="rounded-[5px] bg-secondary px-[7px] text-[11px] text-muted-foreground"
+						>
+							{sessionCwd(drawerCard.pane)?.split("/").slice(-1)[0]}
+						</span>
+					)}
+					<span className="rounded-[5px] bg-secondary px-[7px] text-[11px] text-muted-foreground">
+						{PANE_STATUS[drawerCard.status].label}
+					</span>
+					<button
+						type="button"
+						title={
+							drawerCard.pane.odinStarred ? "Unstar" : "Star - pin to the top"
+						}
+						aria-label={drawerCard.pane.odinStarred ? "Unstar" : "Star"}
+						aria-pressed={!!drawerCard.pane.odinStarred}
+						onClick={() => toggleStar(drawerCard.pane.id)}
+						className="shrink-0 rounded-[5px] px-1 text-[13px] text-attention hover:bg-attention/15"
+					>
+						{drawerCard.pane.odinStarred ? "★" : "☆"}
+					</button>
+				</div>
+				{drawerCard.pane.type === "terminal" && !inCatchUp && (
+					<button
+						type="button"
+						title="Show what this session changed (git diff)"
+						onClick={() => {
+							setIsShellOpen(false);
+							setIsDiffOpen((open) => !open);
+						}}
+						className={cn(
+							"shrink-0 rounded-md px-2 py-1 text-xs font-semibold",
+							isDiffOpen
+								? "bg-primary/15 text-primary"
+								: "bg-secondary text-muted-foreground hover:text-foreground",
+						)}
+					>
+						⑂ Diff
+					</button>
+				)}
+				{/* Not in Catch up (nor Diff): you're deciding Next or Done. */}
+				{drawerCard.pane.type === "terminal" && !inCatchUp && (
+					// One control: the shell, and - once it's open - where it is.
+					<div className="flex shrink-0 items-stretch">
+						<button
+							type="button"
+							title={
+								shellRunning
+									? "This session already has a shell running - reattach to it"
+									: drawerShell
+										? "This session's shell is disconnected - open it to start a new one"
+										: "Open a shell in this session's checkout"
+							}
+							onClick={() =>
+								isShellOpen ? setIsShellOpen(false) : openShell(drawerCard)
+							}
+							className={cn(
+								"flex items-center gap-1.5 px-2 py-1 text-xs font-semibold",
+								isShellOpen && drawerShell ? "rounded-l-md" : "rounded-md",
+								isShellOpen
+									? "bg-primary/15 text-primary"
+									: "bg-secondary text-muted-foreground hover:text-foreground",
+							)}
+						>
+							❯ Shell
+							{drawerShell && (
+								<ShellDot
+									card={drawerCard}
+									shell={drawerShell}
+									alive={shellRunning}
+								/>
+							)}
+						</button>
+						{isShellOpen && drawerShell && (
+							<ShellPlaceMenu
+								card={drawerCard}
+								shell={drawerShell}
+								shells={[
+									...(shellPaneOf(drawerCard)
+										? [["", shellPaneOf(drawerCard) as Pane] as const]
+										: []),
+									...drawerNamedShells,
+								]}
+								onSelectShell={(name) => setShellName(name || null)}
+								onOpenInVsCode={(dir) => void openInVsCode(drawerCard, dir)}
+							/>
+						)}
+					</div>
+				)}
+				{!catchUpLean && (
+					<button
+						type="button"
+						title="Toggle the session brief"
+						onClick={() => setIsBriefOpen((open) => !open)}
+						className={cn(
+							"shrink-0 rounded-md px-2 py-1 text-xs font-semibold",
+							isBriefOpen
+								? "bg-primary/15 text-primary"
+								: "bg-secondary text-muted-foreground hover:text-foreground",
+						)}
+					>
+						ⓘ Brief
+					</button>
+				)}
+				{!inCatchUp && (
+					<button
+						type="button"
+						title="Toggle full width"
+						onClick={() =>
+							setDrawerFraction((fraction) => (fraction < 1 ? 1 : 0.6))
+						}
+						className="shrink-0 rounded-md bg-secondary px-2 py-1 text-xs font-semibold text-muted-foreground hover:text-foreground"
+					>
+						⛶
+					</button>
+				)}
+			</div>
+		</div>
+	);
+
 	return (
 		<div className="flex h-full flex-col">
 			{/* One header row: title, launcher, filter dropdown. */}
@@ -6194,203 +6381,17 @@ function DevBoardPage() {
 								›
 							</button>
 						)}
-						<div className="border-b border-border px-4 py-2">
-							<div className="flex items-center gap-2">
-								{renameDraft === null ? (
-									<button
-										type="button"
-										title="Click to rename this session"
-										onClick={() => setRenameDraft(cardTitle(drawerCard))}
-										className="min-w-0 truncate text-left text-sm font-semibold hover:text-primary"
-									>
-										{cardTitle(drawerCard)}
-									</button>
-								) : (
-									<input
-										// Focus on mount without the autoFocus attribute the a11y
-										// lint flags - same trick as TagMenu's input.
-										ref={(element) => element?.focus()}
-										value={renameDraft}
-										onChange={(event) => setRenameDraft(event.target.value)}
-										onBlur={() => renamePane(drawerCard.pane.id, renameDraft)}
-										onKeyDown={(event) => {
-											if (event.key === "Enter")
-												renamePane(drawerCard.pane.id, renameDraft);
-										}}
-										className="min-w-0 flex-1 rounded-md border border-primary bg-background px-2 py-1 text-sm font-semibold text-foreground outline-none"
-									/>
-								)}
-								<div className="mr-auto flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap">
-									{cardContact(drawerCard) && (
-										<PersonChip name={cardContact(drawerCard) as string} />
-									)}
-									{drawerLink && (
-										<button
-											type="button"
-											title={drawerLink.url}
-											onClick={() => openUrl(drawerLink.url)}
-											className={cn(
-												"rounded-[5px] px-[7px] text-[11px] font-medium hover:underline",
-												PILL.brand,
-											)}
-										>
-											{drawerLink.label} ↗
-										</button>
-									)}
-									<WatchPill paneId={drawerCard.pane.id} />
-									{remoteMode === "selected" && (
-										<button
-											type="button"
-											title="Follow and answer this session from claude.ai/code or the Claude app. Click to switch."
-											onClick={() => toggleRemote(drawerCard)}
-											className={cn(
-												"flex items-center gap-1 rounded-[5px] px-[7px] text-[11px] font-medium",
-												remotePanes.includes(drawerCard.pane.id)
-													? PILL.brand
-													: "bg-secondary text-muted-foreground hover:text-foreground",
-											)}
-										>
-											<LuRadioTower className="size-3" aria-hidden />
-											Remote Control
-											{remotePanes.includes(drawerCard.pane.id) ? " on" : ""}
-										</button>
-									)}
-									{sessionCwd(drawerCard.pane) && (
-										<span
-											title={sessionCwd(drawerCard.pane)}
-											className="rounded-[5px] bg-secondary px-[7px] text-[11px] text-muted-foreground"
-										>
-											{sessionCwd(drawerCard.pane)?.split("/").slice(-1)[0]}
-										</span>
-									)}
-									<span className="rounded-[5px] bg-secondary px-[7px] text-[11px] text-muted-foreground">
-										{PANE_STATUS[drawerCard.status].label}
-									</span>
-									<button
-										type="button"
-										title={
-											drawerCard.pane.odinStarred
-												? "Unstar"
-												: "Star - pin to the top"
-										}
-										aria-label={drawerCard.pane.odinStarred ? "Unstar" : "Star"}
-										aria-pressed={!!drawerCard.pane.odinStarred}
-										onClick={() => toggleStar(drawerCard.pane.id)}
-										className="shrink-0 rounded-[5px] px-1 text-[13px] text-attention hover:bg-attention/15"
-									>
-										{drawerCard.pane.odinStarred ? "★" : "☆"}
-									</button>
-								</div>
-								{drawerCard.pane.type === "terminal" && !inCatchUp && (
-									<button
-										type="button"
-										title="Show what this session changed (git diff)"
-										onClick={() => {
-											setIsShellOpen(false);
-											setIsDiffOpen((open) => !open);
-										}}
-										className={cn(
-											"shrink-0 rounded-md px-2 py-1 text-xs font-semibold",
-											isDiffOpen
-												? "bg-primary/15 text-primary"
-												: "bg-secondary text-muted-foreground hover:text-foreground",
-										)}
-									>
-										⑂ Diff
-									</button>
-								)}
-								{/* Not in Catch up (nor Diff): you're deciding Next or Done. */}
-								{drawerCard.pane.type === "terminal" && !inCatchUp && (
-									// One control: the shell, and - once it's open - where it is.
-									<div className="flex shrink-0 items-stretch">
-										<button
-											type="button"
-											title={
-												shellRunning
-													? "This session already has a shell running - reattach to it"
-													: drawerShell
-														? "This session's shell is disconnected - open it to start a new one"
-														: "Open a shell in this session's checkout"
-											}
-											onClick={() =>
-												isShellOpen
-													? setIsShellOpen(false)
-													: openShell(drawerCard)
-											}
-											className={cn(
-												"flex items-center gap-1.5 px-2 py-1 text-xs font-semibold",
-												isShellOpen && drawerShell
-													? "rounded-l-md"
-													: "rounded-md",
-												isShellOpen
-													? "bg-primary/15 text-primary"
-													: "bg-secondary text-muted-foreground hover:text-foreground",
-											)}
-										>
-											❯ Shell
-											{drawerShell && (
-												<ShellDot
-													card={drawerCard}
-													shell={drawerShell}
-													alive={shellRunning}
-												/>
-											)}
-										</button>
-										{isShellOpen && drawerShell && (
-											<ShellPlaceMenu
-												card={drawerCard}
-												shell={drawerShell}
-												shells={[
-													...(shellPaneOf(drawerCard)
-														? [["", shellPaneOf(drawerCard) as Pane] as const]
-														: []),
-													...drawerNamedShells,
-												]}
-												onSelectShell={(name) => setShellName(name || null)}
-												onOpenInVsCode={(dir) =>
-													void openInVsCode(drawerCard, dir)
-												}
-											/>
-										)}
-									</div>
-								)}
-								{!catchUpLean && (
-									<button
-										type="button"
-										title="Toggle the session brief"
-										onClick={() => setIsBriefOpen((open) => !open)}
-										className={cn(
-											"shrink-0 rounded-md px-2 py-1 text-xs font-semibold",
-											isBriefOpen
-												? "bg-primary/15 text-primary"
-												: "bg-secondary text-muted-foreground hover:text-foreground",
-										)}
-									>
-										ⓘ Brief
-									</button>
-								)}
-								{!inCatchUp && (
-									<button
-										type="button"
-										title="Toggle full width"
-										onClick={() =>
-											setDrawerFraction((fraction) => (fraction < 1 ? 1 : 0.6))
-										}
-										className="shrink-0 rounded-md bg-secondary px-2 py-1 text-xs font-semibold text-muted-foreground hover:text-foreground"
-									>
-										⛶
-									</button>
-								)}
-							</div>
-						</div>
 						{catchUpLean ? (
-							<CatchUpCard
-								card={drawerCard}
-								title={cardTitle(drawerCard)}
-								suggestion={catchUpSuggestionOf(drawerCard)}
-								// Out of Catch up, onto this card's normal drawer.
-								onShowSession={() => setCatchUp(null)}
-							/>
+							<>
+								{drawerHeader}
+								<CatchUpCard
+									card={drawerCard}
+									title={cardTitle(drawerCard)}
+									suggestion={catchUpSuggestionOf(drawerCard)}
+									// Out of Catch up, onto this card's normal drawer.
+									onShowSession={() => setCatchUp(null)}
+								/>
+							</>
 						) : (
 							/* terminal on the left, "what's going on" brief on the right */
 							<div className="flex min-h-0 flex-1">
@@ -6634,6 +6635,7 @@ function DevBoardPage() {
 										</>
 									)}
 								<div className="flex min-h-0 min-w-0 flex-1 flex-col">
+									{drawerHeader}
 									<HostFrozenNotice
 										paneId={drawerCard.pane.id}
 										onMoveHere={
