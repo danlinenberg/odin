@@ -657,7 +657,7 @@ export function RemoteHostSection() {
 					<SettingRow
 						label="Tags (optional)"
 						stacked
-						description="With none, every instance in the profile and region is listed; with some, only the instances that carry all of them, for example Owner = your name."
+						description="With none, the instances tagged Odin = host are listed: the odin-host template tags its instances so, and an instance made any other way needs that one tag. With some, only the instances that carry all of them are listed instead, for example Owner = your name."
 					>
 						<div className="flex flex-wrap items-center gap-1.5">
 							{tags.map((tag) => (

@@ -219,11 +219,16 @@ async function ssmPing(
 	return status;
 }
 
+/** The tag that marks an instance as one for Odin: what the odin-host launch
+ * template puts on the instances it makes, and the one tag to add to an instance
+ * made any other way. With no tags picked, this is the filter. */
+export const HOST_TAG: TagPair = { key: "Odin", value: "host" };
+
 /**
- * The instances in the account and region - all of them with no tags, so an
- * instance anyone made is there to Use; with tags, the ones carrying every
- * tag - by name, with whether SSM sees each. Beyond MAX_INSTANCES the list is
- * cut and says so.
+ * The instances in the account and region - with no tags, the ones tagged
+ * Odin = host (HOST_TAG), so any instance anyone made is there to Use once it
+ * carries that tag; with tags, the ones carrying every tag instead - by name,
+ * with whether SSM sees each. Beyond MAX_INSTANCES the list is cut and says so.
  */
 export async function listInstances(
 	target: AwsTarget,
@@ -237,7 +242,7 @@ export async function listInstances(
 	do {
 		const page = await ec2.send(
 			new DescribeInstancesCommand({
-				Filters: instanceFilters(tags),
+				Filters: instanceFilters(tags.length ? tags : [HOST_TAG]),
 				NextToken,
 			}),
 		);

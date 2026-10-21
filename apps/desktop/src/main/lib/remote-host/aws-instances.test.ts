@@ -482,7 +482,7 @@ describe("aws-instances", () => {
 		);
 	});
 
-	test("with no tags, every instance in the profile and region is listed, by name, with SSM's word on each", async () => {
+	test("with no tags, the instances tagged Odin = host are listed, by name, with SSM's word on each", async () => {
 		answer = (name) => {
 			if (name === "DescribeInstancesCommand")
 				return {
@@ -534,6 +534,7 @@ describe("aws-instances", () => {
 							Name: "instance-state-name",
 							Values: ["pending", "running", "stopping", "stopped"],
 						},
+						{ Name: "tag:Odin", Values: ["host"] },
 					],
 					NextToken: undefined,
 				},
