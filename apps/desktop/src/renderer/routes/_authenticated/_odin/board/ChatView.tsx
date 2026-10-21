@@ -53,6 +53,7 @@ import {
 	odinScreenStatus,
 	remoteConnectLine,
 } from "shared/odin-screen-status";
+import { typedText } from "shared/typed-text";
 import { CrowIcon } from "../components/CrowIcon";
 import {
 	BUILT_IN_COMMANDS,
@@ -3118,10 +3119,7 @@ export async function typeIntoClaude(
 ) {
 	if (text) {
 		const drawn = await drawCount(paneId, text);
-		await write({
-			paneId,
-			data: text.includes("\n") ? `\x1b[200~${text}\x1b[201~` : text,
-		});
+		await write({ paneId, data: typedText(text) });
 		for (let waited = 0; waited < 2000; waited += 50) {
 			if ((await drawCount(paneId, text)) > drawn) break;
 			await new Promise((resolve) => setTimeout(resolve, 50));

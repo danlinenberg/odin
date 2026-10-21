@@ -19,6 +19,7 @@ import {
 import stripAnsi from "strip-ansi";
 import superjson from "superjson";
 import { z } from "zod";
+import { typedText } from "../../../shared/typed-text";
 import { attachments } from "./attachments";
 import { rememberFromPhone } from "./sent";
 
@@ -123,7 +124,7 @@ async function typeIntoClaude(paneId: string, text: string, paths: string[]) {
 	};
 	const before = await drawn();
 	for (const path of paths) write(`\x1b[200~${path}\x1b[201~ `);
-	if (text) write(text.includes("\n") ? `\x1b[200~${text}\x1b[201~` : text);
+	if (text) write(typedText(text));
 	const expected = paths.length + (text ? 1 : 0);
 	await until(async () => (await drawn()) >= before + expected, 3000);
 	await pause(30);
