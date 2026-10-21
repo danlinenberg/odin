@@ -54,7 +54,6 @@ import {
 	odinScreenStatus,
 	remoteConnectLine,
 } from "shared/odin-screen-status";
-import stripAnsi from "strip-ansi";
 import {
 	BUILT_IN_COMMANDS,
 	enterPicks,
@@ -82,6 +81,7 @@ import {
 } from "./ChatPrompts";
 import { collectRefs, linkify, withSchemes } from "./chat-links";
 import { parseScreenAside, parseScreenMenu } from "./screen-menu";
+import { parseShell, type Shell } from "./shell-output";
 import { useHoldToTalk } from "./voice";
 
 type Item =
@@ -92,6 +92,8 @@ type Item =
 			images?: string[];
 			/** When you sent it (ms) - a turn's start. Unset for a mid-turn queued message. */
 			at?: number;
+			/** A `!` command or a built-in command's output: a terminal card, not your bubble. */
+			shell?: Shell;
 	  }
 	| {
 			kind: "text";
@@ -175,23 +177,42 @@ export function transcriptPath(home: string, cwd: string, sessionId: string) {
 export function userText(text: string): string | null {
 	const command = text.match(/<command-name>([^<]*)<\/command-name>/);
 	if (command) return command[1] ?? null;
-	const bash = text.match(/<bash-input>([\s\S]*?)<\/bash-input>/);
-	if (bash) return `!${bash[1]}`;
-	if (/^\s*<bash-stdout>/.test(text))
-		return text.replace(/<\/?bash-(stdout|stderr)>/g, "\n").trim() || null;
-	// A built-in command's reply (/cost, /context, /model): its output, plain.
-	if (/^\s*<local-command-std(out|err)>/.test(text))
-		return (
-			stripAnsi(
-				text.replace(/<\/?local-command-std(out|err)>/g, "\n"),
-			).trim() || null
-		);
 	if (/^\s*<(local-command|task-notification)/.test(text)) return null;
 	if (text.startsWith("Caveat:")) return null;
 	const stripped = text
 		.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "")
 		.trim();
 	return stripped || null;
+}
+
+/**
+ * A shell run as a terminal card. Output folds into the `!` command just
+ * before it; with none, it stands alone, and an empty one shows nothing.
+ */
+function pushShell(
+	next: Item[],
+	shell: Shell,
+	id: string,
+	at: number | undefined,
+): void {
+	const last = next.at(-1);
+	if (
+		shell.command === undefined &&
+		last?.kind === "user" &&
+		last.shell?.command !== undefined &&
+		!last.shell.stdout &&
+		!last.shell.stderr
+	) {
+		next[next.length - 1] = {
+			...last,
+			shell: { ...last.shell, stdout: shell.stdout, stderr: shell.stderr },
+		};
+		return;
+	}
+	const output = [shell.stdout, shell.stderr].filter(Boolean).join("\n");
+	if (shell.command === undefined && !output) return;
+	const text = shell.command === undefined ? output : `!${shell.command}`;
+	next.push({ kind: "user", id, text, at, shell });
 }
 
 function blockText(content: string | Block[] | undefined): string {
@@ -251,6 +272,11 @@ export function applyLines(items: Item[], lines: Line[]): Item[] {
 		const at = line.timestamp ? Date.parse(line.timestamp) : undefined;
 		if (line.type === "user") {
 			if (typeof content === "string") {
+				const shell = parseShell(content);
+				if (shell) {
+					pushShell(next, shell, id, at);
+					return;
+				}
 				const text = userText(content);
 				if (text) next.push({ kind: "user", id, text, at });
 				return;
@@ -273,6 +299,11 @@ export function applyLines(items: Item[], lines: Line[]): Item[] {
 							isError: block.is_error,
 						};
 				} else if (block.type === "text" && block.text) {
+					const shell = parseShell(block.text);
+					if (shell) {
+						pushShell(next, shell, `${id}:${i}`, at);
+						continue;
+					}
 					const raw = userText(block.text);
 					const text = imagesShown
 						? raw
@@ -1027,6 +1058,61 @@ function MessageTime({ at, className }: { at?: number; className?: string }) {
 				minute: "2-digit",
 			})}
 		</time>
+	);
+}
+
+/** Lines a shell card shows before "Show all". */
+const SHELL_LINES = 12;
+
+/**
+ * A `!` command and its output, or a built-in command's output: a terminal
+ * card across the column, so it never reads as something you typed.
+ */
+function ShellCard({ shell }: { shell: Shell }) {
+	const [open, setOpen] = useState(false);
+	const lines = [
+		...(shell.stdout
+			? shell.stdout.split("\n").map((line) => ({ line, error: false }))
+			: []),
+		...(shell.stderr
+			? shell.stderr.split("\n").map((line) => ({ line, error: true }))
+			: []),
+	];
+	const shown = open ? lines : lines.slice(0, SHELL_LINES);
+	return (
+		<div className="mt-5 mb-1 select-text cursor-text overflow-hidden rounded-lg border border-border bg-secondary/60 font-mono text-[11.5px] first:mt-0">
+			{shell.command !== undefined && (
+				<div className="flex items-start gap-2 border-b border-border px-3 py-1.5 text-foreground last:border-b-0">
+					<LuSquareTerminal className="mt-[2px] size-3.5 shrink-0 text-pink-500" />
+					<span className="min-w-0 whitespace-pre-wrap break-words">
+						<span className="text-pink-500">$ </span>
+						{shell.command}
+					</span>
+				</div>
+			)}
+			{lines.length > 0 && (
+				<pre className="max-h-[480px] overflow-auto whitespace-pre-wrap break-words px-3 py-2 font-mono text-muted-foreground">
+					{shown.map(({ line, error }, index) => (
+						<div
+							// biome-ignore lint/suspicious/noArrayIndexKey: static lines, never reordered
+							key={index}
+							className={cn(error && "text-danger")}
+						>
+							{line || "\u00a0"}
+						</div>
+					))}
+				</pre>
+			)}
+			{lines.length > SHELL_LINES && (
+				<button
+					type="button"
+					onClick={() => setOpen(!open)}
+					className="w-full border-t border-border px-3 py-1 text-left font-sans text-[12px] text-link hover:bg-secondary"
+				>
+					{open ? "Show less" : `Show all ${lines.length} lines`}
+				</button>
+			)}
+		</div>
 	);
 }
 
@@ -1971,6 +2057,8 @@ const ItemView = memo(function ItemView({
 	const fold = foldSetting ?? ODIN_REPLY_TLDR_DEFAULT;
 	if (item.kind === "tool") return <ToolRow item={item} />;
 	if (item.kind === "compact") return <CompactRow item={item} />;
+	if (item.kind === "user" && item.shell)
+		return <ShellCard shell={item.shell} />;
 	if (item.kind === "user")
 		return (
 			<UserBubble
