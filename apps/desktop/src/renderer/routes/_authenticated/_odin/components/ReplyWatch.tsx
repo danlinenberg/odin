@@ -1,5 +1,6 @@
 import { cn } from "@odin/ui/utils";
 import type { ThreadActivity } from "lib/trpc/routers/work";
+import type { TranscriptMessage } from "main/lib/claude-sessions/claude-sessions";
 import { useEffect, useRef } from "react";
 import { LuBellRing } from "react-icons/lu";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
@@ -7,6 +8,7 @@ import { useTabsStore } from "renderer/stores/tabs/store";
 import type { PaneStatus } from "shared/tabs-types";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { usePaneMeta } from "../hooks/usePaneMeta";
 import { PILL } from "./pill";
 
 /** A thread you asked to hear about, and the session it belongs to. */
@@ -20,7 +22,20 @@ export interface Watch {
 	reply?: string;
 	/** The thread itself, for Open once the session is closed. */
 	url?: string;
+	/** "Ping me when...": what the session's Claude watches for. */
+	condition?: string;
+	/** When the condition watch started (ms): older lines don't count. */
+	since?: number;
+	/** What a fired condition watch says happened. */
+	event?: ConditionEvent;
 }
+
+export type ConditionEvent = "Happened" | "Gave up";
+
+/** Watch keys for "Ping me when...": `when:<paneId>:<since>`. */
+export const WHEN = "when:";
+/** The stamp of a condition watch that fired: it is not checked again. */
+const FIRED = "fired";
 
 /**
  * "Ping me": the sessions whose Slack thread or Jira ticket you want a banner
@@ -40,6 +55,10 @@ export const useReplyWatch = create<{
 		replies?: Record<string, string>,
 		urls?: Record<string, string | null>,
 	) => void;
+	/** "Ping me when...": the session's Claude watches for `condition`. */
+	watchFor: (condition: string, title: string, paneId: string) => void;
+	/** Claude said the condition happened, or gave up on it. */
+	fire: (key: string, event: ConditionEvent) => void;
 	/** You wrote in the session: its reply is answered. */
 	seen: (paneId: string) => void;
 }>()(
@@ -93,17 +112,50 @@ export const useReplyWatch = create<{
 						]),
 					),
 				})),
+			watchFor: (condition, title, paneId) =>
+				set((s) => {
+					const since = Date.now();
+					return {
+						watches: {
+							...s.watches,
+							[`${WHEN}${paneId}:${since}`]: {
+								title,
+								paneId,
+								condition,
+								since,
+							},
+						},
+					};
+				}),
+			fire: (key, event) =>
+				set((s) => {
+					const watch = s.watches[key];
+					if (!watch) return s;
+					return {
+						watches: {
+							...s.watches,
+							[key]: {
+								...watch,
+								stamp: FIRED,
+								event,
+								reply: watch.condition ?? watch.title,
+							},
+						},
+					};
+				}),
+			// A condition watch that fired is done once you've read it.
 			seen: (paneId) =>
 				set((s) =>
 					Object.values(s.watches).some((w) => w.paneId === paneId && w.reply)
 						? {
 								watches: Object.fromEntries(
-									Object.entries(s.watches).map(([key, watch]) => [
-										key,
-										watch.paneId === paneId
-											? { ...watch, reply: undefined }
-											: watch,
-									]),
+									Object.entries(s.watches).flatMap(([key, watch]) =>
+										watch.paneId !== paneId
+											? [[key, watch]]
+											: watch.stamp === FIRED && key.startsWith(WHEN)
+												? []
+												: [[key, { ...watch, reply: undefined }]],
+									),
 								),
 							}
 						: s,
@@ -150,9 +202,55 @@ export function sessionThread(pane: {
 	return key ? `jira:${key}` : null;
 }
 
-/** What a watch's ping says happened: a PR gets approved, a thread gets a reply. */
-export function watchEvent(key: string): string {
+/**
+ * What a watch's ping says happened: a PR gets approved, a thread gets a
+ * reply, a condition happens (or Claude gave up watching for it).
+ */
+export function watchEvent(key: string, watch?: Watch): string {
+	if (key.startsWith(WHEN)) return watch?.event ?? "Happened";
 	return key.startsWith("pr:") ? "Approved" : "New reply";
+}
+
+/**
+ * What Odin types into the session for "Ping me when...". Claude checks the
+ * condition with its own tools and skills - Odin has no connector for a
+ * Datadog log, a deploy or an edit job - and ends with one line Odin reads.
+ */
+export function conditionPrompt(condition: string): string {
+	return [
+		`Ping me when: ${condition}`,
+		"Watch for this yourself, with your tools and skills. Check it now, then again at a sensible interval for what it is (a few minutes apart is usually right; /loop works), for up to 4 hours. Don't ask me anything while you watch.",
+		"When it happens, reply with this line on its own and stop: ODIN PING: HAPPENED - <one short line on what you saw>",
+		"If you hit the 4 hours, or can't check it at all, reply with this line on its own and stop: ODIN PING: GAVE UP - <why>",
+	].join("\n");
+}
+
+const PING_LINE =
+	/^[\s>*_`]*ODIN PING:\s*(HAPPENED|GAVE UP)\b[\s*_`]*-?\s*(.*)$/gim;
+
+/**
+ * The line Claude ends a condition watch with, in a reply after `since`.
+ * Only Claude's own lines count, and only ones that start with it: the prompt
+ * quotes it, and a reply can promise it ("I'll reply `ODIN PING: ...`").
+ * A placeholder left in (`<what I saw>`) is the template, not news.
+ */
+export function conditionOutcome(
+	messages: Pick<TranscriptMessage, "role" | "text" | "at">[],
+	since: number,
+): { event: ConditionEvent; detail: string } | null {
+	for (const message of messages) {
+		if (message.role !== "assistant") continue;
+		if (!message.at || Date.parse(message.at) < since) continue;
+		for (const [, word = "", rest = ""] of message.text.matchAll(PING_LINE)) {
+			const detail = rest.replace(/[*_`]+$/, "").trim();
+			if (detail.startsWith("<")) continue;
+			return {
+				event: word.toUpperCase() === "HAPPENED" ? "Happened" : "Gave up",
+				detail,
+			};
+		}
+	}
+	return null;
 }
 
 /**
@@ -188,8 +286,9 @@ export function useReplyWatcher(openSession: (paneId: string) => void): void {
 	open.current = openSession;
 	useEffect(() => {
 		const tick = async () => {
+			void checkConditions((paneId) => open.current(paneId));
 			const { watches, setStamps } = useReplyWatch.getState();
-			const keys = Object.keys(watches);
+			const keys = Object.keys(watches).filter((k) => !k.startsWith(WHEN));
 			if (!keys.length) return;
 			const after = (prefix: string) =>
 				keys
@@ -232,14 +331,52 @@ export function useReplyWatcher(openSession: (paneId: string) => void): void {
 		return () => clearInterval(id);
 	}, []);
 	// A prompt you send turns the session to Working: that answers its reply.
+	// A turn that ends may be the one that says the condition happened.
 	useEffect(
 		() =>
 			useTabsStore.subscribe((now, before) => {
 				for (const paneId of startedWorking(before.panes, now.panes))
 					useReplyWatch.getState().seen(paneId);
+				if (stoppedWorking(before.panes, now.panes).length)
+					void checkConditions((paneId) => open.current(paneId));
 			}),
 		[],
 	);
+}
+
+/**
+ * "Ping me when...": read each watching session's conversation for the line
+ * its Claude ends the watch with, and ping once it's there.
+ */
+async function checkConditions(open: (paneId: string) => void) {
+	const { watches, fire } = useReplyWatch.getState();
+	const pending = Object.entries(watches).filter(
+		([key, w]) => key.startsWith(WHEN) && w.stamp !== FIRED && w.paneId,
+	);
+	for (const [key, watch] of pending) {
+		const paneId = watch.paneId ?? "";
+		const sessionId =
+			useTabsStore.getState().panes[paneId]?.claudeSessionId ??
+			usePaneMeta.getState().sessionIdByPane[paneId];
+		if (!sessionId) continue;
+		const transcript = await electronTrpcClient.terminal.readClaudeTranscript
+			.query({ sessionId })
+			.catch(() => null);
+		const outcome = transcript
+			? conditionOutcome(transcript.messages, watch.since ?? 0)
+			: null;
+		if (!outcome || useReplyWatch.getState().watches[key]?.stamp === FIRED)
+			continue;
+		fire(key, outcome.event);
+		const note = new Notification(
+			`${outcome.event}: ${watch.condition ?? watch.title}`,
+			{ body: outcome.detail || watch.title },
+		);
+		note.onclick = () => {
+			window.focus();
+			open(paneId);
+		};
+	}
 }
 
 /** The panes that just turned to Working - someone sent them a prompt. */
@@ -251,6 +388,14 @@ export function startedWorking(
 	return Object.keys(now).filter(
 		(id) => now[id]?.status === "working" && before[id]?.status !== "working",
 	);
+}
+
+/** The panes whose turn just ended. */
+function stoppedWorking(
+	before: Record<string, { status?: PaneStatus }>,
+	now: Record<string, { status?: PaneStatus }>,
+): string[] {
+	return startedWorking(now, before);
 }
 
 /** Whether anything of this session's is watched. */
@@ -304,6 +449,9 @@ export function WatchReply({ paneId }: { paneId: string }) {
 		),
 	);
 	const reply = useReplyWatch((s) => (key ? s.watches[key]?.reply : undefined));
+	const event = useReplyWatch((s) =>
+		key ? watchEvent(key, s.watches[key]) : "",
+	);
 	if (!key || !reply) return null;
 	return (
 		<div
@@ -311,7 +459,7 @@ export function WatchReply({ paneId }: { paneId: string }) {
 			className="mt-1 truncate text-[11.5px] font-medium text-attention"
 		>
 			<LuBellRing className="mr-1 inline size-3 align-[-2px]" aria-hidden />
-			{watchEvent(key)}: {reply}
+			{event}: {reply}
 		</div>
 	);
 }
@@ -325,7 +473,7 @@ export function WatchPill({ paneId }: { paneId: string }) {
 	return (
 		<button
 			type="button"
-			title="Odin pings you when someone else replies in this session's thread, or its PR is approved. Click to stop."
+			title="Odin pings you when someone else replies in this session's thread, its PR is approved, or what you asked it to watch for happens. Click to stop."
 			onClick={() => toggle([], "", paneId)}
 			className={cn(
 				"flex items-center gap-1 rounded-[5px] px-[7px] text-[11px] font-medium",

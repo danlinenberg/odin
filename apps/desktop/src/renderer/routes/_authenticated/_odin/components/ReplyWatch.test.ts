@@ -121,8 +121,11 @@ test("a session turning to Working answers its reply; staying Working does not",
 	).toEqual(["a"]);
 });
 
-const said = (text: string, at = "2026-10-21T10:05:00Z", role = "assistant") =>
-	({ role, text, at }) as const;
+const said = (
+	text: string,
+	at = "2026-10-21T10:05:00Z",
+	role: "user" | "assistant" = "assistant",
+) => ({ role, text, at });
 const SINCE = Date.parse("2026-10-21T10:00:00Z");
 
 test("a condition happened when Claude says so on a line of its own", () => {
@@ -130,13 +133,18 @@ test("a condition happened when Claude says so on a line of its own", () => {
 		conditionOutcome(
 			[
 				said("Checking the deploy now."),
-				said("Deploy finished.\n**ODIN PING: HAPPENED** - app-web-server is live"),
+				said(
+					"Deploy finished.\n**ODIN PING: HAPPENED** - app-web-server is live",
+				),
 			],
 			SINCE,
 		),
 	).toEqual({ event: "Happened", detail: "app-web-server is live" });
 	expect(
-		conditionOutcome([said("ODIN PING: GAVE UP - no access to Datadog")], SINCE),
+		conditionOutcome(
+			[said("ODIN PING: GAVE UP - no access to Datadog")],
+			SINCE,
+		),
 	).toEqual({ event: "Gave up", detail: "no access to Datadog" });
 });
 
@@ -148,8 +156,13 @@ test("a condition is not met by the prompt, an old line or a promise", () => {
 		conditionOutcome(
 			[
 				said(prompt, "2026-10-21T10:01:00Z", "user"),
-				said("ODIN PING: HAPPENED - from an earlier watch", "2026-10-21T09:00:00Z"),
-				said("I will reply `ODIN PING: HAPPENED - <what I saw>` when it lands."),
+				said(
+					"ODIN PING: HAPPENED - from an earlier watch",
+					"2026-10-21T09:00:00Z",
+				),
+				said(
+					"I will reply `ODIN PING: HAPPENED - <what I saw>` when it lands.",
+				),
 				said("ODIN PING: HAPPENED - <what you saw>"),
 				said("Still deploying, next check in 5 minutes."),
 			],

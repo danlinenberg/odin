@@ -200,7 +200,7 @@ export function SessionReminders() {
 	const seen = useReplyWatch((s) => s.seen);
 	const replies = Object.entries(watches)
 		.filter(([, w]) => w.reply && w.paneId)
-		.map(([key, w]) => ({ ...w, key, event: watchEvent(key) }));
+		.map(([key, w]) => ({ ...w, key, event: watchEvent(key, w) }));
 	if (!showsBar(reminders, replies.length, now)) return null;
 
 	return (

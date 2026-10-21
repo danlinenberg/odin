@@ -30,6 +30,7 @@ import {
 import { createPortal } from "react-dom";
 import type { IconType } from "react-icons";
 import {
+	LuBellPlus,
 	LuBellRing,
 	LuBookOpen,
 	LuChevronDown,
@@ -143,6 +144,7 @@ import { PersonChip, personColor } from "../components/PersonChip";
 import { BUTTON, PILL } from "../components/pill";
 import { DueChip, OverdueMark, useReminders } from "../components/Reminders";
 import {
+	conditionPrompt,
 	sessionThread,
 	useReplyWatch,
 	WatchMark,
@@ -1636,6 +1638,7 @@ function TagMenu({
 	watching,
 	watchWhat,
 	onWatch,
+	onWatchFor,
 	remote,
 	onRemote,
 	onSaveDoc,
@@ -1667,6 +1670,8 @@ function TagMenu({
 	/** What it watches, for the label: "replies", "approval" or both. */
 	watchWhat?: string;
 	onWatch: () => void;
+	/** "Ping me when...": set while an agent runs in the session to watch for it. */
+	onWatchFor?: (condition: string) => void;
 	/** Remote Control for this one session; unset unless Settings says "Selected sessions". */
 	remote?: boolean;
 	onRemote: () => void;
@@ -1681,6 +1686,8 @@ function TagMenu({
 }) {
 	const ref = useRef<HTMLDivElement>(null);
 	const [draft, setDraft] = useState("");
+	// "Ping me when..." opens a field for the condition in the menu itself.
+	const [condition, setCondition] = useState<string | null>(null);
 	// Tags fold to one row: the list is long and most right-clicks are for
 	// Done or Remind.
 	const [isTagsOpen, setIsTagsOpen] = useState(false);
@@ -1815,7 +1822,7 @@ function TagMenu({
 					}}
 					className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-attention"
 				/>
-				{watching !== undefined && (
+				{(watching || !!watchWhat) && (
 					<button
 						type="button"
 						title="A notification whenever someone else replies in this session's Slack thread or Jira ticket, or its PR gets approved. Until then the card waits in Idle under Waiting on others"
@@ -1832,6 +1839,63 @@ function TagMenu({
 						{watching ? "Stop pinging me" : `Ping me on ${watchWhat}`}
 					</button>
 				)}
+				{onWatchFor &&
+					(condition === null ? (
+						<button
+							type="button"
+							title="Odin asks the agent to watch for something with its own tools - a Datadog log, a deploy, an edit finishing - and pings you when it says it happened"
+							onClick={() => setCondition("")}
+							className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] text-muted-foreground transition-colors hover:text-primary"
+						>
+							<LuBellPlus className="size-3" aria-hidden />
+							Ping me when…
+						</button>
+					) : (
+						<form
+							onSubmit={(event) => {
+								event.preventDefault();
+								const text = condition.trim();
+								if (!text) return;
+								onWatchFor(text);
+								onClose();
+							}}
+							className="mt-1 flex flex-col gap-1.5 rounded-md border border-border bg-background p-1.5"
+						>
+							<span className="flex items-center gap-1.5 text-[11px] font-semibold text-foreground">
+								<LuBellPlus className="size-3 text-primary" aria-hidden />
+								Ping me when…
+							</span>
+							<textarea
+								// biome-ignore lint/a11y/noAutofocus: the field is what the click asked for
+								autoFocus
+								rows={3}
+								value={condition}
+								aria-label="What to watch for"
+								placeholder="the deploy of app-web-server to prod is done"
+								onChange={(event) => setCondition(event.target.value)}
+								onKeyDown={(event) => {
+									if (event.key === "Enter" && !event.shiftKey) {
+										event.preventDefault();
+										event.currentTarget.form?.requestSubmit();
+									}
+								}}
+								className="w-full resize-none rounded-[5px] border border-input bg-card px-1.5 py-1 text-[12px] text-foreground outline-none placeholder:text-muted-foreground focus:border-primary"
+							/>
+							<span className="text-[10.5px] leading-snug text-muted-foreground">
+								The agent checks it with its own tools, up to 4 hours.
+							</span>
+							<button
+								type="submit"
+								disabled={!condition.trim()}
+								className={cn(
+									"self-end rounded-md px-2 py-0.5 text-[11px] font-semibold disabled:opacity-50",
+									BUTTON.primary,
+								)}
+							>
+								Watch
+							</button>
+						</form>
+					))}
 				{remote !== undefined && (
 					<button
 						type="button"
@@ -5714,11 +5778,9 @@ function DevBoardPage() {
 							: undefined
 					}
 					onRemind={(day) => tagMenuCard && remindMe(tagMenuCard, day)}
-					watching={
-						tagMenuWatchKeys.length
-							? Object.values(watches).some((w) => w.paneId === tagMenu.paneId)
-							: undefined
-					}
+					watching={Object.values(watches).some(
+						(w) => w.paneId === tagMenu.paneId,
+					)}
 					watchWhat={[
 						...new Set(
 							tagMenuWatchKeys.map((k) =>
@@ -5733,6 +5795,21 @@ function DevBoardPage() {
 							cardTitle(tagMenuCard),
 							tagMenuCard.pane.id,
 						)
+					}
+					onWatchFor={
+						agentPaneIds.has(tagMenu.paneId) && tagMenuCard
+							? (condition) => {
+									const paneId = tagMenuCard.pane.id;
+									useReplyWatch
+										.getState()
+										.watchFor(condition, cardTitle(tagMenuCard), paneId);
+									void typeIntoClaude(
+										terminalWrite.mutateAsync,
+										paneId,
+										conditionPrompt(condition),
+									).then(() => toast.success("Odin pings you when it happens"));
+								}
+							: undefined
 					}
 					remote={
 						remoteMode === "selected"
