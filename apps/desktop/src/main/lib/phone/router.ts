@@ -316,7 +316,16 @@ export const phoneRouter = t.router({
 				.refine((input) => input.text.trim() || input.paths.length),
 		)
 		.mutation(async ({ input }) => {
-			await typeIntoClaude(input.paneId, input.text.trim(), input.paths);
+			const text = input.text.trim();
+			// Claude has exited that session: the board resumes it with the reply,
+			// files named on their own lines, as its chat box does.
+			const opening = [...input.paths, text].filter(Boolean).join("\n");
+			const answer = await askRenderer("phone-reply", {
+				paneId: input.paneId,
+				text: opening,
+			}).catch(() => null);
+			if (answer !== "resumed")
+				await typeIntoClaude(input.paneId, text, input.paths);
 			rememberFromPhone(input.paneId, input.text);
 		}),
 

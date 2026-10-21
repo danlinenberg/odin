@@ -30,6 +30,7 @@ import {
 import { CROW_TAG } from "shared/odin-tags";
 import stripAnsi from "strip-ansi";
 import { create } from "zustand";
+import { phoneReply } from "../board/phone-resume";
 import { type PromptImage, sessionTitle } from "../components/OdinPromptDialog";
 import { readState, runAction, writeState } from "./crow-state";
 import { endSession, useDone } from "./useDone";
@@ -701,6 +702,9 @@ function runOdinAction(
 		void deps.router.navigate({ to: args.to });
 		return `Opened ${args.to}.`;
 	}
+	// The phone's reply: resume an exited session with it, or "live".
+	if (action === "phone-reply")
+		return phoneReply(args.paneId ?? "", args.text ?? "");
 	if (action === "done") {
 		if (!args.paneId || !panes[args.paneId])
 			return "No session with that paneId - list them with action=sessions.";

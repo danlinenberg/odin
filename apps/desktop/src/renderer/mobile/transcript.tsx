@@ -99,22 +99,13 @@ export type ReplyBrief =
  * The latest reply's TL;DR, marked Needs you or FYI as the brief judged it:
  * the top strip of that reply's own card, so it reads as its summary.
  */
-function TldrStrip({
-	tldr,
-	urgency,
-}: {
-	tldr: string;
-	urgency: BriefUrgency | null;
-}) {
-	const needsYou = urgency === "needs-you";
+function TldrStrip({ tldr }: { tldr: string }) {
+	// One quiet look: the header already says Needs you, and the action
+	// items below carry the color.
 	return (
-		<div
-			className={`px-3 py-2 ${needsYou ? "bg-attention/[0.07]" : "bg-secondary/60"}`}
-		>
-			<div
-				className={`mb-0.5 text-[11px] font-semibold uppercase tracking-wide ${needsYou ? "text-attention" : "text-faint-foreground"}`}
-			>
-				TL;DR{urgency ? ` · ${needsYou ? "Needs you" : "FYI"}` : ""}
+		<div className="bg-secondary/60 px-3 py-2">
+			<div className="mb-0.5 text-[11px] font-semibold uppercase tracking-wide text-faint-foreground">
+				TL;DR
 			</div>
 			<div className="select-text text-foreground">
 				<Markdown text={tldr} />
@@ -161,7 +152,6 @@ export function Transcript({
 		const latest = index === replyAt && tldr;
 		// The board's chat: a long latest reply folds under its TL;DR.
 		const folded = latest && tldr.long && !fullReply;
-		const needsYou = latest && tldr.urgency === "needs-you";
 		return (
 			<div key={index}>
 				{(body || latest) && (
@@ -171,9 +161,9 @@ export function Transcript({
 				)}
 				{(body || latest) && (
 					<div
-						className={`my-2 mr-6 overflow-hidden rounded-2xl rounded-bl-md border bg-card text-[15px] leading-snug text-soft-foreground ${needsYou ? "border-attention/35" : "border-border"}`}
+						className={`my-2 mr-6 overflow-hidden rounded-2xl rounded-bl-md border bg-card text-[15px] leading-snug text-soft-foreground border-border`}
 					>
-						{latest && <TldrStrip tldr={tldr.last} urgency={tldr.urgency} />}
+						{latest && <TldrStrip tldr={tldr.last} />}
 						{body && (
 							<div
 								className={`px-3 py-2 ${latest ? "border-t border-border" : ""}`}

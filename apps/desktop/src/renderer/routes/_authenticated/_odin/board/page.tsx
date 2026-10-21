@@ -125,6 +125,7 @@ import {
 	readCustomTags,
 } from "shared/odin-tags";
 import { remoteCardsToReconnect } from "shared/remote-reconnect";
+import { setPhoneReply } from "./phone-resume";
 
 /** Tags the card shows as their own pill instead of in the #tag line. */
 const PILL_TAGS = ["automation", "auto-started", "off-hours"];
@@ -4973,6 +4974,24 @@ function DevBoardPage() {
 
 	const resumeCardRef = useRef(resumeCard);
 	resumeCardRef.current = resumeCard;
+	const agentPaneIdsRef = useRef(agentPaneIds);
+	agentPaneIdsRef.current = agentPaneIds;
+	const cardsRef = useRef(cardsByStatus);
+	cardsRef.current = cardsByStatus;
+	// A reply from the phone to a session Claude has exited resumes it, as
+	// this board's chat box does - on the remote host too.
+	useEffect(() => {
+		setPhoneReply((paneId, text) => {
+			if (agentPaneIdsRef.current.has(paneId)) return "live";
+			const card = [...cardsRef.current.values()]
+				.flat()
+				.find((each) => each.pane.id === paneId);
+			if (!card) return "live";
+			void resumeCardRef.current(card, false, text);
+			return "resumed";
+		});
+		return () => setPhoneReply(null);
+	}, []);
 	// Covers the transcript check before resumeCard marks the card resuming.
 	const autoResumingRef = useRef(false);
 	// Re-runs the pick when a resume ends without touching any other dep

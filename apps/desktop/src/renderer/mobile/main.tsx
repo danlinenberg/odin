@@ -700,14 +700,14 @@ function Session({ paneId }: { paneId: string }) {
 	// the ↓ button brings you back.
 	const [atBottom, setAtBottom] = useState(true);
 	const following = useRef(true);
-	// The phone gets the last 60 messages, so their count stops changing:
-	// the newest one, and what you sent, say something landed.
-	const newest = session.data?.messages.at(-1);
-	const landed = `${newest?.at}:${newest?.text.length}:${sent.length}`;
-	// biome-ignore lint/correctness/useExhaustiveDependencies: scroll when a message lands
-	useEffect(() => {
-		if (following.current) bottom.current?.scrollIntoView();
-	}, [landed]);
+	// Pinned to the bottom unless you scrolled up: after every refresh, and
+	// when an image finishes loading and pushes the rest down.
+	const stick = () => {
+		const el = scroller.current;
+		if (following.current && el) el.scrollTop = el.scrollHeight;
+	};
+	// Every render: no deps on purpose.
+	useEffect(stick);
 	const data = session.data;
 	const status = (data?.status ?? "idle") as PaneStatus;
 	// Needs you is often a question asked in prose. The screen box and its keys
@@ -787,6 +787,7 @@ function Session({ paneId }: { paneId: string }) {
 			</header>
 			<main
 				ref={scroller}
+				onLoadCapture={stick}
 				className="relative flex-1 overflow-y-auto px-2.5 py-2"
 				onScroll={(event) => {
 					const el = event.currentTarget;
