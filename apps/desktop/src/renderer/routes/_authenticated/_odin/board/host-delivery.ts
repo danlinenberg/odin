@@ -103,6 +103,8 @@ export async function deliverOnHost(
 	message: HostMessage,
 	deps: HostDeps,
 ): Promise<void> {
+	// Behind an earlier reply still on its way: it waits too.
+	if (lines.has(paneId)) message.waiting(true);
 	const first = await inLine(paneId, () => typeWhenReady(message, deps, false));
 	if (first === "took") return;
 	message.lost();

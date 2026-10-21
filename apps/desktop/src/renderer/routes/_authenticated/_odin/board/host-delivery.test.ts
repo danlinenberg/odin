@@ -93,6 +93,8 @@ describe("deliverOnHost", () => {
 		expect(typing).toEqual(["type A", "typed A", "type B", "typed B"]);
 		expect(a.typedAt.length).toBe(1);
 		expect(b.typedAt.length).toBe(1);
+		// B's bubble says it waits from the start, not only once A is in.
+		expect(log.indexOf("B waiting")).toBeLessThan(log.indexOf("typed A"));
 	});
 
 	test("a message typed into a connection that then drops goes in again once the host is back", async () => {
