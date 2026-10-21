@@ -15,6 +15,7 @@
  */
 import { spawn } from "node:child_process";
 import {
+	appendFileSync,
 	existsSync,
 	mkdirSync,
 	mkdtempSync,
@@ -1081,6 +1082,67 @@ await step(
 		await page(
 			`document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`,
 		);
+		await page(
+			`(document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`,
+		);
+	},
+);
+
+await step(
+	"a subagent the session launches shows in the drawer's Agents view",
+	async () => {
+		// The fake claude leaves an empty transcript for its --session-id; an
+		// Agent tool call appended to it is what a real session writes when it
+		// hands work to a subagent.
+		const run = fakeClaudeRuns().find((r) =>
+			r.args.includes("Drawer list third"),
+		);
+		const sessionId = run?.args.match(/--session-id\n(\S+)/)?.[1];
+		if (!sessionId)
+			throw new Error("the third session ran without --session-id");
+		const transcript = join(
+			home,
+			".claude",
+			"projects",
+			"smoke",
+			`${sessionId}.jsonl`,
+		);
+		if (!existsSync(transcript))
+			throw new Error(`no transcript at ${transcript}`);
+		appendFileSync(
+			transcript,
+			`${JSON.stringify({
+				type: "assistant",
+				timestamp: new Date().toISOString(),
+				message: {
+					content: [
+						{
+							type: "tool_use",
+							id: "toolu_smoke_agent",
+							name: "Agent",
+							input: {
+								description: "Smoke subagent",
+								subagent_type: "Explore",
+								prompt: "Count the files in this checkout.",
+							},
+						},
+					],
+				},
+			})}\n`,
+		);
+		// Open the session: the drawer's title row gets ⋔ Agents beside ⑂ Diff.
+		await page(`(() => {
+			if (document.querySelector('button[title="Click to rename this session"]')?.textContent.includes("Drawer list third")) return;
+			[...document.querySelectorAll('[role="button"][draggable="true"]')]
+				.find((c) => c.textContent.includes("Drawer list third"))
+				?.click();
+		})()`);
+		await waitForText("⋔ agents", true, 30_000);
+		await click("button", "⋔ Agents");
+		await waitForText("smoke subagent");
+		// A row opens to what the agent was asked.
+		await click("button", "●Smoke subagent");
+		await waitForText("count the files in this checkout.");
 		await page(
 			`(document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`,
 		);

@@ -6,10 +6,15 @@ import { type Subagent, subagentCounts } from "shared/subagents";
 import { elapsedLabel as agoLabel } from "./brief";
 import { elapsedLabel } from "./ChatView";
 
-/** How often to ask again while the session is alive: the panel, the drawer's button, a card's pill. */
+/**
+ * How often to ask again while the session is alive - the panel, the drawer's
+ * button, a card's pill - and once it isn't (a remote session's mirror can
+ * still land lines after the pane went quiet).
+ */
 const PANEL_MS = 2_000;
 const BUTTON_MS = 5_000;
 const PILL_MS = 15_000;
+const SETTLED_MS = 30_000;
 
 /**
  * The session's subagents, from the main process's fold of its transcript.
@@ -61,7 +66,7 @@ export function SubagentsButton({
 	open: boolean;
 	onClick: () => void;
 }) {
-	const { data } = useSubagents(sessionId, alive ? BUTTON_MS : false);
+	const { data } = useSubagents(sessionId, alive ? BUTTON_MS : SETTLED_MS);
 	const agents = data ?? [];
 	if (agents.length === 0 && !open) return null;
 	const running = alive ? subagentCounts(agents).running : 0;
@@ -138,7 +143,7 @@ export function AgentsView({
 }) {
 	const { data, error, isFetching, refetch } = useSubagents(
 		sessionId,
-		alive ? PANEL_MS : false,
+		alive ? PANEL_MS : SETTLED_MS,
 	);
 	const agents = data ?? [];
 	const counts = subagentCounts(agents);
