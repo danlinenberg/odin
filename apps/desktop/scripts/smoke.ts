@@ -848,15 +848,15 @@ await step(
 		await fill('textarea[placeholder^="What should the agent do?"]', SESSION);
 		await click("button", "Start session");
 		await waitForText(SESSION, true, 30_000);
-		// A busy machine (a CI runner right after the build) queues the launch;
-		// the card's Start now is how a person gets past the gate.
-		await sleep(2000);
-		await page(
-			`document.querySelector('button[title="Start this session now, gate or no gate"]')?.click()`,
-		);
 		// The crow keeps its own claude warm, so pick out the run that
-		// carries this session's prompt.
+		// carries this session's prompt. The card is up before the launch gate
+		// runs; a busy machine (a CI runner right after the build) then queues
+		// the launch, and the card's Start now is how a person gets past the
+		// gate - click it whenever it shows.
 		for (const end = Date.now() + 60_000; !sessionPid; await sleep(500)) {
+			await page(
+				`document.querySelector('button[title="Start this session now, gate or no gate"]')?.click()`,
+			);
 			if (Date.now() > end) {
 				const runs = fakeClaudeRuns().map((r) => r.args.replace(/\n/g, " "));
 				throw new Error(`no claude got the prompt; runs: ${runs.join(" | ")}`);

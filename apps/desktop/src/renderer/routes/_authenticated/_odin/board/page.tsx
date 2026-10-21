@@ -90,6 +90,7 @@ import { sessionDocKey, useDoneStore } from "renderer/stores/done";
 import { useIdleClose } from "renderer/stores/idle-close";
 import { useIdleCompact } from "renderer/stores/idle-compact";
 import { useSessionView } from "renderer/stores/session-view";
+import { useStartingPanes } from "renderer/stores/starting-panes";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import type { Pane, PaneStatus } from "renderer/stores/tabs/types";
 import { lastAgentHookAt } from "renderer/stores/tabs/useAgentHookListener";
@@ -2093,6 +2094,8 @@ interface BoardCardTileProps {
 	isAgent: boolean;
 	hostState: HostState;
 	resuming: boolean;
+	/** Its launch is still doing the slow part - the spinner says starting, not resuming. */
+	starting: boolean;
 	shellPane: Pane | undefined;
 	shellAlive: boolean;
 	hasDaemon: boolean;
@@ -2122,6 +2125,7 @@ const BoardCardTile = memo(
 		isAgent,
 		hostState,
 		resuming,
+		starting,
 		shellPane,
 		shellAlive,
 		hasDaemon,
@@ -2354,7 +2358,7 @@ const BoardCardTile = memo(
 						{card.status === "idle" && !isAgent && resuming && (
 							<div className="mt-1.5 flex items-center gap-1.5 text-[11.5px] text-working">
 								<span className="size-[9px] animate-spin rounded-full border border-working border-t-transparent" />
-								{card.pane.odinQueued ? "starting…" : "resuming…"}
+								{card.pane.odinQueued || starting ? "starting…" : "resuming…"}
 							</div>
 						)}
 						{/* Never started - it's waiting on the machine, not
@@ -2592,6 +2596,11 @@ function DevBoardPage() {
 	// kill, respawn) and the card can't flip out of Idle until the 5s daemon
 	// poll sees the new PTY - without this the click looks like it did nothing.
 	const [resumingPaneIds, setResumingPaneIds] = useState<string[]>([]);
+	// Cards whose launch is still doing the slow part (worktree, prompt file,
+	// PTY): no PTY yet and an idle status, which is what an ended session looks
+	// like. Treated like a Resume in flight everywhere a card could offer
+	// Resume, be auto-resumed, or read as disconnected.
+	const startingPaneIds = useStartingPanes((s) => s.ids);
 
 	const startDrawerResize = (event: React.PointerEvent<HTMLDivElement>) => {
 		event.preventDefault();
@@ -2833,7 +2842,11 @@ function DevBoardPage() {
 	// flashed on every Restart. Red only once the daemon says the pane is gone.
 	const hostStateOf = (paneId: string): HostState =>
 		connectStates[paneId] ??
-		(alivePaneIds.has(paneId) || !daemonSessions ? "connecting" : "off");
+		(alivePaneIds.has(paneId) ||
+		!daemonSessions ||
+		startingPaneIds.includes(paneId)
+			? "connecting"
+			: "off");
 	// Sessions under `/loop`, read from the same transcript query the loop pill
 	// uses, so it's one fetch per session. Between ticks they belong in Idle -
 	// every turn ends clean, but they aren't done.
@@ -4550,7 +4563,11 @@ function DevBoardPage() {
 		prompt?: string,
 		restart = false,
 	) => {
-		if (resumingPaneIds.includes(card.pane.id)) return;
+		if (
+			resumingPaneIds.includes(card.pane.id) ||
+			startingPaneIds.includes(card.pane.id)
+		)
+			return;
 		// A bulk Resume leaves a queued card in line: starting it now is the
 		// "Start now" that skips the gate.
 		if (auto && card.pane.odinQueued) return;
@@ -4960,6 +4977,7 @@ function DevBoardPage() {
 					!card.pane.odinQueued &&
 					!card.pane.odinClosedIn &&
 					!alivePaneIds.has(card.pane.id) &&
+					!startingPaneIds.includes(card.pane.id) &&
 					!autoResumedRef.current.has(card.pane.id)
 					? [{ card, paneId: card.pane.id, host, sessionId }]
 					: [];
@@ -5007,6 +5025,7 @@ function DevBoardPage() {
 		if (
 			!daemonSessions ||
 			resumingPaneIds.length > 0 ||
+			startingPaneIds.length > 0 ||
 			autoResumingRef.current
 		)
 			return;
@@ -5041,6 +5060,7 @@ function DevBoardPage() {
 		cardsByStatus,
 		deadLoopPaneIds,
 		resumingPaneIds,
+		startingPaneIds,
 		autoResumeTick,
 	]);
 
@@ -5080,12 +5100,17 @@ function DevBoardPage() {
 			images,
 			repoPath,
 			onHost,
+			// The card is up: close the dialog now, not when the worktree,
+			// prompt file and PTY are done seconds later.
+			onCreated: ({ paneId }) => {
+				setIsComposerOpen(false);
+				if (repoPath) useClaudeCommand.getState().addRecentRepo(repoPath);
+				// Started from the drawer's session list: land in the new session.
+				if (drawerCard) usePendingFocus.getState().focus(paneId);
+			},
 		});
 		setIsComposerOpen(false);
 		if (result.ok) {
-			if (repoPath) useClaudeCommand.getState().addRecentRepo(repoPath);
-			// Started from the drawer's session list: land in the new session.
-			if (drawerCard) usePendingFocus.getState().focus(result.paneId);
 			usePaneMeta.getState().setBrief(result.paneId, prompt || title);
 			usePaneMeta.getState().setTitle(result.paneId, title);
 			usePaneMeta.getState().setSessionId(result.paneId, result.sessionId);
@@ -5137,6 +5162,8 @@ function DevBoardPage() {
 			source: card.pane.odinSource,
 			tags: card.pane.odinTags,
 			brief: prompt,
+			// The new card is up: the dialog has nothing more to wait for.
+			onCreated: () => setLostCard(null),
 		});
 		setLostCard(null);
 		if (!result.ok) {
@@ -6061,7 +6088,11 @@ function DevBoardPage() {
 														launchEmoji={launchEmoji}
 														isAgent={agentPaneIds.has(card.pane.id)}
 														hostState={hostStateOf(card.pane.id)}
-														resuming={resumingPaneIds.includes(card.pane.id)}
+														resuming={
+															resumingPaneIds.includes(card.pane.id) ||
+															startingPaneIds.includes(card.pane.id)
+														}
+														starting={startingPaneIds.includes(card.pane.id)}
 														shellPane={shellPaneOf(card)}
 														shellAlive={alivePaneIds.has(
 															shellPaneOf(card)?.id ?? "",
@@ -6737,6 +6768,10 @@ function DevBoardPage() {
 												workspaceId={drawerCard.workspaceId}
 											/>
 										</div>
+									) : startingPaneIds.includes(drawerCard.pane.id) ? (
+										// Its launch is still doing the slow part: no history
+										// and no PTY yet, nothing to resume.
+										<StartingView label="Starting session…" />
 									) : resumingPaneIds.includes(drawerCard.pane.id) &&
 										!panes[drawerCard.pane.id]?.odinQueued &&
 										chatView ? (
@@ -6789,6 +6824,7 @@ function DevBoardPage() {
 										starting={
 											!!panes[drawerCard.pane.id]?.odinQueued ||
 											resumingPaneIds.includes(drawerCard.pane.id) ||
+											startingPaneIds.includes(drawerCard.pane.id) ||
 											drawerCard.pane.status === "working"
 										}
 									/>
@@ -6802,6 +6838,7 @@ function DevBoardPage() {
 									disabled={
 										resumingPaneIds.includes(drawerCard.pane.id) ||
 										!!panes[drawerCard.pane.id]?.odinQueued?.remote ||
+										startingPaneIds.includes(drawerCard.pane.id) ||
 										isWorkingNow(drawerCard.pane.id) ||
 										isSettledAgent(drawerCard.pane.id)
 									}
@@ -6841,16 +6878,18 @@ function DevBoardPage() {
 										? resumingPaneIds.includes(drawerCard.pane.id)
 											? "▶ Starting…"
 											: "▶ Start now"
-										: resumingPaneIds.includes(drawerCard.pane.id)
-											? "↻ Resuming…"
-											: isWorkingNow(drawerCard.pane.id)
-												? "↻ Working…"
-												: // Resume already landed and Claude is up - the button
-													// writes "Continue" into the open prompt. A live PTY with
-													// no Claude in it (Ctrl+C'd out) still says Resume.
-													agentPaneIds.has(drawerCard.pane.id)
-													? "↻ Continue"
-													: "↻ Resume"}
+										: startingPaneIds.includes(drawerCard.pane.id)
+											? "▶ Starting…"
+											: resumingPaneIds.includes(drawerCard.pane.id)
+												? "↻ Resuming…"
+												: isWorkingNow(drawerCard.pane.id)
+													? "↻ Working…"
+													: // Resume already landed and Claude is up - the button
+														// writes "Continue" into the open prompt. A live PTY with
+														// no Claude in it (Ctrl+C'd out) still says Resume.
+														agentPaneIds.has(drawerCard.pane.id)
+														? "↻ Continue"
+														: "↻ Resume"}
 								</button>
 							)}
 							{/* The drawer keeps Esc for itself, so a turn needs its own stop:

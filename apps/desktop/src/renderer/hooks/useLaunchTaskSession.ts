@@ -14,6 +14,7 @@ import {
 	useOdinRules,
 } from "renderer/stores/odin-rules";
 import { useSessionInstructions } from "renderer/stores/session-instructions";
+import { useStartingPanes } from "renderer/stores/starting-panes";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import { SHELL_RULE } from "shared/constants";
 import { isVideoFile } from "shared/file-types";
@@ -255,6 +256,7 @@ export function useLaunchTaskSession() {
 		guidelines,
 		planOnly,
 		onHost,
+		onCreated,
 	}: {
 		workspaceId: string;
 		/** Caller's row id - echoed back as `launchingKey` while this runs. */
@@ -307,6 +309,16 @@ export function useLaunchTaskSession() {
 		 * already runs, or picked in the dialog). false: on this computer.
 		 */
 		onHost?: boolean;
+		/**
+		 * Called the moment the session's card is on the board, before the slow
+		 * part (worktree, prompt file, PTY). A dialog closes here rather than
+		 * when the launch resolves, which is seconds later.
+		 */
+		onCreated?: (created: {
+			tabId: string;
+			paneId: string;
+			sessionId: string;
+		}) => void;
 	}): Promise<
 		| {
 				ok: true;
@@ -330,6 +342,9 @@ export function useLaunchTaskSession() {
 			setIsLaunching(true);
 			setLaunchingKey(key ?? null);
 		}
+		// The tab and pane, once they exist: the card goes up before the slow
+		// part, so a launch that fails after that has something to take down.
+		let created: { tabId: string; paneId: string } | null = null;
 		try {
 			const workspace = await utils.client.workspaces.get.query({
 				id: workspaceId,
@@ -368,6 +383,80 @@ export function useLaunchTaskSession() {
 						: await utils.client.remoteHost?.launchTarget
 								.query({ repoPath: repoPath ?? null, source: source ?? null })
 								.catch(() => null);
+			// A pinned --session-id is not proof Claude ever wrote the
+			// conversation: a card Done'd or snoozed before Claude took its prompt
+			// has none, and `claude --resume` then prints "No conversation found"
+			// and exits - a fresh pane whose whole history is that line. The board's
+			// Resume asks first; Remind me's Resume and Done's undo come through
+			// here, so ask here too - before there is a card to take down.
+			if (resumeSessionId && !remote) {
+				try {
+					await utils.client.terminal.readClaudeTranscript.query({
+						sessionId: resumeSessionId,
+					});
+				} catch (error) {
+					// Only "no such conversation" is lost - an unreadable transcript
+					// still resumes.
+					if (String(error).includes("No transcript on this machine"))
+						return {
+							ok: false,
+							error:
+								"Claude never saved this conversation, so there is nothing to resume. Start the task again.",
+						};
+				}
+			}
+
+			// --session-id pins Claude's conversation id up front, so Resume can
+			// reattach to THIS exact conversation (`claude --resume <id>`).
+			// `--continue` can't: it resumes whatever ran last in the directory,
+			// and every Odin session shares one workspace cwd.
+			const sessionId = resumeSessionId ?? crypto.randomUUID();
+
+			// 1. The tab, pane and card - first, before anything slow. What
+			// follows (a git fetch and checkout for the worktree, the prompt
+			// file, the launch gate, the PTY spawn) adds up to seconds, and with
+			// the card waiting on all of it a Start click looked dead. The pane
+			// has no PTY yet and stays idle; `useStartingPanes` is what tells the
+			// board it is starting rather than ended. A plan starts nothing.
+			const { addTab, setTabAutoTitle, setPaneAutoTitle, setPaneStatus } =
+				useTabsStore.getState();
+			// Read the profile now rather than from a cached query: a switch a
+			// moment ago must not stamp this session onto the profile you left.
+			const odinProfile = planOnly
+				? undefined
+				: (await utils.client.connections.profiles.query()).activeId;
+			if (!planOnly) {
+				// The worktree's path comes later; the repo picked at launch
+				// stands in until then.
+				created = addTab(workspaceId, {
+					initialCwd: repoPath || worktreePath,
+				});
+				const { tabId, paneId } = created;
+				setTabAutoTitle(tabId, title);
+				setPaneAutoTitle(paneId, title);
+				// What the card shows while the session starts. Stamped again
+				// below with what the work ledger remembers of a resume.
+				useTabsStore.setState((state) => ({
+					panes: {
+						...state.panes,
+						[paneId]: {
+							...state.panes[paneId],
+							claudeSessionId: sessionId,
+							odinTaskTitle: title,
+							odinProfile,
+							...(contact ? { odinContact: contact } : {}),
+							...(brief ? { odinBrief: brief } : {}),
+							...(pageId ? { odinPageId: pageId } : {}),
+							...(source ? { odinSource: source } : {}),
+							...(tags?.length ? { odinTags: tags } : {}),
+							...(remote ? { odinRemote: remote } : {}),
+						},
+					},
+				}));
+				useStartingPanes.getState().add(paneId);
+				onCreated?.({ tabId, paneId, sessionId });
+			}
+
 			// A resume passes its old cwd back as repoPath, so it never gets a second one.
 			const ownWorktree =
 				!remote && repoPath && repoPath !== worktreePath && !resumeSessionId
@@ -394,29 +483,6 @@ export function useLaunchTaskSession() {
 				workConfig?.odinRepoPath,
 			);
 
-			// A pinned --session-id is not proof Claude ever wrote the
-			// conversation: a card Done'd or snoozed before Claude took its prompt
-			// has none, and `claude --resume` then prints "No conversation found"
-			// and exits - a fresh pane whose whole history is that line. The board's
-			// Resume asks first; Remind me's Resume and Done's undo come through
-			// here, so ask here too.
-			if (resumeSessionId && !remote) {
-				try {
-					await utils.client.terminal.readClaudeTranscript.query({
-						sessionId: resumeSessionId,
-					});
-				} catch (error) {
-					// Only "no such conversation" is lost - an unreadable transcript
-					// still resumes.
-					if (String(error).includes("No transcript on this machine"))
-						return {
-							ok: false,
-							error:
-								"Claude never saved this conversation, so there is nothing to resume. Start the task again.",
-						};
-				}
-			}
-
 			// 0. Two gates - the Mac's headroom, and one agent at a time per
 			// checkout. Read once, and never blocking: a launch that has to
 			// wait still gets its card, and the queue runner starts the agent when
@@ -439,6 +505,8 @@ export function useLaunchTaskSession() {
 								utils.client,
 								checkout,
 								workConfig?.odinRepoPath,
+								// Its own card is already on the board.
+								created?.paneId,
 							)) ?? macPaceBlocker());
 				} catch {
 					queuedReason = null;
@@ -520,31 +588,24 @@ export function useLaunchTaskSession() {
 				}
 			}
 
-			// 2. Tab + pane for the session
+			// 2. The pane from step 1. A plan returned above; a launch with
+			// nothing to plan has nothing to start either.
+			if (!created)
+				return {
+					ok: false,
+					error: "Nothing to plan: this launch has no prompt",
+				};
+			const { tabId, paneId } = created;
 			const odinTags = tags;
-			// Read the profile now rather than from a cached query: a switch a
-			// moment ago must not stamp this session onto the profile you left.
-			const odinProfile = (await utils.client.connections.profiles.query())
-				.activeId;
-			const { addTab, setTabAutoTitle, setPaneAutoTitle, setPaneStatus } =
-				useTabsStore.getState();
-			const { tabId, paneId } = addTab(workspaceId, {
-				initialCwd: sessionCwd,
-			});
 
 			// 3. Spawn the session as the pane process - auto mode, prompt inlined.
 			// The cd is part of the command: the daemon's cwd param has proven
 			// unreliable across PTY backends, and a wrong cwd sends the agent
 			// to the wrong repo.
 			//
-			// --session-id pins Claude's conversation id up front, so Resume can
-			// reattach to THIS exact conversation (`claude --resume <id>`).
-			// `--continue` can't: it resumes whatever ran last in the directory,
-			// and every Odin session shares one workspace cwd.
 			// Resuming reuses the old conversation's id and sends no prompt: it
 			// reopens the conversation at an idle prompt, it doesn't set the agent
 			// working again. What to do next is yours to type.
-			const sessionId = resumeSessionId ?? crypto.randomUUID();
 			// Hooks live in the launch flags, not the conversation, so a resume
 			// has to be handed them again - with today's rules, not the old ones.
 			let settingsArg = "";
@@ -645,6 +706,9 @@ export function useLaunchTaskSession() {
 					...state.panes,
 					[paneId]: {
 						...state.panes[paneId],
+						// The worktree, now that it exists - the card went up with
+						// the repo it was cut from.
+						initialCwd: sessionCwd,
 						claudeSessionId: sessionId,
 						odinTaskTitle: card.title,
 						odinProfile,
@@ -700,11 +764,15 @@ export function useLaunchTaskSession() {
 				queued: !!queuedReason,
 			};
 		} catch (error) {
+			// The card went up before the slow part. A launch that died there
+			// must not leave a card offering Resume on a session that never ran.
+			if (created) useTabsStore.getState().removeTab(created.tabId);
 			return {
 				ok: false,
 				error: error instanceof Error ? error.message : String(error),
 			};
 		} finally {
+			if (created) useStartingPanes.getState().remove(created.paneId);
 			if (!planOnly) {
 				setIsLaunching(false);
 				setLaunchingKey(null);
