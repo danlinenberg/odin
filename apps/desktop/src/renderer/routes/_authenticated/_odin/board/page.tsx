@@ -2415,8 +2415,16 @@ function DevBoardPage() {
 	const [pickedIds, setPickedIds] = useState<Set<string>>(() => new Set());
 	const [pickAnchor, setPickAnchor] = useState<string | null>(null);
 	const pickedCountRef = useRef(0);
+	// Select mode: the list's Select button puts a tick box on every row and
+	// a row click ticks it. Off, the rows show their status dots only.
+	const [selecting, setSelecting] = useState(false);
+	const selectingRef = useRef(false);
+	selectingRef.current = selecting;
 	useEffect(() => {
-		if (!drawerCard) setPickedIds(new Set());
+		if (!drawerCard) {
+			setPickedIds(new Set());
+			setSelecting(false);
+		}
 	}, [drawerCard]);
 	// Catch up (Slack mobile's): Needs you one card at a time in the drawer.
 	// The pane ids are a snapshot taken on start, so ✓ done doesn't reshuffle
@@ -2545,8 +2553,11 @@ function DevBoardPage() {
 				return;
 			event.preventDefault();
 			event.stopImmediatePropagation();
-			// Rows ticked in the session list: Esc clears the ticks, not the drawer.
-			if (pickedCountRef.current) setPickedIds(new Set());
+			// Selecting in the session list: Esc leaves select mode, not the drawer.
+			if (pickedCountRef.current || selectingRef.current) {
+				setPickedIds(new Set());
+				setSelecting(false);
+			}
 			// Mid-rename, Esc abandons the rename - not the drawer.
 			else if (renameDraft !== null) setRenameDraft(null);
 			else setDrawerCard(null);
@@ -3977,7 +3988,12 @@ function DevBoardPage() {
 		);
 		setPickAnchor(paneId);
 	};
-	const clearPicked = () => setPickedIds(new Set());
+	const clearPicked = () => {
+		setPickedIds(new Set());
+		setSelecting(false);
+	};
+	// ⌘-click ticks a row outside select mode too, so a tick shows the boxes.
+	const showTicks = selecting || pickedRowIds.length > 0;
 	// Minimized to a rail of status dots; remembered per machine.
 	const [isSwitchListMin, setIsSwitchListMin] = useState(() => {
 		try {
@@ -4977,9 +4993,10 @@ function DevBoardPage() {
 				role="button"
 				tabIndex={0}
 				onClick={(event) => {
-					// ⌘-click (Ctrl on Windows) ticks the row instead of opening it;
-					// shift-click extends a selection already begun.
+					// In select mode, or on ⌘-click (Ctrl on Windows), a click ticks
+					// the row instead of opening it; shift-click extends a selection.
 					if (
+						showTicks ||
 						event.metaKey ||
 						event.ctrlKey ||
 						(event.shiftKey && pickedRowIds.length > 0)
@@ -5003,7 +5020,7 @@ function DevBoardPage() {
 					});
 				}}
 				className={cn(
-					"group/switch flex cursor-pointer items-center gap-2 py-1.5 text-left text-xs transition-[translate,opacity] duration-[450ms]",
+					"flex cursor-pointer items-center gap-2 py-1.5 text-left text-xs transition-[translate,opacity] duration-[450ms]",
 					isSwitchListMin ? "justify-center" : "px-3",
 					card.pane.id === leavingPaneId
 						? "pointer-events-none -translate-x-6 bg-success/20 text-success-ink opacity-0"
@@ -5022,34 +5039,29 @@ function DevBoardPage() {
 						}}
 					/>
 				) : (
-					// The status dot's slot doubles as the tick box: it shows under
-					// the pointer and stays once ticked, so the list reads as dots
-					// until you reach for one.
+					// The status dot's slot doubles as the tick box in select mode.
 					<span className="relative flex size-3.5 shrink-0 items-center justify-center">
-						<span
-							className={cn(
-								"size-2 rounded-full",
-								picked ? "hidden" : "group-hover/switch:hidden",
-							)}
-							style={{
-								background: PANE_STATUS[card.status].dot,
-							}}
-						/>
-						<input
-							type="checkbox"
-							aria-label={`Select ${cardTitle(card)}`}
-							title="Select - shift-click selects a range, ⌘-click a row does too"
-							checked={picked}
-							onChange={() => {}}
-							onClick={(event) => {
-								event.stopPropagation();
-								tickRow(card.pane.id, event.shiftKey);
-							}}
-							className={cn(
-								"absolute inset-0 size-3.5 cursor-pointer accent-primary",
-								picked ? "block" : "hidden group-hover/switch:block",
-							)}
-						/>
+						{showTicks ? (
+							<input
+								type="checkbox"
+								aria-label={`Select ${cardTitle(card)}`}
+								title="Select - shift-click selects a range"
+								checked={picked}
+								onChange={() => {}}
+								onClick={(event) => {
+									event.stopPropagation();
+									tickRow(card.pane.id, event.shiftKey);
+								}}
+								className="size-3.5 cursor-pointer accent-primary"
+							/>
+						) : (
+							<span
+								className="size-2 rounded-full"
+								style={{
+									background: PANE_STATUS[card.status].dot,
+								}}
+							/>
+						)}
 					</span>
 				)}
 				{!isSwitchListMin && (
@@ -6190,6 +6202,22 @@ function DevBoardPage() {
 														)}
 													>
 														Group
+													</button>
+													<button
+														type="button"
+														onClick={() =>
+															showTicks ? clearPicked() : setSelecting(true)
+														}
+														aria-pressed={showTicks}
+														title="Select several sessions to resume, finish or park together (Esc to stop)"
+														className={cn(
+															"shrink-0 rounded border px-1 py-0.5 hover:text-foreground",
+															showTicks
+																? "border-primary/50 bg-primary/15 text-foreground"
+																: "border-border bg-card",
+														)}
+													>
+														Select
 													</button>
 													<span
 														className="ml-auto min-w-0 truncate font-mono"
