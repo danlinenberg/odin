@@ -86,6 +86,7 @@ import {
 	ScreenMenuCard,
 } from "./ChatPrompts";
 import { collectRefs, linkify, withSchemes } from "./chat-links";
+import { replyBoxOwnsEsc } from "./drawer-esc";
 import {
 	deliverOnHost,
 	type HostDeps,
@@ -3868,6 +3869,11 @@ function Composer({
 					)}
 					<textarea
 						ref={inputRef}
+						// Tells the drawer's window-level Esc to stand aside.
+						data-owns-esc={
+							replyBoxOwnsEsc({ menuOpen: options.length > 0, bash, draft }) ||
+							undefined
+						}
 						value={draft}
 						rows={1}
 						onChange={(event) => {

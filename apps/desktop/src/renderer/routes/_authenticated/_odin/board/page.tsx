@@ -197,6 +197,7 @@ import {
 	catchUpSuggestion,
 } from "./catch-up";
 import { DiffView } from "./DiffView";
+import { escStaysWithTarget } from "./drawer-esc";
 import { hostStartDelay } from "./host-start-gap";
 import { onIdleArrival, restoreAfterCompact } from "./idle-compact";
 import { menuTop } from "./menu-fit";
@@ -2665,8 +2666,8 @@ function DevBoardPage() {
 			// A box opened over the pane cancels itself on Esc. Captured this
 			// early we'd swallow that keypress and close the drawer out from
 			// under it instead, so hand the key back and leave the drawer alone.
-			if ((event.target as HTMLElement | null)?.closest("[role=dialog]"))
-				return;
+			// The reply box's @ and / lists close on Esc the same way.
+			if (escStaysWithTarget(event.target)) return;
 			// Same rule for Claude's own menus: standing in a picker that says
 			// "Esc to go back", Esc belongs to the picker, not to the drawer.
 			// Read the mounted xterm rather than the scan's cached status - the

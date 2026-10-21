@@ -15,6 +15,7 @@ import {
 import { useTabsStore } from "renderer/stores/tabs/store";
 import type { Pane } from "renderer/stores/tabs/types";
 import { ChatView, interruptClaude } from "../board/ChatView";
+import { targetOwnsEsc } from "../board/drawer-esc";
 import { endSession } from "../hooks/useDone";
 import { CrowIcon } from "./CrowIcon";
 import { type PromptImage, readFile } from "./OdinPromptDialog";
@@ -119,6 +120,8 @@ function CrowPanel({
 		// so the session drawer under the panel stays open.
 		const onKey = (e: KeyboardEvent) => {
 			if (e.key !== "Escape") return;
+			// The reply box's @ or / list closes alone, the panel stays.
+			if (targetOwnsEsc(e.target)) return;
 			e.stopPropagation();
 			onClose();
 		};
