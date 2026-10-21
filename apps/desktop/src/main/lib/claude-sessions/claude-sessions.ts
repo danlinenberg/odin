@@ -581,6 +581,21 @@ export function parseTranscript(
 		} catch {
 			continue;
 		}
+		// A message sent while Claude works waits as an attachment, and is
+		// the user's turn all the same.
+		const queued = entry.attachment as
+			| { type?: string; prompt?: unknown }
+			| undefined;
+		if (entry.type === "attachment" && queued?.type === "queued_command") {
+			const text = messageText(queued.prompt).trim();
+			if (text && !entry.isSidechain)
+				messages.push({
+					role: "user",
+					text,
+					at: typeof entry.timestamp === "string" ? entry.timestamp : null,
+				});
+			continue;
+		}
 		if (entry.type !== "user" && entry.type !== "assistant") continue;
 		if (entry.isSidechain) continue;
 		const message = entry.message as { content?: unknown } | undefined;

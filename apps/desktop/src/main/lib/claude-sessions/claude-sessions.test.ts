@@ -1171,3 +1171,16 @@ test("transcriptTail reads only the log's end, from a whole line", async () => {
 	const messages = await transcriptTail({ sessionId: "tail-1", bytes, root });
 	expect(messages.map((m) => m.text)).toEqual(["second", "third"]);
 });
+
+test("parseTranscript keeps a message sent while Claude was working", () => {
+	const jsonl = [
+		JSON.stringify({
+			type: "attachment",
+			attachment: { type: "queued_command", prompt: "also scroll down" },
+			timestamp: "2026-10-21T10:00:00Z",
+		}),
+	].join("\n");
+	expect(parseTranscript(jsonl)).toEqual([
+		{ role: "user", text: "also scroll down", at: "2026-10-21T10:00:00Z" },
+	]);
+});
