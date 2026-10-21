@@ -29,6 +29,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import type { IconType } from "react-icons";
+import { BsCloud, BsCloudSlash } from "react-icons/bs";
 import {
 	LuBellPlus,
 	LuBellRing,
@@ -38,8 +39,6 @@ import {
 	LuChevronRight,
 	LuCircleCheck,
 	LuClock,
-	LuCloud,
-	LuCloudOff,
 	LuCopy,
 	LuEye,
 	LuEyeOff,
@@ -1590,18 +1589,18 @@ const HOST_MARK: Record<
 	{ Icon: IconType; ink: string; title: (host: string) => string }
 > = {
 	live: {
-		Icon: LuCloud,
+		Icon: BsCloud,
 		ink: "text-success",
 		title: (host) =>
 			`Connected to ${host}, in tmux - it keeps going with this computer shut`,
 	},
 	connecting: {
-		Icon: LuCloud,
+		Icon: BsCloud,
 		ink: "animate-pulse text-attention",
 		title: (host) => `Connecting to ${host}...`,
 	},
 	off: {
-		Icon: LuCloudOff,
+		Icon: BsCloudSlash,
 		ink: "text-danger",
 		title: (host) => `Not connected to ${host} - Resume connects again`,
 	},
