@@ -2939,6 +2939,7 @@ export function ChatView({
 								onDo={onShowTerminal || onResumeWith ? doItem : undefined}
 								hideActions={segment.id !== actionsId}
 								tldr={segment.id === lastTextId ? tldr : null}
+								readAloud={segment.id === lastTextId ? readAloud : null}
 								onRun={
 									// Only a live PTY runs a ! command; a resume or the raven's send can't.
 									onShowTerminal && !onSend ? runInClaude : undefined
