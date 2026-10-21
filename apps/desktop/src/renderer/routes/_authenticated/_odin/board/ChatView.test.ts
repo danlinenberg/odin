@@ -764,5 +764,13 @@ describe("bashCommandOf", () => {
 		);
 		expect(bashCommandOf("!ls -la", ran)).toBe("ls -la");
 		expect(bashCommandOf("why is this slow?", ran)).toBeNull();
+
+describe("commandItem fallback", () => {
+	test("gives the button to the item that says to run it, not one that says apply", () => {
+		const items = [
+			"Approve terraform PR #1540, then comment `terrateam apply`: https://github.com/imagenai/terraform/pull/1540 (you only)",
+			"Run the reset command above after #1540 applies (you only)",
+		];
+		expect(commandItem("systemctl show user.slice", items)).toBe(1);
 	});
 });

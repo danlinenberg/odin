@@ -1898,8 +1898,8 @@ function commandScore(command: string, item: string): number {
 /**
  * The item a reply's `!` command goes under, -1 for the card's foot: the item
  * it was written under (`under[i]` holds item i's own commands), else the item
- * that names it best, else the first item that says to run, execute, install
- * or apply something.
+ * that names it best, else the first item that opens with run, execute or
+ * install, else the first that says one of them.
  */
 export function commandItem(
 	command: string,
@@ -1918,9 +1918,14 @@ export function commandItem(
 		}
 	});
 	if (best >= 0) return best;
-	return items.findIndex((item) =>
-		/\b(run|execute|install|apply)\b/i.test(item),
+	// An item that tells you to run something ("Run the reset command...")
+	// before one that only mentions it: "comment `terrateam apply`" on an
+	// approve item took the button from the run item below it.
+	const opens = items.findIndex((item) =>
+		/^(optional:\s*)?(run|execute|install)\b/i.test(item.trim()),
 	);
+	if (opens >= 0) return opens;
+	return items.findIndex((item) => /\b(run|execute|install)\b/i.test(item));
 }
 
 function RunCommands({
