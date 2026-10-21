@@ -51,7 +51,12 @@ type SetupState = "running" | { claude: string | null } | { error: string };
  */
 export function RemoteHostSection() {
 	const utils = electronTrpc.useUtils();
-	const { data: current } = electronTrpc.remoteHost.get.useQuery();
+	const { data: current } = electronTrpc.remoteHost.get.useQuery(undefined, {
+		// A Claude setup sync runs in the main process and goes on when this
+		// page is left; while one runs, watch for it to land.
+		refetchInterval: (query) =>
+			query.state.data?.claudeSetupSync.parts ? 1000 : false,
+	});
 	const refresh = () => utils.remoteHost.get.invalidate();
 	// Turning the host on runs `claude setup-token` first when no token is saved.
 	const onError = (error: { message: string }) => toast.error(error.message);
@@ -103,33 +108,30 @@ export function RemoteHostSection() {
 		},
 	});
 	const onHost = new Set(wanted ?? current?.host?.connectors ?? []);
-	// Like the connectors: a switch flips at once and its part is copied to
-	// the host behind it; flips made meanwhile go out as one sync.
-	const [wantedSetup, setWantedSetup] = useState<SetupPartId[] | null>(null);
-	const wantedSetupRef = useRef<SetupPartId[] | null>(null);
-	wantedSetupRef.current = wantedSetup;
+	// Like the connectors, a switch flips at once and its part is copied to
+	// the host behind it. The main process owns that copy: it goes on when
+	// this page is left, flips made meanwhile go out as one sync when it
+	// lands, and `get` shows it all (the parts under way, the ones queued,
+	// why the last one failed) wherever this page is opened again.
 	const syncSetup = electronTrpc.remoteHost.syncClaudeSetup.useMutation({
-		onSettled: async (_data, error, sent) => {
-			await refresh();
-			const latest = wantedSetupRef.current;
-			if (error) setWantedSetup(null);
-			else if (latest && latest.join() !== sent.join())
-				syncSetup.mutate(latest);
-			else setWantedSetup(null);
-		},
+		onSettled: refresh,
+		onError,
 	});
-	const setupParts = new Set(
-		wantedSetup ?? (current?.host?.claudeSetup as SetupPartId[]) ?? [],
+	const setupSync = current?.claudeSetupSync;
+	const syncingSetup = !!setupSync?.parts;
+	const setupParts = new Set<SetupPartId>(
+		setupSync?.next ??
+			setupSync?.parts ??
+			(current?.host?.claudeSetup as SetupPartId[] | undefined) ??
+			[],
 	);
 	const toggleSetupPart = (id: SetupPartId, on: boolean) => {
 		const next = new Set(setupParts);
 		if (on) next.add(id);
 		else next.delete(id);
-		const list = SETUP_PARTS.map(([part]) => part).filter((part) =>
-			next.has(part),
+		syncSetup.mutate(
+			SETUP_PARTS.map(([part]) => part).filter((part) => next.has(part)),
 		);
-		setWantedSetup(list);
-		if (!syncSetup.isPending) syncSetup.mutate(list);
 	};
 	const toggleConnector = (name: HostConnectorId, on: boolean) => {
 		const next = new Set(onHost);
@@ -401,7 +403,7 @@ export function RemoteHostSection() {
 							same skills and plugins. Turning one off stops copying it; what is
 							on the host stays. Never your login or accounts, your
 							conversations or history. Sync again after you change them here.
-							{syncSetup.isPending && (
+							{syncingSetup && (
 								<span className="mt-1 block">Copying to the host...</span>
 							)}
 							{current.host.claudeSetupSyncedAt && (
@@ -416,9 +418,9 @@ export function RemoteHostSection() {
 									{current.host.claudeSetupDropped.join("; ")}.
 								</span>
 							)}
-							{syncSetup.error && (
+							{setupSync?.error && (
 								<span className="mt-1 block text-destructive">
-									{syncSetup.error.message}
+									{setupSync.error}
 								</span>
 							)}
 						</span>
@@ -442,7 +444,7 @@ export function RemoteHostSection() {
 						<Button
 							size="sm"
 							variant="outline"
-							disabled={!setupParts.size || syncSetup.isPending}
+							disabled={!setupParts.size || syncingSetup}
 							title="Copy them again, after you change them on this computer"
 							onClick={() =>
 								syncSetup.mutate(
@@ -452,7 +454,7 @@ export function RemoteHostSection() {
 								)
 							}
 						>
-							{syncSetup.isPending ? "Syncing..." : "Sync again"}
+							{syncingSetup ? "Syncing..." : "Sync again"}
 						</Button>
 					</div>
 				</SettingRow>

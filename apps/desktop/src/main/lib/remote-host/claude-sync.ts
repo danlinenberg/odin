@@ -22,6 +22,65 @@ export const CLAUDE_SETUP_PARTS = [
 export type ClaudeSetupPart = (typeof CLAUDE_SETUP_PARTS)[number];
 
 /**
+ * The sync under way, kept here rather than in the Settings page, so it goes
+ * on when the page is left and shows again when it is opened: the parts
+ * being copied, and the parts asked for meanwhile, which go out as one more
+ * sync when this one lands (the latest set asked for).
+ */
+let syncing: {
+	parts: readonly ClaudeSetupPart[];
+	next: readonly ClaudeSetupPart[] | null;
+	done: Promise<void>;
+} | null = null;
+/** Why the last sync failed; cleared when the next one starts. */
+let syncError: string | null = null;
+
+export function claudeSyncStatus(): {
+	parts: readonly ClaudeSetupPart[] | null;
+	next: readonly ClaudeSetupPart[] | null;
+	error: string | null;
+} {
+	return {
+		parts: syncing?.parts ?? null,
+		next: syncing?.next ?? null,
+		error: syncError,
+	};
+}
+
+/**
+ * Has `copy` run with `parts` now, or after the sync under way when there is
+ * one (a set asked for meanwhile replaces an earlier one). Settles once every
+ * sync asked for has landed; a failed one is kept in the status, never thrown.
+ */
+export function requestClaudeSync(
+	parts: readonly ClaudeSetupPart[],
+	copy: (parts: readonly ClaudeSetupPart[]) => Promise<void>,
+): Promise<void> {
+	if (syncing) {
+		syncing.next = parts;
+		return syncing.done;
+	}
+	const state = { parts, next: null, done: Promise.resolve() };
+	syncing = state;
+	state.done = (async () => {
+		let todo: readonly ClaudeSetupPart[] | null = parts;
+		while (todo) {
+			state.parts = todo;
+			state.next = null;
+			syncError = null;
+			try {
+				await copy(todo);
+			} catch (err) {
+				syncError = err instanceof Error ? err.message : String(err);
+			}
+			todo = state.next;
+		}
+		syncing = null;
+	})();
+	return state.done;
+}
+
+/**
  * After a sync, on the host: hooks (settings.json's and plugins') and the
  * status line whose command names a file the host doesn't have - a Mac app,
  * a repo that isn't cloned there - are dropped from the host's copy, so they

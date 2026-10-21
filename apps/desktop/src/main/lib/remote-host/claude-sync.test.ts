@@ -5,7 +5,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Readable } from "node:stream";
 import { Client, Server, utils } from "ssh2";
-import { claudeMdImports, partPaths, streamToHost } from "./claude-sync";
+import {
+	type ClaudeSetupPart,
+	claudeMdImports,
+	claudeSyncStatus,
+	partPaths,
+	requestClaudeSync,
+	streamToHost,
+} from "./claude-sync";
 
 /**
  * An SSH server in this process whose exec reads its stdin to the end and then
@@ -106,5 +113,62 @@ describe("Claude setup sync", () => {
 			["instructions", "skills", "commands", "plugins", "settings"] as const
 		).flatMap((part) => partPaths(part, root));
 		expect(every).not.toContain(".credentials.json");
+	});
+});
+
+describe("a sync runs in the main process, one at a time", () => {
+	const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+	test("the status shows the copy under way; parts asked for meanwhile go out as one copy after it, the latest set", async () => {
+		const runs: (readonly ClaudeSetupPart[])[] = [];
+		const finish: (() => void)[] = [];
+		const copy = (parts: readonly ClaudeSetupPart[]) => {
+			runs.push(parts);
+			return new Promise<void>((resolve) => finish.push(resolve));
+		};
+		const done = requestClaudeSync(["skills"], copy);
+		expect(claudeSyncStatus()).toEqual({
+			parts: ["skills"],
+			next: null,
+			error: null,
+		});
+		expect(requestClaudeSync(["skills", "plugins"], copy)).toBe(done);
+		requestClaudeSync(["plugins"], copy);
+		expect(claudeSyncStatus().next).toEqual(["plugins"]);
+		expect(runs).toEqual([["skills"]]);
+		finish[0]?.();
+		await settle();
+		expect(runs).toEqual([["skills"], ["plugins"]]);
+		expect(claudeSyncStatus()).toEqual({
+			parts: ["plugins"],
+			next: null,
+			error: null,
+		});
+		finish[1]?.();
+		await done;
+		expect(claudeSyncStatus()).toEqual({
+			parts: null,
+			next: null,
+			error: null,
+		});
+	});
+
+	test("a copy that fails is reported until the next one starts, never thrown", async () => {
+		await requestClaudeSync(["skills"], async () => {
+			throw new Error("host unreachable");
+		});
+		expect(claudeSyncStatus()).toEqual({
+			parts: null,
+			next: null,
+			error: "host unreachable",
+		});
+		const done = requestClaudeSync(["skills"], async () => {});
+		expect(claudeSyncStatus().error).toBeNull();
+		await done;
+		expect(claudeSyncStatus()).toEqual({
+			parts: null,
+			next: null,
+			error: null,
+		});
 	});
 });

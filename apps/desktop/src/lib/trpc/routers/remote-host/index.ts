@@ -26,6 +26,8 @@ import {
 } from "main/lib/remote-host/bring-home";
 import {
 	CLAUDE_SETUP_PARTS,
+	claudeSyncStatus,
+	requestClaudeSync,
 	syncClaudeSetup,
 } from "main/lib/remote-host/claude-sync";
 import { runClaudeLogin } from "main/lib/remote-host/claude-token";
@@ -328,6 +330,8 @@ export const createRemoteHostRouter = () =>
 			),
 			/** The connected GitHub accounts and which may go to the host. */
 			githubAccounts: hostGithubAccounts(readOdinConfig()),
+			/** The Claude setup copy under way, if any, and why the last one failed. */
+			claudeSetupSync: claudeSyncStatus(),
 		})),
 		/**
 		 * Whether a launch to the host should wait: `reason` from a remote
@@ -406,25 +410,31 @@ export const createRemoteHostRouter = () =>
 			}),
 		/**
 		 * Copies the chosen parts of ~/.claude (instructions, skills, commands,
-		 * plugins, settings) to the host, so sessions there work as here.
+		 * plugins, settings) to the host, so sessions there work as here. The
+		 * copy runs behind this call, here in the main process, so it goes on
+		 * when Settings is left; `get` reports it until it lands.
 		 */
 		syncClaudeSetup: publicProcedure
 			.input(z.array(z.enum(CLAUDE_SETUP_PARTS)))
-			.mutation(async ({ input }) => {
-				const host = readOdinConfig().remoteHost;
-				if (!host) throw new Error("No remote host is set up.");
-				const { bytes, dropped } = await withAwsSignIn(host, () =>
-					syncClaudeSetup(host, input),
-				);
-				updateOdinConfig({
-					remoteHost: {
-						...host,
-						claudeSetup: input,
-						claudeSetupSyncedAt: Date.now(),
-						claudeSetupDropped: dropped,
-					},
+			.mutation(({ input }) => {
+				if (!readOdinConfig().remoteHost)
+					throw new Error("No remote host is set up.");
+				void requestClaudeSync(input, async (parts) => {
+					const host = readOdinConfig().remoteHost;
+					if (!host) throw new Error("No remote host is set up.");
+					const { dropped } = await withAwsSignIn(host, () =>
+						syncClaudeSetup(host, parts),
+					);
+					// The host as it is now, so a switch flipped meanwhile stays flipped.
+					updateOdinConfig({
+						remoteHost: {
+							...(readOdinConfig().remoteHost ?? host),
+							claudeSetup: [...parts],
+							claudeSetupSyncedAt: Date.now(),
+							claudeSetupDropped: dropped,
+						},
+					});
 				});
-				return { bytes, dropped };
 			}),
 		/** Whether host sessions move to ANTHROPIC_API_KEY at the plan limit. */
 		setApiKeyFallback: publicProcedure
