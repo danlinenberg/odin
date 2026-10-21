@@ -1,11 +1,10 @@
 import { useState } from "react";
 import type { IconType } from "react-icons";
+import { BsCloud, BsCloudSlash } from "react-icons/bs";
 import {
 	LuCheck,
 	LuChevronDown,
 	LuChevronRight,
-	LuCloud,
-	LuCloudOff,
 	LuFileText,
 	LuFolderGit2,
 	LuGitPullRequest,
@@ -174,8 +173,8 @@ export function Chips({ details }: { details: Details }) {
 		// Where it runs; a remote one says whether it's connected to the host.
 		details.remote
 			? details.connected === false
-				? { icon: LuCloudOff, label: "Remote · offline", off: true }
-				: { icon: LuCloud, label: "Remote", on: details.connected === true }
+				? { icon: BsCloudSlash, label: "Remote · offline", off: true }
+				: { icon: BsCloud, label: "Remote", on: details.connected === true }
 			: { icon: LuLaptop, label: "Local" },
 		details.repo && { icon: LuFolderGit2, label: details.repo },
 		...(details.tags ?? []).map((tag) => ({ icon: LuTag, label: tag })),

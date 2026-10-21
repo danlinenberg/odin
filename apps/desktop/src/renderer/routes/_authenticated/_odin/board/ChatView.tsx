@@ -14,9 +14,9 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { BsCloud } from "react-icons/bs";
 import {
 	LuChevronRight,
-	LuCloud,
 	LuLoaderCircle,
 	LuMic,
 	LuSmartphone,
@@ -1459,7 +1459,7 @@ function UserBubble({
 			<MessageTime at={at} className="mt-1 text-right" />
 			{waitingFor && !lost && (
 				<div className="mt-1.5 flex items-center justify-end gap-1.5 text-[12px] text-muted-foreground">
-					<LuCloud className="size-3 shrink-0" />
+					<BsCloud className="size-3 shrink-0" />
 					Waiting for {waitingFor} - goes to Claude once it is back
 				</div>
 			)}
@@ -3504,7 +3504,7 @@ export function ChatView({
 										: "text-danger",
 								)}
 							>
-								<LuCloud className="size-3.5 shrink-0" />
+								<BsCloud className="size-3.5 shrink-0" />
 								<span className="select-text cursor-text">
 									{hostEvent.kind === "connected"
 										? "Connected to"
