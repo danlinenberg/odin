@@ -167,9 +167,9 @@ test("a timed reminder fires at its own time on its day, not at notifyAt", () =>
 	]);
 	// An early time beats a late notifyAt.
 	const early = { "note:c": { due: "2026-09-22", title: "c", at: "07:00" } };
-	expect(dueToFire(early, {}, new Date(2026, 8, 22, 7).getTime(), "09:00")).toEqual(
-		["note:c"],
-	);
+	expect(
+		dueToFire(early, {}, new Date(2026, 8, 22, 7).getTime(), "09:00"),
+	).toEqual(["note:c"]);
 	// Missed its day: it nags with the others at notifyAt.
 	const tomorrow = new Date(2026, 8, 23, 9).getTime();
 	expect(dueToFire(reminders, {}, tomorrow, "09:00")).toEqual([

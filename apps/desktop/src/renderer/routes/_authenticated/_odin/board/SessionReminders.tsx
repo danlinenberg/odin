@@ -14,7 +14,13 @@ import { useTabsStore } from "renderer/stores/tabs/store";
 import { allItems } from "../all/all-items";
 import { useStartAllItem } from "../all/use-start-item";
 import { BUTTON } from "../components/pill";
-import { dayOf, dueLabel, isDue, useReminders } from "../components/Reminders";
+import {
+	dayOf,
+	dueLabel,
+	isDue,
+	isNote,
+	useReminders,
+} from "../components/Reminders";
 import { useReplyWatch, watchEvent } from "../components/ReplyWatch";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useOdinWorkspace } from "../hooks/useOdinWorkspace";
@@ -169,12 +175,13 @@ export function RemindButton({
  * Automations → Reminders until their day.
  */
 export function showsBar(
-	reminders: Record<string, { due: string }>,
+	reminders: Record<string, { due: string; at?: string }>,
 	unreadReplies: number,
 	now: number,
 ): boolean {
 	return (
-		unreadReplies > 0 || Object.values(reminders).some((r) => isDue(r.due, now))
+		unreadReplies > 0 ||
+		Object.values(reminders).some((r) => isDue(r.due, now, r.at))
 	);
 }
 
@@ -193,7 +200,9 @@ export function SessionReminders() {
 	const open = useOpenReminder();
 	const navigate = useNavigate();
 	const now = Date.now();
-	const due = Object.entries(reminders).filter(([, r]) => isDue(r.due, now));
+	const due = Object.entries(reminders).filter(([, r]) =>
+		isDue(r.due, now, r.at),
+	);
 	// Reminders not due yet live only in Automations -> Reminders: say so here.
 	const upcoming = Object.keys(reminders).length - due.length;
 	const watches = useReplyWatch((s) => s.watches);
@@ -314,15 +323,27 @@ export function SessionReminders() {
 					</HoverCard>
 					<span className="text-[11px] text-muted-foreground">
 						{dueLabel(r.due, now)}
+						{r.at && ` ${r.at}`}
 					</span>
-					<button
-						type="button"
-						disabled={isLaunching}
-						onClick={() => (r.resume ? void resume(key) : open(key))}
-						className={`rounded-md px-2 py-0.5 text-[11px] font-semibold disabled:opacity-60 ${BUTTON.secondary}`}
-					>
-						{r.resume ? "↻ Resume" : "Open"}
-					</button>
+					{isNote(key) ? (
+						<button
+							type="button"
+							title="Done - drop the reminder"
+							onClick={() => clear(key)}
+							className={`rounded-md px-2 py-0.5 text-[11px] font-semibold ${BUTTON.secondary}`}
+						>
+							Done
+						</button>
+					) : (
+						<button
+							type="button"
+							disabled={isLaunching}
+							onClick={() => (r.resume ? void resume(key) : open(key))}
+							className={`rounded-md px-2 py-0.5 text-[11px] font-semibold disabled:opacity-60 ${BUTTON.secondary}`}
+						>
+							{r.resume ? "↻ Resume" : "Open"}
+						</button>
+					)}
 					<RemindButton
 						label="Snooze"
 						onPick={(day) => setReminder(key, { ...r, due: day })}

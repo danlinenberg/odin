@@ -36,7 +36,13 @@ import {
 	RowActions,
 } from "../components/FeedChrome";
 import { BUTTON, PILL } from "../components/pill";
-import { dueLabel, isDue, useReminders } from "../components/Reminders";
+import {
+	dayOf,
+	dueLabel,
+	isDue,
+	isNote,
+	useReminders,
+} from "../components/Reminders";
 import { matchRepos, repoLabel } from "../components/repo-picker";
 import {
 	BuiltinChip,
@@ -676,7 +682,7 @@ function AutomationsPage() {
 						? "tasks that start themselves, on a cron - while Odin is open"
 						: view === "rules"
 							? "what every session Odin starts should do when something comes up"
-							: "every reminder you set - snoozed sessions and dated feed rows, soonest first"}
+							: "every reminder you set - your own, snoozed sessions and dated feed rows, soonest first"}
 				</span>
 			</div>
 			{view === "schedules" ? (
@@ -699,123 +705,196 @@ function RemindersPanel() {
 	const notifyAt = useReminders((s) => s.notifyAt);
 	const clear = useReminders((s) => s.clear);
 	const setDue = useReminders((s) => s.setDue);
+	const setReminder = useReminders((s) => s.setReminder);
 	const { resume, isLaunching } = useResumeReminder();
 	const open = useOpenReminder();
 	const now = Date.now();
 	const rows = Object.entries(reminders)
 		// Every reminder, not just snoozed sessions: a due date set on a feed row
 		// (Next in line, All) pings the same way and belongs on the same list.
-		.toSorted(([, a], [, b]) => a.due.localeCompare(b.due));
+		.toSorted(([, a], [, b]) =>
+			(a.due + (a.at ?? notifyAt)).localeCompare(b.due + (b.at ?? notifyAt)),
+		);
 	return (
-		<div className={FEED_LIST}>
-			{rows.length === 0 && (
-				<div className="px-2 py-8 text-center text-xs text-muted-foreground">
-					No reminders. Click the bell on a board session, or set a due date on
-					a feed row, to get one here.
-				</div>
-			)}
-			{rows.map(([key, r]) => (
-				<div
-					key={key}
-					className={cn(
-						FEED_ROW,
-						"border-l-2",
-						isDue(r.due, now) ? "border-l-attention" : "border-l-input",
-					)}
-				>
-					<div className="flex items-start gap-3">
-						<div className="min-w-0 flex-1">
-							<span
-								dir="auto"
-								className="block truncate text-[13px] font-semibold text-foreground"
-							>
-								{r.title}
-							</span>
-							{r.resume?.brief && (
+		<>
+			<NewReminder />
+			<div className={FEED_LIST}>
+				{rows.length === 0 && (
+					<div className="px-2 py-8 text-center text-xs text-muted-foreground">
+						No reminders. Write one above, click the bell on a board session, or
+						set a due date on a feed row.
+					</div>
+				)}
+				{rows.map(([key, r]) => (
+					<div
+						key={key}
+						className={cn(
+							FEED_ROW,
+							"border-l-2",
+							isDue(r.due, now, r.at) ? "border-l-attention" : "border-l-input",
+						)}
+					>
+						<div className="flex items-start gap-3">
+							<div className="min-w-0 flex-1">
 								<span
 									dir="auto"
-									className="mt-1 block truncate text-[11.5px] text-muted-foreground"
+									className="block truncate text-[13px] font-semibold text-foreground"
 								>
-									{r.resume.brief.replace(/\s+/g, " ")}
+									{r.title}
 								</span>
-							)}
-							<div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px]">
-								<span
-									className={cn(
-										"rounded-[5px] px-[7px] py-[1px] font-semibold",
-										isDue(r.due, now)
-											? PILL.attention
-											: "bg-secondary text-muted-foreground",
-									)}
-								>
-									{isDue(r.due, now)
-										? `Due ${dueLabel(r.due, now)} - on the board`
-										: `${dueLabel(r.due, now)} at ${notifyAt}`}
-								</span>
-								<span className={ROW_META}>
-									{r.resume ? r.resume.cwd.split("/").pop() : key.split(":")[0]}
-								</span>
-								{r.resume?.setAt && (
-									<span className={ROW_META}>
-										snoozed{" "}
-										{new Date(r.resume.setAt).toLocaleString(undefined, {
-											month: "short",
-											day: "numeric",
-											hour: "2-digit",
-											minute: "2-digit",
-										})}
+								{r.resume?.brief && (
+									<span
+										dir="auto"
+										className="mt-1 block truncate text-[11.5px] text-muted-foreground"
+									>
+										{r.resume.brief.replace(/\s+/g, " ")}
 									</span>
 								)}
+								<div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px]">
+									<span
+										className={cn(
+											"rounded-[5px] px-[7px] py-[1px] font-semibold",
+											isDue(r.due, now, r.at)
+												? PILL.attention
+												: "bg-secondary text-muted-foreground",
+										)}
+									>
+										{isDue(r.due, now, r.at)
+											? `Due ${dueLabel(r.due, now)} - on the board`
+											: `${dueLabel(r.due, now)} at ${r.at ?? notifyAt}`}
+									</span>
+									<span className={ROW_META}>
+										{r.resume
+											? r.resume.cwd.split("/").pop()
+											: isNote(key)
+												? "reminder"
+												: key.split(":")[0]}
+									</span>
+									{r.resume?.setAt && (
+										<span className={ROW_META}>
+											snoozed{" "}
+											{new Date(r.resume.setAt).toLocaleString(undefined, {
+												month: "short",
+												day: "numeric",
+												hour: "2-digit",
+												minute: "2-digit",
+											})}
+										</span>
+									)}
+								</div>
+							</div>
+							<div className="flex shrink-0 items-center gap-1.5">
+								{isNote(key) ? (
+									<button
+										type="button"
+										title="Done - drop the reminder"
+										onClick={() => clear(key)}
+										className={ROW_PRIMARY_BUTTON}
+									>
+										Done
+									</button>
+								) : r.resume ? (
+									<button
+										type="button"
+										disabled={isLaunching}
+										onClick={() => void resume(key)}
+										className={ROW_PRIMARY_BUTTON}
+									>
+										↻ Resume now
+									</button>
+								) : (
+									<button
+										type="button"
+										onClick={() => open(key)}
+										className={ROW_PRIMARY_BUTTON}
+									>
+										Open
+									</button>
+								)}
+								<RemindButton
+									label="Move"
+									onPick={(day) =>
+										r.resume
+											? remindSession(
+													{
+														sessionId: r.resume.sessionId,
+														cwd: r.resume.cwd,
+														title: r.title,
+														brief: r.resume.brief,
+													},
+													day,
+												)
+											: isNote(key)
+												? setReminder(key, { ...r, due: day })
+												: setDue(key, day, r.title)
+									}
+									className="rounded-[7px] px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground"
+								/>
+								<button
+									type="button"
+									title="Drop this reminder"
+									onClick={() => clear(key)}
+									className="rounded-[7px] px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground"
+								>
+									✕
+								</button>
 							</div>
 						</div>
-						<div className="flex shrink-0 items-center gap-1.5">
-							{r.resume ? (
-								<button
-									type="button"
-									disabled={isLaunching}
-									onClick={() => void resume(key)}
-									className={ROW_PRIMARY_BUTTON}
-								>
-									↻ Resume now
-								</button>
-							) : (
-								<button
-									type="button"
-									onClick={() => open(key)}
-									className={ROW_PRIMARY_BUTTON}
-								>
-									Open
-								</button>
-							)}
-							<RemindButton
-								label="Move"
-								onPick={(day) =>
-									r.resume
-										? remindSession(
-												{
-													sessionId: r.resume.sessionId,
-													cwd: r.resume.cwd,
-													title: r.title,
-													brief: r.resume.brief,
-												},
-												day,
-											)
-										: setDue(key, day, r.title)
-								}
-								className="rounded-[7px] px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground"
-							/>
-							<button
-								type="button"
-								title="Drop this reminder"
-								onClick={() => clear(key)}
-								className="rounded-[7px] px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground"
-							>
-								✕
-							</button>
-						</div>
 					</div>
-				</div>
-			))}
+				))}
+			</div>
+		</>
+	);
+}
+
+/**
+ * A reminder of your own - "call the bank", "renew the cert" - that needs no
+ * task or session behind it. It lands in the same store as the rest, so the
+ * same minute ticker pings it and the board bar shows it when it's due.
+ */
+function NewReminder() {
+	const notifyAt = useReminders((s) => s.notifyAt);
+	const addNote = useReminders((s) => s.addNote);
+	const [text, setText] = useState("");
+	const [day, setDay] = useState(() => dayOf(Date.now()));
+	const [time, setTime] = useState(notifyAt);
+	const submit = () => {
+		if (!text.trim()) return toast.error("Write what to remind you about.");
+		if (!day) return toast.error("Pick a day.");
+		addNote(text, day, time);
+		setText("");
+	};
+	return (
+		<div className="flex shrink-0 items-center gap-2 border-b border-border px-[18px] py-3">
+			<span className="text-[11px] text-muted-foreground">Remind me to</span>
+			<input
+				aria-label="Reminder"
+				dir="auto"
+				value={text}
+				placeholder="call the bank"
+				onChange={(event) => setText(event.target.value)}
+				onKeyDown={(event) => {
+					if (event.key === "Enter") submit();
+				}}
+				className={RULE_INPUT}
+			/>
+			<span className="text-[11px] text-muted-foreground">on</span>
+			<input
+				type="date"
+				aria-label="Day"
+				value={day}
+				min={dayOf(Date.now())}
+				onChange={(event) => setDay(event.target.value)}
+				// Chromium draws the calendar popup in the element's own colour
+				// scheme, and the app is dark whatever the OS is set to.
+				style={{ colorScheme: "dark" }}
+				className={FIELD}
+			/>
+			<span className="text-[11px] text-muted-foreground">at</span>
+			<TimeFields time={time} onChange={setTime} />
+			<button type="button" onClick={submit} className={ROW_PRIMARY_BUTTON}>
+				Add reminder
+			</button>
 		</div>
 	);
 }

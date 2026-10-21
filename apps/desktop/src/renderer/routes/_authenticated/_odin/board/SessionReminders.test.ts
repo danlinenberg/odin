@@ -30,3 +30,9 @@ test("an unread reply shows the bar with nothing due", () => {
 	expect(showsBar(later, 1, now)).toBe(true);
 	expect(showsBar({}, 1, now)).toBe(true);
 });
+
+test("a standalone reminder raises the bar once its time has come", () => {
+	const note = { "note:x": { due: dayOf(now), title: "x", at: "15:00" } };
+	expect(showsBar(note, 0, now)).toBe(false);
+	expect(showsBar(note, 0, new Date(2026, 9, 20, 15).getTime())).toBe(true);
+});
