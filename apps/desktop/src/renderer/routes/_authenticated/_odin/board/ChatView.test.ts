@@ -31,6 +31,7 @@ import {
 	toolDescription,
 	transcriptPath,
 	userText,
+	withoutMediaPaths,
 	yourQueued,
 } from "./ChatView";
 
@@ -425,6 +426,30 @@ describe("launchAttachments - the images and videos a launch prompt attached", (
 		expect(launchAttachments(prompt)).toEqual([
 			"/Users/dan/.odin/attachments/shot.png",
 		]);
+	});
+
+	test("a title that is only a pasted screenshot's path counts", () => {
+		const prompt =
+			"Task: /Users/dan/.odin/attachments/shot.png\n\nWork in the current workspace.";
+		expect(launchAttachments(prompt)).toEqual([
+			"/Users/dan/.odin/attachments/shot.png",
+		]);
+		expect(
+			launchAttachments("Task: /Users/dan/notes.txt\n\nWork in it."),
+		).toEqual([]);
+	});
+});
+
+describe("withoutMediaPaths - the folded request minus the paths its previews show", () => {
+	test("drops a path line, or a title that is one, only once its preview shows", () => {
+		const request = "Task: /a/shot.png\n\nSee also\n/a/clip.mp4";
+		expect(
+			withoutMediaPaths(request, new Set(["/a/shot.png", "/a/clip.mp4"])),
+		).toBe("See also");
+		expect(withoutMediaPaths(request, new Set(["/a/shot.png"]))).toBe(
+			"See also\n/a/clip.mp4",
+		);
+		expect(withoutMediaPaths(request, new Set())).toBe(request);
 	});
 });
 

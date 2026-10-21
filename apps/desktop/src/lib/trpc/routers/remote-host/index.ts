@@ -34,6 +34,10 @@ import {
 	hostGithubToken,
 	repoStaysLocal,
 } from "main/lib/remote-host/github-on-host";
+import {
+	hostFileSources,
+	rememberHostFiles,
+} from "main/lib/remote-host/host-files";
 import { hostLoad } from "main/lib/remote-host/host-load";
 import {
 	HOST_CONNECTORS,
@@ -132,6 +136,8 @@ async function buildSessionSpec(
 	const { prompt, files } = rest.prompt
 		? hostFiles(rest.prompt, host.user, isSmallFile)
 		: { prompt: null, files: [] };
+	// The chat view shows the prompt's screenshots from their files here.
+	await rememberHostFiles(host.user, files);
 	return {
 		...host,
 		...rest,
@@ -539,9 +545,16 @@ export const createRemoteHostRouter = () =>
 				);
 				if (!files.length) return input;
 				await copyFilesToHost(host, files);
+				await rememberHostFiles(host.user, files);
 				const [text = "", ...paths] = prompt.split(marker);
 				return { text, paths };
 			}),
+
+		/**
+		 * Each copy on the host and the laptop file it came from: the chat
+		 * view shows a remote session's screenshots from the files here.
+		 */
+		fileSources: publicProcedure.query(() => hostFileSources()),
 
 		/** The command a remote session's pane runs. */
 		sessionCommand: publicProcedure

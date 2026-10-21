@@ -1148,14 +1148,15 @@ function UserBubble({
 	// A launch prompt (task + standing rules + reply format) fills the screen;
 	// show just the request you typed, and Odin's part only on its own button.
 	const request = launchRequest(text);
-	const attached = useAttachedPreviews(
+	const { previews: attached, hidden } = useAttachedPreviews(
 		request === null ? [] : launchAttachments(text),
 		workspaceId,
 	);
 	const previews = [...(images ?? []), ...attached];
 	const [open, setOpen] = useState(false);
 	const [full, setFull] = useState(false);
-	const shown = full || request === null ? text : withoutMediaPaths(request);
+	const shown =
+		full || request === null ? text : withoutMediaPaths(request, hidden);
 	const long = shown.length > 300 || shown.split("\n").length > 4;
 	return (
 		<div
@@ -1167,7 +1168,7 @@ function UserBubble({
 			)}
 		>
 			{previews.length > 0 && (
-				<PreviewStrip previews={previews} className={text ? "mb-2" : ""} />
+				<PreviewStrip previews={previews} className={shown ? "mb-2" : ""} />
 			)}
 			<div className={cn(long && !open && "line-clamp-3")}>
 				{/* Typed line breaks stay: markdown would fold them into spaces. */}
@@ -1239,35 +1240,59 @@ function UserBubble({
 
 /**
  * The launch prompt's attached images and videos, read off disk as data URLs -
- * the folded bubble hides the paths, so these show what was attached.
+ * the folded bubble hides their paths, so these show what was attached. A
+ * remote session's prompt names copies on the host; each is read from the
+ * file here it was copied from. `hidden` are the paths whose lines the bubble
+ * drops: one whose file can't be read (a copy from before Odin remembered
+ * its source) stays as text.
  */
 function useAttachedPreviews(
 	paths: string[],
 	workspaceId: string | undefined,
-): Preview[] {
+): { previews: Preview[]; hidden: Set<string> } {
+	const { data: sources } = electronTrpc.remoteHost.fileSources.useQuery(
+		undefined,
+		{ enabled: paths.length > 0 },
+	);
 	const reads = electronTrpc.useQueries((t) =>
-		workspaceId
-			? paths.map((absolutePath) =>
+		workspaceId && sources
+			? paths.map((path) =>
 					t.filesystem.readFile(
-						{ workspaceId, absolutePath, encoding: "base64" },
+						{
+							workspaceId,
+							absolutePath: sources[path] ?? path,
+							encoding: "base64",
+						},
 						{ staleTime: Number.POSITIVE_INFINITY, retry: false },
 					),
 				)
 			: [],
 	);
-	return paths.flatMap((path, i): Preview[] => {
-		const content = reads[i]?.data?.content;
+	const hidden = new Set<string>();
+	const previews = paths.flatMap((path, i): Preview[] => {
+		const read = reads[i];
+		if (read?.status !== "error") hidden.add(path);
+		const content = read?.data?.content;
 		if (typeof content !== "string") return [];
 		const video = getVideoMimeType(path);
 		return video
 			? [{ url: `data:${video};base64,${content}`, video: true as const }]
 			: [`data:${getImageMimeType(path)};base64,${content}`];
 	});
+	return { previews, hidden };
 }
 
-const isMediaPath = (line: string) =>
-	line.startsWith("/") &&
-	(!!getImageMimeType(line) || isPreviewableVideoFile(line));
+/**
+ * The image or video path a request line is: a path on its own, or the title
+ * when the task was a pasted screenshot with nothing typed ("Task: /x/shot.png").
+ */
+const mediaPath = (line: string): string | null => {
+	const path = line.trim().replace(/^Task: /, "");
+	return path.startsWith("/") &&
+		(getImageMimeType(path) || isPreviewableVideoFile(path))
+		? path
+		: null;
+};
 
 /**
  * A launch prompt's image and video paths: under its "Attached files" head,
@@ -1278,15 +1303,18 @@ export function launchAttachments(text: string): string[] {
 	const block = blocks.find((part) => part.startsWith("Attached files"));
 	const inRequest = (launchRequest(text) ?? "").split("\n");
 	return [...inRequest, ...(block?.split("\n").slice(1) ?? [])]
-		.map((line) => line.trim())
-		.filter(isMediaPath);
+		.map(mediaPath)
+		.filter((path): path is string => path !== null);
 }
 
-/** The request without the media path lines its previews already show. */
-const withoutMediaPaths = (request: string) =>
+/** The request without the lines that are one of the `hidden` media paths. */
+export const withoutMediaPaths = (request: string, hidden: Set<string>) =>
 	request
 		.split("\n")
-		.filter((line) => !isMediaPath(line.trim()))
+		.filter((line) => {
+			const path = mediaPath(line);
+			return path === null || !hidden.has(path);
+		})
 		.join("\n")
 		.trim();
 
