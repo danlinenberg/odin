@@ -73,7 +73,7 @@ export function hostReadSinceStart(at: number | null | undefined): boolean {
  */
 export function macPaceBlocker(now = Date.now()): string | null {
 	if (now - lastStart.mac < MAC_START_GAP_MS)
-		return "waiting for the session started a moment ago to show up";
+		return "another session started a moment ago, so this one waits until this Mac's load shows it";
 	markStarted("mac", now);
 	return null;
 }
@@ -89,7 +89,7 @@ export async function currentHostBlocker(
 	const gate = await client.remoteHost.launchGate.query().catch(() => null);
 	if (gate?.reason) return gate.reason;
 	if (gate && !hostReadSinceStart(gate.at))
-		return "waiting for the host's next reading after the last start";
+		return "another session started on the host a moment ago, so this one waits until the host's load shows it";
 	markStarted("host");
 	return null;
 }
