@@ -5,6 +5,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useMemo } from "react";
 import type { IconType } from "react-icons";
 import {
+	LuBan,
 	LuBookmark,
 	LuExternalLink,
 	LuListMinus,
@@ -13,7 +14,7 @@ import {
 import { emojify } from "renderer/lib/emoji";
 import { openUrl } from "renderer/stores/in-app-browser";
 import { DoneButton } from "../components/DoneButton";
-import { SweepDrop } from "../components/DropHint";
+import { DROP_LABEL, SweepDrop, useDropByHand } from "../components/DropHint";
 import {
 	FEED_LIST,
 	IconTip,
@@ -99,7 +100,7 @@ export const COL = {
 		"flex w-[132px] shrink-0 items-center overflow-hidden @max-[1050px]:hidden",
 	place: "block w-[112px] shrink-0 truncate @max-[1380px]:hidden",
 	date: "flex w-[52px] shrink-0 items-center tabular-nums text-muted-foreground @max-[860px]:hidden",
-	acts: "flex w-[128px] shrink-0 items-center justify-end gap-0.5",
+	acts: "flex w-[154px] shrink-0 items-center justify-end gap-0.5",
 	start: "flex w-[84px] shrink-0 justify-end",
 	done: "flex w-[72px] shrink-0",
 };
@@ -174,6 +175,7 @@ export function useTaskRows(onSlackStarted?: () => void) {
 	const navigate = useNavigate();
 	const start = useStartAllItem(onSlackStarted);
 	const { markDone, markReading, undo, reading } = useDone();
+	const dropByHand = useDropByHand();
 	const { statuses, types, enqueue, dequeue } = useTaskMeta();
 	const reminders = useReminders((s) => s.reminders);
 	const readingKeys = useMemo(
@@ -193,6 +195,11 @@ export function useTaskRows(onSlackStarted?: () => void) {
 		/** Done, and off Up next too, so an Undo doesn't bring it back there. */
 		finish: (item: AllItem) => {
 			markDone(item);
+			dequeue(item.key);
+		},
+		/** Drop by hand: Done everywhere and under Review's Dropped. Off Up next too, like Done. */
+		drop: (item: AllItem) => {
+			void dropByHand(item);
 			dequeue(item.key);
 		},
 		goToPane: (paneId: string) => {
@@ -486,6 +493,17 @@ export function TaskRow({
 								className={cn(ROW_ICON_BUTTON, isReading && "text-primary")}
 							>
 								<LuBookmark className="size-3.5" aria-hidden />
+							</button>
+						</IconTip>
+						{/* Drop on every row, not only the ones the sweep flagged. */}
+						<IconTip label={DROP_LABEL}>
+							<button
+								type="button"
+								onClick={() => rows.drop(item)}
+								aria-label={DROP_LABEL}
+								className={cn(ROW_ICON_BUTTON, "hover:text-danger")}
+							>
+								<LuBan className="size-3.5" aria-hidden />
 							</button>
 						</IconTip>
 					</span>

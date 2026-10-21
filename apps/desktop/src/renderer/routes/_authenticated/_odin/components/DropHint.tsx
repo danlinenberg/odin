@@ -1,11 +1,74 @@
 import { toast } from "@odin/ui/sonner";
 import { cn } from "@odin/ui/utils";
 import { useDoneStore } from "renderer/stores/done";
-import { useBacklogReview, useReview } from "../hooks/useBacklogReview";
+import {
+	droppedByHand,
+	useBacklogReview,
+	useReview,
+} from "../hooks/useBacklogReview";
+import type { Doable } from "../hooks/useDone";
 import { useSetSlackDone } from "../hooks/useOdinFeeds";
 import { useOdinProfile } from "../hooks/useOdinProfile";
 import type { SweptRow } from "../review/verdicts";
 import { PILL } from "./pill";
+
+/** What the by-hand Drop says on hover, on a row, a card and the side panel. */
+export const DROP_LABEL =
+	"Drop it - Done everywhere, listed under Review's Dropped";
+
+/**
+ * Drop, wherever a task shows: the row is Done everywhere and listed under
+ * Review's Dropped; a Slack row gets its handled marker - with Undo on the
+ * toast. A task of yours is marked Done, not deleted, so Undo can bring it
+ * back. `also` is the same task in other feeds, merged into this row: Done
+ * puts them all away, and so does Drop. The sweep's DropHint and the Drop
+ * on every row share this.
+ */
+export function useDropTask() {
+	const { activeId } = useOdinProfile();
+	const setSlackDone = useSetSlackDone();
+	return async (row: SweptRow, also: SweptRow[] = []) => {
+		const review = useBacklogReview.getState();
+		const done = useDoneStore.getState().setDone;
+		const rows = [row, ...also];
+		const slackIds = rows.flatMap((r) =>
+			r.key.startsWith("slack:") ? [r.key.slice(6)] : [],
+		);
+		const mark = (on: boolean) => {
+			for (const r of rows) {
+				if (on) review.noteDropped(activeId, r);
+				else review.unnoteDropped(activeId, r.key);
+				done(
+					r.key,
+					on ? { title: r.title, source: r.source, url: r.url ?? null } : null,
+				);
+			}
+		};
+		mark(true);
+		const undo = () => {
+			mark(false);
+			for (const id of slackIds) setSlackDone.mutate({ id, done: false });
+		};
+		try {
+			for (const id of slackIds)
+				await setSlackDone.mutateAsync({ id, done: true });
+		} catch {
+			// useSetSlackDone already toasted why.
+			mark(false);
+			return;
+		}
+		toast.success(`Dropped - ${row.title}`, {
+			action: { label: "Undo", onClick: undo },
+		});
+	};
+}
+
+/** Drop a task by hand - the same Drop, with no sweep verdict behind it. */
+export function useDropByHand() {
+	const drop = useDropTask();
+	return (item: Doable) =>
+		drop(droppedByHand(item), (item.also ?? []).map(droppedByHand));
+}
 
 /**
  * The Review sweep's DROP verdict on a task, with Keep beside it - the same
@@ -33,45 +96,19 @@ export function DropHint({
 }) {
 	const { activeId } = useOdinProfile();
 	const why = `The Review sweep says drop this: ${row.evidence}`;
-	const setSlackDone = useSetSlackDone();
+	const dropTask = useDropTask();
 	const keep = (event: React.MouseEvent) => {
 		event.stopPropagation();
 		useBacklogReview.getState().keep(activeId, row.key);
 	};
-	const drop = async (event: React.MouseEvent) => {
+	const drop = (event: React.MouseEvent) => {
 		event.stopPropagation();
-		const review = useBacklogReview.getState();
-		const done = useDoneStore.getState().setDone;
-		const slackId = row.key.startsWith("slack:") ? row.key.slice(6) : null;
-		review.noteDropped(activeId, row);
-		done(row.key, {
-			title: row.title,
-			source: row.source,
-			url: row.url ?? null,
-		});
-		const undo = () => {
-			review.unnoteDropped(activeId, row.key);
-			done(row.key, null);
-			if (slackId) setSlackDone.mutate({ id: slackId, done: false });
-		};
-		if (slackId) {
-			try {
-				await setSlackDone.mutateAsync({ id: slackId, done: true });
-			} catch {
-				// useSetSlackDone already toasted why.
-				review.unnoteDropped(activeId, row.key);
-				done(row.key, null);
-				return;
-			}
-		}
-		toast.success(`Dropped - ${row.title}`, {
-			action: { label: "Undo", onClick: undo },
-		});
+		void dropTask(row);
 	};
 	const dropButton = (label: string, className: string) => (
 		<button
 			type="button"
-			onClick={(event) => void drop(event)}
+			onClick={drop}
 			title={`${why} - click to drop it`}
 			className={cn(
 				"shrink-0 rounded-[5px] px-[7px] py-px text-[11px] font-semibold transition-[filter] hover:brightness-125",

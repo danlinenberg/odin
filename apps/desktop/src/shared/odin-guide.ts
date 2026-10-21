@@ -16,7 +16,7 @@ Tabs, in two groups split by a hairline: Odin's own (All, Tasks, Docs), then the
 - **Amber dot** on a tab: that source is not connected. **Red dot**: connected but failing.
 - Feeds reload every 2 minutes. **Sync** refreshes the connected sources.
 - **Columns**: Task, Sweep, Priority, Status, From, Where, a date.
-- **Row actions**: Open in <source>, due date, "Line it up - Up next" / "Take it off Up next", Tonight (moon, picks it for the Night Agent), "Mark it Read later - it moves to Docs", **Start** ("Session →" when a session already runs on it), **Done**.
+- **Row actions**: Open in <source>, due date, "Line it up - Up next" / "Take it off Up next", Tonight (moon, picks it for the Night Agent), "Mark it Read later - it moves to Docs", **Drop** (the ban icon, also in the side panel and on a Next in line card's hover: what Review's Drop does, no sweep needed - Done everywhere, listed under Review's Dropped, Undo on the toast), **Start** ("Session →" when a session already runs on it), **Done**.
 - **Docs** lists saved docs (~/.odin/docs), sessions moved there off the board (Back to board resumes one, Forget drops the row), and Read later rows (Back to Tasks).
 - **Done** is Odin only: nothing is written back to the source, and Undo is offered. A row done in one place leaves every feed. Store: done.
 - **Same task, several feeds**: on All, a Jira ticket, the Notion page that copied it and the Slack message asking about it are one row when they share a Jira key or PR link, or the same title (four words or more). The owner's row stays (Jira, GitHub, ClickUp, Notion, Tasks, Slack, Email, in that order) with a chip per other source that opens it there; Done puts them all away. A reworded copy stays its own row.
@@ -67,6 +67,7 @@ Open ClickUp tasks assigned to you. Read-only, no filters.
 - Verdicts: DROP, KEEP or UNKNOWN. DROP needs evidence: a merged or closed PR, a Jira ticket in a done status, the :eyes: removed in Slack, a thread someone else answered, or 21 days without activity. What it couldn't reach is UNKNOWN.
 - Pills: Drop, Keep & unknown, Dropped. Keep and Drop per row, "Drop all N" for the rows on screen.
 - Drop marks the row Done; on a task it also deletes the task, on a Slack row it marks the message done. Drop is off while a session still works on the row.
+- Dropped lists what was dropped here and by hand from any row (evidence "You dropped this") - a by-hand Drop marks a task Done rather than deleting it, so Undo brings it back.
 - Store: backlogReview.
 
 ## Dev Board columns

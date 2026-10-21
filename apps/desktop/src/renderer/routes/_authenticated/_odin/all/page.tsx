@@ -26,7 +26,7 @@ import { openUrl } from "renderer/stores/in-app-browser";
 import type { BoardSection } from "shared/board-section";
 import type { PaneStatus } from "shared/tabs-types";
 import { DoneButton } from "../components/DoneButton";
-import { SweepDrop } from "../components/DropHint";
+import { DROP_LABEL, SweepDrop } from "../components/DropHint";
 import {
 	FEED_ROW,
 	FeedDivider,
@@ -1133,6 +1133,10 @@ function AllFeedPage() {
 								finish(openItem);
 								setOpenKey(null);
 							}}
+							onDrop={() => {
+								rows.drop(openItem);
+								setOpenKey(null);
+							}}
 						/>
 					</DetailsPanel>
 				)}
@@ -1346,6 +1350,7 @@ function DetailsActions({
 	reading,
 	onReadLater,
 	onDone,
+	onDrop,
 }: {
 	activePaneId: string | null;
 	isLaunching: boolean;
@@ -1355,6 +1360,7 @@ function DetailsActions({
 	reading: boolean;
 	onReadLater: () => void;
 	onDone: () => void;
+	onDrop: () => void;
 }) {
 	return (
 		<div className="flex shrink-0 items-center gap-2 border-t border-border px-3.5 py-2.5">
@@ -1377,6 +1383,14 @@ function DetailsActions({
 				</button>
 			)}
 			<ReadLaterButton on={reading} onClick={onReadLater} />
+			<button
+				type="button"
+				onClick={onDrop}
+				title={DROP_LABEL}
+				className={cn(ROW_LINK_BUTTON, "hover:text-danger")}
+			>
+				Drop
+			</button>
 			<span className="ml-auto">
 				<DoneButton onClick={onDone} />
 			</span>

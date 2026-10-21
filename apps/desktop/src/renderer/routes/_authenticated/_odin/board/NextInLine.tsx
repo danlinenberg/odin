@@ -27,7 +27,7 @@ import type { AllItem } from "../all/all-items";
 import { allItems } from "../all/all-items";
 import { cleanTitle, TaskDetails } from "../all/TaskDetails";
 import { useStartAllItem } from "../all/use-start-item";
-import { SweepDrop } from "../components/DropHint";
+import { DROP_LABEL, SweepDrop, useDropByHand } from "../components/DropHint";
 import { FEED_TABS } from "../components/feed-counts";
 import { BUTTON, PILL } from "../components/pill";
 import {
@@ -359,6 +359,10 @@ export function NextInLine() {
 	const { markDone } = useDone();
 	const doneWithUndo = (item: AllItem) =>
 		markDone({ ...item, title: cleanTitle(item.title) });
+	// Drop by hand, same as every row's: the sweep's verdict isn't needed.
+	const dropByHand = useDropByHand();
+	const dropWithUndo = (item: AllItem) =>
+		void dropByHand({ ...item, title: cleanTitle(item.title) });
 	const swept = useReview((review) => review.swept);
 	// Every verdict, not just DROPs: the hover says what the sweep found either way.
 	const sweptFor = useMemo(() => {
@@ -642,6 +646,14 @@ export function NextInLine() {
 						className="whitespace-nowrap rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-success/15 hover:text-success"
 					>
 						✓ Done
+					</button>
+					<button
+						type="button"
+						onClick={() => dropWithUndo(item)}
+						title={DROP_LABEL}
+						className="whitespace-nowrap rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-danger/15 hover:text-danger"
+					>
+						Drop
 					</button>
 					<button
 						type="button"

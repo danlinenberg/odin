@@ -15,4 +15,10 @@ describe("odinGuide", () => {
 	it("lists the sections when nothing matches", () => {
 		expect(odinGuide("zzqx")).toContain("Sections: ");
 	});
+
+	it("names Drop among the row actions, beside Done", () => {
+		expect(ODIN_GUIDE).toMatch(
+			/\*\*Row actions\*\*:.*\*\*Drop\*\*.*\*\*Done\*\*/,
+		);
+	});
 });

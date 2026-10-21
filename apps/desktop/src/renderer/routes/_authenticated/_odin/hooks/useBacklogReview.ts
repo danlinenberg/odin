@@ -11,6 +11,30 @@ import { useOdinProfile } from "./useOdinProfile";
 /** A row dropped from Review, as it was swept, and when. */
 export type DroppedRow = SweptRow & { droppedAt: number };
 
+/** The evidence on a row you dropped yourself - no sweep behind it. */
+export const DROPPED_BY_HAND = "You dropped this";
+
+/**
+ * A row dropped by hand, shaped as the Dropped list keeps it: a DROP whose
+ * evidence is you, so it sits beside the sweep's rows under Review's Dropped
+ * and outlives the next sweep the same way (keepDropped).
+ */
+export function droppedByHand(item: {
+	key: string;
+	source: string;
+	title: string;
+	url?: string | null;
+}): SweptRow {
+	return {
+		key: item.key,
+		source: item.source,
+		title: item.title,
+		...(item.url ? { url: item.url } : {}),
+		verdict: "DROP",
+		evidence: DROPPED_BY_HAND,
+	};
+}
+
 const DROPPED_KEPT = 500;
 
 /** Your Keep beats the sweep's DROP - on Review and on every card's pill. */
