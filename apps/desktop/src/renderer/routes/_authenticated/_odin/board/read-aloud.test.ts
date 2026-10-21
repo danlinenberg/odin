@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import {
+	bestVoice,
 	canSpeak,
 	clampRate,
 	READ_ALOUD_RATES,
@@ -30,6 +31,7 @@ const fakeSynth = {
 	cancel: () => {
 		cancels += 1;
 	},
+	getVoices: () => [],
 };
 
 function installSynth() {
@@ -179,5 +181,23 @@ describe("speak", () => {
 		speak("r1", "Merged.", 1);
 		expect(said).toHaveLength(0);
 		expect(useSpeaking.getState().id).toBeNull();
+	});
+});
+
+describe("bestVoice", () => {
+	const voice = (name: string, lang = "en-US") =>
+		({ name, lang }) as SpeechSynthesisVoice;
+
+	test("prefers Premium, then Enhanced, then US English, and skips joke and robotic voices", () => {
+		const zarvox = voice("Zarvox");
+		const eddy = voice("Eddy (English (US))");
+		const daniel = voice("Daniel", "en-GB");
+		const samantha = voice("Samantha");
+		const zoe = voice("Zoe (Enhanced)");
+		const ava = voice("Ava (Premium)");
+		expect(bestVoice([zarvox, eddy, daniel, samantha, zoe, ava])).toBe(ava);
+		expect(bestVoice([zarvox, eddy, daniel, samantha, zoe])).toBe(zoe);
+		expect(bestVoice([zarvox, eddy, daniel, samantha])).toBe(samantha);
+		expect(bestVoice([zarvox, eddy, voice("Thomas", "fr-FR")])).toBeNull();
 	});
 });

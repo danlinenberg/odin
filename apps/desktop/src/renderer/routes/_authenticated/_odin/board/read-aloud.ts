@@ -88,6 +88,28 @@ export function spokenText(
 	return words || null;
 }
 
+// macOS's joke voices and its old robotic ones (MacinTalk, Eloquence).
+const POOR_VOICES =
+	/^(albert|bad news|bahh|bells|boing|bubbles|cellos|good news|jester|organ|superstar|trinoids|whisper|wobble|zarvox|fred|junior|kathy|ralph|eddy|flo|grandma|grandpa|reed|rocko|sandy|shelley)\b/i;
+
+/**
+ * The best English voice installed: a Premium download, then an Enhanced one,
+ * then any natural voice, US English first. Null leaves the system default.
+ */
+export function bestVoice(
+	voices: readonly SpeechSynthesisVoice[],
+): SpeechSynthesisVoice | null {
+	const score = (v: SpeechSynthesisVoice) =>
+		(/\(premium\)/i.test(v.name) ? 4 : /\(enhanced\)/i.test(v.name) ? 2 : 0) +
+		(v.lang.replace("_", "-").toLowerCase() === "en-us" ? 1 : 0);
+	let best: SpeechSynthesisVoice | null = null;
+	for (const v of voices) {
+		if (!/^en/i.test(v.lang) || POOR_VOICES.test(v.name)) continue;
+		if (!best || score(v) > score(best)) best = v;
+	}
+	return best;
+}
+
 /** The reply being read right now, by its item id - what the speaker buttons show. */
 export const useSpeaking = create<{ id: string | null }>(() => ({ id: null }));
 
@@ -111,6 +133,8 @@ export function speak(id: string, text: string, rate: number): void {
 	voice.cancel();
 	const utterance = new SpeechSynthesisUtterance(text);
 	utterance.rate = clampRate(rate);
+	const best = bestVoice(voice.getVoices());
+	if (best) utterance.voice = best;
 	// cancel() ends the one before with an error; only this one's own end clears it.
 	const done = () => {
 		if (current !== utterance) return;
