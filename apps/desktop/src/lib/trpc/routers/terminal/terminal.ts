@@ -470,6 +470,19 @@ export const createTerminalRouter = () => {
 				return readTranscript(input);
 			}),
 
+		/**
+		 * The subagents a conversation launched (the Agent tool) and where each
+		 * one stands, read off the parent's transcript - see `readSubagents`.
+		 * Incremental and cached on the file's size and mtime, so the drawer can
+		 * poll it every couple of seconds while an agent is out.
+		 */
+		claudeSubagents: publicProcedure
+			.input(z.object({ sessionId: z.string() }))
+			.query(async ({ input }) => {
+				const { readSubagents } = await import("main/lib/claude-sessions");
+				return readSubagents(input);
+			}),
+
 		/** The `/loop` still armed in a conversation, if any - see `sessionLoop`. */
 		claudeLoop: publicProcedure
 			.input(z.object({ sessionId: z.string() }))
