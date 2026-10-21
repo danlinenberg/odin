@@ -47,6 +47,27 @@ describe("TaskBox", () => {
 		expect(html).not.toContain("None");
 	});
 
+	it("keeps every field in one left-to-right set, none pushed to the far edge", () => {
+		const html = renderToStaticMarkup(
+			<TaskBox
+				value="Ship the fix"
+				skills={[{ name: "gdpr", description: "Audit deletion tickets" }]}
+				docs={[{ title: "Pricing ideas", path: "/h/.odin/docs/pricing.md" }]}
+				repos={["/dev/odin"]}
+				repo=""
+				onRepoChange={() => {}}
+				onChange={() => {}}
+				onSubmit={() => {}}
+			/>,
+		);
+		// Priority used to carry ml-auto: when the row wrapped, it sat alone at
+		// the right of a second line. Now the four wrap as one set.
+		expect(html).not.toContain("ml-auto");
+		// Each field's name sits inside its outline, so they read as matching pills.
+		for (const name of ["Skill", "Repo", "Priority"])
+			expect(html).toMatch(new RegExp(`<label[^>]*><span[^>]*>${name}</span>`));
+	});
+
 	it("shows a submit button, off until there's a title", () => {
 		const html = (value: string) =>
 			renderToStaticMarkup(

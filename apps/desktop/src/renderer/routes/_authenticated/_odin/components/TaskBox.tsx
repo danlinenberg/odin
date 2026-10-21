@@ -25,15 +25,31 @@ import { readFile } from "./OdinPromptDialog";
 import { BUTTON, PILL } from "./pill";
 import { matchRepos, repoLabel } from "./repo-picker";
 import { matchSkills } from "./skill-picker";
+import { WherePicker } from "./WherePicker";
 
 /** Adds lines under the task, as their own paragraph when it has only a title. */
 const appendLines = (text: string, lines: string[]) =>
 	[text.includes("\n") ? text : `${text}\n`, ...lines].join("\n");
 
-/** Skill, Doc, Repo and Priority: one height and one outline, so the row
-    reads as a set of fields rather than four differently-sized blobs. */
+/**
+ * One field under the box: its name inside the outline, then the control.
+ * Skill, Doc, Repo and Priority all share it, so the row reads as a set of
+ * matching pills - and when the dialog is narrow it wraps as one set, left to
+ * right, instead of stranding one field alone at the far side of a second line.
+ */
 const FIELD =
-	"h-6 rounded-[6px] bg-secondary px-2 text-[11px] font-semibold outline-none ring-1 ring-inset ring-border transition-[color,box-shadow] focus:ring-primary/60";
+	"inline-flex h-6 shrink-0 items-center rounded-[6px] bg-secondary ring-1 ring-inset ring-border transition-[box-shadow] focus-within:ring-primary/60";
+/** The field's name, inside the outline. */
+const FIELD_LABEL = "select-none pl-2 pr-1.5 text-[11px] text-muted-foreground";
+/** The typed part of a field: Skill's search, Repo's search. */
+const FIELD_INPUT =
+	"h-full min-w-0 bg-transparent pr-2 text-[11px] font-semibold outline-none placeholder:font-normal placeholder:text-muted-foreground";
+/** The picked part of a field: Priority. */
+const FIELD_SELECT =
+	"h-full cursor-pointer bg-transparent pr-1 text-[11px] font-semibold outline-none [color-scheme:inherit]";
+/** A field that is one menu and nothing else: Doc, and the dialog's Where. */
+const FIELD_MENU =
+	"h-6 shrink-0 cursor-pointer rounded-[6px] bg-secondary px-1.5 text-[11px] font-semibold outline-none ring-1 ring-inset ring-border transition-[color,box-shadow] [color-scheme:inherit] focus:ring-primary/60";
 
 /** What the box takes on a drop or paste: photos, videos and markdown docs. */
 const isAttachable = (file: File) =>
@@ -316,14 +332,18 @@ export function TaskBox({
 			    the text, which is what the store reads either way. Typing "!" and
 			    picking Low are the same edit, so neither can go stale. Medium is
 			    the no-"!"s case, so the box you just typed into already reads as it. */}
-			{/* One row at the quick-add's 600px: Skill and Repo on the left,
-			    Priority pushed right. Nothing in it grows as you type. */}
+			{/* Left to right, wrapping as a set: nothing is pushed to the far edge,
+			    so a narrow dialog never leaves one field alone on a second line.
+			    Nothing in it grows as you type, and at the quick-add's 600px the
+			    four fields fit one row. */}
 			{!folded && (
-				<div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+				<div className="flex flex-wrap items-center gap-1.5">
 					{skills && skills.length > 0 && (
 						<SkillSelect skills={skills} value={text} onChange={change} />
 					)}
 					{docs && docs.length > 0 && (
+						// An action, not a value - picking adds a line to the brief and the
+						// menu resets - so it reads "+ Doc", not as a field holding a doc.
 						<select
 							aria-label="Doc"
 							title="Add a saved doc to the brief - the session reads it for context"
@@ -333,15 +353,15 @@ export function TaskBox({
 									appendLines(text, [`Context doc: ${event.target.value}`]),
 								)
 							}
-							// Fixed width: it always shows "Doc", so sizing it to the longest
-							// title only pushed Repo onto the next line.
+							// Fixed width: it always shows "+ Doc", so sizing it to the
+							// longest title only pushed the fields after it onto a second line.
 							className={cn(
-								FIELD,
-								"w-[72px] cursor-pointer text-muted-foreground hover:text-foreground",
+								FIELD_MENU,
+								"w-[66px] text-muted-foreground hover:text-foreground",
 							)}
 						>
 							<option value="" disabled>
-								Doc
+								+ Doc
 							</option>
 							{docs.map((doc) => (
 								<option key={doc.path} value={doc.path}>
@@ -358,10 +378,8 @@ export function TaskBox({
 						/>
 					)}
 					{!hidePriority && (
-						<div className="ml-auto flex items-center gap-1.5">
-							<span className="text-[11px] text-muted-foreground">
-								Priority
-							</span>
+						<label className={FIELD}>
+							<span className={FIELD_LABEL}>Priority</span>
 							<select
 								aria-label="Priority"
 								title="Or lead the title with ! (Low) or !!! (High) - no ! is Medium"
@@ -369,10 +387,7 @@ export function TaskBox({
 								onChange={(event) =>
 									change(withPriority(text, Number(event.target.value)))
 								}
-								className={cn(
-									FIELD,
-									"cursor-pointer text-muted-foreground hover:text-foreground",
-								)}
+								className={cn(FIELD_SELECT, "text-foreground")}
 							>
 								{/* Levels only - slot 0 ("None") is legacy storage, not a choice. */}
 								{PRIORITY_LABELS.slice(1).map((label, index) => (
@@ -381,14 +396,14 @@ export function TaskBox({
 									</option>
 								))}
 							</select>
-						</div>
+						</label>
 					)}
 					{submitLabel && (
 						<button
 							type="button"
 							disabled={!title.trim()}
 							onClick={onSubmit}
-							className={cn(ROW_PRIMARY_BUTTON, hidePriority && "ml-auto")}
+							className={cn(ROW_PRIMARY_BUTTON, "ml-auto")}
 						>
 							{submitLabel}
 						</button>
@@ -397,7 +412,9 @@ export function TaskBox({
 			)}
 			{!folded && onRepoChange && recentRepos && recentRepos.length > 0 && (
 				<div className="flex flex-wrap items-center gap-1.5">
-					<span className="text-[11px] text-muted-foreground">Recent</span>
+					<span className="select-none text-[11px] text-muted-foreground">
+						Recent
+					</span>
 					{recentRepos.map((path) => (
 						<button
 							key={path}
@@ -486,68 +503,71 @@ function SkillSelect({
 	};
 
 	return (
-		<div className="flex items-center gap-1.5">
-			<span className="text-[11px] text-muted-foreground">Skill</span>
-			<input
-				ref={box}
-				aria-label="Skill"
-				placeholder="search…"
-				spellCheck={false}
-				autoComplete="off"
-				title="Open the session by running this skill, with the title as its argument. Type to search - by name or by what it does."
-				value={query ?? current}
-				onFocus={open}
-				onChange={(event) => {
-					setQuery(event.target.value);
-					setSelected(0);
-				}}
-				onBlur={() => {
-					if (abandoned.current) {
-						abandoned.current = false;
-						return close();
-					}
-					commit(query ?? current);
-				}}
-				onKeyDown={(event) => {
-					if (event.key === "Escape") {
-						// Only this box: Escape in the compose row would otherwise
-						// throw away the task you were writing too.
-						event.preventDefault();
-						event.stopPropagation();
-						abandoned.current = true;
-						box.current?.blur();
-						return;
-					}
-					if (matches.length === 0) return;
-					if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-						event.preventDefault();
-						const step = event.key === "ArrowDown" ? 1 : matches.length - 1;
-						setSelected((index) => (index + step) % matches.length);
-						return;
-					}
-					// Tab only completes a search you typed: tabbing past the box
-					// must not fill in the top of the list.
-					const searched = query !== null && query !== current;
-					// ⌘Enter is Send, so it carries on up to the box.
-					const pick =
-						(event.key === "Enter" && !isHotkey("SUBMIT", event.nativeEvent)) ||
-						(event.key === "Tab" && searched);
-					if (pick) {
-						event.preventDefault();
-						// Enter here picks a skill; it must not also submit the task.
-						event.stopPropagation();
-						const match = matches[active];
-						if (match) commit(match.name);
-					}
-				}}
-				className={cn(
-					FIELD,
-					"w-[130px] placeholder:font-normal placeholder:text-muted-foreground",
-					// Amber, not red: a name the list doesn't know is usually a skill
-					// installed on another machine, not a typo.
-					current && !known ? "text-attention" : "text-foreground",
-				)}
-			/>
+		<>
+			<label className={FIELD}>
+				<span className={FIELD_LABEL}>Skill</span>
+				<input
+					ref={box}
+					aria-label="Skill"
+					placeholder="search…"
+					spellCheck={false}
+					autoComplete="off"
+					title="Open the session by running this skill, with the title as its argument. Type to search - by name or by what it does."
+					value={query ?? current}
+					onFocus={open}
+					onChange={(event) => {
+						setQuery(event.target.value);
+						setSelected(0);
+					}}
+					onBlur={() => {
+						if (abandoned.current) {
+							abandoned.current = false;
+							return close();
+						}
+						commit(query ?? current);
+					}}
+					onKeyDown={(event) => {
+						if (event.key === "Escape") {
+							// Only this box: Escape in the compose row would otherwise
+							// throw away the task you were writing too.
+							event.preventDefault();
+							event.stopPropagation();
+							abandoned.current = true;
+							box.current?.blur();
+							return;
+						}
+						if (matches.length === 0) return;
+						if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+							event.preventDefault();
+							const step = event.key === "ArrowDown" ? 1 : matches.length - 1;
+							setSelected((index) => (index + step) % matches.length);
+							return;
+						}
+						// Tab only completes a search you typed: tabbing past the box
+						// must not fill in the top of the list.
+						const searched = query !== null && query !== current;
+						// ⌘Enter is Send, so it carries on up to the box.
+						const pick =
+							(event.key === "Enter" &&
+								!isHotkey("SUBMIT", event.nativeEvent)) ||
+							(event.key === "Tab" && searched);
+						if (pick) {
+							event.preventDefault();
+							// Enter here picks a skill; it must not also submit the task.
+							event.stopPropagation();
+							const match = matches[active];
+							if (match) commit(match.name);
+						}
+					}}
+					className={cn(
+						FIELD_INPUT,
+						"w-[112px]",
+						// Amber, not red: a name the list doesn't know is usually a skill
+						// installed on another machine, not a typo.
+						current && !known ? "text-attention" : "text-foreground",
+					)}
+				/>
+			</label>
 			{current && !known && query === null && (
 				<span className="text-[11px] text-muted-foreground">not installed</span>
 			)}
@@ -582,7 +602,7 @@ function SkillSelect({
 					))}
 				</div>
 			)}
-		</div>
+		</>
 	);
 }
 
@@ -622,41 +642,43 @@ function RepoSelect({
 	if (resolve(query).repo !== value) setQuery(value ? repoLabel(value) : "");
 	const unresolved = query.trim() !== "" && !value;
 	return (
-		<div className="flex items-center gap-1.5">
-			<span className="text-[11px] text-muted-foreground">Repo</span>
-			<input
-				list="odin-task-repos"
-				aria-label="Repo"
-				value={query}
-				spellCheck={false}
-				autoComplete="off"
-				placeholder="agent picks"
-				title={
-					value
-						? value
-						: unresolved
-							? hits > 1
-								? `${hits} repos match - type more of the name`
-								: "No repo matches - the session will start without one"
-							: "The checkout the session starts in. Type to search."
-				}
-				onChange={(event) => {
-					setQuery(event.target.value);
-					onChange(resolve(event.target.value).repo);
-				}}
-				onBlur={() => value && setQuery(repoLabel(value))}
-				// Same :autofill override as the New Session dialog - a picked option
-				// otherwise paints white-on-black over any bg-*.
-				className={cn(
-					FIELD,
-					"w-[140px] [color-scheme:inherit] placeholder:font-normal placeholder:text-muted-foreground autofill:shadow-[inset_0_0_0_1000px_var(--secondary)] autofill:[-webkit-text-fill-color:var(--foreground)]",
-					value
-						? "text-foreground"
-						: unresolved
-							? "text-danger"
-							: "text-muted-foreground",
-				)}
-			/>
+		<>
+			<label className={FIELD}>
+				<span className={FIELD_LABEL}>Repo</span>
+				<input
+					list="odin-task-repos"
+					aria-label="Repo"
+					value={query}
+					spellCheck={false}
+					autoComplete="off"
+					placeholder="agent picks"
+					title={
+						value
+							? value
+							: unresolved
+								? hits > 1
+									? `${hits} repos match - type more of the name`
+									: "No repo matches - the session will start without one"
+								: "The checkout the session starts in. Type to search."
+					}
+					onChange={(event) => {
+						setQuery(event.target.value);
+						onChange(resolve(event.target.value).repo);
+					}}
+					onBlur={() => value && setQuery(repoLabel(value))}
+					// Same :autofill override as the New Session dialog - a picked option
+					// otherwise paints white-on-black over any bg-*.
+					className={cn(
+						FIELD_INPUT,
+						"w-[124px] [color-scheme:inherit] autofill:shadow-[inset_0_0_0_1000px_var(--secondary)] autofill:[-webkit-text-fill-color:var(--foreground)]",
+						value
+							? "text-foreground"
+							: unresolved
+								? "text-danger"
+								: "text-muted-foreground",
+					)}
+				/>
+			</label>
 			<datalist id="odin-task-repos">
 				{repos.map((path) => (
 					<option key={path} value={path}>
@@ -664,7 +686,7 @@ function RepoSelect({
 					</option>
 				))}
 			</datalist>
-		</div>
+		</>
 	);
 }
 
@@ -828,6 +850,9 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 	const addRecentRepo = useClaudeCommand((state) => state.addRecentRepo);
 	const [draft, setDraft] = useState("");
 	const [repo, setRepo] = useState("");
+	// This computer or the remote host, for the session Start now opens.
+	// Undefined until picked, so the launch keeps Settings' rule.
+	const [onHost, setOnHost] = useState<boolean>();
 	const dialog = useRef<HTMLDivElement>(null);
 	const { keys: submitKeys } = useHotkeyDisplay("SUBMIT");
 
@@ -853,7 +878,7 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 		if (!startNow) return void toast.success("Added to My Tasks");
 		// The store puts a new task first, so that's the one just added.
 		const task = useOdinTasks.getState().tasks[0];
-		if (task) void startTask(task);
+		if (task) void startTask(task, { guidelines: "", images: [], onHost });
 	};
 
 	return (
@@ -928,6 +953,15 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 						/>
 						Start now
 					</label>
+					{/* Only with Start now: a task added to the list is asked where
+					    to run when its row is started, so a pick here would be lost. */}
+					{startNow && (
+						<WherePicker
+							value={onHost}
+							onChange={setOnHost}
+							className={cn(FIELD_MENU, "text-foreground")}
+						/>
+					)}
 					<span className="ml-auto text-[11px] text-faint-foreground">
 						esc to cancel
 					</span>
