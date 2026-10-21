@@ -82,6 +82,7 @@ import {
 } from "./ChatPrompts";
 import { collectRefs, linkify, withSchemes } from "./chat-links";
 import { parseScreenAside, parseScreenMenu } from "./screen-menu";
+import { screenSteps, unrecordedSteps } from "./screen-steps";
 import { parseShell, type Shell } from "./shell-output";
 import { useHoldToTalk } from "./voice";
 
@@ -2447,6 +2448,25 @@ export function ChatView({
 		() => (screenText ? parseScreenAside(screenText) : null),
 		[screenText],
 	);
+	// What Claude drew for this turn that the transcript hasn't recorded yet:
+	// Claude Code commits a message's lines seconds after it streams them, and
+	// minutes when a permission check waits, so the lines it writes before a
+	// command, and the command, are on the screen long before they're in the
+	// file. The terminal shows them at once; this shows the same.
+	const liveSteps = useMemo(
+		() =>
+			working && screenText
+				? unrecordedSteps(screenSteps(screenText), items.slice(turnIndex + 1))
+				: [],
+		[working, screenText, items, turnIndex],
+	);
+	// Each line once: the same words twice on screen would share a row key.
+	const liveLines = [
+		...new Set(
+			liveSteps.flatMap((step) => (step.kind === "text" ? [step.text] : [])),
+		),
+	];
+	const liveCommand = liveSteps.findLast((step) => step.kind === "tool");
 	// Claude draws its limit menu only when the turn hits the limit. A session
 	// reopened after that (a night run the board picked up in the morning)
 	// shows the message with no menu on screen, so offer to open it.
@@ -3007,57 +3027,87 @@ export function ChatView({
 						!screenMenu &&
 						!screenAside &&
 						!starting && (
-							<div className="flex min-w-0 gap-3 text-[12.5px] text-working">
-								<WorkingMark />
-								{compacting === null ? (
-									<div className="flex min-w-0 flex-1 flex-col">
-										<button
-											type="button"
-											title={
-												showCommands
-													? "Hide the steps"
-													: "Show what Claude did this turn"
-											}
-											disabled={turnTools.length === 0}
-											onClick={() => setShowCommands(!showCommands)}
-											className="flex h-7 items-center gap-3 self-start rounded-md enabled:hover:text-foreground"
-										>
-											<span className="shrink-0">Working…</span>
-											{turnStart !== undefined && <Elapsed since={turnStart} />}
-											{turnTokens > 0 && (
-												<span
-													title="Tokens Claude has written this turn"
-													className="shrink-0 tabular-nums text-muted-foreground"
+							<>
+								{/* Lines Claude wrote this turn, read off the screen until the
+								    transcript records them - then their own rows take over. */}
+								{liveLines.map((text) => (
+									<div
+										key={text}
+										className={cn("flex min-w-0 gap-3", ENTER)}
+										title="Read off the terminal: the transcript hasn't recorded it yet"
+									>
+										<ReplyMark />
+										<div className="min-w-0 flex-1 select-text cursor-text text-[13px] leading-relaxed text-soft-foreground">
+											{text}
+										</div>
+									</div>
+								))}
+								<div className="flex min-w-0 gap-3 text-[12.5px] text-working">
+									<WorkingMark />
+									{compacting === null ? (
+										<div className="flex min-w-0 flex-1 flex-col">
+											{liveCommand && (
+												// The command running now, before the transcript has it.
+												<div
+													className="flex h-7 min-w-0 items-center gap-2 text-foreground"
+													title="Running - read off the terminal"
 												>
-													↓ {tokenLabel(turnTokens)} tokens
-												</span>
+													<span className="size-[7px] shrink-0 animate-pulse rounded-full bg-working" />
+													<span className="min-w-0 truncate">
+														{liveCommand.text}
+													</span>
+												</div>
 											)}
-											{turnTools.length > 0 && (
-												<LuChevronRight
-													className={cn(
-														"size-3.5 shrink-0 text-muted-foreground transition-transform",
-														showCommands && "rotate-90",
-													)}
-												/>
+											<button
+												type="button"
+												title={
+													showCommands
+														? "Hide the steps"
+														: "Show what Claude did this turn"
+												}
+												disabled={turnTools.length === 0}
+												onClick={() => setShowCommands(!showCommands)}
+												className="flex h-7 items-center gap-3 self-start rounded-md enabled:hover:text-foreground"
+											>
+												<span className="shrink-0">Working…</span>
+												{turnStart !== undefined && (
+													<Elapsed since={turnStart} />
+												)}
+												{turnTokens > 0 && (
+													<span
+														title="Tokens Claude has written this turn"
+														className="shrink-0 tabular-nums text-muted-foreground"
+													>
+														↓ {tokenLabel(turnTokens)} tokens
+													</span>
+												)}
+												{turnTools.length > 0 && (
+													<LuChevronRight
+														className={cn(
+															"size-3.5 shrink-0 text-muted-foreground transition-transform",
+															showCommands && "rotate-90",
+														)}
+													/>
+												)}
+											</button>
+											{showCommands && turnTools.length > 0 && (
+												// Same rows as a finished turn's Worked list: what each
+												// step did, opening to its command and output.
+												<div className="mt-1.5 max-h-[420px] overflow-y-auto rounded-lg border border-border bg-secondary/20 p-1.5 text-foreground">
+													{turnTools.map((tool) => (
+														<ToolRow key={tool.id} item={tool} />
+													))}
+												</div>
 											)}
-										</button>
-										{showCommands && turnTools.length > 0 && (
-											// Same rows as a finished turn's Worked list: what each
-											// step did, opening to its command and output.
-											<div className="mt-1.5 max-h-[420px] overflow-y-auto rounded-lg border border-border bg-secondary/20 p-1.5 text-foreground">
-												{turnTools.map((tool) => (
-													<ToolRow key={tool.id} item={tool} />
-												))}
-											</div>
-										)}
-									</div>
-								) : (
-									<div className="flex h-7 items-center gap-3">
-										Compacting conversation…
-										<Elapsed since={compacting} />
-									</div>
-								)}
-							</div>
+										</div>
+									) : (
+										<div className="flex h-7 items-center gap-3">
+											Compacting conversation…
+											<Elapsed since={compacting} />
+										</div>
+									)}
+								</div>
+							</>
 						)}
 				</div>
 			</div>

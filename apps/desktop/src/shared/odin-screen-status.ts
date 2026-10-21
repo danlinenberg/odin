@@ -76,7 +76,7 @@ const REMOTE_CONNECTING =
  * match. `[ \t]` rather than `\s`: a transcript line that Claude truncated
  * with "…" must not pair up with a "(" on the line below it.
  */
-const SPINNER = /…[ \t]*\(|esc to interrupt/i;
+export const SPINNER = /…[ \t]*\(|esc to interrupt/i;
 
 /**
  * What a Claude session's terminal screen says it's doing, for board cards
