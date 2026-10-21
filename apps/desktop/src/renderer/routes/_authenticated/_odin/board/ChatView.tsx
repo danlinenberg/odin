@@ -1961,7 +1961,10 @@ function ActionItemRow({
 					aria-label="Remove this item"
 					data-dismiss
 					onClick={onDismiss}
-					className="-my-0.5 -mr-1 flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
+					// One hue: the lit row is amber, so the X's own box is a deeper
+					// amber (bg-none drops the grey every button gets on hover), and
+					// it ends at the column's edge, so the row pads evenly both sides.
+					className="-my-0.5 flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-none hover:bg-attention/20 hover:text-attention-ink focus-visible:bg-attention/20 focus-visible:text-attention-ink"
 				>
 					<LuX className="size-4" />
 				</button>
