@@ -1,6 +1,14 @@
 import { describe, expect, it } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import { PriorityChip, parseSize, TaskBox } from "./TaskBox";
+import {
+	isAttachmentLine,
+	joinAttachments,
+	PriorityChip,
+	parseSize,
+	splitAttachments,
+	TaskBox,
+	typedTitle,
+} from "./TaskBox";
 
 describe("TaskBox", () => {
 	it("shows the level the typed !s mean, so the picker can't lie", () => {
@@ -101,6 +109,101 @@ describe("TaskBox", () => {
 		expect(html).toContain(
 			'<option value="/h/.odin/docs/pricing.md">Pricing ideas</option>',
 		);
+	});
+});
+
+describe("TaskBox attachments", () => {
+	const shot = "/Users/dan/.odin/attachments/1792569414089-rp3i3r.png";
+
+	it("shows a pasted image as a chip under the text, not as a line in it", () => {
+		const html = renderToStaticMarkup(
+			<TaskBox
+				value={`Ship the fix\n\n${shot}`}
+				onChange={() => {}}
+				onSubmit={() => {}}
+			/>,
+		);
+		expect(html).toContain(">Ship the fix</textarea>");
+		expect(html).not.toContain(`${shot}</textarea>`);
+		// A pasted screenshot is served by name out of ~/.odin/attachments.
+		expect(html).toContain(
+			'<img src="odin-attachment://file/1792569414089-rp3i3r.png" alt="1792569414089-rp3i3r.png"',
+		);
+		expect(html).toContain('title="Remove 1792569414089-rp3i3r.png"');
+	});
+
+	it("shows a video or doc by name, and an image elsewhere by its path", () => {
+		const html = renderToStaticMarkup(
+			<TaskBox
+				value={
+					"Ship the fix\n\n/Users/dan/clip.mov\n/Users/dan/notes.md\n/Users/dan/Desktop/Shot 1.png"
+				}
+				onChange={() => {}}
+				onSubmit={() => {}}
+			/>,
+		);
+		expect(html).toContain(">Ship the fix</textarea>");
+		expect(html).toContain("🎬");
+		expect(html).toContain("clip.mov");
+		expect(html).toContain("📄");
+		expect(html).toContain("notes.md");
+		expect(html).toContain(
+			'src="odin-attachment://local/Users/dan/Desktop/Shot%201.png"',
+		);
+	});
+
+	it("keeps the submit button off while only an attachment is in the box", () => {
+		const html = renderToStaticMarkup(
+			<TaskBox
+				value={`\n\n${shot}`}
+				submitLabel="Add task"
+				onChange={() => {}}
+				onSubmit={() => {}}
+			/>,
+		);
+		expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Add task<\/button>/);
+		expect(typedTitle(`\n\n${shot}`)).toBe("");
+		expect(typedTitle(`Ship the fix\n\n${shot}`)).toBe("Ship the fix");
+	});
+
+	it("splits and joins the text and the paths without changing either", () => {
+		for (const text of ["", "Ship the fix", "Ship the fix\n", "a\n\nb\n\n"]) {
+			expect(splitAttachments(joinAttachments(text, [shot]))).toEqual({
+				text,
+				paths: [shot],
+			});
+			expect(splitAttachments(text)).toEqual({ text, paths: [] });
+		}
+		// The format the box always wrote: title, blank line, path.
+		expect(splitAttachments(`Ship the fix\n\n${shot}`)).toEqual({
+			text: "Ship the fix",
+			paths: [shot],
+		});
+		// The same file twice is one attachment.
+		expect(splitAttachments(`Ship the fix\n\n${shot}\n${shot}`).paths).toEqual([
+			shot,
+		]);
+		// A path in the middle still comes out; the text keeps its other lines.
+		expect(splitAttachments(`Ship the fix\n\n${shot}\n\nit crashes`)).toEqual({
+			text: "Ship the fix\n\n\nit crashes",
+			paths: [shot],
+		});
+	});
+
+	it("takes only a bare path to a photo, video or doc as an attachment", () => {
+		expect(isAttachmentLine(shot)).toBe(true);
+		expect(isAttachmentLine(`  ${shot}  `)).toBe(true);
+		expect(isAttachmentLine("~/.odin/attachments/shot.png")).toBe(true);
+		expect(isAttachmentLine("C:\\Users\\dan\\shot.png")).toBe(true);
+		expect(isAttachmentLine("/Users/dan/clip.mov")).toBe(true);
+		expect(isAttachmentLine("/Users/dan/notes.md")).toBe(true);
+		// Not a path on its own, a doc the picker cites, a URL, a plain file.
+		expect(isAttachmentLine("see /Users/dan/shot.png")).toBe(false);
+		expect(isAttachmentLine("Context doc: /h/.odin/docs/pricing.md")).toBe(
+			false,
+		);
+		expect(isAttachmentLine("https://x.com/shot.png")).toBe(false);
+		expect(isAttachmentLine("/Users/dan/report.pdf")).toBe(false);
 	});
 });
 

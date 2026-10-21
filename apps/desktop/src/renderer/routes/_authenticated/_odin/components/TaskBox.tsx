@@ -8,7 +8,9 @@ import { isHotkey, useHotkeyDisplay } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { useClaudeCommand } from "renderer/stores/claude-command";
 import { describeCron, nextRun } from "shared/cron";
+import { getImageMimeType, isVideoFile } from "shared/file-types";
 import {
+	ATTACHMENT_URL,
 	PRIORITY_LABELS,
 	parseTask,
 	priorityOf,
@@ -61,10 +63,112 @@ export async function attachmentPaths(files: File[]): Promise<string[]> {
 }
 
 /**
+ * A line that is nothing but an attachment's path: absolute (or under ~), to
+ * a photo, video or markdown doc. The box shows such a line as a chip under
+ * the text, never as text. The chat view reads the same lines as previews.
+ */
+export const isAttachmentLine = (line: string): boolean => {
+	const text = line.trim();
+	return (
+		/^(\/|~\/|[A-Za-z]:[\\/])/.test(text) &&
+		(!!getImageMimeType(text) || isVideoFile(text) || /\.md$/i.test(text))
+	);
+};
+
+/**
+ * A task string apart: the text you typed, and the attachment paths on lines
+ * of their own. The blank line `joinAttachments` puts before the paths comes
+ * off the text too, so the two round-trip and the textbox never grows a line.
+ */
+export function splitAttachments(value: string): {
+	text: string;
+	paths: string[];
+} {
+	const lines = value.split("\n");
+	// Once each: the same file pasted twice is one attachment, and one chip.
+	const paths = [
+		...new Set(lines.filter(isAttachmentLine).map((line) => line.trim())),
+	];
+	if (paths.length === 0) return { text: value, paths };
+	const text = lines.filter((line) => !isAttachmentLine(line)).join("\n");
+	return { text: text.endsWith("\n") ? text.slice(0, -1) : text, paths };
+}
+
+/**
+ * The task string back: the text, then the paths as their own paragraph at
+ * the end, where the session's prompt picks them up like any other text.
+ */
+export const joinAttachments = (text: string, paths: string[]): string =>
+	paths.length === 0 ? text : `${text}\n\n${paths.join("\n")}`;
+
+/** The title the text alone gives - a lone attachment is not a task yet. */
+export const typedTitle = (value: string): string =>
+	parseTask(splitAttachments(value).text).title;
+
+const baseName = (path: string) => path.split(/[\\/]/).pop() || path;
+
+/**
+ * Where the renderer loads an attached image from: a pasted screenshot lives
+ * in ~/.odin/attachments, served by name; any other image by its path.
+ */
+const attachmentSrc = (path: string): string =>
+	/[\\/]\.odin[\\/]attachments[\\/][^\\/]+$/.test(path)
+		? ATTACHMENT_URL + encodeURIComponent(baseName(path))
+		: `odin-attachment://local${path.startsWith("/") ? "" : "/"}${encodeURI(path)}`;
+
+/**
+ * One attachment under the text: a photo as its thumbnail, a video or doc by
+ * name. Clicking it takes it off the task, like the New Session dialog's.
+ */
+function AttachmentChip({
+	path,
+	onRemove,
+}: {
+	path: string;
+	onRemove: () => void;
+}) {
+	const name = baseName(path);
+	// An image the protocol can't serve (a format Chromium doesn't draw, a
+	// path it can't reach) falls back to its name.
+	const [broken, setBroken] = useState(false);
+	const image = !broken && !!getImageMimeType(path);
+	return (
+		<button
+			type="button"
+			title={`Remove ${name}`}
+			onClick={onRemove}
+			className={cn(
+				"group relative h-14 shrink-0 overflow-hidden rounded-[6px] border border-border bg-card",
+				image ? "w-14" : "max-w-[160px] px-2",
+			)}
+		>
+			{image ? (
+				<img
+					src={attachmentSrc(path)}
+					alt={name}
+					onError={() => setBroken(true)}
+					className="size-full object-cover"
+				/>
+			) : (
+				<span className="flex size-full flex-col items-center justify-center gap-0.5 text-[10px] leading-tight text-muted-foreground">
+					<span className="text-[14px]">{isVideoFile(path) ? "🎬" : "📄"}</span>
+					<span className="w-full truncate text-center">{name}</span>
+				</span>
+			)}
+			<span className="absolute inset-0 hidden items-center justify-center bg-black/60 text-[11px] font-semibold text-danger group-hover:flex">
+				remove
+			</span>
+		</button>
+	);
+}
+
+/**
  * The box you write a task in - compose row, edit row and the hotkey's quick
  * capture all use this one, so priority works the same in all three.
  *
- * One textbox: the first line names the card, the rest is the brief.
+ * One textbox: the first line names the card, the rest is the brief. A pasted
+ * or dropped file is a chip under it, not a line in it - the task string
+ * still carries the path, the box just never shows it as text.
  *
  * Ctrl/⌘+Enter adds/saves, plain Enter is a newline, Escape
  * cancels. Plain Enter never submits - it fired half-written tasks.
@@ -121,7 +225,15 @@ export function TaskBox({
 	/** Shows a button that does what Ctrl/⌘+Enter does. */
 	submitLabel?: string;
 }) {
-	const title = parseTask(value).title;
+	// What the textbox shows is the text alone; the paths ride along as chips.
+	const { text, paths } = splitAttachments(value);
+	const title = parseTask(text).title;
+	// Every edit of the text puts the attachments back on the end of it.
+	const change = (next: string) => onChange(joinAttachments(next, paths));
+	// Attaching is async (a pasted screenshot is written to disk first), and
+	// you may have typed more by the time it lands - append to what's there then.
+	const latest = useRef(value);
+	latest.current = value;
 	const [focused, setFocused] = useState(false);
 	const folded = !!compact && !focused && !value.trim();
 	// Send (⌘Enter unless rebound) submits from anywhere in the box - Skill,
@@ -133,14 +245,15 @@ export function TaskBox({
 		}
 		if (event.key === "Escape") onCancel?.();
 	};
-	// Paths go on their own lines at the end of the brief, where the session's
-	// prompt picks them up like any other text.
 	const attach = (list: FileList, event: React.SyntheticEvent) => {
 		const files = [...list].filter(isAttachable);
 		if (files.length === 0) return;
 		event.preventDefault();
 		attachmentPaths(files)
-			.then((paths) => onChange(appendLines(value, paths)))
+			.then((added) => {
+				const current = splitAttachments(latest.current);
+				onChange(joinAttachments(current.text, [...current.paths, ...added]));
+			})
 			.catch(() => toast.error("Couldn't attach that file"));
 	};
 
@@ -173,16 +286,34 @@ export function TaskBox({
 				)}
 			>
 				<textarea
-					value={value}
+					value={text}
 					placeholder={placeholder ?? "What needs doing?"}
 					// biome-ignore lint/a11y/noAutofocus: the edit box replaces the row you clicked
 					autoFocus={autoFocus}
 					rows={folded ? 1 : 3}
 					aria-label="Task"
-					onChange={(event) => onChange(event.target.value)}
+					onChange={(event) => change(event.target.value)}
 					className="w-full min-h-0 grow resize-none bg-transparent px-3 py-2 text-[13px] text-foreground outline-none placeholder:text-muted-foreground"
 				/>
 			</fieldset>
+			{paths.length > 0 && (
+				<div className="flex flex-wrap gap-1.5">
+					{paths.map((path) => (
+						<AttachmentChip
+							key={path}
+							path={path}
+							onRemove={() =>
+								onChange(
+									joinAttachments(
+										text,
+										paths.filter((other) => other !== path),
+									),
+								)
+							}
+						/>
+					))}
+				</div>
+			)}
 			{/* The picker doesn't hold a value of its own: it rewrites the "!"s in
 			    the text, which is what the store reads either way. Typing "!" and
 			    picking Low are the same edit, so neither can go stale. Medium is
@@ -192,7 +323,7 @@ export function TaskBox({
 			{!folded && (
 				<div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
 					{skills && skills.length > 0 && (
-						<SkillSelect skills={skills} value={value} onChange={onChange} />
+						<SkillSelect skills={skills} value={text} onChange={change} />
 					)}
 					{docs && docs.length > 0 && (
 						<select
@@ -200,8 +331,8 @@ export function TaskBox({
 							title="Add a saved doc to the brief - the session reads it for context"
 							value=""
 							onChange={(event) =>
-								onChange(
-									appendLines(value, [`Context doc: ${event.target.value}`]),
+								change(
+									appendLines(text, [`Context doc: ${event.target.value}`]),
 								)
 							}
 							// Fixed width: it always shows "Doc", so sizing it to the longest
@@ -236,9 +367,9 @@ export function TaskBox({
 							<select
 								aria-label="Priority"
 								title="Or lead the title with ! (Low) or !!! (High) - no ! is Medium"
-								value={parseTask(value).priority}
+								value={parseTask(text).priority}
 								onChange={(event) =>
-									onChange(withPriority(value, Number(event.target.value)))
+									change(withPriority(text, Number(event.target.value)))
 								}
 								className={cn(
 									FIELD,
@@ -715,8 +846,10 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 	}, []);
 
 	const save = () => {
-		// Same rule the store uses - no title, no task, so don't claim one.
-		if (!parseTask(draft).title) return onClose();
+		// Same rule the store uses - no title, no task, so don't claim one. A
+		// pasted screenshot on its own has no title either: its path must not
+		// become one.
+		if (!typedTitle(draft)) return onClose();
 		add(draft, undefined, repo);
 		if (repo) addRecentRepo(repo);
 		onClose();
@@ -797,7 +930,7 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 					<button
 						type="button"
 						onClick={save}
-						disabled={!parseTask(draft).title}
+						disabled={!typedTitle(draft)}
 						// The name without the shortcut glyphs beside it.
 						aria-label={startNow ? "Start session" : "Add task"}
 						className={cn(
