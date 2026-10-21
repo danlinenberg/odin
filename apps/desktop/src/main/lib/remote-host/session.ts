@@ -288,7 +288,9 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 		`p=${HOST_PORT_SH}; curl -sf -m 2 http://127.0.0.1:$p/health >/dev/null && ODIN_PORT=$p || ODIN_PORT=$((p + 1))`,
 		`export ODIN_PORT${spec.odinPane ? ` ODIN_PANE_ID=${sh(spec.odinPane)}` : ""}`,
 		// git reads GH_TOKEN from the environment, never from a file or argv.
-		`git config --global credential.https://github.com.helper '!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f'`,
+		// Set in this session's env, not ~/.gitconfig: two sessions starting
+		// at once raced on its lock ("could not lock config file").
+		`export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=credential.https://github.com.helper GIT_CONFIG_VALUE_0='!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f'`,
 		`mkdir -p ${root}`,
 		spec.repoName && spec.cloneUrl
 			? `[ -d ${repo}/.git ] || git clone ${sh(spec.cloneUrl)} ${repo} || echo "Odin: could not clone ${spec.cloneUrl.replaceAll('"', "")}"`
