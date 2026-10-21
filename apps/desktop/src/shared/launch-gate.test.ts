@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import {
 	claimedCheckout,
 	launchBlocker,
+	remoteFrozenReason,
 	remoteLaunchBlocker,
 	sessionInFlight,
 } from "./launch-gate";
@@ -243,5 +244,25 @@ describe("remoteLaunchBlocker", () => {
 			remoteLaunchBlocker(reading(3174, 2), "odin-remote", 3 * 60_000),
 		).toBeNull();
 		expect(remoteLaunchBlocker(null, "odin-remote", 0)).toBeNull();
+	});
+});
+
+describe("remoteFrozenReason", () => {
+	const reading = (memAvailableMb: number) => ({
+		instanceId: "i-1",
+		at: 1000,
+		memAvailableMb,
+		memTotalMb: 32000,
+		load1: 1,
+		cores: 8,
+	});
+	it("names a host with no memory left, and stays quiet otherwise", () => {
+		expect(remoteFrozenReason(reading(0), "box", 1000)).toContain(
+			"box is out of memory",
+		);
+		expect(remoteFrozenReason(reading(3000), "box", 1000)).toBeNull();
+		expect(
+			remoteFrozenReason(reading(0), "box", 1000 + 10 * 60_000),
+		).toBeNull();
 	});
 });

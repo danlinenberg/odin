@@ -1580,6 +1580,45 @@ function HostMark({ paneId, state }: { paneId: string; state: HostState }) {
 	);
 }
 
+/**
+ * A red line over a remote session whose host is out of memory: its Claude
+ * stops drawing and typing seems to do nothing, and this says why. Asks the
+ * host's latest reading, which its panes send every 30s.
+ */
+function HostFrozenNotice({
+	paneId,
+	onMoveHere,
+}: {
+	paneId: string;
+	onMoveHere?: () => void;
+}) {
+	const remote = useTabsStore((s) => !!s.panes[paneId]?.odinRemote);
+	const { data } = electronTrpc.remoteHost.launchGate.useQuery(undefined, {
+		enabled: remote,
+		refetchInterval: 10_000,
+	});
+	if (!remote || !data?.frozen) return null;
+	return (
+		<div className="flex items-center gap-3 border-b border-border bg-danger/10 px-4 py-2 text-[12px] text-danger">
+			<span className="flex-1">{data.frozen}</span>
+			{onMoveHere && (
+				<button
+					type="button"
+					title="Copy this conversation from the remote host and continue it on this computer"
+					onClick={onMoveHere}
+					className={cn(
+						"flex shrink-0 items-center gap-1.5 rounded-[7px] px-3 py-1.5 text-xs font-semibold",
+						BUTTON.secondary,
+					)}
+				>
+					<LuLaptop className="size-3.5" aria-hidden />
+					Move to this computer
+				</button>
+			)}
+		</div>
+	);
+}
+
 function TagMenu({
 	x,
 	y,
@@ -6408,6 +6447,14 @@ function DevBoardPage() {
 										</nav>
 									)}
 								<div className="flex min-h-0 min-w-0 flex-1 flex-col">
+									<HostFrozenNotice
+										paneId={drawerCard.pane.id}
+										onMoveHere={
+											drawerCard.pane.odinQueued
+												? undefined
+												: () => void runHere(drawerCard)
+										}
+									/>
 									{isShellOpen && drawerShell ? (
 										// A shell in the same checkout, mounted like any other pane -
 										// it spawns on first mount with the session's cwd.

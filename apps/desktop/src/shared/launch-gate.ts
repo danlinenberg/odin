@@ -1,4 +1,4 @@
-import type { HostLoadReading } from "./host-load";
+import { HOST_FROZEN_FREE_MB, type HostLoadReading } from "./host-load";
 import {
 	type LaunchLimits,
 	type MachineLoadInput,
@@ -152,4 +152,19 @@ export function remoteLaunchBlocker(
 	if (reading.load1 > reading.cores)
 		return `${name} is busy (load ${reading.load1.toFixed(1)} on ${reading.cores} cores)`;
 	return null;
+}
+
+/**
+ * Why the remote host `name`'s sessions are frozen, or null when they aren't.
+ * Out of memory, the kernel spends its time swapping instead of running
+ * them: Claude stops drawing and typing seems to do nothing.
+ */
+export function remoteFrozenReason(
+	reading: HostLoadReading | null | undefined,
+	name: string,
+	now: number,
+): string | null {
+	if (!reading || now - reading.at > HOST_LOAD_FRESH_MS) return null;
+	if (reading.memAvailableMb >= HOST_FROZEN_FREE_MB) return null;
+	return `${name} is out of memory (${(reading.memAvailableMb / 1024).toFixed(1)} GB free), so its sessions are frozen and typing does nothing until memory frees. A build using most of it is usually the cause.`;
 }

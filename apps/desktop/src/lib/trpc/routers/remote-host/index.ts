@@ -70,7 +70,7 @@ import {
 	runOnHost,
 } from "main/lib/remote-host/ssh";
 import { resolveElectronBinary } from "main/lib/terminal-host/electron-binary";
-import { remoteLaunchBlocker } from "shared/launch-gate";
+import { remoteFrozenReason, remoteLaunchBlocker } from "shared/launch-gate";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
 import { readOdinConfig, updateOdinConfig } from "../odin-config";
@@ -341,6 +341,14 @@ export const createRemoteHostRouter = () =>
 			return {
 				reason: host
 					? remoteLaunchBlocker(
+							reading,
+							host.name || host.instanceId,
+							Date.now(),
+						)
+					: null,
+				/** Set while the host is too short of memory to run its sessions. */
+				frozen: host
+					? remoteFrozenReason(
 							reading,
 							host.name || host.instanceId,
 							Date.now(),
