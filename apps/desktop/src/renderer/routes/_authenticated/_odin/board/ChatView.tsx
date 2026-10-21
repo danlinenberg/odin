@@ -1167,6 +1167,8 @@ export function currentTurn(items: Item[], landed: boolean) {
 		/** The message's row id: what "Hide the steps" is remembered by. */
 		id: user?.id ?? "",
 		start: user?.kind === "user" ? user.at : undefined,
+		/** What you sent: the rows of it still on screen are not steps. */
+		prompt: user?.kind === "user" ? user.text : "",
 		/** Everything Claude wrote and ran since. */
 		items: rest,
 		tools: rest.filter((item): item is Tool => item.kind === "tool"),
@@ -2856,6 +2858,8 @@ export function ChatView({
 	// command, and the command, are on the screen long before they're in the
 	// file. The terminal shows them at once; this shows the same. Each read
 	// settles first (see settleSteps): a frame caught mid-paint must not show.
+	// A prompt longer than the screen leaves its tail on it with no "> " above
+	// to mark it yours: the turn's prompt tells those rows from Claude's.
 	const screenAt = screen.dataUpdatedAt;
 	const [settled, setSettled] = useState<Settled>(UNSETTLED);
 	useEffect(() => {
@@ -2866,8 +2870,8 @@ export function ChatView({
 		);
 	}, [working, screenText, screenAt]);
 	const liveSteps = useMemo(
-		() => unrecordedSteps(settled.shown, turn.items),
-		[settled.shown, turn.items],
+		() => unrecordedSteps(settled.shown, turn.items, turn.prompt),
+		[settled.shown, turn.items, turn.prompt],
 	);
 	// The lines as one reply, each paragraph once: the same words twice on
 	// screen are one line scrolled.

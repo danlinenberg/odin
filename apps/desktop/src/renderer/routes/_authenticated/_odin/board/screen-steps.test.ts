@@ -127,6 +127,49 @@ describe("screenSteps", () => {
 		]);
 	});
 
+	test("a prompt longer than the screen: its rows read as Claude's until the prompt itself tells them apart", () => {
+		const prompt = [
+			"Task: this text isn't clear",
+			"",
+			"Standing rules - follow each one whenever its situation comes up, and say when it is done.",
+			"The repos on my computer:",
+			"- https://github.com/imagenai/translations-utils.git",
+			"- https://github.com/imagenai/video-editing-service.git",
+			"git and gh are signed in to GitHub with my account.",
+		].join("\n");
+		const read = screenSteps(
+			screen(
+				"  - https://github.com/imagenai/translations-utils.git",
+				"  - https://github.com/imagenai/video-editing-service.git",
+				"  git and gh are signed in to GitHub with my account.",
+				"",
+				"● I'll look at the screenshot first to see which text is unclear and where it lives.",
+				"",
+				"● Read(/home/ubuntu/.odin/files/0-1792600157590-4naptu.png)",
+				"  ⎿  Running…",
+				"",
+				"✻ Thinking… (15s · ↓ 119 tokens)",
+			),
+		);
+		const line = {
+			kind: "text" as const,
+			text: "I'll look at the screenshot first to see which text is unclear and where it lives.",
+		};
+		const command = {
+			kind: "tool" as const,
+			text: "Read(/home/ubuntu/.odin/files/0-1792600157590-4naptu.png)",
+		};
+		expect(read).toEqual([
+			{
+				kind: "text",
+				text: "- https://github.com/imagenai/translations-utils.git\n- https://github.com/imagenai/video-editing-service.git\ngit and gh are signed in to GitHub with my account.",
+			},
+			line,
+			command,
+		]);
+		expect(unrecordedSteps(read ?? [], [], prompt)).toEqual([line, command]);
+	});
+
 	test("nothing drawn yet, or a dialog instead of a spinner", () => {
 		expect(screenSteps(screen("> go", ""))).toEqual([]);
 		expect(screenSteps(screen("> go", "  on, two rows", ""))).toEqual([]);
@@ -365,6 +408,37 @@ describe("unrecordedSteps", () => {
 		expect(
 			unrecordedSteps([line], [{ kind: "text", text: "Something else." }]),
 		).toEqual([line]);
+	});
+
+	test("rows of your prompt, scrolled past its '> ': whole, broken inside a URL, never a line that only shares its words", () => {
+		const prompt = [
+			"Task: this text isn't clear",
+			"",
+			"Standing rules - follow each one whenever its situation comes up, and say when it is done.",
+			"The repos on my computer:",
+			"- https://github.com/imagenai/video-editing-service.git",
+			"git and gh are signed in to GitHub with my account.",
+		].join("\n");
+		const tail = {
+			kind: "text" as const,
+			text: "- https://github.com/imagenai/video-editing-service.git\ngit and gh are signed in to GitHub with my account.",
+		};
+		expect(unrecordedSteps([tail, line], [{ kind: "user" }], prompt)).toEqual([
+			line,
+		]);
+		const broken = {
+			kind: "text" as const,
+			text: "ing-service.git\ngit and gh are signed in to GitHub with my account.",
+		};
+		expect(unrecordedSteps([broken], [], prompt)).toEqual([]);
+		const quoted = {
+			kind: "text" as const,
+			text: "The repos on my computer are not what this task is about.",
+		};
+		expect(unrecordedSteps([quoted], [], prompt)).toEqual([quoted]);
+		const word = { kind: "text" as const, text: "Done." };
+		expect(unrecordedSteps([word], [], prompt)).toEqual([word]);
+		expect(unrecordedSteps([tail], [])).toEqual([tail]);
 	});
 
 	test("the command, once the transcript holds a command without its result", () => {

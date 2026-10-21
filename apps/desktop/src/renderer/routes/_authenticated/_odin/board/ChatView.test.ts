@@ -967,6 +967,7 @@ describe("currentTurn - the turn the Working row shows", () => {
 		const turn = currentTurn(items, true);
 		expect(turn.id).toBe("u2");
 		expect(turn.start).toBe(Date.parse("2026-10-10T10:05:00Z"));
+		expect(turn.prompt).toBe("second");
 		expect(turn.items.map((item) => item.id)).toEqual(["t2", "t3"]);
 		expect(turn.tools.map((item) => item.id)).toEqual(["t2", "t3"]);
 		expect(turn.tokens).toBe(150);
@@ -988,6 +989,7 @@ describe("currentTurn - the turn the Working row shows", () => {
 		);
 		expect(turn.tools.map((item) => item.id)).toEqual(["t1", "t2", "t3"]);
 		expect(turn.start).toBeUndefined();
+		expect(turn.prompt).toBe("");
 		expect(turn.id).toBe("");
 	});
 });

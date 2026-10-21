@@ -196,15 +196,29 @@ const plain = (text: string) =>
 	words(text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " "));
 
 /**
+ * Text as rows of your prompt compare with the prompt they were drawn from:
+ * letters and digits alone. The TUI breaks a long URL wherever the pane
+ * ends, so a row can start or stop inside a word.
+ */
+const squash = (text: string) => plain(text).replace(/ /g, "");
+/** Fewer letters than this is a word or two, which any prompt may hold. */
+const PROMPT_ROW = 20;
+
+/**
  * The steps the transcript has not recorded yet, so the chat view shows each
  * once. A line counts as recorded when a reply of this turn contains its
  * first words - the screen wraps and can be scrolled, so it may hold only
- * part of a line. The running command counts as recorded once the transcript
- * holds any command of this turn still without its result.
+ * part of a line. A line that sits whole inside your prompt is no step at
+ * all: a prompt longer than the screen scrolls its "> " row off the top, and
+ * the rows of it still showing sit two columns in, like Claude's, with
+ * nothing above them to say whose they are (see `screenSteps`). The running
+ * command counts as recorded once the transcript holds any command of this
+ * turn still without its result.
  */
 export function unrecordedSteps<T extends ScreenStep>(
 	steps: T[],
 	turn: { kind: string; text?: string; result?: string }[],
+	prompt = "",
 ): T[] {
 	const replies = turn.flatMap((item) =>
 		item.kind === "text" && item.text ? [plain(item.text)] : [],
@@ -212,10 +226,13 @@ export function unrecordedSteps<T extends ScreenStep>(
 	const commandRunning = turn.some(
 		(item) => item.kind === "tool" && item.result === undefined,
 	);
+	const yours = squash(prompt);
 	return steps.filter((step) => {
 		if (step.kind === "tool") return !commandRunning;
 		const head = plain(step.text).slice(0, 60);
-		return head.length > 0 && !replies.some((reply) => reply.includes(head));
+		if (!head || replies.some((reply) => reply.includes(head))) return false;
+		const rows = squash(step.text);
+		return rows.length < PROMPT_ROW || !yours.includes(rows);
 	});
 }
 
