@@ -1204,6 +1204,62 @@ export function elapsedLabel(ms: number): string {
 /** A row arriving while you watch: a short fade and rise, compositor-only. */
 const ENTER = "animate-in fade-in slide-in-from-bottom-2 duration-300 ease-out";
 
+/** How long a card takes to collapse away; the Leave transition matches it. */
+const LEAVE_MS = 300;
+
+/** Where a card is on its way into or out of its row: see Leave. */
+export type LeavePhase = "open" | "entering" | "leaving" | "gone";
+
+/**
+ * The phase a card moves to when told to show (`open`) or to go. A card that
+ * was gone fades in; one still collapsing just grows back. Told to go, it
+ * collapses first and leaves the tree LEAVE_MS later (useLeave).
+ */
+export function leavePhase(phase: LeavePhase, open: boolean): LeavePhase {
+	if (open) return phase === "gone" ? "entering" : "open";
+	return phase === "gone" ? "gone" : "leaving";
+}
+
+/** Keeps a card in the tree for LEAVE_MS after it is told to go, so it can collapse away instead of vanishing in one frame. */
+function useLeave(open: boolean): LeavePhase {
+	const [phase, setPhase] = useState<LeavePhase>(open ? "open" : "gone");
+	useEffect(() => {
+		setPhase((was) => leavePhase(was, open));
+		if (open) return;
+		const timer = setTimeout(() => setPhase("gone"), LEAVE_MS);
+		return () => clearTimeout(timer);
+	}, [open]);
+	return phase;
+}
+
+/**
+ * A card that comes and goes without a jump: late to its row it fades in as
+ * the row would; on its way out it shrinks and fades over LEAVE_MS, so what
+ * sits below slides up instead of leaping.
+ */
+function Leave({
+	phase,
+	children,
+}: {
+	phase: LeavePhase;
+	children: ReactNode;
+}) {
+	if (phase === "gone") return null;
+	return (
+		<div
+			className={cn(
+				"grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none",
+				phase === "leaving" ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr]",
+				phase === "entering" && ENTER,
+			)}
+		>
+			<div className={cn("min-h-0", phase === "leaving" && "overflow-hidden")}>
+				{children}
+			</div>
+		</div>
+	);
+}
+
 /** When a message was sent, date and hour: "Oct 19, 23:29". */
 function MessageTime({ at, className }: { at?: number; className?: string }) {
 	if (!at) return null;
@@ -2282,6 +2338,20 @@ function AwsSsoLogin({
 type Tldr = NonNullable<ReturnType<typeof freshTldr>>;
 
 /**
+ * The latest reply's TL;DR as the chat view shows it. It stays while Claude
+ * works on your answer, so the reply you just answered keeps its fold instead
+ * of springing open under your message - but without the Needs you mark,
+ * which that message has answered. The raven's panel never marks urgency.
+ */
+export function shownTldr(
+	fresh: Tldr | null,
+	{ working, tldrOnly }: { working: boolean; tldrOnly: boolean },
+): Tldr | null {
+	if (!fresh) return null;
+	return working || tldrOnly ? { ...fresh, urgency: null } : fresh;
+}
+
+/**
  * The reply and its action items card together are taller than the chat's
  * visible area, so its start would scroll out of sight. Measured, not counted:
  * the same reply fits a tall window and overflows a short one.
@@ -2484,6 +2554,14 @@ const ItemView = memo(function ItemView({
 	const { data: foldSetting } =
 		electronTrpc.settings.getOdinReplyTldr.useQuery();
 	const fold = foldSetting ?? ODIN_REPLY_TLDR_DEFAULT;
+	const { body, actions } =
+		item.kind === "text"
+			? splitActionItems(linkify(item.text, refs))
+			: { body: "", actions: null };
+	const showsActions = !!actions && !hideActions;
+	// The card stays in the tree while it collapses away: its Run buttons move
+	// out from under it only once it is gone.
+	const card = useLeave(showsActions);
 	if (item.kind === "tool") return <ToolRow item={item} />;
 	if (item.kind === "compact") return <CompactRow item={item} />;
 	if (item.kind === "user" && item.shell)
@@ -2498,8 +2576,6 @@ const ItemView = memo(function ItemView({
 				at={item.at}
 			/>
 		);
-	const { body, actions } = splitActionItems(linkify(item.text, refs));
-	const showsActions = !!actions && !hideActions;
 	const commands = onRun ? bangCommands(item.text) : [];
 	// A reply you can see whole, its action items included, is never cut and needs no TL;DR.
 	const shown = tldr && taller ? { ...tldr, long: fold } : null;
@@ -2530,21 +2606,23 @@ const ItemView = memo(function ItemView({
 			{placement === "card" && shown && (
 				<TldrCard tldr={shown} full={full} onToggle={toggleFull} />
 			)}
-			{showsActions && (
-				<ActionItems
-					text={actions}
-					body={body}
-					onDo={onDo}
-					paneId={paneId}
-					tldr={placement === "action-items" ? shown : null}
-					commands={commands}
-					onRun={onRun}
-				/>
+			{actions && (
+				<Leave phase={card}>
+					<ActionItems
+						text={actions}
+						body={body}
+						onDo={onDo}
+						paneId={paneId}
+						tldr={placement === "action-items" ? shown : null}
+						commands={commands}
+						onRun={onRun}
+					/>
+				</Leave>
 			)}
 			{onSend && needsAwsSsoLogin(item.text) && (
 				<AwsSsoLogin item={item} onSend={onSend} />
 			)}
-			{onRun && !showsActions && (
+			{onRun && card === "gone" && (
 				<RunCommands commands={commands} onRun={onRun} />
 			)}
 		</div>
@@ -2960,14 +3038,12 @@ export function ChatView({
 			},
 		);
 	// Measured without its ACTION ITEMS: those show in their own card.
-	const fresh = working
-		? null
-		: freshTldr(
-				lastText && { ...lastText, text: splitActionItems(lastText.text).body },
-				brief,
-			);
+	const fresh = freshTldr(
+		lastText && { ...lastText, text: splitActionItems(lastText.text).body },
+		brief,
+	);
 	// Whether it is shown is ItemView's call: only a reply taller than the view gets one.
-	const tldr = fresh && tldrOnly ? { ...fresh, urgency: null } : fresh;
+	const tldr = shownTldr(fresh, { working, tldrOnly });
 	// What Odin says for the latest reply: its TL;DR, else the reply itself.
 	// Not mid-turn: the latest reply is still being written.
 	const readAloud =
@@ -2979,7 +3055,8 @@ export function ChatView({
 	const briefSettled =
 		briefError || (!!brief && sameReply(lastText?.at, brief.replyAt));
 	// Agents repeat their ACTION ITEMS in every reply; show one card, on the
-	// latest reply that has it, and none while Claude works on the next one.
+	// latest reply that has it, and none while Claude works on the next one:
+	// the card you just answered collapses away (Leave) under your message.
 	const actionsId = lastActionsId(items, working);
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const pinnedRef = useRef(true);

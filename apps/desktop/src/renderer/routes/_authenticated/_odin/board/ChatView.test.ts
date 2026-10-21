@@ -28,10 +28,12 @@ import {
 	lastActionsId,
 	launchAttachments,
 	launchRequest,
+	leavePhase,
 	messageAttachments,
 	nextHostStep,
 	outputTokens,
 	segments,
+	shownTldr,
 	splitActionItems,
 	splitEarlier,
 	ToolGroup,
@@ -313,6 +315,38 @@ describe("ChatView transcript", () => {
 		};
 		expect(lastActionsId([reply], true)).toBeUndefined();
 		expect(lastActionsId([reply], false)).toBe("a");
+	});
+
+	test("a card told to go collapses away before it leaves the tree", () => {
+		expect(leavePhase("open", false)).toBe("leaving");
+		expect(leavePhase("entering", false)).toBe("leaving");
+		expect(leavePhase("gone", false)).toBe("gone");
+	});
+
+	test("a card that comes late to its row fades in; one on its way out grows back", () => {
+		expect(leavePhase("gone", true)).toBe("entering");
+		expect(leavePhase("leaving", true)).toBe("open");
+		expect(leavePhase("open", true)).toBe("open");
+	});
+
+	test("the TL;DR stays while Claude works, without its Needs you mark", () => {
+		const fresh = {
+			last: "Merge it",
+			urgency: "needs-you" as const,
+			long: true,
+		};
+		expect(shownTldr(fresh, { working: true, tldrOnly: false })).toEqual({
+			...fresh,
+			urgency: null,
+		});
+		expect(shownTldr(fresh, { working: false, tldrOnly: false })).toEqual(
+			fresh,
+		);
+		expect(shownTldr(fresh, { working: false, tldrOnly: true })).toEqual({
+			...fresh,
+			urgency: null,
+		});
+		expect(shownTldr(null, { working: true, tldrOnly: false })).toBeNull();
 	});
 
 	test("an item's tooltip is the reply paragraph that explains it", () => {
