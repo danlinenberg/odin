@@ -191,6 +191,7 @@ import {
 	catchUpSuggestion,
 } from "./catch-up";
 import { DiffView } from "./DiffView";
+import { hostStartDelay } from "./host-start-gap";
 import { dueForCompact, restoreAfterCompact } from "./idle-compact";
 import { menuTop } from "./menu-fit";
 import { BOARD_COLUMN_MIN_W, NextInLine, TonightCount } from "./NextInLine";
@@ -4533,6 +4534,17 @@ function DevBoardPage() {
 			return;
 		}
 		try {
+			// One Claude starting on the host at a time: a ticked batch of remote
+			// sessions resumed together froze every one of them there.
+			const startIn = card.pane.odinRemote
+				? hostStartDelay(card.pane.odinRemote)
+				: 0;
+			if (startIn > 0) {
+				toast.info(
+					`Starting on ${card.pane.odinRemote} in ${Math.ceil(startIn / 1000)}s - one session at a time`,
+				);
+				await new Promise((resolve) => setTimeout(resolve, startIn));
+			}
 			// Free the pane (dead or a live cold-restored shell) so the respawn
 			// re-runs the command. Ignore errors - pane may already be dead.
 			await terminalKill.mutateAsync({ paneId: card.pane.id }).catch(() => {});
