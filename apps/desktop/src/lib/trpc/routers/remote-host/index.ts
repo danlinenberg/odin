@@ -59,7 +59,11 @@ import {
 	secretsFile,
 	sh,
 } from "main/lib/remote-host/session";
-import { copyFilesToHost } from "main/lib/remote-host/ssh";
+import {
+	connectHost,
+	copyFilesToHost,
+	runOnHost,
+} from "main/lib/remote-host/ssh";
 import { resolveElectronBinary } from "main/lib/terminal-host/electron-binary";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
@@ -549,6 +553,34 @@ export const createRemoteHostRouter = () =>
 					"remote-shell.js",
 				);
 				return `ELECTRON_RUN_AS_NODE=1 ${sh(resolveElectronBinary())} ${sh(script)} ${spec} ${ticket}`;
+			}),
+
+		/**
+		 * The tmux sessions running on the host (`odin-<session id>`), over one
+		 * connection for the whole board: a pane per connection is what wedged
+		 * the host's SSM before. Null when `host` isn't the configured one or
+		 * the host can't be reached; no AWS sign-in, nobody asked for this.
+		 */
+		liveSessions: publicProcedure
+			.input(z.object({ host: z.string().min(1) }))
+			.query(async ({ input }) => {
+				const host = readOdinConfig().remoteHost;
+				if (!host || (host.name || host.instanceId) !== input.host) return null;
+				try {
+					const client = await connectHost(host);
+					try {
+						const out = await runOnHost(
+							client,
+							"tmux ls -F '#S' 2>/dev/null; true",
+						);
+						return out.split("\n").filter(Boolean);
+					} finally {
+						client.end();
+					}
+				} catch (error) {
+					console.warn("[remote-host] tmux sessions:", error);
+					return null;
+				}
 			}),
 
 		/**

@@ -117,6 +117,7 @@ import {
 	normalizeTag,
 	readCustomTags,
 } from "shared/odin-tags";
+import { remoteCardsToReconnect } from "shared/remote-reconnect";
 
 /** Tags the card shows as their own pill instead of in the #tag line. */
 const PILL_TAGS = ["automation", "auto-started", "off-hours"];
@@ -4516,8 +4517,12 @@ function DevBoardPage() {
 	 * reopens the conversation and types Continue. Only a dead PTY: a live one
 	 * with a bare shell is you Ctrl+C'ing out, and that's yours to decide.
 	 * A session whose Claude ended with a `/loop` still armed comes back too,
-	 * at an idle prompt: the resume books the loop again. Once per app run each.
-	 * One card at a time so each launch-gate check sees the last one's slot.
+	 * at an idle prompt: the resume books the loop again. So does a session on
+	 * the remote host whose pane here died while its Claude kept running in
+	 * tmux there: the resume reattaches to it. One question to each host for
+	 * its tmux sessions covers every dead card on it; a card whose tmux ended,
+	 * or whose host didn't answer, keeps its Resume button. Once per app run
+	 * each. One card at a time so each launch-gate check sees the last one's slot.
 	 */
 	const autoResumedRef = useRef(new Set<string>());
 	/**
@@ -4572,8 +4577,79 @@ function DevBoardPage() {
 	// Re-runs the pick when a resume ends without touching any other dep
 	// (lost transcript, queued behind the gate).
 	const [autoResumeTick, setAutoResumeTick] = useState(0);
+	// Each host's tmux sessions, asked once the dead remote cards in `asked`
+	// had died, so a list never vouches for a card that died after it. Asked
+	// again when a new one dies, at most once a minute. Null: no answer.
+	const liveTmuxRef = useRef(
+		new Map<
+			string,
+			{ names: string[] | null; at: number; asked: Set<string> }
+		>(),
+	);
+	const askingTmuxRef = useRef(new Set<string>());
+	const tmuxWaitRef = useRef(new Set<string>());
 	// biome-ignore lint/correctness/useExhaustiveDependencies: autoResumeTick is the re-run trigger
 	useEffect(() => {
+		/**
+		 * A dead remote card whose tmux is still up on the host, asking hosts as
+		 * needed. Not one Odin closed itself (idle close, run here): that pane
+		 * died on purpose.
+		 */
+		const pickRemoteReconnect = () => {
+			const dead = [...cardsByStatus.values()].flat().flatMap((card) => {
+				const host = card.pane.odinRemote;
+				const sessionId =
+					card.pane.claudeSessionId ??
+					usePaneMeta.getState().sessionIdByPane[card.pane.id];
+				return host &&
+					sessionId &&
+					!card.pane.odinQueued &&
+					!card.pane.odinClosedIn &&
+					!alivePaneIds.has(card.pane.id) &&
+					!autoResumedRef.current.has(card.pane.id)
+					? [{ card, paneId: card.pane.id, host, sessionId }]
+					: [];
+			});
+			const live: Record<string, string[] | null> = {};
+			for (const host of new Set(dead.map((d) => d.host))) {
+				const known = liveTmuxRef.current.get(host);
+				if (known) live[host] = known.names;
+				const unasked = dead.some(
+					(d) => d.host === host && !known?.asked.has(d.paneId),
+				);
+				if (!unasked || askingTmuxRef.current.has(host)) continue;
+				const wait = known ? known.at + 60_000 - Date.now() : 0;
+				if (wait > 0) {
+					// Look again once the minute is up, whatever else changes.
+					if (!tmuxWaitRef.current.has(host)) {
+						tmuxWaitRef.current.add(host);
+						setTimeout(() => {
+							tmuxWaitRef.current.delete(host);
+							setAutoResumeTick((tick) => tick + 1);
+						}, wait);
+					}
+					continue;
+				}
+				askingTmuxRef.current.add(host);
+				const asked = new Set(
+					dead.filter((d) => d.host === host).map((d) => d.paneId),
+				);
+				void utils.client.remoteHost.liveSessions
+					.query({ host })
+					.catch(() => null)
+					.then((names) => {
+						liveTmuxRef.current.set(host, { names, at: Date.now(), asked });
+						askingTmuxRef.current.delete(host);
+						setAutoResumeTick((tick) => tick + 1);
+					});
+			}
+			return remoteCardsToReconnect(
+				dead.filter((d) =>
+					liveTmuxRef.current.get(d.host)?.asked.has(d.paneId),
+				),
+				live,
+			)[0]?.card;
+		};
 		if (
 			!daemonSessions ||
 			resumingPaneIds.length > 0 ||
@@ -4595,7 +4671,8 @@ function DevBoardPage() {
 						deadLoopPaneIds.has(c.pane.id) &&
 						!agentPaneIds.has(c.pane.id) &&
 						!autoResumedRef.current.has(c.pane.id),
-				);
+				) ??
+			pickRemoteReconnect();
 		if (!card) return;
 		autoResumedRef.current.add(card.pane.id);
 		autoResumingRef.current = true;

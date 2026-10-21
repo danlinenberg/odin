@@ -1,4 +1,7 @@
+import { tmuxSession } from "../../../shared/remote-reconnect";
 import { HOST_PORT_SH } from "./host-service";
+
+export { tmuxSession };
 
 /**
  * The scripts a session on a remote host runs. A pane on the laptop runs the
@@ -75,9 +78,6 @@ const homePath = (path: string) =>
 		: path.startsWith("~/")
 			? `"$HOME"/${sh(path.slice(2))}`
 			: sh(path);
-
-export const tmuxSession = (pane: string) =>
-	`odin-${pane.replace(/[^A-Za-z0-9_-]/g, "-").slice(0, 60)}`;
 
 /** The tokens' file, as `KEY='value'` lines the run script sources. */
 export function secretsFile(env: Record<string, string | undefined>): string {
