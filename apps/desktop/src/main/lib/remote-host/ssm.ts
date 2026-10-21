@@ -9,7 +9,11 @@ import {
 	EC2InstanceConnectClient,
 	SendSSHPublicKeyCommand,
 } from "@aws-sdk/client-ec2-instance-connect";
-import { SSMClient, StartSessionCommand } from "@aws-sdk/client-ssm";
+import {
+	SSMClient,
+	StartSessionCommand,
+	TerminateSessionCommand,
+} from "@aws-sdk/client-ssm";
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
 import { ODIN_HOME_DIR } from "../app-environment";
 
@@ -213,6 +217,12 @@ export async function openSsmStream(target: SsmTarget): Promise<Duplex> {
 	child.on("error", (error) => stream.destroy(error));
 	stream.on("close", () => {
 		if (child.exitCode === null) child.kill();
+		// The aws CLI ends the session itself after the plugin exits; killing
+		// the plugin doesn't. Without this every failed connect leaves a
+		// session, and a worker process on the host, until AWS times it out.
+		ssm
+			.send(new TerminateSessionCommand({ SessionId: session.SessionId }))
+			.catch(() => {});
 	});
 	return stream;
 }

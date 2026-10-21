@@ -343,16 +343,19 @@ async function main(): Promise<void> {
 		profile: spec.profile,
 		region: spec.region,
 	};
-	// A host busy enough to miss the SSH handshake answers a later try.
+	// A host busy enough to miss the SSH handshake answers a later try. The
+	// wait doubles up to 5 minutes, with jitter, so a host's panes don't all
+	// retry together and keep it busy.
 	const reconnect = async (): Promise<Client> => {
-		for (;;) {
+		for (let wait = 10_000; ; wait = Math.min(wait * 2, 300_000)) {
 			try {
 				return await connectOnce(spec, target);
 			} catch (err) {
+				const delay = wait / 2 + Math.random() * (wait / 2);
 				say(
-					`could not reconnect: ${err instanceof Error ? err.message : String(err)} - trying again in 10s`,
+					`could not reconnect: ${err instanceof Error ? err.message : String(err)} - trying again in ${Math.round(delay / 1000)}s`,
 				);
-				await new Promise((resolve) => setTimeout(resolve, 10_000));
+				await new Promise((resolve) => setTimeout(resolve, delay));
 			}
 		}
 	};
