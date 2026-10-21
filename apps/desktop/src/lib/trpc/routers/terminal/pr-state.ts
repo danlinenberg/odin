@@ -29,6 +29,13 @@ export interface PullRequestStatus {
 	failed: string[];
 	/** Checks that came back green. Skipped ones aren't counted either way. */
 	passed: number;
+	/**
+	 * GitHub says the branch conflicts with its base. False while GitHub is
+	 * still working that out (UNKNOWN), so nothing flashes up and away.
+	 */
+	conflicting: boolean;
+	/** The branch the PR merges into - "main". */
+	base: string | null;
 	/** The PR author's login. */
 	author: string | null;
 	/**
@@ -123,6 +130,9 @@ interface PrJson {
 	isDraft?: boolean;
 	reviewDecision?: string | null;
 	statusCheckRollup?: RollupEntry[] | null;
+	mergeable?: string | null;
+	mergeStateStatus?: string | null;
+	baseRefName?: string | null;
 	author?: { login?: string } | null;
 	title?: string;
 	body?: string;
@@ -144,6 +154,9 @@ function statusOf(pr: PrJson): PullRequestStatus | null {
 		awaiting: [],
 		failed: [],
 		passed: 0,
+		conflicting:
+			pr.mergeable === "CONFLICTING" || pr.mergeStateStatus === "DIRTY",
+		base: pr.baseRefName || null,
 		author: pr.author?.login ?? null,
 		mine: null,
 		title: pr.title || null,
@@ -250,6 +263,8 @@ interface RestPull {
 	body?: string | null;
 	user?: { login?: string } | null;
 	head?: { sha?: string };
+	base?: { ref?: string };
+	mergeable_state?: string;
 }
 
 interface RestCheckRun {
@@ -293,6 +308,8 @@ async function restPullRequest(
 		state: pull.merged_at ? "MERGED" : pull.state?.toUpperCase(),
 		isDraft: pull.draft,
 		reviewDecision: null,
+		mergeStateStatus: pull.mergeable_state?.toUpperCase(),
+		baseRefName: pull.base?.ref,
 		statusCheckRollup: (runs ?? []).map((run) => ({
 			name: run.name,
 			status: run.status?.toUpperCase(),
@@ -317,7 +334,7 @@ export async function pullRequestState(
 				"view",
 				url,
 				"--json",
-				"state,isDraft,reviewDecision,statusCheckRollup,author,title,body",
+				"state,isDraft,reviewDecision,statusCheckRollup,mergeable,mergeStateStatus,baseRefName,author,title,body",
 			],
 			status,
 			exec,

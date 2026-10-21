@@ -36,6 +36,8 @@ describe("pullRequestState", () => {
 			awaiting: [],
 			failed: [],
 			passed: 0,
+			conflicting: false,
+			base: null,
 			author: null,
 			mine: null,
 			title: null,
@@ -110,11 +112,24 @@ describe("pullRequestState", () => {
 			awaiting: [],
 			failed: ["pytest"],
 			passed: 1,
+			conflicting: false,
+			base: null,
 			author: null,
 			mine: null,
 			title: null,
 			summary: null,
 		});
+	});
+
+	test("conflicting when GitHub says so, not while it is still computing", async () => {
+		const read = async (pr: object) =>
+			pullRequestState(URL, async () => ({
+				stdout: JSON.stringify({ state: "OPEN", ...pr }),
+			}));
+		const dirty = await read({ mergeable: "CONFLICTING", baseRefName: "main" });
+		expect([dirty?.conflicting, dirty?.base]).toEqual([true, "main"]);
+		expect((await read({ mergeStateStatus: "DIRTY" }))?.conflicting).toBe(true);
+		expect((await read({ mergeable: "UNKNOWN" }))?.conflicting).toBe(false);
 	});
 
 	test("a Terrateam apply waiting for its comment is awaiting, not running", async () => {

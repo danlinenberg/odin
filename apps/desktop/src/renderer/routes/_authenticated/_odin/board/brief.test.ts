@@ -17,6 +17,7 @@ import {
 	linkKind,
 	linkLabel,
 	linkRefs,
+	mergeConflicts,
 	mergeReady,
 	mergeTargets,
 	nextCronFire,
@@ -701,6 +702,21 @@ describe("ciRunning", () => {
 	});
 });
 
+describe("mergeConflicts", () => {
+	const url = (n: number) => `https://github.com/o/r/pull/${n}`;
+	it("says which of your open PRs conflict, and with what", () => {
+		expect(
+			mergeConflicts({
+				[url(1293)]: { state: "OPEN", conflicting: true, base: "main" },
+				[url(1)]: { state: "OPEN", conflicting: false },
+				[url(2)]: { state: "OPEN", conflicting: true, mine: false },
+				[url(3)]: { state: "MERGED", conflicting: true },
+				[url(4)]: null,
+			}),
+		).toEqual(["PR #1293 has merge conflicts with main"]);
+	});
+});
+
 describe("claimOpened", () => {
 	const a = "https://github.com/o/r/pull/12";
 	const b = "https://github.com/o/r/pull/13";
@@ -731,6 +747,14 @@ describe("mergeReady", () => {
 	const opened = turn(`Opened ${a} and ${b}.`);
 	const items = turn("Done.\n\nACTION ITEMS\n1. Merge #12\n2. Merge #13");
 	const approved = { state: "OPEN", approved: true };
+	it("is false while an approved PR conflicts with its base", () => {
+		expect(
+			mergeReady([opened, items], {
+				[a]: { ...approved, conflicting: true },
+				[b]: { state: "MERGED" },
+			}),
+		).toBe(false);
+	});
 	it("is true once every PR is approved, merged or closed", () => {
 		expect(
 			mergeReady([opened, items], {

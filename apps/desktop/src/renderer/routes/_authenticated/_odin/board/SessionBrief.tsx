@@ -21,6 +21,7 @@ import {
 	linkContext,
 	linkKind,
 	linkLabel,
+	mergeConflicts,
 	notionPage,
 	parseLinks,
 	postedMessage,
@@ -707,6 +708,21 @@ export function SessionBrief({
 			prStates?.[pr.url]?.mine !== false,
 	);
 
+	// A PR that conflicts with its base can't merge until the session resolves
+	// it, so it leads the panel rather than hiding in a chip down the list.
+	const conflicts = mergeConflicts(
+		Object.fromEntries(
+			Object.entries(prStates ?? {}).filter(([url]) => !isHidden(url)),
+		),
+	);
+	const conflictNote = conflicts.length > 0 && (
+		<div className="flex flex-col gap-0.5 rounded-[5px] bg-attention/10 px-2 py-1.5 text-[12px] font-medium text-attention">
+			{conflicts.map((line) => (
+				<div key={line}>{line}</div>
+			))}
+		</div>
+	);
+
 	// Every link's hover. A PR's comes from GitHub, a Slack link's from Slack
 	// (the whole message - the link shows two lines of it); the rest say what
 	// the session said the link is. `full`, `title` and `summary` are missing
@@ -976,7 +992,12 @@ export function SessionBrief({
 	);
 
 	if (resourcesOnly)
-		return <div className="flex flex-col gap-3.5">{resources}</div>;
+		return (
+			<div className="flex flex-col gap-3.5">
+				{conflictNote}
+				{resources}
+			</div>
+		);
 
 	return (
 		<div className="flex w-[340px] shrink-0 flex-col border-l border-border bg-tertiary">
@@ -1005,6 +1026,7 @@ export function SessionBrief({
 								{transcript.title}
 							</div>
 						)}
+						{conflictNote}
 						{error && starting ? (
 							<div className="text-[12px] text-muted-foreground">
 								Nothing yet - the session hasn't started.

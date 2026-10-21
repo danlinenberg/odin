@@ -170,6 +170,7 @@ import {
 	launchPullRequest,
 	linkRefs,
 	mergeCheckUrls,
+	mergeConflicts,
 	mergeReady,
 	mergeTargets,
 	nextCronFire,
@@ -1970,6 +1971,7 @@ interface BoardCardTileProps {
 	dropped: boolean;
 	merged: boolean;
 	ciChecks: string | undefined;
+	conflicts: string | undefined;
 	duplicate: BoardCard | undefined;
 	since: number | undefined;
 	focusedAt: number;
@@ -1998,6 +2000,7 @@ const BoardCardTile = memo(
 		dropped,
 		merged,
 		ciChecks,
+		conflicts,
 		duplicate,
 		since,
 		focusedAt,
@@ -2132,6 +2135,11 @@ const BoardCardTile = memo(
 								>
 									<span className="size-1.5 shrink-0 animate-pulse rounded-full bg-working" />
 									CI running
+								</span>
+							)}
+							{!!conflicts && (
+								<span title={conflicts} className="font-medium text-attention">
+									Merge conflicts
 								</span>
 							)}
 							<NotionPill card={card} live={card.status === "working"} />
@@ -2957,6 +2965,18 @@ function DevBoardPage() {
 					: [],
 			),
 		[ciKey],
+	);
+	// pane id -> "PR #N has merge conflicts with main" lines, one string per
+	// pane so a card only re-renders when its PRs' conflicts change.
+	const conflictsByPane = new Map(
+		mergeCandidates.flatMap(({ paneId }, i) => {
+			const states = claimOpened(
+				mergeTranscripts[i]?.data?.messages ?? [],
+				mergeStateQueries[i]?.data,
+			);
+			const lines = states ? mergeConflicts(states) : [];
+			return lines.length ? [[paneId, lines.join("\n")] as const] : [];
+		}),
 	);
 	const droppedPaneIds = useMemo(
 		() => new Set(droppedKey ? droppedKey.split(",") : []),
@@ -5767,6 +5787,7 @@ function DevBoardPage() {
 														ciChecks={ciChecksByPane
 															.get(card.pane.id)
 															?.join(", ")}
+														conflicts={conflictsByPane.get(card.pane.id)}
 														duplicate={duplicateOf.get(card.pane.id)}
 														since={statusSinceRef.current.get(card.pane.id)?.at}
 														focusedAt={focusedAt}

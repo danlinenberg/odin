@@ -777,8 +777,8 @@ export function mergeCheckUrls(messages: BriefMessage[]): string[] {
 
 /**
  * Finished, bar a click: every PR of yours the session linked (a teammate's
- * isn't yours to merge) is approved with no red
- * check, merged, or closed - and at least one is still open waiting on that
+ * isn't yours to merge) is approved with no red check and no merge conflict,
+ * merged, or closed - and at least one is still open waiting on that
  * click. That card is Done, not Needs you, whatever else its action items say.
  * With all of them merged it takes a merge-only item list to say the same
  * thing; otherwise the items are what's left. Unknown state (gh can't see the
@@ -793,6 +793,8 @@ export type PrStates = Record<
 		failed?: string[];
 		pending?: string[];
 		mine?: boolean | null;
+		conflicting?: boolean;
+		base?: string | null;
 	} | null
 >;
 
@@ -827,6 +829,21 @@ export function ciRunning(states: PrStates): string[] {
 	);
 }
 
+/**
+ * One line per open PR of yours that GitHub says conflicts with its base:
+ * "PR #1293 has merge conflicts with main". A teammate's PR the session only
+ * linked isn't its to fix.
+ */
+export function mergeConflicts(states: PrStates): string[] {
+	return Object.entries(states).flatMap(([url, pr]) =>
+		pr?.state === "OPEN" && pr.mine !== false && pr.conflicting
+			? [
+					`PR #${url.match(/\/pull\/(\d+)/)?.[1] ?? "?"} has merge conflicts with ${pr.base ?? "its base"}`,
+				]
+			: [],
+	);
+}
+
 export function mergeReady(
 	messages: BriefMessage[],
 	states: PrStates,
@@ -840,7 +857,8 @@ export function mergeReady(
 		prs.some(
 			(pr) =>
 				!pr ||
-				(pr.state === "OPEN" && (pr.approved !== true || !!pr.failed?.length)),
+				(pr.state === "OPEN" &&
+					(pr.approved !== true || !!pr.failed?.length || !!pr.conflicting)),
 		)
 	)
 		return false;

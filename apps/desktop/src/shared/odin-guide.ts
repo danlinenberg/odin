@@ -74,7 +74,7 @@ Four columns: **Working** (blue), **Needs you** (amber), **Final Review** (green
 - Needs you: sessions waiting on a prompt or question, failed sessions ("✗ failed - click to see what broke"), and live sessions whose status was cleared.
 - Final Review: cards whose turn ended without asking anything.
 - A dead session goes to Idle, except one the board closed for being idle: it keeps its column.
-- PR state moves cards: while CI runs on a card's PR it shows in Working with "CI running". It moves from Needs you to Final Review when all that's left is merging approved PRs, a look, or its PRs were closed. It moves back to Needs you when the brief judges the latest reply asks you something.
+- PR state moves cards: while CI runs on a card's PR it shows in Working with "CI running". It moves from Needs you to Final Review when all that's left is merging approved PRs with no merge conflicts, a look, or its PRs were closed. It moves back to Needs you when the brief judges the latest reply asks you something.
 - Sections in a column, in order: Starred, Recently finished (turn ended in the last 10 minutes while Odin was focused), Queued, Waiting on others, Parked, then Slack / Jira / GitHub / Notion / Normal.
 - **Catch up** shows on Needs you and Final Review with more than 5 cards: one card at a time, "N Left", Next and ✓ Done.
 - Drag a card to Idle to park it (a running turn gets Ctrl+C first). The session stays open.
@@ -88,7 +88,7 @@ Four columns: **Working** (blue), **Needs you** (amber), **Final Review** (green
 ## Cards
 - Hover: ☆ Star (pins to top), ✓ Done (always visible in Final Review), the bell Remind me (tomorrow at the earliest).
 - Right-click: Star, Done, "Move to Idle", "Move to Docs" (off the board like Done, listed under Docs → Sessions, where the title reads the transcript and Back to board resumes it; Undo brings the card back), Remind me…, "Ping me" (pings on new replies when the session has a Slack or Jira thread, and when its PR gets approved; while nothing new came in, its Needs you or Done card waits in Idle under "Waiting on others", and a reply or approval brings it back to Needs you), "Turn on Remote Control" (when Settings is on "Selected sessions"), Keep (overrides a sweep's Drop), Tags (add your own).
-- Pills: PR #N, "CI running", "Just merge #N", "Review #N", "Dropped: PR merged/closed", "Duplicate? Same ask as…", Loop (a /loop session, with a countdown), a flame for a heavy session, Shell / Shell stopped / Shell exited, Automation, Night Agent, Auto-started.
+- Pills: PR #N, "CI running", "Merge conflicts" (one of its open PRs conflicts with its base), "Just merge #N", "Review #N", "Dropped: PR merged/closed", "Duplicate? Same ask as…", Loop (a /loop session, with a countdown), a flame for a heavy session, Shell / Shell stopped / Shell exited, Automation, Night Agent, Auto-started.
 - Idle cards have **Resume**, with "⏸ died mid-turn" or the exit cause. A session that died mid-turn is resumed on its own, once per run of the app. So is one whose Claude ended with a /loop still armed: it reopens at an idle prompt and the loop runs again. So is a remote-host session whose pane here died while its Claude still runs in tmux on the host: it reattaches without a click (one check per host for all its cards). One whose tmux ended there, whose host didn't answer, or that idle close closed keeps Resume.
 - A remote-host session runs under its own memory cap on the host: half the host's RAM, no swap, through the host user's systemd, with nothing to set up. A runaway build in it hits that cap and its biggest process is killed, instead of freezing the other sessions there. A host where that isn't available runs the session uncapped.
 - **Done** ends the session: stops the process, removes the card and marks its feed row done. Its Undo resumes the same conversation.
@@ -102,7 +102,7 @@ Four columns: **Working** (blue), **Needs you** (amber), **Final Review** (green
 - Drawer footer: ↻ Resume / Continue / ▶ Start now, ■ Interrupt (Ctrl+C, terminal view only), Chat View, ✓ Done, Remind me, Minimize Session. Esc closes the drawer unless Claude's own menu is open.
 - Continue types "Continue" into a live session (off while it works). Resume on a dead session reopens the same conversation at an idle prompt. If the transcript is gone: "That conversation is gone".
 - **Diff**: the working tree, the branch's commits since it left main (no PR needed), or any PR the session opened. Comment on lines, then "➤ send N comments to agent".
-- **Brief**: Goal, Your action items (from the reply's ACTION ITEMS), Where it stands, links, token and cost figures, My notes (⌘Enter adds a note to your to-dos).
+- **Brief**: "PR #N has merge conflicts with main" at the top while one of its open PRs conflicts, Goal, Your action items (from the reply's ACTION ITEMS), Where it stands, links, token and cost figures, My notes (⌘Enter adds a note to your to-dos).
 
 ## Chat view and terminal view
 Chat view is the default (Settings → Appearance, "Show sessions as a chat"; store sessionView). Switch with "Terminal View" in the composer or "Chat View" in the footer. Same session behind both; a question or plan approval still opens the terminal.
