@@ -1,9 +1,10 @@
 import { useRef, useState } from "react";
 import {
 	LuArrowUp,
-	LuCamera,
+	LuImage,
 	LuLoaderCircle,
 	LuMic,
+	LuPaperclip,
 	LuPlus,
 	LuSquare,
 	LuX,
@@ -144,55 +145,85 @@ async function latestScreenshot(): Promise<File | null> {
 			type: "image/jpeg",
 		});
 	} catch (failure) {
-		alert(failure instanceof Error ? failure.message : String(failure));
+		// The bridge rejects with the plugin's { message }, not an Error.
+		alert((failure as { message?: string } | null)?.message ?? String(failure));
 		return null;
 	}
 }
 
 /**
- * +: iOS offers Photo Library, Take Photo or Video, and Choose File.
- * `camera` attaches your newest screenshot in the app; in a browser it opens
- * the camera.
+ * +: in the app, a menu - your latest screenshot in one tap, or iOS's own
+ * picker (Photo Library, Take Photo or Video, Choose File). In a browser,
+ * the picker straight away.
  */
 export function AttachButton({
 	uploads,
-	camera,
 }: {
 	uploads: ReturnType<typeof useUploads>;
-	camera?: boolean;
 }) {
 	const input = useRef<HTMLInputElement>(null);
-	const Icon = camera ? LuCamera : LuPlus;
+	const [menu, setMenu] = useState(false);
+	const item =
+		"flex w-full items-center gap-3 px-4 py-3 text-left text-[15px] text-foreground";
 	return (
-		<>
+		<div className="relative shrink-0">
 			<button
 				type="button"
-				aria-label={
-					camera ? "Attach the latest screenshot" : "Attach photos or files"
-				}
-				onClick={async () => {
-					if (camera && native) {
-						const shot = await latestScreenshot();
-						if (shot) uploads.add([shot]);
-					} else input.current?.click();
-				}}
-				className="flex size-10 shrink-0 items-center justify-center text-foreground"
+				aria-label="Attach"
+				aria-expanded={menu}
+				onClick={() => (native ? setMenu(!menu) : input.current?.click())}
+				className="flex size-10 items-center justify-center text-foreground"
 			>
-				<Icon className={camera ? "size-6" : "size-7"} />
+				<LuPlus
+					className={`size-7 transition-transform ${menu ? "rotate-45" : ""}`}
+				/>
 			</button>
+			{menu && (
+				<>
+					<button
+						type="button"
+						aria-label="Close the menu"
+						onClick={() => setMenu(false)}
+						className="fixed inset-0 z-40 cursor-default"
+					/>
+					<div className="absolute bottom-12 left-0 z-50 w-60 divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
+						<button
+							type="button"
+							className={item}
+							onClick={async () => {
+								setMenu(false);
+								const shot = await latestScreenshot();
+								if (shot) uploads.add([shot]);
+							}}
+						>
+							<LuImage className="size-5 text-primary" />
+							Latest screenshot
+						</button>
+						<button
+							type="button"
+							className={item}
+							onClick={() => {
+								setMenu(false);
+								input.current?.click();
+							}}
+						>
+							<LuPaperclip className="size-5 text-primary" />
+							Photos, camera or files
+						</button>
+					</div>
+				</>
+			)}
 			<input
 				ref={input}
 				type="file"
-				{...(camera
-					? { accept: "image/*", capture: "environment" as const }
-					: { multiple: true })}
+				multiple
 				className="hidden"
 				onChange={(event) => {
 					uploads.add(event.target.files);
 					event.target.value = "";
 				}}
 			/>
-		</>
+		</div>
 	);
 }
 

@@ -911,18 +911,12 @@ function Session({ paneId }: { paneId: string }) {
 					placeholder="Reply to Odin…"
 					className="max-h-[40dvh] min-h-10 flex-1 resize-none overflow-y-auto rounded-[20px] border border-input bg-secondary px-4 py-2 text-base outline-none"
 				/>
-				{/* As in Messages apps: camera and mic while empty, Send once typed. */}
-				{text.trim() || uploads.files.length ? (
+				{/* As in Messages apps: the mic while empty, Send once typed. */}
+				{(text.trim() || uploads.files.length || !speechAvailable) &&
+				!speech.listening ? (
 					<SendButton disabled={!ready} />
 				) : (
-					<>
-						<AttachButton uploads={uploads} camera />
-						{speechAvailable ? (
-							<MicButton speech={speech} />
-						) : (
-							<SendButton disabled />
-						)}
-					</>
+					<MicButton speech={speech} />
 				)}
 			</form>
 		</div>
