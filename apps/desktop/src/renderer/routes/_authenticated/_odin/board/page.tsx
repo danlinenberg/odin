@@ -1497,14 +1497,15 @@ function RemoteMark({ paneId }: { paneId: string }) {
 type HostState = "live" | "connecting" | "off";
 
 /**
- * A remote pane still reaching its host is "connecting" (the expired AWS
- * sign-in it waits on included), one whose connect failed is "off". Undefined
- * when no connect is on screen: Claude is drawn, or the pane never went remote.
+ * A remote pane is "live" only once Claude is drawn on its screen. One still
+ * reaching its host is "connecting" (the expired AWS sign-in it waits on
+ * included), and so is a blank screen: a Restart clears it before the helper
+ * prints anything. One whose connect failed is "off".
  */
-function connectStateOf(screen: string): HostState | undefined {
+function connectStateOf(screen: string): HostState {
 	const line = remoteConnectLine(screen);
-	if (!line) return undefined;
-	return line.startsWith("Could not connect") ? "off" : "connecting";
+	if (line) return line.startsWith("Could not connect") ? "off" : "connecting";
+	return agentOnScreen(screen) ? "live" : "connecting";
 }
 
 /**
@@ -2631,9 +2632,7 @@ function DevBoardPage() {
 				}),
 			);
 			if (stopped) return;
-			const next = Object.fromEntries(
-				states.filter(([, state]) => state),
-			) as Record<string, HostState>;
+			const next = Object.fromEntries(states) as Record<string, HostState>;
 			setConnectStates((prev) =>
 				JSON.stringify(prev) === JSON.stringify(next) ? prev : next,
 			);
@@ -2645,10 +2644,11 @@ function DevBoardPage() {
 			clearInterval(id);
 		};
 	}, [remotePaneIds]);
-	// Yellow, not red, until the daemon's first answer says which panes are alive.
+	// Yellow until a screen read says otherwise: green before the first read
+	// flashed on every Restart. Red only once the daemon says the pane is gone.
 	const hostStateOf = (paneId: string): HostState =>
 		connectStates[paneId] ??
-		(agentPaneIds.has(paneId) ? "live" : daemonSessions ? "off" : "connecting");
+		(alivePaneIds.has(paneId) || !daemonSessions ? "connecting" : "off");
 	// Sessions under `/loop`, read from the same transcript query the loop pill
 	// uses, so it's one fetch per session. Between ticks they belong in Idle -
 	// every turn ends clean, but they aren't done.
