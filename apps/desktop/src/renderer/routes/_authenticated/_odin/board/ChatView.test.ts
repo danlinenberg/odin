@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { remoteConnectLine } from "shared/odin-screen-status";
 import {
 	actionItemEntries,
 	actionItemList,
@@ -24,6 +25,7 @@ import {
 	lastActionsId,
 	launchAttachments,
 	launchRequest,
+	nextHostStep,
 	outputTokens,
 	segments,
 	splitActionItems,
@@ -774,5 +776,56 @@ describe("commandItem fallback", () => {
 			"Run the reset command above after #1540 applies (you only)",
 		];
 		expect(commandItem("systemctl show user.slice", items)).toBe(1);
+	});
+});
+
+describe("nextHostStep - a remote pane's connect step, read off its screen", () => {
+	const rule = "─".repeat(40);
+	const claude = `${rule}\n❯\n${rule}\n  ⏵⏵ bypass permissions on (shift+tab to cycle)\n`;
+	const shell = "$ \n";
+	const step = (
+		last: Parameters<typeof nextHostStep>[0]["last"],
+		connecting: string | undefined,
+		screen: string | null,
+		terminal = true,
+	) => nextHostStep({ last, connecting, screen, terminal });
+
+	test("connecting, then connected once Claude is drawn", () => {
+		const line = "\nOdin: connecting to i-0abc123...\n";
+		expect(step(undefined, remoteConnectLine(line), line)).toBe("connecting");
+		expect(step("connecting", undefined, claude)).toBe("connected");
+	});
+
+	test("disconnected when Claude leaves the pane, or the pane ends", () => {
+		expect(step("connected", undefined, shell)).toBe("disconnected");
+		expect(step("connected", undefined, null, false)).toBe("disconnected");
+	});
+
+	test("connected again once Claude is drawn after a disconnect", () => {
+		// A read between repaints, or a drop the pane reconnected from, said
+		// Claude was gone; the next read shows it back. Disconnected used to
+		// stay on screen for the rest of the session.
+		expect(step("disconnected", undefined, claude)).toBe("connected");
+		expect(step("failed", undefined, claude)).toBe("connected");
+	});
+
+	test("a failed connect stays failed", () => {
+		const failed =
+			"\nOdin: connecting to i-0abc123...\n\nOdin: could not connect: TargetNotConnected\n";
+		expect(step("failed", remoteConnectLine(failed), failed)).toBeUndefined();
+		expect(step("failed", undefined, null, false)).toBeUndefined();
+	});
+
+	test("a drop reads as connecting again, not disconnected", () => {
+		const dropped = "\nOdin: connection lost - reconnecting to i-0abc123...\n";
+		expect(step("connected", remoteConnectLine(dropped), dropped)).toBe(
+			"connecting",
+		);
+	});
+
+	test("leaves the step alone when the screen says nothing new", () => {
+		expect(step("connected", undefined, claude)).toBeUndefined();
+		expect(step("connected", undefined, null)).toBeUndefined();
+		expect(step("disconnected", undefined, shell)).toBeUndefined();
 	});
 });

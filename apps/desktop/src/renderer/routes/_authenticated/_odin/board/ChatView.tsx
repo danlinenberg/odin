@@ -2306,17 +2306,22 @@ export function nextHostStep({
 	screen: string | null | undefined;
 	terminal: boolean;
 }): HostEvent["kind"] | undefined {
-	const drawn = !!screen && agentOnScreen(screen);
-	const ended = !terminal || (!!screen && !drawn);
+	const ended = !terminal || (!!screen && !agentOnScreen(screen));
 	if (connecting && !connecting.startsWith("Could not connect"))
 		return "connecting";
 	if (last === "connecting" && screen && !connecting) return "connected";
 	if (last === "connecting" && ended) return "failed";
 	if (last === "connected" && ended) return "disconnected";
 	// A read between repaints said Claude was gone, or the pane reconnected
-	// after a drop; Claude drawn again is connected again. Without this the
-	// red Disconnected row outlived the moment it was wrong about.
-	if ((last === "disconnected" || last === "failed") && drawn && !connecting)
+	// after a drop; Claude's own screen drawn again is connected again.
+	// Without this the red Disconnected row outlived the moment it was wrong
+	// about.
+	if (
+		(last === "disconnected" || last === "failed") &&
+		!connecting &&
+		!!screen &&
+		claudeDrawn(screen)
+	)
 		return "connected";
 	return undefined;
 }
