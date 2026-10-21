@@ -122,6 +122,7 @@ import {
 const PILL_TAGS = ["automation", "auto-started", "off-hours"];
 
 import { openUrl, useInAppBrowser } from "renderer/stores/in-app-browser";
+import { nextSelection, visibleSelection } from "../all/selection";
 import { useSearchableItems } from "../all/use-all-items";
 import { paneWorksOn } from "../all/use-start-item";
 import { DropHint } from "../components/DropHint";
@@ -205,6 +206,7 @@ import {
 	sessionOrder,
 	statusAt,
 } from "./session-order";
+import { parkable, resumable } from "./session-pick";
 import { moveToVsCode } from "./vscode-move";
 
 /**
@@ -2371,6 +2373,16 @@ function DevBoardPage() {
 	// here; the dialog it opens asks whether to start over from the card's brief.
 	const [lostCard, setLostCard] = useState<BoardCard | null>(null);
 	const [drawerCard, setDrawerCard] = useState<BoardCard | null>(null);
+	// Ticked rows in the drawer's session list, for acting on many at once -
+	// resuming a dozen Idle sessions was a dozen Resume clicks. Only rows still
+	// on screen count: folding Idle, or a session ending, takes its tick out
+	// of the next action. The count is a ref for the Esc listener below.
+	const [pickedIds, setPickedIds] = useState<Set<string>>(() => new Set());
+	const [pickAnchor, setPickAnchor] = useState<string | null>(null);
+	const pickedCountRef = useRef(0);
+	useEffect(() => {
+		if (!drawerCard) setPickedIds(new Set());
+	}, [drawerCard]);
 	// Catch up (Slack mobile's): Needs you one card at a time in the drawer.
 	// The pane ids are a snapshot taken on start, so ✓ done doesn't reshuffle
 	// the cards you haven't reached.
@@ -2498,8 +2510,10 @@ function DevBoardPage() {
 				return;
 			event.preventDefault();
 			event.stopImmediatePropagation();
+			// Rows ticked in the session list: Esc clears the ticks, not the drawer.
+			if (pickedCountRef.current) setPickedIds(new Set());
 			// Mid-rename, Esc abandons the rename - not the drawer.
-			if (renameDraft !== null) setRenameDraft(null);
+			else if (renameDraft !== null) setRenameDraft(null);
 			else setDrawerCard(null);
 		};
 		window.addEventListener("keydown", onKeyDown, { capture: true });
@@ -3903,6 +3917,22 @@ function DevBoardPage() {
 			localStorage.setItem("odin:drawer-sessions-idle", next ? "1" : "0");
 		} catch {}
 	};
+	// The rows as shown, top to bottom: ⌘⌥↑/↓ walk them, and a shift-click
+	// ticks a run of them.
+	const switchRows = isIdleSwitchOpen
+		? [...switchCards, ...idleSwitchCards]
+		: switchCards;
+	const switchRowIds = switchRows.map((card) => card.pane.id);
+	const pickedRowIds = visibleSelection(pickedIds, switchRowIds);
+	pickedCountRef.current = pickedRowIds.length;
+	const pickedCards = switchRows.filter((card) => pickedIds.has(card.pane.id));
+	const tickRow = (paneId: string, shift: boolean) => {
+		setPickedIds(
+			nextSelection(pickedIds, switchRowIds, paneId, shift, pickAnchor),
+		);
+		setPickAnchor(paneId);
+	};
+	const clearPicked = () => setPickedIds(new Set());
 	// Minimized to a rail of status dots; remembered per machine.
 	const [isSwitchListMin, setIsSwitchListMin] = useState(() => {
 		try {
@@ -4735,8 +4765,11 @@ function DevBoardPage() {
 	 * columns describe what the agent is actually doing, and dragging a card
 	 * can't make that true. A running turn is interrupted first (Ctrl+C) - a card
 	 * sitting in Idle while its agent works would be a lie.
+	 *
+	 * Returns the undo and leaves the toast to the caller: a single Park says
+	 * so itself, and many rows at once say it once for the lot.
 	 */
-	const parkCard = async (card: BoardCard) => {
+	const parkCardQuietly = async (card: BoardCard) => {
 		const before = {
 			// An interrupted turn can't be un-interrupted: back as a stopped session.
 			status: card.pane.status === "working" ? "idle" : card.pane.status,
@@ -4771,6 +4804,10 @@ function DevBoardPage() {
 				},
 			},
 		}));
+		return undo;
+	};
+	const parkCard = async (card: BoardCard) => {
+		const undo = await parkCardQuietly(card);
 		toast.success("Parked in Idle - session still open", undoAction(undo));
 	};
 
@@ -4803,65 +4840,121 @@ function DevBoardPage() {
 	// The drawer's Done stays in the drawer: the next session opens and the
 	// finished row fades out of the side list before it ends.
 	const [leavingPaneId, setLeavingPaneId] = useState<string | null>(null);
-	// One row of the drawer's session list.
+	// One row of the drawer's session list. A div with button semantics: a real
+	// <button> can't nest the tick box.
 	// No hover card here: it opened over the session you're reading.
-	const switchRow = (card: BoardCard) => (
-		<button
-			type="button"
-			onClick={() => openDrawer(card)}
-			onContextMenu={(event) => {
-				// Right-click → done, remind, star or tag.
-				event.preventDefault();
-				setTagMenu({
-					paneId: card.pane.id,
-					x: event.clientX,
-					y: event.clientY,
-				});
-			}}
-			className={cn(
-				"group/switch flex items-center gap-2 py-1.5 text-left text-xs transition-[translate,opacity] duration-[450ms]",
-				isSwitchListMin ? "justify-center" : "px-3",
-				card.pane.id === leavingPaneId
-					? "pointer-events-none -translate-x-6 bg-success/20 text-success-ink opacity-0"
-					: card.pane.id === drawerCard?.pane.id
-						? "bg-primary/15 font-semibold text-foreground"
-						: "text-muted-foreground hover:bg-accent hover:text-foreground",
-			)}
-		>
-			<span
-				className="size-2 shrink-0 rounded-full"
-				style={{
-					background: PANE_STATUS[card.status].dot,
+	const switchRow = (card: BoardCard) => {
+		const picked = pickedIds.has(card.pane.id);
+		return (
+			// biome-ignore lint/a11y/useSemanticElements: a real <button> can't nest the tick box <input>
+			<div
+				role="button"
+				tabIndex={0}
+				onClick={(event) => {
+					// ⌘-click (Ctrl on Windows) ticks the row instead of opening it;
+					// shift-click extends a selection already begun.
+					if (
+						event.metaKey ||
+						event.ctrlKey ||
+						(event.shiftKey && pickedRowIds.length > 0)
+					)
+						return tickRow(card.pane.id, event.shiftKey);
+					openDrawer(card);
 				}}
-			/>
-			{!isSwitchListMin && (
-				<span className="flex min-w-0 flex-1 flex-col">
-					<span className="flex min-w-0 items-center gap-1.5">
-						<span className="truncate">
-							<WatchMark paneId={card.pane.id} />
-							<RemoteMark paneId={card.pane.id} />
-							<HostMark
-								paneId={card.pane.id}
-								state={hostStateOf(card.pane.id)}
-							/>
-							{cardTitle(card)}
+				onKeyDown={(event) => {
+					if (event.key === "Enter" || event.key === " ") {
+						event.preventDefault();
+						openDrawer(card);
+					}
+				}}
+				onContextMenu={(event) => {
+					// Right-click → done, remind, star or tag.
+					event.preventDefault();
+					setTagMenu({
+						paneId: card.pane.id,
+						x: event.clientX,
+						y: event.clientY,
+					});
+				}}
+				className={cn(
+					"group/switch flex cursor-pointer items-center gap-2 py-1.5 text-left text-xs transition-[translate,opacity] duration-[450ms]",
+					isSwitchListMin ? "justify-center" : "px-3",
+					card.pane.id === leavingPaneId
+						? "pointer-events-none -translate-x-6 bg-success/20 text-success-ink opacity-0"
+						: card.pane.id === drawerCard?.pane.id
+							? "bg-primary/15 font-semibold text-foreground"
+							: picked
+								? "bg-primary/10 text-foreground"
+								: "text-muted-foreground hover:bg-accent hover:text-foreground",
+				)}
+			>
+				{isSwitchListMin ? (
+					<span
+						className="size-2 shrink-0 rounded-full"
+						style={{
+							background: PANE_STATUS[card.status].dot,
+						}}
+					/>
+				) : (
+					// The status dot's slot doubles as the tick box: it shows under
+					// the pointer and stays once ticked, so the list reads as dots
+					// until you reach for one.
+					<span className="relative flex size-3.5 shrink-0 items-center justify-center">
+						<span
+							className={cn(
+								"size-2 rounded-full",
+								picked ? "hidden" : "group-hover/switch:hidden",
+							)}
+							style={{
+								background: PANE_STATUS[card.status].dot,
+							}}
+						/>
+						<input
+							type="checkbox"
+							aria-label={`Select ${cardTitle(card)}`}
+							title="Select - shift-click selects a range, ⌘-click a row does too"
+							checked={picked}
+							onChange={() => {}}
+							onClick={(event) => {
+								event.stopPropagation();
+								tickRow(card.pane.id, event.shiftKey);
+							}}
+							className={cn(
+								"absolute inset-0 size-3.5 cursor-pointer accent-primary",
+								picked ? "block" : "hidden group-hover/switch:block",
+							)}
+						/>
+					</span>
+				)}
+				{!isSwitchListMin && (
+					<span className="flex min-w-0 flex-1 flex-col">
+						<span className="flex min-w-0 items-center gap-1.5">
+							<span className="truncate">
+								<WatchMark paneId={card.pane.id} />
+								<RemoteMark paneId={card.pane.id} />
+								<HostMark
+									paneId={card.pane.id}
+									state={hostStateOf(card.pane.id)}
+								/>
+								{cardTitle(card)}
+							</span>
+							{card.pane.odinStarred && (
+								<LuStar
+									title="Starred - right-click to unstar"
+									className="ml-auto size-[11px] shrink-0 fill-current text-attention"
+								/>
+							)}
 						</span>
-						{card.pane.odinStarred && (
-							<LuStar
-								title="Starred - right-click to unstar"
-								className="ml-auto size-[11px] shrink-0 fill-current text-attention"
-							/>
+						{switchStatus(card) && (
+							<span className="truncate text-[10.5px] font-normal text-faint-foreground">
+								{switchStatus(card)}
+							</span>
 						)}
 					</span>
-					{switchStatus(card) && (
-						<span className="truncate text-[10.5px] font-normal text-faint-foreground">
-							{switchStatus(card)}
-						</span>
-					)}
-				</span>
-			)}
-		</button>
-	);
+				)}
+			</div>
+		);
+	};
 	const markDoneInDrawer = (card: BoardCard, put: PutAway = toDone) => {
 		const at = switchCards.findIndex((c) => c.pane.id === card.pane.id);
 		const next = switchCards[at + 1] ?? switchCards[at - 1];
@@ -4979,11 +5072,10 @@ function DevBoardPage() {
 	// the group is open; stops at either end.
 	const stepSession = (step: 1 | -1) => {
 		if (!drawerCard || inCatchUp) return;
-		const rows = isIdleSwitchOpen
-			? [...switchCards, ...idleSwitchCards]
-			: switchCards;
-		const at = rows.findIndex((card) => card.pane.id === drawerCard.pane.id);
-		const card = rows[at + step];
+		const at = switchRows.findIndex(
+			(card) => card.pane.id === drawerCard.pane.id,
+		);
+		const card = switchRows[at + step];
 		if (card) openDrawer(card);
 	};
 	// The top bar (layout.tsx) owns the slot; it mounts before this page.
@@ -5063,6 +5155,53 @@ function DevBoardPage() {
 			return markDoneInDrawer(card, put);
 		if (!drawerCard) return markDone(card, put);
 		toast.success(put.message, undoAction(put.end(card)));
+	};
+	// The ticked rows of the drawer's session list, acted on together: one
+	// toast for the lot, and one Undo that puts every session back.
+	const resumablePicked = resumable(pickedCards, agentPaneIds);
+	const parkablePicked = parkable(pickedCards);
+	const sessions = (n: number) => `${n} ${n === 1 ? "session" : "sessions"}`;
+	const resumePicked = () => {
+		// A beat apart, not all at once: each Resume spawns a Claude, and a
+		// dozen spawning in the same instant stalls the Mac and the daemon.
+		resumablePicked.forEach((card, i) => {
+			setTimeout(() => void resumeCard(card, true), i * 300);
+		});
+		toast.success(`Resuming ${sessions(resumablePicked.length)}`);
+		clearPicked();
+	};
+	const finishPicked = () => {
+		const undos = pickedCards
+			.map((card) => toDone.end(card))
+			.filter((undo): undo is () => void => undo !== undefined);
+		// The session on screen was among them: on to the next row, or close.
+		if (pickedCards.some((card) => card.pane.id === drawerCard?.pane.id)) {
+			const next = switchRows.find((card) => !pickedIds.has(card.pane.id));
+			if (next) openDrawer(next);
+			else setDrawerCard(null);
+		}
+		toast.success(
+			`Done - ${sessions(pickedCards.length)} removed from board`,
+			undoAction(
+				undos.length
+					? () => {
+							for (const undo of undos) undo();
+						}
+					: undefined,
+			),
+		);
+		clearPicked();
+	};
+	const parkPicked = async () => {
+		const cards = parkablePicked;
+		clearPicked();
+		const undos = await Promise.all(cards.map(parkCardQuietly));
+		toast.success(
+			`Parked ${sessions(cards.length)} in Idle - still open`,
+			undoAction(() => {
+				for (const undo of undos) undo();
+			}),
+		);
 	};
 	const liveCard = (paneId: string | undefined) =>
 		paneId
@@ -5932,6 +6071,71 @@ function DevBoardPage() {
 													>
 														{prevSessionKey} {nextSessionKey}
 													</span>
+												</div>
+											)}
+											{!isSwitchListMin && pickedRowIds.length > 0 && (
+												<div className="sticky top-0 z-10 mx-2 mb-1 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-primary/40 bg-secondary px-2 py-1 text-[11px] text-muted-foreground">
+													<span className="font-semibold text-foreground">
+														{pickedRowIds.length} selected
+													</span>
+													{pickedRowIds.length < switchRows.length && (
+														<button
+															type="button"
+															title="Select every row shown"
+															onClick={() =>
+																setPickedIds(new Set(switchRowIds))
+															}
+															className="hover:text-foreground"
+														>
+															All {switchRows.length}
+														</button>
+													)}
+													<button
+														type="button"
+														title="Clear the selection (Esc)"
+														onClick={clearPicked}
+														className="ml-auto hover:text-foreground"
+													>
+														Clear
+													</button>
+													<span className="basis-full" />
+													<button
+														type="button"
+														disabled={resumablePicked.length === 0}
+														title={
+															resumablePicked.length
+																? "Resume the closed and queued sessions selected - live ones are left alone"
+																: "Nothing selected is closed or queued - live sessions are left alone"
+														}
+														onClick={resumePicked}
+														className="flex items-center gap-1 hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground"
+													>
+														<LuPlay className="size-3" aria-hidden />
+														Resume
+													</button>
+													<button
+														type="button"
+														title="Done - remove the selected sessions from the board"
+														onClick={finishPicked}
+														className="flex items-center gap-1 hover:text-success"
+													>
+														<span className="text-success">✓</span>
+														Done
+													</button>
+													<button
+														type="button"
+														disabled={parkablePicked.length === 0}
+														title={
+															parkablePicked.length
+																? "Park the selected sessions in Idle - they stay open, a running turn is stopped"
+																: "Everything selected is already in Idle"
+														}
+														onClick={() => void parkPicked()}
+														className="flex items-center gap-1 hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground"
+													>
+														<LuPause className="size-3" aria-hidden />
+														Idle
+													</button>
 												</div>
 											)}
 											{switchCards.map((card, index) => (
