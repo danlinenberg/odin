@@ -207,6 +207,7 @@ export function SessionReminders() {
 	const upcoming = Object.keys(reminders).length - due.length;
 	const watches = useReplyWatch((s) => s.watches);
 	const seen = useReplyWatch((s) => s.seen);
+	const dismiss = useReplyWatch((s) => s.dismiss);
 	const replies = unreadPings(watches);
 	if (!showsBar(reminders, replies.length, now)) return null;
 
@@ -263,8 +264,8 @@ export function SessionReminders() {
 					</button>
 					<button
 						type="button"
-						title="Mark the reply read"
-						onClick={() => seen(w.paneId ?? "")}
+						title="Mark this ping read"
+						onClick={() => dismiss(w.key)}
 						className="rounded-md px-1 text-[11px] text-muted-foreground hover:text-foreground"
 					>
 						✕

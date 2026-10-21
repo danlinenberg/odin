@@ -61,6 +61,8 @@ export const useReplyWatch = create<{
 	fire: (key: string, event: ConditionEvent) => void;
 	/** You wrote in the session: its reply is answered. */
 	seen: (paneId: string) => void;
+	/** The ✕ on one ping: only that ping is read. */
+	dismiss: (key: string) => void;
 }>()(
 	persist(
 		(set) => ({
@@ -160,6 +162,19 @@ export const useReplyWatch = create<{
 							}
 						: s,
 				),
+			dismiss: (key) =>
+				set((s) => {
+					const watch = s.watches[key];
+					if (!watch?.reply) return s;
+					const { [key]: _, ...rest } = s.watches;
+					// Like seen: a condition watch that fired is done once read.
+					return {
+						watches:
+							watch.stamp === FIRED && key.startsWith(WHEN)
+								? rest
+								: { ...s.watches, [key]: { ...watch, reply: undefined } },
+					};
+				}),
 		}),
 		{ name: "odin-reply-watch" },
 	),

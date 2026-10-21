@@ -213,3 +213,38 @@ test("a PR approved before its first check pings once, then not again", () => {
 	expect(newReplies(useReplyWatch.getState().watches, activity)).toEqual([]);
 	toggle([], "", "pane-12");
 });
+
+test("the ✕ on one ping dismisses only that ping", () => {
+	const s = () => useReplyWatch.getState();
+	s().toggle(["jira:D-1", "slack:CD:2.2"], "Deploy", "pane-d");
+	s().setStamps(
+		{ "jira:D-1": "r1", "slack:CD:2.2": "r2" },
+		{ "jira:D-1": "Looks good", "slack:CD:2.2": "Any news?" },
+	);
+	s().watchFor("the deploy is done", "Deploy", "pane-d");
+	const when =
+		Object.keys(s().watches).find((k) => k.startsWith("when:")) ?? "";
+	s().fire(when, "Happened");
+	s().dismiss("jira:D-1");
+	expect(s().watches["jira:D-1"]?.reply).toBeUndefined();
+	expect(s().watches["jira:D-1"]?.paneId).toBe("pane-d");
+	expect(s().watches["slack:CD:2.2"]?.reply).toBe("Any news?");
+	expect(s().watches[when]?.reply).toBe("the deploy is done");
+	// A fired "Ping me when..." is done once dismissed; the others stay.
+	s().dismiss(when);
+	expect(s().watches[when]).toBeUndefined();
+	expect(s().watches["slack:CD:2.2"]?.reply).toBe("Any news?");
+	s().toggle([], "", "pane-d");
+});
+
+test("dismissing a condition watch that has not fired leaves it watching", () => {
+	const s = () => useReplyWatch.getState();
+	s().watchFor("the edit is done", "Edit", "pane-n");
+	const when =
+		Object.keys(s().watches).find((k) => s().watches[k]?.paneId === "pane-n") ??
+		"";
+	s().dismiss(when);
+	expect(s().watches[when]?.condition).toBe("the edit is done");
+	s().dismiss("no-such-key");
+	s().toggle([], "", "pane-n");
+});
