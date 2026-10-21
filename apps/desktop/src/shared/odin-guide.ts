@@ -152,6 +152,7 @@ A session's life on this Mac, top to bottom. Besides the launch gate limits ("Wh
 - **What they run → Default prompt**: added to the end of every task prompt (how to work, the Shell, ACTION ITEMS), with Reset to default. The board reads ACTION ITEMS from each reply. Store: sessionInstructions.
 - **On the board → Rename sessions automatically** (default on): renames each card once, after what it turned out to be about. Names you set are kept.
 - **On the board → Compact conversations moved to Idle** (default off): /compact the moment a card is parked in Idle or waits there on others, while Claude's cache of it is still warm.
+- **On the board → Read replies aloud** (default off): once a turn is over, Odin says the reply out loud in the open chat view - its TL;DR when the brief has one, else the reply itself. **Speech speed** sets how fast (0.5x to 2x). The speaker button under the latest reply reads it, or stops it, any time.
 - **On the board → Close idle sessions after** (default 3 hours, 0 = never).
 
 ## Remote (Settings → Remote)

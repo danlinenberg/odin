@@ -199,6 +199,19 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		keywords: "compact context summary cache idle park parked waiting",
 	},
 	{
+		label: "Read replies aloud",
+		to: "/settings/sessions",
+		section: "On the board",
+		keywords:
+			"speak speech voice talk say tts text to speech audio reply tldr chat",
+	},
+	{
+		label: "Speech speed",
+		to: "/settings/sessions",
+		section: "On the board",
+		keywords: "speak voice talk rate faster slower read aloud",
+	},
+	{
 		label: "Close idle sessions after",
 		to: "/settings/sessions",
 		section: "On the board",

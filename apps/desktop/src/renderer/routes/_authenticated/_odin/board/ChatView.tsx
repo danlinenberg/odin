@@ -20,7 +20,9 @@ import {
 	LuMic,
 	LuServer,
 	LuSmartphone,
+	LuSquare,
 	LuSquareTerminal,
+	LuVolume2,
 	LuWrench,
 	LuX,
 } from "react-icons/lu";
@@ -83,6 +85,14 @@ import {
 	ScreenMenuCard,
 } from "./ChatPrompts";
 import { collectRefs, linkify, withSchemes } from "./chat-links";
+import {
+	canSpeak,
+	speak,
+	spokenText,
+	stopSpeaking,
+	useReadAloud,
+	useSpeaking,
+} from "./read-aloud";
 import { parseScreenAside, parseScreenMenu } from "./screen-menu";
 import { screenSteps, unrecordedSteps } from "./screen-steps";
 import { parseShell, type Shell } from "./shell-output";
@@ -933,6 +943,8 @@ interface ItemViewProps {
 	hideActions?: boolean;
 	/** The latest reply's TL;DR, once the brief has read this very reply. */
 	tldr?: Tldr | null;
+	/** The latest reply: what Odin says for it, its TL;DR when there is one. */
+	readAloud?: string | null;
 }
 
 function sameItemView(prev: ItemViewProps, next: ItemViewProps): boolean {
@@ -947,7 +959,8 @@ function sameItemView(prev: ItemViewProps, next: ItemViewProps): boolean {
 		prev.hideActions === next.hideActions &&
 		prev.tldr?.last === next.tldr?.last &&
 		prev.tldr?.urgency === next.tldr?.urgency &&
-		prev.tldr?.long === next.tldr?.long
+		prev.tldr?.long === next.tldr?.long &&
+		prev.readAloud === next.readAloud
 	);
 }
 
@@ -2118,6 +2131,33 @@ function FoldedReply({
 	);
 }
 
+/** Reads the latest reply out loud - its TL;DR when there is one - or stops. */
+function ReadAloudButton({ id, text }: { id: string; text: string }) {
+	const speaking = useSpeaking((s) => s.id === id);
+	const rate = useReadAloud((s) => s.rate);
+	if (!canSpeak()) return null;
+	const label = speaking ? "Stop reading" : "Read aloud";
+	return (
+		<button
+			type="button"
+			title={label}
+			aria-label={label}
+			aria-pressed={speaking}
+			onClick={() => (speaking ? stopSpeaking() : speak(id, text, rate))}
+			className={cn(
+				"flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground",
+				speaking && "text-primary",
+			)}
+		>
+			{speaking ? (
+				<LuSquare className="size-3" />
+			) : (
+				<LuVolume2 className="size-3.5" />
+			)}
+		</button>
+	);
+}
+
 /** Switches a long latest reply between folded on its TL;DR and shown whole. */
 function FoldToggle({
 	full,
@@ -2209,6 +2249,7 @@ const ItemView = memo(function ItemView({
 	paneId,
 	hideActions = false,
 	tldr,
+	readAloud = null,
 }: ItemViewProps) {
 	// A long latest reply opens on its TL;DR; this shows it whole.
 	const [full, setFull] = useState(false);
@@ -2264,7 +2305,10 @@ const ItemView = memo(function ItemView({
 					</div>
 				</FoldedReply>
 			)}
-			<MessageTime at={item.at} className="mt-0.5" />
+			<div className="mt-0.5 flex items-center gap-2">
+				<MessageTime at={item.at} />
+				{readAloud && <ReadAloudButton id={item.id} text={readAloud} />}
+			</div>
 			{placement === "card" && shown && (
 				<TldrCard tldr={shown} full={full} onToggle={toggleFull} />
 			)}
@@ -2637,16 +2681,17 @@ export function ChatView({
 	// mid-turn the latest reply is a moving target - and shown only while the
 	// brief read this very reply: a newer one makes it a wrong TL;DR, so the
 	// card waits for the brief that catches up.
-	const { data: brief } = electronTrpc.terminal.summarizeClaudeSession.useQuery(
-		{ sessionId: sessionId ?? "", settled: true },
-		{
-			enabled: !!sessionId && !!lastText && !working,
-			retry: false,
-			staleTime: 30_000,
-			refetchInterval: (query) =>
-				sameReply(lastText?.at, query.state.data?.replyAt) ? false : 15_000,
-		},
-	);
+	const { data: brief, isError: briefError } =
+		electronTrpc.terminal.summarizeClaudeSession.useQuery(
+			{ sessionId: sessionId ?? "", settled: true },
+			{
+				enabled: !!sessionId && !!lastText && !working,
+				retry: false,
+				staleTime: 30_000,
+				refetchInterval: (query) =>
+					sameReply(lastText?.at, query.state.data?.replyAt) ? false : 15_000,
+			},
+		);
 	// Measured without its ACTION ITEMS: those show in their own card.
 	const fresh = working
 		? null
@@ -2656,6 +2701,16 @@ export function ChatView({
 			);
 	// Whether it is shown is ItemView's call: only a reply taller than the view gets one.
 	const tldr = fresh && tldrOnly ? { ...fresh, urgency: null } : fresh;
+	// What Odin says for the latest reply: its TL;DR, else the reply itself.
+	// Not mid-turn: the latest reply is still being written.
+	const readAloud =
+		!working && lastText
+			? spokenText(tldr?.last, splitActionItems(lastText.text).body)
+			: null;
+	// The brief has said whether this reply has a TL;DR (it failed, or it read
+	// this very reply): the auto read waits for that before falling back.
+	const briefSettled =
+		briefError || (!!brief && sameReply(lastText?.at, brief.replyAt));
 	// Agents repeat their ACTION ITEMS in every reply; show one card, on the
 	// latest reply that has it. It stays while Claude works on your answer.
 	const actionsId = lastActionsId(items);
@@ -2667,6 +2722,29 @@ export function ChatView({
 	const firstIdsRef = useRef<Set<string> | null>(null);
 	if (firstIdsRef.current === null && items.length > 0)
 		firstIdsRef.current = new Set(items.map((item) => item.id));
+	// Settings > Sessions > "Read replies aloud": a reply that finishes while
+	// this view is open is said once, its TL;DR when the brief has one. The
+	// reply already finished when the view opened stays quiet; one still being
+	// written then is read when it is done.
+	const readAloudOn = useReadAloud((s) => s.enabled);
+	const speechRate = useReadAloud((s) => s.rate);
+	const quietIdRef = useRef<string | null | undefined>(undefined);
+	if (quietIdRef.current === undefined && items.length > 0)
+		quietIdRef.current = working ? null : (lastTextId ?? null);
+	const spokenIdRef = useRef<string | null>(null);
+	const autoText = readAloudOn && (!!tldr || briefSettled) ? readAloud : null;
+	useEffect(() => {
+		if (!autoText || !lastTextId) return;
+		if (lastTextId === quietIdRef.current) return;
+		if (lastTextId === spokenIdRef.current) return;
+		spokenIdRef.current = lastTextId;
+		speak(lastTextId, autoText, speechRate);
+	}, [autoText, lastTextId, speechRate]);
+	// Your turn: Odin stops talking. So does closing the view.
+	useEffect(() => {
+		if (working) stopSpeaking();
+	}, [working]);
+	useEffect(() => stopSpeaking, []);
 	// Follow new output only while you're at the bottom - scrolling up to read
 	// shouldn't get yanked back every second.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: items/pending are the trigger - new rows change scrollHeight
