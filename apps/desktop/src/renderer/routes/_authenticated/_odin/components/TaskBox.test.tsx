@@ -7,7 +7,6 @@ import {
 	parseSize,
 	splitAttachments,
 	TaskBox,
-	typedTitle,
 } from "./TaskBox";
 
 describe("TaskBox", () => {
@@ -152,7 +151,7 @@ describe("TaskBox attachments", () => {
 		);
 	});
 
-	it("keeps the submit button off while only an attachment is in the box", () => {
+	it("lets a screenshot with nothing typed be added or started on its own", () => {
 		const html = renderToStaticMarkup(
 			<TaskBox
 				value={`\n\n${shot}`}
@@ -161,9 +160,9 @@ describe("TaskBox attachments", () => {
 				onSubmit={() => {}}
 			/>,
 		);
-		expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Add task<\/button>/);
-		expect(typedTitle(`\n\n${shot}`)).toBe("");
-		expect(typedTitle(`Ship the fix\n\n${shot}`)).toBe("Ship the fix");
+		// The box is empty, the chip is the task: the button stays on.
+		expect(html).toContain("></textarea>");
+		expect(html).not.toMatch(/disabled=""[^>]*>Add task/);
 	});
 
 	it("splits and joins the text and the paths without changing either", () => {

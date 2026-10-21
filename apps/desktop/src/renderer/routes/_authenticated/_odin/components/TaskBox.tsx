@@ -101,10 +101,6 @@ export function splitAttachments(value: string): {
 export const joinAttachments = (text: string, paths: string[]): string =>
 	paths.length === 0 ? text : `${text}\n\n${paths.join("\n")}`;
 
-/** The title the text alone gives - a lone attachment is not a task yet. */
-export const typedTitle = (value: string): string =>
-	parseTask(splitAttachments(value).text).title;
-
 const baseName = (path: string) => path.split(/[\\/]/).pop() || path;
 
 /**
@@ -227,7 +223,9 @@ export function TaskBox({
 }) {
 	// What the textbox shows is the text alone; the paths ride along as chips.
 	const { text, paths } = splitAttachments(value);
-	const title = parseTask(text).title;
+	// From the whole string: a screenshot pasted with nothing typed is a task
+	// too - its path names it, and Start sends it to the agent on its own.
+	const title = parseTask(value).title;
 	// Every edit of the text puts the attachments back on the end of it.
 	const change = (next: string) => onChange(joinAttachments(next, paths));
 	// Attaching is async (a pasted screenshot is written to disk first), and
@@ -847,9 +845,8 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 
 	const save = () => {
 		// Same rule the store uses - no title, no task, so don't claim one. A
-		// pasted screenshot on its own has no title either: its path must not
-		// become one.
-		if (!typedTitle(draft)) return onClose();
+		// pasted screenshot on its own counts: its path is the title.
+		if (!parseTask(draft).title) return onClose();
 		add(draft, undefined, repo);
 		if (repo) addRecentRepo(repo);
 		onClose();
@@ -937,7 +934,7 @@ export function QuickAddTask({ onClose }: { onClose: () => void }) {
 					<button
 						type="button"
 						onClick={save}
-						disabled={!typedTitle(draft)}
+						disabled={!parseTask(draft).title}
 						// The name without the shortcut glyphs beside it.
 						aria-label={startNow ? "Start session" : "Add task"}
 						className={cn(
