@@ -94,6 +94,14 @@ describe("buildPrompt", () => {
 		expect(prompt).toContain("first line starts with `!`");
 	});
 
+	// "Tell me when it ran, so I can read the result" - the Run button already
+	// puts the command and its output into the session.
+	it("reads a command's output itself instead of asking me to report it", () => {
+		expect(buildPrompt("Fix the board", null)).toContain(
+			"Never add an item asking me to tell you it ran",
+		);
+	});
+
 	// "Choose how PR #1538 gets approved" kept coming back after a reviewer
 	// had already approved it and the apply had started.
 	it("re-checks an item's live state before listing it again", () => {
