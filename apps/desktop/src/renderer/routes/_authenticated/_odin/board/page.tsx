@@ -5845,9 +5845,14 @@ function DevBoardPage() {
 	// The drawer's title row: name, chips, status, star and the Diff, Shell
 	// and Brief toggles. It sits inside the session column, not across the
 	// whole drawer, so the Sessions list runs the drawer's full height.
+	// Everything is one flex row: when the column is narrow the name and
+	// the folder pill truncate with an ellipsis, while the status, the star
+	// and the toggles keep their full width. Chips used to sit in their own
+	// overflow-hidden group, which clipped its tail (the status and the
+	// star) instead.
 	const drawerHeader = drawerCard && (
 		<div className="shrink-0 border-b border-border px-4 py-2">
-			<div className="flex items-center gap-2">
+			<div className="flex items-center gap-2 whitespace-nowrap">
 				{renameDraft === null ? (
 					<button
 						type="button"
@@ -5872,65 +5877,63 @@ function DevBoardPage() {
 						className="min-w-0 flex-1 rounded-md border border-primary bg-background px-2 py-1 text-sm font-semibold text-foreground outline-none"
 					/>
 				)}
-				<div className="mr-auto flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap">
-					{cardContact(drawerCard) && (
-						<PersonChip name={cardContact(drawerCard) as string} />
-					)}
-					{drawerLink && (
-						<button
-							type="button"
-							title={drawerLink.url}
-							onClick={() => openUrl(drawerLink.url)}
-							className={cn(
-								"rounded-[5px] px-[7px] text-[11px] font-medium hover:underline",
-								PILL.brand,
-							)}
-						>
-							{drawerLink.label} ↗
-						</button>
-					)}
-					<WatchPill paneId={drawerCard.pane.id} />
-					{remoteMode === "selected" && (
-						<button
-							type="button"
-							title="Follow and answer this session from claude.ai/code or the Claude app. Click to switch."
-							onClick={() => toggleRemote(drawerCard)}
-							className={cn(
-								"flex items-center gap-1 rounded-[5px] px-[7px] text-[11px] font-medium",
-								remotePanes.includes(drawerCard.pane.id)
-									? PILL.brand
-									: "bg-secondary text-muted-foreground hover:text-foreground",
-							)}
-						>
-							<LuRadioTower className="size-3" aria-hidden />
-							Remote Control
-							{remotePanes.includes(drawerCard.pane.id) ? " on" : ""}
-						</button>
-					)}
-					{sessionCwd(drawerCard.pane) && (
-						<span
-							title={sessionCwd(drawerCard.pane)}
-							className="rounded-[5px] bg-secondary px-[7px] text-[11px] text-muted-foreground"
-						>
-							{sessionCwd(drawerCard.pane)?.split("/").slice(-1)[0]}
-						</span>
-					)}
-					<span className="rounded-[5px] bg-secondary px-[7px] text-[11px] text-muted-foreground">
-						{PANE_STATUS[drawerCard.status].label}
-					</span>
+				{cardContact(drawerCard) && (
+					<PersonChip name={cardContact(drawerCard) as string} />
+				)}
+				{drawerLink && (
 					<button
 						type="button"
-						title={
-							drawerCard.pane.odinStarred ? "Unstar" : "Star - pin to the top"
-						}
-						aria-label={drawerCard.pane.odinStarred ? "Unstar" : "Star"}
-						aria-pressed={!!drawerCard.pane.odinStarred}
-						onClick={() => toggleStar(drawerCard.pane.id)}
-						className="shrink-0 rounded-[5px] px-1 text-[13px] text-attention hover:bg-attention/15"
+						title={drawerLink.url}
+						onClick={() => openUrl(drawerLink.url)}
+						className={cn(
+							"shrink-0 rounded-[5px] px-[7px] text-[11px] font-medium hover:underline",
+							PILL.brand,
+						)}
 					>
-						{drawerCard.pane.odinStarred ? "★" : "☆"}
+						{drawerLink.label} ↗
 					</button>
-				</div>
+				)}
+				<WatchPill paneId={drawerCard.pane.id} />
+				{remoteMode === "selected" && (
+					<button
+						type="button"
+						title="Follow and answer this session from claude.ai/code or the Claude app. Click to switch."
+						onClick={() => toggleRemote(drawerCard)}
+						className={cn(
+							"flex shrink-0 items-center gap-1 rounded-[5px] px-[7px] text-[11px] font-medium",
+							remotePanes.includes(drawerCard.pane.id)
+								? PILL.brand
+								: "bg-secondary text-muted-foreground hover:text-foreground",
+						)}
+					>
+						<LuRadioTower className="size-3" aria-hidden />
+						Remote Control
+						{remotePanes.includes(drawerCard.pane.id) ? " on" : ""}
+					</button>
+				)}
+				{sessionCwd(drawerCard.pane) && (
+					<span
+						title={sessionCwd(drawerCard.pane)}
+						className="min-w-0 truncate rounded-[5px] bg-secondary px-[7px] text-[11px] text-muted-foreground"
+					>
+						{sessionCwd(drawerCard.pane)?.split("/").slice(-1)[0]}
+					</span>
+				)}
+				<span className="shrink-0 rounded-[5px] bg-secondary px-[7px] text-[11px] text-muted-foreground">
+					{PANE_STATUS[drawerCard.status].label}
+				</span>
+				<button
+					type="button"
+					title={
+						drawerCard.pane.odinStarred ? "Unstar" : "Star - pin to the top"
+					}
+					aria-label={drawerCard.pane.odinStarred ? "Unstar" : "Star"}
+					aria-pressed={!!drawerCard.pane.odinStarred}
+					onClick={() => toggleStar(drawerCard.pane.id)}
+					className="mr-auto shrink-0 rounded-[5px] px-1 text-[13px] text-attention hover:bg-attention/15"
+				>
+					{drawerCard.pane.odinStarred ? "★" : "☆"}
+				</button>
 				{drawerCard.pane.type === "terminal" && !inCatchUp && (
 					<button
 						type="button"
