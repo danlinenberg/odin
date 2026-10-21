@@ -110,7 +110,13 @@ export function buildPrompt(
 	].join("\n");
 }
 
-const worktreeMadeLine = ({ path, branch }: { path: string; branch: string }) =>
+export const worktreeMadeLine = ({
+	path,
+	branch,
+}: {
+	path: string;
+	branch: string;
+}) =>
 	`Odin made this session its own git worktree: ${path} (branch ${branch}, cut from the repo's default branch). Work only there and don't make another worktree. Install dependencies first if the repo needs them.`;
 
 /** A launch into the repos folder: Odin can't know the repo until the agent picks it. */

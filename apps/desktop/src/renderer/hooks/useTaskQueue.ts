@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "react";
+import { quote, worktreeMadeLine } from "renderer/hooks/useLaunchTaskSession";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { claudeLaunch } from "renderer/stores/claude-command";
 import { launchLimits, useLaunchLimits } from "renderer/stores/launch-limits";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import type { Pane } from "renderer/stores/tabs/types";
@@ -174,6 +176,52 @@ export async function moveQueuedToHost(
 		...pane,
 		odinRemote: host,
 		odinQueued: { ...queued, remote },
+	};
+	useTabsStore.setState((state) => ({
+		panes: { ...state.panes, [pane.id]: { ...state.panes[pane.id], ...moved } },
+	}));
+	await startQueuedPane(client, moved);
+	return true;
+}
+
+/**
+ * The other way: a new task waiting on the remote host's room starts on this
+ * Mac now instead, in its own worktree like any local launch. False when it
+ * can't (a Resume, whose conversation is saved on the host).
+ */
+export async function moveQueuedToMac(
+	client: TrpcClient,
+	pane: Pane,
+): Promise<boolean> {
+	const remote = pane.odinQueued?.remote;
+	const tab = useTabsStore.getState().tabs.find((tab) => tab.id === pane.tabId);
+	if (!pane.odinQueued || !remote?.prompt || !tab) return false;
+	const workspace = await client.workspaces.get.query({ id: tab.workspaceId });
+	if (!workspace?.worktreePath) return false;
+	const title = pane.odinTaskTitle ?? "task";
+	const worktree = remote.repoPath
+		? await client.repos.createSessionWorktree
+				.mutate({ repo: remote.repoPath, title })
+				.catch(() => null)
+		: null;
+	const cwd = worktree?.path || remote.repoPath || workspace.worktreePath;
+	await client.repos.trustForClaude.mutate({ path: cwd }).catch(() => {});
+	const promptPath = `${workspace.worktreePath}/.odin/task-${remote.pane}.md`;
+	await client.filesystem.writeFile.mutate({
+		workspaceId: tab.workspaceId,
+		absolutePath: promptPath,
+		content: worktree
+			? `${remote.prompt}\n\n${worktreeMadeLine(worktree)}`
+			: remote.prompt,
+		encoding: "utf-8",
+	});
+	const command = `cd ${quote(cwd)} && ${claudeLaunch(title, `${remote.claudeArgs} "$(cat '${promptPath}')"`, pane.id)}`;
+	const moved: Pane = {
+		...pane,
+		initialCwd: cwd,
+		odinRemote: undefined,
+		odinQueued: { command, reason: pane.odinQueued.reason },
+		...(worktree ? { odinCwd: worktree.path } : {}),
 	};
 	useTabsStore.setState((state) => ({
 		panes: { ...state.panes, [pane.id]: { ...state.panes[pane.id], ...moved } },

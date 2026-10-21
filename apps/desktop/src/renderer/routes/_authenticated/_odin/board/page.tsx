@@ -66,6 +66,7 @@ import { SiJira, SiNotion, SiSlack } from "react-icons/si";
 import { useLaunchTaskSession } from "renderer/hooks/useLaunchTaskSession";
 import {
 	currentLaunchBlocker,
+	moveQueuedToMac,
 	startQueuedPane,
 } from "renderer/hooks/useTaskQueue";
 import { useHotkey } from "renderer/hotkeys";
@@ -467,11 +468,32 @@ function HistoryView({
 }
 
 /** Spinner for the gap before a session has anything to show. */
-function StartingView({ label }: { label: string }) {
+function StartingView({
+	label,
+	onStartOnMac,
+}: {
+	label: string;
+	/** A task waiting on the remote host's room: start it on this Mac instead. */
+	onStartOnMac?: () => void;
+}) {
 	return (
-		<div className="flex flex-1 items-center justify-center gap-2 text-[13px] text-working">
-			<span className="size-[12px] animate-spin rounded-full border-2 border-working border-t-transparent" />
-			{label}
+		<div className="flex flex-1 flex-col items-center justify-center gap-3">
+			<div className="flex items-center gap-2 text-[13px] text-working">
+				<span className="size-[12px] animate-spin rounded-full border-2 border-working border-t-transparent" />
+				{label}
+			</div>
+			{onStartOnMac && (
+				<button
+					type="button"
+					onClick={onStartOnMac}
+					className={cn(
+						"rounded-[7px] px-3 py-1.5 text-xs font-semibold",
+						BUTTON.secondary,
+					)}
+				>
+					Start on this Mac instead
+				</button>
+			)}
 		</div>
 	);
 }
@@ -2219,20 +2241,31 @@ const BoardCardTile = memo(
 								<span className="text-[11.5px] text-attention">
 									⏳ {card.pane.odinQueued.reason}
 								</span>
-								<button
-									type="button"
-									title="Start this session now, gate or no gate"
-									onClick={(event) => {
-										event.stopPropagation();
-										void actions.resumeCard(card);
-									}}
-									className={cn(
-										"ml-auto shrink-0 whitespace-nowrap rounded-[7px] px-2.5 py-1 text-xs font-semibold",
-										BUTTON.secondary,
-									)}
-								>
-									Start now
-								</button>
+								{/* The host's gate is never overruled - too many sessions there
+								    take every one down - but a new task can go to this Mac. */}
+								{(!card.pane.odinQueued.remote ||
+									card.pane.odinQueued.remote.prompt) && (
+									<button
+										type="button"
+										title={
+											card.pane.odinQueued.remote
+												? "Start this session on this Mac instead of the remote host"
+												: "Start this session now, gate or no gate"
+										}
+										onClick={(event) => {
+											event.stopPropagation();
+											void actions.resumeCard(card);
+										}}
+										className={cn(
+											"ml-auto shrink-0 whitespace-nowrap rounded-[7px] px-2.5 py-1 text-xs font-semibold",
+											BUTTON.secondary,
+										)}
+									>
+										{card.pane.odinQueued.remote
+											? "Start on this Mac"
+											: "Start now"}
+									</button>
+								)}
 							</div>
 						)}
 						{card.status === "idle" &&
@@ -4277,7 +4310,12 @@ function DevBoardPage() {
 		if (card.pane.odinQueued) {
 			setResumingPaneIds((ids) => [...ids, card.pane.id]);
 			try {
-				await startQueuedPane(utils.client, card.pane);
+				// Held for the host's room: starting it there anyway is what takes
+				// every host session down, so the way past the wait is this Mac.
+				if (card.pane.odinQueued.remote) {
+					if (!(await moveQueuedToMac(utils.client, card.pane)))
+						throw new Error("This one can only start on the remote host");
+				} else await startQueuedPane(utils.client, card.pane);
 				if (!auto) openDrawer(card);
 				void utils.terminal.listDaemonSessions.invalidate();
 			} catch (error) {
@@ -6181,6 +6219,16 @@ function DevBoardPage() {
 														: "Resuming session…"
 													: `Waiting to start - ${panes[drawerCard.pane.id]?.odinQueued?.reason}`
 											}
+											onStartOnMac={
+												panes[drawerCard.pane.id]?.odinQueued?.remote?.prompt &&
+												!resumingPaneIds.includes(drawerCard.pane.id)
+													? () => {
+															const pane = panes[drawerCard.pane.id];
+															if (pane)
+																void resumeCard({ ...drawerCard, pane });
+														}
+													: undefined
+											}
 										/>
 									) : (
 										// Claude has exited - the PTY is dead, or a bare zsh outlived
@@ -6216,6 +6264,7 @@ function DevBoardPage() {
 									type="button"
 									disabled={
 										resumingPaneIds.includes(drawerCard.pane.id) ||
+										!!panes[drawerCard.pane.id]?.odinQueued?.remote ||
 										isWorkingNow(drawerCard.pane.id) ||
 										isSettledAgent(drawerCard.pane.id)
 									}
@@ -6229,15 +6278,17 @@ function DevBoardPage() {
 										);
 									}}
 									title={
-										isWorkingNow(drawerCard.pane.id)
-											? "Already working - resuming would kill the running turn"
-											: isSettledAgent(drawerCard.pane.id)
-												? "Session is already open - type in the terminal"
-												: agentPaneIds.has(drawerCard.pane.id)
-													? 'Session is open - send it "Continue"'
-													: drawerCard.pane.status === "working"
-														? 'Died mid-turn - reopen it and send "Continue"'
-														: "Reopen this conversation at an idle prompt (claude --resume)"
+										panes[drawerCard.pane.id]?.odinQueued?.remote
+											? "Waiting for room on the remote host - starting there now could take its other sessions down"
+											: isWorkingNow(drawerCard.pane.id)
+												? "Already working - resuming would kill the running turn"
+												: isSettledAgent(drawerCard.pane.id)
+													? "Session is already open - type in the terminal"
+													: agentPaneIds.has(drawerCard.pane.id)
+														? 'Session is open - send it "Continue"'
+														: drawerCard.pane.status === "working"
+															? 'Died mid-turn - reopen it and send "Continue"'
+															: "Reopen this conversation at an idle prompt (claude --resume)"
 									}
 									className={cn(
 										"rounded-[7px] px-3 py-1.5 text-xs font-semibold",
