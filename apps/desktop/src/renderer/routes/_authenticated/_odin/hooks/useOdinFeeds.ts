@@ -65,7 +65,12 @@ export function useOdinFeeds() {
 			},
 		[emailQuery.data, seenEmails],
 	);
-	const emails = { ...emailQuery, data: emailData };
+	// A Proxy, not a spread: spreading reads every field, isFetching included,
+	// and so re-rendered every caller of this hook on each mail fetch.
+	const emails = new Proxy(emailQuery, {
+		get: (target, key) =>
+			key === "data" ? emailData : Reflect.get(target, key),
+	}) as Omit<typeof emailQuery, "data"> & { data: typeof emailData };
 
 	const clickup = electronTrpc.work.myClickupTasks.useQuery(undefined, {
 		enabled: workConfig?.hasClickup === true,
@@ -92,6 +97,11 @@ export function useOdinFeeds() {
 			placeholderData: (prev) => prev,
 		},
 	);
+
+	// A query result its caller never reads re-renders that caller on every
+	// fetch (TanStack tracks what's read, and nothing read means everything).
+	// Reading `data` here keeps a caller that ignores a feed off its polls.
+	for (const feed of [jira, pulls, reactions, clickup, notion]) void feed.data;
 
 	return {
 		workConfig,

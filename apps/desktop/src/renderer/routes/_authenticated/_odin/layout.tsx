@@ -15,7 +15,7 @@ import {
 	useNavigate,
 } from "@tanstack/react-router";
 import type { ClaudeUsageWindow } from "lib/trpc/routers/resource-metrics";
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import {
 	HiOutlineBolt,
 	HiOutlineChartBar,
@@ -227,6 +227,68 @@ function useLastClaudeUsage(
 	return { fiveHour: live(last.fiveHour), week: live(last.week) };
 }
 
+/**
+ * The shell's background work: feed sync, reminders and the runners. Its own
+ * component that draws nothing, so each poll and tick re-renders this and
+ * not the whole shell, and a shell render doesn't re-run them.
+ */
+const ShellRunners = memo(function ShellRunners({
+	activeProfileId,
+	isProfileLoading,
+}: {
+	activeProfileId: string;
+	isProfileLoading: boolean;
+}) {
+	// Sync every feed (Slack, Jira, PRs, Notion) as soon as the app
+	// opens - the
+	// shell mounts on boot and on reload - so switching views shows rows
+	// instead of an empty "syncing…".
+	const { jira } = useOdinFeeds();
+	// "Drop tasks like this" rules put new matching rows away as they arrive.
+	useApplyDropRules();
+	// Due dates ping from the shell, not from the feed that set them: the feed
+	// you set it on is the one you're least likely to have open on the day.
+	// Jira's own Due Date rides along, so a deadline nobody retyped into Odin
+	// still speaks.
+	const jiraDue = useMemo(
+		(): UpstreamDue[] =>
+			(jira.data?.issues ?? [])
+				.filter((issue) => !!issue.dueDate)
+				.map((issue) => ({
+					key: `jira:${issue.key}`,
+					due: issue.dueDate as string,
+					title: `${issue.key}: ${issue.title}`,
+				})),
+		[jira.data],
+	);
+	// Reminders show and ping for the active profile only.
+	const setReminderProfile = useReminders((s) => s.setProfile);
+	useEffect(() => {
+		if (!isProfileLoading) setReminderProfile(activeProfileId);
+	}, [isProfileLoading, activeProfileId, setReminderProfile]);
+	useDueReminders(jiraDue);
+	// "Ping me on replies" - same reason: it pings whatever screen is open.
+	// Clicking the banner opens the session it was set on.
+	const navigate = useNavigate();
+	useReplyWatcher((paneId) => {
+		usePendingFocus.getState().focus(paneId);
+		navigate({ to: "/board" });
+	});
+
+	// The clock behind the Automations panel. Here rather than on that page:
+	// a schedule that only runs while you're looking at it isn't one.
+	useAutomationRunner();
+	useNightAgentRunner();
+	// And the backlog sweep, on its interval, so Review is already filled in.
+	usePeriodicSweep();
+	// Same reason: tasks held back by the capacity gate wait in Idle → Queued,
+	// and this is what starts them once the Mac (or the checkout) frees up.
+	useTaskQueue();
+	// :robot_face: on a Slack message starts its session - see useStartReaction.
+	useSlackAutoLaunch();
+	return null;
+});
+
 function OdinShell() {
 	const navigate = useNavigate();
 	const matchRoute = useMatchRoute();
@@ -355,53 +417,6 @@ function OdinShell() {
 			...boardCountsByProfile.get(profile.id),
 		}))
 		.filter((profile) => profile.needsYou > 0 || profile.working > 0);
-
-	// Sync every feed (Slack, Jira, PRs, Notion) as soon as the app
-	// opens - the
-	// shell mounts on boot and on reload - so switching views shows rows
-	// instead of an empty "syncing…".
-	const { jira } = useOdinFeeds();
-	// "Drop tasks like this" rules put new matching rows away as they arrive.
-	useApplyDropRules();
-	// Due dates ping from the shell, not from the feed that set them: the feed
-	// you set it on is the one you're least likely to have open on the day.
-	// Jira's own Due Date rides along, so a deadline nobody retyped into Odin
-	// still speaks.
-	const jiraDue = useMemo(
-		(): UpstreamDue[] =>
-			(jira.data?.issues ?? [])
-				.filter((issue) => !!issue.dueDate)
-				.map((issue) => ({
-					key: `jira:${issue.key}`,
-					due: issue.dueDate as string,
-					title: `${issue.key}: ${issue.title}`,
-				})),
-		[jira.data],
-	);
-	// Reminders show and ping for the active profile only.
-	const setReminderProfile = useReminders((s) => s.setProfile);
-	useEffect(() => {
-		if (!isProfileLoading) setReminderProfile(activeProfileId);
-	}, [isProfileLoading, activeProfileId, setReminderProfile]);
-	useDueReminders(jiraDue);
-	// "Ping me on replies" - same reason: it pings whatever screen is open.
-	// Clicking the banner opens the session it was set on.
-	useReplyWatcher((paneId) => {
-		usePendingFocus.getState().focus(paneId);
-		navigate({ to: "/board" });
-	});
-
-	// The clock behind the Automations panel. Here rather than on that page:
-	// a schedule that only runs while you're looking at it isn't one.
-	useAutomationRunner();
-	useNightAgentRunner();
-	// And the backlog sweep, on its interval, so Review is already filled in.
-	usePeriodicSweep();
-	// Same reason: tasks held back by the capacity gate wait in Idle → Queued,
-	// and this is what starts them once the Mac (or the checkout) frees up.
-	useTaskQueue();
-	// :robot_face: on a Slack message starts its session - see useStartReaction.
-	useSlackAutoLaunch();
 
 	const { data: workConfig } = electronTrpc.work.getConfig.useQuery();
 	// Single-key nav - D board, T tasks, S slack, H history, J jira, P PRs
@@ -551,6 +566,10 @@ function OdinShell() {
 		// The faint violet light over the top-left of every page is the shell's
 		// - it's what keeps a dark, mostly-neutral app from reading as grey.
 		<div className="flex h-full w-full flex-col bg-background bg-[radial-gradient(1200px_420px_at_18%_-160px,color-mix(in_oklab,var(--primary)_13%,transparent),transparent_70%)] text-foreground">
+			<ShellRunners
+				activeProfileId={activeProfileId}
+				isProfileLoading={isProfileLoading}
+			/>
 			{/* top bar - left pad clears macOS traffic lights; empty areas drag.
 			    The traffic lights are native and DON'T scale with page zoom, so the
 			    bar height and their inset are counter-scaled by 1/zoomFactor to stay
