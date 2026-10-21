@@ -1,11 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import {
+	actionItemEntries,
 	actionItemList,
 	applyLines,
 	applyQueue,
 	arrived,
 	autoSsoLogin,
 	bangCommands,
+	commandItem,
 	elapsedLabel,
 	interruptClaude,
 	isAnswerItem,
@@ -22,7 +24,6 @@ import {
 	launchAttachments,
 	launchRequest,
 	outputTokens,
-	runItemIndex,
 	segments,
 	splitActionItems,
 	splitEarlier,
@@ -70,15 +71,21 @@ describe("ChatView transcript", () => {
 		expect(bangCommands(text)).toEqual(["aws sso login", "echo a &&\necho b"]);
 	});
 
-	test("! commands sit under the first item that says to run them", () => {
-		expect(
-			runItemIndex([
-				"Decide the branch",
-				"Press Run on the blocks above",
-				"Run it again",
-			]),
-		).toBe(1);
-		expect(runItemIndex(["Merge #12", "Pruned the runner"])).toBe(-1);
+	test("a ! command goes under its own item, else the one naming it, else the one saying run", () => {
+		const items = [
+			"Optional: install the Datadog agent now (you only):",
+			"Approve terraform PR #1234",
+			"Reboot the box with `aws ec2 reboot-instances`",
+		];
+		const agent =
+			'DD_API_KEY=x bash -c "$(curl -L https://install.datadoghq.com/scripts/install_script_agent7.sh)"';
+		const reboot = "aws ec2 reboot-instances --instance-ids i-0abc";
+		expect(commandItem(reboot, items, [[], [reboot], []])).toBe(1);
+		expect(commandItem(agent, items)).toBe(0);
+		expect(commandItem(reboot, items)).toBe(2);
+		expect(commandItem("gh pr merge 1234", items)).toBe(1);
+		expect(commandItem("ls", ["Decide the branch", "Press Run below"])).toBe(1);
+		expect(commandItem("ls", ["Merge #12", "Pruned the runner"])).toBe(-1);
 	});
 
 	test("a message sent mid-turn shows as yours, its image too", () => {
@@ -322,6 +329,17 @@ describe("ChatView transcript", () => {
 		]);
 		expect(actionItemList("- a\n* b")).toEqual(["a", "b"]);
 		expect(actionItemList("none - all shipped")).toEqual([]);
+	});
+
+	test("a fenced block between items belongs to the item above it", () => {
+		const fence = "   ```\n   ! echo a\n   - not an item\n   ```";
+		expect(
+			actionItemEntries(`1. Install the agent:\n${fence}\n2. Approve the PR`),
+		).toEqual([
+			{ text: "Install the agent:", fences: [fence] },
+			{ text: "Approve the PR", fences: [] },
+		]);
+		expect(bangCommands(fence)).toEqual(["echo a\n   - not an item"]);
 	});
 
 	test("an item asking you to approve something gets the Approve button", () => {

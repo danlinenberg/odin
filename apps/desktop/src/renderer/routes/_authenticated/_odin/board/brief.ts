@@ -633,15 +633,35 @@ export function actionItems(messages: BriefMessage[]): string[] {
 	return actionItemLines(last.slice(at + "ACTION ITEMS".length));
 }
 
+/** An ACTION ITEMS entry: its text, and the fenced code blocks written under it. */
+export type ActionItemEntry = { text: string; fences: string[] };
+
 /**
  * The numbered or bulleted lines of an ACTION ITEMS block. An item with
  * indented sub-items is a heading ("Still waiting:"), not an item: each
- * sub-item becomes one, carrying the heading so it reads alone.
+ * sub-item becomes one, carrying the heading so it reads alone. A fenced
+ * block between items belongs to the item above it, and its lines are never
+ * read as items.
  */
-export function actionItemLines(block: string): string[] {
-	const items: { text: string; heading: boolean; child: boolean }[] = [];
+export function actionItemEntries(block: string): ActionItemEntry[] {
+	const items: (ActionItemEntry & { heading: boolean; child: boolean })[] = [];
 	let base = -1;
+	let fence: string[] | null = null;
 	for (const line of block.split("\n")) {
+		if (/^\s*(```|~~~)/.test(line)) {
+			if (!fence) {
+				fence = [line];
+				continue;
+			}
+			fence.push(line);
+			items.at(-1)?.fences.push(fence.join("\n"));
+			fence = null;
+			continue;
+		}
+		if (fence) {
+			fence.push(line);
+			continue;
+		}
 		const m = line.match(/^(\s*)(?:\d+[.)]|[-*])\s+(.+)/);
 		if (!m?.[2]) continue;
 		const indent = m[1]?.length ?? 0;
@@ -649,16 +669,26 @@ export function actionItemLines(block: string): string[] {
 		const parent = items.findLast((i) => !i.child);
 		if (base < 0 || indent <= base || !parent) {
 			base = base < 0 ? indent : Math.min(base, indent);
-			items.push({ text, heading: false, child: false });
+			items.push({ text, fences: [], heading: false, child: false });
 			continue;
 		}
 		parent.heading = true;
-		items.push({ text: `${parent.text} ${text}`, heading: false, child: true });
+		items.push({
+			text: `${parent.text} ${text}`,
+			fences: [],
+			heading: false,
+			child: true,
+		});
 	}
 	// "1. None for you" is a numbered "none": nothing to do, so no button.
 	return items
 		.filter((i) => !i.heading && !/^\W*none\b/i.test(i.text))
-		.map((i) => i.text);
+		.map(({ text, fences }) => ({ text, fences }));
+}
+
+/** The items of an ACTION ITEMS block as text; [] for "none". */
+export function actionItemLines(block: string): string[] {
+	return actionItemEntries(block).map((i) => i.text);
 }
 
 /**

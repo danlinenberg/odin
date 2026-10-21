@@ -64,6 +64,7 @@ import {
 import { attachmentPaths } from "../components/TaskBox";
 import { COMPACT_MARKDOWN } from "../components/TranscriptView";
 import {
+	actionItemEntries,
 	actionItemList,
 	isAnswerItem,
 	isApprovalItem,
@@ -1390,6 +1391,7 @@ function ReplyMark({ className }: { className?: string }) {
 }
 
 export {
+	actionItemEntries,
 	actionItemList,
 	isAnswerItem,
 	isApprovalItem,
@@ -1511,7 +1513,7 @@ function ActionItemRow({
 	onDismiss?: () => void;
 	/** Some item in the list has a button - line this one's number up with it. */
 	buttonColumn: boolean;
-	/** The reply's `!` commands, when this is the item that says to run them. */
+	/** The reply's `!` commands that belong to this item. */
 	commands?: string[];
 	onRun?: (command: string) => Promise<void>;
 }) {
@@ -1597,7 +1599,9 @@ function ActionItemRow({
 						/>
 					</div>
 				)}
-				{onRun && <RunCommands commands={commands} onRun={onRun} />}
+				{onRun && commands.length > 0 && (
+					<RunCommands commands={commands} onRun={onRun} />
+				)}
 			</div>
 			{onDismiss ? (
 				<button
@@ -1662,7 +1666,7 @@ function ActionItems({
 	onRun,
 }: {
 	text: string;
-	/** The reply's `!` commands: under the item that says to run them, else at the card's foot. */
+	/** The reply's `!` commands: each under the item it belongs to (see commandItem), else at the card's foot. */
 	commands?: string[];
 	onRun?: (command: string) => Promise<void>;
 	/** The reply above the items, where each one's explanation is looked up. */
@@ -1680,11 +1684,24 @@ function ActionItems({
 	);
 	const dismiss = useDismissedActions((s) => s.dismiss);
 	// Numbered as Claude wrote them, so "action item 3" still means its 3.
-	const items = (onDo ? actionItemList(text) : [])
-		.map((item, index) => ({ item, number: index + 1 }))
+	const items = (onDo ? actionItemEntries(text) : [])
+		.map(({ text: item, fences }, index) => ({
+			item,
+			number: index + 1,
+			under: fences.flatMap(bangCommands),
+		}))
 		.filter(({ item }) => !isDismissed(dismissed ?? [], item));
 	const buttonColumn = !items.every(({ item }) => isYouOnly(item));
-	const runner = runItemIndex(items.map(({ item }) => item));
+	const homes = commands.map((command) =>
+		commandItem(
+			command,
+			items.map(({ item }) => item),
+			items.map(({ under }) => under),
+		),
+	);
+	const commandsAt = (index: number) =>
+		commands.filter((_, i) => homes[i] === index);
+	const footCommands = onDo && items.length > 0 ? commandsAt(-1) : commands;
 	const count = onDo ? items.length : actionItemList(text).length;
 	return (
 		<div
@@ -1728,8 +1745,8 @@ function ActionItems({
 							onDo={onDo}
 							onDismiss={paneId ? () => dismiss(paneId, item) : undefined}
 							buttonColumn={buttonColumn}
-							commands={commands}
-							onRun={index === runner ? onRun : undefined}
+							commands={commandsAt(index)}
+							onRun={onRun}
 						/>
 					))}
 				</ol>
@@ -1741,8 +1758,8 @@ function ActionItems({
 					className={COMPACT_MARKDOWN}
 				/>
 			)}
-			{!folded && onRun && runner < 0 && (
-				<RunCommands commands={commands} onRun={onRun} />
+			{!folded && onRun && (
+				<RunCommands commands={footCommands} onRun={onRun} />
 			)}
 		</div>
 	);
@@ -1754,12 +1771,94 @@ export function itemsFoldLabel(folded: boolean, count: number): string {
 	return count === 1 ? "Show 1 item" : `Show ${count} items`;
 }
 
+// Words too common in commands or items to tell one item from another.
+const COMMON_WORDS = new Set([
+	"aws",
+	"sudo",
+	"bash",
+	"curl",
+	"echo",
+	"http",
+	"https",
+	"www",
+	"com",
+	"command",
+	"commands",
+	"then",
+	"with",
+	"this",
+	"that",
+	"from",
+	"your",
+	"only",
+	"true",
+	"false",
+	"json",
+	"text",
+	"output",
+	"region",
+	"profile",
+	"run",
+	"runs",
+	"install",
+	"apply",
+	"execute",
+]);
+
+/** A text's distinctive words: lowercased, link targets dropped, 4+ letters or a 3+ digit number. */
+function distinctWords(text: string): string[] {
+	return text
+		.replace(/\]\([^)]*\)/g, "]")
+		.toLowerCase()
+		.split(/[^a-z0-9-]+/)
+		.flatMap((word) => [word, ...(word.includes("-") ? word.split("-") : [])])
+		.filter(
+			(word) =>
+				(/^\d{3,}$/.test(word) || (word.length >= 4 && /[a-z]/.test(word))) &&
+				!COMMON_WORDS.has(word),
+		);
+}
+
+/** How well an item names a command: its words the command shares, plus 2 per `quoted` piece of it. */
+function commandScore(command: string, item: string): number {
+	const words = distinctWords(command);
+	const shared = new Set(
+		distinctWords(item).filter((word) =>
+			words.some((other) => other.startsWith(word) || word.startsWith(other)),
+		),
+	);
+	const quoted = [...item.matchAll(/`([^`\n]+)`/g)].filter(([, code]) =>
+		command.includes((code ?? "").trim()),
+	);
+	return shared.size + 2 * quoted.length;
+}
+
 /**
- * The item a reply's `!` commands belong under: the first one that says to run
- * something ("Press Run on the blocks above"). -1 when none does.
+ * The item a reply's `!` command goes under, -1 for the card's foot: the item
+ * it was written under (`under[i]` holds item i's own commands), else the item
+ * that names it best, else the first item that says to run, execute, install
+ * or apply something.
  */
-export function runItemIndex(items: string[]): number {
-	return items.findIndex((item) => /\brun\b/i.test(item));
+export function commandItem(
+	command: string,
+	items: string[],
+	under: string[][] = [],
+): number {
+	const own = under.findIndex((commands) => commands.includes(command));
+	if (own >= 0) return own;
+	let best = -1;
+	let bestScore = 0;
+	items.forEach((item, index) => {
+		const score = commandScore(command, item);
+		if (score > bestScore) {
+			best = index;
+			bestScore = score;
+		}
+	});
+	if (best >= 0) return best;
+	return items.findIndex((item) =>
+		/\b(run|execute|install|apply)\b/i.test(item),
+	);
 }
 
 function RunCommands({

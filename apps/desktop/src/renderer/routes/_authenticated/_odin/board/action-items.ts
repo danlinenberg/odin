@@ -1,5 +1,7 @@
 import { actionItemLines } from "./brief";
 
+export { actionItemEntries } from "./brief";
+
 /**
  * Reading a reply's ACTION ITEMS block: where it starts, its items, their
  * [A | B] choices, and which kind each is. Pure, so the board's chat and the
