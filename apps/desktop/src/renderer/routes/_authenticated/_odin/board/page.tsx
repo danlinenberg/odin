@@ -4284,6 +4284,10 @@ function DevBoardPage() {
 	// it under the title. Comes back with every warm, so no call of its own.
 	const [briefStatus, setBriefStatus] = useState<Record<string, string>>({});
 	const switchStatus = (card: BoardCard) => {
+		// A row in line says what it waits on: a bulk Resume parks rows here,
+		// and without this they read as if nothing had happened.
+		const queued = panes[card.pane.id]?.odinQueued;
+		if (queued) return `⏳ ${queued.reason}`;
 		const id =
 			card.pane.claudeSessionId ??
 			usePaneMeta.getState().sessionIdByPane[card.pane.id];
@@ -5634,15 +5638,68 @@ function DevBoardPage() {
 	const resumablePicked = resumable(pickedCards, agentPaneIds);
 	const parkablePicked = parkable(pickedCards);
 	const sessions = (n: number) => `${n} ${n === 1 ? "session" : "sessions"}`;
+	/**
+	 * A ticked row still in line - a launch held back, or a Resume that an
+	 * earlier bulk Resume parked. Its gate is read now: open, it starts (on
+	 * the host when it is bound there); shut, it keeps its place with the
+	 * reason it waits on today. The card's own ▶ Start now skips the gate; a
+	 * dozen ticked rows must not. A start that fails says why, so the row
+	 * doesn't just sit there.
+	 */
+	const startPickedQueued = async (card: BoardCard) => {
+		const pane = useTabsStore.getState().panes[card.pane.id];
+		if (!pane?.odinQueued || resumingPaneIds.includes(pane.id)) return;
+		setResumingPaneIds((ids) => [...ids, pane.id]);
+		try {
+			const blocker = await resumeBlocker(pane, sessionCwd(pane));
+			if (blocker) {
+				useTabsStore.setState((state) => {
+					const current = state.panes[pane.id];
+					if (!current?.odinQueued) return {};
+					return {
+						panes: {
+							...state.panes,
+							[pane.id]: {
+								...current,
+								odinQueued: { ...current.odinQueued, reason: blocker },
+							},
+						},
+					};
+				});
+				return;
+			}
+			await startQueuedPane(utils.client, pane);
+			void utils.terminal.listDaemonSessions.invalidate();
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : String(error));
+		} finally {
+			setResumingPaneIds((ids) => ids.filter((id) => id !== pane.id));
+		}
+	};
 	const resumePicked = () => {
 		// A beat apart, not all at once: each Resume spawns a Claude, and a
 		// dozen spawning in the same instant stalls the Mac and the daemon.
 		// Each one passes the launch gate too, so past the first few they wait
-		// in Queued and the queue starts them as there's room.
+		// in Queued and the queue starts them as there's room. A row already
+		// in line goes the same way rather than being skipped: resumeCard
+		// leaves queued cards alone, which made a bulk Resume over them do
+		// nothing while its toast said otherwise.
 		resumablePicked.forEach((card, i) => {
-			setTimeout(() => void resumeCard(card, true), i * 300);
+			setTimeout(() => {
+				void (card.pane.odinQueued
+					? startPickedQueued(card)
+					: resumeCard(card, true));
+			}, i * 300);
 		});
-		toast.success(`Resuming ${sessions(resumablePicked.length)}`);
+		const inLine = resumablePicked.filter((card) => card.pane.odinQueued);
+		toast.success(
+			`Resuming ${sessions(resumablePicked.length)}`,
+			inLine.length
+				? {
+						description: `${sessions(inLine.length)} in line start as soon as the gate allows`,
+					}
+				: undefined,
+		);
 		clearPicked();
 	};
 	const finishPicked = () => {

@@ -407,6 +407,14 @@ export function useTaskQueue(): void {
 			return;
 		}
 		if (hostWait) refreshQueuedReasons(hostBound, inLine(hostBound, hostWait));
+		// Bound for a host that is no longer set up: nothing here can start
+		// them, and the reason stamped when they were queued ("busy", "#2 in
+		// line") would keep saying something else.
+		else if (remoteHost && !remoteHost.host && hostBound.length)
+			refreshQueuedReasons(
+				hostBound,
+				() => "No remote host is set up (Settings → Remote)",
+			);
 		const local = queue.filter((pane) => !hostBound.includes(pane));
 		if (!local.length) return;
 		const live = livePanes(panes, daemonSessions.sessions);
