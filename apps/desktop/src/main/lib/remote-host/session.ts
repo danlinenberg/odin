@@ -282,6 +282,11 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 		MEMORY_LIMIT_SCRIPT,
 		`if [ -f ${sh(secretsDir)}/env ]; then set -a; . ${sh(secretsDir)}/env; set +a; fi`,
 		`rm -rf ${sh(secretsDir)}`,
+		// Sessions starting together take turns at setup: clone, fetch and
+		// worktree add on one repo, the Claude login and ~/.gitconfig all
+		// break when two runs write them at once. Waits 2 min at most.
+		// One lock per host: sessions on different repos wait for each other too.
+		'mkdir -p "$HOME/.odin" && exec 9>"$HOME/.odin/setup.lock" && flock -w 120 9 2>/dev/null',
 		// Odin's host service when setup installed it (connector calls answered
 		// there, the rest passed on); else the helper's tunnel to the laptop.
 		// Both ports are this Linux user's own (hostPorts).
@@ -302,7 +307,9 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 		'export PATH="$HOME/.local/bin:$PATH"',
 		CLAUDE_LOGIN_SCRIPT,
 		ghInstallScript,
-		`mkdir -p "$HOME/.odin" && printf %s ${sh(Buffer.from(TURN_END_HOOK).toString("base64"))} | base64 -d > "$HOME/.odin/turn-end.py"`,
+		`mkdir -p "$HOME/.odin" && printf %s ${sh(Buffer.from(TURN_END_HOOK).toString("base64"))} | base64 -d > "$HOME/.odin/turn-end.py.$$" && mv -f "$HOME/.odin/turn-end.py.$$" "$HOME/.odin/turn-end.py"`,
+		// Claude must not hold the lock, or no other session starts until it exits.
+		"exec 9>&-",
 		`if [ -n "$ODIN_FALLBACK_API_KEY" ] && python3 -c ${sh(USE_API_KEY_IF_LIMITED)}; then export ANTHROPIC_API_KEY="$ODIN_FALLBACK_API_KEY"; else unset ANTHROPIC_API_KEY; fi`,
 		// Kept unexported, for resuming on the key when the plan runs out mid-session.
 		'fallback="$ODIN_FALLBACK_API_KEY"',
