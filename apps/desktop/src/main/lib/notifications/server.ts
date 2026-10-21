@@ -11,6 +11,7 @@ import type {
 } from "shared/notification-types";
 import { callProcedure, clip, listProcedures } from "../odin-api";
 import { callService, fetchFile, readLink } from "../read-link";
+import { recordHostLoad } from "../remote-host/host-load";
 import { redeemTicket } from "../remote-host/session";
 import { createSessionWorktree } from "../session-worktree";
 import { HOOK_PROTOCOL_VERSION } from "../terminal/env";
@@ -335,6 +336,22 @@ app.post("/remote-host/sso-login", (req, res) => {
 		(err: unknown) =>
 			res.headersSent ? res.destroy() : res.status(500).send(String(err)),
 	);
+});
+
+/** A remote pane's reading of its host's memory and load, taken over the connection it holds. */
+app.post("/remote-host/load", (req, res) => {
+	if (req.headers.origin) return res.status(403).send("");
+	const { instanceId, memAvailableMb, memTotalMb, load1, cores, at } =
+		req.body ?? {};
+	const numbers = [memAvailableMb, memTotalMb, load1, cores, at];
+	if (
+		typeof instanceId !== "string" ||
+		!instanceId ||
+		!numbers.every((n) => typeof n === "number" && Number.isFinite(n))
+	)
+		return res.status(400).send("");
+	recordHostLoad({ instanceId, memAvailableMb, memTotalMb, load1, cores, at });
+	res.status(204).end();
 });
 
 // Health check

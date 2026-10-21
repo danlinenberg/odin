@@ -1,5 +1,10 @@
 import { describe, expect, it } from "bun:test";
-import { claimedCheckout, launchBlocker, sessionInFlight } from "./launch-gate";
+import {
+	claimedCheckout,
+	launchBlocker,
+	remoteLaunchBlocker,
+	sessionInFlight,
+} from "./launch-gate";
 import { DEFAULT_LAUNCH_LIMITS, type MachineLoadInput } from "./machine-load";
 import type { Pane } from "./tabs-types";
 
@@ -211,5 +216,32 @@ describe("claimedCheckout", () => {
 
 	it("still claims Odin when the workspace is Odin's checkout", () => {
 		expect(claimedCheckout(undefined, ODIN, ODIN)).toBe(ODIN);
+	});
+});
+
+describe("remoteLaunchBlocker", () => {
+	const reading = (memAvailableMb: number, load1: number, at = 0) => ({
+		instanceId: "i-1",
+		memAvailableMb,
+		memTotalMb: 32_000,
+		load1,
+		cores: 8,
+		at,
+	});
+
+	it("holds a launch on a host low on memory or busy, and only on a fresh reading", () => {
+		expect(
+			remoteLaunchBlocker(reading(20_000, 2), "odin-remote", 0),
+		).toBeNull();
+		expect(remoteLaunchBlocker(reading(3174, 2), "odin-remote", 0)).toBe(
+			"odin-remote has 3.1 GB free",
+		);
+		expect(remoteLaunchBlocker(reading(20_000, 9.21), "odin-remote", 0)).toBe(
+			"odin-remote is busy (load 9.2 on 8 cores)",
+		);
+		expect(
+			remoteLaunchBlocker(reading(3174, 2), "odin-remote", 3 * 60_000),
+		).toBeNull();
+		expect(remoteLaunchBlocker(null, "odin-remote", 0)).toBeNull();
 	});
 });

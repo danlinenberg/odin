@@ -1,3 +1,4 @@
+import type { HostLoadReading } from "./host-load";
 import {
 	type LaunchLimits,
 	type MachineLoadInput,
@@ -126,4 +127,29 @@ export function launchBlocker(
 	return held
 		? `waiting for "${held.title}" to finish in ${checkoutName(cwd, odinRepoPath)}`
 		: null;
+}
+
+/** A host reading older than this says nothing about the host now. */
+export const HOST_LOAD_FRESH_MS = 2 * 60_000;
+
+/** Free memory, as a share of the host's, below which a launch there waits. */
+export const MIN_HOST_FREE_MEMORY_SHARE = 0.25;
+
+/**
+ * Is it safe to start another session on the remote host `name`, and if not,
+ * why not. Sessions there share one machine: too many ran it out of memory,
+ * every session died with it, and SSM stopped answering. A missing or stale
+ * reading lets the launch through, as a failed read of this Mac does.
+ */
+export function remoteLaunchBlocker(
+	reading: HostLoadReading | null | undefined,
+	name: string,
+	now: number,
+): string | null {
+	if (!reading || now - reading.at > HOST_LOAD_FRESH_MS) return null;
+	if (reading.memAvailableMb < reading.memTotalMb * MIN_HOST_FREE_MEMORY_SHARE)
+		return `${name} has ${(reading.memAvailableMb / 1024).toFixed(1)} GB free`;
+	if (reading.load1 > reading.cores)
+		return `${name} is busy (load ${reading.load1.toFixed(1)} on ${reading.cores} cores)`;
+	return null;
 }

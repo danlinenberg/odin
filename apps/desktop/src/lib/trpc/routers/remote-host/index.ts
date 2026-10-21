@@ -34,6 +34,7 @@ import {
 	hostGithubToken,
 	repoStaysLocal,
 } from "main/lib/remote-host/github-on-host";
+import { hostLoad } from "main/lib/remote-host/host-load";
 import {
 	HOST_CONNECTORS,
 	type HostConnector,
@@ -61,6 +62,7 @@ import {
 } from "main/lib/remote-host/session";
 import { copyFilesToHost } from "main/lib/remote-host/ssh";
 import { resolveElectronBinary } from "main/lib/terminal-host/electron-binary";
+import { remoteLaunchBlocker } from "shared/launch-gate";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
 import { readOdinConfig, updateOdinConfig } from "../odin-config";
@@ -316,6 +318,26 @@ export const createRemoteHostRouter = () =>
 			/** The connected GitHub accounts and which may go to the host. */
 			githubAccounts: hostGithubAccounts(readOdinConfig()),
 		})),
+		/**
+		 * Whether a launch to the host should wait: `reason` from a remote
+		 * pane's latest memory and load reading, else from one probe, and `at`,
+		 * when that reading was taken. No host, or no reading to be had, lets
+		 * the launch through.
+		 */
+		launchGate: publicProcedure.query(async () => {
+			const host = readOdinConfig().remoteHost;
+			const reading = host ? await hostLoad(host) : null;
+			return {
+				reason: host
+					? remoteLaunchBlocker(
+							reading,
+							host.name || host.instanceId,
+							Date.now(),
+						)
+					: null,
+				at: reading?.at ?? null,
+			};
+		}),
 		/** Picks the host. Turning it on gets a Claude token first if none is saved. */
 		set: publicProcedure
 			.input(

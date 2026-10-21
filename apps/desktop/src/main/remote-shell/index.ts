@@ -12,6 +12,7 @@ import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { EC2Client, RebootInstancesCommand } from "@aws-sdk/client-ec2";
 import { Client, type SFTPWrapper, utils } from "ssh2";
+import { HOST_LOAD_COMMAND, parseHostLoad } from "../../shared/host-load";
 import { hostPorts } from "../lib/remote-host/host-service";
 import {
 	attachScript,
@@ -170,6 +171,30 @@ function mirrorTranscript(
 	};
 }
 
+/**
+ * The host's memory and load every 30s, read over this pane's connection (a
+ * channel, not a new SSM session) and sent to Odin, which holds launches to
+ * the host while it is low on memory or busy. Returns what stops it.
+ */
+function reportLoad(client: Client, instanceId: string): () => void {
+	const port = process.env.ODIN_PORT;
+	if (!port) return () => {};
+	const tick = async () => {
+		const load = parseHostLoad(await exec(client, HOST_LOAD_COMMAND, ""));
+		if (!load) return;
+		await fetch(`http://127.0.0.1:${port}/remote-host/load`, {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({ instanceId, ...load, at: Date.now() }),
+		});
+	};
+	const tickQuietly = () => void tick().catch(() => {});
+	tickQuietly();
+	const timer = setInterval(tickQuietly, 30_000);
+	timer.unref();
+	return () => clearInterval(timer);
+}
+
 const ssoExpired = (err: unknown) =>
 	/SSO session|token (has expired|is expired)|ExpiredToken/i.test(String(err));
 
@@ -294,6 +319,7 @@ async function attach(
 	if (first && spec.files?.length) await upload(sftp, spec.files);
 	await forwardOdin(client);
 	const stopMirror = mirrorTranscript(client, sftp, spec);
+	const stopLoad = reportLoad(client, spec.instanceId);
 	const { stdin, stdout } = process;
 	return new Promise((resolve, reject) =>
 		client.exec(
@@ -328,6 +354,7 @@ async function attach(
 					stdin.unpipe(stream);
 					stdout.off("resize", resize);
 					stopMirror();
+					stopLoad();
 					client.end();
 					resolve(!exited);
 				};

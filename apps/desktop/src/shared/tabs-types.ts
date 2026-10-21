@@ -225,7 +225,20 @@ export interface Pane {
 	 * agent was working in the same checkout. The card sits in Idle under "Queued" with the reason
 	 * on it, and the queue runner spawns `command` the moment the gate clears.
 	 */
-	odinQueued?: { command: string; reason: string };
+	odinQueued?: {
+		command: string;
+		reason: string;
+		/**
+		 * A launch to the remote host: what rebuilds its command at start, as
+		 * the one built at queue time carries a token ticket that expires.
+		 */
+		remote?: {
+			pane: string;
+			repoPath: string | null;
+			claudeArgs: string;
+			prompt: string | null;
+		};
+	};
 	/**
 	 * Odin fork: the pane holding this session's shell - a plain terminal in the
 	 * same checkout, opened from the drawer. Kept on the session so reopening

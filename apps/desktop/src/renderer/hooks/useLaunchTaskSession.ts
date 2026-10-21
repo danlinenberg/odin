@@ -398,14 +398,18 @@ export function useLaunchTaskSession() {
 			// held - and neither is a Resume, which reopens at an idle prompt too.
 			// Idle takes no working slot and holds no checkout; queuing it only
 			// left you on the board behind every task in line.
+			// A launch to the remote host waits on the host's memory and load
+			// instead: too many sessions there take every one of them down.
 			let queuedReason: string | null = null;
-			if (now !== true && !noPrompt && !resumeSessionId && !remote) {
+			if (now !== true && !noPrompt && !resumeSessionId) {
 				try {
-					queuedReason = await currentLaunchBlocker(
-						utils.client,
-						checkout,
-						workConfig?.odinRepoPath,
-					);
+					queuedReason = remote
+						? (await utils.client.remoteHost.launchGate.query()).reason
+						: await currentLaunchBlocker(
+								utils.client,
+								checkout,
+								workConfig?.odinRepoPath,
+							);
 				} catch {
 					queuedReason = null;
 				}
@@ -539,15 +543,20 @@ export function useLaunchTaskSession() {
 				: `--session-id ${sessionId}${settingsArg}${promptArg}`;
 			// A remote session's tmux session is named after its conversation, so
 			// Resume reattaches to it, or resumes it there if tmux is gone.
-			const command = remote
-				? await utils.client.remoteHost.sessionCommand.mutate({
+			const remoteLaunch = remote
+				? {
 						pane: sessionId,
-						odinPane: paneId,
 						repoPath: repoPath ?? null,
 						claudeArgs: resumeSessionId
 							? `--resume ${resumeSessionId}`
 							: `--session-id ${sessionId}`,
 						prompt: remotePrompt,
+					}
+				: null;
+			const command = remoteLaunch
+				? await utils.client.remoteHost.sessionCommand.mutate({
+						...remoteLaunch,
+						odinPane: paneId,
 					})
 				: `cd ${quote(sessionCwd)} && ${claudeLaunch(title, claudeArgs, paneId)}`;
 			// Held back: the pane stays process-less and the command rides on it
@@ -614,7 +623,13 @@ export function useLaunchTaskSession() {
 						...(odinTags?.length ? { odinTags } : {}),
 						...(remote ? { odinRemote: remote } : {}),
 						...(queuedReason
-							? { odinQueued: { command, reason: queuedReason } }
+							? {
+									odinQueued: {
+										command,
+										reason: queuedReason,
+										...(remoteLaunch ? { remote: remoteLaunch } : {}),
+									},
+								}
 							: {}),
 					},
 				},

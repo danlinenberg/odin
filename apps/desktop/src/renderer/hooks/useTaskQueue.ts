@@ -88,13 +88,21 @@ export async function startQueuedPane(
 	if (!queued) return;
 	const tab = useTabsStore.getState().tabs.find((tab) => tab.id === pane.tabId);
 	if (!tab) return;
+	// A host launch's command carries a token ticket that expires in minutes,
+	// so it is built now rather than when the launch was queued.
+	const command = queued.remote
+		? await client.remoteHost.sessionCommand.mutate({
+				...queued.remote,
+				odinPane: pane.id,
+			})
+		: queued.command;
 	await client.terminal.kill.mutate({ paneId: pane.id }).catch(() => {});
 	await client.terminal.createOrAttach.mutate({
 		paneId: pane.id,
 		tabId: pane.tabId,
 		workspaceId: tab.workspaceId,
 		cwd: queuedCwd(pane),
-		command: queued.command,
+		command,
 		allowKilled: true,
 	});
 	useTabsStore.setState((state) => ({
@@ -105,8 +113,8 @@ export async function startQueuedPane(
 				// A Resume reopens at an idle prompt - nothing was asked of it -
 				// unless it was queued with "Continue" on the end.
 				status:
-					/ --(resume|continue)\b/.test(queued.command) &&
-					!queued.command.endsWith(" Continue")
+					/ --(resume|continue)\b/.test(command) &&
+					!command.endsWith(" Continue")
 						? "idle"
 						: "working",
 				odinQueued: undefined,
@@ -155,17 +163,17 @@ export async function moveQueuedToHost(
 				!line.startsWith("Odin made this session its own git worktree:"),
 		)
 		.join("\n");
-	const command = await client.remoteHost.sessionCommand.mutate({
+	// startQueuedPane builds the host command from these.
+	const remote = {
 		pane: sessionId,
-		odinPane: pane.id,
 		repoPath: pane.odinCwd ?? null,
 		claudeArgs: `--session-id ${sessionId}`,
 		prompt,
-	});
+	};
 	const moved = {
 		...pane,
 		odinRemote: host,
-		odinQueued: { ...queued, command },
+		odinQueued: { ...queued, remote },
 	};
 	useTabsStore.setState((state) => ({
 		panes: { ...state.panes, [pane.id]: { ...state.panes[pane.id], ...moved } },
@@ -202,6 +210,20 @@ function refreshQueuedReasons(
 }
 
 /**
+ * Each waiting card's "why": only the head waits on the blocker; the rest
+ * wait on the card ahead, so repeating the blocker on every card says nothing
+ * new.
+ */
+function inLine(queue: Pane[], blocker: string) {
+	return (pane: Pane) => {
+		const place = queue.indexOf(pane);
+		return place === 0
+			? blocker
+			: `#${place + 1} in line, after "${queue[place - 1].odinTaskTitle ?? queue[place - 1].name}"`;
+	};
+}
+
+/**
  * The clock behind the Queued section: every poll, if the gate is open, start
  * the task that has waited longest.
  *
@@ -232,6 +254,22 @@ export function useTaskQueue(): void {
 		electronTrpc.terminal.listDaemonSessions.useQuery(undefined, {
 			refetchInterval: 5_000,
 		});
+	// The host's memory and load, read only while something waits to go
+	// there: remote panes report it every 30s, so this costs the host nothing
+	// more then.
+	const hostOn = !!remoteHost?.host?.on;
+	const waitingForHost = useTabsStore((state) =>
+		Object.values(state.panes).some(
+			(pane) => !!pane.odinQueued && (!!pane.odinRemote || hostOn),
+		),
+	);
+	const hostGate = electronTrpc.remoteHost.launchGate.useQuery(undefined, {
+		enabled: waitingForHost && !!remoteHost?.host,
+		refetchInterval: 5_000,
+	});
+	// When the queue last started a session on the host. The next one waits
+	// for a reading taken after it, so a burst can't outrun the readings.
+	const lastHostStart = useRef(0);
 	// A spawn takes a second or two; without this the next poll starts the same
 	// card again while the first attach is still in flight.
 	const starting = useRef(false);
@@ -241,18 +279,25 @@ export function useTaskQueue(): void {
 		const panes = useTabsStore.getState().panes;
 		const queue = queuedPanes(panes);
 		if (!queue.length) return;
-		// One already moved to the host starts there whether or not the host is
-		// still on for new sessions.
-		const toHost =
-			queue.find((pane) => pane.odinRemote) ??
-			(remoteHost?.host?.on
-				? queue.find((pane) => !stayHere.current.has(pane.id))
-				: undefined);
-		if (toHost) {
+		// Bound for the host: moved there already, or anything that can go
+		// while the host is on for new sessions.
+		const hostBound = queue.filter(
+			(pane) =>
+				pane.odinRemote ||
+				(remoteHost?.host?.on && !stayHere.current.has(pane.id)),
+		);
+		// One already moved to the host starts first.
+		const toHost = hostBound.find((pane) => pane.odinRemote) ?? hostBound[0];
+		const hostWait = hostGate.data?.reason ?? null;
+		const hostReadSinceStart =
+			hostGate.isFetched &&
+			(hostGate.data?.at ?? Number.POSITIVE_INFINITY) > lastHostStart.current;
+		if (toHost && !hostWait && hostReadSinceStart) {
 			starting.current = true;
 			void moveQueuedToHost(utils.client, toHost)
 				.then((moved) => {
-					if (!moved) stayHere.current.add(toHost.id);
+					if (moved) lastHostStart.current = Date.now();
+					else stayHere.current.add(toHost.id);
 				})
 				.catch(() => {
 					// Left queued - the next tick tries again.
@@ -262,6 +307,9 @@ export function useTaskQueue(): void {
 				});
 			return;
 		}
+		if (hostWait) refreshQueuedReasons(hostBound, inLine(hostBound, hostWait));
+		const local = queue.filter((pane) => !hostBound.includes(pane));
+		if (!local.length) return;
 		const live = livePanes(panes, daemonSessions.sessions);
 		const blockerFor = (pane: Pane) =>
 			launchBlocker(
@@ -273,17 +321,9 @@ export function useTaskQueue(): void {
 			);
 		// The longest-waiting card that can go now - a card waiting on its own
 		// busy repo doesn't hold back one aimed at a free repo.
-		const next = queue.find((pane) => !blockerFor(pane));
+		const next = local.find((pane) => !blockerFor(pane));
 		if (!next) {
-			const blocker = blockerFor(queue[0]) ?? "";
-			// Only the head waits on the blocker; the rest wait on the card ahead,
-			// so repeating the blocker on every card says nothing new.
-			refreshQueuedReasons(queue, (pane) => {
-				const place = queue.indexOf(pane);
-				return place === 0
-					? blocker
-					: `#${place + 1} in line, after "${queue[place - 1].odinTaskTitle ?? queue[place - 1].name}"`;
-			});
+			refreshQueuedReasons(local, inLine(local, blockerFor(local[0]) ?? ""));
 			return;
 		}
 		starting.current = true;
@@ -294,5 +334,13 @@ export function useTaskQueue(): void {
 			.finally(() => {
 				starting.current = false;
 			});
-	}, [metrics, daemonSessions, workConfig, remoteHost, utils]);
+	}, [
+		metrics,
+		daemonSessions,
+		workConfig,
+		remoteHost,
+		hostGate.data,
+		hostGate.isFetched,
+		utils,
+	]);
 }

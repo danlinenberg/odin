@@ -98,7 +98,20 @@ export const paneSchema = z.object({
 	odinExitCause: z.string().optional(),
 	// A launch held back by the capacity gate - the command to run when it
 	// clears. Persisted so a queued task survives a restart.
-	odinQueued: z.object({ command: z.string(), reason: z.string() }).optional(),
+	odinQueued: z
+		.object({
+			command: z.string(),
+			reason: z.string(),
+			remote: z
+				.object({
+					pane: z.string(),
+					repoPath: z.string().nullable(),
+					claudeArgs: z.string(),
+					prompt: z.string().nullable(),
+				})
+				.optional(),
+		})
+		.optional(),
 	// The session's shell pane, so the drawer's Terminal reattaches after a restart.
 	odinShellPaneId: z.string().optional(),
 	odinNamedShells: z.record(z.string(), z.string()).optional(),
