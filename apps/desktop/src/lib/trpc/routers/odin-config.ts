@@ -42,9 +42,9 @@ export interface OdinFileConfig {
 		profile?: string;
 		region?: string;
 		tags?: { key: string; value: string }[];
-		/** An IAM policy Set up access puts on the host's role beside SSM's: what a plugin there needs, e.g. reads on your secrets (shared/host-setup). */
+		/** An IAM policy Use puts on the host's role beside SSM's when it gives the host SSM access: what a plugin there needs, e.g. reads on your secrets (shared/host-setup). */
 		hostPolicyArn?: string;
-		/** OS packages Set up installs on the host, space-separated: the tools those plugins and their skills run. */
+		/** OS packages Use installs on the host, space-separated: the tools those plugins and their skills run. */
 		hostPackages?: string;
 	};
 	/** The EC2 host new sessions run on, reached through SSM, while `on` is true. */

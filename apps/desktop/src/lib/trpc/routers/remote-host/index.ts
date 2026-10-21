@@ -8,14 +8,14 @@ import { getNotifyScriptPath } from "main/lib/agent-setup/notify-hook";
 import { githubOwner } from "main/lib/github-token";
 import { apiKeyFallbackOn } from "main/lib/remote-host/api-key-fallback";
 import {
-	giveSsmAccess,
+	bringUpHost,
 	launchHost,
 	listAwsProfiles,
 	listInstances,
 	listLaunchTemplates,
 	listTagChoices,
 	setUpHost,
-	startInstance,
+	type UseHostStep,
 	waitForHost,
 } from "main/lib/remote-host/aws-instances";
 import {
@@ -253,9 +253,16 @@ const hostSetup = {
 		.optional(),
 };
 
-/** The step a New host is on, for Settings to show; null when none is under way. */
-export type NewHostStep = "launching" | "waiting" | "setting-up";
-let newHostStep: NewHostStep | null = null;
+/** The step a host under way is on - a New host's launch, or Use's steps. */
+export type HostStep = "launching" | UseHostStep;
+/** The one host under way (New host or Use), for Settings to show; null when none. */
+export interface AwsHostStep {
+	step: HostStep;
+	/** The instance, once there is one: a New host has none while launching. */
+	id: string | null;
+	action: "new" | "use";
+}
+let hostStep: AwsHostStep | null = null;
 
 /**
  * A saved sign-in (JSON, from `claude auth login`) goes to the host to sign in
@@ -334,31 +341,50 @@ export const createRemoteHostRouter = () =>
 		awsTags: publicProcedure
 			.input(awsTarget)
 			.query(({ input }) => listTagChoices(input)),
+		/** Every instance in the profile and region, the tags narrowing; see listInstances. */
 		awsInstances: publicProcedure
 			.input(awsTarget.extend({ tags: tagPairs }))
 			.query(({ input }) => listInstances(input, input.tags)),
-		awsStart: publicProcedure
+		/**
+		 * Use on an instance in the list: given SSM access if SSM does not see
+		 * it, started if stopped, waited for, then set up (what sessions need -
+		 * Claude, gh, tmux, git, this user's Linux user - and the packages from
+		 * Settings, each only when missing). Reports what it found, for Settings
+		 * to pick the host with. One host at a time; awsHostStep says how far.
+		 */
+		awsUseHost: publicProcedure
 			.input(awsTarget.extend({ id: z.string().min(1) }))
-			.mutation(({ input }) => startInstance(input, input.id)),
-		/** Installs what sessions need on the instance (Claude, gh, tmux, git, this user's Linux user) and the packages from Settings; reports what is there. */
-		awsSetUp: publicProcedure
-			.input(awsTarget.extend({ id: z.string().min(1) }))
-			.mutation(({ input }) =>
-				setUpHost(
-					input,
-					input.id,
-					hostUser(),
-					readOdinConfig().awsInstances?.hostPackages,
-				),
-			),
+			.mutation(async ({ input }) => {
+				if (hostStep) throw new Error("A host is already on its way.");
+				hostStep = { step: "checking", id: input.id, action: "use" };
+				try {
+					const settings = readOdinConfig().awsInstances;
+					return await bringUpHost(
+						input,
+						input.id,
+						hostUser(),
+						{
+							hostPolicyArn: settings?.hostPolicyArn,
+							hostPackages: settings?.hostPackages,
+						},
+						{
+							onStep: (step) => {
+								hostStep = { step, id: input.id, action: "use" };
+							},
+						},
+					);
+				} finally {
+					hostStep = null;
+				}
+			}),
 		/** The launch templates New host can use: the account's ones tagged Odin = host. */
 		awsLaunchTemplates: publicProcedure
 			.input(awsTarget)
 			.query(({ input }) => listLaunchTemplates(input)),
 		/**
 		 * A new host from a launch template: launched with the name and the
-		 * picker's tags, waited for until SSM sees it, then set up as awsSetUp
-		 * does. One at a time; awsNewHostStep says how far it is.
+		 * picker's tags, waited for until SSM sees it, then set up as awsUseHost
+		 * does. One host at a time; awsHostStep says how far it is.
 		 */
 		awsNewHost: publicProcedure
 			.input(
@@ -375,8 +401,8 @@ export const createRemoteHostRouter = () =>
 				}),
 			)
 			.mutation(async ({ input }) => {
-				if (newHostStep) throw new Error("A new host is already on its way.");
-				newHostStep = "launching";
+				if (hostStep) throw new Error("A host is already on its way.");
+				hostStep = { step: "launching", id: null, action: "new" };
 				try {
 					const id = await launchHost(
 						input,
@@ -384,9 +410,9 @@ export const createRemoteHostRouter = () =>
 						input.name,
 						input.tags,
 					);
-					newHostStep = "waiting";
+					hostStep = { step: "waiting", id, action: "new" };
 					await waitForHost(input, id);
-					newHostStep = "setting-up";
+					hostStep = { step: "setting-up", id, action: "new" };
 					const tools = await setUpHost(
 						input,
 						id,
@@ -395,20 +421,11 @@ export const createRemoteHostRouter = () =>
 					);
 					return { id, tools };
 				} finally {
-					newHostStep = null;
+					hostStep = null;
 				}
 			}),
-		awsNewHostStep: publicProcedure.query(() => newHostStep),
-		/** Lets SSM reach an instance it can't yet, with the host policy from Settings beside it - see giveSsmAccess. */
-		awsGiveSsmAccess: publicProcedure
-			.input(awsTarget.extend({ id: z.string().min(1) }))
-			.mutation(({ input }) =>
-				giveSsmAccess(
-					input,
-					input.id,
-					readOdinConfig().awsInstances?.hostPolicyArn,
-				),
-			),
+		/** The host under way - New host or Use - and its step; null when none. */
+		awsHostStep: publicProcedure.query(() => hostStep),
 
 		/** The host sessions start on; `on: false` keeps them on this computer. */
 		get: publicProcedure.query(() => ({

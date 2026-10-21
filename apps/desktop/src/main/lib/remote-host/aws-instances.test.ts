@@ -52,10 +52,13 @@ mock.module("@aws-sdk/client-ssm", () => ({
 }));
 
 const {
+	bringUpHost,
 	giveSsmAccess,
 	instanceFilters,
 	launchHost,
+	listInstances,
 	listLaunchTemplates,
+	MAX_INSTANCES,
 	parseTools,
 	profileNames,
 	setUpScript,
@@ -71,6 +74,62 @@ const attached = () =>
 	sent
 		.filter((call) => call.name === "AttachRolePolicyCommand")
 		.map((call) => call.input);
+const names = () => sent.map((call) => call.name);
+
+/** One instance, i-1, in the states given one DescribeInstances call at a time, the last repeating. */
+const describes = (states: string[], profile = true) => {
+	let call = 0;
+	return () => ({
+		Reservations: [
+			{
+				Instances: [
+					{
+						InstanceId: "i-1",
+						State: { Name: states[Math.min(call++, states.length - 1)] },
+						IamInstanceProfile: profile
+							? { Arn: "arn:aws:iam::123456789012:instance-profile/web" }
+							: undefined,
+					},
+				],
+			},
+		],
+	});
+};
+/** SSM's word on i-1, one DescribeInstanceInformation call at a time, the last repeating; null for never seen. */
+const pings = (statuses: (string | null)[]) => {
+	let call = 0;
+	return () => {
+		const status = statuses[Math.min(call++, statuses.length - 1)];
+		return {
+			InstanceInformationList: status
+				? [{ InstanceId: "i-1", PingStatus: status }]
+				: [],
+		};
+	};
+};
+const TOOLS =
+	"claude=/home/odin-dan/.local/bin/claude\ngh=/home/odin-dan/.local/bin/gh\ntmux=/usr/bin/tmux\ngit=/usr/bin/git\n";
+/** Scripts a Use: the instance's states and SSM's pings, and a setup that finds everything. */
+const scriptUse = (
+	states: string[],
+	statuses: (string | null)[],
+	profile = true,
+	fail: (name: string) => Error | undefined = () => undefined,
+) => {
+	const describe = describes(states, profile);
+	const ping = pings(statuses);
+	answer = (name) => {
+		const error = fail(name);
+		if (error) throw error;
+		if (name === "DescribeInstancesCommand") return describe();
+		if (name === "DescribeInstanceInformationCommand") return ping();
+		if (name === "SendCommandCommand") return { Command: { CommandId: "c-1" } };
+		if (name === "GetCommandInvocationCommand")
+			return { Status: "Success", StandardOutputContent: TOOLS };
+		return undefined;
+	};
+};
+const instant = { sleep: async () => {} };
 
 describe("aws-instances", () => {
 	beforeEach(() => {
@@ -407,7 +466,319 @@ describe("aws-instances", () => {
 		});
 		await expect(
 			waitForHost({}, "i-new", { sleep: async () => {} }),
-		).rejects.toThrow("The new host is terminated.");
+		).rejects.toThrow("The host is terminated.");
 		expect(sent).toHaveLength(1);
+	});
+
+	test("the SSM timeout says what is usually wrong: no way out to Systems Manager, or no agent", async () => {
+		answer = (name) =>
+			name === "DescribeInstancesCommand"
+				? describes(["running"])()
+				: { InstanceInformationList: [] };
+		await expect(
+			waitForHost({}, "i-1", { every: 60_000, limit: 120_000, ...instant }),
+		).rejects.toThrow(
+			"The host is running, but SSM did not see it in 2 minutes. Usually the instance has no outbound HTTPS to Systems Manager - it needs a public IP, a NAT gateway or a VPC endpoint for ssm, ssmmessages and ec2messages - or no SSM agent: Ubuntu and Amazon Linux images have it, other images need it installed.",
+		);
+	});
+
+	test("with no tags, every instance in the profile and region is listed, by name, with SSM's word on each", async () => {
+		answer = (name) => {
+			if (name === "DescribeInstancesCommand")
+				return {
+					Reservations: [
+						{
+							Instances: [
+								{
+									InstanceId: "i-2",
+									State: { Name: "stopped" },
+									Tags: [{ Key: "Name", Value: "odin-remote" }],
+								},
+								{
+									InstanceId: "i-1",
+									State: { Name: "running" },
+									Tags: [{ Key: "Owner", Value: "someone-else" }],
+								},
+							],
+						},
+					],
+				};
+			if (name === "DescribeInstanceInformationCommand")
+				return {
+					InstanceInformationList: [
+						{ InstanceId: "i-1", PingStatus: "Online" },
+						{ InstanceId: "i-2", PingStatus: "ConnectionLost" },
+					],
+				};
+			return undefined;
+		};
+		const list = await listInstances({}, []);
+		expect(list.truncated).toBe(false);
+		expect(
+			list.instances.map(({ id, name, state, ssmOnline }) => ({
+				id,
+				name,
+				state,
+				ssmOnline,
+			})),
+		).toEqual([
+			{ id: "i-1", name: "i-1", state: "running", ssmOnline: true },
+			{ id: "i-2", name: "odin-remote", state: "stopped", ssmOnline: false },
+		]);
+		expect(sent).toEqual([
+			{
+				name: "DescribeInstancesCommand",
+				input: {
+					Filters: [
+						{
+							Name: "instance-state-name",
+							Values: ["pending", "running", "stopping", "stopped"],
+						},
+					],
+					NextToken: undefined,
+				},
+			},
+			{
+				name: "DescribeInstanceInformationCommand",
+				input: {
+					Filters: [{ Key: "InstanceIds", Values: ["i-1", "i-2"] }],
+					MaxResults: 50,
+					NextToken: undefined,
+				},
+			},
+		]);
+	});
+
+	test("tags narrow the list: each one a filter AWS applies", async () => {
+		answer = (name) =>
+			name === "DescribeInstancesCommand"
+				? describes(["running"])()
+				: undefined;
+		const list = await listInstances({}, [
+			{ key: "Owner", value: "dan" },
+			{ key: "Component", value: "odin-remote" },
+		]);
+		expect(list.instances.map((instance) => instance.id)).toEqual(["i-1"]);
+		expect(sent[0]?.input).toEqual({
+			Filters: [
+				{
+					Name: "instance-state-name",
+					Values: ["pending", "running", "stopping", "stopped"],
+				},
+				{ Name: "tag:Owner", Values: ["dan"] },
+				{ Name: "tag:Component", Values: ["odin-remote"] },
+			],
+			NextToken: undefined,
+		});
+	});
+
+	test("a large account is cut at the cap, said so, and SSM is asked in chunks", async () => {
+		answer = (name) =>
+			name === "DescribeInstancesCommand"
+				? {
+						Reservations: [
+							{
+								Instances: Array.from(
+									{ length: MAX_INSTANCES + 1 },
+									(_, index) => ({
+										InstanceId: `i-${String(index).padStart(4, "0")}`,
+										State: { Name: "running" },
+									}),
+								),
+							},
+						],
+					}
+				: undefined;
+		const list = await listInstances({}, []);
+		expect(list.instances).toHaveLength(MAX_INSTANCES);
+		expect(list.truncated).toBe(true);
+		const asked = sent.filter(
+			(call) => call.name === "DescribeInstanceInformationCommand",
+		);
+		expect(asked).toHaveLength(MAX_INSTANCES / 50);
+		for (const call of asked)
+			expect(
+				(call.input as { Filters: { Values: string[] }[] }).Filters[0]?.Values,
+			).toHaveLength(50);
+	});
+
+	test("Use on a stopped instance gives it access, starts it, waits out a stale stopped reading, and sets it up", async () => {
+		// The states, one DescribeInstances at a time: the check, the one
+		// giveSsmAccess makes, a stale read right after StartInstances, running.
+		scriptUse(["stopped", "stopped", "stopped", "running"], [null, "Online"]);
+		const steps: string[] = [];
+		const result = await bringUpHost(
+			{},
+			"i-1",
+			"odin-dan",
+			{},
+			{
+				...instant,
+				onStep: (step) => steps.push(step),
+			},
+		);
+		expect(steps).toEqual([
+			"checking",
+			"giving-access",
+			"starting",
+			"waiting",
+			"setting-up",
+		]);
+		expect(names()).toEqual([
+			"DescribeInstancesCommand",
+			"DescribeInstanceInformationCommand",
+			"DescribeInstancesCommand",
+			"GetInstanceProfileCommand",
+			"AttachRolePolicyCommand",
+			"StartInstancesCommand",
+			"DescribeInstancesCommand",
+			"DescribeInstancesCommand",
+			"DescribeInstanceInformationCommand",
+			"SendCommandCommand",
+			"GetCommandInvocationCommand",
+		]);
+		expect(result).toEqual({
+			id: "i-1",
+			tools: {
+				claude: "/home/odin-dan/.local/bin/claude",
+				gh: "/home/odin-dan/.local/bin/gh",
+				tmux: "/usr/bin/tmux",
+				git: "/usr/bin/git",
+			},
+		});
+	});
+
+	test("Use on a running instance SSM does not see gives it a role and waits for SSM, with no start", async () => {
+		scriptUse(["running"], [null, null, "Online"], false);
+		const steps: string[] = [];
+		await bringUpHost(
+			{},
+			"i-1",
+			"odin-dan",
+			{ hostPolicyArn: HOST_POLICY },
+			{
+				...instant,
+				onStep: (step) => steps.push(step),
+			},
+		);
+		expect(steps).toEqual([
+			"checking",
+			"giving-access",
+			"waiting",
+			"setting-up",
+		]);
+		expect(names()).not.toContain("StartInstancesCommand");
+		expect(names()).toContain("AssociateIamInstanceProfileCommand");
+		expect(attached()).toEqual([
+			{ RoleName: "OdinSsmHost", PolicyArn: SSM_POLICY },
+			{ RoleName: "OdinSsmHost", PolicyArn: HOST_POLICY },
+		]);
+	});
+
+	test("Use on an instance that is running and seen by SSM goes straight to setup, which installs only what is missing", async () => {
+		scriptUse(["running"], ["Online"]);
+		const steps: string[] = [];
+		const { tools } = await bringUpHost(
+			{},
+			"i-1",
+			"odin-dan",
+			{},
+			{
+				...instant,
+				onStep: (step) => steps.push(step),
+			},
+		);
+		expect(steps).toEqual(["checking", "setting-up"]);
+		expect(names()).toEqual([
+			"DescribeInstancesCommand",
+			"DescribeInstanceInformationCommand",
+			"SendCommandCommand",
+			"GetCommandInvocationCommand",
+		]);
+		const setup = sent.find((call) => call.name === "SendCommandCommand")
+			?.input as { Parameters: { commands: string[] } };
+		expect(setup.Parameters.commands[0]).toContain(
+			"command -v claude >/dev/null || curl -fsSL https://claude.ai/install.sh",
+		);
+		expect(tools.claude).toBe("/home/odin-dan/.local/bin/claude");
+	});
+
+	test("when SSM never sees it, Use fails naming the usual causes, and the Use that could not give access says that too", async () => {
+		scriptUse(["running"], [null]);
+		await expect(
+			bringUpHost(
+				{},
+				"i-1",
+				"odin-dan",
+				{},
+				{
+					...instant,
+					every: 60_000,
+					limit: 120_000,
+				},
+			),
+		).rejects.toThrow(
+			"SSM did not see it in 2 minutes. Usually the instance has no outbound HTTPS to Systems Manager",
+		);
+		expect(names()).not.toContain("SendCommandCommand");
+
+		// This sign-in cannot attach policies; the instance has a role, so SSM
+		// may reach it anyway - the failure is told only once SSM never does.
+		sent.length = 0;
+		scriptUse(["running"], [null], true, (name) =>
+			name === "AttachRolePolicyCommand"
+				? new Error("AccessDenied: iam:AttachRolePolicy")
+				: undefined,
+		);
+		await expect(
+			bringUpHost(
+				{},
+				"i-1",
+				"odin-dan",
+				{},
+				{
+					...instant,
+					every: 60_000,
+					limit: 120_000,
+				},
+			),
+		).rejects.toThrow(
+			"Giving it SSM access failed too: AccessDenied: iam:AttachRolePolicy",
+		);
+		sent.length = 0;
+		scriptUse(["running"], [null, "Online"], true, (name) =>
+			name === "AttachRolePolicyCommand"
+				? new Error("AccessDenied: iam:AttachRolePolicy")
+				: undefined,
+		);
+		const { tools } = await bringUpHost({}, "i-1", "odin-dan", {}, instant);
+		expect(tools.claude).toBe("/home/odin-dan/.local/bin/claude");
+	});
+
+	test("an instance with no role at all that cannot be given one fails at once", async () => {
+		scriptUse(["stopped"], [null], false, (name) =>
+			name === "CreateRoleCommand"
+				? new Error("AccessDenied: iam:CreateRole")
+				: undefined,
+		);
+		await expect(
+			bringUpHost({}, "i-1", "odin-dan", {}, instant),
+		).rejects.toThrow("AccessDenied: iam:CreateRole");
+		expect(names()).not.toContain("StartInstancesCommand");
+	});
+
+	test("a stopping or terminated instance is refused before anything is done to it", async () => {
+		scriptUse(["stopping"], [null]);
+		await expect(
+			bringUpHost({}, "i-1", "odin-dan", {}, instant),
+		).rejects.toThrow("The instance is stopping; Use it once it has stopped.");
+		scriptUse(["terminated"], [null]);
+		await expect(
+			bringUpHost({}, "i-1", "odin-dan", {}, instant),
+		).rejects.toThrow("The instance is terminated.");
+		expect(names()).toEqual([
+			"DescribeInstancesCommand",
+			"DescribeInstancesCommand",
+		]);
 	});
 });

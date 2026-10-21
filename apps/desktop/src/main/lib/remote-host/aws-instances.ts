@@ -35,9 +35,10 @@ import { ghInstallScript } from "./session";
 import { awsClientConfig } from "./ssm";
 
 /**
- * Settings > Remote server > AWS instances: the EC2 hosts that match the tags
- * you picked, and whether Claude is on them. AWS's SDK with the user's own
- * profile (SSO included), so nothing beyond Odin needs installing.
+ * Settings > Remote host > the instances: every EC2 instance in the account
+ * and region you picked, narrowed by tags when you add some, and what Use
+ * does to make one of them the host. AWS's SDK with the user's own profile
+ * (SSO included), so nothing beyond Odin needs installing.
  */
 
 export interface AwsTarget {
@@ -132,7 +133,7 @@ export async function listTagChoices(target: AwsTarget): Promise<TagChoice[]> {
 	return tagChoices({ Tags: tags });
 }
 
-/** One filter per picked tag: an instance must carry all of them. Terminated ones never show. */
+/** One filter per picked tag: an instance must carry all of them; none lists every instance. Terminated ones never show. */
 export function instanceFilters(tags: TagPair[]): Filter[] {
 	return [
 		{
@@ -178,14 +179,60 @@ export function toInstances(
 		.sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/** The most instances the picker lists; tags and the search narrow a larger account. */
+export const MAX_INSTANCES = 200;
+
+export interface InstanceList {
+	instances: AwsInstance[];
+	/** The account has more than MAX_INSTANCES matching; the first by name are here. */
+	truncated: boolean;
+}
+
+/**
+ * SSM's ping status (Online, ConnectionLost, Inactive) for each of the ids
+ * it knows; an instance that never registered with SSM is left out. The
+ * filter takes 100 ids and a page holds 50, so it goes in chunks.
+ */
+async function ssmPing(
+	ssm: SSMClient,
+	ids: string[],
+): Promise<Map<string, string>> {
+	const status = new Map<string, string>();
+	for (let at = 0; at < ids.length; at += 50) {
+		const Values = ids.slice(at, at + 50);
+		let NextToken: string | undefined;
+		do {
+			const page = await ssm
+				.send(
+					new DescribeInstanceInformationCommand({
+						Filters: [{ Key: "InstanceIds", Values }],
+						MaxResults: 50,
+						NextToken,
+					}),
+				)
+				.catch(() => null);
+			for (const item of page?.InstanceInformationList ?? [])
+				if (item.InstanceId) status.set(item.InstanceId, item.PingStatus ?? "");
+			NextToken = page?.NextToken;
+		} while (NextToken);
+	}
+	return status;
+}
+
+/**
+ * The instances in the account and region - all of them with no tags, so an
+ * instance anyone made is there to Use; with tags, the ones carrying every
+ * tag - by name, with whether SSM sees each. Beyond MAX_INSTANCES the list is
+ * cut and says so.
+ */
 export async function listInstances(
 	target: AwsTarget,
 	tags: TagPair[],
-): Promise<AwsInstance[]> {
-	// No tags picked means "show nothing", not "show every instance in the account".
-	if (tags.length === 0) return [];
-	const ec2 = new EC2Client(awsClientConfig(target));
-	const reservations: unknown[] = [];
+): Promise<InstanceList> {
+	const config = awsClientConfig(target);
+	const ec2 = new EC2Client(config);
+	const reservations: { Instances?: Ec2Instance[] }[] = [];
+	let count = 0;
 	let NextToken: string | undefined;
 	do {
 		const page = await ec2.send(
@@ -194,28 +241,23 @@ export async function listInstances(
 				NextToken,
 			}),
 		);
-		reservations.push(...(page.Reservations ?? []));
+		for (const reservation of page.Reservations ?? []) {
+			reservations.push(reservation);
+			count += reservation.Instances?.length ?? 0;
+		}
 		NextToken = page.NextToken;
-	} while (NextToken);
-	const instances = toInstances({ Reservations: reservations }, new Set());
+	} while (NextToken && count <= MAX_INSTANCES);
+	const all = toInstances({ Reservations: reservations }, new Set());
+	const instances = all.slice(0, MAX_INSTANCES);
 	const ids = instances.map((instance) => instance.id);
-	if (ids.length === 0) return instances;
-	const info = await new SSMClient(awsClientConfig(target))
-		.send(
-			new DescribeInstanceInformationCommand({
-				Filters: [{ Key: "InstanceIds", Values: ids }],
-			}),
-		)
-		.catch(() => null);
-	const online = new Set(
-		(info?.InstanceInformationList ?? [])
-			.filter((item) => item.PingStatus === "Online" && item.InstanceId)
-			.map((item) => item.InstanceId as string),
-	);
-	return instances.map((instance) => ({
-		...instance,
-		ssmOnline: online.has(instance.id),
-	}));
+	const ping = ids.length ? await ssmPing(new SSMClient(config), ids) : null;
+	return {
+		instances: instances.map((instance) => ({
+			...instance,
+			ssmOnline: ping?.get(instance.id) === "Online",
+		})),
+		truncated: all.length > MAX_INSTANCES,
+	};
 }
 
 export async function startInstance(
@@ -308,13 +350,23 @@ export interface WaitOptions {
 	/** In all, ms. */
 	limit?: number;
 	sleep?: (ms: number) => Promise<void>;
+	/** Right after StartInstances: a stale "stopped" reading then is not a stop, so it is waited out. */
+	afterStart?: boolean;
 }
 
 /**
- * Waits for a launched instance to be running and then for its SSM agent to
- * report in (a minute or two after boot), when Set up can reach it. Looks
- * every 10 seconds for 10 minutes, then gives up saying how far it got. An
- * instance that stops or terminates meanwhile fails at once.
+ * Why SSM does not see a running instance, most often: no way out to
+ * Systems Manager, or no agent. The wait's timeout says so.
+ */
+export const SSM_UNSEEN =
+	"Usually the instance has no outbound HTTPS to Systems Manager - it needs a public IP, a NAT gateway or a VPC endpoint for ssm, ssmmessages and ec2messages - or no SSM agent: Ubuntu and Amazon Linux images have it, other images need it installed.";
+
+/**
+ * Waits for a launched or started instance to be running and then for its
+ * SSM agent to report in (a minute or two after boot), when setup can reach
+ * it. Looks every 10 seconds for 10 minutes, then gives up saying how far it
+ * got and, with SSM the holdup, what is usually wrong. An instance that stops
+ * or terminates meanwhile fails at once.
  */
 export async function waitForHost(
 	target: AwsTarget,
@@ -324,6 +376,9 @@ export async function waitForHost(
 	const every = options.every ?? 10_000;
 	const limit = options.limit ?? 600_000;
 	const sleep = options.sleep ?? delay;
+	const gone = options.afterStart
+		? ["shutting-down", "terminated"]
+		: ["shutting-down", "terminated", "stopping", "stopped"];
 	const config = awsClientConfig(target);
 	const ec2 = new EC2Client(config);
 	const ssm = new SSMClient(config);
@@ -337,30 +392,15 @@ export async function waitForHost(
 				.catch(() => null);
 			state =
 				described?.Reservations?.[0]?.Instances?.[0]?.State?.Name ?? state;
-			if (
-				["shutting-down", "terminated", "stopping", "stopped"].includes(state)
-			)
-				throw new Error(`The new host is ${state}.`);
+			if (gone.includes(state)) throw new Error(`The host is ${state}.`);
 			if (state !== "running") continue;
 		}
-		const info = await ssm
-			.send(
-				new DescribeInstanceInformationCommand({
-					Filters: [{ Key: "InstanceIds", Values: [id] }],
-				}),
-			)
-			.catch(() => null);
-		if (
-			info?.InstanceInformationList?.some(
-				(item) => item.InstanceId === id && item.PingStatus === "Online",
-			)
-		)
-			return;
+		if ((await ssmPing(ssm, [id])).get(id) === "Online") return;
 	}
 	const minutes = Math.round(limit / 60_000);
 	throw new Error(
 		state === "running"
-			? `The host is running, but SSM did not see it in ${minutes} minutes. Its role needs SSM access and its subnet a route to SSM; Set up access on it, then Set up.`
+			? `The host is running, but SSM did not see it in ${minutes} minutes. ${SSM_UNSEEN}`
 			: `The host did not start in ${minutes} minutes; it is ${state}.`,
 	);
 }
@@ -431,6 +471,7 @@ export async function setUpHost(
 	id: string,
 	user: string,
 	packages = "",
+	sleep = delay,
 ): Promise<HostTools> {
 	const ssm = new SSMClient(awsClientConfig(target));
 	const sent = await ssm.send(
@@ -445,7 +486,7 @@ export async function setUpHost(
 	const commandId = sent.Command?.CommandId;
 	if (!commandId) throw new Error("SSM did not accept the setup.");
 	for (let attempt = 0; attempt < 300; attempt++) {
-		await new Promise((resolve) => setTimeout(resolve, 2_000));
+		await sleep(2_000);
 		const result = await ssm
 			.send(
 				new GetCommandInvocationCommand({
@@ -566,4 +607,96 @@ export async function giveSsmAccess(
 			await new Promise((resolve) => setTimeout(resolve, 5_000));
 		}
 	}
+}
+
+/** What Use is doing to an instance, as it goes. */
+export type UseHostStep =
+	| "checking"
+	| "giving-access"
+	| "starting"
+	| "waiting"
+	| "setting-up";
+
+export interface UseHostOptions extends WaitOptions {
+	/** Told each step as it begins. */
+	onStep?: (step: UseHostStep) => void;
+}
+
+/** What every host gets at setup, from Settings (shared/host-setup). */
+export interface HostSetup {
+	hostPolicyArn?: string;
+	hostPackages?: string;
+}
+
+/**
+ * Makes an existing instance - anyone's, in any account the profile reaches -
+ * ready to be the host, doing only what it still needs. SSM access when SSM
+ * does not see it (giveSsmAccess, the host policy beside it; a policy a role
+ * already has is attached again at no cost), then a start when it is stopped:
+ * access first, so the agent registers at boot. Then the wait for it to run
+ * and for SSM to see it, and the setup, which installs only what is missing -
+ * a host that has Claude keeps it. An instance with no role that cannot be
+ * given one fails at once; one with a role may be reached anyway, so that
+ * failure is held and told only if SSM never sees it. Returns what setup
+ * found, for the caller to pick the host with.
+ */
+export async function bringUpHost(
+	target: AwsTarget,
+	id: string,
+	user: string,
+	setup: HostSetup = {},
+	options: UseHostOptions = {},
+): Promise<{ id: string; tools: HostTools }> {
+	const step = options.onStep ?? (() => {});
+	step("checking");
+	const config = awsClientConfig(target);
+	const ec2 = new EC2Client(config);
+	const instance = (
+		await ec2.send(new DescribeInstancesCommand({ InstanceIds: [id] }))
+	).Reservations?.[0]?.Instances?.[0];
+	if (!instance) throw new Error(`There is no instance ${id} here.`);
+	const state = instance.State?.Name ?? "unknown";
+	if (["shutting-down", "terminated"].includes(state))
+		throw new Error(`The instance is ${state}.`);
+	if (state === "stopping")
+		throw new Error("The instance is stopping; Use it once it has stopped.");
+	const online =
+		(await ssmPing(new SSMClient(config), [id])).get(id) === "Online";
+	let accessProblem: string | null = null;
+	if (!online) {
+		step("giving-access");
+		try {
+			await giveSsmAccess(target, id, setup.hostPolicyArn);
+		} catch (error) {
+			if (!instance.IamInstanceProfile) throw error;
+			accessProblem = error instanceof Error ? error.message : String(error);
+		}
+	}
+	if (state === "stopped") {
+		step("starting");
+		await startInstance(target, id);
+	}
+	if (!online) {
+		step("waiting");
+		try {
+			await waitForHost(target, id, {
+				...options,
+				afterStart: state === "stopped",
+			});
+		} catch (error) {
+			if (!accessProblem) throw error;
+			throw new Error(
+				`${error instanceof Error ? error.message : String(error)} Giving it SSM access failed too: ${accessProblem}`,
+			);
+		}
+	}
+	step("setting-up");
+	const tools = await setUpHost(
+		target,
+		id,
+		user,
+		setup.hostPackages,
+		options.sleep,
+	);
+	return { id, tools };
 }

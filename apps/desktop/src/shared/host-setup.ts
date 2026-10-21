@@ -1,7 +1,7 @@
 /**
  * Settings > Remote > Remote host: what every host gets at setup beyond what
- * sessions need - one IAM policy on its role (Set up access) and OS packages
- * (Set up). It is what lets a plugin on the host work out of the box: the
+ * sessions need - one IAM policy on its role and OS packages, both put on
+ * by Use. It is what lets a plugin on the host work out of the box: the
  * policy grants the host what the plugin reads, the packages are the tools
  * it and its skills run. Odin knows a policy ARN and package names, nothing
  * about what they are for. Checked here by Settings before saving, by the

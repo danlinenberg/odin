@@ -46,19 +46,24 @@ type SetupPartId = (typeof SETUP_PARTS)[number][0];
 // Radix Select can't hold "", and a tag's value can be empty.
 const EMPTY = "__empty";
 
-/** An instance's setup: running, what it found, or why it failed. */
-type SetupState = "running" | { claude: string | null } | { error: string };
-/** What a New host under way is doing (the remote-host router's NewHostStep). */
-const NEW_HOST_STEPS = {
+/** An instance's last Use: what setup found, or why it failed. */
+type UseState = { claude: string | null } | { error: string };
+/** What a host under way is doing (the remote-host router's HostStep). */
+const HOST_STEPS = {
 	launching: "Launching...",
+	checking: "Checking...",
+	"giving-access": "Giving SSM access...",
+	starting: "Starting...",
 	waiting: "Waiting for the host...",
 	"setting-up": "Setting up...",
 } as const;
 
 /**
- * Settings > Remote > Remote host: pick the tags a host must carry, then
- * pick a host. Only instances that match every tag are listed; Set up installs
- * what sessions need on one, and its sessions then run there in tmux.
+ * Settings > Remote > Remote host: every instance in the AWS profile and
+ * region, narrowed by tags when some are picked, and Use on one of them -
+ * which gives it SSM access, starts it and installs what sessions need,
+ * whichever it still lacks, then picks it. Its sessions then run there in
+ * tmux. New host makes one from the account's launch template first.
  */
 export function RemoteHostSection() {
 	const utils = electronTrpc.useUtils();
@@ -230,37 +235,55 @@ export function RemoteHostSection() {
 		{ ...target, tags },
 		{ enabled: loaded, retry: false },
 	);
-	const start = electronTrpc.remoteHost.awsStart.useMutation({
-		onSuccess: () => {
-			toast.success("Starting. It shows as running in about a minute.");
-			instances.refetch();
-		},
-		onError: (error) => toast.error(error.message),
-	});
-	const setUp = electronTrpc.remoteHost.awsSetUp.useMutation();
-	const [setups, setSetups] = useState<Record<string, SetupState>>({});
-	const runSetUp = async (id: string) => {
-		setSetups((prev) => ({ ...prev, [id]: "running" }));
-		const result = await setUp
-			.mutateAsync({ ...target, id })
-			.then((tools) => ({ claude: tools.claude }))
-			.catch((error: Error) => ({ error: error.message }));
-		setSetups((prev) => ({ ...prev, [id]: result }));
+	// Use on an instance: one call to the main process gives it SSM access,
+	// starts it, waits for it and sets it up - whichever it still needs (up
+	// to twenty minutes) - and it is then picked as the host. The main
+	// process says which step it is on while that runs, so the step shows
+	// again when this page is opened again meanwhile. New host shares that:
+	// one host at a time.
+	const [uses, setUses] = useState<Record<string, UseState>>({});
+	const pickHost = (
+		id: string,
+		name: string,
+		tools: { claude: string | null },
+	) => {
+		setUses((prev) => ({ ...prev, [id]: { claude: tools.claude } }));
+		instances.refetch();
+		if (!tools.claude) {
+			toast.error("The host is up, but setup could not install Claude on it.");
+			return;
+		}
+		// The host in use already: picking it again would drop its connectors and setup.
+		if (current?.host?.instanceId === id) {
+			refresh();
+			return;
+		}
+		use.mutate({
+			...target,
+			on: true,
+			name,
+			instanceId: id,
+			user,
+			reposRoot: "~/repos",
+		});
 	};
-	const giveAccess = electronTrpc.remoteHost.awsGiveSsmAccess.useMutation({
-		onSuccess: (done) => {
-			toast.success(
-				`${done} SSM usually reaches it within a few minutes; restarting the instance makes it quicker.`,
-			);
+	const bringUp = electronTrpc.remoteHost.awsUseHost.useMutation({
+		onSuccess: ({ id, tools }) =>
+			pickHost(
+				id,
+				instances.data?.instances.find((instance) => instance.id === id)
+					?.name ?? id,
+				tools,
+			),
+		onError: (error, sent) => {
+			// The row says why, and Use stays there to try again once it is fixed.
+			setUses((prev) => ({ ...prev, [sent.id]: { error: error.message } }));
 			instances.refetch();
 		},
-		onError: (error) => toast.error(error.message),
 	});
 
 	// New host: an instance from the account's odin-host launch template,
-	// launched, waited for and set up by one call to the main process (up to
-	// twenty minutes), which says which step it is on while that runs - so
-	// the step shows again when this page is opened again meanwhile.
+	// launched, waited for and set up by one call to the main process.
 	const templates = electronTrpc.remoteHost.awsLaunchTemplates.useQuery(
 		target,
 		{ enabled: loaded, retry: false },
@@ -273,39 +296,29 @@ export function RemoteHostSection() {
 	const hostName = newName ?? current?.hostUser ?? "odin-host";
 	const nameProblem = hostNameProblem(hostName);
 	const newHost = electronTrpc.remoteHost.awsNewHost.useMutation({
-		onSuccess: ({ id, tools }, sent) => {
-			setSetups((prev) => ({ ...prev, [id]: { claude: tools.claude } }));
-			instances.refetch();
-			if (!tools.claude) {
-				toast.error(
-					"The host is up, but setup could not install Claude on it.",
-				);
-				return;
-			}
-			use.mutate({
-				...target,
-				on: true,
-				name: sent.name,
-				instanceId: id,
-				user,
-				reposRoot: "~/repos",
-			});
-		},
+		onSuccess: ({ id, tools }, sent) => pickHost(id, sent.name, tools),
 		onError: (error) => {
-			// A host that launched but failed later is in the list, to set up by hand.
+			// A host that launched but failed later is in the list, to Use.
 			instances.refetch();
 			toast.error(error.message);
 		},
 	});
-	const newHostStep = electronTrpc.remoteHost.awsNewHostStep.useQuery(
-		undefined,
-		{
-			enabled: loaded,
-			refetchInterval: (query) =>
-				newHost.isPending || query.state.data ? 1000 : false,
-		},
-	);
-	const launching = newHost.isPending || !!newHostStep.data;
+	const hostStep = electronTrpc.remoteHost.awsHostStep.useQuery(undefined, {
+		enabled: loaded,
+		refetchInterval: (query) =>
+			newHost.isPending || bringUp.isPending || query.state.data ? 1000 : false,
+	});
+	/** A host under way, from here or a page opened before: every Use and New host waits for it. */
+	const busy =
+		newHost.isPending || bringUp.isPending || use.isPending || !!hostStep.data;
+	const launching = newHost.isPending || hostStep.data?.action === "new";
+	/** The step Use is on for this instance, to read on its button; null when it is not under way. */
+	const stepOf = (id: string) =>
+		hostStep.data?.action === "use" && hostStep.data.id === id
+			? HOST_STEPS[hostStep.data.step]
+			: bringUp.isPending && bringUp.variables?.id === id
+				? HOST_STEPS.checking
+				: null;
 
 	const [newKey, setNewKey] = useState("");
 	const [newValue, setNewValue] = useState("");
@@ -331,7 +344,7 @@ export function RemoteHostSection() {
 	// (server side) and the search (here).
 	const [search, setSearch] = useState("");
 	const needle = search.trim().toLowerCase();
-	const shownInstances = (instances.data ?? []).filter(
+	const shownInstances = (instances.data?.instances ?? []).filter(
 		(instance) =>
 			!needle ||
 			instance.name.toLowerCase().includes(needle) ||
@@ -341,7 +354,7 @@ export function RemoteHostSection() {
 	return (
 		<SettingsSection
 			title="Remote host"
-			description="Run new sessions on an EC2 instance you created, so they keep going with this computer shut. Odin connects through AWS Systems Manager with your own AWS sign-in: the instance needs no open port, public IP or SSH key. With it on, new sessions start there - except a Slack, Notion or Jira task whose connector isn't on the host (below), which stays here. Sessions there use your Claude plan."
+			description="Run new sessions on an EC2 instance in your AWS account - one that is there already, whoever made it, or a new one - so they keep going with this computer shut. Odin connects through AWS Systems Manager with your own AWS sign-in: the instance needs no open port, public IP or SSH key. With it on, new sessions start there - except a Slack, Notion or Jira task whose connector isn't on the host (below), which stays here. Sessions there use your Claude plan."
 		>
 			{current?.host && (
 				<SettingRow
@@ -349,7 +362,7 @@ export function RemoteHostSection() {
 					htmlFor="remote-host-on"
 					description={
 						current.host.on
-							? `New sessions run on ${current.host.instanceId} as ${current.host.user}, in tmux, with repos cloned under ${current.host.reposRoot}.${current.host.adminUser ? "" : " Everyone on this instance shares that login: pick it again under Change host (Set up, then Use) to get your own user."}`
+							? `New sessions run on ${current.host.instanceId} as ${current.host.user}, in tmux, with repos cloned under ${current.host.reposRoot}.${current.host.adminUser ? "" : " Everyone on this instance shares that login: pick it again under Change host (Use) to get your own user."}`
 							: "Off: new sessions start on this computer."
 					}
 				>
@@ -616,7 +629,7 @@ export function RemoteHostSection() {
 					<SettingRow
 						label="Host policy (optional)"
 						htmlFor="aws-host-policy"
-						description="An IAM policy Set up access attaches to the host's role beside SSM's: what a plugin on the host needs, such as reading your secrets with the instance role."
+						description="An IAM policy Use puts on the host's role beside SSM's, when it gives the host SSM access: what a plugin on the host needs, such as reading your secrets with the instance role."
 					>
 						<Input
 							id="aws-host-policy"
@@ -630,7 +643,7 @@ export function RemoteHostSection() {
 					<SettingRow
 						label="Packages (optional)"
 						htmlFor="aws-host-packages"
-						description="Installed on the host by Set up, from its package manager, separated by spaces: the tools your plugins and skills run."
+						description="Installed on the host by Use, from its package manager, separated by spaces: the tools your plugins and skills run."
 					>
 						<Input
 							id="aws-host-packages"
@@ -644,7 +657,7 @@ export function RemoteHostSection() {
 					<SettingRow
 						label="Tags (optional)"
 						stacked
-						description="Optional: list only instances that carry all of these, for example Owner = your name."
+						description="With none, every instance in the profile and region is listed; with some, only the instances that carry all of them, for example Owner = your name."
 					>
 						<div className="flex flex-wrap items-center gap-1.5">
 							{tags.map((tag) => (
@@ -744,13 +757,17 @@ export function RemoteHostSection() {
 							onChange={(event) => setSearch(event.target.value)}
 						/>
 					</SettingRow>
+					{instances.data?.truncated && (
+						<SettingRow
+							label={`The first ${shownInstances.length} instances`}
+							description="The account has more. Add a tag above to narrow the list."
+						/>
+					)}
 					{shownInstances.map((instance) => {
 						const host = instance.privateIp ?? instance.publicIp;
-						const state = setups[instance.id];
-						const found =
-							state && state !== "running" && "claude" in state
-								? state.claude
-								: null;
+						const last = uses[instance.id];
+						const step = stepOf(instance.id);
+						const inUse = current?.host?.instanceId === instance.id;
 						return (
 							<SettingRow
 								key={instance.id}
@@ -763,12 +780,12 @@ export function RemoteHostSection() {
 											instance.state,
 											host,
 											instance.ssmOnline ? "SSM online" : "SSM offline",
-											state === "running"
-												? "setting up - Claude, gh, tmux and git, a minute or two"
-												: state && "error" in state
-													? `Setup failed: ${state.error}`
-													: state && "claude" in state
-														? state.claude
+											step
+												? "Use is on it - a few minutes when it needs starting or access"
+												: last && "error" in last
+													? `Use failed: ${last.error}`
+													: last && "claude" in last
+														? last.claude
 															? "set up for sessions"
 															: "setup could not install Claude"
 														: null,
@@ -778,61 +795,17 @@ export function RemoteHostSection() {
 									</span>
 								}
 							>
-								{instance.state === "stopped" && (
-									<Button
-										size="sm"
-										variant="outline"
-										disabled={start.isPending}
-										onClick={() => start.mutate({ ...target, id: instance.id })}
-									>
-										Start
-									</Button>
-								)}
-								{instance.ssmOnline ? (
-									<Button
-										size="sm"
-										variant="outline"
-										disabled={state === "running"}
-										title="Installs what sessions need here - Claude, gh, tmux, git - and the packages above, when missing"
-										onClick={() => runSetUp(instance.id)}
-									>
-										Set up
-									</Button>
-								) : (
-									<Button
-										size="sm"
-										variant="outline"
-										disabled={
-											giveAccess.isPending || instance.state !== "running"
-										}
-										title="Gives AWS Systems Manager access to this instance through its IAM role, with your AWS sign-in"
-										onClick={() =>
-											giveAccess.mutate({ ...target, id: instance.id })
-										}
-									>
-										Set up access
-									</Button>
-								)}
 								<Button
 									size="sm"
-									disabled={!found}
+									disabled={busy}
 									title={
-										found
-											? undefined
-											: "Set it up first - sessions need Claude on it"
+										inUse
+											? "Starts it if it is stopped and installs what is missing"
+											: "Gives it SSM access, starts it and installs what sessions need - Claude, gh, tmux, git and the packages above - whichever it still lacks, then picks it"
 									}
-									onClick={() =>
-										use.mutate({
-											...target,
-											on: true,
-											name: instance.name,
-											instanceId: instance.id,
-											user,
-											reposRoot: "~/repos",
-										})
-									}
+									onClick={() => bringUp.mutate({ ...target, id: instance.id })}
 								>
-									{current?.host?.instanceId === instance.id ? "In use" : "Use"}
+									{step ?? (inUse ? "In use" : "Use")}
 								</Button>
 							</SettingRow>
 						);
@@ -881,7 +854,7 @@ export function RemoteHostSection() {
 								/>
 								<Button
 									size="sm"
-									disabled={launching || !template || !!nameProblem}
+									disabled={busy || !template || !!nameProblem}
 									title={nameProblem ?? undefined}
 									onClick={() =>
 										template &&
@@ -894,7 +867,7 @@ export function RemoteHostSection() {
 									}
 								>
 									{launching
-										? NEW_HOST_STEPS[newHostStep.data ?? "launching"]
+										? HOST_STEPS[hostStep.data?.step ?? "launching"]
 										: "New host"}
 								</Button>
 							</>
