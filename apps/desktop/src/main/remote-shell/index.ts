@@ -303,6 +303,23 @@ async function connectOnce(
 	});
 }
 
+/** Rejects after `ms`, so a step stuck on a hung host can't hang the pane. */
+function within<T>(ms: number, what: string, work: Promise<T>): Promise<T> {
+	return new Promise<T>((resolve, reject) => {
+		const timer = setTimeout(() => reject(new Error(`${what} timed out`)), ms);
+		work.then(
+			(value) => {
+				clearTimeout(timer);
+				resolve(value);
+			},
+			(err: unknown) => {
+				clearTimeout(timer);
+				reject(err);
+			},
+		);
+	});
+}
+
 /**
  * Attaches this terminal to the session's tmux on the host. Resolves false
  * when the session there ended or you detached from it (tmux exits 0), true
@@ -314,14 +331,30 @@ async function attach(
 	env: string,
 	first: boolean,
 ): Promise<boolean> {
-	const dir = await exec(client, stashScript, env);
-	const sftp = await sftpOf(client);
+	// A host that took the login but stalls after it (out of memory) left the
+	// pane on "connecting" for good: these steps had no timeout.
+	const { dir, sftp } = await within(
+		60_000,
+		"setting up the session",
+		(async () => {
+			const dir = await exec(client, stashScript, env);
+			const sftp = await sftpOf(client);
+			await forwardOdin(client);
+			return { dir, sftp };
+		})(),
+	).catch((err: unknown) => {
+		client.end();
+		throw err;
+	});
 	if (first && spec.files?.length) await upload(sftp, spec.files);
-	await forwardOdin(client);
 	const stopMirror = mirrorTranscript(client, sftp, spec);
 	const stopLoad = reportLoad(client, spec.instanceId);
 	const { stdin, stdout } = process;
-	return new Promise((resolve, reject) =>
+	return new Promise((resolve, reject) => {
+		const opening = setTimeout(() => {
+			client.end();
+			reject(new Error("opening the terminal timed out"));
+		}, 60_000);
 		client.exec(
 			`bash -lc ${sh(attachScript(spec, dir))}`,
 			{
@@ -332,6 +365,7 @@ async function attach(
 				},
 			},
 			(err, stream) => {
+				clearTimeout(opening);
 				if (err) return reject(err);
 				// Only a command that finished sends an exit status; a dropped
 				// connection doesn't, and a killed tmux exits non-zero or by signal.
@@ -361,8 +395,8 @@ async function attach(
 				stream.on("close", end);
 				client.once("close", end);
 			},
-		),
-	);
+		);
+	});
 }
 
 /** Waits `ms`, or until you press R; true when you did. */
