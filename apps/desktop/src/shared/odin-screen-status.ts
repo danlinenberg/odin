@@ -47,7 +47,10 @@ const SETUP =
  * more, and an expired AWS sign-in waits on you. Read as Claude gone, the drawer
  * offered Resume again, and the next click killed the connect in progress.
  */
-const REMOTE_CONNECTING = /^Odin: connecting to /m;
+// Any of the helper's connect lines, not only the first: a pane retrying for
+// a while has scrolled "connecting to" off the screen.
+const REMOTE_CONNECTING =
+	/^Odin: (connecting to |connection lost|could not (re)?connect|AWS sign-in approved|(Still b|B)locked)/m;
 
 /**
  * The spinner line, which is the only thing on screen that says "mid-turn":
@@ -189,15 +192,19 @@ export function agentOnScreen(screen: string): boolean {
  * Undefined once Claude is drawn, or for a pane that never went remote.
  */
 export function remoteConnectLine(screen: string): string | undefined {
-	if (!REMOTE_CONNECTING.test(screen) || odinScreenStatus(screen) !== undefined)
-		return undefined;
 	const lines = screen.split(/\r\n|\n|\r/);
-	if (lines.filter((line) => RULE.test(line)).length >= 2) return undefined;
-	const text = lines
-		.findLast((line) => line.startsWith("Odin: "))
-		?.slice(6)
-		.trim();
-	return text && text[0].toUpperCase() + text.slice(1);
+	const at = lines.findLastIndex((line) => REMOTE_CONNECTING.test(line));
+	if (at < 0) return undefined;
+	// Only what came after the last connect line counts: Claude's screen from
+	// before a dropped connection is still above it.
+	const after = lines.slice(at + 1);
+	if (
+		after.filter((line) => RULE.test(line)).length >= 2 ||
+		odinScreenStatus(after.join("\n")) !== undefined
+	)
+		return undefined;
+	const text = lines[at].slice(6).trim();
+	return text[0].toUpperCase() + text.slice(1);
 }
 
 /**

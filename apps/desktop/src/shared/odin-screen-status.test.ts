@@ -338,6 +338,23 @@ describe("remote session connecting", () => {
 		expect(remoteConnectLine("$ ls\n")).toBeUndefined();
 	});
 
+	it("still reads a pane that has retried until its first line scrolled away as connecting", () => {
+		const retry =
+			"Odin: could not reconnect: Timed out while waiting for handshake - trying again in 10s\n\n";
+		expect(remoteConnectLine(retry.repeat(8))).toBe(
+			"Could not reconnect: Timed out while waiting for handshake - trying again in 10s",
+		);
+	});
+
+	it("reads a dropped connection under Claude's old screen as connecting", () => {
+		const rule = "─".repeat(40);
+		expect(
+			remoteConnectLine(
+				`${rule}\n❯\n${rule}\n\nOdin: connection lost - reconnecting to i-0abc123...\n`,
+			),
+		).toBe("Connection lost - reconnecting to i-0abc123...");
+	});
+
 	it("reads a failed connect as Could not connect, which turns the board's host icon red", () => {
 		expect(
 			remoteConnectLine(
