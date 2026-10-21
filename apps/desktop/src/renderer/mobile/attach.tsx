@@ -137,9 +137,9 @@ const native = (window as { Capacitor?: Native }).Capacitor?.nativePromise;
 /** Odin's screen as it is now (OdinShare.swift), as a file to upload. */
 async function screenshot(): Promise<File | null> {
 	if (!native) return null;
-	// A frame for the menu to close first.
+	// For the menu to close and the + to turn back (its 150ms transition).
 	await new Promise((done) =>
-		requestAnimationFrame(() => setTimeout(done, 50)),
+		requestAnimationFrame(() => setTimeout(done, 250)),
 	);
 	try {
 		const { image } = await native("OdinShare", "snapshot");

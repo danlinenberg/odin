@@ -911,13 +911,11 @@ function Session({ paneId }: { paneId: string }) {
 					placeholder="Reply to Odin…"
 					className="max-h-[40dvh] min-h-10 flex-1 resize-none overflow-y-auto rounded-[20px] border border-input bg-secondary px-4 py-2 text-base outline-none"
 				/>
-				{/* As in Messages apps: the mic while empty, Send once typed. */}
+				{/* The mic while there's no text (a file attached or not), Send
+				    once there's something to send. */}
+				{(!text.trim() || speech.listening) && <MicButton speech={speech} />}
 				{(text.trim() || uploads.files.length || !speechAvailable) &&
-				!speech.listening ? (
-					<SendButton disabled={!ready} />
-				) : (
-					<MicButton speech={speech} />
-				)}
+					!speech.listening && <SendButton disabled={!ready} />}
 			</form>
 		</div>
 	);
