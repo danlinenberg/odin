@@ -29,7 +29,9 @@ export async function connectHost(host: HostLogin): Promise<Client> {
 	const sock = await openSsmStream(target);
 	const client = new Client();
 	await new Promise<void>((resolve, reject) => {
-		client.once("ready", resolve).once("error", (err) => {
+		// Not once: a handshake timeout emits an error, then the SSM socket's
+		// abort emits another, and an unheard one crashes the app.
+		client.once("ready", resolve).on("error", (err) => {
 			// A failed handshake leaves the SSM plugin running otherwise.
 			sock.destroy();
 			reject(err);
