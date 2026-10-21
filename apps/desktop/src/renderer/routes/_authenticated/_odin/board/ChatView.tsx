@@ -49,6 +49,7 @@ import { cameFromPhone } from "shared/from-phone";
 import { freshTldr, sameReply, tldrPlacement } from "shared/latest-reply";
 import {
 	agentOnScreen,
+	claudeDrawn,
 	inputBoxRows,
 	odinScreenStatus,
 	remoteConnectLine,
@@ -3132,6 +3133,22 @@ export async function typeIntoClaude(
 }
 
 /**
+ * A remote session reaching its host (a Resume, a dropped connection) has no
+ * Claude to type into yet: what goes into the PTY meanwhile lands in the
+ * connect step and is lost. Waits until Claude is drawn, up to two minutes.
+ */
+async function untilClaudeOnHost(paneId: string) {
+	for (let waited = 0; waited < 120_000; waited += 500) {
+		const screen = await electronTrpcClient.terminal.readScreen
+			.query({ paneId })
+			.then((result) => result.text ?? "")
+			.catch(() => "");
+		if (claudeDrawn(screen) && !remoteConnectLine(screen)) return;
+		await new Promise((resolve) => setTimeout(resolve, 500));
+	}
+}
+
+/**
  * Pastes file paths into Claude's input box, then waits until Claude drew
  * each one: an image as [Image #N] (after it read the file off disk), any
  * other file as its path. Without text after them, Enter comes next, and a
@@ -3366,6 +3383,7 @@ function Composer({
 						paths,
 					})
 				: { text, paths };
+			if (onHost) await untilClaudeOnHost(paneId);
 			await pasteAttachments(write.mutateAsync, paneId, sent.paths);
 			await typeIntoClaude(write.mutateAsync, paneId, sent.text, now);
 		} catch (error) {

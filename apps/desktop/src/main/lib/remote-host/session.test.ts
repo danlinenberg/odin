@@ -12,6 +12,7 @@ import { join } from "node:path";
 import {
 	attachScript,
 	CLAUDE_LOGIN_SCRIPT,
+	CUT_OFF_TURN,
 	HOST_NOTIFY_HOOK,
 	hostFiles,
 	hostNote,
@@ -106,6 +107,61 @@ describe("remote session scripts", () => {
 			`printf %s '${Buffer.from("go on").toString("base64")}' | base64 -d | tmux load-buffer`,
 		);
 		expect(attachScript(spec, "/d")).not.toContain("load-buffer");
+	});
+
+	test("a Resume with no prompt says Continue only to a turn that was cut off", () => {
+		expect(
+			runScript({ ...spec, claudeArgs: "--resume abc", prompt: null }, "/d"),
+		).toContain(
+			`--resume abc $(python3 -c ${sh(CUT_OFF_TURN)} 'abc' 2>/dev/null && echo Continue)`,
+		);
+		const home = mkdtempSync(join(tmpdir(), "odin-cut-"));
+		const cutOff = (...entries: object[]) => {
+			mkdirSync(join(home, ".claude/projects/-home-x"), { recursive: true });
+			writeFileSync(
+				join(home, ".claude/projects/-home-x/s.jsonl"),
+				`${entries.map((e) => JSON.stringify(e)).join("\n")}\nnot json\n`,
+			);
+			try {
+				execFileSync("python3", ["-c", CUT_OFF_TURN, "s"], {
+					env: { HOME: home, PATH: process.env.PATH },
+				});
+				return true;
+			} catch {
+				return false;
+			}
+		};
+		const said = (stop_reason: string | null) => ({
+			type: "assistant",
+			message: { stop_reason, content: [{ type: "text", text: "x" }] },
+		});
+		const user = (content: unknown) => ({ type: "user", message: { content } });
+		try {
+			expect(cutOff(said("tool_use"), user([{ type: "tool_result" }]))).toBe(
+				true,
+			);
+			expect(cutOff(said("tool_use"))).toBe(true);
+			expect(cutOff(said(null))).toBe(true);
+			expect(cutOff(said("end_turn"), user("next task"))).toBe(true);
+			expect(cutOff(user("hi"), said("end_turn"))).toBe(false);
+			expect(
+				cutOff(
+					said("end_turn"),
+					{ type: "system" },
+					{ type: "user", isMeta: true },
+				),
+			).toBe(false);
+			expect(
+				cutOff(
+					said("tool_use"),
+					user([{ type: "text", text: "[Request interrupted by user]" }]),
+				),
+			).toBe(false);
+			rmSync(join(home, ".claude"), { recursive: true });
+			expect(cutOff()).toBe(false);
+		} finally {
+			rmSync(home, { recursive: true, force: true });
+		}
 	});
 });
 

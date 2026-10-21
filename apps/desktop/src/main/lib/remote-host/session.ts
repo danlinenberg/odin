@@ -169,6 +169,31 @@ if os.environ.get("ODIN_TURN") == "failed" and "limit" in raw.lower():
             # Claude waits for this hook; stop it once the hook has returned.
             subprocess.Popen(["sh", "-c", f"sleep 2; kill {pid}"], start_new_session=True)`;
 
+/**
+ * Exits 0 when the conversation (argv[1]) stopped mid-turn: its last message
+ * is a tool result, a prompt with no answer, or a reply cut off before its
+ * end. A Resume with no prompt then says Continue, as a local one does for a
+ * session that died working. An Esc ("[Request interrupted") is not cut off.
+ */
+export const CUT_OFF_TURN = `import glob, json, os, sys
+paths = glob.glob(os.path.expanduser(f"~/.claude/projects/*/{sys.argv[1]}.jsonl"))
+last = None
+for line in open(paths[0]) if paths else []:
+    try:
+        entry = json.loads(line)
+    except Exception:
+        continue
+    if entry.get("type") in ("user", "assistant") and not entry.get("isMeta"):
+        last = entry
+if not last:
+    sys.exit(1)
+message = last.get("message") or {}
+if last["type"] == "assistant":
+    sys.exit(0 if message.get("stop_reason") in (None, "tool_use") else 1)
+content = message.get("content")
+text = content if isinstance(content, str) else " ".join(str(b.get("text", "")) for b in content or [] if isinstance(b, dict))
+sys.exit(1 if "[Request interrupted" in text else 0)`;
+
 /** On the API key while the plan is limited, with the key pre-approved. */
 const USE_API_KEY_IF_LIMITED = `import json, os, sys, time
 try:
@@ -275,9 +300,14 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 	// Every session gets its own worktree, so two on one repo never collide;
 	// a resume finds the same one by name.
 	const worktree = `${repo}/.worktrees/${sh(worktreeDir(spec.pane))}`;
+	// A Resume with no prompt picks a cut-off turn back up; unquoted, so a
+	// finished one gets no argument at all.
+	const resumed = spec.claudeArgs.match(/--resume (\S+)/)?.[1];
 	const prompt = spec.prompt
 		? ` "$(printf %s ${sh(Buffer.from(spec.prompt).toString("base64"))} | base64 -d)"`
-		: "";
+		: resumed
+			? ` $(python3 -c ${sh(CUT_OFF_TURN)} ${sh(resumed)} 2>/dev/null && echo Continue)`
+			: "";
 	return [
 		MEMORY_LIMIT_SCRIPT,
 		`if [ -f ${sh(secretsDir)}/env ]; then set -a; . ${sh(secretsDir)}/env; set +a; fi`,

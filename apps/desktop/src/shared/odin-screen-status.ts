@@ -196,6 +196,14 @@ export function agentOnScreen(screen: string): boolean {
 	);
 }
 
+/** Claude's own screen is drawn: its input box, or a state only Claude shows. */
+export function claudeDrawn(screen: string): boolean {
+	return (
+		screen.split(/\r\n|\n|\r/).filter((line) => RULE.test(line)).length >= 2 ||
+		odinScreenStatus(screen) !== undefined
+	);
+}
+
 /**
  * What a remote session's pane says while it reaches the host - "Connecting to
  * i-0abc...", the expired AWS sign-in it waits on, or why it could not connect.
@@ -207,12 +215,7 @@ export function remoteConnectLine(screen: string): string | undefined {
 	if (at < 0) return undefined;
 	// Only what came after the last connect line counts: Claude's screen from
 	// before a dropped connection is still above it.
-	const after = lines.slice(at + 1);
-	if (
-		after.filter((line) => RULE.test(line)).length >= 2 ||
-		odinScreenStatus(after.join("\n")) !== undefined
-	)
-		return undefined;
+	if (claudeDrawn(lines.slice(at + 1).join("\n"))) return undefined;
 	const text = lines[at].slice(6).trim();
 	return text[0].toUpperCase() + text.slice(1);
 }
