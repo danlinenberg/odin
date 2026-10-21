@@ -134,11 +134,15 @@ type Native = {
 };
 const native = (window as { Capacitor?: Native }).Capacitor?.nativePromise;
 
-/** The newest screenshot in Photos (OdinShare.swift), as a file to upload. */
-async function latestScreenshot(): Promise<File | null> {
+/** Odin's screen as it is now (OdinShare.swift), as a file to upload. */
+async function screenshot(): Promise<File | null> {
 	if (!native) return null;
+	// A frame for the menu to close first.
+	await new Promise((done) =>
+		requestAnimationFrame(() => setTimeout(done, 50)),
+	);
 	try {
-		const { image } = await native("OdinShare", "latestScreenshot");
+		const { image } = await native("OdinShare", "snapshot");
 		if (!image) return null;
 		const bytes = Uint8Array.from(atob(image), (c) => c.charCodeAt(0));
 		return new File([bytes], `screenshot-${Date.now()}.jpg`, {
@@ -152,7 +156,7 @@ async function latestScreenshot(): Promise<File | null> {
 }
 
 /**
- * +: in the app, a menu - your latest screenshot in one tap, or iOS's own
+ * +: in the app, a menu - a screenshot of Odin's screen, or iOS's own
  * picker (Photo Library, Take Photo or Video, Choose File). In a browser,
  * the picker straight away.
  */
@@ -192,12 +196,12 @@ export function AttachButton({
 							className={item}
 							onClick={async () => {
 								setMenu(false);
-								const shot = await latestScreenshot();
+								const shot = await screenshot();
 								if (shot) uploads.add([shot]);
 							}}
 						>
 							<LuImage className="size-5 text-primary" />
-							Latest screenshot
+							Screenshot this screen
 						</button>
 						<button
 							type="button"
