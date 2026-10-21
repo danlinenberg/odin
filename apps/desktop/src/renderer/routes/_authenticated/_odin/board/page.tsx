@@ -4555,7 +4555,31 @@ function DevBoardPage() {
 		setResumingPaneIds((ids) => [...ids, card.pane.id]);
 		if (sessionId) {
 			try {
-				await utils.client.terminal.readClaudeTranscript.query({ sessionId });
+				const transcript =
+					await utils.client.terminal.readClaudeTranscript.query({
+						sessionId,
+					});
+				// A host session's card that lost its host (an older Session
+				// History resume) ran `claude --resume` here, in a folder only the
+				// host has, and exited 1 on every click. Put it back on the host.
+				const host =
+					transcript.local === false && !card.pane.odinRemote
+						? (await utils.client.remoteHost.get.query().catch(() => null))
+								?.host
+						: null;
+				if (host) {
+					const pane = {
+						...card.pane,
+						odinRemote: host.name || host.instanceId,
+					};
+					useTabsStore.setState((state) => ({
+						panes: {
+							...state.panes,
+							[card.pane.id]: { ...state.panes[card.pane.id], ...pane },
+						},
+					}));
+					card = { ...card, pane };
+				}
 			} catch (error) {
 				// Only "Claude has no such conversation" is lost. An unreadable or
 				// half-written transcript still belongs to this card - resume it.

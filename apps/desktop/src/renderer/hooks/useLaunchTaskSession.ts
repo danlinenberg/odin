@@ -346,25 +346,28 @@ export function useLaunchTaskSession() {
 			const host = (
 				await utils.client.remoteHost?.get.query().catch(() => null)
 			)?.host;
+			// A resume runs where its conversation is, whatever new sessions do.
+			// A host session's transcript is mirrored here too, but not its cwd.
+			const savedOn =
+				resumeSessionId && onHost === undefined
+					? await utils.client.terminal.readClaudeTranscript
+							.query({ sessionId: resumeSessionId })
+							.then(
+								(transcript) => (transcript.local === false ? "host" : "here"),
+								(error) =>
+									String(error).includes("No transcript on this machine")
+										? null
+										: "here",
+							)
+					: null;
 			const remote =
-				(planOnly || onHost) && host
+				(planOnly || onHost || savedOn === "host") && host
 					? host.name || host.instanceId
-					: onHost === false
+					: onHost === false || savedOn === "here"
 						? null
-						: // A resume runs where its conversation is: one saved on this
-							// computer stays here, whatever new sessions do.
-							resumeSessionId &&
-								(await utils.client.terminal.readClaudeTranscript
-									.query({ sessionId: resumeSessionId })
-									.then(
-										() => true,
-										(error) =>
-											!String(error).includes("No transcript on this machine"),
-									))
-							? null
-							: await utils.client.remoteHost?.launchTarget
-									.query({ repoPath: repoPath ?? null, source: source ?? null })
-									.catch(() => null);
+						: await utils.client.remoteHost?.launchTarget
+								.query({ repoPath: repoPath ?? null, source: source ?? null })
+								.catch(() => null);
 			// A resume passes its old cwd back as repoPath, so it never gets a second one.
 			const ownWorktree =
 				!remote && repoPath && repoPath !== worktreePath && !resumeSessionId

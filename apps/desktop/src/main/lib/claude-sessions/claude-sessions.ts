@@ -758,6 +758,11 @@ export async function readTranscript({
 	/** Every URL-quoting turn of the whole session - see `transcriptLinks`. */
 	links: TranscriptMessage[];
 	cwd: string | null;
+	/**
+	 * It ran on this computer. False for a remote host's session, whose
+	 * transcript is mirrored here under the host's paths.
+	 */
+	local: boolean;
 	/** Claude's own generated title for the conversation, when it has one. */
 	title: string | null;
 	/** The real opening prompt - `messages` is only the tail of a long session. */
@@ -791,6 +796,7 @@ export async function readTranscript({
 		messages: parseTranscript(jsonl, 500, 6000, withImages),
 		links: transcriptLinks(jsonl),
 		cwd,
+		local: ranHere(cwd),
 		title: aiTitle,
 		prompt,
 		loop: activeLoop(jsonl),
@@ -799,6 +805,14 @@ export async function readTranscript({
 		credential: transcriptCredential(jsonl),
 		slackDrafts: slackDrafts(jsonl),
 	};
+}
+
+/**
+ * Whether a session's cwd is on this computer. Under the home folder counts
+ * even when it's gone: the pruner removes a worktree and Resume brings it back.
+ */
+export function ranHere(cwd: string | null): boolean {
+	return !cwd || cwd.startsWith(`${homedir()}/`) || existsSync(cwd);
 }
 
 /**

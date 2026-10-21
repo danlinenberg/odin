@@ -1,12 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { PR_RULES_HEADER } from "shared/odin-rules";
 import {
 	activeLoop,
 	parseTranscript,
 	queryTerms,
+	ranHere,
 	readTranscript,
 	repoNameOf,
 	ruleFirings,
@@ -1134,4 +1135,21 @@ test("slackDrafts: a thread draft keeps its thread, a DM draft its moment", () =
 		"C1:1792056367.166909",
 		"C2:1792411205.000000",
 	]);
+});
+
+describe("ranHere", () => {
+	test("a host's cwd is not this computer's, even with its transcript mirrored here", () => {
+		expect(ranHere("/home/ubuntu/repos/odin/.worktrees/odin-8c62a2d3")).toBe(
+			false,
+		);
+	});
+	test("a pruned worktree under home still ran here", () => {
+		expect(ranHere(`${homedir()}/dev/odin/.worktrees/gone-${Date.now()}`)).toBe(
+			true,
+		);
+	});
+	test("an existing folder, or none recorded, counts as here", () => {
+		expect(ranHere(tmpdir())).toBe(true);
+		expect(ranHere(null)).toBe(true);
+	});
 });
