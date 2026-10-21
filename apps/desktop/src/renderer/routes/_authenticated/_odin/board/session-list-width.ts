@@ -1,8 +1,9 @@
 /** The session list beside an open session: how wide you dragged it, per machine. */
 export const SESSION_LIST_WIDTH_KEY = "odin:drawer-sessions-width";
-export const DEFAULT_SESSION_LIST_W = 210;
-/** Narrower and the sort select and Group button stop fitting on one line. */
-export const MIN_SESSION_LIST_W = 160;
+/** Narrower and the sort select, Group and Select stop fitting on one line:
+ * they need 239px (measured in the built app), so the default is the minimum. */
+export const MIN_SESSION_LIST_W = 240;
+export const DEFAULT_SESSION_LIST_W = MIN_SESSION_LIST_W;
 /** Wider and the list eats the room the chat and brief need. */
 export const MAX_SESSION_LIST_W = 480;
 

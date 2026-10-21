@@ -27,6 +27,22 @@ function memoryStorage(): Storage {
 	};
 }
 
+describe("the width range", () => {
+	// Measured in the built app: the sort select (112px at its widest pick),
+	// Group and Select, their gaps and the row's padding need 239px.
+	const CONTROLS_FIT_W = 239;
+
+	test("the header controls fit at the minimum, nothing cut off", () => {
+		expect(MIN_SESSION_LIST_W).toBeGreaterThanOrEqual(CONTROLS_FIT_W);
+	});
+
+	test("the default sits inside the range", () => {
+		expect(DEFAULT_SESSION_LIST_W).toBeGreaterThanOrEqual(MIN_SESSION_LIST_W);
+		expect(DEFAULT_SESSION_LIST_W).toBeLessThanOrEqual(MAX_SESSION_LIST_W);
+		expect(MAX_SESSION_LIST_W).toBe(480);
+	});
+});
+
 describe("clampSessionListWidth", () => {
 	test("a width inside the range is kept, rounded to a pixel", () => {
 		expect(clampSessionListWidth(300.4)).toBe(300);
