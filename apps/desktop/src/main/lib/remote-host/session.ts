@@ -313,7 +313,7 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 		`if [ -f ${sh(secretsDir)}/env ]; then set -a; . ${sh(secretsDir)}/env; set +a; fi`,
 		`rm -rf ${sh(secretsDir)}`,
 		// Sessions starting together take turns at setup: clone, fetch and
-		// worktree add on one repo, the Claude login and ~/.gitconfig all
+		// worktree add on one repo, the Claude login and turn-end.py all
 		// break when two runs write them at once. Waits 2 min at most.
 		// One lock per host: sessions on different repos wait for each other too.
 		'mkdir -p "$HOME/.odin" && exec 9>"$HOME/.odin/setup.lock" && flock -w 120 9 2>/dev/null',

@@ -68,7 +68,6 @@ describe("remote session scripts", () => {
 		const run = runScript(spec, "/d");
 		const lock = run.indexOf("flock -w 120 9");
 		expect(lock).toBeGreaterThan(-1);
-		expect(lock).toBeLessThan(run.indexOf("git config --global"));
 		expect(lock).toBeLessThan(run.indexOf("git clone"));
 		const unlock = run.indexOf("\nexec 9>&-\n");
 		expect(unlock).toBeGreaterThan(run.indexOf("turn-end.py"));
