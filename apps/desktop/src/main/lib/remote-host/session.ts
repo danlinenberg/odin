@@ -248,6 +248,26 @@ export const CLAUDE_LOGIN_SCRIPT = [
 	'[ -s "$HOME/.odin/claude-login-id" ] && unset CLAUDE_CODE_OAUTH_TOKEN',
 ].join("\n");
 
+/**
+ * The run script starts over inside its own user scope, capped at this
+ * percent of the host's RAM with no swap. A runaway build (12 GB of bun) then
+ * meets the kernel's out-of-memory killer inside this session only, which
+ * stops its biggest process, instead of freezing every session on the host. It needs no
+ * setup: the user's systemd manager does it, as on Ubuntu 24.04. Where that
+ * fails (no user manager, another distro) the script runs without a cap.
+ */
+const SESSION_MEMORY_PERCENT = 50;
+export const MEMORY_LIMIT_SCRIPT = [
+	'if [ -z "$ODIN_MEMORY_SCOPE" ]; then',
+	"  export ODIN_MEMORY_SCOPE=1",
+	'  [ -n "$XDG_RUNTIME_DIR" ] || XDG_RUNTIME_DIR=/run/user/$(id -u); export XDG_RUNTIME_DIR',
+	'  [ -n "$DBUS_SESSION_BUS_ADDRESS" ] || [ ! -S "$XDG_RUNTIME_DIR/bus" ] || export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"',
+	`  max=$(awk '/^MemTotal:/ { printf "%dK", $2 * ${SESSION_MEMORY_PERCENT} / 100 }' /proc/meminfo 2>/dev/null)`,
+	'  limit="systemd-run --user --scope --quiet -p MemoryMax=$max -p MemorySwapMax=0"',
+	'  if [ -n "$max" ] && $limit true >/dev/null 2>&1; then exec $limit bash "$0"; fi',
+	"fi",
+].join("\n");
+
 /** What runs inside tmux: tokens in, file gone, repo ready, Claude on. */
 export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 	const root = homePath(spec.reposRoot);
@@ -259,6 +279,7 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 		? ` "$(printf %s ${sh(Buffer.from(spec.prompt).toString("base64"))} | base64 -d)"`
 		: "";
 	return [
+		MEMORY_LIMIT_SCRIPT,
 		`if [ -f ${sh(secretsDir)}/env ]; then set -a; . ${sh(secretsDir)}/env; set +a; fi`,
 		`rm -rf ${sh(secretsDir)}`,
 		// Odin's host service when setup installed it (connector calls answered

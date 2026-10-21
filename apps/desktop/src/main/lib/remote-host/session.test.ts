@@ -19,6 +19,7 @@ import {
 	httpsCloneUrl,
 	issueTicket,
 	linuxUserName,
+	MEMORY_LIMIT_SCRIPT,
 	mainCheckoutOf,
 	parseClaudeLogin,
 	type RemoteSessionSpec,
@@ -76,6 +77,24 @@ describe("remote session scripts", () => {
 		).toStartWith(
 			"tmux kill-session -t 'odin-pane-1-x' 2>/dev/null\nif tmux has-session",
 		);
+	});
+
+	test("the run script starts over under its own memory cap, or runs uncapped without systemd", () => {
+		expect(runScript(spec, "/d")).toStartWith(MEMORY_LIMIT_SCRIPT);
+		expect(MEMORY_LIMIT_SCRIPT).toContain(
+			"systemd-run --user --scope --quiet -p MemoryMax=$max -p MemorySwapMax=0",
+		);
+		expect(MEMORY_LIMIT_SCRIPT).toContain('exec $limit bash "$0"');
+		const dir = mkdtempSync(join(tmpdir(), "odin-mem-"));
+		try {
+			writeFileSync(join(dir, "run.sh"), `${MEMORY_LIMIT_SCRIPT}\necho ran`);
+			const out = execFileSync("/bin/bash", [join(dir, "run.sh")], {
+				env: { PATH: "/usr/bin:/bin", HOME: dir },
+			}).toString();
+			expect(out).toBe("ran\n");
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
 	});
 
 	test("a reply that resumes a live tmux session is pasted into it", () => {
