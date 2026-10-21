@@ -1000,6 +1000,16 @@ describe("readTranscript's local", () => {
 		);
 		expect((await readTranscript({ sessionId: id, root })).local).toBe(false);
 	});
+
+	test("a session that started here and ended in a folder since deleted is still local", async () => {
+		const root = mkdtempSync(join(tmpdir(), "claude-tmp-"));
+		mkdirSync(join(root, "-Users-dan-dev-app"));
+		writeFileSync(
+			join(root, "-Users-dan-dev-app", `${id}.jsonl`),
+			`${row(`${homedir()}/dev/app`, "Task: x")}\n${row("/private/var/gone/x", "done")}\n`,
+		);
+		expect((await readTranscript({ sessionId: id, root })).local).toBe(true);
+	});
 });
 
 describe("activeLoop", () => {

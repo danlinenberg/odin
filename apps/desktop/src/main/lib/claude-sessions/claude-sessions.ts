@@ -840,11 +840,13 @@ export async function readTranscript({
 		messages: parseTranscript(jsonl, 500, 6000, withImages),
 		links: transcriptLinks(jsonl),
 		cwd,
-		// Where its last turn ran, not its first: a session moved here with Run
-		// on this computer keeps the host's cwd on its opening rows, and judged
-		// by those, Resume sent it back to the host, where Claude picked up the
-		// host's copy without anything it had done here since.
-		local: ranHere(lastCwd(jsonl) ?? cwd),
+		// Where it started, or where its last turn ran: a session moved here
+		// with Run on this computer keeps the host's cwd on its opening rows,
+		// and judged by those alone, Resume sent it back to the host, where
+		// Claude picked up the host's copy without anything it had done here
+		// since. The start still counts, so a session that ended in a folder
+		// since deleted (a temp dir) isn't read as the host's.
+		local: ranHere(cwd) || ranHere(lastCwd(jsonl)),
 		title: aiTitle,
 		prompt,
 		loop: activeLoop(jsonl),
