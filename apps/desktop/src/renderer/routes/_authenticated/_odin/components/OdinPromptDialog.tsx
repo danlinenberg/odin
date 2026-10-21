@@ -4,6 +4,7 @@ import { isHotkey, useHotkeyDisplay } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import {
 	CLAUDE_MODELS,
+	recentRepoChoices,
 	useClaudeCommand,
 } from "renderer/stores/claude-command";
 
@@ -99,6 +100,7 @@ export function OdinPromptDialog({
 	defaultPrompt = "",
 	repoPicker = false,
 	defaultRepo = "",
+	sessionRepos = [],
 	modelPicker = false,
 	backlogToggle = false,
 	wherePicker = false,
@@ -120,6 +122,8 @@ export function OdinPromptDialog({
 	repoPicker?: boolean;
 	/** The picker's starting repo - the session you were in when you opened it. */
 	defaultRepo?: string;
+	/** The repos the board's sessions worked in, newest first - Recent's fallback. */
+	sessionRepos?: string[];
 	/** Pick the session's model; the pick sticks for every later launch. */
 	modelPicker?: boolean;
 	/** Offer "Backlog": park the prompt on My Tasks instead of starting it. */
@@ -191,7 +195,7 @@ export function OdinPromptDialog({
 	const repoQuery =
 		typedRepo ?? (repos.includes(defaultRepo) ? defaultRepo : "");
 	const repoHits = matchRepos(repos, repoQuery);
-	const shownRecent = recentRepos.filter((path) => repos.includes(path));
+	const shownRecent = recentRepoChoices(recentRepos, sessionRepos, repos);
 	// One hit is a pick; none or several means the session falls back to the
 	// workspace, so the dialog has to say which it is.
 	const repo = repoHits.length === 1 ? (repoHits[0] as string) : "";

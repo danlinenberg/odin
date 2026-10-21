@@ -32,6 +32,16 @@ export type RemoteControlMode = "off" | "all" | "selected";
 
 export const RECENT_REPOS = 5;
 
+export function recentRepoChoices(
+	picked: string[],
+	sessionRepos: string[],
+	known: string[],
+): string[] {
+	return [...new Set([...picked, ...sessionRepos])]
+		.filter((repo) => known.includes(repo))
+		.slice(0, RECENT_REPOS);
+}
+
 /** The New Session model picker: CLI aliases, so each tracks the latest. */
 export const CLAUDE_MODELS = [
 	{ value: "", label: "Default model" },
