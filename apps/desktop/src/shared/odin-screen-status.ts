@@ -47,6 +47,15 @@ const SETUP =
  * more, and an expired AWS sign-in waits on you. Read as Claude gone, the drawer
  * offered Resume again, and the next click killed the connect in progress.
  */
+/**
+ * The status bar of a remote session's tmux (`[odin-<id>:...`). It is there
+ * only while the session's run script or its Claude is running - the tmux
+ * session ends with Claude - so a pane showing it still has its session, even
+ * before Claude draws (clone, worktree, start). Read as Claude gone, the card
+ * flipped between Idle with Resume and "Starting session..." every few seconds.
+ */
+const REMOTE_TMUX_BAR = /^\[odin-[A-Za-z0-9_-]+:/m;
+
 // Any of the helper's connect lines, not only the first: a pane retrying for
 // a while has scrolled "connecting to" off the screen.
 const REMOTE_CONNECTING =
@@ -177,6 +186,7 @@ export function odinScreenWrite(
 export function agentOnScreen(screen: string): boolean {
 	if (odinScreenStatus(screen) !== undefined) return true;
 	if (SETUP.test(screen) || REMOTE_CONNECTING.test(screen)) return true;
+	if (REMOTE_TMUX_BAR.test(screen)) return true;
 	// The box on its own - Claude drawn, but caught between repaints of the
 	// status line under it.
 	const lines = screen.split(/\r\n|\n|\r/);

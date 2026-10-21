@@ -364,6 +364,15 @@ describe("remote session connecting", () => {
 	});
 });
 
+describe("remote tmux bar", () => {
+	it("counts a remote session still starting in tmux as present", () => {
+		const bar =
+			'[odin-95790:bash*                "ip-10-1-57-86" 07:41 21-Oct-26';
+		expect(agentOnScreen(`\n\n${bar}\n`)).toBe(true);
+		expect(agentOnScreen("$ ls\n")).toBe(false);
+	});
+});
+
 describe("folder-trust dialog", () => {
 	// As Claude draws it at launch in an untrusted folder: one rule, no numbers.
 	const TRUST = `${"─".repeat(60)}\n Accessing workspace:\n\n /Users/dan/dev/x\n\n Quick safety check: Is this a project you created or one you trust?\n\n Claude Code'll be able to read, edit, and execute files here.\n\n Security guide\n\n ❯ No, exit\n   Yes, I trust this folder\n\n Enter to confirm · Esc to cancel\n`;
