@@ -104,7 +104,8 @@ async function withAwsSignIn<T>(host: RemoteHost, call: () => Promise<T>) {
 			)
 		)
 			throw err;
-		await awsSsoLogin(host.profile ?? null);
+		// The sign-in is { link, done }: done settles when the approval went through.
+		await awsSsoLogin(host.profile ?? null).done;
 		return call();
 	}
 }

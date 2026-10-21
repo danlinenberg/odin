@@ -2,6 +2,8 @@ import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import type { Readable } from "node:stream";
+import type { Client } from "ssh2";
 import { sh } from "./session";
 import { connectHost, type HostLogin, runOnHost } from "./ssh";
 
@@ -123,6 +125,41 @@ export function partPaths(part: ClaudeSetupPart, root: string): string[] {
 }
 
 /**
+ * Runs `command` on the host with `source` streamed to its stdin. Resolves
+ * with the bytes sent once the command exits 0; else rejects with its stderr.
+ */
+export function streamToHost(
+	client: Client,
+	command: string,
+	source: Readable,
+): Promise<number> {
+	return new Promise((resolve, reject) => {
+		client.exec(command, (err, stream) => {
+			if (err) return reject(err);
+			let errors = "";
+			let bytes = 0;
+			// ssh2 reports the channel closed only after its stdout has ended,
+			// and a stdout nobody reads never ends: unread, this promise would
+			// hang forever once the command is done.
+			stream.resume();
+			stream.stderr.on("data", (chunk: Buffer) => {
+				errors += chunk;
+			});
+			stream.on("close", (code: number) =>
+				code === 0
+					? resolve(bytes)
+					: reject(new Error(errors.trim() || `exit ${code}`)),
+			);
+			source.on("data", (chunk: Buffer) => {
+				bytes += chunk.length;
+			});
+			source.on("error", reject);
+			source.pipe(stream);
+		});
+	});
+}
+
+/**
  * Copies the chosen parts to ~/.claude on the host: one tar stream over SSH
  * stdin, unpacked there, then this computer's home path rewritten to the
  * host user's in the files that name it. Returns the bytes sent.
@@ -141,42 +178,33 @@ export async function syncClaudeSetup(
 			// The files that carry absolute paths: this computer's home becomes the host's.
 			`grep -rlF ${sh(homedir())} ~/.claude/settings.json ~/.claude/CLAUDE.md ~/.claude/*.md ~/.claude/plugins/installed_plugins.json ~/.claude/plugins/known_marketplaces.json 2>/dev/null | xargs -r sed -i "s#${homedir()}#$HOME#g"`,
 		].join(" && ");
+		const tar = spawn(
+			"tar",
+			[
+				"-czf",
+				"-",
+				"--exclude",
+				".DS_Store",
+				"--exclude",
+				"node_modules",
+				"-C",
+				root,
+				...paths,
+			],
+			{ env: { ...process.env, COPYFILE_DISABLE: "1" } },
+		);
+		// Read, so tar can't stall on a full stderr pipe; what it said joins the error.
+		let tarErrors = "";
+		tar.stderr.on("data", (chunk: Buffer) => {
+			tarErrors += chunk;
+		});
 		const bytes = await new Promise<number>((resolve, reject) => {
-			client.exec(unpack, (err, stream) => {
-				if (err) return reject(err);
-				let errors = "";
-				let bytes = 0;
-				stream.stderr.on("data", (chunk: Buffer) => {
-					errors += chunk;
-				});
-				// ssh2 fires "close" only after stdout ends, and an unread stdout never ends.
-				stream.resume();
-				stream.on("close", (code: number) =>
-					code === 0
-						? resolve(bytes)
-						: reject(new Error(errors.trim() || `exit ${code}`)),
-				);
-				const tar = spawn(
-					"tar",
-					[
-						"-czf",
-						"-",
-						"--exclude",
-						".DS_Store",
-						"--exclude",
-						"node_modules",
-						"-C",
-						root,
-						...paths,
-					],
-					{ env: { ...process.env, COPYFILE_DISABLE: "1" } },
-				);
-				tar.stdout.on("data", (chunk: Buffer) => {
-					bytes += chunk.length;
-				});
-				tar.stdout.pipe(stream);
-				tar.on("error", reject);
-			});
+			tar.once("error", reject);
+			streamToHost(client, unpack, tar.stdout).then(resolve, reject);
+		}).catch((error: Error) => {
+			throw new Error(
+				[error.message, tarErrors.trim()].filter(Boolean).join("\n"),
+			);
 		});
 		const dropped = JSON.parse(
 			(await runOnHost(client, `python3 -c ${sh(PRUNE_HOOKS_PY)}`)) || "[]",
