@@ -5,7 +5,7 @@ import { homedir, tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { promisify } from "node:util";
 import type { SFTPWrapper } from "ssh2";
-import { sh, tmuxSession } from "./session";
+import { homePath, sh, tmuxSession, worktreeDir } from "./session";
 import { connectHost, type HostLogin, runOnHost } from "./ssh";
 
 const run = promisify(execFile);
@@ -244,14 +244,58 @@ export const unreachableNote = (cwd: string) =>
 const killTmux = (sessionId: string) =>
 	`tmux kill-session -t ${sh(tmuxSession(sessionId))} 2>/dev/null; true`;
 
-/** Ends a remote session's tmux session on the host: Claude there stops. */
+/**
+ * Run on the host after a session's Done: its worktree goes, as Storage's
+ * forced delete does here - each one is a full install, and the host has no
+ * pruner. It is <reposRoot>/<repo>/.worktrees/odin-<id>, or under ~/repos
+ * for a task that cloned its own repo (hostNote). The branch stays, so a
+ * Resume gets the worktree back from it (runScript); files not committed go
+ * to refs/pruned/<name> first, and `git checkout refs/pruned/<name> -- .`
+ * brings them back. A worktree whose files can't be saved is kept. The
+ * folder is moved aside and deleted in the background: git forgets it at
+ * once, and the call doesn't wait on a 3 GB install. Prints "removed <path>"
+ * or "kept <path> (why)" per worktree; nothing when there is none.
+ */
+export function removeWorktreeScript(
+	sessionId: string,
+	reposRoot: string,
+): string {
+	const name = worktreeDir(sessionId);
+	return `for wt in ${homePath(reposRoot)}/*/.worktrees/${sh(name)} "$HOME"/repos/*/.worktrees/${sh(name)}; do
+	[ -e "$wt/.git" ] || continue
+	repo=$(dirname "$(dirname "$wt")")
+	if [ -n "$(git -C "$wt" status --porcelain)" ]; then
+		# A throwaway index: gitignored output (node_modules) stays out, as in a commit.
+		index=$(mktemp)
+		snapshot=$(GIT_INDEX_FILE="$index" git -C "$wt" read-tree HEAD && GIT_INDEX_FILE="$index" git -C "$wt" add -A && git -C "$wt" -c user.name=Odin -c user.email=odin@localhost commit-tree "$(GIT_INDEX_FILE="$index" git -C "$wt" write-tree)" -p HEAD -m ${sh(`pruned worktree ${name}`)})
+		rm -f "$index"
+		[ -n "$snapshot" ] && git -C "$repo" update-ref ${sh(`refs/pruned/${name}`)} "$snapshot" || { echo "kept $wt (its uncommitted files could not be saved)"; continue; }
+	fi
+	trash="$repo/.git/odin-trash-${name}-$$"
+	mv "$wt" "$trash" || { echo "kept $wt (could not move it aside)"; continue; }
+	git -C "$repo" worktree prune
+	nohup rm -rf "$trash" >/dev/null 2>&1 </dev/null &
+	echo "removed $wt"
+done`;
+}
+
+/**
+ * Ends a remote session on the host: its tmux session (Claude there stops),
+ * then its worktree, as removeWorktreeScript says. Returns that script's lines.
+ */
 export async function endHostSession(
 	host: HostLogin,
 	sessionId: string,
-): Promise<void> {
+	reposRoot: string,
+): Promise<string[]> {
 	const client = await connectHost(host);
 	try {
 		await runOnHost(client, killTmux(sessionId));
+		const out = await runOnHost(
+			client,
+			removeWorktreeScript(sessionId, reposRoot),
+		);
+		return out.split("\n").filter(Boolean);
 	} finally {
 		client.end();
 	}

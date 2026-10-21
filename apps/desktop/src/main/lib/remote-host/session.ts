@@ -66,13 +66,13 @@ export const hostHome = (user: string) =>
 
 /** The session's own worktree and branch, named after its conversation. */
 export const sessionBranch = (pane: string) => `odin/${pane.slice(0, 8)}`;
-const worktreeDir = (pane: string) => `odin-${pane.slice(0, 8)}`;
+export const worktreeDir = (pane: string) => `odin-${pane.slice(0, 8)}`;
 
 /** Single-quote for a POSIX shell. */
 export const sh = (text: string) => `'${text.replaceAll("'", `'\\''`)}'`;
 
 /** `~/x` as `"$HOME"/x`, so the shell expands it inside quotes too. */
-const homePath = (path: string) =>
+export const homePath = (path: string) =>
 	path === "~"
 		? '"$HOME"'
 		: path.startsWith("~/")
@@ -298,7 +298,8 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 	const root = homePath(spec.reposRoot);
 	const repo = spec.repoName ? `${root}/${sh(spec.repoName)}` : root;
 	// Every session gets its own worktree, so two on one repo never collide;
-	// a resume finds the same one by name.
+	// a resume finds the same one by name, or, after Done removed it, gets it
+	// back from its branch, which Done keeps.
 	const worktree = `${repo}/.worktrees/${sh(worktreeDir(spec.pane))}`;
 	// A Resume with no prompt picks a cut-off turn back up; unquoted, so a
 	// finished one gets no argument at all.
@@ -332,7 +333,7 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 			: "",
 		spec.repoName ? `git -C ${repo} fetch --quiet origin || true` : "",
 		spec.repoName
-			? `[ -d ${worktree} ] || git -C ${repo} worktree add -q -b ${sh(sessionBranch(spec.pane))} ${worktree} origin/HEAD 2>/dev/null || git -C ${repo} worktree add -q -b ${sh(sessionBranch(spec.pane))} ${worktree} 2>/dev/null || true`
+			? `[ -d ${worktree} ] || git -C ${repo} worktree add -q -b ${sh(sessionBranch(spec.pane))} ${worktree} origin/HEAD 2>/dev/null || git -C ${repo} worktree add -q -b ${sh(sessionBranch(spec.pane))} ${worktree} 2>/dev/null || git -C ${repo} worktree add -q ${worktree} ${sh(sessionBranch(spec.pane))} 2>/dev/null || true`
 			: "",
 		spec.repoName ? `cd ${worktree} 2>/dev/null || cd ${repo}` : `cd ${repo}`,
 		`python3 -c ${sh(SKIP_FIRST_RUN)} "$PWD" 2>/dev/null || true`,

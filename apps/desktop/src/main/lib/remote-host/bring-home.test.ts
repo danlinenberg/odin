@@ -16,11 +16,16 @@ import {
 	movedNote,
 	packScript,
 	parsePacked,
+	removeWorktreeScript,
 	unpackWork,
 } from "./bring-home";
 
-const sh = (cwd: string, cmd: string) =>
-	execFileSync("bash", ["-c", cmd], { cwd, encoding: "utf8" });
+const sh = (cwd: string, cmd: string, env: Record<string, string> = {}) =>
+	execFileSync("bash", ["-c", cmd], {
+		cwd,
+		encoding: "utf8",
+		env: { ...process.env, ...env },
+	});
 const git = (cwd: string, args: string) =>
 	sh(cwd, `git -c user.name=t -c user.email=t@t ${args}`);
 
@@ -128,6 +133,76 @@ test("a session on the shared checkout's default branch moves nothing and leaves
 test("outside a git checkout the script prints nothing", () => {
 	const dir = mkdtempSync(join(tmpdir(), "bring-home-plain-"));
 	expect(sh(dir, packScript(dir, join(dir, "x.bundle"))).trim()).toBe("");
+});
+
+/**
+ * A host as a session left it: a clone under <root>/repos with the session's
+ * worktree on its own branch, node_modules gitignored.
+ */
+function hostWorktree(pane: string) {
+	const root = mkdtempSync(join(tmpdir(), "done-"));
+	const origin = join(root, "origin.git");
+	sh(root, `git init -q --bare -b main ${origin}`);
+	const seed = join(root, "seed");
+	sh(root, `git clone -q ${origin} seed 2>/dev/null`);
+	writeFileSync(join(seed, "a.txt"), "base\n");
+	writeFileSync(join(seed, ".gitignore"), "node_modules\n");
+	git(seed, "add a.txt .gitignore");
+	git(seed, "commit -q -m base");
+	git(seed, "push -q origin main");
+	const repo = join(root, "repos", "x");
+	sh(root, `git clone -q ${origin} ${repo}`);
+	const top = join(repo, ".worktrees", `odin-${pane.slice(0, 8)}`);
+	git(repo, `worktree add -q -b odin/${pane.slice(0, 8)} ${top} origin/main`);
+	return { root, repo, top };
+}
+
+describe("removeWorktreeScript", () => {
+	test("Done removes the session's worktree, keeps its branch and saves its uncommitted files", () => {
+		const { root, repo, top } = hostWorktree("abcdef1234");
+		writeFileSync(join(top, "b.txt"), "committed\n");
+		git(top, "add b.txt");
+		git(top, "commit -q -m work");
+		writeFileSync(join(top, "a.txt"), "edited\n");
+		sh(
+			top,
+			"mkdir -p sub node_modules && echo new > sub/c.txt && echo x > node_modules/d.txt",
+		);
+
+		const out = sh(
+			root,
+			removeWorktreeScript("abcdef1234", join(root, "repos")),
+			{ HOME: root },
+		);
+		expect(out.trim()).toBe(`removed ${top}`);
+		expect(existsSync(top)).toBe(false);
+		expect(git(repo, "worktree list --porcelain")).not.toContain(".worktrees");
+		// The branch and its commits stay: a Resume gets the worktree back from it.
+		expect(git(repo, "log -1 --format=%s odin/abcdef12").trim()).toBe("work");
+		// What wasn't committed is one commit on the branch's head, under refs/pruned.
+		const pruned = "refs/pruned/odin-abcdef12";
+		expect(git(repo, `rev-parse ${pruned}^`)).toBe(
+			git(repo, "rev-parse odin/abcdef12"),
+		);
+		expect(git(repo, `show ${pruned}:a.txt`)).toBe("edited\n");
+		expect(git(repo, `show ${pruned}:sub/c.txt`)).toBe("new\n");
+		expect(git(repo, `ls-tree -r --name-only ${pruned}`)).not.toContain(
+			"node_modules",
+		);
+	});
+
+	test("a clean worktree in ~/repos goes without a pruned ref, and a gone one is nothing to do", () => {
+		const { root, repo, top } = hostWorktree("0123456789");
+		// The task had no repo: the agent cloned under ~/repos, not the host's reposRoot.
+		const script = removeWorktreeScript("0123456789", join(root, "elsewhere"));
+		expect(sh(root, script, { HOME: root }).trim()).toBe(`removed ${top}`);
+		expect(existsSync(top)).toBe(false);
+		expect(git(repo, "for-each-ref refs/pruned").trim()).toBe("");
+		expect(git(repo, "branch --list odin/01234567").trim()).toBe(
+			"odin/01234567",
+		);
+		expect(sh(root, script, { HOME: root }).trim()).toBe("");
+	});
 });
 
 describe("bringMirrorHome", () => {

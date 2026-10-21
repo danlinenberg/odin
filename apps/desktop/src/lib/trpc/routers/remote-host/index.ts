@@ -545,13 +545,25 @@ export const createRemoteHostRouter = () =>
 				}
 			}),
 
-		/** Done on a remote session: its tmux session on the host ends too. */
+		/**
+		 * Done on a remote session: its tmux session on the host ends too, and
+		 * its worktree there goes (its branch stays, uncommitted files are
+		 * saved to refs/pruned first) - the host has no pruner, and a full
+		 * install per finished session filled its disk.
+		 */
 		endSession: publicProcedure
 			.input(z.object({ sessionId: z.string().min(1) }))
 			.mutation(async ({ input }) => {
 				const host = readOdinConfig().remoteHost;
 				if (!host) return;
-				await withAwsSignIn(host, () => endHostSession(host, input.sessionId));
+				const lines = await withAwsSignIn(host, () =>
+					endHostSession(host, input.sessionId, host.reposRoot),
+				);
+				if (lines.length)
+					console.warn(
+						`[remote-host] done ${input.sessionId}:`,
+						lines.join("\n"),
+					);
 			}),
 
 		/**

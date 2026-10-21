@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
 import {
+	existsSync,
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
@@ -279,6 +280,43 @@ test("a session with a repo starts in its own worktree, with Odin's port", () =>
 	expect(run).toContain("export ODIN_PORT ODIN_PANE_ID='pane-9'");
 	expect(run).toContain(
 		`git -C "$HOME"/'repos'/'odin' worktree add -q -b 'odin/abcdef12' "$HOME"/'repos'/'odin'/.worktrees/'odin-abcdef12' origin/HEAD`,
+	);
+});
+
+test("a session resumed after Done gets its worktree back on its own branch", () => {
+	const root = mkdtempSync(join(tmpdir(), "session-wt-"));
+	const bash = (cwd: string, cmd: string) =>
+		execFileSync("bash", ["-c", cmd], { cwd, encoding: "utf8" });
+	const origin = join(root, "origin.git");
+	bash(root, `git init -q --bare -b main ${origin}`);
+	bash(
+		root,
+		`git clone -q ${origin} seed 2>/dev/null && cd seed && echo base > a.txt && git -c user.name=t -c user.email=t@t add a.txt && git -c user.name=t -c user.email=t@t commit -q -m base && git push -q origin main`,
+	);
+	bash(root, `git clone -q ${origin} repos/x`);
+	const worktree = join(root, "repos", "x", ".worktrees", "odin-abcdef12");
+	const line = runScript(
+		{
+			...spec,
+			reposRoot: join(root, "repos"),
+			repoName: "x",
+			pane: "abcdef1234",
+		},
+		"/d",
+	)
+		.split("\n")
+		.find((l) => l.includes("worktree add"));
+	// A first start: a new branch from origin/HEAD.
+	bash(root, line ?? "false");
+	expect(bash(worktree, "git branch --show-current").trim()).toBe(
+		"odin/abcdef12",
+	);
+	// Done removed the worktree and kept the branch; the Resume re-adds it.
+	bash(root, `git -C repos/x worktree remove --force ${worktree}`);
+	bash(root, line ?? "false");
+	expect(existsSync(worktree)).toBe(true);
+	expect(bash(worktree, "git branch --show-current").trim()).toBe(
+		"odin/abcdef12",
 	);
 });
 
