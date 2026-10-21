@@ -434,6 +434,23 @@ export function isEchoed(
 	);
 }
 
+/**
+ * Commands sent in bash mode (Run buttons, `!` in the box). Claude's queue log
+ * keeps only a queued message's text, so this is how a queued command is told
+ * apart from something you typed.
+ */
+const sentAsBash = new Set<string>();
+
+/** The command a queued or sent message runs, or null when it is a message. */
+export function bashCommandOf(
+	text: string,
+	ranAsBash: Set<string>,
+): string | null {
+	const trimmed = text.trim();
+	if (trimmed.startsWith("!")) return trimmed.slice(1).trim() || null;
+	return ranAsBash.has(trimmed) ? trimmed : null;
+}
+
 /** Your queued messages: background-task notices ride the same queue. */
 export function yourQueued(queue: string[]): string[] {
 	return queue.filter((text) => !text.startsWith("<task-notification"));
@@ -1069,6 +1086,18 @@ const SHELL_LINES = 12;
  * A `!` command and its output, or a built-in command's output: a terminal
  * card across the column, so it never reads as something you typed.
  */
+/** A `!` command you sent that Claude hasn't run yet: queued behind its turn. */
+function WaitingShell({ command }: { command: string }) {
+	return (
+		<div className="opacity-60">
+			<ShellCard shell={{ command, stdout: "", stderr: "" }} />
+			<div className="mt-1 text-[12px] text-muted-foreground">
+				Waiting to run - Claude runs it when its current turn ends
+			</div>
+		</div>
+	);
+}
+
 function ShellCard({ shell }: { shell: Shell }) {
 	const [open, setOpen] = useState(false);
 	const lines = [
@@ -2489,6 +2518,7 @@ export function ChatView({
 	// "!" alone first: it switches Claude's prompt to bash mode, which a paste can't.
 	const runInClaude = useCallback(
 		async (command: string) => {
+			sentAsBash.add(command.trim());
 			await write.mutateAsync({ paneId, data: "!" });
 			await new Promise((resolve) => setTimeout(resolve, 50));
 			await typeIntoClaude(write.mutateAsync, paneId, command);
@@ -2772,31 +2802,51 @@ export function ChatView({
 							</div>
 						);
 					})}
-					{pending.map((sent) => (
-						<UserBubble
-							key={sent.id}
-							text={sent.text}
-							images={sent.previews}
-							pending
-							lost={sent.lost}
-							onShowTerminal={onShowTerminal}
-							onDismiss={() =>
-								setPending((list) =>
-									list.filter((other) => other.id !== sent.id),
-								)
-							}
-						/>
-					))}
-					{yourQueued(queued)
-						.filter((text) => !pending.some((sent) => text.includes(sent.text)))
-						.map((text, index) => (
+					{pending.map((sent) => {
+						const command = sent.lost
+							? null
+							: bashCommandOf(sent.text, sentAsBash);
+						return command ? (
+							<WaitingShell key={sent.id} command={command} />
+						) : (
 							<UserBubble
-								// biome-ignore lint/suspicious/noArrayIndexKey: the same text can be queued twice
-								key={`queued-${index}`}
-								text={text}
+								key={sent.id}
+								text={sent.text}
+								images={sent.previews}
 								pending
+								lost={sent.lost}
+								onShowTerminal={onShowTerminal}
+								onDismiss={() =>
+									setPending((list) =>
+										list.filter((other) => other.id !== sent.id),
+									)
+								}
 							/>
-						))}
+						);
+					})}
+					{yourQueued(queued)
+						.filter(
+							(text) =>
+								!pending.some(
+									(sent) =>
+										text.includes(sent.text) ||
+										text.trim() === sent.text.replace(/^!/, "").trim(),
+								),
+						)
+						.map((text, index) => {
+							const command = bashCommandOf(text, sentAsBash);
+							return command ? (
+								// biome-ignore lint/suspicious/noArrayIndexKey: the same text can be queued twice
+								<WaitingShell key={`queued-${index}`} command={command} />
+							) : (
+								<UserBubble
+									// biome-ignore lint/suspicious/noArrayIndexKey: the same text can be queued twice
+									key={`queued-${index}`}
+									text={text}
+									pending
+								/>
+							);
+						})}
 					{prompt && (
 						<div className={cn("flex min-w-0 gap-3", ENTER)}>
 							<ReplyMark />
@@ -3253,6 +3303,7 @@ function Composer({
 		if (!body && sending.length === 0) return;
 		// Not in bash mode: the note would run as part of the command.
 		const text = bash ? `!${body}` : withDismissals(paneId, body);
+		if (bash) sentAsBash.add(body);
 		const paths = sending.map((item) => item.path);
 		setDraft("");
 		// Now, not via the effect: sending can remount this box (a resume, a

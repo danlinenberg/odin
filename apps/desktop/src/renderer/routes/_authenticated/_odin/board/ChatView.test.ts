@@ -7,6 +7,7 @@ import {
 	arrived,
 	autoSsoLogin,
 	bangCommands,
+	bashCommandOf,
 	commandItem,
 	elapsedLabel,
 	interruptClaude,
@@ -727,4 +728,16 @@ test("LIMIT_HIT_RE matches Claude's usage and spend limit lines", () => {
 		),
 	).toBe(true);
 	expect(LIMIT_HIT_RE.test("We hit the rate limit on the API.")).toBe(false);
+});
+
+describe("bashCommandOf", () => {
+	// Claude's queue log keeps a queued `!` command's text without the `!`.
+	test("tells a queued command from a typed message", () => {
+		const ran = new Set(["git push origin main"]);
+		expect(bashCommandOf("git push origin main", ran)).toBe(
+			"git push origin main",
+		);
+		expect(bashCommandOf("!ls -la", ran)).toBe("ls -la");
+		expect(bashCommandOf("why is this slow?", ran)).toBeNull();
+	});
 });
