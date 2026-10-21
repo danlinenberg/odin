@@ -94,6 +94,14 @@ describe("buildPrompt", () => {
 		expect(prompt).toContain("first line starts with `!`");
 	});
 
+	// "Choose how PR #1538 gets approved" kept coming back after a reviewer
+	// had already approved it and the apply had started.
+	it("re-checks an item's live state before listing it again", () => {
+		expect(buildPrompt("Fix the board", null)).toContain(
+			"check its live state now",
+		);
+	});
+
 	// An item saying "run the command from my earlier message" left me
 	// scrolling back for it; the Run button only shows in the same reply.
 	it("repeats the command in every reply that asks me to run it", () => {
