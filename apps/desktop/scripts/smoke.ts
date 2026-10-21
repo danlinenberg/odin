@@ -1093,15 +1093,16 @@ await step(
 	async () => {
 		// The fake claude leaves an empty transcript for its --session-id; an
 		// Agent tool call appended to it is what a real session writes when it
-		// hands work to a subagent. The second drawer-list session is the one
-		// the step before waited to see running; the third can still be queued
-		// behind the launch gate on a busy runner, with no claude yet.
-		const run = fakeClaudeRuns().find((r) =>
-			r.args.includes("Drawer list second"),
+		// hands work to a subagent. Which drawer-list session is running is the
+		// launch gate's call on a busy runner (the rest queue with no claude
+		// yet), so take any that ran, and its card's title from its prompt.
+		const run = fakeClaudeRuns().find(
+			(r) => r.args.includes("Drawer list") && r.args.includes("--session-id"),
 		);
+		const title = run?.args.match(/Drawer list \w+ \d+/)?.[0];
 		const sessionId = run?.args.match(/--session-id\n(\S+)/)?.[1];
-		if (!sessionId)
-			throw new Error("the second session ran without --session-id");
+		if (!title || !sessionId)
+			throw new Error("no drawer-list session ran with --session-id");
 		const transcript = join(
 			home,
 			".claude",
@@ -1134,9 +1135,9 @@ await step(
 		);
 		// Open the session: the drawer's title row gets ⋔ Agents beside ⑂ Diff.
 		await page(`(() => {
-			if (document.querySelector('button[title="Click to rename this session"]')?.textContent.includes("Drawer list second")) return;
+			if (document.querySelector('button[title="Click to rename this session"]')?.textContent.includes(${JSON.stringify(title)})) return;
 			[...document.querySelectorAll('[role="button"][draggable="true"]')]
-				.find((c) => c.textContent.includes("Drawer list second"))
+				.find((c) => c.textContent.includes(${JSON.stringify(title)}))
 				?.click();
 		})()`);
 		await waitForText("⋔ agents", true, 30_000);
