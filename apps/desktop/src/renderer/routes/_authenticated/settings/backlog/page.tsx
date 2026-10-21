@@ -4,7 +4,10 @@ import { Switch } from "@odin/ui/switch";
 import { Textarea } from "@odin/ui/textarea";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { useNextInLinePrompt } from "renderer/stores/next-in-line-prompt";
+import {
+	MAX_NIGHT_SESSIONS,
+	useNextInLinePrompt,
+} from "renderer/stores/next-in-line-prompt";
 import { useNightAgentIntro } from "../../_odin/board/NightAgentIntro";
 import { useBacklogReview } from "../../_odin/hooks/useBacklogReview";
 import {
@@ -106,7 +109,6 @@ export function NightAgentRows() {
 	const offHours = useNextInLinePrompt((s) => s.offHours);
 	const setOffHours = useNextInLinePrompt((s) => s.setOffHours);
 	const started = useNextInLinePrompt((s) => s.offHoursStarted);
-	const [draft, setDraft] = useState(offHours.instructions);
 	const nightIntro = useNightAgentIntro();
 	return (
 		<>
@@ -173,7 +175,7 @@ export function NightAgentRows() {
 					id="night-agent-max"
 					value={offHours.maxSessions}
 					min={1}
-					max={50}
+					max={MAX_NIGHT_SESSIONS}
 					step={1}
 					unit="sessions"
 					onChange={(next) =>
@@ -181,24 +183,37 @@ export function NightAgentRows() {
 					}
 				/>
 			</SettingRow>
-			<SettingRow
-				label="Instructions"
-				htmlFor="night-agent-instructions"
-				description={`Handed to every Night Agent session, and used to pick them: "don't include X" keeps X out of the night's queue. An edit applies from the next session on.`}
-				stacked
-			>
-				<Textarea
-					id="night-agent-instructions"
-					value={draft}
-					onChange={(e) => {
-						setDraft(e.target.value);
-						setOffHours({ instructions: e.target.value.trim() });
-					}}
-					maxLength={4000}
-					rows={6}
-				/>
-			</SettingRow>
+			<NightAgentInstructionsRow />
 		</>
+	);
+}
+
+/**
+ * What every Night Agent session is told. Saved as you type; the Night Agent
+ * page shows this row on its own, its other knobs sit in that page's header.
+ */
+export function NightAgentInstructionsRow() {
+	const instructions = useNextInLinePrompt((s) => s.offHours.instructions);
+	const setOffHours = useNextInLinePrompt((s) => s.setOffHours);
+	const [draft, setDraft] = useState(instructions);
+	return (
+		<SettingRow
+			label="Instructions"
+			htmlFor="night-agent-instructions"
+			description={`Handed to every Night Agent session, and used to pick them: "don't include X" keeps X out of the night's queue. An edit applies from the next session on.`}
+			stacked
+		>
+			<Textarea
+				id="night-agent-instructions"
+				value={draft}
+				onChange={(e) => {
+					setDraft(e.target.value);
+					setOffHours({ instructions: e.target.value.trim() });
+				}}
+				maxLength={4000}
+				rows={6}
+			/>
+		</SettingRow>
 	);
 }
 

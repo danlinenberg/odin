@@ -8,7 +8,7 @@ export const ODIN_GUIDE = `# Odin
 "Store:" names are for your own action=state calls. Never show them, or any other code, to the user.
 
 ## Left rail
-Top to bottom: Dev Board, Tasks, Automations, Night Agent (status, Last night - the sessions the last window started and where each stands now, click one to open it - the next run's picks - add, reorder, remove, and what to do after them - its log by night, and its schedule), More (the ⋮ button: Review, Insights, Session History). At the foot: Settings, and the raven button (Huginn, ⌘⇧I). Each but Night Agent has a one-key hotkey (rebind in Settings → Keyboard); the keys do nothing while you type, also inside agent terminals.
+Top to bottom: Dev Board, Tasks, Automations, Night Agent (status with its settings - the on/off switch, the window and the night's cap are edited right in the header - Last night - the sessions the last window started and where each stands now, click one to open it - the next run's picks - add, reorder, remove, and what to do after them - its log by night, and its instructions), More (the ⋮ button: Review, Insights, Session History). At the foot: Settings, and the raven button (Huginn, ⌘⇧I). Each but Night Agent has a one-key hotkey (rebind in Settings → Keyboard); the keys do nothing while you type, also inside agent terminals.
 
 ## Tasks screen and its feeds
 Tabs, in two groups split by a hairline: Odin's own (All, Tasks, Docs), then the connections (Slack, Jira, GitHub, Notion, Email, ClickUp).
@@ -181,7 +181,7 @@ Three tabs: Schedules, Rules, Reminders.
 - **Rules**: "When <situation>, <action>" - standing instructions for every session Odin starts from now on. A session already running, or one you resume, keeps the prompt it had. A rule can be pinned to some repos ("in"), or to every repo except those ("not in"), and paused. Rules about pull requests or pushes are also re-sent to the agent each time it opens or pushes to a PR. Store: rules - fn add(when, action, repos?, exclude?), update(id, patch), remove(id).
 - **Reminders**: every snoozed session and dated feed row, soonest first. Resume early, Move the day, or drop one. A snoozed session shows on the board only when it is due. Store: reminders.
 
-## Night Agent (Settings → Backlog & Night Agent)
+## Night Agent (Settings → Backlog & Night Agent, or the Night Agent page's header)
 "Work the backlog overnight": inside the window (default 23:00 to 07:00) it starts the top task of Next in line, waits until that session stops working, then starts the next. One at a time, up to the night's cap (default 8 sessions).
 - Rows you pick for tonight (up to 20) run first, in order. After them it stops, or goes on with the ranked queue (the "after picks" choice).
 - Only Tasks, Slack, Jira, GitHub and Notion rows can run. Email and ClickUp rows can't.

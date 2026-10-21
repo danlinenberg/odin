@@ -1,7 +1,8 @@
 import { Input } from "@odin/ui/input";
+import { Switch } from "@odin/ui/switch";
 import { cn } from "@odin/ui/utils";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import type { IconType } from "react-icons";
 import {
 	LuArrowDown,
@@ -19,6 +20,7 @@ import {
 	canPickForTonight,
 	inOffHours,
 	MAX_NIGHT_PICKS,
+	MAX_NIGHT_SESSIONS,
 	type NightLogEntry,
 	type NightStart,
 	type OffHours,
@@ -28,7 +30,7 @@ import {
 import { useTabsStore } from "renderer/stores/tabs/store";
 import { boardColumn } from "shared/board-column";
 import type { Pane } from "shared/tabs-types";
-import { NightAgentRows } from "../../settings/backlog/page";
+import { NightAgentInstructionsRow } from "../../settings/backlog/page";
 import { SettingsSection } from "../../settings/components/SettingsPage";
 import type { AllItem } from "../all/all-items";
 import { SOURCE_ICON } from "../all/TaskTable";
@@ -49,8 +51,9 @@ const OPEN_NIGHTS = 2;
 
 /**
  * The Night Agent's own screen: what it will do next, its schedule, its log.
- * Last night comes first, under the status - the morning's question is
- * "what ran", and the log is the detail behind it.
+ * The header holds the settings - on or off, the window, the night's cap -
+ * so they are never under the log. Last night comes next: the morning's
+ * question is "what ran", and the log is the detail behind it.
  */
 function NightAgentPage() {
 	return (
@@ -64,11 +67,8 @@ function NightAgentPage() {
 					</div>
 					<div className="space-y-8">
 						<LogSection />
-						<SettingsSection
-							title="Schedule"
-							description="When it runs, how much, and what every session is told."
-						>
-							<NightAgentRows />
+						<SettingsSection title="What every session is told">
+							<NightAgentInstructionsRow />
 						</SettingsSection>
 					</div>
 				</div>
@@ -77,11 +77,51 @@ function NightAgentPage() {
 	);
 }
 
-/** On or off, whether it's running now, and how far tonight has got. */
+/**
+ * On or off, whether it's running now, and how far tonight has got. The
+ * switch, the window and the night's cap are edited right here: each card's
+ * number is the field. They show while it's off too, to set up before turning
+ * it on. Instructions have their own card under the log.
+ */
 function StatusHero() {
 	const offHours = useNextInLinePrompt((s) => s.offHours);
+	const setOffHours = useNextInLinePrompt((s) => s.setOffHours);
 	const started = useNextInLinePrompt((s) => s.offHoursStarted);
-	const lastEntry = useNextInLinePrompt((s) => s.nightLog.at(-1));
+	const lastEvent = useNextInLinePrompt((s) => s.nightLog.at(-1)?.event);
+	const nightIntro = useNightAgentIntro();
+	return (
+		<>
+			{nightIntro.dialog}
+			<NightAgentHero
+				offHours={offHours}
+				started={started}
+				lastEvent={lastEvent}
+				onChange={setOffHours}
+				// The first time it's turned on, the notice about keeping the computer awake comes first.
+				onToggle={(enabled) =>
+					enabled
+						? nightIntro.gate(() => setOffHours({ enabled }))
+						: setOffHours({ enabled })
+				}
+			/>
+		</>
+	);
+}
+
+/** The hero itself, given its state: what the page shows and the test renders. */
+export function NightAgentHero({
+	offHours,
+	started,
+	lastEvent,
+	onChange,
+	onToggle,
+}: {
+	offHours: OffHours;
+	started: number;
+	lastEvent: string | undefined;
+	onChange: (patch: Partial<OffHours>) => void;
+	onToggle: (enabled: boolean) => void;
+}) {
 	const running =
 		offHours.enabled && inOffHours(new Date(), offHours.start, offHours.end);
 	const headline = !offHours.enabled
@@ -111,7 +151,7 @@ function StatusHero() {
 						<div className="text-xs font-semibold uppercase tracking-[.08em] text-soft-foreground">
 							Night Agent
 						</div>
-						<div className="mt-0.5 flex items-center gap-2">
+						<div className="mt-0.5 flex items-center gap-3">
 							<h2 className="text-2xl font-semibold tracking-tight">
 								{headline}
 							</h2>
@@ -121,61 +161,88 @@ function StatusHero() {
 									Live
 								</span>
 							)}
+							<Switch
+								aria-label={
+									offHours.enabled
+										? "Turn the Night Agent off"
+										: "Turn the Night Agent on"
+								}
+								title={offHours.enabled ? "Turn off" : "Turn on"}
+								checked={offHours.enabled}
+								onCheckedChange={onToggle}
+							/>
 						</div>
 						<p className="mt-1 text-sm text-muted-foreground">
 							{offHours.enabled
 								? "Works through your picks, then Next in line, one session at a time while you're away."
-								: "Turn it on under Schedule."}
+								: "Turn it on and it works through your picks, then Next in line, one session at a time while you're away."}
 						</p>
 					</div>
 				</div>
-				{offHours.enabled && (
-					<div className="flex gap-3">
-						<Stat
-							label="Window"
-							value={`${offHours.start} - ${offHours.end}`}
+				<div className="flex gap-3">
+					<Stat label="Window">
+						<TimeField
+							label="Starts at"
+							value={offHours.start}
+							onChange={(start) => onChange({ start })}
 						/>
-						<Stat
-							label="Started tonight"
-							value={`${started} / ${offHours.maxSessions}`}
-							progress={started / offHours.maxSessions}
+						<span className="text-muted-foreground">-</span>
+						<TimeField
+							label="Ends at"
+							value={offHours.end}
+							onChange={(end) => onChange({ end })}
 						/>
-						<Stat
-							label="Picked"
-							value={`${offHours.picked.length} / ${MAX_NIGHT_PICKS}`}
-							progress={offHours.picked.length / MAX_NIGHT_PICKS}
+					</Stat>
+					<Stat
+						label="Started tonight"
+						progress={started / offHours.maxSessions}
+					>
+						<span>{started}</span>
+						<span className="text-muted-foreground">/</span>
+						<CapField
+							value={offHours.maxSessions}
+							onChange={(maxSessions) => onChange({ maxSessions })}
 						/>
-					</div>
-				)}
+					</Stat>
+					<Stat
+						label="Picked"
+						progress={offHours.picked.length / MAX_NIGHT_PICKS}
+					>
+						{`${offHours.picked.length} / ${MAX_NIGHT_PICKS}`}
+					</Stat>
+				</div>
 			</div>
-			{lastEntry && (
+			{lastEvent && (
 				<div
 					className="relative mt-5 truncate border-t border-border/60 pt-3 text-xs text-muted-foreground"
-					title={lastEntry.event}
+					title={lastEvent}
 				>
 					<span className="font-medium text-soft-foreground">Latest</span>{" "}
-					{lastEntry.event}
+					{lastEvent}
 				</div>
 			)}
 		</section>
 	);
 }
 
+/** A label, a value line, and a bar under it when the value is a share of something. */
 function Stat({
 	label,
-	value,
 	progress,
+	children,
 }: {
 	label: string;
-	value: string;
 	progress?: number;
+	children: ReactNode;
 }) {
 	return (
-		<div className="w-36 rounded-xl border border-border/70 bg-background/40 px-4 py-3">
+		<div className="min-w-36 rounded-xl border border-border/70 bg-background/40 px-4 py-3">
 			<div className="text-[11px] font-medium uppercase tracking-[.06em] text-muted-foreground">
 				{label}
 			</div>
-			<div className="mt-1 text-lg font-semibold tabular-nums">{value}</div>
+			<div className="mt-1 flex h-7 items-center gap-1 text-lg font-semibold tabular-nums">
+				{children}
+			</div>
 			{progress !== undefined && (
 				<div className="mt-2 h-1 overflow-hidden rounded-full bg-muted">
 					<div
@@ -185,6 +252,73 @@ function Stat({
 				</div>
 			)}
 		</div>
+	);
+}
+
+/**
+ * A stat's figure that is also its field: reads as the number, and gets a
+ * border on hover so it's plain it can be changed. The browser's own picker
+ * and spinner are hidden; type, or use the arrow keys.
+ */
+const FIELD =
+	"h-7 rounded-md border border-transparent px-1 text-lg font-semibold tabular-nums text-foreground transition-colors hover:border-border hover:bg-background/60 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
+
+/** One end of the window, on the same 24-hour clock the runner keeps. */
+function TimeField({
+	label,
+	value,
+	onChange,
+}: {
+	label: string;
+	value: string;
+	onChange: (next: string) => void;
+}) {
+	return (
+		<Input
+			variant="ghost"
+			type="time"
+			aria-label={label}
+			title={label}
+			value={value}
+			// Chromium reports "" while a part of the time is still being typed.
+			onChange={(e) => e.target.value && onChange(e.target.value)}
+			className={cn(
+				FIELD,
+				"w-[4.5rem] [&::-webkit-calendar-picker-indicator]:hidden",
+			)}
+		/>
+	);
+}
+
+/** The most sessions a night may start. Only whole numbers in range are saved. */
+function CapField({
+	value,
+	onChange,
+}: {
+	value: number;
+	onChange: (next: number) => void;
+}) {
+	const label = `At most this many sessions a night (1 to ${MAX_NIGHT_SESSIONS})`;
+	return (
+		<Input
+			variant="ghost"
+			type="number"
+			aria-label={label}
+			title={label}
+			min={1}
+			max={MAX_NIGHT_SESSIONS}
+			step={1}
+			defaultValue={value}
+			onChange={(e) => {
+				const next = e.target.valueAsNumber;
+				if (Number.isInteger(next) && next >= 1 && next <= MAX_NIGHT_SESSIONS)
+					onChange(next);
+			}}
+			className={cn(
+				FIELD,
+				"w-11 text-center [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
+			)}
+		/>
 	);
 }
 

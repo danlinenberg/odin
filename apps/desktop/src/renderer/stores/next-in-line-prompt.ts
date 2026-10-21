@@ -47,6 +47,9 @@ const MAX_NIGHT_LOG = 300;
 /** A cap on picks, so the saved list stays a few hundred bytes. */
 export const MAX_NIGHT_PICKS = 20;
 
+/** The most sessions one night can be allowed to start. */
+export const MAX_NIGHT_SESSIONS = 50;
+
 export const DEFAULT_OFF_HOURS: OffHours = {
 	enabled: false,
 	start: "23:00",
