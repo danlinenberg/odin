@@ -550,7 +550,7 @@ describe("aws-instances", () => {
 		]);
 	});
 
-	test("tags narrow the list: each one a filter AWS applies", async () => {
+	test("tags narrow the list within Odin = host: each one a filter AWS applies", async () => {
 		answer = (name) =>
 			name === "DescribeInstancesCommand"
 				? describes(["running"])()
@@ -566,6 +566,7 @@ describe("aws-instances", () => {
 					Name: "instance-state-name",
 					Values: ["pending", "running", "stopping", "stopped"],
 				},
+				{ Name: "tag:Odin", Values: ["host"] },
 				{ Name: "tag:Owner", Values: ["dan"] },
 				{ Name: "tag:Component", Values: ["odin-remote"] },
 			],
