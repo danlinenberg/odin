@@ -1,5 +1,9 @@
 import type { Terminal as XTerm } from "@xterm/xterm";
-import { isHotkey, resolveHotkeyFromEvent } from "renderer/hotkeys";
+import {
+	hasModifier,
+	isHotkey,
+	resolveHotkeyFromEvent,
+} from "renderer/hotkeys";
 import {
 	shouldBubbleClipboardShortcut,
 	shouldSelectAllShortcut,
@@ -36,10 +40,6 @@ function resolvePlatform(options: TerminalKeyEventHandlerOptions): string {
 // sidesteps this by suppressing all super/Cmd chords on macOS before the
 // encoder runs (ghostty/src/input/key_encode.zig:534-545). We do the same via
 // shouldBubbleClipboardShortcut's Mac branch.
-function hasModifier(event: KeyboardEvent): boolean {
-	return event.metaKey || event.ctrlKey || event.altKey || event.shiftKey;
-}
-
 export function createTerminalKeyEventHandler(
 	terminal: XTerm,
 	options: TerminalKeyEventHandlerOptions = {},

@@ -7,6 +7,7 @@ export {
 	translateLogicalChord,
 } from "./binding";
 export {
+	hasModifier,
 	isTerminalReservedEvent,
 	matchesChord,
 	resolveHotkeyFromEvent,

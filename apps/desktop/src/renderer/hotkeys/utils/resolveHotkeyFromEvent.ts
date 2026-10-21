@@ -96,6 +96,15 @@ export function eventToChord(event: KeyboardEvent): string | null {
 	return [...mods, key].join("+");
 }
 
+/**
+ * True when Meta, Ctrl, Alt or Shift is held: the event is a chord, not a bare
+ * key. A terminal keeps bare keys (arrows, Enter, letters) even when the app
+ * binds them, and gives up only chords.
+ */
+export function hasModifier(event: KeyboardEvent): boolean {
+	return event.metaKey || event.ctrlKey || event.altKey || event.shiftKey;
+}
+
 /** True if `event` produces `chord` (tolerating modifier order / aliases). */
 export function matchesChord(event: KeyboardEvent, chord: string): boolean {
 	const eventChord = eventToChord(event);

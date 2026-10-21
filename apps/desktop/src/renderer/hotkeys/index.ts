@@ -26,6 +26,7 @@ export type {
 export {
 	bindingsEqual,
 	defaultModeForChord,
+	hasModifier,
 	isTerminalReservedEvent,
 	matchesChord,
 	parseBinding,
