@@ -36,7 +36,7 @@ import {
 	useDismissedActions,
 	withDismissals,
 } from "renderer/stores/dismissed-actions";
-import { useHostEvents } from "renderer/stores/host-connection";
+import { type HostEvent, useHostEvents } from "renderer/stores/host-connection";
 import { openUrl } from "renderer/stores/in-app-browser";
 import { useSessionView } from "renderer/stores/session-view";
 import { useTabsStore } from "renderer/stores/tabs/store";
@@ -2290,6 +2290,38 @@ const ItemView = memo(function ItemView({
 }, sameItemView);
 
 /**
+ * The connect step a remote pane moves to on a screen read, or undefined to
+ * leave it. `connecting` is the connect line on screen (remoteConnectLine),
+ * `screen` the pane's screen when there is one to read, `terminal` whether the
+ * pane is still live - the drawer shows an ended pane without one.
+ */
+export function nextHostStep({
+	last,
+	connecting,
+	screen,
+	terminal,
+}: {
+	last: HostEvent["kind"] | undefined;
+	connecting: string | undefined;
+	screen: string | null | undefined;
+	terminal: boolean;
+}): HostEvent["kind"] | undefined {
+	const drawn = !!screen && agentOnScreen(screen);
+	const ended = !terminal || (!!screen && !drawn);
+	if (connecting && !connecting.startsWith("Could not connect"))
+		return "connecting";
+	if (last === "connecting" && screen && !connecting) return "connected";
+	if (last === "connecting" && ended) return "failed";
+	if (last === "connected" && ended) return "disconnected";
+	// A read between repaints said Claude was gone, or the pane reconnected
+	// after a drop; Claude drawn again is connected again. Without this the
+	// red Disconnected row outlived the moment it was wrong about.
+	if ((last === "disconnected" || last === "failed") && drawn && !connecting)
+		return "connected";
+	return undefined;
+}
+
+/**
  * A live session as Claude Code looks in the Claude desktop app: prose,
  * collapsible tool rows, and a composer. Claude keeps running in its terminal
  * behind it - this types into the same PTY.
@@ -2426,18 +2458,13 @@ export function ChatView({
 	const hostEvent = useHostEvents((state) => state.byPane[paneId]);
 	useEffect(() => {
 		if (!host) return;
-		const { mark } = useHostEvents.getState();
-		const last = hostEvent?.kind;
-		const ended =
-			!onShowTerminal || (!!screenText && !agentOnScreen(screenText));
-		if (connecting && !connecting.startsWith("Could not connect"))
-			mark(paneId, "connecting", items.length);
-		else if (last === "connecting" && screenText && !connecting)
-			mark(paneId, "connected", items.length);
-		else if (last === "connecting" && ended)
-			mark(paneId, "failed", items.length);
-		else if (last === "connected" && ended)
-			mark(paneId, "disconnected", items.length);
+		const next = nextHostStep({
+			last: hostEvent?.kind,
+			connecting,
+			screen: screenText,
+			terminal: !!onShowTerminal,
+		});
+		if (next) useHostEvents.getState().mark(paneId, next, items.length);
 	}, [
 		host,
 		hostEvent?.kind,
