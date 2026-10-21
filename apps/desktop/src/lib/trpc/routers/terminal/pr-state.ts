@@ -227,17 +227,21 @@ export async function ghAsAnyAccount<T>(
 	connections: () => Promise<string[]> = exec === gh
 		? async () => (await githubAccountTokens()).map((a) => a.token)
 		: async () => [],
+	/** Each account's failure as it happens, for a caller that reports why. */
+	onError?: (error: unknown) => void,
 ): Promise<T | null> {
 	try {
 		return parse((await exec(args)).stdout);
-	} catch {
+	} catch (error) {
 		// Fall through to the connections and the other accounts.
+		onError?.(error);
 	}
 	for (const token of await connections().catch(() => [])) {
 		try {
 			return parse((await exec(args, { GH_TOKEN: token })).stdout);
-		} catch {
+		} catch (error) {
 			// Not this connection's repo either.
+			onError?.(error);
 		}
 	}
 	let authStatus: string;
@@ -255,11 +259,60 @@ export async function ghAsAnyAccount<T>(
 				account,
 			]);
 			return parse((await exec(args, { GH_TOKEN: token.trim() })).stdout);
-		} catch {
+		} catch (error) {
 			// Not this account's repo either.
+			onError?.(error);
 		}
 	}
 	return null;
+}
+
+/**
+ * What gh said when a call failed: its first stderr line minus the icon, else
+ * the error's own message (gh missing altogether).
+ */
+function ghSaid(error: unknown): string {
+	const stderr =
+		error && typeof error === "object" && "stderr" in error
+			? String((error as { stderr?: unknown }).stderr ?? "")
+			: "";
+	const line = stderr.split("\n").find((l) => l.trim());
+	if (line) return line.trim().replace(/^[!✓✗X-]\s+/, "");
+	return error instanceof Error ? error.message : String(error);
+}
+
+/** An account that can't see the repo at all, as GitHub and gh put it. */
+const NOT_FOUND = /could not resolve|not found|\b404\b/i;
+
+/**
+ * `gh pr close` on the PR, as whichever account can. The brief's right-click
+ * closes a PR a session opened that you've decided against - a duplicate, a
+ * second take on the same change - without a trip to the browser. The branch
+ * stays: the worktree sweep removes its checkout once the PR is closed, and it
+ * is the way back if you reopen. When no account could, the error is gh's own
+ * line - from the account that sees the PR ("can't be closed because it was
+ * already merged", no write access), not another account's not-found.
+ */
+export async function closePullRequest(
+	url: string,
+	exec: GhExec = gh,
+): Promise<{ closed: true } | { closed: false; error: string }> {
+	const errors: string[] = [];
+	const closed = await ghAsAnyAccount(
+		["pr", "close", url],
+		() => true,
+		exec,
+		undefined,
+		(error) => errors.push(ghSaid(error)),
+	);
+	if (closed) return { closed: true };
+	return {
+		closed: false,
+		error:
+			errors.find((error) => !NOT_FOUND.test(error)) ??
+			errors[0] ??
+			"gh is not signed in to an account that can see it",
+	};
 }
 
 let defaultAccounts: Promise<Set<string>> | null = null;

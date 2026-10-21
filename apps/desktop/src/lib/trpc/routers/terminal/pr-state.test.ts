@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
 	approvedBy,
+	closePullRequest,
 	firstParagraph,
 	type GhExec,
 	ghAsAnyAccount,
@@ -533,6 +534,74 @@ describe("ghAsAnyAccount", () => {
 		);
 		expect(out).toBe("ok");
 		expect(tokens).toEqual([undefined, "personal", "work"]);
+	});
+});
+
+/** A failed `gh` call as execFile rejects it: the message, and gh's stderr. */
+function ghFailure(stderr: string): Error & { stderr: string } {
+	return Object.assign(new Error(`Command failed: gh\n${stderr}`), { stderr });
+}
+
+describe("closePullRequest", () => {
+	const NOT_FOUND =
+		"GraphQL: Could not resolve to a PullRequest with the number of 6409. (repository.pullRequest)\n";
+	const MERGED =
+		"X Pull request imagenai/app-web-server#6409 (Brief: close) can't be closed because it was already merged\n";
+	/** gh with two accounts; `close` answers per GH_TOKEN. */
+	const ghWith =
+		(close: (token: string | undefined) => { stdout: string }): GhExec =>
+		async (args, env) => {
+			if (args[0] === "pr") return close(env?.GH_TOKEN);
+			if (args[1] === "status") return { stdout: STATUS };
+			if (args[1] === "token") return { stdout: `${args[3]}-token\n` };
+			throw new Error(`unexpected gh ${args.join(" ")}`);
+		};
+
+	test("closes as the account that can see the PR", async () => {
+		const calls: string[][] = [];
+		const exec: GhExec = async (args, env) => {
+			if (args[0] === "pr") calls.push(args);
+			return ghWith((token) => {
+				if (token === "dan-linenberg-imagenai-token") return { stdout: "" };
+				throw ghFailure(NOT_FOUND);
+			})(args, env);
+		};
+		expect(await closePullRequest(URL, exec)).toEqual({ closed: true });
+		expect(calls[0]).toEqual(["pr", "close", URL]);
+	});
+
+	test("says why in gh's words when no account can", async () => {
+		const exec = ghWith(() => {
+			throw ghFailure(MERGED);
+		});
+		expect(await closePullRequest(URL, exec)).toEqual({
+			closed: false,
+			error:
+				"Pull request imagenai/app-web-server#6409 (Brief: close) can't be closed because it was already merged",
+		});
+	});
+
+	test("the refusal from the account that sees the PR, not another's not-found", async () => {
+		// The active account can't see the repo; the work account can and refuses.
+		const exec = ghWith((token) => {
+			throw ghFailure(
+				token === "dan-linenberg-imagenai-token" ? MERGED : NOT_FOUND,
+			);
+		});
+		expect((await closePullRequest(URL, exec)).closed).toBe(false);
+		expect(await closePullRequest(URL, exec)).toMatchObject({
+			error: expect.stringContaining("already merged"),
+		});
+	});
+
+	test("no gh at all is still an answer", async () => {
+		const exec: GhExec = async () => {
+			throw Object.assign(new Error("spawn gh ENOENT"), { code: "ENOENT" });
+		};
+		expect(await closePullRequest(URL, exec)).toEqual({
+			closed: false,
+			error: "spawn gh ENOENT",
+		});
 	});
 });
 

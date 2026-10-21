@@ -518,6 +518,17 @@ export const createTerminalRouter = () => {
 			}),
 
 		/**
+		 * Odin fork: close a PR from the brief's right-click. Resolves to why
+		 * when it couldn't; the caller refetches the states so the chip flips.
+		 */
+		closePullRequest: publicProcedure
+			.input(z.object({ url: z.string().url() }))
+			.mutation(async ({ input }) => {
+				const { closePullRequest } = await import("./pr-state");
+				return closePullRequest(input.url);
+			}),
+
+		/**
 		 * Write briefs for the board's sessions in the background, so opening a
 		 * card shows one immediately instead of starting a 15s model call. Returns
 		 * at once; the queue drains one session at a time.

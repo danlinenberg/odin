@@ -1,3 +1,10 @@
+import {
+	ContextMenu,
+	ContextMenuContent,
+	ContextMenuItem,
+	ContextMenuTrigger,
+} from "@odin/ui/context-menu";
+import { toast } from "@odin/ui/sonner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@odin/ui/tooltip";
 import { cn } from "@odin/ui/utils";
 import { useState } from "react";
@@ -403,6 +410,77 @@ function HideButton({ onClick }: { onClick: () => void }) {
 	);
 }
 
+/** "odin #278" from a PR url, for a toast - the title runs long. */
+const shortPr = (url: string) =>
+	url.replace(
+		/^https:\/\/github\.com\/[\w.-]+\/([\w.-]+)\/pull\/(\d+).*$/,
+		"$1 #$2",
+	);
+
+/**
+ * Right-click on a PR: close it. A PR a session opened that you've decided
+ * against - a duplicate, a second take on the same change - is otherwise a
+ * trip to the browser. A merged or closed one can't be, so the item says that
+ * instead of vanishing and leaving the right-click dead.
+ */
+function PrMenu({
+	url,
+	state,
+	children,
+}: {
+	url: string;
+	/** OPEN / MERGED / CLOSED once GitHub has answered. */
+	state?: string | null;
+	children: React.ReactNode;
+}) {
+	const utils = electronTrpc.useUtils();
+	const name = shortPr(url);
+	const close = electronTrpc.terminal.closePullRequest.useMutation({
+		onSuccess: (result) => {
+			if (!result.closed) {
+				toast.error(`Couldn't close ${name}`, { description: result.error });
+				return;
+			}
+			toast.success(`Closed ${name}`);
+			// Every brief's states, not this panel's alone: the chip reads
+			// "closed" and the once-a-minute poll on it stops.
+			void utils.terminal.pullRequestStates.invalidate();
+		},
+		onError: (error) =>
+			toast.error(`Couldn't close ${name}`, { description: error.message }),
+	});
+	const final = state === "MERGED" || state === "CLOSED";
+	const label =
+		state === "MERGED"
+			? "Already merged"
+			: state === "CLOSED"
+				? "Already closed"
+				: close.isPending
+					? "Closing…"
+					: "Close pull request";
+	return (
+		<ContextMenu>
+			{/* Stop here: a card around the brief has a right-click menu of its own. */}
+			<ContextMenuTrigger
+				asChild
+				onContextMenu={(event) => event.stopPropagation()}
+			>
+				{children}
+			</ContextMenuTrigger>
+			<ContextMenuContent className="w-[190px]">
+				<ContextMenuItem
+					variant={final ? "default" : "destructive"}
+					disabled={final || close.isPending}
+					onSelect={() => close.mutate({ url })}
+					className="text-[12px]"
+				>
+					{label}
+				</ContextMenuItem>
+			</ContextMenuContent>
+		</ContextMenu>
+	);
+}
+
 /** "Slack thread" or "Slack threads", counting the found one and yours. */
 function plural(label: string, found: unknown, mine: unknown[]): string {
 	return (found ? 1 : 0) + mine.length > 1 ? `${label}s` : label;
@@ -773,7 +851,7 @@ export function SessionBrief({
 		]
 			.filter(Boolean)
 			.join(" · ");
-		return (
+		const row = (
 			<div key={url} className="group flex items-start gap-1.5">
 				<Hover text={hoverFor(url, name)}>
 					<button
@@ -816,6 +894,13 @@ export function SessionBrief({
 					×
 				</button>
 			</div>
+		);
+		return linkKind(url) === "pr" ? (
+			<PrMenu key={url} url={url} state={prStates?.[url]?.state}>
+				{row}
+			</PrMenu>
+		) : (
+			row
 		);
 	};
 
@@ -897,22 +982,28 @@ export function SessionBrief({
 									{repo.split("/").pop()}
 								</div>
 								{repoPrs.map((pr) => (
-									<div key={pr.url} className="group flex items-center gap-1.5">
-										<Hover text={hoverFor(pr.url)}>
-											<button
-												type="button"
-												onClick={() => openUrl(pr.url)}
-												className="flex min-w-0 items-center gap-1.5 text-left text-[12px] text-link hover:underline"
-											>
-												<span className="truncate">
-													{prLabel(pr, prStates?.[pr.url]?.title)}
-												</span>
-												<StateChip status={prStates?.[pr.url]} />
-												<ChecksChip status={prStates?.[pr.url] ?? null} />
-											</button>
-										</Hover>
-										<HideButton onClick={() => hide(pr.url)} />
-									</div>
+									<PrMenu
+										key={pr.url}
+										url={pr.url}
+										state={prStates?.[pr.url]?.state}
+									>
+										<div className="group flex items-center gap-1.5">
+											<Hover text={hoverFor(pr.url)}>
+												<button
+													type="button"
+													onClick={() => openUrl(pr.url)}
+													className="flex min-w-0 items-center gap-1.5 text-left text-[12px] text-link hover:underline"
+												>
+													<span className="truncate">
+														{prLabel(pr, prStates?.[pr.url]?.title)}
+													</span>
+													<StateChip status={prStates?.[pr.url]} />
+													<ChecksChip status={prStates?.[pr.url] ?? null} />
+												</button>
+											</Hover>
+											<HideButton onClick={() => hide(pr.url)} />
+										</div>
+									</PrMenu>
 								))}
 							</div>
 						))}
