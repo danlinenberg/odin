@@ -17,8 +17,24 @@ export const adminLogin = (host: HostLogin): HostLogin => ({
 	user: host.adminUser || host.user,
 });
 
-/** An SSH connection to the host over SSM, with a one-time key. */
+/**
+ * An SSH connection to the host over SSM, with a one-time key. A host too busy
+ * to finish the handshake in time gets two more tries, 10s apart.
+ */
 export async function connectHost(host: HostLogin): Promise<Client> {
+	for (let attempt = 1; ; attempt++) {
+		try {
+			return await connectOnce(host);
+		} catch (err) {
+			const level = (err as { level?: string }).level;
+			const handshake = level === "client-timeout" || level === "client-socket";
+			if (!handshake || attempt === 3) throw err;
+			await new Promise((resolve) => setTimeout(resolve, 10_000));
+		}
+	}
+}
+
+async function connectOnce(host: HostLogin): Promise<Client> {
 	const target = {
 		instanceId: host.instanceId,
 		profile: host.profile,
@@ -40,7 +56,7 @@ export async function connectHost(host: HostLogin): Promise<Client> {
 			sock,
 			username: host.user,
 			privateKey: key.private,
-			readyTimeout: 30_000,
+			readyTimeout: 60_000,
 		});
 	});
 	return client;

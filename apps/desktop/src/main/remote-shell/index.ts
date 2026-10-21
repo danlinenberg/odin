@@ -252,7 +252,7 @@ async function login(
 			sock,
 			username: spec.user,
 			privateKey: key.private,
-			readyTimeout: 30_000,
+			readyTimeout: 60_000,
 			// A connection that died quietly (Wi-Fi changed, the Mac slept) ends
 			// within 30s, so the pane reconnects instead of hanging on it.
 			keepaliveInterval: 10_000,
