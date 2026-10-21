@@ -27,6 +27,7 @@ import { createProjectsRouter } from "./projects";
 import { createRemoteHostRouter } from "./remote-host";
 import { createReposRouter } from "./repos";
 import { createResourceMetricsRouter } from "./resource-metrics";
+import { createSessionFilesRouter } from "./session-files";
 import { createSettingsRouter } from "./settings";
 import { createSkillsRouter } from "./skills";
 import { createSlackRouter } from "./slack";
@@ -71,6 +72,7 @@ export const createAppRouter = (getWindow: () => BrowserWindow | null) => {
 		settings: createSettingsRouter(),
 		phone: createPhoneRouter(),
 		skills: createSkillsRouter(),
+		sessionFiles: createSessionFilesRouter(),
 		system: createSystemRouter(),
 		config: createConfigRouter(),
 		device: createDeviceRouter(),

@@ -81,9 +81,7 @@ describe("insertFile", () => {
 	});
 
 	test("quotes a path with a space in it", () => {
-		expect(insertFile("@my", "docs/my notes.md")).toBe(
-			'@"docs/my notes.md" ',
-		);
+		expect(insertFile("@my", "docs/my notes.md")).toBe('@"docs/my notes.md" ');
 	});
 
 	test("keeps what was typed before", () => {

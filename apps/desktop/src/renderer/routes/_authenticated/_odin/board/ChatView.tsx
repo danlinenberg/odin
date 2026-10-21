@@ -56,6 +56,7 @@ import {
 } from "shared/odin-screen-status";
 import { typedText } from "shared/typed-text";
 import { CrowIcon } from "../components/CrowIcon";
+import { fileToken, insertFile, matchFiles } from "../components/file-picker";
 import {
 	BUILT_IN_COMMANDS,
 	enterPicks,
@@ -3164,6 +3165,7 @@ export function ChatView({
 							placeholder={placeholder}
 							dropRef={dropRef}
 							dragging={dragging}
+							filesCwd={startCwd ?? cwd}
 						/>
 					)}
 				</>
@@ -3178,6 +3180,7 @@ export function ChatView({
 					placeholder="Reply to resume the session"
 					dropRef={dropRef}
 					dragging={dragging}
+					filesCwd={startCwd ?? cwd}
 				/>
 			) : (
 				<div className="border-t border-border px-5 py-2 text-center text-[11.5px] text-muted-foreground">
@@ -3332,6 +3335,7 @@ function Composer({
 	onSend,
 	dropRef,
 	dragging,
+	filesCwd,
 }: {
 	paneId: string;
 	working: boolean;
@@ -3346,6 +3350,8 @@ function Composer({
 	/** The view's drop zone hands dropped files here. */
 	dropRef: { current?: (files: File[]) => void };
 	dragging: boolean;
+	/** The session's checkout: `@` lists its files. */
+	filesCwd?: string | null;
 }) {
 	const [draft, setDraft] = useState(() => draftFor(paneId));
 	useEffect(
@@ -3418,9 +3424,38 @@ function Composer({
 		() => (token === undefined || menuClosed ? [] : matchSkills(skills, token)),
 		[skills, token, menuClosed],
 	);
-	const activeIndex = Math.min(selected, Math.max(matches.length - 1, 0));
-	const pickSkill = (name: string) => {
-		setDraft((text) => insertSkill(text, name));
+	// Type `@` and the checkout's files are searchable; picking one fills in
+	// `@path `, which Claude Code reads as "look at this file". A session on
+	// the remote host has its files there, so it gets no list.
+	const remote = useTabsStore((s) => !!s.panes[paneId]?.odinRemote);
+	const fileCwd = remote ? undefined : (filesCwd ?? undefined);
+	const atToken = bash || !fileCwd ? undefined : fileToken(draft);
+	const { data: files = [] } = electronTrpc.sessionFiles.list.useQuery(
+		{ cwd: fileCwd ?? "" },
+		{ enabled: atToken !== undefined, staleTime: 30_000 },
+	);
+	const options = useMemo(() => {
+		if (menuClosed) return [];
+		if (atToken !== undefined)
+			return matchFiles(files, atToken).map((path) => ({
+				key: path,
+				label: path.slice(path.lastIndexOf("/") + 1),
+				detail: path.slice(0, path.lastIndexOf("/") + 1),
+				insert: (text: string) => insertFile(text, path),
+				enterPicks: true,
+			}));
+		return matches.map((skill) => ({
+			key: skill.name,
+			label: `/${skill.name}`,
+			detail: skill.description,
+			insert: (text: string) => insertSkill(text, skill.name),
+			// Enter only picks a name you were typing.
+			enterPicks: enterPicks(skill.name, token ?? ""),
+		}));
+	}, [menuClosed, atToken, files, matches, token]);
+	const activeIndex = Math.min(selected, Math.max(options.length - 1, 0));
+	const pick = (option: (typeof options)[number]) => {
+		setDraft(option.insert);
 		setSelected(0);
 	};
 	useEffect(() => inputRef.current?.focus(), []);
@@ -3487,18 +3522,23 @@ function Composer({
 					dragging && "border-primary bg-primary/10",
 				)}
 			>
-				{matches.length > 0 && (
+				{options.length > 0 && (
 					<div className="absolute inset-x-0 bottom-full mb-1.5 overflow-hidden rounded-[10px] border border-border bg-popover shadow-[0_12px_40px_rgba(0,0,0,0.5)]">
 						<div className="max-h-[240px] overflow-y-auto py-1">
-							{matches.map((skill, index) => (
+							{options.map((option, index) => (
 								<button
-									key={skill.name}
+									key={option.key}
 									type="button"
+									ref={
+										index === activeIndex
+											? (el) => el?.scrollIntoView({ block: "nearest" })
+											: undefined
+									}
 									onMouseEnter={() => setSelected(index)}
 									// The textarea keeps focus: mousedown fires before blur.
 									onMouseDown={(event) => {
 										event.preventDefault();
-										pickSkill(skill.name);
+										pick(option);
 									}}
 									className={cn(
 										"flex w-full items-baseline gap-2 px-3 py-1 text-left",
@@ -3506,10 +3546,10 @@ function Composer({
 									)}
 								>
 									<span className="shrink-0 font-mono text-[12.5px] font-semibold text-foreground">
-										/{skill.name}
+										{option.label}
 									</span>
 									<span className="min-w-0 flex-1 truncate text-[11.5px] text-muted-foreground">
-										{skill.description}
+										{option.detail}
 									</span>
 								</button>
 							))}
@@ -3556,8 +3596,8 @@ function Composer({
 								if (!event.repeat) voice.press();
 								return;
 							}
-							if (matches.length > 0 && !event.nativeEvent.isComposing) {
-								// While the skill menu is open it owns these keys.
+							if (options.length > 0 && !event.nativeEvent.isComposing) {
+								// While the menu is open it owns these keys.
 								if (event.key === "Escape") {
 									event.preventDefault();
 									setMenuClosed(true);
@@ -3566,22 +3606,18 @@ function Composer({
 								if (event.key === "ArrowDown" || event.key === "ArrowUp") {
 									event.preventDefault();
 									const step =
-										event.key === "ArrowDown" ? 1 : matches.length - 1;
-									setSelected((index) => (index + step) % matches.length);
+										event.key === "ArrowDown" ? 1 : options.length - 1;
+									setSelected((index) => (index + step) % options.length);
 									return;
 								}
 								if (
 									(event.key === "Enter" && !event.shiftKey) ||
 									event.key === "Tab"
 								) {
-									const match = matches[activeIndex];
-									// Tab always picks; Enter only a name you were typing.
-									if (
-										match &&
-										(event.key === "Tab" || enterPicks(match.name, token ?? ""))
-									) {
+									const option = options[activeIndex];
+									if (option && (event.key === "Tab" || option.enterPicks)) {
 										event.preventDefault();
-										pickSkill(match.name);
+										pick(option);
 										return;
 									}
 								}
@@ -3644,6 +3680,7 @@ function Composer({
 						<span className="text-[11px] text-faint-foreground">
 							Enter to send · {sendNowKeys} to send now · Shift+Enter for a new
 							line · ! for bash · / for skills
+							{fileCwd && " · @ for files"}
 							{canTalk && " · hold Space to talk"}
 						</span>
 					)}
