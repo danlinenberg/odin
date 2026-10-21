@@ -271,8 +271,8 @@ export function SpeechStatus({
 							/>
 						))}
 					</span>
-					<span className="text-soft-foreground">
-						Listening… tap the mic to stop
+					<span className="min-w-0 flex-1 text-soft-foreground">
+						{speech.live || "Listening… tap the mic to stop"}
 					</span>
 				</>
 			)}

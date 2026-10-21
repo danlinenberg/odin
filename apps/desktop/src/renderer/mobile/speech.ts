@@ -13,8 +13,14 @@ type Native = {
 		method: string,
 		options?: object,
 	) => Promise<{ text?: string } | undefined>;
+	addListener?: (
+		plugin: string,
+		event: string,
+		callback: (data: { text?: string }) => void,
+	) => { remove: () => void };
 };
-const native = (window as { Capacitor?: Native }).Capacitor?.nativePromise;
+const capacitor = (window as { Capacitor?: Native }).Capacitor;
+const native = capacitor?.nativePromise;
 
 /** The browser's recognizer; lib.dom types its events but not the class. */
 type Recognition = {
@@ -66,11 +72,17 @@ export function useSpeech(onText: (text: string) => void) {
 	// Between tapping stop and the words arriving: iOS finishes the last phrase.
 	const [transcribing, setTranscribing] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	/** The words so far, while you talk. */
+	const [live, setLive] = useState("");
+	const partial = useRef<{ remove: () => void } | null>(null);
 	const web = useRef<Recognition | null>(null);
 	// Set by finish(): the words go to its caller, not into the box.
 	const finishing = useRef<((text: string) => void) | null>(null);
 
 	const heard = (text: string) => {
+		partial.current?.remove();
+		partial.current = null;
+		setLive("");
 		setListening(false);
 		setTranscribing(false);
 		if (finishing.current) {
@@ -90,6 +102,11 @@ export function useSpeech(onText: (text: string) => void) {
 					const result = await native("OdinSpeech", "stop");
 					heard(result?.text ?? "");
 				} else {
+					partial.current?.remove();
+					partial.current =
+						capacitor?.addListener?.("OdinSpeech", "partial", (data) =>
+							setLive(data.text ?? ""),
+						) ?? null;
 					await native("OdinSpeech", "start", { words: vocabulary });
 					setListening(true);
 				}
@@ -110,13 +127,14 @@ export function useSpeech(onText: (text: string) => void) {
 		}
 		const recognition = new WebSpeech();
 		recognition.continuous = true;
-		recognition.interimResults = false;
+		recognition.interimResults = true;
 		recognition.lang = navigator.language;
 		let text = "";
 		recognition.onresult = (event) => {
 			text = Array.from(event.results, (result) => result[0]?.transcript ?? "")
 				.join(" ")
 				.replace(/\s+/g, " ");
+			setLive(text);
 		};
 		recognition.onerror = (event) => {
 			if (event.error !== "aborted" && event.error !== "no-speech")
@@ -142,6 +160,9 @@ export function useSpeech(onText: (text: string) => void) {
 			} catch {
 				return "";
 			} finally {
+				partial.current?.remove();
+				partial.current = null;
+				setLive("");
 				setListening(false);
 				setTranscribing(false);
 			}
@@ -153,5 +174,5 @@ export function useSpeech(onText: (text: string) => void) {
 		});
 	}
 
-	return { listening, transcribing, error, toggle, finish };
+	return { listening, transcribing, live, error, toggle, finish };
 }
