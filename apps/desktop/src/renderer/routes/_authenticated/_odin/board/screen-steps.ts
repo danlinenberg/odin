@@ -115,9 +115,13 @@ export function screenSteps(screen: string): ScreenStep[] {
 	return steps;
 }
 
-/** Text as it compares across the screen and the transcript: no Markdown marks, one space between words. */
+/**
+ * Text as it compares across the screen and the transcript: letters and
+ * digits only, one space between words. The TUI draws Markdown - `**bold**`
+ * as bold, `[a link](url)` as its words - so the marks can't take part.
+ */
 const plain = (text: string) =>
-	words(text.replace(/[*_`#>]+/g, "")).toLowerCase();
+	words(text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " "));
 
 /**
  * The steps the transcript has not recorded yet, so the chat view shows each

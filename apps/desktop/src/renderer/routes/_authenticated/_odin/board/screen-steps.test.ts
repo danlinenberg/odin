@@ -174,6 +174,21 @@ describe("unrecordedSteps", () => {
 			text: "no local memory and keep running in tmux.",
 		};
 		expect(unrecordedSteps([tail], [reply])).toEqual([]);
+		const linked = {
+			kind: "text" as const,
+			text: "Opened PR #12 (https://github.com/danlinenberg/odin/pull/12) for the sweep.",
+		};
+		expect(
+			unrecordedSteps(
+				[linked],
+				[
+					{
+						kind: "text",
+						text: "Opened [PR #12](https://github.com/danlinenberg/odin/pull/12) for the sweep.",
+					},
+				],
+			),
+		).toEqual([]);
 		expect(
 			unrecordedSteps([line], [{ kind: "text", text: "Something else." }]),
 		).toEqual([line]);
