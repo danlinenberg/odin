@@ -256,6 +256,23 @@ function OdinShell() {
 		maxWorkingAgents,
 	};
 	const load = metrics ? machineLoad(metrics, limits) : null;
+	// The remote host's pill: shown while sessions run there, from the
+	// readings their panes send every 30s, so it costs the host nothing more.
+	const remoteHostName = useTabsStore(
+		(s) =>
+			Object.values(s.panes).find((pane) => pane.odinRemote && !pane.completed)
+				?.odinRemote,
+	);
+	const remoteSessions = useTabsStore(
+		(s) =>
+			Object.values(s.panes).filter(
+				(pane) => pane.odinRemote && !pane.completed,
+			).length,
+	);
+	const { data: hostGate } = electronTrpc.remoteHost.launchGate.useQuery(
+		undefined,
+		{ enabled: !!remoteHostName, refetchInterval: 15_000 },
+	);
 	const disk =
 		load?.diskFreePercent != null ? ` · disk ${load.diskFreePercent}%` : "";
 	const diskFull =
@@ -687,6 +704,34 @@ function OdinShell() {
 									{load.diskFreePercent !== null &&
 										` Disk ${load.diskFreePercent}% free; new sessions wait below ${limits.minFreeDiskPercent}% (Settings → Sessions).`}
 									{diskFull && " Click to delete unused worktrees."}
+								</TooltipContent>
+							</Tooltip>
+						)}
+						{remoteHostName && (
+							<Tooltip delayDuration={300}>
+								<TooltipTrigger asChild>
+									<span
+										className={cn(
+											"cursor-default rounded-[6px] px-2 py-[3px] text-[11px] font-semibold tabular-nums",
+											hostGate?.frozen
+												? PILL.danger
+												: hostGate?.reason
+													? PILL.attention
+													: "bg-secondary text-muted-foreground",
+										)}
+									>
+										{hostGate?.frozen
+											? `${remoteHostName} out of memory · sessions frozen`
+											: hostGate?.reason
+												? `${hostGate.reason} · launches there wait`
+												: `${remoteHostName} · ${remoteSessions} ${remoteSessions === 1 ? "session" : "sessions"}${hostGate?.freeGb != null ? ` · ${hostGate.freeGb} GB free` : ""}`}
+									</span>
+								</TooltipTrigger>
+								<TooltipContent side="bottom" className="max-w-[280px]">
+									{hostGate?.frozen ??
+										(hostGate?.reason
+											? `${hostGate.reason} - new sessions there wait until that clears.`
+											: `${remoteSessions} session(s) on the remote host ${remoteHostName}.${hostGate?.freeGb != null ? ` It has ${hostGate.freeGb} GB free.` : " No memory reading yet."}`)}
 								</TooltipContent>
 							</Tooltip>
 						)}

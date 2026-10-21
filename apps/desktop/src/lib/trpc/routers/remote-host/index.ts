@@ -354,6 +354,10 @@ export const createRemoteHostRouter = () =>
 							Date.now(),
 						)
 					: null,
+				/** The host's free memory in GB, for the header's host pill. */
+				freeGb: reading
+					? Math.round(reading.memAvailableMb / 102.4) / 10
+					: null,
 				at: reading?.at ?? null,
 			};
 		}),
