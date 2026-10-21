@@ -8,6 +8,8 @@ interface ClaudeCommandState {
 	active: string;
 	/** `--model` for new sessions; "" leaves it to Claude's own default. */
 	model: string;
+	/** `--model` for the raven: Haiku unless his panel's picker says otherwise. */
+	crowModel: string;
 	/** New Session: park the prompt on My Tasks instead of starting it. */
 	toBacklog: boolean;
 	/** New task: start a session on it right away instead of just listing it. */
@@ -22,6 +24,7 @@ interface ClaudeCommandState {
 	setCommands: (commands: string[]) => void;
 	setActive: (command: string) => void;
 	setModel: (model: string) => void;
+	setCrowModel: (model: string) => void;
 	setToBacklog: (toBacklog: boolean) => void;
 	setStartNow: (startNow: boolean) => void;
 	setRemoteControl: (remoteControl: RemoteControlMode) => void;
@@ -41,6 +44,9 @@ export const CLAUDE_MODELS = [
 	{ value: "haiku", label: "Haiku" },
 ];
 
+/** What the raven runs on out of the box: quick and cheap, the alias always the latest Haiku. */
+export const CROW_DEFAULT_MODEL = "haiku";
+
 /**
  * Settings → Sessions: what Odin types instead of `claude` when it starts or
  * resumes a session. One machine can carry several Claude setups (a Bedrock
@@ -52,6 +58,7 @@ export const useClaudeCommand = create<ClaudeCommandState>()(
 			commands: [],
 			active: "",
 			model: "",
+			crowModel: CROW_DEFAULT_MODEL,
 			toBacklog: false,
 			startNow: false,
 			remoteControl: "off",
@@ -67,6 +74,7 @@ export const useClaudeCommand = create<ClaudeCommandState>()(
 			setCommands: (commands) => set({ commands }),
 			setActive: (active) => set({ active }),
 			setModel: (model) => set({ model }),
+			setCrowModel: (crowModel) => set({ crowModel }),
 			setToBacklog: (toBacklog) => set({ toBacklog }),
 			setStartNow: (startNow) => set({ startNow }),
 			setRemoteControl: (remoteControl) => set({ remoteControl }),
@@ -130,6 +138,11 @@ export function modelFlag(model: string): string {
 	return model && CLAUDE_MODELS.some((m) => m.value === model)
 		? ` --model ${model}`
 		: "";
+}
+
+/** The raven's ` --model x`: his pick, else Haiku - he always runs on a named one. */
+export function crowModelFlag(model: string): string {
+	return modelFlag(model) || modelFlag(CROW_DEFAULT_MODEL);
 }
 
 /** Whether this pane's session runs with Remote Control, per Settings → Remote. */

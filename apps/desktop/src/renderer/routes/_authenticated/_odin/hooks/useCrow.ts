@@ -10,6 +10,7 @@ import { electronTrpc } from "renderer/lib/electron-trpc";
 import * as terminalCache from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/v1-terminal-cache";
 import {
 	claudeWithFlags,
+	crowModelFlag,
 	pickClaudeCommand,
 	useClaudeCommand,
 } from "renderer/stores/claude-command";
@@ -54,16 +55,17 @@ export const crowPane = (panes: Record<string, Pane>): Pane | undefined =>
 	Object.values(panes).find((pane) => pane.odinTags?.includes(CROW_TAG));
 
 /**
- * Claude, told it is the crow and how to drive Odin. On Haiku - the alias is
- * always the latest one - whatever model the board's sessions use. Without
- * Claude's own task list, so "add a task" reaches Odin's backlog, and without
- * its auto-memory, so "always do X" becomes an Odin rule, not a memory file.
+ * Claude, told it is the crow and how to drive Odin. On Haiku - quick and
+ * cheap, the alias always the latest one - unless the panel's picker says
+ * otherwise; the board's sessions pick their own. Without Claude's own task
+ * list, so "add a task" reaches Odin's backlog, and without its auto-memory,
+ * so "always do X" becomes an Odin rule, not a memory file.
  */
-const crowCli = (args: string) => {
-	const { commands, active } = useClaudeCommand.getState();
+export const crowCli = (args = "") => {
+	const { commands, active, crowModel } = useClaudeCommand.getState();
 	return claudeWithFlags(
 		pickClaudeCommand(commands, active),
-		`--dangerously-skip-permissions --model haiku --disallowedTools TaskCreate,TaskGet,TaskList,TaskUpdate,TodoWrite --settings ${quote(JSON.stringify({ autoMemoryEnabled: false }))} --append-system-prompt ${quote(crowRule)} ${args}`,
+		`--dangerously-skip-permissions${crowModelFlag(crowModel)} --disallowedTools TaskCreate,TaskGet,TaskList,TaskUpdate,TodoWrite --settings ${quote(JSON.stringify({ autoMemoryEnabled: false }))} --append-system-prompt ${quote(crowRule)} ${args}`.trimEnd(),
 	);
 };
 
@@ -190,6 +192,39 @@ export function useCrow() {
 		if (daemon) void ensureWarm(daemon.sessions);
 	}, [daemon, warmId]);
 
+	/** Where a pane's Claude runs - `initialCwd` is cleared once its drawer opens. */
+	const placeOf = async (pane: Pane | undefined) => {
+		const workspaceId = useTabsStore
+			.getState()
+			.tabs.find((t) => t.id === pane?.tabId)?.workspaceId;
+		const cwd =
+			workspaceId &&
+			(pane?.initialCwd ??
+				(await utils.client.workspaces.get.query({ id: workspaceId }))
+					?.worktreePath);
+		return workspaceId && cwd ? { workspaceId, cwd } : undefined;
+	};
+
+	/** Claude back in the pane's PTY, on the conversation it wrote down. */
+	const resumeIn = async (
+		pane: Pane,
+		workspaceId: string,
+		cwd: string,
+		sessionId: string,
+	) => {
+		await utils.client.terminal.kill
+			.mutate({ paneId: pane.id })
+			.catch(() => {});
+		await utils.client.terminal.createOrAttach.mutate({
+			paneId: pane.id,
+			tabId: pane.tabId,
+			workspaceId,
+			cwd,
+			command: `cd ${quote(cwd)} && ${crowCli(`--resume ${sessionId}`)}`,
+			allowKilled: true,
+		});
+	};
+
 	/**
 	 * The open conversation, live. A PTY that died with the daemon comes back
 	 * with `claude --resume`. False for one Claude never wrote down - the
@@ -218,20 +253,45 @@ export function useCrow() {
 			if (!at || Date.now() - Date.parse(at) < STUCK_MS) return true;
 		}
 		const onDisk = transcript !== null;
-		if (!onDisk) return false;
-		await utils.client.terminal.kill
-			.mutate({ paneId: pane.id })
-			.catch(() => {});
-		await utils.client.terminal.createOrAttach.mutate({
-			paneId: pane.id,
-			tabId: pane.tabId,
-			workspaceId,
-			cwd,
-			command: `cd ${quote(cwd)} && ${crowCli(`--resume ${id}`)}`,
-			allowKilled: true,
-		});
+		if (!onDisk || !id) return false;
+		await resumeIn(pane, workspaceId, cwd, id);
 		return true;
 	};
+
+	// A new pick in the panel: the spare booted on the old model, so it goes
+	// and the keep-one-spare effect starts one on the new. An open
+	// conversation moves over with its history - a resume, as after a daemon
+	// restart; one Claude hasn't written down yet stays put until New chat.
+	const crowModel = useClaudeCommand((s) => s.crowModel);
+	const lastModel = useRef(crowModel);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: the pick is the trigger; the rest reads the store at call time
+	useEffect(() => {
+		if (lastModel.current === crowModel) return;
+		lastModel.current = crowModel;
+		void (async () => {
+			// A spare mid-start lands first, so its PTY isn't orphaned.
+			await spawning.current;
+			const store = useTabsStore.getState();
+			const spare = warmPane(store.panes);
+			if (spare) store.removePane(spare.id);
+			const open = crowPane(store.panes);
+			const id = open?.claudeSessionId;
+			if (!open || !id) return;
+			const place = await placeOf(open);
+			const onDisk = await utils.client.terminal.readClaudeTranscript
+				.query({ sessionId: id })
+				.then(
+					() => true,
+					() => false,
+				);
+			if (!place || !onDisk) return;
+			await resumeIn(open, place.workspaceId, place.cwd, id);
+			// Out of Working: a turn cut mid-way fires no Stop hook.
+			useTabsStore.getState().setPaneStatus(open.id, "idle");
+		})().catch((error) =>
+			console.warn("[main] crow: could not switch model", error),
+		);
+	}, [crowModel]);
 
 	/** Wait for Claude's idle prompt - a spare that only just started may still be booting. */
 	const waitForPrompt = async (pane: Pane, workspaceId: string) => {
@@ -267,18 +327,6 @@ export function useCrow() {
 		const question = raw.trim();
 		if (!question && files.length === 0) return false;
 		const { sessions } = await utils.client.terminal.listDaemonSessions.query();
-		/** Where a pane's Claude runs - `initialCwd` is cleared once its drawer opens. */
-		const placeOf = async (pane: Pane | undefined) => {
-			const workspaceId = useTabsStore
-				.getState()
-				.tabs.find((t) => t.id === pane?.tabId)?.workspaceId;
-			const cwd =
-				workspaceId &&
-				(pane?.initialCwd ??
-					(await utils.client.workspaces.get.query({ id: workspaceId }))
-						?.worktreePath);
-			return workspaceId && cwd ? { workspaceId, cwd } : undefined;
-		};
 		const open = crowPane(useTabsStore.getState().panes);
 		const openAt = await placeOf(open);
 		const followUp =

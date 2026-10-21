@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import {
 	claudeLaunch,
+	crowModelFlag,
 	modelFlag,
 	pickClaudeCommand,
 	remoteControlEnv,
@@ -23,6 +24,13 @@ test("modelFlag", () => {
 	expect(modelFlag("")).toBe("");
 	expect(modelFlag("opus")).toBe(" --model opus");
 	expect(modelFlag("opus; rm -rf ~")).toBe("");
+});
+
+test("crowModelFlag: the pick, Haiku for none or one it doesn't know", () => {
+	expect(useClaudeCommand.getInitialState().crowModel).toBe("haiku");
+	expect(crowModelFlag("opus")).toBe(" --model opus");
+	expect(crowModelFlag("")).toBe(" --model haiku");
+	expect(crowModelFlag("opus; rm -rf ~")).toBe(" --model haiku");
 });
 
 test("remoteControlFlag: always named [Odin] <task>", () => {

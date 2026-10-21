@@ -4,6 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { formatRelativeTime } from "renderer/lib/formatRelativeTime";
 import {
+	CLAUDE_MODELS,
+	CROW_DEFAULT_MODEL,
+	useClaudeCommand,
+} from "renderer/stores/claude-command";
+import {
 	type CrowChat as SavedChat,
 	useCrowChats,
 } from "renderer/stores/crow-chats";
@@ -46,6 +51,35 @@ const firstName = () => {
 	const user = window.App?.username ?? "";
 	return user && user[0].toUpperCase() + user.slice(1);
 };
+
+/** The raven's models: New Session's, less "Default model" - his own default is Haiku. */
+const CROW_MODELS = CLAUDE_MODELS.filter((option) => option.value);
+
+/**
+ * Which Claude the raven runs on. Haiku is quick and cheap; a bigger one
+ * for a question it gets wrong. Kept for later chats; useCrow moves the
+ * spare and an open conversation over.
+ */
+function CrowModelPicker() {
+	const model = useClaudeCommand((s) => s.crowModel);
+	const setModel = useClaudeCommand((s) => s.setCrowModel);
+	const known = CROW_MODELS.some((option) => option.value === model);
+	return (
+		<select
+			aria-label="Model"
+			title="The model the raven runs on. Haiku is quick and cheap; pick a bigger one for a hard question. Kept for later chats, and an open chat continues on it."
+			value={known ? model : CROW_DEFAULT_MODEL}
+			onChange={(event) => setModel(event.target.value)}
+			className="h-6 shrink-0 cursor-pointer rounded-md bg-foreground/10 pl-1.5 pr-1 text-[11.5px] text-muted-foreground outline-none [color-scheme:inherit] hover:text-foreground"
+		>
+			{CROW_MODELS.map((option) => (
+				<option key={option.value} value={option.value}>
+					{option.label}
+				</option>
+			))}
+		</select>
+	);
+}
 
 /**
  * The crow's panel: opens beside the button, Assistant-style - a greeting,
@@ -140,14 +174,17 @@ function CrowPanel({
 				{/* A row of its own: floated over the chat, scrolled text ran under them. */}
 				<div className="flex shrink-0 items-center justify-between px-2.5 pt-2.5">
 					{icon}
-					<button
-						type="button"
-						title="Start a fresh conversation - this one stays under Earlier chats"
-						onClick={() => endSession(conversation.id)}
-						className="rounded-md px-2 py-0.5 text-[11.5px] text-muted-foreground hover:bg-accent hover:text-foreground"
-					>
-						New chat
-					</button>
+					<div className="flex items-center gap-1.5">
+						<CrowModelPicker />
+						<button
+							type="button"
+							title="Start a fresh conversation - this one stays under Earlier chats"
+							onClick={() => endSession(conversation.id)}
+							className="rounded-md px-2 py-0.5 text-[11.5px] text-muted-foreground hover:bg-accent hover:text-foreground"
+						>
+							New chat
+						</button>
+					</div>
 				</div>
 				<CrowChat
 					pane={conversation}
@@ -166,10 +203,11 @@ function CrowPanel({
 		>
 			<div className="flex items-start gap-2.5 text-[14px] leading-snug">
 				{icon}
-				<div>
+				<div className="min-w-0 flex-1">
 					<div className="font-semibold">Hi{name && ` ${name}`},</div>
 					<div className="text-foreground/85">How can I help you today?</div>
 				</div>
+				<CrowModelPicker />
 			</div>
 			<div className="flex flex-col gap-2">
 				{SUGGESTIONS.map((ask) => (
