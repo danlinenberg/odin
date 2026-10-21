@@ -1,5 +1,10 @@
 import { describe, expect, it } from "bun:test";
-import { menuKeys, parseScreenAside, parseScreenMenu } from "./screen-menu";
+import {
+	menuKeys,
+	parseScreenAside,
+	parseScreenDialog,
+	parseScreenMenu,
+} from "./screen-menu";
 
 const BYPASS = `
  ──────────────────────────────────────────
@@ -131,5 +136,26 @@ describe("parseScreenAside", () => {
 	it("ignores a screen with no overlay", () => {
 		expect(parseScreenAside("❯ /btw what is 2+2\n")).toBeNull();
 		expect(parseScreenAside(BYPASS)).toBeNull();
+	});
+});
+
+describe("parseScreenDialog", () => {
+	it("returns the text of a dialog the menu reader can't parse", () => {
+		const odd = `
+──────────────────────────────────────────
+  Pick a theme
+
+  ❯ Dark mode
+  Enter to confirm
+──────────────────────────────────────────
+`;
+		expect(parseScreenMenu(odd)).toBeNull();
+		expect(parseScreenDialog(odd)).toBe(
+			"Pick a theme\n\n❯ Dark mode\nEnter to confirm",
+		);
+	});
+
+	it("ignores the input box", () => {
+		expect(parseScreenDialog(INPUT)).toBeNull();
 	});
 });

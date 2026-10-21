@@ -1,3 +1,5 @@
+import { odinScreenStatus } from "shared/odin-screen-status";
+
 /** A pick-one menu the Claude TUI is drawing right now. */
 export type ScreenMenu = {
 	/** The text above the options - the question, warning or command. */
@@ -107,6 +109,33 @@ export function parseScreenMenu(screen: string): ScreenMenu | null {
 		options,
 		selected,
 	};
+}
+
+/**
+ * A dialog the TUI is drawing that parseScreenMenu can't read: its text, so
+ * the chat view still says the terminal is asking instead of showing nothing.
+ */
+export function parseScreenDialog(screen: string): string | null {
+	if (odinScreenStatus(screen) !== "permission") return null;
+	const lines = screen.split("\n").map(unbox);
+	const at = lines.findLastIndex(
+		(line) => line.trimStart().startsWith(CURSOR) || FOOTER_RE.test(line),
+	);
+	// The input box's own `❯` sits right under its top rule.
+	if (at < 0 || RULE_RE.test(lines[at - 1] ?? "")) return null;
+	let first = at;
+	while (first > 0 && at - first < 15 && !RULE_RE.test(lines[first - 1] ?? ""))
+		first--;
+	let last = at;
+	while (last < lines.length - 1 && !RULE_RE.test(lines[last + 1] ?? ""))
+		last++;
+	const text = lines
+		.slice(first, last + 1)
+		.map((line) => line.trim())
+		.join("\n")
+		.replace(/\n{3,}/g, "\n\n")
+		.trim();
+	return text || null;
 }
 
 /** Arrow from the cursor to `target`, then Enter - every Select takes these. */

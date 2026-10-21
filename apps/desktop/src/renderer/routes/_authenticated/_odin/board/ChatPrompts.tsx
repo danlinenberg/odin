@@ -334,6 +334,33 @@ export function ScreenMenuCard({
 	);
 }
 
+/** A dialog the menu reader couldn't parse: its text, answered in the terminal. */
+export function ScreenDialogCard({
+	text,
+	onShowTerminal,
+}: {
+	text: string;
+	onShowTerminal: () => void;
+}) {
+	return (
+		<div className="rounded-xl border border-attention/35 bg-attention/[0.07] px-4 py-3">
+			<div className="mb-2 text-[11px] font-semibold uppercase tracking-[.08em] text-attention">
+				The terminal is asking
+			</div>
+			<div className="mb-3 max-h-[240px] select-text cursor-text overflow-y-auto whitespace-pre-wrap font-mono text-[12px] text-soft-foreground">
+				{text}
+			</div>
+			<button
+				type="button"
+				onClick={onShowTerminal}
+				className="rounded-lg border border-primary/60 bg-primary/10 px-3 py-1.5 text-[12.5px] font-medium text-foreground hover:bg-primary/15"
+			>
+				Answer in Terminal View
+			</button>
+		</div>
+	);
+}
+
 /** A `/btw` answer, mirrored from the screen; Close sends the Esc it waits for. */
 export function ScreenAsideCard({
 	aside,

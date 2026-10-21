@@ -83,6 +83,7 @@ import {
 	PlanCard,
 	QuestionCard,
 	ScreenAsideCard,
+	ScreenDialogCard,
 	ScreenMenuCard,
 } from "./ChatPrompts";
 import { collectRefs, linkify, withSchemes } from "./chat-links";
@@ -100,7 +101,11 @@ import {
 	useReadAloud,
 	useSpeaking,
 } from "./read-aloud";
-import { parseScreenAside, parseScreenMenu } from "./screen-menu";
+import {
+	parseScreenAside,
+	parseScreenDialog,
+	parseScreenMenu,
+} from "./screen-menu";
 import {
 	type ScreenStep,
 	type Settled,
@@ -2817,6 +2822,13 @@ export function ChatView({
 		() => (screenText ? parseScreenAside(screenText) : null),
 		[screenText],
 	);
+	const screenDialog = useMemo(
+		() =>
+			screenText && !screenMenu && !screenAside
+				? parseScreenDialog(screenText)
+				: null,
+		[screenText, screenMenu, screenAside],
+	);
 	// Claude draws its limit menu only when the turn hits the limit. A session
 	// reopened after that (a night run the board picked up in the morning)
 	// shows the message with no menu on screen, so offer to open it.
@@ -3414,6 +3426,17 @@ export function ChatView({
 										Answer in Terminal View instead
 									</button>
 								)}
+							</div>
+						</div>
+					)}
+					{screenDialog && onShowTerminal && (
+						<div className={cn("flex min-w-0 gap-3", ENTER)}>
+							<ReplyMark />
+							<div className="min-w-0 flex-1">
+								<ScreenDialogCard
+									text={screenDialog}
+									onShowTerminal={onShowTerminal}
+								/>
 							</div>
 						</div>
 					)}
