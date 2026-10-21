@@ -44,6 +44,31 @@ export interface RemoteSessionSpec {
 	 * one at each use, by this login.
 	 */
 	githubLogin?: string | null;
+	/**
+	 * A reconnect, set by the helper to when it started (ms): the prompt goes
+	 * in only when the conversation has not taken it since then.
+	 */
+	since?: number;
+}
+
+/**
+ * The spec a pane's helper reattaches with once its connection dropped. Claude
+ * keeps working in tmux on the host meanwhile; if tmux is gone by then, the
+ * conversation resumes instead of starting over. The prompt stays: the first
+ * try may have ended before Claude took it (a reply that resumed a session
+ * went missing this way), and the host drops it when the conversation
+ * already holds it. Never fresh: that was the first try's job.
+ */
+export function reconnectSpec(
+	spec: RemoteSessionSpec,
+	startedAt: number,
+): RemoteSessionSpec {
+	return {
+		...spec,
+		claudeArgs: `--resume ${spec.pane}`,
+		fresh: false,
+		since: startedAt,
+	};
 }
 
 export interface RemoteFile {
@@ -273,6 +298,35 @@ content = message.get("content")
 text = content if isinstance(content, str) else " ".join(str(b.get("text", "")) for b in content or [] if isinstance(b, dict))
 sys.exit(1 if "[Request interrupted" in text else 0)`;
 
+/**
+ * Exits 0 when the conversation (argv[1]) took the prompt (argv[2], base64)
+ * since argv[3] (ms): as a turn of its own, or queued for after the one
+ * running. A reconnect's attach asks before it puts the prompt in again. A
+ * minute's slack covers the laptop's clock against the host's.
+ */
+export const PROMPT_TAKEN = `import base64, datetime, glob, json, os, sys
+paths = glob.glob(os.path.expanduser(f"~/.claude/projects/*/{sys.argv[1]}.jsonl"))
+prompt = base64.b64decode(sys.argv[2]).decode().strip()
+since = int(sys.argv[3]) - 60000
+for line in open(paths[0]) if paths else []:
+    try:
+        entry = json.loads(line)
+        at = datetime.datetime.fromisoformat(entry["timestamp"].replace("Z", "+00:00")).timestamp() * 1000
+    except Exception:
+        continue
+    if at < since or entry.get("isMeta"):
+        continue
+    if entry.get("type") == "user":
+        content = (entry.get("message") or {}).get("content")
+    elif entry.get("type") == "queue-operation" and entry.get("operation") == "enqueue":
+        content = entry.get("content")
+    else:
+        continue
+    texts = [content] if isinstance(content, str) else [str(b.get("text", "")) for b in content or [] if isinstance(b, dict)]
+    if prompt in (t.strip() for t in texts) or "\\n".join(texts).strip() == prompt:
+        sys.exit(0)
+sys.exit(1)`;
+
 /** On the API key while the plan is limited, with the key pre-approved. */
 const USE_API_KEY_IF_LIMITED = `import json, os, sys, time
 try:
@@ -380,14 +434,23 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 	// a resume finds the same one by name, or, after Done removed it, gets it
 	// back from its branch, which Done keeps.
 	const worktree = `${repo}/.worktrees/${sh(worktreeDir(spec.pane))}`;
-	// A Resume with no prompt picks a cut-off turn back up; unquoted, so a
-	// finished one gets no argument at all.
+	// The prompt as Claude's last argument, in an array so a session with
+	// nothing to say gets no argument at all. A reconnect's attach puts it in
+	// only when the conversation has not taken it. A Resume with nothing to
+	// say picks a cut-off turn back up.
 	const resumed = spec.claudeArgs.match(/--resume (\S+)/)?.[1];
-	const prompt = spec.prompt
-		? ` "$(printf %s ${sh(Buffer.from(spec.prompt).toString("base64"))} | base64 -d)"`
-		: resumed
-			? ` $(python3 -c ${sh(CUT_OFF_TURN)} ${sh(resumed)} 2>/dev/null && echo Continue)`
-			: "";
+	const prompt = spec.prompt ? promptIn(spec) : "";
+	const promptLines = [
+		"p=()",
+		prompt && spec.since
+			? `${promptTaken(spec)} || p=(${prompt})`
+			: prompt
+				? `p=(${prompt})`
+				: "",
+		resumed
+			? `[ "\${#p[@]}" -eq 0 ] && python3 -c ${sh(CUT_OFF_TURN)} ${sh(resumed)} 2>/dev/null && p=(Continue)`
+			: "",
+	];
 	return [
 		MEMORY_LIMIT_SCRIPT,
 		`if [ -f ${sh(secretsDir)}/env ]; then set -a; . ${sh(secretsDir)}/env; set +a; fi`,
@@ -427,12 +490,22 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 		'fallback="$ODIN_FALLBACK_API_KEY"',
 		"unset ODIN_FALLBACK_API_KEY",
 		'export ODIN_RUN_PID=$$; [ -n "$fallback" ] && export ODIN_HAS_FALLBACK_KEY=1',
-		`claude --settings ${sh(hostSettings)} ${spec.claudeArgs}${prompt}`,
+		...promptLines,
+		`claude --settings ${sh(hostSettings)} ${spec.claudeArgs} "\${p[@]}"`,
 		`if [ -s "$HOME/.odin/resume-$$" ]; then s=$(cat "$HOME/.odin/resume-$$"); rm -f "$HOME/.odin/resume-$$"; ODIN_FALLBACK_API_KEY="$fallback" python3 -c ${sh(USE_API_KEY_IF_LIMITED)}; ANTHROPIC_API_KEY="$fallback" exec claude --settings ${sh(hostSettings)} --resume "$s" "Continue where you left off."; fi`,
 	]
 		.filter(Boolean)
 		.join("\n");
 }
+
+/** The prompt, base64 so no quoting can break it, decoded in the shell. */
+const promptB64 = (spec: RemoteSessionSpec) =>
+	sh(Buffer.from(spec.prompt ?? "").toString("base64"));
+const promptIn = (spec: RemoteSessionSpec) =>
+	`"$(printf %s ${promptB64(spec)} | base64 -d)"`;
+/** Exits 0 when the conversation took the prompt since the reconnect began. */
+const promptTaken = (spec: RemoteSessionSpec) =>
+	`python3 -c ${sh(PROMPT_TAKEN)} ${sh(spec.pane)} ${promptB64(spec)} ${sh(String(spec.since ?? 0))} 2>/dev/null`;
 
 /** Reattach, or start the session in tmux. Runs as `bash -lc` in the terminal channel. */
 export function attachScript(
@@ -442,10 +515,14 @@ export function attachScript(
 	const session = sh(tmuxSession(spec.pane));
 	const run = runScript(spec, secretsDir);
 	// A reply that resumes a session still up in tmux: pasted into its Claude,
-	// which the run script's prompt never reaches.
+	// which the run script's prompt never reaches. Behind the attach, once
+	// Claude is the pane's command: while the run script still sets up, keys
+	// land in its pty and come out in Claude as a second copy of the prompt
+	// the script hands it. A reconnect pastes only what Claude never took.
+	const paste = `printf %s ${promptB64(spec)} | base64 -d | tmux load-buffer -b odin-reply-$$ - && tmux paste-buffer -p -d -b odin-reply-$$ -t ${session} && sleep 0.5 && tmux send-keys -t ${session} Enter`;
 	const reply =
 		spec.prompt && /--resume\b/.test(spec.claudeArgs)
-			? `printf %s ${sh(Buffer.from(spec.prompt).toString("base64"))} | base64 -d | tmux load-buffer -b odin-reply - && tmux paste-buffer -p -d -b odin-reply -t ${session} && sleep 0.5 && tmux send-keys -t ${session} Enter; `
+			? `( for _ in $(seq 1 120); do [ "$(tmux display -p -t ${session} '#{pane_current_command}' 2>/dev/null)" = claude ] && break; sleep 1; done; sleep 2; ${spec.since ? `${promptTaken(spec)} || ` : ""}{ ${paste}; }; ) >/dev/null 2>&1 & `
 			: "";
 	return [
 		// tmux sizes a window to one attached client. Its default, `latest`, is

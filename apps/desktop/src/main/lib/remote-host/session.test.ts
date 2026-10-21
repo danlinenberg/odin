@@ -26,8 +26,10 @@ import {
 	linuxUserName,
 	MEMORY_LIMIT_SCRIPT,
 	mainCheckoutOf,
+	PROMPT_TAKEN,
 	parseClaudeLogin,
 	type RemoteSessionSpec,
+	reconnectSpec,
 	redeemTicket,
 	repoNameOf,
 	runScript,
@@ -67,7 +69,7 @@ describe("remote session scripts", () => {
 			`git clone 'https://github.com/danlinenberg/odin.git' "$HOME"/'repos'/'odin'`,
 		);
 		expect(run).toContain(
-			`\nclaude --settings ${sh(hostSettings)} --session-id abc "$(printf %s '${Buffer.from("Fix it's bug").toString("base64")}' | base64 -d)"`,
+			`\np=()\np=("$(printf %s '${Buffer.from("Fix it's bug").toString("base64")}' | base64 -d)")\nclaude --settings ${sh(hostSettings)} --session-id abc "\${p[@]}"\n`,
 		);
 	});
 
@@ -148,11 +150,14 @@ describe("remote session scripts", () => {
 	});
 
 	test("a Resume with no prompt says Continue only to a turn that was cut off", () => {
-		expect(
-			runScript({ ...spec, claudeArgs: "--resume abc", prompt: null }, "/d"),
-		).toContain(
-			`--resume abc $(python3 -c ${sh(CUT_OFF_TURN)} 'abc' 2>/dev/null && echo Continue)`,
+		const run = runScript(
+			{ ...spec, claudeArgs: "--resume abc", prompt: null },
+			"/d",
 		);
+		expect(run).toContain(
+			`\np=()\n[ "\${#p[@]}" -eq 0 ] && python3 -c ${sh(CUT_OFF_TURN)} 'abc' 2>/dev/null && p=(Continue)\n`,
+		);
+		expect(run).toContain(`--resume abc "\${p[@]}"\n`);
 		const home = mkdtempSync(join(tmpdir(), "odin-cut-"));
 		const cutOff = (...entries: object[]) => {
 			mkdirSync(join(home, ".claude/projects/-home-x"), { recursive: true });
@@ -503,4 +508,117 @@ test("each Odin user gets a Linux user name of their own", () => {
 	expect(linuxUserName("dan.l@x")).toBe("odin-dan-l-x");
 	expect(linuxUserName("")).toBe("odin-user");
 	expect(linuxUserName("a".repeat(40))).toHaveLength(32);
+});
+
+test("a reconnect keeps a reply the first try never delivered, and the host skips one Claude took", () => {
+	const again = reconnectSpec(
+		{ ...spec, pane: "abc", prompt: "go on", fresh: true },
+		1_700_000_000_000,
+	);
+	expect(again).toMatchObject({
+		claudeArgs: "--resume abc",
+		prompt: "go on",
+		fresh: false,
+		since: 1_700_000_000_000,
+	});
+	const b64 = Buffer.from("go on").toString("base64");
+	const taken = `python3 -c ${sh(PROMPT_TAKEN)} 'abc' '${b64}' '1700000000000' 2>/dev/null`;
+	// The first try: the prompt goes in as it is, and only a Resume with
+	// nothing to say asks whether the turn was cut off.
+	const first = runScript(
+		{ ...spec, pane: "abc", claudeArgs: "--resume abc", prompt: "go on" },
+		"/d",
+	);
+	expect(first).toContain(`\np=("$(printf %s '${b64}' | base64 -d)")\n`);
+	expect(first).toContain(
+		`[ "\${#p[@]}" -eq 0 ] && python3 -c ${sh(CUT_OFF_TURN)} 'abc' 2>/dev/null && p=(Continue)`,
+	);
+	expect(first).toContain(`--resume abc "\${p[@]}"`);
+	expect(first).not.toContain(PROMPT_TAKEN);
+	// A reconnect: the prompt goes in unless the conversation took it since
+	// the helper started.
+	const run = runScript(again, "/d");
+	expect(run).toContain(
+		`\n${taken} || p=("$(printf %s '${b64}' | base64 -d)")\n`,
+	);
+	// Pasted into a live tmux session: once its Claude is up, behind the same check.
+	const attach = attachScript(again, "/d");
+	expect(attach).toContain(
+		`[ "$(tmux display -p -t 'odin-abc' '#{pane_current_command}' 2>/dev/null)" = claude ] && break`,
+	);
+	expect(attach).toContain(
+		`${taken} || { printf %s '${b64}' | base64 -d | tmux load-buffer`,
+	);
+	expect(attach).toContain(
+		") >/dev/null 2>&1 & exec tmux attach -t 'odin-abc'",
+	);
+	expect(
+		attachScript(
+			{ ...spec, pane: "abc", claudeArgs: "--resume abc", prompt: "go on" },
+			"/d",
+		),
+	).not.toContain(PROMPT_TAKEN);
+});
+
+test("a prompt is taken once the conversation holds it as a turn or queued, from the reconnect's start", () => {
+	const home = mkdtempSync(join(tmpdir(), "odin-taken-"));
+	const b64 = Buffer.from(" go on\n").toString("base64");
+	const taken = (since: number, ...entries: object[]) => {
+		mkdirSync(join(home, ".claude/projects/-home-x"), { recursive: true });
+		writeFileSync(
+			join(home, ".claude/projects/-home-x/s.jsonl"),
+			`${entries.map((e) => JSON.stringify(e)).join("\n")}\nnot json\n`,
+		);
+		try {
+			execFileSync("python3", ["-c", PROMPT_TAKEN, "s", b64, String(since)], {
+				env: { HOME: home, PATH: process.env.PATH },
+			});
+			return true;
+		} catch {
+			return false;
+		}
+	};
+	// 1_700_000_000_000 is 2023-11-14T22:13:20Z.
+	const since = 1_700_000_000_000;
+	const user = (content: unknown, timestamp = "2023-11-14T22:13:21.000Z") => ({
+		type: "user",
+		timestamp,
+		message: { content },
+	});
+	try {
+		expect(taken(since, user("go on"))).toBe(true);
+		expect(
+			taken(since, user([{ type: "image" }, { type: "text", text: "go on" }])),
+		).toBe(true);
+		expect(taken(since, user("go on now"))).toBe(false);
+		expect(taken(since, user("go"))).toBe(false);
+		// The same words a while before the helper started are an earlier turn.
+		// A minute's slack covers the two clocks.
+		expect(taken(since, user("go on", "2023-11-14T22:11:00.000Z"))).toBe(false);
+		expect(taken(since, user("go on", "2023-11-14T22:12:30.000Z"))).toBe(true);
+		expect(taken(since, { ...user("go on"), isMeta: true })).toBe(false);
+		expect(taken(since, { type: "user", message: { content: "go on" } })).toBe(
+			false,
+		);
+		expect(
+			taken(since, {
+				type: "queue-operation",
+				operation: "enqueue",
+				timestamp: "2023-11-14T22:13:21.000Z",
+				content: "go on",
+			}),
+		).toBe(true);
+		expect(
+			taken(since, {
+				type: "queue-operation",
+				operation: "remove",
+				timestamp: "2023-11-14T22:13:21.000Z",
+				content: "go on",
+			}),
+		).toBe(false);
+		rmSync(join(home, ".claude"), { recursive: true });
+		expect(taken(since)).toBe(false);
+	} finally {
+		rmSync(home, { recursive: true, force: true });
+	}
 });

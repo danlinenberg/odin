@@ -18,6 +18,7 @@ import {
 	attachScript,
 	type RemoteFile,
 	type RemoteSessionSpec,
+	reconnectSpec,
 	sh,
 	stashScript,
 } from "../lib/remote-host/session";
@@ -320,6 +321,9 @@ function within<T>(ms: number, what: string, work: Promise<T>): Promise<T> {
 	});
 }
 
+/** The prompt's files reached the host. */
+let filesSent = false;
+
 /**
  * Attaches this terminal to the session's tmux on the host. Resolves false
  * when the session there ended or you detached from it (tmux exits 0), true
@@ -329,7 +333,6 @@ async function attach(
 	client: Client,
 	spec: RemoteSessionSpec,
 	env: string,
-	first: boolean,
 ): Promise<boolean> {
 	// A host that took the login but stalls after it (out of memory) left the
 	// pane on "connecting" for good: these steps had no timeout.
@@ -346,7 +349,11 @@ async function attach(
 		client.end();
 		throw err;
 	});
-	if (first && spec.files?.length) await upload(sftp, spec.files);
+	// Once: a try that ended before this point has them still to send.
+	if (!filesSent && spec.files?.length) {
+		await upload(sftp, spec.files);
+		filesSent = true;
+	}
 	const stopMirror = mirrorTranscript(client, sftp, spec);
 	const stopLoad = reportLoad(client, spec.instanceId);
 	const { stdin, stdout } = process;
@@ -420,6 +427,7 @@ const waitOrR = (ms: number) =>
 	});
 
 async function main(): Promise<void> {
+	const startedAt = Date.now();
 	const spec = JSON.parse(
 		Buffer.from(process.argv[2] ?? "", "base64").toString(),
 	) as RemoteSessionSpec;
@@ -471,21 +479,20 @@ async function main(): Promise<void> {
 	};
 	say(`connecting to ${spec.instanceId}...`);
 	let client = await connectOnce(spec, target).catch(reconnect);
-	// Claude keeps working in tmux on the host while the connection is down.
-	// If tmux is gone by then, the conversation resumes instead of starting over.
-	const again: RemoteSessionSpec = {
-		...spec,
-		claudeArgs: `--resume ${spec.pane}`,
-		prompt: null,
-		fresh: false,
-	};
+	// Claude keeps working in tmux on the host while the connection is down;
+	// the reconnect's spec resumes it, prompt and all (reconnectSpec).
+	const again = reconnectSpec(spec, startedAt);
 	for (let first = true; ; first = false) {
-		const dropped = await attach(
-			client,
-			first ? spec : again,
-			env,
-			first,
-		).catch(() => true);
+		// A try that failed says why: without it the pane read "connection
+		// lost" for a setup that never got going.
+		const dropped = await attach(client, first ? spec : again, env).catch(
+			(err: unknown) => {
+				say(
+					`could not attach: ${err instanceof Error ? err.message : String(err)}`,
+				);
+				return true;
+			},
+		);
 		if (!dropped) break;
 		say(`connection lost - reconnecting to ${spec.instanceId}...`);
 		client = await reconnect();
