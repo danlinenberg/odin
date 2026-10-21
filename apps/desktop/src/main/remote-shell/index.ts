@@ -10,6 +10,7 @@ import { appendFile, mkdir, stat, writeFile } from "node:fs/promises";
 import { connect } from "node:net";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
+import { EC2Client, RebootInstancesCommand } from "@aws-sdk/client-ec2";
 import { Client, type SFTPWrapper, utils } from "ssh2";
 import { hostPorts } from "../lib/remote-host/host-service";
 import {
@@ -19,7 +20,11 @@ import {
 	sh,
 	stashScript,
 } from "../lib/remote-host/session";
-import { openSsmStream, pushOneTimeKey } from "../lib/remote-host/ssm";
+import {
+	awsClientConfig,
+	openSsmStream,
+	pushOneTimeKey,
+} from "../lib/remote-host/ssm";
 
 const say = (text: string) => process.stderr.write(`\r\nOdin: ${text}\r\n`);
 
@@ -333,6 +338,26 @@ async function attach(
 	);
 }
 
+/** Waits `ms`, or until you press R; true when you did. */
+const waitOrR = (ms: number) =>
+	new Promise<boolean>((resolve) => {
+		const { stdin } = process;
+		const done = (pressed: boolean) => {
+			clearTimeout(timer);
+			stdin.off("data", onKey);
+			stdin.pause();
+			resolve(pressed);
+		};
+		const onKey = (key: Buffer) => {
+			if (key[0] === 3) process.exit(1);
+			if (key[0] === 0x72 || key[0] === 0x52) done(true);
+		};
+		const timer = setTimeout(() => done(false), ms);
+		stdin.setRawMode?.(true);
+		stdin.resume();
+		stdin.on("data", onKey);
+	});
+
 async function main(): Promise<void> {
 	const spec = JSON.parse(
 		Buffer.from(process.argv[2] ?? "", "base64").toString(),
@@ -345,17 +370,41 @@ async function main(): Promise<void> {
 	};
 	// A host busy enough to miss the SSH handshake answers a later try. The
 	// wait doubles up to 5 minutes, with jitter, so a host's panes don't all
-	// retry together and keep it busy.
+	// retry together and keep it busy. A host that keeps failing is usually
+	// wedged (out of memory); after 3 tries you can reboot it from here, with
+	// the AWS sign-in the pane already uses.
 	const reconnect = async (): Promise<Client> => {
-		for (let wait = 10_000; ; wait = Math.min(wait * 2, 300_000)) {
+		for (let wait = 10_000, tries = 1; ; tries++) {
 			try {
 				return await connectOnce(spec, target);
 			} catch (err) {
 				const delay = wait / 2 + Math.random() * (wait / 2);
+				const offer =
+					tries >= 3 ? ` (press R to reboot ${spec.instanceId})` : "";
 				say(
-					`could not reconnect: ${err instanceof Error ? err.message : String(err)} - trying again in ${Math.round(delay / 1000)}s`,
+					`could not reconnect: ${err instanceof Error ? err.message : String(err)} - trying again in ${Math.round(delay / 1000)}s${offer}`,
 				);
-				await new Promise((resolve) => setTimeout(resolve, delay));
+				wait = Math.min(wait * 2, 300_000);
+				const pressedR = offer
+					? await waitOrR(delay)
+					: await new Promise<false>((resolve) =>
+							setTimeout(() => resolve(false), delay),
+						);
+				if (!pressedR) continue;
+				try {
+					await new EC2Client(awsClientConfig(target)).send(
+						new RebootInstancesCommand({ InstanceIds: [spec.instanceId] }),
+					);
+					say(`rebooting ${spec.instanceId} - reconnecting once it is back...`);
+					// Its sessions restart there and resume; give it time to boot.
+					await new Promise((resolve) => setTimeout(resolve, 60_000));
+					wait = 10_000;
+					tries = 0;
+				} catch (rebootErr) {
+					say(
+						`could not reboot: ${rebootErr instanceof Error ? rebootErr.message : String(rebootErr)}`,
+					);
+				}
 			}
 		}
 	};
