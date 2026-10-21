@@ -9,6 +9,7 @@ import {
 	dueTone,
 	effectiveDue,
 	isDue,
+	isNote,
 	mergeUpstream,
 	useReminders,
 } from "./Reminders";
@@ -131,4 +132,57 @@ test("reminders stay with the profile they were set under", () => {
 	expect(useReminders.getState().reminders).toEqual({});
 	useReminders.getState().setProfile("work");
 	expect(Object.keys(useReminders.getState().reminders)).toEqual(["jira:A-1"]);
+});
+
+test("a standalone reminder needs no task: text and a day, stored with the rest", () => {
+	useReminders.getState().setProfile("notes");
+	const key = useReminders
+		.getState()
+		.addNote("  Call the bank  ", "2026-09-23", "15:30");
+	expect(isNote(key)).toBe(true);
+	const r = useReminders.getState().reminders[key];
+	expect(r).toEqual({ due: "2026-09-23", title: "Call the bank", at: "15:30" });
+	expect(r?.resume).toBeUndefined();
+	// Without a time it falls back to the shared notify time, like the rest.
+	const plain = useReminders.getState().addNote("Water plants", "2026-09-23");
+	expect(useReminders.getState().reminders[plain]?.at).toBeUndefined();
+	expect(plain).not.toBe(key);
+	// Done drops it like any other reminder.
+	useReminders.getState().clear(key);
+	expect(useReminders.getState().reminders[key]).toBeUndefined();
+	useReminders.getState().clear(plain);
+});
+
+test("a timed reminder fires at its own time on its day, not at notifyAt", () => {
+	const reminders = {
+		"note:a": { due: "2026-09-22", title: "a", at: "15:30" },
+		"note:b": { due: "2026-09-22", title: "b" },
+	};
+	const nine = new Date(2026, 8, 22, 9, 0).getTime();
+	const threeThirty = new Date(2026, 8, 22, 15, 30).getTime();
+	expect(dueToFire(reminders, {}, nine, "09:00")).toEqual(["note:b"]);
+	expect(dueToFire(reminders, {}, threeThirty, "09:00")).toEqual([
+		"note:a",
+		"note:b",
+	]);
+	// An early time beats a late notifyAt.
+	const early = { "note:c": { due: "2026-09-22", title: "c", at: "07:00" } };
+	expect(dueToFire(early, {}, new Date(2026, 8, 22, 7).getTime(), "09:00")).toEqual(
+		["note:c"],
+	);
+	// Missed its day: it nags with the others at notifyAt.
+	const tomorrow = new Date(2026, 8, 23, 9).getTime();
+	expect(dueToFire(reminders, {}, tomorrow, "09:00")).toEqual([
+		"note:a",
+		"note:b",
+	]);
+});
+
+test("a timed reminder is due on its day only once the clock reaches it", () => {
+	const nine = new Date(2026, 8, 22, 9, 0).getTime();
+	expect(isDue("2026-09-22", nine, "15:30")).toBe(false);
+	expect(isDue("2026-09-22", nine, "09:00")).toBe(true);
+	expect(isDue("2026-09-21", nine, "23:00")).toBe(true);
+	expect(isDue("2026-09-22", nine)).toBe(true);
+	expect(isDue("2026-09-23", nine)).toBe(false);
 });

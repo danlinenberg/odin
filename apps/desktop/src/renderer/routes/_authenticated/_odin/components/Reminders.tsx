@@ -18,6 +18,11 @@ export interface Reminder {
 	due: string;
 	/** Kept with the date so a reminder can name its row without its feed. */
 	title: string;
+	/**
+	 * Local `HH:MM` it fires at on its day, instead of the shared `notifyAt`.
+	 * Set on a standalone reminder (see `addNote`), which has no row to open.
+	 */
+	at?: string;
 	/** Set by "Remind me" on a board session: what to resume when it's due. */
 	resume?: {
 		sessionId: string;
@@ -43,6 +48,13 @@ function writeActive(
 	return { ...slice, byProfile: { ...s.byProfile, [id]: slice } };
 }
 
+/** Key prefix of a standalone reminder: just text and a day, no task or session. */
+export const NOTE_PREFIX = "note:";
+
+export function isNote(key: string): boolean {
+	return key.startsWith(NOTE_PREFIX);
+}
+
 /**
  * Reminders are per profile: a Work meeting has no business nagging on the
  * Private board. `reminders` and `notified` are the active profile's slice -
@@ -61,6 +73,8 @@ export const useReminders = create<{
 	setNotifyAt: (notifyAt: string) => void;
 	setDue: (key: string, due: string, title: string) => void;
 	setReminder: (key: string, reminder: Reminder) => void;
+	/** A standalone reminder - text, a day and an optional time. Returns its key. */
+	addNote: (title: string, due: string, at?: string) => string;
 	clear: (key: string) => void;
 	markNotified: (key: string, day: string) => void;
 }>()(
@@ -93,6 +107,19 @@ export const useReminders = create<{
 						notified: { ...s.notified, [key]: "" },
 					}),
 				),
+			addNote: (title, due, at) => {
+				const key = NOTE_PREFIX + crypto.randomUUID();
+				set((s) =>
+					writeActive(s, {
+						reminders: {
+							...s.reminders,
+							[key]: { due, title: title.trim(), ...(at ? { at } : {}) },
+						},
+						notified: { ...s.notified, [key]: "" },
+					}),
+				);
+				return key;
+			},
 			clear: (key) =>
 				set((s) => {
 					const { [key]: _due, ...reminders } = s.reminders;
@@ -194,6 +221,7 @@ function timeOf(now: number): string {
 /**
  * Due today or already past, not pinged yet today, and the clock is past
  * `notifyAt` - so a reminder for Thursday waits for Thursday 09:00, not 00:01.
+ * A reminder with its own `at` waits for that time on its day instead.
  */
 export function dueToFire(
 	reminders: Record<string, Reminder>,
@@ -201,17 +229,30 @@ export function dueToFire(
 	now: number,
 	notifyAt = "00:00",
 ): string[] {
-	if (timeOf(now) < notifyAt) return [];
 	const today = dayOf(now);
+	const clock = timeOf(now);
 	// Both sides are zero-padded `YYYY-MM-DD`, so string order is date order.
-	return Object.keys(reminders).filter(
-		(key) => (reminders[key]?.due ?? "") <= today && notified[key] !== today,
-	);
+	return Object.keys(reminders).filter((key) => {
+		const r = reminders[key];
+		if (!r || r.due > today || notified[key] === today) return false;
+		const waitFor = r.due === today && r.at ? r.at : notifyAt;
+		return clock >= waitFor;
+	});
 }
 
-/** Whether a date is today or past - what the pill counts and filters on. */
-export function isDue(due: string | null | undefined, now: number): boolean {
-	return !!due && due <= dayOf(now);
+/**
+ * Whether a date is today or past - what the pill counts and filters on. With
+ * `at`, today counts only once the clock has reached it.
+ */
+export function isDue(
+	due: string | null | undefined,
+	now: number,
+	at?: string,
+): boolean {
+	if (!due) return false;
+	const today = dayOf(now);
+	if (due < today) return true;
+	return due === today && (!at || timeOf(now) >= at);
 }
 
 /**
@@ -417,7 +458,7 @@ export function useDueReminders(upstream: UpstreamDue[]): void {
 			const note = new Notification(
 				firing.length > 1
 					? `${firing.length} reminders in Odin`
-					: only?.resume
+					: only?.resume || isNote(keys[0] ?? "")
 						? "Reminder from Odin"
 						: (only?.due ?? "") < today
 							? "Overdue in Odin"
