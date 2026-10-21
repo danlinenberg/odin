@@ -79,3 +79,88 @@ test("recent repos: newest first, no repeats, at most five", () => {
 		"/c",
 	]);
 });
+
+test("claudeLaunch: a shell wrapper hands the flags through to claude", () => {
+	// `zsh -ic 'claude'` - what `-c` gets after the quote is zsh's own
+	// `$0 $1 ...`, so the flags and the prompt have to ride on "$@".
+	useClaudeCommand.setState({
+		commands: ["zsh -ic 'claude'"],
+		active: "",
+		model: "",
+		remoteControl: "off",
+	});
+	expect(
+		claudeLaunch("Fix it", `--session-id abc "$(cat '/w/.odin/task-fix.md')"`),
+	).toBe(
+		`zsh -ic 'claude "$@"' zsh --dangerously-skip-permissions --session-id abc "$(cat '/w/.odin/task-fix.md')"`,
+	);
+	// Remote Control's unset runs inside the wrapper: its rc file would put
+	// the token right back.
+	useClaudeCommand.setState({ remoteControl: "all" });
+	expect(claudeLaunch("Fix it", "--resume abc")).toBe(
+		`zsh -ic 'unset CLAUDE_CODE_OAUTH_TOKEN ANTHROPIC_API_KEY && claude "$@"' zsh --dangerously-skip-permissions --remote-control '[Odin] Fix it' --resume abc`,
+	);
+	// Double quotes: the outer shell reads them, so "$@" is escaped through.
+	useClaudeCommand.setState({
+		commands: ['bash -lc "claude --enable-auto-mode"'],
+		remoteControl: "off",
+	});
+	expect(claudeLaunch("Fix it", "--resume abc")).toBe(
+		`bash -lc "claude --enable-auto-mode \\"\\$@\\"" bash --dangerously-skip-permissions --resume abc`,
+	);
+	// No quotes, and a path to the shell.
+	useClaudeCommand.setState({ commands: ["/bin/zsh -i -c claude"] });
+	expect(claudeLaunch("Fix it", "--resume abc")).toBe(
+		`/bin/zsh -i -c 'claude "$@"' /bin/zsh --dangerously-skip-permissions --resume abc`,
+	);
+	// A plain command, an alias, a path: as before.
+	for (const command of [
+		"claude",
+		"claude-work",
+		"~/bin/claude --enable-auto-mode",
+	]) {
+		useClaudeCommand.setState({ commands: [command] });
+		expect(claudeLaunch("Fix it", "--resume abc")).toBe(
+			`${command} --dangerously-skip-permissions --resume abc`,
+		);
+	}
+	useClaudeCommand.setState({ commands: [] });
+});
+
+test.skipIf(!Bun.which("bash"))(
+	"claudeLaunch: through a real shell wrapper, claude gets the session id and the prompt",
+	async () => {
+		// The wrapper's own rc file is what defines `claude` - the reason to
+		// start through one. It writes its argv down; the prompt comes from a
+		// file through "$(cat ...)", as useLaunchTaskSession passes it.
+		const home = `${process.env.TMPDIR ?? "/tmp"}/odin-claude-${crypto.randomUUID()}`;
+		const argv = `${home}/argv`;
+		await Bun.write(
+			`${home}/.bash_profile`,
+			`claude() { printf '%s\\n' "$@" > '${argv}'; }\n`,
+		);
+		const prompt = `${home}/task.md`;
+		const text = `Fix it: the "first" message, it's $HOME\nline two`;
+		await Bun.write(prompt, text);
+		useClaudeCommand.setState({
+			commands: ['bash -lc "claude"'],
+			active: "",
+			model: "",
+			remoteControl: "off",
+		});
+		const command = claudeLaunch(
+			"Fix it",
+			`--session-id abc "$(cat '${prompt}')"`,
+		);
+		useClaudeCommand.setState({ commands: [] });
+		const run = Bun.spawnSync(["sh", "-c", command], {
+			env: { PATH: process.env.PATH, HOME: home },
+			stdin: "ignore",
+			stderr: "pipe",
+		});
+		expect(run.exitCode).toBe(0);
+		expect(await Bun.file(argv).text()).toBe(
+			`--dangerously-skip-permissions\n--session-id\nabc\n${text}\n`,
+		);
+	},
+);

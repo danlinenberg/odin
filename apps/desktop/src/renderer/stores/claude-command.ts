@@ -98,10 +98,31 @@ export function pickClaudeCommand(commands: string[], active: string): string {
 	return commands.includes(active) ? active : (commands[0] ?? "claude");
 }
 
-/** `claude --dangerously-skip-permissions [--model x]`, through your chosen command. */
-function claudeCli(): string {
-	const { commands, active, model } = useClaudeCommand.getState();
-	return `${pickClaudeCommand(commands, active)} --dangerously-skip-permissions${modelFlag(model)}`;
+/**
+ * A command in Settings > Advanced can be a shell wrapper - `zsh -ic 'claude'`,
+ * so your rc file sets Claude up first. The flags used to go after the closing
+ * quote, where `-c` makes them the shell's own `$0 $1 ...`: claude started
+ * bare, with no --session-id and no prompt, and the task's first message was
+ * never sent. Hand them through the wrapper as its positional parameters -
+ * `zsh -ic 'claude "$@"' zsh <flags>` - with `env` (Remote Control's unset)
+ * inside too, since the wrapper's rc file would export the token right back.
+ * A plain command stays `claude <flags>`.
+ */
+const SHELL_WRAPPER =
+	/^((?:\S*\/)?(?:sh|bash|zsh|ksh|dash))((?:\s+--?[\w-]+)*\s+-\w*c)\s+(?:(['"])(.+)\3|([^'"\s]+))\s*$/;
+
+export function claudeWithFlags(
+	command: string,
+	flags: string,
+	env = "",
+): string {
+	const wrapper = command.match(SHELL_WRAPPER);
+	if (!wrapper) return `${env}${command} ${flags}`;
+	const [, shell, options, quoteMark, quoted, bare] = wrapper;
+	const quote = quoteMark ?? "'";
+	// Inside double quotes the outer shell would read "$@" itself.
+	const args = quote === '"' ? '\\"\\$@\\"' : '"$@"';
+	return `${shell}${options} ${quote}${env}${quoted ?? bare} ${args}${quote} ${shell} ${flags}`;
 }
 
 /** Only a known alias reaches the shell - the stored value is user-editable. */
@@ -156,9 +177,14 @@ export function claudeLaunch(
 	args: string,
 	paneId?: string,
 ): string {
+	const { commands, active, model } = useClaudeCommand.getState();
 	const remoteControl = remoteControlOn(paneId);
 	// "selected" drops the token on every launch: a session you switch on
 	// later, mid-run, can only connect if it started on the claude.ai login.
 	const login = useClaudeCommand.getState().remoteControl !== "off";
-	return `${remoteControlEnv(login)}${claudeCli()}${remoteControlFlag(name, remoteControl)} ${args}`;
+	return claudeWithFlags(
+		pickClaudeCommand(commands, active),
+		`--dangerously-skip-permissions${modelFlag(model)}${remoteControlFlag(name, remoteControl)} ${args}`,
+		remoteControlEnv(login),
+	);
 }

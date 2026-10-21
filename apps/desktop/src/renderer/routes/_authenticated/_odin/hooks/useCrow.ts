@@ -9,6 +9,7 @@ import {
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import * as terminalCache from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/v1-terminal-cache";
 import {
+	claudeWithFlags,
 	pickClaudeCommand,
 	useClaudeCommand,
 } from "renderer/stores/claude-command";
@@ -58,9 +59,12 @@ export const crowPane = (panes: Record<string, Pane>): Pane | undefined =>
  * Claude's own task list, so "add a task" reaches Odin's backlog, and without
  * its auto-memory, so "always do X" becomes an Odin rule, not a memory file.
  */
-const crowCli = () => {
+const crowCli = (args: string) => {
 	const { commands, active } = useClaudeCommand.getState();
-	return `${pickClaudeCommand(commands, active)} --dangerously-skip-permissions --model haiku --disallowedTools TaskCreate,TaskGet,TaskList,TaskUpdate,TodoWrite --settings ${quote(JSON.stringify({ autoMemoryEnabled: false }))} --append-system-prompt ${quote(crowRule)}`;
+	return claudeWithFlags(
+		pickClaudeCommand(commands, active),
+		`--dangerously-skip-permissions --model haiku --disallowedTools TaskCreate,TaskGet,TaskList,TaskUpdate,TodoWrite --settings ${quote(JSON.stringify({ autoMemoryEnabled: false }))} --append-system-prompt ${quote(crowRule)} ${args}`,
+	);
 };
 
 /** Long enough for a fresh spare to reach the daemon's session list. */
@@ -140,7 +144,7 @@ export function useCrow() {
 			tabId,
 			workspaceId,
 			cwd,
-			command: `cd ${quote(cwd)} && ${crowCli()} --session-id ${sessionId}`,
+			command: `cd ${quote(cwd)} && ${crowCli(`--session-id ${sessionId}`)}`,
 		});
 		return paneId;
 	};
@@ -223,7 +227,7 @@ export function useCrow() {
 			tabId: pane.tabId,
 			workspaceId,
 			cwd,
-			command: `cd ${quote(cwd)} && ${crowCli()} --resume ${id}`,
+			command: `cd ${quote(cwd)} && ${crowCli(`--resume ${id}`)}`,
 			allowKilled: true,
 		});
 		return true;
@@ -403,7 +407,7 @@ export function useCrow() {
 			tabId,
 			workspaceId,
 			cwd: chat.cwd,
-			command: `cd ${quote(chat.cwd)} && ${crowCli()} --resume ${chat.sessionId}`,
+			command: `cd ${quote(chat.cwd)} && ${crowCli(`--resume ${chat.sessionId}`)}`,
 		});
 		useCrowChats.getState().save({ ...chat, at: Date.now() });
 		// The panel shows a conversation once the daemon lists it alive.
