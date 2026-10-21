@@ -5,10 +5,12 @@
  * sends the host a plan: the window as absolute times, the cap, and each task
  * as a ready-to-run session script. A runner on the host (a systemd timer,
  * every minute, as the user's own Linux user) starts them one at a time in tmux, each
- * once the last one's turn ended (the turn-end hook's marker). When the
- * laptop wakes, Odin reads what the host started and puts those sessions on
- * the board.
+ * once the last one's turn ended (the turn-end hook's marker), and only while
+ * the host has room for one more (the rule the laptop applies before a launch
+ * there, in launch-gate.ts). When the laptop wakes, Odin reads what the host
+ * started and puts those sessions on the board.
  */
+import { MIN_HOST_FREE_MEMORY_SHARE } from "shared/launch-gate";
 import { sh } from "./session";
 import { adminLogin, connectHost, type HostLogin, runOnHost } from "./ssh";
 
@@ -44,6 +46,9 @@ export const NIGHT_RUNNER_PY = `import json, os, shutil, subprocess, tempfile, t
 
 HOME = os.path.expanduser("~/.odin/night")
 PLAN, STATE = HOME + "/plan.json", HOME + "/state.json"
+# The share of its memory this host must have free before one more session
+# starts here: the same share the laptop waits for before a launch to it.
+MIN_FREE_SHARE = ${MIN_HOST_FREE_MEMORY_SHARE}
 
 
 def load(path, default):
@@ -54,6 +59,38 @@ def load(path, default):
         return default
 
 
+def read(path):
+    try:
+        with open(path) as f:
+            return f.read()
+    except OSError:
+        return ""
+
+
+def kb(meminfo, field):
+    for line in meminfo.splitlines():
+        if line.startswith(field + ":"):
+            try:
+                return int(line.split()[1])
+            except (IndexError, ValueError):
+                return None
+    return None
+
+
+def hold_reason(meminfo, loadavg, cores):
+    """Why this host can't take a session now, or None. Numbers that can't be read don't hold it."""
+    total, free = kb(meminfo, "MemTotal"), kb(meminfo, "MemAvailable")
+    if total and free is not None and free < total * MIN_FREE_SHARE:
+        return "has %.1f GB free" % (free / 1048576)
+    try:
+        load1 = float(loadavg.split()[0])
+    except (IndexError, ValueError):
+        return None
+    if cores and load1 > cores:
+        return "is busy (load %.1f on %d cores)" % (load1, cores)
+    return None
+
+
 def session_name(session):
     return "odin-" + "".join(c if c.isalnum() or c in "_-" else "-" for c in session)[:60]
 
@@ -62,35 +99,48 @@ def alive(session):
     return subprocess.run(["tmux", "has-session", "-t", session_name(session)], capture_output=True).returncode == 0
 
 
-plan = load(PLAN, None)
-now = time.time()
-if not plan or not plan["from"] <= now < plan["to"]:
-    raise SystemExit
-state = load(STATE, {})
-if state.get("plan") != plan["id"] and state.get("night") != plan["from"]:
-    state = {"plan": plan["id"], "night": plan["from"], "started": []}
-state["plan"] = plan["id"]
-started = state["started"]
-if len(started) >= plan["cap"]:
-    raise SystemExit
-if started:
-    last = started[-1]["sessionId"]
-    if alive(last) and not os.path.exists(HOME + "/stopped/" + last):
-        raise SystemExit
-done = {s["key"] for s in started}
-task = next((t for t in plan["tasks"] if t["key"] not in done), None)
-if not task:
-    raise SystemExit
-secrets = tempfile.mkdtemp(prefix="odin.", dir="/dev/shm")
-shutil.copyfile(HOME + "/env", secrets + "/env")
-os.chmod(secrets + "/env", 0o600)
-with open(secrets + "/run.sh", "w") as f:
-    f.write(task["script"].replace("${SECRETS_DIR_PLACEHOLDER}", secrets))
-subprocess.run(["tmux", "new-session", "-d", "-s", session_name(task["sessionId"]), "bash " + secrets + "/run.sh"], check=True)
-started.append({"key": task["key"], "title": task["title"], "sessionId": task["sessionId"], "at": now})
-with open(STATE + ".new", "w") as f:
-    json.dump(state, f)
-os.replace(STATE + ".new", STATE)
+def main():
+    plan = load(PLAN, None)
+    now = time.time()
+    if not plan or not plan["from"] <= now < plan["to"]:
+        return
+    state = load(STATE, {})
+    if state.get("plan") != plan["id"] and state.get("night") != plan["from"]:
+        state = {"plan": plan["id"], "night": plan["from"], "started": []}
+    state["plan"] = plan["id"]
+    started = state["started"]
+    if len(started) >= plan["cap"]:
+        return
+    if started:
+        last = started[-1]["sessionId"]
+        if alive(last) and not os.path.exists(HOME + "/stopped/" + last):
+            return
+    done = {s["key"] for s in started}
+    task = next((t for t in plan["tasks"] if t["key"] not in done), None)
+    if not task:
+        return
+    # The sessions already on this host (panes that keep working while the
+    # laptop is away, the last task) share its memory with this one. One more
+    # while it is short has frozen the host and every session on it; the
+    # timer brings the runner back in a minute to look again.
+    reason = hold_reason(read("/proc/meminfo"), read("/proc/loadavg"), os.cpu_count())
+    if reason:
+        print("holding " + task["title"] + ": this host " + reason)
+        return
+    secrets = tempfile.mkdtemp(prefix="odin.", dir="/dev/shm")
+    shutil.copyfile(HOME + "/env", secrets + "/env")
+    os.chmod(secrets + "/env", 0o600)
+    with open(secrets + "/run.sh", "w") as f:
+        f.write(task["script"].replace("${SECRETS_DIR_PLACEHOLDER}", secrets))
+    subprocess.run(["tmux", "new-session", "-d", "-s", session_name(task["sessionId"]), "bash " + secrets + "/run.sh"], check=True)
+    started.append({"key": task["key"], "title": task["title"], "sessionId": task["sessionId"], "at": now})
+    with open(STATE + ".new", "w") as f:
+        json.dump(state, f)
+    os.replace(STATE + ".new", STATE)
+
+
+if __name__ == "__main__":
+    main()
 `;
 
 /** A host user's runner unit, without .service or .timer. */
