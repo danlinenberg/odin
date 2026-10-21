@@ -38,6 +38,8 @@ import {
 	LuChevronRight,
 	LuCircleCheck,
 	LuClock,
+	LuCloud,
+	LuCloudOff,
 	LuCopy,
 	LuEye,
 	LuEyeOff,
@@ -58,8 +60,6 @@ import {
 	LuRadioTower,
 	LuRepeat,
 	LuRotateCw,
-	LuServer,
-	LuServerOff,
 	LuSquareTerminal,
 	LuStar,
 	LuTerminal,
@@ -1562,25 +1562,25 @@ const HOST_MARK: Record<
 	{ Icon: IconType; ink: string; title: (host: string) => string }
 > = {
 	live: {
-		Icon: LuServer,
+		Icon: LuCloud,
 		ink: "text-success",
 		title: (host) =>
 			`Connected to ${host}, in tmux - it keeps going with this computer shut`,
 	},
 	connecting: {
-		Icon: LuServer,
+		Icon: LuCloud,
 		ink: "animate-pulse text-attention",
 		title: (host) => `Connecting to ${host}...`,
 	},
 	off: {
-		Icon: LuServerOff,
+		Icon: LuCloudOff,
 		ink: "text-danger",
 		title: (host) => `Not connected to ${host} - Resume connects again`,
 	},
 };
 
 /**
- * The server a session wears beside its title while it runs on a remote host:
+ * The cloud a session wears beside its title while it runs on a remote host:
  * green while connected to Claude there, yellow and pulsing while connecting,
  * red and struck through while not.
  */
