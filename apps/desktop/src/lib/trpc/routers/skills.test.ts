@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { collectSkills } from "./skills";
+import { collectSkills, withBundledSkills } from "./skills";
 
 function write(path: string, content: string): void {
 	mkdirSync(join(path, ".."), { recursive: true });
@@ -102,4 +102,23 @@ test("collectSkills finds a single-skill plugin whose SKILL.md is at its root", 
 	expect(collectSkills({ homeDir: home })).toEqual([
 		{ name: "get-pr-approved:get-pr-approved", description: "Get it approved" },
 	]);
+});
+
+test("withBundledSkills adds Claude Code's own skills, and a same-named skill of yours wins", () => {
+	const mine = { name: "simplify", description: "My own simplify" };
+	const skills = withBundledSkills([
+		{ name: "gdpr", description: "Audit tickets" },
+		mine,
+	]);
+	const names = skills.map((skill) => skill.name);
+	// /loop and /schedule ship inside the claude binary; no folder lists them.
+	expect(names).toContain("loop");
+	expect(names).toContain("schedule");
+	expect(names).toContain("gdpr");
+	expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
+	expect(new Set(names).size).toBe(names.length);
+	expect(skills.find((skill) => skill.name === "simplify")).toEqual(mine);
+	// Model-only skills can't be typed after a slash, so they stay out.
+	expect(names).not.toContain("keybindings-help");
+	expect(names).not.toContain("artifact-design");
 });

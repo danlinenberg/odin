@@ -13,7 +13,9 @@ import { publicProcedure, router } from "..";
 /**
  * Odin fork: the skills/slash-commands a launched `claude` session can use, so
  * the session composer can search them. Read from disk in the main process -
- * the renderer has no fs, and the CLI has no "list my skills" command.
+ * the renderer has no fs, and the CLI has no "list my skills" command. The
+ * skills built into Claude Code itself are on no disk at all, so they're a
+ * list here (BUNDLED_SKILLS).
  */
 export interface AgentSkill {
 	/** What you type after the slash. Plugin skills are `plugin:skill`. */
@@ -134,8 +136,92 @@ export function collectSkills(options?: { homeDir?: string }): AgentSkill[] {
 	return [...found.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/**
+ * The skills that ship inside Claude Code (/loop, /schedule, /code-review...).
+ * They live in the `claude` binary, not under ~/.claude, so the scan above
+ * never sees them and typing `/loop` found nothing. The labels are Claude
+ * Code's own menu descriptions. Model-only skills (artifact-design,
+ * keybindings-help) are left out: a slash can't invoke them.
+ */
+export const BUNDLED_SKILLS: AgentSkill[] = [
+	{
+		name: "artifact-capabilities",
+		description: "Runtime capabilities for published Artifacts",
+	},
+	{
+		name: "artifact-diagramming",
+		description: "Diagramming guidance for Artifacts",
+	},
+	{
+		name: "claude-api",
+		description: "Build and debug apps that use the Claude API",
+	},
+	{
+		name: "claude-in-chrome",
+		description: "Let Claude browse and interact with pages in your Chrome",
+	},
+	{
+		name: "code-review",
+		description: "Review the current diff or a PR for bugs and cleanups",
+	},
+	{ name: "dataviz", description: "Chart and dashboard design guidance" },
+	{
+		name: "fewer-permission-prompts",
+		description: "Pre-approve safe read-only commands based on your usage",
+	},
+	{
+		name: "init",
+		description: "Initialize a new CLAUDE.md file with codebase documentation",
+	},
+	{
+		name: "loop",
+		description:
+			"Repeat a prompt or command on an interval (e.g. /loop 5m /foo)",
+	},
+	{
+		name: "plugin-authoring",
+		description:
+			"Write a mod: a live pane, view or behaviour change in Claude Code",
+	},
+	{
+		name: "run",
+		description: "Launch this project's app to see your change working",
+	},
+	{
+		name: "schedule",
+		description: "Create and manage routines: cloud agents on a schedule",
+	},
+	{
+		name: "security-review",
+		description:
+			"Complete a security review of the pending changes on the current branch",
+	},
+	{
+		name: "simplify",
+		description: "Clean up the changed code without changing behavior",
+	},
+	{
+		name: "update-config",
+		description: "Change settings: hooks, permissions, environment variables",
+	},
+];
+
+/**
+ * The scanned skills plus the bundled ones the scan can't see. A skill of
+ * your own with a bundled name keeps its own entry, as in Claude Code.
+ */
+export function withBundledSkills(skills: AgentSkill[]): AgentSkill[] {
+	const names = new Set(skills.map((skill) => skill.name));
+	return [
+		...skills,
+		...BUNDLED_SKILLS.filter((skill) => !names.has(skill.name)),
+	].sort((a, b) => a.name.localeCompare(b.name));
+}
+
 export const createSkillsRouter = () => {
 	return router({
-		list: publicProcedure.query((): AgentSkill[] => collectSkills()),
+		list: publicProcedure.query((): AgentSkill[] =>
+			withBundledSkills(collectSkills()),
+		),
 	});
 };
