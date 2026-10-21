@@ -21,4 +21,10 @@ describe("odinGuide", () => {
 			/\*\*Row actions\*\*:.*\*\*Drop\*\*.*\*\*Done\*\*/,
 		);
 	});
+
+	it("sends a question about the graveyard to All's Done shelf", () => {
+		const all = odinGuide("graveyard");
+		expect(all).toContain("## All");
+		expect(all).toContain("Show what's Done");
+	});
 });

@@ -47,6 +47,7 @@ import { PersonChip } from "../components/PersonChip";
 import { effectiveDue, isDue, useReminders } from "../components/Reminders";
 import { TaskBox } from "../components/TaskBox";
 import { useActiveSessions } from "../hooks/useActiveSessions";
+import { useBacklogReview } from "../hooks/useBacklogReview";
 import { useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import {
@@ -66,6 +67,7 @@ import {
 	type Urgency,
 } from "./all-items";
 import { ruleLabel, useDropRules } from "./drop-rules";
+import { droppedWhy, putAwayWhy } from "./graveyard";
 import { revealRow, rowPlace } from "./reveal-row";
 import { nextSelection, visibleSelection } from "./selection";
 import { TaskDescription } from "./TaskDescription";
@@ -273,6 +275,14 @@ function AllFeedPage() {
 	const [shelf, setShelf] = useState(false);
 	// Undo on the last row hides its chip too: back to the queue, not a blank.
 	const showDone = shelf && recent.length > 0;
+	// The shelf is the graveyard: a row dropped by Review's sweep or a drop
+	// rule is Done in the store like any other, so it has to say so itself.
+	const profiles = useBacklogReview((s) => s.profiles);
+	const droppedBy = useMemo(() => droppedWhy(profiles), [profiles]);
+	const droppedCount = useMemo(
+		() => recent.filter((row) => putAwayWhy(row, droppedBy)).length,
+		[recent, droppedBy],
+	);
 	const readingKeys = useMemo(
 		() => new Set(reading.map((row) => row.key)),
 		[reading],
@@ -725,7 +735,7 @@ function AllFeedPage() {
 							<Toggle
 								checked={showDone}
 								onChange={setShelf}
-								label={`Show what's Done (${recent.length})`}
+								label={`Show what's Done${droppedCount > 0 ? " or Dropped" : ""} (${recent.length})`}
 							/>
 						)}
 						<DropRules />
@@ -1009,6 +1019,7 @@ function AllFeedPage() {
 						<DoneList
 							rows={recent}
 							verb="done"
+							dropped={droppedBy}
 							onOpen={(url) => openUrl(url)}
 							onUndo={undo}
 						/>
@@ -1490,59 +1501,75 @@ function TaskFields({
 	);
 }
 
-/** What was put away lately, newest first, as it looked then - with the way back. */
+/**
+ * What was put away lately, newest first, as it looked then - with the way
+ * back. A dropped row reads "dropped", why on hover, so done and dropped
+ * sit in one list and still tell apart.
+ */
 function DoneList({
 	rows,
 	verb,
+	dropped,
 	onOpen,
 	onUndo,
 }: {
 	rows: ReturnType<typeof useDone>["recent"];
 	verb: string;
+	/** Why each dropped row went, by key or link - see droppedWhy. */
+	dropped: ReadonlyMap<string, string>;
 	onOpen: (url: string) => void;
 	onUndo: (row: ReturnType<typeof useDone>["recent"][number]) => void;
 }) {
 	return (
 		<>
-			{rows.map((row) => (
-				<div key={row.key} className={FEED_ROW}>
-					<div className="flex items-center gap-3">
-						<span className="w-[68px] shrink-0 truncate text-[11px] font-semibold text-muted-foreground">
-							{row.source}
-						</span>
-						<span
-							dir="auto"
-							className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground"
-						>
-							{emojify(row.title)}
-						</span>
-						<span className="shrink-0 text-[11px] text-muted-foreground">
-							{verb}{" "}
-							{new Date(row.at).toLocaleDateString(undefined, {
-								month: "short",
-								day: "numeric",
-							})}
-						</span>
-						{row.url && /^https?:\/\//.test(row.url) && (
+			{rows.map((row) => {
+				const why = putAwayWhy(row, dropped);
+				return (
+					<div key={row.key} className={FEED_ROW}>
+						<div className="flex items-center gap-3">
+							<span className="w-[68px] shrink-0 truncate text-[11px] font-semibold text-muted-foreground">
+								{row.source}
+							</span>
+							<span
+								dir="auto"
+								className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground"
+							>
+								{emojify(row.title)}
+							</span>
+							<span
+								title={why ?? undefined}
+								className={cn(
+									"shrink-0 text-[11px]",
+									why ? "text-danger" : "text-muted-foreground",
+								)}
+							>
+								{why ? "dropped" : verb}{" "}
+								{new Date(row.at).toLocaleDateString(undefined, {
+									month: "short",
+									day: "numeric",
+								})}
+							</span>
+							{row.url && /^https?:\/\//.test(row.url) && (
+								<button
+									type="button"
+									onClick={() => row.url && onOpen(row.url)}
+									className="shrink-0 text-[12px] font-semibold text-muted-foreground hover:text-foreground"
+								>
+									Open ↗
+								</button>
+							)}
 							<button
 								type="button"
-								onClick={() => row.url && onOpen(row.url)}
-								className="shrink-0 text-[12px] font-semibold text-muted-foreground hover:text-foreground"
+								onClick={() => onUndo(row)}
+								title="Put it back in the queue"
+								className="shrink-0 rounded-[7px] px-2 py-1 text-[12px] font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground"
 							>
-								Open ↗
+								Undo
 							</button>
-						)}
-						<button
-							type="button"
-							onClick={() => onUndo(row)}
-							title="Put it back in the queue"
-							className="shrink-0 rounded-[7px] px-2 py-1 text-[12px] font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground"
-						>
-							Undo
-						</button>
+						</div>
 					</div>
-				</div>
-			))}
+				);
+			})}
 		</>
 	);
 }
