@@ -3,6 +3,9 @@ import { shell } from "electron";
 import {
 	connectGithubAccount,
 	disconnectGithubAccount,
+	GITHUB_DEVICE_CODE_URL,
+	GITHUB_DEVICE_SCOPE,
+	GITHUB_TOKEN_URL,
 	githubAccountTokens,
 } from "main/lib/github-token";
 import {
@@ -333,8 +336,6 @@ function readOAuthResult(provider: OAuthProvider, state: string) {
 
 // --- GitHub device flow ----------------------------------------------------
 
-const DEVICE_SCOPE = "repo read:org";
-
 interface DeviceCodeResponse {
 	device_code?: string;
 	user_code?: string;
@@ -611,13 +612,16 @@ export const createConnectionsRouter = () => {
 						"No GitHub client id - create an OAuth app with device flow enabled and paste its client id here.",
 				});
 			}
-			const res = await fetch("https://github.com/login/device/code", {
+			const res = await fetch(GITHUB_DEVICE_CODE_URL, {
 				method: "POST",
 				headers: {
 					Accept: "application/json",
 					"Content-Type": "application/x-www-form-urlencoded",
 				},
-				body: new URLSearchParams({ client_id: clientId, scope: DEVICE_SCOPE }),
+				body: new URLSearchParams({
+					client_id: clientId,
+					scope: GITHUB_DEVICE_SCOPE,
+				}),
 			});
 			const json = (await res.json()) as DeviceCodeResponse;
 			if (!json.device_code || !json.user_code || !json.verification_uri) {
@@ -657,7 +661,7 @@ export const createConnectionsRouter = () => {
 						message: "No GitHub client id configured.",
 					});
 				}
-				const res = await fetch("https://github.com/login/oauth/access_token", {
+				const res = await fetch(GITHUB_TOKEN_URL, {
 					method: "POST",
 					headers: {
 						Accept: "application/json",

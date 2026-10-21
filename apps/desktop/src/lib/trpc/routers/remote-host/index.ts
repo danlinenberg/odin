@@ -3,9 +3,9 @@ import { existsSync, statSync } from "node:fs";
 import { homedir, userInfo } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { app, safeStorage } from "electron";
+import { app, safeStorage, shell } from "electron";
 import { getNotifyScriptPath } from "main/lib/agent-setup/notify-hook";
-import { githubOwner } from "main/lib/github-token";
+import { githubOwner, onGithubTokensChanged } from "main/lib/github-token";
 import { apiKeyFallbackOn } from "main/lib/remote-host/api-key-fallback";
 import {
 	giveSsmAccess,
@@ -35,8 +35,12 @@ import {
 } from "main/lib/remote-host/claude-sync";
 import { runClaudeLogin } from "main/lib/remote-host/claude-token";
 import {
+	pollHostGithubLogin,
+	startHostGithubLogin,
+} from "main/lib/remote-host/github-host-login";
+import {
 	hostGithubAccounts,
-	hostGithubToken,
+	hostGithubLogin,
 	repoStaysLocal,
 } from "main/lib/remote-host/github-on-host";
 import {
@@ -48,7 +52,10 @@ import {
 	HOST_CONNECTORS,
 	type HostConnector,
 } from "main/lib/remote-host/host-service";
-import { pushHostTokens } from "main/lib/remote-host/host-tokens";
+import {
+	pushHostGithubPair,
+	pushHostTokens,
+} from "main/lib/remote-host/host-tokens";
 import {
 	pushNightPlan,
 	readNightStarted,
@@ -83,7 +90,11 @@ import {
 import { remoteFrozenReason, remoteLaunchBlocker } from "shared/launch-gate";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
-import { readOdinConfig, updateOdinConfig } from "../odin-config";
+import {
+	readOdinConfig,
+	resolveGithubClientId,
+	updateOdinConfig,
+} from "../odin-config";
 import { scanRepos } from "../repos";
 import { awsSsoLogin } from "../terminal/aws-sso";
 import { getProcessEnvWithShellEnv } from "../workspaces/utils/shell-env";
@@ -169,11 +180,15 @@ async function buildSessionSpec(
 			: files,
 		repoName,
 		cloneUrl: origin,
+		// The repo owner's account when it may go to the host (github-on-host).
+		// Its login only: the session's git and gh get the token itself from
+		// the host service at each use, so it never goes stale.
+		githubLogin: hostGithubLogin(readOdinConfig(), githubOwner(origin ?? "")),
 	};
 }
 
 /** What a session on the host starts with, as KEY='value' lines. */
-async function sessionSecrets(owner: string | null = null): Promise<string> {
+async function sessionSecrets(): Promise<string> {
 	return secretsFile({
 		...claudeSecrets(),
 		// The API key claude-auto falls back to here, for the same switch on the host.
@@ -182,8 +197,6 @@ async function sessionSecrets(owner: string | null = null): Promise<string> {
 		)
 			? (await getProcessEnvWithShellEnv()).ANTHROPIC_API_KEY
 			: undefined,
-		// The repo owner's account when it may go to the host (github-on-host).
-		GH_TOKEN: await hostGithubToken(readOdinConfig(), owner),
 	});
 }
 
@@ -302,23 +315,35 @@ async function ensureClaudeToken(renew = false): Promise<void> {
 }
 
 /**
- * Sessions on an EC2 instance the user created: pick it by tags, and the
- * board's sessions run there in tmux, on the user's own Claude plan.
- */
-/**
- * GitHub and Jira tokens expire (8 hours, 1 hour), and the host only gets
- * access tokens - two sides refreshing one rotating refresh token would sign
- * one of them out. So while this computer is awake, Odin sends fresh ones.
+ * GitHub and Jira tokens expire (8 hours, 1 hour). A GitHub account signed
+ * in on the host refreshes there on its own (github-host-login); the others,
+ * and Jira, get this computer's token, which the host can't refresh - two
+ * holders of one rotating refresh token would sign each other out. So while
+ * this computer is awake, Odin sends fresh copies: every half hour, at start
+ * (an updated Odin brings the host service up to date this way too), and
+ * soon after a token here changes.
  */
 async function refreshHostTokens(): Promise<void> {
 	const host = readOdinConfig().remoteHost;
-	if (!host?.on || !host.connectors?.length) return;
-	await pushHostTokens(host, host.connectors as HostConnector[]).catch(
+	if (!host?.on) return;
+	await pushHostTokens(host, (host.connectors ?? []) as HostConnector[]).catch(
 		(error) => console.warn("[remote-host] token refresh:", error),
 	);
 }
 setInterval(() => void refreshHostTokens(), 30 * 60_000).unref();
+setTimeout(() => void refreshHostTokens(), 20_000).unref();
+let tokenChangePush: ReturnType<typeof setTimeout> | null = null;
+onGithubTokensChanged(() => {
+	// Several accounts refreshing together go as one write.
+	if (tokenChangePush) clearTimeout(tokenChangePush);
+	tokenChangePush = setTimeout(() => void refreshHostTokens(), 5_000);
+	tokenChangePush.unref();
+});
 
+/**
+ * Sessions on an EC2 instance the user created: pick it by tags, and the
+ * board's sessions run there in tmux, on the user's own Claude plan.
+ */
 export const createRemoteHostRouter = () =>
 	router({
 		/** The profile, region and tags you picked, and what every host gets at setup, kept in odin.json. */
@@ -474,6 +499,7 @@ export const createRemoteHostRouter = () =>
 				updateOdinConfig({
 					remoteHost: { ...input, user: hostUser(), adminUser: input.user },
 				});
+				if (input.on) void refreshHostTokens();
 			}),
 		setOn: publicProcedure.input(z.boolean()).mutation(async ({ input }) => {
 			const host = readOdinConfig().remoteHost;
@@ -538,16 +564,79 @@ export const createRemoteHostRouter = () =>
 			}),
 		/**
 		 * Which connected GitHub accounts may go to the host, by login. The
-		 * GitHub connector there, when kept, is rewritten to follow the choice.
+		 * host's tokens follow at once: an account turned off loses its token
+		 * there, its own sign-in included.
 		 */
 		setGithubOnHost: publicProcedure
 			.input(z.array(z.string()))
 			.mutation(async ({ input }) => {
 				const host = readOdinConfig().remoteHost;
 				if (!host) throw new Error("No remote host is set up.");
-				updateOdinConfig({ remoteHost: { ...host, githubOnHost: input } });
-				if (host.connectors?.includes("github"))
-					await pushHostTokens(host, host.connectors as HostConnector[]);
+				const allowed = (login: string) =>
+					input.some((l) => l.toLowerCase() === login.toLowerCase());
+				updateOdinConfig({
+					remoteHost: {
+						...host,
+						githubOnHost: input,
+						githubHostSignIns: host.githubHostSignIns?.filter(allowed),
+					},
+				});
+				await withAwsSignIn(host, () =>
+					pushHostTokens(host, (host.connectors ?? []) as HostConnector[]),
+				);
+			}),
+		/**
+		 * A GitHub sign-in of the host's own for one account: the device flow,
+		 * started here. Settings shows the code; the page opens in the browser.
+		 */
+		githubHostSignInStart: publicProcedure
+			// The account it is for: carried back to the row, not used here.
+			.input(z.object({ login: z.string() }))
+			.mutation(async () => {
+				const clientId = resolveGithubClientId();
+				if (!clientId)
+					throw new Error(
+						"No GitHub client id: connect GitHub in Settings > Connections first.",
+					);
+				const code = await startHostGithubLogin(clientId);
+				await shell.openExternal(code.verificationUri);
+				return code;
+			}),
+		/**
+		 * One poll of that flow, on the interval GitHub asked for. Approved as
+		 * `login`, the pair goes to the host and nowhere else: the host
+		 * refreshes it from then on (host-service). Approved as some other
+		 * account, nothing is kept and the error says so.
+		 */
+		githubHostSignInPoll: publicProcedure
+			.input(z.object({ deviceCode: z.string().min(1), login: z.string() }))
+			.mutation(async ({ input }) => {
+				const host = readOdinConfig().remoteHost;
+				if (!host) throw new Error("No remote host is set up.");
+				const clientId = resolveGithubClientId();
+				if (!clientId) throw new Error("No GitHub client id configured.");
+				const result = await pollHostGithubLogin(clientId, input.deviceCode);
+				if (result.state === "pending") return result;
+				if (result.login.toLowerCase() !== input.login.toLowerCase())
+					throw new Error(
+						`GitHub signed in as ${result.login}, not ${input.login}: sign out of GitHub in the browser, then try again as ${input.login}.`,
+					);
+				await withAwsSignIn(host, () =>
+					pushHostGithubPair(host, result.login, result.pair),
+				);
+				const current = readOdinConfig().remoteHost ?? host;
+				updateOdinConfig({
+					remoteHost: {
+						...current,
+						githubHostSignIns: [
+							...(current.githubHostSignIns ?? []).filter(
+								(l) => l.toLowerCase() !== result.login.toLowerCase(),
+							),
+							result.login,
+						],
+					},
+				});
+				return { state: "signed-in" as const, login: result.login };
 			}),
 		/** A fresh token from `claude setup-token`, replacing the saved one. */
 		renewClaudeToken: publicProcedure.mutation(() => ensureClaudeToken(true)),
@@ -707,9 +796,7 @@ export const createRemoteHostRouter = () =>
 				if (!host) throw new Error("No remote host is set up.");
 				const session = await buildSessionSpec(host, input);
 				const spec = Buffer.from(JSON.stringify(session)).toString("base64");
-				const ticket = issueTicket(
-					await sessionSecrets(githubOwner(session.cloneUrl ?? "")),
-				);
+				const ticket = issueTicket(await sessionSecrets());
 				const script = join(
 					app.getAppPath(),
 					"dist",

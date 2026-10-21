@@ -31,7 +31,7 @@ import {
 	packageNames,
 } from "shared/host-setup";
 import { hostServiceInstallScript } from "./host-service";
-import { ghInstallScript } from "./session";
+import { GITHUB_HELPERS_SCRIPT, ghInstallScript } from "./session";
 import { awsClientConfig } from "./ssm";
 
 /**
@@ -384,6 +384,7 @@ export function setUpScript(user: string, packages = ""): string {
 		'export PATH="$HOME/.local/bin:$PATH"',
 		"command -v claude >/dev/null || curl -fsSL https://claude.ai/install.sh | bash >/dev/null 2>&1",
 		ghInstallScript,
+		GITHUB_HELPERS_SCRIPT,
 		'for t in claude gh tmux git; do echo "$t=$(command -v $t || echo missing)"; done',
 	].join("\n");
 	return [

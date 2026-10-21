@@ -24,8 +24,8 @@ describe("hostGithubAccounts", () => {
 				remoteHost: host,
 			}),
 		).toEqual([
-			{ login: "dan-work", onHost: true, main: true },
-			{ login: "danlinenberg", onHost: false, main: false },
+			{ login: "dan-work", onHost: true, main: true, hostSignIn: false },
+			{ login: "danlinenberg", onHost: false, main: false, hostSignIn: false },
 		]);
 	});
 
@@ -37,15 +37,34 @@ describe("hostGithubAccounts", () => {
 				remoteHost: { ...host, githubOnHost: ["danlinenberg"] },
 			}),
 		).toEqual([
-			{ login: "dan-work", onHost: false, main: true },
-			{ login: "danlinenberg", onHost: true, main: false },
+			{ login: "dan-work", onHost: false, main: true, hostSignIn: false },
+			{ login: "danlinenberg", onHost: true, main: false, hostSignIn: false },
 		]);
 		expect(
 			hostGithubAccounts({
 				githubLogin: "dan-work",
 				remoteHost: { ...host, githubOnHost: [] },
 			}),
-		).toEqual([{ login: "dan-work", onHost: false, main: true }]);
+		).toEqual([
+			{ login: "dan-work", onHost: false, main: true, hostSignIn: false },
+		]);
+	});
+
+	test("an account the host signed in to itself says so", () => {
+		expect(
+			hostGithubAccounts({
+				githubLogin: "dan-work",
+				githubAccounts: [personal],
+				remoteHost: {
+					...host,
+					githubOnHost: ["dan-work", "danlinenberg"],
+					githubHostSignIns: ["Dan-Work"],
+				},
+			}),
+		).toEqual([
+			{ login: "dan-work", onHost: true, main: true, hostSignIn: true },
+			{ login: "danlinenberg", onHost: true, main: false, hostSignIn: false },
+		]);
 	});
 
 	test("logins compare without case, and a main connection without a login is not listed", () => {
@@ -55,10 +74,14 @@ describe("hostGithubAccounts", () => {
 				githubAccounts: [work],
 				remoteHost: { ...host, githubOnHost: ["dan-work"] },
 			}),
-		).toEqual([{ login: "Dan-Work", onHost: true, main: true }]);
+		).toEqual([
+			{ login: "Dan-Work", onHost: true, main: true, hostSignIn: false },
+		]);
 		expect(
 			hostGithubAccounts({ githubAccounts: [personal], remoteHost: host }),
-		).toEqual([{ login: "danlinenberg", onHost: false, main: false }]);
+		).toEqual([
+			{ login: "danlinenberg", onHost: false, main: false, hostSignIn: false },
+		]);
 	});
 });
 

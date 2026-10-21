@@ -77,6 +77,12 @@ export interface OdinFileConfig {
 		 * (main/lib/remote-host/github-on-host).
 		 */
 		githubOnHost?: string[];
+		/**
+		 * Logins the host has a GitHub sign-in of its own for, done from
+		 * Settings (main/lib/remote-host/github-host-login). The host keeps
+		 * and refreshes those; this computer's token goes for the others.
+		 */
+		githubHostSignIns?: string[];
 	};
 	/** `claude setup-token`'s token for remote sessions, encrypted with safeStorage. */
 	claudeToken?: string;

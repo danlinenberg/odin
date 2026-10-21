@@ -32,10 +32,27 @@ import {
 
 const run = promisify(execFile);
 
-const TOKEN_URL = "https://github.com/login/oauth/access_token";
+export const GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token";
+export const GITHUB_DEVICE_CODE_URL = "https://github.com/login/device/code";
+/** What the device flow asks for: repos, and the orgs they belong to. */
+export const GITHUB_DEVICE_SCOPE = "repo read:org";
 
 /** Refresh this far before expiry, so a call in flight doesn't age out. */
 const REFRESH_MARGIN_MS = 60_000;
+
+/**
+ * Who wants to know when a token here changes: the remote host, which keeps
+ * a copy of this computer's tokens for sessions there (host-tokens), and
+ * would otherwise hold one that died at the eight-hour mark.
+ */
+const changeListeners = new Set<() => void>();
+export function onGithubTokensChanged(listener: () => void): () => void {
+	changeListeners.add(listener);
+	return () => changeListeners.delete(listener);
+}
+function tokensChanged(): void {
+	for (const listener of changeListeners) listener();
+}
 
 export interface GithubTokenResponse {
 	access_token?: string;
@@ -62,6 +79,7 @@ export function storeGithubTokens(json: GithubTokenResponse): string | null {
 			? Date.now() + json.expires_in * 1000
 			: undefined,
 	});
+	tokensChanged();
 	return access;
 }
 
@@ -72,7 +90,7 @@ async function exchangeRefreshToken(
 	const clientId = resolveGithubClientId();
 	if (!clientId || !refreshToken) return null;
 	try {
-		const res = await fetch(TOKEN_URL, {
+		const res = await fetch(GITHUB_TOKEN_URL, {
 			method: "POST",
 			headers: {
 				Accept: "application/json",
@@ -102,22 +120,28 @@ async function refreshGithubAccessToken(): Promise<string | null> {
 	return json ? storeGithubTokens(json) : null;
 }
 
-function needsRefresh(expiresAt: number | undefined): boolean {
-	return !!expiresAt && expiresAt - REFRESH_MARGIN_MS <= Date.now();
+function needsRefresh(
+	expiresAt: number | undefined,
+	margin = REFRESH_MARGIN_MS,
+): boolean {
+	return !!expiresAt && expiresAt - margin <= Date.now();
 }
 
 /**
  * A usable access token, refreshed when it is spent or nearly so. Null when
- * GitHub isn't connected at all.
+ * GitHub isn't connected at all. `margin` asks for one good for at least that
+ * long: a copy sent to the remote host must outlive the gap to the next copy.
  *
  * A failed refresh falls back to the stored token rather than reporting "not
  * connected": the request then comes back 401 and the pane says reconnect,
  * which is the true state of things when the refresh token is dead too.
  */
-export async function githubAccessToken(): Promise<string | null> {
+export async function githubAccessToken(
+	margin = REFRESH_MARGIN_MS,
+): Promise<string | null> {
 	const { githubToken, githubTokenExpiresAt } = readOdinConfig();
 	if (!githubToken) return null;
-	if (!needsRefresh(githubTokenExpiresAt)) return githubToken;
+	if (!needsRefresh(githubTokenExpiresAt, margin)) return githubToken;
 	return (await refreshGithubAccessToken()) ?? githubToken;
 }
 
@@ -129,11 +153,15 @@ export function extraGithubAccounts(): GithubAccount[] {
 function saveExtraAccount(account: GithubAccount): void {
 	const others = extraGithubAccounts().filter((a) => a.login !== account.login);
 	updateOdinConfig({ githubAccounts: [...others, account] });
+	tokensChanged();
 }
 
 /** An extra account's token, refreshed (and saved) the same way as the main one's. */
-async function extraAccountToken(account: GithubAccount): Promise<string> {
-	if (!needsRefresh(account.expiresAt)) return account.token;
+async function extraAccountToken(
+	account: GithubAccount,
+	margin = REFRESH_MARGIN_MS,
+): Promise<string> {
+	if (!needsRefresh(account.expiresAt, margin)) return account.token;
 	const json = await exchangeRefreshToken(account.refreshToken);
 	if (!json?.access_token) return account.token;
 	saveExtraAccount({
@@ -153,14 +181,15 @@ async function extraAccountToken(account: GithubAccount): Promise<string> {
  */
 export async function githubTokenForLogin(
 	login: string,
+	margin = REFRESH_MARGIN_MS,
 ): Promise<string | null> {
 	const main = readOdinConfig().githubLogin;
 	if (main && main.toLowerCase() === login.toLowerCase())
-		return githubAccessToken();
+		return githubAccessToken(margin);
 	const account = extraGithubAccounts().find(
 		(a) => a.login.toLowerCase() === login.toLowerCase(),
 	);
-	return account ? extraAccountToken(account) : null;
+	return account ? extraAccountToken(account, margin) : null;
 }
 
 export interface GithubAccountToken {
@@ -182,9 +211,12 @@ export async function githubAccountTokens(): Promise<GithubAccountToken[]> {
 }
 
 /** Who a token signs in as, or null when GitHub won't say. */
-async function loginOf(token: string): Promise<string | null> {
+export async function loginOf(
+	token: string,
+	fetchFn: typeof fetch = fetch,
+): Promise<string | null> {
 	try {
-		const res = await fetch("https://api.github.com/user", {
+		const res = await fetchFn("https://api.github.com/user", {
 			headers: {
 				Authorization: `Bearer ${token}`,
 				Accept: "application/vnd.github+json",
@@ -237,6 +269,7 @@ export function disconnectGithubAccount(login?: string): void {
 		updateOdinConfig({
 			githubAccounts: extras.filter((a) => a.login !== login),
 		});
+		tokensChanged();
 		return;
 	}
 	const [next, ...rest] = extras;
@@ -247,6 +280,7 @@ export function disconnectGithubAccount(login?: string): void {
 		githubLogin: next?.login,
 		githubAccounts: rest.length ? rest : undefined,
 	});
+	tokensChanged();
 }
 
 /**

@@ -102,6 +102,63 @@ export function RemoteHostSection() {
 		onSuccess: refresh,
 		onError,
 	});
+	// A GitHub sign-in of the host's own, one account at a time: the device
+	// flow's code shows in the row, and the poll runs on GitHub's interval
+	// until the approval lands, the flow fails, or Cancel. Held in refs so
+	// the effect depends on the code alone (as Connections does).
+	const [hostSignIn, setHostSignIn] = useState<{
+		login: string;
+		deviceCode: string;
+		userCode: string;
+		verificationUri: string;
+		intervalSeconds: number;
+	} | null>(null);
+	const startHostSignIn =
+		electronTrpc.remoteHost.githubHostSignInStart.useMutation({
+			onSuccess: (code, { login }) => setHostSignIn({ ...code, login }),
+			onError,
+		});
+	const pollHostSignIn =
+		electronTrpc.remoteHost.githubHostSignInPoll.useMutation();
+	const pollHostSignInRef = useRef(pollHostSignIn);
+	pollHostSignInRef.current = pollHostSignIn;
+	const refreshRef = useRef(refresh);
+	refreshRef.current = refresh;
+	useEffect(() => {
+		if (!hostSignIn) return;
+		let cancelled = false;
+		let timer: ReturnType<typeof setTimeout>;
+		const tick = (delaySeconds: number) => {
+			timer = setTimeout(async () => {
+				if (cancelled) return;
+				try {
+					const result = await pollHostSignInRef.current.mutateAsync({
+						deviceCode: hostSignIn.deviceCode,
+						login: hostSignIn.login,
+					});
+					if (cancelled) return;
+					if (result.state === "signed-in") {
+						toast.success(
+							`${result.login} is signed in on the host. It refreshes its own token there now.`,
+						);
+						setHostSignIn(null);
+						void refreshRef.current();
+						return;
+					}
+					tick(result.intervalSeconds ?? delaySeconds);
+				} catch (error) {
+					if (cancelled) return;
+					toast.error(error instanceof Error ? error.message : String(error));
+					setHostSignIn(null);
+				}
+			}, delaySeconds * 1000);
+		};
+		tick(hostSignIn.intervalSeconds);
+		return () => {
+			cancelled = true;
+			clearTimeout(timer);
+		};
+	}, [hostSignIn]);
 	// A switch flips at once; writing on the host (an SSM connection, about
 	// 8 seconds) happens behind it. Flips made meanwhile go out as one write
 	// when it lands; a failed write puts the switches back and says why.
@@ -409,33 +466,82 @@ export function RemoteHostSection() {
 							A session on the host signs in to GitHub as one of these: the
 							account that owns the repo it works on when that account may go,
 							else the main one. The GitHub connector there uses the same
-							account. Its token reaches every repo the account can, and anyone
-							with a shell on the instance can read a session's environment, so
-							keep a personal account off a work host. A task on a repo owned by
-							an account kept off the host starts on this computer instead.
+							account. An account signed in on the host keeps its own token
+							fresh there, so sessions push and open PRs with this computer
+							shut; one that isn't uses this computer's token, sent again
+							whenever this computer refreshes it. A token on the host reaches
+							every repo the account can, and anyone with your user's shell on
+							the instance can use it, so keep a personal account off a work
+							host. A task on a repo owned by an account kept off the host
+							starts on this computer instead.
 						</span>
 					}
 				>
-					<div className="flex flex-wrap items-center gap-4">
+					<div className="flex flex-col gap-2">
 						{githubAccounts.map((account) => (
-							<label
+							<div
 								key={account.login}
-								htmlFor={`host-github-${account.login}`}
-								className="flex items-center gap-2 text-sm"
+								className="flex flex-wrap items-center gap-3 text-sm"
 							>
-								<Switch
-									id={`host-github-${account.login}`}
-									checked={account.onHost}
-									disabled={setGithubOnHost.isPending}
-									onCheckedChange={(on) =>
-										toggleGithubAccount(account.login, on)
-									}
-								/>
-								{account.login}
-								{account.main && (
-									<span className="text-muted-foreground">(main)</span>
-								)}
-							</label>
+								<label
+									htmlFor={`host-github-${account.login}`}
+									className="flex items-center gap-2"
+								>
+									<Switch
+										id={`host-github-${account.login}`}
+										checked={account.onHost}
+										disabled={setGithubOnHost.isPending || !!hostSignIn}
+										onCheckedChange={(on) =>
+											toggleGithubAccount(account.login, on)
+										}
+									/>
+									{account.login}
+									{account.main && (
+										<span className="text-muted-foreground">(main)</span>
+									)}
+								</label>
+								{account.onHost && hostSignIn?.login === account.login ? (
+									<span className="select-text cursor-text text-muted-foreground">
+										Enter{" "}
+										<span className="font-mono text-foreground tracking-[.15em]">
+											{hostSignIn.userCode}
+										</span>{" "}
+										at {hostSignIn.verificationUri} (opened in your browser),
+										signed in as {account.login}.{" "}
+										<button
+											type="button"
+											className="underline-offset-2 hover:underline"
+											onClick={() => setHostSignIn(null)}
+										>
+											Cancel
+										</button>
+									</span>
+								) : account.onHost ? (
+									<>
+										<span className="text-muted-foreground">
+											{account.hostSignIn
+												? "Signed in on the host."
+												: "Uses this computer's token."}
+										</span>
+										<Button
+											size="sm"
+											variant="outline"
+											disabled={
+												!!hostSignIn ||
+												startHostSignIn.isPending ||
+												setGithubOnHost.isPending
+											}
+											onClick={() =>
+												startHostSignIn.mutate({ login: account.login })
+											}
+										>
+											{account.hostSignIn
+												? "Sign in again"
+												: "Sign in on the host"}
+										</Button>
+									</>
+								) : null}
+							</div>
 						))}
 					</div>
 				</SettingRow>

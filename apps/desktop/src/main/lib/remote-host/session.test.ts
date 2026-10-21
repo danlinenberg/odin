@@ -14,6 +14,9 @@ import {
 	attachScript,
 	CLAUDE_LOGIN_SCRIPT,
 	CUT_OFF_TURN,
+	GH_WRAPPER,
+	GIT_CREDENTIAL_HELPER,
+	GITHUB_HELPERS_SCRIPT,
 	HOST_NOTIFY_HOOK,
 	hostFiles,
 	hostNote,
@@ -47,7 +50,10 @@ const spec: RemoteSessionSpec = {
 describe("remote session scripts", () => {
 	test("tokens become sourced KEY='value' lines, quotes escaped, empty ones dropped", () => {
 		expect(
-			secretsFile({ CLAUDE_CODE_OAUTH_TOKEN: "sk-a'b", GH_TOKEN: undefined }),
+			secretsFile({
+				CLAUDE_CODE_OAUTH_TOKEN: "sk-a'b",
+				ODIN_FALLBACK_API_KEY: undefined,
+			}),
 		).toBe("CLAUDE_CODE_OAUTH_TOKEN='sk-a'\\''b'\n");
 	});
 
@@ -63,6 +69,25 @@ describe("remote session scripts", () => {
 		expect(run).toContain(
 			`\nclaude --settings ${sh(hostSettings)} --session-id abc "$(printf %s '${Buffer.from("Fix it's bug").toString("base64")}' | base64 -d)"`,
 		);
+	});
+
+	test("no GitHub token is baked into a session: git and gh get the current one from the host service", () => {
+		const run = runScript({ ...spec, githubLogin: "dan-work" }, "/d");
+		expect(run).not.toContain("GH_TOKEN");
+		expect(run).not.toContain("GIT_CONFIG_");
+		expect(run).toContain("export ODIN_GITHUB_LOGIN='dan-work'");
+		// The helper and wrapper are on disk before the clone needs them, under the setup lock.
+		expect(run).toContain(GITHUB_HELPERS_SCRIPT);
+		const helpers = run.indexOf(GITHUB_HELPERS_SCRIPT);
+		expect(helpers).toBeGreaterThan(run.indexOf("flock -w 120 9"));
+		expect(helpers).toBeLessThan(run.indexOf("git clone"));
+		expect(GITHUB_HELPERS_SCRIPT).toContain(
+			'credential.https://github.com.helper "!$HOME/.odin/bin/git-credential-odin"',
+		);
+		expect(GITHUB_HELPERS_SCRIPT).toContain(
+			'base64 -d > "$HOME/.local/bin/gh".$$',
+		);
+		expect(runScript(spec, "/d")).not.toContain("ODIN_GITHUB_LOGIN");
 	});
 
 	test("sessions take turns at setup and let go before Claude starts", () => {
@@ -176,6 +201,95 @@ describe("remote session scripts", () => {
 			rmSync(home, { recursive: true, force: true });
 		}
 	});
+});
+
+/**
+ * The helper and wrapper, run for real with a fake curl on PATH that records
+ * what it was asked and answers a token: the service's side of the exchange.
+ */
+function fakeCurl(answer: string) {
+	const dir = mkdtempSync(join(tmpdir(), "odin-fake-curl-"));
+	const log = join(dir, "log");
+	mkdirSync(join(dir, "bin"));
+	writeFileSync(
+		join(dir, "bin", "curl"),
+		`#!/bin/sh\necho "args: $*" >> "$FAKE_LOG"\necho "stdin: $(cat)" >> "$FAKE_LOG"\n${answer}\n`,
+		{ mode: 0o755 },
+	);
+	const run = (script: string, args: string[], input: string, env = {}) =>
+		execFileSync("sh", [script, ...args], {
+			input,
+			encoding: "utf8",
+			env: {
+				PATH: `${join(dir, "bin")}:${process.env.PATH}`,
+				FAKE_LOG: log,
+				HOME: dir,
+				...env,
+			},
+		});
+	const calls = () => (existsSync(log) ? readFileSync(log, "utf8") : "");
+	return { dir, run, calls };
+}
+
+test("git's helper asks the service for the token of the session's account, or the repo owner's", () => {
+	const curl = fakeCurl("printf gho_fresh");
+	const helper = join(curl.dir, "helper.sh");
+	writeFileSync(helper, GIT_CREDENTIAL_HELPER);
+	const out = curl.run(
+		helper,
+		["get"],
+		"protocol=https\nhost=github.com\npath=imagenai/odin.git\n",
+		{ ODIN_GITHUB_LOGIN: "dan-work" },
+	);
+	expect(out).toBe("username=x-access-token\npassword=gho_fresh\n");
+	expect(curl.calls()).toContain(
+		"/token?service=github&login=dan-work&owner=imagenai",
+	);
+	// GitHub refused it: the token goes back to the service, on stdin, never on the command line.
+	curl.run(
+		helper,
+		["erase"],
+		"protocol=https\nhost=github.com\npath=imagenai/odin.git\nusername=x-access-token\npassword=gho_refused\n",
+	);
+	const erase = curl.calls().split("\n").slice(2).join("\n");
+	expect(erase).toContain("--data-binary @-");
+	expect(erase).toContain("login=&owner=imagenai");
+	expect(erase).toContain("stdin: gho_refused");
+	expect(erase).not.toContain("args: ".concat("gho_refused"));
+});
+
+test("git's helper answers nothing when the service has no token, so git says so", () => {
+	const curl = fakeCurl("exit 22");
+	const helper = join(curl.dir, "helper.sh");
+	writeFileSync(helper, GIT_CREDENTIAL_HELPER);
+	expect(curl.run(helper, ["get"], "host=github.com\n")).toBe("");
+});
+
+test("gh runs with the service's token, keeps an older session's own when there is none, and finds the real gh", () => {
+	const curl = fakeCurl("printf gho_fresh");
+	const wrapper = join(curl.dir, "bin", "gh");
+	writeFileSync(wrapper, GH_WRAPPER, { mode: 0o755 });
+	const real = '#!/bin/sh\necho "token=$GH_TOKEN args=$*"\n';
+	mkdirSync(join(curl.dir, ".odin", "bin"), { recursive: true });
+	writeFileSync(join(curl.dir, ".odin", "bin", "gh"), real, { mode: 0o755 });
+	expect(curl.run(wrapper, ["pr", "list"], "")).toBe(
+		"token=gho_fresh args=pr list\n",
+	);
+	rmSync(join(curl.dir, ".odin"), { recursive: true });
+	// No gh of Odin's own: the next gh on PATH, not this wrapper again.
+	mkdirSync(join(curl.dir, "sys"));
+	writeFileSync(join(curl.dir, "sys", "gh"), real, { mode: 0o755 });
+	const stale = fakeCurl("exit 22");
+	const out = execFileSync("bash", [wrapper, "auth", "status"], {
+		encoding: "utf8",
+		env: {
+			PATH: `${join(stale.dir, "bin")}:${join(curl.dir, "bin")}:${join(curl.dir, "sys")}:${process.env.PATH}`,
+			FAKE_LOG: join(stale.dir, "log"),
+			HOME: curl.dir,
+			GH_TOKEN: "gho_from_launch",
+		},
+	});
+	expect(out).toBe("token=gho_from_launch args=auth status\n");
 });
 
 test("a ticket gives its tokens once, and not after two minutes", () => {

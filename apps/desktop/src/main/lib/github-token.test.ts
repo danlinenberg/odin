@@ -19,6 +19,9 @@ import {
 	githubAccountTokens,
 	githubApiFetch,
 	githubOwner,
+	githubTokenForLogin,
+	onGithubTokensChanged,
+	storeGithubTokens,
 	tokenOrder,
 } from "./github-token";
 
@@ -54,6 +57,50 @@ function mockFetch(body: unknown) {
 describe("githubAccessToken", () => {
 	test("null when GitHub isn't connected", async () => {
 		expect(await githubAccessToken()).toBeNull();
+	});
+
+	test("a margin asks for a token good that long: a copy for the remote host must outlive the gap to the next", async () => {
+		updateOdinConfig({
+			githubToken: "gho_short",
+			githubRefreshToken: "ghr_1",
+			githubTokenExpiresAt: Date.now() + 10 * 60_000,
+		});
+		const calls = mockFetch({
+			access_token: "gho_long",
+			refresh_token: "ghr_2",
+			expires_in: 28_800,
+		});
+		expect(await githubAccessToken()).toBe("gho_short");
+		expect(calls).toHaveLength(0);
+		expect(await githubAccessToken(45 * 60_000)).toBe("gho_long");
+		expect(calls).toHaveLength(1);
+		updateOdinConfig({
+			githubLogin: "main",
+			githubAccounts: [
+				{
+					login: "extra",
+					token: "gho_extra",
+					refreshToken: "ghr_x",
+					expiresAt: Date.now() + 10 * 60_000,
+				},
+			],
+		});
+		expect(await githubTokenForLogin("extra", 45 * 60_000)).toBe("gho_long");
+		expect(calls).toHaveLength(2);
+	});
+
+	test("a stored token is announced, so the remote host gets a fresh copy", () => {
+		let heard = 0;
+		const off = onGithubTokensChanged(() => {
+			heard += 1;
+		});
+		storeGithubTokens({ access_token: "gho_1" });
+		expect(heard).toBe(1);
+		storeGithubTokens({});
+		expect(heard).toBe(1);
+		off();
+		storeGithubTokens({ access_token: "gho_2" });
+		expect(heard).toBe(1);
 	});
 
 	test("a token with no expiry is used as-is - that app doesn't expire them", async () => {

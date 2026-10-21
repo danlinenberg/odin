@@ -38,6 +38,12 @@ export interface RemoteSessionSpec {
 	files?: RemoteFile[];
 	/** End the session's tmux session first, so Claude starts over (Restart). */
 	fresh?: boolean;
+	/**
+	 * The GitHub account the session signs in as (github-on-host). Its token
+	 * is never in the session: git and gh ask the host service for the current
+	 * one at each use, by this login.
+	 */
+	githubLogin?: string | null;
 }
 
 export interface RemoteFile {
@@ -108,8 +114,10 @@ c.setdefault("projects", {}).setdefault(sys.argv[1], {})["hasTrustDialogAccepted
 json.dump(c, open(p, "w"), indent=2)`;
 
 /**
- * The GitHub CLI, so the agent can open PRs from the host. Installed into the
- * user's ~/.local/bin when missing, pinned by SHA-256; GH_TOKEN signs it in.
+ * The GitHub CLI, so the agent can open PRs from the host. Downloaded into
+ * the user's ~/.odin/bin when the host has no gh of its own, pinned by
+ * SHA-256. What a session runs as `gh` is Odin's wrapper at ~/.local/bin/gh
+ * (GITHUB_HELPERS_SCRIPT), which signs each call in with the current token.
  */
 const GH_VERSION = "2.60.1";
 const GH_SHA256: Record<string, string> = {
@@ -117,15 +125,86 @@ const GH_SHA256: Record<string, string> = {
 	arm64: "a2842ed6d1f9e260043305749383bb1eb77d817bb57e22cf8c01da0a48caff66",
 };
 export const ghInstallScript = [
-	"if ! command -v gh >/dev/null; then",
+	'if [ ! -x "$HOME/.odin/bin/gh" ] && ! type -aP gh 2>/dev/null | grep -qvx "$HOME/.local/bin/gh"; then',
 	'  case "$(uname -m)" in aarch64|arm64) a=arm64;; *) a=amd64;; esac',
 	`  [ "$a" = arm64 ] && sum=${GH_SHA256.arm64} || sum=${GH_SHA256.amd64}`,
 	`  f=gh_${GH_VERSION}_linux_$a; t=$(mktemp -d)`,
 	`  curl -fsSL -o "$t/gh.tgz" "https://github.com/cli/cli/releases/download/v${GH_VERSION}/$f.tar.gz" &&`,
 	'  echo "$sum  $t/gh.tgz" | sha256sum -c --quiet &&',
-	'  tar -xzf "$t/gh.tgz" -C "$t" && mkdir -p "$HOME/.local/bin" && mv "$t/$f/bin/gh" "$HOME/.local/bin/gh"',
+	'  tar -xzf "$t/gh.tgz" -C "$t" && mkdir -p "$HOME/.odin/bin" && mv "$t/$f/bin/gh" "$HOME/.odin/bin/gh"',
 	'  rm -rf "$t"',
 	"fi",
+].join("\n");
+
+/**
+ * How a session on the host signs in to GitHub: never with a token in its
+ * environment, which is fixed at launch and dies eight hours later with the
+ * work stranded on the host. git's credential helper and gh ask Odin's host
+ * service for the current token at the moment of use (GET /token, loopback,
+ * answered to this Linux user alone), and the service keeps it fresh:
+ * the host's own sign-in refreshed there, or the laptop's latest copy.
+ *
+ * The helper tells the service the repo owner (useHttpPath), so a repo of
+ * another account allowed on the host gets that account's token. `erase`
+ * is git saying GitHub refused the token: the service then refreshes once.
+ */
+const SERVICE_TOKEN_URL =
+	"http://127.0.0.1:$((40000 + $(id -u) % 10000 * 2))/token?service=github&login=$ODIN_GITHUB_LOGIN";
+export const GIT_CREDENTIAL_HELPER = `#!/bin/sh
+# Odin's git credential helper on a remote host: GitHub gets the token Odin's
+# host service holds now, so a push never goes stale. See Odin's session.ts.
+url="${SERVICE_TOKEN_URL}"
+owner_of() { sed -n 's#^path=\\([^/]*\\)/.*#\\1#p' | head -1 | tr -cd 'A-Za-z0-9-'; }
+case "$1" in
+get)
+  owner=$(owner_of)
+  t=$(curl -sf -m 10 "$url&owner=$owner") && [ -n "$t" ] && printf 'username=x-access-token\\npassword=%s\\n' "$t"
+  ;;
+erase)
+  in=$(cat)
+  owner=$(printf %s "$in" | owner_of)
+  printf %s "$in" | sed -n 's/^password=//p' | curl -sf -m 30 --data-binary @- "$url&owner=$owner" >/dev/null
+  ;;
+esac
+exit 0
+`;
+
+/**
+ * `gh` on the host: each call gets GH_TOKEN from the service, so gh never
+ * answers "Bad credentials" after eight hours. Runs Odin's own gh, else the
+ * next one on PATH. A session from before this wrapper keeps its old
+ * GH_TOKEN when the service has none to give.
+ */
+export const GH_WRAPPER = `#!/bin/bash
+# Odin's gh on a remote host: signed in with the token Odin's host service
+# holds now, for the account of the repo here. See Odin's session.ts.
+owner=$(git config --get remote.origin.url 2>/dev/null | sed -n 's#.*github\\.com[:/]\\([^/]*\\)/.*#\\1#p' | tr -cd 'A-Za-z0-9-')
+t=$(curl -sf -m 10 "${SERVICE_TOKEN_URL}&owner=$owner") && [ -n "$t" ] && export GH_TOKEN="$t"
+real="$HOME/.odin/bin/gh"
+if [ ! -x "$real" ]; then
+  for c in $(type -aP gh); do [ "$c" -ef "$0" ] || { real=$c; break; }; done
+fi
+[ -x "$real" ] || { echo "gh is not installed on this host." >&2; exit 127; }
+exec "$real" "$@"
+`;
+
+const installFile = (path: string, content: string) =>
+	`printf %s ${sh(Buffer.from(content).toString("base64"))} | base64 -d > ${path}.$$ && chmod 755 ${path}.$$ && mv -f ${path}.$$ ${path}`;
+
+/**
+ * Puts the helper and the wrapper on disk and names the helper in the user's
+ * ~/.gitconfig. On disk, not in a session's environment, so a session already
+ * running picks them up at its next git or gh call. A gh binary an older Odin
+ * put at the wrapper's path moves aside first. Run under the setup lock:
+ * ~/.gitconfig takes one writer at a time.
+ */
+export const GITHUB_HELPERS_SCRIPT = [
+	'mkdir -p "$HOME/.odin/bin" "$HOME/.local/bin"',
+	'if [ -f "$HOME/.local/bin/gh" ] && [ "$(head -c 2 "$HOME/.local/bin/gh")" != "#!" ]; then mv -f "$HOME/.local/bin/gh" "$HOME/.odin/bin/gh"; fi',
+	installFile('"$HOME/.odin/bin/git-credential-odin"', GIT_CREDENTIAL_HELPER),
+	installFile('"$HOME/.local/bin/gh"', GH_WRAPPER),
+	'git config --global --replace-all credential.https://github.com.helper "!$HOME/.odin/bin/git-credential-odin" 2>/dev/null',
+	"git config --global credential.https://github.com.useHttpPath true 2>/dev/null",
 ].join("\n");
 
 /**
@@ -323,10 +402,10 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 		// Both ports are this Linux user's own (hostPorts).
 		`p=${HOST_PORT_SH}; curl -sf -m 2 http://127.0.0.1:$p/health >/dev/null && ODIN_PORT=$p || ODIN_PORT=$((p + 1))`,
 		`export ODIN_PORT${spec.odinPane ? ` ODIN_PANE_ID=${sh(spec.odinPane)}` : ""}`,
-		// git reads GH_TOKEN from the environment, never from a file or argv.
-		// Set in this session's env, not ~/.gitconfig: two sessions starting
-		// at once raced on its lock ("could not lock config file").
-		`export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=credential.https://github.com.helper GIT_CONFIG_VALUE_0='!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f'`,
+		// GitHub: the account's login, not its token. git and gh get the
+		// current token from the host service at each use (GITHUB_HELPERS_SCRIPT).
+		spec.githubLogin ? `export ODIN_GITHUB_LOGIN=${sh(spec.githubLogin)}` : "",
+		GITHUB_HELPERS_SCRIPT,
 		`mkdir -p ${root}`,
 		spec.repoName && spec.cloneUrl
 			? `[ -d ${repo}/.git ] || git clone ${sh(spec.cloneUrl)} ${repo} || echo "Odin: could not clone ${spec.cloneUrl.replaceAll('"', "")}"`
