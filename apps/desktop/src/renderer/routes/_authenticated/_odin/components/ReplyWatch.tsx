@@ -259,7 +259,7 @@ export function conditionOutcome(
  */
 export function unreadPings(
 	watches: Record<string, Watch>,
-): (Watch & { key: string; event: string })[] {
+): (Omit<Watch, "event"> & { key: string; event: string })[] {
 	return Object.entries(watches)
 		.filter(([, w]) => w.reply && w.paneId)
 		.map(([key, w]) => ({ ...w, key, event: watchEvent(key, w) }));
