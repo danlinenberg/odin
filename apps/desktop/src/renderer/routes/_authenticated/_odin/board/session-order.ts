@@ -8,6 +8,13 @@ export const SWITCH_SORTS = {
 	name: "Name",
 } as const;
 export type SwitchSort = keyof typeof SWITCH_SORTS;
+/** The same sorts in a word, for a session list too narrow for the long labels. */
+export const SWITCH_SORTS_SHORT: Record<SwitchSort, string> = {
+	status: "Needs you",
+	updated: "Updated",
+	oldest: "Waiting",
+	name: "Name",
+};
 
 /** What the order reads off a card: the column it sits in, its star, and when it got there. */
 export interface OrderedCard {

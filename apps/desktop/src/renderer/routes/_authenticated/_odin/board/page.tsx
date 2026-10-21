@@ -47,7 +47,9 @@ import {
 	LuGitPullRequest,
 	LuHourglass,
 	LuLaptop,
+	LuLayers,
 	LuLayoutGrid,
+	LuListChecks,
 	LuMessageSquare,
 	LuMoon,
 	LuPause,
@@ -217,9 +219,11 @@ import {
 	DEFAULT_SESSION_LIST_W,
 	loadSessionListWidth,
 	saveSessionListWidth,
+	sessionListControls,
 } from "./session-list-width";
 import {
 	SWITCH_SORTS,
+	SWITCH_SORTS_SHORT,
 	type SwitchSort,
 	sessionOrder,
 	statusAt,
@@ -4190,17 +4194,42 @@ function DevBoardPage() {
 			localStorage.setItem("odin:drawer-sessions-min", next ? "1" : "0");
 		} catch {}
 	};
-	// Drag the list's right edge to widen it; remembered per machine.
-	const [switchListWidth, setSwitchListWidth] = useState(() =>
+	// Drag the list's right edge to widen it; remembered per machine. It never
+	// takes more than half the panel: a saved width a narrow panel can't fit
+	// shows clamped and comes back when the panel widens.
+	const [savedSwitchListWidth, setSwitchListWidth] = useState(() =>
 		loadSessionListWidth(localStorage),
 	);
+	const [switchPanelWidth, setSwitchPanelWidth] = useState(
+		Number.POSITIVE_INFINITY,
+	);
+	const switchPanelObserver = useRef<ResizeObserver | null>(null);
+	const measureSwitchPanel = useCallback((panel: HTMLDivElement | null) => {
+		switchPanelObserver.current?.disconnect();
+		switchPanelObserver.current = null;
+		if (!panel) return;
+		const observer = new ResizeObserver(([entry]) => {
+			if (entry) setSwitchPanelWidth(entry.contentRect.width);
+		});
+		observer.observe(panel);
+		switchPanelObserver.current = observer;
+	}, []);
+	const switchListWidth = clampSessionListWidth(
+		savedSwitchListWidth,
+		switchPanelWidth,
+	);
+	const switchControls = sessionListControls(switchListWidth);
 	const startSwitchListResize = (event: React.PointerEvent<HTMLDivElement>) => {
 		event.preventDefault();
 		const startX = event.clientX;
 		const startWidth = switchListWidth;
+		const panelWidth = switchPanelWidth;
 		let width = startWidth;
 		const onMove = (move: PointerEvent) => {
-			width = clampSessionListWidth(startWidth + move.clientX - startX);
+			width = clampSessionListWidth(
+				startWidth + move.clientX - startX,
+				panelWidth,
+			);
 			setSwitchListWidth(width);
 		};
 		const onUp = () => {
@@ -6426,7 +6455,7 @@ function DevBoardPage() {
 							</>
 						) : (
 							/* terminal on the left, "what's going on" brief on the right */
-							<div className="flex min-h-0 flex-1">
+							<div ref={measureSwitchPanel} className="flex min-h-0 flex-1">
 								{/* The other sessions in flight, one click away - no Minimize
 								    and hunt for the card on the board. Hidden on a narrow
 								    drawer, where the chat needs the room. */}
@@ -6495,27 +6524,37 @@ function DevBoardPage() {
 															title="Sort sessions"
 															className="shrink-0 cursor-pointer rounded border border-border bg-card px-1 py-0.5 outline-none hover:text-foreground"
 														>
-															{Object.entries(SWITCH_SORTS).map(
-																([value, label]) => (
-																	<option key={value} value={value}>
-																		{label}
-																	</option>
-																),
-															)}
+															{Object.entries(
+																switchControls === "tight"
+																	? SWITCH_SORTS_SHORT
+																	: SWITCH_SORTS,
+															).map(([value, label]) => (
+																<option key={value} value={value}>
+																	{label}
+																</option>
+															))}
 														</select>
 														<button
 															type="button"
 															onClick={toggleSwitchGrouped}
 															aria-pressed={isSwitchGrouped}
+															aria-label="Group by status"
 															title="Group by status"
 															className={cn(
-																"shrink-0 rounded border px-1 py-0.5 hover:text-foreground",
+																"shrink-0 rounded border hover:text-foreground",
+																switchControls === "full"
+																	? "px-1 py-0.5"
+																	: "p-[3px]",
 																isSwitchGrouped
 																	? "border-primary/50 bg-primary/15 text-foreground"
 																	: "border-border bg-card",
 															)}
 														>
-															Group
+															{switchControls === "full" ? (
+																"Group"
+															) : (
+																<LuLayers className="size-3.5" aria-hidden />
+															)}
 														</button>
 														<button
 															type="button"
@@ -6523,15 +6562,26 @@ function DevBoardPage() {
 																showTicks ? clearPicked() : setSelecting(true)
 															}
 															aria-pressed={showTicks}
+															aria-label="Select sessions"
 															title="Select several sessions to resume, finish or park together (Esc to stop)"
 															className={cn(
-																"shrink-0 rounded border px-1 py-0.5 hover:text-foreground",
+																"shrink-0 rounded border hover:text-foreground",
+																switchControls === "full"
+																	? "px-1 py-0.5"
+																	: "p-[3px]",
 																showTicks
 																	? "border-primary/50 bg-primary/15 text-foreground"
 																	: "border-border bg-card",
 															)}
 														>
-															Select
+															{switchControls === "full" ? (
+																"Select"
+															) : (
+																<LuListChecks
+																	className="size-3.5"
+																	aria-hidden
+																/>
+															)}
 														</button>
 														<span
 															className="ml-auto min-w-0 truncate font-mono"
