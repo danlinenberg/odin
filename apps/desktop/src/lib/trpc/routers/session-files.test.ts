@@ -30,6 +30,20 @@ describe("listSessionFiles", () => {
 		]);
 	});
 
+	test("Odin's own .odin/ files stay out, tracked or not", async () => {
+		const dir = repo();
+		mkdirSync(join(dir, ".odin"));
+		writeFileSync(join(dir, ".odin", "task-1.md"), "");
+		execFileSync("git", ["add", ".odin"], { cwd: dir });
+		writeFileSync(join(dir, ".odin", "task-2.md"), "");
+		mkdirSync(join(dir, "src", ".odin"));
+		writeFileSync(join(dir, "src", ".odin", "task-3.md"), "");
+		writeFileSync(join(dir, "src", "odin.md"), "");
+		const files = await listSessionFiles(dir);
+		expect(files.filter((f) => f.includes(".odin/"))).toEqual([]);
+		expect(files).toContain("src/odin.md");
+	});
+
 	test("stops at the cap", async () => {
 		expect(await listSessionFiles(repo(), 2)).toHaveLength(2);
 	});

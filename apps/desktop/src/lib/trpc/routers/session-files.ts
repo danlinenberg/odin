@@ -10,6 +10,7 @@ export const FILE_CAP = 5000;
  * picker. `git ls-files` skips what .gitignore hides (node_modules, builds)
  * and answers fast; new files not committed yet come after the tracked ones.
  * A folder that isn't a git checkout, or isn't on this computer, has none.
+ * Odin's own notes under `.odin/` (task-*.md) are not the session's files.
  */
 export async function listSessionFiles(
 	cwd: string,
@@ -24,12 +25,16 @@ export async function listSessionFiles(
 		const files = new Set<string>();
 		for (const path of stdout.split("\0")) {
 			if (files.size >= cap) break;
-			if (path) files.add(path);
+			if (path && !isOdinOwn(path)) files.add(path);
 		}
 		return [...files];
 	} catch {
 		return [];
 	}
+}
+
+function isOdinOwn(path: string): boolean {
+	return path.startsWith(".odin/") || path.includes("/.odin/");
 }
 
 export const createSessionFilesRouter = () => {
