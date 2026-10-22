@@ -92,6 +92,17 @@ describe("remote session scripts", () => {
 		expect(runScript(spec, "/d")).not.toContain("ODIN_GITHUB_LOGIN");
 	});
 
+	test("an idle Claude is stopped and resumed on a key, inside the same tmux session", () => {
+		const run = runScript(spec, "/d");
+		const watcher = run.indexOf("#{window_activity}");
+		const start = run.indexOf("claude --settings");
+		expect(watcher).toBeGreaterThan(-1);
+		expect(watcher).toBeLessThan(start);
+		expect(run.indexOf("read -rsn1", start)).toBeGreaterThan(start);
+		expect(run).toContain(`--resume ${sh(spec.pane)}`);
+		execFileSync("bash", ["-n"], { input: run });
+	});
+
 	test("sessions take turns at setup and let go before Claude starts", () => {
 		const run = runScript(spec, "/d");
 		const lock = run.indexOf("flock -w 120 9");
