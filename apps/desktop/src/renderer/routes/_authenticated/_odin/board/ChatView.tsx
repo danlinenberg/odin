@@ -1050,7 +1050,7 @@ interface ItemViewProps {
 	/** Types a message into the session - the AWS sign-in retries with it. */
 	onSend?: (text: string) => void;
 	/** Quits Claude and reopens the conversation - the Claude sign-in card's last step. */
-	onRestart?: () => void;
+	onRestart?: (prompt?: string) => void;
 	/** Runs a `! command` in the live session - set only while its PTY is up. */
 	onRun?: (command: string) => Promise<void>;
 	/** An older reply's, or one still being followed by output: only the final card shows. */
@@ -2373,10 +2373,15 @@ export function needsClaudeLogin(text: string): boolean {
 	return /^Not logged in\b.*\/login/im.test(text.trim());
 }
 
+/** What the restarted session opens with: the turn that failed is still unanswered. */
+export const CLAUDE_SIGNED_IN_RETRY =
+	"I signed in to Claude again. Retry what failed: carry on with my last message.";
+
 /**
  * A session whose Claude is signed out. On a remote host: a fresh Claude
  * sign-in for the host (your browser approves it), then Restart session, so
- * Claude starts again with it. Here: /login in the session.
+ * Claude starts again with it and picks the failed turn back up. Here: /login
+ * in the session.
  */
 function ClaudeLogin({
 	paneId,
@@ -2385,11 +2390,11 @@ function ClaudeLogin({
 }: {
 	paneId: string;
 	onSend?: (text: string) => void;
-	onRestart?: () => void;
+	onRestart?: (prompt?: string) => void;
 }) {
 	const remote = useTabsStore((s) => !!s.panes[paneId]?.odinRemote);
 	const renew = electronTrpc.remoteHost.renewClaudeToken.useMutation({
-		onSuccess: () => onRestart?.(),
+		onSuccess: () => onRestart?.(CLAUDE_SIGNED_IN_RETRY),
 		onError: (error) => toast.error(`Claude sign-in failed: ${error.message}`),
 	});
 	if (remote ? !onRestart : !onSend) return null;
@@ -2400,13 +2405,13 @@ function ClaudeLogin({
 			onClick={() => (remote ? renew.mutate() : onSend?.("/login"))}
 			title={
 				remote
-					? "Sign the host in to your Claude plan - approve it in the browser tab that opens - then restart this session"
+					? "Sign the host in to your Claude plan - approve it in the browser tab that opens - then restart this session, which retries what failed"
 					: "Run /login in this session"
 			}
 			className={cn(ACTION_BUTTON, "mt-2")}
 		>
 			{renew.isSuccess
-				? "Signed in - restarting the session"
+				? "Signed in - restarting and retrying"
 				: renew.isPending
 					? "Approve in your browser…"
 					: remote
@@ -2855,8 +2860,8 @@ export function ChatView({
 	onResumeWith?: (text: string) => void;
 	/** Sends a reply in place of typing it into the PTY - the raven's, which brings a dead PTY back first. */
 	onSend?: (text: string) => void;
-	/** Quits Claude and reopens this conversation (the board's Restart session). */
-	onRestart?: () => void;
+	/** Quits Claude and reopens this conversation (the board's Restart session), opening with `prompt` when given. */
+	onRestart?: (prompt?: string) => void;
 	/** Hide the links to the terminal view (the crow's panel has none). */
 	noTerminal?: boolean;
 	/** The reply box's prompt, in place of "Reply to Claude". */
