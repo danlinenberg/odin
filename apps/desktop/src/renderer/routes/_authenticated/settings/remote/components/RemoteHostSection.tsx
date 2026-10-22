@@ -17,11 +17,7 @@ import { Switch } from "@odin/ui/switch";
 import { useEffect, useRef, useState } from "react";
 import { HiChevronDown } from "react-icons/hi2";
 import { electronTrpc } from "renderer/lib/electron-trpc";
-import {
-	hostNameProblem,
-	hostPackagesProblem,
-	hostPolicyArnProblem,
-} from "shared/host-setup";
+import { hostPackagesProblem, hostPolicyArnProblem } from "shared/host-setup";
 import { SettingRow, SettingsSection } from "../../components/SettingsPage";
 
 const DEFAULT_REGION = "us-east-1";
@@ -60,7 +56,7 @@ const HOST_STEPS = {
  * AWS profile and region, and Use on one of them -
  * which gives it SSM access, starts it and installs what sessions need,
  * whichever it still lacks, then picks it. Its sessions then run there in
- * tmux. New host makes one from the account's launch template first.
+ * tmux. docs/remote-host.md says how to make a host.
  */
 export function RemoteHostSection() {
 	const utils = electronTrpc.useUtils();
@@ -286,8 +282,7 @@ export function RemoteHostSection() {
 	// starts it, waits for it and sets it up - whichever it still needs (up
 	// to twenty minutes) - and it is then picked as the host. The main
 	// process says which step it is on while that runs, so the step shows
-	// again when this page is opened again meanwhile. New host shares that:
-	// one host at a time.
+	// again when this page is opened again meanwhile. One host at a time.
 	const [uses, setUses] = useState<Record<string, UseState>>({});
 	const pickHost = (
 		id: string,
@@ -329,36 +324,13 @@ export function RemoteHostSection() {
 		},
 	});
 
-	// New host: an instance from the account's odin-host launch template,
-	// launched, waited for and set up by one call to the main process.
-	const templates = electronTrpc.remoteHost.awsLaunchTemplates.useQuery(
-		target,
-		{ enabled: loaded, retry: false },
-	);
-	const [templateId, setTemplateId] = useState("");
-	const template =
-		templates.data?.find((candidate) => candidate.id === templateId) ??
-		(templates.data?.length === 1 ? templates.data[0] : undefined);
-	const [newName, setNewName] = useState<string | null>(null);
-	const hostName = newName ?? current?.hostUser ?? "odin-host";
-	const nameProblem = hostNameProblem(hostName);
-	const newHost = electronTrpc.remoteHost.awsNewHost.useMutation({
-		onSuccess: ({ id, tools }, sent) => pickHost(id, sent.name, tools),
-		onError: (error) => {
-			// A host that launched but failed later is in the list, to Use.
-			instances.refetch();
-			toast.error(error.message);
-		},
-	});
 	const hostStep = electronTrpc.remoteHost.awsHostStep.useQuery(undefined, {
 		enabled: loaded,
 		refetchInterval: (query) =>
-			newHost.isPending || bringUp.isPending || query.state.data ? 1000 : false,
+			bringUp.isPending || query.state.data ? 1000 : false,
 	});
-	/** A host under way, from here or a page opened before: every Use and New host waits for it. */
-	const busy =
-		newHost.isPending || bringUp.isPending || use.isPending || !!hostStep.data;
-	const launching = newHost.isPending || hostStep.data?.action === "new";
+	/** A host under way, from here or a page opened before: every Use waits for it. */
+	const busy = bringUp.isPending || use.isPending || !!hostStep.data;
 	/** The step Use is on for this instance, to read on its button; null when it is not under way. */
 	const stepOf = (id: string) =>
 		hostStep.data?.action === "use" && hostStep.data.id === id
@@ -664,7 +636,7 @@ export function RemoteHostSection() {
 							description={
 								search.trim()
 									? "No host matches the search."
-									: "Make one with New host below, or tag an instance Odin = host in the EC2 console."
+									: "Only instances tagged Odin = host are listed. docs/remote-host.md in the Odin repo says how to make one."
 							}
 						/>
 					)}
@@ -736,69 +708,6 @@ export function RemoteHostSection() {
 							</SettingRow>
 						);
 					})}
-					<SettingRow
-						label="New host"
-						htmlFor="aws-new-host-name"
-						description={
-							templates.error ? (
-								<span className="select-text cursor-text">
-									{templates.error.message}
-								</span>
-							) : templates.data?.length === 0 ? (
-								"No odin-host launch template in this account."
-							) : (
-								"An instance from the account's odin-host launch template, which fixes its image, role, network and disk: named, tagged Odin = host, started, set up and picked as the host. About five minutes."
-							)
-						}
-					>
-						{!!templates.data?.length && (
-							<>
-								{templates.data.length > 1 && (
-									<Select
-										value={template?.id ?? ""}
-										onValueChange={setTemplateId}
-										disabled={launching}
-									>
-										<SelectTrigger className="w-44">
-											<SelectValue placeholder="Template" />
-										</SelectTrigger>
-										<SelectContent>
-											{templates.data.map((candidate) => (
-												<SelectItem key={candidate.id} value={candidate.id}>
-													{candidate.name}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-								)}
-								<Input
-									id="aws-new-host-name"
-									className="w-44"
-									value={hostName}
-									disabled={launching}
-									onChange={(event) => setNewName(event.target.value)}
-								/>
-								<Button
-									size="sm"
-									disabled={busy || !template || !!nameProblem}
-									title={nameProblem ?? undefined}
-									onClick={() =>
-										template &&
-										newHost.mutate({
-											...target,
-											templateId: template.id,
-											name: hostName.trim(),
-											tags: [],
-										})
-									}
-								>
-									{launching
-										? HOST_STEPS[hostStep.data?.step ?? "launching"]
-										: "New host"}
-								</Button>
-							</>
-						)}
-					</SettingRow>
 					<Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
 						<CollapsibleTrigger asChild>
 							<button
