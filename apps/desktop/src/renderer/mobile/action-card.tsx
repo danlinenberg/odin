@@ -45,8 +45,9 @@ export function ActionCard({
 	);
 }
 
+/** A choice can be a whole sentence: the button grows to its lines instead of running off the screen. */
 const BUTTON =
-	"h-8 shrink-0 rounded-lg border border-attention/40 px-3 text-sm font-medium text-attention disabled:opacity-50";
+	"min-h-8 max-w-full break-words rounded-lg border border-attention/40 px-3 py-1 text-left text-sm font-medium text-attention disabled:opacity-50";
 
 function ActionRow({
 	item,
