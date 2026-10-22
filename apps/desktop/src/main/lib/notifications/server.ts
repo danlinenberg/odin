@@ -294,6 +294,37 @@ app.get("/read", async (req, res) => {
 	}
 });
 
+/**
+ * How I write (main/lib/voice-profile.ts), for a session drafting a message I
+ * will send. Empty until Odin has seen enough of my Slack messages. A POST
+ * with `note=<correction>` records how I corrected a draft's tone.
+ */
+app.get("/voice", async (req, res) => {
+	if (req.headers.origin) {
+		return res.status(403).send("Not from a browser.\n");
+	}
+	const { readVoice, voiceText } = await import("../voice-profile");
+	const text = voiceText(await readVoice());
+	res.type("text/plain").send(text ? `${text}\n` : "");
+});
+
+app.post(
+	"/voice",
+	express.urlencoded({ extended: false }),
+	async (req, res) => {
+		if (req.headers.origin) {
+			return res.status(403).send("Not from a browser.\n");
+		}
+		const note = req.body?.note ?? req.query.note;
+		if (typeof note !== "string" || !note.trim()) {
+			return res.status(400).send("Need note.\n");
+		}
+		const { addVoiceNote } = await import("../voice-profile");
+		await addVoiceNote(note);
+		res.send("Noted.\n");
+	},
+);
+
 /** A Slack file or Jira attachment a /read lists, downloaded with Odin's token. */
 app.get("/file", async (req, res) => {
 	if (req.headers.origin) {

@@ -767,7 +767,12 @@ export async function slackConversation(
 		}
 		if (all.length > shown.length)
 			lines.splice(1, 0, `(… ${all.length - shown.length} earlier messages)`);
-		return lines.join("\n");
+		const text = lines.join("\n");
+		// My own lines in it teach drafts how I write - see voice-profile.
+		void import("main/lib/voice-profile").then(({ noteConversation }) =>
+			noteConversation(text),
+		);
+		return text;
 	} catch {
 		return null;
 	}

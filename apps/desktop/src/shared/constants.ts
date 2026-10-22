@@ -94,6 +94,12 @@ export const SHELL_RULE = `To run something for me to use or watch - the app fro
 export const SAVE_DOC_PROMPT =
 	'Save what we worked out in this session as a knowledge doc, so a later task can read it for context. Write one markdown file to ~/.odin/docs/<short-kebab-name>.md (make the folder if it is missing). Start it with a "# <title>" line, then the conclusions, decisions, open questions and links - a summary, not a transcript. If this session already saved a doc, update that file. Tell me the path.';
 
+/**
+ * Drafts I send as myself should sound like me: Odin learns how I write from my
+ * Slack messages (main/lib/voice-profile.ts) - delivered with SHELL_RULE at SessionStart.
+ */
+export const VOICE_RULE = `When you write a message I will send as myself - a Slack reply or draft, a Jira or GitHub comment, an email - write it in my voice: first read how I write with \`curl -sf http://127.0.0.1:$ODIN_PORT/voice\` and follow it over your own style and over the Simplified Technical English rule, which is for your replies to me, not for my messages (if it prints nothing, keep the message short and plain). When I correct how a draft sounds (its tone, length, wording habits - not its facts), record the correction as one general line: \`curl -sf http://127.0.0.1:$ODIN_PORT/voice --data-urlencode "note=<the correction>"\`.`;
+
 /** How every Claude session in Odin writes its replies - delivered with SHELL_RULE at SessionStart. */
 export const STE_RULE =
 	"Write your replies in ASD-STE100 Simplified Technical English: short sentences (procedural steps 20 words or fewer, descriptive text 25 or fewer), active voice, one instruction per sentence, the imperative for instructions, simple common words with one meaning each, and no idioms or phrasal verbs. Code, commands, file paths, identifiers and quoted text stay exactly as they are.";
