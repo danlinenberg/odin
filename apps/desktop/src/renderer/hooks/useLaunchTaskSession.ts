@@ -346,9 +346,23 @@ export function useLaunchTaskSession() {
 		// part, so a launch that fails after that has something to take down.
 		let created: { tabId: string; paneId: string } | null = null;
 		try {
-			const workspace = await utils.client.workspaces.get.query({
-				id: workspaceId,
-			});
+			const launchTarget = () =>
+				utils.client.remoteHost?.launchTarget
+					.query({ repoPath: repoPath ?? null, source: source ?? null })
+					.catch(() => null);
+			// Everything the card needs, asked at once: one after another, these
+			// round trips to a busy main process held the card back for seconds.
+			const [workspace, hostConfig, profiles, target] = await Promise.all([
+				utils.client.workspaces.get.query({ id: workspaceId }),
+				utils.client.remoteHost?.get.query().catch(() => null),
+				// Read the profile now rather than from a cached query: a switch a
+				// moment ago must not stamp this session onto the profile you left.
+				planOnly ? undefined : utils.client.connections.profiles.query(),
+				// A plain new session asks where it runs; the rest decide below.
+				!planOnly && onHost === undefined && !resumeSessionId
+					? launchTarget()
+					: undefined,
+			]);
 			const worktreePath = workspace?.worktreePath;
 			if (!worktreePath) {
 				return {
@@ -358,9 +372,7 @@ export function useLaunchTaskSession() {
 			}
 			// Settings > Remote can start sessions on a remote host: there the
 			// host keeps its own clone, so no worktree, trust or local files.
-			const host = (
-				await utils.client.remoteHost?.get.query().catch(() => null)
-			)?.host;
+			const host = hostConfig?.host;
 			// A resume runs where its conversation is, whatever new sessions do.
 			// A host session's transcript is mirrored here too, but not its cwd.
 			const savedOn =
@@ -380,9 +392,9 @@ export function useLaunchTaskSession() {
 					? host.name || host.instanceId
 					: onHost === false || savedOn === "here"
 						? null
-						: await utils.client.remoteHost?.launchTarget
-								.query({ repoPath: repoPath ?? null, source: source ?? null })
-								.catch(() => null);
+						: target !== undefined
+							? target
+							: await launchTarget();
 			// A pinned --session-id is not proof Claude ever wrote the
 			// conversation: a card Done'd or snoozed before Claude took its prompt
 			// has none, and `claude --resume` then prints "No conversation found"
@@ -420,11 +432,7 @@ export function useLaunchTaskSession() {
 			// board it is starting rather than ended. A plan starts nothing.
 			const { addTab, setTabAutoTitle, setPaneAutoTitle, setPaneStatus } =
 				useTabsStore.getState();
-			// Read the profile now rather than from a cached query: a switch a
-			// moment ago must not stamp this session onto the profile you left.
-			const odinProfile = planOnly
-				? undefined
-				: (await utils.client.connections.profiles.query()).activeId;
+			const odinProfile = profiles?.activeId;
 			if (!planOnly) {
 				// The worktree's path comes later; the repo picked at launch
 				// stands in until then.

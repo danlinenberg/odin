@@ -3,6 +3,14 @@ import { useMemo, useState } from "react";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 
 /**
+ * The workspace each repo resolved to, for this run of the app. Opening a
+ * repo runs half a dozen git commands in the main process and every launch
+ * waited on them before its card went up; a repo seen before answers from
+ * here and is reopened behind the launch.
+ */
+const resolved = new Map<string, string>();
+
+/**
  * Workspace selection for the Odin views, with zero-friction provisioning:
  * when no workspace exists, `ensureWorkspace` creates a project + main
  * workspace from the default repo (no dialogs), so "Start session" and the
@@ -80,6 +88,12 @@ export function useOdinWorkspace() {
 		if (!repoPath) {
 			return fallback("No default folder - set one in Settings → Sessions.");
 		}
+		const known = workspaces.find((item) => item.id === resolved.get(repoPath));
+		if (known) {
+			// Still marks the project opened, which the next launch's default reads.
+			void openFromPath.mutateAsync({ path: repoPath }).catch(() => {});
+			return { ok: true, workspace: known };
+		}
 		const result = await openFromPath.mutateAsync({ path: repoPath });
 		if ("error" in result && result.error) {
 			return fallback(result.error);
@@ -96,6 +110,7 @@ export function useOdinWorkspace() {
 		if (!workspace) {
 			return fallback("Workspace was not created");
 		}
+		resolved.set(repoPath, workspace.id);
 		return { ok: true, workspace };
 	};
 
