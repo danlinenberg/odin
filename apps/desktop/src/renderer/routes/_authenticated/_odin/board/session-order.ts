@@ -6,6 +6,7 @@ export const SWITCH_SORTS = {
 	updated: "Last update",
 	oldest: "Waiting longest",
 	name: "Name",
+	viewed: "Recently viewed",
 } as const;
 export type SwitchSort = keyof typeof SWITCH_SORTS;
 /** The same sorts in a word, for a session list too narrow for the long labels. */
@@ -14,6 +15,7 @@ export const SWITCH_SORTS_SHORT: Record<SwitchSort, string> = {
 	updated: "Updated",
 	oldest: "Waiting",
 	name: "Name",
+	viewed: "Viewed",
 };
 
 /** What the order reads off a card: the column it sits in, its star, and when it got there. */
@@ -45,6 +47,10 @@ const rank = (table: Partial<Record<PaneStatus, number>>, status: PaneStatus) =>
  * Order for the drawer's session list: the group (when grouped), starred first,
  * then the picked sort.
  *
+ * "Recently viewed" reads `viewedAt` (when you last opened the session in the
+ * drawer); a session you never opened falls below the ones you did, newest
+ * update first.
+ *
  * The time sorts read only when a session entered its state. A working
  * session's hooks fire on every tool call, and sorting on them had the Working
  * rows trade places every few seconds. A session moves in the list when its
@@ -54,6 +60,7 @@ export function sessionOrder<T extends OrderedCard>(
 	sort: SwitchSort,
 	grouped: boolean,
 	title: (card: T) => string,
+	viewedAt: (card: T) => number = () => 0,
 ): (a: T, b: T) => number {
 	return (a, b) =>
 		(grouped ? rank(GROUP_RANK, a.status) - rank(GROUP_RANK, b.status) : 0) ||
@@ -61,6 +68,7 @@ export function sessionOrder<T extends OrderedCard>(
 		(sort === "status"
 			? rank(STATUS_RANK, a.status) - rank(STATUS_RANK, b.status)
 			: 0) ||
+		(sort === "viewed" ? viewedAt(b) - viewedAt(a) : 0) ||
 		(sort === "name"
 			? title(a).localeCompare(title(b))
 			: sort === "oldest"

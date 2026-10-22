@@ -90,6 +90,7 @@ import {
 import { sessionDocKey, useDoneStore } from "renderer/stores/done";
 import { useIdleClose } from "renderer/stores/idle-close";
 import { useIdleCompact } from "renderer/stores/idle-compact";
+import { useRecentlyViewed } from "renderer/stores/recently-viewed";
 import { useSessionView } from "renderer/stores/session-view";
 import { useStartingPanes } from "renderer/stores/starting-panes";
 import { useTabsStore } from "renderer/stores/tabs/store";
@@ -3630,6 +3631,12 @@ function DevBoardPage() {
 	// One filter at a time, from the header dropdown: "tag:<tag>",
 	// "repo:<name>", "person:<name>", or "" for everything.
 	const [boardFilter, setBoardFilter] = useState("");
+	// Every session you open in the drawer, for the Recently viewed filter and
+	// sort - the one you keep coming back to, without hunting the columns.
+	const viewedAt = useRecentlyViewed((state) => state.viewedAt);
+	useEffect(() => {
+		if (drawerPaneId) useRecentlyViewed.getState().view(drawerPaneId);
+	}, [drawerPaneId]);
 	// Free-text search over title, brief, tags, person, repo and PRs. Stacks with
 	// the dropdown filter above.
 	const [search, setSearch] = useState("");
@@ -3947,9 +3954,11 @@ function DevBoardPage() {
 		allPeople,
 		allRepos,
 		starredCount,
+		viewedCount,
 	} = useMemo(() => {
 		const map = new Map<PaneStatus, BoardCard[]>();
 		let starred = 0;
+		let viewed = 0;
 		const completed: BoardCard[] = [];
 		// Counted over the sessions the board actually shows - counting every
 		// pane made the pill promise cards that were killed or aren't tasks.
@@ -4020,6 +4029,7 @@ function DevBoardPage() {
 				for (const tag of boardTags(pane.odinTags, customTags))
 					tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
 				if (pane.odinStarred) starred++;
+				if (viewedAt[pane.id]) viewed++;
 				const person = pane.odinContact ?? contactByPane[pane.id] ?? null;
 				if (person)
 					personCounts.set(person, (personCounts.get(person) ?? 0) + 1);
@@ -4027,6 +4037,7 @@ function DevBoardPage() {
 				repoCounts.set(repo, (repoCounts.get(repo) ?? 0) + 1);
 				if (
 					(boardFilter === "starred" && !pane.odinStarred) ||
+					(boardFilter === "viewed" && !viewedAt[pane.id]) ||
 					(boardFilter.startsWith("person:") &&
 						person !== boardFilter.slice(7)) ||
 					(boardFilter.startsWith("repo:") && repo !== boardFilter.slice(5)) ||
@@ -4057,6 +4068,7 @@ function DevBoardPage() {
 			cardsByStatus: map,
 			completedCards: completed,
 			starredCount: starred,
+			viewedCount: viewed,
 			allTags: [...tagCounts.entries()].sort((a, b) =>
 				a[0].localeCompare(b[0]),
 			),
@@ -4078,6 +4090,7 @@ function DevBoardPage() {
 		watchByPane,
 		daemonSessions,
 		boardFilter,
+		viewedAt,
 		search,
 		workTextKey,
 		workingRepoKey,
@@ -4172,7 +4185,14 @@ function DevBoardPage() {
 	// rows trade places every few seconds. A row moves when its state changes.
 	const switchCards = (["permission", "review", "working"] as const)
 		.flatMap((status) => cardsByStatus.get(status) ?? [])
-		.toSorted(sessionOrder(switchSort, isSwitchGrouped, cardTitle));
+		.toSorted(
+			sessionOrder(
+				switchSort,
+				isSwitchGrouped,
+				cardTitle,
+				(card) => viewedAt[card.pane.id] ?? 0,
+			),
+		);
 	// Idle sits under the list, folded until opened; remembered per machine.
 	// Not in switchCards: the next/prev keys reach it only while it's open.
 	const idleSwitchCards = (cardsByStatus.get("idle") ?? []).toSorted(
@@ -6119,11 +6139,12 @@ function DevBoardPage() {
 				{(allTags.length > 0 ||
 					allPeople.length > 0 ||
 					allRepos.length > 1 ||
-					starredCount > 0) && (
+					starredCount > 0 ||
+					viewedCount > 0) && (
 					<select
 						value={boardFilter}
 						onChange={(e) => setBoardFilter(e.target.value)}
-						title="Show only starred sessions, or those with this tag, repo or person"
+						title="Show only starred or recently viewed sessions, or those with this tag, repo or person"
 						className={cn(
 							"max-w-[220px] cursor-pointer rounded-full border px-2.5 py-1 text-[12px] font-medium outline-none",
 							boardFilter
@@ -6134,6 +6155,9 @@ function DevBoardPage() {
 						<option value="">All sessions</option>
 						{starredCount > 0 && (
 							<option value="starred">★ Starred ({starredCount})</option>
+						)}
+						{viewedCount > 0 && (
+							<option value="viewed">Recently viewed ({viewedCount})</option>
 						)}
 						{allTags.length > 0 && (
 							<optgroup label="Tags">
