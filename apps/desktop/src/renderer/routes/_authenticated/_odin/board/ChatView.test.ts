@@ -9,6 +9,7 @@ import {
 	applyQueue,
 	arrived,
 	autoSsoLogin,
+	bangCommandNotes,
 	bangCommands,
 	bashCommandOf,
 	commandItem,
@@ -81,6 +82,27 @@ describe("ChatView transcript", () => {
 			"```",
 		].join("\n");
 		expect(bangCommands(text)).toEqual(["aws sso login", "echo a &&\necho b"]);
+	});
+
+	test("a ! command's note is the line Claude wrote above it", () => {
+		const text = [
+			"A read-only preview of the branch:",
+			"```",
+			"! git log -1",
+			"```",
+			"```",
+			"! git reset --hard",
+			"```",
+			"- Then check it with `git status`:",
+			"",
+			"```",
+			"! git status",
+			"```",
+		].join("\n");
+		expect(bangCommandNotes(text)).toEqual({
+			"git log -1": "A read-only preview of the branch:",
+			"git status": "Then check it with `git status`:",
+		});
 	});
 
 	test("a ! command goes under its own item, else the one naming it, else the one saying run", () => {
