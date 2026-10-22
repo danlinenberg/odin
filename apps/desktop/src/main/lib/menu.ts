@@ -8,6 +8,7 @@ import { textSizeOf } from "shared/text-size";
 import { checkForUpdatesInteractive } from "./auto-updater";
 import { menuEmitter } from "./menu-events";
 import { confirmAndQuitCompletely } from "./quit-completely";
+import { confirmAndRestartCompletely, restartOdin } from "./restart-odin";
 
 function zoomFocusedWindow(next: (level: number) => number) {
 	const contents = BrowserWindow.getFocusedWindow()?.webContents;
@@ -202,6 +203,14 @@ export function createApplicationMenu() {
 				{ role: "hide" },
 				{ role: "hideOthers" },
 				{ role: "unhide" },
+				{ type: "separator" },
+				{ label: "Restart Odin", click: () => restartOdin() },
+				{
+					label: "Restart Odin Completely",
+					click: () => {
+						void confirmAndRestartCompletely();
+					},
+				},
 				{ type: "separator" },
 				{ role: "quit" },
 				{
