@@ -959,7 +959,7 @@ export interface RuleFiring {
  * being applied.
  */
 const PR_ACTION =
-	/(?:^|[;&|])\s*(?:\w+=\S*\s+)*(?:gh pr (?:create|edit|ready)|git\b[^;&|\n]*?\spush)\b/m;
+	/(?:^|[;&|])\s*(?:(?:\w+=\S*|command|env|builtin|exec|nohup|time)\s+)*(?:gh pr (?:create|edit|ready)|git\b[^;&|\n]*?\spush)\b/m;
 const ARTIFACT_URL = /https:\/\/claude\.ai\/(?:code\/)?artifact\/[\w-]+/;
 const PR_URL = /https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/g;
 
@@ -967,10 +967,11 @@ const PR_URL = /https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/g;
  * A Bash command that opens a PR: `gh pr create`, or a POST to the REST
  * `pulls` endpoint itself (the fallback when GraphQL is rate-limited) - not a
  * comment or review on one, `pulls/<n>/...`. Only in command position: a
- * `grep "gh pr create"` prints PR urls that are not this session's.
+ * `grep "gh pr create"` prints PR urls that are not this session's. Env
+ * assignments and wrappers like `command gh` (past a gh alias) still count.
  */
 const GH_COMMAND =
-	/(?:^|[;&|(])\s*(?:\w+=(?:\$\([^)]*\)|\S*)\s+)*gh (pr create\b|api\b[^;&|\n]*)/gm;
+	/(?:^|[;&|(])\s*(?:(?:\w+=(?:\$\([^)]*\)|\S*)|command|env|builtin|exec|nohup|time)\s+)*gh (pr create\b|api\b[^;&|\n]*)/gm;
 export function opensPr(command: string): boolean {
 	for (const [, args = ""] of command.matchAll(GH_COMMAND))
 		if (
