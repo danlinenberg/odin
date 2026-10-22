@@ -196,12 +196,14 @@ function mirrorTranscript(
 function reportLoad(client: Client, instanceId: string): () => void {
 	if (!odinPort()) return () => {};
 	const tick = async () => {
-		const load = parseHostLoad(await exec(client, HOST_LOAD_COMMAND, ""));
-		if (!load) return;
+		const text = await exec(client, HOST_LOAD_COMMAND, "");
+		if (!parseHostLoad(text)) return;
+		// The raw output, which Odin parses: this helper outlives Odin's
+		// restarts, so a change to the parsing reaches its readings too.
 		await fetch(`http://127.0.0.1:${odinPort()}/remote-host/load`, {
 			method: "POST",
 			headers: { "content-type": "application/json" },
-			body: JSON.stringify({ instanceId, ...load, at: Date.now() }),
+			body: JSON.stringify({ instanceId, text, at: Date.now() }),
 		});
 	};
 	const tickQuietly = () => void tick().catch(() => {});
