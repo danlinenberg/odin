@@ -382,7 +382,7 @@ export function RemoteHostSection() {
 	return (
 		<SettingsSection
 			title="Remote host"
-			description="Run new sessions on an EC2 instance in your AWS account - one that is there already, whoever made it, or a new one - so they keep going with this computer shut. Odin connects through AWS Systems Manager with your own AWS sign-in: the instance needs no open port, public IP or SSH key. With it on, new sessions start there - except a Slack, Notion or Jira task whose connector isn't on the host (below), which stays here. Sessions there use your Claude plan."
+			description="Run new sessions on an EC2 instance in your AWS account, so they keep going with this computer shut. Odin connects with your AWS sign-in over Systems Manager: no open port or SSH key."
 		>
 			{current?.host && (
 				<SettingRow
@@ -447,17 +447,10 @@ export function RemoteHostSection() {
 					stacked
 					description={
 						<span className="select-text cursor-text">
-							A session on the host signs in to GitHub as one of these: the
-							account that owns the repo it works on when that account may go,
-							else the main one. The GitHub connector there uses the same
-							account. An account signed in on the host keeps its own token
-							fresh there, so sessions push and open PRs with this computer
-							shut; one that isn't uses this computer's token, sent again
-							whenever this computer refreshes it. A token on the host reaches
-							every repo the account can, and anyone with your user's shell on
-							the instance can use it, so keep a personal account off a work
-							host. A task on a repo owned by an account kept off the host
-							starts on this computer instead.
+							Sessions on the host use the account that owns the repo, else the
+							main one. Sign in on the host so pushes work with this computer
+							shut. Anyone with a shell on the instance can use these tokens:
+							keep personal accounts off a work host.
 						</span>
 					}
 				>
@@ -536,13 +529,9 @@ export function RemoteHostSection() {
 					stacked
 					description={
 						<span className="select-text cursor-text">
-							Sessions on the host can use these with this computer asleep or
-							closed. Their tokens are kept on the host, readable only by Odin's
-							own service there - sessions use a connector but never see its
-							token. Anyone who can open a shell on the instance in your AWS
-							account can still read them, so keep a connector here only if that
-							is only you. Gmail never goes to the host; turning the host off
-							removes them all.
+							Usable by host sessions with this computer shut. Sessions never
+							see the tokens, but anyone with a shell on the instance can read
+							them. A task whose connector is off here starts on this computer.
 							{setConnectors.isPending && (
 								<span className="mt-1 block">
 									Saving on the host - the first time also installs Odin's
@@ -581,11 +570,8 @@ export function RemoteHostSection() {
 					stacked
 					description={
 						<span className="select-text cursor-text">
-							Turning a part on copies it from this computer's ~/.claude to the
-							host, so sessions there follow the same instructions and have the
-							same skills and plugins. Turning one off stops copying it; what is
-							on the host stays. Never your login or accounts, your
-							conversations or history. Sync again after you change them here.
+							Copies these parts of ~/.claude to the host. Never your login or
+							history. Sync again after you change them.
 							{syncingSetup && (
 								<span className="mt-1 block">Copying to the host...</span>
 							)}
@@ -596,10 +582,17 @@ export function RemoteHostSection() {
 								</span>
 							)}
 							{!!current.host.claudeSetupDropped?.length && (
-								<span className="mt-1 block">
-									Left out on the host, because they need files it doesn't have:{" "}
-									{current.host.claudeSetupDropped.join("; ")}.
-								</span>
+								<details className="mt-1">
+									<summary className="cursor-pointer">
+										{current.host.claudeSetupDropped.length} hooks left out:
+										they need files the host doesn't have
+									</summary>
+									<ul className="mt-1 space-y-0.5 font-mono text-xs">
+										{current.host.claudeSetupDropped.map((hook) => (
+											<li key={hook}>{hook}</li>
+										))}
+									</ul>
+								</details>
 							)}
 							{setupSync?.error && (
 								<span className="mt-1 block text-destructive">
@@ -667,27 +660,29 @@ export function RemoteHostSection() {
 					)}
 					{instances.data && !error && shownInstances.length === 0 && (
 						<SettingRow
-							label="No matching instances"
-							description={`${
+							label={search.trim() ? "No matching hosts" : "No hosts here yet"}
+							description={
 								search.trim()
-									? "No listed instance matches the search."
-									: "No instance in this account and region."
-							} Only instances tagged Odin = host are listed: add that tag to yours in the EC2 console.`}
+									? "No host matches the search."
+									: "Make one with New host below, or tag an instance Odin = host in the EC2 console."
+							}
 						/>
 					)}
-					<SettingRow
-						label="Search"
-						htmlFor="aws-search"
-						description="By name or instance id."
-					>
-						<Input
-							id="aws-search"
-							className="w-64"
-							placeholder="odin-remote, i-0a95..."
-							value={search}
-							onChange={(event) => setSearch(event.target.value)}
-						/>
-					</SettingRow>
+					{(instances.data?.instances.length ?? 0) > 5 && (
+						<SettingRow
+							label="Search"
+							htmlFor="aws-search"
+							description="By name or instance id."
+						>
+							<Input
+								id="aws-search"
+								className="w-64"
+								placeholder="odin-remote, i-0a95..."
+								value={search}
+								onChange={(event) => setSearch(event.target.value)}
+							/>
+						</SettingRow>
+					)}
 					{instances.data?.truncated && (
 						<SettingRow
 							label={`The first ${shownInstances.length} instances`}
