@@ -59,7 +59,7 @@ export function connectedSites(): LinkSiteId[] {
 		notion: config.notionToken,
 		gmail: config.gmailAddress,
 		clickup: config.clickupToken,
-		calendar: config.calendarUrl,
+		calendar: config.calendarRefreshToken ?? config.calendarUrl,
 	};
 	return (Object.keys(signedIn) as LinkSiteId[]).filter((id) => signedIn[id]);
 }

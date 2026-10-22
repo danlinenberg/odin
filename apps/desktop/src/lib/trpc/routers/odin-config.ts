@@ -154,9 +154,22 @@ export interface OdinFileConfig {
 	/**
 	 * The calendar's secret iCal address (Google: Settings → your calendar →
 	 * Integrate calendar → Secret address in iCal format). Anyone holding it
-	 * can read the calendar, so it is kept like a token. No OAuth, like Gmail.
+	 * can read the calendar, so it is kept like a token. The way in for
+	 * Outlook and iCloud, and for Google when no OAuth app is set up.
 	 */
 	calendarUrl?: string;
+	/**
+	 * Google Calendar OAuth connection (calendar.readonly). Access tokens last
+	 * an hour, so the refresh token and the expiry are stored beside them.
+	 * Wins over `calendarUrl` when both are set.
+	 */
+	calendarAccessToken?: string;
+	calendarRefreshToken?: string;
+	calendarTokenExpiresAt?: number;
+	/** The Google Calendar OAuth app, like Notion's. */
+	calendarClientId?: string;
+	calendarClientSecret?: string;
+	calendarRedirectUrl?: string;
 
 	/** Slack **user** token (`xoxp-…`) - bot tokens can't read my reactions. */
 	slackToken?: string;
@@ -245,6 +258,9 @@ const SHARED_KEYS = [
 	"notionClientId",
 	"notionClientSecret",
 	"notionRedirectUrl",
+	"calendarClientId",
+	"calendarClientSecret",
+	"calendarRedirectUrl",
 	"githubClientId",
 ] as const;
 
@@ -623,6 +639,31 @@ export function resolveNotionOAuthApp(): NotionOAuthApp | null {
 	const redirectUrl =
 		appValue(["ODIN_NOTION_REDIRECT_URL"], file.notionRedirectUrl) ||
 		process.env.ODIN_NOTION_REDIRECT_URL_BAKED;
+	if (!clientId || !clientSecret || !redirectUrl) return null;
+	return { clientId, clientSecret, redirectUrl };
+}
+
+export interface CalendarOAuthApp {
+	clientId: string;
+	clientSecret: string;
+	redirectUrl: string;
+}
+
+/**
+ * The Google Calendar OAuth app, if one is configured. All three parts are
+ * required, like Notion's: a half-configured app fails at the exchange.
+ */
+export function resolveCalendarOAuthApp(): CalendarOAuthApp | null {
+	const file = readOdinConfig();
+	const clientId =
+		appValue(["ODIN_CALENDAR_CLIENT_ID"], file.calendarClientId) ||
+		process.env.ODIN_CALENDAR_CLIENT_ID_BAKED;
+	const clientSecret =
+		appValue(["ODIN_CALENDAR_CLIENT_SECRET"], file.calendarClientSecret) ||
+		process.env.ODIN_CALENDAR_CLIENT_SECRET_BAKED;
+	const redirectUrl =
+		appValue(["ODIN_CALENDAR_REDIRECT_URL"], file.calendarRedirectUrl) ||
+		process.env.ODIN_CALENDAR_REDIRECT_URL_BAKED;
 	if (!clientId || !clientSecret || !redirectUrl) return null;
 	return { clientId, clientSecret, redirectUrl };
 }

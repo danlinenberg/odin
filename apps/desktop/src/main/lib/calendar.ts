@@ -1,12 +1,15 @@
 import ICAL from "ical.js";
 
 /**
- * Meetings from a calendar's secret iCal address - the Calendar feed.
+ * Meetings for the Calendar feed, from either of its two ways in.
  *
- * No OAuth, same as Gmail: Google, Outlook and iCloud all publish a private
- * `.ics` address that is the whole calendar, and one GET reads it. ical.js
- * does the parts that are easy to get wrong by hand - recurring series, their
+ * Signed in to Google: the Calendar API, which expands recurring series
+ * itself (`singleEvents`). Otherwise the secret iCal address that Google,
+ * Outlook and iCloud all publish, read with one GET. ical.js does the parts
+ * of that file that are easy to get wrong by hand - recurring series, their
  * moved and cancelled occurrences, and the VTIMEZONE blocks the times are in.
+ * Both produce the same rows with the same ids, so switching between them
+ * keeps what was marked Done.
  */
 
 /** One upcoming meeting, a single occurrence of a series. */
@@ -194,4 +197,184 @@ function toMeeting(
 		description: description?.slice(0, 4000) ?? null,
 		recurring: event.isRecurring() || event.isRecurrenceException(),
 	};
+}
+
+// --- Google Calendar API ----------------------------------------------------
+
+const GOOGLE_CALENDAR_API = "https://www.googleapis.com/calendar/v3";
+
+/** The pages of one window a person can plausibly have; a guard, not a limit. */
+const MAX_PAGES = 10;
+
+export function googleCalendarFetch(
+	path: string,
+	token: string,
+): Promise<Response> {
+	return fetch(`${GOOGLE_CALENDAR_API}/${path}`, {
+		headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+	});
+}
+
+/** The primary calendar's id, which is the account's address. */
+export async function primaryCalendarId(token: string): Promise<string | null> {
+	try {
+		const res = await googleCalendarFetch("calendars/primary", token);
+		if (!res.ok) return null;
+		const json = (await res.json()) as { id?: string; summary?: string };
+		return json.id ?? json.summary ?? null;
+	} catch {
+		return null;
+	}
+}
+
+interface GooglePerson {
+	email?: string;
+	displayName?: string;
+	self?: boolean;
+	resource?: boolean;
+	responseStatus?: string;
+}
+
+export interface GoogleEvent {
+	id?: string;
+	iCalUID?: string;
+	status?: string;
+	summary?: string;
+	description?: string;
+	location?: string;
+	start?: { dateTime?: string; date?: string };
+	end?: { dateTime?: string; date?: string };
+	organizer?: GooglePerson;
+	attendees?: GooglePerson[];
+	hangoutLink?: string;
+	conferenceData?: {
+		entryPoints?: { entryPointType?: string; uri?: string }[];
+	};
+	recurringEventId?: string;
+}
+
+/**
+ * The primary calendar's meetings in the window, through the API. A failed
+ * page comes back as its status and body, so the caller can say what went
+ * wrong.
+ */
+export async function fetchGoogleMeetings(
+	token: string,
+	window: { from: number; to: number },
+	self: string[] = [],
+): Promise<
+	| { ok: true; meetings: MeetingRow[] }
+	| { ok: false; status: number; body: string }
+> {
+	const events: GoogleEvent[] = [];
+	let pageToken: string | undefined;
+	for (let page = 0; page < MAX_PAGES; page++) {
+		const query = new URLSearchParams({
+			timeMin: new Date(window.from).toISOString(),
+			timeMax: new Date(window.to).toISOString(),
+			singleEvents: "true",
+			orderBy: "startTime",
+			maxResults: "250",
+		});
+		if (pageToken) query.set("pageToken", pageToken);
+		const res = await googleCalendarFetch(
+			`calendars/primary/events?${query}`,
+			token,
+		);
+		if (!res.ok)
+			return { ok: false, status: res.status, body: await res.text() };
+		const json = (await res.json()) as {
+			items?: GoogleEvent[];
+			nextPageToken?: string;
+		};
+		events.push(...(json.items ?? []));
+		pageToken = json.nextPageToken;
+		if (!pageToken) break;
+	}
+	return { ok: true, meetings: parseGoogleEvents(events, window, self) };
+}
+
+/** Google's descriptions are HTML; the agenda wants the text. */
+function plainText(html: string): string {
+	return html
+		.replace(/<br\s*\/?>/gi, "\n")
+		.replace(/<\/p>/gi, "\n")
+		.replace(/<[^>]+>/g, "")
+		.replace(/&nbsp;/g, " ")
+		.replace(/&lt;/g, "<")
+		.replace(/&gt;/g, ">")
+		.replace(/&quot;/g, '"')
+		.replace(/&#39;/g, "'")
+		.replace(/&amp;/g, "&");
+}
+
+/**
+ * The same rows `parseMeetings` makes, from API events: the same rules for
+ * what counts as a meeting (someone else is in it, not all-day, not
+ * cancelled, not declined) and the same `uid@start` ids.
+ */
+export function parseGoogleEvents(
+	events: GoogleEvent[],
+	window: { from: number; to: number },
+	self: string[] = [],
+): MeetingRow[] {
+	const me = new Set(self.map((value) => value.toLowerCase()));
+	const isMe = (person: GooglePerson) =>
+		person.self === true || me.has((person.email ?? "").toLowerCase());
+	const nameOfPerson = (person: GooglePerson) =>
+		text(person.displayName) ?? (person.email ?? "").toLowerCase();
+
+	const rows: MeetingRow[] = [];
+	for (const event of events) {
+		if (event.status === "cancelled") continue;
+		const startIso = event.start?.dateTime;
+		const endIso = event.end?.dateTime;
+		if (!startIso || !endIso) continue;
+		const startMs = Date.parse(startIso);
+		const endMs = Date.parse(endIso);
+		if (endMs <= window.from || startMs >= window.to) continue;
+
+		const attendees = event.attendees ?? [];
+		if (attendees.find(isMe)?.responseStatus === "declined") continue;
+		const others = attendees.filter(
+			(person) => !isMe(person) && !person.resource,
+		);
+		if (others.length === 0) continue;
+
+		const location = text(event.location);
+		const rawDescription = text(
+			event.description ? plainText(event.description) : null,
+		);
+		const conference =
+			text(event.hangoutLink) ??
+			text(
+				event.conferenceData?.entryPoints?.find(
+					(point) => point.entryPointType === "video",
+				)?.uri,
+			);
+		const joinUrl =
+			conference ??
+			[location, rawDescription]
+				.map((value) => value?.match(JOIN_URL)?.[0] ?? null)
+				.find(Boolean) ??
+			null;
+		const description = text(rawDescription?.replace(GOOGLE_FOOTER, ""));
+		const start = new Date(startMs).toISOString();
+		rows.push({
+			id: `${event.iCalUID ?? event.id}@${start}`,
+			title: text(event.summary) ?? "(no title)",
+			start,
+			end: new Date(endMs).toISOString(),
+			organizer:
+				event.organizer && !isMe(event.organizer)
+					? nameOfPerson(event.organizer)
+					: null,
+			attendees: others.map(nameOfPerson),
+			location: location && location !== joinUrl ? location : null,
+			joinUrl,
+			description: description?.slice(0, 4000) ?? null,
+			recurring: Boolean(event.recurringEventId),
+		});
+	}
+	return rows.sort((a, b) => a.start.localeCompare(b.start));
 }

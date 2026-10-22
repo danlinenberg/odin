@@ -17,9 +17,9 @@ import { resetOdinFeeds } from "renderer/routes/_authenticated/_odin/hooks/useOd
  * whole story, and it lives wherever a missing connection is noticed - the
  * Connections screen and, through `ConnectNotice`, the empty feed itself.
  *
- * Slack, Jira and Notion run the browser consent flow: the token comes
- * back through a deep link into the main process, so this polls for the result
- * rather than awaiting a response. GitHub runs the device flow, which shows a
+ * Slack, Jira, Notion and Google Calendar run the browser consent flow: the
+ * token comes back through a deep link into the main process, so this polls
+ * for the result rather than awaiting a response. GitHub runs the device flow, which shows a
  * code instead.
  */
 
@@ -42,6 +42,13 @@ export const PROVIDER_NAME: Record<Provider, string> = {
 	calendar: "Calendar",
 };
 
+type OAuthProvider = Exclude<Provider, "github" | "gmail" | "clickup">;
+
+/** Whose account the sign-in button opens, where it isn't the provider's own. */
+const SIGN_IN_NAME: Partial<Record<OAuthProvider, string>> = {
+	calendar: "Google",
+};
+
 /** What the consent screen is about to ask for, in one line. */
 const SCOPE_BLURB: Record<Provider, string> = {
 	slack:
@@ -53,7 +60,7 @@ const SCOPE_BLURB: Record<Provider, string> = {
 	clickup:
 		"A personal API token - lets sessions read the ClickUp tasks they're given.",
 	calendar:
-		"Your calendar's secret iCal address - read-only, so your meetings show up as things to prepare for.",
+		"Opens Google in your browser. Read-only, so your meetings show up as things to prepare for.",
 };
 
 export function ConnectProvider({
@@ -117,10 +124,11 @@ function OAuthConnect({
 	provider,
 	onDone,
 }: {
-	provider: Exclude<Provider, "github" | "gmail" | "clickup" | "calendar">;
+	provider: OAuthProvider;
 	onDone: () => void;
 }) {
 	const name = PROVIDER_NAME[provider];
+	const signInName = SIGN_IN_NAME[provider] ?? name;
 	const configured = electronTrpc.connections.oauthConfigured.useQuery({
 		provider,
 	});
@@ -184,7 +192,9 @@ function OAuthConnect({
 				disabled={start.isPending}
 				onClick={() => start.mutate({ provider })}
 			>
-				{start.isPending ? `Opening ${name}…` : `Sign in with ${name}`}
+				{start.isPending
+					? `Opening ${signInName}…`
+					: `Sign in with ${signInName}`}
 			</Button>
 			<p className="text-xs text-muted-foreground">{SCOPE_BLURB[provider]}</p>
 		</div>
@@ -199,10 +209,11 @@ function OAuthAppForm({
 	provider,
 	onSaved,
 }: {
-	provider: Exclude<Provider, "github" | "gmail" | "clickup" | "calendar">;
+	provider: OAuthProvider;
 	onSaved: () => void;
 }) {
-	const name = PROVIDER_NAME[provider];
+	const name =
+		provider === "calendar" ? "Google Calendar" : PROVIDER_NAME[provider];
 	const [app, setApp] = useState({
 		clientId: "",
 		clientSecret: "",
@@ -508,10 +519,51 @@ function ClickupConnect({ onDone }: { onDone: () => void }) {
 }
 
 /**
- * The calendar skips OAuth the way Gmail does: Google, Outlook and iCloud each
- * publish a private iCal address that is the whole calendar, read-only.
+ * Google signs in like the other OAuth rows. Outlook and iCloud have no app
+ * here, so their secret iCal address stays a way in - and it is the only one
+ * in a build that has no Google app yet.
  */
 function CalendarConnect({ onDone }: { onDone: () => void }) {
+	const configured = electronTrpc.connections.oauthConfigured.useQuery({
+		provider: "calendar",
+	});
+	const [other, setOther] = useState<"ical" | "app" | null>(null);
+	if (configured.isLoading) return null;
+	const toggle = (to: "ical" | "app", label: string) => (
+		<button
+			type="button"
+			onClick={() => setOther(other === to ? null : to)}
+			className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+		>
+			{label}
+		</button>
+	);
+
+	if (configured.data?.configured) {
+		return (
+			<div className="space-y-2">
+				<OAuthConnect provider="calendar" onDone={onDone} />
+				{toggle("ical", "Outlook or iCloud? Paste a secret iCal address")}
+				{other === "ical" && <ICalConnect onDone={onDone} />}
+			</div>
+		);
+	}
+	return (
+		<div className="space-y-2">
+			<ICalConnect onDone={onDone} />
+			{toggle("app", "Sign in with Google instead")}
+			{other === "app" && (
+				<OAuthAppForm
+					provider="calendar"
+					onSaved={() => void configured.refetch()}
+				/>
+			)}
+		</div>
+	);
+}
+
+/** Google, Outlook and iCloud each publish a private, read-only iCal address. */
+function ICalConnect({ onDone }: { onDone: () => void }) {
 	const [url, setUrl] = useState("");
 	const openUrl = electronTrpc.external.openUrl.useMutation();
 	const save = electronTrpc.connections.saveCalendar.useMutation({

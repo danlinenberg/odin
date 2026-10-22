@@ -138,7 +138,7 @@ One list across every source in bands: **Now** (due, or asked in the last 4 hour
 The sidebar shows: Connections, Sessions, Remote, Storage, Backlog & Night Agent, Notifications, Appearance, Keyboard - one topic each, with what's on it written under its name. The search box above the list finds any setting by its label, its section or what it does, and scrolls to it. Store settingsScreen holds which one is open.
 
 ## Connections (Settings → Connections)
-"The accounts Odin reads your work from." Sign-ins stay on this Mac. Each row has Connect, Reconnect and Disconnect; disconnecting takes that source's items out of every tab. Slack, Jira and Notion first ask for a Client ID and Secret when no OAuth app is set up. Huginn reaches every connected service's full API with action=service.
+"The accounts Odin reads your work from." Sign-ins stay on this Mac. Each row has Connect, Reconnect and Disconnect; disconnecting takes that source's items out of every tab. Slack, Jira and Notion first ask for a Client ID and Secret when no OAuth app is set up; Calendar offers that under "Sign in with Google instead". Huginn reaches every connected service's full API with action=service.
 - **Profiles**: each profile has its own accounts, board sessions, Slack queue and tasks; only the active one shows anywhere. Rename in place, Switch to, or add one. A deleted profile can be restored for 30 days, then it is gone.
 - **Claude**: "The account your sessions run on", for the whole Mac. Sign in / Reconnect opens the browser; paste the code if claude.ai shows one.
 - **Slack** (read-only): the Slack feed. Set the Queue emoji (default eyes) and the Queue and start emoji (default robot_face).
@@ -147,7 +147,7 @@ The sidebar shows: Connections, Sessions, Remote, Storage, Backlog & Night Agent
 - **Notion**: a database's rows in the Notion feed. Odin sees only pages shared with it and their subpages; to add a teamspace, on its top page use ••• → Connections → Odin.
 - **Gmail**: unread mail in the Email feed, by app password (needs 2-Step Verification), not OAuth.
 - **ClickUp**: a personal API token (pk_…); sessions can read the ClickUp tasks they get.
-- **Calendar**: the calendar's secret iCal address (Google: your calendar's settings → Integrate calendar → Secret address in iCal format; Outlook and iCloud share links work too), not OAuth. Read-only. A Workspace admin can turn the secret address off.
+- **Calendar**: Sign in with Google (read-only, the primary calendar). Outlook and iCloud connect by their secret iCal address instead ("Outlook or iCloud? Paste a secret iCal address"). A build with no Google app shows the iCal form first.
 
 ## Sessions settings (Settings → Sessions)
 A session's life on this Mac, top to bottom. Besides the launch gate limits ("When they start", below):

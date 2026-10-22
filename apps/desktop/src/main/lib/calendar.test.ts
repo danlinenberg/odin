@@ -1,5 +1,9 @@
 import { expect, test } from "bun:test";
-import { normalizeCalendarUrl, parseMeetings } from "./calendar";
+import {
+	normalizeCalendarUrl,
+	parseGoogleEvents,
+	parseMeetings,
+} from "./calendar";
 
 const ME = "dan@example.com";
 
@@ -221,4 +225,62 @@ test("webcal links become https, and anything that isn't https is refused", () =
 	);
 	expect(normalizeCalendarUrl("http://example.com/cal.ics")).toBeNull();
 	expect(normalizeCalendarUrl("not a url")).toBeNull();
+});
+
+test("API events make the same rows: meetings only, ids by iCalUID and start", () => {
+	const window = {
+		from: Date.parse("2026-10-22T06:00:00Z"),
+		to: Date.parse("2026-10-24T00:00:00Z"),
+	};
+	const meet = (overrides: Record<string, unknown>) => ({
+		iCalUID: "standup@google.com",
+		status: "confirmed",
+		summary: "Standup",
+		start: { dateTime: "2026-10-22T09:00:00+03:00" },
+		end: { dateTime: "2026-10-22T09:15:00+03:00" },
+		organizer: { email: ME, self: true },
+		attendees: [
+			{ email: ME, self: true, responseStatus: "accepted" },
+			{ email: "ofek@example.com", displayName: "Ofek" },
+			{ email: "room@resource.calendar.google.com", resource: true },
+		],
+		hangoutLink: "https://meet.google.com/abc-defg-hij",
+		description: "Agenda<br>1. &amp; more",
+		recurringEventId: "standup",
+		...overrides,
+	});
+	const rows = parseGoogleEvents(
+		[
+			meet({}),
+			meet({ iCalUID: "cancelled", status: "cancelled" }),
+			meet({
+				iCalUID: "declined",
+				attendees: [
+					{ email: ME, self: true, responseStatus: "declined" },
+					{ email: "ofek@example.com" },
+				],
+			}),
+			meet({ iCalUID: "solo", attendees: [{ email: ME, self: true }] }),
+			meet({
+				iCalUID: "holiday",
+				start: { date: "2026-10-22" },
+				end: { date: "2026-10-23" },
+			}),
+		],
+		window,
+	);
+	expect(rows).toEqual([
+		{
+			id: "standup@google.com@2026-10-22T06:00:00.000Z",
+			title: "Standup",
+			start: "2026-10-22T06:00:00.000Z",
+			end: "2026-10-22T06:15:00.000Z",
+			organizer: null,
+			attendees: ["Ofek"],
+			location: null,
+			joinUrl: "https://meet.google.com/abc-defg-hij",
+			description: "Agenda\n1. & more",
+			recurring: true,
+		},
+	]);
 });

@@ -1,7 +1,7 @@
 # One-click sign-in for Odin's connections
 
-One-time setup so anyone using Odin can connect Slack, GitHub, Notion and Jira
-with two clicks instead of minting tokens by hand.
+One-time setup so anyone using Odin can connect Slack, GitHub, Notion, Jira
+and Google Calendar with two clicks instead of minting tokens by hand.
 
 Signing in is the **only** way into a connection: Odin reads no credential from
 the environment and takes no pasted token. A shell variable is ambient and
@@ -17,6 +17,7 @@ Each provider needs a different shape of setup:
 | Notion | OAuth, page picker | yes - `notion.html` |
 | GitHub | Device flow | no - code + browser, no secret |
 | Jira | OAuth 2.0 3LO | yes - `jira.html` |
+| Google Calendar | OAuth 2.0, read-only | yes - `calendar.html` |
 
 Slack allows neither PKCE nor a non-HTTPS redirect URL, so a desktop app can't
 receive the callback directly. `slack.html` in this folder is the whole
@@ -205,6 +206,41 @@ Atlassian API tokens are gone. A config file left over from before sign-in
 existed still has `jiraBaseUrl`/`jiraEmail`/`jiraToken` in it; reading the file
 drops them, so the next write takes the token out of it and Jira reconnects the
 way everything else does.
+
+## Google Calendar
+
+In [Google Cloud Console](https://console.cloud.google.com/), in one project:
+
+1. **APIs & Services → Library**: enable the **Google Calendar API**.
+2. **OAuth consent screen**: user type **Internal** if everyone signing in
+   is in your Workspace (no Google review at all), else **External**. Add the
+   scope `https://www.googleapis.com/auth/calendar.readonly`, and add the
+   redirect page's domain under *Authorized domains*.
+3. **Credentials → Create credentials → OAuth client ID**, type **Web
+   application**, with your published `calendar.html` as the *Authorized
+   redirect URI*. A Desktop client won't do: it only redirects to localhost.
+
+```bash
+ODIN_CALENDAR_CLIENT_ID=....apps.googleusercontent.com \
+ODIN_CALENDAR_CLIENT_SECRET=... \
+ODIN_CALENDAR_REDIRECT_URL=https://REPLACE-ME/calendar.html \
+  bun run build
+```
+
+`calendar.readonly` is a *sensitive* scope, not a *restricted* one like
+Gmail's, so an External app needs Google's ordinary verification (brand, scope
+reason, a short demo video) and no security assessment. Until it's verified,
+an External app in *Testing* mode takes up to 100 listed test users, shows an
+"unverified app" warning, and its refresh tokens die after 7 days - fine for
+trying it, not for daily use.
+
+`access_type=offline` and `prompt=consent` are both sent: the first makes a
+refresh token come back, the second makes Google send one again on a
+re-connect. Access tokens last an hour; refresh tokens don't rotate
+(`src/main/lib/calendar-token.ts`).
+
+Outlook and iCloud have no app here, so the Calendar row still takes their
+secret iCal address, and a build without the Google app shows that form first.
 
 
 ## Distributing Odin
