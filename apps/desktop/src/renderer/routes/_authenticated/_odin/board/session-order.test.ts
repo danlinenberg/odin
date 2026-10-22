@@ -125,6 +125,19 @@ describe("sessionOrder", () => {
 		expect(sorted(cards, "name", true)).toEqual(["alpha", "beta"]);
 	});
 
+	it("Recently viewed: the session you opened last comes first, unopened ones last", () => {
+		const cards = [
+			card("never", "working", 900),
+			card("yesterday", "working", 100),
+			card("just now", "working", 200),
+		];
+		const viewedAt = (c: Card) =>
+			({ yesterday: 10, "just now": 20 })[c.title] ?? 0;
+		expect(
+			titles(cards.toSorted(sessionOrder("viewed", false, byTitle, viewedAt))),
+		).toEqual(["just now", "yesterday", "never"]);
+	});
+
 	it("statusAt reads the stamp, 0 when there is none", () => {
 		expect(statusAt(card("x", "working", 42))).toBe(42);
 		expect(statusAt(card("x", "working"))).toBe(0);
