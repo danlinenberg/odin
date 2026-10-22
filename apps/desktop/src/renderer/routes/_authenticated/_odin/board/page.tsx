@@ -4160,8 +4160,17 @@ function DevBoardPage() {
 			return "updated";
 		}
 	});
+	// Recently viewed sorts on the views as they stood when the drawer opened.
+	// Opening a session stamps it, and sorting on the live stamps had the row
+	// you just clicked jump to the top under your cursor. The order catches up
+	// when the drawer closes, or when you pick the sort again.
+	const [sortViewedAt, setSortViewedAt] = useState(viewedAt);
+	useEffect(() => {
+		if (!drawerPaneId) setSortViewedAt(viewedAt);
+	}, [drawerPaneId, viewedAt]);
 	const pickSwitchSort = (sort: SwitchSort) => {
 		setSwitchSort(sort);
+		setSortViewedAt(viewedAt);
 		try {
 			localStorage.setItem("odin:drawer-sessions-sort", sort);
 		} catch {}
@@ -4191,7 +4200,7 @@ function DevBoardPage() {
 				switchSort,
 				isSwitchGrouped,
 				cardTitle,
-				(card) => viewedAt[card.pane.id] ?? 0,
+				(card) => sortViewedAt[card.pane.id] ?? 0,
 			),
 		);
 	// Idle sits under the list, folded until opened; remembered per machine.
