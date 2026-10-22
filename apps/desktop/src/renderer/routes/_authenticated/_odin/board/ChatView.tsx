@@ -1049,6 +1049,8 @@ interface ItemViewProps {
 	onDo?: DoItem;
 	/** Types a message into the session - the AWS sign-in retries with it. */
 	onSend?: (text: string) => void;
+	/** Quits Claude and reopens the conversation - the Claude sign-in card's last step. */
+	onRestart?: () => void;
 	/** Runs a `! command` in the live session - set only while its PTY is up. */
 	onRun?: (command: string) => Promise<void>;
 	/** An older reply's, or one still being followed by output: only the final card shows. */
@@ -1067,6 +1069,7 @@ function sameItemView(prev: ItemViewProps, next: ItemViewProps): boolean {
 		prev.paneId === next.paneId &&
 		prev.onDo === next.onDo &&
 		prev.onSend === next.onSend &&
+		prev.onRestart === next.onRestart &&
 		prev.onRun === next.onRun &&
 		prev.hideActions === next.hideActions &&
 		prev.tldr?.last === next.tldr?.last &&
@@ -2365,6 +2368,54 @@ function RunCommand({
 }
 
 /** Claude on Bedrock stops on an expired AWS SSO token and says to run this. */
+/** Claude Code's reply when it has no sign-in: "Not logged in · Please run /login". */
+export function needsClaudeLogin(text: string): boolean {
+	return /^Not logged in\b.*\/login/im.test(text.trim());
+}
+
+/**
+ * A session whose Claude is signed out. On a remote host: a fresh Claude
+ * sign-in for the host (your browser approves it), then Restart session, so
+ * Claude starts again with it. Here: /login in the session.
+ */
+function ClaudeLogin({
+	paneId,
+	onSend,
+	onRestart,
+}: {
+	paneId: string;
+	onSend?: (text: string) => void;
+	onRestart?: () => void;
+}) {
+	const remote = useTabsStore((s) => !!s.panes[paneId]?.odinRemote);
+	const renew = electronTrpc.remoteHost.renewClaudeToken.useMutation({
+		onSuccess: () => onRestart?.(),
+		onError: (error) => toast.error(`Claude sign-in failed: ${error.message}`),
+	});
+	if (remote ? !onRestart : !onSend) return null;
+	return (
+		<button
+			type="button"
+			disabled={renew.isPending || renew.isSuccess}
+			onClick={() => (remote ? renew.mutate() : onSend?.("/login"))}
+			title={
+				remote
+					? "Sign the host in to your Claude plan - approve it in the browser tab that opens - then restart this session"
+					: "Run /login in this session"
+			}
+			className={cn(ACTION_BUTTON, "mt-2")}
+		>
+			{renew.isSuccess
+				? "Signed in - restarting the session"
+				: renew.isPending
+					? "Approve in your browser…"
+					: remote
+						? "Sign in to Claude and restart"
+						: "Sign in to Claude (/login)"}
+		</button>
+	);
+}
+
 export function needsAwsSsoLogin(text: string): boolean {
 	return /run 'aws sso login'/i.test(text);
 }
@@ -2622,6 +2673,7 @@ const ItemView = memo(function ItemView({
 	refs,
 	onDo,
 	onSend,
+	onRestart,
 	onRun,
 	workspaceId,
 	paneId,
@@ -2720,6 +2772,9 @@ const ItemView = memo(function ItemView({
 				{onSend && needsAwsSsoLogin(item.text) && (
 					<AwsSsoLogin item={item} onSend={onSend} />
 				)}
+				{paneId && needsClaudeLogin(item.text) && (
+					<ClaudeLogin paneId={paneId} onSend={onSend} onRestart={onRestart} />
+				)}
 				{onRun && card === "gone" && (
 					<RunCommands commands={commands} onRun={onRun} />
 				)}
@@ -2780,6 +2835,7 @@ export function ChatView({
 	onStop,
 	onResumeWith,
 	onSend,
+	onRestart,
 	noTerminal = false,
 	placeholder,
 	onOpenSession,
@@ -2799,6 +2855,8 @@ export function ChatView({
 	onResumeWith?: (text: string) => void;
 	/** Sends a reply in place of typing it into the PTY - the raven's, which brings a dead PTY back first. */
 	onSend?: (text: string) => void;
+	/** Quits Claude and reopens this conversation (the board's Restart session). */
+	onRestart?: () => void;
 	/** Hide the links to the terminal view (the crow's panel has none). */
 	noTerminal?: boolean;
 	/** The reply box's prompt, in place of "Reply to Claude". */
@@ -3398,6 +3456,7 @@ export function ChatView({
 									// Only a live PTY runs a ! command; a resume or the raven's send can't.
 									onShowTerminal && !onSend ? runInClaude : undefined
 								}
+								onRestart={segment.id === lastTextId ? onRestart : undefined}
 								onSend={
 									// Only the latest reply: an old expired-token error is fixed.
 									(onShowTerminal || onResumeWith) && segment.id === lastTextId

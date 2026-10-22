@@ -7021,6 +7021,9 @@ function DevBoardPage() {
 												setTerminalPaneId(drawerCard.pane.id)
 											}
 											onStop={() => void interruptPane(drawerCard.pane.id)}
+											onRestart={() =>
+												void resumeCard(drawerCard, false, undefined, true)
+											}
 										/>
 									) : agentPaneIds.has(drawerCard.pane.id) ? (
 										// Claude running - the real PTY, attached read/write. xterm is the
