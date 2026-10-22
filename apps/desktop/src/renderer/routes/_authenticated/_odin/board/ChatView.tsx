@@ -51,6 +51,7 @@ import { cameFromPhone } from "shared/from-phone";
 import { freshTldr, sameReply, tldrPlacement } from "shared/latest-reply";
 import {
 	agentOnScreen,
+	awaitsAwsSignIn,
 	claudeDrawn,
 	inputBoxRows,
 	odinScreenStatus,
@@ -1725,6 +1726,20 @@ function WorkingMark() {
  * in the primary violet, centered in the avatar's slot like the Working
  * spinner. 20px, not the glyphs' 18: the raven fills its box edge to edge.
  */
+/** Presses Enter in the pane, where the remote helper waits to open a new AWS sign-in. */
+function AwsSignInButton({ onClick }: { onClick: () => void }) {
+	return (
+		<button
+			type="button"
+			title="Open a new AWS sign-in in the browser"
+			onClick={onClick}
+			className="h-6 shrink-0 rounded-md border border-attention/35 bg-attention/[0.07] px-2.5 text-[12px] font-medium text-attention hover:bg-attention/15"
+		>
+			Sign in to AWS
+		</button>
+	);
+}
+
 function ReplyMark({ className }: { className?: string }) {
 	return (
 		<span
@@ -3243,6 +3258,9 @@ export function ChatView({
 						<div className="flex items-center gap-3 text-[12.5px] text-working">
 							<WorkingMark />
 							{connecting ?? "Starting session…"}
+							{awaitsAwsSignIn(connecting) && (
+								<AwsSignInButton onClick={() => void sendKeys(["\r"])} />
+							)}
 							{/* Before its first turn the CLI can stop on a terminal-only
 							    prompt (folder trust, bypass-permissions warning) that no
 							    transcript ever shows. */}
@@ -3476,6 +3494,9 @@ export function ChatView({
 						<div className="flex h-7 items-center gap-3 text-[12.5px] text-working">
 							<WorkingMark />
 							<span className="select-text cursor-text">{connecting}</span>
+							{awaitsAwsSignIn(connecting) && (
+								<AwsSignInButton onClick={() => void sendKeys(["\r"])} />
+							)}
 							{!noTerminal && (
 								<button
 									type="button"

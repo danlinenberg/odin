@@ -221,6 +221,14 @@ export function remoteConnectLine(screen: string): string | undefined {
 }
 
 /**
+ * The connect line after an AWS sign-in that was not approved. The helper
+ * then waits for Enter in the pane before it opens a new sign-in.
+ */
+export function awaitsAwsSignIn(connectLine: string | undefined): boolean {
+	return !!connectLine?.startsWith("Still blocked: the AWS sign-in");
+}
+
+/**
  * Does Esc mean something *inside* Claude right now?
  *
  * Claude prints the affordance whenever it is - "Esc to go back" (or "Esc to
