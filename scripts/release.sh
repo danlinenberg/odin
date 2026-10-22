@@ -5,6 +5,8 @@
 #   scripts/release.sh               # patch bump (1.18.4 -> 1.18.5)
 #   scripts/release.sh 1.19.0        # explicit version
 #   scripts/release.sh --no-install  # publish it, stay on the build you have
+#   scripts/release.sh --private     # a draft only collaborators see: the DMG
+#                                    # lands in ~/Downloads to send by hand
 #   scripts/release.sh --silent      # publish it without moving "latest":
 #                                    # no update banner, no brew upgrade - only
 #                                    # the people you send its link get it
@@ -49,14 +51,47 @@ INSTALL=1
 # Its own download link still works. A later normal release becomes latest as
 # usual; `gh release edit <tag> --latest` promotes this one instead.
 SILENT=0
+# --private builds main as a draft release, which only the repo's
+# collaborators can see: no banner, no brew, nothing public. Its version is
+# the next patch with -pre.<run> (1.0.22-pre.57), so the real 1.0.22 still
+# updates whoever runs it. No version bump on main: the build bumps in place.
+PRIVATE=0
 while [[ "${1:-}" == --* ]]; do
 	case "$1" in
 	--no-install) INSTALL=0 ;;
 	--silent) SILENT=1 INSTALL=0 ;;
+	--private) PRIVATE=1 INSTALL=0 ;;
 	*) echo "unknown flag: $1" >&2; exit 1 ;;
 	esac
 	shift
 done
+
+# The Release run this just dispatched, watched to the end.
+watch_release() {
+	local run=""
+	for _ in $(seq 30); do
+		run=$(gh run list --repo "$SLUG" --workflow Release --limit 1 \
+			--json databaseId,status -q '.[] | select(.status != "completed") | .databaseId')
+		[[ -n "$run" ]] && break
+		sleep 2
+	done
+	[[ -n "$run" ]] || { echo "no Release run started" >&2; exit 1; }
+	gh run watch "$run" --repo "$SLUG" --exit-status
+}
+
+if [[ "$PRIVATE" == 1 ]]; then
+	echo "==> building a private draft of main (about 10 minutes)"
+	gh workflow run Release --repo "$SLUG" -f private=true
+	watch_release
+	TAG=$(gh release list --repo "$SLUG" --limit 10 --json tagName,isDraft \
+		-q '[.[] | select(.isDraft)][0].tagName')
+	OUT="$HOME/Downloads/Odin-$TAG.dmg"
+	gh release download "$TAG" --repo "$SLUG" --pattern Odin-arm64.dmg --output "$OUT" --clobber
+	echo "==> $TAG is a draft (not public). Send this file: $OUT"
+	echo "    Installing it: drag Odin to Applications, then"
+	echo "    xattr -dr com.apple.quarantine /Applications/Odin.app"
+	exit 0
+fi
 
 # Bump from the newest release, not main's package.json: a manual Release run
 # publishes the next patch without committing it, so main can lag behind. The
@@ -108,14 +143,7 @@ gh pr merge "$BRANCH" --repo "$SLUG" --squash --delete-branch
 cd "$REPO"
 echo "==> building $TAG (about 10 minutes)"
 gh workflow run Release --repo "$SLUG" -f silent="$([[ "$SILENT" == 1 ]] && echo true || echo false)"
-for _ in $(seq 30); do
-	RUN=$(gh run list --repo "$SLUG" --workflow Release --limit 1 \
-		--json databaseId,status -q '.[] | select(.status != "completed") | .databaseId')
-	[[ -n "$RUN" ]] && break
-	sleep 2
-done
-[[ -n "${RUN:-}" ]] || { echo "no Release run started" >&2; exit 1; }
-gh run watch "$RUN" --repo "$SLUG" --exit-status
+watch_release
 
 if [[ "$SILENT" == 1 ]]; then
 	echo "==> $TAG published silently (not latest). Its download:"
