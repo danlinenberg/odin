@@ -21,7 +21,7 @@ export interface HostLoadReading extends HostLoad {
  * less shared memory, which can't be dropped).
  */
 export const HOST_LOAD_COMMAND =
-	"cat /proc/meminfo /proc/loadavg; echo UserSliceCurrent: $(cat /sys/fs/cgroup/user.slice/memory.current 2>/dev/null); echo UserSliceMax: $(cat /sys/fs/cgroup/user.slice/memory.max 2>/dev/null); echo UserSliceCache: $(awk '$1==\"file\"{f=$2} $1==\"shmem\"{s=$2} END{if(f!=\"\")print f-s}' /sys/fs/cgroup/user.slice/memory.stat 2>/dev/null); nproc";
+	'cat /proc/meminfo /proc/loadavg; echo UserSliceCurrent: $(cat /sys/fs/cgroup/user.slice/memory.current 2>/dev/null); echo UserSliceMax: $(cat /sys/fs/cgroup/user.slice/memory.max 2>/dev/null); echo UserSliceCache: $(awk \'$1=="file"{f=$2} $1=="shmem"{s=$2} END{if(f!="")print f-s}\' /sys/fs/cgroup/user.slice/memory.stat 2>/dev/null); nproc';
 
 /** The numbers in `HOST_LOAD_COMMAND`'s output, or null when any is missing. */
 export function parseHostLoad(text: string): HostLoad | null {
