@@ -1726,8 +1726,22 @@ function WorkingMark() {
  * in the primary violet, centered in the avatar's slot like the Working
  * spinner. 20px, not the glyphs' 18: the raven fills its box edge to edge.
  */
-/** Presses Enter in the pane, where the remote helper waits to open a new AWS sign-in. */
+/**
+ * Presses Enter in the pane, where the remote helper waits to open a new AWS
+ * sign-in. It presses it by itself once the host's AWS profile is signed in
+ * (a terminal, another pane): the sign-in then goes through without a tab.
+ */
 function AwsSignInButton({ onClick }: { onClick: () => void }) {
+	const { data: signedIn } = electronTrpc.remoteHost.awsSignedIn.useQuery(
+		undefined,
+		{ refetchInterval: 5_000, refetchIntervalInBackground: true },
+	);
+	const pressed = useRef(false);
+	useEffect(() => {
+		if (!signedIn || pressed.current) return;
+		pressed.current = true;
+		onClick();
+	}, [signedIn, onClick]);
 	return (
 		<button
 			type="button"

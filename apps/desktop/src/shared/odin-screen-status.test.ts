@@ -339,6 +339,14 @@ describe("remote session connecting", () => {
 		expect(remoteConnectLine("$ ls\n")).toBeUndefined();
 	});
 
+	it("reads a connect line the pane wrapped onto the next row", () => {
+		const wrapped =
+			"Odin: Still blocked: the AWS sign-in was not approved, so this session is not co\nnnected.\n  It timed out or was cancelled.\n";
+		expect(remoteConnectLine(wrapped)).toBe(
+			"Still blocked: the AWS sign-in was not approved, so this session is not connected.",
+		);
+	});
+
 	it("still reads a pane that has retried until its first line scrolled away as connecting", () => {
 		const retry =
 			"Odin: could not reconnect: Timed out while waiting for handshake - trying again in 10s\n\n";
