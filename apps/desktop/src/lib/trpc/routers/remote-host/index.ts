@@ -203,11 +203,13 @@ async function buildSessionSpec(
 async function sessionSecrets(): Promise<string> {
 	return secretsFile({
 		...claudeSecrets(),
-		// The API key claude-auto falls back to here, for the same switch on the host.
+		// The key saved in Settings, else the one claude-auto falls back to
+		// here, for the same switch on the host.
 		ODIN_FALLBACK_API_KEY: apiKeyFallbackOn(
 			readOdinConfig().remoteHost?.apiKeyFallback,
 		)
-			? (await getProcessEnvWithShellEnv()).ANTHROPIC_API_KEY
+			? (customApiKey() ??
+				(await getProcessEnvWithShellEnv()).ANTHROPIC_API_KEY)
 			: undefined,
 	});
 }
@@ -307,6 +309,17 @@ function claudeSecrets(): Record<string, string | undefined> {
 
 function claudeToken(): string | null {
 	const saved = readOdinConfig().claudeToken;
+	if (!saved || !safeStorage.isEncryptionAvailable()) return null;
+	try {
+		return safeStorage.decryptString(Buffer.from(saved, "base64"));
+	} catch {
+		return null;
+	}
+}
+
+/** The API key saved in Settings for the plan limit, or null. */
+function customApiKey(): string | null {
+	const saved = readOdinConfig().fallbackApiKey;
 	if (!saved || !safeStorage.isEncryptionAvailable()) return null;
 	try {
 		return safeStorage.decryptString(Buffer.from(saved, "base64"));
@@ -485,6 +498,8 @@ export const createRemoteHostRouter = () =>
 			apiKeyFallback: apiKeyFallbackOn(
 				readOdinConfig().remoteHost?.apiKeyFallback,
 			),
+			/** The last 4 characters of the key saved in Settings; null: ANTHROPIC_API_KEY. */
+			customApiKeyEnd: customApiKey()?.slice(-4) ?? null,
 			/** The connected GitHub accounts and which may go to the host. */
 			githubAccounts: hostGithubAccounts(readOdinConfig()),
 			/** The Claude setup copy under way, if any, and why the last one failed. */
@@ -615,6 +630,20 @@ export const createRemoteHostRouter = () =>
 				if (!host) throw new Error("No remote host is set up.");
 				updateOdinConfig({ remoteHost: { ...host, apiKeyFallback: input } });
 			}),
+		/** An API key for the plan limit in place of ANTHROPIC_API_KEY; empty forgets it. */
+		setCustomApiKey: publicProcedure.input(z.string()).mutation(({ input }) => {
+			const key = input.trim();
+			if (!key) {
+				updateOdinConfig({ fallbackApiKey: undefined });
+				return;
+			}
+			if (!safeStorage.isEncryptionAvailable()) {
+				throw new Error("This computer can't encrypt the API key.");
+			}
+			updateOdinConfig({
+				fallbackApiKey: safeStorage.encryptString(key).toString("base64"),
+			});
+		}),
 		/**
 		 * Which connected GitHub accounts may go to the host, by login. The
 		 * host's tokens follow at once: an account turned off loses its token

@@ -85,6 +85,14 @@ export function RemoteHostSection() {
 			onSuccess: refresh,
 			onError,
 		});
+	const setCustomApiKey = electronTrpc.remoteHost.setCustomApiKey.useMutation({
+		onSuccess: () => {
+			setApiKeyDraft("");
+			return refresh();
+		},
+		onError,
+	});
+	const [apiKeyDraft, setApiKeyDraft] = useState("");
 	const setGithubOnHost = electronTrpc.remoteHost.setGithubOnHost.useMutation({
 		onSuccess: refresh,
 		onError,
@@ -199,11 +207,15 @@ export function RemoteHostSection() {
 			SETUP_PARTS.map(([part]) => part).filter((part) => next.has(part)),
 		);
 	};
+	const toggleAllSetupParts = (on: boolean) =>
+		syncSetup.mutate(on ? SETUP_PARTS.map(([part]) => part) : []);
 	const toggleConnector = (name: HostConnectorId, on: boolean) => {
 		const next = new Set(onHost);
 		if (on) next.add(name);
 		else next.delete(name);
-		const list = CONNECTORS.map(([id]) => id).filter((id) => next.has(id));
+		setConnectorList(CONNECTORS.map(([id]) => id).filter((id) => next.has(id)));
+	};
+	const setConnectorList = (list: HostConnectorId[]) => {
 		setWanted(list);
 		if (!setConnectors.isPending) setConnectors.mutate(list);
 	};
@@ -401,7 +413,7 @@ export function RemoteHostSection() {
 					htmlFor="remote-host-api-key"
 					description={
 						current.apiKeyFallback
-							? "When a session there hits your plan's limit, it continues on your ANTHROPIC_API_KEY, billed per token, until the limit resets."
+							? `When a session there hits your plan's limit, it continues on ${current.customApiKeyEnd ? `your key ending ${current.customApiKeyEnd}` : "your ANTHROPIC_API_KEY"}, billed per token, until the limit resets.`
 							: "Off: a session there that hits your plan's limit waits for it to reset."
 					}
 				>
@@ -411,6 +423,55 @@ export function RemoteHostSection() {
 						disabled={setApiKeyFallback.isPending}
 						onCheckedChange={(on) => setApiKeyFallback.mutate(on)}
 					/>
+				</SettingRow>
+			)}
+			{current?.host && current.apiKeyFallback && (
+				<SettingRow
+					label="Custom API key (optional)"
+					htmlFor="remote-host-custom-key"
+					description={
+						current.customApiKeyEnd
+							? `Saved, ending ${current.customApiKeyEnd}. Kept encrypted on this computer and sent to the host with each session.`
+							: "Use this key instead of ANTHROPIC_API_KEY. Kept encrypted on this computer and sent to the host with each session."
+					}
+				>
+					<div className="flex items-center gap-2">
+						<Input
+							id="remote-host-custom-key"
+							type="password"
+							autoComplete="off"
+							className="w-56 font-mono text-xs"
+							placeholder={
+								current.customApiKeyEnd
+									? `...${current.customApiKeyEnd}`
+									: "sk-ant-..."
+							}
+							value={apiKeyDraft}
+							onChange={(event) => setApiKeyDraft(event.target.value)}
+							onKeyDown={(event) => {
+								if (event.key === "Enter" && apiKeyDraft.trim())
+									setCustomApiKey.mutate(apiKeyDraft);
+							}}
+						/>
+						<Button
+							size="sm"
+							variant="outline"
+							disabled={!apiKeyDraft.trim() || setCustomApiKey.isPending}
+							onClick={() => setCustomApiKey.mutate(apiKeyDraft)}
+						>
+							Save
+						</Button>
+						{current.customApiKeyEnd && (
+							<Button
+								size="sm"
+								variant="ghost"
+								disabled={setCustomApiKey.isPending}
+								onClick={() => setCustomApiKey.mutate("")}
+							>
+								Remove
+							</Button>
+						)}
+					</div>
 				</SettingRow>
 			)}
 			{current?.host && githubAccounts.length > 0 && (
@@ -519,6 +580,13 @@ export function RemoteHostSection() {
 					}
 				>
 					<div className="flex flex-wrap items-center gap-4">
+						<AllSwitch
+							id="host-connector-all"
+							checked={CONNECTORS.every(([id]) => onHost.has(id))}
+							onCheckedChange={(on) =>
+								setConnectorList(on ? CONNECTORS.map(([id]) => id) : [])
+							}
+						/>
 						{CONNECTORS.map(([id, label]) => (
 							<label
 								key={id}
@@ -575,6 +643,11 @@ export function RemoteHostSection() {
 					}
 				>
 					<div className="flex flex-wrap items-center gap-4">
+						<AllSwitch
+							id="host-setup-all"
+							checked={SETUP_PARTS.every(([id]) => setupParts.has(id))}
+							onCheckedChange={toggleAllSetupParts}
+						/>
 						{SETUP_PARTS.map(([id, label]) => (
 							<label
 								key={id}
@@ -802,5 +875,26 @@ export function RemoteHostSection() {
 				</>
 			)}
 		</SettingsSection>
+	);
+}
+
+/** The first switch in a group: on when every switch in it is, and flips them all. */
+function AllSwitch({
+	id,
+	checked,
+	onCheckedChange,
+}: {
+	id: string;
+	checked: boolean;
+	onCheckedChange: (on: boolean) => void;
+}) {
+	return (
+		<label
+			htmlFor={id}
+			className="flex items-center gap-2 border-border border-r pr-4 font-medium text-sm"
+		>
+			<Switch id={id} checked={checked} onCheckedChange={onCheckedChange} />
+			All
+		</label>
 	);
 }
