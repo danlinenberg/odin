@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import stripAnsi from "strip-ansi";
 import {
 	agentOnScreen,
+	awaitsAwsSignIn,
 	escIsHandledOnScreen,
 	inputBoxEmpty,
 	inputBoxRows,
@@ -425,5 +426,22 @@ describe("inputBoxEmpty", () => {
 
 	it("no box on screen reads as nothing typed", () => {
 		expect(inputBoxEmpty(IDLE_PROMPT)).toBe(true);
+	});
+});
+
+describe("awaitsAwsSignIn", () => {
+	it("is the line after a sign-in that was not approved", () => {
+		const screen =
+			"\nOdin: Blocked: your AWS sign-in expired, so this session can't reach i-0abc.\n" +
+			"\nOdin: Still blocked: the AWS sign-in was not approved, so this session is not connected.\n" +
+			"  It timed out or was cancelled.\n  1. Press Enter for a new sign-in link.\n";
+		expect(awaitsAwsSignIn(remoteConnectLine(screen))).toBe(true);
+	});
+
+	it("is not a plain connect line, or no line", () => {
+		expect(
+			awaitsAwsSignIn(remoteConnectLine("\nOdin: connecting to i-0abc...\n")),
+		).toBe(false);
+		expect(awaitsAwsSignIn(undefined)).toBe(false);
 	});
 });
