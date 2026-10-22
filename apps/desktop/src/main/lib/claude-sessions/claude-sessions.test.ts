@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { PR_RULES_HEADER } from "shared/odin-rules";
 import {
 	activeLoop,
+	opensPr,
 	parseTranscript,
 	queryTerms,
 	ranHere,
@@ -1254,4 +1255,12 @@ test("parseTranscript keeps a message sent while Claude was working", () => {
 	expect(parseTranscript(jsonl)).toEqual([
 		{ role: "user", text: "also scroll down", at: "2026-10-21T10:00:00Z" },
 	]);
+});
+
+test("a gh pr create behind `command` or a token still opens the PR", () => {
+	expect(opensPr('GH_TOKEN=$KEY command gh pr create -R a/b --title "x"')).toBe(
+		true,
+	);
+	expect(opensPr("env GH_TOKEN=x gh pr create --fill")).toBe(true);
+	expect(opensPr('grep -n "command gh pr create" a.ts')).toBe(false);
 });
