@@ -34,3 +34,16 @@ test("parseHostLoad counts a capped user slice's headroom as the free memory", (
 	expect(parseHostLoad(out("max"))?.memAvailableMb).toBe(3174);
 	expect(parseHostLoad(out(""))?.memAvailableMb).toBe(3174);
 });
+
+test("parseHostLoad doesn't count the slice's file cache as used: the kernel drops it", () => {
+	const out = [
+		"MemTotal:       32243000 kB",
+		"MemAvailable:   24400000 kB",
+		"0.20 0.30 0.30 1/400 1",
+		"UserSliceCurrent: 21460000000",
+		"UserSliceMax: 28719448064",
+		"UserSliceCache: 14570000000",
+		"8",
+	].join("\n");
+	expect(parseHostLoad(out)?.memAvailableMb).toBe(20818);
+});

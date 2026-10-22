@@ -16,9 +16,12 @@ export interface HostLoadReading extends HostLoad {
  * A command whose output `parseHostLoad` reads. The user slice's cgroup
  * figures come too: a host can cap it below its RAM, and a slice at its cap
  * freezes every session while /proc/meminfo still shows gigabytes free.
+ * The slice's current figure counts its file cache too, which the kernel
+ * drops before it gets near the cap; UserSliceCache is that part (file pages
+ * less shared memory, which can't be dropped).
  */
 export const HOST_LOAD_COMMAND =
-	"cat /proc/meminfo /proc/loadavg; echo UserSliceCurrent: $(cat /sys/fs/cgroup/user.slice/memory.current 2>/dev/null); echo UserSliceMax: $(cat /sys/fs/cgroup/user.slice/memory.max 2>/dev/null); nproc";
+	"cat /proc/meminfo /proc/loadavg; echo UserSliceCurrent: $(cat /sys/fs/cgroup/user.slice/memory.current 2>/dev/null); echo UserSliceMax: $(cat /sys/fs/cgroup/user.slice/memory.max 2>/dev/null); echo UserSliceCache: $(awk '$1==\"file\"{f=$2} $1==\"shmem\"{s=$2} END{if(f!=\"\")print f-s}' /sys/fs/cgroup/user.slice/memory.stat 2>/dev/null); nproc";
 
 /** The numbers in `HOST_LOAD_COMMAND`'s output, or null when any is missing. */
 export function parseHostLoad(text: string): HostLoad | null {
@@ -30,7 +33,8 @@ export function parseHostLoad(text: string): HostLoad | null {
 	// Bytes, unlike meminfo's kB. "max" (no cap) or a missing file reads NaN.
 	const slice = (field: string) =>
 		Number(text.match(new RegExp(`^UserSlice${field}: (\\d+)$`, "m"))?.[1]);
-	const sliceFreeKb = (slice("Max") - slice("Current")) / 1024;
+	const sliceUsed = slice("Current") - (slice("Cache") || 0);
+	const sliceFreeKb = (slice("Max") - sliceUsed) / 1024;
 	const load = {
 		memAvailableMb: Math.round(
 			Math.min(
