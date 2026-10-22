@@ -1,7 +1,4 @@
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-
-const run = promisify(execFile);
+import { execWithShellEnv } from "lib/trpc/routers/workspaces/utils/shell-env";
 
 /** Long enough for 1Password to show its own unlock prompt. */
 const OP_TIMEOUT_MS = 60_000;
@@ -9,6 +6,39 @@ const OP_TIMEOUT_MS = 60_000;
 export interface OnePasswordLogin {
 	username: string;
 	password: string;
+}
+
+/** Where the CLI's setup lives: install it, then let the 1Password app sign it in. */
+export const OP_SETUP_URL =
+	"https://developer.1password.com/docs/cli/get-started/";
+
+/**
+ * Something the user sets up once before the key button can fill: the
+ * renderer shows it with a button to OP_SETUP_URL.
+ */
+export class OnePasswordSetupError extends Error {}
+
+/** An `op` failure, said as what to do about it. */
+export function opError(error: unknown): Error {
+	if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+		return new OnePasswordSetupError(
+			"Install the 1Password CLI, then turn on 1Password → Settings → Developer → Integrate with 1Password CLI.",
+		);
+	}
+	const message = `${(error as { stderr?: string }).stderr ?? ""} ${(error as Error).message ?? ""}`;
+	if (/dismissed/i.test(message)) {
+		return new Error("1Password wasn't unlocked - try the key again.");
+	}
+	if (
+		/not currently signed in|no accounts? configured|signin|desktop app/i.test(
+			message,
+		)
+	) {
+		return new OnePasswordSetupError(
+			"Turn on 1Password → Settings → Developer → Integrate with 1Password CLI, then try the key again.",
+		);
+	}
+	return error instanceof Error ? error : new Error(String(error));
 }
 
 interface OpItemSummary {
@@ -21,19 +51,17 @@ interface OpItem {
 }
 
 const opJson = async <T>(args: string[]): Promise<T> => {
+	// Through the shell's PATH: Odin opened from the Dock has macOS's minimal
+	// one, which misses Homebrew's /opt/homebrew/bin/op.
 	try {
-		const { stdout } = await run("op", [...args, "--format", "json"], {
-			timeout: OP_TIMEOUT_MS,
-			maxBuffer: 16 * 1024 * 1024,
-		});
+		const { stdout } = await execWithShellEnv(
+			"op",
+			[...args, "--format", "json"],
+			{ timeout: OP_TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024 },
+		);
 		return JSON.parse(stdout) as T;
 	} catch (error) {
-		if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-			throw new Error(
-				"1Password CLI (op) is not installed. Install it from 1password.com/downloads/command-line.",
-			);
-		}
-		throw error;
+		throw opError(error);
 	}
 };
 

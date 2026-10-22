@@ -595,7 +595,18 @@ export function InAppBrowser() {
 							onePassword.mutate(
 								{ url: webview.getURL() },
 								{
-									onSuccess: async (login) => {
+									onSuccess: async ({ login, setup }) => {
+										if (setup) {
+											toast("1Password needs a one-time setup", {
+												description: setup.message,
+												duration: 30_000,
+												action: {
+													label: "Set up",
+													onClick: () => openExternal.mutate(setup.url),
+												},
+											});
+											return;
+										}
 										if (!login) {
 											toast("No 1Password login for this site");
 											return;

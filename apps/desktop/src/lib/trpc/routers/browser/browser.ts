@@ -5,7 +5,11 @@ import {
 	importBrowserCookies,
 	importBrowserCookiesOnLaunch,
 } from "main/lib/browser/import-cookies";
-import { findOnePasswordLogin } from "main/lib/browser/one-password";
+import {
+	findOnePasswordLogin,
+	OnePasswordSetupError,
+	OP_SETUP_URL,
+} from "main/lib/browser/one-password";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
 
@@ -185,7 +189,17 @@ export const createBrowserRouter = () => {
 
 		onePasswordLogin: publicProcedure
 			.input(z.object({ url: z.string() }))
-			.mutation(({ input }) => findOnePasswordLogin(input.url)),
+			.mutation(async ({ input }) => {
+				try {
+					return { login: await findOnePasswordLogin(input.url) };
+				} catch (error) {
+					if (!(error instanceof OnePasswordSetupError)) throw error;
+					return {
+						login: null,
+						setup: { message: error.message, url: OP_SETUP_URL },
+					};
+				}
+			}),
 
 		importCookies: publicProcedure.mutation(() => importBrowserCookies()),
 		importCookiesOnLaunch: publicProcedure.mutation(() =>
