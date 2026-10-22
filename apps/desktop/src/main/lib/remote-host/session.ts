@@ -430,9 +430,10 @@ export const MEMORY_LIMIT_SCRIPT = [
  * An open session holds about 400 MB in its Claude process even when nothing
  * happens in it, and a host collects dozens. After this long with no output
  * in its tmux window, the run script stops Claude and waits for a key, then
- * resumes the same conversation.
+ * resumes the same conversation. Longer than the longest /loop wakeup (1h),
+ * so a session waiting on one is never stopped.
  */
-const IDLE_STOP_SECONDS = 60 * 60;
+const IDLE_STOP_SECONDS = 2 * 60 * 60;
 
 /** The file that says a session's Claude was stopped for being idle. */
 const idleMarker = (pane: string) =>
@@ -441,10 +442,12 @@ const idleMarker = (pane: string) =>
 /**
  * Checks every 5 min while the run script lives. A window quiet for
  * IDLE_STOP_SECONDS gets its Claude (the script's child) stopped, and the
- * marker tells the script to wait and resume instead of ending.
+ * marker tells the script to wait and resume instead of ending. A Claude
+ * with a process of its own running (a background task, a dev server, an
+ * MCP server) is left alone: stopping it would end that too.
  */
 const idleWatcher = (pane: string) =>
-	`( while sleep 300; do kill -0 $$ 2>/dev/null || exit; a=$(tmux display -p -t "$TMUX_PANE" '#{window_activity}' 2>/dev/null) || continue; [ $(( $(date +%s) - a )) -ge ${IDLE_STOP_SECONDS} ] || continue; c=$(pgrep -P $$ -x claude) || continue; touch ${idleMarker(pane)} && kill -TERM $c; done ) >/dev/null 2>&1 &`;
+	`( while sleep 300; do kill -0 $$ 2>/dev/null || exit; a=$(tmux display -p -t "$TMUX_PANE" '#{window_activity}' 2>/dev/null) || continue; [ $(( $(date +%s) - a )) -ge ${IDLE_STOP_SECONDS} ] || continue; c=$(pgrep -P $$ -x claude) || continue; pgrep -P $c >/dev/null && continue; touch ${idleMarker(pane)} && kill -TERM $c; done ) >/dev/null 2>&1 &`;
 
 /** What runs inside tmux: tokens in, file gone, repo ready, Claude on. */
 export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
@@ -515,7 +518,7 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 			idleWatcher(spec.pane),
 		...promptLines,
 		`claude --settings ${sh(hostSettings)} ${spec.claudeArgs} "\${p[@]}"`,
-		`while [ -e ${idleMarker(spec.pane)} ]; do clear; printf '\\nOdin stopped Claude here after an hour with no output, to free memory on this host.\\nPress any key to pick the conversation up again.\\n'; read -rsn1; rm -f ${idleMarker(spec.pane)}; if python3 -c ${sh(CUT_OFF_TURN)} ${sh(spec.pane)} 2>/dev/null; then claude --settings ${sh(hostSettings)} --resume ${sh(spec.pane)} Continue; else claude --settings ${sh(hostSettings)} --resume ${sh(spec.pane)}; fi; done`,
+		`while [ -e ${idleMarker(spec.pane)} ]; do clear; printf '\\nOdin stopped Claude here after 2 hours with no output, to free memory on this host.\\nPress any key to pick the conversation up again.\\n'; read -rsn1; rm -f ${idleMarker(spec.pane)}; if python3 -c ${sh(CUT_OFF_TURN)} ${sh(spec.pane)} 2>/dev/null; then claude --settings ${sh(hostSettings)} --resume ${sh(spec.pane)} Continue; else claude --settings ${sh(hostSettings)} --resume ${sh(spec.pane)}; fi; done`,
 		`if [ -s "$HOME/.odin/resume-$$" ]; then s=$(cat "$HOME/.odin/resume-$$"); rm -f "$HOME/.odin/resume-$$"; ODIN_FALLBACK_API_KEY="$fallback" python3 -c ${sh(USE_API_KEY_IF_LIMITED)}; ANTHROPIC_API_KEY="$fallback" exec claude --settings ${sh(hostSettings)} --resume "$s" "Continue where you left off."; fi`,
 	]
 		.filter(Boolean)
