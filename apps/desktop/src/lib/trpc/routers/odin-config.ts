@@ -47,6 +47,11 @@ export interface OdinFileConfig {
 		/** OS packages Use installs on the host, space-separated: the tools those plugins and their skills run. */
 		hostPackages?: string;
 	};
+	/**
+	 * Hosts picked before the current one, newest first: a session keeps
+	 * running on the host it started on, and its pane finds it here by name.
+	 */
+	pastRemoteHosts?: NonNullable<OdinFileConfig["remoteHost"]>[];
 	/** The EC2 host new sessions run on, reached through SSM, while `on` is true. */
 	remoteHost?: {
 		on: boolean;

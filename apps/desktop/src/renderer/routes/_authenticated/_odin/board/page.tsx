@@ -1636,11 +1636,12 @@ function HostFrozenNotice({
 	paneId: string;
 	onMoveHere?: () => void;
 }) {
-	const remote = useTabsStore((s) => !!s.panes[paneId]?.odinRemote);
-	const { data } = electronTrpc.remoteHost.launchGate.useQuery(undefined, {
-		enabled: remote,
-		refetchInterval: 10_000,
-	});
+	const host = useTabsStore((s) => s.panes[paneId]?.odinRemote);
+	const remote = !!host;
+	const { data } = electronTrpc.remoteHost.launchGate.useQuery(
+		{ host },
+		{ enabled: remote, refetchInterval: 10_000 },
+	);
 	if (!remote || !data?.frozen) return null;
 	return (
 		<div className="flex items-center gap-3 border-b border-border bg-danger/10 px-4 py-2 text-[12px] text-danger">
@@ -4580,7 +4581,8 @@ function DevBoardPage() {
 	 */
 	const resumeBlocker = async (pane: Pane, cwd: string | undefined) => {
 		if (pane.odinTags?.includes(CROW_TAG)) return null;
-		if (pane.odinRemote) return currentHostBlocker(utils.client);
+		if (pane.odinRemote)
+			return currentHostBlocker(utils.client, pane.odinRemote);
 		try {
 			return (
 				(await currentLaunchBlocker(
@@ -4810,7 +4812,7 @@ function DevBoardPage() {
 					// host that doesn't answer is not a no.
 					const onHost = card.pane.odinRemote
 						? await utils.client.remoteHost.hasConversation
-								.query({ sessionId })
+								.query({ sessionId, host: card.pane.odinRemote })
 								.catch((hostError) => {
 									toast.error(
 										`${card.pane.odinRemote} did not answer, so Odin can't tell whether this conversation is still there - try Resume again`,
@@ -4954,6 +4956,7 @@ function DevBoardPage() {
 							claudeArgs: `--resume ${sessionId}`,
 							prompt: prompt ?? null,
 							fresh: restart,
+							host: card.pane.odinRemote,
 						})
 					: cwd
 						? `cd '${cwd}' && ${resumeCmd}`
@@ -5039,6 +5042,7 @@ function DevBoardPage() {
 				await utils.client.remoteHost.bringHome.mutate({
 					sessionId,
 					cwd: wanted,
+					host: card.pane.odinRemote,
 				});
 			// The checkout it holds is the one here now: the launch gate keeps a
 			// second agent out of it, not out of the host path it came from.
