@@ -5,7 +5,13 @@ import {
 	importBrowserCookies,
 	importBrowserCookiesOnLaunch,
 } from "main/lib/browser/import-cookies";
-import { findOnePasswordLogin } from "main/lib/browser/one-password";
+import {
+	findOnePasswordLogins,
+	getOnePasswordLogin,
+	OnePasswordSetupError,
+	onePasswordAccounts,
+	setOnePasswordAccounts,
+} from "main/lib/browser/one-password";
 import { z } from "zod";
 import { publicProcedure, router } from "../..";
 
@@ -183,9 +189,26 @@ export const createBrowserRouter = () => {
 				};
 			}),
 
-		onePasswordLogin: publicProcedure
+		/** The page's 1Password logins, or what to set up first. */
+		onePasswordLogins: publicProcedure
 			.input(z.object({ url: z.string() }))
-			.mutation(({ input }) => findOnePasswordLogin(input.url)),
+			.mutation(async ({ input }) => {
+				try {
+					return { matches: await findOnePasswordLogins(input.url) };
+				} catch (error) {
+					if (!(error instanceof OnePasswordSetupError)) throw error;
+					return { setup: error.reason, message: error.message };
+				}
+			}),
+		onePasswordLogin: publicProcedure
+			.input(
+				z.object({ account: z.string(), vaultId: z.string(), id: z.string() }),
+			)
+			.mutation(({ input }) => getOnePasswordLogin(input)),
+		onePasswordAccounts: publicProcedure.query(() => onePasswordAccounts()),
+		setOnePasswordAccounts: publicProcedure
+			.input(z.object({ accounts: z.array(z.string()) }))
+			.mutation(({ input }) => setOnePasswordAccounts(input.accounts)),
 
 		importCookies: publicProcedure.mutation(() => importBrowserCookies()),
 		importCookiesOnLaunch: publicProcedure.mutation(() =>

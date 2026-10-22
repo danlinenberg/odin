@@ -123,6 +123,8 @@ export interface OdinFileConfig {
 	 * so later imports don't show macOS's Keychain prompt again.
 	 */
 	cookieKeys?: Record<string, string>;
+	/** 1Password accounts the in-app browser's key button searches, as named in 1Password's sidebar. */
+	onePasswordAccounts?: string[];
 
 	githubToken?: string;
 	/**
