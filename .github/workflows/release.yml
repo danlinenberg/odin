@@ -19,6 +19,10 @@ on:
         description: Publish without making it the latest release - no update banner, no brew upgrade
         type: boolean
         default: false
+      private:
+        description: A draft release only collaborators see, versioned <next patch>-pre.<run>
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -62,6 +66,15 @@ jobs:
           V=$(jq -r .version apps/desktop/package.json)
           if [[ -n "$REF_TAG" ]]; then
             TAG="$REF_TAG"
+          elif [[ "${{ inputs.private }}" == "true" ]]; then
+            # A private draft: the next patch as a pre-release, so the real
+            # one still updates it. Bumped in place, never committed.
+            NEWEST=$(gh release list --exclude-drafts --limit 1 --json tagName -q '.[0].tagName')
+            NEW="$(awk -F. '{print $1"."$2"."$3+1}' <<<"${NEWEST#v}")-pre.${{ github.run_number }}"
+            for f in apps/desktop/package.json packages/host-service/package.json; do
+              jq --arg v "$NEW" '.version = $v' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+            done
+            TAG="v$NEW"
           elif gh release view "v$V" >/dev/null 2>&1; then
             LATEST=$(gh release view --json tagName -q .tagName)
             NEW=$(awk -F. '{print $1"."$2"."$3+1}' <<<"${LATEST#v}")
@@ -114,13 +127,15 @@ jobs:
           gh release create "$TAG" Odin-arm64.dmg \
             --title "$TAG" \
             --generate-notes \
-            --latest="${{ inputs.silent && 'false' || 'true' }}"
+            ${{ inputs.private && '--draft --prerelease' || '' }} \
+            --latest="${{ (inputs.silent || inputs.private) && 'false' || 'true' }}"
 
   windows:
     needs: macos
     # Runs after macos publishes the release, and alone when macos is skipped
     # (a branch dispatch). A failed macos build means no release to add to.
-    if: github.repository == 'danlinenberg/odin' && !failure() && !cancelled()
+    # A private draft is macOS only: the Windows installer adds to public releases.
+    if: github.repository == 'danlinenberg/odin' && !failure() && !cancelled() && !inputs.private
     runs-on: windows-latest
     timeout-minutes: 60
     defaults:

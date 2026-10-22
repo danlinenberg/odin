@@ -4,7 +4,15 @@
 scripts/release.sh          # patch bump
 scripts/release.sh 1.19.0   # explicit version
 scripts/release.sh --silent # no update banner: send its link to who needs it
+scripts/release.sh --private # a draft no one else sees: send its DMG by hand
 ```
+
+`--private` builds main on CI as a draft release, versioned as the next patch
+with `-pre.<run>` (`1.0.22-pre.57`), and downloads the DMG to `~/Downloads`.
+Drafts are visible only to the repo's collaborators, so nothing is public and
+no updater sees it; the real `1.0.22` still updates whoever installed it. It
+bumps no version on main. Delete the draft once it is sent, if you like:
+`gh release delete <tag>`.
 
 `--silent` publishes the release without marking it latest. The app's update
 banner and the Homebrew cask both read `/releases/latest`, so neither offers
