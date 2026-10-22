@@ -307,14 +307,15 @@ describe("ChatView transcript", () => {
 		expect(lastActionsId([text("a", "no list")])).toBeUndefined();
 	});
 
-	test("no action items card while Claude works", () => {
+	test("the action items card stays after you answer it", () => {
 		const reply = {
 			kind: "text" as const,
 			id: "a",
 			text: "x\nACTION ITEMS:\n1. Merge it",
 		};
-		expect(lastActionsId([reply], true)).toBeUndefined();
-		expect(lastActionsId([reply], false)).toBe("a");
+		expect(
+			lastActionsId([reply, { kind: "user", id: "u", text: "do 1" }]),
+		).toBe("a");
 	});
 
 	test("a card told to go collapses away before it leaves the tree", () => {
