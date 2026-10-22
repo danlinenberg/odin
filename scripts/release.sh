@@ -5,6 +5,9 @@
 #   scripts/release.sh               # patch bump (1.18.4 -> 1.18.5)
 #   scripts/release.sh 1.19.0        # explicit version
 #   scripts/release.sh --no-install  # publish it, stay on the build you have
+#   scripts/release.sh --silent      # publish it without moving "latest":
+#                                    # no update banner, no brew upgrade - only
+#                                    # the people you send its link get it
 #
 # This is the brew path, and it is not scripts/odin-update.sh. That one rebuilds
 # THIS checkout straight into /Applications for you alone; this one ships what is
@@ -41,14 +44,24 @@ git fetch --quiet origin main
 # --no-install publishes the release without upgrading this machine onto it -
 # which is how you get a version to test the app's own updater against.
 INSTALL=1
-if [[ "${1:-}" == "--no-install" ]]; then
-	INSTALL=0
+# --silent publishes it without making it the latest release: the app's update
+# banner and the brew cask both read /releases/latest, so neither offers it.
+# Its own download link still works. A later normal release becomes latest as
+# usual; `gh release edit <tag> --latest` promotes this one instead.
+SILENT=0
+while [[ "${1:-}" == --* ]]; do
+	case "$1" in
+	--no-install) INSTALL=0 ;;
+	--silent) SILENT=1 INSTALL=0 ;;
+	*) echo "unknown flag: $1" >&2; exit 1 ;;
+	esac
 	shift
-fi
+done
 
-# Bump from the latest release, not main's package.json: a manual Release run
-# publishes the next patch without committing it, so main can lag behind.
-OLD=$(gh release view --repo "$SLUG" --json tagName -q .tagName)
+# Bump from the newest release, not main's package.json: a manual Release run
+# publishes the next patch without committing it, so main can lag behind. The
+# newest, not the one marked latest: a silent release is newer than that.
+OLD=$(gh release list --repo "$SLUG" --exclude-drafts --limit 1 --json tagName -q '.[0].tagName')
 OLD=${OLD#v}
 NEW="${1:-$(awk -F. '{print $1"."$2"."$3+1}' <<<"$OLD")}"
 TAG="v$NEW"
@@ -94,7 +107,7 @@ gh pr merge "$BRANCH" --repo "$SLUG" --squash --delete-branch
 
 cd "$REPO"
 echo "==> building $TAG (about 10 minutes)"
-gh workflow run Release --repo "$SLUG"
+gh workflow run Release --repo "$SLUG" -f silent="$([[ "$SILENT" == 1 ]] && echo true || echo false)"
 for _ in $(seq 30); do
 	RUN=$(gh run list --repo "$SLUG" --workflow Release --limit 1 \
 		--json databaseId,status -q '.[] | select(.status != "completed") | .databaseId')
@@ -103,6 +116,12 @@ for _ in $(seq 30); do
 done
 [[ -n "${RUN:-}" ]] || { echo "no Release run started" >&2; exit 1; }
 gh run watch "$RUN" --repo "$SLUG" --exit-status
+
+if [[ "$SILENT" == 1 ]]; then
+	echo "==> $TAG published silently (not latest). Its download:"
+	echo "    https://github.com/$SLUG/releases/download/$TAG/Odin-arm64.dmg"
+	exit 0
+fi
 
 if [[ "$INSTALL" == 0 ]]; then
 	echo "==> $TAG published; this machine stays on $(defaults read /Applications/Odin.app/Contents/Info.plist CFBundleShortVersionString 2>/dev/null || echo unknown)"
