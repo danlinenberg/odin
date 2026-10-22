@@ -82,6 +82,7 @@ import {
 	copyFilesToHost,
 	runOnHost,
 } from "main/lib/remote-host/ssh";
+import { awsClientConfig } from "main/lib/remote-host/ssm";
 import { resolveElectronBinary } from "main/lib/terminal-host/electron-binary";
 import {
 	hostNameProblem,
@@ -364,6 +365,17 @@ export const createRemoteHostRouter = () =>
 				updateOdinConfig({ awsInstances: input });
 			}),
 		awsProfiles: publicProcedure.query(() => listAwsProfiles()),
+		/** The host's AWS profile is signed in, so a pane blocked on the sign-in can go on. */
+		awsSignedIn: publicProcedure.query(async () => {
+			const host = readOdinConfig().remoteHost;
+			if (!host) return false;
+			return awsClientConfig(host)
+				.credentials()
+				.then(
+					() => true,
+					() => false,
+				);
+		}),
 		awsTags: publicProcedure
 			.input(awsTarget)
 			.query(({ input }) => listTagChoices(input)),

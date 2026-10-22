@@ -216,7 +216,14 @@ export function remoteConnectLine(screen: string): string | undefined {
 	// Only what came after the last connect line counts: Claude's screen from
 	// before a dropped connection is still above it.
 	if (claudeDrawn(lines.slice(at + 1).join("\n"))) return undefined;
-	const text = lines[at].slice(6).trim();
+	// The screen comes one row at a time, so a line wider than the pane goes on
+	// in the rows below it: they are unindented, and the line has not ended yet.
+	let text = lines[at].slice(6).trim();
+	for (let next = at + 1; !/[.!?]$/.test(text); next++) {
+		const row = lines[next];
+		if (!row || /^\s/.test(row) || REMOTE_CONNECTING.test(row)) break;
+		text += row;
+	}
 	return text[0].toUpperCase() + text.slice(1);
 }
 
