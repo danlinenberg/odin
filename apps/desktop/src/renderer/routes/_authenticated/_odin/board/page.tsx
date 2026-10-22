@@ -7030,8 +7030,8 @@ function DevBoardPage() {
 												setTerminalPaneId(drawerCard.pane.id)
 											}
 											onStop={() => void interruptPane(drawerCard.pane.id)}
-											onRestart={() =>
-												void resumeCard(drawerCard, false, undefined, true)
+											onRestart={(prompt) =>
+												void resumeCard(drawerCard, false, prompt, true)
 											}
 										/>
 									) : agentPaneIds.has(drawerCard.pane.id) ? (
