@@ -46,6 +46,9 @@ import { swapScript } from "./update-swap-script";
 
 const REPO_SLUG = "danlinenberg/odin";
 const LATEST_RELEASE_API = `https://api.github.com/repos/${REPO_SLUG}/releases/latest`;
+// The newest release, latest or not: a silent release (scripts/release.sh
+// --silent) is not latest, so only someone who asks gets it.
+const NEWEST_RELEASE_API = `https://api.github.com/repos/${REPO_SLUG}/releases?per_page=1`;
 // release.yml keeps these asset names stable (the cask resolves the DMG's).
 const ASSET_NAME = PLATFORM.IS_WINDOWS
 	? "Odin-Setup-x64.exe"
@@ -151,29 +154,35 @@ export function dismissUpdate(): void {
 }
 
 /**
- * The newest published release and this platform's download, or null when
+ * The latest release (the banner's) or, when `newest`, the newest one - silent
+ * releases included - and this platform's download, or null when
  * the tag isn't a version or the asset isn't uploaded yet (release.yml adds
  * the Windows installer some minutes after it publishes the release).
  */
-async function fetchLatestRelease(): Promise<{
+async function fetchLatestRelease(newest = false): Promise<{
 	version: string;
 	url: string;
 } | null> {
-	const response = await fetch(LATEST_RELEASE_API, {
-		headers: {
-			Accept: "application/vnd.github+json",
-			"User-Agent": `Odin/${app.getVersion()}`,
+	const response = await fetch(
+		newest ? NEWEST_RELEASE_API : LATEST_RELEASE_API,
+		{
+			headers: {
+				Accept: "application/vnd.github+json",
+				"User-Agent": `Odin/${app.getVersion()}`,
+			},
 		},
-	});
+	);
 	if (!response.ok) {
 		throw new Error(
 			`GitHub returned ${response.status} for the latest release`,
 		);
 	}
-	const release = (await response.json()) as {
+	type Release = {
 		tag_name?: string;
 		assets?: { name: string; browser_download_url: string }[];
 	};
+	const body = (await response.json()) as Release | Release[];
+	const release = (Array.isArray(body) ? body[0] : body) ?? {};
 	const version = release.tag_name?.replace(/^v/, "");
 	const url = release.assets?.find(
 		(asset) => asset.name === ASSET_NAME,
@@ -335,7 +344,8 @@ async function runCheck({ userAsked }: { userAsked: boolean }): Promise<void> {
 	isDismissed = false;
 	emitStatus(AUTO_UPDATE_STATUS.CHECKING);
 	try {
-		const release = await fetchLatestRelease();
+		// Check for Updates also finds a silent release; the hourly check, the banner's, doesn't.
+		const release = await fetchLatestRelease(userAsked);
 		const latest = release?.version;
 		if (!release || !latest || !gt(latest, app.getVersion())) {
 			emitStatus(AUTO_UPDATE_STATUS.IDLE);
