@@ -4,6 +4,7 @@ import express from "express";
 import { awsSsoLogin } from "lib/trpc/routers/terminal/aws-sso";
 import { NOTIFICATION_EVENTS } from "shared/constants";
 import { env } from "shared/env.shared";
+import { parseHostLoad } from "shared/host-load";
 import type {
 	AgentLifecycleEvent,
 	OdinActionRequest,
@@ -341,16 +342,19 @@ app.post("/remote-host/sso-login", (req, res) => {
 /** A remote pane's reading of its host's memory and load, taken over the connection it holds. */
 app.post("/remote-host/load", (req, res) => {
 	if (req.headers.origin) return res.status(403).send("");
-	const { instanceId, memAvailableMb, memTotalMb, load1, cores, at } =
-		req.body ?? {};
-	const numbers = [memAvailableMb, memTotalMb, load1, cores, at];
+	const { instanceId, text, at } = req.body ?? {};
+	// A helper from before readings came raw sends parsed numbers, by rules
+	// this Odin may have changed since: dropped, so a launch reads the host itself.
+	const load = typeof text === "string" ? parseHostLoad(text) : null;
 	if (
 		typeof instanceId !== "string" ||
 		!instanceId ||
-		!numbers.every((n) => typeof n === "number" && Number.isFinite(n))
+		!load ||
+		typeof at !== "number" ||
+		!Number.isFinite(at)
 	)
 		return res.status(400).send("");
-	recordHostLoad({ instanceId, memAvailableMb, memTotalMb, load1, cores, at });
+	recordHostLoad({ instanceId, ...load, at });
 	res.status(204).end();
 });
 
