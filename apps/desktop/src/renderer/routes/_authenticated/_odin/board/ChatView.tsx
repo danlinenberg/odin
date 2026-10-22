@@ -1788,14 +1788,10 @@ export function launchRequest(text: string): string | null {
 
 /**
  * The latest reply that has an ACTION ITEMS block - the only one whose card
- * shows. None while Claude works: the items belong to a reply that is being
- * superseded, and the card would sit between you and the status line.
+ * shows. It stays while Claude works on your answer, until a newer reply
+ * brings its own items.
  */
-export function lastActionsId(
-	items: Item[],
-	working = false,
-): string | undefined {
-	if (working) return undefined;
+export function lastActionsId(items: Item[]): string | undefined {
 	return items.findLast(
 		(item) => item.kind === "text" && !!splitActionItems(item.text).actions,
 	)?.id;
@@ -3093,9 +3089,8 @@ export function ChatView({
 	const briefSettled =
 		briefError || (!!brief && sameReply(lastText?.at, brief.replyAt));
 	// Agents repeat their ACTION ITEMS in every reply; show one card, on the
-	// latest reply that has it, and none while Claude works on the next one:
-	// the card you just answered collapses away (Leave) under your message.
-	const actionsId = lastActionsId(items, working);
+	// latest reply that has it, also while Claude works on the next one.
+	const actionsId = lastActionsId(items);
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const pinnedRef = useRef(true);
 	const lastScrollTopRef = useRef(0);
