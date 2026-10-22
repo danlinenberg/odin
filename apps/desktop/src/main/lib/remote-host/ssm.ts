@@ -10,6 +10,8 @@ import {
 	SendSSHPublicKeyCommand,
 } from "@aws-sdk/client-ec2-instance-connect";
 import {
+	GetCommandInvocationCommand,
+	SendCommandCommand,
 	SSMClient,
 	StartSessionCommand,
 	TerminateSessionCommand,
@@ -136,9 +138,11 @@ async function unzip(
 }
 
 /**
- * Lets `publicKey` log in as `osUser` for the next 60 seconds - long enough for
- * one SSH handshake. Needs EC2 Instance Connect on the instance (Ubuntu and
- * Amazon Linux images have it).
+ * Lets `publicKey` log in as `osUser` for the next minutes - long enough for
+ * one SSH handshake. EC2 Instance Connect first (Ubuntu and Amazon Linux
+ * images have it). A sign-in AWS doesn't allow that for (its own IAM action,
+ * which `ec2:*` doesn't cover) gets the key through SSM Run Command instead,
+ * which `ssm:*` does - so nobody needs a new permission to use a host.
  */
 export async function pushOneTimeKey(
 	target: SsmTarget,
@@ -146,17 +150,103 @@ export async function pushOneTimeKey(
 	publicKey: string,
 ): Promise<void> {
 	const client = new EC2InstanceConnectClient(awsClientConfig(target));
-	const result = await client.send(
-		new SendSSHPublicKeyCommand({
-			InstanceId: target.instanceId,
-			InstanceOSUser: osUser,
-			SSHPublicKey: publicKey,
-		}),
-	);
+	const result = await client
+		.send(
+			new SendSSHPublicKeyCommand({
+				InstanceId: target.instanceId,
+				InstanceOSUser: osUser,
+				SSHPublicKey: publicKey,
+			}),
+		)
+		.catch((error: unknown) => {
+			if ((error as { name?: string })?.name === "AccessDeniedException")
+				return null;
+			throw error;
+		});
+	if (!result) return pushKeyOverSsm(target, osUser, publicKey);
 	if (!result.Success)
 		throw new Error(
 			`AWS did not accept the login key for ${target.instanceId}.`,
 		);
+}
+
+/** The key's line lasts this long: one handshake, with room for a slow SSM. */
+const KEY_LIFETIME_MS = 3 * 60_000;
+
+/**
+ * A root script that puts `publicKey` in `osUser`'s authorized_keys until
+ * `expires`, marked `odin-once`, and drops odin-once lines already expired -
+ * so keys never pile up, and none outlives its handshake by more than a few
+ * minutes (sshd's expiry-time).
+ */
+export function oneTimeKeyScript(
+	osUser: string,
+	publicKey: string,
+	expires: Date,
+): string {
+	if (!/^[a-z_][a-z0-9_-]*$/.test(osUser))
+		throw new Error(`Not a login name: ${osUser}`);
+	const key = publicKey.trim().split(/\s+/).slice(0, 2).join(" ");
+	if (!/^ssh-[a-z0-9-]+ [A-Za-z0-9+/=]+$/.test(key))
+		throw new Error("Not an SSH public key.");
+	const stamp = expires.toISOString().replace(/[-:T]/g, "").slice(0, 12);
+	return [
+		"set -e",
+		`u=${osUser}`,
+		'h=$(getent passwd "$u" | cut -d: -f6)',
+		'f="$h/.ssh/authorized_keys"',
+		'install -d -m 700 -o "$u" -g "$(id -gn "$u")" "$h/.ssh"',
+		'touch "$f"',
+		"now=$(date -u +%Y%m%d%H%M)",
+		`awk -v now="$now" '!/ odin-once$/ || (match($0, /expiry-time="[0-9]+/) && substr($0, RSTART + 13, 12) > now)' "$f" > "$f.odin"`,
+		`echo 'expiry-time="${stamp}Z" ${key} odin-once' >> "$f.odin"`,
+		'chown "$u":"$(id -gn "$u")" "$f.odin"',
+		'chmod 600 "$f.odin"',
+		'mv "$f.odin" "$f"',
+	].join("\n");
+}
+
+async function pushKeyOverSsm(
+	target: SsmTarget,
+	osUser: string,
+	publicKey: string,
+): Promise<void> {
+	const ssm = new SSMClient(awsClientConfig(target));
+	const script = oneTimeKeyScript(
+		osUser,
+		publicKey,
+		new Date(Date.now() + KEY_LIFETIME_MS),
+	);
+	const sent = await ssm.send(
+		new SendCommandCommand({
+			InstanceIds: [target.instanceId],
+			DocumentName: "AWS-RunShellScript",
+			Comment: "Odin: one-time login key",
+			TimeoutSeconds: 60,
+			Parameters: { commands: [script] },
+		}),
+	);
+	const commandId = sent.Command?.CommandId;
+	if (!commandId)
+		throw new Error(`SSM did not take the login key for ${target.instanceId}.`);
+	for (let attempt = 0; attempt < 60; attempt++) {
+		await new Promise((resolve) => setTimeout(resolve, 1_000));
+		const result = await ssm
+			.send(
+				new GetCommandInvocationCommand({
+					CommandId: commandId,
+					InstanceId: target.instanceId,
+				}),
+			)
+			.catch(() => null);
+		const status = result?.Status ?? "Pending";
+		if (["Pending", "InProgress", "Delayed"].includes(status)) continue;
+		if (status === "Success") return;
+		throw new Error(
+			`The login key did not reach ${target.instanceId} (${status}): ${(result?.StandardErrorContent ?? "").slice(-200)}`,
+		);
+	}
+	throw new Error(`The login key took too long to reach ${target.instanceId}.`);
 }
 
 /** What the plugin is started with - the same arguments the aws CLI gives it. */
