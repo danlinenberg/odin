@@ -43,6 +43,20 @@ const WebSpeech =
 
 export const speechAvailable = !!native || !!WebSpeech;
 
+/**
+ * iOS answers `stop` within about 1.5s (OdinSpeech.swift). If the answer
+ * never reaches the web view, give up waiting and keep the words shown live,
+ * so "Transcribing" can't spin forever.
+ */
+const STOP_TIMEOUT_MS = 4000;
+const stopNative = async (fallback: string): Promise<string> => {
+	const timeout = new Promise<undefined>((resolve) =>
+		setTimeout(() => resolve(undefined), STOP_TIMEOUT_MS),
+	);
+	const result = await Promise.race([native?.("OdinSpeech", "stop"), timeout]);
+	return result?.text ?? fallback;
+};
+
 /** Words to favor when listening: the board's titles, repos and people. */
 let vocabulary: string[] = [];
 export const setVocabulary = (words: string[]) => {
@@ -74,6 +88,8 @@ export function useSpeech(onText: (text: string) => void) {
 	const [error, setError] = useState<string | null>(null);
 	/** The words so far, while you talk. */
 	const [live, setLive] = useState("");
+	// The live words for stopNative's fallback, outside the render's closure.
+	const liveText = useRef("");
 	const partial = useRef<{ remove: () => void } | null>(null);
 	const web = useRef<Recognition | null>(null);
 	// Set by finish(): the words go to its caller, not into the box.
@@ -82,6 +98,7 @@ export function useSpeech(onText: (text: string) => void) {
 	const heard = (text: string) => {
 		partial.current?.remove();
 		partial.current = null;
+		liveText.current = "";
 		setLive("");
 		setListening(false);
 		setTranscribing(false);
@@ -99,14 +116,14 @@ export function useSpeech(onText: (text: string) => void) {
 			try {
 				if (listening) {
 					setTranscribing(true);
-					const result = await native("OdinSpeech", "stop");
-					heard(result?.text ?? "");
+					heard(await stopNative(liveText.current));
 				} else {
 					partial.current?.remove();
 					partial.current =
-						capacitor?.addListener?.("OdinSpeech", "partial", (data) =>
-							setLive(data.text ?? ""),
-						) ?? null;
+						capacitor?.addListener?.("OdinSpeech", "partial", (data) => {
+							liveText.current = data.text ?? "";
+							setLive(liveText.current);
+						}) ?? null;
 					await native("OdinSpeech", "start", { words: vocabulary });
 					setListening(true);
 				}
@@ -155,13 +172,13 @@ export function useSpeech(onText: (text: string) => void) {
 		setTranscribing(true);
 		if (native) {
 			try {
-				const result = await native("OdinSpeech", "stop");
-				return result?.text?.trim() ?? "";
+				return (await stopNative(liveText.current)).trim();
 			} catch {
 				return "";
 			} finally {
 				partial.current?.remove();
 				partial.current = null;
+				liveText.current = "";
 				setLive("");
 				setListening(false);
 				setTranscribing(false);
