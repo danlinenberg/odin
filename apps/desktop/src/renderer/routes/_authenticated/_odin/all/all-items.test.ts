@@ -6,6 +6,7 @@ import {
 	matchesStatus,
 	plainText,
 	previewPastTitle,
+	upcomingMeetings,
 	urgencyOf,
 } from "./all-items";
 
@@ -364,4 +365,60 @@ test("previewPastTitle drops the title the body opens with", () => {
 	expect(previewPastTitle("Bug in export", "Someone: fix it")).toBe(
 		"Someone: fix it",
 	);
+});
+
+const meeting = {
+	id: "standup@google.com@2026-10-21T07:00:00.000Z",
+	title: "Standup",
+	start: "2026-10-21T07:00:00.000Z",
+	end: "2026-10-21T07:30:00.000Z",
+	organizer: "Ofek Azulay",
+	attendees: ["Ofek Azulay", "Shahar", "Nati", "Sasha"],
+	location: null,
+	joinUrl: "https://meet.google.com/abc-defg-hij",
+	description: "Agenda: Q4 plan",
+	recurring: true,
+};
+
+test("a meeting is a task to prepare for, due the day it happens, that joins the call", () => {
+	const [item] = allItems({
+		tasks: [],
+		slack: [],
+		jira: [],
+		pulls: [],
+		notion: [],
+		meetings: [meeting],
+	});
+	const start = new Date(meeting.start);
+	const day = [
+		start.getFullYear(),
+		String(start.getMonth() + 1).padStart(2, "0"),
+		String(start.getDate()).padStart(2, "0"),
+	].join("-");
+	expect(item).toMatchObject({
+		key: `meeting:${meeting.id}`,
+		source: "Calendar",
+		to: "/calendar",
+		title: "Standup",
+		url: meeting.joinUrl,
+		person: "Ofek Azulay",
+		dueDate: day,
+		ask: { kind: "meeting", at: start.getTime() },
+	});
+	expect(item.body).toContain("with Ofek Azulay, Shahar, Nati +1");
+	expect(item.body).toContain("Agenda: Q4 plan");
+	expect(item.launch.description).toContain(
+		"Prepare for this meeting: Standup",
+	);
+	expect(item.launch.description).toContain(
+		"Attendees: Ofek Azulay, Shahar, Nati, Sasha",
+	);
+	// Due today, so it sits in Now.
+	expect(bandOf(item, true, start.getTime() - 3_600_000)).toBe("now");
+});
+
+test("a meeting leaves the list once it ends", () => {
+	const end = Date.parse(meeting.end);
+	expect(upcomingMeetings([meeting], end - 1)).toHaveLength(1);
+	expect(upcomingMeetings([meeting], end)).toHaveLength(0);
 });

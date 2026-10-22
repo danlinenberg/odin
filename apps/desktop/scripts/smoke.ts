@@ -411,6 +411,7 @@ await step("Tasks: every feed tab opens", async () => {
 		"Notion",
 		"Email",
 		"ClickUp",
+		"Calendar",
 	]) {
 		const found = await page<boolean>(`(() => {
 			const strip = __find("button", "Slack").parentElement;

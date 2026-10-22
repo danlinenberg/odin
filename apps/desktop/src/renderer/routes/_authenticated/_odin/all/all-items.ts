@@ -46,7 +46,8 @@ export interface AllItem {
 		| "GitHub"
 		| "Notion"
 		| "Email"
-		| "ClickUp";
+		| "ClickUp"
+		| "Calendar";
 	/** The feed this row lives in - clicking the title goes there. */
 	to: FeedPath;
 	title: string;
@@ -96,7 +97,14 @@ export type Urgency = "high" | "medium" | "low" | null;
 
 /** Why a row is on your list at all, and since when (ms; 0 when undated). */
 export interface Ask {
-	kind: "asked" | "mentioned" | "review" | "assigned" | "unread" | "own";
+	kind:
+		| "asked"
+		| "mentioned"
+		| "review"
+		| "assigned"
+		| "unread"
+		| "own"
+		| "meeting";
 	at: number;
 }
 
@@ -238,6 +246,8 @@ export function allItems(
 			created: string | null;
 			dueDate: string | null;
 		}[];
+		/** Upcoming meetings (main/lib/calendar) - optional, most callers predate it. */
+		meetings?: Meeting[];
 	},
 	{ everything = false }: { everything?: boolean } = {},
 ): AllItem[] {
@@ -545,7 +555,112 @@ export function allItems(
 				},
 			}),
 		),
+		...(input.meetings ?? []).map(meetingItem),
 	].sort((a, b) => b.at - a.at);
+}
+
+/** One meeting occurrence, as the Calendar feed sends it. */
+export interface Meeting {
+	id: string;
+	title: string;
+	start: string;
+	end: string;
+	organizer: string | null;
+	attendees: string[];
+	location: string | null;
+	joinUrl: string | null;
+	description: string | null;
+	recurring: boolean;
+}
+
+/** The feed polls every few minutes; a meeting that's over leaves at once. */
+export function upcomingMeetings(meetings: Meeting[], now: number): Meeting[] {
+	return meetings.filter((meeting) => ms(meeting.end) > now);
+}
+
+const clock = (at: number) =>
+	new Date(at).toLocaleTimeString(undefined, {
+		hour: "2-digit",
+		minute: "2-digit",
+	});
+
+/** The people in a meeting, the first few by name. */
+function withWhom(attendees: string[]): string {
+	const shown = attendees.slice(0, 3).join(", ");
+	const more = attendees.length - 3;
+	return more > 0 ? `${shown} +${more}` : shown;
+}
+
+/**
+ * A meeting is a task to prepare for. It's due the day it happens, so today's
+ * meetings sit in Now and tomorrow's in Later, and the date column says Today
+ * or Tomorrow. The time and who's in it lead the preview line; Open joins the
+ * call. Start session hands the agent the agenda and the attendees to prepare
+ * from.
+ */
+function meetingItem(meeting: Meeting): AllItem {
+	const start = ms(meeting.start);
+	const end = ms(meeting.end);
+	const time = `${clock(start)}-${clock(end)}`;
+	const people = withWhom(meeting.attendees);
+	const summary = people ? `${time} · with ${people}` : time;
+	const description = [
+		`Prepare for this meeting: ${meeting.title}`,
+		`When: ${when(start)} to ${clock(end)}`,
+		meeting.organizer && `Organizer: ${meeting.organizer}`,
+		meeting.attendees.length > 0 &&
+			`Attendees: ${meeting.attendees.join(", ")}`,
+		meeting.location && `Location: ${meeting.location}`,
+		meeting.joinUrl && `Join: ${meeting.joinUrl}`,
+		meeting.description && `\nAgenda:\n${meeting.description}`,
+	]
+		.filter(Boolean)
+		.join("\n");
+	return {
+		key: `meeting:${meeting.id}`,
+		source: "Calendar",
+		to: "/calendar",
+		title: meeting.title,
+		url: meeting.joinUrl,
+		person: meeting.organizer,
+		status: null,
+		priority: null,
+		urgency: null,
+		context: meeting.location,
+		at: start,
+		createdAt: start,
+		dueDate: start ? localDay(start) : null,
+		mention: null,
+		ask: { kind: "meeting", at: start },
+		body: meeting.description
+			? `${summary}\n\n${meeting.description}`
+			: summary,
+		details: facts([
+			["When", `${when(start)} to ${clock(end)}`],
+			["Organizer", meeting.organizer],
+			["With", meeting.attendees.join(", ")],
+			["Where", meeting.location],
+			["Join", meeting.joinUrl],
+			["Repeats", meeting.recurring ? "Yes" : null],
+		]),
+		launch: {
+			key: meeting.id,
+			title: meeting.title,
+			description,
+			contact: meeting.organizer,
+			brief: `${meeting.title}\n${when(start)}`,
+		},
+	};
+}
+
+/** `YYYY-MM-DD` in local time - the shape a due date has. */
+function localDay(at: number): string {
+	const d = new Date(at);
+	return [
+		d.getFullYear(),
+		String(d.getMonth() + 1).padStart(2, "0"),
+		String(d.getDate()).padStart(2, "0"),
+	].join("-");
 }
 
 /** What the status picker calls a row its source never gave a status. */

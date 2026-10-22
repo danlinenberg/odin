@@ -29,6 +29,9 @@ const POINTERS = new Set<AllItem["source"]>([
 ]);
 
 function signals(item: AllItem): string[] {
+	// A meeting about a ticket is still its own thing to do, at its own time:
+	// folded under the ticket, its time and join link would vanish.
+	if (item.source === "Calendar") return [];
 	const title = titleKey(item.title);
 	return [
 		...refs(

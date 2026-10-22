@@ -2,6 +2,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@odin/ui/tooltip";
 import { cn } from "@odin/ui/utils";
 import { useMatchRoute, useNavigate } from "@tanstack/react-router";
 import { electronTrpc } from "renderer/lib/electron-trpc";
+import { upcomingMeetings } from "../all/all-items";
 import { useDone } from "../hooks/useDone";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useMyTasks } from "../hooks/useOdinTasks";
@@ -27,6 +28,7 @@ export function FeedTabs() {
 		notion,
 		emails,
 		clickup,
+		meetings,
 		workConfig,
 		notionConfig,
 	} = useOdinFeeds();
@@ -65,6 +67,13 @@ export function FeedTabs() {
 		clickup: (clickup.data?.tasks ?? []).filter(
 			(task) => !isDone({ key: `clickup:${task.id}`, url: task.url }),
 		),
+		meetings: upcomingMeetings(
+			meetings.data?.meetings ?? [],
+			Date.now(),
+		).filter(
+			(meeting) =>
+				!isDone({ key: `meeting:${meeting.id}`, url: meeting.joinUrl }),
+		),
 		// Same rows the Docs page lists: saved docs plus Read later.
 		docs: docs.length + reading.length,
 	});
@@ -82,6 +91,10 @@ export function FeedTabs() {
 		"/notion": { connected: notionConfig?.hasToken, failed: notion.isError },
 		"/email": { connected: workConfig?.hasGmail, failed: emails.isError },
 		"/clickup": { connected: workConfig?.hasClickup, failed: clickup.isError },
+		"/calendar": {
+			connected: workConfig?.hasCalendar,
+			failed: meetings.isError,
+		},
 	});
 
 	const active = FEED_TABS.find((tab) => !!matchRoute({ to: tab.to }))?.to;

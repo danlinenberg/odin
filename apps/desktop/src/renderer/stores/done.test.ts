@@ -67,3 +67,19 @@ test("a session's Docs row is keyed by its conversation, apart from feed rows", 
 	});
 	expect(isDone({ key: "jira:SHIP-1" })).toBe(false);
 });
+
+test("Done on one meeting leaves the rest of its series, which shares the call link", () => {
+	const url = "https://meet.google.com/abc-defg-hij";
+	const today = "meeting:standup@google.com@2026-10-21T07:00:00.000Z";
+	const tomorrow = "meeting:standup@google.com@2026-10-22T07:00:00.000Z";
+	const isDone = doneChecker({
+		[today]: { at: 1, title: "Standup", source: "Calendar", url },
+	});
+	expect(isDone({ key: today, url })).toBe(true);
+	expect(isDone({ key: tomorrow, url })).toBe(false);
+	// Nor does a PR's Done reach a meeting held at the same link.
+	const prDone = doneChecker({
+		"pr:1": { at: 1, title: "PR", source: "pr", url },
+	});
+	expect(prDone({ key: tomorrow, url })).toBe(false);
+});

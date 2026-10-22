@@ -68,14 +68,20 @@ export function migrateDone(persisted: unknown): {
 }
 
 /**
+ * A meeting's link is its call, shared by every occurrence of a series and by
+ * every meeting in someone's personal room - it names a place, not the task.
+ */
+const linkIsTheTask = (key: string) => !key.startsWith("meeting:");
+
+/**
  * Is this row done? By key, or by link for PRs, which the feeds key by id and
  * the sweep by repo#n. A mention newer than the Done brings the row back -
  * someone asked me something on it since - and Done again puts it away.
  */
 export function doneChecker(done: Record<string, DoneRow>) {
 	const byUrl = new Map(
-		Object.values(done).flatMap((row) =>
-			row.url ? [[row.url, row] as const] : [],
+		Object.entries(done).flatMap(([key, row]) =>
+			row.url && linkIsTheTask(key) ? [[row.url, row] as const] : [],
 		),
 	);
 	return (item: {
@@ -83,7 +89,9 @@ export function doneChecker(done: Record<string, DoneRow>) {
 		url?: string | null;
 		mention?: { at?: string | null } | null;
 	}) => {
-		const row = done[item.key] ?? (item.url ? byUrl.get(item.url) : null);
+		const row =
+			done[item.key] ??
+			(item.url && linkIsTheTask(item.key) ? byUrl.get(item.url) : null);
 		const askedAt = Date.parse(item.mention?.at ?? "");
 		return !!row && !(askedAt > row.at);
 	};

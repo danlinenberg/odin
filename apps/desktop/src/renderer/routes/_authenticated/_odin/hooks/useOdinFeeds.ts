@@ -80,6 +80,16 @@ export function useOdinFeeds() {
 		placeholderData: (prev) => prev,
 	});
 
+	// The calendar's whole .ics, which can run to megabytes, so slower than the
+	// other feeds. Each poll also clears the meetings that have ended since.
+	const meetings = electronTrpc.work.myMeetings.useQuery(undefined, {
+		enabled: workConfig?.hasCalendar === true,
+		refetchInterval: 300_000,
+		staleTime: 300_000,
+		refetchOnMount: false,
+		placeholderData: (prev) => prev,
+	});
+
 	// Rows of whichever Notion database is picked in the Tasks view. No pick
 	// (or no token) means no query - the view says so instead.
 	const { data: notionConfig } = electronTrpc.notion.getConfig.useQuery();
@@ -101,7 +111,8 @@ export function useOdinFeeds() {
 	// A query result its caller never reads re-renders that caller on every
 	// fetch (TanStack tracks what's read, and nothing read means everything).
 	// Reading `data` here keeps a caller that ignores a feed off its polls.
-	for (const feed of [jira, pulls, reactions, clickup, notion]) void feed.data;
+	for (const feed of [jira, pulls, reactions, clickup, meetings, notion])
+		void feed.data;
 
 	return {
 		workConfig,
@@ -111,6 +122,7 @@ export function useOdinFeeds() {
 		notion,
 		emails,
 		clickup,
+		meetings,
 		notionConfig,
 		notionDatabaseId,
 		notionMentions,
@@ -123,7 +135,8 @@ export function useOdinFeeds() {
 				pulls.isFetching ||
 				notion.isFetching ||
 				emails.isFetching ||
-				clickup.isFetching
+				clickup.isFetching ||
+				meetings.isFetching
 			);
 		},
 		// refetch() ignores `enabled` (TanStack v5 fetches on an explicit call
@@ -138,6 +151,7 @@ export function useOdinFeeds() {
 				notionEnabled ? notion.refetch() : null,
 				workConfig?.hasGmail === true ? emails.refetch() : null,
 				workConfig?.hasClickup === true ? clickup.refetch() : null,
+				workConfig?.hasCalendar === true ? meetings.refetch() : null,
 			]),
 	};
 }

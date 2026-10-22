@@ -29,7 +29,8 @@ export type Provider =
 	| "github"
 	| "notion"
 	| "gmail"
-	| "clickup";
+	| "clickup"
+	| "calendar";
 
 export const PROVIDER_NAME: Record<Provider, string> = {
 	slack: "Slack",
@@ -38,6 +39,7 @@ export const PROVIDER_NAME: Record<Provider, string> = {
 	notion: "Notion",
 	gmail: "Gmail",
 	clickup: "ClickUp",
+	calendar: "Calendar",
 };
 
 /** What the consent screen is about to ask for, in one line. */
@@ -50,6 +52,8 @@ const SCOPE_BLURB: Record<Provider, string> = {
 	gmail: "An app password - read-only access to your unread mail.",
 	clickup:
 		"A personal API token - lets sessions read the ClickUp tasks they're given.",
+	calendar:
+		"Your calendar's secret iCal address - read-only, so your meetings show up as things to prepare for.",
 };
 
 export function ConnectProvider({
@@ -78,6 +82,8 @@ export function ConnectProvider({
 		<GmailConnect onDone={done} />
 	) : provider === "clickup" ? (
 		<ClickupConnect onDone={done} />
+	) : provider === "calendar" ? (
+		<CalendarConnect onDone={done} />
 	) : (
 		<OAuthConnect provider={provider} onDone={done} />
 	);
@@ -111,7 +117,7 @@ function OAuthConnect({
 	provider,
 	onDone,
 }: {
-	provider: Exclude<Provider, "github" | "gmail" | "clickup">;
+	provider: Exclude<Provider, "github" | "gmail" | "clickup" | "calendar">;
 	onDone: () => void;
 }) {
 	const name = PROVIDER_NAME[provider];
@@ -193,7 +199,7 @@ function OAuthAppForm({
 	provider,
 	onSaved,
 }: {
-	provider: Exclude<Provider, "github" | "gmail" | "clickup">;
+	provider: Exclude<Provider, "github" | "gmail" | "clickup" | "calendar">;
 	onSaved: () => void;
 }) {
 	const name = PROVIDER_NAME[provider];
@@ -496,6 +502,59 @@ function ClickupConnect({ onDone }: { onDone: () => void }) {
 				disabled={!token || save.isPending}
 			>
 				{save.isPending ? "Checking…" : "2. Connect ClickUp"}
+			</button>
+		</form>
+	);
+}
+
+/**
+ * The calendar skips OAuth the way Gmail does: Google, Outlook and iCloud each
+ * publish a private iCal address that is the whole calendar, read-only.
+ */
+function CalendarConnect({ onDone }: { onDone: () => void }) {
+	const [url, setUrl] = useState("");
+	const openUrl = electronTrpc.external.openUrl.useMutation();
+	const save = electronTrpc.connections.saveCalendar.useMutation({
+		onSuccess: () => {
+			toast.success("Calendar connected");
+			onDone();
+		},
+		onError: (error) => toast.error(error.message),
+	});
+	return (
+		<form
+			className="space-y-2"
+			onSubmit={(event) => {
+				event.preventDefault();
+				save.mutate({ url });
+			}}
+		>
+			<button
+				type="button"
+				className={GMAIL_CTA}
+				onClick={() =>
+					openUrl.mutate("https://calendar.google.com/calendar/r/settings")
+				}
+			>
+				1. Copy your secret iCal address ↗
+			</button>
+			<p className="text-xs text-muted-foreground">
+				Google Calendar: your calendar under Settings for my calendars →
+				Integrate calendar → Secret address in iCal format. Outlook and iCloud
+				share links work too.
+			</p>
+			<Input
+				type="password"
+				placeholder="https://calendar.google.com/calendar/ical/…/private-…/basic.ics"
+				value={url}
+				onChange={(event) => setUrl(event.target.value)}
+			/>
+			<button
+				type="submit"
+				className={GMAIL_CTA}
+				disabled={!url || save.isPending}
+			>
+				{save.isPending ? "Checking…" : "2. Connect Calendar"}
 			</button>
 		</form>
 	);

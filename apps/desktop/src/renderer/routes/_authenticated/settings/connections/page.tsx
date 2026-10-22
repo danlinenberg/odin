@@ -15,7 +15,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { FaGithub, FaSlack } from "react-icons/fa";
-import { LuCheck, LuTrash2 } from "react-icons/lu";
+import { LuCalendarDays, LuCheck, LuTrash2 } from "react-icons/lu";
 import { SiClaude, SiClickup, SiGmail, SiJira, SiNotion } from "react-icons/si";
 import {
 	ConnectProvider,
@@ -86,6 +86,13 @@ const META: Record<
 		icon: <SiClickup className="size-5" />,
 		description: "Lets sessions read the ClickUp tasks they're given.",
 	},
+	calendar: {
+		name: "Calendar",
+		icon: <LuCalendarDays className="size-5" />,
+		description:
+			"Meetings today and tomorrow, as things to prepare for, in the Calendar tab.",
+		help: "Paste your calendar's secret iCal address - Google, Outlook and iCloud all have one. Anyone with the address can read the calendar, so Odin keeps it like a password. If Google doesn't show one, your Workspace admin has turned it off.",
+	},
 };
 
 const ORDER: Provider[] = [
@@ -94,6 +101,7 @@ const ORDER: Provider[] = [
 	"jira",
 	"notion",
 	"gmail",
+	"calendar",
 	"clickup",
 ];
 
