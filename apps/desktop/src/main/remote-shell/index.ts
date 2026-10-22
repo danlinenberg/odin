@@ -215,22 +215,66 @@ async function ssoLogin(profile: string | null | undefined): Promise<void> {
 		);
 }
 
-const enter = () =>
+/** The profile's AWS credentials work: the user is signed in, here or anywhere else. */
+const signedIn = (profile: string | null | undefined) =>
+	awsClientConfig({ profile })
+		.credentials()
+		.then(
+			() => true,
+			() => false,
+		);
+
+/**
+ * Resolves true once a sign-in made elsewhere (another pane, a terminal)
+ * shows up, checked every few seconds; false after `stop`.
+ */
+function untilSignedIn(
+	profile: string | null | undefined,
+	stop: Promise<unknown>,
+): Promise<boolean> {
+	return new Promise((resolve) => {
+		let done = false;
+		const tick = async () => {
+			if (done) return;
+			if (await signedIn(profile)) {
+				done = true;
+				resolve(true);
+			} else if (!done) setTimeout(tick, 5_000).unref();
+		};
+		setTimeout(tick, 5_000).unref();
+		stop.finally(() => {
+			done = true;
+			resolve(false);
+		});
+	});
+}
+
+/** Enter pressed, or a sign-in made elsewhere found - whichever comes first. */
+const enterOrSignedIn = (profile: string | null | undefined) =>
 	new Promise<void>((resolve) => {
 		process.stdin.setRawMode?.(true);
 		process.stdin.resume();
+		let finish = () => {};
+		const finished = new Promise<void>((r) => {
+			finish = r;
+		});
 		const onData = (key: Buffer) => {
 			if (key[0] === 3) process.exit(1);
-			if (key[0] !== 13 && key[0] !== 10) return;
+			if (key[0] === 13 || key[0] === 10) finish();
+		};
+		process.stdin.on("data", onData);
+		untilSignedIn(profile, finished).then(finish);
+		finished.then(() => {
 			process.stdin.off("data", onData);
 			process.stdin.pause();
 			resolve();
-		};
-		process.stdin.on("data", onData);
+		});
 	});
 
 /** Asks the user to approve a new AWS sign-in until they do; the session can't connect before. */
 async function signInAgain(spec: RemoteSessionSpec): Promise<void> {
+	// Another pane may have signed in already while this one was connecting.
+	if (await signedIn(spec.profile)) return;
 	for (;;) {
 		say(
 			bold(
@@ -241,7 +285,15 @@ async function signInAgain(spec: RemoteSessionSpec): Promise<void> {
 			"  To fix it:\r\n  1. Approve the AWS sign-in in the browser tab Odin just opened.\r\n",
 		);
 		try {
-			await ssoLogin(spec.profile);
+			const login = ssoLogin(spec.profile);
+			// A sign-in made in a terminal or another pane counts too.
+			await Promise.race([
+				login,
+				untilSignedIn(
+					spec.profile,
+					login.catch(() => {}),
+				).then((found) => (found ? undefined : login)),
+			]);
 			say("AWS sign-in approved - connecting...");
 			return;
 		} catch (err) {
@@ -256,9 +308,13 @@ async function signInAgain(spec: RemoteSessionSpec): Promise<void> {
 					? ""
 					: (err instanceof Error ? err.message : String(err)).split("\n")[0];
 			process.stderr.write(
-				`  ${reason || "It timed out or was cancelled."}\r\n  To fix it:\r\n  1. Press Enter for a new sign-in link.\r\n`,
+				`  ${reason || "It timed out or was cancelled."}\r\n  To fix it:\r\n  1. Press Enter for a new sign-in link, or sign in to AWS anywhere else - Odin sees it and connects.\r\n`,
 			);
-			await enter();
+			await enterOrSignedIn(spec.profile);
+			if (await signedIn(spec.profile)) {
+				say("AWS sign-in approved - connecting...");
+				return;
+			}
 		}
 	}
 }
