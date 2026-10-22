@@ -841,13 +841,13 @@ export function RemoteHostSection() {
 					{instances.data && !error && shownInstances.length === 0 && (
 						<SettingRow
 							label="No matching instances"
-							description={
+							description={`${
 								search.trim()
-									? "No instance matches the search."
+									? "No listed instance matches the search."
 									: tags.length
 										? "No instance in this account and region carries all of these tags."
 										: "No instance in this account and region."
-							}
+							} Only instances tagged Odin = host are listed: add that tag to yours in the EC2 console.`}
 						/>
 					)}
 					<SettingRow
