@@ -91,6 +91,8 @@ export interface OdinFileConfig {
 	};
 	/** `claude setup-token`'s token for remote sessions, encrypted with safeStorage. */
 	claudeToken?: string;
+	/** An Anthropic API key host sessions move to at the plan limit, in place of ANTHROPIC_API_KEY, encrypted with safeStorage. */
+	fallbackApiKey?: string;
 	/** Double-tap this modifier to show or hide Odin (main/lib/double-tap). */
 	doubleTapModifier?: string;
 	/** Settings → Appearance → Text size (shared/text-size). */
