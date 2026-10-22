@@ -27,6 +27,7 @@ import superjson from "superjson";
 import { z } from "zod";
 import { typedText } from "../../../shared/typed-text";
 import { attachments } from "./attachments";
+import { forSession } from "./host-files";
 import { rememberFromPhone } from "./sent";
 
 /**
@@ -135,6 +136,26 @@ async function typeIntoClaude(paneId: string, text: string, paths: string[]) {
 	await until(async () => (await drawn()) >= before + expected, 3000);
 	await pause(30);
 	write("\r");
+}
+
+/** The remote host's copy of a message's files, from the board's own procedure. */
+async function filesToHost(message: {
+	text: string;
+	paths: string[];
+}): Promise<{ text: string; paths: string[] }> {
+	// The app router is untyped from here; filesToHost answers the rewritten message.
+	const caller = appCaller() as
+		| {
+				remoteHost: {
+					filesToHost: (input: {
+						text: string;
+						paths: string[];
+					}) => Promise<{ text: string; paths: string[] }>;
+				};
+		  }
+		| undefined;
+	if (!caller) throw new Error("Odin is still starting");
+	return caller.remoteHost.filesToHost(message);
 }
 
 /** A task's notes point at its files the way the desktop Tasks editor does. */
@@ -335,16 +356,21 @@ export const phoneRouter = t.router({
 				.refine((input) => input.text.trim() || input.paths.length),
 		)
 		.mutation(async ({ input }) => {
-			const text = input.text.trim();
+			const sent = await forSession(
+				appState.data.tabsState.panes?.[input.paneId],
+				{ text: input.text.trim(), paths: input.paths },
+				(message) => filesToHost(message),
+			);
+			const text = sent.text;
 			// Claude has exited that session: the board resumes it with the reply,
 			// files named on their own lines, as its chat box does.
-			const opening = [...input.paths, text].filter(Boolean).join("\n");
+			const opening = [...sent.paths, text].filter(Boolean).join("\n");
 			const answer = await askRenderer("phone-reply", {
 				paneId: input.paneId,
 				text: opening,
 			}).catch(() => null);
 			if (answer !== "resumed")
-				await typeIntoClaude(input.paneId, text, input.paths);
+				await typeIntoClaude(input.paneId, text, sent.paths);
 			rememberFromPhone(input.paneId, input.text);
 		}),
 
