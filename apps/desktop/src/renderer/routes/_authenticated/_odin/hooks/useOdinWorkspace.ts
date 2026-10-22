@@ -87,11 +87,17 @@ export function useOdinWorkspace() {
 		if (!("project" in result) || !result.project) {
 			return fallback(`Could not open repo at ${repoPath}`);
 		}
-		const all = await utils.workspaces.getAll.fetch();
+		const projectId = result.project.id;
+		// The list on hand already has the repo's workspace after its first
+		// launch; only a repo opened just now needs another round trip for it.
 		const workspace =
-			all.find((item) => item.projectId === result.project?.id) ?? null;
-		// Not awaited: the fetch above already refreshed the cache, and waiting
-		// on a second round-trip only delays the session start.
+			workspaces.find((item) => item.projectId === projectId) ??
+			(await utils.workspaces.getAll.fetch()).find(
+				(item) => item.projectId === projectId,
+			) ??
+			null;
+		// Not awaited: refreshes the list for the board, and waiting on that
+		// round trip only delays the session start.
 		void utils.workspaces.getAll.invalidate();
 		if (!workspace) {
 			return fallback("Workspace was not created");
