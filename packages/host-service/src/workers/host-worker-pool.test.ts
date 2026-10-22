@@ -86,7 +86,9 @@ describe("HostWorkerPool", () => {
 		expect(fromWorker.snapshot.staged.map((f) => f.path)).toEqual([
 			"staged.txt",
 		]);
-	});
+		// The first task starts the worker cold and runs git in a new repo: past
+		// bun's 5s default on a busy CI runner.
+	}, 30_000);
 
 	test("unknown task type rejects with the worker's error", async () => {
 		const pool = makePool();
