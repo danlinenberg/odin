@@ -32,7 +32,7 @@ export function endSession(paneId: string) {
 		pane?.claudeSessionId ?? usePaneMeta.getState().sessionIdByPane[paneId];
 	if (pane?.odinRemote && sessionId)
 		electronTrpcClient.remoteHost.endSession
-			.mutate({ sessionId })
+			.mutate({ sessionId, host: pane.odinRemote })
 			.catch((error) => console.warn("[remote] could not end:", error));
 	useTabsStore.getState().removePane(paneId);
 	usePaneMeta.getState().forgetPane(paneId, pane?.claudeSessionId);

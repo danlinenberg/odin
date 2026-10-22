@@ -320,23 +320,21 @@ function OdinShell() {
 		maxWorkingAgents,
 	};
 	const load = metrics ? machineLoad(metrics, limits) : null;
-	// The remote host's pill: shown while sessions run there, from the
-	// readings their panes send every 30s, so it costs the host nothing more.
-	const remoteHostName = useTabsStore(
-		(s) =>
-			Object.values(s.panes).find((pane) => pane.odinRemote && !pane.completed)
-				?.odinRemote,
+	// The hosts sessions run on, one per line: a string, so the store
+	// selector stays stable between renders.
+	const remoteHostLines = useTabsStore((s) =>
+		Object.values(s.panes)
+			.flatMap((pane) =>
+				pane.odinRemote && !pane.completed ? [pane.odinRemote] : [],
+			)
+			.join("\n"),
 	);
-	const remoteSessions = useTabsStore(
-		(s) =>
-			Object.values(s.panes).filter(
-				(pane) => pane.odinRemote && !pane.completed,
-			).length,
-	);
-	const { data: hostGate } = electronTrpc.remoteHost.launchGate.useQuery(
-		undefined,
-		{ enabled: !!remoteHostName, refetchInterval: 15_000 },
-	);
+	const remoteHosts = useMemo(() => {
+		const counts = new Map<string, number>();
+		for (const host of remoteHostLines.split("\n").filter(Boolean))
+			counts.set(host, (counts.get(host) ?? 0) + 1);
+		return [...counts];
+	}, [remoteHostLines]);
 	const disk =
 		load?.diskFreePercent != null ? ` · disk ${load.diskFreePercent}%` : "";
 	const diskFull =
@@ -728,34 +726,9 @@ function OdinShell() {
 								</TooltipContent>
 							</Tooltip>
 						)}
-						{remoteHostName && (
-							<Tooltip delayDuration={300}>
-								<TooltipTrigger asChild>
-									<span
-										className={cn(
-											"cursor-default rounded-[6px] px-2 py-[3px] text-[11px] font-semibold tabular-nums",
-											hostGate?.frozen
-												? PILL.danger
-												: hostGate?.reason
-													? PILL.attention
-													: "bg-secondary text-muted-foreground",
-										)}
-									>
-										{hostGate?.frozen
-											? `${remoteHostName} out of memory · sessions frozen`
-											: hostGate?.reason
-												? `${hostGate.reason} · launches there wait`
-												: `${remoteHostName} · ${remoteSessions} ${remoteSessions === 1 ? "session" : "sessions"}${hostGate?.freeGb != null ? ` · ${hostGate.freeGb} GB free` : ""}`}
-									</span>
-								</TooltipTrigger>
-								<TooltipContent side="bottom" className="max-w-[280px]">
-									{hostGate?.frozen ??
-										(hostGate?.reason
-											? `${hostGate.reason} - new sessions there wait until that clears.`
-											: `${remoteSessions} session(s) on the remote host ${remoteHostName}.${hostGate?.freeGb != null ? ` It has ${hostGate.freeGb} GB free.` : " No memory reading yet."}`)}
-								</TooltipContent>
-							</Tooltip>
-						)}
+						{remoteHosts.map(([host, sessions]) => (
+							<HostPill key={host} host={host} sessions={sessions} />
+						))}
 					</div>
 				</ZoomStable>
 			</div>
@@ -837,5 +810,45 @@ function OdinShell() {
 				<SearchAll onClose={() => setIsSearchAllOpen(false)} />
 			)}
 		</div>
+	);
+}
+
+/**
+ * One remote host's pill: shown while sessions run there, from the readings
+ * their panes send every 30s, so it costs the host nothing more. A host you
+ * moved away from keeps its own pill while its sessions finish.
+ */
+function HostPill({ host, sessions }: { host: string; sessions: number }) {
+	const { data: gate } = electronTrpc.remoteHost.launchGate.useQuery(
+		{ host },
+		{ refetchInterval: 15_000 },
+	);
+	return (
+		<Tooltip delayDuration={300}>
+			<TooltipTrigger asChild>
+				<span
+					className={cn(
+						"cursor-default rounded-[6px] px-2 py-[3px] text-[11px] font-semibold tabular-nums",
+						gate?.frozen
+							? PILL.danger
+							: gate?.reason
+								? PILL.attention
+								: "bg-secondary text-muted-foreground",
+					)}
+				>
+					{gate?.frozen
+						? `${host} out of memory · sessions frozen`
+						: gate?.reason
+							? `${gate.reason} · launches there wait`
+							: `${host} · ${sessions} ${sessions === 1 ? "session" : "sessions"}${gate?.freeGb != null ? ` · ${gate.freeGb} GB free` : ""}`}
+				</span>
+			</TooltipTrigger>
+			<TooltipContent side="bottom" className="max-w-[280px]">
+				{gate?.frozen ??
+					(gate?.reason
+						? `${gate.reason} - new sessions there wait until that clears.`
+						: `${sessions} session(s) on the remote host ${host}.${gate?.freeGb != null ? ` It has ${gate.freeGb} GB free.` : " No memory reading yet."}`)}
+			</TooltipContent>
+		</Tooltip>
 	);
 }

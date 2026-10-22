@@ -85,8 +85,12 @@ export function macPaceBlocker(now = Date.now()): string | null {
  */
 export async function currentHostBlocker(
 	client: TrpcClient,
+	/** The pane's host for a Resume; unset for a new session (the current host). */
+	host?: string,
 ): Promise<string | null> {
-	const gate = await client.remoteHost.launchGate.query().catch(() => null);
+	const gate = await client.remoteHost.launchGate
+		.query(host ? { host } : undefined)
+		.catch(() => null);
 	if (gate?.reason) return gate.reason;
 	if (gate && !hostReadSinceStart(gate.at))
 		return "another session started on the host a moment ago, so this one waits until the host's load shows it";

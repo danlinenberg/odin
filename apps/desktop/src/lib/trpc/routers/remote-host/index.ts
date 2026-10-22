@@ -43,6 +43,7 @@ import {
 	hostGithubLogin,
 	repoStaysLocal,
 } from "main/lib/remote-host/github-on-host";
+import { hostByName } from "main/lib/remote-host/host-by-name";
 import { hostHasConversation } from "main/lib/remote-host/host-conversations";
 import {
 	hostFileSources,
@@ -102,6 +103,15 @@ import { awsSsoLogin } from "../terminal/aws-sso";
 import { getProcessEnvWithShellEnv } from "../workspaces/utils/shell-env";
 
 const run = promisify(execFile);
+
+/** The host a session runs on, by its pane's host name (see hostByName). */
+function hostNamed(name?: string | null) {
+	const { remoteHost, pastRemoteHosts } = readOdinConfig();
+	return hostByName(remoteHost, pastRemoteHosts, name);
+}
+
+/** A pane's host name, for the procedures that act on one session. */
+const paneHost = z.string().nullable().optional();
 
 /**
  * This Odin user's Linux user on the host: the one already chosen, so a
@@ -486,32 +496,34 @@ export const createRemoteHostRouter = () =>
 		 * when that reading was taken. No host, or no reading to be had, lets
 		 * the launch through.
 		 */
-		launchGate: publicProcedure.query(async () => {
-			const host = readOdinConfig().remoteHost;
-			const reading = host ? await hostLoad(host) : null;
-			return {
-				reason: host
-					? remoteLaunchBlocker(
-							reading,
-							host.name || host.instanceId,
-							Date.now(),
-						)
-					: null,
-				/** Set while the host is too short of memory to run its sessions. */
-				frozen: host
-					? remoteFrozenReason(
-							reading,
-							host.name || host.instanceId,
-							Date.now(),
-						)
-					: null,
-				/** The host's free memory in GB, for the header's host pill. */
-				freeGb: reading
-					? Math.round(reading.memAvailableMb / 102.4) / 10
-					: null,
-				at: reading?.at ?? null,
-			};
-		}),
+		launchGate: publicProcedure
+			.input(z.object({ host: paneHost }).optional())
+			.query(async ({ input }) => {
+				const host = hostNamed(input?.host);
+				const reading = host ? await hostLoad(host) : null;
+				return {
+					reason: host
+						? remoteLaunchBlocker(
+								reading,
+								host.name || host.instanceId,
+								Date.now(),
+							)
+						: null,
+					/** Set while the host is too short of memory to run its sessions. */
+					frozen: host
+						? remoteFrozenReason(
+								reading,
+								host.name || host.instanceId,
+								Date.now(),
+							)
+						: null,
+					/** The host's free memory in GB, for the header's host pill. */
+					freeGb: reading
+						? Math.round(reading.memAvailableMb / 102.4) / 10
+						: null,
+					at: reading?.at ?? null,
+				};
+			}),
 		/** Picks the host. Turning it on gets a Claude token first if none is saved. */
 		set: publicProcedure
 			.input(
@@ -525,9 +537,20 @@ export const createRemoteHostRouter = () =>
 			)
 			.mutation(async ({ input }) => {
 				if (input.on) await ensureClaudeToken();
+				const { remoteHost: previous, pastRemoteHosts = [] } = readOdinConfig();
+				const kept = pastRemoteHosts.filter(
+					(host) =>
+						host.instanceId !== input.instanceId &&
+						host.instanceId !== previous?.instanceId,
+				);
 				// `user` from the picker is the instance's login; sessions run as this user's own.
 				updateOdinConfig({
 					remoteHost: { ...input, user: hostUser(), adminUser: input.user },
+					// The host left behind keeps its sessions, so they can still find it.
+					pastRemoteHosts:
+						previous && previous.instanceId !== input.instanceId
+							? [previous, ...kept].slice(0, 5)
+							: kept,
 				});
 				if (input.on) void refreshHostTokens();
 			}),
@@ -683,9 +706,15 @@ export const createRemoteHostRouter = () =>
 		 * first.
 		 */
 		bringHome: publicProcedure
-			.input(z.object({ sessionId: z.string().min(1), cwd: z.string() }))
+			.input(
+				z.object({
+					sessionId: z.string().min(1),
+					cwd: z.string(),
+					host: paneHost,
+				}),
+			)
 			.mutation(async ({ input }) => {
-				const host = readOdinConfig().remoteHost;
+				const host = hostNamed(input.host);
 				if (!host) throw new Error("No remote host is set up.");
 				let branch: string | null = null;
 				const placeIn = async (work: HostWork | null) => {
@@ -730,9 +759,9 @@ export const createRemoteHostRouter = () =>
 		 * install per finished session filled its disk.
 		 */
 		endSession: publicProcedure
-			.input(z.object({ sessionId: z.string().min(1) }))
+			.input(z.object({ sessionId: z.string().min(1), host: paneHost }))
 			.mutation(async ({ input }) => {
-				const host = readOdinConfig().remoteHost;
+				const host = hostNamed(input.host);
 				if (!host) return;
 				const lines = await withAwsSignIn(host, () =>
 					endHostSession(host, input.sessionId, host.reposRoot),
@@ -817,12 +846,14 @@ export const createRemoteHostRouter = () =>
 					odinPane: z.string().nullable().optional(),
 					/** Quit the host's Claude and start it again, not reattach. */
 					fresh: z.boolean().optional(),
+					/** The host the session runs on; unset for a new session (the current host). */
+					host: paneHost,
 				}),
 			)
 			.mutation(async ({ input }) => {
 				// Not gated on `on`: that switch picks where new sessions start,
 				// and a session already on the host resumes there either way.
-				const host = readOdinConfig().remoteHost;
+				const host = hostNamed(input.host);
 				if (!host) throw new Error("No remote host is set up.");
 				const session = await buildSessionSpec(host, input);
 				const spec = Buffer.from(JSON.stringify(session)).toString("base64");
@@ -839,13 +870,14 @@ export const createRemoteHostRouter = () =>
 		/**
 		 * The tmux sessions running on the host (`odin-<session id>`), over one
 		 * connection for the whole board: a pane per connection is what wedged
-		 * the host's SSM before. Null when `host` isn't the configured one or
-		 * the host can't be reached; no AWS sign-in, nobody asked for this.
+		 * the host's SSM before. Null when Odin doesn't know `host` (the current
+		 * one or one picked before it) or the host can't be reached; no AWS
+		 * sign-in, nobody asked for this.
 		 */
 		liveSessions: publicProcedure
 			.input(z.object({ host: z.string().min(1) }))
 			.query(async ({ input }) => {
-				const host = readOdinConfig().remoteHost;
+				const host = hostNamed(input.host);
 				if (!host || (host.name || host.instanceId) !== input.host) return null;
 				try {
 					const client = await connectHost(host);
@@ -872,9 +904,11 @@ export const createRemoteHostRouter = () =>
 		 * is not a no.
 		 */
 		hasConversation: publicProcedure
-			.input(z.object({ sessionId: z.string().regex(/^[\w-]+$/) }))
+			.input(
+				z.object({ sessionId: z.string().regex(/^[\w-]+$/), host: paneHost }),
+			)
 			.query(async ({ input }) => {
-				const host = readOdinConfig().remoteHost;
+				const host = hostNamed(input.host);
 				if (!host) throw new Error("No remote host is set up.");
 				return hostHasConversation(host, input.sessionId);
 			}),
