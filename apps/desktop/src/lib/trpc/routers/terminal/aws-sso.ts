@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { shell } from "electron";
+import { awsClientConfig } from "main/lib/remote-host/ssm";
 import { getProcessEnvWithShellEnv } from "../workspaces/utils/shell-env";
 
 /** Claude Code on Bedrock names its AWS profile in its settings' env, or the shell does. */
@@ -56,45 +57,56 @@ function runSsoLogin(profile: string | null): SsoLogin {
 	const link = new Promise<string>((resolve) => {
 		gotLink = resolve;
 	});
-	const done = getProcessEnvWithShellEnv().then(
-		(env) =>
-			new Promise<{ profile: string | null }>((resolve, reject) => {
-				const child = spawn(
-					"aws",
-					[
-						"sso",
-						"login",
-						"--no-browser",
-						...(profile ? ["--profile", profile] : []),
-					],
-					{ env, stdio: ["ignore", "pipe", "pipe"], timeout: 5 * 60_000 },
-				);
-				let output = "";
-				let settle: ReturnType<typeof setTimeout> | undefined;
-				// The device flow prints the bare URL first and the code-filled one
-				// a moment later, so the link is read once the output goes quiet.
-				let opened = false;
-				const read = (chunk: Buffer) => {
-					output += chunk;
-					clearTimeout(settle);
-					settle = setTimeout(() => {
-						const url = approvalLink(output);
-						if (!url || opened) return;
-						opened = true;
-						gotLink(url);
-						shell.openExternal(url).catch(() => {});
-					}, 500);
-				};
-				child.stdout.on("data", read);
-				child.stderr.on("data", read);
-				child.on("error", reject);
-				child.on("close", (code) => {
-					clearTimeout(settle);
-					if (code === 0) resolve({ profile });
-					else
-						reject(new Error(output.trim() || `aws sso login exited ${code}`));
-				});
-			}),
+	// Signed in already (a terminal, another pane): nothing to approve.
+	const signedIn = awsClientConfig({ profile })
+		.credentials()
+		.then(
+			() => true,
+			() => false,
+		);
+	const done = Promise.all([getProcessEnvWithShellEnv(), signedIn]).then(
+		([env, ready]) =>
+			ready
+				? { profile }
+				: new Promise<{ profile: string | null }>((resolve, reject) => {
+						const child = spawn(
+							"aws",
+							[
+								"sso",
+								"login",
+								"--no-browser",
+								...(profile ? ["--profile", profile] : []),
+							],
+							{ env, stdio: ["ignore", "pipe", "pipe"], timeout: 5 * 60_000 },
+						);
+						let output = "";
+						let settle: ReturnType<typeof setTimeout> | undefined;
+						// The device flow prints the bare URL first and the code-filled one
+						// a moment later, so the link is read once the output goes quiet.
+						let opened = false;
+						const read = (chunk: Buffer) => {
+							output += chunk;
+							clearTimeout(settle);
+							settle = setTimeout(() => {
+								const url = approvalLink(output);
+								if (!url || opened) return;
+								opened = true;
+								gotLink(url);
+								shell.openExternal(url).catch(() => {});
+							}, 500);
+						};
+						child.stdout.on("data", read);
+						child.stderr.on("data", read);
+						child.on("error", reject);
+						child.on("close", (code) => {
+							clearTimeout(settle);
+							if (code === 0) resolve({ profile });
+							else
+								reject(
+									new Error(output.trim() || `aws sso login exited ${code}`),
+								);
+						});
+					}),
 	);
 	return { link, done };
 }
