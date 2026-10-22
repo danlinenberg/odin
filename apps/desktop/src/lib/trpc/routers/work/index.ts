@@ -5,9 +5,11 @@ import { TRPCError } from "@trpc/server";
 import { isInternalBuild } from "main/lib/build-channel";
 import {
 	fetchCalendar,
+	fetchGoogleMeetings,
 	type MeetingRow,
 	parseMeetings,
 } from "main/lib/calendar";
+import { calendarAccessToken, hasCalendarOAuth } from "main/lib/calendar-token";
 import { githubAccessToken, githubApiFetch } from "main/lib/github-token";
 import { hasJiraOAuth, jiraRequestContext } from "main/lib/jira-token";
 import { clickupFetch } from "main/lib/read-link";
@@ -500,7 +502,7 @@ export const createWorkRouter = () => {
 			hasGithub: githubToken() !== null,
 			hasGmail: gmailCredentials() !== null,
 			hasClickup: !!readOdinConfig().clickupToken,
-			hasCalendar: !!readOdinConfig().calendarUrl,
+			hasCalendar: hasCalendarOAuth() || !!readOdinConfig().calendarUrl,
 			/**
 			 * Odin's own checkout: gates self-update, and is where "Work on Odin"
 			 * sessions launch so the agent starts in the right repo instead of
@@ -1023,13 +1025,32 @@ export const createWorkRouter = () => {
 		),
 
 		/**
-		 * Meetings from now to the end of tomorrow, from the calendar's secret
-		 * iCal address - one GET, so it needs no OAuth. Your Gmail address
-		 * counts as you, so a meeting you declined there stays out.
+		 * Meetings from now to the end of tomorrow: through the Google Calendar
+		 * API when signed in to Google, else from the secret iCal address. Your
+		 * Gmail address counts as you, so a meeting you declined there stays out.
 		 */
 		myMeetings: publicProcedure.query(
 			async (): Promise<{ meetings: MeetingRow[] }> => {
 				const { calendarUrl, gmailAddress } = readOdinConfig();
+				const now = new Date();
+				const window = {
+					from: now.getTime(),
+					to: new Date(
+						now.getFullYear(),
+						now.getMonth(),
+						now.getDate() + 2,
+					).getTime(),
+				};
+				const self = gmailAddress ? [gmailAddress] : [];
+				if (hasCalendarOAuth()) {
+					const token = await calendarAccessToken();
+					if (!token) throw feedError("Calendar", 401, "");
+					const result = await fetchGoogleMeetings(token, window, self);
+					if (!result.ok) {
+						throw feedError("Calendar", result.status, result.body);
+					}
+					return { meetings: result.meetings };
+				}
 				if (!calendarUrl) {
 					throw new TRPCError({
 						code: "PRECONDITION_FAILED",
@@ -1041,18 +1062,8 @@ export const createWorkRouter = () => {
 				if (!response.ok) {
 					throw feedError("Calendar", response.status, await response.text());
 				}
-				const now = new Date();
-				const dayAfterTomorrow = new Date(
-					now.getFullYear(),
-					now.getMonth(),
-					now.getDate() + 2,
-				).getTime();
 				return {
-					meetings: parseMeetings(
-						await response.text(),
-						{ from: now.getTime(), to: dayAfterTomorrow },
-						gmailAddress ? [gmailAddress] : [],
-					),
+					meetings: parseMeetings(await response.text(), window, self),
 				};
 			},
 		),

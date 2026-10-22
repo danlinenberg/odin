@@ -45,7 +45,7 @@ function CalendarPage() {
 				{workConfig && !workConfig.hasCalendar && (
 					<ConnectNotice
 						provider="calendar"
-						text="Your calendar isn't connected - paste its secret iCal address to see today's and tomorrow's meetings."
+						text="Your calendar isn't connected - connect it to see today's and tomorrow's meetings."
 					/>
 				)}
 				{meetings.error?.data?.code === "UNAUTHORIZED" ? (

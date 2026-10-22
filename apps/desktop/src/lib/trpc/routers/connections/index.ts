@@ -3,8 +3,15 @@ import { shell } from "electron";
 import {
 	calendarIdentity,
 	fetchCalendar,
+	googleCalendarFetch,
 	normalizeCalendarUrl,
 } from "main/lib/calendar";
+import {
+	isCalendarOAuthConfigured,
+	readCalendarOAuthResult,
+	startCalendarOAuth,
+} from "main/lib/calendar-oauth";
+import { calendarAccessToken, hasCalendarOAuth } from "main/lib/calendar-token";
 import {
 	connectGithubAccount,
 	disconnectGithubAccount,
@@ -65,9 +72,9 @@ import { fetchGmailFeed, gmailCredentials } from "../work";
  * chore that OAuth exists to remove - Gmail is the exception: its OAuth needs a
  * Google Cloud app and review, so it takes an app password, and ClickUp's
  * needs an app registered per workspace, so it takes a personal API token.
- * The calendar takes its secret iCal address, the read-only link Google,
- * Outlook and iCloud already publish, for the same reason as Gmail.
- * Slack, Jira and Notion run the browser consent flow; GitHub runs the device flow (no client secret, no
+ * The calendar signs in to Google with read-only access; Outlook and iCloud
+ * have no such app here, so it also takes their secret iCal address.
+ * Slack, Jira, Notion and Google Calendar run the browser consent flow; GitHub runs the device flow (no client secret, no
  * redirect URL, the flow GitHub built for desktop apps).
  */
 
@@ -262,8 +269,28 @@ async function probeClickup(): Promise<ConnectionStatus> {
 	}
 }
 
-/** The calendar has no "who am I" either - one read of the feed is the probe. */
+/**
+ * Signed in to Google, the primary calendar is the "who am I". An iCal
+ * address has none - one read of the feed is the probe.
+ */
 async function probeCalendar(): Promise<ConnectionStatus> {
+	if (hasCalendarOAuth()) {
+		try {
+			const token = await calendarAccessToken();
+			if (!token) return failed("calendar", probeError(401));
+			const res = await googleCalendarFetch("calendars/primary", token);
+			if (!res.ok) return failed("calendar", probeError(res.status));
+			const json = (await res.json()) as { id?: string };
+			return {
+				provider: "calendar",
+				configured: true,
+				identity: json.id ?? "Google Calendar",
+				error: null,
+			};
+		} catch (error) {
+			return failed("calendar", message(error));
+		}
+	}
 	const url = readOdinConfig().calendarUrl;
 	if (!url) return unconfigured("calendar");
 	try {
@@ -312,12 +339,12 @@ export function probeError(status: number): string {
 
 // --- OAuth -----------------------------------------------------------------
 //
-// The four browser flows are identical from here: open a consent screen, get a
+// The browser flows are identical from here: open a consent screen, get a
 // `state` back, poll until the deep link lands the token. One set of
 // procedures serves all of them, so a fifth provider is three lines of switch.
 // (GitHub is the odd one out - device flow, below.)
 
-const OAUTH_PROVIDERS = ["slack", "jira", "notion"] as const;
+const OAUTH_PROVIDERS = ["slack", "jira", "notion", "calendar"] as const;
 type OAuthProvider = (typeof OAUTH_PROVIDERS)[number];
 
 const oauthInput = z.object({ provider: z.enum(OAUTH_PROVIDERS) });
@@ -330,6 +357,8 @@ function oauthConfigured(provider: OAuthProvider): boolean {
 			return isJiraOAuthConfigured();
 		case "notion":
 			return isNotionOAuthConfigured();
+		case "calendar":
+			return isCalendarOAuthConfigured();
 	}
 }
 
@@ -343,6 +372,8 @@ function startOAuth(
 			return startJiraOAuth();
 		case "notion":
 			return startNotionOAuth();
+		case "calendar":
+			return startCalendarOAuth();
 	}
 }
 
@@ -354,6 +385,8 @@ function readOAuthResult(provider: OAuthProvider, state: string) {
 			return readJiraOAuthResult(state);
 		case "notion":
 			return readNotionOAuthResult(state);
+		case "calendar":
+			return readCalendarOAuthResult(state);
 	}
 }
 
@@ -552,7 +585,12 @@ export const createConnectionsRouter = () => {
 						updateOdinConfig({ clickupToken: undefined });
 						break;
 					case "calendar":
-						updateOdinConfig({ calendarUrl: undefined });
+						updateOdinConfig({
+							calendarUrl: undefined,
+							calendarAccessToken: undefined,
+							calendarRefreshToken: undefined,
+							calendarTokenExpiresAt: undefined,
+						});
 						break;
 					case "jira":
 						updateOdinConfig({
@@ -619,8 +657,9 @@ export const createConnectionsRouter = () => {
 			}),
 
 		/**
-		 * The calendar's way in: its secret iCal address, read once before it's
-		 * stored so a public or mistyped link fails here, not as a dead feed.
+		 * The calendar's other way in: its secret iCal address, for Outlook and
+		 * iCloud. Read once before it's stored so a public or mistyped link
+		 * fails here, not as a dead feed.
 		 */
 		saveCalendar: publicProcedure
 			.input(z.object({ url: z.string().trim().min(1) }))
@@ -649,7 +688,13 @@ export const createConnectionsRouter = () => {
 							"That link is a page, not a calendar feed - use the secret address in iCal format.",
 					});
 				}
-				updateOdinConfig({ calendarUrl: url });
+				// One way in at a time: a pasted address replaces a Google sign-in.
+				updateOdinConfig({
+					calendarUrl: url,
+					calendarAccessToken: undefined,
+					calendarRefreshToken: undefined,
+					calendarTokenExpiresAt: undefined,
+				});
 				return { ok: true };
 			}),
 

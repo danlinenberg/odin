@@ -20,6 +20,10 @@ import { ODIN_HOME_DIR } from "./lib/app-environment";
 import { flushAppStateSync, initAppState } from "./lib/app-state";
 import { isUpdateReadyToInstall, setupAutoUpdater } from "./lib/auto-updater";
 import { startDataBackup } from "./lib/backup-data";
+import {
+	completeCalendarOAuth,
+	isCalendarOAuthCallback,
+} from "./lib/calendar-oauth";
 import { setWorkspaceDockIcon } from "./lib/dock-icon";
 import { startDoubleTap } from "./lib/double-tap";
 import { loadWebviewBrowserExtension } from "./lib/extensions";
@@ -118,6 +122,13 @@ async function processDeepLink(url: string): Promise<void> {
 	if (isJiraOAuthCallback(url)) {
 		console.log("[main] Processing Jira OAuth callback");
 		await completeJiraOAuth(url);
+		focusMainWindow();
+		return;
+	}
+
+	if (isCalendarOAuthCallback(url)) {
+		console.log("[main] Processing Google Calendar OAuth callback");
+		await completeCalendarOAuth(url);
 		focusMainWindow();
 		return;
 	}
