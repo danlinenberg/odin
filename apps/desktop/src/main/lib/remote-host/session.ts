@@ -439,6 +439,10 @@ const IDLE_STOP_SECONDS = 2 * 60 * 60;
 const idleMarker = (pane: string) =>
 	`"$HOME/.odin/idle-stopped-${tmuxSession(pane)}"`;
 
+/** A board reply to a stopped session, which resumes it with that prompt. */
+const idlePrompt = (pane: string) =>
+	`"$HOME/.odin/idle-prompt-${tmuxSession(pane)}"`;
+
 /**
  * Checks every 5 min while the run script lives. A window quiet for
  * IDLE_STOP_SECONDS gets its Claude (the script's child) stopped, and the
@@ -518,7 +522,10 @@ export function runScript(spec: RemoteSessionSpec, secretsDir: string): string {
 			idleWatcher(spec.pane),
 		...promptLines,
 		`claude --settings ${sh(hostSettings)} ${spec.claudeArgs} "\${p[@]}"`,
-		`while [ -e ${idleMarker(spec.pane)} ]; do clear; printf '\\nOdin stopped Claude here after 2 hours with no output, to free memory on this host.\\nPress any key to pick the conversation up again.\\n'; read -rsn1; rm -f ${idleMarker(spec.pane)}; if python3 -c ${sh(CUT_OFF_TURN)} ${sh(spec.pane)} 2>/dev/null; then claude --settings ${sh(hostSettings)} --resume ${sh(spec.pane)} Continue; else claude --settings ${sh(hostSettings)} --resume ${sh(spec.pane)}; fi; done`,
+		// Stopped for being idle: the next prompt, typed here or a board reply
+		// (left in idlePrompt), resumes the conversation with it. Enter alone
+		// resumes it as it was.
+		`while [ -e ${idleMarker(spec.pane)} ]; do clear; printf '\\nOdin stopped Claude here after 2 hours with no output, to free memory on this host.\\nType a message to pick the conversation up with it, or press Enter.\\n\\n'; IFS= read -e -r -p '> ' m; rm -f ${idleMarker(spec.pane)}; if [ -s ${idlePrompt(spec.pane)} ]; then m=$(cat ${idlePrompt(spec.pane)}); fi; rm -f ${idlePrompt(spec.pane)}; if [ -n "$m" ]; then claude --settings ${sh(hostSettings)} --resume ${sh(spec.pane)} "$m"; elif python3 -c ${sh(CUT_OFF_TURN)} ${sh(spec.pane)} 2>/dev/null; then claude --settings ${sh(hostSettings)} --resume ${sh(spec.pane)} Continue; else claude --settings ${sh(hostSettings)} --resume ${sh(spec.pane)}; fi; done`,
 		`if [ -s "$HOME/.odin/resume-$$" ]; then s=$(cat "$HOME/.odin/resume-$$"); rm -f "$HOME/.odin/resume-$$"; ODIN_FALLBACK_API_KEY="$fallback" python3 -c ${sh(USE_API_KEY_IF_LIMITED)}; ANTHROPIC_API_KEY="$fallback" exec claude --settings ${sh(hostSettings)} --resume "$s" "Continue where you left off."; fi`,
 	]
 		.filter(Boolean)
@@ -549,7 +556,7 @@ export function attachScript(
 	const paste = `printf %s ${promptB64(spec)} | base64 -d | tmux load-buffer -b odin-reply-$$ - && tmux paste-buffer -p -d -b odin-reply-$$ -t ${session} && sleep 0.5 && tmux send-keys -t ${session} Enter`;
 	const reply =
 		spec.prompt && /--resume\b/.test(spec.claudeArgs)
-			? `( for _ in $(seq 1 120); do [ "$(tmux display -p -t ${session} '#{pane_current_command}' 2>/dev/null)" = claude ] && break; [ -e ${idleMarker(spec.pane)} ] && tmux send-keys -t ${session} Enter; sleep 1; done; sleep 2; ${spec.since ? `${promptTaken(spec)} || ` : ""}{ ${paste}; }; ) >/dev/null 2>&1 & `
+			? `( for _ in $(seq 1 120); do [ "$(tmux display -p -t ${session} '#{pane_current_command}' 2>/dev/null)" = claude ] && break; if [ -e ${idleMarker(spec.pane)} ]; then printf %s ${promptB64(spec)} | base64 -d > ${idlePrompt(spec.pane)} && tmux send-keys -t ${session} Enter; exit 0; fi; sleep 1; done; sleep 2; ${spec.since ? `${promptTaken(spec)} || ` : ""}{ ${paste}; }; ) >/dev/null 2>&1 & `
 			: "";
 	return [
 		// tmux sizes a window to one attached client. Its default, `latest`, is

@@ -98,7 +98,7 @@ describe("remote session scripts", () => {
 		const start = run.indexOf("claude --settings");
 		expect(watcher).toBeGreaterThan(-1);
 		expect(watcher).toBeLessThan(start);
-		expect(run.indexOf("read -rsn1", start)).toBeGreaterThan(start);
+		expect(run.indexOf("read -e -r", start)).toBeGreaterThan(start);
 		expect(run).toContain(`--resume ${sh(spec.pane)}`);
 		execFileSync("bash", ["-n"], { input: run });
 	});
