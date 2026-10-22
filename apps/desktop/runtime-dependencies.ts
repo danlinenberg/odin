@@ -94,6 +94,13 @@ const externalizedRuntimeModules: ExternalizedRuntimeModule[] = [
 		asarUnpackGlobs: ["**/node_modules/@libsql/**/*"],
 	},
 	{
+		// Its wasm core is read from beside its own files, so it can't be bundled.
+		specifier: "@1password/sdk",
+		materialize: ["@1password/sdk", "@1password/sdk-core"],
+		packagedCopies: [copyWholeModule("@1password")],
+		asarUnpackGlobs: [],
+	},
+	{
 		specifier: "@mastra/duckdb",
 		materialize: [
 			"@mastra/duckdb",

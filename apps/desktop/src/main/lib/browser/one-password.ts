@@ -1,71 +1,167 @@
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
+import type { Client } from "@1password/sdk";
+import { getDomain } from "tldts";
+import {
+	readOdinConfig,
+	updateOdinConfig,
+} from "../../../lib/trpc/routers/odin-config";
 
-const run = promisify(execFile);
+/**
+ * Reaches the 1Password app you already have through 1Password's own SDK,
+ * which loads a library that ships inside 1Password.app - no CLI. 1Password's
+ * browser extension can't run here: Electron has no native messaging. The
+ * first lookup per account shows 1Password's "allow Odin" prompt.
+ */
+const INTEGRATION = { integrationName: "Odin", integrationVersion: "1" };
 
-/** Long enough for 1Password to show its own unlock prompt. */
-const OP_TIMEOUT_MS = 60_000;
+/** Why the key button can't reach 1Password, so the panel can say what to do. */
+export class OnePasswordSetupError extends Error {
+	constructor(
+		readonly reason: "no-account" | "not-connected",
+		message: string,
+	) {
+		super(message);
+	}
+}
+
+/** One login the page could take. No secrets: those load once you pick it. */
+export interface OnePasswordMatch {
+	account: string;
+	vaultId: string;
+	id: string;
+	title: string;
+}
 
 export interface OnePasswordLogin {
 	username: string;
 	password: string;
+	otp?: string;
 }
 
-interface OpItemSummary {
-	id: string;
-	urls?: { href: string }[];
-}
-
-interface OpItem {
-	fields?: { purpose?: string; value?: string }[];
-}
-
-const opJson = async <T>(args: string[]): Promise<T> => {
+const hostOf = (href: string): string | null => {
 	try {
-		const { stdout } = await run("op", [...args, "--format", "json"], {
-			timeout: OP_TIMEOUT_MS,
-			maxBuffer: 16 * 1024 * 1024,
-		});
-		return JSON.parse(stdout) as T;
-	} catch (error) {
-		if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-			throw new Error(
-				"1Password CLI (op) is not installed. Install it from 1password.com/downloads/command-line.",
-			);
-		}
-		throw error;
-	}
-};
-
-export const siteMatches = (pageHost: string, href: string): boolean => {
-	try {
-		const host = new URL(href.includes("://") ? href : `https://${href}`)
-			.hostname;
-		return pageHost === host || pageHost.endsWith(`.${host}`);
+		return new URL(href.includes("://") ? href : `https://${href}`).hostname;
 	} catch {
-		return false;
+		return null;
 	}
 };
 
-export async function findOnePasswordLogin(
-	pageUrl: string,
-): Promise<OnePasswordLogin | null> {
-	const pageHost = new URL(pageUrl).hostname;
-	const items = await opJson<OpItemSummary[]>([
-		"item",
-		"list",
-		"--categories",
-		"Login",
-	]);
-	const match = items.find((item) =>
-		item.urls?.some((url) => siteMatches(pageHost, url.href)),
-	);
-	if (!match) return null;
+/**
+ * How well a login saved for `href` fits the page: 2 for the same host or a
+ * subdomain of it, 1 for the same site (cloud.getdbt.com's login on
+ * auth.getdbt.com), 0 for another site. A site is the domain under its public
+ * suffix, so two tenants of github.io or vercel.app never share a login.
+ */
+export const siteMatch = (pageHost: string, href: string): 0 | 1 | 2 => {
+	const host = hostOf(href);
+	if (!host) return 0;
+	if (pageHost === host || pageHost.endsWith(`.${host}`)) return 2;
+	const site = getDomain(host, { allowPrivateDomains: true });
+	return site && site === getDomain(pageHost, { allowPrivateDomains: true })
+		? 1
+		: 0;
+};
 
-	const item = await opJson<OpItem>(["item", "get", match.id]);
-	const fieldValue = (purpose: string) =>
-		item.fields?.find((field) => field.purpose === purpose)?.value;
-	const password = fieldValue("PASSWORD");
+/** The 1Password accounts the key button searches, as named in 1Password's sidebar. */
+export const onePasswordAccounts = (): string[] =>
+	readOdinConfig().onePasswordAccounts ?? [];
+
+export function setOnePasswordAccounts(accounts: string[]): string[] {
+	const names = [
+		...new Set(accounts.map((name) => name.trim()).filter(Boolean)),
+	];
+	updateOdinConfig({ onePasswordAccounts: names });
+	clients.clear();
+	return names;
+}
+
+const clients = new Map<string, Promise<Client>>();
+
+const notConnected = (account: string, cause: unknown) =>
+	new OnePasswordSetupError(
+		"not-connected",
+		`Couldn't reach 1Password account "${account}". In 1Password, turn on Settings → Developer → Integrate with other apps, and check the account name. (${cause instanceof Error ? cause.message : String(cause)})`,
+	);
+
+async function clientFor(account: string): Promise<Client> {
+	let client = clients.get(account);
+	if (!client) {
+		client = import("@1password/sdk").then(({ createClient, DesktopAuth }) =>
+			createClient({ auth: new DesktopAuth(account), ...INTEGRATION }),
+		);
+		clients.set(account, client);
+	}
+	try {
+		return await client;
+	} catch (error) {
+		clients.delete(account);
+		throw notConnected(account, error);
+	}
+}
+
+/**
+ * Every login for the page across your 1Password accounts (a work and a
+ * personal one both count), the closest matches first.
+ */
+export async function findOnePasswordLogins(
+	pageUrl: string,
+): Promise<OnePasswordMatch[]> {
+	const accounts = onePasswordAccounts();
+	if (accounts.length === 0) {
+		throw new OnePasswordSetupError(
+			"no-account",
+			"Which 1Password account should Odin use?",
+		);
+	}
+	const pageHost = new URL(pageUrl).hostname;
+	const perAccount = await Promise.all(
+		accounts.map(async (account) => {
+			const client = await clientFor(account);
+			const vaults = await client.vaults.list();
+			const perVault = await Promise.all(
+				vaults.map((vault) => client.items.list(vault.id)),
+			);
+			return perVault.flat().flatMap((item) => {
+				if (item.category !== "Login") return [];
+				const score = Math.max(
+					0,
+					...item.websites.map((site) => siteMatch(pageHost, site.url)),
+				);
+				if (!score) return [];
+				const match: OnePasswordMatch = {
+					account,
+					vaultId: item.vaultId,
+					id: item.id,
+					title: item.title,
+				};
+				return [{ match, score }];
+			});
+		}),
+	);
+	return perAccount
+		.flat()
+		.sort((a, b) => b.score - a.score)
+		.map(({ match }) => match);
+}
+
+/** The picked login's username, password and current one-time code. */
+export async function getOnePasswordLogin({
+	account,
+	vaultId,
+	id,
+}: Pick<
+	OnePasswordMatch,
+	"account" | "vaultId" | "id"
+>): Promise<OnePasswordLogin | null> {
+	const client = await clientFor(account);
+	const item = await client.items.get(vaultId, id);
+	const byId = (fieldId: string) =>
+		item.fields.find((field) => field.id === fieldId)?.value;
+	const password =
+		byId("password") ??
+		item.fields.find((field) => field.fieldType === "Concealed")?.value;
 	if (!password) return null;
-	return { username: fieldValue("USERNAME") ?? "", password };
+	const totp = item.fields.find((field) => field.fieldType === "Totp");
+	const otp =
+		totp?.details?.type === "Otp" ? totp.details.content.code : undefined;
+	return { username: byId("username") ?? "", password, otp };
 }
