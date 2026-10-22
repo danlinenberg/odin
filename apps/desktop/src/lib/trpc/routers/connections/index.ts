@@ -1,6 +1,11 @@
 import { TRPCError } from "@trpc/server";
 import { shell } from "electron";
 import {
+	calendarIdentity,
+	fetchCalendar,
+	normalizeCalendarUrl,
+} from "main/lib/calendar";
+import {
 	connectGithubAccount,
 	disconnectGithubAccount,
 	GITHUB_DEVICE_CODE_URL,
@@ -60,6 +65,8 @@ import { fetchGmailFeed, gmailCredentials } from "../work";
  * chore that OAuth exists to remove - Gmail is the exception: its OAuth needs a
  * Google Cloud app and review, so it takes an app password, and ClickUp's
  * needs an app registered per workspace, so it takes a personal API token.
+ * The calendar takes its secret iCal address, the read-only link Google,
+ * Outlook and iCloud already publish, for the same reason as Gmail.
  * Slack, Jira and Notion run the browser consent flow; GitHub runs the device flow (no client secret, no
  * redirect URL, the flow GitHub built for desktop apps).
  */
@@ -71,6 +78,7 @@ const PROVIDERS = [
 	"notion",
 	"gmail",
 	"clickup",
+	"calendar",
 ] as const;
 type Provider = (typeof PROVIDERS)[number];
 
@@ -254,6 +262,21 @@ async function probeClickup(): Promise<ConnectionStatus> {
 	}
 }
 
+/** The calendar has no "who am I" either - one read of the feed is the probe. */
+async function probeCalendar(): Promise<ConnectionStatus> {
+	const url = readOdinConfig().calendarUrl;
+	if (!url) return unconfigured("calendar");
+	try {
+		const res = await fetchCalendar(url);
+		if (!res.ok) return failed("calendar", probeError(res.status));
+		const identity = calendarIdentity(await res.text());
+		if (!identity) return failed("calendar", "that link isn't a calendar feed");
+		return { provider: "calendar", configured: true, identity, error: null };
+	} catch (error) {
+		return failed("calendar", message(error));
+	}
+}
+
 function unconfigured(provider: Provider): ConnectionStatus {
 	return { provider, configured: false, identity: null, error: null };
 }
@@ -357,6 +380,7 @@ export const createConnectionsRouter = () => {
 				probeNotion(),
 				probeGmail(),
 				probeClickup(),
+				probeCalendar(),
 			]);
 		}),
 
@@ -527,6 +551,9 @@ export const createConnectionsRouter = () => {
 					case "clickup":
 						updateOdinConfig({ clickupToken: undefined });
 						break;
+					case "calendar":
+						updateOdinConfig({ calendarUrl: undefined });
+						break;
 					case "jira":
 						updateOdinConfig({
 							jiraAccessToken: undefined,
@@ -588,6 +615,41 @@ export const createConnectionsRouter = () => {
 					});
 				}
 				updateOdinConfig({ clickupToken: input.token });
+				return { ok: true };
+			}),
+
+		/**
+		 * The calendar's way in: its secret iCal address, read once before it's
+		 * stored so a public or mistyped link fails here, not as a dead feed.
+		 */
+		saveCalendar: publicProcedure
+			.input(z.object({ url: z.string().trim().min(1) }))
+			.mutation(async ({ input }) => {
+				const url = normalizeCalendarUrl(input.url);
+				if (!url) {
+					throw new TRPCError({
+						code: "BAD_REQUEST",
+						message: "That isn't an https or webcal address.",
+					});
+				}
+				const res = await fetchCalendar(url);
+				if (!res.ok) {
+					throw new TRPCError({
+						code: "BAD_REQUEST",
+						message:
+							res.status === 404 || res.status === 401 || res.status === 403
+								? "The calendar refused that address - copy the secret one again."
+								: `The calendar answered HTTP ${res.status}`,
+					});
+				}
+				if (!calendarIdentity(await res.text())) {
+					throw new TRPCError({
+						code: "BAD_REQUEST",
+						message:
+							"That link is a page, not a calendar feed - use the secret address in iCal format.",
+					});
+				}
+				updateOdinConfig({ calendarUrl: url });
 				return { ok: true };
 			}),
 

@@ -133,6 +133,13 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 		keywords: "account sign in connect tasks token",
 	},
 	{
+		label: "Calendar",
+		to: "/settings/connections",
+		section: "Accounts",
+		keywords:
+			"account connect calendar meetings google outlook ical ics secret address",
+	},
+	{
 		label: "Default folder",
 		to: "/settings/sessions",
 		section: "Where they start",

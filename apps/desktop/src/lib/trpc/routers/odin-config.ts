@@ -151,6 +151,13 @@ export interface OdinFileConfig {
 	 */
 	clickupToken?: string;
 
+	/**
+	 * The calendar's secret iCal address (Google: Settings → your calendar →
+	 * Integrate calendar → Secret address in iCal format). Anyone holding it
+	 * can read the calendar, so it is kept like a token. No OAuth, like Gmail.
+	 */
+	calendarUrl?: string;
+
 	/** Slack **user** token (`xoxp-…`) - bot tokens can't read my reactions. */
 	slackToken?: string;
 	/** Reaction that queues a message - a Slack name, no colons. Default `eyes`. */

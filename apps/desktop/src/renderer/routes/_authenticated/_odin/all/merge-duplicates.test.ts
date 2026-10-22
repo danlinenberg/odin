@@ -59,3 +59,20 @@ test("two rows from one source, short titles, and a ticket citing another stay a
 		undefined,
 	]);
 });
+
+test("a meeting about a ticket stays its own row, at its own time", () => {
+	const jira = item(
+		"jira:BUGT-12",
+		"Jira",
+		"BUGT-12: Login button does nothing on Safari",
+	);
+	const meeting = item(
+		"meeting:review@google.com@2026-10-21T07:00:00.000Z",
+		"Calendar",
+		"BUGT-12: Login button does nothing on Safari",
+	);
+	expect(mergeDuplicates([jira, meeting]).map((row) => row.key)).toEqual([
+		"jira:BUGT-12",
+		"meeting:review@google.com@2026-10-21T07:00:00.000Z",
+	]);
+});

@@ -29,12 +29,19 @@ export const statusLabel = (id: string | undefined) =>
 export const typeLabel = (id: string | undefined) =>
 	TASK_TYPES.find((t) => t.id === id)?.label ?? null;
 
-/** The type in force: what you picked, else what the source implies. */
+/** The type in force: what you picked, else what the source implies (a PR is a review, a meeting is one to prepare for). */
 export function typeOf(
 	item: { key: string; source: string },
 	types: Record<string, TaskType>,
 ): TaskType | undefined {
-	return types[item.key] ?? (item.source === "GitHub" ? "review" : undefined);
+	return (
+		types[item.key] ??
+		(item.source === "GitHub"
+			? "review"
+			: item.source === "Calendar"
+				? "meeting"
+				: undefined)
+	);
 }
 
 const KEEP = 500;

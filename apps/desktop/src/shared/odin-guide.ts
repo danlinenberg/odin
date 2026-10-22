@@ -11,7 +11,7 @@ export const ODIN_GUIDE = `# Odin
 Top to bottom: Dev Board, Tasks, Automations, Night Agent (status with its settings - the on/off switch, the window and the night's cap are edited right in the header - Last night - the sessions the last window started and where each stands now, click one to open it - the next run's picks - add, reorder, remove, and what to do after them - its log by night, and its instructions), More (the ⋮ button: Review, Insights, Session History). At the foot: Settings, and the raven button (Huginn, ⌘⇧I). Each but Night Agent has a one-key hotkey (rebind in Settings → Keyboard); the keys do nothing while you type, also inside agent terminals.
 
 ## Tasks screen and its feeds
-Tabs, in two groups split by a hairline: Odin's own (All, Tasks, Docs), then the connections (Slack, Jira, GitHub, Notion, Email, ClickUp).
+Tabs, in two groups split by a hairline: Odin's own (All, Tasks, Docs), then the connections (Slack, Jira, GitHub, Notion, Email, ClickUp, Calendar).
 - **Badges** count only what waits on you: Slack counts only "Not started" rows, GitHub leaves out bot PRs, Email leaves out junk, Done rows never count. All is the sum of the others, minus your own PRs.
 - **Amber dot** on a tab: that source is not connected. **Red dot**: connected but failing.
 - Feeds reload every 2 minutes. **Sync** refreshes the connected sources.
@@ -36,7 +36,7 @@ Tabs, in two groups split by a hairline: Odin's own (All, Tasks, Docs), then the
 - Store: tasks.
 
 ## Next in line (Dev Board column)
-Tasks waiting to start, from Tasks, Slack, Jira, GitHub and Notion only (not Email or ClickUp). Anything with a live session, ever started, or Done drops out.
+Tasks waiting to start, from Tasks, Slack, Jira, GitHub and Notion only (not Email, ClickUp or Calendar). Anything with a live session, ever started, or Done drops out.
 - "Newest first" until you click **Sort with AI**; then it reads "Sorted by AI · undo" with Re-sort. The sort words live in Settings → Backlog ("How to sort it"). Rows the AI hides come back with "show hidden (N)".
 - Sections: **Tonight** (your picks, at most 20), then **Due** (dated tasks; overdue ones stay pinned up to 30 days by default, "Pin overdue tasks for"), then **Everything else**.
 - Suspected duplicates are dimmed, and the Night Agent skips them.
@@ -61,6 +61,9 @@ Gmail inbox mail that was unread when Odin first saw it; it stays after you open
 
 ## ClickUp feed
 Open ClickUp tasks assigned to you. Read-only, no filters.
+
+## Calendar feed
+Meetings from now to the end of tomorrow, soonest first, each one a task of type "Prepare for meeting". A meeting is due the day it happens, so today's sit in Now on All and tomorrow's in Later. The preview line shows the time and who is in it. Open joins the call (Meet, Zoom, Teams or Webex) in your own browser. Start session hands the agent the agenda, organizer and attendees to prepare from. Done puts away that one occurrence, not the rest of a series. Left out: all-day events, cancelled ones, ones you declined, and blocks with nobody else in them. A meeting never merges with another feed's row. Read-only; polled every 5 minutes.
 
 ## Review (rail, More menu)
 "Sweep now" checks every backlog item (your tasks plus Slack, Jira, GitHub and Notion rows) against its source. It also sweeps on its own, every hour by default ("Sweep the backlog every" in Settings → Backlog; 0 turns it off).
@@ -144,6 +147,7 @@ The sidebar shows: Connections, Sessions, Remote, Storage, Backlog & Night Agent
 - **Notion**: a database's rows in the Notion feed. Odin sees only pages shared with it and their subpages; to add a teamspace, on its top page use ••• → Connections → Odin.
 - **Gmail**: unread mail in the Email feed, by app password (needs 2-Step Verification), not OAuth.
 - **ClickUp**: a personal API token (pk_…); sessions can read the ClickUp tasks they get.
+- **Calendar**: the calendar's secret iCal address (Google: your calendar's settings → Integrate calendar → Secret address in iCal format; Outlook and iCloud share links work too), not OAuth. Read-only. A Workspace admin can turn the secret address off.
 
 ## Sessions settings (Settings → Sessions)
 A session's life on this Mac, top to bottom. Besides the launch gate limits ("When they start", below):
@@ -192,7 +196,7 @@ Three tabs: Schedules, Rules, Reminders.
 ## Night Agent (Settings → Backlog & Night Agent, or the Night Agent page's header)
 "Work the backlog overnight": inside the window (default 23:00 to 07:00) it starts the top task of Next in line, waits until that session stops working, then starts the next. One at a time, up to the night's cap (default 8 sessions).
 - Rows you pick for tonight (up to 20) run first, in order. After them it stops, or goes on with the ranked queue (the "after picks" choice).
-- Only Tasks, Slack, Jira, GitHub and Notion rows can run. Email and ClickUp rows can't.
+- Only Tasks, Slack, Jira, GitHub and Notion rows can run. Email, ClickUp and Calendar rows can't.
 - The AI ranks Next in line using your "How to sort it" words and the Night Agent instructions, so "don't include X" in either keeps X out. It re-ranks when the words change or new rows arrive.
 - Its Instructions are added to every Night Agent session's prompt. The default says: work alone, open a PR, but send nothing other people see (no Slack, email, comments, merges or deploys).
 - It runs only on power: on battery it starts nothing. Odin keeps the Mac from idle sleep during the window, but a closed lid still sleeps it. It runs only while Odin is open.

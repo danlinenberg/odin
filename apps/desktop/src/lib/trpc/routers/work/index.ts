@@ -3,6 +3,11 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { TRPCError } from "@trpc/server";
 import { isInternalBuild } from "main/lib/build-channel";
+import {
+	fetchCalendar,
+	type MeetingRow,
+	parseMeetings,
+} from "main/lib/calendar";
 import { githubAccessToken, githubApiFetch } from "main/lib/github-token";
 import { hasJiraOAuth, jiraRequestContext } from "main/lib/jira-token";
 import { clickupFetch } from "main/lib/read-link";
@@ -495,6 +500,7 @@ export const createWorkRouter = () => {
 			hasGithub: githubToken() !== null,
 			hasGmail: gmailCredentials() !== null,
 			hasClickup: !!readOdinConfig().clickupToken,
+			hasCalendar: !!readOdinConfig().calendarUrl,
 			/**
 			 * Odin's own checkout: gates self-update, and is where "Work on Odin"
 			 * sessions launch so the agent starts in the right repo instead of
@@ -1012,6 +1018,41 @@ export const createWorkRouter = () => {
 							created: clickupDate(task.date_created),
 							dueDate: clickupDate(task.due_date),
 						})),
+				};
+			},
+		),
+
+		/**
+		 * Meetings from now to the end of tomorrow, from the calendar's secret
+		 * iCal address - one GET, so it needs no OAuth. Your Gmail address
+		 * counts as you, so a meeting you declined there stays out.
+		 */
+		myMeetings: publicProcedure.query(
+			async (): Promise<{ meetings: MeetingRow[] }> => {
+				const { calendarUrl, gmailAddress } = readOdinConfig();
+				if (!calendarUrl) {
+					throw new TRPCError({
+						code: "PRECONDITION_FAILED",
+						message:
+							"Your calendar isn't connected - add it in Settings → Connections.",
+					});
+				}
+				const response = await fetchCalendar(calendarUrl);
+				if (!response.ok) {
+					throw feedError("Calendar", response.status, await response.text());
+				}
+				const now = new Date();
+				const dayAfterTomorrow = new Date(
+					now.getFullYear(),
+					now.getMonth(),
+					now.getDate() + 2,
+				).getTime();
+				return {
+					meetings: parseMeetings(
+						await response.text(),
+						{ from: now.getTime(), to: dayAfterTomorrow },
+						gmailAddress ? [gmailAddress] : [],
+					),
 				};
 			},
 		),

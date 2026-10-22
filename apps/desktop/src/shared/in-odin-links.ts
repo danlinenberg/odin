@@ -12,6 +12,8 @@ export const LINK_HOSTS = {
 	notion: ["notion.so", "notion.site", "notion.com"],
 	gmail: ["mail.google.com"],
 	clickup: ["clickup.com"],
+	// A meeting's link is its call, which wants your own browser's camera and mic.
+	calendar: [],
 } as const satisfies Record<string, readonly string[]>;
 
 export type LinkSiteId = keyof typeof LINK_HOSTS;

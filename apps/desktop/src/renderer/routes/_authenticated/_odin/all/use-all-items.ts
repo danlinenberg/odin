@@ -3,13 +3,19 @@ import { doneChecker, useDoneStore } from "renderer/stores/done";
 import { isClosedStatus } from "../components/search-all";
 import { useOdinFeeds } from "../hooks/useOdinFeeds";
 import { useMyTasks } from "../hooks/useOdinTasks";
-import { type AllItem, allItems, urgencyOf } from "./all-items";
+import {
+	type AllItem,
+	allItems,
+	upcomingMeetings,
+	urgencyOf,
+} from "./all-items";
 import { mergeDuplicates } from "./merge-duplicates";
 import { useTitleOverrides } from "./title-overrides";
 
 /** Every feed through allItems, under your own names, plus the Done check. */
 function useItems(everything: boolean) {
-	const { reactions, jira, pulls, notion, emails, clickup } = useOdinFeeds();
+	const { reactions, jira, pulls, notion, emails, clickup, meetings } =
+		useOdinFeeds();
 	// todos, not tasks: automations have their own panel and run themselves -
 	// they'd sit in "what have I got on" forever without ever being yours to do.
 	const { todos } = useMyTasks();
@@ -28,6 +34,9 @@ function useItems(everything: boolean) {
 					notion: notion.data?.rows ?? [],
 					emails: emails.data?.emails ?? [],
 					clickup: clickup.data?.tasks ?? [],
+					// Checked against the clock when the feed lands, so a meeting
+					// that ended is gone by the next poll at the latest.
+					meetings: upcomingMeetings(meetings.data?.meetings ?? [], Date.now()),
 				},
 				{ everything },
 			).map((item) => {
@@ -57,6 +66,7 @@ function useItems(everything: boolean) {
 			notion.data,
 			emails.data,
 			clickup.data,
+			meetings.data,
 		],
 	);
 	return { items, isDone, done };
@@ -101,7 +111,8 @@ type FeedInput = Parameters<typeof allItems>[0];
 export function useFeedItems(input: Partial<FeedInput>): Map<string, AllItem> {
 	const titles = useTitleOverrides((s) => s.titles);
 	const priorities = useTitleOverrides((s) => s.priorities);
-	const { tasks, slack, jira, pulls, notion, emails, clickup } = input;
+	const { tasks, slack, jira, pulls, notion, emails, clickup, meetings } =
+		input;
 	return useMemo(() => {
 		const items = allItems(
 			{
@@ -112,6 +123,7 @@ export function useFeedItems(input: Partial<FeedInput>): Map<string, AllItem> {
 				notion: notion ?? [],
 				emails: emails ?? [],
 				clickup: clickup ?? [],
+				meetings: meetings ?? [],
 			},
 			{ everything: true },
 		);
@@ -135,5 +147,16 @@ export function useFeedItems(input: Partial<FeedInput>): Map<string, AllItem> {
 				];
 			}),
 		);
-	}, [titles, priorities, tasks, slack, jira, pulls, notion, emails, clickup]);
+	}, [
+		titles,
+		priorities,
+		tasks,
+		slack,
+		jira,
+		pulls,
+		notion,
+		emails,
+		clickup,
+		meetings,
+	]);
 }
