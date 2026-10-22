@@ -6,6 +6,7 @@
  * (argv[3]), so they are on no command line.
  */
 
+import { readFileSync } from "node:fs";
 import { appendFile, mkdir, stat, writeFile } from "node:fs/promises";
 import { connect } from "node:net";
 import { homedir } from "node:os";
@@ -13,6 +14,7 @@ import { basename, dirname, join } from "node:path";
 import { EC2Client, RebootInstancesCommand } from "@aws-sdk/client-ec2";
 import { Client, type SFTPWrapper, utils } from "ssh2";
 import { HOST_LOAD_COMMAND, parseHostLoad } from "../../shared/host-load";
+import { ODIN_HOME_DIR } from "../lib/app-environment";
 import { hostPorts } from "../lib/remote-host/host-service";
 import {
 	attachScript,
@@ -28,12 +30,27 @@ import {
 	pushOneTimeKey,
 } from "../lib/remote-host/ssm";
 
+/**
+ * Odin's local server, read at each use: a restart can bind it to another
+ * port, and $ODIN_PORT keeps the one from when this pane started.
+ */
+function odinPort(): string | undefined {
+	try {
+		return readFileSync(
+			join(ODIN_HOME_DIR, "notifications-port"),
+			"utf8",
+		).trim();
+	} catch {
+		return process.env.ODIN_PORT;
+	}
+}
+
 const say = (text: string) => process.stderr.write(`\r\nOdin: ${text}\r\n`);
 
 async function tokens(ticket: string | undefined): Promise<string> {
-	if (!ticket || !process.env.ODIN_PORT) return "";
+	if (!ticket || !odinPort()) return "";
 	const res = await fetch(
-		`http://127.0.0.1:${process.env.ODIN_PORT}/remote-host/env?ticket=${encodeURIComponent(ticket)}`,
+		`http://127.0.0.1:${odinPort()}/remote-host/env?ticket=${encodeURIComponent(ticket)}`,
 	).catch(() => null);
 	// A used ticket (a pane restored after a restart) only matters for a new
 	// session; reattaching needs no tokens.
@@ -81,17 +98,16 @@ async function upload(sftp: SFTPWrapper, files: RemoteFile[]): Promise<void> {
  * holding it is enough; the others try again in case that one closes.
  */
 async function forwardOdin(client: Client): Promise<void> {
-	const local = Number(process.env.ODIN_PORT);
 	const uid = Number.parseInt(
 		await exec(client, "id -u", "").catch(() => ""),
 		10,
 	);
-	if (!local || Number.isNaN(uid)) return;
+	if (!odinPort() || Number.isNaN(uid)) return;
 	const { tunnel } = hostPorts(uid);
 	client.on("tcp connection", (info, accept, reject) => {
 		if (info.destPort !== tunnel) return reject();
 		const remote = accept();
-		const odin = connect(local, "127.0.0.1");
+		const odin = connect(Number(odinPort()), "127.0.0.1");
 		remote.pipe(odin).pipe(remote);
 		odin.on("error", () => remote.end());
 		remote.on("error", () => odin.destroy());
@@ -178,12 +194,11 @@ function mirrorTranscript(
  * the host while it is low on memory or busy. Returns what stops it.
  */
 function reportLoad(client: Client, instanceId: string): () => void {
-	const port = process.env.ODIN_PORT;
-	if (!port) return () => {};
+	if (!odinPort()) return () => {};
 	const tick = async () => {
 		const load = parseHostLoad(await exec(client, HOST_LOAD_COMMAND, ""));
 		if (!load) return;
-		await fetch(`http://127.0.0.1:${port}/remote-host/load`, {
+		await fetch(`http://127.0.0.1:${odinPort()}/remote-host/load`, {
 			method: "POST",
 			headers: { "content-type": "application/json" },
 			body: JSON.stringify({ instanceId, ...load, at: Date.now() }),
@@ -204,7 +219,7 @@ const bold = (text: string) => `\x1b[1m${text}\x1b[0m`;
 /** `aws sso login` through Odin, which signs in once for every pane waiting on it. */
 async function ssoLogin(profile: string | null | undefined): Promise<void> {
 	const res = await fetch(
-		`http://127.0.0.1:${process.env.ODIN_PORT}/remote-host/sso-login?profile=${encodeURIComponent(profile ?? "")}`,
+		`http://127.0.0.1:${odinPort()}/remote-host/sso-login?profile=${encodeURIComponent(profile ?? "")}`,
 		{ method: "POST" },
 	);
 	if (!res.ok || !res.body) throw new Error(await res.text());
