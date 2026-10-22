@@ -22,12 +22,17 @@ export const DROP_LABEL =
  * toast. A task of yours is marked Done, not deleted, so Undo can bring it
  * back. `also` is the same task in other feeds, merged into this row: Done
  * puts them all away, and so does Drop. The sweep's DropHint and the Drop
- * on every row share this.
+ * on every row share this. `end` puts away what else the Drop finishes - a
+ * board card's session - and returns its undo, which the toast's Undo runs too.
  */
 export function useDropTask() {
 	const { activeId } = useOdinProfile();
 	const setSlackDone = useSetSlackDone();
-	return async (row: SweptRow, also: SweptRow[] = []) => {
+	return async (
+		row: SweptRow,
+		also: SweptRow[] = [],
+		end?: () => (() => void) | undefined,
+	) => {
 		const review = useBacklogReview.getState();
 		const done = useDoneStore.getState().setDone;
 		const rows = [row, ...also];
@@ -45,10 +50,6 @@ export function useDropTask() {
 			}
 		};
 		mark(true);
-		const undo = () => {
-			mark(false);
-			for (const id of slackIds) setSlackDone.mutate({ id, done: false });
-		};
 		try {
 			for (const id of slackIds)
 				await setSlackDone.mutateAsync({ id, done: true });
@@ -57,6 +58,12 @@ export function useDropTask() {
 			mark(false);
 			return;
 		}
+		const unend = end?.();
+		const undo = () => {
+			mark(false);
+			for (const id of slackIds) setSlackDone.mutate({ id, done: false });
+			unend?.();
+		};
 		toast.success(`Dropped - ${row.title}`, {
 			action: { label: "Undo", onClick: undo },
 		});
@@ -86,13 +93,17 @@ export function useDropByHand() {
  *
  * `inline` is the chip a one-line row has room for; the evidence is its
  * tooltip. Without it, a full-width line under a card, evidence written out.
+ * `end` is a board card's own Done: Drop ends the session too, so the card
+ * leaves the board instead of staying with its task already put away.
  */
 export function DropHint({
 	row,
 	inline = false,
+	end,
 }: {
 	row: SweptRow;
 	inline?: boolean;
+	end?: () => (() => void) | undefined;
 }) {
 	const { activeId } = useOdinProfile();
 	const why = `The Review sweep says drop this: ${row.evidence}`;
@@ -103,7 +114,7 @@ export function DropHint({
 	};
 	const drop = (event: React.MouseEvent) => {
 		event.stopPropagation();
-		void dropTask(row);
+		void dropTask(row, [], end);
 	};
 	const dropButton = (label: string, className: string) => (
 		<button

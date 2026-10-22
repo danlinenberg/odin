@@ -906,9 +906,15 @@ function dropRowFor(swept: SweptRow[], pane: Pane | undefined) {
 		: undefined;
 }
 
-function DropPill({ pane }: { pane: Pane }) {
-	const row = useDropFor(pane);
-	return row ? <DropHint row={row} /> : null;
+function DropPill({
+	card,
+	actions,
+}: {
+	card: BoardCard;
+	actions: CardActions;
+}) {
+	const row = useDropFor(card.pane);
+	return row ? <DropHint row={row} end={() => actions.endCard(card)} /> : null;
 }
 
 /** Another live card is on the same ask. The click opens it, to Done one. */
@@ -2106,6 +2112,8 @@ interface CardActions {
 	setTagMenu: (at: { paneId: string; x: number; y: number }) => void;
 	toggleStar: (paneId: string) => void;
 	markDone: (card: BoardCard) => void;
+	/** Off the board with no toast of its own; returns the undo. */
+	endCard: (card: BoardCard) => (() => void) | undefined;
 	remindMe: (card: BoardCard, day: string) => void;
 	resumeCard: (card: BoardCard) => Promise<void>;
 	cardTitle: (card: BoardCard) => string;
@@ -2302,7 +2310,7 @@ const BoardCardTile = memo(
 								fallback={since}
 							/>
 						</div>
-						<DropPill pane={card.pane} />
+						<DropPill card={card} actions={actions} />
 						<DuplicateHint other={duplicate} titleOf={actions.cardTitle} />
 						<div className="mt-1 flex flex-wrap items-center gap-1.5">
 							<ReviewPill card={card} />
@@ -5858,6 +5866,7 @@ function DevBoardPage() {
 		setTagMenu: (at) => cardActionsRef.current?.setTagMenu(at),
 		toggleStar: (paneId) => cardActionsRef.current?.toggleStar(paneId),
 		markDone: (card) => cardActionsRef.current?.markDone(card),
+		endCard: (card) => cardActionsRef.current?.endCard(card),
 		remindMe: (card, day) => cardActionsRef.current?.remindMe(card, day),
 		resumeCard: async (card) => cardActionsRef.current?.resumeCard(card),
 		cardTitle: (card) => cardActionsRef.current?.cardTitle(card) ?? "",
@@ -5892,6 +5901,10 @@ function DevBoardPage() {
 		setTagMenu,
 		toggleStar,
 		markDone,
+		endCard: (card) => {
+			setDrawerCard(null);
+			return endCard(card);
+		},
 		remindMe,
 		resumeCard: async (card) => {
 			await resumeCard(card);
