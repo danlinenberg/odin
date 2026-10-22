@@ -14,6 +14,11 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      silent:
+        description: Publish without making it the latest release - no update banner, no brew upgrade
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -104,9 +109,12 @@ jobs:
           mv "$dmg" Odin-arm64.dmg
           # No upload --clobber fallback: re-uploading into an existing release
           # swaps a newer build in under the old date and version.
+          # A silent release is not latest: the app's update banner and the
+          # cask read /releases/latest, so neither offers it.
           gh release create "$TAG" Odin-arm64.dmg \
             --title "$TAG" \
-            --generate-notes
+            --generate-notes \
+            --latest="${{ inputs.silent && 'false' || 'true' }}"
 
   windows:
     needs: macos

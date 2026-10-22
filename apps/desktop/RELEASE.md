@@ -3,7 +3,13 @@
 ```sh
 scripts/release.sh          # patch bump
 scripts/release.sh 1.19.0   # explicit version
+scripts/release.sh --silent # no update banner: send its link to who needs it
 ```
+
+`--silent` publishes the release without marking it latest. The app's update
+banner and the Homebrew cask both read `/releases/latest`, so neither offers
+it; the script prints its own DMG link instead. The next normal release becomes
+latest as usual, or `gh release edit <tag> --latest` promotes this one.
 
 That is the whole flow. It bumps `apps/desktop/package.json` and
 `packages/host-service/package.json` (they share a version) through a PR onto
