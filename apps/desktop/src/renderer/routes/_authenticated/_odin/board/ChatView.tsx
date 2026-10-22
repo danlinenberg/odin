@@ -3,11 +3,13 @@ import { toast } from "@odin/ui/sonner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@odin/ui/tooltip";
 import { cn } from "@odin/ui/utils";
 import {
+	createContext,
 	isValidElement,
 	memo,
 	type ReactElement,
 	type ReactNode,
 	useCallback,
+	useContext,
 	useEffect,
 	useLayoutEffect,
 	useMemo,
@@ -2273,6 +2275,29 @@ export function bangCommands(text: string): string[] {
 		.filter(Boolean);
 }
 
+/**
+ * What each `! command` does, in Claude's words: the line it wrote right above
+ * the block ("A read-only preview:"). A block straight after another block has none.
+ */
+export function bangCommandNotes(text: string): Record<string, string> {
+	const notes: Record<string, string> = {};
+	for (const match of text.matchAll(/```[^\n]*\n\s*!([\s\S]*?)\n?```/g)) {
+		const command = (match[1] ?? "").trim();
+		const above = text
+			.slice(0, match.index)
+			.split("\n")
+			.map((line) => line.trim())
+			.filter(Boolean)
+			.at(-1);
+		if (!command || !above || above.startsWith("```")) continue;
+		notes[command] = above.replace(/^(?:[-*+]|\d+[.)])\s+/, "");
+	}
+	return notes;
+}
+
+/** The reply's notes on its `! commands`, for the Run buttons wherever they sit. */
+const CommandNotes = createContext<Record<string, string>>({});
+
 /** Runs a `! command` in Claude's session, where its output comes back to Claude. */
 function RunCommand({
 	command,
@@ -2282,28 +2307,60 @@ function RunCommand({
 	onRun: (command: string) => Promise<void>;
 }) {
 	const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
+	const note = useContext(CommandNotes)[command];
 	return (
-		<button
-			type="button"
-			disabled={state !== "idle"}
-			onClick={() => {
-				setState("sending");
-				onRun(command).then(
-					() => setState("sent"),
-					(error) => {
-						setState("idle");
-						toast.error(error instanceof Error ? error.message : String(error));
-					},
-				);
-			}}
-			title={`Run in this session: ! ${command}`}
-			className={cn(ACTION_BUTTON, "mt-2 flex max-w-full items-center gap-1.5")}
-		>
-			<LuSquareTerminal className="size-3.5 shrink-0" />
-			<span className="truncate font-mono">
-				{state === "sent" ? "Sent" : "Run"} ! {command.split("\n")[0]}
-			</span>
-		</button>
+		<Tooltip delayDuration={300}>
+			<TooltipTrigger asChild>
+				<button
+					type="button"
+					disabled={state !== "idle"}
+					onClick={() => {
+						setState("sending");
+						onRun(command).then(
+							() => setState("sent"),
+							(error) => {
+								setState("idle");
+								toast.error(
+									error instanceof Error ? error.message : String(error),
+								);
+							},
+						);
+					}}
+					aria-label={`Run in this session: ! ${command}`}
+					className={cn(
+						ACTION_BUTTON,
+						"mt-2 flex max-w-full items-center gap-1.5",
+					)}
+				>
+					<LuSquareTerminal className="size-3.5 shrink-0" />
+					<span className="truncate font-mono">
+						{state === "sent" ? "Sent" : "Run"} ! {command.split("\n")[0]}
+					</span>
+				</button>
+			</TooltipTrigger>
+			<TooltipContent
+				side="bottom"
+				align="start"
+				className="max-h-[50vh] max-w-[560px] cursor-text select-text overflow-y-auto text-left"
+			>
+				<pre className="whitespace-pre-wrap break-all font-mono text-[11px]">
+					! {command}
+				</pre>
+				{note && (
+					<MarkdownRenderer
+						content={note}
+						style="default"
+						allowHtml={false}
+						className={cn(COMPACT_MARKDOWN, "mt-1.5")}
+					/>
+				)}
+				<p className="mt-1.5 opacity-70">
+					{state === "sent"
+						? "Sent to this session; its output went back to Claude."
+						: "Runs in this session; its output goes back to Claude."}
+				</p>
+			</TooltipContent>
+		</Tooltip>
 	);
 }
 
@@ -2616,55 +2673,58 @@ const ItemView = memo(function ItemView({
 			/>
 		);
 	const commands = onRun ? bangCommands(item.text) : [];
+	const notes = onRun ? bangCommandNotes(item.text) : {};
 	// A reply you can see whole, its action items included, is never cut and needs no TL;DR.
 	const shown = tldr && taller ? { ...tldr, long: fold } : null;
 	const placement = tldrPlacement(shown, showsActions);
 	const toggleFull = () => setFull((value) => !value);
 	return (
-		<div ref={rootRef} className="select-text cursor-text">
-			{body && (
-				<FoldedReply
-					foldable={fold && placement === "action-items"}
-					folded={fold && !!shown && !full}
-					onToggle={toggleFull}
-				>
-					<div ref={bodyRef}>
-						<MarkdownRenderer
-							content={body}
-							style="default"
-							allowHtml={false}
-							className={COMPACT_MARKDOWN}
+		<CommandNotes.Provider value={notes}>
+			<div ref={rootRef} className="select-text cursor-text">
+				{body && (
+					<FoldedReply
+						foldable={fold && placement === "action-items"}
+						folded={fold && !!shown && !full}
+						onToggle={toggleFull}
+					>
+						<div ref={bodyRef}>
+							<MarkdownRenderer
+								content={body}
+								style="default"
+								allowHtml={false}
+								className={COMPACT_MARKDOWN}
+							/>
+						</div>
+					</FoldedReply>
+				)}
+				<div className="mt-0.5 flex items-center gap-2">
+					<MessageTime at={item.at} />
+					{readAloud && <ReadAloudButton id={item.id} text={readAloud} />}
+				</div>
+				{placement === "card" && shown && (
+					<TldrCard tldr={shown} full={full} onToggle={toggleFull} />
+				)}
+				{actions && (
+					<Leave phase={card}>
+						<ActionItems
+							text={actions}
+							body={body}
+							onDo={onDo}
+							paneId={paneId}
+							tldr={placement === "action-items" ? shown : null}
+							commands={commands}
+							onRun={onRun}
 						/>
-					</div>
-				</FoldedReply>
-			)}
-			<div className="mt-0.5 flex items-center gap-2">
-				<MessageTime at={item.at} />
-				{readAloud && <ReadAloudButton id={item.id} text={readAloud} />}
+					</Leave>
+				)}
+				{onSend && needsAwsSsoLogin(item.text) && (
+					<AwsSsoLogin item={item} onSend={onSend} />
+				)}
+				{onRun && card === "gone" && (
+					<RunCommands commands={commands} onRun={onRun} />
+				)}
 			</div>
-			{placement === "card" && shown && (
-				<TldrCard tldr={shown} full={full} onToggle={toggleFull} />
-			)}
-			{actions && (
-				<Leave phase={card}>
-					<ActionItems
-						text={actions}
-						body={body}
-						onDo={onDo}
-						paneId={paneId}
-						tldr={placement === "action-items" ? shown : null}
-						commands={commands}
-						onRun={onRun}
-					/>
-				</Leave>
-			)}
-			{onSend && needsAwsSsoLogin(item.text) && (
-				<AwsSsoLogin item={item} onSend={onSend} />
-			)}
-			{onRun && card === "gone" && (
-				<RunCommands commands={commands} onRun={onRun} />
-			)}
-		</div>
+		</CommandNotes.Provider>
 	);
 }, sameItemView);
 
