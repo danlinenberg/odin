@@ -44,6 +44,7 @@ import { type HostEvent, useHostEvents } from "renderer/stores/host-connection";
 import { openUrl } from "renderer/stores/in-app-browser";
 import { useSessionView } from "renderer/stores/session-view";
 import { useTabsStore } from "renderer/stores/tabs/store";
+import { runInSessionShell } from "renderer/stores/tabs/useAgentHookListener";
 import {
 	getImageMimeType,
 	getVideoMimeType,
@@ -2279,6 +2280,15 @@ export function bangCommands(text: string): string[] {
 }
 
 /**
+ * The command of a `!local command` block: one Claude hands you for your own
+ * computer rather than its session (a remote session runs on its host). Null
+ * for an ordinary `!` command.
+ */
+export function localCommand(command: string): string | null {
+	return command.match(/^local\s+([\s\S]+)$/)?.[1]?.trim() || null;
+}
+
+/**
  * What each `! command` does, in Claude's words: the line it wrote right above
  * the block ("A read-only preview:"). A block straight after another block has none.
  */
@@ -2311,6 +2321,8 @@ function RunCommand({
 }) {
 	const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
 	const note = useContext(CommandNotes)[command];
+	const local = localCommand(command);
+	const shown = local ?? command;
 	return (
 		<Tooltip delayDuration={300}>
 			<TooltipTrigger asChild>
@@ -2329,7 +2341,11 @@ function RunCommand({
 							},
 						);
 					}}
-					aria-label={`Run in this session: ! ${command}`}
+					aria-label={
+						local
+							? `Run on my computer: ${local}`
+							: `Run in this session: ! ${command}`
+					}
 					className={cn(
 						ACTION_BUTTON,
 						"mt-2 flex max-w-full items-center gap-1.5",
@@ -2337,7 +2353,14 @@ function RunCommand({
 				>
 					<LuSquareTerminal className="size-3.5 shrink-0" />
 					<span className="truncate font-mono">
-						{state === "sent" ? "Sent" : "Run"} ! {command.split("\n")[0]}
+						{local
+							? state === "sent"
+								? "Started on my computer:"
+								: "Run on my computer:"
+							: state === "sent"
+								? "Sent !"
+								: "Run !"}{" "}
+						{shown.split("\n")[0]}
 					</span>
 				</button>
 			</TooltipTrigger>
@@ -2347,7 +2370,7 @@ function RunCommand({
 				className="max-h-[50vh] max-w-[560px] cursor-text select-text overflow-y-auto text-left"
 			>
 				<pre className="whitespace-pre-wrap break-all font-mono text-[11px]">
-					! {command}
+					{local ? shown : `! ${command}`}
 				</pre>
 				{note && (
 					<MarkdownRenderer
@@ -2358,9 +2381,11 @@ function RunCommand({
 					/>
 				)}
 				<p className="mt-1.5 opacity-70">
-					{state === "sent"
-						? "Sent to this session; its output went back to Claude."
-						: "Runs in this session; its output goes back to Claude."}
+					{local
+						? "Runs in this session's Shell on this computer, where you can watch and stop it. Its output doesn't go back to Claude."
+						: state === "sent"
+							? "Sent to this session; its output went back to Claude."
+							: "Runs in this session; its output goes back to Claude."}
 				</p>
 			</TooltipContent>
 		</Tooltip>
@@ -3177,6 +3202,15 @@ export function ChatView({
 		},
 		[paneId, write.mutateAsync],
 	);
+	// A `!local` block runs on this computer, in the session's Shell; the rest go to Claude.
+	const runCommand = useCallback(
+		async (command: string) => {
+			const local = localCommand(command);
+			if (local) await runInSessionShell(paneId, workspaceId, local, "local");
+			else await runInClaude(command);
+		},
+		[paneId, workspaceId, runInClaude],
+	);
 	const doItem = useCallback(
 		(item: string, number: number, approve: boolean, answer?: string) => {
 			sendToClaude(
@@ -3459,7 +3493,7 @@ export function ChatView({
 								readAloud={segment.id === lastTextId ? readAloud : null}
 								onRun={
 									// Only a live PTY runs a ! command; a resume or the raven's send can't.
-									onShowTerminal && !onSend ? runInClaude : undefined
+									onShowTerminal && !onSend ? runCommand : undefined
 								}
 								onRestart={segment.id === lastTextId ? onRestart : undefined}
 								onSend={

@@ -115,7 +115,7 @@ const thenShell = (command: string) =>
  * session's previous shell goes - or, with a `name`, only that named Shell, so
  * a tunnel and the server behind it can run side by side.
  */
-async function runInSessionShell(
+export async function runInSessionShell(
 	sessionPaneId: string,
 	workspaceId: string,
 	command: string,
@@ -128,7 +128,11 @@ async function runInSessionShell(
 		? session.odinNamedShells?.[name]
 		: session.odinShellPaneId;
 	if (previous && state.panes[previous]) state.removePane(previous);
-	const cwd = session.cwd ?? session.initialCwd ?? undefined;
+	// A remote session's folder is on its host, not here: the Shell starts in
+	// its default folder instead.
+	const cwd = session.odinRemote
+		? undefined
+		: (session.cwd ?? session.initialCwd ?? undefined);
 	const { tabId, paneId } = state.addTab(workspaceId, { initialCwd: cwd });
 	useTabsStore.setState((s) => {
 		const owner = s.panes[sessionPaneId];

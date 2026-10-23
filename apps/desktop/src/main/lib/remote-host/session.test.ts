@@ -476,6 +476,16 @@ test("a task with no repo gets the known repos and the commands for its worktree
 	);
 });
 
+test("the host note tells the agent how to hand me a command for my computer", () => {
+	const note = hostNote({
+		user: "ubuntu",
+		name: "odin-remote",
+		repoName: "odin",
+		pane: "0d202ff3aa",
+	});
+	expect(note).toContain("first line starts with `!local `");
+});
+
 test("the host falls back to the API key only while the plan is limited", () => {
 	const run = runScript(spec, "/d");
 	expect(run).toContain(
