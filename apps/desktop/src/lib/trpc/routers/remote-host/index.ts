@@ -669,9 +669,9 @@ export const createRemoteHostRouter = () =>
 				);
 			}),
 		/**
-		 * The AWS profile names defined on the host, signed in with its
-		 * instance role, so `--profile <name>` works there. Written to the
-		 * host's ~/.aws/config at once; a profile turned off is gone there.
+		 * The AWS profiles that work on the host for this user, signed in
+		 * with this computer's credentials for them, which go with the other
+		 * tokens. Written at once; a profile turned off is gone there.
 		 */
 		setAwsProfiles: publicProcedure
 			.input(z.array(z.string().refine(isAwsProfileName)))

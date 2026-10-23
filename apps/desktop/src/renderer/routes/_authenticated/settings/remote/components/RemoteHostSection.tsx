@@ -619,9 +619,12 @@ export function RemoteHostSection() {
 					stacked
 					description={
 						<span className="select-text cursor-text">
-							These profile names work on the host too, signed in with the
-							instance's own role: it may do what the host policy above allows.
-							None of this computer's AWS credentials go there.
+							Your host sessions sign in to AWS with these profiles as you are
+							signed in here, never with the instance's shared role. Odin sends
+							fresh credentials every half hour while this computer is awake;
+							they expire there when it sleeps or your AWS sign-in here does.
+							Other users of the host can't use them, but anyone with sudo on
+							the instance can read them.
 							{setAwsProfiles.isPending && (
 								<span className="mt-1 block">Saving on the host...</span>
 							)}
@@ -892,7 +895,7 @@ export function RemoteHostSection() {
 							<SettingRow
 								label="Host policy (optional)"
 								htmlFor="aws-host-policy"
-								description="An IAM policy Use puts on the host's role beside SSM's, when it gives the host SSM access: what a plugin on the host needs, such as reading your secrets with the instance role."
+								description="An IAM policy Use puts on the host's role beside SSM's, when it gives the host SSM access: what a plugin on the host needs, such as reading your secrets with the instance role. Every user of the host shares that role, so keep personal access in AWS profiles on the host instead."
 							>
 								<Input
 									id="aws-host-policy"

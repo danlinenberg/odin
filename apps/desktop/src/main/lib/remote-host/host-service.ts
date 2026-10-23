@@ -5,6 +5,9 @@
  * - `action=service` (Slack, Notion, ClickUp, Jira, GitHub API calls) is
  *   answered here, with the tokens the user chose to keep on the host. So
  *   connector calls work with the laptop closed.
+ * - `GET /token?service=aws&profile=` is an AWS profile's credentials for
+ *   the host's credential_process (aws-on-host): this user's own, the
+ *   laptop's latest copy, until it expires.
  * - `GET /token?service=github` is the GitHub token a session's git and gh
  *   sign in with, read at each use (session.ts), so it never goes stale: the
  *   host's own sign-in for the account, refreshed here before it expires or
@@ -22,6 +25,8 @@
  * Python 3 standard library only: every common Linux image has it, so the
  * host needs nothing installed.
  */
+
+import type { AwsProcessCredentials } from "./aws-on-host";
 
 /**
  * Each host user's ports, from their uid: the service's, and the one the
@@ -72,10 +77,12 @@ export interface HostTokensFile {
 	githubAccounts?: Record<string, string>;
 	/** Sessions may call the GitHub API through the service (the GitHub connector). */
 	githubConnector?: boolean;
+	/** This user's AWS profiles' current credentials, as credential_process prints them (aws-on-host). */
+	aws?: Record<string, AwsProcessCredentials>;
 }
 
 /** argv: the host user it serves, their tokens file, its port (the tunnel's is next). */
-export const HOST_SERVICE_PY = `import json, os, pwd, re, sys, threading, time, urllib.request, urllib.parse, urllib.error
+export const HOST_SERVICE_PY = `import datetime, json, os, pwd, re, sys, threading, time, urllib.request, urllib.parse, urllib.error
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 OWNER = pwd.getpwnam(sys.argv[1]).pw_uid
@@ -90,6 +97,7 @@ GITHUB_TOKEN_URL = os.environ.get("ODIN_GITHUB_TOKEN_URL") or "https://github.co
 # Refresh this far before expiry, so a push that started in time never ages out.
 GITHUB_MARGIN = 30 * 60
 LOGIN = re.compile(r"[A-Za-z0-9-]{1,39}")
+AWS_PROFILE = re.compile(r"[A-Za-z0-9_.+-]{1,64}")
 github_lock = threading.Lock()
 
 
@@ -198,6 +206,22 @@ def github_token(login, rejected=None):
     return None
 
 
+def aws_credentials(profile):
+    """The profile's credentials from the laptop's latest copy, and why there are none."""
+    creds = (tokens().get("aws") or {}).get(profile)
+    if not isinstance(creds, dict) or not creds.get("AccessKeyId"):
+        return None, "AWS profile " + profile + " isn't on this host for you. Turn it on in Odin: Settings > Remote > AWS profiles on the host."
+    expires = creds.get("Expiration")
+    if expires:
+        try:
+            at = datetime.datetime.fromisoformat(expires.replace("Z", "+00:00")).timestamp()
+        except ValueError:
+            at = 0
+        if at - time.time() < 60:
+            return None, "AWS profile " + profile + " expired on this host. Odin on your laptop sends fresh credentials while it is awake and signed in to AWS (aws sso login --profile " + profile + ")."
+    return creds, None
+
+
 def service_base(name, t):
     if name == "slack" and t.get("slack"):
         return "https://slack.com/api/", {"Authorization": "Bearer " + t["slack"]}
@@ -260,12 +284,21 @@ class Handler(BaseHTTPRequestHandler):
 
     def token(self, query, raw, uid):
         """GET /token?service=github[&login=][&owner=]: the current token for the session user's account,
+        or ?service=aws&profile= for an AWS profile's credentials (credential_process JSON);
         answered to that user alone. A POST carries the token GitHub just refused."""
         if uid != OWNER and not (uid is None and sys.platform != "linux"):
             return self.reply(403, "This is another user's Odin.\\n")
         q = {k: v[-1] for k, v in urllib.parse.parse_qs(query).items()}
+        if q.get("service") == "aws":
+            profile = q.get("profile", "")
+            if not AWS_PROFILE.fullmatch(profile):
+                return self.reply(400, "Not an AWS profile name.\\n")
+            creds, why = aws_credentials(profile)
+            if not creds:
+                return self.reply(404, why + "\\n")
+            return self.reply(200, json.dumps(creds), "application/json")
         if q.get("service") != "github":
-            return self.reply(404, "Only service=github has a token here.\\n")
+            return self.reply(404, "Only service=github and service=aws have a token here.\\n")
         login, owner = q.get("login", ""), q.get("owner", "")
         if (login and not LOGIN.fullmatch(login)) or (owner and not LOGIN.fullmatch(owner)):
             return self.reply(400, "Not a GitHub login.\\n")

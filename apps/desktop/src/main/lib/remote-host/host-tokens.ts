@@ -5,7 +5,11 @@ import {
 } from "lib/trpc/routers/odin-config";
 import type { Client } from "ssh2";
 import { jiraRequestContext } from "../jira-token";
-import { awsHostConfigScript, localAwsProfiles } from "./aws-on-host";
+import {
+	awsHostConfigScript,
+	hostAwsCredentials,
+	localAwsProfiles,
+} from "./aws-on-host";
 import type { HostGithubPair } from "./github-host-login";
 import {
 	hostGithubAccounts,
@@ -36,10 +40,12 @@ export const HOST_GITHUB_TOKEN_MARGIN_MS = 45 * 60_000;
  * The tokens of the connectors the user keeps on the host, as the host
  * service reads them, and this computer's GitHub tokens for sessions there:
  * those go whether or not the GitHub connector is on, since a session's git
- * and gh get their token from the service now (session.ts).
+ * and gh get their token from the service now (session.ts). And the current
+ * credentials of the AWS profiles this user picked for the host (aws-on-host).
  */
 export async function hostTokens(
 	connectors: readonly HostConnector[],
+	awsProfiles: readonly string[] = [],
 ): Promise<HostTokensFile> {
 	const config = readOdinConfig();
 	const tokens: HostTokensFile = {};
@@ -73,6 +79,8 @@ export async function hostTokens(
 	const accounts = await hostGithubTokens(config, HOST_GITHUB_TOKEN_MARGIN_MS);
 	if (Object.keys(accounts).length) tokens.githubAccounts = accounts;
 	if (connectors.includes("github") && github) tokens.githubConnector = true;
+	const aws = await hostAwsCredentials(awsProfiles);
+	if (Object.keys(aws).length) tokens.aws = aws;
 	return tokens;
 }
 
@@ -138,8 +146,8 @@ export async function pushHostTokens(
 	host: HostLogin & { awsProfiles?: string[] },
 	connectors: readonly HostConnector[],
 ): Promise<string[]> {
-	const tokens = await hostTokens(connectors);
-	// The AWS profiles picked for the host, on its role, with this computer's region for each.
+	const tokens = await hostTokens(connectors, host.awsProfiles ?? []);
+	// The AWS profiles picked for the host, signed in with this user's own credentials, with this computer's region for each.
 	const regions = new Map(localAwsProfiles().map((p) => [p.name, p.region]));
 	const awsConfig = awsHostConfigScript(
 		(host.awsProfiles ?? []).map((name) => ({

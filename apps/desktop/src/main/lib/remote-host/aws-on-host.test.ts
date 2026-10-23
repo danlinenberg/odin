@@ -1,9 +1,19 @@
 import { expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	statSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { awsConfigProfiles, awsHostConfigScript } from "./aws-on-host";
+import {
+	AWS_CREDENTIAL_HELPER,
+	awsConfigProfiles,
+	awsHostConfigScript,
+} from "./aws-on-host";
 
 test("reads profiles and their regions from an AWS config, skipping sso-session sections", () => {
 	expect(
@@ -45,7 +55,13 @@ test("the host's ~/.aws/config gets Odin's block, rewritten in place, and keeps 
 	);
 	const first = readFileSync(config, "utf8");
 	expect(first).toContain("[profile mine]\nregion = eu-west-1\n");
-	expect(first).toContain("[profile prod]\nregion = us-east-1\n# <<< odin");
+	// The user's own credentials through the helper, at its path in their home.
+	expect(first).toContain(
+		`[profile prod]\ncredential_process = ${home}/.odin/bin/aws-credential-odin prod\nregion = us-east-1\n# <<< odin`,
+	);
+	const helper = join(home, ".odin", "bin", "aws-credential-odin");
+	expect(readFileSync(helper, "utf8")).toBe(AWS_CREDENTIAL_HELPER);
+	expect(statSync(helper).mode & 0o111).toBeTruthy();
 	// A profile the user wrote stays theirs; a name a shell would read never lands.
 	expect(first.match(/\[profile mine\]/g)).toHaveLength(1);
 	expect(first).not.toContain("pwned");

@@ -225,6 +225,31 @@ describe.skipIf(!live)("Odin's host service", () => {
 		expect(res.status).toBe(404);
 		expect(await res.text()).toContain("GitHub accounts on the host");
 	});
+
+	test("an AWS profile's credentials go out as credential_process JSON until they expire", async () => {
+		const creds = (minutes: number) => ({
+			Version: 1,
+			AccessKeyId: "ASIATEST",
+			SecretAccessKey: "secret",
+			SessionToken: "session",
+			Expiration: new Date(Date.now() + minutes * 60_000).toISOString(),
+		});
+		const fresh = creds(60);
+		writeFileSync(
+			join(dir, "tokens.json"),
+			JSON.stringify({ aws: { prod: fresh, stale: creds(-5) } }),
+		);
+		const live = await token("service=aws&profile=prod");
+		expect(live.status).toBe(200);
+		expect(await live.json()).toEqual(fresh);
+		const stale = await token("service=aws&profile=stale");
+		expect(stale.status).toBe(404);
+		expect(await stale.text()).toContain("AWS profile stale expired");
+		const off = await token("service=aws&profile=dev");
+		expect(off.status).toBe(404);
+		expect(await off.text()).toContain("AWS profiles on the host");
+		expect((await token("service=aws&profile=a%20b")).status).toBe(400);
+	});
 });
 
 test("setup gives each host user a service of their own, run by odin, which alone can read the tokens", () => {
