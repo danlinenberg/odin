@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { ago } from "./cards";
-import { leadingTldr, segments } from "./transcript";
+import { leadingTldr, segments, userBubbleText } from "./transcript";
 
 const user = (text: string) => ({ role: "user" as const, text });
 const odin = (text: string) => ({ role: "assistant" as const, text });
@@ -48,4 +48,31 @@ test("ago reads minutes, hours, days", () => {
 	expect(ago(now - 5 * 60_000, now)).toBe("5m");
 	expect(ago(now - 3 * 3_600_000, now)).toBe("3h");
 	expect(ago(now - 2 * 86_400_000, now)).toBe("2d");
+});
+
+test("a launch prompt shows only your request until you ask for Odin's part", () => {
+	const prompt = [
+		"Task: Test",
+		"",
+		"Standing rules - follow each one whenever its situation comes up during this session, without being asked:\n- When you open a pull request: auto merge",
+		"",
+		"Work in the current workspace. Investigate, make the changes.",
+	].join("\n");
+	const folded = userBubbleText(prompt, { full: false, images: false });
+	expect(folded).toEqual({ shown: "Task: Test", folds: true, long: false });
+	const full = userBubbleText(prompt, { full: true, images: false });
+	expect(full.shown).toBe(prompt);
+	expect(full.folds).toBe(true);
+});
+
+test("a typed message shows whole; a long one clamps; image tags go", () => {
+	expect(
+		userBubbleText("Fix it\n\nThanks", { full: false, images: false }),
+	).toEqual({ shown: "Fix it\n\nThanks", folds: false, long: false });
+	expect(
+		userBubbleText("a\nb\nc\nd\ne\nf\ng", { full: false, images: false }).long,
+	).toBe(true);
+	expect(
+		userBubbleText("Look [Image #1] here", { full: false, images: true }).shown,
+	).toBe("Look here");
 });
