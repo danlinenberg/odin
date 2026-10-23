@@ -128,6 +128,12 @@ if [[ ! -e "$INSTALL_STAMP" || bun.lock -nt "$INSTALL_STAMP" ]]; then
   bun install >>"$LOG" 2>&1 && touch "$INSTALL_STAMP"
 fi
 
+# The phone's screens, as Odin sends them to a paired iPhone so it runs this
+# checkout's screens without a rebuild in Xcode (main/lib/phone/screens.ts).
+# In the background: the window doesn't wait for it, the phone asks later.
+(cd apps/mobile && bun run build:screens >>"$LOG" 2>&1 ||
+  echo "    phone screens build failed (see above)" >>"$LOG") &
+
 # SKIP_ENV_VALIDATION drops the login gate; the debug port lets tooling drive
 # and screenshot the window.
 exec env SKIP_ENV_VALIDATION=1 ODIN_PACKAGE=1 RENDERER_REMOTE_DEBUG_PORT=19223 \
