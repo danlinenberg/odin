@@ -123,6 +123,9 @@ async function forwardOdin(client: Client): Promise<void> {
 	bind();
 }
 
+/** Longest one mirror pass may take before it is given up. */
+const PASS_MS = 30_000;
+
 /**
  * Claude's transcript on the host, appended into ~/.claude/projects here as
  * it grows, so the chat view, Resume and Session History read it like any
@@ -137,7 +140,11 @@ function mirrorTranscript(
 	// looks it up by that name, so the copy goes in the same-named folder here.
 	let local = "";
 	let remote: string | null = null;
-	const tick = async () => {
+	// A pass that outlived its time limit must not write: the next pass has
+	// read past it, and a late append would put the same lines in twice.
+	let pass = 0;
+	let reading: { destroy: () => void } | null = null;
+	const tick = async (mine: number) => {
 		remote ??=
 			(await exec(
 				client,
@@ -164,24 +171,45 @@ function mirrorTranscript(
 		// Shorter here means more to append; longer means the host's file was rewritten.
 		const start = have > 0 && have < size ? have : 0;
 		const chunks: Buffer[] = [];
-		await new Promise<void>((resolve) =>
-			sftp
+		await new Promise<void>((resolve) => {
+			const stream = sftp
 				.createReadStream(remote as string, { start, end: size - 1 })
 				.on("data", (chunk: Buffer) => chunks.push(chunk))
 				.on("error", () => resolve())
-				.on("close", () => resolve()),
-		);
+				.on("close", () => resolve());
+			reading = stream;
+		});
+		reading = null;
+		if (mine !== pass) return;
 		const data = Buffer.concat(chunks);
 		if (start === 0) await writeFile(local, data);
 		else await appendFile(local, data);
 	};
 	let stopped = false;
-	const loop = () =>
-		tick()
+	// A dropped connection can leave the stat or the read waiting forever, and
+	// the mirror stopped with it: the chat showed no new messages until the
+	// pane reconnected. A pass gets PASS_MS; then the next one starts.
+	const loop = () => {
+		const mine = ++pass;
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		Promise.race([
+			tick(mine),
+			new Promise<void>((resolve) => {
+				timer = setTimeout(() => {
+					pass++;
+					reading?.destroy();
+					reading = null;
+					resolve();
+				}, PASS_MS);
+				timer.unref();
+			}),
+		])
 			.catch(() => {})
 			.finally(() => {
+				clearTimeout(timer);
 				if (!stopped) setTimeout(loop, 2000).unref();
 			});
+	};
 	loop();
 	return () => {
 		stopped = true;

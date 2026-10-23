@@ -1,3 +1,4 @@
+import { DISMISSED_HEAD } from "shared/user-text";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -84,5 +85,5 @@ export function withDismissals(paneId: string, text: string): string {
 	const untold = useDismissedActions.getState().takeUntold(paneId);
 	if (!untold.length) return text;
 	const list = untold.map((item) => `- ${item}`).join("\n");
-	return `${text}\n\n(I dismissed these action items - do not list them again:\n${list})`;
+	return `${text}\n\n${DISMISSED_HEAD}\n${list})`;
 }
