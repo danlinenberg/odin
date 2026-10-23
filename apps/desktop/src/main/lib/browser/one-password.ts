@@ -74,6 +74,13 @@ export function setOnePasswordAccounts(accounts: string[]): string[] {
 	return names;
 }
 
+/**
+ * Vaults with no logins to fill whose items a business account can refuse to
+ * list: the Transfer vault (items moved out of a departed member's vault)
+ * and kinds this SDK doesn't know.
+ */
+const SKIPPED_VAULTS = new Set<string>(["transfer", "unsupported"]);
+
 const clients = new Map<string, Promise<Client>>();
 
 const notConnected = (account: string, cause: unknown) =>
@@ -116,11 +123,23 @@ export async function findOnePasswordLogins(
 	const perAccount = await Promise.all(
 		accounts.map(async (account) => {
 			const client = await clientFor(account);
-			const vaults = await client.vaults.list();
-			const perVault = await Promise.all(
+			const vaults = (await client.vaults.list()).filter(
+				(vault) => !SKIPPED_VAULTS.has(vault.vaultType),
+			);
+			const perVault = await Promise.allSettled(
 				vaults.map((vault) => client.items.list(vault.id)),
 			);
-			return perVault.flat().flatMap((item) => {
+			const listed = perVault.flatMap((result) =>
+				result.status === "fulfilled" ? [result.value] : [],
+			);
+			// A vault you can see but not read (a business account's shared
+			// vaults can be set up that way) skips; only all of them failing is
+			// an error.
+			const [failed] = perVault.filter(
+				(result) => result.status === "rejected",
+			);
+			if (!listed.length && failed) throw failed.reason;
+			return listed.flat().flatMap((item) => {
 				if (item.category !== "Login") return [];
 				const score = Math.max(
 					0,
