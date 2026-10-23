@@ -54,6 +54,7 @@ import {
 import { demoAnswer } from "./demo";
 import { channelFetch, type OdinFetch } from "./odin-fetch";
 import { type Pairing, parsePairLink } from "./pair-link";
+import { MenuCard, PlanCard, QuestionCard } from "./prompt-cards";
 import { NEW_TASK_EVENT, SharePicker, useSharedFiles } from "./share";
 import {
 	boardWords,
@@ -679,6 +680,9 @@ function Session({ paneId }: { paneId: string }) {
 	const key = phone.key.useMutation({ onSuccess: refetch });
 	const interrupt = phone.interrupt.useMutation({ onSuccess: refetch });
 	const runCommand = phone.run.useMutation({ onSuccess: refetch });
+	const keys = phone.keys.useMutation({ onSuccess: refetch });
+	const sendKeys = (sequence: string[]) =>
+		keys.mutate({ paneId, keys: sequence });
 	const utils = phone.useUtils();
 	// The star moves on tap; the Mac's answer only confirms it (or undoes it).
 	const star = phone.star.useMutation({
@@ -778,7 +782,26 @@ function Session({ paneId }: { paneId: string }) {
 	// Needs you is often a question asked in prose. The screen box and its keys
 	// are for a prompt drawn on the screen - a numbered menu, Enter to confirm -
 	// read the way the desktop board reads it.
+	// Claude's question or plan, else a menu the terminal draws: answered
+	// with buttons, as the board's chat does. An older Odin sends neither.
+	const prompt = data && "prompt" in data ? data.prompt : null;
+	const menu = data && "menu" in data ? data.menu : null;
+	const card = prompt ? (
+		prompt.name === "AskUserQuestion" ? (
+			<QuestionCard key={prompt.id} input={prompt.input} onKeys={sendKeys} />
+		) : (
+			<PlanCard key={prompt.id} input={prompt.input} onKeys={sendKeys} />
+		)
+	) : menu ? (
+		<MenuCard
+			key={`${menu.title}\n${menu.options.join("\n")}`}
+			menu={menu}
+			onKeys={sendKeys}
+		/>
+	) : null;
+	// No card: the screen box and its keys, for a prompt we couldn't read.
 	const asking =
+		!card &&
 		status === "permission" &&
 		!!data?.screen &&
 		odinScreenStatus(data.screen) === "permission";
@@ -931,6 +954,8 @@ function Session({ paneId }: { paneId: string }) {
 						Show usage limit options
 					</button>
 				)}
+				{card}
+				<ErrorLine error={keys.error} />
 				{asking && data?.screen && (
 					<pre className="mt-2 overflow-x-auto rounded-[10px] border border-attention/35 bg-attention/10 p-2.5 font-mono text-[11px] leading-snug text-attention-ink">
 						{data.screen}

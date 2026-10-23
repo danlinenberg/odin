@@ -1023,8 +1023,67 @@ export function slackDrafts(jsonl: string): string[] {
 	return [...ids];
 }
 
+/** A question or plan Claude waits on: a menu only its terminal draws. */
+export type PendingPrompt = {
+	id: string;
+	name: "AskUserQuestion" | "ExitPlanMode";
+	input: Record<string, unknown>;
+};
+
+/**
+ * The AskUserQuestion or ExitPlanMode call Claude waits on: the log's last
+ * tool call, when it is one of those and has no result yet. As the board's
+ * chat reads it (asking() in ChatView).
+ */
+export function pendingPrompt(jsonl: string): PendingPrompt | null {
+	let last: PendingPrompt | { id: string; name: string } | null = null;
+	const answered = new Set<string>();
+	for (const line of jsonl.split("\n")) {
+		if (!line.includes("tool_")) continue;
+		let entry: {
+			isSidechain?: boolean;
+			message?: { content?: unknown };
+		};
+		try {
+			entry = JSON.parse(line);
+		} catch {
+			continue;
+		}
+		if (entry.isSidechain || !Array.isArray(entry.message?.content)) continue;
+		for (const block of entry.message.content as {
+			type?: string;
+			id?: string;
+			name?: string;
+			input?: unknown;
+			tool_use_id?: string;
+		}[]) {
+			if (block?.type === "tool_use" && block.id && block.name)
+				last =
+					(block.name === "AskUserQuestion" || block.name === "ExitPlanMode") &&
+					block.input &&
+					typeof block.input === "object"
+						? {
+								id: block.id,
+								name: block.name,
+								input: block.input as Record<string, unknown>,
+							}
+						: { id: block.id, name: block.name };
+			else if (block?.type === "tool_result" && block.tool_use_id)
+				answered.add(block.tool_use_id);
+		}
+	}
+	return last && "input" in last && !answered.has(last.id) ? last : null;
+}
+
 /** The last messages, from the file's end only: what the phone polls. */
-const tails = new Map<string, { key: string; messages: TranscriptMessage[] }>();
+const tails = new Map<
+	string,
+	{ key: string; messages: TranscriptMessage[]; prompt: PendingPrompt | null }
+>();
+
+/** The prompt `transcriptTail` last found in that session's log. */
+export const tailPrompt = (sessionId: string) =>
+	tails.get(sessionId)?.prompt ?? null;
 export async function transcriptTail({
 	sessionId,
 	bytes = 8_000_000,
@@ -1056,7 +1115,7 @@ export async function transcriptTail({
 	// Cut in the middle of a line: start at the next whole one.
 	if (start > 0) text = text.slice(text.indexOf("\n") + 1);
 	const messages = parseTranscript(text, 60, 6000, true, true);
-	tails.set(sessionId, { key, messages });
+	tails.set(sessionId, { key, messages, prompt: pendingPrompt(text) });
 	return messages;
 }
 

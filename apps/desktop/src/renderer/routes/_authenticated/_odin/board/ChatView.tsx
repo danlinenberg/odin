@@ -972,7 +972,6 @@ export function segments(items: Item[]): (Item | Group)[] {
 }
 
 /** A question or plan approval Claude is still waiting on - a menu only the TUI draws. */
-/** Claude's line when a usage or spend limit stops the turn. */
 function asking(items: Item[]): Tool | null {
 	const last = items.at(-1);
 	return last?.kind === "tool" &&

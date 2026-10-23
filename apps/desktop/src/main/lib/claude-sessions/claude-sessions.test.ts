@@ -8,6 +8,7 @@ import {
 	clip,
 	opensPr,
 	parseTranscript,
+	pendingPrompt,
 	queryTerms,
 	ranHere,
 	readTranscript,
@@ -1352,4 +1353,55 @@ test("parseTranscript - a `!` run is one shell message, output folded in", () =>
 		stderr: "",
 	});
 	expect(run.text).toBe("git log -1");
+});
+
+describe("pendingPrompt - the question or plan Claude waits on", () => {
+	const call = (id: string, name: string, input: object = {}) =>
+		JSON.stringify({
+			type: "assistant",
+			message: { content: [{ type: "tool_use", id, name, input }] },
+		});
+	const result = (id: string) =>
+		JSON.stringify({
+			type: "user",
+			message: { content: [{ type: "tool_result", tool_use_id: id }] },
+		});
+	const ask = {
+		questions: [{ question: "Which?", options: [{ label: "A" }] }],
+	};
+	test("an unanswered question is the prompt", () => {
+		expect(
+			pendingPrompt(
+				[call("t1", "Bash"), call("t2", "AskUserQuestion", ask)].join("\n"),
+			),
+		).toEqual({
+			id: "t2",
+			name: "AskUserQuestion",
+			input: ask,
+		});
+	});
+	test("answered, or followed by another tool call: none", () => {
+		expect(
+			pendingPrompt(
+				[call("t2", "ExitPlanMode", { plan: "x" }), result("t2")].join("\n"),
+			),
+		).toBeNull();
+		expect(
+			pendingPrompt(
+				[call("t2", "AskUserQuestion", ask), call("t3", "Bash")].join("\n"),
+			),
+		).toBeNull();
+	});
+	test("a subagent's call doesn't count", () => {
+		const side = JSON.stringify({
+			type: "assistant",
+			isSidechain: true,
+			message: {
+				content: [
+					{ type: "tool_use", id: "s1", name: "AskUserQuestion", input: ask },
+				],
+			},
+		});
+		expect(pendingPrompt(side)).toBeNull();
+	});
 });

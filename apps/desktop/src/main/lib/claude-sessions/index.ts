@@ -17,6 +17,7 @@ export {
 	summarizeTranscript,
 	type TranscriptFile,
 	type TranscriptMessage,
+	tailPrompt,
 	transcriptOf,
 	transcriptTail,
 	workingRepoOf,

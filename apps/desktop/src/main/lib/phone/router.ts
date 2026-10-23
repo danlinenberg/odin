@@ -6,6 +6,7 @@ import { appState } from "main/lib/app-state";
 import {
 	cachedBriefs,
 	readTranscript,
+	tailPrompt,
 	transcriptTail,
 } from "main/lib/claude-sessions";
 import { askRenderer } from "main/lib/notifications/server";
@@ -24,6 +25,7 @@ import {
 	pullRequests,
 	slackThread,
 } from "renderer/routes/_authenticated/_odin/board/brief";
+import { parseScreenMenu } from "renderer/routes/_authenticated/_odin/board/screen-menu";
 import { boardSection } from "shared/board-section";
 import { interruptClaude } from "shared/interrupt-claude";
 import { boardTags } from "shared/odin-tags";
@@ -101,6 +103,9 @@ async function thumbnail(dataUrl: string): Promise<string> {
 	thumbs.set(dataUrl, thumb);
 	return thumb;
 }
+
+/** Enter, Tab, Esc and the arrows: what a menu takes besides numbers. */
+const MENU_KEYS = new Set(["\r", "\t", "\x1b", "\x1b[A", "\x1b[B"]);
 
 const pause = (ms: number) => new Promise((done) => setTimeout(done, ms));
 
@@ -217,11 +222,16 @@ export const phoneRouter = t.router({
 					: message,
 			),
 		);
-		const screen = stripAnsi(
+		const fullScreen = stripAnsi(
 			(await terminal()
 				.readScreen(input)
 				.catch(() => null)) ?? "",
-		)
+		);
+		// What the board's chat answers in cards: Claude's question or plan,
+		// else a menu the terminal draws (folder trust, the usage limit menu).
+		const prompt = sessionId ? tailPrompt(sessionId) : null;
+		const menu = prompt ? null : parseScreenMenu(fullScreen);
+		const screen = fullScreen
 			.split("\n")
 			.map((line) => line.trimEnd())
 			.filter(Boolean)
@@ -250,6 +260,8 @@ export const phoneRouter = t.router({
 			},
 			messages,
 			screen,
+			prompt,
+			menu,
 		};
 	}),
 
@@ -430,6 +442,39 @@ export const phoneRouter = t.router({
 			terminal().write({ paneId: input.paneId, data: "!" });
 			await pause(50);
 			await typeIntoClaude(input.paneId, input.command, []);
+		}),
+
+	/**
+	 * The keys a question, plan or menu card answers with, as the board's
+	 * sendKeys writes them: a number, an arrow, Tab, Enter, Esc, or a line of
+	 * typed text - no other control keys.
+	 */
+	keys: t.procedure
+		.input(
+			paneInput.extend({
+				keys: z
+					.array(
+						z
+							.string()
+							.min(1)
+							.max(4_000)
+							.refine(
+								(key) =>
+									MENU_KEYS.has(key) ||
+									/^\d{1,2}$/.test(key) ||
+									// biome-ignore lint/suspicious/noControlCharactersInRegex: typed text has none
+									!/[\x00-\x1f\x7f]/.test(key),
+							),
+					)
+					.min(1)
+					.max(60),
+			}),
+		)
+		.mutation(async ({ input }) => {
+			for (const key of input.keys) {
+				terminal().write({ paneId: input.paneId, data: key });
+				await pause(250);
+			}
 		}),
 
 	/** One raw key for a prompt Claude draws as a menu: Enter, Esc, a digit. */
