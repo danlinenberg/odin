@@ -42,6 +42,20 @@ const queryClient = new QueryClient({
 	},
 });
 
+// Per-session reads the board holds one of per card, each polled on its own
+// clock. Refetching them all on focus too cost ~200 IPC round trips, ~40 full
+// transcript parses and a GitHub call per PR every time you came back to Odin,
+// and froze the board for the first second.
+for (const path of [
+	["terminal", "readClaudeTranscript"],
+	["terminal", "claudeSubagents"],
+	["terminal", "claudeLoop"],
+	["terminal", "pullRequestStates"],
+	["repos", "workingRepoName"],
+]) {
+	queryClient.setQueryDefaults([path], { refetchOnWindowFocus: false });
+}
+
 // IndexedDB-backed persister. localStorage is too small (~5MB) for the
 // volume of PR/issue rows we cache. idb-keyval uses a single object store
 // keyed by the persister's `key` below.
