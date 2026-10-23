@@ -5,6 +5,7 @@ import {
 } from "lib/trpc/routers/odin-config";
 import type { Client } from "ssh2";
 import { jiraRequestContext } from "../jira-token";
+import { awsHostConfigScript, localAwsProfiles } from "./aws-on-host";
 import type { HostGithubPair } from "./github-host-login";
 import {
 	hostGithubAccounts,
@@ -134,10 +135,18 @@ const sudoHint = (host: HostLogin) =>
  * Returns the connectors the host now serves.
  */
 export async function pushHostTokens(
-	host: HostLogin,
+	host: HostLogin & { awsProfiles?: string[] },
 	connectors: readonly HostConnector[],
 ): Promise<string[]> {
 	const tokens = await hostTokens(connectors);
+	// The AWS profiles picked for the host, on its role, with this computer's region for each.
+	const regions = new Map(localAwsProfiles().map((p) => [p.name, p.region]));
+	const awsConfig = awsHostConfigScript(
+		(host.awsProfiles ?? []).map((name) => ({
+			name,
+			region: regions.get(name),
+		})),
+	);
 	const allowed = hostGithubAccounts(readOdinConfig())
 		.filter((account) => account.onHost)
 		.map((account) => account.login);
@@ -151,7 +160,11 @@ export async function pushHostTokens(
 			JSON.stringify(tokens),
 		);
 		await runOnHost(client, pruneGithubPairsScript(host.user, allowed));
-		await runOnHost(client, installHelpersScript(host.user), HELPERS_AS_USER);
+		await runOnHost(
+			client,
+			installHelpersScript(host.user),
+			`${HELPERS_AS_USER}${awsConfig}\n`,
+		);
 	} catch (error) {
 		throw new Error(
 			`Couldn't write the tokens on the host: ${error instanceof Error ? error.message : String(error)}. ${sudoHint(host)}`,

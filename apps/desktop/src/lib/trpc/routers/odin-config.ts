@@ -88,6 +88,8 @@ export interface OdinFileConfig {
 		 * and refreshes those; this computer's token goes for the others.
 		 */
 		githubHostSignIns?: string[];
+		/** AWS profile names defined on the host, signed in with its instance role (main/lib/remote-host/aws-on-host). */
+		awsProfiles?: string[];
 	};
 	/** `claude setup-token`'s token for remote sessions, encrypted with safeStorage. */
 	claudeToken?: string;
