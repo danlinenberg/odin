@@ -79,7 +79,7 @@ const clients = new Map<string, Promise<Client>>();
 const notConnected = (account: string, cause: unknown) =>
 	new OnePasswordSetupError(
 		"not-connected",
-		`Couldn't reach 1Password account "${account}". In 1Password, turn on Settings → Developer → Integrate with other apps, and check the account name. (${cause instanceof Error ? cause.message : String(cause)})`,
+		`Couldn't reach 1Password account "${account}". In 1Password, turn on Settings → Developer → Integrate with 1Password SDKs, and check the account name. (${cause instanceof Error ? cause.message : String(cause)})`,
 	);
 
 async function clientFor(account: string): Promise<Client> {
