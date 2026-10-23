@@ -46,6 +46,7 @@ export const HOST_GITHUB_TOKEN_MARGIN_MS = 45 * 60_000;
 export async function hostTokens(
 	connectors: readonly HostConnector[],
 	awsProfiles: readonly string[] = [],
+	awsSession?: { roleArn?: string; who: string },
 ): Promise<HostTokensFile> {
 	const config = readOdinConfig();
 	const tokens: HostTokensFile = {};
@@ -79,7 +80,7 @@ export async function hostTokens(
 	const accounts = await hostGithubTokens(config, HOST_GITHUB_TOKEN_MARGIN_MS);
 	if (Object.keys(accounts).length) tokens.githubAccounts = accounts;
 	if (connectors.includes("github") && github) tokens.githubConnector = true;
-	const aws = await hostAwsCredentials(awsProfiles);
+	const aws = await hostAwsCredentials(awsProfiles, awsSession);
 	if (Object.keys(aws).length) tokens.aws = aws;
 	return tokens;
 }
@@ -143,10 +144,13 @@ const sudoHint = (host: HostLogin) =>
  * Returns the connectors the host now serves.
  */
 export async function pushHostTokens(
-	host: HostLogin & { awsProfiles?: string[] },
+	host: HostLogin & { awsProfiles?: string[]; awsHostRole?: string },
 	connectors: readonly HostConnector[],
 ): Promise<string[]> {
-	const tokens = await hostTokens(connectors, host.awsProfiles ?? []);
+	const tokens = await hostTokens(connectors, host.awsProfiles ?? [], {
+		roleArn: host.awsHostRole,
+		who: host.user,
+	});
 	// The AWS profiles picked for the host, signed in with this user's own credentials, with this computer's region for each.
 	const regions = new Map(localAwsProfiles().map((p) => [p.name, p.region]));
 	const awsConfig = awsHostConfigScript(

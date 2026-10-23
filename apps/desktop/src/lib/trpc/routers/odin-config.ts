@@ -90,6 +90,8 @@ export interface OdinFileConfig {
 		githubHostSignIns?: string[];
 		/** AWS profiles that sign in on the host with this computer's credentials, for this user alone (main/lib/remote-host/aws-on-host). */
 		awsProfiles?: string[];
+		/** An IAM role those profiles' credentials go to the host as: a session of it, not the user's own sign-in (aws-on-host). */
+		awsHostRole?: string;
 	};
 	/** `claude setup-token`'s token for remote sessions, encrypted with safeStorage. */
 	claudeToken?: string;

@@ -1,7 +1,10 @@
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
+import {
+	fromNodeProviderChain,
+	fromTemporaryCredentials,
+} from "@aws-sdk/credential-providers";
 import { sh } from "./session";
 
 /**
@@ -16,7 +19,21 @@ import { sh } from "./session";
  * hour while it is awake. Odin's host service keeps them for that Linux user
  * alone, and the user's ~/.aws/config names each profile with a
  * credential_process that asks the service for them at each use.
+ *
+ * With a host role set (Settings > Remote), what goes is never the user's
+ * own sign-in but a session of that role, assumed with it and stamped with
+ * who they are (STS SourceIdentity, kept in CloudTrail). The role's policy
+ * can then deny every call from outside the hosts' network, so a copy taken
+ * off the host is worthless.
  */
+
+/** An IAM role's ARN, as Settings takes it. */
+const ROLE_ARN = /^arn:aws(-[a-z]+)*:iam::\d{12}:role\/[\w+=,.@/-]{1,512}$/;
+
+export const isRoleArn = (arn: string) => ROLE_ARN.test(arn);
+
+/** How long a host session lasts: Odin sends fresh ones every half hour while this computer is awake. */
+const HOST_SESSION_SECONDS = 3600;
 
 /** A profile name as ~/.aws/config and a shell can both take as it is. */
 const PROFILE = /^[A-Za-z0-9_.+-]{1,64}$/;
@@ -79,12 +96,29 @@ export interface AwsProcessCredentials {
  */
 export async function hostAwsCredentials(
 	profiles: readonly string[],
+	session?: { roleArn?: string; who: string },
 ): Promise<Record<string, AwsProcessCredentials>> {
 	const out: Record<string, AwsProcessCredentials> = {};
+	const role = session?.roleArn && isRoleArn(session.roleArn) ? session : null;
+	// SourceIdentity and the session name take letters, digits and +=,.@- only.
+	const who = (session?.who ?? "").replace(/[^\w+=,.@-]/g, "-").slice(0, 64);
 	await Promise.all(
 		profiles.filter(isAwsProfileName).map(async (profile) => {
 			try {
-				const creds = await fromNodeProviderChain({ profile })();
+				const own = fromNodeProviderChain({ profile });
+				const creds = await (role
+					? fromTemporaryCredentials({
+							masterCredentials: own,
+							params: {
+								RoleArn: role.roleArn,
+								RoleSessionName: `odin-${who}`.slice(0, 64),
+								SourceIdentity: who,
+								DurationSeconds: HOST_SESSION_SECONDS,
+							},
+							// STS's global endpoint; any region signs for it.
+							clientConfig: { region: "us-east-1" },
+						})
+					: own)();
 				out[profile] = {
 					Version: 1,
 					AccessKeyId: creds.accessKeyId,

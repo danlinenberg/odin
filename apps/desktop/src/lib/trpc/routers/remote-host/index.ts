@@ -18,7 +18,7 @@ import {
 	type UseHostStep,
 	waitForHost,
 } from "main/lib/remote-host/aws-instances";
-import { isAwsProfileName } from "main/lib/remote-host/aws-on-host";
+import { isAwsProfileName, isRoleArn } from "main/lib/remote-host/aws-on-host";
 import {
 	bringMirrorHome,
 	bringSessionHome,
@@ -673,6 +673,28 @@ export const createRemoteHostRouter = () =>
 		 * with this computer's credentials for them, which go with the other
 		 * tokens. Written at once; a profile turned off is gone there.
 		 */
+		/**
+		 * The role host sessions sign in as, in place of each user's own
+		 * sign-in: its policy can keep them to the hosts' network. Empty: the
+		 * user's own credentials go. Sent at once.
+		 */
+		setAwsHostRole: publicProcedure
+			.input(
+				z
+					.string()
+					.trim()
+					.refine((arn) => !arn || isRoleArn(arn), "Not an IAM role ARN."),
+			)
+			.mutation(async ({ input }) => {
+				const host = readOdinConfig().remoteHost;
+				if (!host) throw new Error("No remote host is set up.");
+				const next = { ...host, awsHostRole: input || undefined };
+				if (next.awsProfiles?.length)
+					await withAwsSignIn(host, () =>
+						pushHostTokens(next, (host.connectors ?? []) as HostConnector[]),
+					);
+				updateOdinConfig({ remoteHost: next });
+			}),
 		setAwsProfiles: publicProcedure
 			.input(z.array(z.string().refine(isAwsProfileName)))
 			.mutation(async ({ input }) => {

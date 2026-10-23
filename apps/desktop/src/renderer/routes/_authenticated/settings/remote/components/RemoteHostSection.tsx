@@ -102,6 +102,16 @@ export function RemoteHostSection() {
 		onSuccess: refresh,
 		onError,
 	});
+	const [roleDraft, setRoleDraft] = useState<string | null>(null);
+	const setAwsHostRole = electronTrpc.remoteHost.setAwsHostRole.useMutation({
+		onSuccess: () => {
+			setRoleDraft(null);
+			return refresh();
+		},
+		onError,
+	});
+	const savedRole = current?.host?.awsHostRole ?? "";
+	const role = roleDraft ?? savedRole;
 	const awsOnHost = new Set(
 		setAwsProfiles.isPending
 			? setAwsProfiles.variables
@@ -654,6 +664,34 @@ export function RemoteHostSection() {
 							</label>
 						))}
 					</div>
+					<form
+						className="mt-3 flex flex-wrap items-center gap-2"
+						onSubmit={(event) => {
+							event.preventDefault();
+							setAwsHostRole.mutate(role.trim());
+						}}
+					>
+						<Input
+							value={role}
+							onChange={(event) => setRoleDraft(event.target.value)}
+							placeholder="arn:aws:iam::123456789012:role/OdinHostSession"
+							className="h-8 min-w-0 flex-1 font-mono text-sm"
+							aria-label="Role host sessions sign in as"
+						/>
+						<Button
+							type="submit"
+							size="sm"
+							disabled={role.trim() === savedRole || setAwsHostRole.isPending}
+						>
+							{setAwsHostRole.isPending ? "Saving..." : "Save role"}
+						</Button>
+					</form>
+					<span className="mt-1 block text-xs text-muted-foreground select-text cursor-text">
+						Optional. With a role, the host gets a one-hour session of it,
+						assumed with your sign-in and recorded under your name, in place of
+						your own credentials. Its policy can keep it to the hosts' network,
+						so a copy taken off the host doesn't work.
+					</span>
 				</SettingRow>
 			)}
 			{current?.host && (

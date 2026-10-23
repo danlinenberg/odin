@@ -13,6 +13,7 @@ import {
 	AWS_CREDENTIAL_HELPER,
 	awsConfigProfiles,
 	awsHostConfigScript,
+	isRoleArn,
 } from "./aws-on-host";
 
 test("reads profiles and their regions from an AWS config, skipping sso-session sections", () => {
@@ -35,6 +36,16 @@ test("reads profiles and their regions from an AWS config, skipping sso-session 
 		{ name: "prod", region: "us-east-1" },
 		{ name: "dev" },
 	]);
+});
+
+test("the host role is an IAM role's ARN, nothing a shell or STS would choke on", () => {
+	expect(
+		isRoleArn("arn:aws:iam::585680601546:role/OdinHostSession"),
+	).toBeTrue();
+	expect(isRoleArn("arn:aws:iam::585680601546:role/path/To.Role")).toBeTrue();
+	expect(isRoleArn("arn:aws:iam::585680601546:user/dan")).toBeFalse();
+	expect(isRoleArn("arn:aws:iam::5856:role/x")).toBeFalse();
+	expect(isRoleArn("arn:aws:iam::585680601546:role/x; rm -rf /")).toBeFalse();
 });
 
 const runIn = (home: string, script: string) =>
