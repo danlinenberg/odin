@@ -1098,17 +1098,34 @@ function useShellPlace(card: BoardCard, shell: Pane) {
 	// Live PTYs and where each one really is. zsh here sends no OSC-7, so a
 	// pane's `cwd` only knows where Odin opened it; the process table knows more.
 	// Polled by the shell header (OdinShell): an interval here would add a timer per card.
-	const { data: metrics } = electronTrpc.resourceMetrics.getSnapshot.useQuery();
-	const live = metrics?.workspaces.flatMap((w) => w.sessions) ?? [];
-	const { data: cwds } = electronTrpc.terminal.shellCwds.useQuery(
-		{ pids: live.map((session) => session.pid) },
-		{ enabled: live.length > 0, refetchInterval: 5_000 },
+	// `select` down to strings: the snapshot changes every poll, and returning it
+	// whole re-rendered every card with a shell every 5s.
+	const { data: livePids = "" } =
+		electronTrpc.resourceMetrics.getSnapshot.useQuery(undefined, {
+			select: (data) =>
+				data.workspaces
+					.flatMap((w) => w.sessions)
+					.map((session) => session.pid)
+					.join(","),
+		});
+	const { data: shellPid } = electronTrpc.resourceMetrics.getSnapshot.useQuery(
+		undefined,
+		{
+			select: (data) =>
+				data.workspaces
+					.flatMap((w) => w.sessions)
+					.find((session) => session.paneId === shell.id)?.pid,
+		},
 	);
-	const cwdOfPane = (paneId: string) => {
-		const pid = live.find((session) => session.paneId === paneId)?.pid;
-		return pid ? cwds?.[pid] : undefined;
-	};
-	const here = cwdOfPane(shell.id) ?? shell.cwd ?? shell.initialCwd;
+	const { data: shellCwd } = electronTrpc.terminal.shellCwds.useQuery(
+		{ pids: livePids ? livePids.split(",").map(Number) : [] },
+		{
+			enabled: !!livePids,
+			refetchInterval: 5_000,
+			select: (cwds) => (shellPid ? cwds[shellPid] : undefined),
+		},
+	);
+	const here = shellCwd ?? shell.cwd ?? shell.initialCwd;
 	const inside = (dir: string | null | undefined, root: string) =>
 		!!dir && (dir === root || dir.startsWith(`${root}/`));
 	/**
@@ -2055,6 +2072,10 @@ function TagMenu({
 	);
 }
 
+/** `next`, or `prev` when it says the same - so a poll that changed nothing doesn't re-render. */
+const sameJson = <T,>(prev: T, next: T): T =>
+	JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
+
 /**
  * Stamp each card with the tags its brief came back with. The model picks
  * them while writing the brief that every card already gets, so this costs
@@ -2079,7 +2100,7 @@ const applyAutoTags = (tagsBySession: Record<string, string[]>) => {
 			};
 			changed = true;
 		}
-		return changed ? { panes } : {};
+		return changed ? { panes } : state;
 	});
 };
 
@@ -2102,7 +2123,7 @@ const applyAutoTitles = (titlesBySession: Record<string, string>) => {
 			panes[paneId] = { ...pane, odinTaskTitle: title, odinAutoTitled: true };
 			changed = true;
 		}
-		return changed ? { panes } : {};
+		return changed ? { panes } : state;
 	});
 };
 
@@ -2117,6 +2138,7 @@ interface CardActions {
 	remindMe: (card: BoardCard, day: string) => void;
 	resumeCard: (card: BoardCard) => Promise<void>;
 	cardTitle: (card: BoardCard) => string;
+	tickRow: (paneId: string, shift: boolean) => void;
 }
 
 interface BoardCardTileProps {
@@ -2149,6 +2171,149 @@ interface BoardCardTileProps {
  * every card's pills and hover card each time kept the renderer busy while idle.
  * `card` is rebuilt whenever any pane changes, so it compares field by field.
  */
+const sameCard = (a: BoardCard, b: BoardCard) =>
+	a.pane === b.pane &&
+	a.status === b.status &&
+	a.tabId === b.tabId &&
+	a.tabName === b.tabName &&
+	a.workspaceId === b.workspaceId &&
+	a.repoPath === b.repoPath;
+
+/**
+ * One row of the drawer's session list. Memoized like BoardCardTile: the list
+ * re-rendered every row on each board render while you read a session.
+ * A div with button semantics: a real <button> can't nest the tick box.
+ * No hover card here: it opened over the session you're reading.
+ */
+const SwitchRow = memo(function SwitchRow({
+	card,
+	actions,
+	title,
+	status,
+	hostState,
+	picked,
+	showTicks,
+	canExtend,
+	min,
+	leaving,
+	open,
+}: {
+	card: BoardCard;
+	actions: CardActions;
+	title: string;
+	status: string | undefined;
+	hostState: HostState;
+	picked: boolean;
+	showTicks: boolean;
+	canExtend: boolean;
+	min: boolean;
+	leaving: boolean;
+	open: boolean;
+}) {
+	return (
+		// biome-ignore lint/a11y/useSemanticElements: a real <button> can't nest the tick box <input>
+		<div
+			role="button"
+			tabIndex={0}
+			onClick={(event) => {
+				// In select mode, or on ⌘-click (Ctrl on Windows), a click ticks
+				// the row instead of opening it; shift-click extends a selection.
+				if (
+					showTicks ||
+					event.metaKey ||
+					event.ctrlKey ||
+					(event.shiftKey && canExtend)
+				)
+					return actions.tickRow(card.pane.id, event.shiftKey);
+				actions.openDrawer(card);
+			}}
+			onKeyDown={(event) => {
+				if (event.key === "Enter" || event.key === " ") {
+					event.preventDefault();
+					actions.openDrawer(card);
+				}
+			}}
+			onContextMenu={(event) => {
+				// Right-click → done, remind, star or tag.
+				event.preventDefault();
+				actions.setTagMenu({
+					paneId: card.pane.id,
+					x: event.clientX,
+					y: event.clientY,
+				});
+			}}
+			className={cn(
+				"flex cursor-pointer items-center gap-2 py-1.5 text-left text-xs transition-[translate,opacity] duration-[450ms]",
+				min ? "justify-center" : "px-3",
+				leaving
+					? "pointer-events-none -translate-x-6 bg-success/20 text-success-ink opacity-0"
+					: open
+						? "bg-primary/15 font-semibold text-foreground"
+						: picked
+							? "bg-primary/10 text-foreground"
+							: "text-muted-foreground hover:bg-accent hover:text-foreground",
+			)}
+		>
+			{min ? (
+				<span
+					className="size-2 shrink-0 rounded-full"
+					style={{
+						background: PANE_STATUS[card.status].dot,
+					}}
+				/>
+			) : (
+				// The status dot's slot doubles as the tick box in select mode.
+				<span className="relative flex size-3.5 shrink-0 items-center justify-center">
+					{showTicks ? (
+						<input
+							type="checkbox"
+							aria-label={`Select ${title}`}
+							title="Select - shift-click selects a range"
+							checked={picked}
+							onChange={() => {}}
+							onClick={(event) => {
+								event.stopPropagation();
+								actions.tickRow(card.pane.id, event.shiftKey);
+							}}
+							className="size-3.5 cursor-pointer accent-primary"
+						/>
+					) : (
+						<span
+							className="size-2 rounded-full"
+							style={{
+								background: PANE_STATUS[card.status].dot,
+							}}
+						/>
+					)}
+				</span>
+			)}
+			{!min && (
+				<span className="flex min-w-0 flex-1 flex-col">
+					<span className="flex min-w-0 items-center gap-1.5">
+						<span className="truncate">
+							<WatchMark paneId={card.pane.id} />
+							<RemoteMark paneId={card.pane.id} />
+							<HostMark paneId={card.pane.id} state={hostState} />
+							{title}
+						</span>
+						{card.pane.odinStarred && (
+							<LuStar
+								title="Starred - right-click to unstar"
+								className="ml-auto size-[11px] shrink-0 fill-current text-attention"
+							/>
+						)}
+					</span>
+					{status && (
+						<span className="truncate text-[10.5px] font-normal text-faint-foreground">
+							{status}
+						</span>
+					)}
+				</span>
+			)}
+		</div>
+	);
+});
+
 const BoardCardTile = memo(
 	function BoardCardTile({
 		card,
@@ -3343,15 +3508,15 @@ function DevBoardPage() {
 	// already holds the screen - read it directly, with the same two-reads rule.
 	// While a session's pane is open, tell Insights you're looking at it. The
 	// main process decides whether it counts (focused window, not idle).
-	const attend = electronTrpc.insights.attend.useMutation();
-	const attendRef = useRef(attend.mutate);
-	attendRef.current = attend.mutate;
 	const drawerSessionId = drawerCard?.pane.claudeSessionId;
 	useEffect(() => {
 		if (!drawerSessionId) return;
 		const beat = () => {
 			if (document.visibilityState === "visible")
-				attendRef.current({ sessionId: drawerSessionId });
+				// The plain client: a useMutation re-rendered the board twice a beat.
+				void electronTrpcClient.insights.attend
+					.mutate({ sessionId: drawerSessionId })
+					.catch(() => {});
 		};
 		const timer = setInterval(beat, 30_000);
 		return () => clearInterval(timer);
@@ -3956,6 +4121,9 @@ function DevBoardPage() {
 	// A string, so the memo below re-runs when the text changes, not every render.
 	const workTextKey = JSON.stringify(workTextByPane);
 
+	// Last pass's cards by pane id. Any pane's update rebuilds every card, and a
+	// fresh object per card re-rendered every memoized tile and row with it.
+	const lastCardsRef = useRef(new Map<string, BoardCard>());
 	const {
 		cardsByStatus,
 		completedCards,
@@ -3966,6 +4134,8 @@ function DevBoardPage() {
 		viewedCount,
 	} = useMemo(() => {
 		const map = new Map<PaneStatus, BoardCard[]>();
+		const lastCards = lastCardsRef.current;
+		lastCardsRef.current = new Map();
 		let starred = 0;
 		let viewed = 0;
 		const completed: BoardCard[] = [];
@@ -4070,7 +4240,11 @@ function DevBoardPage() {
 					continue;
 				// Every session stays on the board in its column until it's Done'd -
 				// nothing is silently dropped.
-				map.get(column)?.push({ ...card, status: column });
+				const shown = { ...card, status: column };
+				const last = lastCards.get(pane.id);
+				const kept = last && sameCard(last, shown) ? last : shown;
+				lastCardsRef.current.set(pane.id, kept);
+				map.get(column)?.push(kept);
 			}
 		}
 		return {
@@ -4349,8 +4523,6 @@ function DevBoardPage() {
 	// straight away rather than starting a 15s model call while you wait. The
 	// main process queues them one at a time and skips anything still cached, so
 	// re-firing this is cheap.
-	const warmBriefs =
-		electronTrpc.terminal.warmClaudeSessionBriefs.useMutation();
 	// Each brief's STATUS line by session id - the drawer's session list shows
 	// it under the title. Comes back with every warm, so no call of its own.
 	const [briefStatus, setBriefStatus] = useState<Record<string, string>>({});
@@ -4385,7 +4557,6 @@ function DevBoardPage() {
 				.join(","),
 		[cardsByStatus],
 	);
-	// biome-ignore lint/correctness/useExhaustiveDependencies: warmBriefs is a new object each render - the id list is the real trigger
 	useEffect(() => {
 		if (!briefSessionIds) return;
 		const entries = briefSessionIds.split(",");
@@ -4393,19 +4564,19 @@ function DevBoardPage() {
 		const settled = entries
 			.filter((entry) => entry.endsWith(":settled"))
 			.map((entry) => entry.split(":")[0]);
+		// The plain client, not useMutation: its pending/success flips and the
+		// fresh objects below re-rendered the whole board every minute.
 		const warm = () =>
-			warmBriefs.mutate(
-				{ sessionIds, settled },
-				{
-					onSuccess: (r) => {
-						applyAutoTags(r.tags);
-						// Missing until main restarts onto the procedure that returns it.
-						setBriefStatus(r.statuses ?? {});
-						setBriefUrgency(r.urgencies ?? {});
-						if (autoRename) applyAutoTitles(r.titles);
-					},
-				},
-			);
+			void electronTrpcClient.terminal.warmClaudeSessionBriefs
+				.mutate({ sessionIds, settled })
+				.then((r) => {
+					applyAutoTags(r.tags);
+					// Missing until main restarts onto the procedure that returns it.
+					setBriefStatus((prev) => sameJson(prev, r.statuses ?? {}));
+					setBriefUrgency((prev) => sameJson(prev, r.urgencies ?? {}));
+					if (autoRename) applyAutoTitles(r.titles);
+				})
+				.catch(() => {});
 		warm();
 		// Live sessions keep working; re-warm so a brief you open later is recent.
 		// Every minute, not five: a new card's title only comes back on the call
@@ -5439,117 +5610,21 @@ function DevBoardPage() {
 	// The drawer's Done stays in the drawer: the next session opens and the
 	// finished row fades out of the side list before it ends.
 	const [leavingPaneId, setLeavingPaneId] = useState<string | null>(null);
-	// One row of the drawer's session list. A div with button semantics: a real
-	// <button> can't nest the tick box.
-	// No hover card here: it opened over the session you're reading.
-	const switchRow = (card: BoardCard) => {
-		const picked = pickedIds.has(card.pane.id);
-		return (
-			// biome-ignore lint/a11y/useSemanticElements: a real <button> can't nest the tick box <input>
-			<div
-				role="button"
-				tabIndex={0}
-				onClick={(event) => {
-					// In select mode, or on ⌘-click (Ctrl on Windows), a click ticks
-					// the row instead of opening it; shift-click extends a selection.
-					if (
-						showTicks ||
-						event.metaKey ||
-						event.ctrlKey ||
-						(event.shiftKey && pickedRowIds.length > 0)
-					)
-						return tickRow(card.pane.id, event.shiftKey);
-					openDrawer(card);
-				}}
-				onKeyDown={(event) => {
-					if (event.key === "Enter" || event.key === " ") {
-						event.preventDefault();
-						openDrawer(card);
-					}
-				}}
-				onContextMenu={(event) => {
-					// Right-click → done, remind, star or tag.
-					event.preventDefault();
-					setTagMenu({
-						paneId: card.pane.id,
-						x: event.clientX,
-						y: event.clientY,
-					});
-				}}
-				className={cn(
-					"flex cursor-pointer items-center gap-2 py-1.5 text-left text-xs transition-[translate,opacity] duration-[450ms]",
-					isSwitchListMin ? "justify-center" : "px-3",
-					card.pane.id === leavingPaneId
-						? "pointer-events-none -translate-x-6 bg-success/20 text-success-ink opacity-0"
-						: card.pane.id === drawerCard?.pane.id
-							? "bg-primary/15 font-semibold text-foreground"
-							: picked
-								? "bg-primary/10 text-foreground"
-								: "text-muted-foreground hover:bg-accent hover:text-foreground",
-				)}
-			>
-				{isSwitchListMin ? (
-					<span
-						className="size-2 shrink-0 rounded-full"
-						style={{
-							background: PANE_STATUS[card.status].dot,
-						}}
-					/>
-				) : (
-					// The status dot's slot doubles as the tick box in select mode.
-					<span className="relative flex size-3.5 shrink-0 items-center justify-center">
-						{showTicks ? (
-							<input
-								type="checkbox"
-								aria-label={`Select ${cardTitle(card)}`}
-								title="Select - shift-click selects a range"
-								checked={picked}
-								onChange={() => {}}
-								onClick={(event) => {
-									event.stopPropagation();
-									tickRow(card.pane.id, event.shiftKey);
-								}}
-								className="size-3.5 cursor-pointer accent-primary"
-							/>
-						) : (
-							<span
-								className="size-2 rounded-full"
-								style={{
-									background: PANE_STATUS[card.status].dot,
-								}}
-							/>
-						)}
-					</span>
-				)}
-				{!isSwitchListMin && (
-					<span className="flex min-w-0 flex-1 flex-col">
-						<span className="flex min-w-0 items-center gap-1.5">
-							<span className="truncate">
-								<WatchMark paneId={card.pane.id} />
-								<RemoteMark paneId={card.pane.id} />
-								<HostMark
-									paneId={card.pane.id}
-									state={hostStateOf(card.pane.id)}
-								/>
-								{cardTitle(card)}
-							</span>
-							{card.pane.odinStarred && (
-								<LuStar
-									title="Starred - right-click to unstar"
-									className="ml-auto size-[11px] shrink-0 fill-current text-attention"
-								/>
-							)}
-						</span>
-						{switchStatus(card) && (
-							<span className="truncate text-[10.5px] font-normal text-faint-foreground">
-								{switchStatus(card)}
-							</span>
-						)}
-					</span>
-				)}
-			</div>
-		);
-	};
+	const switchRow = (card: BoardCard) => (
+		<SwitchRow
+			card={card}
+			actions={cardActions}
+			title={cardTitle(card)}
+			status={switchStatus(card)}
+			hostState={hostStateOf(card.pane.id)}
+			picked={pickedIds.has(card.pane.id)}
+			showTicks={showTicks}
+			canExtend={pickedRowIds.length > 0}
+			min={isSwitchListMin}
+			leaving={card.pane.id === leavingPaneId}
+			open={card.pane.id === drawerCard?.pane.id}
+		/>
+	);
 	const markDoneInDrawer = (card: BoardCard, put: PutAway = toDone) => {
 		const at = switchCards.findIndex((c) => c.pane.id === card.pane.id);
 		const next = switchCards[at + 1] ?? switchCards[at - 1];
@@ -5879,6 +5954,7 @@ function DevBoardPage() {
 		remindMe: (card, day) => cardActionsRef.current?.remindMe(card, day),
 		resumeCard: async (card) => cardActionsRef.current?.resumeCard(card),
 		cardTitle: (card) => cardActionsRef.current?.cardTitle(card) ?? "",
+		tickRow: (paneId, shift) => cardActionsRef.current?.tickRow(paneId, shift),
 	}));
 	const remindMe = (card: BoardCard, day: string) => {
 		const sessionId =
@@ -5919,6 +5995,7 @@ function DevBoardPage() {
 			await resumeCard(card);
 		},
 		cardTitle,
+		tickRow,
 	};
 
 	// The drawer's title row: name, chips, status, star and the Diff, Shell
