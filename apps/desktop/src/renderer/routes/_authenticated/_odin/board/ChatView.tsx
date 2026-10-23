@@ -19,6 +19,7 @@ import {
 import { BsCloud } from "react-icons/bs";
 import {
 	LuChevronRight,
+	LuFile,
 	LuLoaderCircle,
 	LuMic,
 	LuSmartphone,
@@ -34,7 +35,6 @@ import { MarkdownRenderer } from "renderer/components/MarkdownRenderer";
 import { isHotkey, useHotkeyDisplay } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
 import { electronTrpcClient } from "renderer/lib/trpc-client";
-import { shellEscapePaths } from "renderer/screens/main/components/WorkspaceView/ContentView/TabsContent/Terminal/utils";
 import { draftFor, useChatDrafts } from "renderer/stores/chat-drafts";
 import { useCompacting } from "renderer/stores/compacting";
 import {
@@ -1585,8 +1585,14 @@ export function withoutAttachments(text: string, hidden: Set<string>): string {
 		.join("\n");
 }
 
-/** A pasted image or video: an image's URL alone, or a video with its file. */
-type Preview = string | { url: string; video: true };
+/**
+ * A pasted image or video: an image's URL alone, or a video with its file.
+ * Any other file shows as a chip with its name; its url is its path.
+ */
+type Preview =
+	| string
+	| { url: string; video: true }
+	| { url: string; name: string; file: true };
 
 function PreviewStrip({
 	previews,
@@ -1639,6 +1645,14 @@ function PreviewStrip({
 								)}
 							/>
 						</button>
+					) : "file" in preview ? (
+						<span
+							title={preview.url}
+							className="flex h-9 max-w-60 items-center gap-1.5 rounded-lg border border-border px-2.5 text-[12px] text-foreground"
+						>
+							<LuFile className="size-3.5 shrink-0 text-muted-foreground" />
+							<span className="truncate">{preview.name}</span>
+						</span>
 					) : (
 						<video
 							src={preview.url}
@@ -3958,19 +3972,24 @@ function Composer({
 	const [attached, setAttached] = useState<
 		{ preview: Preview; path: string }[]
 	>([]);
-	const attach = (files: File[], cite = false) => {
+	const attach = (files: File[]) => {
 		const media = files.filter(
 			(f) => f.type.startsWith("image/") || f.type.startsWith("video/"),
 		);
-		const others = cite
-			? files
-					.filter((f) => !media.includes(f))
-					.map((f) => window.webUtils.getPathForFile(f))
-					.filter(Boolean)
-			: [];
+		// Any other file is attached too, not typed in as its path: it goes
+		// with the message, to the host as well for a remote session.
+		const others = files
+			.filter((f) => !media.includes(f))
+			.map((f) => ({ name: f.name, path: window.webUtils.getPathForFile(f) }))
+			.filter((f) => f.path);
 		if (others.length > 0) {
-			const text = shellEscapePaths(others);
-			setDraft((d) => (d && !/\s$/.test(d) ? `${d} ${text}` : d + text));
+			setAttached((list) => [
+				...list,
+				...others.map(({ name, path }) => ({
+					path,
+					preview: { url: path, name, file: true as const },
+				})),
+			]);
 			inputRef.current?.focus();
 		}
 		if (media.length === 0) return others.length > 0;
@@ -3989,7 +4008,7 @@ function Composer({
 		);
 		return true;
 	};
-	dropRef.current = (files) => attach(files, true);
+	dropRef.current = attach;
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const write = electronTrpc.terminal.write.useMutation();
 	const utils = electronTrpc.useUtils();

@@ -638,17 +638,43 @@ export function hostFiles(
 	prefix = "",
 ): { prompt: string; files: RemoteFile[] } {
 	const files: RemoteFile[] = [];
-	const paths = new Set(
-		prompt.match(/\/(?:Users|home|private|tmp|var)\/[^\s"'`)\]>]+/g),
-	);
-	let out = prompt;
-	for (const local of paths) {
-		const clean = local.replace(/[.,;:]+$/, "");
-		if (!isFile(clean)) continue;
-		const remote = `.odin/files/${prefix}${files.length}-${clean.split("/").pop()}`;
-		files.push({ local: clean, remote });
-		out = out.replaceAll(clean, `${hostHome(user)}/${remote}`);
+	const copies = new Map<string, string>();
+	// A path runs to the end of its line (or a NUL, which filesToHost puts
+	// between paths), a quote or a ">". Finder names often hold spaces and
+	// "(1)", so the longest run that is a file wins: cut at each space from
+	// the right, with and without trailing punctuation, until one is.
+	const start = /\/(?:Users|home|private|tmp|var)\//g;
+	let end = 0;
+	for (const match of prompt.matchAll(start)) {
+		if (match.index < end) continue;
+		const run = prompt
+			.slice(match.index)
+			.match(/^(?:\\.|[^\r\n\0"'`>\\])+/)?.[0];
+		if (!run) continue;
+		for (let cut = run.length; cut > 0; cut = run.lastIndexOf(" ", cut - 1)) {
+			const whole = run.slice(0, cut).replace(/(?<!\\)\s+$/, "");
+			const raw = [whole, whole.replace(/(?<!\\)[.,;:)\]]+$/, "")].find(
+				// A shell-escaped path (a drop into a terminal) names the file unescaped.
+				(path) => path && isFile(path.replace(/\\(.)/g, "$1")),
+			);
+			if (!raw) continue;
+			const local = raw.replace(/\\(.)/g, "$1");
+			if (!copies.has(raw)) {
+				const name = (local.split("/").pop() ?? "").replace(/\s+/g, "-");
+				const remote = `.odin/files/${prefix}${files.length}-${name}`;
+				files.push({ local, remote });
+				copies.set(raw, `${hostHome(user)}/${remote}`);
+			}
+			end = match.index + raw.length;
+			break;
+		}
 	}
+	let out = prompt;
+	// Longest first, so a path that starts another one is not cut short.
+	for (const [raw, copy] of [...copies].sort(
+		(a, b) => b[0].length - a[0].length,
+	))
+		out = out.replaceAll(raw, copy);
 	return { prompt: out, files };
 }
 
