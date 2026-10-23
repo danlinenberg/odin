@@ -6,6 +6,8 @@ export type HostDeps = {
 	sleep: (ms: number) => Promise<void>;
 	/** The pane is still open. */
 	alive: () => boolean;
+	/** Presses Enter in the pane. */
+	enter: () => Promise<void>;
 };
 
 /** A message on its way into a remote session's Claude. */
@@ -25,7 +27,17 @@ export function hostReady(screen: string): boolean {
 	return claudeDrawn(screen) && !remoteConnectLine(screen);
 }
 
+/**
+ * The run script's prompt after it stopped an idle Claude (`runScript` in
+ * main/lib/remote-host/session.ts). Enter there resumes the conversation.
+ */
+export function idleStopped(screen: string): boolean {
+	return /Odin stopped Claude here after .* with no output/.test(screen);
+}
+
 const POLL_MS = 500;
+/** Enter again if the stopped prompt is still up this long after the last one. */
+const WAKE_RETRY_MS = 15_000;
 /** A host rebooting after it ran out of memory takes minutes, not seconds. */
 const WAIT_MAX_MS = 30 * 60_000;
 /** Claude logs a message the moment it takes it, as a turn or queued. */
@@ -40,11 +52,21 @@ const SETTLE_MS = 3_000;
 
 const read = (deps: HostDeps) => deps.readScreen().catch(() => "");
 
-/** Until Claude is drawn on the host; false when the pane closed or it never came. */
+/**
+ * Until Claude is drawn on the host; false when the pane closed or it never
+ * came. A Claude stopped for being idle never comes back on its own: Enter
+ * resumes it, and the message goes in once it is drawn, multi-line or not.
+ */
 async function untilReady(deps: HostDeps): Promise<boolean> {
+	let woke = -WAKE_RETRY_MS;
 	for (let waited = 0; waited < WAIT_MAX_MS; waited += POLL_MS) {
 		if (!deps.alive()) return false;
-		if (hostReady(await read(deps))) return true;
+		const screen = await read(deps);
+		if (hostReady(screen)) return true;
+		if (idleStopped(screen) && waited - woke >= WAKE_RETRY_MS) {
+			woke = waited;
+			await deps.enter().catch(() => undefined);
+		}
 		await deps.sleep(POLL_MS);
 	}
 	return false;
