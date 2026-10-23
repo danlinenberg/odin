@@ -643,3 +643,36 @@ test("a prompt is taken once the conversation holds it as a turn or queued, from
 		rmSync(home, { recursive: true, force: true });
 	}
 });
+
+test("a laptop path with spaces is copied whole, and its copy has none", () => {
+	const local = "/Users/dan/dev/photos/Odin/Dark Purple Viking (1).jpeg";
+	const { prompt, files } = hostFiles(
+		`this for the app icon\u0000${local}`,
+		"ubuntu",
+		(path) => path === local,
+	);
+	expect(files).toEqual([
+		{ local, remote: ".odin/files/0-Dark-Purple-Viking-(1).jpeg" },
+	]);
+	const copy = "/home/ubuntu/.odin/files/0-Dark-Purple-Viking-(1).jpeg";
+	expect(prompt).toBe(`this for the app icon\u0000${copy}`);
+});
+
+test("a shell-escaped laptop path is copied by its real name", () => {
+	const { prompt, files } = hostFiles(
+		"look at /Users/d/my\\ file.txt please",
+		"ubuntu",
+		(path) => path === "/Users/d/my file.txt",
+	);
+	expect(files[0]?.local).toBe("/Users/d/my file.txt");
+	expect(prompt).toBe("look at /home/ubuntu/.odin/files/0-my-file.txt please");
+});
+
+test("a path in parentheses ends before the closing one", () => {
+	const { prompt } = hostFiles(
+		"the icon (/Users/d/a b.png) is new",
+		"ubuntu",
+		(path) => path === "/Users/d/a b.png",
+	);
+	expect(prompt).toBe("the icon (/home/ubuntu/.odin/files/0-a-b.png) is new");
+});
