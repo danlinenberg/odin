@@ -53,6 +53,35 @@ export function Thumbnails({ images }: { images?: string[] }) {
 	);
 }
 
+/** When a message was sent, as the board's chat shows it: "Oct 19, 23:29". */
+export function messageTime(at?: string | null): string | null {
+	if (!at) return null;
+	const date = new Date(at);
+	if (Number.isNaN(date.getTime())) return null;
+	return date.toLocaleString(undefined, {
+		month: "short",
+		day: "numeric",
+		hour: "2-digit",
+		minute: "2-digit",
+	});
+}
+
+function Time({
+	at,
+	className = "",
+}: {
+	at?: string | null;
+	className?: string;
+}) {
+	const label = messageTime(at);
+	if (!label || !at) return null;
+	return (
+		<time dateTime={at} className={`block text-[11px] ${className}`}>
+			{label}
+		</time>
+	);
+}
+
 /**
  * What your bubble shows: of a launch prompt (task + standing rules + reply
  * format), just the request you typed, as on the board; the whole prompt
@@ -112,6 +141,7 @@ function UserBubble({ message }: { message: Message }) {
 					)}
 				</div>
 			)}
+			<Time at={message.at} className="mt-1 text-right opacity-70" />
 		</div>
 	);
 }
@@ -259,6 +289,9 @@ export function Transcript({
 							</div>
 						)}
 					</div>
+				)}
+				{(body || latest) && (
+					<Time at={message.at} className="-mt-1 ml-1 text-faint-foreground" />
 				)}
 				{index === actionsAt && actions && (
 					<ActionCard actions={actions} send={send} />

@@ -51,13 +51,13 @@ import {
 	isPreviewableVideoFile,
 } from "shared/file-types";
 import { cameFromPhone } from "shared/from-phone";
+import { interruptClaude } from "shared/interrupt-claude";
 import { freshTldr, sameReply, tldrPlacement } from "shared/latest-reply";
+import { LIMIT_HIT_RE } from "shared/limit-hit";
 import {
 	agentOnScreen,
 	awaitsAwsSignIn,
 	claudeDrawn,
-	inputBoxRows,
-	odinScreenStatus,
 	remoteConnectLine,
 } from "shared/odin-screen-status";
 import { typedText } from "shared/typed-text";
@@ -970,8 +970,6 @@ export function segments(items: Item[]): (Item | Group)[] {
 
 /** A question or plan approval Claude is still waiting on - a menu only the TUI draws. */
 /** Claude's line when a usage or spend limit stops the turn. */
-export const LIMIT_HIT_RE = /^You[’']ve hit your .*\blimit\b/;
-
 function asking(items: Item[]): Tool | null {
 	const last = items.at(-1);
 	return last?.kind === "tool" &&
@@ -1782,8 +1780,10 @@ export {
 	isDoneItem,
 	isYouOnly,
 	itemOptions,
+	interruptClaude,
 	itemReply,
 	launchRequest,
+	LIMIT_HIT_RE,
 	splitActionItems,
 	ToolGroup,
 };
@@ -3912,41 +3912,6 @@ async function drawCount(paneId: string, text: string): Promise<number> {
 		.query({ paneId })
 		.catch(() => null);
 	return tail ? squash(screen?.text ?? "").split(tail).length - 1 : 0;
-}
-
-/**
- * Stops Claude's turn with Ctrl+C. Not Esc: with a message queued, Esc only
- * pulls the queue back into Claude's input box and the turn runs on. And not
- * when Claude already sits at its prompt - a hook can leave the card on
- * Working - because there Ctrl+C stops every background agent the session
- * runs, and a second one quits Claude. Two reads must agree it's idle: a
- * snapshot caught mid-repaint can lack the spinner. Returns whether it sent it.
- */
-export async function interruptClaude(
-	write: (input: { paneId: string; data: string }) => Promise<unknown>,
-	readScreen: (input: { paneId: string }) => Promise<{ text: string | null }>,
-	paneId: string,
-): Promise<boolean> {
-	const atPrompt = async () => {
-		const { text } = await readScreen({ paneId }).catch(() => ({
-			text: null,
-		}));
-		return !!text && odinScreenStatus(text) === "review";
-	};
-	if (await atPrompt()) {
-		await new Promise((resolve) => setTimeout(resolve, 300));
-		if (await atPrompt()) return false;
-	}
-	await write({ paneId, data: "\x03" });
-	// Stopped before it answered, Claude puts your message back in its input
-	// box, and the next one sent from here would land after it: "test" then
-	// "test" went in as "testtest". Clear it: Ctrl+U empties a row, Backspace
-	// joins the row above.
-	await new Promise((resolve) => setTimeout(resolve, 500));
-	const { text } = await readScreen({ paneId }).catch(() => ({ text: null }));
-	const rows = text ? inputBoxRows(text) : 0;
-	if (rows > 0) await write({ paneId, data: `${"\x15\x7f".repeat(rows)}\x15` });
-	return true;
 }
 
 /**

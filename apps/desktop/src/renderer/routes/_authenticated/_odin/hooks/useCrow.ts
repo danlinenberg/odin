@@ -705,6 +705,21 @@ function runOdinAction(
 	// The phone's reply: resume an exited session with it, or "live".
 	if (action === "phone-reply")
 		return phoneReply(args.paneId ?? "", args.text ?? "");
+	// The phone stopped a turn: as the board's Stop, the card leaves Working.
+	if (action === "interrupted") {
+		const paneId = args.paneId;
+		if (!paneId || !panes[paneId]) return "No session with that paneId.";
+		useTabsStore.setState((state) => ({
+			panes: {
+				...state.panes,
+				[paneId]: {
+					...state.panes[paneId],
+					status: args.sent === "true" ? "idle" : "review",
+				},
+			},
+		}));
+		return "ok";
+	}
 	if (action === "done") {
 		if (!args.paneId || !panes[args.paneId])
 			return "No session with that paneId - list them with action=sessions.";

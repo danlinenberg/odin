@@ -21,6 +21,7 @@ import {
 	slackThread,
 } from "renderer/routes/_authenticated/_odin/board/brief";
 import { boardSection } from "shared/board-section";
+import { interruptClaude } from "shared/interrupt-claude";
 import { boardTags } from "shared/odin-tags";
 import stripAnsi from "strip-ansi";
 import superjson from "superjson";
@@ -118,7 +119,12 @@ async function until(done: () => Promise<boolean>, capMs: number) {
  * only once Claude drew them - text and Enter in one read is taken as a paste
  * and sits in the input box.
  */
-async function typeIntoClaude(paneId: string, text: string, paths: string[]) {
+async function typeIntoClaude(
+	paneId: string,
+	text: string,
+	paths: string[],
+	now = false,
+) {
 	const write = (data: string) => terminal().write({ paneId, data });
 	const marks = [
 		...new Set(paths.map((path) => (IMAGE_RE.test(path) ? "[Image #" : path))),
@@ -135,7 +141,8 @@ async function typeIntoClaude(paneId: string, text: string, paths: string[]) {
 	const expected = paths.length + (text ? 1 : 0);
 	await until(async () => (await drawn()) >= before + expected, 3000);
 	await pause(30);
-	write("\r");
+	// Ctrl+X Ctrl+S, the board's Send now: lands mid-turn, not after it.
+	write(now ? "\x18\x13" : "\r");
 }
 
 /** The remote host's copy of a message's files, from the board's own procedure. */
@@ -352,6 +359,8 @@ export const phoneRouter = t.router({
 				.extend({
 					text: z.string().max(20_000),
 					paths: z.array(attachment).max(10).default([]),
+					/** Claude reads it mid-turn instead of once the turn ends. */
+					now: z.boolean().default(false),
 				})
 				.refine((input) => input.text.trim() || input.paths.length),
 		)
@@ -370,9 +379,26 @@ export const phoneRouter = t.router({
 				text: opening,
 			}).catch(() => null);
 			if (answer !== "resumed")
-				await typeIntoClaude(input.paneId, text, sent.paths);
+				await typeIntoClaude(input.paneId, text, sent.paths, input.now);
 			rememberFromPhone(input.paneId, input.text);
 		}),
+
+	/** The board's Stop: Ctrl+C the turn, never at an idle prompt. */
+	interrupt: t.procedure.input(paneInput).mutation(async ({ input }) => {
+		const sent = await interruptClaude(
+			async (keys) => terminal().write(keys),
+			async (pane) => ({
+				text: (await terminal().readScreen(pane)) ?? null,
+			}),
+			input.paneId,
+		);
+		// Claude fires no Stop hook on an interrupt: the card says so now.
+		await askRenderer("interrupted", {
+			paneId: input.paneId,
+			sent: String(sent),
+		}).catch(() => null);
+		return { sent };
+	}),
 
 	/** One raw key for a prompt Claude draws as a menu: Enter, Esc, a digit. */
 	key: t.procedure

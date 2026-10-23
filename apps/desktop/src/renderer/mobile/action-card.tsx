@@ -62,7 +62,8 @@ function ActionRow({
 	const [typed, setTyped] = useState("");
 	const { text, options } = itemOptions(item);
 	const approve = isApprovalItem(item);
-	const asks = isAnswerItem(item) || options.length > 0;
+	// As on the board: an approval gets its Approve button, even with choices.
+	const asks = !approve && (isAnswerItem(item) || options.length > 0);
 	const done = !approve && isDoneItem(item);
 	const go = (message: string) => {
 		send(message);
