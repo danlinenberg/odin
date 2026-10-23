@@ -93,6 +93,14 @@ export function RemoteHostSection() {
 		onError,
 	});
 	const [apiKeyDraft, setApiKeyDraft] = useState("");
+	const [newUser, setNewUser] = useState("");
+	const setUpUser = electronTrpc.remoteHost.setUpUser.useMutation({
+		onSuccess: ({ user }) => {
+			setNewUser("");
+			toast.success(`${user} is set up on the host.`);
+		},
+		onError,
+	});
 	const setGithubOnHost = electronTrpc.remoteHost.setGithubOnHost.useMutation({
 		onSuccess: refresh,
 		onError,
@@ -563,6 +571,43 @@ export function RemoteHostSection() {
 							</div>
 						))}
 					</div>
+				</SettingRow>
+			)}
+			{current?.host && (
+				<SettingRow
+					label="Set up a user on this host"
+					stacked
+					description={
+						<span className="select-text cursor-text">
+							Users have no root on the host: an administrator creates each
+							one's Linux user and Odin service, here, by the name their
+							Settings show. Needs an AWS administrator role. Yours is{" "}
+							<span className="font-mono">{current.hostUser}</span>.
+						</span>
+					}
+				>
+					<form
+						className="flex items-center gap-2"
+						onSubmit={(event) => {
+							event.preventDefault();
+							if (newUser.trim()) setUpUser.mutate(newUser.trim());
+						}}
+					>
+						<Input
+							value={newUser}
+							onChange={(event) => setNewUser(event.target.value)}
+							placeholder="odin-name"
+							className="h-8 w-48 font-mono text-sm"
+							aria-label="Linux user to set up"
+						/>
+						<Button
+							type="submit"
+							size="sm"
+							disabled={!newUser.trim() || setUpUser.isPending}
+						>
+							{setUpUser.isPending ? "Setting up..." : "Set up"}
+						</Button>
+					</form>
 				</SettingRow>
 			)}
 			{current?.host && (

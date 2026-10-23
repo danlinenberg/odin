@@ -201,11 +201,18 @@ export async function pushNightPlan(
 			NIGHT_RUNNER_PY,
 		);
 		if (installed !== "yes") {
-			const admin = await connectHost(adminLogin(host));
-			await runOnHost(
-				admin,
-				`sudo -n bash -c ${sh(nightInstallScript(host.user))}`,
-			).finally(() => admin.end());
+			// Root's work, which only an administrator's AWS sign-in may do.
+			try {
+				const admin = await connectHost(adminLogin(host));
+				await runOnHost(
+					admin,
+					`sudo -n bash -c ${sh(nightInstallScript(host.user))}`,
+				).finally(() => admin.end());
+			} catch (error) {
+				throw new Error(
+					`The night runner isn't installed on the host for ${host.user}, and installing it is an administrator's work: one with an AWS administrator role opens Settings > Remote > Set up a user on this host. (${error instanceof Error ? error.message : String(error)})`,
+				);
+			}
 		}
 		const write = (path: string) =>
 			`umask 077; mkdir -p ~/.odin/night/stopped && cat > ~/.odin/night/${path}.new && mv ~/.odin/night/${path}.new ~/.odin/night/${path}`;
