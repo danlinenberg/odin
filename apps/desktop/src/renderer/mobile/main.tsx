@@ -662,6 +662,7 @@ function Session({ paneId }: { paneId: string }) {
 	};
 	const key = phone.key.useMutation({ onSuccess: refetch });
 	const interrupt = phone.interrupt.useMutation({ onSuccess: refetch });
+	const runCommand = phone.run.useMutation({ onSuccess: refetch });
 	const utils = phone.useUtils();
 	// The star moves on tap; the Mac's answer only confirms it (or undoes it).
 	const star = phone.star.useMutation({
@@ -864,6 +865,7 @@ function Session({ paneId }: { paneId: string }) {
 						brief.data && typeof brief.data === "object" ? brief.data : null
 					}
 					send={sendText}
+					run={(command) => runCommand.mutateAsync({ paneId, command })}
 				/>
 				{waiting.map((item) => (
 					<div

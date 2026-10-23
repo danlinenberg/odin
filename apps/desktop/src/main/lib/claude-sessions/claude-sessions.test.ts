@@ -1325,3 +1325,31 @@ describe("parseTranscript - only what you said is yours", () => {
 		).toBeNull();
 	});
 });
+
+test("clip keeps the `!` blocks above the items too", () => {
+	const text = `${"x".repeat(300)}\n\nPreview:\n\`\`\`\n! git log -1\n\`\`\`\n\nACTION ITEMS:\n1. Run it`;
+	const out = clip(text, 150);
+	expect(out).toContain("! git log -1");
+	expect(out.endsWith("1. Run it")).toBe(true);
+});
+
+test("parseTranscript - a `!` run is one shell message, output folded in", () => {
+	const user = (content: string) =>
+		JSON.stringify({
+			type: "user",
+			timestamp: "2026-10-23T10:00:00Z",
+			message: { role: "user", content },
+		});
+	const jsonl = [
+		user("<bash-input>git log -1</bash-input>"),
+		user("<bash-stdout>abc123 Fix</bash-stdout><bash-stderr></bash-stderr>"),
+	].join("\n");
+	expect(parseTranscript(jsonl)).toEqual([]);
+	const [run] = parseTranscript(jsonl, 60, 6000, false, true);
+	expect(run.shell).toEqual({
+		command: "git log -1",
+		stdout: "abc123 Fix",
+		stderr: "",
+	});
+	expect(run.text).toBe("git log -1");
+});

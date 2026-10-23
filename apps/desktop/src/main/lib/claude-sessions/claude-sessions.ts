@@ -2,6 +2,10 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { open, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
+import {
+	parseShell,
+	type Shell,
+} from "renderer/routes/_authenticated/_odin/board/shell-output";
 import { PR_RULES_HEADER } from "shared/odin-rules";
 import { type SessionCredential, transcriptCredential } from "./credential";
 import { type SessionUsage, transcriptUsage } from "./usage";
@@ -560,6 +564,8 @@ export interface TranscriptMessage {
 	opened?: true;
 	/** Pasted images as data URLs, only when asked for (`withImages`). */
 	images?: string[];
+	/** A `!` command and its output, only when asked for (`withShells`). */
+	shell?: Shell;
 }
 
 /**
@@ -578,6 +584,45 @@ export function spokenText(text: string): string | null {
 	);
 }
 
+/** Output a shell card keeps: its end, where the result and the error are. */
+const SHELL_CHARS = 4000;
+const lastChars = (text: string) =>
+	text.length > SHELL_CHARS ? `…\n${text.slice(-SHELL_CHARS)}` : text;
+
+/**
+ * A `!` run as one message: output folds into the command just before it,
+ * as the board's chat does; an empty run with no command shows nothing.
+ */
+function pushShell(
+	messages: TranscriptMessage[],
+	shell: Shell,
+	at: string | null,
+): void {
+	const trimmed = {
+		...shell,
+		stdout: lastChars(shell.stdout),
+		stderr: lastChars(shell.stderr),
+	};
+	const last = messages.at(-1)?.shell;
+	if (
+		shell.command === undefined &&
+		last?.command !== undefined &&
+		!last.stdout &&
+		!last.stderr
+	) {
+		last.stdout = trimmed.stdout;
+		last.stderr = trimmed.stderr;
+		return;
+	}
+	if (shell.command === undefined && !shell.stdout && !shell.stderr) return;
+	messages.push({
+		role: "user",
+		text: shell.command ?? "",
+		at,
+		shell: trimmed,
+	});
+}
+
 /** A message's pasted images, as data URLs. */
 function base64Images(content: unknown[]): string[] {
 	return content.flatMap((block) => {
@@ -594,17 +639,27 @@ function base64Images(content: unknown[]): string[] {
 /** An ACTION ITEMS line, in the shapes splitActionItems reads. */
 const ACTION_ITEMS = /^[#>*_\s]*ACTION ITEMS\b/gim;
 
+/** Where a `! command` block opens. */
+const BANG_BLOCK = /```[^\n]*\n\s*!/g;
+
 /**
- * A message cut to `max` characters. A reply ends on its ACTION ITEMS, and
- * the phone and the brief read them there, so a long reply loses the middle
- * of its body, never its items.
+ * A message cut to `max` characters. A reply ends on its `!` commands and
+ * ACTION ITEMS, and the phone and the brief read them there, so a long reply
+ * loses the middle of its body, never those.
  */
 export function clip(text: string, max: number): string {
 	if (text.length <= max) return text;
-	const at = [...text.matchAll(ACTION_ITEMS)].at(-1)?.index;
-	const tail = at === undefined ? "" : text.slice(at);
-	if (!tail || tail.length > max / 2)
-		return `${text.slice(0, max)}\n…[truncated]`;
+	const keep = (at: number) => text.length - at <= max / 2;
+	const items = [...text.matchAll(ACTION_ITEMS)].at(-1)?.index;
+	const blocks = [...text.matchAll(BANG_BLOCK)]
+		.map((match) => match.index)
+		.filter(keep);
+	const at = Math.min(
+		...blocks,
+		items !== undefined && keep(items) ? items : Number.POSITIVE_INFINITY,
+	);
+	if (!Number.isFinite(at)) return `${text.slice(0, max)}\n…[truncated]`;
+	const tail = text.slice(at);
 	return `${text.slice(0, max - tail.length)}\n…[truncated]\n\n${tail}`;
 }
 
@@ -614,6 +669,7 @@ export function parseTranscript(
 	maxMessages = 500,
 	maxChars = 6000,
 	withImages = false,
+	withShells = false,
 ): TranscriptMessage[] {
 	const messages: TranscriptMessage[] = [];
 	const prCreates = new Set<string>();
@@ -709,6 +765,18 @@ export function parseTranscript(
 		}
 		const raw = messageText(message?.content).trim();
 		if (!raw) continue;
+		const shell =
+			withShells && entry.type === "user" && !entry.isMeta
+				? parseShell(raw)
+				: null;
+		if (shell) {
+			pushShell(
+				messages,
+				shell,
+				typeof entry.timestamp === "string" ? entry.timestamp : null,
+			);
+			continue;
+		}
 		if (entry.type === "user" && !isTypedByUser(entry, raw)) continue;
 		const text = entry.type === "user" ? spokenText(raw) : raw;
 		if (!text) continue;
@@ -987,7 +1055,7 @@ export async function transcriptTail({
 	let text = buffer.toString("utf-8");
 	// Cut in the middle of a line: start at the next whole one.
 	if (start > 0) text = text.slice(text.indexOf("\n") + 1);
-	const messages = parseTranscript(text, 60, 6000, true);
+	const messages = parseTranscript(text, 60, 6000, true, true);
 	tails.set(sessionId, { key, messages });
 	return messages;
 }
