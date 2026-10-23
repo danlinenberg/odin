@@ -90,25 +90,82 @@ export function runOnHost(
 	);
 }
 
-/** Copies laptop files to the host over SFTP (paths relative to the login user's home). */
+/** How long a file-copy connection stays open after its last copy. */
+const KEEP_MS = 3 * 60_000;
+
+type Kept = {
+	ready: Promise<{ client: Client; sftp: import("ssh2").SFTPWrapper }>;
+	timer?: ReturnType<typeof setTimeout>;
+};
+const kept = new Map<string, Kept>();
+
+function forget(key: string, entry: Kept): void {
+	clearTimeout(entry.timer);
+	if (kept.get(key) === entry) kept.delete(key);
+}
+
+/** The open SFTP connection to this host and login, or a new one. */
+function sftpSession(host: HostLogin): { entry: Kept; reused: boolean } {
+	const key = `${host.instanceId}:${host.user}`;
+	const hit = kept.get(key);
+	if (hit) return { entry: hit, reused: true };
+	const entry: Kept = {
+		ready: (async () => {
+			const client = await connectHost(host);
+			client
+				.on("close", () => forget(key, entry))
+				.on("error", () => forget(key, entry));
+			try {
+				await runOnHost(client, "mkdir -p ~/.odin/files");
+				const sftp = await new Promise<import("ssh2").SFTPWrapper>(
+					(resolve, reject) =>
+						client.sftp((err, s) => (err ? reject(err) : resolve(s))),
+				);
+				return { client, sftp };
+			} catch (error) {
+				client.end();
+				throw error;
+			}
+		})(),
+	};
+	entry.ready.catch(() => forget(key, entry));
+	kept.set(key, entry);
+	return { entry, reused: false };
+}
+
+/**
+ * Copies laptop files to the host over SFTP (paths relative to the login
+ * user's home). A connection takes seconds to open - a one-time key, an SSM
+ * session, the SSH handshake - and a chat message with a screenshot paid all
+ * of it every time. So the connection stays open a few minutes after a copy;
+ * one that died meanwhile is opened again once.
+ */
 export async function copyFilesToHost(
 	host: HostLogin,
 	files: { local: string; remote: string }[],
 ): Promise<void> {
-	const client = await connectHost(host);
-	try {
-		await runOnHost(client, "mkdir -p ~/.odin/files");
-		const sftp = await new Promise<import("ssh2").SFTPWrapper>(
-			(resolve, reject) =>
-				client.sftp((err, s) => (err ? reject(err) : resolve(s))),
-		);
-		for (const file of files)
-			await new Promise<void>((resolve, reject) =>
-				sftp.fastPut(file.local, file.remote, (err) =>
-					err ? reject(err) : resolve(),
-				),
-			);
-	} finally {
-		client.end();
+	const key = `${host.instanceId}:${host.user}`;
+	for (;;) {
+		const { entry, reused } = sftpSession(host);
+		clearTimeout(entry.timer);
+		try {
+			const { client, sftp } = await entry.ready;
+			for (const file of files)
+				await new Promise<void>((resolve, reject) =>
+					sftp.fastPut(file.local, file.remote, (err) =>
+						err ? reject(err) : resolve(),
+					),
+				);
+			entry.timer = setTimeout(() => {
+				forget(key, entry);
+				client.end();
+			}, KEEP_MS);
+			entry.timer.unref?.();
+			return;
+		} catch (error) {
+			forget(key, entry);
+			void entry.ready.then(({ client }) => client.end()).catch(() => {});
+			if (!reused) throw error;
+		}
 	}
 }

@@ -3912,6 +3912,39 @@ async function drawCount(paneId: string, text: string): Promise<number> {
 }
 
 /**
+ * A remote session's attachments, on their way to the host since they were
+ * pasted: copying one takes seconds, so it starts while you type, not when
+ * you send. Each local path to its copy's path on the host.
+ */
+const hostCopies = new Map<string, Promise<string>>();
+
+function copyToHost(path: string): Promise<string> {
+	let copy = hostCopies.get(path);
+	if (!copy) {
+		copy = electronTrpcClient.remoteHost.filesToHost
+			.mutate({ text: "", paths: [path] })
+			.then((sent) => sent.paths[0] ?? path);
+		hostCopies.set(path, copy);
+		// A failed copy is tried again at send.
+		copy.catch(() => hostCopies.delete(path));
+	}
+	return copy;
+}
+
+/** The host copy of each path, copying any not on its way yet; done with them after. */
+async function hostPathsOf(paths: string[]): Promise<string[]> {
+	try {
+		return await Promise.all(
+			paths.map((path) =>
+				path ? copyToHost(path).catch(() => copyToHost(path)) : path,
+			),
+		);
+	} finally {
+		for (const path of paths) hostCopies.delete(path);
+	}
+}
+
+/**
  * Its own component so a keystroke re-renders the box, not the conversation.
  * A pasted or dropped image or video is saved and held as a preview with its
  * path until you send, so its × can still drop it. Sending pastes each path
@@ -3975,7 +4008,10 @@ function Composer({
 		}
 		if (media.length === 0) return others.length > 0;
 		void attachmentPaths(media).then(
-			(paths) =>
+			(paths) => {
+				if (useTabsStore.getState().panes[paneId]?.odinRemote)
+					for (const path of paths)
+						if (path) void copyToHost(path).catch(() => undefined);
 				setAttached((list) => [
 					...list,
 					...media.map((file, index) => ({
@@ -3984,7 +4020,8 @@ function Composer({
 							? { url: URL.createObjectURL(file), video: true as const }
 							: URL.createObjectURL(file),
 					})),
-				]),
+				]);
+			},
 			(error) => toast.error(String(error)),
 		);
 		return true;
@@ -4105,17 +4142,18 @@ function Composer({
 		}
 		try {
 			if (onHost) {
-				const sent = await electronTrpcClient.remoteHost.filesToHost.mutate({
-					text,
-					paths,
-				});
+				// Attachments started copying when pasted; only the text is new.
+				const [sent, hostPaths] = await Promise.all([
+					electronTrpcClient.remoteHost.filesToHost.mutate({ text, paths: [] }),
+					hostPathsOf(paths),
+				]);
 				// Queued, not typed: the host may be down or Claude restarting.
 				void deliverOnHost(
 					paneId,
 					{
 						...handle,
 						type: async () => {
-							await pasteAttachments(write.mutateAsync, paneId, sent.paths);
+							await pasteAttachments(write.mutateAsync, paneId, hostPaths);
 							await typeIntoClaude(write.mutateAsync, paneId, sent.text, now);
 						},
 					},
@@ -4186,9 +4224,10 @@ function Composer({
 				{attached.length > 0 && (
 					<PreviewStrip
 						previews={attached.map((item) => item.preview)}
-						onRemove={(index) =>
-							setAttached((list) => list.filter((_, i) => i !== index))
-						}
+						onRemove={(index) => {
+							hostCopies.delete(attached[index]?.path ?? "");
+							setAttached((list) => list.filter((_, i) => i !== index));
+						}}
 						className="mb-2"
 					/>
 				)}
