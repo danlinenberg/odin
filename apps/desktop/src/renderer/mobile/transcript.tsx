@@ -1,7 +1,12 @@
 import { useState } from "react";
 import { LuChevronDown, LuChevronRight } from "react-icons/lu";
 import { type BriefUrgency, freshTldr, latestReply } from "shared/latest-reply";
-import { splitActionItems } from "../routes/_authenticated/_odin/board/action-items";
+import {
+	bangCommandNotes,
+	bangCommands,
+	localCommand,
+	splitActionItems,
+} from "../routes/_authenticated/_odin/board/action-items";
 import { launchRequest } from "../routes/_authenticated/_odin/board/launch-request";
 import { ActionCard } from "./action-card";
 import { Markdown } from "./markdown";
@@ -12,6 +17,8 @@ type Message = {
 	at?: string | null;
 	/** Thumbnails of the images pasted with it. */
 	images?: string[];
+	/** A `!` command and what it printed. */
+	shell?: { command?: string; stdout: string; stderr: string };
 };
 
 /** Images in a bubble: thumbnails, and one tapped opens over the screen. */
@@ -146,6 +153,113 @@ function UserBubble({ message }: { message: Message }) {
 	);
 }
 
+/** Lines a shell card shows before Show all, as on the board. */
+const SHELL_LINES = 12;
+
+/** A `!` command and its output: a terminal card, never a bubble of yours. */
+function ShellCard({ shell }: { shell: NonNullable<Message["shell"]> }) {
+	const [all, setAll] = useState(false);
+	const output = [shell.stdout, shell.stderr].filter(Boolean).join("\n");
+	const lines = output.split("\n");
+	const shown = all ? output : lines.slice(-SHELL_LINES).join("\n");
+	return (
+		<div className="my-2 overflow-hidden rounded-[10px] border border-border bg-secondary/60 font-mono text-[12px] leading-snug">
+			{shell.command !== undefined && (
+				<div className="select-text break-all border-b border-border px-2.5 py-1.5 text-foreground">
+					$ {shell.command}
+				</div>
+			)}
+			{output ? (
+				<pre
+					className={`select-text overflow-x-auto whitespace-pre-wrap break-words px-2.5 py-1.5 ${shell.stderr && !shell.stdout ? "text-danger" : "text-soft-foreground"}`}
+				>
+					{shown}
+				</pre>
+			) : (
+				<div className="px-2.5 py-1.5 text-faint-foreground">No output</div>
+			)}
+			{lines.length > SHELL_LINES && (
+				<button
+					type="button"
+					onClick={() => setAll(!all)}
+					className="px-2.5 pb-1.5 font-sans text-[13px] font-medium text-primary"
+				>
+					{all ? "Show less" : `Show all ${lines.length} lines`}
+				</button>
+			)}
+		</div>
+	);
+}
+
+/**
+ * The reply's `!` blocks, each with Run: in Claude's session, or `!local`
+ * in the session's Shell on your Mac. Claude's line above a block says
+ * what it does.
+ */
+function RunCard({
+	text,
+	run,
+}: {
+	text: string;
+	run: (command: string) => Promise<unknown>;
+}) {
+	const [state, setState] = useState<
+		Record<string, "running" | "sent" | string>
+	>({});
+	const notes = bangCommandNotes(text);
+	return (
+		<div className="my-2 mr-6 flex flex-col gap-2.5 rounded-2xl border border-border bg-card px-3 py-2.5">
+			<div className="text-[11px] font-semibold uppercase tracking-wide text-faint-foreground">
+				Commands to run
+			</div>
+			{bangCommands(text).map((command) => {
+				const local = localCommand(command);
+				const status = state[command];
+				return (
+					<div key={command} className="flex flex-col gap-1">
+						{notes[command] && (
+							<div className="text-[13px] text-muted-foreground">
+								{notes[command]}
+							</div>
+						)}
+						<code className="select-text break-all rounded-md bg-secondary px-2 py-1 font-mono text-[12px]">
+							{local ?? command}
+						</code>
+						<div className="flex items-center gap-2">
+							<button
+								type="button"
+								disabled={status === "running" || status === "sent"}
+								onClick={() => {
+									setState((all) => ({ ...all, [command]: "running" }));
+									run(command).then(
+										() => setState((all) => ({ ...all, [command]: "sent" })),
+										(error: Error) =>
+											setState((all) => ({ ...all, [command]: error.message })),
+									);
+								}}
+								className="h-8 rounded-lg border border-attention/40 px-3 text-sm font-medium text-attention disabled:opacity-50"
+							>
+								{status === "sent"
+									? "Ran"
+									: status === "running"
+										? "Running…"
+										: local
+											? "Run on my Mac"
+											: "Run"}
+							</button>
+							{status && status !== "running" && status !== "sent" && (
+								<span className="select-text text-[12px] text-danger">
+									{status}
+								</span>
+							)}
+						</div>
+					</div>
+				);
+			})}
+		</div>
+	);
+}
+
 type Segment =
 	| { kind: "message"; message: Message; index: number }
 	| {
@@ -225,11 +339,14 @@ export function Transcript({
 	messages,
 	brief,
 	send,
+	run,
 }: {
 	messages: Message[];
 	/** The brief's TL;DR of the latest reply, and which reply it describes. */
 	brief: ReplyBrief;
 	send: (text: string) => void;
+	/** Runs one of the latest reply's `!` commands; none from an older Odin. */
+	run?: (command: string) => Promise<unknown>;
 }) {
 	const [open, setOpen] = useState<Set<number>>(() => new Set());
 	const [fullReply, setFullReply] = useState(false);
@@ -241,7 +358,13 @@ export function Transcript({
 		(message) =>
 			message.role === "assistant" && !!splitActionItems(message.text).actions,
 	);
+	// The Mac runs only the commands of the latest reply that has any.
+	const commandsAt = messages.findLastIndex(
+		(message) =>
+			message.role === "assistant" && bangCommands(message.text).length > 0,
+	);
 	const bubble = ({ message, index }: { message: Message; index: number }) => {
+		if (message.shell) return <ShellCard key={index} shell={message.shell} />;
 		if (message.role === "user")
 			return <UserBubble key={index} message={message} />;
 		const { body, actions } = splitActionItems(message.text);
@@ -292,6 +415,9 @@ export function Transcript({
 				)}
 				{(body || latest) && (
 					<Time at={message.at} className="-mt-1 ml-1 text-faint-foreground" />
+				)}
+				{index === commandsAt && run && (
+					<RunCard text={message.text} run={run} />
 				)}
 				{index === actionsAt && actions && (
 					<ActionCard actions={actions} send={send} />

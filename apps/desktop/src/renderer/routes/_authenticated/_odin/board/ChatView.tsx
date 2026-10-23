@@ -75,12 +75,15 @@ import { COMPACT_MARKDOWN } from "../components/TranscriptView";
 import {
 	actionItemEntries,
 	actionItemList,
+	bangCommandNotes,
+	bangCommands,
 	isAnswerItem,
 	isApprovalItem,
 	isDoneItem,
 	isYouOnly,
 	itemOptions,
 	itemReply,
+	localCommand,
 	splitActionItems,
 } from "./action-items";
 import {
@@ -1774,6 +1777,9 @@ function ReplyMark({ className }: { className?: string }) {
 
 export {
 	actionItemEntries,
+	bangCommandNotes,
+	bangCommands,
+	localCommand,
 	actionItemList,
 	isAnswerItem,
 	isApprovalItem,
@@ -2252,42 +2258,6 @@ function RunCommands({
 	return commands.map((command) => (
 		<RunCommand key={command} command={command} onRun={onRun} />
 	));
-}
-
-/** The `! command` blocks Claude hands you to run in the session, without the `!`. */
-export function bangCommands(text: string): string[] {
-	return [...text.matchAll(/```[^\n]*\n\s*!([\s\S]*?)\n?```/g)]
-		.map((match) => (match[1] ?? "").trim())
-		.filter(Boolean);
-}
-
-/**
- * The command of a `!local command` block: one Claude hands you for your own
- * computer rather than its session (a remote session runs on its host). Null
- * for an ordinary `!` command.
- */
-export function localCommand(command: string): string | null {
-	return command.match(/^local\s+([\s\S]+)$/)?.[1]?.trim() || null;
-}
-
-/**
- * What each `! command` does, in Claude's words: the line it wrote right above
- * the block ("A read-only preview:"). A block straight after another block has none.
- */
-export function bangCommandNotes(text: string): Record<string, string> {
-	const notes: Record<string, string> = {};
-	for (const match of text.matchAll(/```[^\n]*\n\s*!([\s\S]*?)\n?```/g)) {
-		const command = (match[1] ?? "").trim();
-		const above = text
-			.slice(0, match.index)
-			.split("\n")
-			.map((line) => line.trim())
-			.filter(Boolean)
-			.at(-1);
-		if (!command || !above || above.startsWith("```")) continue;
-		notes[command] = above.replace(/^(?:[-*+]|\d+[.)])\s+/, "");
-	}
-	return notes;
 }
 
 /** The reply's notes on its `! commands`, for the Run buttons wherever they sit. */

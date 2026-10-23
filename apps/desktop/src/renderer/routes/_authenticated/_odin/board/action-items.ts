@@ -97,3 +97,55 @@ export function isYouOnly(item: string): boolean {
 		itemOptions(item).options.length === 0
 	);
 }
+
+/** The `! command` blocks Claude hands you to run in the session, without the `!`. */
+export function bangCommands(text: string): string[] {
+	return [...text.matchAll(/```[^\n]*\n\s*!([\s\S]*?)\n?```/g)]
+		.map((match) => (match[1] ?? "").trim())
+		.filter(Boolean);
+}
+
+/**
+ * The command of a `!local command` block: one Claude hands you for your own
+ * computer rather than its session (a remote session runs on its host). Null
+ * for an ordinary `!` command.
+ */
+export function localCommand(command: string): string | null {
+	return command.match(/^local\s+([\s\S]+)$/)?.[1]?.trim() || null;
+}
+
+/**
+ * What each `! command` does, in Claude's words: the line it wrote right above
+ * the block ("A read-only preview:"). A block straight after another block has none.
+ */
+export function bangCommandNotes(text: string): Record<string, string> {
+	const notes: Record<string, string> = {};
+	for (const match of text.matchAll(/```[^\n]*\n\s*!([\s\S]*?)\n?```/g)) {
+		const command = (match[1] ?? "").trim();
+		const above = text
+			.slice(0, match.index)
+			.split("\n")
+			.map((line) => line.trim())
+			.filter(Boolean)
+			.at(-1);
+		if (!command || !above || above.startsWith("```")) continue;
+		notes[command] = above.replace(/^(?:[-*+]|\d+[.)])\s+/, "");
+	}
+	return notes;
+}
+
+/**
+ * The `!` commands you can run from the phone: those of Claude's latest reply
+ * that has any. The phone shows their Run buttons and the Mac runs only these.
+ */
+export function runnableCommands(
+	messages: { role: string; text: string }[],
+): string[] {
+	for (let i = messages.length - 1; i >= 0; i--) {
+		const message = messages[i];
+		if (message.role !== "assistant") continue;
+		const commands = bangCommands(message.text);
+		if (commands.length) return commands;
+	}
+	return [];
+}

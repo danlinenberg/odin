@@ -13,6 +13,10 @@ import { appCaller } from "main/lib/odin-api";
 import { loadSessions } from "main/lib/tray";
 import { getWorkspaceRuntimeRegistry } from "main/lib/workspace-runtime";
 import {
+	localCommand,
+	runnableCommands,
+} from "renderer/routes/_authenticated/_odin/board/action-items";
+import {
 	claimOpened,
 	jiraIssue,
 	notionPage,
@@ -399,6 +403,34 @@ export const phoneRouter = t.router({
 		}).catch(() => null);
 		return { sent };
 	}),
+
+	/**
+	 * A `!` block's Run button: in Claude's session (its output goes back to
+	 * Claude), or a `!local` one in the session's Shell on this Mac. Only a
+	 * command Claude's latest reply hands you: the phone can't run its own.
+	 */
+	run: t.procedure
+		.input(paneInput.extend({ command: z.string().min(1).max(8_000) }))
+		.mutation(async ({ input }) => {
+			const sessionId = sessionOf(input.paneId);
+			const tail = sessionId
+				? await transcriptTail({ sessionId }).catch(() => [])
+				: [];
+			if (!runnableCommands(tail).includes(input.command))
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message: "That command isn't in Claude's latest reply.",
+				});
+			const local = localCommand(input.command);
+			if (local) {
+				await board("run-local", { paneId: input.paneId, command: local });
+				return;
+			}
+			// As the board's Run: `!` puts Claude in bash mode, then the command.
+			terminal().write({ paneId: input.paneId, data: "!" });
+			await pause(50);
+			await typeIntoClaude(input.paneId, input.command, []);
+		}),
 
 	/** One raw key for a prompt Claude draws as a menu: Enter, Esc, a digit. */
 	key: t.procedure
