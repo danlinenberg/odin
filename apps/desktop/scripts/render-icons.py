@@ -11,6 +11,7 @@ Edit the master, then run `python3 apps/desktop/scripts/render-icons.py`
   packages/ui/.../preset-icons/odin.png   preset icon in the renderer
   apps/mobile/.../AppIcon-512@2x.png      iOS app icon (opaque, full bleed)
   apps/mobile/.../splash-2732x2732*.png   iOS launch screen
+  site/icon.png, site/favicon.png         website brand mark and favicon
 """
 
 import shutil
@@ -25,6 +26,7 @@ RES = DESKTOP / "src/resources"
 MASTER = RES / "build/icons/icon.png"
 PRESET = DESKTOP.parents[1] / "packages/ui/src/assets/icons/preset-icons/odin.png"
 IOS_ASSETS = DESKTOP.parents[1] / "apps/mobile/ios/App/App/Assets.xcassets"
+SITE = DESKTOP.parents[1] / "site"
 # The app background (--background in globals.css).
 IOS_BACKGROUND = (14, 14, 17)
 
@@ -33,6 +35,10 @@ FACE_BOX = (96, 96, 928, 928)
 
 
 def icns(src: Image.Image) -> None:
+    if not shutil.which("iconutil"):
+        # Off macOS, Pillow writes the same sizes.
+        src.save(RES / "build/icons/icon.icns", format="ICNS")
+        return
     with tempfile.TemporaryDirectory() as tmp:
         iconset = Path(tmp) / "icon.iconset"
         iconset.mkdir()
@@ -60,8 +66,7 @@ def tray(src: Image.Image) -> None:
     alpha = lum.point(lambda v: max(0, min(255, (v - bg) * 255 // (fg - bg))))
     for px, name in ((18, "iconTemplate.png"), (36, "iconTemplate@2x.png")):
         out = Image.new("RGBA", (px, px), (0, 0, 0, 0))
-        # Downscaling thins the lines to grey; double the alpha so they read at 18px.
-        out.putalpha(alpha.resize((px, px), Image.LANCZOS).point(lambda v: min(255, v * 2)))
+        out.putalpha(alpha.resize((px, px), Image.LANCZOS))
         out.save(RES / "tray" / name)
 
 
@@ -90,6 +95,8 @@ def main() -> None:
     tray(src)
     src.resize((128, 128), Image.LANCZOS).save(PRESET)
     ios(src)
+    src.resize((256, 256), Image.LANCZOS).save(SITE / "icon.png")
+    src.resize((64, 64), Image.LANCZOS).save(SITE / "favicon.png")
 
 
 if __name__ == "__main__":
