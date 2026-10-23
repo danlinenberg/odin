@@ -7119,6 +7119,12 @@ function DevBoardPage() {
 											onShowTerminal={() =>
 												setTerminalPaneId(drawerCard.pane.id)
 											}
+											onShellStarted={(name) => {
+												setShellName(name);
+												setIsDiffOpen(false);
+												setIsAgentsOpen(false);
+												setIsShellOpen(true);
+											}}
 											onStop={() => void interruptPane(drawerCard.pane.id)}
 											onRestart={(prompt) =>
 												void resumeCard(drawerCard, false, prompt, true)
