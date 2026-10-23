@@ -2,6 +2,7 @@ import { useState } from "react";
 import { LuChevronDown, LuChevronRight } from "react-icons/lu";
 import { type BriefUrgency, freshTldr, latestReply } from "shared/latest-reply";
 import { splitActionItems } from "../routes/_authenticated/_odin/board/action-items";
+import { launchRequest } from "../routes/_authenticated/_odin/board/launch-request";
 import { ActionCard } from "./action-card";
 import { Markdown } from "./markdown";
 
@@ -47,6 +48,69 @@ export function Thumbnails({ images }: { images?: string[] }) {
 						className="max-h-full max-w-full object-contain"
 					/>
 				</button>
+			)}
+		</div>
+	);
+}
+
+/**
+ * What your bubble shows: of a launch prompt (task + standing rules + reply
+ * format), just the request you typed, as on the board; the whole prompt
+ * once you ask for Odin's part. `long` clamps it to a few lines.
+ */
+export function userBubbleText(
+	text: string,
+	{ full, images }: { full: boolean; images: boolean },
+): { shown: string; folds: boolean; long: boolean } {
+	const request = launchRequest(text);
+	const raw = request === null || full ? text : request;
+	const shown = images ? raw.replace(/\[Image #\d+\]\s*/g, "").trim() : raw;
+	return {
+		shown,
+		folds: request !== null,
+		long: shown.length > 400 || shown.split("\n").length > 6,
+	};
+}
+
+/** Your message: a launch prompt folds to your request; a long one clamps. */
+function UserBubble({ message }: { message: Message }) {
+	const [full, setFull] = useState(false);
+	const [open, setOpen] = useState(false);
+	const { shown, folds, long } = userBubbleText(message.text, {
+		full,
+		images: !!message.images,
+	});
+	const clamped = long && !open;
+	return (
+		<div className="my-2 ml-10 select-text break-words rounded-2xl rounded-br-md bg-primary px-3 py-2 text-[15px] leading-snug text-primary-foreground">
+			<Thumbnails images={message.images} />
+			<div className={`whitespace-pre-wrap ${clamped ? "line-clamp-6" : ""}`}>
+				{shown}
+			</div>
+			{(long || folds) && (
+				<div className="mt-1 flex flex-wrap gap-x-4 text-[13px] font-medium text-primary-foreground/80">
+					{long && (
+						<button
+							type="button"
+							onClick={() => setOpen(!open)}
+							className="py-1 underline underline-offset-2"
+						>
+							{open ? "Show less" : "Show more"}
+						</button>
+					)}
+					{folds && (
+						<button
+							type="button"
+							onClick={() => {
+								setFull(!full);
+								setOpen(false);
+							}}
+							className="py-1 underline underline-offset-2"
+						>
+							{full ? "Hide Odin's prompt" : "Show Odin's prompt"}
+						</button>
+					)}
+				</div>
 			)}
 		</div>
 	);
@@ -149,17 +213,7 @@ export function Transcript({
 	);
 	const bubble = ({ message, index }: { message: Message; index: number }) => {
 		if (message.role === "user")
-			return (
-				<div
-					key={index}
-					className="my-2 ml-10 select-text whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-primary px-3 py-2 text-[15px] leading-snug text-primary-foreground"
-				>
-					<Thumbnails images={message.images} />
-					{message.images
-						? message.text.replace(/\[Image #\d+\]\s*/g, "").trim()
-						: message.text}
-				</div>
-			);
+			return <UserBubble key={index} message={message} />;
 		const { body, actions } = splitActionItems(message.text);
 		const latest = index === replyAt ? leadingTldr(tldr) : null;
 		// The board's chat: a long latest reply folds under its TL;DR.
