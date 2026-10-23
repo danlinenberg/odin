@@ -8,6 +8,7 @@ import {
 	clip,
 	opensPr,
 	parseTranscript,
+	pendingPrompt,
 	queryTerms,
 	ranHere,
 	readTranscript,
@@ -21,6 +22,7 @@ import {
 	transcriptLinks,
 	transcriptOf,
 	transcriptTail,
+	turnSteps,
 	workingRepoOf,
 	workingWorktreeOf,
 } from "./claude-sessions";
@@ -1352,4 +1354,112 @@ test("parseTranscript - a `!` run is one shell message, output folded in", () =>
 		stderr: "",
 	});
 	expect(run.text).toBe("git log -1");
+});
+
+describe("pendingPrompt - the question or plan Claude waits on", () => {
+	const call = (id: string, name: string, input: object = {}) =>
+		JSON.stringify({
+			type: "assistant",
+			message: { content: [{ type: "tool_use", id, name, input }] },
+		});
+	const result = (id: string) =>
+		JSON.stringify({
+			type: "user",
+			message: { content: [{ type: "tool_result", tool_use_id: id }] },
+		});
+	const ask = {
+		questions: [{ question: "Which?", options: [{ label: "A" }] }],
+	};
+	test("an unanswered question is the prompt", () => {
+		expect(
+			pendingPrompt(
+				[call("t1", "Bash"), call("t2", "AskUserQuestion", ask)].join("\n"),
+			),
+		).toEqual({
+			id: "t2",
+			name: "AskUserQuestion",
+			input: ask,
+		});
+	});
+	test("answered, or followed by another tool call: none", () => {
+		expect(
+			pendingPrompt(
+				[call("t2", "ExitPlanMode", { plan: "x" }), result("t2")].join("\n"),
+			),
+		).toBeNull();
+		expect(
+			pendingPrompt(
+				[call("t2", "AskUserQuestion", ask), call("t3", "Bash")].join("\n"),
+			),
+		).toBeNull();
+	});
+	test("a subagent's call doesn't count", () => {
+		const side = JSON.stringify({
+			type: "assistant",
+			isSidechain: true,
+			message: {
+				content: [
+					{ type: "tool_use", id: "s1", name: "AskUserQuestion", input: ask },
+				],
+			},
+		});
+		expect(pendingPrompt(side)).toBeNull();
+	});
+});
+
+describe("turnSteps - what Claude ran since your last message", () => {
+	const typed = (text: string, at: string) =>
+		JSON.stringify({
+			type: "user",
+			promptSource: "typed",
+			timestamp: at,
+			message: { content: text },
+		});
+	const call = (id: string, name: string, input: object, msg = "m1", out = 0) =>
+		JSON.stringify({
+			type: "assistant",
+			message: {
+				id: msg,
+				usage: { output_tokens: out },
+				content: [{ type: "tool_use", id, name, input }],
+			},
+		});
+	const result = (id: string, error = false) =>
+		JSON.stringify({
+			type: "user",
+			message: {
+				content: [{ type: "tool_result", tool_use_id: id, is_error: error }],
+			},
+		});
+	test("only the turn under way, named the board's way, with done and failed", () => {
+		const turn = turnSteps(
+			[
+				typed("first", "2026-10-23T10:00:00Z"),
+				call("a", "Read", { file_path: "/x/old.ts" }),
+				result("a"),
+				typed("second", "2026-10-23T11:00:00Z"),
+				call(
+					"b",
+					"Bash",
+					{ command: "bun test", description: "Run the tests" },
+					"m2",
+					300,
+				),
+				result("b", true),
+				call("c", "Edit", { file_path: "/repo/src/app.ts" }, "m3", 120),
+			].join("\n"),
+		);
+		expect(turn).toEqual({
+			start: "2026-10-23T11:00:00Z",
+			tokens: 420,
+			total: 2,
+			steps: [
+				{ id: "b", text: "Run the tests", done: true, error: true },
+				{ id: "c", text: "Edited app.ts", done: false, error: false },
+			],
+		});
+	});
+	test("no message of yours in the log: no turn", () => {
+		expect(turnSteps(call("a", "Read", { file_path: "/x" }))).toBeNull();
+	});
 });
