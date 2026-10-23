@@ -113,17 +113,18 @@ const thenShell = (command: string) =>
  * it gets swallowed, and typed into a busy one it goes to whatever is running.
  * Asking to run something there again means replacing what's there, so the
  * session's previous shell goes - or, with a `name`, only that named Shell, so
- * a tunnel and the server behind it can run side by side.
+ * a tunnel and the server behind it can run side by side. False when there is
+ * no such session to run it in: nothing started.
  */
 export async function runInSessionShell(
 	sessionPaneId: string,
 	workspaceId: string,
 	command: string,
 	name?: string,
-) {
+): Promise<boolean> {
 	const state = useTabsStore.getState();
 	const session = state.panes[sessionPaneId];
-	if (!session) return;
+	if (!session) return false;
 	const previous = name
 		? session.odinNamedShells?.[name]
 		: session.odinShellPaneId;
@@ -156,6 +157,7 @@ export async function runInSessionShell(
 		cwd,
 		command: thenShell(command),
 	});
+	return true;
 }
 
 export function useAgentHookListener() {

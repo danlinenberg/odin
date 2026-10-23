@@ -2853,6 +2853,7 @@ export function ChatView({
 	workspaceId,
 	working = false,
 	onShowTerminal,
+	onShellStarted,
 	onStop,
 	onResumeWith,
 	onSend,
@@ -2870,6 +2871,11 @@ export function ChatView({
 	working?: boolean;
 	/** Omitted for an ended session: its composer resumes via `onResumeWith`. */
 	onShowTerminal?: () => void;
+	/**
+	 * A `!local` command started in the session's Shell named `name`: the
+	 * drawer shows it, so its output - and a prompt it waits on - are in view.
+	 */
+	onShellStarted?: (name: string) => void;
 	/** Interrupt the turn - the drawer's Interrupt, so the card leaves Working too. */
 	onStop?: () => void;
 	/** Ended session: resume it with this as the opening message. */
@@ -3193,14 +3199,20 @@ export function ChatView({
 		},
 		[paneId, write.mutateAsync],
 	);
-	// A `!local` block runs on this computer, in the session's Shell; the rest go to Claude.
+	// A `!local` block runs on this computer, in the session's Shell, which then
+	// shows; the rest go to Claude. A run with no session to run in says so,
+	// rather than the button claiming it started.
 	const runCommand = useCallback(
 		async (command: string) => {
 			const local = localCommand(command);
-			if (local) await runInSessionShell(paneId, workspaceId, local, "local");
-			else await runInClaude(command);
+			if (!local) return runInClaude(command);
+			if (!(await runInSessionShell(paneId, workspaceId, local, "local")))
+				throw new Error(
+					"Odin couldn't find this session to run the command in. Open its Shell and run it there.",
+				);
+			onShellStarted?.("local");
 		},
-		[paneId, workspaceId, runInClaude],
+		[paneId, workspaceId, runInClaude, onShellStarted],
 	);
 	const doItem = useCallback(
 		(item: string, number: number, approve: boolean, answer?: string) => {
