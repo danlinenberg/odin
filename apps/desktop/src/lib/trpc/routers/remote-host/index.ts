@@ -18,6 +18,7 @@ import {
 	type UseHostStep,
 	waitForHost,
 } from "main/lib/remote-host/aws-instances";
+import { isAwsProfileName } from "main/lib/remote-host/aws-on-host";
 import {
 	bringMirrorHome,
 	bringSessionHome,
@@ -666,6 +667,22 @@ export const createRemoteHostRouter = () =>
 				await withAwsSignIn(host, () =>
 					pushHostTokens(host, (host.connectors ?? []) as HostConnector[]),
 				);
+			}),
+		/**
+		 * The AWS profile names defined on the host, signed in with its
+		 * instance role, so `--profile <name>` works there. Written to the
+		 * host's ~/.aws/config at once; a profile turned off is gone there.
+		 */
+		setAwsProfiles: publicProcedure
+			.input(z.array(z.string().refine(isAwsProfileName)))
+			.mutation(async ({ input }) => {
+				const host = readOdinConfig().remoteHost;
+				if (!host) throw new Error("No remote host is set up.");
+				const next = { ...host, awsProfiles: input };
+				await withAwsSignIn(host, () =>
+					pushHostTokens(next, (host.connectors ?? []) as HostConnector[]),
+				);
+				updateOdinConfig({ remoteHost: next });
 			}),
 		/**
 		 * A GitHub sign-in of the host's own for one account: the device flow,

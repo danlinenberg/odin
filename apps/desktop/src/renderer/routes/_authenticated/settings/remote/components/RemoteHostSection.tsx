@@ -98,6 +98,15 @@ export function RemoteHostSection() {
 		onError,
 	});
 	const githubAccounts = current?.githubAccounts ?? [];
+	const setAwsProfiles = electronTrpc.remoteHost.setAwsProfiles.useMutation({
+		onSuccess: refresh,
+		onError,
+	});
+	const awsOnHost = new Set(
+		setAwsProfiles.isPending
+			? setAwsProfiles.variables
+			: (current?.host?.awsProfiles ?? []),
+	);
 	const toggleGithubAccount = (login: string, on: boolean) =>
 		setGithubOnHost.mutate(
 			githubAccounts
@@ -599,6 +608,46 @@ export function RemoteHostSection() {
 									onCheckedChange={(on) => toggleConnector(id, on)}
 								/>
 								{label}
+							</label>
+						))}
+					</div>
+				</SettingRow>
+			)}
+			{current?.host && profiles.length > 0 && (
+				<SettingRow
+					label="AWS profiles on the host"
+					stacked
+					description={
+						<span className="select-text cursor-text">
+							These profile names work on the host too, signed in with the
+							instance's own role: it may do what the host policy above allows.
+							None of this computer's AWS credentials go there.
+							{setAwsProfiles.isPending && (
+								<span className="mt-1 block">Saving on the host...</span>
+							)}
+						</span>
+					}
+				>
+					<div className="flex flex-wrap items-center gap-4">
+						{profiles.map((name) => (
+							<label
+								key={name}
+								htmlFor={`host-aws-${name}`}
+								className="flex items-center gap-2 text-sm"
+							>
+								<Switch
+									id={`host-aws-${name}`}
+									checked={awsOnHost.has(name)}
+									disabled={setAwsProfiles.isPending}
+									onCheckedChange={(on) =>
+										setAwsProfiles.mutate(
+											profiles.filter((p) =>
+												p === name ? on : awsOnHost.has(p),
+											),
+										)
+									}
+								/>
+								{name}
 							</label>
 						))}
 					</div>

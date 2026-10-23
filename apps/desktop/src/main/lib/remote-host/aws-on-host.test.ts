@@ -1,0 +1,63 @@
+import { expect, test } from "bun:test";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { awsConfigProfiles, awsHostConfigScript } from "./aws-on-host";
+
+test("reads profiles and their regions from an AWS config, skipping sso-session sections", () => {
+	expect(
+		awsConfigProfiles(
+			[
+				"[default]",
+				"region = eu-west-1",
+				"[sso-session imagen]",
+				"region = us-west-2",
+				"[profile prod]",
+				"sso_session = imagen",
+				"region = us-east-1",
+				"[profile dev]",
+				"[profile bad name]",
+			].join("\n"),
+		),
+	).toEqual([
+		{ name: "default", region: "eu-west-1" },
+		{ name: "prod", region: "us-east-1" },
+		{ name: "dev" },
+	]);
+});
+
+const runIn = (home: string, script: string) =>
+	execFileSync("sh", ["-c", `HOME=${home}\n${script}`]);
+
+test("the host's ~/.aws/config gets Odin's block, rewritten in place, and keeps the user's own profiles", () => {
+	const home = mkdtempSync(join(tmpdir(), "odin-aws-"));
+	mkdirSync(join(home, ".aws"));
+	const config = join(home, ".aws", "config");
+	writeFileSync(config, "[profile mine]\nregion = eu-west-1\n");
+	runIn(
+		home,
+		awsHostConfigScript([
+			{ name: "prod", region: "us-east-1" },
+			{ name: "mine" },
+			{ name: "x'; touch pwned; '" },
+		]),
+	);
+	const first = readFileSync(config, "utf8");
+	expect(first).toContain("[profile mine]\nregion = eu-west-1\n");
+	expect(first).toContain("[profile prod]\nregion = us-east-1\n# <<< odin");
+	// A profile the user wrote stays theirs; a name a shell would read never lands.
+	expect(first.match(/\[profile mine\]/g)).toHaveLength(1);
+	expect(first).not.toContain("pwned");
+	// A second sync replaces the block rather than adding another.
+	runIn(home, awsHostConfigScript([{ name: "dev" }]));
+	const second = readFileSync(config, "utf8");
+	expect(second).toContain("[profile dev]");
+	expect(second).not.toContain("[profile prod]");
+	expect(second.match(/# >>> odin/g)).toHaveLength(1);
+	// None picked: the block goes, the user's profile stays.
+	runIn(home, awsHostConfigScript([]));
+	expect(readFileSync(config, "utf8")).toBe(
+		"[profile mine]\nregion = eu-west-1\n",
+	);
+});
