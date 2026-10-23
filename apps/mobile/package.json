@@ -9,7 +9,8 @@
 		"fake-odin": "bun scripts/fake-odin.ts",
 		"ios": "vite build && cap sync ios && cap open ios",
 		"screenshots": "bash scripts/screenshots.sh",
-		"sim": "bash scripts/sim.sh"
+		"sim": "bash scripts/sim.sh",
+		"build:screens": "vite build --config vite.screens.config.ts"
 	},
 	"dependencies": {
 		"@capacitor/app": "8.1.1",

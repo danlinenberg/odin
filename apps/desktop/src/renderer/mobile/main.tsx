@@ -4,6 +4,7 @@ import { createTRPCReact } from "@trpc/react-query";
 import type { PhoneRouter } from "main/lib/phone/router";
 import {
 	type TextareaHTMLAttributes,
+	useCallback,
 	useEffect,
 	useLayoutEffect,
 	useRef,
@@ -54,6 +55,7 @@ import { demoAnswer } from "./demo";
 import { channelFetch, type OdinFetch } from "./odin-fetch";
 import { type Pairing, parsePairLink } from "./pair-link";
 import { MenuCard, PlanCard, QuestionCard } from "./prompt-cards";
+import { markStarted, useScreensUpdate } from "./screens-update";
 import { NEW_TASK_EVENT, SharePicker, useSharedFiles } from "./share";
 import {
 	boardWords,
@@ -138,7 +140,7 @@ const odinFetch: OdinFetch = pairing
 					...init,
 					headers: { ...init?.headers, authorization: `Bearer ${devToken}` },
 				});
-const SLOW_QUERIES = new Set(["brief", "links"]);
+const SLOW_QUERIES = new Set(["brief", "links", "screens"]);
 const phone = createTRPCReact<PhoneRouter>();
 const client = phone.createClient({
 	links: [
@@ -1080,6 +1082,8 @@ function Pair() {
 
 function App() {
 	const paneId = usePaneFromHash();
+	// Drawn: screens Odin sent this phone worked, so boot.ts keeps them.
+	useEffect(markStarted, []);
 	if (!pairing && !devToken && !demo)
 		return native ? (
 			<Pair />
@@ -1092,7 +1096,34 @@ function App() {
 		<>
 			{paneId ? <Session key={paneId} paneId={paneId} /> : <Home />}
 			<ShareTargets />
+			{native && pairing && <ScreensUpdate />}
 		</>
+	);
+}
+
+/**
+ * Newer screens from Odin, kept for the next launch: a pill offers them now.
+ * The app's native side stays; only these screens update without Xcode.
+ */
+function ScreensUpdate() {
+	const utils = phone.useUtils();
+	const check = useCallback(
+		(input: { have: string; native: number }) =>
+			utils.client.screens.query(input),
+		[utils],
+	);
+	const ready = useScreensUpdate(check, true);
+	if (!ready) return null;
+	return (
+		<div className="pointer-events-none fixed inset-x-0 top-[calc(env(safe-area-inset-top)+6px)] z-50 flex justify-center">
+			<button
+				type="button"
+				onClick={() => location.reload()}
+				className="pointer-events-auto rounded-full bg-primary px-4 py-1.5 text-[13px] font-semibold text-primary-foreground shadow-lg"
+			>
+				Odin updated the app - tap to reload
+			</button>
+		</div>
 	);
 }
 

@@ -150,6 +150,12 @@ const config: Configuration = {
 			to: "resources/bin",
 			filter: ["**/*"],
 		},
+		// The phone's screens, sent to a paired iPhone (main/lib/phone/screens.ts).
+		{
+			from: "../mobile/dist-screens",
+			to: "resources/phone-screens",
+			filter: ["app.js", "app.css"],
+		},
 		// Settings → Storage lists and deletes worktrees with it on any install.
 		{
 			from: "../../scripts",

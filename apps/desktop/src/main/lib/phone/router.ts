@@ -14,6 +14,7 @@ import { askRenderer } from "main/lib/notifications/server";
 import { appCaller } from "main/lib/odin-api";
 import { loadSessions } from "main/lib/tray";
 import { getWorkspaceRuntimeRegistry } from "main/lib/workspace-runtime";
+import { NATIVE_API } from "renderer/mobile/native-api";
 import {
 	localCommand,
 	runnableCommands,
@@ -36,6 +37,7 @@ import { z } from "zod";
 import { typedText } from "../../../shared/typed-text";
 import { attachments } from "./attachments";
 import { forSession } from "./host-files";
+import { readScreens } from "./screens";
 import { rememberFromPhone } from "./sent";
 
 /**
@@ -478,6 +480,27 @@ export const phoneRouter = t.router({
 				terminal().write({ paneId: input.paneId, data: key });
 				await pause(250);
 			}
+		}),
+
+	/**
+	 * Newer screens for the phone to run (renderer/mobile/boot.ts): Odin's
+	 * own build, when the phone's native side is the one they were built for
+	 * and it doesn't run them already. Null otherwise.
+	 */
+	screens: t.procedure
+		.input(
+			z.object({
+				/** The version the phone runs; "built-in" for its app's own. */
+				have: z.string().max(100),
+				/** The phone app's NATIVE_API. */
+				native: z.number().int(),
+			}),
+		)
+		.query(async ({ input }) => {
+			if (input.native !== NATIVE_API) return null;
+			const screens = await readScreens();
+			if (!screens || screens.version === input.have) return null;
+			return { ...screens, native: NATIVE_API };
 		}),
 
 	/** One raw key for a prompt Claude draws as a menu: Enter, Esc, a digit. */
