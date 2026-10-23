@@ -7,6 +7,7 @@ import {
 	cachedBriefs,
 	readTranscript,
 	tailPrompt,
+	tailTurn,
 	transcriptTail,
 } from "main/lib/claude-sessions";
 import { askRenderer } from "main/lib/notifications/server";
@@ -262,6 +263,8 @@ export const phoneRouter = t.router({
 			screen,
 			prompt,
 			menu,
+			// What Claude ran since your last message, for the Working line.
+			turn: sessionId ? tailTurn(sessionId) : null,
 		};
 	}),
 

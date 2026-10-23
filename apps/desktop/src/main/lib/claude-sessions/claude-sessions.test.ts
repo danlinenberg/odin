@@ -22,6 +22,7 @@ import {
 	transcriptLinks,
 	transcriptOf,
 	transcriptTail,
+	turnSteps,
 	workingRepoOf,
 	workingWorktreeOf,
 } from "./claude-sessions";
@@ -1403,5 +1404,62 @@ describe("pendingPrompt - the question or plan Claude waits on", () => {
 			},
 		});
 		expect(pendingPrompt(side)).toBeNull();
+	});
+});
+
+describe("turnSteps - what Claude ran since your last message", () => {
+	const typed = (text: string, at: string) =>
+		JSON.stringify({
+			type: "user",
+			promptSource: "typed",
+			timestamp: at,
+			message: { content: text },
+		});
+	const call = (id: string, name: string, input: object, msg = "m1", out = 0) =>
+		JSON.stringify({
+			type: "assistant",
+			message: {
+				id: msg,
+				usage: { output_tokens: out },
+				content: [{ type: "tool_use", id, name, input }],
+			},
+		});
+	const result = (id: string, error = false) =>
+		JSON.stringify({
+			type: "user",
+			message: {
+				content: [{ type: "tool_result", tool_use_id: id, is_error: error }],
+			},
+		});
+	test("only the turn under way, named the board's way, with done and failed", () => {
+		const turn = turnSteps(
+			[
+				typed("first", "2026-10-23T10:00:00Z"),
+				call("a", "Read", { file_path: "/x/old.ts" }),
+				result("a"),
+				typed("second", "2026-10-23T11:00:00Z"),
+				call(
+					"b",
+					"Bash",
+					{ command: "bun test", description: "Run the tests" },
+					"m2",
+					300,
+				),
+				result("b", true),
+				call("c", "Edit", { file_path: "/repo/src/app.ts" }, "m3", 120),
+			].join("\n"),
+		);
+		expect(turn).toEqual({
+			start: "2026-10-23T11:00:00Z",
+			tokens: 420,
+			total: 2,
+			steps: [
+				{ id: "b", text: "Run the tests", done: true, error: true },
+				{ id: "c", text: "Edited app.ts", done: false, error: false },
+			],
+		});
+	});
+	test("no message of yours in the log: no turn", () => {
+		expect(turnSteps(call("a", "Read", { file_path: "/x" }))).toBeNull();
 	});
 });

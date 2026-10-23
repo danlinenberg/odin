@@ -6,6 +6,7 @@ import {
 	parseShell,
 	type Shell,
 } from "renderer/routes/_authenticated/_odin/board/shell-output";
+import { toolDescription } from "renderer/routes/_authenticated/_odin/board/tool-description";
 import { PR_RULES_HEADER } from "shared/odin-rules";
 import { type SessionCredential, transcriptCredential } from "./credential";
 import { type SessionUsage, transcriptUsage } from "./usage";
@@ -1075,15 +1076,144 @@ export function pendingPrompt(jsonl: string): PendingPrompt | null {
 	return last && "input" in last && !answered.has(last.id) ? last : null;
 }
 
+/** One tool call of the turn under way, in words. */
+export type TurnStep = {
+	id: string;
+	text: string;
+	done: boolean;
+	error: boolean;
+};
+
+/** The turn under way: since your last message, what Claude ran. */
+export type Turn = {
+	/** When your message landed. */
+	start: string | null;
+	/** Output tokens Claude wrote this turn. */
+	tokens: number;
+	/** The latest steps, oldest first. */
+	steps: TurnStep[];
+	/** How many steps the turn has, shown or not. */
+	total: number;
+};
+
+const TURN_STEPS = 40;
+
+/**
+ * The turn under way, as the board's chat shows it while Claude works
+ * (currentTurn in ChatView): it begins at your last message - typed, or
+ * queued by a human - and holds every tool call since, named the board's way.
+ */
+export function turnSteps(jsonl: string): Turn | null {
+	let turn: {
+		start: string | null;
+		steps: TurnStep[];
+		out: Map<string, number>;
+	} | null = null;
+	const byId = new Map<string, TurnStep>();
+	for (const line of jsonl.split("\n")) {
+		if (!line) continue;
+		let entry: Record<string, unknown>;
+		try {
+			entry = JSON.parse(line) as Record<string, unknown>;
+		} catch {
+			continue;
+		}
+		if (entry.isSidechain) continue;
+		const at = typeof entry.timestamp === "string" ? entry.timestamp : null;
+		const queued = entry.attachment as
+			| { type?: string; prompt?: unknown; origin?: { kind?: string } }
+			| undefined;
+		if (entry.type === "attachment" && queued?.type === "queued_command") {
+			const human = !queued.origin?.kind || queued.origin.kind === "human";
+			if (human && spokenText(messageText(queued.prompt).trim()))
+				turn = { start: at, steps: [], out: new Map() };
+			continue;
+		}
+		const message = entry.message as
+			| { id?: string; content?: unknown; usage?: { output_tokens?: number } }
+			| undefined;
+		if (entry.type === "user") {
+			const raw = messageText(message?.content).trim();
+			if (raw && isTypedByUser(entry, raw) && spokenText(raw)) {
+				turn = { start: at, steps: [], out: new Map() };
+				continue;
+			}
+			if (!Array.isArray(message?.content)) continue;
+			for (const block of message.content as {
+				type?: string;
+				tool_use_id?: string;
+				is_error?: boolean;
+			}[]) {
+				const step =
+					block?.type === "tool_result" && block.tool_use_id
+						? byId.get(block.tool_use_id)
+						: undefined;
+				if (step) {
+					step.done = true;
+					step.error = !!block.is_error;
+				}
+			}
+			continue;
+		}
+		if (entry.type !== "assistant" || !turn) continue;
+		if (message?.id && message.usage?.output_tokens)
+			turn.out.set(
+				message.id,
+				Math.max(turn.out.get(message.id) ?? 0, message.usage.output_tokens),
+			);
+		if (!Array.isArray(message?.content)) continue;
+		for (const block of message.content as {
+			type?: string;
+			id?: string;
+			name?: string;
+			input?: unknown;
+		}[]) {
+			if (block?.type !== "tool_use" || !block.id || !block.name) continue;
+			const step = {
+				id: block.id,
+				text: toolDescription({
+					name: block.name,
+					input:
+						block.input && typeof block.input === "object"
+							? (block.input as Record<string, unknown>)
+							: {},
+				}),
+				done: false,
+				error: false,
+			};
+			byId.set(step.id, step);
+			turn.steps.push(step);
+		}
+	}
+	if (!turn) return null;
+	let tokens = 0;
+	for (const out of turn.out.values()) tokens += out;
+	return {
+		start: turn.start,
+		tokens,
+		steps: turn.steps.slice(-TURN_STEPS),
+		total: turn.steps.length,
+	};
+}
+
 /** The last messages, from the file's end only: what the phone polls. */
 const tails = new Map<
 	string,
-	{ key: string; messages: TranscriptMessage[]; prompt: PendingPrompt | null }
+	{
+		key: string;
+		messages: TranscriptMessage[];
+		prompt: PendingPrompt | null;
+		turn: Turn | null;
+	}
 >();
 
 /** The prompt `transcriptTail` last found in that session's log. */
 export const tailPrompt = (sessionId: string) =>
 	tails.get(sessionId)?.prompt ?? null;
+
+/** The turn `transcriptTail` last found in that session's log. */
+export const tailTurn = (sessionId: string) =>
+	tails.get(sessionId)?.turn ?? null;
 export async function transcriptTail({
 	sessionId,
 	bytes = 8_000_000,
@@ -1115,7 +1245,12 @@ export async function transcriptTail({
 	// Cut in the middle of a line: start at the next whole one.
 	if (start > 0) text = text.slice(text.indexOf("\n") + 1);
 	const messages = parseTranscript(text, 60, 6000, true, true);
-	tails.set(sessionId, { key, messages, prompt: pendingPrompt(text) });
+	tails.set(sessionId, {
+		key,
+		messages,
+		prompt: pendingPrompt(text),
+		turn: turnSteps(text),
+	});
 	return messages;
 }
 

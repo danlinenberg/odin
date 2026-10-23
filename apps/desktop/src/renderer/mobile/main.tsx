@@ -24,7 +24,6 @@ import {
 	LuPlus,
 	LuQrCode,
 	LuScanQrCode,
-	LuSquare,
 	LuStar,
 	LuUser,
 } from "react-icons/lu";
@@ -63,6 +62,7 @@ import {
 	useSpeech,
 } from "./speech";
 import { Thumbnails, Transcript } from "./transcript";
+import { WorkingCard } from "./working";
 import "../globals.css";
 import "./mobile.css";
 
@@ -929,21 +929,12 @@ function Session({ paneId }: { paneId: string }) {
 					</div>
 				))}
 				{status === "working" && (
-					<div className="my-3 flex items-center gap-2 text-sm text-working-ink">
-						<LuLoaderCircle className="size-4 shrink-0 animate-spin" />
-						<span className="min-w-0 flex-1 truncate">
-							{odinActivity(data?.screen ?? "") ?? "Working…"}
-						</span>
-						<button
-							type="button"
-							disabled={interrupt.isPending}
-							onClick={() => interrupt.mutate({ paneId })}
-							className="flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-border bg-secondary px-3 text-[13px] font-semibold text-foreground disabled:opacity-50"
-						>
-							<LuSquare className="size-3 fill-current" />
-							Stop
-						</button>
-					</div>
+					<WorkingCard
+						activity={odinActivity(data?.screen ?? "")}
+						turn={data && "turn" in data ? data.turn : null}
+						onStop={() => interrupt.mutate({ paneId })}
+						stopping={interrupt.isPending}
+					/>
 				)}
 				{limitHit && status !== "working" && (
 					<button

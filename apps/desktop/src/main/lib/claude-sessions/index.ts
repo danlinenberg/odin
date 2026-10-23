@@ -18,6 +18,7 @@ export {
 	type TranscriptFile,
 	type TranscriptMessage,
 	tailPrompt,
+	tailTurn,
 	transcriptOf,
 	transcriptTail,
 	workingRepoOf,
