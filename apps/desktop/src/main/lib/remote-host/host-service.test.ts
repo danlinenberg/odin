@@ -1,9 +1,11 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import {
+	existsSync,
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
 	rmSync,
+	statSync,
 	writeFileSync,
 } from "node:fs";
 import { tmpdir, userInfo } from "node:os";
@@ -224,6 +226,37 @@ describe.skipIf(!live)("Odin's host service", () => {
 		const res = await token("service=github&login=dan-work");
 		expect(res.status).toBe(404);
 		expect(await res.text()).toContain("GitHub accounts on the host");
+	});
+
+	test("the user's own Odin sends its tokens and sign-ins to the service, which writes them 0600 and drops accounts turned off", async () => {
+		const send = (path: string, body: unknown) =>
+			fetch(`${url}${path}`, { method: "POST", body: JSON.stringify(body) });
+		const pair = { access_token: "gho_pair", refresh_token: "ghr_x" };
+		expect((await send("/github-pair?login=Dan-Work", pair)).status).toBe(200);
+		expect((await send("/github-pair?login=other", pair)).status).toBe(200);
+		expect(JSON.parse(readFileSync(pairFile("dan-work"), "utf8"))).toEqual(
+			pair,
+		);
+		expect(statSync(pairFile("dan-work")).mode & 0o777).toBe(0o600);
+		const res = await send("/tokens", {
+			tokens: { slack: "xoxp-new", githubLogin: "dan-work" },
+			githubKeep: ["Dan-Work"],
+		});
+		expect(res.status).toBe(200);
+		const tokensFile = join(dir, "tokens.json");
+		expect(JSON.parse(readFileSync(tokensFile, "utf8"))).toEqual({
+			slack: "xoxp-new",
+			githubLogin: "dan-work",
+		});
+		expect(statSync(tokensFile).mode & 0o777).toBe(0o600);
+		// The account no longer kept loses the host's own sign-in.
+		expect(existsSync(pairFile("other"))).toBe(false);
+		expect(existsSync(pairFile("dan-work"))).toBe(true);
+		// Nonsense is refused, and the file stays as it was.
+		expect((await send("/tokens", { slack: "x" })).status).toBe(400);
+		expect((await send("/github-pair?login=a'b", pair)).status).toBe(400);
+		expect((await send("/github-pair?login=x", { nope: 1 })).status).toBe(400);
+		expect(JSON.parse(readFileSync(tokensFile, "utf8")).slack).toBe("xoxp-new");
 	});
 });
 

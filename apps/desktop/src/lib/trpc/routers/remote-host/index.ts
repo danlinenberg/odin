@@ -488,6 +488,40 @@ export const createRemoteHostRouter = () =>
 			}),
 		/** The host under way - New host or Use - and its step; null when none. */
 		awsHostStep: publicProcedure.query(() => hostStep),
+		/**
+		 * An administrator sets a host user up on the current host: their
+		 * Linux user, their service and their tools (setUpScript, as root over
+		 * SSM). Everyone else's Odin has no root on the host, so a new user
+		 * asks one with an AWS administrator role to run this for their name.
+		 */
+		setUpUser: publicProcedure
+			.input(
+				z
+					.string()
+					.trim()
+					.regex(/^[a-z_][a-z0-9_-]{0,31}$/, "Not a Linux user name."),
+			)
+			.mutation(async ({ input }) => {
+				const host = readOdinConfig().remoteHost;
+				if (!host) throw new Error("No remote host is set up.");
+				const tools = await withAwsSignIn(host, () =>
+					setUpHost(
+						host,
+						host.instanceId,
+						input,
+						readOdinConfig().awsInstances?.hostPackages,
+					),
+				).catch((error: unknown) => {
+					const message =
+						error instanceof Error ? error.message : String(error);
+					throw new Error(
+						/AccessDenied|not authorized/i.test(message)
+							? "Setting up a user on the host needs an AWS administrator role."
+							: message,
+					);
+				});
+				return { user: input, tools };
+			}),
 
 		/** The host sessions start on; `on: false` keeps them on this computer. */
 		get: publicProcedure.query(() => ({

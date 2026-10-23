@@ -5,6 +5,10 @@
  * - `action=service` (Slack, Notion, ClickUp, Jira, GitHub API calls) is
  *   answered here, with the tokens the user chose to keep on the host. So
  *   connector calls work with the laptop closed.
+ * - `POST /tokens` and `POST /github-pair?login=` are how the user's own
+ *   Odin sends them: over that user's login, never root's, so a host user
+ *   needs no sudo. Answered to the owning Linux user alone; the service
+ *   writes the files itself, mode 0600.
  * - `GET /token?service=github` is the GitHub token a session's git and gh
  *   sign in with, read at each use (session.ts), so it never goes stale: the
  *   host's own sign-in for the account, refreshed here before it expires or
@@ -116,9 +120,11 @@ def read_json(path):
 
 
 def write_json(path, data):
-    """Whole, then into place: a reader never sees half a file."""
-    with open(path + ".new", "w") as f:
+    """Whole, then into place: a reader never sees half a file. Mode 0600: tokens are this service's alone."""
+    fd = os.open(path + ".new", os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
         json.dump(data, f)
+    os.chmod(path + ".new", 0o600)
     os.replace(path + ".new", path)
 
 
@@ -275,6 +281,50 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(404, "No GitHub token for this account on the host. Odin: Settings > Sessions > Remote host > GitHub accounts on the host.\\n")
         return self.reply(200, token)
 
+    def owner_only(self, uid):
+        """Writes come from the user this service belongs to, never another (None: off Linux, tests)."""
+        return uid == OWNER or (uid is None and sys.platform != "linux")
+
+    def put_tokens(self, raw, uid):
+        """POST /tokens: {"tokens": {...}, "githubKeep": [logins]} from the user's own Odin. The tokens
+        file is replaced whole; the host's own GitHub sign-ins for logins not kept are dropped."""
+        if not self.owner_only(uid):
+            return self.reply(403, "This is another user's Odin.\\n")
+        try:
+            body = json.loads(raw.decode("utf-8"))
+        except Exception:
+            body = None
+        if not isinstance(body, dict) or not isinstance(body.get("tokens"), dict):
+            return self.reply(400, "Expected {\\"tokens\\": {...}}.\\n")
+        keep = set(k.lower() for k in (body.get("githubKeep") or []) if isinstance(k, str))
+        with github_lock:
+            write_json(TOKENS, body["tokens"])
+            try:
+                for f in os.listdir(GITHUB_DIR):
+                    if f.endswith(".json") and f[:-5] not in keep:
+                        os.remove(os.path.join(GITHUB_DIR, f))
+            except OSError:
+                pass
+        return self.reply(200, "ok\\n")
+
+    def put_github_pair(self, query, raw, uid):
+        """POST /github-pair?login=: the host's own GitHub sign-in for that login, from the device flow."""
+        if not self.owner_only(uid):
+            return self.reply(403, "This is another user's Odin.\\n")
+        login = {k: v[-1] for k, v in urllib.parse.parse_qs(query).items()}.get("login", "")
+        if not LOGIN.fullmatch(login):
+            return self.reply(400, "Not a GitHub login.\\n")
+        try:
+            pair = json.loads(raw.decode("utf-8"))
+        except Exception:
+            pair = None
+        if not isinstance(pair, dict) or not pair.get("access_token"):
+            return self.reply(400, "Expected a sign-in with an access_token.\\n")
+        with github_lock:
+            os.makedirs(GITHUB_DIR, mode=0o700, exist_ok=True)
+            write_json(pair_path(login.lower()), pair)
+        return self.reply(200, "ok\\n")
+
     def handle_any(self):
         if self.headers.get("Origin"):
             return self.reply(403, "Not from a browser.\\n")
@@ -288,6 +338,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(200, '{"status":"ok","host":true}', "application/json")
         if path == "/token" and self.command in ("GET", "POST"):
             return self.token(query, raw, uid)
+        if path == "/tokens" and self.command == "POST":
+            return self.put_tokens(raw, uid)
+        if path == "/github-pair" and self.command == "POST":
+            return self.put_github_pair(query, raw, uid)
         if self.command == "POST" and path == "/odin":
             form = {k: v[-1] for k, v in urllib.parse.parse_qs(raw.decode("utf-8", "replace")).items()}
             if form.get("action") == "service":
