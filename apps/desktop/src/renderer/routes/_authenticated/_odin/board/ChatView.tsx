@@ -28,6 +28,8 @@ import {
 	LuWrench,
 	LuX,
 } from "react-icons/lu";
+import odinMarkDark from "renderer/assets/odin-mark/odin-mark-dark.png";
+import odinMarkLight from "renderer/assets/odin-mark/odin-mark-light.png";
 import { MarkdownRenderer } from "renderer/components/MarkdownRenderer";
 import { isHotkey, useHotkeyDisplay } from "renderer/hotkeys";
 import { electronTrpc } from "renderer/lib/electron-trpc";
@@ -61,7 +63,6 @@ import {
 	remoteConnectLine,
 } from "shared/odin-screen-status";
 import { typedText } from "shared/typed-text";
-import { CrowIcon } from "../components/CrowIcon";
 import { fileToken, insertFile, matchFiles } from "../components/file-picker";
 import {
 	BUILT_IN_COMMANDS,
@@ -1705,11 +1706,12 @@ function ReplyMark({ className }: { className?: string }) {
 	return (
 		<span
 			className={cn(
-				"flex size-7 shrink-0 items-center justify-center text-primary",
+				"flex size-7 shrink-0 items-center justify-center",
 				className,
 			)}
 		>
-			<CrowIcon className="size-5 [&_*]:animate-none" />
+			<img src={odinMarkLight} alt="" className="size-5 dark:hidden" />
+			<img src={odinMarkDark} alt="" className="hidden size-5 dark:block" />
 		</span>
 	);
 }
