@@ -1,6 +1,11 @@
 import { expect, test } from "bun:test";
 import { ago } from "./cards";
-import { leadingTldr, segments, userBubbleText } from "./transcript";
+import {
+	leadingTldr,
+	messageTime,
+	segments,
+	userBubbleText,
+} from "./transcript";
 
 const user = (text: string) => ({ role: "user" as const, text });
 const odin = (text: string) => ({ role: "assistant" as const, text });
@@ -75,4 +80,10 @@ test("a typed message shows whole; a long one clamps; image tags go", () => {
 	expect(
 		userBubbleText("Look [Image #1] here", { full: false, images: true }).shown,
 	).toBe("Look here");
+});
+
+test("a message's time reads as the board's; none without one", () => {
+	expect(messageTime(null)).toBeNull();
+	expect(messageTime("not a date")).toBeNull();
+	expect(messageTime("2026-10-19T20:29:00Z")).toMatch(/Oct/);
 });

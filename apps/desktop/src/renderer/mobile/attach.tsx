@@ -83,6 +83,8 @@ export function useUploads(send: OdinFetch) {
 		uploading: files.some((f) => !f.path && !f.error),
 		remove: (id: number) => setFiles((all) => all.filter((f) => f.id !== id)),
 		clear: () => setFiles([]),
+		/** Puts back what a failed send took off the box. */
+		restore: (back: typeof files) => setFiles(back),
 	};
 }
 

@@ -20,6 +20,7 @@ import { useNextInLinePrompt } from "renderer/stores/next-in-line-prompt";
 import { useOneByOne } from "renderer/stores/one-by-one";
 import { useTabsStore } from "renderer/stores/tabs/store";
 import type { Pane } from "renderer/stores/tabs/types";
+import { runInSessionShell } from "renderer/stores/tabs/useAgentHookListener";
 import { crowRule, NOTIFICATION_EVENTS } from "shared/constants";
 import type { OdinActionRequest } from "shared/notification-types";
 import { odinGuide } from "shared/odin-guide";
@@ -705,6 +706,32 @@ function runOdinAction(
 	// The phone's reply: resume an exited session with it, or "live".
 	if (action === "phone-reply")
 		return phoneReply(args.paneId ?? "", args.text ?? "");
+	// A `!local` block's Run on the phone: the session's Shell runs it here.
+	if (action === "run-local") {
+		const pane = args.paneId ? panes[args.paneId] : undefined;
+		const workspaceId = useTabsStore
+			.getState()
+			.tabs.find((tab) => tab.id === pane?.tabId)?.workspaceId;
+		if (!pane || !workspaceId || !args.command)
+			return "No session with that paneId.";
+		void runInSessionShell(pane.id, workspaceId, args.command, "local");
+		return "ok";
+	}
+	// The phone stopped a turn: as the board's Stop, the card leaves Working.
+	if (action === "interrupted") {
+		const paneId = args.paneId;
+		if (!paneId || !panes[paneId]) return "No session with that paneId.";
+		useTabsStore.setState((state) => ({
+			panes: {
+				...state.panes,
+				[paneId]: {
+					...state.panes[paneId],
+					status: args.sent === "true" ? "idle" : "review",
+				},
+			},
+		}));
+		return "ok";
+	}
 	if (action === "done") {
 		if (!args.paneId || !panes[args.paneId])
 			return "No session with that paneId - list them with action=sessions.";

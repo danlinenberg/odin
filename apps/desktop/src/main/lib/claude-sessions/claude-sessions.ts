@@ -2,6 +2,10 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { open, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
+import {
+	parseShell,
+	type Shell,
+} from "renderer/routes/_authenticated/_odin/board/shell-output";
 import { PR_RULES_HEADER } from "shared/odin-rules";
 import { type SessionCredential, transcriptCredential } from "./credential";
 import { type SessionUsage, transcriptUsage } from "./usage";
@@ -560,6 +564,103 @@ export interface TranscriptMessage {
 	opened?: true;
 	/** Pasted images as data URLs, only when asked for (`withImages`). */
 	images?: string[];
+	/** A `!` command and its output, only when asked for (`withShells`). */
+	shell?: Shell;
+}
+
+/**
+ * What you said in a user turn, as the board's chat reads it (userText in
+ * ChatView): a background agent's notice or a local command's output is not
+ * you, even when Claude Code files it as queued input; reminders go; a slash
+ * command is itself.
+ */
+export function spokenText(text: string): string | null {
+	const command = text.match(/<command-name>([^<]*)<\/command-name>/);
+	if (command) return command[1] || null;
+	if (/^\s*<(local-command|task-notification)/.test(text)) return null;
+	return (
+		text.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "").trim() ||
+		null
+	);
+}
+
+/** Output a shell card keeps: its end, where the result and the error are. */
+const SHELL_CHARS = 4000;
+const lastChars = (text: string) =>
+	text.length > SHELL_CHARS ? `…\n${text.slice(-SHELL_CHARS)}` : text;
+
+/**
+ * A `!` run as one message: output folds into the command just before it,
+ * as the board's chat does; an empty run with no command shows nothing.
+ */
+function pushShell(
+	messages: TranscriptMessage[],
+	shell: Shell,
+	at: string | null,
+): void {
+	const trimmed = {
+		...shell,
+		stdout: lastChars(shell.stdout),
+		stderr: lastChars(shell.stderr),
+	};
+	const last = messages.at(-1)?.shell;
+	if (
+		shell.command === undefined &&
+		last?.command !== undefined &&
+		!last.stdout &&
+		!last.stderr
+	) {
+		last.stdout = trimmed.stdout;
+		last.stderr = trimmed.stderr;
+		return;
+	}
+	if (shell.command === undefined && !shell.stdout && !shell.stderr) return;
+	messages.push({
+		role: "user",
+		text: shell.command ?? "",
+		at,
+		shell: trimmed,
+	});
+}
+
+/** A message's pasted images, as data URLs. */
+function base64Images(content: unknown[]): string[] {
+	return content.flatMap((block) => {
+		const image = block as {
+			type?: string;
+			source?: { type?: string; media_type?: string; data?: string };
+		};
+		return image?.type === "image" && image.source?.type === "base64"
+			? [`data:${image.source.media_type};base64,${image.source.data}`]
+			: [];
+	});
+}
+
+/** An ACTION ITEMS line, in the shapes splitActionItems reads. */
+const ACTION_ITEMS = /^[#>*_\s]*ACTION ITEMS\b/gim;
+
+/** Where a `! command` block opens. */
+const BANG_BLOCK = /```[^\n]*\n\s*!/g;
+
+/**
+ * A message cut to `max` characters. A reply ends on its `!` commands and
+ * ACTION ITEMS, and the phone and the brief read them there, so a long reply
+ * loses the middle of its body, never those.
+ */
+export function clip(text: string, max: number): string {
+	if (text.length <= max) return text;
+	const keep = (at: number) => text.length - at <= max / 2;
+	const items = [...text.matchAll(ACTION_ITEMS)].at(-1)?.index;
+	const blocks = [...text.matchAll(BANG_BLOCK)]
+		.map((match) => match.index)
+		.filter(keep);
+	const at = Math.min(
+		...blocks,
+		items !== undefined && keep(items) ? items : Number.POSITIVE_INFINITY,
+	);
+	if (!Number.isFinite(at)) return `${text.slice(0, max)}\n…[truncated]`;
+	const tail = text.slice(at);
+	return `${text.slice(0, max - tail.length)}\n…[truncated]\n\n${tail}`;
 }
 
 /** The conversation, prose only - the readable form of a session. */
@@ -568,6 +669,7 @@ export function parseTranscript(
 	maxMessages = 500,
 	maxChars = 6000,
 	withImages = false,
+	withShells = false,
 ): TranscriptMessage[] {
 	const messages: TranscriptMessage[] = [];
 	const prCreates = new Set<string>();
@@ -583,13 +685,20 @@ export function parseTranscript(
 		}
 		// A message sent while Claude works waits as an attachment, and is
 		// the user's turn all the same.
+		// A background agent's notice queues the same way: only a human's counts.
 		const queued = entry.attachment as
-			| { type?: string; prompt?: unknown }
+			| { type?: string; prompt?: unknown; origin?: { kind?: string } }
 			| undefined;
 		if (entry.type === "attachment" && queued?.type === "queued_command") {
-			const text = messageText(queued.prompt).trim();
-			if (text && !entry.isSidechain)
+			const human = !queued.origin?.kind || queued.origin.kind === "human";
+			const text = spokenText(messageText(queued.prompt).trim());
+			const images =
+				withImages && Array.isArray(queued.prompt)
+					? base64Images(queued.prompt)
+					: [];
+			if (text && human && !entry.isSidechain)
 				messages.push({
+					...(images.length ? { images } : {}),
 					role: "user",
 					text,
 					at: typeof entry.timestamp === "string" ? entry.timestamp : null,
@@ -654,24 +763,31 @@ export function parseTranscript(
 				}
 			}
 		}
-		const text = messageText(message?.content).trim();
+		const raw = messageText(message?.content).trim();
+		if (!raw) continue;
+		const shell =
+			withShells && entry.type === "user" && !entry.isMeta
+				? parseShell(raw)
+				: null;
+		if (shell) {
+			pushShell(
+				messages,
+				shell,
+				typeof entry.timestamp === "string" ? entry.timestamp : null,
+			);
+			continue;
+		}
+		if (entry.type === "user" && !isTypedByUser(entry, raw)) continue;
+		const text = entry.type === "user" ? spokenText(raw) : raw;
 		if (!text) continue;
-		if (entry.type === "user" && !isTypedByUser(entry, text)) continue;
 		const images =
 			withImages && entry.type === "user" && Array.isArray(message?.content)
-				? message.content.flatMap((block) =>
-						block?.type === "image" && block.source?.type === "base64"
-							? [`data:${block.source.media_type};base64,${block.source.data}`]
-							: [],
-					)
+				? base64Images(message.content)
 				: [];
 		messages.push({
 			...(images.length ? { images } : {}),
 			role: entry.type as "user" | "assistant",
-			text:
-				text.length > maxChars
-					? `${text.slice(0, maxChars)}\n…[truncated]`
-					: text,
+			text: clip(text, maxChars),
 			at: typeof entry.timestamp === "string" ? entry.timestamp : null,
 		});
 	}
@@ -939,7 +1055,7 @@ export async function transcriptTail({
 	let text = buffer.toString("utf-8");
 	// Cut in the middle of a line: start at the next whole one.
 	if (start > 0) text = text.slice(text.indexOf("\n") + 1);
-	const messages = parseTranscript(text, 60, 6000, true);
+	const messages = parseTranscript(text, 60, 6000, true, true);
 	tails.set(sessionId, { key, messages });
 	return messages;
 }

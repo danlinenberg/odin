@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { httpBatchLink } from "@trpc/client";
+import { httpBatchLink, httpLink, splitLink } from "@trpc/client";
 import { createTRPCReact } from "@trpc/react-query";
 import type { PhoneRouter } from "main/lib/phone/router";
 import {
@@ -24,9 +24,11 @@ import {
 	LuPlus,
 	LuQrCode,
 	LuScanQrCode,
+	LuSquare,
 	LuStar,
 	LuUser,
 } from "react-icons/lu";
+import { LIMIT_HIT_RE } from "shared/limit-hit";
 import { odinActivity, odinScreenStatus } from "shared/odin-screen-status";
 import type { PaneStatus } from "shared/tabs-types";
 import superjson from "superjson";
@@ -135,10 +137,26 @@ const odinFetch: OdinFetch = pairing
 					...init,
 					headers: { ...init?.headers, authorization: `Bearer ${devToken}` },
 				});
+const SLOW_QUERIES = new Set(["brief", "links"]);
 const phone = createTRPCReact<PhoneRouter>();
 const client = phone.createClient({
 	links: [
-		httpBatchLink({ url: "/trpc", transformer: superjson, fetch: odinFetch }),
+		// A slow call (the brief's `claude -p`, a reply that copies files to a
+		// remote host) goes on its own, so the polls batched beside it don't
+		// wait for it.
+		splitLink({
+			condition: (op) => op.type === "mutation" || SLOW_QUERIES.has(op.path),
+			true: httpLink({
+				url: "/trpc",
+				transformer: superjson,
+				fetch: odinFetch,
+			}),
+			false: httpBatchLink({
+				url: "/trpc",
+				transformer: superjson,
+				fetch: odinFetch,
+			}),
+		}),
 	],
 });
 const queryClient = new QueryClient({
@@ -592,6 +610,9 @@ type Sent = { text: string; files: number; at: number; previews?: string[] };
  */
 const sentByPane = new Map<string, Sent[]>();
 
+/** What you typed and didn't send, per session: kept when you go back to the board. */
+const draftByPane = new Map<string, string>();
+
 const squash = (text: string) => text.replace(/\s+/g, " ").trim();
 
 /** Drops the replies the transcript shows now - matched on their text. */
@@ -656,6 +677,8 @@ function Session({ paneId }: { paneId: string }) {
 		reply.mutate({ paneId, text, paths: [] }, { onError: () => forget(item) });
 	};
 	const key = phone.key.useMutation({ onSuccess: refetch });
+	const interrupt = phone.interrupt.useMutation({ onSuccess: refetch });
+	const runCommand = phone.run.useMutation({ onSuccess: refetch });
 	const utils = phone.useUtils();
 	// The star moves on tap; the Mac's answer only confirms it (or undoes it).
 	const star = phone.star.useMutation({
@@ -690,7 +713,14 @@ function Session({ paneId }: { paneId: string }) {
 			location.hash = "";
 		},
 	});
-	const [text, setText] = useState("");
+	const [text, setTextState] = useState(() => draftByPane.get(paneId) ?? "");
+	const setText = (next: string | ((typed: string) => string)) =>
+		setTextState((typed) => {
+			const value = typeof next === "function" ? next(typed) : next;
+			if (value) draftByPane.set(paneId, value);
+			else draftByPane.delete(paneId);
+			return value;
+		});
 	const uploads = useUploads(odinFetch);
 	useSharedFiles(uploads.add);
 	const speech = useSpeech((words) =>
@@ -702,6 +732,33 @@ function Session({ paneId }: { paneId: string }) {
 		!uploads.uploading &&
 		!speech.transcribing &&
 		!reply.isPending;
+	/** Sends the box: `now` lands it mid-turn, as the board's Send now. */
+	const submit = async (now: boolean) => {
+		if (!ready) return;
+		const words = await speech.finish();
+		const full = words ? appendWords(text, words) : text;
+		if (!full.trim() && !uploads.paths.length) return;
+		const item = remember(
+			full.trim(),
+			uploads.paths.length,
+			uploads.files.flatMap((f) => (f.path && f.preview ? [f.preview] : [])),
+		);
+		// Off the box at once, as the text: it shows in the Sent bubble now.
+		const files = uploads.files;
+		const paths = uploads.paths;
+		setText("");
+		uploads.clear();
+		reply.mutate(
+			{ paneId, text: full, paths, now },
+			{
+				onError: () => {
+					forget(item);
+					setText(full);
+					uploads.restore(files);
+				},
+			},
+		);
+	};
 	const bottom = useRef<HTMLDivElement>(null);
 	const scroller = useRef<HTMLElement>(null);
 	// Follow new messages only while you're at the bottom; reading further up,
@@ -732,6 +789,10 @@ function Session({ paneId }: { paneId: string }) {
 			? held.starred
 			: !!(data as { starred?: boolean } | undefined)?.starred;
 	const waiting = stillWaiting(sent, data?.messages ?? []);
+	// The board's button: Claude's last word is that a limit stopped it.
+	const lastSaid = data?.messages?.at(-1);
+	const limitHit =
+		lastSaid?.role === "assistant" && LIMIT_HIT_RE.test(lastSaid.text);
 	// biome-ignore lint/correctness/useExhaustiveDependencies: forget what the transcript shows now
 	useEffect(() => {
 		sentByPane.set(paneId, waiting);
@@ -824,6 +885,7 @@ function Session({ paneId }: { paneId: string }) {
 						brief.data && typeof brief.data === "object" ? brief.data : null
 					}
 					send={sendText}
+					run={(command) => runCommand.mutateAsync({ paneId, command })}
 				/>
 				{waiting.map((item) => (
 					<div
@@ -846,10 +908,28 @@ function Session({ paneId }: { paneId: string }) {
 				{status === "working" && (
 					<div className="my-3 flex items-center gap-2 text-sm text-working-ink">
 						<LuLoaderCircle className="size-4 shrink-0 animate-spin" />
-						<span className="truncate">
+						<span className="min-w-0 flex-1 truncate">
 							{odinActivity(data?.screen ?? "") ?? "Working…"}
 						</span>
+						<button
+							type="button"
+							disabled={interrupt.isPending}
+							onClick={() => interrupt.mutate({ paneId })}
+							className="flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-border bg-secondary px-3 text-[13px] font-semibold text-foreground disabled:opacity-50"
+						>
+							<LuSquare className="size-3 fill-current" />
+							Stop
+						</button>
 					</div>
+				)}
+				{limitHit && status !== "working" && (
+					<button
+						type="button"
+						onClick={() => sendText("/rate-limit-options")}
+						className="my-2 rounded-lg border border-attention/40 px-3 py-1.5 text-sm font-medium text-attention"
+					>
+						Show usage limit options
+					</button>
 				)}
 				{asking && data?.screen && (
 					<pre className="mt-2 overflow-x-auto rounded-[10px] border border-attention/35 bg-attention/10 p-2.5 font-mono text-[11px] leading-snug text-attention-ink">
@@ -898,32 +978,23 @@ function Session({ paneId }: { paneId: string }) {
 			<ErrorLine error={reply.error ?? textError(speech.error)} />
 			<SpeechStatus speech={speech} />
 			<UploadChips uploads={uploads} />
+			{status === "working" && text.trim() && (
+				<div className="flex justify-end px-3 pt-1.5">
+					<button
+						type="button"
+						disabled={!ready}
+						onClick={() => void submit(true)}
+						className="text-[13px] font-medium text-primary disabled:opacity-50"
+					>
+						Send now, mid-turn
+					</button>
+				</div>
+			)}
 			<form
 				className="flex items-end gap-2 px-2.5 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+10px)]"
-				onSubmit={async (event) => {
+				onSubmit={(event) => {
 					event.preventDefault();
-					if (!ready) return;
-					const words = await speech.finish();
-					const full = words ? appendWords(text, words) : text;
-					if (!full.trim() && !uploads.paths.length) return;
-					const item = remember(
-						full.trim(),
-						uploads.paths.length,
-						uploads.files.flatMap((f) =>
-							f.path && f.preview ? [f.preview] : [],
-						),
-					);
-					setText("");
-					reply.mutate(
-						{ paneId, text: full, paths: uploads.paths },
-						{
-							onSuccess: () => uploads.clear(),
-							onError: () => {
-								forget(item);
-								setText(full);
-							},
-						},
-					);
+					void submit(false);
 				}}
 			>
 				<AttachButton uploads={uploads} />

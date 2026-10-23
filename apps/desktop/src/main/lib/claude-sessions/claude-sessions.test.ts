@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { PR_RULES_HEADER } from "shared/odin-rules";
 import {
 	activeLoop,
+	clip,
 	opensPr,
 	parseTranscript,
 	queryTerms,
@@ -15,6 +16,7 @@ import {
 	searchSessions,
 	sessionLoop,
 	slackDrafts,
+	spokenText,
 	summarizeTranscript,
 	transcriptLinks,
 	transcriptOf,
@@ -1263,4 +1265,91 @@ test("a gh pr create behind `command` or a token still opens the PR", () => {
 	);
 	expect(opensPr("env GH_TOKEN=x gh pr create --fill")).toBe(true);
 	expect(opensPr('grep -n "command gh pr create" a.ts')).toBe(false);
+});
+
+describe("clip - a long message keeps its ACTION ITEMS", () => {
+	test("short text is untouched", () => {
+		expect(clip("hello", 100)).toBe("hello");
+	});
+	test("the middle goes, the items stay", () => {
+		const text = `${"x".repeat(200)}\n\nACTION ITEMS:\n1. Merge it`;
+		const out = clip(text, 100);
+		expect(out.length).toBeLessThanOrEqual(130);
+		expect(out.endsWith("ACTION ITEMS:\n1. Merge it")).toBe(true);
+		expect(out).toContain("…[truncated]");
+	});
+	test("no items: cut at the end as before", () => {
+		expect(clip("y".repeat(200), 100)).toBe(`${"y".repeat(100)}\n…[truncated]`);
+	});
+});
+
+describe("parseTranscript - only what you said is yours", () => {
+	const line = (entry: object) => JSON.stringify(entry);
+	const queued = (prompt: unknown, origin?: object) =>
+		line({
+			type: "attachment",
+			timestamp: "2026-10-23T10:00:00Z",
+			attachment: { type: "queued_command", prompt, ...(origin && { origin }) },
+		});
+	test("a background agent's notice is not your message", () => {
+		const jsonl = [
+			queued(
+				"<task-notification>\n<task-id>a1</task-id>\n</task-notification>",
+			),
+			queued("note from agent", { kind: "task" }),
+			queued("Feature parity please", { kind: "human" }),
+		].join("\n");
+		expect(parseTranscript(jsonl).map((m) => m.text)).toEqual([
+			"Feature parity please",
+		]);
+	});
+	test("a message queued mid-turn keeps its pasted image", () => {
+		const jsonl = queued(
+			[
+				{ type: "text", text: "Also this[Image #2]" },
+				{
+					type: "image",
+					source: { type: "base64", media_type: "image/jpeg", data: "AAA" },
+				},
+			],
+			{ kind: "human" },
+		);
+		const [message] = parseTranscript(jsonl, 500, 6000, true);
+		expect(message.images).toEqual(["data:image/jpeg;base64,AAA"]);
+	});
+	test("reminders go, a slash command is itself", () => {
+		expect(spokenText("hi<system-reminder>x</system-reminder>")).toBe("hi");
+		expect(spokenText("<command-name>/triage</command-name>")).toBe("/triage");
+		expect(
+			spokenText("<local-command-stdout>x</local-command-stdout>"),
+		).toBeNull();
+	});
+});
+
+test("clip keeps the `!` blocks above the items too", () => {
+	const text = `${"x".repeat(300)}\n\nPreview:\n\`\`\`\n! git log -1\n\`\`\`\n\nACTION ITEMS:\n1. Run it`;
+	const out = clip(text, 150);
+	expect(out).toContain("! git log -1");
+	expect(out.endsWith("1. Run it")).toBe(true);
+});
+
+test("parseTranscript - a `!` run is one shell message, output folded in", () => {
+	const user = (content: string) =>
+		JSON.stringify({
+			type: "user",
+			timestamp: "2026-10-23T10:00:00Z",
+			message: { role: "user", content },
+		});
+	const jsonl = [
+		user("<bash-input>git log -1</bash-input>"),
+		user("<bash-stdout>abc123 Fix</bash-stdout><bash-stderr></bash-stderr>"),
+	].join("\n");
+	expect(parseTranscript(jsonl)).toEqual([]);
+	const [run] = parseTranscript(jsonl, 60, 6000, false, true);
+	expect(run.shell).toEqual({
+		command: "git log -1",
+		stdout: "abc123 Fix",
+		stderr: "",
+	});
+	expect(run.text).toBe("git log -1");
 });
