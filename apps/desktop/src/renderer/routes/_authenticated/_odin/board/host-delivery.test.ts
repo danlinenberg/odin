@@ -10,9 +10,15 @@ const CLAUDE = `${RULE}\n❯\n${RULE}\n`;
 const CONNECTING = "\nOdin: connecting to i-0abc123...\n";
 const DROPPED = `${CLAUDE}\nOdin: connection lost - reconnecting to i-0abc123...\n`;
 const BACK = `${DROPPED}${CLAUDE}`;
+const IDLE =
+	"\nOdin stopped Claude here after 2 hours with no output, to free memory on this host.\nType a message to pick the conversation up with it, or press Enter.\n\n> ";
 
 /** A pane on a fake clock: `screens` maps a start time (ms) to what it shows from then. */
-function pane(screens: [number, string][], alive = () => true) {
+function pane(
+	screens: [number, string][],
+	alive = () => true,
+	enters: number[] = [],
+) {
 	const clock = { now: 0 };
 	const deps: HostDeps = {
 		readScreen: async () =>
@@ -22,6 +28,9 @@ function pane(screens: [number, string][], alive = () => true) {
 			await Promise.resolve();
 		},
 		alive,
+		enter: async () => {
+			enters.push(clock.now);
+		},
 	};
 	return { clock, deps };
 }
@@ -50,6 +59,35 @@ function message(
 }
 
 describe("deliverOnHost", () => {
+	test("a Claude stopped for being idle gets Enter, then the message once it is back", async () => {
+		const enters: number[] = [];
+		const { clock, deps } = pane(
+			[
+				[0, IDLE],
+				[20_000, CLAUDE],
+			],
+			() => true,
+			enters,
+		);
+		const log: string[] = [];
+		const { msg, typedAt } = message("A", log, clock);
+		await deliverOnHost("p-idle", msg, deps);
+		// Once, and again when the first Enter didn't take.
+		expect(enters).toEqual([0, 15_000]);
+		expect(typedAt.length).toBe(1);
+		expect(typedAt[0]).toBeGreaterThanOrEqual(20_000);
+		expect(log[0]).toBe("A waiting");
+		expect(log).not.toContain("A lost");
+	});
+
+	test("a ready host is never pressed Enter on", async () => {
+		const enters: number[] = [];
+		const { clock, deps } = pane([[0, CLAUDE]], () => true, enters);
+		const { msg } = message("A", [], clock);
+		await deliverOnHost("p-ready", msg, deps);
+		expect(enters).toEqual([]);
+	});
+
 	test("a ready host gets the message at once", async () => {
 		const { clock, deps } = pane([[0, CLAUDE]]);
 		const log: string[] = [];

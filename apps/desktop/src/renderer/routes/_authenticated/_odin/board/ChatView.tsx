@@ -3846,6 +3846,10 @@ function hostDeps(paneId: string): HostDeps {
 				.then((result) => result.text ?? ""),
 		sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 		alive: () => !!useTabsStore.getState().panes[paneId],
+		enter: () =>
+			electronTrpcClient.terminal.write
+				.mutate({ paneId, data: "\r" })
+				.then(() => undefined),
 	};
 }
 
