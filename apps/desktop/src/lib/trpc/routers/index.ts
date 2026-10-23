@@ -34,6 +34,7 @@ import { createSlackRouter } from "./slack";
 import { createSystemRouter } from "./system";
 import { createTerminalRouter } from "./terminal";
 import { createUiStateRouter } from "./ui-state";
+import { createVoiceRouter } from "./voice";
 import { createWindowRouter } from "./window";
 import { createWorkRouter } from "./work";
 import { createWorkLogRouter } from "./work-log";
@@ -57,6 +58,7 @@ export const createAppRouter = (getWindow: () => BrowserWindow | null) => {
 		notion: createNotionRouter(),
 		slack: createSlackRouter(),
 		backlogReview: createBacklogReviewRouter(),
+		voice: createVoiceRouter(),
 		connections: createConnectionsRouter(),
 		work: createWorkRouter(),
 		remoteHost: createRemoteHostRouter(),

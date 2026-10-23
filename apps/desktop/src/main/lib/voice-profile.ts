@@ -16,6 +16,10 @@ import { transcriptOf } from "./claude-sessions/claude-sessions";
  * LEARN_EVERY new samples, a model rewrites the guide from the last guide plus
  * what's new, so it sharpens as I keep writing instead of starting over.
  * Corrections a session records ("too formal") always win over the samples.
+ *
+ * Training (Settings > Sessions, and once a day on its own) reads my recent
+ * sent messages through Slack search instead - search isn't held to a call a
+ * minute - and rewrites the guide right away.
  */
 
 export interface VoiceStore {
@@ -28,6 +32,10 @@ export interface VoiceStore {
 	/** Things I said about my drafts' tone, newest last. */
 	notes: string[];
 	updatedAt: string | null;
+	/** Off: nothing is kept or learned, and sessions get no guide. */
+	enabled: boolean;
+	/** When training last read my sent messages. */
+	trainedAt: string | null;
 }
 
 const MAX_SAMPLES = 400;
@@ -42,19 +50,20 @@ const empty = (): VoiceStore => ({
 	unlearned: 0,
 	notes: [],
 	updatedAt: null,
+	enabled: true,
+	trainedAt: null,
 });
+
+/** A bare link or an emoji says nothing about how I write. */
+export const isSample = (line: string): boolean =>
+	line.replace(/<[^>]+>|:[a-z0-9_+-]+:|https?:\S+/g, "").trim().length >= 12;
 
 /** My lines ("ME: …") from `slackConversation`'s text, with links and files left out. */
 export function myLines(conversation: string): string[] {
 	const out: string[] = [];
 	for (const line of conversation.split("\n")) {
 		const said = /^ME(?: \[QUEUED\])?: (.*)$/.exec(line)?.[1]?.trim();
-		// A bare link or an emoji says nothing about how I write.
-		if (
-			said &&
-			said.replace(/<[^>]+>|:[a-z0-9_+-]+:|https?:\S+/g, "").trim().length >= 12
-		)
-			out.push(said);
+		if (said && isSample(said)) out.push(said);
 	}
 	return out;
 }
@@ -102,6 +111,7 @@ export function learnPrompt(store: VoiceStore): string {
 
 /** What GET /voice prints: the guide, with my corrections on top. Empty when nothing is known yet. */
 export function voiceText(store: VoiceStore): string {
+	if (!store.enabled) return "";
 	const parts: string[] = [];
 	if (store.notes.length)
 		parts.push(
@@ -141,6 +151,14 @@ function update(
 }
 
 let learning: Promise<void> | null = null;
+
+/** One model rewrite at a time; a second ask joins the one running. */
+function learnOnce(path: string, claudeBin: string): Promise<void> {
+	learning ??= learn(path, claudeBin).finally(() => {
+		learning = null;
+	});
+	return learning;
+}
 
 /** Rewrite the guide with a model, from the store as it is now. */
 async function learn(path: string, claudeBin: string): Promise<void> {
@@ -190,14 +208,13 @@ export async function noteConversation(
 	try {
 		const lines = myLines(conversation);
 		if (lines.length === 0) return;
-		const store = await update(path, (now) => addSamples(now, lines));
-		if (store.unlearned < LEARN_EVERY || learning) return;
-		learning = learn(path, claudeBin)
-			.catch((error) => console.warn("[voice] learning failed", error))
-			.finally(() => {
-				learning = null;
-			});
-		await learning;
+		const store = await update(path, (now) =>
+			now.enabled ? addSamples(now, lines) : now,
+		);
+		if (!store.enabled || store.unlearned < LEARN_EVERY || learning) return;
+		await learnOnce(path, claudeBin).catch((error) =>
+			console.warn("[voice] learning failed", error),
+		);
 	} catch (error) {
 		console.warn("[voice] keeping samples failed", error);
 	}
@@ -215,4 +232,81 @@ export async function addVoiceNote(
 		notes: [...now.notes.filter((n) => n !== clean), clean].slice(-MAX_NOTES),
 		updatedAt: new Date().toISOString(),
 	}));
+}
+
+/** Settings' switch: off stops keeping samples and hides the guide from sessions. */
+export async function setVoiceEnabled(
+	enabled: boolean,
+	path = voicePath(),
+): Promise<void> {
+	await update(path, (now) => ({ ...now, enabled }));
+}
+
+/** Settings' corrections list, edited by hand. */
+export async function setVoiceNotes(
+	notes: string[],
+	path = voicePath(),
+): Promise<void> {
+	const clean = [
+		...new Set(notes.map((n) => n.replace(/\s+/g, " ").trim().slice(0, 300))),
+	].filter(Boolean);
+	await update(path, (now) => ({ ...now, notes: clean.slice(-MAX_NOTES) }));
+}
+
+let training: Promise<void> | null = null;
+let lastTrainError: string | null = null;
+
+export const trainingState = () => ({
+	training: training !== null || learning !== null,
+	error: lastTrainError,
+});
+
+/**
+ * Read my recent sent messages and rewrite the guide from them now, whatever
+ * the sample count. `fetchMine` is Slack search (slackMySentMessages).
+ */
+export function trainVoice(
+	fetchMine: () => Promise<string[]>,
+	{ path = voicePath(), claudeBin = "claude" } = {},
+): Promise<void> {
+	training ??= (async () => {
+		lastTrainError = null;
+		try {
+			if (!(await readVoice(path)).enabled) return;
+			// Search answers newest first; samples keep the newest last.
+			const lines = (await fetchMine()).filter(isSample).reverse();
+			const store = await update(path, (now) => ({
+				...addSamples(now, lines),
+				trainedAt: new Date().toISOString(),
+			}));
+			if (store.samples.length === 0)
+				throw new Error("No messages of yours to learn from yet.");
+			await learnOnce(path, claudeBin);
+		} catch (error) {
+			lastTrainError = error instanceof Error ? error.message : String(error);
+			console.warn("[voice] training failed", error);
+		}
+	})().finally(() => {
+		training = null;
+	});
+	return training;
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Train once a day while Odin runs, so the guide keeps up with how I write now. */
+export function startVoiceTrainer(fetchMine: () => Promise<string[]>): void {
+	const tick = async () => {
+		const store = await readVoice();
+		const last = store.trainedAt ? Date.parse(store.trainedAt) : 0;
+		if (store.enabled && Date.now() - last >= DAY_MS)
+			await trainVoice(fetchMine);
+	};
+	setTimeout(
+		() => {
+			void tick();
+			setInterval(() => void tick(), 60 * 60 * 1000).unref();
+		},
+		5 * 60 * 1000,
+	).unref();
 }
